@@ -55,6 +55,11 @@ import {
 } from '../spacetimedb/src/waterRevision';
 import { resolveCanonicalWaterProjection } from '../src/components/realm/realmWaterProjection';
 import {
+  CASTLE_WORKER_POLICY_VERSION,
+  CASTLE_WORKER_REALM_ID,
+  workerRosterDigestForCastleIds
+} from '../src/components/realm/realmWorkerPresentation';
+import {
   CANONICAL_TEST_FID,
   createCanonicalGenesisCandidate
 } from './fixtures/canonicalGenesisSnapshot';
@@ -216,6 +221,57 @@ function stoneSubscriptionConnection(
       .mockReturnValueOnce(pairedStone.builder)
   } as unknown as WarpkeepConnection;
   return Object.freeze({ connection, core, pairedStone });
+}
+
+function workerSubscriptionConnection(
+  candidate: WarpkeepRealmSnapshotCandidate,
+  workerRows: readonly unknown[]
+) {
+  const rows = rawRowsForCandidate(candidate);
+  const table = <T,>(values: readonly T[]) => ({
+    iter: function* () { yield* values; }
+  });
+  const core = callbackSubscriptionDouble();
+  const pairedWorkers = callbackSubscriptionDouble();
+  const castleId = candidate.castles[0]!.castleId;
+  const connection = {
+    db: {
+      worldTile: table(rows.worldTile),
+      worldTileMetaV1: table(rows.worldTileMetaV1),
+      playerV2: table(rows.playerV2),
+      realmProfileV1: table(rows.realmProfileV1),
+      realmV1: table(rows.realmV1),
+      castle: table(rows.castle),
+      realmWorkerSystemV1: table([{
+        realmId: CASTLE_WORKER_REALM_ID,
+        policyVersion: CASTLE_WORKER_POLICY_VERSION,
+        workersPerCastle: 4,
+        expectedCastleCount: 1,
+        expectedWorkerCount: 4,
+        rosterDigest: workerRosterDigestForCastleIds([castleId]),
+        mode: 'active',
+        legacyDrainRequired: false
+      }]),
+      castleWorkerV1: table(workerRows),
+      workerNodeOccupationV1: table([{
+        nodeKey: 'stone:genesis-001:stone:0001',
+        resourceKind: 'stone',
+        siteId: 'genesis-001:stone:0001',
+        workerId: `genesis-001-castle-${castleId}-worker-01`,
+        workerOrdinal: 1,
+        originCastleId: BigInt(castleId),
+        phase: 'gathering',
+        startedAtMicros: 10n,
+        arrivesAtMicros: 20n,
+        gatheringEndsAtMicros: 100n,
+        timelineRevision: 1
+      }])
+    },
+    subscriptionBuilder: vi.fn()
+      .mockReturnValueOnce(core.builder)
+      .mockReturnValueOnce(pairedWorkers.builder)
+  } as unknown as WarpkeepConnection;
+  return Object.freeze({ connection, core, pairedWorkers });
 }
 
 /** Core + Water projection using the generated SDK's exact Q15 wire spelling. */
@@ -604,6 +660,91 @@ describe('Warpkeep authenticated connection boundary', () => {
     expect(snapshot).not.toHaveProperty('stoneSites');
     expect(snapshot).not.toHaveProperty('stoneNodeOccupations');
 
+    composite.unsubscribe();
+  });
+
+  it('publishes the paired worker graph without exposing opaque assignment ids', () => {
+    const candidate = createCanonicalGenesisCandidate();
+    const castleId = candidate.castles[0]!.castleId;
+    const workerRows = [1, 2, 3, 4].map((ordinal) => ({
+      workerId: `genesis-001-castle-${castleId}-worker-0${ordinal}`,
+      originCastleId: BigInt(castleId),
+      ordinal,
+      status: ordinal === 1 ? 'gathering' : 'idle',
+      resourceKind: ordinal === 1 ? 'stone' : undefined,
+      siteId: ordinal === 1 ? 'genesis-001:stone:0001' : undefined,
+      startedAtMicros: ordinal === 1 ? 10n : undefined,
+      arrivesAtMicros: ordinal === 1 ? 20n : undefined,
+      gatheringEndsAtMicros: ordinal === 1 ? 100n : undefined,
+      returnStartedAtMicros: undefined,
+      returnsAtMicros: ordinal === 1 ? 120n : undefined,
+      routeSteps: ordinal === 1 ? 1 : undefined,
+      returnStartProgressBasisPoints: undefined,
+      timelineRevision: ordinal === 1 ? 1 : 0,
+      revision: ordinal === 1 ? 2n : 0n
+    }));
+    const { connection, core, pairedWorkers } = workerSubscriptionConnection(
+      candidate,
+      workerRows
+    );
+    const composite = subscribeToWarpkeepRealm(connection, vi.fn(), vi.fn());
+
+    expect(pairedWorkers.builder.subscribe).toHaveBeenCalledWith([
+      tables.realmWorkerSystemV1,
+      tables.castleWorkerV1,
+      tables.workerNodeOccupationV1
+    ]);
+    core.apply();
+    expect(readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID))
+      .not.toHaveProperty('workerWorkers');
+    pairedWorkers.apply();
+    const snapshot = readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID);
+    expect(snapshot.workerWorkers).toHaveLength(4);
+    expect(snapshot.workerWorkers?.every((worker) => worker.ownedByViewer)).toBe(true);
+    expect(Object.keys(snapshot.workerWorkers?.[0] ?? {})).not.toContain('assignmentId');
+    expect(Object.keys(snapshot.workerOccupations?.[0] ?? {})).not.toContain('assignmentId');
+    expect(snapshot.workerOccupations?.[0]).toMatchObject({
+      workerId: `genesis-001-castle-${castleId}-worker-01`,
+      phase: 'gathering'
+    });
+
+    composite.unsubscribe();
+    expect(core.subscription.unsubscribe).toHaveBeenCalledOnce();
+    expect(pairedWorkers.subscription.unsubscribe).toHaveBeenCalledOnce();
+  });
+
+  it('omits the complete worker graph when public ordinals disagree', () => {
+    const candidate = createCanonicalGenesisCandidate();
+    const castleId = candidate.castles[0]!.castleId;
+    const malformedRows = [1, 2, 3, 4].map((ordinal) => ({
+      workerId: `genesis-001-castle-${castleId}-worker-0${ordinal}`,
+      originCastleId: BigInt(castleId),
+      ordinal: ordinal === 2 ? 1 : ordinal,
+      status: 'idle',
+      resourceKind: undefined,
+      siteId: undefined,
+      startedAtMicros: undefined,
+      arrivesAtMicros: undefined,
+      gatheringEndsAtMicros: undefined,
+      returnStartedAtMicros: undefined,
+      returnsAtMicros: undefined,
+      routeSteps: undefined,
+      returnStartProgressBasisPoints: undefined,
+      timelineRevision: 0,
+      revision: 0n
+    }));
+    const { connection, core, pairedWorkers } = workerSubscriptionConnection(
+      candidate,
+      malformedRows
+    );
+    const composite = subscribeToWarpkeepRealm(connection, vi.fn(), vi.fn());
+    core.apply();
+    pairedWorkers.apply();
+
+    const snapshot = readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID);
+    expect(snapshot).not.toHaveProperty('workerSystem');
+    expect(snapshot).not.toHaveProperty('workerWorkers');
+    expect(snapshot).not.toHaveProperty('workerOccupations');
     composite.unsubscribe();
   });
 

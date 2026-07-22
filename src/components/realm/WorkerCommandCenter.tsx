@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
+
+import { useModalFocusBoundary } from '../menu/useModalFocusBoundary';
 import {
   realmWorkerCanRecall,
   realmWorkerLabel,
@@ -12,47 +14,143 @@ import './WorkerCommandCenter.css';
 export type WorkerCommandCenterProps = Readonly<{
   id: string;
   workers: readonly RealmWorkerPublicPresentation[];
-  roster?: WorkerRosterPresentation;
+  roster: WorkerRosterPresentation;
   onRecallWorker?: (workerId: string) => Promise<void>;
   onRecallAllWorkers?: () => Promise<void>;
   onSelectWorker: (worker: RealmWorkerPublicPresentation) => void;
   onClose: () => void;
 }>;
 
-export function WorkerCommandCenter({ id, workers, roster, onRecallWorker, onRecallAllWorkers, onSelectWorker, onClose }: WorkerCommandCenterProps) {
+type PendingCommand = 'all' | string | undefined;
+
+export function WorkerCommandCenter({
+  id,
+  workers,
+  roster,
+  onRecallWorker,
+  onRecallAllWorkers,
+  onSelectWorker,
+  onClose
+}: WorkerCommandCenterProps) {
+  const dialogRef = useRef<HTMLElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const [recallingAll, setRecallingAll] = useState(false);
+  const [pendingCommand, setPendingCommand] = useState<PendingCommand>(undefined);
+  const [commandFailed, setCommandFailed] = useState(false);
   const available = workerAvailabilityCount(workers);
-  useEffect(() => { headingRef.current?.focus({ preventScroll: true }); }, [id]);
-  const recallAll = async () => {
-    if (!onRecallAllWorkers || recallingAll) return;
-    setRecallingAll(true);
-    try { await onRecallAllWorkers(); } finally { setRecallingAll(false); }
+  const hasRecallableWorker = workers.some(realmWorkerCanRecall);
+  useModalFocusBoundary({
+    dialogRef,
+    initialFocusRef: headingRef,
+    onEscape: () => {
+      if (pendingCommand === undefined) onClose();
+    }
+  });
+
+  const recall = async (workerId: string) => {
+    if (!onRecallWorker || pendingCommand !== undefined) return;
+    setPendingCommand(workerId);
+    setCommandFailed(false);
+    try {
+      await onRecallWorker(workerId);
+    } catch {
+      setCommandFailed(true);
+    } finally {
+      setPendingCommand(undefined);
+    }
   };
+
+  const recallAll = async () => {
+    if (!onRecallAllWorkers || pendingCommand !== undefined) return;
+    setPendingCommand('all');
+    setCommandFailed(false);
+    try {
+      await onRecallAllWorkers();
+    } catch {
+      setCommandFailed(true);
+    } finally {
+      setPendingCommand(undefined);
+    }
+  };
+
   return (
-    <div className="worker-command-center__scrim" onPointerDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section aria-labelledby={`${id}-title`} aria-modal="true" className="worker-command-center" id={id} role="dialog">
+    <div
+      className="worker-command-center__scrim"
+      onPointerDown={(event) => {
+        if (event.target === event.currentTarget && pendingCommand === undefined) onClose();
+      }}
+      role="presentation"
+    >
+      <section
+        aria-labelledby={`${id}-title`}
+        aria-modal="true"
+        className="worker-command-center"
+        id={id}
+        ref={dialogRef}
+        role="dialog"
+      >
         <header className="worker-command-center__header">
-          <div><p>KEEP AUTHORITY</p><h2 id={`${id}-title`} ref={headingRef} tabIndex={-1}>WORKERS</h2><span>{available}/4 available</span></div>
-          <button aria-label="Close workers" onClick={onClose} type="button">×</button>
+          <div>
+            <p>KEEP AUTHORITY</p>
+            <h2 id={`${id}-title`} ref={headingRef} tabIndex={-1}>WORKERS</h2>
+            <span>{available}/4 available</span>
+          </div>
+          <button
+            aria-label="Back to Realm menu"
+            disabled={pendingCommand !== undefined}
+            onClick={onClose}
+            type="button"
+          >×</button>
         </header>
-        <p className="worker-command-center__summary">Four permanent attendants. Select a worker to inspect identity, timing, and owner-only commands.</p>
-        <ol className="worker-command-center__roster" aria-label="Worker roster">
-          {workers.slice().sort((a, b) => a.ordinal - b.ordinal).map((worker) => {
-            const privateWorker = roster?.workers.find((candidate) => candidate.workerId === worker.workerId);
+        <p className="worker-command-center__summary">
+          Four permanent attendants of your keep. Select one to inspect or assign it.
+        </p>
+        {commandFailed ? (
+          <p className="worker-command-center__error" role="alert">
+            The command could not be confirmed. Try the same action again.
+          </p>
+        ) : null}
+        <ol className="worker-command-center__roster" aria-label="Your four workers">
+          {workers.map((worker) => {
+            const privateWorker = roster.workers.find((candidate) => candidate.workerId === worker.workerId)!;
             const canRecall = realmWorkerCanRecall(worker) && onRecallWorker !== undefined;
-            return <li key={worker.workerId}>
-              <button className="worker-command-center__worker" onClick={() => onSelectWorker(worker)} type="button">
-                <span className="worker-command-center__ordinal">{worker.ordinal}</span>
-                <span className="worker-command-center__identity"><strong>{realmWorkerLabel(worker.ordinal)}</strong><small>{realmWorkerStatusLabel(worker)}</small></span>
-                <span className="worker-command-center__amount">{privateWorker?.availableAmount !== undefined ? `${privateWorker.availableAmount}` : worker.ownedByViewer ? 'OWNER' : 'PUBLIC'}</span>
-              </button>
-              {canRecall ? <button className="worker-command-center__recall" onClick={() => void onRecallWorker(worker.workerId).catch(() => undefined)} type="button">RETURN</button> : null}
-            </li>;
+            const recalling = pendingCommand === worker.workerId;
+            return (
+              <li key={worker.workerId}>
+                <button
+                  className="worker-command-center__worker"
+                  disabled={pendingCommand !== undefined}
+                  onClick={() => onSelectWorker(worker)}
+                  type="button"
+                >
+                  <span className="worker-command-center__ordinal">{worker.ordinal}</span>
+                  <span className="worker-command-center__identity">
+                    <strong>{realmWorkerLabel(worker.ordinal)}</strong>
+                    <small>{realmWorkerStatusLabel(worker)}</small>
+                  </span>
+                  <span className="worker-command-center__amount">{privateWorker.availableAmount.toString()}</span>
+                </button>
+                {canRecall ? (
+                  <button
+                    className="worker-command-center__recall"
+                    disabled={pendingCommand !== undefined}
+                    onClick={() => void recall(worker.workerId)}
+                    type="button"
+                  >
+                    {recalling ? 'RETURNING…' : 'RETURN'}
+                  </button>
+                ) : null}
+              </li>
+            );
           })}
         </ol>
         <footer className="worker-command-center__footer">
-          <button disabled={!onRecallAllWorkers || recallingAll} onClick={() => void recallAll()} type="button">{recallingAll ? 'RETURNING…' : 'RETURN ALL TO KEEP'}</button>
+          <button
+            disabled={!onRecallAllWorkers || pendingCommand !== undefined || !hasRecallableWorker}
+            onClick={() => void recallAll()}
+            type="button"
+          >
+            {pendingCommand === 'all' ? 'RETURNING…' : 'RETURN ALL TO KEEP'}
+          </button>
         </footer>
       </section>
     </div>

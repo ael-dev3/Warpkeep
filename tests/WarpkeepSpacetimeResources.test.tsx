@@ -42,6 +42,13 @@ import type { ReadyFoodExpeditionPresentation } from '../src/components/realm/re
 import type { ReadyWoodExpeditionPresentation } from '../src/components/realm/realmWoodExpeditionPresentation';
 import type { ReadyStoneExpeditionPresentation } from '../src/components/realm/realmStoneExpeditionPresentation';
 import {
+  CASTLE_WORKER_POLICY_VERSION,
+  CASTLE_WORKER_REALM_ID,
+  workerRosterDigestForCastleIds,
+  type ReadyWorkerResourceState,
+  type WorkerRosterPresentation
+} from '../src/components/realm/realmWorkerPresentation';
+import {
   RESOURCE_OPERATION_TIMEOUT_MILLISECONDS,
   RESOURCE_REFRESH_INTERVAL_MILLISECONDS,
   WarpkeepSpacetimeProvider,
@@ -271,6 +278,71 @@ function resourceStateWithStone(
   });
 }
 
+function idleWorkerRows(castleId = 1) {
+  return [1, 2, 3, 4].map((ordinal) => Object.freeze({
+    workerId: `genesis-001-castle-${castleId}-worker-0${ordinal}`,
+    ordinal: ordinal as 1 | 2 | 3 | 4,
+    originCastleId: castleId,
+    originCastleName: 'Warpkeeper Bastion',
+    status: 'idle' as const,
+    timelineRevision: 0,
+    revision: 0n,
+    ownedByViewer: true
+  }));
+}
+
+function workerRealmSnapshot(fid = 12_345) {
+  const base = createCanonicalGenesisSnapshot(fid);
+  const castleId = base.ownCastle.castleId;
+  return Object.freeze({
+    ...base,
+    workerSystem: Object.freeze({
+      realmId: CASTLE_WORKER_REALM_ID,
+      policyVersion: CASTLE_WORKER_POLICY_VERSION,
+      workersPerCastle: 4 as const,
+      expectedCastleCount: 1,
+      expectedWorkerCount: 4,
+      rosterDigest: workerRosterDigestForCastleIds([castleId]),
+      mode: 'active' as const,
+      legacyDrainRequired: false
+    }),
+    workerWorkers: Object.freeze(idleWorkerRows(castleId)),
+    workerOccupations: Object.freeze([])
+  });
+}
+
+function workerRoster(castleId = 1): WorkerRosterPresentation {
+  return Object.freeze({
+    castleId,
+    observedAtMicros: 100n,
+    workers: Object.freeze(idleWorkerRows(castleId).map((worker) => Object.freeze({
+      workerId: worker.workerId,
+      ordinal: worker.ordinal,
+      status: worker.status,
+      accruedAmount: 0n,
+      materializedAmount: 0n,
+      availableAmount: 0n,
+      observedAtMicros: 100n,
+      revision: worker.revision
+    })))
+  });
+}
+
+function workerResourceState(fid = 12_345): ReadyWorkerResourceState {
+  return Object.freeze({
+    status: 'ready' as const,
+    fid: BigInt(fid),
+    available: Object.freeze({ food: 0n, wood: 0n, stone: 0n, gold: 0n }),
+    pending: Object.freeze({ food: 0n, wood: 0n, stone: 0n, gold: 0n }),
+    observedAtMicros: 100n,
+    settledThroughMicros: 100n,
+    revision: 0n,
+    resourcePolicyVersion: 'genesis-resource-yield-v1',
+    workerPolicyVersion: CASTLE_WORKER_POLICY_VERSION,
+    workerSystemMode: 'active' as const
+  });
+}
+
 function createRuntimeHarness() {
   const disconnect = vi.fn((connection: { disconnect?: () => void } | undefined) => {
     connection?.disconnect?.();
@@ -339,6 +411,9 @@ function Probe() {
           ? ''
           : String(backend.state.stoneExpedition.active)}
       </output>
+      <output data-testid="worker-active">
+        {backend.state.workerProjection?.mode ?? ''}
+      </output>
       <button type="button" onClick={backend.beginAlphaTermsAcceptance}>ACCEPT TERMS</button>
       <button type="button" onClick={() => void backend.collectResources()}>COLLECT</button>
       <button
@@ -380,6 +455,16 @@ function Probe() {
       </button>
       <button type="button" onClick={() => void backend.claimStoneExpedition()}>
         CLAIM STONE
+      </button>
+      <button
+        type="button"
+        onClick={() => void backend.dispatchWorker(
+          'genesis-001-castle-1-worker-01',
+          'stone',
+          'genesis-001:stone:0001'
+        ).catch(() => undefined)}
+      >
+        DISPATCH WORKER
       </button>
       <button type="button" onClick={backend.disconnect}>DISCONNECT</button>
     </>
@@ -481,6 +566,80 @@ describe('Warpkeep private resource lifecycle', () => {
       ]);
     });
     await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('ready'));
+  });
+
+  it('activates only the exact worker projections and keys retries by command fingerprint', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const dispatchWorker = vi.fn().mockRejectedValue(new Error('response unavailable'));
+    Object.assign(runtime, {
+      readRealmSnapshot: vi.fn(() => workerRealmSnapshot()),
+      readWorkerRoster: vi.fn(async () => workerRoster()),
+      readResourceStateV2: vi.fn(async () => workerResourceState()),
+      dispatchWorker,
+      recallWorker: vi.fn(async () => undefined),
+      recallAllWorkers: vi.fn(async () => undefined)
+    });
+    renderProvider(runtime);
+    await enterRealm();
+    expect(screen.getByTestId('worker-active').textContent).toBe('active');
+
+    await expect(capturedBackend!.dispatchWorker(
+      'genesis-001-castle-1-worker-01',
+      'stone',
+      'genesis-001:stone:0001'
+    )).rejects.toThrow('Worker command is unavailable.');
+    await expect(capturedBackend!.dispatchWorker(
+      'genesis-001-castle-1-worker-01',
+      'stone',
+      'genesis-001:stone:0001'
+    )).rejects.toThrow('Worker command is unavailable.');
+    await expect(capturedBackend!.dispatchWorker(
+      'genesis-001-castle-1-worker-01',
+      'stone',
+      'genesis-001:stone:0002'
+    )).rejects.toThrow('Worker command is unavailable.');
+    await expect(capturedBackend!.dispatchWorker(
+      'genesis-001-castle-1-worker-01',
+      'stone',
+      'genesis-001:stone:0001'
+    )).rejects.toThrow('Worker command is unavailable.');
+
+    expect(dispatchWorker).toHaveBeenCalledTimes(4);
+    const firstKey = dispatchWorker.mock.calls[0]?.[4];
+    expect(firstKey).toEqual(expect.stringMatching(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+    ));
+    expect(dispatchWorker.mock.calls[1]?.[4]).toBe(firstKey);
+    expect(dispatchWorker.mock.calls[2]?.[4]).not.toBe(firstKey);
+    expect(dispatchWorker.mock.calls[3]?.[4]).toBe(firstKey);
+    expect(screen.getByTestId('worker-active').textContent).toBe('active');
+  });
+
+  it('keeps worker controls inactive when the private v2 projection disagrees', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    Object.assign(runtime, {
+      readRealmSnapshot: vi.fn(() => workerRealmSnapshot()),
+      readWorkerRoster: vi.fn(async () => workerRoster()),
+      readResourceStateV2: vi.fn(async () => Object.freeze({
+        ...workerResourceState(),
+        pending: Object.freeze({ food: 0n, wood: 0n, stone: 1n, gold: 0n })
+      })),
+      dispatchWorker: vi.fn(async () => undefined),
+      recallWorker: vi.fn(async () => undefined),
+      recallAllWorkers: vi.fn(async () => undefined)
+    });
+    renderProvider(runtime);
+    await enterRealm();
+
+    expect(screen.getByTestId('worker-active').textContent).toBe('');
+    await expect(capturedBackend!.dispatchWorker(
+      'genesis-001-castle-1-worker-01',
+      'stone',
+      'genesis-001:stone:0001'
+    )).rejects.toThrow('Worker command is unavailable.');
+    expect(runtime.dispatchWorker).not.toHaveBeenCalled();
   });
 
   it('fails closed and tears down the concurrent public subscription when the private read fails', async () => {

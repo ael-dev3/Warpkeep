@@ -1131,6 +1131,9 @@ export function WarpkeepExperience() {
                 workerProjection={backend.state.workerProjection}
                 workerRoster={backend.state.workerRoster}
                 workerResourceState={backend.state.workerResourceState}
+                onDispatchWorker={backend.state.workerProjection?.mode === 'active'
+                  ? backend.dispatchWorker
+                  : undefined}
                 onRecallWorker={backend.state.workerProjection?.mode === 'active'
                   ? backend.recallWorker
                   : undefined}

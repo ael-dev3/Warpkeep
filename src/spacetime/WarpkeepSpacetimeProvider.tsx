@@ -58,7 +58,10 @@ import {
   type WarpkeepRuntimeConfig
 } from './warpkeepConfig';
 import { readCompatibleWarpkeepBackendInfo } from './warpkeepProtocol';
-import type { ReadyRealmResourcePresentation } from '../components/realm/realmResourcePresentation';
+import type {
+  ReadyRealmResourcePresentation,
+  RealmEconomicResourceKey
+} from '../components/realm/realmResourcePresentation';
 import type { ReadyGoldExpeditionPresentation } from '../components/realm/realmGoldExpeditionPresentation';
 import type { ReadyFoodExpeditionPresentation } from '../components/realm/realmFoodExpeditionPresentation';
 import type { ReadyWoodExpeditionPresentation } from '../components/realm/realmWoodExpeditionPresentation';
@@ -68,7 +71,14 @@ import type {
   ReadyWorkerResourceState,
   WorkerRosterPresentation
 } from '../components/realm/realmWorkerPresentation';
+import { resolveReadyWorkerProjection } from '../components/realm/realmWorkerPresentation';
 import { createExpeditionIdempotencyKey } from './expeditionIdempotencyKey';
+import {
+  serializeWorkerCommandFingerprint,
+  workerCommandAttemptFor,
+  type WorkerCommandAttempt,
+  type WorkerCommandFingerprint
+} from './workerCommandIdempotency';
 
 /**
  * The generation-three Realm replicates 20,000 immutable world rows before
@@ -78,6 +88,7 @@ import { createExpeditionIdempotencyKey } from './expeditionIdempotencyKey';
 export const CANONICAL_REALM_READINESS_TIMEOUT_MILLISECONDS = 60_000;
 export const RESOURCE_OPERATION_TIMEOUT_MILLISECONDS = 15_000;
 export const RESOURCE_REFRESH_INTERVAL_MILLISECONDS = 60_000;
+const MAX_RETAINED_WORKER_COMMAND_ATTEMPTS = 64;
 
 class ResourceOperationDeadlineError extends Error {
   constructor() {
@@ -132,7 +143,11 @@ export type WarpkeepBackendControllerValue = Readonly<{
   workerProjection?: ReadyWorkerProjection;
   workerRoster?: WorkerRosterPresentation;
   workerResourceState?: ReadyWorkerResourceState;
-  dispatchWorker: (workerId: string, resourceKind: string, siteId: string) => Promise<void>;
+  dispatchWorker: (
+    workerId: string,
+    resourceKind: RealmEconomicResourceKey,
+    siteId: string
+  ) => Promise<void>;
   recallWorker: (workerId: string) => Promise<void>;
   recallAllWorkers: () => Promise<void>;
 }>;
@@ -303,24 +318,18 @@ function resourceProjectionIsAtLeastAsNew(
 
 function activeWorkerProjection(
   snapshot: WarpkeepRealmSnapshot,
-  roster: WorkerRosterPresentation | undefined
+  roster: WorkerRosterPresentation | undefined,
+  resourceState: ReadyWorkerResourceState | undefined
 ): ReadyWorkerProjection | undefined {
-  if (
-    snapshot.workerSystem?.mode !== 'active'
-    || snapshot.workerSystem.workersPerCastle !== 4
-    || snapshot.workerSystem.expectedWorkerCount !== snapshot.workerSystem.expectedCastleCount * 4
-    || snapshot.workerWorkers === undefined
-    || snapshot.workerOccupations === undefined
-    || roster === undefined
-    || roster.workers.length !== 4
-  ) return undefined;
-  const publicIds = new Set(snapshot.workerWorkers.map((worker) => worker.workerId));
-  if (publicIds.size !== snapshot.workerSystem.expectedWorkerCount || roster.workers.some((worker) => !publicIds.has(worker.workerId))) return undefined;
-  return Object.freeze({
-    mode: 'active' as const,
+  return resolveReadyWorkerProjection({
+    realmId: snapshot.realm.realmId,
+    castleIds: snapshot.castles.map((castle) => castle.castleId),
+    ownCastleId: snapshot.ownCastle.castleId,
     system: snapshot.workerSystem,
     workers: snapshot.workerWorkers,
-    occupations: snapshot.workerOccupations
+    occupations: snapshot.workerOccupations,
+    roster,
+    resourceState
   });
 }
 
@@ -390,7 +399,7 @@ export function WarpkeepSpacetimeProvider({
   const workerRosterStateRef = useRef<Readonly<{ generation: number; value: WorkerRosterPresentation | undefined }> | undefined>(undefined);
   const workerResourceStateRef = useRef<Readonly<{ generation: number; value: ReadyWorkerResourceState | undefined }> | undefined>(undefined);
   const workerCommandGenerationRef = useRef<number | undefined>(undefined);
-  const workerDispatchAttemptRef = useRef<ExpeditionDispatchAttempt | undefined>(undefined);
+  const workerCommandAttemptsRef = useRef(new Map<string, WorkerCommandAttempt>());
   const processTermsAttemptRef = useRef<() => void>(() => undefined);
   stateRef.current = state;
 
@@ -423,7 +432,7 @@ export function WarpkeepSpacetimeProvider({
     workerRosterStateRef.current = undefined;
     workerResourceStateRef.current = undefined;
     workerCommandGenerationRef.current = undefined;
-    workerDispatchAttemptRef.current = undefined;
+    workerCommandAttemptsRef.current.clear();
     canonicalRealmSourceRef.current = undefined;
     processTermsAttemptRef.current = () => undefined;
     runActiveTeardown();
@@ -504,6 +513,7 @@ export function WarpkeepSpacetimeProvider({
   }, [runActiveTeardown, runtime]);
 
   const runWorkerCommand = useCallback(async (
+    fingerprint: WorkerCommandFingerprint,
     command: (connection: WarpkeepConnection, idempotencyKey: string) => Promise<unknown>
   ) => {
     const generation = generationRef.current;
@@ -513,18 +523,25 @@ export function WarpkeepSpacetimeProvider({
     if (
       currentState.phase !== 'ready' || currentState.admission !== 'ready'
       || currentState.workerProjection?.mode !== 'active' || connection === undefined || fid === undefined
+      || currentState.workerRoster === undefined || currentState.workerResourceState === undefined
       || runtime.readWorkerRoster === undefined || runtime.readResourceStateV2 === undefined
-      || runtime.dispatchWorker === undefined && runtime.recallWorker === undefined && runtime.recallAllWorkers === undefined
       || workerCommandGenerationRef.current === generation
     ) throw new Error('Worker command is unavailable.');
-    const idempotencyKey = workerDispatchAttemptRef.current?.generation === generation
-      ? workerDispatchAttemptRef.current.idempotencyKey
-      : createExpeditionIdempotencyKey();
-    if (idempotencyKey === undefined) throw new Error('Worker command is unavailable.');
+    const serializedFingerprint = serializeWorkerCommandFingerprint(fingerprint);
+    if (
+      !workerCommandAttemptsRef.current.has(serializedFingerprint)
+      && workerCommandAttemptsRef.current.size >= MAX_RETAINED_WORKER_COMMAND_ATTEMPTS
+    ) throw new Error('Worker command is unavailable.');
+    const attempt = workerCommandAttemptFor(
+      workerCommandAttemptsRef.current.get(serializedFingerprint),
+      generation,
+      fingerprint
+    );
+    if (attempt === undefined) throw new Error('Worker command is unavailable.');
     workerCommandGenerationRef.current = generation;
-    workerDispatchAttemptRef.current = Object.freeze({ generation, siteId: 'worker-command', idempotencyKey });
+    workerCommandAttemptsRef.current.set(serializedFingerprint, attempt);
     try {
-      await withResourceOperationDeadline(command(connection, idempotencyKey));
+      await withResourceOperationDeadline(command(connection, attempt.idempotencyKey));
       const [roster, resourceState] = await Promise.all([
         withResourceOperationDeadline(runtime.readWorkerRoster(connection, fid)),
         withResourceOperationDeadline(runtime.readResourceStateV2(connection, fid))
@@ -535,10 +552,26 @@ export function WarpkeepSpacetimeProvider({
       workerRosterStateRef.current = Object.freeze({ generation, value: roster });
       workerResourceStateRef.current = Object.freeze({ generation, value: resourceState });
       setState((latest) => {
-        if (generationRef.current !== generation || latest.phase !== 'ready') return latest;
-        return { ...latest, workerRoster: roster, workerResourceState: resourceState };
+        if (
+          generationRef.current !== generation
+          || latest.phase !== 'ready'
+          || latest.admission !== 'ready'
+          || latest.identity?.fid !== fid
+          || latest.realm === undefined
+        ) return latest;
+        const workerProjection = activeWorkerProjection(latest.realm, roster, resourceState);
+        return {
+          ...latest,
+          workerRoster: roster,
+          workerResourceState: resourceState,
+          ...(workerProjection === undefined
+            ? { workerProjection: undefined }
+            : { workerProjection })
+        };
       });
-      workerDispatchAttemptRef.current = undefined;
+      if (workerCommandAttemptsRef.current.get(serializedFingerprint) === attempt) {
+        workerCommandAttemptsRef.current.delete(serializedFingerprint);
+      }
     } catch {
       throw new Error('Worker command is unavailable.');
     } finally {
@@ -546,26 +579,51 @@ export function WarpkeepSpacetimeProvider({
     }
   }, [runtime]);
 
-  const dispatchWorker = useCallback((workerId: string, resourceKind: string, siteId: string) => (
-    runWorkerCommand((connection, idempotencyKey) => {
+  const dispatchWorker = useCallback((
+    workerId: string,
+    resourceKind: RealmEconomicResourceKey,
+    siteId: string
+  ) => {
+    const projection = stateRef.current.workerProjection;
+    const worker = projection?.ownedWorkers.find((candidate) => candidate.workerId === workerId);
+    if (
+      worker?.status !== 'idle'
+      || projection?.occupations.some((occupation) => (
+        occupation.nodeKey === `${resourceKind}:${siteId}`
+      ))
+    ) return Promise.reject(new Error('Worker command is unavailable.'));
+    return runWorkerCommand({ kind: 'dispatch', workerId, resourceKind, siteId }, (connection, idempotencyKey) => {
       if (runtime.dispatchWorker === undefined) return Promise.reject(new Error('Worker command is unavailable.'));
       return runtime.dispatchWorker(connection, workerId, resourceKind, siteId, idempotencyKey);
-    })
-  ), [runWorkerCommand, runtime]);
+    });
+  }, [runWorkerCommand, runtime]);
 
-  const recallWorker = useCallback((workerId: string) => (
-    runWorkerCommand((connection, idempotencyKey) => {
+  const recallWorker = useCallback((workerId: string) => {
+    const worker = stateRef.current.workerProjection?.ownedWorkers.find(
+      (candidate) => candidate.workerId === workerId
+    );
+    if (worker?.status !== 'outbound' && worker?.status !== 'gathering') {
+      return Promise.reject(new Error('Worker command is unavailable.'));
+    }
+    return runWorkerCommand({ kind: 'recall', workerId }, (connection, idempotencyKey) => {
       if (runtime.recallWorker === undefined) return Promise.reject(new Error('Worker command is unavailable.'));
       return runtime.recallWorker(connection, workerId, idempotencyKey);
-    })
-  ), [runWorkerCommand, runtime]);
+    });
+  }, [runWorkerCommand, runtime]);
 
-  const recallAllWorkers = useCallback(() => (
-    runWorkerCommand((connection, idempotencyKey) => {
+  const recallAllWorkers = useCallback(() => {
+    const castleId = stateRef.current.realm?.ownCastle.castleId;
+    const recallable = stateRef.current.workerProjection?.ownedWorkers.some((worker) => (
+      worker.status === 'outbound' || worker.status === 'gathering'
+    ));
+    if (castleId === undefined || !recallable) {
+      return Promise.reject(new Error('Worker command is unavailable.'));
+    }
+    return runWorkerCommand({ kind: 'recall-all', castleId }, (connection, idempotencyKey) => {
       if (runtime.recallAllWorkers === undefined) return Promise.reject(new Error('Worker command is unavailable.'));
       return runtime.recallAllWorkers(connection, idempotencyKey);
-    })
-  ), [runWorkerCommand, runtime]);
+    });
+  }, [runWorkerCommand, runtime]);
 
   const dispatchGoldExpedition = useCallback(async (siteId: string) => {
     const generation = generationRef.current;
@@ -1485,7 +1543,11 @@ export function WarpkeepSpacetimeProvider({
               readinessTimeout = undefined;
             }
             canonicalRealmSourceRef.current = canonicalRealmSource;
-            const workerProjection = activeWorkerProjection(realm, workerRoster);
+            const workerProjection = activeWorkerProjection(
+              realm,
+              workerRoster,
+              workerResourceState
+            );
             setState({
               phase: 'ready',
               identity,
@@ -1723,12 +1785,14 @@ export function WarpkeepSpacetimeProvider({
                     goldExpedition: refreshedGoldExpedition,
                     foodExpedition: refreshedFoodExpedition,
                     woodExpedition: refreshedWoodExpedition,
-                    stoneExpedition: refreshedStoneExpedition
-                    , workerRoster: refreshedWorkerRoster
-                    , workerResourceState: refreshedWorkerResourceState
-                    , ...(latest.realm === undefined ? {} : {
-                      workerProjection: activeWorkerProjection(latest.realm, refreshedWorkerRoster)
-                    })
+                    stoneExpedition: refreshedStoneExpedition,
+                    workerRoster: refreshedWorkerRoster,
+                    workerResourceState: refreshedWorkerResourceState,
+                    workerProjection: activeWorkerProjection(
+                      latest.realm,
+                      refreshedWorkerRoster,
+                      refreshedWorkerResourceState
+                    )
                   };
                 });
               } catch {

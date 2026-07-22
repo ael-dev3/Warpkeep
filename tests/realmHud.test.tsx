@@ -2,6 +2,11 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { RealmHud } from '../src/components/realm/RealmHud';
+import type {
+  ReadyWorkerProjection,
+  ReadyWorkerResourceState,
+  WorkerRosterPresentation
+} from '../src/components/realm/realmWorkerPresentation';
 import { generateRealmTerrainMap, terrainCellByCoord } from '../src/game/map/generateTerrainMap';
 import { HEGEMONY_GENESIS_001 } from '../src/game/map/realmSeed';
 import { createReadyResourceState } from './fixtures/resourceState';
@@ -23,6 +28,133 @@ function commonProps() {
     onRecenterKeep: vi.fn(),
     onRequestReturn: vi.fn()
   };
+}
+
+function workerUiFixture() {
+  const ownWorkers = [1, 2, 3, 4].map((ordinal) => ({
+    workerId: `genesis-001-castle-7-worker-0${ordinal}`,
+    ordinal: ordinal as 1 | 2 | 3 | 4,
+    originCastleId: 7,
+    originCastleName: 'Warpkeeper Bastion',
+    status: 'idle' as const,
+    timelineRevision: 0,
+    revision: 0n,
+    ownedByViewer: true
+  }));
+  const peerWorkers = [1, 2, 3, 4].map((ordinal) => ({
+    workerId: `genesis-001-castle-8-worker-0${ordinal}`,
+    ordinal: ordinal as 1 | 2 | 3 | 4,
+    originCastleId: 8,
+    originCastleName: 'Peer Keep',
+    status: 'idle' as const,
+    timelineRevision: 0,
+    revision: 0n,
+    ownedByViewer: false
+  }));
+  const workerProjection: ReadyWorkerProjection = {
+    mode: 'active',
+    system: {
+      realmId: 'GENESIS_001',
+      policyVersion: 'genesis-001-castle-workers-v1',
+      workersPerCastle: 4,
+      expectedCastleCount: 2,
+      expectedWorkerCount: 8,
+      rosterDigest: '0000000000000000',
+      mode: 'active',
+      legacyDrainRequired: false
+    },
+    workers: [...ownWorkers, ...peerWorkers],
+    ownedWorkers: ownWorkers,
+    occupations: []
+  };
+  const workerRoster: WorkerRosterPresentation = {
+    castleId: 7,
+    observedAtMicros: 10n,
+    workers: ownWorkers.map((worker) => ({
+      workerId: worker.workerId,
+      ordinal: worker.ordinal,
+      status: worker.status,
+      accruedAmount: 0n,
+      materializedAmount: 0n,
+      availableAmount: 0n,
+      observedAtMicros: 10n,
+      revision: worker.revision
+    }))
+  };
+  const workerResourceState: ReadyWorkerResourceState = {
+    status: 'ready',
+    fid: 12_345n,
+    available: { food: 0n, wood: 0n, stone: 0n, gold: 0n },
+    pending: { food: 0n, wood: 0n, stone: 0n, gold: 0n },
+    observedAtMicros: 10n,
+    settledThroughMicros: 10n,
+    revision: 0n,
+    resourcePolicyVersion: 'genesis-resource-yield-v1',
+    workerPolicyVersion: 'genesis-001-castle-workers-v1',
+    workerSystemMode: 'active'
+  };
+  return { workerProjection, workerRoster, workerResourceState };
+}
+
+function assignedWorkerUiFixture() {
+  const base = workerUiFixture();
+  const assigned = {
+    ...base.workerProjection.ownedWorkers[0]!,
+    status: 'gathering' as const,
+    resourceKind: 'stone' as const,
+    siteId: 'genesis-001:stone:0001',
+    startedAtMicros: 10n,
+    arrivesAtMicros: 20n,
+    gatheringEndsAtMicros: 100n,
+    returnsAtMicros: 120n,
+    routeSteps: 1,
+    timelineRevision: 1,
+    revision: 2n
+  };
+  const ownedWorkers = [
+    assigned,
+    ...base.workerProjection.ownedWorkers.slice(1)
+  ];
+  const workerProjection: ReadyWorkerProjection = {
+    ...base.workerProjection,
+    workers: [
+      assigned,
+      ...base.workerProjection.workers.filter((worker) => worker.workerId !== assigned.workerId)
+    ],
+    ownedWorkers,
+    occupations: [{
+      nodeKey: 'stone:genesis-001:stone:0001',
+      resourceKind: 'stone',
+      siteId: 'genesis-001:stone:0001',
+      workerId: assigned.workerId,
+      workerOrdinal: 1,
+      originCastleId: 7,
+      phase: 'gathering',
+      startedAtMicros: 10n,
+      arrivesAtMicros: 20n,
+      gatheringEndsAtMicros: 100n,
+      timelineRevision: 1
+    }]
+  };
+  const workerRoster: WorkerRosterPresentation = {
+    ...base.workerRoster,
+    workers: base.workerRoster.workers.map((worker) => worker.workerId === assigned.workerId
+      ? {
+          ...worker,
+          status: 'gathering',
+          resourceKind: 'stone',
+          siteId: 'genesis-001:stone:0001',
+          accruedAmount: 3n,
+          availableAmount: 3n,
+          revision: 2n
+        }
+      : worker)
+  };
+  const workerResourceState: ReadyWorkerResourceState = {
+    ...base.workerResourceState,
+    pending: { ...base.workerResourceState.pending, stone: 3n }
+  };
+  return { workerProjection, workerRoster, workerResourceState };
 }
 
 function selectionAnnouncement(container: HTMLElement) {
@@ -219,6 +351,99 @@ describe('RealmHud', () => {
     expect(within(group).queryAllByRole('button')).toHaveLength(0);
     expect(group.textContent).toContain('No active wagons');
     expect(group.textContent).toContain('select a resource site to dispatch');
+  });
+
+  it('puts the exact owner roster inside the PFP menu and wires worker dispatch', async () => {
+    const fixture = workerUiFixture();
+    const onDispatchWorker = vi.fn().mockResolvedValue(undefined);
+    render(
+      <RealmHud
+        {...commonProps()}
+        {...fixture}
+        onDispatchWorker={onDispatchWorker}
+        workerDestinations={[{
+          resourceKind: 'stone',
+          siteId: 'genesis-001:stone:0001',
+          label: 'Stone Quarry · Tier 1 · cell 4, -2'
+        }]}
+      />
+    );
+
+    const profileTrigger = screen.getByRole('button', { name: /Open Realm menu/i });
+    expect(screen.getAllByRole('button')).toEqual([profileTrigger]);
+    fireEvent.click(profileTrigger);
+    const menu = screen.getByRole('dialog', { name: 'REALM MENU' });
+    expect(within(menu).getByRole('button', { name: /WORKERS.*4 of 4 available/i }))
+      .not.toBeNull();
+    expect(screen.queryByRole('button', { name: /Open workers/i })).toBeNull();
+
+    fireEvent.click(within(menu).getByRole('button', { name: /WORKERS/i }));
+    const commandCenter = screen.getByRole('dialog', { name: 'WORKERS' });
+    const roster = within(commandCenter).getByRole('list', { name: 'Your four workers' });
+    expect(within(roster).getAllByRole('listitem')).toHaveLength(4);
+    expect(commandCenter.textContent).not.toContain('Peer Keep');
+
+    fireEvent.click(within(roster).getByRole('button', { name: /Worker 1/i }));
+    const inspector = screen.getByRole('dialog', { name: 'Worker 1' });
+    fireEvent.change(within(inspector).getByRole('combobox', { name: 'ASSIGN TO RESOURCE SITE' }), {
+      target: { value: 'stone|genesis-001:stone:0001' }
+    });
+    fireEvent.click(within(inspector).getByRole('button', { name: 'ASSIGN WORKER' }));
+    await waitFor(() => expect(onDispatchWorker).toHaveBeenCalledWith(
+      'genesis-001-castle-7-worker-01',
+      {
+        resourceKind: 'stone',
+        siteId: 'genesis-001:stone:0001',
+        label: 'Stone Quarry · Tier 1 · cell 4, -2'
+      }
+    ));
+    await waitFor(() => expect(
+      within(inspector).getByRole('button', { name: 'ASSIGN WORKER' })
+        .hasAttribute('disabled')
+    ).toBe(false));
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.getByRole('dialog', { name: 'WORKERS' })).not.toBeNull();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.getByRole('dialog', { name: 'REALM MENU' })).not.toBeNull();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => expect(document.activeElement).toBe(profileTrigger));
+  });
+
+  it('guards duplicate recalls and keeps Escape inside a pending command', async () => {
+    const fixture = assignedWorkerUiFixture();
+    let resolveRecall!: () => void;
+    const pendingRecall = new Promise<void>((resolve) => { resolveRecall = resolve; });
+    const onRecallWorker = vi.fn(() => pendingRecall);
+    render(
+      <RealmHud
+        {...commonProps()}
+        {...fixture}
+        onRecallAllWorkers={vi.fn().mockResolvedValue(undefined)}
+        onRecallWorker={onRecallWorker}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Open Realm menu/i }));
+    fireEvent.click(screen.getByRole('button', { name: /WORKERS/i }));
+    const commandCenter = screen.getByRole('dialog', { name: 'WORKERS' });
+    const recall = within(commandCenter).getByRole('button', { name: 'RETURN' });
+    fireEvent.click(recall);
+    fireEvent.click(recall);
+    expect(onRecallWorker).toHaveBeenCalledOnce();
+    expect(within(commandCenter).getByRole('button', { name: 'RETURNING…' })
+      .hasAttribute('disabled')).toBe(true);
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.getByRole('dialog', { name: 'WORKERS' })).toBe(commandCenter);
+    await act(async () => {
+      resolveRecall();
+      await pendingRecall;
+    });
+    await waitFor(() => expect(
+      within(commandCenter).getByRole('button', { name: 'RETURN' })
+        .hasAttribute('disabled')
+    ).toBe(false));
   });
 
   it('renders zero-valued caller-bound resources in the fixed top-rail order', () => {

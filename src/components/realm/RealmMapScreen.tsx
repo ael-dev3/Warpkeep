@@ -32,7 +32,10 @@ import type {
 } from '../../settings/graphicsPreference';
 import type { CanonicalWarpkeepRealmSnapshot } from '../../spacetime/warpkeepBackendTypes';
 import { isCanonicalGenesisSnapshot } from '../../spacetime/canonicalGenesisSnapshot';
-import type { ReadyRealmResourcePresentation } from './realmResourcePresentation';
+import type {
+  ReadyRealmResourcePresentation,
+  RealmEconomicResourceKey
+} from './realmResourcePresentation';
 import { CastleInspectionPanel } from './CastleInspectionPanel';
 import { FoodFarmInspectionPanel } from './FoodFarmInspectionPanel';
 import { GoldMineInspectionPanel } from './GoldMineInspectionPanel';
@@ -155,7 +158,12 @@ import {
 } from './realmRendererRecovery';
 import './RealmMapScreen.css';
 import './RealmCastlePresentation.css';
-import type { ReadyWorkerProjection, ReadyWorkerResourceState, WorkerRosterPresentation } from './realmWorkerPresentation';
+import type {
+  ReadyWorkerProjection,
+  ReadyWorkerResourceState,
+  RealmWorkerDestinationPresentation,
+  WorkerRosterPresentation
+} from './realmWorkerPresentation';
 
 export {
   BLOCKED_SHARED_FOREST_PROJECTION_SIGNATURE,
@@ -197,6 +205,11 @@ type RealmMapScreenProps = Readonly<{
   workerProjection?: ReadyWorkerProjection;
   workerRoster?: WorkerRosterPresentation;
   workerResourceState?: ReadyWorkerResourceState;
+  onDispatchWorker?: (
+    workerId: string,
+    resourceKind: RealmEconomicResourceKey,
+    siteId: string
+  ) => Promise<void>;
   onRecallWorker?: (workerId: string) => Promise<void>;
   onRecallAllWorkers?: () => Promise<void>;
   graphicsPreference?: GraphicsPreference;
@@ -292,6 +305,7 @@ function CanonicalRealmMapScreen({
   workerProjection,
   workerRoster,
   workerResourceState,
+  onDispatchWorker,
   onRecallWorker,
   onRecallAllWorkers,
   graphicsPreference,
@@ -477,6 +491,32 @@ function CanonicalRealmMapScreen({
   const stoneNodesBySiteId = useMemo(() => new Map(
     stoneNodes.map((node) => [node.siteId, node] as const)
   ), [stoneNodes]);
+  const workerDestinations = useMemo<readonly RealmWorkerDestinationPresentation[]>(() => {
+    if (workerProjection?.mode !== 'active') return Object.freeze([]);
+    const occupied = new Set(workerProjection.occupations.map((occupation) => occupation.nodeKey));
+    const destinations: RealmWorkerDestinationPresentation[] = [];
+    const append = (
+      resourceKind: RealmEconomicResourceKey,
+      resourceLabel: string,
+      nodes: readonly GatheringNodePresentation[]
+    ) => {
+      for (const node of nodes) {
+        if (node.availability !== 'available' || occupied.has(`${resourceKind}:${node.siteId}`)) {
+          continue;
+        }
+        destinations.push(Object.freeze({
+          resourceKind,
+          siteId: node.siteId,
+          label: `${resourceLabel} · Tier ${node.tier} · cell ${node.coord.q}, ${node.coord.r}`
+        }));
+      }
+    };
+    append('food', 'Wheat Farm', foodNodes);
+    append('wood', 'Logging Camp', woodNodes);
+    append('stone', 'Stone Quarry', stoneNodes);
+    append('gold', 'Gold Mine', goldNodes);
+    return Object.freeze(destinations);
+  }, [foodNodes, goldNodes, stoneNodes, woodNodes, workerProjection]);
   const activeWagons = useMemo<readonly RealmActiveWagonMenuItem[]>(() => {
     if (observerMode) return Object.freeze([]);
     const items: RealmActiveWagonMenuItem[] = [];
@@ -2035,6 +2075,14 @@ function CanonicalRealmMapScreen({
               workerProjection={observerMode ? undefined : workerProjection}
               workerRoster={observerMode ? undefined : workerRoster}
               workerResourceState={observerMode ? undefined : workerResourceState}
+              workerDestinations={observerMode ? undefined : workerDestinations}
+              onDispatchWorker={observerMode || !onDispatchWorker
+                ? undefined
+                : (workerId, destination) => onDispatchWorker(
+                  workerId,
+                  destination.resourceKind,
+                  destination.siteId
+                )}
               onRecallWorker={observerMode ? undefined : onRecallWorker}
               onRecallAllWorkers={observerMode ? undefined : onRecallAllWorkers}
               keepCoord={keepCoord}

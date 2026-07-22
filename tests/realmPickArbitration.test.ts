@@ -15,7 +15,11 @@ const RESOURCE_KINDS = [
 describe('realm scene pick arbitration', () => {
   it('gives a worker identity lane priority over resource and castle colliders', () => {
     expect(arbitrateRealmPick({
-      workerHits: [{ workerId: 'worker-1', workerOrdinal: 1, originCastleId: 77, coord: { q: 1, r: 0 }, distance: 20 }],
+      workerHits: [
+        { workerId: 'worker-far', workerOrdinal: 2, originCastleId: 77, coord: { q: 2, r: 0 }, distance: 20 },
+        { workerId: 'worker-invalid', workerOrdinal: 3, originCastleId: 77, coord: { q: 3, r: 0 }, distance: -1 },
+        { workerId: 'worker-1', workerOrdinal: 1, originCastleId: 77, coord: { q: 1, r: 0 }, distance: 2 }
+      ],
       resourceHits: [],
       castleHit: { castleId: 77, coord: { q: 0, r: 0 } },
       terrainHit: { coord: { q: 2, r: 0 } }

@@ -1,0 +1,44 @@
+import { describe, expect, it, vi } from 'vitest';
+
+import {
+  serializeWorkerCommandFingerprint,
+  workerCommandAttemptFor
+} from '../src/spacetime/workerCommandIdempotency';
+
+describe('worker command idempotency', () => {
+  it('reuses a key only for an exact command fingerprint in one connection generation', () => {
+    const createKey = vi.fn()
+      .mockReturnValueOnce('first-command-key')
+      .mockReturnValueOnce('second-command-key')
+      .mockReturnValueOnce('third-command-key');
+    const dispatch = {
+      kind: 'dispatch' as const,
+      workerId: 'genesis-001-castle-7-worker-01',
+      resourceKind: 'stone' as const,
+      siteId: 'genesis-001:stone:0001'
+    };
+    const first = workerCommandAttemptFor(undefined, 4, dispatch, createKey);
+    expect(workerCommandAttemptFor(first, 4, { ...dispatch }, createKey)).toBe(first);
+    expect(workerCommandAttemptFor(first, 4, {
+      ...dispatch,
+      siteId: 'genesis-001:stone:0002'
+    }, createKey)?.idempotencyKey).toBe('second-command-key');
+    expect(workerCommandAttemptFor(first, 5, dispatch, createKey)?.idempotencyKey)
+      .toBe('third-command-key');
+    expect(createKey).toHaveBeenCalledTimes(3);
+  });
+
+  it('separates dispatch, individual recall, and recall-all fingerprints', () => {
+    const workerId = 'genesis-001-castle-7-worker-01';
+    expect(new Set([
+      serializeWorkerCommandFingerprint({
+        kind: 'dispatch',
+        workerId,
+        resourceKind: 'wood',
+        siteId: 'genesis-001:wood:0001'
+      }),
+      serializeWorkerCommandFingerprint({ kind: 'recall', workerId }),
+      serializeWorkerCommandFingerprint({ kind: 'recall-all', castleId: 7 })
+    ]).size).toBe(3);
+  });
+});

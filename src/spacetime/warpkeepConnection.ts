@@ -187,7 +187,7 @@ const WOOD_SITE_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,95}$/i;
 const WOOD_IDEMPOTENCY_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{15,79}$/;
 const STONE_SITE_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,95}$/i;
 const STONE_IDEMPOTENCY_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{15,79}$/;
-const WORKER_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,95}$/i;
+const WORKER_ID_PATTERN = /^genesis-001-castle-[1-9][0-9]*-worker-0[1-4]$/;
 const WORKER_IDEMPOTENCY_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{15,79}$/;
 export { WARPKEEP_ALPHA_TERMS_VERSION } from '../legal/alphaTermsPolicy';
 
@@ -1514,6 +1514,50 @@ function publicWorkerTables(connection: WarpkeepConnection) {
   return db;
 }
 
+function publicWorkerRecord(value: unknown): unknown {
+  const row = value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Readonly<Record<string, unknown>>
+    : undefined;
+  if (!row) return Object.freeze({});
+  return Object.freeze({
+    workerId: row.workerId,
+    originCastleId: row.originCastleId,
+    ordinal: row.ordinal,
+    status: row.status,
+    resourceKind: row.resourceKind,
+    siteId: row.siteId,
+    startedAtMicros: row.startedAtMicros,
+    arrivesAtMicros: row.arrivesAtMicros,
+    gatheringEndsAtMicros: row.gatheringEndsAtMicros,
+    returnStartedAtMicros: row.returnStartedAtMicros,
+    returnsAtMicros: row.returnsAtMicros,
+    routeSteps: row.routeSteps,
+    returnStartProgressBasisPoints: row.returnStartProgressBasisPoints,
+    timelineRevision: row.timelineRevision,
+    revision: row.revision
+  });
+}
+
+function publicWorkerOccupationRecord(value: unknown): unknown {
+  const row = value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Readonly<Record<string, unknown>>
+    : undefined;
+  if (!row) return Object.freeze({});
+  return Object.freeze({
+    nodeKey: row.nodeKey,
+    resourceKind: row.resourceKind,
+    siteId: row.siteId,
+    workerId: row.workerId,
+    workerOrdinal: row.workerOrdinal,
+    originCastleId: row.originCastleId,
+    phase: row.phase,
+    startedAtMicros: row.startedAtMicros,
+    arrivesAtMicros: row.arrivesAtMicros,
+    gatheringEndsAtMicros: row.gatheringEndsAtMicros,
+    timelineRevision: row.timelineRevision
+  });
+}
+
 function readPublicWorkerProjection(
   connection: WarpkeepConnection,
   castles: readonly WarpkeepCastle[],
@@ -1522,12 +1566,34 @@ function readPublicWorkerProjection(
   if (workerProjectionAvailability.get(connection) !== WORKER_PROJECTION_READY) return undefined;
   const db = publicWorkerTables(connection);
   if (!db) return undefined;
-  const systems = [...db.realmWorkerSystemV1!.iter()];
-  if (systems.length !== 1) return undefined;
+  const systems = readBoundedPublicForestRows(
+    db.realmWorkerSystemV1!.iter(),
+    1,
+    (value) => value
+  );
+  if (systems?.length !== 1) return undefined;
   const system = decodeRealmWorkerSystem(systems[0]);
   const castleNames = new Map(castles.map((castle) => [castle.castleId, castle.name] as const));
-  const workers = decodeRealmWorkerPublicRows([...db.castleWorkerV1!.iter()], castleNames, ownCastleId);
-  const occupations = decodeRealmWorkerOccupations([...db.workerNodeOccupationV1!.iter()]);
+  const rawWorkers = readBoundedPublicForestRows(
+    db.castleWorkerV1!.iter(),
+    castles.length * 4,
+    publicWorkerRecord
+  );
+  if (rawWorkers === undefined) return undefined;
+  const workers = decodeRealmWorkerPublicRows(
+    rawWorkers,
+    castleNames,
+    ownCastleId
+  );
+  const rawOccupations = readBoundedPublicForestRows(
+    db.workerNodeOccupationV1!.iter(),
+    castles.length * 4,
+    publicWorkerOccupationRecord
+  );
+  if (rawOccupations === undefined) return undefined;
+  const occupations = decodeRealmWorkerOccupations(
+    rawOccupations
+  );
   if (!system || !workers || !occupations) return undefined;
   return Object.freeze({ system, workers, occupations });
 }

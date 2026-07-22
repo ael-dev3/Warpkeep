@@ -48,6 +48,15 @@ function nearestValidHit(
   return nearest;
 }
 
+function nearestValidWorkerHit(hits: readonly RealmWorkerPickHit[]) {
+  let nearest: RealmWorkerPickHit | undefined;
+  for (const hit of hits) {
+    if (!Number.isFinite(hit.distance) || hit.distance < 0) continue;
+    if (!nearest || hit.distance < nearest.distance) nearest = hit;
+  }
+  return nearest;
+}
+
 /**
  * Resolve overlapping scene targets by gameplay intent, not mesh distance.
  * Moving wagons remain operable over a keep; keeps remain operable beneath a
@@ -59,7 +68,7 @@ export function arbitrateRealmPick(input: Readonly<{
   castleHit?: Readonly<{ castleId: number; coord: HexCoord }> | null;
   terrainHit?: Readonly<{ coord: HexCoord }> | null;
 }>): RealmInteractionTarget | null {
-  const worker = (input.workerHits ?? []).find((hit) => Number.isFinite(hit.distance) && hit.distance >= 0);
+  const worker = nearestValidWorkerHit(input.workerHits ?? []);
   if (worker) {
     return Object.freeze({
       kind: 'worker',
