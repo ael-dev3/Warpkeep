@@ -6,5 +6,20 @@ dist
 .DS_Store
 coverage
 *.local
-.cache/warpkeep-assets/
-.cache/warpkeep-tools/
+
+# Machine-local caches, deployment state, and diagnostic captures.
+.cache/
+.wrangler/
+.dev.vars*
+!.dev.vars.example
+*.har
+*.log
+
+# Credential-bearing files must stay in Keychain or ignored local config.
+.npmrc
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
