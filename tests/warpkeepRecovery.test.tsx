@@ -145,9 +145,16 @@ describe('Warpkeep document fallback', () => {
     expect(contentSecurityPolicy).toContain("script-src 'self' 'wasm-unsafe-eval'");
     expect(contentSecurityPolicy).toContain("script-src-attr 'none'");
     expect(contentSecurityPolicy).not.toContain("'unsafe-eval'");
+    expect(contentSecurityPolicy).not.toMatch(/(?:^|[;\s])https:(?:[;\s]|$)/);
+    expect(contentSecurityPolicy).not.toMatch(/(?:^|[;\s])wss?:(?:[;\s]|$)/);
+    expect(contentSecurityPolicy).not.toMatch(/localhost|127\.0\.0\.1|\[::1\]/);
     expect(contentSecurityPolicy).toContain("object-src 'none'");
     expect(contentSecurityPolicy).toContain("frame-src 'none'");
     expect(contentSecurityPolicy).toContain("form-action 'none'");
+    expect(contentSecurityPolicy).toContain('https://auth.warpkeep.com');
+    expect(contentSecurityPolicy).toContain('https://relay.farcaster.xyz');
+    expect(contentSecurityPolicy).toContain('https://mainnet.optimism.io');
+    expect(contentSecurityPolicy).toContain('https://maincloud.spacetimedb.com');
     expect(contentSecurityPolicy).toContain('wss://maincloud.spacetimedb.com');
     expect(parsed.querySelector('[data-warpkeep-production-csp]')).not.toBeNull();
   });
