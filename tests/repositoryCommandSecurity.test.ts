@@ -26,4 +26,22 @@ describe('repository command security policy', () => {
     expect(manifest.scripts?.deploy).toBeUndefined();
     expect(commands.some((command) => /\bwrangler\s+deploy\b/u.test(command))).toBe(false);
   });
+
+  it('defensively ignores common local credential and recovery artifacts', () => {
+    const ignore = readFileSync(resolve(import.meta.dirname, '../.gitignore'), 'utf8');
+
+    for (const pattern of [
+      'credentials.json',
+      '*.pem',
+      '*.key',
+      '*.log',
+      '*.backup',
+      '*.sqlite',
+      '*.dump',
+      '*.zip',
+      '*.tar.gz',
+    ]) {
+      expect(ignore.split('\n')).toContain(pattern);
+    }
+  });
 });
