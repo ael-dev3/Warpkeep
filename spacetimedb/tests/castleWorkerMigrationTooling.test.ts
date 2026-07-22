@@ -44,15 +44,17 @@ test('v12 fixture appends six generic-worker tables after the exact v11 prefix',
 
 test('public generic-worker rows exclude private ownership and accrual fields', () => {
   const schema = source('../src/schema.ts');
-  for (const name of ['realmWorkerSystemV1', 'castleWorkerV1', 'workerNodeOccupationV1', 'workerAssignmentScheduleV1']) {
+  for (const name of ['realmWorkerSystemV1', 'castleWorkerV1', 'workerNodeOccupationV1']) {
     const definition = tableDefinition(schema, name);
     assert.match(definition, /public: true/);
-    assert.doesNotMatch(definition, /\bfid\b|accruedAmount|materializedAmount|balance|requestKey|auth/i);
+    assert.doesNotMatch(definition, /\bfid\b|assignmentId|accruedAmount|materializedAmount|balance|requestKey|auth/i);
   }
   const assignment = tableDefinition(schema, 'workerAssignmentV1');
   const idempotency = tableDefinition(schema, 'workerCommandIdempotencyV1');
+  const schedule = tableDefinition(schema, 'workerAssignmentScheduleV1');
   assert.doesNotMatch(assignment, /public: true/);
   assert.doesNotMatch(idempotency, /public: true/);
+  assert.doesNotMatch(schedule, /public: true/);
   assert.match(assignment, /fid: t\.u64\(\)/);
   assert.match(assignment, /accruedAmount: t\.u64\(\)/);
   assert.match(idempotency, /requestKey: t\.string\(\)\.primaryKey\(\)/);
@@ -69,6 +71,8 @@ test('worker reducers are caller-bound and activation remains explicitly gated',
   assert.match(authority, /if \(row\.mode !== 'active'\) fail\('WORKER_SYSTEM_STAGED'\)/);
   assert.match(authority, /legacy\.expeditions !== 0n \|\| legacy\.occupations !== 0n \|\| legacy\.schedules !== 0n/);
   assert.match(authority, /workerNodeOccupationV1\.nodeKey\.delete\(occupation\.nodeKey\)/);
+  assert.match(authority, /deleteSchedulesForAssignment/);
+  assert.match(authority, /WORKER_IDEMPOTENCY_RECEIPTS_PER_FID = 64/);
   assert.match(authority, /planCastleWorkerAccrual\(assignment, observedAtMicros\)/);
   assert.match(authority, /No[\s\S]{0,20}per-minute writes/);
 });

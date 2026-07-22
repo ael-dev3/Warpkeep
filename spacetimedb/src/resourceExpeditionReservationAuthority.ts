@@ -52,6 +52,12 @@ export type ActiveExpeditionResourceReservations = Readonly<{
   gold: bigint;
 }>;
 
+/** Once generic workers are active, legacy wagon creation is permanently closed. */
+export function assertLegacyExpeditionDispatchAllowed(ctx: WarpkeepReducerContext): void {
+  const workerSystem = ctx.db.realmWorkerSystemV1.realmId.find('GENESIS_001');
+  if (workerSystem?.mode === 'active') fail('LEGACY_EXPEDITION_DISPATCH_RETIRED');
+}
+
 /**
  * Return exact uncredited thirty-day awards for every active legacy wagon and
  * generic assignment. A returning row has already credited its whole award and
@@ -82,8 +88,7 @@ export function activeExpeditionResourceReservations(
   let woodReservation = wood === null ? 0n : WOOD_GATHERING_TOTAL_WOOD - wood.creditedWood;
   let stoneReservation = stone === null ? 0n : STONE_GATHERING_TOTAL_STONE - stone.creditedStone;
   let goldReservation = gold === null ? 0n : GOLD_GATHERING_TOTAL_GOLD - gold.creditedGold;
-  for (const assignment of ctx.db.workerAssignmentV1.iter()) {
-    if (assignment.fid !== fid) continue;
+  for (const assignment of ctx.db.workerAssignmentV1.byFid.filter(fid)) {
     if (assignment.phase === 'returning') continue;
     const total = workerResourcePolicy(assignment.resourceKind).gatheringTotal;
     // Reserve the complete remaining award, not only the currently accrued

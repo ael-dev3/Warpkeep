@@ -225,7 +225,10 @@ export type CastleWorkerAccrualState = Readonly<{
   startedAtMicros: bigint;
   arrivesAtMicros: bigint;
   gatheringEndsAtMicros: bigint;
+  returnStartedAtMicros: bigint | undefined;
   returnsAtMicros: bigint;
+  routeSteps: number;
+  returnStartProgressBasisPoints: number;
   settledThroughMicros: bigint;
   accruedAmount: bigint;
   materializedAmount: bigint;
@@ -247,24 +250,84 @@ export function workerAssignmentStateIsConsistent(state: CastleWorkerAccrualStat
     assertU64(state.arrivesAtMicros, 'WORKER_TIME_INVALID');
     assertU64(state.gatheringEndsAtMicros, 'WORKER_TIME_INVALID');
     assertU64(state.returnsAtMicros, 'WORKER_TIME_INVALID');
+    if (state.returnStartedAtMicros !== undefined) {
+      assertU64(state.returnStartedAtMicros, 'WORKER_TIME_INVALID');
+    }
     assertU64(state.settledThroughMicros, 'WORKER_CURSOR_INVALID');
     assertU64(state.accruedAmount, 'WORKER_ACCRUAL_INVALID');
     assertU64(state.materializedAmount, 'WORKER_MATERIALIZED_INVALID');
     if (
+      !Number.isSafeInteger(state.routeSteps)
+      || state.routeSteps <= 0
+      || !Number.isSafeInteger(state.returnStartProgressBasisPoints)
+      || state.returnStartProgressBasisPoints < 0
+      || state.returnStartProgressBasisPoints > 10_000
+    ) return false;
+    const travelMicros = checkedProduct(
+      BigInt(state.routeSteps),
+      CASTLE_WORKER_TRAVEL_MICROS_PER_STEP,
+      'WORKER_TIME_OVERFLOW',
+    );
+    const canonicalArrivesAtMicros = checkedSum(
+      state.startedAtMicros,
+      travelMicros,
+      'WORKER_TIME_OVERFLOW',
+    );
+    const canonicalGatheringEndsAtMicros = checkedSum(
+      canonicalArrivesAtMicros,
+      CASTLE_WORKER_MAX_GATHERING_DURATION_MICROS,
+      'WORKER_TIME_OVERFLOW',
+    );
+    if (
       state.policyVersion !== CASTLE_WORKER_POLICY_VERSION
       || (state.phase !== 'outbound' && state.phase !== 'gathering' && state.phase !== 'returning')
       || !(state.startedAtMicros < state.arrivesAtMicros
-        && state.arrivesAtMicros < state.gatheringEndsAtMicros
-        && state.gatheringEndsAtMicros < state.returnsAtMicros)
+        && state.arrivesAtMicros < state.gatheringEndsAtMicros)
       || state.arrivesAtMicros > state.settledThroughMicros
       || state.settledThroughMicros > state.gatheringEndsAtMicros
       || state.materializedAmount > state.accruedAmount
       || state.accruedAmount > policy.gatheringTotal
+      || state.arrivesAtMicros !== canonicalArrivesAtMicros
+      || state.gatheringEndsAtMicros !== canonicalGatheringEndsAtMicros
     ) return false;
-    // A recall can begin during outbound travel, so a returning assignment may
-    // legitimately have zero or partial gathering accrual. Scheduled expiry
-    // still settles the full cap before opening the return timeline.
-    return true;
+    if (state.phase !== 'returning') {
+      return state.returnStartedAtMicros === undefined
+        && state.returnStartProgressBasisPoints === 0
+        && state.returnsAtMicros === checkedSum(
+          state.gatheringEndsAtMicros,
+          travelMicros,
+          'WORKER_TIME_OVERFLOW',
+        );
+    }
+    if (
+      state.returnStartedAtMicros === undefined
+      || state.returnStartedAtMicros < state.startedAtMicros
+      || state.returnStartedAtMicros > state.gatheringEndsAtMicros
+      || state.returnsAtMicros < state.returnStartedAtMicros
+    ) return false;
+    const expectedProgress = state.returnStartedAtMicros >= state.arrivesAtMicros
+      ? 10_000
+      : Number(
+        ((state.returnStartedAtMicros - state.startedAtMicros) * 10_000n)
+        / travelMicros,
+      );
+    if (state.returnStartProgressBasisPoints !== expectedProgress) return false;
+    const expectedReturnsAtMicros = checkedSum(
+      state.returnStartedAtMicros,
+      (travelMicros * BigInt(expectedProgress)) / 10_000n,
+      'WORKER_TIME_OVERFLOW',
+    );
+    if (state.returnsAtMicros !== expectedReturnsAtMicros) return false;
+    // An outbound recall starts before gathering can begin. Its settlement
+    // cursor remains pinned to arrival and it can never have earned value.
+    if (state.returnStartedAtMicros < state.arrivesAtMicros) {
+      return state.settledThroughMicros === state.arrivesAtMicros
+        && state.accruedAmount === 0n
+        && state.materializedAmount === 0n;
+    }
+    // Gathering recalls may retain only complete quanta observed no later
+    // than the immutable return-start boundary.
+    return state.settledThroughMicros <= state.returnStartedAtMicros;
   } catch {
     return false;
   }
@@ -277,7 +340,13 @@ export function planCastleWorkerAccrual(
   if (!workerAssignmentStateIsConsistent(state)) fail('WORKER_ASSIGNMENT_STATE_INVALID');
   assertU64(observedAtMicros, 'WORKER_OBSERVED_TIME_INVALID');
   const policy = workerResourcePolicy(state.resourceKind);
-  const ceiling = observedAtMicros < state.gatheringEndsAtMicros ? observedAtMicros : state.gatheringEndsAtMicros;
+  const phaseCeiling = state.phase === 'returning'
+    ? state.returnStartedAtMicros
+    : observedAtMicros;
+  if (phaseCeiling === undefined) fail('WORKER_ASSIGNMENT_STATE_INVALID');
+  const ceiling = phaseCeiling < state.gatheringEndsAtMicros
+    ? phaseCeiling
+    : state.gatheringEndsAtMicros;
   if (ceiling <= state.settledThroughMicros) {
     return Object.freeze({ accruedAmount: state.accruedAmount, newlyAccruedAmount: 0n, completedQuanta: 0n, settledThroughMicros: state.settledThroughMicros });
   }

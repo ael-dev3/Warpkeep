@@ -17,7 +17,6 @@ export default __t.row({
   workerId: __t.string().name("worker_id"),
   workerOrdinal: __t.u32().name("worker_ordinal"),
   originCastleId: __t.u64().name("origin_castle_id"),
-  assignmentId: __t.string().name("assignment_id"),
   phase: __t.string(),
   startedAtMicros: __t.u64().name("started_at_micros"),
   arrivesAtMicros: __t.u64().name("arrives_at_micros"),

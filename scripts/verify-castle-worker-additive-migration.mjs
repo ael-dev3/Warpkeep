@@ -45,13 +45,13 @@ assert.deepEqual(candidate.slice(47), [
   'workerAssignmentScheduleV1',
 ]);
 assert.deepEqual(current.slice(47), candidate.slice(47), 'module and fixture suffix differ');
-for (const name of ['realmWorkerSystemV1', 'castleWorkerV1', 'workerNodeOccupationV1', 'workerAssignmentScheduleV1']) {
+for (const name of ['realmWorkerSystemV1', 'castleWorkerV1', 'workerNodeOccupationV1']) {
   const definition = table(schema, name);
   assert.match(definition, /public: true/);
-  assert.doesNotMatch(definition, /\bfid\b|accruedAmount|materializedAmount|balance|requestKey|auth/i);
+  assert.doesNotMatch(definition, /\bfid\b|assignmentId|accruedAmount|materializedAmount|balance|requestKey|auth/i);
 }
-for (const name of ['workerAssignmentV1', 'workerCommandIdempotencyV1']) {
+for (const name of ['workerAssignmentV1', 'workerCommandIdempotencyV1', 'workerAssignmentScheduleV1']) {
   assert.doesNotMatch(table(schema, name), /public: true/);
 }
 assert.match(fixture, /fixture_seed_generic_worker_sentinel_v12/);
-console.log('generic worker additive migration proof passed: refs 0–46 preserved, refs 47–52 append-only, populated fixture present, public/private boundary checked');
+console.log('generic worker additive migration proof passed: refs 0–46 preserved, refs 47–52 append-only, populated fixture present, assignment correlation remains private');

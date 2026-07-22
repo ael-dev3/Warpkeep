@@ -153,7 +153,6 @@ test('generated bindings contain the public projections and omit every private e
     'wood_expedition_schedule_v_1_table.ts',
     'wood_node_occupation_v_1_table.ts',
     'wood_site_v_1_table.ts',
-    'worker_assignment_schedule_v_1_table.ts',
     'worker_node_occupation_v_1_table.ts',
     'world_tile_meta_v_1_table.ts',
     'world_tile_table.ts',
@@ -232,6 +231,9 @@ test('generated bindings contain the public projections and omit every private e
     'wallet_attribution_snapshot_v_1',
     'wood_expedition_idempotency_v_1',
     'wood_expedition_v_1',
+    'worker_assignment_schedule_v_1',
+    'worker_assignment_v_1',
+    'worker_command_idempotency_v_1',
   ];
   for (const stem of privateTableStems) {
     assert.equal(existsSync(new URL(`${stem}_table.ts`, bindingsRoot)), false);

@@ -151,7 +151,7 @@ const castleWorkerV1 = table({
   indexes: [{ accessor: 'byOriginCastle', algorithm: 'btree', columns: ['originCastleId'] as const }] as const,
 }, {
   workerId: t.string().primaryKey(), originCastleId: t.u64(), ordinal: t.u32(), status: t.string(),
-  assignmentId: t.option(t.string()), resourceKind: t.option(t.string()), siteId: t.option(t.string()),
+  resourceKind: t.option(t.string()), siteId: t.option(t.string()),
   startedAtMicros: t.option(t.u64()), arrivesAtMicros: t.option(t.u64()), gatheringEndsAtMicros: t.option(t.u64()),
   returnStartedAtMicros: t.option(t.u64()), returnsAtMicros: t.option(t.u64()), routeSteps: t.option(t.u32()),
   returnStartProgressBasisPoints: t.option(t.u32()), timelineRevision: t.u32(), revision: t.u64(),
@@ -159,7 +159,10 @@ const castleWorkerV1 = table({
 });
 const workerAssignmentV1 = table({
   name: 'worker_assignment_v1',
-  indexes: [{ accessor: 'byFidAndPhase', algorithm: 'btree', columns: ['fid', 'phase'] as const }] as const,
+  indexes: [
+    { accessor: 'byFid', algorithm: 'btree', columns: ['fid'] as const },
+    { accessor: 'byFidAndPhase', algorithm: 'btree', columns: ['fid', 'phase'] as const },
+  ] as const,
 }, {
   assignmentId: t.string().primaryKey(), workerId: t.string().unique(), fid: t.u64(),
   originCastleId: t.u64(), resourceKind: t.string(), siteId: t.string().index(), phase: t.string(),
@@ -177,7 +180,7 @@ const workerNodeOccupationV1 = table({
   ] as const,
 }, {
   nodeKey: t.string().primaryKey(), resourceKind: t.string(), siteId: t.string(), workerId: t.string(),
-  workerOrdinal: t.u32(), originCastleId: t.u64(), assignmentId: t.string(), phase: t.string(),
+  workerOrdinal: t.u32(), originCastleId: t.u64(), phase: t.string(),
   startedAtMicros: t.u64(), arrivesAtMicros: t.u64(), gatheringEndsAtMicros: t.u64(), timelineRevision: t.u32(),
 });
 const workerCommandIdempotencyV1 = table({
@@ -189,7 +192,7 @@ const workerCommandIdempotencyV1 = table({
   resultRevision: t.u64(), createdAt: t.timestamp(),
 });
 const workerAssignmentScheduleV1 = table({
-  name: 'worker_assignment_schedule_v_1', public: true,
+  name: 'worker_assignment_schedule_v_1',
   indexes: [
     { accessor: 'byAssignment', algorithm: 'btree', columns: ['assignmentId'] as const },
     { accessor: 'byWorker', algorithm: 'btree', columns: ['workerId'] as const },
@@ -530,7 +533,6 @@ export const fixtureSeedGenericWorkerSentinelV12 = db.reducer(
         originCastleId: castleId,
         ordinal,
         status: ordinal === 1 ? 'gathering' : 'idle',
-        assignmentId: ordinal === 1 ? assignmentId : undefined,
         resourceKind: ordinal === 1 ? 'stone' : undefined,
         siteId: ordinal === 1 ? siteId : undefined,
         startedAtMicros: ordinal === 1 ? startedAtMicros : undefined,
@@ -576,7 +578,6 @@ export const fixtureSeedGenericWorkerSentinelV12 = db.reducer(
       workerId,
       workerOrdinal: 1,
       originCastleId: castleId,
-      assignmentId,
       phase: 'gathering',
       startedAtMicros,
       arrivesAtMicros,

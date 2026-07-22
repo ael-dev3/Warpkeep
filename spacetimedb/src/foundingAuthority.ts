@@ -220,6 +220,7 @@ export function ensureGenesisFounder(
       || !trustedProfilesEqual(existingProfile, admissionProfile)
     ) fail();
     assertGenesisFoundingGraph(ctx);
+    ensureCastleWorkerRoster(ctx, existingCastle);
     return 'preserved';
   }
   if (

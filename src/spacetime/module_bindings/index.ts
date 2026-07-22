@@ -127,7 +127,6 @@ import StoneSiteV1Row from "./stone_site_v_1_table";
 import WoodExpeditionScheduleV1Row from "./wood_expedition_schedule_v_1_table";
 import WoodNodeOccupationV1Row from "./wood_node_occupation_v_1_table";
 import WoodSiteV1Row from "./wood_site_v_1_table";
-import WorkerAssignmentScheduleV1Row from "./worker_assignment_schedule_v_1_table";
 import WorkerNodeOccupationV1Row from "./worker_node_occupation_v_1_table";
 import WorldTileRow from "./world_tile_table";
 import WorldTileMetaV1Row from "./world_tile_meta_v_1_table";
@@ -511,23 +510,6 @@ const tablesSchema = __schema({
       { name: 'wood_site_v1_site_id_key', constraint: 'unique', columns: ['siteId'] },
     ],
   }, WoodSiteV1Row),
-  workerAssignmentScheduleV1: __table({
-    name: 'worker_assignment_schedule_v_1',
-    indexes: [
-      { accessor: 'byAssignment', name: 'worker_assignment_schedule_v_1_assignment_id_idx_btree', algorithm: 'btree', columns: [
-        'assignmentId',
-      ] },
-      { accessor: 'scheduleId', name: 'worker_assignment_schedule_v_1_schedule_id_idx_btree', algorithm: 'btree', columns: [
-        'scheduleId',
-      ] },
-      { accessor: 'byWorker', name: 'worker_assignment_schedule_v_1_worker_id_idx_btree', algorithm: 'btree', columns: [
-        'workerId',
-      ] },
-    ],
-    constraints: [
-      { name: 'worker_assignment_schedule_v_1_schedule_id_key', constraint: 'unique', columns: ['scheduleId'] },
-    ],
-  }, WorkerAssignmentScheduleV1Row),
   workerNodeOccupationV1: __table({
     name: 'worker_node_occupation_v1',
     indexes: [

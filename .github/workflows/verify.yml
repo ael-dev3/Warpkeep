@@ -147,6 +147,7 @@ jobs:
         run: |
           pnpm --dir spacetimedb run verify
           npm run stdb:verify-bindings
+          npm run stdb:verify-worker-migration
           npm run stdb:verify-additive-migration
 
       - name: Audit module dependencies

@@ -27,7 +27,7 @@ import {
 } from './castleWorkerPolicy';
 import {
   assertCastleWorkerRoster,
-  workerRosterDigestInput,
+  castleWorkerPublicStateIsConsistent,
   workerSystemRowIsStagedOrActive,
 } from './castleWorkerRoster';
 import {
@@ -43,6 +43,7 @@ type CastleRow = NonNullable<ReturnType<WarpkeepReducerContext['db']['castle']['
 type WorkerRow = NonNullable<ReturnType<WarpkeepReducerContext['db']['castleWorkerV1']['workerId']['find']>>;
 type AssignmentRow = NonNullable<ReturnType<WarpkeepReducerContext['db']['workerAssignmentV1']['assignmentId']['find']>>;
 type ScheduleRow = NonNullable<ReturnType<WarpkeepReducerContext['db']['workerAssignmentScheduleV1']['scheduleId']['find']>>;
+type WorkerReceiptRow = NonNullable<ReturnType<WarpkeepReducerContext['db']['workerCommandIdempotencyV1']['requestKey']['find']>>;
 type ResourceAccountRow = NonNullable<ReturnType<WarpkeepReducerContext['db']['resourceAccountV1']['fid']['find']>>;
 
 export const WORKER_SCHEDULE_STAGE_ARRIVAL = 'arrival';
@@ -50,6 +51,8 @@ export const WORKER_SCHEDULE_STAGE_GATHERING_EXPIRY = 'gathering-expiry';
 export const WORKER_SCHEDULE_STAGE_RETURN_COMPLETE = 'return-complete';
 const WORKER_SYSTEM_REALM_ID = CANONICAL_REALM.realmId;
 const WORKER_TIMELINE_MAX = 0xffff_ffff;
+export const WORKER_IDEMPOTENCY_RECEIPTS_PER_FID = 64;
+const BOUNDED_WORKER_ERROR_CODE = /^[A-Z][A-Z0-9_]{0,63}$/;
 
 export class CastleWorkerAuthorityError extends Error {
   constructor(readonly code: string) {
@@ -88,15 +91,25 @@ function assignmentPhase(value: string): CastleWorkerPhase {
 }
 
 function systemRow(ctx: WarpkeepReducerContext) {
+  if (ctx.db.realmWorkerSystemV1.count() !== 1n) fail('WORKER_SYSTEM_NOT_READY');
   const row = ctx.db.realmWorkerSystemV1.realmId.find(WORKER_SYSTEM_REALM_ID);
   if (row === null || !workerSystemRowIsStagedOrActive(row)) fail('WORKER_SYSTEM_NOT_READY');
   return row;
 }
 
-function workerSystemActive(ctx: WarpkeepReducerContext) {
+function workerSettlementActive(ctx: WarpkeepReducerContext) {
   const row = systemRow(ctx);
   if (row.mode !== 'active') fail('WORKER_SYSTEM_STAGED');
   if (row.legacyDrainRequired) fail('WORKER_LEGACY_DRAIN_REQUIRED');
+  const legacy = legacyActiveCounts(ctx);
+  if (legacy.expeditions !== 0n || legacy.occupations !== 0n || legacy.schedules !== 0n) {
+    fail('WORKER_LEGACY_DRAIN_REQUIRED');
+  }
+  return row;
+}
+
+function workerSystemActive(ctx: WarpkeepReducerContext) {
+  const row = workerSettlementActive(ctx);
   const castleIds = [...ctx.db.castle.iter()].map(castle => castle.castleId);
   const expectedWorkerCount = BigInt(castleIds.length * CASTLE_WORKERS_PER_CASTLE);
   if (
@@ -111,10 +124,29 @@ function workerSystemActive(ctx: WarpkeepReducerContext) {
       fail('WORKER_ROSTER_ORPHAN');
     }
   }
-  const legacy = legacyActiveCounts(ctx);
-  if (legacy.expeditions !== 0n || legacy.occupations !== 0n || legacy.schedules !== 0n) {
-    fail('WORKER_LEGACY_DRAIN_REQUIRED');
-  }
+  const graph = inspectCastleWorkerGraph(ctx);
+  if (
+    !graph.systemConfigValid
+    || !graph.expectedCountsMatch
+    || !graph.rosterDigestMatches
+    || graph.castlesMissingWorkers !== 0n
+    || graph.castlesWithExtraWorkers !== 0n
+    || graph.duplicateOrdinals !== 0n
+    || graph.malformedWorkerIds !== 0n
+    || graph.invalidWorkerStates !== 0n
+    || graph.orphanWorkers !== 0n
+    || graph.orphanAssignments !== 0n
+    || graph.assignmentsMissingOccupation !== 0n
+    || graph.assignmentsWithoutSingleSchedule !== 0n
+    || graph.orphanOccupations !== 0n
+    || graph.orphanSchedules !== 0n
+    || graph.invalidSchedules !== 0n
+    || graph.assignmentPublicMismatches !== 0n
+    || graph.occupationSiteMismatches !== 0n
+    || graph.invalidAssignments !== 0n
+    || graph.invalidIdempotencyReceipts !== 0n
+    || graph.idempotencyOverflowFids !== 0n
+  ) fail('WORKER_SYSTEM_INTEGRITY');
   return row;
 }
 
@@ -169,27 +201,122 @@ function legacyOccupationAt(ctx: WarpkeepReducerContext, resourceKind: string, s
 }
 
 function publicWorkerMatchesAssignment(worker: WorkerRow, assignment: AssignmentRow): boolean {
+  const expectedReturnProgress = assignment.phase === 'returning'
+    ? assignment.returnStartProgressBasisPoints
+    : undefined;
   return worker.workerId === assignment.workerId
+    && worker.ordinal >= 1
+    && worker.ordinal <= CASTLE_WORKERS_PER_CASTLE
+    && worker.workerId === workerIdForCastle(assignment.originCastleId, worker.ordinal)
     && worker.originCastleId === assignment.originCastleId
     && worker.status === assignment.phase
-    && worker.assignmentId === assignment.assignmentId
     && worker.resourceKind === assignment.resourceKind
     && worker.siteId === assignment.siteId
     && worker.startedAtMicros === assignment.startedAtMicros
     && worker.arrivesAtMicros === assignment.arrivesAtMicros
     && worker.gatheringEndsAtMicros === assignment.gatheringEndsAtMicros
+    && worker.returnStartedAtMicros === assignment.returnStartedAtMicros
     && worker.returnsAtMicros === assignment.returnsAtMicros
     && worker.routeSteps === assignment.routeSteps
+    && worker.returnStartProgressBasisPoints === expectedReturnProgress
     && worker.timelineRevision === assignment.timelineRevision;
+}
+
+function occupationMatchesAssignment(
+  occupation: NonNullable<ReturnType<WarpkeepReducerContext['db']['workerNodeOccupationV1']['nodeKey']['find']>>,
+  assignment: AssignmentRow,
+): boolean {
+  // The occupation is only the outbound/gathering site lease and is deleted
+  // before return starts. Return chronology therefore belongs to the worker
+  // projection; every field that the occupation does expose is matched here.
+  return occupation.nodeKey === `${assignment.resourceKind}:${assignment.siteId}`
+    && occupation.resourceKind === assignment.resourceKind
+    && occupation.siteId === assignment.siteId
+    && occupation.workerId === assignment.workerId
+    && occupation.workerOrdinal >= 1
+    && occupation.workerOrdinal <= CASTLE_WORKERS_PER_CASTLE
+    && assignment.workerId === workerIdForCastle(assignment.originCastleId, occupation.workerOrdinal)
+    && occupation.originCastleId === assignment.originCastleId
+    && assignment.phase !== 'returning'
+    && occupation.phase === assignment.phase
+    && occupation.startedAtMicros === assignment.startedAtMicros
+    && occupation.arrivesAtMicros === assignment.arrivesAtMicros
+    && occupation.gatheringEndsAtMicros === assignment.gatheringEndsAtMicros
+    && occupation.timelineRevision === assignment.timelineRevision;
+}
+
+function canonicalCastleOwnershipMatches(
+  ctx: WarpkeepReducerContext,
+  fid: bigint,
+  castleId: bigint,
+): boolean {
+  const castle = ctx.db.castle.castleId.find(castleId);
+  const account = ctx.db.resourceAccountV1.fid.find(fid);
+  return castle !== null
+    && castle.ownerFid === fid
+    && account !== null
+    && account.castleId === castleId;
+}
+
+function assignmentOwnerIsCanonical(ctx: WarpkeepReducerContext, assignment: AssignmentRow): boolean {
+  return canonicalCastleOwnershipMatches(ctx, assignment.fid, assignment.originCastleId);
+}
+
+function receiptOwnerIsCanonical(
+  ctx: WarpkeepReducerContext,
+  receipt: WorkerReceiptRow,
+  expectedCastleId?: bigint,
+): boolean {
+  if (receipt.workerId !== undefined) {
+    const worker = ctx.db.castleWorkerV1.workerId.find(receipt.workerId);
+    return worker !== null
+      && worker.ordinal >= 1
+      && worker.ordinal <= CASTLE_WORKERS_PER_CASTLE
+      && worker.workerId === workerIdForCastle(worker.originCastleId, worker.ordinal)
+      && (expectedCastleId === undefined || worker.originCastleId === expectedCastleId)
+      && canonicalCastleOwnershipMatches(ctx, receipt.fid, worker.originCastleId);
+  }
+  const castle = ctx.db.castle.ownerFid.find(receipt.fid);
+  return castle !== null
+    && (expectedCastleId === undefined || castle.castleId === expectedCastleId)
+    && canonicalCastleOwnershipMatches(ctx, receipt.fid, castle.castleId);
+}
+
+function workerReceiptShapeIsValid(receipt: WorkerReceiptRow): boolean {
+  if (
+    !receipt.requestKey.startsWith(`${receipt.fid.toString()}:`)
+    || receipt.resultRevision < 0n
+  ) return false;
+  if (receipt.commandKind === 'dispatch' || receipt.commandKind === 'recall') {
+    return receipt.workerId !== undefined
+      && receipt.resourceKind !== undefined
+      && ['gold', 'food', 'wood', 'stone'].includes(receipt.resourceKind)
+      && receipt.siteId !== undefined
+      && receipt.siteId.length > 0
+      && receipt.assignmentId !== undefined
+      && receipt.assignmentId.length > 0;
+  }
+  return receipt.commandKind === 'recall-all'
+    && receipt.workerId === undefined
+    && receipt.resourceKind === undefined
+    && receipt.siteId === undefined
+    && receipt.assignmentId !== undefined
+    && receipt.assignmentId.length > 0;
 }
 
 function assertAssignmentState(assignment: AssignmentRow): void {
   assignmentPhase(assignment.phase);
+  assertCastleWorkerId(assignment.workerId);
   if (
-    assignment.workerId.length === 0
+    assignment.assignmentId.length === 0
+    || assignment.fid <= 0n
+    || assignment.originCastleId < 0n
+    || assignment.siteId.length === 0
     || assignment.policyVersion !== CASTLE_WORKER_POLICY_VERSION
     || !workerAssignmentStateIsConsistent(assignment)
     || assignment.returnStartProgressBasisPoints > 10_000
+    || !Number.isSafeInteger(assignment.timelineRevision)
+    || assignment.timelineRevision < 0
   ) fail('WORKER_ASSIGNMENT_STATE_INVALID');
 }
 
@@ -207,6 +334,44 @@ function insertSchedule(
     timelineRevision: assignment.timelineRevision,
     stage,
   });
+}
+
+function deleteSchedulesForAssignment(ctx: WarpkeepReducerContext, assignmentId: string): void {
+  for (const schedule of [...ctx.db.workerAssignmentScheduleV1.byAssignment.filter(assignmentId)]) {
+    ctx.db.workerAssignmentScheduleV1.scheduleId.delete(schedule.scheduleId);
+  }
+}
+
+function scheduleMatchesAssignment(schedule: ScheduleRow, assignment: AssignmentRow): boolean {
+  const expectedStage = assignment.phase === 'outbound'
+    ? WORKER_SCHEDULE_STAGE_ARRIVAL
+    : assignment.phase === 'gathering'
+      ? WORKER_SCHEDULE_STAGE_GATHERING_EXPIRY
+      : WORKER_SCHEDULE_STAGE_RETURN_COMPLETE;
+  const expectedAtMicros = expectedStage === WORKER_SCHEDULE_STAGE_ARRIVAL
+    ? assignment.arrivesAtMicros
+    : expectedStage === WORKER_SCHEDULE_STAGE_GATHERING_EXPIRY
+      ? assignment.gatheringEndsAtMicros
+      : assignment.returnsAtMicros;
+  return schedule.stage === expectedStage
+    && schedule.workerId === assignment.workerId
+    && schedule.timelineRevision === assignment.timelineRevision
+    && schedule.scheduledAt.tag === 'Time'
+    && schedule.scheduledAt.value.microsSinceUnixEpoch === expectedAtMicros;
+}
+
+function pruneWorkerIdempotencyReceipts(ctx: WarpkeepReducerContext, fid: bigint): void {
+  const receipts = [...ctx.db.workerCommandIdempotencyV1.byFid.filter(fid)]
+    .sort((left, right) => {
+      const timeOrder = left.createdAt.microsSinceUnixEpoch < right.createdAt.microsSinceUnixEpoch
+        ? -1
+        : left.createdAt.microsSinceUnixEpoch > right.createdAt.microsSinceUnixEpoch ? 1 : 0;
+      return timeOrder || left.requestKey.localeCompare(right.requestKey);
+    });
+  const deleteCount = Math.max(0, receipts.length - WORKER_IDEMPOTENCY_RECEIPTS_PER_FID + 1);
+  for (const receipt of receipts.slice(0, deleteCount)) {
+    ctx.db.workerCommandIdempotencyV1.requestKey.delete(receipt.requestKey);
+  }
 }
 
 function updateResourceAccount(
@@ -239,6 +404,8 @@ export function settleAllWorkerAssignmentsForFid(
   observedAtMicros = ctx.timestamp.microsSinceUnixEpoch,
 ): void {
   const resource = assertGenesisResourceForFid(ctx, fid);
+  const assignments = [...ctx.db.workerAssignmentV1.byFid.filter(fid)];
+  if (assignments.length > 0) workerSettlementActive(ctx);
   const passive = planResourceSettlementForActiveExpeditionReservations(
     ctx,
     fid,
@@ -254,8 +421,7 @@ export function settleAllWorkerAssignmentsForFid(
     gold: passive.balances.gold,
   };
   let changed = passive.completedQuanta > 0n;
-  for (const assignment of ctx.db.workerAssignmentV1.iter()) {
-    if (assignment.fid !== fid) continue;
+  for (const assignment of assignments) {
     assertAssignmentState(assignment);
     if (assignment.fid !== fid || assignment.originCastleId !== resource.castle.castleId) fail('WORKER_OWNER_INTEGRITY');
     const plan = planCastleWorkerAccrual(assignment, observedAtMicros);
@@ -303,6 +469,7 @@ export function projectMyWorkerState(
   fid: bigint,
   observedAtMicros = ctx.timestamp.microsSinceUnixEpoch,
 ): Readonly<{ resource: ResourceAccountRow; balances: Readonly<Record<'food' | 'wood' | 'stone' | 'gold', bigint>>; workers: readonly WorkerPrivateProjection[] }> {
+  workerSystemActive(ctx);
   const resource = assertGenesisResourceForFid(ctx, fid);
   const passive = planResourceSettlementForActiveExpeditionReservations(
     ctx,
@@ -320,11 +487,9 @@ export function projectMyWorkerState(
   const workers = [...assertCastleWorkerRoster(ctx, resource.castle.castleId)]
     .sort((left, right) => left.ordinal - right.ordinal)
     .map(worker => {
-      const assignment = worker.assignmentId === undefined
-        ? undefined
-        : ctx.db.workerAssignmentV1.assignmentId.find(worker.assignmentId);
-      if (assignment === undefined || assignment === null) {
-        if (worker.assignmentId !== undefined) fail('WORKER_ASSIGNMENT_MISSING');
+      const assignment = ctx.db.workerAssignmentV1.workerId.find(worker.workerId);
+      if (assignment === null) {
+        if (worker.status !== 'idle') fail('WORKER_ASSIGNMENT_MISSING');
         return Object.freeze({
           workerId: worker.workerId,
           ordinal: worker.ordinal,
@@ -388,17 +553,36 @@ export function dispatchCastleWorker(
   const prior = ctx.db.workerCommandIdempotencyV1.requestKey.find(requestKey);
   if (prior !== null) {
     if (prior.fid !== input.fid || prior.commandKind !== 'dispatch' || prior.workerId !== input.workerId || prior.resourceKind !== input.resourceKind || prior.siteId !== input.siteId || prior.assignmentId === undefined) fail('WORKER_IDEMPOTENCY_CONFLICT');
+    if (
+      !workerReceiptShapeIsValid(prior)
+      || !canonicalCastleOwnershipMatches(ctx, input.fid, input.castle.castleId)
+      || !receiptOwnerIsCanonical(ctx, prior, input.castle.castleId)
+    ) fail('WORKER_IDEMPOTENCY_OWNER_INVALID');
     const assignment = ctx.db.workerAssignmentV1.assignmentId.find(prior.assignmentId);
-    if (assignment === null) fail('WORKER_IDEMPOTENCY_STALE');
+    if (
+      assignment === null
+      || assignment.fid !== input.fid
+      || assignment.workerId !== input.workerId
+      || assignment.resourceKind !== input.resourceKind
+      || assignment.siteId !== input.siteId
+      || assignment.originCastleId !== input.castle.castleId
+      || !assignmentOwnerIsCanonical(ctx, assignment)
+    ) fail('WORKER_IDEMPOTENCY_STALE');
+    assertAssignmentState(assignment);
+    const worker = ctx.db.castleWorkerV1.workerId.find(assignment.workerId);
+    if (worker === null || !publicWorkerMatchesAssignment(worker, assignment)) {
+      fail('WORKER_IDEMPOTENCY_STALE');
+    }
     return Object.freeze({ assignment, idempotent: true });
   }
   workerSystemActive(ctx);
+  if (!canonicalCastleOwnershipMatches(ctx, input.fid, input.castle.castleId)) fail('WORKER_NOT_OWNED');
   settleAllWorkerAssignmentsForFid(ctx, input.fid);
   const roster = assertCastleWorkerRoster(ctx, input.castle.castleId);
   const worker = ctx.db.castleWorkerV1.workerId.find(input.workerId);
   if (worker === null || worker.originCastleId !== input.castle.castleId || !roster.some(row => row.workerId === worker.workerId)) fail('WORKER_NOT_OWNED');
   assertCastleWorkerId(worker.workerId);
-  if (worker.status !== 'idle' || worker.assignmentId !== undefined) fail('WORKER_NOT_IDLE');
+  if (worker.status !== 'idle' || ctx.db.workerAssignmentV1.workerId.find(worker.workerId) !== null) fail('WORKER_NOT_IDLE');
   const site = canonicalSiteFor(ctx, input.resourceKind, input.siteId);
   if (legacyOccupationAt(ctx, input.resourceKind, input.siteId)) fail('WORKER_LEGACY_SITE_OCCUPIED');
   const nodeKey = `${input.resourceKind}:${input.siteId}`;
@@ -408,6 +592,7 @@ export function dispatchCastleWorker(
   const resource = assertGenesisResourceForFid(ctx, input.fid);
   assertDispatchReservations(ctx, input.fid, resource.account, input.resourceKind);
   const timeline = planCastleWorkerTimeline(ctx.timestamp.microsSinceUnixEpoch, routeSteps);
+  const timelineRevision = safeNextU32(worker.timelineRevision, 'WORKER_TIMELINE_REVISION');
   const assignment = ctx.db.workerAssignmentV1.insert({
     assignmentId: ctx.newUuidV7().toString(),
     workerId: worker.workerId,
@@ -423,7 +608,7 @@ export function dispatchCastleWorker(
     settledThroughMicros: timeline.arrivesAtMicros,
     accruedAmount: 0n,
     materializedAmount: 0n,
-    timelineRevision: 0,
+    timelineRevision,
     policyVersion: CASTLE_WORKER_POLICY_VERSION,
     createdAt: ctx.timestamp,
     updatedAt: ctx.timestamp,
@@ -431,7 +616,6 @@ export function dispatchCastleWorker(
   ctx.db.castleWorkerV1.workerId.update({
     ...worker,
     status: 'outbound',
-    assignmentId: assignment.assignmentId,
     resourceKind: input.resourceKind,
     siteId: input.siteId,
     startedAtMicros: assignment.startedAtMicros,
@@ -441,6 +625,8 @@ export function dispatchCastleWorker(
     returnsAtMicros: assignment.returnsAtMicros,
     routeSteps: assignment.routeSteps,
     returnStartProgressBasisPoints: undefined,
+    timelineRevision,
+    revision: safeNextU64(worker.revision, 'WORKER_REVISION'),
     updatedAt: ctx.timestamp,
   });
   ctx.db.workerNodeOccupationV1.insert({
@@ -450,7 +636,6 @@ export function dispatchCastleWorker(
     workerId: worker.workerId,
     workerOrdinal: worker.ordinal,
     originCastleId: input.castle.castleId,
-    assignmentId: assignment.assignmentId,
     phase: 'outbound',
     startedAtMicros: assignment.startedAtMicros,
     arrivesAtMicros: assignment.arrivesAtMicros,
@@ -458,8 +643,9 @@ export function dispatchCastleWorker(
     timelineRevision: assignment.timelineRevision,
   });
   insertSchedule(ctx, assignment, WORKER_SCHEDULE_STAGE_ARRIVAL, assignment.arrivesAtMicros);
-  insertSchedule(ctx, assignment, WORKER_SCHEDULE_STAGE_GATHERING_EXPIRY, assignment.gatheringEndsAtMicros);
-  insertSchedule(ctx, assignment, WORKER_SCHEDULE_STAGE_RETURN_COMPLETE, assignment.returnsAtMicros);
+  const updatedWorker = ctx.db.castleWorkerV1.workerId.find(worker.workerId);
+  if (updatedWorker === null || !publicWorkerMatchesAssignment(updatedWorker, assignment)) fail('WORKER_PUBLIC_PRIVATE_MISMATCH');
+  pruneWorkerIdempotencyReceipts(ctx, input.fid);
   ctx.db.workerCommandIdempotencyV1.insert({
     requestKey,
     fid: input.fid,
@@ -468,7 +654,7 @@ export function dispatchCastleWorker(
     resourceKind: input.resourceKind,
     siteId: input.siteId,
     assignmentId: assignment.assignmentId,
-    resultRevision: worker.revision,
+    resultRevision: updatedWorker.revision,
     createdAt: ctx.timestamp,
   });
   return Object.freeze({ assignment, idempotent: false });
@@ -498,10 +684,9 @@ function beginWorkerReturn(
   assertAssignmentState(assignment);
   if (assignment.phase !== 'outbound' && assignment.phase !== 'gathering') return assignment;
   const occupation = ctx.db.workerNodeOccupationV1.nodeKey.find(`${assignment.resourceKind}:${assignment.siteId}`);
-  if (occupation !== null) {
-    if (occupation.assignmentId !== assignment.assignmentId || occupation.workerId !== assignment.workerId || occupation.timelineRevision !== assignment.timelineRevision) fail('WORKER_OCCUPATION_INTEGRITY');
-    ctx.db.workerNodeOccupationV1.nodeKey.delete(occupation.nodeKey);
-  }
+  if (occupation === null || !occupationMatchesAssignment(occupation, assignment)) fail('WORKER_OCCUPATION_INTEGRITY');
+  const worker = ctx.db.castleWorkerV1.workerId.find(assignment.workerId);
+  if (worker === null || !publicWorkerMatchesAssignment(worker, assignment)) fail('WORKER_PUBLIC_PRIVATE_MISMATCH');
   const returningAtMicros = now + remainingTravelMicros(assignment, progress);
   const timelineRevision = safeNextU32(assignment.timelineRevision, 'WORKER_TIMELINE_REVISION');
   const returning = {
@@ -513,9 +698,9 @@ function beginWorkerReturn(
     timelineRevision,
     updatedAt: ctx.timestamp,
   };
+  deleteSchedulesForAssignment(ctx, assignment.assignmentId);
+  ctx.db.workerNodeOccupationV1.nodeKey.delete(occupation.nodeKey);
   ctx.db.workerAssignmentV1.assignmentId.update(returning);
-  const worker = ctx.db.castleWorkerV1.workerId.find(assignment.workerId);
-  if (worker === null || !publicWorkerMatchesAssignment(worker, assignment)) fail('WORKER_PUBLIC_PRIVATE_MISMATCH');
   ctx.db.castleWorkerV1.workerId.update({
     ...worker,
     status: 'returning',
@@ -535,11 +720,14 @@ function completeWorkerReturn(ctx: WarpkeepReducerContext, assignment: Assignmen
   if (assignment.phase !== 'returning') fail('WORKER_RETURN_STATE');
   const worker = ctx.db.castleWorkerV1.workerId.find(assignment.workerId);
   if (worker === null || !publicWorkerMatchesAssignment(worker, assignment)) fail('WORKER_PUBLIC_PRIVATE_MISMATCH');
+  if (ctx.db.workerNodeOccupationV1.nodeKey.find(`${assignment.resourceKind}:${assignment.siteId}`) !== null) {
+    fail('WORKER_OCCUPATION_INTEGRITY');
+  }
+  deleteSchedulesForAssignment(ctx, assignment.assignmentId);
   ctx.db.workerAssignmentV1.assignmentId.delete(assignment.assignmentId);
   ctx.db.castleWorkerV1.workerId.update({
     ...worker,
     status: 'idle',
-    assignmentId: undefined,
     resourceKind: undefined,
     siteId: undefined,
     startedAtMicros: undefined,
@@ -559,13 +747,22 @@ function transitionWorkerArrival(ctx: WarpkeepReducerContext, assignment: Assign
   if (now < assignment.arrivesAtMicros) return assignment;
   if (assignment.phase !== 'outbound') return assignment;
   const occupation = ctx.db.workerNodeOccupationV1.nodeKey.find(`${assignment.resourceKind}:${assignment.siteId}`);
-  if (occupation === null || occupation.assignmentId !== assignment.assignmentId || occupation.timelineRevision !== assignment.timelineRevision) fail('WORKER_OCCUPATION_MISSING');
-  const gathering = { ...assignment, phase: 'gathering', updatedAt: ctx.timestamp };
-  ctx.db.workerAssignmentV1.assignmentId.update(gathering);
-  ctx.db.workerNodeOccupationV1.nodeKey.update({ ...occupation, phase: 'gathering' });
+  if (occupation === null || !occupationMatchesAssignment(occupation, assignment)) fail('WORKER_OCCUPATION_MISSING');
   const worker = ctx.db.castleWorkerV1.workerId.find(assignment.workerId);
   if (worker === null || !publicWorkerMatchesAssignment(worker, assignment)) fail('WORKER_PUBLIC_PRIVATE_MISMATCH');
-  ctx.db.castleWorkerV1.workerId.update({ ...worker, status: 'gathering', updatedAt: ctx.timestamp });
+  const timelineRevision = safeNextU32(assignment.timelineRevision, 'WORKER_TIMELINE_REVISION');
+  const gathering = { ...assignment, phase: 'gathering', timelineRevision, updatedAt: ctx.timestamp };
+  deleteSchedulesForAssignment(ctx, assignment.assignmentId);
+  ctx.db.workerAssignmentV1.assignmentId.update(gathering);
+  ctx.db.workerNodeOccupationV1.nodeKey.update({ ...occupation, phase: 'gathering', timelineRevision });
+  ctx.db.castleWorkerV1.workerId.update({
+    ...worker,
+    status: 'gathering',
+    timelineRevision,
+    revision: safeNextU64(worker.revision, 'WORKER_REVISION'),
+    updatedAt: ctx.timestamp,
+  });
+  insertSchedule(ctx, gathering, WORKER_SCHEDULE_STAGE_GATHERING_EXPIRY, gathering.gatheringEndsAtMicros);
   return gathering;
 }
 
@@ -583,7 +780,10 @@ function settleAndBeginReturnAt(
 
 export function runCastleWorkerSchedule(ctx: WarpkeepReducerContext, schedule: ScheduleRow): void {
   const assignment = ctx.db.workerAssignmentV1.assignmentId.find(schedule.assignmentId);
-  if (assignment === null || assignment.workerId !== schedule.workerId || assignment.timelineRevision !== schedule.timelineRevision) return;
+  if (assignment === null || !scheduleMatchesAssignment(schedule, assignment)) {
+    ctx.db.workerAssignmentScheduleV1.scheduleId.delete(schedule.scheduleId);
+    return;
+  }
   assertAssignmentState(assignment);
   const now = ctx.timestamp.microsSinceUnixEpoch;
   if (schedule.stage === WORKER_SCHEDULE_STAGE_ARRIVAL) {
@@ -596,13 +796,11 @@ export function runCastleWorkerSchedule(ctx: WarpkeepReducerContext, schedule: S
     settleAndBeginReturnAt(ctx, gathering, gathering.gatheringEndsAtMicros, 10_000);
     return;
   }
-  if (schedule.stage !== WORKER_SCHEDULE_STAGE_RETURN_COMPLETE) return;
-  let current = assignment;
-  if (current.phase === 'outbound' && now >= current.arrivesAtMicros) current = transitionWorkerArrival(ctx, current, now);
-  if ((current.phase === 'outbound' || current.phase === 'gathering') && now >= current.gatheringEndsAtMicros) {
-    current = settleAndBeginReturnAt(ctx, current, current.gatheringEndsAtMicros, 10_000);
+  if (schedule.stage === WORKER_SCHEDULE_STAGE_RETURN_COMPLETE) {
+    completeWorkerReturn(ctx, assignment, now);
+    return;
   }
-  completeWorkerReturn(ctx, current, now);
+  ctx.db.workerAssignmentScheduleV1.scheduleId.delete(schedule.scheduleId);
 }
 
 export function recallCastleWorker(
@@ -613,26 +811,39 @@ export function recallCastleWorker(
   const prior = ctx.db.workerCommandIdempotencyV1.requestKey.find(requestKey);
   if (prior !== null) {
     if (prior.fid !== input.fid || prior.commandKind !== 'recall' || prior.workerId !== input.workerId) fail('WORKER_IDEMPOTENCY_CONFLICT');
+    if (
+      !workerReceiptShapeIsValid(prior)
+      || !canonicalCastleOwnershipMatches(ctx, input.fid, input.castle.castleId)
+      || !receiptOwnerIsCanonical(ctx, prior, input.castle.castleId)
+    ) fail('WORKER_IDEMPOTENCY_OWNER_INVALID');
     return;
   }
   workerSystemActive(ctx);
+  if (!canonicalCastleOwnershipMatches(ctx, input.fid, input.castle.castleId)) fail('WORKER_NOT_OWNED');
   settleAllWorkerAssignmentsForFid(ctx, input.fid);
   const worker = ctx.db.castleWorkerV1.workerId.find(input.workerId);
   if (worker === null || worker.originCastleId !== input.castle.castleId) fail('WORKER_NOT_OWNED');
   assertCastleWorkerRoster(ctx, input.castle.castleId);
-  if (worker.assignmentId === undefined) {
-    ctx.db.workerCommandIdempotencyV1.insert({ requestKey, fid: input.fid, workerId: worker.workerId, commandKind: 'recall', resourceKind: undefined, siteId: undefined, assignmentId: undefined, resultRevision: worker.revision, createdAt: ctx.timestamp });
+  const assignment = ctx.db.workerAssignmentV1.workerId.find(worker.workerId);
+  if (assignment === null) {
+    if (worker.status !== 'idle') fail('WORKER_ASSIGNMENT_MISSING');
     return;
   }
-  const assignment = ctx.db.workerAssignmentV1.assignmentId.find(worker.assignmentId);
-  if (assignment === null || assignment.fid !== input.fid) fail('WORKER_ASSIGNMENT_MISSING');
+  if (assignment.fid !== input.fid) fail('WORKER_ASSIGNMENT_MISSING');
   assertAssignmentState(assignment);
-  if (assignment.phase === 'outbound') {
-    beginWorkerReturn(ctx, assignment, progressBasisPoints(assignment, ctx.timestamp.microsSinceUnixEpoch), ctx.timestamp.microsSinceUnixEpoch);
-  } else if (assignment.phase === 'gathering') {
-    beginWorkerReturn(ctx, assignment, 10_000, ctx.timestamp.microsSinceUnixEpoch);
-  }
-  ctx.db.workerCommandIdempotencyV1.insert({ requestKey, fid: input.fid, workerId: worker.workerId, commandKind: 'recall', resourceKind: assignment.resourceKind, siteId: assignment.siteId, assignmentId: assignment.assignmentId, resultRevision: worker.revision, createdAt: ctx.timestamp });
+  if (assignment.phase === 'returning') return;
+  const now = ctx.timestamp.microsSinceUnixEpoch;
+  const returnStartedAtMicros = now < assignment.gatheringEndsAtMicros
+    ? now
+    : assignment.gatheringEndsAtMicros;
+  const progress = returnStartedAtMicros < assignment.arrivesAtMicros
+    ? progressBasisPoints(assignment, returnStartedAtMicros)
+    : 10_000;
+  const returning = beginWorkerReturn(ctx, assignment, progress, returnStartedAtMicros);
+  const updatedWorker = ctx.db.castleWorkerV1.workerId.find(worker.workerId);
+  if (updatedWorker === null || !publicWorkerMatchesAssignment(updatedWorker, returning)) fail('WORKER_PUBLIC_PRIVATE_MISMATCH');
+  pruneWorkerIdempotencyReceipts(ctx, input.fid);
+  ctx.db.workerCommandIdempotencyV1.insert({ requestKey, fid: input.fid, workerId: worker.workerId, commandKind: 'recall', resourceKind: assignment.resourceKind, siteId: assignment.siteId, assignmentId: assignment.assignmentId, resultRevision: updatedWorker.revision, createdAt: ctx.timestamp });
 }
 
 export function recallAllCastleWorkers(
@@ -643,38 +854,62 @@ export function recallAllCastleWorkers(
   const prior = ctx.db.workerCommandIdempotencyV1.requestKey.find(requestKey);
   if (prior !== null) {
     if (prior.fid !== input.fid || prior.commandKind !== 'recall-all' || prior.workerId !== undefined) fail('WORKER_IDEMPOTENCY_CONFLICT');
+    if (
+      !workerReceiptShapeIsValid(prior)
+      || !canonicalCastleOwnershipMatches(ctx, input.fid, input.castle.castleId)
+      || !receiptOwnerIsCanonical(ctx, prior, input.castle.castleId)
+    ) fail('WORKER_IDEMPOTENCY_OWNER_INVALID');
     return;
   }
   workerSystemActive(ctx);
+  if (!canonicalCastleOwnershipMatches(ctx, input.fid, input.castle.castleId)) fail('WORKER_NOT_OWNED');
   const roster = assertCastleWorkerRoster(ctx, input.castle.castleId);
   settleAllWorkerAssignmentsForFid(ctx, input.fid);
   const now = ctx.timestamp.microsSinceUnixEpoch;
   let lastAssignmentId: string | undefined;
+  let resultRevision = 0n;
   for (const worker of [...roster].sort((left, right) => left.ordinal - right.ordinal)) {
     const fresh = ctx.db.castleWorkerV1.workerId.find(worker.workerId);
     if (fresh === null || fresh.originCastleId !== input.castle.castleId) fail('WORKER_ROSTER_INTEGRITY');
-    if (fresh.assignmentId === undefined) continue;
-    const assignment = ctx.db.workerAssignmentV1.assignmentId.find(fresh.assignmentId);
-    if (assignment === null || assignment.fid !== input.fid || !publicWorkerMatchesAssignment(fresh, assignment)) fail('WORKER_ASSIGNMENT_INTEGRITY');
-    if (assignment.phase === 'outbound') {
-      lastAssignmentId = beginWorkerReturn(ctx, assignment, progressBasisPoints(assignment, now), now).assignmentId;
-    } else if (assignment.phase === 'gathering') {
-      lastAssignmentId = beginWorkerReturn(ctx, assignment, 10_000, now).assignmentId;
+    const assignment = ctx.db.workerAssignmentV1.workerId.find(fresh.workerId);
+    if (assignment === null) {
+      if (fresh.status !== 'idle') fail('WORKER_ASSIGNMENT_INTEGRITY');
+      continue;
     }
+    if (assignment.fid !== input.fid || !publicWorkerMatchesAssignment(fresh, assignment)) fail('WORKER_ASSIGNMENT_INTEGRITY');
+    if (assignment.phase === 'returning') continue;
+    const returnStartedAtMicros = now < assignment.gatheringEndsAtMicros
+      ? now
+      : assignment.gatheringEndsAtMicros;
+    const progress = returnStartedAtMicros < assignment.arrivesAtMicros
+      ? progressBasisPoints(assignment, returnStartedAtMicros)
+      : 10_000;
+    const returning = beginWorkerReturn(ctx, assignment, progress, returnStartedAtMicros);
+    const updatedWorker = ctx.db.castleWorkerV1.workerId.find(fresh.workerId);
+    if (updatedWorker === null || !publicWorkerMatchesAssignment(updatedWorker, returning)) fail('WORKER_PUBLIC_PRIVATE_MISMATCH');
+    lastAssignmentId = returning.assignmentId;
+    if (updatedWorker.revision > resultRevision) resultRevision = updatedWorker.revision;
   }
-  ctx.db.workerCommandIdempotencyV1.insert({ requestKey, fid: input.fid, workerId: undefined, commandKind: 'recall-all', resourceKind: undefined, siteId: undefined, assignmentId: lastAssignmentId, resultRevision: 0n, createdAt: ctx.timestamp });
+  if (lastAssignmentId === undefined) return;
+  pruneWorkerIdempotencyReceipts(ctx, input.fid);
+  ctx.db.workerCommandIdempotencyV1.insert({ requestKey, fid: input.fid, workerId: undefined, commandKind: 'recall-all', resourceKind: undefined, siteId: undefined, assignmentId: lastAssignmentId, resultRevision, createdAt: ctx.timestamp });
 }
 
 export type WorkerGraphAggregate = Readonly<{
   systemRows: bigint;
   mode: string;
+  systemConfigValid: boolean;
+  legacyDrainRequired: boolean;
   expectedCastleCount: bigint;
   expectedWorkerCount: bigint;
   actualWorkerCount: bigint;
+  expectedCountsMatch: boolean;
+  rosterDigestMatches: boolean;
   castlesMissingWorkers: bigint;
   castlesWithExtraWorkers: bigint;
   duplicateOrdinals: bigint;
   malformedWorkerIds: bigint;
+  invalidWorkerStates: bigint;
   idleWorkers: bigint;
   outboundWorkers: bigint;
   gatheringWorkers: bigint;
@@ -684,9 +919,17 @@ export type WorkerGraphAggregate = Readonly<{
   schedules: bigint;
   orphanWorkers: bigint;
   orphanAssignments: bigint;
+  assignmentsMissingOccupation: bigint;
+  assignmentsWithoutSingleSchedule: bigint;
   orphanOccupations: bigint;
+  orphanSchedules: bigint;
+  invalidSchedules: bigint;
   assignmentPublicMismatches: bigint;
   occupationSiteMismatches: bigint;
+  invalidAssignments: bigint;
+  idempotencyReceipts: bigint;
+  invalidIdempotencyReceipts: bigint;
+  idempotencyOverflowFids: bigint;
   legacyExpeditions: bigint;
   legacyOccupations: bigint;
   legacySchedules: bigint;
@@ -709,6 +952,7 @@ export function inspectCastleWorkerGraph(ctx: WarpkeepReducerContext): WorkerGra
   let castlesWithExtraWorkers = 0n;
   let duplicateOrdinals = 0n;
   let malformedWorkerIds = 0n;
+  let invalidWorkerStates = 0n;
   let orphanWorkers = 0n;
   let idleWorkers = 0n;
   let outboundWorkers = 0n;
@@ -721,6 +965,7 @@ export function inspectCastleWorkerGraph(ctx: WarpkeepReducerContext): WorkerGra
     const ordinals = new Set<number>();
     for (const row of rows) {
       try { assertCastleWorkerId(row.workerId); } catch { malformedWorkerIds += 1n; }
+      if (!castleWorkerPublicStateIsConsistent(row)) invalidWorkerStates += 1n;
       if (ordinals.has(row.ordinal)) duplicateOrdinals += 1n;
       ordinals.add(row.ordinal);
       if (row.status === 'idle') idleWorkers += 1n;
@@ -734,31 +979,78 @@ export function inspectCastleWorkerGraph(ctx: WarpkeepReducerContext): WorkerGra
   }
   let orphanAssignments = 0n;
   let assignmentPublicMismatches = 0n;
+  let invalidAssignments = 0n;
+  let assignmentsMissingOccupation = 0n;
+  let assignmentsWithoutSingleSchedule = 0n;
+  let occupationSiteMismatches = 0n;
   for (const assignment of ctx.db.workerAssignmentV1.iter()) {
     const worker = ctx.db.castleWorkerV1.workerId.find(assignment.workerId);
     if (worker === null) orphanAssignments += 1n;
     else if (!publicWorkerMatchesAssignment(worker, assignment)) assignmentPublicMismatches += 1n;
+    try {
+      assertAssignmentState(assignment);
+      if (!assignmentOwnerIsCanonical(ctx, assignment)) fail('WORKER_OWNER_INTEGRITY');
+    } catch {
+      invalidAssignments += 1n;
+    }
+    const occupation = ctx.db.workerNodeOccupationV1.nodeKey.find(`${assignment.resourceKind}:${assignment.siteId}`);
+    if (assignment.phase === 'returning') {
+      if (occupation !== null) occupationSiteMismatches += 1n;
+    } else if (occupation === null || !occupationMatchesAssignment(occupation, assignment)) {
+      assignmentsMissingOccupation += 1n;
+    }
+    const schedules = [...ctx.db.workerAssignmentScheduleV1.byAssignment.filter(assignment.assignmentId)];
+    if (schedules.length !== 1 || !schedules.every(schedule => scheduleMatchesAssignment(schedule, assignment))) {
+      assignmentsWithoutSingleSchedule += 1n;
+    }
   }
   let orphanOccupations = 0n;
-  let occupationSiteMismatches = 0n;
   for (const occupation of ctx.db.workerNodeOccupationV1.iter()) {
-    const assignment = ctx.db.workerAssignmentV1.assignmentId.find(occupation.assignmentId);
+    const assignment = ctx.db.workerAssignmentV1.workerId.find(occupation.workerId);
     if (assignment === null) orphanOccupations += 1n;
     if (occupation.nodeKey !== `${occupation.resourceKind}:${occupation.siteId}`) occupationSiteMismatches += 1n;
-    if (assignment !== null && (assignment.phase === 'returning' || assignment.siteId !== occupation.siteId || assignment.resourceKind !== occupation.resourceKind)) occupationSiteMismatches += 1n;
+    if (assignment !== null && !occupationMatchesAssignment(occupation, assignment)) occupationSiteMismatches += 1n;
   }
+  let orphanSchedules = 0n;
+  let invalidSchedules = 0n;
+  for (const schedule of ctx.db.workerAssignmentScheduleV1.iter()) {
+    const assignment = ctx.db.workerAssignmentV1.assignmentId.find(schedule.assignmentId);
+    if (assignment === null) orphanSchedules += 1n;
+    else if (!scheduleMatchesAssignment(schedule, assignment)) invalidSchedules += 1n;
+  }
+  const receiptsPerFid = new Map<bigint, number>();
+  let invalidIdempotencyReceipts = 0n;
+  for (const receipt of ctx.db.workerCommandIdempotencyV1.iter()) {
+    receiptsPerFid.set(receipt.fid, (receiptsPerFid.get(receipt.fid) ?? 0) + 1);
+    if (
+      !workerReceiptShapeIsValid(receipt)
+      || !receiptOwnerIsCanonical(ctx, receipt)
+    ) invalidIdempotencyReceipts += 1n;
+  }
+  const idempotencyOverflowFids = BigInt([...receiptsPerFid.values()]
+    .filter(count => count > WORKER_IDEMPOTENCY_RECEIPTS_PER_FID).length);
   const legacy = legacyActiveCounts(ctx);
   const castleIds = castles.map(castle => castle.castleId);
+  const expectedWorkerCount = BigInt(castleIds.length * CASTLE_WORKERS_PER_CASTLE);
+  const expectedRosterDigest = rosterDigestForCastleIds(castleIds);
   return Object.freeze({
     systemRows: ctx.db.realmWorkerSystemV1.count(),
     mode: system?.mode ?? 'absent',
+    systemConfigValid: system !== null && workerSystemRowIsStagedOrActive(system),
+    legacyDrainRequired: system?.legacyDrainRequired ?? true,
     expectedCastleCount: BigInt(system?.expectedCastleCount ?? 0),
     expectedWorkerCount: BigInt(system?.expectedWorkerCount ?? 0),
     actualWorkerCount: ctx.db.castleWorkerV1.count(),
+    expectedCountsMatch: system !== null
+      && BigInt(system.expectedCastleCount) === BigInt(castleIds.length)
+      && BigInt(system.expectedWorkerCount) === expectedWorkerCount
+      && ctx.db.castleWorkerV1.count() === expectedWorkerCount,
+    rosterDigestMatches: system !== null && system.rosterDigest === expectedRosterDigest,
     castlesMissingWorkers,
     castlesWithExtraWorkers,
     duplicateOrdinals,
     malformedWorkerIds,
+    invalidWorkerStates,
     idleWorkers,
     outboundWorkers,
     gatheringWorkers,
@@ -768,18 +1060,29 @@ export function inspectCastleWorkerGraph(ctx: WarpkeepReducerContext): WorkerGra
     schedules: ctx.db.workerAssignmentScheduleV1.count(),
     orphanWorkers,
     orphanAssignments,
+    assignmentsMissingOccupation,
+    assignmentsWithoutSingleSchedule,
     orphanOccupations,
+    orphanSchedules,
+    invalidSchedules,
     assignmentPublicMismatches,
     occupationSiteMismatches,
+    invalidAssignments,
+    idempotencyReceipts: ctx.db.workerCommandIdempotencyV1.count(),
+    invalidIdempotencyReceipts,
+    idempotencyOverflowFids,
     legacyExpeditions: legacy.expeditions,
     legacyOccupations: legacy.occupations,
     legacySchedules: legacy.schedules,
     rosterDigest: system?.rosterDigest ?? '',
-    rosterDigestExpected: rosterDigestForCastleIds(castleIds),
+    rosterDigestExpected: expectedRosterDigest,
   });
 }
 
 export function castleWorkerErrorCode(error: unknown): string | undefined {
-  if (error instanceof CastleWorkerAuthorityError || error instanceof CastleWorkerPolicyError) return error.code;
+  if (
+    (error instanceof CastleWorkerAuthorityError || error instanceof CastleWorkerPolicyError)
+    && BOUNDED_WORKER_ERROR_CODE.test(error.code)
+  ) return error.code;
   return undefined;
 }

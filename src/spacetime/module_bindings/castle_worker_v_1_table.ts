@@ -15,7 +15,6 @@ export default __t.row({
   originCastleId: __t.u64().name("origin_castle_id"),
   ordinal: __t.u32(),
   status: __t.string(),
-  assignmentId: __t.option(__t.string()).name("assignment_id"),
   resourceKind: __t.option(__t.string()).name("resource_kind"),
   siteId: __t.option(__t.string()).name("site_id"),
   startedAtMicros: __t.option(__t.u64()).name("started_at_micros"),

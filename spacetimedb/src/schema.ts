@@ -1039,7 +1039,6 @@ export const castleWorkerV1 = table(
     originCastleId: t.u64(),
     ordinal: t.u32(),
     status: t.string(),
-    assignmentId: t.option(t.string()),
     resourceKind: t.option(t.string()),
     siteId: t.option(t.string()),
     startedAtMicros: t.option(t.u64()),
@@ -1061,6 +1060,10 @@ export const workerAssignmentV1 = table(
   {
     name: 'worker_assignment_v1',
     indexes: [{
+      accessor: 'byFid',
+      algorithm: 'btree',
+      columns: ['fid'] as const,
+    }, {
       accessor: 'byFidAndPhase',
       algorithm: 'btree',
       columns: ['fid', 'phase'] as const,
@@ -1113,7 +1116,6 @@ export const workerNodeOccupationV1 = table(
     workerId: t.string(),
     workerOrdinal: t.u32(),
     originCastleId: t.u64(),
-    assignmentId: t.string(),
     phase: t.string(),
     startedAtMicros: t.u64(),
     arrivesAtMicros: t.u64(),
@@ -1145,11 +1147,10 @@ export const workerCommandIdempotencyV1 = table(
   },
 );
 
-/** Public-safe lifecycle schedule projection for generic worker assignments. */
+/** Private scheduler authority. Assignment correlation never reaches clients. */
 export const workerAssignmentScheduleV1 = table(
   {
     name: 'worker_assignment_schedule_v_1',
-    public: true,
     indexes: [{
       accessor: 'byAssignment',
       algorithm: 'btree',
