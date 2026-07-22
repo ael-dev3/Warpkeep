@@ -20,6 +20,8 @@ export const PRODUCTION_QA_OBSERVER_SPACETIMEDB_URI = 'https://maincloud.spaceti
 const PRODUCTION_ISSUER = 'https://auth.warpkeep.com'
 const PRODUCTION_DOMAIN = 'warpkeep.com'
 const PRODUCTION_ORIGIN = 'https://warpkeep.com'
+const SPACETIMEDB_DATABASE_IDENTITY_PATTERN = /^[a-f0-9]{64}$/
+const SPACETIMEDB_DATABASE_ALIAS_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/
 
 export type QaObserverSpacetimeDbConfig = Readonly<{
   uri: string
@@ -190,9 +192,7 @@ function parseSpacetimeDbUri(value: string, production: boolean): string {
 }
 
 function parseSpacetimeDbDatabase(value: string): string {
-  const databaseIdentity = /^[a-f0-9]{64}$/
-  const databaseAlias = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/
-  if (!databaseIdentity.test(value) && !databaseAlias.test(value)) {
+  if (!SPACETIMEDB_DATABASE_IDENTITY_PATTERN.test(value) && !SPACETIMEDB_DATABASE_ALIAS_PATTERN.test(value)) {
     throw new ConfigurationError()
   }
   return value
@@ -369,6 +369,7 @@ export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
     qaObserverSpacetimeDb
     && (
       (production && qaObserverSpacetimeDb.uri !== PRODUCTION_QA_OBSERVER_SPACETIMEDB_URI)
+      || (production && !SPACETIMEDB_DATABASE_IDENTITY_PATTERN.test(qaObserverSpacetimeDb.database))
       || qaObserverSpacetimeDb.database === spacetimeDbDatabase
       || qaObserverSpacetimeDb.audience === audience
     )
