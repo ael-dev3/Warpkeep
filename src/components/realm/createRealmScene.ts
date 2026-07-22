@@ -68,6 +68,7 @@ import {
 import {
   createRealmCameraController,
   DEFAULT_REALM_CAMERA_SPEC,
+  type RealmCameraControllerState,
   type RealmCameraComposition,
   type RealmCameraMode,
   type RealmKeepFocus
@@ -148,7 +149,10 @@ import type {
   RealmCastleProjectionFrame,
   RealmCastleScreenBounds
 } from './realmTypes';
-import type { RealmRendererFailure } from './realmRendererRecovery';
+import {
+  classifyRealmRendererFailure,
+  type RealmRendererFailure
+} from './realmRendererRecovery';
 
 const HEX_SIZE = 1;
 const OVERLAY_LIFT = 0.026;
@@ -453,6 +457,7 @@ export type RealmCameraAttestation = Readonly<{
   target: Readonly<{ x: number; y: number; z: number }>;
   fov: number;
   zoom: number;
+  controllerState: RealmCameraControllerState;
   selectedTerrainCoord: HexCoord | null;
   selectedCastleId: number | null;
   selectedGoldSiteId: string | null;
@@ -546,6 +551,8 @@ export type CreateRealmSceneOptions = Readonly<{
   onKeepStatusChange: (status: KeepLoadStatus) => void;
   /** Fired only after every authoritative castle has a real GLB instance. */
   onCastlesReady?: (castleCount: number) => void;
+  /** Reports a progressive contiguous LOD upgrade after initial readiness. */
+  onCastleLodChange?: (lod: CastleLod) => void;
   /** Live counts derived from populated instance meshes after presentation masking. */
   onCastlePresentationTelemetry?: (
     telemetry: RealmCastleInstancePresentationTelemetry
@@ -2400,12 +2407,16 @@ function initializeRealmScene(
     labelClickSuppressionTimer = window.setTimeout(clearLabelClickSuppression, 0);
   };
 
+  const contextLostBlocksTarget = (target: EventTarget | null) => (
+    laneForTarget(target) !== null
+  );
+
   const handlePointerDown = (event: PointerEvent) => {
-    if (contextLost) {
+    const lane = laneForTarget(event.target);
+    if (contextLost && lane !== null) {
       event.preventDefault();
       return;
     }
-    const lane = laneForTarget(event.target);
     if (!lane || (event.pointerType !== 'touch' && event.button !== 0)) return;
     if (pointerGestures.snapshot().pointerCount === 0) clearLabelClickSuppression();
     const result = pointerGestures.start({
@@ -2428,10 +2439,14 @@ function initializeRealmScene(
   };
 
   const handlePointerMove = (event: PointerEvent) => {
-    if (contextLost) {
+    if (contextLost && (
+      contextLostBlocksTarget(event.target)
+      || pointerGestures.snapshot().pointerCount > 0
+    )) {
       event.preventDefault();
       return;
     }
+    if (contextLost) return;
     if (pointerGestures.snapshot().pointerCount === 0) {
       if (event.target === options.canvas) scheduleHover(event.clientX, event.clientY);
       return;
@@ -2477,10 +2492,14 @@ function initializeRealmScene(
   };
 
   const handlePointerUp = (event: PointerEvent) => {
-    if (contextLost) {
+    if (contextLost && (
+      contextLostBlocksTarget(event.target)
+      || pointerGestures.snapshot().pointerCount > 0
+    )) {
       event.preventDefault();
       return;
     }
+    if (contextLost) return;
     const labelTarget = labelPointerTargets.get(event.pointerId);
     labelPointerTargets.delete(event.pointerId);
     const result = pointerGestures.end({
@@ -2502,10 +2521,14 @@ function initializeRealmScene(
   };
 
   const handlePointerCancel = (event: PointerEvent) => {
-    if (contextLost) {
+    if (contextLost && (
+      contextLostBlocksTarget(event.target)
+      || pointerGestures.snapshot().pointerCount > 0
+    )) {
       event.preventDefault();
       return;
     }
+    if (contextLost) return;
     labelPointerTargets.delete(event.pointerId);
     const result = pointerGestures.cancel(event.pointerId);
     if (!result.accepted) return;
@@ -2542,7 +2565,7 @@ function initializeRealmScene(
   };
 
   const handleLabelClickCapture = (event: MouseEvent) => {
-    if (contextLost) {
+    if (contextLost && contextLostBlocksTarget(event.target)) {
       event.preventDefault();
       event.stopImmediatePropagation();
       return;
@@ -2568,11 +2591,12 @@ function initializeRealmScene(
     }
   };
   const handleWheel = (event: WheelEvent) => {
-    if (contextLost) {
+    const lane = laneForTarget(event.target);
+    if (contextLost && lane !== null) {
       event.preventDefault();
       return;
     }
-    const lane = laneForTarget(event.target);
+    if (contextLost) return;
     if (!lane) return;
     event.preventDefault();
     // Camera motion invalidates the last canvas hit. Clear it immediately so
@@ -2721,6 +2745,7 @@ function initializeRealmScene(
   resize();
 
   const usedCastleLods = castleLodsForQuality(runtimeQuality);
+  const requestedCastleLodPolicy = castleLodPolicy;
   const prefabRepository = createHegemonyKeepPrefabRepository({
     baseUrl: options.baseUrl,
     maxAnisotropy: renderer.capabilities.getMaxAnisotropy()
@@ -2738,59 +2763,42 @@ function initializeRealmScene(
     });
   };
 
-  const initializeCastleInstances = async () => {
-    if (authoritativeCastles.length === 0) {
-      if (!cleanup.isDisposed()) {
-        pendingCastlesReadyCount = 0;
-        render();
-      }
-      return;
-    }
-
-    const leases: HegemonyKeepPrefabLease[] = [];
-    const compact = usedCastleLods.includes('compact') ? 'compact' : usedCastleLods[0];
-    if (!compact) throw new Error('No compact castle LOD is configured.');
-    const acquireWithRetry = async (lod: CastleLod) => {
-      let lastError: unknown;
-      for (let attempt = 0; attempt < 2; attempt += 1) {
+  const acquiredCastleLeases = new Map<CastleLod, HegemonyKeepPrefabLease>();
+  let activeCastleLod: CastleLod | null = null;
+  const releaseAcquiredCastleLease = (lod: CastleLod) => {
+    const lease = acquiredCastleLeases.get(lod);
+    if (!lease) return;
+    acquiredCastleLeases.delete(lod);
+    releaseLeases([lease]);
+  };
+  cleanup.add(() => {
+    const layer = castleLayer;
+    castleLayer = null;
+    if (layer) {
+      try {
+        scene.remove(layer.group);
+      } finally {
         try {
-          return await prefabRepository.acquire(lod, castleLoadAbortController.signal);
-        } catch (error) {
-          lastError = error;
-          if (lod !== 'compact' || attempt !== 0) break;
-          // Keep the retry bounded and deterministic. The short yield lets a
-          // transient browser fetch/decode stall settle without overlapping
-          // two requests for the same content-addressed lease.
-          await new Promise<void>((resolve) => window.setTimeout(resolve, 40));
+          layer.dispose();
+        } catch {
+          // Continue through repository lease release after layer cleanup.
         }
       }
-      throw lastError ?? new Error(`Unable to load castle ${lod} LOD.`);
-    };
-    const compactLease = await acquireWithRetry(compact);
-    if (cleanup.isDisposed()) {
-      releaseLeases([compactLease]);
-      return;
     }
-    leases.push(compactLease);
-    const optionalLods = usedCastleLods.filter((lod) => lod !== compact);
-    const optionalResults = await Promise.allSettled(
-      optionalLods.map((lod) => acquireWithRetry(lod))
-    );
-    optionalResults.forEach((result, index) => {
-      if (result.status === 'fulfilled') leases.push(result.value);
-      else options.canvas.dataset[`realmCastle${optionalLods[index]}Lod`] = 'unavailable';
-    });
-    if (cleanup.isDisposed()) {
-      releaseLeases(leases);
-      return;
-    }
+    releaseLeases([...acquiredCastleLeases.values()]);
+    acquiredCastleLeases.clear();
+  });
 
-    const prefabs = new Map(leases.map((lease) => [lease.prefab.lod, lease.prefab]));
-    const activeLod = prefabs.has(castleLodPolicy.maximumLod)
-      ? castleLodPolicy.maximumLod
-      : prefabs.has('balanced') ? 'balanced' : 'compact';
-    castleLodPolicy = Object.freeze({
-      ...castleLodPolicy,
+  const installCastleLayer = (activeLod: CastleLod, signalReady: boolean) => {
+    const activeIndex = usedCastleLods.indexOf(activeLod);
+    const activeLods = usedCastleLods.slice(0, activeIndex + 1);
+    const prefabs = new Map(activeLods.map((lod) => {
+      const lease = acquiredCastleLeases.get(lod);
+      if (!lease) throw new Error(`Missing contiguous Hegemony keep ${lod} lease.`);
+      return [lod, lease.prefab] as const;
+    }));
+    const nextPolicy: CastleLodPolicy = Object.freeze({
+      ...requestedCastleLodPolicy,
       maximumLod: activeLod,
       selectedMinimumLod: activeLod,
       highInstanceBudget: activeLod === 'high'
@@ -2800,7 +2808,24 @@ function initializeRealmScene(
         ? 0
         : DEFAULT_CASTLE_LOD_POLICY.balancedInstanceBudget
     });
-    options.canvas.dataset.realmCastleActiveLod = activeLod;
+    const nextLayer = createRealmCastleInstanceLayer({
+      castles: authoritativeCastles,
+      prefabs,
+      policy: nextPolicy,
+      dynamicShadows: renderPlan.dynamicShadows
+    });
+    if (cleanup.isDisposed()) {
+      nextLayer.dispose();
+      return false;
+    }
+    if (presentedCastleIds !== null) {
+      nextLayer.setPresentedCastleIds([...presentedCastleIds]);
+    }
+
+    const previousLayer = castleLayer;
+    scene.add(nextLayer.group);
+    castleLayer = nextLayer;
+    castleLodPolicy = nextPolicy;
     const nextProjectionEnvelopeByLod = new Map([...prefabs].map(([lod, prefab]) => [
       lod,
       prefab.projectionEnvelope
@@ -2809,60 +2834,27 @@ function initializeRealmScene(
       lod,
       prefab.renderProjectionEnvelope
     ] as const));
-    let nextLayer: RealmCastleInstanceLayer;
-    try {
-      nextLayer = createRealmCastleInstanceLayer({
-        castles: authoritativeCastles,
-        prefabs,
-        policy: castleLodPolicy,
-        dynamicShadows: renderPlan.dynamicShadows
-      });
-    } catch (error) {
-      releaseLeases(leases);
-      throw error;
-    }
-    if (cleanup.isDisposed()) {
-      try {
-        nextLayer.dispose();
-      } finally {
-        releaseLeases(leases);
-      }
-      return;
-    }
-
-    if (presentedCastleIds !== null) {
-      nextLayer.setPresentedCastleIds([...presentedCastleIds]);
-    }
-    castleLayer = nextLayer;
     castleProjectionEnvelopeByLod = nextProjectionEnvelopeByLod;
     castleRenderEnvelopeByLod = nextRenderEnvelopeByLod;
-    fallbackCastleProjectionEnvelope = nextProjectionEnvelopeByLod
-      .get(castleLodPolicy.maximumLod)
-      ?? nextProjectionEnvelopeByLod.get('compact')
+    fallbackCastleProjectionEnvelope = nextProjectionEnvelopeByLod.get(activeLod)
       ?? DEFAULT_CASTLE_PROJECTION_ENVELOPE;
-    fallbackCastleRenderEnvelope = nextRenderEnvelopeByLod
-      .get(castleLodPolicy.maximumLod)
-      ?? nextRenderEnvelopeByLod.get('compact')
+    fallbackCastleRenderEnvelope = nextRenderEnvelopeByLod.get(activeLod)
       ?? DEFAULT_CASTLE_PROJECTION_ENVELOPE;
-    scene.add(nextLayer.group);
-    let released = false;
-    cleanup.add(() => {
-      if (released) return;
-      released = true;
-      try {
-        scene.remove(nextLayer.group);
-      } finally {
-        try {
-          nextLayer.dispose();
-        } finally {
-          if (castleLayer === nextLayer) castleLayer = null;
-          releaseLeases(leases);
-        }
-      }
-    });
+    options.canvas.dataset.realmCastleActiveLod = activeLod;
+    lastCastleProjectionKey = '';
+    lastCastlePresentationTelemetryKey = '';
+    activeCastleLod = activeLod;
 
-    const focusPrefab = prefabs.get(castleLodPolicy.maximumLod)
-      ?? prefabs.get('compact');
+    if (previousLayer) {
+      scene.remove(previousLayer.group);
+      try {
+        previousLayer.dispose();
+      } catch {
+        // The replacement is already authoritative; keep its live resources.
+      }
+    }
+
+    const focusPrefab = prefabs.get(activeLod) ?? prefabs.get('compact');
     if (focusPrefab) {
       castleFocusSize = Object.freeze({
         height: focusPrefab.visualHeight,
@@ -2876,10 +2868,146 @@ function initializeRealmScene(
         footprintDiameter: focusPrefab.footprintDiameter
       });
     }
-    options.onKeepStatusChange('ready');
-    if (cleanup.isDisposed()) return;
-    pendingCastlesReadyCount = authoritativeCastles.length;
+    if (signalReady) {
+      options.onKeepStatusChange('ready');
+      if (cleanup.isDisposed()) return false;
+      pendingCastlesReadyCount = authoritativeCastles.length;
+    } else {
+      options.onCastleLodChange?.(activeLod);
+    }
     render();
+    return !cleanup.isDisposed();
+  };
+
+  const initializeCastleInstances = async () => {
+    if (authoritativeCastles.length === 0) {
+      if (!cleanup.isDisposed()) {
+        pendingCastlesReadyCount = 0;
+        render();
+      }
+      return;
+    }
+
+    const compact = usedCastleLods.includes('compact') ? 'compact' : usedCastleLods[0];
+    if (!compact) throw new Error('No compact castle LOD is configured.');
+    const acquireWithRetry = async (lod: CastleLod) => {
+      let lastError: unknown;
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          return await (attempt === 0
+            ? prefabRepository.acquire(lod, castleLoadAbortController.signal)
+            : prefabRepository.retryFailed(lod, castleLoadAbortController.signal));
+        } catch (error) {
+          lastError = error;
+          const failure = classifyRealmRendererFailure(
+            error,
+            'loading',
+            'castle-compact-load-failed'
+          );
+          if (lod !== 'compact' || attempt !== 0 || !failure.retryable) break;
+          // Keep the retry bounded and deterministic. The short yield lets a
+          // transient browser fetch/decode stall settle without overlapping
+          // two requests for the same content-addressed lease.
+          await new Promise<void>((resolve) => window.setTimeout(resolve, 40));
+        }
+      }
+      throw lastError ?? new Error(`Unable to load castle ${lod} LOD.`);
+    };
+    const optionalLods = usedCastleLods.filter((lod) => lod !== compact);
+    const optionalStates = new Map<CastleLod, 'pending' | 'ready' | 'failed'>(
+      optionalLods.map((lod) => [lod, 'pending'])
+    );
+    let compactInstalled = false;
+    const activeRank = () => activeCastleLod === null
+      ? -1
+      : usedCastleLods.indexOf(activeCastleLod);
+    const highestContiguousReadyLod = () => {
+      let highest = compact;
+      for (const lod of optionalLods) {
+        if (optionalStates.get(lod) !== 'ready') break;
+        highest = lod;
+      }
+      return highest;
+    };
+    const releaseLodsAboveGap = () => {
+      let gapFound = false;
+      optionalLods.forEach((lod) => {
+        if (gapFound && optionalStates.get(lod) === 'ready') {
+          releaseAcquiredCastleLease(lod);
+          optionalStates.set(lod, 'failed');
+          options.canvas.dataset[`realmCastle${lod}Lod`] = 'unavailable';
+          return;
+        }
+        if (optionalStates.get(lod) === 'failed') gapFound = true;
+      });
+    };
+    const upgradeToHighestContiguousLod = () => {
+      if (!compactInstalled || cleanup.isDisposed() || contextLost) return;
+      releaseLodsAboveGap();
+      const nextLod = highestContiguousReadyLod();
+      if (usedCastleLods.indexOf(nextLod) <= activeRank()) return;
+      try {
+        installCastleLayer(nextLod, false);
+      } catch {
+        optionalStates.set(nextLod, 'failed');
+        options.canvas.dataset[`realmCastle${nextLod}Lod`] = 'unavailable';
+        releaseAcquiredCastleLease(nextLod);
+        releaseLodsAboveGap();
+        const fallbackLod = highestContiguousReadyLod();
+        if (usedCastleLods.indexOf(fallbackLod) > activeRank()) {
+          try {
+            installCastleLayer(fallbackLod, false);
+          } catch {
+            optionalStates.set(fallbackLod, 'failed');
+            options.canvas.dataset[`realmCastle${fallbackLod}Lod`] = 'unavailable';
+            releaseAcquiredCastleLease(fallbackLod);
+          }
+        }
+      }
+    };
+
+    // Start the complete family together. Compact alone gates first playable
+    // presentation; optional LODs upgrade progressively as a contiguous chain
+    // and can never impose their network timeout on Realm readiness.
+    optionalLods.forEach((lod) => {
+      void prefabRepository.acquire(lod, castleLoadAbortController.signal).then((lease) => {
+        if (cleanup.isDisposed()) {
+          releaseLeases([lease]);
+          return;
+        }
+        const prerequisiteFailed = lod === 'high'
+          && optionalStates.get('balanced') === 'failed';
+        if (prerequisiteFailed) {
+          optionalStates.set(lod, 'failed');
+          options.canvas.dataset[`realmCastle${lod}Lod`] = 'unavailable';
+          releaseLeases([lease]);
+          return;
+        }
+        acquiredCastleLeases.set(lod, lease);
+        optionalStates.set(lod, 'ready');
+        upgradeToHighestContiguousLod();
+      }, () => {
+        if (cleanup.isDisposed()) return;
+        optionalStates.set(lod, 'failed');
+        options.canvas.dataset[`realmCastle${lod}Lod`] = 'unavailable';
+        releaseLodsAboveGap();
+        upgradeToHighestContiguousLod();
+      });
+    });
+
+    const compactLease = await acquireWithRetry(compact);
+    if (cleanup.isDisposed()) {
+      releaseLeases([compactLease]);
+      return;
+    }
+    acquiredCastleLeases.set(compact, compactLease);
+    try {
+      compactInstalled = installCastleLayer(compact, true);
+    } catch (error) {
+      releaseAcquiredCastleLease(compact);
+      throw error;
+    }
+    upgradeToHighestContiguousLod();
   };
 
   void initializeCastleInstances().catch((error) => {
@@ -2889,12 +3017,11 @@ function initializeRealmScene(
     } catch {
       // Renderer fallback still has to engage when a status observer fails.
     }
-    options.onRendererFailure?.({
-      code: 'castle-compact-load-failed',
-      retryable: true,
-      phase: 'loading',
-      message: error instanceof Error ? error.message : String(error)
-    });
+    options.onRendererFailure?.(classifyRealmRendererFailure(
+      error,
+      'loading',
+      'castle-compact-load-failed'
+    ));
     options.onRendererUnavailable();
     disposeScene();
   });
@@ -2980,6 +3107,7 @@ function initializeRealmScene(
       target: Object.freeze({ ...pose.target }),
       fov: pose.fov,
       zoom: cameraController.getZoom(),
+      controllerState: cameraController.captureState(),
       selectedTerrainCoord: selectedTerrainCoord
         ? Object.freeze({ ...selectedTerrainCoord })
         : null,
@@ -2997,7 +3125,7 @@ function initializeRealmScene(
     getCameraAttestation,
     restoreCameraAttestation: (attestation) => {
       if (cleanup.isDisposed()) return;
-      cameraController.restorePose?.(attestation);
+      cameraController.restoreState(attestation.controllerState);
     },
     getSceneBuildSequence: () => sceneBuildSequence,
     focusCastle: (castleId) => {

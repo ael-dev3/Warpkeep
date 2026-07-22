@@ -832,4 +832,61 @@ describe('realm perspective camera math', () => {
     expect(scheduled.size).toBe(1);
     controller.dispose();
   });
+
+  it('restores complete controller state so projections and future frames survive a rebuild', () => {
+    let nextFrame = 1;
+    const scheduled = new Map<number, FrameRequestCallback>();
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      const id = nextFrame;
+      nextFrame += 1;
+      scheduled.set(id, callback);
+      return id;
+    });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => {
+      scheduled.delete(id);
+    });
+    const createController = () => createRealmCameraController({
+      bounds: BOUNDS,
+      keepFocus: KEEP,
+      fog: new THREE.Fog('#a6bcaf', 1, 2),
+      reducedMotion: false,
+      render: vi.fn()
+    });
+    const source = createController();
+    source.setViewport(1_280, 720);
+    source.setComposition({
+      insets: { top: 18, right: 260, bottom: 72, left: 180 },
+      focusPadding: 20
+    });
+    source.focusAt(SELECTED_CASTLE);
+    const firstSourceFrame = [...scheduled.entries()].at(-1);
+    expect(firstSourceFrame).toBeDefined();
+    scheduled.delete(firstSourceFrame![0]);
+    firstSourceFrame![1](16);
+
+    const state = source.captureState();
+    const expectedPose = source.getPose();
+    const expectedProjection = source.projectPoint({ x: 1.1, y: 0, z: -0.7 });
+    source.dispose();
+
+    const restored = createController();
+    restored.setViewport(1_280, 720);
+    restored.restoreState(state);
+
+    expect(restored.getZoom()).toBe(state.targetZoom);
+    expect(restored.getMode()).toBe(expectedPose.mode);
+    expect(restored.getPose().position).toEqual(expectedPose.position);
+    expect(restored.getPose().target).toEqual(expectedPose.target);
+    expect(restored.getPose().safeViewport).toEqual(expectedPose.safeViewport);
+    expect(restored.projectPoint({ x: 1.1, y: 0, z: -0.7 })).toEqual(expectedProjection);
+
+    const restoredFrame = [...scheduled.entries()].at(-1);
+    expect(restoredFrame).toBeDefined();
+    const distanceBeforeFrame = restored.getPose().distance;
+    scheduled.delete(restoredFrame![0]);
+    restoredFrame![1](32);
+    expect(restored.getPose().distance).not.toBe(distanceBeforeFrame);
+    expect(restored.getPose().focus.x).toBeGreaterThan(expectedPose.focus.x);
+    restored.dispose();
+  });
 });

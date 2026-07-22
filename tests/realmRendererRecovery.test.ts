@@ -98,10 +98,17 @@ describe('Realm renderer recovery lifecycle', () => {
   });
 
   it('classifies integrity and pairing failures as explicit non-retryable failures', () => {
-    expect(classifyRealmRendererFailure(new Error('sha256 integrity mismatch'), 'loading').code)
-      .toBe('castle-integrity-failed');
+    expect(classifyRealmRendererFailure(new Error('sha256 integrity mismatch'), 'loading'))
+      .toMatchObject({ code: 'castle-integrity-failed', retryable: false });
     expect(classifyRealmRendererFailure(new Error('landscape base pairing failed'), 'loading').code)
       .toBe('castle-pairing-failed');
+    expect(classifyRealmRendererFailure(
+      new Error('Hegemony keep compact prefab contains no renderable meshes.'),
+      'loading'
+    )).toMatchObject({
+      code: 'castle-prefab-assembly-failed',
+      retryable: false
+    });
     expect(classifyRealmRendererFailure(new Error('request timed out'), 'loading').code)
       .toBe('castle-compact-load-failed');
   });

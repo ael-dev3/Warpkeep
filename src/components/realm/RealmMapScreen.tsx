@@ -110,6 +110,7 @@ import type { RealmCastleProjectionFrame } from './realmTypes';
 import {
   CASTLE_LABEL_LAYOUT_MAX_CASTLES,
   castleProfileLabel,
+  fallbackCastleIsInViewBox,
   fallbackCastleProjection,
   publicProfileForCastle,
   resolvePersistentCastleLabels,
@@ -651,13 +652,18 @@ function CanonicalRealmMapScreen({
     () => fallbackSurfacePresentation(surface, { focusCoord: keepCoord, radius: 16 }),
     [keepCoord, surface]
   );
-  // Keep direct-label accounting complete for assistive technology even when
-  // the visible unsupported-device SVG is region-bounded around the keep.
-  const fallbackProjectionViewBox = useMemo(
-    () => fallbackSurfacePresentation(surface).viewBox,
-    [surface]
-  );
   const viewBox = fallbackSurface.viewBox;
+  const fallbackVisibleCastleIds = useMemo(() => new Set(
+    allCastles
+      .filter((castle) => fallbackCastleIsInViewBox(castle, viewBox))
+      .map((castle) => castle.castleId)
+  ), [allCastles, viewBox]);
+  const visibleFallbackFoundations = useMemo(() => fallbackFoundations.filter((foundation) => {
+    const castleId = foundation.id === 'own-keep'
+      ? ownCastle.castleId
+      : Number(foundation.id.replace(/^peer-castle-/, ''));
+    return fallbackVisibleCastleIds.has(castleId);
+  }), [fallbackFoundations, fallbackVisibleCastleIds, ownCastle.castleId]);
   const selectedCell = selectedCellFor(surface, selectedCoord, keepCoord);
   const selectedTerrainKindCandidate = tileMetadataByKey.get(hexKey(selectedCoord))?.terrainKind;
   const selectedTerrainKind = isRealmTerrainKind(selectedTerrainKindCandidate)
@@ -936,7 +942,7 @@ function CanonicalRealmMapScreen({
           const latest = rendererLifecycleRef.current;
           const timeoutFailure: RealmRendererFailure = {
             code: 'context-restore-timeout',
-            retryable: false,
+            retryable: true,
             phase: latest.state,
             message: 'The browser did not restore the Realm graphics context in time.'
           };
@@ -1267,7 +1273,7 @@ function CanonicalRealmMapScreen({
         height,
         castles: allCastles.map((castle) => fallbackCastleProjection(
           castle,
-          fallbackProjectionViewBox,
+          viewBox,
           { width, height },
           svgViewport
         ))
@@ -1284,14 +1290,14 @@ function CanonicalRealmMapScreen({
       observer?.disconnect();
       window.removeEventListener('resize', updateFallbackProjection);
     };
-  }, [allCastles, fallbackProjectionViewBox, rendererMode, updateCastleProjection, viewBox]);
+  }, [allCastles, rendererMode, updateCastleProjection, viewBox]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !canUseWebGL()) {
       markRendererFailure({
         code: 'webgl-unavailable',
-        retryable: false,
+        retryable: true,
         phase: 'probing',
         message: 'WebGL is unavailable on this device.'
       });
@@ -1410,14 +1416,32 @@ function CanonicalRealmMapScreen({
           rendererModeRef.current = 'webgl';
           const activeLod = canvas.dataset.realmCastleActiveLod;
           lastSuccessfulRendererGenerationRef.current = rendererGeneration;
-          setRendererLifecycle(transitionRealmRendererLifecycle(rendererLifecycleRef.current, {
+          const readyLifecycle = transitionRealmRendererLifecycle(rendererLifecycleRef.current, {
             type: 'ready',
             generation: rendererGeneration,
             degradedQuality: activeLod === 'compact' || activeLod === 'balanced'
               ? activeLod
               : undefined
-          }));
+          });
+          rendererLifecycleRef.current = readyLifecycle;
+          setRendererLifecycle(readyLifecycle);
           updateSceneComposition();
+        },
+        onCastleLodChange: (activeLod) => {
+          if (activeRendererGenerationRef.current !== rendererGeneration) return;
+          const currentLifecycle = rendererLifecycleRef.current;
+          // An optional model can settle while a WebGL context is lost. Its
+          // presentation upgrade must not clear the recovering/failed state.
+          if (currentLifecycle.state !== 'ready') return;
+          const readyLifecycle = transitionRealmRendererLifecycle(currentLifecycle, {
+            type: 'ready',
+            generation: rendererGeneration,
+            degradedQuality: activeLod === 'compact' || activeLod === 'balanced'
+              ? activeLod
+              : undefined
+          });
+          rendererLifecycleRef.current = readyLifecycle;
+          setRendererLifecycle(readyLifecycle);
         },
         onCastlePresentationTelemetry: updateCastlePresentationTelemetry,
         onGoldNodePresentationTelemetry: updateGoldNodePresentationTelemetry,
@@ -1661,7 +1685,9 @@ function CanonicalRealmMapScreen({
       data-quality={quality}
       tabIndex={0}
       aria-label={observerMode ? 'Hegemony realm QA observer' : 'Hegemony realm'}
-      aria-busy={rendererMode === 'loading'}
+      aria-busy={rendererLifecycle.state === 'probing'
+        || rendererLifecycle.state === 'loading'
+        || rendererLifecycle.state === 'recovering'}
       onKeyDown={handleKeyDown}
     >
       <div className="realm-safe-area-probe" aria-hidden="true" />
@@ -1686,7 +1712,7 @@ function CanonicalRealmMapScreen({
               ? 'Hegemony lowlands with public frontier castles'
               : 'Hegemony lowlands with your authoritative frontier keep'}</title>
             <defs>
-              {fallbackFoundations.map((foundation) => (
+              {visibleFallbackFoundations.map((foundation) => (
                 <radialGradient id={foundation.gradientId} key={foundation.id}>
                   <stop offset="0%" stopColor={foundation.color} />
                   <stop
@@ -1717,7 +1743,7 @@ function CanonicalRealmMapScreen({
               vectorEffect="non-scaling-stroke"
             />
             <g aria-hidden="true">
-              {fallbackFoundations.map((foundation) => (
+              {visibleFallbackFoundations.map((foundation) => (
                 <circle
                   className="realm-map-screen__fallback-foundation"
                   data-foundation-id={foundation.id}
@@ -1730,7 +1756,7 @@ function CanonicalRealmMapScreen({
                 />
               ))}
             </g>
-            {!observerMode ? (
+            {!observerMode && fallbackVisibleCastleIds.has(ownCastle.castleId) ? (
               <g
                 className="realm-map-screen__fallback-keep"
                 data-castle-id={ownCastle.castleId}
@@ -1744,7 +1770,9 @@ function CanonicalRealmMapScreen({
                 <path d="M-0.52-0.28L-0.36-0.62L-0.2-0.28M0.2-0.28L0.36-0.62L0.52-0.28" fill="#a58949" stroke="#5b4936" strokeWidth="0.025" />
               </g>
             ) : null}
-            {peerCastles.map((castle) => {
+            {peerCastles.filter((castle) => (
+              fallbackVisibleCastleIds.has(castle.castleId)
+            )).map((castle) => {
               const world = axialToWorld({ q: castle.q, r: castle.r }, HEX_SIZE);
               return (
                 <g
@@ -1910,10 +1938,13 @@ function CanonicalRealmMapScreen({
               })}
             </g>
           </svg>
-          <p className="realm-map-screen__fallback-copy">
-            WebGL is unavailable on this device. Showing a bounded, accessible view of the
-            canonical Genesis 001 region around your keep.
-          </p>
+          <div className="realm-map-screen__fallback-copy">
+            <span>
+              WebGL is unavailable on this device. Showing a bounded, accessible view of the
+              canonical Genesis 001 region around your keep.
+            </span>
+            <button type="button" onClick={retryRenderer}>Retry 3D Realm</button>
+          </div>
         </div>
       ) : null}
 

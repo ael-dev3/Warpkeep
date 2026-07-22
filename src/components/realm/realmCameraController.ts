@@ -879,6 +879,26 @@ type RealmCompositionState = Readonly<{
   focusPadding: number;
 }>;
 
+/**
+ * Complete camera-controller state that can survive a renderer rebuild.
+ *
+ * A Three.js camera pose alone is not sufficient: the next demand frame is
+ * derived from these current/target values and would otherwise overwrite a
+ * directly-mutated camera with the new controller's default state.
+ */
+export type RealmCameraControllerState = Readonly<{
+  currentZoom: number;
+  targetZoom: number;
+  currentPan: RealmCameraPan;
+  targetPan: RealmCameraPan;
+  currentFocus: RealmKeepFocus;
+  targetFocus: RealmKeepFocus;
+  currentComposition: RealmCameraComposition;
+  targetComposition: RealmCameraComposition;
+  targetFocusIsKeep: boolean;
+  manualPlanarControl: boolean;
+}>;
+
 function compositionState(composition: RealmCameraComposition = {}): RealmCompositionState {
   const insets = normalizeInsets(composition.insets);
   const safeAreaInsets = normalizeInsets(composition.safeAreaInsets);
@@ -963,6 +983,7 @@ export type RealmCameraController = Readonly<{
   frameAt: (focus: RealmKeepFocus, zoom: number) => void;
   focusAt: (focus: RealmKeepFocus) => void;
   focusKeep: () => void;
+  captureState: () => RealmCameraControllerState;
   getMode: () => RealmCameraMode;
   getPose: () => RealmCameraPose;
   getSafeViewport: () => RealmSafeViewport;
@@ -983,11 +1004,7 @@ export type RealmCameraController = Readonly<{
   panByPixels: (deltaX: number, deltaY: number) => void;
   projectPoint: (point: RealmCameraPoint) => RealmScreenProjection;
   recenterKeep: () => void;
-  restorePose?: (pose: Readonly<{
-    position: RealmCameraPoint;
-    target: RealmCameraPoint;
-    fov: number;
-  }>) => void;
+  restoreState: (state: RealmCameraControllerState) => void;
   setComposition: (composition: RealmCameraComposition) => void;
   setKeepFocus: (focus: RealmKeepFocus) => void;
   setViewport: (width: number, height: number) => void;
@@ -1508,6 +1525,18 @@ export function createRealmCameraController(
   return {
     beginDirectManipulation,
     camera,
+    captureState: () => Object.freeze({
+      currentZoom,
+      targetZoom,
+      currentPan: Object.freeze({ ...currentPan }),
+      targetPan: Object.freeze({ ...targetPan }),
+      currentFocus: Object.freeze({ ...currentFocus }),
+      targetFocus: Object.freeze({ ...targetFocus }),
+      currentComposition: Object.freeze(stateComposition(currentComposition)),
+      targetComposition: Object.freeze(stateComposition(targetComposition)),
+      targetFocusIsKeep,
+      manualPlanarControl
+    }),
     dispose: () => {
       disposed = true;
       if (frame) window.cancelAnimationFrame(frame);
@@ -1587,15 +1616,34 @@ export function createRealmCameraController(
       zoomAnchor = null;
       invalidate();
     },
-    restorePose: (pose) => {
+    restoreState: (state) => {
       if (disposed) return;
-      camera.position.set(pose.position.x, pose.position.y, pose.position.z);
-      targetVector.set(pose.target.x, pose.target.y, pose.target.z);
-      camera.fov = clamp(finite(pose.fov, camera.fov), 1, 120);
-      camera.lookAt(targetVector);
-      camera.updateProjectionMatrix();
-      camera.updateMatrixWorld(true);
+      if (frame) window.cancelAnimationFrame(frame);
+      frame = 0;
+      previousTime = 0;
+      currentZoom = clamp(finite(state.currentZoom, currentZoom), 0, 1);
+      targetZoom = clamp(finite(state.targetZoom, targetZoom), 0, 1);
+      currentPan = {
+        x: finite(state.currentPan.x, currentPan.x),
+        z: finite(state.currentPan.z, currentPan.z)
+      };
+      targetPan = {
+        x: finite(state.targetPan.x, targetPan.x),
+        z: finite(state.targetPan.z, targetPan.z)
+      };
+      currentFocus = normalizeKeepFocus(state.currentFocus, currentFocus);
+      targetFocus = normalizeKeepFocus(state.targetFocus, targetFocus);
+      currentComposition = compositionState(state.currentComposition);
+      targetComposition = compositionState(state.targetComposition);
+      targetFocusIsKeep = state.targetFocusIsKeep === true;
+      manualPlanarControl = state.manualPlanarControl === true;
+      // Pointer capture cannot survive a disposed canvas. Preserve the
+      // camera trajectory, but resume it as an ordinary demand transition.
+      directManipulation = false;
+      zoomAnchor = null;
+      applyPose();
       options.render();
+      if (isUnsettled()) invalidate();
     },
     setComposition: (next) => {
       // Insets change the projection beneath a screen-space zoom anchor. Drop

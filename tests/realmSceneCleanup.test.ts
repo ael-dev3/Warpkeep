@@ -164,6 +164,7 @@ function dispatchPointer(
     buttons: { value: input.buttons ?? (type === 'pointerup' ? 0 : 1) }
   });
   target.dispatchEvent(event);
+  return event;
 }
 
 function createOptions(
@@ -922,7 +923,19 @@ describe('realm scene setup cleanup', () => {
   });
 
   it('suspends input and ambience during context loss, then reports restoration', () => {
+    const root = document.createElement('main');
+    root.className = 'realm-map-screen';
     const canvas = document.createElement('canvas');
+    const castleLabel = document.createElement('button');
+    castleLabel.className = 'realm-castle-label';
+    const overlayRetry = document.createElement('button');
+    overlayRetry.className = 'realm-map-screen__retry';
+    root.append(canvas, castleLabel, overlayRetry);
+    document.body.append(root);
+    const castleLabelClick = vi.fn();
+    const overlayClick = vi.fn();
+    castleLabel.addEventListener('click', castleLabelClick);
+    overlayRetry.addEventListener('click', overlayClick);
     const onRendererFailure = vi.fn();
     const onRendererContextRestored = vi.fn();
     const onRendererUnavailable = vi.fn();
@@ -954,11 +967,28 @@ describe('realm scene setup cleanup', () => {
     canvas.dispatchEvent(wheel);
     expect(wheel.defaultPrevented).toBe(true);
 
+    const canvasPointer = dispatchPointer(canvas, 'pointerdown', {
+      pointerId: 81,
+      clientX: 30,
+      clientY: 30
+    });
+    expect(canvasPointer.defaultPrevented).toBe(true);
+    const labelClick = new MouseEvent('click', { bubbles: true, cancelable: true });
+    castleLabel.dispatchEvent(labelClick);
+    expect(labelClick.defaultPrevented).toBe(true);
+    expect(castleLabelClick).not.toHaveBeenCalled();
+    const overlayPointer = new Event('pointerdown', { bubbles: true, cancelable: true });
+    overlayRetry.dispatchEvent(overlayPointer);
+    expect(overlayPointer.defaultPrevented).toBe(false);
+    overlayRetry.click();
+    expect(overlayClick).toHaveBeenCalledOnce();
+
     canvas.dispatchEvent(new Event('webglcontextrestored'));
     expect(canvas.dataset.realmRendererContextLost).toBe('false');
     expect(canvas.dataset.realmRendererContextRestoreCount).toBe('1');
     expect(onRendererContextRestored).toHaveBeenCalledOnce();
     scene.dispose();
+    root.remove();
   });
 
   it('aborts a pending castle-family load when the Realm unmounts', async () => {
@@ -1067,6 +1097,120 @@ describe('realm scene setup cleanup', () => {
     scene.dispose();
     expect(geometryDispose).toHaveBeenCalledTimes(1);
     expect(materialDispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts optional castle LODs concurrently without gating Compact readiness', async () => {
+    const resolvers = new Map<string, (value: unknown) => void>();
+    keepLoadState.load.mockImplementation((input: unknown) => {
+      const quality = (input as { quality: { id: string } }).quality.id;
+      return new Promise((resolve) => {
+        resolvers.set(quality, resolve);
+      });
+    });
+    const canvas = document.createElement('canvas');
+    const onCastlesReady = vi.fn();
+    const scene = createRealmScene(createOptions(canvas, {
+      quality: REALM_QUALITY_SPECS.high,
+      onCastlesReady
+    }));
+
+    await vi.waitFor(() => expect(keepLoadState.load).toHaveBeenCalledTimes(3));
+    expect(new Set(keepLoadState.load.mock.calls.map(([input]) => (
+      (input as { quality: { id: string } }).quality.id
+    )))).toEqual(new Set(['reduced', 'balanced', 'high']));
+    const compactRoot = new THREE.Group();
+    compactRoot.add(new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial()
+    ));
+    resolvers.get('reduced')?.(loadedCastleAssembly(compactRoot, 'compact'));
+
+    await vi.waitFor(() => expect(onCastlesReady).toHaveBeenCalledWith(1));
+    expect(canvas.dataset.realmCastleActiveLod).toBe('compact');
+    scene.dispose();
+  });
+
+  it('keeps the Realm ready at Compact and releases High when Balanced fails', async () => {
+    const resolvers = new Map<string, (value: unknown) => void>();
+    const rejecters = new Map<string, (reason: unknown) => void>();
+    keepLoadState.load.mockImplementation((input: unknown) => {
+      const quality = (input as { quality: { id: string } }).quality.id;
+      return new Promise((resolve, reject) => {
+        resolvers.set(quality, resolve);
+        rejecters.set(quality, reject);
+      });
+    });
+    const highGeometry = new THREE.BoxGeometry(1, 1, 1);
+    const highGeometryDispose = vi.spyOn(highGeometry, 'dispose');
+    const highRoot = new THREE.Group();
+    highRoot.add(new THREE.Mesh(highGeometry, new THREE.MeshBasicMaterial()));
+    const compactRoot = new THREE.Group();
+    compactRoot.add(new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial()
+    ));
+    const canvas = document.createElement('canvas');
+    const onCastlesReady = vi.fn();
+    const onRendererUnavailable = vi.fn();
+    const scene = createRealmScene(createOptions(canvas, {
+      quality: REALM_QUALITY_SPECS.high,
+      onCastlesReady,
+      onRendererUnavailable
+    }));
+
+    await vi.waitFor(() => expect(keepLoadState.load).toHaveBeenCalledTimes(3));
+    resolvers.get('high')?.(loadedCastleAssembly(highRoot, 'high'));
+    await Promise.resolve();
+    rejecters.get('balanced')?.(new Error('synthetic Balanced transport failure'));
+    resolvers.get('reduced')?.(loadedCastleAssembly(compactRoot, 'compact'));
+
+    await vi.waitFor(() => expect(onCastlesReady).toHaveBeenCalledWith(1));
+    await vi.waitFor(() => expect(highGeometryDispose).toHaveBeenCalledOnce());
+    expect(canvas.dataset.realmCastleActiveLod).toBe('compact');
+    expect(canvas.dataset.realmCastlebalancedLod).toBe('unavailable');
+    expect(canvas.dataset.realmCastlehighLod).toBe('unavailable');
+    expect(onRendererUnavailable).not.toHaveBeenCalled();
+    scene.dispose();
+  });
+
+  it('genuinely reloads Compact once after a cached retryable rejection', async () => {
+    const compactRoot = new THREE.Group();
+    compactRoot.add(new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial()
+    ));
+    keepLoadState.load
+      .mockRejectedValueOnce(new Error('synthetic request timed out'))
+      .mockResolvedValueOnce(loadedCastleAssembly(compactRoot, 'compact'));
+    const onCastlesReady = vi.fn();
+    const onRendererFailure = vi.fn();
+    const scene = createRealmScene(createOptions(document.createElement('canvas'), {
+      onCastlesReady,
+      onRendererFailure
+    }));
+
+    await vi.waitFor(() => expect(onCastlesReady).toHaveBeenCalledWith(1));
+    expect(keepLoadState.load).toHaveBeenCalledTimes(2);
+    expect(onRendererFailure).not.toHaveBeenCalled();
+    scene.dispose();
+  });
+
+  it('does not retry or blur a Compact integrity failure into a transport code', async () => {
+    keepLoadState.load.mockRejectedValue(new Error('sha256 integrity mismatch'));
+    const onRendererFailure = vi.fn();
+    const onRendererUnavailable = vi.fn();
+    const scene = createRealmScene(createOptions(document.createElement('canvas'), {
+      onRendererFailure,
+      onRendererUnavailable
+    }));
+
+    await vi.waitFor(() => expect(onRendererUnavailable).toHaveBeenCalledOnce());
+    expect(keepLoadState.load).toHaveBeenCalledOnce();
+    expect(onRendererFailure).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'castle-integrity-failed',
+      retryable: false
+    }));
+    scene.dispose();
   });
 
   it('marks a direct label visible only after the live instance frustum admits its model', async () => {

@@ -139,7 +139,11 @@ export function classifyRealmRendererFailure(
   return Object.freeze({
     code,
     message,
-    retryable: !['castle-integrity-failed', 'castle-pairing-failed'].includes(code),
+    retryable: ![
+      'castle-integrity-failed',
+      'castle-pairing-failed',
+      'castle-prefab-assembly-failed'
+    ].includes(code),
     phase
   });
 }

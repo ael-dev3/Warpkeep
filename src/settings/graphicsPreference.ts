@@ -35,14 +35,16 @@ let cachedWebGL2Capability: WebGL2Capability | undefined;
  * never consume or deliberately lose the context that a real scene needs.
  */
 export function probeWebGL2Capability(): WebGL2Capability {
-  if (cachedWebGL2Capability !== undefined) return cachedWebGL2Capability;
+  // A successful probe is stable enough to share across title and Realm.
+  // A negative probe can be transient (context pressure, background restore,
+  // browser lifecycle), so leave it uncached for an explicit/manual retry.
+  if (cachedWebGL2Capability?.available === true) return cachedWebGL2Capability;
   if (typeof document === 'undefined') return Object.freeze({ available: false });
   try {
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('webgl2');
     if (!context) {
-      cachedWebGL2Capability = Object.freeze({ available: false });
-      return cachedWebGL2Capability;
+      return Object.freeze({ available: false });
     }
     let maxTextureSize: number | undefined;
     try {
@@ -56,9 +58,9 @@ export function probeWebGL2Capability(): WebGL2Capability {
     }
     cachedWebGL2Capability = Object.freeze({ available: true, maxTextureSize });
   } catch {
-    cachedWebGL2Capability = Object.freeze({ available: false });
+    return Object.freeze({ available: false });
   }
-  return cachedWebGL2Capability;
+  return cachedWebGL2Capability ?? Object.freeze({ available: false });
 }
 
 /** Test-only reset; production callers should retain the shared probe cache. */

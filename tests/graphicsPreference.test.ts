@@ -46,6 +46,23 @@ describe('graphics preference', () => {
     expect(context.getExtension).not.toHaveBeenCalled();
   });
 
+  it('reprobes a transient negative WebGL2 result and caches only recovery success', () => {
+    const context = {
+      MAX_TEXTURE_SIZE: 0x0d33,
+      getParameter: vi.fn(() => 8_192)
+    };
+    const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValueOnce(null)
+      .mockImplementation(((contextId: string) => (
+        contextId === 'webgl2' ? context : null
+      )) as typeof HTMLCanvasElement.prototype.getContext);
+
+    expect(probeWebGL2Capability()).toEqual({ available: false });
+    expect(probeWebGL2Capability()).toEqual({ available: true, maxTextureSize: 8_192 });
+    expect(probeWebGL2Capability()).toEqual({ available: true, maxTextureSize: 8_192 });
+    expect(getContext).toHaveBeenCalledTimes(2);
+  });
+
   it('validates and persists only the versioned visual preference', () => {
     const storage = memoryStorage();
     expect(parseGraphicsPreference('obsolete')).toBe(DEFAULT_GRAPHICS_PREFERENCE);
