@@ -17,7 +17,7 @@ function deploymentEnvironment(overrides: Record<string, string> = {}) {
     VITE_WARPKEEP_OIDC_ISSUER: '',
     VITE_WARPKEEP_OIDC_AUDIENCE: 'warpkeep-spacetimedb',
     VITE_SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
-    VITE_SPACETIMEDB_DATABASE: 'warpkeep-89e4u',
+    VITE_SPACETIMEDB_DATABASE: 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e',
     ...overrides
   };
 }
@@ -71,6 +71,6 @@ describe('Pages deployment configuration validation', () => {
       VITE_SPACETIMEDB_DATABASE: 'lookalike-database'
     });
     expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain('warpkeep-89e4u');
+    expect(result.stderr).toContain('c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e');
   });
 });
