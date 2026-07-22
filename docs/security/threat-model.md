@@ -210,8 +210,10 @@ operation. Anonymous visitors do not connect to the game database.
   Privacy classification and retention must be revisited before adding new
   player-linked data.
 - Hosting-layer security headers, including HSTS, require ongoing deployment
-  verification. A strict CSP is limited by current SpacetimeDB SDK use of
-  dynamic function construction and should begin in report-only mode.
+  verification. The production CSP keeps exact source and egress allowlists,
+  but SpacetimeDB 2.6.1 requires a narrowly scoped `script-src 'unsafe-eval'`
+  compatibility exception for typed serializer construction. Remove it when
+  the client SDK no longer uses dynamic functions.
 - Per-client rate limits do not prevent distributed traffic from reaching
   provider or account quotas. Monitoring, alerting, and incident drills remain
   areas for improvement.
