@@ -7,6 +7,7 @@ import {
   type AuthBridgeDependencies,
 } from '../src/app'
 import { MemoryChallengeStore } from '../src/challengeStore'
+import { PRODUCTION_SPACETIMEDB_DATABASE } from '../src/config'
 import { FarcasterVerifierUnavailableError } from '../src/farcaster'
 import { MemorySessionFamilyStore } from '../src/sessionFamily'
 import {
@@ -55,7 +56,7 @@ function env(overrides: Partial<WorkerEnv> = {}): WorkerEnv {
     OIDC_AUDIENCE: 'warpkeep-spacetimedb',
     OIDC_KEY_ID: 'test-es256-2026',
     SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
-    SPACETIMEDB_DATABASE: 'warpkeep-89e4u',
+    SPACETIMEDB_DATABASE: PRODUCTION_SPACETIMEDB_DATABASE,
     PUBLIC_AUTH_ENABLED: 'true',
     QA_OBSERVER_ENABLED: 'false',
     SIGNING_KEY_JWK: JSON.stringify(privateJwk),
@@ -1147,7 +1148,7 @@ describe('Warpkeep auth bridge', () => {
       audience: 'warpkeep-spacetimedb',
       keyId: 'test-es256-2026',
       spacetimeDbUri: 'https://maincloud.spacetimedb.com',
-      spacetimeDbDatabase: 'warpkeep-89e4u',
+      spacetimeDbDatabase: PRODUCTION_SPACETIMEDB_DATABASE,
       publicAuthEnabled: true,
       qaObserverEnabled: false,
       qaObserverSpacetimeDbUri: null,
@@ -1204,7 +1205,9 @@ describe('Warpkeep auth bridge', () => {
     await expect(response.json()).resolves.toEqual({ ok: true })
     expect(upstream).toHaveBeenCalledOnce()
     const [input, init] = upstream.mock.calls[0] as unknown as [URL, RequestInit]
-    expect(input.toString()).toBe('https://maincloud.spacetimedb.com/v1/database/warpkeep-89e4u/call/auth_resolver_get_fid_admission_v2')
+    expect(input.toString()).toBe(
+      `https://maincloud.spacetimedb.com/v1/database/${PRODUCTION_SPACETIMEDB_DATABASE}/call/auth_resolver_get_fid_admission_v2`,
+    )
     expect(init.body).toBe('[9007199254740991]')
     expect(init.redirect).toBe('manual')
     expect(events).toContain('auth_epoch_probe_succeeded')
@@ -1598,6 +1601,8 @@ describe('Warpkeep auth bridge', () => {
     expect(lookalikeUri.status).toBe(503)
     const lookalikeDatabase = await h.app.fetch(request('/healthz'), env({ SPACETIMEDB_DATABASE: 'lookalike-database' }))
     expect(lookalikeDatabase.status).toBe(503)
+    const mutableFormerAlias = await h.app.fetch(request('/healthz'), env({ SPACETIMEDB_DATABASE: 'warpkeep-89e4u' }))
+    expect(mutableFormerAlias.status).toBe(503)
 
     const development = await h.app.fetch(request('/healthz'), env({
       ENVIRONMENT: 'development',
@@ -1605,6 +1610,17 @@ describe('Warpkeep auth bridge', () => {
       SPACETIMEDB_DATABASE: 'warpkeep-dev',
     }))
     expect(development.status).toBe(200)
+
+    const canonicalDowngrade = await h.app.fetch(request('/healthz'), env({
+      ENVIRONMENT: 'development',
+      ISSUER: 'https://auth.warpkeep.com',
+      ALLOWED_ORIGINS: 'https://warpkeep.com',
+      FARCASTER_DOMAIN: 'warpkeep.com',
+      FARCASTER_SIWE_URI: 'https://warpkeep.com/',
+      SPACETIMEDB_URI: 'http://127.0.0.1:3000',
+      SPACETIMEDB_DATABASE: 'warpkeep-dev',
+    }))
+    expect(canonicalDowngrade.status).toBe(503)
   })
 
   it('never places proof material in the default logger output', async () => {

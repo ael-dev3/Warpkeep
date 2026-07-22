@@ -55,6 +55,27 @@ const forbiddenContent = Object.freeze([
   '/v1/qa/challenge',
   '/v1/qa/realm-snapshot'
 ]);
+const requiredProductionCspFragments = Object.freeze([
+  'data-warpkeep-production-csp',
+  "default-src 'none'",
+  "base-uri 'none'",
+  "object-src 'none'",
+  "frame-src 'none'",
+  "form-action 'none'",
+  "script-src 'self' 'wasm-unsafe-eval'",
+  "script-src-attr 'none'",
+  'https://auth.warpkeep.com',
+  'https://relay.farcaster.xyz',
+  'https://mainnet.optimism.io',
+  'https://maincloud.spacetimedb.com',
+  'wss://maincloud.spacetimedb.com',
+  'https://imagedelivery.net',
+  'https://wrpcd.net',
+  'https://res.cloudinary.com',
+  'https://i.imgur.com',
+  'https://lh3.googleusercontent.com',
+  'https://i.seadn.io'
+]);
 
 function filesUnder(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -65,6 +86,22 @@ function filesUnder(directory) {
     }
     return entry.isDirectory() ? filesUnder(path) : [path];
   });
+}
+
+const productionIndex = readFileSync(resolve(dist, 'index.html'), 'utf8');
+for (const fragment of requiredProductionCspFragments) {
+  if (!productionIndex.includes(fragment)) {
+    throw new Error(`Production document CSP is missing ${JSON.stringify(fragment)}.`);
+  }
+}
+if (/script-src[^;]*'unsafe-eval'/.test(productionIndex)) {
+  throw new Error('Production document CSP permits unrestricted unsafe-eval.');
+}
+if (/(?:^|[;\s])https:(?:[;\s]|$)|(?:^|[;\s])wss?:(?:[;\s]|$)/.test(productionIndex)) {
+  throw new Error('Production document CSP permits an unrestricted network scheme.');
+}
+if (/localhost|127\.0\.0\.1|\[::1\]/.test(productionIndex)) {
+  throw new Error('Production document CSP contains a loopback network exception.');
 }
 
 for (const path of filesUnder(dist)) {

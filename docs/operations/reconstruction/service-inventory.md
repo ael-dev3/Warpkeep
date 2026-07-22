@@ -59,7 +59,7 @@ Public Actions variables and safe recovery values:
 | `WARPKEEP_OIDC_ISSUER` | `https://auth.warpkeep.com` |
 | `WARPKEEP_OIDC_AUDIENCE` | `warpkeep-spacetimedb` |
 | `WARPKEEP_SPACETIMEDB_URI` | `https://maincloud.spacetimedb.com` |
-| `WARPKEEP_SPACETIMEDB_DATABASE` | `warpkeep-89e4u` |
+| `WARPKEEP_SPACETIMEDB_DATABASE` | `c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e` |
 
 Recovery always starts with shared alpha disabled, even if the pre-incident value was `true`. Inspect the reviewed `.github/workflows/deploy-pages.yml`, restore the variables using [`deployment-recovery.md`](deployment-recovery.md), and deploy only with explicit approval. Keep the switch false through the recovery frontend deploy. A later enable requires a separate final approval after Worker/Maincloud/session/config-attestation gates. Repository variables are public configuration; Worker secrets never belong in this table or in GitHub Actions variables.
 
@@ -111,11 +111,14 @@ reviewed digest and observed deployment version.
 
 Production Worker configuration pins both resolver origins to exact
 `https://maincloud.spacetimedb.com` and pins the gameplay database to
-`warpkeep-89e4u`. Any production observer tuple must use that origin plus a
+the immutable identity
+`c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e`.
+Any production observer tuple must use that origin plus a
 separately reviewed database and audience that both differ from gameplay; the
-tuple itself does not attest an identity-free schema. Alternate origins are
-permitted only under explicit `ENVIRONMENT=development` for local/test use and
-must never be treated as a production recovery profile.
+tuple itself does not attest an identity-free schema. Noncanonical local origins
+are permitted only under explicit `ENVIRONMENT=development` for local/test use.
+Any canonical Warpkeep issuer, domain, or origin forces the production checks
+regardless of that flag and must never be treated as a development profile.
 
 Browser continuity defaults **Keep me signed in on this device** to false.
 Sign-out writes only a non-secret, base-path-scoped `logout-v1:<timestamp>`
@@ -133,7 +136,7 @@ never written.
 
 - Server: `maincloud`
 - URI: `https://maincloud.spacetimedb.com`
-- Database: `warpkeep-89e4u`
+- Database identity: `c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e`
 - CLI/module: `2.6.1`
 - OIDC issuer: `https://auth.warpkeep.com`
 - Audience: `warpkeep-spacetimedb`

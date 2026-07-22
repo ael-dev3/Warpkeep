@@ -8,3 +8,27 @@ coverage
 *.local
 .cache/warpkeep-assets/
 .cache/warpkeep-tools/
+
+# Local credentials, operator output, and recovery residue must never be staged.
+credentials.json
+.envrc
+.npmrc
+*.pem
+*.key
+*.p12
+*.pfx
+*.log
+*.har
+*.trace
+*.bak
+*.backup
+*.tmp
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z

@@ -68,6 +68,19 @@ export function resolveDeploymentBase(environment: DeploymentEnvironment = proce
 const deploymentBase = resolveDeploymentBase();
 const productVersion = readWarpkeepPackageVersion();
 
+function stripProductionCspFromLocalServe() {
+  return {
+    name: 'warpkeep-local-serve-csp-boundary',
+    apply: 'serve' as const,
+    transformIndexHtml(html: string) {
+      return html.replace(
+        /\s*<meta\s+data-warpkeep-production-csp\s+http-equiv="Content-Security-Policy"\s+content="[^"]*"\s*\/>/,
+        ''
+      );
+    }
+  };
+}
+
 export default defineConfig(({ command }) => ({
   base: deploymentBase,
   build: {
@@ -86,7 +99,11 @@ export default defineConfig(({ command }) => ({
     __WARPKEEP_LOCAL_QA__: JSON.stringify(command === 'serve'),
     __WARPKEEP_PRODUCT_VERSION__: JSON.stringify(productVersion)
   },
-  plugins: [react()],
+  // Vite's React development preamble is an inline module. The public build
+  // keeps the strict document CSP, while localhost development removes only
+  // that explicitly marked production meta element. Dedicated QA entries
+  // retain their own loopback-only CSPs.
+  plugins: [react(), stripProductionCspFromLocalServe()],
   test: {
     environment: 'jsdom',
     globals: true,

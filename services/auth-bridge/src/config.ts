@@ -14,8 +14,14 @@ export const MAX_ADMIN_TOKEN_SECRET_BYTES = 512
 export const MIN_SESSION_COOKIE_KEY_BYTES = 32
 export const MAX_SESSION_COOKIE_KEY_BYTES = 512
 export const PRODUCTION_SPACETIMEDB_URI = 'https://maincloud.spacetimedb.com'
-export const PRODUCTION_SPACETIMEDB_DATABASE = 'warpkeep-89e4u'
+/** Immutable public address; unlike a database alias, it cannot drift after a rename. */
+export const PRODUCTION_SPACETIMEDB_DATABASE = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e'
 export const PRODUCTION_QA_OBSERVER_SPACETIMEDB_URI = 'https://maincloud.spacetimedb.com'
+const PRODUCTION_ISSUER = 'https://auth.warpkeep.com'
+const PRODUCTION_DOMAIN = 'warpkeep.com'
+const PRODUCTION_ORIGIN = 'https://warpkeep.com'
+const SPACETIMEDB_DATABASE_IDENTITY_PATTERN = /^[a-f0-9]{64}$/
+const SPACETIMEDB_DATABASE_ALIAS_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/
 
 export type QaObserverSpacetimeDbConfig = Readonly<{
   uri: string
@@ -186,7 +192,7 @@ function parseSpacetimeDbUri(value: string, production: boolean): string {
 }
 
 function parseSpacetimeDbDatabase(value: string): string {
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)) {
+  if (!SPACETIMEDB_DATABASE_IDENTITY_PATTERN.test(value) && !SPACETIMEDB_DATABASE_ALIAS_PATTERN.test(value)) {
     throw new ConfigurationError()
   }
   return value
@@ -266,12 +272,11 @@ function parseQaObserverExpiry(value: string): number {
 }
 
 export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
-  const environment: 'development' | 'production' = env.ENVIRONMENT === 'development'
+  const configuredEnvironment: 'development' | 'production' = env.ENVIRONMENT === 'development'
     ? 'development'
     : 'production'
-  const production = environment === 'production'
-  const { issuer, issuerUrl } = parseIssuer(required(env, 'ISSUER'), production)
-  const allowedOrigins = parseAllowedOrigins(required(env, 'ALLOWED_ORIGINS'), production)
+  const { issuer, issuerUrl } = parseIssuer(required(env, 'ISSUER'), false)
+  const allowedOrigins = parseAllowedOrigins(required(env, 'ALLOWED_ORIGINS'), false)
   const domain = required(env, 'FARCASTER_DOMAIN')
   const siweUri = required(env, 'FARCASTER_SIWE_URI')
   const siweUrl = parseAbsoluteUrl(siweUri)
@@ -283,6 +288,12 @@ export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
   ) {
     throw new ConfigurationError()
   }
+  const canonicalPublicBoundary = issuer === PRODUCTION_ISSUER
+    || domain === PRODUCTION_DOMAIN
+    || siweUrl.origin === PRODUCTION_ORIGIN
+    || allowedOrigins.has(PRODUCTION_ORIGIN)
+  const production = configuredEnvironment === 'production' || canonicalPublicBoundary
+  const environment: 'development' | 'production' = production ? 'production' : 'development'
   if (production && siweUrl.protocol !== 'https:') {
     throw new ConfigurationError()
   }
@@ -291,12 +302,13 @@ export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
   }
   if (production) {
     if (
-      !/^[a-z0-9]+(?:[.-][a-z0-9]+)+$/.test(domain)
+      issuerUrl.protocol !== 'https:'
+      || !/^[a-z0-9]+(?:[.-][a-z0-9]+)+$/.test(domain)
       || issuerUrl.hostname !== `auth.${domain}`
       || issuerUrl.port
       || [...allowedOrigins].some((origin) => {
         const allowed = new URL(origin)
-        return allowed.hostname !== domain || allowed.port
+        return allowed.protocol !== 'https:' || allowed.hostname !== domain || allowed.port
       })
     ) {
       throw new ConfigurationError()
@@ -357,6 +369,7 @@ export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
     qaObserverSpacetimeDb
     && (
       (production && qaObserverSpacetimeDb.uri !== PRODUCTION_QA_OBSERVER_SPACETIMEDB_URI)
+      || (production && !SPACETIMEDB_DATABASE_IDENTITY_PATTERN.test(qaObserverSpacetimeDb.database))
       || qaObserverSpacetimeDb.database === spacetimeDbDatabase
       || qaObserverSpacetimeDb.audience === audience
     )

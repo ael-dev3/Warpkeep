@@ -266,7 +266,7 @@ one verified FID being resolved. The module retains a 60-second rejection
 ceiling. The token has no admin role and is never returned or logged.
 
 The Worker calls the fixed documented Maincloud endpoint
-`POST https://maincloud.spacetimedb.com/v1/database/warpkeep-89e4u/call/auth_resolver_get_fid_admission_v2`
+`POST https://maincloud.spacetimedb.com/v1/database/c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e/call/auth_resolver_get_fid_admission_v2`
 with `Authorization: Bearer <ephemeral resolver JWT>` and SATS-JSON argument
 `[<verified safe-integer fid>]`. The exact HTTP SATS-JSON product response is
 `["missing"|"disabled"|"enabled", <u32>]`: missing/disabled require epoch `0`,

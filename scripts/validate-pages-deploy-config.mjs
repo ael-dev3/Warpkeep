@@ -3,7 +3,7 @@ const EXPECTED_REPOSITORY_URL = 'https://github.com/ael-dev3/Warpkeep';
 const EXPECTED_AUDIENCE = 'warpkeep-spacetimedb';
 const EXPECTED_BRIDGE = 'https://auth.warpkeep.com';
 const EXPECTED_SPACETIMEDB_URI = 'https://maincloud.spacetimedb.com';
-const EXPECTED_SPACETIMEDB_DATABASE = 'warpkeep-89e4u';
+const EXPECTED_SPACETIMEDB_DATABASE = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';
 const SHA_PATTERN = /^[0-9a-f]{40}$/i;
 
 function fail(message) {
@@ -65,6 +65,15 @@ function main() {
     process.env.VITE_WARPKEEP_SHARED_ALPHA_ENABLED,
     'VITE_WARPKEEP_SHARED_ALPHA_ENABLED'
   );
+  if (process.env.VITE_WARPKEEP_OIDC_AUDIENCE !== EXPECTED_AUDIENCE) {
+    fail(`VITE_WARPKEEP_OIDC_AUDIENCE must be ${EXPECTED_AUDIENCE}.`);
+  }
+  if (process.env.VITE_SPACETIMEDB_URI !== EXPECTED_SPACETIMEDB_URI) {
+    fail(`VITE_SPACETIMEDB_URI must be ${EXPECTED_SPACETIMEDB_URI}.`);
+  }
+  if (process.env.VITE_SPACETIMEDB_DATABASE !== EXPECTED_SPACETIMEDB_DATABASE) {
+    fail(`VITE_SPACETIMEDB_DATABASE must be ${EXPECTED_SPACETIMEDB_DATABASE}.`);
+  }
   if (!sharedAlphaEnabled) {
     console.log('Pages deployment validation passed with shared alpha disabled.');
     return;
@@ -81,16 +90,6 @@ function main() {
   if (bridge !== EXPECTED_BRIDGE || issuer !== EXPECTED_BRIDGE) {
     fail(`the bridge URL and OIDC issuer must both be ${EXPECTED_BRIDGE}.`);
   }
-  if (process.env.VITE_WARPKEEP_OIDC_AUDIENCE !== EXPECTED_AUDIENCE) {
-    fail(`VITE_WARPKEEP_OIDC_AUDIENCE must be ${EXPECTED_AUDIENCE}.`);
-  }
-  if (process.env.VITE_SPACETIMEDB_URI !== EXPECTED_SPACETIMEDB_URI) {
-    fail(`VITE_SPACETIMEDB_URI must be ${EXPECTED_SPACETIMEDB_URI}.`);
-  }
-  if (process.env.VITE_SPACETIMEDB_DATABASE !== EXPECTED_SPACETIMEDB_DATABASE) {
-    fail(`VITE_SPACETIMEDB_DATABASE must be ${EXPECTED_SPACETIMEDB_DATABASE}.`);
-  }
-
   console.log('Pages deployment validation passed with shared alpha enabled.');
 }
 

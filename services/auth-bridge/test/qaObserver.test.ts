@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { createAuthBridge } from '../src/app'
 import {
+  PRODUCTION_SPACETIMEDB_DATABASE,
   QA_OBSERVER_MAX_REGISTRATION_LIFETIME_MILLISECONDS,
   type PublicEcJwk,
 } from '../src/config'
@@ -17,6 +18,7 @@ const ISSUER = 'https://auth.warpkeep.example'
 const ORIGIN = 'https://warpkeep.example'
 const ADMIN_SECRET = 'TEST_ONLY_ADMIN_SECRET_'.repeat(2)
 const SESSION_COOKIE_KEY = 'TEST_ONLY_SESSION_COOKIE_KEY_'.repeat(2)
+const QA_DATABASE_IDENTITY = 'd2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e'
 const NOW = 1_800_000_000_000
 
 let signingPrivateJwk: JsonWebKey
@@ -116,9 +118,9 @@ function environment(overrides: Partial<WorkerEnv> = {}): WorkerEnv {
     ADMIN_TOKEN_SECRET: ADMIN_SECRET,
     SESSION_COOKIE_KEY,
     SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
-    SPACETIMEDB_DATABASE: 'warpkeep-89e4u',
+    SPACETIMEDB_DATABASE: PRODUCTION_SPACETIMEDB_DATABASE,
     QA_OBSERVER_SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
-    QA_OBSERVER_SPACETIMEDB_DATABASE: 'warpkeep-qa-observer-test',
+    QA_OBSERVER_SPACETIMEDB_DATABASE: QA_DATABASE_IDENTITY,
     QA_OBSERVER_OIDC_AUDIENCE: 'warpkeep-qa-observer-spacetimedb',
     PUBLIC_AUTH_ENABLED: 'false',
     QA_OBSERVER_ENABLED: 'true',
@@ -237,7 +239,7 @@ describe('machine-bound QA observer bridge', () => {
       publicAuthEnabled: false,
       qaObserverEnabled: true,
       qaObserverSpacetimeDbUri: 'https://maincloud.spacetimedb.com',
-      qaObserverSpacetimeDbDatabase: 'warpkeep-qa-observer-test',
+      qaObserverSpacetimeDbDatabase: QA_DATABASE_IDENTITY,
       qaObserverAudience: 'warpkeep-qa-observer-spacetimedb',
       qaObserverKeyFingerprint: await qaObserverKeyThumbprint(qaPublicJwk),
       qaObserverKeyRegisteredAt: new Date(NOW).toISOString(),
@@ -257,7 +259,9 @@ describe('machine-bound QA observer bridge', () => {
       { QA_OBSERVER_SPACETIMEDB_DATABASE: undefined },
       { QA_OBSERVER_OIDC_AUDIENCE: undefined },
       { QA_OBSERVER_SPACETIMEDB_URI: undefined },
+      { QA_OBSERVER_SPACETIMEDB_DATABASE: PRODUCTION_SPACETIMEDB_DATABASE },
       { QA_OBSERVER_SPACETIMEDB_DATABASE: 'warpkeep-89e4u' },
+      { QA_OBSERVER_SPACETIMEDB_DATABASE: 'warpkeep-qa-observer-test' },
       { QA_OBSERVER_OIDC_AUDIENCE: 'warpkeep-spacetimedb' },
       { QA_OBSERVER_SPACETIMEDB_URI: 'http://maincloud.spacetimedb.com' },
       { QA_OBSERVER_SPACETIMEDB_URI: 'https://attacker.example' },
@@ -301,9 +305,9 @@ describe('machine-bound QA observer bridge', () => {
       expect(upstream).toHaveBeenCalledOnce()
       const [input, init] = upstream.mock.calls[0] as unknown as [URL, RequestInit]
       expect(input.toString()).toBe(
-        'https://maincloud.spacetimedb.com/v1/database/warpkeep-qa-observer-test/call/qa_observer_get_realm_attestation_v2',
+        `https://maincloud.spacetimedb.com/v1/database/${QA_DATABASE_IDENTITY}/call/qa_observer_get_realm_attestation_v2`,
       )
-      expect(input.toString()).not.toContain('/database/warpkeep-89e4u/')
+      expect(input.toString()).not.toContain(`/database/${PRODUCTION_SPACETIMEDB_DATABASE}/`)
       const authorization = new Headers(init.headers).get('authorization')
       expect(authorization).toMatch(/^Bearer [^.]+\.[^.]+\.[^.]+$/)
       const payloadSegment = authorization!.slice('Bearer '.length).split('.')[1]

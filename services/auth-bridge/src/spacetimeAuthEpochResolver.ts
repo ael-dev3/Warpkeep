@@ -46,7 +46,7 @@ function resolverFailure(stage: AuthEpochResolverFailureStage): never {
 }
 
 const MAX_SUPPORTED_FID = BigInt(Number.MAX_SAFE_INTEGER)
-const DATABASE_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+const DATABASE_NAME_PATTERN = /^(?:[a-f0-9]{64}|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?)$/
 const encoder = new TextEncoder()
 
 export type SpacetimeAuthEpochResolverConfig = Readonly<{

@@ -31,7 +31,9 @@ jobs:
       VITE_WARPKEEP_OIDC_ISSUER: ${{ vars.WARPKEEP_OIDC_ISSUER || '' }}
       VITE_WARPKEEP_OIDC_AUDIENCE: ${{ vars.WARPKEEP_OIDC_AUDIENCE || 'warpkeep-spacetimedb' }}
       VITE_SPACETIMEDB_URI: ${{ vars.WARPKEEP_SPACETIMEDB_URI || 'https://maincloud.spacetimedb.com' }}
-      VITE_SPACETIMEDB_DATABASE: ${{ vars.WARPKEEP_SPACETIMEDB_DATABASE || 'warpkeep-89e4u' }}
+      # The production browser must not follow a renameable database alias or
+      # a mutable repository variable. This is the immutable Maincloud identity.
+      VITE_SPACETIMEDB_DATABASE: c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0

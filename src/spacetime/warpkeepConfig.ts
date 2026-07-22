@@ -3,7 +3,9 @@
  * SpacetimeDB login credentials must never be exposed through Vite.
  */
 export const DEFAULT_SPACETIMEDB_URI = 'https://maincloud.spacetimedb.com';
-export const DEFAULT_SPACETIMEDB_DATABASE = 'warpkeep-89e4u';
+/** Immutable public address; unlike a database alias, it cannot drift after a rename. */
+export const DEFAULT_SPACETIMEDB_DATABASE =
+  'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';
 export const DEFAULT_WARPKEEP_OIDC_AUDIENCE = 'warpkeep-spacetimedb';
 export const CANONICAL_WARPKEEP_AUTH_ORIGIN = 'https://auth.warpkeep.com';
 export const WARPKEEP_SHARED_ALPHA_UNAVAILABLE_MESSAGE =
@@ -89,7 +91,9 @@ function normalizeDatabaseName(value: string | undefined) {
   if (value === undefined) return DEFAULT_SPACETIMEDB_DATABASE;
   const candidate = cleanOptionalString(value);
   if (!candidate) return undefined;
-  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(candidate) ? candidate : undefined;
+  const databaseIdentity = /^[a-f0-9]{64}$/;
+  const databaseAlias = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
+  return databaseIdentity.test(candidate) || databaseAlias.test(candidate) ? candidate : undefined;
 }
 
 function normalizeAudience(value: string | undefined) {
