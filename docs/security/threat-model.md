@@ -213,7 +213,8 @@ operation. Anonymous visitors do not connect to the game database.
   verification. The production CSP keeps exact source and egress allowlists,
   but SpacetimeDB 2.6.1 requires a narrowly scoped `script-src 'unsafe-eval'`
   compatibility exception for typed serializer construction. Remove it when
-  the client SDK no longer uses dynamic functions.
+  the client SDK no longer uses dynamic functions; until then, it increases
+  the impact of any same-origin script compromise.
 - Per-client rate limits do not prevent distributed traffic from reaching
   provider or account quotas. Monitoring, alerting, and incident drills remain
   areas for improvement.

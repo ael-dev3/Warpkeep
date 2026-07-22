@@ -123,7 +123,7 @@ describe('Warpkeep document fallback', () => {
     'utf8'
   );
   const spacetimeBrowserRuntime = readFileSync(
-    resolve(process.cwd(), 'node_modules/spacetimedb/dist/sdk/index.browser.mjs'),
+    resolve(process.cwd(), 'node_modules/spacetimedb/dist/index.browser.mjs'),
     'utf8'
   );
 
