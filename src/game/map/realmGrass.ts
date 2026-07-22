@@ -46,39 +46,39 @@ export const REALM_GRASS_BIOME_PROFILES: Readonly<
   Record<RealmGrassTerrainKind, RealmGrassBiomeProfile>
 > = Object.freeze({
   meadow: Object.freeze({
-    kind: 'meadow', highCandidateCount: 30, completelyBareThreshold: 0.12, retention: 0.92,
+    kind: 'meadow', highCandidateCount: 34, completelyBareThreshold: 0.08, retention: 0.94,
     height: Object.freeze([0.11, 0.19]), width: Object.freeze([0.34, 0.52]),
     palette: palette(['#A8FF67', '#8EF04B', '#C0FF79', '#76DB39']),
     slopeSoftLimit: 0.42, slopeHardLimit: 0.78, minimumSeparation: 0.07
   }),
   lowland: Object.freeze({
-    kind: 'lowland', highCandidateCount: 24, completelyBareThreshold: 0.20, retention: 0.82,
+    kind: 'lowland', highCandidateCount: 30, completelyBareThreshold: 0.14, retention: 0.88,
     height: Object.freeze([0.10, 0.18]), width: Object.freeze([0.32, 0.50]),
     palette: palette(['#8AF052', '#70DC3D', '#A2F966', '#62C934']),
     slopeSoftLimit: 0.42, slopeHardLimit: 0.78, minimumSeparation: 0.075
   }),
   forest: Object.freeze({
-    kind: 'forest', highCandidateCount: 20, completelyBareThreshold: 0.32, retention: 0.76,
+    kind: 'forest', highCandidateCount: 24, completelyBareThreshold: 0.22, retention: 0.82,
     height: Object.freeze([0.10, 0.17]), width: Object.freeze([0.30, 0.46]),
     palette: palette(['#69D849', '#55C43D', '#7BE457', '#48B635']),
     slopeSoftLimit: 0.40, slopeHardLimit: 0.74, minimumSeparation: 0.08
   }),
   heath: Object.freeze({
-    kind: 'heath', highCandidateCount: 14, completelyBareThreshold: 0.47, retention: 0.68,
+    kind: 'heath', highCandidateCount: 22, completelyBareThreshold: 0.28, retention: 0.80,
     height: Object.freeze([0.09, 0.16]), width: Object.freeze([0.28, 0.43]),
-    palette: palette(['#75D84B', '#65C93F', '#7BBC57']),
+    palette: palette(['#7ED34A', '#67C33E', '#9BE05C']),
     slopeSoftLimit: 0.34, slopeHardLimit: 0.67, minimumSeparation: 0.085
   }),
   ridge: Object.freeze({
-    kind: 'ridge', highCandidateCount: 4, completelyBareThreshold: 0.84, retention: 0.56,
+    kind: 'ridge', highCandidateCount: 6, completelyBareThreshold: 0.72, retention: 0.62,
     height: Object.freeze([0.08, 0.13]), width: Object.freeze([0.24, 0.34]),
     palette: palette(['#8EC85A', '#79B84D']),
     slopeSoftLimit: 0.22, slopeHardLimit: 0.44, minimumSeparation: 0.10
   }),
   'ancient-stone': Object.freeze({
-    kind: 'ancient-stone', highCandidateCount: 2, completelyBareThreshold: 0.96, retention: 0.46,
+    kind: 'ancient-stone', highCandidateCount: 4, completelyBareThreshold: 0.86, retention: 0.54,
     height: Object.freeze([0.07, 0.11]), width: Object.freeze([0.22, 0.30]),
-    palette: palette(['#8EC85A', '#79B84D']),
+    palette: palette(['#86B66A', '#6FA05C']),
     slopeSoftLimit: 0.18, slopeHardLimit: 0.34, minimumSeparation: 0.12
   }),
   lake: Object.freeze({
@@ -87,7 +87,7 @@ export const REALM_GRASS_BIOME_PROFILES: Readonly<
     slopeSoftLimit: 0, slopeHardLimit: 0, minimumSeparation: 0
   }),
   apron: Object.freeze({
-    kind: 'apron', highCandidateCount: 5, completelyBareThreshold: 0.65, retention: 0.52,
+    kind: 'apron', highCandidateCount: 6, completelyBareThreshold: 0.52, retention: 0.56,
     height: Object.freeze([0.08, 0.13]), width: Object.freeze([0.24, 0.36]),
     palette: palette(['#75D84B', '#65C93F']),
     slopeSoftLimit: 0.30, slopeHardLimit: 0.58, minimumSeparation: 0.11
