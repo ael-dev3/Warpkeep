@@ -122,6 +122,10 @@ describe('Warpkeep document fallback', () => {
     resolve(process.cwd(), 'public/warpkeep-noscript.css'),
     'utf8'
   );
+  const spacetimeBrowserRuntime = readFileSync(
+    resolve(process.cwd(), 'node_modules/spacetimedb/dist/index.browser.mjs'),
+    'utf8'
+  );
 
   it('ships visible boot content in the root before React starts', () => {
     const parsed = new DOMParser().parseFromString(indexHtml, 'text/html');
@@ -130,6 +134,10 @@ describe('Warpkeep document fallback', () => {
     const contentSecurityPolicy = parsed.querySelector(
       'meta[http-equiv="Content-Security-Policy"]'
     )?.getAttribute('content');
+    const scriptSource = contentSecurityPolicy
+      ?.split(';')
+      .map((directive) => directive.trim())
+      .find((directive) => directive.startsWith('script-src '));
 
     expect(root?.querySelector('.warpkeep-boot')).not.toBeNull();
     expect(root?.querySelector('#warpkeep-boot-title')).toBeNull();
@@ -142,9 +150,8 @@ describe('Warpkeep document fallback', () => {
     expect(indexHtml).toContain('href="/favicon.svg"');
     expect(mainSource).toContain('WARPKEEP_ROOT_ERROR_HANDLERS');
     expect(contentSecurityPolicy).toContain("default-src 'none'");
-    expect(contentSecurityPolicy).toContain("script-src 'self' 'wasm-unsafe-eval'");
+    expect(scriptSource).toBe("script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'");
     expect(contentSecurityPolicy).toContain("script-src-attr 'none'");
-    expect(contentSecurityPolicy).not.toContain("'unsafe-eval'");
     expect(contentSecurityPolicy).not.toMatch(/(?:^|[;\s])https:(?:[;\s]|$)/);
     expect(contentSecurityPolicy).not.toMatch(/(?:^|[;\s])wss?:(?:[;\s]|$)/);
     expect(contentSecurityPolicy).not.toMatch(/localhost|127\.0\.0\.1|\[::1\]/);
@@ -157,6 +164,12 @@ describe('Warpkeep document fallback', () => {
     expect(contentSecurityPolicy).toContain('https://maincloud.spacetimedb.com');
     expect(contentSecurityPolicy).toContain('wss://maincloud.spacetimedb.com');
     expect(parsed.querySelector('[data-warpkeep-production-csp]')).not.toBeNull();
+  });
+
+  it('keeps the CSP compatibility exception aligned with the pinned browser SDK', () => {
+    expect(spacetimeBrowserRuntime).toMatch(/serializer\s*=\s*Function\(/);
+    expect(spacetimeBrowserRuntime).toMatch(/deserializer\s*=\s*Function\(/);
+    expect(indexHtml).toMatch(/script-src[^;]*'unsafe-eval'/);
   });
 
   it('provides actionable no-JavaScript guidance and motion-safe styling', () => {

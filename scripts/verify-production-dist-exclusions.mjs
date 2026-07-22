@@ -62,7 +62,9 @@ const requiredProductionCspFragments = Object.freeze([
   "object-src 'none'",
   "frame-src 'none'",
   "form-action 'none'",
-  "script-src 'self' 'wasm-unsafe-eval'",
+  // SpacetimeDB 2.6.1 generates its typed serializers with Function during
+  // connection setup. Keep this compatibility exception scoped to script-src.
+  "script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'",
   "script-src-attr 'none'",
   'https://auth.warpkeep.com',
   'https://relay.farcaster.xyz',
@@ -94,8 +96,20 @@ for (const fragment of requiredProductionCspFragments) {
     throw new Error(`Production document CSP is missing ${JSON.stringify(fragment)}.`);
   }
 }
-if (/script-src[^;]*'unsafe-eval'/.test(productionIndex)) {
-  throw new Error('Production document CSP permits unrestricted unsafe-eval.');
+const productionScriptSource = productionIndex.match(/(?:^|[;\s])script-src\s+([^;]+)/)?.[1];
+const productionScriptSourceTokens = productionScriptSource?.trim().split(/\s+/);
+const requiredProductionScriptSourceTokens = Object.freeze([
+  "'self'",
+  "'wasm-unsafe-eval'",
+  "'unsafe-eval'"
+]);
+if (
+  productionScriptSourceTokens?.length !== requiredProductionScriptSourceTokens.length
+  || !requiredProductionScriptSourceTokens.every(
+    (token, index) => productionScriptSourceTokens?.[index] === token
+  )
+) {
+  throw new Error('Production document CSP must keep the SDK eval exception narrow.');
 }
 if (/(?:^|[;\s])https:(?:[;\s]|$)|(?:^|[;\s])wss?:(?:[;\s]|$)/.test(productionIndex)) {
   throw new Error('Production document CSP permits an unrestricted network scheme.');
