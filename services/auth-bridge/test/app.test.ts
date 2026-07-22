@@ -4,11 +4,13 @@ import {
   FARCASTER_VERIFICATION_TIMEOUT_MILLISECONDS,
   REQUEST_BODY_TIMEOUT_MILLISECONDS,
   createAuthBridge,
+  farcasterRpcEndpointFingerprint,
   type AuthBridgeDependencies,
 } from '../src/app'
 import { MemoryChallengeStore } from '../src/challengeStore'
 import { PRODUCTION_SPACETIMEDB_DATABASE } from '../src/config'
 import { FarcasterVerifierUnavailableError } from '../src/farcaster'
+import { qaObserverKeyThumbprint } from '../src/qaObserver'
 import { MemorySessionFamilyStore } from '../src/sessionFamily'
 import {
   AuthEpochResolverFailure,
@@ -52,7 +54,8 @@ function env(overrides: Partial<WorkerEnv> = {}): WorkerEnv {
     ALLOWED_ORIGINS: ORIGIN,
     FARCASTER_DOMAIN: DOMAIN,
     FARCASTER_SIWE_URI: SIWE_URI,
-    FARCASTER_RPC_URL: 'https://optimism-rpc.internal.example',
+    FARCASTER_RPC_URL: 'https://optimism-rpc-one.example.com',
+    FARCASTER_RPC_URL_SECONDARY: 'https://optimism-rpc-two.example.net',
     OIDC_AUDIENCE: 'warpkeep-spacetimedb',
     OIDC_KEY_ID: 'test-es256-2026',
     SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
@@ -1127,8 +1130,20 @@ describe('Warpkeep auth bridge', () => {
     const firstBody = await json(first)
     const secondBody = await json(second)
     expect(firstBody).toEqual(secondBody)
+    const farcasterRpcEndpointFingerprints = (await Promise.all([
+      farcasterRpcEndpointFingerprint('https://optimism-rpc-one.example.com/'),
+      farcasterRpcEndpointFingerprint('https://optimism-rpc-two.example.net/'),
+    ])).sort()
+    const signingPublicKeyThumbprint = await qaObserverKeyThumbprint({
+      kty: 'EC',
+      crv: 'P-256',
+      x: String(privateJwk.x),
+      y: String(privateJwk.y),
+    })
     expect(firstBody).toMatchObject({
       profile: 'warpkeep-auth-v2',
+      farcasterRpcEndpointFingerprints,
+      signingPublicKeyThumbprint,
       publicAuthEnabled: true,
       qaObserverEnabled: false,
       qaObserverSpacetimeDbUri: null,
@@ -1147,6 +1162,8 @@ describe('Warpkeep auth bridge', () => {
       siweUri: 'https://warpkeep.example/Warpkeep/',
       audience: 'warpkeep-spacetimedb',
       keyId: 'test-es256-2026',
+      farcasterRpcEndpointFingerprints,
+      signingPublicKeyThumbprint,
       spacetimeDbUri: 'https://maincloud.spacetimedb.com',
       spacetimeDbDatabase: PRODUCTION_SPACETIMEDB_DATABASE,
       publicAuthEnabled: true,
@@ -1180,9 +1197,27 @@ describe('Warpkeep auth bridge', () => {
     expect(serialized).not.toContain(ADMIN_SECRET)
     expect(serialized).not.toContain(SESSION_COOKIE_KEY)
     expect(serialized).not.toContain(privateJwk.d ?? '')
+    expect(serialized).not.toContain('https://optimism-rpc-one.example.com')
+    expect(serialized).not.toContain('https://optimism-rpc-two.example.net')
     const paused = await json(await call({ PUBLIC_AUTH_ENABLED: 'false' }))
     expect(paused.digest).not.toBe(reviewedDigest)
     expect(paused.publicAuthEnabled).toBe(false)
+    const rpcDrift = await json(await call({
+      FARCASTER_RPC_URL_SECONDARY: 'https://optimism-rpc-three.example.org',
+    }))
+    expect(rpcDrift.digest).not.toBe(reviewedDigest)
+    expect(rpcDrift.farcasterRpcEndpointFingerprints).not.toEqual(farcasterRpcEndpointFingerprints)
+    const replacementPair = await crypto.subtle.generateKey(
+      { name: 'ECDSA', namedCurve: 'P-256' },
+      true,
+      ['sign', 'verify'],
+    )
+    const replacementJwk = await crypto.subtle.exportKey('jwk', replacementPair.privateKey)
+    const signingKeyDrift = await json(await call({
+      SIGNING_KEY_JWK: JSON.stringify(replacementJwk),
+    }))
+    expect(signingKeyDrift.digest).not.toBe(reviewedDigest)
+    expect(signingKeyDrift.signingPublicKeyThumbprint).not.toBe(signingPublicKeyThumbprint)
     expect(first.headers.has('access-control-allow-origin')).toBe(false)
     expect(h.events).toContain('config_attestation_issued')
   })
@@ -1548,6 +1583,46 @@ describe('Warpkeep auth bridge', () => {
     }))
     expect(response.status).toBe(503)
     await expect(response.json()).resolves.toMatchObject({ error: { code: 'service_misconfigured' } })
+  })
+
+  it('requires two independent public HTTPS Farcaster RPC origins in production', async () => {
+    const h = harness()
+    const invalidProductionOverrides: readonly Partial<WorkerEnv>[] = [
+      { FARCASTER_RPC_URL_SECONDARY: undefined },
+      { FARCASTER_RPC_URL: 'http://optimism-rpc-one.example.com' },
+      { FARCASTER_RPC_URL_SECONDARY: 'https://optimism-rpc-one.example.com/secondary' },
+      { FARCASTER_RPC_URL_SECONDARY: 'https://127.0.0.1' },
+      { FARCASTER_RPC_URL_SECONDARY: 'https://10.0.0.1' },
+      { FARCASTER_RPC_URL_SECONDARY: 'https://[2001:db8::1]' },
+      { FARCASTER_RPC_URL_SECONDARY: 'https://optimism-rpc.internal' },
+      { FARCASTER_RPC_URL_SECONDARY: 'https://optimism-rpc-two.example.net/#fragment' },
+    ]
+    for (const overrides of invalidProductionOverrides) {
+      const response = await h.app.fetch(request('/healthz'), env(overrides))
+      expect(response.status).toBe(503)
+      await expect(response.json()).resolves.toMatchObject({ error: { code: 'service_misconfigured' } })
+    }
+
+    const localDevelopment = {
+      ENVIRONMENT: 'development',
+      ISSUER: 'https://localhost:8787',
+      ALLOWED_ORIGINS: 'http://localhost:5173',
+      FARCASTER_DOMAIN: 'localhost:5173',
+      FARCASTER_SIWE_URI: 'http://localhost:5173/',
+      FARCASTER_RPC_URL: 'http://127.0.0.1:8545',
+      FARCASTER_RPC_URL_SECONDARY: undefined,
+      SPACETIMEDB_URI: 'http://127.0.0.1:3000',
+      SPACETIMEDB_DATABASE: 'warpkeep-dev',
+    } satisfies Partial<WorkerEnv>
+    const developmentRequest = () => new Request('https://localhost:8787/healthz')
+    const accepted = await h.app.fetch(developmentRequest(), env(localDevelopment))
+    expect(accepted.status).toBe(200)
+
+    const remoteSingle = await h.app.fetch(developmentRequest(), env({
+      ...localDevelopment,
+      FARCASTER_RPC_URL: 'https://optimism-rpc-one.example.com',
+    }))
+    expect(remoteSingle.status).toBe(503)
   })
 
   it('fails closed without a public issuer and writes only static safe log events', async () => {

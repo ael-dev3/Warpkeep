@@ -42,6 +42,15 @@ export {
   adminGetAlphaStatusV4,
 } from './reducers/resources';
 export {
+  getMyWorkerRosterV1,
+  getMyResourceStateV2,
+  dispatchWorkerV1,
+  recallWorkerV1,
+  recallAllWorkersV1,
+  adminGetWorkerSystemStatusV1,
+  adminPlanWorkerRosterV1,
+} from './reducers/castleWorkers';
+export {
   getMyGoldExpeditionStateV1,
   dispatchGoldExpeditionV1,
   collectGoldExpeditionV1,
@@ -83,4 +92,5 @@ export {
   runFoodExpeditionScheduleV1,
   runWoodExpeditionScheduleV1,
   runStoneExpeditionScheduleV1,
+  runCastleWorkerScheduleV1,
 } from './schema';

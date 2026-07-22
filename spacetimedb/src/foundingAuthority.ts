@@ -14,6 +14,7 @@ import {
   GENESIS_RESOURCE_POLICY_VERSION,
   GENESIS_STARTING_RESOURCE_BALANCES,
 } from './resourceAuthorityPolicy';
+import { ensureCastleWorkerRoster } from './castleWorkerRoster';
 import {
   admissionProfileIsComplete,
   trustedProfilesEqual,
@@ -219,6 +220,7 @@ export function ensureGenesisFounder(
       || !trustedProfilesEqual(existingProfile, admissionProfile)
     ) fail();
     assertGenesisFoundingGraph(ctx);
+    ensureCastleWorkerRoster(ctx, existingCastle);
     return 'preserved';
   }
   if (
@@ -313,6 +315,11 @@ export function ensureGenesisFounder(
     createdAt: ctx.timestamp,
     updatedAt: ctx.timestamp,
   });
+
+  // Generic workers are created only after a separately authorized active
+  // system row exists. The PR ships staged authority and therefore performs
+  // no production roster backfill or activation.
+  ensureCastleWorkerRoster(ctx, castle);
 
   assertGenesisFoundingGraph(ctx);
   return 'created';
