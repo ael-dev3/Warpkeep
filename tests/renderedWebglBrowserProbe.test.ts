@@ -24,6 +24,7 @@ import {
   RENDERED_WEBGL_QA_CASE_COUNT,
   RENDERED_WEBGL_QA_CHROME_TEAM_ID,
   RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_CELL_COUNT,
+  RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_KIND_COUNT,
   RENDERED_WEBGL_QA_VITE_FS_DENY,
   renderedWebglLabelAnchorDistanceTelemetry,
   renderedWebglLabelDisplacementClassificationValid,
@@ -32,6 +33,31 @@ import {
   spawnHeadlessChromeProbe,
   terminateHeadlessChromeProcessGroup
 } from '../scripts/qa-observer/rendered-webgl-browser-probe.mjs';
+
+const EXPECTED_LOCAL_VITE_FS_DENY = Object.freeze([
+  '.env',
+  '.env.*',
+  '.dev.vars*',
+  '.envrc',
+  '.npmrc',
+  'credentials.json',
+  'admin-secret*',
+  'secret.json',
+  'secrets.json',
+  'id_rsa*',
+  'id_ed25519*',
+  '*.{crt,pem}',
+  '*.{cer,key,p12,pfx,jks,keystore,jwk,token}',
+  '*.local',
+  '*.{log,har,trace}',
+  '*.{bak,backup,tmp}',
+  '*.{sqlite,sqlite3,db,dump}',
+  '*.{zip,tar,tar.gz,tgz,7z}',
+  '**/.git/**',
+  '**/.cache/**',
+  '**/.wrangler/**',
+  '**/.secrets/**'
+]);
 
 function cdpPipeFrame(value: unknown) {
   return Buffer.from(`${JSON.stringify(value)}\0`, 'utf8');
@@ -192,7 +218,7 @@ describe('rendered WebGL headless browser probe contract', () => {
   });
 
   it('resolves the complete Vite deny contract instead of replacing its defaults', async () => {
-    const { resolveConfig } = await import('vite');
+    const { isFileServingAllowed, resolveConfig } = await import('vite');
     const resolved = await resolveConfig({
       configFile: false,
       envFile: false,
@@ -207,13 +233,39 @@ describe('rendered WebGL headless browser probe contract', () => {
       }
     }, 'serve', 'development', 'development');
 
-    expect(resolved.server.fs.deny).toEqual([
-      '.env',
-      '.env.*',
-      '*.{crt,pem}',
-      '**/.git/**',
-      '**/.cache/**'
-    ]);
+    expect(resolved.server.fs.deny).toEqual(EXPECTED_LOCAL_VITE_FS_DENY);
+    for (const relativePath of [
+      'services/auth-bridge/.dev.vars.production',
+      'services/auth-bridge/signing-key.jwk',
+      'services/auth-bridge/admin-secret.txt',
+      'services/auth-bridge/credentials.json',
+      'services/auth-bridge/.wrangler/state.sqlite',
+      '.secrets/qa-observer.key'
+    ]) {
+      expect(
+        isFileServingAllowed(resolved, resolve(process.cwd(), relativePath)),
+        relativePath
+      ).toBe(false);
+    }
+    expect(
+      isFileServingAllowed(resolved, resolve(process.cwd(), 'src/main.tsx'))
+    ).toBe(true);
+
+    const manualDevelopment = await resolveConfig({
+      configFile: resolve(process.cwd(), 'vite.config.ts'),
+      logLevel: 'silent'
+    }, 'serve', 'development', 'development');
+    expect(manualDevelopment.server.fs.deny).toEqual(resolved.server.fs.deny);
+    for (const relativePath of [
+      'services/auth-bridge/.dev.vars.production',
+      'services/auth-bridge/signing-key.jwk',
+      'services/auth-bridge/.wrangler/state.sqlite'
+    ]) {
+      expect(
+        isFileServingAllowed(manualDevelopment, resolve(process.cwd(), relativePath)),
+        `manual:${relativePath}`
+      ).toBe(false);
+    }
   });
 
   it('uses an inline fail-closed Vite configuration and disposable cache', () => {
@@ -223,7 +275,9 @@ describe('rendered WebGL headless browser probe contract', () => {
     ), 'utf8');
     expect(source).toContain('configFile: false');
     expect(source).toContain('envFile: false');
-    expect(source).toContain('plugins: [reactPlugin(), ...localQaPlugins]');
+    expect(source).toContain(
+      'plugins: [warpkeepLocalPublicBoundaryPlugin(), reactPlugin(), ...localQaPlugins]'
+    );
     expect(source).toContain('castleLodVisualEvidenceSourceVitePlugin(castleLodVisualSource)');
     expect(source).toContain('runCastleLodVisualEvidenceBrowserCase(devtools');
     expect(source).toContain('onCastleLodVisualEvidence?.(castleLodVisualEvidence)');
@@ -240,13 +294,11 @@ describe('rendered WebGL headless browser probe contract', () => {
     );
     expect(source).toContain('await attempt(() => options.removeProfile?.());');
     expect(source).toContain('onCastleLodVisualBoundary?.(castleLodVisualBoundary)');
-    expect(RENDERED_WEBGL_QA_VITE_FS_DENY).toEqual([
-      '.env',
-      '.env.*',
-      '*.{crt,pem}',
-      '**/.git/**',
-      '**/.cache/**'
-    ]);
+    expect(source).toContain(
+      '.realm-cell-navigator__castles[aria-label="Founded castles"] > li > button'
+    );
+    expect(source).not.toContain("'.realm-cell-navigator__castles button'");
+    expect(RENDERED_WEBGL_QA_VITE_FS_DENY).toEqual(EXPECTED_LOCAL_VITE_FS_DENY);
     expect(source).toContain('attestStableHeadlessChromeExecutable(reviewedChromeIdentity)');
     expect(source).toContain('readReviewedChromeExecutableIdentity()');
     expect(source).toContain("'--remote-debugging-pipe'");
@@ -917,7 +969,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       readyAfterMilliseconds: 2_412,
       environmentLighting: 'procedural',
       semanticTerrainCellCount: RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_CELL_COUNT,
-      semanticTerrainKindCount: 7,
+      semanticTerrainKindCount: RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_KIND_COUNT,
       semanticTerrainFeatureCount: 700,
       semanticTerrainFeatureDrawCalls: 5,
       totalTerrainDetailInstanceCount: 5_000,
@@ -998,7 +1050,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       readyAfterMilliseconds: 2_412,
       environmentLighting: 'procedural',
       semanticTerrainCellCount: RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_CELL_COUNT,
-      semanticTerrainKindCount: 7,
+      semanticTerrainKindCount: RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_KIND_COUNT,
       semanticTerrainFeatureCount: 700,
       semanticTerrainFeatureDrawCalls: 5,
       totalTerrainDetailInstanceCount: 5_000,
@@ -1034,17 +1086,19 @@ describe('rendered WebGL headless browser probe contract', () => {
         semanticTerrainCellCount: staleOrMixedTerrainCellCount
       }, expected)).toThrow(/semantic-terrain-cell-count/i);
     }
-    expect(() => parseRenderedWebglBrowserDom({
-      ...ready,
-      semanticTerrainKindCount: 6
-    }, expected)).toThrow(/semantic-terrain-kind-count/i);
+    for (const staleKindCount of [5, 7]) {
+      expect(() => parseRenderedWebglBrowserDom({
+        ...ready,
+        semanticTerrainKindCount: staleKindCount
+      }, expected)).toThrow(/semantic-terrain-kind-count/i);
+    }
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
       semanticTerrainFeatureCount: 0
     }, expected)).toThrow(/semantic-terrain-feature-budget/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
-      semanticTerrainFeatureCount: 1_011
+      semanticTerrainFeatureCount: 1_101
     }, expected)).toThrow(/semantic-terrain-feature-budget/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
@@ -1056,7 +1110,7 @@ describe('rendered WebGL headless browser probe contract', () => {
     }, expected)).toThrow(/semantic-terrain-feature-draw-calls/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
-      totalTerrainDetailInstanceCount: 5_711
+      totalTerrainDetailInstanceCount: 5_801
     }, expected)).toThrow(/total-terrain-detail-budget/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
@@ -1211,7 +1265,8 @@ describe('rendered WebGL headless browser probe contract', () => {
     }, expected)).toThrow(/observation/i);
 
     for (const [caseId, quality, semanticFeatureCount, totalDetailInstanceCount] of [
-      ['desktop-high', 'high', 1_310, 7_210],
+      ['desktop-high', 'high', 1_550, 7_450],
+      ['desktop-balanced', 'balanced', 1_100, 5_800],
       ['desktop-reduced', 'reduced', 610, 3_210]
     ] as const) {
       const qualityCase = renderedWebglBrowserProbeCases(41_733)

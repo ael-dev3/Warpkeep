@@ -116,8 +116,11 @@ describe('RealmMapScreen', () => {
     expect(screen.getByRole('region', { name: 'Your resources' })).not.toBeNull();
     const fallback = screen.getByTestId('realm-static-fallback');
     expect(within(fallback).getByText(
-      'Detailed terrain is unavailable. Showing the canonical Genesis 001 realm map.'
+      'WebGL is unavailable on this device. Showing a bounded, accessible view of the canonical Genesis 001 region around your keep.'
     )).not.toBeNull();
+    expect(fallback.textContent).not.toContain(
+      'Detailed terrain is unavailable. Showing the canonical Genesis 001 realm map.'
+    );
     expect(fallback.textContent).not.toMatch(/\b(?:traversable cells|realm cells|rendered)\b/i);
     const polygons = container.querySelectorAll<SVGPolygonElement>(
       '.realm-map-screen__fallback-map polygon'
@@ -176,7 +179,7 @@ describe('RealmMapScreen', () => {
     expect(screen.getByRole('button', { name: 'CLOSE RECORD' })).toBe(document.activeElement);
   });
 
-  it('renders every 100-castle fallback marker with complete direct-label coverage', async () => {
+  it('keeps fallback markers and labels bounded to the same cropped region', async () => {
     const realm = createRenderedWebglQaFixtureRealm();
     const { container } = renderFallbackRealm(realm);
     const markers = container.querySelectorAll<SVGGElement>(
@@ -187,14 +190,20 @@ describe('RealmMapScreen', () => {
     );
 
     expect(realm.snapshot.castles).toHaveLength(100);
-    expect(markers).toHaveLength(realm.snapshot.castles.length);
-    expect(markerCastleIds.size).toBe(realm.snapshot.castles.length);
+    expect(markers.length).toBeGreaterThan(0);
+    expect(markers.length).toBeLessThan(realm.snapshot.castles.length);
+    expect(markerCastleIds.size).toBe(markers.length);
     await waitFor(() => {
       const map = screen.getByRole('main', { name: 'Hegemony realm' });
-      expect(map.getAttribute('data-label-placed-count')).toBe('100');
-      expect(map.getAttribute('data-label-unplaced-count')).toBe('0');
+      const placed = Number(map.getAttribute('data-label-placed-count'));
+      expect(placed).toBeGreaterThan(0);
+      expect(placed).toBeLessThanOrEqual(markers.length);
       expect(map.getAttribute('data-label-clustered-count')).toBe('0');
     });
+    const labelCastleIds = [...container.querySelectorAll<HTMLButtonElement>(
+      '.realm-castle-label[data-castle-id]'
+    )].map((label) => label.dataset.castleId);
+    expect(labelCastleIds.every((castleId) => markerCastleIds.has(castleId))).toBe(true);
   });
 
   it('changes camera presets without opening a castle record', async () => {

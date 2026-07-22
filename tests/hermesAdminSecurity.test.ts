@@ -15,6 +15,7 @@ import {
   FOUNDER_ADMISSION_SOURCE_CONFIGURATION_DIGEST,
   parseHermesArguments,
   privacySafeHermesErrorMessage,
+  projectWorkerSystemStatusV12,
   readStatus,
   requestAdminToken,
   requireAlphaComponentActivationProductionTarget,
@@ -126,6 +127,32 @@ function foundedGenerationV3Status(overrides: Record<string, bigint | number | s
     worldTileMeta: 10_000n,
     ...overrides,
   });
+}
+
+function workerSystemStatusV12(overrides: Record<string, unknown> = {}) {
+  const counts = Object.fromEntries([
+    'systemRows', 'expectedCastleCount', 'expectedWorkerCount', 'actualWorkerCount',
+    'castlesMissingWorkers', 'castlesWithExtraWorkers', 'duplicateOrdinals',
+    'malformedWorkerIds', 'invalidWorkerStates', 'idleWorkers', 'outboundWorkers',
+    'gatheringWorkers', 'returningWorkers', 'assignments', 'occupations', 'schedules',
+    'orphanWorkers', 'orphanAssignments', 'assignmentsMissingOccupation',
+    'assignmentsWithoutSingleSchedule', 'orphanOccupations', 'orphanSchedules',
+    'invalidSchedules', 'assignmentPublicMismatches', 'occupationSiteMismatches',
+    'invalidAssignments', 'idempotencyReceipts', 'invalidIdempotencyReceipts',
+    'idempotencyOverflowFids', 'legacyExpeditions', 'legacyOccupations',
+    'legacySchedules',
+  ].map(field => [field, 0n]));
+  return {
+    ...counts,
+    mode: 'absent',
+    systemConfigValid: false,
+    legacyDrainRequired: true,
+    expectedCountsMatch: false,
+    rosterDigestMatches: false,
+    rosterDigest: '',
+    rosterDigestExpected: '0123456789abcdef',
+    ...overrides,
+  };
 }
 
 describe('Hermes machine-readable output', () => {
@@ -307,6 +334,46 @@ describe('Hermes machine-readable output', () => {
     });
     expect(rendered).not.toContain('424242424242');
     expect(rendered).not.toContain('must-not-escape');
+  });
+
+  it('projects the Worker v12 inspection to one exact aggregate-only contract', async () => {
+    const output = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const status = workerSystemStatusV12({
+      castlesMissingWorkers: 4n,
+      legacyExpeditions: 2n,
+    });
+    const procedure = vi.fn(async () => status);
+    const connection = {
+      procedures: { adminGetWorkerSystemStatusV1: procedure },
+    };
+
+    const projected = await readStatus(connection as never, 'v12', true);
+    expect(procedure).toHaveBeenCalledWith({});
+    expect(output).toHaveBeenCalledOnce();
+    const rendered = output.mock.calls[0]?.[0] as string;
+    const parsed = JSON.parse(rendered) as Record<string, unknown>;
+    expect(parsed.castlesMissingWorkers).toBe('4');
+    expect(parsed.legacyExpeditions).toBe('2');
+    expect(parsed.mode).toBe('absent');
+    expect(parsed).not.toHaveProperty('fid');
+    expect((projected as Readonly<Record<string, unknown>>).castlesMissingWorkers).toBe(4n);
+  });
+
+  it('rejects changed Worker v12 keys, non-u64 counts, flags, modes, and digests', () => {
+    const valid = workerSystemStatusV12();
+    expect(projectWorkerSystemStatusV12(valid)).toMatchObject(valid);
+    for (const invalid of [
+      { ...valid, fid: 424_242n },
+      { ...valid, assignments: '0' },
+      { ...valid, assignments: -1n },
+      { ...valid, assignments: 1n << 64n },
+      { ...valid, systemConfigValid: 'false' },
+      { ...valid, mode: 'disabled' },
+      { ...valid, rosterDigest: 'ABCDEF0123456789' },
+      { ...valid, rosterDigestExpected: '' },
+    ]) {
+      expect(() => projectWorkerSystemStatusV12(invalid)).toThrow();
+    }
   });
 
   it('requires the exact post-backfill founder graph before reporting success', () => {
@@ -557,6 +624,11 @@ describe('Hermes command-line boundary', () => {
     });
     expect(parseHermesArguments(['inspect-alpha-v10', '--json'])).toMatchObject({
       command: 'inspect-alpha-v10',
+      inspection: true,
+      machineReadableInspection: true,
+    });
+    expect(parseHermesArguments(['inspect-alpha-v12', '--json'])).toMatchObject({
+      command: 'inspect-alpha-v12',
       inspection: true,
       machineReadableInspection: true,
     });
@@ -863,7 +935,7 @@ describe('Hermes credential destination policy', () => {
     expect(result.stderr).toBe('');
   });
 
-  it.each(['v2', 'v3', 'v4', 'v8', 'v10'])('rejects misleading dry-run use on read-only protocol-%s inspection', (version) => {
+  it.each(['v2', 'v3', 'v4', 'v8', 'v10', 'v12'])('rejects misleading dry-run use on read-only protocol-%s inspection', (version) => {
     const result = runHermes([`inspect-alpha-${version}`, '--json', '--dry-run'], {
       WARPKEEP_AUTH_BRIDGE_URL: undefined,
       WARPKEEP_ADMIN_TOKEN_SECRET: undefined,

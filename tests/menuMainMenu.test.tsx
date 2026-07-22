@@ -22,7 +22,7 @@ function installMotionPreference(matches = false) {
 function getPatchNotesTrigger(options: { hidden?: boolean } = {}) {
   return screen.getByRole('button', {
     ...options,
-    name: 'Open patch notes for Warpkeep ALPHA 0.3.13'
+    name: 'Open patch notes for Warpkeep ALPHA 0.3.14'
   });
 }
 
@@ -131,11 +131,11 @@ describe('WarpkeepMainMenu', () => {
 
     act(() => patchNotes.focus());
     expect(screen.getByRole('status').textContent).toContain('living frontier');
-    expect(screen.queryByRole('region', { name: 'THE LIVING LOWLANDS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'A STEADIER FRONTIER' })).toBeNull();
 
     fireEvent.click(patchNotes, { detail: 0 });
     expect(screen.queryByRole('status')).toBeNull();
-    expect(screen.getByRole('region', { name: 'THE LIVING LOWLANDS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'A STEADIER FRONTIER' })).not.toBeNull();
     expect(document.activeElement).toBe(patchNotes);
   });
 
@@ -239,25 +239,25 @@ describe('WarpkeepMainMenu', () => {
 
     expect(patchNotes.getAttribute('aria-expanded')).toBe('false');
     expect(patchNotes.getAttribute('aria-controls')).toBe('warpkeep-latest-patch-notes');
-    expect(screen.queryByRole('region', { name: 'THE LIVING LOWLANDS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'A STEADIER FRONTIER' })).toBeNull();
 
     act(() => patchNotes.focus());
-    expect(screen.queryByRole('region', { name: 'THE LIVING LOWLANDS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'A STEADIER FRONTIER' })).toBeNull();
 
     fireEvent.click(patchNotes, { detail: 0 });
-    const notes = screen.getByRole('region', { name: 'THE LIVING LOWLANDS' });
+    const notes = screen.getByRole('region', { name: 'A STEADIER FRONTIER' });
     expect(patchNotes.getAttribute('aria-expanded')).toBe('true');
-    expect(notes.textContent).toContain('LATEST PATCH · ALPHA 0.3.13');
-    expect(notes.textContent).toContain('The old scattered lakes have receded');
-    expect(notes.textContent).toContain('Moving supply wagons can be selected');
-    expect(notes.textContent).toContain('Alpha 0.3.13 is an unfinished');
+    expect(notes.textContent).toContain('LATEST PATCH · ALPHA 0.3.14');
+    expect(notes.textContent).toContain('recovers from temporary graphics interruptions');
+    expect(notes.textContent).toContain('read-only public records');
+    expect(notes.textContent).toContain('Alpha 0.3.14 is an unfinished');
     expect(notes.getAttribute('tabindex')).toBe('0');
     expect(within(notes).queryByRole('link')).toBeNull();
     act(() => notes.focus());
     expect(document.activeElement).toBe(notes);
 
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(screen.queryByRole('region', { name: 'THE LIVING LOWLANDS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'A STEADIER FRONTIER' })).toBeNull();
     expect(document.activeElement).toBe(patchNotes);
     expect(onRequestReturn).not.toHaveBeenCalled();
 
@@ -270,19 +270,19 @@ describe('WarpkeepMainMenu', () => {
     const patchNotes = getPatchNotesTrigger();
 
     fireEvent.pointerEnter(patchNotes, { pointerType: 'mouse' });
-    expect(screen.getByRole('region', { name: 'THE LIVING LOWLANDS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'A STEADIER FRONTIER' })).not.toBeNull();
 
     fireEvent.pointerDown(document.body, { pointerType: 'mouse' });
-    expect(screen.queryByRole('region', { name: 'THE LIVING LOWLANDS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'A STEADIER FRONTIER' })).toBeNull();
 
     fireEvent.pointerDown(patchNotes, { pointerType: 'touch' });
     patchNotes.focus();
     fireEvent.click(patchNotes);
-    expect(screen.getByRole('region', { name: 'THE LIVING LOWLANDS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'A STEADIER FRONTIER' })).not.toBeNull();
 
     fireEvent.pointerDown(patchNotes, { pointerType: 'touch' });
     fireEvent.click(patchNotes);
-    expect(screen.queryByRole('region', { name: 'THE LIVING LOWLANDS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'A STEADIER FRONTIER' })).toBeNull();
   });
 
   it('keeps hover notes reachable across the anchor gap and toggles by activation', () => {
@@ -291,21 +291,21 @@ describe('WarpkeepMainMenu', () => {
     const patchNotes = getPatchNotesTrigger();
 
     fireEvent.pointerEnter(patchNotes, { pointerType: 'mouse' });
-    expect(screen.getByRole('region', { name: 'THE LIVING LOWLANDS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'A STEADIER FRONTIER' })).not.toBeNull();
     fireEvent.pointerLeave(patchNotes, { pointerType: 'mouse' });
 
     act(() => vi.advanceTimersByTime(250));
-    const panel = screen.getByRole('region', { name: 'THE LIVING LOWLANDS' });
+    const panel = screen.getByRole('region', { name: 'A STEADIER FRONTIER' });
     fireEvent.pointerEnter(panel, { pointerType: 'mouse' });
     act(() => vi.advanceTimersByTime(200));
-    expect(screen.getByRole('region', { name: 'THE LIVING LOWLANDS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'A STEADIER FRONTIER' })).not.toBeNull();
 
     fireEvent.click(patchNotes);
     fireEvent.pointerLeave(patchNotes, { pointerType: 'mouse' });
     act(() => vi.advanceTimersByTime(500));
-    expect(screen.getByRole('region', { name: 'THE LIVING LOWLANDS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'A STEADIER FRONTIER' })).not.toBeNull();
     fireEvent.click(patchNotes);
-    expect(screen.queryByRole('region', { name: 'THE LIVING LOWLANDS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'A STEADIER FRONTIER' })).toBeNull();
   });
 
   it('keeps inactive menu controls hidden, inert, and outside the tab order', () => {

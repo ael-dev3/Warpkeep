@@ -32,6 +32,7 @@ const GRAPHICS_COPY: Readonly<Record<GraphicsPreference, Readonly<{
 };
 
 export type SettingsPanelProps = Readonly<{
+  id?: string;
   audioMuted?: boolean;
   closeLabel?: string;
   preference: GraphicsPreference;
@@ -42,6 +43,7 @@ export type SettingsPanelProps = Readonly<{
 }>;
 
 export function SettingsPanel({
+  id,
   audioMuted = false,
   closeLabel = 'BACK TO THE MENU',
   preference,
@@ -66,6 +68,7 @@ export function SettingsPanel({
         aria-labelledby="warpkeep-settings-title"
         aria-modal="true"
         className="warpkeep-settings__panel"
+        id={id}
         ref={dialogRef}
         role="dialog"
       >

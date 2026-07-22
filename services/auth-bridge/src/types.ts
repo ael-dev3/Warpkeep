@@ -41,8 +41,10 @@ export interface WorkerEnv {
   FARCASTER_DOMAIN?: string
   /** Exact SIWF URI expected in every signed message. */
   FARCASTER_SIWE_URI?: string
-  /** A private Optimism RPC URL used by the official Farcaster verifier. */
+  /** Primary private Optimism RPC URL used by the official Farcaster verifier. */
   FARCASTER_RPC_URL?: string
+  /** Independent secondary Optimism RPC URL. Required in production. */
+  FARCASTER_RPC_URL_SECONDARY?: string
   OIDC_AUDIENCE?: string
   /** Stable public JWK key id. May also be supplied inside SIGNING_KEY_JWK. */
   OIDC_KEY_ID?: string

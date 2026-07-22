@@ -231,6 +231,83 @@ export const AdminWaterRevisionStatusV1 = __t.object("AdminWaterRevisionStatusV1
 });
 export type AdminWaterRevisionStatusV1 = __Infer<typeof AdminWaterRevisionStatusV1>;
 
+export const AdminWorkerRosterPlanV1 = __t.object("AdminWorkerRosterPlanV1", {
+  ready: __t.bool(),
+  activationBlockedByLegacyRows: __t.bool(),
+  mode: __t.string(),
+  systemConfigValid: __t.bool(),
+  legacyDrainRequired: __t.bool(),
+  expectedCastleCount: __t.u64(),
+  expectedWorkerCount: __t.u64(),
+  actualWorkerCount: __t.u64(),
+  expectedCountsMatch: __t.bool(),
+  rosterDigestMatches: __t.bool(),
+  castlesMissingWorkers: __t.u64(),
+  castlesWithExtraWorkers: __t.u64(),
+  orphanWorkers: __t.u64(),
+  orphanAssignments: __t.u64(),
+  assignmentsMissingOccupation: __t.u64(),
+  assignmentsWithoutSingleSchedule: __t.u64(),
+  orphanOccupations: __t.u64(),
+  orphanSchedules: __t.u64(),
+  invalidSchedules: __t.u64(),
+  assignmentPublicMismatches: __t.u64(),
+  occupationSiteMismatches: __t.u64(),
+  invalidWorkerStates: __t.u64(),
+  invalidAssignments: __t.u64(),
+  invalidIdempotencyReceipts: __t.u64(),
+  idempotencyOverflowFids: __t.u64(),
+  legacyExpeditions: __t.u64(),
+  legacyOccupations: __t.u64(),
+  legacySchedules: __t.u64(),
+  rosterDigest: __t.string(),
+  rosterDigestExpected: __t.string(),
+});
+export type AdminWorkerRosterPlanV1 = __Infer<typeof AdminWorkerRosterPlanV1>;
+
+export const AdminWorkerSystemStatusV1 = __t.object("AdminWorkerSystemStatusV1", {
+  systemRows: __t.u64(),
+  mode: __t.string(),
+  systemConfigValid: __t.bool(),
+  legacyDrainRequired: __t.bool(),
+  expectedCastleCount: __t.u64(),
+  expectedWorkerCount: __t.u64(),
+  actualWorkerCount: __t.u64(),
+  expectedCountsMatch: __t.bool(),
+  rosterDigestMatches: __t.bool(),
+  castlesMissingWorkers: __t.u64(),
+  castlesWithExtraWorkers: __t.u64(),
+  duplicateOrdinals: __t.u64(),
+  malformedWorkerIds: __t.u64(),
+  invalidWorkerStates: __t.u64(),
+  idleWorkers: __t.u64(),
+  outboundWorkers: __t.u64(),
+  gatheringWorkers: __t.u64(),
+  returningWorkers: __t.u64(),
+  assignments: __t.u64(),
+  occupations: __t.u64(),
+  schedules: __t.u64(),
+  orphanWorkers: __t.u64(),
+  orphanAssignments: __t.u64(),
+  assignmentsMissingOccupation: __t.u64(),
+  assignmentsWithoutSingleSchedule: __t.u64(),
+  orphanOccupations: __t.u64(),
+  orphanSchedules: __t.u64(),
+  invalidSchedules: __t.u64(),
+  assignmentPublicMismatches: __t.u64(),
+  occupationSiteMismatches: __t.u64(),
+  invalidAssignments: __t.u64(),
+  idempotencyReceipts: __t.u64(),
+  invalidIdempotencyReceipts: __t.u64(),
+  idempotencyOverflowFids: __t.u64(),
+  legacyExpeditions: __t.u64(),
+  legacyOccupations: __t.u64(),
+  legacySchedules: __t.u64(),
+  rosterDigest: __t.string(),
+  rosterDigestExpected: __t.string(),
+});
+export type AdminWorkerSystemStatusV1 = __Infer<typeof AdminWorkerSystemStatusV1>;
+
 export const AllowedFid = __t.object("AllowedFid", {
   fid: __t.u64(),
   enabled: __t.bool(),
@@ -292,6 +369,25 @@ export const CastleSlotV1 = __t.object("CastleSlotV1", {
   generationVersion: __t.u32(),
 });
 export type CastleSlotV1 = __Infer<typeof CastleSlotV1>;
+
+export const CastleWorkerV1 = __t.object("CastleWorkerV1", {
+  workerId: __t.string(),
+  originCastleId: __t.u64(),
+  ordinal: __t.u32(),
+  status: __t.string(),
+  resourceKind: __t.option(__t.string()),
+  siteId: __t.option(__t.string()),
+  startedAtMicros: __t.option(__t.u64()),
+  arrivesAtMicros: __t.option(__t.u64()),
+  gatheringEndsAtMicros: __t.option(__t.u64()),
+  returnStartedAtMicros: __t.option(__t.u64()),
+  returnsAtMicros: __t.option(__t.u64()),
+  routeSteps: __t.option(__t.u32()),
+  returnStartProgressBasisPoints: __t.option(__t.u32()),
+  timelineRevision: __t.u32(),
+  revision: __t.u64(),
+});
+export type CastleWorkerV1 = __Infer<typeof CastleWorkerV1>;
 
 export const FidWalletAttributionV1 = __t.object("FidWalletAttributionV1", {
   snapshotAttributionKey: __t.string(),
@@ -491,6 +587,25 @@ export const MyResourceStateV1 = __t.object("MyResourceStateV1", {
 });
 export type MyResourceStateV1 = __Infer<typeof MyResourceStateV1>;
 
+export const MyResourceStateV2 = __t.object("MyResourceStateV2", {
+  fid: __t.u64(),
+  food: __t.u64(),
+  wood: __t.u64(),
+  stone: __t.u64(),
+  gold: __t.u64(),
+  workerPendingFood: __t.u64(),
+  workerPendingWood: __t.u64(),
+  workerPendingStone: __t.u64(),
+  workerPendingGold: __t.u64(),
+  observedAtMicros: __t.u64(),
+  settledThroughMicros: __t.u64(),
+  revision: __t.u64(),
+  resourcePolicyVersion: __t.string(),
+  workerPolicyVersion: __t.string(),
+  workerSystemMode: __t.string(),
+});
+export type MyResourceStateV2 = __Infer<typeof MyResourceStateV2>;
+
 export const MyStoneExpeditionStateV1 = __t.object("MyStoneExpeditionStateV1", {
   active: __t.bool(),
   expeditionId: __t.option(__t.string()),
@@ -528,6 +643,16 @@ export const MyWoodExpeditionStateV1 = __t.object("MyWoodExpeditionStateV1", {
   expeditionPolicyVersion: __t.option(__t.string()),
 });
 export type MyWoodExpeditionStateV1 = __Infer<typeof MyWoodExpeditionStateV1>;
+
+export const MyWorkerRosterV1 = __t.object("MyWorkerRosterV1", {
+  fid: __t.u64(),
+  castleId: __t.u64(),
+  observedAtMicros: __t.u64(),
+  get workers() {
+    return __t.array(WorkerPrivateV1);
+  },
+});
+export type MyWorkerRosterV1 = __Infer<typeof MyWorkerRosterV1>;
 
 export const Player = __t.object("Player", {
   fid: __t.u64(),
@@ -798,6 +923,20 @@ export const RealmWaterRevisionV1 = __t.object("RealmWaterRevisionV1", {
 });
 export type RealmWaterRevisionV1 = __Infer<typeof RealmWaterRevisionV1>;
 
+export const RealmWorkerSystemV1 = __t.object("RealmWorkerSystemV1", {
+  realmId: __t.string(),
+  policyVersion: __t.string(),
+  workersPerCastle: __t.u32(),
+  expectedCastleCount: __t.u32(),
+  expectedWorkerCount: __t.u32(),
+  rosterDigest: __t.string(),
+  mode: __t.string(),
+  legacyDrainRequired: __t.bool(),
+  createdAt: __t.timestamp(),
+  activatedAt: __t.option(__t.timestamp()),
+});
+export type RealmWorkerSystemV1 = __Infer<typeof RealmWorkerSystemV1>;
+
 export const ResourceAccountV1 = __t.object("ResourceAccountV1", {
   fid: __t.u64(),
   castleId: __t.u64(),
@@ -1008,6 +1147,83 @@ export const WoodSiteV1 = __t.object("WoodSiteV1", {
   active: __t.bool(),
 });
 export type WoodSiteV1 = __Infer<typeof WoodSiteV1>;
+
+export const WorkerAssignmentScheduleV1 = __t.object("WorkerAssignmentScheduleV1", {
+  scheduleId: __t.u64(),
+  scheduledAt: __t.scheduleAt(),
+  assignmentId: __t.string(),
+  workerId: __t.string(),
+  timelineRevision: __t.u32(),
+  stage: __t.string(),
+});
+export type WorkerAssignmentScheduleV1 = __Infer<typeof WorkerAssignmentScheduleV1>;
+
+export const WorkerAssignmentV1 = __t.object("WorkerAssignmentV1", {
+  assignmentId: __t.string(),
+  workerId: __t.string(),
+  fid: __t.u64(),
+  originCastleId: __t.u64(),
+  resourceKind: __t.string(),
+  siteId: __t.string(),
+  phase: __t.string(),
+  startedAtMicros: __t.u64(),
+  arrivesAtMicros: __t.u64(),
+  gatheringEndsAtMicros: __t.u64(),
+  returnStartedAtMicros: __t.option(__t.u64()),
+  returnsAtMicros: __t.u64(),
+  routeSteps: __t.u32(),
+  returnStartProgressBasisPoints: __t.u32(),
+  settledThroughMicros: __t.u64(),
+  accruedAmount: __t.u64(),
+  materializedAmount: __t.u64(),
+  timelineRevision: __t.u32(),
+  policyVersion: __t.string(),
+  createdAt: __t.timestamp(),
+  updatedAt: __t.timestamp(),
+});
+export type WorkerAssignmentV1 = __Infer<typeof WorkerAssignmentV1>;
+
+export const WorkerCommandIdempotencyV1 = __t.object("WorkerCommandIdempotencyV1", {
+  requestKey: __t.string(),
+  fid: __t.u64(),
+  workerId: __t.option(__t.string()),
+  commandKind: __t.string(),
+  resourceKind: __t.option(__t.string()),
+  siteId: __t.option(__t.string()),
+  assignmentId: __t.option(__t.string()),
+  resultRevision: __t.u64(),
+  createdAt: __t.timestamp(),
+});
+export type WorkerCommandIdempotencyV1 = __Infer<typeof WorkerCommandIdempotencyV1>;
+
+export const WorkerNodeOccupationV1 = __t.object("WorkerNodeOccupationV1", {
+  nodeKey: __t.string(),
+  resourceKind: __t.string(),
+  siteId: __t.string(),
+  workerId: __t.string(),
+  workerOrdinal: __t.u32(),
+  originCastleId: __t.u64(),
+  phase: __t.string(),
+  startedAtMicros: __t.u64(),
+  arrivesAtMicros: __t.u64(),
+  gatheringEndsAtMicros: __t.u64(),
+  timelineRevision: __t.u32(),
+});
+export type WorkerNodeOccupationV1 = __Infer<typeof WorkerNodeOccupationV1>;
+
+export const WorkerPrivateV1 = __t.object("WorkerPrivateV1", {
+  workerId: __t.string(),
+  ordinal: __t.u32(),
+  status: __t.string(),
+  resourceKind: __t.option(__t.string()),
+  siteId: __t.option(__t.string()),
+  accruedAmount: __t.u64(),
+  materializedAmount: __t.u64(),
+  availableAmount: __t.u64(),
+  observedAtMicros: __t.u64(),
+  revision: __t.u64(),
+});
+export type WorkerPrivateV1 = __Infer<typeof WorkerPrivateV1>;
 
 export const WorldTile = __t.object("WorldTile", {
   key: __t.string(),

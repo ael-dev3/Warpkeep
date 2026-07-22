@@ -466,4 +466,28 @@ describe('Hegemony keep prefab repository', () => {
     await expect(repository.acquire('compact')).rejects.toBe(failure);
     expect(loader).toHaveBeenCalledTimes(1);
   });
+
+  it('replaces a settled failed entry only for an explicit coalesced retry', async () => {
+    const failure = new Error('transient compact transport failure');
+    const root = new THREE.Group();
+    root.add(new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial()
+    ));
+    const loader: HegemonyKeepPrefabLoader = vi.fn()
+      .mockRejectedValueOnce(failure)
+      .mockResolvedValueOnce(loadedKeep(root, 'compact'));
+    const repository = createHegemonyKeepPrefabRepository({ loader });
+
+    await expect(repository.acquire('compact')).rejects.toBe(failure);
+    const [first, second] = await Promise.all([
+      repository.retryFailed('compact'),
+      repository.retryFailed('compact')
+    ]);
+
+    expect(loader).toHaveBeenCalledTimes(2);
+    expect(first.prefab).toBe(second.prefab);
+    first.release();
+    second.release();
+  });
 });

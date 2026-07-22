@@ -8,7 +8,12 @@ import {
   type RealmGrassPoint,
   type RealmGrassTerrainKind
 } from '../../game/map/realmGrass';
-import { hexDistance, type HexCoord, type HexWorldPosition } from '../../game/map/hexCoordinates';
+import {
+  hexDistance,
+  hexKey,
+  type HexCoord,
+  type HexWorldPosition
+} from '../../game/map/hexCoordinates';
 import type { RealmTerrainKind } from '../../game/map/realmTerrainSemantics';
 import type { RealmTerrainSurface } from '../../game/map/realmTerrainSurface';
 import type { TerrainStructurePlacement } from '../../game/map/terrainPlacements';
@@ -46,11 +51,16 @@ export type RealmGrassTelemetry = Readonly<{
   averageBladeHeight: number;
   paletteLuminanceMin: number;
   paletteLuminanceMax: number;
+  paletteGreenMin: number;
+  paletteGreenMax: number;
   alphaHashActive: boolean;
   alphaToCoverageActive: boolean;
   shaderFallbackActive: boolean;
   edgeFadeCount: number;
+  candidateCellsByTerrain: Readonly<Record<RealmGrassTerrainKind, number>>;
+  activeCellsByTerrain: Readonly<Record<RealmGrassTerrainKind, number>>;
   countsByTerrain: Readonly<Record<RealmGrassTerrainKind, number>>;
+  averageRetainedPatchesByTerrain: Readonly<Record<RealmGrassTerrainKind, number>>;
   completelyBareActiveCells: number;
   rejectedByStructureClearance: number;
   rejectedBySlope: number;
@@ -92,6 +102,17 @@ type PackedPoint = Readonly<{
   distance: number;
 }>;
 
+const REALM_GRASS_TERRAIN_KINDS: readonly RealmGrassTerrainKind[] = Object.freeze([
+  'meadow',
+  'lowland',
+  'forest',
+  'heath',
+  'ridge',
+  'lake',
+  'ancient-stone',
+  'apron'
+]);
+
 function emptyCounts(): Record<RealmGrassTerrainKind, number> {
   return {
     meadow: 0,
@@ -103,6 +124,17 @@ function emptyCounts(): Record<RealmGrassTerrainKind, number> {
     'ancient-stone': 0,
     apron: 0
   };
+}
+
+function averageCounts(
+  totals: Readonly<Record<RealmGrassTerrainKind, number>>,
+  divisors: Readonly<Record<RealmGrassTerrainKind, number>>
+) {
+  const averages = emptyCounts();
+  REALM_GRASS_TERRAIN_KINDS.forEach((kind) => {
+    averages[kind] = totals[kind] / Math.max(1, divisors[kind]);
+  });
+  return averages;
 }
 
 function emptyTelemetry(plan: RealmGrassRenderPlan, alphaToCoverage = false): RealmGrassTelemetry {
@@ -122,11 +154,16 @@ function emptyTelemetry(plan: RealmGrassRenderPlan, alphaToCoverage = false): Re
     averageBladeHeight: 0,
     paletteLuminanceMin: 0,
     paletteLuminanceMax: 0,
+    paletteGreenMin: 0,
+    paletteGreenMax: 0,
     alphaHashActive: true,
     alphaToCoverageActive: alphaToCoverage,
     shaderFallbackActive: false,
     edgeFadeCount: 0,
+    candidateCellsByTerrain: Object.freeze(emptyCounts()),
+    activeCellsByTerrain: Object.freeze(emptyCounts()),
     countsByTerrain: Object.freeze(emptyCounts()),
+    averageRetainedPatchesByTerrain: Object.freeze(emptyCounts()),
     completelyBareActiveCells: 0,
     rejectedByStructureClearance: 0,
     rejectedBySlope: 0,
@@ -232,6 +269,15 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
     return generated;
   };
 
+  const telemetryTerrainKindFor = (
+    cell: RealmGrassActiveWindow['cells'][number]['cell']
+  ): RealmGrassTerrainKind => {
+    const key = hexKey(cell.coord);
+    if (!options.surface.playableKeys.has(key)) return 'apron';
+    const kind = options.terrainKindsByKey.get(key) ?? 'lowland';
+    return options.visualizeLegacyLakes === true && kind === 'lake' ? 'lowland' : kind;
+  };
+
   const updateBounds = () => {
     meshes.forEach((currentMesh) => {
       currentMesh.computeBoundingBox();
@@ -262,11 +308,17 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
     let completelyBareActiveCells = 0;
     let rejectedByStructureClearance = 0;
     let rejectedBySlope = 0;
+    // Both records are fixed to the eight presentation terrain kinds. The
+    // outer ring is classified without generating or caching invisible grass.
+    const candidateCellsByTerrain = emptyCounts();
+    const activeCellsByTerrain = emptyCounts();
     window.cells.forEach((activeCell) => {
+      candidateCellsByTerrain[telemetryTerrainKindFor(activeCell.cell)] += 1;
       // At zero fade the alpha-hashed geometry is fully discarded. Do not
       // spend cache/instance capacity on that invisible boundary ring.
       if (activeCell.edgeFade <= 0) return;
       const data = cellDataFor(activeCell.cell);
+      activeCellsByTerrain[data.terrainKind] += 1;
       if (data.completelyBare) completelyBareActiveCells += 1;
       rejectedByStructureClearance += data.rejectedByStructure + data.rejectedByExclusion;
       rejectedBySlope += data.rejectedBySlope;
@@ -286,11 +338,15 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
     });
     const packedByVariant = collectors.map((collector) => collector.values());
     const packed = packedByVariant.flat();
+    const activeCellCount = Object.values(activeCellsByTerrain)
+      .reduce((total, count) => total + count, 0);
     const counts = emptyCounts();
     let footprintTotal = 0;
     let heightTotal = 0;
     let luminanceMin = Number.POSITIVE_INFINITY;
     let luminanceMax = 0;
+    let greenMin = Number.POSITIVE_INFINITY;
+    let greenMax = 0;
     let edgeFadeCount = 0;
     packedByVariant.forEach((variantPoints, variant) => {
       const currentMesh = meshes[variant]!;
@@ -313,6 +369,8 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
         const luminance = 0.2126 * point.tint.r + 0.7152 * point.tint.g + 0.0722 * point.tint.b;
         luminanceMin = Math.min(luminanceMin, luminance);
         luminanceMax = Math.max(luminanceMax, luminance);
+        greenMin = Math.min(greenMin, point.tint.g);
+        greenMax = Math.max(greenMax, point.tint.g);
         if (edgeFade < 0.999) edgeFadeCount += 1;
       });
       currentMesh.count = variantPoints.length;
@@ -342,7 +400,7 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
       ).alphaToCoverage === true;
     telemetry = Object.freeze({
       candidateCellCount: window.cells.length,
-      activeCellCount: window.cells.length,
+      activeCellCount,
       instanceCount: packed.length,
       bladeCount: packed.length * REALM_GRASS_BLADES_PER_PATCH[plan.geometryProfile],
       triangleCount: packed.length * trianglesPerPatch,
@@ -351,16 +409,21 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
       cacheEntries: cache.size,
       animated: packed.length > 0 && plan.animationFrameCap > 0 && !options.reducedMotion,
       targetAnimationCadence: plan.animationFrameCap,
-      averageRetainedPatchesPerActiveCell: packed.length / Math.max(1, window.cells.length),
+      averageRetainedPatchesPerActiveCell: packed.length / Math.max(1, activeCellCount),
       averagePatchFootprint: packed.length > 0 ? footprintTotal / packed.length : 0,
       averageBladeHeight: packed.length > 0 ? heightTotal / packed.length : 0,
       paletteLuminanceMin: Number.isFinite(luminanceMin) ? luminanceMin : 0,
       paletteLuminanceMax: luminanceMax,
+      paletteGreenMin: Number.isFinite(greenMin) ? greenMin : 0,
+      paletteGreenMax: greenMax,
       alphaHashActive: alphaHash,
       alphaToCoverageActive: alphaCoverage,
       shaderFallbackActive: false,
       edgeFadeCount,
+      candidateCellsByTerrain: Object.freeze(candidateCellsByTerrain),
+      activeCellsByTerrain: Object.freeze(activeCellsByTerrain),
       countsByTerrain: Object.freeze(counts),
+      averageRetainedPatchesByTerrain: Object.freeze(averageCounts(counts, activeCellsByTerrain)),
       completelyBareActiveCells,
       rejectedByStructureClearance,
       rejectedBySlope,

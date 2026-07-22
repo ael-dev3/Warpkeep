@@ -14,11 +14,7 @@ function canonicalFid(value: number | bigint | string): string {
   return fid.toString(10)
 }
 
-/**
- * Uses Farcaster's official auth client. The client checks the SIWF signature,
- * custody/auth address ownership, and FID resource with `acceptAuthAddress`.
- */
-export function createOfficialFarcasterVerifier(rpcUrl: string): FarcasterVerifier {
+function createSingleOfficialFarcasterVerifier(rpcUrl: string): FarcasterVerifier {
   const client = createAppClient({
     ethereum: viemConnector({ rpcUrl }),
   })
@@ -47,4 +43,54 @@ export function createOfficialFarcasterVerifier(rpcUrl: string): FarcasterVerifi
       return { fid: canonicalFid(result.fid) }
     },
   }
+}
+
+/**
+ * Requires every configured verifier to independently return the same FID.
+ * One verifier is supported only for the explicitly local development profile.
+ */
+export function createConsensusFarcasterVerifier(
+  verifiers: readonly FarcasterVerifier[],
+): FarcasterVerifier {
+  if (verifiers.length < 1 || verifiers.length > 2) {
+    throw new Error('Farcaster verifier configuration is invalid.')
+  }
+
+  return {
+    async verify(input: FarcasterProofInput): Promise<VerifiedFarcasterProof> {
+      const results = await Promise.allSettled(verifiers.map(async (verifier) => ({
+        fid: canonicalFid((await verifier.verify(input)).fid),
+      })))
+
+      if (results.length === 1) {
+        const [result] = results
+        if (result.status === 'fulfilled') return result.value
+        throw result.reason
+      }
+
+      const [first, second] = results
+      if (first.status === 'fulfilled' && second.status === 'fulfilled') {
+        if (first.value.fid === second.value.fid) return first.value
+        throw new FarcasterVerifierUnavailableError()
+      }
+      if (first.status === 'fulfilled' || second.status === 'fulfilled') {
+        throw new FarcasterVerifierUnavailableError()
+      }
+      if (
+        first.reason instanceof FarcasterVerifierUnavailableError
+        || second.reason instanceof FarcasterVerifierUnavailableError
+      ) {
+        throw new FarcasterVerifierUnavailableError()
+      }
+      throw new Error('Farcaster verification failed.')
+    },
+  }
+}
+
+/**
+ * Uses Farcaster's official auth client. Each client checks the SIWF signature,
+ * custody/auth address ownership, and FID resource with `acceptAuthAddress`.
+ */
+export function createOfficialFarcasterVerifier(rpcUrls: readonly string[]): FarcasterVerifier {
+  return createConsensusFarcasterVerifier(rpcUrls.map(createSingleOfficialFarcasterVerifier))
 }

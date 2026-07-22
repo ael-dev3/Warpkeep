@@ -5,6 +5,13 @@ export type RealmCastleTarget = Readonly<{
   coord: HexCoord;
 }>;
 
+export type RealmWorkerTarget = Readonly<{
+  workerId: string;
+  workerOrdinal: number;
+  originCastleId: number;
+  coord: HexCoord;
+}>;
+
 /** A public world-site target; it contains no economy or authorization data. */
 export type RealmGoldSiteTarget = Readonly<{
   siteId: string;
@@ -29,27 +36,42 @@ export type RealmStoneSiteTarget = Readonly<{
   coord: HexCoord;
 }>;
 
+export type RealmWaterCellTarget = Readonly<{
+  cellKey: string;
+  bodyId: string;
+  regime: 'ocean' | 'river';
+  coord: HexCoord;
+}>;
+
 export type RealmInspectorTarget =
+  | RealmWorkerTarget
   | RealmCastleTarget
   | RealmGoldSiteTarget
   | RealmFoodSiteTarget
   | RealmWoodSiteTarget
-  | RealmStoneSiteTarget;
+  | RealmStoneSiteTarget
+  | RealmWaterCellTarget;
 
 export type RealmCameraTarget =
   | Readonly<{ kind: 'realm' }>
   | Readonly<{ kind: 'founding-district' }>
   | Readonly<{ kind: 'keep' }>
   | Readonly<{ kind: 'cell'; coord: HexCoord }>
-  | Readonly<{ kind: 'castle'; castleId: number; coord: HexCoord }>;
+  | Readonly<{ kind: 'castle'; castleId: number; coord: HexCoord }>
+  | Readonly<{ kind: 'worker'; workerId: string; coord: HexCoord }>
+  // Water focus is bounded by the validated visible projection, not land
+  // passability; full-fog cells never become camera targets.
+  | Readonly<{ kind: 'water'; cellKey: string; coord: HexCoord }>;
 
 export type RealmKeyboardTarget =
   | Readonly<{ kind: 'map' }>
   | Readonly<{ kind: 'inspector'; castleId: number }>
+  | Readonly<{ kind: 'worker-inspector'; workerId: string }>
   | Readonly<{ kind: 'gold-mine-inspector'; siteId: string }>
   | Readonly<{ kind: 'food-farm-inspector'; siteId: string }>
   | Readonly<{ kind: 'logging-camp-inspector'; siteId: string }>
   | Readonly<{ kind: 'stone-quarry-inspector'; siteId: string }>
+  | Readonly<{ kind: 'water-inspector'; cellKey: string }>
   | Readonly<{ kind: 'castle-label'; castleId: number }>
   | Readonly<{ kind: 'navigator' }>
   | Readonly<{ kind: 'navigator-trigger' }>;
@@ -76,6 +98,7 @@ export type RealmInteractionState = Readonly<{
 export type RealmInteractionAction =
   | Readonly<{ type: 'select-cell'; coord: HexCoord }>
   | Readonly<{ type: 'activate-castle'; castleId: number; coord: HexCoord }>
+  | Readonly<{ type: 'activate-worker'; workerId: string; workerOrdinal: number; originCastleId: number; coord: HexCoord }>
   | Readonly<{
       type: 'activate-gold-site';
       siteId: string;
@@ -100,6 +123,14 @@ export type RealmInteractionAction =
       coord: HexCoord;
       cameraIntent?: 'focus-site' | 'preserve';
     }>
+  | Readonly<{
+      type: 'activate-water-cell';
+      cellKey: string;
+      bodyId: string;
+      regime: 'ocean' | 'river';
+      coord: HexCoord;
+      cameraIntent?: 'focus-water' | 'preserve';
+    }>
   | Readonly<{ type: 'close-inspector' }>
   | Readonly<{ type: 'recenter-keep'; coord: HexCoord }>
   | Readonly<{ type: 'set-camera-target'; target: RealmCameraTarget }>
@@ -123,6 +154,15 @@ function copyCastleTarget(target: RealmCastleTarget): RealmCastleTarget {
   return { castleId: target.castleId, coord: copyCoord(target.coord) };
 }
 
+function copyWorkerTarget(target: RealmWorkerTarget): RealmWorkerTarget {
+  return {
+    workerId: target.workerId,
+    workerOrdinal: target.workerOrdinal,
+    originCastleId: target.originCastleId,
+    coord: copyCoord(target.coord)
+  };
+}
+
 function copyGoldSiteTarget(target: RealmGoldSiteTarget): RealmGoldSiteTarget {
   return { siteId: target.siteId, coord: copyCoord(target.coord) };
 }
@@ -139,6 +179,15 @@ function copyStoneSiteTarget(target: RealmStoneSiteTarget): RealmStoneSiteTarget
   return { stoneSiteId: target.stoneSiteId, coord: copyCoord(target.coord) };
 }
 
+function copyWaterCellTarget(target: RealmWaterCellTarget): RealmWaterCellTarget {
+  return {
+    cellKey: target.cellKey,
+    bodyId: target.bodyId,
+    regime: target.regime,
+    coord: copyCoord(target.coord)
+  };
+}
+
 function isCastleTarget(target: RealmInspectorTarget | null): target is RealmCastleTarget {
   return target !== null && 'castleId' in target;
 }
@@ -148,6 +197,8 @@ function copyCameraTarget(target: RealmCameraTarget): RealmCameraTarget {
   if (target.kind === 'founding-district') return { kind: 'founding-district' };
   if (target.kind === 'keep') return { kind: 'keep' };
   if (target.kind === 'cell') return { kind: 'cell', coord: copyCoord(target.coord) };
+  if (target.kind === 'worker') return { kind: 'worker', workerId: target.workerId, coord: copyCoord(target.coord) };
+  if (target.kind === 'water') return { kind: 'water', cellKey: target.cellKey, coord: copyCoord(target.coord) };
   return { kind: 'castle', castleId: target.castleId, coord: copyCoord(target.coord) };
 }
 
@@ -209,6 +260,20 @@ export function realmInteractionReducer(
           kind: 'inspector',
           castleId: target.castleId
         })
+      };
+    }
+
+    case 'activate-worker': {
+      const target = copyWorkerTarget(action);
+      return {
+        ...state,
+        selectedCell: copyCoord(target.coord),
+        selectedCastle: null,
+        inspectorTarget: target,
+        inspectorOpen: true,
+        cameraTarget: { kind: 'worker', workerId: target.workerId, coord: copyCoord(target.coord) },
+        navigatorOpen: false,
+        keyboardIntent: withKeyboardIntent(state, { kind: 'worker-inspector', workerId: target.workerId })
       };
     }
 
@@ -276,6 +341,25 @@ export function realmInteractionReducer(
         keyboardIntent: withKeyboardIntent(state, {
           kind: 'stone-quarry-inspector',
           siteId: target.stoneSiteId
+        })
+      };
+    }
+
+    case 'activate-water-cell': {
+      const target = copyWaterCellTarget(action);
+      return {
+        ...state,
+        selectedCell: copyCoord(target.coord),
+        selectedCastle: null,
+        inspectorTarget: target,
+        inspectorOpen: true,
+        cameraTarget: action.cameraIntent === 'preserve'
+          ? state.cameraTarget
+          : { kind: 'water', cellKey: target.cellKey, coord: copyCoord(target.coord) },
+        navigatorOpen: false,
+        keyboardIntent: withKeyboardIntent(state, {
+          kind: 'water-inspector',
+          cellKey: target.cellKey
         })
       };
     }

@@ -40,6 +40,9 @@ import DispatchFoodExpeditionV1Reducer from "../dispatch_food_expedition_v_1_red
 import DispatchGoldExpeditionV1Reducer from "../dispatch_gold_expedition_v_1_reducer";
 import DispatchStoneExpeditionV1Reducer from "../dispatch_stone_expedition_v_1_reducer";
 import DispatchWoodExpeditionV1Reducer from "../dispatch_wood_expedition_v_1_reducer";
+import DispatchWorkerV1Reducer from "../dispatch_worker_v_1_reducer";
+import RecallAllWorkersV1Reducer from "../recall_all_workers_v_1_reducer";
+import RecallWorkerV1Reducer from "../recall_worker_v_1_reducer";
 
 export type AcceptAlphaTermsV1Params = __Infer<typeof AcceptAlphaTermsV1Reducer>;
 export type AdminActivateGenesisWaterLayoutV1Params = __Infer<typeof AdminActivateGenesisWaterLayoutV1Reducer>;
@@ -75,4 +78,7 @@ export type DispatchFoodExpeditionV1Params = __Infer<typeof DispatchFoodExpediti
 export type DispatchGoldExpeditionV1Params = __Infer<typeof DispatchGoldExpeditionV1Reducer>;
 export type DispatchStoneExpeditionV1Params = __Infer<typeof DispatchStoneExpeditionV1Reducer>;
 export type DispatchWoodExpeditionV1Params = __Infer<typeof DispatchWoodExpeditionV1Reducer>;
+export type DispatchWorkerV1Params = __Infer<typeof DispatchWorkerV1Reducer>;
+export type RecallAllWorkersV1Params = __Infer<typeof RecallAllWorkersV1Reducer>;
+export type RecallWorkerV1Params = __Infer<typeof RecallWorkerV1Reducer>;
 

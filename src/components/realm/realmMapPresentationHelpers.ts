@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react';
 
-import type { HexCoord } from '../../game/map/hexCoordinates';
+import { axialToWorld, type HexCoord } from '../../game/map/hexCoordinates';
 import { terrainCellByCoord } from '../../game/map/generateTerrainMap';
+import {
+  probeWebGL2Capability,
+  resetWebGL2CapabilityForTests
+} from '../../settings/graphicsPreference';
 import type { RealmTerrainSurface } from '../../game/map/realmTerrainSurface';
 import type { TerrainCell } from '../../game/map/terrainTypes';
 import {
@@ -26,6 +30,12 @@ export type RealmFallbackSurfacePresentation = Readonly<{
   viewBox: RealmViewBox;
   renderHullPoints: string;
   playableHullPoints: string;
+}>;
+
+export type RealmFallbackSurfaceOptions = Readonly<{
+  /** Keep unsupported-device mode readable around the player's region. */
+  focusCoord?: HexCoord;
+  radius?: number;
 }>;
 
 function clamp(value: number, minimum: number, maximum: number) {
@@ -71,14 +81,11 @@ export function directionForKey(key: string): HexCoord | null {
 }
 
 export function canUseWebGL() {
-  try {
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('webgl2');
-    context?.getExtension('WEBGL_lose_context')?.loseContext();
-    return Boolean(context);
-  } catch {
-    return false;
-  }
+  return probeWebGL2Capability().available;
+}
+
+export function resetWebGLCapabilityForTests() {
+  resetWebGL2CapabilityForTests();
 }
 
 export function pointsForSvg(coord: HexCoord) {
@@ -92,7 +99,8 @@ function svgHullPoints(points: readonly Readonly<{ x: number; z: number }>[]) {
 }
 
 export function fallbackSurfacePresentation(
-  surface: RealmTerrainSurface
+  surface: RealmTerrainSurface,
+  options: RealmFallbackSurfaceOptions = {}
 ): RealmFallbackSurfacePresentation {
   const renderHull = createTerrainOverviewHull(surface.renderMap, REALM_HEX_SIZE);
   const playableHull = createTerrainOverviewHull(surface.playableMap, REALM_HEX_SIZE);
@@ -115,6 +123,24 @@ export function fallbackSurfacePresentation(
     maxZ = Math.max(maxZ, point.z);
   });
   const padding = 0.88;
+  const focus = options.focusCoord;
+  const radius = Number.isFinite(options.radius) && (options.radius ?? 0) > 0
+    ? options.radius!
+    : undefined;
+  if (focus && radius) {
+    const center = axialToWorld(focus, REALM_HEX_SIZE);
+    const span = Math.max(4, radius * 2.15);
+    return {
+      viewBox: {
+        x: center.x - span * 0.5,
+        y: -center.z - span * 0.5,
+        width: span,
+        height: span
+      },
+      renderHullPoints: svgHullPoints(renderHull),
+      playableHullPoints: svgHullPoints(playableHull)
+    };
+  }
   return {
     viewBox: {
       x: minX - padding,

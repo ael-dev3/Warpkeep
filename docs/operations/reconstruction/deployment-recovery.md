@@ -64,8 +64,10 @@ pnpm --dir services/auth-bridge exec wrangler deploy --dry-run
 
 Restore secret values only through managed secret prompts or an approved
 non-logging secret-manager pipe. The required names are `SIGNING_KEY_JWK`,
-`ADMIN_TOKEN_SECRET`, `SESSION_COOKIE_KEY`, and `FARCASTER_RPC_URL`; never
-record their values. The signing, admin, and session secrets must be distinct.
+`ADMIN_TOKEN_SECRET`, `SESSION_COOKIE_KEY`, `FARCASTER_RPC_URL`, and
+`FARCASTER_RPC_URL_SECONDARY`; never record their values. The two production RPC
+endpoints must use distinct public HTTPS origins. The signing, admin, and
+session secrets must be distinct.
 
 Recovery begins with `PUBLIC_AUTH_ENABLED=false`. Deploy the Worker only when
 its reviewed source or required binding changed. Any Durable Object migration

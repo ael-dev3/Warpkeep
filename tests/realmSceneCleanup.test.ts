@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const webglState = vi.hoisted(() => ({
   failGrassShaderContractOnce: false,
+  failAfterGrassShaderFallbackOnce: false,
+  failGenericRenderOnce: false,
   instances: [] as Array<{
     dispose: ReturnType<typeof vi.fn>;
     render: ReturnType<typeof vi.fn>;
@@ -17,6 +19,7 @@ const keepLoadState = vi.hoisted(() => ({
 const environmentState = vi.hoisted(() => ({ failNext: false }));
 
 const grassLayerState = vi.hoisted(() => ({ failNextCreation: false }));
+const waterLayerState = vi.hoisted(() => ({ failNextCreation: false }));
 
 const ambientSchedulerState = vi.hoisted(() => ({
   creations: [] as Array<{
@@ -34,8 +37,16 @@ vi.mock('three', async (importOriginal) => {
     dispose = vi.fn();
     outputColorSpace = '';
     render = vi.fn(() => {
+      if (webglState.failGenericRenderOnce) {
+        webglState.failGenericRenderOnce = false;
+        throw new Error('synthetic renderer failure');
+      }
       if (!webglState.failGrassShaderContractOnce) return;
       webglState.failGrassShaderContractOnce = false;
+      if (webglState.failAfterGrassShaderFallbackOnce) {
+        webglState.failAfterGrassShaderFallbackOnce = false;
+        webglState.failGenericRenderOnce = true;
+      }
       throw new Error('REALM_GRASS_SHADER_BEGIN_VERTEX_CONTRACT_CHANGED');
     });
     setClearColor = vi.fn();
@@ -88,6 +99,20 @@ vi.mock('../src/components/realm/createRealmGrassLayer', async (importOriginal) 
   };
 });
 
+vi.mock('../src/components/realm/realmWaterLayer', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/components/realm/realmWaterLayer')>();
+  return {
+    ...actual,
+    createRealmWaterLayer: (...args: Parameters<typeof actual.createRealmWaterLayer>) => {
+      if (waterLayerState.failNextCreation) {
+        waterLayerState.failNextCreation = false;
+        throw new Error('synthetic water allocation failure');
+      }
+      return actual.createRealmWaterLayer(...args);
+    }
+  };
+});
+
 vi.mock('../src/components/realm/realmAmbientScheduler', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/components/realm/realmAmbientScheduler')>();
   return {
@@ -135,6 +160,8 @@ import {
   CANONICAL_GENESIS_FOREST_LAYOUT_V1
 } from '../spacetimedb/src/forestLayoutPolicy';
 import { createCanonicalGenesisSnapshot } from './fixtures/canonicalGenesisSnapshot';
+import { GENESIS_WATER_REVISION_ENABLED_CELLS_V1 } from '../spacetimedb/src/waterRevision';
+import type { RealmWorkerSceneRecord } from '../src/components/realm/realmWorkerLayer';
 
 type ListenerSpy = ReturnType<typeof vi.spyOn>;
 
@@ -164,6 +191,7 @@ function dispatchPointer(
     buttons: { value: input.buttons ?? (type === 'pointerup' ? 0 : 1) }
   });
   target.dispatchEvent(event);
+  return event;
 }
 
 function createOptions(
@@ -243,6 +271,20 @@ function movingResourceNode(siteId: string) {
   });
 }
 
+function idleWorkerRecord(revision = 0n): RealmWorkerSceneRecord {
+  return Object.freeze({
+    workerId: 'genesis-001-castle-1-worker-01',
+    ordinal: 1,
+    originCastleId: 1,
+    originCastleName: 'Hegemony Keep 001',
+    status: 'idle',
+    timelineRevision: Number(revision),
+    revision,
+    ownedByViewer: true,
+    originCoord: Object.freeze({ q: 0, r: 0 })
+  });
+}
+
 describe('realm scene setup cleanup', () => {
   const resizeObservers: Array<{
     disconnect: ReturnType<typeof vi.fn>;
@@ -251,11 +293,14 @@ describe('realm scene setup cleanup', () => {
 
   beforeEach(() => {
     webglState.failGrassShaderContractOnce = false;
+    webglState.failAfterGrassShaderFallbackOnce = false;
+    webglState.failGenericRenderOnce = false;
     webglState.instances.length = 0;
     keepLoadState.load.mockReset();
     keepLoadState.load.mockImplementation(() => new Promise<unknown>(() => undefined));
     environmentState.failNext = false;
     grassLayerState.failNextCreation = false;
+    waterLayerState.failNextCreation = false;
     ambientSchedulerState.creations.length = 0;
     resizeObservers.length = 0;
     vi.stubGlobal('ResizeObserver', class ResizeObserver {
@@ -332,6 +377,24 @@ describe('realm scene setup cleanup', () => {
     animated.dispose();
   });
 
+  it('keeps land-only navigation and rejects Water focus when its layer fails to construct', () => {
+    waterLayerState.failNextCreation = true;
+    const canvas = document.createElement('canvas');
+    const scene = createRealmScene(createOptions(canvas, {
+      waterCells: GENESIS_WATER_REVISION_ENABLED_CELLS_V1,
+      reducedMotion: true
+    }));
+    const renderer = webglState.instances[0]!;
+
+    expect(canvas.dataset.waterPresentation).toBe('unavailable');
+    expect(canvas.dataset.waterNavigation).toBe('land-only');
+    renderer.render.mockClear();
+    scene.focusWaterCell(GENESIS_WATER_REVISION_ENABLED_CELLS_V1[0]!.cellKey);
+    expect(renderer.render).not.toHaveBeenCalled();
+
+    scene.dispose();
+  });
+
   it('renders the procedural environment centred on the active camera', () => {
     const canvas = document.createElement('canvas');
     const onCastlePresentationTelemetry = vi.fn();
@@ -368,6 +431,13 @@ describe('realm scene setup cleanup', () => {
       semanticKindCount: 1,
       semanticFeatureCount: 0,
       semanticFeatureDrawCalls: 0,
+      semanticFeatureCounts: {
+        'forest-tree': 0,
+        'heath-bloom': 0,
+        'ridge-outcrop': 0,
+        'lake-sheen': 0,
+        'ancient-monolith': 0
+      },
       totalDetailInstanceCount: expect.any(Number),
       totalDetailDrawCalls: expect.any(Number),
       forestPlacementSource: 'legacy-fallback',
@@ -380,6 +450,14 @@ describe('realm scene setup cleanup', () => {
       grassCacheEntries: 0,
       grassAnimated: false,
       grassTargetAnimationCadence: 0,
+      grassCandidateCellsByTerrain: {
+        meadow: 0, lowland: 0, forest: 0, heath: 0, ridge: 0, lake: 0,
+        'ancient-stone': 0, apron: 0
+      },
+      grassActiveCellsByTerrain: {
+        meadow: 0, lowland: 0, forest: 0, heath: 0, ridge: 0, lake: 0,
+        'ancient-stone': 0, apron: 0
+      },
       grassCountsByTerrain: {
         meadow: 0,
         lowland: 0,
@@ -390,6 +468,14 @@ describe('realm scene setup cleanup', () => {
         'ancient-stone': 0,
         apron: 0
       },
+      grassAverageRetainedPatchesByTerrain: {
+        meadow: 0, lowland: 0, forest: 0, heath: 0, ridge: 0, lake: 0,
+        'ancient-stone': 0, apron: 0
+      },
+      grassPaletteLuminanceMin: 0,
+      grassPaletteLuminanceMax: 0,
+      grassPaletteGreenMin: 0,
+      grassPaletteGreenMax: 0,
       grassCompletelyBareActiveCells: 0,
       grassRejectedByStructureClearance: 0,
       grassRejectedBySlope: 0,
@@ -428,6 +514,10 @@ describe('realm scene setup cleanup', () => {
       totalDetailDrawCalls: expect.any(Number)
     });
     expect(telemetry.semanticFeatureCount).toBeGreaterThan(0);
+    expect(telemetry.semanticFeatureCounts['heath-bloom']).toBe(0);
+    expect(Object.values(telemetry.semanticFeatureCounts as Record<string, number>)
+      .reduce((total, count) => total + count, 0))
+      .toBe(telemetry.semanticFeatureCount);
     expect(fallback).toBeInstanceOf(THREE.InstancedMesh);
     expect(fallback?.castShadow).toBe(false);
     expect(fallback?.receiveShadow).toBe(false);
@@ -643,6 +733,31 @@ describe('realm scene setup cleanup', () => {
     sceneHandle.dispose();
   });
 
+  it('disposes the scene when the grass-free fallback render also fails', () => {
+    const canvas = document.createElement('canvas');
+    const onRendererFailure = vi.fn();
+    webglState.failGrassShaderContractOnce = true;
+    webglState.failAfterGrassShaderFallbackOnce = true;
+
+    const sceneHandle = createRealmScene(createOptions(canvas, {
+      reducedMotion: true,
+      onRendererFailure,
+    }));
+
+    expect(webglState.instances[0].render).toHaveBeenCalledTimes(2);
+    expect(onRendererFailure).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'scene-build-failed',
+      retryable: true,
+      phase: 'ready',
+    }));
+    expect(webglState.instances[0].dispose).toHaveBeenCalledOnce();
+    expect(resizeObservers[0]?.disconnect).toHaveBeenCalledOnce();
+    expect(ambientSchedulerState.creations.at(-1)?.isActive()).toBe(false);
+
+    sceneHandle.dispose();
+    expect(webglState.instances[0].dispose).toHaveBeenCalledOnce();
+  });
+
   it.each(['food', 'wood'] as const)(
     'keeps the ambient scheduler live for a moving %s wagon when grass creation fails',
     (resourceKind) => {
@@ -735,6 +850,50 @@ describe('realm scene setup cleanup', () => {
     expect(renderer.render).toHaveBeenCalledOnce();
     expect(canvas.dataset.realmDynamicReconciliationCount).toBe('1');
     expect(canvas.dataset.realmDynamicReconciliationRejected).toBe('0');
+
+    sceneHandle.dispose();
+  });
+
+  it('replaces the worker layer across full, unavailable, and recovered catalogs', () => {
+    const canvas = document.createElement('canvas');
+    const worker = idleWorkerRecord();
+    const sceneHandle = createRealmScene(createOptions(canvas, {
+      reducedMotion: true,
+      workers: [worker]
+    }));
+    const before = sceneHandle.getCameraAttestation();
+    const buildSequence = sceneHandle.getSceneBuildSequence();
+    expect(canvas.dataset.realmWorkerMarkerCount).toBe('1');
+
+    sceneHandle.reconcileLiveGatheringState({
+      goldNodes: [],
+      foodNodes: [],
+      woodNodes: [],
+      stoneNodes: [],
+      workers: [],
+      observedAtMicros: 1n
+    });
+    expect(canvas.dataset.realmWorkerMarkerCount).toBe('0');
+    expect(canvas.dataset.realmDynamicReconciliationCount).toBe('1');
+
+    sceneHandle.reconcileLiveGatheringState({
+      goldNodes: [],
+      foodNodes: [],
+      woodNodes: [],
+      stoneNodes: [],
+      workers: [idleWorkerRecord(1n)],
+      observedAtMicros: 2n
+    });
+    const after = sceneHandle.getCameraAttestation();
+    expect(canvas.dataset.realmWorkerMarkerCount).toBe('1');
+    expect(canvas.dataset.realmDynamicReconciliationCount).toBe('2');
+    expect(canvas.dataset.realmDynamicReconciliationRejected).toBe('0');
+    expect(sceneHandle.getSceneBuildSequence()).toBe(buildSequence);
+    expect(after.sceneId).toBe(before.sceneId);
+    expect(after.canvasId).toBe(before.canvasId);
+    expect(after.position).toEqual(before.position);
+    expect(after.target).toEqual(before.target);
+    expect(after.zoom).toBe(before.zoom);
 
     sceneHandle.dispose();
   });
@@ -844,6 +1003,19 @@ describe('realm scene setup cleanup', () => {
     expect(listenerCalls(documentRemove, 'visibilitychange')).toBe(4);
   });
 
+  it('disposes the scene even when a renderer-failure observer throws', () => {
+    webglState.failGenericRenderOnce = true;
+    const observerFailure = new Error('synthetic renderer observer failure');
+
+    expect(() => createRealmScene(createOptions(document.createElement('canvas'), {
+      onRendererFailure: () => { throw observerFailure; }
+    }))).toThrow(observerFailure);
+    expect(webglState.instances).toHaveLength(1);
+    expect(webglState.instances[0].dispose).toHaveBeenCalledOnce();
+    expect(resizeObservers[0]?.disconnect).toHaveBeenCalledOnce();
+    expect(ambientSchedulerState.creations.at(-1)?.isActive()).toBe(false);
+  });
+
   it('keeps normal scene disposal idempotent', async () => {
     const canvas = document.createElement('canvas');
     const canvasRemove = vi.spyOn(canvas, 'removeEventListener');
@@ -919,6 +1091,75 @@ describe('realm scene setup cleanup', () => {
     expect(onHover).toHaveBeenCalledOnce();
     expect(onHover).toHaveBeenCalledWith(null);
     scene.dispose();
+  });
+
+  it('suspends input and ambience during context loss, then reports restoration', () => {
+    const root = document.createElement('main');
+    root.className = 'realm-map-screen';
+    const canvas = document.createElement('canvas');
+    const castleLabel = document.createElement('button');
+    castleLabel.className = 'realm-castle-label';
+    const overlayRetry = document.createElement('button');
+    overlayRetry.className = 'realm-map-screen__retry';
+    root.append(canvas, castleLabel, overlayRetry);
+    document.body.append(root);
+    const castleLabelClick = vi.fn();
+    const overlayClick = vi.fn();
+    castleLabel.addEventListener('click', castleLabelClick);
+    overlayRetry.addEventListener('click', overlayClick);
+    const onRendererFailure = vi.fn();
+    const onRendererContextRestored = vi.fn();
+    const onRendererUnavailable = vi.fn();
+    const scene = createRealmScene(createOptions(canvas, {
+      onRendererFailure,
+      onRendererContextRestored,
+      onRendererUnavailable
+    }));
+    const ambient = ambientSchedulerState.creations.at(-1)!;
+
+    const lost = new Event('webglcontextlost', { cancelable: true });
+    canvas.dispatchEvent(lost);
+
+    expect(lost.defaultPrevented).toBe(true);
+    expect(canvas.dataset.realmRendererContextLost).toBe('true');
+    expect(canvas.dataset.realmRendererContextLossCount).toBe('1');
+    expect(ambient.isActive()).toBe(false);
+    expect(onRendererFailure).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'context-lost',
+      retryable: true
+    }));
+    expect(onRendererUnavailable).not.toHaveBeenCalled();
+
+    const wheel = new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      deltaY: 120
+    });
+    canvas.dispatchEvent(wheel);
+    expect(wheel.defaultPrevented).toBe(true);
+
+    const canvasPointer = dispatchPointer(canvas, 'pointerdown', {
+      pointerId: 81,
+      clientX: 30,
+      clientY: 30
+    });
+    expect(canvasPointer.defaultPrevented).toBe(true);
+    const labelClick = new MouseEvent('click', { bubbles: true, cancelable: true });
+    castleLabel.dispatchEvent(labelClick);
+    expect(labelClick.defaultPrevented).toBe(true);
+    expect(castleLabelClick).not.toHaveBeenCalled();
+    const overlayPointer = new Event('pointerdown', { bubbles: true, cancelable: true });
+    overlayRetry.dispatchEvent(overlayPointer);
+    expect(overlayPointer.defaultPrevented).toBe(false);
+    overlayRetry.click();
+    expect(overlayClick).toHaveBeenCalledOnce();
+
+    canvas.dispatchEvent(new Event('webglcontextrestored'));
+    expect(canvas.dataset.realmRendererContextLost).toBe('false');
+    expect(canvas.dataset.realmRendererContextRestoreCount).toBe('1');
+    expect(onRendererContextRestored).toHaveBeenCalledOnce();
+    scene.dispose();
+    root.remove();
   });
 
   it('aborts a pending castle-family load when the Realm unmounts', async () => {
@@ -1027,6 +1268,124 @@ describe('realm scene setup cleanup', () => {
     scene.dispose();
     expect(geometryDispose).toHaveBeenCalledTimes(1);
     expect(materialDispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts optional castle LODs only after Compact reaches playable readiness', async () => {
+    const resolvers = new Map<string, (value: unknown) => void>();
+    keepLoadState.load.mockImplementation((input: unknown) => {
+      const quality = (input as { quality: { id: string } }).quality.id;
+      return new Promise((resolve) => {
+        resolvers.set(quality, resolve);
+      });
+    });
+    const canvas = document.createElement('canvas');
+    const onCastlesReady = vi.fn();
+    const scene = createRealmScene(createOptions(canvas, {
+      quality: REALM_QUALITY_SPECS.high,
+      onCastlesReady
+    }));
+
+    await vi.waitFor(() => expect(keepLoadState.load).toHaveBeenCalledOnce());
+    expect((keepLoadState.load.mock.calls[0]?.[0] as { quality: { id: string } }).quality.id)
+      .toBe('reduced');
+    const compactRoot = new THREE.Group();
+    compactRoot.add(new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial()
+    ));
+    resolvers.get('reduced')?.(loadedCastleAssembly(compactRoot, 'compact'));
+
+    await vi.waitFor(() => expect(onCastlesReady).toHaveBeenCalledWith(1));
+    await vi.waitFor(() => expect(keepLoadState.load).toHaveBeenCalledTimes(3));
+    expect(new Set(keepLoadState.load.mock.calls.map(([input]) => (
+      (input as { quality: { id: string } }).quality.id
+    )))).toEqual(new Set(['reduced', 'balanced', 'high']));
+    expect(canvas.dataset.realmCastleActiveLod).toBe('compact');
+    scene.dispose();
+  });
+
+  it('keeps the Realm ready at Compact and releases High when Balanced fails', async () => {
+    const resolvers = new Map<string, (value: unknown) => void>();
+    const rejecters = new Map<string, (reason: unknown) => void>();
+    keepLoadState.load.mockImplementation((input: unknown) => {
+      const quality = (input as { quality: { id: string } }).quality.id;
+      return new Promise((resolve, reject) => {
+        resolvers.set(quality, resolve);
+        rejecters.set(quality, reject);
+      });
+    });
+    const highGeometry = new THREE.BoxGeometry(1, 1, 1);
+    const highGeometryDispose = vi.spyOn(highGeometry, 'dispose');
+    const highRoot = new THREE.Group();
+    highRoot.add(new THREE.Mesh(highGeometry, new THREE.MeshBasicMaterial()));
+    const compactRoot = new THREE.Group();
+    compactRoot.add(new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial()
+    ));
+    const canvas = document.createElement('canvas');
+    const onCastlesReady = vi.fn();
+    const onRendererUnavailable = vi.fn();
+    const scene = createRealmScene(createOptions(canvas, {
+      quality: REALM_QUALITY_SPECS.high,
+      onCastlesReady,
+      onRendererUnavailable
+    }));
+
+    await vi.waitFor(() => expect(keepLoadState.load).toHaveBeenCalledOnce());
+    resolvers.get('reduced')?.(loadedCastleAssembly(compactRoot, 'compact'));
+
+    await vi.waitFor(() => expect(onCastlesReady).toHaveBeenCalledWith(1));
+    await vi.waitFor(() => expect(keepLoadState.load).toHaveBeenCalledTimes(3));
+    resolvers.get('high')?.(loadedCastleAssembly(highRoot, 'high'));
+    await Promise.resolve();
+    rejecters.get('balanced')?.(new Error('synthetic Balanced transport failure'));
+    await vi.waitFor(() => expect(highGeometryDispose).toHaveBeenCalledOnce());
+    expect(canvas.dataset.realmCastleActiveLod).toBe('compact');
+    expect(canvas.dataset.realmCastlebalancedLod).toBe('unavailable');
+    expect(canvas.dataset.realmCastlehighLod).toBe('unavailable');
+    expect(onRendererUnavailable).not.toHaveBeenCalled();
+    scene.dispose();
+  });
+
+  it('genuinely reloads Compact once after a cached retryable rejection', async () => {
+    const compactRoot = new THREE.Group();
+    compactRoot.add(new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial()
+    ));
+    keepLoadState.load
+      .mockRejectedValueOnce(new Error('synthetic request timed out'))
+      .mockResolvedValueOnce(loadedCastleAssembly(compactRoot, 'compact'));
+    const onCastlesReady = vi.fn();
+    const onRendererFailure = vi.fn();
+    const scene = createRealmScene(createOptions(document.createElement('canvas'), {
+      onCastlesReady,
+      onRendererFailure
+    }));
+
+    await vi.waitFor(() => expect(onCastlesReady).toHaveBeenCalledWith(1));
+    expect(keepLoadState.load).toHaveBeenCalledTimes(2);
+    expect(onRendererFailure).not.toHaveBeenCalled();
+    scene.dispose();
+  });
+
+  it('does not retry or blur a Compact integrity failure into a transport code', async () => {
+    keepLoadState.load.mockRejectedValue(new Error('sha256 integrity mismatch'));
+    const onRendererFailure = vi.fn();
+    const onRendererUnavailable = vi.fn();
+    const scene = createRealmScene(createOptions(document.createElement('canvas'), {
+      onRendererFailure,
+      onRendererUnavailable
+    }));
+
+    await vi.waitFor(() => expect(onRendererUnavailable).toHaveBeenCalledOnce());
+    expect(keepLoadState.load).toHaveBeenCalledOnce();
+    expect(onRendererFailure).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'castle-integrity-failed',
+      retryable: false
+    }));
+    scene.dispose();
   });
 
   it('marks a direct label visible only after the live instance frustum admits its model', async () => {
@@ -1556,11 +1915,12 @@ describe('realm scene setup cleanup', () => {
   });
 
   it('fails readiness when a castle instance is present without its matching landscape base', async () => {
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const material = new THREE.MeshBasicMaterial();
+    const geometryDispose = vi.spyOn(geometry, 'dispose');
+    const materialDispose = vi.spyOn(material, 'dispose');
     const root = new THREE.Group();
-    root.add(new THREE.Mesh(
-      new THREE.BoxGeometry(1, 1, 1),
-      new THREE.MeshBasicMaterial()
-    ));
+    root.add(new THREE.Mesh(geometry, material));
     keepLoadState.load.mockResolvedValue({
       root,
       visualHeight: 1,
@@ -1570,7 +1930,9 @@ describe('realm scene setup cleanup', () => {
     const onCastlesReady = vi.fn();
     const onCastlePresentationTelemetry = vi.fn();
     const onRendererUnavailable = vi.fn();
-    const scene = createRealmScene(createOptions(document.createElement('canvas'), {
+    const canvas = document.createElement('canvas');
+    const canvasRemove = vi.spyOn(canvas, 'removeEventListener');
+    const scene = createRealmScene(createOptions(canvas, {
       onCastlesReady,
       onCastlePresentationTelemetry,
       onRendererUnavailable
@@ -1585,8 +1947,15 @@ describe('realm scene setup cleanup', () => {
       presentedLandscapeBaseCount: 0,
       raycastTargetCount: 1
     });
+    expect(webglState.instances[0].dispose).toHaveBeenCalledOnce();
+    expect(ambientSchedulerState.creations.at(-1)?.isActive()).toBe(false);
+    expect(listenerCalls(canvasRemove, 'pointerdown')).toBe(1);
+    expect(listenerCalls(canvasRemove, 'wheel')).toBe(1);
+    expect(geometryDispose).toHaveBeenCalledOnce();
+    expect(materialDispose).toHaveBeenCalledOnce();
 
     scene.dispose();
+    expect(webglState.instances[0].dispose).toHaveBeenCalledOnce();
   });
 
   it('fails readiness when equal castle/base counts hide a mismatched base transform', async () => {
@@ -1612,7 +1981,9 @@ describe('realm scene setup cleanup', () => {
     const onCastlesReady = vi.fn();
     const onCastlePresentationTelemetry = vi.fn();
     const onRendererUnavailable = vi.fn();
-    const scene = createRealmScene(createOptions(document.createElement('canvas'), {
+    const canvas = document.createElement('canvas');
+    const canvasRemove = vi.spyOn(canvas, 'removeEventListener');
+    const scene = createRealmScene(createOptions(canvas, {
       onCastlesReady,
       onCastlePresentationTelemetry,
       onRendererUnavailable
@@ -1625,8 +1996,13 @@ describe('realm scene setup cleanup', () => {
       presentedLandscapeBaseCount: 1,
       raycastTargetCount: 1
     });
+    expect(webglState.instances[0].dispose).toHaveBeenCalledOnce();
+    expect(ambientSchedulerState.creations.at(-1)?.isActive()).toBe(false);
+    expect(listenerCalls(canvasRemove, 'pointerdown')).toBe(1);
+    expect(listenerCalls(canvasRemove, 'wheel')).toBe(1);
 
     scene.dispose();
+    expect(webglState.instances[0].dispose).toHaveBeenCalledOnce();
   });
 
   it('fails closed to the illustrated renderer when prefab initialization fails', async () => {

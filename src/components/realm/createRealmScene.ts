@@ -21,8 +21,11 @@ import {
 import { resolveRealmSharedForestLayout } from '../../game/map/realmSharedForestPlacements';
 import { generateTerrainDecorations } from '../../game/map/terrainDecorations';
 import type { RealmGrassExclusion, RealmGrassTerrainKind } from '../../game/map/realmGrass';
-import { generateRealmTerrainFeatures } from '../../game/map/realmTerrainFeatures';
-import type { RealmTerrainFeaturePoint } from '../../game/map/realmTerrainFeatures';
+import {
+  generateRealmTerrainFeatures,
+  type RealmTerrainFeatureKind,
+  type RealmTerrainFeaturePoint
+} from '../../game/map/realmTerrainFeatures';
 import {
   indexRealmTerrainSemantics,
   type RealmTerrainKind,
@@ -68,6 +71,7 @@ import {
 import {
   createRealmCameraController,
   DEFAULT_REALM_CAMERA_SPEC,
+  type RealmCameraControllerState,
   type RealmCameraComposition,
   type RealmCameraMode,
   type RealmKeepFocus
@@ -90,6 +94,8 @@ import {
 import { createRealmAmbientScheduler, type RealmAmbientScheduler } from './realmAmbientScheduler';
 import {
   createRealmWaterLayer,
+  REALM_WATER_ANIMATION_FRAME_CAPS,
+  waterSurfaceLevelToWorldY,
   type RealmWaterLayer
 } from './realmWaterLayer';
 import {
@@ -126,6 +132,11 @@ import {
   type RealmStoneNodePresentationTelemetry,
   type RealmStoneNodeSceneRecord
 } from './realmStoneNodeLayer';
+import {
+  createRealmWorkerLayer,
+  type RealmWorkerLayer,
+  type RealmWorkerSceneRecord
+} from './realmWorkerLayer';
 import { createRealmExpeditionSceneBudget } from './realmExpeditionPresentationBudget';
 import {
   createRealmPointerGestureCoordinator,
@@ -135,7 +146,9 @@ import {
 import {
   arbitrateRealmPick,
   type RealmInteractionTarget,
-  type RealmResourcePickHit
+  type RealmResourcePickHit,
+  type RealmWorkerPickHit,
+  type RealmWaterPickHit
 } from './realmPickArbitration';
 import {
   REALM_LIGHTING_SPECS,
@@ -148,6 +161,10 @@ import type {
   RealmCastleProjectionFrame,
   RealmCastleScreenBounds
 } from './realmTypes';
+import {
+  classifyRealmRendererFailure,
+  type RealmRendererFailure
+} from './realmRendererRecovery';
 
 const HEX_SIZE = 1;
 const OVERLAY_LIFT = 0.026;
@@ -392,6 +409,7 @@ export type RealmTerrainPresentationTelemetry = Readonly<{
   semanticKindCount: number;
   semanticFeatureCount: number;
   semanticFeatureDrawCalls: number;
+  semanticFeatureCounts: Readonly<Record<RealmTerrainFeatureKind, number>>;
   totalDetailInstanceCount: number;
   totalDetailDrawCalls: number;
   /** Canonical shared rows render only when their full layout validates. */
@@ -405,7 +423,14 @@ export type RealmTerrainPresentationTelemetry = Readonly<{
   grassCacheEntries: number;
   grassAnimated: boolean;
   grassTargetAnimationCadence: number;
+  grassCandidateCellsByTerrain: Readonly<Record<RealmGrassTerrainKind, number>>;
+  grassActiveCellsByTerrain: Readonly<Record<RealmGrassTerrainKind, number>>;
   grassCountsByTerrain: Readonly<Record<RealmGrassTerrainKind, number>>;
+  grassAverageRetainedPatchesByTerrain: Readonly<Record<RealmGrassTerrainKind, number>>;
+  grassPaletteLuminanceMin: number;
+  grassPaletteLuminanceMax: number;
+  grassPaletteGreenMin: number;
+  grassPaletteGreenMax: number;
   grassCompletelyBareActiveCells: number;
   grassRejectedByStructureClearance: number;
   grassRejectedBySlope: number;
@@ -416,9 +441,11 @@ export type RealmSceneHandle = Readonly<{
   dispose: () => void;
   reconcileLiveGatheringState: (state: RealmLiveGatheringState) => void;
   getCameraAttestation: () => RealmCameraAttestation;
+  restoreCameraAttestation?: (attestation: RealmCameraAttestation) => void;
   getSceneBuildSequence: () => number;
   focusCastle: (castleId: number) => void;
   focusCell: (coord: HexCoord) => void;
+  focusWaterCell: (cellKey: string) => void;
   frameFoundingDistrict: () => void;
   focusKeep: () => void;
   recenterKeep: () => void;
@@ -430,6 +457,10 @@ export type RealmSceneHandle = Readonly<{
   setSelectedFoodSiteId: (siteId: string | null) => void;
   setSelectedWoodSiteId: (siteId: string | null) => void;
   setSelectedStoneSiteId: (siteId: string | null) => void;
+  setSelectedWorkerId: (workerId: string | null) => void;
+  setSelectedWaterCellKey: (cellKey: string | null) => void;
+  setHoveredWaterCellKey: (cellKey: string | null) => void;
+  setHoveredWorkerId: (workerId: string | null) => void;
   setComposition: (composition: RealmCameraComposition) => void;
   showRealm: () => void;
 }>;
@@ -439,6 +470,7 @@ export type RealmLiveGatheringState = Readonly<{
   foodNodes: readonly RealmFoodNodeSceneRecord[];
   woodNodes: readonly RealmWoodNodeSceneRecord[];
   stoneNodes: readonly RealmStoneNodeSceneRecord[];
+  workers?: readonly RealmWorkerSceneRecord[];
   observedAtMicros: bigint;
 }>;
 
@@ -451,6 +483,7 @@ export type RealmCameraAttestation = Readonly<{
   target: Readonly<{ x: number; y: number; z: number }>;
   fov: number;
   zoom: number;
+  controllerState: RealmCameraControllerState;
   selectedTerrainCoord: HexCoord | null;
   selectedCastleId: number | null;
   selectedGoldSiteId: string | null;
@@ -515,14 +548,22 @@ export type CreateRealmSceneOptions = Readonly<{
   woodNodes?: readonly RealmWoodNodeSceneRecord[];
   /** Validated public Stone sites/occupations; absent/malformed data renders no Stone nodes. */
   stoneNodes?: readonly RealmStoneNodeSceneRecord[];
+  /** Complete validated public worker roster with public route coordinates only. */
+  workers?: readonly RealmWorkerSceneRecord[];
   /** Additive public `realm_forest_instance_v1` rows. */
   sharedForestTrees?: unknown;
   /** Additive public `realm_forest_layout_v1` metadata row. */
   sharedForestLayout?: unknown;
   /** Canonical realm id used to bind the shared forest table to this scene. */
   realmId?: string;
+  /** React-owned monotonic generation for stale callback suppression. */
+  rendererGeneration?: number;
   /** Complete, digest-validated public water projection; absent means water is unavailable. */
   waterCells?: readonly GenesisWaterCellV1[];
+  /** Validated body rows provide the deterministic phase seed and wave preset. */
+  waterBodies?: readonly unknown[];
+  /** Canonical environment boundary used to align renderer-only Water phase. */
+  waterEnvironment?: unknown;
   /**
    * Test/DEV-observer-only bridge for the retired deterministic preview.
    * Production player scenes must not synthesize a forest before the public
@@ -542,6 +583,8 @@ export type CreateRealmSceneOptions = Readonly<{
   onKeepStatusChange: (status: KeepLoadStatus) => void;
   /** Fired only after every authoritative castle has a real GLB instance. */
   onCastlesReady?: (castleCount: number) => void;
+  /** Reports a progressive contiguous LOD upgrade after initial readiness. */
+  onCastleLodChange?: (lod: CastleLod) => void;
   /** Live counts derived from populated instance meshes after presentation masking. */
   onCastlePresentationTelemetry?: (
     telemetry: RealmCastleInstancePresentationTelemetry
@@ -552,6 +595,12 @@ export type CreateRealmSceneOptions = Readonly<{
   onFoodNodePresentationTelemetry?: (telemetry: RealmFoodNodePresentationTelemetry) => void;
   onWoodNodePresentationTelemetry?: (telemetry: RealmWoodNodePresentationTelemetry) => void;
   onStoneNodePresentationTelemetry?: (telemetry: RealmStoneNodePresentationTelemetry) => void;
+  /** Structured renderer lifecycle signal. The scene remains alive during a
+   * recoverable context loss so camera/selection state can be attested. */
+  onRendererFailure?: (failure: RealmRendererFailure) => void;
+  onRendererContextRestored?: () => void;
+  /** Legacy callback retained for integrations that only understand a boolean
+   * renderer-unavailable signal. It is never used for context loss. */
   onRendererUnavailable: () => void;
   /** @deprecated Prefer onTargetSelect for castle identity-aware interaction. */
   onSelect: (coord: HexCoord) => void;
@@ -944,6 +993,7 @@ function initializeRealmScene(
   cleanup: RealmSceneCleanup
 ): RealmSceneHandle {
   const sceneBuildSequence = nextRealmSceneBuildSequence++;
+  const rendererGeneration = options.rendererGeneration ?? sceneBuildSequence;
   const noLakeRevisionActive = realmNoLakeRevisionActive(options.waterCells);
   const landRenderMap = realmLandPresentationMap(
     options.surface.renderMap,
@@ -974,7 +1024,7 @@ function initializeRealmScene(
   };
   // Pure quality policy is needed by the first resize/projection callback;
   // initialize it before any observer or render loop can run.
-  const castleLodPolicy = castleLodPolicyForQuality(runtimeQuality);
+  let castleLodPolicy = castleLodPolicyForQuality(runtimeQuality);
   const terrainSemantics = indexRealmTerrainSemantics(
     options.surface,
     options.terrainMetadata
@@ -994,6 +1044,8 @@ function initializeRealmScene(
   options.canvas.dataset.realmCanvasIdentity = canvasId;
   options.canvas.dataset.realmSceneBuildSequence = String(sceneBuildSequence);
   options.canvas.dataset.realmSceneIdentity = scene.uuid;
+  options.canvas.dataset.realmRendererGeneration = String(rendererGeneration);
+  options.canvas.dataset.realmLastSuccessfulRenderedGeneration = '0';
   scene.background = new THREE.Color(REALM_SKY_FALLBACK_COLOR);
   const fog = new THREE.Fog(
     REALM_SKY_FALLBACK_COLOR,
@@ -1238,6 +1290,9 @@ function initializeRealmScene(
   scene.add(terrain);
 
   let waterLayer: RealmWaterLayer | null = null;
+  const waterCellByKey = new Map(
+    (options.waterCells ?? []).map((cell) => [cell.cellKey, cell] as const)
+  );
   if (options.waterCells !== undefined) {
     try {
       waterLayer = createRealmWaterLayer({
@@ -1245,6 +1300,9 @@ function initializeRealmScene(
         quality: runtimeQuality,
         reducedMotion: options.reducedMotion,
         hexSize: HEX_SIZE,
+        environment: options.waterEnvironment,
+        waterBodies: options.waterBodies,
+        nowMicros: localPresentationNowMicros,
         heightAtWorld: (world) => terrainHeightAtWorld(
           options.surface.renderMap,
           world,
@@ -1270,6 +1328,14 @@ function initializeRealmScene(
   } else {
     options.canvas.dataset.waterPresentation = 'unavailable';
   }
+  // Never expose the ocean navigation envelope without the matching visible
+  // layer. Construction/budget failure must retain the ordinary land clamp.
+  const activeWaterNavigationEnvelope = waterLayer
+    ? waterNavigationEnvelope
+    : undefined;
+  options.canvas.dataset.waterNavigation = activeWaterNavigationEnvelope
+    ? 'water-visible'
+    : 'land-only';
 
   const decorations = createTerrainDecorationLayers(
     decorationData,
@@ -1422,11 +1488,25 @@ function initializeRealmScene(
     averageBladeHeight: 0,
     paletteLuminanceMin: 0,
     paletteLuminanceMax: 0,
+    paletteGreenMin: 0,
+    paletteGreenMax: 0,
     alphaHashActive: true,
     alphaToCoverageActive: grassAlphaToCoverage,
     shaderFallbackActive: false,
     edgeFadeCount: 0,
+    candidateCellsByTerrain: Object.freeze({
+      meadow: 0, lowland: 0, forest: 0, heath: 0, ridge: 0, lake: 0,
+      'ancient-stone': 0, apron: 0
+    }),
+    activeCellsByTerrain: Object.freeze({
+      meadow: 0, lowland: 0, forest: 0, heath: 0, ridge: 0, lake: 0,
+      'ancient-stone': 0, apron: 0
+    }),
     countsByTerrain: Object.freeze({
+      meadow: 0, lowland: 0, forest: 0, heath: 0, ridge: 0, lake: 0,
+      'ancient-stone': 0, apron: 0
+    }),
+    averageRetainedPatchesByTerrain: Object.freeze({
       meadow: 0, lowland: 0, forest: 0, heath: 0, ridge: 0, lake: 0,
       'ancient-stone': 0, apron: 0
     }),
@@ -1439,6 +1519,13 @@ function initializeRealmScene(
     const grass = grassLayer?.getTelemetry() ?? emptyGrassTelemetry;
     const currentForestTelemetry = forestLayer?.getPresentationTelemetry();
     const currentForestInfillTelemetry = forestInfillLayer?.getPresentationTelemetry();
+    const semanticFeatureCounts = Object.freeze({
+      ...semanticFeatures.counts,
+      'forest-tree': semanticFeatures.counts['forest-tree']
+        + (currentForestTelemetry?.instanceCount ?? 0)
+        + (currentForestInfillTelemetry?.instanceCount ?? 0),
+      'heath-bloom': 0
+    });
     return Object.freeze({
       terrainTriangleCount: terrainData.triangleCount,
       terrainTriangleBudget: renderPlan.terrainTriangleBudget,
@@ -1449,12 +1536,12 @@ function initializeRealmScene(
       semanticCellCount: terrainSemantics.terrainKindsByKey.size,
       semanticKindCount: Object.values(terrainSemantics.terrainKindCounts)
         .filter((count) => count > 0).length,
-      semanticFeatureCount: semanticFeatures.instanceCount
-        + (currentForestTelemetry?.instanceCount ?? 0)
-        + (currentForestInfillTelemetry?.instanceCount ?? 0),
+      semanticFeatureCount: Object.values(semanticFeatureCounts)
+        .reduce((total, count) => total + count, 0),
       semanticFeatureDrawCalls: semanticFeatures.drawCalls
         + (currentForestTelemetry?.drawCalls ?? 0)
         + (currentForestInfillTelemetry?.drawCalls ?? 0),
+      semanticFeatureCounts,
       totalDetailInstanceCount: decorationData.points.length
         + semanticFeatures.instanceCount
         + (currentForestTelemetry?.instanceCount ?? 0)
@@ -1475,7 +1562,14 @@ function initializeRealmScene(
       grassCacheEntries: grass.cacheEntries,
       grassAnimated: grass.animated,
       grassTargetAnimationCadence: grass.targetAnimationCadence,
+      grassCandidateCellsByTerrain: grass.candidateCellsByTerrain,
+      grassActiveCellsByTerrain: grass.activeCellsByTerrain,
       grassCountsByTerrain: grass.countsByTerrain,
+      grassAverageRetainedPatchesByTerrain: grass.averageRetainedPatchesByTerrain,
+      grassPaletteLuminanceMin: grass.paletteLuminanceMin,
+      grassPaletteLuminanceMax: grass.paletteLuminanceMax,
+      grassPaletteGreenMin: grass.paletteGreenMin,
+      grassPaletteGreenMax: grass.paletteGreenMax,
       grassCompletelyBareActiveCells: grass.completelyBareActiveCells,
       grassRejectedByStructureClearance: grass.rejectedByStructureClearance,
       grassRejectedBySlope: grass.rejectedBySlope,
@@ -1488,6 +1582,7 @@ function initializeRealmScene(
     const signature = [
       telemetry.semanticFeatureCount,
       telemetry.semanticFeatureDrawCalls,
+      Object.values(telemetry.semanticFeatureCounts).join(','),
       telemetry.totalDetailInstanceCount,
       telemetry.totalDetailDrawCalls,
       telemetry.forestPlacementSource,
@@ -1497,7 +1592,14 @@ function initializeRealmScene(
       telemetry.grassTriangleCount,
       telemetry.grassCacheEntries,
       telemetry.grassAnimated,
+      Object.values(telemetry.grassCandidateCellsByTerrain).join(','),
+      Object.values(telemetry.grassActiveCellsByTerrain).join(','),
       Object.values(telemetry.grassCountsByTerrain).join(','),
+      Object.values(telemetry.grassAverageRetainedPatchesByTerrain).join(','),
+      telemetry.grassPaletteLuminanceMin,
+      telemetry.grassPaletteLuminanceMax,
+      telemetry.grassPaletteGreenMin,
+      telemetry.grassPaletteGreenMax,
       telemetry.grassCompletelyBareActiveCells,
       telemetry.grassRejectedByStructureClearance,
       telemetry.grassRejectedBySlope,
@@ -1604,6 +1706,11 @@ function initializeRealmScene(
   const stoneNodeCoordinateKeys = new Set(
     (options.stoneNodes ?? []).map((node) => hexKey(node.coord))
   );
+  const waterCellCoordinateKeys = new Set(
+    (options.waterCells ?? [])
+      .filter((cell) => cell.regime === 'ocean' || cell.regime === 'river')
+      .map((cell) => `${cell.q},${cell.r}`)
+  );
   const terrainOverlayCoord = (coord: HexCoord | null) => (
     coord
       && !occupiedCastleCoordinateKeys.has(hexKey(coord))
@@ -1611,6 +1718,7 @@ function initializeRealmScene(
       && !foodNodeCoordinateKeys.has(hexKey(coord))
       && !woodNodeCoordinateKeys.has(hexKey(coord))
       && !stoneNodeCoordinateKeys.has(hexKey(coord))
+      && !waterCellCoordinateKeys.has(hexKey(coord))
       ? coord
       : null
   );
@@ -1629,6 +1737,7 @@ function initializeRealmScene(
   let foodNodeLayer: RealmFoodNodeLayer | null = null;
   let woodNodeLayer: RealmWoodNodeLayer | null = null;
   let stoneNodeLayer: RealmStoneNodeLayer | null = null;
+  let workerLayer: RealmWorkerLayer | null = null;
   let castleProjectionEnvelopeByLod: ReadonlyMap<
     CastleLod,
     RealmCastleProjectionEnvelope
@@ -1644,6 +1753,8 @@ function initializeRealmScene(
   let selectedFoodSiteId: string | undefined;
   let selectedWoodSiteId: string | undefined;
   let selectedStoneSiteId: string | undefined;
+  let selectedWorkerId: string | undefined;
+  let hoveredWorkerId: string | undefined;
   let selectedTerrainCoord: HexCoord | null = null;
   let hoveredTerrainCoord: HexCoord | null = null;
   let castleFocusSize: Readonly<{ height: number; footprintDiameter: number }> = Object.freeze({
@@ -1680,9 +1791,15 @@ function initializeRealmScene(
   let presentedCastleKey = '*';
   let renderPendingWhileHidden = false;
   let pendingCastlesReadyCount: number | null = null;
+  let contextLost = false;
+  let contextLossCount = 0;
+  let contextRestoreCount = 0;
   let ambientScheduler: RealmAmbientScheduler | null = null;
   const ambientIsNeeded = () => !options.reducedMotion
-    && renderPlan.grass.animationFrameCap > 0
+    && Math.max(
+      renderPlan.grass.animationFrameCap,
+      REALM_WATER_ANIMATION_FRAME_CAPS[runtimeQuality.id]
+    ) > 0
     && (
       grassLayer?.isAnimationActive() === true
       || decorations.animated
@@ -1690,6 +1807,7 @@ function initializeRealmScene(
       || foodNodeLayer?.hasMovingWagons() === true
       || woodNodeLayer?.hasMovingWagons() === true
       || stoneNodeLayer?.hasMovingWagons() === true
+      || workerLayer?.hasMovingWorkers() === true
       || waterLayer?.isAnimationActive() === true
     );
   const disableGrassPresentation = () => {
@@ -1800,6 +1918,7 @@ function initializeRealmScene(
   };
   const render = () => {
     if (cleanup.isDisposed()) return;
+    if (contextLost) return;
     if (document.hidden) {
       renderPendingWhileHidden = true;
       return;
@@ -1809,6 +1928,8 @@ function initializeRealmScene(
     if (grassLayer?.updateView(pose.focus, pose.mode)) {
       emitTerrainPresentationTelemetry();
     }
+    const expeditionPresentationNowMicros = localPresentationNowMicros();
+    workerLayer?.update(expeditionPresentationNowMicros);
     ambientScheduler?.setActive(ambientIsNeeded());
     const viewportHeight = resolveRealmViewportSize({
       canvasWidth: options.canvas.clientWidth,
@@ -1838,7 +1959,6 @@ function initializeRealmScene(
       lastCastlePresentationTelemetryKey = presentationTelemetryKey;
       options.onCastlePresentationTelemetry?.(presentationTelemetry);
     }
-    const expeditionPresentationNowMicros = localPresentationNowMicros();
     const expeditionPresentationElapsedSeconds = localPresentationElapsedSeconds();
     goldNodeLayer?.update(
       cameraController.camera,
@@ -1924,11 +2044,32 @@ function initializeRealmScene(
     try {
       renderer.render(scene, cameraController.camera);
     } catch (error) {
-      if (!isGrassShaderContractFailure(error) || !disableGrassPresentation()) throw error;
+      if (!isGrassShaderContractFailure(error) || !disableGrassPresentation()) {
+        reportRendererFailureAndDispose({
+          code: 'scene-build-failed',
+          retryable: true,
+          phase: 'ready',
+          message: error instanceof Error ? error.message : String(error)
+        }, false);
+        return;
+      }
       // `onBeforeCompile` runs during rendering. Retry the same frame without
       // only the grass layer if its pinned shader chunk contract has changed.
-      renderer.render(scene, cameraController.camera);
+      try {
+        renderer.render(scene, cameraController.camera);
+      } catch (fallbackError) {
+        reportRendererFailureAndDispose({
+          code: 'scene-build-failed',
+          retryable: true,
+          phase: 'ready',
+          message: fallbackError instanceof Error
+            ? fallbackError.message
+            : String(fallbackError)
+        }, false);
+        return;
+      }
     }
+    options.canvas.dataset.realmLastSuccessfulRenderedGeneration = String(rendererGeneration);
     projectCastleLabels();
     if (pendingCastlesReadyCount !== null) {
       const castleCount = pendingCastlesReadyCount;
@@ -1937,13 +2078,29 @@ function initializeRealmScene(
         && (presentedCastleIds === null || presentedCastleIds.size > 0)
         && (castleLayer?.getPacking().totalVisible ?? 0) === 0
       ) {
-        throw new Error('Hegemony castle instances produced no visible rendered packing.');
+        pendingCastlesReadyCount = null;
+        const failure: RealmRendererFailure = {
+          code: 'castle-pairing-failed',
+          retryable: false,
+          phase: 'loading',
+          message: 'Hegemony castle instances produced no visible rendered packing.'
+        };
+        reportRendererFailureAndDispose(failure, true);
+        return;
       }
       if (
         castleCount > 0
         && !castleLayer?.hasExactCastleLandscapeBasePairing()
       ) {
-        throw new Error('Hegemony castle landscape-base presentation is incomplete.');
+        pendingCastlesReadyCount = null;
+        const failure: RealmRendererFailure = {
+          code: 'castle-pairing-failed',
+          retryable: false,
+          phase: 'loading',
+          message: 'Hegemony castle landscape-base presentation is incomplete.'
+        };
+        reportRendererFailureAndDispose(failure, true);
+        return;
       }
       pendingCastlesReadyCount = null;
       options.onCastlesReady?.(castleCount);
@@ -1964,12 +2121,12 @@ function initializeRealmScene(
     ))
   } as const;
   const cameraController = createRealmCameraController({
-    bounds: waterNavigationEnvelope?.bounds ?? terrainData.bounds,
-    navigationBoundary: waterNavigationEnvelope
+    bounds: activeWaterNavigationEnvelope?.bounds ?? terrainData.bounds,
+    navigationBoundary: activeWaterNavigationEnvelope
       ? {
-        maximumCenterHexRadius: waterNavigationEnvelope.maximumCenterHexRadius,
-        hexSize: waterNavigationEnvelope.hexSize,
-        blockedCenterCellKeys: waterNavigationEnvelope.blockedCenterCellKeys
+        maximumCenterHexRadius: activeWaterNavigationEnvelope.maximumCenterHexRadius,
+        hexSize: activeWaterNavigationEnvelope.hexSize,
+        blockedCenterCellKeys: activeWaterNavigationEnvelope.blockedCenterCellKeys
       }
       : undefined,
     // Keep the full generated terrain available to pan/clamp, but make the
@@ -2092,13 +2249,56 @@ function initializeRealmScene(
   } catch {
     stoneNodeLayer = null;
   }
+  const createWorkerLayer = (workers: readonly RealmWorkerSceneRecord[]) => (
+    createRealmWorkerLayer({
+      workers,
+      hexSize: HEX_SIZE,
+      heightAtWorld: (world) => terrainHeightAtWorld(
+        options.surface.renderMap,
+        world,
+        HEX_SIZE,
+        terrainPlacements
+      )
+    })
+  );
+  const installWorkerLayer = (next: RealmWorkerLayer, workerCount: number) => {
+    const previous = workerLayer;
+    workerLayer = next;
+    scene.add(next.group);
+    options.canvas.dataset.realmWorkerMarkerCount = String(workerCount);
+    next.setSelectedWorkerId(selectedWorkerId ?? null);
+    next.setHoveredWorkerId(hoveredWorkerId ?? null);
+    if (previous) {
+      scene.remove(previous.group);
+      previous.dispose();
+    }
+  };
+  try {
+    const initialWorkers = options.workers ?? [];
+    installWorkerLayer(createWorkerLayer(initialWorkers), initialWorkers.length);
+  } catch {
+    // Generic workers are an additive public presentation. A malformed
+    // catalog disables only their markers and command entry points.
+    workerLayer = null;
+    options.canvas.dataset.realmWorkerMarkerCount = '0';
+  }
+  cleanup.add(() => {
+    const layer = workerLayer;
+    if (!layer) return;
+    scene.remove(layer.group);
+    layer.dispose();
+    if (workerLayer === layer) workerLayer = null;
+  });
   const handleRenderVisibility = () => {
     if (!document.hidden && renderPendingWhileHidden && !cleanup.isDisposed()) render();
   };
   document.addEventListener('visibilitychange', handleRenderVisibility);
   cleanup.add(() => document.removeEventListener('visibilitychange', handleRenderVisibility));
   ambientScheduler = createRealmAmbientScheduler({
-    frameCap: renderPlan.grass.animationFrameCap,
+    frameCap: Math.max(
+      renderPlan.grass.animationFrameCap,
+      REALM_WATER_ANIMATION_FRAME_CAPS[runtimeQuality.id]
+    ),
     active: ambientIsNeeded(),
     onStep: (elapsedSeconds) => {
       if (cleanup.isDisposed()) return;
@@ -2108,6 +2308,7 @@ function initializeRealmScene(
       const foodWagonsMoving = foodNodeLayer?.hasMovingWagons() === true;
       const woodWagonsMoving = woodNodeLayer?.hasMovingWagons() === true;
       const stoneWagonsMoving = stoneNodeLayer?.hasMovingWagons() === true;
+      const workersMoving = workerLayer?.hasMovingWorkers() === true;
       const waterChanged = waterLayer?.updateEnvironment(elapsedSeconds) === true;
       if (
         grassChanged
@@ -2116,6 +2317,7 @@ function initializeRealmScene(
         || foodWagonsMoving
         || woodWagonsMoving
         || stoneWagonsMoving
+        || workersMoving
         || waterChanged
       ) render();
     }
@@ -2197,8 +2399,11 @@ function initializeRealmScene(
     if (woodNodeHit) resourceHits.push({ kind: 'wood-site', ...woodNodeHit });
     const stoneNodeHit = stoneNodeLayer?.raycast(raycaster);
     if (stoneNodeHit) resourceHits.push({ kind: 'stone-site', ...stoneNodeHit });
+    const workerHit = workerLayer?.raycast(raycaster);
+    const workerHits: RealmWorkerPickHit[] = workerHit ? [workerHit] : [];
     const castleHit = castleLayer?.raycast(raycaster);
-    const foregroundHit = arbitrateRealmPick({ resourceHits, castleHit });
+    const waterHit: RealmWaterPickHit | null = waterLayer?.raycast(raycaster) ?? null;
+    const foregroundHit = arbitrateRealmPick({ resourceHits, workerHits, castleHit, waterHit });
     if (foregroundHit) return foregroundHit;
     const intersections = raycaster.intersectObject(terrain, false);
     for (const intersection of intersections) {
@@ -2355,8 +2560,16 @@ function initializeRealmScene(
     labelClickSuppressionTimer = window.setTimeout(clearLabelClickSuppression, 0);
   };
 
+  const contextLostBlocksTarget = (target: EventTarget | null) => (
+    laneForTarget(target) !== null
+  );
+
   const handlePointerDown = (event: PointerEvent) => {
     const lane = laneForTarget(event.target);
+    if (contextLost && lane !== null) {
+      event.preventDefault();
+      return;
+    }
     if (!lane || (event.pointerType !== 'touch' && event.button !== 0)) return;
     if (pointerGestures.snapshot().pointerCount === 0) clearLabelClickSuppression();
     const result = pointerGestures.start({
@@ -2379,6 +2592,14 @@ function initializeRealmScene(
   };
 
   const handlePointerMove = (event: PointerEvent) => {
+    if (contextLost && (
+      contextLostBlocksTarget(event.target)
+      || pointerGestures.snapshot().pointerCount > 0
+    )) {
+      event.preventDefault();
+      return;
+    }
+    if (contextLost) return;
     if (pointerGestures.snapshot().pointerCount === 0) {
       if (event.target === options.canvas) scheduleHover(event.clientX, event.clientY);
       return;
@@ -2424,6 +2645,14 @@ function initializeRealmScene(
   };
 
   const handlePointerUp = (event: PointerEvent) => {
+    if (contextLost && (
+      contextLostBlocksTarget(event.target)
+      || pointerGestures.snapshot().pointerCount > 0
+    )) {
+      event.preventDefault();
+      return;
+    }
+    if (contextLost) return;
     const labelTarget = labelPointerTargets.get(event.pointerId);
     labelPointerTargets.delete(event.pointerId);
     const result = pointerGestures.end({
@@ -2445,6 +2674,14 @@ function initializeRealmScene(
   };
 
   const handlePointerCancel = (event: PointerEvent) => {
+    if (contextLost && (
+      contextLostBlocksTarget(event.target)
+      || pointerGestures.snapshot().pointerCount > 0
+    )) {
+      event.preventDefault();
+      return;
+    }
+    if (contextLost) return;
     labelPointerTargets.delete(event.pointerId);
     const result = pointerGestures.cancel(event.pointerId);
     if (!result.accepted) return;
@@ -2455,6 +2692,7 @@ function initializeRealmScene(
   };
 
   const handleLostPointerCapture = (event: PointerEvent) => {
+    if (contextLost) return;
     labelPointerTargets.delete(event.pointerId);
     const result = pointerGestures.lostCapture(event.pointerId);
     if (!result.accepted) return;
@@ -2480,6 +2718,11 @@ function initializeRealmScene(
   };
 
   const handleLabelClickCapture = (event: MouseEvent) => {
+    if (contextLost && contextLostBlocksTarget(event.target)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
     // Keyboard and assistive-technology activation carries no mouse click
     // count and must never be consumed by a prior pointer gesture.
     if (event.detail === 0 || !(event.target instanceof Element)) return;
@@ -2494,6 +2737,7 @@ function initializeRealmScene(
   };
 
   const handlePointerLeave = () => {
+    if (contextLost) return;
     if (pointerGestures.snapshot().pointerCount === 0) {
       cancelPendingHover();
       dispatchHover(null);
@@ -2501,6 +2745,11 @@ function initializeRealmScene(
   };
   const handleWheel = (event: WheelEvent) => {
     const lane = laneForTarget(event.target);
+    if (contextLost && lane !== null) {
+      event.preventDefault();
+      return;
+    }
+    if (contextLost) return;
     if (!lane) return;
     event.preventDefault();
     // Camera motion invalidates the last canvas hit. Clear it immediately so
@@ -2540,8 +2789,29 @@ function initializeRealmScene(
   const handleContextLost = (event: Event) => {
     event.preventDefault();
     if (cleanup.isDisposed()) return;
-    disposeScene();
-    options.onRendererUnavailable();
+    contextLost = true;
+    contextLossCount += 1;
+    options.canvas.dataset.realmRendererContextLost = 'true';
+    options.canvas.dataset.realmRendererContextLossCount = String(contextLossCount);
+    options.canvas.dataset.realmRendererContextRestoreCount = String(contextRestoreCount);
+    cancelAllPointers(pointerGestures.blur());
+    ambientScheduler?.setActive(false);
+    options.onRendererFailure?.({
+      code: 'context-lost',
+      retryable: true,
+      phase: pendingCastlesReadyCount === null ? 'ready' : 'loading',
+      message: 'The WebGL context was lost; waiting for the browser to restore it.'
+    });
+  };
+  const handleContextRestored = () => {
+    if (cleanup.isDisposed() || !contextLost) return;
+    contextLost = false;
+    contextRestoreCount += 1;
+    options.canvas.dataset.realmRendererContextLost = 'false';
+    options.canvas.dataset.realmRendererContextLossCount = String(contextLossCount);
+    options.canvas.dataset.realmRendererContextRestoreCount = String(contextRestoreCount);
+    ambientScheduler?.setActive(ambientIsNeeded());
+    options.onRendererContextRestored?.();
   };
 
   interactionRoot.addEventListener('pointerdown', handlePointerDown, {
@@ -2581,6 +2851,8 @@ function initializeRealmScene(
   cleanup.add(() => interactionRoot.removeEventListener('wheel', handleWheel, true));
   options.canvas.addEventListener('webglcontextlost', handleContextLost);
   cleanup.add(() => options.canvas.removeEventListener('webglcontextlost', handleContextLost));
+  options.canvas.addEventListener('webglcontextrestored', handleContextRestored);
+  cleanup.add(() => options.canvas.removeEventListener('webglcontextrestored', handleContextRestored));
 
   const resize = () => {
     if (cleanup.isDisposed()) return;
@@ -2626,6 +2898,7 @@ function initializeRealmScene(
   resize();
 
   const usedCastleLods = castleLodsForQuality(runtimeQuality);
+  const requestedCastleLodPolicy = castleLodPolicy;
   const prefabRepository = createHegemonyKeepPrefabRepository({
     baseUrl: options.baseUrl,
     maxAnisotropy: renderer.capabilities.getMaxAnisotropy()
@@ -2643,45 +2916,69 @@ function initializeRealmScene(
     });
   };
 
-  const initializeCastleInstances = async () => {
-    if (authoritativeCastles.length === 0) {
-      if (!cleanup.isDisposed()) {
-        pendingCastlesReadyCount = 0;
-        render();
-      }
-      return;
-    }
-
-    const leases: HegemonyKeepPrefabLease[] = [];
-    let acquisitionStopped = false;
-    try {
-      await Promise.all(usedCastleLods.map(async (lod) => {
+  const acquiredCastleLeases = new Map<CastleLod, HegemonyKeepPrefabLease>();
+  let activeCastleLod: CastleLod | null = null;
+  const releaseAcquiredCastleLease = (lod: CastleLod) => {
+    const lease = acquiredCastleLeases.get(lod);
+    if (!lease) return;
+    acquiredCastleLeases.delete(lod);
+    releaseLeases([lease]);
+  };
+  cleanup.add(() => {
+    const layer = castleLayer;
+    castleLayer = null;
+    if (layer) {
+      try {
+        scene.remove(layer.group);
+      } finally {
         try {
-          const lease = await prefabRepository.acquire(
-            lod,
-            castleLoadAbortController.signal
-          );
-          if (acquisitionStopped || cleanup.isDisposed()) {
-            releaseLeases([lease]);
-            return;
-          }
-          leases.push(lease);
-        } catch (error) {
-          acquisitionStopped = true;
-          throw error;
+          layer.dispose();
+        } catch {
+          // Continue through repository lease release after layer cleanup.
         }
-      }));
-    } catch (error) {
-      acquisitionStopped = true;
-      releaseLeases(leases);
-      throw error;
+      }
     }
+    releaseLeases([...acquiredCastleLeases.values()]);
+    acquiredCastleLeases.clear();
+  });
+
+  const installCastleLayer = (activeLod: CastleLod, signalReady: boolean) => {
+    const activeIndex = usedCastleLods.indexOf(activeLod);
+    const activeLods = usedCastleLods.slice(0, activeIndex + 1);
+    const prefabs = new Map(activeLods.map((lod) => {
+      const lease = acquiredCastleLeases.get(lod);
+      if (!lease) throw new Error(`Missing contiguous Hegemony keep ${lod} lease.`);
+      return [lod, lease.prefab] as const;
+    }));
+    const nextPolicy: CastleLodPolicy = Object.freeze({
+      ...requestedCastleLodPolicy,
+      maximumLod: activeLod,
+      selectedMinimumLod: activeLod,
+      highInstanceBudget: activeLod === 'high'
+        ? DEFAULT_CASTLE_LOD_POLICY.highInstanceBudget
+        : 0,
+      balancedInstanceBudget: activeLod === 'compact'
+        ? 0
+        : DEFAULT_CASTLE_LOD_POLICY.balancedInstanceBudget
+    });
+    const nextLayer = createRealmCastleInstanceLayer({
+      castles: authoritativeCastles,
+      prefabs,
+      policy: nextPolicy,
+      dynamicShadows: renderPlan.dynamicShadows
+    });
     if (cleanup.isDisposed()) {
-      releaseLeases(leases);
-      return;
+      nextLayer.dispose();
+      return false;
+    }
+    if (presentedCastleIds !== null) {
+      nextLayer.setPresentedCastleIds([...presentedCastleIds]);
     }
 
-    const prefabs = new Map(leases.map((lease) => [lease.prefab.lod, lease.prefab]));
+    const previousLayer = castleLayer;
+    scene.add(nextLayer.group);
+    castleLayer = nextLayer;
+    castleLodPolicy = nextPolicy;
     const nextProjectionEnvelopeByLod = new Map([...prefabs].map(([lod, prefab]) => [
       lod,
       prefab.projectionEnvelope
@@ -2690,60 +2987,27 @@ function initializeRealmScene(
       lod,
       prefab.renderProjectionEnvelope
     ] as const));
-    let nextLayer: RealmCastleInstanceLayer;
-    try {
-      nextLayer = createRealmCastleInstanceLayer({
-        castles: authoritativeCastles,
-        prefabs,
-        policy: castleLodPolicy,
-        dynamicShadows: renderPlan.dynamicShadows
-      });
-    } catch (error) {
-      releaseLeases(leases);
-      throw error;
-    }
-    if (cleanup.isDisposed()) {
-      try {
-        nextLayer.dispose();
-      } finally {
-        releaseLeases(leases);
-      }
-      return;
-    }
-
-    if (presentedCastleIds !== null) {
-      nextLayer.setPresentedCastleIds([...presentedCastleIds]);
-    }
-    castleLayer = nextLayer;
     castleProjectionEnvelopeByLod = nextProjectionEnvelopeByLod;
     castleRenderEnvelopeByLod = nextRenderEnvelopeByLod;
-    fallbackCastleProjectionEnvelope = nextProjectionEnvelopeByLod
-      .get(castleLodPolicy.maximumLod)
-      ?? nextProjectionEnvelopeByLod.get('compact')
+    fallbackCastleProjectionEnvelope = nextProjectionEnvelopeByLod.get(activeLod)
       ?? DEFAULT_CASTLE_PROJECTION_ENVELOPE;
-    fallbackCastleRenderEnvelope = nextRenderEnvelopeByLod
-      .get(castleLodPolicy.maximumLod)
-      ?? nextRenderEnvelopeByLod.get('compact')
+    fallbackCastleRenderEnvelope = nextRenderEnvelopeByLod.get(activeLod)
       ?? DEFAULT_CASTLE_PROJECTION_ENVELOPE;
-    scene.add(nextLayer.group);
-    let released = false;
-    cleanup.add(() => {
-      if (released) return;
-      released = true;
-      try {
-        scene.remove(nextLayer.group);
-      } finally {
-        try {
-          nextLayer.dispose();
-        } finally {
-          if (castleLayer === nextLayer) castleLayer = null;
-          releaseLeases(leases);
-        }
-      }
-    });
+    options.canvas.dataset.realmCastleActiveLod = activeLod;
+    lastCastleProjectionKey = '';
+    lastCastlePresentationTelemetryKey = '';
+    activeCastleLod = activeLod;
 
-    const focusPrefab = prefabs.get(castleLodPolicy.maximumLod)
-      ?? prefabs.get('compact');
+    if (previousLayer) {
+      scene.remove(previousLayer.group);
+      try {
+        previousLayer.dispose();
+      } catch {
+        // The replacement is already authoritative; keep its live resources.
+      }
+    }
+
+    const focusPrefab = prefabs.get(activeLod) ?? prefabs.get('compact');
     if (focusPrefab) {
       castleFocusSize = Object.freeze({
         height: focusPrefab.visualHeight,
@@ -2757,22 +3021,175 @@ function initializeRealmScene(
         footprintDiameter: focusPrefab.footprintDiameter
       });
     }
-    options.onKeepStatusChange('ready');
-    if (cleanup.isDisposed()) return;
-    pendingCastlesReadyCount = authoritativeCastles.length;
+    if (signalReady) {
+      options.onKeepStatusChange('ready');
+      if (cleanup.isDisposed()) return false;
+      pendingCastlesReadyCount = authoritativeCastles.length;
+    } else {
+      options.onCastleLodChange?.(activeLod);
+    }
     render();
+    return !cleanup.isDisposed();
   };
 
-  void initializeCastleInstances().catch(() => {
+  const initializeCastleInstances = async () => {
+    if (authoritativeCastles.length === 0) {
+      if (!cleanup.isDisposed()) {
+        pendingCastlesReadyCount = 0;
+        render();
+      }
+      return;
+    }
+
+    const compact = usedCastleLods.includes('compact') ? 'compact' : usedCastleLods[0];
+    if (!compact) throw new Error('No compact castle LOD is configured.');
+    const acquireWithRetry = async (lod: CastleLod) => {
+      let lastError: unknown;
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          return await (attempt === 0
+            ? prefabRepository.acquire(lod, castleLoadAbortController.signal)
+            : prefabRepository.retryFailed(lod, castleLoadAbortController.signal));
+        } catch (error) {
+          lastError = error;
+          const failure = classifyRealmRendererFailure(
+            error,
+            'loading',
+            'castle-compact-load-failed'
+          );
+          if (lod !== 'compact' || attempt !== 0 || !failure.retryable) break;
+          // Keep the retry bounded and deterministic. The short yield lets a
+          // transient browser fetch/decode stall settle without overlapping
+          // two requests for the same content-addressed lease.
+          await new Promise<void>((resolve) => window.setTimeout(resolve, 40));
+        }
+      }
+      throw lastError ?? new Error(`Unable to load castle ${lod} LOD.`);
+    };
+    const optionalLods = usedCastleLods.filter((lod) => lod !== compact);
+    const optionalStates = new Map<CastleLod, 'pending' | 'ready' | 'failed'>(
+      optionalLods.map((lod) => [lod, 'pending'])
+    );
+    let compactInstalled = false;
+    const activeRank = () => activeCastleLod === null
+      ? -1
+      : usedCastleLods.indexOf(activeCastleLod);
+    const highestContiguousReadyLod = () => {
+      let highest = compact;
+      for (const lod of optionalLods) {
+        if (optionalStates.get(lod) !== 'ready') break;
+        highest = lod;
+      }
+      return highest;
+    };
+    const releaseLodsAboveGap = () => {
+      let gapFound = false;
+      optionalLods.forEach((lod) => {
+        if (gapFound && optionalStates.get(lod) === 'ready') {
+          releaseAcquiredCastleLease(lod);
+          optionalStates.set(lod, 'failed');
+          options.canvas.dataset[`realmCastle${lod}Lod`] = 'unavailable';
+          return;
+        }
+        if (optionalStates.get(lod) === 'failed') gapFound = true;
+      });
+    };
+    const upgradeToHighestContiguousLod = () => {
+      if (!compactInstalled || cleanup.isDisposed() || contextLost) return;
+      releaseLodsAboveGap();
+      const nextLod = highestContiguousReadyLod();
+      if (usedCastleLods.indexOf(nextLod) <= activeRank()) return;
+      try {
+        installCastleLayer(nextLod, false);
+      } catch {
+        optionalStates.set(nextLod, 'failed');
+        options.canvas.dataset[`realmCastle${nextLod}Lod`] = 'unavailable';
+        releaseAcquiredCastleLease(nextLod);
+        releaseLodsAboveGap();
+        const fallbackLod = highestContiguousReadyLod();
+        if (usedCastleLods.indexOf(fallbackLod) > activeRank()) {
+          try {
+            installCastleLayer(fallbackLod, false);
+          } catch {
+            optionalStates.set(fallbackLod, 'failed');
+            options.canvas.dataset[`realmCastle${fallbackLod}Lod`] = 'unavailable';
+            releaseAcquiredCastleLease(fallbackLod);
+          }
+        }
+      }
+    };
+
+    const compactLease = await acquireWithRetry(compact);
+    if (cleanup.isDisposed()) {
+      releaseLeases([compactLease]);
+      return;
+    }
+    acquiredCastleLeases.set(compact, compactLease);
+    try {
+      compactInstalled = installCastleLayer(compact, true);
+    } catch (error) {
+      releaseAcquiredCastleLease(compact);
+      throw error;
+    }
+    // Compact owns the critical path. Only after it has produced the first
+    // playable frame may optional LOD downloads compete for network/decoder
+    // resources; they still upgrade progressively as one contiguous chain.
+    optionalLods.forEach((lod) => {
+      void prefabRepository.acquire(lod, castleLoadAbortController.signal).then((lease) => {
+        if (cleanup.isDisposed()) {
+          releaseLeases([lease]);
+          return;
+        }
+        const prerequisiteFailed = lod === 'high'
+          && optionalStates.get('balanced') === 'failed';
+        if (prerequisiteFailed) {
+          optionalStates.set(lod, 'failed');
+          options.canvas.dataset[`realmCastle${lod}Lod`] = 'unavailable';
+          releaseLeases([lease]);
+          return;
+        }
+        acquiredCastleLeases.set(lod, lease);
+        optionalStates.set(lod, 'ready');
+        upgradeToHighestContiguousLod();
+      }, () => {
+        if (cleanup.isDisposed()) return;
+        optionalStates.set(lod, 'failed');
+        options.canvas.dataset[`realmCastle${lod}Lod`] = 'unavailable';
+        releaseLodsAboveGap();
+        upgradeToHighestContiguousLod();
+      });
+    });
+    upgradeToHighestContiguousLod();
+  };
+
+  void initializeCastleInstances().catch((error) => {
     if (cleanup.isDisposed()) return;
     try {
       options.onKeepStatusChange('fallback');
     } catch {
       // Renderer fallback still has to engage when a status observer fails.
     }
-    disposeScene();
-    options.onRendererUnavailable();
+    reportRendererFailureAndDispose(classifyRealmRendererFailure(
+      error,
+      'loading',
+      'castle-compact-load-failed'
+    ), true);
   });
+
+  function reportRendererFailureAndDispose(
+    failure: RealmRendererFailure,
+    notifyUnavailable: boolean
+  ) {
+    try {
+      options.onRendererFailure?.(failure);
+    } finally {
+      try {
+        if (notifyUnavailable) options.onRendererUnavailable();
+      } finally {
+        disposeScene();
+      }
+    }
+  }
 
   function disposeScene() {
     cleanup.dispose();
@@ -2818,6 +3235,7 @@ function initializeRealmScene(
       || !Array.isArray(state.foodNodes)
       || !Array.isArray(state.woodNodes)
       || !Array.isArray(state.stoneNodes)
+      || (state.workers !== undefined && !Array.isArray(state.workers))
       || !matchesStaticCatalog(state.goldNodes, options.goldNodes ?? [])
       || !matchesStaticCatalog(state.foodNodes, options.foodNodes ?? [])
       || !matchesStaticCatalog(state.woodNodes, options.woodNodes ?? [])
@@ -2825,6 +3243,18 @@ function initializeRealmScene(
     ) {
       recordLiveReconciliationTelemetry(false);
       return;
+    }
+    const nextWorkers = state.workers ?? [];
+    const workerCanReconcile = workerLayer?.canReconcile(nextWorkers) === true;
+    let preparedWorkerLayer: RealmWorkerLayer | undefined;
+    let workerCatalogAccepted = workerCanReconcile;
+    if (!workerCanReconcile) {
+      try {
+        preparedWorkerLayer = createWorkerLayer(nextWorkers);
+        workerCatalogAccepted = true;
+      } catch {
+        workerCatalogAccepted = false;
+      }
     }
     const accepted = (
       goldNodeLayer?.canReconcile(state.goldNodes) ?? true
@@ -2834,12 +3264,16 @@ function initializeRealmScene(
       woodNodeLayer?.canReconcile(state.woodNodes) ?? true
     ) && (
       stoneNodeLayer?.canReconcile(state.stoneNodes) ?? true
-    );
+    ) && workerCatalogAccepted;
     if (accepted) {
       goldNodeLayer?.reconcile(state.goldNodes);
       foodNodeLayer?.reconcile(state.foodNodes);
       woodNodeLayer?.reconcile(state.woodNodes);
       stoneNodeLayer?.reconcile(state.stoneNodes);
+      if (preparedWorkerLayer) installWorkerLayer(preparedWorkerLayer, nextWorkers.length);
+      else workerLayer?.reconcile(nextWorkers);
+    } else {
+      preparedWorkerLayer?.dispose();
     }
     recordLiveReconciliationTelemetry(accepted);
     if (accepted) render();
@@ -2855,6 +3289,7 @@ function initializeRealmScene(
       target: Object.freeze({ ...pose.target }),
       fov: pose.fov,
       zoom: cameraController.getZoom(),
+      controllerState: cameraController.captureState(),
       selectedTerrainCoord: selectedTerrainCoord
         ? Object.freeze({ ...selectedTerrainCoord })
         : null,
@@ -2870,6 +3305,10 @@ function initializeRealmScene(
     dispose: disposeScene,
     reconcileLiveGatheringState,
     getCameraAttestation,
+    restoreCameraAttestation: (attestation) => {
+      if (cleanup.isDisposed()) return;
+      cameraController.restoreState(attestation.controllerState);
+    },
     getSceneBuildSequence: () => sceneBuildSequence,
     focusCastle: (castleId) => {
       if (cleanup.isDisposed()) return;
@@ -2905,6 +3344,28 @@ function initializeRealmScene(
         footprintDiameter: 1.24
       });
     },
+    focusWaterCell: (cellKey) => {
+      if (cleanup.isDisposed() || !waterLayer) return;
+      const cell = waterCellByKey.get(cellKey);
+      if (!cell || (cell.regime === 'ocean' && cell.fogBand === 'full')) return;
+      const world = axialToWorld({ q: cell.q, r: cell.r }, HEX_SIZE);
+      const terrainY = terrainHeightAtWorld(
+        options.surface.renderMap,
+        world,
+        HEX_SIZE,
+        terrainPlacements
+      );
+      const surfaceY = cell.regime === 'river'
+        ? Math.max(waterSurfaceLevelToWorldY(cell.surfaceLevelMilli) + 0.035, terrainY + 0.04)
+        : waterSurfaceLevelToWorldY(cell.surfaceLevelMilli) + 0.035;
+      cameraController.focusAt({
+        x: world.x,
+        y: surfaceY,
+        z: world.z,
+        height: 0.18,
+        footprintDiameter: 1.24
+      });
+    },
     frameFoundingDistrict: () => {
       const width = Math.max(1, options.canvas.clientWidth || window.innerWidth || 1);
       const height = Math.max(1, options.canvas.clientHeight || window.innerHeight || 1);
@@ -2918,6 +3379,9 @@ function initializeRealmScene(
     recenterKeep: cameraController.recenterKeep,
     setHovered: (coord) => {
       if (cleanup.isDisposed()) return;
+      waterLayer?.setHoveredCellKey(null);
+      hoveredWorkerId = undefined;
+      workerLayer?.setHoveredWorkerId(null);
       hoveredTerrainCoord = coord;
       grassLayer?.setInteraction(selectedTerrainCoord, hoveredTerrainCoord);
       // A terrain hex runs through the wider authored landscape-base mesh.
@@ -2945,6 +3409,9 @@ function initializeRealmScene(
     },
     setSelected: (coord) => {
       if (cleanup.isDisposed()) return;
+      waterLayer?.setSelectedCellKey(null);
+      selectedWorkerId = undefined;
+      workerLayer?.setSelectedWorkerId(null);
       selectedTerrainCoord = coord;
       grassLayer?.setInteraction(selectedTerrainCoord, hoveredTerrainCoord);
       selectedCastleId = coord
@@ -2964,6 +3431,9 @@ function initializeRealmScene(
       if (cleanup.isDisposed()) return;
       selectedCastleId = castleId === null ? undefined : castleId;
       if (castleId !== null) {
+        waterLayer?.setSelectedCellKey(null);
+        selectedWorkerId = undefined;
+        workerLayer?.setSelectedWorkerId(null);
         selectedTerrainCoord = null;
         grassLayer?.setInteraction(selectedTerrainCoord, hoveredTerrainCoord);
         setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
@@ -2974,28 +3444,112 @@ function initializeRealmScene(
       if (cleanup.isDisposed()) return;
       selectedGoldSiteId = siteId === null ? undefined : siteId;
       goldNodeLayer?.setSelectedSiteId(siteId);
-      if (siteId !== null) setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      if (siteId !== null) {
+        waterLayer?.setSelectedCellKey(null);
+        selectedWorkerId = undefined;
+        workerLayer?.setSelectedWorkerId(null);
+        setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      }
       render();
     },
     setSelectedFoodSiteId: (siteId) => {
       if (cleanup.isDisposed()) return;
       selectedFoodSiteId = siteId === null ? undefined : siteId;
       foodNodeLayer?.setSelectedSiteId(siteId);
-      if (siteId !== null) setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      if (siteId !== null) {
+        waterLayer?.setSelectedCellKey(null);
+        selectedWorkerId = undefined;
+        workerLayer?.setSelectedWorkerId(null);
+        setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      }
       render();
     },
     setSelectedWoodSiteId: (siteId) => {
       if (cleanup.isDisposed()) return;
       selectedWoodSiteId = siteId === null ? undefined : siteId;
       woodNodeLayer?.setSelectedSiteId(siteId);
-      if (siteId !== null) setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      if (siteId !== null) {
+        waterLayer?.setSelectedCellKey(null);
+        selectedWorkerId = undefined;
+        workerLayer?.setSelectedWorkerId(null);
+        setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      }
       render();
     },
     setSelectedStoneSiteId: (siteId) => {
       if (cleanup.isDisposed()) return;
       selectedStoneSiteId = siteId === null ? undefined : siteId;
       stoneNodeLayer?.setSelectedSiteId(siteId);
-      if (siteId !== null) setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      if (siteId !== null) {
+        waterLayer?.setSelectedCellKey(null);
+        selectedWorkerId = undefined;
+        workerLayer?.setSelectedWorkerId(null);
+        setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      }
+      render();
+    },
+    setSelectedWorkerId: (workerId) => {
+      if (cleanup.isDisposed()) return;
+      selectedWorkerId = workerId === null ? undefined : workerId;
+      workerLayer?.setSelectedWorkerId(workerId);
+      if (workerId !== null) {
+        waterLayer?.setSelectedCellKey(null);
+        selectedTerrainCoord = null;
+        selectedCastleId = undefined;
+        selectedGoldSiteId = undefined;
+        selectedFoodSiteId = undefined;
+        selectedWoodSiteId = undefined;
+        selectedStoneSiteId = undefined;
+        goldNodeLayer?.setSelectedSiteId(null);
+        foodNodeLayer?.setSelectedSiteId(null);
+        woodNodeLayer?.setSelectedSiteId(null);
+        stoneNodeLayer?.setSelectedSiteId(null);
+        grassLayer?.setInteraction(selectedTerrainCoord, hoveredTerrainCoord);
+        setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      }
+      render();
+    },
+    setSelectedWaterCellKey: (cellKey) => {
+      if (cleanup.isDisposed()) return;
+      waterLayer?.setSelectedCellKey(cellKey);
+      if (cellKey !== null) {
+        selectedTerrainCoord = null;
+        selectedCastleId = undefined;
+        selectedGoldSiteId = undefined;
+        selectedFoodSiteId = undefined;
+        selectedWoodSiteId = undefined;
+        selectedStoneSiteId = undefined;
+        selectedWorkerId = undefined;
+        workerLayer?.setSelectedWorkerId(null);
+        goldNodeLayer?.setSelectedSiteId(null);
+        foodNodeLayer?.setSelectedSiteId(null);
+        woodNodeLayer?.setSelectedSiteId(null);
+        stoneNodeLayer?.setSelectedSiteId(null);
+        grassLayer?.setInteraction(selectedTerrainCoord, hoveredTerrainCoord);
+        setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      }
+      render();
+    },
+    setHoveredWorkerId: (workerId) => {
+      if (cleanup.isDisposed()) return;
+      hoveredWorkerId = workerId === null ? undefined : workerId;
+      workerLayer?.setHoveredWorkerId(workerId);
+      if (workerId !== null) {
+        waterLayer?.setHoveredCellKey(null);
+        hoveredTerrainCoord = null;
+        setOverlay(hoverOverlay, options.surface, null, terrainPlacements);
+      }
+      render();
+    },
+    setHoveredWaterCellKey: (cellKey) => {
+      if (cleanup.isDisposed()) return;
+      waterLayer?.setHoveredCellKey(cellKey);
+      if (cellKey !== null) {
+        hoveredWorkerId = undefined;
+        workerLayer?.setHoveredWorkerId(null);
+        hoveredTerrainCoord = null;
+        setOverlay(hoverOverlay, options.surface, null, terrainPlacements);
+      }
       render();
     },
     setComposition: (composition) => cameraController.setComposition(composition),

@@ -12,8 +12,9 @@ balance, advance a timer, or decide an expedition outcome.
 | Browser/backend wire protocol | 3 |
 | Player authentication contract | 2 |
 | Genesis world generation | 3 |
-| Append-only schema generation | 10 |
+| Append-only schema generation | 12 (staged suffix) |
 | Alpha 0.3.12 suffix | Water refs 37–40; Stone refs 41–45 |
+| Generic worker suffix | refs 47–52; staged, not activated |
 
 Deployed tables retain their original declaration order and shape. Later
 features append new tables; they do not rename or delete existing data. The
@@ -55,6 +56,8 @@ Public subscriptions contain only shared-world presentation:
 - activated Water layout, body/cell topology, and shared environment data;
 - identity-minimized site occupations containing a site, phase, public
   timeline, and origin castle;
+- staged four-worker roster and generic node-lease projections; the public
+  rows contain no FID, cargo, accrual, balance, request, or auth data;
 - public Community Marks projection only when its policy permits it.
 
 Private tables contain admission, ownership, unclaimed-slot decisions, resource
@@ -93,6 +96,21 @@ Gold, Food, Wood, and Stone each have an independent expedition:
 - settlement and return are server scheduled and exact-once;
 - private reservations prevent passive collection or another lifecycle from
   truncating a valid Food, Wood, or Stone award.
+
+The additive generic-worker suffix defines four stable workers per founded
+castle. Any idle worker can gather Gold, Food, Wood, or Stone, and multiple
+workers may gather the same resource at different nodes. Worker assignments
+use the same canonical site catalogs, route authority, 60-second quantum, and
+30-day cap as the legacy expeditions. The caller's private read projects exact
+server-time availability without a write; scheduled expiry and explicit
+dispatch/recall commands materialize complete quanta. There is no per-minute
+write loop and no `collect` command for generic workers.
+
+The suffix is intentionally staged. The module does not seed, activate,
+backfill, or migrate production workers in this PR. Activation requires an
+admin-reviewed singleton, an exact four-worker roster digest, and zero legacy
+expedition, occupation, and schedule rows. The browser wire protocol remains 3
+until a later client-capability release opts into the generic worker methods.
 
 ## Entry agreement and Marks
 

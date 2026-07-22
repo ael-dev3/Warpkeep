@@ -1,9 +1,18 @@
 import type { InferSchema, ReducerCtx } from 'spacetimedb/server';
 
 import {
+  CASTLE_WORKERS_PER_CASTLE,
+  workerResourcePolicy,
+} from './castleWorkerPolicy';
+
+import {
   FOOD_GATHERING_TOTAL_FOOD,
   foodExpeditionStateIsConsistent,
 } from './foodExpeditionPolicy';
+import {
+  GOLD_GATHERING_TOTAL_GOLD,
+  goldExpeditionStateIsConsistent,
+} from './goldExpeditionPolicy';
 import {
   WOOD_GATHERING_TOTAL_WOOD,
   woodExpeditionStateIsConsistent,
@@ -41,13 +50,20 @@ export type ActiveExpeditionResourceReservations = Readonly<{
   food: bigint;
   wood: bigint;
   stone: bigint;
+  gold: bigint;
 }>;
 
+/** Once generic workers are active, legacy wagon creation is permanently closed. */
+export function assertLegacyExpeditionDispatchAllowed(ctx: WarpkeepReducerContext): void {
+  const workerSystem = ctx.db.realmWorkerSystemV1.realmId.find('GENESIS_001');
+  if (workerSystem?.mode === 'active') fail('LEGACY_EXPEDITION_DISPATCH_RETIRED');
+}
+
 /**
- * Return exact uncredited thirty-day awards for the caller's active Food, Wood,
- * and Stone wagons. A returning row has already credited its whole award and
- * thus reserves zero. Independent tables permit one wagon of each resource
- * type.
+ * Return exact uncredited thirty-day awards for every active legacy wagon and
+ * generic assignment. A returning row has already credited its whole award and
+ * thus reserves zero. Independent tables permit one legacy wagon of each
+ * resource type while generic workers add their own private reservations.
  */
 export function activeExpeditionResourceReservations(
   ctx: WarpkeepReducerContext,
@@ -65,11 +81,33 @@ export function activeExpeditionResourceReservations(
   if (stone !== null && !stoneExpeditionStateIsConsistent(stone)) {
     fail('STONE_EXPEDITION_RESERVATION_STATE_INVALID');
   }
-  return Object.freeze({
-    food: food === null ? 0n : FOOD_GATHERING_TOTAL_FOOD - food.creditedFood,
-    wood: wood === null ? 0n : WOOD_GATHERING_TOTAL_WOOD - wood.creditedWood,
-    stone: stone === null ? 0n : STONE_GATHERING_TOTAL_STONE - stone.creditedStone,
-  });
+  const gold = ctx.db.goldExpeditionV1.fid.find(fid);
+  if (gold !== null && !goldExpeditionStateIsConsistent(gold)) {
+    fail('GOLD_EXPEDITION_RESERVATION_STATE_INVALID');
+  }
+  let foodReservation = food === null ? 0n : FOOD_GATHERING_TOTAL_FOOD - food.creditedFood;
+  let woodReservation = wood === null ? 0n : WOOD_GATHERING_TOTAL_WOOD - wood.creditedWood;
+  let stoneReservation = stone === null ? 0n : STONE_GATHERING_TOTAL_STONE - stone.creditedStone;
+  let goldReservation = gold === null ? 0n : GOLD_GATHERING_TOTAL_GOLD - gold.creditedGold;
+  let workerAssignmentCount = 0;
+  for (const assignment of ctx.db.workerAssignmentV1.byFid.filter(fid)) {
+    workerAssignmentCount += 1;
+    if (workerAssignmentCount > CASTLE_WORKERS_PER_CASTLE) {
+      fail('WORKER_ASSIGNMENT_LIMIT');
+    }
+    if (assignment.phase === 'returning') continue;
+    const total = workerResourcePolicy(assignment.resourceKind).gatheringTotal;
+    // Reserve the complete remaining award, not only the currently accrued
+    // amount. This leaves room for lazy server-time settlement to materialize
+    // the exact future output without truncation.
+    const fullRemaining = total - assignment.materializedAmount;
+    if (fullRemaining < 0n) throw new ResourceExpeditionReservationAuthorityError('WORKER_RESERVATION_INVALID');
+    if (assignment.resourceKind === 'food') foodReservation += fullRemaining;
+    if (assignment.resourceKind === 'wood') woodReservation += fullRemaining;
+    if (assignment.resourceKind === 'stone') stoneReservation += fullRemaining;
+    if (assignment.resourceKind === 'gold') goldReservation += fullRemaining;
+  }
+  return Object.freeze({ food: foodReservation, wood: woodReservation, stone: stoneReservation, gold: goldReservation });
 }
 
 /**

@@ -1,7 +1,23 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { constants, accessSync, closeSync, fstatSync, openSync, readFileSync, realpathSync } from 'node:fs';
+import {
+  constants,
+  accessSync,
+  chmodSync,
+  closeSync,
+  fchmodSync,
+  fstatSync,
+  fsyncSync,
+  mkdtempSync,
+  openSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -18,6 +34,9 @@ import {
   ADDITIVE_MIGRATION_PROOF_SPACETIME_CLI_VERSION,
   parseAdditiveMigrationProofReceipt,
 } from './spacetime-additive-migration-proof.mjs';
+import {
+  canonicalTableSchemaBoundaryDigest,
+} from './spacetime-table-schema-attestation.mjs';
 import {
   WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM,
 } from './entry-agreement-policy.mjs';
@@ -56,6 +75,7 @@ const MAX_ENTRY_AGREEMENT_ACCEPTANCE_ROWS_PER_PLAYER =
   WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM;
 const MAX_ENTRY_AGREEMENT_ACCEPTANCE_COUNT =
   100 * MAX_ENTRY_AGREEMENT_ACCEPTANCE_ROWS_PER_PLAYER;
+const SHA256_DIGEST = /^[0-9a-f]{64}$/;
 
 export const RESOURCE_PUBLISH_ROLLOUT_STAGE = Object.freeze({
   PREBACKFILL: 'prebackfill',
@@ -64,6 +84,118 @@ export const RESOURCE_PUBLISH_ROLLOUT_STAGE = Object.freeze({
 export const GENESIS_WORLD_PUBLISH_STAGE = Object.freeze({
   PRE_EXPANSION: 'pre-expansion',
   EXPANDED: 'expanded',
+});
+export const WORKER_PUBLISH_ROLLOUT_STAGE = Object.freeze({
+  EMPTY: 'empty',
+});
+
+export const PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS = Object.freeze({
+  allowed_fid: 0,
+  world_tile: 1,
+  player: 2,
+  castle: 3,
+  admin_audit: 4,
+  player_v2: 5,
+  player_ownership_v2: 6,
+  realm_v1: 7,
+  world_tile_meta_v1: 8,
+  castle_slot_v1: 9,
+  castle_slot_claim_v1: 10,
+  realm_profile_v1: 11,
+  mark_account_v1: 12,
+  snap_burn_credit_v1: 13,
+  fid_wallet_attribution_v1: 14,
+  wallet_attribution_snapshot_v1: 15,
+  snap_scan_cursor_v1: 16,
+  snap_scan_batch_v1: 17,
+  alpha_terms_acceptance_v1: 18,
+  resource_account_v1: 19,
+  gold_site_v1: 20,
+  gold_node_occupation_v1: 21,
+  gold_expedition_v1: 22,
+  gold_expedition_idempotency_v1: 23,
+  gold_expedition_schedule_v_1: 24,
+  realm_forest_layout_v1: 25,
+  realm_forest_instance_v1: 26,
+  food_site_v1: 27,
+  food_node_occupation_v1: 28,
+  food_expedition_v1: 29,
+  food_expedition_idempotency_v1: 30,
+  food_expedition_schedule_v_1: 31,
+  wood_site_v1: 32,
+  wood_node_occupation_v1: 33,
+  wood_expedition_v1: 34,
+  wood_expedition_idempotency_v1: 35,
+  wood_expedition_schedule_v_1: 36,
+  realm_water_layout_v1: 37,
+  realm_water_body_v1: 38,
+  realm_water_cell_v1: 39,
+  realm_environment_v1: 40,
+  stone_site_v1: 41,
+  stone_node_occupation_v1: 42,
+  stone_expedition_v1: 43,
+  stone_expedition_idempotency_v1: 44,
+  stone_expedition_schedule_v_1: 45,
+  realm_water_revision_v1: 46,
+});
+export const WORKER_V12_TABLE_CONTRACTS = Object.freeze({
+  realm_worker_system_v1: Object.freeze({
+    productTypeRef: 47,
+    access: 'Public',
+    fields: Object.freeze([
+      'realm_id', 'policy_version', 'workers_per_castle', 'expected_castle_count',
+      'expected_worker_count', 'roster_digest', 'mode', 'legacy_drain_required',
+      'created_at', 'activated_at',
+    ]),
+  }),
+  castle_worker_v1: Object.freeze({
+    productTypeRef: 48,
+    access: 'Public',
+    fields: Object.freeze([
+      'worker_id', 'origin_castle_id', 'ordinal', 'status', 'resource_kind',
+      'site_id', 'started_at_micros', 'arrives_at_micros',
+      'gathering_ends_at_micros', 'return_started_at_micros',
+      'returns_at_micros', 'route_steps', 'return_start_progress_basis_points',
+      'timeline_revision', 'revision',
+    ]),
+  }),
+  worker_assignment_v1: Object.freeze({
+    productTypeRef: 49,
+    access: 'Private',
+    fields: Object.freeze([
+      'assignment_id', 'worker_id', 'fid', 'origin_castle_id', 'resource_kind',
+      'site_id', 'phase', 'started_at_micros', 'arrives_at_micros',
+      'gathering_ends_at_micros', 'return_started_at_micros',
+      'returns_at_micros', 'route_steps', 'return_start_progress_basis_points',
+      'settled_through_micros', 'accrued_amount', 'materialized_amount',
+      'timeline_revision', 'policy_version', 'created_at', 'updated_at',
+    ]),
+  }),
+  worker_node_occupation_v1: Object.freeze({
+    productTypeRef: 50,
+    access: 'Public',
+    fields: Object.freeze([
+      'node_key', 'resource_kind', 'site_id', 'worker_id', 'worker_ordinal',
+      'origin_castle_id', 'phase', 'started_at_micros', 'arrives_at_micros',
+      'gathering_ends_at_micros', 'timeline_revision',
+    ]),
+  }),
+  worker_command_idempotency_v1: Object.freeze({
+    productTypeRef: 51,
+    access: 'Private',
+    fields: Object.freeze([
+      'request_key', 'fid', 'worker_id', 'command_kind', 'resource_kind',
+      'site_id', 'assignment_id', 'result_revision', 'created_at',
+    ]),
+  }),
+  worker_assignment_schedule_v_1: Object.freeze({
+    productTypeRef: 52,
+    access: 'Private',
+    fields: Object.freeze([
+      'schedule_id', 'scheduled_at', 'assignment_id', 'worker_id',
+      'timeline_revision', 'stage',
+    ]),
+  }),
 });
 
 const ALPHA_V8_COUNT_FIELDS = Object.freeze([
@@ -148,12 +280,226 @@ const ALPHA_V10_STATUS_KEYS = Object.freeze([
   ...ALPHA_V10_DIGEST_FIELDS,
   ...ALPHA_V10_COUNT_FIELDS,
 ].sort());
+const ALPHA_V12_U64_FIELDS = Object.freeze([
+  'systemRows',
+  'expectedCastleCount',
+  'expectedWorkerCount',
+  'actualWorkerCount',
+  'castlesMissingWorkers',
+  'castlesWithExtraWorkers',
+  'duplicateOrdinals',
+  'malformedWorkerIds',
+  'invalidWorkerStates',
+  'idleWorkers',
+  'outboundWorkers',
+  'gatheringWorkers',
+  'returningWorkers',
+  'assignments',
+  'occupations',
+  'schedules',
+  'orphanWorkers',
+  'orphanAssignments',
+  'assignmentsMissingOccupation',
+  'assignmentsWithoutSingleSchedule',
+  'orphanOccupations',
+  'orphanSchedules',
+  'invalidSchedules',
+  'assignmentPublicMismatches',
+  'occupationSiteMismatches',
+  'invalidAssignments',
+  'idempotencyReceipts',
+  'invalidIdempotencyReceipts',
+  'idempotencyOverflowFids',
+  'legacyExpeditions',
+  'legacyOccupations',
+  'legacySchedules',
+]);
+const ALPHA_V12_BOOLEAN_FIELDS = Object.freeze([
+  'systemConfigValid',
+  'legacyDrainRequired',
+  'expectedCountsMatch',
+  'rosterDigestMatches',
+]);
+const ALPHA_V12_STRING_FIELDS = Object.freeze([
+  'mode',
+  'rosterDigest',
+  'rosterDigestExpected',
+]);
+const ALPHA_V12_STATUS_KEYS = Object.freeze([
+  ...ALPHA_V12_U64_FIELDS,
+  ...ALPHA_V12_BOOLEAN_FIELDS,
+  ...ALPHA_V12_STRING_FIELDS,
+].sort());
+const EMPTY_WORKER_V12_ZERO_FIELDS = Object.freeze([
+  'systemRows',
+  'expectedCastleCount',
+  'expectedWorkerCount',
+  'actualWorkerCount',
+  'castlesWithExtraWorkers',
+  'duplicateOrdinals',
+  'malformedWorkerIds',
+  'invalidWorkerStates',
+  'idleWorkers',
+  'outboundWorkers',
+  'gatheringWorkers',
+  'returningWorkers',
+  'assignments',
+  'occupations',
+  'schedules',
+  'orphanWorkers',
+  'orphanAssignments',
+  'assignmentsMissingOccupation',
+  'assignmentsWithoutSingleSchedule',
+  'orphanOccupations',
+  'orphanSchedules',
+  'invalidSchedules',
+  'assignmentPublicMismatches',
+  'occupationSiteMismatches',
+  'invalidAssignments',
+  'idempotencyReceipts',
+  'invalidIdempotencyReceipts',
+  'idempotencyOverflowFids',
+]);
 const U64_MAXIMUM = (1n << 64n) - 1n;
 
 class SafePublishError extends Error {}
 
 function fail(message) {
   throw new SafePublishError(message);
+}
+
+const PRIVATE_SNAPSHOT_DIRECTORY_MODE = 0o700;
+const PRIVATE_SNAPSHOT_ARTIFACT_MODE = 0o400;
+const PRIVATE_SNAPSHOT_EXECUTABLE_MODE = 0o500;
+const MAX_PRIVATE_SNAPSHOT_BYTES = 128 * 1_024 * 1_024;
+const PRIVATE_SNAPSHOT_KINDS = Object.freeze({
+  ARTIFACT: 'artifact',
+  EXECUTABLE: 'executable',
+});
+
+function readExactVerifiedSourceBytes(sourcePath, expectedDigest, kind) {
+  if (
+    typeof sourcePath !== 'string'
+    || !isAbsolute(sourcePath)
+    || typeof expectedDigest !== 'string'
+    || !SHA256_DIGEST.test(expectedDigest)
+    || typeof kind !== 'string'
+    || !Object.values(PRIVATE_SNAPSHOT_KINDS).includes(kind)
+  ) {
+    fail('The private publication snapshot request was invalid.');
+  }
+
+  let descriptor;
+  try {
+    descriptor = openSync(sourcePath, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const before = fstatSync(descriptor);
+    if (
+      !before.isFile()
+      || before.size < 1
+      || before.size > MAX_PRIVATE_SNAPSHOT_BYTES
+    ) {
+      fail('The private publication snapshot source was not a regular file.');
+    }
+    const bytes = readFileSync(descriptor);
+    const after = fstatSync(descriptor);
+    if (
+      before.dev !== after.dev
+      || before.ino !== after.ino
+      || before.size !== after.size
+      || before.mtimeMs !== after.mtimeMs
+      || before.ctimeMs !== after.ctimeMs
+      || bytes.byteLength !== after.size
+    ) {
+      fail('The private publication snapshot source changed while it was read.');
+    }
+    const digest = createHash('sha256').update(bytes).digest('hex');
+    if (digest !== expectedDigest) {
+      fail(kind === PRIVATE_SNAPSHOT_KINDS.ARTIFACT
+        ? 'The proven SpacetimeDB artifact changed after migration verification.'
+        : 'The exact reviewed SpacetimeDB CLI binary was not active on this platform.');
+    }
+    // The caller copies this exact verified buffer. It never reopens the
+    // mutable source path between attestation and snapshot creation.
+    return Object.freeze({ bytes, digest });
+  } catch (error) {
+    if (error instanceof SafePublishError) throw error;
+    fail('The private publication snapshot source could not be read safely.');
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
+
+export function createPrivatePublishSnapshot(sourcePath, expectedDigest, kind) {
+  const verified = readExactVerifiedSourceBytes(sourcePath, expectedDigest, kind);
+  let directory;
+  let descriptor;
+  try {
+    directory = mkdtempSync(join(tmpdir(), 'warpkeep-publish-snapshot-'));
+    chmodSync(directory, PRIVATE_SNAPSHOT_DIRECTORY_MODE);
+    const directoryMetadata = statSync(directory);
+    if (
+      !directoryMetadata.isDirectory()
+      || (directoryMetadata.mode & 0o777) !== PRIVATE_SNAPSHOT_DIRECTORY_MODE
+    ) {
+      fail('The private publication snapshot directory permissions were not exact.');
+    }
+
+    const snapshotPath = join(
+      directory,
+      // The pinned CLI is a multicall binary and dispatches from argv[0]. Keep
+      // its reviewed command name while changing only the private directory.
+      kind === PRIVATE_SNAPSHOT_KINDS.EXECUTABLE ? 'spacetime' : 'module.js',
+    );
+    const snapshotMode = kind === PRIVATE_SNAPSHOT_KINDS.EXECUTABLE
+      ? PRIVATE_SNAPSHOT_EXECUTABLE_MODE
+      : PRIVATE_SNAPSHOT_ARTIFACT_MODE;
+    descriptor = openSync(
+      snapshotPath,
+      constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
+      PRIVATE_SNAPSHOT_DIRECTORY_MODE,
+    );
+    writeFileSync(descriptor, verified.bytes);
+    fchmodSync(descriptor, snapshotMode);
+    fsyncSync(descriptor);
+    const snapshotMetadata = fstatSync(descriptor);
+    if (
+      !snapshotMetadata.isFile()
+      || snapshotMetadata.size !== verified.bytes.byteLength
+      || (snapshotMetadata.mode & 0o777) !== snapshotMode
+    ) {
+      fail('The private publication snapshot was not created exactly.');
+    }
+    closeSync(descriptor);
+    descriptor = undefined;
+
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      try {
+        rmSync(directory, { recursive: true, force: true });
+        cleaned = true;
+      } catch {
+        fail('Private publication snapshot cleanup failed; no further publication is safe.');
+      }
+    };
+    return Object.freeze({
+      path: snapshotPath,
+      directory,
+      digest: verified.digest,
+      cleanup,
+    });
+  } catch (error) {
+    if (descriptor !== undefined) {
+      try { closeSync(descriptor); } catch { /* Cleanup below remains mandatory. */ }
+    }
+    if (directory !== undefined) {
+      try { rmSync(directory, { recursive: true, force: true }); } catch {
+        fail('Private publication snapshot cleanup failed; no further publication is safe.');
+      }
+    }
+    if (error instanceof SafePublishError) throw error;
+    fail('The private publication snapshot could not be created safely.');
+  }
 }
 
 function requireHttpsOrigin(value, label) {
@@ -294,6 +640,7 @@ export function parsePublishArguments(arguments_ = process.argv.slice(2)) {
   let dryRun = false;
   let resourceRolloutStage;
   let genesisWorldRolloutStage;
+  let workerRolloutStage;
   for (const argument of arguments_) {
     if (argument === '--dry-run' && !dryRun) {
       dryRun = true;
@@ -319,7 +666,17 @@ export function parsePublishArguments(arguments_ = process.argv.slice(2)) {
         continue;
       }
     }
-    fail('Usage: publish-spacetime-dev.mjs [--dry-run] --resource-rollout-stage=<prebackfill|ready> --genesis-world-stage=<pre-expansion|expanded>. Unknown or duplicate arguments are rejected.');
+    if (
+      argument.startsWith('--worker-rollout-stage=')
+      && workerRolloutStage === undefined
+    ) {
+      const value = argument.slice('--worker-rollout-stage='.length);
+      if (Object.values(WORKER_PUBLISH_ROLLOUT_STAGE).includes(value)) {
+        workerRolloutStage = value;
+        continue;
+      }
+    }
+    fail('Usage: publish-spacetime-dev.mjs [--dry-run] --resource-rollout-stage=<prebackfill|ready> --genesis-world-stage=<pre-expansion|expanded> --worker-rollout-stage=empty. Unknown or duplicate arguments are rejected.');
   }
   if (resourceRolloutStage === undefined) {
     fail('An explicit resource rollout stage is required: prebackfill for the first additive publication or ready for an already-backfilled republish.');
@@ -327,7 +684,15 @@ export function parsePublishArguments(arguments_ = process.argv.slice(2)) {
   if (genesisWorldRolloutStage === undefined) {
     fail('An explicit Genesis world stage is required: pre-expansion for the exact 1,261-cell predecessor or expanded for the exact 10,000-cell target.');
   }
-  return Object.freeze({ dryRun, resourceRolloutStage, genesisWorldRolloutStage });
+  if (workerRolloutStage === undefined) {
+    fail('An explicit empty Worker rollout stage is required for the one-time additive v12 publication.');
+  }
+  return Object.freeze({
+    dryRun,
+    resourceRolloutStage,
+    genesisWorldRolloutStage,
+    workerRolloutStage,
+  });
 }
 
 export function requireCanonicalPublishCoordinates(source = process.env) {
@@ -464,15 +829,28 @@ export function attestPinnedSpacetimeCli(
 ) {
   const environment = publishChildEnvironment(sourceEnvironment);
   const executablePath = resolveExecutablePath(executable, environment);
-  const digest = createHash('sha256').update(readFileSync(executablePath)).digest('hex');
-  const result = runBoundedSync(
+  const expectedDigest = EXPECTED_CLI_BINARY_SHA256[`${process.platform}-${process.arch}`];
+  if (typeof expectedDigest !== 'string') {
+    fail('The exact reviewed SpacetimeDB CLI binary was not active on this platform.');
+  }
+  const snapshot = createPrivatePublishSnapshot(
     executablePath,
-    ['--version'],
-    { env: environment, timeout: 10_000 },
-    spawnSyncProcess,
+    expectedDigest,
+    PRIVATE_SNAPSHOT_KINDS.EXECUTABLE,
   );
-  verifyPinnedCliAttestation(result.stdout, digest);
-  return executablePath;
+  try {
+    const result = runBoundedSync(
+      snapshot.path,
+      ['--version'],
+      { env: environment, timeout: 10_000 },
+      spawnSyncProcess,
+    );
+    verifyPinnedCliAttestation(result.stdout, snapshot.digest);
+    return snapshot;
+  } catch (error) {
+    snapshot.cleanup();
+    throw error;
+  }
 }
 
 export function verifyCanonicalDatabaseList(output) {
@@ -498,6 +876,237 @@ export function attestCanonicalDatabase(executable, spawnSyncProcess = spawnSync
   verifyCanonicalDatabaseList(result.stdout);
 }
 
+export function canonicalSchemaDescribeChildArguments() {
+  return [
+    'describe',
+    '--json',
+    '--anonymous',
+    '--server', CANONICAL_MAINCLOUD_URI,
+    '--no-config',
+    CANONICAL_DATABASE_IDENTITY,
+  ];
+}
+
+export function parseCanonicalSchemaDescription(output) {
+  let description;
+  try {
+    description = JSON.parse(output);
+  } catch {
+    fail('The canonical schema inspection did not return machine-readable JSON.');
+  }
+  if (
+    !description
+    || typeof description !== 'object'
+    || Array.isArray(description)
+    || !Array.isArray(description.tables)
+    || !description.typespace
+    || typeof description.typespace !== 'object'
+    || !Array.isArray(description.typespace.types)
+  ) {
+    fail('The canonical schema inspection returned an invalid description.');
+  }
+  return description;
+}
+
+function canonicalJson(value) {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map(key => (
+      `${JSON.stringify(key)}:${canonicalJson(value[key])}`
+    )).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function schemaTableSignature(description, name) {
+  const matches = description.tables.filter(candidate => candidate?.name === name);
+  if (matches.length !== 1 || !Number.isSafeInteger(matches[0].product_type_ref)) {
+    fail('The canonical schema did not contain one exact required table.');
+  }
+  const table = matches[0];
+  const rowType = description.typespace.types[table.product_type_ref];
+  if (!rowType || typeof rowType !== 'object' || Array.isArray(rowType)) {
+    fail('The canonical schema did not contain one exact required row type.');
+  }
+  return { ...table, rowType };
+}
+
+function verifyExactTableIdentities(description, expectedRefs) {
+  const expectedNames = Object.keys(expectedRefs).sort();
+  const actualNames = description.tables.map(table => table?.name).sort();
+  if (
+    actualNames.length !== expectedNames.length
+    || actualNames.some((name, index) => name !== expectedNames[index])
+  ) {
+    fail('The canonical schema table set did not match the exact publication boundary.');
+  }
+  for (const [name, expectedRef] of Object.entries(expectedRefs)) {
+    const signature = schemaTableSignature(description, name);
+    if (signature.product_type_ref !== expectedRef) {
+      fail('The canonical schema product-type references did not match the exact publication boundary.');
+    }
+  }
+}
+
+function schemaFieldNames(description, name) {
+  const elements = schemaTableSignature(description, name).rowType?.Product?.elements;
+  if (!Array.isArray(elements)) {
+    fail('The canonical Worker schema row fields were absent.');
+  }
+  const fields = elements.map(element => element?.name?.some);
+  if (fields.some(field => typeof field !== 'string')) {
+    fail('The canonical Worker schema row fields were invalid.');
+  }
+  return fields;
+}
+
+function schemaTableAccess(description, name) {
+  const access = schemaTableSignature(description, name).table_access;
+  if (!access || typeof access !== 'object' || Array.isArray(access)) {
+    fail('The canonical Worker schema table access was invalid.');
+  }
+  const keys = Object.keys(access);
+  if (keys.length !== 1) fail('The canonical Worker schema table access was invalid.');
+  return keys[0];
+}
+
+/**
+ * Require the live predecessor to be exactly the deployed v11 table boundary.
+ * The returned canonical signatures are retained in memory and compared after
+ * publication so no pre-existing table can drift unnoticed.
+ */
+export function verifyExactProductionV11Schema(description, expectedTableSchemaDigest) {
+  verifyExactTableIdentities(description, PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS);
+  try {
+    if (
+      typeof expectedTableSchemaDigest !== 'string'
+      || !SHA256_DIGEST.test(expectedTableSchemaDigest)
+      || canonicalTableSchemaBoundaryDigest(
+        description,
+        Object.keys(PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS),
+      ) !== expectedTableSchemaDigest
+    ) {
+      fail('The canonical v11 table schema did not match the proven publication boundary.');
+    }
+  } catch (error) {
+    if (
+      error instanceof SafePublishError
+      && error.message === 'The canonical v11 table schema did not match the proven publication boundary.'
+    ) throw error;
+    fail('The canonical v11 table schema did not match the proven publication boundary.');
+  }
+  return Object.freeze(Object.fromEntries(
+    Object.keys(PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS).map(name => [
+      name,
+      canonicalJson(schemaTableSignature(description, name)),
+    ]),
+  ));
+}
+
+/** Require an exact v12 suffix while preserving every captured v11 signature. */
+export function verifyExactProductionV12Schema(
+  predecessorSignatures,
+  description,
+  expectedTableSchemaDigest,
+) {
+  if (
+    !predecessorSignatures
+    || typeof predecessorSignatures !== 'object'
+    || Array.isArray(predecessorSignatures)
+    || Object.keys(predecessorSignatures).sort().join(',')
+      !== Object.keys(PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS).sort().join(',')
+    || Object.values(predecessorSignatures).some(value => typeof value !== 'string')
+  ) {
+    fail('The captured production v11 schema boundary was invalid.');
+  }
+  const v12Refs = Object.freeze({
+    ...PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS,
+    ...Object.fromEntries(Object.entries(WORKER_V12_TABLE_CONTRACTS)
+      .map(([name, contract]) => [name, contract.productTypeRef])),
+  });
+  verifyExactTableIdentities(description, v12Refs);
+  for (const name of Object.keys(PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS)) {
+    if (canonicalJson(schemaTableSignature(description, name)) !== predecessorSignatures[name]) {
+      fail('A pre-existing production table changed during the v12 publication.');
+    }
+  }
+  for (const [name, contract] of Object.entries(WORKER_V12_TABLE_CONTRACTS)) {
+    if (
+      schemaTableAccess(description, name) !== contract.access
+      || canonicalJson(schemaFieldNames(description, name)) !== canonicalJson(contract.fields)
+    ) {
+      fail('The appended Worker schema did not match the exact v12 contract.');
+    }
+  }
+  try {
+    if (
+      typeof expectedTableSchemaDigest !== 'string'
+      || !SHA256_DIGEST.test(expectedTableSchemaDigest)
+      || canonicalTableSchemaBoundaryDigest(
+        description,
+        Object.keys(v12Refs),
+      ) !== expectedTableSchemaDigest
+    ) {
+      fail('The canonical v12 table schema did not match the proven publication boundary.');
+    }
+  } catch (error) {
+    if (
+      error instanceof SafePublishError
+      && error.message === 'The canonical v12 table schema did not match the proven publication boundary.'
+    ) throw error;
+    fail('The canonical v12 table schema did not match the proven publication boundary.');
+  }
+  return Object.freeze({
+    predecessorTableCount: Object.keys(PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS).length,
+    appendedWorkerTableCount: Object.keys(WORKER_V12_TABLE_CONTRACTS).length,
+    totalTableCount: Object.keys(v12Refs).length,
+  });
+}
+
+export function verifyFreshProductionV11Schema(
+  executable,
+  expectedTableSchemaDigest,
+  spawnSyncProcess = spawnSync,
+) {
+  try {
+    const result = runBoundedSync(
+      executable,
+      canonicalSchemaDescribeChildArguments(),
+      { timeout: 30_000 },
+      spawnSyncProcess,
+    );
+    return verifyExactProductionV11Schema(
+      parseCanonicalSchemaDescription(result.stdout),
+      expectedTableSchemaDigest,
+    );
+  } catch {
+    fail('Exact production v11 schema preflight failed. No publish was attempted.');
+  }
+}
+
+export function verifyPostPublishProductionV12Schema(
+  executable,
+  predecessorSignatures,
+  expectedTableSchemaDigest,
+  spawnSyncProcess = spawnSync,
+) {
+  try {
+    const result = runBoundedSync(
+      executable,
+      canonicalSchemaDescribeChildArguments(),
+      { timeout: 30_000 },
+      spawnSyncProcess,
+    );
+    return verifyExactProductionV12Schema(
+      predecessorSignatures,
+      parseCanonicalSchemaDescription(result.stdout),
+      expectedTableSchemaDigest,
+    );
+  } catch {
+    fail('Post-publication v12 schema checkpoint is indeterminate; a fresh anonymous read-only schema inspection is required before any merge, client deployment, Worker seed, backfill, activation, or further publication decision.');
+  }
+}
+
 function digestArtifact(artifactPath) {
   let descriptor;
   try {
@@ -515,24 +1124,34 @@ function digestArtifact(artifactPath) {
   }
 }
 
-export function verifyMigrationArtifactReceipt(receipt) {
+function validateMigrationArtifactReceiptShape(receipt) {
   if (
     receipt === null
     || typeof receipt !== 'object'
-    || Object.keys(receipt).sort().join(',') !== 'artifactDigest,artifactPath'
+    || Object.keys(receipt).sort().join(',')
+      !== 'artifactDigest,artifactPath,v11TableSchemaDigest,v12TableSchemaDigest'
     || receipt.artifactPath !== PROVEN_ARTIFACT_PATH
-    || !/^[0-9a-f]{64}$/.test(receipt.artifactDigest ?? '')
+    || !SHA256_DIGEST.test(receipt.v11TableSchemaDigest ?? '')
+    || !SHA256_DIGEST.test(receipt.v12TableSchemaDigest ?? '')
+    || !SHA256_DIGEST.test(receipt.artifactDigest ?? '')
   ) {
     fail('The additive migration proof artifact receipt was invalid.');
   }
-  const currentDigest = digestArtifact(receipt.artifactPath);
-  if (currentDigest !== receipt.artifactDigest) {
-    fail('The proven SpacetimeDB artifact changed after migration verification.');
-  }
   return Object.freeze({
     artifactPath: receipt.artifactPath,
+    v11TableSchemaDigest: receipt.v11TableSchemaDigest,
+    v12TableSchemaDigest: receipt.v12TableSchemaDigest,
     artifactDigest: receipt.artifactDigest,
   });
+}
+
+export function verifyMigrationArtifactReceipt(receipt) {
+  const validated = validateMigrationArtifactReceiptShape(receipt);
+  const currentDigest = digestArtifact(validated.artifactPath);
+  if (currentDigest !== validated.artifactDigest) {
+    fail('The proven SpacetimeDB artifact changed after migration verification.');
+  }
+  return validated;
 }
 
 export function parseMigrationProofReceipt(output) {
@@ -544,6 +1163,8 @@ export function parseMigrationProofReceipt(output) {
   }
   return verifyMigrationArtifactReceipt({
     artifactPath: PROVEN_ARTIFACT_PATH,
+    v11TableSchemaDigest: proofReceipt.v11TableSchemaDigest,
+    v12TableSchemaDigest: proofReceipt.v12TableSchemaDigest,
     artifactDigest: proofReceipt.artifactDigest,
   });
 }
@@ -677,6 +1298,15 @@ export function alphaV10AggregateChildArguments(tsxCli) {
     tsxCli,
     'scripts/hermes-admin.ts',
     'inspect-alpha-v10',
+    '--json',
+  ];
+}
+
+export function alphaV12AggregateChildArguments(tsxCli) {
+  return [
+    tsxCli,
+    'scripts/hermes-admin.ts',
+    'inspect-alpha-v12',
     '--json',
   ];
 }
@@ -838,6 +1468,104 @@ export function verifyFreshAlphaStatusV10Aggregate(
   return verifyPrivacySafeAlphaStatusV10Output(result.stdout);
 }
 
+/** Accept only the exact aggregate-only Worker v12 JSON envelope from Hermes. */
+export function verifyPrivacySafeAlphaStatusV12Output(output) {
+  let status;
+  try {
+    status = JSON.parse(output);
+  } catch {
+    fail('Alpha procedure-v12 inspection did not return machine-readable JSON.');
+  }
+  if (!status || typeof status !== 'object' || Array.isArray(status)) {
+    fail('Alpha procedure-v12 inspection returned an invalid status object.');
+  }
+  const actualKeys = Object.keys(status).sort();
+  if (
+    actualKeys.length !== ALPHA_V12_STATUS_KEYS.length
+    || actualKeys.some((key, index) => key !== ALPHA_V12_STATUS_KEYS[index])
+  ) fail('Alpha procedure-v12 inspection returned unexpected fields.');
+  for (const field of ALPHA_V12_U64_FIELDS) {
+    const value = status[field];
+    if (
+      typeof value !== 'string'
+      || !/^(?:0|[1-9]\d*)$/.test(value)
+      || value.length > 20
+      || BigInt(value) > U64_MAXIMUM
+    ) fail('Alpha procedure-v12 inspection returned an invalid aggregate count.');
+  }
+  for (const field of ALPHA_V12_BOOLEAN_FIELDS) {
+    if (typeof status[field] !== 'boolean') {
+      fail('Alpha procedure-v12 inspection returned an invalid status flag.');
+    }
+  }
+  if (
+    (status.mode !== 'absent' && status.mode !== 'staged' && status.mode !== 'active')
+    || (status.rosterDigest !== ''
+      && (typeof status.rosterDigest !== 'string'
+        || !/^[0-9a-f]{16}$/.test(status.rosterDigest)))
+    || typeof status.rosterDigestExpected !== 'string'
+    || !/^[0-9a-f]{16}$/.test(status.rosterDigestExpected)
+  ) fail('Alpha procedure-v12 inspection returned invalid Worker metadata.');
+  return Object.freeze({ ...status });
+}
+
+export function verifyEmptyAlphaStatusV12(status, expectedFounderCount) {
+  if (
+    !Number.isSafeInteger(expectedFounderCount)
+    || expectedFounderCount < 1
+    || expectedFounderCount > 100
+  ) fail('The empty Worker checkpoint expected founder count was invalid.');
+  if (
+    status.mode !== 'absent'
+    || status.systemConfigValid !== false
+    || status.legacyDrainRequired !== true
+    || status.expectedCountsMatch !== false
+    || status.rosterDigestMatches !== false
+    || status.castlesMissingWorkers !== String(expectedFounderCount)
+    || status.rosterDigest !== ''
+    || EMPTY_WORKER_V12_ZERO_FIELDS.some(field => status[field] !== '0')
+  ) {
+    fail('Alpha procedure-v12 did not prove an empty, inert Worker suffix.');
+  }
+  return status;
+}
+
+export function verifyFreshAlphaStatusV12Aggregate(
+  secret,
+  expectedFounderCount,
+  spawnSyncProcess = spawnSync,
+) {
+  const secretBytes = typeof secret === 'string' ? new TextEncoder().encode(secret).byteLength : 0;
+  if (secretBytes < 32 || secretBytes > 512) {
+    fail('A local 32-to-512-byte Hermes credential is required for the fresh Alpha v12 checkpoint.');
+  }
+  if (
+    !Number.isSafeInteger(expectedFounderCount)
+    || expectedFounderCount < 1
+    || expectedFounderCount > 100
+  ) fail('The Alpha v12 checkpoint expected founder count was invalid.');
+  const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
+  const result = runBoundedSync(
+    process.execPath,
+    alphaV12AggregateChildArguments(tsxCli),
+    {
+      env: {
+        WARPKEEP_SPACETIMEDB_URI: CANONICAL_MAINCLOUD_URI,
+        WARPKEEP_SPACETIMEDB_DATABASE: CANONICAL_DATABASE_IDENTITY,
+        WARPKEEP_AUTH_BRIDGE_URL: CANONICAL_BRIDGE,
+        WARPKEEP_ADMIN_TOKEN_SECRET_STDIN: '1',
+      },
+      input: secret,
+      timeout: 30_000,
+    },
+    spawnSyncProcess,
+  );
+  return verifyEmptyAlphaStatusV12(
+    verifyPrivacySafeAlphaStatusV12Output(result.stdout),
+    expectedFounderCount,
+  );
+}
+
 export function verifyPostPublishFoundedProtocolV3Aggregate(
   secret,
   expectations,
@@ -853,8 +1581,8 @@ export function verifyPostPublishFoundedProtocolV3Aggregate(
     );
   } catch {
     // Publication has already returned success. Never surface a preflight-style
-    // "no publish attempted" message or invite an unsafe retry when only the
-    // bounded post-publication inspection failed.
+    // "no publish attempted" message or invite another publication when only
+    // the bounded post-publication inspection failed.
     fail('Post-publication protocol-v3 verification is indeterminate; a fresh read-only inspection is required before any backfill or further publication decision.');
   }
 }
@@ -916,16 +1644,36 @@ export function verifyPostPublishAlphaStatusV10Aggregate(
   }
 }
 
+export function verifyPostPublishAlphaStatusV12Aggregate(
+  secret,
+  expectedFounderCount,
+  spawnSyncProcess = spawnSync,
+) {
+  try {
+    return verifyFreshAlphaStatusV12Aggregate(
+      secret,
+      expectedFounderCount,
+      spawnSyncProcess,
+    );
+  } catch {
+    fail('Post-publication Alpha procedure-v12 checkpoint is indeterminate; a fresh read-only v12 inspection is required before any merge, client deployment, Worker seed, backfill, activation, or further publication decision.');
+  }
+}
+
 export function verifyPostPublishResourcePublicationCheckpoints(
   secret,
   expectations,
   resourceRolloutStage,
+  workerRolloutStage,
   spawnSyncProcess = spawnSync,
   genesisWorldRolloutStage = GENESIS_WORLD_PUBLISH_STAGE.PRE_EXPANSION,
 ) {
   const exactExpectations = validateFoundedPublishExpectations(expectations);
   if (!Object.values(RESOURCE_PUBLISH_ROLLOUT_STAGE).includes(resourceRolloutStage)) {
     fail('The post-publication resource rollout stage was invalid.');
+  }
+  if (workerRolloutStage !== WORKER_PUBLISH_ROLLOUT_STAGE.EMPTY) {
+    fail('The post-publication Worker rollout stage was invalid.');
   }
   verifyPostPublishFoundedProtocolV3Aggregate(
     secret,
@@ -948,6 +1696,11 @@ export function verifyPostPublishResourcePublicationCheckpoints(
   }
   verifyPostPublishAlphaStatusV8Aggregate(secret, spawnSyncProcess);
   verifyPostPublishAlphaStatusV10Aggregate(secret, spawnSyncProcess);
+  verifyPostPublishAlphaStatusV12Aggregate(
+    secret,
+    exactExpectations.expectedFounderCount,
+    spawnSyncProcess,
+  );
 }
 
 export async function publishModule(
@@ -959,84 +1712,93 @@ export async function publishModule(
   if (targetDatabase !== CANONICAL_DATABASE_IDENTITY) {
     fail('The production publish target was not the pinned canonical database identity.');
   }
-  const artifact = verifyMigrationArtifactReceipt(artifactReceipt);
+  const artifact = validateMigrationArtifactReceiptShape(artifactReceipt);
+  const artifactSnapshot = createPrivatePublishSnapshot(
+    artifact.artifactPath,
+    artifact.artifactDigest,
+    PRIVATE_SNAPSHOT_KINDS.ARTIFACT,
+  );
   const arguments_ = [
     'publish',
     '--server', CANONICAL_MAINCLOUD_URI,
-    '--js-path', artifact.artifactPath,
+    '--js-path', artifactSnapshot.path,
     '--delete-data=never',
     '--yes=remote',
     '--no-config',
     targetDatabase,
   ];
-  await new Promise((resolvePromise, rejectPromise) => {
-    let settled = false;
-    let timedOut = false;
-    let outputExceeded = false;
-    let outputBytes = 0;
-    let deadline;
-    let forcedKill;
-    const settle = (callback) => {
-      if (settled) return;
-      settled = true;
-      if (deadline !== undefined) clearTimeout(deadline);
-      if (forcedKill !== undefined) clearTimeout(forcedKill);
-      callback();
-    };
+  try {
+    await new Promise((resolvePromise, rejectPromise) => {
+      let settled = false;
+      let timedOut = false;
+      let outputExceeded = false;
+      let outputBytes = 0;
+      let deadline;
+      let forcedKill;
+      const settle = (callback) => {
+        if (settled) return;
+        settled = true;
+        if (deadline !== undefined) clearTimeout(deadline);
+        if (forcedKill !== undefined) clearTimeout(forcedKill);
+        callback();
+      };
 
-    let child;
-    try {
-      child = spawnProcess(spacetimeCommand, arguments_, {
-        cwd: repositoryRoot,
-        // A compatibility or break-clients prompt must see EOF and abort. The
-        // bounded output is consumed without mirroring private process detail.
-        stdio: ['ignore', 'pipe', 'pipe'],
-        // The CLI uses local config/Home and standard network settings. It
-        // never receives ambient Warpkeep signing, admin, RPC, or review data.
-        env: publishChildEnvironment(),
+      let child;
+      try {
+        child = spawnProcess(spacetimeCommand, arguments_, {
+          cwd: repositoryRoot,
+          // A compatibility or break-clients prompt must see EOF and abort. The
+          // bounded output is consumed without mirroring private process detail.
+          stdio: ['ignore', 'pipe', 'pipe'],
+          // The CLI uses local config/Home and standard network settings. It
+          // never receives ambient Warpkeep signing, admin, RPC, or review data.
+          env: publishChildEnvironment(),
+        });
+      } catch (error) {
+        settle(() => rejectPromise(error));
+        return;
+      }
+      const observeOutput = (stream) => {
+        if (!stream || typeof stream.on !== 'function') return;
+        stream.on('data', chunk => {
+          outputBytes += chunk.byteLength;
+          if (outputBytes <= MAX_CHILD_OUTPUT_BYTES || outputExceeded) return;
+          outputExceeded = true;
+          try { child.kill('SIGKILL'); } catch { /* The bounded failure remains generic. */ }
+          forcedKill = setTimeout(() => {
+            settle(() => rejectPromise(new Error('SpacetimeDB publish output exceeded its fixed bound.')));
+          }, PUBLISH_KILL_GRACE_MILLISECONDS);
+        });
+      };
+      observeOutput(child.stdout);
+      observeOutput(child.stderr);
+      child.on('error', (error) => {
+        // A signal-delivery error can arrive after the deadline. Keep the forced
+        // SIGKILL timer alive in that case instead of abandoning the child. Keep
+        // this listener installed so a second kill-delivery error is not emitted
+        // as an unhandled EventEmitter error after forced settlement.
+        if (!timedOut) settle(() => rejectPromise(error));
       });
-    } catch (error) {
-      settle(() => rejectPromise(error));
-      return;
-    }
-    const observeOutput = (stream) => {
-      if (!stream || typeof stream.on !== 'function') return;
-      stream.on('data', chunk => {
-        outputBytes += chunk.byteLength;
-        if (outputBytes <= MAX_CHILD_OUTPUT_BYTES || outputExceeded) return;
-        outputExceeded = true;
-        try { child.kill('SIGKILL'); } catch { /* The bounded failure remains generic. */ }
+      child.once('close', (code) => settle(() => {
+        if (!timedOut && !outputExceeded && code === 0) resolvePromise();
+        else rejectPromise(new Error('SpacetimeDB publish did not complete successfully.'));
+      }));
+
+      deadline = setTimeout(() => {
+        timedOut = true;
+        try { child.kill('SIGTERM'); } catch { /* Fall through to the forced deadline. */ }
         forcedKill = setTimeout(() => {
-          settle(() => rejectPromise(new Error('SpacetimeDB publish output exceeded its fixed bound.')));
+          try { child.kill('SIGKILL'); } catch { /* The outcome remains indeterminate. */ }
+          // Do not wait indefinitely for a child that ignores termination or
+          // withholds its close event. Treat the publication outcome as
+          // indeterminate and require a fresh read-only inspection.
+          settle(() => rejectPromise(new Error('SpacetimeDB publish exceeded its hard deadline.')));
         }, PUBLISH_KILL_GRACE_MILLISECONDS);
-      });
-    };
-    observeOutput(child.stdout);
-    observeOutput(child.stderr);
-    child.on('error', (error) => {
-      // A signal-delivery error can arrive after the deadline. Keep the forced
-      // SIGKILL timer alive in that case instead of abandoning the child. Keep
-      // this listener installed so a second kill-delivery error is not emitted
-      // as an unhandled EventEmitter error after forced settlement.
-      if (!timedOut) settle(() => rejectPromise(error));
+      }, PUBLISH_TIMEOUT_MILLISECONDS);
     });
-    child.once('close', (code) => settle(() => {
-      if (!timedOut && !outputExceeded && code === 0) resolvePromise();
-      else rejectPromise(new Error('SpacetimeDB publish did not complete successfully.'));
-    }));
-
-    deadline = setTimeout(() => {
-      timedOut = true;
-      try { child.kill('SIGTERM'); } catch { /* Fall through to the forced deadline. */ }
-      forcedKill = setTimeout(() => {
-        try { child.kill('SIGKILL'); } catch { /* The outcome remains indeterminate. */ }
-        // Do not wait indefinitely for a child that ignores termination or
-        // withholds its close event. The CLI outcome must be inspected before
-        // any operator retries the publish.
-        settle(() => rejectPromise(new Error('SpacetimeDB publish exceeded its hard deadline.')));
-      }, PUBLISH_KILL_GRACE_MILLISECONDS);
-    }, PUBLISH_TIMEOUT_MILLISECONDS);
-  });
+  } finally {
+    artifactSnapshot.cleanup();
+  }
 }
 
 async function main() {
@@ -1044,6 +1806,7 @@ async function main() {
     dryRun,
     resourceRolloutStage,
     genesisWorldRolloutStage,
+    workerRolloutStage,
   } = parsePublishArguments();
   requireCanonicalPublishCoordinates();
   if (database !== CANONICAL_DATABASE) fail('The production publisher target was not canonical.');
@@ -1058,42 +1821,65 @@ async function main() {
     fail(`Set WARPKEEP_PUBLISH_CONFIRM=${database} after reviewing the target database; publish was not attempted.`);
   }
   const foundedExpectations = readFoundedPublishExpectations();
-  const executable = attestPinnedSpacetimeCli(command);
-  const artifactReceipt = runCurrentAdditiveMigrationProof(executable);
-  if (dryRun) {
+  // Remove the Hermes credential from the ambient environment before the
+  // long-running proof spawns any children. The bounded aggregate helpers
+  // receive it only through stdin and every child environment stays allowlisted.
+  let adminTokenSecret = process.env.WARPKEEP_ADMIN_TOKEN_SECRET;
+  delete process.env.WARPKEEP_ADMIN_TOKEN_SECRET;
+  const executableSnapshot = attestPinnedSpacetimeCli(command);
+  try {
+    // Keep every proof, inspection, publish, and checkpoint bound to the one
+    // attested CLI copy for this complete publication lifecycle.
+    const executable = executableSnapshot.path;
+    const artifactReceipt = runCurrentAdditiveMigrationProof(executable);
+    if (dryRun) {
+      await validateIssuerDeployment(issuer);
+      console.log(`Dry run: verified the pinned CLI, current additive migration, founded-state expectation contract, explicit ${resourceRolloutStage} resource stage, explicit ${genesisWorldRolloutStage} Genesis world stage, explicit ${workerRolloutStage} Worker stage, and ${issuer}; would update the canonical existing database without deleting data.`);
+      return;
+    }
     await validateIssuerDeployment(issuer);
-    console.log(`Dry run: verified the pinned CLI, current additive migration, founded-state expectation contract, explicit ${resourceRolloutStage} resource stage, explicit ${genesisWorldRolloutStage} Genesis world stage, and ${issuer}; would update the canonical existing database without deleting data.`);
-    return;
-  }
-  await validateIssuerDeployment(issuer);
-  attestCanonicalDatabase(executable);
-  verifyFreshFoundedProtocolV3Aggregate(
-    process.env.WARPKEEP_ADMIN_TOKEN_SECRET,
-    foundedExpectations,
-    spawnSync,
-    genesisWorldRolloutStage,
-  );
-  if (resourceRolloutStage === RESOURCE_PUBLISH_ROLLOUT_STAGE.READY) {
-    verifyFreshResourceProtocolV4ReadyAggregate(
-      process.env.WARPKEEP_ADMIN_TOKEN_SECRET,
-      foundedExpectations.expectedFounderCount,
+    attestCanonicalDatabase(executable);
+    const predecessorSchema = verifyFreshProductionV11Schema(
+      executable,
+      artifactReceipt.v11TableSchemaDigest,
     );
+    verifyFreshFoundedProtocolV3Aggregate(
+      adminTokenSecret,
+      foundedExpectations,
+      spawnSync,
+      genesisWorldRolloutStage,
+    );
+    if (resourceRolloutStage === RESOURCE_PUBLISH_ROLLOUT_STAGE.READY) {
+      verifyFreshResourceProtocolV4ReadyAggregate(
+        adminTokenSecret,
+        foundedExpectations.expectedFounderCount,
+      );
+    }
+    await publishModule(executable, CANONICAL_DATABASE_IDENTITY, artifactReceipt);
+    verifyPostPublishProductionV12Schema(
+      executable,
+      predecessorSchema,
+      artifactReceipt.v12TableSchemaDigest,
+    );
+    verifyPostPublishResourcePublicationCheckpoints(
+      adminTokenSecret,
+      foundedExpectations,
+      resourceRolloutStage,
+      workerRolloutStage,
+      spawnSync,
+      genesisWorldRolloutStage,
+    );
+  } finally {
+    adminTokenSecret = undefined;
+    executableSnapshot.cleanup();
   }
-  await publishModule(executable, CANONICAL_DATABASE_IDENTITY, artifactReceipt);
-  verifyPostPublishResourcePublicationCheckpoints(
-    process.env.WARPKEEP_ADMIN_TOKEN_SECRET,
-    foundedExpectations,
-    resourceRolloutStage,
-    spawnSync,
-    genesisWorldRolloutStage,
-  );
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   main().catch((error) => {
     console.error(error instanceof SafePublishError
       ? error.message
-      : 'Non-destructive publish did not complete. The outcome may be indeterminate; inspect Maincloud before retrying.');
+      : 'Non-destructive publish did not complete. The outcome may be indeterminate; perform a fresh read-only Maincloud inspection before any further publication decision.');
     process.exitCode = 1;
   });
 }

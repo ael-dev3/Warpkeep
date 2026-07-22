@@ -38,7 +38,17 @@ describe('luminous broad grass visual contract', () => {
     expect(meadow).toHaveLength(4);
     expect(meadow[0]!.r).toBeCloseTo(0.3916, 3);
     meadow.forEach((colour) => expect(colour.g).toBeGreaterThan(colour.r));
-    expect(REALM_GRASS_BIOME_PROFILES.heath.palette).toHaveLength(3);
+    const heath = REALM_GRASS_BIOME_PROFILES.heath;
+    expect(heath.palette).toHaveLength(3);
+    heath.palette.forEach((colour) => {
+      expect(colour.g).toBeGreaterThan(colour.r);
+      expect(colour.g).toBeGreaterThan(colour.b);
+    });
+    expect(heath.highCandidateCount).toBe(22);
+    expect(heath.completelyBareThreshold).toBe(0.28);
+    expect(heath.retention).toBe(0.8);
+    expect(REALM_GRASS_BIOME_PROFILES.lake.highCandidateCount).toBe(0);
+    expect(REALM_GRASS_BIOME_PROFILES.lake.retention).toBe(0);
   });
 
   it('uses coverage alpha without switching the foliage layer to blending', () => {

@@ -6,24 +6,24 @@ export type LatestPatchNotes = Readonly<{
   alphaNotice: string;
 }>;
 
-const ALPHA_0_3_13_PATCH_NOTES: LatestPatchNotes = Object.freeze({
-  releasedOn: '19 JUL 2026',
-  title: 'THE LIVING LOWLANDS',
+const ALPHA_0_3_14_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: '22 JUL 2026',
+  title: 'A STEADIER FRONTIER',
   summary:
-    'Genesis 001 breathes more naturally as rivers, forests, grasslands, and the ocean settle into a clearer frontier.',
+    'Genesis 001 is steadier and easier to read, with resilient Realm rendering, selectable moving water, and a greener Lowlands.',
   highlights: Object.freeze([
-    'The old scattered lakes have receded into lowland, leaving twelve persistent one-cell rivers and the ocean around Genesis 001.',
-    'You can pan through the coast and open water until the full fog boundary, including from the strategic overview.',
-    'Grass now follows broad biome patterns and forests gather into natural groves while rivers, roads, keeps, and resource sites stay clear.',
-    'Moving supply wagons can be selected, and the Realm menu now keeps every active expedition within reach.'
+    'The Realm now recovers from temporary graphics interruptions while preserving your selection and camera intent.',
+    'Castle rendering can continue at compact detail when optional richer models cannot load.',
+    'Water surfaces now move gently when motion is enabled, and visible river and ocean cells can be selected for read-only public records.',
+    'The Lowlands now use a clearer green palette and denser grass coverage without changing authoritative terrain, ownership, or resource rules.'
   ]),
   alphaNotice:
-    'Alpha 0.3.13 is an unfinished, evolving world. Community feedback helps shape what is built next.'
+    'Alpha 0.3.14 is an unfinished, evolving world. Four-worker gathering is staged for later and is not live yet; community feedback helps shape what is built next.'
 });
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
-    '0.3.13': ALPHA_0_3_13_PATCH_NOTES
+    '0.3.14': ALPHA_0_3_14_PATCH_NOTES
   });
 
 export function getLatestPatchNotes(productVersion: string) {

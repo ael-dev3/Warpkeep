@@ -61,10 +61,16 @@ export type HegemonyKeepPrefabLoader = (
 
 export type HegemonyKeepPrefabRepository = Readonly<{
   /**
-   * Coalesces concurrent acquisition. A retired LOD cannot be reacquired in
-   * the same realm session because its GPU resources have already been freed.
+   * Coalesces concurrent acquisition. A successfully loaded, released LOD
+   * cannot be reacquired in the same realm session because its GPU resources
+   * have already been freed.
    */
   acquire: (lod: CastleLod, signal?: AbortSignal) => Promise<HegemonyKeepPrefabLease>;
+  /**
+   * Retires one settled failed request before reacquiring it. Concurrent
+   * retry callers still coalesce onto the single replacement entry.
+   */
+  retryFailed: (lod: CastleLod, signal?: AbortSignal) => Promise<HegemonyKeepPrefabLease>;
 }>;
 
 export type CreateHegemonyKeepPrefabRepositoryOptions = Readonly<{
@@ -94,6 +100,7 @@ type InternalPrefab = Readonly<{
 type CacheEntry = {
   activeLeases: number;
   abortController: AbortController;
+  failed: boolean;
   internal?: InternalPrefab;
   pendingAcquisitions: number;
   promise: Promise<InternalPrefab>;
@@ -547,6 +554,7 @@ export function createHegemonyKeepPrefabRepository(
     const entry: CacheEntry = {
       activeLeases: 0,
       abortController,
+      failed: false,
       pendingAcquisitions: 0,
       promise: Promise.resolve()
         .then(() => loader(lod, abortController.signal))
@@ -562,6 +570,10 @@ export function createHegemonyKeepPrefabRepository(
             // Preserve cancellation after best-effort custom-loader cleanup.
           }
           throw createRealmLoadAbortError(`Hegemony keep ${lod} prefab`);
+        })
+        .catch((error: unknown) => {
+          entry.failed = true;
+          throw error;
         }),
       resourcesReleased: false,
       retired: false
@@ -570,61 +582,77 @@ export function createHegemonyKeepPrefabRepository(
     return entry;
   };
 
-  return Object.freeze({
-    acquire: (lod, signal) => {
-      if (signal?.aborted) {
-        return Promise.reject(createRealmLoadAbortError(`Hegemony keep ${lod} prefab`));
-      }
-      const entry = entryFor(lod);
-      if (entry.retired) {
-        return Promise.reject(new Error(
-          `Hegemony keep ${lod} prefab is retired for this realm session.`
-        ));
-      }
-      entry.pendingAcquisitions += 1;
+  const acquire = (lod: CastleLod, signal?: AbortSignal) => {
+    if (signal?.aborted) {
+      return Promise.reject(createRealmLoadAbortError(`Hegemony keep ${lod} prefab`));
+    }
+    const entry = entryFor(lod);
+    if (entry.retired) {
+      return Promise.reject(new Error(
+        `Hegemony keep ${lod} prefab is retired for this realm session.`
+      ));
+    }
+    entry.pendingAcquisitions += 1;
 
-      return new Promise<HegemonyKeepPrefabLease>((resolve, reject) => {
-        let finished = false;
-        const finishPending = () => {
-          if (finished) return false;
-          finished = true;
-          signal?.removeEventListener('abort', onAbort);
-          entry.pendingAcquisitions -= 1;
-          return true;
-        };
-        const onAbort = () => {
-          if (!finishPending()) return;
-          retireEntryIfUnused(entry);
-          reject(createRealmLoadAbortError(`Hegemony keep ${lod} prefab`));
-        };
+    return new Promise<HegemonyKeepPrefabLease>((resolve, reject) => {
+      let finished = false;
+      const finishPending = () => {
+        if (finished) return false;
+        finished = true;
+        signal?.removeEventListener('abort', onAbort);
+        entry.pendingAcquisitions -= 1;
+        return true;
+      };
+      const onAbort = () => {
+        if (!finishPending()) return;
+        retireEntryIfUnused(entry);
+        reject(createRealmLoadAbortError(`Hegemony keep ${lod} prefab`));
+      };
 
-        signal?.addEventListener('abort', onAbort, { once: true });
-        entry.promise.then((internal) => {
-          if (!finishPending()) return;
-          // A previous lease or the final pending cancellation can retire a
-          // resolved entry. Never revive already-freed resources.
-          if (entry.retired) {
-            reject(new Error(
-              `Hegemony keep ${lod} prefab is retired for this realm session.`
-            ));
-            return;
+      signal?.addEventListener('abort', onAbort, { once: true });
+      entry.promise.then((internal) => {
+        if (!finishPending()) return;
+        // A previous lease or the final pending cancellation can retire a
+        // resolved entry. Never revive already-freed resources.
+        if (entry.retired) {
+          reject(new Error(
+            `Hegemony keep ${lod} prefab is retired for this realm session.`
+          ));
+          return;
+        }
+        entry.activeLeases += 1;
+        let released = false;
+        resolve(Object.freeze({
+          prefab: internal.prefab,
+          release: () => {
+            if (released) return;
+            released = true;
+            entry.activeLeases -= 1;
+            retireEntryIfUnused(entry);
           }
-          entry.activeLeases += 1;
-          let released = false;
-          resolve(Object.freeze({
-            prefab: internal.prefab,
-            release: () => {
-              if (released) return;
-              released = true;
-              entry.activeLeases -= 1;
-              retireEntryIfUnused(entry);
-            }
-          }));
-        }, (error: unknown) => {
-          if (!finishPending()) return;
-          reject(error);
-        });
+        }));
+      }, (error: unknown) => {
+        if (!finishPending()) return;
+        reject(error);
       });
+    });
+  };
+
+  return Object.freeze({
+    acquire,
+    retryFailed: (lod, signal) => {
+      const failed = entries.get(lod);
+      if (
+        failed?.failed === true
+        && failed.pendingAcquisitions === 0
+        && failed.activeLeases === 0
+        && failed.internal === undefined
+      ) {
+        failed.retired = true;
+        failed.abortController.abort();
+        entries.delete(lod);
+      }
+      return acquire(lod, signal);
     }
   });
 }

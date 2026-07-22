@@ -25,6 +25,7 @@ import {
 } from './resourceAuthorityPolicy';
 import { assertGenesisResourceForFid } from './resourceAuthority';
 import {
+  assertLegacyExpeditionDispatchAllowed,
   ResourceExpeditionReservationAuthorityError,
   planResourceSettlementForActiveExpeditionReservations,
 } from './resourceExpeditionReservationAuthority';
@@ -377,6 +378,7 @@ export function dispatchGenesisGoldExpedition(
     idempotencyKey: string;
   }>,
 ): GoldExpeditionDispatch {
+  assertLegacyExpeditionDispatchAllowed(ctx);
   const requestKey = requestKeyFor(input.fid, input.idempotencyKey);
   const prior = ctx.db.goldExpeditionIdempotencyV1.requestKey.find(requestKey);
   if (prior !== null) {

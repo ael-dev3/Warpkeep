@@ -3,6 +3,11 @@ import { resolve } from 'node:path';
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
+import {
+  WARPKEEP_LOCAL_VITE_FS_DENY,
+  warpkeepLocalPublicBoundaryPlugin
+} from './scripts/qa-observer/local-vite-fs-deny.mjs';
+
 type DeploymentEnvironment = Readonly<Record<string, string | undefined>>;
 
 const SEMANTIC_VERSION_PATTERN = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
@@ -99,11 +104,18 @@ export default defineConfig(({ command }) => ({
     __WARPKEEP_LOCAL_QA__: JSON.stringify(command === 'serve'),
     __WARPKEEP_PRODUCT_VERSION__: JSON.stringify(productVersion)
   },
+  // Manual QA uses the normal development server. Keep ignored Worker secrets,
+  // private keys, and deployment state outside its repository-wide file surface.
+  server: {
+    fs: {
+      deny: [...WARPKEEP_LOCAL_VITE_FS_DENY]
+    }
+  },
   // Vite's React development preamble is an inline module. The public build
   // keeps the strict document CSP, while localhost development removes only
   // that explicitly marked production meta element. Dedicated QA entries
   // retain their own loopback-only CSPs.
-  plugins: [react(), stripProductionCspFromLocalServe()],
+  plugins: [warpkeepLocalPublicBoundaryPlugin(), react(), stripProductionCspFromLocalServe()],
   test: {
     environment: 'jsdom',
     globals: true,

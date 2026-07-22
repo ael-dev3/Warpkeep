@@ -98,7 +98,7 @@ jobs:
         run: pnpm --dir services/auth-bridge run check
 
       - name: Audit bridge dependencies
-        run: pnpm --dir services/auth-bridge audit --audit-level high
+        run: pnpm --dir services/auth-bridge audit --audit-level low
 
   spacetimedb-module:
     runs-on: ubuntu-latest
@@ -147,7 +147,8 @@ jobs:
         run: |
           pnpm --dir spacetimedb run verify
           npm run stdb:verify-bindings
+          npm run stdb:verify-worker-migration
           npm run stdb:verify-additive-migration
 
       - name: Audit module dependencies
-        run: pnpm --dir spacetimedb audit --audit-level high
+        run: pnpm --dir spacetimedb audit --audit-level low

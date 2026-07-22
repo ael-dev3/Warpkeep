@@ -114,8 +114,8 @@ describe('GitHub workflow security policy', () => {
     const checkoutCount = (source.match(/actions\/checkout@/g) ?? []).length;
     const disabledCredentialCount = (source.match(/persist-credentials:\s*false/g) ?? []).length;
     expect(disabledCredentialCount).toBe(checkoutCount);
-    expect(source).toContain('pnpm --dir services/auth-bridge audit --audit-level high');
-    expect(source).toContain('pnpm --dir spacetimedb audit --audit-level high');
+    expect(source).toContain('pnpm --dir services/auth-bridge audit --audit-level low');
+    expect(source).toContain('pnpm --dir spacetimedb audit --audit-level low');
     expect(source).toContain('npm audit signatures');
   });
 

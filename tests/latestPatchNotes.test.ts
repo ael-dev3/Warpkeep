@@ -17,26 +17,28 @@ describe('latest in-menu patch notes', () => {
 
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
-      releasedOn: '19 JUL 2026',
-      title: 'THE LIVING LOWLANDS'
+      releasedOn: '22 JUL 2026',
+      title: 'A STEADIER FRONTIER'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /lakes have receded.*twelve persistent one-cell rivers.*ocean/i
+      /recovers from temporary graphics interruptions.*selection.*camera intent/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /pan through the coast and open water.*full fog boundary.*strategic overview/i
+      /Castle rendering.*compact detail.*optional richer models/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Grass.*biome patterns.*forests.*natural groves.*rivers.*roads.*keeps.*resource sites stay clear/i
+      /Water surfaces.*move gently.*river and ocean cells.*read-only public records/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Moving supply wagons can be selected.*active expedition/i
+      /clearer green palette.*denser grass.*without changing authoritative terrain, ownership, or resource rules/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /released to players|deployed to players|public balances|guaranteed rewards/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('frontier');
+    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('Genesis 001');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
+    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('not live yet');
+    expect(getLatestPatchNotes('0.3.13')).toBeUndefined();
     expect(getLatestPatchNotes('0.3.12')).toBeUndefined();
     expect(getLatestPatchNotes('0.3.8')).toBeUndefined();
     expect(getLatestPatchNotes('0.0.0')).toBeUndefined();

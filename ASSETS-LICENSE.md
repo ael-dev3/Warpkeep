@@ -292,6 +292,27 @@ The live integration mounts the card as decorative inspection art
 only; it grants no resource, currency, reward, entitlement, map-placement, or
 Wood authority. No Pages deployment is authorized by this record.
 
+## Hegemony Worker inspection artwork
+
+On 2026-07-19, the Warpkeep project owner supplied a transparent Worker
+illustration for the reviewed Worker UI slice. That authorization covers this
+exact checked-in derivative in the public Warpkeep repository and an eventual
+official `warpkeep.com` Pages runtime only after separately approved deployment.
+It is use authorization only: it does not establish ownership, grant a public
+open-content licence or general redistribution rights, or create worker,
+resource, route, cargo, reward, settlement, or SpacetimeDB authority.
+
+| Intended use | Repository file | Technical record |
+| --- | --- | --- |
+| Decorative Worker inspection artwork | `public/images/realm/hegemony-worker-record.webp` | 1024×1024 transparent WebP, 86,984 bytes, SHA-256 `ff758ecbf520b05ccf0a2fa490bcafa6c564514de5ee56ef5a720fd6da24193e`; prepared from the supplied transparent PNG through the exact recorded Sharp 0.35.3 encoding. |
+
+The supplied source is not committed. Its exact hash, the runtime decoded-RGBA
+hash, alpha profile, visible bounds, processing settings, and narrow UI-only
+boundary are recorded in the dated [Worker inspection-art record](docs/reference/resources/2026-07-19-hegemony-worker/record-art/manifest.json).
+The runtime file remains `LicenseRef-Warpkeep-Provenance-Required` and is loaded
+only as same-origin decorative art by `WorkerInspectionPanel`; it does not
+provide or imply identity, ownership, balance, command, or gameplay authority.
+
 ## Hegemony Logging Camp runtime assets
 
 On 2026-07-18, the Warpkeep project owner supplied the named Logging Camp

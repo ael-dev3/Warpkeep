@@ -97,13 +97,15 @@ Those public routes are active only while `PUBLIC_AUTH_ENABLED=true` and return
 the paused profile when it is false.
 Public v1 challenge/exchange are retired with `410`; admin `/v1` routes are a
 separate server-only namespace. Secret names are `SIGNING_KEY_JWK`,
-`ADMIN_TOKEN_SECRET`, `SESSION_COOKIE_KEY`, and `FARCASTER_RPC_URL`; see
+`ADMIN_TOKEN_SECRET`, `SESSION_COOKIE_KEY`, `FARCASTER_RPC_URL`, and
+`FARCASTER_RPC_URL_SECONDARY`; see
 [`credential-rotation.md`](credential-rotation.md). Never record their values.
 
 The server-only config attestation profile is `warpkeep-auth-v2`. Its
 fail-closed recovery target has `publicAuthEnabled: false`; the current Alpha
 0.3.13 active target has `publicAuthEnabled: true`. It covers
-issuer/origins/SIWF coordinates, gameplay key/Maincloud coordinates, the
+issuer/origins/SIWF coordinates, both privacy-safe RPC endpoint fingerprints,
+the active signing-public-key thumbprint, gameplay key/Maincloud coordinates, the
 observer URI/database/audience tuple and gate, S256, the 600-second access TTL,
 15-second resolver TTL, five-second resolver timeout, five-minute challenge TTL,
 maximum-30-day family, and exact `__Host-` cookie attributes. Record only the

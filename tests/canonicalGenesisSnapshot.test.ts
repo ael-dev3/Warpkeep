@@ -17,6 +17,12 @@ import {
   CANONICAL_GENESIS_FOREST_LAYOUT_V1
 } from '../spacetimedb/src/forestLayoutPolicy';
 import {
+  GENESIS_WATER_BODIES_V1,
+  GENESIS_WATER_CELLS_V1,
+  GENESIS_WATER_ENVIRONMENT_V1,
+  GENESIS_WATER_LAYOUT_V1
+} from '../spacetimedb/src/waterWorld';
+import {
   CANONICAL_TEST_CASTLE_ID,
   CANONICAL_TEST_FID,
   createCanonicalGenesisCandidate
@@ -89,6 +95,28 @@ describe('canonical Genesis 001 browser snapshot boundary', () => {
     );
     expect(CANONICAL_GENESIS_SNAPSHOT_FINGERPRINT)
       .toBe(GENESIS_GENERATION_V3_SNAPSHOT_FINGERPRINT);
+  });
+
+  it('normalizes the Water environment timestamp at the canonical browser boundary', () => {
+    const candidate = createCanonicalGenesisCandidate();
+    const snapshot = validate({
+      ...candidate,
+      waterLayout: { ...GENESIS_WATER_LAYOUT_V1, activated: true },
+      waterBodies: GENESIS_WATER_BODIES_V1.map((row) => ({ ...row })),
+      waterCells: GENESIS_WATER_CELLS_V1.map((row) => ({ ...row })),
+      realmEnvironment: {
+        ...GENESIS_WATER_ENVIRONMENT_V1,
+        updatedAt: { microsSinceUnixEpoch: 1_752_408_000_123_456n },
+        privateSdkDetail: 'must-not-cross'
+      }
+    });
+
+    expect(snapshot.realmEnvironment).toMatchObject({
+      updatedAtMicros: 1_752_408_000_123_456n
+    });
+    expect(snapshot.realmEnvironment).not.toHaveProperty('updatedAt');
+    expect(snapshot.realmEnvironment).not.toHaveProperty('privateSdkDetail');
+    expect(Object.isFrozen(snapshot.realmEnvironment)).toBe(true);
   });
 
   it('treats radius 58 as a maximum envelope, not as a complete radius-58 disc', () => {

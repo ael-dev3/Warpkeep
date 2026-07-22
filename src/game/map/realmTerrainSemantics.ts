@@ -28,6 +28,8 @@ export type RealmTerrainSemanticRow = Readonly<{
   tileKey: string;
   terrainKind: string;
   staticContentKind: string;
+  /** Present on canonical public metadata; optional for renderer-only fixtures. */
+  passable?: boolean;
 }>;
 
 const TERRAIN_KIND_SET = new Set<string>(REALM_TERRAIN_KINDS);

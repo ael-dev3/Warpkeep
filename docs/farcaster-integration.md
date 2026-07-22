@@ -3,7 +3,7 @@
 Warpkeep uses standard website Sign In with Farcaster (SIWF). It is not a Mini
 App, Quick Auth, wallet connection, or a client-only permanent identity system.
 
-Alpha 0.3.13 uses backend protocol 3 and authentication contract v2; admission
+Alpha 0.3.14 uses backend protocol 3 and authentication contract v2; admission
 remains gated. Production configuration and founder identities belong in the
 private operator record, not this guide. This document describes the contract
 but does not authorize admission or a production change.
@@ -29,6 +29,12 @@ addresses, verification addresses, and other profile fields are rejected at
 that boundary and never enter the session family or player JWT. The bridge
 accepts only the configured `FARCASTER_DOMAIN` and exact
 `FARCASTER_SIWE_URI`.
+
+Production proof verification uses two official Farcaster verifier instances
+backed by distinct public HTTPS RPC origins. Both must succeed with the same
+canonical FID. A provider outage, partial result, or disagreement fails closed
+as temporarily unavailable. A single RPC endpoint is permitted only for an
+explicit development profile and must be loopback-local.
 
 The intended production coordinates remain:
 
@@ -81,6 +87,11 @@ URLs, or logs:
 - browser-binding verifier or digest;
 - player/admin/resolver JWTs;
 - signing keys, session-cookie key, RPC credential, or admin secret.
+
+The private admin configuration attestation exposes only domain-separated
+SHA-256 fingerprints of the normalized RPC URLs and the active signing public
+key's RFC 7638 thumbprint. Those values make endpoint or key drift detectable
+without returning an RPC URL, credential, or private scalar.
 
 After a fresh signature and an exchange whose bridge-verified FID exactly
 matches it, the browser may write a tab-scoped `sessionStorage` presentation
@@ -238,7 +249,7 @@ VITE_WARPKEEP_OIDC_AUDIENCE=warpkeep-spacetimedb
 
 The Worker configuration is documented in
 [`services/auth-bridge/README.md`](../services/auth-bridge/README.md). Its
-checked-in `PUBLIC_AUTH_ENABLED` remains false, while the recorded Alpha 0.3.13
+checked-in `PUBLIC_AUTH_ENABLED` remains false, while the recorded Alpha 0.3.14
 production override is true. Before any future enable, the server-only v2
 configuration attestation must match the reviewed issuer, origins, SIWF
 coordinates, key ID, Maincloud coordinates, S256 binding, 600-second access

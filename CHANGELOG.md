@@ -6,6 +6,20 @@ full engineering record.
 
 ## [Unreleased]
 
+## [0.3.14] — 2026-07-22
+
+- Made the Realm recover from temporary graphics interruptions while preserving
+  selection and camera intent, and let castles continue at compact detail when
+  optional richer models cannot load.
+- Gave river and ocean surfaces gentle motion and selectable, read-only public
+  records, including source-to-mouth river navigation. Reduced-motion play
+  keeps the water still.
+- Refined the Lowlands toward a clearer green palette and denser grass coverage
+  without changing authoritative terrain, ownership, or resource rules.
+- Staged a server-authoritative four-worker foundation behind inactive migration
+  and activation gates. Workers are not live in Alpha 0.3.14; the existing
+  expedition flow remains in place.
+
 ## [0.3.13] — 2026-07-19
 
 - Let the old scattered lakes return to lowland while preserving twelve
@@ -111,7 +125,8 @@ full engineering record.
   Lowlands, a first keep, Farcaster sign-in, and an admission-gated shared-world
   foundation.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.13...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.14...HEAD
+[0.3.14]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.13...v0.3.14
 [0.3.13]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.12...v0.3.13
 [0.3.12]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.11...v0.3.12
 [0.3.11]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.8...v0.3.11

@@ -71,7 +71,9 @@ type RealmTerrainFeatureCandidate = Readonly<{
 
 function featureKindForTerrain(kind: RealmTerrainKind): RealmTerrainFeatureKind | undefined {
   if (kind === 'forest') return 'forest-tree';
-  if (kind === 'heath') return 'heath-bloom';
+  // Keep the historical feature kind in the compatibility union, but ordinary
+  // heath is now expressed through its ground and grass palette only.
+  if (kind === 'heath') return undefined;
   if (kind === 'ridge') return 'ridge-outcrop';
   if (kind === 'lake') return 'lake-sheen';
   if (kind === 'ancient-stone') return 'ancient-monolith';
@@ -90,7 +92,6 @@ function featureCountForCell(
       ? 1
       : 0;
   }
-  if (terrainKind === 'heath') return quality === 'reduced' ? 0 : 1;
   return featureKindForTerrain(terrainKind) === undefined ? 0 : 1;
 }
 

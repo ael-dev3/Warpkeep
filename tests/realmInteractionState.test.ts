@@ -65,6 +65,37 @@ describe('realm interaction state', () => {
     });
   });
 
+  it('activates one public worker identity and directs focus to its inspector', () => {
+    const state = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
+      type: 'activate-worker',
+      workerId: 'genesis-001-castle-7-worker-02',
+      workerOrdinal: 2,
+      originCastleId: 7,
+      coord: { q: 2, r: -1 }
+    });
+
+    expect(state.selectedCell).toEqual({ q: 2, r: -1 });
+    expect(state.selectedCastle).toBeNull();
+    expect(state.inspectorTarget).toEqual({
+      workerId: 'genesis-001-castle-7-worker-02',
+      workerOrdinal: 2,
+      originCastleId: 7,
+      coord: { q: 2, r: -1 }
+    });
+    expect(state.cameraTarget).toEqual({
+      kind: 'worker',
+      workerId: 'genesis-001-castle-7-worker-02',
+      coord: { q: 2, r: -1 }
+    });
+    expect(state.keyboardIntent).toEqual({
+      sequence: 1,
+      target: {
+        kind: 'worker-inspector',
+        workerId: 'genesis-001-castle-7-worker-02'
+      }
+    });
+  });
+
   it('opens a public Gold-site inspector without turning the site into a castle or local authority', () => {
     const state = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
       type: 'activate-gold-site',
@@ -84,6 +115,34 @@ describe('realm interaction state', () => {
       target: { kind: 'gold-mine-inspector', siteId: 'genesis-001:gold:0001' }
     });
     expect(resolveRealmEscape(state).state.keyboardIntent.target).toEqual({ kind: 'map' });
+  });
+
+  it('opens a read-only water record and preserves its canonical body identity', () => {
+    const state = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
+      type: 'activate-water-cell',
+      cellKey: 'genesis-001:river:01:0001',
+      bodyId: 'genesis-001:river:01',
+      regime: 'river',
+      coord: { q: 4, r: -2 }
+    });
+
+    expect(state.selectedCell).toEqual({ q: 4, r: -2 });
+    expect(state.selectedCastle).toBeNull();
+    expect(state.inspectorTarget).toEqual({
+      cellKey: 'genesis-001:river:01:0001',
+      bodyId: 'genesis-001:river:01',
+      regime: 'river',
+      coord: { q: 4, r: -2 }
+    });
+    expect(state.cameraTarget).toEqual({
+      kind: 'water',
+      cellKey: 'genesis-001:river:01:0001',
+      coord: { q: 4, r: -2 }
+    });
+    expect(state.keyboardIntent).toEqual({
+      sequence: 1,
+      target: { kind: 'water-inspector', cellKey: 'genesis-001:river:01:0001' }
+    });
   });
 
   it('opens a Food Farm inspector through a distinct target shape from Gold', () => {

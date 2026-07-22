@@ -676,10 +676,41 @@ async function timingSafeSecretMatch(provided: string, expected: string): Promis
   return difference === 0
 }
 
+async function sha256Hex(value: string): Promise<string> {
+  const bytes = new TextEncoder().encode(value)
+  try {
+    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))
+    return Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('')
+  } finally {
+    bytes.fill(0)
+  }
+}
+
+/**
+ * Privacy-safe stable identity for an exact configured RPC URL. The URL itself
+ * can contain provider credentials and must never enter an attestation response.
+ */
+export function farcasterRpcEndpointFingerprint(rpcUrl: string): Promise<string> {
+  return sha256Hex(`warpkeep-farcaster-rpc-endpoint-v1\0${rpcUrl}`)
+}
+
 async function configurationAttestation(
   config: BridgeConfig,
   qaObserverKeyFingerprint: string | null,
-): Promise<string> {
+): Promise<Readonly<{
+  digest: string
+  farcasterRpcEndpointFingerprints: readonly string[]
+  signingPublicKeyThumbprint: string
+}>> {
+  const farcasterRpcEndpointFingerprints = Object.freeze((await Promise.all(
+    config.farcasterRpcUrls.map(farcasterRpcEndpointFingerprint),
+  )).sort())
+  const signingPublicKeyThumbprint = await qaObserverKeyThumbprint({
+    kty: 'EC',
+    crv: 'P-256',
+    x: config.privateJwk.x,
+    y: config.privateJwk.y,
+  })
   const canonical = JSON.stringify({
     profile: 'warpkeep-auth-v2',
     issuer: config.issuer,
@@ -688,6 +719,8 @@ async function configurationAttestation(
     siweUri: config.siweUri,
     audience: config.audience,
     keyId: config.keyId,
+    farcasterRpcEndpointFingerprints,
+    signingPublicKeyThumbprint,
     spacetimeDbUri: config.spacetimeDbUri,
     spacetimeDbDatabase: config.spacetimeDbDatabase,
     publicAuthEnabled: config.publicAuthEnabled,
@@ -717,13 +750,11 @@ async function configurationAttestation(
     sessionFamilyTtlSeconds: SESSION_FAMILY_TTL_SECONDS,
     sessionCookie: '__Host-warpkeep_session; Secure; HttpOnly; SameSite=Strict; Path=/',
   })
-  const bytes = new TextEncoder().encode(canonical)
-  try {
-    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))
-    return Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('')
-  } finally {
-    bytes.fill(0)
-  }
+  return Object.freeze({
+    digest: await sha256Hex(canonical),
+    farcasterRpcEndpointFingerprints,
+    signingPublicKeyThumbprint,
+  })
 }
 
 function adminCredential(request: Request): string | null {
@@ -1308,7 +1339,7 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             logger.event('exchange_rejected')
             throw new HttpError(401, 'challenge_replayed', 'This sign-in challenge is invalid or already used.')
           }
-          const verifier = dependencies.verifier ?? createOfficialFarcasterVerifier(config.farcasterRpcUrl)
+          const verifier = dependencies.verifier ?? createOfficialFarcasterVerifier(config.farcasterRpcUrls)
           let verifiedFid: string
           try {
             verifiedFid = canonicalFid((await verifyFarcasterWithDeadline(verifier, {
@@ -1585,18 +1616,21 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             throw new HttpError(400, 'admin_query_not_allowed', 'This endpoint does not accept query parameters.')
           }
           let qaObserverKeyFingerprint: string | null = null
-          if (config.qaObserverPublicJwk) {
-            try {
+          let attestation: Awaited<ReturnType<typeof configurationAttestation>>
+          try {
+            if (config.qaObserverPublicJwk) {
               qaObserverKeyFingerprint = await qaObserverKeyThumbprint(config.qaObserverPublicJwk)
-            } catch {
-              throw new ConfigurationError()
             }
+            attestation = await configurationAttestation(config, qaObserverKeyFingerprint)
+          } catch {
+            throw new ConfigurationError()
           }
-          const digest = await configurationAttestation(config, qaObserverKeyFingerprint)
           logger.event('config_attestation_issued')
           return json({
             profile: 'warpkeep-auth-v2',
-            digest,
+            digest: attestation.digest,
+            farcasterRpcEndpointFingerprints: attestation.farcasterRpcEndpointFingerprints,
+            signingPublicKeyThumbprint: attestation.signingPublicKeyThumbprint,
             publicAuthEnabled: config.publicAuthEnabled,
             qaObserverEnabled: config.qaObserverEnabled,
             qaObserverSpacetimeDbUri: config.qaObserverSpacetimeDb?.uri ?? null,

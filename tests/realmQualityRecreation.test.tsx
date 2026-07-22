@@ -14,6 +14,9 @@ const mocked = vi.hoisted(() => {
       staticContentKind: string;
     }[];
     isCoordPassable?: (coord: { q: number; r: number }) => boolean;
+    waterCells?: readonly unknown[];
+    waterBodies?: readonly unknown[];
+    waterEnvironment?: unknown;
     quality: { id: string };
     reducedMotion: boolean;
     onCastlesReady?: (castleCount: number) => void;
@@ -43,8 +46,11 @@ const mocked = vi.hoisted(() => {
       }[];
     }) => void;
     onTargetHover?: (target: {
-      kind: 'castle' | 'terrain';
+      kind: 'castle' | 'terrain' | 'worker';
       castleId?: number;
+      workerId?: string;
+      workerOrdinal?: number;
+      originCastleId?: number;
       coord: { q: number; r: number };
     } | null) => void;
     onTargetSelect?: (target: {
@@ -63,6 +69,7 @@ const mocked = vi.hoisted(() => {
     focusKeep: ReturnType<typeof vi.fn>;
     recenterKeep: ReturnType<typeof vi.fn>;
     setHovered: ReturnType<typeof vi.fn>;
+    setHoveredWorkerId: ReturnType<typeof vi.fn>;
     setPresentedCastleIds: ReturnType<typeof vi.fn>;
     setSelected: ReturnType<typeof vi.fn>;
     setSelectedCastleId: ReturnType<typeof vi.fn>;
@@ -78,6 +85,7 @@ const mocked = vi.hoisted(() => {
       focusKeep: vi.fn(),
       recenterKeep: vi.fn(),
       setHovered: vi.fn(),
+      setHoveredWorkerId: vi.fn(),
       setPresentedCastleIds: vi.fn(),
       setSelected: vi.fn(),
       setSelectedCastleId: vi.fn(),
@@ -399,6 +407,46 @@ describe('live realm quality recreation', () => {
     expect(scene.focusCell).toHaveBeenLastCalledWith({ q: lakeCell.q, r: lakeCell.r });
   });
 
+  it('passes canonical Water phase inputs and recreates when body metadata is refreshed', () => {
+    installWebGlProbe();
+    const snapshot = waterRevisionRealm(true);
+    const { rerender } = render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={snapshot}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+    const firstOptions = mocked.createRealmScene.mock.calls[0]![0];
+    expect(firstOptions.waterBodies).toBe(snapshot.waterBodies);
+    expect(firstOptions.waterEnvironment).toBe(snapshot.realmEnvironment);
+    expect(firstOptions.waterCells).toBeDefined();
+
+    const descriptors = Object.getOwnPropertyDescriptors(snapshot) as PropertyDescriptorMap;
+    descriptors.waterBodies = {
+      ...descriptors.waterBodies!,
+      value: Object.freeze([...(snapshot.waterBodies ?? [])])
+    };
+    const refreshedSnapshot = Object.freeze(Object.defineProperties(
+      {},
+      descriptors
+    )) as CanonicalWarpkeepRealmSnapshot;
+    rerender(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={refreshedSnapshot}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+
+    expect(mocked.createRealmScene).toHaveBeenCalledTimes(2);
+    expect(mocked.handles[0]!.dispose).toHaveBeenCalledOnce();
+    expect(mocked.createRealmScene.mock.calls[1]![0].waterBodies)
+      .toBe(refreshedSnapshot.waterBodies);
+  });
+
   it('disposes one scene, preserves selection, and mounts the requested model tier', () => {
     installWebGlProbe();
     const snapshot = createCanonicalGenesisSnapshot(CANONICAL_TEST_FID);
@@ -691,6 +739,21 @@ describe('live realm quality recreation', () => {
     expect(scene.setHovered).toHaveBeenCalledTimes(3);
     expect(scene.setHovered).toHaveBeenNthCalledWith(2, { q: 1, r: 0 });
     expect(scene.setHovered).toHaveBeenLastCalledWith({ q: 2, r: -1 });
+    act(() => {
+      options.onTargetHover?.({
+        kind: 'worker',
+        workerId: 'genesis-001-castle-1-worker-01',
+        workerOrdinal: 1,
+        originCastleId: 1,
+        coord: { q: 0, r: 0 }
+      });
+    });
+    expect(scene.setHovered).toHaveBeenLastCalledWith(null);
+    expect(scene.setHoveredWorkerId).toHaveBeenLastCalledWith(
+      'genesis-001-castle-1-worker-01'
+    );
+    expect(scene.setHovered.mock.invocationCallOrder.at(-1))
+      .toBeLessThan(scene.setHoveredWorkerId.mock.invocationCallOrder.at(-1)!);
     expect(selectionAnnouncement().textContent)
       .toContain('Warpkeeper Bastion. Your keep is selected at cell 0, 0');
     expect(screen.queryByRole('button', { name: 'CLOSE RECORD' })).toBeNull();

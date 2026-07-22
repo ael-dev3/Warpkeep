@@ -40,7 +40,7 @@ test('v10 Stone tables remain before the additive Water revision suffix', () => 
   const registrations = schemaRegistrations(schema);
   const v4Registrations = schemaRegistrations(v4.replace('const db = schema({', 'const warpkeep = schema({'));
   assert.deepEqual(registrations.slice(0, v4Registrations.length), v4Registrations);
-  assert.deepEqual(registrations.slice(-10), [
+  assert.deepEqual(registrations.slice(-16, -6), [
     'realmWaterLayoutV1',
     'realmWaterBodyV1',
     'realmWaterCellV1',
