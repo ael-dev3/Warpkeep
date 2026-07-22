@@ -3,7 +3,7 @@ const EXPECTED_REPOSITORY_URL = 'https://github.com/ael-dev3/Warpkeep';
 const EXPECTED_AUDIENCE = 'warpkeep-spacetimedb';
 const EXPECTED_BRIDGE = 'https://auth.warpkeep.com';
 const EXPECTED_SPACETIMEDB_URI = 'https://maincloud.spacetimedb.com';
-const EXPECTED_SPACETIMEDB_DATABASE = 'warpkeep-89e4u';
+const EXPECTED_SPACETIMEDB_DATABASE = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';
 const SHA_PATTERN = /^[0-9a-f]{40}$/i;
 
 function fail(message) {

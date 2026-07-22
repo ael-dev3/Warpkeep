@@ -14,13 +14,16 @@ import {
   useWarpkeepBackend,
   type WarpkeepBackendRuntime
 } from '../src/spacetime/WarpkeepSpacetimeProvider';
-import type { WarpkeepRuntimeConfig } from '../src/spacetime/warpkeepConfig';
+import {
+  DEFAULT_SPACETIMEDB_DATABASE,
+  type WarpkeepRuntimeConfig
+} from '../src/spacetime/warpkeepConfig';
 import { createCanonicalGenesisSnapshot } from './fixtures/canonicalGenesisSnapshot';
 import { createReadyResourceState } from './fixtures/resourceState';
 
 const CONFIG: WarpkeepRuntimeConfig = Object.freeze({
   spacetimeUri: 'https://maincloud.spacetimedb.com',
-  spacetimeDatabase: 'warpkeep-89e4u',
+  spacetimeDatabase: DEFAULT_SPACETIMEDB_DATABASE,
   bridgeUrl: 'https://auth.warpkeep.com',
   issuer: 'https://auth.warpkeep.com',
   audience: 'warpkeep-spacetimedb',

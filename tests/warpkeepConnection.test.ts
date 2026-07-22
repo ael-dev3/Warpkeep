@@ -61,7 +61,7 @@ import {
 
 const config: WarpkeepRuntimeConfig = Object.freeze({
   spacetimeUri: 'https://maincloud.spacetimedb.com',
-  spacetimeDatabase: 'warpkeep-89e4u',
+  spacetimeDatabase: 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e',
   bridgeUrl: 'https://auth.warpkeep.example',
   issuer: 'https://auth.warpkeep.example',
   audience: 'warpkeep-spacetimedb',
@@ -362,7 +362,9 @@ describe('Warpkeep authenticated connection boundary', () => {
     createWarpkeepConnectionBuilder(config, 'header.payload.signature');
 
     expect(builder.withUri).toHaveBeenCalledWith('https://maincloud.spacetimedb.com');
-    expect(builder.withDatabaseName).toHaveBeenCalledWith('warpkeep-89e4u');
+    expect(builder.withDatabaseName).toHaveBeenCalledWith(
+      'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e'
+    );
     expect(builder.withToken).toHaveBeenCalledWith('header.payload.signature');
     expect(window.localStorage.length).toBe(0);
   });

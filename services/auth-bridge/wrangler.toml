@@ -17,7 +17,7 @@ FARCASTER_SIWE_URI = "https://warpkeep.com/"
 OIDC_AUDIENCE = "warpkeep-spacetimedb"
 OIDC_KEY_ID = "warpkeep-alpha-2026-07-01"
 SPACETIMEDB_URI = "https://maincloud.spacetimedb.com"
-SPACETIMEDB_DATABASE = "warpkeep-89e4u"
+SPACETIMEDB_DATABASE = "c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e"
 PUBLIC_AUTH_ENABLED = "false"
 QA_OBSERVER_ENABLED = "false"
 

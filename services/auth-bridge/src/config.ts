@@ -14,7 +14,8 @@ export const MAX_ADMIN_TOKEN_SECRET_BYTES = 512
 export const MIN_SESSION_COOKIE_KEY_BYTES = 32
 export const MAX_SESSION_COOKIE_KEY_BYTES = 512
 export const PRODUCTION_SPACETIMEDB_URI = 'https://maincloud.spacetimedb.com'
-export const PRODUCTION_SPACETIMEDB_DATABASE = 'warpkeep-89e4u'
+/** Immutable public address; unlike a database alias, it cannot drift after a rename. */
+export const PRODUCTION_SPACETIMEDB_DATABASE = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e'
 export const PRODUCTION_QA_OBSERVER_SPACETIMEDB_URI = 'https://maincloud.spacetimedb.com'
 
 export type QaObserverSpacetimeDbConfig = Readonly<{
@@ -186,7 +187,9 @@ function parseSpacetimeDbUri(value: string, production: boolean): string {
 }
 
 function parseSpacetimeDbDatabase(value: string): string {
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)) {
+  const databaseIdentity = /^[a-f0-9]{64}$/
+  const databaseAlias = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/
+  if (!databaseIdentity.test(value) && !databaseAlias.test(value)) {
     throw new ConfigurationError()
   }
   return value

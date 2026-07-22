@@ -63,6 +63,10 @@ describe('Warpkeep runtime configuration', () => {
     }))).toBe(false);
     expect(hasUsableWarpkeepBridge(readWarpkeepRuntimeConfig({
       ...complete,
+      VITE_SPACETIMEDB_DATABASE: 'warpkeep-89e4u'
+    }))).toBe(false);
+    expect(hasUsableWarpkeepBridge(readWarpkeepRuntimeConfig({
+      ...complete,
       VITE_SPACETIMEDB_URI: 'https://lookalike.example'
     }))).toBe(false);
     expect(hasUsableWarpkeepBridge(readWarpkeepRuntimeConfig({

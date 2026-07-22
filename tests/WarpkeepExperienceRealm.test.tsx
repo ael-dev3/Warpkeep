@@ -38,6 +38,7 @@ import type {
   WarpkeepRealmSnapshot
 } from '../src/spacetime/warpkeepBackendTypes';
 import {
+  DEFAULT_SPACETIMEDB_DATABASE,
   WARPKEEP_SHARED_ALPHA_UNAVAILABLE_MESSAGE,
   type WarpkeepRuntimeConfig
 } from '../src/spacetime/warpkeepConfig';
@@ -51,7 +52,7 @@ const TEST_BINDING_VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
 const TEST_BINDING_CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
 const TEST_CONFIG: WarpkeepRuntimeConfig = Object.freeze({
   spacetimeUri: 'https://maincloud.spacetimedb.com',
-  spacetimeDatabase: 'warpkeep-89e4u',
+  spacetimeDatabase: DEFAULT_SPACETIMEDB_DATABASE,
   bridgeUrl: TEST_ISSUER,
   issuer: TEST_ISSUER,
   audience: TEST_AUDIENCE,
