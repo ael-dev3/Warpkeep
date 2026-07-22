@@ -14,6 +14,9 @@ const mocked = vi.hoisted(() => {
       staticContentKind: string;
     }[];
     isCoordPassable?: (coord: { q: number; r: number }) => boolean;
+    waterCells?: readonly unknown[];
+    waterBodies?: readonly unknown[];
+    waterEnvironment?: unknown;
     quality: { id: string };
     reducedMotion: boolean;
     onCastlesReady?: (castleCount: number) => void;
@@ -397,6 +400,46 @@ describe('live realm quality recreation', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'JUMP TO CELL' }));
     expect(scene.focusCell).toHaveBeenLastCalledWith({ q: lakeCell.q, r: lakeCell.r });
+  });
+
+  it('passes canonical Water phase inputs and recreates when body metadata is refreshed', () => {
+    installWebGlProbe();
+    const snapshot = waterRevisionRealm(true);
+    const { rerender } = render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={snapshot}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+    const firstOptions = mocked.createRealmScene.mock.calls[0]![0];
+    expect(firstOptions.waterBodies).toBe(snapshot.waterBodies);
+    expect(firstOptions.waterEnvironment).toBe(snapshot.realmEnvironment);
+    expect(firstOptions.waterCells).toBeDefined();
+
+    const descriptors = Object.getOwnPropertyDescriptors(snapshot) as PropertyDescriptorMap;
+    descriptors.waterBodies = {
+      ...descriptors.waterBodies!,
+      value: Object.freeze([...(snapshot.waterBodies ?? [])])
+    };
+    const refreshedSnapshot = Object.freeze(Object.defineProperties(
+      {},
+      descriptors
+    )) as CanonicalWarpkeepRealmSnapshot;
+    rerender(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={refreshedSnapshot}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+
+    expect(mocked.createRealmScene).toHaveBeenCalledTimes(2);
+    expect(mocked.handles[0]!.dispose).toHaveBeenCalledOnce();
+    expect(mocked.createRealmScene.mock.calls[1]![0].waterBodies)
+      .toBe(refreshedSnapshot.waterBodies);
   });
 
   it('disposes one scene, preserves selection, and mounts the requested model tier', () => {

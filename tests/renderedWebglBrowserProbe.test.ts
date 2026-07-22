@@ -24,6 +24,7 @@ import {
   RENDERED_WEBGL_QA_CASE_COUNT,
   RENDERED_WEBGL_QA_CHROME_TEAM_ID,
   RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_CELL_COUNT,
+  RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_KIND_COUNT,
   RENDERED_WEBGL_QA_VITE_FS_DENY,
   renderedWebglLabelAnchorDistanceTelemetry,
   renderedWebglLabelDisplacementClassificationValid,
@@ -240,6 +241,10 @@ describe('rendered WebGL headless browser probe contract', () => {
     );
     expect(source).toContain('await attempt(() => options.removeProfile?.());');
     expect(source).toContain('onCastleLodVisualBoundary?.(castleLodVisualBoundary)');
+    expect(source).toContain(
+      '.realm-cell-navigator__castles[aria-label="Founded castles"] > li > button'
+    );
+    expect(source).not.toContain("'.realm-cell-navigator__castles button'");
     expect(RENDERED_WEBGL_QA_VITE_FS_DENY).toEqual([
       '.env',
       '.env.*',
@@ -917,7 +922,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       readyAfterMilliseconds: 2_412,
       environmentLighting: 'procedural',
       semanticTerrainCellCount: RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_CELL_COUNT,
-      semanticTerrainKindCount: 7,
+      semanticTerrainKindCount: RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_KIND_COUNT,
       semanticTerrainFeatureCount: 700,
       semanticTerrainFeatureDrawCalls: 5,
       totalTerrainDetailInstanceCount: 5_000,
@@ -998,7 +1003,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       readyAfterMilliseconds: 2_412,
       environmentLighting: 'procedural',
       semanticTerrainCellCount: RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_CELL_COUNT,
-      semanticTerrainKindCount: 7,
+      semanticTerrainKindCount: RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_KIND_COUNT,
       semanticTerrainFeatureCount: 700,
       semanticTerrainFeatureDrawCalls: 5,
       totalTerrainDetailInstanceCount: 5_000,
@@ -1034,17 +1039,19 @@ describe('rendered WebGL headless browser probe contract', () => {
         semanticTerrainCellCount: staleOrMixedTerrainCellCount
       }, expected)).toThrow(/semantic-terrain-cell-count/i);
     }
-    expect(() => parseRenderedWebglBrowserDom({
-      ...ready,
-      semanticTerrainKindCount: 6
-    }, expected)).toThrow(/semantic-terrain-kind-count/i);
+    for (const staleKindCount of [5, 7]) {
+      expect(() => parseRenderedWebglBrowserDom({
+        ...ready,
+        semanticTerrainKindCount: staleKindCount
+      }, expected)).toThrow(/semantic-terrain-kind-count/i);
+    }
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
       semanticTerrainFeatureCount: 0
     }, expected)).toThrow(/semantic-terrain-feature-budget/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
-      semanticTerrainFeatureCount: 1_011
+      semanticTerrainFeatureCount: 1_101
     }, expected)).toThrow(/semantic-terrain-feature-budget/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
@@ -1056,7 +1063,7 @@ describe('rendered WebGL headless browser probe contract', () => {
     }, expected)).toThrow(/semantic-terrain-feature-draw-calls/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
-      totalTerrainDetailInstanceCount: 5_711
+      totalTerrainDetailInstanceCount: 5_801
     }, expected)).toThrow(/total-terrain-detail-budget/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
@@ -1211,7 +1218,8 @@ describe('rendered WebGL headless browser probe contract', () => {
     }, expected)).toThrow(/observation/i);
 
     for (const [caseId, quality, semanticFeatureCount, totalDetailInstanceCount] of [
-      ['desktop-high', 'high', 1_310, 7_210],
+      ['desktop-high', 'high', 1_550, 7_450],
+      ['desktop-balanced', 'balanced', 1_100, 5_800],
       ['desktop-reduced', 'reduced', 610, 3_210]
     ] as const) {
       const qualityCase = renderedWebglBrowserProbeCases(41_733)

@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useRef,
+  type KeyboardEvent,
   type Ref
 } from 'react';
 
@@ -75,6 +76,13 @@ export function WaterInspectionPanel({
     ? `${record.riverPosition} · ${record.flowClass}`
     : `${record.oceanDepthClass} · ${record.fogBand} view`;
 
+  const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key !== 'Escape' || event.repeat) return;
+    event.preventDefault();
+    event.stopPropagation();
+    onRequestClose();
+  };
+
   return (
     <aside
       id={id}
@@ -83,6 +91,7 @@ export function WaterInspectionPanel({
       aria-modal="false"
       aria-labelledby={titleId}
       aria-describedby={descriptionId}
+      onKeyDown={handleKeyDown}
       data-open="true"
       data-water-cell-key={record.cellKey}
       data-water-regime={record.regime}
@@ -117,7 +126,10 @@ export function WaterInspectionPanel({
                 <PublicField label="River cell" value={`${(record.riverOrder ?? 0) + 1} / ${record.riverCellCount}`} />
                 <PublicField label="Source → mouth" value={`${record.sourceCoord?.q},${record.sourceCoord?.r} → ${record.mouthCoord?.q},${record.mouthCoord?.r}`} />
                 <PublicField label="Flow" value={record.downstreamWaterCellKey ? 'downstream link recorded' : 'mouth reached'} />
-                <PublicField label="Underlying terrain" value={record.underlyingTileKey ?? 'not published'} />
+                <PublicField
+                  label="Underlying terrain"
+                  value={record.underlyingTerrainLabel ?? record.underlyingTileKey ?? 'not published'}
+                />
                 <PublicField
                   label="Underlying land"
                   value={record.underlyingPassable === false
@@ -141,7 +153,15 @@ export function WaterInspectionPanel({
               <button type="button" onClick={() => onFocusCell(record.mouthCellKey!)}>FOLLOW TO MOUTH</button>
             ) : null}
             {record.regime === 'river' && onViewUnderlyingCell ? (
-              <button type="button" onClick={onViewUnderlyingCell}>VIEW UNDERLYING CELL</button>
+              <button
+                type="button"
+                onClick={() => {
+                  onRequestClose();
+                  onViewUnderlyingCell();
+                }}
+              >
+                VIEW UNDERLYING CELL
+              </button>
             ) : null}
           </div>
         </div>

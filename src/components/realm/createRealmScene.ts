@@ -91,6 +91,7 @@ import {
 import { createRealmAmbientScheduler, type RealmAmbientScheduler } from './realmAmbientScheduler';
 import {
   createRealmWaterLayer,
+  REALM_WATER_ANIMATION_FRAME_CAPS,
   waterSurfaceLevelToWorldY,
   type RealmWaterLayer
 } from './realmWaterLayer';
@@ -537,6 +538,10 @@ export type CreateRealmSceneOptions = Readonly<{
   rendererGeneration?: number;
   /** Complete, digest-validated public water projection; absent means water is unavailable. */
   waterCells?: readonly GenesisWaterCellV1[];
+  /** Validated body rows provide the deterministic phase seed and wave preset. */
+  waterBodies?: readonly unknown[];
+  /** Canonical environment boundary used to align renderer-only Water phase. */
+  waterEnvironment?: unknown;
   /**
    * Test/DEV-observer-only bridge for the retired deterministic preview.
    * Production player scenes must not synthesize a forest before the public
@@ -1273,6 +1278,8 @@ function initializeRealmScene(
         quality: runtimeQuality,
         reducedMotion: options.reducedMotion,
         hexSize: HEX_SIZE,
+        environment: options.waterEnvironment,
+        waterBodies: options.waterBodies,
         heightAtWorld: (world) => terrainHeightAtWorld(
           options.surface.renderMap,
           world,
@@ -1298,6 +1305,14 @@ function initializeRealmScene(
   } else {
     options.canvas.dataset.waterPresentation = 'unavailable';
   }
+  // Never expose the ocean navigation envelope without the matching visible
+  // layer. Construction/budget failure must retain the ordinary land clamp.
+  const activeWaterNavigationEnvelope = waterLayer
+    ? waterNavigationEnvelope
+    : undefined;
+  options.canvas.dataset.waterNavigation = activeWaterNavigationEnvelope
+    ? 'water-visible'
+    : 'land-only';
 
   const decorations = createTerrainDecorationLayers(
     decorationData,
@@ -1719,7 +1734,10 @@ function initializeRealmScene(
   let contextRestoreCount = 0;
   let ambientScheduler: RealmAmbientScheduler | null = null;
   const ambientIsNeeded = () => !options.reducedMotion
-    && renderPlan.grass.animationFrameCap > 0
+    && Math.max(
+      renderPlan.grass.animationFrameCap,
+      REALM_WATER_ANIMATION_FRAME_CAPS[runtimeQuality.id]
+    ) > 0
     && (
       grassLayer?.isAnimationActive() === true
       || decorations.animated
@@ -2030,12 +2048,12 @@ function initializeRealmScene(
     ))
   } as const;
   const cameraController = createRealmCameraController({
-    bounds: waterNavigationEnvelope?.bounds ?? terrainData.bounds,
-    navigationBoundary: waterNavigationEnvelope
+    bounds: activeWaterNavigationEnvelope?.bounds ?? terrainData.bounds,
+    navigationBoundary: activeWaterNavigationEnvelope
       ? {
-        maximumCenterHexRadius: waterNavigationEnvelope.maximumCenterHexRadius,
-        hexSize: waterNavigationEnvelope.hexSize,
-        blockedCenterCellKeys: waterNavigationEnvelope.blockedCenterCellKeys
+        maximumCenterHexRadius: activeWaterNavigationEnvelope.maximumCenterHexRadius,
+        hexSize: activeWaterNavigationEnvelope.hexSize,
+        blockedCenterCellKeys: activeWaterNavigationEnvelope.blockedCenterCellKeys
       }
       : undefined,
     // Keep the full generated terrain available to pan/clamp, but make the
@@ -2164,7 +2182,10 @@ function initializeRealmScene(
   document.addEventListener('visibilitychange', handleRenderVisibility);
   cleanup.add(() => document.removeEventListener('visibilitychange', handleRenderVisibility));
   ambientScheduler = createRealmAmbientScheduler({
-    frameCap: renderPlan.grass.animationFrameCap,
+    frameCap: Math.max(
+      renderPlan.grass.animationFrameCap,
+      REALM_WATER_ANIMATION_FRAME_CAPS[runtimeQuality.id]
+    ),
     active: ambientIsNeeded(),
     onStep: (elapsedSeconds) => {
       if (cleanup.isDisposed()) return;
@@ -3178,7 +3199,7 @@ function initializeRealmScene(
       });
     },
     focusWaterCell: (cellKey) => {
-      if (cleanup.isDisposed()) return;
+      if (cleanup.isDisposed() || !waterLayer) return;
       const cell = waterCellByKey.get(cellKey);
       if (!cell || (cell.regime === 'ocean' && cell.fogBand === 'full')) return;
       const world = axialToWorld({ q: cell.q, r: cell.r }, HEX_SIZE);

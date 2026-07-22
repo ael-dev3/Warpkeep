@@ -4,7 +4,12 @@ import {
   type GenesisWaterBodyV1,
   type GenesisWaterCellV1
 } from '../../../spacetimedb/src/waterWorld';
-import type { RealmTerrainSemanticRow } from '../../game/map/realmTerrainSemantics';
+import {
+  isRealmTerrainKind,
+  realmTerrainLabel,
+  type RealmTerrainKind,
+  type RealmTerrainSemanticRow
+} from '../../game/map/realmTerrainSemantics';
 
 export type RealmWaterInspectionRecord = Readonly<{
   cellKey: string;
@@ -28,6 +33,8 @@ export type RealmWaterInspectionRecord = Readonly<{
   depthCells: number;
   fogBand: 'clear' | 'haze';
   underlyingTileKey?: string;
+  underlyingTerrainKind?: RealmTerrainKind;
+  underlyingTerrainLabel?: string;
   underlyingPassable?: boolean;
   worldPosition: Readonly<{ x: number; z: number }>;
   gameplayBoundary: string;
@@ -81,10 +88,18 @@ export function resolveRealmWaterInspectionRecords(
   terrainMetadata: readonly RealmTerrainSemanticRow[] = [],
   bodies: readonly GenesisWaterBodyV1[] = GENESIS_WATER_BODIES_V1
 ): readonly RealmWaterInspectionRecord[] {
-  void terrainMetadata;
   if (!cells || cells.some((cell) => cell.regime === 'lake')) return Object.freeze([]);
   const bodyMap = safeBodyMap(bodies);
   const cellsByKey = new Map(cells.map((cell) => [cell.cellKey, cell] as const));
+  const terrainByKey = new Map<string, RealmTerrainSemanticRow>();
+  for (const metadata of terrainMetadata) {
+    if (
+      typeof metadata.tileKey !== 'string'
+      || metadata.tileKey.length === 0
+      || terrainByKey.has(metadata.tileKey)
+    ) return Object.freeze([]);
+    terrainByKey.set(metadata.tileKey, metadata);
+  }
   const records: RealmWaterInspectionRecord[] = [];
 
   for (const cell of cells) {
@@ -102,6 +117,22 @@ export function resolveRealmWaterInspectionRecords(
       const riverName = `Genesis River ${String(ordinal).padStart(2, '0')}`;
       const sourceCoord = coordForCell(cellsByKey, body.sourceCellKey);
       const mouthCoord = coordForCell(cellsByKey, body.mouthCellKey);
+      const sourceCell = cellsByKey.get(body.sourceCellKey);
+      const mouthCell = cellsByKey.get(body.mouthCellKey);
+      if (
+        !sourceCoord
+        || !mouthCoord
+        || sourceCell?.bodyId !== body.bodyId
+        || sourceCell.regime !== 'river'
+        || mouthCell?.bodyId !== body.bodyId
+        || mouthCell.regime !== 'river'
+      ) return Object.freeze([]);
+      const underlying = cell.underlyingTileKey
+        ? terrainByKey.get(cell.underlyingTileKey)
+        : undefined;
+      const underlyingTerrainKind = isRealmTerrainKind(underlying?.terrainKind)
+        ? underlying.terrainKind
+        : undefined;
       records.push(Object.freeze({
         cellKey: cell.cellKey,
         coord,
@@ -123,7 +154,13 @@ export function resolveRealmWaterInspectionRecords(
         depthCells: cell.depthCells,
         fogBand: cell.fogBand,
         underlyingTileKey: cell.underlyingTileKey,
-        underlyingPassable: undefined,
+        underlyingTerrainKind,
+        underlyingTerrainLabel: underlyingTerrainKind
+          ? realmTerrainLabel(underlyingTerrainKind)
+          : undefined,
+        underlyingPassable: typeof underlying?.passable === 'boolean'
+          ? underlying.passable
+          : undefined,
         worldPosition: axialToWorld(coord, 1),
         gameplayBoundary: 'Water is visual and does not add boats, swimming, current force, or resource rewards.'
       }));

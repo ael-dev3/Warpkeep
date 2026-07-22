@@ -56,4 +56,43 @@ describe('public water inspection presentation', () => {
       { ...river!, bodyId: 'unexpected-body' }
     ])).toEqual([]);
   });
+
+  it('fails closed when a river body points at an unavailable endpoint', () => {
+    const river = GENESIS_WATER_REVISION_ENABLED_CELLS_V1.find(
+      (cell) => cell.regime === 'river'
+    )!;
+    const malformedBodies = GENESIS_WATER_BODIES_V1.map((body) => (
+      body.bodyId === river.bodyId
+        ? { ...body, mouthCellKey: 'missing-water-endpoint' }
+        : body
+    ));
+
+    expect(resolveRealmWaterInspectionRecords(
+      GENESIS_WATER_REVISION_ENABLED_CELLS_V1,
+      [],
+      malformedBodies
+    )).toEqual([]);
+  });
+
+  it('normalizes the preserved underlying terrain metadata for river records', () => {
+    const river = GENESIS_WATER_REVISION_ENABLED_CELLS_V1.find(
+      (cell) => cell.regime === 'river' && cell.underlyingTileKey
+    )!;
+    const record = resolveRealmWaterInspectionRecords(
+      GENESIS_WATER_REVISION_ENABLED_CELLS_V1,
+      [{
+        tileKey: river.underlyingTileKey!,
+        terrainKind: 'forest',
+        staticContentKind: 'empty',
+        passable: true
+      }]
+    ).find((candidate) => candidate.cellKey === river.cellKey);
+
+    expect(record).toMatchObject({
+      underlyingTileKey: river.underlyingTileKey,
+      underlyingTerrainKind: 'forest',
+      underlyingTerrainLabel: 'Lowland Forest',
+      underlyingPassable: true
+    });
+  });
 });

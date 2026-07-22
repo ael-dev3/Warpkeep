@@ -300,6 +300,10 @@ export type WarpkeepRealmEnvironment = Readonly<{
   sunDirectionXMicro: number;
   sunDirectionYMicro: number;
   sunDirectionZMicro: number;
+  /** Raw generated timestamp exists only before canonical snapshot normalization. */
+  updatedAt?: unknown;
+  /** Browser-safe canonical timestamp used by renderer-only shared phase. */
+  updatedAtMicros?: bigint;
 }>;
 
 /** Public additive policy selecting a reviewed subset of immutable Water v1. */

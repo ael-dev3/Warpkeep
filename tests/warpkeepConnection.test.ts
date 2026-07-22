@@ -766,6 +766,10 @@ describe('Warpkeep authenticated connection boundary', () => {
     core.apply();
     pairedWater.apply();
     const snapshot = readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID);
+    expect(snapshot.realmEnvironment).toMatchObject({
+      updatedAtMicros: 1_752_408_000_000_000n
+    });
+    expect(snapshot.realmEnvironment).not.toHaveProperty('updatedAt');
     expect(resolveCanonicalWaterProjection(
       snapshot.waterLayout,
       snapshot.waterBodies,

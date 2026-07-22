@@ -1370,7 +1370,8 @@ function publicRealmEnvironmentRecord(value: unknown): unknown {
     seaLevelMilli: row.seaLevelMilli,
     sunDirectionXMicro: row.sunDirectionXMicro,
     sunDirectionYMicro: row.sunDirectionYMicro,
-    sunDirectionZMicro: row.sunDirectionZMicro
+    sunDirectionZMicro: row.sunDirectionZMicro,
+    updatedAt: row.updatedAt
   }) as Partial<WarpkeepRealmEnvironment>;
 }
 

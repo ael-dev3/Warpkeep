@@ -119,7 +119,7 @@ describe('RealmAccessibilityControls', () => {
     expect(dialog.getAttribute('aria-modal')).toBe('false');
     expect(screen.queryByRole('button', { name: /Explore realm/i })).toBeNull();
     await waitFor(() => expect(document.activeElement).toBe(
-      screen.getByRole('searchbox', { name: 'Search founded castles' })
+      screen.getByRole('searchbox', { name: 'Search castles, resources, and water' })
     ));
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'CLOSE EXPLORE' }));
@@ -154,7 +154,7 @@ describe('RealmAccessibilityControls', () => {
     const dialog = screen.getByRole('dialog', { name: 'Explore' });
     expect(dialog.getAttribute('aria-modal')).toBe('false');
     expect(trigger.getAttribute('aria-expanded')).toBe('true');
-    const search = screen.getByRole('searchbox', { name: 'Search founded castles' });
+    const search = screen.getByRole('searchbox', { name: 'Search castles, resources, and water' });
     await waitFor(() => expect(document.activeElement).toBe(search));
 
     const list = screen.getByRole('list', { name: 'Founded castles' });
@@ -295,7 +295,7 @@ describe('RealmAccessibilityControls', () => {
     const trigger = screen.getByRole('button', { name: /Explore realm, 3 founded castles/i });
     expect(triggerRef.current).toBe(trigger);
     fireEvent.click(trigger);
-    const search = screen.getByRole('searchbox', { name: 'Search founded castles' });
+    const search = screen.getByRole('searchbox', { name: 'Search castles, resources, and water' });
     fireEvent.keyDown(search, { key: 'Escape' });
 
     expect(onRequestClose).toHaveBeenCalledWith('escape');

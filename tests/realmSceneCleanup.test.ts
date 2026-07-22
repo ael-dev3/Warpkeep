@@ -17,6 +17,7 @@ const keepLoadState = vi.hoisted(() => ({
 const environmentState = vi.hoisted(() => ({ failNext: false }));
 
 const grassLayerState = vi.hoisted(() => ({ failNextCreation: false }));
+const waterLayerState = vi.hoisted(() => ({ failNextCreation: false }));
 
 const ambientSchedulerState = vi.hoisted(() => ({
   creations: [] as Array<{
@@ -88,6 +89,20 @@ vi.mock('../src/components/realm/createRealmGrassLayer', async (importOriginal) 
   };
 });
 
+vi.mock('../src/components/realm/realmWaterLayer', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/components/realm/realmWaterLayer')>();
+  return {
+    ...actual,
+    createRealmWaterLayer: (...args: Parameters<typeof actual.createRealmWaterLayer>) => {
+      if (waterLayerState.failNextCreation) {
+        waterLayerState.failNextCreation = false;
+        throw new Error('synthetic water allocation failure');
+      }
+      return actual.createRealmWaterLayer(...args);
+    }
+  };
+});
+
 vi.mock('../src/components/realm/realmAmbientScheduler', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/components/realm/realmAmbientScheduler')>();
   return {
@@ -135,6 +150,7 @@ import {
   CANONICAL_GENESIS_FOREST_LAYOUT_V1
 } from '../spacetimedb/src/forestLayoutPolicy';
 import { createCanonicalGenesisSnapshot } from './fixtures/canonicalGenesisSnapshot';
+import { GENESIS_WATER_REVISION_ENABLED_CELLS_V1 } from '../spacetimedb/src/waterRevision';
 
 type ListenerSpy = ReturnType<typeof vi.spyOn>;
 
@@ -257,6 +273,7 @@ describe('realm scene setup cleanup', () => {
     keepLoadState.load.mockImplementation(() => new Promise<unknown>(() => undefined));
     environmentState.failNext = false;
     grassLayerState.failNextCreation = false;
+    waterLayerState.failNextCreation = false;
     ambientSchedulerState.creations.length = 0;
     resizeObservers.length = 0;
     vi.stubGlobal('ResizeObserver', class ResizeObserver {
@@ -331,6 +348,24 @@ describe('realm scene setup cleanup', () => {
     }));
     expect(setTimeoutSpy).not.toHaveBeenCalled();
     animated.dispose();
+  });
+
+  it('keeps land-only navigation and rejects Water focus when its layer fails to construct', () => {
+    waterLayerState.failNextCreation = true;
+    const canvas = document.createElement('canvas');
+    const scene = createRealmScene(createOptions(canvas, {
+      waterCells: GENESIS_WATER_REVISION_ENABLED_CELLS_V1,
+      reducedMotion: true
+    }));
+    const renderer = webglState.instances[0]!;
+
+    expect(canvas.dataset.waterPresentation).toBe('unavailable');
+    expect(canvas.dataset.waterNavigation).toBe('land-only');
+    renderer.render.mockClear();
+    scene.focusWaterCell(GENESIS_WATER_REVISION_ENABLED_CELLS_V1[0]!.cellKey);
+    expect(renderer.render).not.toHaveBeenCalled();
+
+    scene.dispose();
   });
 
   it('renders the procedural environment centred on the active camera', () => {

@@ -7,6 +7,8 @@ export const RENDERED_WEBGL_QA_CHROME_TEAM_ID: 'EQHXZ8M8AV';
 export const RENDERED_WEBGL_QA_CASE_COUNT: 14;
 /** Exact authoritative terrain count for the Genesis generation-v3 render target. */
 export const RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_CELL_COUNT: 10000;
+/** Exact visible terrain-kind count after canonical no-lake revision activation. */
+export const RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_KIND_COUNT: 6;
 export const RENDERED_WEBGL_QA_LABEL_MAX_ANCHOR_DISPLACEMENT_PIXELS: 0;
 export const RENDERED_WEBGL_QA_LABEL_COORDINATE_SERIALIZATION_EPSILON_PIXELS: 0.015;
 /** Vite 8 default deny patterns plus the local asset-cache boundary. */

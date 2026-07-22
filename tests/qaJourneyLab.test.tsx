@@ -395,7 +395,7 @@ describe('Warpkeep local QA journey lab', () => {
     fireEvent.click(within(realmMenu).getByRole('button', { name: /EXPLORE/i }));
     const explore = screen.getByRole('dialog', { name: 'Explore' });
     fireEvent.change(within(explore).getByRole('searchbox', {
-      name: 'Search founded castles'
+      name: 'Search castles, resources, and water'
     }), { target: { value: 'sentinel-two' } });
     const target = within(explore).getByRole('button', {
       name: /Inspect @sentinel-two, Cinderwatch Keep/

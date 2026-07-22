@@ -268,7 +268,7 @@ export function RealmAccessibilityControls({
             </section>
           ) : null}
 
-          <label htmlFor={searchId}>Search founded castles</label>
+          <label htmlFor={searchId}>Search castles, resources, and water</label>
           <input
             ref={searchRef}
             id={searchId}
@@ -276,7 +276,7 @@ export function RealmAccessibilityControls({
             autoComplete="off"
             value={search}
             onChange={(event) => setSearch(event.currentTarget.value)}
-            placeholder="Player, castle, or coordinates"
+            placeholder="Player, castle, resource, water, or coordinates"
           />
 
           {visibleCastles.length > 0 ? (

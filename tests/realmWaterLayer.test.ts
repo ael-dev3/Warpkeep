@@ -3,7 +3,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   GENESIS_RIVERS_V1,
+  GENESIS_WATER_BODIES_V1,
   GENESIS_WATER_CELLS_V1,
+  GENESIS_WATER_ENVIRONMENT_V1,
   GENESIS_WATER_SEA_LEVEL_MILLI
 } from '../spacetimedb/src/waterWorld';
 import {
@@ -66,7 +68,11 @@ function createLayer(quality: 'high' | 'balanced' | 'reduced', reducedMotion = f
 function compileMaterial(material: THREE.MeshStandardMaterial) {
   const shader = {
     uniforms: {},
-    vertexShader: '#include <color_vertex>',
+    vertexShader: [
+      '#include <beginnormal_vertex>',
+      '#include <begin_vertex>',
+      '#include <color_vertex>'
+    ].join('\n'),
     fragmentShader: '#include <opaque_fragment>\n#include <dithering_fragment>'
   };
   material.onBeforeCompile(
@@ -140,8 +146,9 @@ describe('Realm canonical water layer', () => {
 
     const shader = compileMaterial(ocean.material);
     expect(ocean.material.userData.waterWaveComponents).toBe(0);
-    expect(shader.fragmentShader).not.toContain('uniform float uWaterTime');
-    expect(shader.fragmentShader).toContain('float waterGlimmer = 0.0');
+    expect(shader.vertexShader).not.toContain('uniform float uWaterTime');
+    expect(shader.vertexShader).toContain('return 0.0');
+    expect(shader.fragmentShader).toContain('float waterGlimmer = abs(vWarpkeepWaterWave)');
     expect(shader.fragmentShader).toContain('vWarpkeepWaterFogMix');
     expect(shader.fragmentShader.indexOf('waterGlimmer'))
       .toBeLessThan(shader.fragmentShader.indexOf('#include <opaque_fragment>'));
@@ -172,7 +179,7 @@ describe('Realm canonical water layer', () => {
     layer.dispose();
   });
 
-  it('maps bounded ray hits back to one visible water cell and excludes full fog', () => {
+  it('maps real direct and angled ray hits analytically and excludes full fog', () => {
     const layer = createRealmWaterLayer({
       cells: GENESIS_WATER_REVISION_ENABLED_CELLS_V1,
       quality: REALM_QUALITY_SPECS.reduced,
@@ -186,12 +193,42 @@ describe('Realm canonical water layer', () => {
       new THREE.Vector3(riverWorld.x, 10, riverWorld.z),
       new THREE.Vector3(0, -1, 0)
     );
+    const meshRaycast = vi.spyOn(raycaster, 'intersectObject');
     expect(layer.raycast(raycaster)).toMatchObject({
       cellKey: river.cellKey,
       bodyId: river.bodyId,
       regime: 'river',
       coord: { q: river.q, r: river.r }
     });
+    expect(meshRaycast).not.toHaveBeenCalled();
+    const broadCellRaycaster = new THREE.Raycaster(
+      new THREE.Vector3(riverWorld.x + 0.65, 10, riverWorld.z),
+      new THREE.Vector3(0, -1, 0)
+    );
+    expect(layer.raycast(broadCellRaycaster)).toMatchObject({
+      cellKey: river.cellKey,
+      bodyId: river.bodyId,
+      regime: 'river'
+    });
+    const angledOrigin = new THREE.Vector3(riverWorld.x + 2, 6, riverWorld.z + 1);
+    const angledTarget = new THREE.Vector3(
+      riverWorld.x,
+      waterSurfaceLevelToWorldY(river.surfaceLevelMilli) + 0.035,
+      riverWorld.z
+    );
+    const angledRaycaster = new THREE.Raycaster(
+      angledOrigin,
+      angledTarget.clone().sub(angledOrigin).normalize(),
+      0,
+      20
+    );
+    expect(layer.raycast(angledRaycaster)).toMatchObject({
+      cellKey: river.cellKey,
+      bodyId: river.bodyId,
+      regime: 'river'
+    });
+    angledRaycaster.far = 1;
+    expect(layer.raycast(angledRaycaster)).toBeNull();
     const fullFog = GENESIS_WATER_REVISION_ENABLED_CELLS_V1.find(
       (cell) => cell.regime === 'ocean' && cell.fogBand === 'full'
     );
@@ -335,17 +372,114 @@ describe('Realm canonical water layer', () => {
 
     expect(ocean.material.userData.waterWaveComponents)
       .toBe(REALM_WATER_RENDER_BUDGETS.high.waveComponents);
-    expect(shader.fragmentShader.match(/sin\(/g)).toHaveLength(
-      REALM_WATER_RENDER_BUDGETS.high.waveComponents
+    expect(shader.vertexShader.match(/sin\(/g)).toHaveLength(
+      REALM_WATER_RENDER_BUDGETS.high.waveComponents + 1
     );
-    expect(shader.fragmentShader).toContain('uniform float uWaterTime');
-    expect(shader.fragmentShader).not.toContain('uWaterWaveComponents');
+    expect(shader.vertexShader).toContain('uniform float uWaterTime');
+    expect(shader.vertexShader).not.toContain('uWaterWaveComponents');
+    expect(shader.vertexShader).toContain('(modelMatrix * vec4(position, 1.0)).xz');
+    expect(shader.vertexShader).not.toContain('vViewPosition.xz');
     expect(shader.fragmentShader).toContain('outgoingLight +=');
     expect(shader.uniforms).toHaveProperty('uWaterTime');
     expect(layer.updateEnvironment(1)).toBe(true);
     expect(layer.updateEnvironment(1)).toBe(false);
     expect(layer.updateEnvironment(2)).toBe(true);
 
+    layer.dispose();
+  });
+
+  it('aligns first animated samples to the same canonical environment boundary', () => {
+    const options = {
+      cells: GENESIS_WATER_CELLS_V1,
+      quality: REALM_QUALITY_SPECS.balanced,
+      reducedMotion: false,
+      hexSize: 1,
+      heightAtWorld: canonicalHeightAtWorld,
+      environment: {
+        ...GENESIS_WATER_ENVIRONMENT_V1,
+        updatedAtMicros: 1_000_000_000n
+      },
+      waterBodies: GENESIS_WATER_BODIES_V1,
+      nowMicros: () => 1_014_000_000n
+    } as const;
+    const first = createRealmWaterLayer(options);
+    const second = createRealmWaterLayer(options);
+    expect(first.updateEnvironment(1)).toBe(true);
+    expect(second.updateEnvironment(40)).toBe(true);
+    const firstOcean = first.group.getObjectByName('canonical-ocean-surface') as THREE.Mesh<
+      THREE.BufferGeometry,
+      THREE.MeshStandardMaterial
+    >;
+    const secondOcean = second.group.getObjectByName('canonical-ocean-surface') as THREE.Mesh<
+      THREE.BufferGeometry,
+      THREE.MeshStandardMaterial
+    >;
+    const firstTime = firstOcean.material.userData.waterUniforms.uWaterTime.value as number;
+    const secondTime = secondOcean.material.userData.waterUniforms.uWaterTime.value as number;
+    expect(firstTime).toBe(secondTime);
+    expect(firstTime).toBeGreaterThanOrEqual(0);
+    expect(firstTime).toBeLessThan(97);
+    first.dispose();
+    second.dispose();
+  });
+
+  it('does not treat the local wall clock as a synchronized Water clock', () => {
+    const dateNow = vi.spyOn(Date, 'now');
+    const options = {
+      cells: GENESIS_WATER_CELLS_V1,
+      quality: REALM_QUALITY_SPECS.balanced,
+      reducedMotion: false,
+      hexSize: 1,
+      heightAtWorld: canonicalHeightAtWorld,
+      environment: {
+        ...GENESIS_WATER_ENVIRONMENT_V1,
+        updatedAtMicros: 1_000_000_000n
+      },
+      waterBodies: GENESIS_WATER_BODIES_V1
+    } as const;
+    const first = createRealmWaterLayer(options);
+    const second = createRealmWaterLayer(options);
+    expect(first.updateEnvironment(3)).toBe(true);
+    expect(second.updateEnvironment(3)).toBe(true);
+    expect(dateNow).not.toHaveBeenCalled();
+    const firstOcean = first.group.getObjectByName('canonical-ocean-surface') as THREE.Mesh<
+      THREE.BufferGeometry,
+      THREE.MeshStandardMaterial
+    >;
+    const secondOcean = second.group.getObjectByName('canonical-ocean-surface') as THREE.Mesh<
+      THREE.BufferGeometry,
+      THREE.MeshStandardMaterial
+    >;
+    expect(firstOcean.material.userData.waterUniforms.uWaterTime.value)
+      .toBe(secondOcean.material.userData.waterUniforms.uWaterTime.value);
+    first.dispose();
+    second.dispose();
+  });
+
+  it('reuses fixed overlay buffers while selection and hover move between cells', () => {
+    const layer = createRealmWaterLayer({
+      cells: GENESIS_WATER_REVISION_ENABLED_CELLS_V1,
+      quality: REALM_QUALITY_SPECS.reduced,
+      reducedMotion: true,
+      hexSize: 1,
+      heightAtWorld: canonicalHeightAtWorld
+    });
+    const selected = layer.group.getObjectByName('selected-water-cell-outline') as THREE.LineLoop;
+    const hovered = layer.group.getObjectByName('hovered-water-cell-outline') as THREE.LineLoop;
+    const selectedPositions = selected.geometry.getAttribute('position');
+    const hoveredPositions = hovered.geometry.getAttribute('position');
+
+    layer.setSelectedCellKey(activeRiverCells[0]!.cellKey);
+    layer.setSelectedCellKey(activeRiverCells[1]!.cellKey);
+    layer.setHoveredCellKey(activeRiverCells[0]!.cellKey);
+    layer.setHoveredCellKey(activeRiverCells[1]!.cellKey);
+
+    expect(selected.geometry.getAttribute('position')).toBe(selectedPositions);
+    expect(hovered.geometry.getAttribute('position')).toBe(hoveredPositions);
+    expect(selectedPositions.count).toBe(6);
+    expect(hoveredPositions.count).toBe(6);
+    expect(selected.visible).toBe(true);
+    expect(hovered.visible).toBe(true);
     layer.dispose();
   });
 

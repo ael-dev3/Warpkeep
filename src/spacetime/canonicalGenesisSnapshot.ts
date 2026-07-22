@@ -186,6 +186,32 @@ function waterRowObject(value: unknown): Readonly<Record<string, unknown>> | und
     : undefined;
 }
 
+/** Strip generated SDK objects down to one immutable browser-safe scalar. */
+function realmEnvironmentUpdatedAtMicros(value: unknown): bigint | undefined {
+  if (typeof value === 'bigint') return value >= 0n ? value : undefined;
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const timestamp = value as Readonly<{
+    microsSinceUnixEpoch?: unknown;
+    toMillis?: () => unknown;
+  }>;
+  try {
+    if (typeof timestamp.microsSinceUnixEpoch === 'bigint') {
+      return timestamp.microsSinceUnixEpoch >= 0n
+        ? timestamp.microsSinceUnixEpoch
+        : undefined;
+    }
+    if (typeof timestamp.toMillis === 'function') {
+      const milliseconds = timestamp.toMillis();
+      return typeof milliseconds === 'bigint' && milliseconds >= 0n
+        ? milliseconds * 1_000n
+        : undefined;
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
+
 /**
  * Water is additive, but unlike a local decorative hint its topology is an
  * authority artifact. Accept only the complete reviewed row set and retain a
@@ -299,12 +325,25 @@ function validateWaterProjection(candidate: WarpkeepRealmSnapshotCandidate): {
       && row.fogBand === expected.fogBand
       && row.layoutVersion === expected.layoutVersion;
   });
+  const updatedAtMicros = realmEnvironmentUpdatedAtMicros(
+    environment.updatedAtMicros ?? environment.updatedAt
+  );
+  const canonicalEnvironment = Object.freeze({
+    realmId: environment.realmId,
+    environmentEpoch: environment.environmentEpoch,
+    waterLayoutVersion: environment.waterLayoutVersion,
+    seaLevelMilli: environment.seaLevelMilli,
+    sunDirectionXMicro: environment.sunDirectionXMicro,
+    sunDirectionYMicro: environment.sunDirectionYMicro,
+    sunDirectionZMicro: environment.sunDirectionZMicro,
+    ...(updatedAtMicros === undefined ? {} : { updatedAtMicros })
+  });
   return {
     layout: validLayout ? Object.freeze({ ...layout }) : freezePresentationValue(rawLayout),
     bodies: validLayout && validBodies ? freezeRows(rawBodies) : freezeRows(rawBodies),
     cells: validLayout && validCells ? freezeRows(rawCells) : freezeRows(rawCells),
     realmEnvironment: validEnvironment
-      ? Object.freeze({ ...environment })
+      ? canonicalEnvironment
       : freezePresentationValue(rawEnvironment),
     waterRevision: rawRevision === undefined
       ? undefined

@@ -68,7 +68,7 @@ describe('Realm read-only observer presentation', () => {
     expect(screen.queryByRole('button', { name: 'Return to Menu' })).toBeNull();
 
     fireEvent.click(screen.getByRole('button', {
-      name: 'Explore realm, 4 founded castles'
+      name: 'Explore realm, 4 founded castles and 12 public rivers'
     }));
     const explore = screen.getByRole('dialog', { name: 'Explore' });
     expect(within(explore).queryByRole('button', { name: 'My Keep' })).toBeNull();
