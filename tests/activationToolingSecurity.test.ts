@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';
+import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -9,9 +10,16 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import {
   GENESIS_WORLD_PUBLISH_STAGE,
+  PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS,
   RESOURCE_PUBLISH_ROLLOUT_STAGE,
+  WORKER_PUBLISH_ROLLOUT_STAGE,
+  WORKER_V12_TABLE_CONTRACTS,
   alphaV10AggregateChildArguments,
+  alphaV12AggregateChildArguments,
   alphaV8AggregateChildArguments,
+  canonicalSchemaDescribeChildArguments,
+  createPrivatePublishSnapshot,
+  parseCanonicalSchemaDescription,
   parseMigrationProofReceipt,
   parsePublishArguments,
   publishChildEnvironment,
@@ -23,6 +31,8 @@ import {
   verifyCanonicalDatabaseList,
   verifyFreshAlphaStatusV8Aggregate,
   verifyFreshAlphaStatusV10Aggregate,
+  verifyFreshAlphaStatusV12Aggregate,
+  verifyFreshProductionV11Schema,
   verifyFreshFoundedProtocolV3Aggregate,
   verifyFreshResourceProtocolV4PrebackfillAggregate,
   verifyFreshResourceProtocolV4ReadyAggregate,
@@ -30,19 +40,27 @@ import {
   verifyPinnedCliAttestation,
   verifyPostPublishAlphaStatusV8Aggregate,
   verifyPostPublishAlphaStatusV10Aggregate,
+  verifyPostPublishAlphaStatusV12Aggregate,
   verifyPostPublishFoundedProtocolV3Aggregate,
+  verifyPostPublishProductionV12Schema,
   verifyPostPublishResourceProtocolV4PrebackfillAggregate,
   verifyPostPublishResourceProtocolV4ReadyAggregate,
   verifyPostPublishResourcePublicationCheckpoints,
   verifyPrivacySafeAlphaStatusV8Output,
   verifyPrivacySafeAlphaStatusV10Output,
+  verifyPrivacySafeAlphaStatusV12Output,
+  verifyEmptyAlphaStatusV12,
+  verifyExactProductionV11Schema,
+  verifyExactProductionV12Schema,
 } from '../scripts/publish-spacetime-dev.mjs';
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
 import { ADDITIVE_MIGRATION_PROOF_PROCESS_TIMEOUT_MILLISECONDS, ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION, ADDITIVE_MIGRATION_PROOF_SPACETIME_CLI_VERSION, formatAdditiveMigrationProofReceipt } from '../scripts/spacetime-additive-migration-proof.mjs';
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
+import { canonicalTableSchemaBoundaryDigest } from '../scripts/spacetime-table-schema-attestation.mjs';
+// @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
 import { PROTECTED_AGGREGATE_STAGE, parseProductionVerifierArguments, protectedAggregateChildArguments, protectedAggregateChildEnvironment, protectedAggregateChildOptions, requiredProtectedAggregateSecret, resourceV4AggregateChildArguments, resourceV4ReadyAggregateChildEnvironment, resourceV4ReadyAggregateChildOptions, rootAssetUrls, validateProductionSigningKey, verifyBridge, verifyExpectedAlphaAggregate, verifyExpectedAlphaV2Aggregate, verifyExpectedAlphaV3Aggregate, verifyExpectedAlphaV4ResourcePrebackfillAggregate, verifyExpectedAlphaV4ResourceReadyAggregate, verifyPostBackfillResourceAggregateCheckpoints, verifyRootAssets } from '../scripts/verify-alpha-production.mjs';
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
-import { cleanupMigrationProofResources, containServerProcessErrors, stopServer } from '../scripts/verify-spacetime-additive-migration.mjs';
+import { cleanupMigrationProofResources, containServerProcessErrors, installMigrationProofSignalCleanup, stopServer } from '../scripts/verify-spacetime-additive-migration.mjs';
 import {
   ALPHA_ACTIVATION_COMPONENTS,
   ALPHA_ACTIVATION_SCHEMA_PROTOCOL_VERSION,
@@ -171,6 +189,84 @@ function alphaStatusV10(overrides: Record<string, unknown> = {}) {
     stoneSchedules: '0',
     ...overrides,
   };
+}
+
+function alphaStatusV12(overrides: Record<string, unknown> = {}) {
+  const zeroCounts = Object.fromEntries([
+    'systemRows', 'expectedCastleCount', 'expectedWorkerCount', 'actualWorkerCount',
+    'castlesWithExtraWorkers', 'duplicateOrdinals', 'malformedWorkerIds',
+    'invalidWorkerStates', 'idleWorkers', 'outboundWorkers', 'gatheringWorkers',
+    'returningWorkers', 'assignments', 'occupations', 'schedules', 'orphanWorkers',
+    'orphanAssignments', 'assignmentsMissingOccupation',
+    'assignmentsWithoutSingleSchedule', 'orphanOccupations', 'orphanSchedules',
+    'invalidSchedules', 'assignmentPublicMismatches', 'occupationSiteMismatches',
+    'invalidAssignments', 'idempotencyReceipts', 'invalidIdempotencyReceipts',
+    'idempotencyOverflowFids',
+  ].map(field => [field, '0']));
+  return {
+    ...zeroCounts,
+    mode: 'absent',
+    systemConfigValid: false,
+    legacyDrainRequired: true,
+    expectedCountsMatch: false,
+    rosterDigestMatches: false,
+    castlesMissingWorkers: '4',
+    legacyExpeditions: '2',
+    legacyOccupations: '1',
+    legacySchedules: '3',
+    rosterDigest: '',
+    rosterDigestExpected: '0123456789abcdef',
+    ...overrides,
+  };
+}
+
+function productionSchemaDescription(includeWorkerV12: boolean) {
+  const refs: Record<string, number> = {
+    ...PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS,
+  };
+  if (includeWorkerV12) {
+    for (const [name, contract] of Object.entries(WORKER_V12_TABLE_CONTRACTS)) {
+      refs[name] = contract.productTypeRef;
+    }
+  }
+  const types: Array<{
+    Product: {
+      elements: Array<{
+        name: { some: string };
+        algebraic_type: Record<string, unknown>;
+      }>;
+    };
+  }> = Array.from({ length: Math.max(...Object.values(refs)) + 1 }, (_unused, ref) => ({
+    Product: { elements: [{ name: { some: `legacy_field_${ref}` }, algebraic_type: { U64: {} } }] },
+  }));
+  const tables: Array<{
+    name: string;
+    product_type_ref: number;
+    table_access: Record<string, object>;
+    indexes: Array<Record<string, unknown>>;
+    constraints: Array<Record<string, unknown>>;
+  }> = Object.entries(refs).map(([name, productTypeRef]) => ({
+    name,
+    product_type_ref: productTypeRef,
+    table_access: { [name === 'admin_audit' ? 'Private' : 'Public']: {} },
+    indexes: [{ name: `${name}_by_primary`, algorithm: { BTree: { columns: [0] } } }],
+    constraints: [{ name: `${name}_primary`, data: { Unique: { columns: [0] } } }],
+  }));
+  if (includeWorkerV12) {
+    for (const [name, contract] of Object.entries(WORKER_V12_TABLE_CONTRACTS)) {
+      types[contract.productTypeRef] = {
+        Product: {
+          elements: contract.fields.map(field => ({
+            name: { some: field },
+            algebraic_type: { String: {} },
+          })),
+        },
+      };
+      const table = tables.find(candidate => candidate.name === name)!;
+      table.table_access = { [contract.access]: {} };
+    }
+  }
+  return { tables, typespace: { types } };
 }
 
 beforeAll(async () => {
@@ -434,6 +530,8 @@ function withNonCanonicalPaddingBits(value: string) {
 
 async function withTestProvenArtifact<T>(callback: (receipt: {
   artifactPath: string;
+  v11TableSchemaDigest: string;
+  v12TableSchemaDigest: string;
   artifactDigest: string;
 }) => Promise<T> | T): Promise<T> {
   let previous: Buffer | undefined;
@@ -447,6 +545,8 @@ async function withTestProvenArtifact<T>(callback: (receipt: {
   await writeFile(provenArtifactPath, content, { mode: 0o600 });
   const receipt = Object.freeze({
     artifactPath: provenArtifactPath,
+    v11TableSchemaDigest: 'a'.repeat(64),
+    v12TableSchemaDigest: 'b'.repeat(64),
     artifactDigest: createHash('sha256').update(content).digest('hex'),
   });
   try {
@@ -551,12 +651,24 @@ describe('activation publish safety', () => {
       .rejects.toThrow(/invalid or private signing key/i);
   });
 
-  it('uses one non-destructive bounded publish attempt with exact arguments', async () => {
+  it('publishes only an owner-private artifact snapshot after the proven source is replaced', async () => {
     const calls: unknown[][] = [];
+    let snapshotPath = '';
+    let snapshotDirectory = '';
+    let snapshotBytes = Buffer.alloc(0);
+    let snapshotFileMode = 0;
+    let snapshotDirectoryMode = 0;
     const child = new EventEmitter() as EventEmitter & { kill: ReturnType<typeof vi.fn> };
     child.kill = vi.fn();
     const fakeSpawn = (...args: unknown[]) => {
       calls.push(args);
+      const publishArguments = args[1] as string[];
+      snapshotPath = publishArguments[publishArguments.indexOf('--js-path') + 1] ?? '';
+      snapshotDirectory = dirname(snapshotPath);
+      writeFileSync(provenArtifactPath, 'test-only-replacement-after-attestation');
+      snapshotBytes = readFileSync(snapshotPath);
+      snapshotFileMode = statSync(snapshotPath).mode & 0o777;
+      snapshotDirectoryMode = statSync(snapshotDirectory).mode & 0o777;
       queueMicrotask(() => child.emit('close', 0, null));
       return child;
     };
@@ -571,10 +683,15 @@ describe('activation publish safety', () => {
     });
     expect(calls).toHaveLength(1);
     expect(calls[0]?.[0]).toBe('spacetime');
+    expect(snapshotPath).not.toBe(provenArtifactPath);
+    expect(snapshotPath).toBe(join(snapshotDirectory, 'module.js'));
+    expect(snapshotBytes).toEqual(Buffer.from('test-only-proven-spacetimedb-artifact'));
+    expect(snapshotFileMode).toBe(0o400);
+    expect(snapshotDirectoryMode).toBe(0o700);
     expect(calls[0]?.[1]).toEqual([
       'publish',
       '--server', 'https://maincloud.spacetimedb.com',
-      '--js-path', provenArtifactPath,
+      '--js-path', snapshotPath,
       '--delete-data=never',
       '--yes=remote',
       '--no-config',
@@ -586,12 +703,237 @@ describe('activation publish safety', () => {
     });
     expect(calls[0]?.[2]).not.toHaveProperty('shell');
     expect(calls[0]?.[2]).toHaveProperty('env');
+    expect(() => statSync(snapshotPath)).toThrow();
+    expect(() => statSync(snapshotDirectory)).toThrow();
+  });
+
+  it('executes only the attested CLI snapshot after its source path is replaced', async () => {
+    const sourceDirectory = await mkdtemp(join(tmpdir(), 'warpkeep-cli-source-'));
+    const sourcePath = join(sourceDirectory, 'spacetime-test');
+    const original = Buffer.from('#!/bin/sh\nprintf original-cli');
+    await writeFile(sourcePath, original, { mode: 0o700 });
+    const digest = createHash('sha256').update(original).digest('hex');
+    const snapshot = createPrivatePublishSnapshot(sourcePath, digest, 'executable');
+    const snapshotPath = snapshot.path;
+    const snapshotDirectory = snapshot.directory;
+    try {
+      expect(snapshotPath).not.toBe(sourcePath);
+      expect(snapshotPath).toBe(join(snapshotDirectory, 'spacetime'));
+      expect(statSync(snapshotDirectory).mode & 0o777).toBe(0o700);
+      expect(statSync(snapshotPath).mode & 0o777).toBe(0o500);
+
+      await writeFile(sourcePath, '#!/bin/sh\nprintf replaced-cli', { mode: 0o700 });
+      const result = spawnSync(snapshotPath, [], { encoding: 'utf8' });
+      expect(result.status).toBe(0);
+      expect(result.signal).toBeNull();
+      expect(result.stdout).toBe('original-cli');
+      expect(readFileSync(snapshotPath)).toEqual(original);
+    } finally {
+      snapshot.cleanup();
+      await rm(sourceDirectory, { recursive: true, force: true });
+    }
+    expect(() => statSync(snapshotPath)).toThrow();
+    expect(() => statSync(snapshotDirectory)).toThrow();
+  });
+
+  it('requires an anonymous immutable-identity v11 schema and one exact additive v12 suffix', () => {
+    expect(canonicalSchemaDescribeChildArguments()).toEqual([
+      'describe',
+      '--json',
+      '--anonymous',
+      '--server', 'https://maincloud.spacetimedb.com',
+      '--no-config',
+      CANONICAL_DATABASE_IDENTITY,
+    ]);
+    expect(canonicalSchemaDescribeChildArguments()).not.toContain('warpkeep-89e4u');
+
+    const v11 = productionSchemaDescription(false);
+    const parsed = parseCanonicalSchemaDescription(JSON.stringify(v11));
+    const v11TableNames = Object.keys(PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS);
+    const v11TableSchemaDigest = canonicalTableSchemaBoundaryDigest(parsed, v11TableNames);
+    const predecessor = verifyExactProductionV11Schema(parsed, v11TableSchemaDigest);
+    expect(Object.keys(predecessor)).toHaveLength(47);
+
+    const calls: unknown[][] = [];
+    const v11Spawn = (...args: unknown[]) => {
+      calls.push(args);
+      return { status: 0, signal: null, stdout: JSON.stringify(v11), stderr: '' };
+    };
+    expect(verifyFreshProductionV11Schema(
+      'spacetime',
+      v11TableSchemaDigest,
+      v11Spawn as never,
+    ))
+      .toEqual(predecessor);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.[1]).toEqual(canonicalSchemaDescribeChildArguments());
+    const options = calls[0]?.[2] as { env?: Record<string, string>; input?: string };
+    expect(options.input).toBe('');
+    expect(options.env).not.toHaveProperty('WARPKEEP_ADMIN_TOKEN_SECRET');
+    expect(options.env).not.toHaveProperty('WARPKEEP_ADMIN_TOKEN_SECRET_STDIN');
+
+    const v12 = productionSchemaDescription(true);
+    const v12TableNames = [
+      ...v11TableNames,
+      ...Object.keys(WORKER_V12_TABLE_CONTRACTS),
+    ];
+    const v12TableSchemaDigest = canonicalTableSchemaBoundaryDigest(v12, v12TableNames);
+    expect(verifyExactProductionV12Schema(
+      predecessor,
+      v12,
+      v12TableSchemaDigest,
+    )).toEqual({
+      predecessorTableCount: 47,
+      appendedWorkerTableCount: 6,
+      totalTableCount: 53,
+    });
+    expect(verifyPostPublishProductionV12Schema(
+      'spacetime',
+      predecessor,
+      v12TableSchemaDigest,
+      (() => ({ status: 0, signal: null, stdout: JSON.stringify(v12), stderr: '' })) as never,
+    )).toEqual({
+      predecessorTableCount: 47,
+      appendedWorkerTableCount: 6,
+      totalTableCount: 53,
+    });
+
+    const extraV11Table = structuredClone(v11);
+    extraV11Table.tables.push({
+      name: 'unexpected_table',
+      product_type_ref: 47,
+      table_access: { Public: {} },
+      indexes: [],
+      constraints: [],
+    });
+    expect(() => verifyExactProductionV11Schema(extraV11Table, v11TableSchemaDigest))
+      .toThrow(/table set/i);
+
+    const allPublicV11 = structuredClone(v11);
+    allPublicV11.tables.find(table => table.name === 'admin_audit')!.table_access = { Public: {} };
+    expect(() => verifyExactProductionV11Schema(allPublicV11, v11TableSchemaDigest))
+      .toThrow(/proven publication boundary/i);
+
+    const changedV11FieldType = structuredClone(v11);
+    const castleRef = PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS.castle;
+    changedV11FieldType.typespace.types[castleRef].Product.elements[0].algebraic_type = {
+      String: {},
+    };
+    expect(() => verifyExactProductionV11Schema(changedV11FieldType, v11TableSchemaDigest))
+      .toThrow(/proven publication boundary/i);
+
+    const changedV11Index = structuredClone(v11);
+    changedV11Index.tables.find(table => table.name === 'castle')!.indexes[0] = {
+      name: 'castle_by_primary',
+      algorithm: { BTree: { columns: [1] } },
+    };
+    expect(() => verifyExactProductionV11Schema(changedV11Index, v11TableSchemaDigest))
+      .toThrow(/proven publication boundary/i);
+
+    const changedV11Constraint = structuredClone(v11);
+    changedV11Constraint.tables.find(table => table.name === 'castle')!.constraints[0] = {
+      name: 'castle_primary',
+      data: { Unique: { columns: [1] } },
+    };
+    expect(() => verifyExactProductionV11Schema(changedV11Constraint, v11TableSchemaDigest))
+      .toThrow(/proven publication boundary/i);
+
+    const changedPredecessor = structuredClone(v12);
+    changedPredecessor.tables.find(table => table.name === 'castle')!.table_access = { Private: {} };
+    expect(() => verifyExactProductionV12Schema(
+      predecessor,
+      changedPredecessor,
+      v12TableSchemaDigest,
+    ))
+      .toThrow(/pre-existing production table changed/i);
+
+    const changedWorker = structuredClone(v12);
+    changedWorker.tables.find(table => table.name === 'worker_assignment_v1')!.table_access = { Public: {} };
+    expect(() => verifyExactProductionV12Schema(
+      predecessor,
+      changedWorker,
+      v12TableSchemaDigest,
+    ))
+      .toThrow(/exact v12 contract/i);
+
+    const workerRef = WORKER_V12_TABLE_CONTRACTS.castle_worker_v1.productTypeRef;
+    const changedWorkerFieldType = structuredClone(v12);
+    changedWorkerFieldType.typespace.types[workerRef].Product.elements[0].algebraic_type = {
+      U64: {},
+    };
+    expect(() => verifyExactProductionV12Schema(
+      predecessor,
+      changedWorkerFieldType,
+      v12TableSchemaDigest,
+    )).toThrow(/proven publication boundary/i);
+
+    const changedWorkerIndex = structuredClone(v12);
+    changedWorkerIndex.tables.find(table => table.name === 'castle_worker_v1')!.indexes[0] = {
+      name: 'castle_worker_v1_by_primary',
+      algorithm: { BTree: { columns: [1] } },
+    };
+    expect(() => verifyExactProductionV12Schema(
+      predecessor,
+      changedWorkerIndex,
+      v12TableSchemaDigest,
+    )).toThrow(/proven publication boundary/i);
+
+    const changedWorkerConstraint = structuredClone(v12);
+    changedWorkerConstraint.tables
+      .find(table => table.name === 'castle_worker_v1')!.constraints[0] = {
+        name: 'castle_worker_v1_primary',
+        data: { Unique: { columns: [1] } },
+      };
+    expect(() => verifyExactProductionV12Schema(
+      predecessor,
+      changedWorkerConstraint,
+      v12TableSchemaDigest,
+    )).toThrow(/proven publication boundary/i);
+
+    const nestedV11 = structuredClone(v11);
+    const nestedRef = nestedV11.typespace.types.length;
+    nestedV11.typespace.types.push({
+      Product: { elements: [{ name: { some: 'nested' }, algebraic_type: { U64: {} } }] },
+    });
+    nestedV11.typespace.types[castleRef].Product.elements[0].algebraic_type = { Ref: nestedRef };
+    const nestedDigest = canonicalTableSchemaBoundaryDigest(nestedV11, v11TableNames);
+    expect(() => verifyExactProductionV11Schema(nestedV11, nestedDigest)).not.toThrow();
+    const changedNestedType = structuredClone(nestedV11);
+    changedNestedType.typespace.types[nestedRef].Product.elements[0].algebraic_type = {
+      String: {},
+    };
+    expect(() => verifyExactProductionV11Schema(changedNestedType, nestedDigest))
+      .toThrow(/proven publication boundary/i);
+
+    const unrelatedSchema = structuredClone(nestedV11);
+    unrelatedSchema.typespace.types.push({
+      Product: { elements: [{ name: { some: 'reducer_only' }, algebraic_type: { Bool: {} } }] },
+    });
+    Object.assign(unrelatedSchema, {
+      reducers: [{ name: 'unrelated_reducer' }],
+      procedures: [{ name: 'unrelated_procedure' }],
+    });
+    expect(canonicalTableSchemaBoundaryDigest(unrelatedSchema, v11TableNames))
+      .toBe(nestedDigest);
+
+    const indeterminate = () => verifyPostPublishProductionV12Schema(
+      'spacetime',
+      predecessor,
+      v12TableSchemaDigest,
+      (() => ({ status: 1, signal: null, stdout: 'private', stderr: 'private' })) as never,
+    );
+    expect(indeterminate).toThrow(/indeterminate.*anonymous read-only schema inspection/i);
+    expect(indeterminate).not.toThrow(/private|retry/i);
+    expect(() => parseCanonicalSchemaDescription('private, not json'))
+      .toThrow(/machine-readable JSON/i);
   });
 
   it('binds an exact single migration receipt and rejects artifact changes before spawn', async () => {
     await withTestProvenArtifact(async receipt => {
       const success = `${formatAdditiveMigrationProofReceipt({
         summary: 'test-only receipt.',
+        v11TableSchemaDigest: receipt.v11TableSchemaDigest,
+        v12TableSchemaDigest: receipt.v12TableSchemaDigest,
         artifactDigest: receipt.artifactDigest,
       })}\n`;
       const parsed = parseMigrationProofReceipt(success);
@@ -610,6 +952,25 @@ describe('activation publish safety', () => {
         .toThrow(/exact success receipt/i);
       expect(() => parseMigrationProofReceipt(success.replace('artifact_sha256=', 'artifact_digest=')))
         .toThrow(/exact success receipt/i);
+      expect(() => parseMigrationProofReceipt(success.replace(
+        ` v11_table_schema_sha256=${receipt.v11TableSchemaDigest}`,
+        '',
+      ))).toThrow(/exact success receipt/i);
+      expect(() => parseMigrationProofReceipt(success.replace(
+        ` v12_table_schema_sha256=${receipt.v12TableSchemaDigest}`,
+        ` v11_table_schema_sha256=${receipt.v11TableSchemaDigest}`
+          + ` v12_table_schema_sha256=${receipt.v12TableSchemaDigest}`,
+      ))).toThrow(/exact success receipt/i);
+      expect(() => parseMigrationProofReceipt(success.replace(
+        ` v11_table_schema_sha256=${receipt.v11TableSchemaDigest}`
+          + ` v12_table_schema_sha256=${receipt.v12TableSchemaDigest}`,
+        ` v12_table_schema_sha256=${receipt.v12TableSchemaDigest}`
+          + ` v11_table_schema_sha256=${receipt.v11TableSchemaDigest}`,
+      ))).toThrow(/exact success receipt/i);
+      expect(() => parseMigrationProofReceipt(success.replace(
+        receipt.v11TableSchemaDigest,
+        'not-a-digest',
+      ))).toThrow(/exact success receipt/i);
       expect(() => parseMigrationProofReceipt(success.replace(receipt.artifactDigest, '0'.repeat(64))))
         .toThrow(/changed after migration/i);
       expect(() => parseMigrationProofReceipt(success.replace(receipt.artifactDigest, 'not-a-digest')))
@@ -621,6 +982,10 @@ describe('activation publish safety', () => {
       expect(() => verifyMigrationArtifactReceipt({
         ...receipt,
         artifactDigest: receipt.artifactDigest.toUpperCase(),
+      })).toThrow(/receipt was invalid/i);
+      expect(() => verifyMigrationArtifactReceipt({
+        ...receipt,
+        v12TableSchemaDigest: receipt.v12TableSchemaDigest.toUpperCase(),
       })).toThrow(/receipt was invalid/i);
       expect(() => verifyMigrationArtifactReceipt({ ...receipt, extra: true }))
         .toThrow(/receipt was invalid/i);
@@ -649,6 +1014,8 @@ describe('activation publish safety', () => {
       const calls: unknown[][] = [];
       const success = `${formatAdditiveMigrationProofReceipt({
         summary: 'test-only scheduler receipt.',
+        v11TableSchemaDigest: receipt.v11TableSchemaDigest,
+        v12TableSchemaDigest: receipt.v12TableSchemaDigest,
         artifactDigest: receipt.artifactDigest,
       })}\n`;
       const fakeSpawnSync = (...args: unknown[]) => {
@@ -689,6 +1056,7 @@ describe('activation publish safety', () => {
 
   it('kills and rejects a publish whose combined output exceeds the fixed bound', async () => {
     await withTestProvenArtifact(async receipt => {
+      let snapshotPath = '';
       const child = new EventEmitter() as EventEmitter & {
         kill: ReturnType<typeof vi.fn>;
         stdout: EventEmitter;
@@ -701,12 +1069,18 @@ describe('activation publish safety', () => {
         'spacetime',
         CANONICAL_DATABASE_IDENTITY,
         receipt,
-        (() => child) as never,
+        ((...args: unknown[]) => {
+          const publishArguments = args[1] as string[];
+          snapshotPath = publishArguments[publishArguments.indexOf('--js-path') + 1] ?? '';
+          return child;
+        }) as never,
       );
       child.stdout.emit('data', Buffer.alloc(1_000_001));
       child.emit('close', 1, 'SIGKILL');
       await expect(publish).rejects.toThrow(/did not complete successfully/i);
       expect(child.kill).toHaveBeenCalledWith('SIGKILL');
+      expect(snapshotPath).not.toBe('');
+      expect(() => statSync(snapshotPath)).toThrow();
     });
   });
 
@@ -714,19 +1088,23 @@ describe('activation publish safety', () => {
     expect(parsePublishArguments([
       '--resource-rollout-stage=prebackfill',
       '--genesis-world-stage=pre-expansion',
+      '--worker-rollout-stage=empty',
     ])).toEqual({
       dryRun: false,
       resourceRolloutStage: RESOURCE_PUBLISH_ROLLOUT_STAGE.PREBACKFILL,
       genesisWorldRolloutStage: GENESIS_WORLD_PUBLISH_STAGE.PRE_EXPANSION,
+      workerRolloutStage: WORKER_PUBLISH_ROLLOUT_STAGE.EMPTY,
     });
     expect(parsePublishArguments([
       '--resource-rollout-stage=ready',
       '--genesis-world-stage=expanded',
+      '--worker-rollout-stage=empty',
       '--dry-run',
     ])).toEqual({
       dryRun: true,
       resourceRolloutStage: RESOURCE_PUBLISH_ROLLOUT_STAGE.READY,
       genesisWorldRolloutStage: GENESIS_WORLD_PUBLISH_STAGE.EXPANDED,
+      workerRolloutStage: WORKER_PUBLISH_ROLLOUT_STAGE.EMPTY,
     });
     expect(() => parsePublishArguments([])).toThrow(/explicit resource rollout stage/i);
     expect(() => parsePublishArguments(['--dry-run'])).toThrow(/explicit resource rollout stage/i);
@@ -736,23 +1114,43 @@ describe('activation publish safety', () => {
       '--dry-run',
       '--resource-rollout-stage=prebackfill',
       '--genesis-world-stage=pre-expansion',
+      '--worker-rollout-stage=empty',
     ])).toThrow(/unknown or duplicate/i);
     expect(() => parsePublishArguments([
       '--resource-rollout-stage=prebackfill',
       '--resource-rollout-stage=ready',
       '--genesis-world-stage=pre-expansion',
+      '--worker-rollout-stage=empty',
     ])).toThrow(/unknown or duplicate/i);
     expect(() => parsePublishArguments([
       '--resource-rollout-stage=unknown',
       '--genesis-world-stage=pre-expansion',
+      '--worker-rollout-stage=empty',
     ])).toThrow(/unknown or duplicate/i);
     expect(() => parsePublishArguments([
       '--resource-rollout-stage=ready',
+      '--worker-rollout-stage=empty',
     ])).toThrow(/explicit Genesis world stage/i);
     expect(() => parsePublishArguments([
       '--resource-rollout-stage=ready',
       '--genesis-world-stage=pre-expansion',
       '--genesis-world-stage=expanded',
+      '--worker-rollout-stage=empty',
+    ])).toThrow(/unknown or duplicate/i);
+    expect(() => parsePublishArguments([
+      '--resource-rollout-stage=ready',
+      '--genesis-world-stage=expanded',
+    ])).toThrow(/explicit empty Worker rollout stage/i);
+    expect(() => parsePublishArguments([
+      '--resource-rollout-stage=ready',
+      '--genesis-world-stage=expanded',
+      '--worker-rollout-stage=unknown',
+    ])).toThrow(/unknown or duplicate/i);
+    expect(() => parsePublishArguments([
+      '--resource-rollout-stage=ready',
+      '--genesis-world-stage=expanded',
+      '--worker-rollout-stage=empty',
+      '--worker-rollout-stage=empty',
     ])).toThrow(/unknown or duplicate/i);
     expect(() => requireCanonicalPublishCoordinates({
       WARPKEEP_SPACETIMEDB_DATABASE: 'warpkeep-lookalike',
@@ -1123,6 +1521,7 @@ describe('activation publish safety', () => {
         expectedTermsAcceptanceCount: 1,
       },
       RESOURCE_PUBLISH_ROLLOUT_STAGE.PREBACKFILL,
+      WORKER_PUBLISH_ROLLOUT_STAGE.EMPTY,
       orderedFailureSpawn as never,
     )).toThrow(/protocol-v3 verification is indeterminate/i);
     expect(orderedFailureCalls).toHaveLength(1);
@@ -1140,8 +1539,20 @@ describe('activation publish safety', () => {
         expectedTermsAcceptanceCount: 1,
       },
       'unknown',
+      WORKER_PUBLISH_ROLLOUT_STAGE.EMPTY,
       orderedFailureSpawn as never,
     )).toThrow(/rollout stage was invalid/i);
+    expect(() => verifyPostPublishResourcePublicationCheckpoints(
+      testSecret,
+      {
+        expectedFounderCount: 4,
+        expectedPlayerCount: 1,
+        expectedTermsAcceptanceCount: 1,
+      },
+      RESOURCE_PUBLISH_ROLLOUT_STAGE.PREBACKFILL,
+      'staged',
+      orderedFailureSpawn as never,
+    )).toThrow(/Worker rollout stage was invalid/i);
   });
 
   it('requires one closed, privacy-safe v8 checkpoint after publication and before seeding', () => {
@@ -1248,6 +1659,84 @@ describe('activation publish safety', () => {
     expect(postPublishFailure).toThrow(/read-only v10 inspection.*Water or Stone activation/i);
     expect(postPublishFailure).not.toThrow(/private/i);
     expect(postPublishFailure).not.toThrow(/retry/i);
+  });
+
+  it('requires the exact empty and inert Worker v12 checkpoint after publication', () => {
+    const calls: unknown[][] = [];
+    const aggregate = alphaStatusV12();
+    const fakeSpawnSync = (...args: unknown[]) => {
+      calls.push(args);
+      return {
+        status: 0,
+        signal: null,
+        stdout: JSON.stringify(aggregate),
+        stderr: '',
+      };
+    };
+    const secret = 'TEST_ONLY_HERMES_SECRET_'.repeat(2);
+    expect(verifyFreshAlphaStatusV12Aggregate(secret, 4, fakeSpawnSync))
+      .toEqual(aggregate);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.[1]).toEqual(alphaV12AggregateChildArguments(
+      resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs'),
+    ));
+    const options = calls[0]?.[2] as { env?: Record<string, string>; input?: string };
+    expect(options.input).toBe(secret);
+    expect(options.env).toEqual({
+      WARPKEEP_SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
+      WARPKEEP_SPACETIMEDB_DATABASE: CANONICAL_DATABASE_IDENTITY,
+      WARPKEEP_AUTH_BRIDGE_URL: ISSUER,
+      WARPKEEP_ADMIN_TOKEN_SECRET_STDIN: '1',
+    });
+    expect(JSON.stringify(calls[0]?.[1])).not.toContain(secret);
+    expect(JSON.stringify(options.env)).not.toContain(secret);
+    expect(() => verifyPostPublishAlphaStatusV12Aggregate(secret, 4, fakeSpawnSync))
+      .not.toThrow();
+
+    for (const invalid of [
+      { ...aggregate, fid: '424242424242' },
+      { ...aggregate, assignments: 0 },
+      { ...aggregate, assignments: '00' },
+      { ...aggregate, assignments: '18446744073709551616' },
+      { ...aggregate, systemConfigValid: 'false' },
+      { ...aggregate, mode: 'disabled' },
+      { ...aggregate, rosterDigestExpected: 'not-a-digest' },
+    ]) {
+      expect(() => verifyPrivacySafeAlphaStatusV12Output(JSON.stringify(invalid)))
+        .toThrow();
+    }
+    for (const nonempty of [
+      { ...aggregate, systemRows: '1' },
+      { ...aggregate, mode: 'staged' },
+      { ...aggregate, systemConfigValid: true },
+      { ...aggregate, legacyDrainRequired: false },
+      { ...aggregate, expectedCountsMatch: true },
+      { ...aggregate, rosterDigestMatches: true },
+      { ...aggregate, castlesMissingWorkers: '3' },
+      { ...aggregate, actualWorkerCount: '1' },
+      { ...aggregate, assignments: '1' },
+      { ...aggregate, occupations: '1' },
+      { ...aggregate, schedules: '1' },
+      { ...aggregate, idempotencyReceipts: '1' },
+      { ...aggregate, rosterDigest: '0123456789abcdef' },
+    ]) {
+      expect(() => verifyEmptyAlphaStatusV12(
+        verifyPrivacySafeAlphaStatusV12Output(JSON.stringify(nonempty)),
+        4,
+      )).toThrow(/empty, inert Worker suffix/i);
+    }
+    expect(() => verifyEmptyAlphaStatusV12(
+      verifyPrivacySafeAlphaStatusV12Output(JSON.stringify(aggregate)),
+      0,
+    )).toThrow(/expected founder count/i);
+
+    const postPublishFailure = () => verifyPostPublishAlphaStatusV12Aggregate(
+      secret,
+      4,
+      (() => ({ status: 1, signal: null, stdout: 'private', stderr: 'private' })) as never,
+    );
+    expect(postPublishFailure).toThrow(/read-only v12 inspection.*before any merge/i);
+    expect(postPublishFailure).not.toThrow(/private|retry/i);
   });
 
   it('enforces a hard deadline with graceful then forced termination', async () => {
@@ -1366,12 +1855,49 @@ describe('activation publish safety', () => {
     expect(removeDirectory).toHaveBeenCalledTimes(1);
   });
 
+  it('runs one synchronous cleanup and exits with the received signal status', () => {
+    const processTarget = new EventEmitter() as EventEmitter & {
+      exit: ReturnType<typeof vi.fn>;
+    };
+    processTarget.exit = vi.fn();
+    const cleanup = vi.fn();
+    const remove = installMigrationProofSignalCleanup(cleanup, processTarget);
+
+    processTarget.emit('SIGINT');
+    processTarget.emit('SIGTERM');
+
+    expect(cleanup).toHaveBeenCalledTimes(1);
+    expect(processTarget.exit).toHaveBeenCalledTimes(1);
+    expect(processTarget.exit).toHaveBeenCalledWith(130);
+    expect(processTarget.listenerCount('SIGINT')).toBe(0);
+    expect(processTarget.listenerCount('SIGTERM')).toBe(0);
+    expect(() => remove()).not.toThrow();
+  });
+
+  it('fails closed without exposing signal-cleanup errors', () => {
+    const processTarget = new EventEmitter() as EventEmitter & {
+      exit: ReturnType<typeof vi.fn>;
+    };
+    processTarget.exit = vi.fn();
+    const cleanup = vi.fn(() => {
+      throw new Error('test-only-private-cleanup-detail');
+    });
+    installMigrationProofSignalCleanup(cleanup, processTarget);
+
+    expect(() => processTarget.emit('SIGTERM')).not.toThrow();
+    expect(cleanup).toHaveBeenCalledTimes(1);
+    expect(processTarget.exit).toHaveBeenCalledWith(1);
+    expect(processTarget.listenerCount('SIGINT')).toBe(0);
+    expect(processTarget.listenerCount('SIGTERM')).toBe(0);
+  });
+
   it('returns a failing status when dry-run issuer configuration is absent', () => {
     const result = spawnSync(process.execPath, [
       'scripts/publish-spacetime-dev.mjs',
       '--dry-run',
       '--resource-rollout-stage=prebackfill',
       '--genesis-world-stage=pre-expansion',
+      '--worker-rollout-stage=empty',
     ], {
       cwd: repositoryRoot,
       encoding: 'utf8',
@@ -1389,6 +1915,7 @@ describe('activation publish safety', () => {
       '--dry-run',
       '--resource-rollout-stage=prebackfill',
       '--genesis-world-stage=pre-expansion',
+      '--worker-rollout-stage=empty',
     ], {
       cwd: repositoryRoot,
       encoding: 'utf8',

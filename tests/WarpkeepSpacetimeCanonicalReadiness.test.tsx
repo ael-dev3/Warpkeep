@@ -9,6 +9,7 @@ vi.mock('../src/farcaster/FarcasterAuthProvider', () => ({
 }));
 
 import {
+  BACKEND_STAGE_OPERATION_TIMEOUT_MILLISECONDS,
   CANONICAL_REALM_READINESS_TIMEOUT_MILLISECONDS,
   RESOURCE_OPERATION_TIMEOUT_MILLISECONDS,
   WarpkeepSpacetimeProvider,
@@ -174,6 +175,12 @@ async function beginSubscription(harness: RuntimeHarness) {
   await waitFor(() => expect(harness.runtime.subscribeRealm).toHaveBeenCalledTimes(1));
 }
 
+async function settleMicrotasks(turns = 12) {
+  for (let turn = 0; turn < turns; turn += 1) {
+    await Promise.resolve();
+  }
+}
+
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
@@ -181,6 +188,117 @@ afterEach(() => {
 });
 
 describe('Warpkeep canonical realm readiness lifecycle', () => {
+  it('fails closed when backend compatibility metadata never resolves', async () => {
+    vi.useFakeTimers();
+    mockedFarcaster.current = authenticatedFarcaster();
+    const harness = createRuntimeHarness();
+    vi.mocked(harness.runtime.readBackendInfo).mockReturnValueOnce(
+      new Promise<never>(() => undefined)
+    );
+    renderProvider(harness);
+
+    await act(settleMicrotasks);
+    expect(screen.getByTestId('phase').textContent).toBe('connecting');
+    expect(harness.runtime.readAdmission).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(BACKEND_STAGE_OPERATION_TIMEOUT_MILLISECONDS);
+      await settleMicrotasks();
+    });
+    expect(screen.getByTestId('phase').textContent).toBe('error');
+    expect(harness.connection.disconnect).toHaveBeenCalledTimes(1);
+    expect(harness.runtime.readAdmission).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when the initial admission read never resolves', async () => {
+    vi.useFakeTimers();
+    mockedFarcaster.current = authenticatedFarcaster();
+    const harness = createRuntimeHarness();
+    vi.mocked(harness.runtime.readAdmission).mockReturnValueOnce(
+      new Promise<never>(() => undefined)
+    );
+    renderProvider(harness);
+
+    await act(settleMicrotasks);
+    expect(screen.getByTestId('phase').textContent).toBe('checking-admission');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(BACKEND_STAGE_OPERATION_TIMEOUT_MILLISECONDS);
+      await settleMicrotasks();
+    });
+    expect(screen.getByTestId('phase').textContent).toBe('error');
+    expect(harness.connection.disconnect).toHaveBeenCalledTimes(1);
+    expect(harness.runtime.bootstrapPlayer).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when an admitted player bootstrap never resolves', async () => {
+    vi.useFakeTimers();
+    mockedFarcaster.current = authenticatedFarcaster();
+    const harness = createRuntimeHarness();
+    vi.mocked(harness.runtime.readAdmission).mockResolvedValueOnce('admitted_needs_bootstrap');
+    vi.mocked(harness.runtime.bootstrapPlayer).mockReturnValueOnce(
+      new Promise<never>(() => undefined)
+    );
+    renderProvider(harness);
+
+    await act(settleMicrotasks);
+    expect(screen.getByTestId('phase').textContent).toBe('bootstrapping');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(BACKEND_STAGE_OPERATION_TIMEOUT_MILLISECONDS);
+      await settleMicrotasks();
+    });
+    expect(screen.getByTestId('phase').textContent).toBe('error');
+    expect(harness.connection.disconnect).toHaveBeenCalledTimes(1);
+    expect(harness.runtime.readAdmission).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails closed when the post-bootstrap admission read never resolves', async () => {
+    vi.useFakeTimers();
+    mockedFarcaster.current = authenticatedFarcaster();
+    const harness = createRuntimeHarness();
+    vi.mocked(harness.runtime.readAdmission)
+      .mockResolvedValueOnce('admitted_needs_bootstrap')
+      .mockReturnValueOnce(new Promise<never>(() => undefined));
+    renderProvider(harness);
+
+    await act(settleMicrotasks);
+    expect(screen.getByTestId('phase').textContent).toBe('bootstrapping');
+    expect(harness.runtime.bootstrapPlayer).toHaveBeenCalledTimes(1);
+    expect(harness.runtime.readAdmission).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(BACKEND_STAGE_OPERATION_TIMEOUT_MILLISECONDS);
+      await settleMicrotasks();
+    });
+    expect(screen.getByTestId('phase').textContent).toBe('error');
+    expect(harness.connection.disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails closed when an explicit Terms acceptance never resolves', async () => {
+    vi.useFakeTimers();
+    mockedFarcaster.current = authenticatedFarcaster();
+    const harness = createRuntimeHarness();
+    vi.mocked(harness.runtime.acceptAlphaTerms).mockReturnValueOnce(
+      new Promise<never>(() => undefined)
+    );
+    renderProvider(harness);
+
+    await act(settleMicrotasks);
+    expect(screen.getByTestId('phase').textContent).toBe('awaiting-terms');
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+    await act(settleMicrotasks);
+    expect(screen.getByTestId('phase').textContent).toBe('accepting-terms');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(BACKEND_STAGE_OPERATION_TIMEOUT_MILLISECONDS);
+      await settleMicrotasks();
+    });
+    expect(screen.getByTestId('phase').textContent).toBe('error');
+    expect(harness.connection.disconnect).toHaveBeenCalledTimes(1);
+    expect(harness.runtime.subscribeRealm).not.toHaveBeenCalled();
+  });
+
   it('starts the expanded public subscription while the private resource read is pending', async () => {
     mockedFarcaster.current = authenticatedFarcaster();
     const harness = createRuntimeHarness();
@@ -323,6 +441,36 @@ describe('Warpkeep canonical realm readiness lifecycle', () => {
     await act(async () => { await Promise.resolve(); await Promise.resolve(); });
     expect(screen.getByTestId('phase').textContent).toBe('error');
     expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect(harness.connection.disconnect).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(RESOURCE_OPERATION_TIMEOUT_MILLISECONDS);
+    });
+    expect(screen.getByTestId('phase').textContent).toBe('error');
+    expect(harness.connection.disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes a late observer handle and never subscribes after synchronous observer failure', async () => {
+    vi.useFakeTimers();
+    mockedFarcaster.current = authenticatedFarcaster();
+    const harness = createRuntimeHarness();
+    const pendingResources = new Promise<never>(() => undefined);
+    const removeObserver = vi.fn();
+    vi.mocked(harness.runtime.readResourceState).mockReturnValueOnce(pendingResources);
+    vi.mocked(harness.runtime.observeRealm).mockImplementationOnce(
+      (_connection, _fid, _onChange, onError) => {
+        onError();
+        return removeObserver;
+      }
+    );
+    renderProvider(harness);
+
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    expect(screen.getByTestId('phase').textContent).toBe('error');
+    expect(removeObserver).toHaveBeenCalledTimes(1);
+    expect(harness.runtime.subscribeRealm).not.toHaveBeenCalled();
     expect(harness.connection.disconnect).toHaveBeenCalledTimes(1);
 
     await act(async () => {
