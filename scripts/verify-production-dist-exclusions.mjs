@@ -97,10 +97,17 @@ for (const fragment of requiredProductionCspFragments) {
   }
 }
 const productionScriptSource = productionIndex.match(/(?:^|[;\s])script-src\s+([^;]+)/)?.[1];
+const productionScriptSourceTokens = productionScriptSource?.trim().split(/\s+/);
+const requiredProductionScriptSourceTokens = Object.freeze([
+  "'self'",
+  "'wasm-unsafe-eval'",
+  "'unsafe-eval'"
+]);
 if (
-  !productionScriptSource
-  || (productionScriptSource.match(/'unsafe-eval'/g) ?? []).length !== 1
-  || productionScriptSource.includes("'unsafe-inline'")
+  productionScriptSourceTokens?.length !== requiredProductionScriptSourceTokens.length
+  || !requiredProductionScriptSourceTokens.every(
+    (token, index) => productionScriptSourceTokens?.[index] === token
+  )
 ) {
   throw new Error('Production document CSP must keep the SDK eval exception narrow.');
 }

@@ -134,6 +134,10 @@ describe('Warpkeep document fallback', () => {
     const contentSecurityPolicy = parsed.querySelector(
       'meta[http-equiv="Content-Security-Policy"]'
     )?.getAttribute('content');
+    const scriptSource = contentSecurityPolicy
+      ?.split(';')
+      .map((directive) => directive.trim())
+      .find((directive) => directive.startsWith('script-src '));
 
     expect(root?.querySelector('.warpkeep-boot')).not.toBeNull();
     expect(root?.querySelector('#warpkeep-boot-title')).toBeNull();
@@ -146,12 +150,8 @@ describe('Warpkeep document fallback', () => {
     expect(indexHtml).toContain('href="/favicon.svg"');
     expect(mainSource).toContain('WARPKEEP_ROOT_ERROR_HANDLERS');
     expect(contentSecurityPolicy).toContain("default-src 'none'");
-    expect(contentSecurityPolicy).toContain(
-      "script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'"
-    );
+    expect(scriptSource).toBe("script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'");
     expect(contentSecurityPolicy).toContain("script-src-attr 'none'");
-    expect(contentSecurityPolicy?.match(/'unsafe-eval'/g)).toHaveLength(1);
-    expect(contentSecurityPolicy).not.toMatch(/script-src[^;]*'unsafe-inline'/);
     expect(contentSecurityPolicy).not.toMatch(/(?:^|[;\s])https:(?:[;\s]|$)/);
     expect(contentSecurityPolicy).not.toMatch(/(?:^|[;\s])wss?:(?:[;\s]|$)/);
     expect(contentSecurityPolicy).not.toMatch(/localhost|127\.0\.0\.1|\[::1\]/);
