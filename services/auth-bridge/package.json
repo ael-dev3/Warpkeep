@@ -8,7 +8,6 @@
   "packageManager": "pnpm@11.7.0",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
     "typecheck:workerd": "tsc --noEmit -p test-workerd/tsconfig.json",
     "test": "vitest run",

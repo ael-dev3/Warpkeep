@@ -15,4 +15,15 @@ describe('repository command security policy', () => {
       command.includes('maincloud') || command.includes('warpkeep-89e4u')
     ))).toBe(false);
   });
+
+  it('does not expose a bare Worker deployment shortcut', () => {
+    const manifest = JSON.parse(readFileSync(resolve(
+      import.meta.dirname,
+      '../services/auth-bridge/package.json'
+    ), 'utf8')) as { scripts?: Record<string, string> };
+    const commands = Object.values(manifest.scripts ?? {});
+
+    expect(manifest.scripts?.deploy).toBeUndefined();
+    expect(commands.some((command) => /\bwrangler\s+deploy\b/u.test(command))).toBe(false);
+  });
 });
