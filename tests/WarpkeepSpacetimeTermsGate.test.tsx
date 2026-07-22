@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const mockedFarcaster = vi.hoisted(() => ({
@@ -99,6 +99,64 @@ afterEach(() => {
 });
 
 describe('Warpkeep server Terms gate', () => {
+  it('does not emit stale diagnostics after an authenticated generation is replaced', async () => {
+    mockedFarcaster.current = authenticatedFarcasterState();
+    let rejectFirst!: (error: Error) => void;
+    let firstCallbacks: Parameters<WarpkeepBackendRuntime['connect']>[2];
+    const firstConnection = new Promise<never>((_resolve, reject) => {
+      rejectFirst = reject;
+    });
+    const secondConnection = { isDisconnectRequested: false, disconnect: vi.fn() };
+    const diagnostic = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const runtime = {
+      connect: vi.fn()
+        .mockImplementationOnce((_config, _jwt, callbacks) => {
+          firstCallbacks = callbacks;
+          return firstConnection;
+        })
+        .mockResolvedValueOnce(secondConnection),
+      disconnect: vi.fn(),
+      readBackendInfo: vi.fn(async () => ({
+        protocolVersion: 3,
+        worldSeed: 3_445_214_658,
+        worldSeedName: 'HEGEMONY_GENESIS_001'
+      })),
+      readAdmission: vi.fn(async () => 'ready'),
+      bootstrapPlayer: vi.fn(),
+      acceptAlphaTerms: vi.fn(async () => undefined),
+      readResourceState: vi.fn(async (_candidate, fid: number) => createReadyResourceState(fid)),
+      collectResources: vi.fn(async (_candidate, fid: number) => createReadyResourceState(fid)),
+      observeRealm: vi.fn(() => vi.fn()),
+      readRealmSnapshot: vi.fn((_candidate, fid: number) => createCanonicalGenesisSnapshot(fid)),
+      subscribeRealm: vi.fn((_candidate, onApplied: () => void) => {
+        onApplied();
+        return { unsubscribe: vi.fn() };
+      })
+    } as unknown as WarpkeepBackendRuntime;
+
+    const rendered = render(
+      <WarpkeepSpacetimeProvider config={CONFIG} runtime={runtime}>
+        <BackendProbe />
+      </WarpkeepSpacetimeProvider>
+    );
+    await waitFor(() => expect(runtime.connect).toHaveBeenCalledTimes(1));
+
+    mockedFarcaster.current = authenticatedFarcasterState(54_321);
+    rendered.rerender(
+      <WarpkeepSpacetimeProvider config={CONFIG} runtime={runtime}>
+        <BackendProbe />
+      </WarpkeepSpacetimeProvider>
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId('backend-phase').textContent).toBe('awaiting-terms');
+    });
+
+    firstCallbacks?.onConnectionFailure?.('transport_failed');
+    await act(async () => rejectFirst(new Error('controlled stale connection failure')));
+    expect(diagnostic).not.toHaveBeenCalled();
+    expect(screen.getByTestId('backend-phase').textContent).toBe('awaiting-terms');
+  });
+
   it('cannot subscribe an authenticated browser until an explicit in-memory attempt is recorded', async () => {
     mockedFarcaster.current = authenticatedFarcasterState();
     const connection = { isDisconnectRequested: false, disconnect: vi.fn() };
@@ -166,6 +224,58 @@ describe('Warpkeep server Terms gate', () => {
     });
     expect(runtime.acceptAlphaTerms).toHaveBeenCalledTimes(2);
     expect(runtime.subscribeRealm).toHaveBeenCalledTimes(2);
+  });
+
+  it('reports a bounded Terms acknowledgement failure from the awaiting-terms path', async () => {
+    mockedFarcaster.current = authenticatedFarcasterState();
+    const connection = { isDisconnectRequested: false, disconnect: vi.fn() };
+    const diagnostic = vi.spyOn(console, 'info').mockImplementation(() => {
+      throw new Error('controlled console failure');
+    });
+    const runtime = {
+      connect: vi.fn(async () => connection),
+      disconnect: vi.fn(),
+      readBackendInfo: vi.fn(async () => ({
+        protocolVersion: 3,
+        worldSeed: 3_445_214_658,
+        worldSeedName: 'HEGEMONY_GENESIS_001'
+      })),
+      readAdmission: vi.fn(async () => 'ready'),
+      bootstrapPlayer: vi.fn(),
+      acceptAlphaTerms: vi.fn(async () => {
+        throw new Error('controlled private reducer failure header.payload.signature');
+      }),
+      readResourceState: vi.fn(async (_candidate, fid: number) => createReadyResourceState(fid)),
+      collectResources: vi.fn(async (_candidate, fid: number) => createReadyResourceState(fid)),
+      observeRealm: vi.fn(() => vi.fn()),
+      readRealmSnapshot: vi.fn((_candidate, fid: number) => createCanonicalGenesisSnapshot(fid)),
+      subscribeRealm: vi.fn((_candidate, onApplied: () => void) => {
+        onApplied();
+        return { unsubscribe: vi.fn() };
+      })
+    } as unknown as WarpkeepBackendRuntime;
+
+    render(
+      <WarpkeepSpacetimeProvider config={CONFIG} runtime={runtime}>
+        <BackendProbe />
+      </WarpkeepSpacetimeProvider>
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId('backend-phase').textContent).toBe('awaiting-terms');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TEST TERMS' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('backend-phase').textContent).toBe('error');
+    });
+
+    expect(diagnostic).toHaveBeenCalledWith(
+      'warpkeep_backend_stage_failed:terms_acknowledgement'
+    );
+    expect(JSON.stringify(diagnostic.mock.calls)).not.toContain('header.payload.signature');
+    expect(runtime.readResourceState).not.toHaveBeenCalled();
+    expect(runtime.subscribeRealm).not.toHaveBeenCalled();
+    expect(runtime.disconnect).toHaveBeenCalledWith(connection);
   });
 
   it('does not activate a realm subscription after an in-flight Terms attempt is cancelled', async () => {

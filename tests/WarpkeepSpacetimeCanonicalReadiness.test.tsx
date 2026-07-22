@@ -203,6 +203,106 @@ describe('Warpkeep canonical realm readiness lifecycle', () => {
     await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('ready'));
   });
 
+  it('reports a bounded mandatory resource projection failure and still fails closed if logging throws', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const harness = createRuntimeHarness();
+    const diagnostic = vi.spyOn(console, 'info').mockImplementation(() => {
+      throw new Error('controlled console failure');
+    });
+    vi.mocked(harness.runtime.readResourceState).mockRejectedValueOnce(
+      new Error('controlled private projection failure header.payload.signature')
+    );
+    renderProvider(harness);
+
+    await beginSubscription(harness);
+    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('error'));
+
+    expect(diagnostic).toHaveBeenCalledWith(
+      'warpkeep_backend_activation_failed:resource_projection_failed'
+    );
+    expect(JSON.stringify(diagnostic.mock.calls)).not.toContain('header.payload.signature');
+    expect(harness.removeObserver).toHaveBeenCalledTimes(1);
+    expect(harness.unsubscribe).toHaveBeenCalledTimes(1);
+    expect(harness.connection.disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('distinguishes the mandatory resource projection deadline', async () => {
+    vi.useFakeTimers();
+    mockedFarcaster.current = authenticatedFarcaster();
+    const harness = createRuntimeHarness();
+    const diagnostic = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    vi.mocked(harness.runtime.readResourceState).mockReturnValueOnce(
+      new Promise<never>(() => undefined)
+    );
+    renderProvider(harness);
+
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    expect(harness.runtime.subscribeRealm).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(RESOURCE_OPERATION_TIMEOUT_MILLISECONDS);
+    });
+    expect(screen.getByTestId('phase').textContent).toBe('error');
+    expect(diagnostic).toHaveBeenCalledWith(
+      'warpkeep_backend_activation_failed:resource_projection_deadline'
+    );
+    expect(harness.connection.disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('distinguishes observer setup failure without starting the subscription', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const harness = createRuntimeHarness();
+    const diagnostic = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    vi.mocked(harness.runtime.observeRealm).mockImplementationOnce(() => {
+      throw new Error('controlled observer setup failure');
+    });
+    renderProvider(harness);
+
+    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('awaiting-terms'));
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('error'));
+
+    expect(diagnostic).toHaveBeenCalledWith(
+      'warpkeep_backend_activation_failed:observer_setup_failed'
+    );
+    expect(harness.runtime.subscribeRealm).not.toHaveBeenCalled();
+    expect(harness.connection.disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('distinguishes subscription setup from an installed subscription error', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const setupHarness = createRuntimeHarness();
+    const diagnostic = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    vi.mocked(setupHarness.runtime.subscribeRealm).mockImplementationOnce(() => {
+      throw new Error('controlled subscription setup failure');
+    });
+    const first = renderProvider(setupHarness);
+
+    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('awaiting-terms'));
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('error'));
+    expect(diagnostic).toHaveBeenLastCalledWith(
+      'warpkeep_backend_activation_failed:subscription_setup_failed'
+    );
+    expect(setupHarness.removeObserver).toHaveBeenCalledTimes(1);
+    first.unmount();
+
+    mockedFarcaster.current = authenticatedFarcaster(12_345, 2);
+    const errorHarness = createRuntimeHarness();
+    renderProvider(errorHarness);
+    await beginSubscription(errorHarness);
+    act(() => errorHarness.subscriptionError()?.());
+    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('error'));
+    expect(diagnostic).toHaveBeenLastCalledWith(
+      'warpkeep_backend_activation_failed:subscription_failed'
+    );
+    expect(errorHarness.removeObserver).toHaveBeenCalledTimes(1);
+    expect(errorHarness.unsubscribe).toHaveBeenCalledTimes(1);
+    expect(errorHarness.connection.disconnect).toHaveBeenCalledTimes(1);
+  });
+
   it('contains a pending resource deadline after a synchronous subscription failure', async () => {
     vi.useFakeTimers();
     mockedFarcaster.current = authenticatedFarcaster();
@@ -254,6 +354,7 @@ describe('Warpkeep canonical realm readiness lifecycle', () => {
   it('fails closed when onApplied exposes an incomplete projection', async () => {
     mockedFarcaster.current = authenticatedFarcaster();
     const harness = createRuntimeHarness();
+    const diagnostic = vi.spyOn(console, 'info').mockImplementation(() => undefined);
     const incomplete = createCanonicalGenesisCandidate();
     vi.mocked(harness.runtime.readRealmSnapshot).mockReturnValue({
       ...incomplete,
@@ -268,12 +369,16 @@ describe('Warpkeep canonical realm readiness lifecycle', () => {
     expect(harness.removeObserver).toHaveBeenCalledTimes(1);
     expect(harness.unsubscribe).toHaveBeenCalledTimes(1);
     expect(harness.connection.disconnect).toHaveBeenCalledTimes(1);
+    expect(diagnostic).toHaveBeenCalledWith(
+      'warpkeep_backend_activation_failed:canonical_snapshot_invalid'
+    );
   });
 
   it('times out a subscription that never applies and leaves late callbacks inert', async () => {
     vi.useFakeTimers();
     mockedFarcaster.current = authenticatedFarcaster();
     const harness = createRuntimeHarness();
+    const diagnostic = vi.spyOn(console, 'info').mockImplementation(() => undefined);
     renderProvider(harness);
     await act(async () => { await Promise.resolve(); await Promise.resolve(); });
     fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
@@ -287,6 +392,9 @@ describe('Warpkeep canonical realm readiness lifecycle', () => {
     expect(screen.getByTestId('phase').textContent).toBe('error');
     expect(harness.unsubscribe).toHaveBeenCalledTimes(1);
     expect(harness.connection.disconnect).toHaveBeenCalledTimes(1);
+    expect(diagnostic).toHaveBeenCalledWith(
+      'warpkeep_backend_activation_failed:canonical_readiness_timeout'
+    );
 
     act(() => {
       harness.applied()?.();
@@ -295,6 +403,7 @@ describe('Warpkeep canonical realm readiness lifecycle', () => {
     });
     expect(screen.getByTestId('phase').textContent).toBe('error');
     expect(harness.runtime.readRealmSnapshot).not.toHaveBeenCalled();
+    expect(diagnostic).toHaveBeenCalledTimes(1);
   });
 
   it.each([2, 3] as const)(
