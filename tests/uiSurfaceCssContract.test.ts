@@ -100,6 +100,20 @@ describe('shared Warpkeep surface system', () => {
     expect(menu).toContain('overflow: auto;');
   });
 
+  it('keeps the mobile Worker inspector inside every device safe area', () => {
+    const source = css('src/components/realm/WorkerInspectionPanel.css');
+    const dismiss = lastBlock(source, '.worker-inspection__dismiss');
+    const body = lastBlock(source, '.worker-inspection__body');
+    const drawer = lastBlock(source, '.worker-inspection__drawer');
+
+    expect(dismiss).toContain('env(safe-area-inset-top)');
+    expect(dismiss).toContain('env(safe-area-inset-right)');
+    expect(body).toContain('env(safe-area-inset-right)');
+    expect(body).toContain('env(safe-area-inset-bottom)');
+    expect(body).toContain('env(safe-area-inset-left)');
+    expect(drawer).toContain('env(safe-area-inset-top)');
+  });
+
   it('removes backdrop compositing on the performance profile and has an opaque fallback', () => {
     const source = css('src/components/WarpkeepExperience.css');
     const performance = firstBlock(

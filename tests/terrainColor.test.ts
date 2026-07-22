@@ -4,10 +4,26 @@ import { generateRealmTerrainMap, terrainCellByCoord } from '../src/game/map/gen
 import { axialToWorld } from '../src/game/map/hexCoordinates';
 import { HEGEMONY_GENESIS_001 } from '../src/game/map/realmSeed';
 import type { RealmTerrainKind } from '../src/game/map/realmTerrainSemantics';
-import { sampleLowlandsColor } from '../src/game/map/terrainColor';
+import {
+  REALM_TERRAIN_KIND_PALETTE,
+  sampleLowlandsColor,
+  terrainColorVisualMetrics
+} from '../src/game/map/terrainColor';
 import { createHegemonyKeepPlacement } from '../src/game/map/terrainPlacements';
 
 describe('lowlands terrain color', () => {
+  it('keeps heath olive-green and ancient stone neutral instead of purple', () => {
+    const heath = REALM_TERRAIN_KIND_PALETTE.heath.color;
+    const ancientStone = REALM_TERRAIN_KIND_PALETTE['ancient-stone'].color;
+
+    expect(heath.g).toBeGreaterThan(heath.r);
+    expect(heath.g).toBeGreaterThan(heath.b);
+    expect(terrainColorVisualMetrics('heath').greenLead).toBeGreaterThan(0.1);
+    expect(terrainColorVisualMetrics('ancient-stone').channelSpread).toBeLessThanOrEqual(0.05);
+    expect(ancientStone.g).toBeGreaterThanOrEqual(ancientStone.r);
+    expect(ancientStone.g).toBeGreaterThanOrEqual(ancientStone.b);
+  });
+
   it('is deterministic, finite, and identical from either side of a shared edge', () => {
     const map = generateRealmTerrainMap(HEGEMONY_GENESIS_001, 5);
     const first = terrainCellByCoord(map, { q: 0, r: 0 });

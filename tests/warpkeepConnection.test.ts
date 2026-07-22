@@ -56,6 +56,11 @@ import {
 } from '../spacetimedb/src/waterRevision';
 import { resolveCanonicalWaterProjection } from '../src/components/realm/realmWaterProjection';
 import {
+  CASTLE_WORKER_POLICY_VERSION,
+  CASTLE_WORKER_REALM_ID,
+  workerRosterDigestForCastleIds
+} from '../src/components/realm/realmWorkerPresentation';
+import {
   CANONICAL_TEST_FID,
   createCanonicalGenesisCandidate
 } from './fixtures/canonicalGenesisSnapshot';
@@ -217,6 +222,57 @@ function stoneSubscriptionConnection(
       .mockReturnValueOnce(pairedStone.builder)
   } as unknown as WarpkeepConnection;
   return Object.freeze({ connection, core, pairedStone });
+}
+
+function workerSubscriptionConnection(
+  candidate: WarpkeepRealmSnapshotCandidate,
+  workerRows: readonly unknown[]
+) {
+  const rows = rawRowsForCandidate(candidate);
+  const table = <T,>(values: readonly T[]) => ({
+    iter: function* () { yield* values; }
+  });
+  const core = callbackSubscriptionDouble();
+  const pairedWorkers = callbackSubscriptionDouble();
+  const castleId = candidate.castles[0]!.castleId;
+  const connection = {
+    db: {
+      worldTile: table(rows.worldTile),
+      worldTileMetaV1: table(rows.worldTileMetaV1),
+      playerV2: table(rows.playerV2),
+      realmProfileV1: table(rows.realmProfileV1),
+      realmV1: table(rows.realmV1),
+      castle: table(rows.castle),
+      realmWorkerSystemV1: table([{
+        realmId: CASTLE_WORKER_REALM_ID,
+        policyVersion: CASTLE_WORKER_POLICY_VERSION,
+        workersPerCastle: 4,
+        expectedCastleCount: 1,
+        expectedWorkerCount: 4,
+        rosterDigest: workerRosterDigestForCastleIds([castleId]),
+        mode: 'active',
+        legacyDrainRequired: false
+      }]),
+      castleWorkerV1: table(workerRows),
+      workerNodeOccupationV1: table([{
+        nodeKey: 'stone:genesis-001:stone:0001',
+        resourceKind: 'stone',
+        siteId: 'genesis-001:stone:0001',
+        workerId: `genesis-001-castle-${castleId}-worker-01`,
+        workerOrdinal: 1,
+        originCastleId: BigInt(castleId),
+        phase: 'gathering',
+        startedAtMicros: 10n,
+        arrivesAtMicros: 20n,
+        gatheringEndsAtMicros: 100n,
+        timelineRevision: 1
+      }])
+    },
+    subscriptionBuilder: vi.fn()
+      .mockReturnValueOnce(core.builder)
+      .mockReturnValueOnce(pairedWorkers.builder)
+  } as unknown as WarpkeepConnection;
+  return Object.freeze({ connection, core, pairedWorkers });
 }
 
 /** Core + Water projection using the generated SDK's exact Q15 wire spelling. */
@@ -652,6 +708,166 @@ describe('Warpkeep authenticated connection boundary', () => {
     composite.unsubscribe();
   });
 
+  it('publishes the paired worker graph without exposing opaque assignment ids', () => {
+    const candidate = createCanonicalGenesisCandidate();
+    const castleId = candidate.castles[0]!.castleId;
+    const workerRows = [1, 2, 3, 4].map((ordinal) => ({
+      workerId: `genesis-001-castle-${castleId}-worker-0${ordinal}`,
+      originCastleId: BigInt(castleId),
+      ordinal,
+      status: ordinal === 1 ? 'gathering' : 'idle',
+      resourceKind: ordinal === 1 ? 'stone' : undefined,
+      siteId: ordinal === 1 ? 'genesis-001:stone:0001' : undefined,
+      startedAtMicros: ordinal === 1 ? 10n : undefined,
+      arrivesAtMicros: ordinal === 1 ? 20n : undefined,
+      gatheringEndsAtMicros: ordinal === 1 ? 100n : undefined,
+      returnStartedAtMicros: undefined,
+      returnsAtMicros: ordinal === 1 ? 120n : undefined,
+      routeSteps: ordinal === 1 ? 1 : undefined,
+      returnStartProgressBasisPoints: undefined,
+      timelineRevision: ordinal === 1 ? 1 : 0,
+      revision: ordinal === 1 ? 2n : 0n
+    }));
+    const { connection, core, pairedWorkers } = workerSubscriptionConnection(
+      candidate,
+      workerRows
+    );
+    const composite = subscribeToWarpkeepRealm(connection, vi.fn(), vi.fn());
+
+    expect(pairedWorkers.builder.subscribe).toHaveBeenCalledWith([
+      tables.realmWorkerSystemV1,
+      tables.castleWorkerV1,
+      tables.workerNodeOccupationV1
+    ]);
+    core.apply();
+    expect(readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID))
+      .not.toHaveProperty('workerWorkers');
+    pairedWorkers.apply();
+    const snapshot = readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID);
+    expect(snapshot.workerWorkers).toHaveLength(4);
+    expect(snapshot.workerWorkers?.every((worker) => worker.ownedByViewer)).toBe(true);
+    expect(Object.keys(snapshot.workerWorkers?.[0] ?? {})).not.toContain('assignmentId');
+    expect(Object.keys(snapshot.workerOccupations?.[0] ?? {})).not.toContain('assignmentId');
+    expect(snapshot.workerOccupations?.[0]).toMatchObject({
+      workerId: `genesis-001-castle-${castleId}-worker-01`,
+      phase: 'gathering'
+    });
+
+    composite.unsubscribe();
+    expect(core.subscription.unsubscribe).toHaveBeenCalledOnce();
+    expect(pairedWorkers.subscription.unsubscribe).toHaveBeenCalledOnce();
+  });
+
+  it('keeps a v11 core Realm live when the additive worker subscription is rejected', () => {
+    const candidate = createCanonicalGenesisCandidate();
+    const { connection, core, pairedWorkers } = workerSubscriptionConnection(candidate, []);
+    const onApplied = vi.fn();
+    const onError = vi.fn();
+    const composite = subscribeToWarpkeepRealm(connection, onApplied, onError);
+
+    core.apply();
+    expect(onApplied).toHaveBeenCalledTimes(1);
+    expect(readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID))
+      .not.toHaveProperty('workerWorkers');
+
+    pairedWorkers.fail();
+    expect(onError).not.toHaveBeenCalled();
+    expect(onApplied).toHaveBeenCalledTimes(2);
+    const snapshot = readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID);
+    expect(snapshot).not.toHaveProperty('workerSystem');
+    expect(snapshot).not.toHaveProperty('workerWorkers');
+    expect(snapshot).not.toHaveProperty('workerOccupations');
+
+    composite.unsubscribe();
+    expect(core.subscription.unsubscribe).toHaveBeenCalledOnce();
+    expect(pairedWorkers.subscription.unsubscribe).toHaveBeenCalledOnce();
+  });
+
+  it('resets worker availability before a same-connection resubscribe applies', () => {
+    const candidate = createCanonicalGenesisCandidate();
+    const castleId = candidate.castles[0]!.castleId;
+    const workerRows = [1, 2, 3, 4].map((ordinal) => ({
+      workerId: `genesis-001-castle-${castleId}-worker-0${ordinal}`,
+      originCastleId: BigInt(castleId),
+      ordinal,
+      status: 'idle',
+      resourceKind: undefined,
+      siteId: undefined,
+      startedAtMicros: undefined,
+      arrivesAtMicros: undefined,
+      gatheringEndsAtMicros: undefined,
+      returnStartedAtMicros: undefined,
+      returnsAtMicros: undefined,
+      routeSteps: undefined,
+      returnStartProgressBasisPoints: undefined,
+      timelineRevision: 0,
+      revision: 0n
+    }));
+    const { connection, core, pairedWorkers } = workerSubscriptionConnection(
+      candidate,
+      workerRows
+    );
+    const first = subscribeToWarpkeepRealm(connection, vi.fn(), vi.fn());
+    core.apply();
+    pairedWorkers.apply();
+    expect(readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID).workerWorkers)
+      .toHaveLength(4);
+
+    const secondCore = callbackSubscriptionDouble();
+    const secondWorkers = callbackSubscriptionDouble();
+    vi.mocked(connection.subscriptionBuilder)
+      .mockReturnValueOnce(secondCore.builder as never)
+      .mockReturnValueOnce(secondWorkers.builder as never);
+    const second = subscribeToWarpkeepRealm(connection, vi.fn(), vi.fn());
+
+    expect(readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID))
+      .not.toHaveProperty('workerWorkers');
+    secondCore.apply();
+    expect(readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID))
+      .not.toHaveProperty('workerWorkers');
+    secondWorkers.apply();
+    expect(readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID).workerWorkers)
+      .toHaveLength(4);
+
+    second.unsubscribe();
+    first.unsubscribe();
+  });
+
+  it('omits the complete worker graph when public ordinals disagree', () => {
+    const candidate = createCanonicalGenesisCandidate();
+    const castleId = candidate.castles[0]!.castleId;
+    const malformedRows = [1, 2, 3, 4].map((ordinal) => ({
+      workerId: `genesis-001-castle-${castleId}-worker-0${ordinal}`,
+      originCastleId: BigInt(castleId),
+      ordinal: ordinal === 2 ? 1 : ordinal,
+      status: 'idle',
+      resourceKind: undefined,
+      siteId: undefined,
+      startedAtMicros: undefined,
+      arrivesAtMicros: undefined,
+      gatheringEndsAtMicros: undefined,
+      returnStartedAtMicros: undefined,
+      returnsAtMicros: undefined,
+      routeSteps: undefined,
+      returnStartProgressBasisPoints: undefined,
+      timelineRevision: 0,
+      revision: 0n
+    }));
+    const { connection, core, pairedWorkers } = workerSubscriptionConnection(
+      candidate,
+      malformedRows
+    );
+    const composite = subscribeToWarpkeepRealm(connection, vi.fn(), vi.fn());
+    core.apply();
+    pairedWorkers.apply();
+
+    const snapshot = readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID);
+    expect(snapshot).not.toHaveProperty('workerSystem');
+    expect(snapshot).not.toHaveProperty('workerWorkers');
+    expect(snapshot).not.toHaveProperty('workerOccupations');
+    composite.unsubscribe();
+  });
+
   it('adapts generated Q15 Water fields before exact Realm attestation', () => {
     const candidate = createCanonicalGenesisCandidate();
     const { connection, core, pairedWater } = waterSubscriptionConnection(candidate);
@@ -670,6 +886,10 @@ describe('Warpkeep authenticated connection boundary', () => {
     core.apply();
     pairedWater.apply();
     const snapshot = readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID);
+    expect(snapshot.realmEnvironment).toMatchObject({
+      updatedAtMicros: 1_752_408_000_000_000n
+    });
+    expect(snapshot.realmEnvironment).not.toHaveProperty('updatedAt');
     expect(resolveCanonicalWaterProjection(
       snapshot.waterLayout,
       snapshot.waterBodies,
@@ -1335,6 +1555,52 @@ describe('Warpkeep authenticated connection boundary', () => {
       expect(source.removeOnDelete).toHaveBeenCalledOnce();
       expect(source.removeOnUpdate).toHaveBeenCalledOnce();
     }
+  });
+
+  it('rolls back every earlier listener when observer registration throws', () => {
+    const observed = observableConnectionForCandidate(createCanonicalGenesisCandidate());
+    observed.worldTileMetaV1.table.onInsert.mockImplementationOnce((listener) => {
+      observed.worldTileMetaV1.listeners.insert = listener;
+      throw new Error('synthetic observer registration failure');
+    });
+    observed.worldTileMetaV1.table.removeOnInsert.mockImplementationOnce((listener) => {
+      if (observed.worldTileMetaV1.listeners.insert === listener) {
+        observed.worldTileMetaV1.listeners.insert = undefined;
+      }
+    });
+
+    expect(() => observeWarpkeepRealm(
+      observed.connection,
+      CANONICAL_TEST_FID,
+      vi.fn(),
+      vi.fn()
+    )).toThrow('synthetic observer registration failure');
+    expect(observed.worldTile.table.removeOnInsert).toHaveBeenCalledOnce();
+    expect(observed.worldTile.table.removeOnDelete).toHaveBeenCalledOnce();
+    expect(observed.worldTile.table.removeOnUpdate).toHaveBeenCalledOnce();
+    expect(observed.worldTileMetaV1.table.removeOnInsert).toHaveBeenCalledOnce();
+    expect(observed.worldTileMetaV1.listeners.insert).toBeUndefined();
+    expect(observed.playerV2.table.onInsert).not.toHaveBeenCalled();
+  });
+
+  it('continues removing every listener when one generated remover throws', () => {
+    const observed = observableConnectionForCandidate(createCanonicalGenesisCandidate());
+    observed.realmProfileV1.table.removeOnUpdate.mockImplementationOnce(() => {
+      throw new Error('synthetic observer cleanup failure');
+    });
+    const cleanupObserver = observeWarpkeepRealm(
+      observed.connection,
+      CANONICAL_TEST_FID,
+      vi.fn(),
+      vi.fn()
+    );
+
+    expect(() => cleanupObserver()).not.toThrow();
+    expect(observed.realmProfileV1.table.removeOnDelete).toHaveBeenCalledOnce();
+    expect(observed.realmProfileV1.table.removeOnInsert).toHaveBeenCalledOnce();
+    expect(observed.worldTile.table.removeOnInsert).toHaveBeenCalledOnce();
+    expect(observed.worldTile.table.removeOnDelete).toHaveBeenCalledOnce();
+    expect(observed.worldTile.table.removeOnUpdate).toHaveBeenCalledOnce();
   });
 
   it('observes and releases both public forest tables with the Realm lifecycle', () => {

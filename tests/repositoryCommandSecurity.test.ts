@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -28,7 +29,8 @@ describe('repository command security policy', () => {
   });
 
   it('defensively ignores common local credential and recovery artifacts', () => {
-    const ignore = readFileSync(resolve(import.meta.dirname, '../.gitignore'), 'utf8');
+    const repositoryRoot = resolve(import.meta.dirname, '..');
+    const ignore = readFileSync(resolve(repositoryRoot, '.gitignore'), 'utf8');
 
     for (const pattern of [
       'credentials.json',
@@ -36,6 +38,16 @@ describe('repository command security policy', () => {
       '.npmrc',
       '*.pem',
       '*.key',
+      '*.crt',
+      '*.cer',
+      '*.jwk',
+      '*.token',
+      'id_rsa*',
+      'id_ed25519*',
+      'admin-secret*',
+      'secret.json',
+      'secrets.json',
+      '.secrets/',
       '*.log',
       '*.har',
       '*.trace',
@@ -47,5 +59,22 @@ describe('repository command security policy', () => {
     ]) {
       expect(ignore.split('\n')).toContain(pattern);
     }
+
+    const plausibleSecretPaths = [
+      'services/auth-bridge/signing-key.jwk',
+      'services/auth-bridge/admin-secret.txt',
+      'services/auth-bridge/id_ed25519',
+      'services/auth-bridge/client.crt',
+      'services/auth-bridge/.secrets/device.key'
+    ];
+    expect(execFileSync(
+      'git',
+      ['check-ignore', '--no-index', '--stdin'],
+      {
+        cwd: repositoryRoot,
+        encoding: 'utf8',
+        input: `${plausibleSecretPaths.join('\n')}\n`
+      }
+    ).trim().split('\n')).toEqual(plausibleSecretPaths);
   });
 });
