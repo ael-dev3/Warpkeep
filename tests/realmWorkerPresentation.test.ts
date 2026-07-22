@@ -253,7 +253,9 @@ describe('generic worker presentation boundary', () => {
       { returnStartedAtMicros: 15n, returnsAtMicros: 14n },
       { returnStartedAtMicros: undefined },
       { returnStartProgressBasisPoints: undefined },
-      { returnStartProgressBasisPoints: 10_001 }
+      { returnStartProgressBasisPoints: 10_001 },
+      { returnStartProgressBasisPoints: 4_999 },
+      { returnsAtMicros: 21n }
     ]) {
       expect(decodeRealmWorkerPublicRows(
         returningPublicRows(impossible),

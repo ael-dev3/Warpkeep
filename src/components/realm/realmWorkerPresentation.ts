@@ -197,12 +197,24 @@ function assignedWorkerStateIsConsistent(worker: RealmWorkerPublicPresentation) 
       && worker.returnStartProgressBasisPoints === undefined
       && worker.gatheringEndsAtMicros < worker.returnsAtMicros;
   }
-  return worker.returnStartedAtMicros !== undefined
-    && worker.returnStartedAtMicros >= worker.startedAtMicros
-    && worker.returnStartedAtMicros <= worker.gatheringEndsAtMicros
-    && worker.returnsAtMicros >= worker.returnStartedAtMicros
-    && worker.returnStartProgressBasisPoints !== undefined
-    && worker.returnStartProgressBasisPoints <= 10_000;
+  if (
+    worker.returnStartedAtMicros === undefined
+    || worker.returnStartedAtMicros < worker.startedAtMicros
+    || worker.returnStartedAtMicros > worker.gatheringEndsAtMicros
+    || worker.returnStartProgressBasisPoints === undefined
+    || worker.returnStartProgressBasisPoints > 10_000
+  ) return false;
+  const outboundDuration = worker.arrivesAtMicros - worker.startedAtMicros;
+  const expectedProgress = worker.returnStartedAtMicros >= worker.arrivesAtMicros
+    ? 10_000
+    : Number(
+      ((worker.returnStartedAtMicros - worker.startedAtMicros) * 10_000n)
+      / outboundDuration
+    );
+  const expectedReturnsAtMicros = worker.returnStartedAtMicros
+    + (outboundDuration * BigInt(expectedProgress)) / 10_000n;
+  return worker.returnStartProgressBasisPoints === expectedProgress
+    && worker.returnsAtMicros === expectedReturnsAtMicros;
 }
 
 export function decodeRealmWorkerSystem(value: unknown): RealmWorkerSystemPresentation | undefined {
