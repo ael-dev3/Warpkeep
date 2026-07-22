@@ -65,6 +65,15 @@ function main() {
     process.env.VITE_WARPKEEP_SHARED_ALPHA_ENABLED,
     'VITE_WARPKEEP_SHARED_ALPHA_ENABLED'
   );
+  if (process.env.VITE_WARPKEEP_OIDC_AUDIENCE !== EXPECTED_AUDIENCE) {
+    fail(`VITE_WARPKEEP_OIDC_AUDIENCE must be ${EXPECTED_AUDIENCE}.`);
+  }
+  if (process.env.VITE_SPACETIMEDB_URI !== EXPECTED_SPACETIMEDB_URI) {
+    fail(`VITE_SPACETIMEDB_URI must be ${EXPECTED_SPACETIMEDB_URI}.`);
+  }
+  if (process.env.VITE_SPACETIMEDB_DATABASE !== EXPECTED_SPACETIMEDB_DATABASE) {
+    fail(`VITE_SPACETIMEDB_DATABASE must be ${EXPECTED_SPACETIMEDB_DATABASE}.`);
+  }
   if (!sharedAlphaEnabled) {
     console.log('Pages deployment validation passed with shared alpha disabled.');
     return;
@@ -81,16 +90,6 @@ function main() {
   if (bridge !== EXPECTED_BRIDGE || issuer !== EXPECTED_BRIDGE) {
     fail(`the bridge URL and OIDC issuer must both be ${EXPECTED_BRIDGE}.`);
   }
-  if (process.env.VITE_WARPKEEP_OIDC_AUDIENCE !== EXPECTED_AUDIENCE) {
-    fail(`VITE_WARPKEEP_OIDC_AUDIENCE must be ${EXPECTED_AUDIENCE}.`);
-  }
-  if (process.env.VITE_SPACETIMEDB_URI !== EXPECTED_SPACETIMEDB_URI) {
-    fail(`VITE_SPACETIMEDB_URI must be ${EXPECTED_SPACETIMEDB_URI}.`);
-  }
-  if (process.env.VITE_SPACETIMEDB_DATABASE !== EXPECTED_SPACETIMEDB_DATABASE) {
-    fail(`VITE_SPACETIMEDB_DATABASE must be ${EXPECTED_SPACETIMEDB_DATABASE}.`);
-  }
-
   console.log('Pages deployment validation passed with shared alpha enabled.');
 }
 

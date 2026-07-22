@@ -168,7 +168,7 @@ the one verified FID being resolved. It has no admin role, is never
 persisted/returned/logged, and the Worker sends it only to:
 
 ```txt
-POST /v1/database/warpkeep-89e4u/call/auth_resolver_get_fid_admission_v2
+POST /v1/database/c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e/call/auth_resolver_get_fid_admission_v2
 ```
 
 The HTTP SATS-JSON response is exactly
@@ -229,7 +229,7 @@ The static browser receives only public coordinates:
 
 ```dotenv
 VITE_SPACETIMEDB_URI=https://maincloud.spacetimedb.com
-VITE_SPACETIMEDB_DATABASE=warpkeep-89e4u
+VITE_SPACETIMEDB_DATABASE=c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e
 VITE_WARPKEEP_SHARED_ALPHA_ENABLED=true
 VITE_WARPKEEP_AUTH_BRIDGE_URL=https://auth.warpkeep.com
 VITE_WARPKEEP_OIDC_ISSUER=https://auth.warpkeep.com
@@ -249,10 +249,13 @@ state.
 Production frontend activation and the Pages deployment validator require the
 exact bridge and issuer `https://auth.warpkeep.com`, audience
 `warpkeep-spacetimedb`, Maincloud origin `https://maincloud.spacetimedb.com`, and
-database `warpkeep-89e4u`; matching lookalikes fail closed. Local development
-may use the explicit localhost escape hatch. The Worker independently pins its
-production resolver to that exact Maincloud origin/database pair, while an
-explicit `ENVIRONMENT=development` bridge remains configurable for local tests.
+database identity
+`c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e`;
+matching lookalikes and former aliases fail closed. Local development
+may use the explicit noncanonical localhost escape hatch. The Worker
+independently pins its production resolver to that exact Maincloud
+origin/database pair. Canonical Warpkeep issuer, domain, or origin coordinates
+force production validation even if `ENVIRONMENT=development` is supplied.
 
 ## Deployment boundary
 

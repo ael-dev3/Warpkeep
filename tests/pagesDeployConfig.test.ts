@@ -37,6 +37,14 @@ describe('Pages deployment configuration validation', () => {
     expect(result.stdout).toContain('shared alpha disabled');
   });
 
+  it('pins public database coordinates even while shared alpha is disabled', () => {
+    const result = validate({
+      VITE_SPACETIMEDB_DATABASE: 'warpkeep-89e4u'
+    });
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain('c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e');
+  });
+
   it('requires exact active bridge/issuer configuration and rejects unsafe activation', () => {
     const active = validate({
       VITE_WARPKEEP_SHARED_ALPHA_ENABLED: 'true',

@@ -1610,6 +1610,17 @@ describe('Warpkeep auth bridge', () => {
       SPACETIMEDB_DATABASE: 'warpkeep-dev',
     }))
     expect(development.status).toBe(200)
+
+    const canonicalDowngrade = await h.app.fetch(request('/healthz'), env({
+      ENVIRONMENT: 'development',
+      ISSUER: 'https://auth.warpkeep.com',
+      ALLOWED_ORIGINS: 'https://warpkeep.com',
+      FARCASTER_DOMAIN: 'warpkeep.com',
+      FARCASTER_SIWE_URI: 'https://warpkeep.com/',
+      SPACETIMEDB_URI: 'http://127.0.0.1:3000',
+      SPACETIMEDB_DATABASE: 'warpkeep-dev',
+    }))
+    expect(canonicalDowngrade.status).toBe(503)
   })
 
   it('never places proof material in the default logger output', async () => {
