@@ -25,7 +25,10 @@ const CONFIG: BridgeConfig = {
   allowedOrigins: new Set([ORIGIN]),
   domain: DOMAIN,
   siweUri: SIWE_URI,
-  farcasterRpcUrl: 'https://optimism-rpc.warpkeep.test',
+  farcasterRpcUrls: Object.freeze([
+    'https://optimism-rpc-one.example.com/',
+    'https://optimism-rpc-two.example.net/',
+  ]),
   audience: 'warpkeep-spacetimedb',
   keyId: 'workerd-test-key',
   privateJwk: {

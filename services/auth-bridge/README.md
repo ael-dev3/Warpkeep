@@ -318,11 +318,15 @@ proof, cookie, or profile payload.
 
 `wrangler.toml` declares `workers_dev = false`, the `auth.warpkeep.com`
 custom-domain route, `PUBLIC_AUTH_ENABLED = "false"`, and the non-secret
-issuer/origin/database contract. `FARCASTER_RPC_URL`, `SIGNING_KEY_JWK`,
-`ADMIN_TOKEN_SECRET`, and the independent `SESSION_COOKIE_KEY` are managed
-Worker secrets. Both symmetric secrets require at least 32 random bytes and
-all three secret materials must be pairwise distinct, including the private
-`d` scalar inside `SIGNING_KEY_JWK`. `CHALLENGE_REPLAY_GUARD`,
+issuer/origin/database contract. `FARCASTER_RPC_URL`,
+`FARCASTER_RPC_URL_SECONDARY`, `SIGNING_KEY_JWK`, `ADMIN_TOKEN_SECRET`, and the
+independent `SESSION_COOKIE_KEY` are managed Worker secrets. Production accepts
+only two distinct public HTTPS RPC origins. Both official verifier instances
+must independently validate the proof and return the same canonical FID; an
+outage, partial result, or disagreement returns no token. Explicit development
+may instead use one loopback RPC endpoint. Both symmetric secrets require at
+least 32 random bytes and all three secret materials must be pairwise distinct,
+including the private `d` scalar inside `SIGNING_KEY_JWK`. `CHALLENGE_REPLAY_GUARD`,
 `AUTH_RATE_LIMITER`, and `SESSION_FAMILIES` are separate SQLite Durable Object
 bindings. `QA_CHALLENGE_REPLAY_GUARD` is a fourth isolated SQLite binding; its
 additive `QaChallengeReplayGuard` migration requires explicit operator approval
@@ -344,14 +348,17 @@ same Maincloud/database pair. Development remains explicitly configurable and is
 not accepted as a production activation profile.
 
 The server-only `POST /v1/admin/config-attestation` route additionally returns
-the independent QA gate, observer URI/database/audience tuple, registered
-public-key fingerprint, canonical registration/expiry timestamps, and maximum
-registration lifetime after admin-secret authentication. The SHA-256 digest
-covers issuer, origins, SIWF coordinates, gameplay audience/key/Maincloud
-coordinates, observer URI/database/audience coordinates, environment, S256
-binding, player/resolver lifetimes, QA scope/procedure/lifetimes, both gates,
-the registered QA fingerprint/registration/expiry/lifetime, the 30-day family
-ceiling, and exact cookie attributes. Operators must compare it with the
+the sorted fingerprints of the exact RPC endpoints, the active signing public
+key's RFC 7638 thumbprint, the independent QA gate, observer
+URI/database/audience tuple, registered public-key fingerprint, canonical
+registration/expiry timestamps, and maximum registration lifetime after
+admin-secret authentication. Each endpoint fingerprint is lowercase hex
+`SHA-256("warpkeep-farcaster-rpc-endpoint-v1\0" + normalizedExactUrl)`, where
+`\0` is one NUL separator; the endpoint URLs themselves are never returned. The
+digest covers those values
+along with issuer, origins, SIWF coordinates, gameplay audience/key/Maincloud
+coordinates, observer coordinates, environment, binding and bounded lifetimes,
+both gates, and exact cookie attributes. Operators must compare it with the
 reviewed expected configuration; it is not a deployment action and reveals no
 secret material.
 

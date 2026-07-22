@@ -29,13 +29,15 @@ export type QaObserverSpacetimeDbConfig = Readonly<{
   audience: string
 }>
 
+export type FarcasterRpcUrls = readonly [string] | readonly [string, string]
+
 export interface BridgeConfig {
   issuer: string
   issuerUrl: URL
   allowedOrigins: ReadonlySet<string>
   domain: string
   siweUri: string
-  farcasterRpcUrl: string
+  farcasterRpcUrls: FarcasterRpcUrls
   audience: string
   keyId: string
   privateJwk: PrivateEcJwk
@@ -140,13 +142,12 @@ function parsePrivateJwk(value: string): PrivateEcJwk {
   } catch {
     throw new ConfigurationError()
   }
-  const coordinate = /^[A-Za-z0-9_-]{43}$/
   if (
     jwk.kty !== 'EC'
     || jwk.crv !== 'P-256'
-    || !jwk.x || !coordinate.test(jwk.x)
-    || !jwk.y || !coordinate.test(jwk.y)
-    || !jwk.d || !coordinate.test(jwk.d)
+    || !jwk.x || !isCanonicalBase64UrlCoordinate(jwk.x)
+    || !jwk.y || !isCanonicalBase64UrlCoordinate(jwk.y)
+    || !jwk.d || !isCanonicalBase64UrlCoordinate(jwk.d)
   ) {
     throw new ConfigurationError()
   }
@@ -203,6 +204,72 @@ function parseAudience(value: string): string {
     throw new ConfigurationError()
   }
   return value
+}
+
+function isLoopbackHostname(hostname: string): boolean {
+  const normalized = hostname.toLowerCase()
+  return normalized === 'localhost'
+    || normalized.endsWith('.localhost')
+    || normalized === '127.0.0.1'
+    || normalized === '[::1]'
+}
+
+function isPublicDnsHostname(hostname: string): boolean {
+  const normalized = hostname.toLowerCase()
+  if (
+    isLoopbackHostname(normalized)
+    || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(normalized)
+    || normalized.includes(':')
+    || normalized.endsWith('.local')
+    || normalized.endsWith('.internal')
+    || normalized.endsWith('.invalid')
+    || normalized.endsWith('.localhost')
+    || normalized.endsWith('.test')
+    || normalized.endsWith('.example')
+  ) {
+    return false
+  }
+  const label = '[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?'
+  return new RegExp(`^${label}(?:\\.${label})+$`).test(normalized)
+}
+
+function parseFarcasterRpcUrls(env: WorkerEnv, production: boolean): FarcasterRpcUrls {
+  const primary = parseAbsoluteUrl(required(env, 'FARCASTER_RPC_URL'))
+  const secondaryValue = env.FARCASTER_RPC_URL_SECONDARY?.trim()
+  const urls = secondaryValue
+    ? [primary, parseAbsoluteUrl(secondaryValue)]
+    : [primary]
+
+  for (const url of urls) {
+    if (
+      url.username
+      || url.password
+      || url.hash
+      || (url.protocol === 'http:' && !isLoopbackHostname(url.hostname))
+      || (production && (
+        url.protocol !== 'https:'
+        || Boolean(url.port)
+        || !isPublicDnsHostname(url.hostname)
+      ))
+    ) {
+      throw new ConfigurationError()
+    }
+  }
+
+  if (production && urls.length !== 2) {
+    throw new ConfigurationError()
+  }
+  if (!production && urls.length === 1 && !isLoopbackHostname(primary.hostname)) {
+    throw new ConfigurationError()
+  }
+  if (urls.length === 2 && urls[0].origin === urls[1].origin) {
+    throw new ConfigurationError()
+  }
+
+  const normalized = urls.map(url => url.toString())
+  return normalized.length === 2
+    ? Object.freeze([normalized[0], normalized[1]])
+    : Object.freeze([normalized[0]])
 }
 
 function parsePublicAuthEnabled(value: string): boolean {
@@ -321,9 +388,7 @@ export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
     throw new ConfigurationError()
   }
 
-  const farcasterRpcUrl = required(env, 'FARCASTER_RPC_URL')
-  const rpcUrl = parseAbsoluteUrl(farcasterRpcUrl)
-  if (production && rpcUrl.protocol !== 'https:') throw new ConfigurationError()
+  const farcasterRpcUrls = parseFarcasterRpcUrls(env, production)
 
   const spacetimeDbUri = parseSpacetimeDbUri(required(env, 'SPACETIMEDB_URI'), production)
   const spacetimeDbDatabase = parseSpacetimeDbDatabase(required(env, 'SPACETIMEDB_DATABASE'))
@@ -402,7 +467,7 @@ export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
     allowedOrigins,
     domain,
     siweUri,
-    farcasterRpcUrl,
+    farcasterRpcUrls,
     audience,
     keyId: parseKeyId(configuredKid),
     privateJwk,

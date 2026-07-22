@@ -1,11 +1,15 @@
 # Development only. Copy to .dev.vars; never commit the copy.
 # Generate SIGNING_KEY_JWK separately and use a different key from production.
 ENVIRONMENT=development
-ISSUER=http://localhost:8787
+# The bridge itself rejects plaintext requests; use a local TLS endpoint/proxy.
+ISSUER=https://localhost:8787
 ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 FARCASTER_DOMAIN=localhost:5173
 FARCASTER_SIWE_URI=http://localhost:5173/
-FARCASTER_RPC_URL=https://YOUR-OPTIMISM-RPC.example
+# A single endpoint is accepted only for explicit development on loopback.
+FARCASTER_RPC_URL=http://127.0.0.1:8545
+# Production requires a second HTTPS endpoint on an independent public origin.
+# FARCASTER_RPC_URL_SECONDARY=https://YOUR-SECOND-OPTIMISM-RPC.example
 OIDC_AUDIENCE=warpkeep-spacetimedb
 OIDC_KEY_ID=warpkeep-dev-2026-01
 SPACETIMEDB_URI=http://127.0.0.1:3000

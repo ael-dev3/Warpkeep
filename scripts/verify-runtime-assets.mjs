@@ -42,7 +42,25 @@ const assets = Object.freeze([
   ['public/images/realm/hegemony-gold-mine-record.webp', 218_736, 'a2c52a5e1536860ce3ad778c1719e354637fe473495c45ee927c99f468c60fa3', false],
   ['public/images/realm/hegemony-wheat-farm-record.webp', 224_806, '466c80380a8d23de043731a7c386e78c9b36a2d2e69fa175db4b87efc3f43eb0', false],
   ['public/images/realm/hegemony-logging-camp-record.webp', 177_622, 'fb9d171e423a7bd4bfcce1e68cd3faecb38b4904bc528f720e4283522fca1293', false],
-  ['public/images/realm/hegemony-stone-quarry-record.webp', 186_736, '86b13c14a0eda7403c3583d886be3242e04d7ef9e442fcfdbcc054642421a70a', false]
+  ['public/images/realm/hegemony-stone-quarry-record.webp', 186_736, '86b13c14a0eda7403c3583d886be3242e04d7ef9e442fcfdbcc054642421a70a', false],
+  ['public/images/realm/hegemony-worker-record.webp', 86_984, 'ff758ecbf520b05ccf0a2fa490bcafa6c564514de5ee56ef5a720fd6da24193e', false]
+]);
+
+const decorativeInspectionImageAssets = Object.freeze([
+  Object.freeze({
+    path: 'public/images/realm/hegemony-worker-record.webp',
+    width: 1_024,
+    height: 1_024,
+    format: 'webp',
+    bytes: 86_984,
+    sha256: 'ff758ecbf520b05ccf0a2fa490bcafa6c564514de5ee56ef5a720fd6da24193e',
+    decodedRgbaSha256: '2e77492f76801576adcc9cfe660fa15494123bc43fcd767e005cd5ad95d8b047',
+    alpha: Object.freeze({
+      transparentPixels: 858_605,
+      partiallyTransparentPixels: 39_551,
+      opaquePixels: 150_420
+    })
+  })
 ]);
 
 const referenceImageAssets = Object.freeze([
@@ -599,6 +617,38 @@ for (const asset of resourceImageAssets) {
 }
 if (resourcePixels.size !== 4) {
   throw new Error('The reviewed resource runtime family must contain exactly four pixel-equivalent PNG/WebP pairs.');
+}
+
+for (const asset of decorativeInspectionImageAssets) {
+  const bytes = readContainedRegularFile({
+    root,
+    relativePath: asset.path,
+    label: `${asset.path} decorative inspection image`,
+    expectedBytes: asset.bytes
+  });
+  const hash = createHash('sha256').update(bytes).digest('hex');
+  if (hash !== asset.sha256) throw new Error(`${asset.path} hash changed: ${hash}.`);
+  const image = sharp(bytes, {
+    failOn: 'warning',
+    limitInputPixels: asset.width * asset.height
+  });
+  const metadata = await image.metadata();
+  if (
+    metadata.format !== asset.format
+    || metadata.width !== asset.width
+    || metadata.height !== asset.height
+    || metadata.channels !== 4
+    || metadata.depth !== 'uchar'
+    || metadata.hasAlpha !== true
+  ) throw new Error(`${asset.path} decoder metadata changed: ${JSON.stringify(metadata)}.`);
+  const raw = await image.ensureAlpha().raw().toBuffer();
+  const decodedHash = createHash('sha256').update(raw).digest('hex');
+  if (decodedHash !== asset.decodedRgbaSha256) {
+    throw new Error(`${asset.path} decoded RGBA hash changed: ${decodedHash}.`);
+  }
+  if (!exactRecord(alphaProfile(raw), asset.alpha)) {
+    throw new Error(`${asset.path} alpha profile changed.`);
+  }
 }
 
 console.log(
