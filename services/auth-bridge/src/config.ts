@@ -17,6 +17,8 @@ export const PRODUCTION_SPACETIMEDB_URI = 'https://maincloud.spacetimedb.com'
 /** Immutable public address; unlike a database alias, it cannot drift after a rename. */
 export const PRODUCTION_SPACETIMEDB_DATABASE = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e'
 export const PRODUCTION_QA_OBSERVER_SPACETIMEDB_URI = 'https://maincloud.spacetimedb.com'
+const SPACETIMEDB_DATABASE_IDENTITY_PATTERN = /^[a-f0-9]{64}$/
+const SPACETIMEDB_DATABASE_ALIAS_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/
 
 export type QaObserverSpacetimeDbConfig = Readonly<{
   uri: string
@@ -187,9 +189,7 @@ function parseSpacetimeDbUri(value: string, production: boolean): string {
 }
 
 function parseSpacetimeDbDatabase(value: string): string {
-  const databaseIdentity = /^[a-f0-9]{64}$/
-  const databaseAlias = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/
-  if (!databaseIdentity.test(value) && !databaseAlias.test(value)) {
+  if (!SPACETIMEDB_DATABASE_IDENTITY_PATTERN.test(value) && !SPACETIMEDB_DATABASE_ALIAS_PATTERN.test(value)) {
     throw new ConfigurationError()
   }
   return value
@@ -360,6 +360,7 @@ export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
     qaObserverSpacetimeDb
     && (
       (production && qaObserverSpacetimeDb.uri !== PRODUCTION_QA_OBSERVER_SPACETIMEDB_URI)
+      || (production && !SPACETIMEDB_DATABASE_IDENTITY_PATTERN.test(qaObserverSpacetimeDb.database))
       || qaObserverSpacetimeDb.database === spacetimeDbDatabase
       || qaObserverSpacetimeDb.audience === audience
     )
