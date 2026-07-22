@@ -10,6 +10,7 @@ import {
 import {
   acceptWarpkeepAlphaTerms,
   CONNECTION_HANDSHAKE_TIMEOUT_MILLISECONDS,
+  classifyWarpkeepConnectionFailure,
   connectWarpkeep,
   bootstrapWarpkeepPlayer,
   collectWarpkeepGoldExpedition,
@@ -355,6 +356,25 @@ afterEach(() => {
 });
 
 describe('Warpkeep authenticated connection boundary', () => {
+  it('reduces raw SDK failures to bounded credential-free diagnostics', () => {
+    const bearerLikeMaterial = 'header.payload.signature';
+    expect(classifyWarpkeepConnectionFailure(
+      new Error(`Failed to verify token: Unauthorized ${bearerLikeMaterial}`)
+    )).toBe('token_exchange_unauthorized');
+    expect(classifyWarpkeepConnectionFailure(
+      new Error('Failed to verify token: Forbidden')
+    )).toBe('token_exchange_forbidden');
+    expect(classifyWarpkeepConnectionFailure(
+      new Error('Failed to verify token: Service Unavailable')
+    )).toBe('token_exchange_unavailable');
+    expect(classifyWarpkeepConnectionFailure(
+      new Error('Failed to verify token: Unexpected')
+    )).toBe('token_exchange_failed');
+    expect(classifyWarpkeepConnectionFailure(
+      new Error(`WebSocket failed ${bearerLikeMaterial}`)
+    )).toBe('transport_failed');
+  });
+
   it('builds from the current bridge JWT and known Maincloud URI without any token storage', () => {
     const builder = builderDouble();
     vi.spyOn(DbConnection, 'builder').mockReturnValue(builder as never);
@@ -404,6 +424,27 @@ describe('Warpkeep authenticated connection boundary', () => {
     expect(window.localStorage.length).toBe(0);
   });
 
+  it('reports only the bounded failure class when token exchange is rejected', async () => {
+    const builder = builderDouble();
+    const onConnectionFailure = vi.fn();
+    let onConnectError: ((context: unknown, error: Error) => void) | undefined;
+    builder.onConnectError.mockImplementation((callback) => {
+      onConnectError = callback;
+      return builder;
+    });
+    builder.build.mockImplementation(() => {
+      onConnectError?.({}, new Error('Failed to verify token: Unauthorized header.payload.signature'));
+      return { isDisconnectRequested: true };
+    });
+    vi.spyOn(DbConnection, 'builder').mockReturnValue(builder as never);
+
+    await expect(connectWarpkeep(config, 'header.payload.signature', {
+      onConnectionFailure
+    })).rejects.toThrow('Warpkeep records are unavailable.');
+    expect(onConnectionFailure).toHaveBeenCalledWith('token_exchange_unauthorized');
+    expect(JSON.stringify(onConnectionFailure.mock.calls)).not.toContain('header.payload.signature');
+  });
+
   it('bounds a silent connection handshake and disconnects a late connection', async () => {
     vi.useFakeTimers();
     const builder = builderDouble();
@@ -421,7 +462,10 @@ describe('Warpkeep authenticated connection boundary', () => {
     vi.spyOn(DbConnection, 'builder').mockReturnValue(builder as never);
 
     let outcome = 'pending';
-    const connection = connectWarpkeep(config, 'header.payload.signature');
+    const onConnectionFailure = vi.fn();
+    const connection = connectWarpkeep(config, 'header.payload.signature', {
+      onConnectionFailure
+    });
     void connection.then(
       () => { outcome = 'resolved'; },
       () => { outcome = 'rejected'; }
@@ -432,6 +476,7 @@ describe('Warpkeep authenticated connection boundary', () => {
     await vi.advanceTimersByTimeAsync(1);
     await expect(connection).rejects.toThrow('Warpkeep records are unavailable.');
     expect(outcome).toBe('rejected');
+    expect(onConnectionFailure).toHaveBeenCalledWith('handshake_timeout');
     expect(disconnect).toHaveBeenCalledTimes(1);
     expect(vi.getTimerCount()).toBe(0);
 

@@ -672,6 +672,9 @@ describe('Warpkeep shared realm admission', () => {
 
   it('fails closed when explicit Terms acknowledgement cannot be recorded', async () => {
     const backend = createBackendRuntime(['ready']);
+    const diagnostic = vi.spyOn(console, 'info').mockImplementation(() => {
+      throw new Error('controlled console failure');
+    });
     vi.mocked(backend.runtime.acceptAlphaTerms)
       .mockRejectedValueOnce(new Error('controlled terms failure'));
     renderExperience({ runtime: backend.runtime });
@@ -686,6 +689,10 @@ describe('Warpkeep shared realm admission', () => {
     expect(backend.connection.disconnect).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('main', { name: 'Hegemony realm' })).toBeNull();
     expect(screen.getByText('The Hegemony records are temporarily unreachable.')).not.toBeNull();
+    expect(diagnostic).toHaveBeenCalledWith(
+      'warpkeep_backend_stage_failed:terms_acknowledgement'
+    );
+    expect(JSON.stringify(diagnostic.mock.calls)).not.toContain('controlled terms failure');
   });
 
   it('waits for explicit terms acceptance before restoring a valid cookie session on mount or focus', async () => {

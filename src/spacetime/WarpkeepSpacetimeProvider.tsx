@@ -76,6 +76,15 @@ class ResourceOperationDeadlineError extends Error {
   }
 }
 
+type WarpkeepRealmActivationFailureReason =
+  | 'resource_projection_failed'
+  | 'resource_projection_deadline'
+  | 'observer_setup_failed'
+  | 'subscription_setup_failed'
+  | 'subscription_failed'
+  | 'canonical_readiness_timeout'
+  | 'canonical_snapshot_invalid';
+
 function withResourceOperationDeadline<T>(operation: Promise<T>): Promise<T> {
   let deadline: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_resolve, reject) => {
@@ -1215,6 +1224,19 @@ export function WarpkeepSpacetimeProvider({
         setState(backendError(identity));
       }
     };
+    const reportFailure = (message: string) => {
+      if (!current()) return;
+      try {
+        console.info(message);
+      } catch {
+        // Diagnostics never interrupt generation cleanup or fail-closed state.
+      }
+    };
+    const failRealmActivation = (reason: WarpkeepRealmActivationFailureReason) => {
+      if (!current()) return;
+      reportFailure(`warpkeep_backend_activation_failed:${reason}`);
+      fail();
+    };
 
     const reconnectingState: WarpkeepBackendState | undefined = retainedReadyState
       ? {
@@ -1269,16 +1291,24 @@ export function WarpkeepSpacetimeProvider({
         if (termsAttemptRef.current > completedTermsAttemptRef.current) {
           processTermsAttempt();
         }
-      }).catch(fail);
+      }).catch(() => {
+        reportFailure('warpkeep_backend_stage_failed:terms_acknowledgement');
+        fail();
+      });
     }
     processTermsAttemptRef.current = processTermsAttempt;
 
     const run = async () => {
+      let stage = 'connect';
       setState(reconnectingState ?? { phase: 'connecting', identity });
       try {
         const activeConnection = await runtime.connect(config, farcaster.oidcSession!.jwt, {
           onDisconnected: () => {
             if (current()) fail();
+          },
+          onConnectionFailure: (reason) => {
+            // Static, privacy-safe signal for bounded production diagnostics.
+            reportFailure(`warpkeep_backend_connection_failed:${reason}`);
           }
         });
         if (!current()) {
@@ -1293,6 +1323,7 @@ export function WarpkeepSpacetimeProvider({
         connectionRef.current = activeConnection;
         // Validate here as well as at the generated-binding boundary so an
         // injected/test runtime can never accidentally bypass compatibility.
+        stage = 'backend_info';
         const backendInfo = readCompatibleWarpkeepBackendInfo(
           await runtime.readBackendInfo(activeConnection)
         );
@@ -1301,6 +1332,7 @@ export function WarpkeepSpacetimeProvider({
         if (!reconnectingState) {
           setState({ phase: 'checking-admission', identity });
         }
+        stage = 'admission';
         let admission = await runtime.readAdmission(activeConnection);
         if (!current()) return;
 
@@ -1314,8 +1346,10 @@ export function WarpkeepSpacetimeProvider({
           if (!reconnectingState) {
             setState({ phase: 'bootstrapping', identity, admission });
           }
+          stage = 'bootstrap';
           await runtime.bootstrapPlayer(activeConnection);
           if (!current()) return;
+          stage = 'admission_after_bootstrap';
           admission = await runtime.readAdmission(activeConnection);
           if (!current()) return;
         }
@@ -1370,7 +1404,7 @@ export function WarpkeepSpacetimeProvider({
               ...(stoneExpedition === undefined ? {} : { stoneExpedition })
             });
           } catch {
-            fail();
+            failRealmActivation('canonical_snapshot_invalid');
           }
         };
         const updateObservedRealm = (observedSnapshot: WarpkeepRealmSnapshot) => {
@@ -1395,18 +1429,29 @@ export function WarpkeepSpacetimeProvider({
           if (!reconnectingState) {
             setState({ phase: 'opening-realm', identity, admission: 'ready' });
           }
-          readinessTimeout = setTimeout(
-            fail,
-            CANONICAL_REALM_READINESS_TIMEOUT_MILLISECONDS
-          );
+          readinessTimeout = setTimeout(() => {
+            failRealmActivation('canonical_readiness_timeout');
+          }, CANONICAL_REALM_READINESS_TIMEOUT_MILLISECONDS);
           const activation = (async () => {
             // Begin every private read and the large public subscription
             // concurrently. The core resource projection and public snapshot
             // remain mandatory; additive expedition projections fail closed
             // to unavailable controls without delaying Realm entry in series.
+            let initialResourceRead: ReturnType<WarpkeepBackendRuntime['readResourceState']>;
+            try {
+              initialResourceRead = runtime.readResourceState(activeConnection, bridgeFid!);
+            } catch {
+              failRealmActivation('resource_projection_failed');
+              return;
+            }
             const initialResourcePromise = withResourceOperationDeadline(
-              runtime.readResourceState(activeConnection, bridgeFid!)
-            );
+              initialResourceRead
+            ).catch((error: unknown) => {
+              failRealmActivation(error instanceof ResourceOperationDeadlineError
+                ? 'resource_projection_deadline'
+                : 'resource_projection_failed');
+              throw error;
+            });
             const initialGoldExpeditionPromise = runtime.readGoldExpeditionState === undefined
               ? Promise.resolve<ReadyGoldExpeditionPresentation | undefined>(undefined)
               : withResourceOperationDeadline(
@@ -1432,17 +1477,38 @@ export function WarpkeepSpacetimeProvider({
             // its eventual rejection cannot escape as an unhandled rejection;
             // awaiting it still preserves the normal fail-closed path.
             void initialResourcePromise.catch(() => undefined);
-            cleanupObserver = runtime.observeRealm(
-              activeConnection,
-              bridgeFid!,
-              updateObservedRealm,
-              fail
-            );
-            const startedSubscription = runtime.subscribeRealm(
-              activeConnection,
-              applySubscribedRealm,
-              fail
-            );
+            let startedObserver: () => void;
+            try {
+              startedObserver = runtime.observeRealm(
+                activeConnection,
+                bridgeFid!,
+                updateObservedRealm,
+                () => failRealmActivation('canonical_snapshot_invalid')
+              );
+            } catch {
+              failRealmActivation('observer_setup_failed');
+              return;
+            }
+            if (!current()) {
+              try {
+                startedObserver();
+              } catch {
+                // Generation authority is already revoked; cleanup remains best effort.
+              }
+              return;
+            }
+            cleanupObserver = startedObserver;
+            let startedSubscription: ReturnType<WarpkeepBackendRuntime['subscribeRealm']>;
+            try {
+              startedSubscription = runtime.subscribeRealm(
+                activeConnection,
+                applySubscribedRealm,
+                () => failRealmActivation('subscription_failed')
+              );
+            } catch {
+              failRealmActivation('subscription_setup_failed');
+              return;
+            }
             if (!current()) {
               // A test runtime or SDK failure callback may fire synchronously from
               // subscribe(). The returned handle was not available to fail(), so
@@ -1587,6 +1653,7 @@ export function WarpkeepSpacetimeProvider({
           });
         };
 
+        stage = 'terms_acknowledgement';
         const acceptedNow = await acknowledgePendingTerms(activeConnection);
         if (!current()) return;
         if (!acceptedNow && completedTermsAttemptRef.current === 0) {
@@ -1595,6 +1662,7 @@ export function WarpkeepSpacetimeProvider({
         }
         activateRealm();
       } catch {
+        reportFailure(`warpkeep_backend_stage_failed:${stage}`);
         fail();
       }
     };

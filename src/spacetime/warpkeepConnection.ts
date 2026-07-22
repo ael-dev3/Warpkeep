@@ -96,8 +96,19 @@ import {
 import { GENESIS_FOREST_LAYOUT_V1_TREE_COUNT } from '../../spacetimedb/src/forestLayoutContract';
 import { GENESIS_WATER_BODIES_V1, GENESIS_WATER_CELLS_V1 } from '../../spacetimedb/src/waterWorld';
 
+export type WarpkeepConnectionFailureReason =
+  | 'handshake_timeout'
+  | 'token_exchange_unauthorized'
+  | 'token_exchange_forbidden'
+  | 'token_exchange_unavailable'
+  | 'token_exchange_failed'
+  | 'transport_failed'
+  | 'setup_failed';
+
 export type WarpkeepConnectionCallbacks = Readonly<{
   onDisconnected?: () => void;
+  /** Privacy-safe failure class only; raw transport errors and credentials stay internal. */
+  onConnectionFailure?: (reason: WarpkeepConnectionFailureReason) => void;
 }>;
 
 export type WarpkeepConnection = DbConnection;
@@ -189,6 +200,20 @@ function isBridgeJwt(value: string) {
 
   const parts = value.split('.');
   return parts.length === 3 && parts.every((part) => /^[A-Za-z0-9_-]+$/.test(part));
+}
+
+/** Reduce SDK/browser errors to a bounded signal that cannot contain bearer material. */
+export function classifyWarpkeepConnectionFailure(
+  error: unknown
+): WarpkeepConnectionFailureReason {
+  const message = error instanceof Error ? error.message : '';
+  if (!message.startsWith('Failed to verify token:')) return 'transport_failed';
+  if (/unauthorized/i.test(message)) return 'token_exchange_unauthorized';
+  if (/forbidden/i.test(message)) return 'token_exchange_forbidden';
+  if (/service unavailable|bad gateway|gateway timeout|internal server error/i.test(message)) {
+    return 'token_exchange_unavailable';
+  }
+  return 'token_exchange_failed';
 }
 
 function toSafeNumber(value: bigint | number | undefined) {
@@ -285,16 +310,21 @@ export function connectWarpkeep(
       callback();
       return true;
     };
-    const rejectUnavailable = () => {
+    const rejectUnavailable = (reason: WarpkeepConnectionFailureReason) => {
       if (!settle(() => reject(new Error('Warpkeep records are unavailable.')))) return false;
       failed = true;
       disconnectWarpkeep(pendingConnection);
       pendingConnection = undefined;
+      try {
+        callbacks.onConnectionFailure?.(reason);
+      } catch {
+        // Diagnostics never change the fail-closed connection outcome.
+      }
       return true;
     };
 
     timeout = setTimeout(() => {
-      rejectUnavailable();
+      rejectUnavailable('handshake_timeout');
     }, CONNECTION_HANDSHAKE_TIMEOUT_MILLISECONDS);
     try {
       const builder = createWarpkeepConnectionBuilder(config, bridgeJwt, callbacks)
@@ -303,14 +333,14 @@ export function connectWarpkeep(
           if (settle(() => resolve(connection))) pendingConnection = undefined;
           else disconnectWarpkeep(connection);
         })
-        .onConnectError(() => {
-          rejectUnavailable();
+        .onConnectError((_context, error) => {
+          rejectUnavailable(classifyWarpkeepConnectionFailure(error));
         });
       const builtConnection = builder.build();
       if (failed) disconnectWarpkeep(builtConnection);
       else if (!settled) pendingConnection = builtConnection;
     } catch {
-      rejectUnavailable();
+      rejectUnavailable('setup_failed');
     }
   });
 }
