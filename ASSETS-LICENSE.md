@@ -553,6 +553,26 @@ decoded RGBA hash, alpha profile, and visible bounds are recorded in the
 The runtime file remains under `LicenseRef-Warpkeep-Provenance-Required`; neither
 its location in `public/` nor the cleanup operation silently relicenses it.
 
+## Realm Wheat Farm README preview
+
+On 22 July 2026, the Warpkeep project owner supplied an exact Realm screenshot
+of the Wheat Farm inspection presentation and instructed that it appear in the
+root README. That instruction authorizes the exact checked-in PNG for
+documentation in this public Warpkeep repository; it does not establish
+underlying ownership or grant a separate open license for the embedded runtime
+assets, public profile imagery, names, or trademarks. The image is explicitly
+labeled as a documentation preview and does not itself activate or authorize a
+gameplay state.
+
+| Intended use | Repository file | Technical record |
+| --- | --- | --- |
+| Root README development preview | `docs/reference/screenshots/2026-07-22-realm-wheat-farm-preview/warpkeep-realm-wheat-farm-preview-f3b1f7e598c543d6.png` | 2000×1264 RGB PNG, 3,146,015 bytes, SHA-256 `f3b1f7e598c543d6c0e74813286da97d96b219ee56bc5d764c9853bfec27fe3e`. |
+
+The screenshot remains `LicenseRef-Warpkeep-Provenance-Required` and is not a
+runtime dependency. Its [dated record](docs/reference/screenshots/2026-07-22-realm-wheat-farm-preview/)
+preserves the exact hash, display scope, privacy review, and authorization
+boundary. No general derivative or redistribution permission is granted.
+
 ## Trademark and endorsement note
 
 These licenses do not grant trademark rights or imply endorsement by the project. Forks, mods, and community realms should avoid presenting themselves as the canonical Warpkeep deployment unless explicitly authorized; see [`TRADEMARKS.md`](TRADEMARKS.md).

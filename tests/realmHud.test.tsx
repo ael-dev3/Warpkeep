@@ -284,8 +284,10 @@ describe('RealmHud', () => {
     fireEvent.pointerEnter(food, { pointerType: 'mouse' });
     let tooltip = screen.getByRole('tooltip');
     expect(tooltip.textContent).toContain('200 stored · 8 ready to collect');
-    expect(tooltip.textContent).toContain('farm expeditions can gather more');
-    expect(tooltip.textContent).toContain('Spending is not live yet');
+    expect(tooltip.textContent).toContain(
+      'private terrain yield and gathering at Wheat Farms'
+    );
+    expect(tooltip.textContent).toContain('No Food spending is live yet');
     expect(tooltip.getAttribute('aria-live')).toBe('off');
     expect(food.getAttribute('aria-describedby')).toBe(tooltip.id);
     expect(rail.getAttribute('data-tooltip-open')).toBe('food');
@@ -298,7 +300,10 @@ describe('RealmHud', () => {
 
     act(() => wood.focus());
     tooltip = screen.getByRole('tooltip');
-    expect(tooltip.textContent).toContain('logging expeditions can gather more');
+    expect(tooltip.textContent).toContain(
+      'private terrain yield and gathering at Logging Camps'
+    );
+    expect(tooltip.textContent).toContain('No Wood spending is live yet');
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(screen.queryByRole('tooltip')).toBeNull();
     expect(document.activeElement).toBe(wood);
@@ -307,18 +312,38 @@ describe('RealmHud', () => {
     expect(screen.getByRole('tooltip').textContent)
       .toContain('private terrain yield');
     expect(screen.getByRole('tooltip').textContent)
-      .toContain('Tier-I quarry expeditions can gather more');
+      .toContain('gathering at Stone Quarries');
     expect(screen.getByRole('tooltip').textContent)
-      .toContain('Stone spending is not live yet');
+      .toContain('No Stone spending is live yet');
     act(() => gold.focus());
     expect(screen.getByRole('tooltip').textContent)
-      .toContain('comes only from mine expeditions');
+      .toContain('gathering at Gold Mines');
     expect(screen.getByRole('tooltip').textContent)
-      .toContain('terrain Gold and spending are not live');
+      .toContain('terrain produces no Gold');
+    expect(screen.getByRole('tooltip').textContent)
+      .toContain('No Gold spending is live yet');
     act(() => marks.focus());
     expect(screen.getByRole('tooltip').textContent)
-      .toContain('Separate community-attribution balance');
+      .toContain('separate experimental accounting balance, not an economic resource');
     expect(rail.getAttribute('data-tooltip-open')).toBe('marks');
+
+    const tooltipCopy = [...document.querySelectorAll('.realm-resource-tooltip__copy')]
+      .map((element) => element.textContent ?? '')
+      .join(' ');
+    for (const stagedOrFutureClaim of [
+      'armies',
+      'construction',
+      'fortification',
+      'strongholds',
+      'upgrades',
+      'trade',
+      'command',
+      'worker',
+      'future',
+      'tier-i'
+    ]) {
+      expect(tooltipCopy.toLowerCase()).not.toContain(stagedOrFutureClaim);
+    }
 
     act(() => marks.blur());
     fireEvent.pointerDown(gold, { pointerType: 'touch' });
