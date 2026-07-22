@@ -31,7 +31,14 @@ const FIXTURE_HASHES = {
 const temporaryRoots = new Set<string>();
 
 afterEach(async () => {
-  await Promise.all([...temporaryRoots].map((root) => rm(root, { force: true, recursive: true })));
+  for (const root of temporaryRoots) {
+    await rm(root, {
+      force: true,
+      recursive: true,
+      maxRetries: 5,
+      retryDelay: 50
+    });
+  }
   temporaryRoots.clear();
 });
 
