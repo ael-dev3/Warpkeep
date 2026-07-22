@@ -287,6 +287,7 @@ export function fallbackCastleProjection(
   const centerX = contentLeft + (world.x - viewBox.x) * scale;
   const centerY = contentTop + (-world.z - viewBox.y) * scale;
   const markerHalfSize = Math.max(10, Math.abs(scale) * 0.64);
+  const visible = fallbackCastleIsInViewBox(castle, viewBox);
   const castleBounds = {
     left: centerX - markerHalfSize,
     top: centerY - markerHalfSize,
@@ -298,8 +299,19 @@ export function fallbackCastleProjection(
     x: centerX,
     y: centerY + markerHalfSize + CASTLE_LABEL_GAP_PIXELS,
     distance: hexDistance({ q: 0, r: 0 }, castle),
-    visible: true,
+    visible,
     castleBounds,
     conservativeCastleBounds: castleBounds
   };
+}
+
+export function fallbackCastleIsInViewBox(
+  castle: Readonly<{ q: number; r: number }>,
+  viewBox: Readonly<{ x: number; y: number; width: number; height: number }>
+) {
+  const world = axialToWorld(castle, 1);
+  return world.x >= viewBox.x
+    && world.x <= viewBox.x + viewBox.width
+    && -world.z >= viewBox.y
+    && -world.z <= viewBox.y + viewBox.height;
 }

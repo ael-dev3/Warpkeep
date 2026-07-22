@@ -20,16 +20,28 @@ export type RealmTerrainFeatureLayers = Readonly<{
   dispose: () => void;
 }>;
 
-function geometryForKind(kind: RealmTerrainFeatureKind) {
+type PresentedTerrainFeatureKind = Exclude<RealmTerrainFeatureKind, 'heath-bloom'>;
+
+const PRESENTED_TERRAIN_FEATURE_KINDS: readonly PresentedTerrainFeatureKind[] = Object.freeze([
+  'forest-tree',
+  'ridge-outcrop',
+  'lake-sheen',
+  'ancient-monolith'
+]);
+
+function isPresentedTerrainFeatureKind(
+  kind: RealmTerrainFeatureKind
+): kind is PresentedTerrainFeatureKind {
+  return kind === 'forest-tree'
+    || kind === 'ridge-outcrop'
+    || kind === 'lake-sheen'
+    || kind === 'ancient-monolith';
+}
+
+function geometryForKind(kind: PresentedTerrainFeatureKind) {
   if (kind === 'forest-tree') {
     const geometry = new THREE.ConeGeometry(0.095, 0.34, 6, 1);
     geometry.translate(0, 0.17, 0);
-    return geometry;
-  }
-  if (kind === 'heath-bloom') {
-    const geometry = new THREE.DodecahedronGeometry(0.052, 0);
-    geometry.scale(1.45, 0.78, 1.45);
-    geometry.translate(0, 0.043, 0);
     return geometry;
   }
   if (kind === 'ridge-outcrop') {
@@ -48,20 +60,11 @@ function geometryForKind(kind: RealmTerrainFeatureKind) {
   return geometry;
 }
 
-function materialForKind(kind: RealmTerrainFeatureKind): THREE.Material {
+function materialForKind(kind: PresentedTerrainFeatureKind): THREE.Material {
   if (kind === 'forest-tree') {
     return new THREE.MeshStandardMaterial({
       color: '#274936',
       roughness: 0.9,
-      metalness: 0
-    });
-  }
-  if (kind === 'heath-bloom') {
-    return new THREE.MeshStandardMaterial({
-      color: '#72527d',
-      emissive: '#2b1538',
-      emissiveIntensity: 0.12,
-      roughness: 0.88,
       metalness: 0
     });
   }
@@ -83,11 +86,11 @@ function materialForKind(kind: RealmTerrainFeatureKind): THREE.Material {
     });
   }
   return new THREE.MeshStandardMaterial({
-    color: '#5a5364',
-    emissive: '#291634',
-    emissiveIntensity: 0.1,
-    roughness: 0.78,
-    metalness: 0.08
+    color: '#6f746c',
+    emissive: '#202720',
+    emissiveIntensity: 0.025,
+    roughness: 0.9,
+    metalness: 0.02
   });
 }
 
@@ -106,11 +109,27 @@ export function createRealmTerrainFeatureLayers(
   const scale = new THREE.Vector3();
   const axis = new THREE.Vector3(0, 1, 0);
   const meshes: THREE.InstancedMesh[] = [];
+  const pointsByKind = new Map<
+    PresentedTerrainFeatureKind,
+    RealmTerrainFeatureData['points'][number][]
+  >(PRESENTED_TERRAIN_FEATURE_KINDS.map((kind) => [kind, []]));
+  data.points.forEach((point) => {
+    if (!isPresentedTerrainFeatureKind(point.kind)) return;
+    pointsByKind.get(point.kind)!.push(point);
+  });
+  const counts = Object.freeze({
+    'forest-tree': pointsByKind.get('forest-tree')!.length,
+    'heath-bloom': 0,
+    'ridge-outcrop': pointsByKind.get('ridge-outcrop')!.length,
+    'lake-sheen': pointsByKind.get('lake-sheen')!.length,
+    'ancient-monolith': pointsByKind.get('ancient-monolith')!.length
+  }) satisfies RealmTerrainFeatureData['counts'];
+  const instanceCount = Object.values(counts).reduce((total, count) => total + count, 0);
   let disposed = false;
 
   try {
-    (Object.keys(data.counts) as RealmTerrainFeatureKind[]).forEach((kind) => {
-      const points = data.points.filter((point) => point.kind === kind);
+    PRESENTED_TERRAIN_FEATURE_KINDS.forEach((kind) => {
+      const points = pointsByKind.get(kind)!;
       if (points.length === 0) return;
       const geometry = geometryForKind(kind);
       const material = materialForKind(kind);
@@ -173,9 +192,9 @@ export function createRealmTerrainFeatureLayers(
 
   return Object.freeze({
     group,
-    counts: data.counts,
+    counts,
     drawCalls: meshes.length,
-    instanceCount: data.points.length,
+    instanceCount,
     dispose: () => {
       if (disposed) return;
       disposed = true;
