@@ -11,11 +11,15 @@ coverage
 
 # Local credentials, operator output, and recovery residue must never be staged.
 credentials.json
+.envrc
+.npmrc
 *.pem
 *.key
 *.p12
 *.pfx
 *.log
+*.har
+*.trace
 *.bak
 *.backup
 *.tmp

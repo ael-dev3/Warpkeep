@@ -32,9 +32,13 @@ describe('repository command security policy', () => {
 
     for (const pattern of [
       'credentials.json',
+      '.envrc',
+      '.npmrc',
       '*.pem',
       '*.key',
       '*.log',
+      '*.har',
+      '*.trace',
       '*.backup',
       '*.sqlite',
       '*.dump',
