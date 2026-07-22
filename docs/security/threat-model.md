@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-This document describes the current security model for Warpkeep Alpha 0.3.13. It
+This document describes the current security model for Warpkeep Alpha 0.3.14. It
 covers the browser application, Farcaster Sign In with Farcaster (SIWF), the Cloudflare authentication
 bridge, SpacetimeDB game authority, local operator tools, GitHub Actions, and GitHub Pages delivery.
 
@@ -65,7 +65,9 @@ operation. Anonymous visitors do not connect to the game database.
 1. **Browser to Farcaster.** Relay responses are untrusted until the bridge verifies the completed proof.
 2. **Browser to authentication bridge.** Request bodies, headers, origins, and proof material are hostile
    input. The bridge applies strict schemas, size limits, deadlines, origin checks, and replay protection.
-3. **Bridge to Farcaster verifier.** Provider failures or malformed responses must not produce a token.
+3. **Bridge to Farcaster verifier.** Two independent production RPC origins
+   must both validate the proof to the same FID. Failure, partial success,
+   disagreement, or malformed responses must not produce a token.
 4. **Bridge to SpacetimeDB.** Admission lookup uses a short-lived resolver principal bound to one FID and
    fixed service coordinates.
 5. **Browser to SpacetimeDB.** The module repeats issuer, audience, subject, role, epoch, expiry, admission,
@@ -95,6 +97,9 @@ operation. Anonymous visitors do not connect to the game database.
   wallet links, and browser parameters are presentation data only.
 - SIWF validation binds the proof to the configured domain, URI, nonce, request, and expiry. The proof FID
   and requested FID must agree.
+- Production runs the official verifier against two distinct public HTTPS RPC
+  origins and requires matching successful FIDs. One loopback endpoint is
+  accepted only in an explicit development profile.
 - Challenges are random, expire, and are claimed atomically. Successful or definitively invalid exchanges
   consume them.
 - Missing, disabled, malformed, or epoch-mismatched admission returns no access token or game state.
@@ -180,7 +185,7 @@ operation. Anonymous visitors do not connect to the game database.
 
 | Risk | Treatment and remaining exposure |
 | --- | --- |
-| Client substitutes another FID | Independent proof verification and module-side caller derivation prevent browser choice; verifier compromise remains an external incident. |
+| Client substitutes another FID | Dual-RPC proof consensus and module-side caller derivation prevent browser choice; correlated provider or verifier-library compromise remains an external incident. |
 | Proof or session replay | Expiring challenges, atomic claim, rotation, epoch checks, and revocation limit replay; host compromise can still defeat the boundary. |
 | Access token stolen by script or extension | Memory-only storage and short lifetime limit exposure, but a compromised origin or device can use the token until expiry. |
 | Resolver token stolen while fresh | One-FID binding and least-privilege guards limit access; a fresh token may still expose that FID's admission status and public subscriptions until disconnect. |
@@ -210,7 +215,8 @@ operation. Anonymous visitors do not connect to the game database.
 - Per-client rate limits do not prevent distributed traffic from reaching
   provider or account quotas. Monitoring, alerting, and incident drills remain
   areas for improvement.
-- Third-party services—including Farcaster, Cloudflare, GitHub, package
+- Third-party services—including both configured Farcaster RPC providers,
+  Farcaster, Cloudflare, GitHub, package
   registries, and SpacetimeDB—are trusted dependencies and are not audited by
   this project.
 - Branch protection and automated checks reduce supply-chain risk but do not

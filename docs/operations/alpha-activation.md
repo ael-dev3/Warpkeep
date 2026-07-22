@@ -68,6 +68,16 @@ For releases after the Water/Stone suffix has been published, also run:
 npm run stdb:inspect-alpha-v10 -- --json
 ```
 
+After the Worker v12 suffix exists, its separate aggregate inspection is:
+
+```sh
+npm run stdb:inspect-alpha-v12 -- --json
+```
+
+The first v12 publication cannot run that procedure beforehand. Its guarded
+publisher instead requires an anonymous schema description of the immutable
+database identity to match the exact 47-table v11 predecessor.
+
 The first additive publication that introduces v8 cannot use it as a
 pre-publication check. Record counts privately. The v8 status contains only
 schema/backend versions, resource/forest policy identifiers and digests, and
@@ -83,7 +93,8 @@ SpacetimeDB with deletion disabled.
 ```sh
 npm run stdb:publish:dev -- --dry-run \
   --resource-rollout-stage=ready \
-  --genesis-world-stage=expanded
+  --genesis-world-stage=expanded \
+  --worker-rollout-stage=empty
 ```
 
 Those stage values describe the current production predecessor; do not copy
@@ -93,13 +104,20 @@ it does not inspect Maincloud or publish. Review the result, then use the same
 explicit stage arguments without `--dry-run` and with the publisher's exact
 confirmation variable set through the private operator environment.
 Do not substitute raw `spacetime publish` commands. If publication times out or
-returns an ambiguous result, do not retry until fresh read-only inspection
-establishes the live schema and counts.
+returns an ambiguous result, do not republish. A fresh read-only inspection must
+establish the live schema and counts before any further release decision.
 
-After publication, the publisher reruns v3, v4, v8, and v10 aggregate checks.
-A failed check blocks component setup. Previously deployed counts must remain
-unchanged; new component tables should be empty unless they were activated in
-an earlier release.
+For the one-time v11-to-v12 boundary, the publisher anonymously describes the
+same immutable identity before and after publication. It requires all 47 v11
+table signatures to remain unchanged and exactly six reviewed Worker tables to
+be appended. The local proof receipt pins SHA-256 digests of the complete v11
+and v12 table descriptors, row types, indexes, constraints, and every reachable
+typespace reference; reducer- and procedure-only schema is excluded. The live
+anonymous pre- and post-publication descriptions must match those exact proven
+boundaries. The publisher then reruns v3, v4, v8, v10, and v12 aggregate checks.
+The v12 checkpoint must prove those tables are empty and the Worker system
+remains absent and fail-closed. Worker seeding, backfill, or activation needs separate
+approval and is not performed by publication.
 
 ## 4. Activate reviewed components
 
@@ -169,7 +187,7 @@ to create evidence.
   tables inert, stop component setup, and restore service compatibility through
   a reviewed forward change.
 - Ambiguous operator result: disconnect, obtain fresh credentials, and inspect
-  counts before deciding whether any retry is safe.
+  schema and counts before deciding any next step.
 - Suspected credential exposure: stop and use the private credential-rotation
   procedure in [reconstruction/credential-rotation.md](reconstruction/credential-rotation.md).
 

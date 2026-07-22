@@ -14,7 +14,8 @@ Credential values live only in their authorized platform or local secret store. 
 - `ADMIN_TOKEN_SECRET`: Worker/operator Hermes authentication boundary.
 - `SESSION_COOKIE_KEY`: independent Worker HMAC boundary for the
   `__Host-warpkeep_session` rotating family reference.
-- `FARCASTER_RPC_URL`: server-only Farcaster verifier/provider endpoint.
+- `FARCASTER_RPC_URL` and `FARCASTER_RPC_URL_SECONDARY`: independent server-only
+  Farcaster verifier/provider endpoints on distinct public HTTPS origins.
 - Maincloud CLI authorization: inspect/build/generate/publish access.
 
 Never put values in a recovery manifest, `.env.example`, command-line argument, shell history, issue, screenshot, log, or chat transcript.
@@ -30,7 +31,9 @@ For every rotation record only timestamp, affected service, public key ID or dep
   Verify exact `__Host-`, Secure, HttpOnly, SameSite=Strict attributes, tokenless
   pending behavior, generation rotation/replay revocation, and configuration
   attestation before any auth enable.
-- **FARCASTER_RPC_URL:** update the managed secret; verify normal SIWF resolution and fail-closed provider outage behavior.
+- **Farcaster RPC pair:** rotate one managed endpoint at a time; verify its
+  privacy-safe attestation fingerprint, matching dual-provider SIWF resolution,
+  and fail-closed outage/disagreement behavior before rotating the other.
 - **SIGNING_KEY_JWK:** update the private key and matching public key ID, deploy, confirm JWKS contains no private `d`, and re-verify module/browser behavior.
 
 The current bridge publishes one JWKS key. Do not claim seamless overlapping signing-key rotation; compromise rotation intentionally invalidates old tokens. Planned overlap requires a separately reviewed multi-key implementation. The module normally does not require republishing when only the issuer's signing key changes, but verify deployed runtime behavior. Access tokens are maximum 600 seconds and memory-only in the auth-v2 target; the separate session family remains server-revocable.

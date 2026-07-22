@@ -6,8 +6,14 @@ dist
 .DS_Store
 coverage
 *.local
-.cache/warpkeep-assets/
-.cache/warpkeep-tools/
+/pnpm-lock.yaml
+/pnpm-workspace.yaml
+
+# Machine-local caches and deployment state.
+.cache/
+.wrangler/
+.dev.vars*
+!.dev.vars.example
 
 # Local credentials, operator output, and recovery residue must never be staged.
 credentials.json
@@ -17,6 +23,18 @@ credentials.json
 *.key
 *.p12
 *.pfx
+*.jks
+*.keystore
+*.crt
+*.cer
+*.jwk
+*.token
+id_rsa*
+id_ed25519*
+admin-secret*
+secret.json
+secrets.json
+.secrets/
 *.log
 *.har
 *.trace

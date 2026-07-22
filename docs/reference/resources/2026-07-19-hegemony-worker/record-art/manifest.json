@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "id": "hegemony-worker-record-art-v1",
+  "recordedAt": "2026-07-19",
+  "purpose": "Transparent decorative Worker art for the Worker inspection panel",
+  "projectAuthorization": {
+    "authorizedBy": "Warpkeep project owner",
+    "instructionDate": "2026-07-19",
+    "scope": "Use the supplied transparent Worker illustration in the Warpkeep Worker UI slice stacked on the stable Realm PR. This authorizes repository/runtime integration only after review; it does not authorize merge, deployment, production activation, worker seeding, or generic worker authority.",
+    "notGranted": [
+      "proof of underlying copyright ownership",
+      "a public open-content licence",
+      "general third-party derivative or redistribution permission",
+      "trademark or canonical-identity rights",
+      "worker ownership, status, route, cargo, reward, or settlement authority"
+    ]
+  },
+  "sourceInputs": [
+    {
+      "role": "owner-supplied transparent Worker illustration",
+      "repositoryRetained": false,
+      "originalName": "codex-clipboard-1312042e-175b-466f-adda-9bef7b12c1f0.png",
+      "bytes": 478174,
+      "sha256": "f6ae700affb5ce981074c7952bc81f90b60e2dab947b94867c5394d3e23b4d6d",
+      "image": {
+        "format": "png",
+        "width": 1024,
+        "height": 1024,
+        "channels": 4,
+        "alpha": true
+      }
+    }
+  ],
+  "processing": {
+    "tool": "sharp 0.35.3",
+    "operation": "lossy WebP derivative with alpha preserved",
+    "outputEncoding": "quality 92, alphaQuality 100, effort 6, smartSubsample true",
+    "runtimeAsset": {
+      "path": "public/images/realm/hegemony-worker-record.webp",
+      "format": "webp",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 86984,
+      "sha256": "ff758ecbf520b05ccf0a2fa490bcafa6c564514de5ee56ef5a720fd6da24193e",
+      "decodedRgbaSha256": "2e77492f76801576adcc9cfe660fa15494123bc43fcd767e005cd5ad95d8b047",
+      "alpha": {
+        "transparentPixels": 858605,
+        "partiallyTransparentPixels": 39551,
+        "opaquePixels": 150420
+      },
+      "visibleBoundsAlpha16": {
+        "minX": 256,
+        "minY": 51,
+        "maxX": 863,
+        "maxY": 730
+      }
+    }
+  },
+  "presentationBoundary": {
+    "component": "src/components/realm/WorkerInspectionPanel.tsx",
+    "runtimeUse": "same-origin decorative hero art in a focus-safe Worker inspector",
+    "forbiddenClaims": [
+      "private FID",
+      "private cargo or account balance",
+      "browser-invented worker ownership",
+      "browser-derived dispatch or recall authority",
+      "reward or Marks linkage"
+    ]
+  },
+  "licence": {
+    "spdx": "LicenseRef-Warpkeep-Provenance-Required",
+    "policy": "The exact project instruction authorizes this Warpkeep runtime use but does not establish a public relicensing grant. See ASSETS-LICENSE.md."
+  },
+  "visualQa": {
+    "transparentSourceVerified": true,
+    "visibleBoundsRecorded": true,
+    "runtimeDerivativeViewedOnTransparentViewer": true,
+    "externalRuntimeUrl": false
+  }
+}
