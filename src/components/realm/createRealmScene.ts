@@ -164,12 +164,17 @@ import {
 import type {
   KeepLoadStatus,
   RealmCastleProjectionFrame,
-  RealmCastleScreenBounds
+  RealmCastleScreenBounds,
+  RealmResourceKind,
+  RealmResourceProjectionFrame
 } from './realmTypes';
 import {
   classifyRealmRendererFailure,
   type RealmRendererFailure
 } from './realmRendererRecovery';
+import {
+  realmResourceProjectionFrameKey
+} from './realmResourceOccupantPresentation';
 
 const HEX_SIZE = 1;
 const OVERLAY_LIFT = 0.026;
@@ -182,6 +187,13 @@ const CAMERA_FILL_INTENSITY = CAMERA_FILL_FACE_IRRADIANCE
 let nextRealmSceneBuildSequence = 1;
 /** Ordinary Realm view deliberately exposes a strategic neighborhood, not the full board. */
 export const REALM_STRATEGIC_OVERVIEW_RADIUS = 28;
+
+const RESOURCE_OCCUPANT_MARKER_LIFT: Readonly<Record<RealmResourceKind, number>> = Object.freeze({
+  gold: 1.18,
+  food: 1.72,
+  wood: 1.32,
+  stone: 1.34
+});
 
 type RealmViewportDimensions = Readonly<{
   canvasWidth: number;
@@ -308,6 +320,56 @@ type RealmResourceGrassExclusionRecord = Readonly<{
   siteId: string;
   coord: HexCoord;
 }>;
+
+export type RealmResourceOccupantSceneRecord = Readonly<{
+  resource: RealmResourceKind;
+  siteId: string;
+  coord: HexCoord;
+}>;
+
+type RealmResourceProjectionAnchor = Readonly<{
+  resource: RealmResourceKind;
+  siteId: string;
+  x: number;
+  y: number;
+  z: number;
+}>;
+
+function resourceProjectionAnchorsFor(
+  records: readonly RealmResourceOccupantSceneRecord[],
+  surface: RealmTerrainSurface,
+  terrainPlacements: readonly TerrainStructurePlacement[]
+): readonly RealmResourceProjectionAnchor[] {
+  const anchors: RealmResourceProjectionAnchor[] = [];
+  const seen = new Set<string>();
+  for (const record of records) {
+    const key = `${record.resource}:${record.siteId}`;
+    if (
+      !['gold', 'food', 'wood', 'stone'].includes(record.resource)
+      || typeof record.siteId !== 'string'
+      || record.siteId.length === 0
+      || seen.has(key)
+      || !Number.isSafeInteger(record.coord.q)
+      || !Number.isSafeInteger(record.coord.r)
+      || !isPlayableRealmCoord(surface, record.coord)
+    ) return Object.freeze([]);
+    seen.add(key);
+    const world = axialToWorld(record.coord, HEX_SIZE);
+    anchors.push(Object.freeze({
+      resource: record.resource,
+      siteId: record.siteId,
+      x: world.x,
+      y: terrainHeightAtWorld(
+        surface.renderMap,
+        world,
+        HEX_SIZE,
+        terrainPlacements
+      ) + RESOURCE_OCCUPANT_MARKER_LIFT[record.resource],
+      z: world.z
+    }));
+  }
+  return Object.freeze(anchors);
+}
 
 /** Resource buildings are presentation roots, never grass interaction targets. */
 export function grassExclusionsForResourceNodes(
@@ -489,6 +551,7 @@ export type RealmLiveGatheringState = Readonly<{
   woodNodes: readonly RealmWoodNodeSceneRecord[];
   stoneNodes: readonly RealmStoneNodeSceneRecord[];
   workers?: readonly RealmWorkerSceneRecord[];
+  resourceOccupants?: readonly RealmResourceOccupantSceneRecord[];
   observedAtMicros: bigint;
 }>;
 
@@ -568,6 +631,8 @@ export type CreateRealmSceneOptions = Readonly<{
   stoneNodes?: readonly RealmStoneNodeSceneRecord[];
   /** Complete validated public worker roster with public route coordinates only. */
   workers?: readonly RealmWorkerSceneRecord[];
+  /** Identity-minimized public leases used only for the bounded DOM marker lane. */
+  resourceOccupants?: readonly RealmResourceOccupantSceneRecord[];
   /** Additive public `realm_forest_instance_v1` rows. */
   sharedForestTrees?: unknown;
   /** Additive public `realm_forest_layout_v1` metadata row. */
@@ -608,6 +673,8 @@ export type CreateRealmSceneOptions = Readonly<{
     telemetry: RealmCastleInstancePresentationTelemetry
   ) => void;
   onCastleProjection: (frame: RealmCastleProjectionFrame) => void;
+  /** Screen-space positions for public markers above other players' occupied nodes. */
+  onResourceProjection?: (frame: RealmResourceProjectionFrame) => void;
   onTerrainPresentationTelemetry?: (telemetry: RealmTerrainPresentationTelemetry) => void;
   onGoldNodePresentationTelemetry?: (telemetry: RealmGoldNodePresentationTelemetry) => void;
   onFoodNodePresentationTelemetry?: (telemetry: RealmFoodNodePresentationTelemetry) => void;
@@ -1779,6 +1846,12 @@ function initializeRealmScene(
   const occupiedCastleCoordinateKeys = new Set(
     authoritativeCastles.map((castle) => hexKey(castle.coord))
   );
+  let resourceProjectionAnchors: readonly RealmResourceProjectionAnchor[] =
+    resourceProjectionAnchorsFor(
+      options.resourceOccupants ?? [],
+      options.surface,
+      terrainPlacements
+    );
   const goldNodeCoordinateKeys = new Set(
     (options.goldNodes ?? []).map((node) => hexKey(node.coord))
   );
@@ -1913,6 +1986,7 @@ function initializeRealmScene(
   };
   const projectionPoint = new THREE.Vector3();
   const projectionBoundsPoint = new THREE.Vector3();
+  let lastResourceProjectionKey = '';
   const projectCastleLabels = () => {
     const width = Math.max(1, options.canvas.clientWidth || window.innerWidth || 1);
     const height = Math.max(1, options.canvas.clientHeight || window.innerHeight || 1);
@@ -2000,6 +2074,43 @@ function initializeRealmScene(
     if (projectionKey === lastCastleProjectionKey) return;
     lastCastleProjectionKey = projectionKey;
     options.onCastleProjection(frame);
+  };
+  const projectResourceMarkers = () => {
+    if (!options.onResourceProjection) return;
+    const width = Math.max(1, options.canvas.clientWidth || window.innerWidth || 1);
+    const height = Math.max(1, options.canvas.clientHeight || window.innerHeight || 1);
+    const markers = resourceProjectionAnchors.flatMap((anchor) => {
+      const projected = cameraController.projectPoint({
+        x: anchor.x,
+        y: anchor.y,
+        z: anchor.z
+      });
+      if (
+        !projected.visible
+        || projected.x < 0
+        || projected.x > width
+        || projected.y < 0
+        || projected.y > height
+      ) return [];
+      return [{
+        resource: anchor.resource,
+        siteId: anchor.siteId,
+        x: projected.x,
+        y: projected.y,
+        depth: projected.depth,
+        visible: true
+      }];
+    })
+      .sort((left, right) => (
+        left.depth - right.depth
+        || left.resource.localeCompare(right.resource)
+        || left.siteId.localeCompare(right.siteId)
+      ));
+    const frame: RealmResourceProjectionFrame = { width, height, markers };
+    const projectionKey = realmResourceProjectionFrameKey(frame);
+    if (projectionKey === lastResourceProjectionKey) return;
+    lastResourceProjectionKey = projectionKey;
+    options.onResourceProjection(frame);
   };
   const render = () => {
     if (cleanup.isDisposed()) return;
@@ -2173,6 +2284,7 @@ function initializeRealmScene(
     }
     options.canvas.dataset.realmLastSuccessfulRenderedGeneration = String(rendererGeneration);
     projectCastleLabels();
+    projectResourceMarkers();
     if (pendingCastlesReadyCount !== null) {
       const castleCount = pendingCastlesReadyCount;
       if (
@@ -3338,6 +3450,7 @@ function initializeRealmScene(
       || !Array.isArray(state.woodNodes)
       || !Array.isArray(state.stoneNodes)
       || (state.workers !== undefined && !Array.isArray(state.workers))
+      || (state.resourceOccupants !== undefined && !Array.isArray(state.resourceOccupants))
       || !matchesStaticCatalog(state.goldNodes, options.goldNodes ?? [])
       || !matchesStaticCatalog(state.foodNodes, options.foodNodes ?? [])
       || !matchesStaticCatalog(state.woodNodes, options.woodNodes ?? [])
@@ -3368,6 +3481,12 @@ function initializeRealmScene(
       stoneNodeLayer?.canReconcile(state.stoneNodes) ?? true
     ) && workerCatalogAccepted;
     if (accepted) {
+      resourceProjectionAnchors = resourceProjectionAnchorsFor(
+        state.resourceOccupants ?? [],
+        options.surface,
+        terrainPlacements
+      );
+      lastResourceProjectionKey = '';
       goldNodeLayer?.reconcile(state.goldNodes);
       foodNodeLayer?.reconcile(state.foodNodes);
       woodNodeLayer?.reconcile(state.woodNodes);

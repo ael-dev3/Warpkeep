@@ -863,6 +863,40 @@ describe('realm scene setup cleanup', () => {
     sceneHandle.dispose();
   });
 
+  it('projects and clears the identity-minimized generic occupant lane', () => {
+    const canvas = document.createElement('canvas');
+    const onResourceProjection = vi.fn();
+    const occupant = Object.freeze({
+      resource: 'wood' as const,
+      siteId: 'genesis-001:wood:0001',
+      coord: Object.freeze({ q: 0, r: 0 })
+    });
+    const sceneHandle = createRealmScene(createOptions(canvas, {
+      reducedMotion: true,
+      resourceOccupants: [occupant],
+      onResourceProjection
+    }));
+    sceneHandle.focusCell(occupant.coord);
+
+    expect(onResourceProjection).toHaveBeenCalled();
+    expect(onResourceProjection.mock.calls
+      .flatMap(([frame]) => frame.markers)
+      .find((marker) => marker.siteId === occupant.siteId))
+      .toMatchObject({ resource: 'wood', siteId: occupant.siteId, visible: true });
+
+    sceneHandle.reconcileLiveGatheringState({
+      goldNodes: [],
+      foodNodes: [],
+      woodNodes: [],
+      stoneNodes: [],
+      resourceOccupants: [],
+      observedAtMicros: 1n
+    });
+    expect(onResourceProjection.mock.calls.at(-1)?.[0].markers).toEqual([]);
+
+    sceneHandle.dispose();
+  });
+
   it('replaces the worker layer across full, unavailable, and recovered catalogs', () => {
     const canvas = document.createElement('canvas');
     const worker = idleWorkerRecord();

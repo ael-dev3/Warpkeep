@@ -109,7 +109,8 @@ export function WorkerCommandCenter({
           >×</button>
         </header>
         <p className="worker-command-center__summary">
-          Four permanent attendants of your keep. Select one to inspect or assign it.
+          Four permanent attendants of your keep. Assign all four to the same
+          resource type if you wish; each node accepts one worker from one player.
         </p>
         {commandFailed ? (
           <p className="worker-command-center__error" role="alert">

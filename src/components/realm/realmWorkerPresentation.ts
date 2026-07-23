@@ -86,14 +86,16 @@ export type ReadyWorkerResourceState = Readonly<{
   workerSystemMode: RealmWorkerSystemMode;
 }>;
 
-export type ReadyWorkerProjection = Readonly<{
+export type ReadyPublicWorkerProjection = Readonly<{
   mode: 'active';
   system: RealmWorkerSystemPresentation;
-  /** Realm-wide public motion state; never use this array as an owner roster. */
   workers: readonly RealmWorkerPublicPresentation[];
+  occupations: readonly RealmWorkerNodeOccupation[];
+}>;
+
+export type ReadyWorkerProjection = ReadyPublicWorkerProjection & Readonly<{
   /** The only four workers permitted in owner command surfaces. */
   ownedWorkers: readonly RealmWorkerPublicPresentation[];
-  occupations: readonly RealmWorkerNodeOccupation[];
 }>;
 
 export type RealmWorkerDestinationPresentation = Readonly<{
@@ -102,11 +104,42 @@ export type RealmWorkerDestinationPresentation = Readonly<{
   label: string;
 }>;
 
+export type RealmWorkerDestinationNode = Readonly<{
+  siteId: string;
+  coord: Readonly<{ q: number; r: number }>;
+  tier: number;
+  availability: string;
+}>;
+
 const resourceKinds = new Set<RealmEconomicResourceKey>(['food', 'wood', 'stone', 'gold']);
 const workerStatuses = new Set<RealmWorkerStatus>(['idle', 'outbound', 'gathering', 'returning']);
 const occupationPhases = new Set<RealmWorkerNodeOccupation['phase']>(['outbound', 'gathering']);
 const RESOURCE_ORDER = Object.freeze(['food', 'wood', 'stone', 'gold'] as const);
 const U64_MAX = (1n << 64n) - 1n;
+
+/**
+ * Resource type is intentionally not a worker capacity. Four workers may all
+ * target (for example) Wood, provided they select four different available
+ * node keys. The canonical node lease remains the single-occupancy boundary.
+ */
+export function resolveRealmWorkerDestinations(input: Readonly<{
+  resourceKind: RealmEconomicResourceKey;
+  resourceLabel: string;
+  nodes: readonly RealmWorkerDestinationNode[];
+  occupiedNodeKeys: ReadonlySet<string>;
+}>): readonly RealmWorkerDestinationPresentation[] {
+  const destinations: RealmWorkerDestinationPresentation[] = [];
+  for (const node of input.nodes) {
+    const nodeKey = `${input.resourceKind}:${node.siteId}`;
+    if (node.availability !== 'available' || input.occupiedNodeKeys.has(nodeKey)) continue;
+    destinations.push(Object.freeze({
+      resourceKind: input.resourceKind,
+      siteId: node.siteId,
+      label: `${input.resourceLabel} · Tier ${node.tier} · cell ${node.coord.q}, ${node.coord.r}`
+    }));
+  }
+  return Object.freeze(destinations);
+}
 
 function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -451,17 +484,15 @@ export function decodeWorkerResourceState(value: unknown, expectedFid: bigint): 
   });
 }
 
-export function resolveReadyWorkerProjection(input: Readonly<{
+export function resolveReadyPublicWorkerProjection(input: Readonly<{
   realmId: string;
   castleIds: readonly number[];
   ownCastleId: number;
   system?: RealmWorkerSystemPresentation;
   workers?: readonly RealmWorkerPublicPresentation[];
   occupations?: readonly RealmWorkerNodeOccupation[];
-  roster?: WorkerRosterPresentation;
-  resourceState?: ReadyWorkerResourceState;
-}>): ReadyWorkerProjection | undefined {
-  const { system, workers, occupations, roster, resourceState } = input;
+}>): ReadyPublicWorkerProjection | undefined {
+  const { system, workers, occupations } = input;
   const castleIds = [...input.castleIds].sort((left, right) => left - right);
   if (
     system?.mode !== 'active'
@@ -475,10 +506,6 @@ export function resolveReadyWorkerProjection(input: Readonly<{
     || system.rosterDigest !== workerRosterDigestForCastleIds(castleIds)
     || workers === undefined || workers.length !== system.expectedWorkerCount
     || occupations === undefined
-    || roster?.castleId !== input.ownCastleId
-    || resourceState?.workerSystemMode !== 'active'
-    || resourceState.resourcePolicyVersion !== REALM_RESOURCE_POLICY_VERSION
-    || resourceState.workerPolicyVersion !== system.policyVersion
   ) return undefined;
 
   const castleSet = new Set(castleIds);
@@ -530,7 +557,37 @@ export function resolveReadyWorkerProjection(input: Readonly<{
       : occupationByWorker.has(worker.workerId)
   ))) return undefined;
 
-  const ownedWorkers = workers.filter((worker) => worker.originCastleId === input.ownCastleId);
+  return Object.freeze({
+    mode: 'active' as const,
+    system,
+    workers,
+    occupations
+  });
+}
+
+export function resolveReadyWorkerProjection(input: Readonly<{
+  realmId: string;
+  castleIds: readonly number[];
+  ownCastleId: number;
+  system?: RealmWorkerSystemPresentation;
+  workers?: readonly RealmWorkerPublicPresentation[];
+  occupations?: readonly RealmWorkerNodeOccupation[];
+  roster?: WorkerRosterPresentation;
+  resourceState?: ReadyWorkerResourceState;
+}>): ReadyWorkerProjection | undefined {
+  const { roster, resourceState } = input;
+  const publicProjection = resolveReadyPublicWorkerProjection(input);
+  if (
+    publicProjection === undefined
+    || roster?.castleId !== input.ownCastleId
+    || resourceState?.workerSystemMode !== 'active'
+    || resourceState.resourcePolicyVersion !== REALM_RESOURCE_POLICY_VERSION
+    || resourceState.workerPolicyVersion !== publicProjection.system.policyVersion
+  ) return undefined;
+
+  const ownedWorkers = publicProjection.workers.filter(
+    (worker) => worker.originCastleId === input.ownCastleId
+  );
   if (ownedWorkers.length !== 4 || roster.workers.length !== 4) return undefined;
   const rosterById = new Map(roster.workers.map((worker) => [worker.workerId, worker] as const));
   for (const worker of ownedWorkers) {
@@ -559,11 +616,8 @@ export function resolveReadyWorkerProjection(input: Readonly<{
     return undefined;
   }
   return Object.freeze({
-    mode: 'active' as const,
-    system,
-    workers,
+    ...publicProjection,
     ownedWorkers: Object.freeze(ownedWorkers.slice().sort((left, right) => left.ordinal - right.ordinal)),
-    occupations
   });
 }
 

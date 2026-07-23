@@ -86,6 +86,7 @@ export type RealmInteractionState = Readonly<{
   selectedCastle: RealmCastleTarget | null;
   inspectorTarget: RealmInspectorTarget | null;
   inspectorOpen: boolean;
+  resourceOccupantKey: string | null;
   cameraTarget: RealmCameraTarget;
   navigatorOpen: boolean;
   keyboardIntent: RealmKeyboardIntent;
@@ -122,7 +123,9 @@ export type RealmInteractionAction =
       regime: 'ocean' | 'river';
       coord: HexCoord;
     }>
+  | Readonly<{ type: 'activate-resource-occupant'; key: string }>
   | Readonly<{ type: 'close-inspector' }>
+  | Readonly<{ type: 'close-resource-occupant' }>
   | Readonly<{ type: 'recenter-keep'; coord: HexCoord }>
   | Readonly<{ type: 'set-camera-target'; target: RealmCameraTarget }>
   | Readonly<{ type: 'open-navigator' }>
@@ -130,7 +133,11 @@ export type RealmInteractionAction =
   | Readonly<{ type: 'request-castle-label-focus'; castleId: number }>
   | Readonly<{ type: 'request-map-focus' }>;
 
-export type RealmEscapeDecision = 'close-inspector' | 'close-navigator' | 'request-exit';
+export type RealmEscapeDecision =
+  | 'close-resource-occupant'
+  | 'close-inspector'
+  | 'close-navigator'
+  | 'request-exit';
 
 export type RealmEscapeResult = Readonly<{
   decision: RealmEscapeDecision;
@@ -214,6 +221,7 @@ function activateCameraNeutralInspector(
     selectedCastle: null,
     inspectorTarget: target,
     inspectorOpen: true,
+    resourceOccupantKey: null,
     cameraTarget: state.cameraTarget,
     navigatorOpen: false,
     keyboardIntent: withKeyboardIntent(state, keyboardTarget)
@@ -226,6 +234,7 @@ export function createRealmInteractionState(initialSelectedCell: HexCoord): Real
     selectedCastle: null,
     inspectorTarget: null,
     inspectorOpen: false,
+    resourceOccupantKey: null,
     cameraTarget: { kind: 'realm' },
     navigatorOpen: false,
     keyboardIntent: { sequence: 0, target: { kind: 'map' } }
@@ -245,7 +254,8 @@ export function realmInteractionReducer(
       return {
         ...state,
         selectedCell: copyCoord(action.coord),
-        selectedCastle: null
+        selectedCastle: null,
+        resourceOccupantKey: null
       };
 
     case 'activate-castle': {
@@ -256,6 +266,7 @@ export function realmInteractionReducer(
         selectedCastle: target,
         inspectorTarget: target,
         inspectorOpen: true,
+        resourceOccupantKey: null,
         cameraTarget: { kind: 'castle', castleId: target.castleId, coord: copyCoord(target.coord) },
         navigatorOpen: false,
         keyboardIntent: withKeyboardIntent(state, {
@@ -334,6 +345,14 @@ export function realmInteractionReducer(
       );
     }
 
+    case 'activate-resource-occupant':
+      return {
+        ...state,
+        inspectorOpen: false,
+        resourceOccupantKey: action.key,
+        navigatorOpen: false
+      };
+
     case 'close-inspector': {
       if (!state.inspectorOpen) return state;
       const castle = isCastleTarget(state.inspectorTarget)
@@ -351,12 +370,18 @@ export function realmInteractionReducer(
       };
     }
 
+    case 'close-resource-occupant':
+      return state.resourceOccupantKey === null
+        ? state
+        : { ...state, resourceOccupantKey: null };
+
     case 'recenter-keep':
       return {
         ...state,
         selectedCell: copyCoord(action.coord),
         selectedCastle: null,
         inspectorOpen: false,
+        resourceOccupantKey: null,
         cameraTarget: { kind: 'keep' },
         navigatorOpen: false,
         keyboardIntent: withKeyboardIntent(state, { kind: 'navigator-trigger' })
@@ -369,6 +394,7 @@ export function realmInteractionReducer(
       return {
         ...state,
         inspectorOpen: false,
+        resourceOccupantKey: null,
         navigatorOpen: true,
         keyboardIntent: withKeyboardIntent(state, { kind: 'navigator' })
       };
@@ -403,6 +429,13 @@ export function realmInteractionReducer(
  * The caller owns the external exit side effect only when `request-exit` wins.
  */
 export function resolveRealmEscape(state: RealmInteractionState): RealmEscapeResult {
+  if (state.resourceOccupantKey !== null) {
+    return {
+      decision: 'close-resource-occupant',
+      state: realmInteractionReducer(state, { type: 'close-resource-occupant' })
+    };
+  }
+
   if (state.inspectorOpen) {
     return {
       decision: 'close-inspector',

@@ -38,6 +38,20 @@ const manifest = JSON.parse(readFileSync(MANIFEST_PATH, 'utf8')) as {
         maxY: number;
       };
     };
+    pngDerivative: {
+      path: string;
+      format: string;
+      width: number;
+      height: number;
+      bytes: number;
+      sha256: string;
+      decodedRgbaSha256: string;
+      alpha: {
+        transparentPixels: number;
+        partiallyTransparentPixels: number;
+        opaquePixels: number;
+      };
+    };
   };
   presentationBoundary: {
     component: string;
@@ -139,5 +153,16 @@ describe('Hegemony Worker record art', () => {
     expect(component).toContain('height="1024"');
     expect(component).toContain('width="1024"');
     expect(component).not.toMatch(/https?:\/\//i);
+
+    const occupantComponent = readFileSync(
+      resolve(ROOT, 'src/components/realm/RealmResourceOccupantMarkers.tsx'),
+      'utf8'
+    );
+    expect(occupantComponent).toContain("publicAssetUrl('images/realm/hegemony-worker-record.webp')");
+    expect(occupantComponent).toContain('className="realm-resource-occupant-panel__worker-art"');
+    expect(occupantComponent).toContain('aria-hidden="true"');
+    expect(occupantComponent).toContain('alt=""');
+    expect(occupantComponent).toContain('Owning keeper only');
+    expect(occupantComponent).not.toContain('Recall worker home');
   });
 });
