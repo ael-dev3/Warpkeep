@@ -66,6 +66,8 @@ const requiredProductionCspFragments = Object.freeze([
   // connection setup. Keep this compatibility exception scoped to script-src.
   "script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'",
   "script-src-attr 'none'",
+  // Three.js decodes embedded GLB textures through origin-bound blob fetches.
+  "connect-src 'self' blob:",
   'https://auth.warpkeep.com',
   'https://relay.farcaster.xyz',
   'https://mainnet.optimism.io',

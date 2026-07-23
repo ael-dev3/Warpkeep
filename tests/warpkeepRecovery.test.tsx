@@ -138,6 +138,10 @@ describe('Warpkeep document fallback', () => {
       ?.split(';')
       .map((directive) => directive.trim())
       .find((directive) => directive.startsWith('script-src '));
+    const connectSource = contentSecurityPolicy
+      ?.split(';')
+      .map((directive) => directive.trim())
+      .find((directive) => directive.startsWith('connect-src '));
 
     expect(root?.querySelector('.warpkeep-boot')).not.toBeNull();
     expect(root?.querySelector('#warpkeep-boot-title')).toBeNull();
@@ -151,6 +155,7 @@ describe('Warpkeep document fallback', () => {
     expect(mainSource).toContain('WARPKEEP_ROOT_ERROR_HANDLERS');
     expect(contentSecurityPolicy).toContain("default-src 'none'");
     expect(scriptSource).toBe("script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'");
+    expect(connectSource).toMatch(/^connect-src 'self' blob: /);
     expect(contentSecurityPolicy).toContain("script-src-attr 'none'");
     expect(contentSecurityPolicy).not.toMatch(/(?:^|[;\s])https:(?:[;\s]|$)/);
     expect(contentSecurityPolicy).not.toMatch(/(?:^|[;\s])wss?:(?:[;\s]|$)/);
