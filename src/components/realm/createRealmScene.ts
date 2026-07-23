@@ -95,7 +95,6 @@ import { createRealmAmbientScheduler, type RealmAmbientScheduler } from './realm
 import {
   createRealmWaterLayer,
   REALM_WATER_ANIMATION_FRAME_CAPS,
-  waterSurfaceLevelToWorldY,
   type RealmWaterLayer
 } from './realmWaterLayer';
 import {
@@ -445,7 +444,6 @@ export type RealmSceneHandle = Readonly<{
   getSceneBuildSequence: () => number;
   focusCastle: (castleId: number) => void;
   focusCell: (coord: HexCoord) => void;
-  focusWaterCell: (cellKey: string) => void;
   frameFoundingDistrict: () => void;
   focusKeep: () => void;
   recenterKeep: () => void;
@@ -1290,9 +1288,6 @@ function initializeRealmScene(
   scene.add(terrain);
 
   let waterLayer: RealmWaterLayer | null = null;
-  const waterCellByKey = new Map(
-    (options.waterCells ?? []).map((cell) => [cell.cellKey, cell] as const)
-  );
   if (options.waterCells !== undefined) {
     try {
       waterLayer = createRealmWaterLayer({
@@ -3339,28 +3334,6 @@ function initializeRealmScene(
           HEX_SIZE,
           terrainPlacements
         ),
-        z: world.z,
-        height: 0.18,
-        footprintDiameter: 1.24
-      });
-    },
-    focusWaterCell: (cellKey) => {
-      if (cleanup.isDisposed() || !waterLayer) return;
-      const cell = waterCellByKey.get(cellKey);
-      if (!cell || (cell.regime === 'ocean' && cell.fogBand === 'full')) return;
-      const world = axialToWorld({ q: cell.q, r: cell.r }, HEX_SIZE);
-      const terrainY = terrainHeightAtWorld(
-        options.surface.renderMap,
-        world,
-        HEX_SIZE,
-        terrainPlacements
-      );
-      const surfaceY = cell.regime === 'river'
-        ? Math.max(waterSurfaceLevelToWorldY(cell.surfaceLevelMilli) + 0.035, terrainY + 0.04)
-        : waterSurfaceLevelToWorldY(cell.surfaceLevelMilli) + 0.035;
-      cameraController.focusAt({
-        x: world.x,
-        y: surfaceY,
         z: world.z,
         height: 0.18,
         footprintDiameter: 1.24

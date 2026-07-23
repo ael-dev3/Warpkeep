@@ -1035,17 +1035,15 @@ function CanonicalRealmMapScreen({
     if (focusSite) sceneRef.current?.focusCell(node.coord);
   }, []);
 
-  const selectWaterCell = useCallback((record: RealmWaterInspectionRecord, focusWater = true) => {
+  const selectWaterCell = useCallback((record: RealmWaterInspectionRecord) => {
     selectedCoordRef.current = { ...record.coord };
     dispatchInteraction({
       type: 'activate-water-cell',
       cellKey: record.cellKey,
       bodyId: record.bodyId,
       regime: record.regime,
-      coord: record.coord,
-      cameraIntent: focusWater ? 'focus-water' : 'preserve'
+      coord: record.coord
     });
-    if (focusWater) sceneRef.current?.focusWaterCell?.(record.cellKey);
   }, []);
 
   const selectWorker = useCallback((worker: RealmWorkerPublicPresentation, coord: HexCoord) => {
@@ -1765,7 +1763,6 @@ function CanonicalRealmMapScreen({
       if (cameraTarget.kind === 'castle') scene.focusCastle(cameraTarget.castleId);
       else if (cameraTarget.kind === 'cell') scene.focusCell(cameraTarget.coord);
       else if (cameraTarget.kind === 'worker') scene.focusCell(cameraTarget.coord);
-      else if (cameraTarget.kind === 'water') scene.focusWaterCell?.(cameraTarget.cellKey);
       else if (cameraTarget.kind === 'keep') scene.recenterKeep();
       else if (cameraTarget.kind === 'founding-district') scene.frameFoundingDistrict();
       else scene.showRealm();
@@ -2406,7 +2403,7 @@ function CanonicalRealmMapScreen({
               record={inspectorWater}
               focusTargetRef={inspectorFocusRef}
               onRequestClose={() => dispatchInteraction({ type: 'close-inspector' })}
-              onFocusCell={(cellKey) => {
+              onSelectCell={(cellKey) => {
                 const record = waterRecordsByKeyRef.current.get(cellKey);
                 if (record) selectWaterCell(record);
               }}

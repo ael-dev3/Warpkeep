@@ -6,6 +6,7 @@ import {
   GENESIS_WATER_BODIES_V1,
   GENESIS_WATER_CELLS_V1,
   GENESIS_WATER_ENVIRONMENT_V1,
+  GENESIS_WATER_OCEAN_RADIUS,
   GENESIS_WATER_SEA_LEVEL_MILLI
 } from '../spacetimedb/src/waterWorld';
 import {
@@ -18,10 +19,12 @@ import {
   waterSurfaceLevelToWorldY
 } from '../src/components/realm/realmWaterLayer';
 import { pointyHexCorners } from '../src/components/realm/createTerrainGeometry';
+import { REALM_SKY_FALLBACK_COLOR } from '../src/components/realm/createRealmEnvironment';
 import { DEFAULT_REALM_CAMERA_SPEC } from '../src/components/realm/realmCameraController';
 import { REALM_QUALITY_SPECS } from '../src/components/realm/realmQuality';
 import {
   axialToWorld,
+  hexDisc,
   hexDistance,
   type HexWorldPosition
 } from '../src/game/map/hexCoordinates';
@@ -56,6 +59,13 @@ function worldPointKey(world: HexWorldPosition) {
   return `${Math.round(world.x * 1_000_000)},${Math.round(world.z * 1_000_000)}`;
 }
 
+function worldEdgeKey(first: HexWorldPosition, second: HexWorldPosition) {
+  const edgePointKey = (world: HexWorldPosition) => (
+    `${Math.round(Math.fround(world.x) * 10_000)},${Math.round(Math.fround(world.z) * 10_000)}`
+  );
+  return [edgePointKey(first), edgePointKey(second)].sort().join('|');
+}
+
 function createLayer(quality: 'high' | 'balanced' | 'reduced', reducedMotion = false) {
   return createRealmWaterLayer({
     cells: GENESIS_WATER_CELLS_V1,
@@ -74,7 +84,12 @@ function compileMaterial(material: THREE.MeshStandardMaterial) {
       '#include <begin_vertex>',
       '#include <color_vertex>'
     ].join('\n'),
-    fragmentShader: '#include <opaque_fragment>\n#include <dithering_fragment>'
+    fragmentShader: [
+      '#include <opaque_fragment>',
+      '#include <colorspace_fragment>',
+      '#include <fog_fragment>',
+      '#include <dithering_fragment>'
+    ].join('\n')
   };
   material.onBeforeCompile(
     shader as Parameters<typeof material.onBeforeCompile>[0],
@@ -220,10 +235,60 @@ describe('Realm canonical water layer', () => {
       THREE.BufferGeometry,
       THREE.MeshStandardMaterial
     >;
+    const skirt = layer.group.getObjectByName('canonical-ocean-downward-skirt') as THREE.Mesh<
+      THREE.BufferGeometry,
+      THREE.MeshBasicMaterial
+    >;
     const fogMix = Array.from(ocean.geometry.getAttribute('waterFogMix').array as ArrayLike<number>);
+    const waterDepth = Array.from(
+      ocean.geometry.getAttribute('waterDepth').array as ArrayLike<number>
+    );
+    const shoreFoam = Array.from(
+      ocean.geometry.getAttribute('waterShoreFoam').array as ArrayLike<number>
+    );
     expect(fogMix).toContain(0);
     expect(fogMix.some((value) => Math.abs(value - 0.45) < 0.0001)).toBe(true);
+    expect(fogMix.some((value) => value > 0 && value < 0.45)).toBe(true);
     expect(fogMix).toContain(1);
+    expect(waterDepth.some((value) => Math.abs(value * 5 - Math.round(value * 5)) > 0.001))
+      .toBe(true);
+    expect(shoreFoam.some((value) => value > 0.06 && value < 0.56)).toBe(true);
+    const skirtPositions = skirt.geometry.getAttribute('position');
+    const skirtY = Array.from(
+      { length: skirtPositions.count },
+      (_, index) => skirtPositions.getY(index)
+    );
+    const seaLevelY = waterSurfaceLevelToWorldY(GENESIS_WATER_SEA_LEVEL_MILLI);
+    expect(Math.max(...skirtY)).toBeCloseTo(seaLevelY, 6);
+    expect(Math.min(...skirtY)).toBeCloseTo(seaLevelY - 1.25, 6);
+    expect(skirt.material.fog).toBe(true);
+    expect(skirt.material.transparent).toBe(false);
+    expect(skirt.material.depthWrite).toBe(true);
+    expect(skirt.material.color.getHexString()).toBe(
+      new THREE.Color(REALM_SKY_FALLBACK_COLOR).getHexString()
+    );
+
+    const edgeIncidence = new Map<string, number>();
+    hexDisc({ q: 0, r: 0 }, GENESIS_WATER_OCEAN_RADIUS).forEach((coord) => {
+      const corners = pointyHexCorners(coord, 1);
+      corners.forEach((corner, index) => {
+        const edge = worldEdgeKey(corner, corners[(index + 1) % corners.length]!);
+        edgeIncidence.set(edge, (edgeIncidence.get(edge) ?? 0) + 1);
+      });
+    });
+    const expectedPerimeter = [...edgeIncidence.entries()]
+      .filter(([, count]) => count === 1)
+      .map(([edge]) => edge)
+      .sort();
+    const actualPerimeter: string[] = [];
+    for (let vertex = 0; vertex < skirtPositions.count; vertex += 4) {
+      actualPerimeter.push(worldEdgeKey(
+        { x: skirtPositions.getX(vertex), z: skirtPositions.getZ(vertex) },
+        { x: skirtPositions.getX(vertex + 1), z: skirtPositions.getZ(vertex + 1) }
+      ));
+    }
+    expect(actualPerimeter).toHaveLength(786);
+    expect([...new Set(actualPerimeter)].sort()).toEqual(expectedPerimeter);
 
     // Every authoritative river coordinate is one complete hex-wide channel.
     expect((rivers.geometry.index?.count ?? 0) / 3).toBe(
@@ -248,8 +313,12 @@ describe('Realm canonical water layer', () => {
     expect(shader.vertexShader).toContain('return 0.0');
     expect(shader.fragmentShader).toContain('float waterGlimmer = abs(vWarpkeepWaterWave)');
     expect(shader.fragmentShader).toContain('vWarpkeepWaterFogMix');
+    expect(shader.fragmentShader).toContain('fogColor');
+    expect(shader.fragmentShader).not.toContain('uWaterHorizonColor');
     expect(shader.fragmentShader.indexOf('waterGlimmer'))
       .toBeLessThan(shader.fragmentShader.indexOf('#include <opaque_fragment>'));
+    expect(shader.fragmentShader.indexOf('gl_FragColor.rgb = mix'))
+      .toBeGreaterThan(shader.fragmentShader.indexOf('#include <colorspace_fragment>'));
 
     layer.dispose();
   });
@@ -635,8 +704,11 @@ describe('Realm canonical water layer', () => {
     expect(shader.vertexShader).toContain('uniform float uWaterTime');
     expect(shader.vertexShader).not.toContain('uWaterWaveComponents');
     expect(shader.vertexShader).toContain('(modelMatrix * vec4(position, 1.0)).xz');
+    expect(shader.vertexShader).toContain('1.0 - clamp(waterFogMix, 0.0, 1.0)');
+    expect(shader.vertexShader).toContain('* warpkeepWaterWaveVisibility');
     expect(shader.vertexShader).not.toContain('vViewPosition.xz');
     expect(shader.fragmentShader).toContain('outgoingLight +=');
+    expect(ocean.material.userData.waterShaderContract).toContain('-v3');
     expect(shader.uniforms).toHaveProperty('uWaterTime');
     expect(layer.updateEnvironment(1)).toBe(true);
     expect(layer.updateEnvironment(1)).toBe(false);

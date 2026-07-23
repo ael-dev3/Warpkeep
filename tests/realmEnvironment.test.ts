@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   createRealmEnvironmentDepth,
+  REALM_SKY_FALLBACK_COLOR,
   REALM_SUN_DIRECTION,
   REALM_SUN_LIGHT_POSITION,
   sampleRealmSkyGradient
@@ -56,6 +57,21 @@ describe('Realm procedural environment depth', () => {
     expect(firstDome.material.fog).toBe(false);
     expect(firstDome.material.toneMapped).toBe(false);
     expect(firstDome.frustumCulled).toBe(false);
+    const domePositions = firstDome.geometry.getAttribute('position');
+    const domeColors = firstDome.geometry.getAttribute('color');
+    let lowestVertex = 0;
+    for (let index = 1; index < domePositions.count; index += 1) {
+      if (domePositions.getY(index) < domePositions.getY(lowestVertex)) lowestVertex = index;
+    }
+    const visibleHorizonColor = new THREE.Color(REALM_SKY_FALLBACK_COLOR);
+    const visibleHorizon = {
+      r: visibleHorizonColor.r,
+      g: visibleHorizonColor.g,
+      b: visibleHorizonColor.b
+    };
+    expect(domeColors.getX(lowestVertex)).toBeCloseTo(visibleHorizon.r, 6);
+    expect(domeColors.getY(lowestVertex)).toBeCloseTo(visibleHorizon.g, 6);
+    expect(domeColors.getZ(lowestVertex)).toBeCloseTo(visibleHorizon.b, 6);
     const visibleSunDirection = firstSun.position.clone().normalize();
     expect(visibleSunDirection.x).toBeCloseTo(REALM_SUN_DIRECTION.x, 12);
     expect(visibleSunDirection.y).toBeCloseTo(REALM_SUN_DIRECTION.y, 12);

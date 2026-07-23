@@ -51,48 +51,93 @@ describe('local castle LOD visual evidence contract', () => {
     expect(() => castleLodVisualEvidenceUrl(0)).toThrow(/port/i);
   });
 
-  it('uses one-shot closed HEAD sockets for the loopback boundary checks', async () => {
-    const connectionHeaders: Array<string | undefined> = [];
-    const server = createServer((request, response) => {
-      connectionHeaders.push(request.headers.connection);
-      if (request.url === CASTLE_LOD_VISUAL_EVIDENCE_SOURCE_ROUTE) {
-        response.writeHead(200, {
-          'cache-control': 'no-store',
-          'content-length': '2233564',
-          'content-type': 'model/gltf-binary',
-          'cross-origin-resource-policy': 'same-origin'
-        });
-      } else if (request.url?.startsWith('/@fs')) {
-        response.writeHead(403, { 'content-length': '0' });
-      } else {
-        response.writeHead(404, {
-          'content-length': '0',
-          'content-type': 'text/html; charset=utf-8'
-        });
-      }
-      response.end();
-    });
-    await new Promise<void>((resolveListen, rejectListen) => {
-      server.once('error', rejectListen);
-      server.listen({ host: '127.0.0.1', port: 0 }, () => resolveListen());
-    });
-    const address = server.address();
-    if (address === null || typeof address === 'string') {
-      server.close();
-      throw new Error('Synthetic loopback test server did not expose a port.');
+  it.each([
+    {
+      archiveHeaders: { 'content-length': '0' },
+      archiveStatus: 403,
+      expected: 'accepted' as const,
+      label: 'explicit deny'
+    },
+    {
+      archiveHeaders: {
+        'cache-control': 'no-store',
+        'content-length': '0',
+        'content-type': 'text/plain; charset=utf-8'
+      },
+      archiveStatus: 404,
+      expected: 'accepted' as const,
+      label: 'opaque Vite miss'
+    },
+    {
+      archiveHeaders: {
+        'cache-control': 'no-store',
+        'content-length': '0',
+        'content-type': 'application/zip'
+      },
+      archiveStatus: 404,
+      expected: 'rejected' as const,
+      label: 'source-typed miss'
+    },
+    {
+      archiveHeaders: {
+        'cache-control': 'no-store',
+        'content-length': '10672929',
+        'content-type': 'text/plain; charset=utf-8'
+      },
+      archiveStatus: 404,
+      expected: 'rejected' as const,
+      label: 'source-sized miss'
     }
-    try {
-      await expect(assertCastleLodVisualEvidenceLoopbackBoundary(address.port)).resolves.toEqual({
-        archiveStatus: 403,
-        exactStatus: 200,
-        queryStatus: 404
+  ])(
+    'uses one-shot closed HEAD sockets for the loopback boundary checks: $label',
+    async ({ archiveHeaders, archiveStatus, expected }) => {
+      const connectionHeaders: Array<string | undefined> = [];
+      const server = createServer((request, response) => {
+        connectionHeaders.push(request.headers.connection);
+        if (request.url === CASTLE_LOD_VISUAL_EVIDENCE_SOURCE_ROUTE) {
+          response.writeHead(200, {
+            'cache-control': 'no-store',
+            'content-length': '2233564',
+            'content-type': 'model/gltf-binary',
+            'cross-origin-resource-policy': 'same-origin'
+          });
+        } else if (request.url?.startsWith('/@fs')) {
+          response.writeHead(archiveStatus, archiveHeaders);
+        } else {
+          response.writeHead(404, {
+            'content-length': '0',
+            'content-type': 'text/html; charset=utf-8'
+          });
+        }
+        response.end();
       });
-      expect(connectionHeaders).toEqual(['close', 'close', 'close']);
-    } finally {
-      server.closeAllConnections();
-      await new Promise<void>((resolveClose) => server.close(() => resolveClose()));
+      await new Promise<void>((resolveListen, rejectListen) => {
+        server.once('error', rejectListen);
+        server.listen({ host: '127.0.0.1', port: 0 }, () => resolveListen());
+      });
+      const address = server.address();
+      if (address === null || typeof address === 'string') {
+        server.close();
+        throw new Error('Synthetic loopback test server did not expose a port.');
+      }
+      try {
+        const assertion = expect(assertCastleLodVisualEvidenceLoopbackBoundary(address.port));
+        if (expected === 'accepted') {
+          await assertion.resolves.toEqual({
+            archiveStatus,
+            exactStatus: 200,
+            queryStatus: 404
+          });
+        } else {
+          await assertion.rejects.toThrow(/archive escaped/i);
+        }
+        expect(connectionHeaders).toEqual(['close', 'close', 'close']);
+      } finally {
+        server.closeAllConnections();
+        await new Promise<void>((resolveClose) => server.close(() => resolveClose()));
+      }
     }
-  });
+  );
 
   it('accepts only bounded aggregate source-versus-runtime visual metrics', () => {
     expect(parseCastleLodVisualEvidence(PASSING_OBSERVATION, URL)).toEqual({
@@ -173,7 +218,10 @@ describe('local castle LOD visual evidence contract', () => {
     expect(source).toContain("boundaryHead('exact', SOURCE_ROUTE)");
     expect(source).toContain("boundaryHead('archive', archiveFsPath)");
     expect(source).toContain("boundaryHead('query', `${SOURCE_ROUTE}?probe=1`)");
-    expect(source).toContain('archive.statusCode !== 403');
+    expect(source).toContain('!SAFE_ARCHIVE_BOUNDARY_STATUSES.has(archive.statusCode ?? 0)');
+    expect(source).toContain("['application/octet-stream', 'application/zip', 'model/gltf-binary']");
+    expect(source).toContain('archiveContentLength === String(SOURCE_ARCHIVE_BYTES)');
+    expect(source).toContain('archiveContentLength === String(SOURCE_MEMBER_BYTES)');
     expect(source).toContain("query.headers['content-type']) === 'model/gltf-binary'\n    ||");
     expect(source).toContain('resolveAttestedSystemUnzip()');
     expect(source).not.toMatch(/https:\/\//u);

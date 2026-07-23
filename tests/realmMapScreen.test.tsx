@@ -2,7 +2,10 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { RealmMapScreen } from '../src/components/realm/RealmMapScreen';
-import { measuredRealmComposition } from '../src/components/realm/realmMeasuredComposition';
+import {
+  measuredRealmComposition,
+  measuredVisibleRealmUiRects
+} from '../src/components/realm/realmMeasuredComposition';
 import type { RealmIdentity } from '../src/components/realm/realmTypes';
 import { createRenderedWebglQaFixtureRealm } from '../src/dev/renderedWebglQaFixture';
 import type { CanonicalWarpkeepRealmSnapshot } from '../src/spacetime/warpkeepBackendTypes';
@@ -73,6 +76,43 @@ afterEach(() => {
 });
 
 describe('RealmMapScreen', () => {
+  it('reserves an open Water record from labels without moving the camera viewport', () => {
+    const root = document.createElement('main');
+    const waterInspector = document.createElement('aside');
+    const probe = document.createElement('div');
+    waterInspector.className = 'water-inspection';
+    probe.className = 'realm-safe-area-probe';
+    root.append(waterInspector, probe);
+
+    const rect = (left: number, top: number, right: number, bottom: number) => ({
+      left,
+      top,
+      right,
+      bottom,
+      x: left,
+      y: top,
+      width: right - left,
+      height: bottom - top,
+      toJSON: () => ({})
+    }) as DOMRect;
+    vi.spyOn(root, 'getBoundingClientRect').mockReturnValue(rect(0, 0, 1_000, 700));
+    vi.spyOn(waterInspector, 'getBoundingClientRect')
+      .mockReturnValue(rect(700, 20, 980, 680));
+
+    expect(measuredVisibleRealmUiRects(root)).toContainEqual({
+      left: 700,
+      top: 20,
+      right: 980,
+      bottom: 680
+    });
+    expect(measuredRealmComposition(root).insets).toEqual({
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0
+    });
+  });
+
   it('reserves a short-landscape Explore panel without turning corner chrome into a top inset', () => {
     const root = document.createElement('main');
     const profileTrigger = document.createElement('button');

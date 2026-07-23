@@ -91,6 +91,20 @@ export function sampleRealmSkyGradient(directionY: number): RealmSkyColour {
   );
 }
 
+/**
+ * Below the visible ocean horizon, continue the fog colour rather than the
+ * lower hemisphere used for image-based lighting. The canonical full-fog
+ * water can then dissolve into the sky dome without revealing a map edge,
+ * while the environment map retains its authored lighting contrast.
+ */
+function sampleRealmVisibleSkyGradient(directionY: number): RealmSkyColour {
+  const y = clamp(Number.isFinite(directionY) ? directionY : 0, -1, 1);
+  if (y <= HORIZON_DIRECTION_Y) {
+    return Object.freeze({ r: HORIZON.r, g: HORIZON.g, b: HORIZON.b });
+  }
+  return sampleRealmSkyGradient(y);
+}
+
 function sampleRealmEnvironmentColour(direction: THREE.Vector3) {
   const sampledSky = sampleRealmSkyGradient(direction.y);
   const colour = new THREE.Color(sampledSky.r, sampledSky.g, sampledSky.b);
@@ -187,7 +201,7 @@ export function createRealmEnvironmentDepth(quality: RealmQuality): RealmEnviron
   const positions = geometry.getAttribute('position');
   const colours = new Float32Array(positions.count * 3);
   for (let index = 0; index < positions.count; index += 1) {
-    const colour = sampleRealmSkyGradient(positions.getY(index) / SKY_DOME_RADIUS);
+    const colour = sampleRealmVisibleSkyGradient(positions.getY(index) / SKY_DOME_RADIUS);
     colours[index * 3] = colour.r;
     colours[index * 3 + 1] = colour.g;
     colours[index * 3 + 2] = colour.b;
