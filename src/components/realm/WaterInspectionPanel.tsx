@@ -86,7 +86,7 @@ export function WaterInspectionPanel({
   return (
     <aside
       id={id}
-      className="water-inspection"
+      className="water-inspection realm-camera-neutral-inspector"
       role="dialog"
       aria-modal="false"
       aria-labelledby={titleId}

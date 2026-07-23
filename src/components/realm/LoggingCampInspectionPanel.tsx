@@ -211,7 +211,7 @@ export function LoggingCampInspectionPanel({
   return (
     <aside
       id={id}
-      className="gold-mine-inspection logging-camp-inspection"
+      className="gold-mine-inspection logging-camp-inspection realm-camera-neutral-inspector"
       role="dialog"
       aria-modal="false"
       aria-labelledby={titleId}

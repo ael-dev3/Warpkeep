@@ -6,8 +6,7 @@ const RESERVED_REALM_UI_SELECTOR = [
   '.realm-profile-trigger',
   '.realm-resource-rail',
   '.castle-inspection',
-  '.gold-mine-inspection',
-  '.water-inspection',
+  '.realm-camera-neutral-inspector',
   '.realm-hud__actions',
   '.realm-cell-navigator > button',
   '.realm-cell-navigator__dialog'
@@ -92,7 +91,10 @@ export function measuredRealmComposition(root: HTMLElement): RealmCameraComposit
   };
 
   const hud = rectFor('.realm-hud');
-  const inspector = rectFor('.castle-inspection') ?? rectFor('.gold-mine-inspection');
+  // Passive records reserve their exact screen rectangle from labels but do
+  // not recompose the camera. Future resource and unit inspectors inherit
+  // that contract through `.realm-camera-neutral-inspector` above.
+  const inspector = rectFor('.castle-inspection');
   const actions = rectFor('.realm-hud__actions');
   const navigatorDialog = rectFor('.realm-cell-navigator__dialog');
   const navigatorTrigger = rectFor('.realm-cell-navigator > button');

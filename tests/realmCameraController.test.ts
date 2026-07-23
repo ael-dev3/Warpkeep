@@ -85,6 +85,39 @@ afterEach(() => {
 });
 
 describe('realm perspective camera math', () => {
+  it('limits ordinary zoom-out gestures to a roughly twenty-five-percent closer view', () => {
+    expect(REALM_INTERACTIVE_MIN_ZOOM).toBe(0.28);
+    [
+      { width: 1_920, height: 1_080 },
+      { width: 390, height: 844 },
+      { width: 667, height: 375 }
+    ].forEach((viewport) => {
+      const previousFloor = deriveRealmCameraPoseForViewport(
+        0.16,
+        { x: 0, z: 0 },
+        REALM_HULL_BOUNDS,
+        KEEP,
+        viewport,
+        {},
+        DEFAULT_REALM_CAMERA_SPEC,
+        REALM_HULL
+      );
+      const tunedFloor = deriveRealmCameraPoseForViewport(
+        REALM_INTERACTIVE_MIN_ZOOM,
+        { x: 0, z: 0 },
+        REALM_HULL_BOUNDS,
+        KEEP,
+        viewport,
+        {},
+        DEFAULT_REALM_CAMERA_SPEC,
+        REALM_HULL
+      );
+      expect(tunedFloor.distance / previousFloor.distance).toBeGreaterThan(0.69);
+      expect(tunedFloor.distance / previousFloor.distance).toBeLessThan(0.78);
+      expect(tunedFloor.mode).toBe('realm');
+    });
+  });
+
   it('fits finite overview framing across landscape and portrait aspects', () => {
     expect(fitRealmOverview(BOUNDS, 16 / 9)).toBeGreaterThan(5);
     expect(fitRealmOverview(BOUNDS, 9 / 16)).toBeGreaterThan(fitRealmOverview(BOUNDS, 16 / 9));
@@ -400,6 +433,9 @@ describe('realm perspective camera math', () => {
     expect(controller.getZoom()).toBe(REALM_INTERACTIVE_MIN_ZOOM);
     controller.zoomByWheel(10_000, 0);
     expect(controller.getZoom()).toBe(REALM_INTERACTIVE_MIN_ZOOM);
+    controller.frameAt(KEEP, 0.6);
+    controller.manipulateViewport(320, 240, 320, 240, -1);
+    expect(controller.getZoom()).toBe(REALM_INTERACTIVE_MIN_ZOOM);
 
     controller.showRealm();
     expect(controller.getZoom()).toBe(0);
@@ -557,6 +593,9 @@ describe('realm perspective camera math', () => {
     expect(anchor).not.toBeNull();
 
     controller.zoomByWheel(-180, 0, localX, localY);
+    // Opening a camera-neutral record can repeat the existing composition.
+    // That no-op must not discard the cursor anchor mid-transition.
+    controller.setComposition({});
     let sampledFrames = 0;
     while (scheduled.size > 0 && sampledFrames < 120) {
       runNextFrame();

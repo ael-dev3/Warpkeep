@@ -76,11 +76,11 @@ afterEach(() => {
 });
 
 describe('RealmMapScreen', () => {
-  it('reserves an open Water record from labels without moving the camera viewport', () => {
+  it('reserves a camera-neutral record from labels without moving the camera viewport', () => {
     const root = document.createElement('main');
     const waterInspector = document.createElement('aside');
     const probe = document.createElement('div');
-    waterInspector.className = 'water-inspection';
+    waterInspector.className = 'water-inspection realm-camera-neutral-inspector';
     probe.className = 'realm-safe-area-probe';
     root.append(waterInspector, probe);
 

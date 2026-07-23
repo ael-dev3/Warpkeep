@@ -57,8 +57,7 @@ export type RealmCameraTarget =
   | Readonly<{ kind: 'founding-district' }>
   | Readonly<{ kind: 'keep' }>
   | Readonly<{ kind: 'cell'; coord: HexCoord }>
-  | Readonly<{ kind: 'castle'; castleId: number; coord: HexCoord }>
-  | Readonly<{ kind: 'worker'; workerId: string; coord: HexCoord }>;
+  | Readonly<{ kind: 'castle'; castleId: number; coord: HexCoord }>;
 
 export type RealmKeyboardTarget =
   | Readonly<{ kind: 'map' }>
@@ -100,25 +99,21 @@ export type RealmInteractionAction =
       type: 'activate-gold-site';
       siteId: string;
       coord: HexCoord;
-      cameraIntent?: 'focus-site' | 'preserve';
     }>
   | Readonly<{
       type: 'activate-food-site';
       siteId: string;
       coord: HexCoord;
-      cameraIntent?: 'focus-site' | 'preserve';
     }>
   | Readonly<{
       type: 'activate-wood-site';
       siteId: string;
       coord: HexCoord;
-      cameraIntent?: 'focus-site' | 'preserve';
     }>
   | Readonly<{
       type: 'activate-stone-site';
       siteId: string;
       coord: HexCoord;
-      cameraIntent?: 'focus-site' | 'preserve';
     }>
   | Readonly<{
       type: 'activate-water-cell';
@@ -193,17 +188,7 @@ function copyCameraTarget(target: RealmCameraTarget): RealmCameraTarget {
   if (target.kind === 'founding-district') return { kind: 'founding-district' };
   if (target.kind === 'keep') return { kind: 'keep' };
   if (target.kind === 'cell') return { kind: 'cell', coord: copyCoord(target.coord) };
-  if (target.kind === 'worker') return { kind: 'worker', workerId: target.workerId, coord: copyCoord(target.coord) };
   return { kind: 'castle', castleId: target.castleId, coord: copyCoord(target.coord) };
-}
-
-function siteCameraTarget(
-  state: RealmInteractionState,
-  action: Readonly<{ coord: HexCoord; cameraIntent?: 'focus-site' | 'preserve' }>
-) {
-  return action.cameraIntent === 'preserve'
-    ? state.cameraTarget
-    : { kind: 'cell' as const, coord: copyCoord(action.coord) };
 }
 
 function withKeyboardIntent(
@@ -211,6 +196,28 @@ function withKeyboardIntent(
   target: RealmKeyboardTarget
 ): RealmKeyboardIntent {
   return { sequence: state.keyboardIntent.sequence + 1, target };
+}
+
+/**
+ * Opens a passive world record without altering durable camera intent.
+ * Resources, workers, and future inspectable units should use this boundary;
+ * only explicit navigation actions are allowed to reframe the Realm.
+ */
+function activateCameraNeutralInspector(
+  state: RealmInteractionState,
+  target: Exclude<RealmInspectorTarget, RealmCastleTarget>,
+  keyboardTarget: RealmKeyboardTarget
+): RealmInteractionState {
+  return {
+    ...state,
+    selectedCell: copyCoord(target.coord),
+    selectedCastle: null,
+    inspectorTarget: target,
+    inspectorOpen: true,
+    cameraTarget: state.cameraTarget,
+    navigatorOpen: false,
+    keyboardIntent: withKeyboardIntent(state, keyboardTarget)
+  };
 }
 
 export function createRealmInteractionState(initialSelectedCell: HexCoord): RealmInteractionState {
@@ -260,104 +267,71 @@ export function realmInteractionReducer(
 
     case 'activate-worker': {
       const target = copyWorkerTarget(action);
-      return {
-        ...state,
-        selectedCell: copyCoord(target.coord),
-        selectedCastle: null,
-        inspectorTarget: target,
-        inspectorOpen: true,
-        cameraTarget: { kind: 'worker', workerId: target.workerId, coord: copyCoord(target.coord) },
-        navigatorOpen: false,
-        keyboardIntent: withKeyboardIntent(state, { kind: 'worker-inspector', workerId: target.workerId })
-      };
+      return activateCameraNeutralInspector(
+        state,
+        target,
+        { kind: 'worker-inspector', workerId: target.workerId }
+      );
     }
 
     case 'activate-gold-site': {
       const target = copyGoldSiteTarget({ siteId: action.siteId, coord: action.coord });
-      return {
-        ...state,
-        selectedCell: copyCoord(target.coord),
-        selectedCastle: null,
-        inspectorTarget: target,
-        inspectorOpen: true,
-        cameraTarget: siteCameraTarget(state, action),
-        navigatorOpen: false,
-        keyboardIntent: withKeyboardIntent(state, {
+      return activateCameraNeutralInspector(
+        state,
+        target,
+        {
           kind: 'gold-mine-inspector',
           siteId: target.siteId
-        })
-      };
+        }
+      );
     }
 
     case 'activate-food-site': {
       const target = copyFoodSiteTarget({ foodSiteId: action.siteId, coord: action.coord });
-      return {
-        ...state,
-        selectedCell: copyCoord(target.coord),
-        selectedCastle: null,
-        inspectorTarget: target,
-        inspectorOpen: true,
-        cameraTarget: siteCameraTarget(state, action),
-        navigatorOpen: false,
-        keyboardIntent: withKeyboardIntent(state, {
+      return activateCameraNeutralInspector(
+        state,
+        target,
+        {
           kind: 'food-farm-inspector',
           siteId: target.foodSiteId
-        })
-      };
+        }
+      );
     }
 
     case 'activate-wood-site': {
       const target = copyWoodSiteTarget({ woodSiteId: action.siteId, coord: action.coord });
-      return {
-        ...state,
-        selectedCell: copyCoord(target.coord),
-        selectedCastle: null,
-        inspectorTarget: target,
-        inspectorOpen: true,
-        cameraTarget: siteCameraTarget(state, action),
-        navigatorOpen: false,
-        keyboardIntent: withKeyboardIntent(state, {
+      return activateCameraNeutralInspector(
+        state,
+        target,
+        {
           kind: 'logging-camp-inspector',
           siteId: target.woodSiteId
-        })
-      };
+        }
+      );
     }
 
     case 'activate-stone-site': {
       const target = copyStoneSiteTarget({ stoneSiteId: action.siteId, coord: action.coord });
-      return {
-        ...state,
-        selectedCell: copyCoord(target.coord),
-        selectedCastle: null,
-        inspectorTarget: target,
-        inspectorOpen: true,
-        cameraTarget: siteCameraTarget(state, action),
-        navigatorOpen: false,
-        keyboardIntent: withKeyboardIntent(state, {
+      return activateCameraNeutralInspector(
+        state,
+        target,
+        {
           kind: 'stone-quarry-inspector',
           siteId: target.stoneSiteId
-        })
-      };
+        }
+      );
     }
 
     case 'activate-water-cell': {
       const target = copyWaterCellTarget(action);
-      return {
-        ...state,
-        selectedCell: copyCoord(target.coord),
-        selectedCastle: null,
-        inspectorTarget: target,
-        inspectorOpen: true,
-        // Water inspection is deliberately camera-neutral. River and ocean
-        // cells can be selected at any zoom without discarding a player's
-        // manually composed view.
-        cameraTarget: state.cameraTarget,
-        navigatorOpen: false,
-        keyboardIntent: withKeyboardIntent(state, {
+      return activateCameraNeutralInspector(
+        state,
+        target,
+        {
           kind: 'water-inspector',
           cellKey: target.cellKey
-        })
-      };
+        }
+      );
     }
 
     case 'close-inspector': {
