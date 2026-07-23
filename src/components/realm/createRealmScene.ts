@@ -15,9 +15,9 @@ import {
   type RealmForestBiomeData
 } from '../../game/map/realmForestBiomes';
 import {
-  generateRealmForestInfill,
-  type RealmForestInfillData
-} from '../../game/map/realmForestInfill';
+  deriveRealmForestCanopyField,
+  selectRealmForestEcologySpeciesPalette
+} from '../../game/map/realmForestEcology';
 import { resolveRealmSharedForestLayout } from '../../game/map/realmSharedForestPlacements';
 import { generateTerrainDecorations } from '../../game/map/terrainDecorations';
 import type { RealmGrassExclusion, RealmGrassTerrainKind } from '../../game/map/realmGrass';
@@ -43,6 +43,12 @@ import { createTerrainDecorationLayers } from './createTerrainDecorations';
 import { createRealmGrassLayer, type RealmGrassLayer, type RealmGrassTelemetry } from './createRealmGrassLayer';
 import { createRealmTerrainFeatureLayers } from './createRealmTerrainFeatures';
 import { createRealmForestLayer, type RealmForestLayer } from './realmForestLayer';
+import {
+  createRealmDecorativeForestLayer,
+  type RealmDecorativeForestLayer,
+  type RealmDecorativeForestTelemetry
+} from './createRealmDecorativeForestLayer';
+import { estimateRealmForestViewportRadiusCells } from './realmForestActiveWindow';
 import {
   createTerrainGeometryData,
   createTerrainOverviewHull,
@@ -283,7 +289,13 @@ export function grassExclusionsForTerrainFeatures(
 
 /** Keep grass outside every rendered canonical tree footprint. */
 export function grassExclusionsForForestTrees(
-  points: RealmForestBiomeData['points']
+  points: readonly Readonly<{
+    speciesId: string;
+    coord: HexCoord;
+    world: { x: number; z: number };
+    scale: number;
+    footprintDiameter: number;
+  }>[]
 ): readonly RealmGrassExclusion[] {
   return Object.freeze(points.map((point, index) => Object.freeze({
     id: `forest-tree:${point.speciesId}:${point.coord.q},${point.coord.r}:${index}`,
@@ -414,6 +426,14 @@ export type RealmTerrainPresentationTelemetry = Readonly<{
   /** Canonical shared rows render only when their full layout validates. */
   forestPlacementSource: 'legacy-fallback' | 'shared' | 'blocked';
   forestSharedTreeCount: number;
+  forestDecorativeTreeCount: number;
+  forestDecorativeTriangleCount: number;
+  forestDecorativeDrawCalls: number;
+  forestDecorativeCacheEntries: number;
+  forestDecorativeCacheHighWaterMark: number;
+  forestDecorativeModelReady: boolean;
+  forestDecorativeUsingFallback: boolean;
+  forestDecorativeOverviewHidden: boolean;
   grassCandidateCellCount: number;
   grassActiveCellCount: number;
   grassInstanceCount: number;
@@ -1214,34 +1234,39 @@ function initializeRealmScene(
     ]),
     hexSize: HEX_SIZE
   });
-  const compactForestSpecies = HEGEMONY_TREE_RUNTIME_ASSETS.map((asset) => Object.freeze({
-    id: asset.id,
-    triangles: hegemonyTreeModel(asset, 'compact').triangles,
-    footprintDiameter: hegemonyTreeModel(asset, 'compact').normalizedFootprintDiameter,
-    biomes: asset.biomes
-  }));
-  const forestInfillData: RealmForestInfillData = generateRealmForestInfill(
-    presentationSurface.renderMap,
+  // Decorative ecology is camera-local. This second mask is rebuilt only when
+  // that bounded window repacks, so active trunks can clear grass without
+  // rebuilding the Realm or weakening canonical Water/route exclusions.
+  let activeForestGrassMask = createRealmVegetationMask({
+    playableKeys: new Set<string>(),
+    circles: Object.freeze([]),
+    hexSize: HEX_SIZE
+  });
+  const decorativeForestLod = runtimeQuality.id === 'high' ? 'high' : runtimeQuality.id === 'balanced' ? 'balanced' : 'compact';
+  const ecologyForestSpecies = selectRealmForestEcologySpeciesPalette(
+    HEGEMONY_TREE_RUNTIME_ASSETS.map((asset) => Object.freeze({
+      id: asset.id,
+      triangles: hegemonyTreeModel(asset, decorativeForestLod).triangles,
+      footprintDiameter: hegemonyTreeModel(
+        asset,
+        decorativeForestLod
+      ).normalizedFootprintDiameter,
+      biomes: asset.biomes
+    })),
+    presentationSurface.renderMap.worldSeed
+  );
+  const vegetationSamples = new Map(
+    presentationSurface.renderMap.cells.map((cell) => [hexKey(cell.coord), vegetationField.sampleCell(cell.coord)] as const)
+  );
+  const ecologyCanopyByTileKey = deriveRealmForestCanopyField(
+    presentationSurface.renderMap.cells,
     terrainSemantics.terrainKindsByKey,
-    {
-      quality: sharedForestLayout.source === 'shared' ? runtimeQuality.id : 'reduced',
-      species: compactForestSpecies,
-      vegetationField,
-      playableKeys: presentationSurface.playableKeys,
-      authoritativeTrees: sharedForestLayout.source === 'shared'
-        ? forestBiomeData.points
-        : Object.freeze([]),
-      placements: terrainPlacements,
-      isWorldExcluded: vegetationMask.isTreeExcluded,
-      isCoordPassable: options.isCoordPassable,
-      preserveRadius: 20,
-      hexSize: HEX_SIZE,
-      visualizeLegacyLakesAsLand: noLakeRevisionActive
-    }
+    vegetationSamples,
+    presentationSurface.playableKeys
   );
   const forestCanopyByTileKey = mergeRealmForestCanopyPresentation(
     forestBiomeData.canopyByTileKey,
-    forestInfillData.canopyByTileKey
+    ecologyCanopyByTileKey
   );
   const vegetationDensityByTileKey = new Map(
     presentationSurface.renderMap.cells.flatMap((cell) => {
@@ -1344,6 +1369,36 @@ function initializeRealmScene(
   let requestForestModelRender = () => {};
   let emitTerrainPresentationTelemetry = () => {};
   let forestLayer: RealmForestLayer | null = null;
+  let decorativeForestLayer: RealmDecorativeForestLayer | null = null;
+  let grassLayer: RealmGrassLayer | null = null;
+  const syncDecorativeForestDataset = (
+    current: RealmDecorativeForestTelemetry | null
+  ) => {
+    options.canvas.dataset.forestDecorativeTreeCount = String(
+      current?.activeInstanceCount ?? 0
+    );
+    options.canvas.dataset.forestDecorativeTriangleCount = String(
+      current?.triangleCount ?? 0
+    );
+    options.canvas.dataset.forestDecorativeDrawCalls = String(
+      current?.drawCalls ?? 0
+    );
+    options.canvas.dataset.forestDecorativeCacheEntries = String(
+      current?.cacheEntries ?? 0
+    );
+    options.canvas.dataset.forestDecorativeCacheHighWaterMark = String(
+      current?.cacheHighWaterMark ?? 0
+    );
+    options.canvas.dataset.forestDecorativeModelReady = String(
+      current?.modelReady ?? false
+    );
+    options.canvas.dataset.forestDecorativeUsingFallback = String(
+      current?.usingFallback ?? false
+    );
+    options.canvas.dataset.forestDecorativeOverviewHidden = String(
+      current?.overviewHidden ?? true
+    );
+  };
   let semanticFeatureData = nonForestSemanticFeatureData;
   if (forestBiomeData.points.length > 0) {
     try {
@@ -1382,41 +1437,55 @@ function initializeRealmScene(
       { includeLakeSheen: !noLakeRevisionActive }
     );
   }
-  let forestInfillLayer: RealmForestLayer | null = null;
-  if (forestLayer && forestInfillData.points.length > 0) {
+  if (forestLayer && sharedForestLayout.source === 'shared') {
     try {
-      const nextForestInfillLayer = createRealmForestLayer({
-        data: forestInfillData,
+      const nextDecorativeForestLayer = createRealmDecorativeForestLayer({
         map: presentationSurface.renderMap,
+        terrainKindsByKey: terrainSemantics.terrainKindsByKey,
+        vegetationField,
+        playableKeys: presentationSurface.playableKeys,
+        species: ecologyForestSpecies,
+        canonicalTrees: forestBiomeData.points,
         terrainPlacements,
         quality: runtimeQuality,
-        lod: 'compact',
-        presentationName: 'realm-hegemony-forest-decorative-infill',
         baseUrl: options.baseUrl,
-        onModelReady: () => {
+        isWorldExcluded: vegetationMask.isTreeExcluded,
+        isCoordPassable: options.isCoordPassable,
+        onActivePointsChange: (points) => {
+          activeForestGrassMask = createRealmVegetationMask({
+            playableKeys: new Set<string>(),
+            circles: grassExclusionsForForestTrees(points),
+            hexSize: HEX_SIZE
+          });
+          grassLayer?.invalidateExclusions();
+        },
+        onTelemetryChange: (current) => {
+          syncDecorativeForestDataset(current);
           emitTerrainPresentationTelemetry();
+        },
+        onModelReady: () => {
           requestForestModelRender();
         }
       });
-      forestInfillLayer = nextForestInfillLayer;
-      scene.add(nextForestInfillLayer.group);
+      decorativeForestLayer = nextDecorativeForestLayer;
+      scene.add(nextDecorativeForestLayer.group);
       options.canvas.dataset.forestDecorativePresentation = 'ready';
-      options.canvas.dataset.forestDecorativeTreeCount = String(forestInfillData.points.length);
+      syncDecorativeForestDataset(nextDecorativeForestLayer.getTelemetry());
       cleanup.add(() => {
-        scene.remove(nextForestInfillLayer.group);
-        nextForestInfillLayer.dispose();
-        if (forestInfillLayer === nextForestInfillLayer) forestInfillLayer = null;
+        scene.remove(nextDecorativeForestLayer.group);
+        nextDecorativeForestLayer.dispose();
+        if (decorativeForestLayer === nextDecorativeForestLayer) decorativeForestLayer = null;
       });
     } catch {
-      forestInfillLayer = null;
+      decorativeForestLayer = null;
       options.canvas.dataset.forestDecorativePresentation = 'unavailable';
+      syncDecorativeForestDataset(null);
     }
   } else {
     options.canvas.dataset.forestDecorativePresentation = 'unavailable';
-    options.canvas.dataset.forestDecorativeTreeCount = '0';
+    syncDecorativeForestDataset(null);
   }
   const forestTelemetry = forestLayer?.getPresentationTelemetry();
-  const forestInfillTelemetry = forestInfillLayer?.getPresentationTelemetry();
   // The shared 210-tree layout is a separately bounded, one-draw-call static
   // world layer. Do not subject it to the former quality-scaled procedural
   // foliage cap: every device must retain the same canonical placement ids,
@@ -1424,8 +1493,7 @@ function initializeRealmScene(
   // inside the ordinary detail budget.
   const budgetedDetailInstanceCount = decorationData.points.length
     + semanticFeatureData.points.length
-    + (sharedForestLayout.source === 'shared' ? 0 : (forestTelemetry?.instanceCount ?? 0))
-    + (forestInfillTelemetry?.instanceCount ?? 0);
+    + (sharedForestLayout.source === 'shared' ? 0 : (forestTelemetry?.instanceCount ?? 0));
   if (budgetedDetailInstanceCount > renderPlan.decorationInstanceBudget) {
     throw new Error('REALM_TERRAIN_TOTAL_DETAIL_BUDGET_EXCEEDED');
   }
@@ -1438,7 +1506,6 @@ function initializeRealmScene(
   );
   cleanup.add(semanticFeatures.dispose);
   scene.add(semanticFeatures.group);
-  let grassLayer: RealmGrassLayer | null = null;
   try {
     grassLayer = createRealmGrassLayer({
       surface: presentationSurface,
@@ -1447,16 +1514,15 @@ function initializeRealmScene(
       placements: terrainPlacements,
       exclusions: Object.freeze([
         ...grassExclusionsForTerrainFeatures(semanticFeatureData.points),
-        ...grassExclusionsForForestTrees(
-          forestInfillLayer ? forestInfillData.points : []
-        )
+        ...grassExclusionsForForestTrees(forestBiomeData.points)
       ]),
       plan: renderPlan.grass,
       reducedMotion: options.reducedMotion,
       hexSize: HEX_SIZE,
       alphaToCoverage: grassAlphaToCoverage,
       vegetationField,
-      isWorldExcluded: vegetationMask.isGrassExcluded,
+      isWorldExcluded: (world) => vegetationMask.isGrassExcluded(world)
+        || activeForestGrassMask.isGrassExcluded(world),
       visualizeLegacyLakes: noLakeRevisionActive,
       suppressCastleSlots: false
     });
@@ -1513,12 +1579,12 @@ function initializeRealmScene(
   const terrainPresentationTelemetry = () => {
     const grass = grassLayer?.getTelemetry() ?? emptyGrassTelemetry;
     const currentForestTelemetry = forestLayer?.getPresentationTelemetry();
-    const currentForestInfillTelemetry = forestInfillLayer?.getPresentationTelemetry();
+    const currentDecorativeForestTelemetry = decorativeForestLayer?.getTelemetry();
     const semanticFeatureCounts = Object.freeze({
       ...semanticFeatures.counts,
       'forest-tree': semanticFeatures.counts['forest-tree']
         + (currentForestTelemetry?.instanceCount ?? 0)
-        + (currentForestInfillTelemetry?.instanceCount ?? 0),
+        + (currentDecorativeForestTelemetry?.activeInstanceCount ?? 0),
       'heath-bloom': 0
     });
     return Object.freeze({
@@ -1535,20 +1601,36 @@ function initializeRealmScene(
         .reduce((total, count) => total + count, 0),
       semanticFeatureDrawCalls: semanticFeatures.drawCalls
         + (currentForestTelemetry?.drawCalls ?? 0)
-        + (currentForestInfillTelemetry?.drawCalls ?? 0),
+        + (currentDecorativeForestTelemetry?.drawCalls ?? 0),
       semanticFeatureCounts,
       totalDetailInstanceCount: decorationData.points.length
         + semanticFeatures.instanceCount
         + (currentForestTelemetry?.instanceCount ?? 0)
-        + (currentForestInfillTelemetry?.instanceCount ?? 0),
+        + (currentDecorativeForestTelemetry?.activeInstanceCount ?? 0),
       totalDetailDrawCalls: decorations.drawCalls
         + semanticFeatures.drawCalls
         + (currentForestTelemetry?.drawCalls ?? 0)
-        + (currentForestInfillTelemetry?.drawCalls ?? 0),
+        + (currentDecorativeForestTelemetry?.drawCalls ?? 0),
       forestPlacementSource: sharedForestLayout.source,
       forestSharedTreeCount: sharedForestLayout.source === 'shared'
         ? forestBiomeData.points.length
         : 0,
+      forestDecorativeTreeCount:
+        currentDecorativeForestTelemetry?.activeInstanceCount ?? 0,
+      forestDecorativeTriangleCount:
+        currentDecorativeForestTelemetry?.triangleCount ?? 0,
+      forestDecorativeDrawCalls:
+        currentDecorativeForestTelemetry?.drawCalls ?? 0,
+      forestDecorativeCacheEntries:
+        currentDecorativeForestTelemetry?.cacheEntries ?? 0,
+      forestDecorativeCacheHighWaterMark:
+        currentDecorativeForestTelemetry?.cacheHighWaterMark ?? 0,
+      forestDecorativeModelReady:
+        currentDecorativeForestTelemetry?.modelReady ?? false,
+      forestDecorativeUsingFallback:
+        currentDecorativeForestTelemetry?.usingFallback ?? false,
+      forestDecorativeOverviewHidden:
+        currentDecorativeForestTelemetry?.overviewHidden ?? true,
       grassCandidateCellCount: grass.candidateCellCount,
       grassActiveCellCount: grass.activeCellCount,
       grassInstanceCount: grass.instanceCount,
@@ -1582,6 +1664,14 @@ function initializeRealmScene(
       telemetry.totalDetailDrawCalls,
       telemetry.forestPlacementSource,
       telemetry.forestSharedTreeCount,
+      telemetry.forestDecorativeTreeCount,
+      telemetry.forestDecorativeTriangleCount,
+      telemetry.forestDecorativeDrawCalls,
+      telemetry.forestDecorativeCacheEntries,
+      telemetry.forestDecorativeCacheHighWaterMark,
+      telemetry.forestDecorativeModelReady,
+      telemetry.forestDecorativeUsingFallback,
+      telemetry.forestDecorativeOverviewHidden,
       telemetry.grassActiveCellCount,
       telemetry.grassInstanceCount,
       telemetry.grassTriangleCount,
@@ -1920,6 +2010,23 @@ function initializeRealmScene(
     }
     renderPendingWhileHidden = false;
     const pose = cameraController.getPose();
+    decorativeForestLayer?.updateView(
+      pose.focus,
+      pose.mode,
+      {
+        radiusCells: estimateRealmForestViewportRadiusCells(
+          {
+            position: pose.position,
+            target: pose.target,
+            focus: pose.focus,
+            verticalFovDegrees: pose.fov,
+            aspect: pose.viewport.width / pose.viewport.height,
+            minimumGroundY: terrainData.bounds.minY
+          },
+          HEX_SIZE
+        )
+      }
+    );
     if (grassLayer?.updateView(pose.focus, pose.mode)) {
       emitTerrainPresentationTelemetry();
     }

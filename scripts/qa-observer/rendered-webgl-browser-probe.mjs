@@ -96,42 +96,60 @@ const RENDERED_WEBGL_QA_CASTLE_POINTER_MOVE_OFFSETS = Object.freeze([
   Object.freeze({ x: 4, y: 0 }),
   Object.freeze({ x: 0, y: 0 }),
 ]);
+const RENDERED_WEBGL_QA_ACTIVE_FOREST_CASE_IDS = new Set([
+  'desktop-high',
+  'full-hd-balanced',
+  'desktop-reduced',
+]);
+const RENDERED_WEBGL_QA_ACTIVE_FOREST_WHEEL_STEPS = 5;
+const RENDERED_WEBGL_QA_ACTIVE_FOREST_WHEEL_DELTA = -250;
 const RENDERED_WEBGL_QA_MAP_DRAG_OFFSETS = Object.freeze([
   Object.freeze({ x: 3, y: 1 }),
   Object.freeze({ x: 8, y: 2 }),
   Object.freeze({ x: 52, y: 14 }),
 ]);
 const RENDERED_WEBGL_QA_MAX_POINTER_COORDINATE_PIXELS = 10_000;
-// Shared forest and the reviewed outer-Realm infill are separate real-tree
-// layers, not part of the quality-scaled procedural feature budget. Telemetry
-// includes both; mirror their exact source budgets rather than widening the
-// browser gate with an arbitrary allowance.
-const RENDERED_WEBGL_QA_SHARED_FOREST_INSTANCE_COUNT = 210;
-const RENDERED_WEBGL_QA_FOREST_INFILL_INSTANCE_BUDGETS = Object.freeze({
-  high: 240,
-  balanced: 90,
-  reduced: 0,
+// Camera-local decorative ecology is included once in both aggregate terrain
+// instance counts and once in both aggregate draw-call counts. Attest it as a
+// separate category, then subtract it before applying the unchanged ordinary
+// terrain/shared-forest budgets. This prevents a decorative allowance from
+// masking an ordinary terrain regression (or the reverse).
+const RENDERED_WEBGL_QA_FOREST_DECORATIVE_BUDGETS = Object.freeze({
+  high: Object.freeze({
+    instances: 1_200,
+    triangles: 320_000,
+    drawCalls: 5,
+    cacheEntries: 2_048,
+  }),
+  balanced: Object.freeze({
+    instances: 600,
+    triangles: 160_000,
+    drawCalls: 5,
+    cacheEntries: 1_024,
+  }),
+  reduced: Object.freeze({
+    instances: 180,
+    triangles: 45_000,
+    drawCalls: 5,
+    cacheEntries: 512,
+  }),
 });
 const TERRAIN_PRESENTATION_BUDGETS = Object.freeze({
   high: Object.freeze({
-    semanticFeatureCount: 1_100 + RENDERED_WEBGL_QA_SHARED_FOREST_INSTANCE_COUNT
-      + RENDERED_WEBGL_QA_FOREST_INFILL_INSTANCE_BUDGETS.high,
-    totalDetailInstanceCount: 7_000 + RENDERED_WEBGL_QA_SHARED_FOREST_INSTANCE_COUNT
-      + RENDERED_WEBGL_QA_FOREST_INFILL_INSTANCE_BUDGETS.high,
+    semanticFeatureCount: 1_310,
+    totalDetailInstanceCount: 7_210,
   }),
   balanced: Object.freeze({
-    semanticFeatureCount: 800 + RENDERED_WEBGL_QA_SHARED_FOREST_INSTANCE_COUNT
-      + RENDERED_WEBGL_QA_FOREST_INFILL_INSTANCE_BUDGETS.balanced,
-    totalDetailInstanceCount: 5_500 + RENDERED_WEBGL_QA_SHARED_FOREST_INSTANCE_COUNT
-      + RENDERED_WEBGL_QA_FOREST_INFILL_INSTANCE_BUDGETS.balanced,
+    semanticFeatureCount: 1_010,
+    totalDetailInstanceCount: 5_710,
   }),
   reduced: Object.freeze({
-    semanticFeatureCount: 400 + RENDERED_WEBGL_QA_SHARED_FOREST_INSTANCE_COUNT
-      + RENDERED_WEBGL_QA_FOREST_INFILL_INSTANCE_BUDGETS.reduced,
-    totalDetailInstanceCount: 3_000 + RENDERED_WEBGL_QA_SHARED_FOREST_INSTANCE_COUNT
-      + RENDERED_WEBGL_QA_FOREST_INFILL_INSTANCE_BUDGETS.reduced,
+    semanticFeatureCount: 610,
+    totalDetailInstanceCount: 3_210,
   }),
 });
+const TERRAIN_PRESENTATION_MAXIMUM_SEMANTIC_DRAW_CALLS = 5;
+const TERRAIN_PRESENTATION_MAXIMUM_TOTAL_DRAW_CALLS = 8;
 const LABEL_CULL_REASONS = new Set([
   'associated-castle',
   'behind-camera',
@@ -765,6 +783,14 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     'fixture',
     'focusedReadableLabelDomFocusCount',
     'focusedReadableLabelCount',
+    'forestDecorativeCacheEntries',
+    'forestDecorativeCacheHighWaterMark',
+    'forestDecorativeDrawCalls',
+    'forestDecorativeModelReady',
+    'forestDecorativeOverviewHidden',
+    'forestDecorativeTriangleCount',
+    'forestDecorativeTreeCount',
+    'forestDecorativeUsingFallback',
     'href',
     'hiddenFocusedLabelCount',
     'interactionState',
@@ -869,6 +895,67 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     || (presentationControlsMayBeOccluded && state === 'hidden');
   const playerPresentation = expected.expectedPresentationMode === 'player';
   const terrainBudgets = TERRAIN_PRESENTATION_BUDGETS[expected.expectedQuality];
+  const forestDecorativeBudgets = RENDERED_WEBGL_QA_FOREST_DECORATIVE_BUDGETS[
+    expected.expectedQuality
+  ];
+  const forestDecorativeNumericValues = [
+    candidate.forestDecorativeTreeCount,
+    candidate.forestDecorativeTriangleCount,
+    candidate.forestDecorativeDrawCalls,
+    candidate.forestDecorativeCacheEntries,
+    candidate.forestDecorativeCacheHighWaterMark,
+  ];
+  const forestDecorativeNumericShapeValid = forestDecorativeNumericValues.every((value) => (
+    Number.isSafeInteger(value) && value >= 0
+  ));
+  const forestDecorativeBooleanShapeValid = [
+    candidate.forestDecorativeModelReady,
+    candidate.forestDecorativeUsingFallback,
+    candidate.forestDecorativeOverviewHidden,
+  ].every((value) => typeof value === 'boolean');
+  const forestDecorativeCacheValid = forestDecorativeNumericShapeValid
+    && forestDecorativeBudgets
+    && candidate.forestDecorativeCacheEntries
+      <= candidate.forestDecorativeCacheHighWaterMark
+    && candidate.forestDecorativeCacheHighWaterMark
+      <= forestDecorativeBudgets.cacheEntries;
+  const forestDecorativeBudgetValid = forestDecorativeNumericShapeValid
+    && forestDecorativeBudgets
+    && candidate.forestDecorativeTreeCount <= forestDecorativeBudgets.instances
+    && candidate.forestDecorativeTriangleCount <= forestDecorativeBudgets.triangles
+    && candidate.forestDecorativeDrawCalls <= forestDecorativeBudgets.drawCalls;
+  const forestDecorativeEmpty = candidate.forestDecorativeTreeCount === 0
+    && candidate.forestDecorativeTriangleCount === 0
+    && candidate.forestDecorativeDrawCalls === 0
+    && candidate.forestDecorativeModelReady === false
+    && candidate.forestDecorativeUsingFallback === false;
+  const forestDecorativePresented = candidate.forestDecorativeTreeCount > 0
+    && candidate.forestDecorativeTriangleCount > 0
+    && candidate.forestDecorativeCacheEntries > 0
+    && (
+      candidate.forestDecorativeModelReady
+      !== candidate.forestDecorativeUsingFallback
+    )
+    && (
+      candidate.forestDecorativeUsingFallback
+        ? candidate.forestDecorativeDrawCalls === 1
+        : candidate.forestDecorativeDrawCalls > 0
+    );
+  const forestDecorativeStateValid = forestDecorativeNumericShapeValid
+    && forestDecorativeBooleanShapeValid
+    && (
+      candidate.forestDecorativeOverviewHidden
+        ? forestDecorativeEmpty
+        : forestDecorativeEmpty || forestDecorativePresented
+    );
+  const ordinarySemanticFeatureCount = candidate.semanticTerrainFeatureCount
+    - candidate.forestDecorativeTreeCount;
+  const ordinaryTotalDetailInstanceCount = candidate.totalTerrainDetailInstanceCount
+    - candidate.forestDecorativeTreeCount;
+  const ordinarySemanticFeatureDrawCalls = candidate.semanticTerrainFeatureDrawCalls
+    - candidate.forestDecorativeDrawCalls;
+  const ordinaryTotalDetailDrawCalls = candidate.totalTerrainDetailDrawCalls
+    - candidate.forestDecorativeDrawCalls;
   const violations = [
     candidate.href !== expected.url ? 'href' : '',
     candidate.status !== 'ready' ? 'status' : '',
@@ -889,23 +976,33 @@ export function parseRenderedWebglBrowserDom(value, expected) {
       ? 'semantic-terrain-cell-count' : '',
     candidate.semanticTerrainKindCount !== RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_KIND_COUNT
       ? 'semantic-terrain-kind-count' : '',
+    !forestDecorativeNumericShapeValid || !forestDecorativeBooleanShapeValid
+      ? 'forest-decorative-shape' : '',
+    !forestDecorativeBudgetValid ? 'forest-decorative-budget' : '',
+    !forestDecorativeCacheValid ? 'forest-decorative-cache' : '',
+    !forestDecorativeStateValid ? 'forest-decorative-state' : '',
     !terrainBudgets
       || !Number.isSafeInteger(candidate.semanticTerrainFeatureCount)
-      || candidate.semanticTerrainFeatureCount < 1
-      || candidate.semanticTerrainFeatureCount > terrainBudgets.semanticFeatureCount
+      || !Number.isSafeInteger(ordinarySemanticFeatureCount)
+      || ordinarySemanticFeatureCount < 1
+      || ordinarySemanticFeatureCount > terrainBudgets.semanticFeatureCount
       ? 'semantic-terrain-feature-budget' : '',
     !Number.isSafeInteger(candidate.semanticTerrainFeatureDrawCalls)
-      || candidate.semanticTerrainFeatureDrawCalls < 1
-      || candidate.semanticTerrainFeatureDrawCalls > 5
+      || !Number.isSafeInteger(ordinarySemanticFeatureDrawCalls)
+      || ordinarySemanticFeatureDrawCalls < 1
+      || ordinarySemanticFeatureDrawCalls
+        > TERRAIN_PRESENTATION_MAXIMUM_SEMANTIC_DRAW_CALLS
       ? 'semantic-terrain-feature-draw-calls' : '',
     !terrainBudgets
       || !Number.isSafeInteger(candidate.totalTerrainDetailInstanceCount)
-      || candidate.totalTerrainDetailInstanceCount < candidate.semanticTerrainFeatureCount
-      || candidate.totalTerrainDetailInstanceCount > terrainBudgets.totalDetailInstanceCount
+      || !Number.isSafeInteger(ordinaryTotalDetailInstanceCount)
+      || ordinaryTotalDetailInstanceCount < ordinarySemanticFeatureCount
+      || ordinaryTotalDetailInstanceCount > terrainBudgets.totalDetailInstanceCount
       ? 'total-terrain-detail-budget' : '',
     !Number.isSafeInteger(candidate.totalTerrainDetailDrawCalls)
-      || candidate.totalTerrainDetailDrawCalls < candidate.semanticTerrainFeatureDrawCalls
-      || candidate.totalTerrainDetailDrawCalls > 8
+      || !Number.isSafeInteger(ordinaryTotalDetailDrawCalls)
+      || ordinaryTotalDetailDrawCalls < ordinarySemanticFeatureDrawCalls
+      || ordinaryTotalDetailDrawCalls > TERRAIN_PRESENTATION_MAXIMUM_TOTAL_DRAW_CALLS
       ? 'total-terrain-detail-draw-calls' : '',
     !Number.isSafeInteger(candidate.labelEligibleCount)
       || candidate.labelEligibleCount < 0 ? 'label-eligible-shape' : '',
@@ -1088,6 +1185,14 @@ export function parseRenderedWebglBrowserDom(value, expected) {
   return Object.freeze({
     ...observation,
     environmentLighting: 'procedural',
+    forestDecorativeTreeCount: candidate.forestDecorativeTreeCount,
+    forestDecorativeTriangleCount: candidate.forestDecorativeTriangleCount,
+    forestDecorativeDrawCalls: candidate.forestDecorativeDrawCalls,
+    forestDecorativeCacheEntries: candidate.forestDecorativeCacheEntries,
+    forestDecorativeCacheHighWaterMark: candidate.forestDecorativeCacheHighWaterMark,
+    forestDecorativeModelReady: candidate.forestDecorativeModelReady,
+    forestDecorativeUsingFallback: candidate.forestDecorativeUsingFallback,
+    forestDecorativeOverviewHidden: candidate.forestDecorativeOverviewHidden,
     semanticTerrainCellCount: candidate.semanticTerrainCellCount,
     semanticTerrainKindCount: candidate.semanticTerrainKindCount,
     semanticTerrainFeatureCount: candidate.semanticTerrainFeatureCount,
@@ -1100,6 +1205,26 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     labelPlacedCount: candidate.labelPlacedCount,
     labelUnplacedCount: candidate.labelUnplacedCount,
   });
+}
+
+/**
+ * Reuse the complete rendered DOM contract, then require the camera-local
+ * ecology to be materially present. This is deliberately separate from the
+ * overview cases: those still have to prove a clean, zero-cost hidden state.
+ */
+export function parseRenderedWebglActiveForestDom(value, expected) {
+  const observation = parseRenderedWebglBrowserDom(value, expected);
+  if (
+    observation.forestDecorativeOverviewHidden !== false
+    || observation.forestDecorativeTreeCount < 1
+    || observation.forestDecorativeTriangleCount < 1
+    || observation.forestDecorativeCacheEntries < 1
+    || observation.forestDecorativeModelReady !== true
+    || observation.forestDecorativeUsingFallback !== false
+  ) {
+    throw new TypeError('Invalid rendered WebGL active decorative forest DOM.');
+  }
+  return observation;
 }
 
 function delay(milliseconds) {
@@ -1847,6 +1972,7 @@ const READ_DOM_EXPRESSION = `(() => {
   const map = document.querySelector('.realm-map-screen');
   const canvas = map?.querySelector('canvas');
   const integer = (value) => /^\\d+$/.test(value ?? '') ? Number(value) : null;
+  const exactBoolean = (value) => value === 'true' ? true : value === 'false' ? false : null;
   const rect = (element) => element.getBoundingClientRect();
   const mapRect = map ? rect(map) : null;
   const visible = (element) => {
@@ -2194,6 +2320,30 @@ const READ_DOM_EXPRESSION = `(() => {
     castleCount: integer(overlay?.getAttribute('data-castle-count')),
     readyAfterMilliseconds: integer(overlay?.getAttribute('data-ready-after-ms')),
     environmentLighting: canvas?.getAttribute('data-environment-lighting') ?? null,
+    forestDecorativeTreeCount: integer(
+      map?.getAttribute('data-forest-decorative-tree-count')
+    ),
+    forestDecorativeTriangleCount: integer(
+      map?.getAttribute('data-forest-decorative-triangle-count')
+    ),
+    forestDecorativeDrawCalls: integer(
+      map?.getAttribute('data-forest-decorative-draw-calls')
+    ),
+    forestDecorativeCacheEntries: integer(
+      map?.getAttribute('data-forest-decorative-cache-entries')
+    ),
+    forestDecorativeCacheHighWaterMark: integer(
+      map?.getAttribute('data-forest-decorative-cache-high-water-mark')
+    ),
+    forestDecorativeModelReady: exactBoolean(
+      map?.getAttribute('data-forest-decorative-model-ready')
+    ),
+    forestDecorativeUsingFallback: exactBoolean(
+      map?.getAttribute('data-forest-decorative-using-fallback')
+    ),
+    forestDecorativeOverviewHidden: exactBoolean(
+      map?.getAttribute('data-forest-decorative-overview-hidden')
+    ),
     semanticTerrainCellCount: integer(map?.getAttribute('data-semantic-terrain-cell-count')),
     semanticTerrainKindCount: integer(map?.getAttribute('data-semantic-terrain-kind-count')),
     semanticTerrainFeatureCount: integer(map?.getAttribute('data-semantic-terrain-feature-count')),
@@ -2380,6 +2530,9 @@ async function waitForAcceptedRenderedDom(session, expected, state) {
           `bases=${String(value.presentedLandscapeBaseCount)}`,
           `terrainKinds=${String(value.semanticTerrainKindCount)}`,
           `terrainFeatures=${String(value.semanticTerrainFeatureCount)}`,
+          `forestTrees=${String(value.forestDecorativeTreeCount)}`,
+          `forestTriangles=${String(value.forestDecorativeTriangleCount)}`,
+          `forestDraws=${String(value.forestDecorativeDrawCalls)}`,
           `exploreCastles=${String(value.exploreCastleCount)}`,
           `exploreAccessible=${String(value.exploreAccessibleCastleCount)}`
         ].join(',');
@@ -2403,6 +2556,47 @@ async function waitForAcceptedRenderedDom(session, expected, state) {
     await delay(100);
   }
   throw new Error('Rendered WebGL QA case timed out.');
+}
+
+async function waitForAcceptedActiveForestDom(session, expected, state) {
+  const deadline = Date.now() + CASE_TIMEOUT_MILLISECONDS;
+  let lastContractError;
+  let lastPresentationAggregate = '';
+  while (Date.now() < deadline) {
+    if (state.violation) {
+      throw new Error(`Headless browser left the local QA boundary: ${state.violation}.`);
+    }
+    const value = await readRenderedCaseDom(session);
+    if (value?.href === expected.url) {
+      if (['fallback', 'error', 'closed'].includes(value.status)) {
+        throw new Error('Rendered WebGL QA failed closed.');
+      }
+      if (value.status === 'ready') {
+        lastPresentationAggregate = [
+          `forestHidden=${String(value.forestDecorativeOverviewHidden)}`,
+          `forestTrees=${String(value.forestDecorativeTreeCount)}`,
+          `forestTriangles=${String(value.forestDecorativeTriangleCount)}`,
+          `forestDraws=${String(value.forestDecorativeDrawCalls)}`,
+          `forestCache=${String(value.forestDecorativeCacheEntries)}`,
+          `forestCacheHighWater=${String(value.forestDecorativeCacheHighWaterMark)}`,
+          `forestModel=${String(value.forestDecorativeModelReady)}`,
+          `forestFallback=${String(value.forestDecorativeUsingFallback)}`,
+        ].join(',');
+        try {
+          parseRenderedWebglActiveForestDom(value, expected);
+          return value;
+        } catch (error) {
+          lastContractError = error;
+        }
+      }
+    }
+    await delay(100);
+  }
+  const suffix = lastContractError instanceof Error ? ` ${lastContractError.message}` : '';
+  throw new Error(
+    `Rendered WebGL active forest contract did not settle.${suffix} `
+      + `(${lastPresentationAggregate || 'no-active-forest-observation'})`
+  );
 }
 
 async function captureRenderedCasePixels(session, viewport) {
@@ -2545,6 +2739,34 @@ export async function applyRenderedWebglCastleCanvasInteraction(session) {
   });
   return Object.freeze({
     pointerMoveCount: RENDERED_WEBGL_QA_CASTLE_POINTER_MOVE_OFFSETS.length,
+  });
+}
+
+/**
+ * Move from the strategic overview into a deterministic close-camera state by
+ * replaying bounded ordinary wheel input on a point already proven to belong
+ * to the WebGL canvas. No camera coordinates or world identity leave the page.
+ */
+export async function applyRenderedWebglActiveForestCameraInteraction(session) {
+  const target = await readRenderedWebglCastleCanvasPointerTarget(session);
+  for (
+    let step = 0;
+    step < RENDERED_WEBGL_QA_ACTIVE_FOREST_WHEEL_STEPS;
+    step += 1
+  ) {
+    await session.command('Input.dispatchMouseEvent', {
+      type: 'mouseWheel',
+      x: target.x,
+      y: target.y,
+      deltaX: 0,
+      deltaY: RENDERED_WEBGL_QA_ACTIVE_FOREST_WHEEL_DELTA,
+      button: 'none',
+      buttons: 0,
+      pointerType: 'mouse',
+    });
+  }
+  return Object.freeze({
+    wheelStepCount: RENDERED_WEBGL_QA_ACTIVE_FOREST_WHEEL_STEPS,
   });
 }
 
@@ -3026,6 +3248,26 @@ async function runRenderedCase(session, probeCase, state) {
   const baseline = Object.freeze({ ...probeCase, interaction: 'default' });
   await waitForAcceptedRenderedDom(session, baseline, state);
   await captureRenderedCasePixels(session, probeCase.viewport);
+  if (RENDERED_WEBGL_QA_ACTIVE_FOREST_CASE_IDS.has(probeCase.id)) {
+    const activeForestInteraction = await applyRenderedWebglActiveForestCameraInteraction(
+      session
+    );
+    if (
+      activeForestInteraction.wheelStepCount
+      !== RENDERED_WEBGL_QA_ACTIVE_FOREST_WHEEL_STEPS
+    ) throw new Error('Rendered WebGL active forest wheel sequence was incomplete.');
+    await waitForAcceptedActiveForestDom(session, Object.freeze({
+      ...baseline,
+      minimumLabelCount: 1,
+    }), state);
+    await captureRenderedCasePixels(session, probeCase.viewport);
+    // desktop-high still owns the established keyboard lane. Restore its
+    // untouched overview before exercising that independent contract.
+    if (probeCase.id === RENDERED_WEBGL_QA_LABEL_KEYBOARD_CASE_ID) {
+      await session.command('Page.navigate', { url: probeCase.url });
+      await waitForAcceptedRenderedDom(session, baseline, state);
+    }
+  }
   if (probeCase.id === RENDERED_WEBGL_QA_LABEL_KEYBOARD_CASE_ID) {
     await applyRenderedWebglLabelKeyboardInteraction(session);
     await waitForAcceptedRenderedDom(session, baseline, state);

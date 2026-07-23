@@ -1387,6 +1387,30 @@ function CanonicalRealmMapScreen({
     root.dataset.totalTerrainDetailDrawCalls = String(telemetry.totalDetailDrawCalls);
     root.dataset.forestPlacementSource = telemetry.forestPlacementSource;
     root.dataset.sharedForestTreeCount = String(telemetry.forestSharedTreeCount);
+    root.dataset.forestDecorativeTreeCount = String(
+      telemetry.forestDecorativeTreeCount
+    );
+    root.dataset.forestDecorativeTriangleCount = String(
+      telemetry.forestDecorativeTriangleCount
+    );
+    root.dataset.forestDecorativeDrawCalls = String(
+      telemetry.forestDecorativeDrawCalls
+    );
+    root.dataset.forestDecorativeCacheEntries = String(
+      telemetry.forestDecorativeCacheEntries
+    );
+    root.dataset.forestDecorativeCacheHighWaterMark = String(
+      telemetry.forestDecorativeCacheHighWaterMark
+    );
+    root.dataset.forestDecorativeModelReady = String(
+      telemetry.forestDecorativeModelReady
+    );
+    root.dataset.forestDecorativeUsingFallback = String(
+      telemetry.forestDecorativeUsingFallback
+    );
+    root.dataset.forestDecorativeOverviewHidden = String(
+      telemetry.forestDecorativeOverviewHidden
+    );
     root.dataset.grassCandidateCellCount = String(telemetry.grassCandidateCellCount);
     root.dataset.grassActiveCellCount = String(telemetry.grassActiveCellCount);
     root.dataset.grassInstanceCount = String(telemetry.grassInstanceCount);

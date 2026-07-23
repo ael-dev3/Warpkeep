@@ -178,8 +178,16 @@ export function parseRenderedWebglBrowserDom(
   castleCount: 100;
   readyAfterMilliseconds: number;
   environmentLighting: 'procedural';
+  forestDecorativeTreeCount: number;
+  forestDecorativeTriangleCount: number;
+  forestDecorativeDrawCalls: number;
+  forestDecorativeCacheEntries: number;
+  forestDecorativeCacheHighWaterMark: number;
+  forestDecorativeModelReady: boolean;
+  forestDecorativeUsingFallback: boolean;
+  forestDecorativeOverviewHidden: boolean;
   semanticTerrainCellCount: typeof RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_CELL_COUNT;
-  semanticTerrainKindCount: 7;
+  semanticTerrainKindCount: typeof RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_KIND_COUNT;
   semanticTerrainFeatureCount: number;
   semanticTerrainFeatureDrawCalls: number;
   totalTerrainDetailInstanceCount: number;
@@ -189,6 +197,11 @@ export function parseRenderedWebglBrowserDom(
   labelPlacedCount: number;
   labelUnplacedCount: number;
 }>;
+
+export function parseRenderedWebglActiveForestDom(
+  value: unknown,
+  expected: RenderedWebglBrowserProbeCase
+): ReturnType<typeof parseRenderedWebglBrowserDom>;
 
 /** Bounded page coordinates only; no castle, profile, or identity data. */
 export function parseRenderedWebglCastleCanvasPointerTarget(value: unknown): Readonly<{
@@ -233,6 +246,10 @@ export type RenderedWebglCastleCanvasPointerSession = Readonly<{
     params?: Readonly<Record<string, unknown>>,
   ) => Promise<unknown>;
 }>;
+
+export function applyRenderedWebglActiveForestCameraInteraction(
+  session: RenderedWebglCastleCanvasPointerSession
+): Promise<Readonly<{ wheelStepCount: 5 }>>;
 
 export function applyRenderedWebglCastleCanvasInteraction(
   session: RenderedWebglCastleCanvasPointerSession

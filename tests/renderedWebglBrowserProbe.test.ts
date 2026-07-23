@@ -7,6 +7,7 @@ import { resolve } from 'node:path';
 
 import {
   analyzeRenderedWebglPngScreenshot,
+  applyRenderedWebglActiveForestCameraInteraction,
   applyRenderedWebglCaseInteraction,
   applyRenderedWebglLabelKeyboardInteraction,
   attestHeadlessChromeCodeSignature,
@@ -16,6 +17,7 @@ import {
   headlessChromeProbeContract,
   isAllowedRenderedWebglPageUrl,
   parseHeadlessChromeCodeSignature,
+  parseRenderedWebglActiveForestDom,
   parseRenderedWebglBrowserDom,
   parseRenderedWebglInspectorLabelActivationEvidence,
   parseRenderedWebglLabelKeyboardEvidence,
@@ -294,8 +296,31 @@ describe('rendered WebGL headless browser probe contract', () => {
     );
     expect(source).toContain('await attempt(() => options.removeProfile?.());');
     expect(source).toContain('onCastleLodVisualBoundary?.(castleLodVisualBoundary)');
+    expect(source).toContain("'desktop-high',");
+    expect(source).toContain("'full-hd-balanced',");
+    expect(source).toContain("'desktop-reduced',");
+    expect(source).toContain('applyRenderedWebglActiveForestCameraInteraction(');
+    expect(source).toContain('await waitForAcceptedActiveForestDom(session');
+    expect(source).toContain(
+      'observation.forestDecorativeModelReady !== true'
+    );
     expect(source).toContain(
       '.realm-cell-navigator__castles[aria-label="Founded castles"] > li > button'
+    );
+    for (const attribute of [
+      'data-forest-decorative-tree-count',
+      'data-forest-decorative-triangle-count',
+      'data-forest-decorative-draw-calls',
+      'data-forest-decorative-cache-entries',
+      'data-forest-decorative-cache-high-water-mark',
+      'data-forest-decorative-model-ready',
+      'data-forest-decorative-using-fallback',
+      'data-forest-decorative-overview-hidden'
+    ]) {
+      expect(source).toContain(`map?.getAttribute('${attribute}')`);
+    }
+    expect(source).toContain(
+      "const exactBoolean = (value) => value === 'true' ? true : value === 'false' ? false : null"
     );
     expect(source).not.toContain("'.realm-cell-navigator__castles button'");
     expect(RENDERED_WEBGL_QA_VITE_FS_DENY).toEqual(EXPECTED_LOCAL_VITE_FS_DENY);
@@ -312,6 +337,41 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(source).toContain("method === 'Target.targetCrashed'");
     expect(source).toContain("method === 'Target.detachedFromTarget'");
     expect(source).toContain("method === 'Inspector.detached'");
+  });
+
+  it('enters the active forest range through bounded ordinary canvas wheel input', async () => {
+    const command = vi.fn(async (
+      method: string,
+      _parameters?: Readonly<Record<string, unknown>>
+    ) => method === 'Runtime.evaluate'
+      ? {
+          result: {
+            type: 'object',
+            value: { x: 720, y: 450 }
+          }
+        }
+      : {});
+
+    await expect(applyRenderedWebglActiveForestCameraInteraction({
+      command
+    })).resolves.toEqual({ wheelStepCount: 5 });
+
+    const wheelCalls = command.mock.calls.filter(([method]) => (
+      method === 'Input.dispatchMouseEvent'
+    ));
+    expect(wheelCalls).toHaveLength(5);
+    wheelCalls.forEach(([, parameters]) => {
+      expect(parameters).toEqual({
+        type: 'mouseWheel',
+        x: 720,
+        y: 450,
+        deltaX: 0,
+        deltaY: -250,
+        button: 'none',
+        buttons: 0,
+        pointerType: 'mouse'
+      });
+    });
   });
 
   it('records only structural inspector label activation evidence', async () => {
@@ -968,6 +1028,14 @@ describe('rendered WebGL headless browser probe contract', () => {
       castleCount: 100,
       readyAfterMilliseconds: 2_412,
       environmentLighting: 'procedural',
+      forestDecorativeTreeCount: 0,
+      forestDecorativeTriangleCount: 0,
+      forestDecorativeDrawCalls: 0,
+      forestDecorativeCacheEntries: 0,
+      forestDecorativeCacheHighWaterMark: 0,
+      forestDecorativeModelReady: false,
+      forestDecorativeUsingFallback: false,
+      forestDecorativeOverviewHidden: true,
       semanticTerrainCellCount: RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_CELL_COUNT,
       semanticTerrainKindCount: RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_KIND_COUNT,
       semanticTerrainFeatureCount: 700,
@@ -1049,6 +1117,14 @@ describe('rendered WebGL headless browser probe contract', () => {
       castleCount: 100,
       readyAfterMilliseconds: 2_412,
       environmentLighting: 'procedural',
+      forestDecorativeTreeCount: 0,
+      forestDecorativeTriangleCount: 0,
+      forestDecorativeDrawCalls: 0,
+      forestDecorativeCacheEntries: 0,
+      forestDecorativeCacheHighWaterMark: 0,
+      forestDecorativeModelReady: false,
+      forestDecorativeUsingFallback: false,
+      forestDecorativeOverviewHidden: true,
       semanticTerrainCellCount: RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_CELL_COUNT,
       semanticTerrainKindCount: RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_KIND_COUNT,
       semanticTerrainFeatureCount: 700,
@@ -1116,6 +1192,120 @@ describe('rendered WebGL headless browser probe contract', () => {
       ...ready,
       totalTerrainDetailDrawCalls: 9
     }, expected)).toThrow(/total-terrain-detail-draw-calls/i);
+    const balancedForestFallback = {
+      ...ready,
+      forestDecorativeTreeCount: 600,
+      forestDecorativeTriangleCount: 160_000,
+      forestDecorativeDrawCalls: 1,
+      forestDecorativeCacheEntries: 600,
+      forestDecorativeCacheHighWaterMark: 1_024,
+      forestDecorativeModelReady: false,
+      forestDecorativeUsingFallback: true,
+      forestDecorativeOverviewHidden: false,
+      semanticTerrainFeatureCount: 1_300,
+      semanticTerrainFeatureDrawCalls: 6,
+      totalTerrainDetailInstanceCount: 5_600,
+      totalTerrainDetailDrawCalls: 9
+    } as const;
+    expect(parseRenderedWebglBrowserDom(
+      balancedForestFallback,
+      expected
+    )).toMatchObject({
+      forestDecorativeTreeCount: 600,
+      forestDecorativeTriangleCount: 160_000,
+      forestDecorativeDrawCalls: 1,
+      forestDecorativeCacheEntries: 600,
+      forestDecorativeCacheHighWaterMark: 1_024,
+      forestDecorativeModelReady: false,
+      forestDecorativeUsingFallback: true,
+      forestDecorativeOverviewHidden: false
+    });
+    expect(() => parseRenderedWebglActiveForestDom(
+      balancedForestFallback,
+      expected
+    )).toThrow(/active decorative forest/i);
+    expect(parseRenderedWebglActiveForestDom({
+      ...balancedForestFallback,
+      forestDecorativeDrawCalls: 5,
+      forestDecorativeModelReady: true,
+      forestDecorativeUsingFallback: false,
+      semanticTerrainFeatureDrawCalls: 10,
+      totalTerrainDetailDrawCalls: 13
+    }, expected)).toMatchObject({
+      forestDecorativeTreeCount: 600,
+      forestDecorativeModelReady: true,
+      forestDecorativeUsingFallback: false,
+      forestDecorativeOverviewHidden: false
+    });
+    expect(() => parseRenderedWebglActiveForestDom(
+      ready,
+      expected
+    )).toThrow(/active decorative forest/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...balancedForestFallback,
+      forestDecorativeTreeCount: 601,
+      semanticTerrainFeatureCount: 1_301,
+      totalTerrainDetailInstanceCount: 5_601
+    }, expected)).toThrow(/forest-decorative-budget/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...balancedForestFallback,
+      forestDecorativeTriangleCount: 160_001
+    }, expected)).toThrow(/forest-decorative-budget/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...balancedForestFallback,
+      forestDecorativeCacheHighWaterMark: 1_025
+    }, expected)).toThrow(/forest-decorative-cache/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...balancedForestFallback,
+      forestDecorativeCacheEntries: 700,
+      forestDecorativeCacheHighWaterMark: 699
+    }, expected)).toThrow(/forest-decorative-cache/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...balancedForestFallback,
+      forestDecorativeModelReady: true
+    }, expected)).toThrow(/forest-decorative-state/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...balancedForestFallback,
+      forestDecorativeOverviewHidden: true
+    }, expected)).toThrow(/forest-decorative-state/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      forestDecorativeModelReady: null
+    }, expected)).toThrow(/forest-decorative-shape/i);
+    // Keep ordinary and decorative categories independent: neither category
+    // may borrow the other's unused allowance to conceal an overage.
+    expect(() => parseRenderedWebglBrowserDom({
+      ...balancedForestFallback,
+      forestDecorativeTreeCount: 599,
+      forestDecorativeTriangleCount: 159_000,
+      forestDecorativeCacheEntries: 599,
+      semanticTerrainFeatureCount: 1_610,
+      totalTerrainDetailInstanceCount: 5_599
+    }, expected)).toThrow(/semantic-terrain-feature-budget/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...balancedForestFallback,
+      forestDecorativeTreeCount: 599,
+      forestDecorativeTriangleCount: 159_000,
+      forestDecorativeCacheEntries: 599,
+      semanticTerrainFeatureCount: 1_299,
+      totalTerrainDetailInstanceCount: 6_310
+    }, expected)).toThrow(/total-terrain-detail-budget/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...balancedForestFallback,
+      forestDecorativeDrawCalls: 4,
+      forestDecorativeModelReady: true,
+      forestDecorativeUsingFallback: false,
+      semanticTerrainFeatureDrawCalls: 10,
+      totalTerrainDetailDrawCalls: 12
+    }, expected)).toThrow(/semantic-terrain-feature-draw-calls/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...balancedForestFallback,
+      forestDecorativeDrawCalls: 6,
+      forestDecorativeModelReady: true,
+      forestDecorativeUsingFallback: false,
+      semanticTerrainFeatureDrawCalls: 10,
+      totalTerrainDetailDrawCalls: 12
+    }, expected)).toThrow(/forest-decorative-budget/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
       presentedModelCount: 101,
@@ -1264,10 +1454,18 @@ describe('rendered WebGL headless browser probe contract', () => {
       readyAfterMilliseconds: 120_001
     }, expected)).toThrow(/observation/i);
 
-    for (const [caseId, quality, semanticFeatureCount, totalDetailInstanceCount] of [
-      ['desktop-high', 'high', 1_550, 7_450],
-      ['desktop-balanced', 'balanced', 1_100, 5_800],
-      ['desktop-reduced', 'reduced', 610, 3_210]
+    for (const [
+      caseId,
+      quality,
+      semanticFeatureCount,
+      totalDetailInstanceCount,
+      forestTreeCount,
+      forestTriangleCount,
+      forestCacheLimit
+    ] of [
+      ['desktop-high', 'high', 2_510, 8_410, 1_200, 320_000, 2_048],
+      ['desktop-balanced', 'balanced', 1_610, 6_310, 600, 160_000, 1_024],
+      ['desktop-reduced', 'reduced', 790, 3_390, 180, 45_000, 512]
     ] as const) {
       const qualityCase = renderedWebglBrowserProbeCases(41_733)
         .find((probeCase) => probeCase.id === caseId)!;
@@ -1275,23 +1473,55 @@ describe('rendered WebGL headless browser probe contract', () => {
         ...ready,
         href: qualityCase.url,
         quality,
+        forestDecorativeTreeCount: forestTreeCount,
+        forestDecorativeTriangleCount: forestTriangleCount,
+        forestDecorativeDrawCalls: 5,
+        forestDecorativeCacheEntries: forestCacheLimit,
+        forestDecorativeCacheHighWaterMark: forestCacheLimit,
+        forestDecorativeModelReady: true,
+        forestDecorativeUsingFallback: false,
+        forestDecorativeOverviewHidden: false,
         semanticTerrainFeatureCount: semanticFeatureCount,
-        totalTerrainDetailInstanceCount: totalDetailInstanceCount
+        semanticTerrainFeatureDrawCalls: 10,
+        totalTerrainDetailInstanceCount: totalDetailInstanceCount,
+        totalTerrainDetailDrawCalls: 13
       };
-      expect(parseRenderedWebglBrowserDom(qualityReady, qualityCase)).toMatchObject({
+      expect(parseRenderedWebglActiveForestDom(qualityReady, qualityCase)).toMatchObject({
         quality,
+        forestDecorativeTreeCount: forestTreeCount,
+        forestDecorativeTriangleCount: forestTriangleCount,
+        forestDecorativeDrawCalls: 5,
+        forestDecorativeCacheEntries: forestCacheLimit,
+        forestDecorativeCacheHighWaterMark: forestCacheLimit,
+        forestDecorativeModelReady: true,
+        forestDecorativeUsingFallback: false,
+        forestDecorativeOverviewHidden: false,
         semanticTerrainFeatureCount: semanticFeatureCount,
         totalTerrainDetailInstanceCount: totalDetailInstanceCount
       });
-      expect(() => parseRenderedWebglBrowserDom({
+      expect(() => parseRenderedWebglActiveForestDom({
         ...qualityReady,
         semanticTerrainFeatureCount: semanticFeatureCount + 1,
         totalTerrainDetailInstanceCount: totalDetailInstanceCount
       }, qualityCase)).toThrow(/semantic-terrain-feature-budget/i);
-      expect(() => parseRenderedWebglBrowserDom({
+      expect(() => parseRenderedWebglActiveForestDom({
         ...qualityReady,
         totalTerrainDetailInstanceCount: totalDetailInstanceCount + 1
       }, qualityCase)).toThrow(/total-terrain-detail-budget/i);
+      expect(() => parseRenderedWebglActiveForestDom({
+        ...qualityReady,
+        forestDecorativeTreeCount: forestTreeCount + 1,
+        semanticTerrainFeatureCount: semanticFeatureCount + 1,
+        totalTerrainDetailInstanceCount: totalDetailInstanceCount + 1
+      }, qualityCase)).toThrow(/forest-decorative-budget/i);
+      expect(() => parseRenderedWebglActiveForestDom({
+        ...qualityReady,
+        forestDecorativeTriangleCount: forestTriangleCount + 1
+      }, qualityCase)).toThrow(/forest-decorative-budget/i);
+      expect(() => parseRenderedWebglActiveForestDom({
+        ...qualityReady,
+        forestDecorativeCacheHighWaterMark: forestCacheLimit + 1
+      }, qualityCase)).toThrow(/forest-decorative-cache/i);
     }
 
     const playerCase = renderedWebglBrowserProbeCases(41_733)
