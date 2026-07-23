@@ -98,7 +98,7 @@ export function WorkerInspectionPanel({
     <aside
       aria-labelledby={`${id}-title`}
       aria-modal="true"
-      className="worker-inspection"
+      className="worker-inspection realm-camera-neutral-inspector"
       id={id}
       ref={dialogRef}
       role="dialog"

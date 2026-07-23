@@ -211,7 +211,7 @@ export function StoneQuarryInspectionPanel({
   return (
     <aside
       id={id}
-      className="gold-mine-inspection stone-quarry-inspection"
+      className="gold-mine-inspection stone-quarry-inspection realm-camera-neutral-inspector"
       role="dialog"
       aria-modal="false"
       aria-labelledby={titleId}

@@ -773,7 +773,7 @@ describe('live realm quality recreation', () => {
     expect(scene.focusCastle).toHaveBeenLastCalledWith(2);
   });
 
-  it('links the private active-wagon shortcut and opens a clicked wagon without a camera jump', () => {
+  it('opens every Food resource path without a camera jump', () => {
     installWebGlProbe();
     const fixture = activeFoodWagonRealm();
     render(
@@ -795,8 +795,9 @@ describe('live realm quality recreation', () => {
     const wagonButton = within(wagonGroup).getByRole('button', { name: /Food WAGON/i });
     expect(wagonButton.textContent).toContain('En route to site');
     fireEvent.click(wagonButton);
-    expect(scene.focusCell).toHaveBeenLastCalledWith({ q: fixture.site.q, r: fixture.site.r });
+    expect(scene.focusCell).not.toHaveBeenCalled();
     expect(screen.getByRole('dialog', { name: 'Wheat Farm' })).not.toBeNull();
+    expect(document.querySelector('.realm-camera-neutral-inspector')).not.toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'CLOSE FOOD FARM RECORD' }));
     scene.focusCell.mockClear();
@@ -816,10 +817,11 @@ describe('live realm quality recreation', () => {
       source: 'site',
       coord: { q: fixture.site.q, r: fixture.site.r }
     }));
-    expect(scene.focusCell).toHaveBeenLastCalledWith({ q: fixture.site.q, r: fixture.site.r });
+    expect(screen.getByRole('dialog', { name: 'Wheat Farm' })).not.toBeNull();
+    expect(scene.focusCell).not.toHaveBeenCalled();
   });
 
-  it('does not replay a static-site camera target after wagon selection and scene recreation', () => {
+  it('does not replay a resource camera target after static-site selection and scene recreation', () => {
     installWebGlProbe();
     const fixture = activeFoodWagonRealm();
     const { rerender } = render(
@@ -838,7 +840,7 @@ describe('live realm quality recreation', () => {
       initialOptions.onTargetSelect?.({
         kind: 'food-site',
         siteId: fixture.site.siteId,
-        source: 'wagon',
+        source: 'site',
         coord: { q: fixture.site.q, r: fixture.site.r }
       });
     });

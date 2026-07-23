@@ -791,6 +791,7 @@ function CanonicalRealmMapScreen({
   const latestVisibleCastleLabelsRef = useRef<readonly VisibleCastleLabel[]>([]);
   const latestProjectionRef = useRef<RealmCastleProjectionFrame>({ width: 0, height: 0, castles: [] });
   const reservedUiRectsRef = useRef<readonly RealmLabelReservedRect[]>([]);
+  const stableCameraCompositionRef = useRef<ReturnType<typeof measuredRealmComposition> | null>(null);
   const compositionRafRef = useRef<number | null>(null);
   const labelMembershipSignatureRef = useRef('');
   const presentedCastleIdsRef = useRef<readonly number[]>([]);
@@ -977,62 +978,40 @@ function CanonicalRealmMapScreen({
     sceneRef.current?.focusCastle(castle.castleId);
   }, []);
 
-  const selectGoldNode = useCallback((
-    node: RealmGoldNodePresentation,
-    focusSite = true
-  ) => {
+  const selectGoldNode = useCallback((node: RealmGoldNodePresentation) => {
     selectedCoordRef.current = { ...node.coord };
     dispatchInteraction({
       type: 'activate-gold-site',
       siteId: node.siteId,
-      coord: node.coord,
-      cameraIntent: focusSite ? 'focus-site' : 'preserve'
+      coord: node.coord
     });
-    // This is a camera/readability affordance only. The public node record
-    // remains the source of availability and the panel owns no local state.
-    if (focusSite) sceneRef.current?.focusCell(node.coord);
   }, []);
 
-  const selectFoodNode = useCallback((
-    node: RealmFoodNodePresentation,
-    focusSite = true
-  ) => {
+  const selectFoodNode = useCallback((node: RealmFoodNodePresentation) => {
     selectedCoordRef.current = { ...node.coord };
     dispatchInteraction({
       type: 'activate-food-site',
       siteId: node.siteId,
-      coord: node.coord,
-      cameraIntent: focusSite ? 'focus-site' : 'preserve'
+      coord: node.coord
     });
-    if (focusSite) sceneRef.current?.focusCell(node.coord);
   }, []);
 
-  const selectWoodNode = useCallback((
-    node: RealmWoodNodePresentation,
-    focusSite = true
-  ) => {
+  const selectWoodNode = useCallback((node: RealmWoodNodePresentation) => {
     selectedCoordRef.current = { ...node.coord };
     dispatchInteraction({
       type: 'activate-wood-site',
       siteId: node.siteId,
-      coord: node.coord,
-      cameraIntent: focusSite ? 'focus-site' : 'preserve'
+      coord: node.coord
     });
-    if (focusSite) sceneRef.current?.focusCell(node.coord);
   }, []);
 
-  const selectStoneNode = useCallback((
-    node: RealmStoneNodePresentation,
-    focusSite = true
-  ) => {
+  const selectStoneNode = useCallback((node: RealmStoneNodePresentation) => {
     selectedCoordRef.current = { ...node.coord };
     dispatchInteraction({
       type: 'activate-stone-site',
       siteId: node.siteId,
-      coord: node.coord,
-      cameraIntent: focusSite ? 'focus-site' : 'preserve'
+      coord: node.coord
     });
-    if (focusSite) sceneRef.current?.focusCell(node.coord);
   }, []);
 
   const selectWaterCell = useCallback((record: RealmWaterInspectionRecord) => {
@@ -1055,7 +1034,6 @@ function CanonicalRealmMapScreen({
       originCastleId: worker.originCastleId,
       coord
     });
-    sceneRef.current?.focusCell(coord);
   }, []);
 
   const openActiveWagon = useCallback((wagon: RealmActiveWagonMenuItem) => {
@@ -1224,22 +1202,22 @@ function CanonicalRealmMapScreen({
     }
     if (target.kind === 'gold-site') {
       const node = goldNodesRef.current.find((candidate) => candidate.siteId === target.siteId);
-      if (node) selectGoldNode(node, target.source !== 'wagon');
+      if (node) selectGoldNode(node);
       return;
     }
     if (target.kind === 'food-site') {
       const node = foodNodesRef.current.find((candidate) => candidate.siteId === target.siteId);
-      if (node) selectFoodNode(node, target.source !== 'wagon');
+      if (node) selectFoodNode(node);
       return;
     }
     if (target.kind === 'wood-site') {
       const node = woodNodesRef.current.find((candidate) => candidate.siteId === target.siteId);
-      if (node) selectWoodNode(node, target.source !== 'wagon');
+      if (node) selectWoodNode(node);
       return;
     }
     if (target.kind === 'stone-site') {
       const node = stoneNodesRef.current.find((candidate) => candidate.siteId === target.siteId);
-      if (node) selectStoneNode(node, target.source !== 'wagon');
+      if (node) selectStoneNode(node);
       return;
     }
     if (target.kind === 'water-cell') {
@@ -1443,9 +1421,18 @@ function CanonicalRealmMapScreen({
       compositionRafRef.current = null;
       const root = rootRef.current;
       if (root) {
-        const composition = measuredRealmComposition(root);
         reservedUiRectsRef.current = measuredVisibleRealmUiRects(root);
-        sceneRef.current?.setComposition(composition);
+        const cameraNeutralInspectorOpen = root.querySelector(
+          '.realm-camera-neutral-inspector'
+        ) !== null;
+        if (!cameraNeutralInspectorOpen) {
+          stableCameraCompositionRef.current = measuredRealmComposition(root);
+        }
+        // Mobile presentation may hide unrelated HUD chrome behind a record.
+        // Keep the last non-record composition so merely inspecting a passive
+        // entity cannot pan or zoom the scene through an inset change.
+        const composition = stableCameraCompositionRef.current;
+        if (composition) sceneRef.current?.setComposition(composition);
         updateCastleProjection(latestProjectionRef.current);
       }
     });
@@ -1468,8 +1455,7 @@ function CanonicalRealmMapScreen({
       observer?.observe(root);
       root.querySelectorAll<HTMLElement>(
         '.realm-hud, .realm-hud__actions, .realm-profile-trigger, .realm-resource-rail, '
-        + '.castle-inspection, .gold-mine-inspection, .food-farm-inspection, .logging-camp-inspection, '
-        + '.stone-quarry-inspection, .realm-cell-navigator, .water-inspection'
+        + '.castle-inspection, .realm-camera-neutral-inspector, .realm-cell-navigator'
       ).forEach((element) => observer?.observe(element));
     }
     window.addEventListener('resize', updateSceneComposition, { passive: true });
@@ -1762,7 +1748,6 @@ function CanonicalRealmMapScreen({
       const cameraTarget: RealmCameraTarget = interactionRef.current.cameraTarget;
       if (cameraTarget.kind === 'castle') scene.focusCastle(cameraTarget.castleId);
       else if (cameraTarget.kind === 'cell') scene.focusCell(cameraTarget.coord);
-      else if (cameraTarget.kind === 'worker') scene.focusCell(cameraTarget.coord);
       else if (cameraTarget.kind === 'keep') scene.recenterKeep();
       else if (cameraTarget.kind === 'founding-district') scene.frameFoundingDistrict();
       else scene.showRealm();

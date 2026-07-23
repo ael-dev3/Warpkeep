@@ -65,8 +65,12 @@ describe('realm interaction state', () => {
     });
   });
 
-  it('activates one public worker identity and directs focus to its inspector', () => {
-    const state = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
+  it('opens one public worker inspector without replacing durable camera intent', () => {
+    const initial = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
+      type: 'set-camera-target',
+      target: { kind: 'castle', castleId: 42, coord: { q: 3, r: -1 } }
+    });
+    const state = realmInteractionReducer(initial, {
       type: 'activate-worker',
       workerId: 'genesis-001-castle-7-worker-02',
       workerOrdinal: 2,
@@ -82,11 +86,7 @@ describe('realm interaction state', () => {
       originCastleId: 7,
       coord: { q: 2, r: -1 }
     });
-    expect(state.cameraTarget).toEqual({
-      kind: 'worker',
-      workerId: 'genesis-001-castle-7-worker-02',
-      coord: { q: 2, r: -1 }
-    });
+    expect(state.cameraTarget).toBe(initial.cameraTarget);
     expect(state.keyboardIntent).toEqual({
       sequence: 1,
       target: {
@@ -97,7 +97,11 @@ describe('realm interaction state', () => {
   });
 
   it('opens a public Gold-site inspector without turning the site into a castle or local authority', () => {
-    const state = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
+    const initial = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
+      type: 'set-camera-target',
+      target: { kind: 'cell', coord: { q: -2, r: 1 } }
+    });
+    const state = realmInteractionReducer(initial, {
       type: 'activate-gold-site',
       siteId: 'genesis-001:gold:0001',
       coord: { q: 4, r: -2 }
@@ -109,7 +113,7 @@ describe('realm interaction state', () => {
       siteId: 'genesis-001:gold:0001',
       coord: { q: 4, r: -2 }
     });
-    expect(state.cameraTarget).toEqual({ kind: 'cell', coord: { q: 4, r: -2 } });
+    expect(state.cameraTarget).toBe(initial.cameraTarget);
     expect(state.keyboardIntent).toEqual({
       sequence: 1,
       target: { kind: 'gold-mine-inspector', siteId: 'genesis-001:gold:0001' }
@@ -174,15 +178,14 @@ describe('realm interaction state', () => {
     'food',
     'wood',
     'stone'
-  ] as const)('opens a moving %s wagon record without replacing durable camera intent', (resource) => {
+  ] as const)('opens a %s resource record without replacing durable camera intent', (resource) => {
     const camera = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
       type: 'set-camera-target',
       target: { kind: 'castle', castleId: 77, coord: { q: 2, r: -1 } }
     });
     const shared = {
       siteId: `genesis-001:${resource}:0001`,
-      coord: { q: 8, r: -3 },
-      cameraIntent: 'preserve' as const
+      coord: { q: 8, r: -3 }
     };
     const state = resource === 'gold'
       ? realmInteractionReducer(camera, { type: 'activate-gold-site', ...shared })

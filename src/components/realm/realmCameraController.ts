@@ -146,7 +146,11 @@ export const DEFAULT_REALM_CAMERA_SPEC: RealmCameraSpec = {
 
 const DEFAULT_FOCUS_PADDING = 24;
 const MIN_SAFE_VIEWPORT_SIZE = 1;
-export const REALM_INTERACTIVE_MIN_ZOOM = 0.16;
+// On Genesis 001 this brings the farthest ordinary wheel/pinch view roughly
+// 25% closer than the former 0.16 floor. The explicit Realm preset remains a
+// full responsive overview and still enters this range continuously.
+export const REALM_INTERACTIVE_MIN_ZOOM = 0.28;
+const REALM_MODE_MAX_ZOOM = 0.32;
 const ZERO_INSETS: RealmCameraInsets = Object.freeze({
   top: 0,
   right: 0,
@@ -837,7 +841,9 @@ export function deriveRealmCameraPoseForViewport(
     far: Math.max(60, distance + span * 4),
     fogNear,
     fogFar,
-    mode: zoom < 0.24 ? 'realm' : zoom < 0.76 ? 'approach' : 'keep',
+    // Keep the ordinary zoom-out floor in strategic Realm mode so distant
+    // grass remains suppressed on constrained devices.
+    mode: zoom < REALM_MODE_MAX_ZOOM ? 'realm' : zoom < 0.76 ? 'approach' : 'keep',
     focus,
     safeViewport,
     viewport
@@ -925,6 +931,17 @@ function stateComposition(state: RealmCompositionState): RealmCameraComposition 
     safeAreaInsets: ZERO_INSETS,
     focusPadding: state.focusPadding
   };
+}
+
+function sameCompositionState(
+  left: RealmCompositionState,
+  right: RealmCompositionState
+) {
+  return left.top === right.top
+    && left.right === right.right
+    && left.bottom === right.bottom
+    && left.left === right.left
+    && left.focusPadding === right.focusPadding;
 }
 
 function lerpFocus(
@@ -1646,11 +1663,13 @@ export function createRealmCameraController(
       if (isUnsettled()) invalidate();
     },
     setComposition: (next) => {
+      const normalized = compositionState(next);
+      if (sameCompositionState(normalized, targetComposition)) return;
       // Insets change the projection beneath a screen-space zoom anchor. Drop
       // the old anchor so the camera can converge on the newly composed target
       // instead of continuously correcting toward incompatible geometry.
       zoomAnchor = null;
-      targetComposition = compositionState(next);
+      targetComposition = normalized;
       invalidate();
     },
     setKeepFocus: (next) => {
