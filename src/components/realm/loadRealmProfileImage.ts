@@ -16,6 +16,10 @@ const WARPCAST_IMAGE_DELIVERY_PATH = new RegExp(
 const WARPCAST_CDN_IMAGE_DELIVERY_PATH = new RegExp(
   `^/cdn-cgi/imagedelivery/${WARPCAST_CLOUDFLARE_IMAGE_ACCOUNT}/[A-Za-z0-9_-]{8,128}/[A-Za-z0-9_-]{1,64}$`
 );
+const WRPCD_STATIC_ARWEAVE_IMAGE_PATH_PREFIX =
+  '/cdn-cgi/image/anim=false,fit=contain,f=auto,w=384/';
+const ARWEAVE_TRANSACTION_GATEWAY_HOST = /^(?:arweave\.net|[a-z2-7]{52}\.arweave\.net)$/;
+const ARWEAVE_TRANSACTION_PATH = /^\/[A-Za-z0-9_-]{43}\/?$/;
 const REALM_PROFILE_IMAGE_MIME_TYPES = Object.freeze([
   'image/jpeg',
   'image/png',
@@ -56,6 +60,48 @@ function unavailableRealmProfileImage() {
   return new Error('Realm profile image is unavailable.');
 }
 
+function canonicalArweaveProfileImageSource(url: URL) {
+  if (
+    url.protocol !== 'https:'
+    || url.username !== ''
+    || url.password !== ''
+    || url.port !== ''
+    || url.search !== ''
+    || url.hash !== ''
+    || !ARWEAVE_TRANSACTION_GATEWAY_HOST.test(url.hostname.toLowerCase())
+    || !ARWEAVE_TRANSACTION_PATH.test(url.pathname)
+  ) return undefined;
+  return url.toString();
+}
+
+function reviewedWrpcdStaticArweavePath(url: URL) {
+  if (
+    url.search !== ''
+    || url.hash !== ''
+    || !url.pathname.startsWith(WRPCD_STATIC_ARWEAVE_IMAGE_PATH_PREFIX)
+  ) return false;
+
+  const encodedSource = url.pathname.slice(WRPCD_STATIC_ARWEAVE_IMAGE_PATH_PREFIX.length);
+  if (!encodedSource) return false;
+  try {
+    const decodedSource = decodeURIComponent(encodedSource);
+    if (encodeURIComponent(decodedSource) !== encodedSource) return false;
+    const canonicalSource = canonicalArweaveProfileImageSource(new URL(decodedSource));
+    return canonicalSource !== undefined && canonicalSource === decodedSource;
+  } catch {
+    return false;
+  }
+}
+
+function staticArweaveProfileImageUrl(url: URL) {
+  const source = canonicalArweaveProfileImageSource(url);
+  if (!source) return undefined;
+  return new URL(
+    `${WRPCD_STATIC_ARWEAVE_IMAGE_PATH_PREFIX}${encodeURIComponent(source)}`,
+    'https://wrpcd.net'
+  ).toString();
+}
+
 function reviewedProviderPath(url: URL) {
   const hostname = url.hostname.toLowerCase();
   if (!REVIEWED_REALM_PROFILE_IMAGE_HOSTS.some((candidate) => candidate === hostname)) {
@@ -65,7 +111,8 @@ function reviewedProviderPath(url: URL) {
     case 'imagedelivery.net':
       return WARPCAST_IMAGE_DELIVERY_PATH.test(url.pathname);
     case 'wrpcd.net':
-      return WARPCAST_CDN_IMAGE_DELIVERY_PATH.test(url.pathname);
+      return WARPCAST_CDN_IMAGE_DELIVERY_PATH.test(url.pathname)
+        || reviewedWrpcdStaticArweavePath(url);
     case 'res.cloudinary.com':
       return url.pathname.startsWith('/merkle-manufactory/image/');
     case 'i.imgur.com':
@@ -111,7 +158,8 @@ export function reviewedRealmProfileImageUrl(value: string | undefined) {
       && parsed.search === ''
       && parsed.hash === ''
     ) return parsed.toString();
-    return reviewedProviderPath(parsed) ? parsed.toString() : undefined;
+    if (reviewedProviderPath(parsed)) return parsed.toString();
+    return staticArweaveProfileImageUrl(parsed);
   } catch {
     return undefined;
   }

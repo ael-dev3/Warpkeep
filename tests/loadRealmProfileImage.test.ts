@@ -13,6 +13,10 @@ import { WARPKEEP_SAME_ORIGIN_PROFILE_PLACEHOLDER_PATH } from '../src/security/p
 
 const CURRENT_PFP_URL =
   'https://imagedelivery.net/BXluQx4ige9GuW0Ia56BHw/bc698287-5adc-4cc5-a503-de16963ed900/original';
+const ANIMATED_ARWEAVE_PFP_URL =
+  `https://${'a'.repeat(52)}.arweave.net/${'B'.repeat(43)}/`;
+const STATIC_ARWEAVE_PFP_URL =
+  `https://wrpcd.net/cdn-cgi/image/anim=false,fit=contain,f=auto,w=384/${encodeURIComponent(ANIMATED_ARWEAVE_PFP_URL)}`;
 
 function pngHeader(width = 256, height = 256) {
   const bytes = new Uint8Array(33);
@@ -102,6 +106,25 @@ function webpVp8ExtendedHeader(width = 256, height = 256) {
   return webpContainer([
     webpChunk('VP8X', canvas),
     webpChunk('VP8 ', vp8Payload(width, height))
+  ]);
+}
+
+function animatedWebpHeader(width = 256, height = 256) {
+  const canvas = new Uint8Array(10);
+  canvas[0] = 0x02;
+  const encodedWidth = width - 1;
+  const encodedHeight = height - 1;
+  canvas.set([
+    encodedWidth & 0xff,
+    (encodedWidth >>> 8) & 0xff,
+    (encodedWidth >>> 16) & 0xff,
+    encodedHeight & 0xff,
+    (encodedHeight >>> 8) & 0xff,
+    (encodedHeight >>> 16) & 0xff
+  ], 4);
+  return webpContainer([
+    webpChunk('VP8X', canvas),
+    webpChunk('ANIM', new Uint8Array(6))
   ]);
 }
 
@@ -223,6 +246,18 @@ describe('reviewed Realm profile image delivery', () => {
     expect(reviewedRealmProfileImageUrl(otherPath.toString())).toBeUndefined();
   });
 
+  it('derives and re-reviews one exact static rendition for a canonical Arweave PFP', () => {
+    expect(reviewedRealmProfileImageUrl(ANIMATED_ARWEAVE_PFP_URL))
+      .toBe(STATIC_ARWEAVE_PFP_URL);
+    expect(reviewedRealmProfileImageUrl(STATIC_ARWEAVE_PFP_URL))
+      .toBe(STATIC_ARWEAVE_PFP_URL);
+
+    const rootGatewaySource = `https://arweave.net/${'C'.repeat(43)}`;
+    expect(reviewedRealmProfileImageUrl(rootGatewaySource)).toBe(
+      `https://wrpcd.net/cdn-cgi/image/anim=false,fit=contain,f=auto,w=384/${encodeURIComponent(rootGatewaySource)}`
+    );
+  });
+
   it.each([
     'https://tracking.example/avatar.png',
     'https://attacker.imagedelivery.net/account/image/original',
@@ -232,7 +267,21 @@ describe('reviewed Realm profile image delivery', () => {
     'https://wrpcd.net/cdn-cgi/imagedelivery/AttackerCloudflareAccount/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/original',
     'https://res.cloudinary.com/unreviewed/image/fetch/avatar.png',
     'https://i.imgur.com/',
-    'https://127.0.0.1/avatar.png'
+    'https://127.0.0.1/avatar.png',
+    `https://${'a'.repeat(51)}.arweave.net/${'b'.repeat(43)}/`,
+    `https://${'a'.repeat(52)}.arweave.net/${'b'.repeat(42)}/`,
+    `https://${'a'.repeat(52)}.arweave.net/${'b'.repeat(43)}/extra`,
+    `https://${'a'.repeat(52)}.arweave.net.evil/${'b'.repeat(43)}/`,
+    `https://user:pass@${'a'.repeat(52)}.arweave.net/${'b'.repeat(43)}/`,
+    `https://${'a'.repeat(52)}.arweave.net/${'b'.repeat(43)}/?tracking=1`,
+    `https://wrpcd.net/cdn-cgi/image/anim=true,fit=contain,f=auto,w=384/${encodeURIComponent(ANIMATED_ARWEAVE_PFP_URL)}`,
+    `https://wrpcd.net/cdn-cgi/image/fit=contain,f=auto,w=384/${encodeURIComponent(ANIMATED_ARWEAVE_PFP_URL)}`,
+    `https://wrpcd.net/cdn-cgi/image/anim=false,fit=contain,f=auto,w=512/${encodeURIComponent(ANIMATED_ARWEAVE_PFP_URL)}`,
+    `https://wrpcd.net/cdn-cgi/image/f=auto,anim=false,fit=contain,w=384/${encodeURIComponent(ANIMATED_ARWEAVE_PFP_URL)}`,
+    `https://wrpcd.net/cdn-cgi/image/anim=false,fit=contain,f=auto,w=384/${encodeURIComponent(encodeURIComponent(ANIMATED_ARWEAVE_PFP_URL))}`,
+    `https://wrpcd.net/cdn-cgi/image/anim=false,fit=contain,f=auto,w=384/${encodeURIComponent('https://tracking.example/avatar.png')}`,
+    `https://wrpcd.net/cdn-cgi/image/anim=false,fit=contain,f=auto,w=384/${encodeURIComponent(`https://127.0.0.1/${'B'.repeat(43)}`)}`,
+    `https://wrpcd.net/cdn-cgi/image/anim=false,fit=contain,f=auto,w=384/${encodeURIComponent(`https://user:pass@${'a'.repeat(52)}.arweave.net/${'B'.repeat(43)}/`)}`
   ])('falls back before requesting an unreviewed delivery URL: %s', (value) => {
     expect(reviewedRealmProfileImageUrl(value)).toBeUndefined();
   });
@@ -266,6 +315,64 @@ describe('reviewed Realm profile image delivery', () => {
     expect(environment.revokeObjectUrl).toHaveBeenCalledOnce();
     expect(environment.revokeObjectUrl)
       .toHaveBeenCalledWith('blob:warpkeep-realm-profile');
+  });
+
+  it('fetches only the bounded static rendition for an animated Arweave source', async () => {
+    const environment = successfulEnvironment(new AutoLoadingImage(384, 384));
+    environment.fetchImplementation = vi.fn(async () => streamedResponse(
+      [webpVp8Header(384, 384)],
+      { 'content-type': 'image/webp' }
+    )) as unknown as typeof fetch;
+
+    const loaded = await loadBoundedRealmProfileImage(
+      ANIMATED_ARWEAVE_PFP_URL,
+      environment
+    );
+
+    expect(environment.fetchImplementation).toHaveBeenCalledOnce();
+    const [requestedUrl, request] = vi.mocked(environment.fetchImplementation).mock.calls[0];
+    expect(requestedUrl).toBe(STATIC_ARWEAVE_PFP_URL);
+    expect(requestedUrl).not.toBe(ANIMATED_ARWEAVE_PFP_URL);
+    expect(request).toMatchObject({
+      credentials: 'omit',
+      redirect: 'error',
+      referrerPolicy: 'no-referrer',
+      headers: { accept: 'image/webp,image/png,image/jpeg' }
+    });
+    const blob = environment.createObjectUrl.mock.calls[0][0];
+    expect(blob.type).toBe('image/webp');
+    expect(blob.size).toBe(webpVp8Header(384, 384).byteLength);
+
+    loaded.dispose();
+  });
+
+  it.each([
+    ['GIF', 'image/gif', Uint8Array.of(
+      0x47, 0x49, 0x46, 0x38, 0x39, 0x61,
+      0x80, 0x01, 0x80, 0x01
+    )],
+    ['animated WebP', 'image/webp', animatedWebpHeader(384, 384)]
+  ])('rejects a transformed %s response before image decode', async (
+    _label,
+    mimeType,
+    bytes
+  ) => {
+    const environment = successfulEnvironment(new AutoLoadingImage(384, 384));
+    environment.fetchImplementation = vi.fn(async () => streamedResponse(
+      [bytes],
+      { 'content-type': mimeType }
+    )) as unknown as typeof fetch;
+
+    await expect(loadBoundedRealmProfileImage(
+      ANIMATED_ARWEAVE_PFP_URL,
+      environment
+    )).rejects.toThrow('Realm profile image is unavailable.');
+    expect(environment.fetchImplementation).toHaveBeenCalledWith(
+      STATIC_ARWEAVE_PFP_URL,
+      expect.anything()
+    );
+    expect(environment.createImage).not.toHaveBeenCalled();
+    expect(environment.createObjectUrl).not.toHaveBeenCalled();
   });
 
   it('enforces the streamed byte boundary even when Content-Length is absent or false', async () => {

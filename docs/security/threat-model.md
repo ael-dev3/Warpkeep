@@ -157,6 +157,9 @@ operation. Anonymous visitors do not connect to the game database.
 - Remote profile images are HTTPS-only, credential-free, redirect-free, and
   bounded by transfer size, time, dimensions, decoded pixels, and static image
   formats. Failure preserves a local fallback.
+- Canonical Arweave profile sources are not fetched directly. They may resolve
+  only through the exact static `anim=false` Farcaster delivery transform, then
+  re-enter the same reviewed-host, byte, decode, and static-format checks.
 - Public error messages and logs omit proof material, tokens, cookies, QR
   payloads, relay secrets, identities, private rows, and credentialed URLs.
 
