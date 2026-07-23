@@ -49,6 +49,17 @@ function ResourceOccupantProfilePanel({
   const titleId = `resource-occupant-${marker.resource}-${marker.siteId}-title`;
   const playerLabel = castleProfileLabel(profile);
   const keeperName = profile.displayName ?? playerLabel;
+  const ownRecordLabel = marker.source === 'generic-worker'
+    ? 'YOUR WORKER'
+    : 'YOUR EXPEDITION';
+  const recordLabel = marker.occupiedByViewer
+    ? ownRecordLabel
+    : marker.source === 'generic-worker'
+      ? 'PUBLIC WORKER RECORD'
+      : 'PUBLIC EXPEDITION RECORD';
+  const unitLabel = marker.workerOrdinal === undefined
+    ? 'EXPEDITION WAGON'
+    : `WORKER ${String(marker.workerOrdinal).padStart(2, '0')}`;
 
   useEffect(() => {
     closeButtonRef.current?.focus({ preventScroll: true });
@@ -70,7 +81,7 @@ function ResourceOccupantProfilePanel({
     >
       <header className="realm-resource-occupant-panel__header">
         <div>
-          <span>PUBLIC WORKER RECORD</span>
+          <span>{recordLabel}</span>
           <h2 id={titleId}>{RESOURCE_KIND_LABELS[marker.resource]}</h2>
         </div>
         <button
@@ -96,7 +107,7 @@ function ResourceOccupantProfilePanel({
           />
         </div>
         <div>
-          <span>WORKER {String(marker.workerOrdinal).padStart(2, '0')}</span>
+          <span>{unitLabel}</span>
           <strong>{RESOURCE_WORKER_PHASE_LABELS[marker.workerPhase]}</strong>
           <small>{RESOURCE_WORKER_RATE_LABELS[marker.resource]} · 30-day deployment</small>
         </div>
@@ -105,7 +116,7 @@ function ResourceOccupantProfilePanel({
       <section className="realm-resource-occupant-panel__identity" aria-label="Gathering player">
         <CastleProfileAvatar profile={profile} size="large" />
         <div>
-          <span>GATHERING BY</span>
+          <span>{marker.occupiedByViewer ? 'YOUR KEEP' : 'GATHERING BY'}</span>
           <strong>{keeperName}</strong>
           {keeperName !== playerLabel ? <small>{playerLabel}</small> : null}
         </div>
@@ -125,6 +136,10 @@ function ResourceOccupantProfilePanel({
           <dd>T{marker.tier}</dd>
         </div>
         <div>
+          <dt>Occupancy</dt>
+          <dd>{marker.occupiedByViewer ? ownRecordLabel : 'OCCUPIED'}</dd>
+        </div>
+        <div>
           <dt>Home castle</dt>
           <dd>{marker.castle.name}</dd>
         </div>
@@ -133,8 +148,8 @@ function ResourceOccupantProfilePanel({
           <dd>q {marker.castle.q} · r {marker.castle.r}</dd>
         </div>
         <div>
-          <dt>Command authority</dt>
-          <dd>Owning keeper only</dd>
+          <dt>Deployment limit</dt>
+          <dd>30 days</dd>
         </div>
       </dl>
 
@@ -153,6 +168,7 @@ function ResourceOccupantProfilePanel({
 export function RealmResourceOccupantMarkers({
   markers,
   visibleMarkerKeys,
+  presenceMarkerKeys = visibleMarkerKeys,
   selectedMarker,
   onMarkerLayout,
   onSelect,
@@ -160,6 +176,7 @@ export function RealmResourceOccupantMarkers({
   onFocusCastle
 }: Readonly<{
   markers: readonly RealmResourceOccupantMarker[];
+  presenceMarkerKeys?: readonly string[];
   visibleMarkerKeys: readonly string[];
   selectedMarker: RealmResourceOccupantMarker | null;
   onMarkerLayout: () => void;
@@ -171,11 +188,29 @@ export function RealmResourceOccupantMarkers({
   const markerButtonsRef = useRef(new Map<string, HTMLButtonElement>());
   const focusedMarkerKeyRef = useRef<string | null>(null);
   const returningFocusKeyRef = useRef<string | null>(null);
+  const directSelectionKeyRef = useRef<string | null>(null);
+  const previousSelectedKeyRef = useRef<string | null>(null);
   const availableKeySet = useMemo(
     () => new Set(markers.map(realmResourceOccupantMarkerKey)),
     [markers]
   );
+  const markersByKey = useMemo(
+    () => new Map(markers.map((marker) => [
+      realmResourceOccupantMarkerKey(marker),
+      marker
+    ] as const)),
+    [markers]
+  );
   const visibleKeySet = useMemo(() => new Set(visibleMarkerKeys), [visibleMarkerKeys]);
+  const presenceMarkers = useMemo(() => {
+    const seen = new Set<string>();
+    return presenceMarkerKeys.flatMap((key) => {
+      if (seen.has(key)) return [];
+      seen.add(key);
+      const marker = markersByKey.get(key);
+      return marker ? [marker] : [];
+    });
+  }, [markersByKey, presenceMarkerKeys]);
   const visibleMarkers = useMemo(() => markers.filter((marker) => (
     visibleKeySet.has(realmResourceOccupantMarkerKey(marker))
   )), [markers, visibleKeySet]);
@@ -188,7 +223,7 @@ export function RealmResourceOccupantMarkers({
     // imperatively by the renderer. Reapply the latest frame after a public
     // snapshot adds/removes an occupied site so no stale hidden marker remains.
     onMarkerLayout();
-  }, [markers, visibleMarkerKeys, onMarkerLayout]);
+  }, [markers, presenceMarkerKeys, visibleMarkerKeys, onMarkerLayout]);
 
   useEffect(() => {
     if (rovingKey !== null && visibleKeySet.has(rovingKey)) return;
@@ -217,8 +252,16 @@ export function RealmResourceOccupantMarkers({
     const selectedKey = selectedMarker
       ? realmResourceOccupantMarkerKey(selectedMarker)
       : null;
+    const previousSelectedKey = previousSelectedKeyRef.current;
+    previousSelectedKeyRef.current = selectedKey;
     if (selectedKey !== null) {
-      returningFocusKeyRef.current = selectedKey;
+      if (previousSelectedKey === selectedKey) return;
+      if (directSelectionKeyRef.current === selectedKey) {
+        directSelectionKeyRef.current = null;
+      } else {
+        directSelectionKeyRef.current = null;
+        returningFocusKeyRef.current = null;
+      }
       return;
     }
     const returningKey = returningFocusKeyRef.current;
@@ -279,74 +322,134 @@ export function RealmResourceOccupantMarkers({
   };
 
   return (
-    <div
-      aria-label="Other players gathering resources"
-      className="realm-resource-occupant-markers"
-      data-resource-occupant-markers="true"
-      ref={containerRef}
-      role="group"
-      tabIndex={-1}
-    >
-      {visibleMarkers.map((marker) => {
-        const key = realmResourceOccupantMarkerKey(marker);
-        const playerLabel = castleProfileLabel(marker.profile);
-        const positionStyle = {
-          '--realm-resource-marker-x': '0px',
-          '--realm-resource-marker-y': '0px'
-        } as CSSProperties;
-        return (
-          <button
-            aria-label={`Inspect ${playerLabel} gathering at ${RESOURCE_KIND_LABELS[marker.resource]}, cell ${marker.nodeCoord.q},${marker.nodeCoord.r}`}
-            className="realm-resource-occupant-marker"
-            data-resource-occupant-key={key}
-            data-resource-kind={marker.resource}
-            data-projected-visible="false"
-            key={key}
-            onClick={() => {
-              setRovingKey(key);
-              onSelect(marker);
-            }}
-            onKeyDown={(event) => {
-              if (event.key !== 'ArrowLeft' && event.key !== 'ArrowUp'
-                && event.key !== 'ArrowRight' && event.key !== 'ArrowDown') return;
-              event.preventDefault();
-              moveRovingFocus(
-                key,
-                event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1
-              );
-            }}
-            onFocus={() => {
-              focusedMarkerKeyRef.current = key;
-            }}
-            ref={(element) => {
-              if (element) markerButtonsRef.current.set(key, element);
-              else markerButtonsRef.current.delete(key);
-            }}
-            style={positionStyle}
-            tabIndex={rovingKey === key ? 0 : -1}
-            type="button"
-          >
-            <CastleProfileAvatar profile={marker.profile} size="compact" />
-            <span aria-hidden="true" className="realm-resource-occupant-marker__ring" />
-            <span className="realm-resource-occupant-marker__kind" aria-hidden="true">
-              {marker.resource === 'gold' ? 'G' : marker.resource === 'food' ? 'F' : marker.resource === 'wood' ? 'W' : 'S'}
+    <>
+      <div
+        aria-hidden="true"
+        className="realm-resource-occupant-presences"
+        data-resource-occupant-presences="true"
+        onClick={(event) => {
+          const target = (event.target as Element).closest<HTMLElement>(
+            '[data-resource-occupant-lane="presence"][data-resource-occupant-key]'
+          );
+          if (!target || !event.currentTarget.contains(target)) return;
+          const marker = markersByKey.get(target.dataset.resourceOccupantKey ?? '');
+          if (!marker) return;
+          event.preventDefault();
+          event.stopPropagation();
+          // Passive presences are pointer-accessible without becoming hundreds
+          // of tab stops. Closing their record must not arm a future focus jump.
+          directSelectionKeyRef.current = null;
+          returningFocusKeyRef.current = null;
+          onSelect(marker);
+        }}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        {presenceMarkers.map((marker) => {
+          const key = realmResourceOccupantMarkerKey(marker);
+          return (
+            <span
+              className="realm-resource-occupant-presence"
+              data-projected-visible="false"
+              data-resource-kind={marker.resource}
+              data-resource-occupant-key={key}
+              data-resource-occupant-lane="presence"
+              key={`presence:${key}`}
+              title={`Open ${castleProfileLabel(marker.profile)} at ${RESOURCE_KIND_LABELS[marker.resource]}`}
+              style={{
+                '--realm-resource-marker-x': '0px',
+                '--realm-resource-marker-y': '0px'
+              } as CSSProperties}
+            >
+              <CastleProfileAvatar profile={marker.profile} size="compact" />
             </span>
-          </button>
-        );
-      })}
+          );
+        })}
+      </div>
 
-      {selectedMarker ? (
-        <ResourceOccupantProfilePanel
-          key={`${realmResourceOccupantMarkerKey(selectedMarker)}:${selectedMarker.castle.castleId}`}
-          marker={selectedMarker}
-          profile={selectedMarker.profile}
-          onRequestClose={onRequestClose}
-          onFocusCastle={() => {
-            returningFocusKeyRef.current = null;
-            onFocusCastle(selectedMarker);
-          }}
-        />
-      ) : null}
-    </div>
+      <div
+        aria-label="Players gathering resources"
+        className="realm-resource-occupant-markers"
+        data-resource-occupant-markers="true"
+        ref={containerRef}
+        role="group"
+        tabIndex={-1}
+      >
+        {visibleMarkers.map((marker) => {
+          const key = realmResourceOccupantMarkerKey(marker);
+          const playerLabel = castleProfileLabel(marker.profile);
+          const ownershipLabel = marker.occupiedByViewer
+            ? marker.source === 'generic-worker' ? 'YOUR WORKER' : 'YOUR EXPEDITION'
+            : playerLabel;
+          const actionLabel = marker.occupiedByViewer
+            ? `${ownershipLabel} at ${RESOURCE_KIND_LABELS[marker.resource]}`
+            : `${playerLabel} gathering at ${RESOURCE_KIND_LABELS[marker.resource]}`;
+          const positionStyle = {
+            '--realm-resource-marker-x': '0px',
+            '--realm-resource-marker-y': '0px'
+          } as CSSProperties;
+          return (
+            <button
+              aria-label={`Inspect ${actionLabel}, cell ${marker.nodeCoord.q},${marker.nodeCoord.r}`}
+              className="realm-resource-occupant-marker"
+              data-occupied-by-viewer={marker.occupiedByViewer ? 'true' : 'false'}
+              data-resource-occupant-key={key}
+              data-resource-kind={marker.resource}
+              data-resource-occupant-source={marker.source}
+              data-resource-occupant-lane="control"
+              data-projected-visible="false"
+              key={key}
+              onClick={() => {
+                setRovingKey(key);
+                directSelectionKeyRef.current = key;
+                returningFocusKeyRef.current = key;
+                onSelect(marker);
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== 'ArrowLeft' && event.key !== 'ArrowUp'
+                  && event.key !== 'ArrowRight' && event.key !== 'ArrowDown') return;
+                event.preventDefault();
+                moveRovingFocus(
+                  key,
+                  event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1
+                );
+              }}
+              onFocus={() => {
+                focusedMarkerKeyRef.current = key;
+              }}
+              ref={(element) => {
+                if (element) markerButtonsRef.current.set(key, element);
+                else markerButtonsRef.current.delete(key);
+              }}
+              style={positionStyle}
+              tabIndex={rovingKey === key ? 0 : -1}
+              type="button"
+            >
+              <CastleProfileAvatar profile={marker.profile} size="compact" />
+              <span aria-hidden="true" className="realm-resource-occupant-marker__ring" />
+              <span className="realm-resource-occupant-marker__kind" aria-hidden="true">
+                {marker.resource === 'gold' ? 'G' : marker.resource === 'food' ? 'F' : marker.resource === 'wood' ? 'W' : 'S'}
+              </span>
+              <span className="realm-resource-occupant-marker__owner" title={ownershipLabel}>
+                {ownershipLabel}
+              </span>
+            </button>
+          );
+        })}
+
+        {selectedMarker ? (
+          <ResourceOccupantProfilePanel
+            key={`${realmResourceOccupantMarkerKey(selectedMarker)}:${selectedMarker.castle.castleId}`}
+            marker={selectedMarker}
+            profile={selectedMarker.profile}
+            onRequestClose={onRequestClose}
+            onFocusCastle={() => {
+              directSelectionKeyRef.current = null;
+              returningFocusKeyRef.current = null;
+              onFocusCastle(selectedMarker);
+            }}
+          />
+        ) : null}
+      </div>
+    </>
   );
 }

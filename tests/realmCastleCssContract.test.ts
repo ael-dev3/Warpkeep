@@ -366,13 +366,28 @@ describe('compact Realm CSS contract', () => {
   });
 
   it('keeps resource occupants camera-stable, device-safe, and touch accessible', () => {
+    const presenceLayer = block(MAP, '.realm-resource-occupant-presences {');
+    const presence = block(MAP, '.realm-resource-occupant-presence {');
     const marker = block(MAP, '.realm-resource-occupant-marker {');
+    const markerLayer = block(MAP, '.realm-resource-occupant-markers {');
+    const castleLayer = block(PRESENTATION, '.realm-castle-labels {');
     const panel = block(MAP, '.realm-resource-occupant-panel {');
     const close = block(MAP, '.realm-resource-occupant-panel__close {');
     const castleAction = block(MAP, '.realm-resource-occupant-panel__castle-action {');
     const reducedMotion = block(MAP, '@media (prefers-reduced-motion: reduce) {');
     const reducedPanel = block(reducedMotion, '.realm-resource-occupant-panel {');
 
+    expect(presenceLayer).toContain('z-index: 3;');
+    expect(castleLayer).toContain('z-index: 4;');
+    expect(markerLayer).toContain('z-index: 5;');
+    expect(presence).toContain('--realm-resource-presence-size: 32px;');
+    expect(presence).toContain('--realm-resource-presence-hit-size: 44px;');
+    expect(presence).toContain('width: var(--realm-resource-presence-hit-size);');
+    expect(presence).toContain('height: var(--realm-resource-presence-hit-size);');
+    expect(presence).toContain('pointer-events: auto;');
+    expect(presence).toContain('cursor: pointer;');
+    expect(presence).toContain('touch-action: manipulation;');
+    expect(presence).not.toMatch(/transition:[^;]*transform/);
     expect(marker).toContain('--realm-resource-marker-size: 44px;');
     expect(marker).not.toMatch(/transition:[^;]*transform/);
     expect(panel).toContain('right: max(1rem, env(safe-area-inset-right));');

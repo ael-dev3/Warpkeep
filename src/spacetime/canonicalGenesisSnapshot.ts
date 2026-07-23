@@ -635,9 +635,9 @@ export function validateCanonicalGenesisSnapshot(
   const stoneNodeOccupations = stoneSites !== undefined
     ? freezeRows(candidate.stoneNodeOccupations!)
     : undefined;
-  // Generic workers are a staged additive projection. Preserve only the
-  // complete public trio; absent or malformed rows keep the legacy renderer
-  // path instead of revoking the canonical world snapshot.
+  // Generic workers are a staged additive projection. Preserve the validated
+  // system row even when detail rows are absent so active mode remains a
+  // fail-closed authority signal; strict presentation owns the complete join.
   const rawWorkerSystem = candidate.workerSystem;
   const workerSystem = rawWorkerSystem === undefined ? undefined : freezePresentationValue(rawWorkerSystem);
   const workerWorkers = candidate.workerWorkers === undefined ? undefined : freezePresentationValue(candidate.workerWorkers);

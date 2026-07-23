@@ -16,6 +16,7 @@ describe('realm interaction state', () => {
       inspectorTarget: null,
       inspectorOpen: false,
       resourceOccupantKey: null,
+      resourceOccupantReturnTarget: null,
       cameraTarget: { kind: 'realm' },
       navigatorOpen: false,
       keyboardIntent: { sequence: 0, target: { kind: 'map' } }
@@ -328,7 +329,8 @@ describe('realm interaction state', () => {
     expect(fromInspector).toMatchObject({
       inspectorOpen: false,
       navigatorOpen: false,
-      resourceOccupantKey: 'gold:genesis-001:gold:0001'
+      resourceOccupantKey: 'gold:genesis-001:gold:0001',
+      resourceOccupantReturnTarget: null
     });
     expect(fromInspector.cameraTarget).toBe(inspector.cameraTarget);
     expect(fromInspector.keyboardIntent).toBe(inspector.keyboardIntent);
@@ -337,7 +339,8 @@ describe('realm interaction state', () => {
     expect(navigator).toMatchObject({
       inspectorOpen: false,
       navigatorOpen: true,
-      resourceOccupantKey: null
+      resourceOccupantKey: null,
+      resourceOccupantReturnTarget: null
     });
     const fromNavigator = realmInteractionReducer(navigator, {
       type: 'activate-resource-occupant',
@@ -346,10 +349,45 @@ describe('realm interaction state', () => {
     expect(fromNavigator).toMatchObject({
       inspectorOpen: false,
       navigatorOpen: false,
-      resourceOccupantKey: 'food:genesis-001:food:0001'
+      resourceOccupantKey: 'food:genesis-001:food:0001',
+      resourceOccupantReturnTarget: null
     });
     expect(fromNavigator.cameraTarget).toBe(navigator.cameraTarget);
     expect(fromNavigator.keyboardIntent).toBe(navigator.keyboardIntent);
+  });
+
+  it('restores a resource-site inspector on dismissal but not snapshot invalidation', () => {
+    const inspector = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
+      type: 'activate-stone-site',
+      siteId: 'genesis-001:stone:0001',
+      coord: { q: 6, r: -1 }
+    });
+    const record = realmInteractionReducer(inspector, {
+      type: 'activate-resource-occupant',
+      key: 'stone:genesis-001:stone:0001',
+      returnToInspector: true
+    });
+
+    const dismissed = realmInteractionReducer(record, {
+      type: 'close-resource-occupant'
+    });
+    expect(dismissed.inspectorOpen).toBe(true);
+    expect(dismissed.cameraTarget).toBe(inspector.cameraTarget);
+    expect(dismissed.keyboardIntent).toEqual({
+      sequence: 2,
+      target: {
+        kind: 'stone-quarry-inspector',
+        siteId: 'genesis-001:stone:0001'
+      }
+    });
+
+    const invalidated = realmInteractionReducer(record, {
+      type: 'invalidate-resource-occupant'
+    });
+    expect(invalidated.inspectorOpen).toBe(false);
+    expect(invalidated.resourceOccupantReturnTarget).toBeNull();
+    expect(invalidated.keyboardIntent).toBe(record.keyboardIntent);
+    expect(invalidated.cameraTarget).toBe(inspector.cameraTarget);
   });
 
   it('clears a public worker record on terrain selection, recenter, and Escape', () => {

@@ -183,6 +183,8 @@ describe('Hegemony Logging Camp record art', () => {
     expect(component).not.toMatch(/https?:\/\//i);
     expect(map).toContain('LoggingCampInspectionPanel');
     expect(map).toContain('privateExpedition={observerMode ? undefined : woodExpedition}');
-    expect(map).toContain('onDispatchWoodExpedition={observerMode ? undefined : onDispatchWoodExpedition}');
+    expect(map).toMatch(
+      /onDispatchWoodExpedition=\{\s*observerMode \|\| legacyResourceDispatchBlocked\s*\? undefined\s*: onDispatchWoodExpedition\s*\}/
+    );
   });
 });

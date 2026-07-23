@@ -30,6 +30,11 @@ export function renderedWebglLabelDisplacementClassificationValid(
   markedDisplaced: boolean
 ): boolean;
 
+export function isBenignStaleFetchInterceptionError(
+  method: string,
+  value: unknown
+): boolean;
+
 export function parseHeadlessChromeCodeSignature(value: unknown): Readonly<{
   executable: typeof RENDERED_WEBGL_QA_CHROME;
   identifier: 'com.google.Chrome';
@@ -232,6 +237,53 @@ export function parseRenderedWebglInspectorLabelActivationEvidence(value: unknow
   inspectorLabelActivated: true;
 }>;
 
+export type RenderedWebglResourceOccupantEvidence = Readonly<{
+  cameraNeutral: true;
+  cameraNeutralAfterClose: true;
+  cameraAnchorPopulationValid: true;
+  cameraIndependentAnchorCoverage: true;
+  cameraNeutralWhileOpen: true;
+  factsCorrect: true;
+  focusedControlActivation: true;
+  identityRecordCorrect: true;
+  identityRoleCorrect: true;
+  identityTitleCorrect: true;
+  identityUsernameCorrect: true;
+  keyboardControlCountBounded: true;
+  layeringValid: true;
+  markerControlVisible: true;
+  markerGeometryValid: true;
+  markerPortraitReady: true;
+  markerPortraitElementPresent: true;
+  markerPresent: true;
+  markerProjectedVisible: true;
+  markerHitTestable: true;
+  overviewPresenceDirectHit: true;
+  overviewRecordCorrect: true;
+  overviewTargetPassiveOnly: true;
+  presenceComputedVisible: true;
+  presenceAvatarGeometryValid: true;
+  presenceGeometryValid: true;
+  presenceDelegatedActivation: true;
+  presenceHitTestable: true;
+  presencePointerActivatable: true;
+  presencePortraitElementPresent: true;
+  presencePortraitReady: true;
+  presenceVisible: true;
+  privacyBounded: true;
+  recordHeaderCorrect: true;
+  reducedMotionPreferenceCorrect: true;
+  publicRecordCorrect: true;
+  publicRecordOpened: true;
+  rendererStable: true;
+  workerRecordCorrect: true;
+}>;
+
+/** Boolean-only local proof; no public record value or private identity data crosses the boundary. */
+export function parseRenderedWebglResourceOccupantEvidence(
+  value: unknown
+): RenderedWebglResourceOccupantEvidence;
+
 /** Structural keyboard evidence only; it never includes a castle or identity value. */
 export function parseRenderedWebglLabelKeyboardEvidence(value: unknown): Readonly<{
   arrowMoved: true;
@@ -283,6 +335,12 @@ export function applyRenderedWebglCaseInteraction(
   interaction: RenderedWebglBrowserProbeInteraction,
   presentationMode?: RenderedWebglBrowserProbePresentationMode,
 ): Promise<RenderedWebglBrowserProbeInteractionEvidence>;
+
+export function applyRenderedWebglResourceOccupantInteraction(
+  session: RenderedWebglCastleCanvasPointerSession,
+  presentationMode: RenderedWebglBrowserProbePresentationMode,
+  expectedReducedMotion?: boolean,
+): Promise<RenderedWebglResourceOccupantEvidence>;
 
 export function analyzeRenderedWebglPngScreenshot(
   value: Buffer,

@@ -10,6 +10,7 @@ function marker(
   overrides: Partial<RealmResourceOccupantMarker> = {}
 ): RealmResourceOccupantMarker {
   return {
+    source: 'generic-worker',
     resource: 'wood',
     siteId,
     nodeCoord: { q: 3, r: -2 },
@@ -17,6 +18,10 @@ function marker(
     workerOrdinal: 2,
     workerPhase: 'gathering',
     timelineRevision: 1,
+    occupiedByViewer: false,
+    startedAtMicros: 1n,
+    arrivesAtMicros: 2n,
+    gatheringEndsAtMicros: 3n,
     castle: {
       castleId: 22,
       name: 'Sunlit Bastion',
@@ -38,6 +43,36 @@ const second = marker('genesis-001:wood:0002', {
   workerOrdinal: 3
 });
 
+function legacyMarker(
+  overrides: Partial<RealmResourceOccupantMarker> = {}
+): RealmResourceOccupantMarker {
+  return {
+    source: 'legacy-expedition',
+    resource: 'stone',
+    siteId: 'genesis-001:stone:0001',
+    nodeCoord: { q: 7, r: -4 },
+    tier: 1,
+    workerPhase: 'returning',
+    occupiedByViewer: false,
+    startedAtMicros: 1n,
+    arrivesAtMicros: 2n,
+    gatheringEndsAtMicros: 3n,
+    returnsAtMicros: 4n,
+    castle: {
+      castleId: 22,
+      name: 'Sunlit Bastion',
+      q: 1,
+      r: -1
+    },
+    profile: {
+      canonicalUsername: 'keeper',
+      displayName: 'Keeper',
+      communityStatsVisible: false
+    },
+    ...overrides
+  };
+}
+
 function Harness() {
   const [selected, setSelected] = useState<RealmResourceOccupantMarker | null>(null);
   return (
@@ -54,6 +89,51 @@ function Harness() {
 }
 
 describe('resource occupant marker surface', () => {
+  it('keeps every presence pointer-accessible beside the bounded keyboard-control lane', () => {
+    const markers = Array.from({ length: 40 }, (_, index) => marker(
+      `genesis-001:wood:${String(index + 1).padStart(4, '0')}`,
+      { nodeCoord: { q: index, r: -index } }
+    ));
+    const presenceMarkerKeys = markers.map((entry) => (
+      `wood:${entry.siteId}`
+    )).reverse();
+    const visibleMarkerKeys = presenceMarkerKeys.slice(0, 24);
+    const select = vi.fn();
+    const { container } = render(
+      <RealmResourceOccupantMarkers
+        markers={markers}
+        presenceMarkerKeys={presenceMarkerKeys}
+        visibleMarkerKeys={visibleMarkerKeys}
+        selectedMarker={null}
+        onMarkerLayout={() => undefined}
+        onSelect={select}
+        onRequestClose={() => undefined}
+        onFocusCastle={() => undefined}
+      />
+    );
+
+    expect(container.querySelectorAll('.realm-resource-occupant-presence')).toHaveLength(40);
+    expect(screen.getAllByRole('button')).toHaveLength(24);
+    expect(container.querySelector('.realm-resource-occupant-presences')
+      ?.getAttribute('aria-hidden')).toBe('true');
+    expect(container.querySelectorAll(
+      '.realm-resource-occupant-presence[data-resource-occupant-lane="presence"]'
+    )).toHaveLength(40);
+    expect([...container.querySelectorAll<HTMLElement>(
+      '.realm-resource-occupant-presence'
+    )].map((entry) => entry.dataset.resourceOccupantKey)).toEqual(presenceMarkerKeys);
+
+    const passiveOnlyPresence = [...container.querySelectorAll<HTMLElement>(
+      '.realm-resource-occupant-presence'
+    )].find((entry) => (
+      entry.dataset.resourceOccupantKey === 'wood:genesis-001:wood:0001'
+    ));
+    expect(passiveOnlyPresence).toBeTruthy();
+    fireEvent.click(passiveOnlyPresence!);
+    expect(select).toHaveBeenCalledOnce();
+    expect(select).toHaveBeenCalledWith(markers[0]);
+  });
+
   it('mounts only bounded projected-visible marker members', () => {
     const { rerender } = render(
       <RealmResourceOccupantMarkers
@@ -108,6 +188,49 @@ describe('resource occupant marker surface', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close player record' }));
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(document.activeElement).toBe(trigger);
+  });
+
+  it('identifies the viewer’s generic assignment as their worker', () => {
+    const own = marker('genesis-001:wood:0003', { occupiedByViewer: true });
+    render(
+      <RealmResourceOccupantMarkers
+        markers={[own]}
+        visibleMarkerKeys={['wood:genesis-001:wood:0003']}
+        selectedMarker={own}
+        onMarkerLayout={() => undefined}
+        onSelect={() => undefined}
+        onRequestClose={() => undefined}
+        onFocusCastle={() => undefined}
+      />
+    );
+
+    expect(screen.getByRole('button', {
+      name: /Inspect YOUR WORKER at Logging Camp/i
+    })).toBeTruthy();
+    expect(screen.getAllByText('YOUR WORKER')).toHaveLength(3);
+    expect(screen.getByText('YOUR KEEP')).toBeTruthy();
+    expect(screen.getByText('WORKER 02')).toBeTruthy();
+  });
+
+  it('keeps a legacy returning expedition visible as a read-only public record', () => {
+    const legacy = legacyMarker();
+    render(
+      <RealmResourceOccupantMarkers
+        markers={[legacy]}
+        visibleMarkerKeys={['stone:genesis-001:stone:0001']}
+        selectedMarker={legacy}
+        onMarkerLayout={() => undefined}
+        onSelect={() => undefined}
+        onRequestClose={() => undefined}
+        onFocusCastle={() => undefined}
+      />
+    );
+
+    expect(screen.getByText('PUBLIC EXPEDITION RECORD')).toBeTruthy();
+    expect(screen.getByText('EXPEDITION WAGON')).toBeTruthy();
+    expect(screen.getByText('RETURNING TO KEEP')).toBeTruthy();
+    expect(screen.queryByText(/command authority|owning keeper/i)).toBeNull();
+    expect(screen.queryByRole('button', { name: /recall|collect|claim/i })).toBeNull();
   });
 
   it('gives an open worker record first Escape priority from outside the panel', () => {
@@ -224,6 +347,42 @@ describe('resource occupant marker surface', () => {
     outside.focus();
 
     act(() => restoreLease());
+    expect(document.activeElement).toBe(outside);
+  });
+
+  it('does not arm a delayed focus jump when a passive presence opens the record', () => {
+    let revealControl: () => void = () => undefined;
+    function PassivePresenceHarness() {
+      const [selected, setSelected] = useState<RealmResourceOccupantMarker | null>(null);
+      const [visible, setVisible] = useState<readonly string[]>([]);
+      revealControl = () => setVisible(['wood:genesis-001:wood:0001']);
+      return (
+        <>
+          <button type="button">Outside control</button>
+          <RealmResourceOccupantMarkers
+            markers={[first]}
+            presenceMarkerKeys={['wood:genesis-001:wood:0001']}
+            visibleMarkerKeys={visible}
+            selectedMarker={selected}
+            onMarkerLayout={() => undefined}
+            onSelect={setSelected}
+            onRequestClose={() => setSelected(null)}
+            onFocusCastle={() => undefined}
+          />
+        </>
+      );
+    }
+    const { container } = render(<PassivePresenceHarness />);
+    const presence = container.querySelector<HTMLElement>(
+      '.realm-resource-occupant-presence'
+    );
+    expect(presence).toBeTruthy();
+    fireEvent.click(presence!);
+    fireEvent.click(screen.getByRole('button', { name: 'Close player record' }));
+
+    const outside = screen.getByRole('button', { name: 'Outside control' });
+    outside.focus();
+    act(() => revealControl());
     expect(document.activeElement).toBe(outside);
   });
 

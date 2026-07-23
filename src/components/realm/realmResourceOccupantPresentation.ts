@@ -3,6 +3,11 @@ import type {
   RealmCastlePublicPresentation,
   RealmLabelReservedRect
 } from './realmCastlePresentation';
+import {
+  normalizeRealmUsername,
+  safeRealmProfileImageUrl
+} from './realmCastlePresentation';
+import { normalizePublicProfileText } from '../../security/publicProfileText';
 import type { RealmCastleProjection } from './realmMapProjectionStability';
 import type {
   RealmFoodNodePresentation
@@ -31,17 +36,44 @@ export type RealmResourceOccupantNode =
   | RealmWoodNodePresentation
   | RealmStoneNodePresentation;
 
+export type RealmResourceOccupantProfile = Readonly<Pick<
+  RealmCastlePublicPresentation,
+  'canonicalUsername' | 'displayName' | 'pfpUrl' | 'publicBio' | 'communityStatsVisible'
+>>;
+
 export type RealmResourceOccupantMarker = Readonly<{
+  source: 'legacy-expedition' | 'generic-worker';
   resource: RealmResourceKind;
   siteId: string;
   nodeCoord: HexCoord;
   tier: number;
-  workerOrdinal: RealmWorkerOrdinal;
-  workerPhase: 'outbound' | 'gathering';
-  timelineRevision: number;
+  workerOrdinal?: RealmWorkerOrdinal;
+  workerPhase: 'outbound' | 'gathering' | 'returning';
+  timelineRevision?: number;
+  occupiedByViewer: boolean;
+  startedAtMicros: bigint;
+  arrivesAtMicros: bigint;
+  gatheringEndsAtMicros: bigint;
+  returnsAtMicros?: bigint;
   castle: Readonly<Pick<RealmCastleProjection, 'castleId' | 'name' | 'q' | 'r'>>;
-  profile: RealmCastlePublicPresentation;
+  profile: RealmResourceOccupantProfile;
 }>;
+
+export type RealmResourceOccupantResolution =
+  | Readonly<{
+    status: 'ready';
+    markers: readonly RealmResourceOccupantMarker[];
+  }>
+  | Readonly<{
+    status: 'invalid';
+    markers: readonly [];
+  }>;
+
+const INVALID_RESOURCE_OCCUPANT_RESOLUTION: RealmResourceOccupantResolution =
+  Object.freeze({
+    status: 'invalid',
+    markers: Object.freeze([] as const)
+  });
 
 export const RESOURCE_KIND_LABELS: Readonly<Record<RealmResourceKind, string>> = Object.freeze({
   gold: 'Gold Mine',
@@ -59,36 +91,74 @@ export const RESOURCE_WORKER_RATE_LABELS: Readonly<Record<RealmResourceKind, str
 
 export const RESOURCE_WORKER_PHASE_LABELS: Readonly<Record<RealmResourceOccupantMarker['workerPhase'], string>> = Object.freeze({
   outbound: 'EN ROUTE TO SITE',
-  gathering: 'GATHERING AT SITE'
+  gathering: 'GATHERING AT SITE',
+  returning: 'RETURNING TO KEEP'
 });
+
+/** Four stable assignments across the maximum 100-castle Genesis roster. */
+export const MAX_RESOURCE_OCCUPANT_ASSIGNMENTS = 400;
+const U64_MAX = (1n << 64n) - 1n;
+const RESOURCE_KINDS = new Set<RealmResourceKind>(['gold', 'food', 'wood', 'stone']);
+const RESOURCE_NODE_AVAILABILITIES = new Set([
+  'available',
+  'unavailable',
+  'outbound',
+  'gathering',
+  'returning'
+]);
 
 type ResourceNodeBucket = Readonly<{
   resource: RealmResourceKind;
   nodes: readonly RealmResourceOccupantNode[];
 }>;
 
+function occupantProfile(
+  profile: RealmCastlePublicPresentation
+): RealmResourceOccupantProfile | undefined {
+  if (typeof profile.communityStatsVisible !== 'boolean') return undefined;
+  const canonicalUsername = normalizeRealmUsername(profile.canonicalUsername);
+  const displayName = normalizePublicProfileText(profile.displayName, 80);
+  const pfpUrl = safeRealmProfileImageUrl(profile.pfpUrl);
+  const publicBio = normalizePublicProfileText(profile.publicBio, 320);
+  return Object.freeze({
+    ...(canonicalUsername === undefined ? {} : { canonicalUsername }),
+    ...(displayName === undefined ? {} : { displayName }),
+    ...(pfpUrl === undefined ? {} : { pfpUrl }),
+    ...(publicBio === undefined ? {} : { publicBio }),
+    communityStatsVisible: profile.communityStatsVisible
+  });
+}
+
 /**
- * Joins the validated generic-worker lease projection to the immutable public
- * site catalogs and the already-sanitized castle/profile graph. Legacy wagon
- * occupations are deliberately not interpreted as workers. Any incoherent
- * lease/catalog relationship fails the whole marker lane closed.
+ * Normalizes the live legacy expedition graph and the staged generic worker
+ * graph into one public-only occupied-site presentation. Generic leases win
+ * the canonical resourceKind:siteId key during transition, while legacy rows
+ * remain independently visible without generic activation. Any incoherent
+ * lease/catalog/castle/profile relationship fails the whole marker lane closed.
  */
-export function resolveRealmResourceOccupantMarkers(input: Readonly<{
+export function resolveRealmResourceOccupantMarkerResolution(input: Readonly<{
   buckets: readonly ResourceNodeBucket[];
   castles: readonly RealmCastleProjection[];
   profiles: ReadonlyMap<number, Readonly<{ profile: RealmCastlePublicPresentation }>>;
   workerProjection?: Pick<ReadyPublicWorkerProjection, 'mode' | 'occupations'>;
+  /** Raw active mode requires a coherent active public join before availability is trusted. */
+  activeGenericModeExpected?: boolean;
   ownCastleId?: number;
-}>): readonly RealmResourceOccupantMarker[] {
-  if (input.workerProjection?.mode !== 'active') return Object.freeze([]);
-
+}>): RealmResourceOccupantResolution {
+  if (input.activeGenericModeExpected && input.workerProjection?.mode !== 'active') {
+    return INVALID_RESOURCE_OCCUPANT_RESOLUTION;
+  }
   const castlesById = new Map<number, RealmCastleProjection>();
   for (const castle of input.castles) {
     if (
       !Number.isSafeInteger(castle.castleId)
       || castle.castleId <= 0
+      || !Number.isSafeInteger(castle.q)
+      || !Number.isSafeInteger(castle.r)
+      || typeof castle.name !== 'string'
+      || normalizePublicProfileText(castle.name, 80) !== castle.name
       || castlesById.has(castle.castleId)
-    ) return Object.freeze([]);
+    ) return INVALID_RESOURCE_OCCUPANT_RESOLUTION;
     castlesById.set(castle.castleId, castle);
   }
 
@@ -97,30 +167,32 @@ export function resolveRealmResourceOccupantMarkers(input: Readonly<{
     node: RealmResourceOccupantNode;
   }>>();
   for (const bucket of input.buckets) {
+    if (!RESOURCE_KINDS.has(bucket.resource)) return INVALID_RESOURCE_OCCUPANT_RESOLUTION;
     for (const node of bucket.nodes) {
       const key = `${bucket.resource}:${node.siteId}`;
       if (
         typeof node.siteId !== 'string'
         || node.siteId.length === 0
+        || !RESOURCE_NODE_AVAILABILITIES.has(node.availability)
         || nodesByKey.has(key)
-      ) return Object.freeze([]);
+      ) return INVALID_RESOURCE_OCCUPANT_RESOLUTION;
       nodesByKey.set(key, Object.freeze({ resource: bucket.resource, node }));
     }
   }
 
-  const markers: RealmResourceOccupantMarker[] = [];
-  const occupationKeys = new Set<string>();
-  for (const occupation of input.workerProjection.occupations) {
+  const markersByKey = new Map<string, RealmResourceOccupantMarker>();
+  const genericOccupationKeys = new Set<string>();
+  for (const occupation of input.workerProjection?.mode === 'active'
+    ? input.workerProjection.occupations
+    : []) {
     const key = `${occupation.resourceKind}:${occupation.siteId}`;
     const record = nodesByKey.get(key);
     if (
       occupation.nodeKey !== key
-      || occupationKeys.has(key)
+      || genericOccupationKeys.has(key)
       || record?.resource !== occupation.resourceKind
       || record.node.siteId !== occupation.siteId
-      || record.node.availability !== 'available'
-      || record.node.occupation !== undefined
-      || record.node.originCastle !== undefined
+      || record.node.availability === 'unavailable'
       || !Number.isSafeInteger(record.node.coord.q)
       || !Number.isSafeInteger(record.node.coord.r)
       || !Number.isSafeInteger(record.node.tier)
@@ -133,17 +205,24 @@ export function resolveRealmResourceOccupantMarkers(input: Readonly<{
       || !Number.isSafeInteger(occupation.timelineRevision)
       || occupation.timelineRevision <= 0
       || (occupation.phase !== 'outbound' && occupation.phase !== 'gathering')
-    ) return Object.freeze([]);
-    occupationKeys.add(key);
+      || typeof occupation.startedAtMicros !== 'bigint'
+      || typeof occupation.arrivesAtMicros !== 'bigint'
+      || typeof occupation.gatheringEndsAtMicros !== 'bigint'
+      || occupation.startedAtMicros < 0n
+      || occupation.gatheringEndsAtMicros > U64_MAX
+      || !(occupation.startedAtMicros < occupation.arrivesAtMicros)
+      || !(occupation.arrivesAtMicros < occupation.gatheringEndsAtMicros)
+    ) return INVALID_RESOURCE_OCCUPANT_RESOLUTION;
+    genericOccupationKeys.add(key);
 
     const castle = castlesById.get(occupation.originCastleId);
     const profile = castle
       ? input.profiles.get(occupation.originCastleId)?.profile
       : undefined;
-    if (!castle || !profile) return Object.freeze([]);
-    if (input.ownCastleId === occupation.originCastleId) continue;
-
-    markers.push(Object.freeze({
+    const publicProfile = profile ? occupantProfile(profile) : undefined;
+    if (!castle || !publicProfile) return INVALID_RESOURCE_OCCUPANT_RESOLUTION;
+    markersByKey.set(key, Object.freeze({
+      source: 'generic-worker',
       resource: record.resource,
       siteId: record.node.siteId,
       nodeCoord: Object.freeze({ q: record.node.coord.q, r: record.node.coord.r }),
@@ -151,19 +230,99 @@ export function resolveRealmResourceOccupantMarkers(input: Readonly<{
       workerOrdinal: occupation.workerOrdinal,
       workerPhase: occupation.phase,
       timelineRevision: occupation.timelineRevision,
+      occupiedByViewer: input.ownCastleId === occupation.originCastleId,
+      startedAtMicros: occupation.startedAtMicros,
+      arrivesAtMicros: occupation.arrivesAtMicros,
+      gatheringEndsAtMicros: occupation.gatheringEndsAtMicros,
       castle: Object.freeze({
         castleId: castle.castleId,
         name: castle.name,
         q: castle.q,
         r: castle.r
       }),
-      profile
+      profile: publicProfile
     }));
   }
 
-  return Object.freeze(markers.sort((left, right) => (
-    realmResourceOccupantMarkerKey(left).localeCompare(realmResourceOccupantMarkerKey(right))
-  )));
+  for (const [key, record] of nodesByKey) {
+    if (genericOccupationKeys.has(key)) continue;
+    const phase = record.node.availability;
+    if (phase !== 'outbound' && phase !== 'gathering' && phase !== 'returning') continue;
+    const occupation = record.node.occupation;
+    const originCastle = record.node.originCastle;
+    if (
+      occupation === undefined
+      || originCastle === undefined
+      || !Number.isSafeInteger(record.node.coord.q)
+      || !Number.isSafeInteger(record.node.coord.r)
+      || !Number.isSafeInteger(record.node.tier)
+      || record.node.tier <= 0
+      || occupation.siteId !== record.node.siteId
+      || occupation.phase !== phase
+      || originCastle.castleId !== occupation.originCastleId
+      || typeof occupation.startedAtMicros !== 'bigint'
+      || typeof occupation.arrivesAtMicros !== 'bigint'
+      || typeof occupation.gatheringEndsAtMicros !== 'bigint'
+      || typeof occupation.returnsAtMicros !== 'bigint'
+      || occupation.startedAtMicros < 0n
+      || occupation.returnsAtMicros > U64_MAX
+      || !(occupation.startedAtMicros < occupation.arrivesAtMicros)
+      || !(occupation.arrivesAtMicros < occupation.gatheringEndsAtMicros)
+      || !(occupation.gatheringEndsAtMicros < occupation.returnsAtMicros)
+    ) return INVALID_RESOURCE_OCCUPANT_RESOLUTION;
+    const castle = castlesById.get(occupation.originCastleId);
+    const profile = castle
+      ? input.profiles.get(occupation.originCastleId)?.profile
+      : undefined;
+    const publicProfile = profile ? occupantProfile(profile) : undefined;
+    const occupiedByViewer = input.ownCastleId === occupation.originCastleId;
+    if (
+      !castle
+      || !publicProfile
+      || castle.castleId !== originCastle.castleId
+      || castle.name !== originCastle.name
+      || castle.q !== originCastle.q
+      || castle.r !== originCastle.r
+      || record.node.occupiedByViewer !== occupiedByViewer
+    ) return INVALID_RESOURCE_OCCUPANT_RESOLUTION;
+    markersByKey.set(key, Object.freeze({
+      source: 'legacy-expedition',
+      resource: record.resource,
+      siteId: record.node.siteId,
+      nodeCoord: Object.freeze({ q: record.node.coord.q, r: record.node.coord.r }),
+      tier: record.node.tier,
+      workerPhase: phase,
+      occupiedByViewer,
+      startedAtMicros: occupation.startedAtMicros,
+      arrivesAtMicros: occupation.arrivesAtMicros,
+      gatheringEndsAtMicros: occupation.gatheringEndsAtMicros,
+      returnsAtMicros: occupation.returnsAtMicros,
+      castle: Object.freeze({
+        castleId: castle.castleId,
+        name: castle.name,
+        q: castle.q,
+        r: castle.r
+      }),
+      profile: publicProfile
+    }));
+  }
+
+  if (markersByKey.size > MAX_RESOURCE_OCCUPANT_ASSIGNMENTS) {
+    return INVALID_RESOURCE_OCCUPANT_RESOLUTION;
+  }
+  return Object.freeze({
+    status: 'ready',
+    markers: Object.freeze([...markersByKey.values()].sort((left, right) => (
+      realmResourceOccupantMarkerKey(left).localeCompare(realmResourceOccupantMarkerKey(right))
+    )))
+  });
+}
+
+/** Compatibility helper for consumers that only need the fail-closed marker lane. */
+export function resolveRealmResourceOccupantMarkers(
+  input: Parameters<typeof resolveRealmResourceOccupantMarkerResolution>[0]
+): readonly RealmResourceOccupantMarker[] {
+  return resolveRealmResourceOccupantMarkerResolution(input).markers;
 }
 
 export function realmResourceOccupantMarkerKey(
@@ -183,18 +342,85 @@ export function realmResourceOccupantMarkerForKey(
 
 export const MAX_VISIBLE_RESOURCE_OCCUPANT_MARKERS = 24;
 export const RESOURCE_OCCUPANT_MARKER_SIZE_PX = 44;
+/** Pointer hit area; the portrait inside remains visually compact at 32px. */
+export const RESOURCE_OCCUPANT_PRESENCE_SIZE_PX = 44;
+
+type ResourceOccupantControlOptions = Readonly<{
+  /** Ordered keys that should win the bounded interactive lane. */
+  priorityKeys?: readonly string[];
+  /** Controls whose visible-or-focusable owner caption expands collision bounds. */
+  persistentLabelKeys?: ReadonlySet<string>;
+}>;
 
 /**
- * Keeps the remote-avatar lane inside the actual viewport, away from reserved
- * controls, collision-free, and under a fixed DOM/network ceiling.
+ * Every finite in-frustum authoritative occupation retains a lightweight,
+ * non-interactive public-presence marker. This lane deliberately ignores
+ * control collisions and reserved UI; the separate interactive lane remains
+ * bounded and device-safe.
+ */
+export function visibleRealmResourceOccupantPresenceKeys(
+  frame: RealmResourceProjectionFrame,
+  availableKeys: ReadonlySet<string>
+): readonly string[] {
+  if (
+    !Number.isFinite(frame.width)
+    || !Number.isFinite(frame.height)
+    || frame.width <= 0
+    || frame.height <= 0
+  ) return Object.freeze([]);
+  const half = RESOURCE_OCCUPANT_PRESENCE_SIZE_PX / 2;
+  const seen = new Set<string>();
+  const keys = frame.markers
+    .filter((marker) => (
+      marker.visible
+      && availableKeys.has(realmResourceOccupantMarkerKey(marker))
+      && Number.isFinite(marker.x)
+      && Number.isFinite(marker.y)
+      && Number.isFinite(marker.depth)
+      && marker.x >= half
+      && marker.x <= frame.width - half
+      && marker.y >= RESOURCE_OCCUPANT_PRESENCE_SIZE_PX
+      && marker.y <= frame.height
+    ))
+    .sort((left, right) => (
+      // Passive portraits share one non-interactive stacking lane. Paint
+      // farther presences first so the nearer keeper remains visible on top.
+      right.depth - left.depth
+      || realmResourceOccupantMarkerKey(left).localeCompare(
+        realmResourceOccupantMarkerKey(right)
+      )
+    ))
+    .flatMap((marker) => {
+      const key = realmResourceOccupantMarkerKey(marker);
+      if (seen.has(key)) return [];
+      seen.add(key);
+      return [key];
+    });
+  return keys.length <= MAX_RESOURCE_OCCUPANT_ASSIGNMENTS
+    ? Object.freeze(keys)
+    : Object.freeze([]);
+}
+
+/**
+ * Keeps the interactive avatar lane inside the actual viewport, away from
+ * reserved controls, collision-free, and under a fixed direct-control ceiling.
  */
 export function visibleRealmResourceOccupantMarkerKeys(
   frame: RealmResourceProjectionFrame,
   availableKeys: ReadonlySet<string>,
-  reservedRects: readonly RealmLabelReservedRect[] = []
+  reservedRects: readonly RealmLabelReservedRect[] = [],
+  options: ResourceOccupantControlOptions = {}
 ): readonly string[] {
-  if (frame.width <= 0 || frame.height <= 0) return Object.freeze([]);
+  if (
+    !Number.isFinite(frame.width)
+    || !Number.isFinite(frame.height)
+    || frame.width <= 0
+    || frame.height <= 0
+  ) return Object.freeze([]);
   const half = RESOURCE_OCCUPANT_MARKER_SIZE_PX / 2;
+  const priority = new Map(
+    (options.priorityKeys ?? []).map((key, index) => [key, index] as const)
+  );
   const accepted: Array<Readonly<{
     key: string;
     left: number;
@@ -205,18 +431,23 @@ export function visibleRealmResourceOccupantMarkerKeys(
   const candidates = frame.markers
     .filter((marker) => {
       const key = realmResourceOccupantMarkerKey(marker);
+      const persistentLabel = options.persistentLabelKeys?.has(key) === true;
+      const horizontalInset = persistentLabel ? 66 : half;
+      const lowerInset = persistentLabel ? 23 : 0;
       return marker.visible
         && availableKeys.has(key)
         && Number.isFinite(marker.x)
         && Number.isFinite(marker.y)
         && Number.isFinite(marker.depth)
-        && marker.x >= half
-        && marker.x <= frame.width - half
+        && marker.x >= horizontalInset
+        && marker.x <= frame.width - horizontalInset
         && marker.y >= RESOURCE_OCCUPANT_MARKER_SIZE_PX
-        && marker.y <= frame.height;
+        && marker.y <= frame.height - lowerInset;
     })
     .sort((left, right) => (
-      left.depth - right.depth
+      (priority.get(realmResourceOccupantMarkerKey(left)) ?? Number.MAX_SAFE_INTEGER)
+        - (priority.get(realmResourceOccupantMarkerKey(right)) ?? Number.MAX_SAFE_INTEGER)
+      || left.depth - right.depth
       || realmResourceOccupantMarkerKey(left).localeCompare(
         realmResourceOccupantMarkerKey(right)
       )
@@ -225,12 +456,14 @@ export function visibleRealmResourceOccupantMarkerKeys(
   for (const marker of candidates) {
     if (accepted.length >= MAX_VISIBLE_RESOURCE_OCCUPANT_MARKERS) break;
     const key = realmResourceOccupantMarkerKey(marker);
+    if (accepted.some((candidate) => candidate.key === key)) continue;
+    const persistentLabel = options.persistentLabelKeys?.has(key) === true;
     const bounds = Object.freeze({
       key,
-      left: marker.x - half,
+      left: marker.x - (persistentLabel ? 66 : half),
       top: marker.y - RESOURCE_OCCUPANT_MARKER_SIZE_PX,
-      right: marker.x + half,
-      bottom: marker.y
+      right: marker.x + (persistentLabel ? 66 : half),
+      bottom: marker.y + (persistentLabel ? 23 : 0)
     });
     const intersects = (rect: RealmLabelReservedRect) => (
       bounds.left < rect.right

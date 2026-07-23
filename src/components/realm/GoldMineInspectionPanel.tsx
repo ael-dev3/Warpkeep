@@ -17,6 +17,15 @@ import {
   goldNodeNextAuthorityTimestamp,
   type RealmGoldNodePresentation
 } from './realmGoldNodePresentation';
+import {
+  matchingRealmResourceOccupant,
+  realmResourceOccupantNextAuthorityTimestamp,
+  realmResourceOccupantOwnerLabel,
+  realmResourceOccupantSiteStateLabel
+} from './realmResourceOccupantInspector';
+import type {
+  RealmResourceOccupantMarker
+} from './realmResourceOccupantPresentation';
 import './GoldMineInspectionPanel.css';
 
 function InspectionField({
@@ -57,6 +66,14 @@ export type GoldMineInspectionPanelProps = Readonly<{
    * wallet, FID, or dispatch capability. Omit it for a generic record card.
    */
   node?: RealmGoldNodePresentation;
+  /** Normalized public legacy/generic occupancy for this exact site. */
+  publicOccupant?: RealmResourceOccupantMarker;
+  /** Active generic mode retires legacy dispatch/claim even if its public join degrades. */
+  legacyDispatchBlocked?: boolean;
+  /** Active generic authority exists, but its public occupancy join failed validation. */
+  occupancyUnavailable?: boolean;
+  /** Opens the normalized public record without moving the Realm camera. */
+  onInspectPublicOccupant?: (occupant: RealmResourceOccupantMarker) => void;
   /**
    * Exact caller-only procedure data. It is rendered only after its active
    * expedition is joined to this public site and public origin castle.
@@ -90,9 +107,25 @@ function formatRemainingDuration(timestampMicros: bigint | undefined) {
   return `${minutes}m remaining`;
 }
 
-function nodeNotice(node: RealmGoldNodePresentation | undefined) {
+function nodeNotice(
+  node: RealmGoldNodePresentation | undefined,
+  publicOccupant: RealmResourceOccupantMarker | undefined,
+  legacyDispatchBlocked: boolean,
+  occupancyUnavailable: boolean
+) {
   if (!node) {
     return 'This record presents the site only; it does not disclose player inventory or gathering authority.';
+  }
+  if (occupancyUnavailable) {
+    return 'Authoritative worker occupancy is temporarily unavailable. This site is not presented as available and all gathering commands remain closed.';
+  }
+  if (publicOccupant) {
+    return publicOccupant.occupiedByViewer
+      ? 'Your gathering assignment is recorded by the Realm. Gold settlement remains server-authoritative.'
+      : 'This node is occupied. The gathering keeper is public, while their resources and commands remain private.';
+  }
+  if (legacyDispatchBlocked) {
+    return 'Worker assignments are managed by the authoritative worker roster. Legacy wagon dispatch is unavailable.';
   }
   if (node.availability === 'available') {
     return 'This site is available. Dispatch is confirmed only when the Realm records it.';
@@ -134,6 +167,10 @@ export function GoldMineInspectionPanel({
   id,
   mine,
   node,
+  publicOccupant,
+  legacyDispatchBlocked = false,
+  occupancyUnavailable = false,
+  onInspectPublicOccupant,
   privateExpedition,
   onDispatchGoldExpedition,
   onClaimGoldExpedition,
@@ -147,23 +184,37 @@ export function GoldMineInspectionPanel({
   const [claimState, setClaimState] = useState<'idle' | 'submitting' | 'failed'>('idle');
   const titleId = `${id}-title`;
   const descriptionId = `${id}-description`;
-  const scheduleTimestamp = node ? goldNodeNextAuthorityTimestamp(node) : undefined;
-  const scheduleLabel = formatRemainingDuration(scheduleTimestamp);
-  const ownerExpedition = visibleOwnerExpedition(node, privateExpedition);
+  const occupant = occupancyUnavailable || !node
+    ? undefined
+    : matchingRealmResourceOccupant(publicOccupant, 'gold', node.siteId);
+  const dispatchBlocked = legacyDispatchBlocked || occupancyUnavailable;
+  const scheduleTimestamp = occupant
+    ? realmResourceOccupantNextAuthorityTimestamp(occupant)
+    : node ? goldNodeNextAuthorityTimestamp(node) : undefined;
+  const scheduleLabel = occupancyUnavailable
+    ? undefined
+    : formatRemainingDuration(scheduleTimestamp);
+  const ownerExpedition = dispatchBlocked || occupant?.source === 'generic-worker'
+    ? undefined
+    : visibleOwnerExpedition(node, privateExpedition);
   const privateExpeditionActive = privateExpedition?.status === 'ready'
     && privateExpedition.active;
   const privateActiveSiteId = privateExpeditionActive
     ? privateExpedition?.expedition?.siteId
     : undefined;
-  const awaitingPublicOccupation = node?.availability === 'available'
+  const awaitingPublicOccupation = !dispatchBlocked
+    && occupant === undefined && node?.availability === 'available'
     && (
       privateActiveSiteId === node.siteId
       || (!privateExpeditionActive && dispatchState === 'submitted')
     );
-  const expeditionActiveElsewhere = node?.availability === 'available'
+  const expeditionActiveElsewhere = !dispatchBlocked
+    && occupant === undefined && node?.availability === 'available'
     && privateExpeditionActive
     && privateActiveSiteId !== node.siteId;
-  const canDispatch = node?.availability === 'available'
+  const canDispatch = !dispatchBlocked
+    && occupant === undefined
+    && node?.availability === 'available'
     && onDispatchGoldExpedition !== undefined
     && !privateExpeditionActive
     && (dispatchState === 'idle' || dispatchState === 'failed');
@@ -201,7 +252,13 @@ export function GoldMineInspectionPanel({
   }, [node?.siteId, node?.availability]);
 
   const dispatch = useCallback(async () => {
-    if (!node || node.availability !== 'available' || !onDispatchGoldExpedition) return;
+    if (
+      dispatchBlocked
+      || occupant
+      || !node
+      || node.availability !== 'available'
+      || !onDispatchGoldExpedition
+    ) return;
     setDispatchState('submitting');
     try {
       // The reducer result is intentionally not reflected into this card.
@@ -212,7 +269,7 @@ export function GoldMineInspectionPanel({
     } catch {
       setDispatchState('failed');
     }
-  }, [node, onDispatchGoldExpedition]);
+  }, [dispatchBlocked, node, occupant, onDispatchGoldExpedition]);
 
   const claim = useCallback(async () => {
     if (!canClaim || !onClaimGoldExpedition) return;
@@ -277,15 +334,21 @@ export function GoldMineInspectionPanel({
             <InspectionField label="Node tier">{mine.tier}</InspectionField>
             {node ? (
               <InspectionField label="Site state">
-                {goldNodeAvailabilityLabel(node.availability)}
+                {occupancyUnavailable
+                  ? 'OCCUPANCY UNAVAILABLE'
+                  : occupant
+                  ? realmResourceOccupantSiteStateLabel(occupant)
+                  : goldNodeAvailabilityLabel(node.availability)}
               </InspectionField>
             ) : null}
-            {node?.originCastle ? (
+            {!occupancyUnavailable && (occupant || node?.originCastle) ? (
               <InspectionField label="Occupied by">
-                {node.occupiedByViewer ? 'Your expedition' : node.originCastle.name}
+                {occupant
+                  ? realmResourceOccupantOwnerLabel(occupant)
+                  : node?.occupiedByViewer ? 'Your expedition' : node?.originCastle?.name}
               </InspectionField>
             ) : null}
-            {node?.occupation ? (
+            {!occupancyUnavailable && (occupant || node?.occupation) ? (
               <InspectionField label="Gather rate">+1 Gold / minute</InspectionField>
             ) : null}
             {ownerExpedition ? (
@@ -298,9 +361,22 @@ export function GoldMineInspectionPanel({
             ) : null}
           </dl>
           <p className="gold-mine-inspection__notice">
-            {nodeNotice(node)}
+            {nodeNotice(node, occupant, dispatchBlocked, occupancyUnavailable)}
           </p>
-          {node?.availability === 'available' && onDispatchGoldExpedition ? (
+          {occupant && onInspectPublicOccupant ? (
+            <div className="gold-mine-inspection__action">
+              <button
+                onClick={() => onInspectPublicOccupant(occupant)}
+                type="button"
+              >
+                VIEW PUBLIC {occupant.source === 'generic-worker' ? 'WORKER' : 'EXPEDITION'} RECORD
+              </button>
+            </div>
+          ) : null}
+          {!dispatchBlocked
+            && occupant === undefined
+            && node?.availability === 'available'
+            && onDispatchGoldExpedition ? (
             <div className="gold-mine-inspection__action">
               <button
                 aria-describedby={descriptionId}

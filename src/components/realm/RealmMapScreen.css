@@ -127,6 +127,7 @@
 .realm-map-screen[data-renderer="loading"] :is(
   .realm-hud,
   .realm-castle-labels,
+  .realm-resource-occupant-presences,
   .realm-resource-occupant-markers,
   .castle-inspection,
   .gold-mine-inspection,
@@ -142,6 +143,49 @@
   z-index: 5;
   inset: 0;
   pointer-events: none;
+}
+
+.realm-resource-occupant-presences {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  pointer-events: none;
+}
+
+.realm-resource-occupant-presence {
+  --realm-resource-presence-size: 32px;
+  --realm-resource-presence-hit-size: 44px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: grid;
+  width: var(--realm-resource-presence-hit-size);
+  height: var(--realm-resource-presence-hit-size);
+  align-items: end;
+  justify-items: center;
+  opacity: 0.82;
+  transform: translate3d(
+    var(--realm-resource-marker-x),
+    var(--realm-resource-marker-y),
+    0
+  ) translate(-50%, -100%);
+  pointer-events: auto;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.realm-resource-occupant-presence[data-projected-visible="false"] {
+  visibility: hidden;
+  opacity: 0;
+}
+
+.realm-resource-occupant-presence .realm-castle-avatar {
+  width: var(--realm-resource-presence-size);
+  height: var(--realm-resource-presence-size);
+  border: 1px solid rgb(255 246 211 / 68%);
+  box-shadow:
+    0 0.2rem 0.5rem rgb(0 0 0 / 38%),
+    0 0 0 1px rgb(74 38 95 / 58%);
 }
 
 .realm-resource-occupant-marker {
@@ -216,6 +260,34 @@
   font-weight: 800;
   line-height: 1;
   pointer-events: none;
+}
+
+.realm-resource-occupant-marker__owner {
+  position: absolute;
+  top: calc(100% + 0.28rem);
+  left: 50%;
+  max-width: 7.5rem;
+  padding: 0.2rem 0.38rem;
+  overflow: hidden;
+  border: 1px solid rgb(255 246 211 / 42%);
+  border-radius: 999px;
+  background: rgb(17 11 25 / 88%);
+  box-shadow: 0 0.18rem 0.45rem rgb(0 0 0 / 42%);
+  color: var(--realm-ivory);
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+  text-overflow: ellipsis;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.realm-resource-occupant-marker:is(:hover, :focus-visible) .realm-resource-occupant-marker__owner,
+.realm-resource-occupant-marker[data-occupied-by-viewer="true"] .realm-resource-occupant-marker__owner {
+  opacity: 1;
 }
 
 .realm-resource-occupant-marker[data-resource-kind="gold"] .realm-resource-occupant-marker__kind {

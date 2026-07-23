@@ -4,7 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RealmMapScreen } from '../src/components/realm/RealmMapScreen';
 import {
   measuredRealmComposition,
-  measuredVisibleRealmUiRects
+  measuredVisibleRealmUiRects,
+  retainCastleProjectionWhileOccupantRecordOpen
 } from '../src/components/realm/realmMeasuredComposition';
 import type { RealmIdentity } from '../src/components/realm/realmTypes';
 import { createRenderedWebglQaFixtureRealm } from '../src/dev/renderedWebglQaFixture';
@@ -76,6 +77,31 @@ afterEach(() => {
 });
 
 describe('RealmMapScreen', () => {
+  it('retains projection only for the exact camera-neutral occupant record', () => {
+    const root = document.createElement('main');
+    const surface = document.createElement('aside');
+    root.append(surface);
+
+    for (const className of [
+      'realm-cell-navigator__dialog',
+      'castle-inspection',
+      'realm-camera-neutral-inspector',
+      'realm-resource-occupant-panel'
+    ]) {
+      surface.className = className;
+      surface.removeAttribute('data-resource-occupant-panel');
+      expect(retainCastleProjectionWhileOccupantRecordOpen(root)).toBe(false);
+    }
+
+    surface.className =
+      'realm-camera-neutral-inspector realm-resource-occupant-panel';
+    surface.dataset.resourceOccupantPanel = 'true';
+    expect(retainCastleProjectionWhileOccupantRecordOpen(root)).toBe(true);
+
+    surface.dataset.resourceOccupantPanel = 'false';
+    expect(retainCastleProjectionWhileOccupantRecordOpen(root)).toBe(false);
+  });
+
   it('reserves a camera-neutral record from labels without moving the camera viewport', () => {
     const root = document.createElement('main');
     const waterInspector = document.createElement('aside');

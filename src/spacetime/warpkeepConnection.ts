@@ -1594,7 +1594,11 @@ function readPublicWorkerProjection(
   connection: WarpkeepConnection,
   castles: readonly WarpkeepCastle[],
   ownCastleId: number
-) {
+): Readonly<{
+  system: NonNullable<ReturnType<typeof decodeRealmWorkerSystem>>;
+  workers?: NonNullable<ReturnType<typeof decodeRealmWorkerPublicRows>>;
+  occupations?: NonNullable<ReturnType<typeof decodeRealmWorkerOccupations>>;
+}> | undefined {
   if (workerProjectionAvailability.get(connection) !== WORKER_PROJECTION_READY) return undefined;
   const db = publicWorkerTables(connection);
   if (!db) return undefined;
@@ -1605,28 +1609,33 @@ function readPublicWorkerProjection(
   );
   if (systems?.length !== 1) return undefined;
   const system = decodeRealmWorkerSystem(systems[0]);
+  if (!system) return undefined;
   const castleNames = new Map(castles.map((castle) => [castle.castleId, castle.name] as const));
   const rawWorkers = readBoundedPublicForestRows(
     db.castleWorkerV1!.iter(),
     castles.length * 4,
     publicWorkerRecord
   );
-  if (rawWorkers === undefined) return undefined;
+  if (rawWorkers === undefined) return Object.freeze({ system });
   const workers = decodeRealmWorkerPublicRows(
     rawWorkers,
     castleNames,
     ownCastleId
   );
+  if (!workers) return Object.freeze({ system });
   const rawOccupations = readBoundedPublicForestRows(
     db.workerNodeOccupationV1!.iter(),
     castles.length * 4,
     publicWorkerOccupationRecord
   );
-  if (rawOccupations === undefined) return undefined;
+  if (rawOccupations === undefined) return Object.freeze({ system });
   const occupations = decodeRealmWorkerOccupations(
     rawOccupations
   );
-  if (!system || !workers || !occupations) return undefined;
+  // A validated system row is the minimum fail-closed authority signal. If
+  // either public detail table degrades, retain only that mode instead of
+  // collapsing an active deployment into the legacy presentation path.
+  if (!occupations) return Object.freeze({ system });
   return Object.freeze({ system, workers, occupations });
 }
 
@@ -2056,8 +2065,12 @@ export function readWarpkeepRealmSnapshot(
     }),
     ...(publicWorkers === undefined ? {} : {
       workerSystem: publicWorkers.system,
-      workerWorkers: publicWorkers.workers,
-      workerOccupations: publicWorkers.occupations
+      ...(publicWorkers.workers === undefined ? {} : {
+        workerWorkers: publicWorkers.workers
+      }),
+      ...(publicWorkers.occupations === undefined ? {} : {
+        workerOccupations: publicWorkers.occupations
+      })
     }),
     ...(ownCastle ? { ownCastle } : {})
   };

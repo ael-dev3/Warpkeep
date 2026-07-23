@@ -10,17 +10,20 @@ import {
   applyRenderedWebglActiveForestCameraInteraction,
   applyRenderedWebglCaseInteraction,
   applyRenderedWebglLabelKeyboardInteraction,
+  applyRenderedWebglResourceOccupantInteraction,
   attestHeadlessChromeCodeSignature,
   closeRenderedWebglLoopbackServer,
   cleanupRenderedWebglProbeResources,
   DevtoolsPipeSession,
   headlessChromeProbeContract,
   isAllowedRenderedWebglPageUrl,
+  isBenignStaleFetchInterceptionError,
   parseHeadlessChromeCodeSignature,
   parseRenderedWebglActiveForestDom,
   parseRenderedWebglBrowserDom,
   parseRenderedWebglInspectorLabelActivationEvidence,
   parseRenderedWebglLabelKeyboardEvidence,
+  parseRenderedWebglResourceOccupantEvidence,
   RENDERED_WEBGL_QA_CHROME,
   RENDERED_WEBGL_QA_CHROME_APP,
   RENDERED_WEBGL_QA_CASE_COUNT,
@@ -411,6 +414,134 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(command).toHaveBeenCalledWith('Runtime.evaluate', expect.objectContaining({
       expression: expect.stringContaining('target.click()')
     }));
+  });
+
+  it('keeps occupied-node rendered proof boolean-only and camera neutral', async () => {
+    const evidence = {
+      cameraNeutral: true,
+      cameraNeutralAfterClose: true,
+      cameraAnchorPopulationValid: true,
+      cameraIndependentAnchorCoverage: true,
+      cameraNeutralWhileOpen: true,
+      factsCorrect: true,
+      focusedControlActivation: true,
+      identityRecordCorrect: true,
+      identityRoleCorrect: true,
+      identityTitleCorrect: true,
+      identityUsernameCorrect: true,
+      keyboardControlCountBounded: true,
+      layeringValid: true,
+      markerControlVisible: true,
+      markerGeometryValid: true,
+      markerPortraitReady: true,
+      markerPortraitElementPresent: true,
+      markerPresent: true,
+      markerProjectedVisible: true,
+      markerHitTestable: true,
+      overviewPresenceDirectHit: true,
+      overviewRecordCorrect: true,
+      overviewTargetPassiveOnly: true,
+      presenceComputedVisible: true,
+      presenceAvatarGeometryValid: true,
+      presenceGeometryValid: true,
+      presenceDelegatedActivation: true,
+      presenceHitTestable: true,
+      presencePointerActivatable: true,
+      presencePortraitElementPresent: true,
+      presencePortraitReady: true,
+      presenceVisible: true,
+      privacyBounded: true,
+      recordHeaderCorrect: true,
+      reducedMotionPreferenceCorrect: true,
+      publicRecordCorrect: true,
+      publicRecordOpened: true,
+      rendererStable: true,
+      workerRecordCorrect: true
+    } as const;
+    expect(parseRenderedWebglResourceOccupantEvidence(evidence)).toEqual(evidence);
+    expect(() => parseRenderedWebglResourceOccupantEvidence({
+      ...evidence,
+      rendererStable: false
+    })).toThrow(/resource occupant evidence/i);
+    expect(() => parseRenderedWebglResourceOccupantEvidence({
+      ...evidence,
+      fid: 1
+    })).toThrow(/resource occupant evidence/i);
+
+    const command = vi.fn(async (
+      method: string,
+      _params?: Readonly<Record<string, unknown>>,
+      _timeoutMilliseconds?: number
+    ) => method === 'Runtime.evaluate'
+      ? { result: { type: 'object', value: evidence } }
+      : {});
+    await expect(applyRenderedWebglResourceOccupantInteraction(
+      { command },
+      'observer'
+    )).resolves.toEqual(evidence);
+    const evaluation = command.mock.calls.find(([method]) => method === 'Runtime.evaluate');
+    expect(evaluation?.[1]).toMatchObject({
+      awaitPromise: true,
+      returnByValue: true
+    });
+    expect(evaluation?.[2]).toBe(60_000);
+    const expression = String(evaluation?.[1]?.expression);
+    expect(expression).toContain('gold:genesis-001-tier1-gold-03');
+    expect(expression).toContain('gold:genesis-001-tier1-gold-11');
+    expect(expression).toContain("Object.freeze(['20', '-22'])");
+    expect(expression).toContain("Object.freeze(['-51', '57'])");
+    expect(expression).toContain("Object.freeze(['-46', '52'])");
+    expect(expression).toContain('jumpToOccupiedSite(q, r)');
+    expect(expression).toContain("'.realm-cell-navigator__presets button'");
+    expect(expression).toContain("(button.textContent ?? '').trim() === 'Realm'");
+    expect(expression).toContain('PUBLIC EXPEDITION RECORD');
+    expect(expression).toMatch(
+      /matchMedia\(\s*'\(prefers-reduced-motion: reduce\)'/
+    );
+    expect(expression).toContain('const cameraNeutralWhileOpen = projectionStable(');
+    expect(expression).toMatch(/beforeProjection,\s+duringProjection/);
+    expect(expression).toContain('beforeRenderer === duringRenderer');
+    expect(expression).toContain('subtreePrivacyBounded(panel)');
+    expect(expression).toContain('presenceBounds.width >= 43');
+    expect(expression).toContain('presenceAvatarBounds.width >= 31');
+    expect(expression).toContain("getComputedStyle(presence).pointerEvents === 'auto'");
+    expect(expression).toContain("getComputedStyle(presenceLayer).pointerEvents === 'none'");
+    expect(expression).toContain('document.elementsFromPoint(');
+    expect(expression).toContain('overviewDirectHit.click()');
+    expect(expression).toContain('independentStableAnchorCount(beforeProjection, duringProjection) >= 3');
+    expect(expression).toContain('keyboardControls.length <= 24');
+    expect(expression).toContain("'button.realm-castle-label'");
+    expect(expression).toContain('Number.isFinite(entry[1])');
+    expect(expression).not.toMatch(
+      /button\.realm-castle-label[\s\S]{0,240}&& visible\(label\)/
+    );
+    expect(expression).toContain('presenceLayer.parentElement === map');
+    expect(expression).toContain('Number.parseInt(getComputedStyle(castleLayer).zIndex, 10) === 4');
+    expect(expression).toContain('document.elementFromPoint(');
+    expect(expression).toContain(
+      'canvas[data-profile-image-state="ready"]'
+    );
+    expect(expression).not.toContain('return {\\n        fid');
+
+    await expect(applyRenderedWebglResourceOccupantInteraction(
+      { command },
+      'unreviewed' as never
+    )).rejects.toThrow(/presentation mode/i);
+    await expect(applyRenderedWebglResourceOccupantInteraction(
+      { command },
+      'observer',
+      'reduce' as never
+    )).rejects.toThrow(/reduced-motion expectation/i);
+
+    const source = readFileSync(resolve(
+      process.cwd(),
+      'scripts/qa-observer/rendered-webgl-browser-probe.mjs'
+    ), 'utf8');
+    expect(source).toMatch(
+      /RENDERED_WEBGL_QA_RESOURCE_OCCUPANT_CASE_IDS[\s\S]*'desktop-reduced'[\s\S]*'mobile-reduced-inspector'/
+    );
+    expect(source).toContain("name: 'prefers-reduced-motion'");
+    expect(source).toContain("probeCase.expectedQuality === 'reduced' ? 'reduce' : 'no-preference'");
   });
 
   it('opens player Explore through the portrait menu without restoring a direct map control', async () => {
@@ -898,6 +1029,69 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(commands[2]).toMatchObject({ sessionId: TEST_SESSION_ID });
     expect(parentWrites.readableEnded).toBe(false);
     pipe.close();
+  });
+
+  it('ignores only an exact stale Fetch interception while every adjacent CDP error fails closed', async () => {
+    expect(isBenignStaleFetchInterceptionError(
+      'Fetch.continueRequest',
+      { code: -32602, message: 'Invalid InterceptionId.' }
+    )).toBe(true);
+    expect(isBenignStaleFetchInterceptionError(
+      'Fetch.failRequest',
+      { code: -32602, message: 'Invalid InterceptionId.' }
+    )).toBe(true);
+    for (const [method, error] of [
+      ['Page.navigate', { code: -32602, message: 'Invalid InterceptionId.' }],
+      ['Fetch.continueRequest', { code: -32000, message: 'Invalid InterceptionId.' }],
+      ['Fetch.continueRequest', { code: -32602, message: 'Other failure.' }],
+      ['Fetch.continueRequest', {
+        code: -32602,
+        message: 'Invalid InterceptionId.',
+        data: 'unexpected'
+      }],
+      ['Fetch.continueRequest', null]
+    ] as const) {
+      expect(isBenignStaleFetchInterceptionError(method, error)).toBe(false);
+    }
+
+    const replyWithError = async (
+      method: string,
+      error: unknown
+    ) => {
+      const attached = await attachedFakeChromePipe();
+      const command = attached.pipe.command(method, { requestId: 'local-fixture-request' });
+      await new Promise((resolveTick) => setImmediate(resolveTick));
+      attached.child.stdio[4]!.write(cdpPipeFrame({
+        id: attached.commands.at(-1)?.id,
+        error,
+        sessionId: TEST_SESSION_ID
+      }));
+      return { attached, command };
+    };
+
+    for (const method of ['Fetch.continueRequest', 'Fetch.failRequest']) {
+      const benign = await replyWithError(
+        method,
+        { code: -32602, message: 'Invalid InterceptionId.' }
+      );
+      await expect(benign.command).resolves.toEqual({});
+      await expect(benign.attached.pipe.command('Page.enable', {}, 20))
+        .rejects.toThrow(/timed out/i);
+      benign.attached.pipe.close();
+    }
+
+    for (const [method, error] of [
+      ['Page.navigate', { code: -32602, message: 'Invalid InterceptionId.' }],
+      ['Fetch.continueRequest', { code: -32000, message: 'Invalid InterceptionId.' }],
+      ['Fetch.failRequest', { code: -32602, message: 'Other failure.' }],
+      ['Fetch.continueRequest', null]
+    ] as const) {
+      const rejected = await replyWithError(method, error);
+      await expect(rejected.command).rejects.toThrow(/command failed/i);
+      await expect(rejected.attached.pipe.command('Page.enable'))
+        .rejects.toThrow(/unavailable/i);
+      rejected.attached.pipe.close();
+    }
   });
 
   it('fails the whole private pipe on an unknown response, malformed UTF-8, or timeout', async () => {
