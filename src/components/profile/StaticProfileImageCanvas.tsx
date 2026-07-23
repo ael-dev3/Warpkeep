@@ -21,6 +21,8 @@ function boundedSnapshotPixels(value: number) {
  * falling back when the active slots are busy.
  */
 export const REALM_PROFILE_IMAGE_MAX_CONCURRENT_LOADS = 4;
+export const REALM_PROFILE_IMAGE_RETRY_DELAY_MS = 1_500;
+export const REALM_PROFILE_IMAGE_MAX_RETRIES = 1;
 
 type SharedProfileImageEntry = {
   safeUrl: string;
@@ -143,7 +145,7 @@ function acquireSharedProfileImage(safeUrl: string) {
  * The supplied fallback remains visible until fetch, validation, and drawing
  * all succeed; no remote image element is ever attached to the document.
  */
-export function StaticProfileImageCanvas({
+function StaticProfileImageCanvasForUrl({
   fallback,
   safeUrl,
   snapshotPixels,
@@ -151,10 +153,12 @@ export function StaticProfileImageCanvas({
 }: StaticProfileImageCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'unavailable'>('loading');
+  const [retryAttempt, setRetryAttempt] = useState(0);
   const pixels = boundedSnapshotPixels(snapshotPixels);
 
   useEffect(() => {
     let active = true;
+    let retryTimer: number | undefined;
     setState('loading');
     const lease = acquireSharedProfileImage(safeUrl);
     void lease.promise
@@ -192,15 +196,23 @@ export function StaticProfileImageCanvas({
         }
       })
       .catch(() => {
-        if (active) setState('unavailable');
+        if (active) {
+          setState('unavailable');
+          if (retryAttempt < REALM_PROFILE_IMAGE_MAX_RETRIES) {
+            retryTimer = window.setTimeout(() => {
+              if (active) setRetryAttempt(retryAttempt + 1);
+            }, REALM_PROFILE_IMAGE_RETRY_DELAY_MS);
+          }
+        }
         lease.release();
       });
 
     return () => {
       active = false;
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer);
       lease.release();
     };
-  }, [pixels, safeUrl]);
+  }, [pixels, retryAttempt, safeUrl]);
 
   return (
     <>
@@ -220,4 +232,13 @@ export function StaticProfileImageCanvas({
       {state !== 'ready' ? fallback : null}
     </>
   );
+}
+
+/**
+ * A transient reviewed-CDN failure receives one delayed retry. Keying the
+ * attempt boundary by the reviewed URL resets that allowance for a genuine
+ * profile change without creating an unbounded request loop.
+ */
+export function StaticProfileImageCanvas(props: StaticProfileImageCanvasProps) {
+  return <StaticProfileImageCanvasForUrl key={props.safeUrl} {...props} />;
 }

@@ -52,15 +52,20 @@ export function safePublicHttpsImageUrl(value: string | undefined) {
  * may select only this repository-owned placeholder on the current origin.
  */
 export function safeWarpkeepProfileImageUrl(value: string | undefined) {
-  if (
-    value === WARPKEEP_SAME_ORIGIN_PROFILE_PLACEHOLDER_PATH
-    && typeof window !== 'undefined'
-  ) {
+  if (value && typeof window !== 'undefined') {
     try {
       const resolved = new URL(value, window.location.origin);
-      return resolved.origin === window.location.origin ? resolved.toString() : undefined;
+      if (resolved.origin === window.location.origin) {
+        return (
+          resolved.username === ''
+          && resolved.password === ''
+          && resolved.pathname === WARPKEEP_SAME_ORIGIN_PROFILE_PLACEHOLDER_PATH
+          && resolved.search === ''
+          && resolved.hash === ''
+        ) ? resolved.toString() : undefined;
+      }
     } catch {
-      return undefined;
+      // Public HTTPS handling below owns every non-placeholder value.
     }
   }
   return safePublicHttpsImageUrl(value);
