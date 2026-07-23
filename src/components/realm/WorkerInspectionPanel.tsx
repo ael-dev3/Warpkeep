@@ -130,7 +130,9 @@ export function WorkerInspectionPanel({
         </header>
         <div className="worker-inspection__body">
           <p className="worker-inspection__description">
-            A permanent attendant of your keep. Commands and cargo settle only through the Realm.
+            A permanent attendant of your keep. Workers may share a resource
+            type, while each resource node remains single-occupancy. Commands
+            and cargo settle only through the Realm.
           </p>
           <dl className="worker-inspection__fields">
             <div><dt>Origin keep</dt><dd>{worker.originCastleName}</dd></div>

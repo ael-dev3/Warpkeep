@@ -35,3 +35,25 @@ export type RealmCastleProjectionFrame = Readonly<{
   height: number;
   castles: readonly RealmCastleScreenProjection[];
 }>;
+
+/**
+ * The public resource families that can host a gathering expedition. This is
+ * presentation metadata only; it never grants a dispatch or settlement
+ * capability.
+ */
+export type RealmResourceKind = 'gold' | 'food' | 'wood' | 'stone';
+
+export type RealmResourceScreenProjection = Readonly<{
+  resource: RealmResourceKind;
+  siteId: string;
+  x: number;
+  y: number;
+  depth: number;
+  visible: boolean;
+}>;
+
+export type RealmResourceProjectionFrame = Readonly<{
+  width: number;
+  height: number;
+  markers: readonly RealmResourceScreenProjection[];
+}>;

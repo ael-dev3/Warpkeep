@@ -17,6 +17,11 @@ const mocked = vi.hoisted(() => {
     waterCells?: readonly unknown[];
     waterBodies?: readonly unknown[];
     waterEnvironment?: unknown;
+    resourceOccupants?: readonly {
+      resource: 'gold' | 'food' | 'wood' | 'stone';
+      siteId: string;
+      coord: { q: number; r: number };
+    }[];
     quality: { id: string };
     reducedMotion: boolean;
     onCastlesReady?: (castleCount: number) => void;
@@ -43,6 +48,18 @@ const mocked = vi.hoisted(() => {
           right: number;
           bottom: number;
         }>;
+      }[];
+    }) => void;
+    onResourceProjection?: (frame: {
+      width: number;
+      height: number;
+      markers: readonly {
+        resource: 'gold' | 'food' | 'wood' | 'stone';
+        siteId: string;
+        x: number;
+        y: number;
+        depth: number;
+        visible: boolean;
       }[];
     }) => void;
     onTargetHover?: (target: {
@@ -103,6 +120,7 @@ vi.mock('../src/components/realm/createRealmScene', () => ({
 }));
 
 import { CANONICAL_TIER_I_FOOD_SITES_V1 } from '../spacetimedb/src/foodSitePolicy';
+import { CANONICAL_TIER_I_STONE_SITES_V1 } from '../spacetimedb/src/stoneSitePolicy';
 import {
   CANONICAL_GENESIS_WATER_REVISION_V1,
   GENESIS_WATER_REVISION_RECLAIMED_LAKE_KEYS_V1
@@ -116,6 +134,11 @@ import {
 import { CANONICAL_CASTLE_SLOTS } from '../spacetimedb/src/world';
 import { RealmMapScreen } from '../src/components/realm/RealmMapScreen';
 import type { ReadyFoodExpeditionPresentation } from '../src/components/realm/realmFoodExpeditionPresentation';
+import {
+  CASTLE_WORKER_POLICY_VERSION,
+  CASTLE_WORKER_REALM_ID,
+  workerRosterDigestForCastleIds
+} from '../src/components/realm/realmWorkerPresentation';
 import { createRenderedWebglQaFixtureRealm } from '../src/dev/renderedWebglQaFixture';
 import { validateCanonicalGenesisSnapshot } from '../src/spacetime/canonicalGenesisSnapshot';
 import type {
@@ -233,6 +256,85 @@ function activeFoodWagonRealm() {
     })
   });
   return { expedition, occupation, site, snapshot };
+}
+
+function peerWorkerOccupationRealm() {
+  const candidate = createCanonicalGenesisCandidate({
+    ownFid: CANONICAL_TEST_FID,
+    peerFid: 77
+  });
+  const site = CANONICAL_TIER_I_STONE_SITES_V1[0]!;
+  const peerCastle = candidate.castles.find((castle) => castle.ownerFid === 77);
+  if (!peerCastle) throw new Error('missing canonical peer worker fixture');
+  const workers = candidate.castles.flatMap((castle) => (
+    ([1, 2, 3, 4] as const).map((ordinal) => {
+      const gathering = castle.castleId === peerCastle.castleId && ordinal === 1;
+      return Object.freeze({
+        workerId: `genesis-001-castle-${castle.castleId}-worker-${String(ordinal).padStart(2, '0')}`,
+        ordinal,
+        originCastleId: castle.castleId,
+        originCastleName: castle.name,
+        status: gathering ? 'gathering' as const : 'idle' as const,
+        ...(gathering ? {
+          resourceKind: 'stone' as const,
+          siteId: site.siteId,
+          startedAtMicros: 10n,
+          arrivesAtMicros: 20n,
+          gatheringEndsAtMicros: 30n,
+          returnsAtMicros: 40n,
+          routeSteps: 10
+        } : {}),
+        timelineRevision: gathering ? 1 : 0,
+        revision: gathering ? 1n : 0n,
+        ownedByViewer: castle.castleId === candidate.ownCastle?.castleId
+      });
+    })
+  ));
+  const activeWorker = workers.find((worker) => (
+    worker.originCastleId === peerCastle.castleId && worker.ordinal === 1
+  ));
+  if (!activeWorker || activeWorker.status !== 'gathering') {
+    throw new Error('missing active peer worker fixture');
+  }
+  const snapshot = validate({
+    ...candidate,
+    profiles: candidate.profiles.map((profile) => (
+      profile.fid === 77 ? {
+        ...profile,
+        canonicalUsername: 'peerkeeper',
+        displayName: 'Peer Keeper'
+      } : profile
+    )),
+    stoneSites: CANONICAL_TIER_I_STONE_SITES_V1.map((row) => ({ ...row })),
+    stoneNodeOccupations: [],
+    workerSystem: {
+      realmId: CASTLE_WORKER_REALM_ID,
+      policyVersion: CASTLE_WORKER_POLICY_VERSION,
+      workersPerCastle: 4,
+      expectedCastleCount: candidate.castles.length,
+      expectedWorkerCount: workers.length,
+      rosterDigest: workerRosterDigestForCastleIds(
+        candidate.castles.map((castle) => castle.castleId)
+      ),
+      mode: 'active',
+      legacyDrainRequired: false
+    },
+    workerWorkers: workers,
+    workerOccupations: [{
+      nodeKey: `stone:${site.siteId}`,
+      resourceKind: 'stone',
+      siteId: site.siteId,
+      workerId: activeWorker.workerId,
+      workerOrdinal: activeWorker.ordinal,
+      originCastleId: activeWorker.originCastleId,
+      phase: 'gathering',
+      startedAtMicros: 10n,
+      arrivesAtMicros: 20n,
+      gatheringEndsAtMicros: 30n,
+      timelineRevision: activeWorker.timelineRevision
+    }]
+  });
+  return { peerCastle, site, snapshot };
 }
 
 function movedPeerSnapshot(): CanonicalWarpkeepRealmSnapshot {
@@ -771,6 +873,102 @@ describe('live realm quality recreation', () => {
       .toContain('Peer Watch. Selected castle at cell 2, -1');
     expect(scene.setSelectedCastleId).toHaveBeenLastCalledWith(2);
     expect(scene.focusCastle).toHaveBeenLastCalledWith(2);
+  });
+
+  it('keeps a site record, projected player record, and Explore strictly mutually exclusive', async () => {
+    installWebGlProbe();
+    const onRequestReturn = vi.fn();
+    const fixture = peerWorkerOccupationRealm();
+    render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={fixture.snapshot}
+        onRequestReturn={onRequestReturn}
+        qualityOverride="balanced"
+      />
+    );
+
+    const options = mocked.createRealmScene.mock.calls[0]![0];
+    const projection = {
+      width: 1_200,
+      height: 800,
+      markers: [{
+        resource: 'stone' as const,
+        siteId: fixture.site.siteId,
+        x: 600,
+        y: 400,
+        depth: 4,
+        visible: true
+      }]
+    };
+    act(() => {
+      options.onCastlesReady?.(2);
+      options.onResourceProjection?.(projection);
+    });
+
+    expect(options.resourceOccupants).toEqual([{
+      resource: 'stone',
+      siteId: fixture.site.siteId,
+      coord: { q: fixture.site.q, r: fixture.site.r }
+    }]);
+    act(() => options.onTargetSelect?.({
+      kind: 'stone-site',
+      siteId: fixture.site.siteId,
+      coord: { q: fixture.site.q, r: fixture.site.r }
+    }));
+    expect(document.querySelector('.stone-quarry-inspection')).not.toBeNull();
+    expect(document.querySelector('[data-resource-occupant-panel="true"]')).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Explore' })).toBeNull();
+
+    act(() => options.onResourceProjection?.(projection));
+    const playerMarker = screen.getByRole('button', {
+      name: /Inspect @peerkeeper gathering at Stone Quarry/i
+    });
+    fireEvent.click(playerMarker);
+
+    expect(document.querySelector('.stone-quarry-inspection')).toBeNull();
+    const playerRecord = document.querySelector<HTMLElement>(
+      '[data-resource-occupant-panel="true"]'
+    );
+    expect(playerRecord).not.toBeNull();
+    expect(within(playerRecord!).getByText('PUBLIC WORKER RECORD')).not.toBeNull();
+    const playerRecordClose = within(playerRecord!).getByRole('button', {
+      name: 'Close player record'
+    });
+    await waitFor(() => expect(document.activeElement).toBe(playerRecordClose));
+
+    const { explore } = openPlayerExplore();
+    expect(document.querySelector('.stone-quarry-inspection')).toBeNull();
+    expect(document.querySelector('[data-resource-occupant-panel="true"]')).toBeNull();
+    expect(explore).not.toBeNull();
+    await waitFor(() => {
+      expect(document.activeElement).toBe(
+        within(explore).getByRole('searchbox', {
+          name: 'Search castles, workers, resources, and water'
+        })
+      );
+    });
+
+    fireEvent.click(within(explore).getByRole('button', { name: 'CLOSE EXPLORE' }));
+    act(() => options.onResourceProjection?.(projection));
+    const reopenedMarker = screen.getByRole('button', {
+      name: /Inspect @peerkeeper gathering at Stone Quarry/i
+    });
+    fireEvent.click(reopenedMarker);
+    await waitFor(() => {
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Close player record' })
+      );
+    });
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(document.querySelector('[data-resource-occupant-panel="true"]')).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Explore' })).toBeNull();
+    expect(onRequestReturn).not.toHaveBeenCalled();
+    await waitFor(() => expect(document.activeElement).toBe(reopenedMarker));
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onRequestReturn).toHaveBeenCalledOnce();
   });
 
   it('opens every Food resource path without a camera jump', () => {

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { loadBoundedRealmProfileImage } from '../realm/loadRealmProfileImage';
+import type { LoadedRealmProfileImage } from '../realm/loadRealmProfileImage';
 
 export type StaticProfileImageCanvasProps = Readonly<{
   fallback: ReactNode;
@@ -11,6 +12,130 @@ export type StaticProfileImageCanvasProps = Readonly<{
 
 function boundedSnapshotPixels(value: number) {
   return Number.isSafeInteger(value) && value > 0 && value <= 512 ? value : 128;
+}
+
+/**
+ * A profile source can legally decode to roughly 16 MiB. Keep the shared
+ * loader small enough for mobile while still filling visible marker rows
+ * progressively. Queued consumers remain eligible instead of permanently
+ * falling back when the active slots are busy.
+ */
+export const REALM_PROFILE_IMAGE_MAX_CONCURRENT_LOADS = 4;
+
+type SharedProfileImageEntry = {
+  safeUrl: string;
+  controller?: AbortController;
+  loaded?: LoadedRealmProfileImage;
+  promise: Promise<LoadedRealmProfileImage>;
+  resolve: (loaded: LoadedRealmProfileImage) => void;
+  reject: (reason: unknown) => void;
+  references: number;
+  state: 'queued' | 'loading' | 'settled' | 'failed';
+  slotActive: boolean;
+};
+
+const sharedProfileImages = new Map<string, SharedProfileImageEntry>();
+const sharedProfileImageQueue: SharedProfileImageEntry[] = [];
+let activeSharedProfileImageLoads = 0;
+
+function removeSharedProfileImage(safeUrl: string, entry: SharedProfileImageEntry) {
+  if (sharedProfileImages.get(safeUrl) === entry) sharedProfileImages.delete(safeUrl);
+}
+
+function releaseSharedProfileImageSlot(entry: SharedProfileImageEntry) {
+  if (!entry.slotActive) return;
+  entry.slotActive = false;
+  activeSharedProfileImageLoads = Math.max(0, activeSharedProfileImageLoads - 1);
+  pumpSharedProfileImageQueue();
+}
+
+function disposeSharedProfileImage(safeUrl: string, entry: SharedProfileImageEntry) {
+  removeSharedProfileImage(safeUrl, entry);
+  if (entry.state === 'queued') {
+    entry.state = 'failed';
+    entry.reject(new Error('Profile image request was released before loading.'));
+    return;
+  }
+  if (entry.state === 'loading') {
+    entry.controller?.abort();
+    // Keep the slot until the bounded loader actually settles. This preserves
+    // the hard decode/network concurrency ceiling even across abort races.
+    return;
+  }
+  if (entry.state === 'settled') {
+    entry.loaded?.dispose();
+    entry.loaded = undefined;
+  }
+}
+
+function pumpSharedProfileImageQueue() {
+  while (
+    activeSharedProfileImageLoads < REALM_PROFILE_IMAGE_MAX_CONCURRENT_LOADS
+    && sharedProfileImageQueue.length > 0
+  ) {
+    const entry = sharedProfileImageQueue.shift()!;
+    if (
+      entry.state !== 'queued'
+      || entry.references === 0
+      || sharedProfileImages.get(entry.safeUrl) !== entry
+    ) {
+      continue;
+    }
+    const controller = new AbortController();
+    entry.controller = controller;
+    entry.state = 'loading';
+    entry.slotActive = true;
+    activeSharedProfileImageLoads += 1;
+    const safeUrl = entry.safeUrl;
+    void loadBoundedRealmProfileImage(safeUrl, { signal: controller.signal })
+      .then((loaded) => {
+        entry.loaded = loaded;
+        entry.state = 'settled';
+        entry.resolve(loaded);
+        if (entry.references === 0) disposeSharedProfileImage(safeUrl, entry);
+      })
+      .catch((error) => {
+        entry.state = 'failed';
+        removeSharedProfileImage(safeUrl, entry);
+        entry.reject(error);
+      })
+      .finally(() => releaseSharedProfileImageSlot(entry));
+  }
+}
+
+function acquireSharedProfileImage(safeUrl: string) {
+  let entry = sharedProfileImages.get(safeUrl);
+  if (!entry) {
+    let resolve!: (loaded: LoadedRealmProfileImage) => void;
+    let reject!: (reason: unknown) => void;
+    const promise = new Promise<LoadedRealmProfileImage>((promiseResolve, promiseReject) => {
+      resolve = promiseResolve;
+      reject = promiseReject;
+    });
+    entry = {
+      safeUrl,
+      promise,
+      resolve,
+      reject,
+      references: 0,
+      state: 'queued',
+      slotActive: false
+    };
+    sharedProfileImages.set(safeUrl, entry);
+    sharedProfileImageQueue.push(entry);
+  }
+  entry.references += 1;
+  pumpSharedProfileImageQueue();
+  let released = false;
+  return Object.freeze({
+    promise: entry.promise,
+    release: () => {
+      if (released) return;
+      released = true;
+      entry!.references = Math.max(0, entry!.references - 1);
+      if (entry!.references === 0) disposeSharedProfileImage(safeUrl, entry!);
+    }
+  });
 }
 
 /**
@@ -30,14 +155,11 @@ export function StaticProfileImageCanvas({
 
   useEffect(() => {
     let active = true;
-    const controller = new AbortController();
     setState('loading');
-    void loadBoundedRealmProfileImage(safeUrl, { signal: controller.signal })
-      .then(({ image, dispose }) => {
-        if (!active) {
-          dispose();
-          return;
-        }
+    const lease = acquireSharedProfileImage(safeUrl);
+    void lease.promise
+      .then(({ image }) => {
+        if (!active) return;
 
         const canvas = canvasRef.current;
         const sourceWidth = image.naturalWidth;
@@ -66,16 +188,17 @@ export function StaticProfileImageCanvas({
         } catch {
           setState('unavailable');
         } finally {
-          dispose();
+          lease.release();
         }
       })
       .catch(() => {
         if (active) setState('unavailable');
+        lease.release();
       });
 
     return () => {
       active = false;
-      controller.abort();
+      lease.release();
     };
   }, [pixels, safeUrl]);
 

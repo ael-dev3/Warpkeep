@@ -643,6 +643,8 @@ export function dispatchCastleWorker(
   if (worker.status !== 'idle' || ctx.db.workerAssignmentV1.workerId.find(worker.workerId) !== null) fail('WORKER_NOT_IDLE');
   const site = canonicalSiteFor(ctx, input.resourceKind, input.siteId);
   if (legacyOccupationAt(ctx, input.resourceKind, input.siteId)) fail('WORKER_LEGACY_SITE_OCCUPIED');
+  // Resource kind is not a capacity bucket: all four castle workers may use
+  // the same kind. The composite node key is the single-occupancy boundary.
   const nodeKey = `${input.resourceKind}:${input.siteId}`;
   if (ctx.db.workerNodeOccupationV1.nodeKey.find(nodeKey) !== null) fail('WORKER_SITE_OCCUPIED');
   const routeSteps = canonicalWorkerRouteSteps(input.castle, site);

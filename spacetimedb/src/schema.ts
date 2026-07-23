@@ -1108,6 +1108,8 @@ export const workerNodeOccupationV1 = table(
     }] as const,
   },
   {
+    // Deliberately composite: resource kind may repeat across nodes, while a
+    // resource/site node can have only one worker lease globally.
     nodeKey: t.string().primaryKey(),
     resourceKind: t.string(),
     siteId: t.string(),

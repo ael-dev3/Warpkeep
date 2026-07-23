@@ -37,6 +37,19 @@ test('worker lifecycle advances one synchronized revision and one schedule at a 
   assert.match(complete, /workerAssignmentV1\.assignmentId\.delete\(assignment\.assignmentId\)/);
 });
 
+test('worker leases allow repeated resource kinds but enforce one worker per node', () => {
+  const authority = source('../src/castleWorkerAuthority.ts');
+  const schema = source('../src/schema.ts');
+  const dispatch = section(authority, 'export function dispatchCastleWorker', 'function progressBasisPoints');
+  const occupation = section(schema, 'export const workerNodeOccupationV1', 'export const workerCommandIdempotencyV1');
+
+  assert.match(dispatch, /const nodeKey = `\$\{input\.resourceKind\}:\$\{input\.siteId\}`/);
+  assert.match(dispatch, /workerNodeOccupationV1\.nodeKey\.find\(nodeKey\) !== null/);
+  assert.match(occupation, /nodeKey: t\.string\(\)\.primaryKey\(\)/);
+  assert.doesNotMatch(occupation, /resourceKind: t\.string\(\)\.unique\(\)/);
+  assert.doesNotMatch(occupation, /siteId: t\.string\(\)\.unique\(\)/);
+});
+
 test('recall caps server-time accrual and persists replay-safe no-op receipts', () => {
   const authority = source('../src/castleWorkerAuthority.ts');
   const recall = section(authority, 'export function recallCastleWorker', 'export function recallAllCastleWorkers');

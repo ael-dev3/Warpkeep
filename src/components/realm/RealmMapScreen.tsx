@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useReducer,
   useRef,
@@ -52,10 +53,12 @@ import {
 } from './RealmCastleLabels';
 import { RealmHud, type RealmActiveWagonMenuItem } from './RealmHud';
 import { RealmObserverHud } from './RealmObserverHud';
+import { RealmResourceOccupantMarkers } from './RealmResourceOccupantMarkers';
 import {
   createRealmScene,
   type RealmInteractionTarget,
   type RealmLiveGatheringState,
+  type RealmResourceOccupantSceneRecord,
   type RealmSceneHandle,
   type RealmTerrainPresentationTelemetry
 } from './createRealmScene';
@@ -82,6 +85,13 @@ import {
   resolveRealmStoneNodePresentations,
   type RealmStoneNodePresentation
 } from './realmStoneNodePresentation';
+import {
+  realmResourceOccupantMarkerForKey,
+  realmResourceOccupantMarkerKey,
+  resolveRealmResourceOccupantMarkers,
+  visibleRealmResourceOccupantMarkerKeys,
+  type RealmResourceOccupantMarker
+} from './realmResourceOccupantPresentation';
 import {
   goldExpeditionForNode,
   type GoldExpeditionPresentation
@@ -118,9 +128,15 @@ import {
   type RealmQuality
 } from './realmQuality';
 import type { RealmIdentity } from './realmTypes';
-import type { RealmCastleProjectionFrame } from './realmTypes';
+import type {
+  RealmCastleProjectionFrame,
+  RealmResourceProjectionFrame
+} from './realmTypes';
 import {
+  CASTLE_LABEL_COMPACT_MAXIMUM_CONTROL_WIDTH,
   CASTLE_LABEL_LAYOUT_MAX_CASTLES,
+  CASTLE_LABEL_MAXIMUM_CONTROL_WIDTH,
+  CASTLE_LABEL_MINIMUM_CONTROL_SIZE,
   castleProfileLabel,
   fallbackCastleIsInViewBox,
   fallbackCastleProjection,
@@ -169,12 +185,14 @@ import './RealmMapScreen.css';
 import './RealmCastlePresentation.css';
 import { WorkerInspectionPanel } from './WorkerInspectionPanel';
 import type { RealmWorkerSceneRecord } from './realmWorkerLayer';
-import type {
-  ReadyWorkerProjection,
-  ReadyWorkerResourceState,
-  RealmWorkerDestinationPresentation,
-  RealmWorkerPublicPresentation,
-  WorkerRosterPresentation
+import {
+  resolveReadyPublicWorkerProjection,
+  resolveRealmWorkerDestinations,
+  type ReadyWorkerProjection,
+  type ReadyWorkerResourceState,
+  type RealmWorkerDestinationPresentation,
+  type RealmWorkerPublicPresentation,
+  type WorkerRosterPresentation
 } from './realmWorkerPresentation';
 
 export {
@@ -529,16 +547,12 @@ function CanonicalRealmMapScreen({
       resourceLabel: string,
       nodes: readonly GatheringNodePresentation[]
     ) => {
-      for (const node of nodes) {
-        if (node.availability !== 'available' || occupied.has(`${resourceKind}:${node.siteId}`)) {
-          continue;
-        }
-        destinations.push(Object.freeze({
-          resourceKind,
-          siteId: node.siteId,
-          label: `${resourceLabel} · Tier ${node.tier} · cell ${node.coord.q}, ${node.coord.r}`
-        }));
-      }
+      destinations.push(...resolveRealmWorkerDestinations({
+        resourceKind,
+        resourceLabel,
+        nodes,
+        occupiedNodeKeys: occupied
+      }));
     };
     append('food', 'Wheat Farm', foodNodes);
     append('wood', 'Logging Camp', woodNodes);
@@ -662,6 +676,82 @@ function CanonicalRealmMapScreen({
     woodExpedition,
     woodNodesBySiteId
   ]);
+  const profileRecords = useMemo(() => {
+    return new Map<number, CastleLabelRecord>(allCastles.map((castle) => [
+      castle.castleId,
+      {
+        castle,
+        profile: publicProfileForCastle(
+          castle.ownerFid,
+          sharedProfiles,
+          sharedPlayers,
+          observerMode ? undefined : identity
+        )
+      }
+    ]));
+  }, [allCastles, identity, observerMode, sharedPlayers, sharedProfiles]);
+  const publicWorkerProjection = useMemo(() => resolveReadyPublicWorkerProjection({
+    realmId: snapshot.realm.realmId,
+    castleIds: allCastles.map((castle) => castle.castleId),
+    ownCastleId: ownCastle.castleId,
+    system: snapshot.workerSystem,
+    workers: snapshot.workerWorkers,
+    occupations: snapshot.workerOccupations
+  }), [
+    allCastles,
+    ownCastle.castleId,
+    snapshot.realm.realmId,
+    snapshot.workerOccupations,
+    snapshot.workerSystem,
+    snapshot.workerWorkers
+  ]);
+  const resourceOccupantMarkers = useMemo<readonly RealmResourceOccupantMarker[]>(() => (
+    resolveRealmResourceOccupantMarkers({
+      buckets: [
+        { resource: 'gold', nodes: goldNodes },
+        { resource: 'food', nodes: foodNodes },
+        { resource: 'wood', nodes: woodNodes },
+        { resource: 'stone', nodes: stoneNodes }
+      ],
+      castles: allCastles,
+      profiles: profileRecords,
+      workerProjection: publicWorkerProjection,
+      ownCastleId: observerMode ? undefined : ownCastle.castleId
+    })
+  ), [
+    allCastles,
+    foodNodes,
+    goldNodes,
+    observerMode,
+    ownCastle.castleId,
+    profileRecords,
+    publicWorkerProjection,
+    stoneNodes,
+    woodNodes
+  ]);
+  const resourceOccupantSceneSignature = JSON.stringify(
+    resourceOccupantMarkers.map((marker) => [
+      marker.resource,
+      marker.siteId,
+      marker.nodeCoord.q,
+      marker.nodeCoord.r
+    ])
+  );
+  const resourceOccupantSceneCacheRef = useRef<Readonly<{
+    signature: string;
+    records: readonly RealmResourceOccupantSceneRecord[];
+  }> | undefined>(undefined);
+  if (resourceOccupantSceneCacheRef.current?.signature !== resourceOccupantSceneSignature) {
+    resourceOccupantSceneCacheRef.current = Object.freeze({
+      signature: resourceOccupantSceneSignature,
+      records: Object.freeze(resourceOccupantMarkers.map((marker) => Object.freeze({
+        resource: marker.resource,
+        siteId: marker.siteId,
+        coord: Object.freeze({ ...marker.nodeCoord })
+      })))
+    });
+  }
+  const resourceOccupantSceneRecords = resourceOccupantSceneCacheRef.current.records;
   const liveGatheringState = useMemo<RealmLiveGatheringState>(() => {
     let observedAtMicros = 0n;
     for (const node of [...goldNodes, ...foodNodes, ...woodNodes, ...stoneNodes]) {
@@ -695,23 +785,18 @@ function CanonicalRealmMapScreen({
       woodNodes,
       stoneNodes,
       workers: workerSceneRecords,
+      resourceOccupants: resourceOccupantSceneRecords,
       observedAtMicros
     });
-  }, [foodNodes, goldNodes, stoneNodes, woodNodes, workerRoster, workerSceneRecords]);
-  const profileRecords = useMemo(() => {
-    return new Map<number, CastleLabelRecord>(allCastles.map((castle) => [
-      castle.castleId,
-      {
-        castle,
-        profile: publicProfileForCastle(
-          castle.ownerFid,
-          sharedProfiles,
-          sharedPlayers,
-          observerMode ? undefined : identity
-        )
-      }
-    ]));
-  }, [allCastles, identity, observerMode, sharedPlayers, sharedProfiles]);
+  }, [
+    foodNodes,
+    goldNodes,
+    resourceOccupantSceneRecords,
+    stoneNodes,
+    woodNodes,
+    workerRoster,
+    workerSceneRecords
+  ]);
   const navigatorCastles = useMemo(() => allCastles.map((castle) => ({
     castleId: castle.castleId,
     label: castleProfileLabel(profileRecords.get(castle.castleId)!.profile),
@@ -790,7 +875,13 @@ function CanonicalRealmMapScreen({
   const [visibleCastleLabels, setVisibleCastleLabels] = useState<readonly VisibleCastleLabel[]>([]);
   const latestVisibleCastleLabelsRef = useRef<readonly VisibleCastleLabel[]>([]);
   const latestProjectionRef = useRef<RealmCastleProjectionFrame>({ width: 0, height: 0, castles: [] });
+  const latestResourceProjectionRef = useRef<RealmResourceProjectionFrame>({
+    width: 0,
+    height: 0,
+    markers: []
+  });
   const reservedUiRectsRef = useRef<readonly RealmLabelReservedRect[]>([]);
+  const reservedCastleLabelRectsRef = useRef<readonly RealmLabelReservedRect[]>([]);
   const stableCameraCompositionRef = useRef<ReturnType<typeof measuredRealmComposition> | null>(null);
   const compositionRafRef = useRef<number | null>(null);
   const labelMembershipSignatureRef = useRef('');
@@ -864,6 +955,87 @@ function CanonicalRealmMapScreen({
   const focusedCastleId = interaction.cameraTarget.kind === 'castle'
     ? interaction.cameraTarget.castleId
     : undefined;
+  const selectedResourceOccupantKey = interaction.resourceOccupantKey;
+  const selectedResourceOccupant = realmResourceOccupantMarkerForKey(
+    resourceOccupantMarkers,
+    selectedResourceOccupantKey
+  );
+  const resourceOccupantMarkerKeys = useMemo(
+    () => new Set(resourceOccupantMarkers.map(realmResourceOccupantMarkerKey)),
+    [resourceOccupantMarkers]
+  );
+  const resourceOccupantMarkerKeysRef = useRef(resourceOccupantMarkerKeys);
+  resourceOccupantMarkerKeysRef.current = resourceOccupantMarkerKeys;
+  const [visibleResourceOccupantKeys, setVisibleResourceOccupantKeys] =
+    useState<readonly string[]>([]);
+  const visibleResourceOccupantSignatureRef = useRef('');
+
+  useEffect(() => {
+    if (selectedResourceOccupantKey !== null && selectedResourceOccupant === null) {
+      dispatchInteraction({ type: 'close-resource-occupant' });
+    }
+  }, [selectedResourceOccupant, selectedResourceOccupantKey]);
+
+  const closeResourceOccupantRecord = useCallback(() => {
+    dispatchInteraction({ type: 'close-resource-occupant' });
+  }, []);
+
+  const selectResourceOccupant = useCallback((marker: RealmResourceOccupantMarker) => {
+    dispatchInteraction({
+      type: 'activate-resource-occupant',
+      key: realmResourceOccupantMarkerKey(marker)
+    });
+  }, []);
+
+  const openNavigator = useCallback(() => {
+    dispatchInteraction({ type: 'open-navigator' });
+  }, []);
+
+  const applyResourceProjection = useCallback((frame: RealmResourceProjectionFrame) => {
+    const root = rootRef.current;
+    if (!root) return;
+    const visibleKeys = visibleRealmResourceOccupantMarkerKeys(
+      frame,
+      resourceOccupantMarkerKeysRef.current,
+      [
+        ...reservedUiRectsRef.current,
+        ...reservedCastleLabelRectsRef.current
+      ]
+    );
+    const signature = visibleKeys.join('|');
+    if (signature !== visibleResourceOccupantSignatureRef.current) {
+      visibleResourceOccupantSignatureRef.current = signature;
+      setVisibleResourceOccupantKeys(visibleKeys);
+    }
+    const visibleKeySet = new Set(visibleKeys);
+    const projectedByKey = new Map(
+      frame.markers.filter((marker) => (
+        visibleKeySet.has(realmResourceOccupantMarkerKey(marker))
+      )).map((marker) => [
+        realmResourceOccupantMarkerKey(marker),
+        marker
+      ] as const)
+    );
+    root.querySelectorAll<HTMLElement>('[data-resource-occupant-key]').forEach((element) => {
+      const marker = projectedByKey.get(element.dataset.resourceOccupantKey ?? '');
+      if (!marker) {
+        element.dataset.projectedVisible = 'false';
+        return;
+      }
+      element.style.setProperty('--realm-resource-marker-x', `${marker.x}px`);
+      element.style.setProperty('--realm-resource-marker-y', `${marker.y}px`);
+      element.dataset.projectedVisible = marker.visible ? 'true' : 'false';
+    });
+  }, []);
+
+  const updateResourceProjection = useCallback((frame: RealmResourceProjectionFrame) => {
+    latestResourceProjectionRef.current = frame;
+    applyResourceProjection(frame);
+  }, [applyResourceProjection]);
+
+  const applyLatestResourceProjection = useCallback(() => {
+    applyResourceProjection(latestResourceProjectionRef.current);
+  }, [applyResourceProjection]);
 
   const updateHoveredCastleId = useCallback((next: number | undefined) => {
     if (hoveredCastleIdRef.current === next) return;
@@ -977,6 +1149,13 @@ function CanonicalRealmMapScreen({
     });
     sceneRef.current?.focusCastle(castle.castleId);
   }, []);
+
+  const focusResourceOccupantCastle = useCallback((marker: RealmResourceOccupantMarker) => {
+    const castle = allCastlesRef.current.find(
+      (candidate) => candidate.castleId === marker.castle.castleId
+    );
+    if (castle) selectCastle(castle);
+  }, [selectCastle]);
 
   const selectGoldNode = useCallback((node: RealmGoldNodePresentation) => {
     selectedCoordRef.current = { ...node.coord };
@@ -1240,6 +1419,17 @@ function CanonicalRealmMapScreen({
       candidateFrame,
       { reservedRects: reservedUiRectsRef.current }
     );
+    reservedCastleLabelRectsRef.current = Object.freeze(labels.map((label) => {
+      const width = label.compact
+        ? CASTLE_LABEL_COMPACT_MAXIMUM_CONTROL_WIDTH
+        : CASTLE_LABEL_MAXIMUM_CONTROL_WIDTH;
+      return Object.freeze({
+        left: label.x - width / 2,
+        top: label.y,
+        right: label.x + width / 2,
+        bottom: label.y + CASTLE_LABEL_MINIMUM_CONTROL_SIZE
+      });
+    }));
     const reservedUiCullCount = eligibleLabels.length - labels.length;
     // React owns label membership while the projection lane owns moving
     // coordinates. Retain the latest complete snapshot so an unrelated
@@ -1458,9 +1648,10 @@ function CanonicalRealmMapScreen({
         const composition = stableCameraCompositionRef.current;
         if (composition) sceneRef.current?.setComposition(composition);
         updateCastleProjection(latestProjectionRef.current);
+        applyResourceProjection(latestResourceProjectionRef.current);
       }
     });
-  }, [updateCastleProjection]);
+  }, [applyResourceProjection, updateCastleProjection]);
 
   useEffect(() => () => {
     if (compositionRafRef.current !== null) {
@@ -1487,7 +1678,13 @@ function CanonicalRealmMapScreen({
       observer?.disconnect();
       window.removeEventListener('resize', updateSceneComposition);
     };
-  }, [interaction.inspectorOpen, interaction.navigatorOpen, rendererMode, updateSceneComposition]);
+  }, [
+    interaction.inspectorOpen,
+    interaction.navigatorOpen,
+    rendererMode,
+    selectedResourceOccupantKey,
+    updateSceneComposition
+  ]);
 
   useEffect(() => {
     updateCastleProjection(latestProjectionRef.current);
@@ -1521,6 +1718,31 @@ function CanonicalRealmMapScreen({
           svgViewport
         ))
       });
+      updateResourceProjection({
+        width,
+        height,
+        markers: resourceOccupantSceneRecords.map((record, index) => {
+          const projection = fallbackCastleProjection(
+            {
+              castleId: index + 1,
+              q: record.coord.q,
+              r: record.coord.r
+            },
+            viewBox,
+            { width, height },
+            svgViewport
+          );
+          const bounds = projection.castleBounds;
+          return Object.freeze({
+            resource: record.resource,
+            siteId: record.siteId,
+            x: projection.x,
+            y: bounds ? (bounds.top + bounds.bottom) / 2 : projection.y,
+            depth: 0,
+            visible: projection.visible
+          });
+        })
+      });
     };
     updateFallbackProjection();
     window.addEventListener('resize', updateFallbackProjection, { passive: true });
@@ -1533,7 +1755,14 @@ function CanonicalRealmMapScreen({
       observer?.disconnect();
       window.removeEventListener('resize', updateFallbackProjection);
     };
-  }, [allCastles, rendererMode, updateCastleProjection, viewBox]);
+  }, [
+    allCastles,
+    rendererMode,
+    resourceOccupantSceneRecords,
+    updateCastleProjection,
+    updateResourceProjection,
+    viewBox
+  ]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -1559,8 +1788,10 @@ function CanonicalRealmMapScreen({
     try {
       setRendererLifecycle(loadingLifecycle);
       latestProjectionRef.current = { width: 0, height: 0, castles: [] };
+      updateResourceProjection({ width: 0, height: 0, markers: [] });
       labelMembershipSignatureRef.current = '';
       latestVisibleCastleLabelsRef.current = [];
+      reservedCastleLabelRectsRef.current = [];
       presentedCastleIdsRef.current = [];
       if (rootRef.current) {
         rootRef.current.dataset.presentedModelCount = '0';
@@ -1637,6 +1868,7 @@ function CanonicalRealmMapScreen({
         woodNodes: woodNodeCatalog,
         stoneNodes: stoneNodeCatalog,
         workers: workerSceneRecords,
+        resourceOccupants: resourceOccupantSceneRecords,
         sharedForestLayout: sharedForestProjection.layout,
         sharedForestTrees: sharedForestProjection.trees,
         waterCells,
@@ -1704,6 +1936,7 @@ function CanonicalRealmMapScreen({
         onStoneNodePresentationTelemetry: updateStoneNodePresentationTelemetry,
         onTerrainPresentationTelemetry: updateTerrainPresentationTelemetry,
         onCastleProjection: updateCastleProjection,
+        onResourceProjection: updateResourceProjection,
         onRendererFailure: (failure) => {
           if (activeRendererGenerationRef.current === rendererGeneration) {
             markRendererFailure(failure);
@@ -1803,7 +2036,7 @@ function CanonicalRealmMapScreen({
         rendererRecoveryTimerRef.current = null;
       }
     };
-  }, [foodNodeCatalog, goldNodeCatalog, handleSceneTargetHover, handleSceneTargetSelect, hasNearbyFoundingKeeps, isSceneCoordPassable, keepCoord, markRendererFailure, observerMode, ownCastle.castleId, peerCastles, projectedTileMetadata, qualitySpec, reducedMotion, rendererRecoveryNonce, sharedForestProjection, snapshot.realm.realmId, snapshot.realmEnvironment, snapshot.waterBodies, stoneNodeCatalog, surface, updateCastlePresentationTelemetry, updateCastleProjection, updateFoodNodePresentationTelemetry, updateGoldNodePresentationTelemetry, updateSceneComposition, updateStoneNodePresentationTelemetry, updateTerrainPresentationTelemetry, updateWoodNodePresentationTelemetry, waterCells, woodNodeCatalog, workerSceneCatalogKey]);
+  }, [foodNodeCatalog, goldNodeCatalog, handleSceneTargetHover, handleSceneTargetSelect, hasNearbyFoundingKeeps, isSceneCoordPassable, keepCoord, markRendererFailure, observerMode, ownCastle.castleId, peerCastles, projectedTileMetadata, qualitySpec, reducedMotion, rendererRecoveryNonce, sharedForestProjection, snapshot.realm.realmId, snapshot.realmEnvironment, snapshot.waterBodies, stoneNodeCatalog, surface, updateCastlePresentationTelemetry, updateCastleProjection, updateFoodNodePresentationTelemetry, updateGoldNodePresentationTelemetry, updateResourceProjection, updateSceneComposition, updateStoneNodePresentationTelemetry, updateTerrainPresentationTelemetry, updateWoodNodePresentationTelemetry, waterCells, woodNodeCatalog, workerSceneCatalogKey]);
 
   useEffect(() => {
     sceneRef.current?.reconcileLiveGatheringState?.(liveGatheringState);
@@ -1848,7 +2081,10 @@ function CanonicalRealmMapScreen({
       // then immediately returning the player to the menu.
       if (event.key !== 'Escape' || event.defaultPrevented || event.repeat) return;
       const result = resolveRealmEscape(interactionRef.current);
-      if (result.decision === 'close-inspector') {
+      if (result.decision === 'close-resource-occupant') {
+        event.preventDefault();
+        dispatchInteraction({ type: 'close-resource-occupant' });
+      } else if (result.decision === 'close-inspector') {
         event.preventDefault();
         dispatchInteraction({ type: 'close-inspector' });
       } else if (result.decision === 'close-navigator') {
@@ -2271,6 +2507,16 @@ function CanonicalRealmMapScreen({
             onActivate={selectCastle}
           />
 
+          <RealmResourceOccupantMarkers
+            markers={resourceOccupantMarkers}
+            visibleMarkerKeys={visibleResourceOccupantKeys}
+            selectedMarker={selectedResourceOccupant}
+            onMarkerLayout={applyLatestResourceProjection}
+            onSelect={selectResourceOccupant}
+            onRequestClose={closeResourceOccupantRecord}
+            onFocusCastle={focusResourceOccupantCastle}
+          />
+
           {observerMode ? (
             <RealmObserverHud
               selectedCell={selectedCell}
@@ -2296,7 +2542,7 @@ function CanonicalRealmMapScreen({
               audioMuted={audioMuted}
               onGraphicsPreferenceChange={onGraphicsPreferenceChange}
               onAudioMutedChange={onAudioMutedChange}
-              onRequestExplore={() => dispatchInteraction({ type: 'open-navigator' })}
+              onRequestExplore={openNavigator}
               activeWagons={activeWagons}
               onOpenActiveWagon={openActiveWagon}
               workerProjection={observerMode ? undefined : workerProjection}
@@ -2453,7 +2699,7 @@ function CanonicalRealmMapScreen({
                 onActivate: viewKeep
               }] : [])
             ]}
-            onRequestOpen={() => dispatchInteraction({ type: 'open-navigator' })}
+            onRequestOpen={openNavigator}
             onRequestClose={() => dispatchInteraction({ type: 'close-navigator' })}
             onActivateCastle={(entry) => {
               const castle = allCastles.find((candidate) => candidate.castleId === entry.castleId);

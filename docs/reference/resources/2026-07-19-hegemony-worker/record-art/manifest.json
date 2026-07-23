@@ -58,7 +58,8 @@
   },
   "presentationBoundary": {
     "component": "src/components/realm/WorkerInspectionPanel.tsx",
-    "runtimeUse": "same-origin decorative hero art in a focus-safe Worker inspector",
+    "publicOccupantComponent": "src/components/realm/RealmResourceOccupantMarkers.tsx",
+    "runtimeUse": "same-origin decorative hero art in focus-safe Worker and public resource-occupant inspectors",
     "forbiddenClaims": [
       "private FID",
       "private cargo or account balance",
