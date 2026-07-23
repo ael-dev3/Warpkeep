@@ -95,7 +95,14 @@ describe('camera-local procedural grass layer', () => {
       .toBe(matrixVersions[index]));
     expect(layer.updateView(axialToWorld({ q: 1, r: 0 }, 1), 'keep')).toBe(false);
     matrixWrites.forEach((spy) => expect(spy).not.toHaveBeenCalled());
-    expect(layer.updateView(axialToWorld({ q: 2, r: 0 }, 1), 'keep')).toBe(true);
+    expect(layer.invalidateExclusions()).toBe(true);
+    matrixWrites.forEach((spy) => expect(spy).not.toHaveBeenCalled());
+    expect(layer.updateView(axialToWorld({ q: 1, r: 0 }, 1), 'keep')).toBe(true);
+    expect(matrixWrites.some((spy) => spy.mock.calls.length > 0)).toBe(true);
+    matrixWrites.forEach((spy) => spy.mockClear());
+    expect(layer.updateView(axialToWorld({ q: 1, r: 0 }, 1), 'keep')).toBe(false);
+    matrixWrites.forEach((spy) => expect(spy).not.toHaveBeenCalled());
+    expect(layer.updateView(axialToWorld({ q: 3, r: 0 }, 1), 'keep')).toBe(true);
     expect(matrixWrites.some((spy) => spy.mock.calls.length > 0)).toBe(true);
 
     const intersections: THREE.Intersection[] = [];
@@ -123,5 +130,6 @@ describe('camera-local procedural grass layer', () => {
     expect(layer.getTelemetry().animated).toBe(false);
     expect(layer.updateWind(1)).toBe(false);
     layer.dispose();
+    expect(layer.invalidateExclusions()).toBe(false);
   });
 });

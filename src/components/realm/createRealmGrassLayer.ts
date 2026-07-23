@@ -89,6 +89,8 @@ export type RealmGrassLayer = Readonly<{
   mesh: THREE.InstancedMesh;
   meshes: readonly THREE.InstancedMesh[];
   updateView: (focus: HexWorldPosition, mode: RealmGrassCameraMode) => boolean;
+  /** Mark camera-local trunk/root exclusions dirty for the next view update. */
+  invalidateExclusions: () => boolean;
   updateWind: (seconds: number) => boolean;
   setInteraction: (selected: HexCoord | null, hovered: HexCoord | null) => void;
   isAnimationActive: () => boolean;
@@ -242,6 +244,7 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
   let currentWindow: RealmGrassActiveWindow | null = null;
   let telemetry = emptyTelemetry(plan, options.alphaToCoverage ?? false);
   let disposed = false;
+  let exclusionsDirty = false;
 
   const cellDataFor = (cell: RealmGrassActiveWindow['cells'][number]['cell']) => {
     const key = `${cell.coord.q},${cell.coord.r}`;
@@ -441,9 +444,18 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
     updateView: (focus, mode) => {
       if (disposed) return false;
       const next = resolveRealmGrassActiveWindow(options.surface.renderMap, focus, mode, plan, hexSize);
-      if (!shouldRepackRealmGrassWindow(currentWindow, next, plan)) return false;
+      if (!exclusionsDirty && !shouldRepackRealmGrassWindow(currentWindow, next, plan)) {
+        return false;
+      }
       currentWindow = next;
+      exclusionsDirty = false;
       repack(next);
+      return true;
+    },
+    invalidateExclusions: () => {
+      if (disposed) return false;
+      cache.clear();
+      exclusionsDirty = true;
       return true;
     },
     updateWind: (seconds) => {
