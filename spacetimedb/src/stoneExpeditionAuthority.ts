@@ -398,7 +398,6 @@ export function dispatchGenesisStoneExpedition(
   }>,
 ): StoneExpeditionDispatch {
   const resource = assertGenesisResourceForFid(ctx, input.fid);
-  assertLegacyExpeditionDispatchAllowed(ctx);
   const requestKey = requestKeyFor(input.fid, input.idempotencyKey);
   const prior = ctx.db.stoneExpeditionIdempotencyV1.requestKey.find(requestKey);
   if (prior !== null) {
@@ -416,6 +415,7 @@ export function dispatchGenesisStoneExpedition(
     return Object.freeze({ expedition, idempotent: true });
   }
 
+  assertLegacyExpeditionDispatchAllowed(ctx, 'stone', input.siteId);
   const site = ctx.db.stoneSiteV1.siteId.find(input.siteId);
   if (site === null || !site.active) fail('STONE_SITE_UNAVAILABLE');
   assertCanonicalStoneSiteRow(site);

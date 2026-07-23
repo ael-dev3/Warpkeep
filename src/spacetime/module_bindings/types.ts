@@ -231,6 +231,34 @@ export const AdminWaterRevisionStatusV1 = __t.object("AdminWaterRevisionStatusV1
 });
 export type AdminWaterRevisionStatusV1 = __Infer<typeof AdminWaterRevisionStatusV1>;
 
+export const AdminWorkerRolloutStatusV2 = __t.object("AdminWorkerRolloutStatusV2", {
+  phase: __t.string(),
+  systemRows: __t.u64(),
+  systemConfigValid: __t.bool(),
+  expectedCastleCount: __t.u32(),
+  expectedWorkerCount: __t.u32(),
+  actualCastleCount: __t.u64(),
+  actualWorkerCount: __t.u64(),
+  rosterDigest: __t.string(),
+  expectedRosterDigest: __t.string(),
+  malformedWorkerGraphRows: __t.u64(),
+  resourceAccounts: __t.u64(),
+  missingResourceAccounts: __t.u64(),
+  orphanedResourceAccounts: __t.u64(),
+  resourceInvariantViolations: __t.u64(),
+  resourceRosterDigest: __t.string(),
+  canonicalResourceCatalog: __t.bool(),
+  resourceCatalogDigest: __t.string(),
+  legacyExpeditions: __t.u64(),
+  legacyOccupations: __t.u64(),
+  legacySchedules: __t.u64(),
+  genericAssignments: __t.u64(),
+  genericOccupations: __t.u64(),
+  genericSchedules: __t.u64(),
+  genericCommandReceipts: __t.u64(),
+});
+export type AdminWorkerRolloutStatusV2 = __Infer<typeof AdminWorkerRolloutStatusV2>;
+
 export const AdminWorkerRosterPlanV1 = __t.object("AdminWorkerRosterPlanV1", {
   ready: __t.bool(),
   activationBlockedByLegacyRows: __t.bool(),

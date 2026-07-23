@@ -358,9 +358,11 @@ export type WarpkeepRealmSnapshotCandidate = Readonly<{
   stoneSites?: readonly WarpkeepStoneSite[];
   /** Omitted with `stoneSites`; absent/invalid data renders no Stone nodes. */
   stoneNodeOccupations?: readonly WarpkeepStoneNodeOccupation[];
-  /** Additive generic-worker public projection; absent keeps legacy mode. */
+  /** Additive generic-worker mode signal; true absence keeps legacy mode. */
   workerSystem?: WarpkeepRealmWorkerSystem;
+  /** Present only when the complete bounded public worker graph validates. */
   workerWorkers?: readonly WarpkeepCastleWorker[];
+  /** Present only with the same complete validated public worker graph. */
   workerOccupations?: readonly WarpkeepWorkerNodeOccupation[];
   /**
    * Additive public forest metadata. The connection publishes the pair only

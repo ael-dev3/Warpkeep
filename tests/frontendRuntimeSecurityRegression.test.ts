@@ -24,7 +24,9 @@ import {
   farcasterAuthMachineReducer
 } from '../src/farcaster/farcasterAuthMachine';
 import {
-  safePublicHttpsImageUrl
+  WARPKEEP_SAME_ORIGIN_PROFILE_PLACEHOLDER_PATH,
+  safePublicHttpsImageUrl,
+  safeWarpkeepProfileImageUrl
 } from '../src/security/publicImageUrl';
 import { normalizePublicProfileText } from '../src/security/publicProfileText';
 import {
@@ -122,6 +124,20 @@ describe('untrusted browser presentation boundaries', () => {
       'https://0x7f000001/profile.png',
       'https://2130706433/profile.png',
     ]) expect(safePublicHttpsImageUrl(value)).toBeUndefined();
+  });
+
+  it('keeps only the exact fixed profile placeholder idempotent on the current origin', () => {
+    const absolute = new URL(
+      WARPKEEP_SAME_ORIGIN_PROFILE_PLACEHOLDER_PATH,
+      window.location.origin
+    ).toString();
+    expect(safeWarpkeepProfileImageUrl(WARPKEEP_SAME_ORIGIN_PROFILE_PLACEHOLDER_PATH))
+      .toBe(absolute);
+    expect(safeWarpkeepProfileImageUrl(absolute)).toBe(absolute);
+    const otherPath = new URL('/private/profile.png', window.location.origin).toString();
+    expect(safeWarpkeepProfileImageUrl(otherPath))
+      .toBeUndefined();
+    expect(safeWarpkeepProfileImageUrl(`${absolute}?variant=tracking`)).toBeUndefined();
   });
 
   it('sanitizes relay profile controls before they enter verified identity state', async () => {

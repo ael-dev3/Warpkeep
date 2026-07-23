@@ -442,6 +442,50 @@ describe('RealmHud', () => {
     expect(document.body.textContent).not.toContain('resource units');
   });
 
+  it('ignores stale legacy yield and wagon projections once generic Workers are active', () => {
+    const fixture = assignedWorkerUiFixture();
+    const onCollectResources = vi.fn().mockResolvedValue(undefined);
+    const onOpenActiveWagon = vi.fn();
+    render(
+      <RealmHud
+        {...commonProps()}
+        {...fixture}
+        activeWagons={[{
+          resource: 'food',
+          siteId: 'genesis-001:food:legacy-stale',
+          phase: 'gathering'
+        }]}
+        onCollectResources={onCollectResources}
+        onOpenActiveWagon={onOpenActiveWagon}
+        resources={{
+          ...createReadyResourceState(),
+          balances: { food: 91n, wood: 82n, stone: 73n, gold: 64n },
+          pendingBalances: { food: 55n, wood: 46n, stone: 37n, gold: 28n }
+        }}
+        workerResourceState={{
+          ...fixture.workerResourceState,
+          available: { ...fixture.workerResourceState.available, stone: 3n }
+        }}
+      />
+    );
+
+    const resourceRail = screen.getByRole('region', { name: 'Your resources' });
+    expect(within(resourceRail).getByRole('button', {
+      name: 'Stone: 3 available. Show resource details.'
+    })).not.toBeNull();
+    expect(within(resourceRail).queryByRole('button', { name: /ready to collect/i })).toBeNull();
+
+    const { dialog } = openRealmMenu();
+    expect(within(dialog).getByRole('button', { name: /WORKERS.*3 of 4 available/i }))
+      .not.toBeNull();
+    expect(within(dialog).queryByRole('button', { name: /COLLECT YIELD/i })).toBeNull();
+    expect(within(dialog).queryByRole('button', { name: /FOOD WAGON/i })).toBeNull();
+    expect(dialog.textContent).not.toContain('Settle available resources');
+    expect(dialog.textContent).not.toContain('legacy-stale');
+    expect(onCollectResources).not.toHaveBeenCalled();
+    expect(onOpenActiveWagon).not.toHaveBeenCalled();
+  });
+
   it('guards duplicate recalls and keeps Escape inside a pending command', async () => {
     const fixture = assignedWorkerUiFixture();
     let resolveRecall!: () => void;
@@ -475,6 +519,49 @@ describe('RealmHud', () => {
     });
     await waitFor(() => expect(
       within(commandCenter).getByRole('button', { name: 'RETURN' })
+        .hasAttribute('disabled')
+    ).toBe(false));
+  });
+
+  it('invokes the separate RETURN ALL control through one guarded user interaction', async () => {
+    const fixture = assignedWorkerUiFixture();
+    let resolveRecallAll!: () => void;
+    const pendingRecallAll = new Promise<void>((resolve) => { resolveRecallAll = resolve; });
+    const onRecallAllWorkers = vi.fn(() => pendingRecallAll);
+    const onRecallWorker = vi.fn().mockResolvedValue(undefined);
+    render(
+      <RealmHud
+        {...commonProps()}
+        {...fixture}
+        onRecallAllWorkers={onRecallAllWorkers}
+        onRecallWorker={onRecallWorker}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Open Realm menu/i }));
+    fireEvent.click(screen.getByRole('button', { name: /WORKERS/i }));
+    const commandCenter = screen.getByRole('dialog', { name: 'WORKERS' });
+    const recallAll = within(commandCenter).getByRole('button', {
+      name: 'RETURN ALL TO KEEP'
+    });
+    fireEvent.click(recallAll);
+    fireEvent.click(recallAll);
+
+    expect(onRecallAllWorkers).toHaveBeenCalledOnce();
+    expect(onRecallWorker).not.toHaveBeenCalled();
+    expect(within(commandCenter).getByRole('button', { name: 'RETURNING…' })
+      .hasAttribute('disabled')).toBe(true);
+    expect(within(commandCenter).getByRole('button', { name: 'RETURN' })
+      .hasAttribute('disabled')).toBe(true);
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.getByRole('dialog', { name: 'WORKERS' })).toBe(commandCenter);
+    await act(async () => {
+      resolveRecallAll();
+      await pendingRecallAll;
+    });
+    await waitFor(() => expect(
+      within(commandCenter).getByRole('button', { name: 'RETURN ALL TO KEEP' })
         .hasAttribute('disabled')
     ).toBe(false));
   });

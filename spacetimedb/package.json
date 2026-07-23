@@ -18,6 +18,7 @@
     "spacetimedb": "2.6.1"
   },
   "devDependencies": {
+    "esbuild": "0.25.12",
     "tsx": "4.20.6",
     "typescript": "5.6.3"
   }

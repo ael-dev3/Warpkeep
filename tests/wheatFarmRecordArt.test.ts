@@ -179,6 +179,8 @@ describe('Hegemony Wheat Farm record art', () => {
     expect(component).not.toMatch(/https?:\/\//i);
     expect(map).toContain('FoodFarmInspectionPanel');
     expect(map).toContain('privateExpedition={observerMode ? undefined : foodExpedition}');
-    expect(map).toContain('onDispatchFoodExpedition={observerMode ? undefined : onDispatchFoodExpedition}');
+    expect(map).toMatch(
+      /onDispatchFoodExpedition=\{\s*observerMode \|\| legacyResourceDispatchBlocked\s*\? undefined\s*: onDispatchFoodExpedition\s*\}/
+    );
   });
 });

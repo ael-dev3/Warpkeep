@@ -162,7 +162,7 @@ describe('Hegemony Worker record art', () => {
     expect(occupantComponent).toContain('className="realm-resource-occupant-panel__worker-art"');
     expect(occupantComponent).toContain('aria-hidden="true"');
     expect(occupantComponent).toContain('alt=""');
-    expect(occupantComponent).toContain('Owning keeper only');
+    expect(occupantComponent).not.toMatch(/Command authority|Owning keeper/i);
     expect(occupantComponent).not.toContain('Recall worker home');
   });
 });

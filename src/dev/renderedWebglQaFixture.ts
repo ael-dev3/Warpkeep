@@ -4,6 +4,12 @@ import {
   CANONICAL_WORLD_TILE_META,
   CANONICAL_WORLD_TILES
 } from '../../spacetimedb/src/world';
+import { CANONICAL_TIER_I_GOLD_SITES_V1 } from '../../spacetimedb/src/goldSitePolicy';
+import { CANONICAL_TIER_I_FOOD_SITES_V1 } from '../../spacetimedb/src/foodSitePolicy';
+import { CANONICAL_TIER_I_STONE_SITES_V1 } from '../../spacetimedb/src/stoneSitePolicy';
+import { CANONICAL_TIER_I_WOOD_SITES_V1 } from '../../spacetimedb/src/woodSitePolicy';
+import { validateCanonicalGenesisSnapshot } from '../spacetime/canonicalGenesisSnapshot';
+import type { WarpkeepRealmSnapshotCandidate } from '../spacetime/warpkeepBackendTypes';
 import { WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION } from '../spacetime/warpkeepProtocol';
 import {
   createRealmObserverHarnessRealm,
@@ -21,6 +27,25 @@ export const RENDERED_WEBGL_QA_LONG_DISPLAY_NAME =
   'QA Keeper With An Intentionally Long Display Name For Responsive Realm QA';
 export const RENDERED_WEBGL_QA_LONG_PUBLIC_BIO =
   'A deliberately long synthetic public biography used only to verify that the responsive castle inspector truncates, wraps, and remains usable without leaking real profile data.';
+export const RENDERED_WEBGL_QA_OCCUPIED_GOLD_SITE_ID =
+  'genesis-001-tier1-gold-03';
+export const RENDERED_WEBGL_QA_OCCUPANT_CASTLE_ID = 900_001;
+export const RENDERED_WEBGL_QA_OVERVIEW_GOLD_SITE_ID =
+  'genesis-001-tier1-gold-11';
+export const RENDERED_WEBGL_QA_OVERVIEW_OCCUPANT_CASTLE_ID = 900_002;
+export const RENDERED_WEBGL_QA_OCCUPANCY_STRESS_COUNT =
+  CANONICAL_TIER_I_GOLD_SITES_V1.length
+  + CANONICAL_TIER_I_FOOD_SITES_V1.length
+  + CANONICAL_TIER_I_WOOD_SITES_V1.length
+  + CANONICAL_TIER_I_STONE_SITES_V1.length;
+
+const RENDERED_WEBGL_QA_OCCUPATION_STARTED_AT_MICROS = 1_800_000_000_000_000n;
+const RENDERED_WEBGL_QA_OCCUPATION_ARRIVES_AT_MICROS =
+  RENDERED_WEBGL_QA_OCCUPATION_STARTED_AT_MICROS + 60_000_000n;
+const RENDERED_WEBGL_QA_OCCUPATION_GATHERING_ENDS_AT_MICROS =
+  RENDERED_WEBGL_QA_OCCUPATION_ARRIVES_AT_MICROS + 2_592_000_000_000n;
+const RENDERED_WEBGL_QA_OCCUPATION_RETURNS_AT_MICROS =
+  RENDERED_WEBGL_QA_OCCUPATION_GATHERING_ENDS_AT_MICROS + 60_000_000n;
 
 function sequence(value: number) {
   return value.toString().padStart(3, '0');
@@ -82,10 +107,159 @@ export function renderedWebglQaFixtureSnapshot() {
 }
 
 export function createRenderedWebglQaFixtureRealm(): RealmObserverHarnessRealm {
-  return createRealmObserverHarnessRealm(
+  const baseRealm = createRealmObserverHarnessRealm(
     RENDERED_WEBGL_QA_FIXTURE_SNAPSHOT,
     RENDERED_WEBGL_QA_OWNER_SEED
   );
+  const occupiedSite = CANONICAL_TIER_I_GOLD_SITES_V1.find(
+    (site) => site.siteId === RENDERED_WEBGL_QA_OCCUPIED_GOLD_SITE_ID
+  );
+  const occupantCastle = baseRealm.snapshot.castles.find(
+    (castle) => castle.castleId === RENDERED_WEBGL_QA_OCCUPANT_CASTLE_ID
+  );
+  const overviewSite = CANONICAL_TIER_I_GOLD_SITES_V1.find(
+    (site) => site.siteId === RENDERED_WEBGL_QA_OVERVIEW_GOLD_SITE_ID
+  );
+  const overviewOccupantCastle = baseRealm.snapshot.castles.find(
+    (castle) => castle.castleId === RENDERED_WEBGL_QA_OVERVIEW_OCCUPANT_CASTLE_ID
+  );
+  if (!occupiedSite || !occupantCastle || !overviewSite || !overviewOccupantCastle) {
+    throw new Error('Rendered WebGL QA occupied resource fixture is incomplete.');
+  }
+
+  // The fixture intentionally enriches the already-sanitized local observer
+  // realm only after its 100-castle graph has passed validation. The origin is
+  // a remote synthetic keep in player mode and remains a public keep in
+  // observer mode. No private expedition row, FID, image URL, or command
+  // authority is introduced.
+  const candidate: WarpkeepRealmSnapshotCandidate = {
+    ...baseRealm.snapshot,
+    goldSites: CANONICAL_TIER_I_GOLD_SITES_V1.map((site) => ({ ...site })),
+    goldNodeOccupations: [
+      Object.freeze({
+        siteId: occupiedSite.siteId,
+        originCastleId: occupantCastle.castleId,
+        phase: 'gathering' as const,
+        startedAtMicros: RENDERED_WEBGL_QA_OCCUPATION_STARTED_AT_MICROS,
+        arrivesAtMicros: RENDERED_WEBGL_QA_OCCUPATION_ARRIVES_AT_MICROS,
+        gatheringEndsAtMicros: RENDERED_WEBGL_QA_OCCUPATION_GATHERING_ENDS_AT_MICROS,
+        returnsAtMicros: RENDERED_WEBGL_QA_OCCUPATION_RETURNS_AT_MICROS
+      }),
+      Object.freeze({
+        siteId: overviewSite.siteId,
+        originCastleId: overviewOccupantCastle.castleId,
+        phase: 'gathering' as const,
+        startedAtMicros: RENDERED_WEBGL_QA_OCCUPATION_STARTED_AT_MICROS,
+        arrivesAtMicros: RENDERED_WEBGL_QA_OCCUPATION_ARRIVES_AT_MICROS,
+        gatheringEndsAtMicros: RENDERED_WEBGL_QA_OCCUPATION_GATHERING_ENDS_AT_MICROS,
+        returnsAtMicros: RENDERED_WEBGL_QA_OCCUPATION_RETURNS_AT_MICROS
+      })
+    ],
+    foodSites: CANONICAL_TIER_I_FOOD_SITES_V1.map((site) => ({ ...site })),
+    foodNodeOccupations: [Object.freeze({
+      siteId: 'genesis-001-tier1-food-004',
+      originCastleId: 900_003,
+      phase: 'gathering' as const,
+      startedAtMicros: RENDERED_WEBGL_QA_OCCUPATION_STARTED_AT_MICROS,
+      arrivesAtMicros: RENDERED_WEBGL_QA_OCCUPATION_ARRIVES_AT_MICROS,
+      gatheringEndsAtMicros: RENDERED_WEBGL_QA_OCCUPATION_GATHERING_ENDS_AT_MICROS,
+      returnsAtMicros: RENDERED_WEBGL_QA_OCCUPATION_RETURNS_AT_MICROS
+    })],
+    woodSites: CANONICAL_TIER_I_WOOD_SITES_V1.map((site) => ({ ...site })),
+    woodNodeOccupations: [Object.freeze({
+      siteId: 'genesis-001-tier1-wood-033',
+      originCastleId: 900_004,
+      phase: 'gathering' as const,
+      startedAtMicros: RENDERED_WEBGL_QA_OCCUPATION_STARTED_AT_MICROS,
+      arrivesAtMicros: RENDERED_WEBGL_QA_OCCUPATION_ARRIVES_AT_MICROS,
+      gatheringEndsAtMicros: RENDERED_WEBGL_QA_OCCUPATION_GATHERING_ENDS_AT_MICROS,
+      returnsAtMicros: RENDERED_WEBGL_QA_OCCUPATION_RETURNS_AT_MICROS
+    })],
+    stoneSites: CANONICAL_TIER_I_STONE_SITES_V1.map((site) => ({ ...site })),
+    stoneNodeOccupations: [Object.freeze({
+      siteId: 'genesis-001-tier1-stone-059',
+      originCastleId: 900_002,
+      phase: 'gathering' as const,
+      startedAtMicros: RENDERED_WEBGL_QA_OCCUPATION_STARTED_AT_MICROS,
+      arrivesAtMicros: RENDERED_WEBGL_QA_OCCUPATION_ARRIVES_AT_MICROS,
+      gatheringEndsAtMicros: RENDERED_WEBGL_QA_OCCUPATION_GATHERING_ENDS_AT_MICROS,
+      returnsAtMicros: RENDERED_WEBGL_QA_OCCUPATION_RETURNS_AT_MICROS
+    })]
+  };
+  const snapshot = validateCanonicalGenesisSnapshot(candidate, {
+    ownFid: baseRealm.identity.fid,
+    protocolVersion: WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION,
+    allowLocalProfilePlaceholder: true
+  });
+  return Object.freeze({
+    identity: baseRealm.identity,
+    snapshot
+  });
+}
+
+function stressOccupations<T extends Readonly<{ siteId: string }>>(
+  sites: readonly T[],
+  castles: RealmObserverHarnessRealm['snapshot']['castles'],
+  phaseOffset: number
+) {
+  const phases = ['outbound', 'gathering', 'returning'] as const;
+  return Object.freeze(sites.map((site, index) => Object.freeze({
+    siteId: site.siteId,
+    originCastleId: castles[index % castles.length]!.castleId,
+    phase: phases[(index + phaseOffset) % phases.length]!,
+    startedAtMicros: RENDERED_WEBGL_QA_OCCUPATION_STARTED_AT_MICROS + BigInt(index),
+    arrivesAtMicros: RENDERED_WEBGL_QA_OCCUPATION_ARRIVES_AT_MICROS + BigInt(index),
+    gatheringEndsAtMicros:
+      RENDERED_WEBGL_QA_OCCUPATION_GATHERING_ENDS_AT_MICROS + BigInt(index),
+    returnsAtMicros: RENDERED_WEBGL_QA_OCCUPATION_RETURNS_AT_MICROS + BigInt(index)
+  })));
+}
+
+/**
+ * Dense local-only rendered-QA fixture. Every canonical resource node is
+ * occupied by one of the 100 synthetic public keeps, with at most one legacy
+ * occupation of each resource kind per keep. The standalone browser route can
+ * select it only through its fixed reviewed loopback query, and it cannot
+ * reach a production build.
+ */
+export function createRenderedWebglQaOccupancyStressRealm(): RealmObserverHarnessRealm {
+  const baseRealm = createRealmObserverHarnessRealm(
+    RENDERED_WEBGL_QA_FIXTURE_SNAPSHOT,
+    RENDERED_WEBGL_QA_OWNER_SEED
+  );
+  const candidate: WarpkeepRealmSnapshotCandidate = {
+    ...baseRealm.snapshot,
+    goldSites: CANONICAL_TIER_I_GOLD_SITES_V1.map((site) => ({ ...site })),
+    goldNodeOccupations: stressOccupations(
+      CANONICAL_TIER_I_GOLD_SITES_V1,
+      baseRealm.snapshot.castles,
+      0
+    ),
+    foodSites: CANONICAL_TIER_I_FOOD_SITES_V1.map((site) => ({ ...site })),
+    foodNodeOccupations: stressOccupations(
+      CANONICAL_TIER_I_FOOD_SITES_V1,
+      baseRealm.snapshot.castles,
+      1
+    ),
+    woodSites: CANONICAL_TIER_I_WOOD_SITES_V1.map((site) => ({ ...site })),
+    woodNodeOccupations: stressOccupations(
+      CANONICAL_TIER_I_WOOD_SITES_V1,
+      baseRealm.snapshot.castles,
+      2
+    ),
+    stoneSites: CANONICAL_TIER_I_STONE_SITES_V1.map((site) => ({ ...site })),
+    stoneNodeOccupations: stressOccupations(
+      CANONICAL_TIER_I_STONE_SITES_V1,
+      baseRealm.snapshot.castles,
+      0
+    )
+  };
+  const snapshot = validateCanonicalGenesisSnapshot(candidate, {
+    ownFid: baseRealm.identity.fid,
+    protocolVersion: WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION,
+    allowLocalProfilePlaceholder: true
+  });
+  return Object.freeze({ identity: baseRealm.identity, snapshot });
 }
 
 export { RENDERED_WEBGL_QA_FIXTURE_ID };

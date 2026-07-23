@@ -271,9 +271,9 @@ export function resolveRealmStoneWagonPose(
 export function stoneNodeAvailabilityLabel(value: RealmStoneNodeAvailability) {
   switch (value) {
     case 'available': return 'AVAILABLE';
-    case 'outbound': return 'WAGON EN ROUTE';
+    case 'outbound': return 'OCCUPIED · WAGON EN ROUTE';
     case 'gathering': return 'OCCUPIED · GATHERING';
-    case 'returning': return 'WAGON RETURNING';
+    case 'returning': return 'OCCUPIED · WAGON RETURNING';
     default: return 'SITE STATUS UNAVAILABLE';
   }
 }

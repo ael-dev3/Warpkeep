@@ -49,6 +49,11 @@ export {
   recallAllWorkersV1,
   adminGetWorkerSystemStatusV1,
   adminPlanWorkerRosterV1,
+  adminStageWorkerSystemV1,
+  adminBackfillWorkerRosterV1,
+  adminBeginWorkerLegacyDrainV1,
+  adminActivateWorkerSystemV1,
+  adminGetWorkerRolloutStatusV2,
 } from './reducers/castleWorkers';
 export {
   getMyGoldExpeditionStateV1,

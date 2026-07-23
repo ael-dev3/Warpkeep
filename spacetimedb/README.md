@@ -106,11 +106,14 @@ server-time availability without a write; scheduled expiry and explicit
 dispatch/recall commands materialize complete quanta. There is no per-minute
 write loop and no `collect` command for generic workers.
 
-The suffix is intentionally staged. The module does not seed, activate,
-backfill, or migrate production workers in this PR. Activation requires an
-admin-reviewed singleton, an exact four-worker roster digest, and zero legacy
-expedition, occupation, and schedule rows. The browser wire protocol remains 3
-until a later client-capability release opts into the generic worker methods.
+The suffix remains disabled by default. Admin-only source now separates
+singleton staging, deterministic four-worker backfill, legacy drain, and final
+activation. Activation additionally requires exact resource/account and site
+catalog state plus an explicit 0.3.x client capability, source commit, and
+artifact attestation. None of those reducers are called by module publication;
+no production worker has been seeded, backfilled, drained, or activated by
+this source change. The browser wire protocol remains 3 until a reviewed
+client-capability release opts into the generic worker methods.
 
 ## Entry agreement and Marks
 

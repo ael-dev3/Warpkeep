@@ -9,6 +9,7 @@ vi.mock('../src/components/realm/loadRealmProfileImage', () => ({
 
 import {
   REALM_PROFILE_IMAGE_MAX_CONCURRENT_LOADS,
+  REALM_PROFILE_IMAGE_RETRY_DELAY_MS,
   StaticProfileImageCanvas
 } from '../src/components/profile/StaticProfileImageCanvas';
 
@@ -25,6 +26,7 @@ function pendingLoad(_url: string, options: { signal: AbortSignal }) {
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   loadProfileImage.mockReset();
   vi.restoreAllMocks();
 });
@@ -148,5 +150,47 @@ describe('shared static profile-image lifecycle', () => {
     await act(async () => {
       for (const load of pending.slice(1)) load.reject(new Error('test cleanup'));
     });
+  });
+
+  it('recovers from one transient reviewed-CDN failure without retrying indefinitely', async () => {
+    vi.useFakeTimers();
+    const image = document.createElement('img');
+    Object.defineProperties(image, {
+      naturalHeight: { value: 64 },
+      naturalWidth: { value: 64 }
+    });
+    const dispose = vi.fn();
+    loadProfileImage
+      .mockRejectedValueOnce(new Error('transient CDN failure'))
+      .mockResolvedValueOnce({ image, dispose });
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      clearRect: vi.fn(),
+      drawImage: vi.fn()
+    } as unknown as CanvasRenderingContext2D);
+
+    const view = render(
+      <StaticProfileImageCanvas
+        fallback={<span>V</span>}
+        safeUrl={`${URL}-retry`}
+        snapshotPixels={64}
+      />
+    );
+    await act(async () => undefined);
+    expect(loadProfileImage).toHaveBeenCalledTimes(1);
+    expect(view.container.querySelector('canvas')?.dataset.profileImageState)
+      .toBe('unavailable');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(REALM_PROFILE_IMAGE_RETRY_DELAY_MS);
+    });
+    expect(loadProfileImage).toHaveBeenCalledTimes(2);
+    expect(view.container.querySelector('canvas')?.dataset.profileImageState).toBe('ready');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(REALM_PROFILE_IMAGE_RETRY_DELAY_MS * 4);
+    });
+    expect(loadProfileImage).toHaveBeenCalledTimes(2);
+    view.unmount();
+    expect(dispose).toHaveBeenCalledOnce();
   });
 });

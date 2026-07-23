@@ -5,6 +5,7 @@ export const RENDERED_WEBGL_QA_MAX_READY_MILLISECONDS = 120_000;
 
 const QUALITY_VALUES = new Set(['high', 'balanced', 'reduced']);
 const PRESENTATION_MODE_VALUES = new Set(['observer', 'player']);
+const FIXTURE_VARIANT_VALUES = new Set(['baseline', 'occupancy-stress']);
 
 function quality(value) {
   if (typeof value !== 'string' || !QUALITY_VALUES.has(value)) {
@@ -16,6 +17,13 @@ function quality(value) {
 function presentationMode(value) {
   if (typeof value !== 'string' || !PRESENTATION_MODE_VALUES.has(value)) {
     throw new TypeError('Invalid rendered WebGL QA presentation mode.');
+  }
+  return value;
+}
+
+function fixtureVariant(value) {
+  if (typeof value !== 'string' || !FIXTURE_VARIANT_VALUES.has(value)) {
+    throw new TypeError('Invalid rendered WebGL QA fixture variant.');
   }
   return value;
 }
@@ -35,11 +43,15 @@ function port(value) {
 export function renderedWebglQaUrl(options = {}) {
   const selectedQuality = quality(options.quality ?? 'balanced');
   const selectedPresentationMode = presentationMode(options.mode ?? 'observer');
+  const selectedFixtureVariant = fixtureVariant(options.fixture ?? 'baseline');
   const selectedPort = port(options.port ?? 5173);
   const url = new URL(RENDERED_WEBGL_QA_ROUTE, `http://127.0.0.1:${selectedPort}`);
   url.searchParams.set('quality', selectedQuality);
   if (selectedPresentationMode !== 'observer') {
     url.searchParams.set('mode', selectedPresentationMode);
+  }
+  if (selectedFixtureVariant !== 'baseline') {
+    url.searchParams.set('fixture', selectedFixtureVariant);
   }
   return url.toString();
 }

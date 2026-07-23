@@ -4,9 +4,15 @@ import {
   CASTLE_WORKER_POLICY_VERSION,
   CASTLE_WORKERS_PER_CASTLE,
   appendCastleWorkerRosterDigest,
+  rosterDigestForCastleIds,
   workerIdForCastle,
   assertCastleWorkerId,
 } from './castleWorkerPolicy';
+import {
+  CASTLE_WORKER_MAX_CASTLES,
+  planDeterministicWorkerBackfill,
+  workerRolloutPhaseAt,
+} from './castleWorkerRolloutPolicy';
 import type warpkeep from './schema';
 
 type WarpkeepReducerContext = ReducerCtx<InferSchema<typeof warpkeep>>;
@@ -54,13 +60,10 @@ function boundedRows<Row>(rows: Iterable<Row>, maximum: number, code: string): r
 
 export function workerSystemRowIsStagedOrActive(
   row: NonNullable<ReturnType<WarpkeepReducerContext['db']['realmWorkerSystemV1']['realmId']['find']>>,
+  observedAtMicros: bigint,
 ): boolean {
-  return row.realmId === 'GENESIS_001'
-    && row.policyVersion === CASTLE_WORKER_POLICY_VERSION
-    && row.workersPerCastle === CASTLE_WORKERS_PER_CASTLE
-    && (row.mode === 'staged' || row.mode === 'active')
-    && row.expectedCastleCount >= 0
-    && row.expectedWorkerCount === row.expectedCastleCount * CASTLE_WORKERS_PER_CASTLE;
+  const phase = workerRolloutPhaseAt(row, 1n, observedAtMicros);
+  return phase === 'staged' || phase === 'draining' || phase === 'active';
 }
 
 export function assertCastleWorkerRoster(
@@ -137,21 +140,45 @@ export function castleWorkerPublicStateIsConsistent(row: CastleWorkerRow): boole
 }
 
 /**
- * Founding calls this only when generic mode is active. In staged mode the
- * function is a no-op, so this PR cannot seed production workers accidentally.
+ * Keep founding recoverable through every rollout phase. A newly founded
+ * castle receives its exact idle roster while staged or draining, but generic
+ * commands remain disabled and legacy lifecycle rows are left untouched.
  */
 export function ensureCastleWorkerRoster(
   ctx: WarpkeepReducerContext,
   castle: CastleRow,
 ): void {
+  const systemRows = ctx.db.realmWorkerSystemV1.count();
   const system = ctx.db.realmWorkerSystemV1.realmId.find('GENESIS_001');
-  if (system === null) return;
-  if (ctx.db.realmWorkerSystemV1.count() !== 1n || !workerSystemRowIsStagedOrActive(system)) {
+  if (system === null) {
+    if (systemRows === 0n) return;
     fail('WORKER_SYSTEM_INTEGRITY');
   }
-  if (system.mode !== 'active') return;
-  if (system.legacyDrainRequired) fail('WORKER_LEGACY_DRAIN_REQUIRED');
+  const phase = workerRolloutPhaseAt(
+    system,
+    systemRows,
+    ctx.timestamp.microsSinceUnixEpoch,
+  );
   if (
+    systemRows !== 1n
+    || phase === 'absent'
+    || phase === 'invalid'
+    || !workerSystemRowIsStagedOrActive(
+      system,
+      ctx.timestamp.microsSinceUnixEpoch,
+    )
+  ) {
+    fail('WORKER_SYSTEM_INTEGRITY');
+  }
+  const preactivation = phase === 'staged' || phase === 'draining';
+  if (preactivation) {
+    if (
+      ctx.db.workerAssignmentV1.count()
+        + ctx.db.workerNodeOccupationV1.count()
+        + ctx.db.workerAssignmentScheduleV1.count()
+        + ctx.db.workerCommandIdempotencyV1.count() !== 0n
+    ) fail('WORKER_PREACTIVATION_STATE_INVALID');
+  } else if (
     ctx.db.goldExpeditionV1.count() + ctx.db.foodExpeditionV1.count()
       + ctx.db.woodExpeditionV1.count() + ctx.db.stoneExpeditionV1.count() !== 0n
     || ctx.db.goldNodeOccupationV1.count() + ctx.db.foodNodeOccupationV1.count()
@@ -159,17 +186,73 @@ export function ensureCastleWorkerRoster(
     || ctx.db.goldExpeditionScheduleV1.count() + ctx.db.foodExpeditionScheduleV1.count()
       + ctx.db.woodExpeditionScheduleV1.count() + ctx.db.stoneExpeditionScheduleV1.count() !== 0n
   ) fail('WORKER_LEGACY_DRAIN_REQUIRED');
+
+  const castleRows = boundedRows(
+    ctx.db.castle.iter(),
+    CASTLE_WORKER_MAX_CASTLES,
+    'WORKER_ROSTER_CAPACITY',
+  );
+  if (!castleRows.some(row => row.castleId === castle.castleId)) {
+    fail('WORKER_CASTLE_MISSING');
+  }
+  const castleCount = BigInt(castleRows.length);
+  const countedCastle = castleCount === BigInt(system.expectedCastleCount);
+  const appendedCastle = castleCount === BigInt(system.expectedCastleCount) + 1n;
+  if (!countedCastle && !appendedCastle) fail('WORKER_SYSTEM_INTEGRITY');
+  const priorCastleIds = castleRows
+    .filter(row => !appendedCastle || row.castleId !== castle.castleId)
+    .map(row => row.castleId);
+  if (
+    priorCastleIds.length !== system.expectedCastleCount
+    || rosterDigestForCastleIds(priorCastleIds) !== system.rosterDigest
+  ) fail('WORKER_SYSTEM_INTEGRITY');
+
   const existing = boundedRows(
     ctx.db.castleWorkerV1.byOriginCastle.filter(castle.castleId),
     CASTLE_WORKERS_PER_CASTLE + 1,
     'WORKER_ROSTER_OVERSIZED',
   );
-  const castleCount = ctx.db.castle.count();
   const workerCount = ctx.db.castleWorkerV1.count();
+
+  if (preactivation) {
+    const workerRows = boundedRows(
+      ctx.db.castleWorkerV1.iter(),
+      CASTLE_WORKER_MAX_CASTLES * CASTLE_WORKERS_PER_CASTLE,
+      'WORKER_ROSTER_OVERSIZED',
+    );
+    if (appendedCastle && existing.length !== 0) fail('WORKER_ROSTER_INTEGRITY');
+    const priorWorkerRows = appendedCastle
+      ? workerRows.filter(row => row.originCastleId !== castle.castleId)
+      : workerRows;
+    const priorPlan = planDeterministicWorkerBackfill(
+      priorCastleIds,
+      priorWorkerRows,
+    );
+    if (
+      priorPlan.expectedCastleCount !== system.expectedCastleCount
+      || priorPlan.expectedWorkerCount !== system.expectedWorkerCount
+      || priorPlan.rosterDigest !== system.rosterDigest
+      || (
+        phase === 'draining'
+        && (
+          priorPlan.rowsToInsert.length !== 0
+          || BigInt(priorPlan.expectedWorkerCount) !== BigInt(priorWorkerRows.length)
+        )
+      )
+    ) fail('WORKER_SYSTEM_INTEGRITY');
+    if (countedCastle) {
+      if (existing.length > 0) assertCastleWorkerRoster(ctx, castle.castleId);
+      return;
+    }
+  } else if (
+    workerCount !== BigInt(system.expectedWorkerCount)
+    || (countedCastle && existing.length === 0)
+  ) fail('WORKER_SYSTEM_INTEGRITY');
+
   if (existing.length > 0) {
     assertCastleWorkerRoster(ctx, castle.castleId);
     if (
-      BigInt(system.expectedCastleCount) !== castleCount
+      !countedCastle
       || BigInt(system.expectedWorkerCount) !== workerCount
       || system.expectedWorkerCount !== system.expectedCastleCount * CASTLE_WORKERS_PER_CASTLE
       || !/^[0-9a-f]{16}$/.test(system.rosterDigest)
@@ -177,8 +260,8 @@ export function ensureCastleWorkerRoster(
     return;
   } else {
     if (
-      castleCount !== BigInt(system.expectedCastleCount) + 1n
-      || workerCount !== BigInt(system.expectedWorkerCount)
+      !appendedCastle
+      || (!preactivation && workerCount !== BigInt(system.expectedWorkerCount))
       || system.expectedWorkerCount !== system.expectedCastleCount * CASTLE_WORKERS_PER_CASTLE
       || !/^[0-9a-f]{16}$/.test(system.rosterDigest)
     ) fail('WORKER_SYSTEM_INTEGRITY');
@@ -193,13 +276,20 @@ export function ensureCastleWorkerRoster(
   }
   const nextWorkerCount = nextCastleCount * CASTLE_WORKERS_PER_CASTLE;
   if (ctx.db.castleWorkerV1.count() !== BigInt(nextWorkerCount)) {
-    fail('WORKER_ROSTER_INTEGRITY');
+    if (phase !== 'staged') fail('WORKER_ROSTER_INTEGRITY');
   }
+  const nextRosterDigest = rosterDigestForCastleIds(
+    castleRows.map(row => row.castleId),
+  );
+  if (
+    appendCastleWorkerRosterDigest(system.rosterDigest, castle.castleId)
+      !== nextRosterDigest
+  ) fail('WORKER_ROSTER_DIGEST_INVALID');
   ctx.db.realmWorkerSystemV1.realmId.update({
     ...system,
     expectedCastleCount: nextCastleCount,
     expectedWorkerCount: nextWorkerCount,
-    rosterDigest: appendCastleWorkerRosterDigest(system.rosterDigest, castle.castleId),
+    rosterDigest: nextRosterDigest,
   });
 }
 

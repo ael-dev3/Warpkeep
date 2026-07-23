@@ -18,6 +18,20 @@ export function isVisibleRealmUiElement(element: HTMLElement) {
 }
 
 /**
+ * A public occupant record is nonmodal and camera-neutral. Keep the last exact
+ * castle membership mounted behind its higher layer while the record is open;
+ * the projection lane can still move those retained anchors with the camera.
+ * Other inspectors and navigator surfaces continue through ordinary
+ * reserved-rectangle culling.
+ */
+export function retainCastleProjectionWhileOccupantRecordOpen(root: HTMLElement) {
+  return root.querySelector(
+    '.realm-resource-occupant-panel.realm-camera-neutral-inspector'
+    + '[data-resource-occupant-panel="true"]'
+  ) !== null;
+}
+
+/**
  * Measures visible fixed Realm UI once per composition change. Projection
  * frames consume these root-local rectangles without forcing layout on every
  * camera update.

@@ -153,6 +153,8 @@ describe('Hegemony Gold Mine record art', () => {
     expect(component).not.toMatch(/https?:\/\//i);
     expect(map).toContain('GoldMineInspectionPanel');
     expect(map).toContain('privateExpedition={observerMode ? undefined : goldExpedition}');
-    expect(map).toContain('onDispatchGoldExpedition={observerMode ? undefined : onDispatchGoldExpedition}');
+    expect(map).toMatch(
+      /onDispatchGoldExpedition=\{\s*observerMode \|\| legacyResourceDispatchBlocked\s*\? undefined\s*: onDispatchGoldExpedition\s*\}/
+    );
   });
 });

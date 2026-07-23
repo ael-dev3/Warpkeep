@@ -161,6 +161,27 @@ function installWebGlProbe() {
   } as unknown as RenderingContext);
 }
 
+function installAnimationFrameQueue() {
+  const pendingFrames = new Map<number, FrameRequestCallback>();
+  let nextFrameId = 1;
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+    const frameId = nextFrameId;
+    nextFrameId += 1;
+    pendingFrames.set(frameId, callback);
+    return frameId;
+  });
+  vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((frameId) => {
+    pendingFrames.delete(frameId);
+  });
+  return {
+    flush() {
+      const callbacks = [...pendingFrames.values()];
+      pendingFrames.clear();
+      act(() => callbacks.forEach((callback) => callback(0)));
+    }
+  };
+}
+
 function selectionAnnouncement() {
   const announcement = document.querySelector(
     '.realm-player-chrome__selection-announcement'
@@ -337,6 +358,33 @@ function peerWorkerOccupationRealm() {
   return { peerCastle, site, snapshot };
 }
 
+function degradedActiveWorkerOccupationRealm() {
+  const fixture = peerWorkerOccupationRealm();
+  const occupations = fixture.snapshot.workerOccupations;
+  if (!occupations || occupations.length !== 1) {
+    throw new Error('missing active worker occupation degradation fixture');
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(
+    fixture.snapshot
+  ) as PropertyDescriptorMap;
+  descriptors.workerOccupations = {
+    ...descriptors.workerOccupations!,
+    value: Object.freeze([
+      Object.freeze({
+        ...occupations[0]!,
+        nodeKey: 'stone:non-canonical-site'
+      })
+    ])
+  };
+  return {
+    ...fixture,
+    snapshot: Object.freeze(Object.defineProperties(
+      {},
+      descriptors
+    )) as CanonicalWarpkeepRealmSnapshot
+  };
+}
+
 function movedPeerSnapshot(): CanonicalWarpkeepRealmSnapshot {
   const candidate = createCanonicalGenesisCandidate({
     ownFid: CANONICAL_TEST_FID,
@@ -462,6 +510,7 @@ describe('live realm quality recreation', () => {
 
   it('presents every active revision lake as selectable lowland to scene, HUD, and navigator', () => {
     installWebGlProbe();
+    const animationFrames = installAnimationFrameQueue();
     const snapshot = waterRevisionRealm(true);
     const reclaimedKeys = new Set(GENESIS_WATER_REVISION_RECLAIMED_LAKE_KEYS_V1);
     const lakeCell = GENESIS_WATER_CELLS_V1.find((cell) => (
@@ -479,6 +528,7 @@ describe('live realm quality recreation', () => {
     const scene = mocked.handles[0]!;
     const options = mocked.createRealmScene.mock.calls[0]![0];
     act(() => options.onCastlesReady?.(1));
+    animationFrames.flush();
     const reclaimedRows = options.terrainMetadata.filter((row) => (
       reclaimedKeys.has(row.tileKey)
     ));
@@ -499,6 +549,7 @@ describe('live realm quality recreation', () => {
     );
 
     openPlayerExplore();
+    animationFrames.flush();
     fireEvent.change(screen.getByRole('textbox', { name: 'q coordinate' }), {
       target: { value: String(lakeCell.q) }
     });
@@ -506,7 +557,11 @@ describe('live realm quality recreation', () => {
       target: { value: String(lakeCell.r) }
     });
     fireEvent.click(screen.getByRole('button', { name: 'JUMP TO CELL' }));
+    expect(scene.focusCell).not.toHaveBeenCalled();
+    animationFrames.flush();
     expect(scene.focusCell).toHaveBeenLastCalledWith({ q: lakeCell.q, r: lakeCell.r });
+    expect(scene.setComposition.mock.invocationCallOrder.at(-1))
+      .toBeLessThan(scene.focusCell.mock.invocationCallOrder.at(-1)!);
   });
 
   it('passes canonical Water phase inputs and recreates when body metadata is refreshed', () => {
@@ -811,6 +866,90 @@ describe('live realm quality recreation', () => {
     )).toBe(308);
   });
 
+  it('retains exact castle membership but updates anchors behind an occupant record', async () => {
+    installWebGlProbe();
+    const fixture = createRenderedWebglQaFixtureRealm();
+    render(
+      <RealmMapScreen
+        identity={fixture.identity}
+        snapshot={fixture.snapshot}
+        onRequestReturn={vi.fn()}
+        presentationMode="observer"
+        qualityOverride="high"
+      />
+    );
+    const options = mocked.createRealmScene.mock.calls[0]![0];
+    const projectedCastles = fixture.snapshot.castles.slice(0, 4);
+    const projection = (offset: number, revealFourth: boolean) => ({
+      width: 1_200,
+      height: 800,
+      castles: projectedCastles.map((castle, index) => ({
+        castleId: castle.castleId,
+        q: castle.q,
+        r: castle.r,
+        x: 120 + index * 180 + offset,
+        y: 160 + index * 100 + offset,
+        distance: 4 + index,
+        visible: index < 3 || revealFourth,
+        presented: true,
+        castleBounds: {
+          left: 100 + index * 180 + offset,
+          top: 120 + index * 100 + offset,
+          right: 140 + index * 180 + offset,
+          bottom: 154 + index * 100 + offset
+        }
+      }))
+    });
+
+    act(() => {
+      options.onCastlesReady?.(fixture.snapshot.castles.length);
+      options.onCastleProjection?.(projection(0, false));
+      options.onResourceProjection?.({
+        width: 1_200,
+        height: 800,
+        markers: [{
+          resource: 'gold',
+          siteId: 'genesis-001-tier1-gold-11',
+          x: 900,
+          y: 640,
+          depth: 4,
+          visible: true
+        }]
+      });
+    });
+
+    const before = await waitFor(() => {
+      const buttons = [...document.querySelectorAll<HTMLButtonElement>(
+        'button.realm-castle-label[data-castle-id]'
+      )];
+      expect(buttons).toHaveLength(3);
+      return new Map(buttons.map((button) => [Number(button.dataset.castleId), button]));
+    });
+    fireEvent.click(screen.getByRole('button', {
+      name: /Inspect @qa-keep-003 gathering at Gold Mine, cell 20,-22/i
+    }));
+    expect(screen.getByRole('dialog', { name: 'Gold Mine' })).not.toBeNull();
+
+    act(() => options.onCastleProjection?.(projection(24, true)));
+
+    const whileOpen = [...document.querySelectorAll<HTMLButtonElement>(
+      'button.realm-castle-label[data-castle-id]'
+    )];
+    expect(whileOpen).toHaveLength(3);
+    whileOpen.forEach((button) => {
+      expect(button).toBe(before.get(Number(button.dataset.castleId)));
+    });
+    expect(Number.parseFloat(
+      whileOpen[0]!.style.getPropertyValue('--realm-castle-anchor-x')
+    )).toBe(144);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close player record' }));
+    act(() => options.onCastleProjection?.(projection(24, true)));
+    expect(document.querySelectorAll(
+      'button.realm-castle-label[data-castle-id]'
+    )).toHaveLength(4);
+  });
+
   it('keeps hover imperative and requires explicit castle activation for HUD/inspector state', () => {
     installWebGlProbe();
     const snapshot = createCanonicalGenesisSnapshot({
@@ -889,6 +1028,7 @@ describe('live realm quality recreation', () => {
     );
 
     const options = mocked.createRealmScene.mock.calls[0]![0];
+    const scene = mocked.handles[0]!;
     const projection = {
       width: 1_200,
       height: 800,
@@ -916,15 +1056,18 @@ describe('live realm quality recreation', () => {
       siteId: fixture.site.siteId,
       coord: { q: fixture.site.q, r: fixture.site.r }
     }));
+    scene.focusCell.mockClear();
     expect(document.querySelector('.stone-quarry-inspection')).not.toBeNull();
     expect(document.querySelector('[data-resource-occupant-panel="true"]')).toBeNull();
     expect(screen.queryByRole('dialog', { name: 'Explore' })).toBeNull();
 
     act(() => options.onResourceProjection?.(projection));
-    const playerMarker = screen.getByRole('button', {
+    expect(screen.getByRole('button', {
       name: /Inspect @peerkeeper gathering at Stone Quarry/i
-    });
-    fireEvent.click(playerMarker);
+    })).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', {
+      name: 'VIEW PUBLIC WORKER RECORD'
+    }));
 
     expect(document.querySelector('.stone-quarry-inspection')).toBeNull();
     const playerRecord = document.querySelector<HTMLElement>(
@@ -936,6 +1079,41 @@ describe('live realm quality recreation', () => {
       name: 'Close player record'
     });
     await waitFor(() => expect(document.activeElement).toBe(playerRecordClose));
+
+    fireEvent.click(playerRecordClose);
+    const restoredInspector = screen.getByRole('dialog', { name: 'Stone Quarry' });
+    expect(document.querySelector('[data-resource-occupant-panel="true"]')).toBeNull();
+    await waitFor(() => {
+      expect(document.activeElement).toBe(
+        within(restoredInspector).getByRole('button', {
+          name: 'CLOSE STONE QUARRY RECORD'
+        })
+      );
+    });
+    expect(scene.focusCell).not.toHaveBeenCalled();
+
+    fireEvent.click(within(restoredInspector).getByRole('button', {
+      name: 'VIEW PUBLIC WORKER RECORD'
+    }));
+    await waitFor(() => {
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Close player record' })
+      );
+    });
+    fireEvent.keyDown(document, { key: 'Escape' });
+    const escapeRestoredInspector = screen.getByRole('dialog', { name: 'Stone Quarry' });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(
+        within(escapeRestoredInspector).getByRole('button', {
+          name: 'CLOSE STONE QUARRY RECORD'
+        })
+      );
+    });
+    expect(onRequestReturn).not.toHaveBeenCalled();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Stone Quarry' })).toBeNull();
+    expect(onRequestReturn).not.toHaveBeenCalled();
+    expect(scene.focusCell).not.toHaveBeenCalled();
 
     const { explore } = openPlayerExplore();
     expect(document.querySelector('.stone-quarry-inspection')).toBeNull();
@@ -969,6 +1147,77 @@ describe('live realm quality recreation', () => {
 
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onRequestReturn).toHaveBeenCalledOnce();
+  });
+
+  it('never revives legacy dispatch on an unoccupied node in active generic mode', () => {
+    installWebGlProbe();
+    const fixture = peerWorkerOccupationRealm();
+    const unoccupied = fixture.snapshot.stoneSites?.find(
+      (site) => site.siteId !== fixture.site.siteId
+    );
+    if (!unoccupied) throw new Error('missing unoccupied generic worker test site');
+    const dispatch = vi.fn(async () => undefined);
+    render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={fixture.snapshot}
+        onDispatchStoneExpedition={dispatch}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+
+    const options = mocked.createRealmScene.mock.calls[0]![0];
+    act(() => {
+      options.onCastlesReady?.(2);
+      options.onTargetSelect?.({
+        kind: 'stone-site',
+        siteId: unoccupied.siteId,
+        coord: { q: unoccupied.q, r: unoccupied.r }
+      });
+    });
+
+    expect(screen.getByRole('dialog', { name: 'Stone Quarry' })).not.toBeNull();
+    expect(screen.getByText(/authoritative worker roster/i)).not.toBeNull();
+    expect(screen.queryByRole('button', { name: /dispatch wagon/i })).toBeNull();
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it('fails site availability closed when the active public worker join degrades', () => {
+    installWebGlProbe();
+    const fixture = degradedActiveWorkerOccupationRealm();
+    const unoccupied = fixture.snapshot.stoneSites?.find(
+      (site) => site.siteId !== fixture.site.siteId
+    );
+    if (!unoccupied) throw new Error('missing fail-closed Stone site fixture');
+    const dispatch = vi.fn(async () => undefined);
+    render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={fixture.snapshot}
+        onDispatchStoneExpedition={dispatch}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+
+    const options = mocked.createRealmScene.mock.calls[0]![0];
+    act(() => {
+      options.onCastlesReady?.(2);
+      options.onTargetSelect?.({
+        kind: 'stone-site',
+        siteId: unoccupied.siteId,
+        coord: { q: unoccupied.q, r: unoccupied.r }
+      });
+    });
+
+    const dialog = screen.getByRole('dialog', { name: 'Stone Quarry' });
+    expect(within(dialog).getByText('Site state').nextElementSibling?.textContent)
+      .toBe('OCCUPANCY UNAVAILABLE');
+    expect(within(dialog).queryByText('AVAILABLE')).toBeNull();
+    expect(within(dialog).getByText(/not presented as available/i)).not.toBeNull();
+    expect(within(dialog).queryByRole('button', { name: /dispatch wagon/i })).toBeNull();
+    expect(dispatch).not.toHaveBeenCalled();
   });
 
   it('opens every Food resource path without a camera jump', () => {
@@ -1324,6 +1573,7 @@ describe('live realm quality recreation', () => {
 
   it('focuses a validated navigator coordinate and returns keyboard focus to the map', () => {
     installWebGlProbe();
+    const animationFrames = installAnimationFrameQueue();
     render(
       <RealmMapScreen
         identity={IDENTITY}
@@ -1335,20 +1585,26 @@ describe('live realm quality recreation', () => {
     const scene = mocked.handles[0]!;
     const options = mocked.createRealmScene.mock.calls[0]![0];
     act(() => options.onCastlesReady?.(1));
+    animationFrames.flush();
 
     openPlayerExplore();
+    animationFrames.flush();
     fireEvent.change(screen.getByRole('textbox', { name: 'q coordinate' }), {
-      target: { value: '1' }
+      target: { value: '20' }
     });
     fireEvent.change(screen.getByRole('textbox', { name: 'r coordinate' }), {
-      target: { value: '0' }
+      target: { value: '-22' }
     });
     fireEvent.click(screen.getByRole('button', { name: 'JUMP TO CELL' }));
 
-    expect(scene.focusCell).toHaveBeenCalledWith({ q: 1, r: 0 });
+    expect(scene.focusCell).not.toHaveBeenCalled();
+    animationFrames.flush();
+    expect(scene.focusCell).toHaveBeenCalledWith({ q: 20, r: -22 });
+    expect(scene.setComposition.mock.invocationCallOrder.at(-1))
+      .toBeLessThan(scene.focusCell.mock.invocationCallOrder.at(-1)!);
     expect(screen.queryByRole('dialog', { name: 'Explore' })).toBeNull();
     expect(selectionAnnouncement().textContent)
-      .toContain('Lowland Forest. Selected cell 1, 0');
+      .toContain('Selected cell 20, -22');
     expect(document.activeElement).toBe(screen.getByRole('main', { name: 'Hegemony realm' }));
   });
 

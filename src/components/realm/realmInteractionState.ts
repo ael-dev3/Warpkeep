@@ -87,6 +87,7 @@ export type RealmInteractionState = Readonly<{
   inspectorTarget: RealmInspectorTarget | null;
   inspectorOpen: boolean;
   resourceOccupantKey: string | null;
+  resourceOccupantReturnTarget: RealmKeyboardTarget | null;
   cameraTarget: RealmCameraTarget;
   navigatorOpen: boolean;
   keyboardIntent: RealmKeyboardIntent;
@@ -123,9 +124,14 @@ export type RealmInteractionAction =
       regime: 'ocean' | 'river';
       coord: HexCoord;
     }>
-  | Readonly<{ type: 'activate-resource-occupant'; key: string }>
+  | Readonly<{
+      type: 'activate-resource-occupant';
+      key: string;
+      returnToInspector?: boolean;
+    }>
   | Readonly<{ type: 'close-inspector' }>
   | Readonly<{ type: 'close-resource-occupant' }>
+  | Readonly<{ type: 'invalidate-resource-occupant' }>
   | Readonly<{ type: 'recenter-keep'; coord: HexCoord }>
   | Readonly<{ type: 'set-camera-target'; target: RealmCameraTarget }>
   | Readonly<{ type: 'open-navigator' }>
@@ -198,6 +204,24 @@ function copyCameraTarget(target: RealmCameraTarget): RealmCameraTarget {
   return { kind: 'castle', castleId: target.castleId, coord: copyCoord(target.coord) };
 }
 
+function keyboardTargetForResourceSiteInspector(
+  target: RealmInspectorTarget
+): RealmKeyboardTarget | null {
+  if ('foodSiteId' in target) {
+    return { kind: 'food-farm-inspector', siteId: target.foodSiteId };
+  }
+  if ('woodSiteId' in target) {
+    return { kind: 'logging-camp-inspector', siteId: target.woodSiteId };
+  }
+  if ('stoneSiteId' in target) {
+    return { kind: 'stone-quarry-inspector', siteId: target.stoneSiteId };
+  }
+  if ('siteId' in target) {
+    return { kind: 'gold-mine-inspector', siteId: target.siteId };
+  }
+  return null;
+}
+
 function withKeyboardIntent(
   state: RealmInteractionState,
   target: RealmKeyboardTarget
@@ -222,6 +246,7 @@ function activateCameraNeutralInspector(
     inspectorTarget: target,
     inspectorOpen: true,
     resourceOccupantKey: null,
+    resourceOccupantReturnTarget: null,
     cameraTarget: state.cameraTarget,
     navigatorOpen: false,
     keyboardIntent: withKeyboardIntent(state, keyboardTarget)
@@ -235,6 +260,7 @@ export function createRealmInteractionState(initialSelectedCell: HexCoord): Real
     inspectorTarget: null,
     inspectorOpen: false,
     resourceOccupantKey: null,
+    resourceOccupantReturnTarget: null,
     cameraTarget: { kind: 'realm' },
     navigatorOpen: false,
     keyboardIntent: { sequence: 0, target: { kind: 'map' } }
@@ -255,7 +281,8 @@ export function realmInteractionReducer(
         ...state,
         selectedCell: copyCoord(action.coord),
         selectedCastle: null,
-        resourceOccupantKey: null
+        resourceOccupantKey: null,
+        resourceOccupantReturnTarget: null
       };
 
     case 'activate-castle': {
@@ -267,6 +294,7 @@ export function realmInteractionReducer(
         inspectorTarget: target,
         inspectorOpen: true,
         resourceOccupantKey: null,
+        resourceOccupantReturnTarget: null,
         cameraTarget: { kind: 'castle', castleId: target.castleId, coord: copyCoord(target.coord) },
         navigatorOpen: false,
         keyboardIntent: withKeyboardIntent(state, {
@@ -345,13 +373,20 @@ export function realmInteractionReducer(
       );
     }
 
-    case 'activate-resource-occupant':
+    case 'activate-resource-occupant': {
+      const returnTarget = action.returnToInspector
+        && state.inspectorOpen
+        && state.inspectorTarget !== null
+        ? keyboardTargetForResourceSiteInspector(state.inspectorTarget)
+        : null;
       return {
         ...state,
         inspectorOpen: false,
         resourceOccupantKey: action.key,
+        resourceOccupantReturnTarget: returnTarget,
         navigatorOpen: false
       };
+    }
 
     case 'close-inspector': {
       if (!state.inspectorOpen) return state;
@@ -361,6 +396,7 @@ export function realmInteractionReducer(
       return {
         ...state,
         inspectorOpen: false,
+        resourceOccupantReturnTarget: null,
         keyboardIntent: withKeyboardIntent(
           state,
           castle
@@ -370,10 +406,28 @@ export function realmInteractionReducer(
       };
     }
 
-    case 'close-resource-occupant':
+    case 'close-resource-occupant': {
+      if (state.resourceOccupantKey === null) return state;
+      const returnTarget = state.resourceOccupantReturnTarget;
+      return {
+        ...state,
+        inspectorOpen: returnTarget === null ? state.inspectorOpen : true,
+        resourceOccupantKey: null,
+        resourceOccupantReturnTarget: null,
+        keyboardIntent: returnTarget === null
+          ? state.keyboardIntent
+          : withKeyboardIntent(state, returnTarget)
+      };
+    }
+
+    case 'invalidate-resource-occupant':
       return state.resourceOccupantKey === null
         ? state
-        : { ...state, resourceOccupantKey: null };
+        : {
+            ...state,
+            resourceOccupantKey: null,
+            resourceOccupantReturnTarget: null
+          };
 
     case 'recenter-keep':
       return {
@@ -382,6 +436,7 @@ export function realmInteractionReducer(
         selectedCastle: null,
         inspectorOpen: false,
         resourceOccupantKey: null,
+        resourceOccupantReturnTarget: null,
         cameraTarget: { kind: 'keep' },
         navigatorOpen: false,
         keyboardIntent: withKeyboardIntent(state, { kind: 'navigator-trigger' })
@@ -395,6 +450,7 @@ export function realmInteractionReducer(
         ...state,
         inspectorOpen: false,
         resourceOccupantKey: null,
+        resourceOccupantReturnTarget: null,
         navigatorOpen: true,
         keyboardIntent: withKeyboardIntent(state, { kind: 'navigator' })
       };

@@ -14,6 +14,7 @@ import * as AdminGetAlphaStatusV8Procedure from "../admin_get_alpha_status_v_8_p
 import * as AdminGetAlphaStatusV10Procedure from "../admin_get_alpha_status_v_10_procedure";
 import * as AdminGetFidAuthEpochProcedure from "../admin_get_fid_auth_epoch_procedure";
 import * as AdminGetSnapScanBatchAggregateV1Procedure from "../admin_get_snap_scan_batch_aggregate_v_1_procedure";
+import * as AdminGetWorkerRolloutStatusV2Procedure from "../admin_get_worker_rollout_status_v_2_procedure";
 import * as AdminGetWorkerSystemStatusV1Procedure from "../admin_get_worker_system_status_v_1_procedure";
 import * as AdminInspectGenesisWaterLayoutV1Procedure from "../admin_inspect_genesis_water_layout_v_1_procedure";
 import * as AdminInspectGenesisWaterRevisionV1Procedure from "../admin_inspect_genesis_water_revision_v_1_procedure";
@@ -48,6 +49,8 @@ export type AdminGetFidAuthEpochArgs = __Infer<typeof AdminGetFidAuthEpochProced
 export type AdminGetFidAuthEpochResult = __Infer<typeof AdminGetFidAuthEpochProcedure.returnType>;
 export type AdminGetSnapScanBatchAggregateV1Args = __Infer<typeof AdminGetSnapScanBatchAggregateV1Procedure.params>;
 export type AdminGetSnapScanBatchAggregateV1Result = __Infer<typeof AdminGetSnapScanBatchAggregateV1Procedure.returnType>;
+export type AdminGetWorkerRolloutStatusV2Args = __Infer<typeof AdminGetWorkerRolloutStatusV2Procedure.params>;
+export type AdminGetWorkerRolloutStatusV2Result = __Infer<typeof AdminGetWorkerRolloutStatusV2Procedure.returnType>;
 export type AdminGetWorkerSystemStatusV1Args = __Infer<typeof AdminGetWorkerSystemStatusV1Procedure.params>;
 export type AdminGetWorkerSystemStatusV1Result = __Infer<typeof AdminGetWorkerSystemStatusV1Procedure.returnType>;
 export type AdminInspectGenesisWaterLayoutV1Args = __Infer<typeof AdminInspectGenesisWaterLayoutV1Procedure.params>;
