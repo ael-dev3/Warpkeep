@@ -398,7 +398,6 @@ export function dispatchGenesisFoodExpedition(
   }>,
 ): FoodExpeditionDispatch {
   const resource = assertGenesisResourceForFid(ctx, input.fid);
-  assertLegacyExpeditionDispatchAllowed(ctx);
   const requestKey = requestKeyFor(input.fid, input.idempotencyKey);
   const prior = ctx.db.foodExpeditionIdempotencyV1.requestKey.find(requestKey);
   if (prior !== null) {
@@ -416,6 +415,7 @@ export function dispatchGenesisFoodExpedition(
     return Object.freeze({ expedition, idempotent: true });
   }
 
+  assertLegacyExpeditionDispatchAllowed(ctx, 'food', input.siteId);
   const site = ctx.db.foodSiteV1.siteId.find(input.siteId);
   if (site === null || !site.active) fail('FOOD_SITE_UNAVAILABLE');
   assertCanonicalFoodSiteRow(site);

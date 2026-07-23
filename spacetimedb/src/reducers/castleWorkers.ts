@@ -9,6 +9,17 @@ import {
   recallAllCastleWorkers,
   recallCastleWorker,
 } from '../castleWorkerAuthority';
+import {
+  activateWorkerSystem,
+  backfillWorkerRoster,
+  beginWorkerLegacyDrain,
+  castleWorkerRolloutErrorCode,
+  inspectWorkerRollout,
+  stageWorkerSystem,
+} from '../castleWorkerRolloutAuthority';
+import type {
+  WorkerClientAttestation,
+} from '../castleWorkerRolloutPolicy';
 import warpkeep from '../schema';
 
 const workerPrivate = t.object('WorkerPrivateV1', {
@@ -124,11 +135,56 @@ const adminWorkerRosterPlan = t.object('AdminWorkerRosterPlanV1', {
   rosterDigestExpected: t.string(),
 });
 
+const adminWorkerRolloutStatusV2 = t.object('AdminWorkerRolloutStatusV2', {
+  phase: t.string(),
+  systemRows: t.u64(),
+  systemConfigValid: t.bool(),
+  expectedCastleCount: t.u32(),
+  expectedWorkerCount: t.u32(),
+  actualCastleCount: t.u64(),
+  actualWorkerCount: t.u64(),
+  rosterDigest: t.string(),
+  expectedRosterDigest: t.string(),
+  malformedWorkerGraphRows: t.u64(),
+  resourceAccounts: t.u64(),
+  missingResourceAccounts: t.u64(),
+  orphanedResourceAccounts: t.u64(),
+  resourceInvariantViolations: t.u64(),
+  resourceRosterDigest: t.string(),
+  canonicalResourceCatalog: t.bool(),
+  resourceCatalogDigest: t.string(),
+  legacyExpeditions: t.u64(),
+  legacyOccupations: t.u64(),
+  legacySchedules: t.u64(),
+  genericAssignments: t.u64(),
+  genericOccupations: t.u64(),
+  genericSchedules: t.u64(),
+  genericCommandReceipts: t.u64(),
+});
+
 function senderPolicyError(error: unknown): never {
+  const rolloutCode = castleWorkerRolloutErrorCode(error);
+  if (rolloutCode !== undefined) throw new SenderError(rolloutCode);
   const code = castleWorkerErrorCode(error);
   if (code !== undefined) throw new SenderError(code);
   if (error instanceof SenderError) throw error;
   throw new SenderError('WORKER_REQUEST_FAILED');
+}
+
+function auditWorkerRollout(
+  ctx: Parameters<typeof requireAdmin>[0],
+  actorSubject: string,
+  action: string,
+  note: string,
+): void {
+  ctx.db.adminAudit.insert({
+    id: 0n,
+    action,
+    targetFid: undefined,
+    actorSubject,
+    createdAt: ctx.timestamp,
+    note,
+  });
 }
 
 function workerSystemMode(ctx: Parameters<typeof projectMyWorkerState>[0]): string {
@@ -318,5 +374,174 @@ export const adminPlanWorkerRosterV1 = warpkeep.procedure(
       rosterDigest: aggregate.rosterDigest,
       rosterDigestExpected: aggregate.rosterDigestExpected,
     };
+  }),
+);
+
+/**
+ * Admin-only source boundary. Staging the singleton leaves generic commands
+ * disabled and inserts no roster rows.
+ */
+export const adminStageWorkerSystemV1 = warpkeep.reducer(
+  { name: 'admin_stage_worker_system_v1' },
+  ctx => {
+    try {
+      const admin = requireAdmin(ctx);
+      const row = stageWorkerSystem(ctx);
+      auditWorkerRollout(
+        ctx,
+        admin.subject,
+        'stage_worker_system_v1',
+        [
+          `mode=${row.mode}`,
+          `castles=${row.expectedCastleCount}`,
+          `workers=${row.expectedWorkerCount}`,
+          `roster=${row.rosterDigest}`,
+          'commands=disabled',
+        ].join(';'),
+      );
+    } catch (error) {
+      return senderPolicyError(error);
+    }
+  },
+);
+
+/** Deterministic, idempotent four-worker roster backfill. */
+export const adminBackfillWorkerRosterV1 = warpkeep.reducer(
+  { name: 'admin_backfill_worker_roster_v1' },
+  ctx => {
+    try {
+      const admin = requireAdmin(ctx);
+      const result = backfillWorkerRoster(ctx);
+      auditWorkerRollout(
+        ctx,
+        admin.subject,
+        'backfill_worker_roster_v1',
+        [
+          `inserted=${result.insertedWorkers}`,
+          `castles=${result.expectedCastleCount}`,
+          `workers=${result.expectedWorkerCount}`,
+          `roster=${result.rosterDigest}`,
+          'generic_commands=disabled',
+        ].join(';'),
+      );
+    } catch (error) {
+      return senderPolicyError(error);
+    }
+  },
+);
+
+/**
+ * Close new legacy dispatches. Existing expeditions are neither changed nor
+ * deleted and must drain through their scheduled lifecycle.
+ */
+export const adminBeginWorkerLegacyDrainV1 = warpkeep.reducer(
+  { name: 'admin_begin_worker_legacy_drain_v1' },
+  ctx => {
+    try {
+      const admin = requireAdmin(ctx);
+      const row = beginWorkerLegacyDrain(ctx);
+      auditWorkerRollout(
+        ctx,
+        admin.subject,
+        'begin_worker_legacy_drain_v1',
+        [
+          `mode=${row.mode}`,
+          `legacy_drain_required=${row.legacyDrainRequired}`,
+          `roster=${row.rosterDigest}`,
+          'data_deletion=false',
+        ].join(';'),
+      );
+    } catch (error) {
+      return senderPolicyError(error);
+    }
+  },
+);
+
+/**
+ * Final fail-closed transition. Every supplied field is a reviewed operator
+ * attestation and is recomputed or validated by server authority.
+ */
+export const adminActivateWorkerSystemV1 = warpkeep.reducer(
+  { name: 'admin_activate_worker_system_v1' },
+  {
+    capability: t.string(),
+    clientRelease: t.string(),
+    clientArtifactDigest: t.string(),
+    sourceCommit: t.string(),
+    resourceStateVersion: t.u32(),
+    resourcePolicyVersion: t.string(),
+    resourceCatalogDigest: t.string(),
+    expectedCastleCount: t.u32(),
+    expectedWorkerCount: t.u32(),
+    rosterDigest: t.string(),
+    resourceRosterDigest: t.string(),
+  },
+  (ctx, input) => {
+    try {
+      const admin = requireAdmin(ctx);
+      const attestation: WorkerClientAttestation = Object.freeze({ ...input });
+      const row = activateWorkerSystem(ctx, attestation);
+      auditWorkerRollout(
+        ctx,
+        admin.subject,
+        'activate_worker_system_v1',
+        [
+          `release=${attestation.clientRelease}`,
+          `source=${attestation.sourceCommit}`,
+          `artifact=${attestation.clientArtifactDigest}`,
+          `capability=${attestation.capability}`,
+          `resource_state_version=${attestation.resourceStateVersion}`,
+          `resource_policy=${attestation.resourcePolicyVersion}`,
+          `resource_catalog=${attestation.resourceCatalogDigest}`,
+          `resource_roster=${attestation.resourceRosterDigest}`,
+          `expected_castles=${attestation.expectedCastleCount}`,
+          `expected_workers=${attestation.expectedWorkerCount}`,
+          `roster=${row.rosterDigest}`,
+          'data_deletion=false',
+        ].join(';'),
+      );
+    } catch (error) {
+      return senderPolicyError(error);
+    }
+  },
+);
+
+/** Aggregate-only review surface; no FID, assignment, balance, or receipt. */
+export const adminGetWorkerRolloutStatusV2 = warpkeep.procedure(
+  { name: 'admin_get_worker_rollout_status_v2' },
+  adminWorkerRolloutStatusV2,
+  ctx => ctx.withTx(tx => {
+    try {
+      requireAdmin(tx);
+      const status = inspectWorkerRollout(tx);
+      return {
+        phase: status.phase,
+        systemRows: status.systemRows,
+        systemConfigValid: status.systemConfigValid,
+        expectedCastleCount: status.expectedCastleCount,
+        expectedWorkerCount: status.expectedWorkerCount,
+        actualCastleCount: status.actualCastleCount,
+        actualWorkerCount: status.actualWorkerCount,
+        rosterDigest: status.rosterDigest,
+        expectedRosterDigest: status.expectedRosterDigest,
+        malformedWorkerGraphRows: status.malformedWorkerGraphRows,
+        resourceAccounts: status.resourceAccounts,
+        missingResourceAccounts: status.missingResourceAccounts,
+        orphanedResourceAccounts: status.orphanedResourceAccounts,
+        resourceInvariantViolations: status.resourceInvariantViolations,
+        resourceRosterDigest: status.resourceRosterDigest,
+        canonicalResourceCatalog: status.canonicalResourceCatalog,
+        resourceCatalogDigest: status.resourceCatalogDigest,
+        legacyExpeditions: status.legacyExpeditions,
+        legacyOccupations: status.legacyOccupations,
+        legacySchedules: status.legacySchedules,
+        genericAssignments: status.genericAssignments,
+        genericOccupations: status.genericOccupations,
+        genericSchedules: status.genericSchedules,
+        genericCommandReceipts: status.genericCommandReceipts,
+      };
+    } catch (error) {
+      return senderPolicyError(error);
+    }
   }),
 );

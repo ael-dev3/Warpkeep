@@ -186,6 +186,18 @@ export function workerResourceKinds(): readonly WorkerResourceKind[] {
   return Object.freeze(['gold', 'food', 'wood', 'stone']);
 }
 
+/** Resource kind is not a capacity bucket; only this exact node key is. */
+export function workerNodeKey(resourceKind: string, siteId: string): string {
+  workerResourcePolicy(resourceKind);
+  if (
+    typeof siteId !== 'string'
+    || siteId.length === 0
+    || siteId.length > 128
+    || !/^[a-z0-9][a-z0-9:-]*$/.test(siteId)
+  ) fail('WORKER_SITE_ID_INVALID');
+  return `${resourceKind}:${siteId}`;
+}
+
 export function workerIdForCastle(castleId: bigint, ordinal: number): string {
   if (castleId < 0n || !Number.isSafeInteger(ordinal) || ordinal < 1 || ordinal > CASTLE_WORKERS_PER_CASTLE) {
     fail('WORKER_ROSTER_ORDINAL_INVALID');

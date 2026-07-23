@@ -316,9 +316,9 @@ export function ensureGenesisFounder(
     updatedAt: ctx.timestamp,
   });
 
-  // Generic workers are created only after a separately authorized active
-  // system row exists. The PR ships staged authority and therefore performs
-  // no production roster backfill or activation.
+  // Once rollout staging exists, a new castle receives its exact four idle
+  // workers in this same transaction. This advances roster readiness only:
+  // staged/draining mode and every activation gate remain unchanged.
   ensureCastleWorkerRoster(ctx, castle);
 
   assertGenesisFoundingGraph(ctx);

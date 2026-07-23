@@ -43,7 +43,7 @@ test('worker leases allow repeated resource kinds but enforce one worker per nod
   const dispatch = section(authority, 'export function dispatchCastleWorker', 'function progressBasisPoints');
   const occupation = section(schema, 'export const workerNodeOccupationV1', 'export const workerCommandIdempotencyV1');
 
-  assert.match(dispatch, /const nodeKey = `\$\{input\.resourceKind\}:\$\{input\.siteId\}`/);
+  assert.match(dispatch, /const nodeKey = workerNodeKey\(input\.resourceKind, input\.siteId\)/);
   assert.match(dispatch, /workerNodeOccupationV1\.nodeKey\.find\(nodeKey\) !== null/);
   assert.match(occupation, /nodeKey: t\.string\(\)\.primaryKey\(\)/);
   assert.doesNotMatch(occupation, /resourceKind: t\.string\(\)\.unique\(\)/);
@@ -70,15 +70,36 @@ test('founding updates active roster readiness atomically and legacy dispatch is
   const founding = source('../src/foundingAuthority.ts');
   const reservations = source('../src/resourceExpeditionReservationAuthority.ts');
 
-  assert.match(roster, /realmWorkerSystemV1\.realmId\.update\(\{[\s\S]*expectedCastleCount: nextCastleCount,[\s\S]*expectedWorkerCount: nextWorkerCount,[\s\S]*rosterDigest: appendCastleWorkerRosterDigest\(system\.rosterDigest, castle\.castleId\)/);
-  assert.doesNotMatch(roster, /ctx\.db\.castle\.iter\(\)|ctx\.db\.castleWorkerV1\.iter\(\)/);
+  assert.match(roster, /const nextRosterDigest = rosterDigestForCastleIds\(/);
+  assert.match(roster, /appendCastleWorkerRosterDigest\(system\.rosterDigest, castle\.castleId\)[\s\S]*!== nextRosterDigest/);
+  assert.match(roster, /realmWorkerSystemV1\.realmId\.update\(\{[\s\S]*expectedCastleCount: nextCastleCount,[\s\S]*expectedWorkerCount: nextWorkerCount,[\s\S]*rosterDigest: nextRosterDigest/);
+  assert.match(roster, /ctx\.db\.castle\.iter\(\),[\s\S]*CASTLE_WORKER_MAX_CASTLES/);
+  assert.match(roster, /ctx\.db\.castleWorkerV1\.iter\(\),[\s\S]*CASTLE_WORKER_MAX_CASTLES \* CASTLE_WORKERS_PER_CASTLE/);
   assert.match(founding, /ensureCastleWorkerRoster\(ctx, existingCastle\)/);
   assert.match(founding, /ensureCastleWorkerRoster\(ctx, castle\)/);
-  assert.match(reservations, /if \(workerSystem\?\.mode === 'active'\) fail\('LEGACY_EXPEDITION_DISPATCH_RETIRED'\)/);
+  assert.match(
+    reservations,
+    /phase === 'draining' \|\| phase === 'active'[\s\S]*LEGACY_EXPEDITION_DISPATCH_RETIRED/,
+  );
   for (const kind of ['gold', 'food', 'wood', 'stone']) {
     const legacy = source(`../src/${kind}ExpeditionAuthority.ts`);
-    const dispatch = section(legacy, `export function dispatchGenesis${kind[0].toUpperCase()}${kind.slice(1)}Expedition`, 'const requestKey');
-    assert.match(dispatch, /assertLegacyExpeditionDispatchAllowed\(ctx\)/);
+    const dispatch = section(
+      legacy,
+      `export function dispatchGenesis${kind[0].toUpperCase()}${kind.slice(1)}Expedition`,
+      `const site = ctx.db.${kind}SiteV1`,
+    );
+    assert.match(
+      dispatch,
+      new RegExp(`assertLegacyExpeditionDispatchAllowed\\(ctx, '${kind}', input\\.siteId\\)`),
+    );
+    assert.ok(
+      dispatch.indexOf('const prior =')
+        < dispatch.indexOf('return Object.freeze({ expedition, idempotent: true })'),
+    );
+    assert.ok(
+      dispatch.indexOf('return Object.freeze({ expedition, idempotent: true })')
+        < dispatch.indexOf('assertLegacyExpeditionDispatchAllowed('),
+    );
   }
 });
 

@@ -378,7 +378,6 @@ export function dispatchGenesisGoldExpedition(
     idempotencyKey: string;
   }>,
 ): GoldExpeditionDispatch {
-  assertLegacyExpeditionDispatchAllowed(ctx);
   const requestKey = requestKeyFor(input.fid, input.idempotencyKey);
   const prior = ctx.db.goldExpeditionIdempotencyV1.requestKey.find(requestKey);
   if (prior !== null) {
@@ -396,6 +395,7 @@ export function dispatchGenesisGoldExpedition(
     return Object.freeze({ expedition, idempotent: true });
   }
 
+  assertLegacyExpeditionDispatchAllowed(ctx, 'gold', input.siteId);
   const site = ctx.db.goldSiteV1.siteId.find(input.siteId);
   if (site === null || !site.active) fail('GOLD_SITE_UNAVAILABLE');
   assertCanonicalGoldSiteRow(site);

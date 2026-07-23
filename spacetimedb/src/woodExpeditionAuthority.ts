@@ -398,7 +398,6 @@ export function dispatchGenesisWoodExpedition(
   }>,
 ): WoodExpeditionDispatch {
   const resource = assertGenesisResourceForFid(ctx, input.fid);
-  assertLegacyExpeditionDispatchAllowed(ctx);
   const requestKey = requestKeyFor(input.fid, input.idempotencyKey);
   const prior = ctx.db.woodExpeditionIdempotencyV1.requestKey.find(requestKey);
   if (prior !== null) {
@@ -416,6 +415,7 @@ export function dispatchGenesisWoodExpedition(
     return Object.freeze({ expedition, idempotent: true });
   }
 
+  assertLegacyExpeditionDispatchAllowed(ctx, 'wood', input.siteId);
   const site = ctx.db.woodSiteV1.siteId.find(input.siteId);
   if (site === null || !site.active) fail('WOOD_SITE_UNAVAILABLE');
   assertCanonicalWoodSiteRow(site);

@@ -2,8 +2,16 @@ import type { InferSchema, ReducerCtx } from 'spacetimedb/server';
 
 import {
   CASTLE_WORKERS_PER_CASTLE,
+  type WorkerResourceKind,
+  workerNodeKey,
   workerResourcePolicy,
 } from './castleWorkerPolicy';
+import {
+  CASTLE_WORKER_MAX_CASTLES,
+  legacyDispatchWorkerStateBlocker,
+  planDeterministicWorkerBackfill,
+  workerRolloutPhaseAt,
+} from './castleWorkerRolloutPolicy';
 
 import {
   FOOD_GATHERING_TOTAL_FOOD,
@@ -46,6 +54,20 @@ function fail(code: string): never {
   throw new ResourceExpeditionReservationAuthorityError(code);
 }
 
+function boundedRows<Row>(
+  rows: Iterable<Row>,
+  maximum: number,
+): readonly Row[] {
+  const result: Row[] = [];
+  for (const row of rows) {
+    if (result.length >= maximum) {
+      fail('WORKER_PREACTIVATION_STATE_INVALID');
+    }
+    result.push(row);
+  }
+  return result;
+}
+
 export type ActiveExpeditionResourceReservations = Readonly<{
   food: bigint;
   wood: bigint;
@@ -53,10 +75,86 @@ export type ActiveExpeditionResourceReservations = Readonly<{
   gold: bigint;
 }>;
 
-/** Once generic workers are active, legacy wagon creation is permanently closed. */
-export function assertLegacyExpeditionDispatchAllowed(ctx: WarpkeepReducerContext): void {
+/**
+ * Legacy creation closes at the explicit drain boundary, not only after
+ * generic activation. Existing rows keep their unchanged scheduled lifecycle.
+ */
+export function assertLegacyExpeditionDispatchAllowed(
+  ctx: WarpkeepReducerContext,
+  resourceKind: WorkerResourceKind,
+  siteId: string,
+): void {
   const workerSystem = ctx.db.realmWorkerSystemV1.realmId.find('GENESIS_001');
-  if (workerSystem?.mode === 'active') fail('LEGACY_EXPEDITION_DISPATCH_RETIRED');
+  const phase = workerRolloutPhaseAt(
+    workerSystem,
+    ctx.db.realmWorkerSystemV1.count(),
+    ctx.timestamp.microsSinceUnixEpoch,
+  );
+  if (phase === 'draining' || phase === 'active') {
+    fail('LEGACY_EXPEDITION_DISPATCH_RETIRED');
+  }
+  if (phase === 'invalid') fail('WORKER_SYSTEM_INTEGRITY');
+
+  const nodeKey = workerNodeKey(resourceKind, siteId);
+  const workerCount = ctx.db.castleWorkerV1.count();
+  const maximumWorkerRows = BigInt(
+    CASTLE_WORKER_MAX_CASTLES * CASTLE_WORKERS_PER_CASTLE,
+  );
+  const actualCastleCount = ctx.db.castle.count();
+  let rosterDigestMatches = phase === 'absent';
+  let wholeCastleWorkerSubset = phase === 'absent' && workerCount === 0n;
+  let invalidWorkerRows = 0n;
+  if (phase === 'staged') {
+    if (
+      actualCastleCount > BigInt(CASTLE_WORKER_MAX_CASTLES)
+      || workerCount > maximumWorkerRows
+    ) {
+      invalidWorkerRows = 1n;
+    } else {
+      const castleIds = boundedRows(
+        ctx.db.castle.iter(),
+        CASTLE_WORKER_MAX_CASTLES,
+      ).map(castle => castle.castleId);
+      const workerRows = boundedRows(
+        ctx.db.castleWorkerV1.iter(),
+        CASTLE_WORKER_MAX_CASTLES * CASTLE_WORKERS_PER_CASTLE,
+      );
+      if (
+        BigInt(castleIds.length) !== actualCastleCount
+        || BigInt(workerRows.length) !== workerCount
+      ) {
+        invalidWorkerRows = 1n;
+      } else {
+        try {
+          const plan = planDeterministicWorkerBackfill(castleIds, workerRows);
+          rosterDigestMatches =
+            plan.expectedCastleCount === workerSystem?.expectedCastleCount
+            && plan.expectedWorkerCount === workerSystem?.expectedWorkerCount
+            && plan.rosterDigest === workerSystem?.rosterDigest;
+          wholeCastleWorkerSubset = true;
+        } catch {
+          invalidWorkerRows = 1n;
+        }
+      }
+    }
+  }
+  const blocker = legacyDispatchWorkerStateBlocker({
+    phase,
+    exactGenericNodeOccupied:
+      ctx.db.workerNodeOccupationV1.nodeKey.find(nodeKey) !== null,
+    genericAssignments: ctx.db.workerAssignmentV1.count(),
+    genericOccupations: ctx.db.workerNodeOccupationV1.count(),
+    genericSchedules: ctx.db.workerAssignmentScheduleV1.count(),
+    genericCommandReceipts: ctx.db.workerCommandIdempotencyV1.count(),
+    workerCount,
+    actualCastleCount,
+    expectedCastleCount: workerSystem?.expectedCastleCount ?? 0,
+    expectedWorkerCount: workerSystem?.expectedWorkerCount ?? 0,
+    rosterDigestMatches,
+    wholeCastleWorkerSubset,
+    invalidWorkerRows,
+  });
+  if (blocker !== undefined) fail(blocker);
 }
 
 /**

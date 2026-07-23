@@ -1366,6 +1366,11 @@ for (const name of [
   'recall_all_workers_v1',
   'admin_get_worker_system_status_v1',
   'admin_plan_worker_roster_v1',
+  'admin_stage_worker_system_v1',
+  'admin_backfill_worker_roster_v1',
+  'admin_begin_worker_legacy_drain_v1',
+  'admin_activate_worker_system_v1',
+  'admin_get_worker_rollout_status_v2',
 ]) {
   warpkeep.moduleDef.explicitNames.entries.push({
     tag: 'Function',
