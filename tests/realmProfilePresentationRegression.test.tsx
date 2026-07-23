@@ -16,6 +16,10 @@ import { generateRealmTerrainMap } from '../src/game/map/generateTerrainMap';
 import { HEGEMONY_GENESIS_001 } from '../src/game/map/realmSeed';
 
 const PROFILE_DELIVERY_ACCOUNT = 'BXluQx4ige9GuW0Ia56BHw';
+const ANIMATED_ARWEAVE_PFP_URL =
+  `https://${'a'.repeat(52)}.arweave.net/${'B'.repeat(43)}/`;
+const STATIC_ARWEAVE_PFP_URL =
+  `https://wrpcd.net/cdn-cgi/image/anim=false,fit=contain,f=auto,w=384/${encodeURIComponent(ANIMATED_ARWEAVE_PFP_URL)}`;
 const PNG_HEADER = (() => {
   const bytes = new Uint8Array(33);
   bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
@@ -210,6 +214,35 @@ describe('realm profile and PFP presentation regressions', () => {
 
     await act(async () => image.finishLoad());
     expect(drawCanvasImage).toHaveBeenCalledOnce();
+  });
+
+  it('renders an animated Arweave PFP only through its static reviewed rendition', async () => {
+    const { container } = render(
+      <CastleProfileAvatar profile={profile({
+        canonicalUsername: 'arweavekeeper',
+        pfpUrl: ANIMATED_ARWEAVE_PFP_URL
+      })} />
+    );
+
+    await waitFor(() => expect(mockProfileImages).toHaveLength(1));
+    expect(fetch).toHaveBeenCalledWith(STATIC_ARWEAVE_PFP_URL, expect.objectContaining({
+      credentials: 'omit',
+      redirect: 'error',
+      referrerPolicy: 'no-referrer',
+      headers: { accept: 'image/webp,image/png,image/jpeg' }
+    }));
+    expect(fetch).not.toHaveBeenCalledWith(
+      ANIMATED_ARWEAVE_PFP_URL,
+      expect.anything()
+    );
+
+    await act(async () => mockProfileImages[0].finishLoad());
+
+    const canvas = container.querySelector('canvas');
+    expect(canvas?.dataset.profileImageState).toBe('ready');
+    expect(canvas?.style.display).toBe('block');
+    expect(container.querySelector('img')).toBeNull();
+    expect(screen.queryByText('S')).toBeNull();
   });
 
   it('wires the reviewed static PFP canvas into the player HUD', async () => {

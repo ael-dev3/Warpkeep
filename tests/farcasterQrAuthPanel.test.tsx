@@ -17,6 +17,10 @@ import type { VerifiedFarcasterIdentity } from '../src/farcaster/farcasterAuthTy
 
 const PROFILE_IMAGE_URL =
   'https://imagedelivery.net/BXluQx4ige9GuW0Ia56BHw/bc698287-5adc-4cc5-a503-de16963ed900/original';
+const ANIMATED_ARWEAVE_PFP_URL =
+  `https://${'a'.repeat(52)}.arweave.net/${'B'.repeat(43)}/`;
+const STATIC_ARWEAVE_PFP_URL =
+  `https://wrpcd.net/cdn-cgi/image/anim=false,fit=contain,f=auto,w=384/${encodeURIComponent(ANIMATED_ARWEAVE_PFP_URL)}`;
 
 function pngHeader() {
   const bytes = new Uint8Array(33);
@@ -357,6 +361,8 @@ describe('FarcasterIdentityBadge', () => {
   it('accepts only reviewed credential-free HTTPS profile image URLs', () => {
     expect(getSafeFarcasterProfileImageUrl(PROFILE_IMAGE_URL))
       .toBe(PROFILE_IMAGE_URL);
+    expect(getSafeFarcasterProfileImageUrl(ANIMATED_ARWEAVE_PFP_URL))
+      .toBe(STATIC_ARWEAVE_PFP_URL);
     expect(getSafeFarcasterProfileImageUrl('https://images.example/pfp.png'))
       .toBeUndefined();
     expect(getSafeFarcasterProfileImageUrl('http://images.example/pfp.png'))
@@ -365,6 +371,34 @@ describe('FarcasterIdentityBadge', () => {
       .toBeUndefined();
     expect(getSafeFarcasterProfileImageUrl('javascript:alert(1)')).toBeUndefined();
     expect(getSafeFarcasterProfileImageUrl('data:image/svg+xml,unsafe')).toBeUndefined();
+  });
+
+  it('renders an animated Arweave profile only through its static reviewed rendition', async () => {
+    const identity: VerifiedFarcasterIdentity = {
+      ...verifiedIdentity,
+      displayName: 'Animated Keeper',
+      pfpUrl: ANIMATED_ARWEAVE_PFP_URL,
+      username: 'arweavekeeper'
+    };
+    const { container } = render(<FarcasterIdentityBadge identity={identity} />);
+
+    const profileImage = container.querySelector<HTMLCanvasElement>(
+      '.farcaster-identity-badge__portrait canvas'
+    );
+    await waitFor(() => expect(profileImage?.dataset.profileImageState).toBe('ready'));
+    expect(fetch).toHaveBeenCalledWith(STATIC_ARWEAVE_PFP_URL, expect.objectContaining({
+      credentials: 'omit',
+      redirect: 'error',
+      referrerPolicy: 'no-referrer',
+      headers: { accept: 'image/webp,image/png,image/jpeg' }
+    }));
+    expect(fetch).not.toHaveBeenCalledWith(
+      ANIMATED_ARWEAVE_PFP_URL,
+      expect.anything()
+    );
+    expect(profileImage?.style.display).toBe('block');
+    expect(container.querySelector('img')).toBeNull();
+    expect(container.querySelector('.farcaster-identity-badge__monogram')).toBeNull();
   });
 
   it('falls back to a monogram for missing, unsafe, or failed profile images', async () => {
