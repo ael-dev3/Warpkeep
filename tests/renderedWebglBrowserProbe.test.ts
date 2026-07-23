@@ -10,6 +10,7 @@ import {
   applyRenderedWebglActiveForestCameraInteraction,
   applyRenderedWebglCaseInteraction,
   applyRenderedWebglLabelKeyboardInteraction,
+  applyRenderedWebglOccupancyStressInteraction,
   applyRenderedWebglResourceOccupantInteraction,
   attestHeadlessChromeCodeSignature,
   closeRenderedWebglLoopbackServer,
@@ -23,17 +24,22 @@ import {
   parseRenderedWebglBrowserDom,
   parseRenderedWebglInspectorLabelActivationEvidence,
   parseRenderedWebglLabelKeyboardEvidence,
+  parseRenderedWebglOccupancyStressEvidence,
   parseRenderedWebglResourceOccupantEvidence,
   RENDERED_WEBGL_QA_CHROME,
   RENDERED_WEBGL_QA_CHROME_APP,
   RENDERED_WEBGL_QA_CASE_COUNT,
   RENDERED_WEBGL_QA_CHROME_TEAM_ID,
+  RENDERED_WEBGL_QA_OCCUPANCY_STRESS_COUNT,
+  RENDERED_WEBGL_QA_OCCUPANCY_STRESS_MAXIMUM_CONTROLS,
+  RENDERED_WEBGL_QA_OCCUPANCY_STRESS_MAXIMUM_PRESENCES,
   RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_CELL_COUNT,
   RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_KIND_COUNT,
   RENDERED_WEBGL_QA_VITE_FS_DENY,
   renderedWebglLabelAnchorDistanceTelemetry,
   renderedWebglLabelDisplacementClassificationValid,
   renderedWebglBrowserProbeCases,
+  renderedWebglOccupancyStressProbeCase,
   selectBlankPageTarget,
   spawnHeadlessChromeProbe,
   terminateHeadlessChromeProcessGroup
@@ -542,6 +548,88 @@ describe('rendered WebGL headless browser probe contract', () => {
     );
     expect(source).toContain("name: 'prefers-reduced-motion'");
     expect(source).toContain("probeCase.expectedQuality === 'reduced' ? 'reduce' : 'no-preference'");
+  });
+
+  it('runs the exact all-node fixture through a bounded boolean-only browser stress lane', async () => {
+    const evidence = {
+      allNodeSourceCountExact: true,
+      allResourceKindsExercised: true,
+      controlBudgetBounded: true,
+      fixtureSelected: true,
+      legacySourceCorrect: true,
+      portraitPipelineReady: true,
+      presenceBudgetBounded: true,
+      rendererStable: true,
+      rovingTabStopBounded: true,
+      uniqueVisibleKeys: true
+    } as const;
+    expect(parseRenderedWebglOccupancyStressEvidence(evidence)).toEqual(evidence);
+    expect(() => parseRenderedWebglOccupancyStressEvidence({
+      ...evidence,
+      controlBudgetBounded: false
+    })).toThrow(/occupancy stress evidence/i);
+    expect(() => parseRenderedWebglOccupancyStressEvidence({
+      ...evidence,
+      fid: 1
+    })).toThrow(/occupancy stress evidence/i);
+
+    const command = vi.fn(async (
+      method: string,
+      _params?: Readonly<Record<string, unknown>>,
+      _timeoutMilliseconds?: number
+    ) => method === 'Runtime.evaluate'
+      ? { result: { type: 'object', value: evidence } }
+      : {});
+    await expect(applyRenderedWebglOccupancyStressInteraction({ command }))
+      .resolves.toEqual(evidence);
+    const evaluation = command.mock.calls.find(([method]) => method === 'Runtime.evaluate');
+    expect(evaluation?.[1]).toMatchObject({
+      awaitPromise: true,
+      returnByValue: true
+    });
+    expect(evaluation?.[2]).toBe(80_000);
+    const expression = String(evaluation?.[1]?.expression);
+    expect(expression).toContain(`const expectedOccupationCount = ${
+      RENDERED_WEBGL_QA_OCCUPANCY_STRESS_COUNT
+    }`);
+    expect(expression).toContain(String(RENDERED_WEBGL_QA_OCCUPANCY_STRESS_MAXIMUM_PRESENCES));
+    expect(expression).toContain(String(RENDERED_WEBGL_QA_OCCUPANCY_STRESS_MAXIMUM_CONTROLS));
+    for (const resource of ['gold', 'food', 'wood', 'stone']) {
+      expect(expression).toContain(`resource: '${resource}'`);
+    }
+    expect(expression).toContain("overlay.dataset.fixtureVariant === 'occupancy-stress'");
+    expect(expression).toContain("activeMap.dataset.rendererRecoveryAttempt === '0'");
+    expect(expression).toContain("=== 'legacy-expedition'");
+    expect(expression).toContain('portraitPipelineReady && targetReady');
+    expect(expression).toMatch(/tabIndex === 0\s*\)\)\.length <= 1/);
+    expect(expression).not.toContain('.realm-resource-occupant-panel');
+    expect(expression).not.toContain('projectionStable(');
+    expect(expression).not.toContain('subtreePrivacyBounded(');
+    expect(expression).not.toContain('return {\\n        fid');
+
+    const stressCase = renderedWebglOccupancyStressProbeCase(41_733);
+    expect(stressCase).toEqual({
+      id: 'desktop-balanced-occupancy-stress',
+      expectedPresentationMode: 'observer',
+      expectedQuality: 'balanced',
+      interaction: 'default',
+      maximumLabelOverflowCount: 0,
+      minimumLabelCount: 1,
+      url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html'
+        + '?quality=balanced&fixture=occupancy-stress',
+      viewport: { width: 1440, height: 900 }
+    });
+    expect(() => renderedWebglOccupancyStressProbeCase(0)).toThrow(/port/i);
+
+    const source = readFileSync(resolve(
+      process.cwd(),
+      'scripts/qa-observer/rendered-webgl-browser-probe.mjs'
+    ), 'utf8');
+    expect(source).toContain(
+      'await runRenderedOccupancyStressCase(devtools, occupancyStressCase, state)'
+    );
+    expect(source).toContain('occupancyStressCase.url');
+    expect(source).toContain('one all-node ');
   });
 
   it('opens player Explore through the portrait menu without restoring a direct map control', async () => {

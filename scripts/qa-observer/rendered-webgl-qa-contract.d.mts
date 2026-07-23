@@ -5,6 +5,7 @@ export const RENDERED_WEBGL_QA_MAX_READY_MILLISECONDS: 120000;
 
 export type RenderedWebglQaQuality = 'high' | 'balanced' | 'reduced';
 export type RenderedWebglQaPresentationMode = 'observer' | 'player';
+export type RenderedWebglQaFixtureVariant = 'baseline' | 'occupancy-stress';
 
 export type RenderedWebglQaObservation = Readonly<{
   version: 1;
@@ -17,6 +18,7 @@ export type RenderedWebglQaObservation = Readonly<{
 }>;
 
 export function renderedWebglQaUrl(options?: Readonly<{
+  fixture?: RenderedWebglQaFixtureVariant;
   mode?: RenderedWebglQaPresentationMode;
   quality?: RenderedWebglQaQuality;
   port?: number;

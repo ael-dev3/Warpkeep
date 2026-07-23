@@ -3,6 +3,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { RenderedWebglQaHarness } from '../src/dev/RenderedWebglQaHarness';
 import {
+  createRenderedWebglQaOccupancyStressRealm
+} from '../src/dev/renderedWebglQaFixture';
+import {
   RENDERED_WEBGL_QA_MAX_READY_MILLISECONDS,
   RENDERED_WEBGL_QA_RENDERER_ABSENCE_GRACE_MILLISECONDS
 } from '../src/dev/renderedWebglQa';
@@ -28,6 +31,7 @@ describe('rendered WebGL local QA harness', () => {
       expect(status.dataset.renderedWebglStatus).toBe('fallback');
     });
     expect(status.dataset.fixture).toBe('synthetic-canonical-100');
+    expect(status.dataset.fixtureVariant).toBe('baseline');
     expect(status.dataset.castleCount).toBe('100');
     expect(status.dataset.presentationMode).toBe('observer');
     expect(status.dataset.quality).toBe('reduced');
@@ -65,6 +69,26 @@ describe('rendered WebGL local QA harness', () => {
     expect(within(menu).getByRole('button', { name: /MAIN MENU/i })).not.toBeNull();
     expect(screen.queryByText('QA OBSERVER · READ ONLY')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Close QA Observer' })).toBeNull();
+  });
+
+  it('labels the fixed dense occupation fixture without introducing network authority', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    const fetchImpl = vi.fn(() => Promise.reject(new Error('Network is forbidden in fixture QA.')));
+    vi.stubGlobal('fetch', fetchImpl);
+
+    render(
+      <RenderedWebglQaHarness
+        fixtureVariant="occupancy-stress"
+        quality="balanced"
+        createFixtureRealm={createRenderedWebglQaOccupancyStressRealm}
+      />
+    );
+
+    const status = screen.getByText('LOCAL RENDERED WEBGL QA').closest('aside');
+    if (!(status instanceof HTMLElement)) throw new Error('missing rendered QA status');
+    await waitFor(() => expect(status.dataset.renderer).toBe('fallback'));
+    expect(status.dataset.fixtureVariant).toBe('occupancy-stress');
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it('fails closed when its deterministic fixture cannot initialize', () => {

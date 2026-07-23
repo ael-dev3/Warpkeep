@@ -13,6 +13,7 @@ import {
   RENDERED_WEBGL_QA_RENDERER_ABSENCE_GRACE_MILLISECONDS,
   renderedWebglQaRendererForReadyTiming,
   renderedWebglQaStatusForRenderer,
+  type RenderedWebglQaFixtureVariant,
   type RenderedWebglQaPresentationMode,
   type RenderedWebglQaRenderer
 } from './renderedWebglQa';
@@ -33,6 +34,7 @@ type RenderedWebglQaObservation = Readonly<{
 }>;
 
 export type RenderedWebglQaHarnessProps = Readonly<{
+  fixtureVariant?: RenderedWebglQaFixtureVariant;
   presentationMode?: RenderedWebglQaPresentationMode;
   quality: RealmQuality;
   /** Test seam for the deterministic local fixture only. */
@@ -82,7 +84,16 @@ function graphicsTierForRealmQuality(quality: RealmQuality): GraphicsQualityTier
   return 'balanced';
 }
 
+function resourceOccupationCount(phase: RenderedWebglQaPhase) {
+  if (phase.kind !== 'active') return 0;
+  return (phase.realm.snapshot.goldNodeOccupations?.length ?? 0)
+    + (phase.realm.snapshot.foodNodeOccupations?.length ?? 0)
+    + (phase.realm.snapshot.woodNodeOccupations?.length ?? 0)
+    + (phase.realm.snapshot.stoneNodeOccupations?.length ?? 0);
+}
+
 export function RenderedWebglQaHarness({
+  fixtureVariant = 'baseline',
   presentationMode = 'observer',
   quality,
   createFixtureRealm = createRenderedWebglQaFixtureRealm
@@ -187,8 +198,10 @@ export function RenderedWebglQaHarness({
         className="rendered-webgl-qa__status"
         data-castle-count={RENDERED_WEBGL_QA_CASTLE_COUNT}
         data-fixture={RENDERED_WEBGL_QA_FIXTURE_ID}
+        data-fixture-variant={fixtureVariant}
         data-presentation-mode={presentationMode}
         data-quality={quality}
+        data-resource-occupation-count={resourceOccupationCount(phase)}
         data-rendered-webgl-status={status}
         data-renderer={observation.renderer}
         {...(observation.readyAfterMilliseconds === undefined

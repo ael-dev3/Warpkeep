@@ -5,6 +5,9 @@ export const RENDERED_WEBGL_QA_CHROME:
 export const RENDERED_WEBGL_QA_CHROME_APP: '/Applications/Google Chrome.app';
 export const RENDERED_WEBGL_QA_CHROME_TEAM_ID: 'EQHXZ8M8AV';
 export const RENDERED_WEBGL_QA_CASE_COUNT: 14;
+export const RENDERED_WEBGL_QA_OCCUPANCY_STRESS_COUNT: 312;
+export const RENDERED_WEBGL_QA_OCCUPANCY_STRESS_MAXIMUM_PRESENCES: 400;
+export const RENDERED_WEBGL_QA_OCCUPANCY_STRESS_MAXIMUM_CONTROLS: 24;
 /** Exact authoritative terrain count for the Genesis generation-v3 render target. */
 export const RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_CELL_COUNT: 10000;
 /** Exact visible terrain-kind count after canonical no-lake revision activation. */
@@ -75,7 +78,8 @@ export type RenderedWebglBrowserProbeCase = Readonly<{
     | 'mobile-balanced'
     | 'mobile-reduced-inspector'
     | 'short-landscape-explore'
-    | 'short-landscape-balanced-player-explore';
+    | 'short-landscape-balanced-player-explore'
+    | 'desktop-balanced-occupancy-stress';
   expectedQuality: RenderedWebglBrowserProbeQuality;
   expectedPresentationMode: RenderedWebglBrowserProbePresentationMode;
   interaction: RenderedWebglBrowserProbeInteraction;
@@ -102,6 +106,10 @@ export type HeadlessChromeProbeContract = Readonly<{
 export function renderedWebglBrowserProbeCases(
   port: number
 ): readonly RenderedWebglBrowserProbeCase[];
+
+export function renderedWebglOccupancyStressProbeCase(
+  port: number
+): RenderedWebglBrowserProbeCase;
 
 export function headlessChromeProbeContract(profileDirectory: string): HeadlessChromeProbeContract;
 
@@ -284,6 +292,24 @@ export function parseRenderedWebglResourceOccupantEvidence(
   value: unknown
 ): RenderedWebglResourceOccupantEvidence;
 
+export type RenderedWebglOccupancyStressEvidence = Readonly<{
+  allNodeSourceCountExact: true;
+  allResourceKindsExercised: true;
+  controlBudgetBounded: true;
+  fixtureSelected: true;
+  legacySourceCorrect: true;
+  portraitPipelineReady: true;
+  presenceBudgetBounded: true;
+  rendererStable: true;
+  rovingTabStopBounded: true;
+  uniqueVisibleKeys: true;
+}>;
+
+/** Boolean-only dense synthetic-fixture evidence. */
+export function parseRenderedWebglOccupancyStressEvidence(
+  value: unknown
+): RenderedWebglOccupancyStressEvidence;
+
 /** Structural keyboard evidence only; it never includes a castle or identity value. */
 export function parseRenderedWebglLabelKeyboardEvidence(value: unknown): Readonly<{
   arrowMoved: true;
@@ -341,6 +367,10 @@ export function applyRenderedWebglResourceOccupantInteraction(
   presentationMode: RenderedWebglBrowserProbePresentationMode,
   expectedReducedMotion?: boolean,
 ): Promise<RenderedWebglResourceOccupantEvidence>;
+
+export function applyRenderedWebglOccupancyStressInteraction(
+  session: RenderedWebglCastleCanvasPointerSession,
+): Promise<RenderedWebglOccupancyStressEvidence>;
 
 export function analyzeRenderedWebglPngScreenshot(
   value: Buffer,

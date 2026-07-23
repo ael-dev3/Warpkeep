@@ -39,9 +39,11 @@ import { publicProfileForCastle } from '../src/components/realm/realmCastlePrese
 import {
   boundedRenderedWebglQaReadyMilliseconds,
   RENDERED_WEBGL_QA_CASTLE_COUNT,
+  RENDERED_WEBGL_QA_DEFAULT_FIXTURE_VARIANT,
   RENDERED_WEBGL_QA_DEFAULT_PRESENTATION_MODE,
   RENDERED_WEBGL_QA_DEFAULT_QUALITY,
   RENDERED_WEBGL_QA_FIXTURE_ID,
+  readRenderedWebglQaFixtureVariant,
   readRenderedWebglQaOptions,
   renderedWebglQaRendererForReadyTiming,
   renderedWebglQaStatusForRenderer
@@ -237,6 +239,18 @@ describe('rendered WebGL local QA fixture', () => {
       presentationMode: 'observer',
       quality: 'reduced'
     });
+    expect(readRenderedWebglQaOptions(
+      '?quality=balanced&fixture=occupancy-stress'
+    )).toEqual({
+      presentationMode: 'observer',
+      quality: 'balanced'
+    });
+    expect(readRenderedWebglQaFixtureVariant(
+      '?quality=balanced&fixture=occupancy-stress'
+    )).toBe('occupancy-stress');
+    expect(readRenderedWebglQaFixtureVariant('?quality=high')).toBe(
+      RENDERED_WEBGL_QA_DEFAULT_FIXTURE_VARIANT
+    );
     expect(readRenderedWebglQaOptions('?quality=high&host=example.invalid')).toEqual({
       presentationMode: RENDERED_WEBGL_QA_DEFAULT_PRESENTATION_MODE,
       quality: RENDERED_WEBGL_QA_DEFAULT_QUALITY
@@ -249,6 +263,12 @@ describe('rendered WebGL local QA fixture', () => {
       presentationMode: RENDERED_WEBGL_QA_DEFAULT_PRESENTATION_MODE,
       quality: RENDERED_WEBGL_QA_DEFAULT_QUALITY
     });
+    expect(readRenderedWebglQaFixtureVariant(
+      '?quality=high&fixture=occupancy-stress&host=example.invalid'
+    )).toBe(RENDERED_WEBGL_QA_DEFAULT_FIXTURE_VARIANT);
+    expect(readRenderedWebglQaFixtureVariant(
+      '?quality=high&fixture=unknown'
+    )).toBe(RENDERED_WEBGL_QA_DEFAULT_FIXTURE_VARIANT);
     expect(readRenderedWebglQaOptions('?quality=high&quality=reduced')).toEqual({
       presentationMode: RENDERED_WEBGL_QA_DEFAULT_PRESENTATION_MODE,
       quality: RENDERED_WEBGL_QA_DEFAULT_QUALITY

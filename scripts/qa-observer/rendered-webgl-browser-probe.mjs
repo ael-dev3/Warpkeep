@@ -56,6 +56,9 @@ const TABLET_VIEWPORT = Object.freeze({ width: 1_024, height: 768 });
 const MOBILE_VIEWPORT = Object.freeze({ width: 390, height: 844 });
 const SHORT_LANDSCAPE_VIEWPORT = Object.freeze({ width: 667, height: 375 });
 export const RENDERED_WEBGL_QA_CASE_COUNT = 14;
+export const RENDERED_WEBGL_QA_OCCUPANCY_STRESS_COUNT = 312;
+export const RENDERED_WEBGL_QA_OCCUPANCY_STRESS_MAXIMUM_PRESENCES = 400;
+export const RENDERED_WEBGL_QA_OCCUPANCY_STRESS_MAXIMUM_CONTROLS = 24;
 // The rendered browser lane targets the undeployed Genesis generation-v3
 // candidate, not the dual-version production attestation rollout. An exact
 // count prevents a complete generation-v2 surface (1,261 cells), a partial
@@ -82,6 +85,24 @@ const RENDERED_WEBGL_QA_RESOURCE_OCCUPANT_CASE_IDS = new Set([
   'desktop-reduced',
   'mobile-reduced-inspector',
 ]);
+
+export function renderedWebglOccupancyStressProbeCase(port) {
+  const selectedPort = exactPort(port);
+  return Object.freeze({
+    id: 'desktop-balanced-occupancy-stress',
+    expectedPresentationMode: 'observer',
+    expectedQuality: 'balanced',
+    interaction: 'default',
+    maximumLabelOverflowCount: 0,
+    minimumLabelCount: 1,
+    url: renderedWebglQaUrl({
+      fixture: 'occupancy-stress',
+      port: selectedPort,
+      quality: 'balanced',
+    }),
+    viewport: DESKTOP_VIEWPORT,
+  });
+}
 // Interactions may change the projection-visible set, but every eligible castle
 // must remain a direct label. Explore remains the complete accessible list and
 // never becomes an excuse for automatic world-label overflow.
@@ -724,6 +745,37 @@ export function parseRenderedWebglResourceOccupantEvidence(value) {
   if (failures.length > 0) {
     throw new TypeError(
       `Invalid rendered WebGL resource occupant evidence: ${failures.join(',')}.`
+    );
+  }
+  return Object.freeze(Object.fromEntries(keys.map((key) => [key, true])));
+}
+
+/**
+ * Boolean-only proof that the dense synthetic fixture reached the real
+ * renderer, retained every source occupation, and exercised all four
+ * resource-marker paths under the shared passive/control budgets.
+ */
+export function parseRenderedWebglOccupancyStressEvidence(value) {
+  const candidate = exactRecord(value, 'Invalid rendered WebGL occupancy stress evidence.');
+  const keys = [
+    'allNodeSourceCountExact',
+    'allResourceKindsExercised',
+    'controlBudgetBounded',
+    'fixtureSelected',
+    'legacySourceCorrect',
+    'portraitPipelineReady',
+    'presenceBudgetBounded',
+    'rendererStable',
+    'rovingTabStopBounded',
+    'uniqueVisibleKeys',
+  ];
+  if (!exactMessageKeys(candidate, new Set(keys))) {
+    throw new TypeError('Invalid rendered WebGL occupancy stress evidence shape.');
+  }
+  const failures = keys.filter((key) => candidate[key] !== true);
+  if (failures.length > 0) {
+    throw new TypeError(
+      `Invalid rendered WebGL occupancy stress evidence: ${failures.join(',')}.`
     );
   }
   return Object.freeze(Object.fromEntries(keys.map((key) => [key, true])));
@@ -4139,6 +4191,257 @@ export async function applyRenderedWebglResourceOccupantInteraction(
   return parseRenderedWebglResourceOccupantEvidence(evaluation.result.value);
 }
 
+export async function applyRenderedWebglOccupancyStressInteraction(session) {
+  const evaluation = await session.command('Runtime.evaluate', {
+    expression: `(async () => {
+      const expectedOccupationCount = ${RENDERED_WEBGL_QA_OCCUPANCY_STRESS_COUNT};
+      const maximumPresenceCount =
+        ${RENDERED_WEBGL_QA_OCCUPANCY_STRESS_MAXIMUM_PRESENCES};
+      const maximumControlCount =
+        ${RENDERED_WEBGL_QA_OCCUPANCY_STRESS_MAXIMUM_CONTROLS};
+      const targets = Object.freeze([
+        Object.freeze({
+          key: 'gold:genesis-001-tier1-gold-03',
+          q: '-51',
+          r: '57',
+          resource: 'gold'
+        }),
+        Object.freeze({
+          key: 'food:genesis-001-tier1-food-004',
+          q: '-42',
+          r: '57',
+          resource: 'food'
+        }),
+        Object.freeze({
+          key: 'wood:genesis-001-tier1-wood-033',
+          q: '-41',
+          r: '48',
+          resource: 'wood'
+        }),
+        Object.freeze({
+          key: 'stone:genesis-001-tier1-stone-059',
+          q: '-52',
+          r: '50',
+          resource: 'stone'
+        })
+      ]);
+      const waitFor = async (
+        predicate,
+        timeoutMilliseconds = ${PRESENTATION_SETTLE_TIMEOUT_MILLISECONDS}
+      ) => {
+        const deadline = performance.now() + timeoutMilliseconds;
+        while (performance.now() <= deadline) {
+          if (predicate()) return true;
+          await new Promise((resolve) => setTimeout(resolve, 32));
+        }
+        return false;
+      };
+      const visible = (element) => {
+        if (!(element instanceof HTMLElement)) return false;
+        const style = getComputedStyle(element);
+        const bounds = element.getBoundingClientRect();
+        return style.display !== 'none'
+          && style.visibility !== 'hidden'
+          && Number(style.opacity || '1') > 0
+          && bounds.width > 0
+          && bounds.height > 0;
+      };
+      const overlay = document.querySelector('[data-rendered-webgl-status]');
+      const rendererSnapshot = () => {
+        const activeMap = document.querySelector('.realm-map-screen');
+        if (!(activeMap instanceof HTMLElement)) return '';
+        return [
+          activeMap.dataset.renderer,
+          activeMap.dataset.rendererState,
+          activeMap.dataset.rendererEverReady,
+          activeMap.dataset.rendererRecoveryAttempt,
+          activeMap.dataset.rendererFailure,
+          activeMap.dataset.rendererGeneration,
+          activeMap.dataset.rendererLastSuccessfulGeneration,
+          activeMap.dataset.rendererContextLossCount,
+          activeMap.dataset.rendererContextRestoreCount
+        ].join('|');
+      };
+      const rendererHealthy = () => {
+        const activeMap = document.querySelector('.realm-map-screen');
+        return activeMap instanceof HTMLElement
+          && activeMap.dataset.renderer === 'webgl'
+          && activeMap.dataset.rendererState === 'ready'
+          && activeMap.dataset.rendererEverReady === 'true'
+          && activeMap.dataset.rendererRecoveryAttempt === '0'
+          && activeMap.dataset.rendererFailure === 'none'
+          && activeMap.dataset.rendererContextLossCount === '0'
+          && activeMap.dataset.rendererContextRestoreCount === '0'
+          && activeMap.dataset.rendererGeneration
+            === activeMap.dataset.rendererLastSuccessfulGeneration;
+      };
+      const setInputValue = (input, value) => {
+        const setter = Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          'value'
+        )?.set;
+        if (!(input instanceof HTMLInputElement) || !setter) return false;
+        setter.call(input, value);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        return true;
+      };
+      const jumpTo = async (q, r) => {
+        const trigger = document.querySelector('.realm-cell-navigator > button');
+        if (!(trigger instanceof HTMLButtonElement) || trigger.disabled || !visible(trigger)) {
+          return false;
+        }
+        trigger.click();
+        if (!await waitFor(() => (
+          document.querySelector('.realm-cell-navigator__dialog') instanceof HTMLElement
+        ))) return false;
+        const form = document.querySelector('.realm-cell-navigator__jump');
+        const inputs = form?.querySelectorAll('input');
+        if (!(form instanceof HTMLFormElement) || inputs?.length !== 2) return false;
+        if (!setInputValue(inputs[0], q) || !setInputValue(inputs[1], r)) return false;
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        form.requestSubmit();
+        return waitFor(() => (
+          document.querySelector('.realm-cell-navigator__dialog') === null
+          && document.querySelector('.realm-map-screen') instanceof HTMLElement
+          && !document.querySelector('.realm-map-screen').hasAttribute(
+            'data-camera-interacting'
+          )
+        ));
+      };
+      const currentMarkerState = () => {
+        const presences = [...document.querySelectorAll(
+          '.realm-resource-occupant-presence[data-projected-visible="true"]'
+        )].filter((element) => visible(element));
+        const controls = [...document.querySelectorAll(
+          'button.realm-resource-occupant-marker[data-projected-visible="true"]'
+        )].filter((element) => visible(element));
+        const presenceKeys = presences.map((element) => (
+          element.getAttribute('data-resource-occupant-key') ?? ''
+        ));
+        const controlKeys = controls.map((element) => (
+          element.getAttribute('data-resource-occupant-key') ?? ''
+        ));
+        return Object.freeze({
+          controlBudgetBounded: controls.length > 0
+            && controls.length <= maximumControlCount,
+          legacySourceCorrect: controls.every((element) => (
+            element.getAttribute('data-resource-occupant-source')
+              === 'legacy-expedition'
+          )),
+          presenceBudgetBounded: presences.length > 0
+            && presences.length <= maximumPresenceCount,
+          rovingTabStopBounded: controls.filter((element) => (
+            element instanceof HTMLButtonElement && element.tabIndex === 0
+          )).length <= 1,
+          uniqueVisibleKeys: new Set(presenceKeys).size === presenceKeys.length
+            && new Set(controlKeys).size === controlKeys.length
+            && controlKeys.every((key) => presenceKeys.includes(key))
+        });
+      };
+
+      const fixtureSelected = overlay instanceof HTMLElement
+        && overlay.dataset.fixtureVariant === 'occupancy-stress';
+      const allNodeSourceCountExact = overlay instanceof HTMLElement
+        && Number(overlay.dataset.resourceOccupationCount) === expectedOccupationCount;
+      const initialRenderer = rendererSnapshot();
+      let allResourceKindsExercised = true;
+      let controlBudgetBounded = true;
+      let legacySourceCorrect = true;
+      let portraitPipelineReady = true;
+      let presenceBudgetBounded = true;
+      let rendererStable = rendererHealthy();
+      let rovingTabStopBounded = true;
+      let uniqueVisibleKeys = true;
+      const observedKinds = new Set();
+
+      for (const target of targets) {
+        if (!await jumpTo(target.q, target.r)) {
+          allResourceKindsExercised = false;
+          continue;
+        }
+        const selector = '.realm-resource-occupant-presence'
+          + '[data-projected-visible="true"]'
+          + '[data-resource-occupant-key="' + target.key + '"]';
+        const targetReady = await waitFor(() => {
+          const candidate = document.querySelector(selector);
+          return candidate instanceof HTMLElement
+            && visible(candidate)
+            && candidate.querySelector(
+              'canvas[data-profile-image-state="ready"]'
+            ) instanceof HTMLCanvasElement;
+        });
+        const state = currentMarkerState();
+        controlBudgetBounded = controlBudgetBounded && state.controlBudgetBounded;
+        legacySourceCorrect = legacySourceCorrect && state.legacySourceCorrect;
+        portraitPipelineReady = portraitPipelineReady && targetReady;
+        presenceBudgetBounded = presenceBudgetBounded && state.presenceBudgetBounded;
+        rovingTabStopBounded = rovingTabStopBounded && state.rovingTabStopBounded;
+        uniqueVisibleKeys = uniqueVisibleKeys && state.uniqueVisibleKeys;
+        const presence = document.querySelector(selector);
+        if (!targetReady || !(presence instanceof HTMLElement)) {
+          allResourceKindsExercised = false;
+          continue;
+        }
+        observedKinds.add(presence.dataset.resourceKind);
+        rendererStable = rendererStable
+          && rendererHealthy()
+          && initialRenderer === rendererSnapshot();
+      }
+
+      allResourceKindsExercised = allResourceKindsExercised
+        && observedKinds.size === 4
+        && ['gold', 'food', 'wood', 'stone'].every((kind) => observedKinds.has(kind));
+      rendererStable = rendererStable
+        && initialRenderer !== ''
+        && initialRenderer === rendererSnapshot()
+        && rendererHealthy();
+      return {
+        allNodeSourceCountExact,
+        allResourceKindsExercised,
+        controlBudgetBounded,
+        fixtureSelected,
+        legacySourceCorrect,
+        portraitPipelineReady,
+        presenceBudgetBounded,
+        rendererStable,
+        rovingTabStopBounded,
+        uniqueVisibleKeys
+      };
+    })()`,
+    awaitPromise: true,
+    returnByValue: true,
+  }, CDP_COMMAND_TIMEOUT_MILLISECONDS * 8);
+  if (evaluation?.exceptionDetails || evaluation?.result?.type !== 'object') {
+    throw new Error('Rendered WebGL occupancy stress evaluation failed.');
+  }
+  return parseRenderedWebglOccupancyStressEvidence(evaluation.result.value);
+}
+
+async function runRenderedOccupancyStressCase(session, probeCase, state) {
+  await session.command('Emulation.setDeviceMetricsOverride', {
+    width: probeCase.viewport.width,
+    height: probeCase.viewport.height,
+    screenWidth: probeCase.viewport.width,
+    screenHeight: probeCase.viewport.height,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+  await session.command('Emulation.setEmulatedMedia', {
+    features: [{
+      name: 'prefers-reduced-motion',
+      value: 'no-preference',
+    }],
+  });
+  await session.command('Page.navigate', { url: probeCase.url });
+  await waitForAcceptedRenderedDom(session, probeCase, state);
+  await captureRenderedCasePixels(session, probeCase.viewport);
+  await applyRenderedWebglOccupancyStressInteraction(session);
+  await captureRenderedCasePixels(session, probeCase.viewport);
+  if (state.violation) {
+    throw new Error('Rendered WebGL occupancy stress left the local QA boundary.');
+  }
+}
+
 async function runRenderedCase(session, probeCase, state) {
   await session.command('Emulation.setDeviceMetricsOverride', {
     width: probeCase.viewport.width,
@@ -4289,6 +4592,7 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
       .assertCastleLodVisualEvidenceLoopbackBoundary(vite.port);
     onCastleLodVisualBoundary?.(castleLodVisualBoundary);
     const cases = renderedWebglBrowserProbeCases(vite.port);
+    const occupancyStressCase = renderedWebglOccupancyStressProbeCase(vite.port);
     const journeyProbe = await import('./qa-journey-browser-probe.mjs');
     const journeyCases = journeyProbe.qaJourneyBrowserProbeCases(vite.port);
     const castleLodVisualUrl = castleLodVisualProbe.castleLodVisualEvidenceUrl(vite.port);
@@ -4311,6 +4615,7 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
       violation: '',
       allowedUrls: new Set([
         ...cases.map((probeCase) => probeCase.url),
+        occupancyStressCase.url,
         ...journeyCases.map((probeCase) => probeCase.url),
         castleLodVisualUrl,
       ]),
@@ -4453,6 +4758,13 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
       }
     }
     try {
+      await runRenderedOccupancyStressCase(devtools, occupancyStressCase, state);
+    } catch (error) {
+      throw new Error('Rendered WebGL all-node occupancy stress case failed.', {
+        cause: error,
+      });
+    }
+    try {
       await journeyProbe.runQaJourneyBrowserCases(devtools, journeyCases, state);
     } catch (error) {
       throw new Error('Synthetic journey browser lane failed.', { cause: error });
@@ -4505,7 +4817,8 @@ async function main() {
     }
     const lodFidelitySummary = `aggregate castle LOD fidelity ${JSON.stringify(lodMetrics)}`;
     process.stdout.write(
-      `Warpkeep local browser QA passed: ${passedCaseCount} rendered cases, 25 journey checks, and `
+      `Warpkeep local browser QA passed: ${passedCaseCount} rendered cases, one all-node `
+      + `occupancy stress check, 25 journey checks, and `
       + `loopback LOD boundary ${JSON.stringify(castleLodVisualBoundary)}, ${lodFidelitySummary}.\n`
     );
   } catch {

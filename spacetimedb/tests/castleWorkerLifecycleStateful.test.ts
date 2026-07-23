@@ -7,15 +7,25 @@ import { build, type Plugin } from 'esbuild';
 import type * as CastleWorkerAuthority from '../src/castleWorkerAuthority';
 import type * as CastleWorkerRolloutAuthority from '../src/castleWorkerRolloutAuthority';
 import {
+  CASTLE_WORKER_PROTOCOL_CAPABILITY,
   CASTLE_WORKER_POLICY_VERSION,
   CASTLE_WORKERS_PER_CASTLE,
   rosterDigestForCastleIds,
+  workerNodeKey,
   workerResourcePolicy,
 } from '../src/castleWorkerPolicy';
+import {
+  CASTLE_WORKER_RESOURCE_CATALOG_DIGEST,
+  CASTLE_WORKER_RESOURCE_STATE_VERSION,
+  resourceRosterDigest,
+} from '../src/castleWorkerRolloutPolicy';
 import {
   ensureCastleWorkerRoster,
   expectedWorkerRowsForCastle,
 } from '../src/castleWorkerRoster';
+import {
+  CANONICAL_TIER_I_FOOD_SITES_V1,
+} from '../src/foodSitePolicy';
 import {
   CANONICAL_TIER_I_GOLD_SITES_V1,
 } from '../src/goldSitePolicy';
@@ -23,9 +33,18 @@ import {
   SNAP_MARK_POLICY_VERSION,
 } from '../src/marksAuthorityPolicy';
 import {
+  assertLegacyExpeditionDispatchAllowed,
+} from '../src/resourceExpeditionReservationAuthority';
+import {
   GENESIS_RESOURCE_POLICY_VERSION,
   REALM_RESOURCE_QUANTUM_MICROS,
 } from '../src/resourceAuthorityPolicy';
+import {
+  CANONICAL_TIER_I_STONE_SITES_V1,
+} from '../src/stoneSitePolicy';
+import {
+  CANONICAL_TIER_I_WOOD_SITES_V1,
+} from '../src/woodSitePolicy';
 import {
   CANONICAL_CASTLE_SLOTS,
   CANONICAL_REALM,
@@ -111,6 +130,9 @@ const {
   new URL('../src/castleWorkerAuthority.ts', import.meta.url),
 );
 const {
+  activateWorkerSystem,
+  backfillWorkerRoster,
+  beginWorkerLegacyDrain,
   inspectWorkerRollout,
   stageWorkerSystem,
 } = await loadExactProductionModule<typeof CastleWorkerRolloutAuthority>(
@@ -136,18 +158,25 @@ function legacyExpeditionTable() {
   };
 }
 
-function legacyOccupationTable() {
+function legacyOccupationTable(rows: Map<string, AnyRow> = new Map()) {
   return {
-    count: () => 0n,
-    siteId: { find: () => null },
+    count: () => BigInt(rows.size),
+    siteId: { find: (siteId: string) => rows.get(siteId) ?? null },
   };
 }
 
-function makeLifecycleFixture() {
+type LifecycleFixtureOptions = Readonly<{
+  initialWorkerSystem?: 'absent' | 'active';
+  initialRoster?: 'empty' | 'complete';
+}>;
+
+function makeLifecycleFixture(
+  options: LifecycleFixtureOptions = {},
+) {
   const fid = 77_001n;
   const castleId = 1n;
   const startedAtMicros = 1_900_000_000_000_000n;
-  let activatedAtMicros = startedAtMicros;
+  const activatedAtMicros = startedAtMicros;
   const slot = CANONICAL_CASTLE_SLOTS[0]!;
   const castle = {
     castleId,
@@ -166,15 +195,33 @@ function makeLifecycleFixture() {
   assert.equal(sites.length, CASTLE_WORKERS_PER_CASTLE);
 
   const workers = new Map<string, AnyRow>(
-    expectedWorkerRowsForCastle(castle)
-      .map(row => [row.workerId, { ...row }] as const),
+    options.initialRoster === 'empty'
+      ? []
+      : expectedWorkerRowsForCastle(castle)
+        .map(row => [row.workerId, { ...row }] as const),
   );
   const assignments = new Map<string, AnyRow>();
   const occupations = new Map<string, AnyRow>();
   const receipts = new Map<string, AnyRow>();
   const schedules = new Map<bigint, AnyRow>();
+  const legacyGoldOccupations = new Map<string, AnyRow>();
   let nextScheduleId = 1n;
   let nextAssignmentId = 1;
+  let workerSystem: AnyRow | null =
+    options.initialWorkerSystem === 'absent'
+      ? null
+      : {
+        realmId: CANONICAL_REALM.realmId,
+        policyVersion: CASTLE_WORKER_POLICY_VERSION,
+        workersPerCastle: CASTLE_WORKERS_PER_CASTLE,
+        expectedCastleCount: 1,
+        expectedWorkerCount: CASTLE_WORKERS_PER_CASTLE,
+        rosterDigest: rosterDigestForCastleIds([castleId]),
+        mode: 'active',
+        legacyDrainRequired: false,
+        createdAt: timestamp(startedAtMicros),
+        activatedAt: timestamp(activatedAtMicros),
+      };
   let account: AnyRow = {
     fid,
     castleId,
@@ -214,22 +261,21 @@ function makeLifecycleFixture() {
     }),
     db: {
       realmWorkerSystemV1: {
-        count: () => 1n,
+        count: () => workerSystem === null ? 0n : 1n,
+        insert: (row: AnyRow) => {
+          if (workerSystem !== null) throw new Error('duplicate worker system');
+          workerSystem = row;
+          return row;
+        },
         realmId: {
           find: (realmId: string) => realmId === CANONICAL_REALM.realmId
-            ? {
-              realmId,
-              policyVersion: CASTLE_WORKER_POLICY_VERSION,
-              workersPerCastle: CASTLE_WORKERS_PER_CASTLE,
-              expectedCastleCount: 1,
-              expectedWorkerCount: CASTLE_WORKERS_PER_CASTLE,
-              rosterDigest: rosterDigestForCastleIds([castleId]),
-              mode: 'active',
-              legacyDrainRequired: false,
-              createdAt: timestamp(startedAtMicros),
-              activatedAt: timestamp(activatedAtMicros),
-            }
+            ? workerSystem
             : null,
+          update: (row: AnyRow) => {
+            if (workerSystem === null) throw new Error('missing worker system');
+            workerSystem = row;
+            return row;
+          },
         },
       },
       castle: {
@@ -245,6 +291,11 @@ function makeLifecycleFixture() {
       castleWorkerV1: {
         count: () => BigInt(workers.size),
         iter: () => workers.values(),
+        insert: (row: AnyRow) => {
+          if (workers.has(row.workerId)) throw new Error('duplicate worker');
+          workers.set(row.workerId, row);
+          return row;
+        },
         workerId: {
           find: (workerId: string) => workers.get(workerId) ?? null,
           update: (row: AnyRow) => {
@@ -451,20 +502,50 @@ function makeLifecycleFixture() {
         },
       },
       goldSiteV1: {
+        iter: () => CANONICAL_TIER_I_GOLD_SITES_V1.values(),
         siteId: {
           find: (siteId: string) => (
-            sites.find(site => site.siteId === siteId) ?? null
+            CANONICAL_TIER_I_GOLD_SITES_V1.find(
+              site => site.siteId === siteId,
+            ) ?? null
           ),
         },
       },
-      foodSiteV1: { siteId: { find: () => null } },
-      woodSiteV1: { siteId: { find: () => null } },
-      stoneSiteV1: { siteId: { find: () => null } },
+      foodSiteV1: {
+        iter: () => CANONICAL_TIER_I_FOOD_SITES_V1.values(),
+        siteId: {
+          find: (siteId: string) => (
+            CANONICAL_TIER_I_FOOD_SITES_V1.find(
+              site => site.siteId === siteId,
+            ) ?? null
+          ),
+        },
+      },
+      woodSiteV1: {
+        iter: () => CANONICAL_TIER_I_WOOD_SITES_V1.values(),
+        siteId: {
+          find: (siteId: string) => (
+            CANONICAL_TIER_I_WOOD_SITES_V1.find(
+              site => site.siteId === siteId,
+            ) ?? null
+          ),
+        },
+      },
+      stoneSiteV1: {
+        iter: () => CANONICAL_TIER_I_STONE_SITES_V1.values(),
+        siteId: {
+          find: (siteId: string) => (
+            CANONICAL_TIER_I_STONE_SITES_V1.find(
+              site => site.siteId === siteId,
+            ) ?? null
+          ),
+        },
+      },
       goldExpeditionV1: legacyExpeditionTable(),
       foodExpeditionV1: legacyExpeditionTable(),
       woodExpeditionV1: legacyExpeditionTable(),
       stoneExpeditionV1: legacyExpeditionTable(),
-      goldNodeOccupationV1: legacyOccupationTable(),
+      goldNodeOccupationV1: legacyOccupationTable(legacyGoldOccupations),
       foodNodeOccupationV1: legacyOccupationTable(),
       woodNodeOccupationV1: legacyOccupationTable(),
       stoneNodeOccupationV1: legacyOccupationTable(),
@@ -512,7 +593,9 @@ function makeLifecycleFixture() {
     workers,
     assignments,
     schedules,
+    occupations,
     account: () => account,
+    workerSystem: () => workerSystem,
     advanceResourceCursor: (settledThroughMicros: bigint) => {
       account = {
         ...account,
@@ -529,7 +612,24 @@ function makeLifecycleFixture() {
       workers.set(next.workerId, next);
     },
     setActivatedAtMicros: (value: bigint) => {
-      activatedAtMicros = value;
+      if (workerSystem !== null) {
+        workerSystem = {
+          ...workerSystem,
+          activatedAt: timestamp(value),
+        };
+      }
+    },
+    seedGenericOccupation: (resourceKind: string, siteId: string) => {
+      const nodeKey = workerNodeKey(resourceKind, siteId);
+      occupations.set(nodeKey, {
+        nodeKey,
+        resourceKind,
+        siteId,
+        workerId: 'fixture-worker',
+      });
+    },
+    seedLegacyGoldOccupation: (siteId: string) => {
+      legacyGoldOccupations.set(siteId, { siteId });
     },
     deleteAssignmentForWorker: (workerId: string) => {
       const row = [...assignments.values()].find(
@@ -665,6 +765,169 @@ test('four workers share one resource across distinct nodes through replay, sche
     workerResourcePolicy('gold').gatheringTotal
       * BigInt(CASTLE_WORKERS_PER_CASTLE),
   );
+});
+
+test('occupied nodes reject a second generic worker and generic-legacy overlap without writes', () => {
+  const fixture = makeLifecycleFixture();
+  const [firstWorkerId, secondWorkerId] = [...fixture.workers.keys()].sort();
+  const siteId = fixture.sites[0]!.siteId;
+  dispatchCastleWorker(fixture.ctx, {
+    fid: fixture.fid,
+    castle: fixture.castle,
+    workerId: firstWorkerId!,
+    resourceKind: 'gold',
+    siteId,
+    idempotencyKey: 'occupied-node-first-dispatch',
+  });
+  const afterFirstDispatch = fixture.counts();
+  assert.throws(
+    () => dispatchCastleWorker(fixture.ctx, {
+      fid: fixture.fid,
+      castle: fixture.castle,
+      workerId: secondWorkerId!,
+      resourceKind: 'gold',
+      siteId,
+      idempotencyKey: 'occupied-node-second-dispatch',
+    }),
+    /WORKER_SITE_OCCUPIED/,
+  );
+  assert.deepEqual(fixture.counts(), afterFirstDispatch);
+  assert.equal(fixture.workers.get(secondWorkerId!)?.status, 'idle');
+
+  const legacyCollision = makeLifecycleFixture();
+  legacyCollision.seedLegacyGoldOccupation(siteId);
+  const legacyCollisionBefore = legacyCollision.counts();
+  assert.throws(
+    () => dispatchCastleWorker(legacyCollision.ctx, {
+      fid: legacyCollision.fid,
+      castle: legacyCollision.castle,
+      workerId: [...legacyCollision.workers.keys()].sort()[0]!,
+      resourceKind: 'gold',
+      siteId,
+      idempotencyKey: 'legacy-node-collision',
+    }),
+    /WORKER_LEGACY_DRAIN_REQUIRED/,
+  );
+  assert.deepEqual(legacyCollision.counts(), legacyCollisionBefore);
+
+  const stagedCollision = makeLifecycleFixture({
+    initialWorkerSystem: 'absent',
+    initialRoster: 'empty',
+  });
+  stageWorkerSystem(stagedCollision.ctx);
+  backfillWorkerRoster(stagedCollision.ctx);
+  stagedCollision.seedGenericOccupation('gold', siteId);
+  assert.throws(
+    () => assertLegacyExpeditionDispatchAllowed(
+      stagedCollision.ctx,
+      'gold',
+      siteId,
+    ),
+    /LEGACY_SITE_OCCUPIED_BY_WORKER/,
+  );
+});
+
+test('stateful rollout stages, deterministically backfills, drains, and activates exact authority', () => {
+  const fixture = makeLifecycleFixture({
+    initialWorkerSystem: 'absent',
+    initialRoster: 'empty',
+  });
+  assert.equal(fixture.workerSystem(), null);
+  assert.equal(fixture.workers.size, 0);
+
+  const staged = stageWorkerSystem(fixture.ctx);
+  assert.equal(staged.mode, 'staged');
+  assert.equal(staged.legacyDrainRequired, false);
+  assert.equal(fixture.workers.size, 0);
+  assert.deepEqual(fixture.counts(), {
+    assignments: 0,
+    occupations: 0,
+    schedules: 0,
+    receipts: 0,
+  });
+
+  const firstBackfill = backfillWorkerRoster(fixture.ctx);
+  assert.equal(firstBackfill.insertedWorkers, CASTLE_WORKERS_PER_CASTLE);
+  assert.deepEqual(
+    [...fixture.workers.keys()].sort(),
+    expectedWorkerRowsForCastle(fixture.castle)
+      .map(worker => worker.workerId)
+      .sort(),
+  );
+  const rosterAfterFirstBackfill = [...fixture.workers.values()];
+  const replayedBackfill = backfillWorkerRoster(fixture.ctx);
+  assert.equal(replayedBackfill.insertedWorkers, 0);
+  assert.deepEqual(
+    [...fixture.workers.values()],
+    rosterAfterFirstBackfill,
+  );
+
+  const draining = beginWorkerLegacyDrain(fixture.ctx);
+  assert.equal(draining.mode, 'staged');
+  assert.equal(draining.legacyDrainRequired, true);
+  assert.throws(
+    () => dispatchCastleWorker(fixture.ctx, {
+      fid: fixture.fid,
+      castle: fixture.castle,
+      workerId: [...fixture.workers.keys()].sort()[0]!,
+      resourceKind: 'gold',
+      siteId: fixture.sites[0]!.siteId,
+      idempotencyKey: 'dispatch-before-worker-activation',
+    }),
+    /WORKER_SYSTEM_STAGED/,
+  );
+  assert.deepEqual(fixture.counts(), {
+    assignments: 0,
+    occupations: 0,
+    schedules: 0,
+    receipts: 0,
+  });
+
+  const reviewed: Parameters<typeof activateWorkerSystem>[1] = Object.freeze({
+    capability: CASTLE_WORKER_PROTOCOL_CAPABILITY,
+    clientRelease: 'alpha-0.3.14',
+    clientArtifactDigest: 'a'.repeat(64),
+    sourceCommit: 'b'.repeat(40),
+    resourceStateVersion: CASTLE_WORKER_RESOURCE_STATE_VERSION,
+    resourcePolicyVersion: GENESIS_RESOURCE_POLICY_VERSION,
+    resourceCatalogDigest: CASTLE_WORKER_RESOURCE_CATALOG_DIGEST,
+    expectedCastleCount: 1,
+    expectedWorkerCount: CASTLE_WORKERS_PER_CASTLE,
+    rosterDigest: rosterDigestForCastleIds([fixture.castle.castleId]),
+    resourceRosterDigest: resourceRosterDigest([fixture.account()]),
+  });
+  const ready = inspectWorkerRollout(fixture.ctx, reviewed);
+  assert.equal(ready.phase, 'draining');
+  assert.equal(ready.activationReady, true);
+  assert.deepEqual(ready.activationBlockers, []);
+
+  const active = activateWorkerSystem(fixture.ctx, reviewed);
+  assert.equal(active.mode, 'active');
+  assert.equal(active.legacyDrainRequired, false);
+  assert.deepEqual(fixture.counts(), {
+    assignments: 0,
+    occupations: 0,
+    schedules: 0,
+    receipts: 0,
+  });
+
+  const workerId = [...fixture.workers.keys()].sort()[0]!;
+  const dispatched = dispatchCastleWorker(fixture.ctx, {
+    fid: fixture.fid,
+    castle: fixture.castle,
+    workerId,
+    resourceKind: 'gold',
+    siteId: fixture.sites[0]!.siteId,
+    idempotencyKey: 'dispatch-after-worker-activation',
+  });
+  assert.equal(dispatched.idempotent, false);
+  assert.equal(dispatched.assignment.workerId, workerId);
+  assert.deepEqual(fixture.counts(), {
+    assignments: 1,
+    occupations: 1,
+    schedules: 1,
+    receipts: 1,
+  });
 });
 
 test('activation inspection rejects malformed roster identity and non-idle workers without authority', () => {

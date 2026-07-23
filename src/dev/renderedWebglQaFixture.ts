@@ -216,10 +216,11 @@ function stressOccupations<T extends Readonly<{ siteId: string }>>(
 }
 
 /**
- * Dense source-only rendered-QA fixture. Every canonical resource node is
+ * Dense local-only rendered-QA fixture. Every canonical resource node is
  * occupied by one of the 100 synthetic public keeps, with at most one legacy
- * occupation of each resource kind per keep. It is never selected by the
- * standalone browser route and cannot reach a production build.
+ * occupation of each resource kind per keep. The standalone browser route can
+ * select it only through its fixed reviewed loopback query, and it cannot
+ * reach a production build.
  */
 export function createRenderedWebglQaOccupancyStressRealm(): RealmObserverHarnessRealm {
   const baseRealm = createRealmObserverHarnessRealm(
