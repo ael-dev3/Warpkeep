@@ -20,6 +20,8 @@ vi.mock('../src/components/realm/realmMapPresentationHelpers', async (importOrig
 
 import { RealmMapScreen } from '../src/components/realm/RealmMapScreen';
 import type { CreateRealmSceneOptions } from '../src/components/realm/createRealmScene';
+import { createRenderedWebglQaFixtureRealm } from '../src/dev/renderedWebglQaFixture';
+import { GENESIS_WATER_REVISION_ENABLED_CELLS_V1 } from '../spacetimedb/src/waterRevision';
 import { createCanonicalGenesisSnapshot, CANONICAL_TEST_FID } from './fixtures/canonicalGenesisSnapshot';
 import { createReadyResourceState } from './fixtures/resourceState';
 
@@ -31,7 +33,7 @@ function sceneHandle() {
     getCameraAttestation: () => null,
     getSceneBuildSequence: () => 1,
     focusCastle: noOp,
-    focusCell: noOp,
+    focusCell: vi.fn(),
     frameFoundingDistrict: noOp,
     focusKeep: noOp,
     recenterKeep: noOp,
@@ -43,6 +45,10 @@ function sceneHandle() {
     setSelectedFoodSiteId: noOp,
     setSelectedWoodSiteId: noOp,
     setSelectedStoneSiteId: noOp,
+    setSelectedWorkerId: noOp,
+    setSelectedWaterCellKey: vi.fn(),
+    setHoveredWaterCellKey: noOp,
+    setHoveredWorkerId: noOp,
     setComposition: noOp,
     showRealm: noOp
   };
@@ -126,5 +132,41 @@ describe('Realm renderer recovery UI', () => {
     expect(sceneState.create).toHaveBeenCalledOnce();
     expect(realm.getAttribute('data-renderer-state')).toBe('loading');
     expect(realm.getAttribute('aria-busy')).toBe('true');
+  });
+
+  it('opens river and ocean records without invoking a camera focus', () => {
+    const fixture = createRenderedWebglQaFixtureRealm();
+    render(
+      <RealmMapScreen
+        identity={fixture.identity}
+        snapshot={fixture.snapshot}
+        onRequestReturn={vi.fn()}
+        resources={createReadyResourceState(fixture.identity.fid)}
+      />
+    );
+    const options = sceneState.create.mock.calls[0]![0] as CreateRealmSceneOptions;
+    const handle = sceneState.create.mock.results[0]!.value as ReturnType<typeof sceneHandle>;
+    act(() => options.onCastlesReady?.(fixture.snapshot.castles.length));
+
+    const river = GENESIS_WATER_REVISION_ENABLED_CELLS_V1.find(
+      (cell) => cell.regime === 'river'
+    )!;
+    const ocean = GENESIS_WATER_REVISION_ENABLED_CELLS_V1.find(
+      (cell) => cell.regime === 'ocean' && cell.fogBand !== 'full'
+    )!;
+    for (const [cell, regime] of [[river, 'river'], [ocean, 'ocean']] as const) {
+      act(() => options.onTargetSelect?.({
+        kind: 'water-cell',
+        cellKey: cell.cellKey,
+        bodyId: cell.bodyId,
+        regime,
+        coord: { q: cell.q, r: cell.r }
+      }));
+      expect(document.querySelector<HTMLElement>('.water-inspection')?.dataset.waterCellKey)
+        .toBe(cell.cellKey);
+    }
+
+    expect(handle.focusCell).not.toHaveBeenCalled();
+    expect(handle.setSelectedWaterCellKey).toHaveBeenLastCalledWith(ocean.cellKey);
   });
 });

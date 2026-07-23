@@ -7,6 +7,7 @@ const RESERVED_REALM_UI_SELECTOR = [
   '.realm-resource-rail',
   '.castle-inspection',
   '.gold-mine-inspection',
+  '.water-inspection',
   '.realm-hud__actions',
   '.realm-cell-navigator > button',
   '.realm-cell-navigator__dialog'

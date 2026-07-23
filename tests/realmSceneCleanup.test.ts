@@ -377,7 +377,7 @@ describe('realm scene setup cleanup', () => {
     animated.dispose();
   });
 
-  it('keeps land-only navigation and rejects Water focus when its layer fails to construct', () => {
+  it('keeps land-only navigation when its Water layer fails to construct', () => {
     waterLayerState.failNextCreation = true;
     const canvas = document.createElement('canvas');
     const scene = createRealmScene(createOptions(canvas, {
@@ -388,9 +388,10 @@ describe('realm scene setup cleanup', () => {
 
     expect(canvas.dataset.waterPresentation).toBe('unavailable');
     expect(canvas.dataset.waterNavigation).toBe('land-only');
+    expect(scene).not.toHaveProperty('focusWaterCell');
     renderer.render.mockClear();
-    scene.focusWaterCell(GENESIS_WATER_REVISION_ENABLED_CELLS_V1[0]!.cellKey);
-    expect(renderer.render).not.toHaveBeenCalled();
+    scene.focusCell({ q: 0, r: 0 });
+    expect(renderer.render).toHaveBeenCalled();
 
     scene.dispose();
   });

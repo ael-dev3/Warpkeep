@@ -14,7 +14,7 @@ export type WaterInspectionPanelProps = Readonly<{
   record: RealmWaterInspectionRecord;
   focusTargetRef?: Ref<HTMLButtonElement>;
   onRequestClose: () => void;
-  onFocusCell?: (cellKey: string) => void;
+  onSelectCell?: (cellKey: string) => void;
   onViewUnderlyingCell?: () => void;
 }>;
 
@@ -54,7 +54,7 @@ export function WaterInspectionPanel({
   record,
   focusTargetRef,
   onRequestClose,
-  onFocusCell,
+  onSelectCell,
   onViewUnderlyingCell
 }: WaterInspectionPanelProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -146,11 +146,11 @@ export function WaterInspectionPanel({
           </dl>
           <p className="water-inspection__read-only">{record.gameplayBoundary}</p>
           <div className="water-inspection__actions">
-            {record.regime === 'river' && record.sourceCellKey && onFocusCell ? (
-              <button type="button" onClick={() => onFocusCell(record.sourceCellKey!)}>FOLLOW TO SOURCE</button>
+            {record.regime === 'river' && record.sourceCellKey && onSelectCell ? (
+              <button type="button" onClick={() => onSelectCell(record.sourceCellKey!)}>OPEN SOURCE RECORD</button>
             ) : null}
-            {record.regime === 'river' && record.mouthCellKey && onFocusCell ? (
-              <button type="button" onClick={() => onFocusCell(record.mouthCellKey!)}>FOLLOW TO MOUTH</button>
+            {record.regime === 'river' && record.mouthCellKey && onSelectCell ? (
+              <button type="button" onClick={() => onSelectCell(record.mouthCellKey!)}>OPEN MOUTH RECORD</button>
             ) : null}
             {record.regime === 'river' && onViewUnderlyingCell ? (
               <button

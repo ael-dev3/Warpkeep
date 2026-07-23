@@ -117,31 +117,34 @@ describe('realm interaction state', () => {
     expect(resolveRealmEscape(state).state.keyboardIntent.target).toEqual({ kind: 'map' });
   });
 
-  it('opens a read-only water record and preserves its canonical body identity', () => {
-    const state = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
+  it.each([
+    { regime: 'river' as const, cellKey: 'genesis-001:river:01:0001' },
+    { regime: 'ocean' as const, cellKey: '-59,44' }
+  ])('opens a read-only $regime record without changing camera intent', ({ regime, cellKey }) => {
+    const initial = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
+      type: 'set-camera-target',
+      target: { kind: 'castle', castleId: 7, coord: { q: 2, r: -1 } }
+    });
+    const state = realmInteractionReducer(initial, {
       type: 'activate-water-cell',
-      cellKey: 'genesis-001:river:01:0001',
-      bodyId: 'genesis-001:river:01',
-      regime: 'river',
+      cellKey,
+      bodyId: `genesis-001:${regime}:01`,
+      regime,
       coord: { q: 4, r: -2 }
     });
 
     expect(state.selectedCell).toEqual({ q: 4, r: -2 });
     expect(state.selectedCastle).toBeNull();
     expect(state.inspectorTarget).toEqual({
-      cellKey: 'genesis-001:river:01:0001',
-      bodyId: 'genesis-001:river:01',
-      regime: 'river',
+      cellKey,
+      bodyId: `genesis-001:${regime}:01`,
+      regime,
       coord: { q: 4, r: -2 }
     });
-    expect(state.cameraTarget).toEqual({
-      kind: 'water',
-      cellKey: 'genesis-001:river:01:0001',
-      coord: { q: 4, r: -2 }
-    });
+    expect(state.cameraTarget).toBe(initial.cameraTarget);
     expect(state.keyboardIntent).toEqual({
       sequence: 1,
-      target: { kind: 'water-inspector', cellKey: 'genesis-001:river:01:0001' }
+      target: { kind: 'water-inspector', cellKey }
     });
   });
 

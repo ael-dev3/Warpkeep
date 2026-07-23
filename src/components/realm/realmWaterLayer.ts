@@ -10,6 +10,7 @@ import {
 } from '../../game/map/hexCoordinates';
 import {
   GENESIS_OCEAN_DEPTH_BY_KEY,
+  GENESIS_WATER_OCEAN_RADIUS,
   GENESIS_WATER_LAYOUT_VERSION,
   genesisWaterWorldHeightFromMilli,
   type GenesisWaterBodyV1,
@@ -25,6 +26,7 @@ import {
   resolveRealmWaterPhase,
   type RealmWaterPhase
 } from './realmWaterPhase';
+import { REALM_SKY_FALLBACK_COLOR } from './createRealmEnvironment';
 
 const WATER_Y_LIFT = 0.035;
 const RIVER_BANK_BLEND = 0.28;
@@ -35,12 +37,19 @@ const RIVER_BANK_BLEND = 0.28;
 const RIVER_TERRAIN_CLEARANCE = 0.014;
 const RIVER_SURFACE_PROBE_SUBDIVISIONS = 6;
 const MAXIMUM_RIVER_SURFACE_CORRECTION = 0.16;
-const OUTER_CURTAIN_BOTTOM = -20;
-const OUTER_CURTAIN_TOP = 38;
+const OUTER_SKIRT_DEPTH = 1.25;
 const ANALYTIC_PICK_NEIGHBORHOOD_RADIUS = 2;
 const ANALYTIC_PICK_DIRECTION_EPSILON = 0.000_001;
 const RIVER_TRIANGLES_PER_CELL = 6;
 const RIVER_INDICES_PER_CELL = RIVER_TRIANGLES_PER_CELL * 3;
+const OUTER_EDGE_NEIGHBOR_DIRECTIONS = Object.freeze([
+  Object.freeze({ q: 1, r: -1 }),
+  Object.freeze({ q: 1, r: 0 }),
+  Object.freeze({ q: 0, r: 1 }),
+  Object.freeze({ q: -1, r: 1 }),
+  Object.freeze({ q: -1, r: 0 }),
+  Object.freeze({ q: 0, r: -1 })
+]);
 
 /** Convert the persisted +1000 fixed-point datum into the terrain's world-Y space. */
 export function waterSurfaceLevelToWorldY(surfaceLevelMilli: number): number {
@@ -156,6 +165,11 @@ function regimeColor(cell: GenesisWaterCellV1): THREE.Color {
     ? new THREE.Color('#3c7691') : new THREE.Color('#4f91ab');
 }
 
+function waterPointKey(point: HexWorldPosition) {
+  const precision = 1_000_000;
+  return `${Math.round(point.x * precision)},${Math.round(point.z * precision)}`;
+}
+
 function surfaceGeometry(
   cells: readonly GenesisWaterCellV1[],
   hexSize: number,
@@ -172,6 +186,41 @@ function surfaceGeometry(
   const waterFlowX: number[] = [];
   const waterFlowZ: number[] = [];
   const indices: number[] = [];
+  const cornerPresentation = new Map<string, {
+    red: number;
+    green: number;
+    blue: number;
+    depth: number;
+    fogMix: number;
+    shoreFoam: number;
+    count: number;
+  }>();
+  cells.forEach((cell) => {
+    const color = regimeColor(cell);
+    const depth = Math.min(1, cell.depthCells / 5);
+    const fogMix = fogMixForCell(cell);
+    const shoreFoam = shoreFoamForCell(cell);
+    pointyHexCorners({ q: cell.q, r: cell.r }, hexSize).forEach((corner) => {
+      const key = waterPointKey(corner);
+      const aggregate = cornerPresentation.get(key) ?? {
+        red: 0,
+        green: 0,
+        blue: 0,
+        depth: 0,
+        fogMix: 0,
+        shoreFoam: 0,
+        count: 0
+      };
+      aggregate.red += color.r;
+      aggregate.green += color.g;
+      aggregate.blue += color.b;
+      aggregate.depth += depth;
+      aggregate.fogMix += fogMix;
+      aggregate.shoreFoam += shoreFoam;
+      aggregate.count += 1;
+      cornerPresentation.set(key, aggregate);
+    });
+  });
   cells.forEach((cell) => {
     const center = axialToWorld({ q: cell.q, r: cell.r }, hexSize);
     const authoritativeSurfaceY = waterSurfaceLevelToWorldY(cell.surfaceLevelMilli);
@@ -197,13 +246,19 @@ function surfaceGeometry(
     waterFlowZ.push(0);
     normals.push(0, 1, 0);
     pointyHexCorners({ q: cell.q, r: cell.r }, hexSize).forEach((corner) => {
+      const aggregate = cornerPresentation.get(waterPointKey(corner));
+      const divisor = Math.max(1, aggregate?.count ?? 0);
       positions.push(corner.x, ground, corner.z);
-      colors.push(color.r, color.g, color.b);
-      waterDepth.push(Math.min(1, cell.depthCells / 5));
+      colors.push(
+        (aggregate?.red ?? color.r) / divisor,
+        (aggregate?.green ?? color.g) / divisor,
+        (aggregate?.blue ?? color.b) / divisor
+      );
+      waterDepth.push((aggregate?.depth ?? Math.min(1, cell.depthCells / 5)) / divisor);
       waterBankBlend.push(cell.regime === 'river' ? RIVER_BANK_BLEND : 0);
-      waterFogMix.push(fogMixForCell(cell));
+      waterFogMix.push((aggregate?.fogMix ?? fogMixForCell(cell)) / divisor);
       waterRegime.push(waterRegimeForCell(cell));
-      waterShoreFoam.push(shoreFoamForCell(cell));
+      waterShoreFoam.push((aggregate?.shoreFoam ?? shoreFoamForCell(cell)) / divisor);
       waterFlowX.push(0);
       waterFlowZ.push(0);
       normals.push(0, 1, 0);
@@ -247,11 +302,6 @@ type RiverSurfacePlan = Readonly<{
   center: MutableRiverSurfaceNode;
   corners: readonly MutableRiverSurfaceNode[];
 }>;
-
-function waterPointKey(point: HexWorldPosition) {
-  const precision = 1_000_000;
-  return `${Math.round(point.x * precision)},${Math.round(point.z * precision)}`;
-}
 
 /**
  * River cells retain the reviewed six-triangle/full-hex topology, but their
@@ -391,23 +441,28 @@ function outerSkirtGeometry(cells: readonly GenesisWaterCellV1[], hexSize: numbe
   const positions: number[] = [];
   const indices: number[] = [];
   for (const cell of cells) {
-    if (cell.regime !== 'ocean' || hexDistance(cell, { q: 0, r: 0 }) !== 65) continue;
+    if (
+      cell.regime !== 'ocean'
+      || hexDistance(cell, { q: 0, r: 0 }) !== GENESIS_WATER_OCEAN_RADIUS
+    ) continue;
     const corners = pointyHexCorners({ q: cell.q, r: cell.r }, hexSize);
     for (let side = 0; side < 6; side += 1) {
-      const direction = [{ q: 1, r: 0 }, { q: 1, r: -1 }, { q: 0, r: -1 }, { q: -1, r: 0 }, { q: -1, r: 1 }, { q: 0, r: 1 }][side]!;
+      const direction = OUTER_EDGE_NEIGHBOR_DIRECTIONS[side]!;
       const neighborKey = `${cell.q + direction.q},${cell.r + direction.r}`;
       if (keys.has(neighborKey)) continue;
       const a = corners[side]!;
       const b = corners[(side + 1) % 6]!;
       const base = positions.length / 3;
-      // A full-height horizon curtain closes the frustum even when the camera
-      // pans over the visible ocean apron. It is presentation-only and follows
-      // the exact outer edge of the canonical Water disc.
+      const surfaceY = waterSurfaceLevelToWorldY(cell.surfaceLevelMilli);
+      const bottomY = surfaceY - OUTER_SKIRT_DEPTH;
+      // Close only the below-water edge of the canonical disc. The full-fog
+      // ocean cells above this skirt already blend into the matching sky, so
+      // raising geometry into the horizon would create a visible map wall.
       positions.push(
-        a.x, OUTER_CURTAIN_TOP, a.z,
-        b.x, OUTER_CURTAIN_TOP, b.z,
-        b.x, OUTER_CURTAIN_BOTTOM, b.z,
-        a.x, OUTER_CURTAIN_BOTTOM, a.z
+        a.x, surfaceY, a.z,
+        b.x, surfaceY, b.z,
+        b.x, bottomY, b.z,
+        a.x, bottomY, a.z
       );
       indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
     }
@@ -445,10 +500,7 @@ function createWaterMaterial(
     : river
       ? Math.min(2, REALM_WATER_RENDER_BUDGETS[quality.id].waveComponents)
       : REALM_WATER_RENDER_BUDGETS[quality.id].waveComponents;
-  const uniforms = {
-    uWaterTime: { value: 0 },
-    uWaterHorizonColor: { value: new THREE.Color('#b9cad8') }
-  };
+  const uniforms = { uWaterTime: { value: 0 } };
   const waveTerms = Array.from({ length: activeWaveComponents }, (_, index) => {
     const ordinal = index + 1;
     const directionX = (0.54 + ((ordinal * 17) % 31) / 100).toFixed(3);
@@ -466,16 +518,16 @@ function createWaterMaterial(
   float riverWave = sin(dot(waterWorldXZ, normalize(waterFlow + vec2(0.0001))) * 2.3 + uWaterTime * 0.72) * 0.006;
   return waterRegime > 0.5 ? riverWave : oceanWave;
 }`;
-  const shaderContract = `warpkeep-water-world-space-r185-${river ? 'river' : 'ocean'}-v2`;
+  const shaderContract = `warpkeep-water-world-space-r185-${river ? 'river' : 'ocean'}-v3`;
   material.onBeforeCompile = (shader) => {
     if (
       !shader.vertexShader.includes('#include <color_vertex>')
       || !shader.vertexShader.includes('#include <begin_vertex>')
       || !shader.vertexShader.includes('#include <beginnormal_vertex>')
       || !shader.fragmentShader.includes('#include <opaque_fragment>')
+      || !shader.fragmentShader.includes('#include <colorspace_fragment>')
     ) throw new Error('REALM_WATER_SHADER_CONTRACT_CHANGED');
     if (activeWaveComponents > 0) shader.uniforms.uWaterTime = uniforms.uWaterTime;
-    shader.uniforms.uWaterHorizonColor = uniforms.uWaterHorizonColor;
     shader.vertexShader = `${timeUniform}
 attribute float waterDepth;
 attribute float waterBankBlend;
@@ -501,17 +553,18 @@ ${shader.vertexShader}`
   vWarpkeepWaterShoreFoam = waterShoreFoam;`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
   vWarpkeepWaterWorldXZ = (modelMatrix * vec4(position, 1.0)).xz;
-  vWarpkeepWaterWave = warpkeepWaterHeight(vWarpkeepWaterWorldXZ, waterRegime, vec2(waterFlowX, waterFlowZ));
+  vWarpkeepWaterWave = warpkeepWaterHeight(vWarpkeepWaterWorldXZ, waterRegime, vec2(waterFlowX, waterFlowZ))
+    * (1.0 - clamp(waterFogMix, 0.0, 1.0));
   transformed.y += vWarpkeepWaterWave;`)
       .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
   float warpkeepWaterEpsilon = 0.045;
+  float warpkeepWaterWaveVisibility = 1.0 - clamp(waterFogMix, 0.0, 1.0);
   vec2 warpkeepWaterNormalWorldXZ = (modelMatrix * vec4(position, 1.0)).xz;
   float warpkeepWaterNormalHeight = warpkeepWaterHeight(warpkeepWaterNormalWorldXZ, waterRegime, vec2(waterFlowX, waterFlowZ));
-  float warpkeepWaterDx = (warpkeepWaterHeight(warpkeepWaterNormalWorldXZ + vec2(warpkeepWaterEpsilon, 0.0), waterRegime, vec2(waterFlowX, waterFlowZ)) - warpkeepWaterNormalHeight) / warpkeepWaterEpsilon;
-  float warpkeepWaterDz = (warpkeepWaterHeight(warpkeepWaterNormalWorldXZ + vec2(0.0, warpkeepWaterEpsilon), waterRegime, vec2(waterFlowX, waterFlowZ)) - warpkeepWaterNormalHeight) / warpkeepWaterEpsilon;
+  float warpkeepWaterDx = ((warpkeepWaterHeight(warpkeepWaterNormalWorldXZ + vec2(warpkeepWaterEpsilon, 0.0), waterRegime, vec2(waterFlowX, waterFlowZ)) - warpkeepWaterNormalHeight) / warpkeepWaterEpsilon) * warpkeepWaterWaveVisibility;
+  float warpkeepWaterDz = ((warpkeepWaterHeight(warpkeepWaterNormalWorldXZ + vec2(0.0, warpkeepWaterEpsilon), waterRegime, vec2(waterFlowX, waterFlowZ)) - warpkeepWaterNormalHeight) / warpkeepWaterEpsilon) * warpkeepWaterWaveVisibility;
   objectNormal = normalize(vec3(-warpkeepWaterDx, 1.0, -warpkeepWaterDz));`);
-    shader.fragmentShader = `uniform vec3 uWaterHorizonColor;
-varying float vWarpkeepWaterDepth;
+    shader.fragmentShader = `varying float vWarpkeepWaterDepth;
 varying float vWarpkeepWaterBankBlend;
 varying float vWarpkeepWaterFogMix;
 varying float vWarpkeepWaterRegime;
@@ -532,8 +585,15 @@ ${shader.fragmentShader}`
         outgoingLight = mix(outgoingLight, outgoingLight * waterBodyColor * 1.65, 0.42);
         outgoingLight += (waterBodyColor * waterFresnel + vec3(waterGlimmer)) * bankSoftness;
         outgoingLight = mix(outgoingLight, vec3(0.93, 0.91, 0.82), waterFoam);
-        outgoingLight = mix(outgoingLight, uWaterHorizonColor, clamp(vWarpkeepWaterFogMix, 0.0, 1.0));
-        #include <opaque_fragment>`);
+        #include <opaque_fragment>`)
+      .replace('#include <colorspace_fragment>', `#include <colorspace_fragment>
+        #ifdef USE_FOG
+          gl_FragColor.rgb = mix(
+            gl_FragColor.rgb,
+            fogColor,
+            clamp(vWarpkeepWaterFogMix, 0.0, 1.0)
+          );
+        #endif`);
     material.userData.waterShaderContract = shaderContract;
   };
   material.customProgramCacheKey = () => shaderContract;
@@ -621,11 +681,11 @@ export function createRealmWaterLayer(options: WaterLayerOptions): RealmWaterLay
     riverMaterial.emissiveIntensity = 0.2;
     riverMaterial.roughness = 0.22;
     skirtMaterial = new THREE.MeshBasicMaterial({
-      color: '#b9cad8',
+      color: REALM_SKY_FALLBACK_COLOR,
       transparent: false,
       depthWrite: true,
       depthTest: true,
-      fog: false,
+      fog: true,
       side: THREE.DoubleSide,
       toneMapped: false
     });

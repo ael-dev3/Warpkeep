@@ -58,10 +58,7 @@ export type RealmCameraTarget =
   | Readonly<{ kind: 'keep' }>
   | Readonly<{ kind: 'cell'; coord: HexCoord }>
   | Readonly<{ kind: 'castle'; castleId: number; coord: HexCoord }>
-  | Readonly<{ kind: 'worker'; workerId: string; coord: HexCoord }>
-  // Water focus is bounded by the validated visible projection, not land
-  // passability; full-fog cells never become camera targets.
-  | Readonly<{ kind: 'water'; cellKey: string; coord: HexCoord }>;
+  | Readonly<{ kind: 'worker'; workerId: string; coord: HexCoord }>;
 
 export type RealmKeyboardTarget =
   | Readonly<{ kind: 'map' }>
@@ -129,7 +126,6 @@ export type RealmInteractionAction =
       bodyId: string;
       regime: 'ocean' | 'river';
       coord: HexCoord;
-      cameraIntent?: 'focus-water' | 'preserve';
     }>
   | Readonly<{ type: 'close-inspector' }>
   | Readonly<{ type: 'recenter-keep'; coord: HexCoord }>
@@ -198,7 +194,6 @@ function copyCameraTarget(target: RealmCameraTarget): RealmCameraTarget {
   if (target.kind === 'keep') return { kind: 'keep' };
   if (target.kind === 'cell') return { kind: 'cell', coord: copyCoord(target.coord) };
   if (target.kind === 'worker') return { kind: 'worker', workerId: target.workerId, coord: copyCoord(target.coord) };
-  if (target.kind === 'water') return { kind: 'water', cellKey: target.cellKey, coord: copyCoord(target.coord) };
   return { kind: 'castle', castleId: target.castleId, coord: copyCoord(target.coord) };
 }
 
@@ -353,9 +348,10 @@ export function realmInteractionReducer(
         selectedCastle: null,
         inspectorTarget: target,
         inspectorOpen: true,
-        cameraTarget: action.cameraIntent === 'preserve'
-          ? state.cameraTarget
-          : { kind: 'water', cellKey: target.cellKey, coord: copyCoord(target.coord) },
+        // Water inspection is deliberately camera-neutral. River and ocean
+        // cells can be selected at any zoom without discarding a player's
+        // manually composed view.
+        cameraTarget: state.cameraTarget,
         navigatorOpen: false,
         keyboardIntent: withKeyboardIntent(state, {
           kind: 'water-inspector',

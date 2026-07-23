@@ -77,20 +77,20 @@ describe('WaterInspectionPanel', () => {
   });
 
   it('routes source and mouth controls to their exact persisted endpoint keys', () => {
-    const onFocusCell = vi.fn();
+    const onSelectCell = vi.fn();
     render(
       <WaterInspectionPanel
         id="water-record"
         record={RECORD}
         onRequestClose={vi.fn()}
-        onFocusCell={onFocusCell}
+        onSelectCell={onSelectCell}
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'FOLLOW TO SOURCE' }));
-    fireEvent.click(screen.getByRole('button', { name: 'FOLLOW TO MOUTH' }));
+    fireEvent.click(screen.getByRole('button', { name: 'OPEN SOURCE RECORD' }));
+    fireEvent.click(screen.getByRole('button', { name: 'OPEN MOUTH RECORD' }));
 
-    expect(onFocusCell.mock.calls).toEqual([
+    expect(onSelectCell.mock.calls).toEqual([
       [RECORD.sourceCellKey],
       [RECORD.mouthCellKey]
     ]);

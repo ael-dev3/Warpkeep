@@ -22,6 +22,7 @@ const SOURCE_ROUTE = '/_warpkeep-local-qa/hegemony-main-castle-source.glb';
 const CASE_ROUTE = '/dev/castle-lod-visual-evidence.html';
 const CASE_TIMEOUT_MILLISECONDS = 120_000;
 const LOOPBACK_BOUNDARY_TIMEOUT_MILLISECONDS = 5_000;
+const SAFE_ARCHIVE_BOUNDARY_STATUSES = new Set([403, 404]);
 const LOOPBACK_BOUNDARY_MAXIMUM_HEADER_BYTES = 16 * 1_024;
 const VISUAL_TARGET_PIXELS = 384;
 const VISUAL_LODS = Object.freeze(['high', 'balanced', 'compact']);
@@ -305,7 +306,23 @@ export async function assertCastleLodVisualEvidenceLoopbackBoundary(port) {
     || exactHeader(exact.headers['cache-control']) !== 'no-store'
     || exactHeader(exact.headers['cross-origin-resource-policy']) !== 'same-origin'
   ) throw new Error('The exact local castle LOD source route did not meet its boundary contract.');
-  if (archive.statusCode !== 403) {
+  const archiveContentType = exactHeader(archive.headers['content-type']).toLowerCase();
+  const archiveContentLength = exactHeader(archive.headers['content-length']);
+  const archiveIsViteOpaqueMiss = archive.statusCode !== 404 || (
+    archiveContentType === 'text/plain; charset=utf-8'
+    && exactHeader(archive.headers['cache-control']) === 'no-store'
+  );
+  // Vite has used both an explicit deny (403) and a deliberately opaque miss
+  // (404) for denied /@fs routes. Both are closed outcomes; additionally prove
+  // the response cannot masquerade as the private source payload.
+  if (
+    !SAFE_ARCHIVE_BOUNDARY_STATUSES.has(archive.statusCode ?? 0)
+    || !archiveIsViteOpaqueMiss
+    || ['application/octet-stream', 'application/zip', 'model/gltf-binary']
+      .includes(archiveContentType.split(';', 1)[0] ?? '')
+    || archiveContentLength === String(SOURCE_ARCHIVE_BYTES)
+    || archiveContentLength === String(SOURCE_MEMBER_BYTES)
+  ) {
     throw new Error('The cached castle source archive escaped the local Vite boundary.');
   }
   // A Vite SPA fallback may validly answer the query with HTML. It must never
