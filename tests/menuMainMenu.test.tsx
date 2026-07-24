@@ -22,7 +22,7 @@ function installMotionPreference(matches = false) {
 function getPatchNotesTrigger(options: { hidden?: boolean } = {}) {
   return screen.getByRole('button', {
     ...options,
-    name: 'Open patch notes for Warpkeep ALPHA 0.3.17'
+    name: 'Open patch notes for Warpkeep ALPHA 0.3.18'
   });
 }
 
@@ -131,11 +131,11 @@ describe('WarpkeepMainMenu', () => {
 
     act(() => patchNotes.focus());
     expect(screen.getByRole('status').textContent).toContain('living frontier');
-    expect(screen.queryByRole('region', { name: 'THE GATE REMEMBERS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE KEEP MUSTERS' })).toBeNull();
 
     fireEvent.click(patchNotes, { detail: 0 });
     expect(screen.queryByRole('status')).toBeNull();
-    expect(screen.getByRole('region', { name: 'THE GATE REMEMBERS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE KEEP MUSTERS' })).not.toBeNull();
     expect(document.activeElement).toBe(patchNotes);
   });
 
@@ -239,25 +239,25 @@ describe('WarpkeepMainMenu', () => {
 
     expect(patchNotes.getAttribute('aria-expanded')).toBe('false');
     expect(patchNotes.getAttribute('aria-controls')).toBe('warpkeep-latest-patch-notes');
-    expect(screen.queryByRole('region', { name: 'THE GATE REMEMBERS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE KEEP MUSTERS' })).toBeNull();
 
     act(() => patchNotes.focus());
-    expect(screen.queryByRole('region', { name: 'THE GATE REMEMBERS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE KEEP MUSTERS' })).toBeNull();
 
     fireEvent.click(patchNotes, { detail: 0 });
-    const notes = screen.getByRole('region', { name: 'THE GATE REMEMBERS' });
+    const notes = screen.getByRole('region', { name: 'THE KEEP MUSTERS' });
     expect(patchNotes.getAttribute('aria-expanded')).toBe('true');
-    expect(notes.textContent).toContain('LATEST PATCH · ALPHA 0.3.17');
-    expect(notes.textContent).toContain('same authorized keeper');
-    expect(notes.textContent).toContain('no acceptance flag is persisted in browser storage');
-    expect(notes.textContent).toContain('Alpha 0.3.17 is an unfinished');
+    expect(notes.textContent).toContain('LATEST PATCH · ALPHA 0.3.18');
+    expect(notes.textContent).toContain('four permanent workers');
+    expect(notes.textContent).toContain('legacy wagon transition preserves earned resources');
+    expect(notes.textContent).toContain('live only after the production module is published');
     expect(notes.getAttribute('tabindex')).toBe('0');
     expect(within(notes).queryByRole('link')).toBeNull();
     act(() => notes.focus());
     expect(document.activeElement).toBe(notes);
 
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(screen.queryByRole('region', { name: 'THE GATE REMEMBERS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE KEEP MUSTERS' })).toBeNull();
     expect(document.activeElement).toBe(patchNotes);
     expect(onRequestReturn).not.toHaveBeenCalled();
 
@@ -270,19 +270,19 @@ describe('WarpkeepMainMenu', () => {
     const patchNotes = getPatchNotesTrigger();
 
     fireEvent.pointerEnter(patchNotes, { pointerType: 'mouse' });
-    expect(screen.getByRole('region', { name: 'THE GATE REMEMBERS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE KEEP MUSTERS' })).not.toBeNull();
 
     fireEvent.pointerDown(document.body, { pointerType: 'mouse' });
-    expect(screen.queryByRole('region', { name: 'THE GATE REMEMBERS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE KEEP MUSTERS' })).toBeNull();
 
     fireEvent.pointerDown(patchNotes, { pointerType: 'touch' });
     patchNotes.focus();
     fireEvent.click(patchNotes);
-    expect(screen.getByRole('region', { name: 'THE GATE REMEMBERS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE KEEP MUSTERS' })).not.toBeNull();
 
     fireEvent.pointerDown(patchNotes, { pointerType: 'touch' });
     fireEvent.click(patchNotes);
-    expect(screen.queryByRole('region', { name: 'THE GATE REMEMBERS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE KEEP MUSTERS' })).toBeNull();
   });
 
   it('keeps hover notes reachable across the anchor gap and toggles by activation', () => {
@@ -291,21 +291,21 @@ describe('WarpkeepMainMenu', () => {
     const patchNotes = getPatchNotesTrigger();
 
     fireEvent.pointerEnter(patchNotes, { pointerType: 'mouse' });
-    expect(screen.getByRole('region', { name: 'THE GATE REMEMBERS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE KEEP MUSTERS' })).not.toBeNull();
     fireEvent.pointerLeave(patchNotes, { pointerType: 'mouse' });
 
     act(() => vi.advanceTimersByTime(250));
-    const panel = screen.getByRole('region', { name: 'THE GATE REMEMBERS' });
+    const panel = screen.getByRole('region', { name: 'THE KEEP MUSTERS' });
     fireEvent.pointerEnter(panel, { pointerType: 'mouse' });
     act(() => vi.advanceTimersByTime(200));
-    expect(screen.getByRole('region', { name: 'THE GATE REMEMBERS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE KEEP MUSTERS' })).not.toBeNull();
 
     fireEvent.click(patchNotes);
     fireEvent.pointerLeave(patchNotes, { pointerType: 'mouse' });
     act(() => vi.advanceTimersByTime(500));
-    expect(screen.getByRole('region', { name: 'THE GATE REMEMBERS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE KEEP MUSTERS' })).not.toBeNull();
     fireEvent.click(patchNotes);
-    expect(screen.queryByRole('region', { name: 'THE GATE REMEMBERS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE KEEP MUSTERS' })).toBeNull();
   });
 
   it('keeps inactive menu controls hidden, inert, and outside the tab order', () => {

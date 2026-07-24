@@ -200,6 +200,28 @@ function scheduleMatchesExpedition(
     && schedule.scheduledAt.value.microsSinceUnixEpoch === expectedAtMicros;
 }
 
+function deleteGoldExpeditionSchedules(
+  ctx: WarpkeepReducerContext,
+  expedition: GoldExpeditionRow,
+): number {
+  const schedules: GoldScheduleRow[] = [];
+  const stages = new Set<string>();
+  for (const schedule of ctx.db.goldExpeditionScheduleV1.originCastleId.filter(
+    expedition.originCastleId,
+  )) {
+    if (schedules.length >= 3) fail('GOLD_EXPEDITION_SCHEDULE_INTEGRITY');
+    if (!scheduleMatchesExpedition(schedule, expedition) || stages.has(schedule.stage)) {
+      fail('GOLD_EXPEDITION_SCHEDULE_INTEGRITY');
+    }
+    schedules.push(schedule);
+    stages.add(schedule.stage);
+  }
+  for (const schedule of schedules) {
+    ctx.db.goldExpeditionScheduleV1.scheduleId.delete(schedule.scheduleId);
+  }
+  return schedules.length;
+}
+
 function transitionArrival(
   ctx: WarpkeepReducerContext,
   expedition: GoldExpeditionRow,
@@ -495,6 +517,72 @@ export function collectActiveGoldExpedition(
     accruedGold: accrual.accruedGold,
     creditedGold: accrual.accruedGold,
     updatedAt: ctx.timestamp,
+  });
+}
+
+export type GoldExpeditionEarlyReturnResult = Readonly<{
+  returned: boolean;
+  creditedGold: bigint;
+  schedulesRemoved: number;
+}>;
+
+/**
+ * Settle the caller's exact active legacy wagon through this transaction's
+ * authoritative timestamp, then release its complete private/public schedule
+ * graph. The expedition id is a stale-command correlation boundary: a retry
+ * after completion is a no-op, while the same stale command can never return a
+ * later expedition created by the same founder.
+ */
+export function returnActiveGoldExpedition(
+  ctx: WarpkeepReducerContext,
+  fid: bigint,
+  expectedExpeditionId: string,
+): GoldExpeditionEarlyReturnResult {
+  if (
+    expectedExpeditionId.length === 0
+    || expectedExpeditionId.length > 96
+    || !/^[a-z0-9][a-z0-9:_-]*$/i.test(expectedExpeditionId)
+  ) fail('GOLD_EXPEDITION_ID_INVALID');
+  const resource = assertGenesisResourceForFid(ctx, fid);
+  const expedition = ctx.db.goldExpeditionV1.fid.find(fid);
+  if (expedition === null) {
+    for (const _occupation of ctx.db.goldNodeOccupationV1.byOriginCastle.filter(
+      resource.castle.castleId,
+    )) fail('GOLD_EXPEDITION_ORPHAN_GRAPH');
+    for (const _schedule of ctx.db.goldExpeditionScheduleV1.originCastleId.filter(
+      resource.castle.castleId,
+    )) fail('GOLD_EXPEDITION_ORPHAN_GRAPH');
+    return Object.freeze({ returned: false, creditedGold: 0n, schedulesRemoved: 0 });
+  }
+  if (expedition.expeditionId !== expectedExpeditionId) {
+    fail('GOLD_EXPEDITION_RETURN_STALE');
+  }
+  assertExpeditionState(expedition);
+  if (expedition.fid !== fid) fail('GOLD_EXPEDITION_OWNER_INTEGRITY');
+  if (resource.account.castleId !== expedition.originCastleId) {
+    fail('GOLD_EXPEDITION_OWNER_INTEGRITY');
+  }
+  const occupation = ctx.db.goldNodeOccupationV1.siteId.find(expedition.siteId);
+  if (occupation === null) fail('GOLD_OCCUPATION_MISSING');
+  assertOccupationMatchesExpedition(occupation, expedition);
+  if (occupation.phase !== expedition.phase) fail('GOLD_OCCUPATION_PHASE_INVALID');
+
+  const creditedBefore = expedition.creditedGold;
+  collectActiveGoldExpedition(ctx, fid);
+  const settled = ctx.db.goldExpeditionV1.expeditionId.find(expectedExpeditionId);
+  if (settled === null || settled.fid !== fid) fail('GOLD_EXPEDITION_RETURN_STATE');
+  assertExpeditionState(settled);
+  const schedulesRemoved = deleteGoldExpeditionSchedules(ctx, settled);
+  ctx.db.goldNodeOccupationV1.siteId.delete(occupation.siteId);
+  ctx.db.goldExpeditionV1.expeditionId.delete(settled.expeditionId);
+  if (
+    ctx.db.goldExpeditionV1.expeditionId.find(settled.expeditionId) !== null
+    || ctx.db.goldNodeOccupationV1.siteId.find(occupation.siteId) !== null
+  ) fail('GOLD_EXPEDITION_RETURN_INCOMPLETE');
+  return Object.freeze({
+    returned: true,
+    creditedGold: settled.creditedGold - creditedBefore,
+    schedulesRemoved,
   });
 }
 

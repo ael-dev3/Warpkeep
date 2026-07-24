@@ -3,9 +3,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { RenderedWebglQaHarness } from '../src/dev/RenderedWebglQaHarness';
 import {
+  createRenderedWebglQaActiveWorkerRealm,
   createRenderedWebglQaOccupancyStressRealm
 } from '../src/dev/renderedWebglQaFixture';
 import {
+  RENDERED_WEBGL_QA_ACTIVE_WORKER_FIXTURE_MARKER,
   RENDERED_WEBGL_QA_MAX_READY_MILLISECONDS,
   RENDERED_WEBGL_QA_RENDERER_ABSENCE_GRACE_MILLISECONDS
 } from '../src/dev/renderedWebglQa';
@@ -20,7 +22,9 @@ afterEach(() => {
 describe('rendered WebGL local QA harness', () => {
   it('fails visibly rather than accepting the static fallback as a WebGL result', async () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
-    const fetchImpl = vi.fn(() => Promise.reject(new Error('Network is forbidden in fixture QA.')));
+    const fetchImpl = vi.fn((_value: unknown) => (
+      Promise.reject(new Error('Network is forbidden in fixture QA.'))
+    ));
     vi.stubGlobal('fetch', fetchImpl);
 
     render(<RenderedWebglQaHarness quality="reduced" />);
@@ -32,6 +36,7 @@ describe('rendered WebGL local QA harness', () => {
     });
     expect(status.dataset.fixture).toBe('synthetic-canonical-100');
     expect(status.dataset.fixtureVariant).toBe('baseline');
+    expect(status.dataset.activeWorkerFixtureMarker).toBeUndefined();
     expect(status.dataset.castleCount).toBe('100');
     expect(status.dataset.presentationMode).toBe('observer');
     expect(status.dataset.quality).toBe('reduced');
@@ -71,6 +76,57 @@ describe('rendered WebGL local QA harness', () => {
     expect(screen.queryByRole('button', { name: 'Close QA Observer' })).toBeNull();
   });
 
+  it('exposes the active four-worker owner controls only through the synthetic player fixture', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    const fetchImpl = vi.fn((_value: unknown) => (
+      Promise.reject(new Error('Network is forbidden in fixture QA.'))
+    ));
+    vi.stubGlobal('fetch', fetchImpl);
+
+    render(
+      <RenderedWebglQaHarness
+        createFixtureRealm={createRenderedWebglQaActiveWorkerRealm}
+        fixtureVariant="worker-active"
+        presentationMode="player"
+        quality="balanced"
+      />
+    );
+
+    const status = screen.getByText('LOCAL RENDERED WEBGL QA').closest('aside');
+    if (!(status instanceof HTMLElement)) throw new Error('missing rendered QA status');
+    await waitFor(() => expect(status.dataset.renderer).toBe('fallback'));
+    expect(status.dataset.fixtureVariant).toBe('worker-active');
+    expect(status.dataset.activeWorkerFixtureMarker).toBe(
+      RENDERED_WEBGL_QA_ACTIVE_WORKER_FIXTURE_MARKER
+    );
+    expect(status.dataset.resourceOccupationCount).toBe('2');
+
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Open Realm menu for @qa-keep-001'
+    }));
+    const menu = screen.getByRole('dialog', { name: 'REALM MENU' });
+    expect(within(menu).getByText('1/4 deployed · manage workers')).not.toBeNull();
+    expect(within(menu).getByRole<HTMLButtonElement>(
+      'button',
+      { name: /RECALL ALL TO KEEP/i }
+    ).disabled).toBe(false);
+    fireEvent.click(within(menu).getByRole('button', { name: /WORKERS/i }));
+
+    const commandCenter = screen.getByRole('dialog', { name: 'WORKERS' });
+    expect(within(commandCenter).getAllByRole('listitem')).toHaveLength(4);
+    expect(within(commandCenter).getByText('5 Gold')).not.toBeNull();
+    expect(within(commandCenter).getAllByRole('button', { name: 'RETURN' })).toHaveLength(1);
+    expect(within(commandCenter).getByRole<HTMLButtonElement>('button', {
+      name: 'RETURN ALL TO KEEP'
+    }).disabled).toBe(false);
+    expect(fetchImpl).toHaveBeenCalled();
+    expect(fetchImpl.mock.calls.every(([value]) => {
+      const url = new URL(String(value));
+      return url.origin === window.location.origin
+        && url.pathname === '/images/factions/hegemony/marks/hegemony-mark-128.png';
+    })).toBe(true);
+  });
+
   it('labels the fixed dense occupation fixture without introducing network authority', async () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
     const fetchImpl = vi.fn(() => Promise.reject(new Error('Network is forbidden in fixture QA.')));
@@ -88,6 +144,7 @@ describe('rendered WebGL local QA harness', () => {
     if (!(status instanceof HTMLElement)) throw new Error('missing rendered QA status');
     await waitFor(() => expect(status.dataset.renderer).toBe('fallback'));
     expect(status.dataset.fixtureVariant).toBe('occupancy-stress');
+    expect(status.dataset.activeWorkerFixtureMarker).toBeUndefined();
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 

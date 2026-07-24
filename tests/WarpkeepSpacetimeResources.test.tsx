@@ -60,8 +60,13 @@ import {
   DEFAULT_SPACETIMEDB_DATABASE,
   type WarpkeepRuntimeConfig
 } from '../src/spacetime/warpkeepConfig';
+import { validateCanonicalGenesisSnapshot } from '../src/spacetime/canonicalGenesisSnapshot';
 import type { WarpkeepRealmSnapshot } from '../src/spacetime/warpkeepBackendTypes';
-import { createCanonicalGenesisSnapshot } from './fixtures/canonicalGenesisSnapshot';
+import { WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION } from '../src/spacetime/warpkeepProtocol';
+import {
+  createCanonicalGenesisCandidate,
+  createCanonicalGenesisSnapshot
+} from './fixtures/canonicalGenesisSnapshot';
 import { createReadyResourceState } from './fixtures/resourceState';
 
 const CONFIG: WarpkeepRuntimeConfig = Object.freeze({
@@ -321,6 +326,27 @@ function workerRealmSnapshot(fid = 12_345): WarpkeepRealmSnapshot {
     }),
     workerWorkers: Object.freeze(idleWorkerRows(castleId)),
     workerOccupations: Object.freeze([])
+  });
+}
+
+function legacyDrainRealmSnapshot(fid = 12_345): WarpkeepRealmSnapshot {
+  const candidate = createCanonicalGenesisCandidate(fid);
+  const castleIds = candidate.castles.map((castle) => castle.castleId);
+  return validateCanonicalGenesisSnapshot({
+    ...candidate,
+    workerSystem: {
+      realmId: CASTLE_WORKER_REALM_ID,
+      policyVersion: CASTLE_WORKER_POLICY_VERSION,
+      workersPerCastle: 4,
+      expectedCastleCount: castleIds.length,
+      expectedWorkerCount: castleIds.length * 4,
+      rosterDigest: workerRosterDigestForCastleIds(castleIds),
+      mode: 'staged',
+      legacyDrainRequired: true
+    }
+  }, {
+    ownFid: fid,
+    protocolVersion: WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION
   });
 }
 
@@ -1401,6 +1427,76 @@ describe('Warpkeep private resource lifecycle', () => {
     ));
     await waitFor(() => expect(screen.getByTestId('resource-stone').textContent).toBe('19'));
     expect(screen.getByTestId('stone-expedition-active').textContent).toBe('false');
+  });
+
+  it('returns only the exact active legacy expedition and reconciles private state', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const activeFood = foodExpeditionState(true, 5n);
+    const returnedFood = foodExpeditionState();
+    const returnLegacyExpedition = vi.fn(async (
+      _connection: unknown,
+      fid: number
+    ) => Object.freeze({
+      resources: resourceState(fid, 1n, 17n),
+      goldExpedition: undefined,
+      foodExpedition: returnedFood,
+      woodExpedition: undefined,
+      stoneExpedition: undefined
+    }));
+    Object.assign(runtime, {
+      readFoodExpeditionState: vi.fn(async () => activeFood),
+      readRealmSnapshot: vi.fn((_connection: unknown, fid: number) => (
+        legacyDrainRealmSnapshot(fid)
+      )),
+      returnLegacyExpedition
+    });
+    renderProvider(runtime);
+    await enterRealm();
+
+    await expect(capturedBackend!.returnLegacyExpedition(
+      'food',
+      '00000000-0000-4000-8000-000000000099'
+    )).rejects.toThrow('Legacy expedition return is unavailable.');
+    expect(returnLegacyExpedition).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await capturedBackend!.returnLegacyExpedition(
+        'food',
+        activeFood.expedition!.expeditionId
+      );
+    });
+
+    expect(returnLegacyExpedition).toHaveBeenCalledOnce();
+    expect(returnLegacyExpedition).toHaveBeenCalledWith(
+      expect.anything(),
+      12_345,
+      'food',
+      activeFood.expedition!.expeditionId
+    );
+    await waitFor(() => {
+      expect(capturedBackend!.state.resources?.balances.food).toBe(17n);
+      expect(capturedBackend!.state.foodExpedition?.active).toBe(false);
+    });
+  });
+
+  it('keeps legacy return closed outside the staged drain window', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const activeFood = foodExpeditionState(true, 5n);
+    const returnLegacyExpedition = vi.fn();
+    Object.assign(runtime, {
+      readFoodExpeditionState: vi.fn(async () => activeFood),
+      returnLegacyExpedition
+    });
+    renderProvider(runtime);
+    await enterRealm();
+
+    await expect(capturedBackend!.returnLegacyExpedition(
+      'food',
+      activeFood.expedition!.expeditionId
+    )).rejects.toThrow('Legacy expedition return is unavailable.');
+    expect(returnLegacyExpedition).not.toHaveBeenCalled();
   });
 
   it('retains one dispatch key per resource and site until private authority proves the outcome', async () => {

@@ -47,11 +47,13 @@ export {
   dispatchWorkerV1,
   recallWorkerV1,
   recallAllWorkersV1,
+  returnLegacyExpeditionV1,
   adminGetWorkerSystemStatusV1,
   adminPlanWorkerRosterV1,
   adminStageWorkerSystemV1,
   adminBackfillWorkerRosterV1,
   adminBeginWorkerLegacyDrainV1,
+  adminCompleteWorkerLegacyDrainV1,
   adminActivateWorkerSystemV1,
   adminGetWorkerRolloutStatusV2,
 } from './reducers/castleWorkers';

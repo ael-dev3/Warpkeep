@@ -11,11 +11,20 @@ export const WORKER_V12_TABLE_CONTRACTS: Readonly<Record<string, Readonly<{
 export function alphaV8AggregateChildArguments(...args: any[]): any;
 export function alphaV10AggregateChildArguments(...args: any[]): any;
 export function alphaV12AggregateChildArguments(...args: any[]): any;
+export function attestPinnedSpacetimeCli(
+  executable: string,
+): Readonly<{
+  path: string;
+  digest: string;
+  cleanup: () => void;
+}>;
 export function canonicalSchemaDescribeChildArguments(...args: any[]): any;
 export function createPrivatePublishSnapshot(...args: any[]): any;
 export function parseCanonicalSchemaDescription(...args: any[]): any;
 export function parseMigrationProofReceipt(...args: any[]): any;
 export function parsePublishArguments(...args: any[]): any;
+export function publishPostV12AggregateChildArguments(...args: any[]): any;
+export function publishPreV12AggregateChildArguments(...args: any[]): any;
 export function publishChildEnvironment(...args: any[]): any;
 export function publishModule(...args: any[]): any;
 export function readFoundedPublishExpectations(...args: any[]): any;
@@ -26,6 +35,7 @@ export function verifyCanonicalDatabaseList(...args: any[]): any;
 export function verifyFreshAlphaStatusV8Aggregate(...args: any[]): any;
 export function verifyFreshAlphaStatusV10Aggregate(...args: any[]): any;
 export function verifyFreshAlphaStatusV12Aggregate(...args: any[]): any;
+export function verifyFreshPublishPreV12Aggregate(...args: any[]): any;
 export function verifyFreshProductionV11Schema(...args: any[]): any;
 export function verifyFreshFoundedProtocolV3Aggregate(...args: any[]): any;
 export function verifyFreshResourceProtocolV4PrebackfillAggregate(...args: any[]): any;
@@ -35,6 +45,7 @@ export function verifyPinnedCliAttestation(...args: any[]): any;
 export function verifyPostPublishAlphaStatusV8Aggregate(...args: any[]): any;
 export function verifyPostPublishAlphaStatusV10Aggregate(...args: any[]): any;
 export function verifyPostPublishAlphaStatusV12Aggregate(...args: any[]): any;
+export function verifyPostPublishCombinedV12Aggregate(...args: any[]): any;
 export function verifyPostPublishFoundedProtocolV3Aggregate(...args: any[]): any;
 export function verifyPostPublishProductionV12Schema(...args: any[]): any;
 export function verifyPostPublishResourceProtocolV4PrebackfillAggregate(...args: any[]): any;
@@ -43,6 +54,8 @@ export function verifyPostPublishResourcePublicationCheckpoints(...args: any[]):
 export function verifyPrivacySafeAlphaStatusV8Output(...args: any[]): any;
 export function verifyPrivacySafeAlphaStatusV10Output(...args: any[]): any;
 export function verifyPrivacySafeAlphaStatusV12Output(...args: any[]): any;
+export function verifyPrivacySafePublishPostV12Output(...args: any[]): any;
+export function verifyPrivacySafePublishPreV12Output(...args: any[]): any;
 export function verifyEmptyAlphaStatusV12(...args: any[]): any;
 export function verifyExactProductionV11Schema(...args: any[]): any;
 export function verifyExactProductionV12Schema(...args: any[]): any;

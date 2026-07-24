@@ -88,6 +88,7 @@ import {
 import {
   realmResourceOccupantMarkerForKey,
   realmResourceOccupantMarkerKey,
+  realmResourceOccupantRecallLegacyExpeditionId,
   resolveRealmResourceOccupantMarkerResolution,
   resolveRealmWorkerInspectionRoute,
   visibleRealmResourceOccupantMarkerKeys,
@@ -237,6 +238,10 @@ type RealmMapScreenProps = Readonly<{
   ) => Promise<void>;
   onRecallWorker?: (workerId: string) => Promise<void>;
   onRecallAllWorkers?: () => Promise<void>;
+  onReturnLegacyExpedition?: (
+    resourceKind: RealmEconomicResourceKey,
+    expeditionId: string
+  ) => Promise<void>;
   graphicsPreference?: GraphicsPreference;
   resolvedGraphicsQuality?: GraphicsQualityTier;
   audioMuted?: boolean;
@@ -328,6 +333,7 @@ function CanonicalRealmMapScreen({
   onDispatchWorker,
   onRecallWorker,
   onRecallAllWorkers,
+  onReturnLegacyExpedition,
   graphicsPreference,
   resolvedGraphicsQuality,
   audioMuted,
@@ -695,8 +701,12 @@ function CanonicalRealmMapScreen({
     snapshot.workerSystem,
     snapshot.workerWorkers
   ]);
-  const legacyResourceDispatchBlocked = snapshot.workerSystem?.mode === 'active'
+  const genericWorkerAuthorityActive = snapshot.workerSystem?.mode === 'active'
     || workerProjection?.mode === 'active';
+  const legacyExpeditionReturnAvailable = snapshot.workerSystem?.mode === 'staged'
+    && snapshot.workerSystem.legacyDrainRequired;
+  const legacyResourceDispatchBlocked = genericWorkerAuthorityActive
+    || snapshot.workerSystem?.legacyDrainRequired === true;
   const resourceOccupantResolution = useMemo(() => (
     resolveRealmResourceOccupantMarkerResolution({
       buckets: [
@@ -708,14 +718,14 @@ function CanonicalRealmMapScreen({
       castles: allCastles,
       profiles: profileRecords,
       workerProjection: publicWorkerProjection,
-      activeGenericModeExpected: legacyResourceDispatchBlocked,
+      activeGenericModeExpected: genericWorkerAuthorityActive,
       ownCastleId: observerMode ? undefined : ownCastle.castleId
     })
   ), [
     allCastles,
     foodNodes,
     goldNodes,
-    legacyResourceDispatchBlocked,
+    genericWorkerAuthorityActive,
     observerMode,
     ownCastle.castleId,
     profileRecords,
@@ -726,7 +736,7 @@ function CanonicalRealmMapScreen({
   const resourceOccupantMarkers = resourceOccupantResolution.markers;
   const resourceOccupantMarkersRef = useRef(resourceOccupantMarkers);
   resourceOccupantMarkersRef.current = resourceOccupantMarkers;
-  const resourceOccupancyUnavailable = legacyResourceDispatchBlocked
+  const resourceOccupancyUnavailable = genericWorkerAuthorityActive
     && resourceOccupantResolution.status === 'invalid';
   const resourceOccupantSceneSignature = JSON.stringify(
     resourceOccupantMarkers.map((marker) => [
@@ -957,6 +967,42 @@ function CanonicalRealmMapScreen({
         resourceOccupantMarkers,
         `stone:${inspectorStoneNode.siteId}`
       ) ?? undefined
+    : undefined;
+  const inspectorGoldLegacyExpeditionId = legacyExpeditionReturnAvailable
+    && inspectorGoldOccupant
+    ? realmResourceOccupantRecallLegacyExpeditionId(
+        inspectorGoldOccupant,
+        'gold',
+        goldExpedition,
+        ownCastle.castleId
+      )
+    : undefined;
+  const inspectorFoodLegacyExpeditionId = legacyExpeditionReturnAvailable
+    && inspectorFoodOccupant
+    ? realmResourceOccupantRecallLegacyExpeditionId(
+        inspectorFoodOccupant,
+        'food',
+        foodExpedition,
+        ownCastle.castleId
+      )
+    : undefined;
+  const inspectorWoodLegacyExpeditionId = legacyExpeditionReturnAvailable
+    && inspectorWoodOccupant
+    ? realmResourceOccupantRecallLegacyExpeditionId(
+        inspectorWoodOccupant,
+        'wood',
+        woodExpedition,
+        ownCastle.castleId
+      )
+    : undefined;
+  const inspectorStoneLegacyExpeditionId = legacyExpeditionReturnAvailable
+    && inspectorStoneOccupant
+    ? realmResourceOccupantRecallLegacyExpeditionId(
+        inspectorStoneOccupant,
+        'stone',
+        stoneExpedition,
+        ownCastle.castleId
+      )
     : undefined;
   const inspectorWater = selectedInspectorTarget !== null
     && 'cellKey' in selectedInspectorTarget
@@ -2712,6 +2758,12 @@ function CanonicalRealmMapScreen({
               occupancyUnavailable={resourceOccupancyUnavailable}
               onFocusOccupantCastle={focusResourceOccupantCastle}
               onRecallWorker={observerMode ? undefined : onRecallWorker}
+              legacyExpeditionId={observerMode
+                ? undefined
+                : inspectorGoldLegacyExpeditionId}
+              onReturnLegacyExpedition={observerMode || !legacyExpeditionReturnAvailable
+                ? undefined
+                : onReturnLegacyExpedition}
               legacyDispatchBlocked={legacyResourceDispatchBlocked}
               privateExpedition={observerMode ? undefined : goldExpedition}
               onDispatchGoldExpedition={
@@ -2733,6 +2785,12 @@ function CanonicalRealmMapScreen({
               occupancyUnavailable={resourceOccupancyUnavailable}
               onFocusOccupantCastle={focusResourceOccupantCastle}
               onRecallWorker={observerMode ? undefined : onRecallWorker}
+              legacyExpeditionId={observerMode
+                ? undefined
+                : inspectorFoodLegacyExpeditionId}
+              onReturnLegacyExpedition={observerMode || !legacyExpeditionReturnAvailable
+                ? undefined
+                : onReturnLegacyExpedition}
               legacyDispatchBlocked={legacyResourceDispatchBlocked}
               privateExpedition={observerMode ? undefined : foodExpedition}
               onDispatchFoodExpedition={
@@ -2754,6 +2812,12 @@ function CanonicalRealmMapScreen({
               occupancyUnavailable={resourceOccupancyUnavailable}
               onFocusOccupantCastle={focusResourceOccupantCastle}
               onRecallWorker={observerMode ? undefined : onRecallWorker}
+              legacyExpeditionId={observerMode
+                ? undefined
+                : inspectorWoodLegacyExpeditionId}
+              onReturnLegacyExpedition={observerMode || !legacyExpeditionReturnAvailable
+                ? undefined
+                : onReturnLegacyExpedition}
               legacyDispatchBlocked={legacyResourceDispatchBlocked}
               privateExpedition={observerMode ? undefined : woodExpedition}
               onDispatchWoodExpedition={
@@ -2775,6 +2839,12 @@ function CanonicalRealmMapScreen({
               occupancyUnavailable={resourceOccupancyUnavailable}
               onFocusOccupantCastle={focusResourceOccupantCastle}
               onRecallWorker={observerMode ? undefined : onRecallWorker}
+              legacyExpeditionId={observerMode
+                ? undefined
+                : inspectorStoneLegacyExpeditionId}
+              onReturnLegacyExpedition={observerMode || !legacyExpeditionReturnAvailable
+                ? undefined
+                : onReturnLegacyExpedition}
               legacyDispatchBlocked={legacyResourceDispatchBlocked}
               privateExpedition={observerMode ? undefined : stoneExpedition}
               onDispatchStoneExpedition={

@@ -1,7 +1,7 @@
 {
   "name": "warpkeep",
   "private": true,
-  "version": "0.3.17",
+  "version": "0.3.18",
   "description": "A Farcaster-connected persistent strategy world in active Alpha development.",
   "license": "Apache-2.0",
   "homepage": "https://warpkeep.com",
@@ -89,6 +89,13 @@
     "stdb:inspect-water-revision": "tsx scripts/water-revision-operator.ts inspect",
     "stdb:seed-water-revision": "tsx scripts/water-revision-operator.ts seed",
     "stdb:activate-water-revision": "tsx scripts/water-revision-operator.ts activate",
+    "stdb:worker-rollout": "tsx scripts/worker-rollout-operator.ts",
+    "stdb:worker-rollout:inspect": "tsx scripts/worker-rollout-operator.ts inspect",
+    "stdb:worker-rollout:stage": "tsx scripts/worker-rollout-operator.ts stage",
+    "stdb:worker-rollout:backfill": "tsx scripts/worker-rollout-operator.ts backfill",
+    "stdb:worker-rollout:begin-drain": "tsx scripts/worker-rollout-operator.ts begin-drain",
+    "stdb:worker-rollout:complete-drain": "tsx scripts/worker-rollout-operator.ts complete-drain",
+    "stdb:worker-rollout:activate": "tsx scripts/worker-rollout-operator.ts activate",
     "stdb:backfill-resources": "tsx scripts/hermes-admin.ts backfill-resources",
     "test": "vitest --run",
     "typecheck": "tsc -b"

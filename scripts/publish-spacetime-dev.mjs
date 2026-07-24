@@ -1311,6 +1311,61 @@ export function alphaV12AggregateChildArguments(tsxCli) {
   ];
 }
 
+export function publishPreV12AggregateChildArguments(tsxCli) {
+  return [
+    tsxCli,
+    'scripts/hermes-admin.ts',
+    'inspect-publish-pre-v12',
+    '--json',
+  ];
+}
+
+export function publishPostV12AggregateChildArguments(tsxCli) {
+  return [
+    tsxCli,
+    'scripts/hermes-admin.ts',
+    'inspect-publish-post-v12',
+    '--json',
+  ];
+}
+
+function parsePublishAggregateEnvelope(output, expectedKeys, label) {
+  let envelope;
+  try {
+    envelope = JSON.parse(output);
+  } catch {
+    fail(`${label} did not return machine-readable JSON.`);
+  }
+  if (
+    !envelope
+    || typeof envelope !== 'object'
+    || Array.isArray(envelope)
+    || Object.keys(envelope).sort().join(',') !== [...expectedKeys].sort().join(',')
+    || expectedKeys.some(key => (
+      !envelope[key]
+      || typeof envelope[key] !== 'object'
+      || Array.isArray(envelope[key])
+    ))
+  ) fail(`${label} returned an invalid aggregate-only envelope.`);
+  return Object.freeze({ ...envelope });
+}
+
+export function verifyPrivacySafePublishPreV12Output(output) {
+  return parsePublishAggregateEnvelope(
+    output,
+    ['protocolV3', 'resourceV4'],
+    'Pre-publication combined inspection',
+  );
+}
+
+export function verifyPrivacySafePublishPostV12Output(output) {
+  return parsePublishAggregateEnvelope(
+    output,
+    ['protocolV3', 'resourceV4', 'alphaV8', 'alphaV10', 'workerV12'],
+    'Post-publication combined inspection',
+  );
+}
+
 /**
  * The Hermes child already verifies exact v8 policy identities and catalog
  * shape. This second boundary accepts only its closed, aggregate-only JSON
@@ -1566,6 +1621,145 @@ export function verifyFreshAlphaStatusV12Aggregate(
   );
 }
 
+function runCombinedPublishInspection(
+  secret,
+  arguments_,
+  spawnSyncProcess,
+  timeout,
+) {
+  const secretBytes = typeof secret === 'string'
+    ? new TextEncoder().encode(secret).byteLength
+    : 0;
+  if (secretBytes < 32 || secretBytes > 512) {
+    fail('A local 32-to-512-byte Hermes credential is required for the combined publication checkpoint.');
+  }
+  return runBoundedSync(
+    process.execPath,
+    arguments_,
+    {
+      env: {
+        WARPKEEP_SPACETIMEDB_URI: CANONICAL_MAINCLOUD_URI,
+        WARPKEEP_SPACETIMEDB_DATABASE: CANONICAL_DATABASE_IDENTITY,
+        WARPKEEP_AUTH_BRIDGE_URL: CANONICAL_BRIDGE,
+        WARPKEEP_ADMIN_TOKEN_SECRET_STDIN: '1',
+      },
+      input: secret,
+      timeout,
+    },
+    spawnSyncProcess,
+  ).stdout;
+}
+
+function verifyCombinedProtocolV3AndResourceV4(
+  envelope,
+  expectations,
+  resourceRolloutStage,
+  genesisWorldRolloutStage,
+) {
+  const aggregateStage = foundedAggregateStageForWorldStage(
+    genesisWorldRolloutStage,
+  );
+  verifyExpectedAlphaV3Aggregate(
+    JSON.stringify(envelope.protocolV3),
+    aggregateStage,
+    expectations.expectedFounderCount,
+    expectations.expectedPlayerCount,
+    expectations.expectedTermsAcceptanceCount,
+  );
+  if (resourceRolloutStage === RESOURCE_PUBLISH_ROLLOUT_STAGE.PREBACKFILL) {
+    verifyExpectedAlphaV4ResourcePrebackfillAggregate(
+      JSON.stringify(envelope.resourceV4),
+      expectations.expectedFounderCount,
+    );
+  } else if (resourceRolloutStage === RESOURCE_PUBLISH_ROLLOUT_STAGE.READY) {
+    verifyExpectedAlphaV4ResourceReadyAggregate(
+      JSON.stringify(envelope.resourceV4),
+      expectations.expectedFounderCount,
+    );
+  } else {
+    fail('The combined publication checkpoint resource stage was invalid.');
+  }
+}
+
+function validateCombinedPublishStages(
+  resourceRolloutStage,
+  genesisWorldRolloutStage,
+) {
+  if (
+    resourceRolloutStage !== RESOURCE_PUBLISH_ROLLOUT_STAGE.PREBACKFILL
+    && resourceRolloutStage !== RESOURCE_PUBLISH_ROLLOUT_STAGE.READY
+  ) fail('The combined publication checkpoint resource rollout stage was invalid.');
+  foundedAggregateStageForWorldStage(genesisWorldRolloutStage);
+}
+
+export function verifyFreshPublishPreV12Aggregate(
+  secret,
+  expectations,
+  resourceRolloutStage,
+  spawnSyncProcess = spawnSync,
+  genesisWorldRolloutStage = GENESIS_WORLD_PUBLISH_STAGE.PRE_EXPANSION,
+) {
+  const exactExpectations = validateFoundedPublishExpectations(expectations);
+  validateCombinedPublishStages(resourceRolloutStage, genesisWorldRolloutStage);
+  const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
+  const output = runCombinedPublishInspection(
+    secret,
+    publishPreV12AggregateChildArguments(tsxCli),
+    spawnSyncProcess,
+    90_000,
+  );
+  const envelope = verifyPrivacySafePublishPreV12Output(output);
+  verifyCombinedProtocolV3AndResourceV4(
+    envelope,
+    exactExpectations,
+    resourceRolloutStage,
+    genesisWorldRolloutStage,
+  );
+  return envelope;
+}
+
+export function verifyPostPublishCombinedV12Aggregate(
+  secret,
+  expectations,
+  resourceRolloutStage,
+  workerRolloutStage,
+  spawnSyncProcess = spawnSync,
+  genesisWorldRolloutStage = GENESIS_WORLD_PUBLISH_STAGE.PRE_EXPANSION,
+) {
+  const exactExpectations = validateFoundedPublishExpectations(expectations);
+  validateCombinedPublishStages(resourceRolloutStage, genesisWorldRolloutStage);
+  if (workerRolloutStage !== WORKER_PUBLISH_ROLLOUT_STAGE.EMPTY) {
+    fail('The post-publication Worker rollout stage was invalid.');
+  }
+  try {
+    const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
+    const output = runCombinedPublishInspection(
+      secret,
+      publishPostV12AggregateChildArguments(tsxCli),
+      spawnSyncProcess,
+      150_000,
+    );
+    const envelope = verifyPrivacySafePublishPostV12Output(output);
+    verifyCombinedProtocolV3AndResourceV4(
+      envelope,
+      exactExpectations,
+      resourceRolloutStage,
+      genesisWorldRolloutStage,
+    );
+    verifyPrivacySafeAlphaStatusV8Output(JSON.stringify(envelope.alphaV8));
+    verifyPrivacySafeAlphaStatusV10Output(JSON.stringify(envelope.alphaV10));
+    verifyEmptyAlphaStatusV12(
+      verifyPrivacySafeAlphaStatusV12Output(
+        JSON.stringify(envelope.workerV12),
+      ),
+      exactExpectations.expectedFounderCount,
+    );
+    return envelope;
+  } catch {
+    fail('Post-publication combined protocol-v3/v4/v8/v10/v12 checkpoint is indeterminate; a fresh read-only inspection is required before any backfill, activation, client deployment, or further publication decision.');
+  }
+}
+
 export function verifyPostPublishFoundedProtocolV3Aggregate(
   secret,
   expectations,
@@ -1668,38 +1862,13 @@ export function verifyPostPublishResourcePublicationCheckpoints(
   spawnSyncProcess = spawnSync,
   genesisWorldRolloutStage = GENESIS_WORLD_PUBLISH_STAGE.PRE_EXPANSION,
 ) {
-  const exactExpectations = validateFoundedPublishExpectations(expectations);
-  if (!Object.values(RESOURCE_PUBLISH_ROLLOUT_STAGE).includes(resourceRolloutStage)) {
-    fail('The post-publication resource rollout stage was invalid.');
-  }
-  if (workerRolloutStage !== WORKER_PUBLISH_ROLLOUT_STAGE.EMPTY) {
-    fail('The post-publication Worker rollout stage was invalid.');
-  }
-  verifyPostPublishFoundedProtocolV3Aggregate(
+  return verifyPostPublishCombinedV12Aggregate(
     secret,
-    exactExpectations,
+    expectations,
+    resourceRolloutStage,
+    workerRolloutStage,
     spawnSyncProcess,
     genesisWorldRolloutStage,
-  );
-  if (resourceRolloutStage === RESOURCE_PUBLISH_ROLLOUT_STAGE.PREBACKFILL) {
-    verifyPostPublishResourceProtocolV4PrebackfillAggregate(
-      secret,
-      exactExpectations.expectedFounderCount,
-      spawnSyncProcess,
-    );
-  } else {
-    verifyPostPublishResourceProtocolV4ReadyAggregate(
-      secret,
-      exactExpectations.expectedFounderCount,
-      spawnSyncProcess,
-    );
-  }
-  verifyPostPublishAlphaStatusV8Aggregate(secret, spawnSyncProcess);
-  verifyPostPublishAlphaStatusV10Aggregate(secret, spawnSyncProcess);
-  verifyPostPublishAlphaStatusV12Aggregate(
-    secret,
-    exactExpectations.expectedFounderCount,
-    spawnSyncProcess,
   );
 }
 
@@ -1843,18 +2012,13 @@ async function main() {
       executable,
       artifactReceipt.v11TableSchemaDigest,
     );
-    verifyFreshFoundedProtocolV3Aggregate(
+    verifyFreshPublishPreV12Aggregate(
       adminTokenSecret,
       foundedExpectations,
+      resourceRolloutStage,
       spawnSync,
       genesisWorldRolloutStage,
     );
-    if (resourceRolloutStage === RESOURCE_PUBLISH_ROLLOUT_STAGE.READY) {
-      verifyFreshResourceProtocolV4ReadyAggregate(
-        adminTokenSecret,
-        foundedExpectations.expectedFounderCount,
-      );
-    }
     await publishModule(executable, CANONICAL_DATABASE_IDENTITY, artifactReceipt);
     verifyPostPublishProductionV12Schema(
       executable,

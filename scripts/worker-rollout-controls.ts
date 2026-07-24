@@ -66,6 +66,18 @@ function booleanField(
 
 export type WorkerRolloutOperatorStatus = WorkerActivationSnapshot & Readonly<{
   resourceCatalogDigest: string;
+  legacyGoldExpeditions: bigint;
+  legacyFoodExpeditions: bigint;
+  legacyWoodExpeditions: bigint;
+  legacyStoneExpeditions: bigint;
+  legacyGoldOccupations: bigint;
+  legacyFoodOccupations: bigint;
+  legacyWoodOccupations: bigint;
+  legacyStoneOccupations: bigint;
+  legacyGoldSchedules: bigint;
+  legacyFoodSchedules: bigint;
+  legacyWoodSchedules: bigint;
+  legacyStoneSchedules: bigint;
 }>;
 
 /** Validate the aggregate-only server procedure before an operator uses it. */
@@ -102,6 +114,18 @@ export function projectWorkerRolloutOperatorStatus(
     legacyExpeditions: bigintField(row, 'legacyExpeditions'),
     legacyOccupations: bigintField(row, 'legacyOccupations'),
     legacySchedules: bigintField(row, 'legacySchedules'),
+    legacyGoldExpeditions: bigintField(row, 'legacyGoldExpeditions'),
+    legacyFoodExpeditions: bigintField(row, 'legacyFoodExpeditions'),
+    legacyWoodExpeditions: bigintField(row, 'legacyWoodExpeditions'),
+    legacyStoneExpeditions: bigintField(row, 'legacyStoneExpeditions'),
+    legacyGoldOccupations: bigintField(row, 'legacyGoldOccupations'),
+    legacyFoodOccupations: bigintField(row, 'legacyFoodOccupations'),
+    legacyWoodOccupations: bigintField(row, 'legacyWoodOccupations'),
+    legacyStoneOccupations: bigintField(row, 'legacyStoneOccupations'),
+    legacyGoldSchedules: bigintField(row, 'legacyGoldSchedules'),
+    legacyFoodSchedules: bigintField(row, 'legacyFoodSchedules'),
+    legacyWoodSchedules: bigintField(row, 'legacyWoodSchedules'),
+    legacyStoneSchedules: bigintField(row, 'legacyStoneSchedules'),
     genericAssignments: bigintField(row, 'genericAssignments'),
     genericOccupations: bigintField(row, 'genericOccupations'),
     genericSchedules: bigintField(row, 'genericSchedules'),
@@ -110,6 +134,20 @@ export function projectWorkerRolloutOperatorStatus(
   if (status.resourceCatalogDigest !== CASTLE_WORKER_RESOURCE_CATALOG_DIGEST) {
     fail('WORKER_RESOURCE_CATALOG_MISMATCH');
   }
+  if (
+    status.legacyExpeditions !== status.legacyGoldExpeditions
+      + status.legacyFoodExpeditions
+      + status.legacyWoodExpeditions
+      + status.legacyStoneExpeditions
+    || status.legacyOccupations !== status.legacyGoldOccupations
+      + status.legacyFoodOccupations
+      + status.legacyWoodOccupations
+      + status.legacyStoneOccupations
+    || status.legacySchedules !== status.legacyGoldSchedules
+      + status.legacyFoodSchedules
+      + status.legacyWoodSchedules
+      + status.legacyStoneSchedules
+  ) fail('WORKER_ROLLOUT_STATUS_INVALID');
   return status;
 }
 

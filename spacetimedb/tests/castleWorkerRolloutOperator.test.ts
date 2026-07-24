@@ -54,6 +54,18 @@ function status(overrides: Readonly<Record<string, unknown>> = {}) {
     legacyExpeditions: 0n,
     legacyOccupations: 0n,
     legacySchedules: 0n,
+    legacyGoldExpeditions: 0n,
+    legacyFoodExpeditions: 0n,
+    legacyWoodExpeditions: 0n,
+    legacyStoneExpeditions: 0n,
+    legacyGoldOccupations: 0n,
+    legacyFoodOccupations: 0n,
+    legacyWoodOccupations: 0n,
+    legacyStoneOccupations: 0n,
+    legacyGoldSchedules: 0n,
+    legacyFoodSchedules: 0n,
+    legacyWoodSchedules: 0n,
+    legacyStoneSchedules: 0n,
     genericAssignments: 0n,
     genericOccupations: 0n,
     genericSchedules: 0n,
@@ -99,6 +111,7 @@ test('operator refuses malformed aggregate types and a catalog mismatch', () => 
 test('operator reports every live blocker and never creates a mutation plan', () => {
   const plan = planWorkerActivation(status({
     legacySchedules: 1n,
+    legacyGoldSchedules: 1n,
     genericOccupations: 1n,
   }), reviewed);
   assert.equal(plan.ready, false);

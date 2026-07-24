@@ -187,6 +187,9 @@ describe('local QA production exclusion', () => {
     expect(verifier).toContain('RenderedWebglQaHarness');
     expect(verifier).toContain('castleLodVisualEvidenceMain');
     expect(verifier).toContain('createRenderedWebglQaFixtureRealm');
+    expect(verifier).toContain('createRenderedWebglQaActiveWorkerRealm');
+    expect(verifier).toContain('worker-active');
+    expect(verifier).toContain('warpkeep-local-active-worker-fixture-v1');
     expect(verifier).toContain('LOCAL RENDERED WEBGL QA');
     expect(verifier).toContain('QA_OBSERVER_ENABLED');
     expect(verifier).toContain('qa_observer_get_realm_attestation_v2');
