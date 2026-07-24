@@ -12,6 +12,10 @@ import {
   castleProfileLabel,
   type RealmCastlePublicPresentation
 } from './realmCastlePresentation';
+import { useRealmRemainingDuration } from './realmAuthoritySchedule';
+import {
+  realmResourceOccupantNextAuthorityTimestamp
+} from './realmResourceOccupantInspector';
 import {
   realmResourceOccupantMarkerKey,
   realmResourceOccupantRecallWorkerId,
@@ -69,6 +73,14 @@ function ResourceOccupantProfilePanel({
     : `WORKER ${String(marker.workerOrdinal).padStart(2, '0')}`;
   const recallWorkerId = realmResourceOccupantRecallWorkerId(marker);
   const canRecall = recallWorkerId !== undefined && onRecallWorker !== undefined;
+  const scheduleLabel = marker.workerPhase === 'outbound'
+    ? 'Arrival time left'
+    : marker.workerPhase === 'gathering'
+      ? 'Gathering time left'
+      : 'Return time left';
+  const scheduleRemaining = useRealmRemainingDuration(
+    realmResourceOccupantNextAuthorityTimestamp(marker)
+  );
 
   const recallWorker = async () => {
     if (
@@ -135,7 +147,7 @@ function ResourceOccupantProfilePanel({
         <div>
           <span>{unitLabel}</span>
           <strong>{RESOURCE_WORKER_PHASE_LABELS[marker.workerPhase]}</strong>
-          <small>{RESOURCE_WORKER_RATE_LABELS[marker.resource]} · 30-day deployment</small>
+          <small>{RESOURCE_WORKER_RATE_LABELS[marker.resource]}</small>
         </div>
       </section>
 
@@ -182,8 +194,8 @@ function ResourceOccupantProfilePanel({
           <dd>q {marker.castle.q} · r {marker.castle.r}</dd>
         </div>
         <div>
-          <dt>Deployment limit</dt>
-          <dd>30 days</dd>
+          <dt>{scheduleLabel}</dt>
+          <dd role="timer">{scheduleRemaining ?? 'Schedule unavailable'}</dd>
         </div>
       </dl>
 

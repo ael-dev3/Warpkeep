@@ -95,7 +95,7 @@ export function CastleInspectionPanel({
   return (
     <aside
       id={id}
-      className="castle-inspection"
+      className="castle-inspection realm-camera-neutral-inspector"
       role="dialog"
       aria-modal="false"
       aria-labelledby={titleId}

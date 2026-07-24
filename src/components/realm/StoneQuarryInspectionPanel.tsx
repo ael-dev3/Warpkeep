@@ -23,6 +23,7 @@ import {
   realmResourceOccupantOwnerLabel,
   realmResourceOccupantSiteStateLabel
 } from './realmResourceOccupantInspector';
+import { useRealmRemainingDuration } from './realmAuthoritySchedule';
 import type {
   RealmResourceOccupantMarker
 } from './realmResourceOccupantPresentation';
@@ -77,23 +78,6 @@ export type StoneQuarryInspectionPanelProps = Readonly<{
   onRequestClose: () => void;
   focusTargetRef?: Ref<HTMLButtonElement>;
 }>;
-
-function localNowMicros() {
-  return BigInt(Date.now()) * 1_000n;
-}
-
-function formatRemainingDuration(timestampMicros: bigint | undefined) {
-  if (timestampMicros === undefined) return undefined;
-  const remaining = timestampMicros - localNowMicros();
-  if (remaining <= 0n) return 'Awaiting Realm confirmation';
-  const totalMinutes = remaining / 60_000_000n;
-  const days = totalMinutes / 1_440n;
-  const hours = (totalMinutes % 1_440n) / 60n;
-  const minutes = totalMinutes % 60n;
-  if (days > 0n) return `${days}d ${hours}h remaining`;
-  if (hours > 0n) return `${hours}h ${minutes}m remaining`;
-  return `${minutes}m remaining`;
-}
 
 function nodeNotice(
   node: RealmStoneNodePresentation | undefined,
@@ -177,9 +161,10 @@ export function StoneQuarryInspectionPanel({
   const scheduleTimestamp = occupant
     ? realmResourceOccupantNextAuthorityTimestamp(occupant)
     : node ? stoneNodeNextAuthorityTimestamp(node) : undefined;
+  const remainingSchedule = useRealmRemainingDuration(scheduleTimestamp);
   const scheduleLabel = occupancyUnavailable
     ? undefined
-    : formatRemainingDuration(scheduleTimestamp);
+    : remainingSchedule;
   const ownerExpedition = dispatchBlocked || occupant?.source === 'generic-worker'
     ? undefined
     : visibleOwnerExpedition(node, privateExpedition);

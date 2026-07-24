@@ -1702,6 +1702,80 @@ describe('realm scene setup cleanup', () => {
     scene.dispose();
   });
 
+  it('selects the viewer keep from the canvas without changing camera state', async () => {
+    const root = new THREE.Group();
+    root.add(new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial()
+    ));
+    keepLoadState.load.mockResolvedValue(loadedCastleAssembly(root));
+    const canvas = document.createElement('canvas');
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      right: 800,
+      bottom: 600,
+      left: 0,
+      width: 800,
+      height: 600,
+      toJSON: () => ({})
+    });
+    Object.defineProperties(canvas, {
+      setPointerCapture: { configurable: true, value: vi.fn() },
+      releasePointerCapture: { configurable: true, value: vi.fn() },
+      hasPointerCapture: { configurable: true, value: vi.fn(() => true) }
+    });
+    const onCastlesReady = vi.fn();
+    const onTargetSelect = vi.fn();
+    const scene = createRealmScene(createOptions(canvas, {
+      onCastlesReady,
+      onTargetSelect
+    }));
+    await vi.waitFor(() => expect(onCastlesReady).toHaveBeenCalledWith(1));
+
+    const renderedScene = (
+      webglState.instances.at(-1)?.render.mock.calls.at(-1)?.[0]
+    ) as THREE.Scene;
+    let castleMesh: THREE.InstancedMesh | undefined;
+    renderedScene.traverse((candidate) => {
+      if (
+        candidate instanceof THREE.InstancedMesh
+        && candidate.name.startsWith('hegemony-castles-')
+      ) {
+        castleMesh = candidate;
+      }
+    });
+    expect(castleMesh).toBeInstanceOf(THREE.InstancedMesh);
+    if (!castleMesh) throw new Error('Castle instance mesh was not presented.');
+    vi.spyOn(THREE.Raycaster.prototype, 'intersectObjects').mockReturnValue([{
+      distance: 1,
+      instanceId: 0,
+      object: castleMesh,
+      point: new THREE.Vector3()
+    }]);
+    vi.spyOn(THREE.Raycaster.prototype, 'intersectObject').mockReturnValue([]);
+
+    const cameraBeforeSelection = scene.getCameraAttestation();
+    dispatchPointer(canvas, 'pointerdown', { pointerId: 1, clientX: 400, clientY: 300 });
+    dispatchPointer(canvas, 'pointerup', { pointerId: 1, clientX: 400, clientY: 300 });
+
+    expect(onTargetSelect).toHaveBeenCalledWith({
+      kind: 'castle',
+      castleId: 1,
+      coord: { q: 0, r: 0 }
+    });
+    const cameraAfterSelection = scene.getCameraAttestation();
+    expect(cameraAfterSelection.position).toEqual(cameraBeforeSelection.position);
+    expect(cameraAfterSelection.target).toEqual(cameraBeforeSelection.target);
+    expect(cameraAfterSelection.zoom).toBe(cameraBeforeSelection.zoom);
+    expect(cameraAfterSelection.mode).toBe(cameraBeforeSelection.mode);
+    expect(cameraAfterSelection.controllerState).toEqual(
+      cameraBeforeSelection.controllerState
+    );
+    scene.dispose();
+  });
+
   it('pans by the moving pinch centroid without changing the final pinch scale', () => {
     const root = document.createElement('main');
     root.className = 'realm-map-screen';

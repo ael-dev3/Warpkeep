@@ -1232,7 +1232,6 @@ function CanonicalRealmMapScreen({
       castleId: castle.castleId,
       coord: { q: castle.q, r: castle.r }
     });
-    sceneRef.current?.focusCastle(castle.castleId);
   }, []);
 
   const focusResourceOccupantCastle = useCallback((marker: RealmResourceOccupantMarker) => {

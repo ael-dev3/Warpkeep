@@ -45,8 +45,12 @@ describe('realm interaction state', () => {
     });
   });
 
-  it('activates a castle explicitly and directs camera and keyboard intent to it', () => {
-    const state = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
+  it('opens a castle record without replacing durable camera intent', () => {
+    const initial = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
+      type: 'set-camera-target',
+      target: { kind: 'cell', coord: { q: -4, r: 2 } }
+    });
+    const state = realmInteractionReducer(initial, {
       type: 'activate-castle',
       castleId: 42,
       coord: { q: 3, r: -1 }
@@ -56,11 +60,7 @@ describe('realm interaction state', () => {
     expect(state.selectedCastle).toEqual({ castleId: 42, coord: { q: 3, r: -1 } });
     expect(state.inspectorTarget).toEqual({ castleId: 42, coord: { q: 3, r: -1 } });
     expect(state.inspectorOpen).toBe(true);
-    expect(state.cameraTarget).toEqual({
-      kind: 'castle',
-      castleId: 42,
-      coord: { q: 3, r: -1 }
-    });
+    expect(state.cameraTarget).toBe(initial.cameraTarget);
     expect(state.keyboardIntent).toEqual({
       sequence: 1,
       target: { kind: 'inspector', castleId: 42 }
