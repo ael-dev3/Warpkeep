@@ -689,7 +689,8 @@ function verifyFounderAdmissionCheckpointV3(
     || status.markAccounts !== founders
     || status.playersV2 !== status.playerOwnershipsV2
     || status.playersV2 > founders
-    || status.alphaTermsAcceptances > status.playersV2
+    || status.alphaTermsAcceptances
+      > status.playersV2 * MAX_ENTRY_AGREEMENT_ACCEPTANCE_ROWS_PER_PLAYER
   ) {
     fail('Founder admission v3 checkpoint was not an exact capacity-safe founded graph.');
   }

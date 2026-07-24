@@ -510,6 +510,15 @@ describe('Hermes machine-readable output', () => {
   it('checks exact v3/v4 founder capacity before claim and exact aggregate mutation after submit', () => {
     const before = foundedGenerationV3Status();
     expect(verifyFounderAdmissionPreconditionV3(before)).toEqual(before);
+    const retainedAgreementHistoryBefore = foundedGenerationV3Status({
+      alphaTermsAcceptances: 6n,
+    });
+    expect(verifyFounderAdmissionPreconditionV3(retainedAgreementHistoryBefore))
+      .toEqual(retainedAgreementHistoryBefore);
+    expect(() => verifyFounderAdmissionPreconditionV3(foundedGenerationV3Status({
+      alphaTermsAcceptances:
+        2n * BigInt(WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM) + 1n,
+    }))).toThrow(/capacity-safe/i);
     const beforeResources = {
       allowedFids: 3n,
       castles: 3n,
