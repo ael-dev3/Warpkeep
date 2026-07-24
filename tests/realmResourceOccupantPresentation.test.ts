@@ -59,7 +59,7 @@ function occupation(
     nodeKey: 'gold:genesis-001:gold:0001',
     resourceKind: 'gold',
     siteId: 'genesis-001:gold:0001',
-    workerId: 'genesis-001:castle:22:worker:1',
+    workerId: 'genesis-001-castle-22-worker-01',
     workerOrdinal: 1,
     originCastleId: 22,
     phase: 'gathering',
@@ -122,6 +122,7 @@ describe('resource occupant presentation', () => {
       nodeCoord: { q: 8, r: -3 },
       castle: { castleId: 22, q: 4, r: -2, name: 'Sunlit Bastion' },
       source: 'generic-worker',
+      workerId: 'genesis-001-castle-22-worker-01',
       workerOrdinal: 1,
       workerPhase: 'gathering',
       timelineRevision: 1,
@@ -155,6 +156,7 @@ describe('resource occupant presentation', () => {
     })).toMatchObject([{
       source: 'generic-worker',
       occupiedByViewer: true,
+      workerId: 'genesis-001-castle-22-worker-01',
       workerOrdinal: 1
     }]);
   });
@@ -238,6 +240,7 @@ describe('resource occupant presentation', () => {
 
   it.each([
     ['non-canonical key', occupation({ nodeKey: 'gold:wrong' })],
+    ['non-canonical worker id', occupation({ workerId: 'worker-01' })],
     ['unknown site', occupation({ siteId: 'genesis-001:gold:9999', nodeKey: 'gold:genesis-001:gold:9999' })],
     ['unknown castle', occupation({ originCastleId: 999 })],
     ['invalid phase', occupation({ phase: 'returning' as 'gathering' })],
@@ -434,7 +437,7 @@ describe('resource occupant presentation', () => {
       castles: [nextCastle],
       profiles: new Map([[nextCastle.castleId, nextProfile]]),
       workerProjection: projection([occupation({
-        workerId: 'genesis-001:castle:23:worker:2',
+        workerId: 'genesis-001-castle-23-worker-02',
         workerOrdinal: 2,
         originCastleId: 23,
         timelineRevision: 2

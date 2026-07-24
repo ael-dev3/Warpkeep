@@ -781,6 +781,44 @@ describe('realm perspective camera math', () => {
     controller.dispose();
   });
 
+  it('locates an arbitrary castle without changing the chosen zoom or composition', () => {
+    const composition = {
+      insets: { top: 24, right: 340, bottom: 84, left: 220 },
+      safeAreaInsets: { top: 8, right: 8, bottom: 8, left: 8 },
+      focusPadding: 24
+    };
+    const controller = createRealmCameraController({
+      bounds: BOUNDS,
+      keepFocus: KEEP,
+      fog: new THREE.Fog('#a6bcaf', 1, 2),
+      reducedMotion: true,
+      render: vi.fn(),
+      composition
+    });
+    controller.setViewport(1_920, 1_080);
+    controller.frameAt(KEEP, 0.54);
+    const zoomBefore = controller.getZoom();
+    const safeViewportBefore = controller.getSafeViewport();
+
+    controller.locateAt(SELECTED_CASTLE);
+
+    expect(controller.getZoom()).toBe(zoomBefore);
+    expect(controller.getMode()).toBe('approach');
+    expect(controller.getSafeViewport()).toEqual(safeViewportBefore);
+    expect(controller.getPose().focus.x).toBeCloseTo(SELECTED_CASTLE.x, 6);
+    expect(controller.getPose().focus.z).toBeCloseTo(SELECTED_CASTLE.z, 6);
+    const projection = controller.projectPoint({
+      x: SELECTED_CASTLE.x,
+      y: SELECTED_CASTLE.y + SELECTED_CASTLE.height * 0.38,
+      z: SELECTED_CASTLE.z
+    });
+    expect(Math.abs(projection.x - controller.getSafeViewport().centerX)).toBeLessThan(1);
+    expect(projection.visible).toBe(true);
+    expect(projection.y).toBeGreaterThan(controller.getSafeViewport().top);
+    expect(projection.y).toBeLessThan(controller.getSafeViewport().bottom);
+    controller.dispose();
+  });
+
   it('frames an arbitrary founding center at a bounded approach zoom', () => {
     const controller = createRealmCameraController({
       bounds: BOUNDS,

@@ -481,4 +481,28 @@ describe('realm interaction state', () => {
     expect(realm.cameraTarget).toEqual({ kind: 'realm' });
   });
 
+  it('retains a zoom-preserving castle-location target without opening a castle record', () => {
+    const initial = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
+      type: 'activate-resource-occupant',
+      key: 'wood:genesis-001:wood:0001'
+    });
+    const location = realmInteractionReducer(initial, {
+      type: 'set-camera-target',
+      target: {
+        kind: 'castle-location',
+        castleId: 77,
+        coord: { q: 3, r: -2 }
+      }
+    });
+
+    expect(location.cameraTarget).toEqual({
+      kind: 'castle-location',
+      castleId: 77,
+      coord: { q: 3, r: -2 }
+    });
+    expect(location.resourceOccupantKey).toBe(initial.resourceOccupantKey);
+    expect(location.inspectorOpen).toBe(false);
+    expect(location.selectedCastle).toBeNull();
+  });
+
 });

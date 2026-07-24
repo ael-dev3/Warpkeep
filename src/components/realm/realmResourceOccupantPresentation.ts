@@ -25,9 +25,10 @@ import type {
   RealmResourceKind,
   RealmResourceProjectionFrame
 } from './realmTypes';
-import type {
-  ReadyPublicWorkerProjection,
-  RealmWorkerOrdinal
+import {
+  canonicalWorkerId,
+  type ReadyPublicWorkerProjection,
+  type RealmWorkerOrdinal
 } from './realmWorkerPresentation';
 
 export type RealmResourceOccupantNode =
@@ -47,6 +48,8 @@ export type RealmResourceOccupantMarker = Readonly<{
   siteId: string;
   nodeCoord: HexCoord;
   tier: number;
+  /** Present only for a validated generic-worker lease. */
+  workerId?: string;
   workerOrdinal?: RealmWorkerOrdinal;
   workerPhase: 'outbound' | 'gathering' | 'returning';
   timelineRevision?: number;
@@ -182,6 +185,7 @@ export function resolveRealmResourceOccupantMarkerResolution(input: Readonly<{
 
   const markersByKey = new Map<string, RealmResourceOccupantMarker>();
   const genericOccupationKeys = new Set<string>();
+  const genericWorkerIds = new Set<string>();
   for (const occupation of input.workerProjection?.mode === 'active'
     ? input.workerProjection.occupations
     : []) {
@@ -190,6 +194,7 @@ export function resolveRealmResourceOccupantMarkerResolution(input: Readonly<{
     if (
       occupation.nodeKey !== key
       || genericOccupationKeys.has(key)
+      || genericWorkerIds.has(occupation.workerId)
       || record?.resource !== occupation.resourceKind
       || record.node.siteId !== occupation.siteId
       || record.node.availability === 'unavailable'
@@ -202,6 +207,11 @@ export function resolveRealmResourceOccupantMarkerResolution(input: Readonly<{
       || !Number.isSafeInteger(occupation.workerOrdinal)
       || occupation.workerOrdinal < 1
       || occupation.workerOrdinal > 4
+      || typeof occupation.workerId !== 'string'
+      || occupation.workerId !== canonicalWorkerId(
+        occupation.originCastleId,
+        occupation.workerOrdinal
+      )
       || !Number.isSafeInteger(occupation.timelineRevision)
       || occupation.timelineRevision <= 0
       || (occupation.phase !== 'outbound' && occupation.phase !== 'gathering')
@@ -214,6 +224,7 @@ export function resolveRealmResourceOccupantMarkerResolution(input: Readonly<{
       || !(occupation.arrivesAtMicros < occupation.gatheringEndsAtMicros)
     ) return INVALID_RESOURCE_OCCUPANT_RESOLUTION;
     genericOccupationKeys.add(key);
+    genericWorkerIds.add(occupation.workerId);
 
     const castle = castlesById.get(occupation.originCastleId);
     const profile = castle
@@ -227,6 +238,7 @@ export function resolveRealmResourceOccupantMarkerResolution(input: Readonly<{
       siteId: record.node.siteId,
       nodeCoord: Object.freeze({ q: record.node.coord.q, r: record.node.coord.r }),
       tier: record.node.tier,
+      workerId: occupation.workerId,
       workerOrdinal: occupation.workerOrdinal,
       workerPhase: occupation.phase,
       timelineRevision: occupation.timelineRevision,
@@ -329,6 +341,28 @@ export function realmResourceOccupantMarkerKey(
   marker: Pick<RealmResourceOccupantMarker, 'resource' | 'siteId'>
 ) {
   return `${marker.resource}:${marker.siteId}`;
+}
+
+/**
+ * Returns command authority only for the viewer's exact canonical active
+ * generic-worker lease. Legacy expeditions and other keepers remain read-only.
+ */
+export function realmResourceOccupantRecallWorkerId(
+  marker: RealmResourceOccupantMarker
+) {
+  if (
+    marker.source !== 'generic-worker'
+    || !marker.occupiedByViewer
+    || typeof marker.workerId !== 'string'
+    || marker.workerOrdinal === undefined
+    || (marker.workerPhase !== 'outbound' && marker.workerPhase !== 'gathering')
+  ) return undefined;
+  return marker.workerId === canonicalWorkerId(
+    marker.castle.castleId,
+    marker.workerOrdinal
+  )
+    ? marker.workerId
+    : undefined;
 }
 
 export function realmResourceOccupantMarkerForKey(

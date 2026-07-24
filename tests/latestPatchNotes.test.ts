@@ -17,27 +17,29 @@ describe('latest in-menu patch notes', () => {
 
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
-      releasedOn: '22 JUL 2026',
-      title: 'A STEADIER FRONTIER'
+      releasedOn: '24 JUL 2026',
+      title: 'FOUR HANDS OF THE KEEP'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /recovers from temporary graphics interruptions.*selection.*camera intent/i
+      /four server-governed workers.*Gold Mines.*Wheat Farms.*Logging Camps.*Stone Quarries/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Castle rendering.*compact detail.*optional richer models/i
+      /PFP menu.*how many workers are deployed.*recall every recallable worker/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Water surfaces.*move gently.*river and ocean cells.*read-only public records/i
+      /occupied resource records.*Recall Worker to Keep.*public and read-only/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /clearer green palette.*denser grass.*without changing authoritative terrain, ownership, or resource rules/i
+      /keeper portrait.*home castle.*without changing.*zoom/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
-      /released to players|deployed to players|public balances|guaranteed rewards/i
+      /public balances|guaranteed rewards/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('Genesis 001');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
-    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('not live yet');
+    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('not playable yet');
+    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('no promised reward');
+    expect(getLatestPatchNotes('0.3.14')).toBeUndefined();
     expect(getLatestPatchNotes('0.3.13')).toBeUndefined();
     expect(getLatestPatchNotes('0.3.12')).toBeUndefined();
     expect(getLatestPatchNotes('0.3.8')).toBeUndefined();

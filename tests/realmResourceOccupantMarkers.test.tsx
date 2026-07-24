@@ -15,6 +15,7 @@ function marker(
     siteId,
     nodeCoord: { q: 3, r: -2 },
     tier: 1,
+    workerId: 'genesis-001-castle-22-worker-02',
     workerOrdinal: 2,
     workerPhase: 'gathering',
     timelineRevision: 1,
@@ -40,6 +41,7 @@ function marker(
 const first = marker('genesis-001:wood:0001');
 const second = marker('genesis-001:wood:0002', {
   nodeCoord: { q: 4, r: -2 },
+  workerId: 'genesis-001-castle-22-worker-03',
   workerOrdinal: 3
 });
 
@@ -184,6 +186,7 @@ describe('resource occupant marker surface', () => {
     expect(screen.getByText('PUBLIC WORKER RECORD')).toBeTruthy();
     expect(screen.getByText('WORKER 02')).toBeTruthy();
     expect(screen.queryByText(/Recall worker home/i)).toBeNull();
+    expect(screen.queryByText(/View castle location/i)).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Close player record' }));
     expect(screen.queryByRole('dialog')).toBeNull();
@@ -210,6 +213,206 @@ describe('resource occupant marker surface', () => {
     expect(screen.getAllByText('YOUR WORKER')).toHaveLength(3);
     expect(screen.getByText('YOUR KEEP')).toBeTruthy();
     expect(screen.getByText('WORKER 02')).toBeTruthy();
+  });
+
+  it('uses the player portrait as the camera-neutral castle focus control', () => {
+    const focusCastle = vi.fn();
+    render(
+      <RealmResourceOccupantMarkers
+        markers={[first]}
+        visibleMarkerKeys={['wood:genesis-001:wood:0001']}
+        selectedMarker={first}
+        onMarkerLayout={() => undefined}
+        onSelect={() => undefined}
+        onRequestClose={() => undefined}
+        onFocusCastle={focusCastle}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', {
+      name: /Focus @keeper's castle on the map/i
+    }));
+    expect(focusCastle).toHaveBeenCalledOnce();
+    expect(focusCastle).toHaveBeenCalledWith(first);
+    expect(screen.queryByRole('button', { name: /View castle/i })).toBeNull();
+  });
+
+  it('does not restore delayed marker focus after portrait navigation culls its source', () => {
+    let revealMarker: () => void = () => undefined;
+    function CastleNavigationHarness() {
+      const [selected, setSelected] = useState<RealmResourceOccupantMarker | null>(null);
+      const [visible, setVisible] = useState<readonly string[]>([
+        'wood:genesis-001:wood:0001'
+      ]);
+      revealMarker = () => setVisible(['wood:genesis-001:wood:0001']);
+      return (
+        <RealmResourceOccupantMarkers
+          markers={[first]}
+          visibleMarkerKeys={visible}
+          selectedMarker={selected}
+          onMarkerLayout={() => undefined}
+          onSelect={setSelected}
+          onRequestClose={() => setSelected(null)}
+          onFocusCastle={() => setVisible([])}
+        />
+      );
+    }
+
+    render(<CastleNavigationHarness />);
+    fireEvent.click(screen.getByRole('button', { name: /Inspect @keeper gathering/i }));
+    fireEvent.click(screen.getByRole('button', {
+      name: /Focus @keeper's castle on the map/i
+    }));
+    fireEvent.click(screen.getByRole('button', { name: 'Close player record' }));
+
+    const markerGroup = screen.getByRole('group');
+    expect(document.activeElement).toBe(markerGroup);
+    act(() => revealMarker());
+    expect(document.activeElement).toBe(markerGroup);
+  });
+
+  it('recalls only the viewer’s exact generic worker and reports command state', async () => {
+    let resolveRecall: () => void = () => undefined;
+    const pendingRecall = new Promise<void>((resolve) => {
+      resolveRecall = resolve;
+    });
+    const recallWorker = vi.fn(() => pendingRecall);
+    const own = marker('genesis-001:wood:0003', { occupiedByViewer: true });
+    const view = render(
+      <RealmResourceOccupantMarkers
+        markers={[own]}
+        visibleMarkerKeys={['wood:genesis-001:wood:0003']}
+        selectedMarker={own}
+        onMarkerLayout={() => undefined}
+        onSelect={() => undefined}
+        onRequestClose={() => undefined}
+        onFocusCastle={() => undefined}
+        onRecallWorker={recallWorker}
+      />
+    );
+
+    const recall = screen.getByRole('button', { name: /Recall Worker to Keep/i });
+    fireEvent.click(recall);
+    fireEvent.click(recall);
+    expect(recallWorker).toHaveBeenCalledOnce();
+    expect(recallWorker).toHaveBeenCalledWith('genesis-001-castle-22-worker-02');
+    expect((recall as HTMLButtonElement).disabled).toBe(true);
+    expect(recall.textContent).toContain('Recalling worker…');
+
+    await act(async () => resolveRecall());
+    expect((recall as HTMLButtonElement).disabled).toBe(true);
+    expect(recall.textContent).toContain('Worker returning…');
+
+    const failedRecall = vi.fn().mockRejectedValue(new Error('not confirmed'));
+    const failedOwn = marker('genesis-001:wood:0005', { occupiedByViewer: true });
+    view.rerender(
+      <RealmResourceOccupantMarkers
+        markers={[failedOwn]}
+        visibleMarkerKeys={['wood:genesis-001:wood:0005']}
+        selectedMarker={failedOwn}
+        onMarkerLayout={() => undefined}
+        onSelect={() => undefined}
+        onRequestClose={() => undefined}
+        onFocusCastle={() => undefined}
+        onRecallWorker={failedRecall}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Recall Worker to Keep/i }));
+    expect((await screen.findByRole('alert')).textContent).toMatch(/could not be confirmed/i);
+  });
+
+  it('does not carry recall state into a replacement lease at the same site', async () => {
+    const recallWorker = vi.fn().mockResolvedValue(undefined);
+    const own = marker('genesis-001:wood:0003', { occupiedByViewer: true });
+    const view = render(
+      <RealmResourceOccupantMarkers
+        markers={[own]}
+        visibleMarkerKeys={['wood:genesis-001:wood:0003']}
+        selectedMarker={own}
+        onMarkerLayout={() => undefined}
+        onSelect={() => undefined}
+        onRequestClose={() => undefined}
+        onFocusCastle={() => undefined}
+        onRecallWorker={recallWorker}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Recall Worker to Keep/i }));
+    expect(await screen.findByRole('button', { name: /Worker returning/i })).toBeTruthy();
+
+    const replacement = marker(own.siteId, {
+      occupiedByViewer: true,
+      workerId: 'genesis-001-castle-22-worker-03',
+      workerOrdinal: 3,
+      timelineRevision: 2
+    });
+    view.rerender(
+      <RealmResourceOccupantMarkers
+        markers={[replacement]}
+        visibleMarkerKeys={['wood:genesis-001:wood:0003']}
+        selectedMarker={replacement}
+        onMarkerLayout={() => undefined}
+        onSelect={() => undefined}
+        onRequestClose={() => undefined}
+        onFocusCastle={() => undefined}
+        onRecallWorker={recallWorker}
+      />
+    );
+
+    const replacementRecall = screen.getByRole('button', { name: /Recall Worker to Keep/i });
+    expect((replacementRecall as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('never exposes recall authority for another keeper, legacy data, or a malformed worker ID', () => {
+    const recallWorker = vi.fn().mockResolvedValue(undefined);
+    const remote = first;
+    const ownLegacy = legacyMarker({ occupiedByViewer: true });
+    const malformedOwn = marker('genesis-001:wood:0004', {
+      occupiedByViewer: true,
+      workerId: 'not-a-canonical-worker'
+    });
+    const view = render(
+      <RealmResourceOccupantMarkers
+        markers={[remote]}
+        visibleMarkerKeys={['wood:genesis-001:wood:0001']}
+        selectedMarker={remote}
+        onMarkerLayout={() => undefined}
+        onSelect={() => undefined}
+        onRequestClose={() => undefined}
+        onFocusCastle={() => undefined}
+        onRecallWorker={recallWorker}
+      />
+    );
+    expect(screen.queryByRole('button', { name: /Recall Worker to Keep/i })).toBeNull();
+
+    view.rerender(
+      <RealmResourceOccupantMarkers
+        markers={[ownLegacy]}
+        visibleMarkerKeys={['stone:genesis-001:stone:0001']}
+        selectedMarker={ownLegacy}
+        onMarkerLayout={() => undefined}
+        onSelect={() => undefined}
+        onRequestClose={() => undefined}
+        onFocusCastle={() => undefined}
+        onRecallWorker={recallWorker}
+      />
+    );
+    expect(screen.queryByRole('button', { name: /Recall Worker to Keep/i })).toBeNull();
+
+    view.rerender(
+      <RealmResourceOccupantMarkers
+        markers={[malformedOwn]}
+        visibleMarkerKeys={['wood:genesis-001:wood:0004']}
+        selectedMarker={malformedOwn}
+        onMarkerLayout={() => undefined}
+        onSelect={() => undefined}
+        onRequestClose={() => undefined}
+        onFocusCastle={() => undefined}
+        onRecallWorker={recallWorker}
+      />
+    );
+    expect(screen.queryByRole('button', { name: /Recall Worker to Keep/i })).toBeNull();
+    expect(recallWorker).not.toHaveBeenCalled();
   });
 
   it('keeps a legacy returning expedition visible as a read-only public record', () => {
@@ -256,11 +459,10 @@ describe('resource occupant marker surface', () => {
         onFocusCastle={() => undefined}
       />
     );
-    const castleAction = screen.getByRole('button', { name: /View castle location/i });
-    castleAction.focus();
+    const castleFocus = screen.getByRole('button', { name: /Focus @keeper's castle/i });
+    castleFocus.focus();
 
     const updated = marker(first.siteId, {
-      timelineRevision: 2,
       workerPhase: 'outbound'
     });
     view.rerender(
@@ -276,7 +478,7 @@ describe('resource occupant marker surface', () => {
     );
 
     expect(screen.getByText('EN ROUTE TO SITE')).toBeTruthy();
-    expect(document.activeElement).toBe(castleAction);
+    expect(document.activeElement).toBe(castleFocus);
   });
 
   it('restores focus after its selected trigger is temporarily culled by the panel', () => {

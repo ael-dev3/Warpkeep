@@ -525,6 +525,8 @@ export type RealmSceneHandle = Readonly<{
   restoreCameraAttestation?: (attestation: RealmCameraAttestation) => void;
   getSceneBuildSequence: () => number;
   focusCastle: (castleId: number) => void;
+  /** Centers a castle while retaining the controller's current zoom. */
+  locateCastle: (castleId: number) => void;
   focusCell: (coord: HexCoord) => void;
   frameFoundingDistrict: () => void;
   focusKeep: () => void;
@@ -3536,6 +3538,18 @@ function initializeRealmScene(
       const castle = authoritativeCastles.find((candidate) => candidate.castleId === castleId);
       if (!castle) return;
       cameraController.focusAt({
+        x: castle.x,
+        y: castle.groundY,
+        z: castle.z,
+        height: castleFocusSize.height,
+        footprintDiameter: castleFocusSize.footprintDiameter
+      });
+    },
+    locateCastle: (castleId) => {
+      if (cleanup.isDisposed()) return;
+      const castle = authoritativeCastles.find((candidate) => candidate.castleId === castleId);
+      if (!castle) return;
+      cameraController.locateAt({
         x: castle.x,
         y: castle.groundY,
         z: castle.z,

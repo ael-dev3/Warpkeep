@@ -988,6 +988,7 @@ function CanonicalRealmMapScreen({
   const waterAtSelectedCell = waterRecordsByKey.get(hexKey(selectedCoord));
   const ownProfile = profileRecords.get(ownCastle.castleId)?.profile;
   const focusedCastleId = interaction.cameraTarget.kind === 'castle'
+    || interaction.cameraTarget.kind === 'castle-location'
     ? interaction.cameraTarget.castleId
     : undefined;
   const selectedResourceOccupantKey = interaction.resourceOccupantKey;
@@ -1238,8 +1239,17 @@ function CanonicalRealmMapScreen({
     const castle = allCastlesRef.current.find(
       (candidate) => candidate.castleId === marker.castle.castleId
     );
-    if (castle) selectCastle(castle);
-  }, [selectCastle]);
+    if (!castle) return;
+    dispatchInteraction({
+      type: 'set-camera-target',
+      target: {
+        kind: 'castle-location',
+        castleId: castle.castleId,
+        coord: { q: castle.q, r: castle.r }
+      }
+    });
+    sceneRef.current?.locateCastle(castle.castleId);
+  }, []);
 
   const selectGoldNode = useCallback((node: RealmGoldNodePresentation) => {
     selectedCoordRef.current = { ...node.coord };
@@ -2106,6 +2116,9 @@ function CanonicalRealmMapScreen({
       scene.setHovered(hoveredCoordRef.current);
       const cameraTarget: RealmCameraTarget = interactionRef.current.cameraTarget;
       if (cameraTarget.kind === 'castle') scene.focusCastle(cameraTarget.castleId);
+      else if (cameraTarget.kind === 'castle-location') {
+        scene.locateCastle(cameraTarget.castleId);
+      }
       else if (cameraTarget.kind === 'cell') scene.focusCell(cameraTarget.coord);
       else if (cameraTarget.kind === 'keep') scene.recenterKeep();
       else if (cameraTarget.kind === 'founding-district') scene.frameFoundingDistrict();
@@ -2619,6 +2632,7 @@ function CanonicalRealmMapScreen({
             onSelect={selectResourceOccupant}
             onRequestClose={closeResourceOccupantRecord}
             onFocusCastle={focusResourceOccupantCastle}
+            onRecallWorker={observerMode ? undefined : onRecallWorker}
           />
 
           {observerMode ? (

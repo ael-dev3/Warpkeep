@@ -57,7 +57,9 @@ export type RealmCameraTarget =
   | Readonly<{ kind: 'founding-district' }>
   | Readonly<{ kind: 'keep' }>
   | Readonly<{ kind: 'cell'; coord: HexCoord }>
-  | Readonly<{ kind: 'castle'; castleId: number; coord: HexCoord }>;
+  | Readonly<{ kind: 'castle'; castleId: number; coord: HexCoord }>
+  /** Explicit navigation that preserves zoom and does not open a castle record. */
+  | Readonly<{ kind: 'castle-location'; castleId: number; coord: HexCoord }>;
 
 export type RealmKeyboardTarget =
   | Readonly<{ kind: 'map' }>
@@ -201,7 +203,11 @@ function copyCameraTarget(target: RealmCameraTarget): RealmCameraTarget {
   if (target.kind === 'founding-district') return { kind: 'founding-district' };
   if (target.kind === 'keep') return { kind: 'keep' };
   if (target.kind === 'cell') return { kind: 'cell', coord: copyCoord(target.coord) };
-  return { kind: 'castle', castleId: target.castleId, coord: copyCoord(target.coord) };
+  return {
+    kind: target.kind,
+    castleId: target.castleId,
+    coord: copyCoord(target.coord)
+  };
 }
 
 function keyboardTargetForResourceSiteInspector(

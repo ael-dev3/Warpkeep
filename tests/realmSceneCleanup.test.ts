@@ -1591,6 +1591,47 @@ describe('realm scene setup cleanup', () => {
     scene.dispose();
   });
 
+  it('locates a castle without replacing the current zoom while normal focus still closes in', () => {
+    const canvas = document.createElement('canvas');
+    const surface = createRealmTerrainSurface('realm-scene-locate-castle', 4, 5);
+    const options = {
+      surface,
+      otherCastles: [{ castleId: 2, q: 2, r: -1 }],
+      reducedMotion: true
+    } as const;
+    const scene = createRealmScene(createOptions(canvas, options));
+    scene.frameFoundingDistrict();
+    const before = scene.getCameraAttestation();
+
+    scene.locateCastle(2);
+    const located = scene.getCameraAttestation();
+
+    expect(located.zoom).toBe(before.zoom);
+    expect(located.mode).toBe(before.mode);
+    expect(located.target).not.toEqual(before.target);
+    expect(located.controllerState.targetZoom).toBe(before.controllerState.targetZoom);
+
+    const recovered = createRealmScene(createOptions(
+      document.createElement('canvas'),
+      options
+    ));
+    recovered.restoreCameraAttestation?.(located);
+    const restored = recovered.getCameraAttestation();
+    expect(restored.zoom).toBe(located.zoom);
+    expect(restored.mode).toBe(located.mode);
+    expect(restored.position).toEqual(located.position);
+    expect(restored.target).toEqual(located.target);
+    expect(restored.controllerState).toEqual(located.controllerState);
+
+    scene.focusCastle(2);
+    const focused = scene.getCameraAttestation();
+    expect(focused.zoom).toBe(1);
+    expect(focused.mode).toBe('keep');
+
+    recovered.dispose();
+    scene.dispose();
+  });
+
   it('suppresses click selection after drag and pinch gestures', () => {
     vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(1);
     const canvas = document.createElement('canvas');
