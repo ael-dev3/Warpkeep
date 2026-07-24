@@ -3,7 +3,7 @@
 Warpkeep uses standard website Sign In with Farcaster (SIWF). It is not a Mini
 App, Quick Auth, wallet connection, or a client-only permanent identity system.
 
-Alpha 0.3.16 uses backend protocol 3 and authentication contract v2; admission
+Alpha 0.3.17 uses backend protocol 3 and authentication contract v2; admission
 remains gated. Production configuration and founder identities belong in the
 private operator record, not this guide. This document describes the contract
 but does not authorize admission or a production change.
@@ -11,7 +11,9 @@ but does not authorize admission or a production change.
 ## Authority boundary
 
 ```text
-player intentionally selects ENTER REALM and accepts the in-memory Alpha Terms
+player intentionally selects ENTER REALM
+  -> the same in-memory authorized FID session may reuse its recorded agreement
+  -> otherwise the player accepts the in-memory Alpha Terms
   -> browser may restore one cookie session or creates a fresh private S256 verifier and bound SIWF challenge
   -> player approves a normal Farcaster SIWF request
   -> browser sends the completed proof envelope plus verifier to the bridge
@@ -249,8 +251,8 @@ VITE_WARPKEEP_OIDC_AUDIENCE=warpkeep-spacetimedb
 
 The Worker configuration is documented in
 [`services/auth-bridge/README.md`](../services/auth-bridge/README.md). Its
-checked-in `PUBLIC_AUTH_ENABLED` remains false, while the recorded Alpha 0.3.16
-production override is true. Before any future enable, the server-only v2
+checked-in `PUBLIC_AUTH_ENABLED` remains false, while the recorded production
+override is true. Before any future enable, the server-only v2
 configuration attestation must match the reviewed issuer, origins, SIWF
 coordinates, key ID, Maincloud coordinates, S256 binding, 600-second access
 TTL, 15-second resolver TTL, five-second resolver timeout, five-minute

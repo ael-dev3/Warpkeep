@@ -146,6 +146,12 @@ export type WarpkeepBackendControllerValue = Readonly<{
   state: WarpkeepBackendState;
   /** True only when the explicit kill switch and all public bridge values are valid. */
   sharedAlphaAvailable: boolean;
+  /**
+   * True only after this provider lifetime has recorded the current entry
+   * agreement for the same verified FID. This is memory-only UX evidence for
+   * repeat entry; it is never browser-stored or accepted as backend authority.
+   */
+  entryAgreementSatisfied: boolean;
   /** Recheck admission with the current, still-valid bridge session. */
   checkAgain: () => void;
   /** Record one explicit, memory-only Terms-gated entry attempt. */
@@ -453,6 +459,8 @@ export function WarpkeepSpacetimeProvider({
   const sharedAlphaAvailable = hasUsableWarpkeepBridge(config);
   const [state, setState] = useState<WarpkeepBackendState>(IDLE_WARPKEEP_BACKEND_STATE);
   const [checkSequence, setCheckSequence] = useState(0);
+  const [acceptedEntryAgreementFid, setAcceptedEntryAgreementFid] =
+    useState<number | undefined>(undefined);
   const connectionRef = useRef<WarpkeepConnection | undefined>(undefined);
   const teardownRef = useRef<(() => void) | undefined>(undefined);
   const generationRef = useRef(0);
@@ -510,6 +518,7 @@ export function WarpkeepSpacetimeProvider({
     completedTermsAttemptRef.current = 0;
     termsIntentGenerationRef.current = 0;
     termsIdentityFidRef.current = undefined;
+    setAcceptedEntryAgreementFid(undefined);
     collectingGenerationRef.current = undefined;
     resourceStateRef.current = undefined;
     goldExpeditionStateRef.current = undefined;
@@ -1299,8 +1308,17 @@ export function WarpkeepSpacetimeProvider({
 
   const beginAlphaTermsAcceptance = useCallback(() => {
     termsAttemptRef.current += 1;
+    // Keep the checked in-memory intent for a fresh sign-in or token refresh,
+    // but never send the acknowledgement over authority that has already
+    // expired while a throttled browser timer still presents it as current.
+    if (
+      !farcaster.oidcSession
+      || farcaster.oidcSession.expiresAt <= Date.now()
+    ) {
+      return;
+    }
     processTermsAttemptRef.current();
-  }, []);
+  }, [farcaster.oidcSession]);
 
   const cancelAlphaTermsAcceptance = useCallback(() => {
     // Cancellation never revokes a reducer call already sent after explicit
@@ -1340,6 +1358,21 @@ export function WarpkeepSpacetimeProvider({
       termsAttemptRef.current = 0;
       completedTermsAttemptRef.current = 0;
       termsIdentityFidRef.current = identity.fid;
+      setAcceptedEntryAgreementFid(undefined);
+    } else if (!identity) {
+      // Access-token rotation briefly removes the parsed OIDC session while
+      // the same authenticated FID remains in the Farcaster machine. Preserve
+      // only that exact in-memory agreement; every definitive phase/FID change
+      // still clears it before another identity can reuse it.
+      const refreshingFid = farcaster.state.phase === 'authenticated'
+        && farcaster.state.assurance === 'bridge-oidc-alpha'
+        ? farcaster.state.identity.fid
+        : undefined;
+      setAcceptedEntryAgreementFid((acceptedFid) => (
+        acceptedFid !== undefined && acceptedFid === refreshingFid
+          ? acceptedFid
+          : undefined
+      ));
     }
     generationRef.current += 1;
     const generation = generationRef.current;
@@ -1578,6 +1611,7 @@ export function WarpkeepSpacetimeProvider({
           completedTermsAttemptRef.current,
           attempt
         );
+        setAcceptedEntryAgreementFid(identity.fid);
         return true;
       })();
       termsAcceptancePromise = pending;
@@ -2147,6 +2181,8 @@ export function WarpkeepSpacetimeProvider({
   const value = useMemo<WarpkeepBackendControllerValue>(() => ({
     state,
     sharedAlphaAvailable,
+    entryAgreementSatisfied: acceptedEntryAgreementFid !== undefined
+      && acceptedEntryAgreementFid === identity?.fid,
     checkAgain,
     beginAlphaTermsAcceptance,
     cancelAlphaTermsAcceptance,
@@ -2164,6 +2200,7 @@ export function WarpkeepSpacetimeProvider({
     recallWorker,
     recallAllWorkers
   }), [
+    acceptedEntryAgreementFid,
     beginAlphaTermsAcceptance,
     cancelAlphaTermsAcceptance,
     checkAgain,
@@ -2180,6 +2217,7 @@ export function WarpkeepSpacetimeProvider({
     dispatchWorker,
     recallWorker,
     recallAllWorkers,
+    identity,
     sharedAlphaAvailable,
     state
   ]);

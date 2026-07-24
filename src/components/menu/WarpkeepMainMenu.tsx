@@ -74,6 +74,11 @@ export type WarpkeepMainMenuProps = {
   onRequestAuthenticatedRealm?: (identity: VerifiedFarcasterIdentity) => void;
   /** Fired only after the player checks and submits the Alpha Terms dialog. */
   onAcceptAlphaTermsAttempt?: () => void;
+  /**
+   * Memory-only proof that this exact authenticated session already recorded
+   * the current entry agreement. It permits repeat entry without another box.
+   */
+  entryAgreementSatisfied?: boolean;
   /** Renders an admission rail whose retry is owned by the Terms gate. */
   renderAuthRailContent?: (controls: AuthRailRenderControls) => ReactNode;
   onRequestAuthRailCheck?: () => void;
@@ -256,6 +261,7 @@ export function WarpkeepMainMenu({
   onRememberDeviceChange,
   onRequestAuthenticatedRealm,
   onAcceptAlphaTermsAttempt,
+  entryAgreementSatisfied = false,
   renderAuthRailContent,
   onRequestAuthRailCheck,
   authRailAttemptFailed = false,
@@ -316,6 +322,14 @@ export function WarpkeepMainMenu({
   const authenticatedAssurance = authState.phase === 'authenticated'
     ? authState.assurance
     : undefined;
+  const hasCurrentAuthenticatedAccess = useCallback(() => (
+    authState.phase === 'authenticated'
+    && authState.expiresAt !== undefined
+    && authState.expiresAt > Date.now()
+  ), [authState]);
+  const canReuseEntryAgreement = useCallback(() => (
+    entryAgreementSatisfied && hasCurrentAuthenticatedAccess()
+  ), [entryAgreementSatisfied, hasCurrentAuthenticatedAccess]);
   const farcasterAuthEnabled = !backendUnavailableMessage && Boolean(
     onRequestFarcasterSignIn
     && onCancelFarcasterSignIn
@@ -745,7 +759,13 @@ export function WarpkeepMainMenu({
 
     if (command.id === 'enter-realm' && farcasterAuthEnabled) {
       if (authenticatedIdentity) {
-        openTerms('enter-authenticated', anchorElement, keyboardDriven);
+        if (canReuseEntryAgreement()) {
+          setActiveNotice(null);
+          closePatchNotes();
+          onRequestAuthenticatedRealm?.(authenticatedIdentity);
+        } else {
+          openTerms('enter-authenticated', anchorElement, keyboardDriven);
+        }
       } else if (pendingIdentity) {
         openTerms('show-pending', anchorElement, keyboardDriven);
       } else {
@@ -763,8 +783,11 @@ export function WarpkeepMainMenu({
     authenticatedIdentity,
     pendingIdentity,
     backendUnavailableMessage,
+    closePatchNotes,
+    canReuseEntryAgreement,
     farcasterAuthEnabled,
     onRequestEnterRealm,
+    onRequestAuthenticatedRealm,
     openCredits,
     openSettings,
     openNotice,
@@ -811,12 +834,27 @@ export function WarpkeepMainMenu({
     } else if (request.continuation === 'check-auth-rail') {
       acceptedEntryAttemptRef.current = false;
       onRequestAuthRailCheck?.();
-    } else if (request.continuation === 'enter-authenticated' && authenticatedIdentity) {
-      acceptedEntryAttemptRef.current = false;
-      onRequestAuthenticatedRealm?.(authenticatedIdentity);
+    } else if (request.continuation === 'enter-authenticated') {
+      if (authenticatedIdentity && hasCurrentAuthenticatedAccess()) {
+        acceptedEntryAttemptRef.current = false;
+        onRequestAuthenticatedRealm?.(authenticatedIdentity);
+      } else if (
+        authState.phase === 'authenticated'
+        || authState.phase === 'pending-admission'
+      ) {
+        // A throttled expiry timer can leave the old presentation visible for
+        // a moment. Preserve the checked intent, but refresh authority before
+        // any realm callback or server acknowledgement can run.
+        onRefreshFarcasterSession?.();
+      } else {
+        authAttemptStartedRef.current = true;
+        onRequestFarcasterSignIn?.();
+      }
     }
   }, [
     authenticatedIdentity,
+    authState.phase,
+    hasCurrentAuthenticatedAccess,
     onAcceptAlphaTermsAttempt,
     onRequestAuthenticatedRealm,
     onRequestEnterRealm,
@@ -844,7 +882,23 @@ export function WarpkeepMainMenu({
   }, [onSignOut, restoreFirstCommandFocus]);
 
   const handleAuthenticatedRealmEntry = useCallback((identity: VerifiedFarcasterIdentity) => {
-    if (!acceptedEntryAttemptRef.current) {
+    const hasCurrentAccess = hasCurrentAuthenticatedAccess()
+      && authenticatedIdentity?.fid === identity.fid;
+    if (!hasCurrentAccess) {
+      if (acceptedEntryAttemptRef.current) {
+        onRefreshFarcasterSession?.();
+      } else {
+        openTerms(
+          'enter-authenticated',
+          authPrimaryActionRef.current,
+          lastActionModalityRef.current === 'keyboard'
+        );
+      }
+      return;
+    }
+    const mayReuseAgreement = canReuseEntryAgreement()
+      && authenticatedIdentity?.fid === identity.fid;
+    if (!acceptedEntryAttemptRef.current && !mayReuseAgreement) {
       openTerms(
         'enter-authenticated',
         authPrimaryActionRef.current,
@@ -855,10 +909,17 @@ export function WarpkeepMainMenu({
     acceptedEntryAttemptRef.current = false;
     setSurface('commands');
     onRequestAuthenticatedRealm?.(identity);
-  }, [onRequestAuthenticatedRealm, openTerms]);
+  }, [
+    authenticatedIdentity,
+    canReuseEntryAgreement,
+    hasCurrentAuthenticatedAccess,
+    onRefreshFarcasterSession,
+    onRequestAuthenticatedRealm,
+    openTerms
+  ]);
 
   const handleRefreshFarcasterSession = useCallback(() => {
-    if (acceptedEntryAttemptRef.current) {
+    if (acceptedEntryAttemptRef.current || canReuseEntryAgreement()) {
       acceptedEntryAttemptRef.current = false;
       onRefreshFarcasterSession?.();
       return;
@@ -868,10 +929,10 @@ export function WarpkeepMainMenu({
       authPrimaryActionRef.current,
       lastActionModalityRef.current === 'keyboard'
     );
-  }, [onRefreshFarcasterSession, openTerms]);
+  }, [canReuseEntryAgreement, onRefreshFarcasterSession, openTerms]);
 
   const handleAuthRailCheck = useCallback(() => {
-    if (acceptedEntryAttemptRef.current) {
+    if (acceptedEntryAttemptRef.current || canReuseEntryAgreement()) {
       acceptedEntryAttemptRef.current = false;
       onRequestAuthRailCheck?.();
       return;
@@ -881,7 +942,7 @@ export function WarpkeepMainMenu({
       authPrimaryActionRef.current,
       lastActionModalityRef.current === 'keyboard'
     );
-  }, [onRequestAuthRailCheck, openTerms]);
+  }, [canReuseEntryAgreement, onRequestAuthRailCheck, openTerms]);
 
   const handleNavigationKeyDown = useCallback((event: ReactKeyboardEvent<HTMLElement>) => {
     if (!interactive) {

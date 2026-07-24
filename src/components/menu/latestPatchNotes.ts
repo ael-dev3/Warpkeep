@@ -6,24 +6,23 @@ export type LatestPatchNotes = Readonly<{
   alphaNotice: string;
 }>;
 
-const ALPHA_0_3_16_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+const ALPHA_0_3_17_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '24 JUL 2026',
-  title: 'THE HARVEST REMEMBERED',
+  title: 'THE GATE REMEMBERS',
   summary:
-    'Gathering in Genesis 001 now lives in one clear record, and the Realm remembers completed yield without asking its keepers to claim it by hand.',
+    'Once a keeper has accepted the current entry agreement and opened Genesis 001, the same authorized session can pass through the gate again without another checkbox.',
   highlights: Object.freeze([
-    'An occupied Mine, Farm, Camp, or Quarry now keeps the site, keeper, journey phase, time left, and public identity together in one record.',
-    'A gathering portrait remains a deliberate path to the keeper’s castle, while an owner’s worker recall stays inside that same record.',
-    'Completed yield settles into the Realm automatically during an authenticated session, with server-owned recall and expiry schedules closing journeys while a player is away.',
-    'The old Claim Resource and Collect Yield controls are gone; resource totals remain private and server-authoritative.'
+    'Returning from the Realm to the main menu no longer asks the same authorized keeper to accept the same agreement again.',
+    'Fresh, expired, signed-out, changed-identity, and otherwise unproven sessions still stop at an unchecked agreement before authentication or entry.',
+    'Agreement reuse stays private and memory-only; no acceptance flag is persisted in browser storage and the server remains the authority.'
   ]),
   alphaNotice:
-    'Alpha 0.3.16 is an unfinished, evolving world. The prepared four-worker system remains staged behind inactive rollout gates and is not live yet; community feedback helps shape what is built next.'
+    'Alpha 0.3.17 is an unfinished, evolving world. The prepared four-worker system remains staged behind inactive rollout gates and is not live yet; community feedback helps shape what is built next.'
 });
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
-    '0.3.16': ALPHA_0_3_16_PATCH_NOTES
+    '0.3.17': ALPHA_0_3_17_PATCH_NOTES
   });
 
 export function getLatestPatchNotes(productVersion: string) {

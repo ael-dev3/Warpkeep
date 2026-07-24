@@ -12,6 +12,7 @@ import type {
 
 const PROFILE_IMAGE_URL =
   'https://imagedelivery.net/BXluQx4ige9GuW0Ia56BHw/bc698287-5adc-4cc5-a503-de16963ed900/original';
+const FUTURE_SESSION_EXPIRY = Date.now() + 60 * 60 * 1_000;
 
 function pngHeader() {
   const bytes = new Uint8Array(33);
@@ -58,39 +59,40 @@ const awaitingState: FarcasterAuthViewState = {
     state: 'ready',
     dataUrl: 'data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22/%3E'
   },
-  expiresAt: 1_800_000_000_000
+  expiresAt: FUTURE_SESSION_EXPIRY
 };
 
 const awaitingWithoutQrState: FarcasterAuthViewState = {
   phase: 'awaiting-approval',
   channelUrl: 'farcaster://connect?channelToken=ephemeral-channel&nonce=request-nonce',
   qr: { state: 'not-requested' },
-  expiresAt: 1_800_000_000_000
+  expiresAt: FUTURE_SESSION_EXPIRY
 };
 
 const verifyingState: FarcasterAuthViewState = {
   phase: 'verifying',
   identity,
-  expiresAt: 1_800_000_000_000
+  expiresAt: FUTURE_SESSION_EXPIRY
 };
 
 const authenticatedState: FarcasterAuthViewState = {
   phase: 'authenticated',
   identity,
-  assurance: 'live-client-verified'
+  assurance: 'live-client-verified',
+  expiresAt: FUTURE_SESSION_EXPIRY
 };
 
 const rememberedAuthenticatedState: FarcasterAuthViewState = {
   phase: 'authenticated',
   identity,
   assurance: 'remembered-device-prototype',
-  expiresAt: 1_800_000_000_000
+  expiresAt: FUTURE_SESSION_EXPIRY
 };
 
 const pendingAdmissionState: FarcasterAuthViewState = {
   phase: 'pending-admission',
   identity,
-  sessionExpiresAt: 1_800_000_000_000
+  sessionExpiresAt: FUTURE_SESSION_EXPIRY
 };
 
 type MenuCallbacks = ReturnType<typeof createMenuCallbacks>;
@@ -114,13 +116,18 @@ function menu(
   authState: FarcasterAuthViewState = anonymousState,
   inputModality: MenuInputModality = 'unknown',
   openFarcasterAuthPanel = false,
-  options: { rememberDevice?: boolean; backendUnavailableMessage?: string } = {}
+  options: {
+    rememberDevice?: boolean;
+    backendUnavailableMessage?: string;
+    entryAgreementSatisfied?: boolean;
+  } = {}
 ) {
   return (
     <WarpkeepMainMenu
       active
       authState={authState}
       backendUnavailableMessage={options.backendUnavailableMessage}
+      entryAgreementSatisfied={options.entryAgreementSatisfied}
       inputModality={inputModality}
       openFarcasterAuthPanel={openFarcasterAuthPanel}
       onCancelFarcasterSignIn={callbacks.cancel}
@@ -530,7 +537,13 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
 
   it('gates pending admission without entering the realm or starting another sign-in', async () => {
     const callbacks = createMenuCallbacks();
-    render(menu(callbacks, pendingAdmissionState));
+    render(menu(
+      callbacks,
+      pendingAdmissionState,
+      'unknown',
+      false,
+      { entryAgreementSatisfied: true }
+    ));
     await settleDeferredPresentation();
 
     expect(screen.getByText('ADMISSION PENDING')).not.toBeNull();
@@ -570,6 +583,48 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(callbacks.begin).not.toHaveBeenCalled();
   });
 
+  it('re-enters directly when this authenticated session already recorded the current agreement', async () => {
+    const callbacks = createMenuCallbacks();
+    render(menu(
+      callbacks,
+      authenticatedState,
+      'unknown',
+      false,
+      { entryAgreementSatisfied: true }
+    ));
+
+    await settleDeferredPresentation();
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
+    expect(callbacks.enterRealm).toHaveBeenCalledTimes(1);
+    expect(callbacks.enterRealm).toHaveBeenCalledWith(identity);
+    expect(callbacks.begin).not.toHaveBeenCalled();
+  });
+
+  it('never reuses agreement evidence after the authenticated access deadline', async () => {
+    const callbacks = createMenuCallbacks();
+    render(menu(
+      callbacks,
+      { ...authenticatedState, expiresAt: Date.now() - 1 },
+      'unknown',
+      false,
+      { entryAgreementSatisfied: true }
+    ));
+
+    await settleDeferredPresentation();
+    const terms = openAlphaTerms();
+
+    expect((within(terms).getByRole('checkbox', {
+      name: 'I agree to the Alpha Terms and Hegemony Social Contract.'
+    }) as HTMLInputElement).checked).toBe(false);
+    expect(callbacks.enterRealm).not.toHaveBeenCalled();
+    acceptAlphaTerms();
+
+    expect(callbacks.refreshSession).toHaveBeenCalledTimes(1);
+    expect(callbacks.enterRealm).not.toHaveBeenCalled();
+  });
+
   it('does not let the authenticated identity badge bypass fresh Terms for realm entry', async () => {
     const callbacks = createMenuCallbacks();
     render(menu(callbacks, authenticatedState));
@@ -586,6 +641,28 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(callbacks.enterRealm).not.toHaveBeenCalled();
     acceptAlphaTerms();
 
+    expect(callbacks.enterRealm).toHaveBeenCalledTimes(1);
+    expect(callbacks.enterRealm).toHaveBeenCalledWith(identity);
+  });
+
+  it('lets the authenticated identity rail reuse current-session agreement evidence', async () => {
+    const callbacks = createMenuCallbacks();
+    render(menu(
+      callbacks,
+      authenticatedState,
+      'unknown',
+      false,
+      { entryAgreementSatisfied: true }
+    ));
+    await settleDeferredPresentation();
+
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Open Farcaster identity, @keeper'
+    }));
+    await settleDeferredPresentation();
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
     expect(callbacks.enterRealm).toHaveBeenCalledTimes(1);
     expect(callbacks.enterRealm).toHaveBeenCalledWith(identity);
   });
@@ -791,7 +868,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
       'CREDITS'
     ]);
     expect(screen.getByRole('button', {
-      name: 'Open patch notes for Warpkeep ALPHA 0.3.16'
+      name: 'Open patch notes for Warpkeep ALPHA 0.3.17'
     })).not.toBeNull();
 
     expect(screen.queryByRole('button', { name: 'CONTINUE' })).toBeNull();

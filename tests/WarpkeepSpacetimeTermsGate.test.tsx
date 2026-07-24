@@ -83,11 +83,17 @@ function BackendProbe() {
   return (
     <>
       <output data-testid="backend-phase">{backend.state.phase}</output>
+      <output data-testid="entry-agreement-satisfied">
+        {String(backend.entryAgreementSatisfied)}
+      </output>
       <button type="button" onClick={backend.beginAlphaTermsAcceptance}>
         ACCEPT TEST TERMS
       </button>
       <button type="button" onClick={backend.cancelAlphaTermsAcceptance}>
         CANCEL TEST TERMS
+      </button>
+      <button type="button" onClick={backend.disconnect}>
+        DISCONNECT TEST BACKEND
       </button>
     </>
   );
@@ -150,6 +156,7 @@ describe('Warpkeep server Terms gate', () => {
     await waitFor(() => {
       expect(screen.getByTestId('backend-phase').textContent).toBe('awaiting-terms');
     });
+    expect(screen.getByTestId('entry-agreement-satisfied').textContent).toBe('false');
 
     firstCallbacks?.onConnectionFailure?.('transport_failed');
     await act(async () => rejectFirst(new Error('controlled stale connection failure')));
@@ -199,6 +206,7 @@ describe('Warpkeep server Terms gate', () => {
     await waitFor(() => {
       expect(screen.getByTestId('backend-phase').textContent).toBe('ready');
     });
+    expect(screen.getByTestId('entry-agreement-satisfied').textContent).toBe('true');
     expect(runtime.acceptAlphaTerms).toHaveBeenCalledTimes(1);
     expect(runtime.readResourceState).toHaveBeenCalledTimes(1);
     expect(runtime.observeRealm).toHaveBeenCalledTimes(1);
@@ -215,6 +223,7 @@ describe('Warpkeep server Terms gate', () => {
     await waitFor(() => {
       expect(screen.getByTestId('backend-phase').textContent).toBe('awaiting-terms');
     });
+    expect(screen.getByTestId('entry-agreement-satisfied').textContent).toBe('false');
     expect(runtime.acceptAlphaTerms).toHaveBeenCalledTimes(1);
     expect(runtime.subscribeRealm).toHaveBeenCalledTimes(1);
 
@@ -222,8 +231,54 @@ describe('Warpkeep server Terms gate', () => {
     await waitFor(() => {
       expect(screen.getByTestId('backend-phase').textContent).toBe('ready');
     });
+    expect(screen.getByTestId('entry-agreement-satisfied').textContent).toBe('true');
     expect(runtime.acceptAlphaTerms).toHaveBeenCalledTimes(2);
     expect(runtime.subscribeRealm).toHaveBeenCalledTimes(2);
+  });
+
+  it('never acknowledges Terms over access authority that expired before the click settled', async () => {
+    mockedFarcaster.current = authenticatedFarcasterState();
+    const expiresAt = (
+      mockedFarcaster.current as ReturnType<typeof authenticatedFarcasterState>
+    ).oidcSession.expiresAt;
+    const connection = { isDisconnectRequested: false, disconnect: vi.fn() };
+    const runtime = {
+      connect: vi.fn(async () => connection),
+      disconnect: vi.fn(),
+      readBackendInfo: vi.fn(async () => ({
+        protocolVersion: 3,
+        worldSeed: 3_445_214_658,
+        worldSeedName: 'HEGEMONY_GENESIS_001'
+      })),
+      readAdmission: vi.fn(async () => 'ready'),
+      bootstrapPlayer: vi.fn(),
+      acceptAlphaTerms: vi.fn(async () => undefined),
+      readResourceState: vi.fn(async (_candidate, fid: number) => createReadyResourceState(fid)),
+      collectResources: vi.fn(async (_candidate, fid: number) => createReadyResourceState(fid)),
+      observeRealm: vi.fn(() => vi.fn()),
+      readRealmSnapshot: vi.fn((_candidate, fid: number) => createCanonicalGenesisSnapshot(fid)),
+      subscribeRealm: vi.fn((_candidate, onApplied: () => void) => {
+        onApplied();
+        return { unsubscribe: vi.fn() };
+      })
+    } as unknown as WarpkeepBackendRuntime;
+
+    render(
+      <WarpkeepSpacetimeProvider config={CONFIG} runtime={runtime}>
+        <BackendProbe />
+      </WarpkeepSpacetimeProvider>
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId('backend-phase').textContent).toBe('awaiting-terms');
+    });
+
+    vi.spyOn(Date, 'now').mockReturnValue(expiresAt + 1);
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TEST TERMS' }));
+
+    expect(runtime.acceptAlphaTerms).not.toHaveBeenCalled();
+    expect(runtime.subscribeRealm).not.toHaveBeenCalled();
+    expect(screen.getByTestId('backend-phase').textContent).toBe('awaiting-terms');
+    expect(screen.getByTestId('entry-agreement-satisfied').textContent).toBe('false');
   });
 
   it('reports a bounded Terms acknowledgement failure from the awaiting-terms path', async () => {
@@ -324,7 +379,9 @@ describe('Warpkeep server Terms gate', () => {
 
     resolveAcceptance?.();
     await acceptance;
-    await Promise.resolve();
+    await waitFor(() => {
+      expect(screen.getByTestId('entry-agreement-satisfied').textContent).toBe('true');
+    });
     expect(runtime.observeRealm).not.toHaveBeenCalled();
     expect(runtime.subscribeRealm).not.toHaveBeenCalled();
     expect(screen.getByTestId('backend-phase').textContent).toBe('awaiting-terms');
@@ -337,5 +394,48 @@ describe('Warpkeep server Terms gate', () => {
     });
     expect(runtime.acceptAlphaTerms).toHaveBeenCalledTimes(1);
     expect(runtime.subscribeRealm).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears reusable agreement evidence on an explicit backend disconnect', async () => {
+    mockedFarcaster.current = authenticatedFarcasterState();
+    const connection = { isDisconnectRequested: false, disconnect: vi.fn() };
+    const runtime = {
+      connect: vi.fn(async () => connection),
+      disconnect: vi.fn(),
+      readBackendInfo: vi.fn(async () => ({
+        protocolVersion: 3,
+        worldSeed: 3_445_214_658,
+        worldSeedName: 'HEGEMONY_GENESIS_001'
+      })),
+      readAdmission: vi.fn(async () => 'ready'),
+      bootstrapPlayer: vi.fn(),
+      acceptAlphaTerms: vi.fn(async () => undefined),
+      readResourceState: vi.fn(async (_candidate, fid: number) => createReadyResourceState(fid)),
+      collectResources: vi.fn(async (_candidate, fid: number) => createReadyResourceState(fid)),
+      observeRealm: vi.fn(() => vi.fn()),
+      readRealmSnapshot: vi.fn((_candidate, fid: number) => createCanonicalGenesisSnapshot(fid)),
+      subscribeRealm: vi.fn((_candidate, onApplied: () => void) => {
+        onApplied();
+        return { unsubscribe: vi.fn() };
+      })
+    } as unknown as WarpkeepBackendRuntime;
+
+    render(
+      <WarpkeepSpacetimeProvider config={CONFIG} runtime={runtime}>
+        <BackendProbe />
+      </WarpkeepSpacetimeProvider>
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId('backend-phase').textContent).toBe('awaiting-terms');
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TEST TERMS' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('entry-agreement-satisfied').textContent).toBe('true');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'DISCONNECT TEST BACKEND' }));
+
+    expect(screen.getByTestId('backend-phase').textContent).toBe('idle');
+    expect(screen.getByTestId('entry-agreement-satisfied').textContent).toBe('false');
   });
 });

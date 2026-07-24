@@ -6,6 +6,13 @@ full engineering record.
 
 ## [Unreleased]
 
+## [0.3.17] — 2026-07-24
+
+- Let keepers return from the Realm and re-enter during the same authorized
+  session without accepting the current entry agreement again.
+- Kept the checkbox mandatory for every fresh, expired, signed-out, changed-FID,
+  or otherwise unproven session. No acceptance is persisted in browser storage.
+
 ## [0.3.16] — 2026-07-24
 
 - Unified each occupied resource site and its gathering keeper into one record,
@@ -152,7 +159,8 @@ full engineering record.
   Lowlands, a first keep, Farcaster sign-in, and an admission-gated shared-world
   foundation.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.16...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.17...HEAD
+[0.3.17]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.16...v0.3.17
 [0.3.16]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.15...v0.3.16
 [0.3.15]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.14...v0.3.15
 [0.3.14]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.13...v0.3.14
