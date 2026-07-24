@@ -301,7 +301,9 @@ export function realmInteractionReducer(
         inspectorOpen: true,
         resourceOccupantKey: null,
         resourceOccupantReturnTarget: null,
-        cameraTarget: { kind: 'castle', castleId: target.castleId, coord: copyCoord(target.coord) },
+        // Castle selection opens a record and updates visual selection only.
+        // Camera movement belongs to explicit navigation commands.
+        cameraTarget: state.cameraTarget,
         navigatorOpen: false,
         keyboardIntent: withKeyboardIntent(state, {
           kind: 'inspector',

@@ -6,24 +6,24 @@ export type LatestPatchNotes = Readonly<{
   alphaNotice: string;
 }>;
 
-const ALPHA_0_3_14_PATCH_NOTES: LatestPatchNotes = Object.freeze({
-  releasedOn: '22 JUL 2026',
-  title: 'A STEADIER FRONTIER',
+const ALPHA_0_3_15_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: '24 JUL 2026',
+  title: 'THE LIVING FRONTIER',
   summary:
-    'Genesis 001 is steadier and easier to read, with resilient Realm rendering, selectable moving water, and a greener Lowlands.',
+    'Genesis 001 feels more alive and easier to read, from its restored keeps and denser forests to the gathering stories unfolding across the Lowlands.',
   highlights: Object.freeze([
-    'The Realm now recovers from temporary graphics interruptions while preserving your selection and camera intent.',
-    'Castle rendering can continue at compact detail when optional richer models cannot load.',
-    'Water surfaces now move gently when motion is enabled, and visible river and ocean cells can be selected for read-only public records.',
-    'The Lowlands now use a clearer green palette and denser grass coverage without changing authoritative terrain, ownership, or resource rules.'
+    'Authored keep and title textures are restored, with a softer ocean-to-fog horizon and denser biome-shaped forests.',
+    'Occupied resource sites now carry safe public Farcaster portraits, including static previews for animated or decentralized profile images.',
+    'Selecting a keep, water cell, worker, or resource record no longer pulls the camera away; ordinary zoom-out is also tighter and more readable.',
+    'Gathering records now show the authoritative arrival, gathering, or return time left instead of a generic deployment duration.'
   ]),
   alphaNotice:
-    'Alpha 0.3.14 is an unfinished, evolving world. Four-worker gathering is staged for later and is not live yet; community feedback helps shape what is built next.'
+    'Alpha 0.3.15 is an unfinished, evolving world. The four-worker system and recall controls remain staged behind inactive rollout gates and are not live yet; community feedback helps shape what is built next.'
 });
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
-    '0.3.14': ALPHA_0_3_14_PATCH_NOTES
+    '0.3.15': ALPHA_0_3_15_PATCH_NOTES
   });
 
 export function getLatestPatchNotes(productVersion: string) {

@@ -193,6 +193,78 @@ describe('resource occupant marker surface', () => {
     expect(document.activeElement).toBe(trigger);
   });
 
+  it('shows another keeper’s authoritative gathering time left and refreshes it in place', () => {
+    vi.useFakeTimers();
+    try {
+      const nowMillis = 2_000_000_000_000;
+      vi.setSystemTime(nowMillis);
+      const nowMicros = BigInt(nowMillis) * 1_000n;
+      const gathering = marker('genesis-001:wood:0007', {
+        gatheringEndsAtMicros: nowMicros + 90_000_000n
+      });
+      render(
+        <RealmResourceOccupantMarkers
+          markers={[gathering]}
+          visibleMarkerKeys={['wood:genesis-001:wood:0007']}
+          selectedMarker={gathering}
+          onMarkerLayout={() => undefined}
+          onSelect={() => undefined}
+          onRequestClose={() => undefined}
+          onFocusCastle={() => undefined}
+        />
+      );
+
+      expect(screen.getByText('Gathering time left')).toBeTruthy();
+      const timer = screen.getByRole('timer');
+      expect(timer.textContent).toBe('2m remaining');
+      expect(screen.queryByText('Deployment limit')).toBeNull();
+      expect(screen.queryByText(/30-day deployment|30 days/i)).toBeNull();
+
+      act(() => vi.advanceTimersByTime(30_000));
+      expect(timer.textContent).toBe('1m remaining');
+      act(() => vi.advanceTimersByTime(60_000));
+      expect(timer.textContent).toBe('Awaiting Realm update');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('labels each public phase deadline without inventing a missing schedule', () => {
+    const outbound = marker('genesis-001:wood:0008', {
+      workerPhase: 'outbound',
+      arrivesAtMicros: undefined
+    });
+    const view = render(
+      <RealmResourceOccupantMarkers
+        markers={[outbound]}
+        visibleMarkerKeys={['wood:genesis-001:wood:0008']}
+        selectedMarker={outbound}
+        onMarkerLayout={() => undefined}
+        onSelect={() => undefined}
+        onRequestClose={() => undefined}
+        onFocusCastle={() => undefined}
+      />
+    );
+
+    expect(screen.getByText('Arrival time left')).toBeTruthy();
+    expect(screen.getByRole('timer').textContent).toBe('Schedule unavailable');
+
+    const returning = legacyMarker({ returnsAtMicros: undefined });
+    view.rerender(
+      <RealmResourceOccupantMarkers
+        markers={[returning]}
+        visibleMarkerKeys={['stone:genesis-001:stone:0001']}
+        selectedMarker={returning}
+        onMarkerLayout={() => undefined}
+        onSelect={() => undefined}
+        onRequestClose={() => undefined}
+        onFocusCastle={() => undefined}
+      />
+    );
+    expect(screen.getByText('Return time left')).toBeTruthy();
+    expect(screen.getByRole('timer').textContent).toBe('Schedule unavailable');
+  });
+
   it('identifies the viewer’s generic assignment as their worker', () => {
     const own = marker('genesis-001:wood:0003', { occupiedByViewer: true });
     render(

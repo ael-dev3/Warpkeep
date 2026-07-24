@@ -406,12 +406,14 @@ describe('Warpkeep local QA journey lab', () => {
     const inspector = screen.getByRole('dialog', { name: 'Cinderwatch Keep' });
     expect(within(inspector).getByText('Cinderwatch Keep')).not.toBeNull();
     expect(inspector.textContent).toContain('@sentinel-two');
-    const focusedLabels = [...document.querySelectorAll<HTMLButtonElement>(
-      'button.realm-castle-label[data-castle-id="102"][data-focused="true"]'
+    const targetLabels = [...document.querySelectorAll<HTMLButtonElement>(
+      'button.realm-castle-label[data-castle-id="102"]'
     )];
-    expect(focusedLabels).toHaveLength(1);
-    expect(focusedLabels[0]?.getAttribute('data-anchor')).toBe('foundation-base');
-    expect(focusedLabels[0]?.getAttribute('data-displaced')).toBe('false');
+    expect(targetLabels).toHaveLength(1);
+    expect(targetLabels[0]?.getAttribute('data-focused')).toBe('false');
+    expect(targetLabels[0]?.getAttribute('data-anchor')).toBe('foundation-base');
+    expect(targetLabels[0]?.getAttribute('data-displaced')).toBe('false');
+    expect(inspector.classList.contains('realm-camera-neutral-inspector')).toBe(true);
     expect(document.querySelectorAll('[data-realm-label-leader]')).toHaveLength(0);
     expect(document.querySelector('.realm-map-screen')?.getAttribute('data-label-accounting-valid'))
       .toBe('true');

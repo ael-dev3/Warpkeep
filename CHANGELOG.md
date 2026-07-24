@@ -6,15 +6,21 @@ full engineering record.
 
 ## [Unreleased]
 
-- Added four persistent, server-governed workers for every founded keep. Each
-  worker can gather Gold, Food, Wood, or Stone, while every resource node still
-  accepts only one worker.
-- Added a deployed-worker count and guarded Recall All command to the player
-  menu, alongside the detailed four-worker roster.
-- Replaced the old castle action in an owned gathering record with Recall
-  Worker. Other keepers' worker records remain public and read-only.
-- Made the keeper portrait inside a worker record lead back to that keeper's
-  castle without changing the player's current camera zoom.
+## [0.3.15] — 2026-07-24
+
+- Restored the path from sign-in to live Realm records and restored the authored
+  texture treatment across keeps and the title presentation.
+- Softened the ocean-to-fog horizon, tightened ordinary zoom-out, and brought
+  denser biome-shaped forests to the Lowlands.
+- Added safe public Farcaster portraits to occupied resource sites and their
+  read-only gathering records, including static previews for animated or
+  decentralized profile images.
+- Kept passive selection camera-neutral across keeps, water, workers, and
+  resource records. Gathering records now show the authoritative arrival,
+  gathering, or return time left instead of a generic deployment duration.
+- Prepared four persistent worker slots and guarded individual / Recall All
+  controls behind inactive rollout gates. They are not live in Alpha 0.3.15;
+  the existing expedition flow remains authoritative.
 
 ## [0.3.14] — 2026-07-22
 
@@ -135,7 +141,8 @@ full engineering record.
   Lowlands, a first keep, Farcaster sign-in, and an admission-gated shared-world
   foundation.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.14...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.15...HEAD
+[0.3.15]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.14...v0.3.15
 [0.3.14]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.13...v0.3.14
 [0.3.13]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.12...v0.3.13
 [0.3.12]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.11...v0.3.12

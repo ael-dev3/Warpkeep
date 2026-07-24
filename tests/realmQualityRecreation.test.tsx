@@ -749,7 +749,7 @@ describe('live realm quality recreation', () => {
     expect(motion.preference.removeEventListener).toHaveBeenCalledOnce();
   });
 
-  it('restores an explicitly focused castle instead of overwriting it with district framing', () => {
+  it('preserves district framing when castle selection survives a quality rebuild', () => {
     installWebGlProbe();
     const snapshot = createCanonicalGenesisSnapshot({
       ownFid: CANONICAL_TEST_FID,
@@ -772,7 +772,10 @@ describe('live realm quality recreation', () => {
       castleId: 2,
       coord: { q: 2, r: -1 }
     }));
-    expect(mocked.handles[0]!.focusCastle).toHaveBeenLastCalledWith(2);
+    expect(mocked.handles[0]!.focusCastle).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'CLOSE RECORD' })).not.toBeNull();
+    expect(document.querySelector('.castle-inspection.realm-camera-neutral-inspector'))
+      .not.toBeNull();
 
     rerender(
       <RealmMapScreen
@@ -784,8 +787,8 @@ describe('live realm quality recreation', () => {
     );
 
     expect(mocked.createRealmScene).toHaveBeenCalledTimes(2);
-    expect(mocked.handles[1]!.focusCastle).toHaveBeenCalledWith(2);
-    expect(mocked.handles[1]!.frameFoundingDistrict).not.toHaveBeenCalled();
+    expect(mocked.handles[1]!.focusCastle).not.toHaveBeenCalled();
+    expect(mocked.handles[1]!.frameFoundingDistrict).toHaveBeenCalled();
   });
 
   it('restores a resource-record castle location without turning it into close castle focus', async () => {
@@ -1122,7 +1125,9 @@ describe('live realm quality recreation', () => {
     expect(selectionAnnouncement().textContent)
       .toContain('Peer Watch. Selected castle at cell 2, -1');
     expect(scene.setSelectedCastleId).toHaveBeenLastCalledWith(2);
-    expect(scene.focusCastle).toHaveBeenLastCalledWith(2);
+    expect(scene.focusCastle).not.toHaveBeenCalled();
+    expect(document.querySelector('.castle-inspection.realm-camera-neutral-inspector'))
+      .not.toBeNull();
   });
 
   it('keeps a site record, projected player record, and Explore strictly mutually exclusive', async () => {
@@ -1532,14 +1537,16 @@ describe('live realm quality recreation', () => {
 
     const directLabel = screen.getByRole('button', { name: pendingLabelName });
     fireEvent.click(directLabel);
-    expect(mocked.handles[0]!.focusCastle).toHaveBeenLastCalledWith(2);
+    expect(mocked.handles[0]!.focusCastle).not.toHaveBeenCalled();
     await waitFor(() => {
       const focusedLabels = document.querySelectorAll<HTMLButtonElement>(
         'button.realm-castle-label[data-focused="true"]'
       );
-      expect(focusedLabels).toHaveLength(1);
-      expect(focusedLabels[0]!.textContent?.trim().length).toBeGreaterThan(0);
-      expect(focusedLabels[0]).toBe(directLabel);
+      expect(focusedLabels).toHaveLength(0);
+      expect(directLabel.dataset.focused).toBe('false');
+      expect(directLabel.getAttribute('aria-expanded')).toBe('true');
+      expect(document.querySelector('.castle-inspection.realm-camera-neutral-inspector'))
+        .not.toBeNull();
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'CLOSE RECORD' }));

@@ -2855,9 +2855,6 @@ function initializeRealmScene(
     stoneNodeLayer?.setSelectedSiteId(selectedStoneSiteId ?? null);
     dispatchSelect(picked);
     render();
-    if (picked.kind === 'castle' && picked.castleId === options.ownCastleId) {
-      cameraController.focusKeep();
-    }
   };
 
   const handlePointerUp = (event: PointerEvent) => {
