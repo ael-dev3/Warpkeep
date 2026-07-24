@@ -183,7 +183,7 @@ function optionalString(value: unknown) {
     : typeof value === 'string' && value.length > 0 ? value : null;
 }
 
-function canonicalWorkerId(castleId: number, ordinal: RealmWorkerOrdinal) {
+export function canonicalWorkerId(castleId: number, ordinal: RealmWorkerOrdinal) {
   return `genesis-001-castle-${castleId}-worker-${String(ordinal).padStart(2, '0')}`;
 }
 

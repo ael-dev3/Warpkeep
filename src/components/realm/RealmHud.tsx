@@ -37,11 +37,12 @@ import {
 import './RealmPlayerChrome.css';
 import { WorkerCommandCenter } from './WorkerCommandCenter';
 import { WorkerInspectionPanel } from './WorkerInspectionPanel';
-import type {
-  RealmWorkerDestinationPresentation,
-  ReadyWorkerProjection,
-  ReadyWorkerResourceState,
-  WorkerRosterPresentation
+import {
+  realmWorkerCanRecall,
+  type RealmWorkerDestinationPresentation,
+  type ReadyWorkerProjection,
+  type ReadyWorkerResourceState,
+  type WorkerRosterPresentation
 } from './realmWorkerPresentation';
 
 type RealmHudProps = Readonly<{
@@ -335,8 +336,13 @@ type RealmCommandDialogProps = Readonly<{
   pendingYield: boolean;
   canCollect: boolean;
   activeWagons: readonly RealmActiveWagonMenuItem[];
-  workerAvailability?: number;
+  deployedWorkerCount?: number;
+  recallableWorkerCount?: number;
+  recallingAllWorkers: boolean;
+  recallAllWorkersConfirmed: boolean;
+  recallAllWorkersFailed: boolean;
   onWorkers?: () => void;
+  onRecallAllWorkers?: () => void;
   onClose: () => void;
   onCollect: () => void;
   onExplore: () => void;
@@ -356,8 +362,13 @@ function RealmCommandDialog({
   pendingYield,
   canCollect,
   activeWagons,
-  workerAvailability,
+  deployedWorkerCount,
+  recallableWorkerCount,
+  recallingAllWorkers,
+  recallAllWorkersConfirmed,
+  recallAllWorkersFailed,
   onWorkers,
+  onRecallAllWorkers,
   onClose,
   onCollect,
   onExplore,
@@ -400,16 +411,55 @@ function RealmCommandDialog({
             <strong>EXPLORE</strong>
             <span>{castleCount} founded {castleCount === 1 ? 'castle' : 'castles'}</span>
           </button>
-          {onWorkers && workerAvailability !== undefined ? (
-            <button
-              aria-controls={workersId}
-              aria-haspopup="dialog"
-              onClick={onWorkers}
-              type="button"
+          {onWorkers
+            && deployedWorkerCount !== undefined
+            && recallableWorkerCount !== undefined ? (
+            <div
+              aria-label="Worker controls"
+              className="realm-profile-menu__worker-actions"
+              role="group"
             >
-              <strong>WORKERS</strong>
-              <span>{workerAvailability} of 4 available</span>
-            </button>
+              <button
+                aria-controls={workersId}
+                aria-haspopup="dialog"
+                disabled={recallingAllWorkers}
+                onClick={onWorkers}
+                type="button"
+              >
+                <strong>WORKERS</strong>
+                <span>{deployedWorkerCount}/4 deployed · manage workers</span>
+              </button>
+              <button
+                disabled={
+                  !onRecallAllWorkers
+                  || recallingAllWorkers
+                  || recallAllWorkersConfirmed
+                  || recallableWorkerCount === 0
+                }
+                onClick={onRecallAllWorkers}
+                type="button"
+              >
+                <strong aria-atomic="true" aria-live="polite">
+                  {recallingAllWorkers
+                    ? 'RECALLING…'
+                    : recallAllWorkersConfirmed
+                      ? 'RECALL SENT'
+                      : 'RECALL ALL TO KEEP'}
+                </strong>
+                <span>
+                  {recallAllWorkersConfirmed
+                    ? 'Awaiting the next Realm update'
+                    : recallableWorkerCount > 0
+                    ? `${recallableWorkerCount} ${recallableWorkerCount === 1 ? 'worker' : 'workers'} can return`
+                    : 'All workers are at or returning to the keep'}
+                </span>
+              </button>
+              {recallAllWorkersFailed ? (
+                <p className="realm-profile-menu__worker-error" role="alert">
+                  The recall could not be confirmed. Try the same action again.
+                </p>
+              ) : null}
+            </div>
           ) : null}
           {onOpenActiveWagon ? (
             <div
@@ -502,6 +552,12 @@ export function RealmHud({
   const [surface, setSurface] = useState<RealmMenuSurface>('closed');
   const [selectedWorkerId, setSelectedWorkerId] = useState<string | undefined>(undefined);
   const [collecting, setCollecting] = useState(false);
+  const [recallingAllWorkers, setRecallingAllWorkers] = useState(false);
+  const [confirmedRecallAllSignature, setConfirmedRecallAllSignature] = useState<
+    string | undefined
+  >(undefined);
+  const [recallAllWorkersFailed, setRecallAllWorkersFailed] = useState(false);
+  const recallAllWorkersInFlightRef = useRef(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const wasOpenRef = useRef(false);
   const menuId = REALM_MENU_ID;
@@ -560,9 +616,24 @@ export function RealmHud({
     && workerRoster?.workers.length === 4
     && ownedWorkersForUi.every((worker) => privateWorkerIds.has(worker.workerId))
     && workerResourceState?.workerSystemMode === 'active';
-  const availableWorkers = genericWorkersActive
-    ? ownedWorkersForUi.filter((worker) => worker.status === 'idle').length
+  const deployedWorkerCount = genericWorkersActive
+    ? ownedWorkersForUi.filter((worker) => worker.status !== 'idle').length
     : 0;
+  const recallableWorkerCount = genericWorkersActive
+    ? ownedWorkersForUi.filter(realmWorkerCanRecall).length
+    : 0;
+  const recallableWorkerSignature = genericWorkersActive
+    ? ownedWorkersForUi
+      .filter(realmWorkerCanRecall)
+      .map((worker) => `${worker.workerId}:${worker.timelineRevision}`)
+      .sort()
+      .join('|')
+    : '';
+  const recallAllWorkersScope = `${identity.fid}:${recallableWorkerSignature}`;
+  const recallAllWorkersScopeRef = useRef(recallAllWorkersScope);
+  recallAllWorkersScopeRef.current = recallAllWorkersScope;
+  const recallAllWorkersConfirmed = recallableWorkerSignature.length > 0
+    && confirmedRecallAllSignature === recallAllWorkersScope;
   const selectedWorker = genericWorkersActive && selectedWorkerId
     ? ownedWorkersForUi.find((worker) => worker.workerId === selectedWorkerId)
     : undefined;
@@ -594,6 +665,13 @@ export function RealmHud({
     }
   }, [genericWorkersActive, selectedWorker, surface]);
 
+  useEffect(() => {
+    // Command feedback belongs to one caller-bound authoritative assignment
+    // set. Never carry success or failure into a refreshed projection.
+    setConfirmedRecallAllSignature(undefined);
+    setRecallAllWorkersFailed(false);
+  }, [recallAllWorkersScope]);
+
   const closeThen = (action: () => void) => {
     setSurface('closed');
     action();
@@ -609,6 +687,36 @@ export function RealmHud({
       // optimistic balance. Keep this transient control free of error detail.
     } finally {
       setCollecting(false);
+    }
+  };
+
+  const recallAll = async () => {
+    if (
+      !genericWorkersActive
+      || !onRecallAllWorkers
+      || recallableWorkerCount === 0
+      || recallAllWorkersConfirmed
+      || recallAllWorkersInFlightRef.current
+    ) return;
+    const submittedScope = recallAllWorkersScope;
+    recallAllWorkersInFlightRef.current = true;
+    setRecallingAllWorkers(true);
+    setConfirmedRecallAllSignature(undefined);
+    setRecallAllWorkersFailed(false);
+    try {
+      await onRecallAllWorkers();
+      if (recallAllWorkersScopeRef.current === submittedScope) {
+        setConfirmedRecallAllSignature(submittedScope);
+      }
+    } catch {
+      // The authoritative worker projection remains unchanged until the
+      // provider confirms a reducer result. Keep command details private.
+      if (recallAllWorkersScopeRef.current === submittedScope) {
+        setRecallAllWorkersFailed(true);
+      }
+    } finally {
+      recallAllWorkersInFlightRef.current = false;
+      setRecallingAllWorkers(false);
     }
   };
 
@@ -651,7 +759,11 @@ export function RealmHud({
           pendingYield={pendingYield}
           canCollect={!genericWorkersActive && onCollectResources !== undefined}
           activeWagons={genericWorkersActive ? [] : activeWagons}
-          workerAvailability={genericWorkersActive ? availableWorkers : undefined}
+          deployedWorkerCount={genericWorkersActive ? deployedWorkerCount : undefined}
+          recallableWorkerCount={genericWorkersActive ? recallableWorkerCount : undefined}
+          recallingAllWorkers={recallingAllWorkers}
+          recallAllWorkersConfirmed={recallAllWorkersConfirmed}
+          recallAllWorkersFailed={recallAllWorkersFailed}
           onClose={() => setSurface('closed')}
           onCollect={() => void collect()}
           onExplore={() => closeThen(() => onRequestExplore?.())}
@@ -662,6 +774,7 @@ export function RealmHud({
           onRequestReturn={() => closeThen(onRequestReturn)}
           onSettings={() => setSurface('settings')}
           onWorkers={genericWorkersActive ? () => setSurface('workers') : undefined}
+          onRecallAllWorkers={onRecallAllWorkers ? () => void recallAll() : undefined}
         />
       ) : null}
 

@@ -999,6 +999,8 @@ export type RealmCameraController = Readonly<{
   endDirectManipulation: () => void;
   frameAt: (focus: RealmKeepFocus, zoom: number) => void;
   focusAt: (focus: RealmKeepFocus) => void;
+  /** Centers a world record without changing the player's chosen zoom. */
+  locateAt: (focus: RealmKeepFocus) => void;
   focusKeep: () => void;
   captureState: () => RealmCameraControllerState;
   getMode: () => RealmCameraMode;
@@ -1575,6 +1577,23 @@ export function createRealmCameraController(
       targetFocus = normalizeKeepFocus(next, targetFocus);
       targetPan = { x: targetFocus.x, z: targetFocus.z };
       setZoomTarget(1);
+    },
+    locateAt: (next) => {
+      directManipulation = false;
+      manualPlanarControl = false;
+      targetFocusIsKeep = false;
+      targetFocus = normalizeKeepFocus(next, targetFocus);
+      targetPan = { x: targetFocus.x, z: targetFocus.z };
+      zoomAnchor = null;
+      const clamped = clampPlanarState(
+        targetZoom,
+        targetPan,
+        targetFocus,
+        targetComposition
+      );
+      targetPan = clamped.pan;
+      targetFocus = clamped.focus;
+      invalidate();
     },
     focusKeep: () => {
       directManipulation = false;

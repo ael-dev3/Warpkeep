@@ -44,6 +44,7 @@ function sceneHandle() {
     getCameraAttestation: () => null,
     getSceneBuildSequence: () => 1,
     focusCastle: noOp,
+    locateCastle: noOp,
     focusCell: vi.fn(),
     frameFoundingDistrict: noOp,
     focusKeep: noOp,

@@ -279,6 +279,24 @@
   border-block: 1px solid rgb(231 199 121 / 14%);
 }
 
+.realm-profile-menu__worker-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.42rem;
+  padding-block: 0.08rem;
+}
+
+.realm-profile-menu__worker-error {
+  margin: 0;
+  padding: 0.52rem 0.62rem;
+  border: 1px solid rgb(233 119 119 / 42%);
+  border-radius: 0.45rem;
+  background: rgb(119 27 39 / 24%);
+  color: #ffd8d8;
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+
 .realm-profile-menu__active-wagons > p {
   margin: 0 0 0.08rem;
   color: var(--realm-lavender);

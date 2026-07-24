@@ -6,6 +6,16 @@ full engineering record.
 
 ## [Unreleased]
 
+- Added four persistent, server-governed workers for every founded keep. Each
+  worker can gather Gold, Food, Wood, or Stone, while every resource node still
+  accepts only one worker.
+- Added a deployed-worker count and guarded Recall All command to the player
+  menu, alongside the detailed four-worker roster.
+- Replaced the old castle action in an owned gathering record with Recall
+  Worker. Other keepers' worker records remain public and read-only.
+- Made the keeper portrait inside a worker record lead back to that keeper's
+  castle without changing the player's current camera zoom.
+
 ## [0.3.14] — 2026-07-22
 
 - Made the Realm recover from temporary graphics interruptions while preserving

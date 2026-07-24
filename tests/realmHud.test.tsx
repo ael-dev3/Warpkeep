@@ -96,7 +96,7 @@ function workerUiFixture() {
   return { workerProjection, workerRoster, workerResourceState };
 }
 
-function assignedWorkerUiFixture() {
+function assignedWorkerUiFixture(timelineRevision = 1) {
   const base = workerUiFixture();
   const assigned = {
     ...base.workerProjection.ownedWorkers[0]!,
@@ -108,7 +108,7 @@ function assignedWorkerUiFixture() {
     gatheringEndsAtMicros: 100n,
     returnsAtMicros: 120n,
     routeSteps: 1,
-    timelineRevision: 1,
+    timelineRevision,
     revision: 2n
   };
   const ownedWorkers = [
@@ -133,7 +133,7 @@ function assignedWorkerUiFixture() {
       startedAtMicros: 10n,
       arrivesAtMicros: 20n,
       gatheringEndsAtMicros: 100n,
-      timelineRevision: 1
+      timelineRevision
     }]
   };
   const workerRoster: WorkerRosterPresentation = {
@@ -363,7 +363,7 @@ describe('RealmHud', () => {
   it('puts the exact owner roster inside the PFP menu and wires worker dispatch', async () => {
     const fixture = workerUiFixture();
     const onDispatchWorker = vi.fn().mockResolvedValue(undefined);
-    render(
+    const view = render(
       <RealmHud
         {...commonProps()}
         {...fixture}
@@ -380,11 +380,13 @@ describe('RealmHud', () => {
     expect(screen.getAllByRole('button')).toEqual([profileTrigger]);
     fireEvent.click(profileTrigger);
     const menu = screen.getByRole('dialog', { name: 'REALM MENU' });
-    expect(within(menu).getByRole('button', { name: /WORKERS.*4 of 4 available/i }))
+    expect(within(menu).getByRole('button', { name: /WORKERS.*0\/4 deployed/i }))
       .not.toBeNull();
+    expect(within(menu).getByRole('button', { name: /RECALL ALL TO KEEP/i })
+      .hasAttribute('disabled')).toBe(true);
     expect(screen.queryByRole('button', { name: /Open workers/i })).toBeNull();
 
-    fireEvent.click(within(menu).getByRole('button', { name: /WORKERS/i }));
+    fireEvent.click(within(menu).getByRole('button', { name: /^WORKERS/i }));
     const commandCenter = screen.getByRole('dialog', { name: 'WORKERS' });
     expect(commandCenter.id).toBe('realm-worker-command-center');
     expect(profileTrigger.getAttribute('aria-controls')).toBe('realm-worker-command-center');
@@ -476,8 +478,10 @@ describe('RealmHud', () => {
     expect(within(resourceRail).queryByRole('button', { name: /ready to collect/i })).toBeNull();
 
     const { dialog } = openRealmMenu();
-    expect(within(dialog).getByRole('button', { name: /WORKERS.*3 of 4 available/i }))
+    expect(within(dialog).getByRole('button', { name: /WORKERS.*1\/4 deployed/i }))
       .not.toBeNull();
+    expect(within(dialog).getByRole('button', { name: /RECALL ALL TO KEEP/i })
+      .hasAttribute('disabled')).toBe(true);
     expect(within(dialog).queryByRole('button', { name: /COLLECT YIELD/i })).toBeNull();
     expect(within(dialog).queryByRole('button', { name: /FOOD WAGON/i })).toBeNull();
     expect(dialog.textContent).not.toContain('Settle available resources');
@@ -501,7 +505,7 @@ describe('RealmHud', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: /Open Realm menu/i }));
-    fireEvent.click(screen.getByRole('button', { name: /WORKERS/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^WORKERS/i }));
     const commandCenter = screen.getByRole('dialog', { name: 'WORKERS' });
     expect(within(commandCenter).getByText('3 Stone')).not.toBeNull();
     const recall = within(commandCenter).getByRole('button', { name: 'RETURN' });
@@ -539,7 +543,7 @@ describe('RealmHud', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: /Open Realm menu/i }));
-    fireEvent.click(screen.getByRole('button', { name: /WORKERS/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^WORKERS/i }));
     const commandCenter = screen.getByRole('dialog', { name: 'WORKERS' });
     const recallAll = within(commandCenter).getByRole('button', {
       name: 'RETURN ALL TO KEEP'
@@ -564,6 +568,118 @@ describe('RealmHud', () => {
       within(commandCenter).getByRole('button', { name: 'RETURN ALL TO KEEP' })
         .hasAttribute('disabled')
     ).toBe(false));
+  });
+
+  it('recalls every recallable Worker directly from the PFP menu without optimistic state', async () => {
+    const fixture = assignedWorkerUiFixture();
+    let resolveRecallAll!: () => void;
+    const pendingRecallAll = new Promise<void>((resolve) => { resolveRecallAll = resolve; });
+    const onRecallAllWorkers = vi.fn(() => pendingRecallAll);
+    const view = render(
+      <RealmHud
+        {...commonProps()}
+        {...fixture}
+        onRecallAllWorkers={onRecallAllWorkers}
+      />
+    );
+
+    const { dialog } = openRealmMenu();
+    const workerControls = within(dialog).getByRole('group', { name: 'Worker controls' });
+    const recallAll = within(workerControls).getByRole('button', {
+      name: /RECALL ALL TO KEEP.*1 worker can return/i
+    });
+    expect(within(workerControls).getByRole('button', { name: /WORKERS.*1\/4 deployed/i }))
+      .not.toBeNull();
+
+    fireEvent.click(recallAll);
+    fireEvent.click(recallAll);
+
+    expect(onRecallAllWorkers).toHaveBeenCalledOnce();
+    expect(within(workerControls).getByRole('button', { name: /RECALLING/i })
+      .hasAttribute('disabled')).toBe(true);
+    expect(within(workerControls).getByRole('button', { name: /WORKERS.*1\/4 deployed/i })
+      .hasAttribute('disabled')).toBe(true);
+
+    await act(async () => {
+      resolveRecallAll();
+      await pendingRecallAll;
+    });
+    await waitFor(() => expect(
+      within(workerControls).getByRole('button', {
+        name: /RECALL SENT.*Awaiting the next Realm update/i
+      })
+        .hasAttribute('disabled')
+    ).toBe(true));
+    expect(within(workerControls).getByRole('button', { name: /WORKERS.*1\/4 deployed/i }))
+      .not.toBeNull();
+
+    view.rerender(
+      <RealmHud
+        {...commonProps()}
+        {...assignedWorkerUiFixture(2)}
+        onRecallAllWorkers={onRecallAllWorkers}
+      />
+    );
+    await waitFor(() => expect(
+      within(workerControls).getByRole('button', { name: /RECALL ALL TO KEEP/i })
+        .hasAttribute('disabled')
+    ).toBe(false));
+  });
+
+  it('fails a PFP-menu recall closed and allows an explicit retry', async () => {
+    const fixture = assignedWorkerUiFixture();
+    const onRecallAllWorkers = vi.fn()
+      .mockRejectedValueOnce(new Error('private command failure'))
+      .mockResolvedValueOnce(undefined);
+    render(
+      <RealmHud
+        {...commonProps()}
+        {...fixture}
+        onRecallAllWorkers={onRecallAllWorkers}
+      />
+    );
+
+    const { dialog } = openRealmMenu();
+    const recallAll = within(dialog).getByRole('button', { name: /RECALL ALL TO KEEP/i });
+    fireEvent.click(recallAll);
+
+    expect((await within(dialog).findByRole('alert')).textContent).toBe(
+      'The recall could not be confirmed. Try the same action again.'
+    );
+    expect(dialog.textContent).not.toContain('private command failure');
+    expect(within(dialog).getByRole('button', { name: /WORKERS.*1\/4 deployed/i }))
+      .not.toBeNull();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: /RECALL ALL TO KEEP/i }));
+    await waitFor(() => expect(onRecallAllWorkers).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(within(dialog).queryByRole('alert')).toBeNull());
+  });
+
+  it('clears stale PFP-menu failure feedback when the authoritative assignment changes', async () => {
+    const onRecallAllWorkers = vi.fn().mockRejectedValue(new Error('not confirmed'));
+    const view = render(
+      <RealmHud
+        {...commonProps()}
+        {...assignedWorkerUiFixture()}
+        onRecallAllWorkers={onRecallAllWorkers}
+      />
+    );
+
+    const { dialog } = openRealmMenu();
+    fireEvent.click(within(dialog).getByRole('button', { name: /RECALL ALL TO KEEP/i }));
+    expect(await within(dialog).findByRole('alert')).not.toBeNull();
+
+    view.rerender(
+      <RealmHud
+        {...commonProps()}
+        {...assignedWorkerUiFixture(2)}
+        onRecallAllWorkers={onRecallAllWorkers}
+      />
+    );
+
+    await waitFor(() => expect(within(dialog).queryByRole('alert')).toBeNull());
+    expect(within(dialog).getByRole('button', { name: /RECALL ALL TO KEEP/i })
+      .hasAttribute('disabled')).toBe(false);
   });
 
   it('renders zero-valued caller-bound resources in the fixed top-rail order', () => {

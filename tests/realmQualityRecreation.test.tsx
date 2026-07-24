@@ -81,6 +81,7 @@ const mocked = vi.hoisted(() => {
   const handles: Array<{
     dispose: ReturnType<typeof vi.fn>;
     focusCastle: ReturnType<typeof vi.fn>;
+    locateCastle: ReturnType<typeof vi.fn>;
     focusCell: ReturnType<typeof vi.fn>;
     frameFoundingDistrict: ReturnType<typeof vi.fn>;
     focusKeep: ReturnType<typeof vi.fn>;
@@ -97,6 +98,7 @@ const mocked = vi.hoisted(() => {
     const handle = {
       dispose: vi.fn(),
       focusCastle: vi.fn(),
+      locateCastle: vi.fn(),
       focusCell: vi.fn(),
       frameFoundingDistrict: vi.fn(),
       focusKeep: vi.fn(),
@@ -279,7 +281,7 @@ function activeFoodWagonRealm() {
   return { expedition, occupation, site, snapshot };
 }
 
-function peerWorkerOccupationRealm() {
+function workerOccupationRealm(activeOwner: 'peer' | 'viewer') {
   const candidate = createCanonicalGenesisCandidate({
     ownFid: CANONICAL_TEST_FID,
     peerFid: 77
@@ -287,9 +289,11 @@ function peerWorkerOccupationRealm() {
   const site = CANONICAL_TIER_I_STONE_SITES_V1[0]!;
   const peerCastle = candidate.castles.find((castle) => castle.ownerFid === 77);
   if (!peerCastle) throw new Error('missing canonical peer worker fixture');
+  const activeCastle = activeOwner === 'viewer' ? candidate.ownCastle : peerCastle;
+  if (!activeCastle) throw new Error('missing canonical active worker castle fixture');
   const workers = candidate.castles.flatMap((castle) => (
     ([1, 2, 3, 4] as const).map((ordinal) => {
-      const gathering = castle.castleId === peerCastle.castleId && ordinal === 1;
+      const gathering = castle.castleId === activeCastle.castleId && ordinal === 1;
       return Object.freeze({
         workerId: `genesis-001-castle-${castle.castleId}-worker-${String(ordinal).padStart(2, '0')}`,
         ordinal,
@@ -312,10 +316,10 @@ function peerWorkerOccupationRealm() {
     })
   ));
   const activeWorker = workers.find((worker) => (
-    worker.originCastleId === peerCastle.castleId && worker.ordinal === 1
+    worker.originCastleId === activeCastle.castleId && worker.ordinal === 1
   ));
   if (!activeWorker || activeWorker.status !== 'gathering') {
-    throw new Error('missing active peer worker fixture');
+    throw new Error('missing active worker fixture');
   }
   const snapshot = validate({
     ...candidate,
@@ -355,7 +359,15 @@ function peerWorkerOccupationRealm() {
       timelineRevision: activeWorker.timelineRevision
     }]
   });
-  return { peerCastle, site, snapshot };
+  return { activeWorker, site, snapshot };
+}
+
+function peerWorkerOccupationRealm() {
+  return workerOccupationRealm('peer');
+}
+
+function viewerWorkerOccupationRealm() {
+  return workerOccupationRealm('viewer');
 }
 
 function degradedActiveWorkerOccupationRealm() {
@@ -774,6 +786,105 @@ describe('live realm quality recreation', () => {
     expect(mocked.createRealmScene).toHaveBeenCalledTimes(2);
     expect(mocked.handles[1]!.focusCastle).toHaveBeenCalledWith(2);
     expect(mocked.handles[1]!.frameFoundingDistrict).not.toHaveBeenCalled();
+  });
+
+  it('restores a resource-record castle location without turning it into close castle focus', async () => {
+    installWebGlProbe();
+    const fixture = peerWorkerOccupationRealm();
+    const { rerender } = render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={fixture.snapshot}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+    const initialOptions = mocked.createRealmScene.mock.calls[0]![0];
+    const initialScene = mocked.handles[0]!;
+    act(() => {
+      initialOptions.onCastlesReady?.(2);
+      initialOptions.onResourceProjection?.({
+        width: 1_200,
+        height: 800,
+        markers: [{
+          resource: 'stone',
+          siteId: fixture.site.siteId,
+          x: 600,
+          y: 400,
+          depth: 4,
+          visible: true
+        }]
+      });
+    });
+
+    fireEvent.click(screen.getByRole('button', {
+      name: /Inspect @peerkeeper gathering at Stone Quarry/i
+    }));
+    const castleLocation = screen.getByRole('button', {
+      name: /Focus @peerkeeper's castle on the map/i
+    });
+    fireEvent.click(castleLocation);
+
+    expect(initialScene.locateCastle).toHaveBeenCalledOnce();
+    expect(initialScene.locateCastle).toHaveBeenCalledWith(2);
+    expect(initialScene.focusCastle).not.toHaveBeenCalled();
+    expect(document.querySelector('[data-resource-occupant-panel="true"]')).not.toBeNull();
+
+    rerender(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={fixture.snapshot}
+        onRequestReturn={vi.fn()}
+        qualityOverride="high"
+      />
+    );
+
+    expect(mocked.createRealmScene).toHaveBeenCalledTimes(2);
+    act(() => mocked.createRealmScene.mock.calls[1]![0].onCastlesReady?.(2));
+    expect(mocked.handles[1]!.locateCastle).toHaveBeenCalledWith(2);
+    expect(mocked.handles[1]!.focusCastle).not.toHaveBeenCalled();
+    expect(document.querySelector('[data-resource-occupant-panel="true"]')).not.toBeNull();
+  });
+
+  it('forwards the exact viewer-owned worker recall from the projected resource record', async () => {
+    installWebGlProbe();
+    const fixture = viewerWorkerOccupationRealm();
+    const onRecallWorker = vi.fn().mockResolvedValue(undefined);
+    render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={fixture.snapshot}
+        onRecallWorker={onRecallWorker}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+    const options = mocked.createRealmScene.mock.calls[0]![0];
+    act(() => {
+      options.onCastlesReady?.(2);
+      options.onResourceProjection?.({
+        width: 1_200,
+        height: 800,
+        markers: [{
+          resource: 'stone',
+          siteId: fixture.site.siteId,
+          x: 600,
+          y: 400,
+          depth: 4,
+          visible: true
+        }]
+      });
+    });
+
+    fireEvent.click(screen.getByRole('button', {
+      name: /Inspect YOUR WORKER at Stone Quarry/i
+    }));
+    fireEvent.click(screen.getByRole('button', { name: /Recall Worker to Keep/i }));
+
+    await waitFor(() => {
+      expect(onRecallWorker).toHaveBeenCalledOnce();
+      expect(onRecallWorker).toHaveBeenCalledWith(fixture.activeWorker.workerId);
+    });
   });
 
   it('keeps every direct label node stable across zoom and LOD projection frames', async () => {
