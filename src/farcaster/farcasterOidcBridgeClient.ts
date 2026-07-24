@@ -27,9 +27,17 @@ const MAX_RESPONSE_BYTES = 32_768;
 const MAX_PROOF_MESSAGE_LENGTH = 8 * 1_024;
 const BRIDGE_REQUEST_TIMEOUT_MS = 10_000;
 const BRIDGE_EXCHANGE_TIMEOUT_MS = 20_000;
+const BRIDGE_EXCHANGE_RETRY_DELAYS_MS = Object.freeze([250, 750] as const);
 const FARCASTER_SERVER_SESSION_MAX_TTL_MS = 30 * 24 * 60 * 60 * 1_000;
 const NONCE_PATTERN = /^[A-Za-z0-9]{8,128}$/;
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._~-]{8,256}$/;
+const RETRYABLE_EXCHANGE_ERROR_CODES = new Set([
+  'challenge_unavailable',
+  'binding_verification_unavailable',
+  'verification_unavailable',
+  'authorization_unavailable',
+  'signing_unavailable'
+]);
 
 export type FarcasterOidcBridgeFetch = (
   input: RequestInfo | URL,
@@ -51,6 +59,14 @@ export class FarcasterOidcBridgeClientError extends Error {
   constructor(message = 'The Hegemony verification service could not confirm this sign-in.') {
     super(message);
   }
+}
+
+const retryableExchangeErrors = new WeakSet<FarcasterOidcBridgeClientError>();
+
+function createRetryableExchangeError() {
+  const error = new FarcasterOidcBridgeClientError();
+  retryableExchangeErrors.add(error);
+  return error;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -294,6 +310,19 @@ function hasJsonContentType(response: Response) {
   return response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase() === 'application/json';
 }
 
+function isRetryableBridgeErrorEnvelope(value: unknown, allowedCodes: ReadonlySet<string>) {
+  if (!isRecord(value) || !hasOnlyAllowedKeys(value, ['error']) || !isRecord(value.error)) {
+    return false;
+  }
+  const error = value.error;
+  return hasOnlyAllowedKeys(error, ['code', 'message'])
+    && typeof error.code === 'string'
+    && allowedCodes.has(error.code)
+    && typeof error.message === 'string'
+    && error.message.length > 0
+    && error.message.length <= 256;
+}
+
 async function readBoundedResponseText(response: Response, signal?: AbortSignal) {
   const advertisedLength = response.headers.get('content-length');
   if (
@@ -355,7 +384,8 @@ async function postJson(
   url: URL,
   body: unknown,
   callerSignal?: AbortSignal,
-  timeoutMs = BRIDGE_REQUEST_TIMEOUT_MS
+  timeoutMs = BRIDGE_REQUEST_TIMEOUT_MS,
+  retryableErrorCodes?: ReadonlySet<string>
 ) {
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -377,7 +407,31 @@ async function postJson(
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body)
     });
-    if (controller.signal.aborted || !response.ok || !hasJsonContentType(response)) {
+    if (controller.signal.aborted) {
+      throw new FarcasterOidcBridgeClientError();
+    }
+    if (!response.ok) {
+      let retryable = false;
+      if (
+        response.status === 503
+        && retryableErrorCodes
+        && hasJsonContentType(response)
+      ) {
+        const responseText = await readBoundedResponseText(response, controller.signal);
+        try {
+          retryable = isRetryableBridgeErrorEnvelope(
+            JSON.parse(responseText) as unknown,
+            retryableErrorCodes
+          );
+        } catch {
+          retryable = false;
+        }
+      }
+      throw retryable
+        ? createRetryableExchangeError()
+        : new FarcasterOidcBridgeClientError();
+    }
+    if (!hasJsonContentType(response)) {
       throw new FarcasterOidcBridgeClientError();
     }
     const responseText = await readBoundedResponseText(response, controller.signal);
@@ -385,11 +439,14 @@ async function postJson(
       throw new FarcasterOidcBridgeClientError();
     }
     return JSON.parse(responseText) as unknown;
-  } catch {
+  } catch (error) {
     // Rejecting on status, MIME, length, JSON, or caller cancellation must
     // also stop any unread response body. Otherwise an invalid bridge can keep
     // streaming after the UI has already failed closed.
     controller.abort();
+    if (error instanceof FarcasterOidcBridgeClientError) {
+      throw error;
+    }
     throw new FarcasterOidcBridgeClientError();
   } finally {
     if (timeout !== undefined) {
@@ -439,6 +496,53 @@ async function postNoContent(
     }
     callerSignal?.removeEventListener('abort', abort);
   }
+}
+
+function waitForExchangeRetry(
+  delayMilliseconds: number,
+  monotonicDeadline: number,
+  wallDeadline: number,
+  signal?: AbortSignal
+) {
+  return new Promise<void>((resolve, reject) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const abort = () => {
+      if (timer !== undefined) clearTimeout(timer);
+      signal?.removeEventListener('abort', abort);
+      reject(new FarcasterOidcBridgeClientError());
+    };
+    if (
+      signal?.aborted
+      || readExchangeRemainingMilliseconds(monotonicDeadline, wallDeadline) <= delayMilliseconds
+    ) {
+      abort();
+      return;
+    }
+    signal?.addEventListener('abort', abort, { once: true });
+    timer = setTimeout(() => {
+      signal?.removeEventListener('abort', abort);
+      resolve();
+    }, delayMilliseconds);
+  });
+}
+
+function readMonotonicMilliseconds() {
+  const now = globalThis.performance?.now();
+  if (typeof now !== 'number' || !Number.isFinite(now) || now < 0) {
+    throw new FarcasterOidcBridgeClientError();
+  }
+  return now;
+}
+
+function readExchangeRemainingMilliseconds(
+  monotonicDeadline: number,
+  wallDeadline: number
+) {
+  const remaining = Math.min(
+    monotonicDeadline - readMonotonicMilliseconds(),
+    wallDeadline - Date.now()
+  );
+  return Number.isFinite(remaining) ? remaining : 0;
 }
 
 /**
@@ -515,13 +619,60 @@ export function createFarcasterOidcBridgeClient(
       if (!body) {
         throw new FarcasterOidcBridgeClientError();
       }
-      const result = await postJson(
-        fetchImplementation,
-        exchangeUrl,
-        body,
-        requestOptions?.signal,
-        BRIDGE_EXCHANGE_TIMEOUT_MS
+      const initialWallRemaining = request.expiresAt - Date.now();
+      const exchangeBudget = Math.min(
+        BRIDGE_EXCHANGE_TIMEOUT_MS,
+        initialWallRemaining
       );
+      const monotonicDeadline = readMonotonicMilliseconds() + exchangeBudget;
+      if (
+        !Number.isFinite(monotonicDeadline)
+        || !Number.isFinite(exchangeBudget)
+        || exchangeBudget <= 0
+      ) {
+        throw new FarcasterOidcBridgeClientError();
+      }
+      let result: unknown;
+      for (let attempt = 0; ; attempt += 1) {
+        const remainingMilliseconds = readExchangeRemainingMilliseconds(
+          monotonicDeadline,
+          request.expiresAt
+        );
+        if (!Number.isFinite(remainingMilliseconds) || remainingMilliseconds <= 0) {
+          throw new FarcasterOidcBridgeClientError();
+        }
+        try {
+          result = await postJson(
+            fetchImplementation,
+            exchangeUrl,
+            body,
+            requestOptions?.signal,
+            remainingMilliseconds,
+            RETRYABLE_EXCHANGE_ERROR_CODES
+          );
+          break;
+        } catch (error) {
+          const retryDelay = BRIDGE_EXCHANGE_RETRY_DELAYS_MS[attempt];
+          if (!(error instanceof FarcasterOidcBridgeClientError)) {
+            throw error;
+          }
+          // Retry provenance is a one-shot internal capability. Consume it
+          // before any branch so an exhausted error can never escape and be
+          // replayed through a later injected transport.
+          if (!retryableExchangeErrors.delete(error)) {
+            throw error;
+          }
+          if (retryDelay === undefined) {
+            throw new FarcasterOidcBridgeClientError();
+          }
+          await waitForExchangeRetry(
+            retryDelay,
+            monotonicDeadline,
+            request.expiresAt,
+            requestOptions?.signal
+          );
+        }
+      }
       const session = readSafeSessionResponse(
         result,
         issuer,
