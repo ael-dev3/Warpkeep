@@ -572,6 +572,49 @@ describe('completed Farcaster proof verification', () => {
     expect(Object.isFrozen(identity.verifications)).toBe(true);
   });
 
+  it('trusts the verified auth method when the relay defaults an auth-address signature to custody', async () => {
+    const fid = 12_345;
+    const client = createClient({
+      verifySignInMessage: vi.fn(async () => verificationResult({
+        fid,
+        authMethod: 'authAddress'
+      }, {
+        resources: [`farcaster://fid/${fid}`]
+      }))
+    });
+    const authority = createFarcasterSessionAuthority({ client, now: () => NOW });
+
+    const identity = await authority.verifyCompletedRequest(
+      expectedRequest(),
+      completedStatus({
+        fid,
+        authMethod: 'custody'
+      })
+    );
+
+    expect(identity).toMatchObject({
+      fid,
+      authMethod: 'authAddress'
+    });
+  });
+
+  it('trusts verified custody when the relay labels it as an auth address', async () => {
+    const client = createClient({
+      verifySignInMessage: vi.fn(async () => verificationResult({
+        authMethod: 'custody'
+      }))
+    });
+    const authority = createFarcasterSessionAuthority({ client, now: () => NOW });
+
+    await expect(authority.verifyCompletedRequest(
+      expectedRequest(),
+      completedStatus({ authMethod: 'authAddress' })
+    )).resolves.toMatchObject({
+      fid: 12_345,
+      authMethod: 'custody'
+    });
+  });
+
   it('rejects expired and nonce-mismatched requests before calling verification', async () => {
     const client = createClient();
     const authority = createFarcasterSessionAuthority({ client, now: () => NOW });

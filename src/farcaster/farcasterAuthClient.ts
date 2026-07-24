@@ -688,12 +688,11 @@ export function createFarcasterSessionAuthority(
       if (!isAuthMethod(data.authMethod)) {
         return invalidResponse('The Farcaster verification result was incomplete.');
       }
-      if (completed.authMethod && completed.authMethod !== data.authMethod) {
-        throw new FarcasterAuthClientError(
-          'verification',
-          'The verified Farcaster authentication method did not match the relay response.'
-        );
-      }
+      // The relay's authMethod field is optional transport metadata. Some
+      // wallet/relay paths default an omitted method to `custody`, including
+      // valid signatures that the independent verifier resolves as an
+      // `authAddress`. Authority comes from verifySignInMessage, never from
+      // the relay label.
       validateVerifiedSiweMessage(data.data, expected, data.fid);
       const verifiedAt = Math.floor(now());
       if (!Number.isFinite(verifiedAt) || verifiedAt >= expected.expiresAt) {
