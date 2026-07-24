@@ -336,6 +336,49 @@ describe('Hermes machine-readable output', () => {
     expect(rendered).not.toContain('must-not-escape');
   });
 
+  it('can compose v3 and v4 into one caller-owned envelope without intermediate output', async () => {
+    const output = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const protocolV3Procedure = vi.fn(async () => foundedGenerationV2Status());
+    const resourceV4Procedure = vi.fn(async () => ({
+      allowedFids: 3n,
+      castles: 3n,
+      markAccounts: 3n,
+      resourceAccounts: 0n,
+      missingResourceAccounts: 3n,
+      orphanedResourceAccounts: 0n,
+      resourceInvariantViolations: 0n,
+      protocolVersion: 3,
+      resourcePolicyVersion: GENESIS_RESOURCE_POLICY_VERSION,
+    }));
+    const connection = {
+      procedures: {
+        adminGetAlphaStatusV3: protocolV3Procedure,
+        adminGetAlphaStatusV4: resourceV4Procedure,
+      },
+    };
+
+    const protocolV3 = await readStatus(
+      connection as never,
+      'v3',
+      false,
+      undefined,
+      false,
+    );
+    const resourceV4 = await readStatus(
+      connection as never,
+      'v4',
+      false,
+      undefined,
+      false,
+    );
+
+    expect(protocolV3Procedure).toHaveBeenCalledOnce();
+    expect(resourceV4Procedure).toHaveBeenCalledOnce();
+    expect(output).not.toHaveBeenCalled();
+    expect(protocolV3).not.toHaveProperty('identity');
+    expect(resourceV4).not.toHaveProperty('fid');
+  });
+
   it('projects the Worker v12 inspection to one exact aggregate-only contract', async () => {
     const output = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     const status = workerSystemStatusV12({
@@ -641,6 +684,20 @@ describe('Hermes command-line boundary', () => {
       inspection: true,
       machineReadableInspection: true,
     });
+    expect(parseHermesArguments(['inspect-publish-pre-v12', '--json'])).toMatchObject({
+      command: 'inspect-publish-pre-v12',
+      inspection: true,
+      machineReadableInspection: true,
+    });
+    expect(parseHermesArguments(['inspect-publish-post-v12', '--json'])).toMatchObject({
+      command: 'inspect-publish-post-v12',
+      inspection: true,
+      machineReadableInspection: true,
+    });
+    expect(() => parseHermesArguments(['inspect-publish-pre-v12', '--confirm']))
+      .toThrow(/invalid for this operation/i);
+    expect(() => parseHermesArguments(['inspect-publish-post-v12', '--dry-run']))
+      .toThrow(/invalid for this operation/i);
     expect(parseHermesArguments(['seed-alpha-component', 'gold', '--dry-run'])).toMatchObject({
       command: 'seed-alpha-component',
       inspection: false,

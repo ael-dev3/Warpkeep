@@ -8,6 +8,7 @@ import type {
 } from '../settings/graphicsPreference';
 import {
   boundedRenderedWebglQaReadyMilliseconds,
+  RENDERED_WEBGL_QA_ACTIVE_WORKER_FIXTURE_MARKER,
   RENDERED_WEBGL_QA_CASTLE_COUNT,
   RENDERED_WEBGL_QA_FIXTURE_ID,
   RENDERED_WEBGL_QA_RENDERER_ABSENCE_GRACE_MILLISECONDS,
@@ -22,9 +23,20 @@ import {
 } from './renderedWebglQaFixture';
 import type { RealmObserverHarnessRealm } from './realmObserverSnapshot';
 import { createZeroQaResourcePresentation } from './qaResourceFixture';
+import type {
+  ReadyWorkerProjection,
+  ReadyWorkerResourceState,
+  WorkerRosterPresentation
+} from '../components/realm/realmWorkerPresentation';
+
+type RenderedWebglQaHarnessRealm = RealmObserverHarnessRealm & Readonly<{
+  workerProjection?: ReadyWorkerProjection;
+  workerResourceState?: ReadyWorkerResourceState;
+  workerRoster?: WorkerRosterPresentation;
+}>;
 
 type RenderedWebglQaPhase =
-  | Readonly<{ kind: 'active'; realm: RealmObserverHarnessRealm }>
+  | Readonly<{ kind: 'active'; realm: RenderedWebglQaHarnessRealm }>
   | Readonly<{ kind: 'error' }>
   | Readonly<{ kind: 'closed' }>;
 
@@ -38,10 +50,10 @@ export type RenderedWebglQaHarnessProps = Readonly<{
   presentationMode?: RenderedWebglQaPresentationMode;
   quality: RealmQuality;
   /** Test seam for the deterministic local fixture only. */
-  createFixtureRealm?: () => RealmObserverHarnessRealm;
+  createFixtureRealm?: () => RenderedWebglQaHarnessRealm;
 }>;
 
-function initialPhase(createFixtureRealm: () => RealmObserverHarnessRealm): RenderedWebglQaPhase {
+function initialPhase(createFixtureRealm: () => RenderedWebglQaHarnessRealm): RenderedWebglQaPhase {
   try {
     return { kind: 'active', realm: createFixtureRealm() };
   } catch {
@@ -89,7 +101,13 @@ function resourceOccupationCount(phase: RenderedWebglQaPhase) {
   return (phase.realm.snapshot.goldNodeOccupations?.length ?? 0)
     + (phase.realm.snapshot.foodNodeOccupations?.length ?? 0)
     + (phase.realm.snapshot.woodNodeOccupations?.length ?? 0)
-    + (phase.realm.snapshot.stoneNodeOccupations?.length ?? 0);
+    + (phase.realm.snapshot.stoneNodeOccupations?.length ?? 0)
+    + (phase.realm.snapshot.workerOccupations?.length ?? 0);
+}
+
+async function acceptSyntheticWorkerCommand() {
+  // This dev-only harness intentionally exercises confirmed command UI without
+  // providing a connection, reducer, authentication token, or durable state.
 }
 
 export function RenderedWebglQaHarness({
@@ -199,6 +217,10 @@ export function RenderedWebglQaHarness({
         data-castle-count={RENDERED_WEBGL_QA_CASTLE_COUNT}
         data-fixture={RENDERED_WEBGL_QA_FIXTURE_ID}
         data-fixture-variant={fixtureVariant}
+        {...(fixtureVariant === 'worker-active'
+          ? { 'data-active-worker-fixture-marker':
+            RENDERED_WEBGL_QA_ACTIVE_WORKER_FIXTURE_MARKER }
+          : {})}
         data-presentation-mode={presentationMode}
         data-quality={quality}
         data-resource-occupation-count={resourceOccupationCount(phase)}
@@ -226,6 +248,24 @@ export function RenderedWebglQaHarness({
           qualityOverride={quality}
           resources={presentationMode === 'player'
             ? createZeroQaResourcePresentation(phase.realm.identity)
+            : undefined}
+          workerProjection={presentationMode === 'player'
+            ? phase.realm.workerProjection
+            : undefined}
+          workerResourceState={presentationMode === 'player'
+            ? phase.realm.workerResourceState
+            : undefined}
+          workerRoster={presentationMode === 'player'
+            ? phase.realm.workerRoster
+            : undefined}
+          onDispatchWorker={presentationMode === 'player' && phase.realm.workerProjection
+            ? acceptSyntheticWorkerCommand
+            : undefined}
+          onRecallWorker={presentationMode === 'player' && phase.realm.workerProjection
+            ? acceptSyntheticWorkerCommand
+            : undefined}
+          onRecallAllWorkers={presentationMode === 'player' && phase.realm.workerProjection
+            ? acceptSyntheticWorkerCommand
             : undefined}
           resolvedGraphicsQuality={graphicsPreference === 'auto'
             ? graphicsTierForRealmQuality(quality)

@@ -6,6 +6,22 @@ full engineering record.
 
 ## [Unreleased]
 
+## [0.3.18] — 2026-07-24
+
+- Prepared exactly four permanent workers for every founded keep, with flexible
+  Gold / Food / Wood / Stone assignments across distinct open sites, automatic
+  authoritative settlement, individual recall, and Recall All.
+- Added an owner-bound return for active legacy wagons and a separately
+  confirmed operator cutover that preserves earned resources, clears the exact
+  legacy lifecycle graph, and leaves generic activation closed until every
+  legacy count is zero.
+- Kept occupied-node portraits and records public and read-only while worker
+  commands, balances, ownership, and accounting remain private and
+  server-authoritative.
+- This release becomes live only after the append-only module publication,
+  exact roster backfill, legacy drain, generic activation, matching client
+  deployment, and owner smoke test all succeed.
+
 ## [0.3.17] — 2026-07-24
 
 - Let keepers return from the Realm and re-enter during the same authorized
@@ -159,7 +175,8 @@ full engineering record.
   Lowlands, a first keep, Farcaster sign-in, and an admission-gated shared-world
   foundation.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.17...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.18...HEAD
+[0.3.18]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.17...v0.3.18
 [0.3.17]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.16...v0.3.17
 [0.3.16]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.15...v0.3.16
 [0.3.15]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.14...v0.3.15

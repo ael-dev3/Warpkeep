@@ -74,6 +74,11 @@ type InspectorCase = Readonly<{
     options?: Readonly<{
       focus?: (marker: RealmResourceOccupantMarker) => void;
       recall?: (workerId: string) => Promise<void>;
+      legacyExpeditionId?: string;
+      returnLegacy?: (
+        resourceKind: RealmResourceKind,
+        expeditionId: string
+      ) => Promise<void>;
       legacyDispatchBlocked?: boolean;
       occupancyUnavailable?: boolean;
     }>
@@ -102,6 +107,8 @@ const INSPECTOR_CASES: readonly InspectorCase[] = [
         occupancyUnavailable={options?.occupancyUnavailable}
         onFocusOccupantCastle={options?.focus}
         onRecallWorker={options?.recall}
+        legacyExpeditionId={options?.legacyExpeditionId}
+        onReturnLegacyExpedition={options?.returnLegacy}
         onRequestClose={() => undefined}
       />
     )
@@ -127,6 +134,8 @@ const INSPECTOR_CASES: readonly InspectorCase[] = [
         occupancyUnavailable={options?.occupancyUnavailable}
         onFocusOccupantCastle={options?.focus}
         onRecallWorker={options?.recall}
+        legacyExpeditionId={options?.legacyExpeditionId}
+        onReturnLegacyExpedition={options?.returnLegacy}
         onRequestClose={() => undefined}
       />
     )
@@ -152,6 +161,8 @@ const INSPECTOR_CASES: readonly InspectorCase[] = [
         occupancyUnavailable={options?.occupancyUnavailable}
         onFocusOccupantCastle={options?.focus}
         onRecallWorker={options?.recall}
+        legacyExpeditionId={options?.legacyExpeditionId}
+        onReturnLegacyExpedition={options?.returnLegacy}
         onRequestClose={() => undefined}
       />
     )
@@ -177,6 +188,8 @@ const INSPECTOR_CASES: readonly InspectorCase[] = [
         occupancyUnavailable={options?.occupancyUnavailable}
         onFocusOccupantCastle={options?.focus}
         onRecallWorker={options?.recall}
+        legacyExpeditionId={options?.legacyExpeditionId}
+        onReturnLegacyExpedition={options?.returnLegacy}
         onRequestClose={() => undefined}
       />
     )
@@ -290,6 +303,58 @@ describe('unified occupied resource inspectors', () => {
     expect(recall).toHaveBeenCalledOnce();
     expect(recall).toHaveBeenCalledWith('genesis-001-castle-7-worker-02');
     expect(await screen.findByText('Worker returning…')).not.toBeNull();
+  });
+
+  it.each(INSPECTOR_CASES)(
+    'returns the exact owner-authorized legacy $resource expedition',
+    async ({ resource, siteId, renderPanel }) => {
+      const expeditionId = `00000000-0000-4000-8000-0000000000${
+        resource === 'gold' ? '01'
+          : resource === 'food' ? '02'
+            : resource === 'wood' ? '03'
+              : '04'
+      }`;
+      const returnLegacy = vi.fn(async () => undefined);
+      const ownLegacy = publicOccupant(resource, siteId, {
+        source: 'legacy-expedition',
+        workerId: undefined,
+        workerOrdinal: undefined,
+        timelineRevision: undefined,
+        occupiedByViewer: true,
+        returnsAtMicros: BigInt(Date.now()) * 1_000n + 120_000_000n
+      });
+      render(renderPanel(ownLegacy, {
+        legacyExpeditionId: expeditionId,
+        returnLegacy
+      }));
+
+      fireEvent.click(screen.getByRole('button', {
+        name: /Recall Expedition to Keep/i
+      }));
+      expect(returnLegacy).toHaveBeenCalledOnce();
+      expect(returnLegacy).toHaveBeenCalledWith(resource, expeditionId);
+      expect(await screen.findByText('Expedition returning…')).not.toBeNull();
+    }
+  );
+
+  it('keeps a foreign legacy record read-only even when a command boundary exists', () => {
+    const returnLegacy = vi.fn(async () => undefined);
+    const remoteLegacy = publicOccupant('food', 'genesis-001:food:0001', {
+      source: 'legacy-expedition',
+      workerId: undefined,
+      workerOrdinal: undefined,
+      timelineRevision: undefined,
+      returnsAtMicros: 40n
+    });
+    render(INSPECTOR_CASES[1]!.renderPanel(remoteLegacy, {
+      legacyExpeditionId: '00000000-0000-4000-8000-000000000002',
+      returnLegacy
+    }));
+
+    expect(screen.queryByRole('button', {
+      name: /Recall Expedition to Keep/i
+    })).toBeNull();
+    expect(returnLegacy).not.toHaveBeenCalled();
   });
 
   it('keeps remote, legacy, and malformed worker records read-only', () => {

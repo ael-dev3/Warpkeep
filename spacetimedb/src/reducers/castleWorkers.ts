@@ -14,12 +14,18 @@ import {
   backfillWorkerRoster,
   beginWorkerLegacyDrain,
   castleWorkerRolloutErrorCode,
+  completeWorkerLegacyDrain,
   inspectWorkerRollout,
   stageWorkerSystem,
 } from '../castleWorkerRolloutAuthority';
+import type { WorkerResourceKind } from '../castleWorkerPolicy';
 import type {
   WorkerClientAttestation,
 } from '../castleWorkerRolloutPolicy';
+import {
+  legacyExpeditionReturnErrorCode,
+  returnActiveLegacyExpedition,
+} from '../legacyExpeditionReturnAuthority';
 import warpkeep from '../schema';
 
 const workerPrivate = t.object('WorkerPrivateV1', {
@@ -156,6 +162,18 @@ const adminWorkerRolloutStatusV2 = t.object('AdminWorkerRolloutStatusV2', {
   legacyExpeditions: t.u64(),
   legacyOccupations: t.u64(),
   legacySchedules: t.u64(),
+  legacyGoldExpeditions: t.u64(),
+  legacyFoodExpeditions: t.u64(),
+  legacyWoodExpeditions: t.u64(),
+  legacyStoneExpeditions: t.u64(),
+  legacyGoldOccupations: t.u64(),
+  legacyFoodOccupations: t.u64(),
+  legacyWoodOccupations: t.u64(),
+  legacyStoneOccupations: t.u64(),
+  legacyGoldSchedules: t.u64(),
+  legacyFoodSchedules: t.u64(),
+  legacyWoodSchedules: t.u64(),
+  legacyStoneSchedules: t.u64(),
   genericAssignments: t.u64(),
   genericOccupations: t.u64(),
   genericSchedules: t.u64(),
@@ -165,10 +183,19 @@ const adminWorkerRolloutStatusV2 = t.object('AdminWorkerRolloutStatusV2', {
 function senderPolicyError(error: unknown): never {
   const rolloutCode = castleWorkerRolloutErrorCode(error);
   if (rolloutCode !== undefined) throw new SenderError(rolloutCode);
+  const legacyCode = legacyExpeditionReturnErrorCode(error);
+  if (legacyCode !== undefined) throw new SenderError(legacyCode);
   const code = castleWorkerErrorCode(error);
   if (code !== undefined) throw new SenderError(code);
   if (error instanceof SenderError) throw error;
   throw new SenderError('WORKER_REQUEST_FAILED');
+}
+
+function legacyResourceKind(value: string): WorkerResourceKind {
+  if (value === 'gold' || value === 'food' || value === 'wood' || value === 'stone') {
+    return value;
+  }
+  throw new SenderError('LEGACY_EXPEDITION_RESOURCE_KIND_INVALID');
 }
 
 function auditWorkerRollout(
@@ -297,6 +324,28 @@ export const recallAllWorkersV1 = warpkeep.reducer(
     try {
       const { claims, castle } = requireGameplayPlayerV1(ctx);
       recallAllCastleWorkers(ctx, { fid: claims.fid, castle, idempotencyKey });
+    } catch (error) {
+      return senderPolicyError(error);
+    }
+  },
+);
+
+/**
+ * During the closed legacy-drain window, return only the authenticated
+ * founder's exact current wagon. The private expedition id correlates retries
+ * and can never select another founder, site, timestamp, or reward amount.
+ */
+export const returnLegacyExpeditionV1 = warpkeep.reducer(
+  { name: 'return_legacy_expedition_v1' },
+  { resourceKind: t.string(), expeditionId: t.string() },
+  (ctx, { resourceKind, expeditionId }) => {
+    try {
+      const { claims } = requireGameplayPlayerV1(ctx);
+      returnActiveLegacyExpedition(ctx, {
+        fid: claims.fid,
+        resourceKind: legacyResourceKind(resourceKind),
+        expeditionId,
+      });
     } catch (error) {
       return senderPolicyError(error);
     }
@@ -458,6 +507,76 @@ export const adminBeginWorkerLegacyDrainV1 = warpkeep.reducer(
 );
 
 /**
+ * Separately confirmed, aggregate-bound final legacy cutover. This reducer
+ * settles and removes only validated legacy lifecycle rows. It never enables
+ * generic commands; activation remains a later, independently attested step.
+ */
+export const adminCompleteWorkerLegacyDrainV1 = warpkeep.reducer(
+  { name: 'admin_complete_worker_legacy_drain_v1' },
+  {
+    capability: t.string(),
+    sourceCommit: t.string(),
+    moduleArtifactDigest: t.string(),
+    expectedCastleCount: t.u32(),
+    expectedWorkerCount: t.u32(),
+    rosterDigest: t.string(),
+    resourceRosterDigest: t.string(),
+    resourceCatalogDigest: t.string(),
+    goldExpeditions: t.u32(),
+    foodExpeditions: t.u32(),
+    woodExpeditions: t.u32(),
+    stoneExpeditions: t.u32(),
+    goldOccupations: t.u32(),
+    foodOccupations: t.u32(),
+    woodOccupations: t.u32(),
+    stoneOccupations: t.u32(),
+    goldSchedules: t.u32(),
+    foodSchedules: t.u32(),
+    woodSchedules: t.u32(),
+    stoneSchedules: t.u32(),
+  },
+  (ctx, input) => {
+    try {
+      const admin = requireAdmin(ctx);
+      const result = completeWorkerLegacyDrain(ctx, Object.freeze({ ...input }));
+      if (!result.completed) return;
+      const beforeExpeditions = result.before.goldExpeditions
+        + result.before.foodExpeditions
+        + result.before.woodExpeditions
+        + result.before.stoneExpeditions;
+      const beforeOccupations = result.before.goldOccupations
+        + result.before.foodOccupations
+        + result.before.woodOccupations
+        + result.before.stoneOccupations;
+      const beforeSchedules = result.before.goldSchedules
+        + result.before.foodSchedules
+        + result.before.woodSchedules
+        + result.before.stoneSchedules;
+      auditWorkerRollout(
+        ctx,
+        admin.subject,
+        'complete_worker_legacy_drain_v1',
+        [
+          `cutover_micros=${result.cutoverAtMicros}`,
+          `source=${input.sourceCommit}`,
+          `module=${input.moduleArtifactDigest}`,
+          `roster=${input.rosterDigest}`,
+          `resource_roster=${input.resourceRosterDigest}`,
+          `legacy_before=${beforeExpeditions}/${beforeOccupations}/${beforeSchedules}`,
+          'legacy_after=0/0/0',
+          `returned=${result.returnedExpeditions}`,
+          `schedules_removed=${result.removedSchedules}`,
+          `credited=${result.creditedGold}/${result.creditedFood}/${result.creditedWood}/${result.creditedStone}`,
+          'generic_activation=false',
+        ].join(';'),
+      );
+    } catch (error) {
+      return senderPolicyError(error);
+    }
+  },
+);
+
+/**
  * Final fail-closed transition. Every supplied field is a reviewed operator
  * attestation and is recomputed or validated by server authority.
  */
@@ -535,6 +654,18 @@ export const adminGetWorkerRolloutStatusV2 = warpkeep.procedure(
         legacyExpeditions: status.legacyExpeditions,
         legacyOccupations: status.legacyOccupations,
         legacySchedules: status.legacySchedules,
+        legacyGoldExpeditions: tx.db.goldExpeditionV1.count(),
+        legacyFoodExpeditions: tx.db.foodExpeditionV1.count(),
+        legacyWoodExpeditions: tx.db.woodExpeditionV1.count(),
+        legacyStoneExpeditions: tx.db.stoneExpeditionV1.count(),
+        legacyGoldOccupations: tx.db.goldNodeOccupationV1.count(),
+        legacyFoodOccupations: tx.db.foodNodeOccupationV1.count(),
+        legacyWoodOccupations: tx.db.woodNodeOccupationV1.count(),
+        legacyStoneOccupations: tx.db.stoneNodeOccupationV1.count(),
+        legacyGoldSchedules: tx.db.goldExpeditionScheduleV1.count(),
+        legacyFoodSchedules: tx.db.foodExpeditionScheduleV1.count(),
+        legacyWoodSchedules: tx.db.woodExpeditionScheduleV1.count(),
+        legacyStoneSchedules: tx.db.stoneExpeditionScheduleV1.count(),
         genericAssignments: status.genericAssignments,
         genericOccupations: status.genericOccupations,
         genericSchedules: status.genericSchedules,

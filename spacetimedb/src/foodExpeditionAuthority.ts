@@ -199,6 +199,28 @@ function scheduleMatchesExpedition(
     && schedule.scheduledAt.value.microsSinceUnixEpoch === expectedAtMicros;
 }
 
+function deleteFoodExpeditionSchedules(
+  ctx: WarpkeepReducerContext,
+  expedition: FoodExpeditionRow,
+): number {
+  const schedules: FoodScheduleRow[] = [];
+  const stages = new Set<string>();
+  for (const schedule of ctx.db.foodExpeditionScheduleV1.originCastleId.filter(
+    expedition.originCastleId,
+  )) {
+    if (schedules.length >= 3) fail('FOOD_EXPEDITION_SCHEDULE_INTEGRITY');
+    if (!scheduleMatchesExpedition(schedule, expedition) || stages.has(schedule.stage)) {
+      fail('FOOD_EXPEDITION_SCHEDULE_INTEGRITY');
+    }
+    schedules.push(schedule);
+    stages.add(schedule.stage);
+  }
+  for (const schedule of schedules) {
+    ctx.db.foodExpeditionScheduleV1.scheduleId.delete(schedule.scheduleId);
+  }
+  return schedules.length;
+}
+
 /**
  * Check the private remaining-award reservation before a direct Food credit.
  * Passive Food is capped by the shared resource-policy adapter on every read
@@ -525,6 +547,66 @@ export function collectActiveFoodExpedition(
     accruedFood: accrual.accruedFood,
     creditedFood: accrual.accruedFood,
     updatedAt: ctx.timestamp,
+  });
+}
+
+export type FoodExpeditionEarlyReturnResult = Readonly<{
+  returned: boolean;
+  creditedFood: bigint;
+  schedulesRemoved: number;
+}>;
+
+/** Exact, id-correlated early return for one caller-owned legacy Food wagon. */
+export function returnActiveFoodExpedition(
+  ctx: WarpkeepReducerContext,
+  fid: bigint,
+  expectedExpeditionId: string,
+): FoodExpeditionEarlyReturnResult {
+  if (
+    expectedExpeditionId.length === 0
+    || expectedExpeditionId.length > 96
+    || !/^[a-z0-9][a-z0-9:_-]*$/i.test(expectedExpeditionId)
+  ) fail('FOOD_EXPEDITION_ID_INVALID');
+  const resource = assertGenesisResourceForFid(ctx, fid);
+  const expedition = ctx.db.foodExpeditionV1.fid.find(fid);
+  if (expedition === null) {
+    for (const _occupation of ctx.db.foodNodeOccupationV1.byOriginCastle.filter(
+      resource.castle.castleId,
+    )) fail('FOOD_EXPEDITION_ORPHAN_GRAPH');
+    for (const _schedule of ctx.db.foodExpeditionScheduleV1.originCastleId.filter(
+      resource.castle.castleId,
+    )) fail('FOOD_EXPEDITION_ORPHAN_GRAPH');
+    return Object.freeze({ returned: false, creditedFood: 0n, schedulesRemoved: 0 });
+  }
+  if (expedition.expeditionId !== expectedExpeditionId) {
+    fail('FOOD_EXPEDITION_RETURN_STALE');
+  }
+  assertExpeditionState(expedition);
+  if (expedition.fid !== fid) fail('FOOD_EXPEDITION_OWNER_INTEGRITY');
+  if (resource.account.castleId !== expedition.originCastleId) {
+    fail('FOOD_EXPEDITION_OWNER_INTEGRITY');
+  }
+  const occupation = ctx.db.foodNodeOccupationV1.siteId.find(expedition.siteId);
+  if (occupation === null) fail('FOOD_OCCUPATION_MISSING');
+  assertOccupationMatchesExpedition(occupation, expedition);
+  if (occupation.phase !== expedition.phase) fail('FOOD_OCCUPATION_PHASE_INVALID');
+
+  const creditedBefore = expedition.creditedFood;
+  collectActiveFoodExpedition(ctx, fid);
+  const settled = ctx.db.foodExpeditionV1.expeditionId.find(expectedExpeditionId);
+  if (settled === null || settled.fid !== fid) fail('FOOD_EXPEDITION_RETURN_STATE');
+  assertExpeditionState(settled);
+  const schedulesRemoved = deleteFoodExpeditionSchedules(ctx, settled);
+  ctx.db.foodNodeOccupationV1.siteId.delete(occupation.siteId);
+  ctx.db.foodExpeditionV1.expeditionId.delete(settled.expeditionId);
+  if (
+    ctx.db.foodExpeditionV1.expeditionId.find(settled.expeditionId) !== null
+    || ctx.db.foodNodeOccupationV1.siteId.find(occupation.siteId) !== null
+  ) fail('FOOD_EXPEDITION_RETURN_INCOMPLETE');
+  return Object.freeze({
+    returned: true,
+    creditedFood: settled.creditedFood - creditedBefore,
+    schedulesRemoved,
   });
 }
 

@@ -4,7 +4,7 @@
  *
  * The complete generated bindings remain the canonical schema artifact under
  * `module_bindings/` and are still used by server-side operators. The player
- * only needs the public realm tables plus nine read procedures and fourteen
+ * only needs the public realm tables plus nine read procedures and fifteen
  * self-service reducers. Keeping that runtime projection separate prevents
  * private/admin and machine-bound QA procedure names from becoming part of
  * the public Vite graph while preserving generated-binding parity unchanged.
@@ -55,6 +55,7 @@ import DispatchWoodExpeditionV1Reducer from './module_bindings/dispatch_wood_exp
 import DispatchStoneExpeditionV1Reducer from './module_bindings/dispatch_stone_expedition_v_1_reducer'
 import RecallAllWorkersV1Reducer from './module_bindings/recall_all_workers_v_1_reducer'
 import RecallWorkerV1Reducer from './module_bindings/recall_worker_v_1_reducer'
+import ReturnLegacyExpeditionV1Reducer from './module_bindings/return_legacy_expedition_v_1_reducer'
 import FoodNodeOccupationV1Row from './module_bindings/food_node_occupation_v_1_table'
 import FoodSiteV1Row from './module_bindings/food_site_v_1_table'
 import GoldNodeOccupationV1Row from './module_bindings/gold_node_occupation_v_1_table'
@@ -395,6 +396,7 @@ const reducersSchema = __reducers(
   __reducerSchema('dispatch_worker_v1', DispatchWorkerV1Reducer),
   __reducerSchema('recall_worker_v1', RecallWorkerV1Reducer),
   __reducerSchema('recall_all_workers_v1', RecallAllWorkersV1Reducer),
+  __reducerSchema('return_legacy_expedition_v1', ReturnLegacyExpeditionV1Reducer),
 )
 
 const proceduresSchema = __procedures(

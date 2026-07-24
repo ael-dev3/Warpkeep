@@ -22,6 +22,8 @@ import {
   parseCanonicalSchemaDescription,
   parseMigrationProofReceipt,
   parsePublishArguments,
+  publishPostV12AggregateChildArguments,
+  publishPreV12AggregateChildArguments,
   publishChildEnvironment,
   publishModule,
   readFoundedPublishExpectations,
@@ -32,6 +34,7 @@ import {
   verifyFreshAlphaStatusV8Aggregate,
   verifyFreshAlphaStatusV10Aggregate,
   verifyFreshAlphaStatusV12Aggregate,
+  verifyFreshPublishPreV12Aggregate,
   verifyFreshProductionV11Schema,
   verifyFreshFoundedProtocolV3Aggregate,
   verifyFreshResourceProtocolV4PrebackfillAggregate,
@@ -41,6 +44,7 @@ import {
   verifyPostPublishAlphaStatusV8Aggregate,
   verifyPostPublishAlphaStatusV10Aggregate,
   verifyPostPublishAlphaStatusV12Aggregate,
+  verifyPostPublishCombinedV12Aggregate,
   verifyPostPublishFoundedProtocolV3Aggregate,
   verifyPostPublishProductionV12Schema,
   verifyPostPublishResourceProtocolV4PrebackfillAggregate,
@@ -49,12 +53,14 @@ import {
   verifyPrivacySafeAlphaStatusV8Output,
   verifyPrivacySafeAlphaStatusV10Output,
   verifyPrivacySafeAlphaStatusV12Output,
+  verifyPrivacySafePublishPostV12Output,
+  verifyPrivacySafePublishPreV12Output,
   verifyEmptyAlphaStatusV12,
   verifyExactProductionV11Schema,
   verifyExactProductionV12Schema,
 } from '../scripts/publish-spacetime-dev.mjs';
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
-import { ADDITIVE_MIGRATION_PROOF_PROCESS_TIMEOUT_MILLISECONDS, ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION, ADDITIVE_MIGRATION_PROOF_SPACETIME_CLI_VERSION, formatAdditiveMigrationProofReceipt } from '../scripts/spacetime-additive-migration-proof.mjs';
+import { ADDITIVE_MIGRATION_PROOF_MINIMUM_LIFECYCLE_MILLISECONDS, ADDITIVE_MIGRATION_PROOF_PROCESS_TIMEOUT_MILLISECONDS, ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION, ADDITIVE_MIGRATION_PROOF_SPACETIME_CLI_VERSION, formatAdditiveMigrationProofReceipt } from '../scripts/spacetime-additive-migration-proof.mjs';
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
 import { canonicalTableSchemaBoundaryDigest } from '../scripts/spacetime-table-schema-attestation.mjs';
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
@@ -216,6 +222,73 @@ function alphaStatusV12(overrides: Record<string, unknown> = {}) {
     legacySchedules: '3',
     rosterDigest: '',
     rosterDigestExpected: '0123456789abcdef',
+    ...overrides,
+  };
+}
+
+function publishProtocolV3Status(overrides: Record<string, unknown> = {}) {
+  const invariantFields = [
+    'orphanedPlayerRowsV2',
+    'orphanedOwnershipRowsV2',
+    'orphanedCastleClaims',
+    'orphanedCastles',
+    'orphanedRealmProfiles',
+    'orphanedMarkAccounts',
+    'orphanedBurnCredits',
+    'orphanedTermsAcceptances',
+    'founderStateGaps',
+    'markAccountInvariantViolations',
+    'publicMarkProjectionViolations',
+    'duplicateBurnReferences',
+    'burnAccountReconciliationViolations',
+    'ambiguousActiveWalletAddresses',
+    'staticWorldDriftViolations',
+    'termsAcceptanceInvariantViolations',
+  ];
+  return {
+    worldTiles: '1261',
+    occupiedWorldTiles: '4',
+    worldTileMeta: '1261',
+    realms: '1',
+    castleSlots: '100',
+    castleSlotClaims: '4',
+    legacyPlayers: '0',
+    playersV2: '1',
+    playerOwnershipsV2: '1',
+    castles: '4',
+    realmProfiles: '4',
+    markAccounts: '4',
+    snapBurnCredits: '0',
+    walletAttributions: '0',
+    walletAttributionSnapshots: '0',
+    scanCursors: '0',
+    scanBatches: '0',
+    alphaTermsAcceptances: '1',
+    allowedFids: '4',
+    enabledAllowedFids: '4',
+    auditEntries: '7',
+    ...Object.fromEntries(invariantFields.map(field => [field, '0'])),
+    protocolVersion: 3,
+    worldSeed: 3_445_214_658,
+    worldSeedName: 'HEGEMONY_GENESIS_001',
+    ...overrides,
+  };
+}
+
+function publishResourceV4Status(
+  stage: 'prebackfill' | 'ready' = 'prebackfill',
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    allowedFids: '4',
+    castles: '4',
+    markAccounts: '4',
+    resourceAccounts: stage === 'ready' ? '4' : '0',
+    missingResourceAccounts: stage === 'ready' ? '0' : '4',
+    orphanedResourceAccounts: '0',
+    resourceInvariantViolations: '0',
+    protocolVersion: 3,
+    resourcePolicyVersion: 'genesis-resource-yield-v1',
     ...overrides,
   };
 }
@@ -1039,6 +1112,10 @@ describe('activation publish safety', () => {
       });
       expect(ADDITIVE_MIGRATION_PROOF_PROCESS_TIMEOUT_MILLISECONDS)
         .toBe(15 * 60 * 1_000);
+      expect(ADDITIVE_MIGRATION_PROOF_MINIMUM_LIFECYCLE_MILLISECONDS)
+        .toBe(10 * 60 * 1_000);
+      expect(ADDITIVE_MIGRATION_PROOF_MINIMUM_LIFECYCLE_MILLISECONDS)
+        .toBeGreaterThan(5 * 60 * 1_000);
     });
   });
 
@@ -1523,12 +1600,12 @@ describe('activation publish safety', () => {
       RESOURCE_PUBLISH_ROLLOUT_STAGE.PREBACKFILL,
       WORKER_PUBLISH_ROLLOUT_STAGE.EMPTY,
       orderedFailureSpawn as never,
-    )).toThrow(/protocol-v3 verification is indeterminate/i);
+    )).toThrow(/combined protocol-v3\/v4\/v8\/v10\/v12 checkpoint is indeterminate/i);
     expect(orderedFailureCalls).toHaveLength(1);
     expect(orderedFailureCalls[0]?.[1]).toEqual([
       resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs'),
       'scripts/hermes-admin.ts',
-      'inspect-alpha-v3',
+      'inspect-publish-post-v12',
       '--json',
     ]);
     expect(() => verifyPostPublishResourcePublicationCheckpoints(
@@ -1553,6 +1630,145 @@ describe('activation publish safety', () => {
       'staged',
       orderedFailureSpawn as never,
     )).toThrow(/Worker rollout stage was invalid/i);
+  });
+
+  it('uses exactly one bounded token-bearing child before and after publish for every aggregate checkpoint', () => {
+    const secret = 'TEST_ONLY_HERMES_SECRET_'.repeat(2);
+    const expectations = {
+      expectedFounderCount: 4,
+      expectedPlayerCount: 1,
+      expectedTermsAcceptanceCount: 1,
+    };
+    const preEnvelope = {
+      protocolV3: publishProtocolV3Status(),
+      resourceV4: publishResourceV4Status(),
+    };
+    const postEnvelope = {
+      ...preEnvelope,
+      alphaV8: alphaStatusV8(),
+      alphaV10: alphaStatusV10(),
+      workerV12: alphaStatusV12(),
+    };
+    const calls: unknown[][] = [];
+    const fakeSpawnSync = (...args: unknown[]) => {
+      calls.push(args);
+      const childArguments = args[1] as string[];
+      return {
+        status: 0,
+        signal: null,
+        stdout: JSON.stringify(childArguments.includes('inspect-publish-pre-v12')
+          ? preEnvelope
+          : postEnvelope),
+        stderr: '',
+      };
+    };
+
+    expect(verifyFreshPublishPreV12Aggregate(
+      secret,
+      expectations,
+      RESOURCE_PUBLISH_ROLLOUT_STAGE.PREBACKFILL,
+      fakeSpawnSync as never,
+    )).toEqual(preEnvelope);
+    expect(verifyPostPublishCombinedV12Aggregate(
+      secret,
+      expectations,
+      RESOURCE_PUBLISH_ROLLOUT_STAGE.PREBACKFILL,
+      WORKER_PUBLISH_ROLLOUT_STAGE.EMPTY,
+      fakeSpawnSync as never,
+    )).toEqual(postEnvelope);
+
+    expect(calls).toHaveLength(2);
+    expect(calls[0]?.[0]).toBe(process.execPath);
+    expect(calls[0]?.[1]).toEqual(publishPreV12AggregateChildArguments(
+      resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs'),
+    ));
+    expect(calls[1]?.[0]).toBe(process.execPath);
+    expect(calls[1]?.[1]).toEqual(publishPostV12AggregateChildArguments(
+      resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs'),
+    ));
+    const preOptions = calls[0]?.[2] as {
+      env?: Record<string, string>;
+      input?: string;
+      timeout?: number;
+      maxBuffer?: number;
+      killSignal?: string;
+    };
+    const postOptions = calls[1]?.[2] as typeof preOptions;
+    expect(preOptions).toMatchObject({
+      input: secret,
+      timeout: 90_000,
+      maxBuffer: 1_000_000,
+      killSignal: 'SIGKILL',
+    });
+    expect(postOptions).toMatchObject({
+      input: secret,
+      timeout: 150_000,
+      maxBuffer: 1_000_000,
+      killSignal: 'SIGKILL',
+    });
+    for (const [index, options] of [preOptions, postOptions].entries()) {
+      expect(options.env).toEqual({
+        WARPKEEP_SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
+        WARPKEEP_SPACETIMEDB_DATABASE: CANONICAL_DATABASE_IDENTITY,
+        WARPKEEP_AUTH_BRIDGE_URL: ISSUER,
+        WARPKEEP_ADMIN_TOKEN_SECRET_STDIN: '1',
+      });
+      expect(JSON.stringify(calls[index]?.[1])).not.toContain(secret);
+      expect(JSON.stringify(options.env)).not.toContain(secret);
+    }
+  });
+
+  it('rejects malformed or identity-bearing combined publication envelopes', () => {
+    const preEnvelope = {
+      protocolV3: publishProtocolV3Status(),
+      resourceV4: publishResourceV4Status(),
+    };
+    const postEnvelope = {
+      ...preEnvelope,
+      alphaV8: alphaStatusV8(),
+      alphaV10: alphaStatusV10(),
+      workerV12: alphaStatusV12(),
+    };
+    expect(verifyPrivacySafePublishPreV12Output(JSON.stringify(preEnvelope)))
+      .toEqual(preEnvelope);
+    expect(verifyPrivacySafePublishPostV12Output(JSON.stringify(postEnvelope)))
+      .toEqual(postEnvelope);
+    for (const invalid of [
+      '',
+      '[]',
+      JSON.stringify({ ...preEnvelope, token: 'private' }),
+      JSON.stringify({ protocolV3: preEnvelope.protocolV3 }),
+      JSON.stringify({ ...preEnvelope, resourceV4: [] }),
+    ]) {
+      expect(() => verifyPrivacySafePublishPreV12Output(invalid)).toThrow();
+    }
+    for (const invalid of [
+      JSON.stringify({ ...postEnvelope, fid: '539854' }),
+      JSON.stringify({ ...postEnvelope, alphaV10: null }),
+      JSON.stringify({
+        ...postEnvelope,
+        workerV12: { ...postEnvelope.workerV12, token: 'private' },
+      }),
+    ]) {
+      const spawn = vi.fn(() => ({
+        status: 0,
+        signal: null,
+        stdout: invalid,
+        stderr: '',
+      }));
+      expect(() => verifyPostPublishCombinedV12Aggregate(
+        'TEST_ONLY_HERMES_SECRET_'.repeat(2),
+        {
+          expectedFounderCount: 4,
+          expectedPlayerCount: 1,
+          expectedTermsAcceptanceCount: 1,
+        },
+        RESOURCE_PUBLISH_ROLLOUT_STAGE.PREBACKFILL,
+        WORKER_PUBLISH_ROLLOUT_STAGE.EMPTY,
+        spawn as never,
+      )).toThrow(/combined protocol-v3\/v4\/v8\/v10\/v12 checkpoint is indeterminate/i);
+      expect(spawn).toHaveBeenCalledOnce();
+    }
   });
 
   it('requires one closed, privacy-safe v8 checkpoint after publication and before seeding', () => {

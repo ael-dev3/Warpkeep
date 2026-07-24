@@ -1615,6 +1615,8 @@ describe('realm scene setup cleanup', () => {
       document.createElement('canvas'),
       options
     ));
+    const recoveredRenderer = webglState.instances.at(-1)!;
+    recoveredRenderer.render.mockClear();
     recovered.restoreCameraAttestation?.(located);
     const restored = recovered.getCameraAttestation();
     expect(restored.zoom).toBe(located.zoom);
@@ -1622,6 +1624,7 @@ describe('realm scene setup cleanup', () => {
     expect(restored.position).toEqual(located.position);
     expect(restored.target).toEqual(located.target);
     expect(restored.controllerState).toEqual(located.controllerState);
+    expect(recoveredRenderer.render).toHaveBeenCalled();
 
     scene.focusCastle(2);
     const focused = scene.getCameraAttestation();

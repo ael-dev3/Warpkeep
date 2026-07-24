@@ -105,6 +105,7 @@ describe('player SpacetimeDB bindings', () => {
     expect(playerBindings).toContain("'dispatch_worker_v1'")
     expect(playerBindings).toContain("'recall_worker_v1'")
     expect(playerBindings).toContain("'recall_all_workers_v1'")
+    expect(playerBindings).toContain("'return_legacy_expedition_v1'")
     expect(playerBindings).toContain("'realm_forest_layout_v1'")
     expect(playerBindings).toContain("'realm_forest_instance_v1'")
     expect(playerBindings).toContain("'realm_water_revision_v1'")
@@ -164,6 +165,7 @@ describe('player SpacetimeDB bindings', () => {
       'dispatchWorkerV1',
       'recallAllWorkersV1',
       'recallWorkerV1',
+      'returnLegacyExpeditionV1',
     ])
     expect(Object.keys(connection.procedures).sort()).toEqual([
       'getAlphaBackendInfo',

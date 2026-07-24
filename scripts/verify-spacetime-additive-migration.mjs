@@ -80,6 +80,7 @@ const nonemptyDatabase = 'warpkeep-migration-nonempty';
 const actualModuleDatabase = 'warpkeep-migration-actual-module';
 const resourceLifecycleDatabase = 'warpkeep-migration-resource-lifecycle';
 const expeditionLifecycleDatabase = 'warpkeep-migration-expedition-lifecycle';
+const workerRolloutV11Database = 'warpkeep-migration-worker-rollout-v11';
 const worldExpansionDatabase = 'warpkeep-migration-world-expansion';
 const waterLifecycleDatabase = 'warpkeep-migration-water-lifecycle';
 const populatedWaterStoneMigrationDatabase = 'warpkeep-migration-populated-water-stone';
@@ -101,6 +102,12 @@ const profilePolicyVersion = 'trusted-snapchain-profile-v3';
 const resourceQuantumMicros = 600_000_000n;
 const expeditionScheduleWaitMilliseconds = 12 * 60 * 1_000;
 const maximumU64 = (1n << 64n) - 1n;
+const workerLegacyDrainCapability = 'genesis-001-worker-legacy-drain-v1';
+const workerProtocolCapability = 'generic-castle-workers-v1';
+const workerRehearsalSourceCommit = '1111111111111111111111111111111111111111';
+const workerRehearsalClientArtifactDigest =
+  '2222222222222222222222222222222222222222222222222222222222222222';
+const legacyExpeditionMinuteMicros = 60_000_000n;
 const startingResourceBalances = Object.freeze({
   food: 0n,
   wood: 0n,
@@ -662,12 +669,31 @@ async function tableRowDigests(server, token, database, tables) {
   const digests = {};
   for (const table of tables) {
     if (!/^[a-z0-9_]+$/.test(table)) fail('Unsafe fixture table name.');
-    digests[table] = outputDigest(await sql(
-      server,
-      token,
-      database,
-      `SELECT * FROM ${table}`,
-    ));
+    const queries = table === 'world_tile'
+      ? [
+          'q <= -44',
+          'q >= -43 AND q <= -29',
+          'q >= -28 AND q <= -14',
+          'q >= -13 AND q <= 0',
+          'q >= 1 AND q <= 15',
+          'q >= 16 AND q <= 30',
+          'q >= 31 AND q <= 45',
+          'q >= 46',
+        ].map(predicate => `SELECT * FROM ${table} WHERE ${predicate}`)
+      : table === 'world_tile_meta_v1'
+        ? Array.from(
+            { length: 8 },
+            (_, index) => (
+              `SELECT * FROM ${table} WHERE ring >= ${index * 8} `
+              + `AND ring <= ${index * 8 + 7}`
+            ),
+          )
+        : [`SELECT * FROM ${table}`];
+    const partitions = [];
+    for (const query of queries) {
+      partitions.push(await sql(server, token, database, query));
+    }
+    digests[table] = outputDigest(partitions.join('\0'));
   }
   return Object.freeze(digests);
 }
@@ -1787,6 +1813,122 @@ function parseResourceState(text) {
   });
 }
 
+const workerRolloutStatusFields = Object.freeze([
+  'phase',
+  'systemRows',
+  'systemConfigValid',
+  'expectedCastleCount',
+  'expectedWorkerCount',
+  'actualCastleCount',
+  'actualWorkerCount',
+  'rosterDigest',
+  'expectedRosterDigest',
+  'malformedWorkerGraphRows',
+  'resourceAccounts',
+  'missingResourceAccounts',
+  'orphanedResourceAccounts',
+  'resourceInvariantViolations',
+  'resourceRosterDigest',
+  'canonicalResourceCatalog',
+  'resourceCatalogDigest',
+  'legacyExpeditions',
+  'legacyOccupations',
+  'legacySchedules',
+  'legacyGoldExpeditions',
+  'legacyFoodExpeditions',
+  'legacyWoodExpeditions',
+  'legacyStoneExpeditions',
+  'legacyGoldOccupations',
+  'legacyFoodOccupations',
+  'legacyWoodOccupations',
+  'legacyStoneOccupations',
+  'legacyGoldSchedules',
+  'legacyFoodSchedules',
+  'legacyWoodSchedules',
+  'legacyStoneSchedules',
+  'genericAssignments',
+  'genericOccupations',
+  'genericSchedules',
+  'genericCommandReceipts',
+]);
+
+const workerRolloutStringFields = new Set([
+  'phase',
+  'rosterDigest',
+  'expectedRosterDigest',
+  'resourceRosterDigest',
+  'resourceCatalogDigest',
+]);
+const workerRolloutBooleanFields = new Set([
+  'systemConfigValid',
+  'canonicalResourceCatalog',
+]);
+
+function parseWorkerRolloutStatus(text) {
+  const value = parseLoopbackJson(text, 'worker rollout status');
+  if (!Array.isArray(value) || value.length !== workerRolloutStatusFields.length) {
+    fail('Loopback worker-rollout response contract was invalid.');
+  }
+  const status = {};
+  for (const [index, field] of workerRolloutStatusFields.entries()) {
+    const entry = value[index];
+    if (workerRolloutStringFields.has(field)) {
+      if (typeof entry !== 'string') fail('Loopback worker-rollout metadata was invalid.');
+      status[field] = entry;
+    } else if (workerRolloutBooleanFields.has(field)) {
+      if (typeof entry !== 'boolean') fail('Loopback worker-rollout flag was invalid.');
+      status[field] = entry;
+    } else {
+      status[field] = readCanonicalUnsigned(
+        entry,
+        maximumU64,
+        `worker-rollout ${field}`,
+      );
+    }
+  }
+  if (
+    !['absent', 'staged', 'draining', 'active', 'invalid'].includes(status.phase)
+    || status.legacyExpeditions !== status.legacyGoldExpeditions
+      + status.legacyFoodExpeditions
+      + status.legacyWoodExpeditions
+      + status.legacyStoneExpeditions
+    || status.legacyOccupations !== status.legacyGoldOccupations
+      + status.legacyFoodOccupations
+      + status.legacyWoodOccupations
+      + status.legacyStoneOccupations
+    || status.legacySchedules !== status.legacyGoldSchedules
+      + status.legacyFoodSchedules
+      + status.legacyWoodSchedules
+      + status.legacyStoneSchedules
+  ) fail('Loopback worker-rollout aggregate was inconsistent.');
+  return Object.freeze(status);
+}
+
+function parseWorkerRoster(text) {
+  const value = parseLoopbackJson(text, 'worker roster');
+  if (!Array.isArray(value) || value.length !== 4 || !Array.isArray(value[3])) {
+    fail('Loopback worker-roster response contract was invalid.');
+  }
+  const castleId = readCanonicalUnsigned(value[1], maximumU64, 'worker-roster castle');
+  if (value[3].length !== 4) fail('Loopback worker roster did not contain four workers.');
+  const workers = value[3].map((row, index) => {
+    if (
+      !Array.isArray(row)
+      || row.length !== 10
+      || typeof row[0] !== 'string'
+      || row[0] !== `genesis-001-castle-${castleId}-worker-${String(index + 1).padStart(2, '0')}`
+      || readCanonicalUnsigned(row[1], 4n, 'worker ordinal') !== BigInt(index + 1)
+      || !['idle', 'outbound', 'gathering', 'returning'].includes(row[2])
+    ) fail('Loopback worker-roster row was invalid.');
+    return Object.freeze({
+      workerId: row[0],
+      ordinal: readCanonicalUnsigned(row[1], 4n, 'worker ordinal'),
+      status: row[2],
+    });
+  });
+  return Object.freeze({ castleId, workers: Object.freeze(workers) });
+}
+
 function assertResourceState(
   state,
   { balances, pending, revision, expectedFid = BigInt(actualModuleFounderFid) },
@@ -2077,6 +2219,47 @@ async function readActualExpeditionState(server, database, credential, resource)
     true,
     10_000,
   ), resource);
+}
+
+async function readActualWorkerRolloutStatus(server, database, credential) {
+  return parseWorkerRolloutStatus(await callLoopbackProcedure(
+    server,
+    database,
+    'admin_get_worker_rollout_status_v2',
+    credential,
+    '[]',
+    200,
+  ));
+}
+
+async function readActualWorkerRoster(server, database, credential) {
+  return parseWorkerRoster(await callLoopbackProcedure(
+    server,
+    database,
+    'get_my_worker_roster_v1',
+    credential,
+    '[]',
+    200,
+  ));
+}
+
+async function waitForActualWorkerRoster(
+  server,
+  database,
+  credentialFactory,
+  predicate,
+) {
+  const deadline = Date.now() + 120_000;
+  while (Date.now() < deadline) {
+    const roster = await readActualWorkerRoster(
+      server,
+      database,
+      credentialFactory(),
+    );
+    if (predicate(roster)) return roster;
+    await new Promise(resolvePromise => setTimeout(resolvePromise, 1_000));
+  }
+  fail('Actual Worker roster did not reach its bounded target state.');
 }
 
 async function waitForActualExpeditionState(
@@ -3285,10 +3468,332 @@ async function verifyActualModuleExpeditionLifecycles(
         `SELECT COUNT(*) AS warpkeep_count FROM ${goldResource.occupationTable} WHERE phase = 'gathering'`,
       )) !== 1n
     ) fail('Actual Gold arrival/collection shape was not preserved.');
-    // Thirty-day expiry, returning occupation, return completion, stale
-    // post-return delivery, and site reuse remain covered by pure authority
-    // regression tests, not misrepresented as actual-module scheduler proof.
-    return 'Gold/Food/Wood/Stone dispatch, schedules, replay/reservation, outbound no-op, actual Gold arrival, and positive collection replay';
+
+    stage = 'worker-stage-backfill-and-drain-start';
+    await useActualModule();
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_stage_worker_system_v1',
+      adminCredential(),
+      '[]',
+      200,
+    );
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_backfill_worker_roster_v1',
+      adminCredential(),
+      '[]',
+      200,
+    );
+    // The exact four-worker backfill is intentionally idempotent.
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_backfill_worker_roster_v1',
+      adminCredential(),
+      '[]',
+      200,
+    );
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_begin_worker_legacy_drain_v1',
+      adminCredential(),
+      '[]',
+      200,
+    );
+    const draining = await readActualWorkerRolloutStatus(
+      server,
+      database,
+      adminCredential(),
+    );
+    if (
+      draining.phase !== 'draining'
+      || draining.expectedCastleCount !== 2n
+      || draining.expectedWorkerCount !== 8n
+      || draining.actualWorkerCount !== 8n
+      || draining.legacyExpeditions !== 4n
+      || draining.legacyOccupations !== 4n
+      || draining.legacySchedules < 8n
+      || draining.legacySchedules > 12n
+      || draining.genericAssignments !== 0n
+      || draining.malformedWorkerGraphRows !== 0n
+    ) fail('Actual Worker drain did not start from the reviewed aggregate.');
+
+    const moduleArtifactDigest = createHash('sha256')
+      .update(await readFile(actualArtifactPath))
+      .digest('hex');
+    const activationArguments = [
+      workerProtocolCapability,
+      'alpha-0.3.18',
+      workerRehearsalClientArtifactDigest,
+      workerRehearsalSourceCommit,
+      2,
+      resourcePolicyVersion,
+      draining.resourceCatalogDigest,
+      Number(draining.expectedCastleCount),
+      Number(draining.expectedWorkerCount),
+      draining.rosterDigest,
+      draining.resourceRosterDigest,
+    ];
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_activate_worker_system_v1',
+      adminCredential(),
+      JSON.stringify(activationArguments),
+      530,
+    );
+
+    stage = 'owner-legacy-return';
+    const goldBeforeReturn = await readActualExpeditionState(
+      server,
+      database,
+      founderCredential(),
+      goldResource,
+    );
+    if (!goldBeforeReturn.active || goldBeforeReturn.expeditionId === undefined) {
+      fail('Actual owner legacy return lacked an exact private expedition.');
+    }
+    await callLoopbackReducer(
+      server,
+      database,
+      'return_legacy_expedition_v1',
+      founderCredential(),
+      JSON.stringify(['gold', goldBeforeReturn.expeditionId]),
+      200,
+    );
+    // Lost-response retry: the already-absent exact expedition is a no-op.
+    await callLoopbackReducer(
+      server,
+      database,
+      'return_legacy_expedition_v1',
+      founderCredential(),
+      JSON.stringify(['gold', goldBeforeReturn.expeditionId]),
+      200,
+    );
+    const goldAfterReturn = await readActualExpeditionState(
+      server,
+      database,
+      founderCredential(),
+      goldResource,
+    );
+    if (goldAfterReturn.active) fail('Actual owner legacy return did not close Gold.');
+
+    stage = 'operator-legacy-drain';
+    const beforeOperatorDrain = await readActualWorkerRolloutStatus(
+      server,
+      database,
+      adminCredential(),
+    );
+    if (
+      beforeOperatorDrain.phase !== 'draining'
+      || beforeOperatorDrain.legacyGoldExpeditions !== 0n
+      || beforeOperatorDrain.legacyFoodExpeditions !== 1n
+      || beforeOperatorDrain.legacyWoodExpeditions !== 1n
+      || beforeOperatorDrain.legacyStoneExpeditions !== 1n
+    ) fail('Actual owner return did not preserve the remaining drain graph.');
+    const completeDrainArguments = [
+      workerLegacyDrainCapability,
+      workerRehearsalSourceCommit,
+      moduleArtifactDigest,
+      Number(beforeOperatorDrain.expectedCastleCount),
+      Number(beforeOperatorDrain.expectedWorkerCount),
+      beforeOperatorDrain.rosterDigest,
+      beforeOperatorDrain.resourceRosterDigest,
+      beforeOperatorDrain.resourceCatalogDigest,
+      Number(beforeOperatorDrain.legacyGoldExpeditions),
+      Number(beforeOperatorDrain.legacyFoodExpeditions),
+      Number(beforeOperatorDrain.legacyWoodExpeditions),
+      Number(beforeOperatorDrain.legacyStoneExpeditions),
+      Number(beforeOperatorDrain.legacyGoldOccupations),
+      Number(beforeOperatorDrain.legacyFoodOccupations),
+      Number(beforeOperatorDrain.legacyWoodOccupations),
+      Number(beforeOperatorDrain.legacyStoneOccupations),
+      Number(beforeOperatorDrain.legacyGoldSchedules),
+      Number(beforeOperatorDrain.legacyFoodSchedules),
+      Number(beforeOperatorDrain.legacyWoodSchedules),
+      Number(beforeOperatorDrain.legacyStoneSchedules),
+    ];
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_complete_worker_legacy_drain_v1',
+      adminCredential(),
+      JSON.stringify(completeDrainArguments),
+      200,
+    );
+    // Ambiguous-success retry uses the original reviewed nonzero envelope and
+    // must remain mutation-free when the authoritative graph is already zero.
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_complete_worker_legacy_drain_v1',
+      adminCredential(),
+      JSON.stringify(completeDrainArguments),
+      200,
+    );
+    const drained = await readActualWorkerRolloutStatus(
+      server,
+      database,
+      adminCredential(),
+    );
+    if (
+      drained.phase !== 'draining'
+      || drained.legacyExpeditions !== 0n
+      || drained.legacyOccupations !== 0n
+      || drained.legacySchedules !== 0n
+      || drained.genericAssignments !== 0n
+    ) fail('Actual operator legacy drain did not reach exact zero.');
+    const postDrainActivationArguments = [
+      workerProtocolCapability,
+      'alpha-0.3.18',
+      workerRehearsalClientArtifactDigest,
+      workerRehearsalSourceCommit,
+      2,
+      resourcePolicyVersion,
+      drained.resourceCatalogDigest,
+      Number(drained.expectedCastleCount),
+      Number(drained.expectedWorkerCount),
+      drained.rosterDigest,
+      drained.resourceRosterDigest,
+    ];
+
+    stage = 'generic-worker-activation';
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_activate_worker_system_v1',
+      adminCredential(),
+      JSON.stringify(postDrainActivationArguments),
+      200,
+    );
+    const active = await readActualWorkerRolloutStatus(
+      server,
+      database,
+      adminCredential(),
+    );
+    if (
+      active.phase !== 'active'
+      || active.actualWorkerCount !== 8n
+      || active.legacyExpeditions !== 0n
+      || active.legacyOccupations !== 0n
+      || active.legacySchedules !== 0n
+    ) fail('Actual Worker activation did not preserve the zero cutover.');
+
+    stage = 'generic-worker-recall-and-node-reuse';
+    const roster = await readActualWorkerRoster(
+      server,
+      database,
+      founderCredential(),
+    );
+    const [workerOne, workerTwo, workerThree, workerFour] = roster.workers;
+    await callLoopbackReducer(
+      server,
+      database,
+      'dispatch_worker_v1',
+      founderCredential(),
+      JSON.stringify([
+        workerOne.workerId,
+        'gold',
+        goldResource.siteId,
+        'migration-worker-dispatch-0001',
+      ]),
+      200,
+    );
+    await callLoopbackReducer(
+      server,
+      database,
+      'recall_worker_v1',
+      founderCredential(),
+      JSON.stringify([workerOne.workerId, 'migration-worker-recall-0001']),
+      200,
+    );
+    await callLoopbackReducer(
+      server,
+      database,
+      'recall_worker_v1',
+      founderCredential(),
+      JSON.stringify([workerOne.workerId, 'migration-worker-recall-0001']),
+      200,
+    );
+    await waitForActualWorkerRoster(
+      server,
+      database,
+      founderCredential,
+      candidate => candidate.workers[0]?.status === 'idle',
+    );
+    const workerDestinations = [
+      [workerOne, expeditionResources[1]],
+      [workerTwo, goldResource],
+      [workerThree, expeditionResources[2]],
+      [workerFour, expeditionResources[3]],
+    ];
+    for (const [worker, resource] of workerDestinations) {
+      await callLoopbackReducer(
+        server,
+        database,
+        'dispatch_worker_v1',
+        founderCredential(),
+        JSON.stringify([
+          worker.workerId,
+          resource.kind,
+          resource.siteId,
+          `migration-worker-${resource.kind}-0002`,
+        ]),
+        200,
+      );
+    }
+    const fourAssigned = await readActualWorkerRolloutStatus(
+      server,
+      database,
+      adminCredential(),
+    );
+    if (
+      fourAssigned.genericAssignments !== 4n
+      || fourAssigned.genericOccupations !== 4n
+      || fourAssigned.genericSchedules !== 4n
+    ) fail('Actual Worker flexible assignment did not create four exact leases.');
+    await callLoopbackReducer(
+      server,
+      database,
+      'recall_all_workers_v1',
+      founderCredential(),
+      JSON.stringify(['migration-worker-recall-all-0001']),
+      200,
+    );
+    await callLoopbackReducer(
+      server,
+      database,
+      'recall_all_workers_v1',
+      founderCredential(),
+      JSON.stringify(['migration-worker-recall-all-0001']),
+      200,
+    );
+    const reconnectedRoster = await waitForActualWorkerRoster(
+      server,
+      database,
+      founderCredential,
+      candidate => candidate.workers.every(worker => worker.status === 'idle'),
+    );
+    if (reconnectedRoster.workers.length !== 4) {
+      fail('Actual Worker reconnect did not preserve the complete roster.');
+    }
+    const finalWorkerStatus = await readActualWorkerRolloutStatus(
+      server,
+      database,
+      adminCredential(),
+    );
+    if (
+      finalWorkerStatus.phase !== 'active'
+      || finalWorkerStatus.genericAssignments !== 0n
+      || finalWorkerStatus.genericOccupations !== 0n
+      || finalWorkerStatus.genericSchedules !== 0n
+    ) fail('Actual Worker return completion did not release every node.');
+
+    return 'v11/v12-compatible four-resource legacy drain, exact zero activation, four-worker dispatch, recall one/all, reconnect, and node reuse';
   } catch (error) {
     if (error instanceof MigrationProofError) {
       throw new MigrationProofError(
@@ -3296,6 +3801,375 @@ async function verifyActualModuleExpeditionLifecycles(
       );
     }
     throw new MigrationProofError(`Actual-module expedition lifecycle failed at ${stage}.`);
+  }
+}
+
+async function verifyActualModuleWorkerRolloutFromV11(
+  server,
+  database,
+  privateKey,
+) {
+  const fid = 730_003;
+  const adminCredential = () => createEphemeralJwt(privateKey, adminServiceClaims());
+  const playerCredential = () => createEphemeralJwt(
+    privateKey,
+    playerClaims(fid, `farcaster:${fid}`, 1, 540),
+  );
+  const completedProductionAt = (state, observedAtMicros) => {
+    if (
+      !state.active
+      || state.arrivesAtMicros === undefined
+      || state.ratePerMinute === 0n
+      || state.gatheringDurationMicros === 0n
+      || observedAtMicros < state.arrivesAtMicros
+    ) return 0n;
+    const elapsed = observedAtMicros - state.arrivesAtMicros;
+    const gatheringMicros = elapsed < state.gatheringDurationMicros
+      ? elapsed
+      : state.gatheringDurationMicros;
+    const accrued = (
+      gatheringMicros / legacyExpeditionMinuteMicros
+    ) * state.ratePerMinute;
+    if (accrued < state.credited) {
+      fail('Populated v11 expedition credit cursor exceeded production.');
+    }
+    return accrued - state.credited;
+  };
+  const readSafeSettlementSnapshot = async () => {
+    const seedGold = await readActualExpeditionState(
+      server,
+      database,
+      playerCredential(),
+      expeditionResources[0],
+    );
+    if (!seedGold.active || seedGold.arrivesAtMicros === undefined) {
+      fail('Populated v11 settlement window lacked an active Gold expedition.');
+    }
+    for (let attempt = 0; attempt < 70; attempt += 1) {
+      const timing = await readActualResourceState(
+        server,
+        database,
+        playerCredential(),
+      );
+      const elapsed = timing.observedAtMicros - seedGold.arrivesAtMicros;
+      if (
+        elapsed >= 0n
+        && elapsed % legacyExpeditionMinuteMicros <= 8_000_000n
+      ) {
+        const states = {};
+        for (const resource of expeditionResources) {
+          states[resource.kind] = await readActualExpeditionState(
+            server,
+            database,
+            playerCredential(),
+            resource,
+          );
+        }
+        const confirmation = await readActualResourceState(
+          server,
+          database,
+          playerCredential(),
+        );
+        const confirmationElapsed =
+          confirmation.observedAtMicros - seedGold.arrivesAtMicros;
+        if (
+          confirmationElapsed >= 0n
+          && confirmationElapsed % legacyExpeditionMinuteMicros <= 15_000_000n
+          && expeditionResources.every(resource => {
+            const state = states[resource.kind];
+            return state?.active === true
+              && state.pending === completedProductionAt(
+                state,
+                confirmation.observedAtMicros,
+              );
+          })
+        ) {
+          return Object.freeze({
+            states: Object.freeze(states),
+          });
+        }
+      }
+      await new Promise(resolvePromise => setTimeout(resolvePromise, 1_000));
+    }
+    fail('Populated v11 settlement window could not be bounded safely.');
+  };
+  const actualArtifactPath = join(additiveModule, 'dist', 'bundle.js');
+  const moduleArtifactDigest = createHash('sha256')
+    .update(await readFile(actualArtifactPath))
+    .digest('hex');
+  let stage = 'preactivation';
+  try {
+    const absent = await readActualWorkerRolloutStatus(
+      server,
+      database,
+      adminCredential(),
+    );
+    if (
+      absent.phase !== 'absent'
+      || absent.actualCastleCount !== 1n
+      || absent.actualWorkerCount !== 0n
+      || absent.legacyExpeditions !== 4n
+      || absent.legacyOccupations !== 4n
+      || absent.legacySchedules !== 8n
+    ) fail('Populated v11 Worker predecessor did not survive v12 publication.');
+
+    stage = 'stage-backfill-drain';
+    for (const reducer of [
+      'admin_stage_worker_system_v1',
+      'admin_backfill_worker_roster_v1',
+      'admin_backfill_worker_roster_v1',
+      'admin_begin_worker_legacy_drain_v1',
+    ]) {
+      await callLoopbackReducer(
+        server,
+        database,
+        reducer,
+        adminCredential(),
+        '[]',
+        200,
+      );
+    }
+    const draining = await readActualWorkerRolloutStatus(
+      server,
+      database,
+      adminCredential(),
+    );
+    if (
+      draining.phase !== 'draining'
+      || draining.expectedCastleCount !== 1n
+      || draining.expectedWorkerCount !== 4n
+      || draining.actualWorkerCount !== 4n
+      || draining.legacyExpeditions !== 4n
+      || draining.legacyOccupations !== 4n
+      || draining.legacySchedules !== 8n
+      || draining.malformedWorkerGraphRows !== 0n
+    ) fail('Populated v11 Worker predecessor did not stage exactly four workers.');
+    const activationArguments = [
+      workerProtocolCapability,
+      'alpha-0.3.18',
+      workerRehearsalClientArtifactDigest,
+      workerRehearsalSourceCommit,
+      2,
+      resourcePolicyVersion,
+      draining.resourceCatalogDigest,
+      Number(draining.expectedCastleCount),
+      Number(draining.expectedWorkerCount),
+      draining.rosterDigest,
+      draining.resourceRosterDigest,
+    ];
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_activate_worker_system_v1',
+      adminCredential(),
+      JSON.stringify(activationArguments),
+      530,
+    );
+
+    stage = 'owner-early-return';
+    const settlementSnapshot = await readSafeSettlementSnapshot();
+    const goldState = settlementSnapshot.states.gold;
+    if (
+      !goldState.active
+      || goldState.phase !== 'gathering'
+      || goldState.expeditionId === undefined
+      || goldState.pending <= 0n
+    ) fail('Populated v11 Gold state did not retain exact completed production.');
+    await callLoopbackReducer(
+      server,
+      database,
+      'return_legacy_expedition_v1',
+      playerCredential(),
+      JSON.stringify(['gold', goldState.expeditionId]),
+      200,
+    );
+    await callLoopbackReducer(
+      server,
+      database,
+      'return_legacy_expedition_v1',
+      playerCredential(),
+      JSON.stringify(['gold', goldState.expeditionId]),
+      200,
+    );
+
+    stage = 'confirmed-final-drain';
+    const beforeDrain = await readActualWorkerRolloutStatus(
+      server,
+      database,
+      adminCredential(),
+    );
+    const drainArguments = [
+      workerLegacyDrainCapability,
+      workerRehearsalSourceCommit,
+      moduleArtifactDigest,
+      Number(beforeDrain.expectedCastleCount),
+      Number(beforeDrain.expectedWorkerCount),
+      beforeDrain.rosterDigest,
+      beforeDrain.resourceRosterDigest,
+      beforeDrain.resourceCatalogDigest,
+      Number(beforeDrain.legacyGoldExpeditions),
+      Number(beforeDrain.legacyFoodExpeditions),
+      Number(beforeDrain.legacyWoodExpeditions),
+      Number(beforeDrain.legacyStoneExpeditions),
+      Number(beforeDrain.legacyGoldOccupations),
+      Number(beforeDrain.legacyFoodOccupations),
+      Number(beforeDrain.legacyWoodOccupations),
+      Number(beforeDrain.legacyStoneOccupations),
+      Number(beforeDrain.legacyGoldSchedules),
+      Number(beforeDrain.legacyFoodSchedules),
+      Number(beforeDrain.legacyWoodSchedules),
+      Number(beforeDrain.legacyStoneSchedules),
+    ];
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_complete_worker_legacy_drain_v1',
+      adminCredential(),
+      JSON.stringify(drainArguments),
+      200,
+    );
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_complete_worker_legacy_drain_v1',
+      adminCredential(),
+      JSON.stringify(drainArguments),
+      200,
+    );
+    const resources = await readActualResourceState(
+      server,
+      database,
+      playerCredential(),
+    );
+    if (
+      expeditionResources.some(resource => {
+        const state = settlementSnapshot.states[resource.kind];
+        return state.pending <= 0n
+          || completedProductionAt(state, resources.observedAtMicros)
+            !== state.pending
+          || resources.balances[resource.kind] !== state.pending;
+      })
+    ) fail('Populated v11 cutover did not settle the exact bounded production.');
+    const drained = await readActualWorkerRolloutStatus(
+      server,
+      database,
+      adminCredential(),
+    );
+    if (
+      drained.legacyExpeditions !== 0n
+      || drained.legacyOccupations !== 0n
+      || drained.legacySchedules !== 0n
+    ) fail('Populated v11 cutover did not remove every legacy lifecycle row.');
+    const postDrainActivationArguments = [
+      workerProtocolCapability,
+      'alpha-0.3.18',
+      workerRehearsalClientArtifactDigest,
+      workerRehearsalSourceCommit,
+      2,
+      resourcePolicyVersion,
+      drained.resourceCatalogDigest,
+      Number(drained.expectedCastleCount),
+      Number(drained.expectedWorkerCount),
+      drained.rosterDigest,
+      drained.resourceRosterDigest,
+    ];
+
+    stage = 'activation';
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_activate_worker_system_v1',
+      adminCredential(),
+      JSON.stringify(postDrainActivationArguments),
+      200,
+    );
+    const active = await readActualWorkerRolloutStatus(
+      server,
+      database,
+      adminCredential(),
+    );
+    if (active.phase !== 'active' || active.actualWorkerCount !== 4n) {
+      fail('Populated v11 cutover did not activate the exact roster.');
+    }
+
+    stage = 'dispatch-recall-reuse-reconnect';
+    const roster = await readActualWorkerRoster(
+      server,
+      database,
+      playerCredential(),
+    );
+    const firstWorker = roster.workers[0];
+    const secondWorker = roster.workers[1];
+    await callLoopbackReducer(
+      server,
+      database,
+      'dispatch_worker_v1',
+      playerCredential(),
+      JSON.stringify([
+        firstWorker.workerId,
+        'gold',
+        expeditionResources[0].siteId,
+        'migration-v11-worker-dispatch-01',
+      ]),
+      200,
+    );
+    await callLoopbackReducer(
+      server,
+      database,
+      'recall_worker_v1',
+      playerCredential(),
+      JSON.stringify([firstWorker.workerId, 'migration-v11-worker-recall-01']),
+      200,
+    );
+    await waitForActualWorkerRoster(
+      server,
+      database,
+      playerCredential,
+      candidate => candidate.workers[0]?.status === 'idle',
+    );
+    await callLoopbackReducer(
+      server,
+      database,
+      'dispatch_worker_v1',
+      playerCredential(),
+      JSON.stringify([
+        secondWorker.workerId,
+        'gold',
+        expeditionResources[0].siteId,
+        'migration-v11-worker-reuse-001',
+      ]),
+      200,
+    );
+    await callLoopbackReducer(
+      server,
+      database,
+      'recall_all_workers_v1',
+      playerCredential(),
+      JSON.stringify(['migration-v11-worker-recall-all']),
+      200,
+    );
+    await waitForActualWorkerRoster(
+      server,
+      database,
+      playerCredential,
+      candidate => candidate.workers.every(worker => worker.status === 'idle'),
+    );
+    const reconnected = await readActualWorkerRoster(
+      server,
+      database,
+      playerCredential(),
+    );
+    if (reconnected.workers.length !== 4) {
+      fail('Populated v11 Worker reconnect lost roster state.');
+    }
+    return 'populated v11 publication, four-resource exact cutover, activation, recall, node reuse, and reconnect';
+  } catch (error) {
+    if (error instanceof MigrationProofError) {
+      throw new MigrationProofError(
+        `Populated v11 Worker rollout failed at ${stage}: ${error.message}`,
+      );
+    }
+    throw new MigrationProofError(`Populated v11 Worker rollout failed at ${stage}.`);
   }
 }
 
@@ -4916,6 +5790,82 @@ async function main() {
       owner.token,
     );
     const builtArtifactPath = join(additiveModule, 'dist', 'bundle.js');
+    // Seed a coherent all-resource lifecycle on the exact v11 predecessor,
+    // publish the real candidate with deletion disabled, prove every v11 row
+    // survived, then execute the complete Worker cutover on that same database.
+    await publish(
+      server,
+      owner.token,
+      additiveV11SchemaFixture,
+      workerRolloutV11Database,
+    );
+    await callLoopbackReducer(
+      server,
+      workerRolloutV11Database,
+      'fixture_seed_worker_cutover_v11',
+      createEphemeralJwt(
+        privateKey,
+        playerClaims(730_003, 'farcaster:730003', 1, 540),
+      ),
+      JSON.stringify([730_003]),
+      200,
+      120_000,
+    );
+    const workerRolloutV11Description = await describe(
+      server,
+      owner.token,
+      workerRolloutV11Database,
+    );
+    const workerRolloutV11Rows = await tableRowDigests(
+      server,
+      owner.token,
+      workerRolloutV11Database,
+      deployedV11Tables,
+    );
+    await publishBuiltArtifact(
+      server,
+      owner.token,
+      builtArtifactPath,
+      workerRolloutV11Database,
+    );
+    const workerRolloutCandidateV12 = await describe(
+      server,
+      owner.token,
+      workerRolloutV11Database,
+    );
+    assertAdditiveV12Schema(workerRolloutV11Description, workerRolloutCandidateV12);
+    await publish(
+      server,
+      owner.token,
+      additiveV12SchemaFixture,
+      workerRolloutV11Database,
+    );
+    assert.deepEqual(
+      await tableRowDigests(
+        server,
+        owner.token,
+        workerRolloutV11Database,
+        deployedV11Tables,
+      ),
+      workerRolloutV11Rows,
+    );
+    for (const table of additiveV12Tables) {
+      assert.equal(
+        await count(server, owner.token, workerRolloutV11Database, table),
+        0n,
+      );
+    }
+    await publishBuiltArtifact(
+      server,
+      owner.token,
+      builtArtifactPath,
+      workerRolloutV11Database,
+    );
+    const workerRolloutV11Proof = await verifyActualModuleWorkerRolloutFromV11(
+      server,
+      workerRolloutV11Database,
+      privateKey,
+    );
     await publishBuiltArtifact(
       server,
       owner.token,
@@ -5277,8 +6227,9 @@ async function main() {
       + `atomic 1,261-to-10,000 world expansion proved in ${worldExpansionDurationMilliseconds}ms with an idempotent retry, `
       + `actual Water administration exercised with ${waterLifecycleProof}, `
       + `actual resource authority reducers exercised with ${resourceTimestampFixture} collection, `
+      + `the populated v11-to-v12 Worker rollout exercised ${workerRolloutV11Proof}, `
       + `actual expedition reducers exercised through ${expeditionLifecycleProof}; `
-      + 'the pinned local CLI exposes no deterministic clock advance, so the 30-day expiry, return, stale delivery, and reuse stages remain pure-authority coverage rather than an actual-module claim, '
+      + 'the pinned local CLI exposes no deterministic 30-day clock advance, so full-duration expiry remains pure-authority coverage rather than an actual-module claim, '
       + 'caller bootstrap/terms/identity gates, Marks isolation, atomic profiled founding, '
       + 'repeat-admission rejection plus trusted profile clear/repair preserving structural gameplay authority, '
       + 'presentation-independent founder monitoring and bootstrap, '

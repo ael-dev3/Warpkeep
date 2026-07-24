@@ -29,6 +29,7 @@ import {
   readWarpkeepStoneExpeditionState,
   readWarpkeepWoodExpeditionState,
   readWarpkeepResourceState,
+  returnWarpkeepLegacyExpedition,
   readWarpkeepRealmSnapshot,
   subscribeToWarpkeepRealm,
   WARPKEEP_ALPHA_TERMS_VERSION as BROWSER_ALPHA_TERMS_VERSION,
@@ -1367,6 +1368,133 @@ describe('Warpkeep authenticated connection boundary', () => {
     await expect(dispatchWarpkeepStoneExpedition(connection, 'bad site', 'not-valid'))
       .rejects.toThrow('Stone expedition is unavailable.');
     expect(connection.reducers.dispatchStoneExpeditionV1).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns one exact legacy expedition and refreshes every caller-private projection', async () => {
+    const resources = {
+      fid: BigInt(CANONICAL_TEST_FID),
+      food: 201n,
+      wood: 150n,
+      stone: 100n,
+      gold: 25n,
+      pendingFood: 0n,
+      pendingWood: 0n,
+      pendingStone: 0n,
+      pendingGold: 0n,
+      marksBalanceMicros: 12_500_000n,
+      observedAtMicros: 1_800_000_700_000_000n,
+      settledThroughMicros: 1_800_000_100_000_000n,
+      nextCollectAtMicros: 1_800_001_300_000_000n,
+      revision: 5n,
+      resourcePolicyVersion: 'genesis-resource-yield-v1',
+      marksPolicyVersion: 'snap-current-linked-wallet-1to1-v1',
+      terrainKind: 'lowland'
+    } as const;
+    const inactiveGold = {
+      active: false,
+      expeditionId: undefined,
+      siteId: undefined,
+      originCastleId: undefined,
+      phase: undefined,
+      startedAtMicros: undefined,
+      arrivesAtMicros: undefined,
+      gatheringEndsAtMicros: undefined,
+      returnsAtMicros: undefined,
+      accruedGold: 0n,
+      pendingGold: 0n,
+      creditedGold: 0n,
+      rateGoldPerMinute: 1n,
+      gatheringDurationMicros: 2_592_000_000_000n,
+      expeditionPolicyVersion: undefined
+    } as const;
+    const inactiveFood = {
+      active: false,
+      expeditionId: undefined,
+      siteId: undefined,
+      originCastleId: undefined,
+      phase: undefined,
+      startedAtMicros: undefined,
+      arrivesAtMicros: undefined,
+      gatheringEndsAtMicros: undefined,
+      returnsAtMicros: undefined,
+      accruedFood: 0n,
+      pendingFood: 0n,
+      creditedFood: 0n,
+      rateFoodPerMinute: 1n,
+      gatheringDurationMicros: 2_592_000_000_000n,
+      expeditionPolicyVersion: undefined
+    } as const;
+    const inactiveWood = {
+      active: false,
+      expeditionId: undefined,
+      siteId: undefined,
+      originCastleId: undefined,
+      phase: undefined,
+      startedAtMicros: undefined,
+      arrivesAtMicros: undefined,
+      gatheringEndsAtMicros: undefined,
+      returnsAtMicros: undefined,
+      accruedWood: 0n,
+      pendingWood: 0n,
+      creditedWood: 0n,
+      rateWoodPerMinute: 1n,
+      gatheringDurationMicros: 2_592_000_000_000n,
+      expeditionPolicyVersion: undefined
+    } as const;
+    const inactiveStone = {
+      active: false,
+      expeditionId: undefined,
+      siteId: undefined,
+      originCastleId: undefined,
+      phase: undefined,
+      startedAtMicros: undefined,
+      arrivesAtMicros: undefined,
+      gatheringEndsAtMicros: undefined,
+      returnsAtMicros: undefined,
+      accruedStone: 0n,
+      pendingStone: 0n,
+      creditedStone: 0n,
+      rateStonePerMinute: 1n,
+      gatheringDurationMicros: 2_592_000_000_000n,
+      expeditionPolicyVersion: undefined
+    } as const;
+    const returnLegacyExpeditionV1 = vi.fn(async () => undefined);
+    const connection = {
+      procedures: {
+        getMyResourceStateV1: vi.fn(async () => resources),
+        getMyGoldExpeditionStateV1: vi.fn(async () => inactiveGold),
+        getMyFoodExpeditionStateV1: vi.fn(async () => inactiveFood),
+        getMyWoodExpeditionStateV1: vi.fn(async () => inactiveWood),
+        getMyStoneExpeditionStateV1: vi.fn(async () => inactiveStone)
+      },
+      reducers: { returnLegacyExpeditionV1 }
+    } as unknown as WarpkeepConnection;
+    const expeditionId = '00000000-0000-4000-8000-000000000002';
+
+    await expect(returnWarpkeepLegacyExpedition(
+      connection,
+      CANONICAL_TEST_FID,
+      'food',
+      expeditionId
+    )).resolves.toMatchObject({
+      resources: { fid: BigInt(CANONICAL_TEST_FID), revision: 5n },
+      goldExpedition: { active: false },
+      foodExpedition: { active: false },
+      woodExpedition: { active: false },
+      stoneExpedition: { active: false }
+    });
+    expect(returnLegacyExpeditionV1).toHaveBeenCalledWith({
+      resourceKind: 'food',
+      expeditionId
+    });
+
+    await expect(returnWarpkeepLegacyExpedition(
+      connection,
+      CANONICAL_TEST_FID,
+      'food',
+      'bad expedition id'
+    )).rejects.toThrow('Legacy expedition return is unavailable.');
+    expect(returnLegacyExpeditionV1).toHaveBeenCalledTimes(1);
   });
 
   it('pins the browser and authoritative module to the same Terms version', () => {

@@ -9,8 +9,25 @@ import { CANONICAL_TIER_I_FOOD_SITES_V1 } from '../../spacetimedb/src/foodSitePo
 import { CANONICAL_TIER_I_STONE_SITES_V1 } from '../../spacetimedb/src/stoneSitePolicy';
 import { CANONICAL_TIER_I_WOOD_SITES_V1 } from '../../spacetimedb/src/woodSitePolicy';
 import { validateCanonicalGenesisSnapshot } from '../spacetime/canonicalGenesisSnapshot';
-import type { WarpkeepRealmSnapshotCandidate } from '../spacetime/warpkeepBackendTypes';
+import type {
+  WarpkeepRealmSnapshotCandidate
+} from '../spacetime/warpkeepBackendTypes';
 import { WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION } from '../spacetime/warpkeepProtocol';
+import {
+  CASTLE_WORKER_POLICY_VERSION,
+  canonicalWorkerId,
+  resolveReadyWorkerProjection,
+  workerRosterDigestForCastleIds,
+  type ReadyWorkerProjection,
+  type ReadyWorkerResourceState,
+  type RealmWorkerNodeOccupation,
+  type RealmWorkerPublicPresentation,
+  type WorkerRosterPresentation
+} from '../components/realm/realmWorkerPresentation';
+import {
+  REALM_RESOURCE_POLICY_VERSION,
+  type RealmEconomicResourceKey
+} from '../components/realm/realmResourcePresentation';
 import {
   createRealmObserverHarnessRealm,
   parseRealmObserverSnapshot,
@@ -33,6 +50,10 @@ export const RENDERED_WEBGL_QA_OCCUPANT_CASTLE_ID = 900_001;
 export const RENDERED_WEBGL_QA_OVERVIEW_GOLD_SITE_ID =
   'genesis-001-tier1-gold-11';
 export const RENDERED_WEBGL_QA_OVERVIEW_OCCUPANT_CASTLE_ID = 900_002;
+export const RENDERED_WEBGL_QA_ACTIVE_WORKER_SITE_ID =
+  RENDERED_WEBGL_QA_OVERVIEW_GOLD_SITE_ID;
+export const RENDERED_WEBGL_QA_FOREIGN_WORKER_SITE_ID =
+  RENDERED_WEBGL_QA_OCCUPIED_GOLD_SITE_ID;
 export const RENDERED_WEBGL_QA_OCCUPANCY_STRESS_COUNT =
   CANONICAL_TIER_I_GOLD_SITES_V1.length
   + CANONICAL_TIER_I_FOOD_SITES_V1.length
@@ -46,6 +67,15 @@ const RENDERED_WEBGL_QA_OCCUPATION_GATHERING_ENDS_AT_MICROS =
   RENDERED_WEBGL_QA_OCCUPATION_ARRIVES_AT_MICROS + 2_592_000_000_000n;
 const RENDERED_WEBGL_QA_OCCUPATION_RETURNS_AT_MICROS =
   RENDERED_WEBGL_QA_OCCUPATION_GATHERING_ENDS_AT_MICROS + 60_000_000n;
+const RENDERED_WEBGL_QA_WORKER_OBSERVED_AT_MICROS =
+  RENDERED_WEBGL_QA_OCCUPATION_ARRIVES_AT_MICROS + 300_000_000n;
+const RENDERED_WEBGL_QA_WORKER_PENDING_GOLD = 5n;
+
+export type RenderedWebglQaActiveWorkerRealm = RealmObserverHarnessRealm & Readonly<{
+  workerProjection: ReadyWorkerProjection;
+  workerResourceState: ReadyWorkerResourceState;
+  workerRoster: WorkerRosterPresentation;
+}>;
 
 function sequence(value: number) {
   return value.toString().padStart(3, '0');
@@ -260,6 +290,172 @@ export function createRenderedWebglQaOccupancyStressRealm(): RealmObserverHarnes
     allowLocalProfilePlaceholder: true
   });
   return Object.freeze({ identity: baseRealm.identity, snapshot });
+}
+
+type ActiveWorkerAssignment = Readonly<{
+  resourceKind: RealmEconomicResourceKey;
+  siteId: string;
+}>;
+
+/**
+ * Complete local-only generic-worker graph used by the rendered browser lane.
+ * It contains the four canonical workers for every synthetic keep so the same
+ * fail-closed public/private join used by the live UI is exercised. Only the
+ * synthetic owner and one synthetic peer are gathering; no reducer, token,
+ * subscription, external image, or production identity is introduced.
+ */
+export function createRenderedWebglQaActiveWorkerRealm(): RenderedWebglQaActiveWorkerRealm {
+  const baseRealm = createRealmObserverHarnessRealm(
+    RENDERED_WEBGL_QA_FIXTURE_SNAPSHOT,
+    RENDERED_WEBGL_QA_OWNER_SEED
+  );
+  const ownCastleId = baseRealm.snapshot.ownCastle.castleId;
+  const foreignCastleId = RENDERED_WEBGL_QA_OCCUPANT_CASTLE_ID;
+  const assignmentByWorkerId = new Map<string, ActiveWorkerAssignment>([
+    [
+      canonicalWorkerId(ownCastleId, 1),
+      Object.freeze({
+        resourceKind: 'gold',
+        siteId: RENDERED_WEBGL_QA_ACTIVE_WORKER_SITE_ID
+      })
+    ],
+    [
+      canonicalWorkerId(foreignCastleId, 1),
+      Object.freeze({
+        resourceKind: 'gold',
+        siteId: RENDERED_WEBGL_QA_FOREIGN_WORKER_SITE_ID
+      })
+    ]
+  ]);
+  const workers: RealmWorkerPublicPresentation[] = [];
+  const occupations: RealmWorkerNodeOccupation[] = [];
+  for (const castle of baseRealm.snapshot.castles) {
+    for (const ordinal of [1, 2, 3, 4] as const) {
+      const workerId = canonicalWorkerId(castle.castleId, ordinal);
+      const assignment = assignmentByWorkerId.get(workerId);
+      const worker: RealmWorkerPublicPresentation = Object.freeze({
+        workerId,
+        ordinal,
+        originCastleId: castle.castleId,
+        originCastleName: castle.name,
+        status: assignment ? 'gathering' : 'idle',
+        ...(assignment ? {
+          resourceKind: assignment.resourceKind,
+          siteId: assignment.siteId,
+          startedAtMicros: RENDERED_WEBGL_QA_OCCUPATION_STARTED_AT_MICROS,
+          arrivesAtMicros: RENDERED_WEBGL_QA_OCCUPATION_ARRIVES_AT_MICROS,
+          gatheringEndsAtMicros:
+            RENDERED_WEBGL_QA_OCCUPATION_GATHERING_ENDS_AT_MICROS,
+          returnsAtMicros: RENDERED_WEBGL_QA_OCCUPATION_RETURNS_AT_MICROS,
+          routeSteps: 12
+        } : {}),
+        timelineRevision: assignment ? 1 : 0,
+        revision: 1n,
+        ownedByViewer: castle.castleId === ownCastleId
+      });
+      workers.push(worker);
+      if (assignment) {
+        occupations.push(Object.freeze({
+          nodeKey: `${assignment.resourceKind}:${assignment.siteId}`,
+          resourceKind: assignment.resourceKind,
+          siteId: assignment.siteId,
+          workerId,
+          workerOrdinal: ordinal,
+          originCastleId: castle.castleId,
+          phase: 'gathering',
+          startedAtMicros: RENDERED_WEBGL_QA_OCCUPATION_STARTED_AT_MICROS,
+          arrivesAtMicros: RENDERED_WEBGL_QA_OCCUPATION_ARRIVES_AT_MICROS,
+          gatheringEndsAtMicros:
+            RENDERED_WEBGL_QA_OCCUPATION_GATHERING_ENDS_AT_MICROS,
+          timelineRevision: 1
+        }));
+      }
+    }
+  }
+  const castleIds = baseRealm.snapshot.castles.map((castle) => castle.castleId);
+  const workerSystem = Object.freeze({
+    realmId: baseRealm.snapshot.realm.realmId,
+    policyVersion: CASTLE_WORKER_POLICY_VERSION,
+    workersPerCastle: 4 as const,
+    expectedCastleCount: castleIds.length,
+    expectedWorkerCount: workers.length,
+    rosterDigest: workerRosterDigestForCastleIds(castleIds),
+    mode: 'active' as const,
+    legacyDrainRequired: false
+  });
+  const candidate: WarpkeepRealmSnapshotCandidate = {
+    ...baseRealm.snapshot,
+    goldSites: CANONICAL_TIER_I_GOLD_SITES_V1.map((site) => ({ ...site })),
+    goldNodeOccupations: [],
+    foodSites: CANONICAL_TIER_I_FOOD_SITES_V1.map((site) => ({ ...site })),
+    foodNodeOccupations: [],
+    woodSites: CANONICAL_TIER_I_WOOD_SITES_V1.map((site) => ({ ...site })),
+    woodNodeOccupations: [],
+    stoneSites: CANONICAL_TIER_I_STONE_SITES_V1.map((site) => ({ ...site })),
+    stoneNodeOccupations: [],
+    workerSystem,
+    workerWorkers: Object.freeze(workers),
+    workerOccupations: Object.freeze(occupations)
+  };
+  const snapshot = validateCanonicalGenesisSnapshot(candidate, {
+    ownFid: baseRealm.identity.fid,
+    protocolVersion: WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION,
+    allowLocalProfilePlaceholder: true
+  });
+  const ownedWorkers = workers.filter((worker) => worker.originCastleId === ownCastleId);
+  const workerRoster: WorkerRosterPresentation = Object.freeze({
+    castleId: ownCastleId,
+    observedAtMicros: RENDERED_WEBGL_QA_WORKER_OBSERVED_AT_MICROS,
+    workers: Object.freeze(ownedWorkers.map((worker) => Object.freeze({
+      workerId: worker.workerId,
+      ordinal: worker.ordinal,
+      status: worker.status,
+      ...(worker.resourceKind === undefined ? {} : { resourceKind: worker.resourceKind }),
+      ...(worker.siteId === undefined ? {} : { siteId: worker.siteId }),
+      accruedAmount: worker.status === 'idle' ? 0n : RENDERED_WEBGL_QA_WORKER_PENDING_GOLD,
+      materializedAmount: 0n,
+      availableAmount: worker.status === 'idle' ? 0n : RENDERED_WEBGL_QA_WORKER_PENDING_GOLD,
+      observedAtMicros: RENDERED_WEBGL_QA_WORKER_OBSERVED_AT_MICROS,
+      revision: worker.revision
+    })))
+  });
+  const workerResourceState: ReadyWorkerResourceState = Object.freeze({
+    status: 'ready',
+    fid: BigInt(baseRealm.identity.fid),
+    available: Object.freeze({ food: 0n, wood: 0n, stone: 0n, gold: 0n }),
+    pending: Object.freeze({
+      food: 0n,
+      wood: 0n,
+      stone: 0n,
+      gold: RENDERED_WEBGL_QA_WORKER_PENDING_GOLD
+    }),
+    observedAtMicros: RENDERED_WEBGL_QA_WORKER_OBSERVED_AT_MICROS,
+    settledThroughMicros: RENDERED_WEBGL_QA_WORKER_OBSERVED_AT_MICROS,
+    revision: 1n,
+    resourcePolicyVersion: REALM_RESOURCE_POLICY_VERSION,
+    workerPolicyVersion: CASTLE_WORKER_POLICY_VERSION,
+    workerSystemMode: 'active'
+  });
+  const workerProjection = resolveReadyWorkerProjection({
+    realmId: snapshot.realm.realmId,
+    castleIds,
+    ownCastleId,
+    system: snapshot.workerSystem,
+    workers: snapshot.workerWorkers,
+    occupations: snapshot.workerOccupations,
+    roster: workerRoster,
+    resourceState: workerResourceState
+  });
+  if (!workerProjection) {
+    throw new Error('Rendered WebGL QA active Worker fixture is inconsistent.');
+  }
+  return Object.freeze({
+    identity: baseRealm.identity,
+    snapshot,
+    workerProjection,
+    workerResourceState,
+    workerRoster
+  });
 }
 
 export { RENDERED_WEBGL_QA_FIXTURE_ID };

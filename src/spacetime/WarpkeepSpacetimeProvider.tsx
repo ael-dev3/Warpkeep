@@ -39,6 +39,7 @@ import {
   dispatchWarpkeepWorker,
   recallWarpkeepWorker,
   recallAllWarpkeepWorkers,
+  returnWarpkeepLegacyExpedition,
   readWarpkeepRealmSnapshot,
   subscribeToWarpkeepRealm,
   type WarpkeepConnection
@@ -178,6 +179,11 @@ export type WarpkeepBackendControllerValue = Readonly<{
   dispatchStoneExpedition: (siteId: string) => Promise<void>;
   /** Settle only the caller's Stone expedition and refresh both private views. */
   claimStoneExpedition: () => Promise<void>;
+  /** Return one exact caller-owned legacy expedition and refresh all private views. */
+  returnLegacyExpedition: (
+    resourceKind: RealmEconomicResourceKey,
+    expeditionId: string
+  ) => Promise<void>;
   workerProjection?: ReadyWorkerProjection;
   workerRoster?: WorkerRosterPresentation;
   workerResourceState?: ReadyWorkerResourceState;
@@ -209,6 +215,7 @@ export type WarpkeepBackendRuntime = Readonly<{
   dispatchWorker?: typeof dispatchWarpkeepWorker;
   recallWorker?: typeof recallWarpkeepWorker;
   recallAllWorkers?: typeof recallAllWarpkeepWorkers;
+  returnLegacyExpedition?: typeof returnWarpkeepLegacyExpedition;
   /** Optional only for older deterministic test/QA runtimes without v5 Gold. */
   readGoldExpeditionState?: typeof readWarpkeepGoldExpeditionState;
   /** Optional only for older deterministic test/QA runtimes without v5 Gold. */
@@ -250,6 +257,7 @@ const DEFAULT_WARPKEEP_BACKEND_RUNTIME: WarpkeepBackendRuntime = Object.freeze({
   dispatchWorker: dispatchWarpkeepWorker,
   recallWorker: recallWarpkeepWorker,
   recallAllWorkers: recallAllWarpkeepWorkers,
+  returnLegacyExpedition: returnWarpkeepLegacyExpedition,
   readGoldExpeditionState: readWarpkeepGoldExpeditionState,
   dispatchGoldExpedition: dispatchWarpkeepGoldExpedition,
   collectGoldExpedition: collectWarpkeepGoldExpedition,
@@ -316,6 +324,47 @@ type ActiveExpeditionProjection = Readonly<{
     originCastleId: number;
   }>;
 }>;
+
+type LegacyExpeditionProjection =
+  | ReadyGoldExpeditionPresentation
+  | ReadyFoodExpeditionPresentation
+  | ReadyWoodExpeditionPresentation
+  | ReadyStoneExpeditionPresentation;
+
+function legacyExpeditionForResource(
+  source: Readonly<{
+    goldExpedition?: ReadyGoldExpeditionPresentation;
+    foodExpedition?: ReadyFoodExpeditionPresentation;
+    woodExpedition?: ReadyWoodExpeditionPresentation;
+    stoneExpedition?: ReadyStoneExpeditionPresentation;
+  }>,
+  resourceKind: RealmEconomicResourceKey
+): LegacyExpeditionProjection | undefined {
+  if (resourceKind === 'gold') return source.goldExpedition;
+  if (resourceKind === 'food') return source.foodExpedition;
+  if (resourceKind === 'wood') return source.woodExpedition;
+  return resourceKind === 'stone' ? source.stoneExpedition : undefined;
+}
+
+function legacyExpeditionCanReturn(
+  projection: LegacyExpeditionProjection | undefined,
+  expeditionId: string,
+  originCastleId: number
+) {
+  return projection?.active === true
+    && projection.expedition?.expeditionId === expeditionId
+    && projection.expedition.originCastleId === originCastleId
+    && (
+      projection.expedition.phase === 'outbound'
+      || projection.expedition.phase === 'gathering'
+    );
+}
+
+function legacyExpeditionReturnConfirmed(
+  projection: LegacyExpeditionProjection | undefined
+) {
+  return projection?.active === false && projection.expedition === undefined;
+}
 
 function activeExpeditionMatchesDispatch(
   projection: ActiveExpeditionProjection | undefined,
@@ -499,6 +548,7 @@ export function WarpkeepSpacetimeProvider({
   }> | undefined>(undefined);
   const stoneExpeditionOperationGenerationRef = useRef<number | undefined>(undefined);
   const stoneDispatchAttemptRef = useRef<ExpeditionDispatchAttempt | undefined>(undefined);
+  const legacyReturnOperationGenerationRef = useRef<number | undefined>(undefined);
   const workerRosterStateRef = useRef<Readonly<{ generation: number; value: WorkerRosterPresentation | undefined }> | undefined>(undefined);
   const workerResourceStateRef = useRef<Readonly<{ generation: number; value: ReadyWorkerResourceState | undefined }> | undefined>(undefined);
   const workerCommandGenerationRef = useRef<number | undefined>(undefined);
@@ -533,6 +583,7 @@ export function WarpkeepSpacetimeProvider({
     stoneExpeditionStateRef.current = undefined;
     stoneExpeditionOperationGenerationRef.current = undefined;
     stoneDispatchAttemptRef.current = undefined;
+    legacyReturnOperationGenerationRef.current = undefined;
     workerRosterStateRef.current = undefined;
     workerResourceStateRef.current = undefined;
     workerCommandGenerationRef.current = undefined;
@@ -568,6 +619,7 @@ export function WarpkeepSpacetimeProvider({
       || connection === undefined
       || fid === undefined
       || collectingGenerationRef.current === generation
+      || legacyReturnOperationGenerationRef.current === generation
     ) return;
     collectingGenerationRef.current = generation;
     try {
@@ -772,6 +824,7 @@ export function WarpkeepSpacetimeProvider({
       || runtime.dispatchGoldExpedition === undefined
       || retainedExpedition?.active === true
       || goldExpeditionOperationGenerationRef.current === generation
+      || legacyReturnOperationGenerationRef.current === generation
     ) {
       throw new Error('Gold expedition is unavailable.');
     }
@@ -847,6 +900,7 @@ export function WarpkeepSpacetimeProvider({
       || fid === undefined
       || runtime.collectGoldExpedition === undefined
       || goldExpeditionOperationGenerationRef.current === generation
+      || legacyReturnOperationGenerationRef.current === generation
     ) {
       throw new Error('Gold expedition is unavailable.');
     }
@@ -924,6 +978,7 @@ export function WarpkeepSpacetimeProvider({
       || runtime.dispatchFoodExpedition === undefined
       || retainedExpedition?.active === true
       || foodExpeditionOperationGenerationRef.current === generation
+      || legacyReturnOperationGenerationRef.current === generation
     ) throw new Error('Food expedition is unavailable.');
     const attempt = dispatchAttemptFor(
       foodDispatchAttemptRef.current,
@@ -990,6 +1045,7 @@ export function WarpkeepSpacetimeProvider({
       || fid === undefined
       || runtime.collectFoodExpedition === undefined
       || foodExpeditionOperationGenerationRef.current === generation
+      || legacyReturnOperationGenerationRef.current === generation
     ) throw new Error('Food expedition is unavailable.');
     foodExpeditionOperationGenerationRef.current = generation;
     try {
@@ -1058,6 +1114,7 @@ export function WarpkeepSpacetimeProvider({
       || runtime.dispatchWoodExpedition === undefined
       || retainedExpedition?.active === true
       || woodExpeditionOperationGenerationRef.current === generation
+      || legacyReturnOperationGenerationRef.current === generation
     ) throw new Error('Wood expedition is unavailable.');
     const attempt = dispatchAttemptFor(
       woodDispatchAttemptRef.current,
@@ -1124,6 +1181,7 @@ export function WarpkeepSpacetimeProvider({
       || fid === undefined
       || runtime.collectWoodExpedition === undefined
       || woodExpeditionOperationGenerationRef.current === generation
+      || legacyReturnOperationGenerationRef.current === generation
     ) throw new Error('Wood expedition is unavailable.');
     woodExpeditionOperationGenerationRef.current = generation;
     try {
@@ -1192,6 +1250,7 @@ export function WarpkeepSpacetimeProvider({
       || runtime.dispatchStoneExpedition === undefined
       || retainedExpedition?.active === true
       || stoneExpeditionOperationGenerationRef.current === generation
+      || legacyReturnOperationGenerationRef.current === generation
     ) throw new Error('Stone expedition is unavailable.');
     const attempt = dispatchAttemptFor(
       stoneDispatchAttemptRef.current,
@@ -1256,6 +1315,7 @@ export function WarpkeepSpacetimeProvider({
       || fid === undefined
       || runtime.collectStoneExpedition === undefined
       || stoneExpeditionOperationGenerationRef.current === generation
+      || legacyReturnOperationGenerationRef.current === generation
     ) throw new Error('Stone expedition is unavailable.');
     stoneExpeditionOperationGenerationRef.current = generation;
     try {
@@ -1305,6 +1365,131 @@ export function WarpkeepSpacetimeProvider({
       }
     }
   }, [runtime]);
+
+  const returnLegacyExpedition = useCallback(async (
+    resourceKind: RealmEconomicResourceKey,
+    expeditionId: string
+  ) => {
+    const generation = generationRef.current;
+    const currentState = stateRef.current;
+    const connection = connectionRef.current;
+    const fid = currentState.identity?.fid;
+    const ownCastleId = currentState.realm?.ownCastle.castleId;
+    const currentExpedition = legacyExpeditionForResource(currentState, resourceKind);
+    const resourceOperationRef = resourceKind === 'gold'
+      ? goldExpeditionOperationGenerationRef
+      : resourceKind === 'food'
+        ? foodExpeditionOperationGenerationRef
+        : resourceKind === 'wood'
+          ? woodExpeditionOperationGenerationRef
+          : stoneExpeditionOperationGenerationRef;
+    if (
+      currentState.phase !== 'ready'
+      || currentState.admission !== 'ready'
+      || currentState.realm === undefined
+      || currentState.realm.workerSystem?.mode !== 'staged'
+      || !currentState.realm.workerSystem.legacyDrainRequired
+      || currentState.resources === undefined
+      || connection === undefined
+      || fid === undefined
+      || ownCastleId === undefined
+      || runtime.returnLegacyExpedition === undefined
+      || legacyReturnOperationGenerationRef.current === generation
+      || collectingGenerationRef.current === generation
+      || goldExpeditionOperationGenerationRef.current === generation
+      || foodExpeditionOperationGenerationRef.current === generation
+      || woodExpeditionOperationGenerationRef.current === generation
+      || stoneExpeditionOperationGenerationRef.current === generation
+      || !legacyExpeditionCanReturn(currentExpedition, expeditionId, ownCastleId)
+    ) throw new Error('Legacy expedition return is unavailable.');
+
+    legacyReturnOperationGenerationRef.current = generation;
+    resourceOperationRef.current = generation;
+    try {
+      const refreshed = await withResourceOperationDeadline(
+        runtime.returnLegacyExpedition(
+          connection,
+          fid,
+          resourceKind,
+          expeditionId
+        )
+      );
+      if (
+        generationRef.current !== generation
+        || refreshed.resources.fid !== BigInt(fid)
+        || !resourceProjectionIsAtLeastAsNew(
+          refreshed.resources,
+          resourceStateRef.current?.generation === generation
+            ? resourceStateRef.current.value
+            : undefined
+        )
+        || !activeExpeditionBelongsToCastle(refreshed.goldExpedition, ownCastleId)
+        || !activeExpeditionBelongsToCastle(refreshed.foodExpedition, ownCastleId)
+        || !activeExpeditionBelongsToCastle(refreshed.woodExpedition, ownCastleId)
+        || !activeExpeditionBelongsToCastle(refreshed.stoneExpedition, ownCastleId)
+        || !legacyExpeditionReturnConfirmed(
+          legacyExpeditionForResource(refreshed, resourceKind)
+        )
+      ) throw new Error('Legacy expedition return is unavailable.');
+
+      resourceStateRef.current = Object.freeze({
+        generation,
+        value: refreshed.resources
+      });
+      goldExpeditionStateRef.current = Object.freeze({
+        generation,
+        value: refreshed.goldExpedition
+      });
+      foodExpeditionStateRef.current = Object.freeze({
+        generation,
+        value: refreshed.foodExpedition
+      });
+      woodExpeditionStateRef.current = Object.freeze({
+        generation,
+        value: refreshed.woodExpedition
+      });
+      stoneExpeditionStateRef.current = Object.freeze({
+        generation,
+        value: refreshed.stoneExpedition
+      });
+      setState((latest) => {
+        if (
+          generationRef.current !== generation
+          || latest.phase !== 'ready'
+          || latest.admission !== 'ready'
+          || latest.identity?.fid !== fid
+          || latest.realm?.ownCastle.castleId !== ownCastleId
+          || latest.resources === undefined
+          || !resourceProjectionIsAtLeastAsNew(refreshed.resources, latest.resources)
+        ) return latest;
+        return {
+          ...latest,
+          resources: refreshed.resources,
+          goldExpedition: refreshed.goldExpedition,
+          foodExpedition: refreshed.foodExpedition,
+          woodExpedition: refreshed.woodExpedition,
+          stoneExpedition: refreshed.stoneExpedition
+        };
+      });
+    } catch (error) {
+      if (
+        generationRef.current === generation
+        && error instanceof ResourceOperationDeadlineError
+      ) {
+        canonicalRealmSourceRef.current = undefined;
+        runActiveTeardown();
+        setState(backendError(currentState.identity));
+      }
+      throw new Error('Legacy expedition return is unavailable.');
+    } finally {
+      if (legacyReturnOperationGenerationRef.current === generation) {
+        legacyReturnOperationGenerationRef.current = undefined;
+      }
+      if (resourceOperationRef.current === generation) {
+        resourceOperationRef.current = undefined;
+      }
+    }
+  }, [runActiveTeardown, runtime]);
 
   const beginAlphaTermsAcceptance = useCallback(() => {
     termsAttemptRef.current += 1;
@@ -1389,6 +1574,7 @@ export function WarpkeepSpacetimeProvider({
     stoneExpeditionStateRef.current = undefined;
     stoneExpeditionOperationGenerationRef.current = undefined;
     stoneDispatchAttemptRef.current = undefined;
+    legacyReturnOperationGenerationRef.current = undefined;
     workerRosterStateRef.current = undefined;
     workerResourceStateRef.current = undefined;
     workerCommandGenerationRef.current = undefined;
@@ -1517,6 +1703,9 @@ export function WarpkeepSpacetimeProvider({
       }
       if (stoneDispatchAttemptRef.current?.generation === generation) {
         stoneDispatchAttemptRef.current = undefined;
+      }
+      if (legacyReturnOperationGenerationRef.current === generation) {
+        legacyReturnOperationGenerationRef.current = undefined;
       }
       if (workerRosterStateRef.current?.generation === generation) {
         workerRosterStateRef.current = undefined;
@@ -2196,6 +2385,7 @@ export function WarpkeepSpacetimeProvider({
     claimWoodExpedition,
     dispatchStoneExpedition,
     claimStoneExpedition,
+    returnLegacyExpedition,
     dispatchWorker,
     recallWorker,
     recallAllWorkers
@@ -2214,6 +2404,7 @@ export function WarpkeepSpacetimeProvider({
     dispatchFoodExpedition,
     dispatchWoodExpedition,
     dispatchStoneExpedition,
+    returnLegacyExpedition,
     dispatchWorker,
     recallWorker,
     recallAllWorkers,
