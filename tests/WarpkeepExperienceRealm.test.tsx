@@ -490,6 +490,62 @@ describe('Warpkeep shared realm admission', () => {
     expectPlayerRealmChrome();
   });
 
+  it('re-enters from the menu without repeating Terms during the same authorized session', async () => {
+    const backend = createBackendRuntime();
+    const { container } = renderExperience({ runtime: backend.runtime });
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await acceptAlphaParticipationTerms();
+    await settle();
+    await act(async () => vi.advanceTimersByTime(1));
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await settle();
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
+    expect(backend.runtime.acceptAlphaTerms).toHaveBeenCalledTimes(1);
+
+    returnToMainMenuThroughPlayerProfile();
+    await settle();
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
+    await settle();
+
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
+    expect(backend.runtime.acceptAlphaTerms).toHaveBeenCalledTimes(1);
+  });
+
+  it('resumes a recorded agreement that completes after its entry panel is dismissed', async () => {
+    const backend = createBackendRuntime();
+    const acceptance = deferred<void>();
+    vi.mocked(backend.runtime.acceptAlphaTerms).mockReturnValueOnce(acceptance.promise);
+    const { container } = renderExperience({ runtime: backend.runtime });
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await acceptAlphaParticipationTerms();
+    await settle();
+    await act(async () => vi.advanceTimersByTime(1));
+    await settle();
+    expect(backend.runtime.acceptAlphaTerms).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('heading', {
+      name: 'RECORDING ENTRY AGREEMENT'
+    })).not.toBeNull();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await settle();
+    acceptance.resolve();
+    await settle();
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
+    await settle();
+
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
+    expect(backend.runtime.acceptAlphaTerms).toHaveBeenCalledTimes(1);
+  });
+
   it('cancels the terms gate without creating any authentication or backend side effect', async () => {
     const backend = createBackendRuntime();
     const {
@@ -850,6 +906,14 @@ describe('Warpkeep shared realm admission', () => {
     expectPlayerRealmChrome();
     expect(screen.getByRole('region', { name: 'Your resources' })).not.toBeNull();
     expect(reconnectConnection.disconnect).not.toHaveBeenCalled();
+
+    returnToMainMenuThroughPlayerProfile();
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
+    await settle();
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
+    expect(backend.runtime.acceptAlphaTerms).toHaveBeenCalledTimes(1);
   });
 
   it('leaves the realm when a same-FID token reconnect definitively fails', async () => {
@@ -983,7 +1047,7 @@ describe('Warpkeep shared realm admission', () => {
     expect(backend.runtime.readAdmission).not.toHaveBeenCalled();
   });
 
-  it('gates denied Check Again, reuses the bridge session, and gates the later realm entry', async () => {
+  it('gates denied Check Again, then reuses the accepted authorized session for entry', async () => {
     const backend = createBackendRuntime(['not_admitted', 'ready']);
     const { authority, bridge, container } = renderExperience({ runtime: backend.runtime });
 
@@ -1018,13 +1082,12 @@ describe('Warpkeep shared realm admission', () => {
     expect(backend.runtime.connect).toHaveBeenCalledTimes(2);
 
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
-    expect(screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).not.toBeNull();
-    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
-    await acceptAlphaParticipationTerms();
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
+    expect(backend.runtime.acceptAlphaTerms).toHaveBeenCalledTimes(1);
   });
 
-  it('clears a failed accepted entry intent before a later admission check becomes ready', async () => {
+  it('clears failed entry intents but reuses agreement evidence once admission becomes ready', async () => {
     const backend = createBackendRuntime(['not_admitted', 'not_admitted', 'ready']);
     const { container } = renderExperience({ runtime: backend.runtime });
 
@@ -1062,10 +1125,9 @@ describe('Warpkeep shared realm admission', () => {
     expect(window.location.hash).toBe('#menu');
 
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
-    expect(screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).not.toBeNull();
-    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
-    await acceptAlphaParticipationTerms();
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
+    expect(backend.runtime.acceptAlphaTerms).toHaveBeenCalledTimes(1);
   });
 
   it('clears an authenticated entry intent when its in-flight admission rail is dismissed', async () => {

@@ -18,19 +18,16 @@ describe('latest in-menu patch notes', () => {
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
       releasedOn: '24 JUL 2026',
-      title: 'THE HARVEST REMEMBERED'
+      title: 'THE GATE REMEMBERS'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /occupied Mine, Farm, Camp, or Quarry.*site, keeper, journey phase, time left.*one record/i
+      /Returning from the Realm.*no longer asks.*authorized keeper.*same agreement/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /gathering portrait.*keeper’s castle.*worker recall.*same record/i
+      /Fresh, expired, signed-out, changed-identity.*unchecked agreement/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Completed yield.*automatically during an authenticated session.*recall and expiry/i
-    );
-    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Claim Resource and Collect Yield controls are gone.*private and server-authoritative/i
+      /memory-only.*no acceptance flag is persisted in browser storage.*server remains the authority/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /released to players|deployed to players|public balances|guaranteed rewards/i

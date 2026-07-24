@@ -536,11 +536,17 @@ export function WarpkeepExperience() {
     const verifiedIdentity = verifiedIdentityRef.current;
     if (!verifiedIdentity || verifiedIdentity.fid !== identity.fid) return;
 
-    // A submitted Terms dialog creates only an in-memory entry intent. The
-    // Realm transition waits for the server acknowledgement and admission
-    // lifecycle to return to ready, including for remembered sessions.
+    // A submitted Terms dialog creates only an in-memory entry intent. A
+    // cancelled acknowledgement may still have committed server-side; repeat
+    // entry resumes that exact recorded attempt without resending the reducer.
+    // The Realm transition still waits for admission and readiness.
     setPendingDestination('realm');
-    if (backend.state.phase === 'denied' || backend.state.phase === 'error') {
+    if (
+      backend.entryAgreementSatisfied
+      && backend.state.phase === 'awaiting-terms'
+    ) {
+      backend.beginAlphaTermsAcceptance();
+    } else if (backend.state.phase === 'denied' || backend.state.phase === 'error') {
       backend.checkAgain();
     }
   }, [backend]);
@@ -1058,6 +1064,7 @@ export function WarpkeepExperience() {
             inputModality={menuInteractive ? inputModality : 'unknown'}
             focusFirstCommand={menuInteractive && inputModality === 'keyboard'}
             authRailAttemptFailed={admissionPhase === 'denied' || admissionPhase === 'error'}
+            entryAgreementSatisfied={backend.entryAgreementSatisfied}
             backendUnavailableMessage={backend.sharedAlphaAvailable
               ? undefined
               : WARPKEEP_SHARED_ALPHA_UNAVAILABLE_MESSAGE}
