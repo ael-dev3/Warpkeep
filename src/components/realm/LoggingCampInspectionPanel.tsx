@@ -7,11 +7,7 @@ import {
   type Ref
 } from 'react';
 
-import {
-  woodExpeditionForNode,
-  type ReadyWoodExpeditionPresentation,
-  type WoodExpeditionPresentation
-} from './realmWoodExpeditionPresentation';
+import type { WoodExpeditionPresentation } from './realmWoodExpeditionPresentation';
 import {
   woodNodeAvailabilityLabel,
   woodNodeNextAuthorityTimestamp,
@@ -19,11 +15,11 @@ import {
 } from './realmWoodNodePresentation';
 import {
   matchingRealmResourceOccupant,
-  realmResourceOccupantNextAuthorityTimestamp,
   realmResourceOccupantOwnerLabel,
   realmResourceOccupantSiteStateLabel
 } from './realmResourceOccupantInspector';
 import { useRealmRemainingDuration } from './realmAuthoritySchedule';
+import { RealmResourceOccupantDetails } from './RealmResourceOccupantDetails';
 import type {
   RealmResourceOccupantMarker
 } from './realmResourceOccupantPresentation';
@@ -67,14 +63,14 @@ export type LoggingCampInspectionPanelProps = Readonly<{
   legacyDispatchBlocked?: boolean;
   /** Active generic authority exists, but its public occupancy join failed validation. */
   occupancyUnavailable?: boolean;
-  /** Opens the normalized public record without moving the Realm camera. */
-  onInspectPublicOccupant?: (occupant: RealmResourceOccupantMarker) => void;
-  /** Exact caller-only procedure data, joined again to the public site. */
+  /** Explicit portrait navigation; opening the record itself remains camera-neutral. */
+  onFocusOccupantCastle?: (occupant: RealmResourceOccupantMarker) => void;
+  /** Exact owner-only generic worker recall boundary. */
+  onRecallWorker?: (workerId: string) => Promise<void>;
+  /** Exact caller-only procedure data used only to gate legacy dispatch. */
   privateExpedition?: WoodExpeditionPresentation;
   /** Authenticated provider boundary; no optimistic public node mutation. */
   onDispatchWoodExpedition?: (siteId: string) => Promise<void>;
-  /** Owner-only settlement boundary; resources refresh after server confirmation. */
-  onClaimWoodExpedition?: () => Promise<void>;
   onRequestClose: () => void;
   focusTargetRef?: Ref<HTMLButtonElement>;
 }>;
@@ -111,22 +107,6 @@ function nodeNotice(
   return 'This Camp is occupied. Public occupancy is visible, but another player’s resources remain private.';
 }
 
-function visibleOwnerExpedition(
-  node: RealmWoodNodePresentation | undefined,
-  privateExpedition: WoodExpeditionPresentation | undefined
-): ReadyWoodExpeditionPresentation | undefined {
-  if (!node?.originCastle || !node.occupation || !node.occupiedByViewer) return undefined;
-  return woodExpeditionForNode(privateExpedition, {
-    siteId: node.siteId,
-    originCastleId: node.originCastle.castleId,
-    phase: node.occupation.phase,
-    startedAtMicros: node.occupation.startedAtMicros,
-    arrivesAtMicros: node.occupation.arrivesAtMicros,
-    gatheringEndsAtMicros: node.occupation.gatheringEndsAtMicros,
-    returnsAtMicros: node.occupation.returnsAtMicros
-  });
-}
-
 /**
  * The Logging Camp inspector uses the established public/private split:
  * public rows choose availability, the owner-only procedure chooses pending
@@ -140,10 +120,10 @@ export function LoggingCampInspectionPanel({
   publicOccupant,
   legacyDispatchBlocked = false,
   occupancyUnavailable = false,
-  onInspectPublicOccupant,
+  onFocusOccupantCastle,
+  onRecallWorker,
   privateExpedition,
   onDispatchWoodExpedition,
-  onClaimWoodExpedition,
   onRequestClose,
   focusTargetRef
 }: LoggingCampInspectionPanelProps) {
@@ -151,7 +131,6 @@ export function LoggingCampInspectionPanel({
   const [dispatchState, setDispatchState] = useState<
     'idle' | 'submitting' | 'submitted' | 'failed'
   >('idle');
-  const [claimState, setClaimState] = useState<'idle' | 'submitting' | 'failed'>('idle');
   const titleId = `${id}-title`;
   const descriptionId = `${id}-description`;
   const occupant = occupancyUnavailable || !node
@@ -159,15 +138,12 @@ export function LoggingCampInspectionPanel({
     : matchingRealmResourceOccupant(publicOccupant, 'wood', node.siteId);
   const dispatchBlocked = legacyDispatchBlocked || occupancyUnavailable;
   const scheduleTimestamp = occupant
-    ? realmResourceOccupantNextAuthorityTimestamp(occupant)
+    ? undefined
     : node ? woodNodeNextAuthorityTimestamp(node) : undefined;
   const remainingSchedule = useRealmRemainingDuration(scheduleTimestamp);
   const scheduleLabel = occupancyUnavailable
     ? undefined
     : remainingSchedule;
-  const ownerExpedition = dispatchBlocked || occupant?.source === 'generic-worker'
-    ? undefined
-    : visibleOwnerExpedition(node, privateExpedition);
   const privateExpeditionActive = privateExpedition?.status === 'ready'
     && privateExpedition.active;
   const privateActiveSiteId = privateExpeditionActive
@@ -189,10 +165,6 @@ export function LoggingCampInspectionPanel({
     && onDispatchWoodExpedition !== undefined
     && !privateExpeditionActive
     && (dispatchState === 'idle' || dispatchState === 'failed');
-  const canClaim = ownerExpedition !== undefined
-    && ownerExpedition.pendingWood > 0n
-    && onClaimWoodExpedition !== undefined
-    && claimState !== 'submitting';
   const dispatchLabel = dispatchState === 'submitting'
     ? 'DISPATCHING WAGON…'
     : awaitingPublicOccupation
@@ -219,7 +191,6 @@ export function LoggingCampInspectionPanel({
 
   useEffect(() => {
     setDispatchState('idle');
-    setClaimState('idle');
   }, [node?.availability, node?.siteId]);
 
   const dispatch = useCallback(async () => {
@@ -238,17 +209,6 @@ export function LoggingCampInspectionPanel({
       setDispatchState('failed');
     }
   }, [dispatchBlocked, node, occupant, onDispatchWoodExpedition]);
-
-  const claim = useCallback(async () => {
-    if (!canClaim || !onClaimWoodExpedition) return;
-    setClaimState('submitting');
-    try {
-      await onClaimWoodExpedition();
-      setClaimState('idle');
-    } catch {
-      setClaimState('failed');
-    }
-  }, [canClaim, onClaimWoodExpedition]);
 
   return (
     <aside
@@ -320,28 +280,21 @@ export function LoggingCampInspectionPanel({
             {!occupancyUnavailable && node ? (
               <InspectionField label="Gather rate">+1 Wood / minute</InspectionField>
             ) : null}
-            {ownerExpedition ? (
-              <InspectionField label="Pending Wood">
-                {ownerExpedition.pendingWood.toLocaleString('en-US')}
-              </InspectionField>
-            ) : null}
             {scheduleLabel ? (
               <InspectionField label="Realm schedule">{scheduleLabel}</InspectionField>
             ) : null}
           </dl>
+          {occupant ? (
+            <RealmResourceOccupantDetails
+              focusFallbackRef={closeButtonRef}
+              marker={occupant}
+              onFocusCastle={onFocusOccupantCastle}
+              onRecallWorker={onRecallWorker}
+            />
+          ) : null}
           <p className="gold-mine-inspection__notice">
             {nodeNotice(node, occupant, dispatchBlocked, occupancyUnavailable)}
           </p>
-          {occupant && onInspectPublicOccupant ? (
-            <div className="gold-mine-inspection__action">
-              <button
-                onClick={() => onInspectPublicOccupant(occupant)}
-                type="button"
-              >
-                VIEW PUBLIC {occupant.source === 'generic-worker' ? 'WORKER' : 'EXPEDITION'} RECORD
-              </button>
-            </div>
-          ) : null}
           {!dispatchBlocked
             && occupant === undefined
             && node?.availability === 'available'
@@ -357,25 +310,6 @@ export function LoggingCampInspectionPanel({
               </button>
               <p aria-live="polite" className="gold-mine-inspection__action-status">
                 {dispatchStatus}
-              </p>
-            </div>
-          ) : null}
-          {ownerExpedition && onClaimWoodExpedition ? (
-            <div className="gold-mine-inspection__action gold-mine-inspection__action--claim">
-              <button
-                aria-describedby={descriptionId}
-                disabled={!canClaim}
-                onClick={() => void claim()}
-                type="button"
-              >
-                {claimState === 'submitting' ? 'CLAIMING WOOD…' : 'CLAIM ACCRUED WOOD'}
-              </button>
-              <p aria-live="polite" className="gold-mine-inspection__action-status">
-                {claimState === 'failed'
-                  ? 'The Realm could not confirm this claim. Try again after the record refreshes.'
-                  : canClaim
-                    ? 'Claim is confirmed only when the Realm refreshes your private resource record.'
-                    : 'Accrued Wood becomes claimable when the Realm reports a positive pending amount.'}
               </p>
             </div>
           ) : null}

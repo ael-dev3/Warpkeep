@@ -7,11 +7,7 @@ import {
   type Ref
 } from 'react';
 
-import {
-  goldExpeditionForNode,
-  type GoldExpeditionPresentation,
-  type ReadyGoldExpeditionPresentation
-} from './realmGoldExpeditionPresentation';
+import type { GoldExpeditionPresentation } from './realmGoldExpeditionPresentation';
 import {
   goldNodeAvailabilityLabel,
   goldNodeNextAuthorityTimestamp,
@@ -19,11 +15,11 @@ import {
 } from './realmGoldNodePresentation';
 import {
   matchingRealmResourceOccupant,
-  realmResourceOccupantNextAuthorityTimestamp,
   realmResourceOccupantOwnerLabel,
   realmResourceOccupantSiteStateLabel
 } from './realmResourceOccupantInspector';
 import { useRealmRemainingDuration } from './realmAuthoritySchedule';
+import { RealmResourceOccupantDetails } from './RealmResourceOccupantDetails';
 import type {
   RealmResourceOccupantMarker
 } from './realmResourceOccupantPresentation';
@@ -73,11 +69,12 @@ export type GoldMineInspectionPanelProps = Readonly<{
   legacyDispatchBlocked?: boolean;
   /** Active generic authority exists, but its public occupancy join failed validation. */
   occupancyUnavailable?: boolean;
-  /** Opens the normalized public record without moving the Realm camera. */
-  onInspectPublicOccupant?: (occupant: RealmResourceOccupantMarker) => void;
+  /** Explicit portrait navigation; opening the record itself remains camera-neutral. */
+  onFocusOccupantCastle?: (occupant: RealmResourceOccupantMarker) => void;
+  /** Exact owner-only generic worker recall boundary. */
+  onRecallWorker?: (workerId: string) => Promise<void>;
   /**
-   * Exact caller-only procedure data. It is rendered only after its active
-   * expedition is joined to this public site and public origin castle.
+   * Exact caller-only procedure data used only to gate legacy dispatch.
    */
   privateExpedition?: GoldExpeditionPresentation;
   /**
@@ -85,8 +82,6 @@ export type GoldMineInspectionPanelProps = Readonly<{
    * The panel never changes public occupation, Gold, or node availability.
    */
   onDispatchGoldExpedition?: (siteId: string) => Promise<void>;
-  /** Guarded owner-only settlement reducer; no browser balance mutation. */
-  onClaimGoldExpedition?: () => Promise<void>;
   onRequestClose: () => void;
   focusTargetRef?: Ref<HTMLButtonElement>;
 }>;
@@ -123,26 +118,6 @@ function nodeNotice(
   return 'This node is occupied. Public occupancy is visible, but another player’s resources remain private.';
 }
 
-function visibleOwnerExpedition(
-  node: RealmGoldNodePresentation | undefined,
-  privateExpedition: GoldExpeditionPresentation | undefined
-): ReadyGoldExpeditionPresentation | undefined {
-  if (!node?.originCastle || !node.occupation || !node.occupiedByViewer) return undefined;
-  return goldExpeditionForNode(privateExpedition, {
-    siteId: node.siteId,
-    originCastleId: node.originCastle.castleId,
-    phase: node.occupation.phase,
-    startedAtMicros: node.occupation.startedAtMicros,
-    arrivesAtMicros: node.occupation.arrivesAtMicros,
-    gatheringEndsAtMicros: node.occupation.gatheringEndsAtMicros,
-    returnsAtMicros: node.occupation.returnsAtMicros
-  });
-}
-
-function formatGold(value: bigint) {
-  return value.toLocaleString('en-US');
-}
-
 /**
  * A public Gold Mine record with narrowly injected, authenticated actions.
  * Presentation never owns map state, resource settlement, or node occupancy.
@@ -154,10 +129,10 @@ export function GoldMineInspectionPanel({
   publicOccupant,
   legacyDispatchBlocked = false,
   occupancyUnavailable = false,
-  onInspectPublicOccupant,
+  onFocusOccupantCastle,
+  onRecallWorker,
   privateExpedition,
   onDispatchGoldExpedition,
-  onClaimGoldExpedition,
   onRequestClose,
   focusTargetRef
 }: GoldMineInspectionPanelProps) {
@@ -165,7 +140,6 @@ export function GoldMineInspectionPanel({
   const [dispatchState, setDispatchState] = useState<
     'idle' | 'submitting' | 'submitted' | 'failed'
   >('idle');
-  const [claimState, setClaimState] = useState<'idle' | 'submitting' | 'failed'>('idle');
   const titleId = `${id}-title`;
   const descriptionId = `${id}-description`;
   const occupant = occupancyUnavailable || !node
@@ -173,15 +147,12 @@ export function GoldMineInspectionPanel({
     : matchingRealmResourceOccupant(publicOccupant, 'gold', node.siteId);
   const dispatchBlocked = legacyDispatchBlocked || occupancyUnavailable;
   const scheduleTimestamp = occupant
-    ? realmResourceOccupantNextAuthorityTimestamp(occupant)
+    ? undefined
     : node ? goldNodeNextAuthorityTimestamp(node) : undefined;
   const remainingSchedule = useRealmRemainingDuration(scheduleTimestamp);
   const scheduleLabel = occupancyUnavailable
     ? undefined
     : remainingSchedule;
-  const ownerExpedition = dispatchBlocked || occupant?.source === 'generic-worker'
-    ? undefined
-    : visibleOwnerExpedition(node, privateExpedition);
   const privateExpeditionActive = privateExpedition?.status === 'ready'
     && privateExpedition.active;
   const privateActiveSiteId = privateExpeditionActive
@@ -203,10 +174,6 @@ export function GoldMineInspectionPanel({
     && onDispatchGoldExpedition !== undefined
     && !privateExpeditionActive
     && (dispatchState === 'idle' || dispatchState === 'failed');
-  const canClaim = ownerExpedition !== undefined
-    && ownerExpedition.pendingGold > 0n
-    && onClaimGoldExpedition !== undefined
-    && claimState !== 'submitting';
   const dispatchLabel = dispatchState === 'submitting'
     ? 'DISPATCHING WAGON…'
     : awaitingPublicOccupation
@@ -233,7 +200,6 @@ export function GoldMineInspectionPanel({
 
   useEffect(() => {
     setDispatchState('idle');
-    setClaimState('idle');
   }, [node?.siteId, node?.availability]);
 
   const dispatch = useCallback(async () => {
@@ -255,19 +221,6 @@ export function GoldMineInspectionPanel({
       setDispatchState('failed');
     }
   }, [dispatchBlocked, node, occupant, onDispatchGoldExpedition]);
-
-  const claim = useCallback(async () => {
-    if (!canClaim || !onClaimGoldExpedition) return;
-    setClaimState('submitting');
-    try {
-      // The refreshed private resource/expedition views, not this callback,
-      // decide whether settlement completed and what balance is now visible.
-      await onClaimGoldExpedition();
-      setClaimState('idle');
-    } catch {
-      setClaimState('failed');
-    }
-  }, [canClaim, onClaimGoldExpedition]);
 
   return (
     <aside
@@ -336,28 +289,21 @@ export function GoldMineInspectionPanel({
             {!occupancyUnavailable && (occupant || node?.occupation) ? (
               <InspectionField label="Gather rate">+1 Gold / minute</InspectionField>
             ) : null}
-            {ownerExpedition ? (
-              <InspectionField label="Pending Gold">
-                {formatGold(ownerExpedition.pendingGold)}
-              </InspectionField>
-            ) : null}
             {scheduleLabel ? (
               <InspectionField label="Realm schedule">{scheduleLabel}</InspectionField>
             ) : null}
           </dl>
+          {occupant ? (
+            <RealmResourceOccupantDetails
+              focusFallbackRef={closeButtonRef}
+              marker={occupant}
+              onFocusCastle={onFocusOccupantCastle}
+              onRecallWorker={onRecallWorker}
+            />
+          ) : null}
           <p className="gold-mine-inspection__notice">
             {nodeNotice(node, occupant, dispatchBlocked, occupancyUnavailable)}
           </p>
-          {occupant && onInspectPublicOccupant ? (
-            <div className="gold-mine-inspection__action">
-              <button
-                onClick={() => onInspectPublicOccupant(occupant)}
-                type="button"
-              >
-                VIEW PUBLIC {occupant.source === 'generic-worker' ? 'WORKER' : 'EXPEDITION'} RECORD
-              </button>
-            </div>
-          ) : null}
           {!dispatchBlocked
             && occupant === undefined
             && node?.availability === 'available'
@@ -373,25 +319,6 @@ export function GoldMineInspectionPanel({
               </button>
               <p aria-live="polite" className="gold-mine-inspection__action-status">
                 {dispatchStatus}
-              </p>
-            </div>
-          ) : null}
-          {ownerExpedition && onClaimGoldExpedition ? (
-            <div className="gold-mine-inspection__action gold-mine-inspection__action--claim">
-              <button
-                aria-describedby={descriptionId}
-                disabled={!canClaim}
-                onClick={() => void claim()}
-                type="button"
-              >
-                {claimState === 'submitting' ? 'CLAIMING GOLD…' : 'CLAIM ACCRUED GOLD'}
-              </button>
-              <p aria-live="polite" className="gold-mine-inspection__action-status">
-                {claimState === 'failed'
-                  ? 'The Realm could not confirm this claim. Try again after the record refreshes.'
-                  : canClaim
-                    ? 'Claim is confirmed only when the Realm refreshes your private resource record.'
-                    : 'Accrued Gold will become claimable when the Realm reports a positive pending amount.'}
               </p>
             </div>
           ) : null}

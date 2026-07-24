@@ -5,7 +5,7 @@ import { RealmMapScreen } from '../src/components/realm/RealmMapScreen';
 import {
   measuredRealmComposition,
   measuredVisibleRealmUiRects,
-  retainCastleProjectionWhileOccupantRecordOpen
+  retainCastleProjectionWhileOccupiedResourceInspectorOpen
 } from '../src/components/realm/realmMeasuredComposition';
 import type { RealmIdentity } from '../src/components/realm/realmTypes';
 import { createRenderedWebglQaFixtureRealm } from '../src/dev/renderedWebglQaFixture';
@@ -77,31 +77,6 @@ afterEach(() => {
 });
 
 describe('RealmMapScreen', () => {
-  it('retains projection only for the exact camera-neutral occupant record', () => {
-    const root = document.createElement('main');
-    const surface = document.createElement('aside');
-    root.append(surface);
-
-    for (const className of [
-      'realm-cell-navigator__dialog',
-      'castle-inspection',
-      'realm-camera-neutral-inspector',
-      'realm-resource-occupant-panel'
-    ]) {
-      surface.className = className;
-      surface.removeAttribute('data-resource-occupant-panel');
-      expect(retainCastleProjectionWhileOccupantRecordOpen(root)).toBe(false);
-    }
-
-    surface.className =
-      'realm-camera-neutral-inspector realm-resource-occupant-panel';
-    surface.dataset.resourceOccupantPanel = 'true';
-    expect(retainCastleProjectionWhileOccupantRecordOpen(root)).toBe(true);
-
-    surface.dataset.resourceOccupantPanel = 'false';
-    expect(retainCastleProjectionWhileOccupantRecordOpen(root)).toBe(false);
-  });
-
   it('reserves a camera-neutral record from labels without moving the camera viewport', () => {
     const root = document.createElement('main');
     const waterInspector = document.createElement('aside');
@@ -137,6 +112,29 @@ describe('RealmMapScreen', () => {
       bottom: 0,
       left: 0
     });
+  });
+
+  it('retains castle-label membership only for a unified occupied-resource inspector', () => {
+    const root = document.createElement('main');
+    const inspector = document.createElement('aside');
+    inspector.className = 'gold-mine-inspection realm-camera-neutral-inspector';
+    root.append(inspector);
+
+    expect(
+      retainCastleProjectionWhileOccupiedResourceInspectorOpen(root)
+    ).toBe(false);
+
+    const details = document.createElement('section');
+    details.dataset.resourceOccupantDetails = 'true';
+    inspector.append(details);
+    expect(
+      retainCastleProjectionWhileOccupiedResourceInspectorOpen(root)
+    ).toBe(true);
+
+    details.remove();
+    expect(
+      retainCastleProjectionWhileOccupiedResourceInspectorOpen(root)
+    ).toBe(false);
   });
 
   it('reserves a short-landscape Explore panel without turning corner chrome into a top inset', () => {

@@ -94,8 +94,7 @@ describe('GoldMineInspectionPanel', () => {
     expect(screen.getByText(/private Realm record is confirmed/i)).not.toBeNull();
   });
 
-  it('shows the public rate to peers but only enables a matching owner claim from private state', async () => {
-    const claim = vi.fn(async () => undefined);
+  it('shows the public rate while keeping manual claim controls retired', () => {
     const active = decodeGoldExpeditionPresentation({
       active: true,
       expeditionId: '00000000-0000-4000-8000-000000000001',
@@ -136,7 +135,6 @@ describe('GoldMineInspectionPanel', () => {
         mine={{ name: 'Gold Mine', tier: 1 }}
         node={{ ...node, occupiedByViewer: false }}
         privateExpedition={active}
-        onClaimGoldExpedition={claim}
         onRequestClose={() => undefined}
       />
     );
@@ -171,13 +169,11 @@ describe('GoldMineInspectionPanel', () => {
         mine={{ name: 'Gold Mine', tier: 1 }}
         node={node}
         privateExpedition={active}
-        onClaimGoldExpedition={claim}
         onRequestClose={() => undefined}
       />
     );
-    expect(screen.getByText('Pending Gold').nextElementSibling?.textContent).toBe('4');
-    fireEvent.click(screen.getByRole('button', { name: 'CLAIM ACCRUED GOLD' }));
-    await waitFor(() => expect(claim).toHaveBeenCalledOnce());
+    expect(screen.queryByText('Pending Gold')).toBeNull();
+    expect(screen.queryByRole('button', { name: /claim/i })).toBeNull();
   });
 
   it('disables a different available Mine while the private record has an active wagon', () => {

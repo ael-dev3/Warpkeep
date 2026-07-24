@@ -6,6 +6,17 @@ full engineering record.
 
 ## [Unreleased]
 
+## [0.3.16] — 2026-07-24
+
+- Unified each occupied resource site and its gathering keeper into one record,
+  with phase-specific time left, public identity, castle navigation, and
+  owner-only worker recall kept together.
+- Removed manual resource-claim controls. Existing server-authoritative
+  settlement now runs on the authenticated Realm cadence, while recall and
+  expiry schedules preserve offline completion.
+- Kept balances private and all rates, clocks, ownership, and credit cursors
+  under SpacetimeDB authority.
+
 ## [0.3.15] — 2026-07-24
 
 - Restored the path from sign-in to live Realm records and restored the authored
@@ -141,7 +152,8 @@ full engineering record.
   Lowlands, a first keep, Farcaster sign-in, and an admission-gated shared-world
   foundation.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.15...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.16...HEAD
+[0.3.16]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.15...v0.3.16
 [0.3.15]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.14...v0.3.15
 [0.3.14]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.13...v0.3.14
 [0.3.13]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.12...v0.3.13

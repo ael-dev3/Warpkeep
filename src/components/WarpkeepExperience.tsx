@@ -1097,37 +1097,22 @@ export function WarpkeepExperience() {
                 identity={realmIdentity}
                 snapshot={backend.state.realm}
                 resources={backend.state.resources}
-                onCollectResources={backend.state.resources
-                  ? backend.collectResources
-                  : undefined}
                 goldExpedition={backend.state.goldExpedition}
                 onDispatchGoldExpedition={backend.state.goldExpedition === undefined
                   ? undefined
                   : backend.dispatchGoldExpedition}
-                onClaimGoldExpedition={backend.state.goldExpedition === undefined
-                  ? undefined
-                  : backend.claimGoldExpedition}
                 foodExpedition={backend.state.foodExpedition}
                 onDispatchFoodExpedition={backend.state.foodExpedition === undefined
                   ? undefined
                   : backend.dispatchFoodExpedition}
-                onClaimFoodExpedition={backend.state.foodExpedition === undefined
-                  ? undefined
-                  : backend.claimFoodExpedition}
                 woodExpedition={backend.state.woodExpedition}
                 onDispatchWoodExpedition={backend.state.woodExpedition === undefined
                   ? undefined
                   : backend.dispatchWoodExpedition}
-                onClaimWoodExpedition={backend.state.woodExpedition === undefined
-                  ? undefined
-                  : backend.claimWoodExpedition}
                 stoneExpedition={backend.state.stoneExpedition}
                 onDispatchStoneExpedition={backend.state.stoneExpedition === undefined
                   ? undefined
                   : backend.dispatchStoneExpedition}
-                onClaimStoneExpedition={backend.state.stoneExpedition === undefined
-                  ? undefined
-                  : backend.claimStoneExpedition}
                 workerProjection={backend.state.workerProjection}
                 workerRoster={backend.state.workerRoster}
                 workerResourceState={backend.state.workerResourceState}

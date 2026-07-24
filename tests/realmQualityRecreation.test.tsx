@@ -281,6 +281,50 @@ function activeFoodWagonRealm() {
   return { expedition, occupation, site, snapshot };
 }
 
+function activePeerFoodWagonSnapshot(options: Readonly<{
+  phase: 'outbound' | 'gathering' | 'returning';
+  castleName: string;
+  canonicalUsername: string;
+  displayName: string;
+}>) {
+  const candidate = createCanonicalGenesisCandidate({
+    ownFid: CANONICAL_TEST_FID,
+    peerFid: 77
+  });
+  const site = CANONICAL_TIER_I_FOOD_SITES_V1[0]!;
+  const peerCastle = candidate.castles.find((castle) => castle.ownerFid === 77);
+  if (!peerCastle) throw new Error('missing peer Food occupation fixture');
+  const castles = candidate.castles.map((castle) => (
+    castle.ownerFid === 77
+      ? { ...castle, name: options.castleName }
+      : { ...castle }
+  ));
+  const snapshot = validate({
+    ...candidate,
+    castles,
+    profiles: candidate.profiles.map((profile) => (
+      profile.fid === 77
+        ? {
+            ...profile,
+            canonicalUsername: options.canonicalUsername,
+            displayName: options.displayName
+          }
+        : { ...profile }
+    )),
+    foodSites: CANONICAL_TIER_I_FOOD_SITES_V1.map((row) => ({ ...row })),
+    foodNodeOccupations: [{
+      siteId: site.siteId,
+      originCastleId: peerCastle.castleId,
+      phase: options.phase,
+      startedAtMicros: 10n,
+      arrivesAtMicros: 20n,
+      gatheringEndsAtMicros: 30n,
+      returnsAtMicros: 40n
+    }]
+  });
+  return { site, snapshot };
+}
+
 function workerOccupationRealm(activeOwner: 'peer' | 'viewer') {
   const candidate = createCanonicalGenesisCandidate({
     ownFid: CANONICAL_TEST_FID,
@@ -690,6 +734,56 @@ describe('live realm quality recreation', () => {
     })).not.toBeNull();
   });
 
+  it('reconciles an occupied-node profile and timeline refresh without rebuilding the renderer', () => {
+    installWebGlProbe();
+    const initial = activePeerFoodWagonSnapshot({
+      phase: 'outbound',
+      castleName: 'Peer Watch',
+      canonicalUsername: 'peerkeeper',
+      displayName: 'Peer Keeper'
+    });
+    const refreshed = activePeerFoodWagonSnapshot({
+      phase: 'gathering',
+      castleName: 'Harvest Bastion',
+      canonicalUsername: 'peerharvester',
+      displayName: 'Peer Harvester'
+    });
+    const { rerender } = render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={initial.snapshot}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+    expect(mocked.createRealmScene).toHaveBeenCalledOnce();
+    const initialOptions = mocked.createRealmScene.mock.calls[0]![0];
+    const initialScene = mocked.handles[0]!;
+    act(() => initialOptions.onCastlesReady?.(2));
+
+    rerender(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={refreshed.snapshot}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+
+    expect(mocked.createRealmScene).toHaveBeenCalledOnce();
+    expect(initialScene.dispose).not.toHaveBeenCalled();
+
+    act(() => initialOptions.onTargetSelect?.({
+      kind: 'food-site',
+      siteId: refreshed.site.siteId,
+      coord: { q: refreshed.site.q, r: refreshed.site.r }
+    }));
+    const record = screen.getByRole('dialog', { name: 'Wheat Farm' });
+    expect(within(record).getByText('GATHERING AT SITE')).not.toBeNull();
+    expect(within(record).getByText('Harvest Bastion')).not.toBeNull();
+    expect(within(record).getByText('@peerharvester')).not.toBeNull();
+  });
+
   it('rebuilds the scene for a real authoritative castle movement', () => {
     installWebGlProbe();
     const initial = createCanonicalGenesisSnapshot({
@@ -831,7 +925,9 @@ describe('live realm quality recreation', () => {
     expect(initialScene.locateCastle).toHaveBeenCalledOnce();
     expect(initialScene.locateCastle).toHaveBeenCalledWith(2);
     expect(initialScene.focusCastle).not.toHaveBeenCalled();
-    expect(document.querySelector('[data-resource-occupant-panel="true"]')).not.toBeNull();
+    expect(document.querySelector(
+      '.stone-quarry-inspection [data-resource-occupant-details="true"]'
+    )).not.toBeNull();
 
     rerender(
       <RealmMapScreen
@@ -846,7 +942,9 @@ describe('live realm quality recreation', () => {
     act(() => mocked.createRealmScene.mock.calls[1]![0].onCastlesReady?.(2));
     expect(mocked.handles[1]!.locateCastle).toHaveBeenCalledWith(2);
     expect(mocked.handles[1]!.focusCastle).not.toHaveBeenCalled();
-    expect(document.querySelector('[data-resource-occupant-panel="true"]')).not.toBeNull();
+    expect(document.querySelector(
+      '.stone-quarry-inspection [data-resource-occupant-details="true"]'
+    )).not.toBeNull();
   });
 
   it('forwards the exact viewer-owned worker recall from the projected resource record', async () => {
@@ -980,7 +1078,7 @@ describe('live realm quality recreation', () => {
     )).toBe(308);
   });
 
-  it('retains exact castle membership but updates anchors behind an occupant record', async () => {
+  it('keeps castle projections current behind a unified occupied-site record', async () => {
     installWebGlProbe();
     const fixture = createRenderedWebglQaFixtureRealm();
     render(
@@ -1049,15 +1147,15 @@ describe('live realm quality recreation', () => {
     const whileOpen = [...document.querySelectorAll<HTMLButtonElement>(
       'button.realm-castle-label[data-castle-id]'
     )];
-    expect(whileOpen).toHaveLength(3);
-    whileOpen.forEach((button) => {
+    expect(whileOpen).toHaveLength(4);
+    whileOpen.slice(0, 3).forEach((button) => {
       expect(button).toBe(before.get(Number(button.dataset.castleId)));
     });
     expect(Number.parseFloat(
       whileOpen[0]!.style.getPropertyValue('--realm-castle-anchor-x')
     )).toBe(144);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Close player record' }));
+    fireEvent.click(screen.getByRole('button', { name: 'CLOSE GOLD MINE RECORD' }));
     act(() => options.onCastleProjection?.(projection(24, true)));
     expect(document.querySelectorAll(
       'button.realm-castle-label[data-castle-id]'
@@ -1130,7 +1228,7 @@ describe('live realm quality recreation', () => {
       .not.toBeNull();
   });
 
-  it('keeps a site record, projected player record, and Explore strictly mutually exclusive', async () => {
+  it('keeps one unified occupied-site record mutually exclusive with Explore', async () => {
     installWebGlProbe();
     const onRequestReturn = vi.fn();
     const fixture = peerWorkerOccupationRealm();
@@ -1173,67 +1271,26 @@ describe('live realm quality recreation', () => {
       coord: { q: fixture.site.q, r: fixture.site.r }
     }));
     scene.focusCell.mockClear();
-    expect(document.querySelector('.stone-quarry-inspection')).not.toBeNull();
-    expect(document.querySelector('[data-resource-occupant-panel="true"]')).toBeNull();
+    const initialRecord = screen.getByRole('dialog', { name: 'Stone Quarry' });
+    expect(initialRecord.querySelector('[data-resource-occupant-details="true"]')).not.toBeNull();
+    expect(within(initialRecord).getByText('PUBLIC WORKER RECORD')).not.toBeNull();
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: /VIEW PUBLIC|CLAIM/i })).toBeNull();
     expect(screen.queryByRole('dialog', { name: 'Explore' })).toBeNull();
 
     act(() => options.onResourceProjection?.(projection));
-    expect(screen.getByRole('button', {
+    const projectedMarker = screen.getByRole('button', {
       name: /Inspect @peerkeeper gathering at Stone Quarry/i
-    })).not.toBeNull();
-    fireEvent.click(screen.getByRole('button', {
-      name: 'VIEW PUBLIC WORKER RECORD'
-    }));
-
-    expect(document.querySelector('.stone-quarry-inspection')).toBeNull();
-    const playerRecord = document.querySelector<HTMLElement>(
-      '[data-resource-occupant-panel="true"]'
-    );
-    expect(playerRecord).not.toBeNull();
-    expect(within(playerRecord!).getByText('PUBLIC WORKER RECORD')).not.toBeNull();
-    const playerRecordClose = within(playerRecord!).getByRole('button', {
-      name: 'Close player record'
     });
-    await waitFor(() => expect(document.activeElement).toBe(playerRecordClose));
-
-    fireEvent.click(playerRecordClose);
-    const restoredInspector = screen.getByRole('dialog', { name: 'Stone Quarry' });
-    expect(document.querySelector('[data-resource-occupant-panel="true"]')).toBeNull();
-    await waitFor(() => {
-      expect(document.activeElement).toBe(
-        within(restoredInspector).getByRole('button', {
-          name: 'CLOSE STONE QUARRY RECORD'
-        })
-      );
-    });
-    expect(scene.focusCell).not.toHaveBeenCalled();
-
-    fireEvent.click(within(restoredInspector).getByRole('button', {
-      name: 'VIEW PUBLIC WORKER RECORD'
-    }));
-    await waitFor(() => {
-      expect(document.activeElement).toBe(
-        screen.getByRole('button', { name: 'Close player record' })
-      );
-    });
-    fireEvent.keyDown(document, { key: 'Escape' });
-    const escapeRestoredInspector = screen.getByRole('dialog', { name: 'Stone Quarry' });
-    await waitFor(() => {
-      expect(document.activeElement).toBe(
-        within(escapeRestoredInspector).getByRole('button', {
-          name: 'CLOSE STONE QUARRY RECORD'
-        })
-      );
-    });
-    expect(onRequestReturn).not.toHaveBeenCalled();
-    fireEvent.keyDown(document, { key: 'Escape' });
-    expect(screen.queryByRole('dialog', { name: 'Stone Quarry' })).toBeNull();
-    expect(onRequestReturn).not.toHaveBeenCalled();
+    fireEvent.click(projectedMarker);
+    const projectedRecord = screen.getByRole('dialog', { name: 'Stone Quarry' });
+    expect(projectedRecord.querySelector('[data-resource-occupant-details="true"]')).not.toBeNull();
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
     expect(scene.focusCell).not.toHaveBeenCalled();
 
     const { explore } = openPlayerExplore();
     expect(document.querySelector('.stone-quarry-inspection')).toBeNull();
-    expect(document.querySelector('[data-resource-occupant-panel="true"]')).toBeNull();
+    expect(document.querySelector('[data-resource-occupant-details="true"]')).toBeNull();
     expect(explore).not.toBeNull();
     await waitFor(() => {
       expect(document.activeElement).toBe(
@@ -1251,15 +1308,20 @@ describe('live realm quality recreation', () => {
     fireEvent.click(reopenedMarker);
     await waitFor(() => {
       expect(document.activeElement).toBe(
-        screen.getByRole('button', { name: 'Close player record' })
+        screen.getByRole('button', { name: 'CLOSE STONE QUARRY RECORD' })
       );
     });
+    expect(screen.getByRole('dialog', { name: 'Stone Quarry' })
+      .querySelector('[data-resource-occupant-details="true"]')).not.toBeNull();
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
 
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(document.querySelector('[data-resource-occupant-panel="true"]')).toBeNull();
+    expect(document.querySelector('[data-resource-occupant-details="true"]')).toBeNull();
     expect(screen.queryByRole('dialog', { name: 'Explore' })).toBeNull();
     expect(onRequestReturn).not.toHaveBeenCalled();
-    await waitFor(() => expect(document.activeElement).toBe(reopenedMarker));
+    await waitFor(() => expect(document.activeElement).toBe(
+      document.querySelector('.realm-map-screen')
+    ));
 
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onRequestReturn).toHaveBeenCalledOnce();

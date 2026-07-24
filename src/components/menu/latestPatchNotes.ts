@@ -6,24 +6,24 @@ export type LatestPatchNotes = Readonly<{
   alphaNotice: string;
 }>;
 
-const ALPHA_0_3_15_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+const ALPHA_0_3_16_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '24 JUL 2026',
-  title: 'THE LIVING FRONTIER',
+  title: 'THE HARVEST REMEMBERED',
   summary:
-    'Genesis 001 feels more alive and easier to read, from its restored keeps and denser forests to the gathering stories unfolding across the Lowlands.',
+    'Gathering in Genesis 001 now lives in one clear record, and the Realm remembers completed yield without asking its keepers to claim it by hand.',
   highlights: Object.freeze([
-    'Authored keep and title textures are restored, with a softer ocean-to-fog horizon and denser biome-shaped forests.',
-    'Occupied resource sites now carry safe public Farcaster portraits, including static previews for animated or decentralized profile images.',
-    'Selecting a keep, water cell, worker, or resource record no longer pulls the camera away; ordinary zoom-out is also tighter and more readable.',
-    'Gathering records now show the authoritative arrival, gathering, or return time left instead of a generic deployment duration.'
+    'An occupied Mine, Farm, Camp, or Quarry now keeps the site, keeper, journey phase, time left, and public identity together in one record.',
+    'A gathering portrait remains a deliberate path to the keeper’s castle, while an owner’s worker recall stays inside that same record.',
+    'Completed yield settles into the Realm automatically during an authenticated session, with server-owned recall and expiry schedules closing journeys while a player is away.',
+    'The old Claim Resource and Collect Yield controls are gone; resource totals remain private and server-authoritative.'
   ]),
   alphaNotice:
-    'Alpha 0.3.15 is an unfinished, evolving world. The four-worker system and recall controls remain staged behind inactive rollout gates and are not live yet; community feedback helps shape what is built next.'
+    'Alpha 0.3.16 is an unfinished, evolving world. The prepared four-worker system remains staged behind inactive rollout gates and is not live yet; community feedback helps shape what is built next.'
 });
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
-    '0.3.15': ALPHA_0_3_15_PATCH_NOTES
+    '0.3.16': ALPHA_0_3_16_PATCH_NOTES
   });
 
 export function getLatestPatchNotes(productVersion: string) {

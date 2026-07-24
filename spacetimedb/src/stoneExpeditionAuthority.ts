@@ -489,9 +489,9 @@ export function dispatchGenesisStoneExpedition(
 }
 
 /**
- * Claim completed whole Stone minutes from the caller's active Stone Quarry
+ * Settle completed whole Stone minutes from the caller's active Stone Quarry
  * wagon. The capacity reservation is revalidated before every write; no
- * browser timing or per-minute mutation exists.
+ * browser timing or caller-provided amount participates.
  */
 export function collectActiveStoneExpedition(
   ctx: WarpkeepReducerContext,

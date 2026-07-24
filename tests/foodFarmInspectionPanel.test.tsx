@@ -47,9 +47,8 @@ describe('FoodFarmInspectionPanel', () => {
     expect(screen.queryByRole('button', { name: /dispatch|claim/i })).toBeNull();
   });
 
-  it('sends only the public Food site id, then gates claim on a matching owner record', async () => {
+  it('sends only the public Food site id and never exposes a manual claim control', async () => {
     const dispatch = vi.fn(async () => undefined);
-    const claim = vi.fn(async () => undefined);
     const availableNode = {
       siteId: 'genesis-001:food:0001',
       coord: { q: -4, r: 3 },
@@ -128,12 +127,10 @@ describe('FoodFarmInspectionPanel', () => {
         farm={{ name: 'Wheat Farm', tier: 1 }}
         node={occupiedNode}
         privateExpedition={active}
-        onClaimFoodExpedition={claim}
         onRequestClose={() => undefined}
       />
     );
-    expect(screen.getByText('Pending Food').nextElementSibling?.textContent).toBe('4');
-    fireEvent.click(screen.getByRole('button', { name: 'CLAIM ACCRUED FOOD' }));
-    await waitFor(() => expect(claim).toHaveBeenCalledOnce());
+    expect(screen.queryByText('Pending Food')).toBeNull();
+    expect(screen.queryByRole('button', { name: /claim/i })).toBeNull();
   });
 });

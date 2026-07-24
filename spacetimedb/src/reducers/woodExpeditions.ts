@@ -122,9 +122,9 @@ export const dispatchWoodExpeditionV1 = warpkeep.reducer(
 );
 
 /**
- * Explicit no-input claim for completed whole Wood minutes. It is safe to
- * repeat: only uncredited authoritative accrual is transferred, while the
- * expiry schedule settles the exact remaining cursor once.
+ * Retained no-input settlement for completed whole Wood minutes. Repeated
+ * calls transfer only uncredited authoritative accrual, while expiry settles
+ * the exact remaining cursor once.
  */
 export const collectWoodExpeditionV1 = warpkeep.reducer(
   { name: 'collect_wood_expedition_v1' },

@@ -89,6 +89,7 @@ import {
   realmResourceOccupantMarkerForKey,
   realmResourceOccupantMarkerKey,
   resolveRealmResourceOccupantMarkerResolution,
+  resolveRealmWorkerInspectionRoute,
   visibleRealmResourceOccupantMarkerKeys,
   visibleRealmResourceOccupantPresenceKeys,
   type RealmResourceOccupantMarker
@@ -123,7 +124,7 @@ import type {
 import {
   measuredRealmComposition,
   measuredVisibleRealmUiRects,
-  retainCastleProjectionWhileOccupantRecordOpen
+  retainCastleProjectionWhileOccupiedResourceInspectorOpen
 } from './realmMeasuredComposition';
 import { settlePendingNavigatorCellFocus } from './realmNavigatorFocus';
 import {
@@ -210,31 +211,22 @@ type RealmMapScreenProps = Readonly<{
   snapshot: CanonicalWarpkeepRealmSnapshot;
   /** Authenticated caller-only inventory, separate from the public snapshot. */
   resources?: ReadyRealmResourcePresentation;
-  onCollectResources?: () => Promise<void>;
   /** Exact caller-only Gold expedition procedure projection. */
   goldExpedition?: GoldExpeditionPresentation;
   /** Guarded reducer boundary; never supplied to observer presentation. */
   onDispatchGoldExpedition?: (siteId: string) => Promise<void>;
-  /** Guarded owner-only settlement reducer; never supplied to observers. */
-  onClaimGoldExpedition?: () => Promise<void>;
   /** Exact caller-only Food expedition procedure projection. */
   foodExpedition?: FoodExpeditionPresentation;
   /** Guarded Food reducer boundary; never supplied to observer presentation. */
   onDispatchFoodExpedition?: (siteId: string) => Promise<void>;
-  /** Guarded owner-only Food settlement reducer; never supplied to observers. */
-  onClaimFoodExpedition?: () => Promise<void>;
   /** Exact caller-only Wood expedition procedure projection. */
   woodExpedition?: WoodExpeditionPresentation;
   /** Guarded Wood reducer boundary; never supplied to observer presentation. */
   onDispatchWoodExpedition?: (siteId: string) => Promise<void>;
-  /** Guarded owner-only Wood settlement reducer; never supplied to observers. */
-  onClaimWoodExpedition?: () => Promise<void>;
   /** Exact caller-only Stone expedition procedure projection. */
   stoneExpedition?: StoneExpeditionPresentation;
   /** Guarded Stone reducer boundary; never supplied to observer presentation. */
   onDispatchStoneExpedition?: (siteId: string) => Promise<void>;
-  /** Guarded owner-only Stone settlement reducer; never supplied to observers. */
-  onClaimStoneExpedition?: () => Promise<void>;
   workerProjection?: ReadyWorkerProjection;
   workerRoster?: WorkerRosterPresentation;
   workerResourceState?: ReadyWorkerResourceState;
@@ -322,19 +314,14 @@ function CanonicalRealmMapScreen({
   identity,
   snapshot,
   resources,
-  onCollectResources,
   goldExpedition,
   onDispatchGoldExpedition,
-  onClaimGoldExpedition,
   foodExpedition,
   onDispatchFoodExpedition,
-  onClaimFoodExpedition,
   woodExpedition,
   onDispatchWoodExpedition,
-  onClaimWoodExpedition,
   stoneExpedition,
   onDispatchStoneExpedition,
-  onClaimStoneExpedition,
   workerProjection,
   workerRoster,
   workerResourceState,
@@ -737,6 +724,8 @@ function CanonicalRealmMapScreen({
     woodNodes
   ]);
   const resourceOccupantMarkers = resourceOccupantResolution.markers;
+  const resourceOccupantMarkersRef = useRef(resourceOccupantMarkers);
+  resourceOccupantMarkersRef.current = resourceOccupantMarkers;
   const resourceOccupancyUnavailable = legacyResourceDispatchBlocked
     && resourceOccupantResolution.status === 'invalid';
   const resourceOccupantSceneSignature = JSON.stringify(
@@ -991,11 +980,6 @@ function CanonicalRealmMapScreen({
     || interaction.cameraTarget.kind === 'castle-location'
     ? interaction.cameraTarget.castleId
     : undefined;
-  const selectedResourceOccupantKey = interaction.resourceOccupantKey;
-  const selectedResourceOccupant = realmResourceOccupantMarkerForKey(
-    resourceOccupantMarkers,
-    selectedResourceOccupantKey
-  );
   const resourceOccupantMarkerKeys = useMemo(
     () => new Set(resourceOccupantMarkers.map(realmResourceOccupantMarkerKey)),
     [resourceOccupantMarkers]
@@ -1007,12 +991,10 @@ function CanonicalRealmMapScreen({
       .filter((marker) => marker.occupiedByViewer)
       .map(realmResourceOccupantMarkerKey)
   ), [resourceOccupantMarkers]);
-  const resourceOccupantPriorityKeys = useMemo(() => Object.freeze([
-    ...(selectedResourceOccupantKey === null ? [] : [selectedResourceOccupantKey]),
-    ...[...ownedResourceOccupantKeys]
-      .filter((key) => key !== selectedResourceOccupantKey)
-      .sort()
-  ]), [ownedResourceOccupantKeys, selectedResourceOccupantKey]);
+  const resourceOccupantPriorityKeys = useMemo(
+    () => Object.freeze([...ownedResourceOccupantKeys].sort()),
+    [ownedResourceOccupantKeys]
+  );
   const resourceOccupantPriorityKeysRef = useRef(resourceOccupantPriorityKeys);
   resourceOccupantPriorityKeysRef.current = resourceOccupantPriorityKeys;
   const [visibleResourceOccupantPresenceKeys, setVisibleResourceOccupantPresenceKeys] =
@@ -1021,35 +1003,6 @@ function CanonicalRealmMapScreen({
     useState<readonly string[]>([]);
   const visibleResourceOccupantPresenceSignatureRef = useRef('');
   const visibleResourceOccupantSignatureRef = useRef('');
-
-  useEffect(() => {
-    if (selectedResourceOccupantKey !== null && selectedResourceOccupant === null) {
-      // Snapshot invalidation is not a user dismissal. Clear the stale record
-      // without reviving its source inspector or moving keyboard focus.
-      dispatchInteraction({ type: 'invalidate-resource-occupant' });
-    }
-  }, [selectedResourceOccupant, selectedResourceOccupantKey]);
-
-  const closeResourceOccupantRecord = useCallback(() => {
-    dispatchInteraction({ type: 'close-resource-occupant' });
-  }, []);
-
-  const selectResourceOccupant = useCallback((marker: RealmResourceOccupantMarker) => {
-    dispatchInteraction({
-      type: 'activate-resource-occupant',
-      key: realmResourceOccupantMarkerKey(marker)
-    });
-  }, []);
-
-  const inspectResourceOccupantFromInspector = useCallback((
-    marker: RealmResourceOccupantMarker
-  ) => {
-    dispatchInteraction({
-      type: 'activate-resource-occupant',
-      key: realmResourceOccupantMarkerKey(marker),
-      returnToInspector: true
-    });
-  }, []);
 
   const openNavigator = useCallback(() => {
     dispatchInteraction({ type: 'open-navigator' });
@@ -1286,6 +1239,39 @@ function CanonicalRealmMapScreen({
     });
   }, []);
 
+  const selectResourceOccupant = useCallback((marker: RealmResourceOccupantMarker) => {
+    selectedCoordRef.current = { ...marker.nodeCoord };
+    if (marker.resource === 'gold') {
+      dispatchInteraction({
+        type: 'activate-gold-site',
+        siteId: marker.siteId,
+        coord: marker.nodeCoord
+      });
+      return;
+    }
+    if (marker.resource === 'food') {
+      dispatchInteraction({
+        type: 'activate-food-site',
+        siteId: marker.siteId,
+        coord: marker.nodeCoord
+      });
+      return;
+    }
+    if (marker.resource === 'wood') {
+      dispatchInteraction({
+        type: 'activate-wood-site',
+        siteId: marker.siteId,
+        coord: marker.nodeCoord
+      });
+      return;
+    }
+    dispatchInteraction({
+      type: 'activate-stone-site',
+      siteId: marker.siteId,
+      coord: marker.nodeCoord
+    });
+  }, []);
+
   const selectWaterCell = useCallback((record: RealmWaterInspectionRecord) => {
     selectedCoordRef.current = { ...record.coord };
     dispatchInteraction({
@@ -1307,6 +1293,26 @@ function CanonicalRealmMapScreen({
       coord
     });
   }, []);
+
+  const selectWorkerOrOccupiedSite = useCallback((
+    worker: RealmWorkerPublicPresentation,
+    coord: HexCoord
+  ) => {
+    const route = resolveRealmWorkerInspectionRoute(
+      resourceOccupantMarkersRef.current,
+      worker
+    );
+    if (route.kind === 'resource-site') {
+      selectResourceOccupant(route.marker);
+      return;
+    }
+    // An outbound/gathering worker without an exact validated site join is not
+    // allowed to open a contradictory standalone record. Idle and returning
+    // workers have no occupied site and retain their dedicated worker record.
+    if (route.kind === 'worker') {
+      selectWorker(worker, coord);
+    }
+  }, [selectResourceOccupant, selectWorker]);
 
   const openActiveWagon = useCallback((wagon: RealmActiveWagonMenuItem) => {
     if (!activeWagons.some((candidate) => (
@@ -1469,7 +1475,7 @@ function CanonicalRealmMapScreen({
         && candidate.ordinal === target.workerOrdinal
         && candidate.originCastleId === target.originCastleId
       ));
-      if (worker) selectWorker(worker, target.coord);
+      if (worker) selectWorkerOrOccupiedSite(worker, target.coord);
       return;
     }
     if (target.kind === 'gold-site') {
@@ -1498,7 +1504,16 @@ function CanonicalRealmMapScreen({
       return;
     }
     selectCoord(target.coord);
-  }, [selectCastle, selectCoord, selectFoodNode, selectGoldNode, selectStoneNode, selectWaterCell, selectWoodNode, selectWorker]);
+  }, [
+    selectCastle,
+    selectCoord,
+    selectFoodNode,
+    selectGoldNode,
+    selectStoneNode,
+    selectWaterCell,
+    selectWoodNode,
+    selectWorkerOrOccupiedSite
+  ]);
 
   const updateCastleProjection = useCallback((frame: RealmCastleProjectionFrame) => {
     latestProjectionRef.current = frame;
@@ -1508,12 +1523,10 @@ function CanonicalRealmMapScreen({
     const candidateCastles = frame.castles.slice(0, CASTLE_LABEL_LAYOUT_MAX_CASTLES);
     const candidateFrame = { ...frame, castles: candidateCastles };
     const eligibleLabels = resolvePersistentCastleLabels(candidateFrame);
-    const occupantRecordOpen = retainCastleProjectionWhileOccupantRecordOpen(root);
-    const retainedCastleIds = occupantRecordOpen
-      ? new Set(latestVisibleCastleLabelsRef.current.map((label) => label.castleId))
-      : undefined;
-    const labels = occupantRecordOpen
-      ? eligibleLabels.filter((label) => retainedCastleIds?.has(label.castleId))
+    const retainMembership =
+      retainCastleProjectionWhileOccupiedResourceInspectorOpen(root);
+    const labels = retainMembership
+      ? eligibleLabels
       : resolvePersistentCastleLabels(
           candidateFrame,
           { reservedRects: reservedUiRectsRef.current }
@@ -1793,7 +1806,6 @@ function CanonicalRealmMapScreen({
     interaction.inspectorOpen,
     interaction.navigatorOpen,
     rendererMode,
-    selectedResourceOccupantKey,
     updateSceneComposition
   ]);
 
@@ -2196,10 +2208,7 @@ function CanonicalRealmMapScreen({
       // then immediately returning the player to the menu.
       if (event.key !== 'Escape' || event.defaultPrevented || event.repeat) return;
       const result = resolveRealmEscape(interactionRef.current);
-      if (result.decision === 'close-resource-occupant') {
-        event.preventDefault();
-        dispatchInteraction({ type: 'close-resource-occupant' });
-      } else if (result.decision === 'close-inspector') {
+      if (result.decision === 'close-inspector') {
         event.preventDefault();
         dispatchInteraction({ type: 'close-inspector' });
       } else if (result.decision === 'close-navigator') {
@@ -2626,12 +2635,8 @@ function CanonicalRealmMapScreen({
             markers={resourceOccupantMarkers}
             presenceMarkerKeys={visibleResourceOccupantPresenceKeys}
             visibleMarkerKeys={visibleResourceOccupantKeys}
-            selectedMarker={selectedResourceOccupant}
             onMarkerLayout={applyLatestResourceProjection}
             onSelect={selectResourceOccupant}
-            onRequestClose={closeResourceOccupantRecord}
-            onFocusCastle={focusResourceOccupantCastle}
-            onRecallWorker={observerMode ? undefined : onRecallWorker}
           />
 
           {observerMode ? (
@@ -2651,7 +2656,6 @@ function CanonicalRealmMapScreen({
               ownCastle={ownCastle}
               ownProfile={ownProfile}
               resources={resources}
-              onCollectResources={onCollectResources}
               profileTriggerRef={navigatorTriggerRef}
               foundedCastleCount={navigatorCastles.length}
               graphicsPreference={graphicsPreference}
@@ -2706,18 +2710,14 @@ function CanonicalRealmMapScreen({
               node={inspectorGoldNode}
               publicOccupant={inspectorGoldOccupant}
               occupancyUnavailable={resourceOccupancyUnavailable}
-              onInspectPublicOccupant={inspectResourceOccupantFromInspector}
+              onFocusOccupantCastle={focusResourceOccupantCastle}
+              onRecallWorker={observerMode ? undefined : onRecallWorker}
               legacyDispatchBlocked={legacyResourceDispatchBlocked}
               privateExpedition={observerMode ? undefined : goldExpedition}
               onDispatchGoldExpedition={
                 observerMode || legacyResourceDispatchBlocked
                   ? undefined
                   : onDispatchGoldExpedition
-              }
-              onClaimGoldExpedition={
-                observerMode || legacyResourceDispatchBlocked
-                  ? undefined
-                  : onClaimGoldExpedition
               }
               focusTargetRef={inspectorFocusRef}
               onRequestClose={() => dispatchInteraction({ type: 'close-inspector' })}
@@ -2731,18 +2731,14 @@ function CanonicalRealmMapScreen({
               node={inspectorFoodNode}
               publicOccupant={inspectorFoodOccupant}
               occupancyUnavailable={resourceOccupancyUnavailable}
-              onInspectPublicOccupant={inspectResourceOccupantFromInspector}
+              onFocusOccupantCastle={focusResourceOccupantCastle}
+              onRecallWorker={observerMode ? undefined : onRecallWorker}
               legacyDispatchBlocked={legacyResourceDispatchBlocked}
               privateExpedition={observerMode ? undefined : foodExpedition}
               onDispatchFoodExpedition={
                 observerMode || legacyResourceDispatchBlocked
                   ? undefined
                   : onDispatchFoodExpedition
-              }
-              onClaimFoodExpedition={
-                observerMode || legacyResourceDispatchBlocked
-                  ? undefined
-                  : onClaimFoodExpedition
               }
               focusTargetRef={inspectorFocusRef}
               onRequestClose={() => dispatchInteraction({ type: 'close-inspector' })}
@@ -2756,18 +2752,14 @@ function CanonicalRealmMapScreen({
               node={inspectorWoodNode}
               publicOccupant={inspectorWoodOccupant}
               occupancyUnavailable={resourceOccupancyUnavailable}
-              onInspectPublicOccupant={inspectResourceOccupantFromInspector}
+              onFocusOccupantCastle={focusResourceOccupantCastle}
+              onRecallWorker={observerMode ? undefined : onRecallWorker}
               legacyDispatchBlocked={legacyResourceDispatchBlocked}
               privateExpedition={observerMode ? undefined : woodExpedition}
               onDispatchWoodExpedition={
                 observerMode || legacyResourceDispatchBlocked
                   ? undefined
                   : onDispatchWoodExpedition
-              }
-              onClaimWoodExpedition={
-                observerMode || legacyResourceDispatchBlocked
-                  ? undefined
-                  : onClaimWoodExpedition
               }
               focusTargetRef={inspectorFocusRef}
               onRequestClose={() => dispatchInteraction({ type: 'close-inspector' })}
@@ -2781,18 +2773,14 @@ function CanonicalRealmMapScreen({
               node={inspectorStoneNode}
               publicOccupant={inspectorStoneOccupant}
               occupancyUnavailable={resourceOccupancyUnavailable}
-              onInspectPublicOccupant={inspectResourceOccupantFromInspector}
+              onFocusOccupantCastle={focusResourceOccupantCastle}
+              onRecallWorker={observerMode ? undefined : onRecallWorker}
               legacyDispatchBlocked={legacyResourceDispatchBlocked}
               privateExpedition={observerMode ? undefined : stoneExpedition}
               onDispatchStoneExpedition={
                 observerMode || legacyResourceDispatchBlocked
                   ? undefined
                   : onDispatchStoneExpedition
-              }
-              onClaimStoneExpedition={
-                observerMode || legacyResourceDispatchBlocked
-                  ? undefined
-                  : onClaimStoneExpedition
               }
               focusTargetRef={inspectorFocusRef}
               onRequestClose={() => dispatchInteraction({ type: 'close-inspector' })}
@@ -2876,7 +2864,7 @@ function CanonicalRealmMapScreen({
                 && candidate.ordinal === entry.ordinal
                 && candidate.originCastleId === entry.originCastleId
               ));
-              if (worker) selectWorker(worker, entry.coord);
+              if (worker) selectWorkerOrOccupiedSite(worker, entry.coord);
             }}
             onActivateWaterCell={(cellKey) => {
               const record = waterRecordsByKeyRef.current.get(cellKey);

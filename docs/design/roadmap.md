@@ -3,7 +3,7 @@
 Warpkeep is building a persistent strategy world one playable loop at a time.
 Dates and feature order may change as the Alpha is tested.
 
-## Live now — Alpha 0.3.15
+## Live now — Alpha 0.3.16
 
 - Farcaster-gated entry to the persistent Genesis 001 realm
 - 10,000 world cells and 100 permanent castle sites near the founding district
@@ -16,8 +16,8 @@ Dates and feature order may change as the Alpha is tested.
   private, server-governed expedition per resource type
 - denser biome-shaped forests, clustered outer groves, biome-driven grass, a
   natural ocean-to-fog horizon, and responsive mobile presentation
-- camera-neutral passive records and authoritative time-left labels for active
-  resource journeys
+- unified, camera-neutral gathering records with authoritative time-left labels
+  and automatic server-owned settlement
 - separate private Community Marks accounting with no spending, transfer,
   conversion, redemption, or reward loop
 

@@ -59,12 +59,6 @@
   color: #102313;
 }
 
-.logging-camp-inspection .gold-mine-inspection__action--claim button {
-  border-color: rgb(211 237 158 / 78%);
-  background: linear-gradient(180deg, rgb(119 179 101 / 96%), rgb(39 91 52 / 98%));
-  color: #f4fff0;
-}
-
 @media (max-width: 760px) {
   .logging-camp-inspection.gold-mine-inspection {
     padding-top: 4.55rem;

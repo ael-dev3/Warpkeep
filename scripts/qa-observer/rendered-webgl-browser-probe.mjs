@@ -3415,7 +3415,7 @@ export async function applyRenderedWebglResourceOccupantInteraction(
         'gold:genesis-001-tier1-gold-03': Object.freeze({
           castleLocation: 'q 2 · r -1',
           castleName: 'Synthetic Keep 002',
-          rate: '1 gold / minute · 30-day deployment',
+          rate: '1 gold / minute',
           resourceSite: 'q -51 · r 57',
           title: 'Gold Mine',
           username: '@qa-keep-002'
@@ -3423,7 +3423,7 @@ export async function applyRenderedWebglResourceOccupantInteraction(
         'gold:genesis-001-tier1-gold-11': Object.freeze({
           castleLocation: 'q -1 · r 2',
           castleName: 'Synthetic Keep 003',
-          rate: '1 gold / minute · 30-day deployment',
+          rate: '1 gold / minute',
           resourceSite: 'q 20 · r -22',
           title: 'Gold Mine',
           username: '@qa-keep-003'
@@ -3431,7 +3431,7 @@ export async function applyRenderedWebglResourceOccupantInteraction(
         'food:genesis-001-tier1-food-004': Object.freeze({
           castleLocation: 'q 1 · r -3',
           castleName: 'Synthetic Keep 004',
-          rate: '1 food / minute · 30-day deployment',
+          rate: '1 food / minute',
           resourceSite: 'q -42 · r 57',
           title: 'Wheat Farm',
           username: '@qa-keep-004'
@@ -3439,7 +3439,7 @@ export async function applyRenderedWebglResourceOccupantInteraction(
         'wood:genesis-001-tier1-wood-033': Object.freeze({
           castleLocation: 'q -2 · r -1',
           castleName: 'Synthetic Keep 005',
-          rate: '1 wood / minute · 30-day deployment',
+          rate: '1 wood / minute',
           resourceSite: 'q -41 · r 48',
           title: 'Logging Camp',
           username: '@qa-keep-005'
@@ -3447,7 +3447,7 @@ export async function applyRenderedWebglResourceOccupantInteraction(
         'stone:genesis-001-tier1-stone-059': Object.freeze({
           castleLocation: 'q -1 · r 2',
           castleName: 'Synthetic Keep 003',
-          rate: '1 stone / minute · 30-day deployment',
+          rate: '1 stone / minute',
           resourceSite: 'q -52 · r 50',
           title: 'Stone Quarry',
           username: '@qa-keep-003'
@@ -3594,11 +3594,13 @@ export async function applyRenderedWebglResourceOccupantInteraction(
         if (!(directHit instanceof HTMLElement)) return false;
         directHit.click();
         return waitFor(() => {
-          const panel = document.querySelector('.realm-resource-occupant-panel');
+          const panel = document.querySelector(
+            '.gold-mine-inspection:has([data-resource-occupant-details="true"])'
+          );
           return panel instanceof HTMLElement
             && visible(panel)
             && panel.querySelector(
-              '.realm-resource-occupant-panel__worker-art img'
+              '.realm-resource-occupant-details__worker-art img'
             )?.complete === true;
         }, 1_200);
       };
@@ -3611,12 +3613,15 @@ export async function applyRenderedWebglResourceOccupantInteraction(
         }
         if (markerReady) break;
         const bootstrapClose = document.querySelector(
-          '.realm-resource-occupant-panel__close'
+          '.gold-mine-inspection:has([data-resource-occupant-details="true"]) '
+          + '.gold-mine-inspection__dismiss'
         );
         if (bootstrapClose instanceof HTMLButtonElement) {
           bootstrapClose.click();
           await waitFor(() => (
-            document.querySelector('.realm-resource-occupant-panel') === null
+            document.querySelector(
+              '.gold-mine-inspection:has([data-resource-occupant-details="true"])'
+            ) === null
           ), 1_200);
         }
       }
@@ -3927,35 +3932,39 @@ export async function applyRenderedWebglResourceOccupantInteraction(
         focusedControlActivation = true;
         hit.click();
       }
+      const occupiedResourcePanelSelector =
+        '.gold-mine-inspection:has([data-resource-occupant-details="true"])';
+      const inspectionFacts = (inspection) => inspection instanceof HTMLElement
+        ? new Map([...inspection.querySelectorAll(
+          '.gold-mine-inspection__field, .realm-resource-occupant-details__facts > div'
+        )].map((row) => [
+          (row.querySelector('dt')?.textContent ?? '').trim(),
+          (row.querySelector('dd')?.textContent ?? '').trim()
+        ]))
+        : new Map();
       const panelReady = await waitFor(() => {
-        const panel = document.querySelector('.realm-resource-occupant-panel');
+        const panel = document.querySelector(occupiedResourcePanelSelector);
         return panel instanceof HTMLElement
           && visible(panel)
           && panel.querySelector(
-            '.realm-resource-occupant-panel__worker-art img'
+            '.realm-resource-occupant-details__worker-art img'
           )?.complete === true
           && panel.querySelector(
-            '.realm-resource-occupant-panel__identity canvas[data-profile-image-state="ready"]'
+            '.realm-resource-occupant-details__identity canvas[data-profile-image-state="ready"]'
           ) instanceof HTMLCanvasElement;
       });
-      const panel = document.querySelector('.realm-resource-occupant-panel');
+      const panel = document.querySelector(occupiedResourcePanelSelector);
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      const facts = panel instanceof HTMLElement
-        ? new Map([...panel.querySelectorAll('.realm-resource-occupant-panel__facts > div')]
-          .map((row) => [
-            (row.querySelector('dt')?.textContent ?? '').trim(),
-            (row.querySelector('dd')?.textContent ?? '').trim()
-          ]))
-        : new Map();
-      const identity = panel?.querySelector('.realm-resource-occupant-panel__identity');
-      const worker = panel?.querySelector('.realm-resource-occupant-panel__worker');
+      const facts = inspectionFacts(panel);
+      const identity = panel?.querySelector('.realm-resource-occupant-details__identity');
+      const worker = panel?.querySelector('.realm-resource-occupant-details__worker');
       const recordHeaderCorrect = panelReady
         && panel instanceof HTMLElement
         && panel.getAttribute('role') === 'dialog'
         && panel.getAttribute('aria-modal') === 'false'
-        && (panel.querySelector('.realm-resource-occupant-panel__header span')?.textContent ?? '').trim()
+        && (panel.querySelector('.realm-resource-occupant-details__record span')?.textContent ?? '').trim()
           === 'PUBLIC EXPEDITION RECORD'
-        && (panel.querySelector('.realm-resource-occupant-panel__header h2')?.textContent ?? '').trim()
+        && (panel.querySelector('.gold-mine-inspection__title-lockup h2')?.textContent ?? '').trim()
           === focusedExpected?.title;
       const workerRecordCorrect =
         (worker?.querySelector('span')?.textContent ?? '').trim() === 'EXPEDITION WAGON'
@@ -3974,12 +3983,11 @@ export async function applyRenderedWebglResourceOccupantInteraction(
       const identityRecordCorrect = identityRoleCorrect
         && identityTitleCorrect
         && identityUsernameCorrect;
-      const factsCorrect = facts.get('Resource site') === focusedExpected?.resourceSite
-        && facts.get('Node tier') === 'T1'
-        && facts.get('Occupancy') === 'OCCUPIED'
+      const factsCorrect = facts.get('Node tier') === '1'
+        && facts.get('Site state') === 'OCCUPIED · GATHERING'
         && facts.get('Home castle') === focusedExpected?.castleName
         && facts.get('Castle location') === focusedExpected?.castleLocation
-        && facts.get('Deployment limit') === '30 days';
+        && [...facts.keys()].some((label) => label.endsWith('time left'));
       const publicRecordCorrect = recordHeaderCorrect
         && workerRecordCorrect
         && identityRecordCorrect
@@ -3987,13 +3995,13 @@ export async function applyRenderedWebglResourceOccupantInteraction(
       const publicRecordOpened = panelReady
         && panel instanceof HTMLElement
         && panel.querySelectorAll(
-          '.realm-resource-occupant-panel__identity canvas[data-profile-image-state="ready"]'
+          '.realm-resource-occupant-details__identity canvas[data-profile-image-state="ready"]'
         ).length === 1;
       const focusedDuringRenderer = rendererSnapshot();
-      const focusedClose = panel?.querySelector('.realm-resource-occupant-panel__close');
+      const focusedClose = panel?.querySelector('.gold-mine-inspection__dismiss');
       if (focusedClose instanceof HTMLButtonElement) focusedClose.click();
       const focusedClosed = await waitFor(() => (
-        document.querySelector('.realm-resource-occupant-panel') === null
+        document.querySelector(occupiedResourcePanelSelector) === null
       ));
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const focusedAfterRenderer = rendererSnapshot();
@@ -4034,48 +4042,41 @@ export async function applyRenderedWebglResourceOccupantInteraction(
         overviewDirectHit.click();
       }
       const overviewPanelReady = await waitFor(() => {
-        const candidate = document.querySelector('.realm-resource-occupant-panel');
+        const candidate = document.querySelector(occupiedResourcePanelSelector);
         return candidate instanceof HTMLElement
           && visible(candidate)
           && candidate.querySelector(
-            '.realm-resource-occupant-panel__worker-art img'
+            '.realm-resource-occupant-details__worker-art img'
           )?.complete === true
           && candidate.querySelector(
-            '.realm-resource-occupant-panel__identity canvas[data-profile-image-state="ready"]'
+            '.realm-resource-occupant-details__identity canvas[data-profile-image-state="ready"]'
           ) instanceof HTMLCanvasElement;
       });
-      const overviewPanel = document.querySelector('.realm-resource-occupant-panel');
+      const overviewPanel = document.querySelector(occupiedResourcePanelSelector);
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      const overviewFacts = overviewPanel instanceof HTMLElement
-        ? new Map([...overviewPanel.querySelectorAll(
-          '.realm-resource-occupant-panel__facts > div'
-        )].map((row) => [
-          (row.querySelector('dt')?.textContent ?? '').trim(),
-          (row.querySelector('dd')?.textContent ?? '').trim()
-        ]))
-        : new Map();
+      const overviewFacts = inspectionFacts(overviewPanel);
       const overviewIdentity = overviewPanel?.querySelector(
-        '.realm-resource-occupant-panel__identity'
+        '.realm-resource-occupant-details__identity'
       );
       const overviewWorker = overviewPanel?.querySelector(
-        '.realm-resource-occupant-panel__worker'
+        '.realm-resource-occupant-details__worker'
       );
       const overviewRecordCorrect = overviewPanelReady
         && overviewPanel instanceof HTMLElement
         && overviewPanel.getAttribute('role') === 'dialog'
         && overviewPanel.getAttribute('aria-modal') === 'false'
         && (overviewPanel.querySelector(
-          '.realm-resource-occupant-panel__header span'
+          '.realm-resource-occupant-details__record span'
         )?.textContent ?? '').trim() === 'PUBLIC EXPEDITION RECORD'
         && (overviewPanel.querySelector(
-          '.realm-resource-occupant-panel__header h2'
+          '.gold-mine-inspection__title-lockup h2'
         )?.textContent ?? '').trim() === 'Gold Mine'
         && (overviewWorker?.querySelector('span')?.textContent ?? '').trim()
           === 'EXPEDITION WAGON'
         && (overviewWorker?.querySelector('strong')?.textContent ?? '').trim()
           === 'GATHERING AT SITE'
         && (overviewWorker?.querySelector('small')?.textContent ?? '').trim()
-          === '1 gold / minute · 30-day deployment'
+          === '1 gold / minute'
         && (overviewIdentity?.querySelector(
           ':scope > div > span'
         )?.textContent ?? '').trim() === 'GATHERING BY'
@@ -4083,12 +4084,12 @@ export async function applyRenderedWebglResourceOccupantInteraction(
           === 'QA Keeper With An Intentionally Long Display Name For Responsive Realm QA'
         && (overviewIdentity?.querySelector('small')?.textContent ?? '').trim()
           === '@qa-keep-003'
-        && overviewFacts.get('Resource site') === 'q 20 · r -22'
-        && overviewFacts.get('Node tier') === 'T1'
-        && overviewFacts.get('Occupancy') === 'OCCUPIED'
+        && overviewFacts.get('Resource') === 'Gold'
+        && overviewFacts.get('Node tier') === '1'
+        && overviewFacts.get('Site state') === 'OCCUPIED · GATHERING'
         && overviewFacts.get('Home castle') === 'Synthetic Keep 003'
         && overviewFacts.get('Castle location') === 'q -1 · r 2'
-        && overviewFacts.get('Deployment limit') === '30 days';
+        && [...overviewFacts.keys()].some((label) => label.endsWith('time left'));
       const presenceDelegatedActivation = overviewTargetPassiveOnly
         && overviewPanelReady
         && overviewRecordCorrect;
@@ -4098,10 +4099,10 @@ export async function applyRenderedWebglResourceOccupantInteraction(
         && subtreePrivacyBounded(overviewPanel);
       const duringRenderer = rendererSnapshot();
       const duringProjection = projectionSnapshot();
-      const close = overviewPanel?.querySelector('.realm-resource-occupant-panel__close');
+      const close = overviewPanel?.querySelector('.gold-mine-inspection__dismiss');
       if (close instanceof HTMLButtonElement) close.click();
       const closed = await waitFor(() => (
-        document.querySelector('.realm-resource-occupant-panel') === null
+        document.querySelector(occupiedResourcePanelSelector) === null
       ));
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const afterRenderer = rendererSnapshot();

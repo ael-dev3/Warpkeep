@@ -279,6 +279,18 @@ function resourceStateWithStone(
   });
 }
 
+function resourceStateWithGold(
+  fid: number,
+  revision: bigint,
+  gold: bigint
+): ReadyRealmResourcePresentation {
+  const base = createReadyResourceState(fid, revision);
+  return Object.freeze({
+    ...base,
+    balances: Object.freeze({ ...base.balances, gold })
+  });
+}
+
 function idleWorkerRows(castleId = 1) {
   return [1, 2, 3, 4].map((ordinal) => Object.freeze({
     workerId: `genesis-001-castle-${castleId}-worker-0${ordinal}`,
@@ -454,6 +466,9 @@ function Probe() {
       <output data-testid="resource-stone">
         {backend.state.resources?.balances.stone.toString() ?? ''}
       </output>
+      <output data-testid="resource-gold">
+        {backend.state.resources?.balances.gold.toString() ?? ''}
+      </output>
       <output data-testid="gold-active">
         {backend.state.goldExpedition?.active === undefined
           ? ''
@@ -482,6 +497,9 @@ function Probe() {
       </output>
       <output data-testid="worker-first-revision">
         {backend.state.workerRoster?.workers[0]?.revision.toString() ?? ''}
+      </output>
+      <output data-testid="worker-resource-revision">
+        {backend.state.workerResourceState?.revision.toString() ?? ''}
       </output>
       <button type="button" onClick={backend.beginAlphaTermsAcceptance}>ACCEPT TERMS</button>
       <button type="button" onClick={() => void backend.collectResources()}>COLLECT</button>
@@ -914,6 +932,233 @@ describe('Warpkeep private resource lifecycle', () => {
       .toHaveBeenCalledTimes(1);
     expect(disconnect).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId('resource-revision').textContent).toBe('');
+  });
+
+  it('settles resources automatically on each active-session refresh cadence', async () => {
+    vi.useFakeTimers();
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    vi.mocked(runtime.readResourceState)
+      .mockResolvedValueOnce(resourceState(12_345, 0n, 0n));
+    vi.mocked(runtime.collectResources)
+      .mockResolvedValueOnce(resourceState(12_345, 1n, 8n))
+      .mockResolvedValueOnce(resourceState(12_345, 2n, 16n));
+    renderProvider(runtime);
+
+    await flushProviderWork();
+    expect(screen.getByTestId('phase').textContent).toBe('awaiting-terms');
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+    await flushProviderWork();
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+    expect(runtime.collectResources).not.toHaveBeenCalled();
+    expect(screen.getByTestId('resource-revision').textContent).toBe('0');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(RESOURCE_REFRESH_INTERVAL_MILLISECONDS);
+    });
+    await flushProviderWork();
+    expect(runtime.collectResources).toHaveBeenCalledTimes(1);
+    expect(runtime.collectResources).toHaveBeenLastCalledWith(expect.anything(), 12_345);
+    expect(screen.getByTestId('resource-revision').textContent).toBe('1');
+    expect(screen.getByTestId('resource-food').textContent).toBe('8');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(RESOURCE_REFRESH_INTERVAL_MILLISECONDS);
+    });
+    await flushProviderWork();
+    expect(runtime.collectResources).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('resource-revision').textContent).toBe('2');
+    expect(screen.getByTestId('resource-food').textContent).toBe('16');
+  });
+
+  it('settles an active Gold expedition through one global reducer and reads every expedition afterward', async () => {
+    vi.useFakeTimers();
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const activeGold = goldExpeditionState(true, 3n);
+    const refreshedGold = goldExpeditionState(true, 0n);
+    const inactiveFood = foodExpeditionState();
+    const inactiveWood = woodExpeditionState();
+    const inactiveStone = stoneExpeditionState();
+    const readGoldExpeditionState = vi.fn()
+      .mockResolvedValueOnce(activeGold)
+      .mockResolvedValueOnce(refreshedGold);
+    const readFoodExpeditionState = vi.fn(async () => inactiveFood);
+    const readWoodExpeditionState = vi.fn(async () => inactiveWood);
+    const readStoneExpeditionState = vi.fn(async () => inactiveStone);
+    const collectGoldExpedition = vi.fn();
+    const collectFoodExpedition = vi.fn();
+    const collectWoodExpedition = vi.fn();
+    const collectStoneExpedition = vi.fn();
+    vi.mocked(runtime.readResourceState)
+      .mockResolvedValueOnce(resourceStateWithGold(12_345, 0n, 0n));
+    vi.mocked(runtime.collectResources)
+      .mockResolvedValueOnce(resourceStateWithGold(12_345, 2n, 9n));
+    Object.assign(runtime, {
+      readGoldExpeditionState,
+      readFoodExpeditionState,
+      readWoodExpeditionState,
+      readStoneExpeditionState,
+      collectGoldExpedition,
+      collectFoodExpedition,
+      collectWoodExpedition,
+      collectStoneExpedition
+    });
+    renderProvider(runtime);
+
+    await flushProviderWork();
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+    await flushProviderWork();
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+    expect(screen.getByTestId('gold-active').textContent).toBe('true');
+    expect(collectGoldExpedition).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(RESOURCE_REFRESH_INTERVAL_MILLISECONDS);
+    });
+    await flushProviderWork();
+
+    expect(runtime.collectResources).toHaveBeenCalledTimes(1);
+    expect(runtime.collectResources).toHaveBeenCalledWith(expect.anything(), 12_345);
+    expect(runtime.readResourceState).toHaveBeenCalledTimes(1);
+    expect(readGoldExpeditionState).toHaveBeenCalledTimes(2);
+    expect(readFoodExpeditionState).toHaveBeenCalledTimes(2);
+    expect(readWoodExpeditionState).toHaveBeenCalledTimes(2);
+    expect(readStoneExpeditionState).toHaveBeenCalledTimes(2);
+    expect(collectGoldExpedition).not.toHaveBeenCalled();
+    expect(collectFoodExpedition).not.toHaveBeenCalled();
+    expect(collectWoodExpedition).not.toHaveBeenCalled();
+    expect(collectStoneExpedition).not.toHaveBeenCalled();
+    expect(screen.getByTestId('resource-revision').textContent).toBe('2');
+    expect(screen.getByTestId('resource-gold').textContent).toBe('9');
+    expect(screen.getByTestId('gold-active').textContent).toBe('true');
+  });
+
+  it('gates optional and worker-v2 refresh reads behind the global settlement result', async () => {
+    vi.useFakeTimers();
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const pendingSettlement = deferred<ReadyRealmResourcePresentation>();
+    const readGoldExpeditionState = vi.fn(async () => goldExpeditionState(true, 3n));
+    const readFoodExpeditionState = vi.fn(async () => foodExpeditionState());
+    const readWoodExpeditionState = vi.fn(async () => woodExpeditionState());
+    const readStoneExpeditionState = vi.fn(async () => stoneExpeditionState());
+    const readWorkerRoster = vi.fn()
+      .mockResolvedValueOnce(workerRoster())
+      .mockResolvedValueOnce(workerRoster());
+    const postSettlementWorkerResources = Object.freeze({
+      ...workerResourceState(),
+      observedAtMicros: 300n,
+      settledThroughMicros: 300n,
+      revision: 2n
+    });
+    const readResourceStateV2 = vi.fn()
+      .mockResolvedValueOnce(workerResourceState())
+      .mockResolvedValueOnce(postSettlementWorkerResources);
+    vi.mocked(runtime.collectResources)
+      .mockImplementationOnce(() => pendingSettlement.promise);
+    Object.assign(runtime, {
+      readRealmSnapshot: vi.fn(() => workerRealmSnapshot()),
+      readGoldExpeditionState,
+      readFoodExpeditionState,
+      readWoodExpeditionState,
+      readStoneExpeditionState,
+      readWorkerRoster,
+      readResourceStateV2,
+      dispatchWorker: vi.fn(async () => undefined),
+      recallWorker: vi.fn(async () => undefined),
+      recallAllWorkers: vi.fn(async () => undefined)
+    });
+    renderProvider(runtime);
+
+    await flushProviderWork();
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+    await flushProviderWork();
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+    expect(screen.getByTestId('worker-resource-revision').textContent).toBe('0');
+    for (const optionalRead of [
+      readGoldExpeditionState,
+      readFoodExpeditionState,
+      readWoodExpeditionState,
+      readStoneExpeditionState,
+      readWorkerRoster,
+      readResourceStateV2
+    ]) {
+      expect(optionalRead).toHaveBeenCalledTimes(1);
+    }
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(RESOURCE_REFRESH_INTERVAL_MILLISECONDS);
+    });
+    await flushProviderWork();
+    expect(runtime.collectResources).toHaveBeenCalledTimes(1);
+    for (const gatedRead of [
+      readGoldExpeditionState,
+      readFoodExpeditionState,
+      readWoodExpeditionState,
+      readStoneExpeditionState,
+      readWorkerRoster,
+      readResourceStateV2
+    ]) {
+      expect(gatedRead).toHaveBeenCalledTimes(1);
+    }
+
+    await act(async () => {
+      pendingSettlement.resolve(resourceState(12_345, 2n, 8n));
+      await pendingSettlement.promise;
+    });
+    await flushProviderWork();
+
+    for (const postSettlementRead of [
+      readGoldExpeditionState,
+      readFoodExpeditionState,
+      readWoodExpeditionState,
+      readStoneExpeditionState,
+      readWorkerRoster,
+      readResourceStateV2
+    ]) {
+      expect(postSettlementRead).toHaveBeenCalledTimes(2);
+    }
+    expect(screen.getByTestId('resource-revision').textContent).toBe('2');
+    expect(screen.getByTestId('worker-resource-revision').textContent).toBe('2');
+  });
+
+  it('retries automatic settlement on the next cadence after a transient failure', async () => {
+    vi.useFakeTimers();
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime, disconnect } = createRuntimeHarness();
+    vi.mocked(runtime.readResourceState)
+      .mockResolvedValue(resourceState(12_345, 0n, 0n));
+    vi.mocked(runtime.collectResources)
+      .mockRejectedValueOnce(new Error('temporary settlement failure'))
+      .mockResolvedValueOnce(resourceState(12_345, 1n, 8n));
+    renderProvider(runtime);
+
+    await flushProviderWork();
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+    await flushProviderWork();
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(RESOURCE_REFRESH_INTERVAL_MILLISECONDS);
+    });
+    await flushProviderWork();
+    expect(runtime.collectResources).toHaveBeenCalledTimes(1);
+    expect(runtime.readResourceState).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+    expect(screen.getByTestId('resource-revision').textContent).toBe('0');
+    expect(screen.getByTestId('resource-food').textContent).toBe('0');
+    expect(disconnect).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(RESOURCE_REFRESH_INTERVAL_MILLISECONDS);
+    });
+    await flushProviderWork();
+    expect(runtime.collectResources).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+    expect(screen.getByTestId('resource-revision').textContent).toBe('1');
+    expect(screen.getByTestId('resource-food').textContent).toBe('8');
+    expect(disconnect).not.toHaveBeenCalled();
   });
 
   it('does not update optimistically and publishes only the newer authoritative collect result', async () => {
@@ -1428,14 +1673,16 @@ describe('Warpkeep private resource lifecycle', () => {
     expect(screen.getByTestId('resource-revision').textContent).toBe('');
   });
 
-  it('terminates a half-open periodic refresh instead of retaining stale ready state', async () => {
+  it('reconciles a timed-out automatic settlement and leaves its late result inert', async () => {
     vi.useFakeTimers();
     mockedFarcaster.current = authenticatedFarcaster();
     const { runtime, disconnect } = createRuntimeHarness();
-    const pendingRefresh = deferred<ReadyRealmResourcePresentation>();
+    const pendingSettlement = deferred<ReadyRealmResourcePresentation>();
     vi.mocked(runtime.readResourceState)
-      .mockResolvedValueOnce(createReadyResourceState(12_345))
-      .mockImplementationOnce(() => pendingRefresh.promise);
+      .mockResolvedValueOnce(resourceState(12_345, 0n, 0n))
+      .mockResolvedValueOnce(resourceState(12_345, 1n, 8n));
+    vi.mocked(runtime.collectResources)
+      .mockImplementationOnce(() => pendingSettlement.promise);
     renderProvider(runtime);
 
     await flushProviderWork();
@@ -1447,22 +1694,28 @@ describe('Warpkeep private resource lifecycle', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(RESOURCE_REFRESH_INTERVAL_MILLISECONDS);
     });
-    expect(runtime.readResourceState).toHaveBeenCalledTimes(2);
+    expect(runtime.collectResources).toHaveBeenCalledTimes(1);
+    expect(runtime.readResourceState).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId('phase').textContent).toBe('ready');
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(RESOURCE_OPERATION_TIMEOUT_MILLISECONDS);
     });
-    expect(screen.getByTestId('phase').textContent).toBe('error');
-    expect(disconnect).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId('resource-revision').textContent).toBe('');
+    await flushProviderWork();
+    expect(runtime.readResourceState).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+    expect(disconnect).not.toHaveBeenCalled();
+    expect(screen.getByTestId('resource-revision').textContent).toBe('1');
+    expect(screen.getByTestId('resource-food').textContent).toBe('8');
 
     await act(async () => {
-      pendingRefresh.resolve(resourceState(12_345, 99n, 999n));
-      await pendingRefresh.promise;
+      pendingSettlement.resolve(resourceState(12_345, 99n, 999n));
+      await pendingSettlement.promise;
     });
-    expect(screen.getByTestId('phase').textContent).toBe('error');
-    expect(screen.getByTestId('resource-revision').textContent).toBe('');
+    await flushProviderWork();
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+    expect(screen.getByTestId('resource-revision').textContent).toBe('1');
+    expect(screen.getByTestId('resource-food').textContent).toBe('8');
   });
 
   it('cannot publish a queued old refresh after a same-FID token generation reconnects', async () => {
@@ -1472,8 +1725,9 @@ describe('Warpkeep private resource lifecycle', () => {
     const pendingOldRefresh = deferred<ReadyRealmResourcePresentation>();
     vi.mocked(runtime.readResourceState)
       .mockResolvedValueOnce(resourceState(12_345, 0n, 200n))
-      .mockImplementationOnce(() => pendingOldRefresh.promise)
       .mockResolvedValueOnce(resourceState(12_345, 2n, 216n));
+    vi.mocked(runtime.collectResources)
+      .mockImplementationOnce(() => pendingOldRefresh.promise);
     const rendered = renderProvider(runtime);
 
     await flushProviderWork();
@@ -1485,7 +1739,8 @@ describe('Warpkeep private resource lifecycle', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(RESOURCE_REFRESH_INTERVAL_MILLISECONDS);
     });
-    expect(runtime.readResourceState).toHaveBeenCalledTimes(2);
+    expect(runtime.collectResources).toHaveBeenCalledTimes(1);
+    expect(runtime.readResourceState).toHaveBeenCalledTimes(1);
 
     deferredBackendStateUpdate.armed = true;
     pendingOldRefresh.resolve(resourceState(12_345, 99n, 999n));
@@ -1499,7 +1754,7 @@ describe('Warpkeep private resource lifecycle', () => {
       </WarpkeepSpacetimeProvider>
     );
     await flushProviderWork();
-    expect(runtime.readResourceState).toHaveBeenCalledTimes(3);
+    expect(runtime.readResourceState).toHaveBeenCalledTimes(2);
     expect(screen.getByTestId('phase').textContent).toBe('ready');
     expect(screen.getByTestId('resource-revision').textContent).toBe('2');
     expect(screen.getByTestId('resource-food').textContent).toBe('216');

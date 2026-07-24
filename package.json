@@ -1,7 +1,7 @@
 {
   "name": "warpkeep",
   "private": true,
-  "version": "0.3.15",
+  "version": "0.3.16",
   "description": "A Farcaster-connected persistent strategy world in active Alpha development.",
   "license": "Apache-2.0",
   "homepage": "https://warpkeep.com",

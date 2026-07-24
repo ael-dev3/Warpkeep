@@ -15,8 +15,6 @@ describe('realm interaction state', () => {
       selectedCastle: null,
       inspectorTarget: null,
       inspectorOpen: false,
-      resourceOccupantKey: null,
-      resourceOccupantReturnTarget: null,
       cameraTarget: { kind: 'realm' },
       navigatorOpen: false,
       keyboardIntent: { sequence: 0, target: { kind: 'map' } }
@@ -280,139 +278,6 @@ describe('realm interaction state', () => {
     expect(resolveRealmEscape(navigator).decision).toBe('close-navigator');
   });
 
-  it('keeps the public worker record mutually exclusive with every realm inspector', () => {
-    const record = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
-      type: 'activate-resource-occupant',
-      key: 'wood:genesis-001:wood:0001'
-    });
-    const inspectorActions = [
-      { type: 'activate-castle', castleId: 9, coord: { q: 1, r: -1 } },
-      {
-        type: 'activate-worker',
-        workerId: 'genesis-001-castle-9-worker-01',
-        workerOrdinal: 1,
-        originCastleId: 9,
-        coord: { q: 2, r: -1 }
-      },
-      { type: 'activate-gold-site', siteId: 'genesis-001:gold:0001', coord: { q: 3, r: -1 } },
-      { type: 'activate-food-site', siteId: 'genesis-001:food:0001', coord: { q: 4, r: -1 } },
-      { type: 'activate-wood-site', siteId: 'genesis-001:wood:0001', coord: { q: 5, r: -1 } },
-      { type: 'activate-stone-site', siteId: 'genesis-001:stone:0001', coord: { q: 6, r: -1 } },
-      {
-        type: 'activate-water-cell',
-        cellKey: 'genesis-001:river:01:0001',
-        bodyId: 'genesis-001:river:01',
-        regime: 'river',
-        coord: { q: 7, r: -1 }
-      }
-    ] as const;
-
-    for (const action of inspectorActions) {
-      const inspector = realmInteractionReducer(record, action);
-      expect(inspector.resourceOccupantKey).toBeNull();
-      expect(inspector.inspectorOpen).toBe(true);
-      expect(inspector.navigatorOpen).toBe(false);
-    }
-  });
-
-  it('atomically replaces inspectors and navigation with one public worker record', () => {
-    const inspector = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
-      type: 'activate-castle',
-      castleId: 9,
-      coord: { q: 1, r: -1 }
-    });
-    const fromInspector = realmInteractionReducer(inspector, {
-      type: 'activate-resource-occupant',
-      key: 'gold:genesis-001:gold:0001'
-    });
-
-    expect(fromInspector).toMatchObject({
-      inspectorOpen: false,
-      navigatorOpen: false,
-      resourceOccupantKey: 'gold:genesis-001:gold:0001',
-      resourceOccupantReturnTarget: null
-    });
-    expect(fromInspector.cameraTarget).toBe(inspector.cameraTarget);
-    expect(fromInspector.keyboardIntent).toBe(inspector.keyboardIntent);
-
-    const navigator = realmInteractionReducer(fromInspector, { type: 'open-navigator' });
-    expect(navigator).toMatchObject({
-      inspectorOpen: false,
-      navigatorOpen: true,
-      resourceOccupantKey: null,
-      resourceOccupantReturnTarget: null
-    });
-    const fromNavigator = realmInteractionReducer(navigator, {
-      type: 'activate-resource-occupant',
-      key: 'food:genesis-001:food:0001'
-    });
-    expect(fromNavigator).toMatchObject({
-      inspectorOpen: false,
-      navigatorOpen: false,
-      resourceOccupantKey: 'food:genesis-001:food:0001',
-      resourceOccupantReturnTarget: null
-    });
-    expect(fromNavigator.cameraTarget).toBe(navigator.cameraTarget);
-    expect(fromNavigator.keyboardIntent).toBe(navigator.keyboardIntent);
-  });
-
-  it('restores a resource-site inspector on dismissal but not snapshot invalidation', () => {
-    const inspector = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
-      type: 'activate-stone-site',
-      siteId: 'genesis-001:stone:0001',
-      coord: { q: 6, r: -1 }
-    });
-    const record = realmInteractionReducer(inspector, {
-      type: 'activate-resource-occupant',
-      key: 'stone:genesis-001:stone:0001',
-      returnToInspector: true
-    });
-
-    const dismissed = realmInteractionReducer(record, {
-      type: 'close-resource-occupant'
-    });
-    expect(dismissed.inspectorOpen).toBe(true);
-    expect(dismissed.cameraTarget).toBe(inspector.cameraTarget);
-    expect(dismissed.keyboardIntent).toEqual({
-      sequence: 2,
-      target: {
-        kind: 'stone-quarry-inspector',
-        siteId: 'genesis-001:stone:0001'
-      }
-    });
-
-    const invalidated = realmInteractionReducer(record, {
-      type: 'invalidate-resource-occupant'
-    });
-    expect(invalidated.inspectorOpen).toBe(false);
-    expect(invalidated.resourceOccupantReturnTarget).toBeNull();
-    expect(invalidated.keyboardIntent).toBe(record.keyboardIntent);
-    expect(invalidated.cameraTarget).toBe(inspector.cameraTarget);
-  });
-
-  it('clears a public worker record on terrain selection, recenter, and Escape', () => {
-    const active = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
-      type: 'activate-resource-occupant',
-      key: 'stone:genesis-001:stone:0001'
-    });
-    const selected = realmInteractionReducer(active, {
-      type: 'select-cell',
-      coord: { q: 2, r: -1 }
-    });
-    expect(selected.resourceOccupantKey).toBeNull();
-
-    const recentered = realmInteractionReducer(active, {
-      type: 'recenter-keep',
-      coord: { q: 0, r: 0 }
-    });
-    expect(recentered.resourceOccupantKey).toBeNull();
-
-    const firstEscape = resolveRealmEscape(active);
-    expect(firstEscape.decision).toBe('close-resource-occupant');
-    expect(firstEscape.state.resourceOccupantKey).toBeNull();
-    expect(resolveRealmEscape(firstEscape.state).decision).toBe('request-exit');
-  });
-
   it('recenters on the keep without leaving a stale castle record open', () => {
     const active = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
       type: 'activate-castle',
@@ -482,10 +347,7 @@ describe('realm interaction state', () => {
   });
 
   it('retains a zoom-preserving castle-location target without opening a castle record', () => {
-    const initial = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
-      type: 'activate-resource-occupant',
-      key: 'wood:genesis-001:wood:0001'
-    });
+    const initial = createRealmInteractionState({ q: 0, r: 0 });
     const location = realmInteractionReducer(initial, {
       type: 'set-camera-target',
       target: {
@@ -500,7 +362,6 @@ describe('realm interaction state', () => {
       castleId: 77,
       coord: { q: 3, r: -2 }
     });
-    expect(location.resourceOccupantKey).toBe(initial.resourceOccupantKey);
     expect(location.inspectorOpen).toBe(false);
     expect(location.selectedCastle).toBeNull();
   });
