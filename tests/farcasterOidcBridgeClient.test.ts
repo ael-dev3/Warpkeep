@@ -272,6 +272,273 @@ describe('Farcaster OIDC bridge v2 client', () => {
     expect(requestSignal?.aborted).toBe(false);
   });
 
+  it('retries allowlisted bridge 503s with the same bounded exchange envelope', async () => {
+    vi.useFakeTimers({ now: NOW });
+    const fetch = createFetch(
+      jsonResponse({
+        error: {
+          code: 'verification_unavailable',
+          message: 'Farcaster verification is temporarily unavailable.'
+        }
+      }, 503),
+      jsonResponse({
+        error: {
+          code: 'authorization_unavailable',
+          message: 'Authorization is temporarily unavailable.'
+        }
+      }, 503),
+      authorized()
+    );
+    const bridge = createBridge(fetch);
+    const result = bridge.exchangeCompletedSignIn(exchangeRequest());
+
+    await vi.runAllTimersAsync();
+
+    await expect(result).resolves.toEqual(authorized());
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(vi.mocked(fetch).mock.calls.map(([, init]) => init?.body)).toEqual([
+      JSON.stringify(exchangeRequest()),
+      JSON.stringify(exchangeRequest()),
+      JSON.stringify(exchangeRequest())
+    ]);
+  });
+
+  it('bounds persistent allowlisted bridge 503s to two retries', async () => {
+    vi.useFakeTimers({ now: NOW });
+    const unavailable = () => jsonResponse({
+      error: {
+        code: 'authorization_unavailable',
+        message: 'Authorization is temporarily unavailable.'
+      }
+    }, 503);
+    const fetch = createFetch(unavailable(), unavailable(), unavailable());
+    const result = createBridge(fetch).exchangeCompletedSignIn(exchangeRequest());
+    const rejection = expect(result).rejects.toBeInstanceOf(FarcasterOidcBridgeClientError);
+
+    await vi.runAllTimersAsync();
+
+    await rejection;
+    expect(fetch).toHaveBeenCalledTimes(3);
+  });
+
+  it('does not let an exhausted retry error authorize a later retry', async () => {
+    vi.useFakeTimers({ now: NOW });
+    const unavailable = () => jsonResponse({
+      error: {
+        code: 'authorization_unavailable',
+        message: 'Authorization is temporarily unavailable.'
+      }
+    }, 503);
+    const firstFetch = createFetch(unavailable(), unavailable(), unavailable());
+    const exhaustedFailure = createBridge(firstFetch)
+      .exchangeCompletedSignIn(exchangeRequest())
+      .catch((error: unknown) => error);
+
+    await vi.runAllTimersAsync();
+
+    const capturedError = await exhaustedFailure;
+    expect(capturedError).toBeInstanceOf(FarcasterOidcBridgeClientError);
+    expect(firstFetch).toHaveBeenCalledTimes(3);
+
+    const replayFetch = vi.fn()
+      .mockRejectedValueOnce(capturedError)
+      .mockResolvedValueOnce(jsonResponse(authorized())) as unknown as FarcasterOidcBridgeFetch;
+    await expect(createBridge(replayFetch).exchangeCompletedSignIn(exchangeRequest()))
+      .rejects.toBe(capturedError);
+    expect(replayFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not retry a bridge 503 after caller cancellation', async () => {
+    vi.useFakeTimers({ now: NOW });
+    const fetch = createFetch(
+      jsonResponse({
+        error: {
+          code: 'verification_unavailable',
+          message: 'Farcaster verification is temporarily unavailable.'
+        }
+      }, 503),
+      authorized()
+    );
+    const controller = new AbortController();
+    const result = createBridge(fetch).exchangeCompletedSignIn(
+      exchangeRequest(),
+      { signal: controller.signal }
+    );
+    const rejection = expect(result).rejects.toBeInstanceOf(FarcasterOidcBridgeClientError);
+
+    await Promise.resolve();
+    controller.abort();
+    await vi.runAllTimersAsync();
+
+    await rejection;
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not begin a retry that would cross the signed challenge deadline', async () => {
+    vi.useFakeTimers({ now: NOW });
+    const fetch = createFetch(
+      jsonResponse({
+        error: {
+          code: 'verification_unavailable',
+          message: 'Farcaster verification is temporarily unavailable.'
+        }
+      }, 503),
+      authorized()
+    );
+    const result = createBridge(fetch).exchangeCompletedSignIn({
+      ...exchangeRequest(),
+      expirationTime: new Date(NOW + 200).toISOString(),
+      expiresAt: NOW + 200
+    });
+
+    await expect(result).rejects.toBeInstanceOf(FarcasterOidcBridgeClientError);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('keeps all exchange attempts inside one 20-second deadline', async () => {
+    vi.useFakeTimers({ now: NOW });
+    const fetch = vi.fn(() => new Promise<Response>((resolve) => {
+      setTimeout(() => resolve(jsonResponse({
+        error: {
+          code: 'verification_unavailable',
+          message: 'Farcaster verification is temporarily unavailable.'
+        }
+      }, 503)), 19_800);
+    })) as unknown as FarcasterOidcBridgeFetch;
+    const result = createBridge(fetch).exchangeCompletedSignIn(exchangeRequest());
+    const rejection = expect(result).rejects.toBeInstanceOf(FarcasterOidcBridgeClientError);
+
+    await vi.advanceTimersByTimeAsync(19_800);
+
+    await rejection;
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('does not let a wall-clock rollback extend the monotonic exchange budget', async () => {
+    vi.useFakeTimers({ now: NOW });
+    let wallNow = NOW;
+    vi.spyOn(Date, 'now').mockImplementation(() => wallNow);
+    const fetch = vi.fn(() => new Promise<Response>((resolve) => {
+      setTimeout(() => {
+        wallNow = NOW - 60_000;
+        resolve(jsonResponse({
+          error: {
+            code: 'verification_unavailable',
+            message: 'Farcaster verification is temporarily unavailable.'
+          }
+        }, 503));
+      }, 19_800);
+    })) as unknown as FarcasterOidcBridgeFetch;
+    const result = createBridge(fetch).exchangeCompletedSignIn(exchangeRequest());
+    const rejection = expect(result).rejects.toBeInstanceOf(FarcasterOidcBridgeClientError);
+
+    await vi.advanceTimersByTimeAsync(19_800);
+
+    await rejection;
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('does not trust a caller-crafted public error as retry provenance', async () => {
+    vi.useFakeTimers({ now: NOW });
+    const crafted = new FarcasterOidcBridgeClientError() as FarcasterOidcBridgeClientError & {
+      retryable?: boolean;
+    };
+    crafted.retryable = true;
+    const fetch = vi.fn()
+      .mockRejectedValueOnce(crafted)
+      .mockResolvedValueOnce(jsonResponse(authorized())) as unknown as FarcasterOidcBridgeFetch;
+
+    await expect(createBridge(fetch).exchangeCompletedSignIn(exchangeRequest()))
+      .rejects.toBe(crafted);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['wrong MIME', new Response(JSON.stringify({
+      error: {
+        code: 'verification_unavailable',
+        message: 'Farcaster verification is temporarily unavailable.'
+      }
+    }), {
+      status: 503,
+      headers: { 'content-type': 'text/plain' }
+    })],
+    ['oversized body', new Response('x'.repeat(32_769), {
+      status: 503,
+      headers: { 'content-type': 'application/json' }
+    })],
+    ['extra top-level key', jsonResponse({
+      error: {
+        code: 'verification_unavailable',
+        message: 'Farcaster verification is temporarily unavailable.'
+      },
+      debug: true
+    }, 503)],
+    ['extra error key', jsonResponse({
+      error: {
+        code: 'verification_unavailable',
+        message: 'Farcaster verification is temporarily unavailable.',
+        detail: 'must not affect retry classification'
+      }
+    }, 503)]
+  ])('does not retry a structurally invalid %s 503 envelope', async (_label, response) => {
+    vi.useFakeTimers({ now: NOW });
+    const fetch = createFetch(response, authorized());
+
+    await expect(createBridge(fetch).exchangeCompletedSignIn(exchangeRequest()))
+      .rejects.toBeInstanceOf(FarcasterOidcBridgeClientError);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['session creation', jsonResponse({
+      error: {
+        code: 'session_unavailable',
+        message: 'Authentication is temporarily unavailable.'
+      }
+    }, 503)],
+    ['unknown 503', jsonResponse({
+      error: {
+        code: 'unknown_unavailable',
+        message: 'Authentication is temporarily unavailable.'
+      }
+    }, 503)],
+    ['malformed 503', jsonResponse({ error: 'unavailable' }, 503)],
+    ['invalid proof', jsonResponse({
+      error: {
+        code: 'invalid_proof',
+        message: 'The Farcaster proof could not be verified.'
+      }
+    }, 401)],
+    ['rate limit', jsonResponse({
+      error: {
+        code: 'rate_limited',
+        message: 'Too many authentication requests.'
+      }
+    }, 429)]
+  ])('does not retry a %s response', async (_label, response) => {
+    vi.useFakeTimers({ now: NOW });
+    const fetch = createFetch(response, authorized());
+
+    await expect(createBridge(fetch).exchangeCompletedSignIn(exchangeRequest()))
+      .rejects.toBeInstanceOf(FarcasterOidcBridgeClientError);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not retry an outcome-ambiguous network failure', async () => {
+    vi.useFakeTimers({ now: NOW });
+    const fetch = vi.fn(async () => {
+      throw new TypeError('controlled transport failure');
+    }) as unknown as FarcasterOidcBridgeFetch;
+
+    await expect(createBridge(fetch).exchangeCompletedSignIn(exchangeRequest()))
+      .rejects.toBeInstanceOf(FarcasterOidcBridgeClientError);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   it('aborts a completed proof exchange after its bounded 20-second deadline', async () => {
     vi.useFakeTimers({ now: NOW });
     let requestSignal: AbortSignal | undefined;
@@ -393,6 +660,7 @@ describe('Farcaster OIDC bridge v2 client', () => {
   });
 
   it('composes caller cancellation without serializing the signal', async () => {
+    vi.useFakeTimers({ now: NOW });
     const fetch = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => (
       new Promise<Response>((_resolve, reject) => {
         const signal = init?.signal;
