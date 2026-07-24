@@ -489,9 +489,9 @@ export function dispatchGenesisWoodExpedition(
 }
 
 /**
- * Claim completed whole Wood minutes from the caller's active Logging Camp
+ * Settle completed whole Wood minutes from the caller's active Logging Camp
  * wagon. The capacity reservation is revalidated before every write; no
- * browser timing or per-minute mutation exists.
+ * browser timing or caller-provided amount participates.
  */
 export function collectActiveWoodExpedition(
   ctx: WarpkeepReducerContext,

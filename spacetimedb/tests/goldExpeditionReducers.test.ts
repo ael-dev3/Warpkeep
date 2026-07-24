@@ -116,7 +116,7 @@ test('dispatch and owner state wire accept no authority-shaped browser inputs', 
   const dispatch = section(
     reducers,
     'export const dispatchGoldExpeditionV1',
-    '/**\n * Explicit no-input claim',
+    '/**\n * Retained no-input settlement',
   );
   const privateState = section(
     reducers,
@@ -182,7 +182,7 @@ test('only the scheduler can change lifecycle phase, release a returned site, or
       < completion.indexOf('goldExpeditionV1.expeditionId.delete(expedition.expeditionId)'),
   );
 
-  const dispatchAuthority = section(authority, 'export function dispatchGenesisGoldExpedition', '/**\n * Claim only');
+  const dispatchAuthority = section(authority, 'export function dispatchGenesisGoldExpedition', '/**\n * Settle only');
   assert.match(dispatchAuthority, /goldExpeditionV1\.siteId\.filter\(site\.siteId\)/);
   assert.match(dispatchAuthority, /assertExpeditionState\(existing\);[\s\S]*fail\('GOLD_SITE_EXPEDITION_CONFLICT'\)/);
 
@@ -204,7 +204,7 @@ test('only the scheduler can change lifecycle phase, release a returned site, or
   assert.match(scheduleValidation, /schedule\.scheduledAt\.value\.microsSinceUnixEpoch === expectedAtMicros/);
 });
 
-test('the existing collection reducer claims current wagon Gold even when no passive quantum is due', () => {
+test('the existing collection reducer settles current wagon Gold even when no passive quantum is due', () => {
   const resources = source('../src/reducers/resources.ts');
   const collect = section(resources, 'export const collectResourcesV1', '/**\n * Hermes-only');
   assert.match(collect, /if \(settlement\.completedQuanta !== 0n\)/);

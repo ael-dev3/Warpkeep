@@ -122,9 +122,9 @@ export const dispatchStoneExpeditionV1 = warpkeep.reducer(
 );
 
 /**
- * Explicit no-input claim for completed whole Stone minutes. It is safe to
- * repeat: only uncredited authoritative accrual is transferred, while the
- * expiry schedule settles the exact remaining cursor once.
+ * Retained no-input settlement for completed whole Stone minutes. Repeated
+ * calls transfer only uncredited authoritative accrual, while expiry settles
+ * the exact remaining cursor once.
  */
 export const collectStoneExpeditionV1 = warpkeep.reducer(
   { name: 'collect_stone_expedition_v1' },

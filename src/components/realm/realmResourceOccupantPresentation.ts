@@ -28,6 +28,7 @@ import type {
 import {
   canonicalWorkerId,
   type ReadyPublicWorkerProjection,
+  type RealmWorkerPublicPresentation,
   type RealmWorkerOrdinal
 } from './realmWorkerPresentation';
 
@@ -372,6 +373,79 @@ export function realmResourceOccupantMarkerForKey(
   return key === null
     ? null
     : markers.find((marker) => realmResourceOccupantMarkerKey(marker) === key) ?? null;
+}
+
+/**
+ * Resolves an active public worker to the exact occupied resource-site record
+ * that was independently validated from the public occupation graph.
+ *
+ * Idle and returning workers deliberately have no occupied site. An active
+ * worker whose worker/site/timeline identity does not match a validated marker
+ * also resolves to null so callers can fail closed instead of opening a second,
+ * contradictory record for the same gathering assignment.
+ */
+export function realmResourceOccupantMarkerForWorker(
+  markers: readonly RealmResourceOccupantMarker[],
+  worker: Pick<
+    RealmWorkerPublicPresentation,
+    | 'workerId'
+    | 'ordinal'
+    | 'originCastleId'
+    | 'status'
+    | 'resourceKind'
+    | 'siteId'
+    | 'timelineRevision'
+  >
+) {
+  if (
+    (worker.status !== 'outbound' && worker.status !== 'gathering')
+    || worker.resourceKind === undefined
+    || worker.siteId === undefined
+  ) return null;
+  return markers.find((marker) => (
+    marker.source === 'generic-worker'
+    && marker.workerId === worker.workerId
+    && marker.workerOrdinal === worker.ordinal
+    && marker.castle.castleId === worker.originCastleId
+    && marker.workerPhase === worker.status
+    && marker.resource === worker.resourceKind
+    && marker.siteId === worker.siteId
+    && marker.timelineRevision === worker.timelineRevision
+  )) ?? null;
+}
+
+export type RealmWorkerInspectionRoute =
+  | Readonly<{
+      kind: 'resource-site';
+      marker: RealmResourceOccupantMarker;
+    }>
+  | Readonly<{ kind: 'worker' }>
+  | Readonly<{ kind: 'unavailable' }>;
+
+/**
+ * Gives every active occupied worker one canonical site inspector. Dedicated
+ * worker records remain available only when the worker has no occupied site.
+ */
+export function resolveRealmWorkerInspectionRoute(
+  markers: readonly RealmResourceOccupantMarker[],
+  worker: Pick<
+    RealmWorkerPublicPresentation,
+    | 'workerId'
+    | 'ordinal'
+    | 'originCastleId'
+    | 'status'
+    | 'resourceKind'
+    | 'siteId'
+    | 'timelineRevision'
+  >
+): RealmWorkerInspectionRoute {
+  const marker = realmResourceOccupantMarkerForWorker(markers, worker);
+  if (marker) return Object.freeze({ kind: 'resource-site', marker });
+  return Object.freeze({
+    kind: worker.status === 'idle' || worker.status === 'returning'
+      ? 'worker'
+      : 'unavailable'
+  });
 }
 
 export const MAX_VISIBLE_RESOURCE_OCCUPANT_MARKERS = 24;

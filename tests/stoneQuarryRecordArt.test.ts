@@ -152,8 +152,9 @@ describe('Hegemony Stone Quarry record art', () => {
     expect(component).toContain('decoding="async"');
     expect(component).toContain('draggable={false}');
     expect(component).toContain('onDispatchStoneExpedition');
-    expect(component).toContain('onClaimStoneExpedition');
-    expect(component).toContain('pendingStone');
+    expect(component).toContain('RealmResourceOccupantDetails');
+    expect(component).not.toContain('onClaimStoneExpedition');
+    expect(component).not.toContain('pendingStone');
     expect(component).not.toMatch(/https?:\/\//i);
     expect(css).toContain('scale(1.055)');
     expect(map).toContain('StoneQuarryInspectionPanel');

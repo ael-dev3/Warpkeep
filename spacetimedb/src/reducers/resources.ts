@@ -163,8 +163,9 @@ export const collectResourcesV1 = warpkeep.reducer(
       }
       // Claim all capacity-reserved expedition fields before one passive
       // settlement at the same server moment. This prevents a delayed Food,
-      // Wood, or Stone schedule (or a manual claim) from consuming another
-      // resource's remaining award with a capped passive update first.
+      // Wood, or Stone schedule (or a resource-specific settlement) from
+      // consuming another resource's remaining award with a capped passive
+      // update first.
       collectActiveFoodExpedition(ctx, claims.fid);
       collectActiveWoodExpedition(ctx, claims.fid);
       collectActiveStoneExpedition(ctx, claims.fid);

@@ -96,7 +96,7 @@ test('Food reducer inputs are caller-bound and its lifecycle is scheduler-only',
   const dispatch = section(
     reducer,
     'export const dispatchFoodExpeditionV1',
-    '/**\n * Explicit no-input claim',
+    '/**\n * Retained no-input settlement',
   );
   const privateState = section(
     reducer,
@@ -138,8 +138,8 @@ test('Food, Gold, and Wood wagons are independent while every passive settlement
   const resources = source('../src/reducers/resources.ts');
   const reservation = source('../src/resourceExpeditionReservationAuthority.ts');
 
-  const foodDispatch = section(foodAuthority, 'export function dispatchGenesisFoodExpedition', '/**\n * Claim');
-  const goldDispatch = section(goldAuthority, 'export function dispatchGenesisGoldExpedition', '/**\n * Claim');
+  const foodDispatch = section(foodAuthority, 'export function dispatchGenesisFoodExpedition', '/**\n * Settle');
+  const goldDispatch = section(goldAuthority, 'export function dispatchGenesisGoldExpedition', '/**\n * Settle');
   assert.match(foodDispatch, /foodExpeditionV1\.originCastleId\.find/);
   assert.match(goldDispatch, /goldExpeditionV1\.originCastleId\.find/);
   // Separate private tables deliberately permit the same founder/castle to

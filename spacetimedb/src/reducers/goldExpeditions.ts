@@ -123,9 +123,9 @@ export const dispatchGoldExpeditionV1 = warpkeep.reducer(
 );
 
 /**
- * Explicit no-input claim for completed whole Gold minutes. It is safe to call
- * repeatedly; only uncredited server-time accrual is transferred, and the
- * scheduled expiry settles the remaining cursor exactly once.
+ * Retained no-input settlement for completed whole Gold minutes. Repeated
+ * calls transfer only uncredited server-time accrual, and scheduled expiry
+ * settles the remaining cursor exactly once.
  */
 export const collectGoldExpeditionV1 = warpkeep.reducer(
   { name: 'collect_gold_expedition_v1' },

@@ -489,9 +489,9 @@ export function dispatchGenesisFoodExpedition(
 }
 
 /**
- * Claim completed whole Food minutes from the caller's active Wheat Farm
+ * Settle completed whole Food minutes from the caller's active Wheat Farm
  * wagon. The capacity reservation is revalidated before every write; no
- * browser timing or per-minute mutation exists.
+ * browser timing or caller-provided amount participates.
  */
 export function collectActiveFoodExpedition(
   ctx: WarpkeepReducerContext,

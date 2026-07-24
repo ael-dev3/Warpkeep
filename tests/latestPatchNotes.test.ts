@@ -18,19 +18,19 @@ describe('latest in-menu patch notes', () => {
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
       releasedOn: '24 JUL 2026',
-      title: 'THE LIVING FRONTIER'
+      title: 'THE HARVEST REMEMBERED'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Authored keep and title textures.*ocean-to-fog horizon.*forests/i
+      /occupied Mine, Farm, Camp, or Quarry.*site, keeper, journey phase, time left.*one record/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /occupied resource sites.*public Farcaster portraits.*static previews/i
+      /gathering portrait.*keeper’s castle.*worker recall.*same record/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Selecting a keep, water cell, worker, or resource record.*no longer pulls the camera/i
+      /Completed yield.*automatically during an authenticated session.*recall and expiry/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /authoritative arrival, gathering, or return time left.*generic deployment duration/i
+      /Claim Resource and Collect Yield controls are gone.*private and server-authoritative/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /released to players|deployed to players|public balances|guaranteed rewards/i
@@ -38,6 +38,7 @@ describe('latest in-menu patch notes', () => {
     expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('Genesis 001');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('not live yet');
+    expect(getLatestPatchNotes('0.3.15')).toBeUndefined();
     expect(getLatestPatchNotes('0.3.14')).toBeUndefined();
     expect(getLatestPatchNotes('0.3.13')).toBeUndefined();
     expect(getLatestPatchNotes('0.3.12')).toBeUndefined();

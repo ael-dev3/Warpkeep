@@ -1,4 +1,11 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -18,6 +25,7 @@ import type { RealmResourceKind } from '../src/components/realm/realmTypes';
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
 });
 
 function publicOccupant(
@@ -25,19 +33,21 @@ function publicOccupant(
   siteId: string,
   overrides: Partial<RealmResourceOccupantMarker> = {}
 ): RealmResourceOccupantMarker {
+  const nowMicros = BigInt(Date.now()) * 1_000n;
   return {
     source: 'generic-worker',
     resource,
     siteId,
     nodeCoord: { q: 4, r: -2 },
     tier: 1,
+    workerId: 'genesis-001-castle-7-worker-02',
     workerOrdinal: 2,
     workerPhase: 'gathering',
     timelineRevision: 1,
     occupiedByViewer: false,
-    startedAtMicros: 1n,
-    arrivesAtMicros: 2n,
-    gatheringEndsAtMicros: 3n,
+    startedAtMicros: nowMicros - 120_000_000n,
+    arrivesAtMicros: nowMicros - 60_000_000n,
+    gatheringEndsAtMicros: nowMicros + 90_000_000n,
     castle: {
       castleId: 7,
       name: 'Sunlit Bastion',
@@ -47,6 +57,7 @@ function publicOccupant(
     profile: {
       canonicalUsername: 'keeper',
       displayName: 'Keeper',
+      publicBio: 'Building beside the bright river.',
       communityStatsVisible: false
     },
     ...overrides
@@ -56,12 +67,16 @@ function publicOccupant(
 type InspectorCase = Readonly<{
   resource: RealmResourceKind;
   siteId: string;
+  dialogName: string;
   rate: string;
   renderPanel: (
     occupant: RealmResourceOccupantMarker | undefined,
-    dispatch: (siteId: string) => Promise<void>,
-    legacyDispatchBlocked?: boolean,
-    occupancyUnavailable?: boolean
+    options?: Readonly<{
+      focus?: (marker: RealmResourceOccupantMarker) => void;
+      recall?: (workerId: string) => Promise<void>;
+      legacyDispatchBlocked?: boolean;
+      occupancyUnavailable?: boolean;
+    }>
   ) => ReactElement;
 }>;
 
@@ -69,8 +84,9 @@ const INSPECTOR_CASES: readonly InspectorCase[] = [
   {
     resource: 'gold',
     siteId: 'genesis-001:gold:0001',
+    dialogName: 'Gold Mine',
     rate: '+1 Gold / minute',
-    renderPanel: (occupant, dispatch, legacyDispatchBlocked, occupancyUnavailable) => (
+    renderPanel: (occupant, options) => (
       <GoldMineInspectionPanel
         id="generic-gold-occupant"
         mine={{ name: 'Gold Mine', tier: 1 }}
@@ -82,9 +98,10 @@ const INSPECTOR_CASES: readonly InspectorCase[] = [
           occupiedByViewer: false
         }}
         publicOccupant={occupant}
-        legacyDispatchBlocked={legacyDispatchBlocked}
-        occupancyUnavailable={occupancyUnavailable}
-        onDispatchGoldExpedition={dispatch}
+        legacyDispatchBlocked={options?.legacyDispatchBlocked}
+        occupancyUnavailable={options?.occupancyUnavailable}
+        onFocusOccupantCastle={options?.focus}
+        onRecallWorker={options?.recall}
         onRequestClose={() => undefined}
       />
     )
@@ -92,8 +109,9 @@ const INSPECTOR_CASES: readonly InspectorCase[] = [
   {
     resource: 'food',
     siteId: 'genesis-001:food:0001',
+    dialogName: 'Wheat Farm',
     rate: '+1 Food / minute',
-    renderPanel: (occupant, dispatch, legacyDispatchBlocked, occupancyUnavailable) => (
+    renderPanel: (occupant, options) => (
       <FoodFarmInspectionPanel
         id="generic-food-occupant"
         farm={{ name: 'Wheat Farm', tier: 1 }}
@@ -105,9 +123,10 @@ const INSPECTOR_CASES: readonly InspectorCase[] = [
           occupiedByViewer: false
         }}
         publicOccupant={occupant}
-        legacyDispatchBlocked={legacyDispatchBlocked}
-        occupancyUnavailable={occupancyUnavailable}
-        onDispatchFoodExpedition={dispatch}
+        legacyDispatchBlocked={options?.legacyDispatchBlocked}
+        occupancyUnavailable={options?.occupancyUnavailable}
+        onFocusOccupantCastle={options?.focus}
+        onRecallWorker={options?.recall}
         onRequestClose={() => undefined}
       />
     )
@@ -115,8 +134,9 @@ const INSPECTOR_CASES: readonly InspectorCase[] = [
   {
     resource: 'wood',
     siteId: 'genesis-001:wood:0001',
+    dialogName: 'Logging Camp',
     rate: '+1 Wood / minute',
-    renderPanel: (occupant, dispatch, legacyDispatchBlocked, occupancyUnavailable) => (
+    renderPanel: (occupant, options) => (
       <LoggingCampInspectionPanel
         id="generic-wood-occupant"
         camp={{ name: 'Logging Camp', tier: 1 }}
@@ -128,9 +148,10 @@ const INSPECTOR_CASES: readonly InspectorCase[] = [
           occupiedByViewer: false
         }}
         publicOccupant={occupant}
-        legacyDispatchBlocked={legacyDispatchBlocked}
-        occupancyUnavailable={occupancyUnavailable}
-        onDispatchWoodExpedition={dispatch}
+        legacyDispatchBlocked={options?.legacyDispatchBlocked}
+        occupancyUnavailable={options?.occupancyUnavailable}
+        onFocusOccupantCastle={options?.focus}
+        onRecallWorker={options?.recall}
         onRequestClose={() => undefined}
       />
     )
@@ -138,8 +159,9 @@ const INSPECTOR_CASES: readonly InspectorCase[] = [
   {
     resource: 'stone',
     siteId: 'genesis-001:stone:0001',
+    dialogName: 'Stone Quarry',
     rate: '+1 Stone / minute',
-    renderPanel: (occupant, dispatch, legacyDispatchBlocked, occupancyUnavailable) => (
+    renderPanel: (occupant, options) => (
       <StoneQuarryInspectionPanel
         id="generic-stone-occupant"
         quarry={{ name: 'Stone Quarry', tier: 1 }}
@@ -151,103 +173,163 @@ const INSPECTOR_CASES: readonly InspectorCase[] = [
           occupiedByViewer: false
         }}
         publicOccupant={occupant}
-        legacyDispatchBlocked={legacyDispatchBlocked}
-        occupancyUnavailable={occupancyUnavailable}
-        onDispatchStoneExpedition={dispatch}
+        legacyDispatchBlocked={options?.legacyDispatchBlocked}
+        occupancyUnavailable={options?.occupancyUnavailable}
+        onFocusOccupantCastle={options?.focus}
+        onRecallWorker={options?.recall}
         onRequestClose={() => undefined}
       />
     )
   }
 ];
 
-describe('normalized occupied resource inspectors', () => {
+describe('unified occupied resource inspectors', () => {
   it.each(INSPECTOR_CASES)(
-    'presents a generic $resource lease as occupied and suppresses legacy dispatch',
-    ({ resource, siteId, rate, renderPanel }) => {
-      const dispatch = vi.fn(async () => undefined);
-      render(renderPanel(publicOccupant(resource, siteId), dispatch));
+    'keeps the $resource site and public worker story in one dialog',
+    ({ resource, siteId, dialogName, rate, renderPanel }) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(2_000_000_000_000);
+      const occupant = publicOccupant(resource, siteId);
+      render(renderPanel(occupant));
 
+      const dialog = screen.getByRole('dialog', { name: dialogName });
+      expect(screen.getAllByRole('dialog')).toHaveLength(1);
+      const details = dialog.querySelector<HTMLElement>(
+        '[data-resource-occupant-details="true"]'
+      );
+      expect(details).not.toBeNull();
+      expect(within(details!).getByText('PUBLIC WORKER RECORD')).not.toBeNull();
+      expect(within(details!).getAllByText('WORKER 02')).toHaveLength(2);
+      expect(within(details!).getByText('GATHERING AT SITE')).not.toBeNull();
+      expect(within(details!).getByText('Keeper')).not.toBeNull();
+      expect(within(details!).getByText('@keeper')).not.toBeNull();
+      expect(within(details!).getByText('Building beside the bright river.')).not.toBeNull();
+      expect(within(details!).getByText('Home castle').nextElementSibling?.textContent)
+        .toBe('Sunlit Bastion');
+      expect(within(details!).getByText('Castle location').nextElementSibling?.textContent)
+        .toBe('q 0 · r 0');
+      expect(within(details!).getByText('Gathering time left')).not.toBeNull();
+      expect(within(details!).getByRole('timer').textContent).toBe('2m remaining');
       expect(screen.getByText('Site state').nextElementSibling?.textContent)
         .toBe('OCCUPIED · GATHERING');
       expect(screen.getByText('Occupied by').nextElementSibling?.textContent)
         .toBe('@keeper · Sunlit Bastion');
-      expect(screen.getByText('Gather rate').nextElementSibling?.textContent)
-        .toBe(rate);
-      expect(screen.getByText(/resources and commands remain private/i)).not.toBeNull();
-      expect(screen.queryByRole('button', { name: 'DISPATCH WAGON' })).toBeNull();
-      expect(dispatch).not.toHaveBeenCalled();
+      expect(screen.getByText('Gather rate').nextElementSibling?.textContent).toBe(rate);
+      expect(screen.queryByRole('button', { name: /view public/i })).toBeNull();
+      expect(screen.queryByRole('button', { name: /claim/i })).toBeNull();
     }
   );
 
-  it('opens the exact camera-neutral public record from an occupied site inspector', () => {
+  it('keeps portrait navigation explicit without moving the camera on open', () => {
     const occupant = publicOccupant('gold', 'genesis-001:gold:0001');
-    const inspect = vi.fn();
-    render(
-      <GoldMineInspectionPanel
-        id="occupied-public-record-route"
-        mine={{ name: 'Gold Mine', tier: 1 }}
-        node={{
-          siteId: occupant.siteId,
-          coord: occupant.nodeCoord,
-          tier: occupant.tier,
-          availability: 'available',
-          occupiedByViewer: false
-        }}
-        publicOccupant={occupant}
-        onInspectPublicOccupant={inspect}
-        onRequestClose={() => undefined}
-      />
-    );
+    const focus = vi.fn();
+    render(INSPECTOR_CASES[0]!.renderPanel(occupant, { focus }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'VIEW PUBLIC WORKER RECORD' }));
-    expect(inspect).toHaveBeenCalledOnce();
-    expect(inspect).toHaveBeenCalledWith(occupant);
-  });
-
-  it('identifies an owned generic assignment without exposing its private command surface', () => {
-    const dispatch = vi.fn(async () => undefined);
-    const entry = INSPECTOR_CASES[0]!;
-    render(entry.renderPanel(publicOccupant(entry.resource, entry.siteId, {
-      occupiedByViewer: true
-    }), dispatch));
-
-    expect(screen.getByText('Occupied by').nextElementSibling?.textContent)
-      .toBe('Your worker · Sunlit Bastion');
-    expect(screen.getByText(/settlement remains server-authoritative/i)).not.toBeNull();
-    expect(screen.queryByRole('button', { name: 'DISPATCH WAGON' })).toBeNull();
-    expect(document.body.textContent).not.toMatch(
-      /owner fid|request key|command key|assignment id|cargo|balance/i
-    );
+    fireEvent.click(screen.getByRole('button', {
+      name: /Focus @keeper's castle on the map/i
+    }));
+    expect(focus).toHaveBeenCalledOnce();
+    expect(focus).toHaveBeenCalledWith(occupant);
   });
 
   it.each(INSPECTOR_CASES)(
-    'keeps retired legacy $resource dispatch closed when active generic markers degrade',
-    ({ renderPanel }) => {
-      const dispatch = vi.fn(async () => undefined);
-      render(renderPanel(undefined, dispatch, true));
+    'recovers $resource inspector focus when its live occupation disappears',
+    async ({ resource, siteId, renderPanel }) => {
+      const occupant = publicOccupant(resource, siteId);
+      const focus = vi.fn();
+      const view = render(renderPanel(occupant, { focus }));
+      const portrait = screen.getByRole('button', {
+        name: /Focus @keeper's castle on the map/i
+      });
+      portrait.focus();
+      expect(document.activeElement).toBe(portrait);
 
-      expect(screen.getByText(/authoritative worker roster/i)).not.toBeNull();
-      expect(screen.queryByRole('button', { name: /dispatch wagon/i })).toBeNull();
-      expect(dispatch).not.toHaveBeenCalled();
+      view.rerender(renderPanel(undefined, { focus }));
+
+      await waitFor(() => {
+        expect(document.activeElement).toBe(screen.getByRole('button', {
+          name: /^CLOSE .* RECORD$/
+        }));
+      });
     }
   );
 
+  it('does not steal focus when an occupation disappears while focus is elsewhere', async () => {
+    const occupant = publicOccupant('gold', 'genesis-001:gold:0001');
+    const focus = vi.fn();
+    const view = render(
+      <>
+        <button type="button">Outside control</button>
+        {INSPECTOR_CASES[0]!.renderPanel(occupant, { focus })}
+      </>
+    );
+    const outside = screen.getByRole('button', { name: 'Outside control' });
+    outside.focus();
+
+    view.rerender(
+      <>
+        <button type="button">Outside control</button>
+        {INSPECTOR_CASES[0]!.renderPanel(undefined, { focus })}
+      </>
+    );
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    expect(document.activeElement).toBe(screen.getByRole('button', {
+      name: 'Outside control'
+    }));
+  });
+
+  it('offers recall only for the viewer’s exact generic worker', async () => {
+    const recall = vi.fn(async () => undefined);
+    const own = publicOccupant('wood', 'genesis-001:wood:0001', {
+      occupiedByViewer: true
+    });
+    render(INSPECTOR_CASES[2]!.renderPanel(own, { recall }));
+
+    fireEvent.click(screen.getByRole('button', { name: /Recall Worker to Keep/i }));
+    expect(recall).toHaveBeenCalledOnce();
+    expect(recall).toHaveBeenCalledWith('genesis-001-castle-7-worker-02');
+    expect(await screen.findByText('Worker returning…')).not.toBeNull();
+  });
+
+  it('keeps remote, legacy, and malformed worker records read-only', () => {
+    const recall = vi.fn(async () => undefined);
+    const remote = publicOccupant('wood', 'genesis-001:wood:0001');
+    const view = render(INSPECTOR_CASES[2]!.renderPanel(remote, { recall }));
+    expect(screen.queryByRole('button', { name: /Recall Worker to Keep/i })).toBeNull();
+
+    view.rerender(INSPECTOR_CASES[2]!.renderPanel({
+      ...remote,
+      source: 'legacy-expedition',
+      occupiedByViewer: true
+    }, { recall }));
+    expect(screen.queryByRole('button', { name: /Recall Worker to Keep/i })).toBeNull();
+
+    view.rerender(INSPECTOR_CASES[2]!.renderPanel({
+      ...remote,
+      occupiedByViewer: true,
+      workerId: 'not-a-canonical-worker'
+    }, { recall }));
+    expect(screen.queryByRole('button', { name: /Recall Worker to Keep/i })).toBeNull();
+    expect(recall).not.toHaveBeenCalled();
+  });
+
   it.each(INSPECTOR_CASES)(
-    'does not advertise an available $resource node when active occupancy is unverified',
+    'fails $resource closed when active worker occupancy cannot be verified',
     ({ renderPanel }) => {
-      const dispatch = vi.fn(async () => undefined);
-      render(renderPanel(undefined, dispatch, true, true));
+      render(renderPanel(undefined, {
+        legacyDispatchBlocked: true,
+        occupancyUnavailable: true
+      }));
 
       expect(screen.getByText('Site state').nextElementSibling?.textContent)
         .toBe('OCCUPANCY UNAVAILABLE');
-      expect(screen.getByText(/not presented as available/i)).not.toBeNull();
-      expect(screen.queryByRole('button', { name: /dispatch wagon/i })).toBeNull();
-      expect(dispatch).not.toHaveBeenCalled();
+      expect(document.querySelector('[data-resource-occupant-details="true"]')).toBeNull();
+      expect(screen.queryByRole('button', { name: /dispatch|claim/i })).toBeNull();
     }
   );
 
-  it('suppresses stale legacy claim state after a generic lease wins the node', () => {
-    const claim = vi.fn(async () => undefined);
+  it('does not revive stale private pending Gold or a manual claim action', () => {
     const siteId = 'genesis-001:gold:0001';
     const staleLegacy = decodeGoldExpeditionPresentation({
       active: true,
@@ -266,8 +348,9 @@ describe('normalized occupied resource inspectors', () => {
       gatheringDurationMicros: GOLD_EXPEDITION_GATHERING_DURATION_MICROS,
       expeditionPolicyVersion: GOLD_EXPEDITION_POLICY_VERSION
     });
+    const occupant = publicOccupant('gold', siteId, { occupiedByViewer: true });
 
-    const view = render(
+    render(
       <GoldMineInspectionPanel
         id="generic-over-legacy"
         mine={{ name: 'Gold Mine', tier: 1 }}
@@ -288,50 +371,13 @@ describe('normalized occupied resource inspectors', () => {
           originCastle: { castleId: 7, name: 'Sunlit Bastion', q: 0, r: 0 },
           occupiedByViewer: true
         }}
-        publicOccupant={publicOccupant('gold', siteId, {
-          occupiedByViewer: true
-        })}
+        publicOccupant={occupant}
         privateExpedition={staleLegacy}
-        onClaimGoldExpedition={claim}
         onRequestClose={() => undefined}
       />
     );
 
     expect(screen.queryByText('Pending Gold')).toBeNull();
     expect(screen.queryByRole('button', { name: /claim/i })).toBeNull();
-    expect(claim).not.toHaveBeenCalled();
-
-    view.rerender(
-      <GoldMineInspectionPanel
-        id="active-generic-invalid-public-join"
-        mine={{ name: 'Gold Mine', tier: 1 }}
-        node={{
-          siteId,
-          coord: { q: 4, r: -2 },
-          tier: 1,
-          availability: 'gathering',
-          occupation: {
-            siteId,
-            originCastleId: 7,
-            phase: 'gathering',
-            startedAtMicros: 10n,
-            arrivesAtMicros: 20n,
-            gatheringEndsAtMicros: 30n,
-            returnsAtMicros: 40n
-          },
-          originCastle: { castleId: 7, name: 'Sunlit Bastion', q: 0, r: 0 },
-          occupiedByViewer: true
-        }}
-        legacyDispatchBlocked
-        privateExpedition={staleLegacy}
-        onClaimGoldExpedition={claim}
-        onRequestClose={() => undefined}
-      />
-    );
-
-    expect(screen.getByText(/authoritative worker roster/i)).not.toBeNull();
-    expect(screen.queryByText('Pending Gold')).toBeNull();
-    expect(screen.queryByRole('button', { name: /claim|dispatch/i })).toBeNull();
-    expect(claim).not.toHaveBeenCalled();
   });
 });

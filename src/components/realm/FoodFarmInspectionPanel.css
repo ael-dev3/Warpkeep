@@ -21,8 +21,7 @@
   box-shadow: 0 0 1.4rem color-mix(in srgb, var(--food-farm-accent) 68%, transparent);
 }
 
-.food-farm-inspection .gold-mine-inspection__action button,
-.food-farm-inspection .gold-mine-inspection__action--claim button {
+.food-farm-inspection .gold-mine-inspection__action button {
   background: linear-gradient(135deg, #8c5d1e, #d29d3e 48%, #f0cb6d);
   border-color: #f7d88f;
   color: #2e1b0d;

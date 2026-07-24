@@ -365,17 +365,16 @@ describe('compact Realm CSS contract', () => {
     }
   });
 
-  it('keeps resource occupants camera-stable, device-safe, and touch accessible', () => {
+  it('keeps resource occupants camera-stable, embedded, and touch accessible', () => {
     const presenceLayer = block(MAP, '.realm-resource-occupant-presences {');
     const presence = block(MAP, '.realm-resource-occupant-presence {');
     const marker = block(MAP, '.realm-resource-occupant-marker {');
     const markerLayer = block(MAP, '.realm-resource-occupant-markers {');
     const castleLayer = block(PRESENTATION, '.realm-castle-labels {');
-    const panel = block(MAP, '.realm-resource-occupant-panel {');
-    const close = block(MAP, '.realm-resource-occupant-panel__close {');
-    const castleAction = block(MAP, '.realm-resource-occupant-panel__castle-action {');
-    const reducedMotion = block(MAP, '@media (prefers-reduced-motion: reduce) {');
-    const reducedPanel = block(reducedMotion, '.realm-resource-occupant-panel {');
+    const details = block(MAP, '.realm-resource-occupant-details {');
+    const workerArt = block(MAP, '.realm-resource-occupant-details__worker-art {');
+    const castleAction = block(MAP, '.realm-resource-occupant-details__identity-focus {');
+    const recall = block(MAP, '.realm-resource-occupant-details__recall {');
 
     expect(presenceLayer).toContain('z-index: 3;');
     expect(castleLayer).toContain('z-index: 4;');
@@ -390,16 +389,13 @@ describe('compact Realm CSS contract', () => {
     expect(presence).not.toMatch(/transition:[^;]*transform/);
     expect(marker).toContain('--realm-resource-marker-size: 44px;');
     expect(marker).not.toMatch(/transition:[^;]*transform/);
-    expect(panel).toContain('right: max(1rem, env(safe-area-inset-right));');
-    expect(panel).toContain('bottom: max(1rem, env(safe-area-inset-bottom));');
-    expect(panel).toContain('env(safe-area-inset-left)');
-    expect(panel).toContain('env(safe-area-inset-top)');
-    expect(panel).toContain('72svh');
-    expect(close).toContain('width: 2.75rem;');
-    expect(close).toContain('height: 2.75rem;');
-    expect(castleAction).toContain('min-height: 2.75rem;');
-    expect(reducedPanel).toContain('animation: none;');
-    expect(MAP).not.toContain('.realm-resource-occupant-panel__recall-action');
+    expect(details).toContain('display: grid;');
+    expect(details).toContain('border: 1px solid');
+    expect(workerArt).toContain('pointer-events: none;');
+    expect(castleAction).toContain('min-width: 3.75rem;');
+    expect(castleAction).toContain('min-height: 3.75rem;');
+    expect(recall).toContain('min-height: 2.75rem;');
+    expect(MAP).not.toContain('.realm-resource-occupant-panel');
   });
 
   it('uses the device-safe edge for compact sheets instead of reserving a ghost toolbar band', () => {
@@ -415,7 +411,7 @@ describe('compact Realm CSS contract', () => {
     );
     const hiddenCoveredUi = block(
       compactMap,
-      '.realm-map-screen:has(:is(.castle-inspection, .gold-mine-inspection, .food-farm-inspection, .realm-resource-occupant-panel)) .realm-hud,'
+      '.realm-map-screen:has(:is(.castle-inspection, .gold-mine-inspection, .food-farm-inspection)) .realm-hud,'
     );
     const compactInspector = block(compactPresentation, '.castle-inspection {');
     const compactDrawer = block(compactPresentation, '.castle-inspection__drawer {');
@@ -437,7 +433,7 @@ describe('compact Realm CSS contract', () => {
     expect(hiddenCoveredUi).toContain('visibility: hidden;');
     expect(hiddenCoveredUi).toContain('pointer-events: none;');
     expect(compactMap).toContain(
-      '.realm-map-screen:has(:is(.castle-inspection, .gold-mine-inspection, .food-farm-inspection, .realm-resource-occupant-panel)) .realm-hud__actions,'
+      '.realm-map-screen:has(:is(.castle-inspection, .gold-mine-inspection, .food-farm-inspection)) .realm-hud__actions,'
     );
     expect(compactMap).toContain(
       '.realm-map-screen:has(.realm-cell-navigator__dialog) .realm-hud__actions {'
@@ -532,7 +528,7 @@ describe('compact Realm CSS contract', () => {
     expect(shortVisibleUi).toContain('visibility: visible;');
     expect(shortVisibleUi).toContain('pointer-events: auto;');
     expect(shortMap).toContain(
-      '.realm-map-screen:has(:is(.castle-inspection, .gold-mine-inspection, .food-farm-inspection, .realm-resource-occupant-panel)) .realm-hud__actions {'
+      '.realm-map-screen:has(:is(.castle-inspection, .gold-mine-inspection, .food-farm-inspection)) .realm-hud__actions {'
     );
     expect(shortProfilePanel).toContain('padding: 0.65rem;');
     expect(shortProfilePanel).toContain('max-height: calc(100svh - 4.45rem');

@@ -236,12 +236,6 @@
   filter: saturate(0.62) brightness(0.82);
 }
 
-.gold-mine-inspection__action--claim button {
-  border-color: rgb(231 199 255 / 74%);
-  background: linear-gradient(180deg, rgb(190 135 232 / 94%), rgb(87 46 126 / 96%));
-  color: #fff5ff;
-}
-
 .gold-mine-inspection__action-status {
   min-height: 1.1rem;
   margin: 0;

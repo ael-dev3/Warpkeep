@@ -7,11 +7,7 @@ import {
   type Ref
 } from 'react';
 
-import {
-  stoneExpeditionForNode,
-  type ReadyStoneExpeditionPresentation,
-  type StoneExpeditionPresentation
-} from './realmStoneExpeditionPresentation';
+import type { StoneExpeditionPresentation } from './realmStoneExpeditionPresentation';
 import {
   stoneNodeAvailabilityLabel,
   stoneNodeNextAuthorityTimestamp,
@@ -19,11 +15,11 @@ import {
 } from './realmStoneNodePresentation';
 import {
   matchingRealmResourceOccupant,
-  realmResourceOccupantNextAuthorityTimestamp,
   realmResourceOccupantOwnerLabel,
   realmResourceOccupantSiteStateLabel
 } from './realmResourceOccupantInspector';
 import { useRealmRemainingDuration } from './realmAuthoritySchedule';
+import { RealmResourceOccupantDetails } from './RealmResourceOccupantDetails';
 import type {
   RealmResourceOccupantMarker
 } from './realmResourceOccupantPresentation';
@@ -67,14 +63,14 @@ export type StoneQuarryInspectionPanelProps = Readonly<{
   legacyDispatchBlocked?: boolean;
   /** Active generic authority exists, but its public occupancy join failed validation. */
   occupancyUnavailable?: boolean;
-  /** Opens the normalized public record without moving the Realm camera. */
-  onInspectPublicOccupant?: (occupant: RealmResourceOccupantMarker) => void;
-  /** Exact caller-only procedure data, joined again to the public site. */
+  /** Explicit portrait navigation; opening the record itself remains camera-neutral. */
+  onFocusOccupantCastle?: (occupant: RealmResourceOccupantMarker) => void;
+  /** Exact owner-only generic worker recall boundary. */
+  onRecallWorker?: (workerId: string) => Promise<void>;
+  /** Exact caller-only procedure data used only to gate legacy dispatch. */
   privateExpedition?: StoneExpeditionPresentation;
   /** Authenticated provider boundary; no optimistic public node mutation. */
   onDispatchStoneExpedition?: (siteId: string) => Promise<void>;
-  /** Owner-only settlement boundary; resources refresh after server confirmation. */
-  onClaimStoneExpedition?: () => Promise<void>;
   onRequestClose: () => void;
   focusTargetRef?: Ref<HTMLButtonElement>;
 }>;
@@ -111,22 +107,6 @@ function nodeNotice(
   return 'This Quarry is occupied. Public occupancy is visible, but another player’s resources remain private.';
 }
 
-function visibleOwnerExpedition(
-  node: RealmStoneNodePresentation | undefined,
-  privateExpedition: StoneExpeditionPresentation | undefined
-): ReadyStoneExpeditionPresentation | undefined {
-  if (!node?.originCastle || !node.occupation || !node.occupiedByViewer) return undefined;
-  return stoneExpeditionForNode(privateExpedition, {
-    siteId: node.siteId,
-    originCastleId: node.originCastle.castleId,
-    phase: node.occupation.phase,
-    startedAtMicros: node.occupation.startedAtMicros,
-    arrivesAtMicros: node.occupation.arrivesAtMicros,
-    gatheringEndsAtMicros: node.occupation.gatheringEndsAtMicros,
-    returnsAtMicros: node.occupation.returnsAtMicros
-  });
-}
-
 /**
  * The Stone Quarry inspector uses the established public/private split:
  * public rows choose availability, the owner-only procedure chooses pending
@@ -140,10 +120,10 @@ export function StoneQuarryInspectionPanel({
   publicOccupant,
   legacyDispatchBlocked = false,
   occupancyUnavailable = false,
-  onInspectPublicOccupant,
+  onFocusOccupantCastle,
+  onRecallWorker,
   privateExpedition,
   onDispatchStoneExpedition,
-  onClaimStoneExpedition,
   onRequestClose,
   focusTargetRef
 }: StoneQuarryInspectionPanelProps) {
@@ -151,7 +131,6 @@ export function StoneQuarryInspectionPanel({
   const [dispatchState, setDispatchState] = useState<
     'idle' | 'submitting' | 'submitted' | 'failed'
   >('idle');
-  const [claimState, setClaimState] = useState<'idle' | 'submitting' | 'failed'>('idle');
   const titleId = `${id}-title`;
   const descriptionId = `${id}-description`;
   const occupant = occupancyUnavailable || !node
@@ -159,15 +138,12 @@ export function StoneQuarryInspectionPanel({
     : matchingRealmResourceOccupant(publicOccupant, 'stone', node.siteId);
   const dispatchBlocked = legacyDispatchBlocked || occupancyUnavailable;
   const scheduleTimestamp = occupant
-    ? realmResourceOccupantNextAuthorityTimestamp(occupant)
+    ? undefined
     : node ? stoneNodeNextAuthorityTimestamp(node) : undefined;
   const remainingSchedule = useRealmRemainingDuration(scheduleTimestamp);
   const scheduleLabel = occupancyUnavailable
     ? undefined
     : remainingSchedule;
-  const ownerExpedition = dispatchBlocked || occupant?.source === 'generic-worker'
-    ? undefined
-    : visibleOwnerExpedition(node, privateExpedition);
   const privateExpeditionActive = privateExpedition?.status === 'ready'
     && privateExpedition.active;
   const privateActiveSiteId = privateExpeditionActive
@@ -189,10 +165,6 @@ export function StoneQuarryInspectionPanel({
     && onDispatchStoneExpedition !== undefined
     && !privateExpeditionActive
     && (dispatchState === 'idle' || dispatchState === 'failed');
-  const canClaim = ownerExpedition !== undefined
-    && ownerExpedition.pendingStone > 0n
-    && onClaimStoneExpedition !== undefined
-    && claimState !== 'submitting';
   const dispatchLabel = dispatchState === 'submitting'
     ? 'DISPATCHING WAGON…'
     : awaitingPublicOccupation
@@ -219,7 +191,6 @@ export function StoneQuarryInspectionPanel({
 
   useEffect(() => {
     setDispatchState('idle');
-    setClaimState('idle');
   }, [node?.availability, node?.siteId]);
 
   const dispatch = useCallback(async () => {
@@ -238,17 +209,6 @@ export function StoneQuarryInspectionPanel({
       setDispatchState('failed');
     }
   }, [dispatchBlocked, node, occupant, onDispatchStoneExpedition]);
-
-  const claim = useCallback(async () => {
-    if (!canClaim || !onClaimStoneExpedition) return;
-    setClaimState('submitting');
-    try {
-      await onClaimStoneExpedition();
-      setClaimState('idle');
-    } catch {
-      setClaimState('failed');
-    }
-  }, [canClaim, onClaimStoneExpedition]);
 
   return (
     <aside
@@ -320,28 +280,21 @@ export function StoneQuarryInspectionPanel({
             {!occupancyUnavailable && node ? (
               <InspectionField label="Gather rate">+1 Stone / minute</InspectionField>
             ) : null}
-            {ownerExpedition ? (
-              <InspectionField label="Pending Stone">
-                {ownerExpedition.pendingStone.toLocaleString('en-US')}
-              </InspectionField>
-            ) : null}
             {scheduleLabel ? (
               <InspectionField label="Realm schedule">{scheduleLabel}</InspectionField>
             ) : null}
           </dl>
+          {occupant ? (
+            <RealmResourceOccupantDetails
+              focusFallbackRef={closeButtonRef}
+              marker={occupant}
+              onFocusCastle={onFocusOccupantCastle}
+              onRecallWorker={onRecallWorker}
+            />
+          ) : null}
           <p className="gold-mine-inspection__notice">
             {nodeNotice(node, occupant, dispatchBlocked, occupancyUnavailable)}
           </p>
-          {occupant && onInspectPublicOccupant ? (
-            <div className="gold-mine-inspection__action">
-              <button
-                onClick={() => onInspectPublicOccupant(occupant)}
-                type="button"
-              >
-                VIEW PUBLIC {occupant.source === 'generic-worker' ? 'WORKER' : 'EXPEDITION'} RECORD
-              </button>
-            </div>
-          ) : null}
           {!dispatchBlocked
             && occupant === undefined
             && node?.availability === 'available'
@@ -357,25 +310,6 @@ export function StoneQuarryInspectionPanel({
               </button>
               <p aria-live="polite" className="gold-mine-inspection__action-status">
                 {dispatchStatus}
-              </p>
-            </div>
-          ) : null}
-          {ownerExpedition && onClaimStoneExpedition ? (
-            <div className="gold-mine-inspection__action gold-mine-inspection__action--claim">
-              <button
-                aria-describedby={descriptionId}
-                disabled={!canClaim}
-                onClick={() => void claim()}
-                type="button"
-              >
-                {claimState === 'submitting' ? 'CLAIMING STONE…' : 'CLAIM ACCRUED STONE'}
-              </button>
-              <p aria-live="polite" className="gold-mine-inspection__action-status">
-                {claimState === 'failed'
-                  ? 'The Realm could not confirm this claim. Try again after the record refreshes.'
-                  : canClaim
-                    ? 'Claim is confirmed only when the Realm refreshes your private resource record.'
-                    : 'Accrued Stone becomes claimable when the Realm reports a positive pending amount.'}
               </p>
             </div>
           ) : null}

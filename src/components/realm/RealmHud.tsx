@@ -50,7 +50,6 @@ type RealmHudProps = Readonly<{
   ownCastle?: Readonly<{ name: string; level: number }>;
   ownProfile?: RealmCastlePublicPresentation;
   resources?: ReadyRealmResourcePresentation;
-  onCollectResources?: () => Promise<void>;
   keepCoord?: HexCoord;
   selectedCell: TerrainCell;
   selectedTerrainKind?: RealmTerrainKind;
@@ -102,13 +101,13 @@ const REALM_RESOURCE_TOOLTIP_ORDER: readonly RealmResourceTooltipKey[] = Object.
 
 const RESOURCE_TOOLTIP_COPY: Readonly<Record<RealmResourceTooltipKey, string>> = Object.freeze({
   food:
-    'Food currently comes from your keep’s private terrain yield and gathering at Wheat Farms. No Food spending is live yet.',
+    'Food comes from your keep’s private terrain yield and Wheat Farm gathering. The Realm stores completed yield automatically. No Food spending is live yet.',
   wood:
-    'Wood currently comes from your keep’s private terrain yield and gathering at Logging Camps. No Wood spending is live yet.',
+    'Wood comes from your keep’s private terrain yield and Logging Camp gathering. The Realm stores completed yield automatically. No Wood spending is live yet.',
   stone:
-    'Stone currently comes from your keep’s private terrain yield and gathering at Stone Quarries. No Stone spending is live yet.',
+    'Stone comes from your keep’s private terrain yield and Stone Quarry gathering. The Realm stores completed yield automatically. No Stone spending is live yet.',
   gold:
-    'Gold currently comes from gathering at Gold Mines; your keep’s terrain produces no Gold. No Gold spending is live yet.',
+    'Gold comes from Gold Mine gathering; your keep’s terrain produces no Gold. The Realm stores completed yield automatically. No Gold spending is live yet.',
   marks:
     'Community Marks are a separate experimental accounting balance, not an economic resource. They currently have no spending, transfer, conversion, redemption, or reward loop.'
 });
@@ -212,7 +211,7 @@ function RealmResourceRail({
       label: RESOURCE_LABELS[resource],
       status: workerResourceState
         ? `${formatExactRealmResourceQuantity(workerResourceState.available[resource]) ?? '0'} available`
-        : `${formatExactRealmResourceQuantity(resources.balances[resource]) ?? '0'} stored · ${formatExactRealmResourceQuantity(resources.pendingBalances[resource]) ?? '0'} ready to collect`
+        : `${formatExactRealmResourceQuantity(resources.balances[resource]) ?? '0'} stored · ${formatExactRealmResourceQuantity(resources.pendingBalances[resource]) ?? '0'} gathering now`
     };
   };
 
@@ -256,7 +255,7 @@ function RealmResourceRail({
                 aria-describedby={tooltipId(resource)}
                 aria-label={workerResourceState
                   ? `${RESOURCE_LABELS[resource]}: ${exact} available. Show resource details.`
-                  : `${RESOURCE_LABELS[resource]}: ${exact} stored; ${pending} ready to collect. Show resource details.`}
+                  : `${RESOURCE_LABELS[resource]}: ${exact} stored; ${pending} gathering now; settlement is automatic. Show resource details.`}
                 className="realm-resource-rail__trigger"
                 type="button"
                 {...triggerEvents(resource)}
@@ -332,9 +331,6 @@ type RealmCommandDialogProps = Readonly<{
   workersId: string;
   castleCount: number;
   canOpenSettings: boolean;
-  collecting: boolean;
-  pendingYield: boolean;
-  canCollect: boolean;
   activeWagons: readonly RealmActiveWagonMenuItem[];
   deployedWorkerCount?: number;
   recallableWorkerCount?: number;
@@ -344,7 +340,6 @@ type RealmCommandDialogProps = Readonly<{
   onWorkers?: () => void;
   onRecallAllWorkers?: () => void;
   onClose: () => void;
-  onCollect: () => void;
   onExplore: () => void;
   onOpenActiveWagon?: (wagon: RealmActiveWagonMenuItem) => void;
   onRecenter: () => void;
@@ -358,9 +353,6 @@ function RealmCommandDialog({
   workersId,
   castleCount,
   canOpenSettings,
-  collecting,
-  pendingYield,
-  canCollect,
   activeWagons,
   deployedWorkerCount,
   recallableWorkerCount,
@@ -370,7 +362,6 @@ function RealmCommandDialog({
   onWorkers,
   onRecallAllWorkers,
   onClose,
-  onCollect,
   onExplore,
   onOpenActiveWagon,
   onRecenter,
@@ -491,12 +482,6 @@ function RealmCommandDialog({
               ) : null}
             </div>
           ) : null}
-          {canCollect && pendingYield ? (
-            <button disabled={collecting} onClick={onCollect} type="button">
-              <strong>{collecting ? 'COLLECTING…' : 'COLLECT YIELD'}</strong>
-              <span>Settle available resources</span>
-            </button>
-          ) : null}
           {canOpenSettings ? (
             <button
               aria-controls={settingsId}
@@ -523,7 +508,6 @@ export function RealmHud({
   ownCastle,
   ownProfile,
   resources,
-  onCollectResources,
   keepCoord,
   selectedCell,
   selectedTerrainKind,
@@ -551,7 +535,6 @@ export function RealmHud({
 }: RealmHudProps) {
   const [surface, setSurface] = useState<RealmMenuSurface>('closed');
   const [selectedWorkerId, setSelectedWorkerId] = useState<string | undefined>(undefined);
-  const [collecting, setCollecting] = useState(false);
   const [recallingAllWorkers, setRecallingAllWorkers] = useState(false);
   const [confirmedRecallAllSignature, setConfirmedRecallAllSignature] = useState<
     string | undefined
@@ -600,9 +583,6 @@ export function RealmHud({
     key: selectionAnnouncementKey,
     copy: selectionAnnouncementCandidate
   });
-  const pendingYield = resources !== undefined && REALM_ECONOMIC_RESOURCE_ORDER.some(
-    (resource) => resources.pendingBalances[resource] > 0n
-  );
   const ownedWorkersForUi = workerProjection?.ownedWorkers.filter((worker) => worker.ownedByViewer);
   const privateWorkerIds = new Set(workerRoster?.workers.map((worker) => worker.workerId) ?? []);
   const authenticatedWorkerFid = Number.isSafeInteger(identity.fid) && identity.fid > 0
@@ -677,19 +657,6 @@ export function RealmHud({
     action();
   };
 
-  const collect = async () => {
-    if (!onCollectResources || !pendingYield || collecting) return;
-    setCollecting(true);
-    try {
-      await onCollectResources();
-    } catch {
-      // The provider owns the fail-closed recovery path and publishes no
-      // optimistic balance. Keep this transient control free of error detail.
-    } finally {
-      setCollecting(false);
-    }
-  };
-
   const recallAll = async () => {
     if (
       !genericWorkersActive
@@ -755,9 +722,6 @@ export function RealmHud({
           workersId={REALM_WORKERS_ID}
           castleCount={foundedCastleCount}
           canOpenSettings={onGraphicsPreferenceChange !== undefined}
-          collecting={collecting}
-          pendingYield={pendingYield}
-          canCollect={!genericWorkersActive && onCollectResources !== undefined}
           activeWagons={genericWorkersActive ? [] : activeWagons}
           deployedWorkerCount={genericWorkersActive ? deployedWorkerCount : undefined}
           recallableWorkerCount={genericWorkersActive ? recallableWorkerCount : undefined}
@@ -765,7 +729,6 @@ export function RealmHud({
           recallAllWorkersConfirmed={recallAllWorkersConfirmed}
           recallAllWorkersFailed={recallAllWorkersFailed}
           onClose={() => setSurface('closed')}
-          onCollect={() => void collect()}
           onExplore={() => closeThen(() => onRequestExplore?.())}
           onOpenActiveWagon={onOpenActiveWagon
             ? (wagon) => closeThen(() => onOpenActiveWagon(wagon))

@@ -446,7 +446,6 @@ describe('RealmHud', () => {
 
   it('ignores stale legacy yield and wagon projections once generic Workers are active', () => {
     const fixture = assignedWorkerUiFixture();
-    const onCollectResources = vi.fn().mockResolvedValue(undefined);
     const onOpenActiveWagon = vi.fn();
     render(
       <RealmHud
@@ -457,7 +456,6 @@ describe('RealmHud', () => {
           siteId: 'genesis-001:food:legacy-stale',
           phase: 'gathering'
         }]}
-        onCollectResources={onCollectResources}
         onOpenActiveWagon={onOpenActiveWagon}
         resources={{
           ...createReadyResourceState(),
@@ -486,7 +484,6 @@ describe('RealmHud', () => {
     expect(within(dialog).queryByRole('button', { name: /FOOD WAGON/i })).toBeNull();
     expect(dialog.textContent).not.toContain('Settle available resources');
     expect(dialog.textContent).not.toContain('legacy-stale');
-    expect(onCollectResources).not.toHaveBeenCalled();
     expect(onOpenActiveWagon).not.toHaveBeenCalled();
   });
 
@@ -687,7 +684,6 @@ describe('RealmHud', () => {
     const { container } = render(
       <RealmHud
         {...commonProps()}
-        onCollectResources={vi.fn().mockResolvedValue(undefined)}
         resources={resources}
       />
     );
@@ -695,10 +691,10 @@ describe('RealmHud', () => {
     const rail = screen.getByRole('region', { name: 'Your resources' });
     const entries = within(rail).getAllByRole('listitem');
     expect(entries.map((entry) => entry.querySelector('button')?.getAttribute('aria-label'))).toEqual([
-      'Food: 0 stored; 0 ready to collect. Show resource details.',
-      'Wood: 0 stored; 0 ready to collect. Show resource details.',
-      'Stone: 0 stored; 0 ready to collect. Show resource details.',
-      'Gold: 0 stored; 0 ready to collect. Show resource details.',
+      'Food: 0 stored; 0 gathering now; settlement is automatic. Show resource details.',
+      'Wood: 0 stored; 0 gathering now; settlement is automatic. Show resource details.',
+      'Stone: 0 stored; 0 gathering now; settlement is automatic. Show resource details.',
+      'Gold: 0 stored; 0 gathering now; settlement is automatic. Show resource details.',
       'Community Marks: 0 Marks. Show Marks details.'
     ]);
     expect(entries.map((entry) => entry.querySelector('strong')?.textContent))
@@ -728,7 +724,7 @@ describe('RealmHud', () => {
 
     const rail = screen.getByRole('region', { name: 'Your resources' });
     const food = within(rail).getByRole('button', {
-      name: 'Food: 200 stored; 8 ready to collect. Show resource details.'
+      name: 'Food: 200 stored; 8 gathering now; settlement is automatic. Show resource details.'
     });
     const wood = within(rail).getByRole('button', { name: /Wood: 150 stored/i });
     const stone = within(rail).getByRole('button', { name: /Stone: 100 stored/i });
@@ -744,10 +740,11 @@ describe('RealmHud', () => {
 
     fireEvent.pointerEnter(food, { pointerType: 'mouse' });
     let tooltip = screen.getByRole('tooltip');
-    expect(tooltip.textContent).toContain('200 stored · 8 ready to collect');
+    expect(tooltip.textContent).toContain('200 stored · 8 gathering now');
     expect(tooltip.textContent).toContain(
-      'private terrain yield and gathering at Wheat Farms'
+      'private terrain yield and Wheat Farm gathering'
     );
+    expect(tooltip.textContent).toContain('stores completed yield automatically');
     expect(tooltip.textContent).toContain('No Food spending is live yet');
     expect(tooltip.getAttribute('aria-live')).toBe('off');
     expect(food.getAttribute('aria-describedby')).toBe(tooltip.id);
@@ -762,8 +759,9 @@ describe('RealmHud', () => {
     act(() => wood.focus());
     tooltip = screen.getByRole('tooltip');
     expect(tooltip.textContent).toContain(
-      'private terrain yield and gathering at Logging Camps'
+      'private terrain yield and Logging Camp gathering'
     );
+    expect(tooltip.textContent).toContain('stores completed yield automatically');
     expect(tooltip.textContent).toContain('No Wood spending is live yet');
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(screen.queryByRole('tooltip')).toBeNull();
@@ -773,12 +771,16 @@ describe('RealmHud', () => {
     expect(screen.getByRole('tooltip').textContent)
       .toContain('private terrain yield');
     expect(screen.getByRole('tooltip').textContent)
-      .toContain('gathering at Stone Quarries');
+      .toContain('Stone Quarry gathering');
+    expect(screen.getByRole('tooltip').textContent)
+      .toContain('stores completed yield automatically');
     expect(screen.getByRole('tooltip').textContent)
       .toContain('No Stone spending is live yet');
     act(() => gold.focus());
     expect(screen.getByRole('tooltip').textContent)
-      .toContain('gathering at Gold Mines');
+      .toContain('Gold Mine gathering');
+    expect(screen.getByRole('tooltip').textContent)
+      .toContain('stores completed yield automatically');
     expect(screen.getByRole('tooltip').textContent)
       .toContain('terrain produces no Gold');
     expect(screen.getByRole('tooltip').textContent)
@@ -814,13 +816,11 @@ describe('RealmHud', () => {
     expect(screen.queryByRole('tooltip')).toBeNull();
   });
 
-  it('collects an available yield only through the command callback', async () => {
-    const onCollectResources = vi.fn().mockResolvedValue(undefined);
+  it('keeps gathering yield informational and exposes no manual collection control', () => {
     const base = createReadyResourceState();
     render(
       <RealmHud
         {...commonProps()}
-        onCollectResources={onCollectResources}
         resources={{
           ...base,
           balances: { food: 200n, wood: 150n, stone: 100n, gold: 25n },
@@ -831,13 +831,13 @@ describe('RealmHud', () => {
     );
 
     expect(screen.getByRole('button', {
-      name: 'Food: 200 stored; 8 ready to collect. Show resource details.'
+      name: 'Food: 200 stored; 8 gathering now; settlement is automatic. Show resource details.'
     })).not.toBeNull();
     expect(screen.getByRole('button', {
       name: 'Community Marks: 123.45 Marks. Show Marks details.'
     })).not.toBeNull();
     const { dialog } = openRealmMenu();
-    fireEvent.click(within(dialog).getByRole('button', { name: /COLLECT YIELD/i }));
-    await waitFor(() => expect(onCollectResources).toHaveBeenCalledOnce());
+    expect(within(dialog).queryByRole('button', { name: /COLLECT YIELD/i })).toBeNull();
+    expect(dialog.textContent).not.toMatch(/ready to collect|collecting|settle available resources/i);
   });
 });

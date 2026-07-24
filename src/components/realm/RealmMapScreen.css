@@ -306,45 +306,28 @@
   background: #675477;
 }
 
-.realm-resource-occupant-panel {
-  position: absolute;
-  right: max(1rem, env(safe-area-inset-right));
-  bottom: max(1rem, env(safe-area-inset-bottom));
+.realm-resource-occupant-details {
   display: grid;
-  gap: 0.9rem;
-  width: min(
-    21rem,
-    calc(100vw - 2rem - env(safe-area-inset-left) - env(safe-area-inset-right))
-  );
-  max-height: min(
-    72svh,
-    38rem,
-    calc(100svh - 2rem - env(safe-area-inset-top) - env(safe-area-inset-bottom))
-  );
-  box-sizing: border-box;
-  padding: 1rem;
-  overflow-y: auto;
-  border: 1px solid rgb(225 190 105 / 52%);
-  border-radius: var(--warpkeep-surface-radius, 0.65rem);
+  gap: 0.72rem;
+  margin-top: 0.8rem;
+  padding: 0.78rem;
+  border: 1px solid rgb(225 190 105 / 34%);
+  border-radius: 0.55rem;
   background:
-    linear-gradient(145deg, rgb(42 20 56 / 96%), rgb(10 9 15 / 96%));
-  box-shadow: 0 1rem 3.5rem rgb(0 0 0 / 48%), 0 0 2.5rem rgb(84 39 109 / 24%);
-  backdrop-filter: blur(var(--warpkeep-surface-blur, 12px));
+    linear-gradient(145deg, rgb(58 29 75 / 72%), rgb(11 10 17 / 78%));
   color: var(--realm-ivory);
-  pointer-events: auto;
-  animation: realm-resource-occupant-panel-enter 180ms ease-out both;
 }
 
-.realm-resource-occupant-panel__header,
-.realm-resource-occupant-panel__identity {
+.realm-resource-occupant-details__record,
+.realm-resource-occupant-details__identity {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.7rem;
 }
 
-.realm-resource-occupant-panel__header span,
-.realm-resource-occupant-panel__identity span {
+.realm-resource-occupant-details__record span,
+.realm-resource-occupant-details__identity span {
   display: block;
   color: var(--realm-muted);
   font-size: 0.63rem;
@@ -352,13 +335,13 @@
   letter-spacing: 0.08em;
 }
 
-.realm-resource-occupant-panel__header h2 {
-  margin: 0.15rem 0 0;
-  font: 500 1.18rem/1.2 Georgia, "Times New Roman", serif;
-  letter-spacing: 0.02em;
+.realm-resource-occupant-details__record strong {
+  color: var(--realm-electrum);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
 }
 
-.realm-resource-occupant-panel__worker {
+.realm-resource-occupant-details__worker {
   position: relative;
   display: flex;
   min-height: 6.5rem;
@@ -372,7 +355,7 @@
     linear-gradient(135deg, rgb(81 46 107 / 82%), rgb(19 15 28 / 92%));
 }
 
-.realm-resource-occupant-panel__worker-art {
+.realm-resource-occupant-details__worker-art {
   position: absolute;
   z-index: 0;
   top: -1.35rem;
@@ -383,7 +366,7 @@
   transform: rotate(-5deg);
 }
 
-.realm-resource-occupant-panel__worker-art img {
+.realm-resource-occupant-details__worker-art img {
   display: block;
   width: 100%;
   height: 100%;
@@ -392,58 +375,37 @@
   user-select: none;
 }
 
-.realm-resource-occupant-panel__worker > div:last-child {
+.realm-resource-occupant-details__worker > div:last-child {
   position: relative;
   z-index: 1;
   display: grid;
   gap: 0.22rem;
 }
 
-.realm-resource-occupant-panel__worker span {
+.realm-resource-occupant-details__worker span {
   color: var(--realm-muted);
   font-size: 0.6rem;
   font-weight: 800;
   letter-spacing: 0.1em;
 }
 
-.realm-resource-occupant-panel__worker strong {
+.realm-resource-occupant-details__worker strong {
   color: var(--realm-electrum);
   font-size: 0.78rem;
   letter-spacing: 0.04em;
 }
 
-.realm-resource-occupant-panel__worker small {
+.realm-resource-occupant-details__worker small {
   color: rgb(255 247 229 / 78%);
   font-size: 0.7rem;
   line-height: 1.35;
 }
 
-.realm-resource-occupant-panel__close {
-  display: grid;
-  width: 2.75rem;
-  height: 2.75rem;
-  flex: 0 0 auto;
-  place-items: center;
-  border: 1px solid rgb(227 193 112 / 42%);
-  border-radius: 50%;
-  background: rgb(10 9 15 / 56%);
-  color: var(--realm-electrum);
-  font-size: 1.25rem;
-  cursor: pointer;
-}
-
-.realm-resource-occupant-panel__close:hover,
-.realm-resource-occupant-panel__close:focus-visible {
-  border-color: var(--realm-electrum);
-  outline: 2px solid var(--realm-electrum);
-  outline-offset: 2px;
-}
-
-.realm-resource-occupant-panel__identity {
+.realm-resource-occupant-details__identity {
   justify-content: flex-start;
 }
 
-.realm-resource-occupant-panel__identity-focus {
+.realm-resource-occupant-details__identity-focus {
   position: relative;
   display: grid;
   min-width: 3.75rem;
@@ -458,7 +420,7 @@
   touch-action: manipulation;
 }
 
-.realm-resource-occupant-panel__identity-focus::after {
+.realm-resource-occupant-details__identity-focus::after {
   position: absolute;
   right: -0.1rem;
   bottom: -0.1rem;
@@ -476,56 +438,56 @@
   pointer-events: none;
 }
 
-.realm-resource-occupant-panel__identity-focus:hover,
-.realm-resource-occupant-panel__identity-focus:focus-visible {
+.realm-resource-occupant-details__identity-focus:hover,
+.realm-resource-occupant-details__identity-focus:focus-visible {
   border-color: var(--realm-electrum);
   outline: 2px solid var(--realm-electrum);
   outline-offset: 2px;
 }
 
-.realm-resource-occupant-panel__identity > div {
+.realm-resource-occupant-details__identity > div {
   min-width: 0;
 }
 
-.realm-resource-occupant-panel__identity .realm-castle-avatar {
+.realm-resource-occupant-details__identity .realm-castle-avatar {
   width: 3.6rem;
   height: 3.6rem;
   flex: 0 0 auto;
 }
 
-.realm-resource-occupant-panel__identity strong,
-.realm-resource-occupant-panel__identity small {
+.realm-resource-occupant-details__identity strong,
+.realm-resource-occupant-details__identity small {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.realm-resource-occupant-panel__identity strong {
+.realm-resource-occupant-details__identity strong {
   margin-top: 0.18rem;
   font-size: 1rem;
 }
 
-.realm-resource-occupant-panel__identity small {
+.realm-resource-occupant-details__identity small {
   margin-top: 0.12rem;
   color: var(--realm-muted);
   font-size: 0.78rem;
 }
 
-.realm-resource-occupant-panel__bio {
+.realm-resource-occupant-details__bio {
   margin: 0;
   color: rgb(255 247 229 / 76%);
   font-size: 0.82rem;
   line-height: 1.45;
 }
 
-.realm-resource-occupant-panel__facts {
+.realm-resource-occupant-details__facts {
   display: grid;
   gap: 0.42rem;
   margin: 0;
 }
 
-.realm-resource-occupant-panel__facts > div {
+.realm-resource-occupant-details__facts > div {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -534,12 +496,12 @@
   border-bottom: 1px solid rgb(227 193 112 / 16%);
 }
 
-.realm-resource-occupant-panel__facts dt {
+.realm-resource-occupant-details__facts dt {
   color: var(--realm-muted);
   font-size: 0.72rem;
 }
 
-.realm-resource-occupant-panel__facts dd {
+.realm-resource-occupant-details__facts dd {
   margin: 0;
   color: var(--realm-ivory);
   font-size: 0.78rem;
@@ -547,14 +509,14 @@
   text-align: right;
 }
 
-.realm-resource-occupant-panel__command-error {
+.realm-resource-occupant-details__command-error {
   margin: 0;
   color: #ffd8cf;
   font-size: 0.72rem;
   line-height: 1.4;
 }
 
-.realm-resource-occupant-panel__castle-action {
+.realm-resource-occupant-details__recall {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -569,21 +531,16 @@
   cursor: pointer;
 }
 
-.realm-resource-occupant-panel__castle-action:disabled {
+.realm-resource-occupant-details__recall:disabled {
   cursor: default;
   opacity: 0.56;
 }
 
-.realm-resource-occupant-panel__castle-action:not(:disabled):hover,
-.realm-resource-occupant-panel__castle-action:focus-visible {
+.realm-resource-occupant-details__recall:not(:disabled):hover,
+.realm-resource-occupant-details__recall:focus-visible {
   border-color: var(--realm-electrum);
   outline: 2px solid var(--realm-electrum);
   outline-offset: 2px;
-}
-
-@keyframes realm-resource-occupant-panel-enter {
-  from { opacity: 0; transform: translateY(0.45rem); }
-  to { opacity: 1; transform: translateY(0); }
 }
 
 .realm-map-screen__fallback {
@@ -1141,9 +1098,9 @@
     max-height: calc(100svh - 1.1rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   }
 
-  .realm-map-screen:has(:is(.castle-inspection, .gold-mine-inspection, .food-farm-inspection, .realm-resource-occupant-panel)) .realm-hud,
-  .realm-map-screen:has(:is(.castle-inspection, .gold-mine-inspection, .food-farm-inspection, .realm-resource-occupant-panel)) .realm-hud__actions,
-  .realm-map-screen:has(:is(.castle-inspection, .gold-mine-inspection, .food-farm-inspection, .realm-resource-occupant-panel)) .realm-cell-navigator,
+  .realm-map-screen:has(:is(.castle-inspection, .gold-mine-inspection, .food-farm-inspection)) .realm-hud,
+  .realm-map-screen:has(:is(.castle-inspection, .gold-mine-inspection, .food-farm-inspection)) .realm-hud__actions,
+  .realm-map-screen:has(:is(.castle-inspection, .gold-mine-inspection, .food-farm-inspection)) .realm-cell-navigator,
   .realm-map-screen:has(.realm-cell-navigator__dialog) .realm-hud,
   .realm-map-screen:has(.realm-cell-navigator__dialog) .realm-hud__actions {
     visibility: hidden;
@@ -1231,17 +1188,13 @@
 
   .realm-map-screen:has(.realm-cell-navigator__dialog) .realm-hud,
   .realm-map-screen:has(.realm-cell-navigator__dialog) .realm-hud__actions,
-  .realm-map-screen:has(:is(.castle-inspection, .gold-mine-inspection, .food-farm-inspection, .realm-resource-occupant-panel)) .realm-hud__actions {
+  .realm-map-screen:has(:is(.castle-inspection, .gold-mine-inspection, .food-farm-inspection)) .realm-hud__actions {
     visibility: visible;
     pointer-events: auto;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .realm-resource-occupant-panel {
-    animation: none;
-  }
-
   .realm-map-screen *,
   .realm-map-screen *::before,
   .realm-map-screen *::after {

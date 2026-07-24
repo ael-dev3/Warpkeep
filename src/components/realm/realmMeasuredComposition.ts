@@ -18,16 +18,16 @@ export function isVisibleRealmUiElement(element: HTMLElement) {
 }
 
 /**
- * A public occupant record is nonmodal and camera-neutral. Keep the last exact
- * castle membership mounted behind its higher layer while the record is open;
- * the projection lane can still move those retained anchors with the camera.
- * Other inspectors and navigator surfaces continue through ordinary
- * reserved-rectangle culling.
+ * Occupied resource records are camera-neutral. Keep projection-visible
+ * castle labels mounted behind the unified resource inspector while its
+ * embedded occupation details are present; projection can still reveal or
+ * move those anchors if the player deliberately moves the camera.
  */
-export function retainCastleProjectionWhileOccupantRecordOpen(root: HTMLElement) {
+export function retainCastleProjectionWhileOccupiedResourceInspectorOpen(
+  root: HTMLElement
+) {
   return root.querySelector(
-    '.realm-resource-occupant-panel.realm-camera-neutral-inspector'
-    + '[data-resource-occupant-panel="true"]'
+    '.realm-camera-neutral-inspector [data-resource-occupant-details="true"]'
   ) !== null;
 }
 

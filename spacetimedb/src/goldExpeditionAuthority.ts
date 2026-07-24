@@ -460,10 +460,9 @@ export function dispatchGenesisGoldExpedition(
 }
 
 /**
- * Claim only completed whole minutes from the caller's active wagon. This
- * deliberately writes on a player collection action, never every minute. The
- * expiry schedule uses the same cursor and therefore credits only the exact
- * unclaimed remainder.
+ * Settle only completed whole minutes from the caller's active wagon. The
+ * whole-inventory cadence and the retained resource-specific reducer share
+ * this server cursor, while expiry credits only the exact remaining amount.
  */
 export function collectActiveGoldExpedition(
   ctx: WarpkeepReducerContext,

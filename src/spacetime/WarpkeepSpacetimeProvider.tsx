@@ -1853,6 +1853,27 @@ export function WarpkeepSpacetimeProvider({
           if (!reconnectingState) {
             setState({ phase: 'opening-realm', identity, admission: 'ready' });
           }
+          const settleAndReadResources = async () => {
+            try {
+              // The existing no-input reducer derives the caller, clock,
+              // rates, caps, and exact deltas entirely inside SpacetimeDB.
+              // Running it as part of the private refresh removes the need
+              // for a player-facing Claim action while keeping the browser
+              // out of economic authority.
+              return await withResourceOperationDeadline(
+                runtime.collectResources(activeConnection, bridgeFid!)
+              );
+            } catch {
+              // A timed-out reducer is commit-ambiguous. Reconcile through a
+              // fresh caller-bound read instead of retrying it in the same
+              // refresh; the next bounded cycle may safely attempt another
+              // idempotent settlement.
+              reportFailure('warpkeep_resource_settlement_reconciled');
+              return withResourceOperationDeadline(
+                runtime.readResourceState(activeConnection, bridgeFid!)
+              );
+            }
+          };
           readinessTimeout = setTimeout(() => {
             failRealmActivation('canonical_readiness_timeout');
           }, CANONICAL_REALM_READINESS_TIMEOUT_MILLISECONDS);
@@ -1863,6 +1884,10 @@ export function WarpkeepSpacetimeProvider({
             // to unavailable controls without delaying Realm entry in series.
             let initialResourceRead: ReturnType<WarpkeepBackendRuntime['readResourceState']>;
             try {
+              // Realm entry remains a read-only projection so authentication
+              // and subscription readiness never depend on an incidental
+              // settlement attempt. The first bounded refresh below performs
+              // automatic settlement within at most one minute.
               initialResourceRead = runtime.readResourceState(activeConnection, bridgeFid!);
             } catch {
               failRealmActivation('resource_projection_failed');
@@ -1987,6 +2012,11 @@ export function WarpkeepSpacetimeProvider({
                 const readyRealm = stateRef.current.phase === 'ready'
                   ? stateRef.current.realm
                   : undefined;
+                // One no-input reducer atomically settles passive yield, all
+                // active legacy expeditions, and generic worker accrual. Read
+                // the optional private projections only after that commit so
+                // every surface observes the same or a newer server state.
+                const refreshed = await settleAndReadResources();
                 if (readyRealm !== undefined) void refreshWorkerProjection(readyRealm);
                 const goldRefresh = runtime.readGoldExpeditionState === undefined
                   ? Promise.resolve<ReadyGoldExpeditionPresentation | undefined>(undefined)
@@ -2008,10 +2038,12 @@ export function WarpkeepSpacetimeProvider({
                   : withResourceOperationDeadline(
                     runtime.readStoneExpeditionState(activeConnection)
                   ).catch(() => undefined);
-                const [refreshed, refreshedGoldExpedition, refreshedFoodExpedition, refreshedWoodExpedition, refreshedStoneExpedition] = await Promise.all([
-                  withResourceOperationDeadline(
-                    runtime.readResourceState(activeConnection, bridgeFid!)
-                  ),
+                const [
+                  refreshedGoldExpedition,
+                  refreshedFoodExpedition,
+                  refreshedWoodExpedition,
+                  refreshedStoneExpedition
+                ] = await Promise.all([
                   goldRefresh,
                   foodRefresh,
                   woodRefresh,
@@ -2067,6 +2099,7 @@ export function WarpkeepSpacetimeProvider({
                   };
                 });
               } catch {
+                reportFailure('warpkeep_resource_refresh_failed');
                 fail();
               } finally {
                 resourceRefreshInFlight = false;

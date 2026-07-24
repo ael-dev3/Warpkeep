@@ -8,19 +8,9 @@ import {
 } from 'react';
 
 import { CastleProfileAvatar } from './RealmCastleLabels';
-import {
-  castleProfileLabel,
-  type RealmCastlePublicPresentation
-} from './realmCastlePresentation';
-import { useRealmRemainingDuration } from './realmAuthoritySchedule';
-import {
-  realmResourceOccupantNextAuthorityTimestamp
-} from './realmResourceOccupantInspector';
+import { castleProfileLabel } from './realmCastlePresentation';
 import {
   realmResourceOccupantMarkerKey,
-  realmResourceOccupantRecallWorkerId,
-  RESOURCE_WORKER_PHASE_LABELS,
-  RESOURCE_WORKER_RATE_LABELS,
   RESOURCE_KIND_LABELS,
   type RealmResourceOccupantMarker
 } from './realmResourceOccupantPresentation';
@@ -32,231 +22,26 @@ function documentFocusIsOrphaned(activeElement: Element | null) {
     || !activeElement.isConnected;
 }
 
-function publicAssetUrl(path: string) {
-  const base = import.meta.env.BASE_URL || '/';
-  return `${base.endsWith('/') ? base : `${base}/`}${path.replace(/^\/+/, '')}`;
-}
-
-type ResourceOccupantProfilePanelProps = Readonly<{
-  marker: RealmResourceOccupantMarker;
-  profile: RealmCastlePublicPresentation;
-  onRequestClose: () => void;
-  onFocusCastle: () => void;
-  onRecallWorker?: (workerId: string) => Promise<void>;
-}>;
-
-function ResourceOccupantProfilePanel({
-  marker,
-  profile,
-  onRequestClose,
-  onFocusCastle,
-  onRecallWorker
-}: ResourceOccupantProfilePanelProps) {
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const recallPendingRef = useRef(false);
-  const [recallState, setRecallState] = useState<
-    'idle' | 'pending' | 'confirmed' | 'failed'
-  >('idle');
-  const titleId = `resource-occupant-${marker.resource}-${marker.siteId}-title`;
-  const playerLabel = castleProfileLabel(profile);
-  const keeperName = profile.displayName ?? playerLabel;
-  const ownRecordLabel = marker.source === 'generic-worker'
-    ? 'YOUR WORKER'
-    : 'YOUR EXPEDITION';
-  const recordLabel = marker.occupiedByViewer
-    ? ownRecordLabel
-    : marker.source === 'generic-worker'
-      ? 'PUBLIC WORKER RECORD'
-      : 'PUBLIC EXPEDITION RECORD';
-  const unitLabel = marker.workerOrdinal === undefined
-    ? 'EXPEDITION WAGON'
-    : `WORKER ${String(marker.workerOrdinal).padStart(2, '0')}`;
-  const recallWorkerId = realmResourceOccupantRecallWorkerId(marker);
-  const canRecall = recallWorkerId !== undefined && onRecallWorker !== undefined;
-  const scheduleLabel = marker.workerPhase === 'outbound'
-    ? 'Arrival time left'
-    : marker.workerPhase === 'gathering'
-      ? 'Gathering time left'
-      : 'Return time left';
-  const scheduleRemaining = useRealmRemainingDuration(
-    realmResourceOccupantNextAuthorityTimestamp(marker)
-  );
-
-  const recallWorker = async () => {
-    if (
-      recallWorkerId === undefined
-      || onRecallWorker === undefined
-      || recallPendingRef.current
-    ) return;
-    recallPendingRef.current = true;
-    setRecallState('pending');
-    try {
-      await onRecallWorker(recallWorkerId);
-      setRecallState('confirmed');
-    } catch {
-      recallPendingRef.current = false;
-      setRecallState('failed');
-    }
-  };
-
-  useEffect(() => {
-    closeButtonRef.current?.focus({ preventScroll: true });
-  }, []);
-
-  return (
-    <aside
-      aria-labelledby={titleId}
-      className="realm-camera-neutral-inspector realm-resource-occupant-panel"
-      data-resource-occupant-panel="true"
-      onKeyDown={(event) => {
-        if (event.key === 'Escape') {
-          event.preventDefault();
-          onRequestClose();
-        }
-      }}
-      role="dialog"
-      aria-modal="false"
-    >
-      <header className="realm-resource-occupant-panel__header">
-        <div>
-          <span>{recordLabel}</span>
-          <h2 id={titleId}>{RESOURCE_KIND_LABELS[marker.resource]}</h2>
-        </div>
-        <button
-          ref={closeButtonRef}
-          aria-label="Close player record"
-          className="realm-resource-occupant-panel__close"
-          onClick={onRequestClose}
-          type="button"
-        >
-          <span aria-hidden="true">×</span>
-        </button>
-      </header>
-
-      <section className="realm-resource-occupant-panel__worker" aria-label="Worker assignment">
-        <div className="realm-resource-occupant-panel__worker-art" aria-hidden="true">
-          <img
-            alt=""
-            decoding="async"
-            draggable={false}
-            height="1024"
-            src={publicAssetUrl('images/realm/hegemony-worker-record.webp')}
-            width="1024"
-          />
-        </div>
-        <div>
-          <span>{unitLabel}</span>
-          <strong>{RESOURCE_WORKER_PHASE_LABELS[marker.workerPhase]}</strong>
-          <small>{RESOURCE_WORKER_RATE_LABELS[marker.resource]}</small>
-        </div>
-      </section>
-
-      <section className="realm-resource-occupant-panel__identity" aria-label="Gathering player">
-        <button
-          aria-label={`Focus ${playerLabel}'s castle on the map`}
-          className="realm-resource-occupant-panel__identity-focus"
-          onClick={onFocusCastle}
-          title="Focus castle on the map"
-          type="button"
-        >
-          <CastleProfileAvatar profile={profile} size="large" />
-        </button>
-        <div>
-          <span>{marker.occupiedByViewer ? 'YOUR KEEP' : 'GATHERING BY'}</span>
-          <strong>{keeperName}</strong>
-          {keeperName !== playerLabel ? <small>{playerLabel}</small> : null}
-        </div>
-      </section>
-
-      {profile.publicBio ? (
-        <p className="realm-resource-occupant-panel__bio">{profile.publicBio}</p>
-      ) : null}
-
-      <dl className="realm-resource-occupant-panel__facts">
-        <div>
-          <dt>Resource site</dt>
-          <dd>q {marker.nodeCoord.q} · r {marker.nodeCoord.r}</dd>
-        </div>
-        <div>
-          <dt>Node tier</dt>
-          <dd>T{marker.tier}</dd>
-        </div>
-        <div>
-          <dt>Occupancy</dt>
-          <dd>{marker.occupiedByViewer ? ownRecordLabel : 'OCCUPIED'}</dd>
-        </div>
-        <div>
-          <dt>Home castle</dt>
-          <dd>{marker.castle.name}</dd>
-        </div>
-        <div>
-          <dt>Castle location</dt>
-          <dd>q {marker.castle.q} · r {marker.castle.r}</dd>
-        </div>
-        <div>
-          <dt>{scheduleLabel}</dt>
-          <dd role="timer">{scheduleRemaining ?? 'Schedule unavailable'}</dd>
-        </div>
-      </dl>
-
-      {recallState === 'failed' ? (
-        <p className="realm-resource-occupant-panel__command-error" role="alert">
-          The recall could not be confirmed. Try the same command again.
-        </p>
-      ) : null}
-
-      {canRecall ? (
-        <button
-          className="realm-resource-occupant-panel__castle-action"
-          disabled={recallState === 'pending' || recallState === 'confirmed'}
-          onClick={() => void recallWorker()}
-          type="button"
-        >
-          <span aria-atomic="true" aria-live="polite">
-            {recallState === 'pending'
-              ? 'Recalling worker…'
-              : recallState === 'confirmed'
-                ? 'Worker returning…'
-                : 'Recall Worker to Keep'}
-          </span>
-          <span aria-hidden="true">↩</span>
-        </button>
-      ) : null}
-    </aside>
-  );
-}
-
+/**
+ * Screen-space public portraits for occupied sites. Activating one delegates to
+ * the canonical resource-site inspector; this layer never owns a second dialog.
+ */
 export function RealmResourceOccupantMarkers({
   markers,
   visibleMarkerKeys,
   presenceMarkerKeys = visibleMarkerKeys,
-  selectedMarker,
   onMarkerLayout,
-  onSelect,
-  onRequestClose,
-  onFocusCastle,
-  onRecallWorker
+  onSelect
 }: Readonly<{
   markers: readonly RealmResourceOccupantMarker[];
   presenceMarkerKeys?: readonly string[];
   visibleMarkerKeys: readonly string[];
-  selectedMarker: RealmResourceOccupantMarker | null;
   onMarkerLayout: () => void;
   onSelect: (marker: RealmResourceOccupantMarker) => void;
-  onRequestClose: () => void;
-  onFocusCastle: (marker: RealmResourceOccupantMarker) => void;
-  onRecallWorker?: (workerId: string) => Promise<void>;
 }>) {
   const containerRef = useRef<HTMLDivElement>(null);
   const markerButtonsRef = useRef(new Map<string, HTMLButtonElement>());
   const focusedMarkerKeyRef = useRef<string | null>(null);
-  const returningFocusKeyRef = useRef<string | null>(null);
-  const directSelectionKeyRef = useRef<string | null>(null);
-  const previousSelectedKeyRef = useRef<string | null>(null);
-  const availableKeySet = useMemo(
-    () => new Set(markers.map(realmResourceOccupantMarkerKey)),
-    [markers]
-  );
   const markersByKey = useMemo(
     () => new Map(markers.map((marker) => [
       realmResourceOccupantMarkerKey(marker),
@@ -311,74 +96,6 @@ export function RealmResourceOccupantMarkers({
     }
   }, [visibleKeySet, visibleMarkerKeys]);
 
-  useLayoutEffect(() => {
-    const selectedKey = selectedMarker
-      ? realmResourceOccupantMarkerKey(selectedMarker)
-      : null;
-    const previousSelectedKey = previousSelectedKeyRef.current;
-    previousSelectedKeyRef.current = selectedKey;
-    if (selectedKey !== null) {
-      if (previousSelectedKey === selectedKey) return;
-      if (directSelectionKeyRef.current === selectedKey) {
-        directSelectionKeyRef.current = null;
-      } else {
-        directSelectionKeyRef.current = null;
-        returningFocusKeyRef.current = null;
-      }
-      return;
-    }
-    const returningKey = returningFocusKeyRef.current;
-    if (returningKey === null) {
-      if (documentFocusIsOrphaned(document.activeElement)) {
-        containerRef.current?.focus({ preventScroll: true });
-      }
-      return;
-    }
-    if (!availableKeySet.has(returningKey)) {
-      returningFocusKeyRef.current = null;
-      if (documentFocusIsOrphaned(document.activeElement)) {
-        containerRef.current?.focus({ preventScroll: true });
-      }
-      return;
-    }
-    const target = markerButtonsRef.current.get(returningKey);
-    if (target) {
-      if (
-        document.activeElement !== containerRef.current
-        && !documentFocusIsOrphaned(document.activeElement)
-      ) {
-        returningFocusKeyRef.current = null;
-        return;
-      }
-      returningFocusKeyRef.current = null;
-      setRovingKey(returningKey);
-      target.focus({ preventScroll: true });
-    } else {
-      if (
-        document.activeElement !== containerRef.current
-        && !documentFocusIsOrphaned(document.activeElement)
-      ) {
-        returningFocusKeyRef.current = null;
-        return;
-      }
-      // The open panel itself can temporarily reserve and cull its trigger.
-      // Keep the return key armed until the next composition pass remounts it.
-      containerRef.current?.focus({ preventScroll: true });
-    }
-  }, [availableKeySet, selectedMarker, visibleMarkerKeys]);
-
-  useEffect(() => {
-    if (!selectedMarker) return undefined;
-    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      event.stopPropagation();
-      onRequestClose();
-    };
-    window.addEventListener('keydown', closeOnEscape, true);
-    return () => window.removeEventListener('keydown', closeOnEscape, true);
-  }, [onRequestClose, selectedMarker]);
-
   const moveRovingFocus = (currentKey: string, direction: -1 | 1) => {
     const currentIndex = visibleMarkerKeys.indexOf(currentKey);
     if (currentIndex < 0 || visibleMarkerKeys.length === 0) return;
@@ -404,10 +121,6 @@ export function RealmResourceOccupantMarkers({
           if (!marker) return;
           event.preventDefault();
           event.stopPropagation();
-          // Passive presences are pointer-accessible without becoming hundreds
-          // of tab stops. Closing their record must not arm a future focus jump.
-          directSelectionKeyRef.current = null;
-          returningFocusKeyRef.current = null;
           onSelect(marker);
         }}
         onPointerDown={(event) => event.stopPropagation()}
@@ -451,10 +164,6 @@ export function RealmResourceOccupantMarkers({
           const actionLabel = marker.occupiedByViewer
             ? `${ownershipLabel} at ${RESOURCE_KIND_LABELS[marker.resource]}`
             : `${playerLabel} gathering at ${RESOURCE_KIND_LABELS[marker.resource]}`;
-          const positionStyle = {
-            '--realm-resource-marker-x': '0px',
-            '--realm-resource-marker-y': '0px'
-          } as CSSProperties;
           return (
             <button
               aria-label={`Inspect ${actionLabel}, cell ${marker.nodeCoord.q},${marker.nodeCoord.r}`}
@@ -468,8 +177,6 @@ export function RealmResourceOccupantMarkers({
               key={key}
               onClick={() => {
                 setRovingKey(key);
-                directSelectionKeyRef.current = key;
-                returningFocusKeyRef.current = key;
                 onSelect(marker);
               }}
               onKeyDown={(event) => {
@@ -488,7 +195,10 @@ export function RealmResourceOccupantMarkers({
                 if (element) markerButtonsRef.current.set(key, element);
                 else markerButtonsRef.current.delete(key);
               }}
-              style={positionStyle}
+              style={{
+                '--realm-resource-marker-x': '0px',
+                '--realm-resource-marker-y': '0px'
+              } as CSSProperties}
               tabIndex={rovingKey === key ? 0 : -1}
               type="button"
             >
@@ -503,26 +213,6 @@ export function RealmResourceOccupantMarkers({
             </button>
           );
         })}
-
-        {selectedMarker ? (
-          <ResourceOccupantProfilePanel
-            key={[
-              realmResourceOccupantMarkerKey(selectedMarker),
-              selectedMarker.castle.castleId,
-              selectedMarker.workerId ?? 'legacy',
-              selectedMarker.timelineRevision ?? 'legacy'
-            ].join(':')}
-            marker={selectedMarker}
-            profile={selectedMarker.profile}
-            onRequestClose={onRequestClose}
-            onFocusCastle={() => {
-              directSelectionKeyRef.current = null;
-              returningFocusKeyRef.current = null;
-              onFocusCastle(selectedMarker);
-            }}
-            onRecallWorker={onRecallWorker}
-          />
-        ) : null}
       </div>
     </>
   );

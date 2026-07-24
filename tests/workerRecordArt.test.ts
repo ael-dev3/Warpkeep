@@ -155,14 +155,14 @@ describe('Hegemony Worker record art', () => {
     expect(component).not.toMatch(/https?:\/\//i);
 
     const occupantComponent = readFileSync(
-      resolve(ROOT, 'src/components/realm/RealmResourceOccupantMarkers.tsx'),
+      resolve(ROOT, 'src/components/realm/RealmResourceOccupantDetails.tsx'),
       'utf8'
     );
     expect(occupantComponent).toContain("publicAssetUrl('images/realm/hegemony-worker-record.webp')");
-    expect(occupantComponent).toContain('className="realm-resource-occupant-panel__worker-art"');
+    expect(occupantComponent).toContain('className="realm-resource-occupant-details__worker-art"');
     expect(occupantComponent).toContain('aria-hidden="true"');
     expect(occupantComponent).toContain('alt=""');
     expect(occupantComponent).not.toMatch(/Command authority|Owning keeper/i);
-    expect(occupantComponent).not.toContain('Recall worker home');
+    expect(occupantComponent).toContain('Recall Worker to Keep');
   });
 });

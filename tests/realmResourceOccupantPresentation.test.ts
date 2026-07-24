@@ -7,6 +7,7 @@ import {
   realmResourceOccupantMarkerKey,
   resolveRealmResourceOccupantMarkerResolution,
   resolveRealmResourceOccupantMarkers,
+  resolveRealmWorkerInspectionRoute,
   visibleRealmResourceOccupantMarkerKeys,
   visibleRealmResourceOccupantPresenceKeys
 } from '../src/components/realm/realmResourceOccupantPresentation';
@@ -15,7 +16,8 @@ import { publicProfileForCastle } from '../src/components/realm/realmCastlePrese
 import type { RealmGoldNodePresentation } from '../src/components/realm/realmGoldNodePresentation';
 import type {
   ReadyPublicWorkerProjection,
-  RealmWorkerNodeOccupation
+  RealmWorkerNodeOccupation,
+  RealmWorkerPublicPresentation
 } from '../src/components/realm/realmWorkerPresentation';
 import { WARPKEEP_SAME_ORIGIN_PROFILE_PLACEHOLDER_PATH } from '../src/security/publicImageUrl';
 
@@ -106,6 +108,24 @@ function projection(
   return { mode: 'active', occupations };
 }
 
+function publicWorker(
+  overrides: Partial<RealmWorkerPublicPresentation> = {}
+): RealmWorkerPublicPresentation {
+  return {
+    workerId: 'genesis-001-castle-22-worker-01',
+    ordinal: 1,
+    originCastleId: 22,
+    originCastleName: 'Sunlit Bastion',
+    status: 'gathering',
+    resourceKind: 'gold',
+    siteId: 'genesis-001:gold:0001',
+    timelineRevision: 1,
+    revision: 1n,
+    ownedByViewer: false,
+    ...overrides
+  };
+}
+
 describe('resource occupant presentation', () => {
   it('joins an active generic worker lease to its public site, castle, and profile', () => {
     const markers = resolveRealmResourceOccupantMarkers({
@@ -142,6 +162,31 @@ describe('resource occupant presentation', () => {
     expect(markers[0]!.profile).not.toHaveProperty('totalSnapBurnedMicros');
     expect(markers[0]!.profile).not.toHaveProperty('marksBalanceMicros');
   });
+
+  it('routes an active worker through its exact validated resource-site marker', () => {
+    const markers = resolveRealmResourceOccupantMarkers({
+      buckets: [{ resource: 'gold', nodes: [node()] }],
+      castles: [CASTLE],
+      profiles: new Map([[CASTLE.castleId, PROFILE]]),
+      workerProjection: projection([occupation()])
+    });
+
+    expect(resolveRealmWorkerInspectionRoute(markers, publicWorker())).toEqual({
+      kind: 'resource-site',
+      marker: markers[0]
+    });
+    expect(resolveRealmWorkerInspectionRoute(markers, publicWorker({
+      timelineRevision: 2
+    }))).toEqual({ kind: 'unavailable' });
+  });
+
+  it.each(['idle', 'returning'] as const)(
+    'retains the standalone worker record for a %s worker without an occupied site',
+    (status) => {
+      expect(resolveRealmWorkerInspectionRoute([], publicWorker({ status })))
+        .toEqual({ kind: 'worker' });
+    }
+  );
 
   it('includes the viewer’s own generic worker and identifies it as owned', () => {
     const common = {
