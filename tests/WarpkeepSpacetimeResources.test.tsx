@@ -444,6 +444,52 @@ function newerWorkerResourceState(fid = 12_345): ReadyWorkerResourceState {
   });
 }
 
+function gatheringWorkerRealmSnapshot(fid = 12_345): WarpkeepRealmSnapshot {
+  const base = outboundWorkerRealmSnapshot(fid);
+  const [first, ...rest] = base.workerWorkers!;
+  const gatheringWorker = Object.freeze({
+    ...first!,
+    status: 'gathering' as const
+  });
+  return Object.freeze({
+    ...base,
+    workerWorkers: Object.freeze([gatheringWorker, ...rest]),
+    workerOccupations: Object.freeze(base.workerOccupations!.map((occupation) => (
+      occupation.workerId === gatheringWorker.workerId
+        ? Object.freeze({ ...occupation, phase: 'gathering' as const })
+        : occupation
+    )))
+  });
+}
+
+function gatheringWorkerRoster(
+  availableStone = 1n,
+  castleId = 1
+): WorkerRosterPresentation {
+  const base = outboundWorkerRoster(castleId);
+  return Object.freeze({
+    ...base,
+    workers: Object.freeze(base.workers.map((worker, index) => index === 0
+      ? Object.freeze({
+        ...worker,
+        status: 'gathering' as const,
+        accruedAmount: availableStone,
+        availableAmount: availableStone
+      })
+      : worker))
+  });
+}
+
+function workerResourceStateWithPendingStone(
+  pendingStone: bigint,
+  fid = 12_345
+): ReadyWorkerResourceState {
+  return Object.freeze({
+    ...newerWorkerResourceState(fid),
+    pending: Object.freeze({ food: 0n, wood: 0n, stone: pendingStone, gold: 0n })
+  });
+}
+
 function createRuntimeHarness() {
   const disconnect = vi.fn((connection: { disconnect?: () => void } | undefined) => {
     connection?.disconnect?.();
@@ -602,6 +648,14 @@ async function flushProviderWork(rounds = 20) {
   await act(async () => {
     for (let round = 0; round < rounds; round += 1) await Promise.resolve();
   });
+}
+
+function mockDocumentHidden(initialValue = false) {
+  let hidden = initialValue;
+  vi.spyOn(document, 'hidden', 'get').mockImplementation(() => hidden);
+  return (nextValue: boolean) => {
+    hidden = nextValue;
+  };
 }
 
 afterEach(() => {
@@ -815,6 +869,193 @@ describe('Warpkeep private resource lifecycle', () => {
     expect(runtime.dispatchWorker).not.toHaveBeenCalled();
   });
 
+  it('retries the private worker pair when a refresh straddles a minute quantum', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const roster = gatheringWorkerRoster();
+    const beforeWorkerSettlement = workerResourceStateWithPendingStone(0n);
+    const afterWorkerSettlement = workerResourceStateWithPendingStone(1n);
+    Object.assign(runtime, {
+      readRealmSnapshot: vi.fn(() => gatheringWorkerRealmSnapshot()),
+      readWorkerRoster: vi.fn(async () => roster),
+      readResourceStateV2: vi.fn()
+        .mockResolvedValueOnce(beforeWorkerSettlement)
+        .mockResolvedValueOnce(afterWorkerSettlement),
+      dispatchWorker: vi.fn(async () => undefined),
+      recallWorker: vi.fn(async () => undefined),
+      recallAllWorkers: vi.fn(async () => undefined)
+    });
+    renderProvider(runtime);
+    await enterRealm();
+
+    expect(runtime.readWorkerRoster).toHaveBeenCalledTimes(2);
+    expect(runtime.readResourceStateV2).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('worker-active').textContent).toBe('active');
+    expect(screen.getByTestId('worker-first-status').textContent).toBe('gathering');
+    expect(screen.getByTestId('worker-resource-revision').textContent).toBe('1');
+  });
+
+  it('retries a command refresh pair before publishing its authoritative worker state', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const dispatchWorker = vi.fn(async () => undefined);
+    Object.assign(runtime, {
+      readRealmSnapshot: vi.fn(() => workerRealmSnapshot()),
+      readWorkerRoster: vi.fn(async () => workerRoster()),
+      readResourceStateV2: vi.fn()
+        .mockResolvedValueOnce(workerResourceState())
+        .mockResolvedValueOnce(workerResourceStateWithPendingStone(1n))
+        .mockResolvedValue(workerResourceState()),
+      dispatchWorker,
+      recallWorker: vi.fn(async () => undefined),
+      recallAllWorkers: vi.fn(async () => undefined)
+    });
+    renderProvider(runtime);
+    await enterRealm();
+
+    await act(async () => {
+      await capturedBackend!.dispatchWorker(
+        'genesis-001-castle-1-worker-01',
+        'stone',
+        'genesis-001:stone:0001'
+      );
+    });
+
+    expect(dispatchWorker).toHaveBeenCalledTimes(1);
+    expect(runtime.readWorkerRoster).toHaveBeenCalledTimes(3);
+    expect(runtime.readResourceStateV2).toHaveBeenCalledTimes(3);
+    expect(screen.getByTestId('worker-active').textContent).toBe('active');
+    expect(screen.getByTestId('worker-first-status').textContent).toBe('idle');
+    expect(screen.getByTestId('worker-first-revision').textContent).toBe('0');
+  });
+
+  it('bounds incoherent periodic worker reads and retains the last coherent projection', async () => {
+    vi.useFakeTimers();
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const incoherentResources = workerResourceStateWithPendingStone(1n);
+    Object.assign(runtime, {
+      readRealmSnapshot: vi.fn(() => workerRealmSnapshot()),
+      readWorkerRoster: vi.fn(async () => workerRoster()),
+      readResourceStateV2: vi.fn()
+        .mockResolvedValueOnce(workerResourceState())
+        .mockResolvedValue(incoherentResources),
+      dispatchWorker: vi.fn(async () => undefined),
+      recallWorker: vi.fn(async () => undefined),
+      recallAllWorkers: vi.fn(async () => undefined)
+    });
+    renderProvider(runtime);
+    await flushProviderWork();
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+    await flushProviderWork();
+    expect(screen.getByTestId('worker-active').textContent).toBe('active');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(RESOURCE_REFRESH_INTERVAL_MILLISECONDS);
+    });
+    await flushProviderWork();
+
+    expect(runtime.readWorkerRoster).toHaveBeenCalledTimes(3);
+    expect(runtime.readResourceStateV2).toHaveBeenCalledTimes(3);
+    expect(screen.getByTestId('worker-active').textContent).toBe('active');
+    expect(screen.getByTestId('worker-first-status').textContent).toBe('idle');
+    expect(screen.getByTestId('worker-resource-revision').textContent).toBe('0');
+  });
+
+  it('rejects a wrong-FID periodic worker state without replacing retained authority', async () => {
+    vi.useFakeTimers();
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    Object.assign(runtime, {
+      readRealmSnapshot: vi.fn(() => workerRealmSnapshot()),
+      readWorkerRoster: vi.fn(async () => workerRoster()),
+      readResourceStateV2: vi.fn()
+        .mockResolvedValueOnce(workerResourceState())
+        .mockResolvedValue({ ...workerResourceState(), fid: 999n }),
+      dispatchWorker: vi.fn(async () => undefined),
+      recallWorker: vi.fn(async () => undefined),
+      recallAllWorkers: vi.fn(async () => undefined)
+    });
+    renderProvider(runtime);
+    await flushProviderWork();
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+    await flushProviderWork();
+    expect(screen.getByTestId('worker-active').textContent).toBe('active');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(RESOURCE_REFRESH_INTERVAL_MILLISECONDS);
+    });
+    await flushProviderWork();
+
+    expect(runtime.readWorkerRoster).toHaveBeenCalledTimes(2);
+    expect(runtime.readResourceStateV2).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('worker-active').textContent).toBe('active');
+    expect(screen.getByTestId('worker-first-status').textContent).toBe('idle');
+    expect(screen.getByTestId('worker-resource-revision').textContent).toBe('0');
+  });
+
+  it('bounds an incoherent command refresh without clearing the retained worker projection', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const dispatchWorker = vi.fn(async () => undefined);
+    Object.assign(runtime, {
+      readRealmSnapshot: vi.fn(() => workerRealmSnapshot()),
+      readWorkerRoster: vi.fn(async () => workerRoster()),
+      readResourceStateV2: vi.fn()
+        .mockResolvedValueOnce(workerResourceState())
+        .mockResolvedValue(workerResourceStateWithPendingStone(1n)),
+      dispatchWorker,
+      recallWorker: vi.fn(async () => undefined),
+      recallAllWorkers: vi.fn(async () => undefined)
+    });
+    renderProvider(runtime);
+    await enterRealm();
+
+    await expect(capturedBackend!.dispatchWorker(
+      'genesis-001-castle-1-worker-01',
+      'stone',
+      'genesis-001:stone:0001'
+    )).rejects.toThrow('Worker command is unavailable.');
+
+    expect(dispatchWorker).toHaveBeenCalledTimes(1);
+    expect(runtime.readWorkerRoster).toHaveBeenCalledTimes(3);
+    expect(runtime.readResourceStateV2).toHaveBeenCalledTimes(3);
+    expect(screen.getByTestId('worker-active').textContent).toBe('active');
+    expect(screen.getByTestId('worker-first-status').textContent).toBe('idle');
+    expect(screen.getByTestId('worker-resource-revision').textContent).toBe('0');
+  });
+
+  it('rejects a wrong-FID command refresh without caching or publishing it', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const dispatchWorker = vi.fn(async () => undefined);
+    Object.assign(runtime, {
+      readRealmSnapshot: vi.fn(() => workerRealmSnapshot()),
+      readWorkerRoster: vi.fn(async () => workerRoster()),
+      readResourceStateV2: vi.fn()
+        .mockResolvedValueOnce(workerResourceState())
+        .mockResolvedValue({ ...workerResourceState(), fid: 999n }),
+      dispatchWorker,
+      recallWorker: vi.fn(async () => undefined),
+      recallAllWorkers: vi.fn(async () => undefined)
+    });
+    renderProvider(runtime);
+    await enterRealm();
+
+    await expect(capturedBackend!.dispatchWorker(
+      'genesis-001-castle-1-worker-01',
+      'stone',
+      'genesis-001:stone:0001'
+    )).rejects.toThrow('Worker command is unavailable.');
+
+    expect(dispatchWorker).toHaveBeenCalledTimes(1);
+    expect(runtime.readWorkerRoster).toHaveBeenCalledTimes(2);
+    expect(runtime.readResourceStateV2).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('worker-active').textContent).toBe('active');
+    expect(screen.getByTestId('worker-first-status').textContent).toBe('idle');
+    expect(screen.getByTestId('worker-resource-revision').textContent).toBe('0');
+  });
+
   it('rejects an older periodic worker pair that resolves after a command refresh', async () => {
     vi.useFakeTimers();
     mockedFarcaster.current = authenticatedFarcaster();
@@ -995,6 +1236,123 @@ describe('Warpkeep private resource lifecycle', () => {
     expect(runtime.collectResources).toHaveBeenCalledTimes(2);
     expect(screen.getByTestId('resource-revision').textContent).toBe('2');
     expect(screen.getByTestId('resource-food').textContent).toBe('16');
+  });
+
+  it('pauses periodic settlement while hidden and coalesces resume events into one refresh', async () => {
+    vi.useFakeTimers();
+    const setDocumentHidden = mockDocumentHidden();
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    vi.mocked(runtime.readResourceState)
+      .mockResolvedValueOnce(resourceState(12_345, 0n, 0n));
+    vi.mocked(runtime.collectResources)
+      .mockResolvedValueOnce(resourceState(12_345, 1n, 8n))
+      .mockResolvedValueOnce(resourceState(12_345, 2n, 16n));
+    renderProvider(runtime);
+
+    await flushProviderWork();
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+    await flushProviderWork();
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+
+    act(() => {
+      setDocumentHidden(true);
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(RESOURCE_REFRESH_INTERVAL_MILLISECONDS * 3);
+    });
+    expect(runtime.collectResources).not.toHaveBeenCalled();
+
+    await act(async () => {
+      setDocumentHidden(false);
+      document.dispatchEvent(new Event('visibilitychange'));
+      window.dispatchEvent(new Event('pageshow'));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await flushProviderWork();
+    expect(runtime.collectResources).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('resource-revision').textContent).toBe('1');
+    expect(screen.getByTestId('resource-food').textContent).toBe('8');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(RESOURCE_REFRESH_INTERVAL_MILLISECONDS);
+    });
+    await flushProviderWork();
+    expect(runtime.collectResources).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('resource-revision').textContent).toBe('2');
+    expect(screen.getByTestId('resource-food').textContent).toBe('16');
+  });
+
+  it('queues at most one resume refresh behind an in-flight settlement', async () => {
+    vi.useFakeTimers();
+    const setDocumentHidden = mockDocumentHidden();
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const pendingSettlement = deferred<ReadyRealmResourcePresentation>();
+    vi.mocked(runtime.readResourceState)
+      .mockResolvedValueOnce(resourceState(12_345, 0n, 0n));
+    vi.mocked(runtime.collectResources)
+      .mockImplementationOnce(() => pendingSettlement.promise)
+      .mockResolvedValueOnce(resourceState(12_345, 2n, 16n));
+    renderProvider(runtime);
+
+    await flushProviderWork();
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+    await flushProviderWork();
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(RESOURCE_REFRESH_INTERVAL_MILLISECONDS);
+    });
+    expect(runtime.collectResources).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      setDocumentHidden(true);
+      document.dispatchEvent(new Event('visibilitychange'));
+      setDocumentHidden(false);
+      document.dispatchEvent(new Event('visibilitychange'));
+      window.dispatchEvent(new Event('pageshow'));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(runtime.collectResources).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      pendingSettlement.resolve(resourceState(12_345, 1n, 8n));
+      await pendingSettlement.promise;
+    });
+    await flushProviderWork();
+    expect(runtime.collectResources).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('resource-revision').textContent).toBe('2');
+    expect(screen.getByTestId('resource-food').textContent).toBe('16');
+  });
+
+  it('cancels a scheduled resume refresh and removes lifecycle listeners on unmount', async () => {
+    vi.useFakeTimers();
+    const setDocumentHidden = mockDocumentHidden();
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const view = renderProvider(runtime);
+
+    await flushProviderWork();
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+    await flushProviderWork();
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+
+    act(() => {
+      setDocumentHidden(true);
+      document.dispatchEvent(new Event('visibilitychange'));
+      setDocumentHidden(false);
+      document.dispatchEvent(new Event('visibilitychange'));
+      window.dispatchEvent(new Event('pageshow'));
+      view.unmount();
+    });
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+      window.dispatchEvent(new Event('pageshow'));
+      await vi.advanceTimersByTimeAsync(RESOURCE_REFRESH_INTERVAL_MILLISECONDS * 2);
+    });
+    expect(runtime.collectResources).not.toHaveBeenCalled();
   });
 
   it('settles an active Gold expedition through one global reducer and reads every expedition afterward', async () => {

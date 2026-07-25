@@ -98,48 +98,11 @@ export type ReadyWorkerProjection = ReadyPublicWorkerProjection & Readonly<{
   ownedWorkers: readonly RealmWorkerPublicPresentation[];
 }>;
 
-export type RealmWorkerDestinationPresentation = Readonly<{
-  resourceKind: RealmEconomicResourceKey;
-  siteId: string;
-  label: string;
-}>;
-
-export type RealmWorkerDestinationNode = Readonly<{
-  siteId: string;
-  coord: Readonly<{ q: number; r: number }>;
-  tier: number;
-  availability: string;
-}>;
-
 const resourceKinds = new Set<RealmEconomicResourceKey>(['food', 'wood', 'stone', 'gold']);
 const workerStatuses = new Set<RealmWorkerStatus>(['idle', 'outbound', 'gathering', 'returning']);
 const occupationPhases = new Set<RealmWorkerNodeOccupation['phase']>(['outbound', 'gathering']);
 const RESOURCE_ORDER = Object.freeze(['food', 'wood', 'stone', 'gold'] as const);
 const U64_MAX = (1n << 64n) - 1n;
-
-/**
- * Resource type is intentionally not a worker capacity. Four workers may all
- * target (for example) Wood, provided they select four different available
- * node keys. The canonical node lease remains the single-occupancy boundary.
- */
-export function resolveRealmWorkerDestinations(input: Readonly<{
-  resourceKind: RealmEconomicResourceKey;
-  resourceLabel: string;
-  nodes: readonly RealmWorkerDestinationNode[];
-  occupiedNodeKeys: ReadonlySet<string>;
-}>): readonly RealmWorkerDestinationPresentation[] {
-  const destinations: RealmWorkerDestinationPresentation[] = [];
-  for (const node of input.nodes) {
-    const nodeKey = `${input.resourceKind}:${node.siteId}`;
-    if (node.availability !== 'available' || input.occupiedNodeKeys.has(nodeKey)) continue;
-    destinations.push(Object.freeze({
-      resourceKind: input.resourceKind,
-      siteId: node.siteId,
-      label: `${input.resourceLabel} · Tier ${node.tier} · cell ${node.coord.q}, ${node.coord.r}`
-    }));
-  }
-  return Object.freeze(destinations);
-}
 
 function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -569,6 +532,7 @@ export function resolveReadyWorkerProjection(input: Readonly<{
   realmId: string;
   castleIds: readonly number[];
   ownCastleId: number;
+  expectedFid: bigint;
   system?: RealmWorkerSystemPresentation;
   workers?: readonly RealmWorkerPublicPresentation[];
   occupations?: readonly RealmWorkerNodeOccupation[];
@@ -580,6 +544,7 @@ export function resolveReadyWorkerProjection(input: Readonly<{
   if (
     publicProjection === undefined
     || roster?.castleId !== input.ownCastleId
+    || resourceState?.fid !== input.expectedFid
     || resourceState?.workerSystemMode !== 'active'
     || resourceState.resourcePolicyVersion !== REALM_RESOURCE_POLICY_VERSION
     || resourceState.workerPolicyVersion !== publicProjection.system.policyVersion

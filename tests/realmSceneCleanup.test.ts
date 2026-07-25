@@ -24,6 +24,7 @@ const waterLayerState = vi.hoisted(() => ({ failNextCreation: false }));
 const ambientSchedulerState = vi.hoisted(() => ({
   creations: [] as Array<{
     active: boolean | undefined;
+    frameCap: number;
     isActive: () => boolean;
     step: (elapsedSeconds: number) => void;
   }>
@@ -123,6 +124,7 @@ vi.mock('../src/components/realm/realmAmbientScheduler', async (importOriginal) 
       const scheduler = actual.createRealmAmbientScheduler(options);
       ambientSchedulerState.creations.push({
         active: options.active,
+        frameCap: options.frameCap,
         isActive: scheduler.isActive,
         step: options.onStep
       });
@@ -162,6 +164,9 @@ import {
 import { createCanonicalGenesisSnapshot } from './fixtures/canonicalGenesisSnapshot';
 import { GENESIS_WATER_REVISION_ENABLED_CELLS_V1 } from '../spacetimedb/src/waterRevision';
 import type { RealmWorkerSceneRecord } from '../src/components/realm/realmWorkerLayer';
+import {
+  REALM_WORKER_REDUCED_MOTION_POSITION_INTERVAL_MS
+} from '../src/components/realm/realmWorkerLayer';
 
 type ListenerSpy = ReturnType<typeof vi.spyOn>;
 
@@ -282,6 +287,34 @@ function idleWorkerRecord(revision = 0n): RealmWorkerSceneRecord {
     revision,
     ownedByViewer: true,
     originCoord: Object.freeze({ q: 0, r: 0 })
+  });
+}
+
+function outboundWorkerRecord(
+  index = 0,
+  overrides: Partial<RealmWorkerSceneRecord> = {}
+): RealmWorkerSceneRecord {
+  const originCastleId = Math.floor(index / 4) + 1;
+  const ordinal = (index % 4) + 1 as 1 | 2 | 3 | 4;
+  return Object.freeze({
+    workerId: `genesis-001-castle-${originCastleId}-worker-${String(ordinal).padStart(2, '0')}`,
+    ordinal,
+    originCastleId,
+    originCastleName: `Hegemony Keep ${String(originCastleId).padStart(3, '0')}`,
+    status: 'outbound',
+    resourceKind: 'wood',
+    siteId: `genesis-001:wood:${String(index + 1).padStart(4, '0')}`,
+    startedAtMicros: 100_000n,
+    arrivesAtMicros: 300_000n,
+    gatheringEndsAtMicros: 600_000n,
+    returnsAtMicros: 800_000n,
+    routeSteps: 2,
+    timelineRevision: 1,
+    revision: 1n,
+    ownedByViewer: originCastleId === 1,
+    originCoord: Object.freeze({ q: 0, r: 0 }),
+    destinationCoord: Object.freeze({ q: 2, r: -1 }),
+    ...overrides
   });
 }
 
@@ -937,6 +970,123 @@ describe('realm scene setup cleanup', () => {
     expect(after.position).toEqual(before.position);
     expect(after.target).toEqual(before.target);
     expect(after.zoom).toBe(before.zoom);
+
+    sceneHandle.dispose();
+  });
+
+  it('projects a travelling worker from its current route position and locates it without changing zoom', () => {
+    const canvas = document.createElement('canvas');
+    Object.defineProperties(canvas, {
+      clientWidth: { configurable: true, value: 800 },
+      clientHeight: { configurable: true, value: 600 }
+    });
+    vi.spyOn(Date, 'now').mockReturnValue(200);
+    const worker = outboundWorkerRecord();
+    const onWorkerProjection = vi.fn();
+    const sceneHandle = createRealmScene(createOptions(canvas, {
+      surface: createRealmTerrainSurface('worker-current-position', 4, 5),
+      reducedMotion: true,
+      workers: [worker],
+      onWorkerProjection
+    }));
+
+    const projection = onWorkerProjection.mock.calls.at(-1)?.[0];
+    expect(projection).toMatchObject({
+      width: 800,
+      height: 600,
+      markers: [
+        expect.objectContaining({
+          workerId: worker.workerId,
+          workerOrdinal: worker.ordinal,
+          originCastleId: worker.originCastleId,
+          visible: true,
+          phase: 'outbound'
+        })
+      ]
+    });
+    expect(canvas.dataset.realmWorkerPresenceCount).toBe('1');
+    expect(canvas.dataset.realmWorkerPresenceSuppressedCount).toBe('0');
+
+    const currentCoord = sceneHandle.getWorkerCurrentCoord(worker.workerId);
+    expect(currentCoord).not.toBeNull();
+    expect(currentCoord).not.toEqual(worker.originCoord);
+    expect(currentCoord).not.toEqual(worker.destinationCoord);
+    const before = sceneHandle.getCameraAttestation();
+    expect(sceneHandle.locateWorker(worker.workerId)).toEqual(currentCoord);
+    const after = sceneHandle.getCameraAttestation();
+    expect(after.zoom).toBe(before.zoom);
+    expect(after.target).not.toEqual(before.target);
+    expect(sceneHandle.locateWorker('unknown-worker')).toBeNull();
+    expect(sceneHandle.getWorkerCurrentCoord('unknown-worker')).toBeNull();
+
+    sceneHandle.dispose();
+    expect(sceneHandle.locateWorker(worker.workerId)).toBeNull();
+    expect(sceneHandle.getWorkerCurrentCoord(worker.workerId)).toBeNull();
+  });
+
+  it('keeps reduced-motion worker positional truth on a bounded ambient cadence', () => {
+    const canvas = document.createElement('canvas');
+    Object.defineProperties(canvas, {
+      clientWidth: { configurable: true, value: 800 },
+      clientHeight: { configurable: true, value: 600 }
+    });
+    const now = vi.spyOn(Date, 'now').mockReturnValue(200);
+    const onWorkerProjection = vi.fn();
+    const sceneHandle = createRealmScene(createOptions(canvas, {
+      surface: createRealmTerrainSurface('reduced-worker-position-clock', 4, 5),
+      reducedMotion: true,
+      workers: [outboundWorkerRecord()],
+      onWorkerProjection
+    }));
+    const ambient = ambientSchedulerState.creations.at(-1)!;
+    const expectedFrameCap = Math.max(
+      1,
+      Math.floor(1_000 / REALM_WORKER_REDUCED_MOTION_POSITION_INTERVAL_MS)
+    );
+
+    expect(canvas.dataset.realmAmbientFrameCap).toBe(String(expectedFrameCap));
+    expect(ambient.frameCap).toBe(expectedFrameCap);
+    expect(ambient.active).toBe(true);
+    expect(ambient.isActive()).toBe(true);
+    const before = onWorkerProjection.mock.calls.at(-1)?.[0].markers[0];
+    expect(before).toBeTruthy();
+
+    now.mockReturnValue(250);
+    onWorkerProjection.mockClear();
+    ambient.step(0.5);
+    const after = onWorkerProjection.mock.calls.at(-1)?.[0].markers[0];
+    expect(after).toBeTruthy();
+    expect({ x: after.x, y: after.y }).not.toEqual({ x: before.x, y: before.y });
+
+    sceneHandle.dispose();
+  });
+
+  it('bounds moving-worker projection membership and reports suppressed presences', () => {
+    const canvas = document.createElement('canvas');
+    Object.defineProperties(canvas, {
+      clientWidth: { configurable: true, value: 800 },
+      clientHeight: { configurable: true, value: 600 }
+    });
+    vi.spyOn(Date, 'now').mockReturnValue(200);
+    const workers = Object.freeze(Array.from(
+      { length: 30 },
+      (_, index) => outboundWorkerRecord(index)
+    ));
+    const onWorkerProjection = vi.fn();
+    const sceneHandle = createRealmScene(createOptions(canvas, {
+      surface: createRealmTerrainSurface('bounded-worker-presence', 4, 5),
+      reducedMotion: true,
+      workers,
+      onWorkerProjection
+    }));
+    const projection = onWorkerProjection.mock.calls.at(-1)?.[0];
+
+    expect(projection.markers).toHaveLength(24);
+    expect(new Set(projection.markers.map(
+      (marker: { workerId: string }) => marker.workerId
+    )).size).toBe(24);
+    expect(canvas.dataset.realmWorkerPresenceCount).toBe('24');
+    expect(canvas.dataset.realmWorkerPresenceSuppressedCount).toBe('6');
 
     sceneHandle.dispose();
   });

@@ -50,6 +50,23 @@ describe('shared Warpkeep surface system', () => {
     expect(source).not.toContain('.dashboard-shell');
   });
 
+  it('gives every mobile Realm drawer an explicit vertical touch lane', () => {
+    const source = css('src/styles/global.css');
+    const touchLanes = firstBlock(source, ':is(\n  .warpkeep-patch-notes,');
+
+    for (const selector of [
+      '.water-inspection__drawer',
+      '.water-inspection__body',
+      '.worker-inspection__drawer',
+      '.worker-inspection__body',
+      '.worker-command-center'
+    ]) {
+      expect(source).toContain(selector);
+    }
+    expect(touchLanes).toContain('-webkit-overflow-scrolling: touch;');
+    expect(touchLanes).toContain('touch-action: pan-y;');
+  });
+
   it.each([
     ['src/components/menu/LatestPatchNotesPopover.css', '.warpkeep-patch-notes {'],
     ['src/components/menu/AlphaParticipationTermsDialog.css', '.warpkeep-alpha-terms__panel {'],

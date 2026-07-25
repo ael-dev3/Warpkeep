@@ -127,6 +127,7 @@
 .realm-map-screen[data-renderer="loading"] :is(
   .realm-hud,
   .realm-castle-labels,
+  .realm-worker-presence-markers,
   .realm-resource-occupant-presences,
   .realm-resource-occupant-markers,
   .castle-inspection,
@@ -188,6 +189,33 @@
     0 0 0 1px rgb(74 38 95 / 58%);
 }
 
+.realm-resource-occupant-presence--reserved {
+  width: 6.8rem;
+  height: auto;
+  min-height: 1.7rem;
+  padding: 0.28rem 0.48rem;
+  align-content: center;
+  align-items: center;
+  border: 1px dashed rgb(239 211 137 / 68%);
+  border-radius: 999px;
+  background: rgb(17 11 25 / 74%);
+  box-shadow: 0 0.18rem 0.45rem rgb(0 0 0 / 34%);
+  color: var(--realm-ivory);
+  line-height: 1;
+}
+
+.realm-resource-occupant-presence--reserved strong {
+  font-size: 0.52rem;
+  letter-spacing: 0.08em;
+}
+
+.realm-resource-occupant-presence--reserved > span {
+  margin-top: 0.14rem;
+  color: rgb(255 246 211 / 72%);
+  font-size: 0.44rem;
+  letter-spacing: 0.04em;
+}
+
 .realm-resource-occupant-marker {
   --realm-resource-marker-size: 44px;
   position: absolute;
@@ -213,6 +241,30 @@
   cursor: pointer;
   touch-action: manipulation;
   transition: filter 140ms ease, opacity 140ms ease;
+}
+
+.realm-resource-occupant-marker--reserved {
+  --realm-resource-marker-size: 32px;
+  border-style: dashed;
+  background: rgb(17 11 25 / 72%);
+  box-shadow:
+    0 0.2rem 0.5rem rgb(0 0 0 / 34%),
+    0 0 0 1px rgb(239 211 137 / 30%);
+}
+
+.realm-resource-occupant-marker--reserved .realm-resource-occupant-marker__ring {
+  border-style: dashed;
+}
+
+.realm-resource-occupant-marker--reserved .realm-resource-occupant-marker__kind {
+  inset: 50% auto auto 50%;
+  width: 18px;
+  height: 18px;
+  transform: translate(-50%, -50%);
+}
+
+.realm-resource-occupant-marker--reserved .realm-resource-occupant-marker__owner {
+  opacity: 0.88;
 }
 
 .realm-resource-occupant-marker[data-projected-visible="false"] {

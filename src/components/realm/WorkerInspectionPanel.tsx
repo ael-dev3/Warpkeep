@@ -1,11 +1,21 @@
-import { useEffect, useRef, useState, type Ref } from 'react';
+import { useEffect, useMemo, useRef, useState, type Ref } from 'react';
 
+import { normalizePublicProfileText } from '../../security/publicProfileText';
 import { useModalFocusBoundary } from '../menu/useModalFocusBoundary';
+import { CastleProfileAvatar } from './RealmCastleLabels';
+import { useRealmRemainingDuration } from './realmAuthoritySchedule';
+import {
+  castleProfileLabel,
+  castleProfileUsername,
+  normalizeRealmUsername,
+  safeRealmProfileImageUrl,
+  type RealmCastlePublicPresentation
+} from './realmCastlePresentation';
+import { RESOURCE_KIND_LABELS } from './realmResourceOccupantPresentation';
 import {
   realmWorkerCanRecall,
   realmWorkerLabel,
   realmWorkerStatusLabel,
-  type RealmWorkerDestinationPresentation,
   type RealmWorkerPublicPresentation
 } from './realmWorkerPresentation';
 import './WorkerInspectionPanel.css';
@@ -18,38 +28,98 @@ function publicAssetUrl(path: string) {
 export type WorkerInspectionPanelProps = Readonly<{
   id: string;
   worker: RealmWorkerPublicPresentation;
-  destinations: readonly RealmWorkerDestinationPresentation[];
-  onDispatchWorker?: (
-    workerId: string,
-    destination: RealmWorkerDestinationPresentation
-  ) => Promise<void>;
+  /**
+   * Public profile already joined through `publicProfileForCastle`. This
+   * surface re-sanitizes the narrow identity fields and fails to the neutral
+   * Hegemony presentation when the join is absent.
+   */
+  keeperProfile?: RealmCastlePublicPresentation;
+  /** Optional canonical display name for the assigned node; opaque site IDs stay hidden. */
+  resourceTargetLabel?: string;
+  /** Read-only camera command. Idle workers resolve to their origin keep. */
+  onLocateWorker?: (workerId: string) => void;
+  /** Centers the worker's keeper without changing the current camera zoom. */
+  onLocateKeeper?: (castleId: number) => void;
   onRecallWorker?: (workerId: string) => Promise<void>;
   onRequestClose: () => void;
   focusTargetRef?: Ref<HTMLHeadingElement>;
 }>;
 
+function sanitizeWorkerKeeperProfile(
+  profile: RealmCastlePublicPresentation | undefined
+): RealmCastlePublicPresentation {
+  const canonicalUsername = normalizeRealmUsername(profile?.canonicalUsername);
+  const displayName = normalizePublicProfileText(profile?.displayName, 80);
+  const pfpUrl = safeRealmProfileImageUrl(profile?.pfpUrl);
+  const publicBio = normalizePublicProfileText(profile?.publicBio, 320);
+  return Object.freeze({
+    ...(canonicalUsername === undefined ? {} : { canonicalUsername }),
+    ...(displayName === undefined ? {} : { displayName }),
+    ...(pfpUrl === undefined ? {} : { pfpUrl }),
+    ...(publicBio === undefined ? {} : { publicBio }),
+    communityStatsVisible: false
+  });
+}
+
+function workerAuthoritySchedule(worker: RealmWorkerPublicPresentation) {
+  if (worker.status === 'outbound') {
+    return Object.freeze({
+      label: 'Arrival time left',
+      deadlineMicros: worker.arrivesAtMicros
+    });
+  }
+  if (worker.status === 'gathering') {
+    return Object.freeze({
+      label: 'Gathering time left',
+      deadlineMicros: worker.gatheringEndsAtMicros
+    });
+  }
+  if (worker.status === 'returning') {
+    return Object.freeze({
+      label: 'Return time left',
+      deadlineMicros: worker.returnsAtMicros
+    });
+  }
+  return undefined;
+}
+
 export function WorkerInspectionPanel({
   id,
   worker,
-  destinations,
-  onDispatchWorker,
+  keeperProfile,
+  resourceTargetLabel,
+  onLocateWorker,
+  onLocateKeeper,
   onRecallWorker,
   onRequestClose,
   focusTargetRef
 }: WorkerInspectionPanelProps) {
   const dialogRef = useRef<HTMLElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const [state, setState] = useState<'idle' | 'dispatching' | 'recalling' | 'failed'>('idle');
-  const [selectedDestinationKey, setSelectedDestinationKey] = useState('');
-  const commandPending = state === 'dispatching' || state === 'recalling';
+  const [state, setState] = useState<'idle' | 'recalling' | 'failed'>('idle');
+  const commandPending = state === 'recalling';
   const canRecall = realmWorkerCanRecall(worker) && onRecallWorker !== undefined;
-  const canDispatch = worker.ownedByViewer
-    && worker.status === 'idle'
-    && onDispatchWorker !== undefined
-    && destinations.length > 0;
-  const selectedDestination = destinations.find((destination) => (
-    `${destination.resourceKind}|${destination.siteId}` === selectedDestinationKey
-  ));
+  const profile = useMemo(
+    () => sanitizeWorkerKeeperProfile(keeperProfile),
+    [
+      keeperProfile?.canonicalUsername,
+      keeperProfile?.displayName,
+      keeperProfile?.pfpUrl,
+      keeperProfile?.publicBio
+    ]
+  );
+  const keeperLabel = castleProfileLabel(profile);
+  const keeperName = profile.displayName ?? keeperLabel;
+  const keeperUsername = castleProfileUsername(profile);
+  const originCastleName = normalizePublicProfileText(worker.originCastleName, 80)
+    ?? 'Hegemony Keep';
+  const targetLabel = worker.resourceKind
+    ? normalizePublicProfileText(resourceTargetLabel, 96)
+      ?? RESOURCE_KIND_LABELS[worker.resourceKind]
+    : undefined;
+  const schedule = workerAuthoritySchedule(worker);
+  const scheduleRemaining = useRealmRemainingDuration(schedule?.deadlineMicros);
+  const locateLabel = worker.status === 'idle' ? 'Locate at Keep' : 'Locate Worker';
   useModalFocusBoundary({
     dialogRef,
     initialFocusRef: headingRef,
@@ -59,27 +129,13 @@ export function WorkerInspectionPanel({
   });
 
   useEffect(() => {
-    setState((current) => (
-      current === 'dispatching' || current === 'recalling' ? current : 'idle'
-    ));
-    if (worker.status !== 'idle') setSelectedDestinationKey('');
+    setState((current) => current === 'recalling' ? current : 'idle');
   }, [worker.workerId, worker.status, worker.revision]);
 
   const assignHeadingRef = (element: HTMLHeadingElement | null) => {
     headingRef.current = element;
     if (typeof focusTargetRef === 'function') focusTargetRef(element);
     else if (focusTargetRef) focusTargetRef.current = element;
-  };
-
-  const dispatch = async () => {
-    if (!canDispatch || !selectedDestination || state === 'dispatching' || !onDispatchWorker) return;
-    setState('dispatching');
-    try {
-      await onDispatchWorker(worker.workerId, selectedDestination);
-      setState('idle');
-    } catch {
-      setState('failed');
-    }
   };
 
   const recall = async () => {
@@ -130,15 +186,48 @@ export function WorkerInspectionPanel({
         </header>
         <div className="worker-inspection__body">
           <p className="worker-inspection__description">
-            A permanent attendant of your keep. Workers may share a resource
-            type, while each resource node remains single-occupancy. Commands
-            and cargo settle only through the Realm.
+            A permanent attendant of its keep. This public record follows only
+            movement and gathering state confirmed by the Realm.
           </p>
+          <div className="worker-inspection__identity">
+            {onLocateKeeper ? (
+              <button
+                aria-label={`Locate ${keeperName}'s keep`}
+                className="worker-inspection__keeper-locate"
+                onClick={() => onLocateKeeper(worker.originCastleId)}
+                type="button"
+              >
+                <CastleProfileAvatar profile={profile} size="large" />
+              </button>
+            ) : (
+              <CastleProfileAvatar profile={profile} size="large" />
+            )}
+            <div>
+              <span>{worker.ownedByViewer ? 'YOUR KEEPER' : 'KEEPER'}</span>
+              <strong>{keeperName}</strong>
+              {keeperUsername && keeperUsername !== keeperName ? (
+                <small>{keeperUsername}</small>
+              ) : null}
+            </div>
+          </div>
+          {profile.publicBio ? (
+            <p className="worker-inspection__bio">{profile.publicBio}</p>
+          ) : null}
           <dl className="worker-inspection__fields">
-            <div><dt>Origin keep</dt><dd>{worker.originCastleName}</dd></div>
+            <div><dt>Origin castle</dt><dd>{originCastleName}</dd></div>
+            <div>
+              <dt>Worker</dt>
+              <dd>{String(worker.ordinal).padStart(2, '0')} of 04</dd>
+            </div>
             <div><dt>Status</dt><dd>{realmWorkerStatusLabel(worker)}</dd></div>
-            {worker.resourceKind ? (
-              <div><dt>Assignment</dt><dd>{worker.resourceKind.toUpperCase()}</dd></div>
+            {targetLabel ? (
+              <div><dt>Resource target</dt><dd>{targetLabel}</dd></div>
+            ) : null}
+            {schedule ? (
+              <div>
+                <dt>{schedule.label}</dt>
+                <dd role="timer">{scheduleRemaining ?? 'Schedule unavailable'}</dd>
+              </div>
             ) : null}
           </dl>
           {!worker.ownedByViewer ? (
@@ -146,50 +235,34 @@ export function WorkerInspectionPanel({
               Read-only public identity. Commands belong to the owning keeper.
             </p>
           ) : null}
-          {canDispatch ? (
-            <div className="worker-inspection__dispatch">
-              <label htmlFor={`${id}-destination`}>ASSIGN TO RESOURCE SITE</label>
-              <select
-                disabled={commandPending}
-                id={`${id}-destination`}
-                onChange={(event) => {
-                  setSelectedDestinationKey(event.currentTarget.value);
-                  if (state === 'failed') setState('idle');
-                }}
-                value={selectedDestinationKey}
-              >
-                <option value="">Choose a destination</option>
-                {destinations.map((destination) => (
-                  <option
-                    key={`${destination.resourceKind}:${destination.siteId}`}
-                    value={`${destination.resourceKind}|${destination.siteId}`}
-                  >
-                    {destination.label}
-                  </option>
-                ))}
-              </select>
+          {worker.status === 'idle' && worker.ownedByViewer ? (
+            <p className="worker-inspection__read-only">
+              Select an available resource node in the Realm to send this worker.
+            </p>
+          ) : null}
+          <div className="worker-inspection__actions">
+            {onLocateWorker ? (
               <button
-                disabled={commandPending || selectedDestination === undefined}
-                onClick={() => void dispatch()}
+                aria-label={locateLabel}
+                className="worker-inspection__locate"
+                onClick={() => onLocateWorker(worker.workerId)}
                 type="button"
               >
-                {state === 'dispatching' ? 'ASSIGNING…' : 'ASSIGN WORKER'}
+                {locateLabel.toUpperCase()}
               </button>
-            </div>
-          ) : null}
-          {worker.status === 'idle' && worker.ownedByViewer && destinations.length === 0 ? (
-            <p className="worker-inspection__read-only">No compatible unoccupied resource site is available.</p>
-          ) : null}
-          {canRecall ? (
-            <button
-              className="worker-inspection__recall"
-              disabled={commandPending}
-              onClick={() => void recall()}
-              type="button"
-            >
-              {state === 'recalling' ? 'RETURNING…' : 'RETURN TO KEEP'}
-            </button>
-          ) : null}
+            ) : null}
+            {canRecall ? (
+              <button
+                aria-label={state === 'recalling' ? 'Recalling Worker' : 'Recall Worker'}
+                className="worker-inspection__recall"
+                disabled={commandPending}
+                onClick={() => void recall()}
+                type="button"
+              >
+                {state === 'recalling' ? 'RECALLING…' : 'RECALL WORKER'}
+              </button>
+            ) : null}
+          </div>
           {state === 'failed' ? (
             <p className="worker-inspection__error" role="alert">
               The command could not be confirmed. Try the same action again.

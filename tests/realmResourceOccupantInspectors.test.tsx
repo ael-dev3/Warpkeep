@@ -22,6 +22,9 @@ import type {
   RealmResourceOccupantMarker
 } from '../src/components/realm/realmResourceOccupantPresentation';
 import type { RealmResourceKind } from '../src/components/realm/realmTypes';
+import type {
+  RealmWorkerPublicPresentation
+} from '../src/components/realm/realmWorkerPresentation';
 
 afterEach(() => {
   cleanup();
@@ -64,6 +67,23 @@ function publicOccupant(
   };
 }
 
+function ownerWorkers(): readonly RealmWorkerPublicPresentation[] {
+  return [1, 2, 3, 4].map((ordinal) => ({
+    workerId: `genesis-001-castle-9-worker-0${ordinal}`,
+    ordinal: ordinal as 1 | 2 | 3 | 4,
+    originCastleId: 9,
+    originCastleName: 'Owner Keep',
+    status: ordinal === 1 ? 'idle' : ordinal === 2 ? 'outbound' : ordinal === 3 ? 'gathering' : 'returning',
+    ...(ordinal === 1 ? {} : {
+      resourceKind: 'food' as const,
+      siteId: `occupied-food-site-${ordinal}`
+    }),
+    timelineRevision: 1,
+    revision: 1n,
+    ownedByViewer: true
+  }));
+}
+
 type InspectorCase = Readonly<{
   resource: RealmResourceKind;
   siteId: string;
@@ -81,6 +101,12 @@ type InspectorCase = Readonly<{
       ) => Promise<void>;
       legacyDispatchBlocked?: boolean;
       occupancyUnavailable?: boolean;
+      workers?: readonly RealmWorkerPublicPresentation[];
+      dispatchWorker?: (
+        workerId: string,
+        resourceKind: RealmResourceKind,
+        siteId: string
+      ) => Promise<void>;
     }>
   ) => ReactElement;
 }>;
@@ -107,6 +133,8 @@ const INSPECTOR_CASES: readonly InspectorCase[] = [
         occupancyUnavailable={options?.occupancyUnavailable}
         onFocusOccupantCastle={options?.focus}
         onRecallWorker={options?.recall}
+        workers={options?.workers}
+        onDispatchWorker={options?.dispatchWorker}
         legacyExpeditionId={options?.legacyExpeditionId}
         onReturnLegacyExpedition={options?.returnLegacy}
         onRequestClose={() => undefined}
@@ -134,6 +162,8 @@ const INSPECTOR_CASES: readonly InspectorCase[] = [
         occupancyUnavailable={options?.occupancyUnavailable}
         onFocusOccupantCastle={options?.focus}
         onRecallWorker={options?.recall}
+        workers={options?.workers}
+        onDispatchWorker={options?.dispatchWorker}
         legacyExpeditionId={options?.legacyExpeditionId}
         onReturnLegacyExpedition={options?.returnLegacy}
         onRequestClose={() => undefined}
@@ -161,6 +191,8 @@ const INSPECTOR_CASES: readonly InspectorCase[] = [
         occupancyUnavailable={options?.occupancyUnavailable}
         onFocusOccupantCastle={options?.focus}
         onRecallWorker={options?.recall}
+        workers={options?.workers}
+        onDispatchWorker={options?.dispatchWorker}
         legacyExpeditionId={options?.legacyExpeditionId}
         onReturnLegacyExpedition={options?.returnLegacy}
         onRequestClose={() => undefined}
@@ -188,6 +220,8 @@ const INSPECTOR_CASES: readonly InspectorCase[] = [
         occupancyUnavailable={options?.occupancyUnavailable}
         onFocusOccupantCastle={options?.focus}
         onRecallWorker={options?.recall}
+        workers={options?.workers}
+        onDispatchWorker={options?.dispatchWorker}
         legacyExpeditionId={options?.legacyExpeditionId}
         onReturnLegacyExpedition={options?.returnLegacy}
         onRequestClose={() => undefined}
@@ -198,12 +232,52 @@ const INSPECTOR_CASES: readonly InspectorCase[] = [
 
 describe('unified occupied resource inspectors', () => {
   it.each(INSPECTOR_CASES)(
+    'dispatches a ready worker from the selected canonical $resource node only',
+    async ({ resource, siteId, renderPanel }) => {
+      const dispatchWorker = vi.fn(async () => undefined);
+      render(renderPanel(undefined, {
+        dispatchWorker,
+        legacyDispatchBlocked: true,
+        workers: ownerWorkers()
+      }));
+
+      const workerList = screen.getByRole('list', {
+        name: new RegExp(`Your workers for this .* site`, 'i')
+      });
+      expect(within(workerList).getAllByRole('listitem')).toHaveLength(4);
+      expect(within(workerList).getByRole('button', {
+        name: 'Worker 1 — READY AT KEEP'
+      }).hasAttribute('disabled')).toBe(false);
+      expect(within(workerList).getByRole('button', {
+        name: 'Worker 2 — TRAVELLING TO FOOD SITE'
+      }).hasAttribute('disabled')).toBe(true);
+      expect(screen.queryByRole('combobox')).toBeNull();
+      expect(document.body.textContent).not.toContain('cell ');
+
+      fireEvent.click(within(workerList).getByRole('button', {
+        name: 'Worker 1 — READY AT KEEP'
+      }));
+      await waitFor(() => expect(dispatchWorker).toHaveBeenCalledWith(
+        'genesis-001-castle-9-worker-01',
+        resource,
+        siteId
+      ));
+      expect(dispatchWorker).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it.each(INSPECTOR_CASES)(
     'keeps the $resource site and public worker story in one dialog',
     ({ resource, siteId, dialogName, rate, renderPanel }) => {
       vi.useFakeTimers();
       vi.setSystemTime(2_000_000_000_000);
       const occupant = publicOccupant(resource, siteId);
-      render(renderPanel(occupant));
+      const dispatchWorker = vi.fn(async () => undefined);
+      render(renderPanel(occupant, {
+        dispatchWorker,
+        legacyDispatchBlocked: true,
+        workers: ownerWorkers()
+      }));
 
       const dialog = screen.getByRole('dialog', { name: dialogName });
       expect(screen.getAllByRole('dialog')).toHaveLength(1);
@@ -230,6 +304,8 @@ describe('unified occupied resource inspectors', () => {
       expect(screen.getByText('Gather rate').nextElementSibling?.textContent).toBe(rate);
       expect(screen.queryByRole('button', { name: /view public/i })).toBeNull();
       expect(screen.queryByRole('button', { name: /claim/i })).toBeNull();
+      expect(screen.queryByRole('list', { name: /Your workers for this/i })).toBeNull();
+      expect(dispatchWorker).not.toHaveBeenCalled();
     }
   );
 
@@ -266,6 +342,94 @@ describe('unified occupied resource inspectors', () => {
       });
     }
   );
+
+  it.each(INSPECTOR_CASES)(
+    'recovers $resource inspector focus when an available site becomes occupied',
+    async ({ resource, siteId, renderPanel }) => {
+      const dispatchWorker = vi.fn(async () => undefined);
+      const options = {
+        dispatchWorker,
+        legacyDispatchBlocked: true,
+        workers: ownerWorkers()
+      };
+      const view = render(renderPanel(undefined, options));
+      const sendWorker = screen.getByRole('button', {
+        name: 'Worker 1 — READY AT KEEP'
+      });
+      sendWorker.focus();
+      expect(document.activeElement).toBe(sendWorker);
+
+      view.rerender(renderPanel(publicOccupant(resource, siteId), options));
+
+      await waitFor(() => {
+        expect(document.activeElement).toBe(screen.getByRole('button', {
+          name: /^CLOSE .* RECORD$/
+        }));
+      });
+    }
+  );
+
+  it.each(INSPECTOR_CASES)(
+    'recovers $resource inspector focus when authoritative occupancy becomes unavailable',
+    async ({ renderPanel }) => {
+      const dispatchWorker = vi.fn(async () => undefined);
+      const availableOptions = {
+        dispatchWorker,
+        legacyDispatchBlocked: true,
+        workers: ownerWorkers()
+      };
+      const view = render(renderPanel(undefined, availableOptions));
+      const sendWorker = screen.getByRole('button', {
+        name: 'Worker 1 — READY AT KEEP'
+      });
+      sendWorker.focus();
+      expect(document.activeElement).toBe(sendWorker);
+
+      view.rerender(renderPanel(undefined, {
+        ...availableOptions,
+        occupancyUnavailable: true
+      }));
+
+      await waitFor(() => {
+        expect(document.activeElement).toBe(screen.getByRole('button', {
+          name: /^CLOSE .* RECORD$/
+        }));
+      });
+    }
+  );
+
+  it('does not steal focus outside a Gold dispatch surface when occupancy changes', async () => {
+    const dispatchWorker = vi.fn(async () => undefined);
+    const options = {
+      dispatchWorker,
+      legacyDispatchBlocked: true,
+      workers: ownerWorkers()
+    };
+    const view = render(
+      <>
+        <button type="button">Outside dispatch control</button>
+        {INSPECTOR_CASES[0]!.renderPanel(undefined, options)}
+      </>
+    );
+    const outside = screen.getByRole('button', { name: 'Outside dispatch control' });
+    outside.focus();
+    expect(document.activeElement).toBe(outside);
+
+    view.rerender(
+      <>
+        <button type="button">Outside dispatch control</button>
+        {INSPECTOR_CASES[0]!.renderPanel(
+          publicOccupant('gold', 'genesis-001:gold:0001'),
+          options
+        )}
+      </>
+    );
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    expect(document.activeElement).toBe(screen.getByRole('button', {
+      name: 'Outside dispatch control'
+    }));
+  });
 
   it('does not steal focus when an occupation disappears while focus is elsewhere', async () => {
     const occupant = publicOccupant('gold', 'genesis-001:gold:0001');

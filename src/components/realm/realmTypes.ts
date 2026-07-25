@@ -57,3 +57,27 @@ export type RealmResourceProjectionFrame = Readonly<{
   height: number;
   markers: readonly RealmResourceScreenProjection[];
 }>;
+
+export type RealmWorkerTravelPhase = 'outbound' | 'returning';
+
+export type RealmWorkerScreenProjection = Readonly<{
+  workerId: string;
+  workerOrdinal: number;
+  originCastleId: number;
+  x: number;
+  y: number;
+  depth: number;
+  visible: boolean;
+  phase: RealmWorkerTravelPhase;
+}>;
+
+/**
+ * Screen-space truth for the bounded moving-worker portrait lane. Public
+ * identity remains outside this frame so renderer callbacks cannot widen the
+ * browser's identity surface.
+ */
+export type RealmWorkerProjectionFrame = Readonly<{
+  width: number;
+  height: number;
+  markers: readonly RealmWorkerScreenProjection[];
+}>;

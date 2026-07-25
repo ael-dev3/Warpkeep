@@ -208,6 +208,14 @@ describe('compact Realm CSS contract', () => {
       '.realm-resource-rail picture,\n.realm-resource-rail img {'
     );
     const resourceTooltip = block(PLAYER_CHROME, '.realm-resource-tooltip {');
+    const resourceTooltipStatus = block(
+      PLAYER_CHROME,
+      '.realm-resource-tooltip__status {'
+    );
+    const resourceTooltipCopy = block(
+      PLAYER_CHROME,
+      '.realm-resource-tooltip__copy {'
+    );
     const hiddenResourceTooltip = block(
       PLAYER_CHROME,
       '.realm-resource-tooltip[hidden] {'
@@ -231,6 +239,8 @@ describe('compact Realm CSS contract', () => {
     expect(resourceItem).toContain('background: transparent;');
     expect(resourceTrigger).toContain('pointer-events: auto;');
     expect(resourceTrigger).toContain('background: transparent;');
+    expect(resourceTrigger).toContain('min-width: 44px;');
+    expect(resourceTrigger).toContain('min-height: 44px;');
     expect(resourceIcon).toContain('width: 2rem;');
     expect(resourceIcon).toContain('height: 2rem;');
     expect(resourceTooltip).toContain('top: 100%;');
@@ -238,6 +248,8 @@ describe('compact Realm CSS contract', () => {
     expect(resourceTooltip).toContain('right: 0;');
     expect(resourceTooltip).toContain('pointer-events: auto;');
     expect(resourceTooltip).not.toContain('backdrop-filter:');
+    expect(resourceTooltipStatus).toContain('font-size: 0.75rem;');
+    expect(resourceTooltipCopy).toContain('font-size: 0.75rem;');
     expect(hiddenResourceTooltip).toContain('display: none;');
     expect(PLAYER_CHROME).toContain('@media (min-width: 681px) {');
     expect(PLAYER_CHROME).toContain('.realm-resource-tooltip[data-resource="food"] {');

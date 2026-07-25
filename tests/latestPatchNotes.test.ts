@@ -17,17 +17,17 @@ describe('latest in-menu patch notes', () => {
 
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
-      releasedOn: '24 JUL 2026',
-      title: 'THE KEEP MUSTERS'
+      releasedOn: '25 JUL 2026',
+      title: 'THE ROAD REMEMBERS'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /four durable workers.*Gold, Food, Wood, or Stone.*distinct open sites/i
+      /Gold Mine, Wheat Farm, Logging Camp, or Stone Quarry.*directly from that site record/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /settles into private authoritative balances automatically.*recall one worker.*every worker home/i
+      /Supply Wagons.*keeper portraits.*dashed routes.*deterministic dry Lowlands journey/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /legacy wagon transition preserves earned resources.*expedition, occupation, and schedule/i
+      /Recall sends workers physically home.*reduced-motion.*true place on the road/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /released to players|deployed to players|public balances|guaranteed rewards/i
@@ -35,7 +35,7 @@ describe('latest in-menu patch notes', () => {
     expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('Genesis 001');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'live only after the production module is published'
+      'wagon routes are a deterministic dry-land presentation'
     );
     expect(getLatestPatchNotes('0.3.15')).toBeUndefined();
     expect(getLatestPatchNotes('0.3.14')).toBeUndefined();

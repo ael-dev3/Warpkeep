@@ -143,6 +143,12 @@ function createLocalBridge(
 function LocalFullstackStateProbe() {
   const auth = useFarcasterAuth();
   const backend = useWarpkeepBackend();
+  const dispatchSite = backend.state.realm?.goldSites?.find((site) => (
+    site.active
+    && !backend.state.realm?.goldNodeOccupations?.some(
+      (occupation) => occupation.siteId === site.siteId
+    )
+  ));
   const workerCount = backend.state.workerRoster?.workers.length ?? 0;
   const deployedWorkerCount = backend.state.workerProjection?.workers.filter(
     (worker) => worker.status !== 'idle'
@@ -157,6 +163,8 @@ function LocalFullstackStateProbe() {
       data-local-fullstack-deployed-workers={String(deployedWorkerCount)}
       data-local-fullstack-recallable-workers={String(recallableWorkerCount)}
       data-local-fullstack-workers={String(workerCount)}
+      data-local-fullstack-dispatch-q={dispatchSite?.q}
+      data-local-fullstack-dispatch-r={dispatchSite?.r}
       hidden
     >
       Disposable local full-stack state

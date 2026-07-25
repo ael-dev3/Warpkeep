@@ -54,6 +54,7 @@ import {
 import { RealmHud, type RealmActiveWagonMenuItem } from './RealmHud';
 import { RealmObserverHud } from './RealmObserverHud';
 import { RealmResourceOccupantMarkers } from './RealmResourceOccupantMarkers';
+import { RealmWorkerPresenceMarkers } from './RealmWorkerPresenceMarkers';
 import {
   createRealmScene,
   type RealmInteractionTarget,
@@ -91,6 +92,7 @@ import {
   realmResourceOccupantRecallLegacyExpeditionId,
   resolveRealmResourceOccupantMarkerResolution,
   resolveRealmWorkerInspectionRoute,
+  RESOURCE_KIND_LABELS,
   visibleRealmResourceOccupantMarkerKeys,
   visibleRealmResourceOccupantPresenceKeys,
   type RealmResourceOccupantMarker
@@ -135,7 +137,8 @@ import {
 import type { RealmIdentity } from './realmTypes';
 import type {
   RealmCastleProjectionFrame,
-  RealmResourceProjectionFrame
+  RealmResourceProjectionFrame,
+  RealmWorkerProjectionFrame
 } from './realmTypes';
 import {
   CASTLE_LABEL_COMPACT_MAXIMUM_CONTROL_WIDTH,
@@ -192,10 +195,8 @@ import { WorkerInspectionPanel } from './WorkerInspectionPanel';
 import type { RealmWorkerSceneRecord } from './realmWorkerLayer';
 import {
   resolveReadyPublicWorkerProjection,
-  resolveRealmWorkerDestinations,
   type ReadyWorkerProjection,
   type ReadyWorkerResourceState,
-  type RealmWorkerDestinationPresentation,
   type RealmWorkerPublicPresentation,
   type WorkerRosterPresentation
 } from './realmWorkerPresentation';
@@ -254,6 +255,8 @@ type RealmMapScreenProps = Readonly<{
 }>;
 
 type RendererMode = 'loading' | 'webgl' | 'fallback';
+
+const REALM_KEYBOARD_INSTRUCTIONS_ID = 'realm-map-keyboard-instructions';
 
 type PrivateExpeditionPresentation =
   | GoldExpeditionPresentation
@@ -534,28 +537,20 @@ function CanonicalRealmMapScreen({
   const stoneNodesBySiteId = useMemo(() => new Map(
     stoneNodes.map((node) => [node.siteId, node] as const)
   ), [stoneNodes]);
-  const workerDestinations = useMemo<readonly RealmWorkerDestinationPresentation[]>(() => {
-    if (workerProjection?.mode !== 'active') return Object.freeze([]);
-    const occupied = new Set(workerProjection.occupations.map((occupation) => occupation.nodeKey));
-    const destinations: RealmWorkerDestinationPresentation[] = [];
-    const append = (
-      resourceKind: RealmEconomicResourceKey,
-      resourceLabel: string,
-      nodes: readonly GatheringNodePresentation[]
-    ) => {
-      destinations.push(...resolveRealmWorkerDestinations({
-        resourceKind,
-        resourceLabel,
-        nodes,
-        occupiedNodeKeys: occupied
-      }));
-    };
-    append('food', 'Wheat Farm', foodNodes);
-    append('wood', 'Logging Camp', woodNodes);
-    append('stone', 'Stone Quarry', stoneNodes);
-    append('gold', 'Gold Mine', goldNodes);
-    return Object.freeze(destinations);
-  }, [foodNodes, goldNodes, stoneNodes, woodNodes, workerProjection]);
+  const profileRecords = useMemo(() => {
+    return new Map<number, CastleLabelRecord>(allCastles.map((castle) => [
+      castle.castleId,
+      {
+        castle,
+        profile: publicProfileForCastle(
+          castle.ownerFid,
+          sharedProfiles,
+          sharedPlayers,
+          observerMode ? undefined : identity
+        )
+      }
+    ]));
+  }, [allCastles, identity, observerMode, sharedPlayers, sharedProfiles]);
   const workerSceneRecords = useMemo<readonly RealmWorkerSceneRecord[]>(() => {
     if (observerMode || workerProjection?.mode !== 'active') return Object.freeze([]);
     const castlesById = new Map(allCastles.map((castle) => [castle.castleId, castle] as const));
@@ -573,9 +568,11 @@ function CanonicalRealmMapScreen({
         ? sitesByResource[worker.resourceKind].get(worker.siteId)
         : undefined;
       if (worker.status !== 'idle' && destination === undefined) return Object.freeze([]);
+      const profile = profileRecords.get(worker.originCastleId)?.profile;
       records.push(Object.freeze({
         ...worker,
         originCoord: Object.freeze({ q: origin.q, r: origin.r }),
+        ...(profile === undefined ? {} : { profile }),
         ...(destination === undefined
           ? {}
           : { destinationCoord: Object.freeze({ ...destination.coord }) })
@@ -587,6 +584,7 @@ function CanonicalRealmMapScreen({
     foodNodesBySiteId,
     goldNodesBySiteId,
     observerMode,
+    profileRecords,
     stoneNodesBySiteId,
     woodNodesBySiteId,
     workerProjection
@@ -594,6 +592,8 @@ function CanonicalRealmMapScreen({
   const workerSceneCatalogKey = observerMode
     ? ''
     : workerProjection?.system.rosterDigest ?? '';
+  const workerSceneRecordsRef = useRef(workerSceneRecords);
+  workerSceneRecordsRef.current = workerSceneRecords;
   const navigatorWorkers = useMemo<readonly RealmNavigatorWorker[]>(() => (
     workerSceneRecords.map((worker) => Object.freeze({
       workerId: worker.workerId,
@@ -601,11 +601,9 @@ function CanonicalRealmMapScreen({
       originCastleId: worker.originCastleId,
       originCastleName: worker.originCastleName,
       status: worker.status,
-      coord: Object.freeze({
-        ...(worker.status === 'outbound' || worker.status === 'gathering'
-          ? worker.destinationCoord ?? worker.originCoord
-          : worker.originCoord)
-      }),
+      ...(worker.status === 'idle'
+        ? { coord: Object.freeze({ ...worker.originCoord }) }
+        : {}),
       ownedByViewer: worker.ownedByViewer
     }))
   ), [workerSceneRecords]);
@@ -672,20 +670,6 @@ function CanonicalRealmMapScreen({
     woodExpedition,
     woodNodesBySiteId
   ]);
-  const profileRecords = useMemo(() => {
-    return new Map<number, CastleLabelRecord>(allCastles.map((castle) => [
-      castle.castleId,
-      {
-        castle,
-        profile: publicProfileForCastle(
-          castle.ownerFid,
-          sharedProfiles,
-          sharedPlayers,
-          observerMode ? undefined : identity
-        )
-      }
-    ]));
-  }, [allCastles, identity, observerMode, sharedPlayers, sharedProfiles]);
   const publicWorkerProjection = useMemo(() => resolveReadyPublicWorkerProjection({
     realmId: snapshot.realm.realmId,
     castleIds: allCastles.map((castle) => castle.castleId),
@@ -889,6 +873,11 @@ function CanonicalRealmMapScreen({
     height: 0,
     markers: []
   });
+  const latestWorkerProjectionRef = useRef<RealmWorkerProjectionFrame>({
+    width: 0,
+    height: 0,
+    markers: []
+  });
   const reservedUiRectsRef = useRef<readonly RealmLabelReservedRect[]>([]);
   const reservedCastleLabelRectsRef = useRef<readonly RealmLabelReservedRect[]>([]);
   const stableCameraCompositionRef = useRef<ReturnType<typeof measuredRealmComposition> | null>(null);
@@ -1016,6 +1005,30 @@ function CanonicalRealmMapScreen({
       && worker.originCastleId === selectedInspectorTarget.originCastleId
     ))
     : undefined;
+  const inspectorWorkerResourceTargetLabel = (() => {
+    if (!inspectorWorker?.resourceKind) return undefined;
+    const node = inspectorWorker.siteId
+      ? ({
+          gold: goldNodesBySiteId,
+          food: foodNodesBySiteId,
+          wood: woodNodesBySiteId,
+          stone: stoneNodesBySiteId
+        } as const)[inspectorWorker.resourceKind].get(inspectorWorker.siteId)
+      : undefined;
+    return node
+      ? `${RESOURCE_KIND_LABELS[inspectorWorker.resourceKind]} · Tier ${node.tier}`
+      : RESOURCE_KIND_LABELS[inspectorWorker.resourceKind];
+  })();
+  const selectedWorkerRouteId = inspectorWorker?.workerId ?? [
+    inspectorGoldOccupant,
+    inspectorFoodOccupant,
+    inspectorWoodOccupant,
+    inspectorStoneOccupant
+  ].find((marker) => marker?.source === 'generic-worker')?.workerId;
+  const selectedWorkerRouteIdRef = useRef<string | undefined>(
+    selectedWorkerRouteId
+  );
+  selectedWorkerRouteIdRef.current = selectedWorkerRouteId;
   const goldNodeAtSelectedCell = goldNodes.find((node) => sameCoord(node.coord, selectedCoord));
   const foodNodeAtSelectedCell = foodNodes.find((node) => sameCoord(node.coord, selectedCoord));
   const woodNodeAtSelectedCell = woodNodes.find((node) => sameCoord(node.coord, selectedCoord));
@@ -1049,10 +1062,93 @@ function CanonicalRealmMapScreen({
     useState<readonly string[]>([]);
   const visibleResourceOccupantPresenceSignatureRef = useRef('');
   const visibleResourceOccupantSignatureRef = useRef('');
+  const [visibleWorkerPresenceIds, setVisibleWorkerPresenceIds] =
+    useState<readonly string[]>([]);
+  const visibleWorkerPresenceSignatureRef = useRef('');
 
   const openNavigator = useCallback(() => {
     dispatchInteraction({ type: 'open-navigator' });
   }, []);
+
+  const applyWorkerProjection = useCallback((frame: RealmWorkerProjectionFrame) => {
+    const root = rootRef.current;
+    if (!root) return;
+    const availableWorkers = new Map(
+      workerSceneRecordsRef.current
+        .filter((worker) => worker.status === 'outbound' || worker.status === 'returning')
+        .map((worker) => [worker.workerId, worker] as const)
+    );
+    const candidates = frame.markers.flatMap((marker) => {
+      const worker = availableWorkers.get(marker.workerId);
+      if (
+        !worker
+        || marker.workerOrdinal !== worker.ordinal
+        || marker.originCastleId !== worker.originCastleId
+        || !marker.visible
+        || !Number.isFinite(marker.x)
+        || !Number.isFinite(marker.y)
+        || !Number.isFinite(marker.depth)
+      ) return [];
+      return [{ marker, worker }];
+    });
+    const reservedRects = [
+      ...reservedUiRectsRef.current,
+      ...reservedCastleLabelRectsRef.current
+    ];
+    const acceptedRects: RealmLabelReservedRect[] = [];
+    const projectedById = new Map<string, RealmWorkerProjectionFrame['markers'][number]>();
+    const intersects = (
+      left: RealmLabelReservedRect,
+      right: RealmLabelReservedRect
+    ) => (
+      left.left < right.right
+      && left.right > right.left
+      && left.top < right.bottom
+      && left.bottom > right.top
+    );
+    for (const { marker } of candidates) {
+      const bounds = Object.freeze({
+        left: marker.x - 48,
+        top: marker.y - 48,
+        right: marker.x + 48,
+        bottom: marker.y + 24
+      });
+      if (
+        reservedRects.some((reserved) => intersects(bounds, reserved))
+        || acceptedRects.some((accepted) => intersects(bounds, accepted))
+      ) continue;
+      acceptedRects.push(bounds);
+      projectedById.set(marker.workerId, marker);
+    }
+    root.dataset.realmWorkerPresenceUiSuppressedCount = String(
+      Math.max(0, candidates.length - projectedById.size)
+    );
+    const visibleIds = [...projectedById.keys()];
+    const signature = visibleIds.join('|');
+    if (signature !== visibleWorkerPresenceSignatureRef.current) {
+      visibleWorkerPresenceSignatureRef.current = signature;
+      setVisibleWorkerPresenceIds(Object.freeze(visibleIds));
+    }
+    root.querySelectorAll<HTMLElement>('[data-worker-presence-id]').forEach((element) => {
+      const marker = projectedById.get(element.dataset.workerPresenceId ?? '');
+      if (!marker) {
+        element.dataset.projectedVisible = 'false';
+        return;
+      }
+      element.style.setProperty('--realm-worker-presence-x', `${marker.x}px`);
+      element.style.setProperty('--realm-worker-presence-y', `${marker.y}px`);
+      element.dataset.projectedVisible = 'true';
+    });
+  }, []);
+
+  const updateWorkerProjection = useCallback((frame: RealmWorkerProjectionFrame) => {
+    latestWorkerProjectionRef.current = frame;
+    applyWorkerProjection(frame);
+  }, [applyWorkerProjection]);
+
+  const applyLatestWorkerProjection = useCallback(() => {
+    applyWorkerProjection(latestWorkerProjectionRef.current);
+  }, [applyWorkerProjection]);
 
   const applyResourceProjection = useCallback((frame: RealmResourceProjectionFrame) => {
     const root = rootRef.current;
@@ -1342,7 +1438,7 @@ function CanonicalRealmMapScreen({
 
   const selectWorkerOrOccupiedSite = useCallback((
     worker: RealmWorkerPublicPresentation,
-    coord: HexCoord
+    resolveCoord: () => HexCoord | null | undefined
   ) => {
     const route = resolveRealmWorkerInspectionRoute(
       resourceOccupantMarkersRef.current,
@@ -1352,13 +1448,39 @@ function CanonicalRealmMapScreen({
       selectResourceOccupant(route.marker);
       return;
     }
-    // An outbound/gathering worker without an exact validated site join is not
-    // allowed to open a contradictory standalone record. Idle and returning
-    // workers have no occupied site and retain their dedicated worker record.
-    if (route.kind === 'worker') {
-      selectWorker(worker, coord);
-    }
+    // Active workers without an exact canonical occupation join must not open
+    // a contradictory standalone record. Resolve (and potentially locate) a
+    // worker coordinate only for idle/returning standalone records.
+    if (route.kind !== 'worker') return;
+    const coord = resolveCoord();
+    if (coord) selectWorker(worker, coord);
   }, [selectResourceOccupant, selectWorker]);
+
+  const selectWorkerAtCurrentPosition = useCallback((
+    worker: RealmWorkerPublicPresentation
+  ) => {
+    selectWorkerOrOccupiedSite(
+      worker,
+      () => sceneRef.current?.getWorkerCurrentCoord?.(worker.workerId)
+    );
+  }, [selectWorkerOrOccupiedSite]);
+
+  const locateWorkerAtCurrentPosition = useCallback((workerId: string) => {
+    const worker = workerProjectionRef.current?.workers.find(
+      (candidate) => candidate.workerId === workerId
+    );
+    if (!worker) return;
+    if (worker.status === 'idle') {
+      sceneRef.current?.locateCastle(worker.originCastleId);
+      return;
+    }
+    sceneRef.current?.locateWorker?.(worker.workerId);
+  }, []);
+
+  const locateWorkerKeeper = useCallback((castleId: number) => {
+    if (!allCastles.some((castle) => castle.castleId === castleId)) return;
+    sceneRef.current?.locateCastle(castleId);
+  }, [allCastles]);
 
   const openActiveWagon = useCallback((wagon: RealmActiveWagonMenuItem) => {
     if (!activeWagons.some((candidate) => (
@@ -1521,7 +1643,7 @@ function CanonicalRealmMapScreen({
         && candidate.ordinal === target.workerOrdinal
         && candidate.originCastleId === target.originCastleId
       ));
-      if (worker) selectWorkerOrOccupiedSite(worker, target.coord);
+      if (worker) selectWorkerOrOccupiedSite(worker, () => target.coord);
       return;
     }
     if (target.kind === 'gold-site') {
@@ -2106,6 +2228,7 @@ function CanonicalRealmMapScreen({
         onTerrainPresentationTelemetry: updateTerrainPresentationTelemetry,
         onCastleProjection: updateCastleProjection,
         onResourceProjection: updateResourceProjection,
+        onWorkerProjection: updateWorkerProjection,
         onRendererFailure: (failure) => {
           if (activeRendererGenerationRef.current === rendererGeneration) {
             markRendererFailure(failure);
@@ -2163,6 +2286,9 @@ function CanonicalRealmMapScreen({
           ? interactionRef.current.inspectorTarget.workerId
           : null
       );
+      scene.setSelectedWorkerRouteId?.(
+        selectedWorkerRouteIdRef.current ?? null
+      );
       scene.setSelectedWaterCellKey?.(
         interactionRef.current.inspectorOpen
         && interactionRef.current.inspectorTarget !== null
@@ -2209,7 +2335,7 @@ function CanonicalRealmMapScreen({
         rendererRecoveryTimerRef.current = null;
       }
     };
-  }, [foodNodeCatalog, goldNodeCatalog, handleSceneTargetHover, handleSceneTargetSelect, hasNearbyFoundingKeeps, isSceneCoordPassable, keepCoord, markRendererFailure, observerMode, ownCastle.castleId, peerCastles, projectedTileMetadata, qualitySpec, reducedMotion, rendererRecoveryNonce, sharedForestProjection, snapshot.realm.realmId, snapshot.realmEnvironment, snapshot.waterBodies, stoneNodeCatalog, surface, updateCastlePresentationTelemetry, updateCastleProjection, updateFoodNodePresentationTelemetry, updateGoldNodePresentationTelemetry, updateResourceProjection, updateSceneComposition, updateStoneNodePresentationTelemetry, updateTerrainPresentationTelemetry, updateWoodNodePresentationTelemetry, waterCells, woodNodeCatalog, workerSceneCatalogKey]);
+  }, [foodNodeCatalog, goldNodeCatalog, handleSceneTargetHover, handleSceneTargetSelect, hasNearbyFoundingKeeps, isSceneCoordPassable, keepCoord, markRendererFailure, observerMode, ownCastle.castleId, peerCastles, projectedTileMetadata, qualitySpec, reducedMotion, rendererRecoveryNonce, sharedForestProjection, snapshot.realm.realmId, snapshot.realmEnvironment, snapshot.waterBodies, stoneNodeCatalog, surface, updateCastlePresentationTelemetry, updateCastleProjection, updateFoodNodePresentationTelemetry, updateGoldNodePresentationTelemetry, updateResourceProjection, updateSceneComposition, updateStoneNodePresentationTelemetry, updateTerrainPresentationTelemetry, updateWoodNodePresentationTelemetry, updateWorkerProjection, waterCells, woodNodeCatalog, workerSceneCatalogKey]);
 
   useEffect(() => {
     sceneRef.current?.reconcileLiveGatheringState?.(liveGatheringState);
@@ -2240,8 +2366,16 @@ function CanonicalRealmMapScreen({
   }, [inspectorStoneNode?.siteId]);
 
   useEffect(() => {
-    sceneRef.current?.setSelectedWorkerId?.(inspectorWorker?.workerId ?? null);
+    sceneRef.current?.setSelectedWorkerId?.(
+      inspectorWorker?.workerId ?? null
+    );
   }, [inspectorWorker?.workerId]);
+
+  useEffect(() => {
+    sceneRef.current?.setSelectedWorkerRouteId?.(
+      selectedWorkerRouteId ?? null
+    );
+  }, [selectedWorkerRouteId]);
 
   useEffect(() => {
     sceneRef.current?.setSelectedWaterCellKey?.(inspectorWater?.cellKey ?? null);
@@ -2369,11 +2503,20 @@ function CanonicalRealmMapScreen({
       data-quality={quality}
       tabIndex={0}
       aria-label={observerMode ? 'Hegemony realm QA observer' : 'Hegemony realm'}
+      aria-describedby={REALM_KEYBOARD_INSTRUCTIONS_ID}
       aria-busy={rendererLifecycle.state === 'probing'
         || rendererLifecycle.state === 'loading'
         || rendererLifecycle.state === 'recovering'}
       onKeyDown={handleKeyDown}
     >
+      <p
+        className="warpkeep-visually-hidden"
+        id={REALM_KEYBOARD_INSTRUCTIONS_ID}
+      >
+        {observerMode
+          ? 'Use the arrow keys to move the selected cell. Press Enter or Space to inspect the selected castle, resource, or water cell. Press Home to show the whole realm. Press Escape to close the current panel or exit the observer.'
+          : 'Use the arrow keys to move the selected cell. Press Enter or Space to inspect the selected castle, resource, or water cell. Press Home to return to your keep. Press Escape to close the current panel or return to the menu.'}
+      </p>
       <div className="realm-safe-area-probe" aria-hidden="true" />
       <canvas
         ref={canvasRef}
@@ -2677,6 +2820,15 @@ function CanonicalRealmMapScreen({
             onActivate={selectCastle}
           />
 
+          <RealmWorkerPresenceMarkers
+            focusFallbackRef={rootRef}
+            workers={workerSceneRecords}
+            visibleWorkerIds={visibleWorkerPresenceIds}
+            onHover={(workerId) => sceneRef.current?.setHoveredWorkerId?.(workerId)}
+            onLayout={applyLatestWorkerProjection}
+            onSelect={selectWorkerAtCurrentPosition}
+          />
+
           <RealmResourceOccupantMarkers
             markers={resourceOccupantMarkers}
             presenceMarkerKeys={visibleResourceOccupantPresenceKeys}
@@ -2715,14 +2867,7 @@ function CanonicalRealmMapScreen({
               workerProjection={observerMode ? undefined : workerProjection}
               workerRoster={observerMode ? undefined : workerRoster}
               workerResourceState={observerMode ? undefined : workerResourceState}
-              workerDestinations={observerMode ? undefined : workerDestinations}
-              onDispatchWorker={observerMode || !onDispatchWorker
-                ? undefined
-                : (workerId, destination) => onDispatchWorker(
-                  workerId,
-                  destination.resourceKind,
-                  destination.siteId
-                )}
+              onLocateWorker={observerMode ? undefined : locateWorkerAtCurrentPosition}
               onRecallWorker={observerMode ? undefined : onRecallWorker}
               onRecallAllWorkers={observerMode ? undefined : onRecallAllWorkers}
               keepCoord={keepCoord}
@@ -2754,6 +2899,8 @@ function CanonicalRealmMapScreen({
               id={`${inspectorId}-gold-${inspectorGoldNode.siteId}`}
               mine={{ name: 'Gold Mine', tier: inspectorGoldNode.tier }}
               node={inspectorGoldNode}
+              workers={observerMode ? undefined : workerProjection?.ownedWorkers}
+              onDispatchWorker={observerMode ? undefined : onDispatchWorker}
               publicOccupant={inspectorGoldOccupant}
               occupancyUnavailable={resourceOccupancyUnavailable}
               onFocusOccupantCastle={focusResourceOccupantCastle}
@@ -2781,6 +2928,8 @@ function CanonicalRealmMapScreen({
               id={`${inspectorId}-food-${inspectorFoodNode.siteId}`}
               farm={{ name: 'Wheat Farm', tier: inspectorFoodNode.tier }}
               node={inspectorFoodNode}
+              workers={observerMode ? undefined : workerProjection?.ownedWorkers}
+              onDispatchWorker={observerMode ? undefined : onDispatchWorker}
               publicOccupant={inspectorFoodOccupant}
               occupancyUnavailable={resourceOccupancyUnavailable}
               onFocusOccupantCastle={focusResourceOccupantCastle}
@@ -2808,6 +2957,8 @@ function CanonicalRealmMapScreen({
               id={`${inspectorId}-wood-${inspectorWoodNode.siteId}`}
               camp={{ name: 'Logging Camp', tier: inspectorWoodNode.tier }}
               node={inspectorWoodNode}
+              workers={observerMode ? undefined : workerProjection?.ownedWorkers}
+              onDispatchWorker={observerMode ? undefined : onDispatchWorker}
               publicOccupant={inspectorWoodOccupant}
               occupancyUnavailable={resourceOccupancyUnavailable}
               onFocusOccupantCastle={focusResourceOccupantCastle}
@@ -2835,6 +2986,8 @@ function CanonicalRealmMapScreen({
               id={`${inspectorId}-stone-${inspectorStoneNode.siteId}`}
               quarry={{ name: 'Stone Quarry', tier: inspectorStoneNode.tier }}
               node={inspectorStoneNode}
+              workers={observerMode ? undefined : workerProjection?.ownedWorkers}
+              onDispatchWorker={observerMode ? undefined : onDispatchWorker}
               publicOccupant={inspectorStoneOccupant}
               occupancyUnavailable={resourceOccupancyUnavailable}
               onFocusOccupantCastle={focusResourceOccupantCastle}
@@ -2859,18 +3012,14 @@ function CanonicalRealmMapScreen({
 
           {inspectorWorker ? (
             <WorkerInspectionPanel
-              destinations={inspectorWorker.ownedByViewer ? workerDestinations : []}
               focusTargetRef={workerInspectorFocusRef}
               id={`${inspectorId}-worker-${inspectorWorker.workerId}`}
-              onDispatchWorker={observerMode || !onDispatchWorker
-                ? undefined
-                : (workerId, destination) => onDispatchWorker(
-                  workerId,
-                  destination.resourceKind,
-                  destination.siteId
-                )}
+              keeperProfile={profileRecords.get(inspectorWorker.originCastleId)?.profile}
+              onLocateKeeper={locateWorkerKeeper}
+              onLocateWorker={locateWorkerAtCurrentPosition}
               onRecallWorker={observerMode ? undefined : onRecallWorker}
               onRequestClose={() => dispatchInteraction({ type: 'close-inspector' })}
+              resourceTargetLabel={inspectorWorkerResourceTargetLabel}
               worker={inspectorWorker}
             />
           ) : null}
@@ -2934,7 +3083,11 @@ function CanonicalRealmMapScreen({
                 && candidate.ordinal === entry.ordinal
                 && candidate.originCastleId === entry.originCastleId
               ));
-              if (worker) selectWorkerOrOccupiedSite(worker, entry.coord);
+              if (!worker) return;
+              selectWorkerOrOccupiedSite(
+                worker,
+                () => sceneRef.current?.locateWorker?.(worker.workerId)
+              );
             }}
             onActivateWaterCell={(cellKey) => {
               const record = waterRecordsByKeyRef.current.get(cellKey);

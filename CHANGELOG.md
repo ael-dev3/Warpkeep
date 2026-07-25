@@ -6,6 +6,26 @@ full engineering record.
 
 ## [Unreleased]
 
+## [0.3.19] — 2026-07-25
+
+- Moved worker assignment onto the Realm map: select an open Gold Mine, Wheat
+  Farm, Logging Camp, or Stone Quarry and send one of the keep’s four ready
+  workers from that site record.
+- Gave each journey its canonical passable hex route, a bounded dashed trail,
+  an approved Supply Wagon, and a keeper portrait that travels with the worker
+  instead of appearing early at an endpoint.
+- Kept reconnects, worker selection, reduced-motion play, individual recall,
+  and Recall All aligned with each worker’s current authoritative position and
+  physical return to the keep.
+- Made the Realm easier to use with explicit keyboard guidance, quieter
+  resource announcements, larger resource touch targets, and paused background
+  resource polling while the page is hidden.
+- Gated Pages delivery on the exact successful protected verification commit
+  and added a bounded, read-only proof of the deployed SHA and authentication
+  mode.
+- Left the deployed v12 worker authority, ownership, settlement, node leases,
+  timings, activation state, and database schema unchanged.
+
 ## [0.3.18] — 2026-07-24
 
 - Prepared exactly four permanent workers for every founded keep, with flexible
@@ -18,9 +38,9 @@ full engineering record.
 - Kept occupied-node portraits and records public and read-only while worker
   commands, balances, ownership, and accounting remain private and
   server-authoritative.
-- This release becomes live only after the append-only module publication,
-  exact roster backfill, legacy drain, generic activation, matching client
-  deployment, and owner smoke test all succeed.
+- Published the append-only module, backfilled the exact roster, drained the
+  legacy lifecycle, activated generic mode, deployed the matching client, and
+  passed the owner smoke test before declaring the release live.
 
 ## [0.3.17] — 2026-07-24
 
@@ -175,7 +195,8 @@ full engineering record.
   Lowlands, a first keep, Farcaster sign-in, and an admission-gated shared-world
   foundation.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.18...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.19...HEAD
+[0.3.19]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.18...v0.3.19
 [0.3.18]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.17...v0.3.18
 [0.3.17]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.16...v0.3.17
 [0.3.16]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.15...v0.3.16

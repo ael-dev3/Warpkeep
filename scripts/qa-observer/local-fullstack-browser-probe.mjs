@@ -213,6 +213,14 @@ async function exerciseLocalFullstackJourney(session) {
           workerCount: probe?.getAttribute('data-local-fullstack-workers') ?? 'missing'
         };
       }
+      const dispatchQ = readyProbe.getAttribute('data-local-fullstack-dispatch-q');
+      const dispatchR = readyProbe.getAttribute('data-local-fullstack-dispatch-r');
+      if (
+        dispatchQ === null
+        || dispatchR === null
+        || !/^-?\\d+$/.test(dispatchQ)
+        || !/^-?\\d+$/.test(dispatchR)
+      ) return { stage: 'worker-dispatch-site' };
       const enterAuthenticated = await waitFor(() => buttonWithText('ENTER REALM'));
       if (!(enterAuthenticated instanceof HTMLButtonElement)) {
         return { stage: 'authenticated-enter' };
@@ -268,17 +276,79 @@ async function exerciseLocalFullstackJourney(session) {
 
       const workerPanel = await waitFor(() => document.querySelector('.worker-inspection'));
       if (!(workerPanel instanceof HTMLElement)) return { stage: 'worker-panel' };
-      const destination = workerPanel.querySelector('select');
-      if (!(destination instanceof HTMLSelectElement) || destination.options.length < 2) {
-        return { stage: 'worker-destination' };
+      if (!/Select an available resource node in the Realm/i.test(workerPanel.textContent ?? '')) {
+        return { stage: 'worker-map-guidance' };
       }
-      destination.value = destination.options[1].value;
-      destination.dispatchEvent(new Event('change', { bubbles: true }));
-      const assign = buttonWithText('ASSIGN WORKER', workerPanel);
-      if (!(assign instanceof HTMLButtonElement) || assign.disabled) {
-        return { stage: 'worker-assign' };
+      const backToWorkers = workerPanel.querySelector('button[aria-label="Back to workers"]');
+      if (!(backToWorkers instanceof HTMLButtonElement)) {
+        return { stage: 'worker-panel-close' };
       }
-      assign.click();
+      backToWorkers.click();
+      const reopenedCommandCenter = await waitFor(() => document.querySelector(
+        '.worker-command-center'
+      ));
+      const backToRealmMenu = reopenedCommandCenter?.querySelector(
+        'button[aria-label="Back to Realm menu"]'
+      );
+      if (!(backToRealmMenu instanceof HTMLButtonElement)) {
+        return { stage: 'worker-command-center-close' };
+      }
+      backToRealmMenu.click();
+
+      const reopenedRealmMenu = await waitFor(() => document.querySelector(
+        '.realm-profile-menu__panel'
+      ));
+      const explore = [...(reopenedRealmMenu?.querySelectorAll('button') ?? [])].find(
+        (button) => (button.querySelector('strong')?.textContent ?? '').trim() === 'EXPLORE'
+      );
+      if (!(explore instanceof HTMLButtonElement)) return { stage: 'worker-map-explore' };
+      explore.click();
+
+      const navigator = await waitFor(() => document.querySelector(
+        '.realm-cell-navigator__dialog'
+      ));
+      const jump = navigator?.querySelector('.realm-cell-navigator__jump');
+      const qInput = jump?.querySelector('input[id$="-q"]');
+      const rInput = jump?.querySelector('input[id$="-r"]');
+      if (
+        !(jump instanceof HTMLFormElement)
+        || !(qInput instanceof HTMLInputElement)
+        || !(rInput instanceof HTMLInputElement)
+      ) return { stage: 'worker-map-coordinate' };
+      const setInputValue = (input, value) => {
+        const descriptor = Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          'value'
+        );
+        descriptor?.set?.call(input, value);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      setInputValue(qInput, dispatchQ);
+      setInputValue(rInput, dispatchR);
+      jump.requestSubmit();
+
+      const mapFocused = await waitFor(() => (
+        !document.querySelector('.realm-cell-navigator__dialog')
+        && document.activeElement === realm
+      ));
+      if (!mapFocused) return { stage: 'worker-map-focus' };
+      realm.dispatchEvent(new KeyboardEvent('keydown', {
+        bubbles: true,
+        cancelable: true,
+        key: 'Enter'
+      }));
+
+      const nodeDispatch = await waitFor(() => document.querySelector(
+        '.realm-node-worker-dispatch'
+      ));
+      const sendWorker = [...(nodeDispatch?.querySelectorAll('button') ?? [])].find(
+        (button) => button instanceof HTMLButtonElement && !button.disabled
+      );
+      if (!(sendWorker instanceof HTMLButtonElement)) {
+        return { stage: 'worker-map-dispatch' };
+      }
+      sendWorker.click();
       const deployed = await waitFor(() => (
         document.querySelector('[data-local-fullstack-deployed-workers="1"]')
       ));
@@ -292,7 +362,9 @@ async function exerciseLocalFullstackJourney(session) {
       }
 
       let recall = await waitFor(() => {
-        const inspectionRecall = buttonWithText('RETURN TO KEEP');
+        const inspectionRecall = document.querySelector(
+          '.realm-resource-occupant-details__recall, .worker-inspection__recall'
+        );
         const rosterRecall = document.querySelector(
           '.worker-command-center__recall'
         );
@@ -338,8 +410,9 @@ async function exerciseLocalFullstackJourney(session) {
         });
       }
       if (!(recall instanceof HTMLButtonElement)) {
-        const candidate = buttonWithText('RETURN TO KEEP')
-          ?? document.querySelector('.worker-command-center__recall');
+        const candidate = document.querySelector(
+          '.realm-resource-occupant-details__recall, .worker-inspection__recall, .worker-command-center__recall'
+        );
         return {
           stage: candidate instanceof HTMLButtonElement
             ? 'worker-recall-disabled'

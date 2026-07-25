@@ -127,21 +127,37 @@ export function RealmResourceOccupantMarkers({
       >
         {presenceMarkers.map((marker) => {
           const key = realmResourceOccupantMarkerKey(marker);
+          const reservedForGenericWorker = marker.source === 'generic-worker'
+            && marker.workerPhase === 'outbound';
           return (
             <span
-              className="realm-resource-occupant-presence"
+              className={[
+                'realm-resource-occupant-presence',
+                reservedForGenericWorker
+                  ? 'realm-resource-occupant-presence--reserved'
+                  : ''
+              ].filter(Boolean).join(' ')}
               data-projected-visible="false"
               data-resource-kind={marker.resource}
               data-resource-occupant-key={key}
               data-resource-occupant-lane="presence"
               key={`presence:${key}`}
-              title={`Open ${castleProfileLabel(marker.profile)} at ${RESOURCE_KIND_LABELS[marker.resource]}`}
+              title={reservedForGenericWorker
+                ? `Reserved ${RESOURCE_KIND_LABELS[marker.resource]} · worker en route`
+                : `Open ${castleProfileLabel(marker.profile)} at ${RESOURCE_KIND_LABELS[marker.resource]}`}
               style={{
                 '--realm-resource-marker-x': '0px',
                 '--realm-resource-marker-y': '0px'
               } as CSSProperties}
             >
-              <CastleProfileAvatar profile={marker.profile} size="compact" />
+              {reservedForGenericWorker ? (
+                <>
+                  <strong>RESERVED</strong>
+                  <span>WORKER EN ROUTE</span>
+                </>
+              ) : (
+                <CastleProfileAvatar profile={marker.profile} size="compact" />
+              )}
             </span>
           );
         })}
@@ -158,6 +174,8 @@ export function RealmResourceOccupantMarkers({
         {visibleMarkers.map((marker) => {
           const key = realmResourceOccupantMarkerKey(marker);
           const playerLabel = castleProfileLabel(marker.profile);
+          const reservedForGenericWorker = marker.source === 'generic-worker'
+            && marker.workerPhase === 'outbound';
           const ownershipLabel = marker.occupiedByViewer
             ? marker.source === 'generic-worker' ? 'YOUR WORKER' : 'YOUR EXPEDITION'
             : playerLabel;
@@ -166,8 +184,15 @@ export function RealmResourceOccupantMarkers({
             : `${playerLabel} gathering at ${RESOURCE_KIND_LABELS[marker.resource]}`;
           return (
             <button
-              aria-label={`Inspect ${actionLabel}, cell ${marker.nodeCoord.q},${marker.nodeCoord.r}`}
-              className="realm-resource-occupant-marker"
+              aria-label={reservedForGenericWorker
+                ? `Inspect reserved ${RESOURCE_KIND_LABELS[marker.resource]}, worker en route, cell ${marker.nodeCoord.q},${marker.nodeCoord.r}`
+                : `Inspect ${actionLabel}, cell ${marker.nodeCoord.q},${marker.nodeCoord.r}`}
+              className={[
+                'realm-resource-occupant-marker',
+                reservedForGenericWorker
+                  ? 'realm-resource-occupant-marker--reserved'
+                  : ''
+              ].filter(Boolean).join(' ')}
               data-occupied-by-viewer={marker.occupiedByViewer ? 'true' : 'false'}
               data-resource-occupant-key={key}
               data-resource-kind={marker.resource}
@@ -202,13 +227,15 @@ export function RealmResourceOccupantMarkers({
               tabIndex={rovingKey === key ? 0 : -1}
               type="button"
             >
-              <CastleProfileAvatar profile={marker.profile} size="compact" />
+              {reservedForGenericWorker ? null : (
+                <CastleProfileAvatar profile={marker.profile} size="compact" />
+              )}
               <span aria-hidden="true" className="realm-resource-occupant-marker__ring" />
               <span className="realm-resource-occupant-marker__kind" aria-hidden="true">
                 {marker.resource === 'gold' ? 'G' : marker.resource === 'food' ? 'F' : marker.resource === 'wood' ? 'W' : 'S'}
               </span>
               <span className="realm-resource-occupant-marker__owner" title={ownershipLabel}>
-                {ownershipLabel}
+                {reservedForGenericWorker ? 'RESERVED · WORKER EN ROUTE' : ownershipLabel}
               </span>
             </button>
           );
