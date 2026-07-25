@@ -1,20 +1,24 @@
 name: Deploy GitHub Pages
 
 on:
-  push:
+  workflow_run:
+    workflows: [Verify]
+    types: [completed]
     branches: [main]
-  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: pages-${{ github.ref }}
+  group: pages-main
   cancel-in-progress: true
 
 jobs:
   build:
-    if: github.ref == 'refs/heads/main'
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -23,10 +27,10 @@ jobs:
     env:
       DEPLOY_BASE: '/'
       VITE_WARPKEEP_RELEASE_CHANNEL: alpha
-      VITE_WARPKEEP_BUILD_SHA: ${{ github.sha }}
+      VITE_WARPKEEP_BUILD_SHA: ${{ github.event.workflow_run.head_sha }}
       VITE_WARPKEEP_REPOSITORY_URL: https://github.com/ael-dev3/Warpkeep
       VITE_WARPKEEP_CANONICAL_ORIGIN: https://warpkeep.com
-      VITE_WARPKEEP_SHARED_ALPHA_ENABLED: ${{ vars.WARPKEEP_SHARED_ALPHA_ENABLED || 'false' }}
+      VITE_WARPKEEP_SHARED_ALPHA_ENABLED: ${{ vars.WARPKEEP_SHARED_ALPHA_ENABLED }}
       VITE_WARPKEEP_AUTH_BRIDGE_URL: ${{ vars.WARPKEEP_AUTH_BRIDGE_URL || '' }}
       VITE_WARPKEEP_OIDC_ISSUER: ${{ vars.WARPKEEP_OIDC_ISSUER || '' }}
       VITE_WARPKEEP_OIDC_AUDIENCE: ${{ vars.WARPKEEP_OIDC_AUDIENCE || 'warpkeep-spacetimedb' }}
@@ -35,9 +39,37 @@ jobs:
       # a mutable repository variable. This is the immutable Maincloud identity.
       VITE_SPACETIMEDB_DATABASE: c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e
     steps:
+      - name: Confirm verified SHA remains current main
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WARPKEEP_VERIFIED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          current_main="$(
+            gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha'
+          )"
+          if [[ ! "$current_main" =~ ^[0-9a-f]{40}$ ]] || [[ "$current_main" != "$WARPKEEP_VERIFIED_SHA" ]]; then
+            echo 'Verified workflow head is no longer the current main commit.' >&2
+            exit 1
+          fi
+
+      - name: Validate exact live auth verification mode
+        env:
+          VITE_WARPKEEP_SHARED_ALPHA_ENABLED: ${{ vars.WARPKEEP_SHARED_ALPHA_ENABLED }}
+        run: |
+          case "$VITE_WARPKEEP_SHARED_ALPHA_ENABLED" in
+            true | false) ;;
+            *)
+              echo 'WARPKEEP_SHARED_ALPHA_ENABLED must be exactly true or false.' >&2
+              exit 1
+              ;;
+          esac
+
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          ref: ${{ github.event.workflow_run.head_sha }}
           persist-credentials: false
 
       - name: Setup Node
@@ -84,7 +116,6 @@ jobs:
           path: ./dist
 
   deploy:
-    if: github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -96,6 +127,68 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Confirm artifact SHA remains current main
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WARPKEEP_VERIFIED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          current_main="$(
+            gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha'
+          )"
+          if [[ ! "$current_main" =~ ^[0-9a-f]{40}$ ]] || [[ "$current_main" != "$WARPKEEP_VERIFIED_SHA" ]]; then
+            echo 'Built artifact is no longer the current main commit.' >&2
+            exit 1
+          fi
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
+
+  verify-live:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      WARPKEEP_EXPECTED_DEPLOYED_SHA: ${{ github.event.workflow_run.head_sha }}
+      VITE_WARPKEEP_SHARED_ALPHA_ENABLED: ${{ vars.WARPKEEP_SHARED_ALPHA_ENABLED }}
+    steps:
+      - name: Checkout exact deployed source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Verify exact live release
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$VITE_WARPKEEP_SHARED_ALPHA_ENABLED" in
+            true) verification_mode='--require-auth-v2-enabled' ;;
+            false) verification_mode='--require-auth-v2' ;;
+            *)
+              echo 'WARPKEEP_SHARED_ALPHA_ENABLED must be exactly true or false.' >&2
+              exit 1
+              ;;
+          esac
+
+          maximum_attempts=4
+          attempt=1
+          until node scripts/verify-alpha-production.mjs "$verification_mode"; do
+            if (( attempt >= maximum_attempts )); then
+              echo "Live verification failed after ${maximum_attempts} bounded attempts." >&2
+              exit 1
+            fi
+            sleep_seconds=$((attempt * 5))
+            echo "Live release has not converged; retrying in ${sleep_seconds}s." >&2
+            sleep "$sleep_seconds"
+            attempt=$((attempt + 1))
+          done

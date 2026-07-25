@@ -317,6 +317,24 @@ describe('disposable connected local QA dependency and network boundaries', () =
       ).toBe(false);
     }
   });
+
+  it('exercises worker dispatch through the map-first resource inspector', () => {
+    const browserSource = readFileSync(
+      resolve(process.cwd(), 'scripts/qa-observer/local-fullstack-browser-probe.mjs'),
+      'utf8'
+    );
+    const appSource = readFileSync(
+      resolve(process.cwd(), 'src/dev/FullstackLocalQaApp.tsx'),
+      'utf8'
+    );
+
+    expect(browserSource).toContain("'.realm-node-worker-dispatch'");
+    expect(browserSource).toContain("'.realm-cell-navigator__jump'");
+    expect(browserSource).not.toContain("workerPanel.querySelector('select')");
+    expect(browserSource).not.toContain("buttonWithText('ASSIGN WORKER'");
+    expect(appSource).toContain('data-local-fullstack-dispatch-q');
+    expect(appSource).toContain('data-local-fullstack-dispatch-r');
+  });
 });
 
 describe('disposable connected local QA cleanup lifecycle', () => {

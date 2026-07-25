@@ -1,0 +1,92 @@
+.realm-worker-presence-markers {
+  position: absolute;
+  z-index: 6;
+  inset: 0;
+  pointer-events: none;
+}
+
+.realm-worker-presence-marker {
+  --realm-worker-presence-size: 42px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: grid;
+  width: var(--realm-worker-presence-size);
+  height: var(--realm-worker-presence-size);
+  padding: 0;
+  border: 2px solid rgb(255 246 211 / 92%);
+  border-radius: 50%;
+  background: rgb(17 11 25 / 88%);
+  box-shadow:
+    0 0.28rem 0.72rem rgb(0 0 0 / 44%),
+    0 0 0 2px rgb(74 38 95 / 72%),
+    0 0 0.9rem rgb(232 180 82 / 28%);
+  opacity: 0.96;
+  transform: translate3d(
+    var(--realm-worker-presence-x),
+    var(--realm-worker-presence-y),
+    0
+  ) translate(-50%, -100%);
+  pointer-events: auto;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: filter 140ms ease, opacity 140ms ease;
+}
+
+.realm-worker-presence-marker[data-projected-visible="false"] {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.realm-worker-presence-marker:is(:hover, :focus-visible) {
+  z-index: 2;
+  filter: brightness(1.14);
+  outline: 2px solid var(--realm-electrum);
+  outline-offset: 3px;
+}
+
+.realm-worker-presence-marker .realm-castle-avatar {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  box-shadow: none;
+}
+
+.realm-worker-presence-marker__route-ring {
+  position: absolute;
+  inset: -6px;
+  border: 1px dashed rgb(239 211 137 / 76%);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.realm-worker-presence-marker__phase {
+  position: absolute;
+  top: calc(100% + 0.28rem);
+  left: 50%;
+  padding: 0.2rem 0.38rem;
+  border: 1px solid rgb(255 246 211 / 40%);
+  border-radius: 999px;
+  background: rgb(17 11 25 / 88%);
+  color: var(--realm-ivory);
+  font-size: 0.5rem;
+  font-weight: 800;
+  letter-spacing: 0.055em;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.realm-worker-presence-marker:is(:hover, :focus-visible) .realm-worker-presence-marker__phase,
+.realm-worker-presence-marker[data-owned-by-viewer="true"] .realm-worker-presence-marker__phase {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .realm-worker-presence-marker {
+    transition: none;
+  }
+}

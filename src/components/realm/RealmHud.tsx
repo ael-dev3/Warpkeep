@@ -39,7 +39,6 @@ import { WorkerCommandCenter } from './WorkerCommandCenter';
 import { WorkerInspectionPanel } from './WorkerInspectionPanel';
 import {
   realmWorkerCanRecall,
-  type RealmWorkerDestinationPresentation,
   type ReadyWorkerProjection,
   type ReadyWorkerResourceState,
   type WorkerRosterPresentation
@@ -68,11 +67,7 @@ type RealmHudProps = Readonly<{
   workerProjection?: ReadyWorkerProjection;
   workerRoster?: WorkerRosterPresentation;
   workerResourceState?: ReadyWorkerResourceState;
-  workerDestinations?: readonly RealmWorkerDestinationPresentation[];
-  onDispatchWorker?: (
-    workerId: string,
-    destination: RealmWorkerDestinationPresentation
-  ) => Promise<void>;
+  onLocateWorker?: (workerId: string) => void;
   onRecallWorker?: (workerId: string) => Promise<void>;
   onRecallAllWorkers?: () => Promise<void>;
   onRecenterKeep: () => void;
@@ -229,7 +224,6 @@ function RealmResourceRail({
   return (
     <section
       aria-label="Your resources"
-      aria-live="polite"
       className="realm-resource-rail"
       data-policy={resources.resourcePolicyVersion}
       data-tooltip-open={activeTooltip ?? undefined}
@@ -526,8 +520,7 @@ export function RealmHud({
   workerProjection,
   workerRoster,
   workerResourceState,
-  workerDestinations = [],
-  onDispatchWorker,
+  onLocateWorker,
   onRecallWorker,
   onRecallAllWorkers,
   onRecenterKeep,
@@ -757,9 +750,9 @@ export function RealmHud({
       ) : null}
       {genericWorkersActive && selectedWorker && surface === 'worker-inspection' ? (
         <WorkerInspectionPanel
-          destinations={workerDestinations}
           id={REALM_WORKER_INSPECTION_ID}
-          onDispatchWorker={onDispatchWorker}
+          keeperProfile={ownProfile}
+          onLocateWorker={onLocateWorker}
           onRecallWorker={onRecallWorker}
           onRequestClose={() => setSurface('workers')}
           worker={selectedWorker}

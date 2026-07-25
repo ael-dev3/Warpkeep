@@ -62,6 +62,20 @@ const mocked = vi.hoisted(() => {
         visible: boolean;
       }[];
     }) => void;
+    onWorkerProjection?: (frame: {
+      width: number;
+      height: number;
+      markers: readonly {
+        workerId: string;
+        workerOrdinal: number;
+        originCastleId: number;
+        x: number;
+        y: number;
+        depth: number;
+        visible: boolean;
+        phase: 'outbound' | 'returning';
+      }[];
+    }) => void;
     onTargetHover?: (target: {
       kind: 'castle' | 'terrain' | 'worker';
       castleId?: number;
@@ -71,8 +85,11 @@ const mocked = vi.hoisted(() => {
       coord: { q: number; r: number };
     } | null) => void;
     onTargetSelect?: (target: {
-      kind: 'castle' | 'terrain' | 'gold-site' | 'food-site' | 'wood-site' | 'stone-site';
+      kind: 'castle' | 'terrain' | 'worker' | 'gold-site' | 'food-site' | 'wood-site' | 'stone-site';
       castleId?: number;
+      workerId?: string;
+      workerOrdinal?: number;
+      originCastleId?: number;
       siteId?: string;
       source?: 'site' | 'wagon';
       coord: { q: number; r: number };
@@ -82,6 +99,8 @@ const mocked = vi.hoisted(() => {
     dispose: ReturnType<typeof vi.fn>;
     focusCastle: ReturnType<typeof vi.fn>;
     locateCastle: ReturnType<typeof vi.fn>;
+    locateWorker: ReturnType<typeof vi.fn>;
+    getWorkerCurrentCoord: ReturnType<typeof vi.fn>;
     focusCell: ReturnType<typeof vi.fn>;
     frameFoundingDistrict: ReturnType<typeof vi.fn>;
     focusKeep: ReturnType<typeof vi.fn>;
@@ -91,6 +110,7 @@ const mocked = vi.hoisted(() => {
     setPresentedCastleIds: ReturnType<typeof vi.fn>;
     setSelected: ReturnType<typeof vi.fn>;
     setSelectedCastleId: ReturnType<typeof vi.fn>;
+    setSelectedWorkerRouteId: ReturnType<typeof vi.fn>;
     setComposition: ReturnType<typeof vi.fn>;
     showRealm: ReturnType<typeof vi.fn>;
   }> = [];
@@ -99,6 +119,8 @@ const mocked = vi.hoisted(() => {
       dispose: vi.fn(),
       focusCastle: vi.fn(),
       locateCastle: vi.fn(),
+      locateWorker: vi.fn(() => ({ q: 1, r: 0 })),
+      getWorkerCurrentCoord: vi.fn(() => ({ q: 1, r: 0 })),
       focusCell: vi.fn(),
       frameFoundingDistrict: vi.fn(),
       focusKeep: vi.fn(),
@@ -108,6 +130,7 @@ const mocked = vi.hoisted(() => {
       setPresentedCastleIds: vi.fn(),
       setSelected: vi.fn(),
       setSelectedCastleId: vi.fn(),
+      setSelectedWorkerRouteId: vi.fn(),
       setComposition: vi.fn(),
       showRealm: vi.fn()
     };
@@ -139,6 +162,8 @@ import type { ReadyFoodExpeditionPresentation } from '../src/components/realm/re
 import {
   CASTLE_WORKER_POLICY_VERSION,
   CASTLE_WORKER_REALM_ID,
+  resolveReadyPublicWorkerProjection,
+  type ReadyWorkerProjection,
   workerRosterDigestForCastleIds
 } from '../src/components/realm/realmWorkerPresentation';
 import { createRenderedWebglQaFixtureRealm } from '../src/dev/renderedWebglQaFixture';
@@ -361,7 +386,10 @@ function activePeerFoodWagonSnapshot(options: Readonly<{
   return { site, snapshot };
 }
 
-function workerOccupationRealm(activeOwner: 'peer' | 'viewer') {
+function workerOccupationRealm(
+  activeOwner: 'peer' | 'viewer',
+  activePhase: 'outbound' | 'gathering' = 'gathering'
+) {
   const candidate = createCanonicalGenesisCandidate({
     ownFid: CANONICAL_TEST_FID,
     peerFid: 77
@@ -373,14 +401,14 @@ function workerOccupationRealm(activeOwner: 'peer' | 'viewer') {
   if (!activeCastle) throw new Error('missing canonical active worker castle fixture');
   const workers = candidate.castles.flatMap((castle) => (
     ([1, 2, 3, 4] as const).map((ordinal) => {
-      const gathering = castle.castleId === activeCastle.castleId && ordinal === 1;
+      const assigned = castle.castleId === activeCastle.castleId && ordinal === 1;
       return Object.freeze({
         workerId: `genesis-001-castle-${castle.castleId}-worker-${String(ordinal).padStart(2, '0')}`,
         ordinal,
         originCastleId: castle.castleId,
         originCastleName: castle.name,
-        status: gathering ? 'gathering' as const : 'idle' as const,
-        ...(gathering ? {
+        status: assigned ? activePhase : 'idle' as const,
+        ...(assigned ? {
           resourceKind: 'stone' as const,
           siteId: site.siteId,
           startedAtMicros: 10n,
@@ -389,8 +417,8 @@ function workerOccupationRealm(activeOwner: 'peer' | 'viewer') {
           returnsAtMicros: 40n,
           routeSteps: 10
         } : {}),
-        timelineRevision: gathering ? 1 : 0,
-        revision: gathering ? 1n : 0n,
+        timelineRevision: assigned ? 1 : 0,
+        revision: assigned ? 1n : 0n,
         ownedByViewer: castle.castleId === candidate.ownCastle?.castleId
       });
     })
@@ -398,7 +426,7 @@ function workerOccupationRealm(activeOwner: 'peer' | 'viewer') {
   const activeWorker = workers.find((worker) => (
     worker.originCastleId === activeCastle.castleId && worker.ordinal === 1
   ));
-  if (!activeWorker || activeWorker.status !== 'gathering') {
+  if (!activeWorker || activeWorker.status !== activePhase) {
     throw new Error('missing active worker fixture');
   }
   const snapshot = validate({
@@ -432,18 +460,33 @@ function workerOccupationRealm(activeOwner: 'peer' | 'viewer') {
       workerId: activeWorker.workerId,
       workerOrdinal: activeWorker.ordinal,
       originCastleId: activeWorker.originCastleId,
-      phase: 'gathering',
+      phase: activePhase,
       startedAtMicros: 10n,
       arrivesAtMicros: 20n,
       gatheringEndsAtMicros: 30n,
       timelineRevision: activeWorker.timelineRevision
     }]
   });
-  return { activeWorker, site, snapshot };
+  const publicProjection = resolveReadyPublicWorkerProjection({
+    realmId: snapshot.realm.realmId,
+    castleIds: snapshot.castles.map((castle) => castle.castleId),
+    ownCastleId: snapshot.ownCastle.castleId,
+    system: snapshot.workerSystem,
+    workers: snapshot.workerWorkers,
+    occupations: snapshot.workerOccupations
+  });
+  if (!publicProjection) throw new Error('missing ready public worker fixture projection');
+  const workerProjection: ReadyWorkerProjection = Object.freeze({
+    ...publicProjection,
+    ownedWorkers: Object.freeze(publicProjection.workers.filter(
+      (worker) => worker.ownedByViewer
+    ))
+  });
+  return { activeWorker, site, snapshot, workerProjection };
 }
 
-function peerWorkerOccupationRealm() {
-  return workerOccupationRealm('peer');
+function peerWorkerOccupationRealm(activePhase: 'outbound' | 'gathering' = 'gathering') {
+  return workerOccupationRealm('peer', activePhase);
 }
 
 function viewerWorkerOccupationRealm() {
@@ -928,6 +971,7 @@ describe('live realm quality recreation', () => {
       <RealmMapScreen
         identity={IDENTITY}
         snapshot={fixture.snapshot}
+        workerProjection={fixture.workerProjection}
         onRequestReturn={vi.fn()}
         qualityOverride="balanced"
       />
@@ -1462,6 +1506,166 @@ describe('live realm quality recreation', () => {
     expect(onRequestReturn).toHaveBeenCalledOnce();
   });
 
+  it('routes every outbound worker activation to its one canonical resource record', () => {
+    installWebGlProbe();
+    const fixture = peerWorkerOccupationRealm('outbound');
+    render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={fixture.snapshot}
+        workerProjection={fixture.workerProjection}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+
+    const options = mocked.createRealmScene.mock.calls[0]![0];
+    const scene = mocked.handles[0]!;
+    act(() => options.onCastlesReady?.(2));
+
+    act(() => options.onTargetSelect?.({
+      kind: 'worker',
+      workerId: fixture.activeWorker.workerId,
+      workerOrdinal: fixture.activeWorker.ordinal,
+      originCastleId: fixture.activeWorker.originCastleId,
+      coord: { q: 1, r: 0 }
+    }));
+    expect(screen.getByRole('dialog', { name: 'Stone Quarry' })
+      .querySelector('[data-resource-occupant-details="true"]')).not.toBeNull();
+    expect(document.querySelector('.worker-inspection')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'CLOSE STONE QUARRY RECORD' }));
+
+    act(() => options.onWorkerProjection?.({
+      width: 1_200,
+      height: 800,
+      markers: [{
+        workerId: fixture.activeWorker.workerId,
+        workerOrdinal: fixture.activeWorker.ordinal,
+        originCastleId: fixture.activeWorker.originCastleId,
+        x: 600,
+        y: 400,
+        depth: 4,
+        visible: true,
+        phase: 'outbound'
+      }]
+    }));
+    fireEvent.click(screen.getByRole('button', {
+      name: '@peerkeeper, Worker 1, travelling to a resource node'
+    }));
+    expect(screen.getByRole('dialog', { name: 'Stone Quarry' })
+      .querySelector('[data-resource-occupant-details="true"]')).not.toBeNull();
+    expect(scene.getWorkerCurrentCoord).not.toHaveBeenCalled();
+    expect(document.querySelector('.worker-inspection')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'CLOSE STONE QUARRY RECORD' }));
+
+    const { explore } = openPlayerExplore();
+    fireEvent.click(within(explore).getByRole('button', {
+      name: new RegExp(
+        `Inspect worker 1, ${fixture.activeWorker.originCastleName}, outbound, current route position`,
+        'i'
+      )
+    }));
+    expect(screen.getByRole('dialog', { name: 'Stone Quarry' })
+      .querySelector('[data-resource-occupant-details="true"]')).not.toBeNull();
+    expect(scene.locateWorker).not.toHaveBeenCalled();
+    expect(document.querySelector('.worker-inspection')).toBeNull();
+  });
+
+  it('restores an occupied worker route highlight when the scene is recreated', () => {
+    installWebGlProbe();
+    const fixture = peerWorkerOccupationRealm('outbound');
+    const { rerender } = render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={fixture.snapshot}
+        workerProjection={fixture.workerProjection}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+
+    const firstOptions = mocked.createRealmScene.mock.calls[0]![0];
+    act(() => {
+      firstOptions.onCastlesReady?.(2);
+      firstOptions.onTargetSelect?.({
+        kind: 'worker',
+        workerId: fixture.activeWorker.workerId,
+        workerOrdinal: fixture.activeWorker.ordinal,
+        originCastleId: fixture.activeWorker.originCastleId,
+        coord: { q: 1, r: 0 }
+      });
+    });
+    expect(mocked.handles[0]!.setSelectedWorkerRouteId)
+      .toHaveBeenLastCalledWith(fixture.activeWorker.workerId);
+    expect(screen.getByRole('dialog', { name: 'Stone Quarry' })).not.toBeNull();
+
+    rerender(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={fixture.snapshot}
+        workerProjection={fixture.workerProjection}
+        onRequestReturn={vi.fn()}
+        qualityOverride="high"
+      />
+    );
+
+    expect(mocked.createRealmScene).toHaveBeenCalledTimes(2);
+    expect(mocked.handles[0]!.dispose).toHaveBeenCalledOnce();
+    expect(mocked.handles[1]!.setSelectedWorkerRouteId)
+      .toHaveBeenLastCalledWith(fixture.activeWorker.workerId);
+    act(() => mocked.createRealmScene.mock.calls[1]![0].onCastlesReady?.(2));
+    expect(screen.getByRole('dialog', { name: 'Stone Quarry' })).not.toBeNull();
+  });
+
+  it('locates each worker keeper from the portrait without changing to focus-camera mode', () => {
+    installWebGlProbe();
+    const fixture = peerWorkerOccupationRealm('outbound');
+    const idleWorkers = fixture.workerProjection.workers.filter(
+      (worker) => worker.status === 'idle'
+    );
+    const ownWorker = idleWorkers.find((worker) => worker.ownedByViewer);
+    const peerWorker = idleWorkers.find((worker) => !worker.ownedByViewer);
+    if (!ownWorker || !peerWorker) throw new Error('missing idle keeper workers');
+    render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={fixture.snapshot}
+        workerProjection={fixture.workerProjection}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+
+    const options = mocked.createRealmScene.mock.calls[0]![0];
+    const scene = mocked.handles[0]!;
+    act(() => options.onCastlesReady?.(2));
+    for (const worker of [ownWorker, peerWorker]) {
+      const castle = fixture.snapshot.castles.find(
+        (candidate) => candidate.castleId === worker.originCastleId
+      );
+      if (!castle) throw new Error('missing worker origin castle');
+      act(() => options.onTargetSelect?.({
+        kind: 'worker',
+        workerId: worker.workerId,
+        workerOrdinal: worker.ordinal,
+        originCastleId: worker.originCastleId,
+        coord: { q: castle.q, r: castle.r }
+      }));
+      const dialog = screen.getByRole('dialog', {
+        name: `Worker ${worker.ordinal}`
+      });
+      fireEvent.click(within(dialog).getByRole('button', {
+        name: /^Locate .*'s keep$/i
+      }));
+      expect(scene.locateCastle).toHaveBeenLastCalledWith(worker.originCastleId);
+      expect(scene.focusCastle).not.toHaveBeenCalled();
+      fireEvent.click(within(dialog).getByRole('button', {
+        name: 'Back to workers'
+      }));
+    }
+    expect(scene.locateWorker).not.toHaveBeenCalled();
+  });
+
   it('never revives legacy dispatch on an unoccupied node in active generic mode', () => {
     installWebGlProbe();
     const fixture = peerWorkerOccupationRealm();
@@ -1531,6 +1735,17 @@ describe('live realm quality recreation', () => {
     expect(within(dialog).getByText(/not presented as available/i)).not.toBeNull();
     expect(within(dialog).queryByRole('button', { name: /dispatch wagon/i })).toBeNull();
     expect(dispatch).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'CLOSE STONE QUARRY RECORD' }));
+    act(() => options.onTargetSelect?.({
+      kind: 'worker',
+      workerId: fixture.activeWorker.workerId,
+      workerOrdinal: fixture.activeWorker.ordinal,
+      originCastleId: fixture.activeWorker.originCastleId,
+      coord: { q: 1, r: 0 }
+    }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.querySelector('.worker-inspection')).toBeNull();
   });
 
   it('opens every Food resource path without a camera jump', () => {

@@ -27,6 +27,7 @@ function renderFallbackRealm(
     identity?: RealmIdentity;
     snapshot?: CanonicalWarpkeepRealmSnapshot;
     onRequestReturn?: () => void;
+    presentationMode?: 'player' | 'observer';
     resources?: ReturnType<typeof createReadyResourceState>;
   }> = {}
 ) {
@@ -37,6 +38,7 @@ function renderFallbackRealm(
       identity={identity}
       snapshot={options.snapshot ?? createCanonicalGenesisSnapshot(CANONICAL_TEST_FID)}
       onRequestReturn={options.onRequestReturn ?? vi.fn()}
+      presentationMode={options.presentationMode}
       resources={options.resources ?? createReadyResourceState(identity.fid)}
     />
   );
@@ -77,6 +79,29 @@ afterEach(() => {
 });
 
 describe('RealmMapScreen', () => {
+  it('describes the exact player and observer map keyboard contracts', () => {
+    const playerView = renderFallbackRealm();
+    const playerRealm = screen.getByRole('main', { name: 'Hegemony realm' });
+    const playerInstructions = document.getElementById(
+      playerRealm.getAttribute('aria-describedby') ?? ''
+    );
+    expect(playerInstructions?.classList.contains('warpkeep-visually-hidden')).toBe(true);
+    expect(playerInstructions?.textContent).toBe(
+      'Use the arrow keys to move the selected cell. Press Enter or Space to inspect the selected castle, resource, or water cell. Press Home to return to your keep. Press Escape to close the current panel or return to the menu.'
+    );
+
+    playerView.unmount();
+    renderFallbackRealm({ presentationMode: 'observer' });
+    const observerRealm = screen.getByRole('main', { name: 'Hegemony realm QA observer' });
+    const observerInstructions = document.getElementById(
+      observerRealm.getAttribute('aria-describedby') ?? ''
+    );
+    expect(observerInstructions?.classList.contains('warpkeep-visually-hidden')).toBe(true);
+    expect(observerInstructions?.textContent).toBe(
+      'Use the arrow keys to move the selected cell. Press Enter or Space to inspect the selected castle, resource, or water cell. Press Home to show the whole realm. Press Escape to close the current panel or exit the observer.'
+    );
+  });
+
   it('reserves a camera-neutral record from labels without moving the camera viewport', () => {
     const root = document.createElement('main');
     const waterInspector = document.createElement('aside');

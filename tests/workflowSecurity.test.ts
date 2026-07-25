@@ -41,17 +41,99 @@ describe('GitHub workflow security policy', () => {
     expect(source).not.toContain('enablement: true');
   });
 
-  it('refuses a manually dispatched Pages deployment from any non-main ref', () => {
+  it('deploys Pages only after successful Verify completion for a main push', () => {
     const source = workflow('deploy-pages.yml');
+    const trigger = source.slice(source.indexOf('on:'), source.indexOf('permissions:'));
     const build = source.slice(source.indexOf('  build:'), source.indexOf('  deploy:'));
-    const deploy = source.slice(source.indexOf('  deploy:'));
-    const mainRefGuard = /^\s+if:\s*github\.ref\s*==\s*'refs\/heads\/main'\s*$/m;
-
-    expect(source).toMatch(/^\s*workflow_dispatch:\s*$/m);
-    expect(build).toMatch(mainRefGuard);
-    expect(deploy).toMatch(mainRefGuard);
-    expect(source).toContain('group: pages-${{ github.ref }}');
+    const deploy = source.slice(
+      source.indexOf('  deploy:'),
+      source.indexOf('  verify-live:')
+    );
+    expect(trigger).toMatch(/^\s+workflow_run:\s*$/m);
+    expect(trigger).toMatch(/^\s+workflows:\s*\[Verify\]\s*$/m);
+    expect(trigger).toMatch(/^\s+types:\s*\[completed\]\s*$/m);
+    expect(trigger).toMatch(/^\s+branches:\s*\[main\]\s*$/m);
+    expect(trigger).not.toMatch(/^\s+push:\s*$/m);
+    expect(trigger).not.toMatch(/^\s+workflow_dispatch:\s*$/m);
+    expect(build).toContain("github.event.workflow_run.conclusion == 'success'");
+    expect(build).toContain("github.event.workflow_run.event == 'push'");
+    expect(build).toContain("github.event.workflow_run.head_branch == 'main'");
+    expect(build).toContain(
+      'WARPKEEP_VERIFIED_SHA: ${{ github.event.workflow_run.head_sha }}',
+    );
+    expect(build).toContain(
+      'gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq \'.object.sha\'',
+    );
+    expect(build).toContain(
+      '[[ "$current_main" != "$WARPKEEP_VERIFIED_SHA" ]]',
+    );
+    expect(deploy).toContain(
+      'WARPKEEP_VERIFIED_SHA: ${{ github.event.workflow_run.head_sha }}',
+    );
+    expect(deploy).toContain(
+      'gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq \'.object.sha\'',
+    );
+    expect(deploy).toContain(
+      '[[ "$current_main" != "$WARPKEEP_VERIFIED_SHA" ]]',
+    );
+    expect(deploy.indexOf('Confirm artifact SHA remains current main')).toBeLessThan(
+      deploy.indexOf('actions/deploy-pages@'),
+    );
+    expect(build).toContain(
+      'VITE_WARPKEEP_SHARED_ALPHA_ENABLED: ${{ vars.WARPKEEP_SHARED_ALPHA_ENABLED }}',
+    );
+    expect(build).toContain('true | false) ;;');
+    expect(build).toContain(
+      'WARPKEEP_SHARED_ALPHA_ENABLED must be exactly true or false.',
+    );
+    expect(source).toContain('group: pages-main');
     expect(source).not.toMatch(/^\s+group:\s*pages\s*$/m);
+  });
+
+  it('builds and verifies the exact successful Verify head SHA', () => {
+    const source = workflow('deploy-pages.yml');
+    const checkoutCount = (source.match(/actions\/checkout@/g) ?? []).length;
+    const exactRefCount = (
+      source.match(/ref:\s*\$\{\{ github\.event\.workflow_run\.head_sha \}\}/g) ?? []
+    ).length;
+
+    expect(checkoutCount).toBe(2);
+    expect(exactRefCount).toBe(checkoutCount);
+    expect(source).toContain(
+      'VITE_WARPKEEP_BUILD_SHA: ${{ github.event.workflow_run.head_sha }}',
+    );
+    expect(source).toContain(
+      'WARPKEEP_EXPECTED_DEPLOYED_SHA: ${{ github.event.workflow_run.head_sha }}',
+    );
+    expect(source).not.toContain('${{ github.sha }}');
+  });
+
+  it('runs bounded read-only live verification and fails closed on auth mode ambiguity', () => {
+    const source = workflow('deploy-pages.yml');
+    const liveVerification = source.slice(source.indexOf('  verify-live:'));
+
+    expect(liveVerification).toContain('needs: deploy');
+    expect(liveVerification).toMatch(/^\s+contents:\s*read\s*$/m);
+    expect(liveVerification).not.toMatch(/^\s+pages:\s*write\s*$/m);
+    expect(liveVerification).not.toMatch(/^\s+id-token:\s*write\s*$/m);
+    expect(liveVerification).toContain(
+      'VITE_WARPKEEP_SHARED_ALPHA_ENABLED: ${{ vars.WARPKEEP_SHARED_ALPHA_ENABLED }}',
+    );
+    expect(liveVerification).toContain(
+      "true) verification_mode='--require-auth-v2-enabled'",
+    );
+    expect(liveVerification).toContain(
+      "false) verification_mode='--require-auth-v2'",
+    );
+    expect(liveVerification).toContain(
+      'WARPKEEP_SHARED_ALPHA_ENABLED must be exactly true or false.',
+    );
+    expect(liveVerification).toContain('maximum_attempts=4');
+    expect(liveVerification).toContain(
+      'node scripts/verify-alpha-production.mjs "$verification_mode"',
+    );
+    expect(liveVerification).not.toContain('WARPKEEP_ADMIN_TOKEN_SECRET');
+    expect(liveVerification).not.toMatch(/\b(?:curl|wget)\b/);
   });
 
   it('uses the reviewed Pages uploader with a SHA-pinned nested dependency', () => {

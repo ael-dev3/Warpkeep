@@ -8,7 +8,6 @@ import {
   decodeRealmWorkerSystem,
   decodeWorkerResourceState,
   decodeWorkerRoster,
-  resolveRealmWorkerDestinations,
   resolveReadyPublicWorkerProjection,
   resolveReadyWorkerProjection,
   workerAvailabilityCount,
@@ -129,7 +128,15 @@ function readyInputs() {
   const occupations = decodeRealmWorkerOccupations([occupation()])!;
   const roster = decodeWorkerRoster(privateRoster(), 42n)!;
   const resourceState = decodeWorkerResourceState(privateResources(), 42n)!;
-  return { castleIds, system, workers, occupations, roster, resourceState };
+  return {
+    castleIds,
+    expectedFid: 42n,
+    system,
+    workers,
+    occupations,
+    roster,
+    resourceState
+  };
 }
 
 function returningPublicRows(overrides: Readonly<Record<string, unknown>> = {}) {
@@ -164,34 +171,6 @@ function returningReadyInputs(overrides: Readonly<Record<string, unknown>> = {})
 }
 
 describe('generic worker presentation boundary', () => {
-  it('offers four distinct nodes of one resource type without a per-type cap', () => {
-    const nodes = [0, 1, 2, 3].map((index) => ({
-      siteId: `genesis-001:wood:${String(index + 1).padStart(4, '0')}`,
-      coord: { q: index, r: -index },
-      tier: 1,
-      availability: 'available'
-    }));
-    const destinations = resolveRealmWorkerDestinations({
-      resourceKind: 'wood',
-      resourceLabel: 'Logging Camp',
-      nodes,
-      occupiedNodeKeys: new Set()
-    });
-
-    expect(destinations).toHaveLength(4);
-    expect(new Set(destinations.map((destination) => destination.resourceKind))).toEqual(new Set(['wood']));
-    expect(new Set(destinations.map((destination) => destination.siteId)).size).toBe(4);
-
-    const afterOneLease = resolveRealmWorkerDestinations({
-      resourceKind: 'wood',
-      resourceLabel: 'Logging Camp',
-      nodes,
-      occupiedNodeKeys: new Set(['wood:genesis-001:wood:0001'])
-    });
-    expect(afterOneLease).toHaveLength(3);
-    expect(afterOneLease.map((destination) => destination.siteId)).not.toContain('genesis-001:wood:0001');
-  });
-
   it('requires the exact four-worker system contract and canonical digest encoding', () => {
     const digest = workerRosterDigestForCastleIds([8, 7]);
     expect(CASTLE_WORKER_POLICY_VERSION).toBe(SERVER_CASTLE_WORKER_POLICY_VERSION);
@@ -353,6 +332,7 @@ describe('generic worker presentation boundary', () => {
     expect(resolveReadyWorkerProjection({
       realmId: CASTLE_WORKER_REALM_ID,
       ownCastleId: 7,
+      expectedFid: 42n,
       castleIds: inputs.castleIds,
       system: inputs.system,
       workers: inputs.workers,
@@ -379,6 +359,9 @@ describe('generic worker presentation boundary', () => {
       }
     })).toBeUndefined();
     expect(resolve({ resourceState: decodeWorkerResourceState(privateResources(2n), 42n) })).toBeUndefined();
+    expect(resolve({
+      resourceState: { ...inputs.resourceState, fid: 43n }
+    })).toBeUndefined();
     expect(resolve({
       occupations: decodeRealmWorkerOccupations([occupation({ phase: 'outbound' })])
     })).toBeUndefined();

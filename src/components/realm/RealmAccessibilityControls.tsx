@@ -40,7 +40,8 @@ export type RealmNavigatorWorker = Readonly<{
   originCastleId: number;
   originCastleName: string;
   status: 'idle' | 'outbound' | 'gathering' | 'returning';
-  coord: HexCoord;
+  /** Idle keep location only; moving positions are resolved from the live scene on activation. */
+  coord?: HexCoord;
   ownedByViewer: boolean;
 }>;
 
@@ -169,7 +170,9 @@ export function RealmAccessibilityControls({
     const query = search.trim().toLocaleLowerCase();
     return query
       ? workers.filter((worker) => (
-        `worker ${worker.ordinal} ${worker.originCastleName} ${worker.status} ${worker.coord.q},${worker.coord.r}`
+        `worker ${worker.ordinal} ${worker.originCastleName} ${worker.status} ${
+          worker.coord ? `${worker.coord.q},${worker.coord.r}` : 'current route position'
+        }`
           .toLocaleLowerCase()
           .includes(query)
       ))
@@ -346,18 +349,25 @@ export function RealmAccessibilityControls({
               <ul className="realm-cell-navigator__castles" aria-label="Public workers">
                 {visibleWorkers.map((worker) => {
                   const selected = worker.workerId === selectedWorkerId;
+                  const locationLabel = worker.coord
+                    ? `q ${worker.coord.q}, r ${worker.coord.r}`
+                    : 'current route position';
                   return (
                     <li key={worker.workerId}>
                       <button
                         type="button"
-                        aria-label={`Inspect worker ${worker.ordinal}, ${worker.originCastleName}, ${worker.status}, q ${worker.coord.q}, r ${worker.coord.r}${worker.ownedByViewer ? ', your worker' : ''}${selected ? ', selected' : ''}`}
+                        aria-label={`Inspect worker ${worker.ordinal}, ${worker.originCastleName}, ${worker.status}, ${locationLabel}${worker.ownedByViewer ? ', your worker' : ''}${selected ? ', selected' : ''}`}
                         aria-pressed={selected}
                         data-own={worker.ownedByViewer ? 'true' : 'false'}
                         onClick={() => onActivateWorker(worker)}
                       >
                         <strong>Worker {worker.ordinal}</strong>
                         <span>{worker.originCastleName}</span>
-                        <small>{worker.status.toLocaleUpperCase()} · q {worker.coord.q} · r {worker.coord.r}</small>
+                        <small>
+                          {worker.status.toLocaleUpperCase()} · {worker.coord
+                            ? `q ${worker.coord.q} · r ${worker.coord.r}`
+                            : 'CURRENT ROUTE POSITION'}
+                        </small>
                         {worker.ownedByViewer ? <em>YOUR WORKER</em> : null}
                         {selected ? <em>SELECTED</em> : null}
                       </button>

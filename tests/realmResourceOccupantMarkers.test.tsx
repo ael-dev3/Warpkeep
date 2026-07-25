@@ -144,6 +144,32 @@ describe('resource occupant marker surface', () => {
     expect(document.querySelector('[data-resource-occupant-details="true"]')).toBeNull();
   });
 
+  it('shows an outbound generic lease as a compact reservation without duplicating the PFP', () => {
+    const outbound = marker('genesis-001:wood:reserved', {
+      workerPhase: 'outbound'
+    });
+    const key = 'wood:genesis-001:wood:reserved';
+    const { container } = render(
+      <RealmResourceOccupantMarkers
+        markers={[outbound]}
+        visibleMarkerKeys={[key]}
+        onMarkerLayout={() => undefined}
+        onSelect={() => undefined}
+      />
+    );
+
+    const control = screen.getByRole('button', {
+      name: /Inspect reserved Logging Camp, worker en route/i
+    });
+    expect(control.className).toContain('realm-resource-occupant-marker--reserved');
+    expect(control.textContent).toContain('RESERVED · WORKER EN ROUTE');
+    expect(control.querySelector('.realm-castle-avatar')).toBeNull();
+
+    const presence = container.querySelector('.realm-resource-occupant-presence--reserved');
+    expect(presence?.textContent).toContain('WORKER EN ROUTE');
+    expect(presence?.querySelector('.realm-castle-avatar')).toBeNull();
+  });
+
   it('labels the viewer’s canonical worker without exposing a standalone action surface', () => {
     const own = marker('genesis-001:wood:0003', { occupiedByViewer: true });
     render(

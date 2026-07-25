@@ -20,9 +20,16 @@ import {
 } from './realmResourceOccupantInspector';
 import { useRealmRemainingDuration } from './realmAuthoritySchedule';
 import { RealmResourceOccupantDetails } from './RealmResourceOccupantDetails';
+import {
+  RealmNodeWorkerDispatch,
+  type RealmNodeWorkerDispatchHandler
+} from './RealmNodeWorkerDispatch';
 import type {
   RealmResourceOccupantMarker
 } from './realmResourceOccupantPresentation';
+import type {
+  RealmWorkerPublicPresentation
+} from './realmWorkerPresentation';
 import './LoggingCampInspectionPanel.css';
 
 function InspectionField({
@@ -67,6 +74,10 @@ export type LoggingCampInspectionPanelProps = Readonly<{
   onFocusOccupantCastle?: (occupant: RealmResourceOccupantMarker) => void;
   /** Exact owner-only generic worker recall boundary. */
   onRecallWorker?: (workerId: string) => Promise<void>;
+  /** Exact owner roster used only for map-node dispatch in active generic mode. */
+  workers?: readonly RealmWorkerPublicPresentation[];
+  /** Authenticated generic-worker reducer boundary. */
+  onDispatchWorker?: RealmNodeWorkerDispatchHandler;
   /** Exact owner-private legacy expedition joined to this public site. */
   legacyExpeditionId?: string;
   onReturnLegacyExpedition?: (
@@ -128,6 +139,8 @@ export function LoggingCampInspectionPanel({
   occupancyUnavailable = false,
   onFocusOccupantCastle,
   onRecallWorker,
+  workers,
+  onDispatchWorker,
   legacyExpeditionId,
   onReturnLegacyExpedition,
   privateExpedition,
@@ -145,6 +158,11 @@ export function LoggingCampInspectionPanel({
     ? undefined
     : matchingRealmResourceOccupant(publicOccupant, 'wood', node.siteId);
   const dispatchBlocked = legacyDispatchBlocked || occupancyUnavailable;
+  const genericWorkerDispatch = occupant === undefined
+    && !occupancyUnavailable
+    && node?.availability === 'available'
+    && workers !== undefined
+    && onDispatchWorker !== undefined;
   const scheduleTimestamp = occupant
     ? undefined
     : node ? woodNodeNextAuthorityTimestamp(node) : undefined;
@@ -303,9 +321,22 @@ export function LoggingCampInspectionPanel({
             />
           ) : null}
           <p className="gold-mine-inspection__notice">
-            {nodeNotice(node, occupant, dispatchBlocked, occupancyUnavailable)}
+            {genericWorkerDispatch
+              ? 'This Camp is available. Choose a ready worker below; the Realm confirms the assignment.'
+              : nodeNotice(node, occupant, dispatchBlocked, occupancyUnavailable)}
           </p>
+          {genericWorkerDispatch ? (
+            <RealmNodeWorkerDispatch
+              focusFallbackRef={closeButtonRef}
+              id={`${id}-wood`}
+              onDispatchWorker={onDispatchWorker}
+              resourceKind="wood"
+              siteId={node.siteId}
+              workers={workers}
+            />
+          ) : null}
           {!dispatchBlocked
+            && !genericWorkerDispatch
             && occupant === undefined
             && node?.availability === 'available'
             && onDispatchWoodExpedition ? (

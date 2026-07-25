@@ -1,11 +1,20 @@
 import * as THREE from 'three';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { axialToWorld } from '../src/game/map/hexCoordinates';
 import {
   createRealmWorkerLayer,
+  realmWorkerWagonLodForQuality,
   resolveRealmWorkerWorldPosition,
   type RealmWorkerSceneRecord
 } from '../src/components/realm/realmWorkerLayer';
+import {
+  getRealmWorkerRouteCacheTelemetry,
+  resolveRealmWorkerAnimationClip,
+  resolveRealmWorkerCanonicalRoute,
+  resolveRealmWorkerRemainingRouteWorldPoints,
+  resolveRealmWorkerRoutePose
+} from '../src/components/realm/realmWorkerRoutePresentation';
 
 const idleWorker = Object.freeze({
   workerId: 'genesis-001-castle-7-worker-01',
@@ -39,15 +48,17 @@ afterEach(() => {
 });
 
 describe('realm worker scene layer', () => {
-  it('places idle workers around their keep and interpolates outbound motion', () => {
+  it('places idle workers around their keep and advances segment by segment', () => {
     const idle = resolveRealmWorkerWorldPosition(idleWorker, 0n, 1);
     const start = resolveRealmWorkerWorldPosition(outboundWorker, 100n, 1);
     const midpoint = resolveRealmWorkerWorldPosition(outboundWorker, 200n, 1);
     const end = resolveRealmWorkerWorldPosition(outboundWorker, 300n, 1);
+    const route = resolveRealmWorkerCanonicalRoute(outboundWorker);
 
     expect(start).toEqual(idle);
-    expect(midpoint.x).toBeCloseTo((start.x + end.x) * 0.5, 8);
-    expect(midpoint.z).toBeCloseTo((start.z + end.z) * 0.5, 8);
+    expect(route).toHaveLength(3);
+    expect(midpoint).toEqual(axialToWorld(route![1]!, 1));
+    expect(midpoint.x).not.toBeCloseTo((start.x + end.x) * 0.5, 8);
     expect(end).not.toEqual(start);
   });
 
@@ -62,16 +73,11 @@ describe('realm worker scene layer', () => {
       revision: 2n
     }) satisfies RealmWorkerSceneRecord;
     const origin = resolveRealmWorkerWorldPosition(idleWorker, 0n, 1);
-    const destination = resolveRealmWorkerWorldPosition(
-      Object.freeze({ ...outboundWorker, status: 'gathering' as const }),
-      300n,
-      1
-    );
+    const outboundAtRecall = resolveRealmWorkerWorldPosition(outboundWorker, 250n, 1);
     const returnStart = resolveRealmWorkerWorldPosition(returning, 250n, 1);
     const returned = resolveRealmWorkerWorldPosition(returning, 325n, 1);
 
-    expect(returnStart.x).toBeCloseTo(origin.x + (destination.x - origin.x) * 0.75, 8);
-    expect(returnStart.z).toBeCloseTo(origin.z + (destination.z - origin.z) * 0.75, 8);
+    expect(returnStart).toEqual(outboundAtRecall);
     expect(returned).toEqual(origin);
   });
 
@@ -98,7 +104,9 @@ describe('realm worker scene layer', () => {
       ...idleWorker,
       originCoord: Object.freeze({ q: 1, r: 0 })
     })])).toBe(false);
-    const marker = layer.group.getObjectByName('realm-worker-markers') as THREE.InstancedMesh;
+    const marker = layer.group.getObjectByName(
+      'realm-worker-wagon-fallbacks'
+    ) as THREE.InstancedMesh;
     const pick = layer.group.getObjectByName('realm-worker-pick-volumes') as THREE.InstancedMesh;
     const markerDispose = vi.spyOn(marker, 'dispose');
     const pickDispose = vi.spyOn(pick, 'dispose');
@@ -135,8 +143,8 @@ describe('realm worker scene layer', () => {
       heightAtWorld: () => Number.NaN
     })).toThrow('REALM_WORKER_GROUND_INVALID');
     expect(instanceDispose).toHaveBeenCalledTimes(2);
-    expect(geometryDispose).toHaveBeenCalledTimes(2);
-    expect(materialDispose).toHaveBeenCalledTimes(2);
+    expect(geometryDispose).toHaveBeenCalledTimes(5);
+    expect(materialDispose).toHaveBeenCalledTimes(5);
   });
 
   it('continues GPU cleanup when one disposal step throws', () => {
@@ -145,7 +153,9 @@ describe('realm worker scene layer', () => {
       hexSize: 1,
       heightAtWorld: () => 0
     });
-    const marker = layer.group.getObjectByName('realm-worker-markers') as THREE.InstancedMesh;
+    const marker = layer.group.getObjectByName(
+      'realm-worker-wagon-fallbacks'
+    ) as THREE.InstancedMesh;
     const pick = layer.group.getObjectByName('realm-worker-pick-volumes') as THREE.InstancedMesh;
     const markerGeometryDispose = vi.spyOn(marker.geometry, 'dispose');
     const markerMaterialDispose = vi.spyOn(marker.material as THREE.Material, 'dispose');
@@ -167,7 +177,9 @@ describe('realm worker scene layer', () => {
       hexSize: 1,
       heightAtWorld
     });
-    const marker = layer.group.getObjectByName('realm-worker-markers') as THREE.InstancedMesh;
+    const marker = layer.group.getObjectByName(
+      'realm-worker-wagon-fallbacks'
+    ) as THREE.InstancedMesh;
     const pick = layer.group.getObjectByName('realm-worker-pick-volumes') as THREE.InstancedMesh;
     const markerMatrixVersion = marker.instanceMatrix.version;
     const markerColorVersion = marker.instanceColor?.version;
@@ -202,5 +214,127 @@ describe('realm worker scene layer', () => {
     expect(layer.hasMovingWorkers()).toBe(false);
     expect(layer.update(400n)).toBe(false);
     layer.dispose();
+  });
+
+  it('keeps valid positive v12 routeSteps drift visible on the canonical dry path', () => {
+    const drifted = Object.freeze({
+      ...outboundWorker,
+      routeSteps: outboundWorker.routeSteps + 1
+    }) satisfies RealmWorkerSceneRecord;
+
+    expect(resolveRealmWorkerCanonicalRoute(drifted)).toEqual(
+      resolveRealmWorkerCanonicalRoute(outboundWorker)
+    );
+    expect(resolveRealmWorkerRoutePose(drifted, 200n, 1)).toBeDefined();
+    expect(() => resolveRealmWorkerWorldPosition(drifted, 200n, 1)).not.toThrow();
+
+    const layer = createRealmWorkerLayer({
+      workers: [drifted],
+      hexSize: 1,
+      heightAtWorld: () => 0
+    });
+    expect(layer.getCurrentPose(drifted.workerId)).toBeDefined();
+    expect(layer.getPresentationTelemetry().routeMismatchCount).toBe(0);
+    layer.dispose();
+  });
+
+  it.each([
+    ['zero steps', { routeSteps: 0 }],
+    ['negative steps', { routeSteps: -1 }],
+    ['fractional steps', { routeSteps: 1.5 }],
+    ['unreachable endpoint', { destinationCoord: Object.freeze({ q: 999, r: 999 }) }]
+  ] as const)('fails moving presentation closed for %s', (_label, overrides) => {
+    const invalid = Object.freeze({
+      ...outboundWorker,
+      ...overrides
+    }) satisfies RealmWorkerSceneRecord;
+
+    expect(resolveRealmWorkerCanonicalRoute(invalid)).toBeUndefined();
+    expect(resolveRealmWorkerRoutePose(invalid, 200n, 1)).toBeUndefined();
+    expect(() => resolveRealmWorkerWorldPosition(invalid, 200n, 1))
+      .toThrow('REALM_WORKER_ROUTE_MISMATCH');
+  });
+
+  it('caches canonical routes across positional frames and exposes current PFP anchors', () => {
+    const profile = Object.freeze({
+      canonicalUsername: 'keeper',
+      displayName: 'Keeper',
+      pfpUrl: 'https://i.imgur.com/example.png',
+      communityStatsVisible: true
+    });
+    const worker = Object.freeze({ ...outboundWorker, profile });
+    const before = getRealmWorkerRouteCacheTelemetry();
+    resolveRealmWorkerRoutePose(worker, 120n, 1);
+    resolveRealmWorkerRoutePose(worker, 180n, 1);
+    const after = getRealmWorkerRouteCacheTelemetry();
+    expect(after.hits - before.hits).toBeGreaterThanOrEqual(1);
+    expect(after.size).toBeLessThanOrEqual(after.limit);
+
+    const layer = createRealmWorkerLayer({
+      workers: [worker],
+      hexSize: 1,
+      heightAtWorld: () => 0,
+      reducedMotion: true
+    });
+    layer.update(200n);
+    const current = layer.getCurrentPose(worker.workerId);
+    expect(current?.world).toEqual(expect.objectContaining({
+      x: expect.any(Number),
+      y: expect.any(Number),
+      z: expect.any(Number)
+    }));
+    expect(layer.getPresenceRecords()).toEqual([
+      expect.objectContaining({
+        workerId: worker.workerId,
+        profile,
+        direction: 'outbound'
+      })
+    ]);
+    expect(layer.recommendedPositionUpdateIntervalMs()).toBe(500);
+    layer.dispose();
+  });
+
+  it('uses approved LODs/clips and keeps return-route points ordered toward the keep', () => {
+    expect(realmWorkerWagonLodForQuality('high')).toBe('high');
+    expect(realmWorkerWagonLodForQuality('balanced')).toBe('balanced');
+    expect(realmWorkerWagonLodForQuality('reduced')).toBe('compact');
+    const pose = resolveRealmWorkerRoutePose(outboundWorker, 105n, 1)!;
+    expect(resolveRealmWorkerAnimationClip(pose)).toBe('Start');
+
+    const returning = Object.freeze({
+      ...outboundWorker,
+      status: 'returning' as const,
+      returnStartedAtMicros: 250n,
+      returnsAtMicros: 325n,
+      returnStartProgressBasisPoints: 7_500,
+      timelineRevision: 2,
+      revision: 2n
+    }) satisfies RealmWorkerSceneRecord;
+    const remaining = resolveRealmWorkerRemainingRouteWorldPoints(
+      returning,
+      275n,
+      1
+    )!;
+    const origin = resolveRealmWorkerWorldPosition(idleWorker, 0n, 1);
+    expect(remaining.at(-1)).toEqual(origin);
+  });
+
+  it('mirrors the steering clip when traversing a canonical corner in reverse', () => {
+    const outboundCorner = resolveRealmWorkerRoutePose(outboundWorker, 204n, 1)!;
+    const returning = Object.freeze({
+      ...outboundWorker,
+      status: 'returning' as const,
+      returnStartedAtMicros: 300n,
+      returnsAtMicros: 500n,
+      returnStartProgressBasisPoints: 10_000,
+      timelineRevision: 2,
+      revision: 2n
+    }) satisfies RealmWorkerSceneRecord;
+    const returningCorner = resolveRealmWorkerRoutePose(returning, 396n, 1)!;
+
+    expect(outboundCorner.segmentIndex).toBe(returningCorner.segmentIndex);
+    expect(outboundCorner.segmentProgress).toBeCloseTo(returningCorner.segmentProgress, 8);
+    expect(resolveRealmWorkerAnimationClip(outboundCorner)).toBe('Turn_Left');
+    expect(resolveRealmWorkerAnimationClip(returningCorner)).toBe('Turn_Right');
   });
 });

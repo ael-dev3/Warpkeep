@@ -440,6 +440,7 @@ export function createRenderedWebglQaActiveWorkerRealm(): RenderedWebglQaActiveW
     realmId: snapshot.realm.realmId,
     castleIds,
     ownCastleId,
+    expectedFid: BigInt(baseRealm.identity.fid),
     system: snapshot.workerSystem,
     workers: snapshot.workerWorkers,
     occupations: snapshot.workerOccupations,

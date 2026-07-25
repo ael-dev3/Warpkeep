@@ -360,19 +360,12 @@ describe('RealmHud', () => {
     expect(group.textContent).toContain('select a resource site to dispatch');
   });
 
-  it('puts the exact owner roster inside the PFP menu and wires worker dispatch', async () => {
+  it('puts the exact owner roster inside the PFP menu without a global destination picker', async () => {
     const fixture = workerUiFixture();
-    const onDispatchWorker = vi.fn().mockResolvedValue(undefined);
-    const view = render(
+    render(
       <RealmHud
         {...commonProps()}
         {...fixture}
-        onDispatchWorker={onDispatchWorker}
-        workerDestinations={[{
-          resourceKind: 'stone',
-          siteId: 'genesis-001:stone:0001',
-          label: 'Stone Quarry · Tier 1 · cell 4, -2'
-        }]}
       />
     );
 
@@ -399,22 +392,11 @@ describe('RealmHud', () => {
     const inspector = screen.getByRole('dialog', { name: 'Worker 1' });
     expect(inspector.id).toBe('realm-worker-inspection');
     expect(profileTrigger.getAttribute('aria-controls')).toBe('realm-worker-inspection');
-    fireEvent.change(within(inspector).getByRole('combobox', { name: 'ASSIGN TO RESOURCE SITE' }), {
-      target: { value: 'stone|genesis-001:stone:0001' }
-    });
-    fireEvent.click(within(inspector).getByRole('button', { name: 'ASSIGN WORKER' }));
-    await waitFor(() => expect(onDispatchWorker).toHaveBeenCalledWith(
-      'genesis-001-castle-7-worker-01',
-      {
-        resourceKind: 'stone',
-        siteId: 'genesis-001:stone:0001',
-        label: 'Stone Quarry · Tier 1 · cell 4, -2'
-      }
-    ));
-    await waitFor(() => expect(
-      within(inspector).getByRole('button', { name: 'ASSIGN WORKER' })
-        .hasAttribute('disabled')
-    ).toBe(false));
+    expect(within(inspector).queryByRole('combobox')).toBeNull();
+    expect(within(inspector).queryByRole('button', { name: /assign worker/i })).toBeNull();
+    expect(within(inspector).getByText(
+      'Select an available resource node in the Realm to send this worker.'
+    )).not.toBeNull();
 
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(screen.getByRole('dialog', { name: 'WORKERS' })).not.toBeNull();
@@ -689,6 +671,7 @@ describe('RealmHud', () => {
     );
 
     const rail = screen.getByRole('region', { name: 'Your resources' });
+    expect(rail.hasAttribute('aria-live')).toBe(false);
     const entries = within(rail).getAllByRole('listitem');
     expect(entries.map((entry) => entry.querySelector('button')?.getAttribute('aria-label'))).toEqual([
       'Food: 0 stored; 0 gathering now; settlement is automatic. Show resource details.',

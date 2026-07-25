@@ -93,6 +93,7 @@ export const BACKEND_STAGE_OPERATION_TIMEOUT_MILLISECONDS = 30_000;
 export const RESOURCE_OPERATION_TIMEOUT_MILLISECONDS = 15_000;
 export const RESOURCE_REFRESH_INTERVAL_MILLISECONDS = 60_000;
 const MAX_RETAINED_WORKER_COMMAND_ATTEMPTS = 64;
+const MAX_WORKER_PROJECTION_PAIR_READ_ATTEMPTS = 2;
 
 class BackendStageOperationDeadlineError extends Error {
   constructor() {
@@ -466,12 +467,64 @@ function activeWorkerProjection(
     realmId: snapshot.realm.realmId,
     castleIds: snapshot.castles.map((castle) => castle.castleId),
     ownCastleId: snapshot.ownCastle.castleId,
+    expectedFid: BigInt(snapshot.ownCastle.ownerFid),
     system: snapshot.workerSystem,
     workers: snapshot.workerWorkers,
     occupations: snapshot.workerOccupations,
     roster,
     resourceState
   });
+}
+
+type CoherentWorkerProjectionPair = Readonly<{
+  roster: WorkerRosterPresentation;
+  resourceState: ReadyWorkerResourceState;
+  projection: ReadyWorkerProjection;
+}>;
+
+async function readCoherentWorkerProjectionPair(input: Readonly<{
+  expectedFid: bigint;
+  readRoster: () => Promise<WorkerRosterPresentation | undefined>;
+  readResourceState: () => Promise<ReadyWorkerResourceState | undefined>;
+  readRealm: () => WarpkeepRealmSnapshot | undefined;
+  retainedPair: () => Readonly<{
+    roster: WorkerRosterPresentation | undefined;
+    resourceState: ReadyWorkerResourceState | undefined;
+  }>;
+  current: () => boolean;
+}>): Promise<CoherentWorkerProjectionPair | undefined> {
+  for (
+    let attempt = 0;
+    attempt < MAX_WORKER_PROJECTION_PAIR_READ_ATTEMPTS;
+    attempt += 1
+  ) {
+    if (!input.current()) return undefined;
+    const [roster, resourceState] = await Promise.all([
+      withResourceOperationDeadline(input.readRoster()),
+      withResourceOperationDeadline(input.readResourceState())
+    ]);
+    if (!input.current() || roster === undefined || resourceState === undefined) {
+      return undefined;
+    }
+    if (resourceState.fid !== input.expectedFid) return undefined;
+    const retained = input.retainedPair();
+    if (!workerProjectionPairIsAtLeastAsNew(
+      roster,
+      resourceState,
+      retained.roster,
+      retained.resourceState
+    )) return undefined;
+    const realm = input.readRealm();
+    if (realm === undefined) return undefined;
+    const projection = activeWorkerProjection(realm, roster, resourceState);
+    if (projection !== undefined) {
+      return Object.freeze({ roster, resourceState, projection });
+    }
+    // These two caller-private procedures are independent reads. A settlement
+    // at a minute quantum can advance the roster between the two responses, so
+    // retry the complete pair once rather than publishing a torn projection.
+  }
+  return undefined;
 }
 
 function workerCommandLifecycleState(
@@ -515,6 +568,10 @@ export function WarpkeepSpacetimeProvider({
   const generationRef = useRef(0);
   const stateRef = useRef(state);
   const canonicalRealmSourceRef = useRef<string | undefined>(undefined);
+  const canonicalRealmSnapshotRef = useRef<Readonly<{
+    generation: number;
+    value: WarpkeepRealmSnapshot;
+  }> | undefined>(undefined);
   const termsAttemptRef = useRef(0);
   const completedTermsAttemptRef = useRef(0);
   const termsIntentGenerationRef = useRef(0);
@@ -589,6 +646,7 @@ export function WarpkeepSpacetimeProvider({
     workerCommandGenerationRef.current = undefined;
     workerCommandAttemptsRef.current.clear();
     canonicalRealmSourceRef.current = undefined;
+    canonicalRealmSnapshotRef.current = undefined;
     processTermsAttemptRef.current = () => undefined;
     runActiveTeardown();
     // The effect-owned teardown normally consumes the connection. Keep this
@@ -699,13 +757,39 @@ export function WarpkeepSpacetimeProvider({
     workerCommandAttemptsRef.current.set(serializedFingerprint, attempt);
     try {
       await withResourceOperationDeadline(command(connection, attempt.idempotencyKey));
-      const [roster, resourceState] = await Promise.all([
-        withResourceOperationDeadline(runtime.readWorkerRoster(connection, fid)),
-        withResourceOperationDeadline(runtime.readResourceStateV2(connection, fid))
-      ]);
-      if (generationRef.current !== generation || roster === undefined || resourceState === undefined) {
+      const commandIsCurrent = () => {
+        const latest = stateRef.current;
+        return generationRef.current === generation
+          && connectionRef.current === connection
+          && latest.phase === 'ready'
+          && latest.admission === 'ready'
+          && latest.identity?.fid === fid
+          && latest.realm !== undefined;
+      };
+      const pair = await readCoherentWorkerProjectionPair({
+        expectedFid: BigInt(fid),
+        readRoster: () => runtime.readWorkerRoster!(connection, fid),
+        readResourceState: () => runtime.readResourceStateV2!(connection, fid),
+        readRealm: () => {
+          const validatedRealm = canonicalRealmSnapshotRef.current;
+          return validatedRealm?.generation === generation
+            ? validatedRealm.value
+            : undefined;
+        },
+        retainedPair: () => ({
+          roster: workerRosterStateRef.current?.generation === generation
+            ? workerRosterStateRef.current.value
+            : undefined,
+          resourceState: workerResourceStateRef.current?.generation === generation
+            ? workerResourceStateRef.current.value
+            : undefined
+        }),
+        current: commandIsCurrent
+      });
+      if (pair === undefined || !commandIsCurrent()) {
         throw new Error('Worker command is unavailable.');
       }
+      const { roster, resourceState } = pair;
       const retainedRoster = workerRosterStateRef.current?.generation === generation
         ? workerRosterStateRef.current.value
         : undefined;
@@ -741,13 +825,12 @@ export function WarpkeepSpacetimeProvider({
           )
         ) return latest;
         const workerProjection = activeWorkerProjection(latest.realm, roster, resourceState);
+        if (workerProjection === undefined) return latest;
         return {
           ...latest,
           workerRoster: roster,
           workerResourceState: resourceState,
-          ...(workerProjection === undefined
-            ? { workerProjection: undefined }
-            : { workerProjection })
+          workerProjection
         };
       });
       if (workerCommandAttemptsRef.current.get(serializedFingerprint) === attempt) {
@@ -1579,6 +1662,7 @@ export function WarpkeepSpacetimeProvider({
     workerResourceStateRef.current = undefined;
     workerCommandGenerationRef.current = undefined;
     workerCommandAttemptsRef.current.clear();
+    canonicalRealmSnapshotRef.current = undefined;
     const previousState = stateRef.current;
     const canonicalRealmSource = [
       config.spacetimeUri,
@@ -1633,6 +1717,7 @@ export function WarpkeepSpacetimeProvider({
     let activateRealm: (() => void) | undefined;
     let realmActivationPromise: Promise<void> | undefined;
     let resourceRefreshInFlight = false;
+    let resourceRefreshQueuedAfterResume = false;
     let workerRefreshInFlight = false;
     let queuedWorkerCapabilityRealm: WarpkeepRealmSnapshot | undefined;
     let realmActivated = false;
@@ -1640,6 +1725,8 @@ export function WarpkeepSpacetimeProvider({
     let backendProtocolVersion: number | undefined;
     let readinessTimeout: ReturnType<typeof setTimeout> | undefined;
     let resourceRefreshInterval: ReturnType<typeof setInterval> | undefined;
+    let resourceResumeRefreshTimeout: ReturnType<typeof setTimeout> | undefined;
+    let removeResourceRefreshLifecycleListeners: (() => void) | undefined;
     let termsAcceptancePromise: Promise<boolean> | undefined;
     let terminated = false;
     const current = () => active && generationRef.current === generation;
@@ -1656,6 +1743,13 @@ export function WarpkeepSpacetimeProvider({
         clearInterval(resourceRefreshInterval);
         resourceRefreshInterval = undefined;
       }
+      if (resourceResumeRefreshTimeout !== undefined) {
+        clearTimeout(resourceResumeRefreshTimeout);
+        resourceResumeRefreshTimeout = undefined;
+      }
+      resourceRefreshQueuedAfterResume = false;
+      removeResourceRefreshLifecycleListeners?.();
+      removeResourceRefreshLifecycleListeners = undefined;
       // Invalidate callbacks before disconnecting: an injected runtime or the
       // SDK may synchronously report onDisconnected from disconnect().
       active = false;
@@ -1715,6 +1809,9 @@ export function WarpkeepSpacetimeProvider({
       }
       if (workerCommandGenerationRef.current === generation) {
         workerCommandGenerationRef.current = undefined;
+      }
+      if (canonicalRealmSnapshotRef.current?.generation === generation) {
+        canonicalRealmSnapshotRef.current = undefined;
       }
       for (const [fingerprint, attempt] of workerCommandAttemptsRef.current) {
         if (attempt.generation === generation) {
@@ -1921,16 +2018,23 @@ export function WarpkeepSpacetimeProvider({
           }
           workerRefreshInFlight = true;
           try {
-            const [roster, resourceState] = await Promise.all([
-              withResourceOperationDeadline(
-                runtime.readWorkerRoster(activeConnection, bridgeFid!)
-              ),
-              withResourceOperationDeadline(
-                runtime.readResourceStateV2(activeConnection, bridgeFid!)
-              )
-            ]);
-            if (!current()) return;
-            if (roster === undefined || resourceState === undefined) return;
+            const pair = await readCoherentWorkerProjectionPair({
+              expectedFid: BigInt(bridgeFid!),
+              readRoster: () => runtime.readWorkerRoster!(activeConnection, bridgeFid!),
+              readResourceState: () => runtime.readResourceStateV2!(activeConnection, bridgeFid!),
+              readRealm: () => capabilityRealm,
+              retainedPair: () => ({
+                roster: workerRosterStateRef.current?.generation === generation
+                  ? workerRosterStateRef.current.value
+                  : undefined,
+                resourceState: workerResourceStateRef.current?.generation === generation
+                  ? workerResourceStateRef.current.value
+                  : undefined
+              }),
+              current
+            });
+            if (pair === undefined || !current()) return;
+            const { roster, resourceState } = pair;
             const retainedRoster = workerRosterStateRef.current?.generation === generation
               ? workerRosterStateRef.current.value
               : undefined;
@@ -1943,8 +2047,6 @@ export function WarpkeepSpacetimeProvider({
               retainedRoster,
               retainedResourceState
             )) return;
-            const projection = activeWorkerProjection(capabilityRealm, roster, resourceState);
-            if (projection === undefined) return;
             workerRosterStateRef.current = Object.freeze({ generation, value: roster });
             workerResourceStateRef.current = Object.freeze({ generation, value: resourceState });
             const refreshedLifecycle = workerCommandLifecycleState(roster);
@@ -2030,6 +2132,10 @@ export function WarpkeepSpacetimeProvider({
               readinessTimeout = undefined;
             }
             canonicalRealmSourceRef.current = canonicalRealmSource;
+            canonicalRealmSnapshotRef.current = Object.freeze({
+              generation,
+              value: realm
+            });
             const workerProjection = activeWorkerProjection(
               realm,
               workerRoster,
@@ -2228,8 +2334,14 @@ export function WarpkeepSpacetimeProvider({
               value: initialStoneExpedition
             });
             realmActivated = true;
-            const refreshResources = async () => {
-              if (!current() || !realmActivated || resourceRefreshInFlight) return;
+            const refreshResources = async (
+              queueAfterInFlight = false
+            ): Promise<void> => {
+              if (!current() || !realmActivated) return;
+              if (resourceRefreshInFlight) {
+                if (queueAfterInFlight) resourceRefreshQueuedAfterResume = true;
+                return;
+              }
               resourceRefreshInFlight = true;
               try {
                 const readyRealm = stateRef.current.phase === 'ready'
@@ -2326,11 +2438,68 @@ export function WarpkeepSpacetimeProvider({
                 fail();
               } finally {
                 resourceRefreshInFlight = false;
+                if (resourceRefreshQueuedAfterResume) {
+                  resourceRefreshQueuedAfterResume = false;
+                  if (current() && realmActivated && !document.hidden) {
+                    void refreshResources();
+                  }
+                }
               }
             };
-            resourceRefreshInterval = setInterval(() => {
-              void refreshResources();
-            }, RESOURCE_REFRESH_INTERVAL_MILLISECONDS);
+            const stopResourceRefreshInterval = () => {
+              if (resourceRefreshInterval === undefined) return;
+              clearInterval(resourceRefreshInterval);
+              resourceRefreshInterval = undefined;
+            };
+            const startResourceRefreshInterval = () => {
+              if (
+                resourceRefreshInterval !== undefined
+                || document.hidden
+                || !current()
+                || !realmActivated
+              ) return;
+              resourceRefreshInterval = setInterval(() => {
+                if (document.hidden) {
+                  stopResourceRefreshInterval();
+                  return;
+                }
+                void refreshResources();
+              }, RESOURCE_REFRESH_INTERVAL_MILLISECONDS);
+            };
+            const cancelResumeResourceRefresh = () => {
+              if (resourceResumeRefreshTimeout === undefined) return;
+              clearTimeout(resourceResumeRefreshTimeout);
+              resourceResumeRefreshTimeout = undefined;
+            };
+            const scheduleResumeResourceRefresh = () => {
+              if (document.hidden || !current() || !realmActivated) return;
+              startResourceRefreshInterval();
+              if (resourceResumeRefreshTimeout !== undefined) return;
+              resourceResumeRefreshTimeout = setTimeout(() => {
+                resourceResumeRefreshTimeout = undefined;
+                if (document.hidden || !current() || !realmActivated) return;
+                void refreshResources(true);
+              }, 0);
+            };
+            const handleResourceVisibilityChange = () => {
+              if (document.hidden) {
+                stopResourceRefreshInterval();
+                cancelResumeResourceRefresh();
+                resourceRefreshQueuedAfterResume = false;
+                return;
+              }
+              scheduleResumeResourceRefresh();
+            };
+            const handleResourcePageShow = () => {
+              if (!document.hidden) scheduleResumeResourceRefresh();
+            };
+            document.addEventListener('visibilitychange', handleResourceVisibilityChange);
+            window.addEventListener('pageshow', handleResourcePageShow);
+            removeResourceRefreshLifecycleListeners = () => {
+              document.removeEventListener('visibilitychange', handleResourceVisibilityChange);
+              window.removeEventListener('pageshow', handleResourcePageShow);
+            };
+            startResourceRefreshInterval();
             // SubscribeApplied may have arrived while resources were pending.
             publishReadySnapshot?.();
           })();

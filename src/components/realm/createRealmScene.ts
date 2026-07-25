@@ -139,6 +139,7 @@ import {
 } from './realmStoneNodeLayer';
 import {
   createRealmWorkerLayer,
+  REALM_WORKER_REDUCED_MOTION_POSITION_INTERVAL_MS,
   type RealmWorkerLayer,
   type RealmWorkerSceneRecord
 } from './realmWorkerLayer';
@@ -166,7 +167,8 @@ import type {
   RealmCastleProjectionFrame,
   RealmCastleScreenBounds,
   RealmResourceKind,
-  RealmResourceProjectionFrame
+  RealmResourceProjectionFrame,
+  RealmWorkerProjectionFrame
 } from './realmTypes';
 import {
   classifyRealmRendererFailure,
@@ -194,6 +196,8 @@ const RESOURCE_OCCUPANT_MARKER_LIFT: Readonly<Record<RealmResourceKind, number>>
   wood: 1.32,
   stone: 1.34
 });
+const WORKER_PRESENCE_MARKER_LIFT = 0.82;
+const MAX_VISIBLE_WORKER_PRESENCES = 24;
 
 type RealmViewportDimensions = Readonly<{
   canvasWidth: number;
@@ -527,6 +531,10 @@ export type RealmSceneHandle = Readonly<{
   focusCastle: (castleId: number) => void;
   /** Centers a castle while retaining the controller's current zoom. */
   locateCastle: (castleId: number) => void;
+  /** Centers the worker's latest interpolated route position without changing zoom. */
+  locateWorker: (workerId: string) => HexCoord | null;
+  /** Latest interpolated route position; absent when route authority fails closed. */
+  getWorkerCurrentCoord: (workerId: string) => HexCoord | null;
   focusCell: (coord: HexCoord) => void;
   frameFoundingDistrict: () => void;
   focusKeep: () => void;
@@ -540,6 +548,8 @@ export type RealmSceneHandle = Readonly<{
   setSelectedWoodSiteId: (siteId: string | null) => void;
   setSelectedStoneSiteId: (siteId: string | null) => void;
   setSelectedWorkerId: (workerId: string | null) => void;
+  /** Highlights a route without changing the active node/worker inspector. */
+  setSelectedWorkerRouteId: (workerId: string | null) => void;
   setSelectedWaterCellKey: (cellKey: string | null) => void;
   setHoveredWaterCellKey: (cellKey: string | null) => void;
   setHoveredWorkerId: (workerId: string | null) => void;
@@ -677,6 +687,8 @@ export type CreateRealmSceneOptions = Readonly<{
   onCastleProjection: (frame: RealmCastleProjectionFrame) => void;
   /** Screen-space positions for public markers above other players' occupied nodes. */
   onResourceProjection?: (frame: RealmResourceProjectionFrame) => void;
+  /** Bounded moving-worker portrait lane; identity remains React-owned. */
+  onWorkerProjection?: (frame: RealmWorkerProjectionFrame) => void;
   onTerrainPresentationTelemetry?: (telemetry: RealmTerrainPresentationTelemetry) => void;
   onGoldNodePresentationTelemetry?: (telemetry: RealmGoldNodePresentationTelemetry) => void;
   onFoodNodePresentationTelemetry?: (telemetry: RealmFoodNodePresentationTelemetry) => void;
@@ -1914,6 +1926,7 @@ function initializeRealmScene(
   let selectedWoodSiteId: string | undefined;
   let selectedStoneSiteId: string | undefined;
   let selectedWorkerId: string | undefined;
+  let selectedWorkerRouteId: string | undefined;
   let hoveredWorkerId: string | undefined;
   let selectedTerrainCoord: HexCoord | null = null;
   let hoveredTerrainCoord: HexCoord | null = null;
@@ -1955,20 +1968,22 @@ function initializeRealmScene(
   let contextLossCount = 0;
   let contextRestoreCount = 0;
   let ambientScheduler: RealmAmbientScheduler | null = null;
-  const ambientIsNeeded = () => !options.reducedMotion
-    && Math.max(
-      renderPlan.grass.animationFrameCap,
-      REALM_WATER_ANIMATION_FRAME_CAPS[runtimeQuality.id]
-    ) > 0
-    && (
+  const ambientIsNeeded = () => workerLayer?.hasMovingWorkers() === true
+    || (
+      !options.reducedMotion
+      && Math.max(
+        renderPlan.grass.animationFrameCap,
+        REALM_WATER_ANIMATION_FRAME_CAPS[runtimeQuality.id]
+      ) > 0
+      && (
       grassLayer?.isAnimationActive() === true
       || decorations.animated
       || goldNodeLayer?.hasMovingWagons() === true
       || foodNodeLayer?.hasMovingWagons() === true
       || woodNodeLayer?.hasMovingWagons() === true
       || stoneNodeLayer?.hasMovingWagons() === true
-      || workerLayer?.hasMovingWorkers() === true
       || waterLayer?.isAnimationActive() === true
+      )
     );
   const disableGrassPresentation = () => {
     const layer = grassLayer;
@@ -1989,6 +2004,7 @@ function initializeRealmScene(
   const projectionPoint = new THREE.Vector3();
   const projectionBoundsPoint = new THREE.Vector3();
   let lastResourceProjectionKey = '';
+  let lastWorkerProjectionKey = '';
   const projectCastleLabels = () => {
     const width = Math.max(1, options.canvas.clientWidth || window.innerWidth || 1);
     const height = Math.max(1, options.canvas.clientHeight || window.innerHeight || 1);
@@ -2114,6 +2130,66 @@ function initializeRealmScene(
     lastResourceProjectionKey = projectionKey;
     options.onResourceProjection(frame);
   };
+  const projectWorkerMarkers = () => {
+    if (!options.onWorkerProjection) return;
+    const width = Math.max(1, options.canvas.clientWidth || window.innerWidth || 1);
+    const height = Math.max(1, options.canvas.clientHeight || window.innerHeight || 1);
+    const movingPresences = (workerLayer?.getPresenceRecords() ?? [])
+      .filter((worker) => (
+        worker.direction === 'outbound' || worker.direction === 'returning'
+      ));
+    const projectedPresences = movingPresences
+      .flatMap((worker) => {
+        if (worker.direction !== 'outbound' && worker.direction !== 'returning') {
+          return [];
+        }
+        const projected = cameraController.projectPoint({
+          x: worker.world.x,
+          y: worker.world.y + WORKER_PRESENCE_MARKER_LIFT,
+          z: worker.world.z
+        });
+        if (
+          !projected.visible
+          || projected.x < 22
+          || projected.x > width - 22
+          || projected.y < 44
+          || projected.y > height
+        ) return [];
+        return [{
+          workerId: worker.workerId,
+          workerOrdinal: worker.workerOrdinal,
+          originCastleId: worker.originCastleId,
+          x: projected.x,
+          y: projected.y,
+          depth: projected.depth,
+          visible: true,
+          phase: worker.direction
+        }];
+      });
+    const markers = projectedPresences.slice(0, MAX_VISIBLE_WORKER_PRESENCES);
+    options.canvas.dataset.realmWorkerPresenceCount = String(markers.length);
+    options.canvas.dataset.realmWorkerPresenceSuppressedCount = String(
+      Math.max(0, movingPresences.length - markers.length)
+    );
+    const frame: RealmWorkerProjectionFrame = { width, height, markers };
+    const numberKey = (value: number) => Number.isFinite(value)
+      ? Math.round(value * 10)
+      : 'invalid';
+    const projectionKey = `${numberKey(width)}:${numberKey(height)}:${markers.map((marker) => (
+      [
+        marker.workerId,
+        marker.workerOrdinal,
+        marker.originCastleId,
+        numberKey(marker.x),
+        numberKey(marker.y),
+        numberKey(marker.depth),
+        marker.phase
+      ].join(':')
+    )).join('|')}`;
+    if (projectionKey === lastWorkerProjectionKey) return;
+    lastWorkerProjectionKey = projectionKey;
+    options.onWorkerProjection(frame);
+  };
   const render = () => {
     if (cleanup.isDisposed()) return;
     if (contextLost) return;
@@ -2145,6 +2221,37 @@ function initializeRealmScene(
     }
     const expeditionPresentationNowMicros = localPresentationNowMicros();
     workerLayer?.update(expeditionPresentationNowMicros);
+    const workerTelemetry = workerLayer?.getPresentationTelemetry();
+    if (workerTelemetry) {
+      options.canvas.dataset.realmWorkerPresentedCount = String(
+        workerTelemetry.presentedWorkerCount
+      );
+      options.canvas.dataset.realmWorkerModelCount = String(workerTelemetry.modelWorkerCount);
+      options.canvas.dataset.realmWorkerAnimatedCount = String(
+        workerTelemetry.animatedWorkerCount
+      );
+      options.canvas.dataset.realmWorkerFallbackCount = String(
+        workerTelemetry.fallbackWorkerCount
+      );
+      options.canvas.dataset.realmWorkerRouteMismatchCount = String(
+        workerTelemetry.routeMismatchCount
+      );
+      options.canvas.dataset.realmWorkerVisibleRouteCount = String(
+        workerTelemetry.route.visibleRouteCount
+      );
+      options.canvas.dataset.realmWorkerVisibleRouteSegmentCount = String(
+        workerTelemetry.route.visibleSegmentCount
+      );
+      options.canvas.dataset.realmWorkerRouteDrawCallCount = String(
+        workerTelemetry.route.drawCallCount
+      );
+      options.canvas.dataset.realmWorkerRouteTriangleCount = String(
+        workerTelemetry.route.triangleCount
+      );
+      options.canvas.dataset.realmWorkerRejectedRouteCount = String(
+        workerTelemetry.route.rejectedRouteCount
+      );
+    }
     ambientScheduler?.setActive(ambientIsNeeded());
     const viewportHeight = resolveRealmViewportSize({
       canvasWidth: options.canvas.clientWidth,
@@ -2287,6 +2394,7 @@ function initializeRealmScene(
     options.canvas.dataset.realmLastSuccessfulRenderedGeneration = String(rendererGeneration);
     projectCastleLabels();
     projectResourceMarkers();
+    projectWorkerMarkers();
     if (pendingCastlesReadyCount !== null) {
       const castleCount = pendingCastlesReadyCount;
       if (
@@ -2470,6 +2578,11 @@ function initializeRealmScene(
     createRealmWorkerLayer({
       workers,
       hexSize: HEX_SIZE,
+      quality: runtimeQuality,
+      baseUrl: options.baseUrl,
+      maxAnisotropy: renderer.capabilities.getMaxAnisotropy(),
+      reducedMotion: options.reducedMotion,
+      onModelReady: render,
       heightAtWorld: (world) => terrainHeightAtWorld(
         options.surface.renderMap,
         world,
@@ -2483,7 +2596,7 @@ function initializeRealmScene(
     workerLayer = next;
     scene.add(next.group);
     options.canvas.dataset.realmWorkerMarkerCount = String(workerCount);
-    next.setSelectedWorkerId(selectedWorkerId ?? null);
+    next.setSelectedWorkerId(selectedWorkerRouteId ?? selectedWorkerId ?? null);
     next.setHoveredWorkerId(hoveredWorkerId ?? null);
     if (previous) {
       scene.remove(previous.group);
@@ -2511,11 +2624,21 @@ function initializeRealmScene(
   };
   document.addEventListener('visibilitychange', handleRenderVisibility);
   cleanup.add(() => document.removeEventListener('visibilitychange', handleRenderVisibility));
+  const ambientFrameCap = options.reducedMotion
+    ? Math.max(
+        1,
+        Math.floor(
+          1_000 / REALM_WORKER_REDUCED_MOTION_POSITION_INTERVAL_MS
+        )
+      )
+    : Math.max(
+        renderPlan.grass.animationFrameCap,
+        REALM_WATER_ANIMATION_FRAME_CAPS[runtimeQuality.id],
+        30
+      );
+  options.canvas.dataset.realmAmbientFrameCap = String(ambientFrameCap);
   ambientScheduler = createRealmAmbientScheduler({
-    frameCap: Math.max(
-      renderPlan.grass.animationFrameCap,
-      REALM_WATER_ANIMATION_FRAME_CAPS[runtimeQuality.id]
-    ),
+    frameCap: ambientFrameCap,
     active: ambientIsNeeded(),
     onStep: (elapsedSeconds) => {
       if (cleanup.isDisposed()) return;
@@ -3487,6 +3610,7 @@ function initializeRealmScene(
         terrainPlacements
       );
       lastResourceProjectionKey = '';
+      lastWorkerProjectionKey = '';
       goldNodeLayer?.reconcile(state.goldNodes);
       foodNodeLayer?.reconcile(state.foodNodes);
       woodNodeLayer?.reconcile(state.woodNodes);
@@ -3559,6 +3683,24 @@ function initializeRealmScene(
         footprintDiameter: castleFocusSize.footprintDiameter
       });
     },
+    locateWorker: (workerId) => {
+      if (cleanup.isDisposed()) return null;
+      const worker = workerLayer?.getCurrentPose(workerId);
+      if (!worker) return null;
+      cameraController.locateAt({
+        x: worker.world.x,
+        y: worker.world.y,
+        z: worker.world.z,
+        height: 0.46,
+        footprintDiameter: 0.9
+      });
+      return Object.freeze({ ...worker.coord });
+    },
+    getWorkerCurrentCoord: (workerId) => {
+      if (cleanup.isDisposed()) return null;
+      const worker = workerLayer?.getCurrentPose(workerId);
+      return worker ? Object.freeze({ ...worker.coord }) : null;
+    },
     focusCell: (coord) => {
       if (cleanup.isDisposed() || !isPlayableRealmCoord(options.surface, coord)) return;
       try {
@@ -3626,7 +3768,7 @@ function initializeRealmScene(
       if (cleanup.isDisposed()) return;
       waterLayer?.setSelectedCellKey(null);
       selectedWorkerId = undefined;
-      workerLayer?.setSelectedWorkerId(null);
+      workerLayer?.setSelectedWorkerId(selectedWorkerRouteId ?? null);
       selectedTerrainCoord = coord;
       grassLayer?.setInteraction(selectedTerrainCoord, hoveredTerrainCoord);
       selectedCastleId = coord
@@ -3648,7 +3790,7 @@ function initializeRealmScene(
       if (castleId !== null) {
         waterLayer?.setSelectedCellKey(null);
         selectedWorkerId = undefined;
-        workerLayer?.setSelectedWorkerId(null);
+        workerLayer?.setSelectedWorkerId(selectedWorkerRouteId ?? null);
         selectedTerrainCoord = null;
         grassLayer?.setInteraction(selectedTerrainCoord, hoveredTerrainCoord);
         setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
@@ -3662,7 +3804,7 @@ function initializeRealmScene(
       if (siteId !== null) {
         waterLayer?.setSelectedCellKey(null);
         selectedWorkerId = undefined;
-        workerLayer?.setSelectedWorkerId(null);
+        workerLayer?.setSelectedWorkerId(selectedWorkerRouteId ?? null);
         setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
       }
       render();
@@ -3674,7 +3816,7 @@ function initializeRealmScene(
       if (siteId !== null) {
         waterLayer?.setSelectedCellKey(null);
         selectedWorkerId = undefined;
-        workerLayer?.setSelectedWorkerId(null);
+        workerLayer?.setSelectedWorkerId(selectedWorkerRouteId ?? null);
         setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
       }
       render();
@@ -3686,7 +3828,7 @@ function initializeRealmScene(
       if (siteId !== null) {
         waterLayer?.setSelectedCellKey(null);
         selectedWorkerId = undefined;
-        workerLayer?.setSelectedWorkerId(null);
+        workerLayer?.setSelectedWorkerId(selectedWorkerRouteId ?? null);
         setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
       }
       render();
@@ -3698,7 +3840,7 @@ function initializeRealmScene(
       if (siteId !== null) {
         waterLayer?.setSelectedCellKey(null);
         selectedWorkerId = undefined;
-        workerLayer?.setSelectedWorkerId(null);
+        workerLayer?.setSelectedWorkerId(selectedWorkerRouteId ?? null);
         setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
       }
       render();
@@ -3706,7 +3848,7 @@ function initializeRealmScene(
     setSelectedWorkerId: (workerId) => {
       if (cleanup.isDisposed()) return;
       selectedWorkerId = workerId === null ? undefined : workerId;
-      workerLayer?.setSelectedWorkerId(workerId);
+      workerLayer?.setSelectedWorkerId(selectedWorkerRouteId ?? workerId);
       if (workerId !== null) {
         waterLayer?.setSelectedCellKey(null);
         selectedTerrainCoord = null;
@@ -3724,6 +3866,12 @@ function initializeRealmScene(
       }
       render();
     },
+    setSelectedWorkerRouteId: (workerId) => {
+      if (cleanup.isDisposed()) return;
+      selectedWorkerRouteId = workerId === null ? undefined : workerId;
+      workerLayer?.setSelectedWorkerId(selectedWorkerRouteId ?? selectedWorkerId ?? null);
+      render();
+    },
     setSelectedWaterCellKey: (cellKey) => {
       if (cleanup.isDisposed()) return;
       waterLayer?.setSelectedCellKey(cellKey);
@@ -3735,7 +3883,7 @@ function initializeRealmScene(
         selectedWoodSiteId = undefined;
         selectedStoneSiteId = undefined;
         selectedWorkerId = undefined;
-        workerLayer?.setSelectedWorkerId(null);
+        workerLayer?.setSelectedWorkerId(selectedWorkerRouteId ?? null);
         goldNodeLayer?.setSelectedSiteId(null);
         foodNodeLayer?.setSelectedSiteId(null);
         woodNodeLayer?.setSelectedSiteId(null);

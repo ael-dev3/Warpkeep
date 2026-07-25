@@ -54,10 +54,28 @@ body {
   .realm-cell-navigator__dialog,
   .castle-inspection__body,
   .gold-mine-inspection__body,
+  .water-inspection__drawer,
+  .water-inspection__body,
+  .worker-inspection__drawer,
+  .worker-inspection__body,
+  .worker-command-center,
   .warpkeep-credits[data-presentation="reading"] .warpkeep-credits__viewport
 ) {
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
+}
+
+.warpkeep-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  border: 0;
+  white-space: nowrap;
 }
 
 button {
