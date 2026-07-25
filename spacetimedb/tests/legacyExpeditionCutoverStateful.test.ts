@@ -693,6 +693,7 @@ function makeLegacyCutoverFixture(nowMicros: bigint) {
       capability: CASTLE_WORKER_PROTOCOL_CAPABILITY,
       clientRelease: 'alpha-0.3.18',
       clientArtifactDigest: 'c'.repeat(64),
+      moduleArtifactDigest: 'd'.repeat(64),
       sourceCommit: 'b'.repeat(40),
       resourceStateVersion: CASTLE_WORKER_RESOURCE_STATE_VERSION,
       resourcePolicyVersion: GENESIS_RESOURCE_POLICY_VERSION,

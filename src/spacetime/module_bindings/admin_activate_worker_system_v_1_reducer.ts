@@ -14,6 +14,7 @@ export default {
   capability: __t.string(),
   clientRelease: __t.string(),
   clientArtifactDigest: __t.string(),
+  moduleArtifactDigest: __t.string(),
   sourceCommit: __t.string(),
   resourceStateVersion: __t.u32(),
   resourcePolicyVersion: __t.string(),

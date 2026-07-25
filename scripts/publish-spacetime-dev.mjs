@@ -88,6 +88,10 @@ export const GENESIS_WORLD_PUBLISH_STAGE = Object.freeze({
 export const WORKER_PUBLISH_ROLLOUT_STAGE = Object.freeze({
   EMPTY: 'empty',
 });
+export const WORKER_MODULE_PREDECESSOR = Object.freeze({
+  V11: 'v11',
+  EXACT_V12_EMPTY: 'exact-v12-empty',
+});
 
 export const PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS = Object.freeze({
   allowed_fid: 0,
@@ -196,6 +200,265 @@ export const WORKER_V12_TABLE_CONTRACTS = Object.freeze({
       'timeline_revision', 'stage',
     ]),
   }),
+});
+
+const WORKER_V12_PREDECESSOR_ACTIVATION_FIELDS = Object.freeze([
+  ['capability', 'String'],
+  ['clientRelease', 'String'],
+  ['clientArtifactDigest', 'String'],
+  ['sourceCommit', 'String'],
+  ['resourceStateVersion', 'U32'],
+  ['resourcePolicyVersion', 'String'],
+  ['resourceCatalogDigest', 'String'],
+  ['expectedCastleCount', 'U32'],
+  ['expectedWorkerCount', 'U32'],
+  ['rosterDigest', 'String'],
+  ['resourceRosterDigest', 'String'],
+]);
+const WORKER_V12_CANDIDATE_ACTIVATION_FIELDS = Object.freeze([
+  ['capability', 'String'],
+  ['clientRelease', 'String'],
+  ['clientArtifactDigest', 'String'],
+  ['moduleArtifactDigest', 'String'],
+  ['sourceCommit', 'String'],
+  ['resourceStateVersion', 'U32'],
+  ['resourcePolicyVersion', 'String'],
+  ['resourceCatalogDigest', 'String'],
+  ['expectedCastleCount', 'U32'],
+  ['expectedWorkerCount', 'U32'],
+  ['rosterDigest', 'String'],
+  ['resourceRosterDigest', 'String'],
+]);
+const WORKER_V12_COMPLETE_DRAIN_FIELDS = Object.freeze([
+  ['capability', 'String'],
+  ['sourceCommit', 'String'],
+  ['moduleArtifactDigest', 'String'],
+  ['expectedCastleCount', 'U32'],
+  ['expectedWorkerCount', 'U32'],
+  ['rosterDigest', 'String'],
+  ['resourceRosterDigest', 'String'],
+  ['resourceCatalogDigest', 'String'],
+  ['goldExpeditions', 'U32'],
+  ['foodExpeditions', 'U32'],
+  ['woodExpeditions', 'U32'],
+  ['stoneExpeditions', 'U32'],
+  ['goldOccupations', 'U32'],
+  ['foodOccupations', 'U32'],
+  ['woodOccupations', 'U32'],
+  ['stoneOccupations', 'U32'],
+  ['goldSchedules', 'U32'],
+  ['foodSchedules', 'U32'],
+  ['woodSchedules', 'U32'],
+  ['stoneSchedules', 'U32'],
+]);
+const WORKER_V12_RETURN_LEGACY_FIELDS = Object.freeze([
+  ['resourceKind', 'String'],
+  ['expeditionId', 'String'],
+]);
+const WORKER_V12_PREDECESSOR_STATUS_FIELDS = Object.freeze([
+  ['phase', 'String'],
+  ['system_rows', 'U64'],
+  ['system_config_valid', 'Bool'],
+  ['expected_castle_count', 'U32'],
+  ['expected_worker_count', 'U32'],
+  ['actual_castle_count', 'U64'],
+  ['actual_worker_count', 'U64'],
+  ['roster_digest', 'String'],
+  ['expected_roster_digest', 'String'],
+  ['malformed_worker_graph_rows', 'U64'],
+  ['resource_accounts', 'U64'],
+  ['missing_resource_accounts', 'U64'],
+  ['orphaned_resource_accounts', 'U64'],
+  ['resource_invariant_violations', 'U64'],
+  ['resource_roster_digest', 'String'],
+  ['canonical_resource_catalog', 'Bool'],
+  ['resource_catalog_digest', 'String'],
+  ['legacy_expeditions', 'U64'],
+  ['legacy_occupations', 'U64'],
+  ['legacy_schedules', 'U64'],
+  ['generic_assignments', 'U64'],
+  ['generic_occupations', 'U64'],
+  ['generic_schedules', 'U64'],
+  ['generic_command_receipts', 'U64'],
+]);
+const WORKER_V12_RESOURCE_STATUS_FIELDS = Object.freeze([
+  ['legacy_gold_expeditions', 'U64'],
+  ['legacy_food_expeditions', 'U64'],
+  ['legacy_wood_expeditions', 'U64'],
+  ['legacy_stone_expeditions', 'U64'],
+  ['legacy_gold_occupations', 'U64'],
+  ['legacy_food_occupations', 'U64'],
+  ['legacy_wood_occupations', 'U64'],
+  ['legacy_stone_occupations', 'U64'],
+  ['legacy_gold_schedules', 'U64'],
+  ['legacy_food_schedules', 'U64'],
+  ['legacy_wood_schedules', 'U64'],
+  ['legacy_stone_schedules', 'U64'],
+]);
+const WORKER_V12_CANDIDATE_STATUS_FIELDS = Object.freeze([
+  ...WORKER_V12_PREDECESSOR_STATUS_FIELDS.slice(0, 20),
+  ...WORKER_V12_RESOURCE_STATUS_FIELDS,
+  ...WORKER_V12_PREDECESSOR_STATUS_FIELDS.slice(20),
+]);
+const WORKER_V12_SYSTEM_STATUS_FIELDS = Object.freeze([
+  ['system_rows', 'U64'],
+  ['mode', 'String'],
+  ['system_config_valid', 'Bool'],
+  ['legacy_drain_required', 'Bool'],
+  ['expected_castle_count', 'U64'],
+  ['expected_worker_count', 'U64'],
+  ['actual_worker_count', 'U64'],
+  ['expected_counts_match', 'Bool'],
+  ['roster_digest_matches', 'Bool'],
+  ['castles_missing_workers', 'U64'],
+  ['castles_with_extra_workers', 'U64'],
+  ['duplicate_ordinals', 'U64'],
+  ['malformed_worker_ids', 'U64'],
+  ['invalid_worker_states', 'U64'],
+  ['idle_workers', 'U64'],
+  ['outbound_workers', 'U64'],
+  ['gathering_workers', 'U64'],
+  ['returning_workers', 'U64'],
+  ['assignments', 'U64'],
+  ['occupations', 'U64'],
+  ['schedules', 'U64'],
+  ['orphan_workers', 'U64'],
+  ['orphan_assignments', 'U64'],
+  ['assignments_missing_occupation', 'U64'],
+  ['assignments_without_single_schedule', 'U64'],
+  ['orphan_occupations', 'U64'],
+  ['orphan_schedules', 'U64'],
+  ['invalid_schedules', 'U64'],
+  ['assignment_public_mismatches', 'U64'],
+  ['occupation_site_mismatches', 'U64'],
+  ['invalid_assignments', 'U64'],
+  ['idempotency_receipts', 'U64'],
+  ['invalid_idempotency_receipts', 'U64'],
+  ['idempotency_overflow_fids', 'U64'],
+  ['legacy_expeditions', 'U64'],
+  ['legacy_occupations', 'U64'],
+  ['legacy_schedules', 'U64'],
+  ['roster_digest', 'String'],
+  ['roster_digest_expected', 'String'],
+]);
+const WORKER_V12_ROSTER_PLAN_FIELDS = Object.freeze([
+  ['ready', 'Bool'],
+  ['activation_blocked_by_legacy_rows', 'Bool'],
+  ['mode', 'String'],
+  ['system_config_valid', 'Bool'],
+  ['legacy_drain_required', 'Bool'],
+  ['expected_castle_count', 'U64'],
+  ['expected_worker_count', 'U64'],
+  ['actual_worker_count', 'U64'],
+  ['expected_counts_match', 'Bool'],
+  ['roster_digest_matches', 'Bool'],
+  ['castles_missing_workers', 'U64'],
+  ['castles_with_extra_workers', 'U64'],
+  ['orphan_workers', 'U64'],
+  ['orphan_assignments', 'U64'],
+  ['assignments_missing_occupation', 'U64'],
+  ['assignments_without_single_schedule', 'U64'],
+  ['orphan_occupations', 'U64'],
+  ['orphan_schedules', 'U64'],
+  ['invalid_schedules', 'U64'],
+  ['assignment_public_mismatches', 'U64'],
+  ['occupation_site_mismatches', 'U64'],
+  ['invalid_worker_states', 'U64'],
+  ['invalid_assignments', 'U64'],
+  ['invalid_idempotency_receipts', 'U64'],
+  ['idempotency_overflow_fids', 'U64'],
+  ['legacy_expeditions', 'U64'],
+  ['legacy_occupations', 'U64'],
+  ['legacy_schedules', 'U64'],
+  ['roster_digest', 'String'],
+  ['roster_digest_expected', 'String'],
+]);
+const WORKER_V12_RESOURCE_STATE_FIELDS = Object.freeze([
+  ['fid', 'U64'],
+  ['food', 'U64'],
+  ['wood', 'U64'],
+  ['stone', 'U64'],
+  ['gold', 'U64'],
+  ['worker_pending_food', 'U64'],
+  ['worker_pending_wood', 'U64'],
+  ['worker_pending_stone', 'U64'],
+  ['worker_pending_gold', 'U64'],
+  ['observed_at_micros', 'U64'],
+  ['settled_through_micros', 'U64'],
+  ['revision', 'U64'],
+  ['resource_policy_version', 'String'],
+  ['worker_policy_version', 'String'],
+  ['worker_system_mode', 'String'],
+]);
+const WORKER_V12_OPTION_STRING_TYPE = workerSumType([
+  ['some', 'String'],
+  ['none', workerProductType([])],
+]);
+const WORKER_V12_PRIVATE_WORKER_FIELDS = Object.freeze([
+  ['worker_id', 'String'],
+  ['ordinal', 'U32'],
+  ['status', 'String'],
+  ['resource_kind', WORKER_V12_OPTION_STRING_TYPE],
+  ['site_id', WORKER_V12_OPTION_STRING_TYPE],
+  ['accrued_amount', 'U64'],
+  ['materialized_amount', 'U64'],
+  ['available_amount', 'U64'],
+  ['observed_at_micros', 'U64'],
+  ['revision', 'U64'],
+]);
+const WORKER_V12_ROSTER_FIELDS = Object.freeze([
+  ['fid', 'U64'],
+  ['castle_id', 'U64'],
+  ['observed_at_micros', 'U64'],
+  [
+    'workers',
+    workerArrayType(workerRefType(WORKER_V12_PRIVATE_WORKER_FIELDS)),
+  ],
+]);
+const WORKER_V12_TIMESTAMP_TYPE = workerSumType([
+  [
+    'Interval',
+    workerProductType([['__time_duration_micros__', 'I64']]),
+  ],
+  [
+    'Time',
+    workerProductType([['__timestamp_micros_since_unix_epoch__', 'I64']]),
+  ],
+]);
+const WORKER_V12_SCHEDULE_ROW_FIELDS = Object.freeze([
+  ['schedule_id', 'U64'],
+  ['scheduled_at', WORKER_V12_TIMESTAMP_TYPE],
+  ['assignment_id', 'String'],
+  ['worker_id', 'String'],
+  ['timeline_revision', 'U32'],
+  ['stage', 'String'],
+]);
+const WORKER_V12_COMMON_REDUCER_FIELDS = Object.freeze({
+  admin_backfill_worker_roster_v1: Object.freeze([]),
+  admin_begin_worker_legacy_drain_v1: Object.freeze([]),
+  admin_stage_worker_system_v1: Object.freeze([]),
+  dispatch_worker_v1: Object.freeze([
+    ['workerId', 'String'],
+    ['resourceKind', 'String'],
+    ['siteId', 'String'],
+    ['idempotencyKey', 'String'],
+  ]),
+  recall_all_workers_v1: Object.freeze([
+    ['idempotencyKey', 'String'],
+  ]),
+  recall_worker_v1: Object.freeze([
+    ['workerId', 'String'],
+    ['idempotencyKey', 'String'],
+  ]),
+  run_worker_assignment_schedule_v_1: Object.freeze([
+    ['arg', workerRefType(WORKER_V12_SCHEDULE_ROW_FIELDS)],
+  ]),
+});
+const WORKER_V12_COMMON_PROCEDURE_FIELDS = Object.freeze({
+  admin_get_worker_system_status_v1: WORKER_V12_SYSTEM_STATUS_FIELDS,
+  admin_plan_worker_roster_v1: WORKER_V12_ROSTER_PLAN_FIELDS,
+  get_my_resource_state_v2: WORKER_V12_RESOURCE_STATE_FIELDS,
+  get_my_worker_roster_v1: WORKER_V12_ROSTER_FIELDS,
 });
 
 const ALPHA_V8_COUNT_FIELDS = Object.freeze([
@@ -641,6 +904,8 @@ export function parsePublishArguments(arguments_ = process.argv.slice(2)) {
   let resourceRolloutStage;
   let genesisWorldRolloutStage;
   let workerRolloutStage;
+  let workerModulePredecessor = WORKER_MODULE_PREDECESSOR.V11;
+  let workerModulePredecessorExplicit = false;
   for (const argument of arguments_) {
     if (argument === '--dry-run' && !dryRun) {
       dryRun = true;
@@ -676,7 +941,18 @@ export function parsePublishArguments(arguments_ = process.argv.slice(2)) {
         continue;
       }
     }
-    fail('Usage: publish-spacetime-dev.mjs [--dry-run] --resource-rollout-stage=<prebackfill|ready> --genesis-world-stage=<pre-expansion|expanded> --worker-rollout-stage=empty. Unknown or duplicate arguments are rejected.');
+    if (
+      argument.startsWith('--worker-module-predecessor=')
+      && !workerModulePredecessorExplicit
+    ) {
+      const value = argument.slice('--worker-module-predecessor='.length);
+      if (Object.values(WORKER_MODULE_PREDECESSOR).includes(value)) {
+        workerModulePredecessor = value;
+        workerModulePredecessorExplicit = true;
+        continue;
+      }
+    }
+    fail('Usage: publish-spacetime-dev.mjs [--dry-run] --resource-rollout-stage=<prebackfill|ready> --genesis-world-stage=<pre-expansion|expanded> --worker-rollout-stage=empty [--worker-module-predecessor=<v11|exact-v12-empty>]. Unknown or duplicate arguments are rejected.');
   }
   if (resourceRolloutStage === undefined) {
     fail('An explicit resource rollout stage is required: prebackfill for the first additive publication or ready for an already-backfilled republish.');
@@ -692,6 +968,7 @@ export function parsePublishArguments(arguments_ = process.argv.slice(2)) {
     resourceRolloutStage,
     genesisWorldRolloutStage,
     workerRolloutStage,
+    workerModulePredecessor,
   });
 }
 
@@ -1061,6 +1338,370 @@ export function verifyExactProductionV12Schema(
     appendedWorkerTableCount: Object.keys(WORKER_V12_TABLE_CONTRACTS).length,
     totalTableCount: Object.keys(v12Refs).length,
   });
+}
+
+function productionV12TableRefs() {
+  return Object.freeze({
+    ...PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS,
+    ...Object.fromEntries(Object.entries(WORKER_V12_TABLE_CONTRACTS)
+      .map(([name, contract]) => [name, contract.productTypeRef])),
+  });
+}
+
+function workerProductType(fields) {
+  return `Product<${canonicalJson(fields)}>`;
+}
+
+function workerSumType(fields) {
+  return `Sum<${canonicalJson(fields)}>`;
+}
+
+function workerRefType(fields) {
+  return `Ref<${workerProductType(fields)}>`;
+}
+
+function workerArrayType(elementType) {
+  return `Array<${elementType}>`;
+}
+
+function isEmptyAlgebraicPayload(payload) {
+  return (
+    (Array.isArray(payload) && payload.length === 0)
+    || (
+      payload
+      && typeof payload === 'object'
+      && !Array.isArray(payload)
+      && Object.keys(payload).length === 0
+    )
+  );
+}
+
+function workerAlgebraicType(
+  description,
+  value,
+  label,
+  activeRefs = new Set(),
+) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    fail(`The ${label} Worker module ABI contained an invalid algebraic type.`);
+  }
+  const keys = Object.keys(value);
+  const name = keys.length === 1 ? keys[0] : undefined;
+  const payload = name === undefined ? undefined : value[name];
+  if (
+    ['Bool', 'I64', 'String', 'U32', 'U64'].includes(name)
+    && isEmptyAlgebraicPayload(payload)
+  ) return name;
+  if (name === 'Array') {
+    return workerArrayType(workerAlgebraicType(
+      description,
+      payload,
+      label,
+      activeRefs,
+    ));
+  }
+  if (name === 'Product' || name === 'Sum') {
+    if (
+      !payload
+      || typeof payload !== 'object'
+      || Array.isArray(payload)
+      || Object.keys(payload).length !== 1
+    ) fail(`The ${label} Worker module ABI contained an invalid ${name} type.`);
+    const key = name === 'Product' ? 'elements' : 'variants';
+    if (!Object.hasOwn(payload, key)) {
+      fail(`The ${label} Worker module ABI contained an invalid ${name} type.`);
+    }
+    const fields = workerProductFields(
+      description,
+      payload[key],
+      `${label} ${name.toLowerCase()}`,
+      activeRefs,
+    );
+    return name === 'Product'
+      ? workerProductType(fields)
+      : workerSumType(fields);
+  }
+  if (
+    name === 'Ref'
+    && Number.isSafeInteger(payload)
+    && payload >= 0
+    && Array.isArray(description?.typespace?.types)
+    && description.typespace.types[payload] !== undefined
+  ) {
+    if (activeRefs.has(payload)) {
+      fail(`The ${label} Worker module ABI contained a cyclic type reference.`);
+    }
+    const nextRefs = new Set(activeRefs);
+    nextRefs.add(payload);
+    return `Ref<${workerAlgebraicType(
+      description,
+      description.typespace.types[payload],
+      label,
+      nextRefs,
+    )}>`;
+  }
+  fail(`The ${label} Worker module ABI contained an unsupported algebraic type.`);
+}
+
+function workerProductFields(
+  description,
+  elements,
+  label,
+  activeRefs = new Set(),
+) {
+  if (!Array.isArray(elements)) {
+    fail(`The ${label} Worker module ABI fields were absent.`);
+  }
+  return elements.map(element => {
+    if (
+      !element
+      || typeof element !== 'object'
+      || Array.isArray(element)
+      || Object.keys(element).sort().join(',') !== 'algebraic_type,name'
+      || !element.name
+      || typeof element.name !== 'object'
+      || Array.isArray(element.name)
+      || Object.keys(element.name).length !== 1
+      || typeof element.name.some !== 'string'
+    ) fail(`The ${label} Worker module ABI fields were invalid.`);
+    return Object.freeze([
+      element.name.some,
+      workerAlgebraicType(
+        description,
+        element.algebraic_type,
+        label,
+        activeRefs,
+      ),
+    ]);
+  });
+}
+
+function criticalWorkerReducerName(name) {
+  return typeof name === 'string'
+    && (name.includes('worker') || name.includes('legacy_expedition'));
+}
+
+function criticalWorkerProcedureName(name) {
+  return typeof name === 'string'
+    && (name.includes('worker') || name === 'get_my_resource_state_v2');
+}
+
+function collectWorkerReducerAbi(description) {
+  if (!Array.isArray(description.reducers)) {
+    fail('The canonical schema did not expose a reducer ABI.');
+  }
+  const reducers = Object.create(null);
+  for (const reducer of description.reducers.filter(
+    candidate => criticalWorkerReducerName(candidate?.name),
+  )) {
+    if (
+      Object.hasOwn(reducers, reducer.name)
+      || canonicalJson(reducer.lifecycle) !== canonicalJson({ none: [] })
+    ) {
+      fail('The canonical schema did not contain one exact required Worker reducer.');
+    }
+    reducers[reducer.name] = workerProductFields(
+      description,
+      reducer?.params?.elements,
+      `${reducer.name} reducer`,
+    );
+  }
+  return reducers;
+}
+
+function collectWorkerProcedureAbi(description) {
+  if (!Array.isArray(description.misc_exports)) {
+    fail('The canonical schema did not expose a procedure ABI.');
+  }
+  const procedures = Object.create(null);
+  const matches = description.misc_exports
+    .map(entry => entry?.Procedure)
+    .filter(procedure => criticalWorkerProcedureName(procedure?.name));
+  for (const procedure of matches) {
+    if (Object.hasOwn(procedures, procedure.name)) {
+      fail('The canonical schema did not contain one exact required Worker procedure.');
+    }
+    if (workerProductFields(
+      description,
+      procedure?.params?.elements,
+      `${procedure.name} procedure parameters`,
+    ).length !== 0) fail('The required Worker procedure parameters were invalid.');
+    const returnType = procedure?.return_type;
+    if (
+      !returnType
+      || typeof returnType !== 'object'
+      || Array.isArray(returnType)
+      || Object.keys(returnType).length !== 1
+      || !Number.isSafeInteger(returnType.Ref)
+      || returnType.Ref < 0
+      || !Array.isArray(description?.typespace?.types)
+      || !description.typespace.types[returnType.Ref]?.Product
+    ) fail('The required Worker procedure return type was invalid.');
+    procedures[procedure.name] = workerProductFields(
+      description,
+      description.typespace.types[returnType.Ref].Product.elements,
+      `${procedure.name} procedure`,
+      new Set([returnType.Ref]),
+    );
+  }
+  return procedures;
+}
+
+function fieldsMatch(actual, expected) {
+  return actual !== undefined
+    && actual.length === expected.length
+    && actual.every((field, index) => (
+      field[0] === expected[index][0]
+      && field[1] === expected[index][1]
+    ));
+}
+
+function surfaceMatches(actual, expected) {
+  const actualNames = Object.keys(actual).sort();
+  const expectedNames = Object.keys(expected).sort();
+  return canonicalJson(actualNames) === canonicalJson(expectedNames)
+    && actualNames.every(name => fieldsMatch(actual[name], expected[name]));
+}
+
+/**
+ * Distinguish only the one reviewed empty-v12 predecessor ABI from the exact
+ * cutover candidate. This pins every Worker reducer and procedure, including
+ * nested roster and scheduler types; missing, extra, or drifted Worker APIs
+ * are never interpreted as either state.
+ */
+export function verifyWorkerV12ModuleAbi(description) {
+  const reducerAbi = collectWorkerReducerAbi(description);
+  const procedureAbi = collectWorkerProcedureAbi(description);
+  const predecessor = surfaceMatches(reducerAbi, {
+    ...WORKER_V12_COMMON_REDUCER_FIELDS,
+    admin_activate_worker_system_v1:
+      WORKER_V12_PREDECESSOR_ACTIVATION_FIELDS,
+  }) && surfaceMatches(procedureAbi, {
+    ...WORKER_V12_COMMON_PROCEDURE_FIELDS,
+    admin_get_worker_rollout_status_v2:
+      WORKER_V12_PREDECESSOR_STATUS_FIELDS,
+  });
+  const candidate = surfaceMatches(reducerAbi, {
+    ...WORKER_V12_COMMON_REDUCER_FIELDS,
+    admin_activate_worker_system_v1:
+      WORKER_V12_CANDIDATE_ACTIVATION_FIELDS,
+    admin_complete_worker_legacy_drain_v1:
+      WORKER_V12_COMPLETE_DRAIN_FIELDS,
+    return_legacy_expedition_v1: WORKER_V12_RETURN_LEGACY_FIELDS,
+  }) && surfaceMatches(procedureAbi, {
+    ...WORKER_V12_COMMON_PROCEDURE_FIELDS,
+    admin_get_worker_rollout_status_v2:
+      WORKER_V12_CANDIDATE_STATUS_FIELDS,
+  });
+  if (!predecessor && !candidate) {
+    fail('The production Worker v12 module ABI was partial, unknown, or changed.');
+  }
+  return candidate ? 'candidate' : 'predecessor';
+}
+
+/**
+ * Preflight for the exceptional code-only update over an already-appended,
+ * still-inert v12 suffix. The migration proof supplies the one accepted table
+ * boundary digest; all 53 exact table signatures are captured for the post
+ * publication comparison.
+ */
+export function verifyExactProductionV12ModuleSchema(
+  description,
+  expectedTableSchemaDigest,
+) {
+  const refs = productionV12TableRefs();
+  verifyExactTableIdentities(description, refs);
+  for (const [name, contract] of Object.entries(WORKER_V12_TABLE_CONTRACTS)) {
+    if (
+      schemaTableAccess(description, name) !== contract.access
+      || canonicalJson(schemaFieldNames(description, name))
+        !== canonicalJson(contract.fields)
+    ) fail('The appended Worker schema did not match the exact v12 contract.');
+  }
+  try {
+    if (
+      typeof expectedTableSchemaDigest !== 'string'
+      || !SHA256_DIGEST.test(expectedTableSchemaDigest)
+      || canonicalTableSchemaBoundaryDigest(
+        description,
+        Object.keys(refs),
+      ) !== expectedTableSchemaDigest
+    ) fail('The canonical v12 table schema did not match the proven publication boundary.');
+  } catch (error) {
+    if (
+      error instanceof SafePublishError
+      && error.message
+        === 'The canonical v12 table schema did not match the proven publication boundary.'
+    ) throw error;
+    fail('The canonical v12 table schema did not match the proven publication boundary.');
+  }
+  const tableSignatures = Object.freeze(Object.fromEntries(
+    Object.keys(refs).map(name => [
+      name,
+      canonicalJson(schemaTableSignature(description, name)),
+    ]),
+  ));
+  return Object.freeze({
+    moduleState: verifyWorkerV12ModuleAbi(description),
+    tableSignatures,
+    totalTableCount: Object.keys(refs).length,
+  });
+}
+
+export function verifyFreshProductionV12ModuleSchema(
+  executable,
+  expectedTableSchemaDigest,
+  spawnSyncProcess = spawnSync,
+) {
+  try {
+    const result = runBoundedSync(
+      executable,
+      canonicalSchemaDescribeChildArguments(),
+      { timeout: 30_000 },
+      spawnSyncProcess,
+    );
+    return verifyExactProductionV12ModuleSchema(
+      parseCanonicalSchemaDescription(result.stdout),
+      expectedTableSchemaDigest,
+    );
+  } catch {
+    fail('Exact inert production v12 schema and module-ABI preflight failed. No publish was attempted.');
+  }
+}
+
+export function verifyPostPublishProductionV12ModuleSchema(
+  executable,
+  predecessor,
+  expectedTableSchemaDigest,
+  spawnSyncProcess = spawnSync,
+) {
+  try {
+    if (
+      !predecessor
+      || predecessor.moduleState !== 'predecessor'
+      || !predecessor.tableSignatures
+      || typeof predecessor.tableSignatures !== 'object'
+      || Array.isArray(predecessor.tableSignatures)
+    ) fail('The captured inert production v12 predecessor was invalid.');
+    const result = runBoundedSync(
+      executable,
+      canonicalSchemaDescribeChildArguments(),
+      { timeout: 30_000 },
+      spawnSyncProcess,
+    );
+    const after = verifyExactProductionV12ModuleSchema(
+      parseCanonicalSchemaDescription(result.stdout),
+      expectedTableSchemaDigest,
+    );
+    if (
+      after.moduleState !== 'candidate'
+      || canonicalJson(after.tableSignatures)
+        !== canonicalJson(predecessor.tableSignatures)
+    ) fail('The code-only v12 publication did not preserve every table signature and install the exact candidate ABI.');
+    return after;
+  } catch {
+    fail('Post-publication v12 module checkpoint is indeterminate; perform a fresh anonymous read-only schema and ABI inspection before any stage, backfill, drain, activation, client deployment, or further publication decision.');
+  }
 }
 
 export function verifyFreshProductionV11Schema(
@@ -1760,6 +2401,32 @@ export function verifyPostPublishCombinedV12Aggregate(
   }
 }
 
+/**
+ * The already-v12 exception uses the same closed aggregate envelope before
+ * publication. Its distinct error makes clear that no mutation was attempted.
+ */
+export function verifyFreshPublishExactV12Aggregate(
+  secret,
+  expectations,
+  resourceRolloutStage,
+  workerRolloutStage,
+  spawnSyncProcess = spawnSync,
+  genesisWorldRolloutStage = GENESIS_WORLD_PUBLISH_STAGE.PRE_EXPANSION,
+) {
+  try {
+    return verifyPostPublishCombinedV12Aggregate(
+      secret,
+      expectations,
+      resourceRolloutStage,
+      workerRolloutStage,
+      spawnSyncProcess,
+      genesisWorldRolloutStage,
+    );
+  } catch {
+    fail('Exact-v12 pre-publication aggregate checkpoint failed. No publish was attempted; the Worker suffix must remain absent and inert.');
+  }
+}
+
 export function verifyPostPublishFoundedProtocolV3Aggregate(
   secret,
   expectations,
@@ -1976,6 +2643,7 @@ async function main() {
     resourceRolloutStage,
     genesisWorldRolloutStage,
     workerRolloutStage,
+    workerModulePredecessor,
   } = parsePublishArguments();
   requireCanonicalPublishCoordinates();
   if (database !== CANONICAL_DATABASE) fail('The production publisher target was not canonical.');
@@ -2003,36 +2671,69 @@ async function main() {
     const artifactReceipt = runCurrentAdditiveMigrationProof(executable);
     if (dryRun) {
       await validateIssuerDeployment(issuer);
-      console.log(`Dry run: verified the pinned CLI, current additive migration, founded-state expectation contract, explicit ${resourceRolloutStage} resource stage, explicit ${genesisWorldRolloutStage} Genesis world stage, explicit ${workerRolloutStage} Worker stage, and ${issuer}; would update the canonical existing database without deleting data.`);
+      console.log(`Dry run: verified the pinned CLI, current additive migration, founded-state expectation contract, explicit ${resourceRolloutStage} resource stage, explicit ${genesisWorldRolloutStage} Genesis world stage, explicit ${workerRolloutStage} Worker stage, explicit ${workerModulePredecessor} module predecessor, and ${issuer}; would update the canonical existing database without deleting data.`);
       return;
     }
     await validateIssuerDeployment(issuer);
     attestCanonicalDatabase(executable);
-    const predecessorSchema = verifyFreshProductionV11Schema(
-      executable,
-      artifactReceipt.v11TableSchemaDigest,
-    );
-    verifyFreshPublishPreV12Aggregate(
-      adminTokenSecret,
-      foundedExpectations,
-      resourceRolloutStage,
-      spawnSync,
-      genesisWorldRolloutStage,
-    );
-    await publishModule(executable, CANONICAL_DATABASE_IDENTITY, artifactReceipt);
-    verifyPostPublishProductionV12Schema(
-      executable,
-      predecessorSchema,
-      artifactReceipt.v12TableSchemaDigest,
-    );
-    verifyPostPublishResourcePublicationCheckpoints(
-      adminTokenSecret,
-      foundedExpectations,
-      resourceRolloutStage,
-      workerRolloutStage,
-      spawnSync,
-      genesisWorldRolloutStage,
-    );
+    if (workerModulePredecessor === WORKER_MODULE_PREDECESSOR.EXACT_V12_EMPTY) {
+      const predecessorSchema = verifyFreshProductionV12ModuleSchema(
+        executable,
+        artifactReceipt.v12TableSchemaDigest,
+      );
+      verifyFreshPublishExactV12Aggregate(
+        adminTokenSecret,
+        foundedExpectations,
+        resourceRolloutStage,
+        workerRolloutStage,
+        spawnSync,
+        genesisWorldRolloutStage,
+      );
+      if (predecessorSchema.moduleState === 'candidate') {
+        console.log('Exact reviewed v12 module ABI and inert Worker aggregate are already published; no publication was attempted.');
+        return;
+      }
+      await publishModule(executable, CANONICAL_DATABASE_IDENTITY, artifactReceipt);
+      verifyPostPublishProductionV12ModuleSchema(
+        executable,
+        predecessorSchema,
+        artifactReceipt.v12TableSchemaDigest,
+      );
+      verifyPostPublishResourcePublicationCheckpoints(
+        adminTokenSecret,
+        foundedExpectations,
+        resourceRolloutStage,
+        workerRolloutStage,
+        spawnSync,
+        genesisWorldRolloutStage,
+      );
+    } else {
+      const predecessorSchema = verifyFreshProductionV11Schema(
+        executable,
+        artifactReceipt.v11TableSchemaDigest,
+      );
+      verifyFreshPublishPreV12Aggregate(
+        adminTokenSecret,
+        foundedExpectations,
+        resourceRolloutStage,
+        spawnSync,
+        genesisWorldRolloutStage,
+      );
+      await publishModule(executable, CANONICAL_DATABASE_IDENTITY, artifactReceipt);
+      verifyPostPublishProductionV12Schema(
+        executable,
+        predecessorSchema,
+        artifactReceipt.v12TableSchemaDigest,
+      );
+      verifyPostPublishResourcePublicationCheckpoints(
+        adminTokenSecret,
+        foundedExpectations,
+        resourceRolloutStage,
+        workerRolloutStage,
+        spawnSync,
+        genesisWorldRolloutStage,
+      );
+    }
   } finally {
     adminTokenSecret = undefined;
     executableSnapshot.cleanup();

@@ -322,6 +322,7 @@ describe('worker rollout plans', () => {
     const before = status({ phase: 'draining' });
     const plan = buildWorkerRolloutPlan('activate', before, {
       sourceCommit: 'c'.repeat(40),
+      moduleArtifactDigest: 'e'.repeat(64),
       clientRelease: 'alpha-0.3.18',
       clientArtifactDigest: 'd'.repeat(64),
     });
@@ -330,6 +331,7 @@ describe('worker rollout plans', () => {
       alreadySatisfied: false,
       envelope: {
         sourceCommit: 'c'.repeat(40),
+        moduleArtifactDigest: 'e'.repeat(64),
         clientRelease: 'alpha-0.3.18',
         clientArtifactDigest: 'd'.repeat(64),
         expectedCastleCount: 2,
@@ -343,6 +345,7 @@ describe('worker rollout plans', () => {
       legacyGoldExpeditions: 1n,
     }), {
       sourceCommit: 'c'.repeat(40),
+      moduleArtifactDigest: 'e'.repeat(64),
       clientRelease: 'alpha-0.3.18',
       clientArtifactDigest: 'd'.repeat(64),
     })).toThrow(/ACTIVATION_BLOCKED/);
@@ -586,6 +589,7 @@ describe('worker rollout execution', () => {
       sourceCommit,
       ...(command === 'complete-drain' ? { moduleArtifactDigest } : {}),
       ...(command === 'activate' ? {
+        moduleArtifactDigest,
         clientRelease: 'alpha-0.3.18',
         clientArtifactDigest,
       } : {}),
@@ -1056,6 +1060,8 @@ describe('local credentials, artifacts, and private receipts', () => {
     const repositoryRoot = join(root, 'repository');
     const receiptDirectory = join(root, 'private-receipts');
     const artifactDirectory = join(repositoryRoot, 'dist');
+    const moduleArtifactDirectory = join(repositoryRoot, 'spacetimedb', 'dist');
+    const moduleArtifactPath = join(moduleArtifactDirectory, 'bundle.js');
     const sourceCommit = 'a'.repeat(40);
     mkdirSync(repositoryRoot, { mode: 0o700 });
     writeFileSync(
@@ -1063,6 +1069,11 @@ describe('local credentials, artifacts, and private receipts', () => {
       JSON.stringify({ version: '0.3.18' }),
       { mode: 0o600 },
     );
+    mkdirSync(moduleArtifactDirectory, { recursive: true });
+    writeFileSync(moduleArtifactPath, 'reviewed module artifact');
+    const moduleArtifactDigest = createHash('sha256')
+      .update('reviewed module artifact')
+      .digest('hex');
     mkdirSync(artifactDirectory);
     writeFileSync(join(artifactDirectory, 'stale.js'), 'stale');
     const phases: string[] = [];
@@ -1100,6 +1111,7 @@ describe('local credentials, artifacts, and private receipts', () => {
     });
     const result = bindFreshActivationPagesBuildProof({
       sourceCommit,
+      moduleArtifactDigest,
       receiptDirectory,
       repositoryRoot,
       artifactDirectory,
@@ -1113,6 +1125,7 @@ describe('local credentials, artifacts, and private receipts', () => {
     expect(phases).toEqual(['validate', 'build']);
     expect(result.clientRelease).toBe('alpha-0.3.18');
     expect(result.clientArtifactDigest).toMatch(/^[0-9a-f]{64}$/);
+    expect(result.moduleArtifactDigest).toBe(moduleArtifactDigest);
     const proofPath = readdirSync(receiptDirectory)
       .find(name => name.startsWith(
         'worker-rollout-activation-build-proof-',
@@ -1123,6 +1136,9 @@ describe('local credentials, artifacts, and private receipts', () => {
     expect(proof).toContain(
       `"clientArtifactDigest": "${result.clientArtifactDigest}"`,
     );
+    expect(proof).toContain(
+      `"moduleArtifactDigest": "${moduleArtifactDigest}"`,
+    );
     expect(proof).toContain('"sharedAlphaEnabled": true');
     expect(proof).not.toMatch(
       /authorization|credential|identity|secret|token|fid|qr/i,
@@ -1130,12 +1146,25 @@ describe('local credentials, artifacts, and private receipts', () => {
 
     expect(() => bindFreshActivationPagesBuildProof({
       sourceCommit,
+      moduleArtifactDigest,
       receiptDirectory,
       repositoryRoot,
       artifactDirectory,
       sourceEnvironment: { PATH: '/controlled/path' },
       runPagesBuild,
       attestSourceAfterBuild: () => 'b'.repeat(40),
+    })).toThrow(/ACTIVATION_BUILD_PROOF_MISMATCH/);
+
+    writeFileSync(moduleArtifactPath, 'module changed after proof');
+    expect(() => bindFreshActivationPagesBuildProof({
+      sourceCommit,
+      moduleArtifactDigest,
+      receiptDirectory,
+      repositoryRoot,
+      artifactDirectory,
+      sourceEnvironment: { PATH: '/controlled/path' },
+      runPagesBuild,
+      attestSourceAfterBuild: () => sourceCommit,
     })).toThrow(/ACTIVATION_BUILD_PROOF_MISMATCH/);
   });
 
@@ -1155,6 +1184,17 @@ describe('local credentials, artifacts, and private receipts', () => {
     const runner = vi.fn();
     expect(() => bindFreshActivationPagesBuildProof({
       sourceCommit,
+      moduleArtifactDigest: 'not-a-sha256',
+      receiptDirectory,
+      repositoryRoot,
+      artifactDirectory,
+      sourceEnvironment: { PATH: '/controlled/path' },
+      runPagesBuild: runner,
+      attestSourceAfterBuild: () => sourceCommit,
+    })).toThrow(/ACTIVATION_MODULE_ARTIFACT_INVALID/);
+    expect(() => bindFreshActivationPagesBuildProof({
+      sourceCommit,
+      moduleArtifactDigest: 'b'.repeat(64),
       receiptDirectory,
       repositoryRoot,
       artifactDirectory,
@@ -1167,6 +1207,7 @@ describe('local credentials, artifacts, and private receipts', () => {
 
     expect(() => bindFreshActivationPagesBuildProof({
       sourceCommit,
+      moduleArtifactDigest: 'b'.repeat(64),
       receiptDirectory,
       repositoryRoot,
       artifactDirectory,
@@ -1183,6 +1224,7 @@ describe('local credentials, artifacts, and private receipts', () => {
       sourceCommit,
       clientRelease: 'not-a-release',
       clientArtifactDigest: 'b'.repeat(64),
+      moduleArtifactDigest: 'd'.repeat(64),
       pagesConfigurationDigest: 'c'.repeat(64),
     })).toThrow(/ACTIVATION_BUILD_PROOF_INVALID/);
   });
@@ -1206,6 +1248,7 @@ describe('local credentials, artifacts, and private receipts', () => {
     for (const dangerousPath of [repositoryRoot, root]) {
       expect(() => bindFreshActivationPagesBuildProof({
         sourceCommit,
+        moduleArtifactDigest: 'b'.repeat(64),
         receiptDirectory,
         repositoryRoot,
         artifactDirectory: dangerousPath,
@@ -1223,6 +1266,7 @@ describe('local credentials, artifacts, and private receipts', () => {
     writeFileSync(exactDist, 'preserve non-directory');
     expect(() => bindFreshActivationPagesBuildProof({
       sourceCommit,
+      moduleArtifactDigest: 'b'.repeat(64),
       receiptDirectory,
       repositoryRoot,
       artifactDirectory: exactDist,
@@ -1240,6 +1284,7 @@ describe('local credentials, artifacts, and private receipts', () => {
     symlinkSync(externalDirectory, exactDist);
     expect(() => bindFreshActivationPagesBuildProof({
       sourceCommit,
+      moduleArtifactDigest: 'b'.repeat(64),
       receiptDirectory,
       repositoryRoot,
       artifactDirectory: exactDist,

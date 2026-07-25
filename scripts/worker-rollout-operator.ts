@@ -53,6 +53,7 @@ const MAX_ADMIN_SECRET_BYTES = 512;
 const MAX_ADMIN_STDIN_BYTES = MAX_ADMIN_SECRET_BYTES + 2;
 const MIN_ADMIN_SECRET_BYTES = 32;
 const GIT_COMMIT_HEX = /^[0-9a-f]{40}$/;
+const SHA256_HEX = /^[0-9a-f]{64}$/;
 const WORKER_ROLLOUT_CANONICAL_ORIGIN_URL =
   'https://github.com/ael-dev3/Warpkeep.git';
 const WORKER_ROLLOUT_GIT_READ_TIMEOUT_MILLISECONDS = 15_000;
@@ -404,6 +405,7 @@ function canonicalPagesBuildRunner(): WorkerRolloutPagesBuildRunner {
 
 export function bindFreshActivationPagesBuildProof(input: Readonly<{
   sourceCommit: string;
+  moduleArtifactDigest: string;
   receiptDirectory: string;
   repositoryRoot?: string;
   artifactDirectory?: string;
@@ -413,6 +415,7 @@ export function bindFreshActivationPagesBuildProof(input: Readonly<{
 }>): Readonly<{
   clientRelease: string;
   clientArtifactDigest: string;
+  moduleArtifactDigest: string;
 }> {
   const requestedRepositoryRoot = resolve(
     input.repositoryRoot ?? REPOSITORY_ROOT,
@@ -453,6 +456,9 @@ export function bindFreshActivationPagesBuildProof(input: Readonly<{
   if (!GIT_COMMIT_HEX.test(input.sourceCommit)) {
     fail('WORKER_ROLLOUT_ACTIVATION_BUILD_SOURCE_INVALID');
   }
+  if (!SHA256_HEX.test(input.moduleArtifactDigest)) {
+    fail('WORKER_ROLLOUT_ACTIVATION_MODULE_ARTIFACT_INVALID');
+  }
   if (WORKER_ROLLOUT_PAGES_ENV_FILES.some(name => (
     existsSync(resolve(repositoryRoot, name))
   ))) fail('WORKER_ROLLOUT_ACTIVATION_BUILD_LOCAL_CONFIG_REJECTED');
@@ -477,9 +483,13 @@ export function bindFreshActivationPagesBuildProof(input: Readonly<{
     ?? attestExactProtectedWorkerRolloutMain(repositoryRoot);
   const artifactAfterSourceAttestation =
     digestCanonicalArtifactDirectory(artifactDirectory);
+  const moduleArtifactDigestAfterBuild = digestExactArtifactFile(
+    resolve(repositoryRoot, 'spacetimedb', 'dist', 'bundle.js'),
+  );
   if (
     sourceCommitAfterBuild !== input.sourceCommit
     || artifactAfterSourceAttestation.digest !== artifact.digest
+    || moduleArtifactDigestAfterBuild !== input.moduleArtifactDigest
   ) fail('WORKER_ROLLOUT_ACTIVATION_BUILD_PROOF_MISMATCH');
   const clientRelease = readPackageRelease(
     resolve(repositoryRoot, 'package.json'),
@@ -490,11 +500,13 @@ export function bindFreshActivationPagesBuildProof(input: Readonly<{
     sourceCommit: input.sourceCommit,
     clientRelease,
     clientArtifactDigest: artifact.digest,
+    moduleArtifactDigest: input.moduleArtifactDigest,
     pagesConfigurationDigest: pagesConfigurationDigest(input.sourceCommit),
   });
   return Object.freeze({
     clientRelease,
     clientArtifactDigest: artifact.digest,
+    moduleArtifactDigest: input.moduleArtifactDigest,
   });
 }
 
@@ -527,12 +539,29 @@ async function prepareLocalAttestation(
       moduleArtifactDigest,
     });
   }
+  const executableSnapshot = attestPinnedSpacetimeCli(
+    process.env.SPACETIME_BIN ?? 'spacetime',
+  );
+  let moduleArtifactDigest: string;
+  try {
+    ({ moduleArtifactDigest } = bindFreshCompleteDrainMigrationProof({
+      sourceCommit,
+      receiptDirectory,
+      runMigrationProof: () => runCurrentAdditiveMigrationProof(
+        executableSnapshot.path,
+      ),
+    }));
+  } finally {
+    executableSnapshot.cleanup();
+  }
   const artifact = bindFreshActivationPagesBuildProof({
     sourceCommit,
+    moduleArtifactDigest,
     receiptDirectory,
   });
   return Object.freeze({
     sourceCommit,
+    moduleArtifactDigest: artifact.moduleArtifactDigest,
     clientRelease: artifact.clientRelease,
     clientArtifactDigest: artifact.clientArtifactDigest,
   });

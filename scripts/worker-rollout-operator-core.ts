@@ -313,7 +313,7 @@ function assertLocalAttestation(
     fail(`WORKER_ROLLOUT_${command.toUpperCase()}_SOURCE_ATTESTATION_REQUIRED`);
   }
   if (
-    command === 'complete-drain'
+    (command === 'complete-drain' || command === 'activate')
     && (
       typeof attestation.moduleArtifactDigest !== 'string'
       || !SHA256_HEX.test(attestation.moduleArtifactDigest)
@@ -454,6 +454,7 @@ export function buildWorkerRolloutPlan(
     capability: CASTLE_WORKER_PROTOCOL_CAPABILITY,
     clientRelease: local.clientRelease as string,
     clientArtifactDigest: local.clientArtifactDigest as string,
+    moduleArtifactDigest: local.moduleArtifactDigest as string,
     sourceCommit: local.sourceCommit,
     resourceStateVersion: CASTLE_WORKER_RESOURCE_STATE_VERSION,
     resourcePolicyVersion: GENESIS_RESOURCE_POLICY_VERSION,
@@ -1066,6 +1067,7 @@ const ACTIVATION_ENVELOPE_KEYS = Object.freeze([
   'capability',
   'clientRelease',
   'clientArtifactDigest',
+  'moduleArtifactDigest',
   'sourceCommit',
   'resourceStateVersion',
   'resourcePolicyVersion',
@@ -1332,6 +1334,7 @@ export function writePrivateWorkerRolloutActivationBuildProof(input: Readonly<{
   sourceCommit: string;
   clientRelease: string;
   clientArtifactDigest: string;
+  moduleArtifactDigest: string;
   pagesConfigurationDigest: string;
   now?: Date;
 }>): Readonly<{ path: string; digest: string }> {
@@ -1339,6 +1342,7 @@ export function writePrivateWorkerRolloutActivationBuildProof(input: Readonly<{
     !GIT_COMMIT_HEX.test(input.sourceCommit)
     || !RELEASE_PATTERN.test(input.clientRelease)
     || !SHA256_HEX.test(input.clientArtifactDigest)
+    || !SHA256_HEX.test(input.moduleArtifactDigest)
     || !SHA256_HEX.test(input.pagesConfigurationDigest)
   ) fail('WORKER_ROLLOUT_ACTIVATION_BUILD_PROOF_INVALID');
   const directory = assertPrivateReceiptDirectory(
@@ -1358,6 +1362,7 @@ export function writePrivateWorkerRolloutActivationBuildProof(input: Readonly<{
     sourceCommit: input.sourceCommit,
     clientRelease: input.clientRelease,
     clientArtifactDigest: input.clientArtifactDigest,
+    moduleArtifactDigest: input.moduleArtifactDigest,
     pagesConfigurationDigest: input.pagesConfigurationDigest,
     pages: Object.freeze({
       base: '/',
