@@ -14,6 +14,7 @@ async function startRenderedWebglQa() {
       { RenderedWebglQaHarness },
       { readRenderedWebglQaFixtureVariant, readRenderedWebglQaOptions },
       {
+        createRenderedWebglQaActiveWorkerRealm,
         createRenderedWebglQaFixtureRealm,
         createRenderedWebglQaOccupancyStressRealm
       }
@@ -29,6 +30,8 @@ async function startRenderedWebglQa() {
         <RenderedWebglQaHarness
           createFixtureRealm={fixtureVariant === 'occupancy-stress'
             ? createRenderedWebglQaOccupancyStressRealm
+            : fixtureVariant === 'worker-active'
+              ? createRenderedWebglQaActiveWorkerRealm
             : createRenderedWebglQaFixtureRealm}
           fixtureVariant={fixtureVariant}
           presentationMode={options.presentationMode}

@@ -12,6 +12,7 @@ import {
   GENESIS_WORLD_PUBLISH_STAGE,
   PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS,
   RESOURCE_PUBLISH_ROLLOUT_STAGE,
+  WORKER_MODULE_PREDECESSOR,
   WORKER_PUBLISH_ROLLOUT_STAGE,
   WORKER_V12_TABLE_CONTRACTS,
   alphaV10AggregateChildArguments,
@@ -22,6 +23,8 @@ import {
   parseCanonicalSchemaDescription,
   parseMigrationProofReceipt,
   parsePublishArguments,
+  publishPostV12AggregateChildArguments,
+  publishPreV12AggregateChildArguments,
   publishChildEnvironment,
   publishModule,
   readFoundedPublishExpectations,
@@ -32,7 +35,10 @@ import {
   verifyFreshAlphaStatusV8Aggregate,
   verifyFreshAlphaStatusV10Aggregate,
   verifyFreshAlphaStatusV12Aggregate,
+  verifyFreshPublishExactV12Aggregate,
+  verifyFreshPublishPreV12Aggregate,
   verifyFreshProductionV11Schema,
+  verifyFreshProductionV12ModuleSchema,
   verifyFreshFoundedProtocolV3Aggregate,
   verifyFreshResourceProtocolV4PrebackfillAggregate,
   verifyFreshResourceProtocolV4ReadyAggregate,
@@ -41,20 +47,26 @@ import {
   verifyPostPublishAlphaStatusV8Aggregate,
   verifyPostPublishAlphaStatusV10Aggregate,
   verifyPostPublishAlphaStatusV12Aggregate,
+  verifyPostPublishCombinedV12Aggregate,
   verifyPostPublishFoundedProtocolV3Aggregate,
   verifyPostPublishProductionV12Schema,
+  verifyPostPublishProductionV12ModuleSchema,
   verifyPostPublishResourceProtocolV4PrebackfillAggregate,
   verifyPostPublishResourceProtocolV4ReadyAggregate,
   verifyPostPublishResourcePublicationCheckpoints,
   verifyPrivacySafeAlphaStatusV8Output,
   verifyPrivacySafeAlphaStatusV10Output,
   verifyPrivacySafeAlphaStatusV12Output,
+  verifyPrivacySafePublishPostV12Output,
+  verifyPrivacySafePublishPreV12Output,
   verifyEmptyAlphaStatusV12,
   verifyExactProductionV11Schema,
   verifyExactProductionV12Schema,
+  verifyExactProductionV12ModuleSchema,
+  verifyWorkerV12ModuleAbi,
 } from '../scripts/publish-spacetime-dev.mjs';
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
-import { ADDITIVE_MIGRATION_PROOF_PROCESS_TIMEOUT_MILLISECONDS, ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION, ADDITIVE_MIGRATION_PROOF_SPACETIME_CLI_VERSION, formatAdditiveMigrationProofReceipt } from '../scripts/spacetime-additive-migration-proof.mjs';
+import { ADDITIVE_MIGRATION_PROOF_MINIMUM_LIFECYCLE_MILLISECONDS, ADDITIVE_MIGRATION_PROOF_PROCESS_TIMEOUT_MILLISECONDS, ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION, ADDITIVE_MIGRATION_PROOF_SPACETIME_CLI_VERSION, formatAdditiveMigrationProofReceipt } from '../scripts/spacetime-additive-migration-proof.mjs';
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
 import { canonicalTableSchemaBoundaryDigest } from '../scripts/spacetime-table-schema-attestation.mjs';
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
@@ -220,6 +232,73 @@ function alphaStatusV12(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function publishProtocolV3Status(overrides: Record<string, unknown> = {}) {
+  const invariantFields = [
+    'orphanedPlayerRowsV2',
+    'orphanedOwnershipRowsV2',
+    'orphanedCastleClaims',
+    'orphanedCastles',
+    'orphanedRealmProfiles',
+    'orphanedMarkAccounts',
+    'orphanedBurnCredits',
+    'orphanedTermsAcceptances',
+    'founderStateGaps',
+    'markAccountInvariantViolations',
+    'publicMarkProjectionViolations',
+    'duplicateBurnReferences',
+    'burnAccountReconciliationViolations',
+    'ambiguousActiveWalletAddresses',
+    'staticWorldDriftViolations',
+    'termsAcceptanceInvariantViolations',
+  ];
+  return {
+    worldTiles: '1261',
+    occupiedWorldTiles: '4',
+    worldTileMeta: '1261',
+    realms: '1',
+    castleSlots: '100',
+    castleSlotClaims: '4',
+    legacyPlayers: '0',
+    playersV2: '1',
+    playerOwnershipsV2: '1',
+    castles: '4',
+    realmProfiles: '4',
+    markAccounts: '4',
+    snapBurnCredits: '0',
+    walletAttributions: '0',
+    walletAttributionSnapshots: '0',
+    scanCursors: '0',
+    scanBatches: '0',
+    alphaTermsAcceptances: '1',
+    allowedFids: '4',
+    enabledAllowedFids: '4',
+    auditEntries: '7',
+    ...Object.fromEntries(invariantFields.map(field => [field, '0'])),
+    protocolVersion: 3,
+    worldSeed: 3_445_214_658,
+    worldSeedName: 'HEGEMONY_GENESIS_001',
+    ...overrides,
+  };
+}
+
+function publishResourceV4Status(
+  stage: 'prebackfill' | 'ready' = 'prebackfill',
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    allowedFids: '4',
+    castles: '4',
+    markAccounts: '4',
+    resourceAccounts: stage === 'ready' ? '4' : '0',
+    missingResourceAccounts: stage === 'ready' ? '0' : '4',
+    orphanedResourceAccounts: '0',
+    resourceInvariantViolations: '0',
+    protocolVersion: 3,
+    resourcePolicyVersion: 'genesis-resource-yield-v1',
+    ...overrides,
+  };
+}
+
 function productionSchemaDescription(includeWorkerV12: boolean) {
   const refs: Record<string, number> = {
     ...PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS,
@@ -267,6 +346,318 @@ function productionSchemaDescription(includeWorkerV12: boolean) {
     }
   }
   return { tables, typespace: { types } };
+}
+
+const predecessorActivationFields = [
+  ['capability', 'String'],
+  ['clientRelease', 'String'],
+  ['clientArtifactDigest', 'String'],
+  ['sourceCommit', 'String'],
+  ['resourceStateVersion', 'U32'],
+  ['resourcePolicyVersion', 'String'],
+  ['resourceCatalogDigest', 'String'],
+  ['expectedCastleCount', 'U32'],
+  ['expectedWorkerCount', 'U32'],
+  ['rosterDigest', 'String'],
+  ['resourceRosterDigest', 'String'],
+] as const;
+const candidateActivationFields = [
+  ...predecessorActivationFields.slice(0, 3),
+  ['moduleArtifactDigest', 'String'],
+  ...predecessorActivationFields.slice(3),
+] as const;
+const predecessorWorkerStatusFields = [
+  ['phase', 'String'],
+  ['system_rows', 'U64'],
+  ['system_config_valid', 'Bool'],
+  ['expected_castle_count', 'U32'],
+  ['expected_worker_count', 'U32'],
+  ['actual_castle_count', 'U64'],
+  ['actual_worker_count', 'U64'],
+  ['roster_digest', 'String'],
+  ['expected_roster_digest', 'String'],
+  ['malformed_worker_graph_rows', 'U64'],
+  ['resource_accounts', 'U64'],
+  ['missing_resource_accounts', 'U64'],
+  ['orphaned_resource_accounts', 'U64'],
+  ['resource_invariant_violations', 'U64'],
+  ['resource_roster_digest', 'String'],
+  ['canonical_resource_catalog', 'Bool'],
+  ['resource_catalog_digest', 'String'],
+  ['legacy_expeditions', 'U64'],
+  ['legacy_occupations', 'U64'],
+  ['legacy_schedules', 'U64'],
+  ['generic_assignments', 'U64'],
+  ['generic_occupations', 'U64'],
+  ['generic_schedules', 'U64'],
+  ['generic_command_receipts', 'U64'],
+] as const;
+const candidateWorkerStatusFields = [
+  ...predecessorWorkerStatusFields.slice(0, 20),
+  ['legacy_gold_expeditions', 'U64'],
+  ['legacy_food_expeditions', 'U64'],
+  ['legacy_wood_expeditions', 'U64'],
+  ['legacy_stone_expeditions', 'U64'],
+  ['legacy_gold_occupations', 'U64'],
+  ['legacy_food_occupations', 'U64'],
+  ['legacy_wood_occupations', 'U64'],
+  ['legacy_stone_occupations', 'U64'],
+  ['legacy_gold_schedules', 'U64'],
+  ['legacy_food_schedules', 'U64'],
+  ['legacy_wood_schedules', 'U64'],
+  ['legacy_stone_schedules', 'U64'],
+  ...predecessorWorkerStatusFields.slice(20),
+] as const;
+const completeDrainFields = [
+  ['capability', 'String'],
+  ['sourceCommit', 'String'],
+  ['moduleArtifactDigest', 'String'],
+  ['expectedCastleCount', 'U32'],
+  ['expectedWorkerCount', 'U32'],
+  ['rosterDigest', 'String'],
+  ['resourceRosterDigest', 'String'],
+  ['resourceCatalogDigest', 'String'],
+  ['goldExpeditions', 'U32'],
+  ['foodExpeditions', 'U32'],
+  ['woodExpeditions', 'U32'],
+  ['stoneExpeditions', 'U32'],
+  ['goldOccupations', 'U32'],
+  ['foodOccupations', 'U32'],
+  ['woodOccupations', 'U32'],
+  ['stoneOccupations', 'U32'],
+  ['goldSchedules', 'U32'],
+  ['foodSchedules', 'U32'],
+  ['woodSchedules', 'U32'],
+  ['stoneSchedules', 'U32'],
+] as const;
+const workerSystemStatusFields = [
+  ['system_rows', 'U64'],
+  ['mode', 'String'],
+  ['system_config_valid', 'Bool'],
+  ['legacy_drain_required', 'Bool'],
+  ['expected_castle_count', 'U64'],
+  ['expected_worker_count', 'U64'],
+  ['actual_worker_count', 'U64'],
+  ['expected_counts_match', 'Bool'],
+  ['roster_digest_matches', 'Bool'],
+  ['castles_missing_workers', 'U64'],
+  ['castles_with_extra_workers', 'U64'],
+  ['duplicate_ordinals', 'U64'],
+  ['malformed_worker_ids', 'U64'],
+  ['invalid_worker_states', 'U64'],
+  ['idle_workers', 'U64'],
+  ['outbound_workers', 'U64'],
+  ['gathering_workers', 'U64'],
+  ['returning_workers', 'U64'],
+  ['assignments', 'U64'],
+  ['occupations', 'U64'],
+  ['schedules', 'U64'],
+  ['orphan_workers', 'U64'],
+  ['orphan_assignments', 'U64'],
+  ['assignments_missing_occupation', 'U64'],
+  ['assignments_without_single_schedule', 'U64'],
+  ['orphan_occupations', 'U64'],
+  ['orphan_schedules', 'U64'],
+  ['invalid_schedules', 'U64'],
+  ['assignment_public_mismatches', 'U64'],
+  ['occupation_site_mismatches', 'U64'],
+  ['invalid_assignments', 'U64'],
+  ['idempotency_receipts', 'U64'],
+  ['invalid_idempotency_receipts', 'U64'],
+  ['idempotency_overflow_fids', 'U64'],
+  ['legacy_expeditions', 'U64'],
+  ['legacy_occupations', 'U64'],
+  ['legacy_schedules', 'U64'],
+  ['roster_digest', 'String'],
+  ['roster_digest_expected', 'String'],
+] as const;
+const workerRosterPlanFields = [
+  ['ready', 'Bool'],
+  ['activation_blocked_by_legacy_rows', 'Bool'],
+  ['mode', 'String'],
+  ['system_config_valid', 'Bool'],
+  ['legacy_drain_required', 'Bool'],
+  ['expected_castle_count', 'U64'],
+  ['expected_worker_count', 'U64'],
+  ['actual_worker_count', 'U64'],
+  ['expected_counts_match', 'Bool'],
+  ['roster_digest_matches', 'Bool'],
+  ['castles_missing_workers', 'U64'],
+  ['castles_with_extra_workers', 'U64'],
+  ['orphan_workers', 'U64'],
+  ['orphan_assignments', 'U64'],
+  ['assignments_missing_occupation', 'U64'],
+  ['assignments_without_single_schedule', 'U64'],
+  ['orphan_occupations', 'U64'],
+  ['orphan_schedules', 'U64'],
+  ['invalid_schedules', 'U64'],
+  ['assignment_public_mismatches', 'U64'],
+  ['occupation_site_mismatches', 'U64'],
+  ['invalid_worker_states', 'U64'],
+  ['invalid_assignments', 'U64'],
+  ['invalid_idempotency_receipts', 'U64'],
+  ['idempotency_overflow_fids', 'U64'],
+  ['legacy_expeditions', 'U64'],
+  ['legacy_occupations', 'U64'],
+  ['legacy_schedules', 'U64'],
+  ['roster_digest', 'String'],
+  ['roster_digest_expected', 'String'],
+] as const;
+const workerResourceStateFields = [
+  ['fid', 'U64'],
+  ['food', 'U64'],
+  ['wood', 'U64'],
+  ['stone', 'U64'],
+  ['gold', 'U64'],
+  ['worker_pending_food', 'U64'],
+  ['worker_pending_wood', 'U64'],
+  ['worker_pending_stone', 'U64'],
+  ['worker_pending_gold', 'U64'],
+  ['observed_at_micros', 'U64'],
+  ['settled_through_micros', 'U64'],
+  ['revision', 'U64'],
+  ['resource_policy_version', 'String'],
+  ['worker_policy_version', 'String'],
+  ['worker_system_mode', 'String'],
+] as const;
+
+function workerModuleSchemaDescription(
+  state: 'predecessor' | 'candidate',
+) {
+  const description = productionSchemaDescription(true) as ReturnType<
+    typeof productionSchemaDescription
+  > & {
+    reducers: Array<Record<string, unknown>>;
+    misc_exports: Array<Record<string, unknown>>;
+  };
+  type FixtureType = string | Record<string, unknown>;
+  type FixtureField = readonly [string, FixtureType];
+  const product = (fields: readonly FixtureField[]) => ({
+    elements: fields.map(([name, type]) => ({
+      name: { some: name },
+      algebraic_type: typeof type === 'string' ? { [type]: {} } : type,
+    })),
+  });
+  const reducer = (
+    name: string,
+    fields: readonly FixtureField[],
+  ) => ({
+    name,
+    params: product(fields),
+    lifecycle: { none: [] },
+  });
+  const types = description.typespace.types as Array<Record<string, unknown>>;
+  const addProduct = (fields: readonly FixtureField[]) => {
+    const ref = types.length;
+    types.push({ Product: product(fields) });
+    return ref;
+  };
+  const optionString = {
+    Sum: {
+      variants: product([
+        ['some', 'String'],
+        ['none', { Product: { elements: [] } }],
+      ]).elements,
+    },
+  };
+  types[WORKER_V12_TABLE_CONTRACTS.worker_assignment_schedule_v_1.productTypeRef] = {
+    Product: product([
+      ['schedule_id', 'U64'],
+      ['scheduled_at', {
+        Sum: {
+          variants: product([
+            ['Interval', {
+              Product: product([['__time_duration_micros__', 'I64']]),
+            }],
+            ['Time', {
+              Product: product([['__timestamp_micros_since_unix_epoch__', 'I64']]),
+            }],
+          ]).elements,
+        },
+      }],
+      ['assignment_id', 'String'],
+      ['worker_id', 'String'],
+      ['timeline_revision', 'U32'],
+      ['stage', 'String'],
+    ]),
+  };
+  const statusFields = state === 'candidate'
+    ? candidateWorkerStatusFields
+    : predecessorWorkerStatusFields;
+  const statusRef = addProduct(statusFields);
+  const systemStatusRef = addProduct(workerSystemStatusFields);
+  const rosterPlanRef = addProduct(workerRosterPlanFields);
+  const resourceStateRef = addProduct(workerResourceStateFields);
+  const privateWorkerRef = addProduct([
+    ['worker_id', 'String'],
+    ['ordinal', 'U32'],
+    ['status', 'String'],
+    ['resource_kind', optionString],
+    ['site_id', optionString],
+    ['accrued_amount', 'U64'],
+    ['materialized_amount', 'U64'],
+    ['available_amount', 'U64'],
+    ['observed_at_micros', 'U64'],
+    ['revision', 'U64'],
+  ]);
+  const rosterRef = addProduct([
+    ['fid', 'U64'],
+    ['castle_id', 'U64'],
+    ['observed_at_micros', 'U64'],
+    ['workers', { Array: { Ref: privateWorkerRef } }],
+  ]);
+  description.reducers = [
+    reducer(
+      'admin_activate_worker_system_v1',
+      state === 'candidate'
+        ? candidateActivationFields
+        : predecessorActivationFields,
+    ),
+    reducer('admin_backfill_worker_roster_v1', []),
+    reducer('admin_begin_worker_legacy_drain_v1', []),
+    reducer('admin_stage_worker_system_v1', []),
+    reducer('dispatch_worker_v1', [
+      ['workerId', 'String'],
+      ['resourceKind', 'String'],
+      ['siteId', 'String'],
+      ['idempotencyKey', 'String'],
+    ]),
+    reducer('recall_all_workers_v1', [['idempotencyKey', 'String']]),
+    reducer('recall_worker_v1', [
+      ['workerId', 'String'],
+      ['idempotencyKey', 'String'],
+    ]),
+    reducer('run_worker_assignment_schedule_v_1', [[
+      'arg',
+      {
+        Ref: WORKER_V12_TABLE_CONTRACTS
+          .worker_assignment_schedule_v_1.productTypeRef,
+      },
+    ]]),
+  ];
+  if (state === 'candidate') {
+    description.reducers.push(
+      reducer('admin_complete_worker_legacy_drain_v1', completeDrainFields),
+      reducer('return_legacy_expedition_v1', [
+        ['resourceKind', 'String'],
+        ['expeditionId', 'String'],
+      ]),
+    );
+  }
+  description.misc_exports = [
+    ['admin_get_worker_rollout_status_v2', statusRef],
+    ['admin_get_worker_system_status_v1', systemStatusRef],
+    ['admin_plan_worker_roster_v1', rosterPlanRef],
+    ['get_my_resource_state_v2', resourceStateRef],
+    ['get_my_worker_roster_v1', rosterRef],
+  ].map(([name, returnRef]) => ({
+    Procedure: {
+      name,
+      params: product([]),
+      return_type: { Ref: returnRef },
+    },
+  }));
+  return description;
 }
 
 beforeAll(async () => {
@@ -928,6 +1319,221 @@ describe('activation publish safety', () => {
       .toThrow(/machine-readable JSON/i);
   });
 
+  it('permits only the exact inert-v12 predecessor or exact reviewed candidate ABI', () => {
+    const predecessor = workerModuleSchemaDescription('predecessor');
+    const candidate = workerModuleSchemaDescription('candidate');
+    const tableNames = [
+      ...Object.keys(PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS),
+      ...Object.keys(WORKER_V12_TABLE_CONTRACTS),
+    ];
+    const digest = canonicalTableSchemaBoundaryDigest(predecessor, tableNames);
+    expect(canonicalTableSchemaBoundaryDigest(candidate, tableNames)).toBe(digest);
+    expect(verifyWorkerV12ModuleAbi(predecessor)).toBe('predecessor');
+    expect(verifyWorkerV12ModuleAbi(candidate)).toBe('candidate');
+
+    const captured = verifyExactProductionV12ModuleSchema(predecessor, digest);
+    expect(captured.moduleState).toBe('predecessor');
+    expect(captured.totalTableCount).toBe(53);
+    expect(Object.keys(captured.tableSignatures)).toHaveLength(53);
+    const alreadyPublished = verifyExactProductionV12ModuleSchema(candidate, digest);
+    expect(alreadyPublished.moduleState).toBe('candidate');
+
+    const preflightCalls: unknown[][] = [];
+    expect(verifyFreshProductionV12ModuleSchema(
+      'spacetime',
+      digest,
+      ((...args: unknown[]) => {
+        preflightCalls.push(args);
+        return {
+          status: 0,
+          signal: null,
+          stdout: JSON.stringify(predecessor),
+          stderr: '',
+        };
+      }) as never,
+    )).toEqual(captured);
+    expect(preflightCalls).toHaveLength(1);
+    expect(preflightCalls[0]?.[1]).toEqual(canonicalSchemaDescribeChildArguments());
+
+    expect(verifyPostPublishProductionV12ModuleSchema(
+      'spacetime',
+      captured,
+      digest,
+      (() => ({
+        status: 0,
+        signal: null,
+        stdout: JSON.stringify(candidate),
+        stderr: '',
+      })) as never,
+    )).toEqual(alreadyPublished);
+
+    const tableDrift = structuredClone(candidate);
+    tableDrift.tables.find(table => table.name === 'castle')!.indexes[0] = {
+      name: 'changed_after_capture',
+      algorithm: { BTree: { columns: [1] } },
+    };
+    expect(() => verifyPostPublishProductionV12ModuleSchema(
+      'spacetime',
+      captured,
+      digest,
+      (() => ({
+        status: 0,
+        signal: null,
+        stdout: JSON.stringify(tableDrift),
+        stderr: '',
+      })) as never,
+    )).toThrow(/indeterminate.*fresh anonymous read-only schema and ABI inspection/i);
+
+    const partial = structuredClone(predecessor);
+    partial.reducers.push(
+      workerModuleSchemaDescription('candidate').reducers.find(
+        reducer => reducer.name === 'return_legacy_expedition_v1',
+      )!,
+    );
+    expect(() => verifyWorkerV12ModuleAbi(partial))
+      .toThrow(/partial, unknown, or changed/i);
+
+    const missingModuleDigest = structuredClone(candidate);
+    const activation = missingModuleDigest.reducers.find(
+      reducer => reducer.name === 'admin_activate_worker_system_v1',
+    )!;
+    activation.params = {
+      elements: (activation.params as { elements: Array<{
+        name: { some: string };
+        algebraic_type: Record<string, unknown>;
+      }> }).elements.filter(field => field.name.some !== 'moduleArtifactDigest'),
+    };
+    expect(() => verifyWorkerV12ModuleAbi(missingModuleDigest))
+      .toThrow(/partial, unknown, or changed/i);
+
+    const incompleteStatus = structuredClone(candidate);
+    const statusProcedure = incompleteStatus.misc_exports[0]!.Procedure as {
+      return_type: { Ref: number };
+    };
+    incompleteStatus.typespace.types[
+      statusProcedure.return_type.Ref
+    ]!.Product.elements = incompleteStatus.typespace.types[
+      statusProcedure.return_type.Ref
+    ]!.Product.elements.filter(
+      field => field.name.some !== 'legacy_gold_expeditions',
+    );
+    expect(() => verifyWorkerV12ModuleAbi(incompleteStatus))
+      .toThrow(/partial, unknown, or changed/i);
+
+    expect(() => verifyFreshProductionV12ModuleSchema(
+      'spacetime',
+      digest,
+      (() => ({ status: 1, signal: null, stdout: 'private', stderr: 'private' })) as never,
+    )).toThrow(/preflight failed.*no publish was attempted/i);
+  });
+
+  it('rejects every missing, extra, or drifted critical Worker API surface', () => {
+    const candidate = workerModuleSchemaDescription('candidate');
+    for (const reducer of candidate.reducers) {
+      const missing = structuredClone(candidate);
+      missing.reducers = missing.reducers.filter(
+        entry => entry.name !== reducer.name,
+      );
+      expect(
+        () => verifyWorkerV12ModuleAbi(missing),
+        `missing reducer ${String(reducer.name)}`,
+      ).toThrow(/partial, unknown, or changed/i);
+    }
+    for (const entry of candidate.misc_exports) {
+      const procedureName = (entry.Procedure as { name: string }).name;
+      const missing = structuredClone(candidate);
+      missing.misc_exports = missing.misc_exports.filter(
+        candidateEntry => (
+          (candidateEntry.Procedure as { name: string }).name !== procedureName
+        ),
+      );
+      expect(
+        () => verifyWorkerV12ModuleAbi(missing),
+        `missing procedure ${procedureName}`,
+      ).toThrow(/partial, unknown, or changed/i);
+    }
+
+    const extraReducer = structuredClone(candidate);
+    const stagedReducer = extraReducer.reducers.find(
+      reducer => reducer.name === 'admin_stage_worker_system_v1',
+    )!;
+    extraReducer.reducers.push({
+      ...structuredClone(stagedReducer),
+      name: 'admin_debug_worker_override_v1',
+    });
+    expect(() => verifyWorkerV12ModuleAbi(extraReducer))
+      .toThrow(/partial, unknown, or changed/i);
+
+    const extraProcedure = structuredClone(candidate);
+    const systemStatusProcedure = extraProcedure.misc_exports.find(
+      entry => (
+        (entry.Procedure as { name: string }).name
+          === 'admin_get_worker_system_status_v1'
+      ),
+    )!;
+    extraProcedure.misc_exports.push({
+      Procedure: {
+        ...structuredClone(
+          systemStatusProcedure.Procedure as Record<string, unknown>,
+        ),
+        name: 'admin_debug_worker_status_v1',
+      },
+    });
+    expect(() => verifyWorkerV12ModuleAbi(extraProcedure))
+      .toThrow(/partial, unknown, or changed/i);
+
+    const driftedCommand = structuredClone(candidate);
+    const dispatch = driftedCommand.reducers.find(
+      reducer => reducer.name === 'dispatch_worker_v1',
+    )!;
+    const dispatchParams = dispatch.params as {
+      elements: Array<{
+        name: { some: string };
+        algebraic_type: Record<string, unknown>;
+      }>;
+    };
+    dispatchParams.elements.find(
+      field => field.name.some === 'workerId',
+    )!.algebraic_type = { U64: {} };
+    expect(() => verifyWorkerV12ModuleAbi(driftedCommand))
+      .toThrow(/partial, unknown, or changed/i);
+
+    const driftedNestedRoster = structuredClone(candidate);
+    const rosterProcedure = driftedNestedRoster.misc_exports.find(
+      entry => (
+        (entry.Procedure as { name: string }).name === 'get_my_worker_roster_v1'
+      ),
+    )!.Procedure as { return_type: { Ref: number } };
+    const rosterType = driftedNestedRoster.typespace.types[
+      rosterProcedure.return_type.Ref
+    ] as {
+      Product: {
+        elements: Array<{
+          name: { some: string };
+          algebraic_type: { Array?: { Ref: number } };
+        }>;
+      };
+    };
+    const privateWorkerRef = rosterType.Product.elements.find(
+      field => field.name.some === 'workers',
+    )!.algebraic_type.Array!.Ref;
+    const privateWorkerType = driftedNestedRoster.typespace.types[
+      privateWorkerRef
+    ] as {
+      Product: {
+        elements: Array<{
+          name: { some: string };
+          algebraic_type: Record<string, unknown>;
+        }>;
+      };
+    };
+    privateWorkerType.Product.elements.find(
+      field => field.name.some === 'status',
+    )!.algebraic_type = { Bool: {} };
+    expect(() => verifyWorkerV12ModuleAbi(driftedNestedRoster))
+      .toThrow(/partial, unknown, or changed/i);
+  });
+
   it('binds an exact single migration receipt and rejects artifact changes before spawn', async () => {
     await withTestProvenArtifact(async receipt => {
       const success = `${formatAdditiveMigrationProofReceipt({
@@ -1039,6 +1645,10 @@ describe('activation publish safety', () => {
       });
       expect(ADDITIVE_MIGRATION_PROOF_PROCESS_TIMEOUT_MILLISECONDS)
         .toBe(15 * 60 * 1_000);
+      expect(ADDITIVE_MIGRATION_PROOF_MINIMUM_LIFECYCLE_MILLISECONDS)
+        .toBe(10 * 60 * 1_000);
+      expect(ADDITIVE_MIGRATION_PROOF_MINIMUM_LIFECYCLE_MILLISECONDS)
+        .toBeGreaterThan(5 * 60 * 1_000);
     });
   });
 
@@ -1094,6 +1704,7 @@ describe('activation publish safety', () => {
       resourceRolloutStage: RESOURCE_PUBLISH_ROLLOUT_STAGE.PREBACKFILL,
       genesisWorldRolloutStage: GENESIS_WORLD_PUBLISH_STAGE.PRE_EXPANSION,
       workerRolloutStage: WORKER_PUBLISH_ROLLOUT_STAGE.EMPTY,
+      workerModulePredecessor: WORKER_MODULE_PREDECESSOR.V11,
     });
     expect(parsePublishArguments([
       '--resource-rollout-stage=ready',
@@ -1105,6 +1716,19 @@ describe('activation publish safety', () => {
       resourceRolloutStage: RESOURCE_PUBLISH_ROLLOUT_STAGE.READY,
       genesisWorldRolloutStage: GENESIS_WORLD_PUBLISH_STAGE.EXPANDED,
       workerRolloutStage: WORKER_PUBLISH_ROLLOUT_STAGE.EMPTY,
+      workerModulePredecessor: WORKER_MODULE_PREDECESSOR.V11,
+    });
+    expect(parsePublishArguments([
+      '--resource-rollout-stage=ready',
+      '--genesis-world-stage=expanded',
+      '--worker-rollout-stage=empty',
+      '--worker-module-predecessor=exact-v12-empty',
+    ])).toEqual({
+      dryRun: false,
+      resourceRolloutStage: RESOURCE_PUBLISH_ROLLOUT_STAGE.READY,
+      genesisWorldRolloutStage: GENESIS_WORLD_PUBLISH_STAGE.EXPANDED,
+      workerRolloutStage: WORKER_PUBLISH_ROLLOUT_STAGE.EMPTY,
+      workerModulePredecessor: WORKER_MODULE_PREDECESSOR.EXACT_V12_EMPTY,
     });
     expect(() => parsePublishArguments([])).toThrow(/explicit resource rollout stage/i);
     expect(() => parsePublishArguments(['--dry-run'])).toThrow(/explicit resource rollout stage/i);
@@ -1151,6 +1775,19 @@ describe('activation publish safety', () => {
       '--genesis-world-stage=expanded',
       '--worker-rollout-stage=empty',
       '--worker-rollout-stage=empty',
+    ])).toThrow(/unknown or duplicate/i);
+    expect(() => parsePublishArguments([
+      '--resource-rollout-stage=ready',
+      '--genesis-world-stage=expanded',
+      '--worker-rollout-stage=empty',
+      '--worker-module-predecessor=exact-v12-empty',
+      '--worker-module-predecessor=exact-v12-empty',
+    ])).toThrow(/unknown or duplicate/i);
+    expect(() => parsePublishArguments([
+      '--resource-rollout-stage=ready',
+      '--genesis-world-stage=expanded',
+      '--worker-rollout-stage=empty',
+      '--worker-module-predecessor=unknown',
     ])).toThrow(/unknown or duplicate/i);
     expect(() => requireCanonicalPublishCoordinates({
       WARPKEEP_SPACETIMEDB_DATABASE: 'warpkeep-lookalike',
@@ -1523,12 +2160,12 @@ describe('activation publish safety', () => {
       RESOURCE_PUBLISH_ROLLOUT_STAGE.PREBACKFILL,
       WORKER_PUBLISH_ROLLOUT_STAGE.EMPTY,
       orderedFailureSpawn as never,
-    )).toThrow(/protocol-v3 verification is indeterminate/i);
+    )).toThrow(/combined protocol-v3\/v4\/v8\/v10\/v12 checkpoint is indeterminate/i);
     expect(orderedFailureCalls).toHaveLength(1);
     expect(orderedFailureCalls[0]?.[1]).toEqual([
       resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs'),
       'scripts/hermes-admin.ts',
-      'inspect-alpha-v3',
+      'inspect-publish-post-v12',
       '--json',
     ]);
     expect(() => verifyPostPublishResourcePublicationCheckpoints(
@@ -1553,6 +2190,202 @@ describe('activation publish safety', () => {
       'staged',
       orderedFailureSpawn as never,
     )).toThrow(/Worker rollout stage was invalid/i);
+  });
+
+  it('uses exactly one bounded token-bearing child before and after publish for every aggregate checkpoint', () => {
+    const secret = 'TEST_ONLY_HERMES_SECRET_'.repeat(2);
+    const expectations = {
+      expectedFounderCount: 4,
+      expectedPlayerCount: 1,
+      expectedTermsAcceptanceCount: 1,
+    };
+    const preEnvelope = {
+      protocolV3: publishProtocolV3Status(),
+      resourceV4: publishResourceV4Status(),
+    };
+    const postEnvelope = {
+      ...preEnvelope,
+      alphaV8: alphaStatusV8(),
+      alphaV10: alphaStatusV10(),
+      workerV12: alphaStatusV12(),
+    };
+    const calls: unknown[][] = [];
+    const fakeSpawnSync = (...args: unknown[]) => {
+      calls.push(args);
+      const childArguments = args[1] as string[];
+      return {
+        status: 0,
+        signal: null,
+        stdout: JSON.stringify(childArguments.includes('inspect-publish-pre-v12')
+          ? preEnvelope
+          : postEnvelope),
+        stderr: '',
+      };
+    };
+
+    expect(verifyFreshPublishPreV12Aggregate(
+      secret,
+      expectations,
+      RESOURCE_PUBLISH_ROLLOUT_STAGE.PREBACKFILL,
+      fakeSpawnSync as never,
+    )).toEqual(preEnvelope);
+    expect(verifyPostPublishCombinedV12Aggregate(
+      secret,
+      expectations,
+      RESOURCE_PUBLISH_ROLLOUT_STAGE.PREBACKFILL,
+      WORKER_PUBLISH_ROLLOUT_STAGE.EMPTY,
+      fakeSpawnSync as never,
+    )).toEqual(postEnvelope);
+
+    expect(calls).toHaveLength(2);
+    expect(calls[0]?.[0]).toBe(process.execPath);
+    expect(calls[0]?.[1]).toEqual(publishPreV12AggregateChildArguments(
+      resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs'),
+    ));
+    expect(calls[1]?.[0]).toBe(process.execPath);
+    expect(calls[1]?.[1]).toEqual(publishPostV12AggregateChildArguments(
+      resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs'),
+    ));
+    const preOptions = calls[0]?.[2] as {
+      env?: Record<string, string>;
+      input?: string;
+      timeout?: number;
+      maxBuffer?: number;
+      killSignal?: string;
+    };
+    const postOptions = calls[1]?.[2] as typeof preOptions;
+    expect(preOptions).toMatchObject({
+      input: secret,
+      timeout: 90_000,
+      maxBuffer: 1_000_000,
+      killSignal: 'SIGKILL',
+    });
+    expect(postOptions).toMatchObject({
+      input: secret,
+      timeout: 150_000,
+      maxBuffer: 1_000_000,
+      killSignal: 'SIGKILL',
+    });
+    for (const [index, options] of [preOptions, postOptions].entries()) {
+      expect(options.env).toEqual({
+        WARPKEEP_SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
+        WARPKEEP_SPACETIMEDB_DATABASE: CANONICAL_DATABASE_IDENTITY,
+        WARPKEEP_AUTH_BRIDGE_URL: ISSUER,
+        WARPKEEP_ADMIN_TOKEN_SECRET_STDIN: '1',
+      });
+      expect(JSON.stringify(calls[index]?.[1])).not.toContain(secret);
+      expect(JSON.stringify(options.env)).not.toContain(secret);
+    }
+  });
+
+  it('requires the closed inert v12 aggregate before the exceptional code-only republish', () => {
+    const secret = 'TEST_ONLY_HERMES_SECRET_'.repeat(2);
+    const expectations = {
+      expectedFounderCount: 4,
+      expectedPlayerCount: 1,
+      expectedTermsAcceptanceCount: 1,
+    };
+    const envelope = {
+      protocolV3: publishProtocolV3Status(),
+      resourceV4: publishResourceV4Status('ready'),
+      alphaV8: alphaStatusV8(),
+      alphaV10: alphaStatusV10(),
+      workerV12: alphaStatusV12(),
+    };
+    const spawn = vi.fn((..._args: unknown[]) => ({
+      status: 0,
+      signal: null,
+      stdout: JSON.stringify(envelope),
+      stderr: '',
+    }));
+    expect(verifyFreshPublishExactV12Aggregate(
+      secret,
+      expectations,
+      RESOURCE_PUBLISH_ROLLOUT_STAGE.READY,
+      WORKER_PUBLISH_ROLLOUT_STAGE.EMPTY,
+      spawn as never,
+      GENESIS_WORLD_PUBLISH_STAGE.PRE_EXPANSION,
+    )).toEqual(envelope);
+    expect(spawn).toHaveBeenCalledOnce();
+    expect(spawn.mock.calls[0]?.[1]).toEqual(publishPostV12AggregateChildArguments(
+      resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs'),
+    ));
+
+    const staged = {
+      ...envelope,
+      workerV12: alphaStatusV12({
+        mode: 'staged',
+        systemRows: '1',
+        systemConfigValid: true,
+        legacyDrainRequired: false,
+      }),
+    };
+    expect(() => verifyFreshPublishExactV12Aggregate(
+      secret,
+      expectations,
+      RESOURCE_PUBLISH_ROLLOUT_STAGE.READY,
+      WORKER_PUBLISH_ROLLOUT_STAGE.EMPTY,
+      (() => ({
+        status: 0,
+        signal: null,
+        stdout: JSON.stringify(staged),
+        stderr: '',
+      })) as never,
+      GENESIS_WORLD_PUBLISH_STAGE.PRE_EXPANSION,
+    )).toThrow(/no publish was attempted.*absent and inert/i);
+  });
+
+  it('rejects malformed or identity-bearing combined publication envelopes', () => {
+    const preEnvelope = {
+      protocolV3: publishProtocolV3Status(),
+      resourceV4: publishResourceV4Status(),
+    };
+    const postEnvelope = {
+      ...preEnvelope,
+      alphaV8: alphaStatusV8(),
+      alphaV10: alphaStatusV10(),
+      workerV12: alphaStatusV12(),
+    };
+    expect(verifyPrivacySafePublishPreV12Output(JSON.stringify(preEnvelope)))
+      .toEqual(preEnvelope);
+    expect(verifyPrivacySafePublishPostV12Output(JSON.stringify(postEnvelope)))
+      .toEqual(postEnvelope);
+    for (const invalid of [
+      '',
+      '[]',
+      JSON.stringify({ ...preEnvelope, token: 'private' }),
+      JSON.stringify({ protocolV3: preEnvelope.protocolV3 }),
+      JSON.stringify({ ...preEnvelope, resourceV4: [] }),
+    ]) {
+      expect(() => verifyPrivacySafePublishPreV12Output(invalid)).toThrow();
+    }
+    for (const invalid of [
+      JSON.stringify({ ...postEnvelope, fid: '539854' }),
+      JSON.stringify({ ...postEnvelope, alphaV10: null }),
+      JSON.stringify({
+        ...postEnvelope,
+        workerV12: { ...postEnvelope.workerV12, token: 'private' },
+      }),
+    ]) {
+      const spawn = vi.fn(() => ({
+        status: 0,
+        signal: null,
+        stdout: invalid,
+        stderr: '',
+      }));
+      expect(() => verifyPostPublishCombinedV12Aggregate(
+        'TEST_ONLY_HERMES_SECRET_'.repeat(2),
+        {
+          expectedFounderCount: 4,
+          expectedPlayerCount: 1,
+          expectedTermsAcceptanceCount: 1,
+        },
+        RESOURCE_PUBLISH_ROLLOUT_STAGE.PREBACKFILL,
+        WORKER_PUBLISH_ROLLOUT_STAGE.EMPTY,
+        spawn as never,
+      )).toThrow(/combined protocol-v3\/v4\/v8\/v10\/v12 checkpoint is indeterminate/i);
+      expect(spawn).toHaveBeenCalledOnce();
+    }
   });
 
   it('requires one closed, privacy-safe v8 checkpoint after publication and before seeding', () => {

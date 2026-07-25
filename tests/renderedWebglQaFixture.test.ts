@@ -12,8 +12,11 @@ import {
   CANONICAL_GENESIS_WATER_REVISION_V1
 } from '../spacetimedb/src/waterRevision';
 import {
+  createRenderedWebglQaActiveWorkerRealm,
   createRenderedWebglQaFixtureRealm,
   createRenderedWebglQaOccupancyStressRealm,
+  RENDERED_WEBGL_QA_ACTIVE_WORKER_SITE_ID,
+  RENDERED_WEBGL_QA_FOREIGN_WORKER_SITE_ID,
   RENDERED_WEBGL_QA_LONG_DISPLAY_NAME,
   RENDERED_WEBGL_QA_LONG_PUBLIC_BIO,
   RENDERED_WEBGL_QA_OCCUPANT_CASTLE_ID,
@@ -248,6 +251,9 @@ describe('rendered WebGL local QA fixture', () => {
     expect(readRenderedWebglQaFixtureVariant(
       '?quality=balanced&fixture=occupancy-stress'
     )).toBe('occupancy-stress');
+    expect(readRenderedWebglQaFixtureVariant(
+      '?quality=balanced&mode=player&fixture=worker-active'
+    )).toBe('worker-active');
     expect(readRenderedWebglQaFixtureVariant('?quality=high')).toBe(
       RENDERED_WEBGL_QA_DEFAULT_FIXTURE_VARIANT
     );
@@ -281,6 +287,119 @@ describe('rendered WebGL local QA fixture', () => {
     expect(renderedWebglQaStatusForRenderer('webgl')).toBe('ready');
     expect(renderedWebglQaStatusForRenderer('fallback')).toBe('fallback');
     expect(RENDERED_WEBGL_QA_FIXTURE_ID).toBe('synthetic-canonical-100');
+  });
+
+  it('builds a complete active four-worker graph with bounded owner-private presentation', () => {
+    const realm = createRenderedWebglQaActiveWorkerRealm();
+
+    expect(realm.snapshot.workerSystem).toMatchObject({
+      mode: 'active',
+      legacyDrainRequired: false,
+      expectedCastleCount: 100,
+      expectedWorkerCount: 400,
+      workersPerCastle: 4
+    });
+    expect(realm.snapshot.workerWorkers).toHaveLength(400);
+    expect(realm.snapshot.workerOccupations).toHaveLength(2);
+    expect(realm.workerProjection.ownedWorkers).toHaveLength(4);
+    expect(realm.workerProjection.ownedWorkers.map((worker) => worker.status)).toEqual([
+      'gathering',
+      'idle',
+      'idle',
+      'idle'
+    ]);
+    expect(realm.workerRoster.workers).toHaveLength(4);
+    expect(realm.workerRoster.workers[0]).toMatchObject({
+      ordinal: 1,
+      status: 'gathering',
+      resourceKind: 'gold',
+      siteId: RENDERED_WEBGL_QA_ACTIVE_WORKER_SITE_ID,
+      availableAmount: 5n
+    });
+    expect(realm.workerResourceState.pending).toEqual({
+      food: 0n,
+      wood: 0n,
+      stone: 0n,
+      gold: 5n
+    });
+    expect(realm.snapshot.goldNodeOccupations).toEqual([]);
+    expect(realm.snapshot.foodNodeOccupations).toEqual([]);
+    expect(realm.snapshot.woodNodeOccupations).toEqual([]);
+    expect(realm.snapshot.stoneNodeOccupations).toEqual([]);
+
+    const profilesByOwner = new Map(realm.snapshot.profiles.map((profile) => [
+      profile.fid,
+      profile
+    ]));
+    const profileRecords = new Map(realm.snapshot.castles.map((castle) => [
+      castle.castleId,
+      { profile: profilesByOwner.get(castle.ownerFid)! }
+    ]));
+    const presentationInput = {
+      castles: realm.snapshot.castles,
+      ownCastleId: realm.snapshot.ownCastle.castleId
+    };
+    const markers = resolveRealmResourceOccupantMarkers({
+      buckets: [
+        {
+          resource: 'gold',
+          nodes: resolveRealmGoldNodePresentations({
+            ...presentationInput,
+            sites: realm.snapshot.goldSites,
+            occupations: realm.snapshot.goldNodeOccupations
+          })
+        },
+        {
+          resource: 'food',
+          nodes: resolveRealmFoodNodePresentations({
+            ...presentationInput,
+            sites: realm.snapshot.foodSites,
+            occupations: realm.snapshot.foodNodeOccupations
+          })
+        },
+        {
+          resource: 'wood',
+          nodes: resolveRealmWoodNodePresentations({
+            ...presentationInput,
+            sites: realm.snapshot.woodSites,
+            occupations: realm.snapshot.woodNodeOccupations
+          })
+        },
+        {
+          resource: 'stone',
+          nodes: resolveRealmStoneNodePresentations({
+            ...presentationInput,
+            sites: realm.snapshot.stoneSites,
+            occupations: realm.snapshot.stoneNodeOccupations
+          })
+        }
+      ],
+      castles: realm.snapshot.castles,
+      profiles: profileRecords,
+      workerProjection: realm.workerProjection,
+      activeGenericModeExpected: true,
+      ownCastleId: realm.snapshot.ownCastle.castleId
+    });
+    expect(markers).toHaveLength(2);
+    expect(markers.every((marker) => marker.source === 'generic-worker')).toBe(true);
+    expect(markers.find((marker) => (
+      marker.siteId === RENDERED_WEBGL_QA_ACTIVE_WORKER_SITE_ID
+    ))?.occupiedByViewer).toBe(true);
+    const foreignMarker = markers.find((marker) => (
+      marker.siteId === RENDERED_WEBGL_QA_FOREIGN_WORKER_SITE_ID
+    ));
+    expect(foreignMarker).toMatchObject({
+      source: 'generic-worker',
+      workerOrdinal: 1,
+      workerPhase: 'gathering',
+      occupiedByViewer: false,
+      profile: {
+        canonicalUsername: 'qa-keep-002'
+      }
+    });
+    expect(new URL(foreignMarker!.profile.pfpUrl!).pathname).toBe(
+      REALM_OBSERVER_PORTRAIT_PLACEHOLDER_PATH
+    );
   });
 
   it('bounds a local-only all-node occupation stress projection to every presence and 24 controls', () => {

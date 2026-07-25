@@ -5,7 +5,10 @@ export const RENDERED_WEBGL_QA_MAX_READY_MILLISECONDS: 120000;
 
 export type RenderedWebglQaQuality = 'high' | 'balanced' | 'reduced';
 export type RenderedWebglQaPresentationMode = 'observer' | 'player';
-export type RenderedWebglQaFixtureVariant = 'baseline' | 'occupancy-stress';
+export type RenderedWebglQaFixtureVariant =
+  | 'baseline'
+  | 'occupancy-stress'
+  | 'worker-active';
 
 export type RenderedWebglQaObservation = Readonly<{
   version: 1;

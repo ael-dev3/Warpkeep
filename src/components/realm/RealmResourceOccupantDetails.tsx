@@ -18,6 +18,7 @@ import {
   RESOURCE_WORKER_RATE_LABELS,
   type RealmResourceOccupantMarker
 } from './realmResourceOccupantPresentation';
+import type { RealmResourceKind } from './realmTypes';
 
 function publicAssetUrl(path: string) {
   const base = import.meta.env.BASE_URL || '/';
@@ -30,6 +31,12 @@ export type RealmResourceOccupantDetailsProps = Readonly<{
   focusFallbackRef?: RefObject<HTMLButtonElement | null>;
   onFocusCastle?: (marker: RealmResourceOccupantMarker) => void;
   onRecallWorker?: (workerId: string) => Promise<void>;
+  /** Present only after the owner-private/public legacy timeline joins exactly. */
+  legacyExpeditionId?: string;
+  onReturnLegacyExpedition?: (
+    resourceKind: RealmResourceKind,
+    expeditionId: string
+  ) => Promise<void>;
 }>;
 
 /**
@@ -41,7 +48,9 @@ export function RealmResourceOccupantDetails({
   marker,
   focusFallbackRef,
   onFocusCastle,
-  onRecallWorker
+  onRecallWorker,
+  legacyExpeditionId,
+  onReturnLegacyExpedition
 }: RealmResourceOccupantDetailsProps) {
   const detailsRef = useRef<HTMLElement>(null);
   const recallPendingRef = useRef(false);
@@ -62,7 +71,19 @@ export function RealmResourceOccupantDetails({
     ? 'EXPEDITION WAGON'
     : `WORKER ${String(marker.workerOrdinal).padStart(2, '0')}`;
   const recallWorkerId = realmResourceOccupantRecallWorkerId(marker);
-  const canRecall = recallWorkerId !== undefined && onRecallWorker !== undefined;
+  const returnLegacyExpeditionId = marker.source === 'legacy-expedition'
+    && marker.occupiedByViewer
+    && (marker.workerPhase === 'outbound' || marker.workerPhase === 'gathering')
+    && typeof legacyExpeditionId === 'string'
+    && /^[a-z0-9][a-z0-9:_-]{0,95}$/i.test(legacyExpeditionId)
+    ? legacyExpeditionId
+    : undefined;
+  const recallsLegacyExpedition = returnLegacyExpeditionId !== undefined;
+  const canRecall = (
+    recallWorkerId !== undefined && onRecallWorker !== undefined
+  ) || (
+    recallsLegacyExpedition && onReturnLegacyExpedition !== undefined
+  );
   const scheduleLabel = marker.workerPhase === 'outbound'
     ? 'Arrival time left'
     : marker.workerPhase === 'gathering'
@@ -75,7 +96,13 @@ export function RealmResourceOccupantDetails({
   useEffect(() => {
     recallPendingRef.current = false;
     setRecallState('idle');
-  }, [marker.timelineRevision, marker.workerId, marker.workerPhase]);
+  }, [
+    legacyExpeditionId,
+    marker.resource,
+    marker.timelineRevision,
+    marker.workerId,
+    marker.workerPhase
+  ]);
 
   useLayoutEffect(() => () => {
     const details = detailsRef.current;
@@ -98,16 +125,25 @@ export function RealmResourceOccupantDetails({
     });
   }, [focusFallbackRef]);
 
-  const recallWorker = async () => {
-    if (
-      recallWorkerId === undefined
-      || onRecallWorker === undefined
-      || recallPendingRef.current
-    ) return;
+  const recallAssignment = async () => {
+    if (recallPendingRef.current) return;
+    let command: (() => Promise<void>) | undefined;
+    if (recallWorkerId !== undefined && onRecallWorker !== undefined) {
+      command = () => onRecallWorker(recallWorkerId);
+    } else if (
+      returnLegacyExpeditionId !== undefined
+      && onReturnLegacyExpedition !== undefined
+    ) {
+      command = () => onReturnLegacyExpedition(
+        marker.resource,
+        returnLegacyExpeditionId
+      );
+    }
+    if (command === undefined) return;
     recallPendingRef.current = true;
     setRecallState('pending');
     try {
-      await onRecallWorker(recallWorkerId);
+      await command();
       setRecallState('confirmed');
     } catch {
       recallPendingRef.current = false;
@@ -195,15 +231,21 @@ export function RealmResourceOccupantDetails({
         <button
           className="realm-resource-occupant-details__recall"
           disabled={recallState === 'pending' || recallState === 'confirmed'}
-          onClick={() => void recallWorker()}
+          onClick={() => void recallAssignment()}
           type="button"
         >
           <span aria-atomic="true" aria-live="polite">
             {recallState === 'pending'
-              ? 'Recalling worker…'
+              ? recallsLegacyExpedition
+                ? 'Recalling expedition…'
+                : 'Recalling worker…'
               : recallState === 'confirmed'
-                ? 'Worker returning…'
-                : 'Recall Worker to Keep'}
+                ? recallsLegacyExpedition
+                  ? 'Expedition returning…'
+                  : 'Worker returning…'
+                : recallsLegacyExpedition
+                  ? 'Recall Expedition to Keep'
+                  : 'Recall Worker to Keep'}
           </span>
           <span aria-hidden="true">↩</span>
         </button>

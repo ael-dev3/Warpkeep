@@ -386,6 +386,7 @@ export type WorkerClientAttestation = Readonly<{
   capability: string;
   clientRelease: string;
   clientArtifactDigest: string;
+  moduleArtifactDigest: string;
   sourceCommit: string;
   resourceStateVersion: number;
   resourcePolicyVersion: string;
@@ -411,6 +412,9 @@ export function assertWorkerClientAttestation(
   }
   if (!SHA256_HEX.test(attestation.clientArtifactDigest)) {
     fail('WORKER_CLIENT_ARTIFACT_INVALID');
+  }
+  if (!SHA256_HEX.test(attestation.moduleArtifactDigest)) {
+    fail('WORKER_MODULE_ARTIFACT_INVALID');
   }
   if (!GIT_COMMIT_HEX.test(attestation.sourceCommit)) {
     fail('WORKER_SOURCE_COMMIT_INVALID');

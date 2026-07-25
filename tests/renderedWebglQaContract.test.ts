@@ -23,6 +23,15 @@ describe('rendered WebGL QA contract', () => {
     })).toBe(
       'http://127.0.0.1:41732/dev/realm-rendered-webgl-qa.html?quality=balanced&fixture=occupancy-stress'
     );
+    expect(renderedWebglQaUrl({
+      fixture: 'worker-active',
+      mode: 'player',
+      quality: 'balanced',
+      port: 41_732
+    })).toBe(
+      'http://127.0.0.1:41732/dev/realm-rendered-webgl-qa.html'
+        + '?quality=balanced&mode=player&fixture=worker-active'
+    );
     expect(() => renderedWebglQaUrl({ quality: 'unknown' as never })).toThrow(/quality/i);
     expect(() => renderedWebglQaUrl({ mode: 'unknown' as never })).toThrow(/mode/i);
     expect(() => renderedWebglQaUrl({ fixture: 'unknown' as never })).toThrow(/fixture/i);

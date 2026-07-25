@@ -5,6 +5,7 @@ import {
   MAX_VISIBLE_RESOURCE_OCCUPANT_MARKERS,
   realmResourceOccupantMarkerForKey,
   realmResourceOccupantMarkerKey,
+  realmResourceOccupantRecallLegacyExpeditionId,
   resolveRealmResourceOccupantMarkerResolution,
   resolveRealmResourceOccupantMarkers,
   resolveRealmWorkerInspectionRoute,
@@ -161,6 +162,68 @@ describe('resource occupant presentation', () => {
     expect(markers[0]!.castle).not.toHaveProperty('ownerFid');
     expect(markers[0]!.profile).not.toHaveProperty('totalSnapBurnedMicros');
     expect(markers[0]!.profile).not.toHaveProperty('marksBalanceMicros');
+  });
+
+  it('grants legacy return authority only for the exact owner-private timeline', () => {
+    const [marker] = resolveRealmResourceOccupantMarkers({
+      buckets: [{
+        resource: 'gold',
+        nodes: [legacyNode('gold', 'gathering', { occupiedByViewer: true })]
+      }],
+      castles: [CASTLE],
+      profiles: new Map([[CASTLE.castleId, PROFILE]]),
+      ownCastleId: CASTLE.castleId
+    });
+    if (!marker) throw new Error('missing owner legacy marker fixture');
+    const expeditionId = '00000000-0000-4000-8000-000000000001';
+    const exact = {
+      status: 'ready' as const,
+      active: true,
+      expedition: {
+        expeditionId,
+        siteId: marker.siteId,
+        originCastleId: marker.castle.castleId,
+        phase: marker.workerPhase,
+        startedAtMicros: marker.startedAtMicros,
+        arrivesAtMicros: marker.arrivesAtMicros,
+        gatheringEndsAtMicros: marker.gatheringEndsAtMicros,
+        returnsAtMicros: marker.returnsAtMicros!
+      }
+    };
+    expect(realmResourceOccupantRecallLegacyExpeditionId(
+      marker,
+      'gold',
+      exact,
+      CASTLE.castleId
+    )).toBe(expeditionId);
+
+    const mismatches = [
+      { ...exact, expedition: { ...exact.expedition, siteId: 'genesis-001:gold:0002' } },
+      { ...exact, expedition: { ...exact.expedition, originCastleId: 99 } },
+      { ...exact, expedition: { ...exact.expedition, phase: 'outbound' as const } },
+      { ...exact, expedition: { ...exact.expedition, startedAtMicros: 0n } },
+      { ...exact, expedition: { ...exact.expedition, returnsAtMicros: 5n } }
+    ] as const;
+    for (const mismatch of mismatches) {
+      expect(realmResourceOccupantRecallLegacyExpeditionId(
+        marker,
+        'gold',
+        mismatch,
+        CASTLE.castleId
+      )).toBeUndefined();
+    }
+    expect(realmResourceOccupantRecallLegacyExpeditionId(
+      marker,
+      'food',
+      exact,
+      CASTLE.castleId
+    )).toBeUndefined();
+    expect(realmResourceOccupantRecallLegacyExpeditionId(
+      marker,
+      'gold',
+      exact,
+      99
+    )).toBeUndefined();
   });
 
   it('routes an active worker through its exact validated resource-site marker', () => {

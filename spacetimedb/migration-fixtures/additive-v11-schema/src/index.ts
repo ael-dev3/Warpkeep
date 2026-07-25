@@ -17,6 +17,40 @@ import {
   stoneExpeditionErrorCode,
   runStoneExpeditionSchedule,
 } from '../../../src/stoneExpeditionAuthority';
+import {
+  CANONICAL_CASTLE_SLOTS,
+  CANONICAL_REALM,
+  CANONICAL_WORLD_TILE_META,
+  CANONICAL_WORLD_TILES,
+} from '../../../src/world';
+import {
+  CANONICAL_TIER_I_GOLD_SITES_V1,
+} from '../../../src/goldSitePolicy';
+import {
+  CANONICAL_TIER_I_FOOD_SITES_V1,
+} from '../../../src/foodSitePolicy';
+import {
+  CANONICAL_TIER_I_WOOD_SITES_V1,
+} from '../../../src/woodSitePolicy';
+import {
+  CANONICAL_TIER_I_STONE_SITES_V1,
+} from '../../../src/stoneSitePolicy';
+import {
+  GOLD_EXPEDITION_POLICY_VERSION,
+  GOLD_GATHERING_DURATION_MICROS,
+} from '../../../src/goldExpeditionPolicy';
+import {
+  FOOD_EXPEDITION_POLICY_VERSION,
+  FOOD_GATHERING_DURATION_MICROS,
+} from '../../../src/foodExpeditionPolicy';
+import {
+  WOOD_EXPEDITION_POLICY_VERSION,
+  WOOD_GATHERING_DURATION_MICROS,
+} from '../../../src/woodExpeditionPolicy';
+import {
+  STONE_EXPEDITION_POLICY_VERSION,
+  STONE_GATHERING_DURATION_MICROS,
+} from '../../../src/stoneExpeditionPolicy';
 
 const allowedFid = table({ name: 'allowed_fid' }, {
   fid: t.u64().primaryKey(), enabled: t.bool(), authEpoch: t.u32(),
@@ -397,6 +431,239 @@ export const fixtureSeedWaterRevisionSentinelV11 = db.reducer(
 
 const FIXTURE_RESOURCE_QUANTUM_MICROS = 600_000_000n;
 const FIXTURE_RESOURCE_POLICY_VERSION = 'genesis-resource-yield-v1';
+
+/**
+ * One coherent, active v11 predecessor graph for the real v12 Worker cutover
+ * rehearsal. The fixture is disposable and loopback-only; it creates no
+ * generic Worker table because those tables do not exist until publication.
+ */
+export const fixtureSeedWorkerCutoverV11 = db.reducer(
+  { name: 'fixture_seed_worker_cutover_v11' },
+  { fid: t.u64() },
+  (ctx, { fid }) => {
+    if (
+      fid <= 0n
+      || ctx.db.worldTile.count() !== 0n
+      || ctx.db.realmV1.count() !== 0n
+      || ctx.db.castle.count() !== 0n
+      || ctx.db.resourceAccountV1.count() !== 0n
+      || ctx.db.goldExpeditionV1.count() !== 0n
+      || ctx.db.foodExpeditionV1.count() !== 0n
+      || ctx.db.woodExpeditionV1.count() !== 0n
+      || ctx.db.stoneExpeditionV1.count() !== 0n
+    ) throw new Error('FIXTURE_WORKER_CUTOVER_NOT_EMPTY');
+
+    ctx.db.realmV1.insert({ ...CANONICAL_REALM, createdAt: ctx.timestamp });
+    for (const tile of CANONICAL_WORLD_TILES) {
+      ctx.db.worldTile.insert({ ...tile, occupantCastleId: undefined });
+    }
+    for (const meta of CANONICAL_WORLD_TILE_META) ctx.db.worldTileMetaV1.insert(meta);
+    for (const slot of CANONICAL_CASTLE_SLOTS) ctx.db.castleSlotV1.insert(slot);
+    const slot = CANONICAL_CASTLE_SLOTS[0]!;
+    const tile = ctx.db.worldTile.key.find(slot.tileKey);
+    if (tile === null) throw new Error('FIXTURE_WORKER_CUTOVER_SLOT');
+
+    ctx.db.allowedFid.insert({
+      fid,
+      enabled: true,
+      authEpoch: 1,
+      invitedAt: ctx.timestamp,
+      invitedBy: 'loopback-worker-cutover-v11',
+      note: 'disposable worker cutover predecessor',
+    });
+    ctx.db.player.insert({
+      fid,
+      identity: ctx.sender,
+      username: 'migration.worker.v11',
+      displayName: 'Migration Worker V11',
+      pfpUrl: 'https://profiles.example.com/migration-worker-v11.png',
+      joinedAt: ctx.timestamp,
+      status: 'active',
+    });
+    ctx.db.playerV2.insert({
+      fid,
+      username: 'migration.worker.v11',
+      displayName: 'Migration Worker V11',
+      pfpUrl: 'https://profiles.example.com/migration-worker-v11.png',
+      joinedAt: ctx.timestamp,
+      status: 'active',
+    });
+    ctx.db.playerOwnershipV2.insert({ fid, identity: ctx.sender });
+    const castleRow = ctx.db.castle.insert({
+      castleId: 0n,
+      ownerFid: fid,
+      tileKey: slot.tileKey,
+      q: slot.q,
+      r: slot.r,
+      level: 1,
+      name: 'Hegemony Keep 001',
+      createdAt: ctx.timestamp,
+    });
+    ctx.db.castleSlotClaimV1.insert({
+      slotId: slot.slotId,
+      ownerFid: fid,
+      castleId: castleRow.castleId,
+      claimedAt: ctx.timestamp,
+      generationVersion: slot.generationVersion,
+    });
+    ctx.db.worldTile.key.update({ ...tile, occupantCastleId: castleRow.castleId });
+    ctx.db.realmProfileV1.insert({
+      fid,
+      canonicalUsername: 'migration.worker.v11',
+      displayName: 'Migration Worker V11',
+      pfpUrl: 'https://profiles.example.com/migration-worker-v11.png',
+      publicBio: 'Disposable loopback-only Worker cutover fixture',
+      admittedAt: ctx.timestamp,
+      firstAuthenticatedAt: ctx.timestamp,
+      profileUpdatedAt: ctx.timestamp,
+      publicStatus: 'active',
+      communityStatsVisible: true,
+      totalSnapBurnedMicros: 0n,
+      marksEarnedMicros: 0n,
+      marksSpentMicros: 0n,
+      marksBalanceMicros: 0n,
+      marksPolicyVersion: 'snap-current-linked-wallet-1to1-v1',
+    });
+    ctx.db.markAccountV1.insert({
+      fid,
+      totalSnapBurnedMicros: 0n,
+      earnedMicros: 0n,
+      spentMicros: 0n,
+      balanceMicros: 0n,
+      policyVersion: 'snap-current-linked-wallet-1to1-v1',
+      updatedAt: ctx.timestamp,
+    });
+    ctx.db.alphaTermsAcceptanceV1.insert({
+      acceptanceKey: `${fid}:2026-07-19-hegemony-entry-agreement-v3`,
+      fid,
+      termsVersion: '2026-07-19-hegemony-entry-agreement-v3',
+      acceptedAt: ctx.timestamp,
+    });
+    ctx.db.resourceAccountV1.insert({
+      fid,
+      castleId: castleRow.castleId,
+      realmId: CANONICAL_REALM.realmId,
+      food: 0n,
+      wood: 0n,
+      stone: 0n,
+      gold: 0n,
+      settledThroughMicros: ctx.timestamp.microsSinceUnixEpoch,
+      revision: 0n,
+      policyVersion: FIXTURE_RESOURCE_POLICY_VERSION,
+      createdAt: ctx.timestamp,
+      updatedAt: ctx.timestamp,
+    });
+    for (const site of CANONICAL_TIER_I_GOLD_SITES_V1) ctx.db.goldSiteV1.insert(site);
+    for (const site of CANONICAL_TIER_I_FOOD_SITES_V1) ctx.db.foodSiteV1.insert(site);
+    for (const site of CANONICAL_TIER_I_WOOD_SITES_V1) ctx.db.woodSiteV1.insert(site);
+    for (const site of CANONICAL_TIER_I_STONE_SITES_V1) ctx.db.stoneSiteV1.insert(site);
+
+    const now = ctx.timestamp.microsSinceUnixEpoch;
+    const arrivesAtMicros = now - 150_000_000n;
+    const startedAtMicros = arrivesAtMicros - 60_000_000n;
+    const resources = [
+      {
+        kind: 'gold',
+        site: CANONICAL_TIER_I_GOLD_SITES_V1[0]!,
+        duration: GOLD_GATHERING_DURATION_MICROS,
+        policy: GOLD_EXPEDITION_POLICY_VERSION,
+      },
+      {
+        kind: 'food',
+        site: CANONICAL_TIER_I_FOOD_SITES_V1[0]!,
+        duration: FOOD_GATHERING_DURATION_MICROS,
+        policy: FOOD_EXPEDITION_POLICY_VERSION,
+      },
+      {
+        kind: 'wood',
+        site: CANONICAL_TIER_I_WOOD_SITES_V1[0]!,
+        duration: WOOD_GATHERING_DURATION_MICROS,
+        policy: WOOD_EXPEDITION_POLICY_VERSION,
+      },
+      {
+        kind: 'stone',
+        site: CANONICAL_TIER_I_STONE_SITES_V1[0]!,
+        duration: STONE_GATHERING_DURATION_MICROS,
+        policy: STONE_EXPEDITION_POLICY_VERSION,
+      },
+    ] as const;
+    for (const resource of resources) {
+      const gatheringEndsAtMicros = arrivesAtMicros + resource.duration;
+      const returnsAtMicros = gatheringEndsAtMicros + 60_000_000n;
+      const expeditionId = `migration-v11-${resource.kind}-expedition`;
+      const shared = {
+        originCastleId: castleRow.castleId,
+        siteId: resource.site.siteId,
+        phase: 'gathering',
+        startedAtMicros,
+        arrivesAtMicros,
+        gatheringEndsAtMicros,
+        returnsAtMicros,
+      };
+      const schedule = (table: {
+        insert(row: {
+          scheduleId: bigint;
+          scheduledAt: ScheduleAt;
+          originCastleId: bigint;
+          siteId: string;
+          stage: string;
+        }): unknown;
+      }) => {
+        table.insert({
+          scheduleId: 0n,
+          scheduledAt: ScheduleAt.time(gatheringEndsAtMicros),
+          originCastleId: castleRow.castleId,
+          siteId: resource.site.siteId,
+          stage: 'gathering-expiry',
+        });
+        table.insert({
+          scheduleId: 0n,
+          scheduledAt: ScheduleAt.time(returnsAtMicros),
+          originCastleId: castleRow.castleId,
+          siteId: resource.site.siteId,
+          stage: 'return-complete',
+        });
+      };
+      if (resource.kind === 'gold') {
+        ctx.db.goldNodeOccupationV1.insert(shared);
+        ctx.db.goldExpeditionV1.insert({
+          expeditionId, fid, ...shared,
+          settledThroughMicros: arrivesAtMicros,
+          accruedGold: 0n, creditedGold: 0n,
+          policyVersion: resource.policy, createdAt: ctx.timestamp, updatedAt: ctx.timestamp,
+        });
+        schedule(ctx.db.goldExpeditionScheduleV1);
+      } else if (resource.kind === 'food') {
+        ctx.db.foodNodeOccupationV1.insert(shared);
+        ctx.db.foodExpeditionV1.insert({
+          expeditionId, fid, ...shared,
+          settledThroughMicros: arrivesAtMicros,
+          accruedFood: 0n, creditedFood: 0n,
+          policyVersion: resource.policy, createdAt: ctx.timestamp, updatedAt: ctx.timestamp,
+        });
+        schedule(ctx.db.foodExpeditionScheduleV1);
+      } else if (resource.kind === 'wood') {
+        ctx.db.woodNodeOccupationV1.insert(shared);
+        ctx.db.woodExpeditionV1.insert({
+          expeditionId, fid, ...shared,
+          settledThroughMicros: arrivesAtMicros,
+          accruedWood: 0n, creditedWood: 0n,
+          policyVersion: resource.policy, createdAt: ctx.timestamp, updatedAt: ctx.timestamp,
+        });
+        schedule(ctx.db.woodExpeditionScheduleV1);
+      } else {
+        ctx.db.stoneNodeOccupationV1.insert(shared);
+        ctx.db.stoneExpeditionV1.insert({
+          expeditionId, fid, ...shared,
+          settledThroughMicros: arrivesAtMicros,
+          accruedStone: 0n, creditedStone: 0n,
+          policyVersion: resource.policy, createdAt: ctx.timestamp, updatedAt: ctx.timestamp,
+        });
+        schedule(ctx.db.stoneExpeditionScheduleV1);
+      }
+    }
+  },
+);
 
 export const fixtureRewindResourceOneQuantum = db.reducer(
   { name: 'fixture_rewind_resource_one_quantum' },

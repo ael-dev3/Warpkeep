@@ -45,6 +45,7 @@ import AdminBackfillWorkerRosterV1Reducer from "./admin_backfill_worker_roster_v
 import AdminBeginSnapScanBatchV1Reducer from "./admin_begin_snap_scan_batch_v_1_reducer";
 import AdminBeginWorkerLegacyDrainV1Reducer from "./admin_begin_worker_legacy_drain_v_1_reducer";
 import AdminBumpAuthEpochReducer from "./admin_bump_auth_epoch_reducer";
+import AdminCompleteWorkerLegacyDrainV1Reducer from "./admin_complete_worker_legacy_drain_v_1_reducer";
 import AdminCreditSnapBurnV1Reducer from "./admin_credit_snap_burn_v_1_reducer";
 import AdminDisableFidReducer from "./admin_disable_fid_reducer";
 import AdminExpandGenesisWorldV3Reducer from "./admin_expand_genesis_world_v_3_reducer";
@@ -75,6 +76,7 @@ import DispatchWoodExpeditionV1Reducer from "./dispatch_wood_expedition_v_1_redu
 import DispatchWorkerV1Reducer from "./dispatch_worker_v_1_reducer";
 import RecallAllWorkersV1Reducer from "./recall_all_workers_v_1_reducer";
 import RecallWorkerV1Reducer from "./recall_worker_v_1_reducer";
+import ReturnLegacyExpeditionV1Reducer from "./return_legacy_expedition_v_1_reducer";
 
 // Import all procedure arg schemas
 import * as AdminGetAlphaStatusProcedure from "./admin_get_alpha_status_procedure";
@@ -576,6 +578,7 @@ const reducersSchema = __reducers(
   __reducerSchema("admin_begin_snap_scan_batch_v1", AdminBeginSnapScanBatchV1Reducer),
   __reducerSchema("admin_begin_worker_legacy_drain_v1", AdminBeginWorkerLegacyDrainV1Reducer),
   __reducerSchema("admin_bump_auth_epoch", AdminBumpAuthEpochReducer),
+  __reducerSchema("admin_complete_worker_legacy_drain_v1", AdminCompleteWorkerLegacyDrainV1Reducer),
   __reducerSchema("admin_credit_snap_burn_v1", AdminCreditSnapBurnV1Reducer),
   __reducerSchema("admin_disable_fid", AdminDisableFidReducer),
   __reducerSchema("admin_expand_genesis_world_v3", AdminExpandGenesisWorldV3Reducer),
@@ -606,6 +609,7 @@ const reducersSchema = __reducers(
   __reducerSchema("dispatch_worker_v1", DispatchWorkerV1Reducer),
   __reducerSchema("recall_all_workers_v1", RecallAllWorkersV1Reducer),
   __reducerSchema("recall_worker_v1", RecallWorkerV1Reducer),
+  __reducerSchema("return_legacy_expedition_v1", ReturnLegacyExpeditionV1Reducer),
 );
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */

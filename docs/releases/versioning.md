@@ -1,7 +1,9 @@
 # Versioning and releases
 
 Warpkeep uses semantic versions for the product and Git commit SHAs for builds.
-The current Alpha is `0.3.17`.
+The prepared release is Alpha `0.3.18`; Alpha `0.3.17` remains live until the
+reviewed module rollout, activation, matching client deployment, and smoke test
+all succeed.
 
 ## Version numbers
 

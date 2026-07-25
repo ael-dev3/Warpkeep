@@ -38,6 +38,12 @@ export function isBenignStaleFetchInterceptionError(
   value: unknown
 ): boolean;
 
+export function controlledRendererRecoveryWarningKind(
+  entry: unknown,
+  loopbackOrigin: string,
+  profileDirectory: string
+): 'stale-context-object-delete' | 'stale-context-warning-throttle' | null;
+
 export function parseHeadlessChromeCodeSignature(value: unknown): Readonly<{
   executable: typeof RENDERED_WEBGL_QA_CHROME;
   identifier: 'com.google.Chrome';
@@ -77,6 +83,7 @@ export type RenderedWebglBrowserProbeCase = Readonly<{
     | 'mobile-balanced-player'
     | 'mobile-balanced'
     | 'mobile-reduced-inspector'
+    | 'mobile-balanced-worker-active'
     | 'short-landscape-explore'
     | 'short-landscape-balanced-player-explore'
     | 'desktop-balanced-occupancy-stress';
@@ -111,6 +118,10 @@ export function renderedWebglOccupancyStressProbeCase(
   port: number
 ): RenderedWebglBrowserProbeCase;
 
+export function renderedWebglActiveWorkerProbeCase(
+  port: number
+): RenderedWebglBrowserProbeCase;
+
 export function headlessChromeProbeContract(profileDirectory: string): HeadlessChromeProbeContract;
 
 export function spawnHeadlessChromeProbe(
@@ -138,6 +149,33 @@ export function cleanupRenderedWebglProbeResources(options?: Readonly<{
   terminate?: (child: ChildProcess | undefined) => unknown;
   vite?: Readonly<{ close(): unknown }>;
 }>): Promise<void>;
+
+export type RenderedWebglActiveWorkerEvidence = Readonly<{
+  activeFixtureSelected: true;
+  foreignMarkerGeneric: true;
+  foreignPortraitReady: true;
+  foreignRecordReadOnly: true;
+  localReconnectRehydrated: true;
+  mobileBoundsSafe: true;
+  ownerCommandCenterAvailable: true;
+  ownerRecallControlsAvailable: true;
+  ownerRosterExact: true;
+  privacyBounded: true;
+  rendererContextRecovered: true;
+  rendererStable: true;
+}>;
+
+export function parseRenderedWebglActiveWorkerEvidence(
+  value: unknown
+): RenderedWebglActiveWorkerEvidence;
+
+export function applyRenderedWebglActiveWorkerInteraction(
+  session: RenderedWebglCastleCanvasPointerSession
+): Promise<Omit<RenderedWebglActiveWorkerEvidence, 'localReconnectRehydrated'>>;
+
+export function applyRenderedWebglActiveWorkerReconnectInteraction(
+  session: RenderedWebglCastleCanvasPointerSession
+): Promise<Pick<RenderedWebglActiveWorkerEvidence, 'localReconnectRehydrated'>>;
 
 /** Closes all accepted HTTP/HMR sockets before awaiting the loopback listener. */
 export function closeRenderedWebglLoopbackServer(options: Readonly<{

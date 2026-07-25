@@ -1132,6 +1132,7 @@ export function WarpkeepExperience() {
                 onRecallAllWorkers={backend.state.workerProjection?.mode === 'active'
                   ? backend.recallAllWorkers
                   : undefined}
+                onReturnLegacyExpedition={backend.returnLegacyExpedition}
                 graphicsPreference={graphicsPreference}
                 resolvedGraphicsQuality={resolvedGraphicsQuality}
                 audioMuted={audioMuted}

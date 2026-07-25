@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-This document describes the current security model for Warpkeep Alpha 0.3.17. It
+This document describes the current security model for Warpkeep Alpha 0.3.18. It
 covers the browser application, Farcaster Sign In with Farcaster (SIWF), the Cloudflare authentication
 bridge, SpacetimeDB game authority, local operator tools, GitHub Actions, and GitHub Pages delivery.
 

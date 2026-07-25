@@ -27,6 +27,11 @@ import {
 import {
   inspectGenesisResourceGraph,
 } from './resourceAuthority';
+import {
+  completeWorkerLegacyDrain as applyWorkerLegacyDrain,
+  type WorkerLegacyDrainAttestation,
+  type WorkerLegacyDrainResult,
+} from './legacyExpeditionReturnAuthority';
 import type warpkeep from './schema';
 
 type WarpkeepReducerContext = ReducerCtx<InferSchema<typeof warpkeep>>;
@@ -40,6 +45,8 @@ const MAX_WORKER_ROWS =
   CASTLE_WORKER_MAX_CASTLES * CASTLE_WORKERS_PER_CASTLE;
 const MAX_WORKER_RECEIPTS =
   CASTLE_WORKER_MAX_CASTLES * WORKER_IDEMPOTENCY_RECEIPTS_PER_FID;
+const SHA256_HEX = /^[0-9a-f]{64}$/;
+const GIT_COMMIT_HEX = /^[0-9a-f]{40}$/;
 
 export class CastleWorkerRolloutAuthorityError extends Error {
   constructor(readonly code: string) {
@@ -369,6 +376,90 @@ export function beginWorkerLegacyDrain(
     ...system,
     legacyDrainRequired: true,
   });
+}
+
+export type WorkerLegacyDrainReleaseAttestation =
+  WorkerLegacyDrainAttestation & Readonly<{
+    sourceCommit: string;
+    moduleArtifactDigest: string;
+    expectedCastleCount: number;
+    expectedWorkerCount: number;
+    rosterDigest: string;
+    resourceRosterDigest: string;
+    resourceCatalogDigest: string;
+  }>;
+
+/**
+ * Bind the destructive legacy-row cutover to the exact reviewed module,
+ * roster, resource graph, and per-table aggregate snapshot. This operation
+ * never activates generic commands; activation remains a distinct attested
+ * transition after a fresh zero-row inspection.
+ */
+export function completeWorkerLegacyDrain(
+  ctx: WarpkeepReducerContext,
+  attestation: WorkerLegacyDrainReleaseAttestation,
+): WorkerLegacyDrainResult {
+  if (
+    !GIT_COMMIT_HEX.test(attestation.sourceCommit)
+    || !SHA256_HEX.test(attestation.moduleArtifactDigest)
+    || attestation.resourceCatalogDigest !== CASTLE_WORKER_RESOURCE_CATALOG_DIGEST
+  ) fail('WORKER_LEGACY_DRAIN_RELEASE_INVALID');
+  const status = inspectWorkerRollout(ctx);
+  const legacyAlreadyZero = status.legacyExpeditions === 0n
+    && status.legacyOccupations === 0n
+    && status.legacySchedules === 0n;
+  if (
+    status.phase !== 'draining'
+    || !status.systemConfigValid
+    || status.actualCastleCount !== BigInt(attestation.expectedCastleCount)
+    || status.expectedCastleCount !== attestation.expectedCastleCount
+    || status.expectedWorkerCount !== attestation.expectedWorkerCount
+    || status.actualWorkerCount !== BigInt(attestation.expectedWorkerCount)
+    || status.rosterDigest !== attestation.rosterDigest
+    || status.expectedRosterDigest !== attestation.rosterDigest
+    || status.resourceRosterDigest !== attestation.resourceRosterDigest
+    || status.resourceCatalogDigest !== attestation.resourceCatalogDigest
+    || status.malformedWorkerGraphRows !== 0n
+    || status.resourceAccounts !== status.actualCastleCount
+    || status.missingResourceAccounts !== 0n
+    || status.orphanedResourceAccounts !== 0n
+    || status.resourceInvariantViolations !== 0n
+    || !status.canonicalResourceCatalog
+    || status.genericAssignments !== 0n
+    || status.genericOccupations !== 0n
+    || status.genericSchedules !== 0n
+    || status.genericCommandReceipts !== 0n
+    || (!legacyAlreadyZero && (
+      status.legacyExpeditions !== BigInt(
+        attestation.goldExpeditions
+        + attestation.foodExpeditions
+        + attestation.woodExpeditions
+        + attestation.stoneExpeditions
+      )
+      || status.legacyOccupations !== BigInt(
+        attestation.goldOccupations
+        + attestation.foodOccupations
+        + attestation.woodOccupations
+        + attestation.stoneOccupations
+      )
+      || status.legacySchedules !== BigInt(
+        attestation.goldSchedules
+        + attestation.foodSchedules
+        + attestation.woodSchedules
+        + attestation.stoneSchedules
+      )
+    ))
+  ) fail('WORKER_LEGACY_DRAIN_RELEASE_MISMATCH');
+  const result = applyWorkerLegacyDrain(ctx, attestation);
+  const after = inspectWorkerRollout(ctx);
+  if (
+    after.phase !== 'draining'
+    || after.legacyExpeditions !== 0n
+    || after.legacyOccupations !== 0n
+    || after.legacySchedules !== 0n
+    || after.malformedWorkerGraphRows !== 0n
+  ) fail('WORKER_LEGACY_DRAIN_INCOMPLETE');
+  return result;
 }
 
 /** Activate only after exact operator and live-state attestations agree. */

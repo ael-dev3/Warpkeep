@@ -199,6 +199,28 @@ function scheduleMatchesExpedition(
     && schedule.scheduledAt.value.microsSinceUnixEpoch === expectedAtMicros;
 }
 
+function deleteStoneExpeditionSchedules(
+  ctx: WarpkeepReducerContext,
+  expedition: StoneExpeditionRow,
+): number {
+  const schedules: StoneScheduleRow[] = [];
+  const stages = new Set<string>();
+  for (const schedule of ctx.db.stoneExpeditionScheduleV1.originCastleId.filter(
+    expedition.originCastleId,
+  )) {
+    if (schedules.length >= 3) fail('STONE_EXPEDITION_SCHEDULE_INTEGRITY');
+    if (!scheduleMatchesExpedition(schedule, expedition) || stages.has(schedule.stage)) {
+      fail('STONE_EXPEDITION_SCHEDULE_INTEGRITY');
+    }
+    schedules.push(schedule);
+    stages.add(schedule.stage);
+  }
+  for (const schedule of schedules) {
+    ctx.db.stoneExpeditionScheduleV1.scheduleId.delete(schedule.scheduleId);
+  }
+  return schedules.length;
+}
+
 /**
  * Check the private remaining-award reservation before a direct Stone credit.
  * Passive Stone is capped by the shared resource-policy adapter on every read
@@ -525,6 +547,66 @@ export function collectActiveStoneExpedition(
     accruedStone: accrual.accruedStone,
     creditedStone: accrual.accruedStone,
     updatedAt: ctx.timestamp,
+  });
+}
+
+export type StoneExpeditionEarlyReturnResult = Readonly<{
+  returned: boolean;
+  creditedStone: bigint;
+  schedulesRemoved: number;
+}>;
+
+/** Exact, id-correlated early return for one caller-owned legacy Stone wagon. */
+export function returnActiveStoneExpedition(
+  ctx: WarpkeepReducerContext,
+  fid: bigint,
+  expectedExpeditionId: string,
+): StoneExpeditionEarlyReturnResult {
+  if (
+    expectedExpeditionId.length === 0
+    || expectedExpeditionId.length > 96
+    || !/^[a-z0-9][a-z0-9:_-]*$/i.test(expectedExpeditionId)
+  ) fail('STONE_EXPEDITION_ID_INVALID');
+  const resource = assertGenesisResourceForFid(ctx, fid);
+  const expedition = ctx.db.stoneExpeditionV1.fid.find(fid);
+  if (expedition === null) {
+    for (const _occupation of ctx.db.stoneNodeOccupationV1.byOriginCastle.filter(
+      resource.castle.castleId,
+    )) fail('STONE_EXPEDITION_ORPHAN_GRAPH');
+    for (const _schedule of ctx.db.stoneExpeditionScheduleV1.originCastleId.filter(
+      resource.castle.castleId,
+    )) fail('STONE_EXPEDITION_ORPHAN_GRAPH');
+    return Object.freeze({ returned: false, creditedStone: 0n, schedulesRemoved: 0 });
+  }
+  if (expedition.expeditionId !== expectedExpeditionId) {
+    fail('STONE_EXPEDITION_RETURN_STALE');
+  }
+  assertExpeditionState(expedition);
+  if (expedition.fid !== fid) fail('STONE_EXPEDITION_OWNER_INTEGRITY');
+  if (resource.account.castleId !== expedition.originCastleId) {
+    fail('STONE_EXPEDITION_OWNER_INTEGRITY');
+  }
+  const occupation = ctx.db.stoneNodeOccupationV1.siteId.find(expedition.siteId);
+  if (occupation === null) fail('STONE_OCCUPATION_MISSING');
+  assertOccupationMatchesExpedition(occupation, expedition);
+  if (occupation.phase !== expedition.phase) fail('STONE_OCCUPATION_PHASE_INVALID');
+
+  const creditedBefore = expedition.creditedStone;
+  collectActiveStoneExpedition(ctx, fid);
+  const settled = ctx.db.stoneExpeditionV1.expeditionId.find(expectedExpeditionId);
+  if (settled === null || settled.fid !== fid) fail('STONE_EXPEDITION_RETURN_STATE');
+  assertExpeditionState(settled);
+  const schedulesRemoved = deleteStoneExpeditionSchedules(ctx, settled);
+  ctx.db.stoneNodeOccupationV1.siteId.delete(occupation.siteId);
+  ctx.db.stoneExpeditionV1.expeditionId.delete(settled.expeditionId);
+  if (
+    ctx.db.stoneExpeditionV1.expeditionId.find(settled.expeditionId) !== null
+    || ctx.db.stoneNodeOccupationV1.siteId.find(occupation.siteId) !== null
+  ) fail('STONE_EXPEDITION_RETURN_INCOMPLETE');
+  return Object.freeze({
+    returned: true,
+    creditedStone: settled.creditedStone - creditedBefore,
+    schedulesRemoved,
   });
 }
 

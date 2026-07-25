@@ -6,23 +6,23 @@ export type LatestPatchNotes = Readonly<{
   alphaNotice: string;
 }>;
 
-const ALPHA_0_3_17_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+const ALPHA_0_3_18_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '24 JUL 2026',
-  title: 'THE GATE REMEMBERS',
+  title: 'THE KEEP MUSTERS',
   summary:
-    'Once a keeper has accepted the current entry agreement and opened Genesis 001, the same authorized session can pass through the gate again without another checkbox.',
+    'Genesis 001 is preparing four permanent workers for every founded keep, with flexible gathering, automatic settlement, and clear return commands.',
   highlights: Object.freeze([
-    'Returning from the Realm to the main menu no longer asks the same authorized keeper to accept the same agreement again.',
-    'Fresh, expired, signed-out, changed-identity, and otherwise unproven sessions still stop at an unchecked agreement before authentication or entry.',
-    'Agreement reuse stays private and memory-only; no acceptance flag is persisted in browser storage and the server remains the authority.'
+    'Each founded keep receives exactly four durable workers that can gather Gold, Food, Wood, or Stone at distinct open sites.',
+    'Worker production settles into private authoritative balances automatically; keepers can recall one worker or call every worker home.',
+    'The legacy wagon transition preserves earned resources and releases every matching expedition, occupation, and schedule before the new system can awaken.'
   ]),
   alphaNotice:
-    'Alpha 0.3.17 is an unfinished, evolving world. The prepared four-worker system remains staged behind inactive rollout gates and is not live yet; community feedback helps shape what is built next.'
+    'Alpha 0.3.18 is an unfinished, evolving world. Four-worker play is live only after the production module is published, every legacy row is safely drained, generic mode is active, and the matching client is deployed; until then the existing expedition flow remains authoritative.'
 });
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
-    '0.3.17': ALPHA_0_3_17_PATCH_NOTES
+    '0.3.18': ALPHA_0_3_18_PATCH_NOTES
   });
 
 export function getLatestPatchNotes(productVersion: string) {

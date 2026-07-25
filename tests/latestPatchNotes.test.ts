@@ -18,23 +18,25 @@ describe('latest in-menu patch notes', () => {
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
       releasedOn: '24 JUL 2026',
-      title: 'THE GATE REMEMBERS'
+      title: 'THE KEEP MUSTERS'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Returning from the Realm.*no longer asks.*authorized keeper.*same agreement/i
+      /four durable workers.*Gold, Food, Wood, or Stone.*distinct open sites/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Fresh, expired, signed-out, changed-identity.*unchecked agreement/i
+      /settles into private authoritative balances automatically.*recall one worker.*every worker home/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /memory-only.*no acceptance flag is persisted in browser storage.*server remains the authority/i
+      /legacy wagon transition preserves earned resources.*expedition, occupation, and schedule/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /released to players|deployed to players|public balances|guaranteed rewards/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('Genesis 001');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
-    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('not live yet');
+    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
+      'live only after the production module is published'
+    );
     expect(getLatestPatchNotes('0.3.15')).toBeUndefined();
     expect(getLatestPatchNotes('0.3.14')).toBeUndefined();
     expect(getLatestPatchNotes('0.3.13')).toBeUndefined();

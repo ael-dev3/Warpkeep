@@ -5,6 +5,8 @@ export const RENDERED_WEBGL_QA_CASTLE_COUNT = 100;
 export const RENDERED_WEBGL_QA_DEFAULT_QUALITY: RealmQuality = 'balanced';
 export const RENDERED_WEBGL_QA_DEFAULT_PRESENTATION_MODE = 'observer' as const;
 export const RENDERED_WEBGL_QA_DEFAULT_FIXTURE_VARIANT = 'baseline' as const;
+export const RENDERED_WEBGL_QA_ACTIVE_WORKER_FIXTURE_MARKER =
+  'warpkeep-local-active-worker-fixture-v1' as const;
 export const RENDERED_WEBGL_QA_MAX_READY_MILLISECONDS = 120_000;
 /**
  * React may replace the map subtree during a responsive layout commit. Keep
@@ -19,7 +21,10 @@ export type RenderedWebglQaOptions = Readonly<{
 }>;
 
 export type RenderedWebglQaPresentationMode = 'observer' | 'player';
-export type RenderedWebglQaFixtureVariant = 'baseline' | 'occupancy-stress';
+export type RenderedWebglQaFixtureVariant =
+  | 'baseline'
+  | 'occupancy-stress'
+  | 'worker-active';
 
 export type RenderedWebglQaRenderer = 'loading' | 'webgl' | 'fallback' | 'closed' | 'error';
 
@@ -32,7 +37,8 @@ const RENDERED_WEBGL_QA_PRESENTATION_MODES = new Set<RenderedWebglQaPresentation
 ]);
 const RENDERED_WEBGL_QA_FIXTURE_VARIANTS = new Set<RenderedWebglQaFixtureVariant>([
   'baseline',
-  'occupancy-stress'
+  'occupancy-stress',
+  'worker-active'
 ]);
 
 function isRealmQuality(value: string | null): value is RealmQuality {

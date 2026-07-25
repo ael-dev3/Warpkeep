@@ -2291,6 +2291,7 @@ function initializeRealmScene(
       const castleCount = pendingCastlesReadyCount;
       if (
         castleCount > 0
+        && (castleLayer?.getFrustumVisibleCastleIds().length ?? 0) > 0
         && (presentedCastleIds === null || presentedCastleIds.size > 0)
         && (castleLayer?.getPacking().totalVisible ?? 0) === 0
       ) {
@@ -3528,6 +3529,10 @@ function initializeRealmScene(
     restoreCameraAttestation: (attestation) => {
       if (cleanup.isDisposed()) return;
       cameraController.restoreState(attestation.controllerState);
+      // Camera restoration changes the authoritative frustum. Repaint
+      // immediately so a renderer rebuild cannot retain the transient
+      // pre-attestation castle visibility set from scene construction.
+      render();
     },
     getSceneBuildSequence: () => sceneBuildSequence,
     focusCastle: (castleId) => {

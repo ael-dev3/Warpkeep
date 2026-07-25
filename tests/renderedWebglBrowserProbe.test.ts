@@ -7,6 +7,8 @@ import { resolve } from 'node:path';
 
 import {
   analyzeRenderedWebglPngScreenshot,
+  applyRenderedWebglActiveWorkerInteraction,
+  applyRenderedWebglActiveWorkerReconnectInteraction,
   applyRenderedWebglActiveForestCameraInteraction,
   applyRenderedWebglCaseInteraction,
   applyRenderedWebglLabelKeyboardInteraction,
@@ -15,12 +17,14 @@ import {
   attestHeadlessChromeCodeSignature,
   closeRenderedWebglLoopbackServer,
   cleanupRenderedWebglProbeResources,
+  controlledRendererRecoveryWarningKind,
   DevtoolsPipeSession,
   headlessChromeProbeContract,
   isAllowedRenderedWebglPageUrl,
   isBenignStaleFetchInterceptionError,
   parseHeadlessChromeCodeSignature,
   parseRenderedWebglActiveForestDom,
+  parseRenderedWebglActiveWorkerEvidence,
   parseRenderedWebglBrowserDom,
   parseRenderedWebglInspectorLabelActivationEvidence,
   parseRenderedWebglLabelKeyboardEvidence,
@@ -38,6 +42,7 @@ import {
   RENDERED_WEBGL_QA_VITE_FS_DENY,
   renderedWebglLabelAnchorDistanceTelemetry,
   renderedWebglLabelDisplacementClassificationValid,
+  renderedWebglActiveWorkerProbeCase,
   renderedWebglBrowserProbeCases,
   renderedWebglOccupancyStressProbeCase,
   selectBlankPageTarget,
@@ -548,6 +553,168 @@ describe('rendered WebGL headless browser probe contract', () => {
     );
     expect(source).toContain("name: 'prefers-reduced-motion'");
     expect(source).toContain("probeCase.expectedQuality === 'reduced' ? 'reduce' : 'no-preference'");
+  });
+
+  it('proves active generic Worker owner, foreign, mobile, reconnect, and recovery UX locally', async () => {
+    const activeEvidence = {
+      activeFixtureSelected: true,
+      foreignMarkerGeneric: true,
+      foreignPortraitReady: true,
+      foreignRecordReadOnly: true,
+      mobileBoundsSafe: true,
+      ownerCommandCenterAvailable: true,
+      ownerRecallControlsAvailable: true,
+      ownerRosterExact: true,
+      privacyBounded: true,
+      rendererContextRecovered: true,
+      rendererStable: true
+    } as const;
+    const completeEvidence = {
+      ...activeEvidence,
+      localReconnectRehydrated: true
+    } as const;
+    expect(parseRenderedWebglActiveWorkerEvidence(completeEvidence)).toEqual(
+      completeEvidence
+    );
+    expect(() => parseRenderedWebglActiveWorkerEvidence({
+      ...completeEvidence,
+      foreignRecordReadOnly: false
+    })).toThrow(/active Worker evidence/i);
+    expect(() => parseRenderedWebglActiveWorkerEvidence({
+      ...completeEvidence,
+      workerId: 'private'
+    })).toThrow(/active Worker evidence/i);
+
+    const activeCommand = vi.fn(async (
+      method: string,
+      _params?: Readonly<Record<string, unknown>>,
+      _timeoutMilliseconds?: number
+    ) => method === 'Runtime.evaluate'
+      ? { result: { type: 'object', value: activeEvidence } }
+      : {});
+    await expect(applyRenderedWebglActiveWorkerInteraction({
+      command: activeCommand
+    })).resolves.toEqual(activeEvidence);
+    const activeEvaluation = activeCommand.mock.calls.find(([method]) => (
+      method === 'Runtime.evaluate'
+    ));
+    expect(activeEvaluation?.[1]).toMatchObject({
+      awaitPromise: true,
+      returnByValue: true
+    });
+    expect(activeEvaluation?.[2]).toBe(80_000);
+    const activeExpression = String(activeEvaluation?.[1]?.expression);
+    expect(activeExpression).toContain("overlay.dataset.fixtureVariant === 'worker-active'");
+    expect(activeExpression).toContain("'1/4 deployed · manage workers'");
+    expect(activeExpression).toContain("=== 'Worker 1|Worker 2|Worker 3|Worker 4'");
+    expect(activeExpression).toContain("=== '5 Gold'");
+    expect(activeExpression).toContain("=== 'PUBLIC WORKER RECORD'");
+    expect(activeExpression).toContain("=== 'generic-worker'");
+    expect(activeExpression).toContain("canvas[data-profile-image-state=\"ready\"]");
+    expect(activeExpression).toContain("getExtension('WEBGL_lose_context')");
+    expect(activeExpression).toContain('contextController.loseContext()');
+    expect(activeExpression).toContain('contextController.restoreContext()');
+    expect(activeExpression).toContain("map?.dataset.rendererFailure === 'none'");
+    expect(activeExpression).not.toContain('return {\\n        workerId');
+    expect(activeExpression).not.toContain('return {\\n        fid');
+
+    const reconnectCommand = vi.fn(async (
+      method: string,
+      _params?: Readonly<Record<string, unknown>>,
+      _timeoutMilliseconds?: number
+    ) => method === 'Runtime.evaluate'
+      ? { result: { type: 'boolean', value: true } }
+      : {});
+    await expect(applyRenderedWebglActiveWorkerReconnectInteraction({
+      command: reconnectCommand
+    })).resolves.toEqual({ localReconnectRehydrated: true });
+    const reconnectExpression = String(
+      reconnectCommand.mock.calls.find(([method]) => method === 'Runtime.evaluate')?.[1]?.expression
+    );
+    expect(reconnectExpression).toContain("overlay.dataset.fixtureVariant !== 'worker-active'");
+    expect(reconnectExpression).toContain(
+      "document.querySelectorAll('.worker-command-center__roster > li').length === 4"
+    );
+
+    expect(renderedWebglActiveWorkerProbeCase(41_733)).toEqual({
+      id: 'mobile-balanced-worker-active',
+      expectedPresentationMode: 'player',
+      expectedQuality: 'balanced',
+      interaction: 'default',
+      maximumLabelOverflowCount: 0,
+      minimumLabelCount: 4,
+      url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html'
+        + '?quality=balanced&mode=player&fixture=worker-active',
+      viewport: { width: 390, height: 844 }
+    });
+    expect(() => renderedWebglActiveWorkerProbeCase(0)).toThrow(/port/i);
+
+    const source = readFileSync(resolve(
+      process.cwd(),
+      'scripts/qa-observer/rendered-webgl-browser-probe.mjs'
+    ), 'utf8');
+    expect(source).toContain(
+      'await runRenderedActiveWorkerCase(devtools, activeWorkerCase, state)'
+    );
+    expect(source).toContain('activeWorkerCase.url');
+    expect(source).toContain('state.controlledRendererRecovery');
+    expect(source).toContain('CONTROLLED_RENDERER_MAXIMUM_STALE_DELETE_WARNINGS');
+    expect(source).toContain('state.controlledRendererWarningThrottleSeen');
+    expect(source).toContain('one active generic ');
+  });
+
+  it('accepts only bounded stale Three.js deletion warnings during controlled recovery', () => {
+    const origin = 'http://127.0.0.1:41733';
+    const profile = '/private/tmp/warpkeep-webgl-qa-exact';
+    const sourceUrl = `${origin}/@fs${profile}/vite-cache/deps/`
+      + 'three.module-CAG8sl-8.js?v=20fde660';
+    const baseEntry = {
+      level: 'warning',
+      source: 'rendering',
+      url: sourceUrl
+    };
+
+    expect(controlledRendererRecoveryWarningKind({
+      ...baseEntry,
+      text: 'WebGL: INVALID_OPERATION: delete: object does not belong to this context'
+    }, origin, profile)).toBe('stale-context-object-delete');
+    expect(controlledRendererRecoveryWarningKind({
+      ...baseEntry,
+      text: 'WebGL: INVALID_OPERATION: deleteVertexArray: object does not belong to this context'
+    }, origin, profile)).toBe('stale-context-object-delete');
+    expect(controlledRendererRecoveryWarningKind({
+      ...baseEntry,
+      text: 'WebGL: too many errors, no more errors will be reported to the console for this context.'
+    }, origin, profile)).toBe('stale-context-warning-throttle');
+
+    for (const entry of [
+      { ...baseEntry, source: 'javascript', text: 'WebGL: INVALID_OPERATION: delete: object does not belong to this context' },
+      { ...baseEntry, level: 'error', text: 'WebGL: INVALID_OPERATION: delete: object does not belong to this context' },
+      { ...baseEntry, text: 'WebGL: INVALID_OPERATION: drawElements: bad state' },
+      { ...baseEntry, url: `${origin}/src/components/realm/createRealmScene.ts`, text: 'WebGL: INVALID_OPERATION: delete: object does not belong to this context' },
+      { ...baseEntry, url: 'https://example.com/three.module-test.js?v=20fde660', text: 'WebGL: INVALID_OPERATION: delete: object does not belong to this context' }
+    ]) {
+      expect(controlledRendererRecoveryWarningKind(entry, origin, profile)).toBeNull();
+    }
+    expect(controlledRendererRecoveryWarningKind({
+      ...baseEntry,
+      text: 'WebGL: INVALID_OPERATION: delete: object does not belong to this context'
+    }, origin, '/private/tmp/another-profile')).toBeNull();
+    expect(controlledRendererRecoveryWarningKind({
+      ...baseEntry,
+      text: 'WebGL: INVALID_OPERATION: delete: object does not belong to this context'
+    }, `${origin}/`, profile)).toBeNull();
+
+    const source = readFileSync(resolve(
+      process.cwd(),
+      'scripts/qa-observer/rendered-webgl-browser-probe.mjs'
+    ), 'utf8');
+    expect(source).toContain(
+      'state.controlledRendererWarningCount'
+      + '\n            < CONTROLLED_RENDERER_MAXIMUM_STALE_DELETE_WARNINGS'
+    );
+    expect(source).toContain('state.controlledRendererWarningCount > 0');
+    expect(source).toContain("controlledWarningKind === 'stale-context-warning-throttle'");
   });
 
   it('runs the exact all-node fixture through a bounded boolean-only browser stress lane', async () => {

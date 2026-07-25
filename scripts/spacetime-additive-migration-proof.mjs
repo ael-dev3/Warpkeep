@@ -14,6 +14,8 @@ export const ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION = 12;
 export const ADDITIVE_MIGRATION_PROOF_SPACETIME_CLI_VERSION = '2.6.1';
 // The compiled lifecycle lane includes a nine-minute route and one complete
 // gathering minute. Keep a bounded margin for server startup and cleanup.
+export const ADDITIVE_MIGRATION_PROOF_MINIMUM_LIFECYCLE_MILLISECONDS =
+  10 * 60 * 1_000;
 export const ADDITIVE_MIGRATION_PROOF_PROCESS_TIMEOUT_MILLISECONDS = 15 * 60 * 1_000;
 
 const SUCCESS_PREFIX =

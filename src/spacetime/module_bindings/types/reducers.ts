@@ -17,6 +17,7 @@ import AdminBackfillWorkerRosterV1Reducer from "../admin_backfill_worker_roster_
 import AdminBeginSnapScanBatchV1Reducer from "../admin_begin_snap_scan_batch_v_1_reducer";
 import AdminBeginWorkerLegacyDrainV1Reducer from "../admin_begin_worker_legacy_drain_v_1_reducer";
 import AdminBumpAuthEpochReducer from "../admin_bump_auth_epoch_reducer";
+import AdminCompleteWorkerLegacyDrainV1Reducer from "../admin_complete_worker_legacy_drain_v_1_reducer";
 import AdminCreditSnapBurnV1Reducer from "../admin_credit_snap_burn_v_1_reducer";
 import AdminDisableFidReducer from "../admin_disable_fid_reducer";
 import AdminExpandGenesisWorldV3Reducer from "../admin_expand_genesis_world_v_3_reducer";
@@ -47,6 +48,7 @@ import DispatchWoodExpeditionV1Reducer from "../dispatch_wood_expedition_v_1_red
 import DispatchWorkerV1Reducer from "../dispatch_worker_v_1_reducer";
 import RecallAllWorkersV1Reducer from "../recall_all_workers_v_1_reducer";
 import RecallWorkerV1Reducer from "../recall_worker_v_1_reducer";
+import ReturnLegacyExpeditionV1Reducer from "../return_legacy_expedition_v_1_reducer";
 
 export type AcceptAlphaTermsV1Params = __Infer<typeof AcceptAlphaTermsV1Reducer>;
 export type AdminActivateGenesisWaterLayoutV1Params = __Infer<typeof AdminActivateGenesisWaterLayoutV1Reducer>;
@@ -59,6 +61,7 @@ export type AdminBackfillWorkerRosterV1Params = __Infer<typeof AdminBackfillWork
 export type AdminBeginSnapScanBatchV1Params = __Infer<typeof AdminBeginSnapScanBatchV1Reducer>;
 export type AdminBeginWorkerLegacyDrainV1Params = __Infer<typeof AdminBeginWorkerLegacyDrainV1Reducer>;
 export type AdminBumpAuthEpochParams = __Infer<typeof AdminBumpAuthEpochReducer>;
+export type AdminCompleteWorkerLegacyDrainV1Params = __Infer<typeof AdminCompleteWorkerLegacyDrainV1Reducer>;
 export type AdminCreditSnapBurnV1Params = __Infer<typeof AdminCreditSnapBurnV1Reducer>;
 export type AdminDisableFidParams = __Infer<typeof AdminDisableFidReducer>;
 export type AdminExpandGenesisWorldV3Params = __Infer<typeof AdminExpandGenesisWorldV3Reducer>;
@@ -89,4 +92,5 @@ export type DispatchWoodExpeditionV1Params = __Infer<typeof DispatchWoodExpediti
 export type DispatchWorkerV1Params = __Infer<typeof DispatchWorkerV1Reducer>;
 export type RecallAllWorkersV1Params = __Infer<typeof RecallAllWorkersV1Reducer>;
 export type RecallWorkerV1Params = __Infer<typeof RecallWorkerV1Reducer>;
+export type ReturnLegacyExpeditionV1Params = __Infer<typeof ReturnLegacyExpeditionV1Reducer>;
 

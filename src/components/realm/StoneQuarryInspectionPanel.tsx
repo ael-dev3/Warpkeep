@@ -67,6 +67,12 @@ export type StoneQuarryInspectionPanelProps = Readonly<{
   onFocusOccupantCastle?: (occupant: RealmResourceOccupantMarker) => void;
   /** Exact owner-only generic worker recall boundary. */
   onRecallWorker?: (workerId: string) => Promise<void>;
+  /** Exact owner-private legacy expedition joined to this public site. */
+  legacyExpeditionId?: string;
+  onReturnLegacyExpedition?: (
+    resourceKind: RealmResourceOccupantMarker['resource'],
+    expeditionId: string
+  ) => Promise<void>;
   /** Exact caller-only procedure data used only to gate legacy dispatch. */
   privateExpedition?: StoneExpeditionPresentation;
   /** Authenticated provider boundary; no optimistic public node mutation. */
@@ -122,6 +128,8 @@ export function StoneQuarryInspectionPanel({
   occupancyUnavailable = false,
   onFocusOccupantCastle,
   onRecallWorker,
+  legacyExpeditionId,
+  onReturnLegacyExpedition,
   privateExpedition,
   onDispatchStoneExpedition,
   onRequestClose,
@@ -290,6 +298,8 @@ export function StoneQuarryInspectionPanel({
               marker={occupant}
               onFocusCastle={onFocusOccupantCastle}
               onRecallWorker={onRecallWorker}
+              legacyExpeditionId={legacyExpeditionId}
+              onReturnLegacyExpedition={onReturnLegacyExpedition}
             />
           ) : null}
           <p className="gold-mine-inspection__notice">

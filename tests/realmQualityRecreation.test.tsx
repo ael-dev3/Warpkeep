@@ -247,7 +247,7 @@ function presentationRefreshSnapshot(): CanonicalWarpkeepRealmSnapshot {
   });
 }
 
-function activeFoodWagonRealm() {
+function activeFoodWagonRealm(draining = false) {
   const candidate = createCanonicalGenesisCandidate(CANONICAL_TEST_FID);
   const site = CANONICAL_TIER_I_FOOD_SITES_V1[0]!;
   const occupation = Object.freeze({
@@ -262,7 +262,21 @@ function activeFoodWagonRealm() {
   const snapshot = validate({
     ...candidate,
     foodSites: CANONICAL_TIER_I_FOOD_SITES_V1.map((row) => ({ ...row })),
-    foodNodeOccupations: [occupation]
+    foodNodeOccupations: [occupation],
+    ...(draining ? {
+      workerSystem: {
+        realmId: CASTLE_WORKER_REALM_ID,
+        policyVersion: CASTLE_WORKER_POLICY_VERSION,
+        workersPerCastle: 4 as const,
+        expectedCastleCount: candidate.castles.length,
+        expectedWorkerCount: candidate.castles.length * 4,
+        rosterDigest: workerRosterDigestForCastleIds(
+          candidate.castles.map((castle) => castle.castleId)
+        ),
+        mode: 'staged' as const,
+        legacyDrainRequired: true
+      }
+    } : {})
   });
   const expedition: ReadyFoodExpeditionPresentation = Object.freeze({
     status: 'ready',
@@ -279,6 +293,28 @@ function activeFoodWagonRealm() {
     })
   });
   return { expedition, occupation, site, snapshot };
+}
+
+function stagedLegacyDrainRealm() {
+  const candidate = createCanonicalGenesisCandidate(CANONICAL_TEST_FID);
+  const castleIds = candidate.castles.map((castle) => castle.castleId);
+  const site = CANONICAL_TIER_I_FOOD_SITES_V1[0]!;
+  const snapshot = validate({
+    ...candidate,
+    foodSites: CANONICAL_TIER_I_FOOD_SITES_V1.map((row) => ({ ...row })),
+    foodNodeOccupations: [],
+    workerSystem: {
+      realmId: CASTLE_WORKER_REALM_ID,
+      policyVersion: CASTLE_WORKER_POLICY_VERSION,
+      workersPerCastle: 4,
+      expectedCastleCount: castleIds.length,
+      expectedWorkerCount: castleIds.length * 4,
+      rosterDigest: workerRosterDigestForCastleIds(castleIds),
+      mode: 'staged',
+      legacyDrainRequired: true
+    }
+  });
+  return { site, snapshot };
 }
 
 function activePeerFoodWagonSnapshot(options: Readonly<{
@@ -945,6 +981,105 @@ describe('live realm quality recreation', () => {
     expect(document.querySelector(
       '.stone-quarry-inspection [data-resource-occupant-details="true"]'
     )).not.toBeNull();
+  });
+
+  it('returns an owner legacy expedition only after the private/public timeline joins exactly', async () => {
+    installWebGlProbe();
+    const fixture = activeFoodWagonRealm(true);
+    const onReturnLegacyExpedition = vi.fn().mockResolvedValue(undefined);
+    render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={fixture.snapshot}
+        foodExpedition={fixture.expedition}
+        onReturnLegacyExpedition={onReturnLegacyExpedition}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+    const options = mocked.createRealmScene.mock.calls[0]![0];
+    act(() => {
+      options.onCastlesReady?.(1);
+      options.onTargetSelect?.({
+        kind: 'food-site',
+        siteId: fixture.site.siteId,
+        coord: { q: fixture.site.q, r: fixture.site.r }
+      });
+    });
+
+    fireEvent.click(screen.getByRole('button', {
+      name: /Recall Expedition to Keep/i
+    }));
+    await waitFor(() => {
+      expect(onReturnLegacyExpedition).toHaveBeenCalledOnce();
+      expect(onReturnLegacyExpedition).toHaveBeenCalledWith(
+        'food',
+        fixture.expedition.expedition!.expeditionId
+      );
+    });
+  });
+
+  it('keeps a legacy expedition read-only when its private timeline does not match', () => {
+    installWebGlProbe();
+    const fixture = activeFoodWagonRealm(true);
+    const mismatchedExpedition: ReadyFoodExpeditionPresentation = Object.freeze({
+      ...fixture.expedition,
+      expedition: Object.freeze({
+        ...fixture.expedition.expedition!,
+        returnsAtMicros: fixture.expedition.expedition!.returnsAtMicros + 1n
+      })
+    });
+    render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={fixture.snapshot}
+        foodExpedition={mismatchedExpedition}
+        onReturnLegacyExpedition={vi.fn().mockResolvedValue(undefined)}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+    const options = mocked.createRealmScene.mock.calls[0]![0];
+    act(() => {
+      options.onCastlesReady?.(1);
+      options.onTargetSelect?.({
+        kind: 'food-site',
+        siteId: fixture.site.siteId,
+        coord: { q: fixture.site.q, r: fixture.site.r }
+      });
+    });
+
+    expect(screen.queryByRole('button', {
+      name: /Recall Expedition to Keep/i
+    })).toBeNull();
+  });
+
+  it('blocks fresh legacy dispatch while the staged worker system drains', () => {
+    installWebGlProbe();
+    const fixture = stagedLegacyDrainRealm();
+    const onDispatchFoodExpedition = vi.fn().mockResolvedValue(undefined);
+    render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={fixture.snapshot}
+        onDispatchFoodExpedition={onDispatchFoodExpedition}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+    const options = mocked.createRealmScene.mock.calls[0]![0];
+    act(() => {
+      options.onCastlesReady?.(1);
+      options.onTargetSelect?.({
+        kind: 'food-site',
+        siteId: fixture.site.siteId,
+        coord: { q: fixture.site.q, r: fixture.site.r }
+      });
+    });
+
+    expect(screen.queryByRole('button', { name: 'DISPATCH WAGON' })).toBeNull();
+    expect(screen.getByText(/Legacy wagon dispatch is unavailable/i)).not.toBeNull();
+    expect(onDispatchFoodExpedition).not.toHaveBeenCalled();
   });
 
   it('forwards the exact viewer-owned worker recall from the projected resource record', async () => {

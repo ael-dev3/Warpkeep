@@ -366,6 +366,57 @@ export function realmResourceOccupantRecallWorkerId(
     : undefined;
 }
 
+type LegacyExpeditionRecallProjection =
+  | Readonly<{ status: 'unavailable' }>
+  | Readonly<{
+    status: 'ready';
+    active: boolean;
+    expedition?: Readonly<{
+      expeditionId: string;
+      siteId: string;
+      originCastleId: number;
+      phase: 'outbound' | 'gathering' | 'returning';
+      startedAtMicros: bigint;
+      arrivesAtMicros: bigint;
+      gatheringEndsAtMicros: bigint;
+      returnsAtMicros: bigint;
+    }>;
+  }>;
+
+/**
+ * Joins owner-private legacy command authority to one exact public marker.
+ * A site, castle, phase, or timeline mismatch leaves the public record
+ * visible but read-only.
+ */
+export function realmResourceOccupantRecallLegacyExpeditionId(
+  marker: RealmResourceOccupantMarker,
+  resourceKind: RealmResourceKind,
+  projection: LegacyExpeditionRecallProjection | undefined,
+  ownCastleId: number
+) {
+  const expedition = projection?.status === 'ready' && projection.active
+    ? projection.expedition
+    : undefined;
+  if (
+    marker.source !== 'legacy-expedition'
+    || marker.resource !== resourceKind
+    || !marker.occupiedByViewer
+    || marker.castle.castleId !== ownCastleId
+    || (marker.workerPhase !== 'outbound' && marker.workerPhase !== 'gathering')
+    || marker.returnsAtMicros === undefined
+    || expedition === undefined
+    || !/^[a-z0-9][a-z0-9:_-]{0,95}$/i.test(expedition.expeditionId)
+    || expedition.siteId !== marker.siteId
+    || expedition.originCastleId !== marker.castle.castleId
+    || expedition.phase !== marker.workerPhase
+    || expedition.startedAtMicros !== marker.startedAtMicros
+    || expedition.arrivesAtMicros !== marker.arrivesAtMicros
+    || expedition.gatheringEndsAtMicros !== marker.gatheringEndsAtMicros
+    || expedition.returnsAtMicros !== marker.returnsAtMicros
+  ) return undefined;
+  return expedition.expeditionId;
+}
+
 export function realmResourceOccupantMarkerForKey(
   markers: readonly RealmResourceOccupantMarker[],
   key: string | null

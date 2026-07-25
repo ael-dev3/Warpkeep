@@ -24,7 +24,7 @@ describe('Warpkeep build identity', () => {
     );
   });
 
-  it('reads the 0.3.17 product version from package metadata', () => {
+  it('reads the 0.3.18 product version from package metadata', () => {
     const packageJson = JSON.parse(
       readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')
     ) as { version?: unknown };
@@ -32,7 +32,7 @@ describe('Warpkeep build identity', () => {
       readFileSync(resolve(process.cwd(), 'package-lock.json'), 'utf8')
     ) as { version?: unknown; packages?: Record<string, { version?: unknown }> };
 
-    expect(readWarpkeepProductVersion(packageJson.version)).toBe('0.3.17');
+    expect(readWarpkeepProductVersion(packageJson.version)).toBe('0.3.18');
     expect(packageLock.version).toBe(packageJson.version);
     expect(packageLock.packages?.['']?.version).toBe(packageJson.version);
     expect(readWarpkeepProductVersion('1.0.0-alpha.1+build.7')).toBe('1.0.0-alpha.1+build.7');

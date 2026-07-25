@@ -49,7 +49,8 @@ import {
 } from './publicRealmProjectionPolicy';
 import {
   decodeRealmResourceProjection,
-  type ReadyRealmResourcePresentation
+  type ReadyRealmResourcePresentation,
+  type RealmEconomicResourceKey
 } from '../components/realm/realmResourcePresentation';
 import {
   decodeGoldExpeditionPresentation,
@@ -200,6 +201,7 @@ const STONE_SITE_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,95}$/i;
 const STONE_IDEMPOTENCY_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{15,79}$/;
 const WORKER_ID_PATTERN = /^genesis-001-castle-[1-9][0-9]*-worker-0[1-4]$/;
 const WORKER_IDEMPOTENCY_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{15,79}$/;
+const LEGACY_EXPEDITION_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,95}$/i;
 export { WARPKEEP_ALPHA_TERMS_VERSION } from '../legal/alphaTermsPolicy';
 
 const admissionStatuses = new Set<WarpkeepAdmissionStatus>([
@@ -747,6 +749,51 @@ export async function collectWarpkeepStoneExpedition(
     readWarpkeepStoneExpeditionState(connection)
   ]);
   return Object.freeze({ resources, stoneExpedition });
+}
+
+/**
+ * Requests an owner-bound early return, then reconciles every private legacy
+ * projection and the authoritative v1 balance after the reducer commits.
+ * Nothing in this boundary mutates public occupation optimistically.
+ */
+export async function returnWarpkeepLegacyExpedition(
+  connection: WarpkeepConnection,
+  ownFid: number,
+  resourceKind: RealmEconomicResourceKey,
+  expeditionId: string
+) {
+  if (
+    !Number.isSafeInteger(ownFid)
+    || ownFid <= 0
+    || !/^(gold|food|wood|stone)$/.test(resourceKind)
+    || !LEGACY_EXPEDITION_ID_PATTERN.test(expeditionId)
+  ) {
+    throw new Error('Legacy expedition return is unavailable.');
+  }
+  await connection.reducers.returnLegacyExpeditionV1({
+    resourceKind,
+    expeditionId
+  });
+  const [
+    resources,
+    goldExpedition,
+    foodExpedition,
+    woodExpedition,
+    stoneExpedition
+  ] = await Promise.all([
+    readWarpkeepResourceState(connection, ownFid),
+    readWarpkeepGoldExpeditionState(connection),
+    readWarpkeepFoodExpeditionState(connection),
+    readWarpkeepWoodExpeditionState(connection),
+    readWarpkeepStoneExpeditionState(connection)
+  ]);
+  return Object.freeze({
+    resources,
+    goldExpedition,
+    foodExpedition,
+    woodExpedition,
+    stoneExpedition
+  });
 }
 
 /**

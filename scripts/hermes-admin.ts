@@ -83,6 +83,8 @@ type Command =
   | 'inspect-alpha-v8'
   | 'inspect-alpha-v10'
   | 'inspect-alpha-v12'
+  | 'inspect-publish-pre-v12'
+  | 'inspect-publish-post-v12'
   | 'seed-alpha-component'
   | 'activate-alpha-water'
   | 'backfill-resources';
@@ -319,6 +321,8 @@ function commandFrom(value: string | undefined): Command {
     || value === 'inspect-alpha-v8'
     || value === 'inspect-alpha-v10'
     || value === 'inspect-alpha-v12'
+    || value === 'inspect-publish-pre-v12'
+    || value === 'inspect-publish-post-v12'
     || value === 'seed-alpha-component'
     || value === 'activate-alpha-water'
     || value === 'backfill-resources'
@@ -327,7 +331,7 @@ function commandFrom(value: string | undefined): Command {
   }
   fail(
     'Usage: hermes-admin.ts '
-    + '<seed-world|expand-world-v3|admit-founder|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|seed-alpha-component|activate-alpha-water|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4|inspect-alpha-v8|inspect-alpha-v10|inspect-alpha-v12> '
+    + '<seed-world|expand-world-v3|admit-founder|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|seed-alpha-component|activate-alpha-water|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4|inspect-alpha-v8|inspect-alpha-v10|inspect-alpha-v12|inspect-publish-pre-v12|inspect-publish-post-v12> '
     + '[...args] [--dry-run] [--confirm]. admit-founder requires private stdin: '
     + '--input-stdin --dry-run creates a reviewed plan; --input-stdin --confirm consumes it; '
     + 'allow-fid only re-enables an existing complete founder.',
@@ -356,7 +360,9 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
     || command === 'inspect-alpha-v4'
     || command === 'inspect-alpha-v8'
     || command === 'inspect-alpha-v10'
-    || command === 'inspect-alpha-v12';
+    || command === 'inspect-alpha-v12'
+    || command === 'inspect-publish-pre-v12'
+    || command === 'inspect-publish-post-v12';
   const expectedPositionals = command === 'allow-fid'
     || command === 'disable-fid'
     || command === 'bump-auth-epoch'
@@ -1122,7 +1128,7 @@ export async function readStatus(
     const verifiedStatus = expectedResourceFounderCount === undefined
       ? safeStatus
       : verifyExpectedResourceAggregateV4(safeStatus, expectedResourceFounderCount);
-    console.log(JSON.stringify(printable(verifiedStatus)));
+    if (emit) console.log(JSON.stringify(printable(verifiedStatus)));
     return verifiedStatus;
   }
   if (version === 'v3') {
@@ -1169,7 +1175,7 @@ export async function readStatus(
       worldSeed: status.worldSeed,
       worldSeedName: status.worldSeedName,
     };
-    console.log(JSON.stringify(printable(safeStatus)));
+    if (emit) console.log(JSON.stringify(printable(safeStatus)));
     return Object.freeze(safeStatus);
   }
   if (version === 'v2') {
@@ -1397,7 +1403,57 @@ async function main() {
   let founderAdmissionClaimed = false;
   try {
     let mutationStatusHandled = false;
-    if (command === 'expand-world-v3') {
+    if (
+      command === 'inspect-publish-pre-v12'
+      || command === 'inspect-publish-post-v12'
+    ) {
+      const protocolV3 = await readStatus(
+        connection,
+        'v3',
+        false,
+        undefined,
+        false,
+      );
+      const resourceV4 = await readStatus(
+        connection,
+        'v4',
+        false,
+        undefined,
+        false,
+      );
+      const envelope = command === 'inspect-publish-pre-v12'
+        ? Object.freeze({
+          protocolV3,
+          resourceV4,
+        })
+        : Object.freeze({
+          protocolV3,
+          resourceV4,
+          alphaV8: await readStatus(
+            connection,
+            'v8',
+            false,
+            undefined,
+            false,
+          ),
+          alphaV10: await readStatus(
+            connection,
+            'v10',
+            false,
+            undefined,
+            false,
+          ),
+          workerV12: await readStatus(
+            connection,
+            'v12',
+            false,
+            undefined,
+            false,
+          ),
+        });
+      console.log(JSON.stringify(printable(envelope)));
+      mutationStatusHandled = true;
+    } else if (command === 'expand-world-v3') {
       const before = verifyGenesisExpansionPreconditionV3(
         await readStatus(connection, 'v3') as GenesisExpansionStatusV3,
       );

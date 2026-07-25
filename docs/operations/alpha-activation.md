@@ -94,7 +94,8 @@ SpacetimeDB with deletion disabled.
 npm run stdb:publish:dev -- --dry-run \
   --resource-rollout-stage=ready \
   --genesis-world-stage=expanded \
-  --worker-rollout-stage=empty
+  --worker-rollout-stage=empty \
+  --worker-module-predecessor=exact-v12-empty
 ```
 
 Those stage values describe the current production predecessor; do not copy
@@ -106,6 +107,14 @@ confirmation variable set through the private operator environment.
 Do not substitute raw `spacetime publish` commands. If publication times out or
 returns an ambiguous result, do not republish. A fresh read-only inspection must
 establish the live schema and counts before any further release decision.
+
+`--worker-module-predecessor=exact-v12-empty` is the explicit code-only
+exception for an already-appended but still-inert v12 suffix. It requires the
+proven 53-table digest, captures and preserves every table signature, accepts
+only the reviewed predecessor or candidate Worker ABI, and runs the closed v12
+aggregate before and after publication. Omit it only for the original exact
+v11-to-v12 append. A partial ABI, staged Worker row, or indeterminate checkpoint
+blocks publication.
 
 For the one-time v11-to-v12 boundary, the publisher anonymously describes the
 same immutable identity before and after publication. It requires all 47 v11

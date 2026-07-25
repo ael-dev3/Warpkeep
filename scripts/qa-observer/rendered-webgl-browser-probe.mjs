@@ -49,6 +49,11 @@ const SCREENSHOT_MAXIMUM_BYTES = 8 * 1_024 * 1_024;
 const TERMINATION_GRACE_MILLISECONDS = 2_000;
 const CODESIGN_TIMEOUT_MILLISECONDS = 15_000;
 const CODESIGN_MAXIMUM_BYTES = 64 * 1_024;
+const CONTROLLED_RENDERER_MAXIMUM_STALE_DELETE_WARNINGS = 256;
+const CONTROLLED_RENDERER_STALE_DELETE_WARNING =
+  /^WebGL: INVALID_OPERATION: delete(?:VertexArray)?: object does not belong to this context$/u;
+const CONTROLLED_RENDERER_WARNING_THROTTLE =
+  /^WebGL: too many errors, no more errors will be reported to the console for this context\.$/u;
 
 const DESKTOP_VIEWPORT = Object.freeze({ width: 1_440, height: 900 });
 const FULL_HD_VIEWPORT = Object.freeze({ width: 1_920, height: 1_080 });
@@ -101,6 +106,25 @@ export function renderedWebglOccupancyStressProbeCase(port) {
       quality: 'balanced',
     }),
     viewport: DESKTOP_VIEWPORT,
+  });
+}
+
+export function renderedWebglActiveWorkerProbeCase(port) {
+  const selectedPort = exactPort(port);
+  return Object.freeze({
+    id: 'mobile-balanced-worker-active',
+    expectedPresentationMode: 'player',
+    expectedQuality: 'balanced',
+    interaction: 'default',
+    maximumLabelOverflowCount: 0,
+    minimumLabelCount: 4,
+    url: renderedWebglQaUrl({
+      fixture: 'worker-active',
+      mode: 'player',
+      port: selectedPort,
+      quality: 'balanced',
+    }),
+    viewport: MOBILE_VIEWPORT,
   });
 }
 // Interactions may change the projection-visible set, but every eligible castle
@@ -579,6 +603,70 @@ export function spawnHeadlessChromeProbe(profileDirectory, options = {}) {
   return spawnProcess(contract.executable, [...contract.args], { ...contract.options });
 }
 
+/**
+ * Chrome reports deterministic stale-object deletion warnings while Three.js
+ * tears down the deliberately lost-and-restored synthetic QA context. Accept
+ * only those exact browser-rendering diagnostics from the exact private Vite
+ * cache used by this loopback run. The caller still owns a hard count bound and
+ * a one-shot throttle marker, so this predicate cannot suppress unrelated
+ * renderer warnings.
+ */
+export function controlledRendererRecoveryWarningKind(
+  entry,
+  loopbackOrigin,
+  profileDirectory
+) {
+  if (
+    entry === null
+    || typeof entry !== 'object'
+    || entry.level !== 'warning'
+    || entry.source !== 'rendering'
+    || typeof entry.text !== 'string'
+    || typeof entry.url !== 'string'
+    || typeof loopbackOrigin !== 'string'
+    || typeof profileDirectory !== 'string'
+    || !isAbsolute(profileDirectory)
+    || resolve(profileDirectory) !== profileDirectory
+  ) return null;
+
+  let sourceUrl;
+  let expectedOrigin;
+  try {
+    sourceUrl = new URL(entry.url);
+    const originUrl = new URL(loopbackOrigin);
+    if (
+      originUrl.protocol !== 'http:'
+      || originUrl.hostname !== '127.0.0.1'
+      || originUrl.origin !== loopbackOrigin
+    ) return null;
+    expectedOrigin = originUrl.origin;
+  } catch {
+    return null;
+  }
+  const expectedDependencyPrefix = `/@fs${profileDirectory}/vite-cache/deps/`;
+  const dependencyName = sourceUrl.pathname.startsWith(expectedDependencyPrefix)
+    ? sourceUrl.pathname.slice(expectedDependencyPrefix.length)
+    : '';
+  const queryEntries = [...sourceUrl.searchParams.entries()];
+  if (
+    sourceUrl.origin !== expectedOrigin
+    || sourceUrl.username !== ''
+    || sourceUrl.password !== ''
+    || sourceUrl.hash !== ''
+    || !/^three\.module-[A-Za-z0-9_-]+\.js$/u.test(dependencyName)
+    || queryEntries.length !== 1
+    || queryEntries[0]?.[0] !== 'v'
+    || !/^[a-f0-9]{8}$/u.test(queryEntries[0]?.[1] ?? '')
+  ) return null;
+  if (CONTROLLED_RENDERER_STALE_DELETE_WARNING.test(entry.text)) {
+    return 'stale-context-object-delete';
+  }
+  if (CONTROLLED_RENDERER_WARNING_THROTTLE.test(entry.text)) {
+    return 'stale-context-warning-throttle';
+  }
+  return null;
+}
+
 function exactRecord(value, message) {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
     throw new TypeError(message);
@@ -745,6 +833,39 @@ export function parseRenderedWebglResourceOccupantEvidence(value) {
   if (failures.length > 0) {
     throw new TypeError(
       `Invalid rendered WebGL resource occupant evidence: ${failures.join(',')}.`
+    );
+  }
+  return Object.freeze(Object.fromEntries(keys.map((key) => [key, true])));
+}
+
+/**
+ * Boolean-only proof for the synthetic active generic-worker lane. All
+ * identity, Worker IDs, coordinates, private amounts, and DOM text are reduced
+ * inside the page; only reviewed aggregate success flags cross CDP.
+ */
+export function parseRenderedWebglActiveWorkerEvidence(value) {
+  const candidate = exactRecord(value, 'Invalid rendered WebGL active Worker evidence.');
+  const keys = [
+    'activeFixtureSelected',
+    'foreignMarkerGeneric',
+    'foreignPortraitReady',
+    'foreignRecordReadOnly',
+    'localReconnectRehydrated',
+    'mobileBoundsSafe',
+    'ownerCommandCenterAvailable',
+    'ownerRecallControlsAvailable',
+    'ownerRosterExact',
+    'privacyBounded',
+    'rendererContextRecovered',
+    'rendererStable',
+  ];
+  if (!exactMessageKeys(candidate, new Set(keys))) {
+    throw new TypeError('Invalid rendered WebGL active Worker evidence shape.');
+  }
+  const failures = keys.filter((key) => candidate[key] !== true);
+  if (failures.length > 0) {
+    throw new TypeError(
+      `Invalid rendered WebGL active Worker evidence: ${failures.join(',')}.`
     );
   }
   return Object.freeze(Object.fromEntries(keys.map((key) => [key, true])));
@@ -4192,6 +4313,351 @@ export async function applyRenderedWebglResourceOccupantInteraction(
   return parseRenderedWebglResourceOccupantEvidence(evaluation.result.value);
 }
 
+export async function applyRenderedWebglActiveWorkerInteraction(session) {
+  const evaluation = await session.command('Runtime.evaluate', {
+    expression: `(async () => {
+      const waitFor = async (
+        predicate,
+        timeoutMilliseconds = ${PRESENTATION_SETTLE_TIMEOUT_MILLISECONDS * 2}
+      ) => {
+        const deadline = performance.now() + timeoutMilliseconds;
+        while (performance.now() <= deadline) {
+          if (predicate()) return true;
+          await new Promise((resolve) => setTimeout(resolve, 32));
+        }
+        return false;
+      };
+      const visible = (element) => {
+        if (!(element instanceof HTMLElement)) return false;
+        const style = getComputedStyle(element);
+        const bounds = element.getBoundingClientRect();
+        return style.display !== 'none'
+          && style.visibility !== 'hidden'
+          && Number(style.opacity || '1') > 0
+          && bounds.width > 0
+          && bounds.height > 0;
+      };
+      const buttonByStrongText = (root, text) => [...(root?.querySelectorAll('button') ?? [])]
+        .find((button) => (
+          button instanceof HTMLButtonElement
+          && !button.disabled
+          && (button.querySelector('strong')?.textContent ?? '').trim() === text
+        ));
+      const overlay = document.querySelector('[data-rendered-webgl-status]');
+      const map = document.querySelector('.realm-map-screen');
+      const rendererHealthy = () => map instanceof HTMLElement
+        && map.dataset.renderer === 'webgl'
+        && map.dataset.rendererState === 'ready'
+        && map.dataset.rendererEverReady === 'true'
+        && map.dataset.rendererFailure === 'none'
+        && map.getAttribute('aria-busy') === 'false';
+      const activeFixtureSelected = overlay instanceof HTMLElement
+        && overlay.dataset.fixtureVariant === 'worker-active'
+        && overlay.dataset.presentationMode === 'player'
+        && overlay.dataset.resourceOccupationCount === '2'
+        && rendererHealthy();
+      const launcher = document.querySelector('.realm-profile-trigger');
+      if (!(launcher instanceof HTMLButtonElement) || !visible(launcher)) {
+        return {
+          activeFixtureSelected,
+          foreignMarkerGeneric: false,
+          foreignPortraitReady: false,
+          foreignRecordReadOnly: false,
+          mobileBoundsSafe: false,
+          ownerCommandCenterAvailable: false,
+          ownerRecallControlsAvailable: false,
+          ownerRosterExact: false,
+          privacyBounded: false,
+          rendererContextRecovered: false,
+          rendererStable: false
+        };
+      }
+
+      launcher.click();
+      const menuReady = await waitFor(() => visible(
+        document.querySelector('.realm-profile-menu__panel')
+      ));
+      const menu = document.querySelector('.realm-profile-menu__panel');
+      const workerGroup = menu?.querySelector('[aria-label="Worker controls"]');
+      const workersButton = buttonByStrongText(workerGroup, 'WORKERS');
+      const menuRecallAll = buttonByStrongText(workerGroup, 'RECALL ALL TO KEEP');
+      const ownerCommandCenterAvailable = menuReady
+        && workersButton instanceof HTMLButtonElement
+        && (workersButton.querySelector('span')?.textContent ?? '').trim()
+          === '1/4 deployed · manage workers';
+      const menuRecallAvailable = menuRecallAll instanceof HTMLButtonElement
+        && !menuRecallAll.disabled;
+      workersButton?.click();
+      const commandCenterReady = await waitFor(() => visible(
+        document.querySelector('.worker-command-center')
+      ));
+      const commandCenter = document.querySelector('.worker-command-center');
+      const rosterItems = [...(commandCenter?.querySelectorAll(
+        '.worker-command-center__roster > li'
+      ) ?? [])];
+      const workerButtons = rosterItems.map((item) => (
+        item.querySelector('.worker-command-center__worker')
+      ));
+      const workerNames = workerButtons.map((button) => (
+        (button?.querySelector('strong')?.textContent ?? '').trim()
+      ));
+      const workerStatuses = workerButtons.map((button) => (
+        (button?.querySelector('small')?.textContent ?? '').trim()
+      ));
+      const ownerRosterExact = commandCenterReady
+        && rosterItems.length === 4
+        && workerNames.join('|') === 'Worker 1|Worker 2|Worker 3|Worker 4'
+        && workerStatuses[0] === 'GATHERING GOLD'
+        && workerStatuses.slice(1).every((status) => status === 'READY AT KEEP')
+        && (workerButtons[0]?.querySelector(
+          '.worker-command-center__amount'
+        )?.textContent ?? '').trim() === '5 Gold';
+      const rowRecallButtons = [...(commandCenter?.querySelectorAll(
+        '.worker-command-center__recall'
+      ) ?? [])].filter((button) => (
+        button instanceof HTMLButtonElement && !button.disabled
+      ));
+      const centerRecallAll = commandCenter?.querySelector(
+        '.worker-command-center__footer button'
+      );
+      const ownerRecallControlsAvailable = menuRecallAvailable
+        && rowRecallButtons.length === 1
+        && (rowRecallButtons[0]?.textContent ?? '').trim() === 'RETURN'
+        && centerRecallAll instanceof HTMLButtonElement
+        && !centerRecallAll.disabled
+        && (centerRecallAll.textContent ?? '').trim() === 'RETURN ALL TO KEEP';
+      const commandBounds = commandCenter instanceof HTMLElement
+        ? commandCenter.getBoundingClientRect()
+        : undefined;
+      const mobileBoundsSafe = innerWidth === 390
+        && innerHeight === 844
+        && commandBounds !== undefined
+        && commandBounds.left >= -1
+        && commandBounds.top >= -1
+        && commandBounds.right <= innerWidth + 1
+        && commandBounds.bottom <= innerHeight + 1
+        && document.documentElement.scrollWidth <= innerWidth + 1;
+      const back = commandCenter?.querySelector(
+        'button[aria-label="Back to Realm menu"]'
+      );
+      if (back instanceof HTMLButtonElement) back.click();
+      await waitFor(() => visible(document.querySelector('.realm-profile-menu__panel')));
+      const closeMenu = document.querySelector(
+        '.realm-profile-menu__panel button[aria-label="Close Realm menu"]'
+      );
+      if (closeMenu instanceof HTMLButtonElement) closeMenu.click();
+      await waitFor(() => document.querySelector('.realm-profile-menu__panel') === null);
+
+      launcher.click();
+      await waitFor(() => visible(document.querySelector('.realm-profile-menu__panel')));
+      const explore = buttonByStrongText(
+        document.querySelector('.realm-profile-menu__panel'),
+        'EXPLORE'
+      );
+      explore?.click();
+      const navigatorReady = await waitFor(() => visible(
+        document.querySelector('.realm-cell-navigator__dialog')
+      ));
+      const jumpForm = document.querySelector('.realm-cell-navigator__jump');
+      const jumpInputs = jumpForm?.querySelectorAll('input');
+      const setInputValue = (input, value) => {
+        const setter = Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          'value'
+        )?.set;
+        if (!(input instanceof HTMLInputElement) || !setter) return false;
+        setter.call(input, value);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        return true;
+      };
+      const jumpSubmitted = navigatorReady
+        && jumpForm instanceof HTMLFormElement
+        && jumpInputs?.length === 2
+        && setInputValue(jumpInputs[0], '-51')
+        && setInputValue(jumpInputs[1], '57');
+      if (jumpSubmitted) {
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        jumpForm.requestSubmit();
+      }
+      await waitFor(() => (
+        document.querySelector('.realm-cell-navigator__dialog') === null
+        && rendererHealthy()
+        && !map?.hasAttribute('data-camera-interacting')
+      ));
+      const foreignMarkerSelector = [
+        'button.realm-resource-occupant-marker',
+        '[data-resource-occupant-source="generic-worker"]',
+        '[data-resource-kind="gold"]',
+        '[data-resource-occupant-key="gold:genesis-001-tier1-gold-03"]'
+      ].join('');
+      const foreignMarkerReady = await waitFor(() => {
+        const marker = document.querySelector(foreignMarkerSelector);
+        return marker instanceof HTMLButtonElement
+          && marker.dataset.projectedVisible === 'true'
+          && marker.dataset.occupiedByViewer === 'false'
+          && visible(marker)
+          && marker.querySelector(
+            'canvas[data-profile-image-state="ready"]'
+          ) instanceof HTMLCanvasElement;
+      });
+      const foreignMarker = document.querySelector(foreignMarkerSelector);
+      const foreignMarkerGeneric = foreignMarkerReady
+        && foreignMarker instanceof HTMLButtonElement
+        && foreignMarker.dataset.resourceOccupantSource === 'generic-worker'
+        && foreignMarker.dataset.occupiedByViewer === 'false';
+      const foreignPortraitReady = foreignMarker?.querySelector(
+        'canvas[data-profile-image-state="ready"]'
+      ) instanceof HTMLCanvasElement;
+      foreignMarker?.click();
+      const panelReady = await waitFor(() => visible(
+        document.querySelector(
+          '.gold-mine-inspection:has([data-resource-occupant-details="true"])'
+        )
+      ));
+      const panel = document.querySelector(
+        '.gold-mine-inspection:has([data-resource-occupant-details="true"])'
+      );
+      const record = panel?.querySelector('.realm-resource-occupant-details__record');
+      const identity = panel?.querySelector('.realm-resource-occupant-details__identity');
+      const foreignRecordReadOnly = panelReady
+        && (record?.querySelector('span')?.textContent ?? '').trim()
+          === 'PUBLIC WORKER RECORD'
+        && (record?.querySelector('strong')?.textContent ?? '').trim()
+          === 'WORKER 01'
+        && (identity?.querySelector(':scope > div > span')?.textContent ?? '').trim()
+          === 'GATHERING BY'
+        && identity?.querySelector(
+          'canvas[data-profile-image-state="ready"]'
+        ) instanceof HTMLCanvasElement
+        && panel?.querySelector('.realm-resource-occupant-details__recall') === null
+        && !/(?:Recall Worker|RETURN ALL TO KEEP)/i.test(panel?.textContent ?? '');
+      const privacyNodes = [commandCenter, foreignMarker, panel].filter((node) => (
+        node instanceof HTMLElement
+      ));
+      const privacyBounded = privacyNodes.length === 3
+        && privacyNodes.every((root) => (
+          [root, ...root.querySelectorAll('*')].every((element) => (
+            [...element.attributes].every((attribute) => (
+              !/(?:^|[-_:])(?:fid|wallet|token|proof|auth|request)(?:$|[-_:])/i
+                .test(attribute.name)
+              && !/(?:https?:|blob:|data:|file:)/i.test(attribute.value)
+            ))
+          ))
+        ));
+      const dismiss = panel?.querySelector('.gold-mine-inspection__dismiss');
+      if (dismiss instanceof HTMLButtonElement) dismiss.click();
+      await waitFor(() => document.querySelector(
+        '.gold-mine-inspection:has([data-resource-occupant-details="true"])'
+      ) === null);
+
+      const initialGeneration = Number(map?.dataset.rendererGeneration);
+      const canvas = map?.querySelector('canvas.realm-map-screen__canvas');
+      const webgl = canvas instanceof HTMLCanvasElement
+        ? canvas.getContext('webgl2') ?? canvas.getContext('webgl')
+        : null;
+      const contextController = webgl?.getExtension('WEBGL_lose_context');
+      const lossDispatched = contextController !== null
+        && contextController !== undefined;
+      if (lossDispatched) contextController.loseContext();
+      const recoveringSeen = lossDispatched && await waitFor(() => (
+        map?.dataset.rendererState === 'recovering'
+        && map?.dataset.rendererFailure === 'context-lost'
+        && map?.getAttribute('aria-busy') === 'true'
+      ));
+      if (recoveringSeen) {
+        await new Promise((resolve) => setTimeout(resolve, 64));
+        contextController.restoreContext();
+      }
+      const rendererContextRecovered = recoveringSeen && await waitFor(
+        () => (
+          rendererHealthy()
+          && Number(map?.dataset.rendererGeneration) > initialGeneration
+          && map?.dataset.rendererFailure === 'none'
+          && map?.getAttribute('aria-busy') === 'false'
+        ),
+        ${PRESENTATION_SETTLE_TIMEOUT_MILLISECONDS * 6}
+      );
+      return {
+        activeFixtureSelected,
+        foreignMarkerGeneric,
+        foreignPortraitReady,
+        foreignRecordReadOnly,
+        mobileBoundsSafe,
+        ownerCommandCenterAvailable,
+        ownerRecallControlsAvailable,
+        ownerRosterExact,
+        privacyBounded,
+        rendererContextRecovered,
+        rendererStable: rendererContextRecovered && rendererHealthy()
+      };
+    })()`,
+    awaitPromise: true,
+    returnByValue: true,
+  }, CDP_COMMAND_TIMEOUT_MILLISECONDS * 8);
+  if (evaluation?.exceptionDetails || evaluation?.result?.type !== 'object') {
+    throw new Error('Rendered WebGL active Worker evaluation failed.');
+  }
+  return evaluation.result.value;
+}
+
+export async function applyRenderedWebglActiveWorkerReconnectInteraction(session) {
+  const evaluation = await session.command('Runtime.evaluate', {
+    expression: `(async () => {
+      const waitFor = async (predicate) => {
+        const deadline = performance.now() + ${PRESENTATION_SETTLE_TIMEOUT_MILLISECONDS};
+        while (performance.now() <= deadline) {
+          if (predicate()) return true;
+          await new Promise((resolve) => setTimeout(resolve, 32));
+        }
+        return false;
+      };
+      const overlay = document.querySelector('[data-rendered-webgl-status]');
+      const map = document.querySelector('.realm-map-screen');
+      const launcher = document.querySelector('.realm-profile-trigger');
+      if (
+        !(overlay instanceof HTMLElement)
+        || overlay.dataset.fixtureVariant !== 'worker-active'
+        || overlay.dataset.resourceOccupationCount !== '2'
+        || !(map instanceof HTMLElement)
+        || map.dataset.renderer !== 'webgl'
+        || map.dataset.rendererState !== 'ready'
+        || !(launcher instanceof HTMLButtonElement)
+      ) return false;
+      launcher.click();
+      const menuReady = await waitFor(() => (
+        document.querySelector('.realm-profile-menu__panel') instanceof HTMLElement
+      ));
+      const workersButton = [...document.querySelectorAll(
+        '.realm-profile-menu__worker-actions button'
+      )].find((button) => (
+        button instanceof HTMLButtonElement
+        && !button.disabled
+        && (button.querySelector('strong')?.textContent ?? '').trim() === 'WORKERS'
+        && (button.querySelector('span')?.textContent ?? '').trim()
+          === '1/4 deployed · manage workers'
+      ));
+      if (!menuReady || !(workersButton instanceof HTMLButtonElement)) return false;
+      workersButton.click();
+      const centerReady = await waitFor(() => (
+        document.querySelectorAll('.worker-command-center__roster > li').length === 4
+      ));
+      const commandCenter = document.querySelector('.worker-command-center');
+      return centerReady
+        && commandCenter instanceof HTMLElement
+        && commandCenter.querySelectorAll('.worker-command-center__recall').length === 1
+        && commandCenter.querySelector(
+          '.worker-command-center__footer button'
+        ) instanceof HTMLButtonElement;
+    })()`,
+    awaitPromise: true,
+    returnByValue: true,
+  });
+  if (evaluation?.exceptionDetails || evaluation?.result?.type !== 'boolean') {
+    throw new Error('Rendered WebGL active Worker reconnect evaluation failed.');
+  }
+  return Object.freeze({ localReconnectRehydrated: evaluation.result.value === true });
+}
+
 export async function applyRenderedWebglOccupancyStressInteraction(session) {
   const evaluation = await session.command('Runtime.evaluate', {
     expression: `(async () => {
@@ -4443,6 +4909,55 @@ async function runRenderedOccupancyStressCase(session, probeCase, state) {
   }
 }
 
+async function runRenderedActiveWorkerCase(session, probeCase, state) {
+  await session.command('Emulation.setDeviceMetricsOverride', {
+    width: probeCase.viewport.width,
+    height: probeCase.viewport.height,
+    screenWidth: probeCase.viewport.width,
+    screenHeight: probeCase.viewport.height,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+  await session.command('Emulation.setEmulatedMedia', {
+    features: [{
+      name: 'prefers-reduced-motion',
+      value: 'no-preference',
+    }],
+  });
+  await session.command('Page.navigate', { url: probeCase.url });
+  await waitForAcceptedRenderedDom(session, probeCase, state);
+  await captureRenderedCasePixels(session, probeCase.viewport);
+  state.controlledRendererRecovery = true;
+  state.controlledRendererWarningCount = 0;
+  state.controlledRendererWarningThrottleSeen = false;
+  let activeEvidence;
+  try {
+    activeEvidence = await applyRenderedWebglActiveWorkerInteraction(session);
+    // Let the renderer's expected context-loss diagnostic reach CDP before
+    // closing the narrowly-scoped rendering-warning allowance.
+    await delay(100);
+  } finally {
+    state.controlledRendererRecovery = false;
+  }
+  await captureRenderedCasePixels(session, probeCase.viewport);
+
+  // A fresh exact-loopback navigation reconstructs the synthetic projection
+  // without browser storage or production authority. Requiring the same
+  // complete owner roster afterward covers the browser reconnect/rehydration
+  // boundary without claiming a live backend reconnect.
+  await session.command('Page.navigate', { url: probeCase.url });
+  await waitForAcceptedRenderedDom(session, probeCase, state);
+  const reconnectEvidence = await applyRenderedWebglActiveWorkerReconnectInteraction(session);
+  parseRenderedWebglActiveWorkerEvidence({
+    ...activeEvidence,
+    ...reconnectEvidence,
+  });
+  await captureRenderedCasePixels(session, probeCase.viewport);
+  if (state.violation) {
+    throw new Error('Rendered WebGL active Worker case left the local QA boundary.');
+  }
+}
+
 async function runRenderedCase(session, probeCase, state) {
   await session.command('Emulation.setDeviceMetricsOverride', {
     width: probeCase.viewport.width,
@@ -4593,6 +5108,7 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
       .assertCastleLodVisualEvidenceLoopbackBoundary(vite.port);
     onCastleLodVisualBoundary?.(castleLodVisualBoundary);
     const cases = renderedWebglBrowserProbeCases(vite.port);
+    const activeWorkerCase = renderedWebglActiveWorkerProbeCase(vite.port);
     const occupancyStressCase = renderedWebglOccupancyStressProbeCase(vite.port);
     const journeyProbe = await import('./qa-journey-browser-probe.mjs');
     const journeyCases = journeyProbe.qaJourneyBrowserProbeCases(vite.port);
@@ -4614,8 +5130,12 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
     }
     const state = {
       violation: '',
+      controlledRendererRecovery: false,
+      controlledRendererWarningCount: 0,
+      controlledRendererWarningThrottleSeen: false,
       allowedUrls: new Set([
         ...cases.map((probeCase) => probeCase.url),
+        activeWorkerCase.url,
         occupancyStressCase.url,
         ...journeyCases.map((probeCase) => probeCase.url),
         castleLodVisualUrl,
@@ -4668,6 +5188,30 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
         method === 'Log.entryAdded'
         && ['error', 'warning'].includes(params?.entry?.level)
       ) {
+        const controlledWarningKind = state.controlledRendererRecovery
+          ? controlledRendererRecoveryWarningKind(
+              params.entry,
+              loopbackOrigin,
+              profileDirectory
+            )
+          : null;
+        if (
+          controlledWarningKind === 'stale-context-object-delete'
+          && !state.controlledRendererWarningThrottleSeen
+          && state.controlledRendererWarningCount
+            < CONTROLLED_RENDERER_MAXIMUM_STALE_DELETE_WARNINGS
+        ) {
+          state.controlledRendererWarningCount += 1;
+          return;
+        }
+        if (
+          controlledWarningKind === 'stale-context-warning-throttle'
+          && !state.controlledRendererWarningThrottleSeen
+          && state.controlledRendererWarningCount > 0
+        ) {
+          state.controlledRendererWarningThrottleSeen = true;
+          return;
+        }
         state.violation = params.entry.level === 'warning' ? 'log-warning' : 'log-error';
         return;
       }
@@ -4759,6 +5303,13 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
       }
     }
     try {
+      await runRenderedActiveWorkerCase(devtools, activeWorkerCase, state);
+    } catch (error) {
+      throw new Error('Rendered WebGL active generic Worker case failed.', {
+        cause: error,
+      });
+    }
+    try {
       await runRenderedOccupancyStressCase(devtools, occupancyStressCase, state);
     } catch (error) {
       throw new Error('Rendered WebGL all-node occupancy stress case failed.', {
@@ -4818,8 +5369,8 @@ async function main() {
     }
     const lodFidelitySummary = `aggregate castle LOD fidelity ${JSON.stringify(lodMetrics)}`;
     process.stdout.write(
-      `Warpkeep local browser QA passed: ${passedCaseCount} rendered cases, one all-node `
-      + `occupancy stress check, 25 journey checks, and `
+      `Warpkeep local browser QA passed: ${passedCaseCount} rendered cases, one active generic `
+      + `Worker lifecycle check, one all-node occupancy stress check, 25 journey checks, and `
       + `loopback LOD boundary ${JSON.stringify(castleLodVisualBoundary)}, ${lodFidelitySummary}.\n`
     );
   } catch {

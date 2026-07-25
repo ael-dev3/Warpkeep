@@ -887,6 +887,7 @@ test('stateful rollout stages, deterministically backfills, drains, and activate
     capability: CASTLE_WORKER_PROTOCOL_CAPABILITY,
     clientRelease: 'alpha-0.3.14',
     clientArtifactDigest: 'a'.repeat(64),
+    moduleArtifactDigest: 'c'.repeat(64),
     sourceCommit: 'b'.repeat(40),
     resourceStateVersion: CASTLE_WORKER_RESOURCE_STATE_VERSION,
     resourcePolicyVersion: GENESIS_RESOURCE_POLICY_VERSION,

@@ -35,6 +35,7 @@ function attestation(
     capability: CASTLE_WORKER_PROTOCOL_CAPABILITY,
     clientRelease: 'alpha-0.3.15',
     clientArtifactDigest: artifactDigest,
+    moduleArtifactDigest: 'c'.repeat(64),
     sourceCommit,
     resourceStateVersion: CASTLE_WORKER_RESOURCE_STATE_VERSION,
     resourcePolicyVersion: GENESIS_RESOURCE_POLICY_VERSION,
@@ -284,6 +285,15 @@ test('client release attestation is bounded before the release grammar is evalua
     (error: unknown) => (
       error instanceof CastleWorkerRolloutPolicyError
       && error.code === 'WORKER_CLIENT_RELEASE_INVALID'
+    ),
+  );
+  assert.throws(
+    () => assertWorkerClientAttestation(attestation({
+      moduleArtifactDigest: 'not-a-sha256',
+    })),
+    (error: unknown) => (
+      error instanceof CastleWorkerRolloutPolicyError
+      && error.code === 'WORKER_MODULE_ARTIFACT_INVALID'
     ),
   );
 });

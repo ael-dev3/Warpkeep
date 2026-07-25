@@ -51,11 +51,12 @@ test('staging, backfill, drain, and activation are separate admin-only operation
     'admin_stage_worker_system_v1',
     'admin_backfill_worker_roster_v1',
     'admin_begin_worker_legacy_drain_v1',
+    'admin_complete_worker_legacy_drain_v1',
     'admin_activate_worker_system_v1',
   ]) assert.match(reducers, new RegExp(`name: '${reducer}'`));
   assert.equal(
     reducers.match(/const admin = requireAdmin\(ctx\)/g)?.length,
-    4,
+    5,
   );
   const stage = section(authority, 'export function stageWorkerSystem', 'export function backfillWorkerRoster');
   assert.match(stage, /ctx\.db\.castleWorkerV1\.count\(\) !== 0n/);
@@ -67,10 +68,14 @@ test('staging, backfill, drain, and activation are separate admin-only operation
   assert.match(backfill, /after\.rowsToInsert\.length !== 0/);
 });
 
-test('legacy drain closes only new dispatch and never deletes legacy rows', () => {
+test('beginning the legacy drain closes only new dispatch and deletes no rows', () => {
   const reservations = source('../src/resourceExpeditionReservationAuthority.ts');
   const authority = source('../src/castleWorkerRolloutAuthority.ts');
-  const drain = section(authority, 'export function beginWorkerLegacyDrain', 'export function activateWorkerSystem');
+  const drain = section(
+    authority,
+    'export function beginWorkerLegacyDrain',
+    'export type WorkerLegacyDrainReleaseAttestation',
+  );
   assert.match(
     reservations,
     /phase === 'draining' \|\| phase === 'active'[\s\S]*LEGACY_EXPEDITION_DISPATCH_RETIRED/,
