@@ -1136,7 +1136,7 @@ describe('Hermes credential destination policy', () => {
       return token;
     });
     await vi.advanceTimersByTimeAsync(0);
-    await vi.advanceTimersByTimeAsync(9_999);
+    await vi.advanceTimersByTimeAsync(19_999);
     expect(resolved).toBe(false);
     await vi.advanceTimersByTimeAsync(1);
     await expect(request).resolves.toBe('header.payload.signature');
