@@ -54,6 +54,8 @@
     "profiles:refresh": "tsx scripts/profiles/profiles-operator.ts refresh",
     "profiles:apply": "tsx scripts/profiles/profiles-operator.ts apply",
     "profiles:inspect": "tsx scripts/profiles/profiles-operator.ts inspect",
+    "qa:agent": "node scripts/qa/agent.mjs",
+    "qa:fullstack:local": "node scripts/qa-observer/local-fullstack-browser-probe.mjs",
     "qa:rendered-webgl": "node scripts/qa-observer/rendered-webgl-browser-probe.mjs",
     "verify:runtime-assets": "node scripts/verify-runtime-assets.mjs",
     "verify:gold-mine-candidates": "node scripts/verify-hegemony-gold-mine-candidates.mjs",

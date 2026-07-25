@@ -1,0 +1,521 @@
+import { EventEmitter } from 'node:events';
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
+
+import { describe, expect, it, vi } from 'vitest';
+
+import {
+  LOCAL_FULLSTACK_QA_DATABASE,
+  LOCAL_FULLSTACK_QA_AUDIENCE,
+  LOCAL_FULLSTACK_QA_ISSUER,
+  LOCAL_FULLSTACK_QA_PROFILE_URL,
+  localFullstackQaRuntimeConfig,
+  readLocalFullstackQaBootstrap,
+} from '../src/dev/fullstackLocalQaBootstrap';
+import { hasUsableWarpkeepBridge } from '../src/spacetime/warpkeepConfig';
+// @ts-expect-error The development-only Vite plugin is an executable ESM module.
+import { LOCAL_FULLSTACK_BOOTSTRAP_MODULE_ID, localFullstackBootstrapVitePlugin } from '../scripts/qa-observer/local-fullstack-bootstrap-vite-plugin.mjs';
+// @ts-expect-error The development-only browser probe is an executable ESM module.
+import { installLocalFullstackSignalCleanup, isAllowedLocalFullstackBrowserUrl } from '../scripts/qa-observer/local-fullstack-browser-probe.mjs';
+// @ts-expect-error The disposable SpacetimeDB launcher is an executable ESM module.
+import { runDisposableLocalFullstackCli, startDisposableLocalFullstackSpacetime, terminateLocalFullstackProcessGroup } from '../scripts/qa-observer/local-fullstack-spacetime.mjs';
+
+const NOW = 1_800_000_000_000;
+const TEST_ACCESS_TOKEN = `${'a'.repeat(43)}.${'b'.repeat(43)}.${'c'.repeat(86)}`;
+const VALID_BOOTSTRAP = Object.freeze({
+  version: 1,
+  spacetimeUri: 'http://127.0.0.1:3000',
+  database: LOCAL_FULLSTACK_QA_DATABASE,
+  issuer: LOCAL_FULLSTACK_QA_ISSUER,
+  audience: LOCAL_FULLSTACK_QA_AUDIENCE,
+  fid: 9_900_001,
+  username: 'qa.warpkeeper',
+  displayName: 'Synthetic QA Keeper',
+  pfpUrl: LOCAL_FULLSTACK_QA_PROFILE_URL,
+  accessToken: TEST_ACCESS_TOKEN,
+  accessExpiresAt: NOW + 5 * 60 * 1_000,
+  sessionExpiresAt: NOW + 10 * 60 * 1_000,
+});
+const PLUGIN_NOW = Date.now();
+const VALID_PLUGIN_BOOTSTRAP = Object.freeze({
+  ...VALID_BOOTSTRAP,
+  accessExpiresAt: PLUGIN_NOW + 5 * 60 * 1_000,
+  sessionExpiresAt: PLUGIN_NOW + 10 * 60 * 1_000,
+});
+
+function changedBootstrap(overrides: Record<string, unknown>) {
+  return { ...VALID_BOOTSTRAP, ...overrides };
+}
+
+function changedPluginBootstrap(overrides: Record<string, unknown>) {
+  return { ...VALID_PLUGIN_BOOTSTRAP, ...overrides };
+}
+
+function importSpecifiers(source: string) {
+  return [
+    ...source.matchAll(
+      /\b(?:import|export)\s+(?:type\s+)?(?:[^'"]*?\s+from\s+)?['"]([^'"]+)['"]/g
+    ),
+    ...source.matchAll(/\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g),
+  ].map((match) => match[1]!);
+}
+
+function resolveSourceImport(importer: string, specifier: string) {
+  if (!specifier.startsWith('.')) return undefined;
+  const base = resolve(dirname(importer), specifier);
+  const candidates = [
+    base,
+    `${base}.ts`,
+    `${base}.tsx`,
+    `${base}.js`,
+    `${base}.jsx`,
+    `${base}.mjs`,
+    resolve(base, 'index.ts'),
+    resolve(base, 'index.tsx'),
+    resolve(base, 'index.js'),
+    resolve(base, 'index.mjs'),
+  ];
+  return candidates.find((candidate) => (
+    existsSync(candidate) && statSync(candidate).isFile()
+  ));
+}
+
+function sourceGraph(entry: string, forbidLocalBootstrap = false) {
+  const root = resolve(process.cwd(), 'src');
+  const pending = [resolve(root, entry)];
+  const visited = new Set<string>();
+  while (pending.length > 0) {
+    const path = pending.pop()!;
+    if (visited.has(path)) continue;
+    visited.add(path);
+    const source = readFileSync(path, 'utf8');
+    if (forbidLocalBootstrap) {
+      expect(source).not.toContain(LOCAL_FULLSTACK_BOOTSTRAP_MODULE_ID);
+    }
+    for (const specifier of importSpecifiers(source)) {
+      const dependency = resolveSourceImport(path, specifier);
+      if (dependency?.startsWith(`${root}/`)) pending.push(dependency);
+    }
+  }
+  return visited;
+}
+
+describe('disposable connected local QA bootstrap', () => {
+  it('accepts one exact, short-lived loopback authority and activates only that runtime', () => {
+    const candidate = { ...VALID_BOOTSTRAP };
+    const bootstrap = readLocalFullstackQaBootstrap(candidate, NOW);
+    const config = localFullstackQaRuntimeConfig(bootstrap);
+
+    expect(bootstrap).toEqual(VALID_BOOTSTRAP);
+    expect(Object.isFrozen(bootstrap)).toBe(true);
+    expect(config).toEqual({
+      spacetimeUri: 'http://127.0.0.1:3000',
+      spacetimeDatabase: LOCAL_FULLSTACK_QA_DATABASE,
+      bridgeUrl: LOCAL_FULLSTACK_QA_ISSUER,
+      issuer: LOCAL_FULLSTACK_QA_ISSUER,
+      audience: LOCAL_FULLSTACK_QA_AUDIENCE,
+      publicConfigValid: true,
+      sharedAlphaEnabled: true,
+      allowLocalHttp: true,
+    });
+    expect(hasUsableWarpkeepBridge(config)).toBe(true);
+  });
+
+  it.each([
+    ['an extra field', changedBootstrap({ unexpected: true })],
+    ['a missing field', (() => {
+      const { displayName: _displayName, ...missing } = VALID_BOOTSTRAP;
+      return missing;
+    })()],
+    ['Maincloud', changedBootstrap({
+      spacetimeUri: 'https://maincloud.spacetimedb.com',
+    })],
+    ['localhost', changedBootstrap({
+      spacetimeUri: 'http://localhost:3000',
+    })],
+    ['a LAN address', changedBootstrap({
+      spacetimeUri: 'http://192.168.1.20:3000',
+    })],
+    ['a portless loopback address', changedBootstrap({
+      spacetimeUri: 'http://127.0.0.1',
+    })],
+    ['a path-bearing loopback address', changedBootstrap({
+      spacetimeUri: 'http://127.0.0.1:3000/database',
+    })],
+    ['a slash-normalized loopback address', changedBootstrap({
+      spacetimeUri: 'http://127.0.0.1:3000/',
+    })],
+    ['a production database', changedBootstrap({
+      database: 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e',
+    })],
+    ['a production issuer', changedBootstrap({
+      issuer: 'https://auth.warpkeep.com',
+    })],
+    ['another audience', changedBootstrap({
+      audience: 'another-audience',
+    })],
+    ['a profile URL outside the fixture', changedBootstrap({
+      pfpUrl: 'https://i.imgur.com/another-profile.png',
+    })],
+    ['a malformed username', changedBootstrap({
+      username: 'production-user',
+    })],
+    ['a malformed bearer', changedBootstrap({
+      accessToken: 'not-a-jwt',
+    })],
+    ['an expired bearer', changedBootstrap({
+      accessExpiresAt: NOW,
+    })],
+    ['an overlong bearer lifetime', changedBootstrap({
+      accessExpiresAt: NOW + 10 * 60 * 1_000 + 1,
+      sessionExpiresAt: NOW + 10 * 60 * 1_000 + 1,
+    })],
+    ['a session shorter than the bearer', changedBootstrap({
+      sessionExpiresAt: NOW + 60_000,
+    })],
+  ])('rejects %s before creating browser runtime configuration', (_label, value) => {
+    expect(() => readLocalFullstackQaBootstrap(value, NOW)).toThrow(
+      'Disposable full-stack QA bootstrap is invalid.'
+    );
+  });
+
+  it('exposes the bootstrap through one exact virtual module and destroys its source', () => {
+    const plugin = localFullstackBootstrapVitePlugin(VALID_PLUGIN_BOOTSTRAP);
+    const resolved = plugin.resolveId?.call({} as never, LOCAL_FULLSTACK_BOOTSTRAP_MODULE_ID);
+    expect(plugin.name).toBe('warpkeep-local-fullstack-bootstrap');
+    expect(plugin.enforce).toBe('pre');
+    expect(resolved).toBe(`\0${LOCAL_FULLSTACK_BOOTSTRAP_MODULE_ID}`);
+    expect(plugin.resolveId?.call({} as never, 'virtual:other')).toBeNull();
+    expect(plugin.load?.call({} as never, 'virtual:other')).toBeNull();
+    expect(plugin.load?.call({} as never, resolved as string)).toContain(TEST_ACCESS_TOKEN);
+
+    plugin.closeBundle?.call({} as never);
+    expect(plugin.load?.call({} as never, resolved as string)).toBe('');
+  });
+
+  it.each([
+    ['an extra field', changedPluginBootstrap({ unexpected: true })],
+    ['a missing field', (() => {
+      const { issuer: _issuer, ...missing } = VALID_PLUGIN_BOOTSTRAP;
+      return missing;
+    })()],
+    ['a short bearer', changedPluginBootstrap({ accessToken: 'a.b.c' })],
+    ['Maincloud', changedPluginBootstrap({
+      spacetimeUri: 'https://maincloud.spacetimedb.com',
+    })],
+    ['a production database', changedPluginBootstrap({
+      database: 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e',
+    })],
+    ['a production issuer', changedPluginBootstrap({
+      issuer: 'https://auth.warpkeep.com',
+    })],
+    ['another audience', changedPluginBootstrap({
+      audience: 'another-audience',
+    })],
+  ])('refuses to serialize %s into the virtual authority module', (_label, value) => {
+    expect(() => localFullstackBootstrapVitePlugin(value)).toThrow(
+      'Invalid disposable full-stack bootstrap.'
+    );
+  });
+});
+
+describe('disposable connected local QA dependency and network boundaries', () => {
+  it('keeps every production entry dependency outside local QA source', () => {
+    const graph = sourceGraph('main.tsx', true);
+    expect(graph.size).toBeGreaterThan(10);
+    expect([...graph]).not.toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/\/src\/dev\//),
+      ])
+    );
+  });
+
+  it('keeps the local auth state machine transitively independent of production network clients', () => {
+    const graph = sourceGraph('dev/fullstackLocalQaMain.tsx');
+    expect([...graph]).toEqual(expect.arrayContaining([
+      expect.stringMatching(/\/FarcasterAuthProviderCore\.tsx$/),
+      expect.stringMatching(/\/FullstackLocalQaApp\.tsx$/),
+    ]));
+    expect([...graph]).not.toEqual(expect.arrayContaining([
+      expect.stringMatching(/\/FarcasterAuthProvider\.tsx$/),
+      expect.stringMatching(/\/farcasterAuthClient\.ts$/),
+      expect.stringMatching(/\/farcasterOidcBridgeClient\.ts$/),
+      expect.stringMatching(/\/farcasterQrCode\.ts$/),
+    ]));
+  });
+
+  it('does not directly couple local QA to publishers, operators, or Farcaster network clients', () => {
+    const paths = [
+      'src/farcaster/FarcasterAuthProviderCore.tsx',
+      'src/dev/fullstackLocalQaMain.tsx',
+      'src/dev/FullstackLocalQaApp.tsx',
+      'src/dev/fullstackLocalQaBootstrap.ts',
+      'scripts/qa-observer/local-fullstack-bootstrap-vite-plugin.mjs',
+      'scripts/qa-observer/local-fullstack-browser-probe.mjs',
+      'scripts/qa-observer/local-fullstack-spacetime.mjs',
+    ];
+    const forbidden = /(?:publish-spacetime-dev|hermes-admin|marks-operator|profiles-operator|services\/auth-bridge|farcasterAuthClient|farcasterOidcBridgeClient)/;
+
+    for (const relativePath of paths) {
+      const source = readFileSync(resolve(process.cwd(), relativePath), 'utf8');
+      expect(importSpecifiers(source), relativePath).not.toEqual(
+        expect.arrayContaining([expect.stringMatching(forbidden)])
+      );
+    }
+  });
+
+  it('checks the built module for forbidden authority bytes, not with URL validation', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'scripts/qa-observer/local-fullstack-spacetime.mjs'),
+      'utf8'
+    );
+    expect(source).toContain(
+      'artifact.indexOf(PRODUCTION_OIDC_ISSUER_BYTES) !== -1'
+    );
+    expect(source).not.toContain(
+      "artifactText.includes('https://auth.warpkeep.com')"
+    );
+  });
+
+  it('allows browser requests only to the two numeric-loopback origins and exact profile fixture', () => {
+    const viteOrigin = 'http://127.0.0.1:4173';
+    const spacetimeOrigin = 'http://127.0.0.1:3000';
+    for (const url of [
+      `${viteOrigin}/dev/fullstack-local-qa.html`,
+      `${viteOrigin}/src/dev/fullstackLocalQaMain.tsx`,
+      `${spacetimeOrigin}/v1/database/warpkeep-local-fullstack`,
+      'ws://127.0.0.1:3000/v1/database/warpkeep-local-fullstack/subscribe',
+      LOCAL_FULLSTACK_QA_PROFILE_URL,
+      'data:image/svg+xml,%3Csvg%2F%3E',
+      `blob:${viteOrigin}/00000000-0000-4000-8000-000000000001`,
+    ]) {
+      expect(
+        isAllowedLocalFullstackBrowserUrl(url, viteOrigin, spacetimeOrigin),
+        url
+      ).toBe(true);
+    }
+
+    for (const url of [
+      'https://maincloud.spacetimedb.com/v1/database/warpkeep',
+      'https://auth.warpkeep.com/v1/oidc/token',
+      'https://relay.farcaster.xyz/v1/channel',
+      'http://localhost:4173/dev/fullstack-local-qa.html',
+      'http://192.168.1.20:3000/',
+      'wss://127.0.0.1:3000/subscribe',
+      'https://i.imgur.com/another-profile.png',
+    ]) {
+      expect(
+        isAllowedLocalFullstackBrowserUrl(url, viteOrigin, spacetimeOrigin),
+        url
+      ).toBe(false);
+    }
+  });
+});
+
+describe('disposable connected local QA cleanup lifecycle', () => {
+  it('awaits one shared cleanup job when a signal races another signal and final cleanup', async () => {
+    const processTarget = new EventEmitter() as EventEmitter & {
+      exit: ReturnType<typeof vi.fn>;
+    };
+    processTarget.exit = vi.fn();
+
+    let releaseCleanup!: () => void;
+    const startCleanupJob = vi.fn(() => new Promise<void>((resolveCleanup) => {
+      releaseCleanup = resolveCleanup;
+    }));
+    let sharedCleanup: Promise<void> | undefined;
+    const cleanup = () => {
+      sharedCleanup ??= startCleanupJob();
+      return sharedCleanup;
+    };
+
+    const remove = installLocalFullstackSignalCleanup(cleanup, processTarget);
+    const interrupt = processTarget.listeners('SIGINT')[0] as () => Promise<void>;
+    const terminate = processTarget.listeners('SIGTERM')[0] as () => Promise<void>;
+    expect(interrupt).toBeTypeOf('function');
+    expect(terminate).toBeTypeOf('function');
+
+    const signalCleanup = terminate();
+    const finalCleanup = cleanup();
+    const concurrentSignal = interrupt();
+    let signalSettled = false;
+    void signalCleanup.then(() => {
+      signalSettled = true;
+    });
+    await Promise.resolve();
+
+    expect(startCleanupJob).toHaveBeenCalledOnce();
+    expect(signalSettled).toBe(false);
+    expect(processTarget.exit).not.toHaveBeenCalled();
+    expect(processTarget.listenerCount('SIGINT')).toBe(1);
+    expect(processTarget.listenerCount('SIGTERM')).toBe(1);
+
+    releaseCleanup();
+    await Promise.all([signalCleanup, finalCleanup, concurrentSignal]);
+    expect(processTarget.exit).toHaveBeenCalledOnce();
+    expect(processTarget.exit).toHaveBeenCalledWith(143);
+    expect(processTarget.listenerCount('SIGINT')).toBe(0);
+    expect(processTarget.listenerCount('SIGTERM')).toBe(0);
+    remove();
+  });
+
+  it('publishes a shared close lifecycle before CLI attestation or process spawn', async () => {
+    const runtimeDirectory = mkdtempSync(join(tmpdir(), 'warpkeep-lifecycle-test-'));
+    let firstClose: Promise<void> | undefined;
+    let secondClose: Promise<void> | undefined;
+    try {
+      await expect(startDisposableLocalFullstackSpacetime({
+        runtimeDirectory,
+        spacetimeExecutable: resolve(runtimeDirectory, 'must-not-run'),
+        onLifecycle(lifecycle: Readonly<{ close: () => Promise<void> }>) {
+          firstClose = lifecycle.close();
+          secondClose = lifecycle.close();
+        },
+      })).rejects.toThrow('Disposable SpacetimeDB startup was cancelled.');
+
+      expect(firstClose).toBeDefined();
+      expect(secondClose).toBe(firstClose);
+      await Promise.all([firstClose!, secondClose!]);
+      expect(existsSync(runtimeDirectory)).toBe(false);
+    } finally {
+      rmSync(runtimeDirectory, { force: true, recursive: true });
+    }
+  });
+
+  it('contains an exception thrown by lifecycle registration', async () => {
+    const runtimeDirectory = mkdtempSync(join(tmpdir(), 'warpkeep-lifecycle-test-'));
+    try {
+      await expect(startDisposableLocalFullstackSpacetime({
+        runtimeDirectory,
+        onLifecycle() {
+          throw new Error('CALLER_DETAIL_MUST_NOT_ESCAPE');
+        },
+      })).rejects.toThrow(
+        'Disposable SpacetimeDB startup failed closed at lifecycle-registration.'
+      );
+      expect(existsSync(runtimeDirectory)).toBe(false);
+    } finally {
+      rmSync(runtimeDirectory, { force: true, recursive: true });
+    }
+  });
+
+  it('turns bounded CLI output overflow into a contained promise rejection', async () => {
+    await expect(runDisposableLocalFullstackCli(
+      process.execPath,
+      ['-e', 'process.stdout.write("x".repeat(600000));'],
+      {
+        environment: {
+          HOME: tmpdir(),
+          PATH: process.env.PATH ?? '',
+          TMPDIR: tmpdir(),
+        },
+        timeout: 5_000,
+      },
+    )).rejects.toThrow('Local CLI output exceeded its bound.');
+  });
+
+  it('accepts only ESRCH as proof that a disposable process group stopped', async () => {
+    const stopped = Object.assign(new Error('missing'), { code: 'ESRCH' });
+    const unverifiable = Object.assign(new Error('denied'), { code: 'EPERM' });
+    const child = {
+      exitCode: 0,
+      kill: vi.fn(),
+      pid: 42_100,
+      signalCode: null,
+    };
+    const stoppedKill = vi.fn((_pid: number, signal: NodeJS.Signals | 0) => {
+      if (signal === 0) throw stopped;
+    });
+    await expect(terminateLocalFullstackProcessGroup(child, {
+      killProcessGroup: stoppedKill,
+    })).resolves.toBeUndefined();
+
+    const unverifiableKill = vi.fn((_pid: number, signal: NodeJS.Signals | 0) => {
+      if (signal === 0) throw unverifiable;
+    });
+    await expect(terminateLocalFullstackProcessGroup(child, {
+      killProcessGroup: unverifiableKill,
+    })).rejects.toThrow('could not be verified as stopped');
+  });
+
+  it('keeps lifecycle registration and every finally path ordered around shared promises', () => {
+    const root = process.cwd();
+    const spacetimeSource = readFileSync(
+      resolve(root, 'scripts/qa-observer/local-fullstack-spacetime.mjs'),
+      'utf8'
+    );
+    const browserSource = readFileSync(
+      resolve(root, 'scripts/qa-observer/local-fullstack-browser-probe.mjs'),
+      'utf8'
+    );
+    const spacetimeStart = spacetimeSource.slice(
+      spacetimeSource.indexOf(
+        'export async function startDisposableLocalFullstackSpacetime'
+      )
+    );
+    const browserStart = browserSource.slice(
+      browserSource.indexOf('export async function runLocalFullstackBrowserProbe')
+    );
+
+    const lifecycleRegistration = spacetimeStart.indexOf('options.onLifecycle?.');
+    const cliAttestation = spacetimeStart.indexOf(
+      'cliSnapshot = attestPinnedSpacetimeCli'
+    );
+    const databaseSpawn = spacetimeStart.indexOf('serverProcess = spawn(');
+    expect(lifecycleRegistration).toBeGreaterThan(-1);
+    expect(lifecycleRegistration).toBeLessThan(cliAttestation);
+    expect(lifecycleRegistration).toBeLessThan(databaseSpawn);
+    expect(spacetimeStart).toMatch(
+      /let closePromise;\s+const close = \(\) => \{\s+if \(closePromise\) return closePromise;/
+    );
+    expect(spacetimeStart).toContain('try { await close(); } catch {');
+    expect(spacetimeStart).toContain('let activeCliProcess;');
+    expect(spacetimeStart).toContain(
+      'await terminateLocalFullstackProcessGroup(activeCliProcess);'
+    );
+    expect(spacetimeSource).toMatch(
+      /const child = spawn\(executable, arguments_, \{[\s\S]*?detached: true,[\s\S]*?options\.onProcess\?\.\(child\);/
+    );
+    expect(spacetimeSource).toContain(
+      'options.onProcess?.(undefined, child);'
+    );
+
+    const cleanupDeclaration = browserStart.indexOf('let cleanupPromise;');
+    const cleanupGuard = browserStart.indexOf(
+      'if (cleanupPromise) return cleanupPromise;'
+    );
+    const signalRegistration = browserStart.indexOf(
+      'installLocalFullstackSignalCleanup(cleanup)'
+    );
+    const runtimeAllocation = browserStart.indexOf(
+      "runtimeAllocationPromise = mkdtemp(join(tmpdir(), 'warpkeep-fullstack-browser-'))"
+    );
+    const databaseStart = browserStart.indexOf(
+      'startDisposableLocalFullstackSpacetime({'
+    );
+    const lifecycleCapture = browserStart.indexOf(
+      'databaseLifecycle = lifecycle;'
+    );
+    const chromeSpawn = browserStart.indexOf('chrome = spawnHeadlessChromeProbe(');
+    const removeSignals = browserStart.lastIndexOf('removeSignalCleanup();');
+    const awaitCleanup = browserStart.lastIndexOf('await cleanup();');
+    expect(cleanupDeclaration).toBeGreaterThan(-1);
+    expect(cleanupGuard).toBeGreaterThan(cleanupDeclaration);
+    expect(signalRegistration).toBeLessThan(runtimeAllocation);
+    expect(signalRegistration).toBeLessThan(databaseStart);
+    expect(lifecycleCapture).toBeGreaterThan(databaseStart);
+    expect(lifecycleCapture).toBeLessThan(chromeSpawn);
+    expect(browserStart).toContain(
+      'await (database?.close?.() ?? databaseLifecycle?.close?.())'
+    );
+    expect(awaitCleanup).toBeGreaterThan(chromeSpawn);
+    expect(removeSignals).toBeGreaterThan(awaitCleanup);
+  });
+});

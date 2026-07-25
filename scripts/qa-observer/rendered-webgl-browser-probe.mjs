@@ -319,7 +319,7 @@ export async function attestHeadlessChromeCodeSignature(options = {}) {
   return parseHeadlessChromeCodeSignature(inspected?.stderr);
 }
 
-async function readReviewedChromeExecutableIdentity() {
+export async function readReviewedChromeExecutableIdentity() {
   const metadata = await lstat(RENDERED_WEBGL_QA_CHROME, { bigint: true });
   const expectedUid = typeof process.getuid === 'function'
     ? BigInt(process.getuid())
@@ -344,12 +344,12 @@ async function readReviewedChromeExecutableIdentity() {
   });
 }
 
-function exactChromeExecutableIdentity(left, right) {
+export function exactChromeExecutableIdentity(left, right) {
   return Object.keys(left).every((key) => left[key] === right[key])
     && Object.keys(right).length === Object.keys(left).length;
 }
 
-async function attestStableHeadlessChromeExecutable(expectedIdentity) {
+export async function attestStableHeadlessChromeExecutable(expectedIdentity) {
   const before = await readReviewedChromeExecutableIdentity();
   if (expectedIdentity && !exactChromeExecutableIdentity(before, expectedIdentity)) {
     throw new Error('The reviewed Google Chrome executable changed before launch.');
@@ -677,7 +677,11 @@ function exactRecord(value, message) {
 }
 
 export function isBenignStaleFetchInterceptionError(method, value) {
-  if (method !== 'Fetch.continueRequest' && method !== 'Fetch.failRequest') return false;
+  if (![
+    'Fetch.continueRequest',
+    'Fetch.failRequest',
+    'Fetch.fulfillRequest',
+  ].includes(method)) return false;
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
   return exactMessageKeys(value, new Set(['code', 'message']))
     && value.code === -32602
@@ -969,7 +973,11 @@ function exactBlankPageTargetInfo(value, attached, message) {
     || !/^[A-Za-z0-9-]{1,256}$/.test(candidate.targetId)
     || candidate.type !== 'page'
     || !['', 'about:blank'].includes(candidate.title)
-    || candidate.url !== 'about:blank'
+    || (
+      attached
+        ? !['', 'about:blank'].includes(candidate.url)
+        : candidate.url !== 'about:blank'
+    )
     || candidate.attached !== attached
     || ('canAccessOpener' in candidate && candidate.canAccessOpener !== false)
     || ('browserContextId' in candidate && (
@@ -1477,6 +1485,24 @@ export function parseRenderedWebglActiveForestDom(value, expected) {
 
 function delay(milliseconds) {
   return new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
+}
+
+async function waitForCloseOrDelay(closed, milliseconds, wait = delay) {
+  if (wait !== delay) {
+    await Promise.race([closed, wait(milliseconds)]);
+    return;
+  }
+  let timeout;
+  try {
+    await Promise.race([
+      closed,
+      new Promise((resolveDelay) => {
+        timeout = setTimeout(resolveDelay, milliseconds);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function browserConsoleViolationCategory(arguments_) {
@@ -1991,19 +2017,51 @@ export async function terminateHeadlessChromeProcessGroup(child, options = {}) {
   if (!child?.pid) return;
   const terminate = options.terminateProcessGroup ?? terminateProcessGroup;
   const wait = options.wait ?? delay;
+  const verificationMilliseconds = options.verificationMilliseconds
+    ?? TERMINATION_GRACE_MILLISECONDS;
+  const verificationPollMilliseconds = options.verificationPollMilliseconds
+    ?? 50;
+  if (
+    !Number.isSafeInteger(verificationMilliseconds)
+    || verificationMilliseconds < 0
+    || !Number.isSafeInteger(verificationPollMilliseconds)
+    || verificationPollMilliseconds <= 0
+  ) throw new Error('Disposable Chrome termination policy was invalid.');
+  const assertStopped = options.assertProcessGroupStopped ?? ((pid) => {
+    try {
+      process.kill(-pid, 0);
+    } catch (error) {
+      if (error?.code === 'ESRCH') return;
+      throw new Error('Disposable Chrome process group could not be verified as stopped.');
+    }
+    throw new Error('Disposable Chrome process group remained alive.');
+  });
   const leaderRunning = child.exitCode === null && child.signalCode === null;
   const closed = leaderRunning
     ? new Promise((resolveClose) => child.once('close', resolveClose))
     : Promise.resolve();
   terminate(child, 'SIGTERM');
   if (leaderRunning) {
-    await Promise.race([closed, wait(TERMINATION_GRACE_MILLISECONDS)]);
+    await waitForCloseOrDelay(closed, TERMINATION_GRACE_MILLISECONDS, wait);
   }
   // Always sweep the original Chrome process group. The leader can exit before
   // helpers that ignored SIGTERM, and an early return would orphan them.
   terminate(child, 'SIGKILL');
   if (leaderRunning) {
-    await Promise.race([closed, wait(TERMINATION_GRACE_MILLISECONDS)]);
+    await waitForCloseOrDelay(closed, TERMINATION_GRACE_MILLISECONDS, wait);
+  }
+  const verificationDeadline = Date.now() + verificationMilliseconds;
+  while (true) {
+    try {
+      assertStopped(child.pid);
+      break;
+    } catch (error) {
+      if (Date.now() >= verificationDeadline) throw error;
+      await wait(Math.min(
+        verificationPollMilliseconds,
+        Math.max(1, verificationDeadline - Date.now()),
+      ));
+    }
   }
 }
 
@@ -2091,7 +2149,7 @@ export async function closeRenderedWebglLoopbackServer(options = {}) {
   if (failures.length > 0) throw failures[0];
 }
 
-async function createLoopbackViteServer(runtimeDirectory, localQaPlugins = []) {
+export async function createLoopbackViteServer(runtimeDirectory, localQaPlugins = []) {
   const privateRuntime = exactPrivateDirectory(runtimeDirectory);
   if (!Array.isArray(localQaPlugins) || localQaPlugins.some((plugin) => (
     plugin === null || typeof plugin !== 'object' || typeof plugin.name !== 'string'

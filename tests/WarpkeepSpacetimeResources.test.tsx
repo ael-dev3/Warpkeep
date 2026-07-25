@@ -32,7 +32,7 @@ vi.mock('react', async (importOriginal) => {
   };
 });
 
-vi.mock('../src/farcaster/FarcasterAuthProvider', () => ({
+vi.mock('../src/farcaster/FarcasterAuthProviderCore', () => ({
   useFarcasterAuth: () => mockedFarcaster.current
 }));
 

@@ -9,7 +9,7 @@ import {
   useRef,
   useState
 } from 'react';
-import { useFarcasterAuth } from '../farcaster/FarcasterAuthProvider';
+import { useFarcasterAuth } from '../farcaster/FarcasterAuthProviderCore';
 import type { VerifiedFarcasterIdentity } from '../farcaster/farcasterAuthTypes';
 import {
   useWarpkeepBackend,
