@@ -1123,18 +1123,45 @@ describe('rendered WebGL headless browser probe contract', () => {
   it('sweeps the original Chrome process group after its leader has exited', async () => {
     const terminateProcessGroup = vi.fn();
     const wait = vi.fn().mockResolvedValue(undefined);
+    const assertProcessGroupStopped = vi.fn();
 
     await terminateHeadlessChromeProcessGroup({
       pid: 4321,
       exitCode: 0,
       signalCode: null
-    } as never, { terminateProcessGroup, wait });
+    } as never, { assertProcessGroupStopped, terminateProcessGroup, wait });
 
     expect(terminateProcessGroup.mock.calls).toEqual([
       [expect.objectContaining({ pid: 4321 }), 'SIGTERM'],
       [expect.objectContaining({ pid: 4321 }), 'SIGKILL']
     ]);
     expect(wait).not.toHaveBeenCalled();
+    expect(assertProcessGroupStopped).toHaveBeenCalledWith(4321);
+  });
+
+  it('waits through a transient unverified Chrome helper before proving ESRCH', async () => {
+    const terminateProcessGroup = vi.fn();
+    const wait = vi.fn().mockResolvedValue(undefined);
+    const assertProcessGroupStopped = vi.fn()
+      .mockImplementationOnce(() => {
+        throw new Error('Disposable Chrome process group could not be verified as stopped.');
+      })
+      .mockReturnValueOnce(undefined);
+
+    await terminateHeadlessChromeProcessGroup({
+      pid: 4322,
+      exitCode: 0,
+      signalCode: null
+    } as never, {
+      assertProcessGroupStopped,
+      terminateProcessGroup,
+      verificationMilliseconds: 1_000,
+      verificationPollMilliseconds: 1,
+      wait
+    });
+
+    expect(assertProcessGroupStopped).toHaveBeenCalledTimes(2);
+    expect(wait).toHaveBeenCalledWith(1);
   });
 
   it('attests the exact Google-signed Chrome application before launch', async () => {
@@ -1239,7 +1266,10 @@ describe('rendered WebGL headless browser probe contract', () => {
               method: 'Target.attachedToTarget',
               params: {
                 sessionId: TEST_SESSION_ID,
-                targetInfo: blankTargetInfo(true),
+                targetInfo: {
+                  ...blankTargetInfo(true),
+                  url: ''
+                },
                 waitingForDebugger: false
               }
             }),
@@ -1293,6 +1323,10 @@ describe('rendered WebGL headless browser probe contract', () => {
     )).toBe(true);
     expect(isBenignStaleFetchInterceptionError(
       'Fetch.failRequest',
+      { code: -32602, message: 'Invalid InterceptionId.' }
+    )).toBe(true);
+    expect(isBenignStaleFetchInterceptionError(
+      'Fetch.fulfillRequest',
       { code: -32602, message: 'Invalid InterceptionId.' }
     )).toBe(true);
     for (const [method, error] of [

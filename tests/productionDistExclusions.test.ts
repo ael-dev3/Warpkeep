@@ -1,0 +1,122 @@
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
+
+import { afterEach, describe, expect, it } from 'vitest';
+
+// @ts-expect-error The production verifier is an executable ESM module with named test seams.
+import { allowedProductionHtmlPaths, expectedProductionCspByPath, verifyProductionDistExclusions } from '../scripts/verify-production-dist-exclusions.mjs';
+
+const temporaryRoots: string[] = [];
+const productionIndex = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
+
+function writeOutput(path: string, content: string) {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, content);
+}
+
+function createReviewedOutput() {
+  const root = mkdtempSync(join(tmpdir(), 'warpkeep-production-output-'));
+  temporaryRoots.push(root);
+  for (const htmlPath of allowedProductionHtmlPaths as readonly string[]) {
+    const marker = htmlPath === 'index.html'
+      ? ' data-warpkeep-production-csp'
+      : '';
+    writeOutput(
+      join(root, htmlPath),
+      htmlPath === 'index.html'
+        ? productionIndex
+        : `<!doctype html><meta${marker} http-equiv="Content-Security-Policy" content="${
+            expectedProductionCspByPath[htmlPath]
+          }"><title>Warpkeep</title>`,
+    );
+  }
+  writeOutput(join(root, 'assets/app.js'), 'console.info("ordinary production fixture");');
+  return root;
+}
+
+afterEach(() => {
+  for (const root of temporaryRoots.splice(0)) {
+    rmSync(root, { force: true, recursive: true });
+  }
+});
+
+describe('production output exclusions', () => {
+  it('accepts only the exact reviewed production HTML family', () => {
+    expect(allowedProductionHtmlPaths).toEqual([
+      'index.html',
+      'privacy/index.html',
+      'social-contract/index.html',
+      'terms/index.html',
+    ]);
+    expect(() => verifyProductionDistExclusions(createReviewedOutput())).not.toThrow();
+  });
+
+  it('rejects missing, renamed, or additional HTML output', () => {
+    const missing = createReviewedOutput();
+    rmSync(join(missing, 'privacy/index.html'));
+    expect(() => verifyProductionDistExclusions(missing)).toThrow(/exact reviewed allowlist/i);
+
+    const renamed = createReviewedOutput();
+    writeOutput(join(renamed, 'privacy-copy/index.html'), '<!doctype html>');
+    expect(() => verifyProductionDistExclusions(renamed)).toThrow(/exact reviewed allowlist/i);
+
+    const localEntry = createReviewedOutput();
+    writeOutput(join(localEntry, 'dev/fullstack-local-qa.html'), '<!doctype html>');
+    expect(() => verifyProductionDistExclusions(localEntry)).toThrow(/exact reviewed allowlist/i);
+  });
+
+  it('requires one exact reviewed CSP meta in every production document', () => {
+    const missing = createReviewedOutput();
+    writeOutput(
+      join(missing, 'privacy/index.html'),
+      '<!doctype html><title>Warpkeep</title>',
+    );
+    expect(() => verifyProductionDistExclusions(missing)).toThrow(/one exact CSP meta/i);
+
+    const duplicate = createReviewedOutput();
+    const privacyPath = join(duplicate, 'privacy/index.html');
+    writeOutput(
+      privacyPath,
+      `${readFileSync(privacyPath, 'utf8')}<meta http-equiv="Content-Security-Policy" content="${
+        expectedProductionCspByPath['privacy/index.html']
+      }">`,
+    );
+    expect(() => verifyProductionDistExclusions(duplicate)).toThrow(/one exact CSP meta/i);
+
+    const malformed = createReviewedOutput();
+    const termsPath = join(malformed, 'terms/index.html');
+    writeOutput(
+      termsPath,
+      readFileSync(termsPath, 'utf8').replace("default-src 'none'", "default-src 'self'"),
+    );
+    expect(() => verifyProductionDistExclusions(malformed)).toThrow(/changed without review/i);
+
+    const misplacedMarker = createReviewedOutput();
+    const socialPath = join(misplacedMarker, 'social-contract/index.html');
+    writeOutput(
+      socialPath,
+      readFileSync(socialPath, 'utf8').replace('<meta ', '<meta data-warpkeep-production-csp '),
+    );
+    expect(() => verifyProductionDistExclusions(misplacedMarker)).toThrow(/marker was invalid/i);
+  });
+
+  it.each([
+    'FullstackLocalQaApp',
+    'fullstackLocalQaBootstrap',
+    'virtual:warpkeep-local-fullstack-bootstrap',
+    'warpkeep-local-fullstack',
+    'LOCAL_QA_CHANNEL_NOT_A_REAL_PROOF',
+    'i.imgur.com/warpkeep-local-keeper.png',
+  ])('rejects connected-local-QA marker %s from any production chunk', (marker) => {
+    const root = createReviewedOutput();
+    writeOutput(join(root, 'assets/local-leak.js'), `export const leaked = ${JSON.stringify(marker)};`);
+    expect(() => verifyProductionDistExclusions(root)).toThrow(/local QA marker/i);
+  });
+});

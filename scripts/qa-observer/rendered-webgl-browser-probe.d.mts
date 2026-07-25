@@ -134,7 +134,10 @@ export function spawnHeadlessChromeProbe(
 export function terminateHeadlessChromeProcessGroup(
   child: ChildProcess | undefined,
   options?: Readonly<{
+    assertProcessGroupStopped?: (pid: number) => void;
     terminateProcessGroup?: (child: ChildProcess, signal: NodeJS.Signals) => void;
+    verificationMilliseconds?: number;
+    verificationPollMilliseconds?: number;
     wait?: (milliseconds: number) => Promise<unknown>;
   }>
 ): Promise<void>;

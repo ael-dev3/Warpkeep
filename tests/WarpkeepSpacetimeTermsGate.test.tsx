@@ -5,7 +5,7 @@ const mockedFarcaster = vi.hoisted(() => ({
   current: undefined as unknown
 }));
 
-vi.mock('../src/farcaster/FarcasterAuthProvider', () => ({
+vi.mock('../src/farcaster/FarcasterAuthProviderCore', () => ({
   useFarcasterAuth: () => mockedFarcaster.current
 }));
 

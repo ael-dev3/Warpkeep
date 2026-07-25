@@ -2,7 +2,6 @@ import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
   constants,
-  accessSync,
   chmodSync,
   closeSync,
   fchmodSync,
@@ -11,14 +10,13 @@ import {
   mkdtempSync,
   openSync,
   readFileSync,
-  realpathSync,
   rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
@@ -31,7 +29,6 @@ import {
 } from './verify-alpha-production.mjs';
 import {
   ADDITIVE_MIGRATION_PROOF_PROCESS_TIMEOUT_MILLISECONDS,
-  ADDITIVE_MIGRATION_PROOF_SPACETIME_CLI_VERSION,
   parseAdditiveMigrationProofReceipt,
 } from './spacetime-additive-migration-proof.mjs';
 import {
@@ -40,6 +37,15 @@ import {
 import {
   WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM,
 } from './entry-agreement-policy.mjs';
+import {
+  attestPinnedSpacetimeCli,
+  verifyPinnedCliAttestation,
+} from './spacetime-cli-attestation.mjs';
+
+export {
+  attestPinnedSpacetimeCli,
+  verifyPinnedCliAttestation,
+};
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CANONICAL_DATABASE = 'warpkeep-89e4u';
@@ -51,11 +57,6 @@ const database = process.env.WARPKEEP_SPACETIMEDB_DATABASE || CANONICAL_DATABASE
 const configuredIssuer = process.env.WARPKEEP_OIDC_ISSUER;
 const sourceConfigPath = join(repositoryRoot, 'spacetimedb', 'src', 'config.ts');
 const command = process.env.SPACETIME_BIN || 'spacetime';
-const EXPECTED_CLI_VERSION = ADDITIVE_MIGRATION_PROOF_SPACETIME_CLI_VERSION;
-const EXPECTED_CLI_COMMIT = '052c83fe984a4c4eb7bb4f9afa5c6b1903891d87';
-const EXPECTED_CLI_BINARY_SHA256 = Object.freeze({
-  'darwin-arm64': '4d76214ab1ba1462bd1500739641ec1c8322f99529d899c28612bfa665ccdfc6',
-});
 const MAX_CHILD_OUTPUT_BYTES = 1_000_000;
 const PREFLIGHT_TIMEOUT_MILLISECONDS = 3 * 60 * 1_000;
 const MAX_OIDC_DOCUMENT_BYTES = 64 * 1_024;
@@ -1053,21 +1054,6 @@ function foundedAggregateStageForWorldStage(genesisWorldRolloutStage) {
   fail('The Genesis world publication stage was invalid.');
 }
 
-function resolveExecutablePath(executable, environment) {
-  const candidates = isAbsolute(executable) || executable.includes('/')
-    ? [resolve(executable)]
-    : (environment.PATH ?? '').split(delimiter).filter(Boolean).map(entry => join(entry, executable));
-  for (const candidate of candidates) {
-    try {
-      accessSync(candidate, constants.X_OK);
-      return realpathSync(candidate);
-    } catch {
-      // Continue until the exact executable is found or fail generically.
-    }
-  }
-  fail('The pinned SpacetimeDB CLI executable was not found.');
-}
-
 function runBoundedSync(executable, arguments_, options, spawnSyncProcess = spawnSync) {
   const result = spawnSyncProcess(executable, arguments_, {
     cwd: repositoryRoot,
@@ -1083,51 +1069,6 @@ function runBoundedSync(executable, arguments_, options, spawnSyncProcess = spaw
     fail('A bounded publication preflight failed. No publish was attempted.');
   }
   return result;
-}
-
-export function verifyPinnedCliAttestation(versionOutput, digest, platform = process.platform, arch = process.arch) {
-  if (
-    typeof versionOutput !== 'string'
-    || !versionOutput.includes(`spacetimedb tool version ${EXPECTED_CLI_VERSION};`)
-    || !versionOutput.includes(`Commit: ${EXPECTED_CLI_COMMIT}`)
-  ) {
-    fail('The exact reviewed SpacetimeDB CLI version was not active.');
-  }
-  const expectedDigest = EXPECTED_CLI_BINARY_SHA256[`${platform}-${arch}`];
-  if (typeof expectedDigest !== 'string' || digest !== expectedDigest) {
-    fail('The exact reviewed SpacetimeDB CLI binary was not active on this platform.');
-  }
-}
-
-export function attestPinnedSpacetimeCli(
-  executable,
-  spawnSyncProcess = spawnSync,
-  sourceEnvironment = process.env,
-) {
-  const environment = publishChildEnvironment(sourceEnvironment);
-  const executablePath = resolveExecutablePath(executable, environment);
-  const expectedDigest = EXPECTED_CLI_BINARY_SHA256[`${process.platform}-${process.arch}`];
-  if (typeof expectedDigest !== 'string') {
-    fail('The exact reviewed SpacetimeDB CLI binary was not active on this platform.');
-  }
-  const snapshot = createPrivatePublishSnapshot(
-    executablePath,
-    expectedDigest,
-    PRIVATE_SNAPSHOT_KINDS.EXECUTABLE,
-  );
-  try {
-    const result = runBoundedSync(
-      snapshot.path,
-      ['--version'],
-      { env: environment, timeout: 10_000 },
-      spawnSyncProcess,
-    );
-    verifyPinnedCliAttestation(result.stdout, snapshot.digest);
-    return snapshot;
-  } catch (error) {
-    snapshot.cleanup();
-    throw error;
-  }
 }
 
 export function verifyCanonicalDatabaseList(output) {

@@ -36,6 +36,31 @@ const LOCAL_QA_CONTENT_SECURITY_POLICY = [
   "manifest-src 'none'"
 ].join('; ');
 
+const FULLSTACK_LOCAL_QA_HTML_ENTRY = 'dev/fullstack-local-qa.html';
+const FULLSTACK_LOCAL_QA_CONNECT_SOURCES = Object.freeze([
+  "'self'",
+  'blob:',
+  'http://127.0.0.1:*',
+  'ws://127.0.0.1:*',
+  'https://i.imgur.com'
+]);
+const FULLSTACK_LOCAL_QA_CONTENT_SECURITY_POLICY = [
+  "default-src 'none'",
+  "base-uri 'none'",
+  "object-src 'none'",
+  "frame-src 'none'",
+  "form-action 'none'",
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' 'unsafe-eval'",
+  "script-src-attr 'none'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https://i.imgur.com",
+  "media-src 'self' data: blob:",
+  "font-src 'self' data:",
+  `connect-src ${FULLSTACK_LOCAL_QA_CONNECT_SOURCES.join(' ')}`,
+  "worker-src 'self' blob:",
+  "manifest-src 'none'"
+].join('; ');
+
 describe('local QA production exclusion', () => {
   it('pins every local QA entry to the same external-origin-denying development CSP', () => {
     for (const entry of LOCAL_QA_HTML_ENTRIES) {
@@ -65,6 +90,36 @@ describe('local QA production exclusion', () => {
     expect(LOCAL_QA_CONTENT_SECURITY_POLICY).toContain("frame-src 'none'");
     expect(LOCAL_QA_CONTENT_SECURITY_POLICY).toContain("form-action 'none'");
     expect(LOCAL_QA_CONTENT_SECURITY_POLICY).toContain("base-uri 'none'");
+  });
+
+  it('pins connected local QA to its distinct numeric-loopback-only CSP', () => {
+    const html = readFileSync(resolve(process.cwd(), FULLSTACK_LOCAL_QA_HTML_ENTRY), 'utf8');
+    const parsed = new DOMParser().parseFromString(html, 'text/html');
+    const policies = parsed.querySelectorAll(
+      'meta[http-equiv="Content-Security-Policy"]'
+    );
+
+    expect(policies).toHaveLength(1);
+    expect(policies[0]?.getAttribute('content')).toBe(
+      FULLSTACK_LOCAL_QA_CONTENT_SECURITY_POLICY
+    );
+    const icons = parsed.querySelectorAll('link[rel="icon"]');
+    expect(icons).toHaveLength(1);
+    expect(icons[0]?.getAttribute('href')).toBe('/favicon.svg');
+    expect(icons[0]?.getAttribute('type')).toBe('image/svg+xml');
+
+    const connectDirective = FULLSTACK_LOCAL_QA_CONTENT_SECURITY_POLICY
+      .split('; ')
+      .find((directive) => directive.startsWith('connect-src '));
+    expect(connectDirective?.split(' ').slice(1)).toEqual(
+      FULLSTACK_LOCAL_QA_CONNECT_SOURCES
+    );
+    expect(FULLSTACK_LOCAL_QA_CONTENT_SECURITY_POLICY).not.toContain('localhost');
+    expect(FULLSTACK_LOCAL_QA_CONTENT_SECURITY_POLICY).not.toContain('::1');
+    expect(FULLSTACK_LOCAL_QA_CONTENT_SECURITY_POLICY).not.toContain('wss:');
+    expect(FULLSTACK_LOCAL_QA_CONTENT_SECURITY_POLICY).toContain(
+      "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' 'unsafe-eval'"
+    );
   });
 
   it('keeps production independent and makes every local QA entry fail closed', () => {
@@ -113,6 +168,38 @@ describe('local QA production exclusion', () => {
       'utf8'
     );
     const runtimeGate = readFileSync(resolve(root, 'src/dev/localQaRuntime.ts'), 'utf8');
+    const fullstackMain = readFileSync(
+      resolve(root, 'src/dev/fullstackLocalQaMain.tsx'),
+      'utf8'
+    );
+    const fullstackApp = readFileSync(
+      resolve(root, 'src/dev/FullstackLocalQaApp.tsx'),
+      'utf8'
+    );
+    const fullstackAuthCore = readFileSync(
+      resolve(root, 'src/farcaster/FarcasterAuthProviderCore.tsx'),
+      'utf8'
+    );
+    const fullstackBootstrap = readFileSync(
+      resolve(root, 'src/dev/fullstackLocalQaBootstrap.ts'),
+      'utf8'
+    );
+    const fullstackVirtualDeclaration = readFileSync(
+      resolve(root, 'src/dev/fullstackLocalQaVirtual.d.ts'),
+      'utf8'
+    );
+    const fullstackVitePlugin = readFileSync(
+      resolve(root, 'scripts/qa-observer/local-fullstack-bootstrap-vite-plugin.mjs'),
+      'utf8'
+    );
+    const fullstackSpacetime = readFileSync(
+      resolve(root, 'scripts/qa-observer/local-fullstack-spacetime.mjs'),
+      'utf8'
+    );
+    const fullstackBrowser = readFileSync(
+      resolve(root, 'scripts/qa-observer/local-fullstack-browser-probe.mjs'),
+      'utf8'
+    );
     const viteConfig = readFileSync(resolve(root, 'vite.config.ts'), 'utf8');
     const packageJson = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')) as {
       scripts: Record<string, string>;
@@ -132,6 +219,8 @@ describe('local QA production exclusion', () => {
     expect(app).not.toMatch(/renderedWebgl|RenderedWebgl|realm-rendered-webgl/i);
     expect(main).not.toMatch(/qaJourney|QaJourney|qa-journey/i);
     expect(app).not.toMatch(/qaJourney|QaJourney|qa-journey/i);
+    expect(main).not.toMatch(/fullstackLocalQa|FullstackLocalQa|fullstack-local-qa/i);
+    expect(app).not.toMatch(/fullstackLocalQa|FullstackLocalQa|fullstack-local-qa/i);
     expect(observerSnapshot).not.toMatch(
       /(?:fetchRealmObserverSnapshot|REALM_OBSERVER_SNAPSHOT_URL|127\.0\.0\.1:41731)/
     );
@@ -157,6 +246,40 @@ describe('local QA production exclusion', () => {
     );
     expect(journeyFixture).not.toMatch(/https:\/\/(?:warpkeep|farcaster)\./);
     expect(runtimeGate).toContain("new Set(['localhost', '127.0.0.1', '::1', '[::1]'])");
+    expect(fullstackMain).toContain('assertLocalQaRuntime()');
+    expect(fullstackMain).toContain("window.location.hostname !== '127.0.0.1'");
+    expect(fullstackMain).toContain("await import('./FullstackLocalQaApp')");
+    expect(fullstackMain).not.toMatch(/^import .*FullstackLocalQaApp/m);
+    expect(fullstackApp).toContain(
+      "from 'virtual:warpkeep-local-fullstack-bootstrap'"
+    );
+    expect(fullstackApp).toContain('FarcasterAuthProviderCore');
+    expect(fullstackApp).toContain('loadAuthority={async () => authority}');
+    expect(fullstackApp).toContain('loadBridgeClient={async () => bridge}');
+    expect(fullstackApp).not.toMatch(
+      /from ['"][^'"]*(?:farcasterAuthClient|farcasterOidcBridgeClient)['"]/
+    );
+    expect(fullstackAuthCore).not.toMatch(
+      /from ['"][^'"]*(?:farcasterAuthClient|farcasterOidcBridgeClient|farcasterQrCode)['"]/
+    );
+    expect(fullstackBootstrap).toContain('exactLoopbackSpacetimeUri');
+    expect(fullstackBootstrap).toContain('LOCAL_FULLSTACK_QA_DATABASE');
+    expect(fullstackVirtualDeclaration).toContain(
+      "declare module 'virtual:warpkeep-local-fullstack-bootstrap'"
+    );
+    expect(fullstackVitePlugin).toContain(
+      "virtual:warpkeep-local-fullstack-bootstrap"
+    );
+    expect(fullstackSpacetime).toContain(
+      "from '../spacetime-cli-attestation.mjs'"
+    );
+    expect(fullstackSpacetime).not.toMatch(
+      /from ['"][^'"]*publish-spacetime-dev\.mjs['"]/
+    );
+    expect(fullstackBrowser).toContain('isAllowedLocalFullstackBrowserUrl');
+    expect(fullstackBrowser).not.toMatch(
+      /from ['"][^'"]*(?:services\/auth-bridge|farcasterAuthClient|farcasterOidcBridgeClient)['"]/
+    );
     expect(viteConfig).toContain("input: resolve(process.cwd(), 'index.html')");
     expect(viteConfig).toContain("__WARPKEEP_LOCAL_QA__: JSON.stringify(command === 'serve')");
     expect(viteConfig).toContain('warpkeep-local-serve-csp-boundary');
@@ -181,6 +304,10 @@ describe('local QA production exclusion', () => {
     expect(verifier).toContain('realm-observer-qa.html');
     expect(verifier).toContain('realm-rendered-webgl-qa.html');
     expect(verifier).toContain('castle-lod-visual-evidence.html');
+    expect(verifier).toContain('fullstack-local-qa.html');
+    expect(verifier).toContain('allowedProductionHtmlPaths');
+    expect(verifier).toContain('virtual:warpkeep-local-fullstack-bootstrap');
+    expect(verifier).toContain('LOCAL_QA_CHANNEL_NOT_A_REAL_PROOF');
     expect(verifier).toContain('realmObserverFixtureSnapshot');
     expect(verifier).toContain('createRealmObserverFixtureRealm');
     expect(verifier).toContain('QA OBSERVER · READ ONLY');
