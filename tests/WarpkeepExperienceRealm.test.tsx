@@ -422,6 +422,7 @@ beforeEach(async () => {
   window.localStorage.clear();
   window.sessionStorage.clear();
   await Promise.all([
+    import('../src/components/auth/FarcasterAdmissionPanel'),
     import('../src/components/auth/FarcasterIdentityBadge'),
     import('../src/components/auth/FarcasterQrAuthPanel'),
     import('../src/components/title/WarpkeepTitleScreen3D'),
