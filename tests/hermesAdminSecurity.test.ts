@@ -1117,6 +1117,7 @@ describe('Hermes credential destination policy', () => {
   });
 
   it('accepts only a bounded exact-JSON admin session and rejects redirects', async () => {
+    vi.useFakeTimers();
     const fetchImpl = async (_input: string | URL | Request, init?: RequestInit) => {
       expect(init?.redirect).toBe('error');
       expect(init?.cache).toBe('no-store');
@@ -1125,11 +1126,20 @@ describe('Hermes credential destination policy', () => {
         tokenType: 'spacetime-access'
       }), { headers: { 'content-type': 'application/json; charset=utf-8' } });
     };
-    await expect(requestAdminToken(
+    let resolved = false;
+    const request = requestAdminToken(
       'https://auth.warpkeep.com',
       TEST_SECRET,
       fetchImpl as typeof fetch
-    )).resolves.toBe('header.payload.signature');
+    ).then(token => {
+      resolved = true;
+      return token;
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(2_999);
+    expect(resolved).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(request).resolves.toBe('header.payload.signature');
   });
 
   it('rejects wrong-media and chunked oversized admin responses generically', async () => {
