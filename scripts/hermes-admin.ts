@@ -99,6 +99,7 @@ const DEFAULT_BRIDGE = 'https://auth.warpkeep.com';
 const CONNECT_TIMEOUT_MS = 30_000;
 const OPERATION_TIMEOUT_MS = 15_000;
 const MAX_ADMIN_TOKEN_RESPONSE_BYTES = 32 * 1_024;
+const ADMIN_TOKEN_CLOCK_SAFETY_MILLISECONDS = 3_000;
 const MAX_RESOURCE_BACKFILL_FOUNDERS = 100n;
 const GENESIS_GENERATION_V2_WORLD_CELLS = 1_261n;
 const GENESIS_GENERATION_V3_WORLD_CELLS = 10_000n;
@@ -980,7 +981,34 @@ export async function requestAdminToken(
   ) {
     fail('The Warpkeep admin bridge returned an invalid session.');
   }
+  try {
+    await awaitAdminTokenClockReadiness();
+  } catch {
+    fail('The Warpkeep admin bridge returned an invalid session.');
+  }
   return token;
+}
+
+type AdminTokenSleeper = (milliseconds: number) => Promise<void>;
+
+const sleepForAdminTokenReadiness: AdminTokenSleeper = milliseconds => (
+  new Promise(resolvePromise => setTimeout(resolvePromise, milliseconds))
+);
+
+/**
+ * Maincloud and the bridge can straddle a NumericDate clock boundary. Hold a
+ * freshly issued administrator token locally for one fixed elapsed-time
+ * window before the first connection. No retry or wall-clock assumption is
+ * involved; the module still performs every authoritative claim check.
+ */
+async function awaitAdminTokenClockReadiness(
+  sleep: AdminTokenSleeper = sleepForAdminTokenReadiness,
+): Promise<void> {
+  try {
+    await sleep(ADMIN_TOKEN_CLOCK_SAFETY_MILLISECONDS);
+  } catch {
+    fail('The Warpkeep admin bridge returned an invalid session.');
+  }
 }
 
 export function requireCredentialedProductionTarget(
