@@ -1,7 +1,7 @@
 # Versioning and releases
 
 Warpkeep uses semantic versions for the product and Git commit SHAs for builds.
-Alpha `0.3.19` is the current map-first worker release candidate. A version is
+Alpha `0.3.19` is the live map-first worker release. A version is
 described as live only after its protected review, matching client deployment,
 and production smoke test all succeed.
 
