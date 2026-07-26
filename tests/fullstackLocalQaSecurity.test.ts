@@ -330,10 +330,92 @@ describe('disposable connected local QA dependency and network boundaries', () =
 
     expect(browserSource).toContain("'.realm-node-worker-dispatch'");
     expect(browserSource).toContain("'.realm-cell-navigator__jump'");
+    expect(browserSource).toContain('for (let ordinal = 1; ordinal <= 4; ordinal += 1)');
+    expect(browserSource).toContain('new Set(dispatchedSiteKeys).size !== 4');
+    expect(browserSource).toContain(
+      "value.dispatchResourceKinds !== 'gold,food,wood,stone'"
+    );
+    expect(browserSource).toContain(
+      "value.fixtureResourceKinds !== 'gold,food,wood,stone'"
+    );
+    expect(browserSource).toContain(
+      "'.realm-resource-occupant-details[data-resource-occupant-details=\"true\"]'"
+    );
     expect(browserSource).not.toContain("workerPanel.querySelector('select')");
     expect(browserSource).not.toContain("buttonWithText('ASSIGN WORKER'");
     expect(appSource).toContain('data-local-fullstack-dispatch-q');
     expect(appSource).toContain('data-local-fullstack-dispatch-r');
+    expect(appSource).toContain('data-local-fullstack-dispatch-sites');
+    expect(appSource).toContain(
+      "['gold', availableSite('gold', realm?.goldSites, realm?.goldNodeOccupations)]"
+    );
+    expect(appSource).toContain(
+      "['food', availableSite('food', realm?.foodSites, realm?.foodNodeOccupations)]"
+    );
+    expect(appSource).toContain(
+      "['wood', availableSite('wood', realm?.woodSites, realm?.woodNodeOccupations)]"
+    );
+    expect(appSource).toContain(
+      "['stone', availableSite('stone', realm?.stoneSites, realm?.stoneNodeOccupations)]"
+    );
+  });
+
+  it('gates connected worker updates on a stable post-ready scene lifecycle', () => {
+    const browserSource = readFileSync(
+      resolve(process.cwd(), 'scripts/qa-observer/local-fullstack-browser-probe.mjs'),
+      'utf8'
+    );
+
+    for (const attribute of [
+      'data-renderer-generation',
+      'data-realm-scene-creation-count',
+      'data-realm-scene-disposal-count',
+      'data-realm-last-scene-recreation-reason',
+      'data-realm-first-ready',
+      'data-realm-blocking-loading-overlay-visible',
+      'data-realm-dynamic-reconciliation-count',
+      'data-realm-worker-layer-reconciliation-count',
+      'data-realm-route-layer-reconciliation-count',
+      'data-realm-worker-presented-count',
+      'data-realm-worker-animated-count',
+      'data-realm-worker-presence-count',
+      'data-realm-worker-visible-route-count',
+    ]) expect(browserSource).toContain(attribute);
+    expect(browserSource).toContain('new MutationObserver');
+    expect(browserSource).toContain('requestAnimationFrame(sampleBlockingLoadingOverlay)');
+    expect(browserSource).toContain("stage: 'dispatch-scene-lifecycle'");
+    expect(browserSource).toContain("stage: 'recall-one-scene-lifecycle'");
+    expect(browserSource).toContain("stage: 'recall-all-scene-lifecycle'");
+    expect(browserSource).toContain("stage: 'recall-one-world-reconciliation'");
+    expect(browserSource).toContain("stage: 'recall-all-world-reconciliation'");
+    expect(browserSource).toContain(
+      "stage: 'recall-all-completion-scene-lifecycle'"
+    );
+    expect(browserSource).toContain("stage: 'visibility-scene-lifecycle'");
+    expect(browserSource).toContain("document.dispatchEvent(new Event('visibilitychange'))");
+    expect(browserSource).toContain("menuAction(recallAllMenu, 'RECALL ALL TO KEEP')");
+    expect(browserSource).toContain(
+      "localStateCount('data-local-fullstack-deployed-workers') === 0"
+    );
+    expect(browserSource).toContain('value.dispatchedWorkerCount !== 4');
+    expect(browserSource).toContain('value.distinctDispatchSiteCount !== 4');
+    expect(browserSource).toContain('value.individualRecallConfirmed !== true');
+    expect(browserSource).toContain('value.recallAllConfirmed !== true');
+    expect(browserSource).toContain('value.returnCompletionConfirmed !== true');
+    expect(browserSource).toContain('value.releasedNodeConfirmed !== true');
+    expect(browserSource).toContain('value.nodeReuseConfirmed !== true');
+    expect(browserSource).toContain('value.visibilityCycleConfirmed !== true');
+    expect(browserSource).toContain("stage: 'worker-node-reuse'");
+    expect(browserSource).toContain("stage: 'reuse-scene-lifecycle'");
+    expect(browserSource).toContain('value.initialSceneCreationCount !== 1');
+    expect(browserSource).toContain('value.sceneGenerationChange !== 0');
+    expect(browserSource).toContain('value.sceneCreationChange !== 0');
+    expect(browserSource).toContain('value.sceneDisposalChange !== 0');
+    expect(browserSource).toContain('value.blockingLoadingOverlayFrames !== 0');
+    expect(browserSource).toContain('value.blockingLoadingOverlayInsertions !== 0');
+    expect(browserSource).toContain(
+      'value.blockingLoadingOverlayVisibleTransitions !== 0'
+    );
   });
 });
 

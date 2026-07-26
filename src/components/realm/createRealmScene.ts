@@ -524,6 +524,8 @@ export type RealmTerrainPresentationTelemetry = Readonly<{
 
 export type RealmSceneHandle = Readonly<{
   dispose: () => void;
+  /** Enables visible presentation work only after this scene owns the active canvas. */
+  setPresentationActive: (active: boolean) => void;
   reconcileLiveGatheringState: (state: RealmLiveGatheringState) => void;
   getCameraAttestation: () => RealmCameraAttestation;
   restoreCameraAttestation?: (attestation: RealmCameraAttestation) => void;
@@ -1968,23 +1970,29 @@ function initializeRealmScene(
   let contextLossCount = 0;
   let contextRestoreCount = 0;
   let ambientScheduler: RealmAmbientScheduler | null = null;
-  const ambientIsNeeded = () => workerLayer?.hasMovingWorkers() === true
-    || (
-      !options.reducedMotion
-      && Math.max(
-        renderPlan.grass.animationFrameCap,
-        REALM_WATER_ANIMATION_FRAME_CAPS[runtimeQuality.id]
-      ) > 0
-      && (
-      grassLayer?.isAnimationActive() === true
-      || decorations.animated
-      || goldNodeLayer?.hasMovingWagons() === true
-      || foodNodeLayer?.hasMovingWagons() === true
-      || woodNodeLayer?.hasMovingWagons() === true
-      || stoneNodeLayer?.hasMovingWagons() === true
-      || waterLayer?.isAnimationActive() === true
+  const ambientIsNeeded = () => (
+    !contextLost
+    && options.canvas.dataset.realmCanvasActive !== 'false'
+    && (
+      workerLayer?.hasMovingWorkers() === true
+      || (
+        !options.reducedMotion
+        && Math.max(
+          renderPlan.grass.animationFrameCap,
+          REALM_WATER_ANIMATION_FRAME_CAPS[runtimeQuality.id]
+        ) > 0
+        && (
+          grassLayer?.isAnimationActive() === true
+          || decorations.animated
+          || goldNodeLayer?.hasMovingWagons() === true
+          || foodNodeLayer?.hasMovingWagons() === true
+          || woodNodeLayer?.hasMovingWagons() === true
+          || stoneNodeLayer?.hasMovingWagons() === true
+          || waterLayer?.isAnimationActive() === true
+        )
       )
-    );
+    )
+  );
   const disableGrassPresentation = () => {
     const layer = grassLayer;
     if (!layer) return false;
@@ -2669,6 +2677,10 @@ function initializeRealmScene(
   const interactionRoot = options.canvas.closest<HTMLElement>('.realm-map-screen')
     ?? options.canvas.parentElement
     ?? options.canvas;
+  const sceneAcceptsInteraction = () => (
+    options.canvas.dataset.realmCanvasActive !== 'false'
+    && (!interactionRoot.matches('.realm-map-screen') || interactionRoot.isConnected)
+  );
   const pointerGestures = createRealmPointerGestureCoordinator({
     capturePointer: (pointerId) => {
       if (typeof interactionRoot.setPointerCapture !== 'function') return false;
@@ -2713,11 +2725,13 @@ function initializeRealmScene(
   });
 
   const dispatchHover = (target: RealmInteractionTarget | null) => {
+    if (!sceneAcceptsInteraction()) return;
     options.onTargetHover?.(target);
     options.onHover(target?.coord ?? null);
   };
 
   const dispatchSelect = (target: RealmInteractionTarget) => {
+    if (!sceneAcceptsInteraction()) return;
     options.onTargetSelect?.(target);
     options.onSelect(target.coord);
   };
@@ -2775,7 +2789,12 @@ function initializeRealmScene(
       hoverAnimationFrame = 0;
       const point = pendingHoverPoint;
       pendingHoverPoint = null;
-      if (cleanup.isDisposed() || pointerGestures.snapshot().pointerCount > 0 || !point) return;
+      if (
+        cleanup.isDisposed()
+        || !sceneAcceptsInteraction()
+        || pointerGestures.snapshot().pointerCount > 0
+        || !point
+      ) return;
       dispatchHover(pick(point.x, point.y));
     });
   };
@@ -2813,7 +2832,11 @@ function initializeRealmScene(
     directGestureFrame = 0;
     const gesture = pendingDirectGesture;
     pendingDirectGesture = null;
-    if (!gesture || cleanup.isDisposed()) return;
+    if (
+      !gesture
+      || cleanup.isDisposed()
+      || !sceneAcceptsInteraction()
+    ) return;
     cameraController.manipulateViewport(
       gesture.startX,
       gesture.startY,
@@ -2905,6 +2928,7 @@ function initializeRealmScene(
   );
 
   const handlePointerDown = (event: PointerEvent) => {
+    if (!sceneAcceptsInteraction()) return;
     const lane = laneForTarget(event.target);
     if (contextLost && lane !== null) {
       event.preventDefault();
@@ -2932,6 +2956,7 @@ function initializeRealmScene(
   };
 
   const handlePointerMove = (event: PointerEvent) => {
+    if (!sceneAcceptsInteraction()) return;
     if (contextLost && (
       contextLostBlocksTarget(event.target)
       || pointerGestures.snapshot().pointerCount > 0
@@ -2982,6 +3007,7 @@ function initializeRealmScene(
   };
 
   const handlePointerUp = (event: PointerEvent) => {
+    if (!sceneAcceptsInteraction()) return;
     if (contextLost && (
       contextLostBlocksTarget(event.target)
       || pointerGestures.snapshot().pointerCount > 0
@@ -3011,6 +3037,7 @@ function initializeRealmScene(
   };
 
   const handlePointerCancel = (event: PointerEvent) => {
+    if (!sceneAcceptsInteraction()) return;
     if (contextLost && (
       contextLostBlocksTarget(event.target)
       || pointerGestures.snapshot().pointerCount > 0
@@ -3029,6 +3056,7 @@ function initializeRealmScene(
   };
 
   const handleLostPointerCapture = (event: PointerEvent) => {
+    if (!sceneAcceptsInteraction()) return;
     if (contextLost) return;
     labelPointerTargets.delete(event.pointerId);
     const result = pointerGestures.lostCapture(event.pointerId);
@@ -3049,12 +3077,17 @@ function initializeRealmScene(
     syncGesturePhase(result);
   };
 
-  const handleWindowBlur = () => cancelAllPointers(pointerGestures.blur());
+  const handleWindowBlur = () => {
+    if (!sceneAcceptsInteraction()) return;
+    cancelAllPointers(pointerGestures.blur());
+  };
   const handlePointerVisibility = () => {
+    if (!sceneAcceptsInteraction()) return;
     cancelAllPointers(pointerGestures.visibilityChanged(document.hidden));
   };
 
   const handleLabelClickCapture = (event: MouseEvent) => {
+    if (!sceneAcceptsInteraction()) return;
     if (contextLost && contextLostBlocksTarget(event.target)) {
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -3074,6 +3107,7 @@ function initializeRealmScene(
   };
 
   const handlePointerLeave = () => {
+    if (!sceneAcceptsInteraction()) return;
     if (contextLost) return;
     if (pointerGestures.snapshot().pointerCount === 0) {
       cancelPendingHover();
@@ -3081,6 +3115,7 @@ function initializeRealmScene(
     }
   };
   const handleWheel = (event: WheelEvent) => {
+    if (!sceneAcceptsInteraction()) return;
     const lane = laneForTarget(event.target);
     if (contextLost && lane !== null) {
       event.preventDefault();
@@ -3534,6 +3569,12 @@ function initializeRealmScene(
 
   let liveReconciliationCount = 0;
   let rejectedLiveReconciliationCount = 0;
+  let workerLayerReconciliationCount = 0;
+  let routeLayerReconciliationCount = 0;
+  options.canvas.dataset.realmDynamicReconciliationCount = '0';
+  options.canvas.dataset.realmDynamicReconciliationRejected = '0';
+  options.canvas.dataset.realmWorkerLayerReconciliationCount = '0';
+  options.canvas.dataset.realmRouteLayerReconciliationCount = '0';
   const recordLiveReconciliationTelemetry = (accepted: boolean) => {
     if (accepted) liveReconciliationCount += 1;
     else rejectedLiveReconciliationCount += 1;
@@ -3615,8 +3656,21 @@ function initializeRealmScene(
       foodNodeLayer?.reconcile(state.foodNodes);
       woodNodeLayer?.reconcile(state.woodNodes);
       stoneNodeLayer?.reconcile(state.stoneNodes);
-      if (preparedWorkerLayer) installWorkerLayer(preparedWorkerLayer, nextWorkers.length);
-      else workerLayer?.reconcile(nextWorkers);
+      if (preparedWorkerLayer) {
+        installWorkerLayer(preparedWorkerLayer, nextWorkers.length);
+        workerLayerReconciliationCount += 1;
+        routeLayerReconciliationCount += 1;
+      } else if (workerLayer) {
+        workerLayer.reconcile(nextWorkers);
+        workerLayerReconciliationCount += 1;
+        routeLayerReconciliationCount += 1;
+      }
+      options.canvas.dataset.realmWorkerLayerReconciliationCount = String(
+        workerLayerReconciliationCount
+      );
+      options.canvas.dataset.realmRouteLayerReconciliationCount = String(
+        routeLayerReconciliationCount
+      );
     } else {
       preparedWorkerLayer?.dispose();
     }
@@ -3648,6 +3702,12 @@ function initializeRealmScene(
 
   return {
     dispose: disposeScene,
+    setPresentationActive: (active) => {
+      if (cleanup.isDisposed()) return;
+      options.canvas.dataset.realmCanvasActive = String(active);
+      ambientScheduler?.setActive(active && ambientIsNeeded());
+      if (active) render();
+    },
     reconcileLiveGatheringState,
     getCameraAttestation,
     restoreCameraAttestation: (attestation) => {

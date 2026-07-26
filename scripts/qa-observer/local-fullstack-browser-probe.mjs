@@ -213,14 +213,22 @@ async function exerciseLocalFullstackJourney(session) {
           workerCount: probe?.getAttribute('data-local-fullstack-workers') ?? 'missing'
         };
       }
-      const dispatchQ = readyProbe.getAttribute('data-local-fullstack-dispatch-q');
-      const dispatchR = readyProbe.getAttribute('data-local-fullstack-dispatch-r');
+      const initialDispatchSiteProjection = readyProbe.getAttribute(
+        'data-local-fullstack-dispatch-sites'
+      );
+      const fixtureDispatchSites = initialDispatchSiteProjection?.split(';').flatMap(
+        (entry) => {
+          const match = /^(gold|food|wood|stone):(-?\\d+),(-?\\d+)$/.exec(entry);
+          return match
+            ? [{ resourceKind: match[1], q: match[2], r: match[3] }]
+            : [];
+        }
+      ) ?? [];
       if (
-        dispatchQ === null
-        || dispatchR === null
-        || !/^-?\\d+$/.test(dispatchQ)
-        || !/^-?\\d+$/.test(dispatchR)
-      ) return { stage: 'worker-dispatch-site' };
+        fixtureDispatchSites.length !== 4
+        || fixtureDispatchSites.map((site) => site.resourceKind).join(',')
+          !== 'gold,food,wood,stone'
+      ) return { stage: 'worker-dispatch-sites' };
       const enterAuthenticated = await waitFor(() => buttonWithText('ENTER REALM'));
       if (!(enterAuthenticated instanceof HTMLButtonElement)) {
         return { stage: 'authenticated-enter' };
@@ -237,6 +245,414 @@ async function exerciseLocalFullstackJourney(session) {
           : undefined;
       });
       if (!(realm instanceof HTMLElement)) return { stage: 'realm-ready' };
+      const exactLifecycleCount = (name) => {
+        const value = realm.getAttribute(name);
+        return value !== null && /^(?:0|[1-9]\\d{0,9})$/.test(value)
+          ? Number(value)
+          : undefined;
+      };
+      const readSceneLifecycle = () => {
+        if (document.querySelector('main.realm-map-screen') !== realm) return undefined;
+        const generation = exactLifecycleCount('data-renderer-generation');
+        const creationCount = exactLifecycleCount('data-realm-scene-creation-count');
+        const disposalCount = exactLifecycleCount('data-realm-scene-disposal-count');
+        const reason = realm.getAttribute('data-realm-last-scene-recreation-reason');
+        if (
+          generation === undefined
+          || creationCount === undefined
+          || disposalCount === undefined
+          || realm.getAttribute('data-realm-first-ready') !== 'true'
+          || realm.getAttribute('data-realm-blocking-loading-overlay-visible') !== 'false'
+          || ![
+            'initial-entry',
+            'graphics-quality-change',
+            'reduced-motion-material-change',
+            'canonical-topology-change',
+            'renderer-recovery',
+            'explicit-retry'
+          ].includes(reason ?? '')
+        ) return undefined;
+        return { generation, creationCount, disposalCount, reason };
+      };
+      const initialLifecycle = readSceneLifecycle();
+      if (
+        initialLifecycle === undefined
+        || initialLifecycle.creationCount !== 1
+        || initialLifecycle.disposalCount !== 0
+        || initialLifecycle.reason !== 'initial-entry'
+      ) {
+        return {
+          stage: 'scene-telemetry-ready',
+          sceneGeneration: initialLifecycle?.generation ?? -1,
+          sceneCreationCount: initialLifecycle?.creationCount ?? -1,
+          sceneDisposalCount: initialLifecycle?.disposalCount ?? -1,
+          sceneReason: initialLifecycle?.reason ?? 'invalid'
+        };
+      }
+      const readDynamicPresentation = () => {
+        const canvas = realm.querySelector(
+          'canvas[data-realm-canvas-active="true"]'
+        );
+        if (!(canvas instanceof HTMLCanvasElement)) return undefined;
+        const count = (name) => {
+          const value = canvas.getAttribute(name);
+          return value !== null && /^(?:0|[1-9]\\d{0,9})$/.test(value)
+            ? Number(value)
+            : undefined;
+        };
+        const dynamicReconciliations = count('data-realm-dynamic-reconciliation-count');
+        const rejectedReconciliations = count('data-realm-dynamic-reconciliation-rejected');
+        const workerReconciliations = count(
+          'data-realm-worker-layer-reconciliation-count'
+        );
+        const routeReconciliations = count(
+          'data-realm-route-layer-reconciliation-count'
+        );
+        const workerPresentedCount = count('data-realm-worker-presented-count');
+        const workerAnimatedCount = count('data-realm-worker-animated-count');
+        const workerPresenceCount = count('data-realm-worker-presence-count');
+        const visibleRouteCount = count('data-realm-worker-visible-route-count');
+        const routeMismatchCount = count('data-realm-worker-route-mismatch-count');
+        const rejectedRouteCount = count('data-realm-worker-rejected-route-count');
+        if ([
+          dynamicReconciliations,
+          rejectedReconciliations,
+          workerReconciliations,
+          routeReconciliations,
+          workerPresentedCount,
+          workerAnimatedCount,
+          workerPresenceCount,
+          visibleRouteCount,
+          routeMismatchCount,
+          rejectedRouteCount
+        ].some((value) => value === undefined)) return undefined;
+        return {
+          dynamicReconciliations,
+          rejectedReconciliations,
+          workerReconciliations,
+          routeReconciliations,
+          workerPresentedCount,
+          workerAnimatedCount,
+          workerPresenceCount,
+          visibleRouteCount,
+          routeMismatchCount,
+          rejectedRouteCount
+        };
+      };
+      const initialDynamicPresentation = readDynamicPresentation();
+      if (initialDynamicPresentation === undefined) {
+        return { stage: 'dynamic-telemetry-ready' };
+      }
+
+      const lifecycleObservation = {
+        blockingOverlayFrames: 0,
+        blockingOverlayInsertions: 0,
+        blockingOverlayVisibleTransitions: 0
+      };
+      const observedBlockingOverlays = new WeakSet();
+      const isInitialLoadingOverlay = (element) => (
+        element instanceof HTMLElement
+        && element.matches('.realm-map-screen__loading')
+        && /Surveying the bright lowlands|Preparing every canonical castle/i.test(
+          element.textContent ?? ''
+        )
+      );
+      const recordBlockingOverlay = (element) => {
+        if (
+          isInitialLoadingOverlay(element)
+          && !observedBlockingOverlays.has(element)
+        ) {
+          observedBlockingOverlays.add(element);
+          lifecycleObservation.blockingOverlayInsertions += 1;
+        }
+      };
+      const lifecycleObserver = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+          if (
+            mutation.type === 'attributes'
+            && mutation.target === realm
+            && realm.getAttribute('data-realm-blocking-loading-overlay-visible') === 'true'
+          ) lifecycleObservation.blockingOverlayVisibleTransitions += 1;
+          if (mutation.type !== 'childList') continue;
+          const parentOverlay = mutation.target instanceof Element
+            ? mutation.target.closest('.realm-map-screen__loading')
+            : undefined;
+          if (parentOverlay) recordBlockingOverlay(parentOverlay);
+          for (const node of mutation.addedNodes) {
+            if (!(node instanceof Element)) continue;
+            recordBlockingOverlay(node);
+            for (const overlay of node.querySelectorAll('.realm-map-screen__loading')) {
+              recordBlockingOverlay(overlay);
+            }
+          }
+        }
+      });
+      lifecycleObserver.observe(document.documentElement, {
+        attributeFilter: ['data-realm-blocking-loading-overlay-visible'],
+        attributes: true,
+        childList: true,
+        subtree: true
+      });
+      let lifecycleAnimationFrame = 0;
+      const sampleBlockingLoadingOverlay = () => {
+        const overlay = document.querySelector('.realm-map-screen__loading');
+        if (isInitialLoadingOverlay(overlay) && visible(overlay)) {
+          lifecycleObservation.blockingOverlayFrames += 1;
+        }
+        lifecycleAnimationFrame = requestAnimationFrame(sampleBlockingLoadingOverlay);
+      };
+      lifecycleAnimationFrame = requestAnimationFrame(sampleBlockingLoadingOverlay);
+      const settleLifecycleObservation = () => new Promise((resolve) => {
+        setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(resolve)), 400);
+      });
+      const lifecycleRemainsStable = () => {
+        const current = readSceneLifecycle();
+        return current !== undefined
+          && current.generation === initialLifecycle.generation
+          && current.creationCount === initialLifecycle.creationCount
+          && current.disposalCount === initialLifecycle.disposalCount
+          && current.reason === initialLifecycle.reason
+          && lifecycleObservation.blockingOverlayFrames === 0
+          && lifecycleObservation.blockingOverlayInsertions === 0
+          && lifecycleObservation.blockingOverlayVisibleTransitions === 0;
+      };
+      const stopLifecycleObservation = () => {
+        lifecycleObserver.disconnect();
+        cancelAnimationFrame(lifecycleAnimationFrame);
+      };
+      try {
+      let menuChurnCount = 0;
+      let resourceInspectorChurnCount = 0;
+      let workerInspectorChurnCount = 0;
+      const dispatchedSiteKeys = [];
+      const dispatchResourceKinds = [];
+      const localStateCount = (name) => {
+        const value = readyProbe.getAttribute(name);
+        return value !== null && /^(?:0|[1-9]\\d?)$/.test(value)
+          ? Number(value)
+          : undefined;
+      };
+      const closeResourceInspector = async () => {
+        const inspector = document.querySelector([
+          '.gold-mine-inspection',
+          '.food-farm-inspection',
+          '.logging-camp-inspection',
+          '.stone-quarry-inspection'
+        ].join(', '));
+        if (!(inspector instanceof HTMLElement)) return true;
+        const close = inspector.querySelector('button[aria-label^="CLOSE "]');
+        if (!(close instanceof HTMLButtonElement)) return false;
+        close.click();
+        return Boolean(await waitFor(() => !document.querySelector([
+          '.gold-mine-inspection',
+          '.food-farm-inspection',
+          '.logging-camp-inspection',
+          '.stone-quarry-inspection'
+        ].join(', '))));
+      };
+      const openRealmMenu = async () => {
+        const trigger = realm.querySelector('.realm-profile-trigger');
+        if (!(trigger instanceof HTMLButtonElement)) return undefined;
+        const existing = document.querySelector('.realm-profile-menu__panel');
+        if (existing instanceof HTMLElement) return existing;
+        if (trigger.getAttribute('aria-expanded') === 'true') {
+          trigger.click();
+          const closed = await waitFor(() => (
+            trigger.getAttribute('aria-expanded') === 'false'
+          ));
+          if (!closed) return undefined;
+        }
+        trigger.click();
+        const menu = await waitFor(() => document.querySelector(
+          '.realm-profile-menu__panel'
+        ));
+        if (menu instanceof HTMLElement) menuChurnCount += 1;
+        return menu instanceof HTMLElement ? menu : undefined;
+      };
+      const menuAction = (menu, label) => [...menu.querySelectorAll('button')].find(
+        (button) => (button.querySelector('strong')?.textContent ?? '').trim() === label
+      );
+      const openWorkers = async () => {
+        const menu = await openRealmMenu();
+        if (!(menu instanceof HTMLElement)) return undefined;
+        const action = menuAction(menu, 'WORKERS');
+        if (!(action instanceof HTMLButtonElement) || action.disabled) return undefined;
+        action.click();
+        const center = await waitFor(() => document.querySelector(
+          '.worker-command-center'
+        ));
+        return center instanceof HTMLElement ? center : undefined;
+      };
+      const jumpToResourceSite = async (site) => {
+        const menu = await openRealmMenu();
+        if (!(menu instanceof HTMLElement)) return false;
+        const explore = menuAction(menu, 'EXPLORE');
+        if (!(explore instanceof HTMLButtonElement) || explore.disabled) return false;
+        explore.click();
+        const navigator = await waitFor(() => document.querySelector(
+          '.realm-cell-navigator__dialog'
+        ));
+        const jump = navigator?.querySelector('.realm-cell-navigator__jump');
+        const qInput = jump?.querySelector('input[id$="-q"]');
+        const rInput = jump?.querySelector('input[id$="-r"]');
+        if (
+          !(jump instanceof HTMLFormElement)
+          || !(qInput instanceof HTMLInputElement)
+          || !(rInput instanceof HTMLInputElement)
+        ) return false;
+        const setInputValue = (input, value) => {
+          const descriptor = Object.getOwnPropertyDescriptor(
+            HTMLInputElement.prototype,
+            'value'
+          );
+          descriptor?.set?.call(input, value);
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        };
+        setInputValue(qInput, site.q);
+        setInputValue(rInput, site.r);
+        jump.requestSubmit();
+        const mapFocused = await waitFor(() => (
+          !document.querySelector('.realm-cell-navigator__dialog')
+          && document.activeElement === realm
+        ));
+        if (!mapFocused) return false;
+        realm.dispatchEvent(new KeyboardEvent('keydown', {
+          bubbles: true,
+          cancelable: true,
+          key: 'Enter'
+        }));
+        return true;
+      };
+      const dispatchWorker = async (
+        ordinal,
+        deployedCount,
+        site,
+        previousPresentation
+      ) => {
+        if (!await closeResourceInspector()) {
+          return { error: 'worker-' + ordinal + '-inspector-close' };
+        }
+        if (!await jumpToResourceSite(site)) {
+          return { error: 'worker-' + ordinal + '-map-navigation' };
+        }
+        const dispatch = await waitFor(() => document.querySelector(
+          '.realm-node-worker-dispatch'
+        ));
+        if (!(dispatch instanceof HTMLElement)) {
+          return { error: 'worker-' + ordinal + '-node-inspector' };
+        }
+        resourceInspectorChurnCount += 1;
+        const resourceHeading = dispatch.querySelector('h3')?.textContent ?? '';
+        const resourceKind = ['gold', 'food', 'wood', 'stone'].find((kind) => (
+          new RegExp(kind, 'i').test(resourceHeading)
+        ));
+        if (resourceKind === undefined || resourceKind !== site.resourceKind) {
+          return { error: 'worker-' + ordinal + '-resource-kind' };
+        }
+        const workerLabel = 'Worker ' + ordinal;
+        const occupantWorkerLabel = 'Worker ' + String(ordinal).padStart(2, '0');
+        const sendWorker = [...dispatch.querySelectorAll('button')].find((button) => (
+          button instanceof HTMLButtonElement
+          && !button.disabled
+          && (button.getAttribute('aria-label') ?? '').startsWith(workerLabel + ' —')
+        ));
+        if (!(sendWorker instanceof HTMLButtonElement)) {
+          return { error: 'worker-' + ordinal + '-dispatch-control' };
+        }
+        sendWorker.click();
+        const deployed = await waitFor(() => (
+          localStateCount('data-local-fullstack-deployed-workers') === deployedCount
+            ? readyProbe
+            : undefined
+        ), 10_000);
+        if (!(deployed instanceof HTMLOutputElement)) {
+          return { error: 'worker-' + ordinal + '-dispatch-confirmation' };
+        }
+        const occupant = await waitFor(() => {
+          const details = document.querySelector(
+            '.realm-resource-occupant-details[data-resource-occupant-details="true"]'
+          );
+          return details instanceof HTMLElement
+            && new RegExp(occupantWorkerLabel, 'i').test(details.textContent ?? '')
+            ? details
+            : undefined;
+        }, 10_000);
+        if (!(occupant instanceof HTMLElement)) {
+          return { error: 'worker-' + ordinal + '-node-reconciliation' };
+        }
+        const presentation = await waitFor(() => {
+          const current = readDynamicPresentation();
+          return current
+            && current.dynamicReconciliations
+              > previousPresentation.dynamicReconciliations
+            && current.workerReconciliations
+              > previousPresentation.workerReconciliations
+            && current.routeReconciliations
+              > previousPresentation.routeReconciliations
+            && current.workerPresentedCount === 4
+            && current.workerAnimatedCount >= 1
+            && current.visibleRouteCount >= 1
+            && current.routeMismatchCount === 0
+            && current.rejectedRouteCount === 0
+            && current.rejectedReconciliations === 0
+            ? current
+            : undefined;
+        }, 10_000);
+        if (presentation === undefined) {
+          return {
+            error: 'worker-' + ordinal + '-world-reconciliation',
+            presentation: readDynamicPresentation()
+          };
+        }
+        await settleLifecycleObservation();
+        if (!lifecycleRemainsStable()) {
+          return { error: 'worker-' + ordinal + '-scene-lifecycle' };
+        }
+        if (!await closeResourceInspector()) {
+          return { error: 'worker-' + ordinal + '-inspector-dismissal' };
+        }
+        return { site, resourceKind, presentation };
+      };
+      const simulateVisibilityCycle = async () => {
+        const ownHidden = Object.getOwnPropertyDescriptor(document, 'hidden');
+        const ownVisibility = Object.getOwnPropertyDescriptor(document, 'visibilityState');
+        let hidden = false;
+        const restore = () => {
+          if (ownHidden) Object.defineProperty(document, 'hidden', ownHidden);
+          else delete document.hidden;
+          if (ownVisibility) {
+            Object.defineProperty(document, 'visibilityState', ownVisibility);
+          } else delete document.visibilityState;
+        };
+        try {
+          Object.defineProperty(document, 'hidden', {
+            configurable: true,
+            get: () => hidden
+          });
+          Object.defineProperty(document, 'visibilityState', {
+            configurable: true,
+            get: () => hidden ? 'hidden' : 'visible'
+          });
+          hidden = true;
+          document.dispatchEvent(new Event('visibilitychange'));
+          if (!document.hidden || document.visibilityState !== 'hidden') return false;
+          await new Promise((resolve) => setTimeout(resolve, 96));
+          hidden = false;
+          document.dispatchEvent(new Event('visibilitychange'));
+          if (document.hidden || document.visibilityState !== 'visible') return false;
+          await new Promise((resolve) => requestAnimationFrame(() => (
+            requestAnimationFrame(resolve)
+          )));
+          return true;
+        } catch {
+          return false;
+        } finally {
+          restore();
+          document.dispatchEvent(new Event('visibilitychange'));
+        }
+      };
+
       const resourceRail = realm.querySelector('[aria-label="Your resources"]');
       const resourceControls = resourceRail?.querySelectorAll('button').length ?? 0;
       const pfpReady = await waitFor(() => (
@@ -244,16 +660,9 @@ async function exerciseLocalFullstackJourney(session) {
       ));
       if (!(pfpReady instanceof HTMLCanvasElement)) return { stage: 'profile-image' };
 
-      const menuTrigger = realm.querySelector('.realm-profile-trigger');
-      if (!(menuTrigger instanceof HTMLButtonElement)) return { stage: 'realm-menu-trigger' };
-      menuTrigger.click();
-      const realmMenu = await waitFor(() => document.querySelector(
-        '.realm-profile-menu__panel'
-      ));
+      const realmMenu = await openRealmMenu();
       if (!(realmMenu instanceof HTMLElement)) return { stage: 'realm-menu' };
-      const workersButton = [...realmMenu.querySelectorAll('button')].find((button) => (
-        (button.querySelector('strong')?.textContent ?? '').trim() === 'WORKERS'
-      ));
+      const workersButton = menuAction(realmMenu, 'WORKERS');
       if (!(workersButton instanceof HTMLButtonElement) || workersButton.disabled) {
         return { stage: 'workers-button' };
       }
@@ -276,6 +685,7 @@ async function exerciseLocalFullstackJourney(session) {
 
       const workerPanel = await waitFor(() => document.querySelector('.worker-inspection'));
       if (!(workerPanel instanceof HTMLElement)) return { stage: 'worker-panel' };
+      workerInspectorChurnCount += 1;
       if (!/Select an available resource node in the Realm/i.test(workerPanel.textContent ?? '')) {
         return { stage: 'worker-map-guidance' };
       }
@@ -298,141 +708,382 @@ async function exerciseLocalFullstackJourney(session) {
       const reopenedRealmMenu = await waitFor(() => document.querySelector(
         '.realm-profile-menu__panel'
       ));
-      const explore = [...(reopenedRealmMenu?.querySelectorAll('button') ?? [])].find(
-        (button) => (button.querySelector('strong')?.textContent ?? '').trim() === 'EXPLORE'
-      );
-      if (!(explore instanceof HTMLButtonElement)) return { stage: 'worker-map-explore' };
-      explore.click();
-
-      const navigator = await waitFor(() => document.querySelector(
-        '.realm-cell-navigator__dialog'
+      if (!(reopenedRealmMenu instanceof HTMLElement)) {
+        return { stage: 'realm-menu-reopen' };
+      }
+      const settings = menuAction(reopenedRealmMenu, 'SETTINGS');
+      if (!(settings instanceof HTMLButtonElement) || settings.disabled) {
+        return { stage: 'settings-open' };
+      }
+      settings.click();
+      const settingsPanel = await waitFor(() => document.querySelector(
+        '.warpkeep-settings__panel'
       ));
-      const jump = navigator?.querySelector('.realm-cell-navigator__jump');
-      const qInput = jump?.querySelector('input[id$="-q"]');
-      const rInput = jump?.querySelector('input[id$="-r"]');
+      if (!(settingsPanel instanceof HTMLElement)) {
+        return { stage: 'settings-panel' };
+      }
+      const settingsBack = buttonWithText('BACK TO REALM MENU', settingsPanel);
+      if (!(settingsBack instanceof HTMLButtonElement)) {
+        return { stage: 'settings-close' };
+      }
+      settingsBack.click();
+      const menuAfterSettings = await waitFor(() => document.querySelector(
+        '.realm-profile-menu__panel'
+      ));
+      const closeMenu = menuAfterSettings?.querySelector(
+        'button[aria-label="Close Realm menu"]'
+      );
+      if (!(closeMenu instanceof HTMLButtonElement)) {
+        return { stage: 'realm-menu-close' };
+      }
+      closeMenu.click();
+      if (!await waitFor(() => (
+        !document.querySelector('.realm-profile-menu__panel')
+      ))) return { stage: 'realm-menu-close-confirmation' };
+
+      let dispatchedDynamicPresentation = initialDynamicPresentation;
+      for (let ordinal = 1; ordinal <= 4; ordinal += 1) {
+        const dispatched = await dispatchWorker(
+          ordinal,
+          ordinal,
+          fixtureDispatchSites[ordinal - 1],
+          dispatchedDynamicPresentation
+        );
+        if ('error' in dispatched) {
+          return {
+            stage: dispatched.error,
+            ...(dispatched.presentation ?? {})
+          };
+        }
+        dispatchedSiteKeys.push(
+          dispatched.site.resourceKind + ':' + dispatched.site.q + ',' + dispatched.site.r
+        );
+        dispatchResourceKinds.push(dispatched.resourceKind);
+        dispatchedDynamicPresentation = dispatched.presentation;
+      }
       if (
-        !(jump instanceof HTMLFormElement)
-        || !(qInput instanceof HTMLInputElement)
-        || !(rInput instanceof HTMLInputElement)
-      ) return { stage: 'worker-map-coordinate' };
-      const setInputValue = (input, value) => {
-        const descriptor = Object.getOwnPropertyDescriptor(
-          HTMLInputElement.prototype,
-          'value'
-        );
-        descriptor?.set?.call(input, value);
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-      };
-      setInputValue(qInput, dispatchQ);
-      setInputValue(rInput, dispatchR);
-      jump.requestSubmit();
+        new Set(dispatchedSiteKeys).size !== 4
+        || localStateCount('data-local-fullstack-recallable-workers') !== 4
+      ) return { stage: 'four-worker-projection' };
 
-      const mapFocused = await waitFor(() => (
-        !document.querySelector('.realm-cell-navigator__dialog')
-        && document.activeElement === realm
-      ));
-      if (!mapFocused) return { stage: 'worker-map-focus' };
-      realm.dispatchEvent(new KeyboardEvent('keydown', {
-        bubbles: true,
-        cancelable: true,
-        key: 'Enter'
-      }));
+      await new Promise((resolve) => setTimeout(resolve, 1_200));
+      await settleLifecycleObservation();
+      if (!lifecycleRemainsStable()) return { stage: 'dispatch-scene-lifecycle' };
 
-      const nodeDispatch = await waitFor(() => document.querySelector(
-        '.realm-node-worker-dispatch'
+      const visibilityCycleConfirmed = await simulateVisibilityCycle();
+      if (!visibilityCycleConfirmed) return { stage: 'visibility-cycle' };
+      await settleLifecycleObservation();
+      if (!lifecycleRemainsStable()) return { stage: 'visibility-scene-lifecycle' };
+
+      const recallCenter = await openWorkers();
+      if (!(recallCenter instanceof HTMLElement)) {
+        return { stage: 'worker-recall-command-center' };
+      }
+      const firstRecallRow = [...recallCenter.querySelectorAll(
+        '.worker-command-center__roster > li'
+      )].find((row) => (
+        (row.querySelector('.worker-command-center__identity strong')?.textContent ?? '')
+          .trim() === 'Worker 1'
       ));
-      const sendWorker = [...(nodeDispatch?.querySelectorAll('button') ?? [])].find(
-        (button) => button instanceof HTMLButtonElement && !button.disabled
+      const firstRecallRecord = firstRecallRow?.querySelector(
+        '.worker-command-center__worker'
       );
-      if (!(sendWorker instanceof HTMLButtonElement)) {
-        return { stage: 'worker-map-dispatch' };
+      if (!(firstRecallRecord instanceof HTMLButtonElement)) {
+        return { stage: 'worker-recall-record' };
       }
-      sendWorker.click();
-      const deployed = await waitFor(() => (
-        document.querySelector('[data-local-fullstack-deployed-workers="1"]')
+      firstRecallRecord.click();
+      const activeWorkerPanel = await waitFor(() => document.querySelector(
+        '.worker-inspection'
       ));
-      if (!(deployed instanceof HTMLOutputElement)) return { stage: 'worker-dispatched' };
-
-      const recallable = await waitFor(() => (
-        document.querySelector('[data-local-fullstack-recallable-workers="1"]')
-      ));
-      if (!(recallable instanceof HTMLOutputElement)) {
-        return { stage: 'worker-recall-projection' };
+      if (
+        !(activeWorkerPanel instanceof HTMLElement)
+        || !/EN ROUTE|GATHERING/i.test(activeWorkerPanel.textContent ?? '')
+      ) return { stage: 'active-worker-inspector' };
+      workerInspectorChurnCount += 1;
+      const activeWorkerBack = activeWorkerPanel.querySelector(
+        'button[aria-label="Back to workers"]'
+      );
+      if (!(activeWorkerBack instanceof HTMLButtonElement)) {
+        return { stage: 'active-worker-inspector-close' };
       }
-
-      let recall = await waitFor(() => {
-        const inspectionRecall = document.querySelector(
-          '.realm-resource-occupant-details__recall, .worker-inspection__recall'
-        );
-        const rosterRecall = document.querySelector(
-          '.worker-command-center__recall'
-        );
-        const button = inspectionRecall instanceof HTMLButtonElement
-          ? inspectionRecall
-          : rosterRecall;
-        return button instanceof HTMLButtonElement && !button.disabled
-          ? button
+      activeWorkerBack.click();
+      const reopenedRecallCenter = await waitFor(() => document.querySelector(
+        '.worker-command-center'
+      ));
+      const recalledWorkerRow = [...(reopenedRecallCenter?.querySelectorAll(
+        '.worker-command-center__roster > li'
+      ) ?? [])].find((row) => (
+        (row.querySelector('.worker-command-center__identity strong')?.textContent ?? '')
+          .trim() === 'Worker 1'
+      ));
+      const recallOne = recalledWorkerRow?.querySelector(
+        '.worker-command-center__recall'
+      );
+      if (!(recallOne instanceof HTMLButtonElement) || recallOne.disabled) {
+        return { stage: 'worker-recall-one-control' };
+      }
+      recallOne.click();
+      const recallOneProjected = await waitFor(() => (
+        localStateCount('data-local-fullstack-recallable-workers') === 3
+          ? readyProbe
+          : undefined
+      ), 10_000);
+      if (!(recallOneProjected instanceof HTMLOutputElement)) {
+        return { stage: 'worker-recall-one-projection' };
+      }
+      const recalledOneDynamicPresentation = await waitFor(() => {
+        const current = readDynamicPresentation();
+        return current
+          && current.dynamicReconciliations
+            > dispatchedDynamicPresentation.dynamicReconciliations
+          && current.workerReconciliations
+            > dispatchedDynamicPresentation.workerReconciliations
+          && current.routeReconciliations
+            > dispatchedDynamicPresentation.routeReconciliations
+          && current.workerPresentedCount === 4
+          && current.workerAnimatedCount >= 1
+          && current.visibleRouteCount >= 1
+          && current.routeMismatchCount === 0
+          && current.rejectedRouteCount === 0
+          && current.rejectedReconciliations === 0
+          ? current
           : undefined;
-      }, 2_000);
-      if (!(recall instanceof HTMLButtonElement)) {
-        const profileTrigger = realm.querySelector('.realm-profile-trigger');
-        if (!(profileTrigger instanceof HTMLButtonElement)) {
-          return { stage: 'worker-recall-menu-trigger' };
-        }
-        if (profileTrigger.getAttribute('aria-expanded') === 'true') {
-          profileTrigger.click();
-          const closed = await waitFor(() => (
-            profileTrigger.getAttribute('aria-expanded') === 'false'
-          ));
-          if (!closed) return { stage: 'worker-recall-menu-close' };
-        }
-        profileTrigger.click();
-        const refreshedMenu = await waitFor(() => document.querySelector(
-          '.realm-profile-menu__panel'
-        ));
-        if (!(refreshedMenu instanceof HTMLElement)) {
-          return { stage: 'worker-recall-menu-open' };
-        }
-        const refreshedWorkersButton = [...refreshedMenu.querySelectorAll('button')].find(
-          (button) => (button.querySelector('strong')?.textContent ?? '').trim() === 'WORKERS'
-        );
-        if (
-          !(refreshedWorkersButton instanceof HTMLButtonElement)
-          || refreshedWorkersButton.disabled
-        ) return { stage: 'worker-recall-workers-button' };
-        refreshedWorkersButton.click();
-        recall = await waitFor(() => {
-          const candidate = document.querySelector('.worker-command-center__recall');
-          return candidate instanceof HTMLButtonElement && !candidate.disabled
-            ? candidate
-            : undefined;
-        });
-      }
-      if (!(recall instanceof HTMLButtonElement)) {
-        const candidate = document.querySelector(
-          '.realm-resource-occupant-details__recall, .worker-inspection__recall, .worker-command-center__recall'
-        );
+      }, 10_000);
+      if (recalledOneDynamicPresentation === undefined) {
         return {
-          stage: candidate instanceof HTMLButtonElement
-            ? 'worker-recall-disabled'
-            : 'worker-recall-missing'
+          stage: 'recall-one-world-reconciliation',
+          ...readDynamicPresentation()
         };
       }
-      recall.click();
-      const recalled = await waitFor(() => (
-        document.querySelector('[data-local-fullstack-deployed-workers="0"]')
-        ?? document.querySelector(
-          '.worker-inspection__error, .worker-command-center__error'
-        )
-      ));
-      if (recalled?.matches(
-        '.worker-inspection__error, .worker-command-center__error'
-      )) {
-        return { stage: 'worker-recall-rejected' };
+      await settleLifecycleObservation();
+      if (!lifecycleRemainsStable()) return { stage: 'recall-one-scene-lifecycle' };
+      const recallOneCompleted = await waitFor(() => (
+        localStateCount('data-local-fullstack-deployed-workers') === 3
+          ? readyProbe
+          : undefined
+      ), 20_000);
+      if (!(recallOneCompleted instanceof HTMLOutputElement)) {
+        return { stage: 'worker-recall-one-completion' };
       }
-      if (!(recalled instanceof HTMLOutputElement)) return { stage: 'worker-recalled' };
+      const recallOneCompletedPresentation = await waitFor(() => {
+        const current = readDynamicPresentation();
+        return current
+          && current.dynamicReconciliations
+            > recalledOneDynamicPresentation.dynamicReconciliations
+          && current.workerReconciliations
+            > recalledOneDynamicPresentation.workerReconciliations
+          && current.routeReconciliations
+            > recalledOneDynamicPresentation.routeReconciliations
+          && current.workerPresentedCount === 4
+          && current.workerAnimatedCount >= 1
+          && current.visibleRouteCount >= 1
+          && current.routeMismatchCount === 0
+          && current.rejectedRouteCount === 0
+          && current.rejectedReconciliations === 0
+          ? current
+          : undefined;
+      }, 10_000);
+      if (recallOneCompletedPresentation === undefined) {
+        return {
+          stage: 'recall-one-completion-reconciliation',
+          ...readDynamicPresentation()
+        };
+      }
+      await settleLifecycleObservation();
+      if (!lifecycleRemainsStable()) {
+        return { stage: 'recall-one-completion-scene-lifecycle' };
+      }
 
+      const backToMenuForRecallAll = reopenedRecallCenter?.querySelector(
+        'button[aria-label="Back to Realm menu"]'
+      );
+      if (!(backToMenuForRecallAll instanceof HTMLButtonElement)) {
+        return { stage: 'recall-all-menu-return' };
+      }
+      backToMenuForRecallAll.click();
+      const recallAllMenu = await waitFor(() => document.querySelector(
+        '.realm-profile-menu__panel'
+      ));
+      if (!(recallAllMenu instanceof HTMLElement)) {
+        return { stage: 'recall-all-menu' };
+      }
+      const recallAll = menuAction(recallAllMenu, 'RECALL ALL TO KEEP');
+      if (!(recallAll instanceof HTMLButtonElement) || recallAll.disabled) {
+        return { stage: 'recall-all-control' };
+      }
+      recallAll.click();
+      const recallAllProjected = await waitFor(() => (
+        localStateCount('data-local-fullstack-recallable-workers') === 0
+          ? readyProbe
+          : undefined
+      ), 10_000);
+      if (!(recallAllProjected instanceof HTMLOutputElement)) {
+        return { stage: 'recall-all-projection' };
+      }
+      const recalledAllDynamicPresentation = await waitFor(() => {
+        const current = readDynamicPresentation();
+        return current
+          && current.dynamicReconciliations
+            > recallOneCompletedPresentation.dynamicReconciliations
+          && current.workerReconciliations
+            > recallOneCompletedPresentation.workerReconciliations
+          && current.routeReconciliations
+            > recallOneCompletedPresentation.routeReconciliations
+          && current.workerPresentedCount === 4
+          && current.workerAnimatedCount >= 1
+          && current.visibleRouteCount >= 1
+          && current.routeMismatchCount === 0
+          && current.rejectedRouteCount === 0
+          && current.rejectedReconciliations === 0
+          ? current
+          : undefined;
+      }, 10_000);
+      if (recalledAllDynamicPresentation === undefined) {
+        return {
+          stage: 'recall-all-world-reconciliation',
+          ...readDynamicPresentation()
+        };
+      }
+      await settleLifecycleObservation();
+      if (!lifecycleRemainsStable()) return { stage: 'recall-all-scene-lifecycle' };
+      const allReturned = await waitFor(() => (
+        localStateCount('data-local-fullstack-deployed-workers') === 0
+          ? readyProbe
+          : undefined
+      ), 30_000);
+      if (!(allReturned instanceof HTMLOutputElement)) {
+        return { stage: 'recall-all-completion' };
+      }
+      const returnedDynamicPresentation = await waitFor(() => {
+        const current = readDynamicPresentation();
+        return current
+          && current.dynamicReconciliations
+            > recalledAllDynamicPresentation.dynamicReconciliations
+          && current.workerReconciliations
+            > recalledAllDynamicPresentation.workerReconciliations
+          && current.routeReconciliations
+            > recalledAllDynamicPresentation.routeReconciliations
+          && current.workerPresentedCount === 4
+          && current.workerAnimatedCount >= 1
+          && current.workerPresenceCount === 0
+          && current.visibleRouteCount === 0
+          && current.routeMismatchCount === 0
+          && current.rejectedRouteCount === 0
+          && current.rejectedReconciliations === 0
+          ? current
+          : undefined;
+      }, 10_000);
+      if (returnedDynamicPresentation === undefined) {
+        return {
+          stage: 'recall-all-completion-reconciliation',
+          ...readDynamicPresentation()
+        };
+      }
+      const releasedSites = await waitFor(() => (
+        readyProbe.getAttribute('data-local-fullstack-dispatch-sites')
+          === initialDispatchSiteProjection
+          ? true
+          : undefined
+      ), 10_000);
+      if (!releasedSites) return { stage: 'worker-node-release' };
+      const closeAfterRecallAll = recallAllMenu.querySelector(
+        'button[aria-label="Close Realm menu"]'
+      );
+      if (closeAfterRecallAll instanceof HTMLButtonElement) closeAfterRecallAll.click();
+      if (!await waitFor(() => (
+        !document.querySelector('.realm-profile-menu__panel')
+      ))) return { stage: 'recall-all-menu-close' };
+      await settleLifecycleObservation();
+      if (!lifecycleRemainsStable()) {
+        return { stage: 'recall-all-completion-scene-lifecycle' };
+      }
+
+      const reusedWorker = await dispatchWorker(
+        1,
+        1,
+        fixtureDispatchSites[0],
+        returnedDynamicPresentation
+      );
+      if ('error' in reusedWorker) {
+        return {
+          stage: 'reuse-' + reusedWorker.error,
+          ...(reusedWorker.presentation ?? {})
+        };
+      }
+      const nodeReuseConfirmed = (
+        reusedWorker.resourceKind === fixtureDispatchSites[0].resourceKind
+        && reusedWorker.site.q === fixtureDispatchSites[0].q
+        && reusedWorker.site.r === fixtureDispatchSites[0].r
+        && readyProbe.getAttribute('data-local-fullstack-dispatch-sites')
+          !== initialDispatchSiteProjection
+      );
+      if (!nodeReuseConfirmed) return { stage: 'worker-node-reuse' };
+      const reuseRecallCenter = await openWorkers();
+      if (!(reuseRecallCenter instanceof HTMLElement)) {
+        return { stage: 'reuse-recall-command-center' };
+      }
+      const reuseRecall = reuseRecallCenter.querySelector(
+        '.worker-command-center__footer button'
+      );
+      if (!(reuseRecall instanceof HTMLButtonElement) || reuseRecall.disabled) {
+        return { stage: 'reuse-recall-control' };
+      }
+      reuseRecall.click();
+      const reuseReturned = await waitFor(() => (
+        localStateCount('data-local-fullstack-deployed-workers') === 0
+          ? readyProbe
+          : undefined
+      ), 20_000);
+      if (!(reuseReturned instanceof HTMLOutputElement)) {
+        return { stage: 'reuse-return-completion' };
+      }
+      const restoredDynamicPresentation = await waitFor(() => {
+        const current = readDynamicPresentation();
+        return current
+          && current.dynamicReconciliations
+            > reusedWorker.presentation.dynamicReconciliations
+          && current.workerReconciliations
+            > reusedWorker.presentation.workerReconciliations
+          && current.routeReconciliations
+            > reusedWorker.presentation.routeReconciliations
+          && current.workerPresentedCount === 4
+          && current.workerPresenceCount === 0
+          && current.visibleRouteCount === 0
+          && current.routeMismatchCount === 0
+          && current.rejectedRouteCount === 0
+          && current.rejectedReconciliations === 0
+          ? current
+          : undefined;
+      }, 10_000);
+      if (restoredDynamicPresentation === undefined) {
+        return {
+          stage: 'reuse-return-reconciliation',
+          ...readDynamicPresentation()
+        };
+      }
+      const reusedSiteReleasedAgain = await waitFor(() => (
+        readyProbe.getAttribute('data-local-fullstack-dispatch-sites')
+          === initialDispatchSiteProjection
+          ? true
+          : undefined
+      ), 10_000);
+      if (!reusedSiteReleasedAgain) return { stage: 'reuse-node-release' };
+      const reuseBackToMenu = reuseRecallCenter.querySelector(
+        'button[aria-label="Back to Realm menu"]'
+      );
+      if (reuseBackToMenu instanceof HTMLButtonElement) reuseBackToMenu.click();
+      const reuseMenu = await waitFor(() => document.querySelector(
+        '.realm-profile-menu__panel'
+      ));
+      const reuseCloseMenu = reuseMenu?.querySelector(
+        'button[aria-label="Close Realm menu"]'
+      );
+      if (reuseCloseMenu instanceof HTMLButtonElement) reuseCloseMenu.click();
+      await settleLifecycleObservation();
+      if (!lifecycleRemainsStable()) return { stage: 'reuse-scene-lifecycle' };
+
+      const finalLifecycle = readSceneLifecycle();
+      if (finalLifecycle === undefined) return { stage: 'scene-telemetry-final' };
       const html = document.documentElement.innerHTML;
       return {
         stage: 'complete',
@@ -444,9 +1095,48 @@ async function exerciseLocalFullstackJourney(session) {
         storageEmpty: localStorage.length === 0 && sessionStorage.length === 0,
         rendererReady: true,
         profileReady: true,
-        dispatchConfirmed: true,
-        recallConfirmed: true
+        dispatchedWorkerCount: dispatchedSiteKeys.length,
+        distinctDispatchSiteCount: new Set(dispatchedSiteKeys).size,
+        dispatchResourceKinds: dispatchResourceKinds.join(','),
+        fixtureResourceKinds: fixtureDispatchSites
+          .map((site) => site.resourceKind)
+          .join(','),
+        individualRecallConfirmed: true,
+        recallAllConfirmed: true,
+        returnCompletionConfirmed: true,
+        releasedNodeConfirmed: true,
+        nodeReuseConfirmed,
+        visibilityCycleConfirmed,
+        menuChurnCount,
+        resourceInspectorChurnCount,
+        workerInspectorChurnCount,
+        initialSceneCreationCount: initialLifecycle.creationCount,
+        sceneGenerationChange: finalLifecycle.generation - initialLifecycle.generation,
+        sceneCreationChange: finalLifecycle.creationCount - initialLifecycle.creationCount,
+        sceneDisposalChange: finalLifecycle.disposalCount - initialLifecycle.disposalCount,
+        blockingLoadingOverlayFrames: lifecycleObservation.blockingOverlayFrames,
+        blockingLoadingOverlayInsertions: lifecycleObservation.blockingOverlayInsertions,
+        blockingLoadingOverlayVisibleTransitions:
+          lifecycleObservation.blockingOverlayVisibleTransitions,
+        dynamicReconciliationChange:
+          restoredDynamicPresentation.dynamicReconciliations
+          - initialDynamicPresentation.dynamicReconciliations,
+        workerReconciliationChange:
+          restoredDynamicPresentation.workerReconciliations
+          - initialDynamicPresentation.workerReconciliations,
+        routeReconciliationChange:
+          restoredDynamicPresentation.routeReconciliations
+          - initialDynamicPresentation.routeReconciliations,
+        dispatchedWorldWorkerCount: dispatchedDynamicPresentation.workerPresentedCount,
+        dispatchedAnimatedWorkerCount: dispatchedDynamicPresentation.workerAnimatedCount,
+        dispatchedWorldPresenceCount: dispatchedDynamicPresentation.workerPresenceCount,
+        dispatchedVisibleRouteCount: dispatchedDynamicPresentation.visibleRouteCount,
+        returnedWorldPresenceCount: restoredDynamicPresentation.workerPresenceCount,
+        returnedVisibleRouteCount: restoredDynamicPresentation.visibleRouteCount
       };
+      } finally {
+        stopLifecycleObservation();
+      }
     })()`,
     awaitPromise: true,
     returnByValue: true,
@@ -466,11 +1156,47 @@ async function exerciseLocalFullstackJourney(session) {
     || value.storageEmpty !== true
     || value.rendererReady !== true
     || value.profileReady !== true
-    || value.dispatchConfirmed !== true
-    || value.recallConfirmed !== true
+    || value.dispatchedWorkerCount !== 4
+    || value.distinctDispatchSiteCount !== 4
+    || value.dispatchResourceKinds !== 'gold,food,wood,stone'
+    || value.fixtureResourceKinds !== 'gold,food,wood,stone'
+    || value.individualRecallConfirmed !== true
+    || value.recallAllConfirmed !== true
+    || value.returnCompletionConfirmed !== true
+    || value.releasedNodeConfirmed !== true
+    || value.nodeReuseConfirmed !== true
+    || value.visibilityCycleConfirmed !== true
+    || !Number.isSafeInteger(value.menuChurnCount)
+    || value.menuChurnCount < 6
+    || !Number.isSafeInteger(value.resourceInspectorChurnCount)
+    || value.resourceInspectorChurnCount !== 5
+    || !Number.isSafeInteger(value.workerInspectorChurnCount)
+    || value.workerInspectorChurnCount < 2
+    || value.initialSceneCreationCount !== 1
+    || value.sceneGenerationChange !== 0
+    || value.sceneCreationChange !== 0
+    || value.sceneDisposalChange !== 0
+    || value.blockingLoadingOverlayFrames !== 0
+    || value.blockingLoadingOverlayInsertions !== 0
+    || value.blockingLoadingOverlayVisibleTransitions !== 0
+    || !Number.isSafeInteger(value.dynamicReconciliationChange)
+    || value.dynamicReconciliationChange < 7
+    || !Number.isSafeInteger(value.workerReconciliationChange)
+    || value.workerReconciliationChange < 7
+    || !Number.isSafeInteger(value.routeReconciliationChange)
+    || value.routeReconciliationChange < 7
+    || value.dispatchedWorldWorkerCount !== 4
+    || !Number.isSafeInteger(value.dispatchedAnimatedWorkerCount)
+    || value.dispatchedAnimatedWorkerCount < 1
+    || !Number.isSafeInteger(value.dispatchedWorldPresenceCount)
+    || value.dispatchedWorldPresenceCount < 0
+    || !Number.isSafeInteger(value.dispatchedVisibleRouteCount)
+    || value.dispatchedVisibleRouteCount < 1
+    || value.returnedWorldPresenceCount !== 0
+    || value.returnedVisibleRouteCount !== 0
   ) {
     const safeStage = typeof value?.stage === 'string'
-      && /^[a-z-]{1,32}$/.test(value.stage)
+      && /^[a-z0-9-]{1,64}$/.test(value.stage)
       ? value.stage
       : 'unknown';
     const safeAuthorityState = safeStage === 'authority-ready'
@@ -481,8 +1207,45 @@ async function exerciseLocalFullstackJourney(session) {
           : 'invalid';
       }).join('/')})`
       : '';
+    const safeSceneState = safeStage === 'scene-telemetry-ready'
+      ? ` (${['sceneGeneration', 'sceneCreationCount', 'sceneDisposalCount'].map((key) => {
+        const count = value?.[key];
+        return Number.isSafeInteger(count) && count >= -1 && count <= 1_000_000
+          ? String(count)
+          : 'invalid';
+      }).join('/')}/${
+        typeof value?.sceneReason === 'string'
+        && /^[a-z-]{1,48}$/.test(value.sceneReason)
+          ? value.sceneReason
+          : 'invalid'
+      })`
+      : '';
+    const safeDynamicState = (
+      safeStage.endsWith('world-reconciliation')
+      || safeStage.endsWith('completion-reconciliation')
+    )
+      ? ` (${[
+          'dynamicReconciliations',
+          'rejectedReconciliations',
+          'workerReconciliations',
+          'routeReconciliations',
+          'workerPresentedCount',
+          'workerAnimatedCount',
+          'workerPresenceCount',
+          'visibleRouteCount',
+          'routeMismatchCount',
+          'rejectedRouteCount'
+        ].map((key) => {
+          const count = value?.[key];
+          return Number.isSafeInteger(count) && count >= 0 && count <= 1_000_000
+            ? String(count)
+            : 'invalid';
+        }).join('/')})`
+      : '';
     throw new LocalFullstackBrowserError(
-      `Disposable browser journey failed at ${safeStage}${safeAuthorityState}.`
+      `Disposable browser journey failed at ${safeStage}${
+        safeAuthorityState || safeSceneState || safeDynamicState
+      }.`
     );
   }
   return Object.freeze({ ...value });
@@ -865,8 +1628,11 @@ async function main() {
     const result = await runLocalFullstackBrowserProbe();
     process.stdout.write(
       'Warpkeep disposable local full-stack QA passed: one synthetic auth/bootstrap/Terms '
-      + 'journey, one canonical 10,000-cell browser realm, one four-worker '
-      + `dispatch/recall lifecycle, and visual aggregate ${JSON.stringify(result.visual)}.\n`
+      + 'journey, one canonical 10,000-cell browser realm, one Gold/Food/Wood/Stone '
+      + 'four-worker dispatch, individual recall, Recall All, and return-completion '
+      + `lifecycle with released-node reuse, plus visual aggregate ${
+        JSON.stringify(result.visual)
+      }.\n`
     );
   } catch (error) {
     const detail = error instanceof LocalFullstackRuntimeError

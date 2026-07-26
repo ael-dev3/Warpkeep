@@ -143,9 +143,36 @@ function createLocalBridge(
 function LocalFullstackStateProbe() {
   const auth = useFarcasterAuth();
   const backend = useWarpkeepBackend();
-  const dispatchSite = backend.state.realm?.goldSites?.find((site) => (
+  const realm = backend.state.realm;
+  const genericOccupations = new Set(realm?.workerOccupations?.map(
+    (occupation) => `${occupation.resourceKind}:${occupation.siteId}`
+  ));
+  const availableSite = (
+    resourceKind: 'gold' | 'food' | 'wood' | 'stone',
+    sites: readonly Readonly<{
+      active: boolean;
+      siteId: string;
+      q: number;
+      r: number;
+    }>[] | undefined,
+    legacyOccupations: readonly Readonly<{ siteId: string }>[] | undefined
+  ) => sites?.find((site) => (
     site.active
-    && !backend.state.realm?.goldNodeOccupations?.some(
+    && !genericOccupations.has(`${resourceKind}:${site.siteId}`)
+    && !legacyOccupations?.some((occupation) => occupation.siteId === site.siteId)
+  ));
+  const dispatchSites = [
+    ['gold', availableSite('gold', realm?.goldSites, realm?.goldNodeOccupations)],
+    ['food', availableSite('food', realm?.foodSites, realm?.foodNodeOccupations)],
+    ['wood', availableSite('wood', realm?.woodSites, realm?.woodNodeOccupations)],
+    ['stone', availableSite('stone', realm?.stoneSites, realm?.stoneNodeOccupations)]
+  ] as const;
+  const dispatchSiteProjection = dispatchSites.flatMap(([resourceKind, site]) => (
+    site ? [`${resourceKind}:${site.q},${site.r}`] : []
+  )).join(';');
+  const dispatchSite = realm?.goldSites?.find((site) => (
+    site.active
+    && !realm?.goldNodeOccupations?.some(
       (occupation) => occupation.siteId === site.siteId
     )
   ));
@@ -165,6 +192,7 @@ function LocalFullstackStateProbe() {
       data-local-fullstack-workers={String(workerCount)}
       data-local-fullstack-dispatch-q={dispatchSite?.q}
       data-local-fullstack-dispatch-r={dispatchSite?.r}
+      data-local-fullstack-dispatch-sites={dispatchSiteProjection}
       hidden
     >
       Disposable local full-stack state

@@ -42,6 +42,12 @@
   touch-action: none;
 }
 
+.realm-map-screen__canvas[data-realm-canvas-active="false"] {
+  z-index: -1;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .realm-map-screen__canvas[data-dragging="true"] {
   cursor: grabbing;
 }
@@ -118,6 +124,22 @@
   border-color: var(--realm-electrum);
   outline: 2px solid var(--realm-electrum);
   outline-offset: 2px;
+}
+
+.realm-map-screen__visual-update {
+  position: absolute;
+  z-index: 11;
+  right: max(0.75rem, env(safe-area-inset-right));
+  bottom: max(0.75rem, env(safe-area-inset-bottom));
+  padding: 0.48rem 0.7rem;
+  border: 1px solid rgb(227 193 111 / 42%);
+  border-radius: 999px;
+  background: rgb(13 8 18 / 82%);
+  box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 24%);
+  color: var(--realm-electrum);
+  font-size: 0.75rem;
+  line-height: 1;
+  pointer-events: none;
 }
 
 .realm-map-screen[data-renderer="loading"] > .realm-map-screen__canvas {

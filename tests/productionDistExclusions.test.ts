@@ -112,6 +112,7 @@ describe('production output exclusions', () => {
     'fullstackLocalQaBootstrap',
     'virtual:warpkeep-local-fullstack-bootstrap',
     'warpkeep-local-fullstack',
+    'data-local-fullstack-dispatch-sites',
     'LOCAL_QA_CHANNEL_NOT_A_REAL_PROOF',
     'i.imgur.com/warpkeep-local-keeper.png',
   ])('rejects connected-local-QA marker %s from any production chunk', (marker) => {

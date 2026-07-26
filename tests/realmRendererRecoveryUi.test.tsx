@@ -40,6 +40,7 @@ function sceneHandle() {
   const noOp = () => undefined;
   return {
     dispose: vi.fn(),
+    setPresentationActive: vi.fn(),
     reconcileLiveGatheringState: noOp,
     getCameraAttestation: () => null,
     getSceneBuildSequence: () => 1,
@@ -79,6 +80,40 @@ describe('Realm renderer recovery UI', () => {
     vi.restoreAllMocks();
   });
 
+  it('never installs a handle disposed by synchronous scene construction failure', () => {
+    const failedHandle = sceneHandle();
+    sceneState.create.mockImplementationOnce((options: CreateRealmSceneOptions) => {
+      options.onRendererFailure?.({
+        code: 'scene-build-failed',
+        retryable: true,
+        phase: 'loading',
+        message: 'Synthetic synchronous construction failure.'
+      });
+      // createRealmScene owns this disposal in its failure callback contract.
+      failedHandle.dispose();
+      return failedHandle;
+    });
+    const snapshot = createCanonicalGenesisSnapshot(CANONICAL_TEST_FID);
+    render(
+      <RealmMapScreen
+        identity={{ fid: CANONICAL_TEST_FID, username: 'warpkeeper' }}
+        snapshot={snapshot}
+        onRequestReturn={vi.fn()}
+        resources={createReadyResourceState(CANONICAL_TEST_FID)}
+      />
+    );
+
+    const realm = screen.getByRole('main', { name: 'Hegemony realm' });
+    expect(failedHandle.dispose).toHaveBeenCalledOnce();
+    expect(sceneState.create).toHaveBeenCalledTimes(2);
+    expect(realm.getAttribute('data-renderer-state')).toBe('loading');
+    expect(realm.getAttribute('data-realm-scene-disposal-count')).toBe('1');
+
+    const failedOptions = sceneState.create.mock.calls[0]![0] as CreateRealmSceneOptions;
+    act(() => failedOptions.onCastlesReady?.(snapshot.castles.length));
+    expect(realm.getAttribute('data-renderer-state')).toBe('loading');
+  });
+
   it('offers a functional manual retry after context restoration times out', () => {
     vi.useFakeTimers();
     const snapshot = createCanonicalGenesisSnapshot(CANONICAL_TEST_FID);
@@ -93,6 +128,9 @@ describe('Realm renderer recovery UI', () => {
     );
     expect(sceneState.create).toHaveBeenCalledOnce();
     const firstOptions = sceneState.create.mock.calls[0]![0] as CreateRealmSceneOptions;
+    const firstHandle = sceneState.create.mock.results[0]!.value as ReturnType<
+      typeof sceneHandle
+    >;
 
     act(() => firstOptions.onCastlesReady?.(snapshot.castles.length));
     const realm = screen.getByRole('main', { name: 'Hegemony realm' });
@@ -118,8 +156,18 @@ describe('Realm renderer recovery UI', () => {
 
     fireEvent.click(retry);
     expect(sceneState.create).toHaveBeenCalledTimes(2);
+    expect(firstHandle.dispose).toHaveBeenCalledOnce();
     expect(realm.getAttribute('data-renderer-state')).toBe('loading');
     expect(realm.getAttribute('aria-busy')).toBe('true');
+
+    const retryOptions = sceneState.create.mock.calls[1]![0] as CreateRealmSceneOptions;
+    act(() => retryOptions.onRendererFailure?.({
+      code: 'context-lost',
+      retryable: true,
+      phase: 'loading'
+    }));
+    expect(realm.getAttribute('data-renderer-state')).toBe('recovering');
+    expect(realm.getAttribute('data-renderer-state')).not.toBe('ready');
   });
 
   it('lets a transient negative WebGL probe recover through explicit retry', () => {

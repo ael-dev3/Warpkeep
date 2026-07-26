@@ -63,6 +63,7 @@ const forbiddenContent = Object.freeze([
   'virtual:warpkeep-local-fullstack-bootstrap',
   'warpkeep-local-fullstack-bootstrap',
   'warpkeep-local-fullstack',
+  'data-local-fullstack-dispatch-sites',
   'LOCAL_QA_CHANNEL_NOT_A_REAL_PROOF',
   'LOCAL_QA_SYNTHETIC_MESSAGE',
   'Disposable full-stack QA',

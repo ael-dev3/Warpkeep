@@ -951,6 +951,8 @@ describe('realm scene setup cleanup', () => {
     });
     expect(canvas.dataset.realmWorkerMarkerCount).toBe('0');
     expect(canvas.dataset.realmDynamicReconciliationCount).toBe('1');
+    expect(canvas.dataset.realmWorkerLayerReconciliationCount).toBe('1');
+    expect(canvas.dataset.realmRouteLayerReconciliationCount).toBe('1');
 
     sceneHandle.reconcileLiveGatheringState({
       goldNodes: [],
@@ -964,6 +966,8 @@ describe('realm scene setup cleanup', () => {
     expect(canvas.dataset.realmWorkerMarkerCount).toBe('1');
     expect(canvas.dataset.realmDynamicReconciliationCount).toBe('2');
     expect(canvas.dataset.realmDynamicReconciliationRejected).toBe('0');
+    expect(canvas.dataset.realmWorkerLayerReconciliationCount).toBe('2');
+    expect(canvas.dataset.realmRouteLayerReconciliationCount).toBe('2');
     expect(sceneHandle.getSceneBuildSequence()).toBe(buildSequence);
     expect(after.sceneId).toBe(before.sceneId);
     expect(after.canvasId).toBe(before.canvasId);
@@ -1283,6 +1287,75 @@ describe('realm scene setup cleanup', () => {
     expect(onTargetHover).toHaveBeenCalledWith(null);
     expect(onHover).toHaveBeenCalledOnce();
     expect(onHover).toHaveBeenCalledWith(null);
+    scene.dispose();
+  });
+
+  it('keeps an inactive replacement scene inert until its canvas is activated', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(200);
+    const root = document.createElement('main');
+    root.className = 'realm-map-screen';
+    const canvas = document.createElement('canvas');
+    canvas.dataset.realmCanvasActive = 'false';
+    root.append(canvas);
+    document.body.append(root);
+    const onHover = vi.fn();
+    const onTargetHover = vi.fn();
+    const onSelect = vi.fn();
+    const scene = createRealmScene(createOptions(canvas, {
+      reducedMotion: true,
+      surface: createRealmTerrainSurface('inactive-replacement-worker', 4, 5),
+      workers: [outboundWorkerRecord()],
+      onHover,
+      onTargetHover,
+      onSelect
+    }));
+    const ambient = ambientSchedulerState.creations.at(-1)!;
+    onHover.mockClear();
+    onTargetHover.mockClear();
+    expect(ambient.isActive()).toBe(false);
+
+    const wheel = new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      deltaY: 120
+    });
+    canvas.dispatchEvent(wheel);
+    const pointer = dispatchPointer(canvas, 'pointerdown', {
+      pointerId: 91,
+      clientX: 20,
+      clientY: 20
+    });
+
+    expect(wheel.defaultPrevented).toBe(false);
+    expect(pointer.defaultPrevented).toBe(false);
+    expect(onTargetHover).not.toHaveBeenCalled();
+    expect(onHover).not.toHaveBeenCalled();
+    expect(onSelect).not.toHaveBeenCalled();
+
+    scene.setPresentationActive(true);
+    expect(canvas.dataset.realmCanvasActive).toBe('true');
+    expect(ambient.isActive()).toBe(true);
+    canvas.dispatchEvent(new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      deltaY: 120
+    }));
+    expect(onTargetHover).toHaveBeenCalledWith(null);
+    expect(onHover).toHaveBeenCalledWith(null);
+
+    onTargetHover.mockClear();
+    onHover.mockClear();
+    root.remove();
+    const detachedWheel = new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      deltaY: 120
+    });
+    canvas.dispatchEvent(detachedWheel);
+    expect(detachedWheel.defaultPrevented).toBe(false);
+    expect(onTargetHover).not.toHaveBeenCalled();
+    expect(onHover).not.toHaveBeenCalled();
+
     scene.dispose();
   });
 
