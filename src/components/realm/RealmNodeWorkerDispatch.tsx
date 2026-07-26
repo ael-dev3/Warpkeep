@@ -35,7 +35,9 @@ export type RealmNodeWorkerDispatchProps = Readonly<{
   resourceKind: RealmEconomicResourceKey;
   siteId: string;
   workers: readonly RealmWorkerPublicPresentation[];
-  onDispatchWorker: RealmNodeWorkerDispatchHandler;
+  onDispatchWorker?: RealmNodeWorkerDispatchHandler;
+  /** Localized reason commands remain read-only while public rows stay visible. */
+  controlsStatus?: string;
   /** Stable inspector control used only to recover genuinely orphaned focus. */
   focusFallbackRef?: RefObject<HTMLButtonElement | null>;
 }>;
@@ -86,6 +88,7 @@ export function RealmNodeWorkerDispatch({
   siteId,
   workers,
   onDispatchWorker,
+  controlsStatus,
   focusFallbackRef
 }: RealmNodeWorkerDispatchProps) {
   const [state, setState] = useState<DispatchState>({ phase: 'idle' });
@@ -103,6 +106,7 @@ export function RealmNodeWorkerDispatch({
     .sort()
     .join('|');
   const statusId = `${id}-worker-dispatch-status`;
+  const controlsStatusId = `${id}-worker-controls-status`;
   const resourceLabel = RESOURCE_LABELS[resourceKind];
 
   useEffect(() => {
@@ -164,7 +168,8 @@ export function RealmNodeWorkerDispatch({
 
   const dispatch = async (worker: RealmWorkerPublicPresentation) => {
     if (
-      worker.status !== 'idle'
+      !onDispatchWorker
+      || worker.status !== 'idle'
       || commandInFlightRef.current
       || state.phase === 'submitting'
       || state.phase === 'submitted'
@@ -225,21 +230,28 @@ export function RealmNodeWorkerDispatch({
         <p>KEEP WORKERS</p>
         <h3 id={`${id}-worker-dispatch-title`}>Send a worker for {resourceLabel}</h3>
       </div>
-      <p className="realm-node-worker-dispatch__guidance">
-        Choose a ready worker. Busy workers remain visible but cannot be reassigned.
+      <p
+        className="realm-node-worker-dispatch__guidance"
+        id={controlsStatus ? controlsStatusId : undefined}
+        role={controlsStatus ? 'status' : undefined}
+      >
+        {controlsStatus
+          ? controlsStatus
+          : 'Choose a ready worker. Busy workers remain visible but cannot be reassigned.'}
       </p>
       <ol aria-label={`Your workers for this ${resourceLabel} site`}>
         {roster.map((worker) => {
           const submitting = state.phase === 'submitting' && state.workerId === worker.workerId;
           const ready = worker.status === 'idle';
           const disabled = !ready
+            || onDispatchWorker === undefined
             || commandInFlight
             || state.phase === 'submitting'
             || state.phase === 'submitted';
           return (
             <li key={worker.workerId}>
               <button
-                aria-describedby={statusId}
+                aria-describedby={controlsStatus ? controlsStatusId : statusId}
                 aria-label={`${realmWorkerLabel(worker.ordinal)} — ${
                   submitting ? 'DISPATCHING' : realmWorkerStatusLabel(worker)
                 }`}

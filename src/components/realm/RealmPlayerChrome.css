@@ -297,6 +297,33 @@
   line-height: 1.4;
 }
 
+.realm-profile-menu__worker-sync {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.52rem 0.62rem;
+  border: 1px solid rgb(202 166 236 / 30%);
+  border-radius: 0.45rem;
+  background: rgb(74 47 93 / 22%);
+  color: #e3d7e9;
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+
+.realm-profile-menu__worker-sync p {
+  margin: 0;
+}
+
+.realm-profile-menu__panel nav .realm-profile-menu__worker-sync button {
+  width: max-content;
+  min-height: 2rem;
+  padding: 0.38rem 0.52rem;
+  border-color: rgb(231 199 121 / 34%);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
 .realm-profile-menu__active-wagons > p {
   margin: 0 0 0.08rem;
   color: var(--realm-lavender);

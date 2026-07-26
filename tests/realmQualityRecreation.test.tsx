@@ -22,6 +22,13 @@ const mocked = vi.hoisted(() => {
       siteId: string;
       coord: { q: number; r: number };
     }[];
+    stoneNodes?: readonly {
+      availability: 'available' | 'outbound' | 'gathering' | 'returning' | 'unavailable';
+    }[];
+    workers?: readonly {
+      workerId: string;
+      status: 'idle' | 'outbound' | 'gathering' | 'returning';
+    }[];
     quality: { id: string };
     reducedMotion: boolean;
     onCastlesReady?: (castleCount: number) => void;
@@ -487,7 +494,13 @@ function workerOccupationRealm(
     ownCastleId: snapshot.ownCastle.castleId,
     system: snapshot.workerSystem,
     workers: snapshot.workerWorkers,
-    occupations: snapshot.workerOccupations
+    occupations: snapshot.workerOccupations,
+    resourceSites: [{
+      resourceKind: 'stone',
+      siteId: site.siteId,
+      q: site.q,
+      r: site.r
+    }]
   });
   if (!publicProjection) throw new Error('missing ready public worker fixture projection');
   const workerProjection: ReadyWorkerProjection = Object.freeze({
@@ -1332,11 +1345,30 @@ describe('live realm quality recreation', () => {
     expect(within(record).getByText('@peerharvester')).not.toBeNull();
   });
 
-  it('reconciles worker, route, node, and moving-profile updates in the mounted scene', () => {
+  it('restores and reconciles the public worker world before private command state is ready', () => {
     installWebGlProbe();
     const outbound = peerWorkerOccupationRealm('outbound');
     const gathering = peerWorkerOccupationRealm('gathering');
     const { rerender } = render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={outbound.snapshot}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+    act(() => mocked.createRealmScene.mock.calls[0]![0].onCastlesReady?.(2));
+    expect(mocked.createRealmScene.mock.calls[0]![0].workers)
+      .toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          workerId: outbound.activeWorker.workerId,
+          status: 'outbound'
+        })
+      ]));
+    const scene = mocked.handles[0]!;
+    scene.reconcileLiveGatheringState.mockClear();
+
+    rerender(
       <RealmMapScreen
         identity={IDENTITY}
         snapshot={outbound.snapshot}
@@ -1345,9 +1377,8 @@ describe('live realm quality recreation', () => {
         qualityOverride="balanced"
       />
     );
-    act(() => mocked.createRealmScene.mock.calls[0]![0].onCastlesReady?.(2));
-    const scene = mocked.handles[0]!;
-    scene.reconcileLiveGatheringState.mockClear();
+    expect(mocked.createRealmScene).toHaveBeenCalledOnce();
+    expect(scene.reconcileLiveGatheringState).not.toHaveBeenCalled();
 
     rerender(
       <RealmMapScreen
@@ -1541,7 +1572,6 @@ describe('live realm quality recreation', () => {
       <RealmMapScreen
         identity={IDENTITY}
         snapshot={fixture.snapshot}
-        workerProjection={fixture.workerProjection}
         onRequestReturn={vi.fn()}
         qualityOverride="balanced"
       />
@@ -2030,6 +2060,9 @@ describe('live realm quality recreation', () => {
     expect(screen.queryByRole('dialog', { name: 'Explore' })).toBeNull();
 
     act(() => options.onResourceProjection?.(projection));
+    expect(document.querySelectorAll(
+      `[data-resource-occupant-key="stone:${fixture.site.siteId}"]`
+    )).toHaveLength(1);
     const projectedMarker = screen.getByRole('button', {
       name: /Inspect @peerkeeper gathering at Stone Quarry/i
     });
@@ -2085,7 +2118,6 @@ describe('live realm quality recreation', () => {
       <RealmMapScreen
         identity={IDENTITY}
         snapshot={fixture.snapshot}
-        workerProjection={fixture.workerProjection}
         onRequestReturn={vi.fn()}
         qualityOverride="balanced"
       />
@@ -2150,7 +2182,6 @@ describe('live realm quality recreation', () => {
       <RealmMapScreen
         identity={IDENTITY}
         snapshot={fixture.snapshot}
-        workerProjection={fixture.workerProjection}
         onRequestReturn={vi.fn()}
         qualityOverride="balanced"
       />
@@ -2175,7 +2206,6 @@ describe('live realm quality recreation', () => {
       <RealmMapScreen
         identity={IDENTITY}
         snapshot={fixture.snapshot}
-        workerProjection={fixture.workerProjection}
         onRequestReturn={vi.fn()}
         qualityOverride="high"
       />
@@ -2203,7 +2233,6 @@ describe('live realm quality recreation', () => {
       <RealmMapScreen
         identity={IDENTITY}
         snapshot={fixture.snapshot}
-        workerProjection={fixture.workerProjection}
         onRequestReturn={vi.fn()}
         qualityOverride="balanced"
       />
@@ -2268,7 +2297,14 @@ describe('live realm quality recreation', () => {
     });
 
     expect(screen.getByRole('dialog', { name: 'Stone Quarry' })).not.toBeNull();
-    expect(screen.getByText(/authoritative worker roster/i)).not.toBeNull();
+    const workerList = screen.getByRole('list', {
+      name: /Your workers for this Stone site/i
+    });
+    expect(within(workerList).getAllByRole('listitem')).toHaveLength(4);
+    expect(within(workerList).getAllByRole('button').every(
+      (button) => button.hasAttribute('disabled')
+    )).toBe(true);
+    expect(screen.getByText(/Synchronizing worker controls/i)).not.toBeNull();
     expect(screen.queryByRole('button', { name: /dispatch wagon/i })).toBeNull();
     expect(dispatch).not.toHaveBeenCalled();
   });
@@ -2281,10 +2317,15 @@ describe('live realm quality recreation', () => {
     );
     if (!unoccupied) throw new Error('missing fail-closed Stone site fixture');
     const dispatch = vi.fn(async () => undefined);
+    const dispatchWorker = vi.fn(async () => undefined);
+    const recallWorker = vi.fn(async () => undefined);
     render(
       <RealmMapScreen
         identity={IDENTITY}
         snapshot={fixture.snapshot}
+        workerProjection={fixture.workerProjection}
+        onDispatchWorker={dispatchWorker}
+        onRecallWorker={recallWorker}
         onDispatchStoneExpedition={dispatch}
         onRequestReturn={vi.fn()}
         qualityOverride="balanced"
@@ -2292,6 +2333,8 @@ describe('live realm quality recreation', () => {
     );
 
     const options = mocked.createRealmScene.mock.calls[0]![0];
+    expect(options.workers).toEqual([]);
+    expect(options.stoneNodes?.every((node) => node.availability === 'unavailable')).toBe(true);
     act(() => {
       options.onCastlesReady?.(2);
       options.onTargetSelect?.({
@@ -2307,9 +2350,15 @@ describe('live realm quality recreation', () => {
     expect(within(dialog).queryByText('AVAILABLE')).toBeNull();
     expect(within(dialog).getByText(/not presented as available/i)).not.toBeNull();
     expect(within(dialog).queryByRole('button', { name: /dispatch wagon/i })).toBeNull();
+    expect(within(dialog).queryByRole('button', { name: /send worker/i })).toBeNull();
     expect(dispatch).not.toHaveBeenCalled();
+    expect(dispatchWorker).not.toHaveBeenCalled();
+    expect(recallWorker).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: 'CLOSE STONE QUARRY RECORD' }));
+    fireEvent.click(screen.getByRole('button', { name: /Open Realm menu/i }));
+    expect(screen.getByText(/Worker presentation is temporarily unavailable/i)).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Close Realm menu' }));
     act(() => options.onTargetSelect?.({
       kind: 'worker',
       workerId: fixture.activeWorker.workerId,

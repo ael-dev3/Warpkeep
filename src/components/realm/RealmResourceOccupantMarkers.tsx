@@ -53,12 +53,15 @@ export function RealmResourceOccupantMarkers({
   const presenceMarkers = useMemo(() => {
     const seen = new Set<string>();
     return presenceMarkerKeys.flatMap((key) => {
-      if (seen.has(key)) return [];
+      // The bounded keyboard-control lane owns its selected keys. The passive
+      // pointer lane fills the remainder, so one public occupation is never
+      // represented by two PFPs, reservation badges, or hit targets.
+      if (seen.has(key) || visibleKeySet.has(key)) return [];
       seen.add(key);
       const marker = markersByKey.get(key);
       return marker ? [marker] : [];
     });
-  }, [markersByKey, presenceMarkerKeys]);
+  }, [markersByKey, presenceMarkerKeys, visibleKeySet]);
   const visibleMarkers = useMemo(() => markers.filter((marker) => (
     visibleKeySet.has(realmResourceOccupantMarkerKey(marker))
   )), [markers, visibleKeySet]);

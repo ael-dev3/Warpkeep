@@ -107,6 +107,7 @@ type InspectorCase = Readonly<{
         resourceKind: RealmResourceKind,
         siteId: string
       ) => Promise<void>;
+      workerControlsStatus?: string;
     }>
   ) => ReactElement;
 }>;
@@ -135,6 +136,7 @@ const INSPECTOR_CASES: readonly InspectorCase[] = [
         onRecallWorker={options?.recall}
         workers={options?.workers}
         onDispatchWorker={options?.dispatchWorker}
+        workerControlsStatus={options?.workerControlsStatus}
         legacyExpeditionId={options?.legacyExpeditionId}
         onReturnLegacyExpedition={options?.returnLegacy}
         onRequestClose={() => undefined}
@@ -164,6 +166,7 @@ const INSPECTOR_CASES: readonly InspectorCase[] = [
         onRecallWorker={options?.recall}
         workers={options?.workers}
         onDispatchWorker={options?.dispatchWorker}
+        workerControlsStatus={options?.workerControlsStatus}
         legacyExpeditionId={options?.legacyExpeditionId}
         onReturnLegacyExpedition={options?.returnLegacy}
         onRequestClose={() => undefined}
@@ -193,6 +196,7 @@ const INSPECTOR_CASES: readonly InspectorCase[] = [
         onRecallWorker={options?.recall}
         workers={options?.workers}
         onDispatchWorker={options?.dispatchWorker}
+        workerControlsStatus={options?.workerControlsStatus}
         legacyExpeditionId={options?.legacyExpeditionId}
         onReturnLegacyExpedition={options?.returnLegacy}
         onRequestClose={() => undefined}
@@ -222,6 +226,7 @@ const INSPECTOR_CASES: readonly InspectorCase[] = [
         onRecallWorker={options?.recall}
         workers={options?.workers}
         onDispatchWorker={options?.dispatchWorker}
+        workerControlsStatus={options?.workerControlsStatus}
         legacyExpeditionId={options?.legacyExpeditionId}
         onReturnLegacyExpedition={options?.returnLegacy}
         onRequestClose={() => undefined}
@@ -263,6 +268,28 @@ describe('unified occupied resource inspectors', () => {
         siteId
       ));
       expect(dispatchWorker).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it.each(INSPECTOR_CASES)(
+    'keeps the public $resource dispatch roster visible but read-only during private sync',
+    ({ renderPanel }) => {
+      const workerControlsStatus =
+        'Synchronizing worker controls… Public worker positions remain available.';
+      render(renderPanel(undefined, {
+        legacyDispatchBlocked: true,
+        workers: ownerWorkers(),
+        workerControlsStatus
+      }));
+
+      const workerList = screen.getByRole('list', {
+        name: /Your workers for this .* site/i
+      });
+      expect(within(workerList).getAllByRole('listitem')).toHaveLength(4);
+      expect(screen.getByText(workerControlsStatus)).not.toBeNull();
+      expect(within(workerList).getAllByRole('button').every(
+        (button) => button.hasAttribute('disabled')
+      )).toBe(true);
     }
   );
 
@@ -467,6 +494,21 @@ describe('unified occupied resource inspectors', () => {
     expect(recall).toHaveBeenCalledOnce();
     expect(recall).toHaveBeenCalledWith('genesis-001-castle-7-worker-02');
     expect(await screen.findByText('Worker returning…')).not.toBeNull();
+  });
+
+  it('keeps an owned generic recall visible but disabled while controls synchronize', () => {
+    const own = publicOccupant('wood', 'genesis-001:wood:0001', {
+      occupiedByViewer: true
+    });
+    const workerControlsStatus =
+      'Refreshing worker controls. Public worker positions remain available in read-only mode.';
+    render(INSPECTOR_CASES[2]!.renderPanel(own, { workerControlsStatus }));
+
+    const recall = screen.getByRole('button', { name: /Recall Worker to Keep/i });
+    expect(recall.hasAttribute('disabled')).toBe(true);
+    expect(screen.getByRole('status').textContent).toContain(
+      'Refreshing worker controls'
+    );
   });
 
   it.each(INSPECTOR_CASES)(

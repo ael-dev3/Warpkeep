@@ -318,6 +318,51 @@ describe('disposable connected local QA dependency and network boundaries', () =
     }
   });
 
+  it('runs the title departure and focus frame matrix inside the existing local-only browser', () => {
+    const browserSource = readFileSync(
+      resolve(process.cwd(), 'scripts/qa-observer/local-fullstack-browser-probe.mjs'),
+      'utf8'
+    );
+
+    for (const caseId of [
+      'desktop-pointer',
+      'mobile-portrait-touch',
+      'tablet-pointer',
+      'short-landscape-touch',
+      'desktop-keyboard',
+      'desktop-reduced-keyboard',
+      'desktop-resize-pointer',
+    ]) expect(browserSource).toContain(caseId);
+    for (const evidence of [
+      'requestAnimationFrame(sampleFrame)',
+      "frame.phase === 'transitioning-to-menu'",
+      "frame.activeTarget !== 'departure-landmark'",
+      "frame.overlayMotion !== expectedMotion",
+      "frame.gatewayInteractive !== 'false'",
+      'frame.buttonFocusVisible !== false',
+      'frame.hitGateway !== false',
+      "frame.anchorDisplay !== 'none'",
+      "getComputedStyle(anchor).display === 'none'",
+      'frame.overflow',
+      'frozenTransforms.size !== 1',
+      "Input.dispatchKeyEvent",
+      "Input.dispatchMouseEvent",
+      "Input.dispatchTouchEvent",
+    ]) expect(browserSource).toContain(evidence);
+    expect(browserSource).toContain(
+      'await exerciseTitleGatewayDepartureFocus('
+    );
+    expect(browserSource).toContain(
+      "probeStage = 'title-gateway-departure-focus'"
+    );
+    expect(browserSource).toContain(
+      'value.finalSequence !== value.initialSequence + 1'
+    );
+    expect(browserSource).toContain(
+      'value.initialHistoryLength + 1 !== value.finalHistoryLength'
+    );
+  });
+
   it('exercises worker dispatch through the map-first resource inspector', () => {
     const browserSource = readFileSync(
       resolve(process.cwd(), 'scripts/qa-observer/local-fullstack-browser-probe.mjs'),
@@ -330,7 +375,9 @@ describe('disposable connected local QA dependency and network boundaries', () =
 
     expect(browserSource).toContain("'.realm-node-worker-dispatch'");
     expect(browserSource).toContain("'.realm-cell-navigator__jump'");
-    expect(browserSource).toContain('for (let ordinal = 1; ordinal <= 4; ordinal += 1)');
+    expect(browserSource).toContain(
+      'for (let ordinal = 1; ordinal <= ${dispatchLimit}; ordinal += 1)'
+    );
     expect(browserSource).toContain('new Set(dispatchedSiteKeys).size !== 4');
     expect(browserSource).toContain(
       "value.dispatchResourceKinds !== 'gold,food,wood,stone'"
@@ -346,6 +393,15 @@ describe('disposable connected local QA dependency and network boundaries', () =
     expect(appSource).toContain('data-local-fullstack-dispatch-q');
     expect(appSource).toContain('data-local-fullstack-dispatch-r');
     expect(appSource).toContain('data-local-fullstack-dispatch-sites');
+    expect(appSource).toContain('data-local-fullstack-worker-private-sync');
+    expect(appSource).toContain('data-local-fullstack-worker-commands');
+    expect(appSource).toContain('realm?.workerWorkers?.filter');
+    expect(browserSource).toContain(
+      "getAttribute('data-local-fullstack-worker-private-sync') === 'ready'"
+    );
+    expect(browserSource).toContain(
+      "getAttribute('data-local-fullstack-worker-commands') === 'true'"
+    );
     expect(appSource).toContain(
       "['gold', availableSite('gold', realm?.goldSites, realm?.goldNodeOccupations)]"
     );
@@ -357,6 +413,157 @@ describe('disposable connected local QA dependency and network boundaries', () =
     );
     expect(appSource).toContain(
       "['stone', availableSite('stone', realm?.stoneSites, realm?.stoneNodeOccupations)]"
+    );
+  });
+
+  it('hard-reenters the persistent Worker realm while private reads delay and retry', () => {
+    const browserSource = readFileSync(
+      resolve(process.cwd(), 'scripts/qa-observer/local-fullstack-browser-probe.mjs'),
+      'utf8'
+    );
+    const appSource = readFileSync(
+      resolve(process.cwd(), 'src/dev/FullstackLocalQaApp.tsx'),
+      'utf8'
+    );
+
+    for (const marker of [
+      '?persistent-worker-reentry=delayed-private-v1',
+      'data-local-fullstack-private-read-gate',
+      'data-local-fullstack-private-roster-failure',
+      'warpkeep-local-release-private-worker-reads',
+    ]) {
+      expect(appSource).toContain(marker);
+      expect(browserSource).toContain(marker);
+    }
+    expect(appSource).toContain('function privateReadGate(');
+    expect(appSource).toContain('const initialPrivateReadGate = privateReadGate(');
+    expect(appSource).toContain('await initialPrivateReadGate;');
+    expect(appSource).toContain('if (firstRosterRead)');
+    expect(appSource).toContain(
+      'return DEFAULT_WARPKEEP_BACKEND_RUNTIME;'
+    );
+    expect(appSource).toContain(
+      'const LOCAL_FULLSTACK_BACKEND_RUNTIME = createLocalFullstackBackendRuntime();'
+    );
+    expect(appSource).not.toContain(
+      'useMemo(() => createLocalFullstackBackendRuntime(), [])'
+    );
+    expect(browserSource).toContain(
+      'const persistentWorkerSetup = await exerciseLocalFullstackJourney(devtools, 2);'
+    );
+    expect(browserSource).toContain(
+      'url: `${viteOrigin}${FULLSTACK_ROUTE}${PERSISTENT_WORKER_REENTRY_SEARCH}#menu`'
+    );
+    expect(browserSource).toContain(
+      'persistentWorkerReentry = await exercisePersistentWorkerReentry('
+    );
+    expect(browserSource).toContain(
+      'controlledRendererRecoveryWarningKind('
+    );
+    expect(browserSource).toContain(
+      'params.entry,\n              viteOrigin,\n              viteRuntime'
+    );
+    expect(browserSource).not.toContain(
+      'params.entry,\n              viteOrigin,\n              chromeProfile'
+    );
+    expect(browserSource).toContain(
+      'state.controlledRendererRecovery = false;'
+    );
+    expect(browserSource).toContain(
+      'CONTROLLED_RENDERER_MAXIMUM_STALE_DELETE_WARNINGS'
+    );
+    expect(browserSource).toContain('persistentWorkerSetup');
+    expect(browserSource).toContain(
+      'await new Promise((resolve) => setTimeout(resolve, 3_100));'
+    );
+    expect(browserSource).toContain(
+      "window.dispatchEvent(new Event('${RELEASE_PRIVATE_WORKER_READS_EVENT}'));"
+    );
+    expect(browserSource).toContain(
+      "stage: 'reentry-read-only-worker-menu'"
+    );
+    expect(browserSource).toContain(
+      "stage: 'reentry-private-in-place-recovery'"
+    );
+    expect(browserSource).toContain(
+      "'data-realm-camera-attestation-restore-count'"
+    );
+    for (const evidence of [
+      'data-local-fullstack-public-assignment-revisions',
+      'data-local-fullstack-private-assignment-revisions',
+      'data-local-fullstack-private-resource-revision',
+      'data-local-fullstack-public-route-evidence',
+    ]) {
+      expect(appSource).toContain(evidence);
+      expect(browserSource).toContain(evidence);
+    }
+    expect(browserSource).toContain(
+      "stage: 'persistent-worker-outbound-progress'"
+    );
+    expect(browserSource).toContain(
+      "stage: 'reentry-private-revision-continuity'"
+    );
+    expect(browserSource).toContain(
+      "stage: 'reentry-recall-one-progress'"
+    );
+    expect(browserSource).toContain(
+      "stage: 'reentry-recall-all-progress'"
+    );
+    expect(browserSource).toContain(
+      "stage: 'reentry-node-reuse'"
+    );
+    expect(browserSource).toContain("getExtension('WEBGL_lose_context')");
+    expect(browserSource).toContain("'renderer-recovery'");
+    expect(browserSource).toContain(
+      "stage: 'reentry-sign-out-authority'"
+    );
+    expect(browserSource).toContain(
+      'value.rendererRecoveryGenerationChange !== 1'
+    );
+    expect(browserSource).toContain('value.authorityCleared !== true');
+    expect(browserSource).toContain('/EXPEDITIONS|\\\\bWAGON\\\\b/i');
+    expect(browserSource).toContain(
+      'const journey = await exerciseLocalFullstackJourney(devtools);'
+    );
+  });
+
+  it('runs every deterministic private Worker failure seam in the same local-only runner', () => {
+    const browserSource = readFileSync(
+      resolve(process.cwd(), 'scripts/qa-observer/local-fullstack-browser-probe.mjs'),
+      'utf8'
+    );
+    const appSource = readFileSync(
+      resolve(process.cwd(), 'src/dev/FullstackLocalQaApp.tsx'),
+      'utf8'
+    );
+
+    for (const marker of [
+      '?worker-private-seams=continuity-matrix-v1',
+      'resource-missing',
+      'torn-pair',
+      'visibility-gated',
+      'data-local-fullstack-private-resource-missing',
+      'data-local-fullstack-private-torn-pair',
+      'data-local-fullstack-private-timeout',
+      'warpkeep-local-restore-timeout-visibility',
+    ]) {
+      expect(appSource).toContain(marker);
+      expect(browserSource).toContain(marker);
+    }
+    expect(appSource).toContain('timeout-retry');
+    expect(browserSource).toContain("'RETRY WORKER CONTROLS'");
+    expect(browserSource).toContain(
+      "stage: 'worker-private-seam-matrix-complete'"
+    );
+    expect(browserSource).toContain(
+      'const workerPrivateSeamMatrix = await exerciseWorkerPrivateSeamMatrix(devtools);'
+    );
+    expect(appSource).toContain(
+      "const LOCAL_REFRESH_ACCESS_EVENT = 'warpkeep-local-refresh-access';"
+    );
+    expect(browserSource).toContain("{ detail: 'reconnect-gated' }");
+    expect(browserSource).toContain(
+      "stage: 'reentry-retained-reconnect-recovery'"
     );
   });
 

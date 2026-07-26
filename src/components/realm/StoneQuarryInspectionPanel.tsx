@@ -78,6 +78,8 @@ export type StoneQuarryInspectionPanelProps = Readonly<{
   workers?: readonly RealmWorkerPublicPresentation[];
   /** Authenticated generic-worker reducer boundary. */
   onDispatchWorker?: RealmNodeWorkerDispatchHandler;
+  /** Localized generic-worker command synchronization state. */
+  workerControlsStatus?: string;
   /** Exact owner-private legacy expedition joined to this public site. */
   legacyExpeditionId?: string;
   onReturnLegacyExpedition?: (
@@ -141,6 +143,7 @@ export function StoneQuarryInspectionPanel({
   onRecallWorker,
   workers,
   onDispatchWorker,
+  workerControlsStatus,
   legacyExpeditionId,
   onReturnLegacyExpedition,
   privateExpedition,
@@ -161,8 +164,7 @@ export function StoneQuarryInspectionPanel({
   const genericWorkerDispatch = occupant === undefined
     && !occupancyUnavailable
     && node?.availability === 'available'
-    && workers !== undefined
-    && onDispatchWorker !== undefined;
+    && workers !== undefined;
   const scheduleTimestamp = occupant
     ? undefined
     : node ? stoneNodeNextAuthorityTimestamp(node) : undefined;
@@ -316,19 +318,23 @@ export function StoneQuarryInspectionPanel({
               marker={occupant}
               onFocusCastle={onFocusOccupantCastle}
               onRecallWorker={onRecallWorker}
+              controlsStatus={workerControlsStatus}
               legacyExpeditionId={legacyExpeditionId}
               onReturnLegacyExpedition={onReturnLegacyExpedition}
             />
           ) : null}
           <p className="gold-mine-inspection__notice">
             {genericWorkerDispatch
-              ? 'This Quarry is available. Choose a ready worker below; the Realm confirms the assignment.'
+              ? workerControlsStatus
+                ? 'This Quarry is available. Public workers remain visible while dispatch controls synchronize.'
+                : 'This Quarry is available. Choose a ready worker below; the Realm confirms the assignment.'
               : nodeNotice(node, occupant, dispatchBlocked, occupancyUnavailable)}
           </p>
           {genericWorkerDispatch ? (
             <RealmNodeWorkerDispatch
               focusFallbackRef={closeButtonRef}
               id={`${id}-stone`}
+              controlsStatus={workerControlsStatus}
               onDispatchWorker={onDispatchWorker}
               resourceKind="stone"
               siteId={node.siteId}

@@ -111,8 +111,10 @@ describe('production output exclusions', () => {
     'FullstackLocalQaApp',
     'fullstackLocalQaBootstrap',
     'virtual:warpkeep-local-fullstack-bootstrap',
-    'warpkeep-local-fullstack',
-    'data-local-fullstack-dispatch-sites',
+    'warpkeep-local-',
+    'data-local-fullstack-',
+    'persistent-worker-reentry=',
+    'worker-private-seams=',
     'LOCAL_QA_CHANNEL_NOT_A_REAL_PROOF',
     'i.imgur.com/warpkeep-local-keeper.png',
   ])('rejects connected-local-QA marker %s from any production chunk', (marker) => {

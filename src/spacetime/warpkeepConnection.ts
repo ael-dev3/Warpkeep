@@ -35,7 +35,10 @@ import {
   WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION,
   type WarpkeepBackendInfo
 } from './warpkeepProtocol';
-import { validateCanonicalGenesisSnapshot } from './canonicalGenesisSnapshot';
+import {
+  isCanonicalGenesisSnapshot,
+  validateCanonicalGenesisSnapshot
+} from './canonicalGenesisSnapshot';
 import {
   REALM_CASTLE_NAME_MAXIMUM_LENGTH,
   REALM_DISPLAY_NAME_MAXIMUM_LENGTH,
@@ -2059,12 +2062,58 @@ function readPublicWaterProjection(
   });
 }
 
+function sameCanonicalCoreForRetainedProjection(
+  candidate: Pick<
+    WarpkeepRealmSnapshotCandidate,
+    'activeRealms' | 'tileMetadata' | 'tiles'
+  >,
+  retained: WarpkeepRealmSnapshot | undefined,
+  ownFid: number
+) {
+  if (
+    retained === undefined
+    || !isCanonicalGenesisSnapshot(retained, ownFid)
+    || candidate.activeRealms.length !== 1
+    || candidate.tiles.length !== retained.tiles.length
+    || candidate.tileMetadata.length !== retained.tileMetadata.length
+  ) return false;
+  const realm = candidate.activeRealms[0]!;
+  const previousRealm = retained.realm;
+  return realm.realmId === previousRealm.realmId
+    && realm.publicName === previousRealm.publicName
+    && realm.seedName === previousRealm.seedName
+    && realm.numericSeed === previousRealm.numericSeed
+    && realm.generationVersion === previousRealm.generationVersion
+    && realm.authoritativeRadius === previousRealm.authoritativeRadius
+    && realm.renderRadius === previousRealm.renderRadius
+    && realm.playerCapacity === previousRealm.playerCapacity
+    && realm.active === previousRealm.active;
+}
+
+/**
+ * During a same-source reconnect, the core subscription applies before each
+ * additive public projection. Preserve only the last validated projection
+ * whose new subscription is still pending; an explicit unavailable/ready
+ * result always replaces it. This prevents full → omitted → full topology
+ * churn without turning stale retained data into permanent authority.
+ */
 export function readWarpkeepRealmSnapshot(
   connection: WarpkeepConnection,
-  ownFid: number
+  ownFid: number,
+  retainedSnapshot?: WarpkeepRealmSnapshot
 ): WarpkeepRealmSnapshot {
   const castles = readCastles(connection);
   const ownCastle = castles.find((castle) => castle.ownerFid === ownFid);
+  const tiles = readWorldTiles(connection);
+  const tileMetadata = readWorldTileMetadata(connection);
+  const activeRealms = readActiveRealms(connection);
+  const retained = sameCanonicalCoreForRetainedProjection({
+    activeRealms,
+    tileMetadata,
+    tiles
+  }, retainedSnapshot, ownFid)
+    ? retainedSnapshot
+    : undefined;
   const publicGold = readPublicGoldProjection(connection);
   const publicFood = readPublicFoodProjection(connection);
   const publicWood = readPublicWoodProjection(connection);
@@ -2074,49 +2123,130 @@ export function readWarpkeepRealmSnapshot(
   const publicWorkers = ownCastle === undefined
     ? undefined
     : readPublicWorkerProjection(connection, castles, ownCastle.castleId);
+  const retainedGold = publicGold === undefined
+    && goldProjectionAvailability.get(connection) === GOLD_PROJECTION_PENDING
+    && retained?.goldSites !== undefined
+    && retained.goldNodeOccupations !== undefined
+    ? Object.freeze({
+        sites: retained.goldSites,
+        occupations: retained.goldNodeOccupations
+      })
+    : undefined;
+  const retainedFood = publicFood === undefined
+    && foodProjectionAvailability.get(connection) === FOOD_PROJECTION_PENDING
+    && retained?.foodSites !== undefined
+    && retained.foodNodeOccupations !== undefined
+    ? Object.freeze({
+        sites: retained.foodSites,
+        occupations: retained.foodNodeOccupations
+      })
+    : undefined;
+  const retainedWood = publicWood === undefined
+    && woodProjectionAvailability.get(connection) === WOOD_PROJECTION_PENDING
+    && retained?.woodSites !== undefined
+    && retained.woodNodeOccupations !== undefined
+    ? Object.freeze({
+        sites: retained.woodSites,
+        occupations: retained.woodNodeOccupations
+      })
+    : undefined;
+  const retainedStone = publicStone === undefined
+    && stoneProjectionAvailability.get(connection) === STONE_PROJECTION_PENDING
+    && retained?.stoneSites !== undefined
+    && retained.stoneNodeOccupations !== undefined
+    ? Object.freeze({
+        sites: retained.stoneSites,
+        occupations: retained.stoneNodeOccupations
+      })
+    : undefined;
+  const retainedForest = publicForest === undefined
+    && forestProjectionAvailability.get(connection) === FOREST_PROJECTION_PENDING
+    && retained?.forestLayout !== undefined
+    && retained.forestTrees !== undefined
+    ? Object.freeze({
+        layout: retained.forestLayout,
+        trees: retained.forestTrees
+      })
+    : undefined;
+  const retainedWater = publicWater === undefined
+    && waterProjectionAvailability.get(connection) === WATER_PROJECTION_PENDING
+    && retained?.waterLayout !== undefined
+    && retained.waterBodies !== undefined
+    && retained.waterCells !== undefined
+    && retained.realmEnvironment !== undefined
+    ? Object.freeze({
+        layout: retained.waterLayout,
+        bodies: retained.waterBodies,
+        cells: retained.waterCells,
+        realmEnvironment: retained.realmEnvironment,
+        ...(retained.waterRevision === undefined ? {} : {
+          waterRevision: retained.waterRevision
+        })
+      })
+    : undefined;
+  const retainedWorkers = publicWorkers === undefined
+    && workerProjectionAvailability.get(connection) === WORKER_PROJECTION_PENDING
+    && retained?.workerSystem !== undefined
+    ? Object.freeze({
+        system: retained.workerSystem,
+        ...(retained.workerWorkers === undefined ? {} : {
+          workers: retained.workerWorkers
+        }),
+        ...(retained.workerOccupations === undefined ? {} : {
+          occupations: retained.workerOccupations
+        })
+      })
+    : undefined;
+  const effectiveGold = publicGold ?? retainedGold;
+  const effectiveFood = publicFood ?? retainedFood;
+  const effectiveWood = publicWood ?? retainedWood;
+  const effectiveStone = publicStone ?? retainedStone;
+  const effectiveForest = publicForest ?? retainedForest;
+  const effectiveWater = publicWater ?? retainedWater;
+  const effectiveWorkers = publicWorkers ?? retainedWorkers;
   const candidate: WarpkeepRealmSnapshotCandidate = {
-    tiles: readWorldTiles(connection),
-    tileMetadata: readWorldTileMetadata(connection),
+    tiles,
+    tileMetadata,
     players: readPlayers(connection),
     profiles: readRealmProfiles(connection),
     castles,
-    activeRealms: readActiveRealms(connection),
-    ...(publicGold === undefined ? {} : {
-      goldSites: publicGold.sites,
-      goldNodeOccupations: publicGold.occupations
+    activeRealms,
+    ...(effectiveGold === undefined ? {} : {
+      goldSites: effectiveGold.sites,
+      goldNodeOccupations: effectiveGold.occupations
     }),
-    ...(publicFood === undefined ? {} : {
-      foodSites: publicFood.sites,
-      foodNodeOccupations: publicFood.occupations
+    ...(effectiveFood === undefined ? {} : {
+      foodSites: effectiveFood.sites,
+      foodNodeOccupations: effectiveFood.occupations
     }),
-    ...(publicWood === undefined ? {} : {
-      woodSites: publicWood.sites,
-      woodNodeOccupations: publicWood.occupations
+    ...(effectiveWood === undefined ? {} : {
+      woodSites: effectiveWood.sites,
+      woodNodeOccupations: effectiveWood.occupations
     }),
-    ...(publicStone === undefined ? {} : {
-      stoneSites: publicStone.sites,
-      stoneNodeOccupations: publicStone.occupations
+    ...(effectiveStone === undefined ? {} : {
+      stoneSites: effectiveStone.sites,
+      stoneNodeOccupations: effectiveStone.occupations
     }),
-    ...(publicForest === undefined ? {} : {
-      forestLayout: publicForest.layout,
-      forestTrees: publicForest.trees
+    ...(effectiveForest === undefined ? {} : {
+      forestLayout: effectiveForest.layout,
+      forestTrees: effectiveForest.trees
     }),
-    ...(publicWater === undefined ? {} : {
-      waterLayout: publicWater.layout,
-      waterBodies: publicWater.bodies,
-      waterCells: publicWater.cells,
-      realmEnvironment: publicWater.realmEnvironment,
-      ...(publicWater.waterRevision === undefined ? {} : {
-        waterRevision: publicWater.waterRevision
+    ...(effectiveWater === undefined ? {} : {
+      waterLayout: effectiveWater.layout,
+      waterBodies: effectiveWater.bodies,
+      waterCells: effectiveWater.cells,
+      realmEnvironment: effectiveWater.realmEnvironment,
+      ...(effectiveWater.waterRevision === undefined ? {} : {
+        waterRevision: effectiveWater.waterRevision
       })
     }),
-    ...(publicWorkers === undefined ? {} : {
-      workerSystem: publicWorkers.system,
-      ...(publicWorkers.workers === undefined ? {} : {
-        workerWorkers: publicWorkers.workers
+    ...(effectiveWorkers === undefined ? {} : {
+      workerSystem: effectiveWorkers.system,
+      ...(effectiveWorkers.workers === undefined ? {} : {
+        workerWorkers: effectiveWorkers.workers
       }),
-      ...(publicWorkers.occupations === undefined ? {} : {
-        workerOccupations: publicWorkers.occupations
+      ...(effectiveWorkers.occupations === undefined ? {} : {
+        workerOccupations: effectiveWorkers.occupations
       })
     }),
     ...(ownCastle ? { ownCastle } : {})
@@ -2135,10 +2265,12 @@ export function observeWarpkeepRealm(
   connection: WarpkeepConnection,
   ownFid: number,
   onChange: (snapshot: WarpkeepRealmSnapshot) => void,
-  onError: () => void
+  onError: () => void,
+  retainedSnapshot?: WarpkeepRealmSnapshot
 ) {
   let active = true;
   let latestTransactionEventId: string | undefined;
+  let continuitySnapshot = retainedSnapshot;
   const sync = (context: EventContext) => {
     // SubscribeApplied first fills every subscribed table and invokes the
     // builder's onApplied callback; its subsequent row callbacks would only
@@ -2150,7 +2282,13 @@ export function observeWarpkeepRealm(
     ) return;
     latestTransactionEventId = context.event.id;
     try {
-      onChange(readWarpkeepRealmSnapshot(connection, ownFid));
+      const snapshot = readWarpkeepRealmSnapshot(
+        connection,
+        ownFid,
+        continuitySnapshot
+      );
+      continuitySnapshot = snapshot;
+      onChange(snapshot);
     } catch {
       // A post-ready canonical violation must revoke the browser's renderer
       // authority instead of escaping the SDK callback with stale ready state.

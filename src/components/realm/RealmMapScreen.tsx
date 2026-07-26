@@ -200,11 +200,13 @@ import { WorkerInspectionPanel } from './WorkerInspectionPanel';
 import type { RealmWorkerSceneRecord } from './realmWorkerLayer';
 import {
   resolveReadyPublicWorkerProjection,
+  type ReadyPublicWorkerProjection,
   type ReadyWorkerProjection,
   type ReadyWorkerResourceState,
   type RealmWorkerPublicPresentation,
   type WorkerRosterPresentation
 } from './realmWorkerPresentation';
+import type { WarpkeepWorkerPrivateSyncStatus } from '../../spacetime/warpkeepBackendTypes';
 
 export {
   BLOCKED_SHARED_FOREST_PROJECTION_SIGNATURE,
@@ -237,6 +239,9 @@ type RealmMapScreenProps = Readonly<{
   workerProjection?: ReadyWorkerProjection;
   workerRoster?: WorkerRosterPresentation;
   workerResourceState?: ReadyWorkerResourceState;
+  /** Aggregate caller-private sync lifecycle only; contains no private payloads. */
+  workerPrivateSync?: WarpkeepWorkerPrivateSyncStatus;
+  onRetryWorkerPrivateSync?: () => void;
   onDispatchWorker?: (
     workerId: string,
     resourceKind: RealmEconomicResourceKey,
@@ -275,10 +280,43 @@ type GatheringNodePresentation =
   | RealmWoodNodePresentation
   | RealmStoneNodePresentation;
 
+function unavailableNodeCatalog<Node extends GatheringNodePresentation>(
+  nodes: readonly Node[]
+): readonly Node[] {
+  return Object.freeze(nodes.map((node) => {
+    const {
+      occupation: _occupation,
+      originCastle: _originCastle,
+      ...publicNode
+    } = node;
+    return Object.freeze({
+      ...publicNode,
+      availability: 'unavailable' as const,
+      occupiedByViewer: false
+    }) as Node;
+  }));
+}
+
 function activeExpeditionSiteId(value: PrivateExpeditionPresentation | undefined) {
   return value?.status === 'ready' && value.active
     ? value.expedition?.siteId
     : undefined;
+}
+
+function workerControlSyncCopy(
+  sync: WarpkeepWorkerPrivateSyncStatus | undefined
+) {
+  if (sync?.phase === 'failed-localized') {
+    return 'Worker controls could not be synchronized. Public worker positions remain visible.';
+  }
+  if (sync?.phase === 'retry-wait') {
+    return 'Worker controls are waiting to retry. Public worker positions remain visible.';
+  }
+  if (sync?.phase === 'stale-read-only') {
+    return 'Refreshing worker controls. Public worker positions remain available in read-only mode.';
+  }
+  if (sync?.phase === 'ready' && sync.commandsEnabled) return undefined;
+  return 'Synchronizing worker controls… Public worker positions remain available.';
 }
 
 function ownerExpeditionPublicJoin(node: GatheringNodePresentation | undefined) {
@@ -338,6 +376,8 @@ function CanonicalRealmMapScreen({
   workerProjection,
   workerRoster,
   workerResourceState,
+  workerPrivateSync,
+  onRetryWorkerPrivateSync,
   onDispatchWorker,
   onRecallWorker,
   onRecallAllWorkers,
@@ -485,8 +525,6 @@ function CanonicalRealmMapScreen({
   }, [otherCastles, ownCastle, surface]);
   const allCastlesRef = useRef(allCastles);
   allCastlesRef.current = allCastles;
-  const workerProjectionRef = useRef<ReadyWorkerProjection | undefined>(workerProjection);
-  workerProjectionRef.current = workerProjection;
   const expectedCastleCountRef = useRef(allCastles.length);
   expectedCastleCountRef.current = allCastles.length;
   const resolvedGoldNodes = useMemo<readonly RealmGoldNodePresentation[]>(() => (
@@ -573,6 +611,62 @@ function CanonicalRealmMapScreen({
   const stoneNodesBySiteId = useMemo(() => new Map(
     stoneNodes.map((node) => [node.siteId, node] as const)
   ), [stoneNodes]);
+  const workerResourceSites = useMemo(() => Object.freeze([
+    ...foodNodeCatalog.map((node) => Object.freeze({
+      resourceKind: 'food' as const,
+      siteId: node.siteId,
+      q: node.coord.q,
+      r: node.coord.r
+    })),
+    ...woodNodeCatalog.map((node) => Object.freeze({
+      resourceKind: 'wood' as const,
+      siteId: node.siteId,
+      q: node.coord.q,
+      r: node.coord.r
+    })),
+    ...stoneNodeCatalog.map((node) => Object.freeze({
+      resourceKind: 'stone' as const,
+      siteId: node.siteId,
+      q: node.coord.q,
+      r: node.coord.r
+    })),
+    ...goldNodeCatalog.map((node) => Object.freeze({
+      resourceKind: 'gold' as const,
+      siteId: node.siteId,
+      q: node.coord.q,
+      r: node.coord.r
+    }))
+  ]), [foodNodeCatalog, goldNodeCatalog, stoneNodeCatalog, woodNodeCatalog]);
+  const publicWorkerProjection = useMemo(() => resolveReadyPublicWorkerProjection({
+    realmId: snapshot.realm.realmId,
+    castleIds: allCastles.map((castle) => castle.castleId),
+    ownCastleId: ownCastle.castleId,
+    system: snapshot.workerSystem,
+    workers: snapshot.workerWorkers,
+    occupations: snapshot.workerOccupations,
+    resourceSites: workerResourceSites
+  }), [
+    allCastles,
+    ownCastle.castleId,
+    snapshot.realm.realmId,
+    snapshot.workerOccupations,
+    snapshot.workerSystem,
+    snapshot.workerWorkers,
+    workerResourceSites
+  ]);
+  const publicWorkerProjectionRef = useRef<ReadyPublicWorkerProjection | undefined>(
+    publicWorkerProjection
+  );
+  publicWorkerProjectionRef.current = publicWorkerProjection;
+  const publicOwnedWorkers = useMemo(
+    () => Object.freeze(
+      publicWorkerProjection?.workers
+        .filter((worker) => worker.ownedByViewer)
+        .slice()
+        .sort((left, right) => left.ordinal - right.ordinal) ?? []
+    ),
+    [publicWorkerProjection]
+  );
   const profileRecords = useMemo(() => {
     return new Map<number, CastleLabelRecord>(allCastles.map((castle) => [
       castle.castleId,
@@ -588,7 +682,7 @@ function CanonicalRealmMapScreen({
     ]));
   }, [allCastles, identity, observerMode, sharedPlayers, sharedProfiles]);
   const workerSceneRecords = useMemo<readonly RealmWorkerSceneRecord[]>(() => {
-    if (observerMode || workerProjection?.mode !== 'active') return Object.freeze([]);
+    if (observerMode || publicWorkerProjection?.mode !== 'active') return Object.freeze([]);
     const castlesById = new Map(allCastles.map((castle) => [castle.castleId, castle] as const));
     const sitesByResource = Object.freeze({
       food: foodNodesBySiteId,
@@ -597,7 +691,7 @@ function CanonicalRealmMapScreen({
       gold: goldNodesBySiteId
     });
     const records: RealmWorkerSceneRecord[] = [];
-    for (const worker of workerProjection.workers) {
+    for (const worker of publicWorkerProjection.workers) {
       const origin = castlesById.get(worker.originCastleId);
       if (!origin) return Object.freeze([]);
       const destination = worker.resourceKind && worker.siteId
@@ -621,9 +715,9 @@ function CanonicalRealmMapScreen({
     goldNodesBySiteId,
     observerMode,
     profileRecords,
+    publicWorkerProjection,
     stoneNodesBySiteId,
-    woodNodesBySiteId,
-    workerProjection
+    woodNodesBySiteId
   ]);
   const workerSceneRecordsRef = useRef(workerSceneRecords);
   workerSceneRecordsRef.current = workerSceneRecords;
@@ -703,23 +797,16 @@ function CanonicalRealmMapScreen({
     woodExpedition,
     woodNodesBySiteId
   ]);
-  const publicWorkerProjection = useMemo(() => resolveReadyPublicWorkerProjection({
-    realmId: snapshot.realm.realmId,
-    castleIds: allCastles.map((castle) => castle.castleId),
-    ownCastleId: ownCastle.castleId,
-    system: snapshot.workerSystem,
-    workers: snapshot.workerWorkers,
-    occupations: snapshot.workerOccupations
-  }), [
-    allCastles,
-    ownCastle.castleId,
-    snapshot.realm.realmId,
-    snapshot.workerOccupations,
-    snapshot.workerSystem,
-    snapshot.workerWorkers
-  ]);
-  const genericWorkerAuthorityActive = snapshot.workerSystem?.mode === 'active'
-    || workerProjection?.mode === 'active';
+  const genericWorkerAuthorityActive = snapshot.workerSystem?.mode === 'active';
+  const publicWorkerPresentationReady = publicWorkerProjection?.mode === 'active';
+  const workerControlsStatus = !observerMode && genericWorkerAuthorityActive
+    ? !publicWorkerPresentationReady
+      ? 'Worker presentation is temporarily unavailable. Public records are recovering while the Realm remains open.'
+      : onDispatchWorker === undefined
+        ? workerControlSyncCopy(workerPrivateSync)
+          ?? 'Worker controls are temporarily unavailable.'
+        : undefined
+    : undefined;
   const legacyExpeditionReturnAvailable = snapshot.workerSystem?.mode === 'staged'
     && snapshot.workerSystem.legacyDrainRequired;
   const legacyResourceDispatchBlocked = genericWorkerAuthorityActive
@@ -755,6 +842,30 @@ function CanonicalRealmMapScreen({
   resourceOccupantMarkersRef.current = resourceOccupantMarkers;
   const resourceOccupancyUnavailable = genericWorkerAuthorityActive
     && resourceOccupantResolution.status === 'invalid';
+  const sceneGoldNodes = useMemo(
+    () => resourceOccupancyUnavailable
+      ? unavailableNodeCatalog(goldNodes)
+      : goldNodes,
+    [goldNodes, resourceOccupancyUnavailable]
+  );
+  const sceneFoodNodes = useMemo(
+    () => resourceOccupancyUnavailable
+      ? unavailableNodeCatalog(foodNodes)
+      : foodNodes,
+    [foodNodes, resourceOccupancyUnavailable]
+  );
+  const sceneWoodNodes = useMemo(
+    () => resourceOccupancyUnavailable
+      ? unavailableNodeCatalog(woodNodes)
+      : woodNodes,
+    [resourceOccupancyUnavailable, woodNodes]
+  );
+  const sceneStoneNodes = useMemo(
+    () => resourceOccupancyUnavailable
+      ? unavailableNodeCatalog(stoneNodes)
+      : stoneNodes,
+    [resourceOccupancyUnavailable, stoneNodes]
+  );
   const resourceOccupantSceneSignature = JSON.stringify(
     resourceOccupantMarkers.map((marker) => [
       marker.resource,
@@ -780,7 +891,12 @@ function CanonicalRealmMapScreen({
   const resourceOccupantSceneRecords = resourceOccupantSceneCacheRef.current.records;
   const liveGatheringState = useMemo<RealmLiveGatheringState>(() => {
     let observedAtMicros = 0n;
-    for (const node of [...goldNodes, ...foodNodes, ...woodNodes, ...stoneNodes]) {
+    for (const node of [
+      ...sceneGoldNodes,
+      ...sceneFoodNodes,
+      ...sceneWoodNodes,
+      ...sceneStoneNodes
+    ]) {
       const occupation = node.occupation;
       if (!occupation) continue;
       observedAtMicros = [
@@ -802,25 +918,21 @@ function CanonicalRealmMapScreen({
         if (candidate !== undefined && candidate > observedAtMicros) observedAtMicros = candidate;
       }
     }
-    if (workerRoster && workerRoster.observedAtMicros > observedAtMicros) {
-      observedAtMicros = workerRoster.observedAtMicros;
-    }
     return Object.freeze({
-      goldNodes,
-      foodNodes,
-      woodNodes,
-      stoneNodes,
+      goldNodes: sceneGoldNodes,
+      foodNodes: sceneFoodNodes,
+      woodNodes: sceneWoodNodes,
+      stoneNodes: sceneStoneNodes,
       workers: workerSceneRecords,
       resourceOccupants: resourceOccupantSceneRecords,
       observedAtMicros
     });
   }, [
-    foodNodes,
-    goldNodes,
     resourceOccupantSceneRecords,
-    stoneNodes,
-    woodNodes,
-    workerRoster,
+    sceneFoodNodes,
+    sceneGoldNodes,
+    sceneStoneNodes,
+    sceneWoodNodes,
     workerSceneRecords
   ]);
   const liveGatheringStateRef = useRef(liveGatheringState);
@@ -1090,7 +1202,7 @@ function CanonicalRealmMapScreen({
     : undefined;
   const inspectorWorker = selectedInspectorTarget !== null
     && 'workerId' in selectedInspectorTarget
-    ? workerProjection?.workers.find((worker) => (
+    ? publicWorkerProjection?.workers.find((worker) => (
       worker.workerId === selectedInspectorTarget.workerId
       && worker.ordinal === selectedInspectorTarget.workerOrdinal
       && worker.originCastleId === selectedInspectorTarget.originCastleId
@@ -1244,15 +1356,6 @@ function CanonicalRealmMapScreen({
   const applyResourceProjection = useCallback((frame: RealmResourceProjectionFrame) => {
     const root = rootRef.current;
     if (!root) return;
-    const presenceKeys = visibleRealmResourceOccupantPresenceKeys(
-      frame,
-      resourceOccupantMarkerKeysRef.current
-    );
-    const presenceSignature = presenceKeys.join('|');
-    if (presenceSignature !== visibleResourceOccupantPresenceSignatureRef.current) {
-      visibleResourceOccupantPresenceSignatureRef.current = presenceSignature;
-      setVisibleResourceOccupantPresenceKeys(presenceKeys);
-    }
     const visibleKeys = visibleRealmResourceOccupantMarkerKeys(
       frame,
       resourceOccupantMarkerKeysRef.current,
@@ -1268,13 +1371,22 @@ function CanonicalRealmMapScreen({
         persistentLabelKeys: resourceOccupantMarkerKeysRef.current
       }
     );
+    const visibleKeySet = new Set(visibleKeys);
+    const presenceKeys = visibleRealmResourceOccupantPresenceKeys(
+      frame,
+      resourceOccupantMarkerKeysRef.current
+    ).filter((key) => !visibleKeySet.has(key));
+    const presenceSignature = presenceKeys.join('|');
+    if (presenceSignature !== visibleResourceOccupantPresenceSignatureRef.current) {
+      visibleResourceOccupantPresenceSignatureRef.current = presenceSignature;
+      setVisibleResourceOccupantPresenceKeys(presenceKeys);
+    }
     const signature = visibleKeys.join('|');
     if (signature !== visibleResourceOccupantSignatureRef.current) {
       visibleResourceOccupantSignatureRef.current = signature;
       setVisibleResourceOccupantKeys(visibleKeys);
     }
     const presenceKeySet = new Set(presenceKeys);
-    const visibleKeySet = new Set(visibleKeys);
     const projectedByKey = new Map(
       frame.markers.filter((marker) => (
         resourceOccupantMarkerKeysRef.current.has(realmResourceOccupantMarkerKey(marker))
@@ -1557,7 +1669,7 @@ function CanonicalRealmMapScreen({
   }, [selectWorkerOrOccupiedSite]);
 
   const locateWorkerAtCurrentPosition = useCallback((workerId: string) => {
-    const worker = workerProjectionRef.current?.workers.find(
+    const worker = publicWorkerProjectionRef.current?.workers.find(
       (candidate) => candidate.workerId === workerId
     );
     if (!worker) return;
@@ -1731,7 +1843,7 @@ function CanonicalRealmMapScreen({
       return;
     }
     if (target.kind === 'worker') {
-      const worker = workerProjectionRef.current?.workers.find((candidate) => (
+      const worker = publicWorkerProjectionRef.current?.workers.find((candidate) => (
         candidate.workerId === target.workerId
         && candidate.ordinal === target.workerOrdinal
         && candidate.originCastleId === target.originCastleId
@@ -2578,10 +2690,10 @@ function CanonicalRealmMapScreen({
         keepCoord,
         ownCastleId: observerMode ? undefined : ownCastle.castleId,
         otherCastles: peerCastles,
-        goldNodes: goldNodeCatalog,
-        foodNodes: foodNodeCatalog,
-        woodNodes: woodNodeCatalog,
-        stoneNodes: stoneNodeCatalog,
+        goldNodes: liveGatheringStateRef.current.goldNodes,
+        foodNodes: liveGatheringStateRef.current.foodNodes,
+        woodNodes: liveGatheringStateRef.current.woodNodes,
+        stoneNodes: liveGatheringStateRef.current.stoneNodes,
         workers: workerSceneRecordsRef.current,
         resourceOccupants: resourceOccupantSceneRecords,
         sharedForestLayout: sharedForestProjection.layout,
@@ -3197,6 +3309,33 @@ function CanonicalRealmMapScreen({
       data-realm-camera-attestation-restore-count={String(
         cameraAttestationRestoreCountRef.current
       )}
+      data-worker-private-sync-phase={
+        observerMode ? 'not-required' : workerPrivateSync?.phase ?? 'not-required'
+      }
+      data-worker-private-sync-attempt={String(
+        observerMode ? 0 : workerPrivateSync?.attempt ?? 0
+      )}
+      data-worker-private-sync-queued={String(
+        !observerMode && (workerPrivateSync?.queuedRefresh ?? false)
+      )}
+      data-worker-private-sync-retained-stale={String(
+        !observerMode && (workerPrivateSync?.retainedStale ?? false)
+      )}
+      data-worker-private-sync-localized-error-count={String(
+        observerMode ? 0 : workerPrivateSync?.localizedFailureCount ?? 0
+      )}
+      data-worker-private-sync-last-success-generation={String(
+        observerMode ? 0 : workerPrivateSync?.lastSuccessGeneration ?? 0
+      )}
+      data-worker-private-sync-last-success-revision={
+        observerMode ? 'none' : workerPrivateSync?.lastSuccessRevision ?? 'none'
+      }
+      data-worker-private-sync-ready-latency-ms={String(
+        observerMode ? 0 : workerPrivateSync?.readyLatencyMilliseconds ?? 0
+      )}
+      data-worker-private-sync-commands-enabled={String(
+        !observerMode && (workerPrivateSync?.commandsEnabled ?? false)
+      )}
       data-quality={quality}
       tabIndex={0}
       aria-label={observerMode ? 'Hegemony realm QA observer' : 'Hegemony realm'}
@@ -3575,12 +3714,28 @@ function CanonicalRealmMapScreen({
               onRequestExplore={openNavigator}
               activeWagons={activeWagons}
               onOpenActiveWagon={openActiveWagon}
+              publicWorkerSystemActive={
+                snapshot.workerSystem?.mode === 'active'
+              }
+              publicWorkerProjection={publicWorkerProjection}
               workerProjection={observerMode ? undefined : workerProjection}
               workerRoster={observerMode ? undefined : workerRoster}
               workerResourceState={observerMode ? undefined : workerResourceState}
+              workerPrivateSync={observerMode ? undefined : workerPrivateSync}
+              onRetryWorkerPrivateSync={
+                observerMode ? undefined : onRetryWorkerPrivateSync
+              }
               onLocateWorker={observerMode ? undefined : locateWorkerAtCurrentPosition}
-              onRecallWorker={observerMode ? undefined : onRecallWorker}
-              onRecallAllWorkers={observerMode ? undefined : onRecallAllWorkers}
+              onRecallWorker={
+                observerMode || !publicWorkerPresentationReady
+                  ? undefined
+                  : onRecallWorker
+              }
+              onRecallAllWorkers={
+                observerMode || !publicWorkerPresentationReady
+                  ? undefined
+                  : onRecallAllWorkers
+              }
               keepCoord={keepCoord}
               selectedCell={selectedCell}
               selectedTerrainKind={selectedTerrainKind}
@@ -3610,12 +3765,23 @@ function CanonicalRealmMapScreen({
               id={`${inspectorId}-gold-${inspectorGoldNode.siteId}`}
               mine={{ name: 'Gold Mine', tier: inspectorGoldNode.tier }}
               node={inspectorGoldNode}
-              workers={observerMode ? undefined : workerProjection?.ownedWorkers}
-              onDispatchWorker={observerMode ? undefined : onDispatchWorker}
+              workers={observerMode || publicWorkerProjection?.mode !== 'active'
+                ? undefined
+                : publicOwnedWorkers}
+              onDispatchWorker={
+                observerMode || !publicWorkerPresentationReady
+                  ? undefined
+                  : onDispatchWorker
+              }
+              workerControlsStatus={workerControlsStatus}
               publicOccupant={inspectorGoldOccupant}
               occupancyUnavailable={resourceOccupancyUnavailable}
               onFocusOccupantCastle={focusResourceOccupantCastle}
-              onRecallWorker={observerMode ? undefined : onRecallWorker}
+              onRecallWorker={
+                observerMode || !publicWorkerPresentationReady
+                  ? undefined
+                  : onRecallWorker
+              }
               legacyExpeditionId={observerMode
                 ? undefined
                 : inspectorGoldLegacyExpeditionId}
@@ -3639,12 +3805,23 @@ function CanonicalRealmMapScreen({
               id={`${inspectorId}-food-${inspectorFoodNode.siteId}`}
               farm={{ name: 'Wheat Farm', tier: inspectorFoodNode.tier }}
               node={inspectorFoodNode}
-              workers={observerMode ? undefined : workerProjection?.ownedWorkers}
-              onDispatchWorker={observerMode ? undefined : onDispatchWorker}
+              workers={observerMode || publicWorkerProjection?.mode !== 'active'
+                ? undefined
+                : publicOwnedWorkers}
+              onDispatchWorker={
+                observerMode || !publicWorkerPresentationReady
+                  ? undefined
+                  : onDispatchWorker
+              }
+              workerControlsStatus={workerControlsStatus}
               publicOccupant={inspectorFoodOccupant}
               occupancyUnavailable={resourceOccupancyUnavailable}
               onFocusOccupantCastle={focusResourceOccupantCastle}
-              onRecallWorker={observerMode ? undefined : onRecallWorker}
+              onRecallWorker={
+                observerMode || !publicWorkerPresentationReady
+                  ? undefined
+                  : onRecallWorker
+              }
               legacyExpeditionId={observerMode
                 ? undefined
                 : inspectorFoodLegacyExpeditionId}
@@ -3668,12 +3845,23 @@ function CanonicalRealmMapScreen({
               id={`${inspectorId}-wood-${inspectorWoodNode.siteId}`}
               camp={{ name: 'Logging Camp', tier: inspectorWoodNode.tier }}
               node={inspectorWoodNode}
-              workers={observerMode ? undefined : workerProjection?.ownedWorkers}
-              onDispatchWorker={observerMode ? undefined : onDispatchWorker}
+              workers={observerMode || publicWorkerProjection?.mode !== 'active'
+                ? undefined
+                : publicOwnedWorkers}
+              onDispatchWorker={
+                observerMode || !publicWorkerPresentationReady
+                  ? undefined
+                  : onDispatchWorker
+              }
+              workerControlsStatus={workerControlsStatus}
               publicOccupant={inspectorWoodOccupant}
               occupancyUnavailable={resourceOccupancyUnavailable}
               onFocusOccupantCastle={focusResourceOccupantCastle}
-              onRecallWorker={observerMode ? undefined : onRecallWorker}
+              onRecallWorker={
+                observerMode || !publicWorkerPresentationReady
+                  ? undefined
+                  : onRecallWorker
+              }
               legacyExpeditionId={observerMode
                 ? undefined
                 : inspectorWoodLegacyExpeditionId}
@@ -3697,12 +3885,23 @@ function CanonicalRealmMapScreen({
               id={`${inspectorId}-stone-${inspectorStoneNode.siteId}`}
               quarry={{ name: 'Stone Quarry', tier: inspectorStoneNode.tier }}
               node={inspectorStoneNode}
-              workers={observerMode ? undefined : workerProjection?.ownedWorkers}
-              onDispatchWorker={observerMode ? undefined : onDispatchWorker}
+              workers={observerMode || publicWorkerProjection?.mode !== 'active'
+                ? undefined
+                : publicOwnedWorkers}
+              onDispatchWorker={
+                observerMode || !publicWorkerPresentationReady
+                  ? undefined
+                  : onDispatchWorker
+              }
+              workerControlsStatus={workerControlsStatus}
               publicOccupant={inspectorStoneOccupant}
               occupancyUnavailable={resourceOccupancyUnavailable}
               onFocusOccupantCastle={focusResourceOccupantCastle}
-              onRecallWorker={observerMode ? undefined : onRecallWorker}
+              onRecallWorker={
+                observerMode || !publicWorkerPresentationReady
+                  ? undefined
+                  : onRecallWorker
+              }
               legacyExpeditionId={observerMode
                 ? undefined
                 : inspectorStoneLegacyExpeditionId}
@@ -3728,7 +3927,12 @@ function CanonicalRealmMapScreen({
               keeperProfile={profileRecords.get(inspectorWorker.originCastleId)?.profile}
               onLocateKeeper={locateWorkerKeeper}
               onLocateWorker={locateWorkerAtCurrentPosition}
-              onRecallWorker={observerMode ? undefined : onRecallWorker}
+              onRecallWorker={
+                observerMode || !publicWorkerPresentationReady
+                  ? undefined
+                  : onRecallWorker
+              }
+              controlsStatus={workerControlsStatus}
               onRequestClose={() => dispatchInteraction({ type: 'close-inspector' })}
               resourceTargetLabel={inspectorWorkerResourceTargetLabel}
               worker={inspectorWorker}
@@ -3789,7 +3993,7 @@ function CanonicalRealmMapScreen({
               if (castle) selectCastle(castle);
             }}
             onActivateWorker={(entry) => {
-              const worker = workerProjectionRef.current?.workers.find((candidate) => (
+              const worker = publicWorkerProjectionRef.current?.workers.find((candidate) => (
                 candidate.workerId === entry.workerId
                 && candidate.ordinal === entry.ordinal
                 && candidate.originCastleId === entry.originCastleId

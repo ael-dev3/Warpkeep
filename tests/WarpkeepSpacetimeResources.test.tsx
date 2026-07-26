@@ -64,10 +64,20 @@ import { validateCanonicalGenesisSnapshot } from '../src/spacetime/canonicalGene
 import type { WarpkeepRealmSnapshot } from '../src/spacetime/warpkeepBackendTypes';
 import { WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION } from '../src/spacetime/warpkeepProtocol';
 import {
+  WORKER_PRIVATE_SYNC_LOW_FREQUENCY_RETRY_MILLISECONDS,
+  WORKER_PRIVATE_SYNC_RETRY_DELAYS_MILLISECONDS
+} from '../src/spacetime/workerPrivateSync';
+import {
   createCanonicalGenesisCandidate,
   createCanonicalGenesisSnapshot
 } from './fixtures/canonicalGenesisSnapshot';
 import { createReadyResourceState } from './fixtures/resourceState';
+import { CANONICAL_TIER_I_FOOD_SITES_V1 } from '../spacetimedb/src/foodSitePolicy';
+import { CANONICAL_TIER_I_GOLD_SITES_V1 } from '../spacetimedb/src/goldSitePolicy';
+import { CANONICAL_TIER_I_STONE_SITES_V1 } from '../spacetimedb/src/stoneSitePolicy';
+import { CANONICAL_TIER_I_WOOD_SITES_V1 } from '../spacetimedb/src/woodSitePolicy';
+
+const TEST_WORKER_STONE_SITE_ID = CANONICAL_TIER_I_STONE_SITES_V1[0]!.siteId;
 
 const CONFIG: WarpkeepRuntimeConfig = Object.freeze({
   spacetimeUri: 'https://maincloud.spacetimedb.com',
@@ -83,7 +93,13 @@ function jwtSegment(value: unknown) {
   return Buffer.from(JSON.stringify(value)).toString('base64url');
 }
 
-function authenticatedFarcaster(fid = 12_345, sequence = 1) {
+function authenticatedFarcaster(
+  fid = 12_345,
+  sequence = 1,
+  authConfig: Pick<WarpkeepRuntimeConfig, 'issuer' | 'audience'> = CONFIG
+) {
+  const issuer = authConfig.issuer;
+  if (issuer === undefined) throw new Error('Test authentication issuer is required.');
   const issuedAt = Math.floor(Date.now() / 1_000);
   const expiresAt = issuedAt + 300;
   return {
@@ -102,8 +118,8 @@ function authenticatedFarcaster(fid = 12_345, sequence = 1) {
       jwt: [
         jwtSegment({ alg: 'ES256', typ: 'JWT' }),
         jwtSegment({
-          iss: CONFIG.issuer,
-          aud: CONFIG.audience,
+          iss: issuer,
+          aud: authConfig.audience,
           sub: `farcaster:${fid}`,
           fid: String(fid),
           token_type: 'spacetime-access',
@@ -119,8 +135,8 @@ function authenticatedFarcaster(fid = 12_345, sequence = 1) {
         }),
         `signature-${sequence}`
       ].join('.'),
-      issuer: CONFIG.issuer,
-      audience: CONFIG.audience,
+      issuer,
+      audience: authConfig.audience,
       expiresAt: expiresAt * 1_000
     }
   };
@@ -314,6 +330,14 @@ function workerRealmSnapshot(fid = 12_345): WarpkeepRealmSnapshot {
   const castleId = base.ownCastle.castleId;
   return Object.freeze({
     ...base,
+    goldSites: CANONICAL_TIER_I_GOLD_SITES_V1,
+    goldNodeOccupations: Object.freeze([]),
+    foodSites: CANONICAL_TIER_I_FOOD_SITES_V1,
+    foodNodeOccupations: Object.freeze([]),
+    woodSites: CANONICAL_TIER_I_WOOD_SITES_V1,
+    woodNodeOccupations: Object.freeze([]),
+    stoneSites: CANONICAL_TIER_I_STONE_SITES_V1,
+    stoneNodeOccupations: Object.freeze([]),
     workerSystem: Object.freeze({
       realmId: CASTLE_WORKER_REALM_ID,
       policyVersion: CASTLE_WORKER_POLICY_VERSION,
@@ -389,7 +413,7 @@ function outboundWorkerRealmSnapshot(fid = 12_345): WarpkeepRealmSnapshot {
     ...first!,
     status: 'outbound' as const,
     resourceKind: 'stone' as const,
-    siteId: 'genesis-001:stone:0001',
+    siteId: TEST_WORKER_STONE_SITE_ID,
     startedAtMicros: 100n,
     arrivesAtMicros: 200n,
     gatheringEndsAtMicros: 300n,
@@ -402,9 +426,9 @@ function outboundWorkerRealmSnapshot(fid = 12_345): WarpkeepRealmSnapshot {
     ...base,
     workerWorkers: Object.freeze([activeWorker, ...rest]),
     workerOccupations: Object.freeze([Object.freeze({
-      nodeKey: 'stone:genesis-001:stone:0001',
+      nodeKey: `stone:${TEST_WORKER_STONE_SITE_ID}`,
       resourceKind: 'stone' as const,
-      siteId: 'genesis-001:stone:0001',
+      siteId: TEST_WORKER_STONE_SITE_ID,
       workerId: activeWorker.workerId,
       workerOrdinal: activeWorker.ordinal,
       originCastleId: activeWorker.originCastleId,
@@ -427,7 +451,7 @@ function outboundWorkerRoster(castleId = 1): WorkerRosterPresentation {
         ...worker,
         status: 'outbound' as const,
         resourceKind: 'stone' as const,
-        siteId: 'genesis-001:stone:0001',
+        siteId: TEST_WORKER_STONE_SITE_ID,
         observedAtMicros: 200n,
         revision: 1n
       })
@@ -525,6 +549,12 @@ function Probe() {
   return (
     <>
       <output data-testid="phase">{backend.state.phase}</output>
+      <output data-testid="realm-own-fid">
+        {backend.state.realm?.ownCastle.ownerFid.toString() ?? ''}
+      </output>
+      <output data-testid="realm-public-worker-count">
+        {backend.state.realm?.workerWorkers?.length.toString() ?? ''}
+      </output>
       <output data-testid="resource-fid">{backend.state.resources?.fid.toString() ?? ''}</output>
       <output data-testid="resource-revision">
         {backend.state.resources?.revision.toString() ?? ''}
@@ -572,6 +602,26 @@ function Probe() {
       </output>
       <output data-testid="worker-resource-revision">
         {backend.state.workerResourceState?.revision.toString() ?? ''}
+      </output>
+      <output data-testid="worker-private-sync-phase">
+        {backend.workerPrivateSync.phase}
+      </output>
+      <output data-testid="worker-private-sync-attempt">
+        {String(backend.workerPrivateSync.attempt)}
+      </output>
+      <output data-testid="worker-private-sync-queued">
+        {String(backend.workerPrivateSync.queuedRefresh)}
+      </output>
+      <output data-testid="worker-private-sync-retained">
+        {String(backend.workerPrivateSync.retainedStale)}
+      </output>
+      <output data-testid="worker-private-sync-commands">
+        {String(backend.workerPrivateSync.commandsEnabled)}
+      </output>
+      <output data-testid="worker-private-sync-latency">
+        {backend.workerPrivateSync.readyLatencyMilliseconds === undefined
+          ? ''
+          : String(backend.workerPrivateSync.readyLatencyMilliseconds)}
       </output>
       <button type="button" onClick={backend.beginAlphaTermsAcceptance}>ACCEPT TERMS</button>
       <button type="button" onClick={() => void backend.collectResources()}>COLLECT</button>
@@ -626,6 +676,7 @@ function Probe() {
         DISPATCH WORKER
       </button>
       <button type="button" onClick={backend.disconnect}>DISCONNECT</button>
+      <button type="button" onClick={backend.retryWorkerPrivateSync}>RETRY WORKERS</button>
     </>
   );
 }
@@ -747,8 +798,844 @@ describe('Warpkeep private resource lifecycle', () => {
 
     expect(screen.getByTestId('phase').textContent).toBe('ready');
     expect(screen.getByTestId('worker-active').textContent).toBe('');
+    expect(screen.getByTestId('worker-private-sync-phase').textContent).toBe('not-required');
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('false');
     expect(readWorkerRoster).not.toHaveBeenCalled();
     expect(readResourceStateV2).not.toHaveBeenCalled();
+  });
+
+  it('bounds a missing private pair, localizes the failure, and supports explicit retry', async () => {
+    vi.useFakeTimers();
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const readWorkerRoster = vi.fn(
+      async (): Promise<WorkerRosterPresentation | undefined> => undefined
+    );
+    const readResourceStateV2 = vi.fn(async () => workerResourceState());
+    Object.assign(runtime, {
+      readRealmSnapshot: vi.fn(() => workerRealmSnapshot()),
+      readWorkerRoster,
+      readResourceStateV2,
+      dispatchWorker: vi.fn(async () => undefined),
+      recallWorker: vi.fn(async () => undefined),
+      recallAllWorkers: vi.fn(async () => undefined)
+    });
+    renderProvider(runtime);
+    await flushProviderWork();
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+    await flushProviderWork();
+
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+    expect(screen.getByTestId('worker-private-sync-phase').textContent).toBe('retry-wait');
+    expect(screen.getByTestId('worker-private-sync-attempt').textContent).toBe('1');
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('false');
+    expect(readWorkerRoster).toHaveBeenCalledTimes(1);
+
+    for (const delay of WORKER_PRIVATE_SYNC_RETRY_DELAYS_MILLISECONDS) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(delay);
+      });
+      await flushProviderWork();
+    }
+    expect(readWorkerRoster).toHaveBeenCalledTimes(4);
+    expect(readResourceStateV2).toHaveBeenCalledTimes(4);
+    expect(screen.getByTestId('worker-private-sync-phase').textContent)
+      .toBe('failed-localized');
+    expect(screen.getByTestId('worker-private-sync-attempt').textContent).toBe('4');
+    expect(screen.getByTestId('worker-active').textContent).toBe('');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(
+        WORKER_PRIVATE_SYNC_LOW_FREQUENCY_RETRY_MILLISECONDS
+      );
+    });
+    await flushProviderWork();
+    expect(readWorkerRoster).toHaveBeenCalledTimes(5);
+    expect(screen.getByTestId('worker-private-sync-phase').textContent).toBe('retry-wait');
+    expect(screen.getByTestId('worker-private-sync-attempt').textContent).toBe('1');
+
+    readWorkerRoster.mockResolvedValue(workerRoster());
+    fireEvent.click(screen.getByRole('button', { name: 'RETRY WORKERS' }));
+    await flushProviderWork();
+    expect(readWorkerRoster).toHaveBeenCalledTimes(6);
+    expect(screen.getByTestId('worker-private-sync-phase').textContent).toBe('ready');
+    expect(screen.getByTestId('worker-private-sync-attempt').textContent).toBe('1');
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('true');
+    expect(screen.getByTestId('worker-private-sync-latency').textContent).toBe(String(
+      WORKER_PRIVATE_SYNC_RETRY_DELAYS_MILLISECONDS.reduce(
+        (total, delay) => total + delay,
+        0
+      ) + WORKER_PRIVATE_SYNC_LOW_FREQUENCY_RETRY_MILLISECONDS
+    ));
+    expect(screen.getByTestId('worker-active').textContent).toBe('active');
+  });
+
+  it('does not reset private backoff for an unchanged public Worker revision', async () => {
+    vi.useFakeTimers();
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const realm = workerRealmSnapshot();
+    let publishObservedRealm: ((snapshot: WarpkeepRealmSnapshot) => void) | undefined;
+    const readWorkerRoster = vi.fn(
+      async (): Promise<WorkerRosterPresentation | undefined> => undefined
+    );
+    Object.assign(runtime, {
+      readRealmSnapshot: vi.fn(() => realm),
+      observeRealm: vi.fn((_connection, _fid, onUpdate) => {
+        publishObservedRealm = onUpdate;
+        return vi.fn();
+      }),
+      readWorkerRoster,
+      readResourceStateV2: vi.fn(async () => workerResourceState()),
+      dispatchWorker: vi.fn(async () => undefined),
+      recallWorker: vi.fn(async () => undefined),
+      recallAllWorkers: vi.fn(async () => undefined)
+    });
+    renderProvider(runtime);
+    await flushProviderWork();
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+    await flushProviderWork();
+    expect(readWorkerRoster).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('worker-private-sync-phase').textContent).toBe('retry-wait');
+
+    act(() => publishObservedRealm?.(Object.freeze({
+      ...realm,
+      workerWorkers: Object.freeze([...realm.workerWorkers!].reverse()),
+      workerOccupations: Object.freeze([...realm.workerOccupations!].reverse())
+    })));
+    await flushProviderWork();
+    expect(readWorkerRoster).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('worker-private-sync-attempt').textContent).toBe('1');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(
+        WORKER_PRIVATE_SYNC_RETRY_DELAYS_MILLISECONDS[0] - 1
+      );
+    });
+    expect(readWorkerRoster).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    await flushProviderWork();
+    expect(readWorkerRoster).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('worker-private-sync-attempt').textContent).toBe('2');
+  });
+
+  it('pauses bounded private retries while hidden and refreshes on visibility resume', async () => {
+    vi.useFakeTimers();
+    const setHidden = mockDocumentHidden();
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const readWorkerRoster = vi.fn(
+      async (): Promise<WorkerRosterPresentation | undefined> => undefined
+    );
+    Object.assign(runtime, {
+      readRealmSnapshot: vi.fn(() => workerRealmSnapshot()),
+      readWorkerRoster,
+      readResourceStateV2: vi.fn(async () => workerResourceState()),
+      dispatchWorker: vi.fn(async () => undefined),
+      recallWorker: vi.fn(async () => undefined),
+      recallAllWorkers: vi.fn(async () => undefined)
+    });
+    renderProvider(runtime);
+    await flushProviderWork();
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+    await flushProviderWork();
+    expect(readWorkerRoster).toHaveBeenCalledTimes(1);
+
+    setHidden(true);
+    document.dispatchEvent(new Event('visibilitychange'));
+    await flushProviderWork();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(
+        WORKER_PRIVATE_SYNC_LOW_FREQUENCY_RETRY_MILLISECONDS * 2
+      );
+    });
+    expect(readWorkerRoster).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('false');
+
+    readWorkerRoster.mockResolvedValue(workerRoster());
+    setHidden(false);
+    document.dispatchEvent(new Event('visibilitychange'));
+    await flushProviderWork();
+    expect(readWorkerRoster).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('worker-private-sync-phase').textContent).toBe('ready');
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('true');
+  });
+
+  it('cannot publish or command from a private pair that resolves after the tab hides', async () => {
+    const setHidden = mockDocumentHidden();
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const pendingRoster = deferred<WorkerRosterPresentation | undefined>();
+    const pendingWorkerResources = deferred<ReadyWorkerResourceState | undefined>();
+    const dispatchWorker = vi.fn(async () => undefined);
+    Object.assign(runtime, {
+      readRealmSnapshot: vi.fn(() => workerRealmSnapshot()),
+      readWorkerRoster: vi.fn()
+        .mockImplementationOnce(() => pendingRoster.promise)
+        .mockResolvedValue(workerRoster()),
+      readResourceStateV2: vi.fn()
+        .mockImplementationOnce(() => pendingWorkerResources.promise)
+        .mockResolvedValue(workerResourceState()),
+      dispatchWorker,
+      recallWorker: vi.fn(async () => undefined),
+      recallAllWorkers: vi.fn(async () => undefined)
+    });
+    renderProvider(runtime);
+    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('awaiting-terms'));
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('ready'));
+    expect(screen.getByTestId('worker-private-sync-phase').textContent)
+      .toBe('synchronizing');
+
+    setHidden(true);
+    document.dispatchEvent(new Event('visibilitychange'));
+    await act(async () => {
+      pendingRoster.resolve(workerRoster());
+      pendingWorkerResources.resolve(workerResourceState());
+      await Promise.all([pendingRoster.promise, pendingWorkerResources.promise]);
+    });
+    await flushProviderWork();
+    expect(screen.getByTestId('worker-active').textContent).toBe('');
+    expect(screen.getByTestId('worker-private-sync-phase').textContent)
+      .toBe('failed-localized');
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('false');
+
+    setHidden(false);
+    document.dispatchEvent(new Event('visibilitychange'));
+    await flushProviderWork();
+    expect(screen.getByTestId('worker-private-sync-phase').textContent).toBe('ready');
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('true');
+
+    // Even before a visibility event can revoke the rendered status, the
+    // command preflight independently rejects hidden-tab mutation dispatch.
+    setHidden(true);
+    await expect(capturedBackend!.dispatchWorker(
+      'genesis-001-castle-1-worker-01',
+      'stone',
+      'genesis-001:stone:0001'
+    )).rejects.toThrow('Worker command is unavailable.');
+    expect(dispatchWorker).not.toHaveBeenCalled();
+  });
+
+  it('refreshes private Worker reads on online recovery and removes the listener on teardown', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const readWorkerRoster = vi.fn(async () => workerRoster());
+    Object.assign(runtime, {
+      readRealmSnapshot: vi.fn(() => workerRealmSnapshot()),
+      readWorkerRoster,
+      readResourceStateV2: vi.fn(async () => workerResourceState()),
+      dispatchWorker: vi.fn(async () => undefined),
+      recallWorker: vi.fn(async () => undefined),
+      recallAllWorkers: vi.fn(async () => undefined)
+    });
+    const rendered = renderProvider(runtime);
+    await enterRealm();
+    expect(readWorkerRoster).toHaveBeenCalledTimes(1);
+
+    window.dispatchEvent(new Event('online'));
+    await flushProviderWork();
+    expect(readWorkerRoster).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('worker-private-sync-phase').textContent).toBe('ready');
+
+    rendered.unmount();
+    window.dispatchEvent(new Event('online'));
+    await flushProviderWork();
+    expect(readWorkerRoster).toHaveBeenCalledTimes(2);
+  });
+
+  it('marks a ready retained Worker pair stale before a hidden-tab refresh', async () => {
+    const setHidden = mockDocumentHidden();
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    Object.assign(runtime, {
+      readRealmSnapshot: vi.fn(() => workerRealmSnapshot()),
+      readWorkerRoster: vi.fn(async () => workerRoster()),
+      readResourceStateV2: vi.fn(async () => workerResourceState()),
+      dispatchWorker: vi.fn(async () => undefined),
+      recallWorker: vi.fn(async () => undefined),
+      recallAllWorkers: vi.fn(async () => undefined)
+    });
+    renderProvider(runtime);
+    await enterRealm();
+    expect(screen.getByTestId('worker-private-sync-phase').textContent).toBe('ready');
+    expect(screen.getByTestId('worker-private-sync-retained').textContent).toBe('false');
+
+    setHidden(true);
+    document.dispatchEvent(new Event('visibilitychange'));
+    await flushProviderWork();
+
+    expect(screen.getByTestId('worker-private-sync-phase').textContent)
+      .toBe('stale-read-only');
+    expect(screen.getByTestId('worker-private-sync-retained').textContent).toBe('true');
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('false');
+  });
+
+  it('retains only the public same-FID Realm while an access token refreshes', async () => {
+    const firstAuth = authenticatedFarcaster(12_345, 1);
+    mockedFarcaster.current = firstAuth;
+    const { runtime } = createRuntimeHarness();
+    const dispatchWorker = vi.fn(async () => undefined);
+    Object.assign(runtime, {
+      readRealmSnapshot: vi.fn(() => workerRealmSnapshot()),
+      readWorkerRoster: vi.fn(async () => workerRoster()),
+      readResourceStateV2: vi.fn(async () => workerResourceState()),
+      dispatchWorker,
+      recallWorker: vi.fn(async () => undefined),
+      recallAllWorkers: vi.fn(async () => undefined)
+    });
+    const rendered = renderProvider(runtime);
+    await enterRealm();
+    expect(screen.getByTestId('resource-fid').textContent).toBe('12345');
+    expect(screen.getByTestId('worker-active').textContent).toBe('active');
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('true');
+
+    mockedFarcaster.current = { ...firstAuth, oidcSession: undefined };
+    rendered.rerender(
+      <WarpkeepSpacetimeProvider config={CONFIG} runtime={runtime}>
+        <Probe />
+      </WarpkeepSpacetimeProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('reconnecting'));
+
+    expect(screen.getByTestId('realm-own-fid').textContent).toBe('12345');
+    expect(screen.getByTestId('realm-public-worker-count').textContent).toBe('4');
+    expect(screen.getByTestId('resource-fid').textContent).toBe('');
+    expect(screen.getByTestId('worker-active').textContent).toBe('');
+    expect(screen.getByTestId('worker-private-sync-phase').textContent).toBe('not-required');
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('false');
+    expect(runtime.connect).toHaveBeenCalledTimes(1);
+    await expect(capturedBackend!.dispatchWorker(
+      'genesis-001-castle-1-worker-01',
+      'stone',
+      'genesis-001:stone:0001'
+    )).rejects.toThrow('Worker command is unavailable.');
+    expect(dispatchWorker).not.toHaveBeenCalled();
+
+    const pendingReconnect = deferred<Awaited<ReturnType<typeof runtime.connect>>>();
+    vi.mocked(runtime.connect).mockImplementationOnce(() => pendingReconnect.promise);
+    mockedFarcaster.current = authenticatedFarcaster(12_345, 2);
+    rendered.rerender(
+      <WarpkeepSpacetimeProvider config={CONFIG} runtime={runtime}>
+        <Probe />
+      </WarpkeepSpacetimeProvider>
+    );
+    await waitFor(() => expect(runtime.connect).toHaveBeenCalledTimes(2));
+    expect(screen.getByTestId('phase').textContent).toBe('reconnecting');
+    expect(screen.getByTestId('resource-fid').textContent).toBe('');
+
+    await act(async () => {
+      pendingReconnect.resolve({
+        isDisconnectRequested: false,
+        disconnect: vi.fn()
+      } as unknown as Awaited<ReturnType<typeof runtime.connect>>);
+      await pendingReconnect.promise;
+    });
+    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('ready'));
+    await waitFor(() => expect(screen.getByTestId('worker-private-sync-phase').textContent)
+      .toBe('ready'));
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('true');
+
+    const secondAuth = mockedFarcaster.current as ReturnType<typeof authenticatedFarcaster>;
+    mockedFarcaster.current = {
+      ...secondAuth,
+      oidcSession: {
+        ...secondAuth.oidcSession,
+        expiresAt: Date.now() - 1
+      }
+    };
+    rendered.rerender(
+      <WarpkeepSpacetimeProvider config={CONFIG} runtime={runtime}>
+        <Probe />
+      </WarpkeepSpacetimeProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('reconnecting'));
+
+    mockedFarcaster.current = {
+      state: { phase: 'anonymous' },
+      oidcSession: undefined
+    };
+    rendered.rerender(
+      <WarpkeepSpacetimeProvider config={CONFIG} runtime={runtime}>
+        <Probe />
+      </WarpkeepSpacetimeProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('idle'));
+    expect(screen.getByTestId('realm-own-fid').textContent).toBe('');
+    expect(screen.getByTestId('realm-public-worker-count').textContent).toBe('');
+  });
+
+  it('recovers a post-ready transport loss without exposing retained private authority', async () => {
+    vi.useFakeTimers();
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    let onDisconnected: (() => void) | undefined;
+    const dispatchWorker = vi.fn(async () => undefined);
+    vi.mocked(runtime.connect).mockImplementationOnce(async (_config, _jwt, callbacks) => {
+      onDisconnected = callbacks?.onDisconnected;
+      return {
+        isDisconnectRequested: false,
+        disconnect: vi.fn()
+      } as unknown as Awaited<ReturnType<typeof runtime.connect>>;
+    });
+    Object.assign(runtime, {
+      readRealmSnapshot: vi.fn(() => workerRealmSnapshot()),
+      readWorkerRoster: vi.fn(async () => workerRoster()),
+      readResourceStateV2: vi.fn(async () => workerResourceState()),
+      dispatchWorker,
+      recallWorker: vi.fn(async () => undefined),
+      recallAllWorkers: vi.fn(async () => undefined)
+    });
+    renderProvider(runtime);
+    await flushProviderWork();
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+    await flushProviderWork();
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+
+    const pendingReconnect = deferred<Awaited<ReturnType<typeof runtime.connect>>>();
+    vi.mocked(runtime.connect).mockImplementationOnce(() => pendingReconnect.promise);
+    act(() => onDisconnected?.());
+    await flushProviderWork();
+
+    expect(screen.getByTestId('phase').textContent).toBe('reconnecting');
+    expect(screen.getByTestId('realm-own-fid').textContent).toBe('12345');
+    expect(screen.getByTestId('resource-fid').textContent).toBe('');
+    expect(screen.getByTestId('worker-active').textContent).toBe('');
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('false');
+    await expect(capturedBackend!.dispatchWorker(
+      'genesis-001-castle-1-worker-01',
+      'stone',
+      'genesis-001:stone:0001'
+    )).rejects.toThrow('Worker command is unavailable.');
+    expect(dispatchWorker).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
+    await flushProviderWork();
+    expect(runtime.connect).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('phase').textContent).toBe('reconnecting');
+
+    await act(async () => {
+      pendingReconnect.resolve({
+        isDisconnectRequested: false,
+        disconnect: vi.fn()
+      } as unknown as Awaited<ReturnType<typeof runtime.connect>>);
+      await pendingReconnect.promise;
+    });
+    await flushProviderWork();
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+    expect(screen.getByTestId('worker-private-sync-phase').textContent).toBe('ready');
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('true');
+  });
+
+  it('cancels a scheduled transport retry on explicit backend disconnect', async () => {
+    vi.useFakeTimers();
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    let onDisconnected: (() => void) | undefined;
+    vi.mocked(runtime.connect).mockImplementationOnce(async (_config, _jwt, callbacks) => {
+      onDisconnected = callbacks?.onDisconnected;
+      return {
+        isDisconnectRequested: false,
+        disconnect: vi.fn()
+      } as unknown as Awaited<ReturnType<typeof runtime.connect>>;
+    });
+    Object.assign(runtime, {
+      readRealmSnapshot: vi.fn(() => workerRealmSnapshot()),
+      readWorkerRoster: vi.fn(async () => workerRoster()),
+      readResourceStateV2: vi.fn(async () => workerResourceState()),
+      dispatchWorker: vi.fn(async () => undefined),
+      recallWorker: vi.fn(async () => undefined),
+      recallAllWorkers: vi.fn(async () => undefined)
+    });
+    renderProvider(runtime);
+    await flushProviderWork();
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+    await flushProviderWork();
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+
+    act(() => onDisconnected?.());
+    await flushProviderWork();
+    expect(screen.getByTestId('phase').textContent).toBe('reconnecting');
+
+    fireEvent.click(screen.getByRole('button', { name: 'DISCONNECT' }));
+    expect(screen.getByTestId('phase').textContent).toBe('idle');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    await flushProviderWork();
+
+    expect(runtime.connect).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('phase').textContent).toBe('idle');
+  });
+
+  it('keeps a coherent private Worker projection read-only without every command reducer', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    Object.assign(runtime, {
+      readRealmSnapshot: vi.fn(() => workerRealmSnapshot()),
+      readWorkerRoster: vi.fn(async () => workerRoster()),
+      readResourceStateV2: vi.fn(async () => workerResourceState())
+    });
+    renderProvider(runtime);
+    await enterRealm();
+
+    expect(screen.getByTestId('worker-active').textContent).toBe('active');
+    expect(screen.getByTestId('worker-private-sync-phase').textContent).toBe('ready');
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('false');
+    await expect(capturedBackend!.dispatchWorker(
+      'genesis-001-castle-1-worker-01',
+      'stone',
+      'genesis-001:stone:0001'
+    )).rejects.toThrow('Worker command is unavailable.');
+  });
+
+  it('rejects a Worker command synchronously after its bound bridge token expires', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-26T12:00:00.000Z'));
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const dispatchWorker = vi.fn(async () => undefined);
+    Object.assign(runtime, {
+      readRealmSnapshot: vi.fn(() => workerRealmSnapshot()),
+      readWorkerRoster: vi.fn(async () => workerRoster()),
+      readResourceStateV2: vi.fn(async () => workerResourceState()),
+      dispatchWorker,
+      recallWorker: vi.fn(async () => undefined),
+      recallAllWorkers: vi.fn(async () => undefined)
+    });
+    renderProvider(runtime);
+    await flushProviderWork();
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+    await flushProviderWork();
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('true');
+
+    vi.setSystemTime(new Date('2026-07-26T12:05:01.000Z'));
+    await expect(capturedBackend!.dispatchWorker(
+      'genesis-001-castle-1-worker-01',
+      'stone',
+      'genesis-001:stone:0001'
+    )).rejects.toThrow('Worker command is unavailable.');
+    expect(dispatchWorker).not.toHaveBeenCalled();
+  });
+
+  it('cancels private retry authority when an active Worker graph becomes staged', async () => {
+    vi.useFakeTimers();
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    let publishObservedRealm: ((snapshot: WarpkeepRealmSnapshot) => void) | undefined;
+    const readWorkerRoster = vi.fn(
+      async (): Promise<WorkerRosterPresentation | undefined> => undefined
+    );
+    Object.assign(runtime, {
+      readRealmSnapshot: vi.fn(() => workerRealmSnapshot()),
+      observeRealm: vi.fn((_connection, _fid, onUpdate) => {
+        publishObservedRealm = onUpdate;
+        return vi.fn();
+      }),
+      readWorkerRoster,
+      readResourceStateV2: vi.fn(async () => workerResourceState()),
+      dispatchWorker: vi.fn(async () => undefined),
+      recallWorker: vi.fn(async () => undefined),
+      recallAllWorkers: vi.fn(async () => undefined)
+    });
+    renderProvider(runtime);
+    await flushProviderWork();
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+    await flushProviderWork();
+    expect(screen.getByTestId('worker-private-sync-phase').textContent).toBe('retry-wait');
+    expect(readWorkerRoster).toHaveBeenCalledTimes(1);
+
+    act(() => publishObservedRealm?.(legacyDrainRealmSnapshot()));
+    await flushProviderWork();
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+    expect(screen.getByTestId('worker-private-sync-phase').textContent).toBe('not-required');
+    expect(screen.getByTestId('worker-private-sync-attempt').textContent).toBe('0');
+    expect(screen.getByTestId('worker-private-sync-retained').textContent).toBe('false');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(
+        WORKER_PRIVATE_SYNC_LOW_FREQUENCY_RETRY_MILLISECONDS * 2
+      );
+    });
+    document.dispatchEvent(new Event('visibilitychange'));
+    window.dispatchEvent(new Event('pageshow'));
+    window.dispatchEvent(new Event('online'));
+    await flushProviderWork();
+
+    expect(readWorkerRoster).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('worker-private-sync-phase').textContent).toBe('not-required');
+    expect(screen.getByTestId('worker-private-sync-attempt').textContent).toBe('0');
+  });
+
+  it('retains a same-FID reconnect pair for display but never for command authority', async () => {
+    mockedFarcaster.current = authenticatedFarcaster(12_345, 1);
+    const { runtime } = createRuntimeHarness();
+    const dispatchWorker = vi.fn(async () => undefined);
+    Object.assign(runtime, {
+      readRealmSnapshot: vi.fn(() => workerRealmSnapshot()),
+      readWorkerRoster: vi.fn(async () => workerRoster()),
+      readResourceStateV2: vi.fn(async () => workerResourceState()),
+      dispatchWorker,
+      recallWorker: vi.fn(async () => undefined),
+      recallAllWorkers: vi.fn(async () => undefined)
+    });
+    const rendered = renderProvider(runtime);
+    await enterRealm();
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('true');
+
+    const pendingReconnect = deferred<Awaited<ReturnType<typeof runtime.connect>>>();
+    vi.mocked(runtime.connect).mockImplementationOnce(() => pendingReconnect.promise);
+    mockedFarcaster.current = authenticatedFarcaster(12_345, 2);
+    rendered.rerender(
+      <WarpkeepSpacetimeProvider config={CONFIG} runtime={runtime}>
+        <Probe />
+      </WarpkeepSpacetimeProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('reconnecting'));
+    expect(screen.getByTestId('worker-active').textContent).toBe('active');
+    expect(screen.getByTestId('worker-first-status').textContent).toBe('idle');
+    expect(screen.getByTestId('worker-private-sync-phase').textContent).toBe('stale-read-only');
+    expect(screen.getByTestId('worker-private-sync-retained').textContent).toBe('true');
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('false');
+
+    await expect(capturedBackend!.dispatchWorker(
+      'genesis-001-castle-1-worker-01',
+      'stone',
+      'genesis-001:stone:0001'
+    )).rejects.toThrow('Worker command is unavailable.');
+    expect(dispatchWorker).not.toHaveBeenCalled();
+
+    await act(async () => {
+      pendingReconnect.resolve({
+        isDisconnectRequested: false,
+        disconnect: vi.fn()
+      } as unknown as Awaited<ReturnType<typeof runtime.connect>>);
+      await pendingReconnect.promise;
+    });
+    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('ready'));
+    await waitFor(() => expect(screen.getByTestId('worker-private-sync-phase').textContent)
+      .toBe('ready'));
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('true');
+  });
+
+  it('never retains a same-FID private Worker pair across a canonical source change', async () => {
+    const sourceA: WarpkeepRuntimeConfig = Object.freeze({
+      spacetimeUri: 'http://127.0.0.1:3000',
+      spacetimeDatabase: 'warpkeep-source-a',
+      bridgeUrl: 'http://127.0.0.1:8787',
+      issuer: 'http://127.0.0.1:8787',
+      audience: CONFIG.audience,
+      publicConfigValid: true,
+      sharedAlphaEnabled: true,
+      allowLocalHttp: true
+    });
+    const sourceB: WarpkeepRuntimeConfig = Object.freeze({
+      ...sourceA,
+      spacetimeDatabase: 'warpkeep-source-b'
+    });
+    mockedFarcaster.current = authenticatedFarcaster(12_345, 1, sourceA);
+    const { runtime } = createRuntimeHarness();
+    const dispatchWorker = vi.fn(async () => undefined);
+    const readWorkerRoster = vi.fn(async () => workerRoster());
+    const readResourceStateV2 = vi.fn(async () => workerResourceState());
+    Object.assign(runtime, {
+      readRealmSnapshot: vi.fn(() => workerRealmSnapshot()),
+      readWorkerRoster,
+      readResourceStateV2,
+      dispatchWorker,
+      recallWorker: vi.fn(async () => undefined),
+      recallAllWorkers: vi.fn(async () => undefined)
+    });
+    const rendered = render(
+      <WarpkeepSpacetimeProvider config={sourceA} runtime={runtime}>
+        <Probe />
+      </WarpkeepSpacetimeProvider>
+    );
+    await enterRealm();
+    expect(screen.getByTestId('worker-active').textContent).toBe('active');
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('true');
+    expect(readWorkerRoster).toHaveBeenCalledTimes(1);
+    expect(readResourceStateV2).toHaveBeenCalledTimes(1);
+
+    const pendingReconnect = deferred<Awaited<ReturnType<typeof runtime.connect>>>();
+    vi.mocked(runtime.connect).mockImplementationOnce(() => pendingReconnect.promise);
+    mockedFarcaster.current = authenticatedFarcaster(12_345, 2, sourceB);
+    rendered.rerender(
+      <WarpkeepSpacetimeProvider config={sourceB} runtime={runtime}>
+        <Probe />
+      </WarpkeepSpacetimeProvider>
+    );
+
+    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('connecting'));
+    expect(screen.getByTestId('worker-active').textContent).toBe('');
+    expect(screen.getByTestId('worker-first-status').textContent).toBe('');
+    expect(screen.getByTestId('worker-resource-revision').textContent).toBe('');
+    expect(screen.getByTestId('worker-private-sync-phase').textContent).toBe('not-required');
+    expect(screen.getByTestId('worker-private-sync-retained').textContent).toBe('false');
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('false');
+    expect(readWorkerRoster).toHaveBeenCalledTimes(1);
+    expect(readResourceStateV2).toHaveBeenCalledTimes(1);
+
+    await expect(capturedBackend!.dispatchWorker(
+      'genesis-001-castle-1-worker-01',
+      'stone',
+      'genesis-001:stone:0001'
+    )).rejects.toThrow('Worker command is unavailable.');
+    expect(dispatchWorker).not.toHaveBeenCalled();
+
+    await act(async () => {
+      pendingReconnect.resolve({
+        isDisconnectRequested: false,
+        disconnect: vi.fn()
+      } as unknown as Awaited<ReturnType<typeof runtime.connect>>);
+      await pendingReconnect.promise;
+    });
+    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('ready'));
+    await waitFor(() => expect(screen.getByTestId('worker-private-sync-phase').textContent)
+      .toBe('ready'));
+    expect(readWorkerRoster).toHaveBeenCalledTimes(2);
+    expect(readResourceStateV2).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('true');
+  });
+
+  it('rejects a coherent but older same-FID pair after reconnect', async () => {
+    mockedFarcaster.current = authenticatedFarcaster(12_345, 1);
+    const { runtime } = createRuntimeHarness();
+    const readWorkerRoster = vi.fn(async () => outboundWorkerRoster());
+    const readResourceStateV2 = vi.fn()
+      .mockResolvedValueOnce(newerWorkerResourceState())
+      .mockResolvedValue(workerResourceState());
+    Object.assign(runtime, {
+      readRealmSnapshot: vi.fn(() => outboundWorkerRealmSnapshot()),
+      readWorkerRoster,
+      readResourceStateV2,
+      dispatchWorker: vi.fn(async () => undefined),
+      recallWorker: vi.fn(async () => undefined),
+      recallAllWorkers: vi.fn(async () => undefined)
+    });
+    const rendered = renderProvider(runtime);
+    await enterRealm();
+    expect(screen.getByTestId('worker-resource-revision').textContent).toBe('1');
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('true');
+
+    mockedFarcaster.current = authenticatedFarcaster(12_345, 2);
+    rendered.rerender(
+      <WarpkeepSpacetimeProvider config={CONFIG} runtime={runtime}>
+        <Probe />
+      </WarpkeepSpacetimeProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('ready'));
+    await waitFor(() => expect(screen.getByTestId('worker-private-sync-phase').textContent)
+      .toBe('retry-wait'));
+
+    expect(readWorkerRoster).toHaveBeenCalledTimes(2);
+    expect(readResourceStateV2).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('worker-resource-revision').textContent).toBe('1');
+    expect(screen.getByTestId('worker-first-status').textContent).toBe('outbound');
+    expect(screen.getByTestId('worker-private-sync-retained').textContent).toBe('true');
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('false');
+  });
+
+  it('does not restore private Worker display or authority across a provider remount', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const firstHarness = createRuntimeHarness();
+    Object.assign(firstHarness.runtime, {
+      readRealmSnapshot: vi.fn(() => workerRealmSnapshot()),
+      readWorkerRoster: vi.fn(async () => workerRoster()),
+      readResourceStateV2: vi.fn(async () => workerResourceState()),
+      dispatchWorker: vi.fn(async () => undefined),
+      recallWorker: vi.fn(async () => undefined),
+      recallAllWorkers: vi.fn(async () => undefined)
+    });
+    const first = renderProvider(firstHarness.runtime);
+    await enterRealm();
+    expect(screen.getByTestId('worker-active').textContent).toBe('active');
+    first.unmount();
+
+    const secondHarness = createRuntimeHarness();
+    const pendingConnection =
+      new Promise<Awaited<ReturnType<typeof secondHarness.runtime.connect>>>(() => undefined);
+    vi.mocked(secondHarness.runtime.connect).mockImplementation(() => pendingConnection);
+    renderProvider(secondHarness.runtime);
+    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('connecting'));
+    expect(screen.getByTestId('worker-active').textContent).toBe('');
+    expect(screen.getByTestId('worker-private-sync-phase').textContent).toBe('not-required');
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('false');
+  });
+
+  it('never retries an ambiguous Worker mutation automatically', async () => {
+    vi.useFakeTimers();
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const dispatchWorker = vi.fn().mockRejectedValue(new Error('response unavailable'));
+    Object.assign(runtime, {
+      readRealmSnapshot: vi.fn(() => workerRealmSnapshot()),
+      readWorkerRoster: vi.fn(async () => workerRoster()),
+      readResourceStateV2: vi.fn(async () => workerResourceState()),
+      dispatchWorker,
+      recallWorker: vi.fn(async () => undefined),
+      recallAllWorkers: vi.fn(async () => undefined)
+    });
+    renderProvider(runtime);
+    await flushProviderWork();
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+    await flushProviderWork();
+
+    await act(async () => {
+      await expect(capturedBackend!.dispatchWorker(
+        'genesis-001-castle-1-worker-01',
+        'stone',
+        'genesis-001:stone:0001'
+      )).rejects.toThrow('Worker command is unavailable.');
+    });
+    await flushProviderWork();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(
+        WORKER_PRIVATE_SYNC_LOW_FREQUENCY_RETRY_MILLISECONDS * 2
+      );
+    });
+    await flushProviderWork();
+
+    expect(dispatchWorker).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('worker-private-sync-phase').textContent).toBe('ready');
+  });
+
+  it('exposes only aggregate privacy-safe Worker sync telemetry', async () => {
+    mockedFarcaster.current = authenticatedFarcaster(987_654_321);
+    const { runtime } = createRuntimeHarness();
+    Object.assign(runtime, {
+      readRealmSnapshot: vi.fn(() => workerRealmSnapshot(987_654_321)),
+      readWorkerRoster: vi.fn(async () => workerRoster()),
+      readResourceStateV2: vi.fn(async () => workerResourceState(987_654_321)),
+      dispatchWorker: vi.fn(async () => undefined),
+      recallWorker: vi.fn(async () => undefined),
+      recallAllWorkers: vi.fn(async () => undefined)
+    });
+    renderProvider(runtime);
+    await enterRealm();
+
+    const status = capturedBackend!.workerPrivateSync;
+    expect(Object.keys(status).sort()).toEqual([
+      'attempt',
+      'commandsEnabled',
+      'lastSuccessGeneration',
+      'lastSuccessRevision',
+      'localizedFailureCount',
+      'queuedRefresh',
+      'readyLatencyMilliseconds',
+      'retainedStale',
+      'phase'
+    ].sort());
+    const serialized = JSON.stringify(status);
+    expect(serialized).not.toContain('987654321');
+    expect(serialized).not.toContain('genesis-001-castle');
+    expect(serialized).not.toContain('signature');
+    expect(serialized).not.toContain('"available"');
+    expect(serialized).not.toContain('"pending"');
   });
 
   it('activates only the exact worker projections and keys retries by command fingerprint', async () => {
@@ -766,6 +1653,8 @@ describe('Warpkeep private resource lifecycle', () => {
     renderProvider(runtime);
     await enterRealm();
     expect(screen.getByTestId('worker-active').textContent).toBe('active');
+    expect(screen.getByTestId('worker-private-sync-phase').textContent).toBe('ready');
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('true');
 
     await expect(capturedBackend!.dispatchWorker(
       'genesis-001-castle-1-worker-01',
@@ -1011,18 +1900,25 @@ describe('Warpkeep private resource lifecycle', () => {
     renderProvider(runtime);
     await enterRealm();
 
-    await expect(capturedBackend!.dispatchWorker(
-      'genesis-001-castle-1-worker-01',
-      'stone',
-      'genesis-001:stone:0001'
-    )).rejects.toThrow('Worker command is unavailable.');
+    await act(async () => {
+      await expect(capturedBackend!.dispatchWorker(
+        'genesis-001-castle-1-worker-01',
+        'stone',
+        'genesis-001:stone:0001'
+      )).rejects.toThrow('Worker command is unavailable.');
+    });
+    await flushProviderWork();
 
     expect(dispatchWorker).toHaveBeenCalledTimes(1);
-    expect(runtime.readWorkerRoster).toHaveBeenCalledTimes(3);
-    expect(runtime.readResourceStateV2).toHaveBeenCalledTimes(3);
+    // The ambiguous mutation is never retried. A separate bounded read-only
+    // reconciliation attempts the complete private pair once more.
+    expect(runtime.readWorkerRoster).toHaveBeenCalledTimes(5);
+    expect(runtime.readResourceStateV2).toHaveBeenCalledTimes(5);
     expect(screen.getByTestId('worker-active').textContent).toBe('active');
     expect(screen.getByTestId('worker-first-status').textContent).toBe('idle');
     expect(screen.getByTestId('worker-resource-revision').textContent).toBe('0');
+    expect(screen.getByTestId('worker-private-sync-phase').textContent).toBe('retry-wait');
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('false');
   });
 
   it('rejects a wrong-FID command refresh without caching or publishing it', async () => {
@@ -1042,18 +1938,23 @@ describe('Warpkeep private resource lifecycle', () => {
     renderProvider(runtime);
     await enterRealm();
 
-    await expect(capturedBackend!.dispatchWorker(
-      'genesis-001-castle-1-worker-01',
-      'stone',
-      'genesis-001:stone:0001'
-    )).rejects.toThrow('Worker command is unavailable.');
+    await act(async () => {
+      await expect(capturedBackend!.dispatchWorker(
+        'genesis-001-castle-1-worker-01',
+        'stone',
+        'genesis-001:stone:0001'
+      )).rejects.toThrow('Worker command is unavailable.');
+    });
+    await flushProviderWork();
 
     expect(dispatchWorker).toHaveBeenCalledTimes(1);
-    expect(runtime.readWorkerRoster).toHaveBeenCalledTimes(2);
-    expect(runtime.readResourceStateV2).toHaveBeenCalledTimes(2);
+    expect(runtime.readWorkerRoster).toHaveBeenCalledTimes(3);
+    expect(runtime.readResourceStateV2).toHaveBeenCalledTimes(3);
     expect(screen.getByTestId('worker-active').textContent).toBe('active');
     expect(screen.getByTestId('worker-first-status').textContent).toBe('idle');
     expect(screen.getByTestId('worker-resource-revision').textContent).toBe('0');
+    expect(screen.getByTestId('worker-private-sync-phase').textContent).toBe('retry-wait');
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('false');
   });
 
   it('rejects an older periodic worker pair that resolves after a command refresh', async () => {
@@ -1100,6 +2001,11 @@ describe('Warpkeep private resource lifecycle', () => {
     });
     expect(runtime.readWorkerRoster).toHaveBeenCalledTimes(2);
     expect(runtime.readResourceStateV2).toHaveBeenCalledTimes(2);
+    // A background read does not flicker controls when the retained pair still
+    // validates against the latest canonical public Worker graph.
+    expect(screen.getByTestId('worker-private-sync-phase').textContent).toBe('ready');
+    expect(screen.getByTestId('worker-private-sync-queued').textContent).toBe('true');
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('true');
 
     await act(async () => {
       await capturedBackend!.dispatchWorker(
@@ -1169,6 +2075,12 @@ describe('Warpkeep private resource lifecycle', () => {
 
     currentRealm = outboundWorkerRealmSnapshot();
     act(() => publishObservedRealm?.(currentRealm));
+    // The new public lifecycle no longer matches the retained private pair, so
+    // command authority is revoked before the queued private read can resolve.
+    expect(screen.getByTestId('worker-private-sync-phase').textContent)
+      .toBe('synchronizing');
+    expect(screen.getByTestId('worker-private-sync-queued').textContent).toBe('true');
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('false');
     await act(async () => {
       staleRoster.resolve(workerRoster());
       staleWorkerResources.resolve(workerResourceState());

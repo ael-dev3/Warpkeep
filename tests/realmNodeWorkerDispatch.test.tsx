@@ -200,4 +200,32 @@ describe('RealmNodeWorkerDispatch', () => {
     expect(screen.getByRole('status').textContent).toMatch(/four-worker roster is unavailable/i);
     expect(screen.queryByRole('button')).toBeNull();
   });
+
+  it('keeps the public four-worker roster visible but read-only while controls synchronize', () => {
+    const controlsStatus =
+      'Synchronizing worker controls… Public worker positions remain available.';
+    render(
+      <RealmNodeWorkerDispatch
+        controlsStatus={controlsStatus}
+        id="gold-site"
+        resourceKind="gold"
+        siteId="genesis-001:gold:0001"
+        workers={[
+          worker(1, 'idle'),
+          worker(2, 'idle'),
+          worker(3, 'gathering', 'stone'),
+          worker(4, 'returning', 'wood')
+        ]}
+      />
+    );
+
+    const workerList = screen.getByRole('list', {
+      name: 'Your workers for this Gold site'
+    });
+    expect(workerList.querySelectorAll('li')).toHaveLength(4);
+    expect(screen.getByText(controlsStatus)).not.toBeNull();
+    expect(screen.getAllByRole('button').every(
+      (button) => button.hasAttribute('disabled')
+    )).toBe(true);
+  });
 });

@@ -56,6 +56,18 @@ export type RealmWorkerNodeOccupation = Readonly<{
   timelineRevision: number;
 }>;
 
+/**
+ * Canonical public destination used to prove that every assigned Worker can
+ * be placed in the world. It intentionally carries no availability,
+ * ownership, or caller-private economy data.
+ */
+export type RealmWorkerResourceSite = Readonly<{
+  resourceKind: RealmEconomicResourceKey;
+  siteId: string;
+  q: number;
+  r: number;
+}>;
+
 export type WorkerRosterPresentation = Readonly<{
   castleId: number;
   observedAtMicros: bigint;
@@ -86,6 +98,11 @@ export type ReadyWorkerResourceState = Readonly<{
   workerSystemMode: RealmWorkerSystemMode;
 }>;
 
+/**
+ * Complete public realm-wide worker graph. This is presentation authority for
+ * worker entities, routes, occupations, and public identity joins, but it is
+ * never sufficient to authorize a caller command.
+ */
 export type ReadyPublicWorkerProjection = Readonly<{
   mode: 'active';
   system: RealmWorkerSystemPresentation;
@@ -93,6 +110,11 @@ export type ReadyPublicWorkerProjection = Readonly<{
   occupations: readonly RealmWorkerNodeOccupation[];
 }>;
 
+/**
+ * Public worker truth correlated with the current caller-private roster and
+ * resource views. Only this stronger projection may authorize worker commands;
+ * public world presentation must not depend on it.
+ */
 export type ReadyWorkerProjection = ReadyPublicWorkerProjection & Readonly<{
   /** The only four workers permitted in owner command surfaces. */
   ownedWorkers: readonly RealmWorkerPublicPresentation[];
@@ -103,6 +125,8 @@ const workerStatuses = new Set<RealmWorkerStatus>(['idle', 'outbound', 'gatherin
 const occupationPhases = new Set<RealmWorkerNodeOccupation['phase']>(['outbound', 'gathering']);
 const RESOURCE_ORDER = Object.freeze(['food', 'wood', 'stone', 'gold'] as const);
 const U64_MAX = (1n << 64n) - 1n;
+const MAX_WORKER_RESOURCE_SITE_COUNT = 40_000;
+const MAX_WORKER_RESOURCE_SITE_IDENTIFIER_LENGTH = 96;
 
 function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -454,8 +478,9 @@ export function resolveReadyPublicWorkerProjection(input: Readonly<{
   system?: RealmWorkerSystemPresentation;
   workers?: readonly RealmWorkerPublicPresentation[];
   occupations?: readonly RealmWorkerNodeOccupation[];
+  resourceSites: readonly RealmWorkerResourceSite[];
 }>): ReadyPublicWorkerProjection | undefined {
-  const { system, workers, occupations } = input;
+  const { system, workers, occupations, resourceSites } = input;
   const castleIds = [...input.castleIds].sort((left, right) => left - right);
   if (
     system?.mode !== 'active'
@@ -464,12 +489,32 @@ export function resolveReadyPublicWorkerProjection(input: Readonly<{
     || system.realmId !== CASTLE_WORKER_REALM_ID
     || system.policyVersion !== CASTLE_WORKER_POLICY_VERSION
     || new Set(castleIds).size !== castleIds.length
+    || !castleIds.includes(input.ownCastleId)
     || system.expectedCastleCount !== castleIds.length
     || system.expectedWorkerCount !== castleIds.length * 4
     || system.rosterDigest !== workerRosterDigestForCastleIds(castleIds)
     || workers === undefined || workers.length !== system.expectedWorkerCount
     || occupations === undefined
+    || resourceSites === undefined
+    || resourceSites.length > MAX_WORKER_RESOURCE_SITE_COUNT
   ) return undefined;
+
+  const resourceSitesByKey = new Map<string, RealmWorkerResourceSite>();
+  for (const site of resourceSites) {
+    const key = `${site.resourceKind}:${site.siteId}`;
+    if (
+      !resourceKinds.has(site.resourceKind)
+      || typeof site.siteId !== 'string'
+      || site.siteId.length === 0
+      || site.siteId.length > MAX_WORKER_RESOURCE_SITE_IDENTIFIER_LENGTH
+      || site.siteId.trim() !== site.siteId
+      || !/^[a-z0-9][a-z0-9:_-]*$/i.test(site.siteId)
+      || !Number.isSafeInteger(site.q)
+      || !Number.isSafeInteger(site.r)
+      || resourceSitesByKey.has(key)
+    ) return undefined;
+    resourceSitesByKey.set(key, site);
+  }
 
   const castleSet = new Set(castleIds);
   const workersById = new Map<string, RealmWorkerPublicPresentation>();
@@ -481,6 +526,10 @@ export function resolveReadyPublicWorkerProjection(input: Readonly<{
       || worker.workerId !== canonicalWorkerId(worker.originCastleId, worker.ordinal)
       || !assignedWorkerStateIsConsistent(worker)
       || worker.ownedByViewer !== (worker.originCastleId === input.ownCastleId)
+      || (
+        worker.status !== 'idle'
+        && !resourceSitesByKey.has(`${worker.resourceKind}:${worker.siteId}`)
+      )
     ) return undefined;
     const ordinals = ordinalsByCastle.get(worker.originCastleId) ?? new Set<number>();
     if (ordinals.has(worker.ordinal)) return undefined;
@@ -536,6 +585,7 @@ export function resolveReadyWorkerProjection(input: Readonly<{
   system?: RealmWorkerSystemPresentation;
   workers?: readonly RealmWorkerPublicPresentation[];
   occupations?: readonly RealmWorkerNodeOccupation[];
+  resourceSites: readonly RealmWorkerResourceSite[];
   roster?: WorkerRosterPresentation;
   resourceState?: ReadyWorkerResourceState;
 }>): ReadyWorkerProjection | undefined {

@@ -19,6 +19,7 @@ import type {
   GraphicsPreference,
   GraphicsQualityTier
 } from '../../settings/graphicsPreference';
+import type { WarpkeepWorkerPrivateSyncStatus } from '../../spacetime/warpkeepBackendTypes';
 import type { RealmIdentity } from './realmTypes';
 import {
   castleProfileLabel,
@@ -39,6 +40,7 @@ import { WorkerCommandCenter } from './WorkerCommandCenter';
 import { WorkerInspectionPanel } from './WorkerInspectionPanel';
 import {
   realmWorkerCanRecall,
+  type ReadyPublicWorkerProjection,
   type ReadyWorkerProjection,
   type ReadyWorkerResourceState,
   type WorkerRosterPresentation
@@ -64,9 +66,17 @@ type RealmHudProps = Readonly<{
   onRequestExplore?: () => void;
   activeWagons?: readonly RealmActiveWagonMenuItem[];
   onOpenActiveWagon?: (wagon: RealmActiveWagonMenuItem) => void;
+  /** Validated public system-mode signal, independent from graph completeness. */
+  publicWorkerSystemActive?: boolean;
+  publicWorkerProjection?: ReadyPublicWorkerProjection;
   workerProjection?: ReadyWorkerProjection;
   workerRoster?: WorkerRosterPresentation;
   workerResourceState?: ReadyWorkerResourceState;
+  workerPrivateSync?: Pick<
+    WarpkeepWorkerPrivateSyncStatus,
+    'phase' | 'commandsEnabled'
+  >;
+  onRetryWorkerPrivateSync?: () => void;
   onLocateWorker?: (workerId: string) => void;
   onRecallWorker?: (workerId: string) => Promise<void>;
   onRecallAllWorkers?: () => Promise<void>;
@@ -129,11 +139,76 @@ const RESOURCE_ICON_PATHS: Readonly<
 });
 
 type RealmMenuSurface = 'closed' | 'menu' | 'settings' | 'workers' | 'worker-inspection';
+type WorkerPrivateSyncPresentation = Pick<
+  WarpkeepWorkerPrivateSyncStatus,
+  'phase' | 'commandsEnabled'
+>;
 
 const REALM_MENU_ID = 'realm-player-menu';
 const REALM_SETTINGS_ID = 'realm-player-settings';
 const REALM_WORKERS_ID = 'realm-worker-command-center';
 const REALM_WORKER_INSPECTION_ID = 'realm-worker-inspection';
+
+function workerProjectionAuthoritySignature(
+  projection: ReadyPublicWorkerProjection | undefined
+) {
+  if (!projection) return '';
+  const workers = projection.workers.map((worker) => [
+    worker.workerId,
+    worker.originCastleId,
+    worker.ordinal,
+    worker.status,
+    worker.resourceKind ?? '',
+    worker.siteId ?? '',
+    worker.startedAtMicros?.toString() ?? '',
+    worker.arrivesAtMicros?.toString() ?? '',
+    worker.gatheringEndsAtMicros?.toString() ?? '',
+    worker.returnsAtMicros?.toString() ?? '',
+    worker.timelineRevision,
+    worker.revision.toString()
+  ].join(':')).sort().join('|');
+  const occupations = projection.occupations.map((occupation) => [
+    occupation.nodeKey,
+    occupation.workerId,
+    occupation.originCastleId,
+    occupation.workerOrdinal,
+    occupation.phase,
+    occupation.resourceKind,
+    occupation.siteId,
+    occupation.startedAtMicros.toString(),
+    occupation.arrivesAtMicros.toString(),
+    occupation.gatheringEndsAtMicros.toString(),
+    occupation.timelineRevision
+  ].join(':')).sort().join('|');
+  return [
+    projection.system.realmId,
+    projection.system.policyVersion,
+    projection.system.rosterDigest,
+    workers,
+    occupations
+  ].join('::');
+}
+
+function workerPrivateSyncCopy(
+  sync: WorkerPrivateSyncPresentation | undefined,
+  privateAuthorityCurrent: boolean
+) {
+  if (
+    sync?.phase === 'ready'
+    && sync.commandsEnabled
+    && privateAuthorityCurrent
+  ) return undefined;
+  if (sync?.phase === 'failed-localized') {
+    return 'Worker controls could not be synchronized. Your public worker positions remain visible.';
+  }
+  if (sync?.phase === 'retry-wait') {
+    return 'Worker controls are waiting to retry. Your public worker positions remain visible.';
+  }
+  if (sync?.phase === 'stale-read-only') {
+    return 'Refreshing worker controls. Public worker positions remain available in read-only mode.';
+  }
+  return 'Synchronizing worker controls… Public worker positions remain available.';
+}
 
 function publicAssetUrl(path: string) {
   const base = import.meta.env.BASE_URL || '/';
@@ -161,8 +236,13 @@ function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
 
 function RealmResourceRail({
   resources,
+  genericWorkerMode = false,
   workerResourceState
-}: Readonly<{ resources: ReadyRealmResourcePresentation; workerResourceState?: ReadyWorkerResourceState }>) {
+}: Readonly<{
+  resources: ReadyRealmResourcePresentation;
+  genericWorkerMode?: boolean;
+  workerResourceState?: ReadyWorkerResourceState;
+}>) {
   const tooltipIdPrefix = `realm-resource-tooltip-${useId().replace(/:/g, '')}`;
   const railRef = useRef<HTMLElement>(null);
   const [activeTooltip, setActiveTooltip] = useState<RealmResourceTooltipKey | null>(null);
@@ -206,6 +286,8 @@ function RealmResourceRail({
       label: RESOURCE_LABELS[resource],
       status: workerResourceState
         ? `${formatExactRealmResourceQuantity(workerResourceState.available[resource]) ?? '0'} available`
+        : genericWorkerMode
+          ? 'Synchronizing private balance'
         : `${formatExactRealmResourceQuantity(resources.balances[resource]) ?? '0'} stored · ${formatExactRealmResourceQuantity(resources.pendingBalances[resource]) ?? '0'} gathering now`
     };
   };
@@ -239,9 +321,15 @@ function RealmResourceRail({
     >
       <ul>
         {REALM_ECONOMIC_RESOURCE_ORDER.map((resource) => {
-          const railValue = workerResourceState?.available[resource] ?? resources.balances[resource];
-          const compact = formatCompactRealmResourceQuantity(railValue)!;
-          const exact = formatExactRealmResourceQuantity(railValue)!;
+          const balanceSynchronizing = genericWorkerMode && !workerResourceState;
+          const railValue = workerResourceState?.available[resource]
+            ?? resources.balances[resource];
+          const compact = balanceSynchronizing
+            ? '—'
+            : formatCompactRealmResourceQuantity(railValue)!;
+          const exact = balanceSynchronizing
+            ? undefined
+            : formatExactRealmResourceQuantity(railValue)!;
           const pending = formatExactRealmResourceQuantity(resources.pendingBalances[resource])!;
           return (
             <li key={resource}>
@@ -249,6 +337,8 @@ function RealmResourceRail({
                 aria-describedby={tooltipId(resource)}
                 aria-label={workerResourceState
                   ? `${RESOURCE_LABELS[resource]}: ${exact} available. Show resource details.`
+                  : genericWorkerMode
+                    ? `${RESOURCE_LABELS[resource]} balance synchronizing. Show resource details.`
                   : `${RESOURCE_LABELS[resource]}: ${exact} stored; ${pending} gathering now; settlement is automatic. Show resource details.`}
                 className="realm-resource-rail__trigger"
                 type="button"
@@ -326,13 +416,17 @@ type RealmCommandDialogProps = Readonly<{
   castleCount: number;
   canOpenSettings: boolean;
   activeWagons: readonly RealmActiveWagonMenuItem[];
+  workerModeActive: boolean;
+  workerPresentationAvailable: boolean;
   deployedWorkerCount?: number;
   recallableWorkerCount?: number;
+  workerControlsStatus?: string;
   recallingAllWorkers: boolean;
   recallAllWorkersConfirmed: boolean;
   recallAllWorkersFailed: boolean;
   onWorkers?: () => void;
   onRecallAllWorkers?: () => void;
+  onRetryWorkerPrivateSync?: () => void;
   onClose: () => void;
   onExplore: () => void;
   onOpenActiveWagon?: (wagon: RealmActiveWagonMenuItem) => void;
@@ -348,13 +442,17 @@ function RealmCommandDialog({
   castleCount,
   canOpenSettings,
   activeWagons,
+  workerModeActive,
+  workerPresentationAvailable,
   deployedWorkerCount,
   recallableWorkerCount,
+  workerControlsStatus,
   recallingAllWorkers,
   recallAllWorkersConfirmed,
   recallAllWorkersFailed,
   onWorkers,
   onRecallAllWorkers,
+  onRetryWorkerPrivateSync,
   onClose,
   onExplore,
   onOpenActiveWagon,
@@ -396,9 +494,7 @@ function RealmCommandDialog({
             <strong>EXPLORE</strong>
             <span>{castleCount} founded {castleCount === 1 ? 'castle' : 'castles'}</span>
           </button>
-          {onWorkers
-            && deployedWorkerCount !== undefined
-            && recallableWorkerCount !== undefined ? (
+          {workerModeActive ? (
             <div
               aria-label="Worker controls"
               className="realm-profile-menu__worker-actions"
@@ -407,18 +503,26 @@ function RealmCommandDialog({
               <button
                 aria-controls={workersId}
                 aria-haspopup="dialog"
-                disabled={recallingAllWorkers}
+                disabled={!onWorkers || recallingAllWorkers}
                 onClick={onWorkers}
                 type="button"
               >
                 <strong>WORKERS</strong>
-                <span>{deployedWorkerCount}/4 deployed · manage workers</span>
+                <span>
+                  {workerPresentationAvailable && deployedWorkerCount !== undefined
+                    ? `${deployedWorkerCount}/4 deployed · ${
+                      workerControlsStatus ? 'public status · controls read-only' : 'manage workers'
+                    }`
+                    : 'Worker presentation unavailable'}
+                </span>
               </button>
               <button
+                aria-describedby={workerControlsStatus ? `${workersId}-sync-status` : undefined}
                 disabled={
                   !onRecallAllWorkers
                   || recallingAllWorkers
                   || recallAllWorkersConfirmed
+                  || recallableWorkerCount === undefined
                   || recallableWorkerCount === 0
                 }
                 onClick={onRecallAllWorkers}
@@ -434,11 +538,29 @@ function RealmCommandDialog({
                 <span>
                   {recallAllWorkersConfirmed
                     ? 'Awaiting the next Realm update'
-                    : recallableWorkerCount > 0
+                    : !workerPresentationAvailable
+                      ? 'Unavailable until public worker records recover'
+                    : workerControlsStatus
+                      ? 'Available after worker controls synchronize'
+                    : recallableWorkerCount !== undefined && recallableWorkerCount > 0
                     ? `${recallableWorkerCount} ${recallableWorkerCount === 1 ? 'worker' : 'workers'} can return`
-                    : 'All workers are at or returning to the keep'}
+                    : recallableWorkerCount === 0
+                      ? 'All workers are at or returning to the keep'
+                      : 'Unavailable until public worker records recover'}
                 </span>
               </button>
+              {workerControlsStatus ? (
+                <div className="realm-profile-menu__worker-sync">
+                  <p id={`${workersId}-sync-status`} role="status">
+                    {workerControlsStatus}
+                  </p>
+                  {onRetryWorkerPrivateSync ? (
+                    <button onClick={onRetryWorkerPrivateSync} type="button">
+                      RETRY WORKER CONTROLS
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
               {recallAllWorkersFailed ? (
                 <p className="realm-profile-menu__worker-error" role="alert">
                   The recall could not be confirmed. Try the same action again.
@@ -517,9 +639,13 @@ export function RealmHud({
   onRequestExplore,
   activeWagons = [],
   onOpenActiveWagon,
+  publicWorkerSystemActive = false,
+  publicWorkerProjection,
   workerProjection,
   workerRoster,
   workerResourceState,
+  workerPrivateSync,
+  onRetryWorkerPrivateSync,
   onLocateWorker,
   onRecallWorker,
   onRecallAllWorkers,
@@ -576,26 +702,44 @@ export function RealmHud({
     key: selectionAnnouncementKey,
     copy: selectionAnnouncementCandidate
   });
-  const ownedWorkersForUi = workerProjection?.ownedWorkers.filter((worker) => worker.ownedByViewer);
+  const ownedWorkersForUi = publicWorkerProjection?.workers
+    .filter((worker) => worker.ownedByViewer)
+    .slice()
+    .sort((left, right) => left.ordinal - right.ordinal) ?? [];
   const privateWorkerIds = new Set(workerRoster?.workers.map((worker) => worker.workerId) ?? []);
   const authenticatedWorkerFid = Number.isSafeInteger(identity.fid) && identity.fid > 0
     ? BigInt(identity.fid)
     : undefined;
-  const genericWorkersActive = authenticatedWorkerFid !== undefined
+  const publicWorkersActive = Boolean(publicWorkerProjection?.mode === 'active'
+    && ownedWorkersForUi.length === 4
+    && new Set(ownedWorkersForUi.map((worker) => worker.workerId)).size === 4
+    && new Set(ownedWorkersForUi.map((worker) => worker.ordinal)).size === 4);
+  const genericWorkerModeActive = publicWorkerSystemActive || publicWorkersActive;
+  const privateAuthorityCurrent = Boolean(publicWorkersActive
+    && authenticatedWorkerFid !== undefined
     && workerResourceState?.fid === authenticatedWorkerFid
     && workerProjection?.mode === 'active'
-    && ownedWorkersForUi?.length === 4
     && workerProjection.ownedWorkers.length === 4
     && workerRoster?.workers.length === 4
     && ownedWorkersForUi.every((worker) => privateWorkerIds.has(worker.workerId))
-    && workerResourceState?.workerSystemMode === 'active';
-  const deployedWorkerCount = genericWorkersActive
+    && workerResourceState?.workerSystemMode === 'active'
+    && workerProjectionAuthoritySignature(workerProjection)
+      === workerProjectionAuthoritySignature(publicWorkerProjection));
+  const workerControlsReady = privateAuthorityCurrent
+    && workerPrivateSync?.phase === 'ready'
+    && workerPrivateSync.commandsEnabled;
+  const workerControlsStatus = genericWorkerModeActive
+    ? publicWorkersActive
+      ? workerPrivateSyncCopy(workerPrivateSync, privateAuthorityCurrent)
+      : 'Worker presentation is temporarily unavailable. Public worker records are recovering while the Realm remains open.'
+    : undefined;
+  const deployedWorkerCount = publicWorkersActive
     ? ownedWorkersForUi.filter((worker) => worker.status !== 'idle').length
     : 0;
-  const recallableWorkerCount = genericWorkersActive
+  const recallableWorkerCount = publicWorkersActive
     ? ownedWorkersForUi.filter(realmWorkerCanRecall).length
     : 0;
-  const recallableWorkerSignature = genericWorkersActive
+  const recallableWorkerSignature = publicWorkersActive
     ? ownedWorkersForUi
       .filter(realmWorkerCanRecall)
       .map((worker) => `${worker.workerId}:${worker.timelineRevision}`)
@@ -607,7 +751,7 @@ export function RealmHud({
   recallAllWorkersScopeRef.current = recallAllWorkersScope;
   const recallAllWorkersConfirmed = recallableWorkerSignature.length > 0
     && confirmedRecallAllSignature === recallAllWorkersScope;
-  const selectedWorker = genericWorkersActive && selectedWorkerId
+  const selectedWorker = publicWorkersActive && selectedWorkerId
     ? ownedWorkersForUi.find((worker) => worker.workerId === selectedWorkerId)
     : undefined;
 
@@ -626,7 +770,7 @@ export function RealmHud({
   }, [surface]);
 
   useEffect(() => {
-    if (genericWorkersActive) {
+    if (publicWorkersActive) {
       if (surface === 'worker-inspection' && selectedWorker === undefined) {
         setSurface('workers');
       }
@@ -636,7 +780,7 @@ export function RealmHud({
       setSelectedWorkerId(undefined);
       setSurface('menu');
     }
-  }, [genericWorkersActive, selectedWorker, surface]);
+  }, [publicWorkersActive, selectedWorker, surface]);
 
   useEffect(() => {
     // Command feedback belongs to one caller-bound authoritative assignment
@@ -652,7 +796,8 @@ export function RealmHud({
 
   const recallAll = async () => {
     if (
-      !genericWorkersActive
+      !publicWorkersActive
+      || !workerControlsReady
       || !onRecallAllWorkers
       || recallableWorkerCount === 0
       || recallAllWorkersConfirmed
@@ -698,7 +843,13 @@ export function RealmHud({
         <CastleProfileAvatar profile={playerProfile} />
       </button>
 
-      {resources ? <RealmResourceRail resources={resources} workerResourceState={genericWorkersActive ? workerResourceState : undefined} /> : null}
+      {resources ? (
+        <RealmResourceRail
+          genericWorkerMode={genericWorkerModeActive}
+          resources={resources}
+          workerResourceState={workerControlsReady ? workerResourceState : undefined}
+        />
+      ) : null}
 
       <p
         aria-atomic="true"
@@ -715,45 +866,58 @@ export function RealmHud({
           workersId={REALM_WORKERS_ID}
           castleCount={foundedCastleCount}
           canOpenSettings={onGraphicsPreferenceChange !== undefined}
-          activeWagons={genericWorkersActive ? [] : activeWagons}
-          deployedWorkerCount={genericWorkersActive ? deployedWorkerCount : undefined}
-          recallableWorkerCount={genericWorkersActive ? recallableWorkerCount : undefined}
+          activeWagons={genericWorkerModeActive ? [] : activeWagons}
+          workerModeActive={genericWorkerModeActive}
+          workerPresentationAvailable={publicWorkersActive}
+          deployedWorkerCount={publicWorkersActive ? deployedWorkerCount : undefined}
+          recallableWorkerCount={publicWorkersActive ? recallableWorkerCount : undefined}
+          workerControlsStatus={workerControlsStatus}
           recallingAllWorkers={recallingAllWorkers}
           recallAllWorkersConfirmed={recallAllWorkersConfirmed}
           recallAllWorkersFailed={recallAllWorkersFailed}
           onClose={() => setSurface('closed')}
           onExplore={() => closeThen(() => onRequestExplore?.())}
-          onOpenActiveWagon={onOpenActiveWagon
+          onOpenActiveWagon={!genericWorkerModeActive && onOpenActiveWagon
             ? (wagon) => closeThen(() => onOpenActiveWagon(wagon))
             : undefined}
           onRecenter={() => closeThen(onRecenterKeep)}
           onRequestReturn={() => closeThen(onRequestReturn)}
           onSettings={() => setSurface('settings')}
-          onWorkers={genericWorkersActive ? () => setSurface('workers') : undefined}
-          onRecallAllWorkers={onRecallAllWorkers ? () => void recallAll() : undefined}
+          onWorkers={publicWorkersActive ? () => setSurface('workers') : undefined}
+          onRecallAllWorkers={workerControlsReady && onRecallAllWorkers
+            ? () => void recallAll()
+            : undefined}
+          onRetryWorkerPrivateSync={
+            workerPrivateSync?.phase === 'failed-localized'
+              ? onRetryWorkerPrivateSync
+              : undefined
+          }
         />
       ) : null}
 
-      {genericWorkersActive && workerRoster && surface === 'workers' ? (
+      {publicWorkersActive && surface === 'workers' ? (
         <WorkerCommandCenter
+          controlsAvailable={workerControlsReady}
+          controlsStatus={workerControlsStatus}
           id={REALM_WORKERS_ID}
           onClose={() => setSurface('menu')}
-          onRecallAllWorkers={onRecallAllWorkers}
-          onRecallWorker={onRecallWorker}
+          onRecallAllWorkers={workerControlsReady ? onRecallAllWorkers : undefined}
+          onRecallWorker={workerControlsReady ? onRecallWorker : undefined}
           onSelectWorker={(worker) => {
             setSelectedWorkerId(worker.workerId);
             setSurface('worker-inspection');
           }}
-          roster={workerRoster}
+          roster={workerControlsReady ? workerRoster : undefined}
           workers={ownedWorkersForUi}
         />
       ) : null}
-      {genericWorkersActive && selectedWorker && surface === 'worker-inspection' ? (
+      {publicWorkersActive && selectedWorker && surface === 'worker-inspection' ? (
         <WorkerInspectionPanel
+          controlsStatus={workerControlsStatus}
           id={REALM_WORKER_INSPECTION_ID}
           keeperProfile={ownProfile}
           onLocateWorker={onLocateWorker}
-          onRecallWorker={onRecallWorker}
+          onRecallWorker={workerControlsReady ? onRecallWorker : undefined}
           onRequestClose={() => setSurface('workers')}
           worker={selectedWorker}
         />

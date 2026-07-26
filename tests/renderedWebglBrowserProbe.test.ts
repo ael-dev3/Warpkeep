@@ -513,11 +513,16 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(expression).toMatch(/beforeProjection,\s+duringProjection/);
     expect(expression).toContain('beforeRenderer === duringRenderer');
     expect(expression).toContain('subtreePrivacyBounded(panel)');
-    expect(expression).toContain('presenceBounds.width >= 43');
-    expect(expression).toContain('presenceAvatarBounds.width >= 31');
-    expect(expression).toContain("getComputedStyle(presence).pointerEvents === 'auto'");
+    expect(expression).toContain('overviewPresenceBounds.width >= 43');
+    expect(expression).toContain('overviewPresenceAvatarBounds.width >= 31');
+    expect(expression).toContain(
+      "getComputedStyle(overviewPresence).pointerEvents === 'auto'"
+    );
     expect(expression).toContain("getComputedStyle(presenceLayer).pointerEvents === 'none'");
-    expect(expression).toContain('document.elementsFromPoint(');
+    expect(expression).toContain('focusedPresence === undefined');
+    expect(expression).toContain(
+      'document.querySelector(overviewMarkerSelector) === null'
+    );
     expect(expression).toContain('overviewDirectHit.click()');
     expect(expression).toContain('independentStableAnchorCount(beforeProjection, duringProjection) >= 3');
     expect(expression).toContain('keyboardControls.length <= 24');
@@ -768,6 +773,10 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(expression).toContain("activeMap.dataset.rendererRecoveryAttempt === '0'");
     expect(expression).toContain("=== 'legacy-expedition'");
     expect(expression).toContain('portraitPipelineReady && targetReady');
+    expect(expression).toContain(
+      'new Set([...presenceKeys, ...controlKeys]).size'
+    );
+    expect(expression).toContain('controlSelector + \',\' + passiveSelector');
     expect(expression).toMatch(/tabIndex === 0\s*\)\)\.length <= 1/);
     expect(expression).not.toContain('.realm-resource-occupant-panel');
     expect(expression).not.toContain('projectionStable(');

@@ -3810,20 +3810,22 @@ export async function applyRenderedWebglResourceOccupantInteraction(
       )].find((element) => (
         element.getAttribute('data-resource-occupant-key') === focusedMarkerKey
       ));
-      const presence = [...document.querySelectorAll(
+      const focusedPresence = [...document.querySelectorAll(
         '.realm-resource-occupant-presence'
       )].find((element) => (
         element.getAttribute('data-resource-occupant-key') === focusedMarkerKey
       ));
       const focusedExpected = focusedRecordByKey[focusedMarkerKey];
-      const presenceLayer = presence?.closest('.realm-resource-occupant-presences');
+      const presenceLayer = document.querySelector('.realm-resource-occupant-presences');
       const controlLayer = marker?.closest('.realm-resource-occupant-markers');
       const castleLayer = document.querySelector('.realm-castle-labels');
       const markerPresent = map instanceof HTMLElement
         && map.getAttribute('data-presentation-mode') === expectedMode
         && focusedExpected !== undefined
         && marker instanceof HTMLButtonElement
-        && presence instanceof HTMLElement;
+        // One occupation owns one presentation lane: the focused keyboard
+        // control replaces, rather than duplicates, its passive PFP marker.
+        && focusedPresence === undefined;
       const markerProjectedVisible = markerPresent
         && marker instanceof HTMLButtonElement
         && marker.getAttribute('data-projected-visible') === 'true';
@@ -3843,40 +3845,6 @@ export async function applyRenderedWebglResourceOccupantInteraction(
       const keyboardControlCountBounded = keyboardControls.length >= 1
         && keyboardControls.length <= 24
         && keyboardControls.filter((control) => control.tabIndex >= 0).length === 1;
-      const presenceBounds = presence instanceof HTMLElement
-        ? presence.getBoundingClientRect()
-        : undefined;
-      const presenceAvatar = presence?.querySelector('.realm-castle-avatar');
-      const presenceAvatarBounds = presenceAvatar instanceof HTMLElement
-        ? presenceAvatar.getBoundingClientRect()
-        : undefined;
-      const presenceComputedVisible = presence instanceof HTMLElement
-        && visible(presence);
-      const presenceGeometryValid = presenceBounds !== undefined
-        && presenceBounds.width >= 43
-        && presenceBounds.width <= 45
-        && presenceBounds.height >= 43
-        && presenceBounds.height <= 45
-        && presenceBounds.right > 0
-        && presenceBounds.bottom > 0
-        && presenceBounds.left < innerWidth
-        && presenceBounds.top < innerHeight;
-      const presenceAvatarGeometryValid = presenceAvatarBounds !== undefined
-        && presenceAvatarBounds.width >= 31
-        && presenceAvatarBounds.width <= 35
-        && presenceAvatarBounds.height >= 31
-        && presenceAvatarBounds.height <= 35;
-      const presencePointerActivatable = presence instanceof HTMLElement
-        && presenceLayer instanceof HTMLElement
-        && getComputedStyle(presence).pointerEvents === 'auto'
-        && getComputedStyle(presenceLayer).pointerEvents === 'none'
-        && getComputedStyle(presence).cursor === 'pointer'
-        && presenceLayer.getAttribute('aria-hidden') === 'true';
-      const presenceVisible = markerPresent
-        && presence instanceof HTMLElement
-        && presence.getAttribute('data-projected-visible') === 'true'
-        && presenceComputedVisible
-        && presenceGeometryValid;
       const hit = markerBounds
         ? document.elementFromPoint(
             markerBounds.left + markerBounds.width / 2,
@@ -3886,17 +3854,6 @@ export async function applyRenderedWebglResourceOccupantInteraction(
       const markerHitTestable = marker instanceof HTMLButtonElement
         && hit instanceof Element
         && (hit === marker || marker.contains(hit));
-      const presenceHit = presenceBounds
-        ? document.elementsFromPoint(
-            presenceBounds.left + presenceBounds.width / 2,
-            presenceBounds.top + presenceBounds.height / 2
-          ).find((candidate) => (
-            candidate === presence || presence?.contains(candidate)
-          ))
-        : undefined;
-      const presenceHitTestable = presence instanceof HTMLElement
-        && presenceHit instanceof HTMLElement
-        && (presenceHit === presence || presence.contains(presenceHit));
       const layeringValid = map instanceof HTMLElement
         && presenceLayer instanceof HTMLElement
         && controlLayer instanceof HTMLElement
@@ -3913,12 +3870,6 @@ export async function applyRenderedWebglResourceOccupantInteraction(
       const markerPortraitReady = markerPortraitElementPresent
         && marker instanceof HTMLButtonElement
         && marker.querySelectorAll('canvas[data-profile-image-state="ready"]').length === 1;
-      const presencePortraitElementPresent = markerPresent
-        && presence instanceof HTMLElement
-        && presence.querySelectorAll('canvas[data-profile-image-state]').length === 1;
-      const presencePortraitReady = presencePortraitElementPresent
-        && presence instanceof HTMLElement
-        && presence.querySelectorAll('canvas[data-profile-image-state="ready"]').length === 1;
       if (
         !markerPresent
         || !markerProjectedVisible
@@ -3927,14 +3878,8 @@ export async function applyRenderedWebglResourceOccupantInteraction(
         || !keyboardControlCountBounded
         || !markerHitTestable
         || !layeringValid
-        || !presenceVisible
-        || !presenceAvatarGeometryValid
-        || !presencePointerActivatable
-        || !presenceHitTestable
         || !markerPortraitElementPresent
         || !markerPortraitReady
-        || !presencePortraitElementPresent
-        || !presencePortraitReady
       ) {
         return {
           cameraNeutral: false,
@@ -3960,15 +3905,15 @@ export async function applyRenderedWebglResourceOccupantInteraction(
           overviewPresenceDirectHit: false,
           overviewRecordCorrect: false,
           overviewTargetPassiveOnly: false,
-          presenceComputedVisible,
-          presenceAvatarGeometryValid,
-          presenceGeometryValid,
+          presenceComputedVisible: false,
+          presenceAvatarGeometryValid: false,
+          presenceGeometryValid: false,
           presenceDelegatedActivation: false,
-          presenceHitTestable,
-          presencePointerActivatable,
-          presencePortraitElementPresent,
-          presencePortraitReady,
-          presenceVisible,
+          presenceHitTestable: false,
+          presencePointerActivatable: false,
+          presencePortraitElementPresent: false,
+          presencePortraitReady: false,
+          presenceVisible: false,
           privacyBounded: false,
           recordHeaderCorrect: false,
           reducedMotionPreferenceCorrect: false,
@@ -4199,6 +4144,51 @@ export async function applyRenderedWebglResourceOccupantInteraction(
       const overviewPresenceBounds = overviewPresence instanceof HTMLElement
         ? overviewPresence.getBoundingClientRect()
         : undefined;
+      const overviewPresenceAvatar = overviewPresence?.querySelector(
+        '.realm-castle-avatar'
+      );
+      const overviewPresenceAvatarBounds =
+        overviewPresenceAvatar instanceof HTMLElement
+          ? overviewPresenceAvatar.getBoundingClientRect()
+          : undefined;
+      const presenceComputedVisible = overviewPresence instanceof HTMLElement
+        && visible(overviewPresence);
+      const presenceGeometryValid = overviewPresenceBounds !== undefined
+        && overviewPresenceBounds.width >= 43
+        && overviewPresenceBounds.width <= 45
+        && overviewPresenceBounds.height >= 43
+        && overviewPresenceBounds.height <= 45
+        && overviewPresenceBounds.right > 0
+        && overviewPresenceBounds.bottom > 0
+        && overviewPresenceBounds.left < innerWidth
+        && overviewPresenceBounds.top < innerHeight;
+      const presenceAvatarGeometryValid =
+        overviewPresenceAvatarBounds !== undefined
+        && overviewPresenceAvatarBounds.width >= 31
+        && overviewPresenceAvatarBounds.width <= 35
+        && overviewPresenceAvatarBounds.height >= 31
+        && overviewPresenceAvatarBounds.height <= 35;
+      const presencePointerActivatable = overviewPresence instanceof HTMLElement
+        && presenceLayer instanceof HTMLElement
+        && getComputedStyle(overviewPresence).pointerEvents === 'auto'
+        && getComputedStyle(presenceLayer).pointerEvents === 'none'
+        && getComputedStyle(overviewPresence).cursor === 'pointer'
+        && presenceLayer.getAttribute('aria-hidden') === 'true';
+      const presencePortraitElementPresent =
+        overviewPresence instanceof HTMLElement
+        && overviewPresence.querySelectorAll(
+          'canvas[data-profile-image-state]'
+        ).length === 1;
+      const presencePortraitReady = presencePortraitElementPresent
+        && overviewPresence instanceof HTMLElement
+        && overviewPresence.querySelectorAll(
+          'canvas[data-profile-image-state="ready"]'
+        ).length === 1;
+      const presenceVisible = overviewPresenceReady
+        && overviewPresence instanceof HTMLElement
+        && overviewPresence.getAttribute('data-projected-visible') === 'true'
+        && presenceComputedVisible
+        && presenceGeometryValid;
       const overviewDirectHit = overviewPresenceBounds
         ? document.elementFromPoint(
             overviewPresenceBounds.left + overviewPresenceBounds.width / 2,
@@ -4210,6 +4200,7 @@ export async function applyRenderedWebglResourceOccupantInteraction(
         && overviewDirectHit instanceof HTMLElement
         && (overviewDirectHit === overviewPresence
           || overviewPresence.contains(overviewDirectHit));
+      const presenceHitTestable = overviewPresenceDirectHit;
       const overviewTargetPassiveOnly = overviewPresenceDirectHit
         && document.querySelector(overviewMarkerSelector) === null;
       const overviewProjectionSettled = overviewTargetPassiveOnly
@@ -4853,14 +4844,17 @@ export async function applyRenderedWebglOccupancyStressInteraction(session) {
             element.getAttribute('data-resource-occupant-source')
               === 'legacy-expedition'
           )),
-          presenceBudgetBounded: presences.length > 0
-            && presences.length <= maximumPresenceCount,
+          // The interactive lane may own every currently visible key. Zero
+          // passive markers is valid only because controls are proven present
+          // and the combined key sets are disjoint below.
+          presenceBudgetBounded: presences.length <= maximumPresenceCount,
           rovingTabStopBounded: controls.filter((element) => (
             element instanceof HTMLButtonElement && element.tabIndex === 0
           )).length <= 1,
           uniqueVisibleKeys: new Set(presenceKeys).size === presenceKeys.length
             && new Set(controlKeys).size === controlKeys.length
-            && controlKeys.every((key) => presenceKeys.includes(key))
+            && new Set([...presenceKeys, ...controlKeys]).size
+              === presenceKeys.length + controlKeys.length
         });
       };
 
@@ -4884,11 +4878,16 @@ export async function applyRenderedWebglOccupancyStressInteraction(session) {
           allResourceKindsExercised = false;
           continue;
         }
-        const selector = '.realm-resource-occupant-presence'
+        const passiveSelector = '.realm-resource-occupant-presence'
+          + '[data-projected-visible="true"]'
+          + '[data-resource-occupant-key="' + target.key + '"]';
+        const controlSelector = 'button.realm-resource-occupant-marker'
           + '[data-projected-visible="true"]'
           + '[data-resource-occupant-key="' + target.key + '"]';
         const targetReady = await waitFor(() => {
-          const candidate = document.querySelector(selector);
+          const candidate = document.querySelector(
+            controlSelector + ',' + passiveSelector
+          );
           return candidate instanceof HTMLElement
             && visible(candidate)
             && candidate.querySelector(
@@ -4902,12 +4901,14 @@ export async function applyRenderedWebglOccupancyStressInteraction(session) {
         presenceBudgetBounded = presenceBudgetBounded && state.presenceBudgetBounded;
         rovingTabStopBounded = rovingTabStopBounded && state.rovingTabStopBounded;
         uniqueVisibleKeys = uniqueVisibleKeys && state.uniqueVisibleKeys;
-        const presence = document.querySelector(selector);
-        if (!targetReady || !(presence instanceof HTMLElement)) {
+        const presentation = document.querySelector(
+          controlSelector + ',' + passiveSelector
+        );
+        if (!targetReady || !(presentation instanceof HTMLElement)) {
           allResourceKindsExercised = false;
           continue;
         }
-        observedKinds.add(presence.dataset.resourceKind);
+        observedKinds.add(presentation.dataset.resourceKind);
         rendererStable = rendererStable
           && rendererHealthy()
           && initialRenderer === rendererSnapshot();

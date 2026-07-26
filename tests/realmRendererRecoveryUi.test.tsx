@@ -20,10 +20,12 @@ vi.mock('../src/components/realm/realmMapPresentationHelpers', async (importOrig
 
 import { RealmMapScreen } from '../src/components/realm/RealmMapScreen';
 import type { CreateRealmSceneOptions } from '../src/components/realm/createRealmScene';
-import type { ReadyWorkerProjection } from '../src/components/realm/realmWorkerPresentation';
 import { validateCanonicalGenesisSnapshot } from '../src/spacetime/canonicalGenesisSnapshot';
 import { WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION } from '../src/spacetime/warpkeepProtocol';
-import { createRenderedWebglQaFixtureRealm } from '../src/dev/renderedWebglQaFixture';
+import {
+  createRenderedWebglQaActiveWorkerRealm,
+  createRenderedWebglQaFixtureRealm
+} from '../src/dev/renderedWebglQaFixture';
 import { CANONICAL_TIER_I_FOOD_SITES_V1 } from '../spacetimedb/src/foodSitePolicy';
 import { CANONICAL_TIER_I_GOLD_SITES_V1 } from '../spacetimedb/src/goldSitePolicy';
 import { CANONICAL_TIER_I_STONE_SITES_V1 } from '../spacetimedb/src/stoneSitePolicy';
@@ -299,40 +301,18 @@ describe('Realm renderer recovery UI', () => {
   });
 
   it('opens a worker record through the same camera-neutral entity contract', () => {
-    const snapshot = createCanonicalGenesisSnapshot(CANONICAL_TEST_FID);
-    const worker = Object.freeze({
-      workerId: `genesis-001-castle-${snapshot.ownCastle.castleId}-worker-01`,
-      ordinal: 1 as const,
-      originCastleId: snapshot.ownCastle.castleId,
-      originCastleName: snapshot.ownCastle.name,
-      status: 'idle' as const,
-      timelineRevision: 0,
-      revision: 0n,
-      ownedByViewer: true
-    });
-    const workerProjection: ReadyWorkerProjection = Object.freeze({
-      mode: 'active',
-      system: Object.freeze({
-        realmId: 'GENESIS_001',
-        policyVersion: 'genesis-001-castle-workers-v1',
-        workersPerCastle: 4,
-        expectedCastleCount: 1,
-        expectedWorkerCount: 4,
-        rosterDigest: 'camera-neutral-fixture',
-        mode: 'active',
-        legacyDrainRequired: false
-      }),
-      workers: Object.freeze([worker]),
-      ownedWorkers: Object.freeze([worker]),
-      occupations: Object.freeze([])
-    });
+    const fixture = createRenderedWebglQaActiveWorkerRealm();
+    const { snapshot } = fixture;
+    const worker = fixture.workerProjection.ownedWorkers.find(
+      (candidate) => candidate.status === 'idle'
+    );
+    if (!worker) throw new Error('missing idle public worker fixture');
     render(
       <RealmMapScreen
-        identity={{ fid: CANONICAL_TEST_FID, username: 'warpkeeper' }}
+        identity={fixture.identity}
         snapshot={snapshot}
         onRequestReturn={vi.fn()}
-        resources={createReadyResourceState(CANONICAL_TEST_FID)}
-        workerProjection={workerProjection}
+        resources={createReadyResourceState(fixture.identity.fid)}
       />
     );
     const options = sceneState.create.mock.calls[0]![0] as CreateRealmSceneOptions;

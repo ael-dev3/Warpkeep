@@ -84,6 +84,8 @@ export type GoldMineInspectionPanelProps = Readonly<{
   workers?: readonly RealmWorkerPublicPresentation[];
   /** Authenticated generic-worker reducer boundary. */
   onDispatchWorker?: RealmNodeWorkerDispatchHandler;
+  /** Localized generic-worker command synchronization state. */
+  workerControlsStatus?: string;
   /** Exact owner-private legacy expedition joined to this public site. */
   legacyExpeditionId?: string;
   onReturnLegacyExpedition?: (
@@ -150,6 +152,7 @@ export function GoldMineInspectionPanel({
   onRecallWorker,
   workers,
   onDispatchWorker,
+  workerControlsStatus,
   legacyExpeditionId,
   onReturnLegacyExpedition,
   privateExpedition,
@@ -170,8 +173,7 @@ export function GoldMineInspectionPanel({
   const genericWorkerDispatch = occupant === undefined
     && !occupancyUnavailable
     && node?.availability === 'available'
-    && workers !== undefined
-    && onDispatchWorker !== undefined;
+    && workers !== undefined;
   const scheduleTimestamp = occupant
     ? undefined
     : node ? goldNodeNextAuthorityTimestamp(node) : undefined;
@@ -325,19 +327,23 @@ export function GoldMineInspectionPanel({
               marker={occupant}
               onFocusCastle={onFocusOccupantCastle}
               onRecallWorker={onRecallWorker}
+              controlsStatus={workerControlsStatus}
               legacyExpeditionId={legacyExpeditionId}
               onReturnLegacyExpedition={onReturnLegacyExpedition}
             />
           ) : null}
           <p className="gold-mine-inspection__notice">
             {genericWorkerDispatch
-              ? 'This site is available. Choose a ready worker below; the Realm confirms the assignment.'
+              ? workerControlsStatus
+                ? 'This site is available. Public workers remain visible while dispatch controls synchronize.'
+                : 'This site is available. Choose a ready worker below; the Realm confirms the assignment.'
               : nodeNotice(node, occupant, dispatchBlocked, occupancyUnavailable)}
           </p>
           {genericWorkerDispatch ? (
             <RealmNodeWorkerDispatch
               focusFallbackRef={closeButtonRef}
               id={`${id}-gold`}
+              controlsStatus={workerControlsStatus}
               onDispatchWorker={onDispatchWorker}
               resourceKind="gold"
               siteId={node.siteId}

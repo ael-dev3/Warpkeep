@@ -40,6 +40,8 @@ export type WorkerInspectionPanelProps = Readonly<{
   onLocateWorker?: (workerId: string) => void;
   /** Centers the worker's keeper without changing the current camera zoom. */
   onLocateKeeper?: (castleId: number) => void;
+  /** Localized explanation shown while owner commands are read-only. */
+  controlsStatus?: string;
   onRecallWorker?: (workerId: string) => Promise<void>;
   onRequestClose: () => void;
   focusTargetRef?: Ref<HTMLHeadingElement>;
@@ -90,6 +92,7 @@ export function WorkerInspectionPanel({
   resourceTargetLabel,
   onLocateWorker,
   onLocateKeeper,
+  controlsStatus,
   onRecallWorker,
   onRequestClose,
   focusTargetRef
@@ -98,7 +101,9 @@ export function WorkerInspectionPanel({
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [state, setState] = useState<'idle' | 'recalling' | 'failed'>('idle');
   const commandPending = state === 'recalling';
-  const canRecall = realmWorkerCanRecall(worker) && onRecallWorker !== undefined;
+  const recallableByOwner = worker.ownedByViewer && realmWorkerCanRecall(worker);
+  const canRecall = recallableByOwner && onRecallWorker !== undefined;
+  const controlsStatusId = `${id}-controls-status`;
   const profile = useMemo(
     () => sanitizeWorkerKeeperProfile(keeperProfile),
     [
@@ -240,6 +245,15 @@ export function WorkerInspectionPanel({
               Select an available resource node in the Realm to send this worker.
             </p>
           ) : null}
+          {recallableByOwner && controlsStatus ? (
+            <p
+              className="worker-inspection__read-only"
+              id={controlsStatusId}
+              role="status"
+            >
+              {controlsStatus}
+            </p>
+          ) : null}
           <div className="worker-inspection__actions">
             {onLocateWorker ? (
               <button
@@ -251,11 +265,14 @@ export function WorkerInspectionPanel({
                 {locateLabel.toUpperCase()}
               </button>
             ) : null}
-            {canRecall ? (
+            {recallableByOwner ? (
               <button
+                aria-describedby={!canRecall && controlsStatus
+                  ? controlsStatusId
+                  : undefined}
                 aria-label={state === 'recalling' ? 'Recalling Worker' : 'Recall Worker'}
                 className="worker-inspection__recall"
-                disabled={commandPending}
+                disabled={!canRecall || commandPending}
                 onClick={() => void recall()}
                 type="button"
               >

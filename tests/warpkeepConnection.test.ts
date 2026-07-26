@@ -690,6 +690,45 @@ describe('Warpkeep authenticated connection boundary', () => {
     expect(pairedStone.subscription.unsubscribe).toHaveBeenCalledOnce();
   });
 
+  it('retains validated Stone topology only while a same-core resubscription is pending', () => {
+    const candidate = createCanonicalGenesisCandidate();
+    const { connection, core, pairedStone } = stoneSubscriptionConnection(candidate);
+    const first = subscribeToWarpkeepRealm(connection, vi.fn(), vi.fn());
+    core.apply();
+    pairedStone.apply();
+    const retained = readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID);
+    expect(retained.stoneSites).toEqual(CANONICAL_TIER_I_STONE_SITES_V1);
+
+    const secondCore = callbackSubscriptionDouble();
+    const secondStone = callbackSubscriptionDouble();
+    vi.mocked(connection.subscriptionBuilder)
+      .mockReturnValueOnce(secondCore.builder as never)
+      .mockReturnValueOnce(secondStone.builder as never);
+    const second = subscribeToWarpkeepRealm(connection, vi.fn(), vi.fn());
+
+    expect(readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID))
+      .not.toHaveProperty('stoneSites');
+    expect(readWarpkeepRealmSnapshot(
+      connection,
+      CANONICAL_TEST_FID,
+      retained
+    ).stoneSites).toEqual(CANONICAL_TIER_I_STONE_SITES_V1);
+
+    secondCore.apply();
+    expect(readWarpkeepRealmSnapshot(
+      connection,
+      CANONICAL_TEST_FID,
+      retained
+    ).stoneSites).toEqual(CANONICAL_TIER_I_STONE_SITES_V1);
+
+    secondStone.fail();
+    expect(readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID, retained))
+      .not.toHaveProperty('stoneSites');
+
+    second.unsubscribe();
+    first.unsubscribe();
+  });
+
   it('fails the paired Stone projection closed when its canonical catalog drifts', () => {
     const candidate = createCanonicalGenesisCandidate();
     const movedSites = [
@@ -812,8 +851,8 @@ describe('Warpkeep authenticated connection boundary', () => {
     const first = subscribeToWarpkeepRealm(connection, vi.fn(), vi.fn());
     core.apply();
     pairedWorkers.apply();
-    expect(readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID).workerWorkers)
-      .toHaveLength(4);
+    const retained = readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID);
+    expect(retained.workerWorkers).toHaveLength(4);
 
     const secondCore = callbackSubscriptionDouble();
     const secondWorkers = callbackSubscriptionDouble();
@@ -824,9 +863,19 @@ describe('Warpkeep authenticated connection boundary', () => {
 
     expect(readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID))
       .not.toHaveProperty('workerWorkers');
+    expect(readWarpkeepRealmSnapshot(
+      connection,
+      CANONICAL_TEST_FID,
+      retained
+    ).workerWorkers).toHaveLength(4);
     secondCore.apply();
     expect(readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID))
       .not.toHaveProperty('workerWorkers');
+    expect(readWarpkeepRealmSnapshot(
+      connection,
+      CANONICAL_TEST_FID,
+      retained
+    ).workerWorkers).toHaveLength(4);
     secondWorkers.apply();
     expect(readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID).workerWorkers)
       .toHaveLength(4);
