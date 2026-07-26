@@ -315,11 +315,12 @@ export function parseRenderedWebglInspectorLabelActivationEvidence(value: unknow
 }>;
 
 export type RenderedWebglResourceOccupantEvidence = Readonly<{
-  cameraNeutral: true;
-  cameraNeutralAfterClose: true;
-  cameraAnchorPopulationValid: true;
-  cameraIndependentAnchorCoverage: true;
-  cameraNeutralWhileOpen: true;
+  cameraNeutral: boolean;
+  cameraNeutralAfterClose: boolean;
+  cameraAnchorPopulationValid: boolean;
+  cameraIndependentAnchorCoverage: boolean;
+  cameraNeutralWhileOpen: boolean;
+  compactOverviewCullingValid: boolean;
   factsCorrect: true;
   focusedControlActivation: true;
   identityRecordCorrect: true;
@@ -335,18 +336,18 @@ export type RenderedWebglResourceOccupantEvidence = Readonly<{
   markerPresent: true;
   markerProjectedVisible: true;
   markerHitTestable: true;
-  overviewPresenceDirectHit: true;
-  overviewRecordCorrect: true;
-  overviewTargetPassiveOnly: true;
-  presenceComputedVisible: true;
-  presenceAvatarGeometryValid: true;
-  presenceGeometryValid: true;
-  presenceDelegatedActivation: true;
-  presenceHitTestable: true;
-  presencePointerActivatable: true;
-  presencePortraitElementPresent: true;
-  presencePortraitReady: true;
-  presenceVisible: true;
+  overviewPresenceDirectHit: boolean;
+  overviewRecordCorrect: boolean;
+  overviewTargetPassiveOnly: boolean;
+  presenceComputedVisible: boolean;
+  presenceAvatarGeometryValid: boolean;
+  presenceGeometryValid: boolean;
+  presenceDelegatedActivation: boolean;
+  presenceHitTestable: boolean;
+  presencePointerActivatable: boolean;
+  presencePortraitElementPresent: boolean;
+  presencePortraitReady: boolean;
+  presenceVisible: boolean;
   privacyBounded: true;
   recordHeaderCorrect: true;
   reducedMotionPreferenceCorrect: true;

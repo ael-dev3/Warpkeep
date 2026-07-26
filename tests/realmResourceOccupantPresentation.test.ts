@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  applyRealmGenericWorkerSiteAvailability,
   MAX_RESOURCE_OCCUPANT_ASSIGNMENTS,
   MAX_VISIBLE_RESOURCE_OCCUPANT_MARKERS,
   realmResourceOccupantMarkerForKey,
   realmResourceOccupantMarkerKey,
   realmResourceOccupantRecallLegacyExpeditionId,
+  realmResourceSiteWorldStates,
   resolveRealmResourceOccupantMarkerResolution,
   resolveRealmResourceOccupantMarkers,
   resolveRealmWorkerInspectionRoute,
@@ -267,6 +269,95 @@ describe('resource occupant presentation', () => {
       workerId: 'genesis-001-castle-22-worker-01',
       workerOrdinal: 1
     }]);
+  });
+
+  it('projects validated generic leases onto renderer site availability without inventing legacy authority', () => {
+    const availableNode = node();
+    const resolution = resolveRealmResourceOccupantMarkerResolution({
+      buckets: [{ resource: 'gold', nodes: [availableNode] }],
+      castles: [CASTLE],
+      profiles: new Map([[CASTLE.castleId, PROFILE]]),
+      workerProjection: projection([occupation({ phase: 'outbound' })]),
+      ownCastleId: CASTLE.castleId
+    });
+
+    const projected = applyRealmGenericWorkerSiteAvailability(
+      'gold',
+      [availableNode],
+      resolution
+    );
+    expect(projected).toMatchObject([{
+      siteId: availableNode.siteId,
+      availability: 'outbound',
+      occupiedByViewer: true
+    }]);
+    expect(projected[0]).not.toHaveProperty('occupation');
+    expect(projected[0]).not.toHaveProperty('originCastle');
+    expect(availableNode.availability).toBe('available');
+  });
+
+  it('derives exact renderer-only site states from the validated public join', () => {
+    const availableNode = node();
+    const outbound = resolveRealmResourceOccupantMarkerResolution({
+      buckets: [{ resource: 'gold', nodes: [availableNode] }],
+      castles: [CASTLE],
+      profiles: new Map([[CASTLE.castleId, PROFILE]]),
+      workerProjection: projection([occupation({ phase: 'outbound' })])
+    });
+    const gathering = resolveRealmResourceOccupantMarkerResolution({
+      buckets: [{ resource: 'gold', nodes: [availableNode] }],
+      castles: [CASTLE],
+      profiles: new Map([[CASTLE.castleId, PROFILE]]),
+      workerProjection: projection([occupation()])
+    });
+    const returningLegacyNode = legacyNode('gold', 'returning');
+    const returning = resolveRealmResourceOccupantMarkerResolution({
+      buckets: [{ resource: 'gold', nodes: [returningLegacyNode] }],
+      castles: [CASTLE],
+      profiles: new Map([[CASTLE.castleId, PROFILE]])
+    });
+
+    expect(realmResourceSiteWorldStates('gold', [availableNode], outbound))
+      .toEqual([{ siteId: availableNode.siteId, state: 'reserved' }]);
+    expect(realmResourceSiteWorldStates('gold', [availableNode], gathering))
+      .toEqual([{ siteId: availableNode.siteId, state: 'gathering' }]);
+    expect(realmResourceSiteWorldStates(
+      'gold',
+      [availableNode],
+      resolveRealmResourceOccupantMarkerResolution({
+        buckets: [{ resource: 'gold', nodes: [availableNode] }],
+        castles: [CASTLE],
+        profiles: new Map([[CASTLE.castleId, PROFILE]]),
+        workerProjection: projection([])
+      })
+    )).toEqual([{ siteId: availableNode.siteId, state: 'available' }]);
+    expect(realmResourceSiteWorldStates('gold', [returningLegacyNode], returning))
+      .toEqual([{ siteId: returningLegacyNode.siteId, state: 'unavailable' }]);
+    expect(realmResourceSiteWorldStates(
+      'gold',
+      [availableNode],
+      { status: 'invalid', markers: [] }
+    )).toEqual([{ siteId: availableNode.siteId, state: 'unavailable' }]);
+  });
+
+  it('leaves the site catalog unchanged without a validated matching generic lease', () => {
+    const availableNode = node();
+    const catalog = Object.freeze([availableNode]);
+    const noGenericResolution = resolveRealmResourceOccupantMarkerResolution({
+      buckets: [{ resource: 'gold', nodes: catalog }],
+      castles: [CASTLE],
+      profiles: new Map([[CASTLE.castleId, PROFILE]])
+    });
+    expect(applyRealmGenericWorkerSiteAvailability(
+      'gold',
+      catalog,
+      noGenericResolution
+    )).toBe(catalog);
+    expect(applyRealmGenericWorkerSiteAvailability(
+      'gold',
+      catalog,
+      { status: 'invalid', markers: [] }
+    )).toBe(catalog);
   });
 
   it('normalizes all four live legacy resource types without generic activation', () => {

@@ -595,6 +595,7 @@ describe('disposable connected local QA dependency and network boundaries', () =
     expect(browserSource).toContain("stage: 'recall-all-scene-lifecycle'");
     expect(browserSource).toContain("stage: 'recall-one-world-reconciliation'");
     expect(browserSource).toContain("stage: 'recall-all-world-reconciliation'");
+    expect(browserSource).toContain('current.visibleRouteCount <= 3');
     expect(browserSource).toContain(
       "stage: 'recall-all-completion-scene-lifecycle'"
     );

@@ -25,6 +25,9 @@ import type {
   RealmResourceKind,
   RealmResourceProjectionFrame
 } from './realmTypes';
+import type {
+  RealmResourceSiteWorldStateRecord
+} from './realmResourceSiteWorldAccents';
 import {
   canonicalWorkerId,
   type ReadyPublicWorkerProjection,
@@ -336,6 +339,91 @@ export function resolveRealmResourceOccupantMarkers(
   input: Parameters<typeof resolveRealmResourceOccupantMarkerResolution>[0]
 ): readonly RealmResourceOccupantMarker[] {
   return resolveRealmResourceOccupantMarkerResolution(input).markers;
+}
+
+/**
+ * Projects a validated generic-worker lease back onto the public site catalog
+ * used by the renderer. Generic occupations live in their own public table, so
+ * the legacy site row can still say `available` while a worker is already en
+ * route or gathering. This presentation-only join keeps the world model
+ * truthful without manufacturing a legacy occupation record or command
+ * authority.
+ */
+export function applyRealmGenericWorkerSiteAvailability<
+  Node extends RealmResourceOccupantNode
+>(
+  resource: RealmResourceKind,
+  nodes: readonly Node[],
+  resolution: RealmResourceOccupantResolution
+): readonly Node[] {
+  if (resolution.status !== 'ready') return nodes;
+  const genericMarkersBySiteId = new Map(
+    resolution.markers
+      .filter((marker) => (
+        marker.source === 'generic-worker'
+        && marker.resource === resource
+        && (marker.workerPhase === 'outbound' || marker.workerPhase === 'gathering')
+      ))
+      .map((marker) => [marker.siteId, marker] as const)
+  );
+  if (genericMarkersBySiteId.size === 0) return nodes;
+
+  let changed = false;
+  const projected = nodes.map((node) => {
+    const marker = genericMarkersBySiteId.get(node.siteId);
+    if (!marker) return node;
+    changed = true;
+    const {
+      occupation: _legacyOccupation,
+      originCastle: _legacyOriginCastle,
+      ...publicSite
+    } = node;
+    return Object.freeze({
+      ...publicSite,
+      availability: marker.workerPhase,
+      occupiedByViewer: marker.occupiedByViewer
+    }) as Node;
+  });
+  return changed ? Object.freeze(projected) : nodes;
+}
+
+/**
+ * Produces the small, renderer-only site-state vocabulary from the already
+ * validated public occupation join. Returning generic workers have released
+ * their lease and therefore have no marker; their former destination remains
+ * available. A malformed join fails every supplied site closed.
+ */
+export function realmResourceSiteWorldStates(
+  resource: RealmResourceKind,
+  nodes: readonly RealmResourceOccupantNode[],
+  resolution: RealmResourceOccupantResolution
+): readonly RealmResourceSiteWorldStateRecord[] {
+  if (resolution.status !== 'ready') {
+    return Object.freeze(nodes.map((node) => Object.freeze({
+      siteId: node.siteId,
+      state: 'unavailable' as const
+    })));
+  }
+  const markersBySiteId = new Map(
+    resolution.markers
+      .filter((marker) => marker.resource === resource)
+      .map((marker) => [marker.siteId, marker] as const)
+  );
+  return Object.freeze(nodes.map((node) => {
+    const marker = markersBySiteId.get(node.siteId);
+    if (marker?.workerPhase === 'outbound') {
+      return Object.freeze({ siteId: node.siteId, state: 'reserved' as const });
+    }
+    if (marker?.workerPhase === 'gathering') {
+      return Object.freeze({ siteId: node.siteId, state: 'gathering' as const });
+    }
+    return Object.freeze({
+      siteId: node.siteId,
+      state: node.availability === 'available'
+        ? 'available' as const
+        : 'unavailable' as const
+    });
+  }));
 }
 
 export function realmResourceOccupantMarkerKey(

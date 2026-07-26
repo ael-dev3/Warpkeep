@@ -1839,7 +1839,12 @@ async function exerciseLocalFullstackJourney(session, dispatchLimit = 4) {
             > recallOneCompletedPresentation.routeReconciliations
           && current.workerPresentedCount === 4
           && current.workerAnimatedCount >= 1
-          && current.visibleRouteCount >= 1
+          // Recall All may catch every remaining wagon inside the keep-gate
+          // staging distance. Those physical workers still reconcile and
+          // move, but the ground ribbon intentionally begins outside the
+          // private berth. The dedicated dispatch/recall progress gates above
+          // and below continue to prove visible long-route traversal.
+          && current.visibleRouteCount <= 3
           && current.routeMismatchCount === 0
           && current.rejectedRouteCount === 0
           && current.rejectedReconciliations === 0

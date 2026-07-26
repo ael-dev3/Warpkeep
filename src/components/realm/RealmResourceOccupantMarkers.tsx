@@ -30,13 +30,17 @@ export function RealmResourceOccupantMarkers({
   markers,
   visibleMarkerKeys,
   presenceMarkerKeys = visibleMarkerKeys,
+  selectedMarkerKey,
   onMarkerLayout,
+  onHover,
   onSelect
 }: Readonly<{
   markers: readonly RealmResourceOccupantMarker[];
   presenceMarkerKeys?: readonly string[];
   visibleMarkerKeys: readonly string[];
+  selectedMarkerKey?: string;
   onMarkerLayout: () => void;
+  onHover?: (key: string | null) => void;
   onSelect: (marker: RealmResourceOccupantMarker) => void;
 }>) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -90,6 +94,7 @@ export function RealmResourceOccupantMarkers({
       || !documentFocusIsOrphaned(activeElement)
     ) return;
     focusedMarkerKeyRef.current = null;
+    onHover?.(null);
     const nextKey = visibleMarkerKeys[0];
     if (nextKey) {
       setRovingKey(nextKey);
@@ -97,7 +102,7 @@ export function RealmResourceOccupantMarkers({
     } else {
       containerRef.current?.focus({ preventScroll: true });
     }
-  }, [visibleKeySet, visibleMarkerKeys]);
+  }, [onHover, visibleKeySet, visibleMarkerKeys]);
 
   const moveRovingFocus = (currentKey: string, direction: -1 | 1) => {
     const currentIndex = visibleMarkerKeys.indexOf(currentKey);
@@ -145,6 +150,8 @@ export function RealmResourceOccupantMarkers({
               data-resource-occupant-key={key}
               data-resource-occupant-lane="presence"
               key={`presence:${key}`}
+              onPointerEnter={() => onHover?.(key)}
+              onPointerLeave={() => onHover?.(null)}
               title={reservedForGenericWorker
                 ? `Reserved ${RESOURCE_KIND_LABELS[marker.resource]} · worker en route`
                 : `Open ${castleProfileLabel(marker.profile)} at ${RESOURCE_KIND_LABELS[marker.resource]}`}
@@ -155,8 +162,10 @@ export function RealmResourceOccupantMarkers({
             >
               {reservedForGenericWorker ? (
                 <>
-                  <strong>RESERVED</strong>
-                  <span>WORKER EN ROUTE</span>
+                  <span aria-hidden="true" className="realm-resource-occupant-presence__kind">
+                    {marker.resource === 'gold' ? 'G' : marker.resource === 'food' ? 'F' : marker.resource === 'wood' ? 'W' : 'S'}
+                  </span>
+                  <strong>Reserved</strong>
                 </>
               ) : (
                 <CastleProfileAvatar profile={marker.profile} size="compact" />
@@ -202,7 +211,9 @@ export function RealmResourceOccupantMarkers({
               data-resource-occupant-source={marker.source}
               data-resource-occupant-lane="control"
               data-projected-visible="false"
+              data-selected={selectedMarkerKey === key ? 'true' : 'false'}
               key={key}
+              onBlur={() => onHover?.(null)}
               onClick={() => {
                 setRovingKey(key);
                 onSelect(marker);
@@ -218,7 +229,10 @@ export function RealmResourceOccupantMarkers({
               }}
               onFocus={() => {
                 focusedMarkerKeyRef.current = key;
+                onHover?.(key);
               }}
+              onPointerEnter={() => onHover?.(key)}
+              onPointerLeave={() => onHover?.(null)}
               ref={(element) => {
                 if (element) markerButtonsRef.current.set(key, element);
                 else markerButtonsRef.current.delete(key);
@@ -233,12 +247,11 @@ export function RealmResourceOccupantMarkers({
               {reservedForGenericWorker ? null : (
                 <CastleProfileAvatar profile={marker.profile} size="compact" />
               )}
-              <span aria-hidden="true" className="realm-resource-occupant-marker__ring" />
               <span className="realm-resource-occupant-marker__kind" aria-hidden="true">
                 {marker.resource === 'gold' ? 'G' : marker.resource === 'food' ? 'F' : marker.resource === 'wood' ? 'W' : 'S'}
               </span>
               <span className="realm-resource-occupant-marker__owner" title={ownershipLabel}>
-                {reservedForGenericWorker ? 'RESERVED · WORKER EN ROUTE' : ownershipLabel}
+                {reservedForGenericWorker ? 'Reserved · en route' : ownershipLabel}
               </span>
             </button>
           );

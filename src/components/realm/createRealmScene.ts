@@ -147,6 +147,9 @@ import {
   type RealmStoneNodePresentationTelemetry,
   type RealmStoneNodeSceneRecord
 } from './realmStoneNodeLayer';
+import type {
+  RealmResourceSiteWorldStateRecord
+} from './realmResourceSiteWorldAccents';
 import {
   createRealmWorkerLayer,
   isValidRealmWorkerSceneCatalog,
@@ -655,6 +658,12 @@ export type RealmLiveGatheringState = Readonly<{
   stoneNodes: readonly RealmStoneNodeSceneRecord[];
   workers?: readonly RealmWorkerSceneRecord[];
   resourceOccupants?: readonly RealmResourceOccupantSceneRecord[];
+  resourceSiteWorldStates?: Readonly<{
+    gold: readonly RealmResourceSiteWorldStateRecord[];
+    food: readonly RealmResourceSiteWorldStateRecord[];
+    wood: readonly RealmResourceSiteWorldStateRecord[];
+    stone: readonly RealmResourceSiteWorldStateRecord[];
+  }>;
   observedAtMicros: bigint;
 }>;
 
@@ -736,6 +745,8 @@ export type CreateRealmSceneOptions = Readonly<{
   workers?: readonly RealmWorkerSceneRecord[];
   /** Identity-minimized public leases used only for the bounded DOM marker lane. */
   resourceOccupants?: readonly RealmResourceOccupantSceneRecord[];
+  /** Validated renderer-only projection of public lease state for site accents. */
+  resourceSiteWorldStates?: RealmLiveGatheringState['resourceSiteWorldStates'];
   /** Additive public `realm_forest_instance_v1` rows. */
   sharedForestTrees?: unknown;
   /** Additive public `realm_forest_layout_v1` metadata row. */
@@ -1540,6 +1551,46 @@ function initializeRealmScene(
   } else {
     options.canvas.dataset.waterPresentation = 'unavailable';
   }
+  let lastWaterPresentationTelemetry:
+    ReturnType<RealmWaterLayer['getTelemetry']> | undefined;
+  let waterPresentationTelemetryInitialized = false;
+  const syncWaterPresentationTelemetry = () => {
+    const telemetry = waterLayer?.getTelemetry();
+    if (
+      waterPresentationTelemetryInitialized
+      && telemetry === lastWaterPresentationTelemetry
+    ) return;
+    waterPresentationTelemetryInitialized = true;
+    lastWaterPresentationTelemetry = telemetry;
+    options.canvas.dataset.waterRiverBodyCount = String(
+      telemetry?.riverBodyCount ?? 0
+    );
+    options.canvas.dataset.waterRiverChannelBodyCount = String(
+      telemetry?.riverChannelBodyCount ?? 0
+    );
+    options.canvas.dataset.waterRiverFallbackBodyCount = String(
+      telemetry?.riverFallbackBodyCount ?? 0
+    );
+    options.canvas.dataset.waterRiverFallbackCellCount = String(
+      telemetry?.riverFallbackCellCount ?? 0
+    );
+    options.canvas.dataset.waterRiverChannelSegmentCount = String(
+      telemetry?.riverChannelSegmentCount ?? 0
+    );
+    options.canvas.dataset.waterRiverMouthConnectionCount = String(
+      telemetry?.riverMouthConnectionCount ?? 0
+    );
+    options.canvas.dataset.waterLocalizedFoamVertexCount = String(
+      telemetry?.riverLocalizedFoamVertexCount ?? 0
+    );
+    options.canvas.dataset.waterShaderFallbackCount = String(
+      telemetry?.shaderFallbackCount ?? 0
+    );
+    options.canvas.dataset.waterRiverFallbackReasons = JSON.stringify(
+      telemetry?.riverFallbackReasons ?? []
+    );
+  };
+  syncWaterPresentationTelemetry();
   // Never expose the ocean navigation envelope without the matching visible
   // layer. Construction/budget failure must retain the ordinary land clamp.
   const activeWaterNavigationEnvelope = waterLayer
@@ -2156,6 +2207,7 @@ function initializeRealmScene(
   let fallbackCastleProjectionEnvelope = DEFAULT_CASTLE_PROJECTION_ENVELOPE;
   let fallbackCastleRenderEnvelope = DEFAULT_CASTLE_PROJECTION_ENVELOPE;
   let selectedCastleId: number | undefined;
+  let hoveredCastleId: number | undefined;
   let selectedGoldSiteId: string | undefined;
   let selectedFoodSiteId: string | undefined;
   let selectedWoodSiteId: string | undefined;
@@ -2165,6 +2217,18 @@ function initializeRealmScene(
   let hoveredWorkerId: string | undefined;
   let selectedTerrainCoord: HexCoord | null = null;
   let hoveredTerrainCoord: HexCoord | null = null;
+  const goldSiteIdByCoord = new Map(
+    (options.goldNodes ?? []).map((site) => [hexKey(site.coord), site.siteId] as const)
+  );
+  const foodSiteIdByCoord = new Map(
+    (options.foodNodes ?? []).map((site) => [hexKey(site.coord), site.siteId] as const)
+  );
+  const woodSiteIdByCoord = new Map(
+    (options.woodNodes ?? []).map((site) => [hexKey(site.coord), site.siteId] as const)
+  );
+  const stoneSiteIdByCoord = new Map(
+    (options.stoneNodes ?? []).map((site) => [hexKey(site.coord), site.siteId] as const)
+  );
   let castleFocusSize: Readonly<{ height: number; footprintDiameter: number }> = Object.freeze({
     height: 1.08,
     footprintDiameter: 1.48
@@ -2439,6 +2503,7 @@ function initializeRealmScene(
       return;
     }
     renderPendingWhileHidden = false;
+    syncWaterPresentationTelemetry();
     const pose = cameraController.getPose();
     decorativeForestLayer?.updateView(
       pose.focus,
@@ -2474,8 +2539,21 @@ function initializeRealmScene(
       options.canvas.dataset.realmWorkerFallbackCount = String(
         workerTelemetry.fallbackWorkerCount
       );
+      options.canvas.dataset.realmWorkerFallbackType = workerTelemetry.fallbackType;
+      options.canvas.dataset.realmWorkerFallbackTriangleCount = String(
+        workerTelemetry.fallbackTriangleCount
+      );
       options.canvas.dataset.realmWorkerRouteMismatchCount = String(
         workerTelemetry.routeMismatchCount
+      );
+      options.canvas.dataset.realmWorkerSlopeAlignedCount = String(
+        workerTelemetry.slopeAlignedWorkerCount
+      );
+      options.canvas.dataset.realmWorkerAnimationTransitionCount = String(
+        workerTelemetry.animationTransitionCount
+      );
+      options.canvas.dataset.realmWorkerSuppressedAnimationRestartCount = String(
+        workerTelemetry.suppressedAnimationRestartCount
       );
       options.canvas.dataset.realmWorkerVisibleRouteCount = String(
         workerTelemetry.route.visibleRouteCount
@@ -2491,6 +2569,45 @@ function initializeRealmScene(
       );
       options.canvas.dataset.realmWorkerRejectedRouteCount = String(
         workerTelemetry.route.rejectedRouteCount
+      );
+      options.canvas.dataset.realmWorkerSelectedRouteCount = String(
+        workerTelemetry.route.selectedRouteCount
+      );
+      options.canvas.dataset.realmWorkerOwnedRouteCount = String(
+        workerTelemetry.route.ownedRouteCount
+      );
+      options.canvas.dataset.realmWorkerPeerRouteCount = String(
+        workerTelemetry.route.peerRouteCount
+      );
+      options.canvas.dataset.realmWorkerExactMatchRouteCount = String(
+        workerTelemetry.route.exactMatchRouteCount
+      );
+      options.canvas.dataset.realmWorkerNormalizedTimeRouteCount = String(
+        workerTelemetry.route.normalizedTimeRouteCount
+      );
+      options.canvas.dataset.realmWorkerGenuineInvalidRouteCount = String(
+        workerTelemetry.route.genuineInvalidRouteCount
+      );
+      options.canvas.dataset.realmWorkerRouteHiddenByBudgetCount = String(
+        workerTelemetry.route.hiddenByBudgetCount
+      );
+      options.canvas.dataset.realmWorkerRouteSmoothingFallbackCount = String(
+        workerTelemetry.route.smoothingFallbackCount
+      );
+      options.canvas.dataset.realmWorkerRouteCorridorFailureCount = String(
+        workerTelemetry.route.corridorValidationFailureCount
+      );
+      options.canvas.dataset.realmWorkerRouteCompletedLength = String(
+        workerTelemetry.route.completedLength
+      );
+      options.canvas.dataset.realmWorkerRouteRemainingLength = String(
+        workerTelemetry.route.remainingLength
+      );
+      options.canvas.dataset.realmWorkerRouteTopologyRebuildCount = String(
+        workerTelemetry.route.topologyRebuildCount
+      );
+      options.canvas.dataset.realmWorkerRouteProgressUpdateCount = String(
+        workerTelemetry.route.progressUpdateCount
       );
     }
     ambientScheduler?.setActive(ambientIsNeeded());
@@ -2724,6 +2841,21 @@ function initializeRealmScene(
     }
   });
   cleanup.add(cameraController.dispose);
+  const applyValidatedSiteWorldStates = (
+    layer: Readonly<{
+      reconcileWorldStates: (
+        states: readonly RealmResourceSiteWorldStateRecord[]
+      ) => boolean;
+    }>,
+    sites: readonly Readonly<{ siteId: string }>[],
+    states: readonly RealmResourceSiteWorldStateRecord[] | undefined
+  ) => {
+    if (states === undefined || layer.reconcileWorldStates(states)) return;
+    layer.reconcileWorldStates(sites.map((site) => Object.freeze({
+      siteId: site.siteId,
+      state: 'unavailable' as const
+    })));
+  };
   try {
     goldNodeLayer = createRealmGoldNodeLayer({
       sites: options.goldNodes ?? [],
@@ -2736,6 +2868,11 @@ function initializeRealmScene(
       presentationBudget: expeditionSceneBudget.gold,
       onModelReady: render
     });
+    applyValidatedSiteWorldStates(
+      goldNodeLayer,
+      options.goldNodes ?? [],
+      options.resourceSiteWorldStates?.gold
+    );
     scene.add(goldNodeLayer.group);
     cleanup.add(() => {
       const layer = goldNodeLayer;
@@ -2761,6 +2898,11 @@ function initializeRealmScene(
       presentationBudget: expeditionSceneBudget.food,
       onModelReady: render
     });
+    applyValidatedSiteWorldStates(
+      foodNodeLayer,
+      options.foodNodes ?? [],
+      options.resourceSiteWorldStates?.food
+    );
     scene.add(foodNodeLayer.group);
     cleanup.add(() => {
       const layer = foodNodeLayer;
@@ -2786,6 +2928,11 @@ function initializeRealmScene(
       presentationBudget: expeditionSceneBudget.wood,
       onModelReady: render
     });
+    applyValidatedSiteWorldStates(
+      woodNodeLayer,
+      options.woodNodes ?? [],
+      options.resourceSiteWorldStates?.wood
+    );
     scene.add(woodNodeLayer.group);
     cleanup.add(() => {
       const layer = woodNodeLayer;
@@ -2811,6 +2958,11 @@ function initializeRealmScene(
       presentationBudget: expeditionSceneBudget.stone,
       onModelReady: render
     });
+    applyValidatedSiteWorldStates(
+      stoneNodeLayer,
+      options.stoneNodes ?? [],
+      options.resourceSiteWorldStates?.stone
+    );
     scene.add(stoneNodeLayer.group);
     cleanup.add(() => {
       const layer = stoneNodeLayer;
@@ -2966,6 +3118,20 @@ function initializeRealmScene(
 
   const dispatchHover = (target: RealmInteractionTarget | null) => {
     if (!sceneAcceptsInteraction()) return;
+    hoveredCastleId = target?.kind === 'castle' ? target.castleId : undefined;
+    castleLayer?.setHoveredCastleId(hoveredCastleId ?? null);
+    goldNodeLayer?.setHoveredSiteId(
+      target?.kind === 'gold-site' ? target.siteId : null
+    );
+    foodNodeLayer?.setHoveredSiteId(
+      target?.kind === 'food-site' ? target.siteId : null
+    );
+    woodNodeLayer?.setHoveredSiteId(
+      target?.kind === 'wood-site' ? target.siteId : null
+    );
+    stoneNodeLayer?.setHoveredSiteId(
+      target?.kind === 'stone-site' ? target.siteId : null
+    );
     options.onTargetHover?.(target);
     options.onHover(target?.coord ?? null);
   };
@@ -3238,6 +3404,7 @@ function initializeRealmScene(
     selectedFoodSiteId = picked.kind === 'food-site' ? picked.siteId : undefined;
     selectedWoodSiteId = picked.kind === 'wood-site' ? picked.siteId : undefined;
     selectedStoneSiteId = picked.kind === 'stone-site' ? picked.siteId : undefined;
+    castleLayer?.setSelectedCastleId(selectedCastleId ?? null);
     goldNodeLayer?.setSelectedSiteId(selectedGoldSiteId ?? null);
     foodNodeLayer?.setSelectedSiteId(selectedFoodSiteId ?? null);
     woodNodeLayer?.setSelectedSiteId(selectedWoodSiteId ?? null);
@@ -3586,6 +3753,8 @@ function initializeRealmScene(
     if (presentedCastleIds !== null) {
       nextLayer.setPresentedCastleIds([...presentedCastleIds]);
     }
+    nextLayer.setSelectedCastleId(selectedCastleId ?? null);
+    nextLayer.setHoveredCastleId(hoveredCastleId ?? null);
 
     const previousLayer = castleLayer;
     scene.add(nextLayer.group);
@@ -3844,6 +4013,39 @@ function initializeRealmScene(
     }
     return seen.size === initialBySiteId.size;
   };
+  const matchesSiteWorldStateCatalog = (
+    states: readonly RealmResourceSiteWorldStateRecord[] | undefined,
+    sites: readonly Readonly<{ siteId: string }>[]
+  ) => {
+    if (states === undefined) return true;
+    if (states.length !== sites.length) return false;
+    const siteIds = new Set(sites.map((site) => site.siteId));
+    const seen = new Set<string>();
+    for (const record of states) {
+      if (
+        !siteIds.has(record.siteId)
+        || seen.has(record.siteId)
+        || (
+          record.state !== 'available'
+          && record.state !== 'reserved'
+          && record.state !== 'gathering'
+          && record.state !== 'unavailable'
+        )
+      ) return false;
+      seen.add(record.siteId);
+    }
+    return seen.size === siteIds.size;
+  };
+  const hasCompleteSiteWorldStateCatalogs = (
+    states: RealmLiveGatheringState['resourceSiteWorldStates']
+  ) => states === undefined || (
+    typeof states === 'object'
+    && states !== null
+    && Array.isArray(states.gold)
+    && Array.isArray(states.food)
+    && Array.isArray(states.wood)
+    && Array.isArray(states.stone)
+  );
   const reconcileLiveGatheringState = (state: RealmLiveGatheringState) => {
     if (
       cleanup.isDisposed()
@@ -3855,10 +4057,27 @@ function initializeRealmScene(
       || !Array.isArray(state.stoneNodes)
       || (state.workers !== undefined && !Array.isArray(state.workers))
       || (state.resourceOccupants !== undefined && !Array.isArray(state.resourceOccupants))
+      || !hasCompleteSiteWorldStateCatalogs(state.resourceSiteWorldStates)
       || !matchesStaticCatalog(state.goldNodes, options.goldNodes ?? [])
       || !matchesStaticCatalog(state.foodNodes, options.foodNodes ?? [])
       || !matchesStaticCatalog(state.woodNodes, options.woodNodes ?? [])
       || !matchesStaticCatalog(state.stoneNodes, options.stoneNodes ?? [])
+      || !matchesSiteWorldStateCatalog(
+        state.resourceSiteWorldStates?.gold,
+        options.goldNodes ?? []
+      )
+      || !matchesSiteWorldStateCatalog(
+        state.resourceSiteWorldStates?.food,
+        options.foodNodes ?? []
+      )
+      || !matchesSiteWorldStateCatalog(
+        state.resourceSiteWorldStates?.wood,
+        options.woodNodes ?? []
+      )
+      || !matchesSiteWorldStateCatalog(
+        state.resourceSiteWorldStates?.stone,
+        options.stoneNodes ?? []
+      )
     ) {
       recordLiveReconciliationTelemetry(false);
       return;
@@ -3896,6 +4115,34 @@ function initializeRealmScene(
       foodNodeLayer?.reconcile(state.foodNodes);
       woodNodeLayer?.reconcile(state.woodNodes);
       stoneNodeLayer?.reconcile(state.stoneNodes);
+      if (goldNodeLayer) {
+        applyValidatedSiteWorldStates(
+          goldNodeLayer,
+          state.goldNodes,
+          state.resourceSiteWorldStates?.gold
+        );
+      }
+      if (foodNodeLayer) {
+        applyValidatedSiteWorldStates(
+          foodNodeLayer,
+          state.foodNodes,
+          state.resourceSiteWorldStates?.food
+        );
+      }
+      if (woodNodeLayer) {
+        applyValidatedSiteWorldStates(
+          woodNodeLayer,
+          state.woodNodes,
+          state.resourceSiteWorldStates?.wood
+        );
+      }
+      if (stoneNodeLayer) {
+        applyValidatedSiteWorldStates(
+          stoneNodeLayer,
+          state.stoneNodes,
+          state.resourceSiteWorldStates?.stone
+        );
+      }
       if (preparedWorkerLayer) {
         installWorkerLayer(preparedWorkerLayer, nextWorkers.length);
         workerLayerReconciliationCount += 1;
@@ -4066,6 +4313,29 @@ function initializeRealmScene(
       hoveredWorkerId = undefined;
       workerLayer?.setHoveredWorkerId(null);
       hoveredTerrainCoord = coord;
+      hoveredCastleId = coord
+        ? authoritativeCastles.find((castle) => (
+          castle.coord.q === coord.q && castle.coord.r === coord.r
+        ))?.castleId
+        : undefined;
+      castleLayer?.setHoveredCastleId(hoveredCastleId ?? null);
+      const hoveredCoordKey = coord ? hexKey(coord) : undefined;
+      const hoveredGoldSiteId = hoveredCoordKey
+        ? goldSiteIdByCoord.get(hoveredCoordKey)
+        : undefined;
+      const hoveredFoodSiteId = hoveredCoordKey
+        ? foodSiteIdByCoord.get(hoveredCoordKey)
+        : undefined;
+      const hoveredWoodSiteId = hoveredCoordKey
+        ? woodSiteIdByCoord.get(hoveredCoordKey)
+        : undefined;
+      const hoveredStoneSiteId = hoveredCoordKey
+        ? stoneSiteIdByCoord.get(hoveredCoordKey)
+        : undefined;
+      goldNodeLayer?.setHoveredSiteId(hoveredGoldSiteId ?? null);
+      foodNodeLayer?.setHoveredSiteId(hoveredFoodSiteId ?? null);
+      woodNodeLayer?.setHoveredSiteId(hoveredWoodSiteId ?? null);
+      stoneNodeLayer?.setHoveredSiteId(hoveredStoneSiteId ?? null);
       grassLayer?.setInteraction(selectedTerrainCoord, hoveredTerrainCoord);
       // A terrain hex runs through the wider authored landscape-base mesh.
       // Castle identity and raycasting already provide the occupied-cell cue,
@@ -4102,6 +4372,7 @@ function initializeRealmScene(
           castle.coord.q === coord.q && castle.coord.r === coord.r
         ))?.castleId
         : undefined;
+      castleLayer?.setSelectedCastleId(selectedCastleId ?? null);
       setOverlay(
         selectedOverlay,
         options.surface,
@@ -4113,8 +4384,17 @@ function initializeRealmScene(
     setSelectedCastleId: (castleId) => {
       if (cleanup.isDisposed()) return;
       selectedCastleId = castleId === null ? undefined : castleId;
+      castleLayer?.setSelectedCastleId(castleId);
       if (castleId !== null) {
         waterLayer?.setSelectedCellKey(null);
+        selectedGoldSiteId = undefined;
+        selectedFoodSiteId = undefined;
+        selectedWoodSiteId = undefined;
+        selectedStoneSiteId = undefined;
+        goldNodeLayer?.setSelectedSiteId(null);
+        foodNodeLayer?.setSelectedSiteId(null);
+        woodNodeLayer?.setSelectedSiteId(null);
+        stoneNodeLayer?.setSelectedSiteId(null);
         selectedWorkerId = undefined;
         workerLayer?.setSelectedWorkerId(selectedWorkerRouteId ?? null);
         selectedTerrainCoord = null;
@@ -4129,6 +4409,8 @@ function initializeRealmScene(
       goldNodeLayer?.setSelectedSiteId(siteId);
       if (siteId !== null) {
         waterLayer?.setSelectedCellKey(null);
+        selectedCastleId = undefined;
+        castleLayer?.setSelectedCastleId(null);
         selectedWorkerId = undefined;
         workerLayer?.setSelectedWorkerId(selectedWorkerRouteId ?? null);
         setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
@@ -4141,6 +4423,8 @@ function initializeRealmScene(
       foodNodeLayer?.setSelectedSiteId(siteId);
       if (siteId !== null) {
         waterLayer?.setSelectedCellKey(null);
+        selectedCastleId = undefined;
+        castleLayer?.setSelectedCastleId(null);
         selectedWorkerId = undefined;
         workerLayer?.setSelectedWorkerId(selectedWorkerRouteId ?? null);
         setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
@@ -4153,6 +4437,8 @@ function initializeRealmScene(
       woodNodeLayer?.setSelectedSiteId(siteId);
       if (siteId !== null) {
         waterLayer?.setSelectedCellKey(null);
+        selectedCastleId = undefined;
+        castleLayer?.setSelectedCastleId(null);
         selectedWorkerId = undefined;
         workerLayer?.setSelectedWorkerId(selectedWorkerRouteId ?? null);
         setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
@@ -4165,6 +4451,8 @@ function initializeRealmScene(
       stoneNodeLayer?.setSelectedSiteId(siteId);
       if (siteId !== null) {
         waterLayer?.setSelectedCellKey(null);
+        selectedCastleId = undefined;
+        castleLayer?.setSelectedCastleId(null);
         selectedWorkerId = undefined;
         workerLayer?.setSelectedWorkerId(selectedWorkerRouteId ?? null);
         setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
@@ -4179,6 +4467,7 @@ function initializeRealmScene(
         waterLayer?.setSelectedCellKey(null);
         selectedTerrainCoord = null;
         selectedCastleId = undefined;
+        castleLayer?.setSelectedCastleId(null);
         selectedGoldSiteId = undefined;
         selectedFoodSiteId = undefined;
         selectedWoodSiteId = undefined;
@@ -4204,6 +4493,7 @@ function initializeRealmScene(
       if (cellKey !== null) {
         selectedTerrainCoord = null;
         selectedCastleId = undefined;
+        castleLayer?.setSelectedCastleId(null);
         selectedGoldSiteId = undefined;
         selectedFoodSiteId = undefined;
         selectedWoodSiteId = undefined;
@@ -4226,6 +4516,12 @@ function initializeRealmScene(
       if (workerId !== null) {
         waterLayer?.setHoveredCellKey(null);
         hoveredTerrainCoord = null;
+        hoveredCastleId = undefined;
+        castleLayer?.setHoveredCastleId(null);
+        goldNodeLayer?.setHoveredSiteId(null);
+        foodNodeLayer?.setHoveredSiteId(null);
+        woodNodeLayer?.setHoveredSiteId(null);
+        stoneNodeLayer?.setHoveredSiteId(null);
         setOverlay(hoverOverlay, options.surface, null, terrainPlacements);
       }
       render();
@@ -4237,6 +4533,12 @@ function initializeRealmScene(
         hoveredWorkerId = undefined;
         workerLayer?.setHoveredWorkerId(null);
         hoveredTerrainCoord = null;
+        hoveredCastleId = undefined;
+        castleLayer?.setHoveredCastleId(null);
+        goldNodeLayer?.setHoveredSiteId(null);
+        foodNodeLayer?.setHoveredSiteId(null);
+        woodNodeLayer?.setHoveredSiteId(null);
+        stoneNodeLayer?.setHoveredSiteId(null);
         setOverlay(hoverOverlay, options.surface, null, terrainPlacements);
       }
       render();

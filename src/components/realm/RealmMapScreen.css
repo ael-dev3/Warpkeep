@@ -212,12 +212,14 @@
 }
 
 .realm-resource-occupant-presence--reserved {
-  width: 6.8rem;
-  height: auto;
-  min-height: 1.7rem;
-  padding: 0.28rem 0.48rem;
-  align-content: center;
+  display: inline-flex;
+  width: auto;
+  height: 1.7rem;
+  min-width: 5.4rem;
+  padding: 0.2rem 0.42rem;
   align-items: center;
+  justify-content: center;
+  gap: 0.28rem;
   border: 1px dashed rgb(239 211 137 / 68%);
   border-radius: 999px;
   background: rgb(17 11 25 / 74%);
@@ -229,13 +231,19 @@
 .realm-resource-occupant-presence--reserved strong {
   font-size: 0.52rem;
   letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.realm-resource-occupant-presence--reserved > span {
-  margin-top: 0.14rem;
-  color: rgb(255 246 211 / 72%);
-  font-size: 0.44rem;
-  letter-spacing: 0.04em;
+.realm-resource-occupant-presence__kind {
+  display: grid;
+  width: 1.05rem;
+  height: 1.05rem;
+  place-items: center;
+  border-radius: 50%;
+  background: rgb(239 211 137 / 18%);
+  color: rgb(255 246 211 / 84%);
+  font-size: 0.52rem;
+  font-weight: 900;
 }
 
 .realm-resource-occupant-marker {
@@ -266,16 +274,11 @@
 }
 
 .realm-resource-occupant-marker--reserved {
-  --realm-resource-marker-size: 32px;
   border-style: dashed;
   background: rgb(17 11 25 / 72%);
   box-shadow:
     0 0.2rem 0.5rem rgb(0 0 0 / 34%),
     0 0 0 1px rgb(239 211 137 / 30%);
-}
-
-.realm-resource-occupant-marker--reserved .realm-resource-occupant-marker__ring {
-  border-style: dashed;
 }
 
 .realm-resource-occupant-marker--reserved .realm-resource-occupant-marker__kind {
@@ -303,19 +306,18 @@
   outline-offset: 3px;
 }
 
+.realm-resource-occupant-marker[data-selected="true"][data-occupied-by-viewer="true"] {
+  box-shadow:
+    0 0.3rem 0.7rem rgb(0 0 0 / 42%),
+    0 0 0 2px rgb(239 211 137 / 84%),
+    0 0 1rem rgb(232 180 82 / 30%);
+}
+
 .realm-resource-occupant-marker .realm-castle-avatar {
   width: 100%;
   height: 100%;
   border: 0;
   box-shadow: none;
-}
-
-.realm-resource-occupant-marker__ring {
-  position: absolute;
-  inset: -5px;
-  border: 1px solid rgb(239 211 137 / 64%);
-  border-radius: inherit;
-  pointer-events: none;
 }
 
 .realm-resource-occupant-marker__kind {

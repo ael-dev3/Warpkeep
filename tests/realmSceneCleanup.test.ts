@@ -1295,6 +1295,35 @@ describe('realm scene setup cleanup', () => {
     sceneHandle.dispose();
   });
 
+  it('rejects a partial site-world-state catalog before any layer mutates', () => {
+    const canvas = document.createElement('canvas');
+    const goldNode = movingResourceNode('partial-state-gold-site');
+    const sceneHandle = createRealmScene(createOptions(canvas, {
+      quality: REALM_QUALITY_SPECS.high,
+      reducedMotion: true,
+      goldNodes: [goldNode]
+    }));
+
+    sceneHandle.reconcileLiveGatheringState({
+      goldNodes: [goldNode],
+      foodNodes: [],
+      woodNodes: [],
+      stoneNodes: [],
+      resourceSiteWorldStates: {
+        gold: [{
+          siteId: goldNode.siteId,
+          state: 'gathering'
+        }]
+      } as never,
+      observedAtMicros: 60_000_000n
+    });
+
+    expect(canvas.dataset.realmDynamicReconciliationCount).toBe('0');
+    expect(canvas.dataset.realmDynamicReconciliationRejected).toBe('1');
+
+    sceneHandle.dispose();
+  });
+
   it('keeps the ambient loop stopped under reduced motion even with moving resource wagons', () => {
     const canvas = document.createElement('canvas');
     const surface = createRealmTerrainSurface('reduced-motion-moving-resources', 1, 1);

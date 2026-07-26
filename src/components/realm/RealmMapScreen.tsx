@@ -87,14 +87,14 @@ import {
   type RealmStoneNodePresentation
 } from './realmStoneNodePresentation';
 import {
+  applyRealmGenericWorkerSiteAvailability,
   realmResourceOccupantMarkerForKey,
   realmResourceOccupantMarkerKey,
   realmResourceOccupantRecallLegacyExpeditionId,
+  realmResourceSiteWorldStates,
   resolveRealmResourceOccupantMarkerResolution,
   resolveRealmWorkerInspectionRoute,
   RESOURCE_KIND_LABELS,
-  visibleRealmResourceOccupantMarkerKeys,
-  visibleRealmResourceOccupantPresenceKeys,
   type RealmResourceOccupantMarker
 } from './realmResourceOccupantPresentation';
 import {
@@ -207,6 +207,7 @@ import {
   type WorkerRosterPresentation
 } from './realmWorkerPresentation';
 import type { WarpkeepWorkerPrivateSyncStatus } from '../../spacetime/warpkeepBackendTypes';
+import { resolveRealmWorldPortraitLayout } from './realmWorldPortraitLayout';
 
 export {
   BLOCKED_SHARED_FOREST_PROJECTION_SIGNATURE,
@@ -845,27 +846,71 @@ function CanonicalRealmMapScreen({
   const sceneGoldNodes = useMemo(
     () => resourceOccupancyUnavailable
       ? unavailableNodeCatalog(goldNodes)
-      : goldNodes,
-    [goldNodes, resourceOccupancyUnavailable]
+      : applyRealmGenericWorkerSiteAvailability(
+          'gold',
+          goldNodes,
+          resourceOccupantResolution
+        ),
+    [goldNodes, resourceOccupancyUnavailable, resourceOccupantResolution]
   );
   const sceneFoodNodes = useMemo(
     () => resourceOccupancyUnavailable
       ? unavailableNodeCatalog(foodNodes)
-      : foodNodes,
-    [foodNodes, resourceOccupancyUnavailable]
+      : applyRealmGenericWorkerSiteAvailability(
+          'food',
+          foodNodes,
+          resourceOccupantResolution
+        ),
+    [foodNodes, resourceOccupancyUnavailable, resourceOccupantResolution]
   );
   const sceneWoodNodes = useMemo(
     () => resourceOccupancyUnavailable
       ? unavailableNodeCatalog(woodNodes)
-      : woodNodes,
-    [resourceOccupancyUnavailable, woodNodes]
+      : applyRealmGenericWorkerSiteAvailability(
+          'wood',
+          woodNodes,
+          resourceOccupantResolution
+        ),
+    [resourceOccupancyUnavailable, resourceOccupantResolution, woodNodes]
   );
   const sceneStoneNodes = useMemo(
     () => resourceOccupancyUnavailable
       ? unavailableNodeCatalog(stoneNodes)
-      : stoneNodes,
-    [resourceOccupancyUnavailable, stoneNodes]
+      : applyRealmGenericWorkerSiteAvailability(
+          'stone',
+          stoneNodes,
+          resourceOccupantResolution
+        ),
+    [resourceOccupancyUnavailable, resourceOccupantResolution, stoneNodes]
   );
+  const resourceSiteWorldStates = useMemo(() => Object.freeze({
+    gold: realmResourceSiteWorldStates(
+      'gold',
+      goldNodes,
+      resourceOccupantResolution
+    ),
+    food: realmResourceSiteWorldStates(
+      'food',
+      foodNodes,
+      resourceOccupantResolution
+    ),
+    wood: realmResourceSiteWorldStates(
+      'wood',
+      woodNodes,
+      resourceOccupantResolution
+    ),
+    stone: realmResourceSiteWorldStates(
+      'stone',
+      stoneNodes,
+      resourceOccupantResolution
+    )
+  }), [
+    foodNodes,
+    goldNodes,
+    resourceOccupantResolution,
+    stoneNodes,
+    woodNodes
+  ]);
   const resourceOccupantSceneSignature = JSON.stringify(
     resourceOccupantMarkers.map((marker) => [
       marker.resource,
@@ -925,10 +970,12 @@ function CanonicalRealmMapScreen({
       stoneNodes: sceneStoneNodes,
       workers: workerSceneRecords,
       resourceOccupants: resourceOccupantSceneRecords,
+      resourceSiteWorldStates,
       observedAtMicros
     });
   }, [
     resourceOccupantSceneRecords,
+    resourceSiteWorldStates,
     sceneFoodNodes,
     sceneGoldNodes,
     sceneStoneNodes,
@@ -1232,6 +1279,21 @@ function CanonicalRealmMapScreen({
     selectedWorkerRouteId
   );
   selectedWorkerRouteIdRef.current = selectedWorkerRouteId;
+  const selectedResourceOccupant = [
+    inspectorGoldOccupant,
+    inspectorFoodOccupant,
+    inspectorWoodOccupant,
+    inspectorStoneOccupant
+  ].find((marker): marker is RealmResourceOccupantMarker => marker !== undefined);
+  const selectedResourceOccupantKey = selectedResourceOccupant
+    ? realmResourceOccupantMarkerKey(selectedResourceOccupant)
+    : undefined;
+  const selectedResourceOccupantKeyRef = useRef<string | undefined>(
+    selectedResourceOccupantKey
+  );
+  selectedResourceOccupantKeyRef.current = selectedResourceOccupantKey;
+  const hoveredWorkerPresenceIdRef = useRef<string | null>(null);
+  const hoveredResourceOccupantKeyRef = useRef<string | null>(null);
   const goldNodeAtSelectedCell = goldNodes.find((node) => sameCoord(node.coord, selectedCoord));
   const foodNodeAtSelectedCell = foodNodes.find((node) => sameCoord(node.coord, selectedCoord));
   const woodNodeAtSelectedCell = woodNodes.find((node) => sameCoord(node.coord, selectedCoord));
@@ -1242,23 +1304,6 @@ function CanonicalRealmMapScreen({
     || interaction.cameraTarget.kind === 'castle-location'
     ? interaction.cameraTarget.castleId
     : undefined;
-  const resourceOccupantMarkerKeys = useMemo(
-    () => new Set(resourceOccupantMarkers.map(realmResourceOccupantMarkerKey)),
-    [resourceOccupantMarkers]
-  );
-  const resourceOccupantMarkerKeysRef = useRef(resourceOccupantMarkerKeys);
-  resourceOccupantMarkerKeysRef.current = resourceOccupantMarkerKeys;
-  const ownedResourceOccupantKeys = useMemo(() => new Set(
-    resourceOccupantMarkers
-      .filter((marker) => marker.occupiedByViewer)
-      .map(realmResourceOccupantMarkerKey)
-  ), [resourceOccupantMarkers]);
-  const resourceOccupantPriorityKeys = useMemo(
-    () => Object.freeze([...ownedResourceOccupantKeys].sort()),
-    [ownedResourceOccupantKeys]
-  );
-  const resourceOccupantPriorityKeysRef = useRef(resourceOccupantPriorityKeys);
-  resourceOccupantPriorityKeysRef.current = resourceOccupantPriorityKeys;
   const [visibleResourceOccupantPresenceKeys, setVisibleResourceOccupantPresenceKeys] =
     useState<readonly string[]>([]);
   const [visibleResourceOccupantKeys, setVisibleResourceOccupantKeys] =
@@ -1268,157 +1313,183 @@ function CanonicalRealmMapScreen({
   const [visibleWorkerPresenceIds, setVisibleWorkerPresenceIds] =
     useState<readonly string[]>([]);
   const visibleWorkerPresenceSignatureRef = useRef('');
+  const workerPresenceElementsRef = useRef(
+    new Map<string, HTMLElement>()
+  );
+  const resourceOccupantElementsRef = useRef<readonly HTMLElement[]>([]);
 
   const openNavigator = useCallback(() => {
     dispatchInteraction({ type: 'open-navigator' });
   }, []);
 
-  const applyWorkerProjection = useCallback((frame: RealmWorkerProjectionFrame) => {
+  const refreshWorkerPresenceElements = useCallback(() => {
+    const root = rootRef.current;
+    workerPresenceElementsRef.current = new Map(
+      [...(root?.querySelectorAll<HTMLElement>('[data-worker-presence-id]') ?? [])]
+        .map((element) => [
+          element.dataset.workerPresenceId ?? '',
+          element
+        ] as const)
+        .filter(([workerId]) => workerId.length > 0)
+    );
+  }, []);
+
+  const refreshResourceOccupantElements = useCallback(() => {
+    resourceOccupantElementsRef.current = Object.freeze([
+      ...(rootRef.current
+        ?.querySelectorAll<HTMLElement>('[data-resource-occupant-key]')
+        ?? [])
+    ]);
+  }, []);
+
+  const applyWorldPortraitProjection = useCallback(() => {
     const root = rootRef.current;
     if (!root) return;
-    const availableWorkers = new Map(
-      workerSceneRecordsRef.current
-        .filter((worker) => worker.status === 'outbound' || worker.status === 'returning')
-        .map((worker) => [worker.workerId, worker] as const)
-    );
-    const candidates = frame.markers.flatMap((marker) => {
-      const worker = availableWorkers.get(marker.workerId);
-      if (
-        !worker
-        || marker.workerOrdinal !== worker.ordinal
-        || marker.originCastleId !== worker.originCastleId
-        || !marker.visible
-        || !Number.isFinite(marker.x)
-        || !Number.isFinite(marker.y)
-        || !Number.isFinite(marker.depth)
-      ) return [];
-      return [{ marker, worker }];
+    const layout = resolveRealmWorldPortraitLayout({
+      workers: workerSceneRecordsRef.current,
+      resourceOccupants: resourceOccupantMarkersRef.current,
+      workerFrame: latestWorkerProjectionRef.current,
+      resourceFrame: latestResourceProjectionRef.current,
+      reservedRects: [
+        ...reservedUiRectsRef.current,
+        ...reservedCastleLabelRectsRef.current
+      ],
+      selectedWorkerId: selectedWorkerRouteIdRef.current,
+      hoveredWorkerId: hoveredWorkerPresenceIdRef.current,
+      selectedResourceKey: selectedResourceOccupantKeyRef.current,
+      hoveredResourceKey: hoveredResourceOccupantKeyRef.current
     });
-    const reservedRects = [
-      ...reservedUiRectsRef.current,
-      ...reservedCastleLabelRectsRef.current
-    ];
-    const acceptedRects: RealmLabelReservedRect[] = [];
-    const projectedById = new Map<string, RealmWorkerProjectionFrame['markers'][number]>();
-    const intersects = (
-      left: RealmLabelReservedRect,
-      right: RealmLabelReservedRect
-    ) => (
-      left.left < right.right
-      && left.right > right.left
-      && left.top < right.bottom
-      && left.bottom > right.top
+    const acceptedWorkerIds = layout.visibleWorkerIds;
+    const acceptedResourceKeys = layout.visibleResourceControlKeys;
+    const passiveResourceKeys = layout.visibleResourcePresenceKeys;
+    const projectedWorkers = new Map(
+      layout.workerProjections.map((projection) => [
+        projection.workerId,
+        projection
+      ] as const)
     );
-    for (const { marker } of candidates) {
-      const bounds = Object.freeze({
-        left: marker.x - 48,
-        top: marker.y - 48,
-        right: marker.x + 48,
-        bottom: marker.y + 24
-      });
-      if (
-        reservedRects.some((reserved) => intersects(bounds, reserved))
-        || acceptedRects.some((accepted) => intersects(bounds, accepted))
-      ) continue;
-      acceptedRects.push(bounds);
-      projectedById.set(marker.workerId, marker);
+    const projectedResources = layout.resourceProjectionByKey;
+    const acceptedWorkerIdSet = new Set(acceptedWorkerIds);
+    const acceptedResourceKeySet = new Set(acceptedResourceKeys);
+    const passiveResourceKeySet = new Set(passiveResourceKeys);
+    const visibleResourceKeySet = new Set([
+      ...acceptedResourceKeys,
+      ...passiveResourceKeys
+    ]);
+
+    const hoveredWorkerId = hoveredWorkerPresenceIdRef.current;
+    if (
+      hoveredWorkerId !== null
+      && !acceptedWorkerIdSet.has(hoveredWorkerId)
+    ) {
+      hoveredWorkerPresenceIdRef.current = null;
+      sceneRef.current?.setHoveredWorkerId?.(null);
     }
+    const hoveredResourceKey = hoveredResourceOccupantKeyRef.current;
+    if (
+      hoveredResourceKey !== null
+      && !visibleResourceKeySet.has(hoveredResourceKey)
+    ) {
+      hoveredResourceOccupantKeyRef.current = null;
+      sceneRef.current?.setHovered(null);
+    }
+
     root.dataset.realmWorkerPresenceUiSuppressedCount = String(
-      Math.max(0, candidates.length - projectedById.size)
+      layout.suppressedWorkerCount
     );
-    const visibleIds = [...projectedById.keys()];
-    const signature = visibleIds.join('|');
-    if (signature !== visibleWorkerPresenceSignatureRef.current) {
-      visibleWorkerPresenceSignatureRef.current = signature;
-      setVisibleWorkerPresenceIds(Object.freeze(visibleIds));
+    root.dataset.realmResourcePresenceUiSuppressedCount = String(
+      layout.suppressedResourceCount
+    );
+    const workerSignature = acceptedWorkerIds.join('|');
+    if (workerSignature !== visibleWorkerPresenceSignatureRef.current) {
+      visibleWorkerPresenceSignatureRef.current = workerSignature;
+      setVisibleWorkerPresenceIds(Object.freeze(acceptedWorkerIds));
     }
-    root.querySelectorAll<HTMLElement>('[data-worker-presence-id]').forEach((element) => {
-      const marker = projectedById.get(element.dataset.workerPresenceId ?? '');
-      if (!marker) {
+    const resourceSignature = acceptedResourceKeys.join('|');
+    if (resourceSignature !== visibleResourceOccupantSignatureRef.current) {
+      visibleResourceOccupantSignatureRef.current = resourceSignature;
+      setVisibleResourceOccupantKeys(Object.freeze(acceptedResourceKeys));
+    }
+    const passiveSignature = passiveResourceKeys.join('|');
+    if (
+      passiveSignature
+      !== visibleResourceOccupantPresenceSignatureRef.current
+    ) {
+      visibleResourceOccupantPresenceSignatureRef.current = passiveSignature;
+      setVisibleResourceOccupantPresenceKeys(Object.freeze(passiveResourceKeys));
+    }
+    for (const [workerId, element] of workerPresenceElementsRef.current) {
+      const marker = projectedWorkers.get(workerId);
+      if (!marker || !acceptedWorkerIdSet.has(workerId)) {
         element.dataset.projectedVisible = 'false';
-        return;
+        continue;
       }
       element.style.setProperty('--realm-worker-presence-x', `${marker.x}px`);
       element.style.setProperty('--realm-worker-presence-y', `${marker.y}px`);
       element.dataset.projectedVisible = 'true';
-    });
+    }
+    for (const element of resourceOccupantElementsRef.current) {
+      const key = element.dataset.resourceOccupantKey ?? '';
+      const marker = projectedResources.get(key);
+      const laneVisible = element.dataset.resourceOccupantLane === 'presence'
+        ? passiveResourceKeySet.has(key)
+        : acceptedResourceKeySet.has(key);
+      if (!marker || !laneVisible) {
+        element.dataset.projectedVisible = 'false';
+        continue;
+      }
+      element.style.setProperty('--realm-resource-marker-x', `${marker.x}px`);
+      element.style.setProperty('--realm-resource-marker-y', `${marker.y}px`);
+      element.dataset.projectedVisible = 'true';
+    }
   }, []);
 
   const updateWorkerProjection = useCallback((frame: RealmWorkerProjectionFrame) => {
     latestWorkerProjectionRef.current = frame;
-    applyWorkerProjection(frame);
-  }, [applyWorkerProjection]);
+    applyWorldPortraitProjection();
+  }, [applyWorldPortraitProjection]);
 
   const applyLatestWorkerProjection = useCallback(() => {
-    applyWorkerProjection(latestWorkerProjectionRef.current);
-  }, [applyWorkerProjection]);
-
-  const applyResourceProjection = useCallback((frame: RealmResourceProjectionFrame) => {
-    const root = rootRef.current;
-    if (!root) return;
-    const visibleKeys = visibleRealmResourceOccupantMarkerKeys(
-      frame,
-      resourceOccupantMarkerKeysRef.current,
-      [
-        ...reservedUiRectsRef.current,
-        ...reservedCastleLabelRectsRef.current
-      ],
-      {
-        priorityKeys: resourceOccupantPriorityKeysRef.current,
-        // Remote captions become visible on hover/focus, so all interactive
-        // controls reserve their full caption bounds even though only owned
-        // captions remain persistently visible.
-        persistentLabelKeys: resourceOccupantMarkerKeysRef.current
-      }
-    );
-    const visibleKeySet = new Set(visibleKeys);
-    const presenceKeys = visibleRealmResourceOccupantPresenceKeys(
-      frame,
-      resourceOccupantMarkerKeysRef.current
-    ).filter((key) => !visibleKeySet.has(key));
-    const presenceSignature = presenceKeys.join('|');
-    if (presenceSignature !== visibleResourceOccupantPresenceSignatureRef.current) {
-      visibleResourceOccupantPresenceSignatureRef.current = presenceSignature;
-      setVisibleResourceOccupantPresenceKeys(presenceKeys);
-    }
-    const signature = visibleKeys.join('|');
-    if (signature !== visibleResourceOccupantSignatureRef.current) {
-      visibleResourceOccupantSignatureRef.current = signature;
-      setVisibleResourceOccupantKeys(visibleKeys);
-    }
-    const presenceKeySet = new Set(presenceKeys);
-    const projectedByKey = new Map(
-      frame.markers.filter((marker) => (
-        resourceOccupantMarkerKeysRef.current.has(realmResourceOccupantMarkerKey(marker))
-      )).map((marker) => [
-        realmResourceOccupantMarkerKey(marker),
-        marker
-      ] as const)
-    );
-    root.querySelectorAll<HTMLElement>('[data-resource-occupant-key]').forEach((element) => {
-      const key = element.dataset.resourceOccupantKey ?? '';
-      const marker = projectedByKey.get(key);
-      const laneVisible = element.dataset.resourceOccupantLane === 'presence'
-        ? presenceKeySet.has(key)
-        : visibleKeySet.has(key);
-      if (!marker || !laneVisible) {
-        element.dataset.projectedVisible = 'false';
-        return;
-      }
-      element.style.setProperty('--realm-resource-marker-x', `${marker.x}px`);
-      element.style.setProperty('--realm-resource-marker-y', `${marker.y}px`);
-      element.dataset.projectedVisible = marker.visible ? 'true' : 'false';
-    });
-  }, []);
+    refreshWorkerPresenceElements();
+    applyWorldPortraitProjection();
+  }, [applyWorldPortraitProjection, refreshWorkerPresenceElements]);
 
   const updateResourceProjection = useCallback((frame: RealmResourceProjectionFrame) => {
     latestResourceProjectionRef.current = frame;
-    applyResourceProjection(frame);
-  }, [applyResourceProjection]);
+    applyWorldPortraitProjection();
+  }, [applyWorldPortraitProjection]);
 
   const applyLatestResourceProjection = useCallback(() => {
-    applyResourceProjection(latestResourceProjectionRef.current);
-  }, [applyResourceProjection]);
+    refreshResourceOccupantElements();
+    applyWorldPortraitProjection();
+  }, [applyWorldPortraitProjection, refreshResourceOccupantElements]);
+
+  const hoverWorkerPresence = useCallback((workerId: string | null) => {
+    hoveredWorkerPresenceIdRef.current = workerId;
+    if (workerId !== null) hoveredResourceOccupantKeyRef.current = null;
+    sceneRef.current?.setHoveredWorkerId?.(workerId);
+    applyWorldPortraitProjection();
+  }, [applyWorldPortraitProjection]);
+
+  const hoverResourceOccupant = useCallback((key: string | null) => {
+    hoveredResourceOccupantKeyRef.current = key;
+    if (key !== null) hoveredWorkerPresenceIdRef.current = null;
+    const marker = key === null
+      ? undefined
+      : resourceOccupantMarkersRef.current.find((candidate) => (
+          realmResourceOccupantMarkerKey(candidate) === key
+        ));
+    sceneRef.current?.setHovered(marker?.nodeCoord ?? null);
+    applyWorldPortraitProjection();
+  }, [applyWorldPortraitProjection]);
+
+  useLayoutEffect(() => {
+    applyWorldPortraitProjection();
+  }, [
+    applyWorldPortraitProjection,
+    selectedResourceOccupantKey,
+    selectedWorkerRouteId
+  ]);
 
   const updateHoveredCastleId = useCallback((next: number | undefined) => {
     if (hoveredCastleIdRef.current === next) return;
@@ -2242,10 +2313,10 @@ function CanonicalRealmMapScreen({
           focusCell: (coord) => scene?.focusCell(coord)
         });
         updateCastleProjection(latestProjectionRef.current);
-        applyResourceProjection(latestResourceProjectionRef.current);
+        applyWorldPortraitProjection();
       }
     });
-  }, [applyResourceProjection, updateCastleProjection]);
+  }, [applyWorldPortraitProjection, updateCastleProjection]);
 
   useEffect(() => () => {
     if (compositionRafRef.current !== null) {
@@ -2837,6 +2908,7 @@ function CanonicalRealmMapScreen({
         stoneNodes: liveGatheringStateRef.current.stoneNodes,
         workers: workerSceneRecordsRef.current,
         resourceOccupants: resourceOccupantSceneRecords,
+        resourceSiteWorldStates: liveGatheringStateRef.current.resourceSiteWorldStates,
         sharedForestLayout: sharedForestProjection.layout,
         sharedForestTrees: sharedForestProjection.trees,
         waterCells: stableWaterSceneInputs.cells,
@@ -3813,9 +3885,10 @@ function CanonicalRealmMapScreen({
 
           <RealmWorkerPresenceMarkers
             focusFallbackRef={rootRef}
+            selectedWorkerId={selectedWorkerRouteId}
             workers={workerSceneRecords}
             visibleWorkerIds={visibleWorkerPresenceIds}
-            onHover={(workerId) => sceneRef.current?.setHoveredWorkerId?.(workerId)}
+            onHover={hoverWorkerPresence}
             onLayout={applyLatestWorkerProjection}
             onSelect={selectWorkerAtCurrentPosition}
           />
@@ -3823,7 +3896,9 @@ function CanonicalRealmMapScreen({
           <RealmResourceOccupantMarkers
             markers={resourceOccupantMarkers}
             presenceMarkerKeys={visibleResourceOccupantPresenceKeys}
+            selectedMarkerKey={selectedResourceOccupantKey}
             visibleMarkerKeys={visibleResourceOccupantKeys}
+            onHover={hoverResourceOccupant}
             onMarkerLayout={applyLatestResourceProjection}
             onSelect={selectResourceOccupant}
           />

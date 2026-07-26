@@ -79,6 +79,39 @@ function cdpPipeFrame(value: unknown) {
   return Buffer.from(`${JSON.stringify(value)}\0`, 'utf8');
 }
 
+function renderedScreenshotPng(blank: boolean) {
+  const chunk = (type: string, data: Buffer) => {
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(data.byteLength);
+    return Buffer.concat([length, Buffer.from(type, 'ascii'), data, Buffer.alloc(4)]);
+  };
+  const width = 320;
+  const height = 320;
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header[8] = 8;
+  header[9] = 6;
+  const rows = Buffer.alloc((width * 4 + 1) * height);
+  for (let y = 0; y < height; y += 1) {
+    const row = y * (width * 4 + 1);
+    rows[row] = 0;
+    for (let x = 0; x < width; x += 1) {
+      const offset = row + 1 + x * 4;
+      rows[offset] = blank ? 0 : (x * 7 + y * 3) & 0xff;
+      rows[offset + 1] = blank ? 0 : (x * 2 + y * 11) & 0xff;
+      rows[offset + 2] = blank ? 0 : (x * 13 + y * 5) & 0xff;
+      rows[offset + 3] = 255;
+    }
+  }
+  return Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    chunk('IHDR', header),
+    chunk('IDAT', deflateSync(rows)),
+    chunk('IEND', Buffer.alloc(0))
+  ]);
+}
+
 function fakeChromePipe() {
   const child = new EventEmitter() as EventEmitter & {
     exitCode: number | null;
@@ -434,6 +467,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       cameraAnchorPopulationValid: true,
       cameraIndependentAnchorCoverage: true,
       cameraNeutralWhileOpen: true,
+      compactOverviewCullingValid: false,
       factsCorrect: true,
       focusedControlActivation: true,
       identityRecordCorrect: true,
@@ -470,6 +504,29 @@ describe('rendered WebGL headless browser probe contract', () => {
       workerRecordCorrect: true
     } as const;
     expect(parseRenderedWebglResourceOccupantEvidence(evidence)).toEqual(evidence);
+    const compactEvidence = {
+      ...evidence,
+      cameraNeutral: false,
+      cameraNeutralAfterClose: false,
+      cameraAnchorPopulationValid: false,
+      cameraIndependentAnchorCoverage: false,
+      cameraNeutralWhileOpen: false,
+      compactOverviewCullingValid: true,
+      overviewPresenceDirectHit: false,
+      overviewRecordCorrect: false,
+      overviewTargetPassiveOnly: false,
+      presenceComputedVisible: false,
+      presenceAvatarGeometryValid: false,
+      presenceGeometryValid: false,
+      presenceDelegatedActivation: false,
+      presenceHitTestable: false,
+      presencePointerActivatable: false,
+      presencePortraitElementPresent: false,
+      presencePortraitReady: false,
+      presenceVisible: false
+    } as const;
+    expect(parseRenderedWebglResourceOccupantEvidence(compactEvidence))
+      .toEqual(compactEvidence);
     expect(() => parseRenderedWebglResourceOccupantEvidence({
       ...evidence,
       rendererStable: false
@@ -509,7 +566,10 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(expression).toMatch(
       /matchMedia\(\s*'\(prefers-reduced-motion: reduce\)'/
     );
-    expect(expression).toContain('const cameraNeutralWhileOpen = projectionStable(');
+    expect(expression).toContain(
+      'const cameraNeutralWhileOpen = cameraProjectionStable('
+    );
+    expect(expression).toContain('const projectedPresence = overviewPresentation()');
     expect(expression).toMatch(/beforeProjection,\s+duringProjection/);
     expect(expression).toContain('beforeRenderer === duringRenderer');
     expect(expression).toContain('subtreePrivacyBounded(panel)');
@@ -520,9 +580,7 @@ describe('rendered WebGL headless browser probe contract', () => {
     );
     expect(expression).toContain("getComputedStyle(presenceLayer).pointerEvents === 'none'");
     expect(expression).toContain('focusedPresence === undefined');
-    expect(expression).toContain(
-      'document.querySelector(overviewMarkerSelector) === null'
-    );
+    expect(expression).toContain('overviewMarker === undefined');
     expect(expression).toContain('overviewDirectHit.click()');
     expect(expression).toContain('independentStableAnchorCount(beforeProjection, duringProjection) >= 3');
     expect(expression).toContain('keyboardControls.length <= 24');
@@ -2323,41 +2381,8 @@ describe('rendered WebGL headless browser probe contract', () => {
   });
 
   it('reduces an in-memory Chrome PNG to bounded visual evidence and rejects blank output', () => {
-    const chunk = (type: string, data: Buffer) => {
-      const length = Buffer.alloc(4);
-      length.writeUInt32BE(data.byteLength);
-      return Buffer.concat([length, Buffer.from(type, 'ascii'), data, Buffer.alloc(4)]);
-    };
-    const createPng = (blank: boolean) => {
-      const width = 320;
-      const height = 320;
-      const header = Buffer.alloc(13);
-      header.writeUInt32BE(width, 0);
-      header.writeUInt32BE(height, 4);
-      header[8] = 8;
-      header[9] = 6;
-      const rows = Buffer.alloc((width * 4 + 1) * height);
-      for (let y = 0; y < height; y += 1) {
-        const row = y * (width * 4 + 1);
-        rows[row] = 0;
-        for (let x = 0; x < width; x += 1) {
-          const offset = row + 1 + x * 4;
-          rows[offset] = blank ? 0 : (x * 7 + y * 3) & 0xff;
-          rows[offset + 1] = blank ? 0 : (x * 2 + y * 11) & 0xff;
-          rows[offset + 2] = blank ? 0 : (x * 13 + y * 5) & 0xff;
-          rows[offset + 3] = 255;
-        }
-      }
-      return Buffer.concat([
-        Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
-        chunk('IHDR', header),
-        chunk('IDAT', deflateSync(rows)),
-        chunk('IEND', Buffer.alloc(0))
-      ]);
-    };
-
     expect(analyzeRenderedWebglPngScreenshot(
-      createPng(false),
+      renderedScreenshotPng(false),
       { width: 320, height: 320 }
     )).toMatchObject({
       sampleCount: 117,
@@ -2368,12 +2393,13 @@ describe('rendered WebGL headless browser probe contract', () => {
       clippedWhiteSamples: 0
     });
     expect(() => analyzeRenderedWebglPngScreenshot(
-      createPng(true),
+      renderedScreenshotPng(true),
       { width: 320, height: 320 }
     )).toThrow(/credible visual output/i);
     expect(() => analyzeRenderedWebglPngScreenshot(
-      createPng(false),
+      renderedScreenshotPng(false),
       { width: 321, height: 320 }
     )).toThrow(/screenshot/i);
   });
+
 });

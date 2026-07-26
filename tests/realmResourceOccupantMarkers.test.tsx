@@ -167,7 +167,7 @@ describe('resource occupant marker surface', () => {
       name: /Inspect reserved Logging Camp, worker en route/i
     });
     expect(control.className).toContain('realm-resource-occupant-marker--reserved');
-    expect(control.textContent).toContain('RESERVED · WORKER EN ROUTE');
+    expect(control.textContent).toContain('Reserved · en route');
     expect(control.querySelector('.realm-castle-avatar')).toBeNull();
     expect(container.querySelectorAll(`[data-resource-occupant-key="${key}"]`)).toHaveLength(1);
     expect(container.querySelector('.realm-resource-occupant-presence--reserved')).toBeNull();
@@ -189,7 +189,8 @@ describe('resource occupant marker surface', () => {
     );
 
     const presence = container.querySelector('.realm-resource-occupant-presence--reserved');
-    expect(presence?.textContent).toContain('WORKER EN ROUTE');
+    expect(presence?.textContent).toContain('Reserved');
+    expect(presence?.textContent).not.toContain('WORKER EN ROUTE');
     expect(presence?.querySelector('.realm-castle-avatar')).toBeNull();
     expect(container.querySelectorAll(`[data-resource-occupant-key="${key}"]`)).toHaveLength(1);
     expect(screen.queryByRole('button')).toBeNull();
@@ -212,10 +213,12 @@ describe('resource occupant marker surface', () => {
   });
 
   it('moves focus to the next visible control when the focused marker is culled', () => {
+    const onHover = vi.fn();
     const view = render(
       <RealmResourceOccupantMarkers
         markers={[first, second]}
         visibleMarkerKeys={visibleKeys}
+        onHover={onHover}
         onMarkerLayout={() => undefined}
         onSelect={() => undefined}
       />
@@ -227,11 +230,13 @@ describe('resource occupant marker surface', () => {
       <RealmResourceOccupantMarkers
         markers={[first, second]}
         visibleMarkerKeys={[visibleKeys[1]]}
+        onHover={onHover}
         onMarkerLayout={() => undefined}
         onSelect={() => undefined}
       />
     );
     expect(document.activeElement).toBe(screen.getByRole('button'));
+    expect(onHover).toHaveBeenCalledWith(null);
   });
 
   it('reapplies the latest projection after membership changes', () => {

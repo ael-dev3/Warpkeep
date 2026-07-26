@@ -24,6 +24,12 @@ import {
   type RealmFoodNodePresentation,
   type RealmFoodWagonPose
 } from './realmFoodNodePresentation';
+import {
+  conservativeRealmResourceSiteWorldState,
+  createRealmResourceSiteWorldAccents,
+  type RealmResourceSiteWorldAccentTelemetry,
+  type RealmResourceSiteWorldStateRecord
+} from './realmResourceSiteWorldAccents';
 
 const HEX_SIZE = 1;
 const RESOURCE_GROUND_LIFT = 0.018;
@@ -53,10 +59,13 @@ export type RealmFoodNodeLayer = Readonly<{
   update: (camera: THREE.PerspectiveCamera, nowMicros: bigint, elapsedSeconds: number) => boolean;
   canReconcile: (sites: readonly RealmFoodNodeSceneRecord[]) => boolean;
   reconcile: (sites: readonly RealmFoodNodeSceneRecord[]) => boolean;
+  reconcileWorldStates: (states: readonly RealmResourceSiteWorldStateRecord[]) => boolean;
   raycast: (raycaster: THREE.Raycaster) => RealmFoodNodeInstanceHit | null;
   setSelectedSiteId: (siteId: string | null) => void;
+  setHoveredSiteId: (siteId: string | null) => void;
   hasMovingWagons: () => boolean;
   getPresentationTelemetry: () => RealmFoodNodePresentationTelemetry;
+  getWorldAccentTelemetry: () => RealmResourceSiteWorldAccentTelemetry;
   dispose: () => void;
 }>;
 
@@ -210,6 +219,24 @@ export function createRealmFoodNodeLayer(options: CreateRealmFoodNodeLayerOption
   const modelGroup = new THREE.Group();
   modelGroup.name = 'realm-food-node-models';
   group.add(fallbackGroup, modelGroup);
+  const worldAccents = createRealmResourceSiteWorldAccents({
+    resource: 'food',
+    sites: nodes.map((node) => ({
+      siteId: node.record.siteId,
+      x: node.world.x,
+      y: node.world.y,
+      z: node.world.z
+    })),
+    initialStates: nodes.map((node) => ({
+      siteId: node.record.siteId,
+      state: conservativeRealmResourceSiteWorldState({
+        availability: node.record.availability,
+        hasOccupation: node.record.occupation !== undefined
+      })
+    })),
+    dynamicShadows: options.quality.dynamicShadows
+  });
+  group.add(worldAccents.group);
 
   const markerGeometry = new THREE.ConeGeometry(0.18, 0.42, 5);
   const markerMaterial = new THREE.MeshStandardMaterial({
@@ -237,41 +264,6 @@ export function createRealmFoodNodeLayer(options: CreateRealmFoodNodeLayerOption
   markers.count = nodes.length;
   markers.instanceMatrix.needsUpdate = true;
   fallbackGroup.add(markers);
-
-  const occupiedGeometry = new THREE.RingGeometry(0.34, 0.4, 24);
-  const occupiedMaterial = new THREE.MeshBasicMaterial({
-    color: '#d9aa47', transparent: true, opacity: 0.86, depthWrite: false,
-    side: THREE.DoubleSide, toneMapped: false
-  });
-  const occupiedRings = new THREE.InstancedMesh(occupiedGeometry, occupiedMaterial, nodes.length);
-  occupiedRings.name = 'realm-food-node-occupation-rings';
-  occupiedRings.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  const syncOccupiedRings = () => {
-    let occupiedRingCount = 0;
-    nodes.forEach((node) => {
-      if (!['outbound', 'gathering', 'returning'].includes(node.record.availability)) return;
-      markerMatrix.makeRotationX(-Math.PI * 0.5);
-      markerMatrix.setPosition(node.world.x, node.world.y + 0.025, node.world.z);
-      occupiedRings.setMatrixAt(occupiedRingCount, markerMatrix);
-      occupiedRingCount += 1;
-    });
-    occupiedRings.count = occupiedRingCount;
-    occupiedRings.instanceMatrix.needsUpdate = true;
-  };
-  syncOccupiedRings();
-  fallbackGroup.add(occupiedRings);
-
-  const selectedRing = new THREE.Mesh(
-    new THREE.RingGeometry(0.44, 0.49, 28),
-    new THREE.MeshBasicMaterial({
-      color: '#fff0ad', transparent: true, opacity: 0.92, depthWrite: false,
-      side: THREE.DoubleSide, toneMapped: false
-    })
-  );
-  selectedRing.name = 'realm-food-node-selection-ring';
-  selectedRing.rotation.x = -Math.PI * 0.5;
-  selectedRing.visible = false;
-  fallbackGroup.add(selectedRing);
 
   const pickGeometry = new THREE.CylinderGeometry(0.52, 0.52, 0.72, 16);
   const pickMaterial = new THREE.MeshBasicMaterial({ visible: false });
@@ -535,9 +527,7 @@ export function createRealmFoodNodeLayer(options: CreateRealmFoodNodeLayerOption
 
   const setSelectedSiteId = (siteId: string | null) => {
     selectedSiteId = siteId ?? undefined;
-    const node = selectedSiteId ? nodeBySiteId.get(selectedSiteId) : undefined;
-    selectedRing.visible = node !== undefined;
-    if (node) selectedRing.position.set(node.world.x, node.world.y + 0.026, node.world.z);
+    worldAccents.setSelectedSiteId(siteId);
   };
   const canReconcile = (sites: readonly RealmFoodNodeSceneRecord[]) => {
     if (disposed || sites.length !== nodes.length) return false;
@@ -557,10 +547,16 @@ export function createRealmFoodNodeLayer(options: CreateRealmFoodNodeLayerOption
   };
   const reconcile = (sites: readonly RealmFoodNodeSceneRecord[]) => {
     if (!canReconcile(sites)) return false;
+    if (!worldAccents.reconcileWorldStates(sites.map((site) => ({
+      siteId: site.siteId,
+      state: conservativeRealmResourceSiteWorldState({
+        availability: site.availability,
+        hasOccupation: site.occupation !== undefined
+      })
+    })))) return false;
     const nextBySiteId = new Map(sites.map((site) => [site.siteId, site] as const));
     for (const node of nodes) node.record = nextBySiteId.get(node.record.siteId)!;
     markerPresentationSignature = '';
-    syncOccupiedRings();
     telemetry = Object.freeze({
       ...telemetry,
       occupiedSiteCount: nodes.filter((node) => node.record.occupation !== undefined).length
@@ -599,13 +595,10 @@ export function createRealmFoodNodeLayer(options: CreateRealmFoodNodeLayerOption
     }
     modelLeases.clear();
     models.clear();
+    worldAccents.dispose();
     group.removeFromParent();
     markerGeometry.dispose();
     markerMaterial.dispose();
-    occupiedGeometry.dispose();
-    occupiedMaterial.dispose();
-    selectedRing.geometry.dispose();
-    (selectedRing.material as THREE.Material).dispose();
     pickGeometry.dispose();
     wagonPickGeometry.dispose();
     wagonFallbackGeometry.dispose();
@@ -617,10 +610,13 @@ export function createRealmFoodNodeLayer(options: CreateRealmFoodNodeLayerOption
     update,
     canReconcile,
     reconcile,
+    reconcileWorldStates: worldAccents.reconcileWorldStates,
     raycast,
     setSelectedSiteId,
+    setHoveredSiteId: worldAccents.setHoveredSiteId,
     hasMovingWagons: () => nodes.some((node) => node.record.availability === 'outbound' || node.record.availability === 'returning'),
     getPresentationTelemetry: () => telemetry,
+    getWorldAccentTelemetry: worldAccents.getTelemetry,
     dispose
   });
 }
