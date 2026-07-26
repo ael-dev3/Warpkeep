@@ -133,7 +133,9 @@ function finiteCoord(coord: HexCoord | undefined): coord is HexCoord {
     && Number.isSafeInteger(coord.r);
 }
 
-function validWorkerCatalog(workers: readonly RealmWorkerSceneRecord[]) {
+export function isValidRealmWorkerSceneCatalog(
+  workers: readonly RealmWorkerSceneRecord[]
+) {
   if (workers.length > MAX_RENDERED_REALM_WORKERS) return false;
   const ids = new Set<string>();
   for (const worker of workers) {
@@ -158,7 +160,7 @@ function sameStaticWorkerCatalog(
   current: readonly RealmWorkerSceneRecord[],
   next: readonly RealmWorkerSceneRecord[]
 ) {
-  if (!validWorkerCatalog(next) || current.length !== next.length) return false;
+  if (!isValidRealmWorkerSceneCatalog(next) || current.length !== next.length) return false;
   const nextById = new Map(next.map((worker) => [worker.workerId, worker] as const));
   return current.every((worker) => {
     const candidate = nextById.get(worker.workerId);
@@ -307,7 +309,7 @@ function chooseClip(
 
 export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmWorkerLayer {
   if (
-    !validWorkerCatalog(options.workers)
+    !isValidRealmWorkerSceneCatalog(options.workers)
     || !Number.isFinite(options.hexSize)
     || options.hexSize <= 0
   ) throw new Error('REALM_WORKER_CATALOG_INVALID');

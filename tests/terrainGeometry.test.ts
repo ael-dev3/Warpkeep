@@ -5,7 +5,8 @@ import { describe, expect, it } from 'vitest';
 import {
   createTerrainGeometryData,
   DEFAULT_TERRAIN_SUBDIVISIONS,
-  pointyHexCorners
+  pointyHexCorners,
+  sampleContinuousTerrainPresentation
 } from '../src/components/realm/createTerrainGeometry';
 import { generateRealmTerrainMap } from '../src/game/map/generateTerrainMap';
 import { axialToWorld } from '../src/game/map/hexCoordinates';
@@ -30,6 +31,7 @@ function geometryDigest(geometry: ReturnType<typeof createTerrainGeometryData>) 
   const digest = createHash('sha256');
   digest.update(new Uint8Array(geometry.positions.buffer));
   digest.update(new Uint8Array(geometry.colors.buffer));
+  digest.update(new Uint8Array(geometry.materialCues.buffer));
   digest.update(new Uint8Array(geometry.indices.buffer));
   return digest.digest('hex');
 }
@@ -44,12 +46,59 @@ describe('combined lowlands terrain geometry', () => {
     expect(geometry.positions.length).toBeGreaterThan(0);
     expect(geometry.positions.length % 3).toBe(0);
     expect(geometry.colors.length).toBe(geometry.positions.length);
+    expect(geometry.materialCues.length).toBe(geometry.vertexCount * 4);
     expect(geometry.indices.length).toBeGreaterThan(0);
     expect(geometry.indices.length % 3).toBe(0);
     expect(Array.from(geometry.positions).every(Number.isFinite)).toBe(true);
     expect(Array.from(geometry.colors).every(Number.isFinite)).toBe(true);
+    expect(Array.from(geometry.materialCues).every(Number.isFinite)).toBe(true);
     expect(Array.from(geometry.indices).every((index) => index >= 0 && index < vertexCount)).toBe(true);
     expect(geometry.degenerateTriangleCount).toBe(0);
+    expect(geometry.materialCueMetrics.slopeMin).toBeGreaterThanOrEqual(0);
+    expect(geometry.materialCueMetrics.slopeMax).toBeLessThanOrEqual(1);
+    expect(geometry.materialCueMetrics.concavityMin).toBeGreaterThanOrEqual(-1);
+    expect(geometry.materialCueMetrics.concavityMax).toBeLessThanOrEqual(1);
+  });
+
+  it('blends semantic and ecology signals continuously instead of stamping cell centres', () => {
+    const map = generateRealmTerrainMap(HEGEMONY_GENESIS_001, 3);
+    const terrainKinds = new Map(map.cells.map((cell) => [
+      `${cell.coord.q},${cell.coord.r}`,
+      cell.coord.q <= 0 ? 'forest' as const : 'meadow' as const
+    ]));
+    const canopy = new Map(map.cells.map((cell) => [
+      `${cell.coord.q},${cell.coord.r}`,
+      cell.coord.q <= 0 ? 0.9 : 0.05
+    ]));
+    const vegetation = new Map(map.cells.map((cell) => [
+      `${cell.coord.q},${cell.coord.r}`,
+      cell.coord.q <= 0 ? 0.72 : 0.38
+    ]));
+    const left = sampleContinuousTerrainPresentation(
+      { x: Math.sqrt(3) / 2 - 0.001, z: 0 },
+      1,
+      {
+        terrainKindsByKey: terrainKinds,
+        forestCanopyByKey: canopy,
+        vegetationDensityByKey: vegetation
+      }
+    );
+    const right = sampleContinuousTerrainPresentation(
+      { x: Math.sqrt(3) / 2 + 0.001, z: 0 },
+      1,
+      {
+        terrainKindsByKey: terrainKinds,
+        forestCanopyByKey: canopy,
+        vegetationDensityByKey: vegetation
+      }
+    );
+
+    expect(left.semanticColor).toBeDefined();
+    expect(right.semanticColor).toBeDefined();
+    expect(Math.abs(left.semanticColor!.r - right.semanticColor!.r)).toBeLessThan(0.002);
+    expect(Math.abs(left.semanticColor!.g - right.semanticColor!.g)).toBeLessThan(0.002);
+    expect(Math.abs(left.forestCanopy - right.forestCanopy)).toBeLessThan(0.005);
+    expect(Math.abs(left.vegetationDensity - right.vegetationDensity)).toBeLessThan(0.005);
   });
 
   it('tessellates every logical cell while reusing world-space border vertices', () => {
@@ -125,9 +174,9 @@ describe('combined lowlands terrain geometry', () => {
   it('matches the pinned former radius-twenty-two topology at every runtime profile', () => {
     const map = generateRealmTerrainMap(HEGEMONY_GENESIS_001, 22);
     const expectations = [
-      [4, 145_824, 73_453, '2aff8e3dd18acf763384fe1b6a62e372a861300e1a78cb4bea131303da44c1e2'],
-      [3, 82_026, 41_419, 'a84d5eba7ea564e65ff4d993cf18595758928811a49a34875a752351ab8441cb'],
-      [2, 36_456, 18_499, 'cf7281152a74638413ed38fcc7bca80b75f8d1b9d333ed364d92cfb450b247aa']
+      [4, 145_824, 73_453, '60630f04f8455ecdc57fb397932a124efc1f18dc698787205386d5306ef50bea'],
+      [3, 82_026, 41_419, '167728057d5995febca56698ffa9ed4b47d0a6b4ec4056bd7f39b7a5cf536eac'],
+      [2, 36_456, 18_499, '2cbf81cfd4278028513e94d23cf616584faf3a53ac868e0e46cf49085f137052']
     ] as const;
 
     expectations.forEach(([subdivisions, triangleCount, vertexCount, digest]) => {

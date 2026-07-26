@@ -25,6 +25,12 @@ export type TerrainColorContext = Readonly<{
   renderRadius: number;
   terrainKind?: RealmTerrainKind;
   /**
+   * Optional continuously sampled semantic presentation. Geometry callers use
+   * this instead of staining each hex interior independently.
+   */
+  semanticColor?: TerrainRgb;
+  semanticStrength?: number;
+  /**
    * Renderer-only canopy value derived from stable forest ecoregions. It never
    * changes the canonical terrain kind or any gameplay/resource semantics.
    */
@@ -41,15 +47,14 @@ export const REALM_TERRAIN_KIND_PALETTE: Readonly<Record<RealmTerrainKind, Reado
   color: TerrainRgb;
   strength: number;
 }>>> = Object.freeze({
-  lowland: Object.freeze({ color: { r: 0.34, g: 0.5, b: 0.24 }, strength: 0.14 }),
-  meadow: Object.freeze({ color: { r: 0.48, g: 0.62, b: 0.27 }, strength: 0.34 }),
-  // Keep canonical forest tiles vivid enough to read under a sunlit canopy;
-  // the old near-black mix made real tree assets appear permanently shaded.
-  forest: Object.freeze({ color: { r: 0.21, g: 0.45, b: 0.23 }, strength: 0.46 }),
-  heath: Object.freeze({ color: { r: 0.31, g: 0.46, b: 0.24 }, strength: 0.30 }),
-  ridge: Object.freeze({ color: { r: 0.39, g: 0.38, b: 0.35 }, strength: 0.58 }),
-  lake: Object.freeze({ color: { r: 0.22, g: 0.4, b: 0.46 }, strength: 0.72 }),
-  'ancient-stone': Object.freeze({ color: { r: 0.37, g: 0.39, b: 0.35 }, strength: 0.50 })
+  lowland: Object.freeze({ color: { r: 0.29, g: 0.42, b: 0.23 }, strength: 0.12 }),
+  meadow: Object.freeze({ color: { r: 0.40, g: 0.51, b: 0.26 }, strength: 0.24 }),
+  // Forest depth comes from canopy/contact cues rather than near-black paint.
+  forest: Object.freeze({ color: { r: 0.20, g: 0.35, b: 0.22 }, strength: 0.36 }),
+  heath: Object.freeze({ color: { r: 0.32, g: 0.40, b: 0.26 }, strength: 0.22 }),
+  ridge: Object.freeze({ color: { r: 0.38, g: 0.38, b: 0.34 }, strength: 0.46 }),
+  lake: Object.freeze({ color: { r: 0.18, g: 0.31, b: 0.36 }, strength: 0.62 }),
+  'ancient-stone': Object.freeze({ color: { r: 0.39, g: 0.40, b: 0.37 }, strength: 0.45 })
 });
 
 export type TerrainColorVisualMetrics = Readonly<{
@@ -111,8 +116,10 @@ export function sampleLowlandsColor(
   context: TerrainColorContext
 ): TerrainRgb {
   const hexSize = context.hexSize ?? hegemonyLowlandsSpec.surface.hexSize;
-  const broad = worldSurfaceSignal(worldSeed, world, 'grass-broad', 0.68) * 0.5 + 0.5;
-  const fine = worldSurfaceSignal(worldSeed, world, 'grass-fine', 2.5) * 0.5 + 0.5;
+  const broad = worldSurfaceSignal(worldSeed, world, 'grass-broad', 0.58) * 0.5 + 0.5;
+  // Keep the small-scale cue below the frequency that shimmers at strategy
+  // zoom; blades and authored structures carry the close-view detail.
+  const fine = worldSurfaceSignal(worldSeed, world, 'grass-fine', 1.75) * 0.5 + 0.5;
   const soilSignal = worldSurfaceSignal(worldSeed, world, 'soil', 0.9) * 0.5 + 0.5;
   const center = context.cell ? axialToWorld(context.cell.coord, hexSize) : world;
   const local = { x: world.x - center.x, z: world.z - center.z };
@@ -146,7 +153,13 @@ export function sampleLowlandsColor(
   const visualTerrainKind = context.visualizeLegacyLakeAsLand && context.terrainKind === 'lake'
     ? 'lowland'
     : context.terrainKind;
-  if (visualTerrainKind) {
+  if (context.semanticColor && Number.isFinite(context.semanticStrength)) {
+    color = mixColor(
+      color,
+      context.semanticColor,
+      clamp(context.semanticStrength ?? 0, 0, 1)
+    );
+  } else if (visualTerrainKind) {
     const semantic = REALM_TERRAIN_KIND_PALETTE[visualTerrainKind];
     // Sparse canonical forest cells remain semantically forest, but a low
     // visual canopy keeps their ground from reading as isolated black-green
@@ -162,8 +175,8 @@ export function sampleLowlandsColor(
   if (vegetationDensity > 0) {
     color = mixColor(
       color,
-      { r: 0.38, g: 0.56, b: 0.25 },
-      vegetationDensity * cellInfluence * 0.1
+      { r: 0.32, g: 0.46, b: 0.24 },
+      vegetationDensity * (context.semanticColor ? 1 : cellInfluence) * 0.08
     );
   }
 
@@ -178,7 +191,9 @@ export function sampleLowlandsColor(
     color = mixColor(
       color,
       underCanopy,
-      forestCanopy * cellInfluence * (visualTerrainKind === 'forest' ? 0.22 : 0.16)
+      forestCanopy
+        * (context.semanticColor ? 1 : cellInfluence)
+        * (visualTerrainKind === 'forest' ? 0.18 : 0.13)
     );
   }
 

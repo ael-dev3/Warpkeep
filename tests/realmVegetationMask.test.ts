@@ -5,7 +5,7 @@ import { createHegemonyCastlePlacements } from '../src/game/map/terrainPlacement
 import { createRealmVegetationMask } from '../src/game/map/realmVegetationMask';
 
 describe('Realm vegetation clearance mask', () => {
-  it('uses exact ocean cells, narrow river/route ribbons, occupied keeps, and resource circles', () => {
+  it('uses exact water cells, validated live route ribbons, occupied keeps, and resource circles', () => {
     const playableKeys = new Set(hexDisc({ q: 0, r: 0 }, 10).map(hexKey));
     const occupied = createHegemonyCastlePlacements([
       { id: 'occupied-keep', coord: { q: 2, r: -1 } }
@@ -15,6 +15,14 @@ describe('Realm vegetation clearance mask', () => {
       playableKeys,
       placements: occupied,
       circles: [{ id: 'resource:stone', world: resourceCenter, radius: 0.45 }],
+      routePaths: [{
+        id: 'worker:1',
+        coords: [
+          { q: 0, r: 6 },
+          { q: 0, r: 7 },
+          { q: 0, r: 8 }
+        ]
+      }],
       waterCells: [
         { cellKey: '8,0', q: 8, r: 0, regime: 'ocean' },
         { cellKey: '4,-2', q: 4, r: -2, regime: 'lake' },
@@ -42,9 +50,11 @@ describe('Realm vegetation clearance mask', () => {
       oceanCellCount: 1,
       riverCellCount: 2,
       riverSegmentCount: 1,
+      routePathCount: 1,
+      rejectedRoutePathCount: 0,
       clearanceCircleCount: 2
     });
-    expect(mask.telemetry.routeSegmentCount).toBeGreaterThan(0);
+    expect(mask.telemetry.routeSegmentCount).toBe(2);
   });
 
   it('is stable under input permutations', () => {
@@ -53,10 +63,25 @@ describe('Realm vegetation clearance mask', () => {
       { cellKey: '3,-2', q: 3, r: -2, regime: 'river' as const, bodyId: 'river', riverOrder: 1 },
       { cellKey: '3,-3', q: 3, r: -3, regime: 'river' as const, bodyId: 'river', riverOrder: 0 }
     ];
-    const first = createRealmVegetationMask({ playableKeys: new Set(keys), waterCells: water });
+    const routes = [
+      {
+        id: 'worker:b',
+        coords: [{ q: -2, r: 0 }, { q: -1, r: 0 }, { q: 0, r: 0 }]
+      },
+      {
+        id: 'worker:a',
+        coords: [{ q: 0, r: 0 }, { q: 1, r: 0 }, { q: 2, r: 0 }]
+      }
+    ];
+    const first = createRealmVegetationMask({
+      playableKeys: new Set(keys),
+      waterCells: water,
+      routePaths: routes
+    });
     const reversed = createRealmVegetationMask({
       playableKeys: new Set([...keys].reverse()),
-      waterCells: [...water].reverse()
+      waterCells: [...water].reverse(),
+      routePaths: [...routes].reverse()
     });
     const probes = [
       axialToWorld({ q: 0, r: 5 }, 1),
@@ -67,5 +92,64 @@ describe('Realm vegetation clearance mask', () => {
     expect(reversed.telemetry).toEqual(first.telemetry);
     expect(probes.map(first.isGrassExcluded)).toEqual(probes.map(reversed.isGrassExcluded));
     expect(probes.map(first.isTreeExcluded)).toEqual(probes.map(reversed.isTreeExcluded));
+  });
+
+  it('never invents permanent roads and rejects malformed route paths as one unit', () => {
+    const playableKeys = new Set(hexDisc({ q: 0, r: 0 }, 8).map(hexKey));
+    const empty = createRealmVegetationMask({ playableKeys });
+    const syntheticSpoke = axialToWorld({ q: 0, r: 7 }, 1);
+
+    expect(empty.isGrassExcluded(syntheticSpoke)).toBe(false);
+    expect(empty.isTreeExcluded(syntheticSpoke)).toBe(false);
+    expect(empty.telemetry).toMatchObject({
+      routePathCount: 0,
+      routeSegmentCount: 0,
+      rejectedRoutePathCount: 0
+    });
+
+    const malformed = createRealmVegetationMask({
+      playableKeys,
+      routePaths: [
+        {
+          id: 'jumping-worker',
+          coords: [{ q: 0, r: 0 }, { q: 0, r: 3 }]
+        },
+        {
+          id: 'outside-worker',
+          coords: [{ q: 0, r: 0 }, { q: 9, r: 0 }]
+        }
+      ]
+    });
+
+    expect(malformed.telemetry).toMatchObject({
+      routePathCount: 0,
+      routeSegmentCount: 0,
+      rejectedRoutePathCount: 2
+    });
+    expect(malformed.isGrassExcluded(axialToWorld({ q: 0, r: 1 }, 1))).toBe(false);
+  });
+
+  it('deduplicates shared live segments without changing path acceptance truth', () => {
+    const playableKeys = new Set(hexDisc({ q: 0, r: 0 }, 4).map(hexKey));
+    const mask = createRealmVegetationMask({
+      playableKeys,
+      routePaths: [
+        {
+          id: 'worker:1',
+          coords: [{ q: 0, r: 0 }, { q: 1, r: 0 }, { q: 2, r: 0 }]
+        },
+        {
+          id: 'worker:2',
+          coords: [{ q: 2, r: 0 }, { q: 1, r: 0 }, { q: 1, r: -1 }]
+        }
+      ]
+    });
+
+    expect(mask.telemetry).toMatchObject({
+      routePathCount: 2,
+      routeSegmentCount: 3,
+      rejectedRoutePathCount: 0
+    });
+    expect(mask.isGrassExcluded(axialToWorld({ q: 1, r: 0 }, 1))).toBe(true);
   });
 });

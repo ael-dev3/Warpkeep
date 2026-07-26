@@ -2,8 +2,6 @@ import {
   axialToWorld,
   hexDistance,
   hexKey,
-  hexNeighbors,
-  parseHexKey,
   worldToNearestAxial,
   type HexCoord,
   type HexWorldPosition
@@ -25,11 +23,23 @@ export type RealmVegetationClearanceCircle = Readonly<{
   radius: number;
 }>;
 
+/**
+ * A validated public presentation route. The mask never discovers routes or
+ * invents permanent roads: callers supply only paths already accepted by the
+ * canonical dry-route boundary.
+ */
+export type RealmVegetationRoutePath = Readonly<{
+  id: string;
+  coords: readonly HexCoord[];
+}>;
+
 export type RealmVegetationMaskTelemetry = Readonly<{
   oceanCellCount: number;
   riverCellCount: number;
   riverSegmentCount: number;
   routeSegmentCount: number;
+  routePathCount: number;
+  rejectedRoutePathCount: number;
   clearanceCircleCount: number;
 }>;
 
@@ -44,6 +54,8 @@ export type CreateRealmVegetationMaskOptions = Readonly<{
   waterCells?: readonly RealmVegetationWaterCell[];
   placements?: readonly TerrainStructurePlacement[];
   circles?: readonly RealmVegetationClearanceCircle[];
+  /** Exact validated live paths; omitted means no route clearance. */
+  routePaths?: readonly RealmVegetationRoutePath[];
   hexSize?: number;
   grassRiverClearance?: number;
   treeRiverClearance?: number;
@@ -69,8 +81,6 @@ type PrimitiveIndex = Readonly<{
 }>;
 
 const EMPTY_PRIMITIVES: readonly IndexedPrimitive[] = Object.freeze([]);
-const INNER_ROUTE_RING = 4;
-const ROUTE_RING_INTERVAL = 5;
 
 function finiteNonNegative(value: number | undefined, fallback: number) {
   return Number.isFinite(value) ? Math.max(0, value!) : fallback;
@@ -134,34 +144,53 @@ function segmentKey(first: HexCoord, second: HexCoord) {
   return firstKey < secondKey ? `${firstKey}|${secondKey}` : `${secondKey}|${firstKey}`;
 }
 
-function isAxialRoute(coord: HexCoord) {
-  return coord.q === 0 || coord.r === 0 || -coord.q - coord.r === 0;
-}
-
-function createRouteSegments(playableKeys: ReadonlySet<string>, hexSize: number) {
+function createRouteSegments(
+  paths: readonly RealmVegetationRoutePath[],
+  playableKeys: ReadonlySet<string>,
+  hexSize: number
+) {
   const segments = new Map<string, Segment>();
-  playableKeys.forEach((key) => {
-    const coord = parseHexKey(key);
-    if (!coord || !isSafeCoord(coord)) return;
-    const ring = hexDistance({ q: 0, r: 0 }, coord);
-    hexNeighbors(coord).forEach((neighbor) => {
-      const neighborKey = hexKey(neighbor);
-      if (!playableKeys.has(neighborKey)) return;
-      const neighborRing = hexDistance({ q: 0, r: 0 }, neighbor);
-      const spoke = isAxialRoute(coord) && isAxialRoute(neighbor);
-      const circumferential = ring > INNER_ROUTE_RING
-        && ring % ROUTE_RING_INTERVAL === 0
-        && neighborRing === ring;
-      if (!spoke && !circumferential) return;
-      const keyForSegment = segmentKey(coord, neighbor);
-      if (segments.has(keyForSegment)) return;
+  const seenIds = new Set<string>();
+  let routePathCount = 0;
+  let rejectedRoutePathCount = 0;
+  [...paths].sort((left, right) => left.id.localeCompare(right.id)).forEach((path) => {
+    const validId = typeof path.id === 'string'
+      && path.id.length > 0
+      && path.id.trim() === path.id
+      && !seenIds.has(path.id);
+    const coords = Array.isArray(path.coords) ? path.coords : [];
+    const validCoords = coords.length >= 2
+      && coords.every((coord) => (
+        isSafeCoord(coord)
+        && playableKeys.has(hexKey(coord))
+      ))
+      && coords.slice(1).every((coord, index) => (
+        hexDistance(coords[index]!, coord) === 1
+      ));
+    if (!validId || !validCoords) {
+      rejectedRoutePathCount += 1;
+      return;
+    }
+    seenIds.add(path.id);
+    routePathCount += 1;
+    for (let index = 1; index < coords.length; index += 1) {
+      const first = coords[index - 1]!;
+      const second = coords[index]!;
+      const keyForSegment = segmentKey(first, second);
+      if (segments.has(keyForSegment)) continue;
       segments.set(keyForSegment, Object.freeze({
-        start: Object.freeze(axialToWorld(coord, hexSize)),
-        end: Object.freeze(axialToWorld(neighbor, hexSize))
+        start: Object.freeze(axialToWorld(first, hexSize)),
+        end: Object.freeze(axialToWorld(second, hexSize))
       }));
-    });
+    }
   });
-  return Object.freeze([...segments.values()]);
+  return Object.freeze({
+    segments: Object.freeze([...segments].sort(([left], [right]) => (
+      left.localeCompare(right)
+    )).map(([, segment]) => segment)),
+    routePathCount,
+    rejectedRoutePathCount
+  });
 }
 
 function createRiverSegments(
@@ -269,6 +298,10 @@ function intersects(index: PrimitiveIndex, world: HexWorldPosition) {
  * Every currently supplied water row is an exact full-cell exclusion. The
  * activation projection removes legacy lakes when they become scenic land,
  * so vegetation appears only after that validated boundary changes.
+ *
+ * Route clearances are intentionally caller-supplied. Older revisions drew a
+ * synthetic spoke/ring network through the Realm, which implied permanent
+ * infrastructure unrelated to live public Worker state.
  */
 export function createRealmVegetationMask(
   options: CreateRealmVegetationMaskOptions
@@ -292,7 +325,12 @@ export function createRealmVegetationMask(
     isSafeCoord(cell) ? [hexKey(cell)] : []
   )));
   const riverSegments = createRiverSegments(waterCells, hexSize);
-  const routeSegments = createRouteSegments(options.playableKeys, hexSize);
+  const routeData = createRouteSegments(
+    options.routePaths ?? [],
+    options.playableKeys,
+    hexSize
+  );
+  const routeSegments = routeData.segments;
   const circles = Object.freeze([
     ...(options.circles ?? []).filter(validCircle),
     ...placementCircles(options.placements ?? [], hexSize)
@@ -321,6 +359,8 @@ export function createRealmVegetationMask(
       riverCellCount: riverKeys.size,
       riverSegmentCount: riverSegments.length,
       routeSegmentCount: routeSegments.length,
+      routePathCount: routeData.routePathCount,
+      rejectedRoutePathCount: routeData.rejectedRoutePathCount,
       clearanceCircleCount: circles.length
     })
   });

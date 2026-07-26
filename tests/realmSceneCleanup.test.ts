@@ -461,6 +461,17 @@ describe('realm scene setup cleanup', () => {
       highDetailTerrainCellCount: 1,
       coarseTerrainCellCount: 0,
       terrainTransitionEdgeCount: 0,
+      terrainSlopeCueMin: expect.any(Number),
+      terrainSlopeCueMax: expect.any(Number),
+      terrainConcavityCueMin: expect.any(Number),
+      terrainConcavityCueMax: expect.any(Number),
+      terrainVegetationCueMin: expect.any(Number),
+      terrainVegetationCueMax: expect.any(Number),
+      terrainWetnessCueMin: expect.any(Number),
+      terrainWetnessCueMax: expect.any(Number),
+      terrainShaderEnhanced: false,
+      terrainShaderFallbackActive: false,
+      terrainShaderCompileAttemptCount: 0,
       semanticCellCount: 1,
       semanticKindCount: 1,
       semanticFeatureCount: 0,
@@ -476,13 +487,34 @@ describe('realm scene setup cleanup', () => {
       totalDetailDrawCalls: expect.any(Number),
       forestPlacementSource: 'legacy-fallback',
       forestSharedTreeCount: 0,
+      forestCanonicalTriangleCount: 0,
+      forestVisibleTriangleCount: 0,
+      forestFallbackType: 'none',
+      forestContactShadowCount: 0,
+      forestGroundingMode: 'none',
+      forestCanopyMotionState: 'static',
+      forestStructureCellCounts: {
+        core: 0, body: 0, fringe: 0, clearing: 0
+      },
+      forestSilhouetteCoverageRatio: 0,
       forestDecorativeTreeCount: 0,
       forestDecorativeTriangleCount: 0,
       forestDecorativeDrawCalls: 0,
       forestDecorativeCacheEntries: 0,
+      forestDecorativeCacheLimit: 0,
       forestDecorativeCacheHighWaterMark: 0,
+      forestDecorativeRepackCount: 0,
       forestDecorativeModelReady: false,
       forestDecorativeUsingFallback: false,
+      forestDecorativeFallbackType: 'none',
+      forestDecorativeContactShadowCount: 0,
+      forestDecorativeGroundingMode: 'none',
+      forestDecorativeCanopyMotionState: 'static',
+      forestDecorativeStructureCellCounts: {
+        core: 0, body: 0, fringe: 0, clearing: 0
+      },
+      forestDecorativeSilhouetteCoverageRatio: 0,
+      forestDecorativeCanonicalTriangleCount: 0,
       forestDecorativeOverviewHidden: true,
       grassCandidateCellCount: 0,
       grassActiveCellCount: 0,
@@ -490,6 +522,9 @@ describe('realm scene setup cleanup', () => {
       grassTriangleCount: 0,
       grassDrawCalls: 0,
       grassCacheEntries: 0,
+      grassCacheLimit: 512,
+      grassCacheHighWaterMark: 0,
+      grassRepackCount: 0,
       grassAnimated: false,
       grassTargetAnimationCadence: 0,
       grassCandidateCellsByTerrain: {
@@ -516,8 +551,13 @@ describe('realm scene setup cleanup', () => {
       },
       grassPaletteLuminanceMin: 0,
       grassPaletteLuminanceMax: 0,
+      grassPaletteDisplaySrgbSaturationMin: 0,
+      grassPaletteDisplaySrgbSaturationMax: 0,
       grassPaletteGreenMin: 0,
       grassPaletteGreenMax: 0,
+      grassShaderFallbackActive: false,
+      grassShaderFallbackCount: 0,
+      grassShaderFallbackReason: null,
       grassCompletelyBareActiveCells: 0,
       grassRejectedByStructureClearance: 0,
       grassRejectedBySlope: 0,
@@ -743,8 +783,9 @@ describe('realm scene setup cleanup', () => {
     >;
     expect(terrain.material).toBeInstanceOf(THREE.MeshStandardMaterial);
     expect(terrain.material.vertexColors).toBe(true);
-    expect(terrain.material.roughness).toBe(0.96);
+    expect(terrain.material.roughness).toBe(0.94);
     expect(terrain.material.metalness).toBe(0);
+    expect(terrain.geometry.getAttribute('terrainSurfaceCue')?.itemSize).toBe(4);
 
     sceneHandle.dispose();
   });
@@ -847,6 +888,37 @@ describe('realm scene setup cleanup', () => {
     ambient.step(0.1);
     expect(renderer.render).toHaveBeenCalledOnce();
 
+    sceneHandle.dispose();
+  });
+
+  it('does not rebuild unchanged terrain telemetry on ambient animation frames', () => {
+    const canvas = document.createElement('canvas');
+    const surface = createRealmTerrainSurface(
+      'terrain-telemetry-ambient-allocation',
+      1,
+      1
+    );
+    const onTerrainPresentationTelemetry = vi.fn();
+    const sceneHandle = createRealmScene(createOptions(canvas, {
+      surface,
+      quality: REALM_QUALITY_SPECS.high,
+      goldNodes: [movingResourceNode('terrain-telemetry-moving-site')],
+      onTerrainPresentationTelemetry
+    }));
+    const renderer = webglState.instances.at(-1)!;
+    const ambient = ambientSchedulerState.creations.at(-1)!;
+    const aggregationCount = canvas.dataset.realmTerrainTelemetryAggregationCount;
+    const publicationCount = onTerrainPresentationTelemetry.mock.calls.length;
+
+    expect(aggregationCount).toBeTruthy();
+    expect(publicationCount).toBeGreaterThan(0);
+    renderer.render.mockClear();
+    ambient.step(0.1);
+
+    expect(renderer.render).toHaveBeenCalledOnce();
+    expect(canvas.dataset.realmTerrainTelemetryAggregationCount)
+      .toBe(aggregationCount);
+    expect(onTerrainPresentationTelemetry).toHaveBeenCalledTimes(publicationCount);
     sceneHandle.dispose();
   });
 
@@ -977,6 +1049,93 @@ describe('realm scene setup cleanup', () => {
 
     sceneHandle.dispose();
   });
+
+  it('repacks vegetation only when validated live route geometry changes', () => {
+    const canvas = document.createElement('canvas');
+    const surface = createRealmTerrainSurface('live-route-vegetation', 4, 5);
+    const initialWorker = outboundWorkerRecord();
+    const sceneHandle = createRealmScene(createOptions(canvas, {
+      surface,
+      reducedMotion: true,
+      workers: [initialWorker]
+    }));
+    const buildSequence = sceneHandle.getSceneBuildSequence();
+
+    expect(canvas.dataset.realmVegetationRoutePathCount).toBe('1');
+    expect(canvas.dataset.realmVegetationRouteSegmentCount).toBe('2');
+    expect(canvas.dataset.realmVegetationRouteRepackCount).toBe('0');
+
+    sceneHandle.reconcileLiveGatheringState({
+      goldNodes: [],
+      foodNodes: [],
+      woodNodes: [],
+      stoneNodes: [],
+      workers: [outboundWorkerRecord(0, {
+        startedAtMicros: 150_000n,
+        arrivesAtMicros: 350_000n,
+        revision: 2n
+      })],
+      observedAtMicros: 200_000n
+    });
+    expect(canvas.dataset.realmVegetationRouteRepackCount).toBe('0');
+
+    sceneHandle.reconcileLiveGatheringState({
+      goldNodes: [],
+      foodNodes: [],
+      woodNodes: [],
+      stoneNodes: [],
+      workers: [idleWorkerRecord(3n)],
+      observedAtMicros: 400_000n
+    });
+
+    expect(canvas.dataset.realmVegetationRoutePathCount).toBe('0');
+    expect(canvas.dataset.realmVegetationRouteSegmentCount).toBe('0');
+    expect(canvas.dataset.realmVegetationRouteRepackCount).toBe('1');
+    expect(sceneHandle.getSceneBuildSequence()).toBe(buildSequence);
+
+    sceneHandle.dispose();
+  });
+
+  it('invalidates the camera-local forest mask in place when a live route changes', () => {
+    const snapshot = createCanonicalGenesisSnapshot();
+    const surface = createAuthoritativeRealmTerrainSurface(
+      snapshot.realm.numericSeed,
+      snapshot.tiles,
+      snapshot.realm.authoritativeRadius,
+      snapshot.realm.renderRadius
+    );
+    const canvas = document.createElement('canvas');
+    const sceneHandle = createRealmScene(createOptions(canvas, {
+      surface,
+      terrainMetadata: snapshot.tileMetadata,
+      realmId: snapshot.realm.realmId,
+      sharedForestLayout: CANONICAL_GENESIS_FOREST_LAYOUT_V1,
+      sharedForestTrees: CANONICAL_GENESIS_FOREST_INSTANCES_V1,
+      allowLegacyForestFallback: false,
+      reducedMotion: true,
+      workers: [outboundWorkerRecord()]
+    }));
+    const buildSequence = sceneHandle.getSceneBuildSequence();
+    const initialForestRepackCount = Number(
+      canvas.dataset.forestDecorativeRepackCount
+    );
+
+    sceneHandle.reconcileLiveGatheringState({
+      goldNodes: [],
+      foodNodes: [],
+      woodNodes: [],
+      stoneNodes: [],
+      workers: [idleWorkerRecord(3n)],
+      observedAtMicros: 400_000n
+    });
+
+    expect(Number(canvas.dataset.forestDecorativeRepackCount))
+      .toBe(initialForestRepackCount + 1);
+    expect(canvas.dataset.realmVegetationRouteRepackCount).toBe('1');
+    expect(sceneHandle.getSceneBuildSequence()).toBe(buildSequence);
+
+    sceneHandle.dispose();
+  }, 15_000);
 
   it('projects a travelling worker from its current route position and locates it without changing zoom', () => {
     const canvas = document.createElement('canvas');

@@ -3,12 +3,16 @@ import type { HexWorldPosition } from './hexCoordinates';
 
 export const REALM_GRASS_NOISE_CHANNELS = Object.freeze({
   macro: 'realm-grass-macro-coverage-v1',
-  meso: 'realm-grass-meso-coverage-v1'
+  meso: 'realm-grass-meso-coverage-v1',
+  cluster: 'realm-grass-cluster-coverage-v1'
 });
 
 export const REALM_GRASS_NOISE_WAVELENGTHS = Object.freeze({
   macro: 6.75,
-  meso: 2.35
+  meso: 2.35,
+  // Short enough to leave readable soil pockets inside and across adjacent
+  // hexes, but still smooth in world space rather than candidate-by-candidate.
+  cluster: 1.18
 });
 
 function clamp(value: number, minimum: number, maximum: number) {
@@ -54,6 +58,7 @@ export function sampleRealmGrassValueNoise(
 export type RealmGrassCoverage = Readonly<{
   macro: number;
   meso: number;
+  cluster: number;
 }>;
 
 export function sampleRealmGrassCoverage(
@@ -72,6 +77,12 @@ export function sampleRealmGrassCoverage(
       world,
       REALM_GRASS_NOISE_WAVELENGTHS.meso,
       REALM_GRASS_NOISE_CHANNELS.meso
+    ),
+    cluster: sampleRealmGrassValueNoise(
+      worldSeed,
+      world,
+      REALM_GRASS_NOISE_WAVELENGTHS.cluster,
+      REALM_GRASS_NOISE_CHANNELS.cluster
     )
   });
 }

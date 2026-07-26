@@ -1524,10 +1524,34 @@ describe('rendered WebGL headless browser probe contract', () => {
       forestDecorativeTriangleCount: 0,
       forestDecorativeDrawCalls: 0,
       forestDecorativeCacheEntries: 0,
+      forestDecorativeCacheLimit: 1_024,
       forestDecorativeCacheHighWaterMark: 0,
+      forestDecorativeRepackCount: 0,
       forestDecorativeModelReady: false,
       forestDecorativeUsingFallback: false,
+      forestDecorativeFallbackType: 'none',
+      forestDecorativeContactShadowCount: 0,
+      forestDecorativeGroundingMode: 'none',
+      forestDecorativeCanopyMotionState: 'static',
+      forestDecorativeCoreCellCount: 0,
+      forestDecorativeBodyCellCount: 0,
+      forestDecorativeFringeCellCount: 0,
+      forestDecorativeClearingCellCount: 0,
+      forestDecorativeSilhouetteCoverageRatio: 0,
+      forestDecorativeCanonicalTriangleCount: 0,
       forestDecorativeOverviewHidden: true,
+      grassInstanceCount: 0,
+      grassTriangleCount: 0,
+      grassDrawCalls: 0,
+      grassCacheEntries: 0,
+      grassCacheLimit: 1_024,
+      grassCacheHighWaterMark: 0,
+      grassRepackCount: 0,
+      grassPaletteDisplaySrgbSaturationMin: 0,
+      grassPaletteDisplaySrgbSaturationMax: 0,
+      grassShaderFallbackActive: false,
+      terrainShaderEnhanced: true,
+      terrainShaderFallbackActive: false,
       semanticTerrainCellCount: RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_CELL_COUNT,
       semanticTerrainKindCount: RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_KIND_COUNT,
       semanticTerrainFeatureCount: 700,
@@ -1691,8 +1715,17 @@ describe('rendered WebGL headless browser probe contract', () => {
       forestDecorativeDrawCalls: 1,
       forestDecorativeCacheEntries: 600,
       forestDecorativeCacheHighWaterMark: 1_024,
+      forestDecorativeRepackCount: 1,
       forestDecorativeModelReady: false,
       forestDecorativeUsingFallback: true,
+      forestDecorativeFallbackType: 'procedural-trunk-multi-canopy-v1',
+      forestDecorativeGroundingMode:
+        'terrain-canopy-procedural-root-contact',
+      forestDecorativeCoreCellCount: 8,
+      forestDecorativeBodyCellCount: 12,
+      forestDecorativeFringeCellCount: 6,
+      forestDecorativeClearingCellCount: 2,
+      forestDecorativeSilhouetteCoverageRatio: 0.42,
       forestDecorativeOverviewHidden: false,
       semanticTerrainFeatureCount: 1_300,
       semanticTerrainFeatureDrawCalls: 6,
@@ -1721,6 +1754,8 @@ describe('rendered WebGL headless browser probe contract', () => {
       forestDecorativeDrawCalls: 5,
       forestDecorativeModelReady: true,
       forestDecorativeUsingFallback: false,
+      forestDecorativeFallbackType: 'none',
+      forestDecorativeGroundingMode: 'terrain-canopy-baked-base',
       semanticTerrainFeatureDrawCalls: 10,
       totalTerrainDetailDrawCalls: 13
     }, expected)).toMatchObject({
@@ -1752,6 +1787,30 @@ describe('rendered WebGL headless browser probe contract', () => {
       forestDecorativeCacheEntries: 700,
       forestDecorativeCacheHighWaterMark: 699
     }, expected)).toThrow(/forest-decorative-cache/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...balancedForestFallback,
+      forestDecorativeFallbackType: 'none'
+    }, expected)).toThrow(/forest-decorative-crafted-telemetry/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      grassCacheLimit: 1_025
+    }, expected)).toThrow(/grass-crafted-telemetry/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      grassInstanceCount: 1,
+      grassTriangleCount: 15,
+      grassDrawCalls: 1,
+      grassCacheEntries: 1,
+      grassCacheHighWaterMark: 1,
+      grassRepackCount: 1,
+      grassPaletteDisplaySrgbSaturationMin: 0.1,
+      grassPaletteDisplaySrgbSaturationMax: 0.7
+    }, expected)).toThrow(/grass-crafted-telemetry/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      terrainShaderEnhanced: false,
+      terrainShaderFallbackActive: true
+    }, expected)).toThrow(/terrain-material-telemetry/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...balancedForestFallback,
       forestDecorativeModelReady: true
@@ -1969,10 +2028,20 @@ describe('rendered WebGL headless browser probe contract', () => {
         forestDecorativeTriangleCount: forestTriangleCount,
         forestDecorativeDrawCalls: 5,
         forestDecorativeCacheEntries: forestCacheLimit,
+        forestDecorativeCacheLimit: forestCacheLimit,
         forestDecorativeCacheHighWaterMark: forestCacheLimit,
+        forestDecorativeRepackCount: 1,
         forestDecorativeModelReady: true,
         forestDecorativeUsingFallback: false,
+        forestDecorativeFallbackType: 'none',
+        forestDecorativeGroundingMode: 'terrain-canopy-baked-base',
+        forestDecorativeCoreCellCount: 8,
+        forestDecorativeBodyCellCount: 12,
+        forestDecorativeFringeCellCount: 6,
+        forestDecorativeClearingCellCount: 2,
+        forestDecorativeSilhouetteCoverageRatio: 0.42,
         forestDecorativeOverviewHidden: false,
+        grassCacheLimit: forestCacheLimit,
         semanticTerrainFeatureCount: semanticFeatureCount,
         semanticTerrainFeatureDrawCalls: 10,
         totalTerrainDetailInstanceCount: totalDetailInstanceCount,
@@ -2292,7 +2361,11 @@ describe('rendered WebGL headless browser probe contract', () => {
       { width: 320, height: 320 }
     )).toMatchObject({
       sampleCount: 117,
-      opaqueSamples: 117
+      opaqueSamples: 117,
+      averageSaturationBasisPoints: expect.any(Number),
+      saturationP95BasisPoints: expect.any(Number),
+      clippedBlackSamples: 0,
+      clippedWhiteSamples: 0
     });
     expect(() => analyzeRenderedWebglPngScreenshot(
       createPng(true),

@@ -4,6 +4,7 @@ import {
   createLowPolyGrassGeometry,
   REALM_GRASS_RIBBONS,
   REALM_GRASS_TRIANGLES_PER_RIBBON,
+  REALM_GRASS_VARIANT_COUNTS,
   type RealmGrassGeometryProfile
 } from '../src/components/realm/createLowPolyGrassGeometry';
 
@@ -69,5 +70,37 @@ describe('low-poly grass geometry', () => {
     ]));
 
     expect(trianglesByQuality).toEqual({ high: 27, balanced: 21, reduced: 15 });
+  });
+
+  it('uses a small deterministic family of genuinely different patch silhouettes', () => {
+    const geometries = Array.from(
+      { length: REALM_GRASS_VARIANT_COUNTS.high },
+      (_, variant) => createLowPolyGrassGeometry('high', variant)
+    );
+
+    expect(geometries.map((geometry) => geometry.userData.realmGrassShape)).toEqual([
+      'upright-tuft',
+      'wind-combed',
+      'open-fan'
+    ]);
+    const signatures = geometries.map((geometry) => (
+      Array.from(geometry.getAttribute('position').array)
+        .map((value) => Number(value).toFixed(4))
+        .join(',')
+    ));
+    expect(new Set(signatures).size).toBe(3);
+    geometries.forEach((geometry) => {
+      expect(geometry.boundingBox?.min.y).toBe(0);
+      expect(geometry.boundingBox?.max.y).toBe(1);
+    });
+    const combedPositions = geometries[1]!.getAttribute('position');
+    const combedTipHeights = Array.from(
+      { length: REALM_GRASS_RIBBONS.high },
+      (_, blade) => combedPositions.getY(blade * 5 + 4)
+    );
+    expect(new Set(combedTipHeights.map((height) => height.toFixed(4))).size)
+      .toBeGreaterThan(2);
+
+    geometries.forEach((geometry) => geometry.dispose());
   });
 });

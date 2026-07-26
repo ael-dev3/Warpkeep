@@ -185,6 +185,26 @@ const RENDERED_WEBGL_QA_FOREST_DECORATIVE_BUDGETS = Object.freeze({
     cacheEntries: 512,
   }),
 });
+const RENDERED_WEBGL_QA_GRASS_BUDGETS = Object.freeze({
+  high: Object.freeze({
+    instances: 7_000,
+    triangles: 189_000,
+    drawCalls: 3,
+    cacheEntries: 2_048,
+  }),
+  balanced: Object.freeze({
+    instances: 4_000,
+    triangles: 84_000,
+    drawCalls: 3,
+    cacheEntries: 1_024,
+  }),
+  reduced: Object.freeze({
+    instances: 1_200,
+    triangles: 18_000,
+    drawCalls: 3,
+    cacheEntries: 512,
+  }),
+});
 const TERRAIN_PRESENTATION_BUDGETS = Object.freeze({
   high: Object.freeze({
     semanticFeatureCount: 1_310,
@@ -1039,14 +1059,36 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     'fixture',
     'focusedReadableLabelDomFocusCount',
     'focusedReadableLabelCount',
+    'forestDecorativeBodyCellCount',
     'forestDecorativeCacheEntries',
     'forestDecorativeCacheHighWaterMark',
+    'forestDecorativeCacheLimit',
+    'forestDecorativeCanopyMotionState',
+    'forestDecorativeCanonicalTriangleCount',
+    'forestDecorativeClearingCellCount',
+    'forestDecorativeContactShadowCount',
+    'forestDecorativeCoreCellCount',
     'forestDecorativeDrawCalls',
+    'forestDecorativeFallbackType',
+    'forestDecorativeFringeCellCount',
+    'forestDecorativeGroundingMode',
     'forestDecorativeModelReady',
     'forestDecorativeOverviewHidden',
+    'forestDecorativeRepackCount',
+    'forestDecorativeSilhouetteCoverageRatio',
     'forestDecorativeTriangleCount',
     'forestDecorativeTreeCount',
     'forestDecorativeUsingFallback',
+    'grassCacheEntries',
+    'grassCacheHighWaterMark',
+    'grassCacheLimit',
+    'grassDrawCalls',
+    'grassInstanceCount',
+    'grassPaletteDisplaySrgbSaturationMax',
+    'grassPaletteDisplaySrgbSaturationMin',
+    'grassRepackCount',
+    'grassShaderFallbackActive',
+    'grassTriangleCount',
     'href',
     'hiddenFocusedLabelCount',
     'interactionState',
@@ -1100,6 +1142,8 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     'semanticTerrainKindCount',
     'status',
     'tabbableLabelCount',
+    'terrainShaderEnhanced',
+    'terrainShaderFallbackActive',
     'totalTerrainDetailDrawCalls',
     'totalTerrainDetailInstanceCount',
     'undersizedPrimaryControlCount',
@@ -1154,6 +1198,9 @@ export function parseRenderedWebglBrowserDom(value, expected) {
   const forestDecorativeBudgets = RENDERED_WEBGL_QA_FOREST_DECORATIVE_BUDGETS[
     expected.expectedQuality
   ];
+  const grassBudgets = RENDERED_WEBGL_QA_GRASS_BUDGETS[
+    expected.expectedQuality
+  ];
   const forestDecorativeNumericValues = [
     candidate.forestDecorativeTreeCount,
     candidate.forestDecorativeTriangleCount,
@@ -1204,6 +1251,80 @@ export function parseRenderedWebglBrowserDom(value, expected) {
         ? forestDecorativeEmpty
         : forestDecorativeEmpty || forestDecorativePresented
     );
+  const forestDecorativeStructureCounts = [
+    candidate.forestDecorativeCoreCellCount,
+    candidate.forestDecorativeBodyCellCount,
+    candidate.forestDecorativeFringeCellCount,
+    candidate.forestDecorativeClearingCellCount,
+  ];
+  const forestDecorativeCraftedTelemetryValid =
+    forestDecorativeStructureCounts.every((value) => (
+      Number.isSafeInteger(value) && value >= 0
+    ))
+    && Number.isSafeInteger(candidate.forestDecorativeCacheLimit)
+    && candidate.forestDecorativeCacheLimit === forestDecorativeBudgets?.cacheEntries
+    && Number.isSafeInteger(candidate.forestDecorativeRepackCount)
+    && candidate.forestDecorativeRepackCount >= 0
+    && Number.isSafeInteger(candidate.forestDecorativeContactShadowCount)
+    && candidate.forestDecorativeContactShadowCount === 0
+    && Number.isSafeInteger(candidate.forestDecorativeCanonicalTriangleCount)
+    && candidate.forestDecorativeCanonicalTriangleCount >= 0
+    && Number.isFinite(candidate.forestDecorativeSilhouetteCoverageRatio)
+    && candidate.forestDecorativeSilhouetteCoverageRatio >= 0
+    && candidate.forestDecorativeSilhouetteCoverageRatio <= 1
+    && candidate.forestDecorativeCanopyMotionState === 'static'
+    && (
+      candidate.forestDecorativeUsingFallback
+        ? candidate.forestDecorativeFallbackType ===
+          'procedural-trunk-multi-canopy-v1'
+          && candidate.forestDecorativeGroundingMode ===
+            'terrain-canopy-procedural-root-contact'
+        : candidate.forestDecorativeFallbackType === 'none'
+          && (
+            forestDecorativeEmpty
+              ? candidate.forestDecorativeGroundingMode === 'none'
+              : candidate.forestDecorativeGroundingMode === 'terrain-canopy'
+                || candidate.forestDecorativeGroundingMode ===
+                  'terrain-canopy-baked-base'
+          )
+    );
+  const grassNumericValues = [
+    candidate.grassInstanceCount,
+    candidate.grassTriangleCount,
+    candidate.grassDrawCalls,
+    candidate.grassCacheEntries,
+    candidate.grassCacheLimit,
+    candidate.grassCacheHighWaterMark,
+    candidate.grassRepackCount,
+  ];
+  const grassNumericShapeValid = grassNumericValues.every((value) => (
+    Number.isSafeInteger(value) && value >= 0
+  ));
+  const grassBudgetValid = grassNumericShapeValid
+    && grassBudgets
+    && candidate.grassInstanceCount <= grassBudgets.instances
+    && candidate.grassTriangleCount <= grassBudgets.triangles
+    && candidate.grassDrawCalls <= grassBudgets.drawCalls
+    && candidate.grassCacheLimit === grassBudgets.cacheEntries
+    && candidate.grassCacheEntries <= candidate.grassCacheHighWaterMark
+    && candidate.grassCacheHighWaterMark <= candidate.grassCacheLimit;
+  const grassPaletteEmpty = candidate.grassInstanceCount === 0
+    && candidate.grassPaletteDisplaySrgbSaturationMin === 0
+    && candidate.grassPaletteDisplaySrgbSaturationMax === 0;
+  const grassPaletteNatural = Number.isFinite(
+    candidate.grassPaletteDisplaySrgbSaturationMin
+  )
+    && Number.isFinite(candidate.grassPaletteDisplaySrgbSaturationMax)
+    && candidate.grassPaletteDisplaySrgbSaturationMin >= 0.08
+    && candidate.grassPaletteDisplaySrgbSaturationMax <= 0.58
+    && candidate.grassPaletteDisplaySrgbSaturationMin
+      <= candidate.grassPaletteDisplaySrgbSaturationMax;
+  const grassCraftedTelemetryValid = grassBudgetValid
+    && (grassPaletteEmpty || grassPaletteNatural)
+    && candidate.grassShaderFallbackActive === false;
+  const terrainMaterialTelemetryValid =
+    candidate.terrainShaderEnhanced === true
+    && candidate.terrainShaderFallbackActive === false;
   const ordinarySemanticFeatureCount = candidate.semanticTerrainFeatureCount
     - candidate.forestDecorativeTreeCount;
   const ordinaryTotalDetailInstanceCount = candidate.totalTerrainDetailInstanceCount
@@ -1237,6 +1358,11 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     !forestDecorativeBudgetValid ? 'forest-decorative-budget' : '',
     !forestDecorativeCacheValid ? 'forest-decorative-cache' : '',
     !forestDecorativeStateValid ? 'forest-decorative-state' : '',
+    !forestDecorativeCraftedTelemetryValid
+      ? 'forest-decorative-crafted-telemetry' : '',
+    !grassNumericShapeValid ? 'grass-crafted-shape' : '',
+    !grassCraftedTelemetryValid ? 'grass-crafted-telemetry' : '',
+    !terrainMaterialTelemetryValid ? 'terrain-material-telemetry' : '',
     !terrainBudgets
       || !Number.isSafeInteger(candidate.semanticTerrainFeatureCount)
       || !Number.isSafeInteger(ordinarySemanticFeatureCount)
@@ -1446,9 +1572,40 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     forestDecorativeDrawCalls: candidate.forestDecorativeDrawCalls,
     forestDecorativeCacheEntries: candidate.forestDecorativeCacheEntries,
     forestDecorativeCacheHighWaterMark: candidate.forestDecorativeCacheHighWaterMark,
+    forestDecorativeCacheLimit: candidate.forestDecorativeCacheLimit,
+    forestDecorativeRepackCount: candidate.forestDecorativeRepackCount,
     forestDecorativeModelReady: candidate.forestDecorativeModelReady,
     forestDecorativeUsingFallback: candidate.forestDecorativeUsingFallback,
+    forestDecorativeFallbackType: candidate.forestDecorativeFallbackType,
+    forestDecorativeContactShadowCount:
+      candidate.forestDecorativeContactShadowCount,
+    forestDecorativeGroundingMode: candidate.forestDecorativeGroundingMode,
+    forestDecorativeCanopyMotionState:
+      candidate.forestDecorativeCanopyMotionState,
+    forestDecorativeCoreCellCount: candidate.forestDecorativeCoreCellCount,
+    forestDecorativeBodyCellCount: candidate.forestDecorativeBodyCellCount,
+    forestDecorativeFringeCellCount: candidate.forestDecorativeFringeCellCount,
+    forestDecorativeClearingCellCount:
+      candidate.forestDecorativeClearingCellCount,
+    forestDecorativeSilhouetteCoverageRatio:
+      candidate.forestDecorativeSilhouetteCoverageRatio,
+    forestDecorativeCanonicalTriangleCount:
+      candidate.forestDecorativeCanonicalTriangleCount,
     forestDecorativeOverviewHidden: candidate.forestDecorativeOverviewHidden,
+    grassInstanceCount: candidate.grassInstanceCount,
+    grassTriangleCount: candidate.grassTriangleCount,
+    grassDrawCalls: candidate.grassDrawCalls,
+    grassCacheEntries: candidate.grassCacheEntries,
+    grassCacheLimit: candidate.grassCacheLimit,
+    grassCacheHighWaterMark: candidate.grassCacheHighWaterMark,
+    grassRepackCount: candidate.grassRepackCount,
+    grassPaletteDisplaySrgbSaturationMin:
+      candidate.grassPaletteDisplaySrgbSaturationMin,
+    grassPaletteDisplaySrgbSaturationMax:
+      candidate.grassPaletteDisplaySrgbSaturationMax,
+    grassShaderFallbackActive: candidate.grassShaderFallbackActive,
+    terrainShaderEnhanced: candidate.terrainShaderEnhanced,
+    terrainShaderFallbackActive: candidate.terrainShaderFallbackActive,
     semanticTerrainCellCount: candidate.semanticTerrainCellCount,
     semanticTerrainKindCount: candidate.semanticTerrainKindCount,
     semanticTerrainFeatureCount: candidate.semanticTerrainFeatureCount,
@@ -2291,6 +2448,11 @@ const READ_DOM_EXPRESSION = `(() => {
   const map = document.querySelector('.realm-map-screen');
   const canvas = map?.querySelector('canvas');
   const integer = (value) => /^\\d+$/.test(value ?? '') ? Number(value) : null;
+  const finiteNumber = (value) => (
+    typeof value === 'string'
+    && value.trim() !== ''
+    && Number.isFinite(Number(value))
+  ) ? Number(value) : null;
   const exactBoolean = (value) => value === 'true' ? true : value === 'false' ? false : null;
   const rect = (element) => element.getBoundingClientRect();
   const mapRect = map ? rect(map) : null;
@@ -2651,8 +2813,14 @@ const READ_DOM_EXPRESSION = `(() => {
     forestDecorativeCacheEntries: integer(
       map?.getAttribute('data-forest-decorative-cache-entries')
     ),
+    forestDecorativeCacheLimit: integer(
+      map?.getAttribute('data-forest-decorative-cache-limit')
+    ),
     forestDecorativeCacheHighWaterMark: integer(
       map?.getAttribute('data-forest-decorative-cache-high-water-mark')
+    ),
+    forestDecorativeRepackCount: integer(
+      map?.getAttribute('data-forest-decorative-repack-count')
     ),
     forestDecorativeModelReady: exactBoolean(
       map?.getAttribute('data-forest-decorative-model-ready')
@@ -2660,8 +2828,71 @@ const READ_DOM_EXPRESSION = `(() => {
     forestDecorativeUsingFallback: exactBoolean(
       map?.getAttribute('data-forest-decorative-using-fallback')
     ),
+    forestDecorativeFallbackType:
+      map?.getAttribute('data-forest-decorative-fallback-type') ?? null,
+    forestDecorativeContactShadowCount: integer(
+      map?.getAttribute('data-forest-decorative-contact-shadow-count')
+    ),
+    forestDecorativeGroundingMode:
+      map?.getAttribute('data-forest-decorative-grounding-mode') ?? null,
+    forestDecorativeCanopyMotionState:
+      map?.getAttribute('data-forest-decorative-canopy-motion-state') ?? null,
+    forestDecorativeCoreCellCount: integer(
+      map?.getAttribute('data-forest-decorative-core-cell-count')
+    ),
+    forestDecorativeBodyCellCount: integer(
+      map?.getAttribute('data-forest-decorative-body-cell-count')
+    ),
+    forestDecorativeFringeCellCount: integer(
+      map?.getAttribute('data-forest-decorative-fringe-cell-count')
+    ),
+    forestDecorativeClearingCellCount: integer(
+      map?.getAttribute('data-forest-decorative-clearing-cell-count')
+    ),
+    forestDecorativeSilhouetteCoverageRatio: finiteNumber(
+      map?.getAttribute('data-forest-decorative-silhouette-coverage-ratio')
+    ),
+    forestDecorativeCanonicalTriangleCount: integer(
+      map?.getAttribute('data-forest-decorative-canonical-triangle-count')
+    ),
     forestDecorativeOverviewHidden: exactBoolean(
       map?.getAttribute('data-forest-decorative-overview-hidden')
+    ),
+    grassInstanceCount: integer(
+      map?.getAttribute('data-grass-instance-count')
+    ),
+    grassTriangleCount: integer(
+      map?.getAttribute('data-grass-triangle-count')
+    ),
+    grassDrawCalls: integer(
+      map?.getAttribute('data-grass-draw-calls')
+    ),
+    grassCacheEntries: integer(
+      map?.getAttribute('data-grass-cache-entries')
+    ),
+    grassCacheLimit: integer(
+      map?.getAttribute('data-grass-cache-limit')
+    ),
+    grassCacheHighWaterMark: integer(
+      map?.getAttribute('data-grass-cache-high-water-mark')
+    ),
+    grassRepackCount: integer(
+      map?.getAttribute('data-grass-repack-count')
+    ),
+    grassPaletteDisplaySrgbSaturationMin: finiteNumber(
+      map?.getAttribute('data-grass-palette-display-srgb-saturation-min')
+    ),
+    grassPaletteDisplaySrgbSaturationMax: finiteNumber(
+      map?.getAttribute('data-grass-palette-display-srgb-saturation-max')
+    ),
+    grassShaderFallbackActive: exactBoolean(
+      map?.getAttribute('data-grass-shader-fallback-active')
+    ),
+    terrainShaderEnhanced: exactBoolean(
+      map?.getAttribute('data-terrain-shader-enhanced')
+    ),
+    terrainShaderFallbackActive: exactBoolean(
+      map?.getAttribute('data-terrain-shader-fallback-active')
     ),
     semanticTerrainCellCount: integer(map?.getAttribute('data-semantic-terrain-cell-count')),
     semanticTerrainKindCount: integer(map?.getAttribute('data-semantic-terrain-kind-count')),

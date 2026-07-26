@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 export const REALM_GRASS_THREE_SHADER_CONTRACT = 'three-r185';
-export const REALM_GRASS_SHADER_CACHE_KEY = `warpkeep-procedural-grass-v2-luminous-broad-v4-packed-blades-${REALM_GRASS_THREE_SHADER_CONTRACT}`;
+export const REALM_GRASS_SHADER_CACHE_KEY = `warpkeep-procedural-grass-v2-natural-gust-v6-bounded-tips-${REALM_GRASS_THREE_SHADER_CONTRACT}`;
 export const REALM_GRASS_MAX_WIND_SWAY = 0.075;
 export const REALM_GRASS_CROSS_WIND_RATIO = 0.16;
 export const REALM_GRASS_MAX_PRIMARY_BEND = REALM_GRASS_MAX_WIND_SWAY / Math.hypot(1, REALM_GRASS_CROSS_WIND_RATIO);
@@ -29,7 +29,14 @@ export type RealmGrassMaterial = Readonly<{
   ) => void;
   setTime: (seconds: number) => boolean;
   setVisible: (visible: boolean) => void;
+  getShaderTelemetry: () => RealmGrassShaderTelemetry;
   dispose: () => void;
+}>;
+
+export type RealmGrassShaderTelemetry = Readonly<{
+  fallbackActive: boolean;
+  fallbackCount: number;
+  fallbackReason: string | null;
 }>;
 
 const NO_SELECTED_CELL = 100_000;
@@ -109,9 +116,24 @@ mat2 grassWorldToLocalXZ = abs(grassBasisDeterminant) > 0.000001
   : mat2(1.0);
 vec2 grassLocalDirection = grassWorldToLocalXZ * grassWorldDirection;
 vec2 grassLocalCrossDirection = grassWorldToLocalXZ * grassWorldCrossDirection;
-float grassPrimary = sin(dot(grassWorldPosition.xz, grassWorldDirection) * 1.18 + uGrassTime * 1.24 + grassPhase + grassBladePhase);
-float grassSecondary = sin(dot(grassWorldPosition.xz, grassWorldCrossDirection) * 2.78 + uGrassTime * 2.07 + grassPhase * 0.63 + grassBladePhase * 0.47);
-float grassGust = 0.79 + 0.21 * sin(uGrassTime * 0.31 + dot(grassWorldPosition.xz, grassWorldDirection) * 0.19);
+float grassGustFront = sin(
+  dot(grassWorldPosition.xz, grassWorldDirection) * 0.21
+  - uGrassTime * 0.34
+);
+float grassGustBand = smoothstep(0.18, 0.92, 0.5 + grassGustFront * 0.5);
+float grassPrimary = sin(
+  dot(grassWorldPosition.xz, grassWorldDirection) * 1.18
+  + uGrassTime * 1.24
+  + grassPhase * 0.18
+  + grassBladePhase * 0.11
+);
+float grassSecondary = sin(
+  dot(grassWorldPosition.xz, grassWorldCrossDirection) * 2.78
+  + uGrassTime * 2.07
+  + grassPhase * 0.10
+  + grassBladePhase * 0.31
+);
+float grassGust = mix(0.66, 1.0, grassGustBand);
 float grassFlexAmount = pow(max(grassFlex, 0.0), 1.85);
 float grassBend = clamp((grassPrimary + grassSecondary * 0.28) * grassGust
   * grassWindScale * grassStiffness * grassBladeStiffness * uGrassWindStrength * ${REALM_GRASS_MAX_WIND_SWAY.toFixed(3)},
@@ -135,8 +157,7 @@ export function injectRealmGrassFragmentShader(fragmentShader: string) {
   const colour = `
 ${colorMarker}
 float grassVerticalLift = smoothstep(0.0, 1.0, vGrassBladeVertical);
-diffuseColor.rgb *= mix(0.92, 1.06, grassVerticalLift);
-diffuseColor.rgb += vec3(0.012, 0.030, 0.0) * grassVerticalLift;
+diffuseColor.rgb *= mix(0.94, 1.015, grassVerticalLift);
 diffuseColor.a *= realmGrassCoverage();
 `;
   return `${FRAGMENT_DECLARATIONS}\n${fragmentShader.replace(colorMarker, colour)}`;
@@ -186,18 +207,51 @@ export function createRealmGrassMaterial(
   // renderers that support MSAA can use alpha-to-coverage without blending.
   (material as THREE.MeshStandardMaterial & { alphaHash?: boolean }).alphaHash = true;
   (material as THREE.MeshStandardMaterial & { alphaToCoverage?: boolean }).alphaToCoverage = alphaToCoverage;
-  material.onBeforeCompile = (shader) => {
-    shader.vertexShader = injectRealmGrassVertexShader(shader.vertexShader);
-    shader.fragmentShader = injectRealmGrassFragmentShader(shader.fragmentShader);
-    Object.assign(shader.uniforms, uniforms);
-  };
-  material.customProgramCacheKey = () => REALM_GRASS_SHADER_CACHE_KEY;
   material.userData.realmGrassUniforms = uniforms;
   material.userData.realmGrassAlphaHash = true;
   material.userData.realmGrassAlphaToCoverage = alphaToCoverage;
   let disposed = false;
+  let shaderFallbackActive = false;
+  let shaderFallbackCount = 0;
+  let shaderFallbackReason: string | null = null;
   let lastTime = 0;
   let interactionProgress = 1;
+
+  const activateShaderFallback = (error: unknown) => {
+    if (shaderFallbackActive) return;
+    shaderFallbackActive = true;
+    shaderFallbackCount += 1;
+    shaderFallbackReason = error instanceof Error
+      ? error.message
+      : 'REALM_GRASS_SHADER_INJECTION_FAILED';
+    material.userData.realmGrassShaderFallbackActive = true;
+    material.userData.realmGrassShaderFallbackCount = shaderFallbackCount;
+    material.userData.realmGrassShaderFallbackReason = shaderFallbackReason;
+  };
+
+  material.userData.realmGrassShaderFallbackActive = false;
+  material.userData.realmGrassShaderFallbackCount = 0;
+  material.userData.realmGrassShaderFallbackReason = null;
+  material.onBeforeCompile = (shader) => {
+    if (shaderFallbackActive) return;
+    const originalVertexShader = shader.vertexShader;
+    const originalFragmentShader = shader.fragmentShader;
+    try {
+      shader.vertexShader = injectRealmGrassVertexShader(originalVertexShader);
+      shader.fragmentShader = injectRealmGrassFragmentShader(originalFragmentShader);
+      Object.assign(shader.uniforms, uniforms);
+    } catch (error) {
+      // Keep the standard material and planted instance geometry intact. A
+      // Three.js marker drift therefore becomes credible static grass rather
+      // than a compile exception, invisible layer, or terrain-scene failure.
+      shader.vertexShader = originalVertexShader;
+      shader.fragmentShader = originalFragmentShader;
+      activateShaderFallback(error);
+    }
+  };
+  material.customProgramCacheKey = () => shaderFallbackActive
+    ? `${REALM_GRASS_SHADER_CACHE_KEY}:static-fallback`
+    : REALM_GRASS_SHADER_CACHE_KEY;
 
   const setCell = (uniform: THREE.IUniform<THREE.Vector2>, cell: Readonly<{ q: number; r: number }> | null) => {
     uniform.value.set(
@@ -236,7 +290,7 @@ export function createRealmGrassMaterial(
       uniforms.uGrassInteractionProgress.value = 0;
     },
     setTime: (seconds) => {
-      if (disposed || !Number.isFinite(seconds)) return false;
+      if (disposed || shaderFallbackActive || !Number.isFinite(seconds)) return false;
       const safeSeconds = Math.max(0, seconds);
       const delta = Math.max(0, safeSeconds - lastTime);
       const timeChanged = Math.abs(safeSeconds - lastTime) >= 0.000001;
@@ -256,6 +310,11 @@ export function createRealmGrassMaterial(
       if (disposed) return;
       uniforms.uGrassGlobalVisibility.value = visible ? 1 : 0;
     },
+    getShaderTelemetry: () => Object.freeze({
+      fallbackActive: shaderFallbackActive,
+      fallbackCount: shaderFallbackCount,
+      fallbackReason: shaderFallbackReason
+    }),
     dispose: () => {
       if (disposed) return;
       disposed = true;

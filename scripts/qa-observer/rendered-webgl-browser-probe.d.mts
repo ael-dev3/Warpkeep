@@ -236,10 +236,38 @@ export function parseRenderedWebglBrowserDom(
   forestDecorativeTriangleCount: number;
   forestDecorativeDrawCalls: number;
   forestDecorativeCacheEntries: number;
+  forestDecorativeCacheLimit: number;
   forestDecorativeCacheHighWaterMark: number;
+  forestDecorativeRepackCount: number;
   forestDecorativeModelReady: boolean;
   forestDecorativeUsingFallback: boolean;
+  forestDecorativeFallbackType: 'none' | 'procedural-trunk-multi-canopy-v1';
+  forestDecorativeContactShadowCount: 0;
+  forestDecorativeGroundingMode:
+    | 'none'
+    | 'terrain-canopy'
+    | 'terrain-canopy-baked-base'
+    | 'terrain-canopy-procedural-root-contact';
+  forestDecorativeCanopyMotionState: 'static';
+  forestDecorativeCoreCellCount: number;
+  forestDecorativeBodyCellCount: number;
+  forestDecorativeFringeCellCount: number;
+  forestDecorativeClearingCellCount: number;
+  forestDecorativeSilhouetteCoverageRatio: number;
+  forestDecorativeCanonicalTriangleCount: number;
   forestDecorativeOverviewHidden: boolean;
+  grassInstanceCount: number;
+  grassTriangleCount: number;
+  grassDrawCalls: number;
+  grassCacheEntries: number;
+  grassCacheLimit: number;
+  grassCacheHighWaterMark: number;
+  grassRepackCount: number;
+  grassPaletteDisplaySrgbSaturationMin: number;
+  grassPaletteDisplaySrgbSaturationMax: number;
+  grassShaderFallbackActive: false;
+  terrainShaderEnhanced: true;
+  terrainShaderFallbackActive: false;
   semanticTerrainCellCount: typeof RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_CELL_COUNT;
   semanticTerrainKindCount: typeof RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_KIND_COUNT;
   semanticTerrainFeatureCount: number;
@@ -419,6 +447,10 @@ export function analyzeRenderedWebglPngScreenshot(
 ): Readonly<{
   distinctColourBuckets: number;
   luminanceRange: number;
+  averageSaturationBasisPoints: number;
+  saturationP95BasisPoints: number;
+  clippedBlackSamples: number;
+  clippedWhiteSamples: number;
   opaqueSamples: number;
   sampleCount: number;
 }>;

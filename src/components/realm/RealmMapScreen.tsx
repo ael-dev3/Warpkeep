@@ -2053,6 +2053,21 @@ function CanonicalRealmMapScreen({
     root.dataset.highDetailTerrainCellCount = String(telemetry.highDetailTerrainCellCount);
     root.dataset.coarseTerrainCellCount = String(telemetry.coarseTerrainCellCount);
     root.dataset.terrainTransitionEdgeCount = String(telemetry.terrainTransitionEdgeCount);
+    root.dataset.terrainSlopeCueMin = String(telemetry.terrainSlopeCueMin);
+    root.dataset.terrainSlopeCueMax = String(telemetry.terrainSlopeCueMax);
+    root.dataset.terrainConcavityCueMin = String(telemetry.terrainConcavityCueMin);
+    root.dataset.terrainConcavityCueMax = String(telemetry.terrainConcavityCueMax);
+    root.dataset.terrainVegetationCueMin = String(telemetry.terrainVegetationCueMin);
+    root.dataset.terrainVegetationCueMax = String(telemetry.terrainVegetationCueMax);
+    root.dataset.terrainWetnessCueMin = String(telemetry.terrainWetnessCueMin);
+    root.dataset.terrainWetnessCueMax = String(telemetry.terrainWetnessCueMax);
+    root.dataset.terrainShaderEnhanced = String(telemetry.terrainShaderEnhanced);
+    root.dataset.terrainShaderFallbackActive = String(
+      telemetry.terrainShaderFallbackActive
+    );
+    root.dataset.terrainShaderCompileAttemptCount = String(
+      telemetry.terrainShaderCompileAttemptCount
+    );
     root.dataset.semanticTerrainCellCount = String(telemetry.semanticCellCount);
     root.dataset.semanticTerrainKindCount = String(telemetry.semanticKindCount);
     root.dataset.semanticTerrainFeatureCount = String(telemetry.semanticFeatureCount);
@@ -2062,6 +2077,36 @@ function CanonicalRealmMapScreen({
     root.dataset.totalTerrainDetailDrawCalls = String(telemetry.totalDetailDrawCalls);
     root.dataset.forestPlacementSource = telemetry.forestPlacementSource;
     root.dataset.sharedForestTreeCount = String(telemetry.forestSharedTreeCount);
+    root.dataset.forestCanonicalTriangleCount = String(
+      telemetry.forestCanonicalTriangleCount
+    );
+    root.dataset.forestVisibleTriangleCount = String(
+      telemetry.forestVisibleTriangleCount
+    );
+    root.dataset.forestFallbackType = telemetry.forestFallbackType;
+    root.dataset.forestContactShadowCount = String(
+      telemetry.forestContactShadowCount
+    );
+    root.dataset.forestGroundingMode = telemetry.forestGroundingMode;
+    root.dataset.forestCanopyMotionState = telemetry.forestCanopyMotionState;
+    root.dataset.forestStructureCellCounts = JSON.stringify(
+      telemetry.forestStructureCellCounts
+    );
+    root.dataset.forestCoreCellCount = String(
+      telemetry.forestStructureCellCounts.core
+    );
+    root.dataset.forestBodyCellCount = String(
+      telemetry.forestStructureCellCounts.body
+    );
+    root.dataset.forestFringeCellCount = String(
+      telemetry.forestStructureCellCounts.fringe
+    );
+    root.dataset.forestClearingCellCount = String(
+      telemetry.forestStructureCellCounts.clearing
+    );
+    root.dataset.forestSilhouetteCoverageRatio = String(
+      telemetry.forestSilhouetteCoverageRatio
+    );
     root.dataset.forestDecorativeTreeCount = String(
       telemetry.forestDecorativeTreeCount
     );
@@ -2074,14 +2119,50 @@ function CanonicalRealmMapScreen({
     root.dataset.forestDecorativeCacheEntries = String(
       telemetry.forestDecorativeCacheEntries
     );
+    root.dataset.forestDecorativeCacheLimit = String(
+      telemetry.forestDecorativeCacheLimit
+    );
     root.dataset.forestDecorativeCacheHighWaterMark = String(
       telemetry.forestDecorativeCacheHighWaterMark
+    );
+    root.dataset.forestDecorativeRepackCount = String(
+      telemetry.forestDecorativeRepackCount
     );
     root.dataset.forestDecorativeModelReady = String(
       telemetry.forestDecorativeModelReady
     );
     root.dataset.forestDecorativeUsingFallback = String(
       telemetry.forestDecorativeUsingFallback
+    );
+    root.dataset.forestDecorativeFallbackType =
+      telemetry.forestDecorativeFallbackType;
+    root.dataset.forestDecorativeContactShadowCount = String(
+      telemetry.forestDecorativeContactShadowCount
+    );
+    root.dataset.forestDecorativeGroundingMode =
+      telemetry.forestDecorativeGroundingMode;
+    root.dataset.forestDecorativeCanopyMotionState =
+      telemetry.forestDecorativeCanopyMotionState;
+    root.dataset.forestDecorativeStructureCellCounts = JSON.stringify(
+      telemetry.forestDecorativeStructureCellCounts
+    );
+    root.dataset.forestDecorativeCoreCellCount = String(
+      telemetry.forestDecorativeStructureCellCounts.core
+    );
+    root.dataset.forestDecorativeBodyCellCount = String(
+      telemetry.forestDecorativeStructureCellCounts.body
+    );
+    root.dataset.forestDecorativeFringeCellCount = String(
+      telemetry.forestDecorativeStructureCellCounts.fringe
+    );
+    root.dataset.forestDecorativeClearingCellCount = String(
+      telemetry.forestDecorativeStructureCellCounts.clearing
+    );
+    root.dataset.forestDecorativeSilhouetteCoverageRatio = String(
+      telemetry.forestDecorativeSilhouetteCoverageRatio
+    );
+    root.dataset.forestDecorativeCanonicalTriangleCount = String(
+      telemetry.forestDecorativeCanonicalTriangleCount
     );
     root.dataset.forestDecorativeOverviewHidden = String(
       telemetry.forestDecorativeOverviewHidden
@@ -2092,6 +2173,9 @@ function CanonicalRealmMapScreen({
     root.dataset.grassTriangleCount = String(telemetry.grassTriangleCount);
     root.dataset.grassDrawCalls = String(telemetry.grassDrawCalls);
     root.dataset.grassCacheEntries = String(telemetry.grassCacheEntries);
+    root.dataset.grassCacheLimit = String(telemetry.grassCacheLimit);
+    root.dataset.grassCacheHighWaterMark = String(telemetry.grassCacheHighWaterMark);
+    root.dataset.grassRepackCount = String(telemetry.grassRepackCount);
     root.dataset.grassAnimated = String(telemetry.grassAnimated);
     root.dataset.grassTargetAnimationCadence = String(telemetry.grassTargetAnimationCadence);
     root.dataset.grassCandidateCellsByTerrain = JSON.stringify(
@@ -2104,8 +2188,22 @@ function CanonicalRealmMapScreen({
     );
     root.dataset.grassPaletteLuminanceMin = String(telemetry.grassPaletteLuminanceMin);
     root.dataset.grassPaletteLuminanceMax = String(telemetry.grassPaletteLuminanceMax);
+    root.dataset.grassPaletteDisplaySrgbSaturationMin = String(
+      telemetry.grassPaletteDisplaySrgbSaturationMin
+    );
+    root.dataset.grassPaletteDisplaySrgbSaturationMax = String(
+      telemetry.grassPaletteDisplaySrgbSaturationMax
+    );
     root.dataset.grassPaletteGreenMin = String(telemetry.grassPaletteGreenMin);
     root.dataset.grassPaletteGreenMax = String(telemetry.grassPaletteGreenMax);
+    root.dataset.grassShaderFallbackActive = String(
+      telemetry.grassShaderFallbackActive
+    );
+    root.dataset.grassShaderFallbackCount = String(
+      telemetry.grassShaderFallbackCount
+    );
+    root.dataset.grassShaderFallbackReason =
+      telemetry.grassShaderFallbackReason ?? 'none';
     root.dataset.grassCompletelyBareActiveCells = String(telemetry.grassCompletelyBareActiveCells);
     root.dataset.grassRejectedByStructureClearance = String(
       telemetry.grassRejectedByStructureClearance
@@ -2637,12 +2735,50 @@ function CanonicalRealmMapScreen({
         rootRef.current.dataset.totalTerrainDetailDrawCalls = '0';
         rootRef.current.dataset.forestPlacementSource = 'blocked';
         rootRef.current.dataset.sharedForestTreeCount = '0';
+        rootRef.current.dataset.forestCanonicalTriangleCount = '0';
+        rootRef.current.dataset.forestVisibleTriangleCount = '0';
+        rootRef.current.dataset.forestFallbackType = 'none';
+        rootRef.current.dataset.forestContactShadowCount = '0';
+        rootRef.current.dataset.forestGroundingMode = 'none';
+        rootRef.current.dataset.forestCanopyMotionState = 'static';
+        rootRef.current.dataset.forestStructureCellCounts =
+          '{"core":0,"body":0,"fringe":0,"clearing":0}';
+        rootRef.current.dataset.forestCoreCellCount = '0';
+        rootRef.current.dataset.forestBodyCellCount = '0';
+        rootRef.current.dataset.forestFringeCellCount = '0';
+        rootRef.current.dataset.forestClearingCellCount = '0';
+        rootRef.current.dataset.forestSilhouetteCoverageRatio = '0';
+        rootRef.current.dataset.forestDecorativeTreeCount = '0';
+        rootRef.current.dataset.forestDecorativeTriangleCount = '0';
+        rootRef.current.dataset.forestDecorativeDrawCalls = '0';
+        rootRef.current.dataset.forestDecorativeCacheEntries = '0';
+        rootRef.current.dataset.forestDecorativeCacheLimit = '0';
+        rootRef.current.dataset.forestDecorativeCacheHighWaterMark = '0';
+        rootRef.current.dataset.forestDecorativeRepackCount = '0';
+        rootRef.current.dataset.forestDecorativeModelReady = 'false';
+        rootRef.current.dataset.forestDecorativeUsingFallback = 'false';
+        rootRef.current.dataset.forestDecorativeFallbackType = 'none';
+        rootRef.current.dataset.forestDecorativeContactShadowCount = '0';
+        rootRef.current.dataset.forestDecorativeGroundingMode = 'none';
+        rootRef.current.dataset.forestDecorativeCanopyMotionState = 'static';
+        rootRef.current.dataset.forestDecorativeStructureCellCounts =
+          '{"core":0,"body":0,"fringe":0,"clearing":0}';
+        rootRef.current.dataset.forestDecorativeCoreCellCount = '0';
+        rootRef.current.dataset.forestDecorativeBodyCellCount = '0';
+        rootRef.current.dataset.forestDecorativeFringeCellCount = '0';
+        rootRef.current.dataset.forestDecorativeClearingCellCount = '0';
+        rootRef.current.dataset.forestDecorativeSilhouetteCoverageRatio = '0';
+        rootRef.current.dataset.forestDecorativeCanonicalTriangleCount = '0';
+        rootRef.current.dataset.forestDecorativeOverviewHidden = 'true';
         rootRef.current.dataset.grassCandidateCellCount = '0';
         rootRef.current.dataset.grassActiveCellCount = '0';
         rootRef.current.dataset.grassInstanceCount = '0';
         rootRef.current.dataset.grassTriangleCount = '0';
         rootRef.current.dataset.grassDrawCalls = '0';
         rootRef.current.dataset.grassCacheEntries = '0';
+        rootRef.current.dataset.grassCacheLimit = '0';
+        rootRef.current.dataset.grassCacheHighWaterMark = '0';
+        rootRef.current.dataset.grassRepackCount = '0';
         rootRef.current.dataset.grassAnimated = 'false';
         rootRef.current.dataset.grassTargetAnimationCadence = '0';
         rootRef.current.dataset.grassCandidateCellsByTerrain = '{}';
@@ -2651,8 +2787,13 @@ function CanonicalRealmMapScreen({
         rootRef.current.dataset.grassAverageRetainedPatchesByTerrain = '{}';
         rootRef.current.dataset.grassPaletteLuminanceMin = '0';
         rootRef.current.dataset.grassPaletteLuminanceMax = '0';
+        rootRef.current.dataset.grassPaletteDisplaySrgbSaturationMin = '0';
+        rootRef.current.dataset.grassPaletteDisplaySrgbSaturationMax = '0';
         rootRef.current.dataset.grassPaletteGreenMin = '0';
         rootRef.current.dataset.grassPaletteGreenMax = '0';
+        rootRef.current.dataset.grassShaderFallbackActive = 'false';
+        rootRef.current.dataset.grassShaderFallbackCount = '0';
+        rootRef.current.dataset.grassShaderFallbackReason = 'none';
         rootRef.current.dataset.grassCompletelyBareActiveCells = '0';
         rootRef.current.dataset.grassRejectedByStructureClearance = '0';
         rootRef.current.dataset.grassRejectedBySlope = '0';

@@ -3,10 +3,13 @@ import { describe, expect, it } from 'vitest';
 import {
   createRealmGrassExclusionIndex,
   generateRealmGrassCells,
+  realmGrassCandidateCount,
+  REALM_GRASS_BIOME_PROFILES,
   type RealmGrassExclusion
 } from '../src/game/map/realmGrass';
 import type { RealmTerrainKind } from '../src/game/map/realmTerrainSemantics';
-import { axialToWorld, hexKey } from '../src/game/map/hexCoordinates';
+import { axialToWorld, hexDistance, hexKey } from '../src/game/map/hexCoordinates';
+import { sampleRealmGrassCoverage } from '../src/game/map/realmGrassNoise';
 import { createRealmTerrainSurface } from '../src/game/map/realmTerrainSurface';
 import { pointyHexBoundaryDistance } from '../src/game/map/terrainHeight';
 import { createRealmVegetationField } from '../src/game/map/realmVegetationField';
@@ -166,5 +169,170 @@ describe('procedural biome grass generation', () => {
     expect(steep.points.length).toBeLessThan(flat.points.length);
     expect(flat.cells.filter((cell) => cell.terrainKind === 'lake').every((cell) => cell.points.length === 0))
       .toBe(true);
+  });
+
+  it('takes balanced and reduced layouts as exact prefixes of the canonical High reservoir', () => {
+    const surface = createRealmTerrainSurface('grass-quality-subsets', 6, 7);
+    const terrainKinds = semanticMap(surface);
+    const vegetationField = createRealmVegetationField({
+      worldSeed: surface.renderMap.worldSeed,
+      terrainKindsByKey: terrainKinds,
+      playableKeys: surface.playableKeys
+    });
+    const common = {
+      ...inputFor(surface),
+      terrainKindsByKey: terrainKinds,
+      vegetationField,
+      heightAtWorld: () => 0
+    };
+    const high = generateRealmGrassCells({ ...common, quality: 'high' });
+    const balanced = generateRealmGrassCells({ ...common, quality: 'balanced' });
+    const reduced = generateRealmGrassCells({ ...common, quality: 'reduced' });
+    const id = (point: (typeof high.points)[number]) =>
+      `${point.coord.q},${point.coord.r}:${point.candidateIndex}`;
+    const highById = new Map(high.points.map((point) => [id(point), point]));
+    const balancedById = new Map(balanced.points.map((point) => [id(point), point]));
+
+    expect(balanced.points.length).toBeLessThan(high.points.length);
+    expect(reduced.points.length).toBeLessThan(balanced.points.length);
+    balanced.points.forEach((point) => expect(highById.get(id(point))).toEqual(point));
+    reduced.points.forEach((point) => {
+      expect(highById.get(id(point))).toEqual(point);
+      expect(balancedById.get(id(point))).toEqual(point);
+    });
+    expect(realmGrassCandidateCount(
+      REALM_GRASS_BIOME_PROFILES.meadow,
+      'high',
+      10
+    )).toBe(REALM_GRASS_BIOME_PROFILES.meadow.highCandidateCount);
+  });
+
+  it('creates deterministic bare cells, tuft clusters, rests, and open soil pockets', () => {
+    const surface = createRealmTerrainSurface('grass-true-bare-distribution', 12, 13);
+    const results = (['meadow', 'lowland', 'forest', 'heath'] as const).map((kind) => {
+      const terrainKinds = new Map<string, RealmTerrainKind>(
+        surface.playableMap.cells.map((cell) => [hexKey(cell.coord), kind])
+      );
+      const vegetationField = createRealmVegetationField({
+        worldSeed: surface.renderMap.worldSeed,
+        terrainKindsByKey: terrainKinds,
+        playableKeys: surface.playableKeys
+      });
+      return generateRealmGrassCells({
+        ...inputFor(surface, surface.playableMap.cells),
+        terrainKindsByKey: terrainKinds,
+        vegetationField,
+        heightAtWorld: () => 0
+      });
+    });
+    const [meadow, lowland, forest, heath] = results;
+
+    expect(meadow.completelyBareCellCount).toBeGreaterThan(0);
+    expect(meadow.completelyBareCellCount).toBeLessThan(lowland.completelyBareCellCount);
+    expect(lowland.completelyBareCellCount).toBeLessThan(forest.completelyBareCellCount);
+    expect(forest.completelyBareCellCount).toBeLessThan(heath.completelyBareCellCount);
+    meadow.cells.filter((cell) => cell.completelyBare)
+      .forEach((cell) => expect(cell.points).toEqual([]));
+
+    const nonBareMeadow = meadow.cells.filter((cell) => !cell.completelyBare);
+    expect(nonBareMeadow.some((cell) => cell.points.length <= 5)).toBe(true);
+    expect(nonBareMeadow.some((cell) => cell.points.length >= 25)).toBe(true);
+    const retainedClusterAverage = meadow.points.reduce((total, point) => (
+      total + sampleRealmGrassCoverage(surface.renderMap.worldSeed, point.world).cluster
+    ), 0) / meadow.points.length;
+    const centerClusterAverage = surface.playableMap.cells.reduce((total, cell) => (
+      total + sampleRealmGrassCoverage(
+        surface.renderMap.worldSeed,
+        axialToWorld(cell.coord, 1)
+      ).cluster
+    ), 0) / surface.playableMap.cells.length;
+    expect(retainedClusterAverage).toBeGreaterThan(centerClusterAverage + 0.04);
+  });
+
+  it('grounds roots to a sampled slope and aligns their immutable surface normals', () => {
+    const surface = createRealmTerrainSurface('grass-surface-frame', 4, 5);
+    const heightAtWorld = (world: Readonly<{ x: number; z: number }>) =>
+      1.7 + world.x * 0.2 - world.z * 0.1;
+    const data = generateRealmGrassCells({
+      ...inputFor(surface),
+      heightAtWorld
+    });
+    const normalLength = Math.hypot(-0.2, 1, 0.1);
+    const expectedNormal = {
+      x: -0.2 / normalLength,
+      y: 1 / normalLength,
+      z: 0.1 / normalLength
+    };
+
+    expect(data.points.length).toBeGreaterThan(0);
+    data.points.forEach((point) => {
+      expect(point.groundY).toBeCloseTo(heightAtWorld(point.world), 10);
+      expect(point.surfaceNormal.x).toBeCloseTo(expectedNormal.x, 10);
+      expect(point.surfaceNormal.y).toBeCloseTo(expectedNormal.y, 10);
+      expect(point.surfaceNormal.z).toBeCloseTo(expectedNormal.z, 10);
+      expect(Object.isFrozen(point.surfaceNormal)).toBe(true);
+    });
+  });
+
+  it('shares local gust phase and progressively shelters the forest edge', () => {
+    const surface = createRealmTerrainSurface('grass-wind-shelter', 10, 11);
+    const terrainKinds = new Map<string, RealmTerrainKind>(
+      surface.playableMap.cells.map((cell) => [
+        hexKey(cell.coord),
+        hexDistance(cell.coord, { q: 0, r: 0 }) <= 2 ? 'forest' : 'meadow'
+      ])
+    );
+    const vegetationField = createRealmVegetationField({
+      worldSeed: surface.renderMap.worldSeed,
+      terrainKindsByKey: terrainKinds,
+      playableKeys: surface.playableKeys
+    });
+    const data = generateRealmGrassCells({
+      ...inputFor(surface, surface.playableMap.cells),
+      terrainKindsByKey: terrainKinds,
+      vegetationField,
+      heightAtWorld: () => 0
+    });
+    const shelteredMeadow = data.points.filter((point) => (
+      point.terrainKind === 'meadow' && point.windShelter > 0
+    ));
+    const openMeadow = data.points.filter((point) => (
+      point.terrainKind === 'meadow' && point.windShelter === 0
+    ));
+    const averageWind = (points: typeof data.points) => points.reduce(
+      (total, point) => total + point.windScale,
+      0
+    ) / points.length;
+
+    expect(shelteredMeadow.length).toBeGreaterThan(0);
+    expect(openMeadow.length).toBeGreaterThan(0);
+    shelteredMeadow.forEach((point) => {
+      expect(point.windShelter).toBeCloseTo(
+        vegetationField.sample(point.world).forestNeighbourShare * 0.48,
+        10
+      );
+    });
+    expect(averageWind(shelteredMeadow)).toBeLessThan(averageWind(openMeadow));
+
+    const nearbyPhaseDifferences: number[] = [];
+    const phaseSample = data.points.slice(0, 400);
+    for (let left = 0; left < phaseSample.length; left += 1) {
+      for (let right = left + 1; right < phaseSample.length; right += 1) {
+        const first = phaseSample[left]!;
+        const second = phaseSample[right]!;
+        if (Math.hypot(
+          first.world.x - second.world.x,
+          first.world.z - second.world.z
+        ) >= 0.25) continue;
+        const rawDifference = Math.abs(first.windPhase - second.windPhase);
+        nearbyPhaseDifferences.push(Math.min(
+          rawDifference,
+          Math.PI * 2 - rawDifference
+        ));
+      }
+    }
+    expect(nearbyPhaseDifferences.length).toBeGreaterThan(20);
+    expect(nearbyPhaseDifferences.reduce((total, value) => total + value, 0)
+      / nearbyPhaseDifferences.length).toBeLessThan(0.4);
   });
 });

@@ -30,8 +30,43 @@ export const REALM_GRASS_RIBBONS = REALM_GRASS_BLADES_PER_PATCH;
 export const REALM_GRASS_TRIANGLES_PER_RIBBON = REALM_GRASS_TRIANGLES_PER_BLADE;
 
 type Root = readonly [number, number];
+type GrassPatchShape = Readonly<{
+  id: 'upright-tuft' | 'wind-combed' | 'open-fan';
+  leanMinimum: number;
+  leanRange: number;
+  middleProgress: number;
+  middleLean: number;
+  widthScale: number;
+}>;
 
 const root = (x: number, z: number): Root => [x, z];
+
+const PATCH_SHAPES: readonly GrassPatchShape[] = Object.freeze([
+  Object.freeze({
+    id: 'upright-tuft',
+    leanMinimum: 0.08,
+    leanRange: 0.085,
+    middleProgress: 0.56,
+    middleLean: 0.42,
+    widthScale: 1
+  }),
+  Object.freeze({
+    id: 'wind-combed',
+    leanMinimum: 0.15,
+    leanRange: 0.075,
+    middleProgress: 0.50,
+    middleLean: 0.58,
+    widthScale: 0.88
+  }),
+  Object.freeze({
+    id: 'open-fan',
+    leanMinimum: 0.10,
+    leanRange: 0.10,
+    middleProgress: 0.60,
+    middleLean: 0.35,
+    widthScale: 1.12
+  })
+]);
 
 const ROOTS: Readonly<Record<RealmGrassGeometryProfile, readonly Root[]>> = Object.freeze({
   high: Object.freeze([
@@ -79,6 +114,7 @@ export function createLowPolyGrassGeometry(profile: RealmGrassGeometryProfile, v
   const bladeCount = REALM_GRASS_BLADES_PER_PATCH[profile];
   const variantCount = REALM_GRASS_VARIANT_COUNTS[profile];
   const safeVariant = Math.max(0, Math.trunc(variant)) % variantCount;
+  const shape = PATCH_SHAPES[safeVariant]!;
   const positions: number[] = [];
   const normals: number[] = [];
   const bladeData: number[] = [];
@@ -86,17 +122,28 @@ export function createLowPolyGrassGeometry(profile: RealmGrassGeometryProfile, v
 
   for (let blade = 0; blade < bladeCount; blade += 1) {
     const [rootX, rootZ] = variantRoot(ROOTS[profile][blade]!, safeVariant, blade);
-    const yaw = seededUnit(blade + safeVariant * 17.3) * Math.PI * 2;
+    const randomYaw = seededUnit(blade + safeVariant * 17.3) * Math.PI * 2;
+    const radialYaw = Math.atan2(-rootX, rootZ);
+    const yaw = safeVariant === 1
+      ? 0.42 + randomYaw * 0.16
+      : safeVariant === 2
+        ? radialYaw + (seededUnit(blade * 4.7) - 0.5) * 0.42
+        : randomYaw;
     const acrossX = Math.cos(yaw);
     const acrossZ = Math.sin(yaw);
     const forwardX = -acrossZ;
     const forwardZ = acrossX;
-    const lean = 0.08 + seededUnit(blade * 2.7 + safeVariant * 5.1) * 0.085;
-    const rootHalfWidth = 0.055;
-    const middleHalfWidth = 0.036;
+    const lean = shape.leanMinimum
+      + seededUnit(blade * 2.7 + safeVariant * 5.1) * shape.leanRange;
+    const rootHalfWidth = 0.055 * shape.widthScale;
+    const middleHalfWidth = 0.036 * shape.widthScale;
+    const tipHeight = safeVariant === 0 || blade === safeVariant
+      ? 1
+      : 0.78 + seededUnit(blade * 7.13 + safeVariant * 2.91) * 0.20;
+    const middleHeight = tipHeight * shape.middleProgress;
     const base = positions.length / 3;
-    const midX = rootX + forwardX * lean * 0.42;
-    const midZ = rootZ + forwardZ * lean * 0.42;
+    const midX = rootX + forwardX * lean * shape.middleLean;
+    const midZ = rootZ + forwardZ * lean * shape.middleLean;
     const tipX = rootX + forwardX * lean;
     const tipZ = rootZ + forwardZ * lean;
     positions.push(
@@ -107,13 +154,13 @@ export function createLowPolyGrassGeometry(profile: RealmGrassGeometryProfile, v
       0,
       rootZ + acrossZ * rootHalfWidth,
       midX - acrossX * middleHalfWidth,
-      0.56,
+      middleHeight,
       midZ - acrossZ * middleHalfWidth,
       midX + acrossX * middleHalfWidth,
-      0.56,
+      middleHeight,
       midZ + acrossZ * middleHalfWidth,
       tipX,
-      1,
+      tipHeight,
       tipZ
     );
     const phase = seededUnit(blade * 9.17 + safeVariant * 3.31) * Math.PI * 2;
@@ -123,8 +170,8 @@ export function createLowPolyGrassGeometry(profile: RealmGrassGeometryProfile, v
     bladeData.push(
       -1, 0, phase, stiffness,
       1, 0, phase, stiffness,
-      -1, 0.56, phase, stiffness,
-      1, 0.56, phase, stiffness,
+      -1, shape.middleProgress, phase, stiffness,
+      1, shape.middleProgress, phase, stiffness,
       0, 1, phase, stiffness
     );
     const normalX = forwardX * 0.28;
@@ -146,10 +193,11 @@ export function createLowPolyGrassGeometry(profile: RealmGrassGeometryProfile, v
   geometry.computeBoundingSphere();
   geometry.userData.realmGrassGeometryProfile = profile;
   geometry.userData.realmGrassVariant = safeVariant;
+  geometry.userData.realmGrassShape = shape.id;
   geometry.userData.realmGrassBladeCount = bladeCount;
   geometry.userData.realmGrassTriangleCount = REALM_GRASS_TRIANGLES_PER_PATCH[profile];
   geometry.userData.realmGrassRootPositions = Object.freeze(
-    ROOTS[profile].map((root) => Object.freeze(variantRoot(root, safeVariant, 0)))
+    ROOTS[profile].map((root, blade) => Object.freeze(variantRoot(root, safeVariant, blade)))
   );
   return geometry;
 }

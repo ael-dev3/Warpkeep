@@ -18,6 +18,7 @@ import type { RealmTerrainKind } from '../../game/map/realmTerrainSemantics';
 import type { RealmTerrainSurface } from '../../game/map/realmTerrainSurface';
 import type { TerrainStructurePlacement } from '../../game/map/terrainPlacements';
 import type { RealmVegetationField } from '../../game/map/realmVegetationField';
+import { realmGrassColorMetrics } from '../../game/map/realmGrassPalette';
 import { createDeterministicBudgetCollector } from '../../game/map/deterministicBudget';
 import {
   createLowPolyGrassGeometry,
@@ -44,6 +45,9 @@ export type RealmGrassTelemetry = Readonly<{
   drawCalls: number;
   variantCounts: readonly number[];
   cacheEntries: number;
+  cacheLimit?: number;
+  cacheHighWaterMark?: number;
+  repackCount?: number;
   animated: boolean;
   targetAnimationCadence: number;
   averageRetainedPatchesPerActiveCell: number;
@@ -51,11 +55,15 @@ export type RealmGrassTelemetry = Readonly<{
   averageBladeHeight: number;
   paletteLuminanceMin: number;
   paletteLuminanceMax: number;
+  paletteDisplaySrgbSaturationMin?: number;
+  paletteDisplaySrgbSaturationMax?: number;
   paletteGreenMin: number;
   paletteGreenMax: number;
   alphaHashActive: boolean;
   alphaToCoverageActive: boolean;
   shaderFallbackActive: boolean;
+  shaderFallbackCount?: number;
+  shaderFallbackReason?: string | null;
   edgeFadeCount: number;
   candidateCellsByTerrain: Readonly<Record<RealmGrassTerrainKind, number>>;
   activeCellsByTerrain: Readonly<Record<RealmGrassTerrainKind, number>>;
@@ -149,6 +157,9 @@ function emptyTelemetry(plan: RealmGrassRenderPlan, alphaToCoverage = false): Re
     drawCalls: 0,
     variantCounts: Object.freeze([]),
     cacheEntries: 0,
+    cacheLimit: plan.cacheLimit,
+    cacheHighWaterMark: 0,
+    repackCount: 0,
     animated: false,
     targetAnimationCadence: plan.animationFrameCap,
     averageRetainedPatchesPerActiveCell: 0,
@@ -156,11 +167,15 @@ function emptyTelemetry(plan: RealmGrassRenderPlan, alphaToCoverage = false): Re
     averageBladeHeight: 0,
     paletteLuminanceMin: 0,
     paletteLuminanceMax: 0,
+    paletteDisplaySrgbSaturationMin: 0,
+    paletteDisplaySrgbSaturationMax: 0,
     paletteGreenMin: 0,
     paletteGreenMax: 0,
     alphaHashActive: true,
     alphaToCoverageActive: alphaToCoverage,
     shaderFallbackActive: false,
+    shaderFallbackCount: 0,
+    shaderFallbackReason: null,
     edgeFadeCount: 0,
     candidateCellsByTerrain: Object.freeze(emptyCounts()),
     activeCellsByTerrain: Object.freeze(emptyCounts()),
@@ -203,7 +218,7 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
   // Floor keeps the sum of variant pools at or below the quality ceiling.
   const variantCapacity = Math.max(1, Math.floor(Math.max(1, capacity) / variantCount));
   const materialLayer = createRealmGrassMaterial(
-    plan.windStrengthMultiplier,
+    options.reducedMotion ? 0 : plan.windStrengthMultiplier,
     !options.reducedMotion && plan.animationFrameCap > 0,
     options.alphaToCoverage ?? false
   );
@@ -238,13 +253,18 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
   const matrix = new THREE.Matrix4();
   const position = new THREE.Vector3();
   const rotation = new THREE.Quaternion();
+  const surfaceRotation = new THREE.Quaternion();
+  const yawRotation = new THREE.Quaternion();
   const scale = new THREE.Vector3();
   const axis = new THREE.Vector3(0, 1, 0);
+  const surfaceNormal = new THREE.Vector3();
   const tint = new THREE.Color();
   let currentWindow: RealmGrassActiveWindow | null = null;
   let telemetry = emptyTelemetry(plan, options.alphaToCoverage ?? false);
   let disposed = false;
   let exclusionsDirty = false;
+  let cacheHighWaterMark = 0;
+  let repackCount = 0;
 
   const cellDataFor = (cell: RealmGrassActiveWindow['cells'][number]['cell']) => {
     const key = `${cell.coord.q},${cell.coord.r}`;
@@ -269,6 +289,7 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
       suppressCastleSlots: options.suppressCastleSlots
     }).cells[0]!;
     cache.set(key, generated);
+    cacheHighWaterMark = Math.max(cacheHighWaterMark, cache.size);
     return generated;
   };
 
@@ -291,6 +312,7 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
   };
 
   const repack = (window: RealmGrassActiveWindow) => {
+    repackCount += 1;
     if (window.overviewHidden || !plan.enabled || capacity === 0) {
       meshes.forEach((currentMesh) => {
         currentMesh.count = 0;
@@ -300,6 +322,9 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
       telemetry = Object.freeze({
         ...emptyTelemetry(plan, options.alphaToCoverage ?? false),
         cacheEntries: cache.size,
+        cacheLimit: cache.limit,
+        cacheHighWaterMark,
+        repackCount,
         overviewHidden: true
       });
       return;
@@ -348,6 +373,8 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
     let heightTotal = 0;
     let luminanceMin = Number.POSITIVE_INFINITY;
     let luminanceMax = 0;
+    let saturationMin = Number.POSITIVE_INFINITY;
+    let saturationMax = 0;
     let greenMin = Number.POSITIVE_INFINITY;
     let greenMax = 0;
     let edgeFadeCount = 0;
@@ -355,8 +382,15 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
       const currentMesh = meshes[variant]!;
       const currentAttributes = attributes[variant]!;
       variantPoints.forEach(({ point, edgeFade }, index) => {
-        position.set(point.world.x, point.groundY + 0.002, point.world.z);
-        rotation.setFromAxisAngle(axis, point.yaw);
+        position.set(point.world.x, point.groundY, point.world.z);
+        surfaceNormal.set(
+          point.surfaceNormal.x,
+          point.surfaceNormal.y,
+          point.surfaceNormal.z
+        ).normalize();
+        surfaceRotation.setFromUnitVectors(axis, surfaceNormal);
+        yawRotation.setFromAxisAngle(surfaceNormal, point.yaw);
+        rotation.copy(yawRotation).multiply(surfaceRotation).normalize();
         scale.set(point.width, point.height, point.width);
         matrix.compose(position, rotation, scale);
         currentMesh.setMatrixAt(index, matrix);
@@ -369,9 +403,18 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
         counts[point.terrainKind] += 1;
         footprintTotal += point.width * 0.46;
         heightTotal += point.height;
-        const luminance = 0.2126 * point.tint.r + 0.7152 * point.tint.g + 0.0722 * point.tint.b;
+        const colourMetrics = realmGrassColorMetrics(point.tint);
+        const luminance = colourMetrics.linearLuminance;
         luminanceMin = Math.min(luminanceMin, luminance);
         luminanceMax = Math.max(luminanceMax, luminance);
+        saturationMin = Math.min(
+          saturationMin,
+          colourMetrics.displaySrgbSaturation
+        );
+        saturationMax = Math.max(
+          saturationMax,
+          colourMetrics.displaySrgbSaturation
+        );
         greenMin = Math.min(greenMin, point.tint.g);
         greenMax = Math.max(greenMax, point.tint.g);
         if (edgeFade < 0.999) edgeFadeCount += 1;
@@ -401,6 +444,7 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
           alphaToCoverage?: boolean;
         }
       ).alphaToCoverage === true;
+    const shaderTelemetry = materialLayer.getShaderTelemetry();
     telemetry = Object.freeze({
       candidateCellCount: window.cells.length,
       activeCellCount,
@@ -410,18 +454,30 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
       drawCalls: packedByVariant.filter((variantPoints) => variantPoints.length > 0).length,
       variantCounts: Object.freeze(packedByVariant.map((variantPoints) => variantPoints.length)),
       cacheEntries: cache.size,
-      animated: packed.length > 0 && plan.animationFrameCap > 0 && !options.reducedMotion,
+      cacheLimit: cache.limit,
+      cacheHighWaterMark,
+      repackCount,
+      animated: packed.length > 0
+        && plan.animationFrameCap > 0
+        && !options.reducedMotion
+        && !shaderTelemetry.fallbackActive,
       targetAnimationCadence: plan.animationFrameCap,
       averageRetainedPatchesPerActiveCell: packed.length / Math.max(1, activeCellCount),
       averagePatchFootprint: packed.length > 0 ? footprintTotal / packed.length : 0,
       averageBladeHeight: packed.length > 0 ? heightTotal / packed.length : 0,
       paletteLuminanceMin: Number.isFinite(luminanceMin) ? luminanceMin : 0,
       paletteLuminanceMax: luminanceMax,
+      paletteDisplaySrgbSaturationMin: Number.isFinite(saturationMin)
+        ? saturationMin
+        : 0,
+      paletteDisplaySrgbSaturationMax: saturationMax,
       paletteGreenMin: Number.isFinite(greenMin) ? greenMin : 0,
       paletteGreenMax: greenMax,
       alphaHashActive: alphaHash,
       alphaToCoverageActive: alphaCoverage,
-      shaderFallbackActive: false,
+      shaderFallbackActive: shaderTelemetry.fallbackActive,
+      shaderFallbackCount: shaderTelemetry.fallbackCount,
+      shaderFallbackReason: shaderTelemetry.fallbackReason,
       edgeFadeCount,
       candidateCellsByTerrain: Object.freeze(candidateCellsByTerrain),
       activeCellsByTerrain: Object.freeze(activeCellsByTerrain),
@@ -459,15 +515,35 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
       return true;
     },
     updateWind: (seconds) => {
-      if (disposed || !telemetry.animated) return false;
+      if (
+        disposed
+        || !telemetry.animated
+        || materialLayer.getShaderTelemetry().fallbackActive
+      ) return false;
       return materialLayer.setTime(seconds);
     },
     setInteraction: (selected, hovered) => {
       if (disposed) return;
       materialLayer.setInteraction(selected, hovered);
     },
-    isAnimationActive: () => !disposed && telemetry.animated,
-    getTelemetry: () => telemetry,
+    isAnimationActive: () => !disposed
+      && telemetry.animated
+      && !materialLayer.getShaderTelemetry().fallbackActive,
+    getTelemetry: () => {
+      const shaderTelemetry = materialLayer.getShaderTelemetry();
+      if (
+        telemetry.shaderFallbackActive === shaderTelemetry.fallbackActive
+        && telemetry.shaderFallbackCount === shaderTelemetry.fallbackCount
+        && telemetry.shaderFallbackReason === shaderTelemetry.fallbackReason
+      ) return telemetry;
+      return Object.freeze({
+        ...telemetry,
+        animated: telemetry.animated && !shaderTelemetry.fallbackActive,
+        shaderFallbackActive: shaderTelemetry.fallbackActive,
+        shaderFallbackCount: shaderTelemetry.fallbackCount,
+        shaderFallbackReason: shaderTelemetry.fallbackReason
+      });
+    },
     dispose: () => {
       if (disposed) return;
       disposed = true;

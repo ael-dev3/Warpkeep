@@ -60,6 +60,10 @@ describe('procedural grass material contract', () => {
     expect(injected).toContain('transformed.xz += grassLocalDirection');
     expect(injected).toContain('transformed.xz += grassLocalCrossDirection');
     expect(injected).toContain('dot(grassWorldPosition.xz, grassWorldDirection)');
+    expect(injected).toContain('float grassGustFront = sin(');
+    expect(injected).toContain('float grassGustBand = smoothstep(');
+    expect(injected).toContain('float grassGust = mix(0.66, 1.0, grassGustBand);');
+    expect(injected).toContain('grassPhase * 0.18');
     expect(injected).not.toContain('transformed.xz += grassWorldDirection');
     expect(injected).toContain('float grassFlex = grassBladeData.y;');
     expect(injected).toContain('float grassBladeVertical = grassBladeData.y;');
@@ -82,8 +86,14 @@ describe('procedural grass material contract', () => {
     expect((layer.material as THREE.MeshStandardMaterial & { alphaToCoverage?: boolean }).alphaToCoverage).toBe(false);
     expect(layer.material.customProgramCacheKey()).toBe(REALM_GRASS_SHADER_CACHE_KEY);
     expect(REALM_GRASS_SHADER_CACHE_KEY).toContain('procedural-grass-v2');
+    expect(REALM_GRASS_SHADER_CACHE_KEY).toContain('bounded-tips');
     expect(REALM_GRASS_SHADER_CACHE_KEY).toContain(REALM_GRASS_THREE_SHADER_CONTRACT);
     expect(layer.uniforms.uGrassWindStrength.value).toBeCloseTo(0.78);
+    expect(layer.getShaderTelemetry()).toEqual({
+      fallbackActive: false,
+      fallbackCount: 0,
+      fallbackReason: null
+    });
     expect(layer.setTime(1.25)).toBe(true);
     expect(layer.setTime(1.25)).toBe(false);
     expect(layer.uniforms.uGrassTime.value).toBe(1.25);
@@ -99,6 +109,36 @@ describe('procedural grass material contract', () => {
 
     layer.dispose();
     expect(layer.setTime(2)).toBe(false);
+  });
+
+  it('fails closed to retained static standard grass when a shader marker drifts', () => {
+    const layer = createRealmGrassMaterial(1);
+    const shader = {
+      vertexShader: 'void main() { gl_Position = vec4(0.0); }',
+      fragmentShader: THREE.ShaderLib.standard.fragmentShader,
+      uniforms: {}
+    };
+    const compile = layer.material.onBeforeCompile as unknown as (
+      shaderInput: typeof shader
+    ) => void;
+
+    expect(() => compile(shader)).not.toThrow();
+    expect(shader.vertexShader).toBe('void main() { gl_Position = vec4(0.0); }');
+    expect(shader.fragmentShader).toBe(THREE.ShaderLib.standard.fragmentShader);
+    expect(layer.material).toBeInstanceOf(THREE.MeshStandardMaterial);
+    expect(layer.material.visible).toBe(true);
+    expect(layer.getShaderTelemetry()).toEqual({
+      fallbackActive: true,
+      fallbackCount: 1,
+      fallbackReason: 'REALM_GRASS_SHADER_BEGIN_VERTEX_CONTRACT_CHANGED'
+    });
+    expect(layer.material.userData.realmGrassShaderFallbackActive).toBe(true);
+    expect(layer.material.customProgramCacheKey()).toContain('static-fallback');
+    expect(layer.setTime(1)).toBe(false);
+
+    compile(shader);
+    expect(layer.getShaderTelemetry().fallbackCount).toBe(1);
+    layer.dispose();
   });
 
   it('clamps shader motion to the same maximum displacement used by active-layer bounds', () => {

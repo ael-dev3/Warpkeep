@@ -16,7 +16,8 @@ import {
 } from '../../game/map/realmForestBiomes';
 import {
   deriveRealmForestCanopyField,
-  selectRealmForestEcologySpeciesPalette
+  selectRealmForestEcologySpeciesPalette,
+  type RealmForestStructureCounts
 } from '../../game/map/realmForestEcology';
 import { resolveRealmSharedForestLayout } from '../../game/map/realmSharedForestPlacements';
 import { generateTerrainDecorations } from '../../game/map/terrainDecorations';
@@ -33,7 +34,11 @@ import {
 } from '../../game/map/realmTerrainSemantics';
 import { isPlayableRealmCoord, type RealmTerrainSurface } from '../../game/map/realmTerrainSurface';
 import { createRealmVegetationField } from '../../game/map/realmVegetationField';
-import { createRealmVegetationMask } from '../../game/map/realmVegetationMask';
+import {
+  createRealmVegetationMask,
+  type CreateRealmVegetationMaskOptions,
+  type RealmVegetationRoutePath
+} from '../../game/map/realmVegetationMask';
 import { terrainHeightAtWorld } from '../../game/map/terrainHeight';
 import {
   createHegemonyCastlePlacements,
@@ -48,12 +53,17 @@ import {
   type RealmDecorativeForestLayer,
   type RealmDecorativeForestTelemetry
 } from './createRealmDecorativeForestLayer';
+import type {
+  RealmForestFallbackType,
+  RealmForestGroundingMode
+} from './createRealmProceduralForestFallback';
 import { estimateRealmForestViewportRadiusCells } from './realmForestActiveWindow';
 import {
   createTerrainGeometryData,
   createTerrainOverviewHull,
   pointyHexCorners
 } from './createTerrainGeometry';
+import { createRealmTerrainMaterial } from './createRealmTerrainMaterial';
 import {
   DEFAULT_CASTLE_LOD_POLICY,
   type CastleLod,
@@ -139,10 +149,12 @@ import {
 } from './realmStoneNodeLayer';
 import {
   createRealmWorkerLayer,
+  isValidRealmWorkerSceneCatalog,
   REALM_WORKER_REDUCED_MOTION_POSITION_INTERVAL_MS,
   type RealmWorkerLayer,
   type RealmWorkerSceneRecord
 } from './realmWorkerLayer';
+import { resolveRealmWorkerCanonicalRoute } from './realmWorkerRoutePresentation';
 import { createRealmExpeditionSceneBudget } from './realmExpeditionPresentationBudget';
 import {
   createRealmPointerGestureCoordinator,
@@ -397,6 +409,40 @@ export function grassExclusionsForResourceNodes(
   )));
 }
 
+/** Convert only canonical dry public Worker routes into presentation clearances. */
+export function realmVegetationRoutePathsForWorkers(
+  workers: readonly RealmWorkerSceneRecord[]
+): readonly RealmVegetationRoutePath[] {
+  if (!isValidRealmWorkerSceneCatalog(workers)) return Object.freeze([]);
+  const seen = new Set<string>();
+  const paths: RealmVegetationRoutePath[] = [];
+  [...workers].sort((left, right) => left.workerId.localeCompare(right.workerId))
+    .forEach((worker) => {
+      if (
+        worker.status === 'idle'
+        || typeof worker.workerId !== 'string'
+        || worker.workerId.length === 0
+        || seen.has(worker.workerId)
+      ) return;
+      const route = resolveRealmWorkerCanonicalRoute(worker);
+      if (!route || route.length < 2) return;
+      seen.add(worker.workerId);
+      paths.push(Object.freeze({
+        id: worker.workerId,
+        coords: Object.freeze(route.map((coord) => Object.freeze({ ...coord })))
+      }));
+    });
+  return Object.freeze(paths);
+}
+
+export function realmVegetationRoutePathSignature(
+  paths: readonly RealmVegetationRoutePath[]
+) {
+  return paths.map((path) => (
+    `${path.id}:${path.coords.map((coord) => `${coord.q},${coord.r}`).join(';')}`
+  )).join('|');
+}
+
 function isGrassShaderContractFailure(error: unknown) {
   return error instanceof Error
     && error.message === 'REALM_GRASS_SHADER_BEGIN_VERTEX_CONTRACT_CHANGED';
@@ -475,6 +521,13 @@ export type RealmPeerCastleMarker = Readonly<{
 
 export type { RealmInteractionTarget } from './realmPickArbitration';
 
+const EMPTY_FOREST_STRUCTURE_COUNTS: RealmForestStructureCounts = Object.freeze({
+  core: 0,
+  body: 0,
+  fringe: 0,
+  clearing: 0
+});
+
 export type RealmTerrainPresentationTelemetry = Readonly<{
   terrainTriangleCount: number;
   terrainTriangleBudget: number;
@@ -482,6 +535,17 @@ export type RealmTerrainPresentationTelemetry = Readonly<{
   highDetailTerrainCellCount: number;
   coarseTerrainCellCount: number;
   terrainTransitionEdgeCount: number;
+  terrainSlopeCueMin: number;
+  terrainSlopeCueMax: number;
+  terrainConcavityCueMin: number;
+  terrainConcavityCueMax: number;
+  terrainVegetationCueMin: number;
+  terrainVegetationCueMax: number;
+  terrainWetnessCueMin: number;
+  terrainWetnessCueMax: number;
+  terrainShaderEnhanced: boolean;
+  terrainShaderFallbackActive: boolean;
+  terrainShaderCompileAttemptCount: number;
   semanticCellCount: number;
   semanticKindCount: number;
   semanticFeatureCount: number;
@@ -492,13 +556,30 @@ export type RealmTerrainPresentationTelemetry = Readonly<{
   /** Canonical shared rows render only when their full layout validates. */
   forestPlacementSource: 'legacy-fallback' | 'shared' | 'blocked';
   forestSharedTreeCount: number;
+  forestCanonicalTriangleCount: number;
+  forestVisibleTriangleCount: number;
+  forestFallbackType: RealmForestFallbackType;
+  forestContactShadowCount: number;
+  forestGroundingMode: RealmForestGroundingMode;
+  forestCanopyMotionState: 'static';
+  forestStructureCellCounts: RealmForestStructureCounts;
+  forestSilhouetteCoverageRatio: number;
   forestDecorativeTreeCount: number;
   forestDecorativeTriangleCount: number;
   forestDecorativeDrawCalls: number;
   forestDecorativeCacheEntries: number;
+  forestDecorativeCacheLimit: number;
   forestDecorativeCacheHighWaterMark: number;
+  forestDecorativeRepackCount: number;
   forestDecorativeModelReady: boolean;
   forestDecorativeUsingFallback: boolean;
+  forestDecorativeFallbackType: RealmForestFallbackType;
+  forestDecorativeContactShadowCount: number;
+  forestDecorativeGroundingMode: RealmForestGroundingMode;
+  forestDecorativeCanopyMotionState: 'static';
+  forestDecorativeStructureCellCounts: RealmForestStructureCounts;
+  forestDecorativeSilhouetteCoverageRatio: number;
+  forestDecorativeCanonicalTriangleCount: number;
   forestDecorativeOverviewHidden: boolean;
   grassCandidateCellCount: number;
   grassActiveCellCount: number;
@@ -506,6 +587,9 @@ export type RealmTerrainPresentationTelemetry = Readonly<{
   grassTriangleCount: number;
   grassDrawCalls: number;
   grassCacheEntries: number;
+  grassCacheLimit: number;
+  grassCacheHighWaterMark: number;
+  grassRepackCount: number;
   grassAnimated: boolean;
   grassTargetAnimationCadence: number;
   grassCandidateCellsByTerrain: Readonly<Record<RealmGrassTerrainKind, number>>;
@@ -514,8 +598,13 @@ export type RealmTerrainPresentationTelemetry = Readonly<{
   grassAverageRetainedPatchesByTerrain: Readonly<Record<RealmGrassTerrainKind, number>>;
   grassPaletteLuminanceMin: number;
   grassPaletteLuminanceMax: number;
+  grassPaletteDisplaySrgbSaturationMin: number;
+  grassPaletteDisplaySrgbSaturationMax: number;
   grassPaletteGreenMin: number;
   grassPaletteGreenMax: number;
+  grassShaderFallbackActive: boolean;
+  grassShaderFallbackCount: number;
+  grassShaderFallbackReason: string | null;
   grassCompletelyBareActiveCells: number;
   grassRejectedByStructureClearance: number;
   grassRejectedBySlope: number;
@@ -802,6 +891,10 @@ function createTerrainGeometry(
   try {
     geometry.setAttribute('position', new THREE.BufferAttribute(data.positions, 3));
     geometry.setAttribute('color', new THREE.BufferAttribute(data.colors, 3));
+    geometry.setAttribute(
+      'terrainSurfaceCue',
+      new THREE.BufferAttribute(data.materialCues, 4)
+    );
     geometry.setIndex(new THREE.BufferAttribute(data.indices, 1));
     geometry.computeVertexNormals();
     geometry.computeBoundingSphere();
@@ -1307,7 +1400,10 @@ function initializeRealmScene(
       HEGEMONY_STONE_QUARRY_ASSET_BUDGETS.stoneQuarryTargetFootprint
     )
   ]);
-  const vegetationMask = createRealmVegetationMask({
+  const vegetationMaskBaseOptions: Omit<
+    CreateRealmVegetationMaskOptions,
+    'routePaths'
+  > = Object.freeze({
     playableKeys: presentationSurface.playableKeys,
     waterCells: options.waterCells,
     placements: terrainPlacements,
@@ -1317,6 +1413,24 @@ function initializeRealmScene(
     ]),
     hexSize: HEX_SIZE
   });
+  let liveVegetationRoutePaths = realmVegetationRoutePathsForWorkers(
+    options.workers ?? []
+  );
+  let liveVegetationRouteSignature = realmVegetationRoutePathSignature(
+    liveVegetationRoutePaths
+  );
+  let vegetationMask = createRealmVegetationMask({
+    ...vegetationMaskBaseOptions,
+    routePaths: liveVegetationRoutePaths
+  });
+  options.canvas.dataset.realmVegetationRoutePathCount = String(
+    vegetationMask.telemetry.routePathCount
+  );
+  options.canvas.dataset.realmVegetationRouteSegmentCount = String(
+    vegetationMask.telemetry.routeSegmentCount
+  );
+  options.canvas.dataset.realmVegetationRouteRepackCount = '0';
+  let vegetationRouteRepackCount = 0;
   // Decorative ecology is camera-local. This second mask is rebuilt only when
   // that bounded window repacks, so active trunks can clear grass without
   // rebuilding the Realm or weakening canonical Water/route exclusions.
@@ -1383,14 +1497,9 @@ function initializeRealmScene(
     terrainData.bounds,
     HEX_SIZE
   );
-  const terrainMaterial = new THREE.MeshStandardMaterial({
-    vertexColors: true,
-    roughness: 0.96,
-    metalness: 0,
-    dithering: true
-  });
-  cleanup.add(() => terrainMaterial.dispose());
-  const terrain = new THREE.Mesh(terrainGeometry, terrainMaterial);
+  const terrainMaterialLayer = createRealmTerrainMaterial();
+  cleanup.add(() => terrainMaterialLayer.dispose());
+  const terrain = new THREE.Mesh(terrainGeometry, terrainMaterialLayer.material);
   terrain.name = 'hegemony-lowlands-surface';
   terrain.receiveShadow = renderPlan.dynamicShadows;
   scene.add(terrain);
@@ -1469,14 +1578,38 @@ function initializeRealmScene(
     options.canvas.dataset.forestDecorativeCacheEntries = String(
       current?.cacheEntries ?? 0
     );
+    options.canvas.dataset.forestDecorativeCacheLimit = String(
+      current?.cacheLimit ?? 0
+    );
     options.canvas.dataset.forestDecorativeCacheHighWaterMark = String(
       current?.cacheHighWaterMark ?? 0
+    );
+    options.canvas.dataset.forestDecorativeRepackCount = String(
+      current?.repackCount ?? 0
     );
     options.canvas.dataset.forestDecorativeModelReady = String(
       current?.modelReady ?? false
     );
     options.canvas.dataset.forestDecorativeUsingFallback = String(
       current?.usingFallback ?? false
+    );
+    options.canvas.dataset.forestDecorativeFallbackType =
+      current?.fallbackType ?? 'none';
+    options.canvas.dataset.forestDecorativeContactShadowCount = String(
+      current?.contactShadowCount ?? 0
+    );
+    options.canvas.dataset.forestDecorativeGroundingMode =
+      current?.groundingMode ?? 'none';
+    options.canvas.dataset.forestDecorativeCanopyMotionState =
+      current?.canopyMotionState ?? 'static';
+    options.canvas.dataset.forestDecorativeStructureCellCounts = JSON.stringify(
+      current?.structureCellCounts ?? EMPTY_FOREST_STRUCTURE_COUNTS
+    );
+    options.canvas.dataset.forestDecorativeSilhouetteCoverageRatio = String(
+      current?.silhouetteCoverageRatio ?? 0
+    );
+    options.canvas.dataset.forestDecorativeCanonicalTriangleCount = String(
+      current?.canonicalTriangleCount ?? 0
     );
     options.canvas.dataset.forestDecorativeOverviewHidden = String(
       current?.overviewHidden ?? true
@@ -1532,7 +1665,7 @@ function initializeRealmScene(
         terrainPlacements,
         quality: runtimeQuality,
         baseUrl: options.baseUrl,
-        isWorldExcluded: vegetationMask.isTreeExcluded,
+        isWorldExcluded: (world) => vegetationMask.isTreeExcluded(world),
         isCoordPassable: options.isCoordPassable,
         onActivePointsChange: (points) => {
           activeForestGrassMask = createRealmVegetationMask({
@@ -1625,6 +1758,9 @@ function initializeRealmScene(
     drawCalls: 0,
     variantCounts: Object.freeze([]),
     cacheEntries: 0,
+    cacheLimit: renderPlan.grass.cacheLimit,
+    cacheHighWaterMark: 0,
+    repackCount: 0,
     animated: false,
     targetAnimationCadence: renderPlan.grass.animationFrameCap,
     averageRetainedPatchesPerActiveCell: 0,
@@ -1632,11 +1768,15 @@ function initializeRealmScene(
     averageBladeHeight: 0,
     paletteLuminanceMin: 0,
     paletteLuminanceMax: 0,
+    paletteDisplaySrgbSaturationMin: 0,
+    paletteDisplaySrgbSaturationMax: 0,
     paletteGreenMin: 0,
     paletteGreenMax: 0,
     alphaHashActive: true,
     alphaToCoverageActive: grassAlphaToCoverage,
     shaderFallbackActive: false,
+    shaderFallbackCount: 0,
+    shaderFallbackReason: null,
     edgeFadeCount: 0,
     candidateCellsByTerrain: Object.freeze({
       meadow: 0, lowland: 0, forest: 0, heath: 0, ridge: 0, lake: 0,
@@ -1660,9 +1800,14 @@ function initializeRealmScene(
     overviewHidden: true
   });
   const terrainPresentationTelemetry = () => {
+    terrainTelemetryAggregationCount += 1;
+    options.canvas.dataset.realmTerrainTelemetryAggregationCount = String(
+      terrainTelemetryAggregationCount
+    );
     const grass = grassLayer?.getTelemetry() ?? emptyGrassTelemetry;
     const currentForestTelemetry = forestLayer?.getPresentationTelemetry();
     const currentDecorativeForestTelemetry = decorativeForestLayer?.getTelemetry();
+    const terrainMaterialTelemetry = terrainMaterialLayer.getTelemetry();
     const semanticFeatureCounts = Object.freeze({
       ...semanticFeatures.counts,
       'forest-tree': semanticFeatures.counts['forest-tree']
@@ -1677,6 +1822,17 @@ function initializeRealmScene(
       highDetailTerrainCellCount: terrainData.highDetailCellCount,
       coarseTerrainCellCount: terrainData.coarseCellCount,
       terrainTransitionEdgeCount: terrainData.transitionEdgeCount,
+      terrainSlopeCueMin: terrainData.materialCueMetrics.slopeMin,
+      terrainSlopeCueMax: terrainData.materialCueMetrics.slopeMax,
+      terrainConcavityCueMin: terrainData.materialCueMetrics.concavityMin,
+      terrainConcavityCueMax: terrainData.materialCueMetrics.concavityMax,
+      terrainVegetationCueMin: terrainData.materialCueMetrics.vegetationMin,
+      terrainVegetationCueMax: terrainData.materialCueMetrics.vegetationMax,
+      terrainWetnessCueMin: terrainData.materialCueMetrics.wetnessMin,
+      terrainWetnessCueMax: terrainData.materialCueMetrics.wetnessMax,
+      terrainShaderEnhanced: terrainMaterialTelemetry.shaderEnhanced,
+      terrainShaderFallbackActive: terrainMaterialTelemetry.shaderFallbackActive,
+      terrainShaderCompileAttemptCount: terrainMaterialTelemetry.compileAttemptCount,
       semanticCellCount: terrainSemantics.terrainKindsByKey.size,
       semanticKindCount: Object.values(terrainSemantics.terrainKindCounts)
         .filter((count) => count > 0).length,
@@ -1698,6 +1854,22 @@ function initializeRealmScene(
       forestSharedTreeCount: sharedForestLayout.source === 'shared'
         ? forestBiomeData.points.length
         : 0,
+      forestCanonicalTriangleCount:
+        currentForestTelemetry?.canonicalTriangleCount ?? 0,
+      forestVisibleTriangleCount:
+        currentForestTelemetry?.triangleCount ?? 0,
+      forestFallbackType:
+        currentForestTelemetry?.fallbackType ?? 'none',
+      forestContactShadowCount:
+        currentForestTelemetry?.contactShadowCount ?? 0,
+      forestGroundingMode:
+        currentForestTelemetry?.groundingMode ?? 'none',
+      forestCanopyMotionState:
+        currentForestTelemetry?.canopyMotionState ?? 'static',
+      forestStructureCellCounts:
+        currentForestTelemetry?.structureCellCounts ?? EMPTY_FOREST_STRUCTURE_COUNTS,
+      forestSilhouetteCoverageRatio:
+        currentForestTelemetry?.silhouetteCoverageRatio ?? 0,
       forestDecorativeTreeCount:
         currentDecorativeForestTelemetry?.activeInstanceCount ?? 0,
       forestDecorativeTriangleCount:
@@ -1706,12 +1878,31 @@ function initializeRealmScene(
         currentDecorativeForestTelemetry?.drawCalls ?? 0,
       forestDecorativeCacheEntries:
         currentDecorativeForestTelemetry?.cacheEntries ?? 0,
+      forestDecorativeCacheLimit:
+        currentDecorativeForestTelemetry?.cacheLimit ?? 0,
       forestDecorativeCacheHighWaterMark:
         currentDecorativeForestTelemetry?.cacheHighWaterMark ?? 0,
+      forestDecorativeRepackCount:
+        currentDecorativeForestTelemetry?.repackCount ?? 0,
       forestDecorativeModelReady:
         currentDecorativeForestTelemetry?.modelReady ?? false,
       forestDecorativeUsingFallback:
         currentDecorativeForestTelemetry?.usingFallback ?? false,
+      forestDecorativeFallbackType:
+        currentDecorativeForestTelemetry?.fallbackType ?? 'none',
+      forestDecorativeContactShadowCount:
+        currentDecorativeForestTelemetry?.contactShadowCount ?? 0,
+      forestDecorativeGroundingMode:
+        currentDecorativeForestTelemetry?.groundingMode ?? 'none',
+      forestDecorativeCanopyMotionState:
+        currentDecorativeForestTelemetry?.canopyMotionState ?? 'static',
+      forestDecorativeStructureCellCounts:
+        currentDecorativeForestTelemetry?.structureCellCounts
+          ?? EMPTY_FOREST_STRUCTURE_COUNTS,
+      forestDecorativeSilhouetteCoverageRatio:
+        currentDecorativeForestTelemetry?.silhouetteCoverageRatio ?? 0,
+      forestDecorativeCanonicalTriangleCount:
+        currentDecorativeForestTelemetry?.canonicalTriangleCount ?? 0,
       forestDecorativeOverviewHidden:
         currentDecorativeForestTelemetry?.overviewHidden ?? true,
       grassCandidateCellCount: grass.candidateCellCount,
@@ -1720,6 +1911,9 @@ function initializeRealmScene(
       grassTriangleCount: grass.triangleCount,
       grassDrawCalls: grass.drawCalls,
       grassCacheEntries: grass.cacheEntries,
+      grassCacheLimit: grass.cacheLimit ?? renderPlan.grass.cacheLimit,
+      grassCacheHighWaterMark: grass.cacheHighWaterMark ?? 0,
+      grassRepackCount: grass.repackCount ?? 0,
       grassAnimated: grass.animated,
       grassTargetAnimationCadence: grass.targetAnimationCadence,
       grassCandidateCellsByTerrain: grass.candidateCellsByTerrain,
@@ -1728,37 +1922,69 @@ function initializeRealmScene(
       grassAverageRetainedPatchesByTerrain: grass.averageRetainedPatchesByTerrain,
       grassPaletteLuminanceMin: grass.paletteLuminanceMin,
       grassPaletteLuminanceMax: grass.paletteLuminanceMax,
+      grassPaletteDisplaySrgbSaturationMin:
+        grass.paletteDisplaySrgbSaturationMin ?? 0,
+      grassPaletteDisplaySrgbSaturationMax:
+        grass.paletteDisplaySrgbSaturationMax ?? 0,
       grassPaletteGreenMin: grass.paletteGreenMin,
       grassPaletteGreenMax: grass.paletteGreenMax,
+      grassShaderFallbackActive: grass.shaderFallbackActive,
+      grassShaderFallbackCount: grass.shaderFallbackCount ?? 0,
+      grassShaderFallbackReason: grass.shaderFallbackReason ?? null,
       grassCompletelyBareActiveCells: grass.completelyBareActiveCells,
       grassRejectedByStructureClearance: grass.rejectedByStructureClearance,
       grassRejectedBySlope: grass.rejectedBySlope,
       grassOverviewHidden: grass.overviewHidden
     } satisfies RealmTerrainPresentationTelemetry);
   };
+  let terrainTelemetryAggregationCount = 0;
   let lastTerrainTelemetrySignature = '';
+  let lastEmittedTerrainMaterialTelemetryRevision = -1;
   emitTerrainPresentationTelemetry = () => {
     const telemetry = terrainPresentationTelemetry();
     const signature = [
       telemetry.semanticFeatureCount,
+      telemetry.terrainShaderEnhanced,
+      telemetry.terrainShaderFallbackActive,
+      telemetry.terrainShaderCompileAttemptCount,
       telemetry.semanticFeatureDrawCalls,
       Object.values(telemetry.semanticFeatureCounts).join(','),
       telemetry.totalDetailInstanceCount,
       telemetry.totalDetailDrawCalls,
       telemetry.forestPlacementSource,
       telemetry.forestSharedTreeCount,
+      telemetry.forestCanonicalTriangleCount,
+      telemetry.forestVisibleTriangleCount,
+      telemetry.forestFallbackType,
+      telemetry.forestContactShadowCount,
+      telemetry.forestGroundingMode,
+      telemetry.forestCanopyMotionState,
+      Object.values(telemetry.forestStructureCellCounts).join(','),
+      telemetry.forestSilhouetteCoverageRatio,
       telemetry.forestDecorativeTreeCount,
       telemetry.forestDecorativeTriangleCount,
       telemetry.forestDecorativeDrawCalls,
       telemetry.forestDecorativeCacheEntries,
+      telemetry.forestDecorativeCacheLimit,
       telemetry.forestDecorativeCacheHighWaterMark,
+      telemetry.forestDecorativeRepackCount,
       telemetry.forestDecorativeModelReady,
       telemetry.forestDecorativeUsingFallback,
+      telemetry.forestDecorativeFallbackType,
+      telemetry.forestDecorativeContactShadowCount,
+      telemetry.forestDecorativeGroundingMode,
+      telemetry.forestDecorativeCanopyMotionState,
+      Object.values(telemetry.forestDecorativeStructureCellCounts).join(','),
+      telemetry.forestDecorativeSilhouetteCoverageRatio,
+      telemetry.forestDecorativeCanonicalTriangleCount,
       telemetry.forestDecorativeOverviewHidden,
       telemetry.grassActiveCellCount,
       telemetry.grassInstanceCount,
       telemetry.grassTriangleCount,
       telemetry.grassCacheEntries,
+      telemetry.grassCacheLimit,
+      telemetry.grassCacheHighWaterMark,
+      telemetry.grassRepackCount,
       telemetry.grassAnimated,
       Object.values(telemetry.grassCandidateCellsByTerrain).join(','),
       Object.values(telemetry.grassActiveCellsByTerrain).join(','),
@@ -1766,8 +1992,13 @@ function initializeRealmScene(
       Object.values(telemetry.grassAverageRetainedPatchesByTerrain).join(','),
       telemetry.grassPaletteLuminanceMin,
       telemetry.grassPaletteLuminanceMax,
+      telemetry.grassPaletteDisplaySrgbSaturationMin,
+      telemetry.grassPaletteDisplaySrgbSaturationMax,
       telemetry.grassPaletteGreenMin,
       telemetry.grassPaletteGreenMax,
+      telemetry.grassShaderFallbackActive,
+      telemetry.grassShaderFallbackCount,
+      telemetry.grassShaderFallbackReason,
       telemetry.grassCompletelyBareActiveCells,
       telemetry.grassRejectedByStructureClearance,
       telemetry.grassRejectedBySlope,
@@ -1775,6 +2006,8 @@ function initializeRealmScene(
     ].join(':');
     if (signature === lastTerrainTelemetrySignature) return;
     lastTerrainTelemetrySignature = signature;
+    lastEmittedTerrainMaterialTelemetryRevision =
+      terrainMaterialLayer.getTelemetryRevision();
     options.onTerrainPresentationTelemetry?.(telemetry);
   };
   emitTerrainPresentationTelemetry();
@@ -2399,6 +2632,13 @@ function initializeRealmScene(
         return;
       }
     }
+    // Shader compilation happens inside renderer.render. Publish its result
+    // once per material contract transition, without rebuilding the aggregate
+    // on every ambient animation frame.
+    if (
+      terrainMaterialLayer.getTelemetryRevision()
+      !== lastEmittedTerrainMaterialTelemetryRevision
+    ) emitTerrainPresentationTelemetry();
     options.canvas.dataset.realmLastSuccessfulRenderedGeneration = String(rendererGeneration);
     projectCastleLabels();
     projectResourceMarkers();
@@ -3664,6 +3904,32 @@ function initializeRealmScene(
         workerLayer.reconcile(nextWorkers);
         workerLayerReconciliationCount += 1;
         routeLayerReconciliationCount += 1;
+      }
+      const nextVegetationRoutePaths = realmVegetationRoutePathsForWorkers(
+        nextWorkers
+      );
+      const nextVegetationRouteSignature = realmVegetationRoutePathSignature(
+        nextVegetationRoutePaths
+      );
+      if (nextVegetationRouteSignature !== liveVegetationRouteSignature) {
+        liveVegetationRoutePaths = nextVegetationRoutePaths;
+        liveVegetationRouteSignature = nextVegetationRouteSignature;
+        vegetationMask = createRealmVegetationMask({
+          ...vegetationMaskBaseOptions,
+          routePaths: liveVegetationRoutePaths
+        });
+        vegetationRouteRepackCount += 1;
+        options.canvas.dataset.realmVegetationRoutePathCount = String(
+          vegetationMask.telemetry.routePathCount
+        );
+        options.canvas.dataset.realmVegetationRouteSegmentCount = String(
+          vegetationMask.telemetry.routeSegmentCount
+        );
+        options.canvas.dataset.realmVegetationRouteRepackCount = String(
+          vegetationRouteRepackCount
+        );
+        decorativeForestLayer?.invalidateExclusions();
+        grassLayer?.invalidateExclusions();
       }
       options.canvas.dataset.realmWorkerLayerReconciliationCount = String(
         workerLayerReconciliationCount
