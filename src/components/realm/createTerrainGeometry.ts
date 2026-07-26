@@ -12,7 +12,7 @@ import {
   sampleLowlandsColor,
   type TerrainRgb
 } from '../../game/map/terrainColor';
-import { terrainHeightAtWorld, terrainHeightForCell } from '../../game/map/terrainHeight';
+import { terrainHeightForCell } from '../../game/map/terrainHeight';
 import {
   EMPTY_TERRAIN_PLACEMENTS,
   type TerrainStructurePlacement
@@ -104,6 +104,14 @@ type ContinuousTerrainPresentation = Readonly<{
   vegetationDensity: number;
   wetness: number;
 }>;
+
+const EMPTY_CONTINUOUS_TERRAIN_PRESENTATION: ContinuousTerrainPresentation =
+  Object.freeze({
+    semanticStrength: 0,
+    forestCanopy: 0,
+    vegetationDensity: 0,
+    wetness: 0
+  });
 
 export function pointyHexCorners(coord: HexCoord, hexSize: number): HexWorldPosition[] {
   const center = axialToWorld(coord, hexSize);
@@ -238,12 +246,7 @@ export function sampleContinuousTerrainPresentation(
   >
 ): ContinuousTerrainPresentation {
   if (!options.terrainKindsByKey || options.terrainKindsByKey.size === 0) {
-    return Object.freeze({
-      semanticStrength: 0,
-      forestCanopy: 0,
-      vegetationDensity: 0,
-      wetness: 0
-    });
+    return EMPTY_CONTINUOUS_TERRAIN_PRESENTATION;
   }
   const nearest = worldToNearestAxial(world, hexSize);
   let totalWeight = 0;
@@ -280,12 +283,7 @@ export function sampleContinuousTerrainPresentation(
     kindWeights.set(kind, (kindWeights.get(kind) ?? 0) + weight);
   });
   if (totalWeight <= 0) {
-    return Object.freeze({
-      semanticStrength: 0,
-      forestCanopy: 0,
-      vegetationDensity: 0,
-      wetness: 0
-    });
+    return EMPTY_CONTINUOUS_TERRAIN_PRESENTATION;
   }
   const terrainKind = [...kindWeights].sort((left, right) => (
     right[1] - left[1] || left[0].localeCompare(right[0])
@@ -306,51 +304,85 @@ export function sampleContinuousTerrainPresentation(
   });
 }
 
-export function sampleTerrainMaterialCue(
-  map: RealmTerrainMap,
-  world: HexWorldPosition,
-  height: number,
-  hexSize: number,
-  placements: readonly TerrainStructurePlacement[],
-  presentation: ContinuousTerrainPresentation
+/**
+ * Derive shape cues from the exact indexed surface after tessellation.
+ * Sampling the full height authority four extra times per vertex made the
+ * radius-sixty envelope needlessly expensive on slower CI/mobile CPUs. The
+ * mesh already contains the authoritative final heights, so accumulated face
+ * normals and adjacent-height deltas are both faster and more truthful.
+ */
+export function applyTerrainMaterialShapeCues(
+  positions: readonly number[],
+  indices: readonly number[],
+  materialCues: number[],
+  metrics: {
+    slopeMin: number;
+    slopeMax: number;
+    concavityMin: number;
+    concavityMax: number;
+  }
 ) {
-  const offset = Math.max(0.045, hexSize * 0.09);
-  const xPositive = terrainHeightAtWorld(
-    map,
-    { x: world.x + offset, z: world.z },
-    hexSize,
-    placements
-  );
-  const xNegative = terrainHeightAtWorld(
-    map,
-    { x: world.x - offset, z: world.z },
-    hexSize,
-    placements
-  );
-  const zPositive = terrainHeightAtWorld(
-    map,
-    { x: world.x, z: world.z + offset },
-    hexSize,
-    placements
-  );
-  const zNegative = terrainHeightAtWorld(
-    map,
-    { x: world.x, z: world.z - offset },
-    hexSize,
-    placements
-  );
-  const slope = clamp(Math.hypot(
-    xPositive - xNegative,
-    zPositive - zNegative
-  ) / (offset * 2) * 2.8);
-  const neighbourAverage = (xPositive + xNegative + zPositive + zNegative) * 0.25;
-  const concavity = clamp((neighbourAverage - height) * 18, -1, 1);
-  return Object.freeze({
-    slope,
-    concavity,
-    vegetation: presentation.vegetationDensity,
-    wetness: presentation.wetness
-  });
+  const vertexCount = positions.length / 3;
+  const normalX = new Float64Array(vertexCount);
+  const normalY = new Float64Array(vertexCount);
+  const normalZ = new Float64Array(vertexCount);
+  const heightDelta = new Float64Array(vertexCount);
+  const neighbourCount = new Uint32Array(vertexCount);
+  const addNeighbour = (from: number, to: number) => {
+    heightDelta[from] += positions[to * 3 + 1]! - positions[from * 3 + 1]!;
+    neighbourCount[from] += 1;
+  };
+  for (let offset = 0; offset < indices.length; offset += 3) {
+    const first = indices[offset]!;
+    const second = indices[offset + 1]!;
+    const third = indices[offset + 2]!;
+    const firstOffset = first * 3;
+    const secondOffset = second * 3;
+    const thirdOffset = third * 3;
+    const firstSecondX = positions[secondOffset]! - positions[firstOffset]!;
+    const firstSecondY = positions[secondOffset + 1]! - positions[firstOffset + 1]!;
+    const firstSecondZ = positions[secondOffset + 2]! - positions[firstOffset + 2]!;
+    const firstThirdX = positions[thirdOffset]! - positions[firstOffset]!;
+    const firstThirdY = positions[thirdOffset + 1]! - positions[firstOffset + 1]!;
+    const firstThirdZ = positions[thirdOffset + 2]! - positions[firstOffset + 2]!;
+    const faceX = firstSecondY * firstThirdZ - firstSecondZ * firstThirdY;
+    const faceY = firstSecondZ * firstThirdX - firstSecondX * firstThirdZ;
+    const faceZ = firstSecondX * firstThirdY - firstSecondY * firstThirdX;
+    normalX[first] += faceX;
+    normalY[first] += faceY;
+    normalZ[first] += faceZ;
+    normalX[second] += faceX;
+    normalY[second] += faceY;
+    normalZ[second] += faceZ;
+    normalX[third] += faceX;
+    normalY[third] += faceY;
+    normalZ[third] += faceZ;
+    addNeighbour(first, second);
+    addNeighbour(first, third);
+    addNeighbour(second, first);
+    addNeighbour(second, third);
+    addNeighbour(third, first);
+    addNeighbour(third, second);
+  }
+  for (let index = 0; index < vertexCount; index += 1) {
+    const magnitude = Math.hypot(
+      normalX[index]!,
+      normalY[index]!,
+      normalZ[index]!
+    );
+    const slope = magnitude > 0.000_001
+      ? clamp(Math.hypot(normalX[index]!, normalZ[index]!) / magnitude * 2.8)
+      : 0;
+    const concavity = neighbourCount[index]! > 0
+      ? clamp(heightDelta[index]! / neighbourCount[index]! * 18, -1, 1)
+      : 0;
+    materialCues[index * 4] = slope;
+    materialCues[index * 4 + 1] = concavity;
+    metrics.slopeMin = Math.min(metrics.slopeMin, slope);
+    metrics.slopeMax = Math.max(metrics.slopeMax, slope);
+    metrics.concavityMin = Math.min(metrics.concavityMin, concavity);
+    metrics.concavityMax = Math.max(metrics.concavityMax, concavity);
+  }
 }
 
 /** Neighbor across the outer edge of each pointy-hex radial wedge. */
@@ -456,44 +488,31 @@ export function createTerrainGeometryData(
       visualizeLegacyLakeAsLand: options.visualizeLegacyLakesAsLand,
       placements
     });
-    const cue = sampleTerrainMaterialCue(
-      map,
-      world,
-      height,
-      hexSize,
-      placements,
-      presentation
-    );
     const index = positions.length / 3;
     vertices.set(key, index);
     positions.push(world.x, height, world.z);
     colors.push(color.r, color.g, color.b);
-    materialCues.push(cue.slope, cue.concavity, cue.vegetation, cue.wetness);
-    materialCueMetrics.slopeMin = Math.min(materialCueMetrics.slopeMin, cue.slope);
-    materialCueMetrics.slopeMax = Math.max(materialCueMetrics.slopeMax, cue.slope);
-    materialCueMetrics.concavityMin = Math.min(
-      materialCueMetrics.concavityMin,
-      cue.concavity
-    );
-    materialCueMetrics.concavityMax = Math.max(
-      materialCueMetrics.concavityMax,
-      cue.concavity
+    materialCues.push(
+      0,
+      0,
+      presentation.vegetationDensity,
+      presentation.wetness
     );
     materialCueMetrics.vegetationMin = Math.min(
       materialCueMetrics.vegetationMin,
-      cue.vegetation
+      presentation.vegetationDensity
     );
     materialCueMetrics.vegetationMax = Math.max(
       materialCueMetrics.vegetationMax,
-      cue.vegetation
+      presentation.vegetationDensity
     );
     materialCueMetrics.wetnessMin = Math.min(
       materialCueMetrics.wetnessMin,
-      cue.wetness
+      presentation.wetness
     );
     materialCueMetrics.wetnessMax = Math.max(
       materialCueMetrics.wetnessMax,
-      cue.wetness
+      presentation.wetness
     );
     bounds.minX = Math.min(bounds.minX, world.x);
     bounds.maxX = Math.max(bounds.maxX, world.x);
@@ -618,6 +637,12 @@ export function createTerrainGeometryData(
       degenerateTriangleCount += 1;
     }
   }
+  applyTerrainMaterialShapeCues(
+    positions,
+    indices,
+    materialCues,
+    materialCueMetrics
+  );
 
   const vertexCount = positions.length / 3;
   const typedIndices = vertexCount <= 0xffff ? new Uint16Array(indices) : new Uint32Array(indices);

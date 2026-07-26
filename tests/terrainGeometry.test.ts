@@ -174,9 +174,9 @@ describe('combined lowlands terrain geometry', () => {
   it('matches the pinned former radius-twenty-two topology at every runtime profile', () => {
     const map = generateRealmTerrainMap(HEGEMONY_GENESIS_001, 22);
     const expectations = [
-      [4, 145_824, 73_453, '60630f04f8455ecdc57fb397932a124efc1f18dc698787205386d5306ef50bea'],
-      [3, 82_026, 41_419, '167728057d5995febca56698ffa9ed4b47d0a6b4ec4056bd7f39b7a5cf536eac'],
-      [2, 36_456, 18_499, '2cbf81cfd4278028513e94d23cf616584faf3a53ac868e0e46cf49085f137052']
+      [4, 145_824, 73_453, '9442fb9be122e9bef2f17804bab8d06a36728e0dcd3278d05dd09af18de14681'],
+      [3, 82_026, 41_419, '47c93d1820c655215b429047dc5202328337b88526cc810969b9db31d4f77df1'],
+      [2, 36_456, 18_499, '5c9333cb001c7d806c694903f79eef5c96cbb3fc61a77dc65261462ddb67c23c']
     ] as const;
 
     expectations.forEach(([subdivisions, triangleCount, vertexCount, digest]) => {
