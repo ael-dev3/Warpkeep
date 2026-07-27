@@ -45,6 +45,7 @@ const TITLE_GATEWAY_CASES = Object.freeze([
     input: 'keyboard',
     mobile: false,
     reducedMotion: false,
+    deviceScaleFactor: 1,
     viewport: VIEWPORT,
   }),
   Object.freeze({
@@ -52,6 +53,7 @@ const TITLE_GATEWAY_CASES = Object.freeze([
     input: 'pointer',
     mobile: false,
     reducedMotion: false,
+    deviceScaleFactor: 1,
     viewport: VIEWPORT,
   }),
   Object.freeze({
@@ -59,6 +61,7 @@ const TITLE_GATEWAY_CASES = Object.freeze([
     input: 'touch',
     mobile: true,
     reducedMotion: false,
+    deviceScaleFactor: 3,
     viewport: Object.freeze({ width: 390, height: 844 }),
   }),
   Object.freeze({
@@ -66,6 +69,7 @@ const TITLE_GATEWAY_CASES = Object.freeze([
     input: 'pointer',
     mobile: false,
     reducedMotion: false,
+    deviceScaleFactor: 1.5,
     viewport: Object.freeze({ width: 1_024, height: 768 }),
   }),
   Object.freeze({
@@ -73,13 +77,42 @@ const TITLE_GATEWAY_CASES = Object.freeze([
     input: 'touch',
     mobile: true,
     reducedMotion: false,
+    deviceScaleFactor: 2,
     viewport: Object.freeze({ width: 667, height: 375 }),
+  }),
+  Object.freeze({
+    id: 'desktop-offset-scaled-keyboard',
+    input: 'keyboard',
+    mobile: false,
+    reducedMotion: false,
+    deviceScaleFactor: 1.25,
+    titleTransform: Object.freeze({
+      translateX: 96,
+      translateY: 54,
+      scale: 0.82,
+    }),
+    viewport: VIEWPORT,
+  }),
+  Object.freeze({
+    id: 'desktop-offset-scaled-pointer',
+    input: 'pointer',
+    mobile: false,
+    reducedMotion: false,
+    activationFraction: Object.freeze({ x: 0.72, y: 0.34 }),
+    deviceScaleFactor: 2,
+    titleTransform: Object.freeze({
+      translateX: 72,
+      translateY: 42,
+      scale: 0.86,
+    }),
+    viewport: VIEWPORT,
   }),
   Object.freeze({
     id: 'desktop-reduced-keyboard',
     input: 'keyboard',
     mobile: false,
     reducedMotion: true,
+    deviceScaleFactor: 1,
     viewport: VIEWPORT,
   }),
   Object.freeze({
@@ -87,6 +120,7 @@ const TITLE_GATEWAY_CASES = Object.freeze([
     input: 'pointer',
     mobile: false,
     reducedMotion: false,
+    deviceScaleFactor: 1,
     resizeViewport: Object.freeze({ width: 1_024, height: 768 }),
     viewport: VIEWPORT,
   }),
@@ -219,6 +253,8 @@ function validateTitleGatewayDepartureFocusObservation(value, probeCase) {
     || value.frames.length > TITLE_GATEWAY_FRAME_LIMIT
     || value.initialHistoryLength + 1 !== value.finalHistoryLength
     || value.finalHash !== '#menu'
+    || !Number.isFinite(value.activationTarget?.x)
+    || !Number.isFinite(value.activationTarget?.y)
     || value.finalPhase !== 'menu'
     || value.finalSequence !== value.initialSequence + 1
     || value.finalMenuInteractive !== true
@@ -233,6 +269,8 @@ function validateTitleGatewayDepartureFocusObservation(value, probeCase) {
         && value.frames.length <= TITLE_GATEWAY_FRAME_LIMIT,
       value?.initialHistoryLength + 1 === value?.finalHistoryLength,
       value?.finalHash === '#menu',
+      Number.isFinite(value?.activationTarget?.x)
+        && Number.isFinite(value?.activationTarget?.y),
       value?.finalPhase === 'menu',
       value?.finalSequence === value?.initialSequence + 1,
       value?.finalMenuInteractive === true,
@@ -253,6 +291,8 @@ function validateTitleGatewayDepartureFocusObservation(value, probeCase) {
       || !Number.isSafeInteger(frame.sequence)
       || !Number.isSafeInteger(frame.viewportWidth)
       || !Number.isSafeInteger(frame.viewportHeight)
+      || !Number.isFinite(frame.devicePixelRatio)
+      || frame.devicePixelRatio <= 0
     ) {
       throw new LocalFullstackBrowserError(
         `Title gateway departure focus failed at ${probeCase.id}: frame-shape.`
@@ -299,12 +339,33 @@ function validateTitleGatewayDepartureFocusObservation(value, probeCase) {
       frame.sequence !== value.initialSequence + 1
       || frame.overlayCount !== 1
       || frame.overlayMotion !== expectedMotion
+      || !Number.isFinite(frame.overlayOriginX)
+      || !Number.isFinite(frame.overlayOriginY)
     ))
     || menuFrames.some((frame) => frame.sequence !== value.initialSequence + 1)
+    || value.frames.some((frame) => (
+      Math.abs(frame.devicePixelRatio - probeCase.deviceScaleFactor) > 0.01
+    ))
     || value.frames.some((frame) => frame.overflow)
   ) {
     throw new LocalFullstackBrowserError(
       `Title gateway departure focus failed at ${probeCase.id}: frame-lifecycle.`
+    );
+  }
+
+  const originTolerance = probeCase.mobile ? 3 : 2;
+  const frozenOrigin = departureFrames[0];
+  if (
+    !frozenOrigin
+    || Math.abs(frozenOrigin.overlayOriginX - value.activationTarget.x) > originTolerance
+    || Math.abs(frozenOrigin.overlayOriginY - value.activationTarget.y) > originTolerance
+    || departureFrames.some((frame) => (
+      Math.abs(frame.overlayOriginX - frozenOrigin.overlayOriginX) > 0.01
+      || Math.abs(frame.overlayOriginY - frozenOrigin.overlayOriginY) > 0.01
+    ))
+  ) {
+    throw new LocalFullstackBrowserError(
+      `Title gateway departure focus failed at ${probeCase.id}: frozen-origin.`
     );
   }
 
@@ -406,7 +467,7 @@ async function setTitleGatewayCaseEnvironment(session, probeCase) {
     height: probeCase.viewport.height,
     screenWidth: probeCase.viewport.width,
     screenHeight: probeCase.viewport.height,
-    deviceScaleFactor: 1,
+    deviceScaleFactor: probeCase.deviceScaleFactor,
     mobile: probeCase.mobile,
   });
   await session.command('Emulation.setTouchEmulationEnabled', {
@@ -422,8 +483,12 @@ async function setTitleGatewayCaseEnvironment(session, probeCase) {
 }
 
 async function prepareTitleGatewayDepartureFocusCase(session, probeCase) {
+  const titleTransform = JSON.stringify(probeCase.titleTransform ?? null);
+  const activationFraction = probeCase.activationFraction
+    ?? Object.freeze({ x: 0.5, y: 0.5 });
   const result = await session.command('Runtime.evaluate', {
     expression: `(async () => {
+      const titleTransform = ${titleTransform};
       const deadline = performance.now() + ${TITLE_GATEWAY_CASE_TIMEOUT_MILLISECONDS};
       const waitFor = async (predicate) => {
         while (performance.now() <= deadline) {
@@ -457,9 +522,15 @@ async function prepareTitleGatewayDepartureFocusCase(session, probeCase) {
           || button.disabled
           || button.tabIndex !== 0
         ) return undefined;
+        if (titleTransform) {
+          title.style.transformOrigin = '0 0';
+          title.style.transform =
+            'translate(' + titleTransform.translateX + 'px, '
+            + titleTransform.translateY + 'px) scale(' + titleTransform.scale + ')';
+        }
         const bounds = button.getBoundingClientRect();
-        const x = bounds.left + bounds.width * 0.5;
-        const y = bounds.top + bounds.height * 0.5;
+        const x = bounds.left + bounds.width * ${activationFraction.x};
+        const y = bounds.top + bounds.height * ${activationFraction.y};
         const hit = document.elementFromPoint(x, y);
         return (
           bounds.width > 0
@@ -520,6 +591,9 @@ async function prepareTitleGatewayDepartureFocusCase(session, probeCase) {
           '.warpkeep-experience__title-departure-focus'
         );
         const overlay = document.querySelector('.warp-transition-overlay');
+        const overlayStyle = overlay instanceof HTMLElement
+          ? getComputedStyle(overlay)
+          : undefined;
         const anchorBounds = anchor instanceof HTMLElement
           ? anchor.getBoundingClientRect()
           : undefined;
@@ -547,6 +621,7 @@ async function prepareTitleGatewayDepartureFocusCase(session, probeCase) {
           ),
           viewportWidth,
           viewportHeight,
+          devicePixelRatio,
           overflow:
             documentWidth > viewportWidth + 1
             || documentHeight > viewportHeight + 1,
@@ -594,7 +669,13 @@ async function prepareTitleGatewayDepartureFocusCase(session, probeCase) {
           overlayCount: document.querySelectorAll(
             '.warp-transition-overlay'
           ).length,
-          overlayMotion: overlay?.getAttribute('data-motion') ?? ''
+          overlayMotion: overlay?.getAttribute('data-motion') ?? '',
+          overlayOriginX: Number.parseFloat(
+            overlayStyle?.getPropertyValue('--warp-origin-x') ?? ''
+          ),
+          overlayOriginY: Number.parseFloat(
+            overlayStyle?.getPropertyValue('--warp-origin-y') ?? ''
+          )
         });
         if (phase === 'menu') state.menuFrames += 1;
         if (
@@ -611,8 +692,8 @@ async function prepareTitleGatewayDepartureFocusCase(session, probeCase) {
         () => requestAnimationFrame(resolve)
       ));
       const bounds = target.button.getBoundingClientRect();
-      const x = bounds.left + bounds.width * 0.5;
-      const y = bounds.top + bounds.height * 0.5;
+      const x = bounds.left + bounds.width * ${activationFraction.x};
+      const y = bounds.top + bounds.height * ${activationFraction.y};
       state.target = { x, y };
       return {
         stage: 'ready',
@@ -811,6 +892,7 @@ async function collectTitleGatewayDepartureFocusCase(session, probeCase) {
         initialSequence: state.initialSequence,
         finalHistoryLength: history.length,
         finalHash: location.hash,
+        activationTarget: state.target,
         finalPhase: experience?.getAttribute('data-phase') ?? '',
         finalSequence: Number(
           experience?.getAttribute('data-transition-sequence')
@@ -886,7 +968,7 @@ async function exerciseTitleGatewayDepartureFocus(
           height: probeCase.resizeViewport.height,
           screenWidth: probeCase.resizeViewport.width,
           screenHeight: probeCase.resizeViewport.height,
-          deviceScaleFactor: 1,
+          deviceScaleFactor: probeCase.deviceScaleFactor,
           mobile: probeCase.mobile,
         });
       }

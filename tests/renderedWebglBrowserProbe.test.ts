@@ -14,6 +14,7 @@ import {
   applyRenderedWebglLabelKeyboardInteraction,
   applyRenderedWebglOccupancyStressInteraction,
   applyRenderedWebglResourceOccupantInteraction,
+  applyRenderedWebglWaterOverviewInteraction,
   attestHeadlessChromeCodeSignature,
   closeRenderedWebglLoopbackServer,
   cleanupRenderedWebglProbeResources,
@@ -31,6 +32,7 @@ import {
   parseRenderedWebglOccupancyStressEvidence,
   parseRenderedWebglQualityMetrics,
   parseRenderedWebglResourceOccupantEvidence,
+  parseRenderedWebglWaterOverviewEvidence,
   RENDERED_WEBGL_QA_CHROME,
   RENDERED_WEBGL_QA_CHROME_APP,
   RENDERED_WEBGL_QA_CASE_COUNT,
@@ -872,6 +874,83 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(source).toContain('CONTROLLED_RENDERER_MAXIMUM_STALE_DELETE_WARNINGS');
     expect(source).toContain('state.controlledRendererWarningThrottleSeen');
     expect(source).toContain('one active generic ');
+  });
+
+  it('locks the reported upper-right Water overview to the reviewed camera and scene', async () => {
+    const overviewEvidence = {
+      cameraMode: 'realm',
+      cameraStateAttested: true,
+      cameraSynchronized: true,
+      cameraZoom: '0.280000',
+      presentationBand: 'overview',
+      riverBodyCount: 12,
+      riverChannelBodyCount: 12,
+      riverChannelSegmentCount: 1_200,
+      riverFallbackBodyCount: 0,
+      riverFallbackCellCount: 0,
+      riverMouthConnectionCount: 12,
+      routeDrawCalls: 0,
+      routeSegments: 0,
+      routeTriangles: 0,
+      routeVisible: 0,
+      waterDrawCalls: 3,
+      waterPresentation: 'ready',
+      waterShaderFallbackCount: 0,
+      waterTriangles: 25_998
+    } as const;
+    expect(parseRenderedWebglWaterOverviewEvidence(overviewEvidence)).toEqual(
+      overviewEvidence
+    );
+    for (const invalidEvidence of [
+      { ...overviewEvidence, routeVisible: 1 },
+      { ...overviewEvidence, riverFallbackBodyCount: 1 },
+      { ...overviewEvidence, cameraStateAttested: false },
+      { ...overviewEvidence, privateRoutePoint: 'must-not-cross-the-boundary' }
+    ]) {
+      expect(() => parseRenderedWebglWaterOverviewEvidence(invalidEvidence))
+        .toThrow(/Water overview evidence/i);
+    }
+
+    const runtimeResults = [
+      { type: 'object', value: { x: 720, y: 450 } },
+      { type: 'object', value: { band: 'overview' } },
+      ...Array.from({ length: 4 }, () => ({ type: 'boolean', value: true })),
+      { type: 'object', value: overviewEvidence }
+    ];
+    const command = vi.fn(async (
+      method: string,
+      _parameters?: Readonly<Record<string, unknown>>
+    ) => (
+      method === 'Runtime.evaluate'
+        ? { result: runtimeResults.shift() }
+        : {}
+    ));
+    await expect(applyRenderedWebglWaterOverviewInteraction({ command }))
+      .resolves.toEqual(overviewEvidence);
+    expect(runtimeResults).toHaveLength(0);
+    const pointerCommands = command.mock.calls.filter(([method]) => (
+      method === 'Input.dispatchMouseEvent'
+    ));
+    expect(pointerCommands.filter(([, parameters]) => (
+      parameters?.type === 'mousePressed'
+    ))).toHaveLength(4);
+    expect(pointerCommands.filter(([, parameters]) => (
+      parameters?.type === 'mouseReleased'
+      && parameters.x === 220
+      && parameters.y === 180
+    ))).toHaveLength(4);
+
+    const source = readFileSync(resolve(
+      process.cwd(),
+      'scripts/qa-observer/rendered-webgl-browser-probe.mjs'
+    ), 'utf8');
+    expect(source).toContain('desktop-balanced-worker-water-overview');
+    expect(source).toContain(
+      'await applyRenderedWebglWaterOverviewInteraction(session)'
+    );
+    expect(source).toMatch(
+      /applyRenderedWebglWaterOverviewInteraction\(session\)[\s\S]{0,160}captureRenderedCasePixels/
+    );
   });
 
   it('accepts only bounded stale Three.js deletion warnings during controlled recovery', () => {

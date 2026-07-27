@@ -7,10 +7,13 @@ import {
 } from 'react';
 import {
   BlackHoleGateway,
-  type BlackHoleGatewayHandle
+  type BlackHoleGatewayHandle,
+  type GatewayActivationInput,
+  type GatewayActivationRecord
 } from './BlackHoleGateway';
 import { titleSceneSpec } from './titleSceneSpec';
 import {
+  fallbackGatewayActivation,
   fallbackGatewayProjection,
   type WarpkeepTitleScreenHandle,
   type WarpkeepTitleScreenProps
@@ -72,7 +75,9 @@ export const WarpkeepTitleScreenFallback = forwardRef<
     }
   }, []);
 
-  const requestEnter = useCallback((input: 'keyboard' | 'pointer') => {
+  const requestEnter = useCallback((
+    activationOrInput: GatewayActivationRecord | GatewayActivationInput
+  ) => {
     if (entryRequestedRef.current || phase !== 'active') {
       return;
     }
@@ -88,11 +93,11 @@ export const WarpkeepTitleScreenFallback = forwardRef<
       }, titleSceneSpec.gateway.surgeDurationSeconds * 1_000);
     }
     callbacksRef.current.onMeaningfulInteraction?.();
-    const projection = gatewayRef.current?.getProjectedPosition() ?? fallbackGatewayProjection();
-    callbacksRef.current.onRequestEnterMenu?.(
-      projection.visible ? projection : fallbackGatewayProjection(),
-      input
-    );
+    const activation = typeof activationOrInput === 'string'
+      ? gatewayRef.current?.captureActivation(activationOrInput)
+        ?? fallbackGatewayActivation(activationOrInput)
+      : activationOrInput;
+    callbacksRef.current.onRequestEnterMenu?.(activation);
   }, [phase]);
 
   useImperativeHandle(forwardedRef, () => ({
@@ -100,6 +105,9 @@ export const WarpkeepTitleScreenFallback = forwardRef<
     focusGateway: () => gatewayRef.current?.focus(),
     getGatewayProjection: () => (
       gatewayRef.current?.getProjectedPosition() ?? fallbackGatewayProjection()
+    ),
+    getGatewayActivation: (input) => (
+      gatewayRef.current?.captureActivation(input) ?? fallbackGatewayActivation(input)
     )
   }), [requestEnter]);
 

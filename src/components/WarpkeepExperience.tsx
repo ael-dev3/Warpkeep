@@ -45,7 +45,11 @@ import {
   type WarpTransitionDirection,
   type WarpkeepStableExperiencePhase
 } from './transition/experienceTransition';
-import type { GatewayProjection } from './title/BlackHoleGateway';
+import {
+  currentGatewayViewport,
+  resolveGatewayActivationOrigin,
+  type GatewayActivationRecord
+} from './title/gatewayActivation';
 import {
   browserGraphicsCapabilities,
   readGraphicsPreference,
@@ -66,6 +70,7 @@ import {
 } from '../settings/networkPreloadPolicy';
 import { TitleGatewayHint } from './title/TitleGatewayHint';
 import {
+  fallbackGatewayActivation,
   fallbackGatewayProjection,
   type WarpkeepTitleScreenHandle
 } from './title/titleScreenTypes';
@@ -138,17 +143,8 @@ function isIgnoredShortcutTarget(target: EventTarget | null) {
   );
 }
 
-function safeGatewayOrigin(projection: GatewayProjection): WarpTransitionOrigin {
-  if (
-    projection.visible
-    && Number.isFinite(projection.x)
-    && Number.isFinite(projection.y)
-  ) {
-    return { x: projection.x, y: projection.y };
-  }
-
-  const fallback = fallbackGatewayProjection();
-  return { x: fallback.x, y: fallback.y };
+function safeGatewayOrigin(activation: GatewayActivationRecord): WarpTransitionOrigin {
+  return resolveGatewayActivationOrigin(activation, currentGatewayViewport());
 }
 
 function menuHistoryState() {
@@ -509,7 +505,7 @@ export function WarpkeepExperience() {
   }, []);
 
   const beginMenuTransition = useCallback((
-    projection: GatewayProjection,
+    activation: GatewayActivationRecord,
     input: 'keyboard' | 'pointer' | 'unknown',
     pushHistory: boolean
   ) => {
@@ -526,7 +522,7 @@ export function WarpkeepExperience() {
         : input;
     setInputModality(resolvedModality);
     setMenuPreloadReady(true);
-    setGatewayOrigin(safeGatewayOrigin(projection));
+    setGatewayOrigin(safeGatewayOrigin(activation));
     if (resolvedModality === 'keyboard') {
       const landmark = titleDepartureFocusRef.current;
       if (landmark) {
@@ -549,10 +545,9 @@ export function WarpkeepExperience() {
   }, [dismissTitleHint]);
 
   const handleTitleEntryRequest = useCallback((
-    projection: GatewayProjection,
-    input: 'keyboard' | 'pointer'
+    activation: GatewayActivationRecord
   ) => {
-    beginMenuTransition(projection, input, true);
+    beginMenuTransition(activation, activation.input, true);
   }, [beginMenuTransition]);
 
   const commitRealmEntry = useCallback((identity: VerifiedFarcasterIdentity) => {
@@ -712,9 +707,9 @@ export function WarpkeepExperience() {
     }
 
     const beginPreparedTransition = () => {
-      const projection = titleRef.current?.getGatewayProjection()
-        ?? fallbackGatewayProjection();
-      setGatewayOrigin(safeGatewayOrigin(projection));
+      const activation = titleRef.current?.getGatewayActivation('keyboard')
+        ?? fallbackGatewayActivation('keyboard');
+      setGatewayOrigin(safeGatewayOrigin(activation));
       setReturnPreparing(false);
       dispatch({ type: 'request-title' });
     };
@@ -882,11 +877,11 @@ export function WarpkeepExperience() {
       }
       if (hasMenuHash()) {
         if (phase === 'title') {
-          const projection = titleRef.current?.getGatewayProjection()
-            ?? fallbackGatewayProjection();
+          const activation = titleRef.current?.getGatewayActivation('keyboard')
+            ?? fallbackGatewayActivation('keyboard');
           titleRef.current?.requestEnter('keyboard');
           if (phaseRef.current === 'title' && !entryLockedRef.current) {
-            beginMenuTransition(projection, 'unknown', false);
+            beginMenuTransition(activation, 'unknown', false);
           }
         } else if (phase === 'realm') {
           setPresentedScreen('menu');
@@ -938,7 +933,7 @@ export function WarpkeepExperience() {
       if (titleRef.current) {
         titleRef.current.requestEnter('keyboard');
       } else {
-        beginMenuTransition(fallbackGatewayProjection(), 'unknown', false);
+        beginMenuTransition(fallbackGatewayActivation('keyboard'), 'unknown', false);
       }
     }
   }, [

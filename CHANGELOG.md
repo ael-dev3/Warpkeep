@@ -6,6 +6,22 @@ full engineering record.
 
 ## [Unreleased]
 
+## [0.3.21] — 2026-07-27
+
+- Kept all four public Workers and their journeys present while caller-private
+  control and accrual state synchronize independently.
+- Added one caller-bound, atomic Worker control projection while retaining the
+  earlier read procedures as a bounded compatibility path.
+- Kept Food, Wood, Stone, and Gold numeric using the last confirmed private
+  core balance whenever Worker-inclusive accrual is still synchronizing.
+- Restored individual recall and Recall All through the authenticated,
+  caller-bound server authority without inventing local Worker movement.
+- Anchored the title transition to the frozen pointer, touch, or measured
+  keyboard gateway position without drift through departure.
+- Removed patch notes from the operational Realm menu while keeping them in the
+  main menu, and added an overview regression that distinguishes canonical
+  Water from stretched route or shoreline artifacts.
+
 ## [0.3.20] — 2026-07-27
 
 - Kept the ready Realm present through ordinary worker actions, resource
@@ -219,7 +235,8 @@ full engineering record.
   Lowlands, a first keep, Farcaster sign-in, and an admission-gated shared-world
   foundation.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.20...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.21...HEAD
+[0.3.21]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.20...v0.3.21
 [0.3.20]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.19...v0.3.20
 [0.3.19]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.18...v0.3.19
 [0.3.18]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.17...v0.3.18

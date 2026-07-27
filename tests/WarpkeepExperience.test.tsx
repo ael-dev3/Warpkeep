@@ -62,11 +62,17 @@ function installBrowserStubs(reducedMotion = false) {
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
     this: HTMLElement
   ) {
-    if (this.classList.contains('warpkeep-title-screen')) {
+    if (
+      this.classList.contains('warpkeep-title-screen')
+      || this.classList.contains('warpkeep-gateway')
+    ) {
       return rectangle(0, 0, 1280, 720);
     }
     if (this.classList.contains('warpkeep-fallback-galaxy-core')) {
       return rectangle(600, 190, 152, 56);
+    }
+    if (this.classList.contains('warpkeep-gateway-button')) {
+      return rectangle(612, 173, 128, 90);
     }
     if (this.classList.contains('warpkeep-menu-command')) {
       return rectangle(900, 320, 280, 54);
@@ -271,6 +277,58 @@ describe('WarpkeepExperience', () => {
     expect(container.querySelectorAll('audio[data-audio-role^="realm"][src]')).toHaveLength(0);
   });
 
+  it('freezes the exact pointer origin throughout the departure lifecycle', async () => {
+    render(<WarpkeepExperience />);
+    const gateway = await settleInitialTitle();
+
+    fireEvent.click(gateway, {
+      detail: 1,
+      clientX: 731.5,
+      clientY: 250.25
+    });
+    const overlay = screen.getByTestId('warp-transition-overlay');
+    expect(overlay.style.getPropertyValue('--warp-origin-x')).toBe('731.5px');
+    expect(overlay.style.getPropertyValue('--warp-origin-y')).toBe('250.25px');
+
+    vi.stubGlobal('innerWidth', 900);
+    vi.stubGlobal('innerHeight', 640);
+    act(() => {
+      window.dispatchEvent(new Event('resize'));
+      vi.advanceTimersByTime(900);
+    });
+    expect(screen.getByTestId('warp-transition-overlay')).toBe(overlay);
+    expect(overlay.style.getPropertyValue('--warp-origin-x')).toBe('731.5px');
+    expect(overlay.style.getPropertyValue('--warp-origin-y')).toBe('250.25px');
+  });
+
+  it('maps a programmatic gateway projection through offset and scaled bounds', async () => {
+    vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockImplementation(function (
+      this: HTMLElement
+    ) {
+      if (this.classList.contains('warpkeep-title-screen')) {
+        return rectangle(100, 50, 640, 360);
+      }
+      if (this.classList.contains('warpkeep-gateway')) {
+        return rectangle(100, 50, 512, 288);
+      }
+      if (this.classList.contains('warpkeep-fallback-galaxy-core')) {
+        return rectangle(300, 150, 100, 40);
+      }
+      if (this.classList.contains('warpkeep-menu-command')) {
+        return rectangle(400, 240, 240, 48);
+      }
+      return rectangle(0, 0, 0, 0);
+    });
+    render(<WarpkeepExperience />);
+    await settleInitialTitle();
+
+    fireEvent.keyDown(document.body, { key: 'Enter' });
+
+    const overlay = screen.getByTestId('warp-transition-overlay');
+    expect(overlay.style.getPropertyValue('--warp-origin-x')).toBe('300px');
+    expect(overlay.style.getPropertyValue('--warp-origin-y')).toBe('146px');
+  });
+
   it('retires keyboard gateway focus before handing focus to the stable menu command', async () => {
     const { container } = render(<WarpkeepExperience />);
     const gateway = await settleInitialTitle();
@@ -283,6 +341,9 @@ describe('WarpkeepExperience', () => {
     expect(gatewayAnchor.hidden).toBe(true);
     expect(gatewayAnchor.inert).toBe(true);
     const departureLandmark = screen.getByRole('status');
+    const overlay = screen.getByTestId('warp-transition-overlay');
+    expect(overlay.style.getPropertyValue('--warp-origin-x')).toBe('676px');
+    expect(overlay.style.getPropertyValue('--warp-origin-y')).toBe('218px');
     expect(departureLandmark.textContent).toBe('Entering Warpkeep. Opening the main menu.');
     expect(departureLandmark.getAttribute('data-active')).toBe('true');
     expect(document.activeElement).toBe(departureLandmark);
@@ -442,7 +503,10 @@ describe('WarpkeepExperience', () => {
     vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockImplementation(function (
       this: HTMLElement
     ) {
-      if (this.classList.contains('warpkeep-title-screen')) {
+      if (
+        this.classList.contains('warpkeep-title-screen')
+        || this.classList.contains('warpkeep-gateway')
+      ) {
         return rectangle(0, 0, 390, 844);
       }
       if (this.classList.contains('warpkeep-fallback-galaxy-core')) {

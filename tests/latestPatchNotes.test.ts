@@ -18,24 +18,24 @@ describe('latest in-menu patch notes', () => {
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
       releasedOn: '27 JUL 2026',
-      title: 'THE CRAFTED LOWLANDS'
+      title: 'THE REALM ANSWERS'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Worker journeys.*wagons.*routes.*portraits.*reloads and reconnects.*synchronize safely/i
+      /four deployed Workers.*reloads and reconnects.*coherent private control/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Natural terrain.*clustered grass.*shaped forests.*continuous rivers.*crafted landscape/i
+      /Food.*Wood.*Stone.*Gold.*recall.*server authority/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /physical travel.*identity markers.*records.*camera hierarchy.*desktop and mobile/i
+      /title passage.*exact gateway activation point.*command menu/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /released to players|deployed to players|public balances|guaranteed rewards/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('Genesis 001');
+    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('living Realm');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'Worker authority, ownership, private balances, gathering rates'
+      'Worker ownership, private accounting, settlement'
     );
     expect(getLatestPatchNotes('0.3.15')).toBeUndefined();
     expect(getLatestPatchNotes('0.3.14')).toBeUndefined();

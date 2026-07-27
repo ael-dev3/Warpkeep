@@ -181,6 +181,32 @@ export function applyRenderedWebglActiveWorkerReconnectInteraction(
   session: RenderedWebglCastleCanvasPointerSession
 ): Promise<Pick<RenderedWebglActiveWorkerEvidence, 'localReconnectRehydrated'>>;
 
+export type RenderedWebglWaterOverviewEvidence = Readonly<{
+  cameraMode: 'realm';
+  cameraStateAttested: true;
+  cameraSynchronized: true;
+  cameraZoom: '0.280000';
+  presentationBand: 'overview';
+  riverBodyCount: 12;
+  riverChannelBodyCount: 12;
+  riverChannelSegmentCount: 1200;
+  riverFallbackBodyCount: 0;
+  riverFallbackCellCount: 0;
+  riverMouthConnectionCount: 12;
+  routeDrawCalls: 0;
+  routeSegments: 0;
+  routeTriangles: 0;
+  routeVisible: 0;
+  waterDrawCalls: 3;
+  waterPresentation: 'ready';
+  waterShaderFallbackCount: 0;
+  waterTriangles: 25998;
+}>;
+
+export function parseRenderedWebglWaterOverviewEvidence(
+  value: unknown
+): RenderedWebglWaterOverviewEvidence;
+
 /** Closes all accepted HTTP/HMR sockets before awaiting the loopback listener. */
 export function closeRenderedWebglLoopbackServer(options: Readonly<{
   httpServer: Readonly<{
@@ -461,6 +487,10 @@ export function applyRenderedWebglMapGestureInteraction(
 export function applyRenderedWebglPresentationBandInteraction(
   session: RenderedWebglCastleCanvasPointerSession
 ): Promise<ReturnType<typeof parseRenderedWebglPresentationBandEvidence>>;
+
+export function applyRenderedWebglWaterOverviewInteraction(
+  session: RenderedWebglCastleCanvasPointerSession
+): Promise<RenderedWebglWaterOverviewEvidence>;
 
 export function applyRenderedWebglViewportRotationInteraction(
   session: RenderedWebglCastleCanvasPointerSession,

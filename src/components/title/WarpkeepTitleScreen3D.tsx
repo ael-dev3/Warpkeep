@@ -9,7 +9,9 @@ import {
 import * as THREE from 'three';
 import {
   BlackHoleGateway,
-  type BlackHoleGatewayHandle
+  type BlackHoleGatewayHandle,
+  type GatewayActivationInput,
+  type GatewayActivationRecord
 } from './BlackHoleGateway';
 import { WarpkeepTitleScreenFallback } from './WarpkeepTitleScreenFallback';
 import {
@@ -47,6 +49,7 @@ import { createTitlePresentationController } from './titlePresentationController
 import { calculateTitleResponsiveLayout, titlePortraitAspect } from './titleLayout';
 import { calculateGalaxyGrowth, createSpiralGalaxyLayout, titleSceneSpec } from './titleSceneSpec';
 import {
+  fallbackGatewayActivation,
   fallbackGatewayProjection,
   type WarpkeepTitleScreenHandle,
   type WarpkeepTitleScreenProps
@@ -677,9 +680,15 @@ export const WarpkeepTitleScreen3D = forwardRef<
     qualityChangeHandlerRef.current?.(graphicsQuality);
   }, [graphicsQuality]);
 
-  const requestEnter = useCallback((input: 'keyboard' | 'pointer') => {
+  const requestEnter = useCallback((
+    activationOrInput: GatewayActivationRecord | GatewayActivationInput
+  ) => {
     if (fallbackRef.current) {
-      fallbackRef.current.requestEnter(input);
+      fallbackRef.current.requestEnter(
+        typeof activationOrInput === 'string'
+          ? activationOrInput
+          : activationOrInput.input
+      );
       return;
     }
     if (entryRequestedRef.current || phaseRef.current !== 'active') {
@@ -689,11 +698,11 @@ export const WarpkeepTitleScreen3D = forwardRef<
     gatewayActivationSequenceRef.current += 1;
     reducedActivationRenderRef.current?.();
     callbacksRef.current.onMeaningfulInteraction?.();
-    const projection = gatewayRef.current?.getProjectedPosition() ?? fallbackGatewayProjection();
-    callbacksRef.current.onRequestEnterMenu?.(
-      projection.visible ? projection : fallbackGatewayProjection(),
-      input
-    );
+    const activation = typeof activationOrInput === 'string'
+      ? gatewayRef.current?.captureActivation(activationOrInput)
+        ?? fallbackGatewayActivation(activationOrInput)
+      : activationOrInput;
+    callbacksRef.current.onRequestEnterMenu?.(activation);
   }, []);
 
   useImperativeHandle(forwardedRef, () => ({
@@ -703,6 +712,11 @@ export const WarpkeepTitleScreen3D = forwardRef<
       fallbackRef.current?.getGatewayProjection() ??
       gatewayRef.current?.getProjectedPosition() ??
       fallbackGatewayProjection()
+    ),
+    getGatewayActivation: (input) => (
+      fallbackRef.current?.getGatewayActivation(input)
+      ?? gatewayRef.current?.captureActivation(input)
+      ?? fallbackGatewayActivation(input)
     )
   }), [requestEnter]);
 
