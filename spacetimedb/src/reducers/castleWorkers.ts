@@ -8,6 +8,7 @@ import {
   projectMyWorkerState,
   recallAllCastleWorkers,
   recallCastleWorker,
+  repairMissingWorkerReturnSchedule,
 } from '../castleWorkerAuthority';
 import {
   activateWorkerSystem,
@@ -59,6 +60,26 @@ const myResourceStateV2 = t.object('MyResourceStateV2', {
   workerPendingStone: t.u64(),
   workerPendingGold: t.u64(),
   observedAtMicros: t.u64(),
+  settledThroughMicros: t.u64(),
+  revision: t.u64(),
+  resourcePolicyVersion: t.string(),
+  workerPolicyVersion: t.string(),
+  workerSystemMode: t.string(),
+});
+
+const myWorkerControlStateV1 = t.object('MyWorkerControlStateV1', {
+  fid: t.u64(),
+  castleId: t.u64(),
+  observedAtMicros: t.u64(),
+  workers: t.array(workerPrivate),
+  food: t.u64(),
+  wood: t.u64(),
+  stone: t.u64(),
+  gold: t.u64(),
+  workerPendingFood: t.u64(),
+  workerPendingWood: t.u64(),
+  workerPendingStone: t.u64(),
+  workerPendingGold: t.u64(),
   settledThroughMicros: t.u64(),
   revision: t.u64(),
   resourcePolicyVersion: t.string(),
@@ -291,6 +312,64 @@ export const getMyResourceStateV2 = warpkeep.procedure(
   }),
 );
 
+/**
+ * One caller-bound transaction for the complete private Worker control view.
+ *
+ * The compatibility procedures above remain additive ABI. New clients prefer
+ * this projection so roster cargo, pending totals, balances, policy metadata,
+ * and the observation clock can never be torn across independent transactions.
+ */
+export const getMyWorkerControlStateV1 = warpkeep.procedure(
+  { name: 'get_my_worker_control_state_v1' },
+  myWorkerControlStateV1,
+  ctx => ctx.withTx(tx => {
+    try {
+      const { claims, castle } = requireGameplayPlayerV1(tx);
+      const observedAtMicros = tx.timestamp.microsSinceUnixEpoch;
+      const projection = projectMyWorkerState(tx, claims.fid, observedAtMicros);
+      const pending = { food: 0n, wood: 0n, stone: 0n, gold: 0n };
+      for (const worker of projection.workers) {
+        if (worker.resourceKind === 'food') pending.food += worker.availableAmount;
+        if (worker.resourceKind === 'wood') pending.wood += worker.availableAmount;
+        if (worker.resourceKind === 'stone') pending.stone += worker.availableAmount;
+        if (worker.resourceKind === 'gold') pending.gold += worker.availableAmount;
+      }
+      return {
+        fid: claims.fid,
+        castleId: castle.castleId,
+        observedAtMicros,
+        workers: projection.workers.map(worker => ({
+          workerId: worker.workerId,
+          ordinal: worker.ordinal,
+          status: worker.status,
+          resourceKind: worker.resourceKind,
+          siteId: worker.siteId,
+          accruedAmount: worker.accruedAmount,
+          materializedAmount: worker.materializedAmount,
+          availableAmount: worker.availableAmount,
+          observedAtMicros: worker.observedAtMicros,
+          revision: worker.revision,
+        })),
+        food: projection.balances.food,
+        wood: projection.balances.wood,
+        stone: projection.balances.stone,
+        gold: projection.balances.gold,
+        workerPendingFood: pending.food,
+        workerPendingWood: pending.wood,
+        workerPendingStone: pending.stone,
+        workerPendingGold: pending.gold,
+        settledThroughMicros: projection.resource.settledThroughMicros,
+        revision: projection.resource.revision,
+        resourcePolicyVersion: projection.resource.policyVersion,
+        workerPolicyVersion: 'genesis-001-castle-workers-v1',
+        workerSystemMode: workerSystemMode(tx),
+      };
+    } catch (error) {
+      return senderPolicyError(error);
+    }
+  }),
+);
+
 export const dispatchWorkerV1 = warpkeep.reducer(
   { name: 'dispatch_worker_v1' },
   { workerId: t.string(), resourceKind: t.string(), siteId: t.string(), idempotencyKey: t.string() },
@@ -359,6 +438,54 @@ export const adminGetWorkerSystemStatusV1 = warpkeep.procedure(
     requireAdmin(tx);
     return aggregateResult(inspectCastleWorkerGraph(tx));
   }),
+);
+
+/**
+ * Restore one exact missing return-complete schedule after a privacy-safe
+ * aggregate review. The authority accepts no private Worker correlation and
+ * changes no Worker, assignment, occupation, balance, or receipt row.
+ */
+export const adminRepairMissingWorkerReturnScheduleV1 = warpkeep.reducer(
+  { name: 'admin_repair_missing_worker_return_schedule_v1' },
+  {
+    capability: t.string(),
+    sourceCommit: t.string(),
+    moduleArtifactDigest: t.string(),
+    expectedCastleCount: t.u32(),
+    expectedWorkerCount: t.u32(),
+    expectedAssignments: t.u32(),
+    expectedOccupations: t.u32(),
+    expectedSchedules: t.u32(),
+    expectedReturningWorkers: t.u32(),
+    expectedMissingSchedules: t.u32(),
+    rosterDigest: t.string(),
+  },
+  (ctx, input) => {
+    try {
+      const admin = requireAdmin(ctx);
+      const result = repairMissingWorkerReturnSchedule(
+        ctx,
+        Object.freeze({ ...input }),
+      );
+      if (!result.repaired) return;
+      auditWorkerRollout(
+        ctx,
+        admin.subject,
+        'repair_missing_worker_return_schedule_v1',
+        [
+          `source=${input.sourceCommit}`,
+          `module=${input.moduleArtifactDigest}`,
+          `roster=${input.rosterDigest}`,
+          `before=${result.beforeAssignments}/${result.beforeOccupations}/${result.beforeSchedules}`,
+          `after=${result.afterAssignments}/${result.afterOccupations}/${result.afterSchedules}`,
+          'schedules_restored=1',
+          'data_deletion=false',
+        ].join(';'),
+      );
+    } catch (error) {
+      return senderPolicyError(error);
+    }
+  },
 );
 
 export const adminPlanWorkerRosterV1 = warpkeep.procedure(

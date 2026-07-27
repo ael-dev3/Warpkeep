@@ -1,7 +1,12 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { readFileSync, statSync, writeFileSync } from 'node:fs';
+import {
+  readFileSync,
+  realpathSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -12,6 +17,8 @@ import {
   GENESIS_WORLD_PUBLISH_STAGE,
   PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS,
   RESOURCE_PUBLISH_ROLLOUT_STAGE,
+  WORKER_FORWARD_REPAIR,
+  WORKER_FORWARD_REPAIR_CHECKPOINT,
   WORKER_MODULE_PREDECESSOR,
   WORKER_PUBLISH_ROLLOUT_STAGE,
   WORKER_V12_TABLE_CONTRACTS,
@@ -23,6 +30,7 @@ import {
   parseCanonicalSchemaDescription,
   parseMigrationProofReceipt,
   parsePublishArguments,
+  planWorkerV12CodePublication,
   publishPostV12AggregateChildArguments,
   publishPreV12AggregateChildArguments,
   publishChildEnvironment,
@@ -59,12 +67,20 @@ import {
   verifyPrivacySafeAlphaStatusV12Output,
   verifyPrivacySafePublishPostV12Output,
   verifyPrivacySafePublishPreV12Output,
+  verifyActiveAlphaStatusV12,
+  verifyAlphaStatusV12ForStage,
   verifyEmptyAlphaStatusV12,
+  verifyReturnNodeReuseRepairAlphaStatusV12,
   verifyExactProductionV11Schema,
   verifyExactProductionV12Schema,
   verifyExactProductionV12ModuleSchema,
   verifyWorkerV12ModuleAbi,
+  verifyWorkerV12ModulePredecessor,
 } from '../scripts/publish-spacetime-dev.mjs';
+import {
+  readPrivateSpacetimePublishSuccessReceipt,
+  writePrivateSpacetimePublishSuccessReceipt,
+} from '../scripts/spacetime-publish-receipt.mjs';
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
 import { ADDITIVE_MIGRATION_PROOF_MINIMUM_LIFECYCLE_MILLISECONDS, ADDITIVE_MIGRATION_PROOF_PROCESS_TIMEOUT_MILLISECONDS, ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION, ADDITIVE_MIGRATION_PROOF_SPACETIME_CLI_VERSION, formatAdditiveMigrationProofReceipt } from '../scripts/spacetime-additive-migration-proof.mjs';
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
@@ -230,6 +246,48 @@ function alphaStatusV12(overrides: Record<string, unknown> = {}) {
     rosterDigestExpected: '0123456789abcdef',
     ...overrides,
   };
+}
+
+function activeAlphaStatusV12(overrides: Record<string, unknown> = {}) {
+  return alphaStatusV12({
+    systemRows: '1',
+    expectedCastleCount: '4',
+    expectedWorkerCount: '16',
+    actualWorkerCount: '16',
+    idleWorkers: '12',
+    outboundWorkers: '1',
+    gatheringWorkers: '2',
+    returningWorkers: '1',
+    assignments: '4',
+    occupations: '3',
+    schedules: '4',
+    idempotencyReceipts: '7',
+    mode: 'active',
+    systemConfigValid: true,
+    legacyDrainRequired: false,
+    expectedCountsMatch: true,
+    rosterDigestMatches: true,
+    castlesMissingWorkers: '0',
+    legacyExpeditions: '0',
+    legacyOccupations: '0',
+    legacySchedules: '0',
+    rosterDigest: '0123456789abcdef',
+    rosterDigestExpected: '0123456789abcdef',
+    ...overrides,
+  });
+}
+
+function repairableActiveAlphaStatusV12(
+  checkpoint: 'active-predecessor' | 'candidate-pending',
+  overrides: Record<string, unknown> = {},
+) {
+  return activeAlphaStatusV12({
+    schedules: '3',
+    assignmentsWithoutSingleSchedule: '1',
+    occupationSiteMismatches:
+      checkpoint === 'active-predecessor' ? '1' : '0',
+    ...overrides,
+  });
 }
 
 function publishProtocolV3Status(overrides: Record<string, unknown> = {}) {
@@ -430,6 +488,19 @@ const completeDrainFields = [
   ['woodSchedules', 'U32'],
   ['stoneSchedules', 'U32'],
 ] as const;
+const returnScheduleRepairFields = [
+  ['capability', 'String'],
+  ['sourceCommit', 'String'],
+  ['moduleArtifactDigest', 'String'],
+  ['expectedCastleCount', 'U32'],
+  ['expectedWorkerCount', 'U32'],
+  ['expectedAssignments', 'U32'],
+  ['expectedOccupations', 'U32'],
+  ['expectedSchedules', 'U32'],
+  ['expectedReturningWorkers', 'U32'],
+  ['expectedMissingSchedules', 'U32'],
+  ['rosterDigest', 'String'],
+] as const;
 const workerSystemStatusFields = [
   ['system_rows', 'U64'],
   ['mode', 'String'],
@@ -522,7 +593,7 @@ const workerResourceStateFields = [
 ] as const;
 
 function workerModuleSchemaDescription(
-  state: 'predecessor' | 'candidate',
+  state: 'predecessor' | 'active-predecessor' | 'candidate',
 ) {
   const description = productionSchemaDescription(true) as ReturnType<
     typeof productionSchemaDescription
@@ -581,7 +652,8 @@ function workerModuleSchemaDescription(
       ['stage', 'String'],
     ]),
   };
-  const statusFields = state === 'candidate'
+  const activeAbi = state !== 'predecessor';
+  const statusFields = activeAbi
     ? candidateWorkerStatusFields
     : predecessorWorkerStatusFields;
   const statusRef = addProduct(statusFields);
@@ -606,10 +678,29 @@ function workerModuleSchemaDescription(
     ['observed_at_micros', 'U64'],
     ['workers', { Array: { Ref: privateWorkerRef } }],
   ]);
+  const controlStateRef = addProduct([
+    ['fid', 'U64'],
+    ['castle_id', 'U64'],
+    ['observed_at_micros', 'U64'],
+    ['workers', { Array: { Ref: privateWorkerRef } }],
+    ['food', 'U64'],
+    ['wood', 'U64'],
+    ['stone', 'U64'],
+    ['gold', 'U64'],
+    ['worker_pending_food', 'U64'],
+    ['worker_pending_wood', 'U64'],
+    ['worker_pending_stone', 'U64'],
+    ['worker_pending_gold', 'U64'],
+    ['settled_through_micros', 'U64'],
+    ['revision', 'U64'],
+    ['resource_policy_version', 'String'],
+    ['worker_policy_version', 'String'],
+    ['worker_system_mode', 'String'],
+  ]);
   description.reducers = [
     reducer(
       'admin_activate_worker_system_v1',
-      state === 'candidate'
+      activeAbi
         ? candidateActivationFields
         : predecessorActivationFields,
     ),
@@ -635,7 +726,7 @@ function workerModuleSchemaDescription(
       },
     ]]),
   ];
-  if (state === 'candidate') {
+  if (activeAbi) {
     description.reducers.push(
       reducer('admin_complete_worker_legacy_drain_v1', completeDrainFields),
       reducer('return_legacy_expedition_v1', [
@@ -644,12 +735,23 @@ function workerModuleSchemaDescription(
       ]),
     );
   }
+  if (state === 'candidate') {
+    description.reducers.push(
+      reducer(
+        'admin_repair_missing_worker_return_schedule_v1',
+        returnScheduleRepairFields,
+      ),
+    );
+  }
   description.misc_exports = [
     ['admin_get_worker_rollout_status_v2', statusRef],
     ['admin_get_worker_system_status_v1', systemStatusRef],
     ['admin_plan_worker_roster_v1', rosterPlanRef],
     ['get_my_resource_state_v2', resourceStateRef],
     ['get_my_worker_roster_v1', rosterRef],
+    ...(state === 'candidate'
+      ? [['get_my_worker_control_state_v1', controlStateRef] as const]
+      : []),
   ].map(([name, returnRef]) => ({
     Procedure: {
       name,
@@ -1319,20 +1421,74 @@ describe('activation publish safety', () => {
       .toThrow(/machine-readable JSON/i);
   });
 
-  it('permits only the exact inert-v12 predecessor or exact reviewed candidate ABI', () => {
-    const predecessor = workerModuleSchemaDescription('predecessor');
+  it('pins the inert boundary, exact active predecessor, and additive atomic candidate ABI', () => {
+    const inertPredecessor = workerModuleSchemaDescription('predecessor');
+    const activePredecessor = workerModuleSchemaDescription('active-predecessor');
     const candidate = workerModuleSchemaDescription('candidate');
     const tableNames = [
       ...Object.keys(PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS),
       ...Object.keys(WORKER_V12_TABLE_CONTRACTS),
     ];
-    const digest = canonicalTableSchemaBoundaryDigest(predecessor, tableNames);
+    const digest = canonicalTableSchemaBoundaryDigest(inertPredecessor, tableNames);
+    expect(canonicalTableSchemaBoundaryDigest(activePredecessor, tableNames)).toBe(digest);
     expect(canonicalTableSchemaBoundaryDigest(candidate, tableNames)).toBe(digest);
-    expect(verifyWorkerV12ModuleAbi(predecessor)).toBe('predecessor');
+    expect(verifyWorkerV12ModuleAbi(inertPredecessor)).toBe('predecessor');
+    expect(verifyWorkerV12ModuleAbi(activePredecessor)).toBe('active-predecessor');
     expect(verifyWorkerV12ModuleAbi(candidate)).toBe('candidate');
+    expect(verifyWorkerV12ModulePredecessor(
+      'predecessor',
+      WORKER_MODULE_PREDECESSOR.EXACT_V12_EMPTY,
+    )).toBe('predecessor');
+    expect(verifyWorkerV12ModulePredecessor(
+      'active-predecessor',
+      WORKER_MODULE_PREDECESSOR.EXACT_V12_ACTIVE,
+    )).toBe('active-predecessor');
+    expect(verifyWorkerV12ModulePredecessor(
+      'candidate',
+      WORKER_MODULE_PREDECESSOR.EXACT_V12_ACTIVE,
+    )).toBe('candidate');
+    expect(() => verifyWorkerV12ModulePredecessor(
+      'active-predecessor',
+      WORKER_MODULE_PREDECESSOR.EXACT_V12_EMPTY,
+    )).toThrow(/did not match the exact production v12 ABI/i);
+    expect(planWorkerV12CodePublication(
+      'active-predecessor',
+      WORKER_FORWARD_REPAIR.NONE,
+    )).toEqual({
+      prePublicationCheckpoint: WORKER_FORWARD_REPAIR_CHECKPOINT.HEALTHY,
+      postPublicationCheckpoint: WORKER_FORWARD_REPAIR_CHECKPOINT.HEALTHY,
+    });
+    expect(planWorkerV12CodePublication(
+      'active-predecessor',
+      WORKER_FORWARD_REPAIR.RETURN_NODE_REUSE_V1,
+    )).toEqual({
+      prePublicationCheckpoint:
+        WORKER_FORWARD_REPAIR_CHECKPOINT.ACTIVE_PREDECESSOR,
+      postPublicationCheckpoint:
+        WORKER_FORWARD_REPAIR_CHECKPOINT.CANDIDATE_PENDING,
+    });
+    expect(planWorkerV12CodePublication(
+      'candidate',
+      WORKER_FORWARD_REPAIR.RETURN_NODE_REUSE_V1,
+    )).toEqual({
+      prePublicationCheckpoint:
+        WORKER_FORWARD_REPAIR_CHECKPOINT.CANDIDATE_EXISTING,
+      postPublicationCheckpoint:
+        WORKER_FORWARD_REPAIR_CHECKPOINT.CANDIDATE_EXISTING,
+    });
+    expect(() => planWorkerV12CodePublication(
+      'predecessor',
+      WORKER_FORWARD_REPAIR.RETURN_NODE_REUSE_V1,
+    )).toThrow(/forward-repair publication plan was invalid/i);
+    expect(() => planWorkerV12CodePublication(
+      'unknown',
+      WORKER_FORWARD_REPAIR.NONE,
+    )).toThrow(/module state was invalid/i);
 
-    const captured = verifyExactProductionV12ModuleSchema(predecessor, digest);
-    expect(captured.moduleState).toBe('predecessor');
+    const inert = verifyExactProductionV12ModuleSchema(inertPredecessor, digest);
+    expect(inert.moduleState).toBe('predecessor');
+    const captured = verifyExactProductionV12ModuleSchema(activePredecessor, digest);
+    expect(captured.moduleState).toBe('active-predecessor');
     expect(captured.totalTableCount).toBe(53);
     expect(Object.keys(captured.tableSignatures)).toHaveLength(53);
     const alreadyPublished = verifyExactProductionV12ModuleSchema(candidate, digest);
@@ -1347,7 +1503,7 @@ describe('activation publish safety', () => {
         return {
           status: 0,
           signal: null,
-          stdout: JSON.stringify(predecessor),
+          stdout: JSON.stringify(activePredecessor),
           stderr: '',
         };
       }) as never,
@@ -1384,7 +1540,7 @@ describe('activation publish safety', () => {
       })) as never,
     )).toThrow(/indeterminate.*fresh anonymous read-only schema and ABI inspection/i);
 
-    const partial = structuredClone(predecessor);
+    const partial = structuredClone(inertPredecessor);
     partial.reducers.push(
       workerModuleSchemaDescription('candidate').reducers.find(
         reducer => reducer.name === 'return_legacy_expedition_v1',
@@ -1452,6 +1608,18 @@ describe('activation publish safety', () => {
         `missing procedure ${procedureName}`,
       ).toThrow(/partial, unknown, or changed/i);
     }
+    const activePredecessor = structuredClone(candidate);
+    activePredecessor.reducers = activePredecessor.reducers.filter(
+      reducer => reducer.name !== 'admin_repair_missing_worker_return_schedule_v1',
+    );
+    activePredecessor.misc_exports = activePredecessor.misc_exports.filter(
+      entry => (
+        (entry.Procedure as { name: string }).name
+        !== 'get_my_worker_control_state_v1'
+      ),
+    );
+    expect(verifyWorkerV12ModuleAbi(activePredecessor))
+      .toBe('active-predecessor');
 
     const extraReducer = structuredClone(candidate);
     const stagedReducer = extraReducer.reducers.find(
@@ -1531,6 +1699,29 @@ describe('activation publish safety', () => {
       field => field.name.some === 'status',
     )!.algebraic_type = { Bool: {} };
     expect(() => verifyWorkerV12ModuleAbi(driftedNestedRoster))
+      .toThrow(/partial, unknown, or changed/i);
+
+    const driftedAtomicControl = structuredClone(candidate);
+    const controlProcedure = driftedAtomicControl.misc_exports.find(
+      entry => (
+        (entry.Procedure as { name: string }).name
+          === 'get_my_worker_control_state_v1'
+      ),
+    )!.Procedure as { return_type: { Ref: number } };
+    const controlType = driftedAtomicControl.typespace.types[
+      controlProcedure.return_type.Ref
+    ] as {
+      Product: {
+        elements: Array<{
+          name: { some: string };
+          algebraic_type: Record<string, unknown>;
+        }>;
+      };
+    };
+    controlType.Product.elements.find(
+      field => field.name.some === 'observed_at_micros',
+    )!.algebraic_type = { String: {} };
+    expect(() => verifyWorkerV12ModuleAbi(driftedAtomicControl))
       .toThrow(/partial, unknown, or changed/i);
   });
 
@@ -1699,17 +1890,20 @@ describe('activation publish safety', () => {
       '--resource-rollout-stage=prebackfill',
       '--genesis-world-stage=pre-expansion',
       '--worker-rollout-stage=empty',
+      '--worker-forward-repair=none',
     ])).toEqual({
       dryRun: false,
       resourceRolloutStage: RESOURCE_PUBLISH_ROLLOUT_STAGE.PREBACKFILL,
       genesisWorldRolloutStage: GENESIS_WORLD_PUBLISH_STAGE.PRE_EXPANSION,
       workerRolloutStage: WORKER_PUBLISH_ROLLOUT_STAGE.EMPTY,
       workerModulePredecessor: WORKER_MODULE_PREDECESSOR.V11,
+      workerForwardRepair: WORKER_FORWARD_REPAIR.NONE,
     });
     expect(parsePublishArguments([
       '--resource-rollout-stage=ready',
       '--genesis-world-stage=expanded',
       '--worker-rollout-stage=empty',
+      '--worker-forward-repair=none',
       '--dry-run',
     ])).toEqual({
       dryRun: true,
@@ -1717,18 +1911,49 @@ describe('activation publish safety', () => {
       genesisWorldRolloutStage: GENESIS_WORLD_PUBLISH_STAGE.EXPANDED,
       workerRolloutStage: WORKER_PUBLISH_ROLLOUT_STAGE.EMPTY,
       workerModulePredecessor: WORKER_MODULE_PREDECESSOR.V11,
+      workerForwardRepair: WORKER_FORWARD_REPAIR.NONE,
     });
     expect(parsePublishArguments([
       '--resource-rollout-stage=ready',
       '--genesis-world-stage=expanded',
       '--worker-rollout-stage=empty',
       '--worker-module-predecessor=exact-v12-empty',
+      '--worker-forward-repair=none',
     ])).toEqual({
       dryRun: false,
       resourceRolloutStage: RESOURCE_PUBLISH_ROLLOUT_STAGE.READY,
       genesisWorldRolloutStage: GENESIS_WORLD_PUBLISH_STAGE.EXPANDED,
       workerRolloutStage: WORKER_PUBLISH_ROLLOUT_STAGE.EMPTY,
       workerModulePredecessor: WORKER_MODULE_PREDECESSOR.EXACT_V12_EMPTY,
+      workerForwardRepair: WORKER_FORWARD_REPAIR.NONE,
+    });
+    expect(parsePublishArguments([
+      '--resource-rollout-stage=ready',
+      '--genesis-world-stage=expanded',
+      '--worker-rollout-stage=active',
+      '--worker-module-predecessor=exact-v12-active',
+      '--worker-forward-repair=none',
+    ])).toEqual({
+      dryRun: false,
+      resourceRolloutStage: RESOURCE_PUBLISH_ROLLOUT_STAGE.READY,
+      genesisWorldRolloutStage: GENESIS_WORLD_PUBLISH_STAGE.EXPANDED,
+      workerRolloutStage: WORKER_PUBLISH_ROLLOUT_STAGE.ACTIVE,
+      workerModulePredecessor: WORKER_MODULE_PREDECESSOR.EXACT_V12_ACTIVE,
+      workerForwardRepair: WORKER_FORWARD_REPAIR.NONE,
+    });
+    expect(parsePublishArguments([
+      '--resource-rollout-stage=ready',
+      '--genesis-world-stage=expanded',
+      '--worker-rollout-stage=active',
+      '--worker-module-predecessor=exact-v12-active',
+      '--worker-forward-repair=return-node-reuse-v1',
+    ])).toEqual({
+      dryRun: false,
+      resourceRolloutStage: RESOURCE_PUBLISH_ROLLOUT_STAGE.READY,
+      genesisWorldRolloutStage: GENESIS_WORLD_PUBLISH_STAGE.EXPANDED,
+      workerRolloutStage: WORKER_PUBLISH_ROLLOUT_STAGE.ACTIVE,
+      workerModulePredecessor: WORKER_MODULE_PREDECESSOR.EXACT_V12_ACTIVE,
+      workerForwardRepair: WORKER_FORWARD_REPAIR.RETURN_NODE_REUSE_V1,
     });
     expect(() => parsePublishArguments([])).toThrow(/explicit resource rollout stage/i);
     expect(() => parsePublishArguments(['--dry-run'])).toThrow(/explicit resource rollout stage/i);
@@ -1739,12 +1964,14 @@ describe('activation publish safety', () => {
       '--resource-rollout-stage=prebackfill',
       '--genesis-world-stage=pre-expansion',
       '--worker-rollout-stage=empty',
+      '--worker-forward-repair=none',
     ])).toThrow(/unknown or duplicate/i);
     expect(() => parsePublishArguments([
       '--resource-rollout-stage=prebackfill',
       '--resource-rollout-stage=ready',
       '--genesis-world-stage=pre-expansion',
       '--worker-rollout-stage=empty',
+      '--worker-forward-repair=none',
     ])).toThrow(/unknown or duplicate/i);
     expect(() => parsePublishArguments([
       '--resource-rollout-stage=unknown',
@@ -1764,7 +1991,7 @@ describe('activation publish safety', () => {
     expect(() => parsePublishArguments([
       '--resource-rollout-stage=ready',
       '--genesis-world-stage=expanded',
-    ])).toThrow(/explicit empty Worker rollout stage/i);
+    ])).toThrow(/explicit Worker rollout stage/i);
     expect(() => parsePublishArguments([
       '--resource-rollout-stage=ready',
       '--genesis-world-stage=expanded',
@@ -1789,13 +2016,119 @@ describe('activation publish safety', () => {
       '--worker-rollout-stage=empty',
       '--worker-module-predecessor=unknown',
     ])).toThrow(/unknown or duplicate/i);
+    expect(() => parsePublishArguments([
+      '--resource-rollout-stage=ready',
+      '--genesis-world-stage=expanded',
+      '--worker-rollout-stage=active',
+      '--worker-forward-repair=none',
+    ])).toThrow(/exact active-v12 module predecessor/i);
+    expect(() => parsePublishArguments([
+      '--resource-rollout-stage=ready',
+      '--genesis-world-stage=expanded',
+      '--worker-rollout-stage=empty',
+      '--worker-module-predecessor=exact-v12-active',
+      '--worker-forward-repair=none',
+    ])).toThrow(/exact active-v12 module predecessor/i);
+    expect(() => parsePublishArguments([
+      '--resource-rollout-stage=ready',
+      '--genesis-world-stage=expanded',
+      '--worker-rollout-stage=empty',
+    ])).toThrow(/explicit Worker forward-repair selection/i);
+    expect(() => parsePublishArguments([
+      '--resource-rollout-stage=ready',
+      '--genesis-world-stage=expanded',
+      '--worker-rollout-stage=empty',
+      '--worker-forward-repair=unknown',
+    ])).toThrow(/unknown or duplicate/i);
+    expect(() => parsePublishArguments([
+      '--resource-rollout-stage=ready',
+      '--genesis-world-stage=expanded',
+      '--worker-rollout-stage=empty',
+      '--worker-forward-repair=none',
+      '--worker-forward-repair=none',
+    ])).toThrow(/unknown or duplicate/i);
+    expect(() => parsePublishArguments([
+      '--resource-rollout-stage=ready',
+      '--genesis-world-stage=expanded',
+      '--worker-rollout-stage=empty',
+      '--worker-forward-repair=return-node-reuse-v1',
+    ])).toThrow(/exact ready, expanded, active-v12 production predecessor/i);
     expect(() => requireCanonicalPublishCoordinates({
       WARPKEEP_SPACETIMEDB_DATABASE: 'warpkeep-lookalike',
     })).toThrow(/canonical existing/i);
     expect(() => requireCanonicalPublishCoordinates({
-      WARPKEEP_SPACETIMEDB_DATABASE: 'warpkeep-89e4u',
+      WARPKEEP_SPACETIMEDB_DATABASE: 'warpkeep',
       WARPKEEP_SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
     })).not.toThrow();
+  });
+
+  it('binds the repair operator to one recent private successful publication receipt', async () => {
+    const root = await mkdtemp(join(
+      realpathSync(tmpdir()),
+      'warpkeep-publish-receipt-',
+    ));
+    const controlledRepository = join(root, 'repository');
+    const receiptDirectory = join(root, 'receipts');
+    const artifactDigest = 'a'.repeat(64);
+    const v12TableSchemaDigest = 'b'.repeat(64);
+    const recordedAt = new Date('2026-07-27T20:00:00.000Z');
+    try {
+      await mkdir(controlledRepository, { mode: 0o700 });
+      await mkdir(receiptDirectory, { mode: 0o700 });
+      const written = writePrivateSpacetimePublishSuccessReceipt({
+        directory: receiptDirectory,
+        repositoryRoot: controlledRepository,
+        artifactDigest,
+        v12TableSchemaDigest,
+        workerForwardRepair: WORKER_FORWARD_REPAIR.RETURN_NODE_REUSE_V1,
+        postPublicationCheckpoint:
+          WORKER_FORWARD_REPAIR_CHECKPOINT.CANDIDATE_PENDING,
+        now: recordedAt,
+      });
+      expect(written.artifactDigest).toBe(artifactDigest);
+      expect(written.v12TableSchemaDigest).toBe(v12TableSchemaDigest);
+      expect((await stat(receiptDirectory)).mode & 0o777).toBe(0o700);
+      const receiptPath = join(
+        receiptDirectory,
+        `spacetime-publish-success-${artifactDigest}.json`,
+      );
+      expect((await stat(receiptPath)).mode & 0o777).toBe(0o600);
+      const body = await readFile(receiptPath, 'utf8');
+      expect(body).toContain('"deleteData": "never"');
+      expect(body).toContain('"postVerification": "passed"');
+      expect(body).not.toMatch(
+        /"(?:fid|workerId|assignmentId|siteId|token|proof|identity)"\s*:/i,
+      );
+      expect(readPrivateSpacetimePublishSuccessReceipt({
+        directory: receiptDirectory,
+        repositoryRoot: controlledRepository,
+        artifactDigest,
+        now: new Date(recordedAt.getTime() + 60_000),
+      })).toMatchObject({
+        artifactDigest,
+        v12TableSchemaDigest,
+        postPublicationCheckpoint:
+          WORKER_FORWARD_REPAIR_CHECKPOINT.CANDIDATE_PENDING,
+      });
+      expect(() => readPrivateSpacetimePublishSuccessReceipt({
+        directory: receiptDirectory,
+        repositoryRoot: controlledRepository,
+        artifactDigest,
+        now: new Date(recordedAt.getTime() + 25 * 60 * 60 * 1_000),
+      })).toThrow(/RECEIPT_EXPIRED/);
+      expect(() => writePrivateSpacetimePublishSuccessReceipt({
+        directory: receiptDirectory,
+        repositoryRoot: controlledRepository,
+        artifactDigest,
+        v12TableSchemaDigest: 'c'.repeat(64),
+        workerForwardRepair: WORKER_FORWARD_REPAIR.RETURN_NODE_REUSE_V1,
+        postPublicationCheckpoint:
+          WORKER_FORWARD_REPAIR_CHECKPOINT.CANDIDATE_PENDING,
+        now: new Date(recordedAt.getTime() + 60_000),
+      })).toThrow(/EXISTING_MISMATCH/);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it('requires exact canonical founded-state expectations for a live republish', () => {
@@ -1896,10 +2229,10 @@ describe('activation publish safety', () => {
       'arm64',
     )).toThrow(/exact reviewed/i);
     expect(() => verifyCanonicalDatabaseList(
-      'warpkeep-89e4u   | c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e\n',
+      'warpkeep   | c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e\n',
     )).not.toThrow();
     expect(() => verifyCanonicalDatabaseList(
-      'warpkeep-89e4u   | a2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e\n',
+      'warpkeep   | a2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e\n',
     )).toThrow(/identity/i);
   });
 
@@ -2278,7 +2611,7 @@ describe('activation publish safety', () => {
     }
   });
 
-  it('requires the closed inert v12 aggregate before the exceptional code-only republish', () => {
+  it('requires the exact selected v12 aggregate before a code-only republish', () => {
     const secret = 'TEST_ONLY_HERMES_SECRET_'.repeat(2);
     const expectations = {
       expectedFounderCount: 4,
@@ -2311,6 +2644,79 @@ describe('activation publish safety', () => {
       resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs'),
     ));
 
+    const activeEnvelope = {
+      ...envelope,
+      workerV12: activeAlphaStatusV12(),
+    };
+    expect(verifyFreshPublishExactV12Aggregate(
+      secret,
+      expectations,
+      RESOURCE_PUBLISH_ROLLOUT_STAGE.READY,
+      WORKER_PUBLISH_ROLLOUT_STAGE.ACTIVE,
+      (() => ({
+        status: 0,
+        signal: null,
+        stdout: JSON.stringify(activeEnvelope),
+        stderr: '',
+      })) as never,
+      GENESIS_WORLD_PUBLISH_STAGE.PRE_EXPANSION,
+    )).toEqual(activeEnvelope);
+
+    const repairablePredecessorEnvelope = {
+      ...envelope,
+      workerV12: repairableActiveAlphaStatusV12('active-predecessor'),
+    };
+    expect(verifyFreshPublishExactV12Aggregate(
+      secret,
+      expectations,
+      RESOURCE_PUBLISH_ROLLOUT_STAGE.READY,
+      WORKER_PUBLISH_ROLLOUT_STAGE.ACTIVE,
+      (() => ({
+        status: 0,
+        signal: null,
+        stdout: JSON.stringify(repairablePredecessorEnvelope),
+        stderr: '',
+      })) as never,
+      GENESIS_WORLD_PUBLISH_STAGE.PRE_EXPANSION,
+      WORKER_FORWARD_REPAIR.RETURN_NODE_REUSE_V1,
+      WORKER_FORWARD_REPAIR_CHECKPOINT.ACTIVE_PREDECESSOR,
+    )).toEqual(repairablePredecessorEnvelope);
+
+    const repairableCandidateEnvelope = {
+      ...envelope,
+      workerV12: repairableActiveAlphaStatusV12('candidate-pending'),
+    };
+    expect(verifyFreshPublishExactV12Aggregate(
+      secret,
+      expectations,
+      RESOURCE_PUBLISH_ROLLOUT_STAGE.READY,
+      WORKER_PUBLISH_ROLLOUT_STAGE.ACTIVE,
+      (() => ({
+        status: 0,
+        signal: null,
+        stdout: JSON.stringify(repairableCandidateEnvelope),
+        stderr: '',
+      })) as never,
+      GENESIS_WORLD_PUBLISH_STAGE.PRE_EXPANSION,
+      WORKER_FORWARD_REPAIR.RETURN_NODE_REUSE_V1,
+      WORKER_FORWARD_REPAIR_CHECKPOINT.CANDIDATE_EXISTING,
+    )).toEqual(repairableCandidateEnvelope);
+    expect(verifyFreshPublishExactV12Aggregate(
+      secret,
+      expectations,
+      RESOURCE_PUBLISH_ROLLOUT_STAGE.READY,
+      WORKER_PUBLISH_ROLLOUT_STAGE.ACTIVE,
+      (() => ({
+        status: 0,
+        signal: null,
+        stdout: JSON.stringify(activeEnvelope),
+        stderr: '',
+      })) as never,
+      GENESIS_WORLD_PUBLISH_STAGE.PRE_EXPANSION,
+      WORKER_FORWARD_REPAIR.RETURN_NODE_REUSE_V1,
+      WORKER_FORWARD_REPAIR_CHECKPOINT.CANDIDATE_EXISTING,
+    )).toEqual(activeEnvelope);
+
     const staged = {
       ...envelope,
       workerV12: alphaStatusV12({
@@ -2332,7 +2738,48 @@ describe('activation publish safety', () => {
         stderr: '',
       })) as never,
       GENESIS_WORLD_PUBLISH_STAGE.PRE_EXPANSION,
-    )).toThrow(/no publish was attempted.*absent and inert/i);
+    )).toThrow(/no publish was attempted.*selected rollout stage/i);
+
+    const inconsistentActive = {
+      ...activeEnvelope,
+      workerV12: activeAlphaStatusV12({ schedules: '3' }),
+    };
+    expect(() => verifyFreshPublishExactV12Aggregate(
+      secret,
+      expectations,
+      RESOURCE_PUBLISH_ROLLOUT_STAGE.READY,
+      WORKER_PUBLISH_ROLLOUT_STAGE.ACTIVE,
+      (() => ({
+        status: 0,
+        signal: null,
+        stdout: JSON.stringify(inconsistentActive),
+        stderr: '',
+      })) as never,
+      GENESIS_WORLD_PUBLISH_STAGE.PRE_EXPANSION,
+    )).toThrow(/no publish was attempted.*selected rollout stage/i);
+
+    const wrongRepairCheckpoint = {
+      ...repairablePredecessorEnvelope,
+      workerV12: repairableActiveAlphaStatusV12(
+        'active-predecessor',
+        { occupationSiteMismatches: '0' },
+      ),
+    };
+    expect(() => verifyFreshPublishExactV12Aggregate(
+      secret,
+      expectations,
+      RESOURCE_PUBLISH_ROLLOUT_STAGE.READY,
+      WORKER_PUBLISH_ROLLOUT_STAGE.ACTIVE,
+      (() => ({
+        status: 0,
+        signal: null,
+        stdout: JSON.stringify(wrongRepairCheckpoint),
+        stderr: '',
+      })) as never,
+      GENESIS_WORLD_PUBLISH_STAGE.PRE_EXPANSION,
+      WORKER_FORWARD_REPAIR.RETURN_NODE_REUSE_V1,
+      WORKER_FORWARD_REPAIR_CHECKPOINT.ACTIVE_PREDECESSOR,
+    )).toThrow(/no publish was attempted.*selected rollout stage/i);
   });
 
   it('rejects malformed or identity-bearing combined publication envelopes', () => {
@@ -2572,6 +3019,137 @@ describe('activation publish safety', () => {
     expect(postPublishFailure).not.toThrow(/private|retry/i);
   });
 
+  it('accepts only a coherent privacy-safe active Worker v12 checkpoint', () => {
+    const aggregate = verifyPrivacySafeAlphaStatusV12Output(
+      JSON.stringify(activeAlphaStatusV12()),
+    );
+    const repairablePredecessor = verifyPrivacySafeAlphaStatusV12Output(
+      JSON.stringify(repairableActiveAlphaStatusV12('active-predecessor')),
+    );
+    const repairableCandidate = verifyPrivacySafeAlphaStatusV12Output(
+      JSON.stringify(repairableActiveAlphaStatusV12('candidate-pending')),
+    );
+    expect(verifyActiveAlphaStatusV12(aggregate, 4)).toEqual(aggregate);
+    expect(verifyAlphaStatusV12ForStage(
+      aggregate,
+      4,
+      WORKER_PUBLISH_ROLLOUT_STAGE.ACTIVE,
+    )).toEqual(aggregate);
+    expect(verifyAlphaStatusV12ForStage(
+      verifyPrivacySafeAlphaStatusV12Output(JSON.stringify(alphaStatusV12())),
+      4,
+      WORKER_PUBLISH_ROLLOUT_STAGE.EMPTY,
+    )).toEqual(alphaStatusV12());
+    expect(() => verifyAlphaStatusV12ForStage(
+      aggregate,
+      4,
+      'draining',
+    )).toThrow(/rollout stage was invalid/i);
+    expect(verifyReturnNodeReuseRepairAlphaStatusV12(
+      repairablePredecessor,
+      4,
+      WORKER_FORWARD_REPAIR_CHECKPOINT.ACTIVE_PREDECESSOR,
+    )).toEqual(repairablePredecessor);
+    expect(verifyReturnNodeReuseRepairAlphaStatusV12(
+      repairableCandidate,
+      4,
+      WORKER_FORWARD_REPAIR_CHECKPOINT.CANDIDATE_PENDING,
+    )).toEqual(repairableCandidate);
+    expect(verifyReturnNodeReuseRepairAlphaStatusV12(
+      aggregate,
+      4,
+      WORKER_FORWARD_REPAIR_CHECKPOINT.CANDIDATE_EXISTING,
+    )).toEqual(aggregate);
+    expect(verifyAlphaStatusV12ForStage(
+      repairablePredecessor,
+      4,
+      WORKER_PUBLISH_ROLLOUT_STAGE.ACTIVE,
+      WORKER_FORWARD_REPAIR.RETURN_NODE_REUSE_V1,
+      WORKER_FORWARD_REPAIR_CHECKPOINT.ACTIVE_PREDECESSOR,
+    )).toEqual(repairablePredecessor);
+
+    for (const invalid of [
+      { schedules: '4' },
+      { assignmentsWithoutSingleSchedule: '0' },
+      { assignmentsWithoutSingleSchedule: '2' },
+      { occupationSiteMismatches: '0' },
+      { orphanSchedules: '1' },
+      { invalidSchedules: '1' },
+      { legacySchedules: '1' },
+    ]) {
+      const status = verifyPrivacySafeAlphaStatusV12Output(JSON.stringify(
+        repairableActiveAlphaStatusV12('active-predecessor', invalid),
+      ));
+      expect(
+        () => verifyReturnNodeReuseRepairAlphaStatusV12(
+          status,
+          4,
+          WORKER_FORWARD_REPAIR_CHECKPOINT.ACTIVE_PREDECESSOR,
+        ),
+        JSON.stringify(invalid),
+      ).toThrow(/exact bounded return-node-reuse repair checkpoint/i);
+    }
+    expect(() => verifyReturnNodeReuseRepairAlphaStatusV12(
+      repairableCandidate,
+      4,
+      WORKER_FORWARD_REPAIR_CHECKPOINT.ACTIVE_PREDECESSOR,
+    )).toThrow(/exact bounded return-node-reuse repair checkpoint/i);
+    expect(() => verifyReturnNodeReuseRepairAlphaStatusV12(
+      repairablePredecessor,
+      4,
+      WORKER_FORWARD_REPAIR_CHECKPOINT.CANDIDATE_PENDING,
+    )).toThrow(/exact bounded return-node-reuse repair checkpoint/i);
+    expect(() => verifyAlphaStatusV12ForStage(
+      repairablePredecessor,
+      4,
+      WORKER_PUBLISH_ROLLOUT_STAGE.EMPTY,
+      WORKER_FORWARD_REPAIR.RETURN_NODE_REUSE_V1,
+      WORKER_FORWARD_REPAIR_CHECKPOINT.ACTIVE_PREDECESSOR,
+    )).toThrow(/requires the active Worker rollout stage/i);
+    expect(() => verifyAlphaStatusV12ForStage(
+      aggregate,
+      4,
+      WORKER_PUBLISH_ROLLOUT_STAGE.ACTIVE,
+      'unknown',
+    )).toThrow(/forward-repair selection was invalid/i);
+
+    for (const invalid of [
+      { mode: 'staged' },
+      { systemRows: '0' },
+      { systemConfigValid: false },
+      { legacyDrainRequired: true },
+      { expectedCastleCount: '3' },
+      { expectedWorkerCount: '15' },
+      { actualWorkerCount: '15' },
+      { expectedCountsMatch: false },
+      { rosterDigestMatches: false },
+      { rosterDigest: '' },
+      { rosterDigestExpected: 'fedcba9876543210' },
+      { idleWorkers: '11' },
+      { assignments: '3' },
+      { occupations: '4' },
+      { schedules: '3' },
+      { castlesMissingWorkers: '1' },
+      { invalidWorkerStates: '1' },
+      { orphanAssignments: '1' },
+      { invalidIdempotencyReceipts: '1' },
+      { idempotencyOverflowFids: '1' },
+      { legacyExpeditions: '1' },
+      { legacyOccupations: '1' },
+      { legacySchedules: '1' },
+    ]) {
+      const status = verifyPrivacySafeAlphaStatusV12Output(JSON.stringify(
+        activeAlphaStatusV12(invalid),
+      ));
+      expect(
+        () => verifyActiveAlphaStatusV12(status, 4),
+        JSON.stringify(invalid),
+      ).toThrow(/healthy active Worker graph/i);
+    }
+    expect(() => verifyActiveAlphaStatusV12(aggregate, 0))
+      .toThrow(/expected founder count/i);
+  });
+
   it('enforces a hard deadline with graceful then forced termination', async () => {
     vi.useFakeTimers();
     const child = new EventEmitter() as EventEmitter & { kill: ReturnType<typeof vi.fn> };
@@ -2731,6 +3309,7 @@ describe('activation publish safety', () => {
       '--resource-rollout-stage=prebackfill',
       '--genesis-world-stage=pre-expansion',
       '--worker-rollout-stage=empty',
+      '--worker-forward-repair=none',
     ], {
       cwd: repositoryRoot,
       encoding: 'utf8',
@@ -2749,6 +3328,7 @@ describe('activation publish safety', () => {
       '--resource-rollout-stage=prebackfill',
       '--genesis-world-stage=pre-expansion',
       '--worker-rollout-stage=empty',
+      '--worker-forward-repair=none',
     ], {
       cwd: repositoryRoot,
       encoding: 'utf8',

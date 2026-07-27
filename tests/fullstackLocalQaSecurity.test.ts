@@ -533,7 +533,7 @@ describe('disposable connected local QA dependency and network boundaries', () =
     expect(browserSource).toContain('const setupChromePid = chrome.pid;');
     expect(browserSource).toContain('setupChromePid !== chrome.pid');
     expect(browserSource).toContain(
-      "setupChromeProfile === join(runtimeRoot, 'chrome')"
+      "setupChromeProfile === join(runtimeRoot, 'chrome-setup')"
     );
     expect(browserSource).toContain(
       "chromeProfile === join(runtimeRoot, 'chrome-reentry')"
@@ -570,6 +570,13 @@ describe('disposable connected local QA dependency and network boundaries', () =
     );
     expect(browserSource).toContain(
       "stage: 'reentry-read-only-worker-menu'"
+    );
+    expect(browserSource).toContain('recallAllAvailable:');
+    expect(browserSource).toContain(
+      'enabledRecallCountBeforePrivateReady: recallButtons.length'
+    );
+    expect(browserSource).not.toContain(
+      'disabledRecallCountBeforePrivateReady'
     );
     expect(browserSource).toContain(
       "stage: 'reentry-private-in-place-recovery'"
@@ -690,6 +697,133 @@ describe('disposable connected local QA dependency and network boundaries', () =
     expect(browserSource).toContain("{ detail: 'reconnect-gated' }");
     expect(browserSource).toContain(
       "stage: 'reentry-retained-reconnect-recovery'"
+    );
+  });
+
+  it('starts from one production-shaped persisted seven-castle Worker graph before Chrome', () => {
+    const browserSource = readFileSync(
+      resolve(process.cwd(), 'scripts/qa-observer/local-fullstack-browser-probe.mjs'),
+      'utf8'
+    );
+    const spacetimeSource = readFileSync(
+      resolve(process.cwd(), 'scripts/qa-observer/local-fullstack-spacetime.mjs'),
+      'utf8'
+    );
+    const appSource = readFileSync(
+      resolve(process.cwd(), 'src/dev/FullstackLocalQaApp.tsx'),
+      'utf8'
+    );
+
+    for (const evidence of [
+      'LOCAL_FULLSTACK_FOUNDER_COUNT = 7',
+      'LOCAL_FULLSTACK_WORKER_COUNT = LOCAL_FULLSTACK_FOUNDER_COUNT * 4',
+      'for (const founder of LOCAL_FULLSTACK_FOUNDERS)',
+      "await callPlayer('bootstrap_player_v2')",
+      "await callPlayer('accept_alpha_terms_v1'",
+      "await callPlayer('get_my_worker_control_state_v1')",
+      "await callPlayer('dispatch_worker_v1'",
+      "await callPlayer('collect_resources_v1')",
+      "await callPlayer('recall_worker_v1'",
+      'preparedRollout.genericAssignments !== 4n',
+      'preparedRollout.genericOccupations !== 3n',
+      'preparedRollout.genericSchedules !== 4n',
+      'preparedRollout.legacyExpeditions !== 0n',
+      'preparedRollout.legacyOccupations !== 0n',
+      'preparedRollout.legacySchedules !== 0n',
+      'seedAttestation',
+    ]) expect(spacetimeSource).toContain(evidence);
+    expect(browserSource.indexOf(
+      'database = await startDisposableLocalFullstackSpacetime({'
+    )).toBeLessThan(browserSource.indexOf(
+      "probeStage = 'chrome-launch'"
+    ));
+    expect(browserSource).toContain(
+      'database.seedAttestation?.castleCount !== 7'
+    );
+    expect(browserSource).toContain(
+      'database.seedAttestation.workerCount !== 28'
+    );
+    expect(browserSource).toContain(
+      "await devtools.command('Page.reload', { ignoreCache: true });"
+    );
+    expect(browserSource).toContain(
+      'await exerciseHardReloadWorkerContinuity(devtools)'
+    );
+    expect(browserSource).toContain(
+      "candidate.getAttribute('data-local-fullstack-public-castles') === '7'"
+    );
+    expect(browserSource).toContain(
+      "candidate.getAttribute('data-local-fullstack-public-workers') === '28'"
+    );
+    for (const evidence of [
+      'data-local-fullstack-public-castles',
+      'data-local-fullstack-public-workers',
+      'data-local-fullstack-private-resource-rail',
+      'data-local-fullstack-target-sites',
+    ]) expect(appSource).toContain(evidence);
+  });
+
+  it('records privacy-safe atomic and compatibility failure reasons without payloads', () => {
+    const browserSource = readFileSync(
+      resolve(process.cwd(), 'scripts/qa-observer/local-fullstack-browser-probe.mjs'),
+      'utf8'
+    );
+    const appSource = readFileSync(
+      resolve(process.cwd(), 'src/dev/FullstackLocalQaApp.tsx'),
+      'utf8'
+    );
+
+    for (const seam of [
+      'control-malformed',
+      'control-wrong-caller',
+      'control-public-revision',
+      'control-status-site',
+      'control-pending-mismatch',
+      'control-resource-policy',
+      'control-worker-policy',
+      'control-worker-mode',
+      'control-rejected',
+      'fallback-roster-delayed',
+      'fallback-resource-delayed',
+      'fallback-roster-missing',
+      'fallback-resource-missing',
+      'fallback-roster-rejected',
+      'fallback-resource-rejected',
+      'fallback-roster-timeout',
+      'fallback-resource-timeout',
+      'fallback-torn-timestamp',
+    ]) {
+      expect(appSource).toContain(seam);
+      expect(browserSource).toContain(seam);
+    }
+    for (const reason of [
+      'control-state-timeout',
+      'control-state-decode-invalid',
+      'wrong-caller',
+      'public-private-worker-revision-mismatch',
+      'worker-status-or-site-mismatch',
+      'pending-total-mismatch',
+      'resource-policy-mismatch',
+      'worker-policy-mismatch',
+      'worker-system-mode-mismatch',
+      'procedure-rejected',
+      'roster-decode-invalid',
+      'resource-decode-invalid',
+      'roster-timeout',
+      'resource-timeout',
+    ]) expect(browserSource).toContain(reason);
+    expect(appSource).toContain(
+      'data-local-fullstack-worker-private-failure-reason'
+    );
+    expect(browserSource).toContain(
+      "probe.getAttribute('data-local-fullstack-worker-private-failure-reason')"
+    );
+    expect(browserSource).toContain('value.failureReceiptCount !== 16');
+    expect(browserSource).toContain('value.resourceRailInvalidSamples !== 0');
+    expect(browserSource).toContain('value.resourceTooltipFreshness !== true');
+    expect(browserSource).toContain('LOCAL_QA_CHANNEL_NOT_A_REAL_PROOF');
+    expect(browserSource).not.toContain(
+      'data-local-fullstack-private-procedure-payload'
     );
   });
 

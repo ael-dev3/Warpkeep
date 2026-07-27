@@ -61,6 +61,7 @@ export type LoggingCampInspectionPanelProps = Readonly<{
   /** Explicit portrait navigation; opening the record itself remains camera-neutral. */
   onFocusOccupantCastle?: (occupant: RealmResourceOccupantMarker) => void;
   /** Exact owner-only generic worker recall boundary. */
+  workerRecallAwaitingAuthority?: boolean;
   onRecallWorker?: (workerId: string) => Promise<void>;
   /** Exact owner roster used only for map-node dispatch in active generic mode. */
   workers?: readonly RealmWorkerPublicPresentation[];
@@ -130,6 +131,7 @@ export function LoggingCampInspectionPanel({
   legacyDispatchBlocked = false,
   occupancyUnavailable = false,
   onFocusOccupantCastle,
+  workerRecallAwaitingAuthority = false,
   onRecallWorker,
   workers,
   onDispatchWorker,
@@ -313,6 +315,7 @@ export function LoggingCampInspectionPanel({
           </dl>
           {occupant ? (
             <RealmResourceOccupantDetails
+              awaitingAuthoritativeRecall={workerRecallAwaitingAuthority}
               focusFallbackRef={closeButtonRef}
               marker={occupant}
               onFocusCastle={onFocusOccupantCastle}

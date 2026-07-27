@@ -40,6 +40,29 @@ export type WarpkeepWorkerPrivateSyncPhase =
   | 'retry-wait'
   | 'failed-localized';
 
+export type WarpkeepWorkerPrivateSyncFailureReason =
+  | 'roster-procedure-unavailable'
+  | 'resource-procedure-unavailable'
+  | 'control-state-procedure-unavailable'
+  | 'roster-timeout'
+  | 'resource-timeout'
+  | 'control-state-timeout'
+  | 'procedure-rejected'
+  | 'roster-decode-invalid'
+  | 'resource-decode-invalid'
+  | 'control-state-decode-invalid'
+  | 'wrong-caller'
+  | 'stale-generation'
+  | 'public-graph-changed'
+  | 'public-private-worker-revision-mismatch'
+  | 'worker-status-or-site-mismatch'
+  | 'pending-total-mismatch'
+  | 'resource-policy-mismatch'
+  | 'worker-policy-mismatch'
+  | 'worker-system-mode-mismatch'
+  | 'coherent-pair-exhausted'
+  | 'unknown-localized';
+
 /**
  * Privacy-safe lifecycle metadata for the caller-private Worker pair.
  *
@@ -54,6 +77,8 @@ export type WarpkeepWorkerPrivateSyncStatus = Readonly<{
   retainedStale: boolean;
   localizedFailureCount: number;
   commandsEnabled: boolean;
+  /** Safe reason class only; never contains a procedure payload or raw error. */
+  failureReason?: WarpkeepWorkerPrivateSyncFailureReason;
   lastSuccessGeneration?: number;
   lastSuccessRevision?: string;
   readyLatencyMilliseconds?: number;

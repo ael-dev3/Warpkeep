@@ -18,6 +18,8 @@ export type WorkerCommandCenterProps = Readonly<{
   roster?: WorkerRosterPresentation;
   controlsAvailable: boolean;
   controlsStatus?: string;
+  awaitingWorkerIds?: readonly string[];
+  recallAllAwaitingAuthority?: boolean;
   onRecallWorker?: (workerId: string) => Promise<void>;
   onRecallAllWorkers?: () => Promise<void>;
   onSelectWorker: (worker: RealmWorkerPublicPresentation) => void;
@@ -39,6 +41,8 @@ export function WorkerCommandCenter({
   roster,
   controlsAvailable,
   controlsStatus,
+  awaitingWorkerIds = [],
+  recallAllAwaitingAuthority = false,
   onRecallWorker,
   onRecallAllWorkers,
   onSelectWorker,
@@ -48,6 +52,7 @@ export function WorkerCommandCenter({
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [pendingCommand, setPendingCommand] = useState<PendingCommand>(undefined);
   const [commandFailed, setCommandFailed] = useState(false);
+  const awaitingWorkerSet = new Set(awaitingWorkerIds);
   const available = workerAvailabilityCount(workers);
   const hasRecallableWorker = workers.some(realmWorkerCanRecall);
   useModalFocusBoundary({
@@ -142,8 +147,11 @@ export function WorkerCommandCenter({
             const recallable = realmWorkerCanRecall(worker);
             const canRecall = controlsAvailable
               && recallable
+              && !awaitingWorkerSet.has(worker.workerId)
+              && !recallAllAwaitingAuthority
               && onRecallWorker !== undefined;
             const recalling = pendingCommand === worker.workerId;
+            const awaitingAuthority = awaitingWorkerSet.has(worker.workerId);
             return (
               <li key={worker.workerId}>
                 <button
@@ -160,7 +168,7 @@ export function WorkerCommandCenter({
                   <span
                     aria-label={privateWorker
                       ? `${availableAmountLabel} available`
-                      : 'Private worker totals unavailable while controls are read-only'}
+                      : 'Private Worker totals unavailable while accrual synchronizes'}
                     className="worker-command-center__amount"
                   >{availableAmountLabel}</span>
                 </button>
@@ -174,7 +182,11 @@ export function WorkerCommandCenter({
                     onClick={() => void recall(worker.workerId)}
                     type="button"
                   >
-                    {recalling ? 'RETURNING…' : 'RETURN'}
+                    {recalling
+                      ? 'RETURNING…'
+                      : awaitingAuthority
+                        ? 'AWAITING REALM…'
+                        : 'RETURN'}
                   </button>
                 ) : null}
               </li>
@@ -189,13 +201,19 @@ export function WorkerCommandCenter({
             disabled={
               !controlsAvailable
               || !onRecallAllWorkers
+              || recallAllAwaitingAuthority
+              || awaitingWorkerSet.size > 0
               || pendingCommand !== undefined
               || !hasRecallableWorker
             }
             onClick={() => void recallAll()}
             type="button"
           >
-            {pendingCommand === 'all' ? 'RETURNING…' : 'RETURN ALL TO KEEP'}
+            {pendingCommand === 'all'
+              ? 'RETURNING…'
+              : recallAllAwaitingAuthority
+                ? 'AWAITING REALM…'
+                : 'RETURN ALL TO KEEP'}
           </button>
         </footer>
       </section>

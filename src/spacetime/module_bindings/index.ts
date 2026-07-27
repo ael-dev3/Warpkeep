@@ -50,6 +50,7 @@ import AdminCreditSnapBurnV1Reducer from "./admin_credit_snap_burn_v_1_reducer";
 import AdminDisableFidReducer from "./admin_disable_fid_reducer";
 import AdminExpandGenesisWorldV3Reducer from "./admin_expand_genesis_world_v_3_reducer";
 import AdminFinalizeSnapScanBatchV1Reducer from "./admin_finalize_snap_scan_batch_v_1_reducer";
+import AdminRepairMissingWorkerReturnScheduleV1Reducer from "./admin_repair_missing_worker_return_schedule_v_1_reducer";
 import AdminReplaceFidWalletSnapshotV1Reducer from "./admin_replace_fid_wallet_snapshot_v_1_reducer";
 import AdminSeedGenesisForestLayoutV1Reducer from "./admin_seed_genesis_forest_layout_v_1_reducer";
 import AdminSeedGenesisTierIFoodSitesV1Reducer from "./admin_seed_genesis_tier_i_food_sites_v_1_reducer";
@@ -102,6 +103,7 @@ import * as GetMyResourceStateV1Procedure from "./get_my_resource_state_v_1_proc
 import * as GetMyResourceStateV2Procedure from "./get_my_resource_state_v_2_procedure";
 import * as GetMyStoneExpeditionStateV1Procedure from "./get_my_stone_expedition_state_v_1_procedure";
 import * as GetMyWoodExpeditionStateV1Procedure from "./get_my_wood_expedition_state_v_1_procedure";
+import * as GetMyWorkerControlStateV1Procedure from "./get_my_worker_control_state_v_1_procedure";
 import * as GetMyWorkerRosterV1Procedure from "./get_my_worker_roster_v_1_procedure";
 import * as QaObserverGetRealmAttestationV2Procedure from "./qa_observer_get_realm_attestation_v_2_procedure";
 import * as QaObserverGetRealmSnapshotV1Procedure from "./qa_observer_get_realm_snapshot_v_1_procedure";
@@ -583,6 +585,7 @@ const reducersSchema = __reducers(
   __reducerSchema("admin_disable_fid", AdminDisableFidReducer),
   __reducerSchema("admin_expand_genesis_world_v3", AdminExpandGenesisWorldV3Reducer),
   __reducerSchema("admin_finalize_snap_scan_batch_v1", AdminFinalizeSnapScanBatchV1Reducer),
+  __reducerSchema("admin_repair_missing_worker_return_schedule_v1", AdminRepairMissingWorkerReturnScheduleV1Reducer),
   __reducerSchema("admin_replace_fid_wallet_snapshot_v1", AdminReplaceFidWalletSnapshotV1Reducer),
   __reducerSchema("admin_seed_genesis_forest_layout_v1", AdminSeedGenesisForestLayoutV1Reducer),
   __reducerSchema("admin_seed_genesis_tier_i_food_sites_v1", AdminSeedGenesisTierIFoodSitesV1Reducer),
@@ -637,6 +640,7 @@ const proceduresSchema = __procedures(
   __procedureSchema("get_my_resource_state_v2", GetMyResourceStateV2Procedure.params, GetMyResourceStateV2Procedure.returnType),
   __procedureSchema("get_my_stone_expedition_state_v1", GetMyStoneExpeditionStateV1Procedure.params, GetMyStoneExpeditionStateV1Procedure.returnType),
   __procedureSchema("get_my_wood_expedition_state_v1", GetMyWoodExpeditionStateV1Procedure.params, GetMyWoodExpeditionStateV1Procedure.returnType),
+  __procedureSchema("get_my_worker_control_state_v1", GetMyWorkerControlStateV1Procedure.params, GetMyWorkerControlStateV1Procedure.returnType),
   __procedureSchema("get_my_worker_roster_v1", GetMyWorkerRosterV1Procedure.params, GetMyWorkerRosterV1Procedure.returnType),
   __procedureSchema("qa_observer_get_realm_attestation_v2", QaObserverGetRealmAttestationV2Procedure.params, QaObserverGetRealmAttestationV2Procedure.returnType),
   __procedureSchema("qa_observer_get_realm_snapshot_v1", QaObserverGetRealmSnapshotV1Procedure.params, QaObserverGetRealmSnapshotV1Procedure.returnType),

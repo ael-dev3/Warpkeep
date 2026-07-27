@@ -42,6 +42,9 @@ import {
   workerSystemRowIsStagedOrActive,
 } from './castleWorkerRoster';
 import {
+  CASTLE_WORKER_MAX_CASTLES,
+} from './castleWorkerRolloutPolicy';
+import {
   CANONICAL_REALM,
   canonicalMetaForKey,
   canonicalTileForKey,
@@ -60,10 +63,18 @@ type ResourceAccountRow = NonNullable<ReturnType<WarpkeepReducerContext['db']['r
 export const WORKER_SCHEDULE_STAGE_ARRIVAL = 'arrival';
 export const WORKER_SCHEDULE_STAGE_GATHERING_EXPIRY = 'gathering-expiry';
 export const WORKER_SCHEDULE_STAGE_RETURN_COMPLETE = 'return-complete';
+export const WORKER_RETURN_SCHEDULE_REPAIR_CAPABILITY =
+  'genesis-001-worker-return-schedule-repair-v1';
 const WORKER_SYSTEM_REALM_ID = CANONICAL_REALM.realmId;
 const WORKER_TIMELINE_MAX = 0xffff_ffff;
 export const WORKER_IDEMPOTENCY_RECEIPTS_PER_FID = 64;
+const WORKER_RETURN_REPAIR_MAX_ROWS =
+  CASTLE_WORKERS_PER_CASTLE * CASTLE_WORKER_MAX_CASTLES;
+const WORKER_RETURN_REPAIR_MAX_RECEIPTS =
+  WORKER_IDEMPOTENCY_RECEIPTS_PER_FID * CASTLE_WORKER_MAX_CASTLES;
 const BOUNDED_WORKER_ERROR_CODE = /^[A-Z][A-Z0-9_]{0,63}$/;
+const SHA256_HEX = /^[0-9a-f]{64}$/;
+const GIT_COMMIT_HEX = /^[0-9a-f]{40}$/;
 
 export class CastleWorkerAuthorityError extends Error {
   constructor(readonly code: string) {
@@ -787,9 +798,12 @@ function completeWorkerReturn(ctx: WarpkeepReducerContext, assignment: Assignmen
   if (assignment.phase !== 'returning') fail('WORKER_RETURN_STATE');
   const worker = ctx.db.castleWorkerV1.workerId.find(assignment.workerId);
   if (worker === null || !publicWorkerMatchesAssignment(worker, assignment)) fail('WORKER_PUBLIC_PRIVATE_MISMATCH');
-  if (ctx.db.workerNodeOccupationV1.nodeKey.find(
-    workerNodeKey(assignment.resourceKind, assignment.siteId),
-  ) !== null) {
+  const ownedOccupations = boundedRows(
+    ctx.db.workerNodeOccupationV1.byWorker.filter(assignment.workerId),
+    1,
+    'WORKER_OCCUPATION_LIMIT',
+  );
+  if (ownedOccupations.length !== 0) {
     fail('WORKER_OCCUPATION_INTEGRITY');
   }
   deleteSchedulesForAssignment(ctx, assignment.assignmentId);
@@ -1123,13 +1137,18 @@ export function inspectCastleWorkerGraph(ctx: WarpkeepReducerContext): WorkerGra
     } catch {
       invalidAssignments += 1n;
     }
-    const occupation = ctx.db.workerNodeOccupationV1.nodeKey.find(
-      workerNodeKey(assignment.resourceKind, assignment.siteId),
-    );
     if (assignment.phase === 'returning') {
-      if (occupation !== null) occupationSiteMismatches += 1n;
-    } else if (occupation === null || !occupationMatchesAssignment(occupation, assignment)) {
-      assignmentsMissingOccupation += 1n;
+      const ownedOccupations = [
+        ...ctx.db.workerNodeOccupationV1.byWorker.filter(assignment.workerId),
+      ];
+      occupationSiteMismatches += BigInt(ownedOccupations.length);
+    } else {
+      const occupation = ctx.db.workerNodeOccupationV1.nodeKey.find(
+        workerNodeKey(assignment.resourceKind, assignment.siteId),
+      );
+      if (occupation === null || !occupationMatchesAssignment(occupation, assignment)) {
+        assignmentsMissingOccupation += 1n;
+      }
     }
     const schedules = [...ctx.db.workerAssignmentScheduleV1.byAssignment.filter(assignment.assignmentId)];
     if (schedules.length !== 1 || !schedules.every(schedule => scheduleMatchesAssignment(schedule, assignment))) {
@@ -1147,7 +1166,11 @@ export function inspectCastleWorkerGraph(ctx: WarpkeepReducerContext): WorkerGra
     } catch {
       occupationSiteMismatches += 1n;
     }
-    if (assignment !== null && !occupationMatchesAssignment(occupation, assignment)) occupationSiteMismatches += 1n;
+    if (
+      assignment !== null
+      && assignment.phase !== 'returning'
+      && !occupationMatchesAssignment(occupation, assignment)
+    ) occupationSiteMismatches += 1n;
   }
   let orphanSchedules = 0n;
   let invalidSchedules = 0n;
@@ -1217,6 +1240,250 @@ export function inspectCastleWorkerGraph(ctx: WarpkeepReducerContext): WorkerGra
     legacySchedules: legacy.schedules,
     rosterDigest: system?.rosterDigest ?? '',
     rosterDigestExpected: expectedRosterDigest,
+  });
+}
+
+export type WorkerReturnScheduleRepairAttestation = Readonly<{
+  capability: string;
+  sourceCommit: string;
+  moduleArtifactDigest: string;
+  expectedCastleCount: number;
+  expectedWorkerCount: number;
+  expectedAssignments: number;
+  expectedOccupations: number;
+  expectedSchedules: number;
+  expectedReturningWorkers: number;
+  expectedMissingSchedules: number;
+  rosterDigest: string;
+}>;
+
+export type WorkerReturnScheduleRepairResult = Readonly<{
+  repaired: boolean;
+  beforeAssignments: bigint;
+  beforeOccupations: bigint;
+  beforeSchedules: bigint;
+  afterAssignments: bigint;
+  afterOccupations: bigint;
+  afterSchedules: bigint;
+}>;
+
+function workerGraphIntegrityViolations(
+  graph: WorkerGraphAggregate,
+  includeMissingSchedules = true,
+): bigint {
+  return graph.castlesMissingWorkers
+    + graph.castlesWithExtraWorkers
+    + graph.duplicateOrdinals
+    + graph.malformedWorkerIds
+    + graph.invalidWorkerStates
+    + graph.orphanWorkers
+    + graph.orphanAssignments
+    + graph.assignmentsMissingOccupation
+    + (includeMissingSchedules ? graph.assignmentsWithoutSingleSchedule : 0n)
+    + graph.orphanOccupations
+    + graph.orphanSchedules
+    + graph.invalidSchedules
+    + graph.assignmentPublicMismatches
+    + graph.occupationSiteMismatches
+    + graph.invalidAssignments
+    + graph.invalidIdempotencyReceipts
+    + graph.idempotencyOverflowFids;
+}
+
+function activeWorkerGraphBaseIsValid(graph: WorkerGraphAggregate): boolean {
+  const activeWorkers = graph.outboundWorkers
+    + graph.gatheringWorkers
+    + graph.returningWorkers;
+  return graph.systemRows === 1n
+    && graph.mode === 'active'
+    && graph.systemConfigValid
+    && !graph.legacyDrainRequired
+    && graph.expectedCountsMatch
+    && graph.rosterDigestMatches
+    && graph.rosterDigest.length === 16
+    && graph.rosterDigest === graph.rosterDigestExpected
+    && graph.idleWorkers + activeWorkers === graph.actualWorkerCount
+    && graph.assignments === activeWorkers
+    && graph.occupations === graph.outboundWorkers + graph.gatheringWorkers
+    && graph.legacyExpeditions === 0n
+    && graph.legacyOccupations === 0n
+    && graph.legacySchedules === 0n;
+}
+
+function activeWorkerGraphIsHealthy(graph: WorkerGraphAggregate): boolean {
+  return activeWorkerGraphBaseIsValid(graph)
+    && graph.schedules === graph.assignments
+    && workerGraphIntegrityViolations(graph) === 0n;
+}
+
+function assertWorkerReturnRepairInspectionCapacity(
+  ctx: WarpkeepReducerContext,
+): void {
+  const counts = [
+    [ctx.db.realmWorkerSystemV1.count(), 1],
+    [ctx.db.castle.count(), CASTLE_WORKER_MAX_CASTLES],
+    [ctx.db.castleWorkerV1.count(), WORKER_RETURN_REPAIR_MAX_ROWS],
+    [ctx.db.workerAssignmentV1.count(), WORKER_RETURN_REPAIR_MAX_ROWS],
+    [ctx.db.workerNodeOccupationV1.count(), WORKER_RETURN_REPAIR_MAX_ROWS],
+    [ctx.db.workerAssignmentScheduleV1.count(), WORKER_RETURN_REPAIR_MAX_ROWS],
+    [
+      ctx.db.workerCommandIdempotencyV1.count(),
+      WORKER_RETURN_REPAIR_MAX_RECEIPTS,
+    ],
+  ] as const;
+  if (counts.some(([count, maximum]) => count > BigInt(maximum))) {
+    fail('WORKER_RETURN_REPAIR_CAPACITY');
+  }
+}
+
+function assertWorkerReturnScheduleRepairAttestation(
+  input: WorkerReturnScheduleRepairAttestation,
+): void {
+  if (
+    input.capability !== WORKER_RETURN_SCHEDULE_REPAIR_CAPABILITY
+    || !GIT_COMMIT_HEX.test(input.sourceCommit)
+    || !SHA256_HEX.test(input.moduleArtifactDigest)
+    || !/^[0-9a-f]{16}$/.test(input.rosterDigest)
+    || !Number.isSafeInteger(input.expectedCastleCount)
+    || input.expectedCastleCount < 1
+    || input.expectedCastleCount > 100
+    || !Number.isSafeInteger(input.expectedWorkerCount)
+    || input.expectedWorkerCount
+      !== input.expectedCastleCount * CASTLE_WORKERS_PER_CASTLE
+    || !Number.isSafeInteger(input.expectedAssignments)
+    || input.expectedAssignments < 1
+    || input.expectedAssignments > input.expectedWorkerCount
+    || !Number.isSafeInteger(input.expectedOccupations)
+    || input.expectedOccupations < 0
+    || input.expectedOccupations > input.expectedAssignments
+    || !Number.isSafeInteger(input.expectedSchedules)
+    || input.expectedSchedules < 0
+    || input.expectedSchedules >= input.expectedAssignments
+    || !Number.isSafeInteger(input.expectedReturningWorkers)
+    || input.expectedReturningWorkers < 1
+    || input.expectedReturningWorkers > input.expectedAssignments
+    || input.expectedMissingSchedules !== 1
+    || input.expectedSchedules + input.expectedMissingSchedules
+      !== input.expectedAssignments
+  ) fail('WORKER_RETURN_REPAIR_ATTESTATION_INVALID');
+}
+
+/**
+ * Restore one exact missing return-complete schedule without touching Worker,
+ * assignment, occupation, accounting, or receipt state. A healthy graph is an
+ * idempotent no-op so a lost operator response cannot create a second schedule.
+ */
+export function repairMissingWorkerReturnSchedule(
+  ctx: WarpkeepReducerContext,
+  input: WorkerReturnScheduleRepairAttestation,
+): WorkerReturnScheduleRepairResult {
+  assertWorkerReturnScheduleRepairAttestation(input);
+  assertWorkerReturnRepairInspectionCapacity(ctx);
+  const before = inspectCastleWorkerGraph(ctx);
+  if (
+    before.expectedCastleCount !== BigInt(input.expectedCastleCount)
+    || before.expectedWorkerCount !== BigInt(input.expectedWorkerCount)
+    || before.actualWorkerCount !== BigInt(input.expectedWorkerCount)
+    || before.rosterDigest !== input.rosterDigest
+  ) fail('WORKER_RETURN_REPAIR_ROSTER_DRIFT');
+
+  if (activeWorkerGraphIsHealthy(before)) {
+    const expectedAssignments = BigInt(input.expectedAssignments);
+    const expectedOccupations = BigInt(input.expectedOccupations);
+    const expectedSchedules = BigInt(input.expectedSchedules);
+    const expectedReturningWorkers = BigInt(input.expectedReturningWorkers);
+    const restoredAndWaiting = before.assignments === expectedAssignments
+      && before.occupations === expectedOccupations
+      && before.schedules === expectedAssignments
+      && before.returningWorkers === expectedReturningWorkers;
+    const alreadyCompleted = before.assignments === expectedAssignments - 1n
+      && before.occupations === expectedOccupations
+      && before.schedules === expectedSchedules
+      && before.returningWorkers === expectedReturningWorkers - 1n;
+    if (!restoredAndWaiting && !alreadyCompleted) {
+      fail('WORKER_RETURN_REPAIR_STATE_DRIFT');
+    }
+    return Object.freeze({
+      repaired: false,
+      beforeAssignments: before.assignments,
+      beforeOccupations: before.occupations,
+      beforeSchedules: before.schedules,
+      afterAssignments: before.assignments,
+      afterOccupations: before.occupations,
+      afterSchedules: before.schedules,
+    });
+  }
+
+  if (
+    !activeWorkerGraphBaseIsValid(before)
+    || workerGraphIntegrityViolations(before, false) !== 0n
+    || before.assignmentsWithoutSingleSchedule !== 1n
+    || before.assignments !== BigInt(input.expectedAssignments)
+    || before.occupations !== BigInt(input.expectedOccupations)
+    || before.schedules !== BigInt(input.expectedSchedules)
+    || before.returningWorkers !== BigInt(input.expectedReturningWorkers)
+    || before.schedules + 1n !== before.assignments
+  ) fail('WORKER_RETURN_REPAIR_STATE_INVALID');
+
+  const assignments = boundedRows(
+    ctx.db.workerAssignmentV1.iter(),
+    WORKER_RETURN_REPAIR_MAX_ROWS,
+    'WORKER_RETURN_REPAIR_CAPACITY',
+  );
+  const missingSchedules: AssignmentRow[] = [];
+  for (const assignment of assignments) {
+    const schedules = boundedRows(
+      ctx.db.workerAssignmentScheduleV1.byAssignment.filter(
+        assignment.assignmentId,
+      ),
+      2,
+      'WORKER_SCHEDULE_LIMIT',
+    );
+    if (schedules.length === 0) missingSchedules.push(assignment);
+  }
+  if (missingSchedules.length !== 1) fail('WORKER_RETURN_REPAIR_TARGET_INVALID');
+
+  const assignment = missingSchedules[0]!;
+  assertAssignmentState(assignment);
+  const worker = ctx.db.castleWorkerV1.workerId.find(assignment.workerId);
+  const workerSchedules = boundedRows(
+    ctx.db.workerAssignmentScheduleV1.byWorker.filter(assignment.workerId),
+    1,
+    'WORKER_SCHEDULE_LIMIT',
+  );
+  const workerOccupations = boundedRows(
+    ctx.db.workerNodeOccupationV1.byWorker.filter(assignment.workerId),
+    1,
+    'WORKER_OCCUPATION_LIMIT',
+  );
+  if (
+    assignment.phase !== 'returning'
+    || !assignmentOwnerIsCanonical(ctx, assignment)
+    || worker === null
+    || !publicWorkerMatchesAssignment(worker, assignment)
+    || workerSchedules.length !== 0
+    || workerOccupations.length !== 0
+  ) fail('WORKER_RETURN_REPAIR_TARGET_INVALID');
+
+  insertSchedule(
+    ctx,
+    assignment,
+    WORKER_SCHEDULE_STAGE_RETURN_COMPLETE,
+    assignment.returnsAtMicros,
+  );
+  assertWorkerReturnRepairInspectionCapacity(ctx);
+  const after = inspectCastleWorkerGraph(ctx);
+  if (!activeWorkerGraphIsHealthy(after)) {
+    fail('WORKER_RETURN_REPAIR_POSTCONDITION');
+  }
+  return Object.freeze({
+    repaired: true,
+    beforeAssignments: before.assignments,
+    beforeOccupations: before.occupations,
+    beforeSchedules: before.schedules,
+    afterAssignments: after.assignments,
+    afterOccupations: after.occupations,
+    afterSchedules: after.schedules,
   });
 }
 

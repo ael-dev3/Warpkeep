@@ -8,13 +8,11 @@ import {
 
 import { HEGEMONY_MAIN_CASTLE } from '../../game/map/hegemonyLandmarks';
 import type { HexCoord } from '../../game/map/hexCoordinates';
-import { WARPKEEP_BUILD_INFO } from '../../build/buildInfo';
 import {
   realmTerrainLabel,
   type RealmTerrainKind
 } from '../../game/map/realmTerrainSemantics';
 import type { TerrainCell } from '../../game/map/terrainTypes';
-import { getLatestPatchNotes } from '../menu/latestPatchNotes';
 import { SettingsPanel } from '../menu/SettingsPanel';
 import { useModalFocusBoundary } from '../menu/useModalFocusBoundary';
 import type {
@@ -43,6 +41,7 @@ import { WorkerCommandCenter } from './WorkerCommandCenter';
 import { WorkerInspectionPanel } from './WorkerInspectionPanel';
 import {
   realmWorkerCanRecall,
+  type RealmWorkerPublicPresentation,
   type ReadyPublicWorkerProjection,
   type ReadyWorkerProjection,
   type ReadyWorkerResourceState,
@@ -83,6 +82,9 @@ type RealmHudProps = Readonly<{
   showDiagnostics?: boolean;
   onRetryWorkerPrivateSync?: () => void;
   onLocateWorker?: (workerId: string) => void;
+  /** Map-level recall state retained while Realm inspectors open and close. */
+  awaitingRecallWorkerIds?: readonly string[];
+  recallAllAwaitingAuthority?: boolean;
   onRecallWorker?: (workerId: string) => Promise<void>;
   onRecallAllWorkers?: () => Promise<void>;
   onRecenterKeep: () => void;
@@ -153,8 +155,22 @@ const REALM_MENU_ID = 'realm-player-menu';
 const REALM_SETTINGS_ID = 'realm-player-settings';
 const REALM_WORKERS_ID = 'realm-worker-command-center';
 const REALM_WORKER_INSPECTION_ID = 'realm-worker-inspection';
-const REALM_LATEST_PATCH_NOTES = getLatestPatchNotes(WARPKEEP_BUILD_INFO.version);
+const WORKER_RECONCILIATION_TIMEOUT_MILLISECONDS = 12_000;
 
+function workerRecallLifecycleScope(
+  fid: number,
+  worker: RealmWorkerPublicPresentation
+) {
+  return [
+    fid,
+    worker.workerId,
+    worker.status,
+    worker.resourceKind ?? '',
+    worker.siteId ?? '',
+    worker.timelineRevision,
+    worker.revision.toString()
+  ].join(':');
+}
 function workerProjectionAuthoritySignature(
   projection: ReadyPublicWorkerProjection | undefined
 ) {
@@ -205,15 +221,15 @@ function workerPrivateSyncCopy(
     && privateAuthorityCurrent
   ) return undefined;
   if (sync?.phase === 'failed-localized') {
-    return 'Worker controls could not be synchronized. Your public worker positions remain visible.';
+    return 'Worker accrual could not be refreshed. Public positions remain visible.';
   }
   if (sync?.phase === 'retry-wait') {
-    return 'Worker controls are waiting to retry. Your public worker positions remain visible.';
+    return 'Worker accrual is waiting to retry. Public positions remain visible.';
   }
   if (sync?.phase === 'stale-read-only') {
-    return 'Refreshing worker controls. Public worker positions remain available in read-only mode.';
+    return 'Refreshing Worker accrual. Public positions remain available.';
   }
-  return 'Synchronizing worker controls… Public worker positions remain available.';
+  return 'Synchronizing Worker accrual… Public positions remain available.';
 }
 
 function publicAssetUrl(path: string) {
@@ -293,8 +309,8 @@ function RealmResourceRail({
       status: workerResourceState
         ? `${formatExactRealmResourceQuantity(workerResourceState.available[resource]) ?? '0'} available`
         : genericWorkerMode
-          ? 'Synchronizing private balance'
-        : `${formatExactRealmResourceQuantity(resources.balances[resource]) ?? '0'} stored · ${formatExactRealmResourceQuantity(resources.pendingBalances[resource]) ?? '0'} gathering now`
+          ? `${formatExactRealmResourceQuantity(resources.balances[resource]) ?? '0'} stored · ${formatExactRealmResourceQuantity(resources.pendingBalances[resource]) ?? '0'} pending · Last confirmed balance · Worker accrual synchronizing`
+          : `${formatExactRealmResourceQuantity(resources.balances[resource]) ?? '0'} stored · ${formatExactRealmResourceQuantity(resources.pendingBalances[resource]) ?? '0'} gathering now`
     };
   };
 
@@ -327,15 +343,10 @@ function RealmResourceRail({
     >
       <ul>
         {REALM_ECONOMIC_RESOURCE_ORDER.map((resource) => {
-          const balanceSynchronizing = genericWorkerMode && !workerResourceState;
           const railValue = workerResourceState?.available[resource]
             ?? resources.balances[resource];
-          const compact = balanceSynchronizing
-            ? '—'
-            : formatCompactRealmResourceQuantity(railValue)!;
-          const exact = balanceSynchronizing
-            ? undefined
-            : formatExactRealmResourceQuantity(railValue)!;
+          const compact = formatCompactRealmResourceQuantity(railValue)!;
+          const exact = formatExactRealmResourceQuantity(railValue)!;
           const pending = formatExactRealmResourceQuantity(resources.pendingBalances[resource])!;
           return (
             <li key={resource}>
@@ -344,7 +355,7 @@ function RealmResourceRail({
                 aria-label={workerResourceState
                   ? `${RESOURCE_LABELS[resource]}: ${exact} available. Show resource details.`
                   : genericWorkerMode
-                    ? `${RESOURCE_LABELS[resource]} balance synchronizing. Show resource details.`
+                    ? `${RESOURCE_LABELS[resource]}: ${exact} last confirmed stored balance; Worker accrual synchronizing. Show resource details.`
                   : `${RESOURCE_LABELS[resource]}: ${exact} stored; ${pending} gathering now; settlement is automatic. Show resource details.`}
                 className="realm-resource-rail__trigger"
                 type="button"
@@ -429,6 +440,7 @@ type RealmCommandDialogProps = Readonly<{
   workerControlsStatus?: string;
   recallingAllWorkers: boolean;
   recallAllWorkersConfirmed: boolean;
+  workerRecallAwaitingAuthority: boolean;
   recallAllWorkersFailed: boolean;
   onWorkers?: () => void;
   onRecallAllWorkers?: () => void;
@@ -455,6 +467,7 @@ function RealmCommandDialog({
   workerControlsStatus,
   recallingAllWorkers,
   recallAllWorkersConfirmed,
+  workerRecallAwaitingAuthority,
   recallAllWorkersFailed,
   onWorkers,
   onRecallAllWorkers,
@@ -518,7 +531,11 @@ function RealmCommandDialog({
                 <span>
                   {workerPresentationAvailable && deployedWorkerCount !== undefined
                     ? `${deployedWorkerCount}/4 deployed · ${
-                      workerControlsStatus ? 'public status · controls read-only' : 'manage workers'
+                      workerControlsStatus && !onRecallAllWorkers
+                        ? 'public status · controls read-only'
+                        : workerControlsStatus
+                          ? 'recall ready · accrual syncing'
+                          : 'manage workers'
                     }`
                     : 'Worker presentation unavailable'}
                 </span>
@@ -530,6 +547,7 @@ function RealmCommandDialog({
                   !onRecallAllWorkers
                   || recallingAllWorkers
                   || recallAllWorkersConfirmed
+                  || workerRecallAwaitingAuthority
                   || recallableWorkerCount === undefined
                   || recallableWorkerCount === 0
                 }
@@ -541,14 +559,16 @@ function RealmCommandDialog({
                     ? 'RECALLING…'
                     : recallAllWorkersConfirmed
                       ? 'RECALL SENT'
+                      : workerRecallAwaitingAuthority
+                        ? 'RECALL IN PROGRESS'
                       : 'RECALL ALL TO KEEP'}
                 </strong>
                 <span>
-                  {recallAllWorkersConfirmed
+                  {recallAllWorkersConfirmed || workerRecallAwaitingAuthority
                     ? 'Awaiting the next Realm update'
                     : !workerPresentationAvailable
                       ? 'Unavailable until public worker records recover'
-                    : workerControlsStatus
+                    : workerControlsStatus && !onRecallAllWorkers
                       ? 'Available after worker controls synchronize'
                     : recallableWorkerCount !== undefined && recallableWorkerCount > 0
                     ? `${recallableWorkerCount} ${recallableWorkerCount === 1 ? 'worker' : 'workers'} can return`
@@ -625,25 +645,6 @@ function RealmCommandDialog({
               <span>Graphics and audio</span>
             </button>
           ) : null}
-          <details className="realm-profile-menu__patch-notes">
-            <summary>
-              <strong>PATCH NOTES · ALPHA {WARPKEEP_BUILD_INFO.version}</strong>
-              <span>{REALM_LATEST_PATCH_NOTES?.title ?? 'Latest Realm changes'}</span>
-            </summary>
-            <div>
-              <p>
-                {REALM_LATEST_PATCH_NOTES?.summary
-                  ?? 'Patch notes are unavailable for this local build.'}
-              </p>
-              {REALM_LATEST_PATCH_NOTES ? (
-                <ul>
-                  {REALM_LATEST_PATCH_NOTES.highlights.map((highlight) => (
-                    <li key={highlight}>{highlight}</li>
-                  ))}
-                </ul>
-              ) : null}
-            </div>
-          </details>
           <button
             data-command-intent="exit"
             onClick={onRequestReturn}
@@ -687,6 +688,8 @@ export function RealmHud({
   showDiagnostics = false,
   onRetryWorkerPrivateSync,
   onLocateWorker,
+  awaitingRecallWorkerIds = [],
+  recallAllAwaitingAuthority = false,
   onRecallWorker,
   onRecallAllWorkers,
   onRecenterKeep,
@@ -698,8 +701,18 @@ export function RealmHud({
   const [confirmedRecallAllSignature, setConfirmedRecallAllSignature] = useState<
     string | undefined
   >(undefined);
+  const [pendingRecallWorkerIds, setPendingRecallWorkerIds] = useState<
+    ReadonlySet<string>
+  >(() => new Set());
   const [recallAllWorkersFailed, setRecallAllWorkersFailed] = useState(false);
   const recallAllWorkersInFlightRef = useRef(false);
+  const recallAllAttemptRef = useRef(0);
+  const pendingRecallWorkerIdsRef = useRef(new Set<string>());
+  const confirmedRecallAllWorkerIdsRef = useRef<readonly string[] | undefined>(
+    undefined
+  );
+  const recallAllReconciliationTimerRef = useRef<number | undefined>(undefined);
+  const recallWorkerReconciliationTimersRef = useRef(new Map<string, number>());
   const triggerRef = useRef<HTMLButtonElement>(null);
   const wasOpenRef = useRef(false);
   const menuId = REALM_MENU_ID;
@@ -771,9 +784,10 @@ export function RealmHud({
     && workerResourceState?.workerSystemMode === 'active'
     && workerProjectionAuthoritySignature(workerProjection)
       === workerProjectionAuthoritySignature(publicWorkerProjection));
-  const workerControlsReady = privateAuthorityCurrent
-    && workerPrivateSync?.phase === 'ready'
-    && workerPrivateSync.commandsEnabled;
+  const recallControlsReady = publicWorkersActive
+    && (onRecallWorker !== undefined || onRecallAllWorkers !== undefined);
+  const recallAllControlsReady = publicWorkersActive
+    && onRecallAllWorkers !== undefined;
   const workerControlsStatus = genericWorkerModeActive
     ? publicWorkersActive
       ? workerPrivateSyncCopy(workerPrivateSync, privateAuthorityCurrent)
@@ -785,18 +799,36 @@ export function RealmHud({
   const recallableWorkerCount = publicWorkersActive
     ? ownedWorkersForUi.filter(realmWorkerCanRecall).length
     : 0;
-  const recallableWorkerSignature = publicWorkersActive
-    ? ownedWorkersForUi
-      .filter(realmWorkerCanRecall)
-      .map((worker) => `${worker.workerId}:${worker.timelineRevision}`)
-      .sort()
-      .join('|')
-    : '';
+  const recallableWorkerScopes = new Map(
+    publicWorkersActive
+      ? ownedWorkersForUi
+        .filter(realmWorkerCanRecall)
+        .map((worker) => [
+          worker.workerId,
+          workerRecallLifecycleScope(identity.fid, worker)
+        ] as const)
+      : []
+  );
+  const recallableWorkerSignature = [...recallableWorkerScopes.values()]
+    .sort()
+    .join('|');
+  const recallableWorkerScopesRef = useRef(recallableWorkerScopes);
+  recallableWorkerScopesRef.current = recallableWorkerScopes;
+  const ownedWorkersForUiRef = useRef(ownedWorkersForUi);
+  ownedWorkersForUiRef.current = ownedWorkersForUi;
+  const identityFidRef = useRef(identity.fid);
+  identityFidRef.current = identity.fid;
+  const workerReconciliationSignature = ownedWorkersForUi
+    .map((worker) => `${worker.workerId}:${worker.status}`)
+    .sort()
+    .join('|');
   const recallAllWorkersScope = `${identity.fid}:${recallableWorkerSignature}`;
-  const recallAllWorkersScopeRef = useRef(recallAllWorkersScope);
-  recallAllWorkersScopeRef.current = recallAllWorkersScope;
-  const recallAllWorkersConfirmed = recallableWorkerSignature.length > 0
-    && confirmedRecallAllSignature === recallAllWorkersScope;
+  const recallAllWorkersConfirmed = confirmedRecallAllSignature !== undefined;
+  const confirmedRecallWorkerIds = new Set([
+    ...pendingRecallWorkerIds,
+    ...awaitingRecallWorkerIds
+  ]);
+  const anyWorkerRecallAwaitingAuthority = confirmedRecallWorkerIds.size > 0;
   const selectedWorker = publicWorkersActive && selectedWorkerId
     ? ownedWorkersForUi.find((worker) => worker.workerId === selectedWorkerId)
     : undefined;
@@ -829,45 +861,219 @@ export function RealmHud({
   }, [publicWorkersActive, selectedWorker, surface]);
 
   useEffect(() => {
-    // Command feedback belongs to one caller-bound authoritative assignment
-    // set. Never carry success or failure into a refreshed projection.
+    // A command is reconciled only by the submitted Worker's authoritative
+    // return/idle state. Unrelated revisions and outbound→gathering schedule
+    // progress must never expose a second submission.
+    if (!publicWorkersActive) return;
+    const workersById = new Map(
+      ownedWorkersForUiRef.current.map((worker) => [worker.workerId, worker] as const)
+    );
+    let individualReconciled = false;
+    for (const workerId of pendingRecallWorkerIdsRef.current) {
+      const status = workersById.get(workerId)?.status;
+      if (status !== 'returning' && status !== 'idle') continue;
+      pendingRecallWorkerIdsRef.current.delete(workerId);
+      const timer = recallWorkerReconciliationTimersRef.current.get(workerId);
+      if (timer !== undefined) window.clearTimeout(timer);
+      recallWorkerReconciliationTimersRef.current.delete(workerId);
+      individualReconciled = true;
+    }
+    if (individualReconciled) {
+      setPendingRecallWorkerIds(new Set(pendingRecallWorkerIdsRef.current));
+    }
+
+    const recallAllTargets = confirmedRecallAllWorkerIdsRef.current;
+    if (
+      recallAllTargets !== undefined
+      && recallAllTargets.every((workerId) => {
+        const status = workersById.get(workerId)?.status;
+        return status === 'returning' || status === 'idle';
+      })
+    ) {
+      confirmedRecallAllWorkerIdsRef.current = undefined;
+      if (recallAllReconciliationTimerRef.current !== undefined) {
+        window.clearTimeout(recallAllReconciliationTimerRef.current);
+        recallAllReconciliationTimerRef.current = undefined;
+      }
+      setConfirmedRecallAllSignature(undefined);
+      setRecallAllWorkersFailed(false);
+    }
+  }, [publicWorkersActive, workerReconciliationSignature]);
+
+  useEffect(() => {
+    // Never retain a command or timer across an authenticated caller change.
+    recallAllAttemptRef.current += 1;
+    recallAllWorkersInFlightRef.current = false;
+    pendingRecallWorkerIdsRef.current.clear();
+    confirmedRecallAllWorkerIdsRef.current = undefined;
+    if (recallAllReconciliationTimerRef.current !== undefined) {
+      window.clearTimeout(recallAllReconciliationTimerRef.current);
+      recallAllReconciliationTimerRef.current = undefined;
+    }
+    for (const timer of recallWorkerReconciliationTimersRef.current.values()) {
+      window.clearTimeout(timer);
+    }
+    recallWorkerReconciliationTimersRef.current.clear();
+    setPendingRecallWorkerIds(new Set());
+    setRecallingAllWorkers(false);
     setConfirmedRecallAllSignature(undefined);
     setRecallAllWorkersFailed(false);
+  }, [identity.fid]);
+
+  useEffect(() => {
+    // A rejected attempt belongs only to the assignment set that rejected it.
+    setRecallAllWorkersFailed(false);
   }, [recallAllWorkersScope]);
+
+  useEffect(() => () => {
+    recallAllAttemptRef.current += 1;
+    recallAllWorkersInFlightRef.current = false;
+    pendingRecallWorkerIdsRef.current.clear();
+    confirmedRecallAllWorkerIdsRef.current = undefined;
+    if (recallAllReconciliationTimerRef.current !== undefined) {
+      window.clearTimeout(recallAllReconciliationTimerRef.current);
+      recallAllReconciliationTimerRef.current = undefined;
+    }
+    for (const timer of recallWorkerReconciliationTimersRef.current.values()) {
+      window.clearTimeout(timer);
+    }
+    recallWorkerReconciliationTimersRef.current.clear();
+  }, []);
 
   const closeThen = (action: () => void) => {
     setSurface('closed');
     action();
   };
 
+  const recallWorker = async (workerId: string) => {
+    const submittedScope = recallableWorkerScopesRef.current.get(workerId);
+    const submittedFid = identityFidRef.current;
+    if (
+      !publicWorkersActive
+      || !onRecallWorker
+      || submittedScope === undefined
+      || pendingRecallWorkerIdsRef.current.has(workerId)
+      || recallAllWorkersInFlightRef.current
+      || confirmedRecallAllWorkerIdsRef.current !== undefined
+      || recallAllAwaitingAuthority
+      || confirmedRecallWorkerIds.has(workerId)
+    ) {
+      throw new Error('Worker command is unavailable.');
+    }
+    pendingRecallWorkerIdsRef.current.add(workerId);
+    setPendingRecallWorkerIds(new Set(pendingRecallWorkerIdsRef.current));
+    try {
+      await onRecallWorker(workerId);
+      if (
+        identityFidRef.current === submittedFid
+        && pendingRecallWorkerIdsRef.current.has(workerId)
+      ) {
+        const currentStatus = ownedWorkersForUiRef.current.find(
+          (worker) => worker.workerId === workerId
+        )?.status;
+        if (currentStatus === 'returning' || currentStatus === 'idle') {
+          pendingRecallWorkerIdsRef.current.delete(workerId);
+          setPendingRecallWorkerIds(new Set(pendingRecallWorkerIdsRef.current));
+          return;
+        }
+        const retainedTimer =
+          recallWorkerReconciliationTimersRef.current.get(workerId);
+        if (retainedTimer !== undefined) window.clearTimeout(retainedTimer);
+        const timer = window.setTimeout(() => {
+          recallWorkerReconciliationTimersRef.current.delete(workerId);
+          pendingRecallWorkerIdsRef.current.delete(workerId);
+          setPendingRecallWorkerIds(new Set(pendingRecallWorkerIdsRef.current));
+        }, WORKER_RECONCILIATION_TIMEOUT_MILLISECONDS);
+        recallWorkerReconciliationTimersRef.current.set(workerId, timer);
+      }
+    } catch {
+      if (
+        identityFidRef.current === submittedFid
+        && pendingRecallWorkerIdsRef.current.has(workerId)
+      ) {
+        pendingRecallWorkerIdsRef.current.delete(workerId);
+        setPendingRecallWorkerIds(new Set(pendingRecallWorkerIdsRef.current));
+      }
+      throw new Error('Worker command is unavailable.');
+    }
+  };
+
   const recallAll = async () => {
     if (
       !publicWorkersActive
-      || !workerControlsReady
+      || !recallAllControlsReady
       || !onRecallAllWorkers
       || recallableWorkerCount === 0
       || recallAllWorkersConfirmed
       || recallAllWorkersInFlightRef.current
+      || pendingRecallWorkerIdsRef.current.size > 0
+      || anyWorkerRecallAwaitingAuthority
+      || recallAllAwaitingAuthority
     ) return;
     const submittedScope = recallAllWorkersScope;
+    const submittedFid = identityFidRef.current;
+    const submittedWorkerIds = Object.freeze(
+      [...recallableWorkerScopesRef.current.keys()].sort()
+    );
+    const commandAttempt = recallAllAttemptRef.current + 1;
+    recallAllAttemptRef.current = commandAttempt;
     recallAllWorkersInFlightRef.current = true;
+    confirmedRecallAllWorkerIdsRef.current = submittedWorkerIds;
     setRecallingAllWorkers(true);
     setConfirmedRecallAllSignature(undefined);
     setRecallAllWorkersFailed(false);
     try {
       await onRecallAllWorkers();
-      if (recallAllWorkersScopeRef.current === submittedScope) {
+      if (
+        identityFidRef.current === submittedFid
+        && recallAllAttemptRef.current === commandAttempt
+        && confirmedRecallAllWorkerIdsRef.current === submittedWorkerIds
+      ) {
+        const workersById = new Map(
+          ownedWorkersForUiRef.current.map((worker) => [worker.workerId, worker] as const)
+        );
+        const alreadyReconciled = submittedWorkerIds.every((workerId) => {
+          const status = workersById.get(workerId)?.status;
+          return status === 'returning' || status === 'idle';
+        });
+        if (alreadyReconciled) {
+          confirmedRecallAllWorkerIdsRef.current = undefined;
+          setConfirmedRecallAllSignature(undefined);
+          return;
+        }
         setConfirmedRecallAllSignature(submittedScope);
+        if (recallAllReconciliationTimerRef.current !== undefined) {
+          window.clearTimeout(recallAllReconciliationTimerRef.current);
+        }
+        recallAllReconciliationTimerRef.current = window.setTimeout(() => {
+          recallAllReconciliationTimerRef.current = undefined;
+          if (
+            recallAllAttemptRef.current !== commandAttempt
+            || confirmedRecallAllWorkerIdsRef.current !== submittedWorkerIds
+          ) return;
+          confirmedRecallAllWorkerIdsRef.current = undefined;
+          setConfirmedRecallAllSignature(undefined);
+          setRecallAllWorkersFailed(true);
+        }, WORKER_RECONCILIATION_TIMEOUT_MILLISECONDS);
       }
     } catch {
       // The authoritative worker projection remains unchanged until the
       // provider confirms a reducer result. Keep command details private.
-      if (recallAllWorkersScopeRef.current === submittedScope) {
+      if (
+        identityFidRef.current === submittedFid
+        && recallAllAttemptRef.current === commandAttempt
+        && confirmedRecallAllWorkerIdsRef.current === submittedWorkerIds
+      ) {
+        confirmedRecallAllWorkerIdsRef.current = undefined;
+        setConfirmedRecallAllSignature(undefined);
         setRecallAllWorkersFailed(true);
       }
+      throw new Error('Worker command is unavailable.');
     } finally {
-      recallAllWorkersInFlightRef.current = false;
-      setRecallingAllWorkers(false);
+      if (recallAllAttemptRef.current === commandAttempt) {
+        recallAllWorkersInFlightRef.current = false;
+        setRecallingAllWorkers(false);
+      }
     }
   };
 
@@ -893,7 +1099,14 @@ export function RealmHud({
         <RealmResourceRail
           genericWorkerMode={genericWorkerModeActive}
           resources={resources}
-          workerResourceState={workerControlsReady ? workerResourceState : undefined}
+          workerResourceState={
+            privateAuthorityCurrent
+            && workerPrivateSync?.phase === 'ready'
+            && authenticatedWorkerFid !== undefined
+            && workerResourceState?.fid === authenticatedWorkerFid
+              ? workerResourceState
+              : undefined
+          }
         />
       ) : null}
 
@@ -919,7 +1132,10 @@ export function RealmHud({
           recallableWorkerCount={publicWorkersActive ? recallableWorkerCount : undefined}
           workerControlsStatus={workerControlsStatus}
           recallingAllWorkers={recallingAllWorkers}
-          recallAllWorkersConfirmed={recallAllWorkersConfirmed}
+          recallAllWorkersConfirmed={
+            recallAllWorkersConfirmed || recallAllAwaitingAuthority
+          }
+          workerRecallAwaitingAuthority={anyWorkerRecallAwaitingAuthority}
           recallAllWorkersFailed={recallAllWorkersFailed}
           onClose={() => setSurface('closed')}
           onExplore={() => closeThen(() => onRequestExplore?.())}
@@ -930,8 +1146,10 @@ export function RealmHud({
           onRequestReturn={() => closeThen(onRequestReturn)}
           onSettings={() => setSurface('settings')}
           onWorkers={publicWorkersActive ? () => setSurface('workers') : undefined}
-          onRecallAllWorkers={workerControlsReady && onRecallAllWorkers
-            ? () => void recallAll()
+          onRecallAllWorkers={recallAllControlsReady
+            ? () => {
+                void recallAll().catch(() => undefined);
+              }
             : undefined}
           onRetryWorkerPrivateSync={
             workerPrivateSync?.phase === 'failed-localized'
@@ -943,27 +1161,51 @@ export function RealmHud({
 
       {publicWorkersActive && surface === 'workers' ? (
         <WorkerCommandCenter
-          controlsAvailable={workerControlsReady}
+          controlsAvailable={recallControlsReady}
           controlsStatus={workerControlsStatus}
+          awaitingWorkerIds={[...confirmedRecallWorkerIds]}
           id={REALM_WORKERS_ID}
           onClose={() => setSurface('menu')}
-          onRecallAllWorkers={workerControlsReady ? onRecallAllWorkers : undefined}
-          onRecallWorker={workerControlsReady ? onRecallWorker : undefined}
+          onRecallAllWorkers={
+            recallAllControlsReady
+              && !recallingAllWorkers
+              && !recallAllWorkersConfirmed
+              ? recallAll
+              : undefined
+          }
+          onRecallWorker={publicWorkersActive && onRecallWorker
+            ? recallWorker
+            : undefined}
           onSelectWorker={(worker) => {
             setSelectedWorkerId(worker.workerId);
             setSurface('worker-inspection');
           }}
-          roster={workerControlsReady ? workerRoster : undefined}
+          recallAllAwaitingAuthority={
+            recallingAllWorkers
+            || recallAllWorkersConfirmed
+            || recallAllAwaitingAuthority
+          }
+          roster={privateAuthorityCurrent ? workerRoster : undefined}
+          key={`${identity.fid}:worker-command-center`}
           workers={ownedWorkersForUi}
         />
       ) : null}
       {publicWorkersActive && selectedWorker && surface === 'worker-inspection' ? (
         <WorkerInspectionPanel
+          awaitingAuthoritativeRecall={
+            confirmedRecallWorkerIds.has(selectedWorker.workerId)
+            || recallingAllWorkers
+            || recallAllWorkersConfirmed
+            || recallAllAwaitingAuthority
+          }
           controlsStatus={workerControlsStatus}
           id={REALM_WORKER_INSPECTION_ID}
+          key={`${identity.fid}:${selectedWorker.workerId}`}
           keeperProfile={ownProfile}
           onLocateWorker={onLocateWorker}
-          onRecallWorker={workerControlsReady ? onRecallWorker : undefined}
+          onRecallWorker={publicWorkersActive && onRecallWorker
+            ? recallWorker
+            : undefined}
           onRequestClose={() => setSurface('workers')}
           worker={selectedWorker}
         />

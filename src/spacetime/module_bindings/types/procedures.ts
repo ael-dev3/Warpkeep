@@ -29,6 +29,7 @@ import * as GetMyResourceStateV1Procedure from "../get_my_resource_state_v_1_pro
 import * as GetMyResourceStateV2Procedure from "../get_my_resource_state_v_2_procedure";
 import * as GetMyStoneExpeditionStateV1Procedure from "../get_my_stone_expedition_state_v_1_procedure";
 import * as GetMyWoodExpeditionStateV1Procedure from "../get_my_wood_expedition_state_v_1_procedure";
+import * as GetMyWorkerControlStateV1Procedure from "../get_my_worker_control_state_v_1_procedure";
 import * as GetMyWorkerRosterV1Procedure from "../get_my_worker_roster_v_1_procedure";
 import * as QaObserverGetRealmAttestationV2Procedure from "../qa_observer_get_realm_attestation_v_2_procedure";
 import * as QaObserverGetRealmSnapshotV1Procedure from "../qa_observer_get_realm_snapshot_v_1_procedure";
@@ -79,6 +80,8 @@ export type GetMyStoneExpeditionStateV1Args = __Infer<typeof GetMyStoneExpeditio
 export type GetMyStoneExpeditionStateV1Result = __Infer<typeof GetMyStoneExpeditionStateV1Procedure.returnType>;
 export type GetMyWoodExpeditionStateV1Args = __Infer<typeof GetMyWoodExpeditionStateV1Procedure.params>;
 export type GetMyWoodExpeditionStateV1Result = __Infer<typeof GetMyWoodExpeditionStateV1Procedure.returnType>;
+export type GetMyWorkerControlStateV1Args = __Infer<typeof GetMyWorkerControlStateV1Procedure.params>;
+export type GetMyWorkerControlStateV1Result = __Infer<typeof GetMyWorkerControlStateV1Procedure.returnType>;
 export type GetMyWorkerRosterV1Args = __Infer<typeof GetMyWorkerRosterV1Procedure.params>;
 export type GetMyWorkerRosterV1Result = __Infer<typeof GetMyWorkerRosterV1Procedure.returnType>;
 export type QaObserverGetRealmAttestationV2Args = __Infer<typeof QaObserverGetRealmAttestationV2Procedure.params>;

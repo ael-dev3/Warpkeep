@@ -213,6 +213,7 @@ import {
 } from './realmWorkerPresentation';
 import type { WarpkeepWorkerPrivateSyncStatus } from '../../spacetime/warpkeepBackendTypes';
 import { resolveRealmWorldPortraitLayout } from './realmWorldPortraitLayout';
+import { useRealmWorkerRecallLifecycle } from './useRealmWorkerRecallLifecycle';
 
 export {
   BLOCKED_SHARED_FOREST_PROJECTION_SIGNATURE,
@@ -691,6 +692,14 @@ function CanonicalRealmMapScreen({
     ),
     [publicWorkerProjection]
   );
+  const workerRecallLifecycle = useRealmWorkerRecallLifecycle({
+    identityFid: identity.fid,
+    workers: observerMode ? [] : publicOwnedWorkers,
+    onRecallWorker: observerMode ? undefined : onRecallWorker,
+    onRecallAllWorkers: observerMode ? undefined : onRecallAllWorkers
+  });
+  const guardedRecallWorker = workerRecallLifecycle.recallWorker;
+  const guardedRecallAllWorkers = workerRecallLifecycle.recallAllWorkers;
   const profileRecords = useMemo(() => {
     return new Map<number, CastleLabelRecord>(allCastles.map((castle) => [
       castle.castleId,
@@ -4199,15 +4208,21 @@ function CanonicalRealmMapScreen({
                 observerMode ? undefined : onRetryWorkerPrivateSync
               }
               onLocateWorker={observerMode ? undefined : locateWorkerAtCurrentPosition}
+              awaitingRecallWorkerIds={[
+                ...workerRecallLifecycle.awaitingWorkerIds
+              ]}
+              recallAllAwaitingAuthority={
+                workerRecallLifecycle.recallAllAwaitingAuthority
+              }
               onRecallWorker={
                 observerMode || !publicWorkerPresentationReady
                   ? undefined
-                  : onRecallWorker
+                  : guardedRecallWorker
               }
               onRecallAllWorkers={
                 observerMode || !publicWorkerPresentationReady
                   ? undefined
-                  : onRecallAllWorkers
+                  : guardedRecallAllWorkers
               }
               keepCoord={keepCoord}
               selectedCell={selectedCell}
@@ -4251,10 +4266,19 @@ function CanonicalRealmMapScreen({
               showDiagnostics={observerMode}
               occupancyUnavailable={resourceOccupancyUnavailable}
               onFocusOccupantCastle={focusResourceOccupantCastle}
+              workerRecallAwaitingAuthority={
+                workerRecallLifecycle.recallAllAwaitingAuthority
+                || (
+                  inspectorGoldOccupant?.workerId !== undefined
+                  && workerRecallLifecycle.awaitingWorkerIds.has(
+                    inspectorGoldOccupant.workerId
+                  )
+                )
+              }
               onRecallWorker={
                 observerMode || !publicWorkerPresentationReady
                   ? undefined
-                  : onRecallWorker
+                  : guardedRecallWorker
               }
               legacyExpeditionId={observerMode
                 ? undefined
@@ -4292,10 +4316,19 @@ function CanonicalRealmMapScreen({
               showDiagnostics={observerMode}
               occupancyUnavailable={resourceOccupancyUnavailable}
               onFocusOccupantCastle={focusResourceOccupantCastle}
+              workerRecallAwaitingAuthority={
+                workerRecallLifecycle.recallAllAwaitingAuthority
+                || (
+                  inspectorFoodOccupant?.workerId !== undefined
+                  && workerRecallLifecycle.awaitingWorkerIds.has(
+                    inspectorFoodOccupant.workerId
+                  )
+                )
+              }
               onRecallWorker={
                 observerMode || !publicWorkerPresentationReady
                   ? undefined
-                  : onRecallWorker
+                  : guardedRecallWorker
               }
               legacyExpeditionId={observerMode
                 ? undefined
@@ -4333,10 +4366,19 @@ function CanonicalRealmMapScreen({
               showDiagnostics={observerMode}
               occupancyUnavailable={resourceOccupancyUnavailable}
               onFocusOccupantCastle={focusResourceOccupantCastle}
+              workerRecallAwaitingAuthority={
+                workerRecallLifecycle.recallAllAwaitingAuthority
+                || (
+                  inspectorWoodOccupant?.workerId !== undefined
+                  && workerRecallLifecycle.awaitingWorkerIds.has(
+                    inspectorWoodOccupant.workerId
+                  )
+                )
+              }
               onRecallWorker={
                 observerMode || !publicWorkerPresentationReady
                   ? undefined
-                  : onRecallWorker
+                  : guardedRecallWorker
               }
               legacyExpeditionId={observerMode
                 ? undefined
@@ -4374,10 +4416,19 @@ function CanonicalRealmMapScreen({
               showDiagnostics={observerMode}
               occupancyUnavailable={resourceOccupancyUnavailable}
               onFocusOccupantCastle={focusResourceOccupantCastle}
+              workerRecallAwaitingAuthority={
+                workerRecallLifecycle.recallAllAwaitingAuthority
+                || (
+                  inspectorStoneOccupant?.workerId !== undefined
+                  && workerRecallLifecycle.awaitingWorkerIds.has(
+                    inspectorStoneOccupant.workerId
+                  )
+                )
+              }
               onRecallWorker={
                 observerMode || !publicWorkerPresentationReady
                   ? undefined
-                  : onRecallWorker
+                  : guardedRecallWorker
               }
               legacyExpeditionId={observerMode
                 ? undefined
@@ -4399,6 +4450,12 @@ function CanonicalRealmMapScreen({
 
           {inspectorWorker ? (
             <WorkerInspectionPanel
+              awaitingAuthoritativeRecall={
+                workerRecallLifecycle.recallAllAwaitingAuthority
+                || workerRecallLifecycle.awaitingWorkerIds.has(
+                  inspectorWorker.workerId
+                )
+              }
               focusTargetRef={workerInspectorFocusRef}
               id={`${inspectorId}-worker-${inspectorWorker.workerId}`}
               keeperProfile={profileRecords.get(inspectorWorker.originCastleId)?.profile}
@@ -4407,7 +4464,7 @@ function CanonicalRealmMapScreen({
               onRecallWorker={
                 observerMode || !publicWorkerPresentationReady
                   ? undefined
-                  : onRecallWorker
+                  : guardedRecallWorker
               }
               controlsStatus={workerControlsStatus}
               onRequestClose={() => dispatchInteraction({ type: 'close-inspector' })}

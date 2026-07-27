@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -510,6 +511,89 @@ describe('unified occupied resource inspectors', () => {
     expect(recall).toHaveBeenCalledOnce();
     expect(recall).toHaveBeenCalledWith('genesis-001-castle-7-worker-02');
     expect(await screen.findByText('Worker returning…')).not.toBeNull();
+  });
+
+  it('retains one generic recall through schedule progress and bounds manual retry', async () => {
+    vi.useFakeTimers();
+    let resolveRecall!: () => void;
+    const firstRecall = new Promise<void>((resolve) => {
+      resolveRecall = resolve;
+    });
+    const recall = vi.fn()
+      .mockImplementationOnce(() => firstRecall)
+      .mockResolvedValue(undefined);
+    const own = publicOccupant('wood', 'genesis-001:wood:0001', {
+      occupiedByViewer: true,
+      workerPhase: 'outbound'
+    });
+    const view = render(INSPECTOR_CASES[2]!.renderPanel(own, { recall }));
+
+    fireEvent.click(screen.getByRole('button', { name: /Recall Worker to Keep/i }));
+    expect(screen.getByText('Recalling worker…')).not.toBeNull();
+
+    view.rerender(INSPECTOR_CASES[2]!.renderPanel({
+      ...own,
+      workerPhase: 'gathering',
+      timelineRevision: 2
+    }, { recall }));
+    expect(screen.getByText('Recalling worker…')).not.toBeNull();
+    expect(recall).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      resolveRecall();
+      await firstRecall;
+    });
+    expect(screen.getByText('Worker returning…')).not.toBeNull();
+
+    view.rerender(INSPECTOR_CASES[2]!.renderPanel({
+      ...own,
+      workerPhase: 'gathering',
+      timelineRevision: 3
+    }, { recall }));
+    expect(screen.getByText('Worker returning…')).not.toBeNull();
+    expect(recall).toHaveBeenCalledOnce();
+
+    act(() => {
+      vi.advanceTimersByTime(12_001);
+    });
+    expect(screen.getByRole('alert').textContent).toContain(
+      'The recall could not be confirmed'
+    );
+    const retry = screen.getByRole('button', { name: /Recall Worker to Keep/i });
+    expect(retry.hasAttribute('disabled')).toBe(false);
+    await act(async () => {
+      fireEvent.click(retry);
+      await Promise.resolve();
+    });
+    expect(recall).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not restore a pending generic recall after authority starts returning', async () => {
+    let resolveRecall!: () => void;
+    const pendingRecall = new Promise<void>((resolve) => {
+      resolveRecall = resolve;
+    });
+    const recall = vi.fn(() => pendingRecall);
+    const own = publicOccupant('wood', 'genesis-001:wood:0001', {
+      occupiedByViewer: true,
+      workerPhase: 'outbound'
+    });
+    const view = render(INSPECTOR_CASES[2]!.renderPanel(own, { recall }));
+
+    fireEvent.click(screen.getByRole('button', { name: /Recall Worker to Keep/i }));
+    view.rerender(INSPECTOR_CASES[2]!.renderPanel({
+      ...own,
+      workerPhase: 'returning',
+      timelineRevision: 2
+    }, { recall }));
+    expect(screen.queryByText('Recalling worker…')).toBeNull();
+
+    await act(async () => {
+      resolveRecall();
+      await pendingRecall;
+    });
+    expect(screen.queryByText('Worker returning…')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Recall Worker to Keep/i })).toBeNull();
   });
 
   it('keeps an owned generic recall visible but disabled while controls synchronize', () => {

@@ -22,6 +22,8 @@ import {
 } from './realmResourceOccupantPresentation';
 import type { RealmResourceKind } from './realmTypes';
 
+const WORKER_RECONCILIATION_TIMEOUT_MILLISECONDS = 12_000;
+
 function publicAssetUrl(path: string) {
   const base = import.meta.env.BASE_URL || '/';
   return `${base.endsWith('/') ? base : `${base}/`}${path.replace(/^\/+/, '')}`;
@@ -32,6 +34,8 @@ export type RealmResourceOccupantDetailsProps = Readonly<{
   /** Stable inspector control used only to recover genuinely orphaned focus. */
   focusFallbackRef?: RefObject<HTMLButtonElement | null>;
   onFocusCastle?: (marker: RealmResourceOccupantMarker) => void;
+  /** Map-level pending state retained if this inspector is closed and reopened. */
+  awaitingAuthoritativeRecall?: boolean;
   onRecallWorker?: (workerId: string) => Promise<void>;
   /** Localized reason generic-worker owner commands remain read-only. */
   controlsStatus?: string;
@@ -54,6 +58,7 @@ export function RealmResourceOccupantDetails({
   marker,
   focusFallbackRef,
   onFocusCastle,
+  awaitingAuthoritativeRecall = false,
   onRecallWorker,
   controlsStatus,
   legacyExpeditionId,
@@ -63,9 +68,14 @@ export function RealmResourceOccupantDetails({
   const detailsRef = useRef<HTMLElement>(null);
   const controlsStatusId = `realm-resource-controls-${useId().replace(/:/g, '')}`;
   const recallPendingRef = useRef(false);
+  const recallAttemptRef = useRef(0);
+  const recallLifecycleKeyRef = useRef<string | undefined>(undefined);
+  const presentedLifecycleKeyRef = useRef<string | undefined>(undefined);
+  const markerRef = useRef(marker);
   const [recallState, setRecallState] = useState<
     'idle' | 'pending' | 'confirmed' | 'failed'
   >('idle');
+  markerRef.current = marker;
   const playerLabel = castleProfileLabel(marker.profile);
   const keeperName = marker.profile.displayName ?? playerLabel;
   const ownRecordLabel = marker.source === 'generic-worker'
@@ -91,13 +101,15 @@ export function RealmResourceOccupantDetails({
   const recallableByOwner = recallWorkerId !== undefined
     || returnLegacyExpeditionId !== undefined;
   const canRecall = (
-    recallWorkerId !== undefined && onRecallWorker !== undefined
+    recallWorkerId !== undefined
+    && onRecallWorker !== undefined
+    && !awaitingAuthoritativeRecall
   ) || (
     recallsLegacyExpedition && onReturnLegacyExpedition !== undefined
   );
-  const showRecall = canRecall || (
-    recallWorkerId !== undefined && controlsStatus !== undefined
-  );
+  const showRecall = canRecall
+    || (recallWorkerId !== undefined && awaitingAuthoritativeRecall)
+    || (recallWorkerId !== undefined && controlsStatus !== undefined);
   const scheduleLabel = marker.workerPhase === 'outbound'
     ? 'Arrival time left'
     : marker.workerPhase === 'gathering'
@@ -106,17 +118,61 @@ export function RealmResourceOccupantDetails({
   const scheduleRemaining = useRealmRemainingDuration(
     realmResourceOccupantNextAuthorityTimestamp(marker)
   );
+  const recallLifecycleKey = [
+    marker.source,
+    marker.resource,
+    marker.siteId,
+    marker.workerId ?? '',
+    legacyExpeditionId ?? ''
+  ].join(':');
 
   useEffect(() => {
-    recallPendingRef.current = false;
-    setRecallState('idle');
+    const presentedLifecycleChanged =
+      presentedLifecycleKeyRef.current !== recallLifecycleKey;
+    presentedLifecycleKeyRef.current = recallLifecycleKey;
+    const submittedLifecycle = recallLifecycleKeyRef.current;
+    if (
+      submittedLifecycle !== undefined
+      && (
+        submittedLifecycle !== recallLifecycleKey
+        || marker.workerPhase === 'returning'
+      )
+    ) {
+      recallAttemptRef.current += 1;
+      recallLifecycleKeyRef.current = undefined;
+      recallPendingRef.current = false;
+      setRecallState('idle');
+      return;
+    }
+    if (submittedLifecycle === undefined) {
+      setRecallState((current) => (
+        presentedLifecycleChanged || marker.workerPhase === 'returning'
+          ? 'idle'
+          : current
+      ));
+    }
   }, [
-    legacyExpeditionId,
-    marker.resource,
-    marker.timelineRevision,
-    marker.workerId,
+    recallLifecycleKey,
     marker.workerPhase
   ]);
+
+  useEffect(() => {
+    if (recallState !== 'confirmed') return undefined;
+    const attempt = recallAttemptRef.current;
+    const timeout = window.setTimeout(() => {
+      if (recallAttemptRef.current !== attempt) return;
+      recallLifecycleKeyRef.current = undefined;
+      recallPendingRef.current = false;
+      setRecallState('failed');
+    }, WORKER_RECONCILIATION_TIMEOUT_MILLISECONDS);
+    return () => window.clearTimeout(timeout);
+  }, [recallState]);
+
+  useEffect(() => () => {
+    recallAttemptRef.current += 1;
+    recallLifecycleKeyRef.current = undefined;
+    recallPendingRef.current = false;
+  }, []);
 
   useLayoutEffect(() => () => {
     const details = detailsRef.current;
@@ -154,14 +210,45 @@ export function RealmResourceOccupantDetails({
       );
     }
     if (command === undefined) return;
+    const submittedLifecycle = recallLifecycleKey;
+    const attempt = recallAttemptRef.current + 1;
+    recallAttemptRef.current = attempt;
+    recallLifecycleKeyRef.current = submittedLifecycle;
     recallPendingRef.current = true;
     setRecallState('pending');
     try {
       await command();
+      if (
+        recallAttemptRef.current !== attempt
+        || recallLifecycleKeyRef.current !== submittedLifecycle
+      ) return;
+      const currentMarker = markerRef.current;
+      const currentLifecycle = [
+        currentMarker.source,
+        currentMarker.resource,
+        currentMarker.siteId,
+        currentMarker.workerId ?? '',
+        legacyExpeditionId ?? ''
+      ].join(':');
+      if (
+        currentLifecycle !== submittedLifecycle
+        || currentMarker.workerPhase === 'returning'
+      ) {
+        recallLifecycleKeyRef.current = undefined;
+        recallPendingRef.current = false;
+        setRecallState('idle');
+        return;
+      }
       setRecallState('confirmed');
     } catch {
-      recallPendingRef.current = false;
-      setRecallState('failed');
+      if (
+        recallAttemptRef.current === attempt
+        && recallLifecycleKeyRef.current === submittedLifecycle
+      ) {
+        recallLifecycleKeyRef.current = undefined;
+        recallPendingRef.current = false;
+        setRecallState('failed');
+      }
     }
   };
 
@@ -257,7 +344,12 @@ export function RealmResourceOccupantDetails({
             ? controlsStatusId
             : undefined}
           className="realm-resource-occupant-details__recall"
-          disabled={!canRecall || recallState === 'pending' || recallState === 'confirmed'}
+          disabled={
+            !canRecall
+            || awaitingAuthoritativeRecall
+            || recallState === 'pending'
+            || recallState === 'confirmed'
+          }
           onClick={() => void recallAssignment()}
           type="button"
         >
@@ -266,7 +358,7 @@ export function RealmResourceOccupantDetails({
               ? recallsLegacyExpedition
                 ? 'Recalling expedition…'
                 : 'Recalling worker…'
-              : recallState === 'confirmed'
+              : recallState === 'confirmed' || awaitingAuthoritativeRecall
                 ? recallsLegacyExpedition
                   ? 'Expedition returning…'
                   : 'Worker returning…'

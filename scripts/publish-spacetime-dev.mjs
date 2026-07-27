@@ -41,6 +41,10 @@ import {
   attestPinnedSpacetimeCli,
   verifyPinnedCliAttestation,
 } from './spacetime-cli-attestation.mjs';
+import {
+  defaultSpacetimePublishReceiptDirectory,
+  writePrivateSpacetimePublishSuccessReceipt,
+} from './spacetime-publish-receipt.mjs';
 
 export {
   attestPinnedSpacetimeCli,
@@ -48,7 +52,7 @@ export {
 };
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const CANONICAL_DATABASE = 'warpkeep-89e4u';
+const CANONICAL_DATABASE = 'warpkeep';
 const CANONICAL_DATABASE_IDENTITY = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';
 const CANONICAL_MAINCLOUD_URI = 'https://maincloud.spacetimedb.com';
 const CANONICAL_BRIDGE = 'https://auth.warpkeep.com';
@@ -88,10 +92,22 @@ export const GENESIS_WORLD_PUBLISH_STAGE = Object.freeze({
 });
 export const WORKER_PUBLISH_ROLLOUT_STAGE = Object.freeze({
   EMPTY: 'empty',
+  ACTIVE: 'active',
 });
 export const WORKER_MODULE_PREDECESSOR = Object.freeze({
   V11: 'v11',
   EXACT_V12_EMPTY: 'exact-v12-empty',
+  EXACT_V12_ACTIVE: 'exact-v12-active',
+});
+export const WORKER_FORWARD_REPAIR = Object.freeze({
+  NONE: 'none',
+  RETURN_NODE_REUSE_V1: 'return-node-reuse-v1',
+});
+export const WORKER_FORWARD_REPAIR_CHECKPOINT = Object.freeze({
+  HEALTHY: 'healthy',
+  ACTIVE_PREDECESSOR: 'active-predecessor',
+  CANDIDATE_PENDING: 'candidate-pending',
+  CANDIDATE_EXISTING: 'candidate-existing',
 });
 
 export const PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS = Object.freeze({
@@ -251,6 +267,19 @@ const WORKER_V12_COMPLETE_DRAIN_FIELDS = Object.freeze([
   ['foodSchedules', 'U32'],
   ['woodSchedules', 'U32'],
   ['stoneSchedules', 'U32'],
+]);
+const WORKER_V12_RETURN_SCHEDULE_REPAIR_FIELDS = Object.freeze([
+  ['capability', 'String'],
+  ['sourceCommit', 'String'],
+  ['moduleArtifactDigest', 'String'],
+  ['expectedCastleCount', 'U32'],
+  ['expectedWorkerCount', 'U32'],
+  ['expectedAssignments', 'U32'],
+  ['expectedOccupations', 'U32'],
+  ['expectedSchedules', 'U32'],
+  ['expectedReturningWorkers', 'U32'],
+  ['expectedMissingSchedules', 'U32'],
+  ['rosterDigest', 'String'],
 ]);
 const WORKER_V12_RETURN_LEGACY_FIELDS = Object.freeze([
   ['resourceKind', 'String'],
@@ -416,6 +445,28 @@ const WORKER_V12_ROSTER_FIELDS = Object.freeze([
     workerArrayType(workerRefType(WORKER_V12_PRIVATE_WORKER_FIELDS)),
   ],
 ]);
+const WORKER_V12_CONTROL_STATE_FIELDS = Object.freeze([
+  ['fid', 'U64'],
+  ['castle_id', 'U64'],
+  ['observed_at_micros', 'U64'],
+  [
+    'workers',
+    workerArrayType(workerRefType(WORKER_V12_PRIVATE_WORKER_FIELDS)),
+  ],
+  ['food', 'U64'],
+  ['wood', 'U64'],
+  ['stone', 'U64'],
+  ['gold', 'U64'],
+  ['worker_pending_food', 'U64'],
+  ['worker_pending_wood', 'U64'],
+  ['worker_pending_stone', 'U64'],
+  ['worker_pending_gold', 'U64'],
+  ['settled_through_micros', 'U64'],
+  ['revision', 'U64'],
+  ['resource_policy_version', 'String'],
+  ['worker_policy_version', 'String'],
+  ['worker_system_mode', 'String'],
+]);
 const WORKER_V12_TIMESTAMP_TYPE = workerSumType([
   [
     'Interval',
@@ -460,6 +511,25 @@ const WORKER_V12_COMMON_PROCEDURE_FIELDS = Object.freeze({
   admin_plan_worker_roster_v1: WORKER_V12_ROSTER_PLAN_FIELDS,
   get_my_resource_state_v2: WORKER_V12_RESOURCE_STATE_FIELDS,
   get_my_worker_roster_v1: WORKER_V12_ROSTER_FIELDS,
+});
+const WORKER_V12_ACTIVE_REDUCER_FIELDS = Object.freeze({
+  ...WORKER_V12_COMMON_REDUCER_FIELDS,
+  admin_activate_worker_system_v1: WORKER_V12_CANDIDATE_ACTIVATION_FIELDS,
+  admin_complete_worker_legacy_drain_v1: WORKER_V12_COMPLETE_DRAIN_FIELDS,
+  return_legacy_expedition_v1: WORKER_V12_RETURN_LEGACY_FIELDS,
+});
+const WORKER_V12_REPAIR_CANDIDATE_REDUCER_FIELDS = Object.freeze({
+  ...WORKER_V12_ACTIVE_REDUCER_FIELDS,
+  admin_repair_missing_worker_return_schedule_v1:
+    WORKER_V12_RETURN_SCHEDULE_REPAIR_FIELDS,
+});
+const WORKER_V12_ACTIVE_PROCEDURE_FIELDS = Object.freeze({
+  ...WORKER_V12_COMMON_PROCEDURE_FIELDS,
+  admin_get_worker_rollout_status_v2: WORKER_V12_CANDIDATE_STATUS_FIELDS,
+});
+const WORKER_V12_ATOMIC_PROCEDURE_FIELDS = Object.freeze({
+  ...WORKER_V12_ACTIVE_PROCEDURE_FIELDS,
+  get_my_worker_control_state_v1: WORKER_V12_CONTROL_STATE_FIELDS,
 });
 
 const ALPHA_V8_COUNT_FIELDS = Object.freeze([
@@ -624,6 +694,34 @@ const EMPTY_WORKER_V12_ZERO_FIELDS = Object.freeze([
   'invalidIdempotencyReceipts',
   'idempotencyOverflowFids',
 ]);
+const ACTIVE_WORKER_V12_ZERO_FIELDS = Object.freeze([
+  'castlesMissingWorkers',
+  'castlesWithExtraWorkers',
+  'duplicateOrdinals',
+  'malformedWorkerIds',
+  'invalidWorkerStates',
+  'orphanWorkers',
+  'orphanAssignments',
+  'assignmentsMissingOccupation',
+  'assignmentsWithoutSingleSchedule',
+  'orphanOccupations',
+  'orphanSchedules',
+  'invalidSchedules',
+  'assignmentPublicMismatches',
+  'occupationSiteMismatches',
+  'invalidAssignments',
+  'invalidIdempotencyReceipts',
+  'idempotencyOverflowFids',
+  'legacyExpeditions',
+  'legacyOccupations',
+  'legacySchedules',
+]);
+const REPAIRABLE_ACTIVE_WORKER_V12_ZERO_FIELDS = Object.freeze(
+  ACTIVE_WORKER_V12_ZERO_FIELDS.filter(field => (
+    field !== 'assignmentsWithoutSingleSchedule'
+    && field !== 'occupationSiteMismatches'
+  )),
+);
 const U64_MAXIMUM = (1n << 64n) - 1n;
 
 class SafePublishError extends Error {}
@@ -907,6 +1005,7 @@ export function parsePublishArguments(arguments_ = process.argv.slice(2)) {
   let workerRolloutStage;
   let workerModulePredecessor = WORKER_MODULE_PREDECESSOR.V11;
   let workerModulePredecessorExplicit = false;
+  let workerForwardRepair;
   for (const argument of arguments_) {
     if (argument === '--dry-run' && !dryRun) {
       dryRun = true;
@@ -953,7 +1052,17 @@ export function parsePublishArguments(arguments_ = process.argv.slice(2)) {
         continue;
       }
     }
-    fail('Usage: publish-spacetime-dev.mjs [--dry-run] --resource-rollout-stage=<prebackfill|ready> --genesis-world-stage=<pre-expansion|expanded> --worker-rollout-stage=empty [--worker-module-predecessor=<v11|exact-v12-empty>]. Unknown or duplicate arguments are rejected.');
+    if (
+      argument.startsWith('--worker-forward-repair=')
+      && workerForwardRepair === undefined
+    ) {
+      const value = argument.slice('--worker-forward-repair='.length);
+      if (Object.values(WORKER_FORWARD_REPAIR).includes(value)) {
+        workerForwardRepair = value;
+        continue;
+      }
+    }
+    fail('Usage: publish-spacetime-dev.mjs [--dry-run] --resource-rollout-stage=<prebackfill|ready> --genesis-world-stage=<pre-expansion|expanded> --worker-rollout-stage=<empty|active> [--worker-module-predecessor=<v11|exact-v12-empty|exact-v12-active>] --worker-forward-repair=<none|return-node-reuse-v1>. Unknown or duplicate arguments are rejected.');
   }
   if (resourceRolloutStage === undefined) {
     fail('An explicit resource rollout stage is required: prebackfill for the first additive publication or ready for an already-backfilled republish.');
@@ -962,7 +1071,27 @@ export function parsePublishArguments(arguments_ = process.argv.slice(2)) {
     fail('An explicit Genesis world stage is required: pre-expansion for the exact 1,261-cell predecessor or expanded for the exact 10,000-cell target.');
   }
   if (workerRolloutStage === undefined) {
-    fail('An explicit empty Worker rollout stage is required for the one-time additive v12 publication.');
+    fail('An explicit Worker rollout stage is required.');
+  }
+  if (workerForwardRepair === undefined) {
+    fail('An explicit Worker forward-repair selection is required.');
+  }
+  if (
+    (workerModulePredecessor === WORKER_MODULE_PREDECESSOR.EXACT_V12_ACTIVE)
+      !== (workerRolloutStage === WORKER_PUBLISH_ROLLOUT_STAGE.ACTIVE)
+  ) {
+    fail('The exact active-v12 module predecessor requires the active Worker rollout stage, and no other predecessor may use it.');
+  }
+  if (
+    workerForwardRepair === WORKER_FORWARD_REPAIR.RETURN_NODE_REUSE_V1
+    && (
+      resourceRolloutStage !== RESOURCE_PUBLISH_ROLLOUT_STAGE.READY
+      || genesisWorldRolloutStage !== GENESIS_WORLD_PUBLISH_STAGE.EXPANDED
+      || workerRolloutStage !== WORKER_PUBLISH_ROLLOUT_STAGE.ACTIVE
+      || workerModulePredecessor !== WORKER_MODULE_PREDECESSOR.EXACT_V12_ACTIVE
+    )
+  ) {
+    fail('The return-node-reuse-v1 forward repair requires the exact ready, expanded, active-v12 production predecessor.');
   }
   return Object.freeze({
     dryRun,
@@ -970,6 +1099,7 @@ export function parsePublishArguments(arguments_ = process.argv.slice(2)) {
     genesisWorldRolloutStage,
     workerRolloutStage,
     workerModulePredecessor,
+    workerForwardRepair,
   });
 }
 
@@ -1505,15 +1635,15 @@ function surfaceMatches(actual, expected) {
 }
 
 /**
- * Distinguish only the one reviewed empty-v12 predecessor ABI from the exact
- * cutover candidate. This pins every Worker reducer and procedure, including
- * nested roster and scheduler types; missing, extra, or drifted Worker APIs
- * are never interpreted as either state.
+ * Distinguish the historical inert-v12 boundary, the exact active Worker-v12
+ * predecessor, and the one Alpha 0.3.21 additive repair candidate. Every
+ * critical reducer and procedure is pinned, including nested roster/control
+ * and scheduler types; missing, extra, or drifted Worker APIs match no state.
  */
 export function verifyWorkerV12ModuleAbi(description) {
   const reducerAbi = collectWorkerReducerAbi(description);
   const procedureAbi = collectWorkerProcedureAbi(description);
-  const predecessor = surfaceMatches(reducerAbi, {
+  const inertPredecessor = surfaceMatches(reducerAbi, {
     ...WORKER_V12_COMMON_REDUCER_FIELDS,
     admin_activate_worker_system_v1:
       WORKER_V12_PREDECESSOR_ACTIVATION_FIELDS,
@@ -1522,22 +1652,82 @@ export function verifyWorkerV12ModuleAbi(description) {
     admin_get_worker_rollout_status_v2:
       WORKER_V12_PREDECESSOR_STATUS_FIELDS,
   });
-  const candidate = surfaceMatches(reducerAbi, {
-    ...WORKER_V12_COMMON_REDUCER_FIELDS,
-    admin_activate_worker_system_v1:
-      WORKER_V12_CANDIDATE_ACTIVATION_FIELDS,
-    admin_complete_worker_legacy_drain_v1:
-      WORKER_V12_COMPLETE_DRAIN_FIELDS,
-    return_legacy_expedition_v1: WORKER_V12_RETURN_LEGACY_FIELDS,
-  }) && surfaceMatches(procedureAbi, {
-    ...WORKER_V12_COMMON_PROCEDURE_FIELDS,
-    admin_get_worker_rollout_status_v2:
-      WORKER_V12_CANDIDATE_STATUS_FIELDS,
-  });
-  if (!predecessor && !candidate) {
+  const activePredecessor = surfaceMatches(
+    reducerAbi,
+    WORKER_V12_ACTIVE_REDUCER_FIELDS,
+  ) && surfaceMatches(
+    procedureAbi,
+    WORKER_V12_ACTIVE_PROCEDURE_FIELDS,
+  );
+  const candidate = surfaceMatches(
+    reducerAbi,
+    WORKER_V12_REPAIR_CANDIDATE_REDUCER_FIELDS,
+  ) && surfaceMatches(
+    procedureAbi,
+    WORKER_V12_ATOMIC_PROCEDURE_FIELDS,
+  );
+  if (!inertPredecessor && !activePredecessor && !candidate) {
     fail('The production Worker v12 module ABI was partial, unknown, or changed.');
   }
-  return candidate ? 'candidate' : 'predecessor';
+  if (candidate) return 'candidate';
+  if (activePredecessor) return 'active-predecessor';
+  return 'predecessor';
+}
+
+/**
+ * Bind the operator-selected production predecessor to the exact ABI state.
+ * A fully installed candidate is accepted so the guarded publisher can
+ * reinstall the exact reviewed artifact and bind live code to the local proof.
+ */
+export function verifyWorkerV12ModulePredecessor(
+  moduleState,
+  workerModulePredecessor,
+) {
+  const expectedState = workerModulePredecessor
+    === WORKER_MODULE_PREDECESSOR.EXACT_V12_EMPTY
+    ? 'predecessor'
+    : workerModulePredecessor === WORKER_MODULE_PREDECESSOR.EXACT_V12_ACTIVE
+      ? 'active-predecessor'
+      : undefined;
+  if (
+    expectedState === undefined
+    || (moduleState !== expectedState && moduleState !== 'candidate')
+  ) {
+    fail('The selected Worker module predecessor did not match the exact production v12 ABI.');
+  }
+  return moduleState;
+}
+
+export function planWorkerV12CodePublication(
+  moduleState,
+  workerForwardRepair,
+) {
+  if (
+    moduleState !== 'predecessor'
+    && moduleState !== 'active-predecessor'
+    && moduleState !== 'candidate'
+  ) fail('The Worker v12 publication module state was invalid.');
+  if (workerForwardRepair === WORKER_FORWARD_REPAIR.NONE) {
+    return Object.freeze({
+      prePublicationCheckpoint: WORKER_FORWARD_REPAIR_CHECKPOINT.HEALTHY,
+      postPublicationCheckpoint: WORKER_FORWARD_REPAIR_CHECKPOINT.HEALTHY,
+    });
+  }
+  if (
+    workerForwardRepair !== WORKER_FORWARD_REPAIR.RETURN_NODE_REUSE_V1
+    || (
+      moduleState !== 'active-predecessor'
+      && moduleState !== 'candidate'
+    )
+  ) fail('The Worker v12 forward-repair publication plan was invalid.');
+  return Object.freeze({
+    prePublicationCheckpoint: moduleState === 'candidate'
+      ? WORKER_FORWARD_REPAIR_CHECKPOINT.CANDIDATE_EXISTING
+      : WORKER_FORWARD_REPAIR_CHECKPOINT.ACTIVE_PREDECESSOR,
+    postPublicationCheckpoint: moduleState === 'candidate'
+      ? WORKER_FORWARD_REPAIR_CHECKPOINT.CANDIDATE_EXISTING
+      : WORKER_FORWARD_REPAIR_CHECKPOINT.CANDIDATE_PENDING,
+  });
 }
 
 /**
@@ -1606,7 +1796,7 @@ export function verifyFreshProductionV12ModuleSchema(
       expectedTableSchemaDigest,
     );
   } catch {
-    fail('Exact inert production v12 schema and module-ABI preflight failed. No publish was attempted.');
+    fail('Exact production v12 schema and module-ABI preflight failed. No publish was attempted.');
   }
 }
 
@@ -1619,11 +1809,12 @@ export function verifyPostPublishProductionV12ModuleSchema(
   try {
     if (
       !predecessor
-      || predecessor.moduleState !== 'predecessor'
+      || (predecessor.moduleState !== 'predecessor'
+        && predecessor.moduleState !== 'active-predecessor')
       || !predecessor.tableSignatures
       || typeof predecessor.tableSignatures !== 'object'
       || Array.isArray(predecessor.tableSignatures)
-    ) fail('The captured inert production v12 predecessor was invalid.');
+    ) fail('The captured production v12 predecessor was invalid.');
     const result = runBoundedSync(
       executable,
       canonicalSchemaDescribeChildArguments(),
@@ -1641,7 +1832,7 @@ export function verifyPostPublishProductionV12ModuleSchema(
     ) fail('The code-only v12 publication did not preserve every table signature and install the exact candidate ABI.');
     return after;
   } catch {
-    fail('Post-publication v12 module checkpoint is indeterminate; perform a fresh anonymous read-only schema and ABI inspection before any stage, backfill, drain, activation, client deployment, or further publication decision.');
+    fail('Post-publication v12 module checkpoint is indeterminate; perform a fresh anonymous read-only schema and ABI inspection before any Worker command, client deployment, or further publication decision.');
   }
 }
 
@@ -2167,6 +2358,147 @@ export function verifyEmptyAlphaStatusV12(status, expectedFounderCount) {
   return status;
 }
 
+export function verifyActiveAlphaStatusV12(status, expectedFounderCount) {
+  if (
+    !Number.isSafeInteger(expectedFounderCount)
+    || expectedFounderCount < 1
+    || expectedFounderCount > 100
+  ) fail('The active Worker checkpoint expected founder count was invalid.');
+  const expectedWorkerCount = BigInt(expectedFounderCount * 4);
+  const occupiedWorkerCount = BigInt(status.outboundWorkers)
+    + BigInt(status.gatheringWorkers);
+  const activeWorkerCount = BigInt(status.outboundWorkers)
+    + BigInt(status.gatheringWorkers)
+    + BigInt(status.returningWorkers);
+  if (
+    status.mode !== 'active'
+    || status.systemRows !== '1'
+    || status.systemConfigValid !== true
+    || status.legacyDrainRequired !== false
+    || status.expectedCastleCount !== String(expectedFounderCount)
+    || status.expectedWorkerCount !== String(expectedWorkerCount)
+    || status.actualWorkerCount !== String(expectedWorkerCount)
+    || status.expectedCountsMatch !== true
+    || status.rosterDigestMatches !== true
+    || status.rosterDigest === ''
+    || status.rosterDigest !== status.rosterDigestExpected
+    || BigInt(status.idleWorkers) + activeWorkerCount !== expectedWorkerCount
+    || BigInt(status.assignments) !== activeWorkerCount
+    || BigInt(status.occupations) !== occupiedWorkerCount
+    || BigInt(status.schedules) !== activeWorkerCount
+    || ACTIVE_WORKER_V12_ZERO_FIELDS.some(field => status[field] !== '0')
+  ) {
+    fail('Alpha procedure-v12 did not prove an exact healthy active Worker graph.');
+  }
+  return status;
+}
+
+function verifyRepairableActiveAlphaStatusV12(
+  status,
+  expectedFounderCount,
+  checkpoint,
+) {
+  if (
+    !Number.isSafeInteger(expectedFounderCount)
+    || expectedFounderCount < 1
+    || expectedFounderCount > 100
+  ) fail('The repairable active Worker checkpoint expected founder count was invalid.');
+  const expectedWorkerCount = BigInt(expectedFounderCount * 4);
+  const outboundWorkers = BigInt(status.outboundWorkers);
+  const gatheringWorkers = BigInt(status.gatheringWorkers);
+  const returningWorkers = BigInt(status.returningWorkers);
+  const activeWorkerCount = outboundWorkers + gatheringWorkers + returningWorkers;
+  const expectedOccupationSiteMismatches = checkpoint
+    === WORKER_FORWARD_REPAIR_CHECKPOINT.ACTIVE_PREDECESSOR
+    ? '1'
+    : checkpoint === WORKER_FORWARD_REPAIR_CHECKPOINT.CANDIDATE_PENDING
+      ? '0'
+      : undefined;
+  if (
+    expectedOccupationSiteMismatches === undefined
+    || status.mode !== 'active'
+    || status.systemRows !== '1'
+    || status.systemConfigValid !== true
+    || status.legacyDrainRequired !== false
+    || status.expectedCastleCount !== String(expectedFounderCount)
+    || status.expectedWorkerCount !== String(expectedWorkerCount)
+    || status.actualWorkerCount !== String(expectedWorkerCount)
+    || status.expectedCountsMatch !== true
+    || status.rosterDigestMatches !== true
+    || status.rosterDigest === ''
+    || status.rosterDigest !== status.rosterDigestExpected
+    || returningWorkers < 1n
+    || BigInt(status.idleWorkers) + activeWorkerCount !== expectedWorkerCount
+    || BigInt(status.assignments) !== activeWorkerCount
+    || BigInt(status.occupations) !== outboundWorkers + gatheringWorkers
+    || BigInt(status.schedules) + 1n !== BigInt(status.assignments)
+    || status.assignmentsWithoutSingleSchedule !== '1'
+    || status.occupationSiteMismatches !== expectedOccupationSiteMismatches
+    || REPAIRABLE_ACTIVE_WORKER_V12_ZERO_FIELDS.some(
+      field => status[field] !== '0',
+    )
+  ) {
+    fail('Alpha procedure-v12 did not prove the exact bounded return-node-reuse repair checkpoint.');
+  }
+  return status;
+}
+
+export function verifyReturnNodeReuseRepairAlphaStatusV12(
+  status,
+  expectedFounderCount,
+  checkpoint,
+) {
+  if (
+    checkpoint === WORKER_FORWARD_REPAIR_CHECKPOINT.CANDIDATE_EXISTING
+  ) {
+    try {
+      return verifyRepairableActiveAlphaStatusV12(
+        status,
+        expectedFounderCount,
+        WORKER_FORWARD_REPAIR_CHECKPOINT.CANDIDATE_PENDING,
+      );
+    } catch {
+      return verifyActiveAlphaStatusV12(status, expectedFounderCount);
+    }
+  }
+  return verifyRepairableActiveAlphaStatusV12(
+    status,
+    expectedFounderCount,
+    checkpoint,
+  );
+}
+
+export function verifyAlphaStatusV12ForStage(
+  status,
+  expectedFounderCount,
+  workerRolloutStage,
+  workerForwardRepair = WORKER_FORWARD_REPAIR.NONE,
+  workerForwardRepairCheckpoint = WORKER_FORWARD_REPAIR_CHECKPOINT.HEALTHY,
+) {
+  if (
+    workerForwardRepair === WORKER_FORWARD_REPAIR.RETURN_NODE_REUSE_V1
+  ) {
+    if (workerRolloutStage !== WORKER_PUBLISH_ROLLOUT_STAGE.ACTIVE) {
+      fail('The return-node-reuse repair checkpoint requires the active Worker rollout stage.');
+    }
+    return verifyReturnNodeReuseRepairAlphaStatusV12(
+      status,
+      expectedFounderCount,
+      workerForwardRepairCheckpoint,
+    );
+  }
+  if (workerForwardRepair !== WORKER_FORWARD_REPAIR.NONE) {
+    fail('The Alpha v12 checkpoint Worker forward-repair selection was invalid.');
+  }
+  if (workerRolloutStage === WORKER_PUBLISH_ROLLOUT_STAGE.EMPTY) {
+    return verifyEmptyAlphaStatusV12(status, expectedFounderCount);
+  }
+  if (workerRolloutStage === WORKER_PUBLISH_ROLLOUT_STAGE.ACTIVE) {
+    return verifyActiveAlphaStatusV12(status, expectedFounderCount);
+  }
+  fail('The Alpha v12 checkpoint Worker rollout stage was invalid.');
+}
+
 export function verifyFreshAlphaStatusV12Aggregate(
   secret,
   expectedFounderCount,
@@ -2307,10 +2639,15 @@ export function verifyPostPublishCombinedV12Aggregate(
   workerRolloutStage,
   spawnSyncProcess = spawnSync,
   genesisWorldRolloutStage = GENESIS_WORLD_PUBLISH_STAGE.PRE_EXPANSION,
+  workerForwardRepair = WORKER_FORWARD_REPAIR.NONE,
+  workerForwardRepairCheckpoint = WORKER_FORWARD_REPAIR_CHECKPOINT.HEALTHY,
 ) {
   const exactExpectations = validateFoundedPublishExpectations(expectations);
   validateCombinedPublishStages(resourceRolloutStage, genesisWorldRolloutStage);
-  if (workerRolloutStage !== WORKER_PUBLISH_ROLLOUT_STAGE.EMPTY) {
+  if (
+    workerRolloutStage !== WORKER_PUBLISH_ROLLOUT_STAGE.EMPTY
+    && workerRolloutStage !== WORKER_PUBLISH_ROLLOUT_STAGE.ACTIVE
+  ) {
     fail('The post-publication Worker rollout stage was invalid.');
   }
   try {
@@ -2330,15 +2667,18 @@ export function verifyPostPublishCombinedV12Aggregate(
     );
     verifyPrivacySafeAlphaStatusV8Output(JSON.stringify(envelope.alphaV8));
     verifyPrivacySafeAlphaStatusV10Output(JSON.stringify(envelope.alphaV10));
-    verifyEmptyAlphaStatusV12(
+    verifyAlphaStatusV12ForStage(
       verifyPrivacySafeAlphaStatusV12Output(
         JSON.stringify(envelope.workerV12),
       ),
       exactExpectations.expectedFounderCount,
+      workerRolloutStage,
+      workerForwardRepair,
+      workerForwardRepairCheckpoint,
     );
     return envelope;
   } catch {
-    fail('Post-publication combined protocol-v3/v4/v8/v10/v12 checkpoint is indeterminate; a fresh read-only inspection is required before any backfill, activation, client deployment, or further publication decision.');
+    fail('Post-publication combined protocol-v3/v4/v8/v10/v12 checkpoint is indeterminate; a fresh read-only inspection is required before any Worker mutation, client deployment, or further publication decision.');
   }
 }
 
@@ -2353,6 +2693,8 @@ export function verifyFreshPublishExactV12Aggregate(
   workerRolloutStage,
   spawnSyncProcess = spawnSync,
   genesisWorldRolloutStage = GENESIS_WORLD_PUBLISH_STAGE.PRE_EXPANSION,
+  workerForwardRepair = WORKER_FORWARD_REPAIR.NONE,
+  workerForwardRepairCheckpoint = WORKER_FORWARD_REPAIR_CHECKPOINT.HEALTHY,
 ) {
   try {
     return verifyPostPublishCombinedV12Aggregate(
@@ -2362,9 +2704,11 @@ export function verifyFreshPublishExactV12Aggregate(
       workerRolloutStage,
       spawnSyncProcess,
       genesisWorldRolloutStage,
+      workerForwardRepair,
+      workerForwardRepairCheckpoint,
     );
   } catch {
-    fail('Exact-v12 pre-publication aggregate checkpoint failed. No publish was attempted; the Worker suffix must remain absent and inert.');
+    fail('Exact-v12 pre-publication aggregate checkpoint failed. No publish was attempted; the Worker graph must remain at the explicitly selected rollout stage.');
   }
 }
 
@@ -2469,6 +2813,8 @@ export function verifyPostPublishResourcePublicationCheckpoints(
   workerRolloutStage,
   spawnSyncProcess = spawnSync,
   genesisWorldRolloutStage = GENESIS_WORLD_PUBLISH_STAGE.PRE_EXPANSION,
+  workerForwardRepair = WORKER_FORWARD_REPAIR.NONE,
+  workerForwardRepairCheckpoint = WORKER_FORWARD_REPAIR_CHECKPOINT.HEALTHY,
 ) {
   return verifyPostPublishCombinedV12Aggregate(
     secret,
@@ -2477,6 +2823,8 @@ export function verifyPostPublishResourcePublicationCheckpoints(
     workerRolloutStage,
     spawnSyncProcess,
     genesisWorldRolloutStage,
+    workerForwardRepair,
+    workerForwardRepairCheckpoint,
   );
 }
 
@@ -2585,6 +2933,7 @@ async function main() {
     genesisWorldRolloutStage,
     workerRolloutStage,
     workerModulePredecessor,
+    workerForwardRepair,
   } = parsePublishArguments();
   requireCanonicalPublishCoordinates();
   if (database !== CANONICAL_DATABASE) fail('The production publisher target was not canonical.');
@@ -2612,15 +2961,26 @@ async function main() {
     const artifactReceipt = runCurrentAdditiveMigrationProof(executable);
     if (dryRun) {
       await validateIssuerDeployment(issuer);
-      console.log(`Dry run: verified the pinned CLI, current additive migration, founded-state expectation contract, explicit ${resourceRolloutStage} resource stage, explicit ${genesisWorldRolloutStage} Genesis world stage, explicit ${workerRolloutStage} Worker stage, explicit ${workerModulePredecessor} module predecessor, and ${issuer}; would update the canonical existing database without deleting data.`);
+      console.log(`Dry run: verified the pinned CLI, current additive migration, founded-state expectation contract, explicit ${resourceRolloutStage} resource stage, explicit ${genesisWorldRolloutStage} Genesis world stage, explicit ${workerRolloutStage} Worker stage, explicit ${workerModulePredecessor} module predecessor, explicit ${workerForwardRepair} Worker forward-repair selection, and ${issuer}; would update the canonical existing database without deleting data.`);
       return;
     }
     await validateIssuerDeployment(issuer);
     attestCanonicalDatabase(executable);
-    if (workerModulePredecessor === WORKER_MODULE_PREDECESSOR.EXACT_V12_EMPTY) {
+    if (
+      workerModulePredecessor === WORKER_MODULE_PREDECESSOR.EXACT_V12_EMPTY
+      || workerModulePredecessor === WORKER_MODULE_PREDECESSOR.EXACT_V12_ACTIVE
+    ) {
       const predecessorSchema = verifyFreshProductionV12ModuleSchema(
         executable,
         artifactReceipt.v12TableSchemaDigest,
+      );
+      verifyWorkerV12ModulePredecessor(
+        predecessorSchema.moduleState,
+        workerModulePredecessor,
+      );
+      const publicationPlan = planWorkerV12CodePublication(
+        predecessorSchema.moduleState,
+        workerForwardRepair,
       );
       verifyFreshPublishExactV12Aggregate(
         adminTokenSecret,
@@ -2629,11 +2989,9 @@ async function main() {
         workerRolloutStage,
         spawnSync,
         genesisWorldRolloutStage,
+        workerForwardRepair,
+        publicationPlan.prePublicationCheckpoint,
       );
-      if (predecessorSchema.moduleState === 'candidate') {
-        console.log('Exact reviewed v12 module ABI and inert Worker aggregate are already published; no publication was attempted.');
-        return;
-      }
       await publishModule(executable, CANONICAL_DATABASE_IDENTITY, artifactReceipt);
       verifyPostPublishProductionV12ModuleSchema(
         executable,
@@ -2647,7 +3005,29 @@ async function main() {
         workerRolloutStage,
         spawnSync,
         genesisWorldRolloutStage,
+        workerForwardRepair,
+        publicationPlan.postPublicationCheckpoint,
       );
+      if (
+        workerForwardRepair === WORKER_FORWARD_REPAIR.RETURN_NODE_REUSE_V1
+      ) {
+        const receipt = writePrivateSpacetimePublishSuccessReceipt({
+          directory:
+            process.env.WARPKEEP_SPACETIME_PUBLISH_RECEIPT_DIR
+            ?? defaultSpacetimePublishReceiptDirectory(),
+          repositoryRoot,
+          artifactDigest: artifactReceipt.artifactDigest,
+          v12TableSchemaDigest: artifactReceipt.v12TableSchemaDigest,
+          workerForwardRepair,
+          postPublicationCheckpoint:
+            publicationPlan.postPublicationCheckpoint,
+        });
+        console.log(JSON.stringify({
+          publication: 'verified',
+          deletion: 'disabled',
+          receiptDigest: receipt.receiptDigest,
+        }));
+      }
     } else {
       const predecessorSchema = verifyFreshProductionV11Schema(
         executable,
@@ -2673,6 +3053,8 @@ async function main() {
         workerRolloutStage,
         spawnSync,
         genesisWorldRolloutStage,
+        workerForwardRepair,
+        WORKER_FORWARD_REPAIR_CHECKPOINT.HEALTHY,
       );
     }
   } finally {

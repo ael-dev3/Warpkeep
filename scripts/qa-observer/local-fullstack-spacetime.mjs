@@ -27,6 +27,8 @@ export const LOCAL_FULLSTACK_AUDIENCE = 'warpkeep-spacetimedb';
 export const LOCAL_FULLSTACK_FID = 9_900_001;
 export const LOCAL_FULLSTACK_PROFILE_URL =
   'https://i.imgur.com/warpkeep-local-keeper.png';
+export const LOCAL_FULLSTACK_FOUNDER_COUNT = 7;
+export const LOCAL_FULLSTACK_WORKER_COUNT = LOCAL_FULLSTACK_FOUNDER_COUNT * 4;
 
 const REPOSITORY_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const SOURCE_MODULE = join(REPOSITORY_ROOT, 'spacetimedb');
@@ -37,6 +39,39 @@ const SERVER_STOP_TIMEOUT_MILLISECONDS = 5_000;
 const PROFILE_POLICY_VERSION = 'trusted-snapchain-profile-v3';
 const RESOURCE_POLICY_VERSION = 'genesis-resource-yield-v1';
 const WORKER_PROTOCOL_CAPABILITY = 'generic-castle-workers-v1';
+const ENTRY_AGREEMENT_VERSION = '2026-07-19-hegemony-entry-agreement-v3';
+const LOCAL_FULLSTACK_FOUNDERS = Object.freeze(Array.from(
+  { length: LOCAL_FULLSTACK_FOUNDER_COUNT },
+  (_, index) => Object.freeze({
+    fid: LOCAL_FULLSTACK_FID + index,
+    username: index === 0 ? 'qa.warpkeeper' : `qa.warpkeeper.${index + 1}`,
+    displayName: index === 0
+      ? 'Synthetic QA Keeper'
+      : `Synthetic QA Keeper ${index + 1}`,
+  })
+));
+const LOCAL_FULLSTACK_DISPATCH_TARGETS = Object.freeze([
+  Object.freeze({
+    ordinal: 1,
+    resourceKind: 'gold',
+    siteId: 'genesis-001-tier1-gold-02',
+  }),
+  Object.freeze({
+    ordinal: 2,
+    resourceKind: 'food',
+    siteId: 'genesis-001-tier1-food-002',
+  }),
+  Object.freeze({
+    ordinal: 3,
+    resourceKind: 'wood',
+    siteId: 'genesis-001-tier1-wood-012',
+  }),
+  Object.freeze({
+    ordinal: 4,
+    resourceKind: 'stone',
+    siteId: 'genesis-001-tier1-stone-002',
+  }),
+]);
 const PRODUCTION_OIDC_ISSUER = 'https://auth.warpkeep.com';
 const PRODUCTION_OIDC_SOURCE_DECLARATION =
   `export const WARPKEEP_OIDC_ISSUER = '${PRODUCTION_OIDC_ISSUER}';`;
@@ -338,12 +373,12 @@ function localAdminClaims() {
   return localServiceClaims('service:hermes', ['warpkeep-admin'], 240);
 }
 
-function localPlayerClaims(lifetimeSeconds = 600) {
-  const base = localServiceClaims(`farcaster:${LOCAL_FULLSTACK_FID}`, [], lifetimeSeconds);
+function localPlayerClaims(fid = LOCAL_FULLSTACK_FID, lifetimeSeconds = 600) {
+  const base = localServiceClaims(`farcaster:${fid}`, [], lifetimeSeconds);
   return {
     ...base,
     auth_version: 2,
-    fid: String(LOCAL_FULLSTACK_FID),
+    fid: String(fid),
     auth_epoch: 1,
     session_iat: base.iat,
     session_exp: base.exp,
@@ -431,7 +466,10 @@ function readUnsigned(value) {
   return parsed;
 }
 
-function parseWorkerRollout(text) {
+function parseWorkerRollout(
+  text,
+  expectedCastleCount = BigInt(LOCAL_FULLSTACK_FOUNDER_COUNT),
+) {
   let value;
   try {
     value = JSON.parse(text);
@@ -443,24 +481,38 @@ function parseWorkerRollout(text) {
     phase: value[0],
     expectedCastleCount: readUnsigned(value[3]),
     expectedWorkerCount: readUnsigned(value[4]),
+    actualCastleCount: readUnsigned(value[5]),
     actualWorkerCount: readUnsigned(value[6]),
     rosterDigest: value[7],
     malformedWorkerGraphRows: readUnsigned(value[9]),
+    resourceAccounts: readUnsigned(value[10]),
+    missingResourceAccounts: readUnsigned(value[11]),
+    orphanedResourceAccounts: readUnsigned(value[12]),
+    resourceInvariantViolations: readUnsigned(value[13]),
     resourceRosterDigest: value[14],
     canonicalResourceCatalog: value[15],
     resourceCatalogDigest: value[16],
     legacyExpeditions: readUnsigned(value[17]),
     legacyOccupations: readUnsigned(value[18]),
     legacySchedules: readUnsigned(value[19]),
+    genericAssignments: readUnsigned(value[32]),
+    genericOccupations: readUnsigned(value[33]),
+    genericSchedules: readUnsigned(value[34]),
+    genericCommandReceipts: readUnsigned(value[35]),
   });
   if (
     !['draining', 'active'].includes(status.phase)
-    || status.expectedCastleCount !== 1n
-    || status.expectedWorkerCount !== 4n
-    || status.actualWorkerCount !== 4n
+    || status.expectedCastleCount !== expectedCastleCount
+    || status.expectedWorkerCount !== expectedCastleCount * 4n
+    || status.actualCastleCount !== expectedCastleCount
+    || status.actualWorkerCount !== expectedCastleCount * 4n
     || typeof status.rosterDigest !== 'string'
     || !/^[0-9a-f]{16}$/.test(status.rosterDigest)
     || status.malformedWorkerGraphRows !== 0n
+    || status.resourceAccounts !== expectedCastleCount
+    || status.missingResourceAccounts !== 0n
+    || status.orphanedResourceAccounts !== 0n
+    || status.resourceInvariantViolations !== 0n
     || typeof status.resourceRosterDigest !== 'string'
     || !/^[0-9a-f]{16}$/.test(status.resourceRosterDigest)
     || status.canonicalResourceCatalog !== true
@@ -471,6 +523,140 @@ function parseWorkerRollout(text) {
     || status.legacySchedules !== 0n
   ) fail('Worker aggregate was not ready for local activation.');
   return status;
+}
+
+function readOptionalString(value) {
+  if (value === null || value === undefined) return undefined;
+  if (typeof value === 'string') return value;
+  if (
+    Array.isArray(value)
+    && value.length === 2
+    && value[0] === 1
+    && (
+      (Array.isArray(value[1]) && value[1].length === 0)
+      || (
+        value[1] !== null
+        && typeof value[1] === 'object'
+        && !Array.isArray(value[1])
+        && Object.keys(value[1]).length === 0
+      )
+    )
+  ) return undefined;
+  if (
+    Array.isArray(value)
+    && value.length === 2
+    && value[0] === 0
+    && typeof value[1] === 'string'
+  ) return value[1];
+  if (
+    typeof value === 'object'
+    && !Array.isArray(value)
+    && Object.keys(value).length === 1
+  ) {
+    if (typeof value.some === 'string') return value.some;
+    if (
+      Object.hasOwn(value, 'none')
+      && (
+        value.none === null
+        || value.none === undefined
+        || (Array.isArray(value.none) && value.none.length === 0)
+      )
+    ) return undefined;
+  }
+  const shape = Array.isArray(value)
+    ? `array-${value.length}-${value.map((entry) => (
+        typeof entry === 'string' && /^(?:some|none)$/i.test(entry)
+          ? entry.toLowerCase()
+          : typeof entry === 'number' && Number.isInteger(entry)
+            ? `tag${entry}`
+            : entry !== null && typeof entry === 'object' && !Array.isArray(entry)
+              ? `object${Object.keys(entry).sort().join('-').replace(/[^a-z0-9-]/gi, '')}`
+          : typeof entry
+      )).join('-')}`
+    : value !== null && typeof value === 'object'
+      ? `object-${Object.keys(value).sort().join('-').replace(/[^a-z0-9-]/gi, '')}`
+      : typeof value;
+  fail(`Worker control projection option shape was invalid (${shape}).`);
+}
+
+function parseWorkerControlState(text, expectedFid = BigInt(LOCAL_FULLSTACK_FID)) {
+  let value;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    fail('Worker control projection JSON was invalid.');
+  }
+  if (!Array.isArray(value) || value.length !== 17 || !Array.isArray(value[3])) {
+    fail('Worker control projection outer shape was invalid.');
+  }
+  const workers = value[3].map((worker) => {
+    if (
+      !Array.isArray(worker)
+      || worker.length !== 10
+      || typeof worker[0] !== 'string'
+      || !/^[a-z]+$/.test(worker[2])
+    ) fail('Worker control projection Worker shape was invalid.');
+    return Object.freeze({
+      workerId: worker[0],
+      ordinal: Number(readUnsigned(worker[1])),
+      status: worker[2],
+      resourceKind: readOptionalString(worker[3]),
+      siteId: readOptionalString(worker[4]),
+      accruedAmount: readUnsigned(worker[5]),
+      materializedAmount: readUnsigned(worker[6]),
+      availableAmount: readUnsigned(worker[7]),
+      observedAtMicros: readUnsigned(worker[8]),
+      revision: readUnsigned(worker[9]),
+    });
+  });
+  const state = Object.freeze({
+    fid: readUnsigned(value[0]),
+    castleId: readUnsigned(value[1]),
+    observedAtMicros: readUnsigned(value[2]),
+    workers: Object.freeze(workers),
+    food: readUnsigned(value[4]),
+    wood: readUnsigned(value[5]),
+    stone: readUnsigned(value[6]),
+    gold: readUnsigned(value[7]),
+    pendingFood: readUnsigned(value[8]),
+    pendingWood: readUnsigned(value[9]),
+    pendingStone: readUnsigned(value[10]),
+    pendingGold: readUnsigned(value[11]),
+    settledThroughMicros: readUnsigned(value[12]),
+    revision: readUnsigned(value[13]),
+    resourcePolicyVersion: value[14],
+    workerPolicyVersion: value[15],
+    workerSystemMode: value[16],
+  });
+  if (
+    state.fid !== expectedFid
+    || state.castleId === 0n
+    || state.workers.length !== 4
+    || state.workers.some((worker, index) => (
+      worker.ordinal !== index + 1
+      || worker.workerId !== (
+        `genesis-001-castle-${state.castleId}-worker-${
+          String(index + 1).padStart(2, '0')
+        }`
+      )
+      || worker.observedAtMicros !== state.observedAtMicros
+    ))
+    || state.settledThroughMicros > state.observedAtMicros
+    || state.resourcePolicyVersion !== RESOURCE_POLICY_VERSION
+    || state.workerPolicyVersion !== 'genesis-001-castle-workers-v1'
+    || state.workerSystemMode !== 'active'
+  ) fail('Worker control projection invariant was invalid.');
+  return state;
+}
+
+async function waitForLocalWorkerState(readState, predicate, deadlineMilliseconds) {
+  const deadline = Date.now() + deadlineMilliseconds;
+  while (Date.now() <= deadline) {
+    const state = await readState();
+    if (predicate(state)) return state;
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 100));
+  }
+  fail('Production-shaped local Worker state did not become ready.');
 }
 
 export async function terminateLocalFullstackProcessGroup(child, options = {}) {
@@ -539,15 +725,17 @@ async function seedLocalRealm(server, privateKey, moduleDigest) {
   await callAdmin('admin_activate_genesis_water_layout_v1', '[]', 120_000);
   await callAdmin('admin_seed_genesis_water_revision_v1', '[]', 120_000);
   await callAdmin('admin_activate_genesis_water_revision_v1', '[]', 120_000);
-  await callAdmin('admin_admit_founder_v1', JSON.stringify([
-    LOCAL_FULLSTACK_FID,
-    'disposable local full-stack browser fixture',
-    'qa.warpkeeper',
-    { some: 'Synthetic QA Keeper' },
-    LOCAL_FULLSTACK_PROFILE_URL,
-    { some: 'Synthetic loopback-only founder' },
-    PROFILE_POLICY_VERSION,
-  ]));
+  for (const founder of LOCAL_FULLSTACK_FOUNDERS) {
+    await callAdmin('admin_admit_founder_v1', JSON.stringify([
+      founder.fid,
+      'disposable local full-stack browser fixture',
+      founder.username,
+      { some: founder.displayName },
+      LOCAL_FULLSTACK_PROFILE_URL,
+      { some: 'Synthetic loopback-only founder' },
+      PROFILE_POLICY_VERSION,
+    ]));
+  }
   await callAdmin('admin_stage_worker_system_v1');
   await callAdmin('admin_backfill_worker_roster_v1');
   await callAdmin('admin_begin_worker_legacy_drain_v1');
@@ -568,6 +756,167 @@ async function seedLocalRealm(server, privateKey, moduleDigest) {
   ]));
   const active = parseWorkerRollout(await callAdmin('admin_get_worker_rollout_status_v2'));
   if (active.phase !== 'active') fail('Worker system did not activate locally.');
+
+  const playerCredential = createEphemeralJwt(
+    privateKey,
+    localPlayerClaims(LOCAL_FULLSTACK_FID)
+  );
+  const callPlayer = (name, body = '[]', timeout = 30_000) => callLocalProcedure({
+    server,
+    database: LOCAL_FULLSTACK_DATABASE,
+    name,
+    credential: playerCredential,
+    body,
+    timeout,
+  });
+  const initialAdmission = JSON.parse(
+    await callPlayer('get_my_admission_status_v2')
+  );
+  if (initialAdmission !== 'admitted_needs_bootstrap') {
+    fail('Disposable founder did not require exact local bootstrap.');
+  }
+  await callPlayer('bootstrap_player_v2');
+  await callPlayer('accept_alpha_terms_v1', JSON.stringify([
+    ENTRY_AGREEMENT_VERSION,
+    true,
+  ]));
+  const readyAdmission = JSON.parse(
+    await callPlayer('get_my_admission_status_v2')
+  );
+  if (readyAdmission !== 'ready') {
+    fail('Disposable founder did not become locally ready.');
+  }
+
+  const readControlState = async () => parseWorkerControlState(
+    await callPlayer('get_my_worker_control_state_v1')
+  );
+  let preparedAttestation;
+  const prepareWorkerScenario = async () => {
+    if (preparedAttestation) return preparedAttestation;
+    const idleState = await readControlState();
+    if (
+      idleState.revision !== 0n
+      || idleState.workers.some((worker) => (
+        worker.status !== 'idle'
+        || worker.revision !== 0n
+        || worker.resourceKind !== undefined
+        || worker.siteId !== undefined
+      ))
+    ) fail('Disposable Worker roster did not begin idle.');
+    for (const target of LOCAL_FULLSTACK_DISPATCH_TARGETS) {
+      const worker = idleState.workers[target.ordinal - 1];
+      await callPlayer('dispatch_worker_v1', JSON.stringify([
+        worker.workerId,
+        target.resourceKind,
+        target.siteId,
+        `local-qa-dispatch-${String(target.ordinal).padStart(2, '0')}`,
+      ]));
+    }
+
+    const gatheringState = await waitForLocalWorkerState(
+      readControlState,
+      (state) => (
+        state.workers[0]?.status === 'outbound'
+        && state.workers[1]?.status === 'outbound'
+        && state.workers[2]?.status === 'gathering'
+        && state.workers[3]?.status === 'outbound'
+        && state.workers.every((worker, index) => (
+          worker.resourceKind === LOCAL_FULLSTACK_DISPATCH_TARGETS[index]?.resourceKind
+          && worker.siteId === LOCAL_FULLSTACK_DISPATCH_TARGETS[index]?.siteId
+          && worker.revision > 0n
+        ))
+      ),
+      65_000
+    );
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 1_250));
+    const projectedBeforeSettlement = await readControlState();
+    if (
+      projectedBeforeSettlement.workers[2]?.availableAmount === 0n
+      || projectedBeforeSettlement.pendingWood === 0n
+    ) fail('Disposable Worker projection did not accrue pending resources.');
+    await callPlayer('collect_resources_v1');
+    const settledState = await waitForLocalWorkerState(
+      readControlState,
+      (state) => (
+        state.wood > 0n
+        && state.revision > gatheringState.revision
+        && state.workers.every((worker) => worker.revision > 0n)
+      ),
+      10_000
+    );
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 1_250));
+    const pendingAfterSettlement = await waitForLocalWorkerState(
+      readControlState,
+      (state) => (
+        state.pendingWood > 0n
+        && state.wood >= settledState.wood
+        && state.revision >= settledState.revision
+      ),
+      10_000
+    );
+    const fourthWorker = pendingAfterSettlement.workers[3];
+    await callPlayer('recall_worker_v1', JSON.stringify([
+      fourthWorker.workerId,
+      'local-qa-recall-worker-04',
+    ]));
+    const prepared = await waitForLocalWorkerState(
+      readControlState,
+      (state) => (
+        state.workers[0]?.status === 'outbound'
+        && state.workers[1]?.status === 'outbound'
+        && state.workers[2]?.status === 'gathering'
+        && state.workers[3]?.status === 'returning'
+        && state.workers.every((worker) => worker.revision > 0n)
+        && state.wood > 0n
+        && state.pendingWood > 0n
+        && state.revision > 0n
+      ),
+      10_000
+    );
+    const preparedRollout = parseWorkerRollout(
+      await callAdmin('admin_get_worker_rollout_status_v2')
+    );
+    if (
+      preparedRollout.phase !== 'active'
+      || preparedRollout.genericAssignments !== 4n
+      || preparedRollout.genericOccupations !== 3n
+      || preparedRollout.genericSchedules !== 4n
+      || preparedRollout.legacyExpeditions !== 0n
+      || preparedRollout.legacyOccupations !== 0n
+      || preparedRollout.legacySchedules !== 0n
+    ) fail('Production-shaped local Worker aggregate was invalid.');
+    preparedAttestation = Object.freeze({
+      castleCount: Number(active.expectedCastleCount),
+      workerCount: Number(active.actualWorkerCount),
+      ownerCastleId: Number(prepared.castleId),
+      ownerStoredWood: prepared.wood.toString(),
+      ownerPendingWood: prepared.pendingWood.toString(),
+      ownerResourceRevision: prepared.revision.toString(),
+      ownerWorkerRevisions: Object.freeze(
+        prepared.workers.map((worker) => worker.revision.toString())
+      ),
+      genericAssignments: Number(preparedRollout.genericAssignments),
+      genericOccupations: Number(preparedRollout.genericOccupations),
+      genericSchedules: Number(preparedRollout.genericSchedules),
+      legacyExpeditions: Number(preparedRollout.legacyExpeditions),
+      legacyOccupations: Number(preparedRollout.legacyOccupations),
+      legacySchedules: Number(preparedRollout.legacySchedules),
+    });
+    return preparedAttestation;
+  };
+  return Object.freeze({
+    seedAttestation: Object.freeze({
+      castleCount: Number(active.expectedCastleCount),
+      workerCount: Number(active.actualWorkerCount),
+      genericAssignments: Number(active.genericAssignments),
+      genericOccupations: Number(active.genericOccupations),
+      genericSchedules: Number(active.genericSchedules),
+      legacyExpeditions: Number(active.legacyExpeditions),
+      legacyOccupations: Number(active.legacyOccupations),
+      legacySchedules: Number(active.legacySchedules),
+    }),
+    prepareWorkerScenario,
+  });
 }
 
 export async function startDisposableLocalFullstackSpacetime(options = {}) {
@@ -717,7 +1066,7 @@ export async function startDisposableLocalFullstackSpacetime(options = {}) {
     const moduleDigest = createHash('sha256').update(artifact).digest('hex');
     artifact.fill(0);
     startupStage = 'realm-seed';
-    await seedLocalRealm(server, privateKey, moduleDigest);
+    const localRealm = await seedLocalRealm(server, privateKey, moduleDigest);
     assertOpen();
     startupStage = 'player-session-probe';
     const playerClaims = localPlayerClaims();
@@ -747,6 +1096,8 @@ export async function startDisposableLocalFullstackSpacetime(options = {}) {
       close,
       moduleDigest,
       runtimeDirectory,
+      prepareWorkerScenario: localRealm.prepareWorkerScenario,
+      seedAttestation: localRealm.seedAttestation,
       serverProcess,
     });
   } catch (error) {

@@ -98,6 +98,21 @@ export type ReadyWorkerResourceState = Readonly<{
   workerSystemMode: RealmWorkerSystemMode;
 }>;
 
+export type ReadyWorkerControlState = Readonly<{
+  roster: WorkerRosterPresentation;
+  resourceState: ReadyWorkerResourceState;
+}>;
+
+export type WorkerControlStateDecodeFailure =
+  | 'wrong-caller'
+  | 'roster-decode-invalid'
+  | 'resource-decode-invalid'
+  | 'control-state-decode-invalid';
+
+export type WorkerControlStateDecodeResult =
+  | Readonly<{ status: 'ready'; value: ReadyWorkerControlState }>
+  | Readonly<{ status: 'invalid'; reason: WorkerControlStateDecodeFailure }>;
+
 /**
  * Complete public realm-wide worker graph. This is presentation authority for
  * worker entities, routes, occupations, and public identity joins, but it is
@@ -471,6 +486,59 @@ export function decodeWorkerResourceState(value: unknown, expectedFid: bigint): 
   });
 }
 
+/**
+ * Decode the additive one-transaction worker control projection. The flat
+ * transport shape is split into the two established presentation views only
+ * after one caller and one observation timestamp have been validated.
+ */
+export function decodeWorkerControlState(
+  value: unknown,
+  expectedFid: bigint
+): WorkerControlStateDecodeResult {
+  if (!record(value)) {
+    return Object.freeze({ status: 'invalid', reason: 'control-state-decode-invalid' });
+  }
+  if (value.fid !== expectedFid) {
+    return Object.freeze({ status: 'invalid', reason: 'wrong-caller' });
+  }
+  const roster = decodeWorkerRoster({
+    fid: value.fid,
+    castleId: value.castleId,
+    observedAtMicros: value.observedAtMicros,
+    workers: value.workers
+  }, expectedFid);
+  if (roster === undefined) {
+    return Object.freeze({ status: 'invalid', reason: 'roster-decode-invalid' });
+  }
+  const resourceState = decodeWorkerResourceState({
+    fid: value.fid,
+    food: value.food,
+    wood: value.wood,
+    stone: value.stone,
+    gold: value.gold,
+    workerPendingFood: value.workerPendingFood,
+    workerPendingWood: value.workerPendingWood,
+    workerPendingStone: value.workerPendingStone,
+    workerPendingGold: value.workerPendingGold,
+    observedAtMicros: value.observedAtMicros,
+    settledThroughMicros: value.settledThroughMicros,
+    revision: value.revision,
+    resourcePolicyVersion: value.resourcePolicyVersion,
+    workerPolicyVersion: value.workerPolicyVersion,
+    workerSystemMode: value.workerSystemMode
+  }, expectedFid);
+  if (resourceState === undefined) {
+    return Object.freeze({ status: 'invalid', reason: 'resource-decode-invalid' });
+  }
+  if (roster.observedAtMicros !== resourceState.observedAtMicros) {
+    return Object.freeze({ status: 'invalid', reason: 'control-state-decode-invalid' });
+  }
+  return Object.freeze({
+    status: 'ready',
+    value: Object.freeze({ roster, resourceState })
+  });
+}
+
 export function resolveReadyPublicWorkerProjection(input: Readonly<{
   realmId: string;
   castleIds: readonly number[];
@@ -577,7 +645,7 @@ export function resolveReadyPublicWorkerProjection(input: Readonly<{
   });
 }
 
-export function resolveReadyWorkerProjection(input: Readonly<{
+type WorkerProjectionInput = Readonly<{
   realmId: string;
   castleIds: readonly number[];
   ownCastleId: number;
@@ -588,33 +656,79 @@ export function resolveReadyWorkerProjection(input: Readonly<{
   resourceSites: readonly RealmWorkerResourceSite[];
   roster?: WorkerRosterPresentation;
   resourceState?: ReadyWorkerResourceState;
-}>): ReadyWorkerProjection | undefined {
+}>;
+
+export type WorkerProjectionCoherenceFailure =
+  | 'wrong-caller'
+  | 'public-graph-changed'
+  | 'public-private-worker-revision-mismatch'
+  | 'worker-status-or-site-mismatch'
+  | 'pending-total-mismatch'
+  | 'resource-policy-mismatch'
+  | 'worker-policy-mismatch'
+  | 'worker-system-mode-mismatch'
+  | 'roster-decode-invalid'
+  | 'resource-decode-invalid';
+
+export type WorkerProjectionResolution =
+  | Readonly<{ status: 'ready'; projection: ReadyWorkerProjection }>
+  | Readonly<{ status: 'invalid'; reason: WorkerProjectionCoherenceFailure }>;
+
+export function resolveReadyWorkerProjectionWithReason(
+  input: WorkerProjectionInput
+): WorkerProjectionResolution {
   const { roster, resourceState } = input;
   const publicProjection = resolveReadyPublicWorkerProjection(input);
-  if (
-    publicProjection === undefined
-    || roster?.castleId !== input.ownCastleId
-    || resourceState?.fid !== input.expectedFid
-    || resourceState?.workerSystemMode !== 'active'
-    || resourceState.resourcePolicyVersion !== REALM_RESOURCE_POLICY_VERSION
-    || resourceState.workerPolicyVersion !== publicProjection.system.policyVersion
-  ) return undefined;
+  if (publicProjection === undefined) {
+    return Object.freeze({ status: 'invalid', reason: 'public-graph-changed' });
+  }
+  if (roster === undefined) {
+    return Object.freeze({ status: 'invalid', reason: 'roster-decode-invalid' });
+  }
+  if (resourceState === undefined) {
+    return Object.freeze({ status: 'invalid', reason: 'resource-decode-invalid' });
+  }
+  if (roster.castleId !== input.ownCastleId || resourceState.fid !== input.expectedFid) {
+    return Object.freeze({ status: 'invalid', reason: 'wrong-caller' });
+  }
+  if (resourceState.workerSystemMode !== 'active') {
+    return Object.freeze({ status: 'invalid', reason: 'worker-system-mode-mismatch' });
+  }
+  if (resourceState.resourcePolicyVersion !== REALM_RESOURCE_POLICY_VERSION) {
+    return Object.freeze({ status: 'invalid', reason: 'resource-policy-mismatch' });
+  }
+  if (resourceState.workerPolicyVersion !== publicProjection.system.policyVersion) {
+    return Object.freeze({ status: 'invalid', reason: 'worker-policy-mismatch' });
+  }
 
   const ownedWorkers = publicProjection.workers.filter(
     (worker) => worker.originCastleId === input.ownCastleId
   );
-  if (ownedWorkers.length !== 4 || roster.workers.length !== 4) return undefined;
+  if (ownedWorkers.length !== 4 || roster.workers.length !== 4) {
+    return Object.freeze({ status: 'invalid', reason: 'roster-decode-invalid' });
+  }
   const rosterById = new Map(roster.workers.map((worker) => [worker.workerId, worker] as const));
   for (const worker of ownedWorkers) {
     const privateWorker = rosterById.get(worker.workerId);
     if (
       privateWorker === undefined
       || privateWorker.ordinal !== worker.ordinal
-      || privateWorker.status !== worker.status
+    ) {
+      return Object.freeze({ status: 'invalid', reason: 'roster-decode-invalid' });
+    }
+    if (privateWorker.revision !== worker.revision) {
+      return Object.freeze({
+        status: 'invalid',
+        reason: 'public-private-worker-revision-mismatch'
+      });
+    }
+    if (
+      privateWorker.status !== worker.status
       || privateWorker.resourceKind !== worker.resourceKind
       || privateWorker.siteId !== worker.siteId
-      || privateWorker.revision !== worker.revision
-    ) return undefined;
+    ) {
+      return Object.freeze({ status: 'invalid', reason: 'worker-status-or-site-mismatch' });
+    }
   }
   const expectedPending: Record<RealmEconomicResourceKey, bigint> = {
     food: 0n,
@@ -628,12 +742,22 @@ export function resolveReadyWorkerProjection(input: Readonly<{
     }
   }
   if (RESOURCE_ORDER.some((resource) => resourceState.pending[resource] !== expectedPending[resource])) {
-    return undefined;
+    return Object.freeze({ status: 'invalid', reason: 'pending-total-mismatch' });
   }
   return Object.freeze({
-    ...publicProjection,
-    ownedWorkers: Object.freeze(ownedWorkers.slice().sort((left, right) => left.ordinal - right.ordinal)),
+    status: 'ready',
+    projection: Object.freeze({
+      ...publicProjection,
+      ownedWorkers: Object.freeze(ownedWorkers.slice().sort((left, right) => left.ordinal - right.ordinal))
+    })
   });
+}
+
+export function resolveReadyWorkerProjection(
+  input: WorkerProjectionInput
+): ReadyWorkerProjection | undefined {
+  const result = resolveReadyWorkerProjectionWithReason(input);
+  return result.status === 'ready' ? result.projection : undefined;
 }
 
 export function workerAvailabilityCount(workers: readonly RealmWorkerPublicPresentation[]) {

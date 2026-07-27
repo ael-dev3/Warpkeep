@@ -21,6 +21,8 @@ import {
 } from './realmWorkerPresentation';
 import './WorkerInspectionPanel.css';
 
+const WORKER_RECONCILIATION_TIMEOUT_MILLISECONDS = 12_000;
+
 function publicAssetUrl(path: string) {
   const base = import.meta.env.BASE_URL || '/';
   return `${base.endsWith('/') ? base : `${base}/`}${path.replace(/^\/+/, '')}`;
@@ -43,6 +45,8 @@ export type WorkerInspectionPanelProps = Readonly<{
   onLocateKeeper?: (castleId: number) => void;
   /** Localized explanation shown while owner commands are read-only. */
   controlsStatus?: string;
+  /** A reducer reply was accepted; wait for the public lifecycle to advance. */
+  awaitingAuthoritativeRecall?: boolean;
   onRecallWorker?: (workerId: string) => Promise<void>;
   onRequestClose: () => void;
   focusTargetRef?: Ref<HTMLHeadingElement>;
@@ -94,16 +98,27 @@ export function WorkerInspectionPanel({
   onLocateWorker,
   onLocateKeeper,
   controlsStatus,
+  awaitingAuthoritativeRecall = false,
   onRecallWorker,
   onRequestClose,
   focusTargetRef
 }: WorkerInspectionPanelProps) {
   const dialogRef = useRef<HTMLElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const [state, setState] = useState<'idle' | 'recalling' | 'failed'>('idle');
-  const commandPending = state === 'recalling';
+  const workerRef = useRef(worker);
+  const recallAttemptRef = useRef(0);
+  const recallWorkerIdRef = useRef<string | undefined>(undefined);
+  const [state, setState] = useState<
+    'idle' | 'recalling' | 'awaiting-authority' | 'failed'
+  >('idle');
+  workerRef.current = worker;
+  const commandPending = state === 'recalling'
+    || state === 'awaiting-authority'
+    || awaitingAuthoritativeRecall;
   const recallableByOwner = worker.ownedByViewer && realmWorkerCanRecall(worker);
-  const canRecall = recallableByOwner && onRecallWorker !== undefined;
+  const canRecall = recallableByOwner
+    && !awaitingAuthoritativeRecall
+    && onRecallWorker !== undefined;
   const controlsStatusId = `${id}-controls-status`;
   const profile = useMemo(
     () => sanitizeWorkerKeeperProfile(keeperProfile),
@@ -135,8 +150,45 @@ export function WorkerInspectionPanel({
   });
 
   useEffect(() => {
-    setState((current) => current === 'recalling' ? current : 'idle');
+    const commandWorkerId = recallWorkerIdRef.current;
+    if (commandWorkerId !== undefined && commandWorkerId !== worker.workerId) {
+      recallAttemptRef.current += 1;
+      recallWorkerIdRef.current = undefined;
+      setState('idle');
+      return;
+    }
+    if (
+      commandWorkerId === worker.workerId
+      && (worker.status === 'returning' || worker.status === 'idle')
+    ) {
+      recallAttemptRef.current += 1;
+      recallWorkerIdRef.current = undefined;
+      setState('idle');
+      return;
+    }
+    setState((current) => {
+      if (current !== 'recalling' && current !== 'awaiting-authority') {
+        return 'idle';
+      }
+      return current;
+    });
   }, [worker.workerId, worker.status, worker.revision]);
+
+  useEffect(() => {
+    if (state !== 'awaiting-authority') return undefined;
+    const attempt = recallAttemptRef.current;
+    const timeout = window.setTimeout(() => {
+      if (recallAttemptRef.current !== attempt) return;
+      recallWorkerIdRef.current = undefined;
+      setState('failed');
+    }, WORKER_RECONCILIATION_TIMEOUT_MILLISECONDS);
+    return () => window.clearTimeout(timeout);
+  }, [state]);
+
+  useEffect(() => () => {
+    recallAttemptRef.current += 1;
+    recallWorkerIdRef.current = undefined;
+  }, []);
 
   const assignHeadingRef = (element: HTMLHeadingElement | null) => {
     headingRef.current = element;
@@ -145,13 +197,37 @@ export function WorkerInspectionPanel({
   };
 
   const recall = async () => {
-    if (!canRecall || !onRecallWorker || state === 'recalling') return;
+    if (!canRecall || !onRecallWorker || commandPending) return;
+    const submittedWorkerId = worker.workerId;
+    const attempt = recallAttemptRef.current + 1;
+    recallAttemptRef.current = attempt;
+    recallWorkerIdRef.current = submittedWorkerId;
     setState('recalling');
     try {
-      await onRecallWorker(worker.workerId);
-      setState('idle');
+      await onRecallWorker(submittedWorkerId);
+      if (
+        recallAttemptRef.current !== attempt
+        || recallWorkerIdRef.current !== submittedWorkerId
+      ) return;
+      const currentWorker = workerRef.current;
+      if (
+        currentWorker.workerId !== submittedWorkerId
+        || currentWorker.status === 'returning'
+        || currentWorker.status === 'idle'
+      ) {
+        recallWorkerIdRef.current = undefined;
+        setState('idle');
+        return;
+      }
+      setState('awaiting-authority');
     } catch {
-      setState('failed');
+      if (
+        recallAttemptRef.current === attempt
+        && recallWorkerIdRef.current === submittedWorkerId
+      ) {
+        recallWorkerIdRef.current = undefined;
+        setState('failed');
+      }
     }
   };
 
@@ -271,13 +347,21 @@ export function WorkerInspectionPanel({
                 aria-describedby={!canRecall && controlsStatus
                   ? controlsStatusId
                   : undefined}
-                aria-label={state === 'recalling' ? 'Recalling Worker' : 'Recall Worker'}
+                aria-label={state === 'recalling'
+                  ? 'Recalling Worker'
+                  : state === 'awaiting-authority' || awaitingAuthoritativeRecall
+                    ? 'Awaiting Realm Worker update'
+                    : 'Recall Worker'}
                 className="worker-inspection__recall"
                 disabled={!canRecall || commandPending}
                 onClick={() => void recall()}
                 type="button"
               >
-                {state === 'recalling' ? 'RECALLING…' : 'RECALL WORKER'}
+                {state === 'recalling'
+                  ? 'RECALLING…'
+                  : state === 'awaiting-authority' || awaitingAuthoritativeRecall
+                    ? 'AWAITING REALM…'
+                    : 'RECALL WORKER'}
               </button>
             ) : null}
           </div>

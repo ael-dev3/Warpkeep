@@ -104,6 +104,8 @@ const expeditionScheduleWaitMilliseconds = 12 * 60 * 1_000;
 const maximumU64 = (1n << 64n) - 1n;
 const workerLegacyDrainCapability = 'genesis-001-worker-legacy-drain-v1';
 const workerProtocolCapability = 'generic-castle-workers-v1';
+const workerPolicyVersion = 'genesis-001-castle-workers-v1';
+const workerResourceKinds = Object.freeze(['food', 'wood', 'stone', 'gold']);
 const workerRehearsalSourceCommit = '1111111111111111111111111111111111111111';
 const workerRehearsalClientArtifactDigest =
   '2222222222222222222222222222222222222222222222222222222222222222';
@@ -1929,6 +1931,141 @@ function parseWorkerRoster(text) {
   return Object.freeze({ castleId, workers: Object.freeze(workers) });
 }
 
+function parseWorkerControlState(text) {
+  const value = parseLoopbackJson(text, 'worker control state');
+  if (!Array.isArray(value) || value.length !== 17 || !Array.isArray(value[3])) {
+    fail('Loopback worker-control response contract was invalid.');
+  }
+  const fid = readCanonicalUnsigned(value[0], maximumU64, 'worker-control FID');
+  const castleId = readCanonicalUnsigned(value[1], maximumU64, 'worker-control castle');
+  const observedAtMicros = readCanonicalUnsigned(
+    value[2],
+    maximumU64,
+    'worker-control observation',
+  );
+  if (value[3].length !== 4) {
+    fail('Loopback worker-control state did not contain four workers.');
+  }
+  const pending = { food: 0n, wood: 0n, stone: 0n, gold: 0n };
+  const parseString = (item) => {
+    if (typeof item !== 'string' || item.length === 0 || item.length > 160) {
+      fail('Loopback worker-control string was invalid.');
+    }
+    return item;
+  };
+  const workers = value[3].map((row, index) => {
+    if (!Array.isArray(row) || row.length !== 10) {
+      fail('Loopback worker-control row was invalid.');
+    }
+    const workerId = parseString(row[0]);
+    const ordinal = readCanonicalUnsigned(row[1], 4n, 'worker-control ordinal');
+    const status = row[2];
+    const resourceKind = parseLoopbackOption(
+      row[3],
+      'worker-control resource kind',
+      parseString,
+    );
+    const siteId = parseLoopbackOption(
+      row[4],
+      'worker-control site',
+      parseString,
+    );
+    const accruedAmount = readCanonicalUnsigned(
+      row[5],
+      maximumU64,
+      'worker-control accrued amount',
+    );
+    const materializedAmount = readCanonicalUnsigned(
+      row[6],
+      maximumU64,
+      'worker-control materialized amount',
+    );
+    const availableAmount = readCanonicalUnsigned(
+      row[7],
+      maximumU64,
+      'worker-control available amount',
+    );
+    const workerObservedAtMicros = readCanonicalUnsigned(
+      row[8],
+      maximumU64,
+      'worker-control row observation',
+    );
+    const revision = readCanonicalUnsigned(
+      row[9],
+      maximumU64,
+      'worker-control revision',
+    );
+    if (
+      workerId !== `genesis-001-castle-${castleId}-worker-${String(index + 1).padStart(2, '0')}`
+      || ordinal !== BigInt(index + 1)
+      || !['idle', 'outbound', 'gathering', 'returning'].includes(status)
+      || workerObservedAtMicros !== observedAtMicros
+      || materializedAmount > accruedAmount
+      || availableAmount !== accruedAmount - materializedAmount
+      || (status === 'idle' && (
+        resourceKind !== undefined
+        || siteId !== undefined
+        || accruedAmount !== 0n
+        || materializedAmount !== 0n
+      ))
+      || (status !== 'idle' && (
+        resourceKind === undefined
+        || !workerResourceKinds.includes(resourceKind)
+        || siteId === undefined
+      ))
+    ) fail('Loopback worker-control row violated the exact authority contract.');
+    if (resourceKind !== undefined) pending[resourceKind] += availableAmount;
+    return Object.freeze({
+      workerId,
+      ordinal,
+      status,
+      resourceKind,
+      siteId,
+      availableAmount,
+      revision,
+    });
+  });
+  const balances = Object.freeze({
+    food: readCanonicalUnsigned(value[4], maximumU64, 'worker-control balance'),
+    wood: readCanonicalUnsigned(value[5], maximumU64, 'worker-control balance'),
+    stone: readCanonicalUnsigned(value[6], maximumU64, 'worker-control balance'),
+    gold: readCanonicalUnsigned(value[7], maximumU64, 'worker-control balance'),
+  });
+  const returnedPending = Object.freeze({
+    food: readCanonicalUnsigned(value[8], maximumU64, 'worker-control pending balance'),
+    wood: readCanonicalUnsigned(value[9], maximumU64, 'worker-control pending balance'),
+    stone: readCanonicalUnsigned(value[10], maximumU64, 'worker-control pending balance'),
+    gold: readCanonicalUnsigned(value[11], maximumU64, 'worker-control pending balance'),
+  });
+  const settledThroughMicros = readCanonicalUnsigned(
+    value[12],
+    maximumU64,
+    'worker-control cursor',
+  );
+  const revision = readCanonicalUnsigned(
+    value[13],
+    maximumU64,
+    'worker-control resource revision',
+  );
+  if (
+    workerResourceKinds.some(kind => returnedPending[kind] !== pending[kind])
+    || settledThroughMicros > observedAtMicros
+    || value[14] !== resourcePolicyVersion
+    || value[15] !== workerPolicyVersion
+    || value[16] !== 'active'
+  ) fail('Loopback worker-control aggregate violated the exact authority contract.');
+  return Object.freeze({
+    fid,
+    castleId,
+    observedAtMicros,
+    workers: Object.freeze(workers),
+    balances,
+    pending: returnedPending,
+    settledThroughMicros,
+    revision,
+  });
+}
+
 function assertResourceState(
   state,
   { balances, pending, revision, expectedFid = BigInt(actualModuleFounderFid) },
@@ -2237,6 +2374,17 @@ async function readActualWorkerRoster(server, database, credential) {
     server,
     database,
     'get_my_worker_roster_v1',
+    credential,
+    '[]',
+    200,
+  ));
+}
+
+async function readActualWorkerControlState(server, database, credential) {
+  return parseWorkerControlState(await callLoopbackProcedure(
+    server,
+    database,
+    'get_my_worker_control_state_v1',
     credential,
     '[]',
     200,
@@ -3691,6 +3839,19 @@ async function verifyActualModuleExpeditionLifecycles(
       database,
       founderCredential(),
     );
+    const initialControl = await readActualWorkerControlState(
+      server,
+      database,
+      founderCredential(),
+    );
+    if (
+      initialControl.fid !== BigInt(actualModuleFounderFid)
+      || initialControl.castleId !== roster.castleId
+      || initialControl.workers.some((worker, index) => (
+        worker.workerId !== roster.workers[index]?.workerId
+        || worker.status !== 'idle'
+      ))
+    ) fail('Actual atomic Worker control state did not match the activated roster.');
     const [workerOne, workerTwo, workerThree, workerFour] = roster.workers;
     await callLoopbackReducer(
       server,
@@ -3758,6 +3919,15 @@ async function verifyActualModuleExpeditionLifecycles(
       || fourAssigned.genericOccupations !== 4n
       || fourAssigned.genericSchedules !== 4n
     ) fail('Actual Worker flexible assignment did not create four exact leases.');
+    const assignedControl = await readActualWorkerControlState(
+      server,
+      database,
+      founderCredential(),
+    );
+    if (
+      assignedControl.castleId !== roster.castleId
+      || assignedControl.workers.some(worker => worker.status === 'idle')
+    ) fail('Actual atomic Worker control state did not preserve four assignments.');
     await callLoopbackReducer(
       server,
       database,
@@ -3783,6 +3953,15 @@ async function verifyActualModuleExpeditionLifecycles(
     if (reconnectedRoster.workers.length !== 4) {
       fail('Actual Worker reconnect did not preserve the complete roster.');
     }
+    const reconnectedControl = await readActualWorkerControlState(
+      server,
+      database,
+      founderCredential(),
+    );
+    if (
+      reconnectedControl.castleId !== roster.castleId
+      || reconnectedControl.workers.some(worker => worker.status !== 'idle')
+    ) fail('Actual atomic Worker control state did not preserve the recalled roster.');
     const finalWorkerStatus = await readActualWorkerRolloutStatus(
       server,
       database,
@@ -3795,7 +3974,7 @@ async function verifyActualModuleExpeditionLifecycles(
       || finalWorkerStatus.genericSchedules !== 0n
     ) fail('Actual Worker return completion did not release every node.');
 
-    return 'v11/v12-compatible four-resource legacy drain, exact zero activation, four-worker dispatch, recall one/all, reconnect, and node reuse';
+    return 'v11/v12-compatible four-resource legacy drain, exact zero activation, atomic four-worker control, dispatch, recall one/all, reconnect, and node reuse';
   } catch (error) {
     if (error instanceof MigrationProofError) {
       throw new MigrationProofError(
@@ -4102,6 +4281,19 @@ async function verifyActualModuleWorkerRolloutFromV11(
       database,
       playerCredential(),
     );
+    const initialControl = await readActualWorkerControlState(
+      server,
+      database,
+      playerCredential(),
+    );
+    if (
+      initialControl.fid !== BigInt(fid)
+      || initialControl.castleId !== roster.castleId
+      || initialControl.workers.some((worker, index) => (
+        worker.workerId !== roster.workers[index]?.workerId
+        || worker.status !== 'idle'
+      ))
+    ) fail('Populated v11 atomic Worker control state did not match the activated roster.');
     const firstWorker = roster.workers[0];
     const secondWorker = roster.workers[1];
     await callLoopbackReducer(
@@ -4166,7 +4358,16 @@ async function verifyActualModuleWorkerRolloutFromV11(
     if (reconnected.workers.length !== 4) {
       fail('Populated v11 Worker reconnect lost roster state.');
     }
-    return 'populated v11 publication, four-resource exact cutover, activation, recall, node reuse, and reconnect';
+    const reconnectedControl = await readActualWorkerControlState(
+      server,
+      database,
+      playerCredential(),
+    );
+    if (
+      reconnectedControl.castleId !== roster.castleId
+      || reconnectedControl.workers.some(worker => worker.status !== 'idle')
+    ) fail('Populated v11 atomic Worker control state did not preserve reconnect.');
+    return 'populated v11 publication, four-resource exact cutover, activation, atomic control, recall, node reuse, and reconnect';
   } catch (error) {
     if (error instanceof MigrationProofError) {
       throw new MigrationProofError(

@@ -989,6 +989,8 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
           (authPhase === 'authenticated'
             && backendPhase === 'ready'
             && probe?.getAttribute('data-local-fullstack-workers') === '4'
+            && probe?.getAttribute('data-local-fullstack-public-castles') === '7'
+            && probe?.getAttribute('data-local-fullstack-public-workers') === '28'
             && probe?.getAttribute('data-local-fullstack-worker-private-sync') === 'ready'
             && probe?.getAttribute('data-local-fullstack-worker-commands') === 'true')
           || ['error', 'expired'].includes(authPhase ?? '')
@@ -1000,6 +1002,8 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
         || readyProbe.getAttribute('data-local-fullstack-auth') !== 'authenticated'
         || readyProbe.getAttribute('data-local-fullstack-backend') !== 'ready'
         || readyProbe.getAttribute('data-local-fullstack-workers') !== '4'
+        || readyProbe.getAttribute('data-local-fullstack-public-castles') !== '7'
+        || readyProbe.getAttribute('data-local-fullstack-public-workers') !== '28'
         || readyProbe.getAttribute('data-local-fullstack-worker-private-sync') !== 'ready'
         || readyProbe.getAttribute('data-local-fullstack-worker-commands') !== 'true'
       ) {
@@ -1009,6 +1013,10 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
           authPhase: probe?.getAttribute('data-local-fullstack-auth') ?? 'missing',
           backendPhase: probe?.getAttribute('data-local-fullstack-backend') ?? 'missing',
           workerCount: probe?.getAttribute('data-local-fullstack-workers') ?? 'missing',
+          publicCastleCount:
+            probe?.getAttribute('data-local-fullstack-public-castles') ?? 'missing',
+          publicWorkerCount:
+            probe?.getAttribute('data-local-fullstack-public-workers') ?? 'missing',
           workerPrivateSync:
             probe?.getAttribute('data-local-fullstack-worker-private-sync') ?? 'missing',
           workerCommands:
@@ -1018,13 +1026,16 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
       const initialDispatchSiteProjection = readyProbe.getAttribute(
         'data-local-fullstack-dispatch-sites'
       );
+      const exactTargetSiteProjection = readyProbe.getAttribute(
+        'data-local-fullstack-target-sites'
+      );
       const exactDispatchTargetManifest = Object.freeze({
         gold: Object.freeze({ siteNumber: 2, playerLabel: 'Gold Mine 2' }),
         food: Object.freeze({ siteNumber: 2, playerLabel: 'Wheat Farm 2' }),
         wood: Object.freeze({ siteNumber: 12, playerLabel: 'Logging Camp 12' }),
         stone: Object.freeze({ siteNumber: 2, playerLabel: 'Stone Quarry 2' })
       });
-      const fixtureDispatchSites = initialDispatchSiteProjection?.split(';').flatMap(
+      const fixtureDispatchSites = exactTargetSiteProjection?.split(';').flatMap(
         (entry) => {
           const match = /^(gold|food|wood|stone):(-?\\d+),(-?\\d+)$/.exec(entry);
           const target = match ? exactDispatchTargetManifest[match[1]] : undefined;
@@ -1164,6 +1175,12 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
         blockingOverlayInsertions: 0,
         blockingOverlayVisibleTransitions: 0
       };
+      const resourceRailObservation = {
+        invalidSamples: 0,
+        numericSamples: 0,
+        observedValues: new Set()
+      };
+      let resourceRailObserver;
       const observedBlockingOverlays = new WeakSet();
       const isInitialLoadingOverlay = (element) => (
         element instanceof HTMLElement
@@ -1236,6 +1253,7 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
       };
       const stopLifecycleObservation = () => {
         lifecycleObserver.disconnect();
+        resourceRailObserver?.disconnect();
         cancelAnimationFrame(lifecycleAnimationFrame);
       };
       try {
@@ -1284,6 +1302,20 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
           routeEvidence,
           routes
         };
+      };
+      const readPrivateResourceRail = () => {
+        const raw = readyProbe.getAttribute(
+          'data-local-fullstack-private-resource-rail'
+        ) ?? '';
+        const entries = raw.split(';').flatMap((entry) => {
+          const match = /^(food|wood|stone|gold):(\\d+):(\\d+)$/.exec(entry);
+          return match ? [{
+            resource: match[1],
+            available: BigInt(match[2]),
+            pending: BigInt(match[3])
+          }] : [];
+        });
+        return entries.length === 4 ? entries : undefined;
       };
       const closeResourceInspector = async () => {
         const inspector = document.querySelector([
@@ -1461,7 +1493,7 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
               > previousPresentation.workerReconciliations
             && current.routeReconciliations
               > previousPresentation.routeReconciliations
-            && current.workerPresentedCount === 4
+            && current.workerPresentedCount === 28
             && current.workerAnimatedCount >= 1
             && current.visibleRouteCount >= 1
             && current.routeMismatchCount === 0
@@ -1526,6 +1558,32 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
 
       const resourceRail = realm.querySelector('[aria-label="Your resources"]');
       const resourceControls = resourceRail?.querySelectorAll('button').length ?? 0;
+      const sampleResourceRail = () => {
+        const values = [...(resourceRail?.querySelectorAll(
+          '.realm-resource-rail__trigger strong'
+        ) ?? [])].slice(0, 4).map((element) => (
+          (element.textContent ?? '').trim()
+        ));
+        if (
+          values.length !== 4
+          || values.some((value) => !/^\\d+(?:\\.\\d+)?(?:K|M|B|T)?$/.test(value))
+        ) {
+          resourceRailObservation.invalidSamples += 1;
+          return;
+        }
+        resourceRailObservation.numericSamples += 1;
+        resourceRailObservation.observedValues.add(values.join(','));
+      };
+      sampleResourceRail();
+      if (resourceRail instanceof HTMLElement) {
+        resourceRailObserver = new MutationObserver(sampleResourceRail);
+        resourceRailObserver.observe(resourceRail, {
+          attributes: true,
+          characterData: true,
+          childList: true,
+          subtree: true
+        });
+      }
       const pfpReady = await waitFor(() => (
         realm.querySelector('.realm-profile-trigger canvas[data-profile-image-state="ready"]')
       ));
@@ -1557,7 +1615,15 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
       const workerPanel = await waitFor(() => document.querySelector('.worker-inspection'));
       if (!(workerPanel instanceof HTMLElement)) return { stage: 'worker-panel' };
       workerInspectorChurnCount += 1;
-      if (!/Select an available resource node in the Realm/i.test(workerPanel.textContent ?? '')) {
+      if (${preparePersistentWorkerReentry}) {
+        if (!/EN ROUTE|GATHERING|RETURNING/i.test(workerPanel.textContent ?? '')) {
+          return { stage: 'worker-persisted-state-guidance' };
+        }
+      } else if (
+        !/Select an available resource node in the Realm/i.test(
+          workerPanel.textContent ?? ''
+        )
+      ) {
         return { stage: 'worker-map-guidance' };
       }
       const backToWorkers = workerPanel.querySelector('button[aria-label="Back to workers"]');
@@ -1613,37 +1679,47 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
       ))) return { stage: 'realm-menu-close-confirmation' };
 
       let dispatchedDynamicPresentation = initialDynamicPresentation;
-      for (let ordinal = 1; ordinal <= 4; ordinal += 1) {
-        const dispatched = await dispatchWorker(
-          ordinal,
-          ordinal,
-          fixtureDispatchSites[ordinal - 1],
-          dispatchedDynamicPresentation
-        );
-        if ('error' in dispatched) {
-          return {
-            stage: dispatched.error,
-            ...(dispatched.presentation ?? {})
-          };
+      if (${preparePersistentWorkerReentry}) {
+        for (const site of fixtureDispatchSites) {
+          dispatchedSiteKeys.push(
+            site.resourceKind + ':' + site.q + ',' + site.r
+          );
+          dispatchResourceKinds.push(site.resourceKind);
         }
-        dispatchedSiteKeys.push(
-          dispatched.site.resourceKind + ':' + dispatched.site.q + ',' + dispatched.site.r
-        );
-        dispatchResourceKinds.push(dispatched.resourceKind);
-        dispatchedDynamicPresentation = dispatched.presentation;
+      } else {
+        for (let ordinal = 1; ordinal <= 4; ordinal += 1) {
+          const dispatched = await dispatchWorker(
+            ordinal,
+            ordinal,
+            fixtureDispatchSites[ordinal - 1],
+            dispatchedDynamicPresentation
+          );
+          if ('error' in dispatched) {
+            return {
+              stage: dispatched.error,
+              ...(dispatched.presentation ?? {})
+            };
+          }
+          dispatchedSiteKeys.push(
+            dispatched.site.resourceKind + ':' + dispatched.site.q + ',' + dispatched.site.r
+          );
+          dispatchResourceKinds.push(dispatched.resourceKind);
+          dispatchedDynamicPresentation = dispatched.presentation;
+        }
       }
       if (${preparePersistentWorkerReentry}) {
         const fourPhaseContinuity = await waitFor(() => {
           const evidence = readWorkerContinuityEvidence();
+          const privateResources = readPrivateResourceRail();
           return (
             localStateCount('data-local-fullstack-deployed-workers') === 4
-            && localStateCount('data-local-fullstack-recallable-workers') === 4
+            && localStateCount('data-local-fullstack-recallable-workers') === 3
             && localStateCount(
               'data-local-fullstack-exact-dispatch-target-count'
             ) === 4
-            && /^1:outbound:\\d+:\\d+,2:outbound:\\d+:\\d+,3:gathering:\\d+:\\d+,4:outbound:\\d+:\\d+$/
+            && /^1:outbound:\\d+:\\d+,2:outbound:\\d+:\\d+,3:gathering:\\d+:\\d+,4:returning:\\d+:\\d+$/
               .test(evidence.publicRevisions)
-            && /^1:outbound:\\d+,2:outbound:\\d+,3:gathering:\\d+,4:outbound:\\d+$/
+            && /^1:outbound:\\d+,2:outbound:\\d+,3:gathering:\\d+,4:returning:\\d+$/
               .test(evidence.privateRevisions)
             && evidence.routes.length === 4
             && evidence.routes[0]?.status === 'outbound'
@@ -1651,9 +1727,11 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
             && evidence.routes[2]?.status === 'gathering'
             && evidence.routes[2]?.forwardProgress === 10_000
             && evidence.routes[2]?.phaseProgress === 10_000
-            && evidence.routes[3]?.status === 'outbound'
+            && evidence.routes[3]?.status === 'returning'
             && /^\\d+$/.test(evidence.privateResourceRevision)
-          ) ? evidence : undefined;
+            && privateResources?.some((entry) => entry.available > 0n)
+            && privateResources?.some((entry) => entry.pending > 0n)
+          ) ? { ...evidence, privateResources } : undefined;
         }, 65_000);
         if (fourPhaseContinuity === undefined) {
           return { stage: 'persistent-worker-four-phase-arrival' };
@@ -1734,22 +1812,6 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
           };
         }
 
-        const workerCenter = await openWorkers();
-        const workerFourRow = workerCenter instanceof HTMLElement
-          ? [...workerCenter.querySelectorAll(
-              '.worker-command-center__roster > li'
-            )].find((row) => (
-              (row.querySelector('strong')?.textContent ?? '').trim() === 'Worker 4'
-            ))
-          : undefined;
-        const workerFourRecall = workerFourRow?.querySelector(
-          '.worker-command-center__recall'
-        );
-        if (
-          !(workerFourRecall instanceof HTMLButtonElement)
-          || workerFourRecall.disabled
-        ) return { stage: 'persistent-worker-four-recall-control' };
-        workerFourRecall.click();
         const continuityBeforeProgress = await waitFor(() => {
           const evidence = readWorkerContinuityEvidence();
           return (
@@ -1829,6 +1891,17 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
           privateResourceSettlementConfirmed:
             settledResourceRefresh !== undefined,
           privateResourcePendingConfirmed: pendingResourceRefresh !== undefined,
+          privateResourceStoredBeforeBrowser:
+            fourPhaseContinuity.privateResources.some(
+              (entry) => entry.available > 0n
+            ),
+          privateResourcePendingBeforeBrowser:
+            fourPhaseContinuity.privateResources.some(
+              (entry) => entry.pending > 0n
+            ),
+          resourceRailNumericSamples: resourceRailObservation.numericSamples,
+          resourceRailInvalidSamples: resourceRailObservation.invalidSamples,
+          resourceRailDistinctValues: resourceRailObservation.observedValues.size,
           routeEvidenceBeforeProgress:
             continuityBeforeProgress.routeEvidence,
           routeEvidenceBeforeNavigation:
@@ -1926,7 +1999,7 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
             > dispatchedDynamicPresentation.workerReconciliations
           && current.routeReconciliations
             > dispatchedDynamicPresentation.routeReconciliations
-          && current.workerPresentedCount === 4
+          && current.workerPresentedCount === 28
           && current.workerAnimatedCount >= 1
           && current.visibleRouteCount >= 1
           && current.routeMismatchCount === 0
@@ -1954,7 +2027,7 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
       const recallOneCompletedPresentation = await waitFor(() => {
         const current = readDynamicPresentation();
         return current
-          && current.workerPresentedCount === 4
+          && current.workerPresentedCount === 28
           && current.workerAnimatedCount >= 1
           && current.visibleRouteCount === 3
           && current.routeMismatchCount === 0
@@ -2009,7 +2082,7 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
             > recallOneCompletedPresentation.workerReconciliations
           && current.routeReconciliations
             > recallOneCompletedPresentation.routeReconciliations
-          && current.workerPresentedCount === 4
+          && current.workerPresentedCount === 28
           && current.workerAnimatedCount >= 1
           // Recall All may catch every remaining wagon inside the keep-gate
           // staging distance. Those physical workers still reconcile and
@@ -2048,7 +2121,7 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
             > recalledAllDynamicPresentation.workerReconciliations
           && current.routeReconciliations
             > recalledAllDynamicPresentation.routeReconciliations
-          && current.workerPresentedCount === 4
+          && current.workerPresentedCount === 28
           && current.workerAnimatedCount >= 1
           && current.workerPresenceCount === 0
           && current.visibleRouteCount === 0
@@ -2131,7 +2204,7 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
             > reusedWorker.presentation.workerReconciliations
           && current.routeReconciliations
             > reusedWorker.presentation.routeReconciliations
-          && current.workerPresentedCount === 4
+          && current.workerPresentedCount === 28
           && current.workerPresenceCount === 0
           && current.visibleRouteCount === 0
           && current.routeMismatchCount === 0
@@ -2255,6 +2328,13 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
       || !/^\d+$/.test(value.privateResourceRevision)
       || value.privateResourceSettlementConfirmed !== true
       || value.privateResourcePendingConfirmed !== true
+      || value.privateResourceStoredBeforeBrowser !== true
+      || value.privateResourcePendingBeforeBrowser !== true
+      || !Number.isSafeInteger(value.resourceRailNumericSamples)
+      || value.resourceRailNumericSamples < 1
+      || value.resourceRailInvalidSamples !== 0
+      || !Number.isSafeInteger(value.resourceRailDistinctValues)
+      || value.resourceRailDistinctValues < 1
       || typeof value.routeEvidenceBeforeProgress !== 'string'
       || typeof value.routeEvidenceBeforeNavigation !== 'string'
       || !/^1:outbound:\d+:\d+:-?\d+:-?\d+:\d+:\d+,2:outbound:\d+:\d+:-?\d+:-?\d+:\d+:\d+,3:gathering:\d+:\d+:-?\d+:-?\d+:10000:10000,4:returning:\d+:\d+:-?\d+:-?\d+:\d+:\d+$/.test(
@@ -2298,6 +2378,13 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
               && /^\d+$/.test(value.privateResourceRevision),
             value.privateResourceSettlementConfirmed === true,
             value.privateResourcePendingConfirmed === true,
+            value.privateResourceStoredBeforeBrowser === true,
+            value.privateResourcePendingBeforeBrowser === true,
+            Number.isSafeInteger(value.resourceRailNumericSamples)
+              && value.resourceRailNumericSamples >= 1,
+            value.resourceRailInvalidSamples === 0,
+            Number.isSafeInteger(value.resourceRailDistinctValues)
+              && value.resourceRailDistinctValues >= 1,
             typeof value.routeEvidenceBeforeProgress === 'string'
               && /^1:outbound:\d+:\d+:-?\d+:-?\d+:\d+:\d+,2:outbound:\d+:\d+:-?\d+:-?\d+:\d+:\d+,3:gathering:\d+:\d+:-?\d+:-?\d+:10000:10000,4:returning:\d+:\d+:-?\d+:-?\d+:\d+:\d+$/
                 .test(value.routeEvidenceBeforeProgress),
@@ -2367,7 +2454,7 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
     || value.workerReconciliationChange < 7
     || !Number.isSafeInteger(value.routeReconciliationChange)
     || value.routeReconciliationChange < 7
-    || value.dispatchedWorldWorkerCount !== 4
+    || value.dispatchedWorldWorkerCount !== 28
     || !Number.isSafeInteger(value.dispatchedAnimatedWorkerCount)
     || value.dispatchedAnimatedWorkerCount < 1
     || !Number.isSafeInteger(value.dispatchedWorldPresenceCount)
@@ -2428,6 +2515,127 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
       `Disposable browser journey failed at ${safeStage}${
         safeAuthorityState || safeSceneState || safeDynamicState
       }.`
+    );
+  }
+  return Object.freeze({ ...value });
+}
+
+async function exerciseHardReloadWorkerContinuity(session) {
+  const result = await session.command('Runtime.evaluate', {
+    expression: `(async () => {
+      const deadline = performance.now() + 30_000;
+      const waitFor = async (predicate) => {
+        while (performance.now() <= deadline) {
+          try {
+            const value = predicate();
+            if (value) return value;
+          } catch {}
+          await new Promise((resolve) => setTimeout(resolve, 32));
+        }
+        return undefined;
+      };
+      const enterMenu = await waitFor(() => document.querySelector(
+        'button[data-command="enter-realm"]'
+      ));
+      if (!(enterMenu instanceof HTMLButtonElement)) {
+        return { stage: 'hard-reload-menu' };
+      }
+      enterMenu.click();
+      const dialog = await waitFor(() => document.querySelector(
+        '[role="dialog"][aria-modal="true"]'
+      ));
+      const checkbox = dialog?.querySelector('input[type="checkbox"]');
+      const continueButton = dialog instanceof HTMLElement
+        ? [...dialog.querySelectorAll('button')].find((button) => (
+            /^CONTINUE TO /.test((button.textContent ?? '').trim())
+          ))
+        : undefined;
+      if (
+        !(checkbox instanceof HTMLInputElement)
+        || !(continueButton instanceof HTMLButtonElement)
+      ) return { stage: 'hard-reload-terms' };
+      checkbox.click();
+      if (continueButton.disabled) return { stage: 'hard-reload-terms-control' };
+      continueButton.click();
+      const probe = await waitFor(() => {
+        const candidate = document.querySelector(
+          '[data-local-fullstack-backend]'
+        );
+        return (
+          candidate?.getAttribute('data-local-fullstack-auth') === 'authenticated'
+          && candidate.getAttribute('data-local-fullstack-backend') === 'ready'
+          && candidate.getAttribute('data-local-fullstack-workers') === '4'
+          && candidate.getAttribute('data-local-fullstack-public-castles') === '7'
+          && candidate.getAttribute('data-local-fullstack-public-workers') === '28'
+          && candidate.getAttribute(
+            'data-local-fullstack-worker-private-sync'
+          ) === 'ready'
+          && candidate.getAttribute(
+            'data-local-fullstack-worker-commands'
+          ) === 'true'
+        ) ? candidate : undefined;
+      });
+      if (!(probe instanceof HTMLOutputElement)) {
+        return { stage: 'hard-reload-authority' };
+      }
+      const publicRevisions = probe.getAttribute(
+        'data-local-fullstack-public-assignment-revisions'
+      ) ?? '';
+      const privateRevisions = probe.getAttribute(
+        'data-local-fullstack-private-assignment-revisions'
+      ) ?? '';
+      const privateResources = (
+        probe.getAttribute('data-local-fullstack-private-resource-rail') ?? ''
+      ).split(';').flatMap((entry) => {
+        const match = /^(food|wood|stone|gold):(\\d+):(\\d+)$/.exec(entry);
+        return match ? [{
+          available: BigInt(match[2]),
+          pending: BigInt(match[3])
+        }] : [];
+      });
+      if (
+        !/^1:outbound:\\d+:\\d+,2:outbound:\\d+:\\d+,3:gathering:\\d+:\\d+,4:returning:\\d+:\\d+$/
+          .test(publicRevisions)
+        || !/^1:outbound:\\d+,2:outbound:\\d+,3:gathering:\\d+,4:returning:\\d+$/
+          .test(privateRevisions)
+        || privateResources.length !== 4
+        || !privateResources.some((entry) => entry.available > 0n)
+        || !privateResources.some((entry) => entry.pending > 0n)
+      ) return { stage: 'hard-reload-persisted-state' };
+      const html = document.documentElement.innerHTML;
+      return {
+        stage: 'hard-reload-worker-continuity-complete',
+        exactCastleCount: 7,
+        exactWorkerCount: 28,
+        storedBalanceRetained: true,
+        pendingBalanceRetained: true,
+        tokenAbsent: !/(?:LOCAL_QA_CHANNEL_NOT_A_REAL_PROOF|LOCAL_QA_SYNTHETIC_MESSAGE|eyJ[A-Za-z0-9_-]{20,}\\.)/.test(html),
+        storageEmpty: localStorage.length === 0 && sessionStorage.length === 0
+      };
+    })()`,
+    awaitPromise: true,
+    returnByValue: true,
+  }, COMMAND_TIMEOUT_MILLISECONDS);
+  const value = result?.result?.value;
+  if (
+    result?.exceptionDetails
+    || value === null
+    || typeof value !== 'object'
+    || Array.isArray(value)
+    || value.stage !== 'hard-reload-worker-continuity-complete'
+    || value.exactCastleCount !== 7
+    || value.exactWorkerCount !== 28
+    || value.storedBalanceRetained !== true
+    || value.pendingBalanceRetained !== true
+    || value.tokenAbsent !== true
+    || value.storageEmpty !== true
+  ) {
+    const safeStage = typeof value?.stage === 'string'
+      && /^[a-z0-9-]{1,64}$/.test(value.stage)
+      ? value.stage
+      : 'unknown';
+    throw new LocalFullstackBrowserError(
+      `Disposable hard-reload Worker continuity failed at ${safeStage}.`
     );
   }
   return Object.freeze({ ...value });
@@ -2737,6 +2945,33 @@ async function exercisePersistentWorkerReentry(session, preparedEvidence) {
           === initialLifecycle.cameraRestoreCount
         && realm.getAttribute('data-realm-blocking-loading-overlay-visible') === 'false'
       );
+      const resourceRail = realm.querySelector('[aria-label="Your resources"]');
+      const resourceRailObservation = {
+        invalid: 0,
+        samples: 0
+      };
+      const sampleResourceRail = () => {
+        const values = [...(resourceRail?.querySelectorAll(
+          '.realm-resource-rail__trigger strong'
+        ) ?? [])].slice(0, 4).map((element) => (
+          (element.textContent ?? '').trim()
+        ));
+        if (
+          values.length !== 4
+          || values.some((value) => !/^\\d+(?:\\.\\d+)?(?:K|M|B|T)?$/.test(value))
+        ) resourceRailObservation.invalid += 1;
+        else resourceRailObservation.samples += 1;
+      };
+      sampleResourceRail();
+      const resourceRailObserver = new MutationObserver(sampleResourceRail);
+      if (resourceRail instanceof HTMLElement) {
+        resourceRailObserver.observe(resourceRail, {
+          attributes: true,
+          characterData: true,
+          childList: true,
+          subtree: true
+        });
+      }
       const dynamicPresentationReady = await waitFor(() => {
         const presented = numericAttribute(
           canvas,
@@ -2771,7 +3006,7 @@ async function exercisePersistentWorkerReentry(session, preparedEvidence) {
           'data-realm-dynamic-reconciliation-rejected'
         );
         return (
-          presented === 4
+          presented === 28
           && animated !== undefined
           && animated >= 3
           && presence !== undefined
@@ -2856,23 +3091,6 @@ async function exercisePersistentWorkerReentry(session, preparedEvidence) {
             readyResourcePortraits.length + readyWorkerPortraits.length
         };
       };
-      const occupationEvidence = await waitFor(() => {
-        const evidence = readOccupationEvidence();
-        return (
-          evidence.markerCount === 1
-          && evidence.distinctMarkerCount === evidence.markerCount
-          && evidence.reservedCount === 0
-          && evidence.readyResourcePortraitCount >= 1
-          && evidence.readyWorkerPortraitCount >= 1
-        ) ? evidence : undefined;
-      }, 15_000);
-      if (occupationEvidence === undefined) {
-        return {
-          stage: 'reentry-public-occupation-presentation',
-          ...readOccupationEvidence()
-        };
-      }
-
       const profileTrigger = realm.querySelector('.realm-profile-trigger');
       if (!(profileTrigger instanceof HTMLButtonElement)) {
         return { stage: 'reentry-profile-trigger' };
@@ -2921,14 +3139,59 @@ async function exercisePersistentWorkerReentry(session, preparedEvidence) {
       if (!resourceStateTruth) {
         return { stage: 'reentry-public-resource-state-truth' };
       }
-      const closeExplore = buttonWithText('CLOSE EXPLORE', resourceNavigator);
-      if (!(closeExplore instanceof HTMLButtonElement)) {
-        return { stage: 'reentry-public-resource-explore-close' };
+      const occupiedWoodSite = [...resourceNavigator.querySelectorAll(
+        '.realm-cell-navigator__resource-site'
+      )].find((button) => (
+        button instanceof HTMLButtonElement
+        && !button.disabled
+        && button.getAttribute('data-resource-kind') === 'wood'
+        && button.getAttribute('data-resource-state') === 'occupied'
+        && (button.querySelector('strong')?.textContent ?? '').trim()
+          === 'Logging Camp 12'
+      ));
+      if (!(occupiedWoodSite instanceof HTMLButtonElement)) {
+        return { stage: 'reentry-public-occupation-navigation' };
       }
-      closeExplore.click();
+      occupiedWoodSite.click();
       if (!await waitFor(() => (
         document.querySelector('.realm-cell-navigator__dialog') === null
+        && document.querySelector('.logging-camp-inspection') instanceof HTMLElement
       ))) return { stage: 'reentry-public-resource-explore-dismissal' };
+
+      // The exact production-shaped site is intentionally well outside the
+      // owner's initial keep view. Exercise the public navigator before
+      // requiring its bounded screen-space portrait rather than coupling this
+      // continuity proof to a synthetic nearby fixture.
+      const occupationEvidence = await waitFor(() => {
+        const evidence = readOccupationEvidence();
+        return (
+          evidence.markerCount === 1
+          && evidence.distinctMarkerCount === evidence.markerCount
+          && evidence.reservedCount === 0
+          // The collision-bounded presentation intentionally gives one
+          // occupation one visible PFP lane. It may be owned by the resource
+          // marker or the moving Worker marker, but never require a duplicate.
+          && evidence.readyPortraitCount >= 1
+        ) ? evidence : undefined;
+      }, 15_000);
+      if (occupationEvidence === undefined) {
+        return {
+          stage: 'reentry-public-occupation-presentation',
+          ...readOccupationEvidence()
+        };
+      }
+      const woodInspector = document.querySelector('.logging-camp-inspection');
+      const closeWoodInspector = woodInspector?.querySelector(
+        'button[aria-label^="CLOSE "]'
+      );
+      if (!(closeWoodInspector instanceof HTMLButtonElement)) {
+        return { stage: 'reentry-public-resource-explore-close' };
+      }
+      closeWoodInspector.click();
+      if (!await waitFor(() => (
+        document.querySelector('.logging-camp-inspection') === null
+      ))) return { stage: 'reentry-public-resource-inspector-dismissal' };
+
       profileTrigger.click();
       const realmMenu = await waitFor(() => document.querySelector(
         '.realm-profile-menu__panel'
@@ -2944,10 +3207,32 @@ async function exercisePersistentWorkerReentry(session, preparedEvidence) {
         || workersButton.disabled
         || !/4\\/4 deployed/i.test(workersButton.textContent ?? '')
         || !(recallAllMenuButton instanceof HTMLButtonElement)
-        || !recallAllMenuButton.disabled
+        || recallAllMenuButton.disabled
         || !/synchron|read-only|recover|retry/i.test(realmMenu.textContent ?? '')
         || /EXPEDITIONS|\\bWAGON\\b/i.test(realmMenu.textContent ?? '')
-      ) return { stage: 'reentry-read-only-worker-menu' };
+      ) return {
+        stage: 'reentry-read-only-worker-menu',
+        workersPresent: workersButton instanceof HTMLButtonElement,
+        workersEnabled: workersButton instanceof HTMLButtonElement
+          && !workersButton.disabled,
+        fourDeployedCopy: workersButton instanceof HTMLButtonElement
+          && /4\\/4 deployed/i.test(workersButton.textContent ?? ''),
+        recallAllPresent: recallAllMenuButton instanceof HTMLButtonElement,
+        recallAllAvailable: recallAllMenuButton instanceof HTMLButtonElement
+          && !recallAllMenuButton.disabled,
+        readOnlyCopy: /synchron|read-only|recover|retry/i.test(
+          realmMenu.textContent ?? ''
+        ),
+        legacyCopyAbsent: !/EXPEDITIONS|\\bWAGON\\b/i.test(
+          realmMenu.textContent ?? ''
+        ),
+        deployedWorkerCount: Number(
+          publicReadyProbe.getAttribute('data-local-fullstack-deployed-workers')
+        ),
+        recallableWorkerCount: Number(
+          publicReadyProbe.getAttribute('data-local-fullstack-recallable-workers')
+        )
+      };
       workersButton.click();
       const commandCenter = await waitFor(() => document.querySelector(
         '.worker-command-center'
@@ -2969,10 +3254,10 @@ async function exercisePersistentWorkerReentry(session, preparedEvidence) {
         || recallButtons.length !== 3
         || recallButtons.some((button) => !(
           button instanceof HTMLButtonElement
-          && button.disabled
+          && !button.disabled
         ))
         || !(recallAll instanceof HTMLButtonElement)
-        || !recallAll.disabled
+        || recallAll.disabled
         || !/synchron|read-only|recover|retry/i.test(commandCenter.textContent ?? '')
         || /EXPEDITIONS|\\bWAGON\\b/i.test(commandCenter.textContent ?? '')
       ) return { stage: 'reentry-read-only-worker-center' };
@@ -3501,7 +3786,7 @@ async function exercisePersistentWorkerReentry(session, preparedEvidence) {
             occupationEvidence.readyWorkerPortraitCount,
           readyPortraitCount: occupationEvidence.readyPortraitCount,
           workerRows: workerRows.length,
-          disabledRecallCountBeforePrivateReady: recallButtons.length,
+          enabledRecallCountBeforePrivateReady: recallButtons.length,
           enabledRecallCountAfterPrivateReady: enabledRecallButtons.length,
           privateDelayMilliseconds: Math.floor(privateDelayMilliseconds),
           privateFailureLocalized: true,
@@ -3562,18 +3847,20 @@ async function exercisePersistentWorkerReentry(session, preparedEvidence) {
     || typeof value !== 'object'
     || Array.isArray(value)
     || value.stage !== 'persistent-worker-reentry-complete'
-    || value.publicWorkerCount !== 4
+    || value.publicWorkerCount !== 28
     || value.publicActiveWorkerCount !== 4
     || value.publicOccupationCount !== 3
     || value.visibleOccupationCount !== 1
     || !Number.isSafeInteger(value.readyResourcePortraitCount)
-    || value.readyResourcePortraitCount < 1
+    || value.readyResourcePortraitCount < 0
     || !Number.isSafeInteger(value.readyWorkerPortraitCount)
-    || value.readyWorkerPortraitCount < 1
+    || value.readyWorkerPortraitCount < 0
     || !Number.isSafeInteger(value.readyPortraitCount)
     || value.readyPortraitCount < 1
+    || value.readyResourcePortraitCount + value.readyWorkerPortraitCount
+      !== value.readyPortraitCount
     || value.workerRows !== 4
-    || value.disabledRecallCountBeforePrivateReady !== 3
+    || value.enabledRecallCountBeforePrivateReady !== 3
     || value.enabledRecallCountAfterPrivateReady !== 3
     || !Number.isSafeInteger(value.privateDelayMilliseconds)
     || value.privateDelayMilliseconds < 3_000
@@ -3652,7 +3939,7 @@ async function exercisePersistentWorkerReentry(session, preparedEvidence) {
           'readyWorkerPortraitCount',
           'readyPortraitCount',
           'workerRows',
-          'disabledRecallCountBeforePrivateReady',
+          'enabledRecallCountBeforePrivateReady',
           'enabledRecallCountAfterPrivateReady',
           'privateDelayMilliseconds'
         ].map((key) => {
@@ -3715,12 +4002,32 @@ async function exercisePersistentWorkerReentry(session, preparedEvidence) {
           'lifecycleStable'
         ].map((key) => value?.[key] === true ? 'true' : 'false').join('/')})`
       : '';
+    const safeReadOnlyMenuState = safeStage === 'reentry-read-only-worker-menu'
+      ? ` (flags:${[
+          'workersPresent',
+          'workersEnabled',
+          'fourDeployedCopy',
+          'recallAllPresent',
+          'recallAllAvailable',
+          'readOnlyCopy',
+          'legacyCopyAbsent'
+        ].map((key) => value?.[key] === true ? '1' : '0').join('')};counts:${[
+          'deployedWorkerCount',
+          'recallableWorkerCount'
+        ].map((key) => {
+          const count = value?.[key];
+          return Number.isSafeInteger(count) && count >= 0 && count <= 4
+            ? String(count)
+            : 'invalid';
+        }).join('/')})`
+      : '';
     throw new LocalFullstackBrowserError(
       `Disposable persistent Worker re-entry failed at ${safeStage}${
         safeOccupationState
           || safeWorkerPresentationState
           || safeCompletionState
           || safeReconnectState
+          || safeReadOnlyMenuState
       }.`
     );
   }
@@ -3811,6 +4118,33 @@ async function exerciseWorkerPrivateSeamMatrix(session) {
           : undefined;
       }, 15_000);
       if (!(realm instanceof HTMLElement)) return { stage: 'seams-realm' };
+      const resourceRail = realm.querySelector('[aria-label="Your resources"]');
+      const resourceRailObservation = {
+        invalid: 0,
+        samples: 0
+      };
+      const sampleResourceRail = () => {
+        const values = [...(resourceRail?.querySelectorAll(
+          '.realm-resource-rail__trigger strong'
+        ) ?? [])].slice(0, 4).map((element) => (
+          (element.textContent ?? '').trim()
+        ));
+        if (
+          values.length !== 4
+          || values.some((value) => !/^\\d+(?:\\.\\d+)?(?:K|M|B|T)?$/.test(value))
+        ) resourceRailObservation.invalid += 1;
+        else resourceRailObservation.samples += 1;
+      };
+      sampleResourceRail();
+      const resourceRailObserver = new MutationObserver(sampleResourceRail);
+      if (resourceRail instanceof HTMLElement) {
+        resourceRailObserver.observe(resourceRail, {
+          attributes: true,
+          characterData: true,
+          childList: true,
+          subtree: true
+        });
+      }
       const initialLifecycle = {
         generation: numericAttribute(realm, 'data-renderer-generation'),
         creation: numericAttribute(realm, 'data-realm-scene-creation-count'),
@@ -3840,10 +4174,29 @@ async function exerciseWorkerPrivateSeamMatrix(session) {
         && probe.getAttribute('data-local-fullstack-worker-private-sync')
           === 'failed-localized'
         && probe.getAttribute('data-local-fullstack-worker-commands') === 'false'
+        && probe.getAttribute(
+          'data-local-fullstack-worker-private-failure-reason'
+        ) === 'control-state-timeout'
           ? true
           : undefined
       ), 20_000);
       if (!timedOut) return { stage: 'seams-timeout' };
+      const firstResourceTrigger = resourceRail?.querySelector(
+        '.realm-resource-rail__trigger'
+      );
+      if (!(firstResourceTrigger instanceof HTMLButtonElement)) {
+        return { stage: 'seams-resource-rail-trigger' };
+      }
+      firstResourceTrigger.click();
+      const lastConfirmedTooltip = await waitFor(() => {
+        const status = resourceRail?.querySelector(
+          '.realm-resource-tooltip:not([hidden]) .realm-resource-tooltip__status'
+        )?.textContent ?? '';
+        return /Last confirmed balance/i.test(status) ? true : undefined;
+      }, 5_000);
+      if (!lastConfirmedTooltip) {
+        return { stage: 'seams-last-confirmed-tooltip' };
+      }
       window.dispatchEvent(new Event('${RESTORE_TIMEOUT_VISIBILITY_EVENT}'));
       const retry = await waitFor(() => buttonWithText(
         'RETRY WORKER CONTROLS',
@@ -3868,10 +4221,157 @@ async function exerciseWorkerPrivateSeamMatrix(session) {
           : undefined
       ), 15_000);
       if (!timeoutRecovered) return { stage: 'seams-timeout-recovery' };
+      firstResourceTrigger.click();
+      const currentTooltip = await waitFor(() => {
+        const status = resourceRail?.querySelector(
+          '.realm-resource-tooltip:not([hidden]) .realm-resource-tooltip__status'
+        )?.textContent ?? '';
+        return /\\d+ available/i.test(status) ? true : undefined;
+      }, 5_000);
+      if (!currentTooltip) return { stage: 'seams-current-tooltip' };
       const timeoutFailureCount = numericAttribute(
         realm,
         'data-worker-private-sync-localized-error-count'
       );
+      const failureReceipts = [];
+      const reasonSeamDiagnostic = () => ({
+        observedReason: probe.getAttribute(
+          'data-local-fullstack-worker-private-failure-reason'
+        ) ?? '',
+        injectedReason: document.documentElement.getAttribute(
+          'data-local-fullstack-private-injected-reason'
+        ) ?? '',
+        privatePhase: probe.getAttribute(
+          'data-local-fullstack-worker-private-sync'
+        ) ?? '',
+        commandsEnabled: probe.getAttribute(
+          'data-local-fullstack-worker-commands'
+        ) === 'true',
+        localizedFailureCount: numericAttribute(
+          realm,
+          'data-worker-private-sync-localized-error-count'
+        ) ?? 0
+      });
+      const exerciseReasonSeam = async (detail, expectedReason, timeout = 10_000) => {
+        const before = numericAttribute(
+          realm,
+          'data-worker-private-sync-localized-error-count'
+        ) ?? 0;
+        window.dispatchEvent(new CustomEvent(
+          '${SET_PRIVATE_WORKER_SEAM_EVENT}',
+          { detail }
+        ));
+        window.dispatchEvent(new Event('online'));
+        const failed = await waitFor(() => (
+          probe.getAttribute('data-local-fullstack-worker-private-failure-reason')
+            === expectedReason
+          && probe.getAttribute('data-local-fullstack-worker-commands') === 'false'
+          && ['retry-wait', 'failed-localized'].includes(
+            probe.getAttribute('data-local-fullstack-worker-private-sync') ?? ''
+          )
+          && document.documentElement.getAttribute(
+            'data-local-fullstack-private-injected-reason'
+          ) === expectedReason
+          && (numericAttribute(
+            realm,
+            'data-worker-private-sync-localized-error-count'
+          ) ?? 0) > before
+          && lifecycleStable()
+            ? true
+            : undefined
+        ), timeout);
+        if (!failed) return false;
+        failureReceipts.push(detail + ':' + expectedReason);
+        window.dispatchEvent(new Event('${RELEASE_PRIVATE_WORKER_SEAM_EVENT}'));
+        window.dispatchEvent(new Event('online'));
+        const recovered = Boolean(await waitFor(() => (
+          probe.getAttribute('data-local-fullstack-worker-private-sync') === 'ready'
+          && probe.getAttribute('data-local-fullstack-worker-commands') === 'true'
+          && probe.getAttribute(
+            'data-local-fullstack-worker-private-failure-reason'
+          ) === ''
+          && lifecycleStable()
+            ? true
+            : undefined
+        ), 10_000));
+        if (!recovered) return false;
+        // React publishes the ready projection just before the provider clears
+        // its in-flight guard. Give that finally block one bounded turn so the
+        // next injected seam cannot be coalesced into the preceding recovery.
+        await new Promise((resolve) => setTimeout(resolve, 128));
+        return probe.getAttribute('data-local-fullstack-worker-private-sync') === 'ready'
+          && probe.getAttribute('data-local-fullstack-worker-commands') === 'true';
+      };
+      const exerciseDelayedSeam = async (detail) => {
+        window.dispatchEvent(new CustomEvent(
+          '${SET_PRIVATE_WORKER_SEAM_EVENT}',
+          { detail }
+        ));
+        window.dispatchEvent(new Event('online'));
+        const waiting = await waitFor(() => (
+          document.documentElement.getAttribute(
+            'data-local-fullstack-private-seam'
+          ) === detail + '-waiting'
+            ? true
+            : undefined
+        ), 5_000);
+        if (!waiting) return false;
+        window.dispatchEvent(new Event('${RELEASE_PRIVATE_WORKER_SEAM_EVENT}'));
+        window.dispatchEvent(new Event('online'));
+        return Boolean(await waitFor(() => (
+          probe.getAttribute('data-local-fullstack-worker-private-sync') === 'ready'
+          && probe.getAttribute('data-local-fullstack-worker-commands') === 'true'
+          && lifecycleStable()
+            ? true
+            : undefined
+        ), 10_000));
+      };
+
+      for (const [detail, reason] of [
+        ['control-malformed', 'control-state-decode-invalid'],
+        ['control-wrong-caller', 'wrong-caller'],
+        ['control-public-revision', 'public-private-worker-revision-mismatch'],
+        ['control-status-site', 'worker-status-or-site-mismatch'],
+        ['control-pending-mismatch', 'pending-total-mismatch'],
+        ['control-resource-policy', 'resource-policy-mismatch'],
+        ['control-worker-policy', 'worker-policy-mismatch'],
+        ['control-worker-mode', 'worker-system-mode-mismatch'],
+        ['control-rejected', 'procedure-rejected'],
+        ['fallback-roster-missing', 'roster-decode-invalid'],
+        ['fallback-resource-missing', 'resource-decode-invalid'],
+        ['fallback-roster-rejected', 'procedure-rejected'],
+        ['fallback-resource-rejected', 'procedure-rejected'],
+        ['fallback-torn-timestamp', 'pending-total-mismatch']
+      ]) {
+        if (!await exerciseReasonSeam(detail, reason)) {
+          return {
+            stage: 'seams-' + detail,
+            ...reasonSeamDiagnostic()
+          };
+        }
+      }
+      if (!await exerciseDelayedSeam('fallback-roster-delayed')) {
+        return { stage: 'seams-fallback-roster-delayed' };
+      }
+      if (!await exerciseDelayedSeam('fallback-resource-delayed')) {
+        return { stage: 'seams-fallback-resource-delayed' };
+      }
+      if (!await exerciseReasonSeam(
+        'fallback-roster-timeout',
+        'roster-timeout',
+        20_000
+      )) return {
+        stage: 'seams-fallback-roster-timeout',
+        ...reasonSeamDiagnostic()
+      };
+      if (!await exerciseReasonSeam(
+        'fallback-resource-timeout',
+        'resource-timeout',
+        20_000
+      )) return {
+        stage: 'seams-fallback-resource-timeout',
+        ...reasonSeamDiagnostic()
+      };
 
       window.dispatchEvent(new CustomEvent(
         '${SET_PRIVATE_WORKER_SEAM_EVENT}',
@@ -3968,10 +4468,18 @@ async function exerciseWorkerPrivateSeamMatrix(session) {
           : undefined
       ), 10_000);
       if (!visibilityRecovered) return { stage: 'seams-visibility-recovery' };
+      resourceRailObserver.disconnect();
       const html = document.documentElement.innerHTML;
       return {
         stage: 'worker-private-seam-matrix-complete',
         timeoutExplicitRetry: true,
+        failureReceiptCount: failureReceipts.length,
+        distinctFailureReceiptCount: new Set(failureReceipts).size,
+        independentDelaySeams: true,
+        independentTimeoutSeams: true,
+        resourceRailNumericSamples: resourceRailObservation.samples,
+        resourceRailInvalidSamples: resourceRailObservation.invalid,
+        resourceTooltipFreshness: lastConfirmedTooltip && currentTooltip,
         resourceMissingRecovered: true,
         tornPairRecovered: true,
         visibilityPauseResume: true,
@@ -3999,6 +4507,14 @@ async function exerciseWorkerPrivateSeamMatrix(session) {
     || Array.isArray(value)
     || value.stage !== 'worker-private-seam-matrix-complete'
     || value.timeoutExplicitRetry !== true
+    || value.failureReceiptCount !== 16
+    || value.distinctFailureReceiptCount !== 16
+    || value.independentDelaySeams !== true
+    || value.independentTimeoutSeams !== true
+    || !Number.isSafeInteger(value.resourceRailNumericSamples)
+    || value.resourceRailNumericSamples < 1
+    || value.resourceRailInvalidSamples !== 0
+    || value.resourceTooltipFreshness !== true
     || value.resourceMissingRecovered !== true
     || value.tornPairRecovered !== true
     || value.visibilityPauseResume !== true
@@ -4012,8 +4528,28 @@ async function exerciseWorkerPrivateSeamMatrix(session) {
       && /^[a-z0-9-]{1,64}$/.test(value.stage)
       ? value.stage
       : 'unknown';
+    const safeReasonState = safeStage.startsWith('seams-')
+      ? ` (${[
+          'observedReason',
+          'injectedReason',
+          'privatePhase'
+        ].map((key) => {
+          const state = value?.[key];
+          return typeof state === 'string' && /^[a-z-]{0,64}$/.test(state)
+            ? state || 'empty'
+            : 'invalid';
+        }).join('/')}/${
+          value?.commandsEnabled === true ? 'enabled' : 'disabled'
+        }/${
+          Number.isSafeInteger(value?.localizedFailureCount)
+          && value.localizedFailureCount >= 0
+          && value.localizedFailureCount <= 1_000
+            ? String(value.localizedFailureCount)
+            : 'invalid'
+        })`
+      : '';
     throw new LocalFullstackBrowserError(
-      `Disposable Worker private seam matrix failed at ${safeStage}.`
+      `Disposable Worker private seam matrix failed at ${safeStage}${safeReasonState}.`
     );
   }
   return Object.freeze({ ...value });
@@ -4138,6 +4674,16 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
         databaseLifecycle = lifecycle;
       },
     });
+    if (
+      database.seedAttestation?.castleCount !== 7
+      || database.seedAttestation.workerCount !== 28
+      || database.seedAttestation.genericAssignments !== 0
+      || database.seedAttestation.genericOccupations !== 0
+      || database.seedAttestation.genericSchedules !== 0
+      || database.seedAttestation.legacyExpeditions !== 0
+      || database.seedAttestation.legacyOccupations !== 0
+      || database.seedAttestation.legacySchedules !== 0
+    ) throw new Error('Disposable production-shaped seed was invalid.');
     assertRunning();
     probeStage = 'vite-start';
     bootstrapPlugin = localFullstackBootstrapVitePlugin(database.bootstrap);
@@ -4393,10 +4939,6 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
       return session;
     };
     devtools = await connectDisposableDevtools(chrome, state);
-    const setupChromePid = chrome.pid;
-    const setupChromeProfile = chromeProfile;
-    const setupDevtoolsSession = devtools;
-    const setupTargetId = state.targetId;
     probeStage = 'title-gateway-departure-focus';
     const titleGatewayDepartureFocus = await exerciseTitleGatewayDepartureFocus(
       devtools,
@@ -4411,6 +4953,61 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
         }
       }
     );
+    if (state.violation) {
+      throw new Error(
+        `Disposable title browser left its boundary: ${state.violation}.`
+      );
+    }
+    probeStage = 'title-browser-stop';
+    devtools.close();
+    await terminateHeadlessChromeProcessGroup(chrome);
+    devtools = undefined;
+    chrome = undefined;
+    probeStage = 'production-shaped-worker-preparation';
+    const preparedSeedAttestation = await database.prepareWorkerScenario();
+    if (
+      preparedSeedAttestation?.castleCount !== 7
+      || preparedSeedAttestation.workerCount !== 28
+      || !Number.isSafeInteger(preparedSeedAttestation.ownerCastleId)
+      || preparedSeedAttestation.ownerCastleId <= 0
+      || !/^[1-9]\d*$/.test(preparedSeedAttestation.ownerStoredWood)
+      || !/^[1-9]\d*$/.test(preparedSeedAttestation.ownerPendingWood)
+      || !/^[1-9]\d*$/.test(preparedSeedAttestation.ownerResourceRevision)
+      || !Array.isArray(preparedSeedAttestation.ownerWorkerRevisions)
+      || preparedSeedAttestation.ownerWorkerRevisions.length !== 4
+      || preparedSeedAttestation.ownerWorkerRevisions.some(
+        (revision) => !/^[1-9]\d*$/.test(revision)
+      )
+      || preparedSeedAttestation.genericAssignments !== 4
+      || preparedSeedAttestation.genericOccupations !== 3
+      || preparedSeedAttestation.genericSchedules !== 4
+      || preparedSeedAttestation.legacyExpeditions !== 0
+      || preparedSeedAttestation.legacyOccupations !== 0
+      || preparedSeedAttestation.legacySchedules !== 0
+    ) throw new Error('Disposable prepared Worker seed was invalid.');
+    chromeProfile = join(runtimeRoot, 'chrome-setup');
+    await mkdir(chromeProfile, { mode: 0o700 });
+    probeStage = 'setup-browser-launch';
+    chrome = spawnHeadlessChromeProbe(chromeProfile);
+    const setupChromeIdentity = await readReviewedChromeExecutableIdentity();
+    if (!exactChromeExecutableIdentity(reviewedChromeIdentity, setupChromeIdentity)) {
+      throw new Error('The reviewed Google Chrome executable changed at setup.');
+    }
+    state = {
+      targetId: '',
+      violation: '',
+      pendingFetchAction: '',
+      backendDiagnostic: '',
+      controlledRendererRecovery: false,
+      controlledRendererWarningCount: 0,
+      controlledRendererWarningThrottleSeen: false,
+    };
+    browserState = state;
+    devtools = await connectDisposableDevtools(chrome, state);
+    const setupChromePid = chrome.pid;
+    const setupChromeProfile = chromeProfile;
+    const setupDevtoolsSession = devtools;
+    const setupTargetId = state.targetId;
     probeStage = 'page-navigation';
     await devtools.command('Page.navigate', { url: pageUrl });
     probeStage = 'persistent-worker-setup';
@@ -4418,6 +5015,15 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
       devtools,
       'persistent-worker-reentry'
     );
+    probeStage = 'persistent-worker-hard-reload-navigation';
+    await devtools.command('Page.reload', { ignoreCache: true });
+    // Page.reload acknowledges the navigation request before the replacement
+    // execution context is guaranteed to exist. Avoid evaluating the continuity
+    // journey against the context being torn down.
+    await delay(500);
+    probeStage = 'persistent-worker-hard-reload-continuity';
+    const hardReloadWorkerContinuity =
+      await exerciseHardReloadWorkerContinuity(devtools);
     if (state.violation) {
       throw new Error(
         `Disposable setup browser left its boundary: ${state.violation}.`
@@ -4454,7 +5060,7 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
       && chrome.pid > 0
       && setupChromePid !== chrome.pid;
     const freshBrowserProfile = setupChromeProfile !== chromeProfile
-      && setupChromeProfile === join(runtimeRoot, 'chrome')
+      && setupChromeProfile === join(runtimeRoot, 'chrome-setup')
       && chromeProfile === join(runtimeRoot, 'chrome-reentry');
     const freshDevtoolsSession = setupDevtoolsSession !== devtools
       && typeof setupTargetId === 'string'
@@ -4514,6 +5120,7 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
     }
     return Object.freeze({
       journey,
+      hardReloadWorkerContinuity,
       moduleDigest: database.moduleDigest,
       persistentWorkerReentry,
       titleGatewayDepartureFocus,

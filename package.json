@@ -98,6 +98,9 @@
     "stdb:worker-rollout:begin-drain": "tsx scripts/worker-rollout-operator.ts begin-drain",
     "stdb:worker-rollout:complete-drain": "tsx scripts/worker-rollout-operator.ts complete-drain",
     "stdb:worker-rollout:activate": "tsx scripts/worker-rollout-operator.ts activate",
+    "stdb:worker-return-repair": "tsx scripts/worker-return-repair-operator.ts",
+    "stdb:worker-return-repair:inspect": "tsx scripts/worker-return-repair-operator.ts inspect",
+    "stdb:worker-return-repair:apply": "tsx scripts/worker-return-repair-operator.ts apply",
     "stdb:backfill-resources": "tsx scripts/hermes-admin.ts backfill-resources",
     "test": "vitest --run",
     "typecheck": "tsc -b"

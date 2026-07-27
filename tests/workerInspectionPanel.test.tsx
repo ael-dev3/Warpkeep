@@ -167,6 +167,104 @@ describe('WorkerInspectionPanel public record', () => {
     expect(status.textContent).toContain('Synchronizing worker controls');
   });
 
+  it('waits for the authoritative Worker lifecycle after reducer acceptance', async () => {
+    const recall = vi.fn(async () => undefined);
+    const view = render(
+      <WorkerInspectionPanel
+        id="worker-record"
+        onRecallWorker={recall}
+        onRequestClose={() => undefined}
+        worker={worker()}
+      />
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Recall Worker' }));
+    });
+    expect(recall).toHaveBeenCalledOnce();
+    expect(screen.getByRole('button', {
+      name: 'Awaiting Realm Worker update'
+    }).hasAttribute('disabled')).toBe(true);
+
+    view.rerender(
+      <WorkerInspectionPanel
+        id="worker-record"
+        onRecallWorker={recall}
+        onRequestClose={() => undefined}
+        worker={worker({
+          status: 'gathering',
+          timelineRevision: 2,
+          revision: 2n
+        })}
+      />
+    );
+    const awaiting = screen.getByRole('button', {
+      name: 'Awaiting Realm Worker update'
+    }) as HTMLButtonElement;
+    expect(awaiting.disabled).toBe(true);
+    fireEvent.click(awaiting);
+    expect(recall).toHaveBeenCalledOnce();
+
+    view.rerender(
+      <WorkerInspectionPanel
+        id="worker-record"
+        onRecallWorker={recall}
+        onRequestClose={() => undefined}
+        worker={worker({
+          status: 'returning',
+          timelineRevision: 2,
+          revision: 2n
+        })}
+      />
+    );
+    expect(screen.queryByRole('button', { name: 'Recall Worker' })).toBeNull();
+  });
+
+  it('does not re-enter pending when authority returns before the reducer promise', async () => {
+    let resolveRecall!: () => void;
+    const pendingRecall = new Promise<void>((resolve) => {
+      resolveRecall = resolve;
+    });
+    const recall = vi.fn(() => pendingRecall);
+    const view = render(
+      <WorkerInspectionPanel
+        id="worker-record"
+        onRecallWorker={recall}
+        onRequestClose={() => undefined}
+        worker={worker()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Recall Worker' }));
+    expect(screen.getByRole('button', { name: 'Recalling Worker' })
+      .hasAttribute('disabled')).toBe(true);
+
+    view.rerender(
+      <WorkerInspectionPanel
+        id="worker-record"
+        onRecallWorker={recall}
+        onRequestClose={() => undefined}
+        worker={worker({
+          status: 'returning',
+          timelineRevision: 2,
+          revision: 2n
+        })}
+      />
+    );
+    expect(screen.getByRole('button', { name: 'Back to workers' })
+      .hasAttribute('disabled')).toBe(false);
+
+    await act(async () => {
+      resolveRecall();
+      await pendingRecall;
+    });
+    expect(screen.queryByRole('button', {
+      name: 'Awaiting Realm Worker update'
+    })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Back to workers' })
+      .hasAttribute('disabled')).toBe(false);
+  });
+
   it('keeps another keeper read-only while retaining the public locate action', () => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW_MILLIS);

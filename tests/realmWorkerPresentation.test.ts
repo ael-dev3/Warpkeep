@@ -6,10 +6,12 @@ import {
   decodeRealmWorkerOccupations,
   decodeRealmWorkerPublicRows,
   decodeRealmWorkerSystem,
+  decodeWorkerControlState,
   decodeWorkerResourceState,
   decodeWorkerRoster,
   resolveReadyPublicWorkerProjection,
   resolveReadyWorkerProjection,
+  resolveReadyWorkerProjectionWithReason,
   workerAvailabilityCount,
   workerRosterDigestForCastleIds
 } from '../src/components/realm/realmWorkerPresentation';
@@ -178,6 +180,108 @@ function returningReadyInputs(overrides: Readonly<Record<string, unknown>> = {})
 }
 
 describe('generic worker presentation boundary', () => {
+  it('decodes the atomic caller-private control projection and classifies malformed output', () => {
+    const valid = {
+      ...privateRoster(),
+      ...privateResources()
+    };
+    const decoded = decodeWorkerControlState(valid, 42n);
+    expect(decoded.status).toBe('ready');
+    if (decoded.status === 'ready') {
+      expect(decoded.value.roster.observedAtMicros).toBe(1_000n);
+      expect(decoded.value.resourceState.observedAtMicros).toBe(1_000n);
+      expect(decoded.value.resourceState.pending.stone).toBe(3n);
+    }
+    expect(decodeWorkerControlState({ ...valid, fid: 43n }, 42n)).toEqual({
+      status: 'invalid',
+      reason: 'wrong-caller'
+    });
+    expect(decodeWorkerControlState({
+      ...valid,
+      workers: [{ invalid: true }]
+    }, 42n)).toEqual({
+      status: 'invalid',
+      reason: 'roster-decode-invalid'
+    });
+    expect(decodeWorkerControlState({
+      ...valid,
+      settledThroughMicros: 2_000n
+    }, 42n)).toEqual({
+      status: 'invalid',
+      reason: 'resource-decode-invalid'
+    });
+    expect(decodeWorkerControlState(null, 42n)).toEqual({
+      status: 'invalid',
+      reason: 'control-state-decode-invalid'
+    });
+  });
+
+  it('classifies every private/public authority mismatch without exposing values', () => {
+    const inputs = readyInputs();
+    const resolve = (
+      overrides: Partial<Parameters<typeof resolveReadyWorkerProjectionWithReason>[0]>
+    ) => resolveReadyWorkerProjectionWithReason({
+      realmId: CASTLE_WORKER_REALM_ID,
+      ownCastleId: 7,
+      ...inputs,
+      ...overrides
+    });
+    expect(resolve({}).status).toBe('ready');
+    expect(resolve({
+      roster: Object.freeze({ ...inputs.roster, castleId: 8 })
+    })).toMatchObject({
+      status: 'invalid',
+      reason: 'wrong-caller'
+    });
+    expect(resolve({
+      resourceState: Object.freeze({
+        ...inputs.resourceState,
+        resourcePolicyVersion: 'wrong-policy'
+      })
+    })).toMatchObject({ status: 'invalid', reason: 'resource-policy-mismatch' });
+    expect(resolve({
+      resourceState: Object.freeze({
+        ...inputs.resourceState,
+        workerPolicyVersion: 'wrong-policy'
+      })
+    })).toMatchObject({ status: 'invalid', reason: 'worker-policy-mismatch' });
+    expect(resolve({
+      resourceState: Object.freeze({
+        ...inputs.resourceState,
+        workerSystemMode: 'staged'
+      })
+    })).toMatchObject({ status: 'invalid', reason: 'worker-system-mode-mismatch' });
+    expect(resolve({
+      roster: Object.freeze({
+        ...inputs.roster,
+        workers: Object.freeze(inputs.roster.workers.map((worker, index) => (
+          index === 0 ? Object.freeze({ ...worker, revision: 99n }) : worker
+        )))
+      })
+    })).toMatchObject({
+      status: 'invalid',
+      reason: 'public-private-worker-revision-mismatch'
+    });
+    expect(resolve({
+      roster: Object.freeze({
+        ...inputs.roster,
+        workers: Object.freeze(inputs.roster.workers.map((worker, index) => (
+          index === 0 ? Object.freeze({ ...worker, status: 'returning' as const }) : worker
+        )))
+      })
+    })).toMatchObject({ status: 'invalid', reason: 'worker-status-or-site-mismatch' });
+    expect(resolve({
+      resourceState: Object.freeze({
+        ...inputs.resourceState,
+        pending: Object.freeze({ ...inputs.resourceState.pending, stone: 2n })
+      })
+    })).toMatchObject({ status: 'invalid', reason: 'pending-total-mismatch' });
+    expect(resolve({ workers: undefined })).toMatchObject({
+      status: 'invalid',
+      reason: 'public-graph-changed'
+    });
+  });
+
   it('requires the exact four-worker system contract and canonical digest encoding', () => {
     const digest = workerRosterDigestForCastleIds([8, 7]);
     expect(CASTLE_WORKER_POLICY_VERSION).toBe(SERVER_CASTLE_WORKER_POLICY_VERSION);
