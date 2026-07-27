@@ -1238,18 +1238,18 @@ export function WarpkeepExperience() {
                   backend.state.phase === 'ready'
                   && backend.state.admission === 'ready'
                   && backendMutationAuthorityCurrent
-                  && backend.workerPrivateSync.phase === 'ready'
-                  && backend.workerPrivateSync.commandsEnabled
-                  && backend.state.workerProjection?.mode === 'active'
+                  && backend.state.realm?.workerSystem?.mode === 'active'
+                  && backend.state.realm.workerWorkers !== undefined
+                  && backend.state.realm.workerOccupations !== undefined
                   ? backend.recallWorker
                   : undefined}
                 onRecallAllWorkers={
                   backend.state.phase === 'ready'
                   && backend.state.admission === 'ready'
                   && backendMutationAuthorityCurrent
-                  && backend.workerPrivateSync.phase === 'ready'
-                  && backend.workerPrivateSync.commandsEnabled
-                  && backend.state.workerProjection?.mode === 'active'
+                  && backend.state.realm?.workerSystem?.mode === 'active'
+                  && backend.state.realm.workerWorkers !== undefined
+                  && backend.state.realm.workerOccupations !== undefined
                   ? backend.recallAllWorkers
                   : undefined}
                 onReturnLegacyExpedition={

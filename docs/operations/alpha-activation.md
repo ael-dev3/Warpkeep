@@ -94,8 +94,9 @@ SpacetimeDB with deletion disabled.
 npm run stdb:publish:dev -- --dry-run \
   --resource-rollout-stage=ready \
   --genesis-world-stage=expanded \
-  --worker-rollout-stage=empty \
-  --worker-module-predecessor=exact-v12-empty
+  --worker-rollout-stage=active \
+  --worker-module-predecessor=exact-v12-active \
+  --worker-forward-repair=none
 ```
 
 Those stage values describe the current production predecessor; do not copy
@@ -107,6 +108,23 @@ confirmation variable set through the private operator environment.
 Do not substitute raw `spacetime publish` commands. If publication times out or
 returns an ambiguous result, do not republish. A fresh read-only inspection must
 establish the live schema and counts before any further release decision.
+
+`--worker-forward-repair=none` is the normal fail-closed selection. A named
+forward-repair value is release-specific and may be used only when its exact
+counts-only checkpoint, reviewed module ABI, private operator, and explicit
+production authorization all match; it is never a general repair mode.
+The guarded repair publication writes an owner-only success receipt after its
+post-publication checkpoint. The matching one-shot operator requires that
+recent receipt, a clean protected `main`, and a fresh artifact proof before it
+can submit:
+
+```sh
+npm run stdb:worker-return-repair:inspect
+npm run stdb:worker-return-repair:apply -- --confirm
+```
+
+The apply path records an aggregate-only intent before submission and a second
+terminal receipt after the fresh post-inspection.
 
 `--worker-module-predecessor=exact-v12-empty` is the explicit code-only
 exception for an already-appended but still-inert v12 suffix. It requires the

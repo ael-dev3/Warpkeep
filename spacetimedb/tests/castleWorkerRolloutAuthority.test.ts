@@ -53,10 +53,11 @@ test('staging, backfill, drain, and activation are separate admin-only operation
     'admin_begin_worker_legacy_drain_v1',
     'admin_complete_worker_legacy_drain_v1',
     'admin_activate_worker_system_v1',
+    'admin_repair_missing_worker_return_schedule_v1',
   ]) assert.match(reducers, new RegExp(`name: '${reducer}'`));
   assert.equal(
     reducers.match(/const admin = requireAdmin\(ctx\)/g)?.length,
-    5,
+    6,
   );
   const stage = section(authority, 'export function stageWorkerSystem', 'export function backfillWorkerRoster');
   assert.match(stage, /ctx\.db\.castleWorkerV1\.count\(\) !== 0n/);

@@ -101,6 +101,7 @@ describe('player SpacetimeDB bindings', () => {
     expect(playerBindings).toContain("'get_my_stone_expedition_state_v1'")
     expect(playerBindings).toContain("'get_my_resource_state_v1'")
     expect(playerBindings).toContain("'get_my_resource_state_v2'")
+    expect(playerBindings).toContain("'get_my_worker_control_state_v1'")
     expect(playerBindings).toContain("'get_my_worker_roster_v1'")
     expect(playerBindings).toContain("'dispatch_worker_v1'")
     expect(playerBindings).toContain("'recall_worker_v1'")
@@ -176,6 +177,7 @@ describe('player SpacetimeDB bindings', () => {
       'getMyResourceStateV2',
       'getMyStoneExpeditionStateV1',
       'getMyWoodExpeditionStateV1',
+      'getMyWorkerControlStateV1',
       'getMyWorkerRosterV1',
     ])
 

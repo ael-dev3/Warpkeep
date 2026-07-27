@@ -35,6 +35,18 @@ test('worker lifecycle advances one synchronized revision and one schedule at a 
   assert.match(returning, /WORKER_SCHEDULE_STAGE_RETURN_COMPLETE/);
   assert.match(complete, /deleteSchedulesForAssignment\(ctx, assignment\.assignmentId\)/);
   assert.match(complete, /workerAssignmentV1\.assignmentId\.delete\(assignment\.assignmentId\)/);
+  assert.match(
+    complete,
+    /workerNodeOccupationV1\.byWorker\.filter\(assignment\.workerId\)/,
+  );
+  assert.doesNotMatch(
+    complete,
+    /workerNodeOccupationV1\.nodeKey\.find/,
+  );
+  assert.doesNotMatch(
+    complete,
+    /workerNodeOccupationV1\.nodeKey\.delete/,
+  );
 });
 
 test('worker leases allow repeated resource kinds but enforce one worker per node', () => {
@@ -136,6 +148,43 @@ test('worker reads use bounded indexes and public tables omit assignment correla
   assert.doesNotMatch(section(schema, 'export const workerAssignmentScheduleV1', 'const warpkeep = schema'), /public: true/);
 });
 
+test('atomic worker control state uses one caller-bound transaction and one projection clock', () => {
+  const reducers = source('../src/reducers/castleWorkers.ts');
+  const controlState = section(
+    reducers,
+    'export const getMyWorkerControlStateV1',
+    'export const dispatchWorkerV1',
+  );
+
+  assert.match(controlState, /\{ name: 'get_my_worker_control_state_v1' \}/);
+  assert.equal(controlState.match(/ctx => ctx\.withTx\(tx =>/g)?.length, 1);
+  assert.equal(controlState.match(/requireGameplayPlayerV1\(tx\)/g)?.length, 1);
+  assert.equal(
+    controlState.match(/projectMyWorkerState\(tx, claims\.fid, observedAtMicros\)/g)?.length,
+    1,
+  );
+  assert.match(
+    controlState,
+    /const observedAtMicros = tx\.timestamp\.microsSinceUnixEpoch/,
+  );
+  assert.match(controlState, /castleId: castle\.castleId/);
+  assert.match(controlState, /observedAtMicros,\s*workers: projection\.workers\.map/);
+  assert.match(controlState, /observedAtMicros: worker\.observedAtMicros/);
+  assert.match(controlState, /workerPendingFood: pending\.food/);
+  assert.match(controlState, /workerPendingWood: pending\.wood/);
+  assert.match(controlState, /workerPendingStone: pending\.stone/);
+  assert.match(controlState, /workerPendingGold: pending\.gold/);
+  assert.match(controlState, /settledThroughMicros: projection\.resource\.settledThroughMicros/);
+  assert.match(controlState, /revision: projection\.resource\.revision/);
+  assert.match(controlState, /resourcePolicyVersion: projection\.resource\.policyVersion/);
+  assert.match(controlState, /workerSystemMode: workerSystemMode\(tx\)/);
+  assert.doesNotMatch(controlState, /getMyWorkerRosterV1|getMyResourceStateV2/);
+
+  // The additive control projection must not replace either compatibility ABI.
+  assert.match(reducers, /export const getMyWorkerRosterV1 = warpkeep\.procedure/);
+  assert.match(reducers, /export const getMyResourceStateV2 = warpkeep\.procedure/);
+});
+
 test('worker assignments and replay receipts remain bound to canonical castle ownership', () => {
   const authority = source('../src/castleWorkerAuthority.ts');
   const graph = section(authority, 'export function inspectCastleWorkerGraph', 'export function castleWorkerErrorCode');
@@ -170,6 +219,84 @@ test('admin readiness and sender errors fail closed on every bounded graph signa
   assert.match(section(reducers, 'export const adminPlanWorkerRosterV1', '\n);'), /requireAdmin\(tx\)/);
   assert.match(reducers, /throw new SenderError\('WORKER_REQUEST_FAILED'\)/);
   assert.match(authority, /BOUNDED_WORKER_ERROR_CODE = \/\^\[A-Z\]\[A-Z0-9_\]\{0,63\}\$\//);
+});
+
+test('the bounded return-schedule repair is exact, private, audited, and exported', () => {
+  const authority = source('../src/castleWorkerAuthority.ts');
+  const reducers = source('../src/reducers/castleWorkers.ts');
+  const index = source('../src/index.ts');
+  const schema = source('../src/schema.ts');
+  const graph = section(
+    authority,
+    'export function inspectCastleWorkerGraph',
+    'export type WorkerReturnScheduleRepairAttestation',
+  );
+  const repair = section(
+    authority,
+    'export function repairMissingWorkerReturnSchedule',
+    'export function castleWorkerErrorCode',
+  );
+  const reducer = section(
+    reducers,
+    'export const adminRepairMissingWorkerReturnScheduleV1',
+    'export const adminPlanWorkerRosterV1',
+  );
+
+  assert.match(
+    graph,
+    /assignment\.phase === 'returning'[\s\S]*workerNodeOccupationV1\.byWorker\.filter\(assignment\.workerId\)/,
+  );
+  assert.match(
+    authority,
+    /WORKER_RETURN_SCHEDULE_REPAIR_CAPABILITY\s*=\s*'genesis-001-worker-return-schedule-repair-v1'/,
+  );
+  assert.match(authority, /input\.expectedMissingSchedules !== 1/);
+  assert.match(repair, /before\.assignmentsWithoutSingleSchedule !== 1n/);
+  assert.match(repair, /missingSchedules\.length !== 1/);
+  assert.match(repair, /assignment\.phase !== 'returning'/);
+  assert.match(
+    repair,
+    /workerNodeOccupationV1\.byWorker\.filter\(assignment\.workerId\)/,
+  );
+  assert.match(
+    repair,
+    /WORKER_SCHEDULE_STAGE_RETURN_COMPLETE,[\s\S]*assignment\.returnsAtMicros/,
+  );
+  assert.equal(repair.match(/insertSchedule\(/g)?.length, 1);
+  assert.doesNotMatch(
+    repair,
+    /workerAssignmentV1\.assignmentId\.(?:update|delete)/,
+  );
+  assert.doesNotMatch(
+    repair,
+    /workerNodeOccupationV1\.nodeKey\.(?:update|delete)/,
+  );
+  assert.match(repair, /activeWorkerGraphIsHealthy\(after\)/);
+
+  assert.match(
+    reducer,
+    /\{ name: 'admin_repair_missing_worker_return_schedule_v1' \}/,
+  );
+  for (const field of [
+    'capability', 'sourceCommit', 'moduleArtifactDigest',
+    'expectedCastleCount', 'expectedWorkerCount', 'expectedAssignments',
+    'expectedOccupations', 'expectedSchedules', 'expectedReturningWorkers',
+    'expectedMissingSchedules', 'rosterDigest',
+  ]) assert.match(reducer, new RegExp(`${field}: t\\.`));
+  assert.match(reducer, /const admin = requireAdmin\(ctx\)/);
+  assert.match(reducer, /if \(!result\.repaired\) return/);
+  assert.match(reducer, /auditWorkerRollout\(/);
+  assert.match(reducer, /schedules_restored=1/);
+  assert.match(reducer, /data_deletion=false/);
+  assert.doesNotMatch(
+    reducer,
+    /\b(?:fid|workerId|assignmentId|siteId|nodeKey|balance)\b/,
+  );
+  assert.match(index, /adminRepairMissingWorkerReturnScheduleV1/);
+  assert.match(
+    schema,
+    /'admin_repair_missing_worker_return_schedule_v1'/,
+  );
 });
 
 test('CI runs both static and real populated v11 to v12 migration proofs', () => {

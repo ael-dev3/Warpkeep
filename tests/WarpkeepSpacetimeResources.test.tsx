@@ -618,6 +618,9 @@ function Probe() {
       <output data-testid="worker-private-sync-commands">
         {String(backend.workerPrivateSync.commandsEnabled)}
       </output>
+      <output data-testid="worker-private-sync-failure-reason">
+        {backend.workerPrivateSync.failureReason ?? ''}
+      </output>
       <output data-testid="worker-private-sync-latency">
         {backend.workerPrivateSync.readyLatencyMilliseconds === undefined
           ? ''
@@ -804,6 +807,94 @@ describe('Warpkeep private resource lifecycle', () => {
     expect(readResourceStateV2).not.toHaveBeenCalled();
   });
 
+  it('prefers the atomic worker control procedure without reading the compatibility pair', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const readWorkerControlState = vi.fn(async () => Object.freeze({
+      status: 'ready' as const,
+      value: Object.freeze({
+        roster: workerRoster(),
+        resourceState: workerResourceState()
+      })
+    }));
+    const readWorkerRoster = vi.fn(async () => workerRoster());
+    const readResourceStateV2 = vi.fn(async () => workerResourceState());
+    Object.assign(runtime, {
+      readRealmSnapshot: vi.fn(() => workerRealmSnapshot()),
+      readWorkerControlState,
+      readWorkerRoster,
+      readResourceStateV2,
+      dispatchWorker: vi.fn(async () => undefined),
+      recallWorker: vi.fn(async () => undefined),
+      recallAllWorkers: vi.fn(async () => undefined)
+    });
+
+    renderProvider(runtime);
+    await enterRealm();
+
+    expect(readWorkerControlState).toHaveBeenCalledTimes(1);
+    expect(readWorkerRoster).not.toHaveBeenCalled();
+    expect(readResourceStateV2).not.toHaveBeenCalled();
+    expect(screen.getByTestId('worker-active').textContent).toBe('active');
+    expect(screen.getByTestId('worker-private-sync-phase').textContent).toBe('ready');
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('true');
+  });
+
+  it('uses the bounded compatibility pair only when the atomic procedure is unavailable', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const readWorkerControlState = vi.fn(async () => undefined);
+    const readWorkerRoster = vi.fn(async () => workerRoster());
+    const readResourceStateV2 = vi.fn(async () => workerResourceState());
+    Object.assign(runtime, {
+      readRealmSnapshot: vi.fn(() => workerRealmSnapshot()),
+      readWorkerControlState,
+      readWorkerRoster,
+      readResourceStateV2,
+      dispatchWorker: vi.fn(async () => undefined),
+      recallWorker: vi.fn(async () => undefined),
+      recallAllWorkers: vi.fn(async () => undefined)
+    });
+
+    renderProvider(runtime);
+    await enterRealm();
+
+    expect(readWorkerControlState).toHaveBeenCalledTimes(1);
+    expect(readWorkerRoster).toHaveBeenCalledTimes(1);
+    expect(readResourceStateV2).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('worker-private-sync-phase').textContent).toBe('ready');
+  });
+
+  it('fails closed on a wrong-caller atomic response without consulting compatibility reads', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const readWorkerRoster = vi.fn(async () => workerRoster());
+    const readResourceStateV2 = vi.fn(async () => workerResourceState());
+    Object.assign(runtime, {
+      readRealmSnapshot: vi.fn(() => workerRealmSnapshot()),
+      readWorkerControlState: vi.fn(async () => Object.freeze({
+        status: 'invalid' as const,
+        reason: 'wrong-caller' as const
+      })),
+      readWorkerRoster,
+      readResourceStateV2,
+      dispatchWorker: vi.fn(async () => undefined),
+      recallWorker: vi.fn(async () => undefined),
+      recallAllWorkers: vi.fn(async () => undefined)
+    });
+
+    renderProvider(runtime);
+    await enterRealm();
+
+    expect(readWorkerRoster).not.toHaveBeenCalled();
+    expect(readResourceStateV2).not.toHaveBeenCalled();
+    expect(screen.getByTestId('worker-active').textContent).toBe('');
+    expect(screen.getByTestId('worker-private-sync-phase').textContent).toBe('retry-wait');
+    expect(screen.getByTestId('worker-private-sync-failure-reason').textContent)
+      .toBe('wrong-caller');
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('false');
+  });
+
   it('bounds a missing private pair, localizes the failure, and supports explicit retry', async () => {
     vi.useFakeTimers();
     mockedFarcaster.current = authenticatedFarcaster();
@@ -868,6 +959,83 @@ describe('Warpkeep private resource lifecycle', () => {
       ) + WORKER_PRIVATE_SYNC_LOW_FREQUENCY_RETRY_MILLISECONDS
     ));
     expect(screen.getByTestId('worker-active').textContent).toBe('active');
+  });
+
+  it('keeps caller-bound recall one and Recall All available during private accrual failure', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const recallWorker =
+      vi.fn<NonNullable<WarpkeepBackendRuntime['recallWorker']>>(async () => undefined);
+    const recallAllWorkers =
+      vi.fn<NonNullable<WarpkeepBackendRuntime['recallAllWorkers']>>(async () => undefined);
+    Object.assign(runtime, {
+      readRealmSnapshot: vi.fn(() => outboundWorkerRealmSnapshot()),
+      readWorkerRoster: vi.fn(async () => undefined),
+      readResourceStateV2: vi.fn(async () => newerWorkerResourceState()),
+      dispatchWorker: vi.fn(async () => undefined),
+      recallWorker,
+      recallAllWorkers
+    });
+    renderProvider(runtime);
+    await enterRealm();
+
+    expect(screen.getByTestId('worker-private-sync-phase').textContent).toBe('retry-wait');
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('false');
+    expect(screen.getByTestId('realm-public-worker-count').textContent).toBe('4');
+
+    await act(async () => {
+      await capturedBackend!.recallWorker('genesis-001-castle-1-worker-01');
+    });
+    await act(async () => {
+      await capturedBackend!.recallAllWorkers();
+    });
+
+    expect(recallWorker).toHaveBeenCalledTimes(1);
+    expect(recallAllWorkers).toHaveBeenCalledTimes(1);
+    expect(recallWorker.mock.calls[0]?.[2]).toEqual(expect.stringMatching(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+    ));
+    expect(recallAllWorkers.mock.calls[0]?.[0]).toEqual(expect.anything());
+    expect(recallAllWorkers.mock.calls[0]?.[1]).toEqual(expect.stringMatching(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+    ));
+    // Reducer success never fabricates a local return; the public subscription
+    // remains the sole source of the visible lifecycle transition.
+    expect(screen.getByTestId('worker-first-status').textContent).toBe('');
+  });
+
+  it('does not automatically retry an ambiguous public-authority recall', async () => {
+    vi.useFakeTimers();
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const recallAllWorkers =
+      vi.fn<NonNullable<WarpkeepBackendRuntime['recallAllWorkers']>>()
+        .mockRejectedValue(new Error('response unavailable'));
+    Object.assign(runtime, {
+      readRealmSnapshot: vi.fn(() => outboundWorkerRealmSnapshot()),
+      readWorkerRoster: vi.fn(async () => undefined),
+      readResourceStateV2: vi.fn(async () => newerWorkerResourceState()),
+      dispatchWorker: vi.fn(async () => undefined),
+      recallWorker: vi.fn(async () => undefined),
+      recallAllWorkers
+    });
+    renderProvider(runtime);
+    await flushProviderWork();
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+    await flushProviderWork();
+
+    await act(async () => {
+      await expect(capturedBackend!.recallAllWorkers())
+        .rejects.toThrow('Worker command is unavailable.');
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(
+        WORKER_PRIVATE_SYNC_LOW_FREQUENCY_RETRY_MILLISECONDS * 2
+      );
+    });
+    await flushProviderWork();
+
+    expect(recallAllWorkers).toHaveBeenCalledTimes(1);
   });
 
   it('does not reset private backoff for an unchanged public Worker revision', async () => {
@@ -1532,8 +1700,8 @@ describe('Warpkeep private resource lifecycle', () => {
     await waitFor(() => expect(screen.getByTestId('worker-private-sync-phase').textContent)
       .toBe('retry-wait'));
 
-    expect(readWorkerRoster).toHaveBeenCalledTimes(2);
-    expect(readResourceStateV2).toHaveBeenCalledTimes(2);
+    expect(readWorkerRoster).toHaveBeenCalledTimes(3);
+    expect(readResourceStateV2).toHaveBeenCalledTimes(3);
     expect(screen.getByTestId('worker-resource-revision').textContent).toBe('1');
     expect(screen.getByTestId('worker-first-status').textContent).toBe('outbound');
     expect(screen.getByTestId('worker-private-sync-retained').textContent).toBe('true');

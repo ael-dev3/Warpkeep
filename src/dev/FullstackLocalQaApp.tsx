@@ -84,7 +84,46 @@ type LocalWorkerPrivateSeam =
   | 'torn-pair'
   | 'visibility-gated'
   | 'reconnect-gated'
-  | 'timeout-retry';
+  | 'timeout-retry'
+  | 'control-malformed'
+  | 'control-wrong-caller'
+  | 'control-public-revision'
+  | 'control-status-site'
+  | 'control-pending-mismatch'
+  | 'control-resource-policy'
+  | 'control-worker-policy'
+  | 'control-worker-mode'
+  | 'control-rejected'
+  | 'fallback-roster-delayed'
+  | 'fallback-resource-delayed'
+  | 'fallback-roster-missing'
+  | 'fallback-resource-missing'
+  | 'fallback-roster-rejected'
+  | 'fallback-resource-rejected'
+  | 'fallback-roster-timeout'
+  | 'fallback-resource-timeout'
+  | 'fallback-torn-timestamp';
+
+const LOCAL_FALLBACK_SEAMS: ReadonlySet<LocalWorkerPrivateSeam> = new Set([
+  'resource-missing',
+  'torn-pair',
+  'fallback-roster-delayed',
+  'fallback-resource-delayed',
+  'fallback-roster-missing',
+  'fallback-resource-missing',
+  'fallback-roster-rejected',
+  'fallback-resource-rejected',
+  'fallback-roster-timeout',
+  'fallback-resource-timeout',
+  'fallback-torn-timestamp'
+]);
+
+const LOCAL_GATED_SEAMS: ReadonlySet<LocalWorkerPrivateSeam> = new Set([
+  'visibility-gated',
+  'reconnect-gated',
+  'fallback-roster-delayed',
+  'fallback-resource-delayed'
+]);
 
 function privateReadGate(marker: string, releaseEvent: string) {
   document.documentElement.setAttribute(marker, 'waiting');
@@ -144,9 +183,10 @@ function createLocalFullstackBackendRuntime(): WarpkeepBackendRuntime {
   if (!reentryScenario && !seamMatrixScenario) {
     return instrumentedRuntime;
   }
+  const readWorkerControlState = instrumentedRuntime.readWorkerControlState;
   const readWorkerRoster = instrumentedRuntime.readWorkerRoster;
   const readResourceStateV2 = instrumentedRuntime.readResourceStateV2;
-  if (!readWorkerRoster || !readResourceStateV2) {
+  if (!readWorkerControlState || !readWorkerRoster || !readResourceStateV2) {
     throw new Error('Disposable local Worker procedures are unavailable.');
   }
   if (reentryScenario) {
@@ -182,6 +222,23 @@ function createLocalFullstackBackendRuntime(): WarpkeepBackendRuntime {
     });
     return Object.freeze({
       ...instrumentedRuntime,
+      async readWorkerControlState(...args) {
+        await initialPrivateReadGate;
+        if (seam === 'reconnect-gated') await seamGate;
+        if (firstRosterRead) {
+          firstRosterRead = false;
+          document.documentElement.setAttribute(
+            'data-local-fullstack-private-control-failure',
+            'injected'
+          );
+          document.documentElement.setAttribute(
+            'data-local-fullstack-private-roster-failure',
+            'injected'
+          );
+          throw new Error('Disposable local first private Worker read failed.');
+        }
+        return readWorkerControlState(...args);
+      },
       async readWorkerRoster(...args) {
         await initialPrivateReadGate;
         if (seam === 'reconnect-gated') await seamGate;
@@ -206,6 +263,8 @@ function createLocalFullstackBackendRuntime(): WarpkeepBackendRuntime {
   let seam: LocalWorkerPrivateSeam = 'timeout-retry';
   let resourceMissing = true;
   let tornPair = true;
+  let fallbackRosterTimeout: Promise<never> | undefined;
+  let fallbackResourceTimeout: Promise<never> | undefined;
   let seamGate: Promise<void> | undefined;
   let releaseSeamGate: (() => void) | undefined;
   let timeoutRead: Promise<never> | undefined;
@@ -266,29 +325,57 @@ function createLocalFullstackBackendRuntime(): WarpkeepBackendRuntime {
   });
   window.addEventListener(LOCAL_SET_PRIVATE_WORKER_SEAM_EVENT, (event) => {
     if (!(event instanceof CustomEvent)) return;
-    if (![
+    const supportedSeams: readonly LocalWorkerPrivateSeam[] = [
       'resource-missing',
       'torn-pair',
-      'visibility-gated'
-    ].includes(String(event.detail))) return;
+      'visibility-gated',
+      'control-malformed',
+      'control-wrong-caller',
+      'control-public-revision',
+      'control-status-site',
+      'control-pending-mismatch',
+      'control-resource-policy',
+      'control-worker-policy',
+      'control-worker-mode',
+      'control-rejected',
+      'fallback-roster-delayed',
+      'fallback-resource-delayed',
+      'fallback-roster-missing',
+      'fallback-resource-missing',
+      'fallback-roster-rejected',
+      'fallback-resource-rejected',
+      'fallback-roster-timeout',
+      'fallback-resource-timeout',
+      'fallback-torn-timestamp'
+    ];
+    if (!supportedSeams.includes(event.detail as LocalWorkerPrivateSeam)) return;
     seam = event.detail as LocalWorkerPrivateSeam;
     resourceMissing = seam === 'resource-missing';
     tornPair = seam === 'torn-pair';
-    if (seam === 'visibility-gated') {
+    document.documentElement.setAttribute(
+      'data-local-fullstack-private-seam',
+      seam
+    );
+    if (LOCAL_GATED_SEAMS.has(seam)) {
       seamGate = new Promise<void>((resolve) => {
         releaseSeamGate = resolve;
       });
       document.documentElement.setAttribute(
         'data-local-fullstack-private-seam',
-        'visibility-waiting'
+        seam === 'visibility-gated'
+          ? 'visibility-waiting'
+          : `${seam}-waiting`
       );
     }
   });
   window.addEventListener(LOCAL_RELEASE_PRIVATE_WORKER_SEAM_EVENT, () => {
+    const releasedSeam = seam;
     seam = 'normal';
     document.documentElement.setAttribute(
       'data-local-fullstack-private-seam',
-      'visibility-released'
+      releasedSeam === 'visibility-gated'
+        ? 'visibility-released'
+        : `${releasedSeam}-released`
     );
     releaseSeamGate?.();
     releaseSeamGate = undefined;
@@ -296,9 +383,136 @@ function createLocalFullstackBackendRuntime(): WarpkeepBackendRuntime {
   });
   return Object.freeze({
     ...instrumentedRuntime,
+    async readWorkerControlState(...args) {
+      if (seam === 'timeout-retry') return beginTimeoutRead();
+      if (seam === 'visibility-gated') await seamGate;
+      if (LOCAL_FALLBACK_SEAMS.has(seam)) {
+        document.documentElement.setAttribute(
+          'data-local-fullstack-private-control-fallback',
+          seam
+        );
+        return undefined;
+      }
+      if (seam === 'control-rejected') {
+        document.documentElement.setAttribute(
+          'data-local-fullstack-private-injected-reason',
+          'procedure-rejected'
+        );
+        throw new Error('Disposable local control-state rejection.');
+      }
+      if (seam === 'control-malformed') {
+        document.documentElement.setAttribute(
+          'data-local-fullstack-private-injected-reason',
+          'control-state-decode-invalid'
+        );
+        return Object.freeze({
+          status: 'invalid' as const,
+          reason: 'control-state-decode-invalid' as const
+        });
+      }
+      if (seam === 'control-wrong-caller') {
+        document.documentElement.setAttribute(
+          'data-local-fullstack-private-injected-reason',
+          'wrong-caller'
+        );
+        return Object.freeze({
+          status: 'invalid' as const,
+          reason: 'wrong-caller' as const
+        });
+      }
+      const directInvalidReason = ({
+        'control-status-site': 'worker-status-or-site-mismatch',
+        'control-resource-policy': 'resource-policy-mismatch',
+        'control-worker-policy': 'worker-policy-mismatch',
+        'control-worker-mode': 'worker-system-mode-mismatch'
+      } as const)[seam as
+        | 'control-status-site'
+        | 'control-resource-policy'
+        | 'control-worker-policy'
+        | 'control-worker-mode'];
+      if (directInvalidReason !== undefined) {
+        // Once a retained pair exists, the monotonic guard necessarily rejects
+        // same-revision status/policy mutations before the downstream
+        // coherence classifier. Model the atomic decoder's typed invalid
+        // result directly so each reason receipt remains independently
+        // reachable without weakening that production ordering.
+        document.documentElement.setAttribute(
+          'data-local-fullstack-private-injected-reason',
+          directInvalidReason
+        );
+        return Object.freeze({
+          status: 'invalid' as const,
+          reason: directInvalidReason
+        });
+      }
+      const control = await readWorkerControlState(...args);
+      if (control?.status !== 'ready') return control;
+      const changedControl = (
+        reason: string,
+        value: typeof control.value
+      ) => {
+        document.documentElement.setAttribute(
+          'data-local-fullstack-private-injected-reason',
+          reason
+        );
+        return Object.freeze({
+          status: 'ready' as const,
+          value: Object.freeze(value)
+        });
+      };
+      if (seam === 'control-public-revision') {
+        return changedControl('public-private-worker-revision-mismatch', {
+          ...control.value,
+          roster: Object.freeze({
+            ...control.value.roster,
+            workers: Object.freeze(control.value.roster.workers.map(
+              (worker, index) => index === 0
+                ? Object.freeze({ ...worker, revision: worker.revision + 1n })
+                : worker
+            ))
+          })
+        });
+      }
+      if (seam === 'control-pending-mismatch') {
+        return changedControl('pending-total-mismatch', {
+          ...control.value,
+          resourceState: Object.freeze({
+            ...control.value.resourceState,
+            pending: Object.freeze({
+              ...control.value.resourceState.pending,
+              wood: control.value.resourceState.pending.wood + 1n
+            })
+          })
+        });
+      }
+      return control;
+    },
     async readWorkerRoster(...args) {
       if (seam === 'timeout-retry') return beginTimeoutRead();
       if (seam === 'visibility-gated') await seamGate;
+      if (seam === 'fallback-roster-delayed') await seamGate;
+      if (seam === 'fallback-roster-timeout') {
+        document.documentElement.setAttribute(
+          'data-local-fullstack-private-injected-reason',
+          'roster-timeout'
+        );
+        fallbackRosterTimeout ??= new Promise<never>(() => undefined);
+        return fallbackRosterTimeout;
+      }
+      if (seam === 'fallback-roster-rejected') {
+        document.documentElement.setAttribute(
+          'data-local-fullstack-private-injected-reason',
+          'procedure-rejected'
+        );
+        throw new Error('Disposable local roster rejection.');
+      }
+      if (seam === 'fallback-roster-missing') {
+        document.documentElement.setAttribute(
+          'data-local-fullstack-private-injected-reason',
+          'roster-decode-invalid'
+        );
+        return undefined;
+      }
       const roster = await readWorkerRoster(...args);
       if (seam === 'torn-pair' && tornPair && roster) {
         tornPair = false;
@@ -315,11 +529,48 @@ function createLocalFullstackBackendRuntime(): WarpkeepBackendRuntime {
           )))
         });
       }
+      if (seam === 'fallback-torn-timestamp' && roster) {
+        document.documentElement.setAttribute(
+          'data-local-fullstack-private-torn-timestamp',
+          'injected'
+        );
+        return Object.freeze({
+          ...roster,
+          observedAtMicros: roster.observedAtMicros + 1n,
+          workers: Object.freeze(roster.workers.map((worker) => Object.freeze({
+            ...worker,
+            observedAtMicros: worker.observedAtMicros + 1n
+          })))
+        });
+      }
       return roster;
     },
     async readResourceStateV2(...args) {
       if (seam === 'timeout-retry') return beginTimeoutRead();
       if (seam === 'visibility-gated') await seamGate;
+      if (seam === 'fallback-resource-delayed') await seamGate;
+      if (seam === 'fallback-resource-timeout') {
+        document.documentElement.setAttribute(
+          'data-local-fullstack-private-injected-reason',
+          'resource-timeout'
+        );
+        fallbackResourceTimeout ??= new Promise<never>(() => undefined);
+        return fallbackResourceTimeout;
+      }
+      if (seam === 'fallback-resource-rejected') {
+        document.documentElement.setAttribute(
+          'data-local-fullstack-private-injected-reason',
+          'procedure-rejected'
+        );
+        throw new Error('Disposable local resource rejection.');
+      }
+      if (seam === 'fallback-resource-missing') {
+        document.documentElement.setAttribute(
+          'data-local-fullstack-private-injected-reason',
+          'resource-decode-invalid'
+        );
+        return undefined;
+      }
       if (seam === 'resource-missing' && resourceMissing) {
         resourceMissing = false;
         document.documentElement.setAttribute(
@@ -328,7 +579,21 @@ function createLocalFullstackBackendRuntime(): WarpkeepBackendRuntime {
         );
         return undefined;
       }
-      return readResourceStateV2(...args);
+      const resource = await readResourceStateV2(...args);
+      if (seam === 'fallback-torn-timestamp' && resource) {
+        document.documentElement.setAttribute(
+          'data-local-fullstack-private-injected-reason',
+          'pending-total-mismatch'
+        );
+        return Object.freeze({
+          ...resource,
+          pending: Object.freeze({
+            ...resource.pending,
+            wood: resource.pending.wood + 1n
+          })
+        });
+      }
+      return resource;
     }
   });
 }
@@ -502,7 +767,17 @@ function LocalFullstackStateProbe() {
       exactAvailableSite(target, sites, legacyOccupations)
     ] as const;
   });
+  const targetSites = LOCAL_FULLSTACK_DISPATCH_TARGETS.map((target) => {
+    const [sites] = siteCatalogs[target.resourceKind];
+    return [
+      target.resourceKind,
+      sites?.find((site) => site.siteId === target.siteId)
+    ] as const;
+  });
   const dispatchSiteProjection = dispatchSites.flatMap(([resourceKind, site]) => (
+    site ? [`${resourceKind}:${site.q},${site.r}`] : []
+  )).join(';');
+  const targetSiteProjection = targetSites.flatMap(([resourceKind, site]) => (
     site ? [`${resourceKind}:${site.q},${site.r}`] : []
   )).join(';');
   const dispatchSite = realm?.goldSites?.find((site) => (
@@ -543,6 +818,17 @@ function LocalFullstackStateProbe() {
   const privateResourceHasPending = Object.values(
     backend.state.workerResourceState?.pending ?? {}
   ).some((value) => value > 0n);
+  const privateResourceState = backend.state.workerResourceState;
+  const privateResourceRail = ['food', 'wood', 'stone', 'gold'].map(
+    (resource) => {
+      const key = resource as keyof NonNullable<typeof privateResourceState>['available'];
+      return [
+        resource,
+        privateResourceState?.available[key]?.toString() ?? '',
+        privateResourceState?.pending[key]?.toString() ?? ''
+      ].join(':');
+    }
+  ).join(';');
   const sitesByResource = {
     gold: realm?.goldSites,
     food: realm?.foodSites,
@@ -598,6 +884,11 @@ function LocalFullstackStateProbe() {
         backend.workerPrivateSync.commandsEnabled
       )}
       data-local-fullstack-worker-private-sync={backend.workerPrivateSync.phase}
+      data-local-fullstack-worker-private-failure-reason={
+        backend.workerPrivateSync.failureReason ?? ''
+      }
+      data-local-fullstack-public-castles={String(realm?.castles.length ?? 0)}
+      data-local-fullstack-public-workers={String(realm?.workerWorkers?.length ?? 0)}
       data-local-fullstack-public-assignment-revisions={publicAssignmentRevisions}
       data-local-fullstack-public-worker-occupation-count={
         String(realm?.workerOccupations?.length ?? 0)
@@ -609,10 +900,12 @@ function LocalFullstackStateProbe() {
       data-local-fullstack-private-resource-has-pending={
         String(privateResourceHasPending)
       }
+      data-local-fullstack-private-resource-rail={privateResourceRail}
       data-local-fullstack-public-route-evidence={routeEvidence}
       data-local-fullstack-dispatch-q={dispatchSite?.q}
       data-local-fullstack-dispatch-r={dispatchSite?.r}
       data-local-fullstack-dispatch-sites={dispatchSiteProjection}
+      data-local-fullstack-target-sites={targetSiteProjection}
       hidden
     >
       Disposable local full-stack state

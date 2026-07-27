@@ -29,6 +29,7 @@ import {
   readWarpkeepStoneExpeditionState,
   readWarpkeepWoodExpeditionState,
   readWarpkeepResourceState,
+  readWarpkeepWorkerControlState,
   returnWarpkeepLegacyExpedition,
   readWarpkeepRealmSnapshot,
   subscribeToWarpkeepRealm,
@@ -1160,6 +1161,37 @@ describe('Warpkeep authenticated connection boundary', () => {
     expect(connection.reducers.acceptAlphaTermsV1).toHaveBeenCalledWith({
       termsVersion: BROWSER_ALPHA_TERMS_VERSION,
       accepted: true
+    });
+  });
+
+  it('falls back only for a narrowly identified missing atomic Worker procedure', async () => {
+    const missing = {
+      procedures: {
+        getMyWorkerControlStateV1: vi.fn(async () => {
+          throw 'No such procedure: get_my_worker_control_state_v1';
+        })
+      }
+    } as unknown as WarpkeepConnection;
+    await expect(readWarpkeepWorkerControlState(missing, 42)).resolves.toBeUndefined();
+
+    const rejected = new Error('WORKER_SYSTEM_MODE_MISMATCH');
+    const policyFailure = {
+      procedures: {
+        getMyWorkerControlStateV1: vi.fn(async () => {
+          throw rejected;
+        })
+      }
+    } as unknown as WarpkeepConnection;
+    await expect(readWarpkeepWorkerControlState(policyFailure, 42)).rejects.toBe(rejected);
+
+    const wrongCaller = {
+      procedures: {
+        getMyWorkerControlStateV1: vi.fn(async () => ({ fid: 99n }))
+      }
+    } as unknown as WarpkeepConnection;
+    await expect(readWarpkeepWorkerControlState(wrongCaller, 42)).resolves.toEqual({
+      status: 'invalid',
+      reason: 'wrong-caller'
     });
   });
 

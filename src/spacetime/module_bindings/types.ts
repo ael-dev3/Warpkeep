@@ -684,6 +684,29 @@ export const MyWoodExpeditionStateV1 = __t.object("MyWoodExpeditionStateV1", {
 });
 export type MyWoodExpeditionStateV1 = __Infer<typeof MyWoodExpeditionStateV1>;
 
+export const MyWorkerControlStateV1 = __t.object("MyWorkerControlStateV1", {
+  fid: __t.u64(),
+  castleId: __t.u64(),
+  observedAtMicros: __t.u64(),
+  get workers() {
+    return __t.array(WorkerPrivateV1);
+  },
+  food: __t.u64(),
+  wood: __t.u64(),
+  stone: __t.u64(),
+  gold: __t.u64(),
+  workerPendingFood: __t.u64(),
+  workerPendingWood: __t.u64(),
+  workerPendingStone: __t.u64(),
+  workerPendingGold: __t.u64(),
+  settledThroughMicros: __t.u64(),
+  revision: __t.u64(),
+  resourcePolicyVersion: __t.string(),
+  workerPolicyVersion: __t.string(),
+  workerSystemMode: __t.string(),
+});
+export type MyWorkerControlStateV1 = __Infer<typeof MyWorkerControlStateV1>;
+
 export const MyWorkerRosterV1 = __t.object("MyWorkerRosterV1", {
   fid: __t.u64(),
   castleId: __t.u64(),

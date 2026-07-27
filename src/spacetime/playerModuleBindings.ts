@@ -4,7 +4,7 @@
  *
  * The complete generated bindings remain the canonical schema artifact under
  * `module_bindings/` and are still used by server-side operators. The player
- * only needs the public realm tables plus nine read procedures and fifteen
+ * only needs the public realm tables plus ten read procedures and fifteen
  * self-service reducers. Keeping that runtime projection separate prevents
  * private/admin and machine-bound QA procedure names from becoming part of
  * the public Vite graph while preserving generated-binding parity unchanged.
@@ -48,6 +48,7 @@ import * as GetMyWoodExpeditionStateV1Procedure from './module_bindings/get_my_w
 import * as GetMyStoneExpeditionStateV1Procedure from './module_bindings/get_my_stone_expedition_state_v_1_procedure'
 import * as GetMyResourceStateV1Procedure from './module_bindings/get_my_resource_state_v_1_procedure'
 import * as GetMyResourceStateV2Procedure from './module_bindings/get_my_resource_state_v_2_procedure'
+import * as GetMyWorkerControlStateV1Procedure from './module_bindings/get_my_worker_control_state_v_1_procedure'
 import * as GetMyWorkerRosterV1Procedure from './module_bindings/get_my_worker_roster_v_1_procedure'
 import DispatchFoodExpeditionV1Reducer from './module_bindings/dispatch_food_expedition_v_1_reducer'
 import DispatchGoldExpeditionV1Reducer from './module_bindings/dispatch_gold_expedition_v_1_reducer'
@@ -439,6 +440,11 @@ const proceduresSchema = __procedures(
     'get_my_resource_state_v2',
     GetMyResourceStateV2Procedure.params,
     GetMyResourceStateV2Procedure.returnType,
+  ),
+  __procedureSchema(
+    'get_my_worker_control_state_v1',
+    GetMyWorkerControlStateV1Procedure.params,
+    GetMyWorkerControlStateV1Procedure.returnType,
   ),
   __procedureSchema(
     'get_my_worker_roster_v1',

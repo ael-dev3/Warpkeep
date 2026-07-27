@@ -91,8 +91,10 @@ import {
   decodeRealmWorkerOccupations,
   decodeRealmWorkerPublicRows,
   decodeRealmWorkerSystem,
+  decodeWorkerControlState,
   decodeWorkerResourceState,
   decodeWorkerRoster,
+  type WorkerControlStateDecodeResult,
   type ReadyWorkerResourceState,
   type WorkerRosterPresentation
 } from '../components/realm/realmWorkerPresentation';
@@ -411,6 +413,50 @@ export async function readWarpkeepResourceState(
     throw new Error('Warpkeep resources are unavailable.');
   }
   return decoded;
+}
+
+/**
+ * Prefer the additive one-transaction caller-private control projection.
+ * `undefined` means only that the connected module does not expose the
+ * procedure; malformed and wrong-caller payloads remain explicit fail-closed
+ * decode results.
+ */
+export async function readWarpkeepWorkerControlState(
+  connection: WarpkeepConnection,
+  ownFid: number
+): Promise<WorkerControlStateDecodeResult | undefined> {
+  if (!Number.isSafeInteger(ownFid) || ownFid <= 0) {
+    return Object.freeze({ status: 'invalid', reason: 'wrong-caller' });
+  }
+  const procedure = (connection.procedures as unknown as {
+    getMyWorkerControlStateV1?: (
+      input: Readonly<Record<string, never>>
+    ) => Promise<unknown>;
+  }).getMyWorkerControlStateV1;
+  if (typeof procedure !== 'function') return undefined;
+  try {
+    return decodeWorkerControlState(await procedure({}), BigInt(ownFid));
+  } catch (error) {
+    // A client generated from the additive successor still exposes this
+    // accessor while connected to the exact predecessor module. Fall back only
+    // for a narrowly recognizable missing-procedure response; policy failures,
+    // malformed output, and all other rejections remain fail-closed.
+    const message = typeof error === 'string'
+      ? error
+      : error instanceof Error
+        ? error.message
+        : '';
+    const normalized = message.trim().toLowerCase();
+    const namesAtomicProcedure = normalized.includes('get_my_worker_control_state_v1')
+      || normalized.includes('getmyworkercontrolstatev1');
+    const identifiesMissingProcedure = /\b(no such|unknown|unrecognized|not found|does not exist|not registered)\b/.test(
+      normalized
+    ) && normalized.includes('procedure');
+    if (identifiesMissingProcedure && (namesAtomicProcedure || normalized.length < 96)) {
+      return undefined;
+    }
+    throw error;
+  }
 }
 
 /** Read the generic worker's caller-private roster; public rows never carry cargo. */

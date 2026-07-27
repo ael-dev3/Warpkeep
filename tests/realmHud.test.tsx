@@ -11,7 +11,10 @@ import { generateRealmTerrainMap, terrainCellByCoord } from '../src/game/map/gen
 import { HEGEMONY_GENESIS_001 } from '../src/game/map/realmSeed';
 import { createReadyResourceState } from './fixtures/resourceState';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 function terrainCell(q = 0, r = 0) {
   const map = generateRealmTerrainMap(HEGEMONY_GENESIS_001, 20);
@@ -175,6 +178,52 @@ function assignedWorkerUiFixture(timelineRevision = 1) {
   };
 }
 
+function returningWorkerUiFixture(timelineRevision = 2) {
+  const base = assignedWorkerUiFixture(timelineRevision - 1);
+  const assigned = base.workerProjection.ownedWorkers[0]!;
+  const returning = {
+    ...assigned,
+    status: 'returning' as const,
+    returnStartedAtMicros: 110n,
+    returnStartProgressBasisPoints: 8_000,
+    timelineRevision,
+    revision: assigned.revision + 1n
+  };
+  const ownedWorkers = [
+    returning,
+    ...base.workerProjection.ownedWorkers.slice(1)
+  ];
+  const workerProjection: ReadyWorkerProjection = {
+    ...base.workerProjection,
+    workers: [
+      returning,
+      ...base.workerProjection.workers.filter(
+        (worker) => worker.workerId !== returning.workerId
+      )
+    ],
+    ownedWorkers,
+    occupations: []
+  };
+  const workerRoster: WorkerRosterPresentation = {
+    ...base.workerRoster,
+    workers: base.workerRoster.workers.map((worker) => (
+      worker.workerId === returning.workerId
+        ? {
+            ...worker,
+            status: 'returning',
+            revision: returning.revision
+          }
+        : worker
+    ))
+  };
+  return {
+    ...base,
+    publicWorkerProjection: workerProjection,
+    workerProjection,
+    workerRoster
+  };
+}
+
 function selectionAnnouncement(container: HTMLElement) {
   const announcement = container.querySelector(
     '.realm-player-chrome__selection-announcement'
@@ -310,15 +359,11 @@ describe('RealmHud', () => {
       .not.toBeNull();
     expect(within(opened.dialog).getByRole('button', { name: /SETTINGS/i })).not.toBeNull();
     expect(within(opened.dialog).getByRole('button', { name: /MAIN MENU/i })).not.toBeNull();
-    const patchNotes = within(opened.dialog).getByText(/PATCH NOTES · ALPHA/i)
-      .closest('summary');
-    expect(patchNotes).not.toBeNull();
+    expect(within(opened.dialog).queryByText(/PATCH NOTES · ALPHA/i)).toBeNull();
+    expect(opened.dialog.querySelector('details')).toBeNull();
     expect(opened.dialog.querySelector(
       'button[data-command-intent="navigation"]'
     )).not.toBeNull();
-    fireEvent.click(patchNotes!);
-    expect(within(opened.dialog).getByText('THE CRAFTED LOWLANDS')).not.toBeNull();
-
     fireEvent.click(within(opened.dialog).getByRole('button', { name: /MY KEEP/i }));
     expect(onRecenterKeep).toHaveBeenCalledOnce();
     await waitFor(() => expect(document.activeElement).toBe(opened.trigger));
@@ -464,7 +509,7 @@ describe('RealmHud', () => {
 
     const { dialog } = openRealmMenu();
     const workers = within(dialog).getByRole('button', { name: /WORKERS.*0\/4 deployed/i });
-    expect(within(dialog).getByText(/Synchronizing worker controls/i)).not.toBeNull();
+    expect(within(dialog).getByText(/Synchronizing Worker accrual/i)).not.toBeNull();
     expect(within(dialog).getByRole('button', { name: /RECALL ALL TO KEEP/i })
       .hasAttribute('disabled')).toBe(true);
     fireEvent.click(workers);
@@ -476,6 +521,8 @@ describe('RealmHud', () => {
   it('survives reload-shaped private sync delay and localized failure without legacy vocabulary', () => {
     const fixture = assignedWorkerUiFixture();
     const retryWorkerPrivateSync = vi.fn();
+    const recallWorker = vi.fn(async () => undefined);
+    const recallAllWorkers = vi.fn(async () => undefined);
     const publicProps = {
       ...commonProps(),
       activeWagons: [{
@@ -484,6 +531,8 @@ describe('RealmHud', () => {
         phase: 'gathering' as const
       }],
       onOpenActiveWagon: vi.fn(),
+      onRecallWorker: recallWorker,
+      onRecallAllWorkers: recallAllWorkers,
       publicWorkerProjection: fixture.publicWorkerProjection
     };
     const firstView = render(
@@ -497,7 +546,7 @@ describe('RealmHud', () => {
     expect(within(dialog).getByRole('button', { name: /WORKERS.*1\/4 deployed/i }))
       .not.toBeNull();
     expect(within(dialog).getByRole('button', { name: /RECALL ALL TO KEEP/i })
-      .hasAttribute('disabled')).toBe(true);
+      .hasAttribute('disabled')).toBe(false);
     expect(dialog.textContent).not.toContain('EXPEDITIONS');
     expect(dialog.textContent).not.toContain('WAGON');
     fireEvent.click(within(dialog).getByRole('button', { name: /^WORKERS/i }));
@@ -513,11 +562,11 @@ describe('RealmHud', () => {
       />
     );
     ({ dialog } = openRealmMenu());
-    expect(dialog.textContent).toContain('Worker controls could not be synchronized');
+    expect(dialog.textContent).toContain('Worker accrual could not be refreshed');
     expect(within(dialog).getByRole('button', { name: 'RETRY WORKER CONTROLS' }))
       .not.toBeNull();
     expect(within(dialog).getByRole('button', { name: /RECALL ALL TO KEEP/i })
-      .hasAttribute('disabled')).toBe(true);
+      .hasAttribute('disabled')).toBe(false);
     expect(dialog.textContent).not.toContain('EXPEDITIONS');
     fireEvent.click(within(dialog).getByRole('button', { name: 'RETRY WORKER CONTROLS' }));
     expect(retryWorkerPrivateSync).toHaveBeenCalledOnce();
@@ -529,7 +578,7 @@ describe('RealmHud', () => {
       />
     );
     expect(within(screen.getByRole('dialog', { name: 'REALM MENU' }))
-      .queryByText(/could not be synchronized/i)).toBeNull();
+      .queryByText(/could not be refreshed/i)).toBeNull();
   });
 
   it('keeps generic Worker vocabulary when an active public graph fails closed', () => {
@@ -609,7 +658,7 @@ describe('RealmHud', () => {
     let resolveRecall!: () => void;
     const pendingRecall = new Promise<void>((resolve) => { resolveRecall = resolve; });
     const onRecallWorker = vi.fn(() => pendingRecall);
-    render(
+    const view = render(
       <RealmHud
         {...commonProps()}
         {...fixture}
@@ -636,9 +685,79 @@ describe('RealmHud', () => {
       await pendingRecall;
     });
     await waitFor(() => expect(
-      within(commandCenter).getByRole('button', { name: 'RETURN' })
+      within(commandCenter).getByRole('button', { name: 'AWAITING REALM…' })
         .hasAttribute('disabled')
-    ).toBe(false));
+    ).toBe(true));
+    fireEvent.click(within(commandCenter).getByRole('button', {
+      name: 'Back to Realm menu'
+    }));
+    const menuDuringRecall = screen.getByRole('dialog', { name: 'REALM MENU' });
+    expect(within(menuDuringRecall).getByRole('button', {
+      name: /RECALL IN PROGRESS.*Awaiting the next Realm update/i
+    }).hasAttribute('disabled')).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: /^WORKERS/i }));
+    expect(screen.getByRole('button', { name: 'AWAITING REALM…' })
+      .hasAttribute('disabled')).toBe(true);
+    expect(screen.getByRole('button', { name: 'RETURN ALL TO KEEP' })
+      .hasAttribute('disabled')).toBe(true);
+    expect(onRecallWorker).toHaveBeenCalledOnce();
+
+    view.rerender(
+      <RealmHud
+        {...commonProps()}
+        {...assignedWorkerUiFixture(2)}
+        onRecallAllWorkers={vi.fn().mockResolvedValue(undefined)}
+        onRecallWorker={onRecallWorker}
+      />
+    );
+    expect(screen.getByRole('button', { name: 'AWAITING REALM…' })
+      .hasAttribute('disabled')).toBe(true);
+
+    view.rerender(
+      <RealmHud
+        {...commonProps()}
+        {...returningWorkerUiFixture(2)}
+        onRecallAllWorkers={vi.fn().mockResolvedValue(undefined)}
+        onRecallWorker={onRecallWorker}
+      />
+    );
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'AWAITING REALM…' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'RETURN' })).toBeNull();
+    });
+  });
+
+  it('bounds a missing public recall reconciliation before allowing a manual retry', async () => {
+    vi.useFakeTimers();
+    const fixture = assignedWorkerUiFixture();
+    const onRecallWorker = vi.fn(async () => undefined);
+    render(
+      <RealmHud
+        {...commonProps()}
+        {...fixture}
+        onRecallWorker={onRecallWorker}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Open Realm menu/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^WORKERS/i }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'RETURN' }));
+      await Promise.resolve();
+    });
+    expect(screen.getByRole('button', { name: 'AWAITING REALM…' })
+      .hasAttribute('disabled')).toBe(true);
+
+    act(() => {
+      vi.advanceTimersByTime(12_001);
+    });
+    const retry = screen.getByRole('button', { name: 'RETURN' });
+    expect(retry.hasAttribute('disabled')).toBe(false);
+    await act(async () => {
+      fireEvent.click(retry);
+      await Promise.resolve();
+    });
+    expect(onRecallWorker).toHaveBeenCalledTimes(2);
   });
 
   it('invokes the separate RETURN ALL control through one guarded user interaction', async () => {
@@ -647,7 +766,7 @@ describe('RealmHud', () => {
     const pendingRecallAll = new Promise<void>((resolve) => { resolveRecallAll = resolve; });
     const onRecallAllWorkers = vi.fn(() => pendingRecallAll);
     const onRecallWorker = vi.fn().mockResolvedValue(undefined);
-    render(
+    const view = render(
       <RealmHud
         {...commonProps()}
         {...fixture}
@@ -679,9 +798,43 @@ describe('RealmHud', () => {
       await pendingRecallAll;
     });
     await waitFor(() => expect(
-      within(commandCenter).getByRole('button', { name: 'RETURN ALL TO KEEP' })
+      within(commandCenter).getByRole('button', { name: 'AWAITING REALM…' })
         .hasAttribute('disabled')
-    ).toBe(false));
+    ).toBe(true));
+    fireEvent.click(within(commandCenter).getByRole('button', {
+      name: 'Back to Realm menu'
+    }));
+    fireEvent.click(screen.getByRole('button', { name: /^WORKERS/i }));
+    expect(screen.getByRole('button', { name: 'AWAITING REALM…' })
+      .hasAttribute('disabled')).toBe(true);
+    expect(screen.getByRole('button', { name: 'RETURN' })
+      .hasAttribute('disabled')).toBe(true);
+    expect(onRecallAllWorkers).toHaveBeenCalledOnce();
+
+    view.rerender(
+      <RealmHud
+        {...commonProps()}
+        {...assignedWorkerUiFixture(2)}
+        onRecallAllWorkers={onRecallAllWorkers}
+        onRecallWorker={onRecallWorker}
+      />
+    );
+    expect(screen.getByRole('button', { name: 'AWAITING REALM…' })
+      .hasAttribute('disabled')).toBe(true);
+
+    view.rerender(
+      <RealmHud
+        {...commonProps()}
+        {...returningWorkerUiFixture(2)}
+        onRecallAllWorkers={onRecallAllWorkers}
+        onRecallWorker={onRecallWorker}
+      />
+    );
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'AWAITING REALM…' })).toBeNull();
+      expect(screen.getByRole('button', { name: 'RETURN ALL TO KEEP' })
+        .hasAttribute('disabled')).toBe(true);
+    });
   });
 
   it('recalls every recallable Worker directly from the PFP menu without optimistic state', async () => {
@@ -730,14 +883,17 @@ describe('RealmHud', () => {
     view.rerender(
       <RealmHud
         {...commonProps()}
-        {...assignedWorkerUiFixture(2)}
+        {...returningWorkerUiFixture(2)}
         onRecallAllWorkers={onRecallAllWorkers}
       />
     );
-    await waitFor(() => expect(
-      within(workerControls).getByRole('button', { name: /RECALL ALL TO KEEP/i })
-        .hasAttribute('disabled')
-    ).toBe(false));
+    await waitFor(() => {
+      expect(within(workerControls).queryByRole('button', {
+        name: /RECALL SENT.*Awaiting the next Realm update/i
+      })).toBeNull();
+      expect(within(workerControls).getByRole('button', { name: /RECALL ALL TO KEEP/i })
+        .hasAttribute('disabled')).toBe(true);
+    });
   });
 
   it('fails a PFP-menu recall closed and allows an explicit retry', async () => {
@@ -824,6 +980,48 @@ describe('RealmHud', () => {
       .toContain('hegemony-mark-64.png');
     const { dialog } = openRealmMenu();
     expect(within(dialog).queryByRole('button', { name: /COLLECT YIELD/i })).toBeNull();
+  });
+
+  it('retains numeric same-caller core balances while Worker accrual synchronizes', () => {
+    const base = createReadyResourceState();
+    const props = {
+      ...commonProps(),
+      publicWorkerSystemActive: true,
+      resources: {
+        ...base,
+        balances: { food: 321n, wood: 222n, stone: 111n, gold: 44n },
+        pendingBalances: { food: 8n, wood: 7n, stone: 6n, gold: 5n }
+      }
+    };
+    const view = render(
+      <RealmHud
+        {...props}
+        workerPrivateSync={{ phase: 'synchronizing', commandsEnabled: false }}
+      />
+    );
+
+    const rail = screen.getByRole('region', { name: 'Your resources' });
+    expect(within(rail).getAllByRole('listitem').slice(0, 4).map(
+      (entry) => entry.querySelector('strong')?.textContent
+    )).toEqual(['321', '222', '111', '44']);
+    expect(rail.textContent).not.toContain('—');
+    const food = within(rail).getByRole('button', {
+      name: /Food: 321 last confirmed stored balance; Worker accrual synchronizing/i
+    });
+    fireEvent.click(food);
+    expect(screen.getByRole('tooltip').textContent)
+      .toContain('Last confirmed balance · Worker accrual synchronizing');
+
+    view.rerender(
+      <RealmHud
+        {...props}
+        workerPrivateSync={{ phase: 'failed-localized', commandsEnabled: false }}
+      />
+    );
+    expect(within(rail).getAllByRole('listitem').slice(0, 4).map(
+      (entry) => entry.querySelector('strong')?.textContent
+    )).toEqual(['321', '222', '111', '44']);
+    expect(rail.textContent).not.toContain('—');
   });
 
   it('explains current resource behavior on pointer, keyboard, and touch', () => {

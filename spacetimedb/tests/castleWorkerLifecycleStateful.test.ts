@@ -123,6 +123,7 @@ async function loadExactProductionModule<Module>(
 const {
   dispatchCastleWorker,
   inspectCastleWorkerGraph,
+  repairMissingWorkerReturnSchedule,
   recallAllCastleWorkers,
   recallCastleWorker,
   runCastleWorkerSchedule,
@@ -640,6 +641,62 @@ function makeLifecycleFixture(
   };
 }
 
+function makeMissingReturnScheduleFixture() {
+  const fixture = makeLifecycleFixture();
+  const [returningWorkerId, replacementWorkerId] = [
+    ...fixture.workers.keys(),
+  ].sort();
+  const siteId = fixture.sites[0]!.siteId;
+  dispatchCastleWorker(fixture.ctx, {
+    fid: fixture.fid,
+    castle: fixture.castle,
+    workerId: returningWorkerId!,
+    resourceKind: 'gold',
+    siteId,
+    idempotencyKey: 'repair-returning-worker-dispatch',
+  });
+  recallCastleWorker(fixture.ctx, {
+    fid: fixture.fid,
+    castle: fixture.castle,
+    workerId: returningWorkerId!,
+    idempotencyKey: 'repair-returning-worker-recall',
+  });
+  dispatchCastleWorker(fixture.ctx, {
+    fid: fixture.fid,
+    castle: fixture.castle,
+    workerId: replacementWorkerId!,
+    resourceKind: 'gold',
+    siteId,
+    idempotencyKey: 'repair-replacement-worker-dispatch',
+  });
+  const missingSchedule = fixture.scheduleFor(
+    returningWorkerId!,
+    'return-complete',
+  );
+  assert.equal(fixture.schedules.delete(missingSchedule.scheduleId), true);
+  const input: Parameters<typeof repairMissingWorkerReturnSchedule>[1] = {
+    capability: 'genesis-001-worker-return-schedule-repair-v1',
+    sourceCommit: 'a'.repeat(40),
+    moduleArtifactDigest: 'b'.repeat(64),
+    expectedCastleCount: 1,
+    expectedWorkerCount: CASTLE_WORKERS_PER_CASTLE,
+    expectedAssignments: 2,
+    expectedOccupations: 1,
+    expectedSchedules: 1,
+    expectedReturningWorkers: 1,
+    expectedMissingSchedules: 1,
+    rosterDigest: rosterDigestForCastleIds([fixture.castle.castleId]),
+  };
+  return {
+    fixture,
+    returningWorkerId: returningWorkerId!,
+    replacementWorkerId: replacementWorkerId!,
+    siteId,
+    missingSchedule,
+    input,
+  };
+}
+
 test('four workers share one resource across distinct nodes through replay, schedules, recall, and settlement', () => {
   const fixture = makeLifecycleFixture();
   const workerIds = [...fixture.workers.keys()].sort();
@@ -764,6 +821,466 @@ test('four workers share one resource across distinct nodes through replay, sche
     fixture.account().gold,
     workerResourcePolicy('gold').gatheringTotal
       * BigInt(CASTLE_WORKERS_PER_CASTLE),
+  );
+});
+
+test('a returning worker completes after its former node is reused without touching the replacement worker', () => {
+  const fixture = makeLifecycleFixture();
+  const [returningWorkerId, replacementWorkerId] = [
+    ...fixture.workers.keys(),
+  ].sort();
+  const siteId = fixture.sites[0]!.siteId;
+  dispatchCastleWorker(fixture.ctx, {
+    fid: fixture.fid,
+    castle: fixture.castle,
+    workerId: returningWorkerId!,
+    resourceKind: 'gold',
+    siteId,
+    idempotencyKey: 'reuse-returning-worker-dispatch',
+  });
+  recallCastleWorker(fixture.ctx, {
+    fid: fixture.fid,
+    castle: fixture.castle,
+    workerId: returningWorkerId!,
+    idempotencyKey: 'reuse-returning-worker-recall',
+  });
+  dispatchCastleWorker(fixture.ctx, {
+    fid: fixture.fid,
+    castle: fixture.castle,
+    workerId: replacementWorkerId!,
+    resourceKind: 'gold',
+    siteId,
+    idempotencyKey: 'reuse-replacement-worker-dispatch',
+  });
+
+  const replacementAssignment = structuredClone(
+    [...fixture.assignments.values()].find(
+      assignment => assignment.workerId === replacementWorkerId,
+    )!,
+  );
+  const replacementOccupation = structuredClone(
+    fixture.occupations.get(workerNodeKey('gold', siteId))!,
+  );
+  const replacementSchedule = structuredClone(
+    fixture.scheduleFor(replacementWorkerId!, 'arrival'),
+  );
+  const graphBeforeCompletion = inspectCastleWorkerGraph(fixture.ctx);
+  assert.equal(graphBeforeCompletion.assignments, 2n);
+  assert.equal(graphBeforeCompletion.occupations, 1n);
+  assert.equal(graphBeforeCompletion.schedules, 2n);
+  assert.equal(graphBeforeCompletion.occupationSiteMismatches, 0n);
+  assert.equal(graphBeforeCompletion.assignmentsMissingOccupation, 0n);
+  assert.equal(graphBeforeCompletion.assignmentsWithoutSingleSchedule, 0n);
+
+  const nodeKey = workerNodeKey('gold', siteId);
+  fixture.occupations.set(nodeKey, {
+    ...replacementOccupation,
+    workerOrdinal: fixture.workers.get(returningWorkerId!)!.ordinal,
+  });
+  assert.ok(
+    inspectCastleWorkerGraph(fixture.ctx).occupationSiteMismatches > 0n,
+    'a malformed replacement-owned occupation must not hide behind a returning assignment',
+  );
+  fixture.occupations.set(nodeKey, replacementOccupation);
+
+  fixture.runSchedule(
+    fixture.scheduleFor(returningWorkerId!, 'return-complete'),
+  );
+
+  assert.equal(fixture.workers.get(returningWorkerId!)?.status, 'idle');
+  assert.equal(
+    [...fixture.assignments.values()].some(
+      assignment => assignment.workerId === returningWorkerId,
+    ),
+    false,
+  );
+  assert.deepEqual(
+    [...fixture.assignments.values()].find(
+      assignment => assignment.workerId === replacementWorkerId,
+    ),
+    replacementAssignment,
+  );
+  assert.deepEqual(
+    fixture.occupations.get(workerNodeKey('gold', siteId)),
+    replacementOccupation,
+  );
+  assert.deepEqual(
+    fixture.scheduleFor(replacementWorkerId!, 'arrival'),
+    replacementSchedule,
+  );
+  assert.deepEqual(fixture.counts(), {
+    assignments: 1,
+    occupations: 1,
+    schedules: 1,
+    receipts: 3,
+  });
+  const graphAfterCompletion = inspectCastleWorkerGraph(fixture.ctx);
+  assert.equal(graphAfterCompletion.occupationSiteMismatches, 0n);
+  assert.equal(graphAfterCompletion.assignmentsMissingOccupation, 0n);
+  assert.equal(graphAfterCompletion.assignmentsWithoutSingleSchedule, 0n);
+});
+
+test('return completion fails closed while the returning worker still owns any occupation', () => {
+  const fixture = makeLifecycleFixture();
+  const workerId = [...fixture.workers.keys()].sort()[0]!;
+  const siteId = fixture.sites[0]!.siteId;
+  dispatchCastleWorker(fixture.ctx, {
+    fid: fixture.fid,
+    castle: fixture.castle,
+    workerId,
+    resourceKind: 'gold',
+    siteId,
+    idempotencyKey: 'owned-occupation-worker-dispatch',
+  });
+  recallCastleWorker(fixture.ctx, {
+    fid: fixture.fid,
+    castle: fixture.castle,
+    workerId,
+    idempotencyKey: 'owned-occupation-worker-recall',
+  });
+  const returningAssignment = structuredClone(
+    [...fixture.assignments.values()].find(
+      assignment => assignment.workerId === workerId,
+    )!,
+  );
+  const returnSchedule = structuredClone(
+    fixture.scheduleFor(workerId, 'return-complete'),
+  );
+  const nodeKey = workerNodeKey('gold', siteId);
+  fixture.occupations.set(nodeKey, {
+    nodeKey,
+    resourceKind: 'gold',
+    siteId,
+    workerId,
+    workerOrdinal: fixture.workers.get(workerId)!.ordinal,
+    originCastleId: fixture.castle.castleId,
+    phase: 'returning',
+    startedAtMicros: returningAssignment.startedAtMicros,
+    arrivesAtMicros: returningAssignment.arrivesAtMicros,
+    gatheringEndsAtMicros: returningAssignment.gatheringEndsAtMicros,
+    timelineRevision: returningAssignment.timelineRevision,
+  });
+
+  assert.throws(
+    () => fixture.runSchedule(returnSchedule),
+    /WORKER_OCCUPATION_INTEGRITY/,
+  );
+  assert.deepEqual(
+    [...fixture.assignments.values()].find(
+      assignment => assignment.workerId === workerId,
+    ),
+    returningAssignment,
+  );
+  assert.deepEqual(
+    fixture.scheduleFor(workerId, 'return-complete'),
+    returnSchedule,
+  );
+  assert.equal(fixture.workers.get(workerId)?.status, 'returning');
+  assert.equal(fixture.occupations.get(nodeKey)?.workerId, workerId);
+});
+
+test('repair restores exactly one missing return schedule and a retry is an aggregate-only no-op', () => {
+  const {
+    fixture,
+    returningWorkerId,
+    replacementWorkerId,
+    siteId,
+    input,
+  } = makeMissingReturnScheduleFixture();
+  const returningAssignment = structuredClone(
+    [...fixture.assignments.values()].find(
+      assignment => assignment.workerId === returningWorkerId,
+    )!,
+  );
+  const replacementAssignment = structuredClone(
+    [...fixture.assignments.values()].find(
+      assignment => assignment.workerId === replacementWorkerId,
+    )!,
+  );
+  const replacementOccupation = structuredClone(
+    fixture.occupations.get(workerNodeKey('gold', siteId))!,
+  );
+  const replacementSchedule = structuredClone(
+    fixture.scheduleFor(replacementWorkerId, 'arrival'),
+  );
+  const overdueNow = returningAssignment.returnsAtMicros + 60_000_000n;
+  Object.assign(fixture.ctx, { timestamp: timestamp(overdueNow) });
+  assert.ok(returningAssignment.returnsAtMicros < overdueNow);
+
+  const repaired = repairMissingWorkerReturnSchedule(fixture.ctx, input);
+  assert.deepEqual(repaired, {
+    repaired: true,
+    beforeAssignments: 2n,
+    beforeOccupations: 1n,
+    beforeSchedules: 1n,
+    afterAssignments: 2n,
+    afterOccupations: 1n,
+    afterSchedules: 2n,
+  });
+  const restored = fixture.scheduleFor(
+    returningWorkerId,
+    'return-complete',
+  );
+  assert.equal(restored.assignmentId, returningAssignment.assignmentId);
+  assert.equal(
+    restored.scheduledAt.value.microsSinceUnixEpoch,
+    returningAssignment.returnsAtMicros,
+  );
+  assert.deepEqual(
+    [...fixture.assignments.values()].find(
+      assignment => assignment.workerId === returningWorkerId,
+    ),
+    returningAssignment,
+  );
+  assert.deepEqual(
+    [...fixture.assignments.values()].find(
+      assignment => assignment.workerId === replacementWorkerId,
+    ),
+    replacementAssignment,
+  );
+  assert.deepEqual(
+    fixture.occupations.get(workerNodeKey('gold', siteId)),
+    replacementOccupation,
+  );
+  assert.deepEqual(
+    fixture.scheduleFor(replacementWorkerId, 'arrival'),
+    replacementSchedule,
+  );
+
+  const scheduleRowsBeforeRetry = [...fixture.schedules.values()]
+    .map(row => structuredClone(row));
+  assert.throws(
+    () => repairMissingWorkerReturnSchedule(
+      fixture.ctx,
+      {
+        ...input,
+        expectedReturningWorkers: 2,
+      },
+    ),
+    /WORKER_RETURN_REPAIR_STATE_DRIFT/,
+  );
+  assert.deepEqual([...fixture.schedules.values()], scheduleRowsBeforeRetry);
+  const retry = repairMissingWorkerReturnSchedule(fixture.ctx, input);
+  assert.deepEqual(retry, {
+    repaired: false,
+    beforeAssignments: 2n,
+    beforeOccupations: 1n,
+    beforeSchedules: 2n,
+    afterAssignments: 2n,
+    afterOccupations: 1n,
+    afterSchedules: 2n,
+  });
+  assert.deepEqual([...fixture.schedules.values()], scheduleRowsBeforeRetry);
+
+  fixture.runSchedule(restored, overdueNow);
+  assert.equal(fixture.workers.get(returningWorkerId)?.status, 'idle');
+  assert.deepEqual(
+    [...fixture.assignments.values()].find(
+      assignment => assignment.workerId === replacementWorkerId,
+    ),
+    replacementAssignment,
+  );
+  assert.deepEqual(
+    fixture.occupations.get(workerNodeKey('gold', siteId)),
+    replacementOccupation,
+  );
+  assert.deepEqual(
+    fixture.scheduleFor(replacementWorkerId, 'arrival'),
+    replacementSchedule,
+  );
+  const completedRetry = repairMissingWorkerReturnSchedule(
+    fixture.ctx,
+    input,
+  );
+  assert.deepEqual(completedRetry, {
+    repaired: false,
+    beforeAssignments: 1n,
+    beforeOccupations: 1n,
+    beforeSchedules: 1n,
+    afterAssignments: 1n,
+    afterOccupations: 1n,
+    afterSchedules: 1n,
+  });
+});
+
+test('return-schedule repair rejects oversized state before opening an iterator', () => {
+  const { fixture, input } = makeMissingReturnScheduleFixture();
+  const template = structuredClone([...fixture.assignments.values()][0]!);
+  for (let index = fixture.assignments.size; index <= 400; index += 1) {
+    fixture.assignments.set(`oversized-assignment-${index}`, {
+      ...template,
+      assignmentId: `oversized-assignment-${index}`,
+      workerId: `oversized-worker-${index}`,
+    });
+  }
+  let iteratorOpened = false;
+  const assignmentTable = (
+    fixture.ctx.db as unknown as {
+      workerAssignmentV1: { iter: () => Iterable<AnyRow> };
+    }
+  ).workerAssignmentV1;
+  assignmentTable.iter = () => {
+    iteratorOpened = true;
+    return fixture.assignments.values();
+  };
+
+  assert.throws(
+    () => repairMissingWorkerReturnSchedule(fixture.ctx, input),
+    /WORKER_RETURN_REPAIR_CAPACITY/,
+  );
+  assert.equal(iteratorOpened, false);
+});
+
+test('return-schedule repair rejects every attestation drift without writes', () => {
+  const cases: ReadonlyArray<Readonly<{
+    name: string;
+    mutate: (
+      input: Parameters<typeof repairMissingWorkerReturnSchedule>[1],
+    ) => Parameters<typeof repairMissingWorkerReturnSchedule>[1];
+  }>> = [
+    {
+      name: 'capability',
+      mutate: input => ({ ...input, capability: 'wrong-capability' }),
+    },
+    {
+      name: 'source commit',
+      mutate: input => ({ ...input, sourceCommit: 'a'.repeat(39) }),
+    },
+    {
+      name: 'module digest',
+      mutate: input => ({ ...input, moduleArtifactDigest: 'b'.repeat(63) }),
+    },
+    {
+      name: 'castle and worker counts',
+      mutate: input => ({
+        ...input,
+        expectedCastleCount: 2,
+        expectedWorkerCount: CASTLE_WORKERS_PER_CASTLE * 2,
+      }),
+    },
+    {
+      name: 'worker count',
+      mutate: input => ({ ...input, expectedWorkerCount: 3 }),
+    },
+    {
+      name: 'assignments',
+      mutate: input => ({ ...input, expectedAssignments: 1 }),
+    },
+    {
+      name: 'occupations',
+      mutate: input => ({ ...input, expectedOccupations: 0 }),
+    },
+    {
+      name: 'schedules',
+      mutate: input => ({ ...input, expectedSchedules: 0 }),
+    },
+    {
+      name: 'returning workers',
+      mutate: input => ({ ...input, expectedReturningWorkers: 2 }),
+    },
+    {
+      name: 'missing schedules',
+      mutate: input => ({ ...input, expectedMissingSchedules: 2 }),
+    },
+    {
+      name: 'roster digest',
+      mutate: input => ({ ...input, rosterDigest: '0'.repeat(16) }),
+    },
+  ];
+
+  for (const drift of cases) {
+    const { fixture, input } = makeMissingReturnScheduleFixture();
+    const assignmentsBefore = [...fixture.assignments.values()]
+      .map(row => structuredClone(row));
+    const occupationsBefore = [...fixture.occupations.values()]
+      .map(row => structuredClone(row));
+    const schedulesBefore = [...fixture.schedules.values()]
+      .map(row => structuredClone(row));
+    assert.throws(
+      () => repairMissingWorkerReturnSchedule(
+        fixture.ctx,
+        drift.mutate(input),
+      ),
+      /WORKER_RETURN_REPAIR_/,
+      drift.name,
+    );
+    assert.deepEqual(
+      [...fixture.assignments.values()],
+      assignmentsBefore,
+      drift.name,
+    );
+    assert.deepEqual(
+      [...fixture.occupations.values()],
+      occupationsBefore,
+      drift.name,
+    );
+    assert.deepEqual(
+      [...fixture.schedules.values()],
+      schedulesBefore,
+      drift.name,
+    );
+  }
+});
+
+test('return-schedule repair rejects two missing schedules without writes', () => {
+  const { fixture, input, replacementWorkerId } =
+    makeMissingReturnScheduleFixture();
+  const replacementSchedule = fixture.scheduleFor(
+    replacementWorkerId,
+    'arrival',
+  );
+  assert.equal(fixture.schedules.delete(replacementSchedule.scheduleId), true);
+  const assignmentsBefore = [...fixture.assignments.values()]
+    .map(row => structuredClone(row));
+  const occupationsBefore = [...fixture.occupations.values()]
+    .map(row => structuredClone(row));
+
+  assert.throws(
+    () => repairMissingWorkerReturnSchedule(
+      fixture.ctx,
+      {
+        ...input,
+        expectedSchedules: 0,
+      },
+    ),
+    /WORKER_RETURN_REPAIR_/,
+  );
+  assert.deepEqual([...fixture.assignments.values()], assignmentsBefore);
+  assert.deepEqual([...fixture.occupations.values()], occupationsBefore);
+  assert.equal(fixture.schedules.size, 0);
+});
+
+test('return-schedule repair refuses a single missing nonreturning schedule', () => {
+  const {
+    fixture,
+    returningWorkerId,
+    replacementWorkerId,
+    missingSchedule,
+    input,
+  } = makeMissingReturnScheduleFixture();
+  fixture.schedules.set(missingSchedule.scheduleId, missingSchedule);
+  const outboundSchedule = fixture.scheduleFor(
+    replacementWorkerId,
+    'arrival',
+  );
+  assert.equal(fixture.schedules.delete(outboundSchedule.scheduleId), true);
+  const schedulesBefore = [...fixture.schedules.values()]
+    .map(row => structuredClone(row));
+
+  assert.throws(
+    () => repairMissingWorkerReturnSchedule(fixture.ctx, input),
+    /WORKER_RETURN_REPAIR_TARGET_INVALID/,
+  );
+  assert.deepEqual([...fixture.schedules.values()], schedulesBefore);
+  assert.equal(
+    fixture.scheduleFor(returningWorkerId, 'return-complete').scheduleId,
+    missingSchedule.scheduleId,
+  );
+  assert.equal(
+    [...fixture.assignments.values()].find(
+      assignment => assignment.workerId === replacementWorkerId,
+    )?.phase,
+    'outbound',
   );
 });
 

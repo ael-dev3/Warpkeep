@@ -44,11 +44,13 @@ export {
 export {
   getMyWorkerRosterV1,
   getMyResourceStateV2,
+  getMyWorkerControlStateV1,
   dispatchWorkerV1,
   recallWorkerV1,
   recallAllWorkersV1,
   returnLegacyExpeditionV1,
   adminGetWorkerSystemStatusV1,
+  adminRepairMissingWorkerReturnScheduleV1,
   adminPlanWorkerRosterV1,
   adminStageWorkerSystemV1,
   adminBackfillWorkerRosterV1,

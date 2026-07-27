@@ -83,3 +83,21 @@ test('worker reducers are caller-bound and activation remains explicitly gated',
   assert.match(authority, /planCastleWorkerAccrual\(assignment, observedAtMicros\)/);
   assert.match(authority, /No[\s\S]{0,20}per-minute writes/);
 });
+
+test('the disposable additive proof exercises the atomic private Worker projection', () => {
+  const verifier = source('../../scripts/verify-spacetime-additive-migration.mjs');
+  assert.match(verifier, /'get_my_worker_control_state_v1'/);
+  assert.match(verifier, /function parseWorkerControlState\(text\)/);
+  assert.match(verifier, /value\.length !== 17/);
+  assert.match(verifier, /workerObservedAtMicros !== observedAtMicros/);
+  assert.match(
+    verifier,
+    /workerResourceKinds\.some\(kind => returnedPending\[kind\] !== pending\[kind\]\)/,
+  );
+  assert.equal(
+    verifier.match(/await readActualWorkerControlState\(/g)?.length,
+    5,
+  );
+  assert.match(verifier, /atomic four-worker control/);
+  assert.match(verifier, /atomic Worker control state did not preserve reconnect/);
+});

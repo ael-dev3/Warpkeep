@@ -12,9 +12,9 @@ balance, advance a timer, or decide an expedition outcome.
 | Browser/backend wire protocol | 3 |
 | Player authentication contract | 2 |
 | Genesis world generation | 3 |
-| Append-only schema generation | 12 (staged suffix) |
+| Append-only schema generation | 12 (active suffix) |
 | Alpha 0.3.12 suffix | Water refs 37–40; Stone refs 41–45 |
-| Generic worker suffix | refs 47–52; staged, not activated |
+| Generic worker suffix | refs 47–52; active |
 
 Deployed tables retain their original declaration order and shape. Later
 features append new tables; they do not rename or delete existing data. The
@@ -56,7 +56,7 @@ Public subscriptions contain only shared-world presentation:
 - activated Water layout, body/cell topology, and shared environment data;
 - identity-minimized site occupations containing a site, phase, public
   timeline, and origin castle;
-- staged four-worker roster and generic node-lease projections; the public
+- active four-worker roster and generic node-lease projections; the public
   rows contain no FID, cargo, accrual, balance, request, or auth data;
 - public Community Marks projection only when its policy permits it.
 
@@ -106,14 +106,13 @@ server-time availability without a write; scheduled expiry and explicit
 dispatch/recall commands materialize complete quanta. There is no per-minute
 write loop and no `collect` command for generic workers.
 
-The suffix remains disabled by default. Admin-only source now separates
-singleton staging, deterministic four-worker backfill, legacy drain, and final
-activation. Activation additionally requires exact resource/account and site
-catalog state plus an explicit 0.3.x client capability, source commit, and
-artifact attestation. None of those reducers are called by module publication;
-no production worker has been seeded, backfilled, drained, or activated by
-this source change. The browser wire protocol remains 3 until a reviewed
-client-capability release opts into the generic worker methods.
+The active suffix was introduced through separate, attested staging,
+deterministic four-worker backfill, legacy drain, and activation steps.
+Activation requires exact resource/account and site-catalog state plus an
+explicit 0.3.x client capability, source commit, and artifact attestation.
+Module publication never repeats those mutations. A bounded admin-only
+forward-repair path can restore one specifically attested missing return
+schedule; it cannot select a player row, alter balances, or delete data.
 
 ## Entry agreement and Marks
 
@@ -167,6 +166,7 @@ npm run stdb:inspect-alpha-v3 -- --json
 npm run stdb:inspect-alpha-v4 -- --json
 npm run stdb:inspect-alpha-v8 -- --json
 npm run stdb:inspect-alpha-v10 -- --json
+npm run stdb:inspect-alpha-v12 -- --json
 ```
 
 Component setup is separate from module publication and must be reviewed one
