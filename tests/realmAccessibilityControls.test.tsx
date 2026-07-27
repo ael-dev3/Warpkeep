@@ -12,6 +12,7 @@ import {
   type RealmNavigatorCloseReason,
   type RealmNavigatorCoordinateJump,
   type RealmNavigatorCastle,
+  type RealmNavigatorResourceSite,
   type RealmNavigatorWorker
 } from '../src/components/realm/RealmAccessibilityControls';
 
@@ -28,8 +29,12 @@ function ControlledNavigator({
   cameraPresets,
   workers,
   onActivateWorker,
+  resourceSites,
+  selectedResourceKey,
+  onActivateResourceSite,
   triggerRef,
-  onOuterEscape
+  onOuterEscape,
+  showDiagnostics
 }: Readonly<{
   onActivateCastle: (castle: RealmNavigatorCastle) => void;
   onRequestClose: (reason: RealmNavigatorCloseReason) => void;
@@ -37,8 +42,12 @@ function ControlledNavigator({
   cameraPresets?: readonly RealmNavigatorCameraPreset[];
   workers?: readonly RealmNavigatorWorker[];
   onActivateWorker?: (worker: RealmNavigatorWorker) => void;
+  resourceSites?: readonly RealmNavigatorResourceSite[];
+  selectedResourceKey?: string;
+  onActivateResourceSite?: (site: RealmNavigatorResourceSite) => void;
   triggerRef?: RefObject<HTMLButtonElement | null>;
   onOuterEscape?: () => void;
+  showDiagnostics?: boolean;
 }>) {
   const [open, setOpen] = useState(false);
   return (
@@ -48,8 +57,10 @@ function ControlledNavigator({
         open={open}
         castles={CASTLES}
         workers={workers}
+        resourceSites={resourceSites}
         ownCastleId={1}
         selectedCastleId={2}
+        selectedResourceKey={selectedResourceKey}
         onRequestOpen={() => setOpen(true)}
         onRequestClose={(reason) => {
           onRequestClose(reason);
@@ -57,7 +68,9 @@ function ControlledNavigator({
         }}
         onActivateCastle={onActivateCastle}
         onActivateWorker={onActivateWorker}
+        onActivateResourceSite={onActivateResourceSite}
         coordinateJump={coordinateJump}
+        showDiagnostics={showDiagnostics}
         cameraPresets={cameraPresets}
         triggerRef={triggerRef}
       />
@@ -167,10 +180,10 @@ describe('RealmAccessibilityControls', () => {
     const list = screen.getByRole('list', { name: 'Founded castles' });
     expect(within(list).getAllByRole('button')).toHaveLength(3);
     const own = within(list).getByRole('button', {
-      name: 'Inspect @warpkeeper, Genesis Bastion, q 0, r 0, your castle'
+      name: 'Inspect @warpkeeper, Genesis Bastion, your castle'
     });
     const selected = within(list).getByRole('button', {
-      name: 'Inspect @peer, Peer Watch, q 1, r -1, selected'
+      name: 'Inspect @peer, Peer Watch, selected'
     });
     expect(own.getAttribute('data-own')).toBe('true');
     expect(own.getAttribute('aria-pressed')).toBe('false');
@@ -196,6 +209,10 @@ describe('RealmAccessibilityControls', () => {
     expect(intakeLink.getAttribute('referrerpolicy')).toBe('no-referrer');
     expect(feedbackLink.compareDocumentPosition(intakeLink) & Node.DOCUMENT_POSITION_FOLLOWING)
       .not.toBe(0);
+    expect(search.getAttribute('placeholder')).toBe(
+      'Player, castle, worker, resource, or water'
+    );
+    expect(dialog.textContent).not.toMatch(/\bq\s+-?\d|coordinates/i);
 
     fireEvent.focus(selected);
     expect(onActivateCastle).not.toHaveBeenCalled();
@@ -278,10 +295,10 @@ describe('RealmAccessibilityControls', () => {
 
     const list = screen.getByRole('list', { name: 'Public workers' });
     const ownWorker = within(list).getByRole('button', {
-      name: 'Inspect worker 1, Genesis Bastion, idle, q 0, r 0, your worker'
+      name: 'Inspect worker 1, Genesis Bastion, idle, at origin keep, your worker'
     });
     const peerWorker = within(list).getByRole('button', {
-      name: 'Inspect worker 2, Peer Watch, outbound, q 3, r -1'
+      name: 'Inspect worker 2, Peer Watch, outbound, at origin keep'
     });
     fireEvent.focus(peerWorker);
     expect(onActivateWorker).not.toHaveBeenCalled();
@@ -294,6 +311,62 @@ describe('RealmAccessibilityControls', () => {
     expect(within(list).getAllByRole('button')).toHaveLength(1);
   });
 
+  it('keeps semantic resource-site navigation after player coordinates are hidden', () => {
+    const onActivateResourceSite = vi.fn();
+    const resourceSites = Object.freeze([
+      {
+        key: 'gold:private-runtime-site-0001',
+        resource: 'gold' as const,
+        label: 'Auric Reach',
+        tier: 1,
+        availability: 'available' as const
+      },
+      {
+        key: 'wood:private-runtime-site-0007',
+        resource: 'wood' as const,
+        label: 'Elderwood Camp',
+        tier: 2,
+        availability: 'occupied' as const
+      }
+    ]) satisfies readonly RealmNavigatorResourceSite[];
+    render(
+      <ControlledNavigator
+        onActivateCastle={vi.fn()}
+        onActivateResourceSite={onActivateResourceSite}
+        onRequestClose={vi.fn()}
+        resourceSites={resourceSites}
+        selectedResourceKey={resourceSites[1].key}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Explore realm/i }));
+
+    const list = screen.getByRole('list', { name: 'Public resource sites' });
+    const gold = within(list).getByRole('button', {
+      name: 'Inspect Auric Reach, tier 1, Available'
+    });
+    const wood = within(list).getByRole('button', {
+      name: 'Inspect Elderwood Camp, tier 2, Occupied, selected'
+    });
+    expect(wood.getAttribute('aria-pressed')).toBe('true');
+    expect(gold.classList.contains('realm-cell-navigator__resource-site')).toBe(true);
+    expect(gold.getAttribute('data-resource-kind')).toBe('gold');
+    expect(gold.getAttribute('data-resource-state')).toBe('available');
+    expect(gold.hasAttribute('data-resource-key')).toBe(false);
+    expect(gold.hasAttribute('data-site-id')).toBe(false);
+    expect(list.textContent).not.toMatch(
+      /private-runtime-site|FID|\bq\s+-?\d|\br\s+-?\d/i
+    );
+
+    fireEvent.focus(gold);
+    expect(onActivateResourceSite).not.toHaveBeenCalled();
+    fireEvent.click(gold);
+    expect(onActivateResourceSite).toHaveBeenCalledWith(resourceSites[0]);
+
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'occupied' } });
+    expect(within(list).getAllByRole('button')).toHaveLength(1);
+    expect(within(list).getByText('Elderwood Camp')).not.toBeNull();
+  });
+
   it('offers an optional strict q/r jump and activates only after validation', () => {
     const onActivateCastle = vi.fn();
     const onRequestClose = vi.fn();
@@ -304,6 +377,7 @@ describe('RealmAccessibilityControls', () => {
         onActivateCastle={onActivateCastle}
         onRequestClose={onRequestClose}
         coordinateJump={{ validate, onActivate }}
+        showDiagnostics
       />
     );
     fireEvent.click(screen.getByRole('button', { name: /Explore realm, 3 founded castles/i }));
@@ -333,6 +407,28 @@ describe('RealmAccessibilityControls', () => {
     expect(onActivate).toHaveBeenCalledOnce();
     expect(onActivate).toHaveBeenCalledWith({ q: 1, r: -1 });
     expect(onActivateCastle).not.toHaveBeenCalled();
+  });
+
+  it('keeps coordinate navigation and spatial labels available in diagnostics mode only', () => {
+    const coordinateJump = {
+      validate: vi.fn(() => true),
+      onActivate: vi.fn()
+    };
+    render(
+      <ControlledNavigator
+        coordinateJump={coordinateJump}
+        onActivateCastle={vi.fn()}
+        onRequestClose={vi.fn()}
+        showDiagnostics
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Explore realm/i }));
+
+    expect(screen.getByRole('button', {
+      name: 'Inspect @warpkeeper, Genesis Bastion, q 0, r 0, your castle'
+    })).not.toBeNull();
+    expect(screen.getByRole('textbox', { name: 'q coordinate' })).not.toBeNull();
+    expect(screen.getByRole('searchbox').getAttribute('placeholder')).toContain('coordinates');
   });
 
   it('routes Escape through the close callback and restores the exposed trigger focus', async () => {

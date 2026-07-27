@@ -41,6 +41,14 @@ export type RealmCastleInstancePresentationTelemetry = Readonly<{
   raycastTargetCount: number;
 }>;
 
+export type RealmCastleWorldAccentTelemetry = Readonly<{
+  foundationContactCount: number;
+  selectedAccentCount: number;
+  hoveredAccentCount: number;
+  drawNodeCount: number;
+  triangleCount: number;
+}>;
+
 export type RealmCastleInstanceLayer = Readonly<{
   group: THREE.Group;
   /** Repack visible castles when screen-space LOD or frustum membership changes. */
@@ -63,6 +71,10 @@ export type RealmCastleInstanceLayer = Readonly<{
    * projection frame.
    */
   setPresentedCastleIds: (castleIds: readonly number[] | null) => void;
+  /** Reconciles one foundation-bound selected accent without rebuilding instances. */
+  setSelectedCastleId: (castleId: number | null) => void;
+  /** Reconciles one distinct foundation-bound hover accent without rebuilding instances. */
+  setHoveredCastleId: (castleId: number | null) => void;
   /** Raycasts only castle instances. Terrain fallback belongs to the scene. */
   raycast: (raycaster: THREE.Raycaster) => RealmCastleInstanceHit | null;
   /** Detaches instance nodes without disposing repository-owned resources. */
@@ -71,6 +83,7 @@ export type RealmCastleInstanceLayer = Readonly<{
   dispose: () => void;
   getPacking: () => CastleInstancePacking<RealmCastleInstanceRecord>;
   getPresentationTelemetry: () => RealmCastleInstancePresentationTelemetry;
+  getWorldAccentTelemetry: () => RealmCastleWorldAccentTelemetry;
   /** Validates exact castle/base identity, LOD, and placement correspondence. */
   hasExactCastleLandscapeBasePairing: () => boolean;
 }>;
@@ -245,6 +258,79 @@ export function createRealmCastleInstanceLayer(
   contactShadows.renderOrder = 1;
   if (!hasCompleteLandscapeBaseFamily) group.add(contactShadows);
 
+  const foundationContactGeometry = hasCompleteLandscapeBaseFamily
+    ? new THREE.RingGeometry(0.78, 1, 28)
+    : undefined;
+  const foundationContactMaterial = hasCompleteLandscapeBaseFamily
+    ? new THREE.MeshBasicMaterial({
+      color: '#252a24',
+      opacity: options.dynamicShadows ? 0.055 : 0.105,
+      transparent: true,
+      depthWrite: false,
+      toneMapped: false,
+      side: THREE.DoubleSide,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1
+    })
+    : undefined;
+  const foundationContacts = foundationContactGeometry && foundationContactMaterial
+    ? new THREE.InstancedMesh(
+      foundationContactGeometry,
+      foundationContactMaterial,
+      capacity
+    )
+    : undefined;
+  if (foundationContacts) {
+    foundationContacts.name = 'hegemony-castle-foundation-contact-depth';
+    foundationContacts.count = 0;
+    foundationContacts.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    foundationContacts.frustumCulled = false;
+    foundationContacts.renderOrder = 1;
+    group.add(foundationContacts);
+  }
+
+  const foundationFocusGeometry = new THREE.RingGeometry(0.9, 1, 32);
+  const selectedFoundationMaterial = new THREE.MeshBasicMaterial({
+    color: '#e7d486',
+    opacity: 0.84,
+    transparent: true,
+    depthWrite: false,
+    toneMapped: false,
+    side: THREE.DoubleSide,
+    polygonOffset: true,
+    polygonOffsetFactor: -3,
+    polygonOffsetUnits: -3
+  });
+  const selectedFoundationAccent = new THREE.Mesh(
+    foundationFocusGeometry,
+    selectedFoundationMaterial
+  );
+  selectedFoundationAccent.name = 'hegemony-castle-selected-foundation-accent';
+  selectedFoundationAccent.rotation.x = -Math.PI * 0.5;
+  selectedFoundationAccent.visible = false;
+  selectedFoundationAccent.renderOrder = 3;
+  const hoveredFoundationMaterial = new THREE.MeshBasicMaterial({
+    color: '#a89dbc',
+    opacity: 0.58,
+    transparent: true,
+    depthWrite: false,
+    toneMapped: false,
+    side: THREE.DoubleSide,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2
+  });
+  const hoveredFoundationAccent = new THREE.Mesh(
+    foundationFocusGeometry,
+    hoveredFoundationMaterial
+  );
+  hoveredFoundationAccent.name = 'hegemony-castle-hovered-foundation-accent';
+  hoveredFoundationAccent.rotation.x = -Math.PI * 0.5;
+  hoveredFoundationAccent.visible = false;
+  hoveredFoundationAccent.renderOrder = 2;
+  group.add(selectedFoundationAccent, hoveredFoundationAccent);
+
   // The decorative island mesh is deliberately not a physics collider. A
   // simple, non-rendered oval keeps the whole authored base clickable without
   // letting trees, flowers, or overlapping triangle detail steal identity.
@@ -307,6 +393,7 @@ export function createRealmCastleInstanceLayer(
   );
   const colliderRotation = new THREE.Quaternion();
   const shadowScale = new THREE.Vector3();
+  const foundationRotation = shadowRotation.clone();
   let previousLods: CastleLodState = Object.freeze({});
   let lastPackingKey = '';
   let cleared = false;
@@ -317,6 +404,62 @@ export function createRealmCastleInstanceLayer(
   let frustumVisibleCastleIds: readonly number[] = Object.freeze([]);
   let presentedCastleIds: ReadonlySet<number> | null = null;
   let presentedCastleKey = '*';
+  let selectedAccentCastleId: number | undefined;
+  let hoveredAccentCastleId: number | undefined;
+
+  const syncFoundationFocusAccents = () => {
+    const placeAccent = (
+      mesh: THREE.Mesh,
+      castleId: number | undefined,
+      scaleFactor: number,
+      yOffset: number
+    ) => {
+      const lod = castleId === undefined ? undefined : packing.lodByCastleId[castleId];
+      const castle = castleId === undefined ? undefined : castleById.get(castleId);
+      const envelope = lod
+        ? options.prefabs.get(lod)?.landscapeBaseProjectionEnvelope
+        : undefined;
+      if (!castle || !envelope) {
+        mesh.visible = false;
+        return;
+      }
+      const bounds = envelope.localBounds;
+      const halfX = Math.max(0.05, (bounds.maxX - bounds.minX) * 0.5);
+      const halfZ = Math.max(0.05, (bounds.maxZ - bounds.minZ) * 0.5);
+      mesh.position.set(
+        castle.x + (bounds.minX + bounds.maxX) * 0.5,
+        castle.groundY + CASTLE_GROUND_LIFT + yOffset,
+        castle.z + (bounds.minZ + bounds.maxZ) * 0.5
+      );
+      mesh.scale.set(halfX * scaleFactor, halfZ * scaleFactor, 1);
+      mesh.visible = true;
+    };
+    placeAccent(selectedFoundationAccent, selectedAccentCastleId, 1.1, 0.012);
+    placeAccent(
+      hoveredFoundationAccent,
+      hoveredAccentCastleId === selectedAccentCastleId
+        ? undefined
+        : hoveredAccentCastleId,
+      1.055,
+      0.009
+    );
+  };
+
+  const setSelectedCastleId = (castleId: number | null) => {
+    if (cleared) return;
+    selectedAccentCastleId = castleId !== null && castleById.has(castleId)
+      ? castleId
+      : undefined;
+    syncFoundationFocusAccents();
+  };
+
+  const setHoveredCastleId = (castleId: number | null) => {
+    if (cleared) return;
+    hoveredAccentCastleId = castleId !== null && castleById.has(castleId)
+      ? castleId
+      : undefined;
+    syncFoundationFocusAccents();
+  };
 
   const update = (
     camera: THREE.PerspectiveCamera,
@@ -324,6 +467,7 @@ export function createRealmCastleInstanceLayer(
     selectedCastleId?: number
   ) => {
     if (cleared) return;
+    setSelectedCastleId(selectedCastleId ?? null);
     camera.updateMatrixWorld();
     viewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     frustum.setFromProjectionMatrix(viewProjection);
@@ -415,6 +559,33 @@ export function createRealmCastleInstanceLayer(
     contactShadows.instanceMatrix.needsUpdate = true;
     contactShadows.computeBoundingSphere();
 
+    if (foundationContacts) {
+      let contactInstanceId = 0;
+      CASTLE_LODS.forEach((lod) => {
+        const envelope = options.prefabs.get(lod)?.landscapeBaseProjectionEnvelope;
+        if (!envelope) return;
+        const bounds = envelope.localBounds;
+        const halfX = Math.max(0.05, (bounds.maxX - bounds.minX) * 0.5);
+        const halfZ = Math.max(0.05, (bounds.maxZ - bounds.minZ) * 0.5);
+        const centerX = (bounds.minX + bounds.maxX) * 0.5;
+        const centerZ = (bounds.minZ + bounds.maxZ) * 0.5;
+        packing.buckets[lod].forEach((entry) => {
+          shadowPosition.set(
+            entry.data.x + centerX,
+            entry.data.groundY + CASTLE_GROUND_LIFT + 0.004,
+            entry.data.z + centerZ
+          );
+          shadowScale.set(halfX * 1.055, halfZ * 1.055, 1);
+          instanceMatrix.compose(shadowPosition, foundationRotation, shadowScale);
+          foundationContacts.setMatrixAt(contactInstanceId, instanceMatrix);
+          contactInstanceId += 1;
+        });
+      });
+      foundationContacts.count = contactInstanceId;
+      foundationContacts.instanceMatrix.needsUpdate = true;
+      foundationContacts.computeBoundingSphere();
+    }
+
     let colliderInstanceId = 0;
     baseColliderCastleIds.length = 0;
     CASTLE_LODS.forEach((lod) => {
@@ -443,6 +614,7 @@ export function createRealmCastleInstanceLayer(
     baseColliders.count = colliderInstanceId;
     baseColliders.instanceMatrix.needsUpdate = true;
     baseColliders.computeBoundingSphere();
+    syncFoundationFocusAccents();
   };
 
   const raycast = (raycaster: THREE.Raycaster): RealmCastleInstanceHit | null => {
@@ -491,6 +663,9 @@ export function createRealmCastleInstanceLayer(
       lodMeshes.meshes.forEach((mesh) => { mesh.count = 0; });
     });
     contactShadows.count = 0;
+    if (foundationContacts) foundationContacts.count = 0;
+    selectedFoundationAccent.visible = false;
+    hoveredFoundationAccent.visible = false;
     baseColliders.count = 0;
     baseColliderCastleIds.length = 0;
     frustumVisibleCastleIds = Object.freeze([]);
@@ -513,6 +688,11 @@ export function createRealmCastleInstanceLayer(
     });
     try {
       contactShadows.dispose();
+    } catch (error) {
+      firstError ??= error;
+    }
+    try {
+      foundationContacts?.dispose();
     } catch (error) {
       firstError ??= error;
     }
@@ -618,6 +798,20 @@ export function createRealmCastleInstanceLayer(
     return true;
   };
 
+  const getWorldAccentTelemetry = (): RealmCastleWorldAccentTelemetry => {
+    const foundationContactCount = cleared ? 0 : foundationContacts?.count ?? 0;
+    const selectedAccentCount = Number(!cleared && selectedFoundationAccent.visible);
+    const hoveredAccentCount = Number(!cleared && hoveredFoundationAccent.visible);
+    const focusAccentCount = selectedAccentCount + hoveredAccentCount;
+    return Object.freeze({
+      foundationContactCount,
+      selectedAccentCount,
+      hoveredAccentCount,
+      drawNodeCount: Number(foundationContactCount > 0) + focusAccentCount,
+      triangleCount: foundationContactCount * 28 * 2 + focusAccentCount * 32 * 2
+    });
+  };
+
   return Object.freeze({
     group,
     update,
@@ -643,6 +837,8 @@ export function createRealmCastleInstanceLayer(
       presentedCastleKey = key;
       lastPackingKey = '';
     },
+    setSelectedCastleId,
+    setHoveredCastleId,
     raycast,
     clear,
     dispose: () => {
@@ -666,6 +862,31 @@ export function createRealmCastleInstanceLayer(
         firstError ??= error;
       }
       try {
+        foundationContactGeometry?.dispose();
+      } catch (error) {
+        firstError ??= error;
+      }
+      try {
+        foundationContactMaterial?.dispose();
+      } catch (error) {
+        firstError ??= error;
+      }
+      try {
+        foundationFocusGeometry.dispose();
+      } catch (error) {
+        firstError ??= error;
+      }
+      try {
+        selectedFoundationMaterial.dispose();
+      } catch (error) {
+        firstError ??= error;
+      }
+      try {
+        hoveredFoundationMaterial.dispose();
+      } catch (error) {
+        firstError ??= error;
+      }
+      try {
         baseColliderGeometry.dispose();
       } catch (error) {
         firstError ??= error;
@@ -679,6 +900,7 @@ export function createRealmCastleInstanceLayer(
     },
     getPacking: () => packing,
     getPresentationTelemetry,
+    getWorldAccentTelemetry,
     hasExactCastleLandscapeBasePairing
   });
 }

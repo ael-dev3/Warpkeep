@@ -14,6 +14,7 @@ import {
   WARPKEEP_FARCASTER_CHANNEL_URL,
   WARPKEEP_GITHUB_ISSUE_INTAKE_URL
 } from '../../farcaster/farcasterProjectLinks';
+import type { RealmResourceKind } from './realmTypes';
 
 export type RealmNavigatorCastle = Readonly<{
   castleId: number;
@@ -45,6 +46,15 @@ export type RealmNavigatorWorker = Readonly<{
   ownedByViewer: boolean;
 }>;
 
+export type RealmNavigatorResourceSite = Readonly<{
+  /** Internal stable selection key; never rendered as player-facing copy. */
+  key: string;
+  resource: RealmResourceKind;
+  label: string;
+  tier: number;
+  availability: 'available' | 'occupied' | 'reserved' | 'unavailable';
+}>;
+
 export type RealmNavigatorCloseReason = 'escape' | 'close-button' | 'camera-preset';
 
 export type RealmNavigatorCoordinateJump = Readonly<{
@@ -64,16 +74,21 @@ export type RealmAccessibilityControlsProps = Readonly<{
   open: boolean;
   castles: readonly RealmNavigatorCastle[];
   workers?: readonly RealmNavigatorWorker[];
+  resourceSites?: readonly RealmNavigatorResourceSite[];
   waterBodies?: readonly RealmNavigatorWaterBody[];
   ownCastleId?: number;
   selectedCastleId?: number;
   selectedWorkerId?: string;
+  selectedResourceKey?: string;
   onRequestOpen: () => void;
   onRequestClose: (reason: RealmNavigatorCloseReason) => void;
   onActivateCastle: (castle: RealmNavigatorCastle) => void;
   onActivateWorker?: (worker: RealmNavigatorWorker) => void;
+  onActivateResourceSite?: (site: RealmNavigatorResourceSite) => void;
   onActivateWaterCell?: (cellKey: string) => void;
   coordinateJump?: RealmNavigatorCoordinateJump;
+  /** Enables operator-only q/r search, labels, and coordinate navigation. */
+  showDiagnostics?: boolean;
   cameraPresets?: readonly RealmNavigatorCameraPreset[];
   /** Player chrome may provide its own PFP launcher while reusing this dialog. */
   triggerVisible?: boolean;
@@ -84,6 +99,23 @@ export type RealmAccessibilityControlsProps = Readonly<{
   triggerRef?: RefObject<HTMLButtonElement | null>;
 }>;
 
+const RESOURCE_SITE_KIND_LABELS: Readonly<Record<RealmResourceKind, string>> =
+  Object.freeze({
+    gold: 'Gold Mine',
+    food: 'Wheat Farm',
+    wood: 'Logging Camp',
+    stone: 'Stone Quarry'
+  });
+
+const RESOURCE_SITE_AVAILABILITY_LABELS: Readonly<
+  Record<RealmNavigatorResourceSite['availability'], string>
+> = Object.freeze({
+  available: 'Available',
+  occupied: 'Occupied',
+  reserved: 'Reserved',
+  unavailable: 'Unavailable'
+});
+
 function strictInteger(value: string) {
   const normalized = value.trim();
   if (!/^-?\d+$/.test(normalized)) return undefined;
@@ -91,9 +123,11 @@ function strictInteger(value: string) {
   return Number.isSafeInteger(parsed) ? parsed : undefined;
 }
 
-function searchCopy(castle: RealmNavigatorCastle) {
-  return `${castle.label} ${castle.name} ${castle.q},${castle.r} q ${castle.q} r ${castle.r}`
-    .toLocaleLowerCase();
+function searchCopy(castle: RealmNavigatorCastle, showDiagnostics: boolean) {
+  const spatialCopy = showDiagnostics
+    ? ` ${castle.q},${castle.r} q ${castle.q} r ${castle.r}`
+    : '';
+  return `${castle.label} ${castle.name}${spatialCopy}`.toLocaleLowerCase();
 }
 
 export function RealmAccessibilityControls({
@@ -101,16 +135,20 @@ export function RealmAccessibilityControls({
   open,
   castles,
   workers = [],
+  resourceSites = [],
   waterBodies = [],
   ownCastleId,
   selectedCastleId,
   selectedWorkerId,
+  selectedResourceKey,
   onRequestOpen,
   onRequestClose,
   onActivateCastle,
   onActivateWorker,
+  onActivateResourceSite,
   onActivateWaterCell,
   coordinateJump,
+  showDiagnostics = false,
   cameraPresets = [],
   triggerVisible = true,
   triggerRef
@@ -153,31 +191,47 @@ export function RealmAccessibilityControls({
   const visibleCastles = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
     return query
-      ? castles.filter((castle) => searchCopy(castle).includes(query))
+      ? castles.filter((castle) => searchCopy(castle, showDiagnostics).includes(query))
       : castles;
-  }, [castles, search]);
+  }, [castles, search, showDiagnostics]);
   const visibleWaterBodies = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
     return query
       ? waterBodies.filter((body) => (
-        `${body.label} ${body.sourceCoord.q},${body.sourceCoord.r} ${body.mouthCoord.q},${body.mouthCoord.r}`
+        `${body.label}${showDiagnostics
+          ? ` ${body.sourceCoord.q},${body.sourceCoord.r} ${body.mouthCoord.q},${body.mouthCoord.r}`
+          : ''}`
           .toLocaleLowerCase()
           .includes(query)
       ))
       : waterBodies;
-  }, [search, waterBodies]);
+  }, [search, showDiagnostics, waterBodies]);
   const visibleWorkers = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
     return query
       ? workers.filter((worker) => (
         `worker ${worker.ordinal} ${worker.originCastleName} ${worker.status} ${
-          worker.coord ? `${worker.coord.q},${worker.coord.r}` : 'current route position'
+          showDiagnostics && worker.coord
+            ? `${worker.coord.q},${worker.coord.r}`
+            : worker.coord ? 'origin keep' : 'current route position'
         }`
           .toLocaleLowerCase()
           .includes(query)
       ))
       : workers;
-  }, [search, workers]);
+  }, [search, showDiagnostics, workers]);
+  const visibleResourceSites = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase();
+    return query
+      ? resourceSites.filter((site) => (
+        `${RESOURCE_SITE_KIND_LABELS[site.resource]} ${site.label} tier ${site.tier} ${
+          RESOURCE_SITE_AVAILABILITY_LABELS[site.availability]
+        }`
+          .toLocaleLowerCase()
+          .includes(query)
+      ))
+      : resourceSites;
+  }, [resourceSites, search]);
 
   const handleDialogKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key !== 'Escape') return;
@@ -305,7 +359,9 @@ export function RealmAccessibilityControls({
             autoComplete="off"
             value={search}
             onChange={(event) => setSearch(event.currentTarget.value)}
-            placeholder="Player, castle, worker, resource, water, or coordinates"
+            placeholder={showDiagnostics
+              ? 'Player, castle, worker, resource, water, or coordinates'
+              : 'Player, castle, worker, resource, or water'}
           />
 
           {visibleCastles.length > 0 ? (
@@ -320,14 +376,16 @@ export function RealmAccessibilityControls({
                   <li key={castle.castleId}>
                     <button
                       type="button"
-                      aria-label={`Inspect ${castle.label}, ${castle.name}, q ${castle.q}, r ${castle.r}${status ? `, ${status}` : ''}`}
+                      aria-label={`Inspect ${castle.label}, ${castle.name}${showDiagnostics
+                        ? `, q ${castle.q}, r ${castle.r}`
+                        : ''}${status ? `, ${status}` : ''}`}
                       aria-pressed={selected}
                       data-own={own ? 'true' : 'false'}
                       onClick={() => onActivateCastle(castle)}
                     >
                       <strong>{castle.label}</strong>
                       <span>{castle.name}</span>
-                      <small>q {castle.q} · r {castle.r}</small>
+                      {showDiagnostics ? <small>q {castle.q} · r {castle.r}</small> : null}
                       {own ? <em>YOUR CASTLE</em> : null}
                       {selected ? <em>SELECTED</em> : null}
                     </button>
@@ -349,8 +407,10 @@ export function RealmAccessibilityControls({
               <ul className="realm-cell-navigator__castles" aria-label="Public workers">
                 {visibleWorkers.map((worker) => {
                   const selected = worker.workerId === selectedWorkerId;
-                  const locationLabel = worker.coord
+                  const locationLabel = showDiagnostics && worker.coord
                     ? `q ${worker.coord.q}, r ${worker.coord.r}`
+                    : worker.coord
+                      ? 'at origin keep'
                     : 'current route position';
                   return (
                     <li key={worker.workerId}>
@@ -364,11 +424,47 @@ export function RealmAccessibilityControls({
                         <strong>Worker {worker.ordinal}</strong>
                         <span>{worker.originCastleName}</span>
                         <small>
-                          {worker.status.toLocaleUpperCase()} · {worker.coord
-                            ? `q ${worker.coord.q} · r ${worker.coord.r}`
-                            : 'CURRENT ROUTE POSITION'}
+                          {worker.status.toLocaleUpperCase()} · {
+                            showDiagnostics && worker.coord
+                              ? `q ${worker.coord.q} · r ${worker.coord.r}`
+                              : worker.coord ? 'ORIGIN KEEP' : 'CURRENT ROUTE POSITION'
+                          }
                         </small>
                         {worker.ownedByViewer ? <em>YOUR WORKER</em> : null}
+                        {selected ? <em>SELECTED</em> : null}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ) : null}
+
+          {visibleResourceSites.length > 0 && onActivateResourceSite ? (
+            <section
+              className="realm-cell-navigator__workers realm-cell-navigator__resources"
+              aria-label="Public resource sites"
+            >
+              <span>RESOURCE SITES</span>
+              <ul className="realm-cell-navigator__castles" aria-label="Public resource sites">
+                {visibleResourceSites.map((site) => {
+                  const selected = site.key === selectedResourceKey;
+                  const availabilityLabel =
+                    RESOURCE_SITE_AVAILABILITY_LABELS[site.availability];
+                  return (
+                    <li key={site.key}>
+                      <button
+                        aria-label={`Inspect ${site.label}, tier ${site.tier}, ${availabilityLabel}${selected ? ', selected' : ''}`}
+                        aria-pressed={selected}
+                        className="realm-cell-navigator__resource-site"
+                        data-resource-kind={site.resource}
+                        data-resource-state={site.availability}
+                        onClick={() => onActivateResourceSite(site)}
+                        type="button"
+                      >
+                        <strong>{site.label}</strong>
+                        <span>Tier {site.tier}</span>
+                        <small>{availabilityLabel.toLocaleUpperCase()}</small>
                         {selected ? <em>SELECTED</em> : null}
                       </button>
                     </li>
@@ -386,7 +482,11 @@ export function RealmAccessibilityControls({
                   <li key={body.bodyId}>
                     <div className="realm-cell-navigator__water-row">
                       <strong>{body.label}</strong>
-                      <small>source {body.sourceCoord.q},{body.sourceCoord.r} · mouth {body.mouthCoord.q},{body.mouthCoord.r}</small>
+                      <small>
+                        {showDiagnostics
+                          ? `source ${body.sourceCoord.q},${body.sourceCoord.r} · mouth ${body.mouthCoord.q},${body.mouthCoord.r}`
+                          : 'Source and mouth records'}
+                      </small>
                       <div>
                         <button type="button" onClick={() => onActivateWaterCell(body.sourceCellKey)}>SOURCE</button>
                         <button type="button" onClick={() => onActivateWaterCell(body.mouthCellKey)}>MOUTH</button>
@@ -398,7 +498,7 @@ export function RealmAccessibilityControls({
             </section>
           ) : null}
 
-          {coordinateJump ? (
+          {showDiagnostics && coordinateJump ? (
             <form className="realm-cell-navigator__jump" onSubmit={handleJump}>
               <fieldset>
                 <legend>Jump to a realm coordinate</legend>

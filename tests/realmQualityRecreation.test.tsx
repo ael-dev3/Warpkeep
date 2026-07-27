@@ -22,9 +22,24 @@ const mocked = vi.hoisted(() => {
       siteId: string;
       coord: { q: number; r: number };
     }[];
+    stoneNodes?: readonly {
+      availability: 'available' | 'outbound' | 'gathering' | 'returning' | 'unavailable';
+    }[];
+    workers?: readonly {
+      workerId: string;
+      status: 'idle' | 'outbound' | 'gathering' | 'returning';
+    }[];
     quality: { id: string };
     reducedMotion: boolean;
+    onCameraModeChange?: (mode: 'realm' | 'approach' | 'keep') => void;
+    onWorldSelectionFeedback?: (point: { x: number; y: number }) => void;
     onCastlesReady?: (castleCount: number) => void;
+    onRendererFailure?: (failure: {
+      code: string;
+      retryable: boolean;
+      phase: 'probing' | 'loading' | 'ready' | 'recovering';
+      message: string;
+    }) => void;
     onCastlePresentationTelemetry?: (telemetry: {
       presentedModelCount: number;
       presentedLandscapeBaseCount: number;
@@ -97,10 +112,15 @@ const mocked = vi.hoisted(() => {
   };
   const handles: Array<{
     dispose: ReturnType<typeof vi.fn>;
+    setPresentationActive: ReturnType<typeof vi.fn>;
+    reconcileLiveGatheringState: ReturnType<typeof vi.fn>;
+    getCameraAttestation: ReturnType<typeof vi.fn>;
+    restoreCameraAttestation: ReturnType<typeof vi.fn>;
     focusCastle: ReturnType<typeof vi.fn>;
     locateCastle: ReturnType<typeof vi.fn>;
     locateWorker: ReturnType<typeof vi.fn>;
     getWorkerCurrentCoord: ReturnType<typeof vi.fn>;
+    locateCell: ReturnType<typeof vi.fn>;
     focusCell: ReturnType<typeof vi.fn>;
     frameFoundingDistrict: ReturnType<typeof vi.fn>;
     focusKeep: ReturnType<typeof vi.fn>;
@@ -117,10 +137,15 @@ const mocked = vi.hoisted(() => {
   const createRealmScene = vi.fn((_options: MockSceneOptions) => {
     const handle = {
       dispose: vi.fn(),
+      setPresentationActive: vi.fn(),
+      reconcileLiveGatheringState: vi.fn(),
+      getCameraAttestation: vi.fn(() => ({ marker: 'camera-attestation' })),
+      restoreCameraAttestation: vi.fn(),
       focusCastle: vi.fn(),
       locateCastle: vi.fn(),
       locateWorker: vi.fn(() => ({ q: 1, r: 0 })),
       getWorkerCurrentCoord: vi.fn(() => ({ q: 1, r: 0 })),
+      locateCell: vi.fn(),
       focusCell: vi.fn(),
       frameFoundingDistrict: vi.fn(),
       focusKeep: vi.fn(),
@@ -473,7 +498,13 @@ function workerOccupationRealm(
     ownCastleId: snapshot.ownCastle.castleId,
     system: snapshot.workerSystem,
     workers: snapshot.workerWorkers,
-    occupations: snapshot.workerOccupations
+    occupations: snapshot.workerOccupations,
+    resourceSites: [{
+      resourceKind: 'stone',
+      siteId: site.siteId,
+      q: site.q,
+      r: site.r
+    }]
   });
   if (!publicProjection) throw new Error('missing ready public worker fixture projection');
   const workerProjection: ReadyWorkerProjection = Object.freeze({
@@ -580,6 +611,36 @@ afterEach(() => {
 });
 
 describe('live realm quality recreation', () => {
+  it('retires an assigned scene when initial interaction synchronization throws', () => {
+    installWebGlProbe();
+    const defaultCreate = mocked.createRealmScene.getMockImplementation();
+    if (!defaultCreate) throw new Error('missing default scene mock');
+    mocked.createRealmScene.mockImplementationOnce((options) => {
+      const handle = defaultCreate(options);
+      handle.setSelected.mockImplementationOnce(() => {
+        throw new Error('Synthetic interaction synchronization failure.');
+      });
+      return handle;
+    });
+
+    render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={createCanonicalGenesisSnapshot(CANONICAL_TEST_FID)}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+
+    const realm = screen.getByRole('main', { name: 'Hegemony realm' });
+    expect(mocked.handles[0]!.setPresentationActive)
+      .toHaveBeenCalledWith(false);
+    expect(mocked.handles[0]!.dispose).toHaveBeenCalledOnce();
+    expect(mocked.createRealmScene).toHaveBeenCalledTimes(2);
+    expect(realm.dataset.realmSceneDisposalCount).toBe('1');
+    expect(realm.dataset.rendererState).toBe('loading');
+  });
+
   it('defaults an unoverridden Realm view to high quality', () => {
     installWebGlProbe();
     render(
@@ -592,6 +653,60 @@ describe('live realm quality recreation', () => {
 
     expect(mocked.createRealmScene).toHaveBeenCalledOnce();
     expect(mocked.createRealmScene.mock.calls[0]![0].quality.id).toBe('high');
+  });
+
+  it('mirrors the active semantic camera mode and presentation band on the realm root', () => {
+    installWebGlProbe();
+    render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={createCanonicalGenesisSnapshot(CANONICAL_TEST_FID)}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+
+    const options = mocked.createRealmScene.mock.calls[0]![0];
+    act(() => options.onCastlesReady?.(1));
+    const realm = screen.getByRole('main', { name: 'Hegemony realm' });
+    expect(realm.getAttribute('data-realm-camera-mode')).toBe('realm');
+    expect(realm.getAttribute('data-realm-camera-presentation-band')).toBe('overview');
+
+    act(() => options.onCameraModeChange?.('approach'));
+    expect(realm.getAttribute('data-realm-camera-mode')).toBe('approach');
+    expect(realm.getAttribute('data-realm-camera-presentation-band')).toBe('strategy');
+
+    act(() => options.onCameraModeChange?.('keep'));
+    expect(realm.getAttribute('data-realm-camera-mode')).toBe('keep');
+    expect(realm.getAttribute('data-realm-camera-presentation-band')).toBe('close');
+    expect(mocked.createRealmScene).toHaveBeenCalledOnce();
+  });
+
+  it('renders one bounded reduced-motion-safe confirmation for a valid world selection', async () => {
+    installWebGlProbe();
+    render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={createCanonicalGenesisSnapshot(CANONICAL_TEST_FID)}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+    const options = mocked.createRealmScene.mock.calls[0]![0];
+    act(() => {
+      options.onCastlesReady?.(1);
+      options.onWorldSelectionFeedback?.({ x: 144, y: 212 });
+    });
+
+    const feedback = document.querySelector<HTMLElement>(
+      '[data-realm-world-selection-feedback="true"]'
+    );
+    expect(feedback?.style.getPropertyValue('--realm-selection-feedback-x')).toBe('144px');
+    expect(feedback?.style.getPropertyValue('--realm-selection-feedback-y')).toBe('212px');
+    await waitFor(() => {
+      expect(document.querySelector('[data-realm-world-selection-feedback="true"]')).toBeNull();
+    });
+    expect(mocked.createRealmScene).toHaveBeenCalledOnce();
   });
 
   it('does not create a WebGL scene for an unbranded snapshot', () => {
@@ -660,7 +775,6 @@ describe('live realm quality recreation', () => {
       />
     );
 
-    const scene = mocked.handles[0]!;
     const options = mocked.createRealmScene.mock.calls[0]![0];
     act(() => options.onCastlesReady?.(1));
     animationFrames.flush();
@@ -680,26 +794,16 @@ describe('live realm quality recreation', () => {
 
     act(() => options.onTargetSelect?.({ kind: 'terrain', coord: lakeCell }));
     expect(selectionAnnouncement().textContent).toContain(
-      `Temperate Lowlands. Selected cell ${lakeCell.q}, ${lakeCell.r}`
+      'Temperate Lowlands. Terrain selected.'
     );
 
     openPlayerExplore();
     animationFrames.flush();
-    fireEvent.change(screen.getByRole('textbox', { name: 'q coordinate' }), {
-      target: { value: String(lakeCell.q) }
-    });
-    fireEvent.change(screen.getByRole('textbox', { name: 'r coordinate' }), {
-      target: { value: String(lakeCell.r) }
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'JUMP TO CELL' }));
-    expect(scene.focusCell).not.toHaveBeenCalled();
-    animationFrames.flush();
-    expect(scene.focusCell).toHaveBeenLastCalledWith({ q: lakeCell.q, r: lakeCell.r });
-    expect(scene.setComposition.mock.invocationCallOrder.at(-1))
-      .toBeLessThan(scene.focusCell.mock.invocationCallOrder.at(-1)!);
+    expect(screen.queryByRole('textbox', { name: 'q coordinate' })).toBeNull();
+    expect(screen.queryByRole('textbox', { name: 'r coordinate' })).toBeNull();
   });
 
-  it('passes canonical Water phase inputs and recreates when body metadata is refreshed', () => {
+  it('pins canonical Water phase inputs across identical-content metadata clones', () => {
     installWebGlProbe();
     const snapshot = waterRevisionRealm(true);
     const { rerender } = render(
@@ -733,13 +837,43 @@ describe('live realm quality recreation', () => {
       />
     );
 
-    expect(mocked.createRealmScene).toHaveBeenCalledTimes(2);
-    expect(mocked.handles[0]!.dispose).toHaveBeenCalledOnce();
-    expect(mocked.createRealmScene.mock.calls[1]![0].waterBodies)
-      .toBe(refreshedSnapshot.waterBodies);
+    expect(mocked.createRealmScene).toHaveBeenCalledOnce();
+    expect(mocked.handles[0]!.dispose).not.toHaveBeenCalled();
+    expect(firstOptions.waterBodies).not.toBe(refreshedSnapshot.waterBodies);
   });
 
-  it('disposes one scene, preserves selection, and mounts the requested model tier', () => {
+  it('replaces the scene when the recognized canonical Water revision changes', () => {
+    installWebGlProbe();
+    const baseWater = waterRevisionRealm(false);
+    const revisedWater = waterRevisionRealm(true);
+    const { rerender } = render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={baseWater}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+    act(() => mocked.createRealmScene.mock.calls[0]![0].onCastlesReady?.(1));
+
+    rerender(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={revisedWater}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+
+    expect(mocked.createRealmScene).toHaveBeenCalledTimes(2);
+    expect(mocked.handles[0]!.dispose).not.toHaveBeenCalled();
+    expect(mocked.createRealmScene.mock.calls[1]![0].waterCells)
+      .not.toBe(mocked.createRealmScene.mock.calls[0]![0].waterCells);
+    act(() => mocked.createRealmScene.mock.calls[1]![0].onCastlesReady?.(1));
+    expect(mocked.handles[0]!.dispose).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the ready scene visible until a quality replacement is ready, then retires it', () => {
     installWebGlProbe();
     const snapshot = createCanonicalGenesisSnapshot(CANONICAL_TEST_FID);
     const { rerender } = render(
@@ -752,12 +886,43 @@ describe('live realm quality recreation', () => {
     );
     expect(mocked.createRealmScene).toHaveBeenCalledOnce();
     expect(mocked.createRealmScene.mock.calls[0]![0].quality.id).toBe('high');
-    act(() => mocked.createRealmScene.mock.calls[0]![0].onCastlesReady?.(1));
-
     const realm = screen.getByRole('main', { name: 'Hegemony realm' });
+    expect(screen.getByText('Surveying the bright lowlands…')).not.toBeNull();
+    expect(realm.dataset.realmSceneCreationCount).toBe('1');
+    expect(realm.dataset.realmSceneDisposalCount).toBe('0');
+    expect(realm.dataset.realmLastSceneRecreationReason).toBe('initial-entry');
+    const initialOptions = mocked.createRealmScene.mock.calls[0]![0];
+    act(() => {
+      initialOptions.onCastlesReady?.(1);
+      initialOptions.onCastlePresentationTelemetry?.({
+        presentedModelCount: 1,
+        presentedLandscapeBaseCount: 1,
+        raycastTargetCount: 1
+      });
+      initialOptions.onCastleProjection?.({
+        width: 1_200,
+        height: 800,
+        castles: [{
+          castleId: snapshot.ownCastle.castleId,
+          q: snapshot.ownCastle.q,
+          r: snapshot.ownCastle.r,
+          x: 240,
+          y: 180,
+          distance: 4,
+          visible: true,
+          presented: true
+        }]
+      });
+    });
+    expect(screen.queryByText('Surveying the bright lowlands…')).toBeNull();
+    expect(realm.dataset.realmBlockingLoadingOverlayVisible).toBe('false');
+    expect(realm.dataset.realmFirstReady).toBe('true');
+    expect(realm.dataset.presentedModelCount).toBe('1');
+    expect(realm.dataset.labelEligibleCount).toBe('1');
+
     fireEvent.keyDown(realm, { key: 'ArrowRight' });
     expect(selectionAnnouncement().textContent)
-      .toContain('Lowland Forest. Selected cell 1, 0');
+      .toContain('Lowland Forest. Terrain selected.');
 
     rerender(
       <RealmMapScreen
@@ -769,13 +934,377 @@ describe('live realm quality recreation', () => {
     );
     expect(mocked.createRealmScene).toHaveBeenCalledTimes(2);
     expect(mocked.createRealmScene.mock.calls[1]![0].quality.id).toBe('balanced');
-    expect(mocked.handles[0]!.dispose).toHaveBeenCalledOnce();
+    expect(mocked.handles[0]!.dispose).not.toHaveBeenCalled();
+    expect(realm.dataset.rendererState).toBe('loading');
+    expect(realm.dataset.rendererEverReady).toBe('true');
+    expect(realm.dataset.realmBlockingLoadingOverlayVisible).toBe('false');
+    expect(realm.dataset.realmSceneCreationCount).toBe('2');
+    expect(realm.dataset.realmSceneDisposalCount).toBe('0');
+    expect(realm.dataset.realmLastSceneRecreationReason)
+      .toBe('graphics-quality-change');
+    expect(screen.queryByText('Surveying the bright lowlands…')).toBeNull();
+    expect(screen.getByText('Updating Realm visuals…')).not.toBeNull();
+    expect(document.querySelector(
+      'canvas[data-realm-canvas-slot="0"][data-realm-canvas-active="true"]'
+    )).not.toBeNull();
     expect(mocked.handles[1]!.setSelected).toHaveBeenCalledWith({ q: 1, r: 0 });
-    act(() => mocked.createRealmScene.mock.calls[1]![0].onCastlesReady?.(1));
+    const candidateOptions = mocked.createRealmScene.mock.calls[1]![0];
+    act(() => {
+      candidateOptions.onCastlePresentationTelemetry?.({
+        presentedModelCount: 9,
+        presentedLandscapeBaseCount: 9,
+        raycastTargetCount: 9
+      });
+      candidateOptions.onCastleProjection?.({
+        width: 1_200,
+        height: 800,
+        castles: []
+      });
+    });
+    expect(realm.dataset.presentedModelCount).toBe('1');
+    expect(realm.dataset.labelEligibleCount).toBe('1');
+
+    fireEvent.keyDown(realm, { key: 'ArrowRight' });
+    mocked.handles[0]!.getCameraAttestation.mockReturnValue({
+      marker: 'latest-camera-attestation'
+    });
+    act(() => candidateOptions.onCastlesReady?.(1));
+    expect(mocked.handles[1]!.restoreCameraAttestation)
+      .toHaveBeenCalledWith({ marker: 'latest-camera-attestation' });
+    expect(mocked.handles[1]!.setSelected)
+      .toHaveBeenLastCalledWith({ q: 2, r: 0 });
+    expect(mocked.handles[0]!.setPresentationActive)
+      .toHaveBeenLastCalledWith(false);
+    expect(mocked.handles[1]!.setPresentationActive)
+      .toHaveBeenLastCalledWith(true);
+    expect(realm.dataset.presentedModelCount).toBe('9');
+    expect(realm.dataset.labelEligibleCount).toBe('0');
+    expect(realm.dataset.realmCameraAttestationRestoreCount).toBe('1');
+    expect(document.querySelector(
+      'canvas[data-realm-canvas-slot="1"][data-realm-canvas-active="true"]'
+    )).not.toBeNull();
+    expect(mocked.handles[0]!.dispose).toHaveBeenCalledOnce();
+    expect(realm.dataset.realmSceneDisposalCount).toBe('1');
     expect(selectionAnnouncement().textContent)
-      .toContain('Lowland Forest. Selected cell 1, 0');
+      .toContain('Terrain selected.');
     expect(screen.getByRole('main', { name: 'Hegemony realm' }).getAttribute('data-quality'))
       .toBe('balanced');
+  });
+
+  it('keeps the active scene when a hidden replacement loses its context', () => {
+    installWebGlProbe();
+    const snapshot = createCanonicalGenesisSnapshot(CANONICAL_TEST_FID);
+    const { rerender } = render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={snapshot}
+        onRequestReturn={vi.fn()}
+        qualityOverride="high"
+      />
+    );
+    const realm = screen.getByRole('main', { name: 'Hegemony realm' });
+    act(() => mocked.createRealmScene.mock.calls[0]![0].onCastlesReady?.(1));
+    fireEvent.keyDown(realm, { key: 'ArrowRight' });
+
+    rerender(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={snapshot}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+    expect(mocked.createRealmScene).toHaveBeenCalledTimes(2);
+    expect(screen.getByText('Updating Realm visuals…')).not.toBeNull();
+
+    act(() => mocked.createRealmScene.mock.calls[1]![0].onRendererFailure?.({
+      code: 'context-lost',
+      retryable: true,
+      phase: 'loading',
+      message: 'Synthetic candidate context loss.'
+    }));
+
+    expect(mocked.handles[0]!.dispose).not.toHaveBeenCalled();
+    expect(mocked.handles[1]!.dispose).toHaveBeenCalledOnce();
+    expect(realm.dataset.rendererState).toBe('ready');
+    expect(realm.dataset.realmSceneReplacementFailureCount).toBe('1');
+    expect(realm.dataset.realmBlockingLoadingOverlayVisible).toBe('false');
+    expect(screen.queryByText('Updating Realm visuals…')).toBeNull();
+    expect(document.querySelector(
+      'canvas[data-realm-canvas-slot="0"][data-realm-canvas-active="true"]'
+    )).not.toBeNull();
+    expect(selectionAnnouncement().textContent)
+      .toContain('Lowland Forest. Terrain selected.');
+  });
+
+  it('retains a healthy scene when candidate activation rendering fails', () => {
+    installWebGlProbe();
+    const snapshot = createCanonicalGenesisSnapshot(CANONICAL_TEST_FID);
+    const { rerender } = render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={snapshot}
+        onRequestReturn={vi.fn()}
+        qualityOverride="high"
+      />
+    );
+    const realm = screen.getByRole('main', { name: 'Hegemony realm' });
+    act(() => mocked.createRealmScene.mock.calls[0]![0].onCastlesReady?.(1));
+
+    rerender(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={snapshot}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+    const candidateOptions = mocked.createRealmScene.mock.calls[1]![0];
+    mocked.handles[1]!.setPresentationActive.mockImplementationOnce(() => {
+      candidateOptions.onRendererFailure?.({
+        code: 'scene-build-failed',
+        retryable: true,
+        phase: 'loading',
+        message: 'Synthetic activation render failure.'
+      });
+    });
+
+    act(() => candidateOptions.onCastlesReady?.(1));
+
+    expect(mocked.handles[0]!.dispose).not.toHaveBeenCalled();
+    expect(mocked.handles[1]!.dispose).toHaveBeenCalledOnce();
+    expect(realm.dataset.rendererState).toBe('ready');
+    expect(realm.dataset.realmSceneReplacementFailureCount).toBe('1');
+    expect(realm.dataset.realmBlockingLoadingOverlayVisible).toBe('false');
+    expect(screen.queryByText('Updating Realm visuals…')).toBeNull();
+  });
+
+  it('treats a post-swap candidate failure as an active renderer failure', () => {
+    installWebGlProbe();
+    const snapshot = createCanonicalGenesisSnapshot(CANONICAL_TEST_FID);
+    const { rerender } = render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={snapshot}
+        onRequestReturn={vi.fn()}
+        qualityOverride="high"
+      />
+    );
+    const realm = screen.getByRole('main', { name: 'Hegemony realm' });
+    act(() => mocked.createRealmScene.mock.calls[0]![0].onCastlesReady?.(1));
+    rerender(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={snapshot}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+    const candidateOptions = mocked.createRealmScene.mock.calls[1]![0];
+    act(() => candidateOptions.onCastlesReady?.(1));
+    expect(realm.dataset.rendererState).toBe('ready');
+    expect(mocked.handles[0]!.dispose).toHaveBeenCalledOnce();
+
+    act(() => candidateOptions.onRendererFailure?.({
+      code: 'scene-build-failed',
+      retryable: true,
+      phase: 'ready',
+      message: 'Synthetic active replacement failure.'
+    }));
+
+    expect(realm.dataset.realmSceneReplacementFailureCount).toBe('0');
+    expect(realm.dataset.rendererState).not.toBe('ready');
+    expect(realm.dataset.realmBlockingLoadingOverlayVisible).toBe('true');
+    expect(mocked.createRealmScene).toHaveBeenCalledTimes(3);
+  });
+
+  it('does not publish readiness after buffered candidate presentation fails', () => {
+    installWebGlProbe();
+    const snapshot = createCanonicalGenesisSnapshot(CANONICAL_TEST_FID);
+    const { rerender } = render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={snapshot}
+        onRequestReturn={vi.fn()}
+        qualityOverride="high"
+      />
+    );
+    const realm = screen.getByRole('main', { name: 'Hegemony realm' });
+    act(() => mocked.createRealmScene.mock.calls[0]![0].onCastlesReady?.(1));
+    rerender(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={snapshot}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+    const candidateOptions = mocked.createRealmScene.mock.calls[1]![0];
+    act(() => candidateOptions.onCastleProjection?.({
+      width: 1_200,
+      height: 800,
+      castles: [{
+        castleId: snapshot.ownCastle.castleId,
+        q: snapshot.ownCastle.q,
+        r: snapshot.ownCastle.r,
+        x: 260,
+        y: 190,
+        distance: 4,
+        visible: true,
+        presented: true
+      }]
+    }));
+    let activationSetPresentedCalls = 0;
+    mocked.handles[1]!.setPresentedCastleIds.mockImplementation(() => {
+      activationSetPresentedCalls += 1;
+      if (activationSetPresentedCalls !== 2) return;
+      candidateOptions.onRendererFailure?.({
+        code: 'scene-build-failed',
+        retryable: true,
+        phase: 'loading',
+        message: 'Synthetic buffered presentation failure.'
+      });
+    });
+
+    act(() => candidateOptions.onCastlesReady?.(1));
+
+    expect(mocked.handles[0]!.dispose).toHaveBeenCalledOnce();
+    expect(realm.dataset.rendererState).not.toBe('ready');
+    expect(realm.dataset.renderer).toBe('loading');
+    expect(realm.dataset.realmSceneReplacementFailureCount).toBe('0');
+    expect(realm.dataset.realmBlockingLoadingOverlayVisible).toBe('true');
+    expect(mocked.createRealmScene).toHaveBeenCalledTimes(3);
+  });
+
+  it('fails closed when an authoritative topology replacement cannot become ready', () => {
+    installWebGlProbe();
+    const initial = createCanonicalGenesisSnapshot({
+      ownFid: CANONICAL_TEST_FID,
+      peerFid: 77
+    });
+    const moved = movedPeerSnapshot();
+    const { rerender } = render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={initial}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+    const realm = screen.getByRole('main', { name: 'Hegemony realm' });
+    act(() => mocked.createRealmScene.mock.calls[0]![0].onCastlesReady?.(2));
+
+    rerender(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={moved}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+    expect(mocked.createRealmScene).toHaveBeenCalledTimes(2);
+    expect(realm.dataset.realmLastSceneRecreationReason)
+      .toBe('canonical-topology-change');
+    expect(screen.getByText('Updating Realm visuals…')).not.toBeNull();
+
+    act(() => mocked.createRealmScene.mock.calls[1]![0].onRendererFailure?.({
+      code: 'scene-build-failed',
+      retryable: true,
+      phase: 'loading',
+      message: 'Synthetic authoritative replacement failure.'
+    }));
+
+    expect(mocked.handles[0]!.setPresentationActive)
+      .toHaveBeenLastCalledWith(false);
+    expect(mocked.handles[0]!.dispose).toHaveBeenCalledOnce();
+    expect(mocked.handles[1]!.dispose).toHaveBeenCalledOnce();
+    expect(realm.dataset.realmSceneReplacementFailureCount).toBe('1');
+    expect(realm.dataset.realmBlockingLoadingOverlayVisible).toBe('true');
+    expect(realm.dataset.rendererState).not.toBe('ready');
+    expect(realm.dataset.renderer).toBe('loading');
+    expect(screen.queryByText('Updating Realm visuals…')).toBeNull();
+    expect(screen.getByText('RESTORING THE REALM…')).not.toBeNull();
+  });
+
+  it('retires an obsolete pending candidate before a rapid replacement', () => {
+    installWebGlProbe();
+    const snapshot = createCanonicalGenesisSnapshot(CANONICAL_TEST_FID);
+    const { rerender } = render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={snapshot}
+        onRequestReturn={vi.fn()}
+        qualityOverride="high"
+      />
+    );
+    act(() => mocked.createRealmScene.mock.calls[0]![0].onCastlesReady?.(1));
+
+    rerender(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={snapshot}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+    expect(mocked.createRealmScene).toHaveBeenCalledTimes(2);
+    expect(mocked.handles[0]!.dispose).not.toHaveBeenCalled();
+    expect(mocked.handles[1]!.dispose).not.toHaveBeenCalled();
+
+    rerender(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={snapshot}
+        onRequestReturn={vi.fn()}
+        qualityOverride="reduced"
+      />
+    );
+    expect(mocked.createRealmScene).toHaveBeenCalledTimes(3);
+    expect(mocked.handles[1]!.dispose).toHaveBeenCalledOnce();
+    expect(mocked.handles[0]!.dispose).not.toHaveBeenCalled();
+
+    act(() => mocked.createRealmScene.mock.calls[2]![0].onCastlesReady?.(1));
+    expect(mocked.handles[0]!.dispose).toHaveBeenCalledOnce();
+    expect(mocked.handles[2]!.dispose).not.toHaveBeenCalled();
+    const realm = screen.getByRole('main', { name: 'Hegemony realm' });
+    expect(realm.dataset.realmSceneCreationCount).toBe('3');
+    expect(realm.dataset.realmSceneDisposalCount).toBe('2');
+    expect(realm.dataset.rendererState).toBe('ready');
+  });
+
+  it('does not retain a disposed active renderer as recovery continuity', () => {
+    installWebGlProbe();
+    const snapshot = createCanonicalGenesisSnapshot(CANONICAL_TEST_FID);
+    render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={snapshot}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+    const realm = screen.getByRole('main', { name: 'Hegemony realm' });
+    const initialOptions = mocked.createRealmScene.mock.calls[0]![0];
+    act(() => initialOptions.onCastlesReady?.(1));
+
+    act(() => initialOptions.onRendererFailure?.({
+      code: 'scene-build-failed',
+      retryable: true,
+      phase: 'ready',
+      message: 'Synthetic active renderer failure.'
+    }));
+    expect(realm.dataset.rendererState).toBe('loading');
+    expect(realm.dataset.realmSceneDisposalCount).toBe('1');
+    expect(mocked.createRealmScene).toHaveBeenCalledTimes(2);
+    act(() => mocked.createRealmScene.mock.calls[1]![0].onRendererFailure?.({
+      code: 'context-lost',
+      retryable: true,
+      phase: 'loading',
+      message: 'Synthetic retry context loss.'
+    }));
+
+    expect(realm.dataset.rendererState).toBe('recovering');
+    expect(realm.dataset.realmSceneReplacementFailureCount).toBe('0');
   });
 
   it('does not rebuild the renderer for profile/name churn at unchanged castle coordinates', () => {
@@ -809,7 +1338,7 @@ describe('live realm quality recreation', () => {
     expect(mocked.handles[0]!.dispose).not.toHaveBeenCalled();
     openPlayerExplore();
     expect(screen.getByRole('button', {
-      name: /Inspect @peerkeeper, Peer Bastion, q 2, r -1/i
+      name: /Inspect @peerkeeper, Peer Bastion/i
     })).not.toBeNull();
   });
 
@@ -863,6 +1392,113 @@ describe('live realm quality recreation', () => {
     expect(within(record).getByText('@peerharvester')).not.toBeNull();
   });
 
+  it('restores and reconciles the public worker world before private command state is ready', () => {
+    installWebGlProbe();
+    const outbound = peerWorkerOccupationRealm('outbound');
+    const gathering = peerWorkerOccupationRealm('gathering');
+    const { rerender } = render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={outbound.snapshot}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+    act(() => mocked.createRealmScene.mock.calls[0]![0].onCastlesReady?.(2));
+    expect(mocked.createRealmScene.mock.calls[0]![0].workers)
+      .toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          workerId: outbound.activeWorker.workerId,
+          status: 'outbound'
+        })
+      ]));
+    const scene = mocked.handles[0]!;
+    scene.reconcileLiveGatheringState.mockClear();
+
+    rerender(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={outbound.snapshot}
+        workerProjection={outbound.workerProjection}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+    expect(mocked.createRealmScene).toHaveBeenCalledOnce();
+    expect(scene.reconcileLiveGatheringState).not.toHaveBeenCalled();
+
+    rerender(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={gathering.snapshot}
+        workerProjection={gathering.workerProjection}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+
+    expect(mocked.createRealmScene).toHaveBeenCalledOnce();
+    expect(scene.dispose).not.toHaveBeenCalled();
+    expect(scene.reconcileLiveGatheringState).toHaveBeenCalled();
+    expect(scene.reconcileLiveGatheringState.mock.calls.at(-1)?.[0])
+      .toEqual(expect.objectContaining({
+        workers: expect.arrayContaining([
+          expect.objectContaining({
+            workerId: gathering.activeWorker.workerId,
+            status: 'gathering'
+          })
+        ]),
+        resourceOccupants: expect.arrayContaining([
+          expect.objectContaining({
+            siteId: gathering.site.siteId,
+            resource: 'stone'
+          })
+        ])
+      }));
+
+    const descriptors = Object.getOwnPropertyDescriptors(
+      gathering.snapshot
+    ) as PropertyDescriptorMap;
+    descriptors.profiles = {
+      ...descriptors.profiles!,
+      value: Object.freeze(gathering.snapshot.profiles.map((profile) => (
+        profile.fid === 77
+          ? Object.freeze({
+              ...profile,
+              canonicalUsername: 'peerkeeper-refreshed',
+              displayName: 'Peer Keeper Refreshed'
+            })
+          : profile
+      )))
+    };
+    const refreshedProfileSnapshot = Object.freeze(Object.defineProperties(
+      {},
+      descriptors
+    )) as CanonicalWarpkeepRealmSnapshot;
+    scene.reconcileLiveGatheringState.mockClear();
+    rerender(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={refreshedProfileSnapshot}
+        workerProjection={gathering.workerProjection}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+
+    expect(mocked.createRealmScene).toHaveBeenCalledOnce();
+    expect(scene.reconcileLiveGatheringState).toHaveBeenCalled();
+    expect(scene.reconcileLiveGatheringState.mock.calls.at(-1)?.[0].workers)
+      .toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          workerId: gathering.activeWorker.workerId,
+          profile: expect.objectContaining({
+            canonicalUsername: 'peerkeeper-refreshed'
+          })
+        })
+      ]));
+  });
+
   it('rebuilds the scene for a real authoritative castle movement', () => {
     installWebGlProbe();
     const initial = createCanonicalGenesisSnapshot({
@@ -907,16 +1543,25 @@ describe('live realm quality recreation', () => {
         qualityOverride="balanced"
       />
     );
-    expect(mocked.createRealmScene.mock.calls[0]![0].reducedMotion).toBe(false);
+    const firstOptions = mocked.createRealmScene.mock.calls[0]![0];
+    expect(firstOptions.reducedMotion).toBe(false);
+    act(() => firstOptions.onCastlesReady?.(1));
 
-    const loadingReturn = screen.getByRole('button', { name: 'Return to Menu' });
-    loadingReturn.focus();
+    const menuTrigger = playerMenuTrigger();
+    menuTrigger.focus();
     act(() => motion.set(true));
 
-    expect(mocked.handles[0]!.dispose).toHaveBeenCalledOnce();
+    const realm = screen.getByRole('main', { name: 'Hegemony realm' });
+    expect(mocked.handles[0]!.dispose).not.toHaveBeenCalled();
     expect(mocked.createRealmScene).toHaveBeenCalledTimes(2);
     expect(mocked.createRealmScene.mock.calls[1]![0].reducedMotion).toBe(true);
-    expect(document.activeElement).toBe(loadingReturn);
+    expect(realm.dataset.realmLastSceneRecreationReason)
+      .toBe('reduced-motion-material-change');
+    expect(screen.queryByText('Surveying the bright lowlands…')).toBeNull();
+    expect(document.activeElement).toBe(menuTrigger);
+    act(() => mocked.createRealmScene.mock.calls[1]![0].onCastlesReady?.(1));
+    expect(mocked.handles[0]!.dispose).toHaveBeenCalledOnce();
+    expect(document.activeElement).toBe(menuTrigger);
 
     unmount();
     expect(motion.preference.removeEventListener).toHaveBeenCalledOnce();
@@ -960,8 +1605,11 @@ describe('live realm quality recreation', () => {
     );
 
     expect(mocked.createRealmScene).toHaveBeenCalledTimes(2);
+    expect(mocked.handles[0]!.dispose).not.toHaveBeenCalled();
     expect(mocked.handles[1]!.focusCastle).not.toHaveBeenCalled();
     expect(mocked.handles[1]!.frameFoundingDistrict).toHaveBeenCalled();
+    act(() => mocked.createRealmScene.mock.calls[1]![0].onCastlesReady?.(2));
+    expect(mocked.handles[0]!.dispose).toHaveBeenCalledOnce();
   });
 
   it('restores a resource-record castle location without turning it into close castle focus', async () => {
@@ -971,7 +1619,6 @@ describe('live realm quality recreation', () => {
       <RealmMapScreen
         identity={IDENTITY}
         snapshot={fixture.snapshot}
-        workerProjection={fixture.workerProjection}
         onRequestReturn={vi.fn()}
         qualityOverride="balanced"
       />
@@ -980,6 +1627,7 @@ describe('live realm quality recreation', () => {
     const initialScene = mocked.handles[0]!;
     act(() => {
       initialOptions.onCastlesReady?.(2);
+      initialOptions.onCameraModeChange?.('approach');
       initialOptions.onResourceProjection?.({
         width: 1_200,
         height: 800,
@@ -1019,12 +1667,14 @@ describe('live realm quality recreation', () => {
     );
 
     expect(mocked.createRealmScene).toHaveBeenCalledTimes(2);
+    expect(initialScene.dispose).not.toHaveBeenCalled();
     act(() => mocked.createRealmScene.mock.calls[1]![0].onCastlesReady?.(2));
     expect(mocked.handles[1]!.locateCastle).toHaveBeenCalledWith(2);
     expect(mocked.handles[1]!.focusCastle).not.toHaveBeenCalled();
     expect(document.querySelector(
       '.stone-quarry-inspection [data-resource-occupant-details="true"]'
     )).not.toBeNull();
+    expect(initialScene.dispose).toHaveBeenCalledOnce();
   });
 
   it('returns an owner legacy expedition only after the private/public timeline joins exactly', async () => {
@@ -1294,6 +1944,7 @@ describe('live realm quality recreation', () => {
 
     act(() => {
       options.onCastlesReady?.(fixture.snapshot.castles.length);
+      options.onCameraModeChange?.('approach');
       options.onCastleProjection?.(projection(0, false));
       options.onResourceProjection?.({
         width: 1_200,
@@ -1387,7 +2038,7 @@ describe('live realm quality recreation', () => {
     expect(scene.setHovered.mock.invocationCallOrder.at(-1))
       .toBeLessThan(scene.setHoveredWorkerId.mock.invocationCallOrder.at(-1)!);
     expect(selectionAnnouncement().textContent)
-      .toContain('Warpkeeper Bastion. Your keep is selected at cell 0, 0');
+      .toContain('Warpkeeper Bastion. Your keep is selected.');
     expect(screen.queryByRole('button', { name: 'CLOSE RECORD' })).toBeNull();
 
     act(() => {
@@ -1400,7 +2051,7 @@ describe('live realm quality recreation', () => {
 
     expect(screen.getByRole('button', { name: 'CLOSE RECORD' })).not.toBeNull();
     expect(selectionAnnouncement().textContent)
-      .toContain('Peer Watch. Selected castle at cell 2, -1');
+      .toContain('Peer Watch. Selected castle.');
     expect(scene.setSelectedCastleId).toHaveBeenLastCalledWith(2);
     expect(scene.focusCastle).not.toHaveBeenCalled();
     expect(document.querySelector('.castle-inspection.realm-camera-neutral-inspector'))
@@ -1436,6 +2087,7 @@ describe('live realm quality recreation', () => {
     };
     act(() => {
       options.onCastlesReady?.(2);
+      options.onCameraModeChange?.('approach');
       options.onResourceProjection?.(projection);
     });
 
@@ -1458,6 +2110,9 @@ describe('live realm quality recreation', () => {
     expect(screen.queryByRole('dialog', { name: 'Explore' })).toBeNull();
 
     act(() => options.onResourceProjection?.(projection));
+    expect(document.querySelectorAll(
+      `[data-resource-occupant-key="stone:${fixture.site.siteId}"]`
+    )).toHaveLength(1);
     const projectedMarker = screen.getByRole('button', {
       name: /Inspect @peerkeeper gathering at Stone Quarry/i
     });
@@ -1506,14 +2161,13 @@ describe('live realm quality recreation', () => {
     expect(onRequestReturn).toHaveBeenCalledOnce();
   });
 
-  it('routes every outbound worker activation to its one canonical resource record', () => {
+  it('routes every outbound worker activation to its one canonical resource record', async () => {
     installWebGlProbe();
     const fixture = peerWorkerOccupationRealm('outbound');
     render(
       <RealmMapScreen
         identity={IDENTITY}
         snapshot={fixture.snapshot}
-        workerProjection={fixture.workerProjection}
         onRequestReturn={vi.fn()}
         qualityOverride="balanced"
       />
@@ -1521,7 +2175,10 @@ describe('live realm quality recreation', () => {
 
     const options = mocked.createRealmScene.mock.calls[0]![0];
     const scene = mocked.handles[0]!;
-    act(() => options.onCastlesReady?.(2));
+    act(() => {
+      options.onCastlesReady?.(2);
+      options.onCameraModeChange?.('approach');
+    });
 
     act(() => options.onTargetSelect?.({
       kind: 'worker',
@@ -1565,9 +2222,12 @@ describe('live realm quality recreation', () => {
         'i'
       )
     }));
-    expect(screen.getByRole('dialog', { name: 'Stone Quarry' })
-      .querySelector('[data-resource-occupant-details="true"]')).not.toBeNull();
-    expect(scene.locateWorker).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'Stone Quarry' })
+        .querySelector('[data-resource-occupant-details="true"]')).not.toBeNull();
+    });
+    expect(scene.locateWorker).toHaveBeenCalledOnce();
+    expect(scene.focusCell).not.toHaveBeenCalled();
     expect(document.querySelector('.worker-inspection')).toBeNull();
   });
 
@@ -1578,7 +2238,6 @@ describe('live realm quality recreation', () => {
       <RealmMapScreen
         identity={IDENTITY}
         snapshot={fixture.snapshot}
-        workerProjection={fixture.workerProjection}
         onRequestReturn={vi.fn()}
         qualityOverride="balanced"
       />
@@ -1603,17 +2262,17 @@ describe('live realm quality recreation', () => {
       <RealmMapScreen
         identity={IDENTITY}
         snapshot={fixture.snapshot}
-        workerProjection={fixture.workerProjection}
         onRequestReturn={vi.fn()}
         qualityOverride="high"
       />
     );
 
     expect(mocked.createRealmScene).toHaveBeenCalledTimes(2);
-    expect(mocked.handles[0]!.dispose).toHaveBeenCalledOnce();
+    expect(mocked.handles[0]!.dispose).not.toHaveBeenCalled();
     expect(mocked.handles[1]!.setSelectedWorkerRouteId)
       .toHaveBeenLastCalledWith(fixture.activeWorker.workerId);
     act(() => mocked.createRealmScene.mock.calls[1]![0].onCastlesReady?.(2));
+    expect(mocked.handles[0]!.dispose).toHaveBeenCalledOnce();
     expect(screen.getByRole('dialog', { name: 'Stone Quarry' })).not.toBeNull();
   });
 
@@ -1630,7 +2289,6 @@ describe('live realm quality recreation', () => {
       <RealmMapScreen
         identity={IDENTITY}
         snapshot={fixture.snapshot}
-        workerProjection={fixture.workerProjection}
         onRequestReturn={vi.fn()}
         qualityOverride="balanced"
       />
@@ -1695,7 +2353,14 @@ describe('live realm quality recreation', () => {
     });
 
     expect(screen.getByRole('dialog', { name: 'Stone Quarry' })).not.toBeNull();
-    expect(screen.getByText(/authoritative worker roster/i)).not.toBeNull();
+    const workerList = screen.getByRole('list', {
+      name: /Your workers for this Stone site/i
+    });
+    expect(within(workerList).getAllByRole('listitem')).toHaveLength(4);
+    expect(within(workerList).getAllByRole('button').every(
+      (button) => button.hasAttribute('disabled')
+    )).toBe(true);
+    expect(screen.getByText(/Synchronizing worker controls/i)).not.toBeNull();
     expect(screen.queryByRole('button', { name: /dispatch wagon/i })).toBeNull();
     expect(dispatch).not.toHaveBeenCalled();
   });
@@ -1708,10 +2373,15 @@ describe('live realm quality recreation', () => {
     );
     if (!unoccupied) throw new Error('missing fail-closed Stone site fixture');
     const dispatch = vi.fn(async () => undefined);
+    const dispatchWorker = vi.fn(async () => undefined);
+    const recallWorker = vi.fn(async () => undefined);
     render(
       <RealmMapScreen
         identity={IDENTITY}
         snapshot={fixture.snapshot}
+        workerProjection={fixture.workerProjection}
+        onDispatchWorker={dispatchWorker}
+        onRecallWorker={recallWorker}
         onDispatchStoneExpedition={dispatch}
         onRequestReturn={vi.fn()}
         qualityOverride="balanced"
@@ -1719,6 +2389,8 @@ describe('live realm quality recreation', () => {
     );
 
     const options = mocked.createRealmScene.mock.calls[0]![0];
+    expect(options.workers).toEqual([]);
+    expect(options.stoneNodes?.every((node) => node.availability === 'unavailable')).toBe(true);
     act(() => {
       options.onCastlesReady?.(2);
       options.onTargetSelect?.({
@@ -1734,9 +2406,15 @@ describe('live realm quality recreation', () => {
     expect(within(dialog).queryByText('AVAILABLE')).toBeNull();
     expect(within(dialog).getByText(/not presented as available/i)).not.toBeNull();
     expect(within(dialog).queryByRole('button', { name: /dispatch wagon/i })).toBeNull();
+    expect(within(dialog).queryByRole('button', { name: /send worker/i })).toBeNull();
     expect(dispatch).not.toHaveBeenCalled();
+    expect(dispatchWorker).not.toHaveBeenCalled();
+    expect(recallWorker).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: 'CLOSE STONE QUARRY RECORD' }));
+    fireEvent.click(screen.getByRole('button', { name: /Open Realm menu/i }));
+    expect(screen.getByText(/Worker presentation is temporarily unavailable/i)).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Close Realm menu' }));
     act(() => options.onTargetSelect?.({
       kind: 'worker',
       workerId: fixture.activeWorker.workerId,
@@ -1833,6 +2511,7 @@ describe('live realm quality recreation', () => {
     );
 
     expect(mocked.createRealmScene).toHaveBeenCalledTimes(2);
+    expect(initialScene.dispose).not.toHaveBeenCalled();
     act(() => mocked.createRealmScene.mock.calls[1]![0].onCastlesReady?.(1));
     expect(initialScene.dispose).toHaveBeenCalledOnce();
     expect(mocked.handles[1]!.focusCell).not.toHaveBeenCalled();
@@ -1942,7 +2621,7 @@ describe('live realm quality recreation', () => {
       });
     });
 
-    const pendingLabelName = /Inspect Hegemony Keep castle, Peer Watch, cell 2,-1/i;
+    const pendingLabelName = /Inspect Hegemony Keep castle, Peer Watch/i;
     await waitFor(() => expect(screen.getByRole('button', {
       name: pendingLabelName
     }).dataset.focused).toBe('false'));
@@ -2053,7 +2732,7 @@ describe('live realm quality recreation', () => {
       });
     });
     const label = await screen.findByRole('button', {
-      name: /Inspect Hegemony Keep castle, Peer Watch, cell 2,-1/i
+      name: /Inspect Hegemony Keep castle, Peer Watch/i
     });
     act(() => {
       options.onTargetHover?.({ kind: 'castle', castleId: 2, coord: { q: 2, r: -1 } });
@@ -2095,13 +2774,13 @@ describe('live realm quality recreation', () => {
     expect(mocked.createRealmScene).toHaveBeenCalledOnce();
     expect(renderCommits.mock.calls.length - commitsBeforeStress).toBeLessThanOrEqual(2);
     expect(selectionAnnouncement().textContent)
-      .toContain('Warpkeeper Bastion. Your keep is selected at cell 0, 0');
+      .toContain('Warpkeeper Bastion. Your keep is selected.');
     expect(screen.queryByRole('button', { name: 'CLOSE RECORD' })).toBeNull();
     expect(consoleError).not.toHaveBeenCalled();
     expect(consoleWarn).not.toHaveBeenCalled();
   });
 
-  it('focuses a validated navigator coordinate and returns keyboard focus to the map', () => {
+  it('keeps validated coordinate navigation in the explicit QA observer', () => {
     installWebGlProbe();
     const animationFrames = installAnimationFrameQueue();
     render(
@@ -2109,6 +2788,7 @@ describe('live realm quality recreation', () => {
         identity={IDENTITY}
         snapshot={createCanonicalGenesisSnapshot(CANONICAL_TEST_FID)}
         onRequestReturn={vi.fn()}
+        presentationMode="observer"
         qualityOverride="balanced"
       />
     );
@@ -2117,7 +2797,7 @@ describe('live realm quality recreation', () => {
     act(() => options.onCastlesReady?.(1));
     animationFrames.flush();
 
-    openPlayerExplore();
+    fireEvent.click(screen.getByRole('button', { name: /Explore realm/i }));
     animationFrames.flush();
     fireEvent.change(screen.getByRole('textbox', { name: 'q coordinate' }), {
       target: { value: '20' }
@@ -2127,15 +2807,16 @@ describe('live realm quality recreation', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'JUMP TO CELL' }));
 
-    expect(scene.focusCell).not.toHaveBeenCalled();
+    expect(scene.locateCell).not.toHaveBeenCalled();
     animationFrames.flush();
-    expect(scene.focusCell).toHaveBeenCalledWith({ q: 20, r: -22 });
+    expect(scene.locateCell).toHaveBeenCalledWith({ q: 20, r: -22 });
     expect(scene.setComposition.mock.invocationCallOrder.at(-1))
-      .toBeLessThan(scene.focusCell.mock.invocationCallOrder.at(-1)!);
+      .toBeLessThan(scene.locateCell.mock.invocationCallOrder.at(-1)!);
     expect(screen.queryByRole('dialog', { name: 'Explore' })).toBeNull();
-    expect(selectionAnnouncement().textContent)
-      .toContain('Selected cell 20, -22');
-    expect(document.activeElement).toBe(screen.getByRole('main', { name: 'Hegemony realm' }));
+    expect(screen.getByText(/q 20, r -22/i)).not.toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole('main', {
+      name: 'Hegemony realm QA observer'
+    }));
   });
 
   it('activates a selected terrain cell from the keyboard without opening an inspector', () => {
@@ -2158,7 +2839,7 @@ describe('live realm quality recreation', () => {
 
     expect(scene.focusCell).toHaveBeenCalledWith({ q: 1, r: 0 });
     expect(selectionAnnouncement().textContent)
-      .toContain('Lowland Forest. Selected cell 1, 0');
+      .toContain('Lowland Forest. Terrain selected.');
     expect(screen.queryByRole('button', { name: 'CLOSE RECORD' })).toBeNull();
   });
 });

@@ -8,7 +8,10 @@ import {
   retainCastleProjectionWhileOccupiedResourceInspectorOpen
 } from '../src/components/realm/realmMeasuredComposition';
 import type { RealmIdentity } from '../src/components/realm/realmTypes';
-import { createRenderedWebglQaFixtureRealm } from '../src/dev/renderedWebglQaFixture';
+import {
+  createRenderedWebglQaActiveWorkerRealm,
+  createRenderedWebglQaFixtureRealm
+} from '../src/dev/renderedWebglQaFixture';
 import type { CanonicalWarpkeepRealmSnapshot } from '../src/spacetime/warpkeepBackendTypes';
 import {
   CANONICAL_TEST_FID,
@@ -226,8 +229,11 @@ describe('RealmMapScreen', () => {
     expect(authoritative?.getAttribute('points')?.split(' ').length).toBeLessThan(100);
     expect(container.querySelectorAll('polygon[data-realm-cell]')).toHaveLength(0);
     expect(container.querySelectorAll('.realm-map-screen__fallback-selection')).toHaveLength(1);
+    const realm = screen.getByRole('main', { name: 'Hegemony realm' });
+    expect(realm.getAttribute('data-realm-camera-mode')).toBe('realm');
+    expect(realm.getAttribute('data-realm-camera-presentation-band')).toBe('overview');
     expect(selectionAnnouncement().textContent)
-      .toContain('Warpkeeper Bastion. Your keep is selected at cell 0, 0');
+      .toContain('Warpkeeper Bastion. Your keep is selected.');
     expect(screen.queryByRole('button', { name: /Explore realm/i })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Return to Menu' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Recenter Keep' })).toBeNull();
@@ -242,7 +248,7 @@ describe('RealmMapScreen', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('button', {
-        name: 'Inspect Hegemony Keep castle, Peer Watch, cell 2,-1'
+        name: 'Inspect Hegemony Keep castle, Peer Watch'
       })).not.toBeNull();
     });
     expect(document.querySelector('.realm-map-screen__fallback-peer-castle'))
@@ -251,7 +257,7 @@ describe('RealmMapScreen', () => {
     const { trigger, explore } = openPlayerExplore();
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
     const peer = within(explore).getByRole('button', {
-      name: /Inspect Hegemony Keep, Peer Watch, q 2, r -1/i
+      name: /Inspect Hegemony Keep, Peer Watch/i
     });
 
     peer.focus();
@@ -262,10 +268,69 @@ describe('RealmMapScreen', () => {
     expect(screen.queryByRole('dialog', { name: 'Explore' })).toBeNull();
     const record = screen.getByRole('dialog', { name: 'Peer Watch' });
     expect(within(record).getByText('Peer Watch')).not.toBeNull();
-    expect(within(record).getByText('q 2 · r -1')).not.toBeNull();
+    expect(within(record).queryByText('q 2 · r -1')).toBeNull();
     expect(selectionAnnouncement().textContent)
-      .toContain('Peer Watch. Selected castle at cell 2, -1');
+      .toContain('Peer Watch. Selected castle.');
     expect(screen.getByRole('button', { name: 'CLOSE RECORD' })).toBe(document.activeElement);
+  });
+
+  it('keeps player Explore useful through semantic resource sites without exposing q/r navigation', () => {
+    renderFallbackRealm(createRenderedWebglQaFixtureRealm());
+
+    const { explore } = openPlayerExplore();
+    expect(within(explore).queryByText('GO TO CELL')).toBeNull();
+    expect(within(explore).queryByLabelText('Q coordinate')).toBeNull();
+    expect(within(explore).queryByLabelText('R coordinate')).toBeNull();
+
+    const resourceSites = [
+      ...explore.querySelectorAll<HTMLButtonElement>(
+        '.realm-cell-navigator__resource-site'
+      )
+    ];
+    expect(resourceSites.length).toBeGreaterThan(0);
+    for (const site of resourceSites) {
+      expect(['food', 'wood', 'stone', 'gold']).toContain(
+        site.getAttribute('data-resource-kind')
+      );
+      expect(['available', 'occupied', 'reserved', 'unavailable']).toContain(
+        site.getAttribute('data-resource-state')
+      );
+      expect(site.getAttributeNames().some((name) => (
+        name.includes('site-id') || name.includes('resource-key')
+      ))).toBe(false);
+    }
+
+    const wheatFarm = resourceSites.find((site) => (
+      site.getAttribute('data-resource-kind') === 'food'
+    ));
+    expect(wheatFarm).toBeDefined();
+    fireEvent.click(wheatFarm!);
+
+    expect(screen.queryByRole('dialog', { name: 'Explore' })).toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Wheat Farm' })).not.toBeNull();
+  });
+
+  it('reconciles generic Worker occupations into semantic Explore site state', () => {
+    const realm = createRenderedWebglQaActiveWorkerRealm();
+    renderFallbackRealm({ identity: realm.identity, snapshot: realm.snapshot });
+
+    const { explore } = openPlayerExplore();
+    const occupiedSites = [
+      ...explore.querySelectorAll<HTMLButtonElement>(
+        '.realm-cell-navigator__resource-site[data-resource-state="occupied"]'
+      )
+    ];
+    expect(occupiedSites).toHaveLength(2);
+    expect(occupiedSites.every((site) => (
+      site.getAttribute('data-resource-kind') === 'gold'
+    ))).toBe(true);
+    expect(occupiedSites.every((site) => (
+      (site.getAttribute('aria-label') ?? '').includes('Occupied')
+    ))).toBe(true);
+
+    fireEvent.click(occupiedSites[0]);
+    expect(screen.queryByRole('dialog', { name: 'Explore' })).toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Gold Mine' })).not.toBeNull();
   });
 
   it('keeps fallback markers and labels bounded to the same cropped region', async () => {
@@ -305,7 +370,7 @@ describe('RealmMapScreen', () => {
     expect(screen.queryByRole('dialog', { name: 'Explore' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'CLOSE RECORD' })).toBeNull();
     expect(selectionAnnouncement().textContent)
-      .toContain('Warpkeeper Bastion. Your keep is selected at cell 0, 0');
+      .toContain('Warpkeeper Bastion. Your keep is selected.');
     expect(explore.isConnected).toBe(false);
     await waitFor(() => expect(document.activeElement).toBe(trigger));
   });
@@ -320,13 +385,13 @@ describe('RealmMapScreen', () => {
     const { explore } = openPlayerExplore();
     fireEvent.click(within(explore).getByRole(
       'button',
-      { name: /Inspect Hegemony Keep, Peer Watch, q 2, r -1/i }
+      { name: /Inspect Hegemony Keep, Peer Watch/i }
     ));
     fireEvent.click(screen.getByRole('button', { name: 'CLOSE RECORD' }));
 
     await waitFor(() => {
       const label = screen.queryByRole('button', {
-        name: /Inspect Hegemony Keep castle, Peer Watch, cell 2,-1/i
+        name: /Inspect Hegemony Keep castle, Peer Watch/i
       });
       expect(document.activeElement).toBe(label ?? screen.getByRole('main', { name: 'Hegemony realm' }));
     });
@@ -340,10 +405,10 @@ describe('RealmMapScreen', () => {
     const currentSelection = selectionAnnouncement;
 
     expect(currentSelection().textContent)
-      .toContain('Warpkeeper Bastion. Your keep is selected at cell 0, 0');
+      .toContain('Warpkeeper Bastion. Your keep is selected.');
     fireEvent.keyDown(realm, { key: 'ArrowRight' });
 
-    expect(currentSelection().textContent).toContain('Lowland Forest. Selected cell 1, 0');
+    expect(currentSelection().textContent).toContain('Lowland Forest. Terrain selected.');
     expect(marker.getAttribute('transform')).toBe(markerTransform);
     expect(screen.queryByRole('dialog')).toBeNull();
 
@@ -351,7 +416,7 @@ describe('RealmMapScreen', () => {
     const home = within(dialog).getByRole('button', { name: /MY KEEP/i });
     fireEvent.click(home);
     expect(currentSelection().textContent)
-      .toContain('Warpkeeper Bastion. Your keep is selected at cell 0, 0');
+      .toContain('Warpkeeper Bastion. Your keep is selected.');
     expect(marker.getAttribute('transform')).toBe(markerTransform);
   });
 
@@ -363,7 +428,7 @@ describe('RealmMapScreen', () => {
       })
     });
     const peer = await waitFor(() => screen.getByRole('button', {
-      name: 'Inspect Hegemony Keep castle, Peer Watch, cell 2,-1'
+      name: 'Inspect Hegemony Keep castle, Peer Watch'
     }));
     fireEvent.click(peer);
     expect(screen.getByRole('dialog', { name: 'Peer Watch' })).not.toBeNull();
@@ -373,7 +438,7 @@ describe('RealmMapScreen', () => {
 
     expect(screen.queryByRole('dialog', { name: 'Peer Watch' })).toBeNull();
     expect(selectionAnnouncement().textContent)
-      .toContain('Warpkeeper Bastion. Your keep is selected at cell 0, 0');
+      .toContain('Warpkeeper Bastion. Your keep is selected.');
     await waitFor(() => expect(document.activeElement).toBe(trigger));
   });
 
@@ -402,7 +467,7 @@ describe('RealmMapScreen', () => {
 
     const { explore } = openPlayerExplore();
     fireEvent.click(within(explore).getByRole('button', {
-      name: /Inspect Hegemony Keep, Warpkeeper Bastion, q 0, r 0, your castle/i
+      name: /Inspect Hegemony Keep, Warpkeeper Bastion, your castle/i
     }));
     expect(screen.getByRole('dialog', { name: 'Warpkeeper Bastion' })).not.toBeNull();
 
@@ -420,7 +485,7 @@ describe('RealmMapScreen', () => {
 
     const realm = screen.getByRole('main', { name: 'Hegemony realm' });
     expect(selectionAnnouncement().textContent)
-      .toContain('Warpkeeper Bastion. Your keep is selected at cell 0, 0');
+      .toContain('Warpkeeper Bastion. Your keep is selected.');
     fireEvent.keyDown(realm, { key: 'Enter' });
     expect(screen.getByRole('dialog', { name: 'Warpkeeper Bastion' })).not.toBeNull();
 

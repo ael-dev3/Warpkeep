@@ -366,4 +366,19 @@ describe('realm interaction state', () => {
     expect(location.selectedCastle).toBeNull();
   });
 
+  it('retains a zoom-preserving cell-location target for explicit navigation recovery', () => {
+    const initial = createRealmInteractionState({ q: 0, r: 0 });
+    const location = realmInteractionReducer(initial, {
+      type: 'set-camera-target',
+      target: { kind: 'cell-location', coord: { q: -8, r: 5 } }
+    });
+
+    expect(location.cameraTarget).toEqual({
+      kind: 'cell-location',
+      coord: { q: -8, r: 5 }
+    });
+    expect(location.inspectorOpen).toBe(false);
+    expect(location.selectedCastle).toBeNull();
+  });
+
 });

@@ -3,7 +3,6 @@ import {
   useEffect,
   useRef,
   useState,
-  type ReactNode,
   type Ref
 } from 'react';
 
@@ -20,6 +19,7 @@ import {
 } from './realmResourceOccupantInspector';
 import { useRealmRemainingDuration } from './realmAuthoritySchedule';
 import { RealmResourceOccupantDetails } from './RealmResourceOccupantDetails';
+import { RealmRecordField } from './RealmRecordPrimitives';
 import {
   RealmNodeWorkerDispatch,
   type RealmNodeWorkerDispatchHandler
@@ -31,18 +31,6 @@ import type {
   RealmWorkerPublicPresentation
 } from './realmWorkerPresentation';
 import './LoggingCampInspectionPanel.css';
-
-function InspectionField({
-  label,
-  children
-}: Readonly<{ label: string; children: ReactNode }>) {
-  return (
-    <div className="gold-mine-inspection__field">
-      <dt>{label}</dt>
-      <dd>{children}</dd>
-    </div>
-  );
-}
 
 function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
   if (typeof ref === 'function') ref(value);
@@ -78,6 +66,8 @@ export type LoggingCampInspectionPanelProps = Readonly<{
   workers?: readonly RealmWorkerPublicPresentation[];
   /** Authenticated generic-worker reducer boundary. */
   onDispatchWorker?: RealmNodeWorkerDispatchHandler;
+  /** Localized generic-worker command synchronization state. */
+  workerControlsStatus?: string;
   /** Exact owner-private legacy expedition joined to this public site. */
   legacyExpeditionId?: string;
   onReturnLegacyExpedition?: (
@@ -90,6 +80,8 @@ export type LoggingCampInspectionPanelProps = Readonly<{
   onDispatchWoodExpedition?: (siteId: string) => Promise<void>;
   onRequestClose: () => void;
   focusTargetRef?: Ref<HTMLButtonElement>;
+  /** Enables operator-only spatial diagnostics in nested public records. */
+  showDiagnostics?: boolean;
 }>;
 
 function nodeNotice(
@@ -141,12 +133,14 @@ export function LoggingCampInspectionPanel({
   onRecallWorker,
   workers,
   onDispatchWorker,
+  workerControlsStatus,
   legacyExpeditionId,
   onReturnLegacyExpedition,
   privateExpedition,
   onDispatchWoodExpedition,
   onRequestClose,
-  focusTargetRef
+  focusTargetRef,
+  showDiagnostics = false
 }: LoggingCampInspectionPanelProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [dispatchState, setDispatchState] = useState<
@@ -161,8 +155,7 @@ export function LoggingCampInspectionPanel({
   const genericWorkerDispatch = occupant === undefined
     && !occupancyUnavailable
     && node?.availability === 'available'
-    && workers !== undefined
-    && onDispatchWorker !== undefined;
+    && workers !== undefined;
   const scheduleTimestamp = occupant
     ? undefined
     : node ? woodNodeNextAuthorityTimestamp(node) : undefined;
@@ -285,29 +278,37 @@ export function LoggingCampInspectionPanel({
             all gathering operations are determined by the Realm.
           </p>
           <dl className="gold-mine-inspection__fields" aria-label="Logging Camp record">
-            <InspectionField label="Resource">Wood</InspectionField>
-            <InspectionField label="Node tier">{camp.tier}</InspectionField>
+            <RealmRecordField className="gold-mine-inspection__field" label="Resource">
+              Wood
+            </RealmRecordField>
+            <RealmRecordField className="gold-mine-inspection__field" label="Node tier">
+              {camp.tier}
+            </RealmRecordField>
             {node ? (
-              <InspectionField label="Site state">
+              <RealmRecordField className="gold-mine-inspection__field" label="Site state">
                 {occupancyUnavailable
                   ? 'OCCUPANCY UNAVAILABLE'
                   : occupant
                   ? realmResourceOccupantSiteStateLabel(occupant)
                   : woodNodeAvailabilityLabel(node.availability)}
-              </InspectionField>
+              </RealmRecordField>
             ) : null}
             {!occupancyUnavailable && (occupant || node?.originCastle) ? (
-              <InspectionField label="Occupied by">
+              <RealmRecordField className="gold-mine-inspection__field" label="Occupied by">
                 {occupant
                   ? realmResourceOccupantOwnerLabel(occupant)
                   : node?.occupiedByViewer ? 'Your expedition' : node?.originCastle?.name}
-              </InspectionField>
+              </RealmRecordField>
             ) : null}
             {!occupancyUnavailable && node ? (
-              <InspectionField label="Gather rate">+1 Wood / minute</InspectionField>
+              <RealmRecordField className="gold-mine-inspection__field" label="Gather rate">
+                +1 Wood / minute
+              </RealmRecordField>
             ) : null}
             {scheduleLabel ? (
-              <InspectionField label="Realm schedule">{scheduleLabel}</InspectionField>
+              <RealmRecordField className="gold-mine-inspection__field" label="Realm schedule">
+                {scheduleLabel}
+              </RealmRecordField>
             ) : null}
           </dl>
           {occupant ? (
@@ -316,19 +317,24 @@ export function LoggingCampInspectionPanel({
               marker={occupant}
               onFocusCastle={onFocusOccupantCastle}
               onRecallWorker={onRecallWorker}
+              controlsStatus={workerControlsStatus}
               legacyExpeditionId={legacyExpeditionId}
               onReturnLegacyExpedition={onReturnLegacyExpedition}
+              showDiagnostics={showDiagnostics}
             />
           ) : null}
           <p className="gold-mine-inspection__notice">
             {genericWorkerDispatch
-              ? 'This Camp is available. Choose a ready worker below; the Realm confirms the assignment.'
+              ? workerControlsStatus
+                ? 'This Camp is available. Public workers remain visible while dispatch controls synchronize.'
+                : 'This Camp is available. Choose a ready worker below; the Realm confirms the assignment.'
               : nodeNotice(node, occupant, dispatchBlocked, occupancyUnavailable)}
           </p>
           {genericWorkerDispatch ? (
             <RealmNodeWorkerDispatch
               focusFallbackRef={closeButtonRef}
               id={`${id}-wood`}
+              controlsStatus={workerControlsStatus}
               onDispatchWorker={onDispatchWorker}
               resourceKind="wood"
               siteId={node.siteId}

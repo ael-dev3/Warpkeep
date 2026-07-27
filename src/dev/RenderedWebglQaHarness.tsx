@@ -255,6 +255,19 @@ export function RenderedWebglQaHarness({
           workerResourceState={presentationMode === 'player'
             ? phase.realm.workerResourceState
             : undefined}
+          workerPrivateSync={presentationMode === 'player' && phase.realm.workerProjection
+            ? Object.freeze({
+                phase: 'ready',
+                attempt: 1,
+                queuedRefresh: false,
+                retainedStale: false,
+                localizedFailureCount: 0,
+                commandsEnabled: true,
+                lastSuccessGeneration: 1,
+                lastSuccessRevision: 'synthetic-current',
+                readyLatencyMilliseconds: 0
+              })
+            : undefined}
           workerRoster={presentationMode === 'player'
             ? phase.realm.workerRoster
             : undefined}

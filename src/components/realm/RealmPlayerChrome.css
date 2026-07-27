@@ -207,7 +207,10 @@
   position: absolute;
   top: max(4.55rem, calc(env(safe-area-inset-top) + 4.55rem));
   left: max(0.72rem, env(safe-area-inset-left));
-  width: min(18rem, calc(100vw - 1.44rem));
+  width: min(
+    18rem,
+    calc(100vw - 1.44rem - env(safe-area-inset-left) - env(safe-area-inset-right))
+  );
   max-height: calc(100svh - 5.4rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   box-sizing: border-box;
   padding: 0.85rem;
@@ -297,6 +300,33 @@
   line-height: 1.4;
 }
 
+.realm-profile-menu__worker-sync {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.52rem 0.62rem;
+  border: 1px solid rgb(202 166 236 / 30%);
+  border-radius: 0.45rem;
+  background: rgb(74 47 93 / 22%);
+  color: #e3d7e9;
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+
+.realm-profile-menu__worker-sync p {
+  margin: 0;
+}
+
+.realm-profile-menu__panel nav .realm-profile-menu__worker-sync button {
+  width: max-content;
+  min-height: 2.75rem;
+  padding: 0.38rem 0.52rem;
+  border-color: rgb(231 199 121 / 34%);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
 .realm-profile-menu__active-wagons > p {
   margin: 0 0 0.08rem;
   color: var(--realm-lavender);
@@ -311,6 +341,78 @@
   line-height: 1.35;
 }
 
+.realm-profile-menu__patch-notes {
+  border: 1px solid rgb(181 146 211 / 20%);
+  border-radius: 0.5rem;
+  background: rgb(255 255 255 / 2%);
+}
+
+.realm-profile-menu__patch-notes summary {
+  position: relative;
+  display: grid;
+  min-height: 2.75rem;
+  box-sizing: border-box;
+  padding: 0.56rem 0.7rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.realm-profile-menu__patch-notes summary::-webkit-details-marker {
+  display: none;
+}
+
+.realm-profile-menu__patch-notes summary::after {
+  position: absolute;
+  align-self: center;
+  justify-self: end;
+  color: #d4b8ef;
+  content: "+";
+  font-size: 1rem;
+}
+
+.realm-profile-menu__patch-notes[open] summary::after {
+  content: "−";
+}
+
+.realm-profile-menu__patch-notes summary:focus-visible {
+  border-radius: 0.5rem;
+  outline: 2px solid #f0d58c;
+  outline-offset: 2px;
+}
+
+.realm-profile-menu__patch-notes summary strong {
+  padding-right: 1.4rem;
+  color: #d8cfdc;
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+}
+
+.realm-profile-menu__patch-notes summary span {
+  margin-top: 0.16rem;
+  padding-right: 1.4rem;
+  color: #bdb2c4;
+  font-size: 0.68rem;
+}
+
+.realm-profile-menu__patch-notes > div {
+  padding: 0.15rem 0.72rem 0.72rem;
+  border-top: 1px solid rgb(181 146 211 / 14%);
+  color: #cec3d2;
+  font-size: 0.7rem;
+  line-height: 1.42;
+}
+
+.realm-profile-menu__patch-notes p {
+  margin: 0.55rem 0;
+}
+
+.realm-profile-menu__patch-notes ul {
+  display: grid;
+  gap: 0.38rem;
+  margin: 0;
+  padding-left: 1rem;
+}
+
 .realm-profile-menu__panel nav button {
   display: grid;
   min-height: 3.2rem;
@@ -321,6 +423,38 @@
   color: #fff7e5;
   text-align: left;
   cursor: pointer;
+}
+
+.realm-profile-menu__panel nav button[data-command-intent="primary"] {
+  border-color: rgb(231 199 121 / 48%);
+  background:
+    linear-gradient(100deg, rgb(120 70 142 / 52%), rgb(80 45 98 / 22%));
+  box-shadow: inset 0 1px 0 rgb(255 239 194 / 10%);
+}
+
+.realm-profile-menu__panel nav button[data-command-intent="recall"] {
+  border-color: rgb(224 181 104 / 38%);
+  background:
+    linear-gradient(100deg, rgb(119 74 42 / 42%), rgb(74 45 35 / 16%));
+}
+
+.realm-profile-menu__panel nav button[data-command-intent="activity"] {
+  border-color: rgb(181 146 211 / 28%);
+}
+
+.realm-profile-menu__panel nav button[data-command-intent="secondary"],
+.realm-profile-menu__panel nav button[data-command-intent="exit"] {
+  min-height: 2.75rem;
+  background: rgb(255 255 255 / 2%);
+}
+
+.realm-profile-menu__panel nav button[data-command-intent="exit"] {
+  border-color: rgb(206 166 166 / 18%);
+}
+
+.realm-profile-menu__panel nav button[data-command-intent="secondary"] strong,
+.realm-profile-menu__panel nav button[data-command-intent="exit"] strong {
+  color: #d8cfdc;
 }
 
 .realm-profile-menu__panel nav strong {
@@ -384,7 +518,10 @@
   .realm-profile-menu__panel {
     top: max(4.25rem, calc(env(safe-area-inset-top) + 4.25rem));
     left: max(0.55rem, env(safe-area-inset-left));
-    width: min(18rem, calc(100vw - 1.1rem));
+    width: min(
+      18rem,
+      calc(100vw - 1.1rem - env(safe-area-inset-left) - env(safe-area-inset-right))
+    );
   }
 }
 
@@ -402,6 +539,12 @@
 
   .realm-resource-rail strong {
     min-width: 0;
+  }
+}
+
+@media (max-width: 360px) {
+  .realm-resource-rail {
+    top: calc(max(0.42rem, env(safe-area-inset-top)) + 3.45rem);
   }
 }
 
@@ -443,7 +586,11 @@
 
 @media (prefers-reduced-motion: reduce) {
   .realm-profile-trigger,
+  .realm-resource-tooltip,
+  .realm-profile-menu__panel,
   .realm-profile-menu__panel nav button {
+    animation: none;
+    scroll-behavior: auto;
     transition: none;
   }
 }

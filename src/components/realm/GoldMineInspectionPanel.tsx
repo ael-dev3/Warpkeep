@@ -3,7 +3,6 @@ import {
   useEffect,
   useRef,
   useState,
-  type ReactNode,
   type Ref
 } from 'react';
 
@@ -20,6 +19,7 @@ import {
 } from './realmResourceOccupantInspector';
 import { useRealmRemainingDuration } from './realmAuthoritySchedule';
 import { RealmResourceOccupantDetails } from './RealmResourceOccupantDetails';
+import { RealmRecordField } from './RealmRecordPrimitives';
 import {
   RealmNodeWorkerDispatch,
   type RealmNodeWorkerDispatchHandler
@@ -31,18 +31,6 @@ import type {
   RealmWorkerPublicPresentation
 } from './realmWorkerPresentation';
 import './GoldMineInspectionPanel.css';
-
-function InspectionField({
-  label,
-  children
-}: Readonly<{ label: string; children: ReactNode }>) {
-  return (
-    <div className="gold-mine-inspection__field">
-      <dt>{label}</dt>
-      <dd>{children}</dd>
-    </div>
-  );
-}
 
 function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
   if (typeof ref === 'function') {
@@ -84,6 +72,8 @@ export type GoldMineInspectionPanelProps = Readonly<{
   workers?: readonly RealmWorkerPublicPresentation[];
   /** Authenticated generic-worker reducer boundary. */
   onDispatchWorker?: RealmNodeWorkerDispatchHandler;
+  /** Localized generic-worker command synchronization state. */
+  workerControlsStatus?: string;
   /** Exact owner-private legacy expedition joined to this public site. */
   legacyExpeditionId?: string;
   onReturnLegacyExpedition?: (
@@ -101,6 +91,8 @@ export type GoldMineInspectionPanelProps = Readonly<{
   onDispatchGoldExpedition?: (siteId: string) => Promise<void>;
   onRequestClose: () => void;
   focusTargetRef?: Ref<HTMLButtonElement>;
+  /** Enables operator-only spatial diagnostics in nested public records. */
+  showDiagnostics?: boolean;
 }>;
 
 function nodeNotice(
@@ -150,12 +142,14 @@ export function GoldMineInspectionPanel({
   onRecallWorker,
   workers,
   onDispatchWorker,
+  workerControlsStatus,
   legacyExpeditionId,
   onReturnLegacyExpedition,
   privateExpedition,
   onDispatchGoldExpedition,
   onRequestClose,
-  focusTargetRef
+  focusTargetRef,
+  showDiagnostics = false
 }: GoldMineInspectionPanelProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [dispatchState, setDispatchState] = useState<
@@ -170,8 +164,7 @@ export function GoldMineInspectionPanel({
   const genericWorkerDispatch = occupant === undefined
     && !occupancyUnavailable
     && node?.availability === 'available'
-    && workers !== undefined
-    && onDispatchWorker !== undefined;
+    && workers !== undefined;
   const scheduleTimestamp = occupant
     ? undefined
     : node ? goldNodeNextAuthorityTimestamp(node) : undefined;
@@ -294,29 +287,37 @@ export function GoldMineInspectionPanel({
             gathering operations are determined in the Realm.
           </p>
           <dl className="gold-mine-inspection__fields" aria-label="Gold Mine record">
-            <InspectionField label="Resource">Gold</InspectionField>
-            <InspectionField label="Node tier">{mine.tier}</InspectionField>
+            <RealmRecordField className="gold-mine-inspection__field" label="Resource">
+              Gold
+            </RealmRecordField>
+            <RealmRecordField className="gold-mine-inspection__field" label="Node tier">
+              {mine.tier}
+            </RealmRecordField>
             {node ? (
-              <InspectionField label="Site state">
+              <RealmRecordField className="gold-mine-inspection__field" label="Site state">
                 {occupancyUnavailable
                   ? 'OCCUPANCY UNAVAILABLE'
                   : occupant
                   ? realmResourceOccupantSiteStateLabel(occupant)
                   : goldNodeAvailabilityLabel(node.availability)}
-              </InspectionField>
+              </RealmRecordField>
             ) : null}
             {!occupancyUnavailable && (occupant || node?.originCastle) ? (
-              <InspectionField label="Occupied by">
+              <RealmRecordField className="gold-mine-inspection__field" label="Occupied by">
                 {occupant
                   ? realmResourceOccupantOwnerLabel(occupant)
                   : node?.occupiedByViewer ? 'Your expedition' : node?.originCastle?.name}
-              </InspectionField>
+              </RealmRecordField>
             ) : null}
             {!occupancyUnavailable && (occupant || node?.occupation) ? (
-              <InspectionField label="Gather rate">+1 Gold / minute</InspectionField>
+              <RealmRecordField className="gold-mine-inspection__field" label="Gather rate">
+                +1 Gold / minute
+              </RealmRecordField>
             ) : null}
             {scheduleLabel ? (
-              <InspectionField label="Realm schedule">{scheduleLabel}</InspectionField>
+              <RealmRecordField className="gold-mine-inspection__field" label="Realm schedule">
+                {scheduleLabel}
+              </RealmRecordField>
             ) : null}
           </dl>
           {occupant ? (
@@ -325,19 +326,24 @@ export function GoldMineInspectionPanel({
               marker={occupant}
               onFocusCastle={onFocusOccupantCastle}
               onRecallWorker={onRecallWorker}
+              controlsStatus={workerControlsStatus}
               legacyExpeditionId={legacyExpeditionId}
               onReturnLegacyExpedition={onReturnLegacyExpedition}
+              showDiagnostics={showDiagnostics}
             />
           ) : null}
           <p className="gold-mine-inspection__notice">
             {genericWorkerDispatch
-              ? 'This site is available. Choose a ready worker below; the Realm confirms the assignment.'
+              ? workerControlsStatus
+                ? 'This site is available. Public workers remain visible while dispatch controls synchronize.'
+                : 'This site is available. Choose a ready worker below; the Realm confirms the assignment.'
               : nodeNotice(node, occupant, dispatchBlocked, occupancyUnavailable)}
           </p>
           {genericWorkerDispatch ? (
             <RealmNodeWorkerDispatch
               focusFallbackRef={closeButtonRef}
               id={`${id}-gold`}
+              controlsStatus={workerControlsStatus}
               onDispatchWorker={onDispatchWorker}
               resourceKind="gold"
               siteId={node.siteId}

@@ -126,6 +126,12 @@ function readyInputs() {
     7
   )!;
   const occupations = decodeRealmWorkerOccupations([occupation()])!;
+  const resourceSites = Object.freeze([Object.freeze({
+    resourceKind: 'stone' as const,
+    siteId: 'genesis-001:stone:0001',
+    q: 12,
+    r: -4
+  })]);
   const roster = decodeWorkerRoster(privateRoster(), 42n)!;
   const resourceState = decodeWorkerResourceState(privateResources(), 42n)!;
   return {
@@ -134,6 +140,7 @@ function readyInputs() {
     system,
     workers,
     occupations,
+    resourceSites,
     roster,
     resourceState
   };
@@ -324,7 +331,8 @@ describe('generic worker presentation boundary', () => {
       castleIds: inputs.castleIds,
       system: inputs.system,
       workers: inputs.workers,
-      occupations: inputs.occupations
+      occupations: inputs.occupations,
+      resourceSites: inputs.resourceSites
     });
 
     expect(publicProjection?.workers).toHaveLength(8);
@@ -336,7 +344,60 @@ describe('generic worker presentation boundary', () => {
       castleIds: inputs.castleIds,
       system: inputs.system,
       workers: inputs.workers,
-      occupations: inputs.occupations
+      occupations: inputs.occupations,
+      resourceSites: inputs.resourceSites
+    })).toBeUndefined();
+  });
+
+  it('rejects a public graph that does not contain the viewer keep', () => {
+    const inputs = readyInputs();
+    expect(resolveReadyPublicWorkerProjection({
+      realmId: CASTLE_WORKER_REALM_ID,
+      ownCastleId: 99,
+      castleIds: inputs.castleIds,
+      system: inputs.system,
+      workers: inputs.workers.map((worker) => ({
+        ...worker,
+        ownedByViewer: false
+      })),
+      occupations: inputs.occupations,
+      resourceSites: inputs.resourceSites
+    })).toBeUndefined();
+  });
+
+  it('fails the public lane closed when an assigned Worker has no canonical destination', () => {
+    const inputs = readyInputs();
+    expect(resolveReadyPublicWorkerProjection({
+      realmId: CASTLE_WORKER_REALM_ID,
+      ownCastleId: 7,
+      castleIds: inputs.castleIds,
+      system: inputs.system,
+      workers: inputs.workers,
+      occupations: inputs.occupations,
+      resourceSites: []
+    })).toBeUndefined();
+    expect(resolveReadyWorkerProjection({
+      realmId: CASTLE_WORKER_REALM_ID,
+      ownCastleId: 7,
+      ...inputs,
+      resourceSites: [{
+        resourceKind: 'gold',
+        siteId: 'genesis-001:stone:0001',
+        q: 12,
+        r: -4
+      }]
+    })).toBeUndefined();
+    expect(resolveReadyPublicWorkerProjection({
+      realmId: CASTLE_WORKER_REALM_ID,
+      ownCastleId: 7,
+      castleIds: inputs.castleIds,
+      system: inputs.system,
+      workers: inputs.workers,
+      occupations: inputs.occupations,
+      resourceSites: [
+        ...inputs.resourceSites,
+        { ...inputs.resourceSites[0]! }
+      ]
     })).toBeUndefined();
   });
 

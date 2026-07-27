@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
 
-import { axialToWorld } from '../src/game/map/hexCoordinates';
+import { axialToWorld, hexKey } from '../src/game/map/hexCoordinates';
 import {
   HEGEMONY_TREE_RUNTIME_ASSETS,
   hegemonyTreeModel,
@@ -15,6 +15,7 @@ import {
 import { createRealmForestModelReadyRenderCallback } from '../src/components/realm/createRealmScene';
 import { REALM_QUALITY_SPECS } from '../src/components/realm/realmQuality';
 import { createRealmTerrainSurface } from '../src/game/map/realmTerrainSurface';
+import { terrainHeightAtWorld } from '../src/game/map/terrainHeight';
 import type { RealmForestBiomeData, RealmForestTreePoint } from '../src/game/map/realmForestBiomes';
 import type { HegemonyTreePrefabLease } from '../src/components/realm/loadHegemonyTreeAssets';
 
@@ -38,7 +39,10 @@ function pointForAsset(asset: HegemonyTreeRuntimeAsset, index = 0): RealmForestT
 function biomeData(points: readonly RealmForestTreePoint[]): RealmForestBiomeData {
   return Object.freeze({
     points: Object.freeze([...points]),
-    canopyByTileKey: new Map(),
+    canopyByTileKey: new Map(points.map((point) => [
+      hexKey(point.coord),
+      point.habitat === 'grove' ? 1 : point.habitat === 'forest' ? 0.68 : 0.42
+    ])),
     counts: Object.freeze({
       forestSemanticCellCount: points.length,
       groveCellCount: points.length,
@@ -112,11 +116,26 @@ describe('static forest presentation layer', () => {
 
       await vi.waitFor(() => expect(acquirePrefab).toHaveBeenCalledOnce());
       await Promise.resolve();
-      expect(layer.getPresentationTelemetry()).toEqual({
+      expect(layer.getPresentationTelemetry()).toMatchObject({
         instanceCount: 1,
         drawCalls: 1,
-        usingFallback: true
+        usingFallback: true,
+        fallbackType: 'procedural-trunk-multi-canopy-v1',
+        contactShadowCount: 0,
+        groundingMode: 'terrain-canopy-procedural-root-contact',
+        canopyMotionState: 'static',
+        structureCellCounts: {
+          core: 1,
+          body: 0,
+          fringe: 0,
+          clearing: 0
+        }
       });
+      expect(layer.getPresentationTelemetry().canonicalTriangleCount)
+        .toBe(pointForAsset(asset).estimatedTriangles);
+      expect(layer.getPresentationTelemetry().triangleCount).toBeGreaterThan(0);
+      expect(layer.getPresentationTelemetry().silhouetteCoverageRatio)
+        .toBeGreaterThan(0);
       expect(layer.group.getObjectByName('realm-hegemony-tree-static-fallback')).toBeTruthy();
       expect(layer.group.getObjectByName('realm-hegemony-tree-static-batch')).toBeUndefined();
       layer.dispose();
@@ -143,10 +162,15 @@ describe('static forest presentation layer', () => {
     expect(maximumActiveLoads).toBeLessThanOrEqual(HEGEMONY_TREE_PREFAB_LOAD_CONCURRENCY);
     expect(acquirePrefab).toHaveBeenCalledTimes(assets.length);
     expect(release).toHaveBeenCalledTimes(assets.length);
-    expect(layer.getPresentationTelemetry()).toEqual({
+    expect(layer.getPresentationTelemetry()).toMatchObject({
       instanceCount: assets.length,
       drawCalls: 1,
-      usingFallback: false
+      usingFallback: false,
+      fallbackType: 'none',
+      contactShadowCount: 0,
+      groundingMode: 'terrain-canopy-baked-base',
+      canopyMotionState: 'static',
+      triangleCount: assets.length * 12
     });
     expect(layer.group.getObjectByName('realm-hegemony-tree-static-fallback')).toBeUndefined();
     expect(layer.group.getObjectByName('realm-hegemony-tree-static-batch')).toBeTruthy();
@@ -173,6 +197,46 @@ describe('static forest presentation layer', () => {
     await vi.waitFor(() => expect(acquirePrefab).toHaveBeenCalledOnce());
     expect(acquirePrefab.mock.calls[0]![1]).toBe('compact');
     expect(layer.group.name).toBe('realm-hegemony-forest-decorative-infill');
+    layer.dispose();
+  });
+
+  it('preserves an authoritative point transform in the richer fallback', () => {
+    const asset = HEGEMONY_TREE_RUNTIME_ASSETS[0]!;
+    const point = Object.freeze({
+      ...pointForAsset(asset),
+      world: Object.freeze({ x: 0.27, z: -0.19 }),
+      rotation: 0.73,
+      scale: 1.1
+    });
+    const acquirePrefab = vi.fn<RealmForestPrefabAcquirer>(async () => {
+      throw new Error('keep fallback');
+    });
+    const layer = createLayer([point], acquirePrefab);
+    const fallback = layer.group.getObjectByName(
+      'realm-hegemony-tree-static-fallback'
+    ) as THREE.InstancedMesh;
+    const matrix = new THREE.Matrix4();
+    const position = new THREE.Vector3();
+    const rotation = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+    fallback.getMatrixAt(0, matrix);
+    matrix.decompose(position, rotation, scale);
+    const expectedRotation = new THREE.Quaternion().setFromAxisAngle(
+      new THREE.Vector3(0, 1, 0),
+      point.rotation
+    );
+
+    expect(position.x).toBeCloseTo(point.world.x, 6);
+    expect(position.z).toBeCloseTo(point.world.z, 6);
+    expect(position.y).toBeCloseTo(
+      terrainHeightAtWorld(surface.renderMap, point.world, 1, []) + 0.002,
+      6
+    );
+    expect(scale.x).toBeCloseTo(point.scale, 6);
+    expect(scale.y).toBeCloseTo(point.scale, 6);
+    expect(scale.z).toBeCloseTo(point.scale, 6);
+    expect(Math.abs(rotation.dot(expectedRotation))).toBeCloseTo(1, 6);
+    expect(fallback.raycast).not.toBe(THREE.InstancedMesh.prototype.raycast);
     layer.dispose();
   });
 

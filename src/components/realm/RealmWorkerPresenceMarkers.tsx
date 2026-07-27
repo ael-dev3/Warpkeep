@@ -26,6 +26,7 @@ function documentFocusIsOrphaned(activeElement: Element | null) {
 export function RealmWorkerPresenceMarkers({
   workers,
   visibleWorkerIds,
+  selectedWorkerId,
   focusFallbackRef,
   onLayout,
   onHover,
@@ -33,6 +34,7 @@ export function RealmWorkerPresenceMarkers({
 }: Readonly<{
   workers: readonly RealmWorkerSceneRecord[];
   visibleWorkerIds: readonly string[];
+  selectedWorkerId?: string;
   /** Stable Realm control used only when a focused moving portrait disappears. */
   focusFallbackRef?: RefObject<HTMLElement | null>;
   onLayout: () => void;
@@ -75,9 +77,10 @@ export function RealmWorkerPresenceMarkers({
       || !documentFocusIsOrphaned(activeElement)
     ) return;
     focusedWorkerIdRef.current = null;
+    onHover(null);
     const fallback = focusFallbackRef?.current;
     if (fallback?.isConnected) fallback.focus({ preventScroll: true });
-  }, [focusFallbackRef, visibleWorkerIdSet]);
+  }, [focusFallbackRef, onHover, visibleWorkerIdSet]);
 
   return (
     <div
@@ -98,7 +101,9 @@ export function RealmWorkerPresenceMarkers({
             aria-label={`${keeperLabel}, Worker ${worker.ordinal}, ${phaseLabel}`}
             className="realm-worker-presence-marker"
             data-owned-by-viewer={worker.ownedByViewer ? 'true' : 'false'}
+            data-phase={worker.status}
             data-projected-visible="false"
+            data-selected={selectedWorkerId === worker.workerId ? 'true' : 'false'}
             data-worker-presence-id={worker.workerId}
             key={worker.workerId}
             onBlur={() => onHover(null)}
@@ -120,9 +125,12 @@ export function RealmWorkerPresenceMarkers({
               profile={worker.profile ?? { communityStatsVisible: false }}
               size="compact"
             />
-            <span aria-hidden="true" className="realm-worker-presence-marker__route-ring" />
-            <span className="realm-worker-presence-marker__phase">
-              {worker.status === 'returning' ? 'RETURNING' : 'EN ROUTE'}
+            <span
+              aria-hidden="true"
+              className="realm-worker-presence-marker__phase"
+              title={worker.status === 'returning' ? 'Returning' : 'En route'}
+            >
+              {worker.status === 'returning' ? '↙' : '↗'}
             </span>
           </button>
         );

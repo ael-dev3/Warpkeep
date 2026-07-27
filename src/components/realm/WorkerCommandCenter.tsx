@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 
 import { useModalFocusBoundary } from '../menu/useModalFocusBoundary';
+import { RealmRecordStatus } from './RealmRecordPrimitives';
 import {
   realmWorkerCanRecall,
   realmWorkerLabel,
@@ -14,7 +15,9 @@ import './WorkerCommandCenter.css';
 export type WorkerCommandCenterProps = Readonly<{
   id: string;
   workers: readonly RealmWorkerPublicPresentation[];
-  roster: WorkerRosterPresentation;
+  roster?: WorkerRosterPresentation;
+  controlsAvailable: boolean;
+  controlsStatus?: string;
   onRecallWorker?: (workerId: string) => Promise<void>;
   onRecallAllWorkers?: () => Promise<void>;
   onSelectWorker: (worker: RealmWorkerPublicPresentation) => void;
@@ -34,6 +37,8 @@ export function WorkerCommandCenter({
   id,
   workers,
   roster,
+  controlsAvailable,
+  controlsStatus,
   onRecallWorker,
   onRecallAllWorkers,
   onSelectWorker,
@@ -112,16 +117,32 @@ export function WorkerCommandCenter({
           Four permanent attendants of your keep. Assign all four to the same
           resource type if you wish; each node accepts one worker from one player.
         </p>
+        {controlsStatus ? (
+          <RealmRecordStatus
+            className="worker-command-center__sync"
+            id={`${id}-sync-status`}
+            state="informational"
+          >
+            {controlsStatus}
+          </RealmRecordStatus>
+        ) : null}
         {commandFailed ? (
-          <p className="worker-command-center__error" role="alert">
+          <RealmRecordStatus className="worker-command-center__error" state="error">
             The command could not be confirmed. Try the same action again.
-          </p>
+          </RealmRecordStatus>
         ) : null}
         <ol className="worker-command-center__roster" aria-label="Your four workers">
           {workers.map((worker) => {
-            const privateWorker = roster.workers.find((candidate) => candidate.workerId === worker.workerId)!;
-            const availableAmountLabel = privateAmountLabel(privateWorker);
-            const canRecall = realmWorkerCanRecall(worker) && onRecallWorker !== undefined;
+            const privateWorker = roster?.workers.find(
+              (candidate) => candidate.workerId === worker.workerId
+            );
+            const availableAmountLabel = privateWorker
+              ? privateAmountLabel(privateWorker)
+              : '—';
+            const recallable = realmWorkerCanRecall(worker);
+            const canRecall = controlsAvailable
+              && recallable
+              && onRecallWorker !== undefined;
             const recalling = pendingCommand === worker.workerId;
             return (
               <li key={worker.workerId}>
@@ -137,14 +158,19 @@ export function WorkerCommandCenter({
                     <small>{realmWorkerStatusLabel(worker)}</small>
                   </span>
                   <span
-                    aria-label={`${availableAmountLabel} available`}
+                    aria-label={privateWorker
+                      ? `${availableAmountLabel} available`
+                      : 'Private worker totals unavailable while controls are read-only'}
                     className="worker-command-center__amount"
                   >{availableAmountLabel}</span>
                 </button>
-                {canRecall ? (
+                {recallable ? (
                   <button
+                    aria-describedby={!controlsAvailable && controlsStatus
+                      ? `${id}-sync-status`
+                      : undefined}
                     className="worker-command-center__recall"
-                    disabled={pendingCommand !== undefined}
+                    disabled={!canRecall || pendingCommand !== undefined}
                     onClick={() => void recall(worker.workerId)}
                     type="button"
                   >
@@ -157,7 +183,15 @@ export function WorkerCommandCenter({
         </ol>
         <footer className="worker-command-center__footer">
           <button
-            disabled={!onRecallAllWorkers || pendingCommand !== undefined || !hasRecallableWorker}
+            aria-describedby={!controlsAvailable && controlsStatus
+              ? `${id}-sync-status`
+              : undefined}
+            disabled={
+              !controlsAvailable
+              || !onRecallAllWorkers
+              || pendingCommand !== undefined
+              || !hasRecallableWorker
+            }
             onClick={() => void recallAll()}
             type="button"
           >

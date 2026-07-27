@@ -4,6 +4,15 @@ import { hexKey, worldToNearestAxial } from '../../game/map/hexCoordinates';
 import type { TerrainBounds } from './createTerrainGeometry';
 
 export type RealmCameraMode = 'realm' | 'approach' | 'keep';
+export type RealmCameraPresentationBand = 'overview' | 'strategy' | 'close';
+
+export function realmCameraPresentationBand(
+  mode: RealmCameraMode
+): RealmCameraPresentationBand {
+  if (mode === 'keep') return 'close';
+  if (mode === 'approach') return 'strategy';
+  return 'overview';
+}
 
 export type RealmCameraPoint = Readonly<{
   x: number;
@@ -151,6 +160,18 @@ const MIN_SAFE_VIEWPORT_SIZE = 1;
 // full responsive overview and still enters this range continuously.
 export const REALM_INTERACTIVE_MIN_ZOOM = 0.28;
 const REALM_MODE_MAX_ZOOM = 0.32;
+const REALM_APPROACH_MODE_MAX_ZOOM = 0.76;
+export const REALM_CAMERA_MODE_HYSTERESIS = Object.freeze({
+  realmEnterZoom: 0.3,
+  realmExitZoom: 0.34,
+  keepExitZoom: 0.74,
+  keepEnterZoom: 0.78
+});
+const REALM_INERTIA_SAMPLE_WINDOW_MILLISECONDS = 96;
+const REALM_INERTIA_SAMPLE_MINIMUM_MILLISECONDS = 8;
+const REALM_INERTIA_MAXIMUM_RELEASE_AGE_MILLISECONDS = 64;
+const REALM_INERTIA_MAXIMUM_VISIBLE_HALF_HEIGHT_RATIO = 0.34;
+const REALM_INERTIA_MINIMUM_VISIBLE_HALF_HEIGHT_RATIO = 0.0025;
 const ZERO_INSETS: RealmCameraInsets = Object.freeze({
   top: 0,
   right: 0,
@@ -272,6 +293,42 @@ export function clampRealmInteractiveZoom(
   const minimum = clamp(finite(minimumInput, REALM_INTERACTIVE_MIN_ZOOM), 0, 1);
   if (current < minimum) return next <= current ? current : next;
   return clamp(next, minimum, 1);
+}
+
+/**
+ * Resolve the renderer presentation band without letting trackpad noise
+ * repeatedly repack camera-local ecology at either boundary.
+ *
+ * The existing public mode names remain stable:
+ * `realm` is overview, `approach` is strategy, and `keep` is close.
+ */
+export function resolveRealmCameraModeWithHysteresis(
+  zoomInput: number,
+  previousMode?: RealmCameraMode
+): RealmCameraMode {
+  const zoom = clamp(finite(zoomInput, 0), 0, 1);
+  if (previousMode === 'realm') {
+    if (zoom >= REALM_CAMERA_MODE_HYSTERESIS.keepEnterZoom) return 'keep';
+    return zoom > REALM_CAMERA_MODE_HYSTERESIS.realmExitZoom
+      ? 'approach'
+      : 'realm';
+  }
+  if (previousMode === 'approach') {
+    if (zoom <= REALM_CAMERA_MODE_HYSTERESIS.realmEnterZoom) return 'realm';
+    if (zoom >= REALM_CAMERA_MODE_HYSTERESIS.keepEnterZoom) return 'keep';
+    return 'approach';
+  }
+  if (previousMode === 'keep') {
+    if (zoom <= REALM_CAMERA_MODE_HYSTERESIS.realmEnterZoom) return 'realm';
+    return zoom < REALM_CAMERA_MODE_HYSTERESIS.keepExitZoom
+      ? 'approach'
+      : 'keep';
+  }
+  return zoom < REALM_MODE_MAX_ZOOM
+    ? 'realm'
+    : zoom < REALM_APPROACH_MODE_MAX_ZOOM
+      ? 'approach'
+      : 'keep';
 }
 
 function overviewFootprintPoints(
@@ -843,7 +900,7 @@ export function deriveRealmCameraPoseForViewport(
     fogFar,
     // Keep the ordinary zoom-out floor in strategic Realm mode so distant
     // grass remains suppressed on constrained devices.
-    mode: zoom < REALM_MODE_MAX_ZOOM ? 'realm' : zoom < 0.76 ? 'approach' : 'keep',
+    mode: resolveRealmCameraModeWithHysteresis(zoom),
     focus,
     safeViewport,
     viewport
@@ -901,8 +958,18 @@ export type RealmCameraControllerState = Readonly<{
   targetFocus: RealmKeepFocus;
   currentComposition: RealmCameraComposition;
   targetComposition: RealmCameraComposition;
+  mode: RealmCameraMode;
   targetFocusIsKeep: boolean;
   manualPlanarControl: boolean;
+}>;
+
+export type RealmCameraPresentationTelemetry = Readonly<{
+  mode: RealmCameraMode;
+  presentationBand: RealmCameraPresentationBand;
+  modeTransitionCount: number;
+  inertialReleaseCount: number;
+  inertiaCancellationCount: number;
+  inertiaActive: boolean;
 }>;
 
 function compositionState(composition: RealmCameraComposition = {}): RealmCompositionState {
@@ -993,7 +1060,8 @@ function compositionDistance(first: RealmCompositionState, second: RealmComposit
 }
 
 export type RealmCameraController = Readonly<{
-  beginDirectManipulation: () => void;
+  beginDirectManipulation: (gestureKind?: 'pan' | 'pinch') => void;
+  cancelDirectManipulation: () => void;
   camera: THREE.PerspectiveCamera;
   dispose: () => void;
   endDirectManipulation: () => void;
@@ -1005,6 +1073,7 @@ export type RealmCameraController = Readonly<{
   captureState: () => RealmCameraControllerState;
   getMode: () => RealmCameraMode;
   getPose: () => RealmCameraPose;
+  getPresentationTelemetry: () => RealmCameraPresentationTelemetry;
   getSafeViewport: () => RealmSafeViewport;
   getZoom: () => number;
   manipulateViewport: (
@@ -1012,7 +1081,8 @@ export type RealmCameraController = Readonly<{
     previousLocalY: number,
     localX: number,
     localY: number,
-    zoomAmount?: number
+    zoomAmount?: number,
+    gestureKind?: 'pan' | 'pinch'
   ) => void;
   panBetweenViewportPoints: (
     previousLocalX: number,
@@ -1054,8 +1124,15 @@ export type CreateRealmCameraControllerOptions = Readonly<{
   reducedMotion: boolean;
   render: () => void;
   onModeChange?: (mode: RealmCameraMode) => void;
+  /** Deterministic monotonic clock injection for direct-manipulation tests. */
+  nowMilliseconds?: () => number;
   composition?: RealmCameraComposition;
   spec?: RealmCameraSpec;
+}>;
+
+type RealmDirectMotionSample = Readonly<{
+  timeMilliseconds: number;
+  pan: RealmCameraPan;
 }>;
 
 export function createRealmCameraController(
@@ -1090,6 +1167,12 @@ export function createRealmCameraController(
   let frame = 0;
   let disposed = false;
   let mode: RealmCameraMode = 'realm';
+  let modeTransitionCount = 0;
+  let inertialReleaseCount = 0;
+  let inertiaCancellationCount = 0;
+  let inertiaActive = false;
+  let directGestureHadPinch = false;
+  let directMotionSamples: RealmDirectMotionSample[] = [];
   let lastPose = deriveRealmCameraPoseForViewport(
     currentZoom,
     currentPan,
@@ -1100,9 +1183,17 @@ export function createRealmCameraController(
     spec,
     options.overviewHull
   );
+  const monotonicNowMilliseconds = () => {
+    try {
+      const value = options.nowMilliseconds?.() ?? performance.now();
+      return Math.max(0, finite(value, 0));
+    } catch {
+      return 0;
+    }
+  };
 
   const applyPose = () => {
-    const pose = deriveRealmCameraPoseForViewport(
+    const derivedPose = deriveRealmCameraPoseForViewport(
       currentZoom,
       currentPan,
       options.bounds,
@@ -1112,6 +1203,13 @@ export function createRealmCameraController(
       spec,
       options.overviewHull
     );
+    const nextMode = resolveRealmCameraModeWithHysteresis(
+      currentZoom,
+      mode
+    );
+    const pose = derivedPose.mode === nextMode
+      ? derivedPose
+      : Object.freeze({ ...derivedPose, mode: nextMode });
     lastPose = pose;
     camera.position.set(pose.position.x, pose.position.y, pose.position.z);
     targetVector.set(pose.target.x, pose.target.y, pose.target.z);
@@ -1126,6 +1224,7 @@ export function createRealmCameraController(
     options.fog.far = pose.fogFar;
     if (pose.mode !== mode) {
       mode = pose.mode;
+      modeTransitionCount += 1;
       options.onModeChange?.(mode);
     }
   };
@@ -1177,6 +1276,85 @@ export function createRealmCameraController(
         z: focus.z + delta.z
       }
     };
+  };
+
+  const clearDirectMotionSamples = () => {
+    directMotionSamples = [];
+    directGestureHadPinch = false;
+  };
+
+  const recordDirectMotionSample = () => {
+    if (!directManipulation) return;
+    const timeMilliseconds = monotonicNowMilliseconds();
+    const sample = Object.freeze({
+      timeMilliseconds,
+      pan: Object.freeze({ ...currentPan })
+    });
+    const previous = directMotionSamples.at(-1);
+    if (previous && timeMilliseconds < previous.timeMilliseconds) {
+      directMotionSamples = [sample];
+      return;
+    }
+    if (previous?.timeMilliseconds === timeMilliseconds) {
+      directMotionSamples[directMotionSamples.length - 1] = sample;
+    } else {
+      directMotionSamples.push(sample);
+    }
+    const minimumTime = timeMilliseconds
+      - REALM_INERTIA_SAMPLE_WINDOW_MILLISECONDS;
+    directMotionSamples = directMotionSamples
+      .filter((candidate) => candidate.timeMilliseconds >= minimumTime)
+      .slice(-6);
+  };
+
+  const cancelInertia = () => {
+    if (!inertiaActive) return false;
+    inertiaActive = false;
+    inertiaCancellationCount += 1;
+    targetPan = { ...currentPan };
+    targetFocus = { ...currentFocus };
+    return true;
+  };
+
+  const inertialReleaseDisplacement = (): RealmCameraPan | null => {
+    const nowMilliseconds = monotonicNowMilliseconds();
+    const recent = directMotionSamples.filter((sample) => (
+      sample.timeMilliseconds >= nowMilliseconds
+        - REALM_INERTIA_SAMPLE_WINDOW_MILLISECONDS
+      && sample.timeMilliseconds <= nowMilliseconds
+    ));
+    const first = recent[0];
+    const last = recent.at(-1);
+    if (
+      !first
+      || !last
+      || nowMilliseconds - last.timeMilliseconds
+        > REALM_INERTIA_MAXIMUM_RELEASE_AGE_MILLISECONDS
+    ) return null;
+    const elapsedMilliseconds = last.timeMilliseconds - first.timeMilliseconds;
+    if (elapsedMilliseconds < REALM_INERTIA_SAMPLE_MINIMUM_MILLISECONDS) return null;
+    const elapsedSeconds = elapsedMilliseconds / 1_000;
+    const dampingRate = Math.max(1, finite(spec.panDamping, 13));
+    let x = (last.pan.x - first.pan.x) / elapsedSeconds / dampingRate;
+    let z = (last.pan.z - first.pan.z) / elapsedSeconds / dampingRate;
+    const distance = Math.hypot(x, z);
+    const maximumDistance = Math.max(
+      0.01,
+      lastPose.visibleHalfHeight
+        * REALM_INERTIA_MAXIMUM_VISIBLE_HALF_HEIGHT_RATIO
+    );
+    const minimumDistance = Math.max(
+      0.001,
+      lastPose.visibleHalfHeight
+        * REALM_INERTIA_MINIMUM_VISIBLE_HALF_HEIGHT_RATIO
+    );
+    if (!Number.isFinite(distance) || distance < minimumDistance) return null;
+    if (distance > maximumDistance) {
+      const scale = maximumDistance / distance;
+      x *= scale;
+      z *= scale;
+    }
+    return { x, z };
   };
 
   const anchorPlanarState = (
@@ -1309,6 +1487,7 @@ export function createRealmCameraController(
       currentFocus = { ...targetFocus };
       currentComposition = { ...targetComposition };
       zoomAnchor = null;
+      inertiaActive = false;
     }
     applyPose();
     options.render();
@@ -1342,10 +1521,15 @@ export function createRealmCameraController(
   };
 
   const handleVisibility = () => {
-    if (document.hidden && frame) {
-      window.cancelAnimationFrame(frame);
-      frame = 0;
-      previousTime = 0;
+    if (document.hidden) {
+      cancelInertia();
+      clearDirectMotionSamples();
+      directManipulation = false;
+      if (frame) {
+        window.cancelAnimationFrame(frame);
+        frame = 0;
+        previousTime = 0;
+      }
       return;
     }
     if (!document.hidden && isUnsettled()) invalidate();
@@ -1353,8 +1537,15 @@ export function createRealmCameraController(
   document.addEventListener('visibilitychange', handleVisibility);
   applyPose();
 
-  const beginDirectManipulation = () => {
-    if (disposed || directManipulation) return;
+  const beginDirectManipulation = (
+    gestureKind: 'pan' | 'pinch' = 'pan'
+  ) => {
+    if (disposed) return;
+    if (directManipulation) {
+      if (gestureKind === 'pinch') directGestureHadPinch = true;
+      return;
+    }
+    cancelInertia();
     detachSemanticFocus();
     if (frame) window.cancelAnimationFrame(frame);
     frame = 0;
@@ -1364,12 +1555,54 @@ export function createRealmCameraController(
     targetFocus = { ...currentFocus };
     zoomAnchor = null;
     directManipulation = true;
+    clearDirectMotionSamples();
+    if (gestureKind === 'pinch') directGestureHadPinch = true;
+    recordDirectMotionSample();
   };
 
   const endDirectManipulation = () => {
     if (!directManipulation) return;
     directManipulation = false;
+    const displacement = (
+      !options.reducedMotion
+      && !directGestureHadPinch
+    ) ? inertialReleaseDisplacement() : null;
+    if (displacement) {
+      const requestedPan = {
+        x: currentPan.x + displacement.x,
+        z: currentPan.z + displacement.z
+      };
+      const requestedFocus = {
+        ...currentFocus,
+        x: currentFocus.x + displacement.x,
+        z: currentFocus.z + displacement.z
+      };
+      const clamped = clampPlanarState(
+        currentZoom,
+        requestedPan,
+        requestedFocus,
+        currentComposition
+      );
+      const acceptedDistance = Math.hypot(
+        clamped.pan.x - currentPan.x,
+        clamped.pan.z - currentPan.z
+      );
+      if (acceptedDistance > 0.000_001) {
+        targetPan = clamped.pan;
+        targetFocus = clamped.focus;
+        inertiaActive = true;
+        inertialReleaseCount += 1;
+      }
+    }
+    clearDirectMotionSamples();
     if (isUnsettled()) invalidate();
+  };
+
+  const cancelDirectManipulation = () => {
+    if (!directManipulation && !inertiaActive) return;
+    directManipulation = false;
+    cancelInertia();
+    clearDirectMotionSamples();
   };
 
   const applyPanBetweenViewportPoints = (
@@ -1430,6 +1663,7 @@ export function createRealmCameraController(
     targetPan = { ...currentPan };
     targetFocus = { ...currentFocus };
     zoomAnchor = null;
+    recordDirectMotionSample();
     return true;
   };
 
@@ -1454,6 +1688,7 @@ export function createRealmCameraController(
     renderDirect = true
   ) => {
     if (disposed) return false;
+    if (!directManipulation) cancelInertia();
     detachSemanticFocus();
     const nextZoom = clampRealmInteractiveZoom(
       targetZoom,
@@ -1524,10 +1759,12 @@ export function createRealmCameraController(
     previousLocalY: number,
     localX: number,
     localY: number,
-    zoomAmount = 0
+    zoomAmount = 0,
+    gestureKind: 'pan' | 'pinch' = 'pan'
   ) => {
     if (disposed) return;
-    if (!directManipulation) beginDirectManipulation();
+    if (!directManipulation) beginDirectManipulation(gestureKind);
+    if (gestureKind === 'pinch') directGestureHadPinch = true;
     const panned = applyPanBetweenViewportPoints(
       previousLocalX,
       previousLocalY,
@@ -1543,6 +1780,7 @@ export function createRealmCameraController(
 
   return {
     beginDirectManipulation,
+    cancelDirectManipulation,
     camera,
     captureState: () => Object.freeze({
       currentZoom,
@@ -1553,17 +1791,22 @@ export function createRealmCameraController(
       targetFocus: Object.freeze({ ...targetFocus }),
       currentComposition: Object.freeze(stateComposition(currentComposition)),
       targetComposition: Object.freeze(stateComposition(targetComposition)),
+      mode,
       targetFocusIsKeep,
       manualPlanarControl
     }),
     dispose: () => {
       disposed = true;
       if (frame) window.cancelAnimationFrame(frame);
+      inertiaActive = false;
+      clearDirectMotionSamples();
       document.removeEventListener('visibilitychange', handleVisibility);
     },
     endDirectManipulation,
     frameAt: (next, zoom) => {
+      cancelInertia();
       directManipulation = false;
+      clearDirectMotionSamples();
       manualPlanarControl = false;
       targetFocusIsKeep = false;
       targetFocus = normalizeKeepFocus(next, targetFocus);
@@ -1571,7 +1814,9 @@ export function createRealmCameraController(
       setZoomTarget(zoom);
     },
     focusAt: (next) => {
+      cancelInertia();
       directManipulation = false;
+      clearDirectMotionSamples();
       manualPlanarControl = false;
       targetFocusIsKeep = false;
       targetFocus = normalizeKeepFocus(next, targetFocus);
@@ -1579,7 +1824,9 @@ export function createRealmCameraController(
       setZoomTarget(1);
     },
     locateAt: (next) => {
+      cancelInertia();
       directManipulation = false;
+      clearDirectMotionSamples();
       manualPlanarControl = false;
       targetFocusIsKeep = false;
       targetFocus = normalizeKeepFocus(next, targetFocus);
@@ -1596,7 +1843,9 @@ export function createRealmCameraController(
       invalidate();
     },
     focusKeep: () => {
+      cancelInertia();
       directManipulation = false;
+      clearDirectMotionSamples();
       manualPlanarControl = false;
       targetFocusIsKeep = true;
       targetFocus = { ...keepFocus };
@@ -1605,11 +1854,20 @@ export function createRealmCameraController(
     },
     getMode: () => mode,
     getPose: () => lastPose,
+    getPresentationTelemetry: () => Object.freeze({
+      mode,
+      presentationBand: realmCameraPresentationBand(mode),
+      modeTransitionCount,
+      inertialReleaseCount,
+      inertiaCancellationCount,
+      inertiaActive
+    }),
     getSafeViewport: () => lastPose.safeViewport,
     getZoom: () => targetZoom,
     manipulateViewport,
     panBetweenViewportPoints,
     panByPixels: (deltaX, deltaY) => {
+      cancelInertia();
       detachSemanticFocus();
       const pose = deriveStatePose(
         targetZoom,
@@ -1644,7 +1902,9 @@ export function createRealmCameraController(
     },
     projectPoint: (point) => projectRealmPointToViewport(lastPose, point, { width, height }),
     recenterKeep: () => {
+      cancelInertia();
       directManipulation = false;
+      clearDirectMotionSamples();
       manualPlanarControl = false;
       targetFocusIsKeep = true;
       targetFocus = { ...keepFocus };
@@ -1671,13 +1931,21 @@ export function createRealmCameraController(
       targetFocus = normalizeKeepFocus(state.targetFocus, targetFocus);
       currentComposition = compositionState(state.currentComposition);
       targetComposition = compositionState(state.targetComposition);
+      mode = state.mode === 'realm'
+        || state.mode === 'approach'
+        || state.mode === 'keep'
+        ? state.mode
+        : resolveRealmCameraModeWithHysteresis(currentZoom);
       targetFocusIsKeep = state.targetFocusIsKeep === true;
       manualPlanarControl = state.manualPlanarControl === true;
       // Pointer capture cannot survive a disposed canvas. Preserve the
       // camera trajectory, but resume it as an ordinary demand transition.
       directManipulation = false;
       zoomAnchor = null;
+      inertiaActive = false;
+      clearDirectMotionSamples();
       applyPose();
+      options.onModeChange?.(mode);
       options.render();
       if (isUnsettled()) invalidate();
     },
@@ -1697,6 +1965,9 @@ export function createRealmCameraController(
       invalidate();
     },
     setViewport: (nextWidth, nextHeight) => {
+      cancelInertia();
+      clearDirectMotionSamples();
+      directManipulation = false;
       // Pointer coordinates belong to the viewport that produced them. A
       // resize invalidates that coordinate space; retaining the old anchor can
       // otherwise keep demand rendering alive indefinitely.
@@ -1727,7 +1998,9 @@ export function createRealmCameraController(
       }
     },
     showRealm: () => {
+      cancelInertia();
       directManipulation = false;
+      clearDirectMotionSamples();
       manualPlanarControl = false;
       targetFocusIsKeep = false;
       const center = {

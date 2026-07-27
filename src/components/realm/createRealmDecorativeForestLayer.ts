@@ -2,12 +2,15 @@ import * as THREE from 'three';
 
 import type { RealmForestBiomeQuality, RealmForestSpecies, RealmForestTreePoint } from '../../game/map/realmForestBiomes';
 import {
+  createRealmForestStructureCounts,
   generateRealmForestCellEcology,
+  realmForestSilhouetteCoverageRatio,
   REALM_FOREST_ECOLOGY_MAX_CANDIDATES_PER_CELL,
   selectRealmForestEcologySpeciesPalette,
   type RealmForestCellEcology,
   type RealmForestEcologyCandidate,
-  type RealmForestEcologyHabitat
+  type RealmForestEcologyHabitat,
+  type RealmForestStructureCounts
 } from '../../game/map/realmForestEcology';
 import { hexKey, type HexWorldPosition } from '../../game/map/hexCoordinates';
 import type { RealmTerrainKind } from '../../game/map/realmTerrainSemantics';
@@ -27,6 +30,16 @@ import {
   type HegemonyTreePrefab
 } from './loadHegemonyTreeAssets';
 import type { RealmForestPrefabAcquirer } from './realmForestLayer';
+import {
+  createRealmProceduralForestFallbackGeometry,
+  createRealmProceduralForestFallbackMaterial,
+  REALM_FOREST_CANOPY_MOTION_STATE,
+  REALM_PROCEDURAL_FOREST_FALLBACK_TYPE,
+  realmForestFallbackInstanceColor,
+  realmForestModelInstanceTint,
+  type RealmForestFallbackType,
+  type RealmForestGroundingMode
+} from './createRealmProceduralForestFallback';
 import {
   createRealmForestCellCache,
   materializeRealmForestActiveWindow,
@@ -67,6 +80,13 @@ export type RealmDecorativeForestTelemetry = Readonly<{
   lastRepackMilliseconds: number;
   modelReady: boolean;
   usingFallback: boolean;
+  fallbackType: RealmForestFallbackType;
+  contactShadowCount: number;
+  groundingMode: RealmForestGroundingMode;
+  canopyMotionState: typeof REALM_FOREST_CANOPY_MOTION_STATE;
+  structureCellCounts: RealmForestStructureCounts;
+  silhouetteCoverageRatio: number;
+  canonicalTriangleCount: number;
   overviewHidden: boolean;
   reveal: number;
 }>;
@@ -97,6 +117,11 @@ export type RealmDecorativeForestLayer = Readonly<{
     mode: RealmForestCameraMode,
     viewportCoverage: RealmForestViewportCoverage
   ) => boolean;
+  /**
+   * Clear camera-local ecology cached against the previous exclusion predicate.
+   * The next ordinary view update repacks in place; no scene recreation occurs.
+   */
+  invalidateExclusions: () => boolean;
   getTelemetry: () => RealmDecorativeForestTelemetry;
   dispose: () => void;
 }>;
@@ -118,15 +143,19 @@ function createFallback(
   placements: readonly TerrainStructurePlacement[],
   hexSize: number
 ) {
-  const geometry = new THREE.ConeGeometry(
-    0.13,
-    HEGEMONY_TREE_TARGET_VISUAL_HEIGHT,
-    6,
-    1
+  const fallback = createRealmProceduralForestFallbackGeometry(
+    HEGEMONY_TREE_TARGET_VISUAL_HEIGHT
   );
-  geometry.translate(0, HEGEMONY_TREE_TARGET_VISUAL_HEIGHT * 0.5, 0);
-  const material = new THREE.MeshStandardMaterial({ color: '#3f7546', roughness: 0.94, metalness: 0, vertexColors: true });
-  const mesh = new THREE.InstancedMesh(geometry, material, Math.max(1, points.length));
+  const { geometry } = fallback;
+  const material = createRealmProceduralForestFallbackMaterial();
+  let mesh: THREE.InstancedMesh;
+  try {
+    mesh = new THREE.InstancedMesh(geometry, material, Math.max(1, points.length));
+  } catch (error) {
+    geometry.dispose();
+    material.dispose();
+    throw error;
+  }
   mesh.name = 'realm-hegemony-forest-decorative-ecology-fallback';
   mesh.count = points.length;
   mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
@@ -143,16 +172,20 @@ function createFallback(
   points.forEach((point, index) => {
     position.set(point.world.x, terrainHeightAtWorld(map, point.world, hexSize, placements) + 0.002, point.world.z);
     rotation.setFromAxisAngle(verticalAxis, point.rotation);
-    const edgeScale = 0.92 + point.edgeFade * 0.08;
-    scale.set(point.scale * edgeScale, point.scale * edgeScale, point.scale * edgeScale);
+    // Edge fade controls admission only. Once admitted, a candidate keeps the
+    // same deterministic transform while the camera moves.
+    scale.setScalar(point.scale);
     matrix.compose(position, rotation, scale);
     mesh.setMatrixAt(index, matrix);
-    color.set(point.habitat === 'grove' ? '#477d43' : point.habitat === 'forest' ? '#416f3e' : '#4f8248');
+    color.set(realmForestFallbackInstanceColor(point.habitat));
     mesh.setColorAt(index, color);
   });
   mesh.instanceMatrix.needsUpdate = true;
   if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-  return mesh;
+  return Object.freeze({
+    mesh,
+    triangleCount: fallback.triangleCount * points.length
+  });
 }
 
 function disposeFallback(mesh: THREE.InstancedMesh | null) {
@@ -163,10 +196,14 @@ function disposeFallback(mesh: THREE.InstancedMesh | null) {
   materials.forEach((material) => material.dispose());
 }
 
-function emptyTelemetry(canonicalTreeCount: number, plan: RealmForestBiomeQuality, cacheEntries = 0): RealmDecorativeForestTelemetry {
+function emptyTelemetry(
+  canonicalTrees: readonly RealmForestTreePoint[],
+  plan: RealmForestBiomeQuality,
+  cacheEntries = 0
+): RealmDecorativeForestTelemetry {
   const cacheLimit = REALM_FOREST_ACTIVE_WINDOW_PLANS[plan].cacheLimit;
   return Object.freeze({
-    canonicalTreeCount,
+    canonicalTreeCount: canonicalTrees.length,
     activeCandidateCount: 0,
     activeInstanceCount: 0,
     activeCellCount: 0,
@@ -183,6 +220,16 @@ function emptyTelemetry(canonicalTreeCount: number, plan: RealmForestBiomeQualit
     lastRepackMilliseconds: 0,
     modelReady: false,
     usingFallback: false,
+    fallbackType: 'none',
+    contactShadowCount: 0,
+    groundingMode: 'none',
+    canopyMotionState: REALM_FOREST_CANOPY_MOTION_STATE,
+    structureCellCounts: Object.freeze(createRealmForestStructureCounts()),
+    silhouetteCoverageRatio: 0,
+    canonicalTriangleCount: canonicalTrees.reduce(
+      (total, tree) => total + tree.estimatedTriangles,
+      0
+    ),
     overviewHidden: true,
     reveal: 0
   });
@@ -311,6 +358,7 @@ export function createRealmDecorativeForestLayer(options: CreateRealmDecorativeF
   const acquirePrefab = options.acquirePrefab ?? ((asset, requestedLod, baseUrl, signal) => acquireHegemonyTreePrefab({ asset, lod: requestedLod, baseUrl, signal }));
   let currentWindow: RealmForestActiveWindow | null = null;
   let fallback: THREE.InstancedMesh | null = null;
+  let fallbackTriangleCount = 0;
   let modelMeshes: THREE.InstancedMesh[] = [];
   const retainedLeases = new Map<string, HegemonyTreePrefabLease>();
   const loadingAssetIds = new Set<string>();
@@ -318,8 +366,9 @@ export function createRealmDecorativeForestLayer(options: CreateRealmDecorativeF
   let activePoints: readonly RealmDecorativeForestCandidate[] = Object.freeze([]);
   let modelReady = false;
   let disposed = false;
+  let exclusionsDirty = false;
   let cacheHighWaterMark = 0;
-  let telemetry = emptyTelemetry(options.canonicalTrees.length, quality);
+  let telemetry = emptyTelemetry(options.canonicalTrees, quality);
 
   const releaseLeases = (values: readonly HegemonyTreePrefabLease[]) => values.forEach((lease) => { try { lease.release(); } catch { /* best effort */ } });
   const disposeModelMeshes = () => {
@@ -335,9 +384,11 @@ export function createRealmDecorativeForestLayer(options: CreateRealmDecorativeF
   };
   const replaceFallback = (points: readonly RealmDecorativeForestCandidate[]) => {
     disposeFallback(fallback);
-    fallback = points.length > 0
+    const next = points.length > 0
       ? createFallback(points, options.map, options.terrainPlacements, hexSize)
       : null;
+    fallback = next?.mesh ?? null;
+    fallbackTriangleCount = next?.triangleCount ?? 0;
     if (fallback) group.add(fallback);
   };
   const publishTelemetry = () => {
@@ -401,11 +452,13 @@ export function createRealmDecorativeForestLayer(options: CreateRealmDecorativeF
       });
     });
     const nextMeshes: THREE.InstancedMesh[] = [];
+    let modelTriangleCount = 0;
     const matrix = new THREE.Matrix4();
     const localMatrix = new THREE.Matrix4();
     const position = new THREE.Vector3();
     const rotation = new THREE.Quaternion();
     const scale = new THREE.Vector3();
+    const instanceTint = new THREE.Color();
     const verticalAxis = new THREE.Vector3(0, 1, 0);
     try {
       buckets.forEach(({ prefab, primitiveIndex, points: bucketPoints }) => {
@@ -435,11 +488,19 @@ export function createRealmDecorativeForestLayer(options: CreateRealmDecorativeF
             point.world.z
           );
           rotation.setFromAxisAngle(verticalAxis, point.rotation);
-          scale.setScalar(point.scale * (0.92 + point.edgeFade * 0.08));
+          scale.setScalar(point.scale);
           matrix.compose(position, rotation, scale).multiply(localMatrix);
           mesh.setMatrixAt(index, matrix);
+          instanceTint.set(realmForestModelInstanceTint(point.habitat));
+          mesh.setColorAt(index, instanceTint);
         });
         mesh.instanceMatrix.needsUpdate = true;
+        if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+        const positionAttribute = primitive.geometry.getAttribute('position');
+        const primitiveTriangleCount = primitive.geometry.getIndex()?.count
+          ? primitive.geometry.getIndex()!.count / 3
+          : (positionAttribute?.count ?? 0) / 3;
+        modelTriangleCount += primitiveTriangleCount * bucketPoints.length;
         nextMeshes.push(mesh);
       });
     } catch {
@@ -455,6 +516,14 @@ export function createRealmDecorativeForestLayer(options: CreateRealmDecorativeF
       ...telemetry,
       modelReady,
       usingFallback: fallback !== null,
+      fallbackType: fallback
+        ? REALM_PROCEDURAL_FOREST_FALLBACK_TYPE
+        : 'none',
+      contactShadowCount: 0,
+      groundingMode: fallback
+        ? 'terrain-canopy-procedural-root-contact'
+        : 'terrain-canopy',
+      triangleCount: modelReady ? modelTriangleCount : fallbackTriangleCount,
       drawCalls: modelMeshes.length + (fallback ? 1 : 0)
     });
     return modelReady;
@@ -532,7 +601,7 @@ export function createRealmDecorativeForestLayer(options: CreateRealmDecorativeF
       modelReady = false;
       options.onActivePointsChange?.(Object.freeze([]));
       telemetry = Object.freeze({
-        ...emptyTelemetry(options.canonicalTrees.length, quality, cache.size),
+        ...emptyTelemetry(options.canonicalTrees, quality, cache.size),
         cacheHighWaterMark,
         repackCount: telemetry.repackCount + 1,
         lastRepackMilliseconds: 0,
@@ -543,9 +612,12 @@ export function createRealmDecorativeForestLayer(options: CreateRealmDecorativeF
     }
     group.visible = true;
     const all: RealmDecorativeForestCandidate[] = [];
+    const structureCellCounts = createRealmForestStructureCounts();
     window.cells.forEach(({ cell, edgeFade }) => {
       if (edgeFade <= 0) return;
-      cellDataFor(cell).candidates.forEach((candidate) => {
+      const cellEcology = cellDataFor(cell);
+      if (cellEcology.structure) structureCellCounts[cellEcology.structure] += 1;
+      cellEcology.candidates.forEach((candidate) => {
         all.push(Object.freeze({ ...candidate, edgeFade }));
       });
     });
@@ -576,6 +648,15 @@ export function createRealmDecorativeForestLayer(options: CreateRealmDecorativeF
       cacheHighWaterMark,
       clusterCount: new Set(selected.map((point) => point.cellKey)).size,
       instancesByHabitat: Object.freeze(byHabitat),
+      structureCellCounts: Object.freeze(structureCellCounts),
+      silhouetteCoverageRatio: realmForestSilhouetteCoverageRatio(
+        selected,
+        Object.values(structureCellCounts).reduce(
+          (total, count) => total + count,
+          0
+        ),
+        hexSize
+      ),
       instancesBySpecies: Object.freeze(bySpecies),
       instancesByLod: Object.freeze({
         high: lod === 'high' ? selected.length : 0,
@@ -588,6 +669,10 @@ export function createRealmDecorativeForestLayer(options: CreateRealmDecorativeF
       lastRepackMilliseconds: (typeof performance !== 'undefined' ? performance.now() : 0) - started,
       modelReady: false,
       usingFallback: false,
+      fallbackType: 'none',
+      contactShadowCount: 0,
+      groundingMode: selected.length > 0 ? 'terrain-canopy' : 'none',
+      canopyMotionState: REALM_FOREST_CANOPY_MOTION_STATE,
       overviewHidden: false,
       reveal: window.reveal
     });
@@ -606,8 +691,12 @@ export function createRealmDecorativeForestLayer(options: CreateRealmDecorativeF
       telemetry = Object.freeze({
         ...telemetry,
         drawCalls: 1,
+        triangleCount: fallbackTriangleCount,
         modelReady: false,
-        usingFallback: true
+        usingFallback: true,
+        fallbackType: REALM_PROCEDURAL_FOREST_FALLBACK_TYPE,
+        contactShadowCount: 0,
+        groundingMode: 'terrain-canopy-procedural-root-contact'
       });
     }
     finishRepackTelemetry();
@@ -631,8 +720,8 @@ export function createRealmDecorativeForestLayer(options: CreateRealmDecorativeF
         plan
       );
       const revealChanged = currentWindow?.reveal !== descriptor.reveal;
-      if (!shouldMaterialize && !revealChanged) return false;
-      const next = shouldMaterialize
+      if (!exclusionsDirty && !shouldMaterialize && !revealChanged) return false;
+      const next = exclusionsDirty || shouldMaterialize
         ? materializeRealmForestActiveWindow(options.map, descriptor, plan)
         : Object.freeze({
           ...currentWindow!,
@@ -642,7 +731,14 @@ export function createRealmDecorativeForestLayer(options: CreateRealmDecorativeF
           overviewHidden: descriptor.overviewHidden
         });
       currentWindow = next;
+      exclusionsDirty = false;
       repack(next);
+      return true;
+    },
+    invalidateExclusions: () => {
+      if (disposed) return false;
+      cache.clear();
+      exclusionsDirty = true;
       return true;
     },
     getTelemetry: () => telemetry,

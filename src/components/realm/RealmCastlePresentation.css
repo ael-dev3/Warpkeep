@@ -143,6 +143,51 @@
   padding-inline: 0.52rem;
 }
 
+/*
+ * Close framing makes castle models legible without a rail over every keep.
+ * Preserve each 45px direct identity target and accessible name, but collapse
+ * calm peer rails to a foundation pip until that identity gains priority.
+ */
+.realm-map-screen[data-realm-camera-presentation-band="close"] .realm-castle-label:not(
+  [data-own="true"],
+  [data-focused="true"],
+  [data-hovered="true"],
+  [aria-expanded="true"],
+  [aria-pressed="true"],
+  :hover,
+  :focus-visible
+) .realm-castle-label__plate {
+  width: 0.52rem;
+  min-width: 0.52rem;
+  min-height: 0.52rem;
+  padding: 0;
+  border: 1px solid rgb(227 193 112 / 56%);
+  border-radius: 50%;
+  background: rgb(16 13 20 / 58%);
+  box-shadow: 0 0.12rem 0.28rem rgb(0 0 0 / 28%);
+}
+
+.realm-map-screen[data-realm-camera-presentation-band="close"] .realm-castle-label:not(
+  [data-own="true"],
+  [data-focused="true"],
+  [data-hovered="true"],
+  [aria-expanded="true"],
+  [aria-pressed="true"],
+  :hover,
+  :focus-visible
+) .realm-castle-label__plate::after,
+.realm-map-screen[data-realm-camera-presentation-band="close"] .realm-castle-label:not(
+  [data-own="true"],
+  [data-focused="true"],
+  [data-hovered="true"],
+  [aria-expanded="true"],
+  [aria-pressed="true"],
+  :hover,
+  :focus-visible
+) .realm-castle-label__identity {
+  display: none;
+}
+
 @media (max-width: 680px) {
   .realm-castle-label[data-compact="true"] {
     width: auto;

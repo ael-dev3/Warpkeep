@@ -47,8 +47,14 @@ describe('WaterInspectionPanel', () => {
       </div>
     );
 
+    const dialog = screen.getByRole('dialog', { name: RECORD.displayName });
     const close = screen.getByRole('button', { name: 'CLOSE WATER RECORD' });
     await waitFor(() => expect(document.activeElement).toBe(close));
+    expect(dialog.hasAttribute('data-water-cell-key')).toBe(false);
+    expect(screen.queryByText('Coordinates')).toBeNull();
+    expect(screen.queryByText('Body')).toBeNull();
+    expect(screen.queryByText('Source → mouth')).toBeNull();
+    expect(document.body.textContent).not.toContain(RECORD.bodyId);
     fireEvent.keyDown(close, { key: 'Escape' });
 
     expect(onRequestClose).toHaveBeenCalledOnce();
@@ -94,5 +100,25 @@ describe('WaterInspectionPanel', () => {
       [RECORD.sourceCellKey],
       [RECORD.mouthCellKey]
     ]);
+  });
+
+  it('preserves q/r and opaque persistence identifiers for diagnostics mode', () => {
+    render(
+      <WaterInspectionPanel
+        id="diagnostic-water-record"
+        record={RECORD}
+        showDiagnostics
+        onRequestClose={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('Coordinates').nextElementSibling?.textContent)
+      .toBe('q 12 · r -7');
+    expect(screen.getByText('Body').nextElementSibling?.textContent)
+      .toBe('genesis-river-01');
+    expect(screen.getByText('Source → mouth').nextElementSibling?.textContent)
+      .toBe('10,-5 → 20,-10');
+    expect(screen.getByRole('dialog').getAttribute('data-water-cell-key'))
+      .toBe(RECORD.cellKey);
   });
 });

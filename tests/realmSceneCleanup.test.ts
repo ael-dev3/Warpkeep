@@ -461,6 +461,17 @@ describe('realm scene setup cleanup', () => {
       highDetailTerrainCellCount: 1,
       coarseTerrainCellCount: 0,
       terrainTransitionEdgeCount: 0,
+      terrainSlopeCueMin: expect.any(Number),
+      terrainSlopeCueMax: expect.any(Number),
+      terrainConcavityCueMin: expect.any(Number),
+      terrainConcavityCueMax: expect.any(Number),
+      terrainVegetationCueMin: expect.any(Number),
+      terrainVegetationCueMax: expect.any(Number),
+      terrainWetnessCueMin: expect.any(Number),
+      terrainWetnessCueMax: expect.any(Number),
+      terrainShaderEnhanced: false,
+      terrainShaderFallbackActive: false,
+      terrainShaderCompileAttemptCount: 0,
       semanticCellCount: 1,
       semanticKindCount: 1,
       semanticFeatureCount: 0,
@@ -476,13 +487,34 @@ describe('realm scene setup cleanup', () => {
       totalDetailDrawCalls: expect.any(Number),
       forestPlacementSource: 'legacy-fallback',
       forestSharedTreeCount: 0,
+      forestCanonicalTriangleCount: 0,
+      forestVisibleTriangleCount: 0,
+      forestFallbackType: 'none',
+      forestContactShadowCount: 0,
+      forestGroundingMode: 'none',
+      forestCanopyMotionState: 'static',
+      forestStructureCellCounts: {
+        core: 0, body: 0, fringe: 0, clearing: 0
+      },
+      forestSilhouetteCoverageRatio: 0,
       forestDecorativeTreeCount: 0,
       forestDecorativeTriangleCount: 0,
       forestDecorativeDrawCalls: 0,
       forestDecorativeCacheEntries: 0,
+      forestDecorativeCacheLimit: 0,
       forestDecorativeCacheHighWaterMark: 0,
+      forestDecorativeRepackCount: 0,
       forestDecorativeModelReady: false,
       forestDecorativeUsingFallback: false,
+      forestDecorativeFallbackType: 'none',
+      forestDecorativeContactShadowCount: 0,
+      forestDecorativeGroundingMode: 'none',
+      forestDecorativeCanopyMotionState: 'static',
+      forestDecorativeStructureCellCounts: {
+        core: 0, body: 0, fringe: 0, clearing: 0
+      },
+      forestDecorativeSilhouetteCoverageRatio: 0,
+      forestDecorativeCanonicalTriangleCount: 0,
       forestDecorativeOverviewHidden: true,
       grassCandidateCellCount: 0,
       grassActiveCellCount: 0,
@@ -490,6 +522,9 @@ describe('realm scene setup cleanup', () => {
       grassTriangleCount: 0,
       grassDrawCalls: 0,
       grassCacheEntries: 0,
+      grassCacheLimit: 512,
+      grassCacheHighWaterMark: 0,
+      grassRepackCount: 0,
       grassAnimated: false,
       grassTargetAnimationCadence: 0,
       grassCandidateCellsByTerrain: {
@@ -516,8 +551,13 @@ describe('realm scene setup cleanup', () => {
       },
       grassPaletteLuminanceMin: 0,
       grassPaletteLuminanceMax: 0,
+      grassPaletteDisplaySrgbSaturationMin: 0,
+      grassPaletteDisplaySrgbSaturationMax: 0,
       grassPaletteGreenMin: 0,
       grassPaletteGreenMax: 0,
+      grassShaderFallbackActive: false,
+      grassShaderFallbackCount: 0,
+      grassShaderFallbackReason: null,
       grassCompletelyBareActiveCells: 0,
       grassRejectedByStructureClearance: 0,
       grassRejectedBySlope: 0,
@@ -743,8 +783,9 @@ describe('realm scene setup cleanup', () => {
     >;
     expect(terrain.material).toBeInstanceOf(THREE.MeshStandardMaterial);
     expect(terrain.material.vertexColors).toBe(true);
-    expect(terrain.material.roughness).toBe(0.96);
+    expect(terrain.material.roughness).toBe(0.94);
     expect(terrain.material.metalness).toBe(0);
+    expect(terrain.geometry.getAttribute('terrainSurfaceCue')?.itemSize).toBe(4);
 
     sceneHandle.dispose();
   });
@@ -850,6 +891,37 @@ describe('realm scene setup cleanup', () => {
     sceneHandle.dispose();
   });
 
+  it('does not rebuild unchanged terrain telemetry on ambient animation frames', () => {
+    const canvas = document.createElement('canvas');
+    const surface = createRealmTerrainSurface(
+      'terrain-telemetry-ambient-allocation',
+      1,
+      1
+    );
+    const onTerrainPresentationTelemetry = vi.fn();
+    const sceneHandle = createRealmScene(createOptions(canvas, {
+      surface,
+      quality: REALM_QUALITY_SPECS.high,
+      goldNodes: [movingResourceNode('terrain-telemetry-moving-site')],
+      onTerrainPresentationTelemetry
+    }));
+    const renderer = webglState.instances.at(-1)!;
+    const ambient = ambientSchedulerState.creations.at(-1)!;
+    const aggregationCount = canvas.dataset.realmTerrainTelemetryAggregationCount;
+    const publicationCount = onTerrainPresentationTelemetry.mock.calls.length;
+
+    expect(aggregationCount).toBeTruthy();
+    expect(publicationCount).toBeGreaterThan(0);
+    renderer.render.mockClear();
+    ambient.step(0.1);
+
+    expect(renderer.render).toHaveBeenCalledOnce();
+    expect(canvas.dataset.realmTerrainTelemetryAggregationCount)
+      .toBe(aggregationCount);
+    expect(onTerrainPresentationTelemetry).toHaveBeenCalledTimes(publicationCount);
+    sceneHandle.dispose();
+  });
+
   it('reconciles a live occupation without rebuilding the scene or camera', () => {
     const canvas = document.createElement('canvas');
     const surface = createRealmTerrainSurface('live-occupation-reconciliation', 1, 1);
@@ -951,6 +1023,8 @@ describe('realm scene setup cleanup', () => {
     });
     expect(canvas.dataset.realmWorkerMarkerCount).toBe('0');
     expect(canvas.dataset.realmDynamicReconciliationCount).toBe('1');
+    expect(canvas.dataset.realmWorkerLayerReconciliationCount).toBe('1');
+    expect(canvas.dataset.realmRouteLayerReconciliationCount).toBe('1');
 
     sceneHandle.reconcileLiveGatheringState({
       goldNodes: [],
@@ -964,6 +1038,8 @@ describe('realm scene setup cleanup', () => {
     expect(canvas.dataset.realmWorkerMarkerCount).toBe('1');
     expect(canvas.dataset.realmDynamicReconciliationCount).toBe('2');
     expect(canvas.dataset.realmDynamicReconciliationRejected).toBe('0');
+    expect(canvas.dataset.realmWorkerLayerReconciliationCount).toBe('2');
+    expect(canvas.dataset.realmRouteLayerReconciliationCount).toBe('2');
     expect(sceneHandle.getSceneBuildSequence()).toBe(buildSequence);
     expect(after.sceneId).toBe(before.sceneId);
     expect(after.canvasId).toBe(before.canvasId);
@@ -973,6 +1049,93 @@ describe('realm scene setup cleanup', () => {
 
     sceneHandle.dispose();
   });
+
+  it('repacks vegetation only when validated live route geometry changes', () => {
+    const canvas = document.createElement('canvas');
+    const surface = createRealmTerrainSurface('live-route-vegetation', 4, 5);
+    const initialWorker = outboundWorkerRecord();
+    const sceneHandle = createRealmScene(createOptions(canvas, {
+      surface,
+      reducedMotion: true,
+      workers: [initialWorker]
+    }));
+    const buildSequence = sceneHandle.getSceneBuildSequence();
+
+    expect(canvas.dataset.realmVegetationRoutePathCount).toBe('1');
+    expect(canvas.dataset.realmVegetationRouteSegmentCount).toBe('2');
+    expect(canvas.dataset.realmVegetationRouteRepackCount).toBe('0');
+
+    sceneHandle.reconcileLiveGatheringState({
+      goldNodes: [],
+      foodNodes: [],
+      woodNodes: [],
+      stoneNodes: [],
+      workers: [outboundWorkerRecord(0, {
+        startedAtMicros: 150_000n,
+        arrivesAtMicros: 350_000n,
+        revision: 2n
+      })],
+      observedAtMicros: 200_000n
+    });
+    expect(canvas.dataset.realmVegetationRouteRepackCount).toBe('0');
+
+    sceneHandle.reconcileLiveGatheringState({
+      goldNodes: [],
+      foodNodes: [],
+      woodNodes: [],
+      stoneNodes: [],
+      workers: [idleWorkerRecord(3n)],
+      observedAtMicros: 400_000n
+    });
+
+    expect(canvas.dataset.realmVegetationRoutePathCount).toBe('0');
+    expect(canvas.dataset.realmVegetationRouteSegmentCount).toBe('0');
+    expect(canvas.dataset.realmVegetationRouteRepackCount).toBe('1');
+    expect(sceneHandle.getSceneBuildSequence()).toBe(buildSequence);
+
+    sceneHandle.dispose();
+  });
+
+  it('invalidates the camera-local forest mask in place when a live route changes', () => {
+    const snapshot = createCanonicalGenesisSnapshot();
+    const surface = createAuthoritativeRealmTerrainSurface(
+      snapshot.realm.numericSeed,
+      snapshot.tiles,
+      snapshot.realm.authoritativeRadius,
+      snapshot.realm.renderRadius
+    );
+    const canvas = document.createElement('canvas');
+    const sceneHandle = createRealmScene(createOptions(canvas, {
+      surface,
+      terrainMetadata: snapshot.tileMetadata,
+      realmId: snapshot.realm.realmId,
+      sharedForestLayout: CANONICAL_GENESIS_FOREST_LAYOUT_V1,
+      sharedForestTrees: CANONICAL_GENESIS_FOREST_INSTANCES_V1,
+      allowLegacyForestFallback: false,
+      reducedMotion: true,
+      workers: [outboundWorkerRecord()]
+    }));
+    const buildSequence = sceneHandle.getSceneBuildSequence();
+    const initialForestRepackCount = Number(
+      canvas.dataset.forestDecorativeRepackCount
+    );
+
+    sceneHandle.reconcileLiveGatheringState({
+      goldNodes: [],
+      foodNodes: [],
+      woodNodes: [],
+      stoneNodes: [],
+      workers: [idleWorkerRecord(3n)],
+      observedAtMicros: 400_000n
+    });
+
+    expect(Number(canvas.dataset.forestDecorativeRepackCount))
+      .toBe(initialForestRepackCount + 1);
+    expect(canvas.dataset.realmVegetationRouteRepackCount).toBe('1');
+    expect(sceneHandle.getSceneBuildSequence()).toBe(buildSequence);
+
+    sceneHandle.dispose();
+  }, 15_000);
 
   it('projects a travelling worker from its current route position and locates it without changing zoom', () => {
     const canvas = document.createElement('canvas');
@@ -1132,6 +1295,35 @@ describe('realm scene setup cleanup', () => {
     sceneHandle.dispose();
   });
 
+  it('rejects a partial site-world-state catalog before any layer mutates', () => {
+    const canvas = document.createElement('canvas');
+    const goldNode = movingResourceNode('partial-state-gold-site');
+    const sceneHandle = createRealmScene(createOptions(canvas, {
+      quality: REALM_QUALITY_SPECS.high,
+      reducedMotion: true,
+      goldNodes: [goldNode]
+    }));
+
+    sceneHandle.reconcileLiveGatheringState({
+      goldNodes: [goldNode],
+      foodNodes: [],
+      woodNodes: [],
+      stoneNodes: [],
+      resourceSiteWorldStates: {
+        gold: [{
+          siteId: goldNode.siteId,
+          state: 'gathering'
+        }]
+      } as never,
+      observedAtMicros: 60_000_000n
+    });
+
+    expect(canvas.dataset.realmDynamicReconciliationCount).toBe('0');
+    expect(canvas.dataset.realmDynamicReconciliationRejected).toBe('1');
+
+    sceneHandle.dispose();
+  });
+
   it('keeps the ambient loop stopped under reduced motion even with moving resource wagons', () => {
     const canvas = document.createElement('canvas');
     const surface = createRealmTerrainSurface('reduced-motion-moving-resources', 1, 1);
@@ -1260,6 +1452,91 @@ describe('realm scene setup cleanup', () => {
     expect(listenerCalls(viewportRemove, 'scroll')).toBe(1);
   });
 
+  it('discards an active old-coordinate gesture before a live viewport rotation', () => {
+    let nextFrameId = 1;
+    const scheduled = new Map<number, FrameRequestCallback>();
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      const id = nextFrameId;
+      nextFrameId += 1;
+      scheduled.set(id, callback);
+      return id;
+    });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => {
+      scheduled.delete(id);
+    });
+    const visualViewport = Object.assign(new EventTarget(), {
+      width: 390,
+      height: 844
+    });
+    vi.stubGlobal('visualViewport', visualViewport);
+    const canvas = document.createElement('canvas');
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      right: 390,
+      bottom: 844,
+      left: 0,
+      width: 390,
+      height: 844,
+      toJSON: () => ({})
+    });
+    Object.defineProperties(canvas, {
+      clientWidth: { configurable: true, value: 390 },
+      clientHeight: { configurable: true, value: 844 },
+      setPointerCapture: { configurable: true, value: vi.fn() },
+      releasePointerCapture: { configurable: true, value: vi.fn() },
+      hasPointerCapture: { configurable: true, value: vi.fn(() => true) }
+    });
+    const scene = createRealmScene(createOptions(canvas, {
+      surface: createRealmTerrainSurface('realm-live-viewport-rotation', 4, 5)
+    }));
+    scheduled.clear();
+    const before = scene.getCameraAttestation();
+
+    dispatchPointer(canvas, 'pointerdown', {
+      pointerId: 71,
+      clientX: 150,
+      clientY: 400,
+      pointerType: 'touch'
+    });
+    dispatchPointer(canvas, 'pointermove', {
+      pointerId: 71,
+      clientX: 205,
+      clientY: 430,
+      pointerType: 'touch'
+    });
+    expect(canvas.dataset.dragging).toBe('true');
+    expect(scheduled.size).toBe(1);
+
+    visualViewport.width = 667;
+    visualViewport.height = 375;
+    visualViewport.dispatchEvent(new Event('resize'));
+
+    expect(canvas.dataset.dragging).toBeUndefined();
+    expect(canvas.dataset.realmCameraInertiaActive).toBe('false');
+    expect(scheduled.size).toBe(1);
+    const resizeCallback = scheduled.values().next().value as FrameRequestCallback;
+    scheduled.clear();
+    resizeCallback(16);
+
+    dispatchPointer(canvas, 'pointerup', {
+      pointerId: 71,
+      clientX: 205,
+      clientY: 430,
+      pointerType: 'touch'
+    });
+    const after = scene.getCameraAttestation();
+    expect(after.controllerState.currentPan).toEqual(
+      before.controllerState.currentPan
+    );
+    expect(after.controllerState.targetPan).toEqual(
+      before.controllerState.targetPan
+    );
+    expect(canvas.dataset.realmCameraInertialReleaseCount).toBe('0');
+    scene.dispose();
+  });
+
   it('clears stale castle hover before wheel-driven camera motion', () => {
     const canvas = document.createElement('canvas');
     const onHover = vi.fn();
@@ -1283,6 +1560,75 @@ describe('realm scene setup cleanup', () => {
     expect(onTargetHover).toHaveBeenCalledWith(null);
     expect(onHover).toHaveBeenCalledOnce();
     expect(onHover).toHaveBeenCalledWith(null);
+    scene.dispose();
+  });
+
+  it('keeps an inactive replacement scene inert until its canvas is activated', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(200);
+    const root = document.createElement('main');
+    root.className = 'realm-map-screen';
+    const canvas = document.createElement('canvas');
+    canvas.dataset.realmCanvasActive = 'false';
+    root.append(canvas);
+    document.body.append(root);
+    const onHover = vi.fn();
+    const onTargetHover = vi.fn();
+    const onSelect = vi.fn();
+    const scene = createRealmScene(createOptions(canvas, {
+      reducedMotion: true,
+      surface: createRealmTerrainSurface('inactive-replacement-worker', 4, 5),
+      workers: [outboundWorkerRecord()],
+      onHover,
+      onTargetHover,
+      onSelect
+    }));
+    const ambient = ambientSchedulerState.creations.at(-1)!;
+    onHover.mockClear();
+    onTargetHover.mockClear();
+    expect(ambient.isActive()).toBe(false);
+
+    const wheel = new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      deltaY: 120
+    });
+    canvas.dispatchEvent(wheel);
+    const pointer = dispatchPointer(canvas, 'pointerdown', {
+      pointerId: 91,
+      clientX: 20,
+      clientY: 20
+    });
+
+    expect(wheel.defaultPrevented).toBe(false);
+    expect(pointer.defaultPrevented).toBe(false);
+    expect(onTargetHover).not.toHaveBeenCalled();
+    expect(onHover).not.toHaveBeenCalled();
+    expect(onSelect).not.toHaveBeenCalled();
+
+    scene.setPresentationActive(true);
+    expect(canvas.dataset.realmCanvasActive).toBe('true');
+    expect(ambient.isActive()).toBe(true);
+    canvas.dispatchEvent(new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      deltaY: 120
+    }));
+    expect(onTargetHover).toHaveBeenCalledWith(null);
+    expect(onHover).toHaveBeenCalledWith(null);
+
+    onTargetHover.mockClear();
+    onHover.mockClear();
+    root.remove();
+    const detachedWheel = new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      deltaY: 120
+    });
+    canvas.dispatchEvent(detachedWheel);
+    expect(detachedWheel.defaultPrevented).toBe(false);
+    expect(onTargetHover).not.toHaveBeenCalled();
+    expect(onHover).not.toHaveBeenCalled();
+
     scene.dispose();
   });
 
@@ -1741,6 +2087,41 @@ describe('realm scene setup cleanup', () => {
     scene.dispose();
   });
 
+  it('locates a playable cell without changing zoom and exposes aggregate camera bands', () => {
+    const canvas = document.createElement('canvas');
+    const scene = createRealmScene(createOptions(canvas, {
+      surface: createRealmTerrainSurface('realm-scene-locate-cell', 2, 2),
+      reducedMotion: true,
+      isCoordPassable: () => true
+    }));
+    scene.frameFoundingDistrict();
+    const before = scene.getCameraAttestation();
+
+    scene.locateCell({ q: 1, r: 0 });
+    const located = scene.getCameraAttestation();
+
+    expect(located.zoom).toBe(before.zoom);
+    expect(located.mode).toBe(before.mode);
+    expect(located.target).not.toEqual(before.target);
+    expect(located.controllerState.targetZoom).toBe(before.controllerState.targetZoom);
+    expect(canvas.dataset.realmCameraMode).toBe(located.mode);
+    expect(canvas.dataset.realmCameraPresentationBand).toMatch(
+      /^(overview|strategy|close)$/
+    );
+    expect(canvas.dataset.realmCameraModeTransitionCount).toMatch(/^\d+$/);
+    expect(canvas.dataset.realmCameraInertialReleaseCount).toMatch(/^\d+$/);
+    expect(canvas.dataset.realmCameraInertiaCancellationCount).toMatch(/^\d+$/);
+    expect(canvas.dataset.realmCameraInertiaActive).toMatch(/^(true|false)$/);
+    expect(canvas.dataset.realmCameraZoom).toMatch(/^\d+\.\d{6}$/);
+
+    scene.focusCell({ q: 0, r: 1 });
+    expect(scene.getCameraAttestation()).toMatchObject({
+      zoom: 1,
+      mode: 'keep'
+    });
+    scene.dispose();
+  });
+
   it('locates a castle without replacing the current zoom while normal focus still closes in', () => {
     const canvas = document.createElement('canvas');
     const surface = createRealmTerrainSurface('realm-scene-locate-castle', 4, 5);
@@ -1978,13 +2359,13 @@ describe('realm scene setup cleanup', () => {
       clientY: 300,
       pointerType: 'touch'
     });
-    dispatchPointer(window, 'pointermove', {
+    dispatchPointer(canvas, 'pointermove', {
       pointerId: 1,
       clientX: 320,
       clientY: 300,
       pointerType: 'touch'
     });
-    dispatchPointer(window, 'pointermove', {
+    dispatchPointer(canvas, 'pointermove', {
       pointerId: 2,
       clientX: 520,
       clientY: 300,
@@ -2011,6 +2392,130 @@ describe('realm scene setup cleanup', () => {
 
     scene.dispose();
     root.remove();
+  });
+
+  it('does not inherit pan-release inertia when a second finger only starts a pinch', () => {
+    let nextFrameId = 1;
+    let frameTime = 0;
+    let gestureTime = 0;
+    const scheduled = new Map<number, FrameRequestCallback>();
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      const id = nextFrameId;
+      nextFrameId += 1;
+      scheduled.set(id, callback);
+      return id;
+    });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => {
+      scheduled.delete(id);
+    });
+    vi.spyOn(performance, 'now').mockImplementation(() => gestureTime);
+    const flushNextFrame = () => {
+      const next = scheduled.entries().next().value as
+        | [number, FrameRequestCallback]
+        | undefined;
+      if (!next) return false;
+      scheduled.delete(next[0]);
+      frameTime += 16;
+      next[1](frameTime);
+      return true;
+    };
+
+    const canvas = document.createElement('canvas');
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      right: 800,
+      bottom: 600,
+      left: 0,
+      width: 800,
+      height: 600,
+      toJSON: () => ({})
+    });
+    Object.defineProperties(canvas, {
+      clientWidth: { configurable: true, value: 800 },
+      clientHeight: { configurable: true, value: 600 },
+      setPointerCapture: { configurable: true, value: vi.fn() },
+      releasePointerCapture: { configurable: true, value: vi.fn() },
+      hasPointerCapture: { configurable: true, value: vi.fn(() => true) }
+    });
+    const scene = createRealmScene(createOptions(canvas, {
+      surface: createRealmTerrainSurface('realm-pinch-reset-inertia', 4, 5)
+    }));
+    scene.focusCell({ q: 0, r: 0 });
+    for (let frame = 0; frame < 240; frame += 1) {
+      const attestation = scene.getCameraAttestation();
+      if (
+        Math.abs(attestation.controllerState.currentZoom
+          - attestation.controllerState.targetZoom) < 0.000_001
+      ) break;
+      expect(flushNextFrame()).toBe(true);
+    }
+    scheduled.clear();
+
+    dispatchPointer(canvas, 'pointerdown', {
+      pointerId: 31,
+      clientX: 300,
+      clientY: 300,
+      pointerType: 'touch'
+    });
+    gestureTime = 16;
+    dispatchPointer(canvas, 'pointermove', {
+      pointerId: 31,
+      clientX: 330,
+      clientY: 310,
+      pointerType: 'touch'
+    });
+    gestureTime = 32;
+    dispatchPointer(canvas, 'pointermove', {
+      pointerId: 31,
+      clientX: 360,
+      clientY: 320,
+      pointerType: 'touch'
+    });
+    expect(flushNextFrame()).toBe(true);
+    gestureTime = 48;
+    dispatchPointer(canvas, 'pointermove', {
+      pointerId: 31,
+      clientX: 390,
+      clientY: 330,
+      pointerType: 'touch'
+    });
+    expect(flushNextFrame()).toBe(true);
+
+    gestureTime = 49;
+    dispatchPointer(canvas, 'pointerdown', {
+      pointerId: 32,
+      clientX: 500,
+      clientY: 330,
+      pointerType: 'touch'
+    });
+    gestureTime = 50;
+    dispatchPointer(canvas, 'pointerup', {
+      pointerId: 32,
+      clientX: 500,
+      clientY: 330,
+      pointerType: 'touch'
+    });
+    gestureTime = 51;
+    dispatchPointer(canvas, 'pointerup', {
+      pointerId: 31,
+      clientX: 390,
+      clientY: 330,
+      pointerType: 'touch'
+    });
+
+    const released = scene.getCameraAttestation();
+    expect(released.controllerState.targetPan).toEqual(
+      released.controllerState.currentPan
+    );
+    expect(released.controllerState.targetFocus).toEqual(
+      released.controllerState.currentFocus
+    );
+    expect(canvas.dataset.realmCameraInertialReleaseCount).toBe('0');
+    expect(canvas.dataset.realmCameraInertiaActive).toBe('false');
+
+    scene.dispose();
   });
 
   it('shares first-attempt drag and wheel control with permanent castle labels', () => {

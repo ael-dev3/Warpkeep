@@ -11,6 +11,38 @@
   background: #010207;
 }
 
+.warpkeep-experience__title-departure-focus {
+  position: fixed;
+  left: 50%;
+  bottom: max(1.25rem, env(safe-area-inset-bottom));
+  z-index: 40;
+  width: max-content;
+  max-width: calc(100vw - 2rem);
+  padding: 0.48rem 0.72rem;
+  border: 1px solid rgb(205 166 255 / 42%);
+  border-radius: 999px;
+  outline: 0;
+  background: rgb(7 7 16 / 82%);
+  box-shadow: 0 0 0 1px rgb(97 51 155 / 24%), 0 0 1.2rem rgb(143 82 219 / 24%);
+  color: rgb(243 238 248 / 94%);
+  font: 700 0.68rem/1.25 system-ui, sans-serif;
+  letter-spacing: 0.08em;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%);
+  visibility: hidden;
+}
+
+.warpkeep-experience__title-departure-focus[data-active="true"] {
+  opacity: 1;
+  visibility: visible;
+}
+
+.warpkeep-experience__title-departure-focus:focus-visible {
+  outline: 2px solid rgb(205 166 255 / 78%);
+  outline-offset: 3px;
+}
+
 /* Keep the app viewport aligned with Safari's visible area as its browser
    chrome expands and collapses. The stable viewport fallback above still
    covers older WebKit releases that do not expose dynamic viewport units. */

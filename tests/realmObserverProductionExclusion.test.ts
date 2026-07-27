@@ -316,7 +316,10 @@ describe('local QA production exclusion', () => {
     expect(verifier).toContain('createRenderedWebglQaFixtureRealm');
     expect(verifier).toContain('createRenderedWebglQaActiveWorkerRealm');
     expect(verifier).toContain('worker-active');
-    expect(verifier).toContain('warpkeep-local-active-worker-fixture-v1');
+    expect(verifier).toContain('warpkeep-local-');
+    expect(verifier).toContain('data-local-fullstack-');
+    expect(verifier).toContain('persistent-worker-reentry=');
+    expect(verifier).toContain('worker-private-seams=');
     expect(verifier).toContain('LOCAL RENDERED WEBGL QA');
     expect(verifier).toContain('QA_OBSERVER_ENABLED');
     expect(verifier).toContain('qa_observer_get_realm_attestation_v2');

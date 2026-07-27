@@ -444,6 +444,32 @@ export function createRenderedWebglQaActiveWorkerRealm(): RenderedWebglQaActiveW
     system: snapshot.workerSystem,
     workers: snapshot.workerWorkers,
     occupations: snapshot.workerOccupations,
+    resourceSites: Object.freeze([
+      ...CANONICAL_TIER_I_FOOD_SITES_V1.filter((site) => site.active).map((site) => ({
+        resourceKind: 'food' as const,
+        siteId: site.siteId,
+        q: site.q,
+        r: site.r
+      })),
+      ...CANONICAL_TIER_I_WOOD_SITES_V1.filter((site) => site.active).map((site) => ({
+        resourceKind: 'wood' as const,
+        siteId: site.siteId,
+        q: site.q,
+        r: site.r
+      })),
+      ...CANONICAL_TIER_I_STONE_SITES_V1.filter((site) => site.active).map((site) => ({
+        resourceKind: 'stone' as const,
+        siteId: site.siteId,
+        q: site.q,
+        r: site.r
+      })),
+      ...CANONICAL_TIER_I_GOLD_SITES_V1.filter((site) => site.active).map((site) => ({
+        resourceKind: 'gold' as const,
+        siteId: site.siteId,
+        q: site.q,
+        r: site.r
+      }))
+    ]),
     roster: workerRoster,
     resourceState: workerResourceState
   });

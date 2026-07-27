@@ -80,6 +80,16 @@
   will-change: transform;
 }
 
+.warpkeep-gateway[data-interactive="false"] .warpkeep-gateway-anchor,
+.warpkeep-title-screen:not([data-title-phase="active"]) .warpkeep-gateway-anchor {
+  display: none;
+  pointer-events: none;
+}
+
+.warpkeep-title-screen:not([data-title-phase="active"]) .warpkeep-gateway-button {
+  pointer-events: none;
+}
+
 .warpkeep-title-screen .warpkeep-gateway-button,
 .warpkeep-title-screen .warpkeep-gateway-button:hover:not(:disabled),
 .warpkeep-title-screen .warpkeep-gateway-button:active:not(:disabled),

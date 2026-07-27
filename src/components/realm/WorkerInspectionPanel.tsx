@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type Ref } from 'react';
 import { normalizePublicProfileText } from '../../security/publicProfileText';
 import { useModalFocusBoundary } from '../menu/useModalFocusBoundary';
 import { CastleProfileAvatar } from './RealmCastleLabels';
+import { RealmRecordField, RealmRecordStatus } from './RealmRecordPrimitives';
 import { useRealmRemainingDuration } from './realmAuthoritySchedule';
 import {
   castleProfileLabel,
@@ -40,6 +41,8 @@ export type WorkerInspectionPanelProps = Readonly<{
   onLocateWorker?: (workerId: string) => void;
   /** Centers the worker's keeper without changing the current camera zoom. */
   onLocateKeeper?: (castleId: number) => void;
+  /** Localized explanation shown while owner commands are read-only. */
+  controlsStatus?: string;
   onRecallWorker?: (workerId: string) => Promise<void>;
   onRequestClose: () => void;
   focusTargetRef?: Ref<HTMLHeadingElement>;
@@ -90,6 +93,7 @@ export function WorkerInspectionPanel({
   resourceTargetLabel,
   onLocateWorker,
   onLocateKeeper,
+  controlsStatus,
   onRecallWorker,
   onRequestClose,
   focusTargetRef
@@ -98,7 +102,9 @@ export function WorkerInspectionPanel({
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [state, setState] = useState<'idle' | 'recalling' | 'failed'>('idle');
   const commandPending = state === 'recalling';
-  const canRecall = realmWorkerCanRecall(worker) && onRecallWorker !== undefined;
+  const recallableByOwner = worker.ownedByViewer && realmWorkerCanRecall(worker);
+  const canRecall = recallableByOwner && onRecallWorker !== undefined;
+  const controlsStatusId = `${id}-controls-status`;
   const profile = useMemo(
     () => sanitizeWorkerKeeperProfile(keeperProfile),
     [
@@ -214,20 +220,20 @@ export function WorkerInspectionPanel({
             <p className="worker-inspection__bio">{profile.publicBio}</p>
           ) : null}
           <dl className="worker-inspection__fields">
-            <div><dt>Origin castle</dt><dd>{originCastleName}</dd></div>
-            <div>
-              <dt>Worker</dt>
-              <dd>{String(worker.ordinal).padStart(2, '0')} of 04</dd>
-            </div>
-            <div><dt>Status</dt><dd>{realmWorkerStatusLabel(worker)}</dd></div>
+            <RealmRecordField label="Origin castle">{originCastleName}</RealmRecordField>
+            <RealmRecordField label="Worker">
+              {String(worker.ordinal).padStart(2, '0')} of 04
+            </RealmRecordField>
+            <RealmRecordField label="Status">
+              {realmWorkerStatusLabel(worker)}
+            </RealmRecordField>
             {targetLabel ? (
-              <div><dt>Resource target</dt><dd>{targetLabel}</dd></div>
+              <RealmRecordField label="Resource target">{targetLabel}</RealmRecordField>
             ) : null}
             {schedule ? (
-              <div>
-                <dt>{schedule.label}</dt>
-                <dd role="timer">{scheduleRemaining ?? 'Schedule unavailable'}</dd>
-              </div>
+              <RealmRecordField label={schedule.label} valueRole="timer">
+                {scheduleRemaining ?? 'Schedule unavailable'}
+              </RealmRecordField>
             ) : null}
           </dl>
           {!worker.ownedByViewer ? (
@@ -240,6 +246,15 @@ export function WorkerInspectionPanel({
               Select an available resource node in the Realm to send this worker.
             </p>
           ) : null}
+          {recallableByOwner && controlsStatus ? (
+            <RealmRecordStatus
+              className="worker-inspection__read-only"
+              id={controlsStatusId}
+              state="informational"
+            >
+              {controlsStatus}
+            </RealmRecordStatus>
+          ) : null}
           <div className="worker-inspection__actions">
             {onLocateWorker ? (
               <button
@@ -251,11 +266,14 @@ export function WorkerInspectionPanel({
                 {locateLabel.toUpperCase()}
               </button>
             ) : null}
-            {canRecall ? (
+            {recallableByOwner ? (
               <button
+                aria-describedby={!canRecall && controlsStatus
+                  ? controlsStatusId
+                  : undefined}
                 aria-label={state === 'recalling' ? 'Recalling Worker' : 'Recall Worker'}
                 className="worker-inspection__recall"
-                disabled={commandPending}
+                disabled={!canRecall || commandPending}
                 onClick={() => void recall()}
                 type="button"
               >
@@ -264,9 +282,9 @@ export function WorkerInspectionPanel({
             ) : null}
           </div>
           {state === 'failed' ? (
-            <p className="worker-inspection__error" role="alert">
+            <RealmRecordStatus className="worker-inspection__error" state="error">
               The command could not be confirmed. Try the same action again.
-            </p>
+            </RealmRecordStatus>
           ) : null}
         </div>
       </div>

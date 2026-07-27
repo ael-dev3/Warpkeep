@@ -363,7 +363,10 @@ describe('realm profile and PFP presentation regressions', () => {
       level: 1,
       name: 'Fixture Keep'
     } as const;
-    const renderLabels = (presentation: RealmCastlePublicPresentation) => (
+    const renderLabels = (
+      presentation: RealmCastlePublicPresentation,
+      showDiagnostics = false
+    ) => (
       <RealmCastleLabels
         labels={[label]}
         records={new Map([[7, { castle, profile: presentation }]])}
@@ -373,12 +376,13 @@ describe('realm profile and PFP presentation regressions', () => {
         ownCastleId={7}
         inspectorId="castle-inspector"
         inspectorOpen
+        showDiagnostics={showDiagnostics}
         onActivate={vi.fn()}
       />
     );
     const { rerender } = render(renderLabels(profile()));
     let button = screen.getByRole('button', {
-      name: 'Inspect Hegemony Keep castle, Fixture Keep, cell 1,-1, your castle'
+      name: 'Inspect Hegemony Keep castle, Fixture Keep, your castle'
     });
     expect(button.dataset.anchor).toBe('foundation-base');
     expect(button.dataset.displaced).toBe('false');
@@ -397,7 +401,7 @@ describe('realm profile and PFP presentation regressions', () => {
     });
     rerender(renderLabels(trusted));
     button = screen.getByRole('button', {
-      name: 'Inspect @fixturekeeper castle, Fixture Keep, cell 1,-1, your castle'
+      name: 'Inspect @fixturekeeper castle, Fixture Keep, your castle'
     });
     expect(within(button).getByText('@fixturekeeper')).not.toBeNull();
     expect(button.querySelector('img')).toBeNull();
@@ -406,6 +410,11 @@ describe('realm profile and PFP presentation regressions', () => {
     expect(document.querySelector('[data-realm-label-leader]')).toBeNull();
     expect(mockProfileImages).toHaveLength(0);
     expect(within(button).getByText('@fixturekeeper')).not.toBeNull();
+
+    rerender(renderLabels(trusted, true));
+    expect(screen.getByRole('button', {
+      name: 'Inspect @fixturekeeper castle, Fixture Keep, cell 1,-1, your castle'
+    })).not.toBeNull();
   });
 
   it('keeps a policy-limit username complete in semantics while compact presentation truncates in CSS', () => {
@@ -442,7 +451,7 @@ describe('realm profile and PFP presentation regressions', () => {
     );
 
     const label = screen.getByRole('button', {
-      name: `Inspect @${canonicalUsername} castle, Fixture Keep, cell 1,-1`
+      name: `Inspect @${canonicalUsername} castle, Fixture Keep`
     });
     expect(canonicalUsername).toHaveLength(64);
     expect(label.dataset.anchor).toBe('foundation-base');
@@ -568,7 +577,7 @@ describe('realm profile and PFP presentation regressions', () => {
 
     const worldLabels = screen.getByLabelText('Visible player castles');
     const button = within(worldLabels).getByRole('button', {
-      name: 'Inspect Hegemony Keep castle, Frontier Keep, cell 1,-1, your castle'
+      name: 'Inspect Hegemony Keep castle, Frontier Keep, your castle'
     });
     const visibleLabel = Array.from(button.children).find((child) => (
       child.textContent === 'Hegemony Keep'
@@ -691,10 +700,10 @@ describe('realm profile and PFP presentation regressions', () => {
     const firstButton = buttons[0]!;
     rerender(view(10_000));
     expect(screen.getByRole('button', {
-      name: 'Inspect @keeper7 castle, Fixture Keep 7, cell 0,0'
+      name: 'Inspect @keeper7 castle, Fixture Keep 7'
     })).toBe(firstButton);
     const button = screen.getByRole('button', {
-      name: 'Inspect @keeper8 castle, Fixture Keep 8, cell 1,-1'
+      name: 'Inspect @keeper8 castle, Fixture Keep 8'
     });
     fireEvent.pointerDown(button, { pointerId: 1, pointerType: 'mouse' });
     expect(onMapPointerDown).toHaveBeenCalledOnce();

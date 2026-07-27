@@ -25,7 +25,8 @@ import { REALM_QUALITY_SPECS } from '../src/components/realm/realmQuality';
 import {
   axialToWorld,
   hexDisc,
-  hexDistance,
+  hexKey,
+  worldToNearestAxial,
   type HexWorldPosition
 } from '../src/game/map/hexCoordinates';
 import { createAuthoritativeRealmTerrainSurface } from '../src/game/map/realmTerrainSurface';
@@ -54,10 +55,6 @@ const canonicalHeightAtWorld = (world: HexWorldPosition) => terrainHeightAtWorld
 const activeRiverCells = GENESIS_WATER_REVISION_ENABLED_CELLS_V1.filter(
   (cell) => cell.regime === 'river'
 );
-
-function worldPointKey(world: HexWorldPosition) {
-  return `${Math.round(world.x * 1_000_000)},${Math.round(world.z * 1_000_000)}`;
-}
 
 function worldEdgeKey(first: HexWorldPosition, second: HexWorldPosition) {
   const edgePointKey = (world: HexWorldPosition) => (
@@ -111,48 +108,6 @@ function firstTriangleNormalY(geometry: THREE.BufferGeometry) {
   return abZ * acX - abX * acZ;
 }
 
-function renderedRiverTriangleHit(
-  mesh: THREE.Mesh<THREE.BufferGeometry, THREE.Material>,
-  raycaster: THREE.Raycaster
-) {
-  const positions = mesh.geometry.getAttribute('position');
-  const index = mesh.geometry.index;
-  const cellKeys = mesh.geometry.userData.realmWaterCellKeys as readonly string[] | undefined;
-  if (!index || !cellKeys) throw new Error('TEST_RIVER_GEOMETRY_CONTRACT_MISSING');
-  const triangleA = new THREE.Vector3();
-  const triangleB = new THREE.Vector3();
-  const triangleC = new THREE.Vector3();
-  const hitPoint = new THREE.Vector3();
-  let nearest: Readonly<{ cellKey: string; distance: number }> | null = null;
-  for (let triangleIndex = 0; triangleIndex < index.count / 3; triangleIndex += 1) {
-    triangleA.fromBufferAttribute(positions, index.getX(triangleIndex * 3));
-    triangleB.fromBufferAttribute(positions, index.getX(triangleIndex * 3 + 1));
-    triangleC.fromBufferAttribute(positions, index.getX(triangleIndex * 3 + 2));
-    const point = raycaster.ray.intersectTriangle(
-      triangleA,
-      triangleB,
-      triangleC,
-      true,
-      hitPoint
-    );
-    if (!point) continue;
-    const distance = raycaster.ray.origin.distanceTo(point);
-    if (
-      distance < Math.max(0, raycaster.near)
-      || distance > raycaster.far
-    ) continue;
-    const cellKey = cellKeys[Math.floor(triangleIndex / 6)];
-    if (!cellKey) throw new Error('TEST_RIVER_TRIANGLE_IDENTITY_MISSING');
-    if (
-      nearest !== null
-      && (distance > nearest.distance
-        || (distance === nearest.distance && cellKey >= nearest.cellKey))
-    ) continue;
-    nearest = Object.freeze({ cellKey, distance });
-  }
-  return nearest;
-}
-
 function angledRiverRay(
   cellKey: string,
   targetOffset: readonly [number, number],
@@ -178,18 +133,19 @@ function angledRiverRay(
 }
 
 function cameraPitchRiverRay(
-  mesh: THREE.Mesh<THREE.BufferGeometry, THREE.Material>,
   cellKey: string,
   pitchDegrees: number
 ) {
-  const cellKeys = mesh.geometry.userData.realmWaterCellKeys as readonly string[] | undefined;
-  const cellIndex = cellKeys?.indexOf(cellKey) ?? -1;
-  if (cellIndex < 0) throw new Error(`TEST_RIVER_CELL_MISSING:${cellKey}`);
-  const positions = mesh.geometry.getAttribute('position');
+  const cell = activeRiverCells.find((candidate) => candidate.cellKey === cellKey);
+  if (!cell) throw new Error(`TEST_RIVER_CELL_MISSING:${cellKey}`);
+  const world = axialToWorld(cell, 1);
   const target = new THREE.Vector3(
-    positions.getX(cellIndex * 7),
-    positions.getY(cellIndex * 7),
-    positions.getZ(cellIndex * 7)
+    world.x,
+    Math.max(
+      waterSurfaceLevelToWorldY(cell.surfaceLevelMilli) + 0.035,
+      canonicalHeightAtWorld(world) + 0.014
+    ),
+    world.z
   );
   const pitch = THREE.MathUtils.degToRad(pitchDegrees);
   const azimuth = THREE.MathUtils.degToRad(DEFAULT_REALM_CAMERA_SPEC.azimuthDegrees);
@@ -224,6 +180,7 @@ describe('Realm canonical water layer', () => {
       REALM_WATER_RENDER_BUDGETS.reduced.triangles
     );
     expect(telemetry.fullFogOceanCellCount).toBeGreaterThan(0);
+    expect(layer.getTelemetry()).toBe(telemetry);
     expect(layer.isAnimationActive()).toBe(false);
     expect(layer.updateEnvironment(1)).toBe(false);
 
@@ -290,22 +247,17 @@ describe('Realm canonical water layer', () => {
     expect(actualPerimeter).toHaveLength(786);
     expect([...new Set(actualPerimeter)].sort()).toEqual(expectedPerimeter);
 
-    // Every authoritative river coordinate is one complete hex-wide channel.
-    expect((rivers.geometry.index?.count ?? 0) / 3).toBe(
-      GENESIS_RIVERS_V1.reduce((sum, river) => sum + river.orderedCellKeys.length * 6, 0)
-    );
-    const riverPositions = rivers.geometry.getAttribute('position');
-    let vertexOffset = 0;
-    for (const river of GENESIS_RIVERS_V1) {
-      const mouthVertex = vertexOffset + (river.orderedCellKeys.length - 1) * 7;
-      const persistedPresentationY = waterSurfaceLevelToWorldY(GENESIS_WATER_SEA_LEVEL_MILLI)
-        + 0.035;
-      expect(riverPositions.getY(mouthVertex))
-        .toBeGreaterThanOrEqual(persistedPresentationY - 0.000_001);
-      expect(riverPositions.getY(mouthVertex))
-        .toBeLessThan(persistedPresentationY + 0.16);
-      vertexOffset += river.orderedCellKeys.length * 7;
-    }
+    expect(telemetry.riverBodyCount).toBe(GENESIS_RIVERS_V1.length);
+    expect(telemetry.riverChannelBodyCount).toBe(GENESIS_RIVERS_V1.length);
+    expect(telemetry.riverFallbackBodyCount).toBe(0);
+    expect(telemetry.riverFallbackCellCount).toBe(0);
+    expect(telemetry.riverMouthConnectionCount).toBe(GENESIS_RIVERS_V1.length);
+    expect(telemetry.riverLocalizedFoamVertexCount).toBeGreaterThan(0);
+    expect((rivers.geometry.index?.count ?? 0) / 3)
+      .toBe(telemetry.riverChannelSegmentCount * 6);
+    expect(rivers.material.color.getHexString()).toBe('ffffff');
+    expect(rivers.material.emissive.getHexString()).toBe('143d41');
+    expect(rivers.material.emissiveIntensity).toBeCloseTo(0.08, 6);
 
     const shader = compileMaterial(ocean.material);
     expect(ocean.material.userData.waterWaveComponents).toBe(0);
@@ -317,13 +269,13 @@ describe('Realm canonical water layer', () => {
     expect(shader.fragmentShader).not.toContain('uWaterHorizonColor');
     expect(shader.fragmentShader.indexOf('waterGlimmer'))
       .toBeLessThan(shader.fragmentShader.indexOf('#include <opaque_fragment>'));
-    expect(shader.fragmentShader.indexOf('gl_FragColor.rgb = mix'))
-      .toBeGreaterThan(shader.fragmentShader.indexOf('#include <colorspace_fragment>'));
+    expect(shader.fragmentShader.indexOf('outgoingLight = mix(outgoingLight, fogColor'))
+      .toBeLessThan(shader.fragmentShader.indexOf('#include <opaque_fragment>'));
 
     layer.dispose();
   });
 
-  it('renders the active revision as exact full-cell rivers with no lake draw', () => {
+  it('renders the active revision as narrow river channels with no lake draw', () => {
     const layer = createRealmWaterLayer({
       cells: GENESIS_WATER_REVISION_ENABLED_CELLS_V1,
       quality: REALM_QUALITY_SPECS.reduced,
@@ -335,6 +287,9 @@ describe('Realm canonical water layer', () => {
     expect(telemetry.layoutVersion).toBe(GENESIS_WATER_REVISION_VERSION);
     expect(telemetry.lakeCellCount).toBe(0);
     expect(telemetry.riverCellCount).toBe(400);
+    expect(telemetry.riverChannelBodyCount).toBe(12);
+    expect(telemetry.riverFallbackBodyCount).toBe(0);
+    expect(telemetry.riverMouthConnectionCount).toBe(12);
     expect(telemetry.drawCalls).toBe(3);
     expect(layer.group.getObjectByName('canonical-lake-surfaces')).toBeDefined();
     expect((layer.group.getObjectByName('canonical-lake-surfaces') as THREE.Mesh)
@@ -426,7 +381,7 @@ describe('Realm canonical water layer', () => {
     layer.dispose();
   });
 
-  it('matches rendered river triangles at angled edges, transitions, misses, and clips', () => {
+  it('keeps full-cell river selection beyond the narrow ribbon and honors ray clips', () => {
     const layer = createRealmWaterLayer({
       cells: GENESIS_WATER_REVISION_ENABLED_CELLS_V1,
       quality: REALM_QUALITY_SPECS.reduced,
@@ -434,35 +389,26 @@ describe('Realm canonical water layer', () => {
       hexSize: 1,
       heightAtWorld: canonicalHeightAtWorld
     });
-    const riverMesh = layer.group.getObjectByName('canonical-river-ribbons') as THREE.Mesh<
-      THREE.BufferGeometry,
-      THREE.Material
-    >;
     const fixedCases = [
       {
-        label: 'raised near-edge triangle',
+        label: 'raised near-edge canonical cell',
         raycaster: angledRiverRay('26,8', [0.82, 0], [3, 7, -2]),
         expectedCellKey: '26,8'
       },
       {
-        label: 'different-level adjacent triangle',
+        label: 'different-level canonical cell',
         raycaster: angledRiverRay('38,17', [-0.42, -0.72], [-3, 8, -2]),
         expectedCellKey: '38,17'
       },
       {
-        label: 'sloped-geometry miss outside the rendered edge',
-        raycaster: angledRiverRay('26,7', [-0.82, 0], [-3, 8, -2]),
-        expectedCellKey: null
+        label: 'opposite bank remains selectable',
+        raycaster: angledRiverRay('26,7', [-0.65, 0], [-3, 8, -2]),
+        expectedCellKey: '26,7'
       }
     ] as const;
     fixedCases.forEach(({ label, raycaster, expectedCellKey }) => {
-      const renderedHit = renderedRiverTriangleHit(riverMesh, raycaster);
-      expect(renderedHit?.cellKey ?? null, label).toBe(expectedCellKey);
       const layerHit = layer.raycast(raycaster);
-      expect(layerHit?.cellKey ?? null, label).toBe(renderedHit?.cellKey ?? null);
-      if (renderedHit && layerHit) {
-        expect(layerHit.distance, label).toBeCloseTo(renderedHit.distance, 8);
-      }
+      expect(layerHit?.cellKey ?? null, label).toBe(expectedCellKey);
     });
 
     const riverCellsByKey = new Map(activeRiverCells.map(
@@ -497,21 +443,20 @@ describe('Realm canonical water layer', () => {
         0,
         30
       );
-      const renderedHit = renderedRiverTriangleHit(riverMesh, adjacencyRaycaster);
-      expect(renderedHit?.cellKey).toBe(downstreamKey);
-      expect(layer.raycast(adjacencyRaycaster)?.cellKey).toBe(renderedHit?.cellKey);
+      expect([upstreamKey, downstreamKey]).toContain(
+        layer.raycast(adjacencyRaycaster)?.cellKey
+      );
     }
 
     const unclippedRaycaster = angledRiverRay('26,8', [0.82, 0], [3, 7, -2]);
-    const unclippedHit = renderedRiverTriangleHit(riverMesh, unclippedRaycaster)!;
+    const unclippedHit = layer.raycast(unclippedRaycaster)!;
     const acceptedWindow = new THREE.Raycaster(
       unclippedRaycaster.ray.origin.clone(),
       unclippedRaycaster.ray.direction.clone(),
       unclippedHit.distance - 0.000_1,
       unclippedHit.distance + 0.000_1
     );
-    expect(layer.raycast(acceptedWindow)?.cellKey)
-      .toBe(renderedRiverTriangleHit(riverMesh, acceptedWindow)?.cellKey);
+    expect(layer.raycast(acceptedWindow)?.cellKey).toBe(unclippedHit.cellKey);
     for (const clippedRaycaster of [
       new THREE.Raycaster(
         unclippedRaycaster.ray.origin.clone(),
@@ -526,7 +471,6 @@ describe('Realm canonical water layer', () => {
         unclippedHit.distance + 0.5
       )
     ]) {
-      expect(renderedRiverTriangleHit(riverMesh, clippedRaycaster)).toBeNull();
       expect(layer.raycast(clippedRaycaster)).toBeNull();
     }
     layer.dispose();
@@ -540,10 +484,6 @@ describe('Realm canonical water layer', () => {
       hexSize: 1,
       heightAtWorld: canonicalHeightAtWorld
     });
-    const riverMesh = layer.group.getObjectByName('canonical-river-ribbons') as THREE.Mesh<
-      THREE.BufferGeometry,
-      THREE.Material
-    >;
     const orderedBySurface = [...activeRiverCells].sort((left, right) => (
       left.surfaceLevelMilli - right.surfaceLevelMilli
       || left.cellKey.localeCompare(right.cellKey)
@@ -557,10 +497,7 @@ describe('Realm canonical water layer', () => {
         DEFAULT_REALM_CAMERA_SPEC.closePitchDegrees,
         DEFAULT_REALM_CAMERA_SPEC.overviewPitchDegrees
       ]) {
-        const raycaster = cameraPitchRiverRay(riverMesh, cell.cellKey, pitchDegrees);
-        const renderedHit = renderedRiverTriangleHit(riverMesh, raycaster);
-        expect(renderedHit?.cellKey, `${cell.cellKey} at ${pitchDegrees}°`)
-          .toBe(cell.cellKey);
+        const raycaster = cameraPitchRiverRay(cell.cellKey, pitchDegrees);
         expect(layer.raycast(raycaster)?.cellKey, `${cell.cellKey} at ${pitchDegrees}°`)
           .toBe(cell.cellKey);
       }
@@ -568,7 +505,7 @@ describe('Realm canonical water layer', () => {
     layer.dispose();
   });
 
-  it('keeps every canonical river surface clear and every shared edge continuous', () => {
+  it('keeps every channel triangle clear, connected, and inside canonical Water', () => {
     const layer = createRealmWaterLayer({
       cells: GENESIS_WATER_REVISION_ENABLED_CELLS_V1,
       quality: REALM_QUALITY_SPECS.reduced,
@@ -582,109 +519,66 @@ describe('Realm canonical water layer', () => {
     >;
     const positions = rivers.geometry.getAttribute('position');
     const index = rivers.geometry.index;
-    expect(positions.count).toBe(activeRiverCells.length * 7);
-    expect(index?.count).toBe(activeRiverCells.length * 6 * 3);
-    expect(layer.getTelemetry().riverCellCount).toBe(activeRiverCells.length);
-    expect((index?.count ?? 0) / 3).toBe(activeRiverCells.length * 6);
+    const telemetry = layer.getTelemetry();
+    expect(telemetry.riverCellCount).toBe(activeRiverCells.length);
+    expect((index?.count ?? 0) / 3).toBe(telemetry.riverChannelSegmentCount * 6);
+    expect(telemetry.riverChannelBodyCount).toBe(12);
+    expect(telemetry.riverFallbackBodyCount).toBe(0);
 
     let minimumVertexClearance = Number.POSITIVE_INFINITY;
     let minimumProbeClearance = Number.POSITIVE_INFINITY;
-    const cornerHeights = activeRiverCells.map((cell, cellIndex) => {
-      const base = cellIndex * 7;
-      const expectedWorlds = [
-        axialToWorld({ q: cell.q, r: cell.r }, 1),
-        ...pointyHexCorners({ q: cell.q, r: cell.r }, 1)
-      ];
-      const heights = new Map<string, number>();
-      expectedWorlds.forEach((expectedWorld, vertexIndex) => {
-        const renderedVertex = base + vertexIndex;
-        const renderedWorld = {
-          x: positions.getX(renderedVertex),
-          z: positions.getZ(renderedVertex)
-        };
-        expect(renderedWorld.x).toBeCloseTo(expectedWorld.x, 5);
-        expect(renderedWorld.z).toBeCloseTo(expectedWorld.z, 5);
-        const renderedY = positions.getY(renderedVertex);
-        minimumVertexClearance = Math.min(
-          minimumVertexClearance,
-          renderedY - canonicalHeightAtWorld(renderedWorld)
-        );
-        if (vertexIndex > 0) heights.set(worldPointKey(renderedWorld), renderedY);
-      });
-
-      // Probe edges and triangle interiors more densely than construction.
-      for (let triangle = 0; triangle < 6; triangle += 1) {
-        const first = base + triangle + 1;
-        const second = base + ((triangle + 1) % 6) + 1;
-        for (let firstStep = 0; firstStep <= 12; firstStep += 1) {
-          for (let secondStep = 0; secondStep <= 12 - firstStep; secondStep += 1) {
-            const firstWeight = firstStep / 12;
-            const secondWeight = secondStep / 12;
-            const centerWeight = 1 - firstWeight - secondWeight;
-            const world = {
-              x: positions.getX(base) * centerWeight
-                + positions.getX(first) * firstWeight
-                + positions.getX(second) * secondWeight,
-              z: positions.getZ(base) * centerWeight
-                + positions.getZ(first) * firstWeight
-                + positions.getZ(second) * secondWeight
-            };
-            const surfaceY = positions.getY(base) * centerWeight
-              + positions.getY(first) * firstWeight
-              + positions.getY(second) * secondWeight;
-            minimumProbeClearance = Math.min(
-              minimumProbeClearance,
-              surfaceY - canonicalHeightAtWorld(world)
-            );
-          }
+    const canonicalWaterKeys = new Set(
+      GENESIS_WATER_REVISION_ENABLED_CELLS_V1
+        .filter((cell) => cell.regime === 'river' || cell.regime === 'ocean')
+        .map((cell) => cell.cellKey)
+    );
+    for (let vertex = 0; vertex < positions.count; vertex += 1) {
+      const world = { x: positions.getX(vertex), z: positions.getZ(vertex) };
+      expect(canonicalWaterKeys.has(hexKey(worldToNearestAxial(world, 1)))).toBe(true);
+      minimumVertexClearance = Math.min(
+        minimumVertexClearance,
+        positions.getY(vertex) - canonicalHeightAtWorld(world)
+      );
+    }
+    if (!index) throw new Error('TEST_RIVER_CHANNEL_INDEX_MISSING');
+    for (let triangle = 0; triangle < index.count; triangle += 3) {
+      const first = index.getX(triangle);
+      const second = index.getX(triangle + 1);
+      const third = index.getX(triangle + 2);
+      const normalY = (
+        (positions.getZ(second) - positions.getZ(first))
+          * (positions.getX(third) - positions.getX(first))
+        - (positions.getX(second) - positions.getX(first))
+          * (positions.getZ(third) - positions.getZ(first))
+      );
+      expect(normalY).toBeGreaterThan(0);
+      for (let firstStep = 0; firstStep <= 3; firstStep += 1) {
+        for (let secondStep = 0; secondStep <= 3 - firstStep; secondStep += 1) {
+          const firstWeight = firstStep / 3;
+          const secondWeight = secondStep / 3;
+          const thirdWeight = 1 - firstWeight - secondWeight;
+          const world = {
+            x: positions.getX(first) * firstWeight
+              + positions.getX(second) * secondWeight
+              + positions.getX(third) * thirdWeight,
+            z: positions.getZ(first) * firstWeight
+              + positions.getZ(second) * secondWeight
+              + positions.getZ(third) * thirdWeight
+          };
+          const surfaceY = positions.getY(first) * firstWeight
+            + positions.getY(second) * secondWeight
+            + positions.getY(third) * thirdWeight;
+          minimumProbeClearance = Math.min(
+            minimumProbeClearance,
+            surfaceY - canonicalHeightAtWorld(world)
+          );
         }
       }
+    }
 
-      const cellIndices = Array.from(
-        { length: 18 },
-        (_, offset) => index?.getX(cellIndex * 18 + offset)
-      );
-      expect(cellIndices).toEqual([
-        base, base + 2, base + 1,
-        base, base + 3, base + 2,
-        base, base + 4, base + 3,
-        base, base + 5, base + 4,
-        base, base + 6, base + 5,
-        base, base + 1, base + 6
-      ]);
-      return heights;
-    });
-
-    let sharedEdgeCount = 0;
-    let slopedSharedEdgeCount = 0;
-    let maximumSharedEdgeDelta = 0;
-    activeRiverCells.forEach((cell, cellIndex) => {
-      for (let neighborIndex = cellIndex + 1; neighborIndex < activeRiverCells.length; neighborIndex += 1) {
-        const neighbor = activeRiverCells[neighborIndex]!;
-        if (hexDistance(cell, neighbor) !== 1) continue;
-        const sharedCornerKeys = [...cornerHeights[cellIndex]!.keys()].filter(
-          (key) => cornerHeights[neighborIndex]!.has(key)
-        );
-        expect(sharedCornerKeys).toHaveLength(2);
-        sharedEdgeCount += 1;
-        if (cell.surfaceLevelMilli !== neighbor.surfaceLevelMilli) slopedSharedEdgeCount += 1;
-        sharedCornerKeys.forEach((key) => {
-          maximumSharedEdgeDelta = Math.max(
-            maximumSharedEdgeDelta,
-            Math.abs(cornerHeights[cellIndex]!.get(key)!
-              - cornerHeights[neighborIndex]!.get(key)!)
-          );
-        });
-      }
-    });
-
-    // A merely non-negative surface can still disappear into the adaptive
-    // ground depth buffer at strategic zoom. Preserve a visible safety margin.
     expect(minimumVertexClearance).toBeGreaterThanOrEqual(0.005);
     expect(minimumProbeClearance).toBeGreaterThanOrEqual(0.005);
-    expect(sharedEdgeCount).toBeGreaterThan(0);
-    expect(slopedSharedEdgeCount).toBeGreaterThan(0);
-    expect(maximumSharedEdgeDelta).toBe(0);
+    expect(telemetry.riverLocalizedFoamVertexCount).toBeGreaterThan(0);
     layer.dispose();
   });
 
@@ -708,12 +602,58 @@ describe('Realm canonical water layer', () => {
     expect(shader.vertexShader).toContain('* warpkeepWaterWaveVisibility');
     expect(shader.vertexShader).not.toContain('vViewPosition.xz');
     expect(shader.fragmentShader).toContain('outgoingLight +=');
-    expect(ocean.material.userData.waterShaderContract).toContain('-v3');
+    expect(ocean.material.userData.waterShaderContract).toContain('-v4');
     expect(shader.uniforms).toHaveProperty('uWaterTime');
     expect(layer.updateEnvironment(1)).toBe(true);
     expect(layer.updateEnvironment(1)).toBe(false);
     expect(layer.updateEnvironment(2)).toBe(true);
 
+    layer.dispose();
+  });
+
+  it('falls back to static standard materials when a Three shader marker drifts', () => {
+    const layer = createLayer('high');
+    const materials = [
+      'canonical-ocean-surface',
+      'canonical-lake-surfaces',
+      'canonical-river-ribbons'
+    ].map((name) => (
+      (layer.group.getObjectByName(name) as THREE.Mesh<
+        THREE.BufferGeometry,
+        THREE.MeshStandardMaterial
+      >).material
+    ));
+
+    const preFallbackTelemetry = layer.getTelemetry();
+    materials.forEach((material) => {
+      const shader = {
+        uniforms: {},
+        vertexShader: [
+          '#include <begin_vertex>',
+          '#include <color_vertex>'
+        ].join('\n'),
+        fragmentShader: '#include <opaque_fragment>'
+      };
+      expect(() => material.onBeforeCompile(
+        shader as Parameters<typeof material.onBeforeCompile>[0],
+        {} as THREE.WebGLRenderer
+      )).not.toThrow();
+      expect(shader.vertexShader).not.toContain('warpkeepWaterHeight');
+      expect(shader.fragmentShader).toContain('warpkeepWaterFogFallback');
+      expect(material.userData.waterWaveComponents).toBe(0);
+      expect(material.userData.waterShaderFallbackReason)
+        .toBe('shader-contract-changed');
+      expect(material.userData.waterShaderFallbackPresentation)
+        .toBe('full-mesh-fog-color');
+    });
+
+    const fallbackTelemetry = layer.getTelemetry();
+    expect(fallbackTelemetry).not.toBe(preFallbackTelemetry);
+    expect(fallbackTelemetry.shaderFallbackCount).toBe(3);
+    expect(fallbackTelemetry.animated).toBe(false);
+    expect(layer.getTelemetry()).toBe(fallbackTelemetry);
+    expect(layer.isAnimationActive()).toBe(false);
+    expect(layer.updateEnvironment(1)).toBe(false);
     layer.dispose();
   });
 
@@ -843,6 +783,40 @@ describe('Realm canonical water layer', () => {
       geometryDispose.mockRestore();
       materialDispose.mockRestore();
     }
+  });
+
+  it('contains malformed river topology to one truthful full-cell body fallback', () => {
+    const bodyId = activeRiverCells[0]!.bodyId;
+    const bodyCells = activeRiverCells.filter((cell) => cell.bodyId === bodyId);
+    const first = [...bodyCells].sort((left, right) => (
+      (left.riverOrder ?? 0) - (right.riverOrder ?? 0)
+    ))[0]!;
+    const cells = GENESIS_WATER_REVISION_ENABLED_CELLS_V1.map((cell) => (
+      cell.cellKey === first.cellKey
+        ? Object.freeze({ ...cell, downstreamWaterCellKey: 'not-the-reviewed-next-cell' })
+        : cell
+    ));
+    const layer = createRealmWaterLayer({
+      cells,
+      quality: REALM_QUALITY_SPECS.reduced,
+      reducedMotion: true,
+      hexSize: 1,
+      heightAtWorld: canonicalHeightAtWorld
+    });
+    const telemetry = layer.getTelemetry();
+    expect(telemetry.riverFallbackBodyCount).toBe(1);
+    expect(telemetry.riverFallbackCellCount).toBe(bodyCells.length);
+    expect(telemetry.riverChannelBodyCount).toBe(11);
+    expect(telemetry.riverFallbackReasons).toEqual([{
+      bodyId,
+      reason: 'downstream-mismatch'
+    }]);
+    const world = axialToWorld(first, 1);
+    expect(layer.raycast(new THREE.Raycaster(
+      new THREE.Vector3(world.x + 0.65, 10, world.z),
+      new THREE.Vector3(0, -1, 0)
+    ))?.cellKey).toBe(first.cellKey);
+    layer.dispose();
   });
 
   it('fails closed when a non-ocean surface would render below the supplied terrain', () => {

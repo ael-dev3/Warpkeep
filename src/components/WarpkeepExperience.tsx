@@ -10,7 +10,12 @@ import {
   useState
 } from 'react';
 import { useFarcasterAuth } from '../farcaster/FarcasterAuthProviderCore';
-import type { VerifiedFarcasterIdentity } from '../farcaster/farcasterAuthTypes';
+import type {
+  FarcasterAuthViewState,
+  FarcasterOidcSession,
+  VerifiedFarcasterIdentity
+} from '../farcaster/farcasterAuthTypes';
+import type { WarpkeepBackendState } from '../spacetime/warpkeepBackendTypes';
 import {
   useWarpkeepBackend,
   WARPKEEP_SHARED_ALPHA_UNAVAILABLE_MESSAGE
@@ -175,6 +180,45 @@ function blurActiveElement() {
   }
 }
 
+/**
+ * Preserve presentation identity only across the provider's exact public
+ * Realm continuity window. The bridge-authenticated machine and the retained
+ * canonical Realm must still name the same FID; no tokenless state gains
+ * backend or command authority through this presentation-only reference.
+ */
+export function resolveRealmContinuityIdentity(
+  previous: VerifiedFarcasterIdentity | null,
+  authState: FarcasterAuthViewState,
+  oidcSession: FarcasterOidcSession | undefined,
+  backendState: WarpkeepBackendState,
+  now = Date.now()
+): VerifiedFarcasterIdentity | null {
+  if (
+    authState.phase !== 'authenticated'
+    || authState.assurance !== 'bridge-oidc-alpha'
+  ) {
+    return null;
+  }
+  const backendHasRealmContinuity = (
+    backendState.phase === 'ready'
+    || backendState.phase === 'reconnecting'
+  );
+  const backendRealmIsSameFid = backendHasRealmContinuity
+    && backendState.identity?.fid === authState.identity.fid
+    && backendState.realm?.ownCastle.ownerFid === authState.identity.fid;
+  if (oidcSession !== undefined && oidcSession.expiresAt > now) {
+    // A passive provider effect tears down old Realm state after render. On a
+    // direct authenticated FID transition, do not let the new identity shell
+    // pair with one frame of the previous caller's retained private display.
+    return !backendHasRealmContinuity || backendRealmIsSameFid
+      ? authState.identity
+      : null;
+  }
+  return backendRealmIsSameFid && previous?.fid === authState.identity.fid
+    ? previous
+    : null;
+}
+
 export function WarpkeepExperience() {
   const {
     state: farcasterAuthState,
@@ -191,7 +235,8 @@ export function WarpkeepExperience() {
   const backend = useWarpkeepBackend();
   const initiallyAuthenticated = farcasterAuthState.phase === 'authenticated'
     && farcasterAuthState.assurance === 'bridge-oidc-alpha'
-    && oidcSession !== undefined;
+    && oidcSession !== undefined
+    && oidcSession.expiresAt > Date.now();
   const initialPhase = useMemo(
     () => initialStablePhase(),
     // The first render intentionally never treats a route hash as admission.
@@ -222,6 +267,7 @@ export function WarpkeepExperience() {
   const [returnPreparing, setReturnPreparing] = useState(false);
   const titleRef = useRef<WarpkeepTitleScreenHandle>(null);
   const audioDirectorRef = useRef<WarpkeepAudioDirectorHandle>(null);
+  const titleDepartureFocusRef = useRef<HTMLDivElement>(null);
   const phaseRef = useRef(experience.phase);
   const entryLockedRef = useRef(false);
   const hintDismissedRef = useRef(false);
@@ -244,11 +290,12 @@ export function WarpkeepExperience() {
   const returnPreparingRef = useRef(returnPreparing);
   phaseRef.current = experience.phase;
   returnPreparingRef.current = returnPreparing;
-  verifiedIdentityRef.current = farcasterAuthState.phase === 'authenticated'
-    && farcasterAuthState.assurance === 'bridge-oidc-alpha'
-    && oidcSession !== undefined
-    ? farcasterAuthState.identity
-    : null;
+  verifiedIdentityRef.current = resolveRealmContinuityIdentity(
+    verifiedIdentityRef.current,
+    farcasterAuthState,
+    oidcSession,
+    backend.state
+  );
   backendRealmContinuityRef.current = backend.state.phase === 'ready'
     || backend.state.phase === 'reconnecting';
 
@@ -402,6 +449,8 @@ export function WarpkeepExperience() {
     || backend.state.phase === 'reconnecting'
   )
     && verifiedIdentityRef.current
+    && backend.state.identity?.fid === verifiedIdentityRef.current.fid
+    && backend.state.realm?.ownCastle.ownerFid === verifiedIdentityRef.current.fid
     ? {
         fid: verifiedIdentityRef.current.fid,
         username: verifiedIdentityRef.current.username,
@@ -410,6 +459,11 @@ export function WarpkeepExperience() {
       }
     : null;
   const realmMounted = experience.phase === 'realm' && realmIdentity !== null;
+  const backendMutationAuthorityCurrent = farcasterAuthState.phase === 'authenticated'
+    && farcasterAuthState.assurance === 'bridge-oidc-alpha'
+    && oidcSession !== undefined
+    && oidcSession.expiresAt > Date.now()
+    && backend.state.identity?.fid === farcasterAuthState.identity.fid;
   const titleInteractive = experience.phase === 'title';
   const menuInteractive = experience.phase === 'menu' && !returnPreparing;
   const menuMediaActive = menuMounted;
@@ -473,7 +527,17 @@ export function WarpkeepExperience() {
     setInputModality(resolvedModality);
     setMenuPreloadReady(true);
     setGatewayOrigin(safeGatewayOrigin(projection));
-    blurActiveElement();
+    if (resolvedModality === 'keyboard') {
+      const landmark = titleDepartureFocusRef.current;
+      if (landmark) {
+        landmark.dataset.active = 'true';
+        landmark.setAttribute('aria-hidden', 'false');
+        landmark.setAttribute('role', 'status');
+        landmark.focus({ preventScroll: true });
+      }
+    } else {
+      blurActiveElement();
+    }
     audioDirectorRef.current?.ensurePlaybackFromGesture();
     audioDirectorRef.current?.transitionTo('menu');
 
@@ -1025,6 +1089,34 @@ export function WarpkeepExperience() {
       data-graphics-quality={resolvedGraphicsQuality}
       data-audio-muted={audioMuted ? 'true' : 'false'}
     >
+      <div
+        aria-atomic="true"
+        aria-hidden={
+          experience.phase !== 'transitioning-to-menu'
+          || inputModality !== 'keyboard'
+        }
+        aria-live={
+          experience.phase === 'transitioning-to-menu'
+          && inputModality === 'keyboard'
+            ? 'polite'
+            : 'off'
+        }
+        className="warpkeep-experience__title-departure-focus"
+        data-active={String(
+          experience.phase === 'transitioning-to-menu'
+          && inputModality === 'keyboard'
+        )}
+        ref={titleDepartureFocusRef}
+        role={
+          experience.phase === 'transitioning-to-menu'
+          && inputModality === 'keyboard'
+            ? 'status'
+            : undefined
+        }
+        tabIndex={-1}
+      >
+        Entering Warpkeep. Opening the main menu.
+      </div>
       {titleMounted ? (
         <div
           className="warpkeep-experience__screen warpkeep-experience__screen--title"
@@ -1105,34 +1197,66 @@ export function WarpkeepExperience() {
                 snapshot={backend.state.realm}
                 resources={backend.state.resources}
                 goldExpedition={backend.state.goldExpedition}
-                onDispatchGoldExpedition={backend.state.goldExpedition === undefined
+                onDispatchGoldExpedition={
+                  !backendMutationAuthorityCurrent
+                  || backend.state.goldExpedition === undefined
                   ? undefined
                   : backend.dispatchGoldExpedition}
                 foodExpedition={backend.state.foodExpedition}
-                onDispatchFoodExpedition={backend.state.foodExpedition === undefined
+                onDispatchFoodExpedition={
+                  !backendMutationAuthorityCurrent
+                  || backend.state.foodExpedition === undefined
                   ? undefined
                   : backend.dispatchFoodExpedition}
                 woodExpedition={backend.state.woodExpedition}
-                onDispatchWoodExpedition={backend.state.woodExpedition === undefined
+                onDispatchWoodExpedition={
+                  !backendMutationAuthorityCurrent
+                  || backend.state.woodExpedition === undefined
                   ? undefined
                   : backend.dispatchWoodExpedition}
                 stoneExpedition={backend.state.stoneExpedition}
-                onDispatchStoneExpedition={backend.state.stoneExpedition === undefined
+                onDispatchStoneExpedition={
+                  !backendMutationAuthorityCurrent
+                  || backend.state.stoneExpedition === undefined
                   ? undefined
                   : backend.dispatchStoneExpedition}
                 workerProjection={backend.state.workerProjection}
                 workerRoster={backend.state.workerRoster}
                 workerResourceState={backend.state.workerResourceState}
-                onDispatchWorker={backend.state.workerProjection?.mode === 'active'
+                workerPrivateSync={backend.workerPrivateSync}
+                onRetryWorkerPrivateSync={backend.retryWorkerPrivateSync}
+                onDispatchWorker={
+                  backend.state.phase === 'ready'
+                  && backend.state.admission === 'ready'
+                  && backendMutationAuthorityCurrent
+                  && backend.workerPrivateSync.phase === 'ready'
+                  && backend.workerPrivateSync.commandsEnabled
+                  && backend.state.workerProjection?.mode === 'active'
                   ? backend.dispatchWorker
                   : undefined}
-                onRecallWorker={backend.state.workerProjection?.mode === 'active'
+                onRecallWorker={
+                  backend.state.phase === 'ready'
+                  && backend.state.admission === 'ready'
+                  && backendMutationAuthorityCurrent
+                  && backend.workerPrivateSync.phase === 'ready'
+                  && backend.workerPrivateSync.commandsEnabled
+                  && backend.state.workerProjection?.mode === 'active'
                   ? backend.recallWorker
                   : undefined}
-                onRecallAllWorkers={backend.state.workerProjection?.mode === 'active'
+                onRecallAllWorkers={
+                  backend.state.phase === 'ready'
+                  && backend.state.admission === 'ready'
+                  && backendMutationAuthorityCurrent
+                  && backend.workerPrivateSync.phase === 'ready'
+                  && backend.workerPrivateSync.commandsEnabled
+                  && backend.state.workerProjection?.mode === 'active'
                   ? backend.recallAllWorkers
                   : undefined}
-                onReturnLegacyExpedition={backend.returnLegacyExpedition}
+                onReturnLegacyExpedition={
+                  backendMutationAuthorityCurrent
+                    ? backend.returnLegacyExpedition
+                    : undefined
+                }
                 graphicsPreference={graphicsPreference}
                 resolvedGraphicsQuality={resolvedGraphicsQuality}
                 audioMuted={audioMuted}

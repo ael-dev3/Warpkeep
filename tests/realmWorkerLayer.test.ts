@@ -1,19 +1,22 @@
 import * as THREE from 'three';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { axialToWorld } from '../src/game/map/hexCoordinates';
 import {
   createRealmWorkerLayer,
   realmWorkerWagonLodForQuality,
+  resolveRealmWorkerTerrainOrientation,
   resolveRealmWorkerWorldPosition,
+  transitionRealmWorkerAnimation,
   type RealmWorkerSceneRecord
 } from '../src/components/realm/realmWorkerLayer';
 import {
   getRealmWorkerRouteCacheTelemetry,
+  resolveCorridorSafeWorkerPolyline,
   resolveRealmWorkerAnimationClip,
   resolveRealmWorkerCanonicalRoute,
   resolveRealmWorkerRemainingRouteWorldPoints,
-  resolveRealmWorkerRoutePose
+  resolveRealmWorkerRoutePose,
+  resolveRealmWorkerVisualRoute
 } from '../src/components/realm/realmWorkerRoutePresentation';
 
 const idleWorker = Object.freeze({
@@ -48,17 +51,26 @@ afterEach(() => {
 });
 
 describe('realm worker scene layer', () => {
-  it('places idle workers around their keep and advances segment by segment', () => {
+  it('places idle workers around their keep and advances by cumulative distance', () => {
     const idle = resolveRealmWorkerWorldPosition(idleWorker, 0n, 1);
     const start = resolveRealmWorkerWorldPosition(outboundWorker, 100n, 1);
-    const midpoint = resolveRealmWorkerWorldPosition(outboundWorker, 200n, 1);
+    const midpointPose = resolveRealmWorkerRoutePose(outboundWorker, 200n, 1)!;
     const end = resolveRealmWorkerWorldPosition(outboundWorker, 300n, 1);
     const route = resolveRealmWorkerCanonicalRoute(outboundWorker);
+    const visualRoute = resolveRealmWorkerVisualRoute(outboundWorker, 1)!;
+    const traversedDistance = (
+      visualRoute.cumulativeDistances[midpointPose.segmentIndex]!
+      + (
+        visualRoute.cumulativeDistances[midpointPose.segmentIndex + 1]!
+        - visualRoute.cumulativeDistances[midpointPose.segmentIndex]!
+      ) * midpointPose.segmentProgress
+    );
 
     expect(start).toEqual(idle);
     expect(route).toHaveLength(3);
-    expect(midpoint).toEqual(axialToWorld(route![1]!, 1));
-    expect(midpoint.x).not.toBeCloseTo((start.x + end.x) * 0.5, 8);
+    expect(traversedDistance).toBeCloseTo(visualRoute.totalLength * 0.5, 8);
+    expect(visualRoute.ribbonPoints[0]).not.toEqual(idle);
+    expect(visualRoute.ribbonPoints.at(-1)).toEqual(end);
     expect(end).not.toEqual(start);
   });
 
@@ -79,6 +91,86 @@ describe('realm worker scene layer', () => {
 
     expect(returnStart).toEqual(outboundAtRecall);
     expect(returned).toEqual(origin);
+  });
+
+  it('reconstructs phase-aware outbound and returning poses across reconnect without reversal', () => {
+    const returningWorker = Object.freeze({
+      ...outboundWorker,
+      status: 'returning' as const,
+      returnStartedAtMicros: 250n,
+      returnsAtMicros: 550n,
+      returnStartProgressBasisPoints: 7_500,
+      timelineRevision: 2,
+      revision: 2n
+    }) satisfies RealmWorkerSceneRecord;
+    const percentages = [10, 25, 50, 75, 90] as const;
+    const phaseCases = [
+      {
+        direction: 'outbound' as const,
+        worker: outboundWorker,
+        start: outboundWorker.startedAtMicros,
+        end: outboundWorker.arrivesAtMicros,
+        expectedForwardProgress: (percentage: number) => percentage / 100
+      },
+      {
+        direction: 'returning' as const,
+        worker: returningWorker,
+        start: returningWorker.returnStartedAtMicros,
+        end: returningWorker.returnsAtMicros,
+        expectedForwardProgress: (percentage: number) => (
+          0.75 * (1 - percentage / 100)
+        )
+      }
+    ] as const;
+
+    for (const phase of phaseCases) {
+      const observedForwardProgress: number[] = [];
+      for (const percentage of percentages) {
+        const nowMicros = phase.start
+          + (phase.end - phase.start) * BigInt(percentage) / 100n;
+        const beforeReconnect = resolveRealmWorkerRoutePose(
+          phase.worker,
+          nowMicros,
+          1
+        )!;
+        const reconstructedWorker = Object.freeze({
+          ...phase.worker,
+          originCoord: Object.freeze({ ...phase.worker.originCoord }),
+          destinationCoord: Object.freeze({ ...phase.worker.destinationCoord })
+        }) satisfies RealmWorkerSceneRecord;
+        const afterReconnect = resolveRealmWorkerRoutePose(
+          reconstructedWorker,
+          nowMicros,
+          1
+        )!;
+
+        expect(afterReconnect.direction).toBe(phase.direction);
+        expect(afterReconnect.phaseProgress).toBeCloseTo(percentage / 100, 8);
+        expect(afterReconnect.forwardProgress).toBeCloseTo(
+          phase.expectedForwardProgress(percentage),
+          8
+        );
+        expect(afterReconnect.world.x).toBeCloseTo(beforeReconnect.world.x, 12);
+        expect(afterReconnect.world.z).toBeCloseTo(beforeReconnect.world.z, 12);
+        expect(afterReconnect.segmentIndex).toBe(beforeReconnect.segmentIndex);
+        expect(afterReconnect.segmentProgress).toBeCloseTo(
+          beforeReconnect.segmentProgress,
+          12
+        );
+        expect(
+          afterReconnect.tangent.x * beforeReconnect.tangent.x
+          + afterReconnect.tangent.z * beforeReconnect.tangent.z
+        ).toBeCloseTo(1, 12);
+        observedForwardProgress.push(afterReconnect.forwardProgress);
+      }
+
+      for (let index = 1; index < observedForwardProgress.length; index += 1) {
+        const previous = observedForwardProgress[index - 1]!;
+        const current = observedForwardProgress[index]!;
+        if (phase.direction === 'outbound') expect(current).toBeGreaterThan(previous);
+        else expect(current).toBeLessThan(previous);
+      }
+    }
   });
 
   it('renders one bounded selectable identity and accepts only the same static catalog', () => {
@@ -143,7 +235,9 @@ describe('realm worker scene layer', () => {
       heightAtWorld: () => Number.NaN
     })).toThrow('REALM_WORKER_GROUND_INVALID');
     expect(instanceDispose).toHaveBeenCalledTimes(2);
-    expect(geometryDispose).toHaveBeenCalledTimes(5);
+    // Seven procedural source parts are disposed after their one-batch merge,
+    // then all five live layer geometries are released by failure cleanup.
+    expect(geometryDispose).toHaveBeenCalledTimes(12);
     expect(materialDispose).toHaveBeenCalledTimes(5);
   });
 
@@ -185,15 +279,15 @@ describe('realm worker scene layer', () => {
     const markerColorVersion = marker.instanceColor?.version;
     const pickMatrixVersion = pick.instanceMatrix.version;
 
-    expect(heightAtWorld).toHaveBeenCalledOnce();
+    expect(heightAtWorld).toHaveBeenCalledTimes(5);
     expect(layer.update(0n)).toBe(false);
     expect(layer.update(50n)).toBe(false);
-    expect(heightAtWorld).toHaveBeenCalledOnce();
+    expect(heightAtWorld).toHaveBeenCalledTimes(5);
     expect(marker.instanceMatrix.version).toBe(markerMatrixVersion);
     expect(marker.instanceColor?.version).toBe(markerColorVersion);
     expect(pick.instanceMatrix.version).toBe(pickMatrixVersion);
     layer.setHoveredWorkerId(idleWorker.workerId);
-    expect(heightAtWorld).toHaveBeenCalledOnce();
+    expect(heightAtWorld).toHaveBeenCalledTimes(5);
     expect(marker.instanceMatrix.version).toBeGreaterThan(markerMatrixVersion);
     expect(marker.instanceColor?.version).toBeGreaterThan(markerColorVersion ?? -1);
     expect(pick.instanceMatrix.version).toBe(pickMatrixVersion);
@@ -320,7 +414,7 @@ describe('realm worker scene layer', () => {
   });
 
   it('mirrors the steering clip when traversing a canonical corner in reverse', () => {
-    const outboundCorner = resolveRealmWorkerRoutePose(outboundWorker, 204n, 1)!;
+    const outboundCorner = resolveRealmWorkerRoutePose(outboundWorker, 180n, 1)!;
     const returning = Object.freeze({
       ...outboundWorker,
       status: 'returning' as const,
@@ -330,11 +424,110 @@ describe('realm worker scene layer', () => {
       timelineRevision: 2,
       revision: 2n
     }) satisfies RealmWorkerSceneRecord;
-    const returningCorner = resolveRealmWorkerRoutePose(returning, 396n, 1)!;
+    const returningCorner = resolveRealmWorkerRoutePose(returning, 420n, 1)!;
 
     expect(outboundCorner.segmentIndex).toBe(returningCorner.segmentIndex);
     expect(outboundCorner.segmentProgress).toBeCloseTo(returningCorner.segmentProgress, 8);
     expect(resolveRealmWorkerAnimationClip(outboundCorner)).toBe('Turn_Left');
     expect(resolveRealmWorkerAnimationClip(returningCorner)).toBe('Turn_Right');
+  });
+
+  it('falls back to the exact canonical polyline when smoothing leaves its corridor', () => {
+    const canonical = Object.freeze([
+      Object.freeze({ q: 0, r: 0 }),
+      Object.freeze({ q: 1, r: 0 }),
+      Object.freeze({ q: 2, r: 0 })
+    ]);
+    const raw = Object.freeze([
+      Object.freeze({ x: 0, z: 0 }),
+      Object.freeze({ x: Math.sqrt(3), z: 0 }),
+      Object.freeze({ x: Math.sqrt(3) * 2, z: 0 })
+    ]);
+    const unsafe = Object.freeze([
+      raw[0]!,
+      Object.freeze({ x: Math.sqrt(3), z: 4 }),
+      raw[2]!
+    ]);
+    const result = resolveCorridorSafeWorkerPolyline(raw, unsafe, canonical, 1);
+
+    expect(result.usedFallback).toBe(true);
+    expect(result.validationFailureCount).toBeGreaterThan(0);
+    expect(result.points).toEqual(raw);
+  });
+
+  it('reports exact and normalized-time route contracts without changing authority', () => {
+    expect(resolveRealmWorkerVisualRoute(outboundWorker, 1)?.contract).toBe('exact-match');
+    const drifted = Object.freeze({
+      ...outboundWorker,
+      routeSteps: 3
+    }) satisfies RealmWorkerSceneRecord;
+    expect(resolveRealmWorkerVisualRoute(drifted, 1)?.contract).toBe('normalized-time');
+    expect(resolveRealmWorkerCanonicalRoute(drifted)).toEqual(
+      resolveRealmWorkerCanonicalRoute(outboundWorker)
+    );
+  });
+
+  it('bounds terrain slope, preserves +Z travel orientation, and fails flat safely', () => {
+    const orientation = resolveRealmWorkerTerrainOrientation(
+      { x: 0, z: 0 },
+      { x: 1, z: 0 },
+      1,
+      ({ x, z }) => x * 10 + z * 10
+    );
+    expect(orientation.terrainAligned).toBe(true);
+    expect(orientation.slopeRadians).toBeLessThanOrEqual(
+      THREE.MathUtils.degToRad(12) + Number.EPSILON
+    );
+    const localForward = new THREE.Vector3(0, 0, 1)
+      .applyQuaternion(orientation.quaternion);
+    expect(localForward.x).toBeGreaterThan(0.9);
+
+    const safe = resolveRealmWorkerTerrainOrientation(
+      { x: 0, z: 0 },
+      { x: 0, z: 1 },
+      1,
+      () => Number.NaN
+    );
+    expect(safe).toMatchObject({
+      terrainAligned: false,
+      slopeRadians: 0,
+      normal: { x: 0, y: 1, z: 0 }
+    });
+  });
+
+  it('cross-fades approved clips without restarting an unchanged action', () => {
+    const mixer = new THREE.AnimationMixer(new THREE.Object3D());
+    const idle = new THREE.AnimationClip('Idle', 1, []);
+    const walk = new THREE.AnimationClip('Walk', 1, []);
+    const start = new THREE.AnimationClip('Start', 1, []);
+    const first = transitionRealmWorkerAnimation(mixer, undefined, undefined, idle);
+    const repeated = transitionRealmWorkerAnimation(
+      mixer,
+      first.action,
+      first.clipName,
+      idle
+    );
+    const crossFade = vi.spyOn(first.action, 'crossFadeTo');
+    const walking = transitionRealmWorkerAnimation(
+      mixer,
+      first.action,
+      first.clipName,
+      walk
+    );
+    const starting = transitionRealmWorkerAnimation(
+      mixer,
+      walking.action,
+      walking.clipName,
+      start
+    );
+
+    expect(first.transitioned).toBe(true);
+    expect(repeated).toMatchObject({
+      transitioned: false,
+      suppressedRestart: true
+    });
+    expect(crossFade).toHaveBeenCalledWith(walking.action, 0.16, false);
+    expect(starting.action.loop).toBe(THREE.LoopOnce);
+    expect(starting.action.clampWhenFinished).toBe(true);
   });
 });

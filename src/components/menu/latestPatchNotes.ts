@@ -34,8 +34,23 @@ const ALPHA_0_3_19_PATCH_NOTES: LatestPatchNotes = Object.freeze({
     'Alpha 0.3.19 remains an unfinished, evolving world. Worker ownership, node leases, timers, settlement, and recall stay server-authoritative; wagon routes are a deterministic dry-land presentation of those journeys.'
 });
 
+const ALPHA_0_3_20_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: '27 JUL 2026',
+  title: 'THE CRAFTED LOWLANDS',
+  summary:
+    'Genesis 001 now holds together more calmly through worker journeys, with a richer Lowlands landscape and clearer ways to read the living Realm.',
+  highlights: Object.freeze([
+    'Worker journeys, wagons, routes, portraits, and controls remain present across reloads and reconnects while private commands synchronize safely in place.',
+    'Natural terrain, clustered grass, shaped forests, continuous rivers, and grounded keeps and resource sites make the Lowlands feel like one crafted landscape.',
+    'More physical travel, coherent identity markers, refined records, camera hierarchy, and responsive composition keep the world readable across desktop and mobile.'
+  ]),
+  alphaNotice:
+    'Alpha 0.3.20 remains an unfinished, evolving world. Worker authority, ownership, private balances, gathering rates, settlement, and the deployed database contract remain unchanged.'
+});
+
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
+    '0.3.20': ALPHA_0_3_20_PATCH_NOTES,
     '0.3.19': ALPHA_0_3_19_PATCH_NOTES,
     '0.3.18': ALPHA_0_3_18_PATCH_NOTES
   });
