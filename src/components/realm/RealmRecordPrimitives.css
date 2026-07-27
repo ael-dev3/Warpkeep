@@ -1,0 +1,29 @@
+.realm-record-field {
+  min-width: 0;
+}
+
+.realm-record-field dt,
+.realm-record-field dd {
+  min-width: 0;
+}
+
+.realm-record-field dd {
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.realm-record-status {
+  overflow-wrap: anywhere;
+}
+
+.realm-record-status[data-state="pending"] {
+  border-color: rgb(231 199 121 / 38%);
+}
+
+.realm-record-status[data-state="confirmed"] {
+  border-color: rgb(128 202 156 / 44%);
+}
+
+.realm-record-status[data-state="error"] {
+  border-color: rgb(233 119 119 / 48%);
+}

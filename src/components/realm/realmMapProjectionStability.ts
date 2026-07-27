@@ -1,6 +1,13 @@
 import { useRef } from 'react';
 
 import { GENESIS_FOREST_LAYOUT_V1_TREE_COUNT } from '../../../spacetimedb/src/forestLayoutContract';
+import {
+  GENESIS_WATER_REVISION_ENABLED_CELLS_V1
+} from '../../../spacetimedb/src/waterRevision';
+import {
+  GENESIS_WATER_CELLS_V1,
+  type GenesisWaterCellV1
+} from '../../../spacetimedb/src/waterWorld';
 import type { WarpkeepWorldTileMetadata } from '../../spacetime/warpkeepBackendTypes';
 import {
   isPlayableRealmCoord,
@@ -22,6 +29,147 @@ export type RealmCastleProjection = Readonly<{
   tileKey?: string;
   foundedAt?: number;
 }>;
+
+type RealmSceneCatalogNode = Readonly<{
+  siteId: string;
+  coord: Readonly<{ q: number; r: number }>;
+  tier: number;
+}>;
+
+export type RealmSceneConstructionKeyInput = Readonly<{
+  canonicalFingerprint: string;
+  realmId: string;
+  numericSeed: number;
+  authoritativeRadius: number;
+  renderRadius: number;
+  ownCastleId: number;
+  keepCoord: Readonly<{ q: number; r: number }>;
+  peerCastles: readonly Readonly<{ castleId: number; q: number; r: number }>[];
+  goldNodes: readonly RealmSceneCatalogNode[];
+  foodNodes: readonly RealmSceneCatalogNode[];
+  woodNodes: readonly RealmSceneCatalogNode[];
+  stoneNodes: readonly RealmSceneCatalogNode[];
+  forestSignature: string;
+  waterSignature: string;
+  quality: string;
+  reducedMotion: boolean;
+  observerMode: boolean;
+}>;
+
+function sortedCastleCatalog(
+  castles: RealmSceneConstructionKeyInput['peerCastles']
+) {
+  return castles
+    .map((castle) => [castle.castleId, castle.q, castle.r] as const)
+    .sort((left, right) => (
+      left[0] - right[0]
+      || left[1] - right[1]
+      || left[2] - right[2]
+    ));
+}
+
+function sortedNodeCatalog(nodes: readonly RealmSceneCatalogNode[]) {
+  return nodes
+    .map((node) => [node.siteId, node.coord.q, node.coord.r, node.tier] as const)
+    .sort((left, right) => left[0].localeCompare(right[0]));
+}
+
+/**
+ * A scene construction boundary must describe immutable content, never the
+ * identity of freshly allocated SpacetimeDB snapshot arrays. Dynamic
+ * occupations, workers, profiles, menus, and private procedure results are
+ * intentionally absent because the mounted scene reconciles them in place.
+ */
+export function realmSceneConstructionKey(input: RealmSceneConstructionKeyInput) {
+  return JSON.stringify([
+    'realm-scene-v1',
+    input.canonicalFingerprint,
+    input.realmId,
+    input.numericSeed,
+    input.authoritativeRadius,
+    input.renderRadius,
+    input.ownCastleId,
+    input.keepCoord.q,
+    input.keepCoord.r,
+    sortedCastleCatalog(input.peerCastles),
+    sortedNodeCatalog(input.goldNodes),
+    sortedNodeCatalog(input.foodNodes),
+    sortedNodeCatalog(input.woodNodes),
+    sortedNodeCatalog(input.stoneNodes),
+    input.forestSignature,
+    input.waterSignature,
+    input.quality,
+    input.reducedMotion,
+    input.observerMode
+  ]);
+}
+
+export type RealmSceneRecreationReason =
+  | 'initial-entry'
+  | 'graphics-quality-change'
+  | 'reduced-motion-material-change'
+  | 'canonical-topology-change'
+  | 'renderer-recovery'
+  | 'explicit-retry';
+
+export type RealmSceneConstructionProfile = Readonly<{
+  key: string;
+  quality: string;
+  reducedMotion: boolean;
+}>;
+
+export function realmSceneRecreationReason(
+  previous: RealmSceneConstructionProfile | undefined,
+  next: RealmSceneConstructionProfile,
+  requested?: 'renderer-recovery' | 'explicit-retry'
+): RealmSceneRecreationReason {
+  if (previous === undefined) return 'initial-entry';
+  if (requested !== undefined) return requested;
+  if (previous.quality !== next.quality) return 'graphics-quality-change';
+  if (previous.reducedMotion !== next.reducedMotion) {
+    return 'reduced-motion-material-change';
+  }
+  return 'canonical-topology-change';
+}
+
+export function realmWaterSceneSignature(
+  cells: readonly GenesisWaterCellV1[] | undefined
+) {
+  if (cells === undefined) return 'water:unavailable';
+  if (cells === GENESIS_WATER_CELLS_V1) return 'water:layout-v1';
+  if (cells === GENESIS_WATER_REVISION_ENABLED_CELLS_V1) {
+    return 'water:layout-v1:revision-v1';
+  }
+  // The public decoder currently returns only one of the two immutable
+  // canonical catalogs above. Unfamiliar arrays share one blocked identity
+  // and the stable-input hook removes their payload from scene construction.
+  return 'water:unrecognized';
+}
+
+export function useStableRealmWaterSceneInputs(input: Readonly<{
+  cells: readonly GenesisWaterCellV1[] | undefined;
+  bodies: readonly unknown[] | undefined;
+  environment: unknown;
+}>) {
+  const signature = realmWaterSceneSignature(input.cells);
+  const stableRef = useRef<Readonly<{
+    signature: string;
+    cells: readonly GenesisWaterCellV1[] | undefined;
+    bodies: readonly unknown[] | undefined;
+    environment: unknown;
+  }> | undefined>(undefined);
+  if (stableRef.current?.signature !== signature) {
+    stableRef.current = signature === 'water:unrecognized'
+      ? Object.freeze({
+          signature,
+          cells: undefined,
+          bodies: undefined,
+          environment: undefined
+        })
+      : Object.freeze({ signature, ...input });
+  }
+  return stableRef.current;
+}
 
 const EMPTY_PEER_CASTLE_MARKERS: readonly RealmPeerCastleMarker[] = Object.freeze([]);
 
@@ -174,6 +322,7 @@ export function useStableRealmTerrainMetadata(
 }
 
 type RealmForestSnapshotProjection = Readonly<{
+  signature: string;
   layout: unknown;
   trees: unknown;
 }>;
@@ -252,7 +401,7 @@ export function useStableSharedForestProjection(layout: unknown, trees: unknown)
   if (projectionRef.current?.signature !== signature) {
     projectionRef.current = Object.freeze({
       signature,
-      projection: Object.freeze({ layout, trees })
+      projection: Object.freeze({ signature, layout, trees })
     });
   }
   return projectionRef.current.projection;

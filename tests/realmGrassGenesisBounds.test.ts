@@ -117,6 +117,12 @@ describe('canonical Genesis 001 grass bounds', () => {
     expect(first.activeCellCount).toBe(397);
     expect(first.cacheEntries).toBeLessThanOrEqual(REALM_GRASS_RENDER_PLANS.high.cacheLimit);
     expect(first.cacheEntries).toBeLessThan(10_000);
+    expect(first.cacheHighWaterMark).toBe(first.cacheEntries);
+    expect(first.cacheHighWaterMark).toBeLessThanOrEqual(
+      REALM_GRASS_RENDER_PLANS.high.cacheLimit
+    );
+    expect(first.repackCount).toBe(2);
+    expect(first.completelyBareActiveCells).toBeGreaterThan(0);
     expect(first.instanceCount).toBeLessThanOrEqual(
       REALM_GRASS_RENDER_PLANS.high.maximumActiveInstances
     );
@@ -126,7 +132,7 @@ describe('canonical Genesis 001 grass bounds', () => {
     expect(first.drawCalls).toBeLessThanOrEqual(3);
     expect(first.variantCounts).toHaveLength(3);
     expect(digestPackedGrass(layer)).toBe(
-      '41d786fb5f5095bfbddb961b08f4ea363ed99c850865c1a0af8d85ef240b64ef'
+      '561a371101ae10c6b2a8bf28b89285254913e40e87177c341babb683aeeebec5'
     );
 
     layer.updateView(axialToWorld({ q: 30, r: -10 }, 1), 'keep');
@@ -135,6 +141,10 @@ describe('canonical Genesis 001 grass bounds', () => {
     expect(traversed.activeCellCount).toBe(397);
     expect(traversed.cacheEntries).toBeLessThanOrEqual(REALM_GRASS_RENDER_PLANS.high.cacheLimit);
     expect(traversed.cacheEntries).toBeLessThan(10_000);
+    expect(traversed.cacheHighWaterMark).toBeLessThanOrEqual(
+      REALM_GRASS_RENDER_PLANS.high.cacheLimit
+    );
+    expect(traversed.repackCount).toBe(3);
     expect(traversed.instanceCount).toBeLessThanOrEqual(
       REALM_GRASS_RENDER_PLANS.high.maximumActiveInstances
     );

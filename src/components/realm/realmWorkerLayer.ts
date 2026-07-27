@@ -13,6 +13,10 @@ import {
   type HegemonyExpeditionPrefabLease
 } from './loadHegemonyExpeditionAssets';
 import {
+  createRealmProceduralWorkerWagonFallback
+} from './createRealmProceduralWorkerWagonFallback';
+import type { RealmCameraMode } from './realmCameraController';
+import {
   normalizeRealmUsername,
   safeRealmProfileImageUrl
 } from './realmCastlePresentation';
@@ -34,8 +38,10 @@ export type { RealmWorkerSceneRecord } from './realmWorkerRoutePresentation';
 const MAX_RENDERED_REALM_WORKERS = 512;
 const MAX_VISIBLE_WORKER_FALLBACKS = 128;
 const WORKER_GROUND_LIFT = 0.018;
-const FALLBACK_GROUND_LIFT = 0.13;
+const FALLBACK_GROUND_LIFT = 0.012;
 const WAGON_TARGET_FOOTPRINT = 0.64;
+const MAX_WORKER_TERRAIN_SLOPE_RADIANS = THREE.MathUtils.degToRad(12);
+const WORKER_ANIMATION_CROSS_FADE_SECONDS = 0.16;
 
 export const REALM_WORKER_MODEL_BUDGET = Object.freeze({
   high: Object.freeze({ models: 12, animations: 4 }),
@@ -57,6 +63,9 @@ export type RealmWorkerCurrentPose = Readonly<{
   world: Readonly<{ x: number; y: number; z: number }>;
   coord: HexCoord;
   yaw: number;
+  tangent: HexWorldPosition;
+  groundNormal: Readonly<{ x: number; y: number; z: number }>;
+  terrainAligned: boolean;
   direction: RealmWorkerRoutePose['direction'];
   forwardProgress: number;
   phaseProgress: number;
@@ -83,7 +92,12 @@ export type RealmWorkerLayerTelemetry = Readonly<{
   modelWorkerCount: number;
   animatedWorkerCount: number;
   fallbackWorkerCount: number;
+  fallbackType: 'procedural-body-wheels-v1';
+  fallbackTriangleCount: number;
   routeMismatchCount: number;
+  slopeAlignedWorkerCount: number;
+  animationTransitionCount: number;
+  suppressedAnimationRestartCount: number;
   route: RealmWorkerRouteLayerTelemetry;
 }>;
 
@@ -102,6 +116,7 @@ export type RealmWorkerLayer = Readonly<{
    */
   getPresenceRecords: () => readonly RealmWorkerPresenceRecord[];
   getPresentationTelemetry: () => RealmWorkerLayerTelemetry;
+  setCameraMode: (mode: RealmCameraMode) => void;
   setHoveredWorkerId: (workerId: string | null) => void;
   setSelectedWorkerId: (workerId: string | null) => void;
   dispose: () => void;
@@ -127,13 +142,29 @@ type WorkerModelVisual = {
   animated: boolean;
 };
 
+export type RealmWorkerTerrainOrientation = Readonly<{
+  quaternion: THREE.Quaternion;
+  normal: Readonly<{ x: number; y: number; z: number }>;
+  slopeRadians: number;
+  terrainAligned: boolean;
+}>;
+
+export type RealmWorkerAnimationTransition = Readonly<{
+  action: THREE.AnimationAction;
+  clipName: string;
+  transitioned: boolean;
+  suppressedRestart: boolean;
+}>;
+
 function finiteCoord(coord: HexCoord | undefined): coord is HexCoord {
   return coord !== undefined
     && Number.isSafeInteger(coord.q)
     && Number.isSafeInteger(coord.r);
 }
 
-function validWorkerCatalog(workers: readonly RealmWorkerSceneRecord[]) {
+export function isValidRealmWorkerSceneCatalog(
+  workers: readonly RealmWorkerSceneRecord[]
+) {
   if (workers.length > MAX_RENDERED_REALM_WORKERS) return false;
   const ids = new Set<string>();
   for (const worker of workers) {
@@ -158,7 +189,7 @@ function sameStaticWorkerCatalog(
   current: readonly RealmWorkerSceneRecord[],
   next: readonly RealmWorkerSceneRecord[]
 ) {
-  if (!validWorkerCatalog(next) || current.length !== next.length) return false;
+  if (!isValidRealmWorkerSceneCatalog(next) || current.length !== next.length) return false;
   const nextById = new Map(next.map((worker) => [worker.workerId, worker] as const));
   return current.every((worker) => {
     const candidate = nextById.get(worker.workerId);
@@ -219,8 +250,8 @@ function workerPriority(
   hoveredWorkerId: string | null
 ) {
   if (worker.workerId === selectedWorkerId) return 0;
-  if (worker.workerId === hoveredWorkerId) return 1;
-  if (worker.ownedByViewer) return 2;
+  if (worker.ownedByViewer) return 1;
+  if (worker.workerId === hoveredWorkerId) return 2;
   if (worker.status !== 'idle') return 3;
   return 4;
 }
@@ -258,10 +289,151 @@ export function resolveRealmWorkerWorldPosition(
   return pose.world;
 }
 
+function orientationFromTangentAndNormal(
+  tangent: HexWorldPosition,
+  normal: Readonly<{ x: number; y: number; z: number }>
+) {
+  const zAxis = new THREE.Vector3(tangent.x, 0, tangent.z);
+  if (zAxis.lengthSq() <= 0.000_001) zAxis.set(0, 0, 1);
+  zAxis.normalize();
+  const yAxis = new THREE.Vector3(normal.x, normal.y, normal.z);
+  if (yAxis.lengthSq() <= 0.000_001) yAxis.set(0, 1, 0);
+  yAxis.normalize();
+  const xAxis = new THREE.Vector3().crossVectors(yAxis, zAxis);
+  if (xAxis.lengthSq() <= 0.000_001) {
+    xAxis.set(zAxis.z, 0, -zAxis.x);
+  }
+  xAxis.normalize();
+  zAxis.crossVectors(xAxis, yAxis).normalize();
+  return new THREE.Quaternion().setFromRotationMatrix(
+    new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis)
+  );
+}
+
+/**
+ * Resolve a bounded terrain frame without allowing bad height samples or a
+ * steep mesh spike to roll a wagon. Local +Z remains the travel tangent.
+ */
+export function resolveRealmWorkerTerrainOrientation(
+  world: HexWorldPosition,
+  tangent: HexWorldPosition,
+  hexSize: number,
+  heightAtWorld: (world: HexWorldPosition) => number
+): RealmWorkerTerrainOrientation {
+  const safeTangent = new THREE.Vector2(tangent.x, tangent.z);
+  if (safeTangent.lengthSq() <= 0.000_001) safeTangent.set(0, 1);
+  safeTangent.normalize();
+  const right = new THREE.Vector2(safeTangent.y, -safeTangent.x);
+  const sampleDistance = Math.max(0.04, hexSize * 0.09);
+  const ahead = heightAtWorld({
+    x: world.x + safeTangent.x * sampleDistance,
+    z: world.z + safeTangent.y * sampleDistance
+  });
+  const behind = heightAtWorld({
+    x: world.x - safeTangent.x * sampleDistance,
+    z: world.z - safeTangent.y * sampleDistance
+  });
+  const rightHeight = heightAtWorld({
+    x: world.x + right.x * sampleDistance,
+    z: world.z + right.y * sampleDistance
+  });
+  const leftHeight = heightAtWorld({
+    x: world.x - right.x * sampleDistance,
+    z: world.z - right.y * sampleDistance
+  });
+  if (![ahead, behind, rightHeight, leftHeight].every(Number.isFinite)) {
+    const normal = Object.freeze({ x: 0, y: 1, z: 0 });
+    return Object.freeze({
+      quaternion: orientationFromTangentAndNormal(tangent, normal),
+      normal,
+      slopeRadians: 0,
+      terrainAligned: false
+    });
+  }
+
+  let forwardSlope = (ahead - behind) / (sampleDistance * 2);
+  let rightSlope = (rightHeight - leftHeight) / (sampleDistance * 2);
+  const gradient = Math.hypot(forwardSlope, rightSlope);
+  const maximumGradient = Math.tan(MAX_WORKER_TERRAIN_SLOPE_RADIANS);
+  if (gradient > maximumGradient) {
+    const scale = maximumGradient / gradient;
+    forwardSlope *= scale;
+    rightSlope *= scale;
+  }
+  const forwardAxis = new THREE.Vector3(
+    safeTangent.x,
+    forwardSlope,
+    safeTangent.y
+  ).normalize();
+  const rightAxis = new THREE.Vector3(
+    right.x,
+    rightSlope,
+    right.y
+  ).normalize();
+  const normalVector = new THREE.Vector3()
+    .crossVectors(forwardAxis, rightAxis)
+    .normalize();
+  if (normalVector.y < 0) normalVector.multiplyScalar(-1);
+  const normal = Object.freeze({
+    x: normalVector.x,
+    y: normalVector.y,
+    z: normalVector.z
+  });
+  return Object.freeze({
+    quaternion: orientationFromTangentAndNormal(tangent, normal),
+    normal,
+    slopeRadians: Math.atan(Math.min(gradient, maximumGradient)),
+    terrainAligned: true
+  });
+}
+
+/** Cross-fade only between clips in the already-reviewed wagon contract. */
+export function transitionRealmWorkerAnimation(
+  mixer: THREE.AnimationMixer,
+  currentAction: THREE.AnimationAction | undefined,
+  currentClipName: string | undefined,
+  nextClip: THREE.AnimationClip
+): RealmWorkerAnimationTransition {
+  if (currentAction && currentClipName === nextClip.name) {
+    return Object.freeze({
+      action: currentAction,
+      clipName: currentClipName,
+      transitioned: false,
+      suppressedRestart: true
+    });
+  }
+  const nextAction = mixer.clipAction(nextClip);
+  const oneShot = nextClip.name === 'Start'
+    || nextClip.name === 'Stop'
+    || nextClip.name === 'Turn_Left'
+    || nextClip.name === 'Turn_Right';
+  nextAction.reset();
+  nextAction.enabled = true;
+  nextAction.clampWhenFinished = oneShot;
+  nextAction.setLoop(oneShot ? THREE.LoopOnce : THREE.LoopRepeat, oneShot ? 1 : Infinity);
+  nextAction.setEffectiveWeight(1);
+  nextAction.play();
+  if (currentAction && currentAction !== nextAction) {
+    currentAction.enabled = true;
+    currentAction.crossFadeTo(
+      nextAction,
+      WORKER_ANIMATION_CROSS_FADE_SECONDS,
+      false
+    );
+  }
+  return Object.freeze({
+    action: nextAction,
+    clipName: nextClip.name,
+    transitioned: true,
+    suppressedRestart: false
+  });
+}
+
 function workerCurrentPose(
   worker: RealmWorkerSceneRecord,
   pose: RealmWorkerRoutePose,
-  groundY: number
+  groundY: number,
+  orientation: RealmWorkerTerrainOrientation
 ): RealmWorkerCurrentPose {
   let profile: RealmWorkerSceneRecord['profile'];
   if (worker.profile && typeof worker.profile.communityStatsVisible === 'boolean') {
@@ -289,6 +461,9 @@ function workerCurrentPose(
     }),
     coord: pose.coord,
     yaw: pose.yaw,
+    tangent: pose.tangent,
+    groundNormal: orientation.normal,
+    terrainAligned: orientation.terrainAligned,
     direction: pose.direction,
     forwardProgress: pose.forwardProgress,
     phaseProgress: pose.phaseProgress
@@ -307,7 +482,7 @@ function chooseClip(
 
 export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmWorkerLayer {
   if (
-    !validWorkerCatalog(options.workers)
+    !isValidRealmWorkerSceneCatalog(options.workers)
     || !Number.isFinite(options.hexSize)
     || options.hexSize <= 0
   ) throw new Error('REALM_WORKER_CATALOG_INVALID');
@@ -323,12 +498,14 @@ export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmW
   const routeLayer = createRealmWorkerRouteLayer({
     workers: identities,
     hexSize: options.hexSize,
-    heightAtWorld: options.heightAtWorld
+    heightAtWorld: options.heightAtWorld,
+    reducedMotion: options.reducedMotion
   });
   group.add(routeLayer.group);
 
   const fallbackCapacity = Math.min(identities.length, MAX_VISIBLE_WORKER_FALLBACKS);
-  const fallbackGeometry = new THREE.BoxGeometry(0.3, 0.2, 0.52);
+  const proceduralFallback = createRealmProceduralWorkerWagonFallback();
+  const fallbackGeometry = proceduralFallback.geometry;
   const fallbackMaterial = new THREE.MeshStandardMaterial({
     color: '#b88b45',
     roughness: 0.76,
@@ -372,6 +549,7 @@ export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmW
   const pickWorkerIds: string[] = [];
   const modelVisuals = new Map<string, WorkerModelVisual>();
   const movingWorkerIds = new Set<string>();
+  const previouslyMovingWorkerIds = new Set<string>();
   const dirtyWorkerIds = new Set(identities.map((worker) => worker.workerId));
   const matrix = new THREE.Matrix4();
   const position = new THREE.Vector3();
@@ -390,6 +568,8 @@ export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmW
   let lastNowMicros = 0n;
   let disposed = false;
   let routeMismatchCount = 0;
+  let animationTransitionCount = 0;
+  let suppressedAnimationRestartCount = 0;
 
   const removeModelVisual = (workerId: string) => {
     const visual = modelVisuals.get(workerId);
@@ -440,6 +620,7 @@ export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmW
     pickSignaturesById.clear();
     routeMismatchWorkerIds.clear();
     movingWorkerIds.clear();
+    previouslyMovingWorkerIds.clear();
     dirtyWorkerIds.clear();
     visibleWorkerIds.length = 0;
     pickWorkerIds.length = 0;
@@ -503,13 +684,17 @@ export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmW
   ) => {
     if (!visual.mixer || !loadedModel) return;
     const clip = chooseClip(loadedModel, pose);
-    if (!clip || visual.clipName === clip.name) return;
-    visual.action?.stop();
-    const action = visual.mixer.clipAction(clip);
-    action.reset();
-    action.play();
-    visual.action = action;
-    visual.clipName = clip.name;
+    if (!clip) return;
+    const transition = transitionRealmWorkerAnimation(
+      visual.mixer,
+      visual.action,
+      visual.clipName,
+      clip
+    );
+    visual.action = transition.action;
+    visual.clipName = transition.clipName;
+    if (transition.transitioned) animationTransitionCount += 1;
+    if (transition.suppressedRestart) suppressedAnimationRestartCount += 1;
   };
 
   const apply = (nowMicros: bigint) => {
@@ -517,7 +702,10 @@ export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmW
     let fallbackMatricesChanged = false;
     let fallbackColorsChanged = false;
     let pickMatricesChanged = false;
-    const previouslyMovingWorkerIds = new Set(movingWorkerIds);
+    previouslyMovingWorkerIds.clear();
+    for (const workerId of movingWorkerIds) {
+      previouslyMovingWorkerIds.add(workerId);
+    }
     movingWorkerIds.clear();
 
     for (const worker of recordsById.values()) {
@@ -538,7 +726,16 @@ export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmW
       }
       const groundY = options.heightAtWorld(pose.world);
       if (!Number.isFinite(groundY)) throw new Error('REALM_WORKER_GROUND_INVALID');
-      posesById.set(worker.workerId, workerCurrentPose(worker, pose, groundY));
+      const orientation = resolveRealmWorkerTerrainOrientation(
+        pose.world,
+        pose.tangent,
+        options.hexSize,
+        options.heightAtWorld
+      );
+      posesById.set(
+        worker.workerId,
+        workerCurrentPose(worker, pose, groundY, orientation)
+      );
       routePoseById.set(worker.workerId, pose);
       routeMismatchWorkerIds.delete(worker.workerId);
     }
@@ -558,6 +755,9 @@ export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmW
           current.world.y.toFixed(5),
           current.world.z.toFixed(5),
           current.yaw.toFixed(5),
+          current.groundNormal.x.toFixed(5),
+          current.groundNormal.y.toFixed(5),
+          current.groundNormal.z.toFixed(5),
           selected ? 1 : 0,
           hovered ? 1 : 0,
           worker.ownedByViewer ? 1 : 0,
@@ -569,7 +769,10 @@ export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmW
           current.world.x.toFixed(5),
           current.world.y.toFixed(5),
           current.world.z.toFixed(5),
-          current.yaw.toFixed(5)
+          current.yaw.toFixed(5),
+          current.groundNormal.x.toFixed(5),
+          current.groundNormal.y.toFixed(5),
+          current.groundNormal.z.toFixed(5)
         ].join(':')
         : 'hidden';
       if (visualSignaturesById.get(workerId) === visualSignature) return;
@@ -588,7 +791,10 @@ export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmW
 
       const styleScale = selected ? 1.12 : hovered ? 1.06 : 1;
       position.set(current.world.x, current.world.y, current.world.z);
-      quaternion.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, current.yaw);
+      quaternion.copy(orientationFromTangentAndNormal(
+        current.tangent,
+        current.groundNormal
+      ));
 
       if (modelVisual) {
         modelVisual.root.visible = true;
@@ -770,9 +976,19 @@ export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmW
         animatedWorkerCount: [...modelVisuals.values()]
           .filter((visual) => visual.animated).length,
         fallbackWorkerCount: Math.max(0, visibleWorkerIds.length - modelWorkerCount),
+        fallbackType: proceduralFallback.fallbackId,
+        fallbackTriangleCount: proceduralFallback.triangleCount,
         routeMismatchCount,
+        slopeAlignedWorkerCount: [...posesById.values()]
+          .filter((pose) => pose.terrainAligned).length,
+        animationTransitionCount,
+        suppressedAnimationRestartCount,
         route: routeLayer.getTelemetry()
       });
+    },
+    setCameraMode: (mode) => {
+      if (disposed) return;
+      routeLayer.setCameraMode(mode);
     },
     setHoveredWorkerId: (workerId) => {
       if (disposed || hoveredWorkerId === workerId) return;

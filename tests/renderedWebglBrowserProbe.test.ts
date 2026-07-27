@@ -29,6 +29,7 @@ import {
   parseRenderedWebglInspectorLabelActivationEvidence,
   parseRenderedWebglLabelKeyboardEvidence,
   parseRenderedWebglOccupancyStressEvidence,
+  parseRenderedWebglQualityMetrics,
   parseRenderedWebglResourceOccupantEvidence,
   RENDERED_WEBGL_QA_CHROME,
   RENDERED_WEBGL_QA_CHROME_APP,
@@ -77,6 +78,39 @@ const EXPECTED_LOCAL_VITE_FS_DENY = Object.freeze([
 
 function cdpPipeFrame(value: unknown) {
   return Buffer.from(`${JSON.stringify(value)}\0`, 'utf8');
+}
+
+function renderedScreenshotPng(blank: boolean) {
+  const chunk = (type: string, data: Buffer) => {
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(data.byteLength);
+    return Buffer.concat([length, Buffer.from(type, 'ascii'), data, Buffer.alloc(4)]);
+  };
+  const width = 320;
+  const height = 320;
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header[8] = 8;
+  header[9] = 6;
+  const rows = Buffer.alloc((width * 4 + 1) * height);
+  for (let y = 0; y < height; y += 1) {
+    const row = y * (width * 4 + 1);
+    rows[row] = 0;
+    for (let x = 0; x < width; x += 1) {
+      const offset = row + 1 + x * 4;
+      rows[offset] = blank ? 0 : (x * 7 + y * 3) & 0xff;
+      rows[offset + 1] = blank ? 0 : (x * 2 + y * 11) & 0xff;
+      rows[offset + 2] = blank ? 0 : (x * 13 + y * 5) & 0xff;
+      rows[offset + 3] = 255;
+    }
+  }
+  return Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    chunk('IHDR', header),
+    chunk('IDAT', deflateSync(rows)),
+    chunk('IEND', Buffer.alloc(0))
+  ]);
 }
 
 function fakeChromePipe() {
@@ -321,6 +355,20 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(source).toContain(
       '.realm-cell-navigator__castles[aria-label="Founded castles"] > li > button'
     );
+    expect(source).toContain(
+      "canvas[data-realm-canvas-active=\"true\"]"
+    );
+    expect(source).toContain(
+      "map?.getAttribute('data-realm-camera-presentation-band')"
+    );
+    expect(source).toContain(
+      "canvas?.getAttribute('data-realm-camera-presentation-band')"
+    );
+    expect(source).toContain(
+      '.realm-cell-navigator__resource-site[data-resource-kind][data-resource-state]'
+    );
+    expect(source).toContain('exploreVisibleOpaqueCopyCount');
+    expect(source).toContain('exploreVisibleCoordinateCopyCount');
     for (const attribute of [
       'data-forest-decorative-tree-count',
       'data-forest-decorative-triangle-count',
@@ -353,18 +401,30 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(source).toContain("method === 'Inspector.detached'");
   });
 
-  it('enters the active forest range through bounded ordinary canvas wheel input', async () => {
+  it('enters the active forest range through deterministic keyboard focus and bounded canvas wheel input', async () => {
     const command = vi.fn(async (
       method: string,
-      _parameters?: Readonly<Record<string, unknown>>
+      parameters?: Readonly<Record<string, unknown>>
     ) => method === 'Runtime.evaluate'
+      && typeof parameters?.expression === 'string'
+      && (
+        parameters.expression.includes('document.activeElement === root')
+        || parameters.expression.includes('data-realm-camera-settled')
+      )
       ? {
+          result: {
+            type: 'boolean',
+            value: true
+          }
+        }
+      : method === 'Runtime.evaluate'
+        ? {
           result: {
             type: 'object',
             value: { x: 720, y: 450 }
           }
         }
-      : {});
+        : {});
 
     await expect(applyRenderedWebglActiveForestCameraInteraction({
       command
@@ -373,6 +433,10 @@ describe('rendered WebGL headless browser probe contract', () => {
     const wheelCalls = command.mock.calls.filter(([method]) => (
       method === 'Input.dispatchMouseEvent'
     ));
+    const keyCalls = command.mock.calls.filter(([method]) => (
+      method === 'Input.dispatchKeyEvent'
+    ));
+    expect(keyCalls).toHaveLength(4);
     expect(wheelCalls).toHaveLength(5);
     wheelCalls.forEach(([, parameters]) => {
       expect(parameters).toEqual({
@@ -434,6 +498,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       cameraAnchorPopulationValid: true,
       cameraIndependentAnchorCoverage: true,
       cameraNeutralWhileOpen: true,
+      compactOverviewCullingValid: false,
       factsCorrect: true,
       focusedControlActivation: true,
       identityRecordCorrect: true,
@@ -470,6 +535,29 @@ describe('rendered WebGL headless browser probe contract', () => {
       workerRecordCorrect: true
     } as const;
     expect(parseRenderedWebglResourceOccupantEvidence(evidence)).toEqual(evidence);
+    const compactEvidence = {
+      ...evidence,
+      cameraNeutral: false,
+      cameraNeutralAfterClose: false,
+      cameraAnchorPopulationValid: false,
+      cameraIndependentAnchorCoverage: false,
+      cameraNeutralWhileOpen: false,
+      compactOverviewCullingValid: true,
+      overviewPresenceDirectHit: false,
+      overviewRecordCorrect: false,
+      overviewTargetPassiveOnly: false,
+      presenceComputedVisible: false,
+      presenceAvatarGeometryValid: false,
+      presenceGeometryValid: false,
+      presenceDelegatedActivation: false,
+      presenceHitTestable: false,
+      presencePointerActivatable: false,
+      presencePortraitElementPresent: false,
+      presencePortraitReady: false,
+      presenceVisible: false
+    } as const;
+    expect(parseRenderedWebglResourceOccupantEvidence(compactEvidence))
+      .toEqual(compactEvidence);
     expect(() => parseRenderedWebglResourceOccupantEvidence({
       ...evidence,
       rendererStable: false
@@ -499,25 +587,53 @@ describe('rendered WebGL headless browser probe contract', () => {
     const expression = String(evaluation?.[1]?.expression);
     expect(expression).toContain('gold:genesis-001-tier1-gold-03');
     expect(expression).toContain('gold:genesis-001-tier1-gold-11');
-    expect(expression).toContain("Object.freeze(['20', '-22'])");
-    expect(expression).toContain("Object.freeze(['-51', '57'])");
-    expect(expression).toContain("Object.freeze(['-46', '52'])");
-    expect(expression).toContain('jumpToOccupiedSite(q, r)');
+    expect(expression).toContain('navigateToOccupiedSite(target)');
+    expect(expression).toContain(
+      "'.realm-cell-navigator__resource-site'"
+    );
+    expect(expression).toContain(
+      "button.getAttribute('data-resource-state') === 'occupied'"
+    );
+    expect(expression).toContain(
+      "document.querySelector('.realm-cell-navigator__jump') !== null"
+    );
+    expect(expression).toContain('resourceButton.scrollIntoView({');
+    expect(expression).toContain('const inspectorReady = await waitFor(() => {');
+    expect(expression).toContain(
+      'const inspector = document.querySelector(inspectorSelector);'
+    );
+    expect(expression).toContain(
+      'if (!inspectorReady || !(inspector instanceof HTMLElement)) return false;'
+    );
+    expect(expression).toContain("resource: 'gold'");
+    expect(expression).toContain("resource: 'food'");
+    expect(expression).toContain("resource: 'wood'");
+    expect(expression).toContain("resource: 'stone'");
     expect(expression).toContain("'.realm-cell-navigator__presets button'");
     expect(expression).toContain("(button.textContent ?? '').trim() === 'Realm'");
     expect(expression).toContain('PUBLIC EXPEDITION RECORD');
+    expect(expression).toContain(
+      "expectedMode === 'observer'"
+    );
+    expect(expression).toContain("!overviewFacts.has('Castle location')");
     expect(expression).toMatch(
       /matchMedia\(\s*'\(prefers-reduced-motion: reduce\)'/
     );
-    expect(expression).toContain('const cameraNeutralWhileOpen = projectionStable(');
+    expect(expression).toContain(
+      'const cameraNeutralWhileOpen = cameraProjectionStable('
+    );
+    expect(expression).toContain('const projectedPresence = overviewPresentation()');
     expect(expression).toMatch(/beforeProjection,\s+duringProjection/);
     expect(expression).toContain('beforeRenderer === duringRenderer');
     expect(expression).toContain('subtreePrivacyBounded(panel)');
-    expect(expression).toContain('presenceBounds.width >= 43');
-    expect(expression).toContain('presenceAvatarBounds.width >= 31');
-    expect(expression).toContain("getComputedStyle(presence).pointerEvents === 'auto'");
+    expect(expression).toContain('overviewPresenceBounds.width >= 43');
+    expect(expression).toContain('overviewPresenceAvatarBounds.width >= 31');
+    expect(expression).toContain(
+      "getComputedStyle(overviewPresence).pointerEvents === 'auto'"
+    );
     expect(expression).toContain("getComputedStyle(presenceLayer).pointerEvents === 'none'");
-    expect(expression).toContain('document.elementsFromPoint(');
+    expect(expression).toContain('focusedPresence === undefined');
+    expect(expression).toContain('overviewMarker === undefined');
     expect(expression).toContain('overviewDirectHit.click()');
     expect(expression).toContain('independentStableAnchorCount(beforeProjection, duringProjection) >= 3');
     expect(expression).toContain('keyboardControls.length <= 24');
@@ -552,7 +668,90 @@ describe('rendered WebGL headless browser probe contract', () => {
       /RENDERED_WEBGL_QA_RESOURCE_OCCUPANT_CASE_IDS[\s\S]*'desktop-reduced'[\s\S]*'mobile-reduced-inspector'/
     );
     expect(source).toContain("name: 'prefers-reduced-motion'");
-    expect(source).toContain("probeCase.expectedQuality === 'reduced' ? 'reduce' : 'no-preference'");
+    expect(source).toContain('probeCase.expectedReducedMotion === true');
+    expect(source).toContain("probeCase.expectedQuality === 'reduced'");
+    expect(renderedWebglBrowserProbeCases(41_733)).toContainEqual(
+      expect.objectContaining({
+        id: 'mobile-balanced-persistent-labels',
+        expectedQuality: 'balanced',
+        expectedReducedMotion: true
+      })
+    );
+  });
+
+  it('accepts only complete privacy-safe rendered quality metrics', () => {
+    const qualityMetrics = {
+      cameraMode: 'approach',
+      cameraProjectionCount: 12,
+      cameraProjectionToken: '1a2b3c4d',
+      cameraStateToken: '1a2b3c4d'.repeat(3),
+      cameraSynchronized: true,
+      cameraTargetKind: 'realm',
+      cameraZoom: '1.250000',
+      decorativeForestCacheEntries: 1,
+      decorativeForestCacheHighWaterMark: 1,
+      decorativeForestCacheLimit: 2,
+      decorativeForestDrawCalls: 1,
+      decorativeForestInstances: 10,
+      decorativeForestMotionState: 'static',
+      decorativeForestTriangles: 100,
+      grassAnimated: true,
+      grassTargetAnimationCadence: 30,
+      grassCacheEntries: 1,
+      grassCacheHighWaterMark: 1,
+      grassCacheLimit: 2,
+      grassDrawCalls: 1,
+      grassInstances: 20,
+      grassTriangles: 200,
+      presentationBand: 'strategy',
+      quality: 'high',
+      routeDrawCalls: 1,
+      routeSegments: 2,
+      routeTriangles: 4,
+      routeVisible: 1,
+      sharedForestInstances: 210,
+      sharedForestTriangles: 1_000,
+      terrainDetailDrawCalls: 2,
+      terrainDetailInstances: 100,
+      terrainTriangles: 10_000,
+      viewportHeight: 900,
+      viewportWidth: 1_440,
+      waterDrawCalls: 4,
+      waterTriangles: 1_000,
+      workerAnimated: 1,
+      workerAnimationTransitions: 0,
+      workerFallbackTriangles: 0,
+      workerModels: 1,
+      workerPresented: 1
+    } as const;
+
+    expect(parseRenderedWebglQualityMetrics(qualityMetrics)).toEqual(
+      qualityMetrics
+    );
+    expect(() => parseRenderedWebglQualityMetrics({
+      ...qualityMetrics,
+      cameraSynchronized: false
+    })).toThrow(/quality metrics/i);
+    expect(() => parseRenderedWebglQualityMetrics({
+      ...qualityMetrics,
+      cameraZoom: '1.25'
+    })).toThrow(/quality metrics/i);
+    expect(() => parseRenderedWebglQualityMetrics({
+      ...qualityMetrics,
+      cameraProjectionToken: 'not-a-token'
+    })).toThrow(/quality metrics/i);
+    expect(() => parseRenderedWebglQualityMetrics({
+      ...qualityMetrics,
+      cameraStateToken: 'not-a-token'
+    })).toThrow(/quality metrics/i);
+    expect(() => parseRenderedWebglQualityMetrics({
+      ...qualityMetrics,
+      grassAnimated: null
+    })).toThrow(/quality metrics/i);
+    expect(() => parseRenderedWebglQualityMetrics({
+      ...qualityMetrics,
+      privateIdentity: 'must-not-cross-the-probe-boundary'
+    })).toThrow(/quality metrics/i);
   });
 
   it('proves active generic Worker owner, foreign, mobile, reconnect, and recovery UX locally', async () => {
@@ -610,6 +809,18 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(activeExpression).toContain("=== '5 Gold'");
     expect(activeExpression).toContain("=== 'PUBLIC WORKER RECORD'");
     expect(activeExpression).toContain("=== 'generic-worker'");
+    expect(activeExpression).toContain(
+      "'.realm-cell-navigator__resource-site'"
+    );
+    expect(activeExpression).toContain(
+      '[data-resource-kind="gold"][data-resource-state="occupied"]'
+    );
+    expect(activeExpression).toContain(
+      "navigator.querySelector('.realm-cell-navigator__jump') === null"
+    );
+    expect(activeExpression).toContain('semanticResourceBounds.width >= 44');
+    expect(activeExpression).toContain('semanticResourceBounds.height >= 44');
+    expect(activeExpression).toContain('semanticResourceNavigationSafe');
     expect(activeExpression).toContain("canvas[data-profile-image-state=\"ready\"]");
     expect(activeExpression).toContain("getExtension('WEBGL_lose_context')");
     expect(activeExpression).toContain('contextController.loseContext()');
@@ -768,6 +979,10 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(expression).toContain("activeMap.dataset.rendererRecoveryAttempt === '0'");
     expect(expression).toContain("=== 'legacy-expedition'");
     expect(expression).toContain('portraitPipelineReady && targetReady');
+    expect(expression).toContain(
+      'new Set([...presenceKeys, ...controlKeys]).size'
+    );
+    expect(expression).toContain('controlSelector + \',\' + passiveSelector');
     expect(expression).toMatch(/tabIndex === 0\s*\)\)\.length <= 1/);
     expect(expression).not.toContain('.realm-resource-occupant-panel');
     expect(expression).not.toContain('projectionStable(');
@@ -978,6 +1193,7 @@ describe('rendered WebGL headless browser probe contract', () => {
         id: 'mobile-balanced-persistent-labels',
         expectedPresentationMode: 'observer',
         expectedQuality: 'balanced',
+        expectedReducedMotion: true,
         interaction: 'default',
         maximumLabelOverflowCount: 0,
         minimumLabelCount: 5,
@@ -1507,6 +1723,10 @@ describe('rendered WebGL headless browser probe contract', () => {
       fixture: 'synthetic-canonical-100',
       presentationMode: 'observer',
       mapPresentationMode: 'observer',
+      rootRealmCameraMode: 'realm',
+      canvasRealmCameraMode: 'realm',
+      rootRealmCameraPresentationBand: 'overview',
+      canvasRealmCameraPresentationBand: 'overview',
       quality: 'balanced',
       castleCount: 100,
       readyAfterMilliseconds: 2_412,
@@ -1515,10 +1735,34 @@ describe('rendered WebGL headless browser probe contract', () => {
       forestDecorativeTriangleCount: 0,
       forestDecorativeDrawCalls: 0,
       forestDecorativeCacheEntries: 0,
+      forestDecorativeCacheLimit: 1_024,
       forestDecorativeCacheHighWaterMark: 0,
+      forestDecorativeRepackCount: 0,
       forestDecorativeModelReady: false,
       forestDecorativeUsingFallback: false,
+      forestDecorativeFallbackType: 'none',
+      forestDecorativeContactShadowCount: 0,
+      forestDecorativeGroundingMode: 'none',
+      forestDecorativeCanopyMotionState: 'static',
+      forestDecorativeCoreCellCount: 0,
+      forestDecorativeBodyCellCount: 0,
+      forestDecorativeFringeCellCount: 0,
+      forestDecorativeClearingCellCount: 0,
+      forestDecorativeSilhouetteCoverageRatio: 0,
+      forestDecorativeCanonicalTriangleCount: 0,
       forestDecorativeOverviewHidden: true,
+      grassInstanceCount: 0,
+      grassTriangleCount: 0,
+      grassDrawCalls: 0,
+      grassCacheEntries: 0,
+      grassCacheLimit: 1_024,
+      grassCacheHighWaterMark: 0,
+      grassRepackCount: 0,
+      grassPaletteDisplaySrgbSaturationMin: 0,
+      grassPaletteDisplaySrgbSaturationMax: 0,
+      grassShaderFallbackActive: false,
+      terrainShaderEnhanced: true,
+      terrainShaderFallbackActive: false,
       semanticTerrainCellCount: RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_CELL_COUNT,
       semanticTerrainKindCount: RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_KIND_COUNT,
       semanticTerrainFeatureCount: 700,
@@ -1575,6 +1819,13 @@ describe('rendered WebGL headless browser probe contract', () => {
       clusterReservedOverlapCount: 0,
       exploreCastleCount: 0,
       exploreAccessibleCastleCount: 0,
+      exploreCoordinateJumpCount: 0,
+      exploreResourceSiteCount: 0,
+      exploreAccessibleResourceSiteCount: 0,
+      exploreResourceKindCount: 0,
+      exploreAvailableResourceSiteCount: 0,
+      exploreVisibleCoordinateCopyCount: 0,
+      exploreVisibleOpaqueCopyCount: 0,
       directExploreControlState: 'visible',
       legacyPlayerActionCount: 0,
       profileMenuState: 'absent',
@@ -1613,8 +1864,21 @@ describe('rendered WebGL headless browser probe contract', () => {
       semanticTerrainFeatureCount: 700,
       semanticTerrainFeatureDrawCalls: 5,
       totalTerrainDetailInstanceCount: 5_000,
-      totalTerrainDetailDrawCalls: 8
+      totalTerrainDetailDrawCalls: 8,
+      rootRealmCameraMode: 'realm',
+      canvasRealmCameraMode: 'realm',
+      rootRealmCameraPresentationBand: 'overview',
+      canvasRealmCameraPresentationBand: 'overview'
     });
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      canvasRealmCameraMode: 'approach'
+    }, expected)).toThrow(/camera-presentation-synchronization/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      rootRealmCameraPresentationBand: 'strategy',
+      canvasRealmCameraPresentationBand: 'strategy'
+    }, expected)).toThrow(/camera-presentation-synchronization/i);
     expect(parseRenderedWebglBrowserDom({
       ...ready,
       labelCullReasons: 'reserved-ui:1',
@@ -1682,8 +1946,17 @@ describe('rendered WebGL headless browser probe contract', () => {
       forestDecorativeDrawCalls: 1,
       forestDecorativeCacheEntries: 600,
       forestDecorativeCacheHighWaterMark: 1_024,
+      forestDecorativeRepackCount: 1,
       forestDecorativeModelReady: false,
       forestDecorativeUsingFallback: true,
+      forestDecorativeFallbackType: 'procedural-trunk-multi-canopy-v1',
+      forestDecorativeGroundingMode:
+        'terrain-canopy-procedural-root-contact',
+      forestDecorativeCoreCellCount: 8,
+      forestDecorativeBodyCellCount: 12,
+      forestDecorativeFringeCellCount: 6,
+      forestDecorativeClearingCellCount: 2,
+      forestDecorativeSilhouetteCoverageRatio: 0.42,
       forestDecorativeOverviewHidden: false,
       semanticTerrainFeatureCount: 1_300,
       semanticTerrainFeatureDrawCalls: 6,
@@ -1709,9 +1982,15 @@ describe('rendered WebGL headless browser probe contract', () => {
     )).toThrow(/active decorative forest/i);
     expect(parseRenderedWebglActiveForestDom({
       ...balancedForestFallback,
+      rootRealmCameraMode: 'keep',
+      canvasRealmCameraMode: 'keep',
+      rootRealmCameraPresentationBand: 'close',
+      canvasRealmCameraPresentationBand: 'close',
       forestDecorativeDrawCalls: 5,
       forestDecorativeModelReady: true,
       forestDecorativeUsingFallback: false,
+      forestDecorativeFallbackType: 'none',
+      forestDecorativeGroundingMode: 'terrain-canopy-baked-base',
       semanticTerrainFeatureDrawCalls: 10,
       totalTerrainDetailDrawCalls: 13
     }, expected)).toMatchObject({
@@ -1743,6 +2022,30 @@ describe('rendered WebGL headless browser probe contract', () => {
       forestDecorativeCacheEntries: 700,
       forestDecorativeCacheHighWaterMark: 699
     }, expected)).toThrow(/forest-decorative-cache/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...balancedForestFallback,
+      forestDecorativeFallbackType: 'none'
+    }, expected)).toThrow(/forest-decorative-crafted-telemetry/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      grassCacheLimit: 1_025
+    }, expected)).toThrow(/grass-crafted-telemetry/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      grassInstanceCount: 1,
+      grassTriangleCount: 15,
+      grassDrawCalls: 1,
+      grassCacheEntries: 1,
+      grassCacheHighWaterMark: 1,
+      grassRepackCount: 1,
+      grassPaletteDisplaySrgbSaturationMin: 0.1,
+      grassPaletteDisplaySrgbSaturationMax: 0.7
+    }, expected)).toThrow(/grass-crafted-telemetry/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      terrainShaderEnhanced: false,
+      terrainShaderFallbackActive: true
+    }, expected)).toThrow(/terrain-material-telemetry/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...balancedForestFallback,
       forestDecorativeModelReady: true
@@ -1956,14 +2259,28 @@ describe('rendered WebGL headless browser probe contract', () => {
         ...ready,
         href: qualityCase.url,
         quality,
+        rootRealmCameraMode: 'keep',
+        canvasRealmCameraMode: 'keep',
+        rootRealmCameraPresentationBand: 'close',
+        canvasRealmCameraPresentationBand: 'close',
         forestDecorativeTreeCount: forestTreeCount,
         forestDecorativeTriangleCount: forestTriangleCount,
         forestDecorativeDrawCalls: 5,
         forestDecorativeCacheEntries: forestCacheLimit,
+        forestDecorativeCacheLimit: forestCacheLimit,
         forestDecorativeCacheHighWaterMark: forestCacheLimit,
+        forestDecorativeRepackCount: 1,
         forestDecorativeModelReady: true,
         forestDecorativeUsingFallback: false,
+        forestDecorativeFallbackType: 'none',
+        forestDecorativeGroundingMode: 'terrain-canopy-baked-base',
+        forestDecorativeCoreCellCount: 8,
+        forestDecorativeBodyCellCount: 12,
+        forestDecorativeFringeCellCount: 6,
+        forestDecorativeClearingCellCount: 2,
+        forestDecorativeSilhouetteCoverageRatio: 0.42,
         forestDecorativeOverviewHidden: false,
+        grassCacheLimit: forestCacheLimit,
         semanticTerrainFeatureCount: semanticFeatureCount,
         semanticTerrainFeatureDrawCalls: 10,
         totalTerrainDetailInstanceCount: totalDetailInstanceCount,
@@ -2136,16 +2453,45 @@ describe('rendered WebGL headless browser probe contract', () => {
       labelsTextBearingCount: 0,
       labelsWithinViewportCount: 0,
       exploreCastleCount: 100,
-      exploreAccessibleCastleCount: 100
+      exploreAccessibleCastleCount: 100,
+      exploreCoordinateJumpCount: 0,
+      exploreResourceSiteCount: 312,
+      exploreAccessibleResourceSiteCount: 312,
+      exploreResourceKindCount: 4,
+      exploreAvailableResourceSiteCount: 307,
+      exploreVisibleCoordinateCopyCount: 0
     } as const;
     expect(parseRenderedWebglBrowserDom(
       shortLandscapePlayerExploreReady,
       shortLandscapePlayerExploreExpected
-    )).toMatchObject({ presentationMode: 'player' });
+    )).toMatchObject({
+      presentationMode: 'player',
+      exploreCoordinateJumpCount: 0,
+      exploreResourceKindCount: 4,
+      exploreResourceSiteCount: 312,
+      exploreVisibleCoordinateCopyCount: 0,
+      exploreVisibleOpaqueCopyCount: 0
+    });
     expect(() => parseRenderedWebglBrowserDom({
       ...shortLandscapePlayerExploreReady,
       directExploreControlState: 'hidden'
     }, shortLandscapePlayerExploreExpected)).toThrow(/player-direct-explore/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...shortLandscapePlayerExploreReady,
+      exploreCoordinateJumpCount: 1
+    }, shortLandscapePlayerExploreExpected)).toThrow(/coordinate-jump-boundary/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...shortLandscapePlayerExploreReady,
+      exploreAccessibleResourceSiteCount: 311
+    }, shortLandscapePlayerExploreExpected)).toThrow(/resource-site-accessibility/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...shortLandscapePlayerExploreReady,
+      exploreVisibleCoordinateCopyCount: 1
+    }, shortLandscapePlayerExploreExpected)).toThrow(/visible-coordinate-copy/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...shortLandscapePlayerExploreReady,
+      exploreVisibleOpaqueCopyCount: 1
+    }, shortLandscapePlayerExploreExpected)).toThrow(/visible-opaque-copy/i);
 
     const inspectorCase = renderedWebglBrowserProbeCases(41_733)
       .find((probeCase) => probeCase.id === 'mobile-reduced-inspector')!;
@@ -2197,12 +2543,30 @@ describe('rendered WebGL headless browser probe contract', () => {
       labelsTextBearingCount: 0,
       labelsWithinViewportCount: 0,
       exploreCastleCount: 100,
-      exploreAccessibleCastleCount: 100
+      exploreAccessibleCastleCount: 100,
+      exploreCoordinateJumpCount: 1,
+      exploreResourceSiteCount: 312,
+      exploreAccessibleResourceSiteCount: 312,
+      exploreResourceKindCount: 4,
+      exploreAvailableResourceSiteCount: 307,
+      exploreVisibleCoordinateCopyCount: 2
     } as const;
     expect(parseRenderedWebglBrowserDom(exploreOnly, {
       ...exploreOnlyCase,
       minimumLabelCount: 0
-    })).toMatchObject({ renderer: 'webgl' });
+    })).toMatchObject({
+      renderer: 'webgl',
+      exploreCoordinateJumpCount: 1,
+      exploreResourceKindCount: 4,
+      exploreResourceSiteCount: 312
+    });
+    expect(() => parseRenderedWebglBrowserDom({
+      ...exploreOnly,
+      exploreCoordinateJumpCount: 0
+    }, {
+      ...exploreOnlyCase,
+      minimumLabelCount: 0
+    })).toThrow(/coordinate-jump-boundary/i);
     expect(() => parseRenderedWebglBrowserDom(exploreOnly, {
       ...exploreOnlyCase,
       minimumLabelCount: 1
@@ -2240,58 +2604,36 @@ describe('rendered WebGL headless browser probe contract', () => {
       documentWidth: exploreCase.viewport.width,
       interactionState: 'explore',
       exploreCastleCount: 100,
-      exploreAccessibleCastleCount: 100
+      exploreAccessibleCastleCount: 100,
+      exploreCoordinateJumpCount: 1,
+      exploreResourceSiteCount: 312,
+      exploreAccessibleResourceSiteCount: 312,
+      exploreResourceKindCount: 4,
+      exploreAvailableResourceSiteCount: 307,
+      exploreVisibleCoordinateCopyCount: 2
     }, { ...exploreCase, minimumLabelCount: 1 })).toMatchObject({ renderer: 'webgl' });
   });
 
   it('reduces an in-memory Chrome PNG to bounded visual evidence and rejects blank output', () => {
-    const chunk = (type: string, data: Buffer) => {
-      const length = Buffer.alloc(4);
-      length.writeUInt32BE(data.byteLength);
-      return Buffer.concat([length, Buffer.from(type, 'ascii'), data, Buffer.alloc(4)]);
-    };
-    const createPng = (blank: boolean) => {
-      const width = 320;
-      const height = 320;
-      const header = Buffer.alloc(13);
-      header.writeUInt32BE(width, 0);
-      header.writeUInt32BE(height, 4);
-      header[8] = 8;
-      header[9] = 6;
-      const rows = Buffer.alloc((width * 4 + 1) * height);
-      for (let y = 0; y < height; y += 1) {
-        const row = y * (width * 4 + 1);
-        rows[row] = 0;
-        for (let x = 0; x < width; x += 1) {
-          const offset = row + 1 + x * 4;
-          rows[offset] = blank ? 0 : (x * 7 + y * 3) & 0xff;
-          rows[offset + 1] = blank ? 0 : (x * 2 + y * 11) & 0xff;
-          rows[offset + 2] = blank ? 0 : (x * 13 + y * 5) & 0xff;
-          rows[offset + 3] = 255;
-        }
-      }
-      return Buffer.concat([
-        Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
-        chunk('IHDR', header),
-        chunk('IDAT', deflateSync(rows)),
-        chunk('IEND', Buffer.alloc(0))
-      ]);
-    };
-
     expect(analyzeRenderedWebglPngScreenshot(
-      createPng(false),
+      renderedScreenshotPng(false),
       { width: 320, height: 320 }
     )).toMatchObject({
       sampleCount: 117,
-      opaqueSamples: 117
+      opaqueSamples: 117,
+      averageSaturationBasisPoints: expect.any(Number),
+      saturationP95BasisPoints: expect.any(Number),
+      clippedBlackSamples: 0,
+      clippedWhiteSamples: 0
     });
     expect(() => analyzeRenderedWebglPngScreenshot(
-      createPng(true),
+      renderedScreenshotPng(true),
       { width: 320, height: 320 }
     )).toThrow(/credible visual output/i);
     expect(() => analyzeRenderedWebglPngScreenshot(
-      createPng(false),
+      renderedScreenshotPng(false),
       { width: 321, height: 320 }
     )).toThrow(/screenshot/i);
   });
+
 });

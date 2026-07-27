@@ -7,12 +7,15 @@ import {
 } from 'react';
 
 import type { RealmWaterInspectionRecord } from './realmWaterInspectionPresentation';
+import { RealmRecordField } from './RealmRecordPrimitives';
 import './WaterInspectionPanel.css';
 
 export type WaterInspectionPanelProps = Readonly<{
   id: string;
   record: RealmWaterInspectionRecord;
   focusTargetRef?: Ref<HTMLButtonElement>;
+  /** Enables operator-only realm coordinates and opaque persistence identifiers. */
+  showDiagnostics?: boolean;
   onRequestClose: () => void;
   onSelectCell?: (cellKey: string) => void;
   onViewUnderlyingCell?: () => void;
@@ -40,19 +43,11 @@ function WaterRecordArt({ record }: Readonly<{ record: RealmWaterInspectionRecor
   );
 }
 
-function PublicField({ label, value }: Readonly<{ label: string; value: string }>) {
-  return (
-    <div className="water-inspection__field">
-      <dt>{label}</dt>
-      <dd>{value}</dd>
-    </div>
-  );
-}
-
 export function WaterInspectionPanel({
   id,
   record,
   focusTargetRef,
+  showDiagnostics = false,
   onRequestClose,
   onSelectCell,
   onViewUnderlyingCell
@@ -93,7 +88,7 @@ export function WaterInspectionPanel({
       aria-describedby={descriptionId}
       onKeyDown={handleKeyDown}
       data-open="true"
-      data-water-cell-key={record.cellKey}
+      data-water-cell-key={showDiagnostics ? record.cellKey : undefined}
       data-water-regime={record.regime}
     >
       <div className="water-inspection__drawer">
@@ -118,29 +113,51 @@ export function WaterInspectionPanel({
         <div className="water-inspection__body">
           <p id={descriptionId} className="water-inspection__description">{record.description}</p>
           <dl className="water-inspection__fields" aria-label="Public water data">
-            <PublicField label="Coordinates" value={`q ${record.coord.q} · r ${record.coord.r}`} />
-            <PublicField label="Body" value={record.bodyId} />
-            <PublicField label="Position" value={position} />
+            {showDiagnostics ? (
+              <>
+                <RealmRecordField className="water-inspection__field" label="Coordinates">
+                  q {record.coord.q} · r {record.coord.r}
+                </RealmRecordField>
+                <RealmRecordField className="water-inspection__field" label="Body">
+                  {record.bodyId}
+                </RealmRecordField>
+              </>
+            ) : null}
+            <RealmRecordField className="water-inspection__field" label="Position">
+              {position}
+            </RealmRecordField>
             {record.regime === 'river' ? (
               <>
-                <PublicField label="River cell" value={`${(record.riverOrder ?? 0) + 1} / ${record.riverCellCount}`} />
-                <PublicField label="Source → mouth" value={`${record.sourceCoord?.q},${record.sourceCoord?.r} → ${record.mouthCoord?.q},${record.mouthCoord?.r}`} />
-                <PublicField label="Flow" value={record.downstreamWaterCellKey ? 'downstream link recorded' : 'mouth reached'} />
-                <PublicField
-                  label="Underlying terrain"
-                  value={record.underlyingTerrainLabel ?? record.underlyingTileKey ?? 'not published'}
-                />
-                <PublicField
-                  label="Underlying land"
-                  value={record.underlyingPassable === false
+                <RealmRecordField className="water-inspection__field" label="River cell">
+                  {(record.riverOrder ?? 0) + 1} / {record.riverCellCount}
+                </RealmRecordField>
+                {showDiagnostics ? (
+                  <RealmRecordField className="water-inspection__field" label="Source → mouth">
+                    {record.sourceCoord?.q},{record.sourceCoord?.r} → {record.mouthCoord?.q},{record.mouthCoord?.r}
+                  </RealmRecordField>
+                ) : null}
+                <RealmRecordField className="water-inspection__field" label="Flow">
+                  {record.downstreamWaterCellKey ? 'downstream link recorded' : 'mouth reached'}
+                </RealmRecordField>
+                <RealmRecordField className="water-inspection__field" label="Underlying terrain">
+                  {record.underlyingTerrainLabel
+                    ?? (showDiagnostics ? record.underlyingTileKey : undefined)
+                    ?? 'not published'}
+                </RealmRecordField>
+                <RealmRecordField className="water-inspection__field" label="Underlying land">
+                  {record.underlyingPassable === false
                     ? 'blocked'
                     : record.underlyingPassable === true ? 'passable' : 'not asserted'}
-                />
+                </RealmRecordField>
               </>
             ) : (
               <>
-                <PublicField label="Depth class" value={record.oceanDepthClass ?? 'open water'} />
-                <PublicField label="Fog boundary" value={`${record.fogBand} public view; deeper cells remain hidden`} />
+                <RealmRecordField className="water-inspection__field" label="Depth class">
+                  {record.oceanDepthClass ?? 'open water'}
+                </RealmRecordField>
+                <RealmRecordField className="water-inspection__field" label="Fog boundary">
+                  {record.fogBand} public view; deeper cells remain hidden
+                </RealmRecordField>
               </>
             )}
           </dl>

@@ -808,8 +808,9 @@ export const WarpkeepTitleScreen3D = forwardRef<
       scene = new THREE.Scene();
       scene.background = new THREE.Color(titleSceneSpec.palette.void);
 
+      const restingCameraZ = 10.8;
       const camera = new THREE.PerspectiveCamera(39, initialWidth / initialHeight, 0.1, 100);
-      camera.position.set(0, 0.18, 10.8);
+      camera.position.set(0, 0.18, restingCameraZ);
 
       renderer = new THREE.WebGLRenderer({
         antialias: true,
@@ -1100,7 +1101,11 @@ export const WarpkeepTitleScreen3D = forwardRef<
         camera.aspect = aspect;
         camera.updateProjectionMatrix();
 
-        const titleDistance = camera.position.z - titleStage.position.z;
+        // Responsive composition is defined from the stable title framing.
+        // Departure animates the camera through the scene, so sampling its
+        // transient z position here can invert the visible width when a model,
+        // quality, or viewport refresh lands during the pull.
+        const titleDistance = restingCameraZ - titleStage.position.z;
         const titleVisibleHeight = 2 * titleDistance * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5));
         const titleVisibleWidth = titleVisibleHeight * aspect;
         const titleLayout = calculateTitleResponsiveLayout(
@@ -1116,7 +1121,7 @@ export const WarpkeepTitleScreen3D = forwardRef<
         titleRestYaw = titleLayout.restYawRadians;
         cameraDriftX = titleLayout.cameraDriftX;
 
-        const galaxyDistance = camera.position.z - galaxy.group.position.z;
+        const galaxyDistance = restingCameraZ - galaxy.group.position.z;
         const galaxyVisibleHeight = 2 * galaxyDistance * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5));
         const galaxyVisibleWidth = galaxyVisibleHeight * aspect;
         const desiredGalaxyWidth = galaxyVisibleWidth * (
@@ -1347,7 +1352,7 @@ export const WarpkeepTitleScreen3D = forwardRef<
         camera.position.y =
           0.18 + Math.cos(visibleElapsed * 0.046) * 0.04 +
           pointerCurrent.y * titleSceneSpec.interaction.cameraTravelY;
-        camera.position.z = 10.8 - warpPull * 17.5;
+        camera.position.z = restingCameraZ - warpPull * 17.5;
         camera.lookAt(
           pointerCurrent.x * titleSceneSpec.interaction.cameraTargetX,
           THREE.MathUtils.lerp(

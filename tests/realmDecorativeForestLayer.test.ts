@@ -155,10 +155,18 @@ describe('camera-local decorative forest renderer', () => {
     expect(layer.getTelemetry()).toMatchObject({
       modelReady: false,
       usingFallback: true,
+      fallbackType: 'procedural-trunk-multi-canopy-v1',
+      contactShadowCount: 0,
+      groundingMode: 'terrain-canopy-procedural-root-contact',
+      canopyMotionState: 'static',
       drawCalls: 1,
       overviewHidden: false
     });
     expect(layer.getTelemetry().activeInstanceCount).toBeGreaterThan(0);
+    expect(layer.getTelemetry().triangleCount).toBeGreaterThan(0);
+    expect(Object.values(layer.getTelemetry().structureCellCounts)
+      .reduce((total, count) => total + count, 0)).toBeGreaterThan(0);
+    expect(layer.getTelemetry().silhouetteCoverageRatio).toBeGreaterThan(0);
     expect(layer.group.getObjectByName(
       'realm-hegemony-forest-decorative-ecology-fallback'
     )).toBeTruthy();
@@ -171,8 +179,13 @@ describe('camera-local decorative forest renderer', () => {
     expect(layer.getTelemetry()).toMatchObject({
       modelReady: true,
       usingFallback: false,
+      fallbackType: 'none',
+      contactShadowCount: 0,
+      groundingMode: 'terrain-canopy',
+      canopyMotionState: 'static',
       drawCalls: 2
     });
+    expect(layer.getTelemetry().triangleCount).toBeGreaterThan(0);
     expect(layer.group.getObjectByName(
       'realm-hegemony-forest-decorative-ecology-fallback'
     )).toBeUndefined();
@@ -358,7 +371,8 @@ describe('camera-local decorative forest renderer', () => {
     });
 
     expect(layer.updateView({ x: 0, z: 0 }, 'keep', FULLY_VISIBLE_VIEWPORT)).toBe(true);
-    const initialCount = activeSnapshots.at(-1)!.length;
+    const initialPoints = activeSnapshots.at(-1)!;
+    const initialCount = initialPoints.length;
     expect(initialCount).toBeGreaterThan(0);
     await vi.waitFor(() => expect(acquire).toHaveBeenCalledOnce());
 
@@ -380,6 +394,30 @@ describe('camera-local decorative forest renderer', () => {
     const latestPoints = activeSnapshots.at(-1)!;
     expect(latestPoints.length).toBeGreaterThan(0);
     expect(latestPoints.length).not.toBe(initialCount);
+    const initialByIdentity = new Map(initialPoints.map((point) => [
+      `${point.cellKey}:${point.world.x}:${point.world.z}`,
+      point
+    ]));
+    const retained = latestPoints.filter((point) => initialByIdentity.has(
+      `${point.cellKey}:${point.world.x}:${point.world.z}`
+    ));
+    expect(retained.length).toBeGreaterThan(0);
+    retained.forEach((point) => {
+      const previous = initialByIdentity.get(
+        `${point.cellKey}:${point.world.x}:${point.world.z}`
+      )!;
+      expect({
+        speciesId: point.speciesId,
+        rotation: point.rotation,
+        scale: point.scale,
+        habitat: point.habitat
+      }).toEqual({
+        speciesId: previous.speciesId,
+        rotation: previous.rotation,
+        scale: previous.scale,
+        habitat: previous.habitat
+      });
+    });
     expect(layer.getTelemetry().activeInstanceCount).toBe(latestPoints.length);
     expect(acquire).toHaveBeenCalledOnce();
     expect(release).not.toHaveBeenCalled();
@@ -409,6 +447,105 @@ describe('camera-local decorative forest renderer', () => {
     expect(layer.group.children).toHaveLength(0);
   });
 
+  it('recomputes mutable exclusions only after explicit in-place invalidation', () => {
+    const fixture = createForestFixture();
+    const canonicalSpecies = fixture.species[0]!;
+    const canonicalTree = Object.freeze({
+      speciesId: canonicalSpecies.id,
+      coord: Object.freeze({ q: 100, r: 0 }),
+      world: Object.freeze(axialToWorld({ q: 100, r: 0 }, 1)),
+      rotation: 0.47,
+      scale: 1.1,
+      habitat: 'grove' as const,
+      estimatedTriangles: canonicalSpecies.triangles,
+      footprintDiameter: canonicalSpecies.footprintDiameter!
+    });
+    const canonicalTransform = Object.freeze({
+      coord: canonicalTree.coord,
+      world: canonicalTree.world,
+      rotation: canonicalTree.rotation,
+      scale: canonicalTree.scale,
+      speciesId: canonicalTree.speciesId,
+      habitat: canonicalTree.habitat
+    });
+    let excludeAll = false;
+    const snapshots: Array<readonly RealmForestEcologyCandidate[]> = [];
+    const layer = createRealmDecorativeForestLayer({
+      map: fixture.surface.renderMap,
+      terrainKindsByKey: fixture.terrainKinds,
+      vegetationField: fixture.field,
+      playableKeys: fixture.surface.playableKeys,
+      species: fixture.species,
+      canonicalTrees: [canonicalTree],
+      terrainPlacements: [],
+      quality: REALM_QUALITY_SPECS.reduced,
+      baseUrl: '/',
+      isWorldExcluded: () => excludeAll,
+      acquirePrefab: async () => {
+        throw new Error('keep deterministic fallback');
+      },
+      onActivePointsChange: (points) => snapshots.push(points)
+    });
+    const sameLayer = layer;
+    const sameGroup = layer.group;
+    const view = [{ x: 0, z: 0 }, 'keep', FULLY_VISIBLE_VIEWPORT] as const;
+    const stableTransforms = (
+      points: readonly RealmForestEcologyCandidate[]
+    ) => points.map((point) => Object.freeze({
+      cellKey: point.cellKey,
+      speciesId: point.speciesId,
+      world: point.world,
+      rotation: point.rotation,
+      scale: point.scale,
+      habitat: point.habitat
+    })).sort((left, right) => (
+      left.cellKey.localeCompare(right.cellKey)
+      || left.world.x - right.world.x
+      || left.world.z - right.world.z
+    ));
+
+    expect(layer.updateView(...view)).toBe(true);
+    const initial = snapshots.at(-1)!;
+    const initialTransforms = stableTransforms(initial);
+    expect(initial.length).toBeGreaterThan(0);
+    const initialCallbackCount = snapshots.length;
+
+    excludeAll = true;
+    expect(layer.updateView(...view)).toBe(false);
+    expect(snapshots).toHaveLength(initialCallbackCount);
+    expect(layer.getTelemetry().activeInstanceCount).toBe(initial.length);
+
+    expect(layer.invalidateExclusions()).toBe(true);
+    expect(layer.updateView(...view)).toBe(true);
+    expect(snapshots.at(-1)).toEqual([]);
+    expect(layer.getTelemetry().activeInstanceCount).toBe(0);
+    expect(layer).toBe(sameLayer);
+    expect(layer.group).toBe(sameGroup);
+
+    excludeAll = false;
+    expect(layer.updateView(...view)).toBe(false);
+    expect(layer.getTelemetry().activeInstanceCount).toBe(0);
+    expect(layer.invalidateExclusions()).toBe(true);
+    expect(layer.updateView(...view)).toBe(true);
+    const restored = snapshots.at(-1)!;
+    expect(stableTransforms(restored)).toEqual(initialTransforms);
+    expect({
+      coord: canonicalTree.coord,
+      world: canonicalTree.world,
+      rotation: canonicalTree.rotation,
+      scale: canonicalTree.scale,
+      speciesId: canonicalTree.speciesId,
+      habitat: canonicalTree.habitat
+    }).toEqual(canonicalTransform);
+    expect(layer.getTelemetry()).toMatchObject({
+      canonicalTreeCount: 1,
+      canonicalTriangleCount: canonicalSpecies.triangles
+    });
+
+    layer.dispose();
+    expect(layer.invalidateExclusions()).toBe(false);
+  });
+
   it('keeps the safe fallback when model acquisition fails', async () => {
     const fixture = createForestFixture();
     const acquire = vi.fn(async () => {
@@ -436,6 +573,9 @@ describe('camera-local decorative forest renderer', () => {
     expect(layer.getTelemetry()).toMatchObject({
       modelReady: false,
       usingFallback: true,
+      fallbackType: 'procedural-trunk-multi-canopy-v1',
+      contactShadowCount: 0,
+      groundingMode: 'terrain-canopy-procedural-root-contact',
       drawCalls: 1,
       overviewHidden: false
     });
@@ -511,9 +651,13 @@ describe('camera-local decorative forest renderer', () => {
     expect(layer.getTelemetry()).toMatchObject({
       modelReady: false,
       usingFallback: true,
+      fallbackType: 'procedural-trunk-multi-canopy-v1',
       drawCalls: 1
     });
     expect(layer.getTelemetry().drawCalls).toBeLessThanOrEqual(budget.drawCalls);
+    expect(layer.getTelemetry().triangleCount).toBeLessThanOrEqual(
+      budget.triangles
+    );
     layer.dispose();
     expect(release).toHaveBeenCalledOnce();
   });

@@ -32,6 +32,43 @@ export type WarpkeepBackendPhase =
   | 'ready'
   | 'error';
 
+export type WarpkeepWorkerPrivateSyncPhase =
+  | 'not-required'
+  | 'synchronizing'
+  | 'ready'
+  | 'stale-read-only'
+  | 'retry-wait'
+  | 'failed-localized';
+
+/**
+ * Privacy-safe lifecycle metadata for the caller-private Worker pair.
+ *
+ * This status deliberately carries no FID, worker identifier, balance,
+ * credential, procedure payload, or raw error. It is safe to use for bounded
+ * aggregate diagnostics and localized UI without widening private authority.
+ */
+export type WarpkeepWorkerPrivateSyncStatus = Readonly<{
+  phase: WarpkeepWorkerPrivateSyncPhase;
+  attempt: number;
+  queuedRefresh: boolean;
+  retainedStale: boolean;
+  localizedFailureCount: number;
+  commandsEnabled: boolean;
+  lastSuccessGeneration?: number;
+  lastSuccessRevision?: string;
+  readyLatencyMilliseconds?: number;
+}>;
+
+export const NOT_REQUIRED_WORKER_PRIVATE_SYNC_STATUS: WarpkeepWorkerPrivateSyncStatus =
+  Object.freeze({
+    phase: 'not-required',
+    attempt: 0,
+    queuedRefresh: false,
+    retainedStale: false,
+    localizedFailureCount: 0,
+    commandsEnabled: false
+  });
+
 export type WarpkeepWorldTile = Readonly<{
   key: string;
   q: number;
@@ -399,6 +436,7 @@ export type WarpkeepRealmSnapshot = CanonicalWarpkeepRealmSnapshot;
 
 export type WarpkeepBackendState = Readonly<{
   phase: WarpkeepBackendPhase;
+  workerPrivateSync: WarpkeepWorkerPrivateSyncStatus;
   identity?: VerifiedFarcasterIdentity;
   admission?: WarpkeepAdmissionStatus;
   realm?: CanonicalWarpkeepRealmSnapshot;
@@ -419,7 +457,8 @@ export type WarpkeepBackendState = Readonly<{
 }>;
 
 export const IDLE_WARPKEEP_BACKEND_STATE: WarpkeepBackendState = Object.freeze({
-  phase: 'idle'
+  phase: 'idle',
+  workerPrivateSync: NOT_REQUIRED_WORKER_PRIVATE_SYNC_STATUS
 });
 
 export type WarpkeepBackendErrorCode = 'unconfigured' | 'unreachable' | 'unexpected';

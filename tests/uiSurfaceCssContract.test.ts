@@ -99,6 +99,19 @@ describe('shared Warpkeep surface system', () => {
     }
   });
 
+  it('confirms valid world selection without motion-only feedback', () => {
+    const source = css('src/components/realm/RealmMapScreen.css');
+    const feedback = firstBlock(source, '.realm-world-selection-feedback {');
+    const reduced = lastBlock(source, '.realm-world-selection-feedback {');
+
+    expect(feedback).toContain('pointer-events: none;');
+    expect(feedback).toContain('border: 2px solid');
+    expect(feedback).toContain('realm-world-selection-confirm 420ms');
+    expect(source).toContain('@media (prefers-reduced-motion: reduce)');
+    expect(reduced).toContain('realm-world-selection-confirm-reduced 180ms');
+    expect(reduced).not.toContain('scale(');
+  });
+
   it('keeps persistent player chrome visually unboxed until the profile menu opens', () => {
     const source = css('src/components/realm/RealmPlayerChrome.css');
     const profileTrigger = firstBlock(source, '.realm-profile-trigger {');
@@ -129,6 +142,29 @@ describe('shared Warpkeep surface system', () => {
     expect(body).toContain('env(safe-area-inset-bottom)');
     expect(body).toContain('env(safe-area-inset-left)');
     expect(drawer).toContain('env(safe-area-inset-top)');
+  });
+
+  it('keeps water and worker record controls touch-safe across notched mobile screens', () => {
+    const water = css('src/components/realm/WaterInspectionPanel.css');
+    const workerCenter = css('src/components/realm/WorkerCommandCenter.css');
+    const waterAction = lastBlock(water, '.water-inspection__actions button');
+    const waterDismiss = lastBlock(water, '.water-inspection__dismiss');
+    const workerDismiss = lastBlock(workerCenter, '.worker-command-center__header button');
+    const workerFooter = lastBlock(workerCenter, '.worker-command-center__footer button');
+    const mobileWorker = lastBlock(workerCenter, '@media (max-width: 40rem) {');
+    const mobileWorkerScrim = firstBlock(
+      mobileWorker,
+      '.worker-command-center__scrim'
+    );
+
+    expect(waterAction).toContain('min-height:2.75rem');
+    expect(waterDismiss).toContain('env(safe-area-inset-top)');
+    expect(waterDismiss).toContain('env(safe-area-inset-right)');
+    expect(workerDismiss).toContain('min-height: 2.75rem;');
+    expect(workerFooter).toContain('min-height: 2.75rem;');
+    expect(mobileWorkerScrim).toContain('env(safe-area-inset-bottom)');
+    expect(water).toContain('@media (prefers-reduced-motion: reduce)');
+    expect(workerCenter).toContain('@media (prefers-reduced-motion: reduce)');
   });
 
   it('removes backdrop compositing on the performance profile and has an opaque fallback', () => {

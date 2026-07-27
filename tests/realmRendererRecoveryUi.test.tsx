@@ -20,10 +20,12 @@ vi.mock('../src/components/realm/realmMapPresentationHelpers', async (importOrig
 
 import { RealmMapScreen } from '../src/components/realm/RealmMapScreen';
 import type { CreateRealmSceneOptions } from '../src/components/realm/createRealmScene';
-import type { ReadyWorkerProjection } from '../src/components/realm/realmWorkerPresentation';
 import { validateCanonicalGenesisSnapshot } from '../src/spacetime/canonicalGenesisSnapshot';
 import { WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION } from '../src/spacetime/warpkeepProtocol';
-import { createRenderedWebglQaFixtureRealm } from '../src/dev/renderedWebglQaFixture';
+import {
+  createRenderedWebglQaActiveWorkerRealm,
+  createRenderedWebglQaFixtureRealm
+} from '../src/dev/renderedWebglQaFixture';
 import { CANONICAL_TIER_I_FOOD_SITES_V1 } from '../spacetimedb/src/foodSitePolicy';
 import { CANONICAL_TIER_I_GOLD_SITES_V1 } from '../spacetimedb/src/goldSitePolicy';
 import { CANONICAL_TIER_I_STONE_SITES_V1 } from '../spacetimedb/src/stoneSitePolicy';
@@ -40,6 +42,7 @@ function sceneHandle() {
   const noOp = () => undefined;
   return {
     dispose: vi.fn(),
+    setPresentationActive: vi.fn(),
     reconcileLiveGatheringState: noOp,
     getCameraAttestation: () => null,
     getSceneBuildSequence: () => 1,
@@ -79,6 +82,40 @@ describe('Realm renderer recovery UI', () => {
     vi.restoreAllMocks();
   });
 
+  it('never installs a handle disposed by synchronous scene construction failure', () => {
+    const failedHandle = sceneHandle();
+    sceneState.create.mockImplementationOnce((options: CreateRealmSceneOptions) => {
+      options.onRendererFailure?.({
+        code: 'scene-build-failed',
+        retryable: true,
+        phase: 'loading',
+        message: 'Synthetic synchronous construction failure.'
+      });
+      // createRealmScene owns this disposal in its failure callback contract.
+      failedHandle.dispose();
+      return failedHandle;
+    });
+    const snapshot = createCanonicalGenesisSnapshot(CANONICAL_TEST_FID);
+    render(
+      <RealmMapScreen
+        identity={{ fid: CANONICAL_TEST_FID, username: 'warpkeeper' }}
+        snapshot={snapshot}
+        onRequestReturn={vi.fn()}
+        resources={createReadyResourceState(CANONICAL_TEST_FID)}
+      />
+    );
+
+    const realm = screen.getByRole('main', { name: 'Hegemony realm' });
+    expect(failedHandle.dispose).toHaveBeenCalledOnce();
+    expect(sceneState.create).toHaveBeenCalledTimes(2);
+    expect(realm.getAttribute('data-renderer-state')).toBe('loading');
+    expect(realm.getAttribute('data-realm-scene-disposal-count')).toBe('1');
+
+    const failedOptions = sceneState.create.mock.calls[0]![0] as CreateRealmSceneOptions;
+    act(() => failedOptions.onCastlesReady?.(snapshot.castles.length));
+    expect(realm.getAttribute('data-renderer-state')).toBe('loading');
+  });
+
   it('offers a functional manual retry after context restoration times out', () => {
     vi.useFakeTimers();
     const snapshot = createCanonicalGenesisSnapshot(CANONICAL_TEST_FID);
@@ -93,6 +130,9 @@ describe('Realm renderer recovery UI', () => {
     );
     expect(sceneState.create).toHaveBeenCalledOnce();
     const firstOptions = sceneState.create.mock.calls[0]![0] as CreateRealmSceneOptions;
+    const firstHandle = sceneState.create.mock.results[0]!.value as ReturnType<
+      typeof sceneHandle
+    >;
 
     act(() => firstOptions.onCastlesReady?.(snapshot.castles.length));
     const realm = screen.getByRole('main', { name: 'Hegemony realm' });
@@ -118,8 +158,18 @@ describe('Realm renderer recovery UI', () => {
 
     fireEvent.click(retry);
     expect(sceneState.create).toHaveBeenCalledTimes(2);
+    expect(firstHandle.dispose).toHaveBeenCalledOnce();
     expect(realm.getAttribute('data-renderer-state')).toBe('loading');
     expect(realm.getAttribute('aria-busy')).toBe('true');
+
+    const retryOptions = sceneState.create.mock.calls[1]![0] as CreateRealmSceneOptions;
+    act(() => retryOptions.onRendererFailure?.({
+      code: 'context-lost',
+      retryable: true,
+      phase: 'loading'
+    }));
+    expect(realm.getAttribute('data-renderer-state')).toBe('recovering');
+    expect(realm.getAttribute('data-renderer-state')).not.toBe('ready');
   });
 
   it('lets a transient negative WebGL probe recover through explicit retry', () => {
@@ -174,10 +224,12 @@ describe('Realm renderer recovery UI', () => {
         regime,
         coord: { q: cell.q, r: cell.r }
       }));
-      expect(document.querySelector<HTMLElement>('.water-inspection')?.dataset.waterCellKey)
-        .toBe(cell.cellKey);
-      expect(document.querySelector('.water-inspection.realm-camera-neutral-inspector'))
-        .not.toBeNull();
+      const record = document.querySelector<HTMLElement>(
+        '.water-inspection.realm-camera-neutral-inspector'
+      );
+      expect(record).not.toBeNull();
+      expect(record?.dataset.waterRegime).toBe(regime);
+      expect(record?.hasAttribute('data-water-cell-key')).toBe(false);
     }
 
     expect(handle.focusCell).not.toHaveBeenCalled();
@@ -251,40 +303,18 @@ describe('Realm renderer recovery UI', () => {
   });
 
   it('opens a worker record through the same camera-neutral entity contract', () => {
-    const snapshot = createCanonicalGenesisSnapshot(CANONICAL_TEST_FID);
-    const worker = Object.freeze({
-      workerId: `genesis-001-castle-${snapshot.ownCastle.castleId}-worker-01`,
-      ordinal: 1 as const,
-      originCastleId: snapshot.ownCastle.castleId,
-      originCastleName: snapshot.ownCastle.name,
-      status: 'idle' as const,
-      timelineRevision: 0,
-      revision: 0n,
-      ownedByViewer: true
-    });
-    const workerProjection: ReadyWorkerProjection = Object.freeze({
-      mode: 'active',
-      system: Object.freeze({
-        realmId: 'GENESIS_001',
-        policyVersion: 'genesis-001-castle-workers-v1',
-        workersPerCastle: 4,
-        expectedCastleCount: 1,
-        expectedWorkerCount: 4,
-        rosterDigest: 'camera-neutral-fixture',
-        mode: 'active',
-        legacyDrainRequired: false
-      }),
-      workers: Object.freeze([worker]),
-      ownedWorkers: Object.freeze([worker]),
-      occupations: Object.freeze([])
-    });
+    const fixture = createRenderedWebglQaActiveWorkerRealm();
+    const { snapshot } = fixture;
+    const worker = fixture.workerProjection.ownedWorkers.find(
+      (candidate) => candidate.status === 'idle'
+    );
+    if (!worker) throw new Error('missing idle public worker fixture');
     render(
       <RealmMapScreen
-        identity={{ fid: CANONICAL_TEST_FID, username: 'warpkeeper' }}
+        identity={fixture.identity}
         snapshot={snapshot}
         onRequestReturn={vi.fn()}
-        resources={createReadyResourceState(CANONICAL_TEST_FID)}
-        workerProjection={workerProjection}
+        resources={createReadyResourceState(fixture.identity.fid)}
       />
     );
     const options = sceneState.create.mock.calls[0]![0] as CreateRealmSceneOptions;

@@ -314,6 +314,104 @@ describe('realm castle instance layer', () => {
     layer.dispose();
   });
 
+  it('reconciles bounded selected and hover accents against the authored foundation in place', () => {
+    const castleGeometry = new THREE.BoxGeometry(1, 1, 1);
+    const baseGeometry = new THREE.BoxGeometry(2.4, 0.2, 2);
+    const material = new THREE.MeshBasicMaterial();
+    const layer = createRealmCastleInstanceLayer({
+      castles: [castle(41, -1.2, 0), castle(42, 1.2, 0)],
+      prefabs: new Map([[
+        'compact',
+        prefabWithLandscapeBase('compact', castleGeometry, baseGeometry, material)
+      ]]),
+      policy: COMPACT_ONLY_POLICY,
+      dynamicShadows: false
+    });
+    const sceneCamera = camera();
+    layer.update(sceneCamera, 900, 41);
+    layer.setHoveredCastleId(42);
+
+    const castleMesh = layer.group.getObjectByName(
+      'hegemony-castles-compact-0'
+    ) as THREE.InstancedMesh;
+    const baseMesh = layer.group.getObjectByName(
+      'hegemony-castle-landscape-bases-compact-1'
+    ) as THREE.InstancedMesh;
+    const foundationContacts = layer.group.getObjectByName(
+      'hegemony-castle-foundation-contact-depth'
+    ) as THREE.InstancedMesh;
+    const selected = layer.group.getObjectByName(
+      'hegemony-castle-selected-foundation-accent'
+    ) as THREE.Mesh;
+    const hovered = layer.group.getObjectByName(
+      'hegemony-castle-hovered-foundation-accent'
+    ) as THREE.Mesh;
+    const castleMatrix = new THREE.Matrix4();
+    const baseMatrix = new THREE.Matrix4();
+    castleMesh.getMatrixAt(0, castleMatrix);
+    baseMesh.getMatrixAt(0, baseMatrix);
+
+    expect(foundationContacts.count).toBe(2);
+    expect(selected.visible).toBe(true);
+    expect(hovered.visible).toBe(true);
+    expect(selected.position.x).toBeCloseTo(-1.2);
+    expect(selected.position.z).toBeCloseTo(0);
+    expect(hovered.position.x).toBeCloseTo(1.2);
+    expect(hovered.position.z).toBeCloseTo(0);
+    expect((selected.material as THREE.MeshBasicMaterial).color.getHex()).not.toBe(
+      (hovered.material as THREE.MeshBasicMaterial).color.getHex()
+    );
+    expect(layer.getWorldAccentTelemetry()).toEqual({
+      foundationContactCount: 2,
+      selectedAccentCount: 1,
+      hoveredAccentCount: 1,
+      drawNodeCount: 3,
+      triangleCount: 240
+    });
+
+    const selectedIdentity = selected;
+    const hoveredIdentity = hovered;
+    layer.setSelectedCastleId(42);
+    layer.setHoveredCastleId(42);
+    expect(layer.group.getObjectByName(
+      'hegemony-castle-selected-foundation-accent'
+    )).toBe(selectedIdentity);
+    expect(layer.group.getObjectByName(
+      'hegemony-castle-hovered-foundation-accent'
+    )).toBe(hoveredIdentity);
+    expect(selected.position.x).toBeCloseTo(1.2);
+    expect(hovered.visible).toBe(false);
+    expect(layer.getWorldAccentTelemetry()).toMatchObject({
+      selectedAccentCount: 1,
+      hoveredAccentCount: 0,
+      drawNodeCount: 2
+    });
+
+    const observedCastleMatrix = new THREE.Matrix4();
+    const observedBaseMatrix = new THREE.Matrix4();
+    castleMesh.getMatrixAt(0, observedCastleMatrix);
+    baseMesh.getMatrixAt(0, observedBaseMatrix);
+    expect(observedCastleMatrix.equals(castleMatrix)).toBe(true);
+    expect(observedBaseMatrix.equals(baseMatrix)).toBe(true);
+    expect(layer.hasExactCastleLandscapeBasePairing()).toBe(true);
+
+    layer.setSelectedCastleId(999);
+    layer.setHoveredCastleId(null);
+    expect(layer.getWorldAccentTelemetry()).toMatchObject({
+      selectedAccentCount: 0,
+      hoveredAccentCount: 0
+    });
+    layer.clear();
+    expect(layer.getWorldAccentTelemetry()).toEqual({
+      foundationContactCount: 0,
+      selectedAccentCount: 0,
+      hoveredAccentCount: 0,
+      drawNodeCount: 0,
+      triangleCount: 0
+    });
+    layer.dispose();
+  });
+
   it('rejects count parity that hides a wrong base identity, transform, or LOD', () => {
     const castleGeometry = new THREE.BoxGeometry(1, 1, 1);
     const baseGeometry = new THREE.BoxGeometry(2.4, 0.2, 2);

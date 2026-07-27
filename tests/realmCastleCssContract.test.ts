@@ -127,6 +127,25 @@ describe('compact Realm CSS contract', () => {
     expect(GLOBAL).not.toMatch(/^button:hover[^\n{]*\{/m);
   });
 
+  it('collapses only calm peer name rails in the close camera band', () => {
+    const closeBandSelector =
+      '.realm-map-screen[data-realm-camera-presentation-band="close"] .realm-castle-label:not(';
+    const closeBandPlate = block(PRESENTATION, closeBandSelector);
+
+    expect(closeBandPlate).toContain('width: 0.52rem;');
+    expect(closeBandPlate).toContain('min-width: 0.52rem;');
+    expect(closeBandPlate).toContain('min-height: 0.52rem;');
+    expect(closeBandPlate).not.toContain('pointer-events: none;');
+    expect(PRESENTATION).toContain('[data-own="true"]');
+    expect(PRESENTATION).toContain('[data-focused="true"]');
+    expect(PRESENTATION).toContain('[data-hovered="true"]');
+    expect(PRESENTATION).toContain('[aria-expanded="true"]');
+    expect(PRESENTATION).toContain('[aria-pressed="true"]');
+    expect(PRESENTATION).toMatch(
+      /data-realm-camera-presentation-band="close"[\s\S]*?realm-castle-label__identity\s*\{\s*display:\s*none;/
+    );
+  });
+
   it('keeps the local castle artwork decorative and visibly overhanging the record', () => {
     const inspector = block(PRESENTATION, '.castle-inspection {');
     const desktopPresentation = block(

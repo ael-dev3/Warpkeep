@@ -57,6 +57,8 @@ export type RealmCameraTarget =
   | Readonly<{ kind: 'founding-district' }>
   | Readonly<{ kind: 'keep' }>
   | Readonly<{ kind: 'cell'; coord: HexCoord }>
+  /** Explicit cell navigation that preserves the current zoom. */
+  | Readonly<{ kind: 'cell-location'; coord: HexCoord }>
   | Readonly<{ kind: 'castle'; castleId: number; coord: HexCoord }>
   /** Explicit navigation that preserves zoom and does not open a castle record. */
   | Readonly<{ kind: 'castle-location'; castleId: number; coord: HexCoord }>;
@@ -192,7 +194,9 @@ function copyCameraTarget(target: RealmCameraTarget): RealmCameraTarget {
   if (target.kind === 'realm') return { kind: 'realm' };
   if (target.kind === 'founding-district') return { kind: 'founding-district' };
   if (target.kind === 'keep') return { kind: 'keep' };
-  if (target.kind === 'cell') return { kind: 'cell', coord: copyCoord(target.coord) };
+  if (target.kind === 'cell' || target.kind === 'cell-location') {
+    return { kind: target.kind, coord: copyCoord(target.coord) };
+  }
   return {
     kind: target.kind,
     castleId: target.castleId,

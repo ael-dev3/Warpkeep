@@ -5,8 +5,12 @@ const RESERVED_REALM_UI_SELECTOR = [
   '.realm-hud',
   '.realm-profile-trigger',
   '.realm-resource-rail',
+  '.realm-resource-tooltip:not([hidden])',
+  '.realm-profile-menu__panel',
   '.castle-inspection',
   '.realm-camera-neutral-inspector',
+  '.worker-command-center',
+  '.warpkeep-settings__panel',
   '.realm-hud__actions',
   '.realm-cell-navigator > button',
   '.realm-cell-navigator__dialog'

@@ -92,6 +92,9 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
     const noticeLayoutAnchorRef = useRef({ x: Number.NaN, y: Number.NaN });
     const noticeOpenRef = useRef(false);
     const disabledRef = useRef(disabled);
+    const activationInFlightRef = useRef(false);
+    const activationLockedRef = useRef(false);
+    const [activationLocked, setActivationLocked] = useState(false);
     const [noticeState, setNoticeState] = useState<GatewayNoticeState>({
       open: false,
       version: 0
@@ -164,11 +167,18 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
       const viewportChanged =
         projection.viewportWidth !== viewportWidth ||
         projection.viewportHeight !== viewportHeight;
-      projection.x = validProjection ? x : 0;
-      projection.y = validProjection ? y : 0;
-      projection.viewportWidth = validProjection ? viewportWidth : 0;
-      projection.viewportHeight = validProjection ? viewportHeight : 0;
-      projection.visible = projectionVisible;
+      if (!activationLockedRef.current) {
+        projection.x = validProjection ? x : 0;
+        projection.y = validProjection ? y : 0;
+        projection.viewportWidth = validProjection ? viewportWidth : 0;
+        projection.viewportHeight = validProjection ? viewportHeight : 0;
+        projection.visible = projectionVisible;
+      } else {
+        projection.visible = false;
+      }
+      const interactiveVisible = projection.visible
+        && !disabledRef.current
+        && !activationLockedRef.current;
 
       const gatewayElement = gatewayRef.current;
       const anchorElement = anchorRef.current;
@@ -177,22 +187,28 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
         return;
       }
 
-      const visibilityValue = projectionVisible ? 'true' : 'false';
-      if (anchorElement.hidden === projectionVisible) {
-        anchorElement.hidden = !projectionVisible;
+      const visibilityValue = interactiveVisible ? 'true' : 'false';
+      if (anchorElement.hidden === interactiveVisible) {
+        anchorElement.hidden = !interactiveVisible;
       }
-      const buttonDisabled = !projectionVisible || disabledRef.current;
+      anchorElement.inert = !interactiveVisible;
+      anchorElement.setAttribute('aria-hidden', String(!interactiveVisible));
+      const buttonDisabled = !interactiveVisible;
       if (buttonElement.disabled !== buttonDisabled) {
         buttonElement.disabled = buttonDisabled;
       }
+      buttonElement.tabIndex = interactiveVisible ? 0 : -1;
       if (anchorElement.dataset.visible !== visibilityValue) {
         anchorElement.dataset.visible = visibilityValue;
       }
       if (gatewayElement && gatewayElement.dataset.visible !== visibilityValue) {
         gatewayElement.dataset.visible = visibilityValue;
       }
+      if (gatewayElement && gatewayElement.dataset.interactive !== visibilityValue) {
+        gatewayElement.dataset.interactive = visibilityValue;
+      }
 
-      if (!projectionVisible) {
+      if (!interactiveVisible) {
         return;
       }
 
@@ -212,7 +228,14 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
     }, [positionNotice]);
 
     const getProjectedPosition = useCallback(() => ({ ...projectionRef.current }), []);
-    const focus = useCallback(() => buttonRef.current?.focus(), []);
+    const focus = useCallback(() => {
+      if (
+        disabledRef.current
+        || activationLockedRef.current
+        || !projectionRef.current.visible
+      ) return;
+      buttonRef.current?.focus();
+    }, []);
 
     useImperativeHandle(
       forwardedRef,
@@ -221,10 +244,35 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
     );
 
     useLayoutEffect(() => {
+      const wasDisabled = disabledRef.current;
       disabledRef.current = disabled;
+      if (wasDisabled && !disabled) {
+        activationLockedRef.current = false;
+        activationInFlightRef.current = false;
+        setActivationLocked(false);
+      }
+      const gateway = gatewayRef.current;
+      const anchor = anchorRef.current;
       const button = buttonRef.current;
+      const blocked = disabled || activationLockedRef.current;
+      const visible = projectionRef.current.visible && !blocked;
+      if (gateway) {
+        gateway.dataset.visible = String(visible);
+        gateway.dataset.interactive = String(visible);
+      }
+      if (anchor) {
+        anchor.hidden = !visible;
+        anchor.inert = !visible;
+        anchor.dataset.visible = String(visible);
+        anchor.setAttribute('aria-hidden', String(!visible));
+        if (visible) {
+          anchor.style.transform = `translate3d(${projectionRef.current.x}px, ${projectionRef.current.y}px, 0)`;
+        }
+      }
       if (button) {
-        button.disabled = disabled || !projectionRef.current.visible;
+        button.disabled = !visible;
+        button.tabIndex = visible ? 0 : -1;
+        if (!visible && document.activeElement === button) button.blur();
       }
     }, [disabled]);
 
@@ -242,15 +290,48 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
     }, []);
 
     const activateGateway = useCallback((input: 'keyboard' | 'pointer') => {
-      if (disabledRef.current || !projectionRef.current.visible) {
+      if (
+        disabledRef.current
+        || activationLockedRef.current
+        || activationInFlightRef.current
+        || !projectionRef.current.visible
+      ) {
         return;
       }
+      activationInFlightRef.current = true;
       if (notice) {
         noticeOpenRef.current = true;
         setNoticeState((current) => ({ open: true, version: current.version + 1 }));
       }
       onMeaningfulInteraction?.();
-      onActivate?.(input);
+      try {
+        onActivate?.(input);
+      } finally {
+        activationInFlightRef.current = false;
+        if (onActivate) {
+          activationLockedRef.current = true;
+          projectionRef.current.visible = false;
+          setActivationLocked(true);
+          const gateway = gatewayRef.current;
+          const anchor = anchorRef.current;
+          const button = buttonRef.current;
+          if (gateway) {
+            gateway.dataset.visible = 'false';
+            gateway.dataset.interactive = 'false';
+          }
+          if (anchor) {
+            anchor.hidden = true;
+            anchor.inert = true;
+            anchor.dataset.visible = 'false';
+            anchor.setAttribute('aria-hidden', 'true');
+          }
+          if (button) {
+            button.disabled = true;
+            button.tabIndex = -1;
+            button.blur();
+          }
+        }
+      }
     }, [notice, onActivate, onMeaningfulInteraction]);
 
     useEffect(() => {
@@ -317,10 +398,19 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
       <div
         ref={gatewayRef}
         className={joinClassNames('warpkeep-gateway', className)}
+        data-interactive={String(!disabled && !activationLocked)}
         data-notice-open={String(noticeState.open)}
+        data-visible="false"
         style={gatewayHitAreaStyle}
       >
-        <div ref={anchorRef} className="warpkeep-gateway-anchor">
+        <div
+          ref={anchorRef}
+          aria-hidden="true"
+          className="warpkeep-gateway-anchor"
+          data-visible="false"
+          hidden
+          inert
+        >
           <button
             ref={buttonRef}
             type="button"
@@ -329,6 +419,8 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
             aria-controls={noticeState.open ? noticeId : undefined}
             aria-describedby={noticeState.open ? noticeId : undefined}
             aria-expanded={notice ? noticeState.open : undefined}
+            disabled={disabled || activationLocked}
+            tabIndex={disabled || activationLocked ? -1 : 0}
             onClick={(event) => activateGateway(event.detail === 0 ? 'keyboard' : 'pointer')}
             onFocus={() => {
               onFocusChange?.(true);

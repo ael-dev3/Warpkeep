@@ -32,6 +32,7 @@ describe('BlackHoleGateway', () => {
 
     act(() => gatewayRef.current?.setProjectedPosition(240, 120, 800, 600, true));
     expect((button as HTMLButtonElement).disabled).toBe(false);
+    expect(button.closest('.warpkeep-gateway')?.getAttribute('data-interactive')).toBe('true');
     expect(button.parentElement?.style.transform).toContain('translate3d(240px, 120px');
     expect(gatewayRef.current?.getProjectedPosition()).toEqual({
       x: 240,
@@ -44,6 +45,7 @@ describe('BlackHoleGateway', () => {
     act(() => gatewayRef.current?.setProjectedPosition(Number.NaN, 120, 800, 600, true));
     expect((button as HTMLButtonElement).disabled).toBe(true);
     expect(button.parentElement?.hidden).toBe(true);
+    expect(button.closest('.warpkeep-gateway')?.getAttribute('data-interactive')).toBe('false');
   });
 
   it('wires the centered elliptical hit area to the shared title specification', () => {
@@ -64,19 +66,36 @@ describe('BlackHoleGateway', () => {
       .toBe(`${titleSceneSpec.gateway.hitHeightMaxPx}px`);
   });
 
-  it('requests the real experience through the native click path without the obsolete notice', () => {
+  it('requests the real experience once and retires the focus anchor immediately', () => {
     const onActivate = vi.fn();
-    renderVisibleGateway({ onActivate });
-    const button = screen.getByRole('button', { name: 'Enter Warpkeep' });
+    const { gatewayRef } = renderVisibleGateway({ onActivate });
+    const button = screen.getByRole('button', {
+      name: 'Enter Warpkeep'
+    }) as HTMLButtonElement;
+    const anchor = button.parentElement as HTMLDivElement;
+    const initialTransform = anchor.style.transform;
 
     fireEvent.click(button, { detail: 0 });
     expect(onActivate).toHaveBeenLastCalledWith('keyboard');
     expect(screen.queryByRole('status')).toBeNull();
     expect(button.hasAttribute('aria-expanded')).toBe(false);
+    expect(button.disabled).toBe(true);
+    expect(button.tabIndex).toBe(-1);
+    expect(anchor.hidden).toBe(true);
+    expect(anchor.inert).toBe(true);
+    expect(anchor.getAttribute('aria-hidden')).toBe('true');
 
     fireEvent.click(button, { detail: 1 });
-    expect(onActivate).toHaveBeenLastCalledWith('pointer');
-    expect(onActivate).toHaveBeenCalledTimes(2);
+    expect(onActivate).toHaveBeenCalledTimes(1);
+
+    act(() => gatewayRef.current?.setProjectedPosition(310, 210, 400, 320, true));
+    expect(anchor.style.transform).toBe(initialTransform);
+    expect(button.closest('.warpkeep-gateway')?.getAttribute('data-interactive')).toBe('false');
+    expect(gatewayRef.current?.getProjectedPosition()).toMatchObject({
+      x: 200,
+      y: 140,
+      visible: false
+    });
   });
 
   it('reports focus without treating focus, keydown, or pointerdown as activation', () => {

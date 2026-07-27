@@ -88,6 +88,7 @@ export type RenderedWebglBrowserProbeCase = Readonly<{
     | 'short-landscape-balanced-player-explore'
     | 'desktop-balanced-occupancy-stress';
   expectedQuality: RenderedWebglBrowserProbeQuality;
+  expectedReducedMotion?: true;
   expectedPresentationMode: RenderedWebglBrowserProbePresentationMode;
   interaction: RenderedWebglBrowserProbeInteraction;
   /** Must remain zero: every projection-visible castle has a direct label. */
@@ -236,16 +237,56 @@ export function parseRenderedWebglBrowserDom(
   forestDecorativeTriangleCount: number;
   forestDecorativeDrawCalls: number;
   forestDecorativeCacheEntries: number;
+  forestDecorativeCacheLimit: number;
   forestDecorativeCacheHighWaterMark: number;
+  forestDecorativeRepackCount: number;
   forestDecorativeModelReady: boolean;
   forestDecorativeUsingFallback: boolean;
+  forestDecorativeFallbackType: 'none' | 'procedural-trunk-multi-canopy-v1';
+  forestDecorativeContactShadowCount: 0;
+  forestDecorativeGroundingMode:
+    | 'none'
+    | 'terrain-canopy'
+    | 'terrain-canopy-baked-base'
+    | 'terrain-canopy-procedural-root-contact';
+  forestDecorativeCanopyMotionState: 'static';
+  forestDecorativeCoreCellCount: number;
+  forestDecorativeBodyCellCount: number;
+  forestDecorativeFringeCellCount: number;
+  forestDecorativeClearingCellCount: number;
+  forestDecorativeSilhouetteCoverageRatio: number;
+  forestDecorativeCanonicalTriangleCount: number;
   forestDecorativeOverviewHidden: boolean;
+  grassInstanceCount: number;
+  grassTriangleCount: number;
+  grassDrawCalls: number;
+  grassCacheEntries: number;
+  grassCacheLimit: number;
+  grassCacheHighWaterMark: number;
+  grassRepackCount: number;
+  grassPaletteDisplaySrgbSaturationMin: number;
+  grassPaletteDisplaySrgbSaturationMax: number;
+  grassShaderFallbackActive: false;
+  terrainShaderEnhanced: true;
+  terrainShaderFallbackActive: false;
   semanticTerrainCellCount: typeof RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_CELL_COUNT;
   semanticTerrainKindCount: typeof RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_KIND_COUNT;
   semanticTerrainFeatureCount: number;
   semanticTerrainFeatureDrawCalls: number;
   totalTerrainDetailInstanceCount: number;
   totalTerrainDetailDrawCalls: number;
+  rootRealmCameraMode: 'realm' | 'approach' | 'keep';
+  canvasRealmCameraMode: 'realm' | 'approach' | 'keep';
+  rootRealmCameraPresentationBand: 'overview' | 'strategy' | 'close';
+  canvasRealmCameraPresentationBand: 'overview' | 'strategy' | 'close';
+  /** Privacy-safe Explore aggregates; no coordinates or opaque identifiers. */
+  exploreCoordinateJumpCount: number;
+  exploreResourceSiteCount: number;
+  exploreAccessibleResourceSiteCount: number;
+  exploreResourceKindCount: number;
+  exploreAvailableResourceSiteCount: number;
+  exploreVisibleCoordinateCopyCount: number;
+  exploreVisibleOpaqueCopyCount: number;
   /** Privacy-safe aggregate coverage; no castle or identity values. */
   labelEligibleCount: number;
   labelPlacedCount: number;
@@ -275,10 +316,37 @@ export function parseRenderedWebglCastlePointerMoveState(value: unknown): Readon
 /** Structural gesture evidence only; no castle or identity value crosses the QA boundary. */
 export function parseRenderedWebglMapGestureEvidence(value: unknown): Readonly<{
   dragMoved: true;
+  inertiaPolicyValid: true;
+  inertiaSettled: true;
   inputClean: true;
+  rendererGenerationStable: true;
+  selectionStable: true;
   settled: true;
   uiStable: true;
   wheelMoved: true;
+}>;
+
+export function parseRenderedWebglPresentationBandEvidence(value: unknown): Readonly<{
+  cameraSynchronized: true;
+  closeHierarchySimplified: true;
+  noUiChurn: true;
+  overviewMacroOnly: true;
+  overviewOwnIdentityRetained: true;
+  overviewPeerIdentitySimplified: true;
+  sceneStable: true;
+  strategyHierarchyExpanded: true;
+  visitedAllBands: true;
+}>;
+
+export function parseRenderedWebglViewportRotationEvidence(value: unknown): Readonly<{
+  cameraIntentPreserved: true;
+  compositionUsable: true;
+  focusPreserved: true;
+  inertiaCancelled: true;
+  rendererStable: true;
+  sameCanvas: true;
+  selectionPreserved: true;
+  viewportRotated: true;
 }>;
 
 /** Structural local-QA evidence only; it never includes a castle or identity value. */
@@ -287,11 +355,12 @@ export function parseRenderedWebglInspectorLabelActivationEvidence(value: unknow
 }>;
 
 export type RenderedWebglResourceOccupantEvidence = Readonly<{
-  cameraNeutral: true;
-  cameraNeutralAfterClose: true;
-  cameraAnchorPopulationValid: true;
-  cameraIndependentAnchorCoverage: true;
-  cameraNeutralWhileOpen: true;
+  cameraNeutral: boolean;
+  cameraNeutralAfterClose: boolean;
+  cameraAnchorPopulationValid: boolean;
+  cameraIndependentAnchorCoverage: boolean;
+  cameraNeutralWhileOpen: boolean;
+  compactOverviewCullingValid: boolean;
   factsCorrect: true;
   focusedControlActivation: true;
   identityRecordCorrect: true;
@@ -307,18 +376,18 @@ export type RenderedWebglResourceOccupantEvidence = Readonly<{
   markerPresent: true;
   markerProjectedVisible: true;
   markerHitTestable: true;
-  overviewPresenceDirectHit: true;
-  overviewRecordCorrect: true;
-  overviewTargetPassiveOnly: true;
-  presenceComputedVisible: true;
-  presenceAvatarGeometryValid: true;
-  presenceGeometryValid: true;
-  presenceDelegatedActivation: true;
-  presenceHitTestable: true;
-  presencePointerActivatable: true;
-  presencePortraitElementPresent: true;
-  presencePortraitReady: true;
-  presenceVisible: true;
+  overviewPresenceDirectHit: boolean;
+  overviewRecordCorrect: boolean;
+  overviewTargetPassiveOnly: boolean;
+  presenceComputedVisible: boolean;
+  presenceAvatarGeometryValid: boolean;
+  presenceGeometryValid: boolean;
+  presenceDelegatedActivation: boolean;
+  presenceHitTestable: boolean;
+  presencePointerActivatable: boolean;
+  presencePortraitElementPresent: boolean;
+  presencePortraitReady: boolean;
+  presenceVisible: boolean;
   privacyBounded: true;
   recordHeaderCorrect: true;
   reducedMotionPreferenceCorrect: true;
@@ -375,14 +444,29 @@ export function applyRenderedWebglCastleCanvasInteraction(
 ): Promise<Readonly<{ pointerMoveCount: 5 }>>;
 
 export function applyRenderedWebglMapGestureInteraction(
-  session: RenderedWebglCastleCanvasPointerSession
+  session: RenderedWebglCastleCanvasPointerSession,
+  expectedReducedMotion?: boolean,
 ): Promise<Readonly<{
   dragMoved: true;
+  inertiaPolicyValid: true;
+  inertiaSettled: true;
   inputClean: true;
+  rendererGenerationStable: true;
+  selectionStable: true;
   settled: true;
   uiStable: true;
   wheelMoved: true;
 }>>;
+
+export function applyRenderedWebglPresentationBandInteraction(
+  session: RenderedWebglCastleCanvasPointerSession
+): Promise<ReturnType<typeof parseRenderedWebglPresentationBandEvidence>>;
+
+export function applyRenderedWebglViewportRotationInteraction(
+  session: RenderedWebglCastleCanvasPointerSession,
+  probeCase: RenderedWebglBrowserProbeCase,
+  state: Readonly<Record<string, unknown>>,
+): Promise<ReturnType<typeof parseRenderedWebglViewportRotationEvidence>>;
 
 export function applyRenderedWebglLabelKeyboardInteraction(
   session: RenderedWebglCastleCanvasPointerSession
@@ -419,9 +503,69 @@ export function analyzeRenderedWebglPngScreenshot(
 ): Readonly<{
   distinctColourBuckets: number;
   luminanceRange: number;
+  averageSaturationBasisPoints: number;
+  saturationP95BasisPoints: number;
+  clippedBlackSamples: number;
+  clippedWhiteSamples: number;
   opaqueSamples: number;
   sampleCount: number;
 }>;
+
+export type RenderedWebglQualityMetrics = Readonly<{
+  cameraMode: 'realm' | 'approach' | 'keep';
+  cameraProjectionCount: number;
+  cameraProjectionToken: string;
+  cameraStateToken: string;
+  cameraSynchronized: true;
+  cameraTargetKind:
+    | 'realm'
+    | 'founding-district'
+    | 'keep'
+    | 'cell'
+    | 'cell-location'
+    | 'castle'
+    | 'castle-location';
+  cameraZoom: string;
+  decorativeForestCacheEntries: number;
+  decorativeForestCacheHighWaterMark: number;
+  decorativeForestCacheLimit: number;
+  decorativeForestDrawCalls: number;
+  decorativeForestInstances: number;
+  decorativeForestMotionState: 'static';
+  decorativeForestTriangles: number;
+  grassAnimated: boolean;
+  grassTargetAnimationCadence: number;
+  grassCacheEntries: number;
+  grassCacheHighWaterMark: number;
+  grassCacheLimit: number;
+  grassDrawCalls: number;
+  grassInstances: number;
+  grassTriangles: number;
+  presentationBand: 'overview' | 'strategy' | 'close';
+  quality: 'high' | 'balanced' | 'reduced';
+  routeDrawCalls: number;
+  routeSegments: number;
+  routeTriangles: number;
+  routeVisible: number;
+  sharedForestInstances: number;
+  sharedForestTriangles: number;
+  terrainDetailDrawCalls: number;
+  terrainDetailInstances: number;
+  terrainTriangles: number;
+  viewportHeight: number;
+  viewportWidth: number;
+  waterDrawCalls: number;
+  waterTriangles: number;
+  workerAnimated: number;
+  workerAnimationTransitions: number;
+  workerFallbackTriangles: number;
+  workerModels: number;
+  workerPresented: number;
+}>;
+
+export function parseRenderedWebglQualityMetrics(
+  value: unknown
+): RenderedWebglQualityMetrics;
 
 export type RenderedWebglCastleLodVisualEvidence = Readonly<{
   renderer: 'webgl';
@@ -443,4 +587,5 @@ export type RenderedWebglCastleLodVisualBoundary = Readonly<{
 export function runRenderedWebglBrowserProbe(options?: Readonly<{
   onCastleLodVisualBoundary?: (boundary: RenderedWebglCastleLodVisualBoundary) => void;
   onCastleLodVisualEvidence?: (evidence: RenderedWebglCastleLodVisualEvidence) => void;
+  onQualityMetrics?: (metrics: RenderedWebglQualityMetrics) => void;
 }>): Promise<14>;

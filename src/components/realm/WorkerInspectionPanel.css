@@ -2,3 +2,4 @@
 .worker-inspection__error{margin:.8rem 0 0;color:#ffd8cf;font-size:.72rem;line-height:1.4}.worker-inspection button:disabled{cursor:default;opacity:.52}
 .worker-inspection__dismiss{top:max(.68rem,env(safe-area-inset-top));right:max(.7rem,env(safe-area-inset-right))}.worker-inspection__body{padding-right:max(1rem,env(safe-area-inset-right));padding-bottom:max(1.15rem,env(safe-area-inset-bottom));padding-left:max(1rem,env(safe-area-inset-left))}@media (max-width:40rem){.worker-inspection__drawer{padding-top:calc(clamp(6.5rem,24vw,8rem) + env(safe-area-inset-top))}}
 .worker-inspection__keeper-locate{display:grid;min-width:44px;min-height:44px;padding:0;border:0;border-radius:50%;place-items:center;background:transparent;cursor:pointer}.worker-inspection__keeper-locate:focus-visible{outline:2px solid #fff0bc;outline-offset:2px}
+@media (prefers-reduced-motion:reduce){.worker-inspection{animation:none;scroll-behavior:auto;transition:none}}

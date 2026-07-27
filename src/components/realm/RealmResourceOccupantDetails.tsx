@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -7,6 +8,7 @@ import {
 } from 'react';
 
 import { CastleProfileAvatar } from './RealmCastleLabels';
+import { RealmRecordField, RealmRecordStatus } from './RealmRecordPrimitives';
 import { castleProfileLabel } from './realmCastlePresentation';
 import { useRealmRemainingDuration } from './realmAuthoritySchedule';
 import {
@@ -31,12 +33,16 @@ export type RealmResourceOccupantDetailsProps = Readonly<{
   focusFallbackRef?: RefObject<HTMLButtonElement | null>;
   onFocusCastle?: (marker: RealmResourceOccupantMarker) => void;
   onRecallWorker?: (workerId: string) => Promise<void>;
+  /** Localized reason generic-worker owner commands remain read-only. */
+  controlsStatus?: string;
   /** Present only after the owner-private/public legacy timeline joins exactly. */
   legacyExpeditionId?: string;
   onReturnLegacyExpedition?: (
     resourceKind: RealmResourceKind,
     expeditionId: string
   ) => Promise<void>;
+  /** Enables operator-only spatial diagnostics. */
+  showDiagnostics?: boolean;
 }>;
 
 /**
@@ -49,10 +55,13 @@ export function RealmResourceOccupantDetails({
   focusFallbackRef,
   onFocusCastle,
   onRecallWorker,
+  controlsStatus,
   legacyExpeditionId,
-  onReturnLegacyExpedition
+  onReturnLegacyExpedition,
+  showDiagnostics = false
 }: RealmResourceOccupantDetailsProps) {
   const detailsRef = useRef<HTMLElement>(null);
+  const controlsStatusId = `realm-resource-controls-${useId().replace(/:/g, '')}`;
   const recallPendingRef = useRef(false);
   const [recallState, setRecallState] = useState<
     'idle' | 'pending' | 'confirmed' | 'failed'
@@ -79,10 +88,15 @@ export function RealmResourceOccupantDetails({
     ? legacyExpeditionId
     : undefined;
   const recallsLegacyExpedition = returnLegacyExpeditionId !== undefined;
+  const recallableByOwner = recallWorkerId !== undefined
+    || returnLegacyExpeditionId !== undefined;
   const canRecall = (
     recallWorkerId !== undefined && onRecallWorker !== undefined
   ) || (
     recallsLegacyExpedition && onReturnLegacyExpedition !== undefined
+  );
+  const showRecall = canRecall || (
+    recallWorkerId !== undefined && controlsStatus !== undefined
   );
   const scheduleLabel = marker.workerPhase === 'outbound'
     ? 'Arrival time left'
@@ -207,30 +221,43 @@ export function RealmResourceOccupantDetails({
       ) : null}
 
       <dl className="realm-resource-occupant-details__facts">
-        <div>
-          <dt>Home castle</dt>
-          <dd>{marker.castle.name}</dd>
-        </div>
-        <div>
-          <dt>Castle location</dt>
-          <dd>q {marker.castle.q} · r {marker.castle.r}</dd>
-        </div>
-        <div>
-          <dt>{scheduleLabel}</dt>
-          <dd role="timer">{scheduleRemaining ?? 'Schedule unavailable'}</dd>
-        </div>
+        <RealmRecordField label="Home castle">{marker.castle.name}</RealmRecordField>
+        {showDiagnostics ? (
+          <RealmRecordField label="Castle location">
+            q {marker.castle.q} · r {marker.castle.r}
+          </RealmRecordField>
+        ) : null}
+        <RealmRecordField label={scheduleLabel} valueRole="timer">
+          {scheduleRemaining ?? 'Schedule unavailable'}
+        </RealmRecordField>
       </dl>
 
       {recallState === 'failed' ? (
-        <p className="realm-resource-occupant-details__command-error" role="alert">
+        <RealmRecordStatus
+          className="realm-resource-occupant-details__command-error"
+          state="error"
+        >
           The recall could not be confirmed. Try the same command again.
-        </p>
+        </RealmRecordStatus>
       ) : null}
 
-      {canRecall ? (
+      {recallableByOwner && controlsStatus && !canRecall ? (
+        <RealmRecordStatus
+          className="realm-resource-occupant-details__command-error"
+          id={controlsStatusId}
+          state="informational"
+        >
+          {controlsStatus}
+        </RealmRecordStatus>
+      ) : null}
+
+      {showRecall ? (
         <button
+          aria-describedby={!canRecall && controlsStatus
+            ? controlsStatusId
+            : undefined}
           className="realm-resource-occupant-details__recall"
-          disabled={recallState === 'pending' || recallState === 'confirmed'}
+          disabled={!canRecall || recallState === 'pending' || recallState === 'confirmed'}
           onClick={() => void recallAssignment()}
           type="button"
         >

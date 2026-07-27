@@ -41,6 +41,36 @@ const PRODUCTION_OIDC_ISSUER = 'https://auth.warpkeep.com';
 const PRODUCTION_OIDC_SOURCE_DECLARATION =
   `export const WARPKEEP_OIDC_ISSUER = '${PRODUCTION_OIDC_ISSUER}';`;
 const PRODUCTION_OIDC_ISSUER_BYTES = Buffer.from(PRODUCTION_OIDC_ISSUER, 'utf8');
+const LOCAL_WORKER_TRAVEL_SOURCE_DECLARATION =
+  'export const CASTLE_WORKER_TRAVEL_MICROS_PER_STEP = 30_000_000n;';
+const LOCAL_WORKER_TRAVEL_QA_DECLARATION =
+  'export const CASTLE_WORKER_TRAVEL_MICROS_PER_STEP = 1_000_000n;';
+const LOCAL_WORKER_QUANTUM_SOURCE_DECLARATIONS = Object.freeze([
+  Object.freeze({
+    file: 'castleWorkerPolicy.ts',
+    source: 'export const CASTLE_WORKER_GATHER_QUANTUM_MICROS = 60_000_000n;',
+    qa: 'export const CASTLE_WORKER_GATHER_QUANTUM_MICROS = 1_000_000n;',
+  }),
+  ...['gold', 'food', 'wood', 'stone'].map((resource) => {
+    const symbol = `${resource.toUpperCase()}_GATHER_QUANTUM_MICROS`;
+    return Object.freeze({
+      file: `${resource}ExpeditionPolicy.ts`,
+      source: `export const ${symbol} = 60_000_000n;`,
+      qa: `export const ${symbol} = 1_000_000n;`,
+    });
+  }),
+]);
+const LOCAL_WORKER_GATHERING_DURATION_SOURCE_DECLARATIONS = Object.freeze(
+  ['gold', 'food', 'wood', 'stone'].map((resource) => {
+    const symbol = `${resource.toUpperCase()}_GATHERING_DURATION_MICROS`;
+    return Object.freeze({
+      file: `${resource}ExpeditionPolicy.ts`,
+      source:
+        `export const ${symbol} = 30n * 24n * 60n * 60n * 1_000_000n;`,
+      qa: `export const ${symbol} = 60_000_000n;`,
+    });
+  })
+);
 const LOCAL_CLIENT_ARTIFACT_DIGEST = createHash('sha256')
   .update('warpkeep-disposable-local-fullstack-client-v1')
   .digest('hex');
@@ -350,6 +380,44 @@ async function createLocalModule(runtimeDirectory) {
     fail('Disposable module authority separation failed.');
   }
   await writeFile(configPath, localConfig, { encoding: 'utf8', mode: 0o600 });
+
+  const rewriteCopiedConstant = async (file, source, replacement) => {
+    const path = join(moduleDirectory, 'src', file);
+    const copiedSource = await readFile(path, 'utf8');
+    if (
+      copiedSource.split(source).length !== 2
+      || copiedSource.includes(replacement)
+    ) fail('Disposable Worker timing separation failed.');
+    const qaSource = copiedSource.replace(source, replacement);
+    if (
+      qaSource === copiedSource
+      || qaSource.includes(source)
+      || qaSource.split(replacement).length !== 2
+    ) fail('Disposable Worker timing separation failed.');
+    await writeFile(path, qaSource, { encoding: 'utf8', mode: 0o600 });
+  };
+  await rewriteCopiedConstant(
+    'castleWorkerPolicy.ts',
+    LOCAL_WORKER_TRAVEL_SOURCE_DECLARATION,
+    LOCAL_WORKER_TRAVEL_QA_DECLARATION
+  );
+  for (const declaration of LOCAL_WORKER_QUANTUM_SOURCE_DECLARATIONS) {
+    await rewriteCopiedConstant(
+      declaration.file,
+      declaration.source,
+      declaration.qa
+    );
+  }
+  for (
+    const declaration
+    of LOCAL_WORKER_GATHERING_DURATION_SOURCE_DECLARATIONS
+  ) {
+    await rewriteCopiedConstant(
+      declaration.file,
+      declaration.source,
+      declaration.qa
+    );
+  }
   return moduleDirectory;
 }
 

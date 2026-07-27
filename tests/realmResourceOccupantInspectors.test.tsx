@@ -107,6 +107,8 @@ type InspectorCase = Readonly<{
         resourceKind: RealmResourceKind,
         siteId: string
       ) => Promise<void>;
+      workerControlsStatus?: string;
+      showDiagnostics?: boolean;
     }>
   ) => ReactElement;
 }>;
@@ -135,9 +137,11 @@ const INSPECTOR_CASES: readonly InspectorCase[] = [
         onRecallWorker={options?.recall}
         workers={options?.workers}
         onDispatchWorker={options?.dispatchWorker}
+        workerControlsStatus={options?.workerControlsStatus}
         legacyExpeditionId={options?.legacyExpeditionId}
         onReturnLegacyExpedition={options?.returnLegacy}
         onRequestClose={() => undefined}
+        showDiagnostics={options?.showDiagnostics}
       />
     )
   },
@@ -164,9 +168,11 @@ const INSPECTOR_CASES: readonly InspectorCase[] = [
         onRecallWorker={options?.recall}
         workers={options?.workers}
         onDispatchWorker={options?.dispatchWorker}
+        workerControlsStatus={options?.workerControlsStatus}
         legacyExpeditionId={options?.legacyExpeditionId}
         onReturnLegacyExpedition={options?.returnLegacy}
         onRequestClose={() => undefined}
+        showDiagnostics={options?.showDiagnostics}
       />
     )
   },
@@ -193,9 +199,11 @@ const INSPECTOR_CASES: readonly InspectorCase[] = [
         onRecallWorker={options?.recall}
         workers={options?.workers}
         onDispatchWorker={options?.dispatchWorker}
+        workerControlsStatus={options?.workerControlsStatus}
         legacyExpeditionId={options?.legacyExpeditionId}
         onReturnLegacyExpedition={options?.returnLegacy}
         onRequestClose={() => undefined}
+        showDiagnostics={options?.showDiagnostics}
       />
     )
   },
@@ -222,9 +230,11 @@ const INSPECTOR_CASES: readonly InspectorCase[] = [
         onRecallWorker={options?.recall}
         workers={options?.workers}
         onDispatchWorker={options?.dispatchWorker}
+        workerControlsStatus={options?.workerControlsStatus}
         legacyExpeditionId={options?.legacyExpeditionId}
         onReturnLegacyExpedition={options?.returnLegacy}
         onRequestClose={() => undefined}
+        showDiagnostics={options?.showDiagnostics}
       />
     )
   }
@@ -267,6 +277,28 @@ describe('unified occupied resource inspectors', () => {
   );
 
   it.each(INSPECTOR_CASES)(
+    'keeps the public $resource dispatch roster visible but read-only during private sync',
+    ({ renderPanel }) => {
+      const workerControlsStatus =
+        'Synchronizing worker controls… Public worker positions remain available.';
+      render(renderPanel(undefined, {
+        legacyDispatchBlocked: true,
+        workers: ownerWorkers(),
+        workerControlsStatus
+      }));
+
+      const workerList = screen.getByRole('list', {
+        name: /Your workers for this .* site/i
+      });
+      expect(within(workerList).getAllByRole('listitem')).toHaveLength(4);
+      expect(screen.getByText(workerControlsStatus)).not.toBeNull();
+      expect(within(workerList).getAllByRole('button').every(
+        (button) => button.hasAttribute('disabled')
+      )).toBe(true);
+    }
+  );
+
+  it.each(INSPECTOR_CASES)(
     'keeps the $resource site and public worker story in one dialog',
     ({ resource, siteId, dialogName, rate, renderPanel }) => {
       vi.useFakeTimers();
@@ -293,8 +325,8 @@ describe('unified occupied resource inspectors', () => {
       expect(within(details!).getByText('Building beside the bright river.')).not.toBeNull();
       expect(within(details!).getByText('Home castle').nextElementSibling?.textContent)
         .toBe('Sunlit Bastion');
-      expect(within(details!).getByText('Castle location').nextElementSibling?.textContent)
-        .toBe('q 0 · r 0');
+      expect(within(details!).queryByText('Castle location')).toBeNull();
+      expect(details!.textContent).not.toContain('q 0 · r 0');
       expect(within(details!).getByText('Gathering time left')).not.toBeNull();
       expect(within(details!).getByRole('timer').textContent).toBe('2m remaining');
       expect(screen.getByText('Site state').nextElementSibling?.textContent)
@@ -308,6 +340,17 @@ describe('unified occupied resource inspectors', () => {
       expect(dispatchWorker).not.toHaveBeenCalled();
     }
   );
+
+  it('keeps castle coordinates available only when the resource record enables diagnostics', () => {
+    const occupant = publicOccupant('gold', 'genesis-001:gold:0001');
+    render(INSPECTOR_CASES[0]!.renderPanel(occupant, { showDiagnostics: true }));
+
+    const details = screen.getByRole('dialog', { name: 'Gold Mine' })
+      .querySelector<HTMLElement>('[data-resource-occupant-details="true"]');
+    expect(details).not.toBeNull();
+    expect(within(details!).getByText('Castle location').nextElementSibling?.textContent)
+      .toBe('q 0 · r 0');
+  });
 
   it('keeps portrait navigation explicit without moving the camera on open', () => {
     const occupant = publicOccupant('gold', 'genesis-001:gold:0001');
@@ -467,6 +510,21 @@ describe('unified occupied resource inspectors', () => {
     expect(recall).toHaveBeenCalledOnce();
     expect(recall).toHaveBeenCalledWith('genesis-001-castle-7-worker-02');
     expect(await screen.findByText('Worker returning…')).not.toBeNull();
+  });
+
+  it('keeps an owned generic recall visible but disabled while controls synchronize', () => {
+    const own = publicOccupant('wood', 'genesis-001:wood:0001', {
+      occupiedByViewer: true
+    });
+    const workerControlsStatus =
+      'Refreshing worker controls. Public worker positions remain available in read-only mode.';
+    render(INSPECTOR_CASES[2]!.renderPanel(own, { workerControlsStatus }));
+
+    const recall = screen.getByRole('button', { name: /Recall Worker to Keep/i });
+    expect(recall.hasAttribute('disabled')).toBe(true);
+    expect(screen.getByRole('status').textContent).toContain(
+      'Refreshing worker controls'
+    );
   });
 
   it.each(INSPECTOR_CASES)(

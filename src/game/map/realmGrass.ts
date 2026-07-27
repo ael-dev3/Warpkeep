@@ -46,39 +46,39 @@ export const REALM_GRASS_BIOME_PROFILES: Readonly<
   Record<RealmGrassTerrainKind, RealmGrassBiomeProfile>
 > = Object.freeze({
   meadow: Object.freeze({
-    kind: 'meadow', highCandidateCount: 34, completelyBareThreshold: 0.08, retention: 0.94,
+    kind: 'meadow', highCandidateCount: 34, completelyBareThreshold: 0.25, retention: 0.94,
     height: Object.freeze([0.11, 0.19]), width: Object.freeze([0.34, 0.52]),
-    palette: palette(['#A8FF67', '#8EF04B', '#C0FF79', '#76DB39']),
+    palette: palette(['#82985B', '#8CA062', '#91A46C', '#788E53']),
     slopeSoftLimit: 0.42, slopeHardLimit: 0.78, minimumSeparation: 0.07
   }),
   lowland: Object.freeze({
-    kind: 'lowland', highCandidateCount: 30, completelyBareThreshold: 0.14, retention: 0.88,
+    kind: 'lowland', highCandidateCount: 30, completelyBareThreshold: 0.29, retention: 0.88,
     height: Object.freeze([0.10, 0.18]), width: Object.freeze([0.32, 0.50]),
-    palette: palette(['#8AF052', '#70DC3D', '#A2F966', '#62C934']),
+    palette: palette(['#768B51', '#82965A', '#8B9C63', '#6C814B']),
     slopeSoftLimit: 0.42, slopeHardLimit: 0.78, minimumSeparation: 0.075
   }),
   forest: Object.freeze({
-    kind: 'forest', highCandidateCount: 24, completelyBareThreshold: 0.22, retention: 0.82,
+    kind: 'forest', highCandidateCount: 24, completelyBareThreshold: 0.33, retention: 0.82,
     height: Object.freeze([0.10, 0.17]), width: Object.freeze([0.30, 0.46]),
-    palette: palette(['#69D849', '#55C43D', '#7BE457', '#48B635']),
+    palette: palette(['#627B4E', '#6B8454', '#748C5C', '#587345']),
     slopeSoftLimit: 0.40, slopeHardLimit: 0.74, minimumSeparation: 0.08
   }),
   heath: Object.freeze({
-    kind: 'heath', highCandidateCount: 22, completelyBareThreshold: 0.28, retention: 0.80,
+    kind: 'heath', highCandidateCount: 22, completelyBareThreshold: 0.39, retention: 0.80,
     height: Object.freeze([0.09, 0.16]), width: Object.freeze([0.28, 0.43]),
-    palette: palette(['#7ED34A', '#67C33E', '#9BE05C']),
+    palette: palette(['#7B8054', '#85895B', '#8A8E64']),
     slopeSoftLimit: 0.34, slopeHardLimit: 0.67, minimumSeparation: 0.085
   }),
   ridge: Object.freeze({
     kind: 'ridge', highCandidateCount: 6, completelyBareThreshold: 0.72, retention: 0.62,
     height: Object.freeze([0.08, 0.13]), width: Object.freeze([0.24, 0.34]),
-    palette: palette(['#8EC85A', '#79B84D']),
+    palette: palette(['#85815A', '#777A50']),
     slopeSoftLimit: 0.22, slopeHardLimit: 0.44, minimumSeparation: 0.10
   }),
   'ancient-stone': Object.freeze({
     kind: 'ancient-stone', highCandidateCount: 4, completelyBareThreshold: 0.86, retention: 0.54,
     height: Object.freeze([0.07, 0.11]), width: Object.freeze([0.22, 0.30]),
-    palette: palette(['#86B66A', '#6FA05C']),
+    palette: palette(['#7A7D60', '#6E7458']),
     slopeSoftLimit: 0.18, slopeHardLimit: 0.34, minimumSeparation: 0.12
   }),
   lake: Object.freeze({
@@ -89,7 +89,7 @@ export const REALM_GRASS_BIOME_PROFILES: Readonly<
   apron: Object.freeze({
     kind: 'apron', highCandidateCount: 6, completelyBareThreshold: 0.52, retention: 0.56,
     height: Object.freeze([0.08, 0.13]), width: Object.freeze([0.24, 0.36]),
-    palette: palette(['#75D84B', '#65C93F']),
+    palette: palette(['#6D8450', '#788E58']),
     slopeSoftLimit: 0.30, slopeHardLimit: 0.58, minimumSeparation: 0.11
   })
 });
@@ -123,10 +123,12 @@ export type RealmGrassCandidate = Readonly<{
 
 export type RealmGrassPoint = Readonly<{
   coord: HexCoord;
+  candidateIndex: number;
   terrainKind: RealmGrassTerrainKind;
   apron: boolean;
   world: HexWorldPosition;
   groundY: number;
+  surfaceNormal: Readonly<{ x: number; y: number; z: number }>;
   yaw: number;
   height: number;
   width: number;
@@ -134,6 +136,7 @@ export type RealmGrassPoint = Readonly<{
   windPhase: number;
   stiffness: number;
   windScale: number;
+  windShelter: number;
   variant: number;
   rank: number;
 }>;
@@ -197,6 +200,11 @@ function clamp(value: number, minimum: number, maximum: number) {
 
 function lerp(first: number, second: number, amount: number) {
   return first + (second - first) * amount;
+}
+
+function smoothstep(edge0: number, edge1: number, value: number) {
+  const normalized = clamp((value - edge0) / Math.max(0.000_1, edge1 - edge0), 0, 1);
+  return normalized * normalized * (3 - normalized * 2);
 }
 
 function fract(value: number) {
@@ -283,7 +291,13 @@ export function realmGrassCandidateCount(
   const multiplier = Number.isFinite(densityMultiplier)
     ? Math.max(0, densityMultiplier)
     : REALM_GRASS_QUALITY_MULTIPLIERS[quality];
-  return Math.max(0, Math.round(profile.highCandidateCount * multiplier));
+  // High is the canonical candidate reservoir. Lower qualities and runtime
+  // density plans may only take a prefix; they never generate a different
+  // layout or exceed the authored high-water population.
+  return Math.min(
+    profile.highCandidateCount,
+    Math.max(0, Math.round(profile.highCandidateCount * multiplier))
+  );
 }
 
 export function resolveRealmGrassProfile(kind: RealmGrassTerrainKind) {
@@ -293,7 +307,7 @@ export function resolveRealmGrassProfile(kind: RealmGrassTerrainKind) {
 function candidateForCell(
   cell: TerrainCell,
   candidateIndex: number,
-  candidateCount: number,
+  canonicalCandidateCount: number,
   hexSize: number
 ): RealmGrassCandidate | null {
   const center = axialToWorld(cell.coord, hexSize);
@@ -306,7 +320,9 @@ function candidateForCell(
   const jitterRadius = seededUnitFloat(
     deriveChannelSeed(cell.seed, candidateIndex, 0, 'realm-grass-candidate-jitter-radius-v1')
   ) * hexSize * 0.052;
-  const radius = Math.sqrt((candidateIndex + 0.5) / Math.max(1, candidateCount)) * hexSize * 0.81;
+  const radius = Math.sqrt(
+    (candidateIndex + 0.5) / Math.max(1, canonicalCandidateCount)
+  ) * hexSize * 0.81;
   const angle = sequence * Math.PI * 2 + cellRotation;
   const local = {
     x: Math.cos(angle) * radius + Math.cos(jitterAngle) * jitterRadius,
@@ -356,13 +372,36 @@ export function estimateRealmGrassSlope(
   sampleHeight: (world: HexWorldPosition) => number,
   hexSize = 1
 ) {
+  return sampleRealmGrassSurfaceFrame(world, sampleHeight, hexSize).slope;
+}
+
+export function sampleRealmGrassSurfaceFrame(
+  world: HexWorldPosition,
+  sampleHeight: (world: HexWorldPosition) => number,
+  hexSize = 1
+) {
   const offset = Math.max(0.025, hexSize * 0.055);
   const xPositive = sampleHeight({ x: world.x + offset, z: world.z });
   const xNegative = sampleHeight({ x: world.x - offset, z: world.z });
   const zPositive = sampleHeight({ x: world.x, z: world.z + offset });
   const zNegative = sampleHeight({ x: world.x, z: world.z - offset });
-  if (![xPositive, xNegative, zPositive, zNegative].every(Number.isFinite)) return Infinity;
-  return Math.hypot(xPositive - xNegative, zPositive - zNegative) / (offset * 2);
+  if (![xPositive, xNegative, zPositive, zNegative].every(Number.isFinite)) {
+    return Object.freeze({
+      slope: Infinity,
+      normal: Object.freeze({ x: 0, y: 1, z: 0 })
+    });
+  }
+  const gradientX = (xPositive - xNegative) / (offset * 2);
+  const gradientZ = (zPositive - zNegative) / (offset * 2);
+  const length = Math.hypot(gradientX, 1, gradientZ);
+  return Object.freeze({
+    slope: Math.hypot(gradientX, gradientZ),
+    normal: Object.freeze({
+      x: -gradientX / length,
+      y: 1 / length,
+      z: -gradientZ / length
+    })
+  });
 }
 
 function resolveTerrainKind(
@@ -411,12 +450,18 @@ export function generateRealmGrassCells(input: RealmGrassGenerationInput): Realm
     const center = axialToWorld(cell.coord, hexSize);
     const coverage = sampleRealmGrassCoverage(input.map.worldSeed, center);
     const vegetation = input.vegetationField?.sampleCell(cell.coord);
+    const cellRestHash = seededUnitFloat(
+      deriveChannelSeed(cell.seed, 0, 0, 'realm-grass-cell-rest-v2')
+    );
+    const cellRestSignal = coverage.macro * 0.34
+      + coverage.cluster * 0.46
+      + cellRestHash * 0.20;
     const suppressCastleSlot = input.suppressCastleSlots !== false && castleSlotKeys.has(key);
+    const ecologyDormant = vegetation !== undefined && vegetation.grassDensity <= 0.035;
     const completelyBare = count === 0
       || suppressCastleSlot
-      || (vegetation
-        ? vegetation.grassDensity <= 0.035
-        : coverage.macro < profile.completelyBareThreshold);
+      || ecologyDormant
+      || cellRestSignal < profile.completelyBareThreshold;
     const accepted: RealmGrassPoint[] = [];
     let localStructure = 0;
     let localExclusion = 0;
@@ -426,17 +471,44 @@ export function generateRealmGrassCells(input: RealmGrassGenerationInput): Realm
     if (!completelyBare) {
       const localPlacements = terrainPlacementsForCell(placements, cell.coord, hexSize, 0.03);
       for (let candidateIndex = 0; candidateIndex < count; candidateIndex += 1) {
-        const candidate = candidateForCell(cell, candidateIndex, count, hexSize);
+        const candidate = candidateForCell(
+          cell,
+          candidateIndex,
+          profile.highCandidateCount,
+          hexSize
+        );
         if (!candidate) continue;
         const micro = seededUnitFloat(
           deriveChannelSeed(cell.seed, candidateIndex, 0, 'realm-grass-micro-coverage-v1')
         );
         const candidateVegetation = input.vegetationField?.sample(candidate.world);
+        const candidateCoverage = sampleRealmGrassCoverage(
+          input.map.worldSeed,
+          candidate.world
+        );
+        const clusterSignal = candidateVegetation
+          ? candidateCoverage.cluster * 0.58
+            + candidateVegetation.meso * 0.27
+            + candidateVegetation.macro * 0.15
+          : candidateCoverage.cluster * 0.62
+            + candidateCoverage.meso * 0.25
+            + candidateCoverage.macro * 0.13;
+        // A continuous secondary field creates actual rests between tufts.
+        // The hard low tail is intentional: it leaves readable open soil
+        // pockets rather than merely making every patch uniformly thinner.
+        if (clusterSignal < 0.285) continue;
+        const clusterRetention = smoothstep(0.29, 0.72, clusterSignal);
         const retainedByCoverage = candidateVegetation
-          ? clamp(profile.retention * (0.18 + candidateVegetation.grassDensity * 0.92), 0, 1)
+          ? clamp(
+            profile.retention
+              * (0.22 + candidateVegetation.grassDensity * 0.70)
+              * (0.16 + clusterRetention * 0.98),
+            0,
+            1
+          )
           : profile.retention
-            * (0.35 + coverage.macro * 0.65)
-            * (0.4 + coverage.meso * 0.6);
+            * (0.30 + candidateCoverage.macro * 0.70)
+            * (0.16 + clusterRetention * 0.98);
         if (micro > retainedByCoverage) continue;
         if (hasNearbyPoint(accepted, candidate, profile.minimumSeparation)) continue;
         if (!isPlacementClear(localPlacements, candidate.world, hexSize, 0.03)) {
@@ -452,7 +524,12 @@ export function generateRealmGrassCells(input: RealmGrassGenerationInput): Realm
           localExclusion += 1;
           continue;
         }
-        const slope = estimateRealmGrassSlope(candidate.world, sampleHeight, hexSize);
+        const surfaceFrame = sampleRealmGrassSurfaceFrame(
+          candidate.world,
+          sampleHeight,
+          hexSize
+        );
+        const slope = surfaceFrame.slope;
         if (slope >= profile.slopeHardLimit) {
           localSlope += 1;
           continue;
@@ -489,35 +566,54 @@ export function generateRealmGrassCells(input: RealmGrassGenerationInput): Realm
           terrainKind: terrainKind === 'apron' ? undefined : terrainKind,
           placements
         });
-        const phase = seededUnitFloat(
-          deriveChannelSeed(cell.seed, candidateIndex, 0, 'realm-grass-wind-phase-v1')
+        // Phase follows smooth world-space fields; neighbouring tufts therefore
+        // share gusts instead of each choosing an unrelated oscillator.
+        const phase = (
+          candidateCoverage.cluster * 0.72
+          + candidateCoverage.meso * 0.28
         ) * Math.PI * 2;
         const stiffness = 0.78 + seededUnitFloat(
           deriveChannelSeed(cell.seed, candidateIndex, 0, 'realm-grass-stiffness-v1')
         ) * 0.34;
         const terrainResponse = terrainKind === 'meadow' ? 1.08
-          : terrainKind === 'forest' ? 0.88
+          : terrainKind === 'forest' ? 0.82
             : terrainKind === 'ridge' || terrainKind === 'ancient-stone' ? 0.68
               : 1;
+        const windShelter = clamp(
+          (candidateVegetation?.forestNeighbourShare ?? (terrainKind === 'forest' ? 0.35 : 0))
+            * 0.48,
+          0,
+          0.48
+        );
+        const groundY = sampleHeight(candidate.world);
+        if (!Number.isFinite(groundY)) {
+          localSlope += 1;
+          continue;
+        }
         accepted.push(Object.freeze({
           coord: Object.freeze({ q: cell.coord.q, r: cell.coord.r }),
+          candidateIndex,
           terrainKind,
           apron,
           world: candidate.world,
-          groundY: sampleHeight(candidate.world),
+          groundY,
+          surfaceNormal: surfaceFrame.normal,
           yaw: seededUnitFloat(
             deriveChannelSeed(cell.seed, candidateIndex, 0, 'realm-grass-yaw-v1')
           ) * Math.PI * 2,
           height: lerp(profile.height[0], profile.height[1], heightMix),
           width: lerp(profile.width[0], profile.width[1], widthMix),
-          // Keep authored sRGB palette colours dominant; terrain contributes
-          // only a restrained local response so grass stays brighter below.
+          // Keep the renderer-linear authored palette dominant; terrain adds
+          // only a restrained local response.
           tint: mixColor(groundTint, authoredTint, 0.86),
           windPhase: phase,
           stiffness,
-          windScale: terrainResponse * (0.86 + seededUnitFloat(
-            deriveChannelSeed(cell.seed, candidateIndex, 0, 'realm-grass-wind-scale-v1')
-          ) * 0.28),
+          windScale: terrainResponse
+            * (1 - windShelter)
+            * (0.86 + seededUnitFloat(
+              deriveChannelSeed(cell.seed, candidateIndex, 0, 'realm-grass-wind-scale-v1')
+            ) * 0.28),
+          windShelter,
           variant: Math.floor(seededUnitFloat(
             deriveChannelSeed(cell.seed, candidateIndex, 0, 'realm-grass-geometry-variant-v1')
           ) * 3),

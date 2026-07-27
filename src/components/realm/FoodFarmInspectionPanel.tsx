@@ -3,7 +3,6 @@ import {
   useEffect,
   useRef,
   useState,
-  type ReactNode,
   type Ref
 } from 'react';
 
@@ -20,6 +19,7 @@ import {
 } from './realmResourceOccupantInspector';
 import { useRealmRemainingDuration } from './realmAuthoritySchedule';
 import { RealmResourceOccupantDetails } from './RealmResourceOccupantDetails';
+import { RealmRecordField } from './RealmRecordPrimitives';
 import {
   RealmNodeWorkerDispatch,
   type RealmNodeWorkerDispatchHandler
@@ -31,18 +31,6 @@ import type {
   RealmWorkerPublicPresentation
 } from './realmWorkerPresentation';
 import './FoodFarmInspectionPanel.css';
-
-function InspectionField({
-  label,
-  children
-}: Readonly<{ label: string; children: ReactNode }>) {
-  return (
-    <div className="gold-mine-inspection__field">
-      <dt>{label}</dt>
-      <dd>{children}</dd>
-    </div>
-  );
-}
 
 function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
   if (typeof ref === 'function') ref(value);
@@ -78,6 +66,8 @@ export type FoodFarmInspectionPanelProps = Readonly<{
   workers?: readonly RealmWorkerPublicPresentation[];
   /** Authenticated generic-worker reducer boundary. */
   onDispatchWorker?: RealmNodeWorkerDispatchHandler;
+  /** Localized generic-worker command synchronization state. */
+  workerControlsStatus?: string;
   /** Exact owner-private legacy expedition joined to this public site. */
   legacyExpeditionId?: string;
   onReturnLegacyExpedition?: (
@@ -90,6 +80,8 @@ export type FoodFarmInspectionPanelProps = Readonly<{
   onDispatchFoodExpedition?: (siteId: string) => Promise<void>;
   onRequestClose: () => void;
   focusTargetRef?: Ref<HTMLButtonElement>;
+  /** Enables operator-only spatial diagnostics in nested public records. */
+  showDiagnostics?: boolean;
 }>;
 
 function nodeNotice(
@@ -140,12 +132,14 @@ export function FoodFarmInspectionPanel({
   onRecallWorker,
   workers,
   onDispatchWorker,
+  workerControlsStatus,
   legacyExpeditionId,
   onReturnLegacyExpedition,
   privateExpedition,
   onDispatchFoodExpedition,
   onRequestClose,
-  focusTargetRef
+  focusTargetRef,
+  showDiagnostics = false
 }: FoodFarmInspectionPanelProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [dispatchState, setDispatchState] = useState<
@@ -160,8 +154,7 @@ export function FoodFarmInspectionPanel({
   const genericWorkerDispatch = occupant === undefined
     && !occupancyUnavailable
     && node?.availability === 'available'
-    && workers !== undefined
-    && onDispatchWorker !== undefined;
+    && workers !== undefined;
   const scheduleTimestamp = occupant
     ? undefined
     : node ? foodNodeNextAuthorityTimestamp(node) : undefined;
@@ -281,29 +274,37 @@ export function FoodFarmInspectionPanel({
             determined by the Realm.
           </p>
           <dl className="gold-mine-inspection__fields" aria-label="Food Farm record">
-            <InspectionField label="Resource">Food</InspectionField>
-            <InspectionField label="Node tier">{farm.tier}</InspectionField>
+            <RealmRecordField className="gold-mine-inspection__field" label="Resource">
+              Food
+            </RealmRecordField>
+            <RealmRecordField className="gold-mine-inspection__field" label="Node tier">
+              {farm.tier}
+            </RealmRecordField>
             {node ? (
-              <InspectionField label="Site state">
+              <RealmRecordField className="gold-mine-inspection__field" label="Site state">
                 {occupancyUnavailable
                   ? 'OCCUPANCY UNAVAILABLE'
                   : occupant
                   ? realmResourceOccupantSiteStateLabel(occupant)
                   : foodNodeAvailabilityLabel(node.availability)}
-              </InspectionField>
+              </RealmRecordField>
             ) : null}
             {!occupancyUnavailable && (occupant || node?.originCastle) ? (
-              <InspectionField label="Occupied by">
+              <RealmRecordField className="gold-mine-inspection__field" label="Occupied by">
                 {occupant
                   ? realmResourceOccupantOwnerLabel(occupant)
                   : node?.occupiedByViewer ? 'Your expedition' : node?.originCastle?.name}
-              </InspectionField>
+              </RealmRecordField>
             ) : null}
             {!occupancyUnavailable && node ? (
-              <InspectionField label="Gather rate">+1 Food / minute</InspectionField>
+              <RealmRecordField className="gold-mine-inspection__field" label="Gather rate">
+                +1 Food / minute
+              </RealmRecordField>
             ) : null}
             {scheduleLabel ? (
-              <InspectionField label="Realm schedule">{scheduleLabel}</InspectionField>
+              <RealmRecordField className="gold-mine-inspection__field" label="Realm schedule">
+                {scheduleLabel}
+              </RealmRecordField>
             ) : null}
           </dl>
           {occupant ? (
@@ -312,19 +313,24 @@ export function FoodFarmInspectionPanel({
               marker={occupant}
               onFocusCastle={onFocusOccupantCastle}
               onRecallWorker={onRecallWorker}
+              controlsStatus={workerControlsStatus}
               legacyExpeditionId={legacyExpeditionId}
               onReturnLegacyExpedition={onReturnLegacyExpedition}
+              showDiagnostics={showDiagnostics}
             />
           ) : null}
           <p className="gold-mine-inspection__notice">
             {genericWorkerDispatch
-              ? 'This Farm is available. Choose a ready worker below; the Realm confirms the assignment.'
+              ? workerControlsStatus
+                ? 'This Farm is available. Public workers remain visible while dispatch controls synchronize.'
+                : 'This Farm is available. Choose a ready worker below; the Realm confirms the assignment.'
               : nodeNotice(node, occupant, dispatchBlocked, occupancyUnavailable)}
           </p>
           {genericWorkerDispatch ? (
             <RealmNodeWorkerDispatch
               focusFallbackRef={closeButtonRef}
               id={`${id}-food`}
+              controlsStatus={workerControlsStatus}
               onDispatchWorker={onDispatchWorker}
               resourceKind="food"
               siteId={node.siteId}

@@ -74,11 +74,12 @@ describe('travelling worker presence markers', () => {
     const returningControl = screen.getByRole('button', {
       name: '@wayfarer, Worker 2, returning to keep'
     });
-    expect(outboundControl.textContent).toContain('EN ROUTE');
-    expect(returningControl.textContent).toContain('RETURNING');
+    expect(outboundControl.dataset.phase).toBe('outbound');
+    expect(returningControl.dataset.phase).toBe('returning');
     expect(outboundControl.dataset.ownedByViewer).toBe('true');
     expect(returningControl.dataset.ownedByViewer).toBe('false');
     expect(container.querySelectorAll('.realm-castle-avatar')).toHaveLength(2);
+    expect(container.querySelector('.realm-worker-presence-marker__route-ring')).toBeNull();
   });
 
   it('omits idle and gathering workers so node presentation cannot duplicate their PFP', () => {
@@ -195,6 +196,7 @@ describe('travelling worker presence markers', () => {
     const outbound = worker(1);
     const gathering = worker(1, { status: 'gathering' });
     const fallbackRef = createRef<HTMLButtonElement>();
+    const onHover = vi.fn();
     const renderView = (currentWorker: RealmWorkerSceneRecord) => (
       <>
         <button ref={fallbackRef} type="button">Realm map focus fallback</button>
@@ -203,7 +205,7 @@ describe('travelling worker presence markers', () => {
           focusFallbackRef={fallbackRef}
           workers={[currentWorker]}
           visibleWorkerIds={[currentWorker.workerId]}
-          onHover={() => undefined}
+          onHover={onHover}
           onLayout={() => undefined}
           onSelect={() => undefined}
         />
@@ -218,6 +220,7 @@ describe('travelling worker presence markers', () => {
     expect(document.activeElement).toBe(portrait);
     view.rerender(renderView(gathering));
     expect(document.activeElement).toBe(fallbackRef.current);
+    expect(onHover).toHaveBeenLastCalledWith(null);
 
     view.rerender(renderView(outbound));
     const restoredPortrait = screen.getByRole('button', {

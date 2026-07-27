@@ -7,9 +7,14 @@ import {
   screen
 } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { WarpkeepExperience } from '../src/components/WarpkeepExperience';
+import {
+  WarpkeepExperience,
+  resolveRealmContinuityIdentity
+} from '../src/components/WarpkeepExperience';
 import { FarcasterAuthProvider } from '../src/farcaster/FarcasterAuthProvider';
 import { WarpkeepSpacetimeProvider } from '../src/spacetime/WarpkeepSpacetimeProvider';
+import { NOT_REQUIRED_WORKER_PRIVATE_SYNC_STATUS } from '../src/spacetime/warpkeepBackendTypes';
+import { createCanonicalGenesisSnapshot } from './fixtures/canonicalGenesisSnapshot';
 
 const mediaPaused = new WeakMap<HTMLMediaElement, boolean>();
 
@@ -115,6 +120,134 @@ afterEach(() => {
 });
 
 describe('WarpkeepExperience', () => {
+  it('keeps Realm presentation identity only through the exact same-FID token window', () => {
+    const now = 10_000;
+    const identity = Object.freeze({
+      fid: 12_345,
+      username: 'keeper12345',
+      verifications: [] as const,
+      verifiedAt: now
+    });
+    const authenticated = Object.freeze({
+      phase: 'authenticated' as const,
+      assurance: 'bridge-oidc-alpha' as const,
+      identity
+    });
+    const realm = createCanonicalGenesisSnapshot(identity.fid);
+    const readyBackend = Object.freeze({
+      phase: 'ready' as const,
+      workerPrivateSync: NOT_REQUIRED_WORKER_PRIVATE_SYNC_STATUS,
+      identity,
+      admission: 'ready' as const,
+      realm
+    });
+    const reconnectingBackend = Object.freeze({
+      ...readyBackend,
+      phase: 'reconnecting' as const
+    });
+    const liveToken = Object.freeze({
+      jwt: 'header.payload.signature',
+      issuer: 'https://auth.warpkeep.com',
+      audience: 'warpkeep-spacetimedb',
+      expiresAt: now + 1_000
+    });
+
+    expect(resolveRealmContinuityIdentity(
+      identity,
+      authenticated,
+      liveToken,
+      readyBackend,
+      now
+    )).toBe(identity);
+    const replacementIdentity = Object.freeze({
+      ...identity,
+      fid: 54_321,
+      username: 'keeper54321'
+    });
+    const replacementAuthenticated = Object.freeze({
+      ...authenticated,
+      identity: replacementIdentity
+    });
+    expect(resolveRealmContinuityIdentity(
+      identity,
+      replacementAuthenticated,
+      liveToken,
+      readyBackend,
+      now
+    )).toBeNull();
+    expect(resolveRealmContinuityIdentity(
+      identity,
+      replacementAuthenticated,
+      liveToken,
+      {
+        ...readyBackend,
+        identity: replacementIdentity
+      },
+      now
+    )).toBeNull();
+    expect(resolveRealmContinuityIdentity(
+      identity,
+      replacementAuthenticated,
+      liveToken,
+      {
+        phase: 'checking-admission',
+        workerPrivateSync: NOT_REQUIRED_WORKER_PRIVATE_SYNC_STATUS,
+        identity: replacementIdentity
+      },
+      now
+    )).toBe(replacementIdentity);
+    expect(resolveRealmContinuityIdentity(
+      identity,
+      authenticated,
+      undefined,
+      readyBackend,
+      now
+    )).toBe(identity);
+    expect(resolveRealmContinuityIdentity(
+      identity,
+      authenticated,
+      { ...liveToken, expiresAt: now },
+      reconnectingBackend,
+      now
+    )).toBe(identity);
+
+    expect(resolveRealmContinuityIdentity(
+      identity,
+      { phase: 'anonymous' },
+      undefined,
+      reconnectingBackend,
+      now
+    )).toBeNull();
+    expect(resolveRealmContinuityIdentity(
+      identity,
+      { ...authenticated, assurance: 'live-client-verified' },
+      undefined,
+      reconnectingBackend,
+      now
+    )).toBeNull();
+    expect(resolveRealmContinuityIdentity(
+      identity,
+      {
+        ...authenticated,
+        identity: { ...identity, fid: 54_321 }
+      },
+      undefined,
+      reconnectingBackend,
+      now
+    )).toBeNull();
+    expect(resolveRealmContinuityIdentity(
+      identity,
+      authenticated,
+      undefined,
+      {
+        phase: 'error',
+        workerPrivateSync: NOT_REQUIRED_WORKER_PRIVATE_SYNC_STATUS,
+        identity
+      },
+      now
+    )).toBeNull();
+  });
+
   it('enters the menu exactly once, replaces the old notice, and unmounts the title renderer', async () => {
     const { container } = render(<WarpkeepExperience />);
     const gateway = await settleInitialTitle();
@@ -136,6 +269,69 @@ describe('WarpkeepExperience', () => {
     expect(screen.queryByRole('button', { name: 'Enter Warpkeep' })).toBeNull();
     expect(container.querySelectorAll('audio[data-audio-role]')).toHaveLength(5);
     expect(container.querySelectorAll('audio[data-audio-role^="realm"][src]')).toHaveLength(0);
+  });
+
+  it('retires keyboard gateway focus before handing focus to the stable menu command', async () => {
+    const { container } = render(<WarpkeepExperience />);
+    const gateway = await settleInitialTitle();
+    gateway.focus();
+    expect(document.activeElement).toBe(gateway);
+
+    fireEvent.click(gateway, { detail: 0 });
+    const gatewayAnchor = gateway.closest('.warpkeep-gateway-anchor') as HTMLDivElement;
+    expect((gateway as HTMLButtonElement).disabled).toBe(true);
+    expect(gatewayAnchor.hidden).toBe(true);
+    expect(gatewayAnchor.inert).toBe(true);
+    const departureLandmark = screen.getByRole('status');
+    expect(departureLandmark.textContent).toBe('Entering Warpkeep. Opening the main menu.');
+    expect(departureLandmark.getAttribute('data-active')).toBe('true');
+    expect(document.activeElement).toBe(departureLandmark);
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase'))
+      .toBe('transitioning-to-menu');
+
+    await act(async () => {
+      vi.advanceTimersByTime(2_250);
+    });
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'ENTER REALM' })
+    );
+  });
+
+  it('uses the same retired-gateway and focus handoff lifecycle with reduced motion', async () => {
+    vi.mocked(window.matchMedia).mockImplementation((query: string) => ({
+      matches: query.includes('prefers-reduced-motion'),
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn()
+    }));
+    const { container } = render(<WarpkeepExperience />);
+    const gateway = await settleInitialTitle();
+    gateway.focus();
+
+    fireEvent.click(gateway, { detail: 0 });
+    const anchor = gateway.closest('.warpkeep-gateway-anchor') as HTMLDivElement;
+    const landmark = screen.getByRole('status');
+    expect(screen.getByTestId('warp-transition-overlay').getAttribute('data-motion'))
+      .toBe('reduced');
+    expect(anchor.hidden).toBe(true);
+    expect(anchor.inert).toBe(true);
+    expect((gateway as HTMLButtonElement).disabled).toBe(true);
+    expect(document.activeElement).toBe(landmark);
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase'))
+      .toBe('transitioning-to-menu');
+
+    await act(async () => {
+      vi.advanceTimersByTime(421);
+    });
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase'))
+      .toBe('menu');
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'ENTER REALM' })
+    );
   });
 
   it('keeps the entry hint through irrelevant and missed input, then dismisses it on activation', async () => {

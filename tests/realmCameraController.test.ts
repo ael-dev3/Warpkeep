@@ -17,7 +17,10 @@ import {
   normalizeWheelDelta,
   projectRealmFocusBounds,
   projectRealmPointToViewport,
-  REALM_INTERACTIVE_MIN_ZOOM
+  REALM_CAMERA_MODE_HYSTERESIS,
+  REALM_INTERACTIVE_MIN_ZOOM,
+  realmCameraPresentationBand,
+  resolveRealmCameraModeWithHysteresis
 } from '../src/components/realm/realmCameraController';
 import { generateRealmTerrainMap } from '../src/game/map/generateTerrainMap';
 import {
@@ -407,6 +410,66 @@ describe('realm perspective camera math', () => {
     expect(afterThirtyFps).toBeCloseTo(afterSixtyFps, 6);
   });
 
+  it('uses hysteretic overview, strategy, and close presentation bands', () => {
+    expect(REALM_CAMERA_MODE_HYSTERESIS).toEqual({
+      realmEnterZoom: 0.3,
+      realmExitZoom: 0.34,
+      keepExitZoom: 0.74,
+      keepEnterZoom: 0.78
+    });
+    let mode = resolveRealmCameraModeWithHysteresis(0.28);
+    expect(mode).toBe('realm');
+    for (const zoom of [0.319, 0.325, 0.315, 0.339]) {
+      mode = resolveRealmCameraModeWithHysteresis(zoom, mode);
+      expect(mode).toBe('realm');
+    }
+    mode = resolveRealmCameraModeWithHysteresis(0.341, mode);
+    expect(mode).toBe('approach');
+    for (const zoom of [0.755, 0.765, 0.745, 0.779]) {
+      mode = resolveRealmCameraModeWithHysteresis(zoom, mode);
+      expect(mode).toBe('approach');
+    }
+    mode = resolveRealmCameraModeWithHysteresis(0.78, mode);
+    expect(mode).toBe('keep');
+    for (const zoom of [0.761, 0.751, 0.741]) {
+      mode = resolveRealmCameraModeWithHysteresis(zoom, mode);
+      expect(mode).toBe('keep');
+    }
+    mode = resolveRealmCameraModeWithHysteresis(0.739, mode);
+    expect(mode).toBe('approach');
+    mode = resolveRealmCameraModeWithHysteresis(0.3, mode);
+    expect(mode).toBe('realm');
+
+    expect(realmCameraPresentationBand('realm')).toBe('overview');
+    expect(realmCameraPresentationBand('approach')).toBe('strategy');
+    expect(realmCameraPresentationBand('keep')).toBe('close');
+  });
+
+  it('preserves a hysteretic presentation band across camera restoration', () => {
+    const createController = () => createRealmCameraController({
+      bounds: BOUNDS,
+      keepFocus: KEEP,
+      fog: new THREE.Fog('#a6bcaf', 1, 2),
+      reducedMotion: true,
+      render: vi.fn()
+    });
+    const source = createController();
+    source.frameAt(KEEP, 0.35);
+    source.frameAt(KEEP, 0.32);
+    expect(source.getMode()).toBe('approach');
+    const state = source.captureState();
+    source.dispose();
+
+    const restored = createController();
+    restored.restoreState(state);
+    expect(restored.getMode()).toBe('approach');
+    expect(restored.getPresentationTelemetry()).toMatchObject({
+      mode: 'approach',
+      presentationBand: 'strategy'
+    });
+    restored.dispose();
+  });
+
   it('keeps the ordinary floor while entering continuously from an explicit overview', () => {
     expect(clampRealmInteractiveZoom(0.8, -1)).toBe(REALM_INTERACTIVE_MIN_ZOOM);
     expect(clampRealmInteractiveZoom(REALM_INTERACTIVE_MIN_ZOOM, 0))
@@ -692,6 +755,291 @@ describe('realm perspective camera math', () => {
       .toBeGreaterThan(0.01);
     expect(movedGrab?.distanceTo(grabbed as THREE.Vector3)).toBeLessThan(0.000001);
     controller.endDirectManipulation();
+    controller.dispose();
+  });
+
+  it('continues a bounded release through the ordinary damped camera target', () => {
+    let frameId = 1;
+    let frameTime = 0;
+    let gestureTime = 0;
+    const scheduled = new Map<number, FrameRequestCallback>();
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      const id = frameId;
+      frameId += 1;
+      scheduled.set(id, callback);
+      return id;
+    });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => {
+      scheduled.delete(id);
+    });
+    const runFramesToSettle = () => {
+      for (let index = 0; index < 240 && scheduled.size > 0; index += 1) {
+        const entry = scheduled.entries().next().value as
+          | [number, FrameRequestCallback]
+          | undefined;
+        expect(entry).toBeDefined();
+        if (!entry) break;
+        scheduled.delete(entry[0]);
+        frameTime += 1_000 / 60;
+        entry[1](frameTime);
+      }
+      expect(scheduled.size).toBe(0);
+    };
+    const controller = createRealmCameraController({
+      bounds: BOUNDS,
+      keepFocus: KEEP,
+      fog: new THREE.Fog('#a6bcaf', 1, 2),
+      reducedMotion: false,
+      render: vi.fn(),
+      nowMilliseconds: () => gestureTime
+    });
+    controller.setViewport(1_280, 720);
+    controller.frameAt(KEEP, 0.62);
+    runFramesToSettle();
+
+    controller.beginDirectManipulation();
+    gestureTime = 16;
+    controller.panBetweenViewportPoints(560, 390, 600, 405);
+    gestureTime = 32;
+    controller.panBetweenViewportPoints(600, 405, 640, 420);
+    const releasedFrom = controller.captureState();
+    controller.endDirectManipulation();
+    const releasedToward = controller.captureState();
+    const releaseX = releasedToward.targetPan.x - releasedFrom.currentPan.x;
+    const releaseZ = releasedToward.targetPan.z - releasedFrom.currentPan.z;
+    const releaseDistance = Math.hypot(releaseX, releaseZ);
+
+    expect(releaseDistance).toBeGreaterThan(0);
+    expect(releaseDistance).toBeLessThanOrEqual(
+      controller.getPose().visibleHalfHeight * 0.340_001
+    );
+    expect(controller.getPresentationTelemetry()).toMatchObject({
+      inertialReleaseCount: 1,
+      inertiaActive: true
+    });
+
+    runFramesToSettle();
+    const settled = controller.captureState();
+    const settledX = settled.currentPan.x - releasedFrom.currentPan.x;
+    const settledZ = settled.currentPan.z - releasedFrom.currentPan.z;
+    expect(settledX * releaseX + settledZ * releaseZ).toBeGreaterThan(0);
+    expect(Math.hypot(settledX, settledZ)).toBeCloseTo(releaseDistance, 4);
+    expect(controller.getPresentationTelemetry().inertiaActive).toBe(false);
+    controller.dispose();
+  });
+
+  it('preserves camera intent and cancels active inertia across live viewport rotation', () => {
+    let frameId = 1;
+    let frameTime = 0;
+    let gestureTime = 0;
+    const scheduled = new Map<number, FrameRequestCallback>();
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      const id = frameId;
+      frameId += 1;
+      scheduled.set(id, callback);
+      return id;
+    });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => {
+      scheduled.delete(id);
+    });
+    const runFramesToSettle = () => {
+      for (let frame = 0; frame < 240 && scheduled.size > 0; frame += 1) {
+        const next = scheduled.entries().next().value as
+          | [number, FrameRequestCallback]
+          | undefined;
+        expect(next).toBeDefined();
+        if (!next) break;
+        scheduled.delete(next[0]);
+        frameTime += 1000 / 60;
+        next[1](frameTime);
+      }
+      expect(scheduled.size).toBe(0);
+    };
+    const controller = createRealmCameraController({
+      bounds: BOUNDS,
+      keepFocus: KEEP,
+      fog: new THREE.Fog('#a6bcaf', 1, 2),
+      reducedMotion: false,
+      render: vi.fn(),
+      nowMilliseconds: () => gestureTime
+    });
+    const camera = controller.camera;
+    controller.setViewport(390, 844);
+    controller.setComposition({
+      insets: { top: 72, right: 8, bottom: 120, left: 8 },
+      safeAreaInsets: { top: 8, right: 8, bottom: 8, left: 8 },
+      focusPadding: 18
+    });
+    controller.frameAt(KEEP, 0.62);
+    runFramesToSettle();
+
+    controller.beginDirectManipulation();
+    gestureTime = 16;
+    controller.panBetweenViewportPoints(170, 430, 190, 438);
+    gestureTime = 32;
+    controller.panBetweenViewportPoints(190, 438, 212, 446);
+    controller.endDirectManipulation();
+    const released = controller.captureState();
+    const releasedTelemetry = controller.getPresentationTelemetry();
+    expect(releasedTelemetry.inertiaActive).toBe(true);
+
+    controller.setViewport(667, 375);
+    const rotated = controller.captureState();
+    const rotatedTelemetry = controller.getPresentationTelemetry();
+    expect(controller.camera).toBe(camera);
+    expect(rotated.currentZoom).toBeCloseTo(released.currentZoom, 10);
+    expect(rotated.targetZoom).toBeCloseTo(released.targetZoom, 10);
+    expect(rotated.mode).toBe(released.mode);
+    expect(rotatedTelemetry.presentationBand).toBe(
+      releasedTelemetry.presentationBand
+    );
+    expect(rotated.targetComposition).toEqual(released.targetComposition);
+    expect(rotated.currentComposition).toEqual(released.currentComposition);
+    expect(rotated.targetPan).toEqual(rotated.currentPan);
+    expect(rotated.targetFocus).toEqual(rotated.currentFocus);
+    expect(rotatedTelemetry).toMatchObject({
+      inertiaActive: false,
+      inertiaCancellationCount: 1
+    });
+    expect(controller.getSafeViewport().width).toBeGreaterThan(
+      controller.getSafeViewport().height
+    );
+
+    controller.dispose();
+  });
+
+  it('never releases inertia for reduced motion, pinch, cancellation, or disposal', () => {
+    let gestureTime = 0;
+    const reducedController = createRealmCameraController({
+      bounds: BOUNDS,
+      keepFocus: KEEP,
+      fog: new THREE.Fog('#a6bcaf', 1, 2),
+      reducedMotion: true,
+      render: vi.fn(),
+      nowMilliseconds: () => gestureTime
+    });
+    reducedController.setViewport(1_280, 720);
+    reducedController.frameAt(KEEP, 0.62);
+    reducedController.beginDirectManipulation();
+    gestureTime = 16;
+    reducedController.panBetweenViewportPoints(560, 390, 620, 420);
+    reducedController.endDirectManipulation();
+    expect(reducedController.getPresentationTelemetry()).toMatchObject({
+      inertialReleaseCount: 0,
+      inertiaActive: false
+    });
+    reducedController.dispose();
+
+    gestureTime = 0;
+    const controller = createRealmCameraController({
+      bounds: BOUNDS,
+      keepFocus: KEEP,
+      fog: new THREE.Fog('#a6bcaf', 1, 2),
+      reducedMotion: false,
+      render: vi.fn(),
+      nowMilliseconds: () => gestureTime
+    });
+    controller.setViewport(1_280, 720);
+    controller.frameAt(KEEP, 0.62);
+    controller.beginDirectManipulation();
+    gestureTime = 16;
+    controller.manipulateViewport(560, 390, 620, 420, 0, 'pinch');
+    controller.endDirectManipulation();
+    expect(controller.getPresentationTelemetry()).toMatchObject({
+      inertialReleaseCount: 0,
+      inertiaActive: false
+    });
+
+    controller.beginDirectManipulation();
+    gestureTime = 24;
+    controller.panBetweenViewportPoints(560, 390, 590, 405);
+    gestureTime = 40;
+    controller.panBetweenViewportPoints(590, 405, 620, 420);
+    controller.beginDirectManipulation('pinch');
+    controller.endDirectManipulation();
+    expect(controller.getPresentationTelemetry()).toMatchObject({
+      inertialReleaseCount: 0,
+      inertiaActive: false
+    });
+
+    controller.beginDirectManipulation();
+    gestureTime = 56;
+    controller.panBetweenViewportPoints(560, 390, 620, 420);
+    controller.cancelDirectManipulation();
+    expect(controller.getPresentationTelemetry()).toMatchObject({
+      inertialReleaseCount: 0,
+      inertiaActive: false
+    });
+    controller.beginDirectManipulation();
+    gestureTime = 72;
+    controller.panBetweenViewportPoints(560, 390, 620, 420);
+    controller.dispose();
+    expect(controller.getPresentationTelemetry()).toMatchObject({
+      inertialReleaseCount: 0,
+      inertiaActive: false
+    });
+  });
+
+  it('cancels a released camera throw while the document is hidden', () => {
+    let frameId = 1;
+    let frameTime = 0;
+    let gestureTime = 0;
+    let hidden = false;
+    const scheduled = new Map<number, FrameRequestCallback>();
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      const id = frameId;
+      frameId += 1;
+      scheduled.set(id, callback);
+      return id;
+    });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => {
+      scheduled.delete(id);
+    });
+    vi.spyOn(document, 'hidden', 'get').mockImplementation(() => hidden);
+    const runFramesToSettle = () => {
+      for (let index = 0; index < 240 && scheduled.size > 0; index += 1) {
+        const entry = scheduled.entries().next().value as
+          | [number, FrameRequestCallback]
+          | undefined;
+        if (!entry) break;
+        scheduled.delete(entry[0]);
+        frameTime += 1_000 / 60;
+        entry[1](frameTime);
+      }
+      expect(scheduled.size).toBe(0);
+    };
+    const controller = createRealmCameraController({
+      bounds: BOUNDS,
+      keepFocus: KEEP,
+      fog: new THREE.Fog('#a6bcaf', 1, 2),
+      reducedMotion: false,
+      render: vi.fn(),
+      nowMilliseconds: () => gestureTime
+    });
+    controller.setViewport(1_280, 720);
+    controller.frameAt(KEEP, 0.62);
+    runFramesToSettle();
+    controller.beginDirectManipulation();
+    gestureTime = 16;
+    controller.panBetweenViewportPoints(560, 390, 600, 405);
+    gestureTime = 32;
+    controller.panBetweenViewportPoints(600, 405, 640, 420);
+    controller.endDirectManipulation();
+    expect(controller.getPresentationTelemetry().inertiaActive).toBe(true);
+    expect(scheduled.size).toBe(1);
+
+    hidden = true;
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(controller.getPresentationTelemetry()).toMatchObject({
+      inertialReleaseCount: 1,
+      inertiaCancellationCount: 1,
+      inertiaActive: false
+    });
+    expect(scheduled.size).toBe(0);
+
+    hidden = false;
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(scheduled.size).toBe(0);
     controller.dispose();
   });
 

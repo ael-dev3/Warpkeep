@@ -384,7 +384,7 @@ describe('Warpkeep local QA journey lab', () => {
     expectNoExternalSideEffects();
   });
 
-  it('promotes the exact Explore identity into player inspection without authority', async () => {
+  it('locates the exact Explore identity for player inspection without authority', async () => {
     render(<WarpkeepQaJourneyLab initialScenario="realm-player" />);
     await settlePresentation();
 
@@ -410,7 +410,7 @@ describe('Warpkeep local QA journey lab', () => {
       'button.realm-castle-label[data-castle-id="102"]'
     )];
     expect(targetLabels).toHaveLength(1);
-    expect(targetLabels[0]?.getAttribute('data-focused')).toBe('false');
+    expect(targetLabels[0]?.getAttribute('data-focused')).toBe('true');
     expect(targetLabels[0]?.getAttribute('data-anchor')).toBe('foundation-base');
     expect(targetLabels[0]?.getAttribute('data-displaced')).toBe('false');
     expect(inspector.classList.contains('realm-camera-neutral-inspector')).toBe(true);

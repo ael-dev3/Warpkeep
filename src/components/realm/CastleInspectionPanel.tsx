@@ -2,11 +2,11 @@ import {
   useCallback,
   useEffect,
   useRef,
-  type ReactNode,
   type Ref
 } from 'react';
 
 import { CastleProfileAvatar } from './RealmCastleLabels';
+import { RealmRecordField } from './RealmRecordPrimitives';
 import {
   castleProfileLabel,
   farcasterProfileUrl,
@@ -14,18 +14,6 @@ import {
   formatPublicRealmDate,
   type RealmCastlePublicPresentation
 } from './realmCastlePresentation';
-
-function PublicField({
-  label,
-  children
-}: Readonly<{ label: string; children: ReactNode }>) {
-  return (
-    <div className="castle-inspection__field">
-      <dt>{label}</dt>
-      <dd>{children}</dd>
-    </div>
-  );
-}
 
 function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
   if (typeof ref === 'function') {
@@ -158,13 +146,21 @@ export function CastleInspectionPanel({
           ) : null}
 
           <dl className="castle-inspection__fields" aria-label="Public castle data">
-            <PublicField label="Keeper">{username}</PublicField>
-            <PublicField label="Castle level">{castle.level}</PublicField>
-            <PublicField label="Coordinates">q {castle.q} · r {castle.r}</PublicField>
+            <RealmRecordField className="castle-inspection__field" label="Keeper">
+              {username}
+            </RealmRecordField>
+            <RealmRecordField className="castle-inspection__field" label="Castle level">
+              {castle.level}
+            </RealmRecordField>
+            {observer ? (
+              <RealmRecordField className="castle-inspection__field" label="Coordinates">
+                q {castle.q} · r {castle.r}
+              </RealmRecordField>
+            ) : null}
             {foundedDate ? (
-              <PublicField label="Castle founded">
+              <RealmRecordField className="castle-inspection__field" label="Castle founded">
                 <time dateTime={foundedDate}>{foundedDate}</time>
-              </PublicField>
+              </RealmRecordField>
             ) : null}
           </dl>
 
@@ -173,10 +169,20 @@ export function CastleInspectionPanel({
               <h3>PUBLIC COMMUNITY MARKS</h3>
               <dl className="castle-inspection__fields">
                 {totalSnapBurned !== undefined ? (
-                  <PublicField label="Total SNAP burned">{totalSnapBurned}</PublicField>
+                  <RealmRecordField
+                    className="castle-inspection__field"
+                    label="Total SNAP burned"
+                  >
+                    {totalSnapBurned}
+                  </RealmRecordField>
                 ) : null}
                 {marksBalance !== undefined ? (
-                  <PublicField label="Marks balance">{marksBalance}</PublicField>
+                  <RealmRecordField
+                    className="castle-inspection__field"
+                    label="Marks balance"
+                  >
+                    {marksBalance}
+                  </RealmRecordField>
                 ) : null}
               </dl>
             </section>

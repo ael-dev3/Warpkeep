@@ -42,8 +42,65 @@
   touch-action: none;
 }
 
+.realm-map-screen__canvas[data-realm-canvas-active="false"] {
+  z-index: -1;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .realm-map-screen__canvas[data-dragging="true"] {
   cursor: grabbing;
+}
+
+.realm-world-selection-feedback {
+  position: absolute;
+  z-index: 3;
+  left: var(--realm-selection-feedback-x);
+  top: var(--realm-selection-feedback-y);
+  width: 1.7rem;
+  height: 1.7rem;
+  box-sizing: border-box;
+  border: 2px solid rgb(240 213 140 / 82%);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 1px rgb(36 16 47 / 58%),
+    0 0 0.8rem rgb(217 184 102 / 26%);
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0.48);
+  animation: realm-world-selection-confirm 420ms ease-out forwards;
+}
+
+@keyframes realm-world-selection-confirm {
+  0% {
+    opacity: 0.95;
+    transform: translate(-50%, -50%) scale(0.48);
+  }
+
+  72% {
+    opacity: 0.54;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.18);
+  }
+}
+
+@keyframes realm-world-selection-confirm-reduced {
+  0% {
+    opacity: 0.78;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .realm-world-selection-feedback {
+    transform: translate(-50%, -50%);
+    animation: realm-world-selection-confirm-reduced 180ms linear forwards;
+  }
 }
 
 .realm-safe-area-probe {
@@ -120,6 +177,22 @@
   outline-offset: 2px;
 }
 
+.realm-map-screen__visual-update {
+  position: absolute;
+  z-index: 11;
+  right: max(0.75rem, env(safe-area-inset-right));
+  bottom: max(0.75rem, env(safe-area-inset-bottom));
+  padding: 0.48rem 0.7rem;
+  border: 1px solid rgb(227 193 111 / 42%);
+  border-radius: 999px;
+  background: rgb(13 8 18 / 82%);
+  box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 24%);
+  color: var(--realm-electrum);
+  font-size: 0.75rem;
+  line-height: 1;
+  pointer-events: none;
+}
+
 .realm-map-screen[data-renderer="loading"] > .realm-map-screen__canvas {
   pointer-events: none;
 }
@@ -190,12 +263,14 @@
 }
 
 .realm-resource-occupant-presence--reserved {
-  width: 6.8rem;
-  height: auto;
-  min-height: 1.7rem;
-  padding: 0.28rem 0.48rem;
-  align-content: center;
+  display: inline-flex;
+  width: auto;
+  height: 1.7rem;
+  min-width: 5.4rem;
+  padding: 0.2rem 0.42rem;
   align-items: center;
+  justify-content: center;
+  gap: 0.28rem;
   border: 1px dashed rgb(239 211 137 / 68%);
   border-radius: 999px;
   background: rgb(17 11 25 / 74%);
@@ -207,13 +282,19 @@
 .realm-resource-occupant-presence--reserved strong {
   font-size: 0.52rem;
   letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.realm-resource-occupant-presence--reserved > span {
-  margin-top: 0.14rem;
-  color: rgb(255 246 211 / 72%);
-  font-size: 0.44rem;
-  letter-spacing: 0.04em;
+.realm-resource-occupant-presence__kind {
+  display: grid;
+  width: 1.05rem;
+  height: 1.05rem;
+  place-items: center;
+  border-radius: 50%;
+  background: rgb(239 211 137 / 18%);
+  color: rgb(255 246 211 / 84%);
+  font-size: 0.52rem;
+  font-weight: 900;
 }
 
 .realm-resource-occupant-marker {
@@ -244,16 +325,11 @@
 }
 
 .realm-resource-occupant-marker--reserved {
-  --realm-resource-marker-size: 32px;
   border-style: dashed;
   background: rgb(17 11 25 / 72%);
   box-shadow:
     0 0.2rem 0.5rem rgb(0 0 0 / 34%),
     0 0 0 1px rgb(239 211 137 / 30%);
-}
-
-.realm-resource-occupant-marker--reserved .realm-resource-occupant-marker__ring {
-  border-style: dashed;
 }
 
 .realm-resource-occupant-marker--reserved .realm-resource-occupant-marker__kind {
@@ -281,19 +357,18 @@
   outline-offset: 3px;
 }
 
+.realm-resource-occupant-marker[data-selected="true"][data-occupied-by-viewer="true"] {
+  box-shadow:
+    0 0.3rem 0.7rem rgb(0 0 0 / 42%),
+    0 0 0 2px rgb(239 211 137 / 84%),
+    0 0 1rem rgb(232 180 82 / 30%);
+}
+
 .realm-resource-occupant-marker .realm-castle-avatar {
   width: 100%;
   height: 100%;
   border: 0;
   box-shadow: none;
-}
-
-.realm-resource-occupant-marker__ring {
-  position: absolute;
-  inset: -5px;
-  border: 1px solid rgb(239 211 137 / 64%);
-  border-radius: inherit;
-  pointer-events: none;
 }
 
 .realm-resource-occupant-marker__kind {

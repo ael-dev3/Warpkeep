@@ -18,10 +18,27 @@ describe('lowlands terrain color', () => {
 
     expect(heath.g).toBeGreaterThan(heath.r);
     expect(heath.g).toBeGreaterThan(heath.b);
-    expect(terrainColorVisualMetrics('heath').greenLead).toBeGreaterThan(0.1);
+    expect(terrainColorVisualMetrics('heath').greenLead).toBeGreaterThan(0.07);
     expect(terrainColorVisualMetrics('ancient-stone').channelSpread).toBeLessThanOrEqual(0.05);
     expect(ancientStone.g).toBeGreaterThanOrEqual(ancientStone.r);
     expect(ancientStone.g).toBeGreaterThanOrEqual(ancientStone.b);
+  });
+
+  it('keeps the semantic palette restrained instead of fluorescent or near-black', () => {
+    const foliageKinds: readonly RealmTerrainKind[] = [
+      'lowland',
+      'meadow',
+      'forest',
+      'heath'
+    ];
+    foliageKinds.forEach((kind) => {
+      const metrics = terrainColorVisualMetrics(kind);
+      expect(metrics.luminance).toBeGreaterThan(0.22);
+      expect(metrics.luminance).toBeLessThan(0.48);
+      expect(metrics.channelSpread).toBeLessThanOrEqual(0.25);
+    });
+    expect(terrainColorVisualMetrics('forest').luminance).toBeGreaterThan(0.27);
+    expect(terrainColorVisualMetrics('meadow').greenLead).toBeLessThan(0.26);
   });
 
   it('is deterministic, finite, and identical from either side of a shared edge', () => {

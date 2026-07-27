@@ -22,7 +22,7 @@ function installMotionPreference(matches = false) {
 function getPatchNotesTrigger(options: { hidden?: boolean } = {}) {
   return screen.getByRole('button', {
     ...options,
-    name: 'Open patch notes for Warpkeep ALPHA 0.3.19'
+    name: 'Open patch notes for Warpkeep ALPHA 0.3.20'
   });
 }
 
@@ -131,11 +131,11 @@ describe('WarpkeepMainMenu', () => {
 
     act(() => patchNotes.focus());
     expect(screen.getByRole('status').textContent).toContain('living frontier');
-    expect(screen.queryByRole('region', { name: 'THE ROAD REMEMBERS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE CRAFTED LOWLANDS' })).toBeNull();
 
     fireEvent.click(patchNotes, { detail: 0 });
     expect(screen.queryByRole('status')).toBeNull();
-    expect(screen.getByRole('region', { name: 'THE ROAD REMEMBERS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE CRAFTED LOWLANDS' })).not.toBeNull();
     expect(document.activeElement).toBe(patchNotes);
   });
 
@@ -239,19 +239,19 @@ describe('WarpkeepMainMenu', () => {
 
     expect(patchNotes.getAttribute('aria-expanded')).toBe('false');
     expect(patchNotes.getAttribute('aria-controls')).toBe('warpkeep-latest-patch-notes');
-    expect(screen.queryByRole('region', { name: 'THE ROAD REMEMBERS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE CRAFTED LOWLANDS' })).toBeNull();
 
     act(() => patchNotes.focus());
-    expect(screen.queryByRole('region', { name: 'THE ROAD REMEMBERS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE CRAFTED LOWLANDS' })).toBeNull();
 
     fireEvent.click(patchNotes, { detail: 0 });
-    const notes = screen.getByRole('region', { name: 'THE ROAD REMEMBERS' });
+    const notes = screen.getByRole('region', { name: 'THE CRAFTED LOWLANDS' });
     expect(patchNotes.getAttribute('aria-expanded')).toBe('true');
-    expect(notes.textContent).toContain('LATEST PATCH · ALPHA 0.3.19');
-    expect(notes.textContent).toContain('Realm map itself');
-    expect(notes.textContent).toContain('bounded dashed routes');
+    expect(notes.textContent).toContain('LATEST PATCH · ALPHA 0.3.20');
+    expect(notes.textContent).toContain('holds together more calmly');
+    expect(notes.textContent).toContain('continuous rivers');
     expect(notes.textContent).toContain(
-      'wagon routes are a deterministic dry-land presentation'
+      'Worker authority, ownership, private balances, gathering rates'
     );
     expect(notes.getAttribute('tabindex')).toBe('0');
     expect(within(notes).queryByRole('link')).toBeNull();
@@ -259,7 +259,7 @@ describe('WarpkeepMainMenu', () => {
     expect(document.activeElement).toBe(notes);
 
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(screen.queryByRole('region', { name: 'THE ROAD REMEMBERS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE CRAFTED LOWLANDS' })).toBeNull();
     expect(document.activeElement).toBe(patchNotes);
     expect(onRequestReturn).not.toHaveBeenCalled();
 
@@ -272,19 +272,19 @@ describe('WarpkeepMainMenu', () => {
     const patchNotes = getPatchNotesTrigger();
 
     fireEvent.pointerEnter(patchNotes, { pointerType: 'mouse' });
-    expect(screen.getByRole('region', { name: 'THE ROAD REMEMBERS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE CRAFTED LOWLANDS' })).not.toBeNull();
 
     fireEvent.pointerDown(document.body, { pointerType: 'mouse' });
-    expect(screen.queryByRole('region', { name: 'THE ROAD REMEMBERS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE CRAFTED LOWLANDS' })).toBeNull();
 
     fireEvent.pointerDown(patchNotes, { pointerType: 'touch' });
     patchNotes.focus();
     fireEvent.click(patchNotes);
-    expect(screen.getByRole('region', { name: 'THE ROAD REMEMBERS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE CRAFTED LOWLANDS' })).not.toBeNull();
 
     fireEvent.pointerDown(patchNotes, { pointerType: 'touch' });
     fireEvent.click(patchNotes);
-    expect(screen.queryByRole('region', { name: 'THE ROAD REMEMBERS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE CRAFTED LOWLANDS' })).toBeNull();
   });
 
   it('keeps hover notes reachable across the anchor gap and toggles by activation', () => {
@@ -293,21 +293,21 @@ describe('WarpkeepMainMenu', () => {
     const patchNotes = getPatchNotesTrigger();
 
     fireEvent.pointerEnter(patchNotes, { pointerType: 'mouse' });
-    expect(screen.getByRole('region', { name: 'THE ROAD REMEMBERS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE CRAFTED LOWLANDS' })).not.toBeNull();
     fireEvent.pointerLeave(patchNotes, { pointerType: 'mouse' });
 
     act(() => vi.advanceTimersByTime(250));
-    const panel = screen.getByRole('region', { name: 'THE ROAD REMEMBERS' });
+    const panel = screen.getByRole('region', { name: 'THE CRAFTED LOWLANDS' });
     fireEvent.pointerEnter(panel, { pointerType: 'mouse' });
     act(() => vi.advanceTimersByTime(200));
-    expect(screen.getByRole('region', { name: 'THE ROAD REMEMBERS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE CRAFTED LOWLANDS' })).not.toBeNull();
 
     fireEvent.click(patchNotes);
     fireEvent.pointerLeave(patchNotes, { pointerType: 'mouse' });
     act(() => vi.advanceTimersByTime(500));
-    expect(screen.getByRole('region', { name: 'THE ROAD REMEMBERS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE CRAFTED LOWLANDS' })).not.toBeNull();
     fireEvent.click(patchNotes);
-    expect(screen.queryByRole('region', { name: 'THE ROAD REMEMBERS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE CRAFTED LOWLANDS' })).toBeNull();
   });
 
   it('keeps inactive menu controls hidden, inert, and outside the tab order', () => {

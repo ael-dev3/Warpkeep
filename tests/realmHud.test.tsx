@@ -93,7 +93,16 @@ function workerUiFixture() {
     workerPolicyVersion: 'genesis-001-castle-workers-v1',
     workerSystemMode: 'active'
   };
-  return { workerProjection, workerRoster, workerResourceState };
+  return {
+    publicWorkerProjection: workerProjection,
+    workerProjection,
+    workerRoster,
+    workerResourceState,
+    workerPrivateSync: {
+      phase: 'ready' as const,
+      commandsEnabled: true
+    }
+  };
 }
 
 function assignedWorkerUiFixture(timelineRevision = 1) {
@@ -154,7 +163,16 @@ function assignedWorkerUiFixture(timelineRevision = 1) {
     ...base.workerResourceState,
     pending: { ...base.workerResourceState.pending, stone: 3n }
   };
-  return { workerProjection, workerRoster, workerResourceState };
+  return {
+    publicWorkerProjection: workerProjection,
+    workerProjection,
+    workerRoster,
+    workerResourceState,
+    workerPrivateSync: {
+      phase: 'ready' as const,
+      commandsEnabled: true
+    }
+  };
 }
 
 function selectionAnnouncement(container: HTMLElement) {
@@ -208,7 +226,8 @@ describe('RealmHud', () => {
     const announcement = selectionAnnouncement(container);
     const initialAnnouncement = announcement.textContent;
 
-    expect(initialAnnouncement).toContain('Your keep is selected at cell 0, 0');
+    expect(initialAnnouncement).toContain('Your keep is selected.');
+    expect(initialAnnouncement).not.toMatch(/\bcell\s+-?\d/i);
     expect(screen.queryByLabelText('Current selection')).toBeNull();
 
     rerender(
@@ -229,7 +248,7 @@ describe('RealmHud', () => {
         selectedTerrainKind="heath"
       />
     );
-    expect(announcement.textContent).toContain('Amethyst Heath. Selected cell 1, 0');
+    expect(announcement.textContent).toContain('Amethyst Heath. Terrain selected.');
 
     rerender(
       <RealmHud
@@ -243,8 +262,23 @@ describe('RealmHud', () => {
       />
     );
     expect(announcement.textContent)
-      .toBe('@peerkeeper, Peer Watch. Selected castle at cell 2, -1.');
+      .toBe('@peerkeeper, Peer Watch. Selected castle.');
     expect(document.body.textContent).not.toMatch(/Activate its record|Level 3 castle|movement cost|generation/i);
+
+    rerender(
+      <RealmHud
+        {...common}
+        selectedCell={terrainCell(2, -1)}
+        selectedCastle={{ name: 'Peer Watch', level: 3, q: 2, r: -1 }}
+        selectedCastleProfile={{
+          canonicalUsername: 'peerkeeper',
+          communityStatsVisible: false
+        }}
+        showDiagnostics
+      />
+    );
+    expect(announcement.textContent)
+      .toBe('@peerkeeper, Peer Watch. Selected castle at cell 2, -1.');
   });
 
   it('moves keep, Explore, settings, and return commands behind the PFP menu', async () => {
@@ -276,6 +310,14 @@ describe('RealmHud', () => {
       .not.toBeNull();
     expect(within(opened.dialog).getByRole('button', { name: /SETTINGS/i })).not.toBeNull();
     expect(within(opened.dialog).getByRole('button', { name: /MAIN MENU/i })).not.toBeNull();
+    const patchNotes = within(opened.dialog).getByText(/PATCH NOTES · ALPHA/i)
+      .closest('summary');
+    expect(patchNotes).not.toBeNull();
+    expect(opened.dialog.querySelector(
+      'button[data-command-intent="navigation"]'
+    )).not.toBeNull();
+    fireEvent.click(patchNotes!);
+    expect(within(opened.dialog).getByText('THE CRAFTED LOWLANDS')).not.toBeNull();
 
     fireEvent.click(within(opened.dialog).getByRole('button', { name: /MY KEEP/i }));
     expect(onRecenterKeep).toHaveBeenCalledOnce();
@@ -406,7 +448,7 @@ describe('RealmHud', () => {
     await waitFor(() => expect(document.activeElement).toBe(profileTrigger));
   });
 
-  it('fails closed when private Worker totals belong to another authenticated FID', () => {
+  it('keeps the public Worker catalog visible but fails commands closed for a wrong private FID', () => {
     const fixture = workerUiFixture();
     const common = commonProps();
     render(
@@ -421,9 +463,102 @@ describe('RealmHud', () => {
     );
 
     const { dialog } = openRealmMenu();
-    expect(within(dialog).queryByRole('button', { name: /WORKERS/i })).toBeNull();
-    expect(screen.queryByRole('dialog', { name: 'WORKERS' })).toBeNull();
+    const workers = within(dialog).getByRole('button', { name: /WORKERS.*0\/4 deployed/i });
+    expect(within(dialog).getByText(/Synchronizing worker controls/i)).not.toBeNull();
+    expect(within(dialog).getByRole('button', { name: /RECALL ALL TO KEEP/i })
+      .hasAttribute('disabled')).toBe(true);
+    fireEvent.click(workers);
+    const commandCenter = screen.getByRole('dialog', { name: 'WORKERS' });
+    expect(within(commandCenter).getAllByText('—')).toHaveLength(4);
     expect(document.body.textContent).not.toContain('resource units');
+  });
+
+  it('survives reload-shaped private sync delay and localized failure without legacy vocabulary', () => {
+    const fixture = assignedWorkerUiFixture();
+    const retryWorkerPrivateSync = vi.fn();
+    const publicProps = {
+      ...commonProps(),
+      activeWagons: [{
+        resource: 'food' as const,
+        siteId: 'genesis-001:food:legacy-stale',
+        phase: 'gathering' as const
+      }],
+      onOpenActiveWagon: vi.fn(),
+      publicWorkerProjection: fixture.publicWorkerProjection
+    };
+    const firstView = render(
+      <RealmHud
+        {...publicProps}
+        workerPrivateSync={{ phase: 'synchronizing', commandsEnabled: false }}
+      />
+    );
+
+    let { dialog } = openRealmMenu();
+    expect(within(dialog).getByRole('button', { name: /WORKERS.*1\/4 deployed/i }))
+      .not.toBeNull();
+    expect(within(dialog).getByRole('button', { name: /RECALL ALL TO KEEP/i })
+      .hasAttribute('disabled')).toBe(true);
+    expect(dialog.textContent).not.toContain('EXPEDITIONS');
+    expect(dialog.textContent).not.toContain('WAGON');
+    fireEvent.click(within(dialog).getByRole('button', { name: /^WORKERS/i }));
+    expect(within(screen.getByRole('dialog', { name: 'WORKERS' }))
+      .getAllByRole('listitem')).toHaveLength(4);
+
+    firstView.unmount();
+    const secondView = render(
+      <RealmHud
+        {...publicProps}
+        onRetryWorkerPrivateSync={retryWorkerPrivateSync}
+        workerPrivateSync={{ phase: 'failed-localized', commandsEnabled: false }}
+      />
+    );
+    ({ dialog } = openRealmMenu());
+    expect(dialog.textContent).toContain('Worker controls could not be synchronized');
+    expect(within(dialog).getByRole('button', { name: 'RETRY WORKER CONTROLS' }))
+      .not.toBeNull();
+    expect(within(dialog).getByRole('button', { name: /RECALL ALL TO KEEP/i })
+      .hasAttribute('disabled')).toBe(true);
+    expect(dialog.textContent).not.toContain('EXPEDITIONS');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'RETRY WORKER CONTROLS' }));
+    expect(retryWorkerPrivateSync).toHaveBeenCalledOnce();
+
+    secondView.rerender(
+      <RealmHud
+        {...publicProps}
+        {...fixture}
+      />
+    );
+    expect(within(screen.getByRole('dialog', { name: 'REALM MENU' }))
+      .queryByText(/could not be synchronized/i)).toBeNull();
+  });
+
+  it('keeps generic Worker vocabulary when an active public graph fails closed', () => {
+    render(
+      <RealmHud
+        {...commonProps()}
+        activeWagons={[{
+          resource: 'gold',
+          siteId: 'genesis-001:gold:legacy-stale',
+          phase: 'outbound'
+        }]}
+        onOpenActiveWagon={vi.fn()}
+        publicWorkerSystemActive
+        workerPrivateSync={{ phase: 'not-required', commandsEnabled: false }}
+      />
+    );
+
+    const { dialog } = openRealmMenu();
+    const workers = within(dialog).getByRole('button', {
+      name: /WORKERS.*Worker presentation unavailable/i
+    }) as HTMLButtonElement;
+    const recallAll = within(dialog).getByRole('button', {
+      name: /RECALL ALL TO KEEP/i
+    }) as HTMLButtonElement;
+    expect(workers.disabled).toBe(true);
+    expect(recallAll.disabled).toBe(true);
+    expect(dialog.textContent).toContain('Public worker records are recovering');
+    expect(dialog.textContent).not.toContain('EXPEDITIONS');
+    expect(dialog.textContent).not.toContain('No active wagons');
   });
 
   it('ignores stale legacy yield and wagon projections once generic Workers are active', () => {

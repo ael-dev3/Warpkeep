@@ -873,6 +873,7 @@ describe('Warpkeep shared realm admission', () => {
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
     await settle();
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
+    const retainedRealmMain = screen.getByRole('main', { name: 'Hegemony realm' });
 
     await act(async () => vi.advanceTimersByTime(10_000));
     await settle();
@@ -883,7 +884,7 @@ describe('Warpkeep shared realm admission', () => {
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
     expect(window.location.hash).toBe('#realm');
     expect(screen.queryByRole('alert')).toBeNull();
-    expect(screen.getByRole('main', { name: 'Hegemony realm' })).not.toBeNull();
+    expect(screen.getByRole('main', { name: 'Hegemony realm' })).toBe(retainedRealmMain);
     expect(screen.getByRole('button', { name: /Open Realm menu/i })).not.toBeNull();
     expect(screen.queryByRole('region', { name: 'Your resources' })).toBeNull();
     expect(backend.runtime.readResourceState).toHaveBeenCalledTimes(1);
@@ -898,6 +899,7 @@ describe('Warpkeep shared realm admission', () => {
     await settle();
 
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
+    expect(screen.getByRole('main', { name: 'Hegemony realm' })).toBe(retainedRealmMain);
     expect(window.location.hash).toBe('#realm');
     expect(backend.runtime.readResourceState).toHaveBeenCalledTimes(2);
     expect(backend.runtime.readResourceState).toHaveBeenLastCalledWith(
@@ -926,13 +928,19 @@ describe('Warpkeep shared realm admission', () => {
       .mockImplementationOnce(async () => createAuthorizedResponse(
         VERIFIED_IDENTITY.fid,
         Date.now()
-      ));
+    ));
     const backend = createBackendRuntime();
     const reconnect = deferred<WarpkeepConnection>();
+    const retryAfter250Milliseconds = deferred<WarpkeepConnection>();
+    const retryAfterOneSecond = deferred<WarpkeepConnection>();
+    const retryAfterFourSeconds = deferred<WarpkeepConnection>();
     vi.mocked(backend.runtime.connect)
       .mockReset()
       .mockResolvedValueOnce(backend.connection as unknown as WarpkeepConnection)
-      .mockImplementationOnce(() => reconnect.promise);
+      .mockImplementationOnce(() => reconnect.promise)
+      .mockImplementationOnce(() => retryAfter250Milliseconds.promise)
+      .mockImplementationOnce(() => retryAfterOneSecond.promise)
+      .mockImplementationOnce(() => retryAfterFourSeconds.promise);
     const { container } = renderExperience({ bridge, now: Date.now, runtime: backend.runtime });
 
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
@@ -948,6 +956,46 @@ describe('Warpkeep shared realm admission', () => {
     await act(async () => reconnect.reject(new Error('controlled reconnect failure')));
     await settle();
 
+    expect(backend.runtime.connect).toHaveBeenCalledTimes(2);
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
+    expect(window.location.hash).toBe('#realm');
+    expect(screen.getByRole('main', { name: 'Hegemony realm' })).not.toBeNull();
+    expect(screen.getByRole('button', { name: /Open Realm menu/i })).not.toBeNull();
+    expect(screen.queryByRole('region', { name: 'Your resources' })).toBeNull();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
+    await settle();
+    expect(backend.runtime.connect).toHaveBeenCalledTimes(3);
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
+    expect(window.location.hash).toBe('#realm');
+    await act(async () => retryAfter250Milliseconds.reject(
+      new Error('controlled 250 millisecond retry failure')
+    ));
+    await settle();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+    await settle();
+    expect(backend.runtime.connect).toHaveBeenCalledTimes(4);
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
+    expect(window.location.hash).toBe('#realm');
+    await act(async () => retryAfterOneSecond.reject(
+      new Error('controlled one second retry failure')
+    ));
+    await settle();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4_000);
+    });
+    await settle();
+    expect(backend.runtime.connect).toHaveBeenCalledTimes(5);
+    await act(async () => retryAfterFourSeconds.reject(
+      new Error('controlled four second retry failure')
+    ));
+    await settle();
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
     expect(window.location.hash).toBe('#menu');
     expectPlayerRealmChromeAbsent();

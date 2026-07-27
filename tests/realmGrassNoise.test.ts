@@ -23,6 +23,7 @@ describe('procedural grass coverage noise', () => {
 
     expect(first).toEqual(second);
     expect(first.macro).not.toBe(otherChannel);
+    expect(first.cluster).not.toBe(first.meso);
     expect(random).not.toHaveBeenCalled();
   });
 
@@ -40,6 +41,21 @@ describe('procedural grass coverage noise', () => {
       REALM_GRASS_NOISE_CHANNELS.macro
     );
     expect(Math.abs(left - right)).toBeLessThan(0.01);
+  });
+
+  it('keeps the secondary cluster field smooth at soil-pocket scale', () => {
+    const first = sampleRealmGrassCoverage(
+      3_445_214_658,
+      { x: 1.2, z: -0.7 }
+    );
+    const nearby = sampleRealmGrassCoverage(
+      3_445_214_658,
+      { x: 1.205, z: -0.695 }
+    );
+
+    expect(REALM_GRASS_NOISE_WAVELENGTHS.cluster)
+      .toBeLessThan(REALM_GRASS_NOISE_WAVELENGTHS.meso);
+    expect(Math.abs(first.cluster - nearby.cluster)).toBeLessThan(0.02);
   });
 
   it('freezes the intended biome bare-patch ordering and lake exclusion', () => {

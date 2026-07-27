@@ -128,6 +128,10 @@ export function analyzeRenderedWebglPngScreenshot(value, viewport) {
   let maximumLuminance = 0;
   let opaqueSamples = 0;
   let sampleCount = 0;
+  let saturationTotalBasisPoints = 0;
+  const saturationSamples = [];
+  let clippedBlackSamples = 0;
+  let clippedWhiteSamples = 0;
   for (let yStep = 1; yStep <= 9; yStep += 1) {
     const y = Math.floor(header.height * (0.16 + (0.68 * yStep) / 10));
     for (let xStep = 1; xStep <= 13; xStep += 1) {
@@ -138,16 +142,41 @@ export function analyzeRenderedWebglPngScreenshot(value, viewport) {
       const blue = pixels[offset + 2];
       const alpha = bytesPerPixel === 4 ? pixels[offset + 3] : 255;
       const luminance = Math.round(0.2126 * red + 0.7152 * green + 0.0722 * blue);
+      const maximumChannel = Math.max(red, green, blue);
+      const minimumChannel = Math.min(red, green, blue);
+      const chroma = maximumChannel - minimumChannel;
+      const denominator = 255 - Math.abs(maximumChannel + minimumChannel - 255);
+      const saturationBasisPoints = denominator <= 0
+        ? 0
+        : Math.round((chroma / denominator) * 10_000);
       colours.add(`${red >> 4}:${green >> 4}:${blue >> 4}`);
       minimumLuminance = Math.min(minimumLuminance, luminance);
       maximumLuminance = Math.max(maximumLuminance, luminance);
+      saturationTotalBasisPoints += saturationBasisPoints;
+      saturationSamples.push(saturationBasisPoints);
+      if (maximumChannel <= 2) clippedBlackSamples += 1;
+      if (minimumChannel >= 253) clippedWhiteSamples += 1;
       if (alpha >= 250) opaqueSamples += 1;
       sampleCount += 1;
     }
   }
+  saturationSamples.sort((left, right) => left - right);
+  const saturationP95Index = Math.max(
+    0,
+    Math.min(
+      saturationSamples.length - 1,
+      Math.ceil(saturationSamples.length * 0.95) - 1
+    )
+  );
   const result = Object.freeze({
     distinctColourBuckets: colours.size,
     luminanceRange: maximumLuminance - minimumLuminance,
+    averageSaturationBasisPoints: Math.round(
+      saturationTotalBasisPoints / Math.max(1, sampleCount)
+    ),
+    saturationP95BasisPoints: saturationSamples[saturationP95Index] ?? 0,
+    clippedBlackSamples,
+    clippedWhiteSamples,
     opaqueSamples,
     sampleCount,
   });

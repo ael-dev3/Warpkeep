@@ -5,7 +5,9 @@ import {
   applyRenderedWebglMapGestureInteraction,
   parseRenderedWebglCastleCanvasPointerTarget,
   parseRenderedWebglCastlePointerMoveState,
-  parseRenderedWebglMapGestureEvidence
+  parseRenderedWebglMapGestureEvidence,
+  parseRenderedWebglPresentationBandEvidence,
+  parseRenderedWebglViewportRotationEvidence
 } from '../scripts/qa-observer/rendered-webgl-browser-probe.mjs';
 
 describe('rendered WebGL canvas castle activation lane', () => {
@@ -26,24 +28,71 @@ describe('rendered WebGL canvas castle activation lane', () => {
   it('fails closed unless label drag and wheel both move the map and release input state', () => {
     expect(parseRenderedWebglMapGestureEvidence({
       dragMoved: true,
+      inertiaPolicyValid: true,
+      inertiaSettled: true,
       inputClean: true,
+      rendererGenerationStable: true,
+      selectionStable: true,
       settled: true,
       uiStable: true,
       wheelMoved: true
     })).toEqual({
       dragMoved: true,
+      inertiaPolicyValid: true,
+      inertiaSettled: true,
       inputClean: true,
+      rendererGenerationStable: true,
+      selectionStable: true,
       settled: true,
       uiStable: true,
       wheelMoved: true
     });
     expect(() => parseRenderedWebglMapGestureEvidence({
       dragMoved: true,
+      inertiaPolicyValid: true,
+      inertiaSettled: true,
       inputClean: false,
+      rendererGenerationStable: true,
+      selectionStable: true,
       settled: true,
       uiStable: true,
       wheelMoved: true
     })).toThrow(/gesture evidence/i);
+  });
+
+  it('accepts only complete aggregate band and live-rotation evidence', () => {
+    const bandEvidence = {
+      cameraSynchronized: true,
+      closeHierarchySimplified: true,
+      noUiChurn: true,
+      overviewMacroOnly: true,
+      overviewOwnIdentityRetained: true,
+      overviewPeerIdentitySimplified: true,
+      sceneStable: true,
+      strategyHierarchyExpanded: true,
+      visitedAllBands: true
+    } as const;
+    const rotationEvidence = {
+      cameraIntentPreserved: true,
+      compositionUsable: true,
+      focusPreserved: true,
+      inertiaCancelled: true,
+      rendererStable: true,
+      sameCanvas: true,
+      selectionPreserved: true,
+      viewportRotated: true
+    } as const;
+    expect(parseRenderedWebglPresentationBandEvidence(bandEvidence)).toEqual(bandEvidence);
+    expect(parseRenderedWebglViewportRotationEvidence(rotationEvidence))
+      .toEqual(rotationEvidence);
+    expect(() => parseRenderedWebglPresentationBandEvidence({
+      ...bandEvidence,
+      sceneStable: false
+    })).toThrow(/presentation-band/i);
+    expect(() => parseRenderedWebglViewportRotationEvidence({
+      ...rotationEvidence,
+      sameCanvas: false
+    })).toThrow(/viewport-rotation/i);
   });
 
   it('fails closed unless bounded pointer moves leave the canvas UI untouched', () => {
@@ -141,7 +190,11 @@ describe('rendered WebGL canvas castle activation lane', () => {
           type: 'object',
           value: {
             dragMoved: true,
+            inertiaPolicyValid: true,
+            inertiaSettled: true,
             inputClean: true,
+            rendererGenerationStable: true,
+            selectionStable: true,
             settled: true,
             uiStable: true,
             wheelMoved: true
@@ -152,7 +205,11 @@ describe('rendered WebGL canvas castle activation lane', () => {
 
     await expect(applyRenderedWebglMapGestureInteraction({ command })).resolves.toEqual({
       dragMoved: true,
+      inertiaPolicyValid: true,
+      inertiaSettled: true,
       inputClean: true,
+      rendererGenerationStable: true,
+      selectionStable: true,
       settled: true,
       uiStable: true,
       wheelMoved: true

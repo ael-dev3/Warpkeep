@@ -1,10 +1,16 @@
 import * as THREE from 'three';
 
 import type { RealmForestBiomeData, RealmForestTreePoint } from '../../game/map/realmForestBiomes';
+import {
+  realmForestSilhouetteCoverageRatio,
+  summarizeRealmForestStructure,
+  type RealmForestStructureCounts
+} from '../../game/map/realmForestEcology';
 import { terrainHeightAtWorld } from '../../game/map/terrainHeight';
 import type { TerrainStructurePlacement } from '../../game/map/terrainPlacements';
 import type { RealmTerrainMap } from '../../game/map/terrainTypes';
 import {
+  HEGEMONY_TREE_TARGET_VISUAL_HEIGHT,
   HEGEMONY_TREE_RUNTIME_ASSET_BY_ID,
   type HegemonyTreeLod,
   type HegemonyTreeRuntimeAsset
@@ -16,6 +22,16 @@ import {
   type HegemonyTreePrefabPrimitive
 } from './loadHegemonyTreeAssets';
 import type { RealmQualitySpec } from './realmQuality';
+import {
+  createRealmProceduralForestFallbackGeometry,
+  createRealmProceduralForestFallbackMaterial,
+  REALM_FOREST_CANOPY_MOTION_STATE,
+  REALM_PROCEDURAL_FOREST_FALLBACK_TYPE,
+  realmForestFallbackInstanceColor,
+  realmForestModelInstanceTint,
+  type RealmForestFallbackType,
+  type RealmForestGroundingMode
+} from './createRealmProceduralForestFallback';
 
 const HEX_SIZE = 1;
 const TREE_TERRAIN_LIFT = 0.002;
@@ -27,6 +43,16 @@ export type RealmForestLayerPresentationTelemetry = Readonly<{
   /** The forest is deliberately a single static draw call at every quality. */
   drawCalls: number;
   usingFallback: boolean;
+  fallbackType: RealmForestFallbackType;
+  contactShadowCount: number;
+  groundingMode: RealmForestGroundingMode;
+  canopyMotionState: typeof REALM_FOREST_CANOPY_MOTION_STATE;
+  structureCellCounts: RealmForestStructureCounts;
+  silhouetteCoverageRatio: number;
+  /** Canonical selected-LOD total, independent of temporary fallback state. */
+  canonicalTriangleCount: number;
+  /** Actual currently attached fallback or authored-batch triangles. */
+  triangleCount: number;
 }>;
 
 export type RealmForestLayer = Readonly<{
@@ -94,7 +120,8 @@ function component(attribute: TreeBufferAttribute, index: number, componentIndex
 function appendPrimitive(
   output: MutableTreeGeometry,
   primitive: HegemonyTreePrefabPrimitive,
-  instanceMatrix: THREE.Matrix4
+  instanceMatrix: THREE.Matrix4,
+  habitat: RealmForestTreePoint['habitat']
 ) {
   const position = primitive.geometry.getAttribute('position');
   if (!position || position.count === 0) return;
@@ -106,9 +133,11 @@ function appendPrimitive(
   const transform = instanceMatrix.clone().multiply(localMatrix);
   const normalMatrix = new THREE.Matrix3().getNormalMatrix(transform);
   const sourceColor = materialColor(primitive.material);
+  const habitatTint = new THREE.Color(realmForestModelInstanceTint(habitat));
   const positionVector = new THREE.Vector3();
   const normalVector = new THREE.Vector3();
   const vertexOffset = output.positions.length / 3;
+  const groundY = instanceMatrix.elements[13] ?? 0;
 
   for (let index = 0; index < position.count; index += 1) {
     positionVector
@@ -134,10 +163,16 @@ function appendPrimitive(
     const red = colorAttribute ? component(colorAttribute, index, 0) : 1;
     const green = colorAttribute ? component(colorAttribute, index, 1) : 1;
     const blue = colorAttribute ? component(colorAttribute, index, 2) : 1;
+    const baseBlend = THREE.MathUtils.smoothstep(
+      Math.max(0, positionVector.y - groundY),
+      0.025,
+      0.16
+    );
+    const baseShade = THREE.MathUtils.lerp(0.74, 1, baseBlend);
     output.colors.push(
-      THREE.MathUtils.clamp(red * sourceColor.r, 0, 1),
-      THREE.MathUtils.clamp(green * sourceColor.g, 0, 1),
-      THREE.MathUtils.clamp(blue * sourceColor.b, 0, 1)
+      THREE.MathUtils.clamp(red * sourceColor.r * habitatTint.r * baseShade, 0, 1),
+      THREE.MathUtils.clamp(green * sourceColor.g * habitatTint.g * baseShade, 0, 1),
+      THREE.MathUtils.clamp(blue * sourceColor.b * habitatTint.b * baseShade, 0, 1)
     );
   }
 
@@ -185,7 +220,12 @@ function createMergedTreeMesh(
     const prefab = prefabByAssetId.get(point.speciesId);
     if (!prefab) throw new Error('Missing loaded tree prefab for ' + point.speciesId + '.');
     const matrix = instanceMatrixForPoint(point, map, terrainPlacements);
-    prefab.primitives.forEach((primitive) => appendPrimitive(source, primitive, matrix));
+    prefab.primitives.forEach((primitive) => appendPrimitive(
+      source,
+      primitive,
+      matrix,
+      point.habitat
+    ));
   });
   if (source.positions.length === 0 || source.indices.length === 0) {
     throw new Error('Loaded Hegemony trees produced no renderable geometry.');
@@ -210,7 +250,11 @@ function createMergedTreeMesh(
     mesh.name = 'realm-hegemony-tree-static-batch';
     mesh.castShadow = false;
     mesh.receiveShadow = false;
-    return mesh;
+    mesh.raycast = () => {};
+    return Object.freeze({
+      mesh,
+      triangleCount: source.indices.length / 3
+    });
   } catch (error) {
     geometry.dispose();
     material.dispose();
@@ -223,14 +267,11 @@ function createFallbackForestMesh(
   map: RealmTerrainMap,
   terrainPlacements: readonly TerrainStructurePlacement[]
 ) {
-  const geometry = new THREE.ConeGeometry(0.105, 0.42, 6, 1);
-  geometry.translate(0, 0.21, 0);
-  const material = new THREE.MeshStandardMaterial({
-    color: '#3d7040',
-    roughness: 0.94,
-    metalness: 0,
-    vertexColors: true
-  });
+  const fallback = createRealmProceduralForestFallbackGeometry(
+    HEGEMONY_TREE_TARGET_VISUAL_HEIGHT
+  );
+  const { geometry } = fallback;
+  const material = createRealmProceduralForestFallbackMaterial();
   let mesh: THREE.InstancedMesh;
   try {
     mesh = new THREE.InstancedMesh(geometry, material, points.length);
@@ -243,17 +284,21 @@ function createFallbackForestMesh(
   mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
   mesh.castShadow = false;
   mesh.receiveShadow = false;
+  mesh.raycast = () => {};
   const color = new THREE.Color();
   points.forEach((point, index) => {
     mesh.setMatrixAt(index, instanceMatrixForPoint(point, map, terrainPlacements));
-    color.set(point.habitat === 'grove' ? '#477d43' : point.habitat === 'forest' ? '#416f3e' : '#4f8248');
+    color.set(realmForestFallbackInstanceColor(point.habitat));
     mesh.setColorAt(index, color);
   });
   mesh.instanceMatrix.needsUpdate = true;
   if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   mesh.computeBoundingBox();
   mesh.computeBoundingSphere();
-  return mesh;
+  return Object.freeze({
+    mesh,
+    triangleCount: fallback.triangleCount * points.length
+  });
 }
 
 function disposeMesh(mesh: THREE.Mesh | THREE.InstancedMesh) {
@@ -308,6 +353,19 @@ export function createRealmForestLayer(
   const group = new THREE.Group();
   group.name = options.presentationName ?? 'realm-hegemony-forest-presentation';
   const points = options.data.points;
+  const canonicalTriangleCount = points.reduce(
+    (total, point) => total + point.estimatedTriangles,
+    0
+  );
+  const structureCellCounts = summarizeRealmForestStructure(
+    points,
+    options.data.counts.openFoliageCellCount
+  );
+  const silhouetteCoverageRatio = realmForestSilhouetteCoverageRatio(
+    points,
+    options.data.canopyByTileKey.size,
+    HEX_SIZE
+  );
   if (points.length === 0) {
     let disposed = false;
     return Object.freeze({
@@ -315,7 +373,15 @@ export function createRealmForestLayer(
       getPresentationTelemetry: () => Object.freeze({
         instanceCount: 0,
         drawCalls: 0,
-        usingFallback: false
+        usingFallback: false,
+        fallbackType: 'none',
+        contactShadowCount: 0,
+        groundingMode: 'none',
+        canopyMotionState: REALM_FOREST_CANOPY_MOTION_STATE,
+        structureCellCounts,
+        silhouetteCoverageRatio: 0,
+        canonicalTriangleCount,
+        triangleCount: 0
       }),
       dispose: () => {
         if (disposed) return;
@@ -325,8 +391,9 @@ export function createRealmForestLayer(
   }
 
   const fallback = createFallbackForestMesh(points, options.map, options.terrainPlacements);
-  group.add(fallback);
-  let activeMesh: THREE.Mesh | THREE.InstancedMesh = fallback;
+  group.add(fallback.mesh);
+  let activeMesh: THREE.Mesh | THREE.InstancedMesh = fallback.mesh;
+  let activeTriangleCount = fallback.triangleCount;
   let usingFallback = true;
   let disposed = false;
   const abortController = new AbortController();
@@ -363,14 +430,20 @@ export function createRealmForestLayer(
     try {
       if (disposed || !succeeded) return;
       const prefabs = new Map(leases.map((lease) => [lease.prefab.assetId, lease.prefab]));
-      const nextMesh = createMergedTreeMesh(points, prefabs, options.map, options.terrainPlacements);
+      const next = createMergedTreeMesh(
+        points,
+        prefabs,
+        options.map,
+        options.terrainPlacements
+      );
       if (disposed) {
-        disposeMesh(nextMesh);
+        disposeMesh(next.mesh);
         return;
       }
-      group.add(nextMesh);
+      group.add(next.mesh);
       const previousMesh = activeMesh;
-      activeMesh = nextMesh;
+      activeMesh = next.mesh;
+      activeTriangleCount = next.triangleCount;
       usingFallback = false;
       disposeMesh(previousMesh);
       options.onModelReady?.();
@@ -385,9 +458,25 @@ export function createRealmForestLayer(
   return Object.freeze({
     group,
     getPresentationTelemetry: () => Object.freeze({
-      instanceCount: points.length,
+      instanceCount: disposed ? 0 : points.length,
       drawCalls: disposed ? 0 : 1,
-      usingFallback
+      usingFallback: !disposed && usingFallback,
+      fallbackType: !disposed && usingFallback
+        ? REALM_PROCEDURAL_FOREST_FALLBACK_TYPE
+        : 'none',
+      // Grounding comes from canopy/base tint and fallback root geometry, not
+      // a shadow mesh or shadow pass.
+      contactShadowCount: 0,
+      groundingMode: disposed
+        ? 'none'
+        : usingFallback
+          ? 'terrain-canopy-procedural-root-contact'
+          : 'terrain-canopy-baked-base',
+      canopyMotionState: REALM_FOREST_CANOPY_MOTION_STATE,
+      structureCellCounts,
+      silhouetteCoverageRatio: disposed ? 0 : silhouetteCoverageRatio,
+      canonicalTriangleCount,
+      triangleCount: disposed ? 0 : activeTriangleCount
     }),
     dispose: () => {
       if (disposed) return;

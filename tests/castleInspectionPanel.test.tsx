@@ -68,7 +68,8 @@ describe('CastleInspectionPanel', () => {
     expect(screen.getByText('Warp Keeper')).not.toBeNull();
     expect(screen.getAllByText('@warpkeeper')).toHaveLength(2);
     expect(screen.getByText('Building the first Hegemony frontier.')).not.toBeNull();
-    expect(screen.getByText('q 2 · r -1')).not.toBeNull();
+    expect(screen.queryByText('Coordinates')).toBeNull();
+    expect(document.body.textContent).not.toContain('q 2 · r -1');
     expect(screen.getByText('2026-07-14')).not.toBeNull();
     expect(screen.getAllByText('150')).toHaveLength(2);
     expect(screen.getByText('Keeper').nextElementSibling?.textContent).toBe('@warpkeeper');
@@ -157,6 +158,23 @@ describe('CastleInspectionPanel', () => {
 
     expect(screen.queryByText('Castle founded')).toBeNull();
     expect(screen.queryByText('Not available')).toBeNull();
+  });
+
+  it('preserves spatial diagnostics in the observer record only', () => {
+    render(
+      <CastleInspectionPanel
+        id="observer-castle-record"
+        castle={CASTLE}
+        observer
+        own={false}
+        profile={PROFILE}
+        onRequestClose={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('PUBLIC REALM RECORD')).not.toBeNull();
+    expect(screen.getByText('Coordinates').nextElementSibling?.textContent)
+      .toBe('q 2 · r -1');
   });
 
   it('focuses its exposed close target on explicit mount and castle activation', async () => {

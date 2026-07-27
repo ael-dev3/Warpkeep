@@ -17,17 +17,17 @@ describe('latest in-menu patch notes', () => {
 
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
-      releasedOn: '25 JUL 2026',
-      title: 'THE ROAD REMEMBERS'
+      releasedOn: '27 JUL 2026',
+      title: 'THE CRAFTED LOWLANDS'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Gold Mine, Wheat Farm, Logging Camp, or Stone Quarry.*directly from that site record/i
+      /Worker journeys.*wagons.*routes.*portraits.*reloads and reconnects.*synchronize safely/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Supply Wagons.*keeper portraits.*dashed routes.*deterministic dry Lowlands journey/i
+      /Natural terrain.*clustered grass.*shaped forests.*continuous rivers.*crafted landscape/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Recall sends workers physically home.*reduced-motion.*true place on the road/i
+      /physical travel.*identity markers.*records.*camera hierarchy.*desktop and mobile/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /released to players|deployed to players|public balances|guaranteed rewards/i
@@ -35,7 +35,7 @@ describe('latest in-menu patch notes', () => {
     expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('Genesis 001');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'wagon routes are a deterministic dry-land presentation'
+      'Worker authority, ownership, private balances, gathering rates'
     );
     expect(getLatestPatchNotes('0.3.15')).toBeUndefined();
     expect(getLatestPatchNotes('0.3.14')).toBeUndefined();

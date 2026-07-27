@@ -6,6 +6,30 @@ full engineering record.
 
 ## [Unreleased]
 
+## [0.3.20] — 2026-07-27
+
+- Kept the ready Realm present through ordinary worker actions, resource
+  updates, menus, and inspection instead of returning players to a disruptive
+  full-world loading screen.
+- Restored valid public worker journeys, wagons, routes, and keeper portraits
+  across reloads and reconnects while private controls synchronize safely in
+  place.
+- Corrected the title gateway departure, worker-menu truth, Recall All
+  availability, and duplicated destination reservations.
+- Crafted a calmer Lowlands landscape with more natural terrain, clustered
+  grass, forest cores and clearings, grounded keeps, and clearer resource-site
+  states.
+- Joined rivers into continuous channels with readable banks, restrained
+  motion, and a softer meeting between ocean and fog.
+- Made worker travel feel more physical through terrain-following route
+  ribbons, steady movement, turning Supply Wagons, and one coherent moving or
+  gathering identity marker.
+- Refined records, camera hierarchy, interaction feedback, and responsive
+  composition so the world remains primary on desktop, mobile, and short
+  landscape screens.
+- Left worker authority, ownership, private balances, gathering rates,
+  settlement, and the deployed database contract unchanged.
+
 ## [0.3.19] — 2026-07-25
 
 - Moved worker assignment onto the Realm map: select an open Gold Mine, Wheat
@@ -195,7 +219,8 @@ full engineering record.
   Lowlands, a first keep, Farcaster sign-in, and an admission-gated shared-world
   foundation.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.19...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.20...HEAD
+[0.3.20]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.19...v0.3.20
 [0.3.19]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.18...v0.3.19
 [0.3.18]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.17...v0.3.18
 [0.3.17]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.16...v0.3.17

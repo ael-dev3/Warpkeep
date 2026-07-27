@@ -42,6 +42,16 @@ describe('title gateway CSS contract', () => {
     expect(gateway).toContain('transform: translate(-50%, -50%);');
   });
 
+  it('removes the moving gateway anchor from interaction as departure begins', () => {
+    expect(source).toContain(
+      '.warpkeep-title-screen:not([data-title-phase="active"]) .warpkeep-gateway-anchor'
+    );
+    expect(source).toContain('.warpkeep-gateway[data-interactive="false"] .warpkeep-gateway-anchor');
+    expect(source).toContain(
+      '.warpkeep-title-screen:not([data-title-phase="active"]) .warpkeep-gateway-button'
+    );
+  });
+
   it('keeps title framing free of programmatic wordmarks and a flat compact hint', () => {
     const notice = block('.warpkeep-gateway-notice {');
     const hint = block('.warpkeep-title-entry-hint {');

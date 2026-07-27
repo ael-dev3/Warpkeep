@@ -145,6 +145,28 @@ describe('WorkerInspectionPanel public record', () => {
     expect(screen.getByRole('timer').textContent).toBe('4m remaining');
   });
 
+  it('keeps an owner recall visible but disabled while private controls synchronize', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW_MILLIS);
+    render(
+      <WorkerInspectionPanel
+        controlsStatus="Synchronizing worker controls… Public worker positions remain available."
+        id="worker-record"
+        onRequestClose={() => undefined}
+        worker={worker()}
+      />
+    );
+
+    const dialog = screen.getByRole('dialog', { name: 'Worker 2' });
+    const status = within(dialog).getByRole('status');
+    const recall = within(dialog).getByRole('button', {
+      name: 'Recall Worker'
+    }) as HTMLButtonElement;
+    expect(recall.disabled).toBe(true);
+    expect(recall.getAttribute('aria-describedby')).toBe(status.id);
+    expect(status.textContent).toContain('Synchronizing worker controls');
+  });
+
   it('keeps another keeper read-only while retaining the public locate action', () => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW_MILLIS);

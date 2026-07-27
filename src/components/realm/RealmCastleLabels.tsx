@@ -158,6 +158,7 @@ export function RealmCastleLabels({
   ownCastleId,
   inspectorId,
   inspectorOpen,
+  showDiagnostics = false,
   onActivate
 }: Readonly<{
   labels: readonly VisibleCastleLabel[];
@@ -169,6 +170,8 @@ export function RealmCastleLabels({
   ownCastleId?: number;
   inspectorId: string;
   inspectorOpen: boolean;
+  /** Enables operator-only q/r copy in interactive map labels. */
+  showDiagnostics?: boolean;
   onActivate: (castle: RealmCastleProjection) => void;
 }>) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -304,7 +307,9 @@ export function RealmCastleLabels({
           <button
             key={label.castleId}
             type="button"
-            aria-label={`Inspect ${profileLabel} castle, ${record.castle.name}, cell ${record.castle.q},${record.castle.r}${own ? ', your castle' : ''}`}
+            aria-label={`Inspect ${profileLabel} castle, ${record.castle.name}${showDiagnostics
+              ? `, cell ${record.castle.q},${record.castle.r}`
+              : ''}${own ? ', your castle' : ''}`}
             aria-controls={inspectorId}
             aria-expanded={expanded}
             aria-pressed={selected}

@@ -53,7 +53,7 @@ const visibleKeys = [
 ] as const;
 
 describe('resource occupant marker surface', () => {
-  it('keeps every public presence pointer-accessible beside the bounded control lane', () => {
+  it('represents every public occupation exactly once across the bounded control and pointer lanes', () => {
     const markers = Array.from({ length: 40 }, (_, index) => marker(
       `genesis-001:wood:${String(index + 1).padStart(4, '0')}`,
       { nodeCoord: { q: index, r: -index } }
@@ -71,8 +71,13 @@ describe('resource occupant marker surface', () => {
       />
     );
 
-    expect(container.querySelectorAll('.realm-resource-occupant-presence')).toHaveLength(40);
+    expect(container.querySelectorAll('.realm-resource-occupant-presence')).toHaveLength(16);
     expect(screen.getAllByRole('button')).toHaveLength(24);
+    const renderedKeys = [...container.querySelectorAll<HTMLElement>(
+      '[data-resource-occupant-key]'
+    )].map((entry) => entry.dataset.resourceOccupantKey);
+    expect(renderedKeys).toHaveLength(40);
+    expect(new Set(renderedKeys)).toHaveLength(40);
     const passivePresence = [...container.querySelectorAll<HTMLElement>(
       '.realm-resource-occupant-presence'
     )].find((entry) => (
@@ -104,8 +109,19 @@ describe('resource occupant marker surface', () => {
       />
     );
     const control = screen.getByRole('button');
-    expect(control.getAttribute('aria-label')).toContain('cell 4,-2');
+    expect(control.getAttribute('aria-label')).not.toContain('cell 4,-2');
     expect(control.dataset.resourceOccupantLane).toBe('control');
+
+    view.rerender(
+      <RealmResourceOccupantMarkers
+        markers={[first, second]}
+        showDiagnostics
+        visibleMarkerKeys={[visibleKeys[1]]}
+        onMarkerLayout={() => undefined}
+        onSelect={() => undefined}
+      />
+    );
+    expect(screen.getByRole('button').getAttribute('aria-label')).toContain('cell 4,-2');
   });
 
   it('uses one roving tab stop with arrow-key navigation', () => {
@@ -162,12 +178,33 @@ describe('resource occupant marker surface', () => {
       name: /Inspect reserved Logging Camp, worker en route/i
     });
     expect(control.className).toContain('realm-resource-occupant-marker--reserved');
-    expect(control.textContent).toContain('RESERVED · WORKER EN ROUTE');
+    expect(control.textContent).toContain('Reserved · en route');
     expect(control.querySelector('.realm-castle-avatar')).toBeNull();
+    expect(container.querySelectorAll(`[data-resource-occupant-key="${key}"]`)).toHaveLength(1);
+    expect(container.querySelector('.realm-resource-occupant-presence--reserved')).toBeNull();
+  });
+
+  it('keeps one compact outbound reservation in the passive lane when no control is admitted', () => {
+    const outbound = marker('genesis-001:wood:reserved-passive', {
+      workerPhase: 'outbound'
+    });
+    const key = 'wood:genesis-001:wood:reserved-passive';
+    const { container } = render(
+      <RealmResourceOccupantMarkers
+        markers={[outbound]}
+        presenceMarkerKeys={[key]}
+        visibleMarkerKeys={[]}
+        onMarkerLayout={() => undefined}
+        onSelect={() => undefined}
+      />
+    );
 
     const presence = container.querySelector('.realm-resource-occupant-presence--reserved');
-    expect(presence?.textContent).toContain('WORKER EN ROUTE');
+    expect(presence?.textContent).toContain('Reserved');
+    expect(presence?.textContent).not.toContain('WORKER EN ROUTE');
     expect(presence?.querySelector('.realm-castle-avatar')).toBeNull();
+    expect(container.querySelectorAll(`[data-resource-occupant-key="${key}"]`)).toHaveLength(1);
+    expect(screen.queryByRole('button')).toBeNull();
   });
 
   it('labels the viewer’s canonical worker without exposing a standalone action surface', () => {
@@ -187,10 +224,12 @@ describe('resource occupant marker surface', () => {
   });
 
   it('moves focus to the next visible control when the focused marker is culled', () => {
+    const onHover = vi.fn();
     const view = render(
       <RealmResourceOccupantMarkers
         markers={[first, second]}
         visibleMarkerKeys={visibleKeys}
+        onHover={onHover}
         onMarkerLayout={() => undefined}
         onSelect={() => undefined}
       />
@@ -202,11 +241,13 @@ describe('resource occupant marker surface', () => {
       <RealmResourceOccupantMarkers
         markers={[first, second]}
         visibleMarkerKeys={[visibleKeys[1]]}
+        onHover={onHover}
         onMarkerLayout={() => undefined}
         onSelect={() => undefined}
       />
     );
     expect(document.activeElement).toBe(screen.getByRole('button'));
+    expect(onHover).toHaveBeenCalledWith(null);
   });
 
   it('reapplies the latest projection after membership changes', () => {
