@@ -9,6 +9,14 @@ import {
   useRef,
   useState
 } from 'react';
+import {
+  createGatewayActivationRecord,
+  snapshotGatewayRect,
+  type GatewayActivationInput,
+  type GatewayActivationRecord,
+  type GatewayClientPoint,
+  type GatewayProjection
+} from './gatewayActivation';
 import { calculateGatewayNoticePosition } from './gatewayInteraction';
 import { titleSceneSpec } from './titleSceneSpec';
 
@@ -23,13 +31,11 @@ const gatewayHitAreaStyle = {
   '--warpkeep-gateway-hit-height-max': `${titleSceneSpec.gateway.hitHeightMaxPx}px`
 } as CSSProperties;
 
-export type GatewayProjection = {
-  x: number;
-  y: number;
-  viewportWidth: number;
-  viewportHeight: number;
-  visible: boolean;
-};
+export type {
+  GatewayActivationInput,
+  GatewayActivationRecord,
+  GatewayProjection
+} from './gatewayActivation';
 
 type GatewayNoticeState = {
   open: boolean;
@@ -45,11 +51,15 @@ export type BlackHoleGatewayHandle = {
     visible?: boolean
   ) => void;
   getProjectedPosition: () => GatewayProjection;
+  captureActivation: (
+    input: GatewayActivationInput,
+    clientPoint?: GatewayClientPoint | null
+  ) => GatewayActivationRecord;
   focus: () => void;
 };
 
 export type BlackHoleGatewayProps = {
-  onActivate?: (input: 'keyboard' | 'pointer') => void;
+  onActivate?: (activation: GatewayActivationRecord) => void;
   onFocusChange?: (focused: boolean) => void;
   onMeaningfulInteraction?: () => void;
   autoDismissMs?: number | null;
@@ -163,19 +173,24 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
         y >= 0 &&
         y <= viewportHeight
       );
-      const projection = projectionRef.current;
       const viewportChanged =
-        projection.viewportWidth !== viewportWidth ||
-        projection.viewportHeight !== viewportHeight;
+        projectionRef.current.viewportWidth !== viewportWidth ||
+        projectionRef.current.viewportHeight !== viewportHeight;
       if (!activationLockedRef.current) {
-        projection.x = validProjection ? x : 0;
-        projection.y = validProjection ? y : 0;
-        projection.viewportWidth = validProjection ? viewportWidth : 0;
-        projection.viewportHeight = validProjection ? viewportHeight : 0;
-        projection.visible = projectionVisible;
+        projectionRef.current = {
+          x: validProjection ? x : 0,
+          y: validProjection ? y : 0,
+          viewportWidth: validProjection ? viewportWidth : 0,
+          viewportHeight: validProjection ? viewportHeight : 0,
+          visible: projectionVisible
+        };
       } else {
-        projection.visible = false;
+        projectionRef.current = {
+          ...projectionRef.current,
+          visible: false
+        };
       }
+      const projection = projectionRef.current;
       const interactiveVisible = projection.visible
         && !disabledRef.current
         && !activationLockedRef.current;
@@ -228,6 +243,16 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
     }, [positionNotice]);
 
     const getProjectedPosition = useCallback(() => ({ ...projectionRef.current }), []);
+    const captureActivation = useCallback((
+      input: GatewayActivationInput,
+      clientPoint?: GatewayClientPoint | null
+    ) => createGatewayActivationRecord({
+      input,
+      clientPoint,
+      buttonRect: snapshotGatewayRect(buttonRef.current?.getBoundingClientRect()),
+      projection: projectionRef.current,
+      projectionSourceRect: snapshotGatewayRect(gatewayRef.current?.getBoundingClientRect())
+    }), []);
     const focus = useCallback(() => {
       if (
         disabledRef.current
@@ -239,8 +264,8 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
 
     useImperativeHandle(
       forwardedRef,
-      () => ({ setProjectedPosition, getProjectedPosition, focus }),
-      [focus, getProjectedPosition, setProjectedPosition]
+      () => ({ setProjectedPosition, getProjectedPosition, captureActivation, focus }),
+      [captureActivation, focus, getProjectedPosition, setProjectedPosition]
     );
 
     useLayoutEffect(() => {
@@ -289,7 +314,10 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
       setNoticeState((current) => current.open ? { ...current, open: false } : current);
     }, []);
 
-    const activateGateway = useCallback((input: 'keyboard' | 'pointer') => {
+    const activateGateway = useCallback((
+      input: GatewayActivationInput,
+      clientPoint?: GatewayClientPoint | null
+    ) => {
       if (
         disabledRef.current
         || activationLockedRef.current
@@ -299,18 +327,22 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
         return;
       }
       activationInFlightRef.current = true;
+      const activation = captureActivation(input, clientPoint);
       if (notice) {
         noticeOpenRef.current = true;
         setNoticeState((current) => ({ open: true, version: current.version + 1 }));
       }
       onMeaningfulInteraction?.();
       try {
-        onActivate?.(input);
+        onActivate?.(activation);
       } finally {
         activationInFlightRef.current = false;
         if (onActivate) {
           activationLockedRef.current = true;
-          projectionRef.current.visible = false;
+          projectionRef.current = {
+            ...projectionRef.current,
+            visible: false
+          };
           setActivationLocked(true);
           const gateway = gatewayRef.current;
           const anchor = anchorRef.current;
@@ -332,7 +364,7 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
           }
         }
       }
-    }, [notice, onActivate, onMeaningfulInteraction]);
+    }, [captureActivation, notice, onActivate, onMeaningfulInteraction]);
 
     useEffect(() => {
       if (!noticeState.open) {
@@ -421,7 +453,15 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
             aria-expanded={notice ? noticeState.open : undefined}
             disabled={disabled || activationLocked}
             tabIndex={disabled || activationLocked ? -1 : 0}
-            onClick={(event) => activateGateway(event.detail === 0 ? 'keyboard' : 'pointer')}
+            onClick={(event) => {
+              const input = event.detail === 0 ? 'keyboard' : 'pointer';
+              activateGateway(
+                input,
+                input === 'pointer'
+                  ? { x: event.clientX, y: event.clientY }
+                  : null
+              );
+            }}
             onFocus={() => {
               onFocusChange?.(true);
             }}

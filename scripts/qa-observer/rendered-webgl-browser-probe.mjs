@@ -174,6 +174,11 @@ const RENDERED_WEBGL_QA_MAP_DRAG_OFFSETS = Object.freeze([
   Object.freeze({ x: 8, y: 2 }),
   Object.freeze({ x: 52, y: 14 }),
 ]);
+const RENDERED_WEBGL_QA_WATER_OVERVIEW_DRAG = Object.freeze({
+  x: -500,
+  y: -270,
+});
+const RENDERED_WEBGL_QA_WATER_OVERVIEW_DRAG_COUNT = 4;
 const RENDERED_WEBGL_QA_MAX_POINTER_COORDINATE_PIXELS = 10_000;
 // Camera-local decorative ecology is included once in both aggregate terrain
 // instance counts and once in both aggregate draw-call counts. Attest it as a
@@ -1103,6 +1108,51 @@ export function parseRenderedWebglActiveWorkerEvidence(value) {
     );
   }
   return Object.freeze(Object.fromEntries(keys.map((key) => [key, true])));
+}
+
+/**
+ * Exact aggregate proof for the reported upper-right overview composition.
+ * The reviewed frame uses the active synthetic Worker fixture at 1440×900,
+ * ordinary minimum zoom, and four bounded drags into the navigation clamp.
+ * No coordinate, identity, route point, or screenshot leaves the local page.
+ */
+export function parseRenderedWebglWaterOverviewEvidence(value) {
+  const candidate = exactRecord(value, 'Invalid rendered WebGL Water overview evidence.');
+  const expected = Object.freeze({
+    cameraMode: 'realm',
+    cameraStateAttested: true,
+    cameraSynchronized: true,
+    cameraZoom: '0.280000',
+    presentationBand: 'overview',
+    riverBodyCount: 12,
+    riverChannelBodyCount: 12,
+    riverChannelSegmentCount: 1_200,
+    riverFallbackBodyCount: 0,
+    riverFallbackCellCount: 0,
+    riverMouthConnectionCount: 12,
+    routeDrawCalls: 0,
+    routeSegments: 0,
+    routeTriangles: 0,
+    routeVisible: 0,
+    waterDrawCalls: 3,
+    waterPresentation: 'ready',
+    waterShaderFallbackCount: 0,
+    waterTriangles: 25_998,
+  });
+  if (!exactMessageKeys(candidate, new Set(Object.keys(expected)))) {
+    throw new TypeError('Invalid rendered WebGL Water overview evidence shape.');
+  }
+  const failures = Object.entries(expected)
+    .filter(([key, expectedValue]) => candidate[key] !== expectedValue)
+    .map(([key]) => key);
+  if (failures.length > 0) {
+    throw new TypeError(
+      `Invalid rendered WebGL Water overview evidence: ${failures.map((key) => (
+        `${key}=${JSON.stringify(candidate[key])}`
+      )).join(',')}.`
+    );
+  }
+  return expected;
 }
 
 /**
@@ -4318,6 +4368,171 @@ export async function applyRenderedWebglPresentationBandInteraction(session) {
   }
 }
 
+/**
+ * Replays the reported upper-right overview using only ordinary camera input.
+ * The synthetic active-Worker fixture keeps route reconciliation present while
+ * proving that overview policy suppresses its ribbon and retains the canonical
+ * terrain-following river channel without a fallback or shader failure.
+ */
+export async function applyRenderedWebglWaterOverviewInteraction(session) {
+  const targetEvaluation = await session.command('Runtime.evaluate', {
+    expression: `(() => {
+      const canvas = document.querySelector(
+        '.realm-map-screen canvas[data-realm-canvas-active="true"]'
+      );
+      if (!(canvas instanceof HTMLCanvasElement)) return null;
+      const bounds = canvas.getBoundingClientRect();
+      const target = {
+        x: Math.round((bounds.left + bounds.right) * 50) / 100,
+        y: Math.round((bounds.top + bounds.bottom) * 50) / 100,
+      };
+      return document.elementFromPoint(target.x, target.y) === canvas
+        ? target
+        : null;
+    })()`,
+    returnByValue: true,
+  });
+  if (
+    targetEvaluation?.exceptionDetails
+    || targetEvaluation?.result?.type !== 'object'
+  ) throw new Error('Rendered WebGL Water overview target failed.');
+  const target = parseRenderedWebglCastleCanvasPointerTarget(
+    targetEvaluation.result.value
+  );
+
+  let overview = await readRenderedWebglPresentationBandSnapshot(session);
+  for (let step = 0; step < 10 && overview.band !== 'overview'; step += 1) {
+    await session.command('Input.dispatchMouseEvent', {
+      type: 'mouseWheel',
+      x: target.x,
+      y: target.y,
+      deltaX: 0,
+      deltaY: 240,
+      button: 'none',
+      buttons: 0,
+      pointerType: 'mouse',
+    });
+    await waitForRenderedWebglCameraSettled(session);
+    overview = await readRenderedWebglPresentationBandSnapshot(session);
+  }
+  if (overview.band !== 'overview') {
+    throw new Error('Rendered WebGL Water overview camera did not reach overview.');
+  }
+
+  for (
+    let drag = 0;
+    drag < RENDERED_WEBGL_QA_WATER_OVERVIEW_DRAG_COUNT;
+    drag += 1
+  ) {
+    await session.command('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x: target.x,
+      y: target.y,
+      button: 'none',
+      buttons: 0,
+      pointerType: 'mouse',
+    });
+    await session.command('Input.dispatchMouseEvent', {
+      type: 'mousePressed',
+      x: target.x,
+      y: target.y,
+      button: 'left',
+      buttons: 1,
+      clickCount: 1,
+      pointerType: 'mouse',
+    });
+    await session.command('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x: target.x + RENDERED_WEBGL_QA_WATER_OVERVIEW_DRAG.x,
+      y: target.y + RENDERED_WEBGL_QA_WATER_OVERVIEW_DRAG.y,
+      button: 'left',
+      buttons: 1,
+      pointerType: 'mouse',
+    });
+    await session.command('Input.dispatchMouseEvent', {
+      type: 'mouseReleased',
+      x: target.x + RENDERED_WEBGL_QA_WATER_OVERVIEW_DRAG.x,
+      y: target.y + RENDERED_WEBGL_QA_WATER_OVERVIEW_DRAG.y,
+      button: 'left',
+      buttons: 0,
+      clickCount: 1,
+      pointerType: 'mouse',
+    });
+    await waitForRenderedWebglCameraSettled(session);
+  }
+
+  const evidence = await session.command('Runtime.evaluate', {
+    expression: `(async () => {
+      const root = document.querySelector('.realm-map-screen');
+      const canvas = root?.querySelector(
+        'canvas[data-realm-canvas-active="true"]'
+      );
+      if (!(root instanceof HTMLElement) || !(canvas instanceof HTMLCanvasElement)) {
+        return null;
+      }
+      const integer = (name) => {
+        const value = canvas.getAttribute(name);
+        return typeof value === 'string' && /^(?:0|[1-9]\\d*)$/u.test(value)
+          ? Number(value)
+          : null;
+      };
+      const firstCameraStateToken =
+        canvas.getAttribute('data-realm-camera-state-token');
+      await new Promise((resolve) => requestAnimationFrame(() => (
+        requestAnimationFrame(resolve)
+      )));
+      const secondCameraStateToken =
+        canvas.getAttribute('data-realm-camera-state-token');
+      return {
+        cameraMode: root.getAttribute('data-realm-camera-mode'),
+        cameraStateAttested:
+          typeof firstCameraStateToken === 'string'
+          && /^[0-9a-f]{24}$/u.test(firstCameraStateToken)
+          && secondCameraStateToken === firstCameraStateToken,
+        cameraSynchronized:
+          root.getAttribute('data-realm-camera-mode')
+            === canvas.getAttribute('data-realm-camera-mode')
+          && root.getAttribute('data-realm-camera-presentation-band')
+            === canvas.getAttribute('data-realm-camera-presentation-band')
+          && canvas.getAttribute('data-realm-camera-settled') === 'true',
+        cameraZoom: canvas.getAttribute('data-realm-camera-current-zoom'),
+        presentationBand:
+          root.getAttribute('data-realm-camera-presentation-band'),
+        riverBodyCount: integer('data-water-river-body-count'),
+        riverChannelBodyCount:
+          integer('data-water-river-channel-body-count'),
+        riverChannelSegmentCount:
+          integer('data-water-river-channel-segment-count'),
+        riverFallbackBodyCount:
+          integer('data-water-river-fallback-body-count'),
+        riverFallbackCellCount:
+          integer('data-water-river-fallback-cell-count'),
+        riverMouthConnectionCount:
+          integer('data-water-river-mouth-connection-count'),
+        routeDrawCalls:
+          integer('data-realm-worker-route-draw-call-count'),
+        routeSegments:
+          integer('data-realm-worker-visible-route-segment-count'),
+        routeTriangles:
+          integer('data-realm-worker-route-triangle-count'),
+        routeVisible:
+          integer('data-realm-worker-visible-route-count'),
+        waterDrawCalls: integer('data-water-draw-calls'),
+        waterPresentation: canvas.getAttribute('data-water-presentation'),
+        waterShaderFallbackCount:
+          integer('data-water-shader-fallback-count'),
+        waterTriangles: integer('data-water-triangle-count'),
+      };
+    })()`,
+    awaitPromise: true,
+    returnByValue: true,
+  });
+  if (evidence?.exceptionDetails || evidence?.result?.type !== 'object') {
+    throw new Error('Rendered WebGL Water overview evidence failed.');
+  }
+  return parseRenderedWebglWaterOverviewEvidence(evidence.result.value);
+}
+
 export async function applyRenderedWebglViewportRotationInteraction(
   session,
   probeCase,
@@ -6753,6 +6968,30 @@ async function runRenderedActiveWorkerCase(session, probeCase, state) {
     ...reconnectEvidence,
   });
   await captureRenderedCasePixels(session, probeCase.viewport);
+
+  const waterOverviewCase = Object.freeze({
+    ...probeCase,
+    id: 'desktop-balanced-worker-water-overview',
+    minimumLabelCount: 1,
+    viewport: DESKTOP_VIEWPORT,
+  });
+  await session.command('Emulation.setDeviceMetricsOverride', {
+    width: waterOverviewCase.viewport.width,
+    height: waterOverviewCase.viewport.height,
+    screenWidth: waterOverviewCase.viewport.width,
+    screenHeight: waterOverviewCase.viewport.height,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+  // Same-URL navigation may be coalesced after the mobile reconnect check.
+  // Reset through the already-accepted blank target so this exact desktop
+  // camera starts from the reviewed fixture state rather than a resized,
+  // previously manipulated scene.
+  await navigateRenderedWebglCase(session, 'about:blank');
+  await navigateRenderedWebglCase(session, waterOverviewCase.url);
+  await waitForAcceptedRenderedDom(session, waterOverviewCase, state);
+  await applyRenderedWebglWaterOverviewInteraction(session);
+  await captureRenderedCasePixels(session, waterOverviewCase.viewport);
   if (state.violation) {
     throw new Error('Rendered WebGL active Worker case left the local QA boundary.');
   }

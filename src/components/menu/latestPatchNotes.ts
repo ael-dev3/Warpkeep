@@ -48,8 +48,23 @@ const ALPHA_0_3_20_PATCH_NOTES: LatestPatchNotes = Object.freeze({
     'Alpha 0.3.20 remains an unfinished, evolving world. Worker authority, ownership, private balances, gathering rates, settlement, and the deployed database contract remain unchanged.'
 });
 
+const ALPHA_0_3_21_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: '27 JUL 2026',
+  title: 'THE REALM ANSWERS',
+  summary:
+    'Keeper commands, balances, and passage through the gateway now recover in place without asking the living Realm to disappear around them.',
+  highlights: Object.freeze([
+    'Four deployed Workers remain present across reloads and reconnects while one coherent private control record restores their current accrual and command context.',
+    'Food, Wood, Stone, and Gold stay readable during synchronization, and authenticated recall can still call one Worker or every Worker home under server authority.',
+    'The title passage now opens from the exact gateway activation point, while the in-Realm command menu is shorter and focused on actions that matter in the world.'
+  ]),
+  alphaNotice:
+    'Alpha 0.3.21 remains an unfinished, evolving world. Worker ownership, private accounting, settlement, node release, and recall remain server-authoritative; the additive control read does not change balances or gameplay authority.'
+});
+
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
+    '0.3.21': ALPHA_0_3_21_PATCH_NOTES,
     '0.3.20': ALPHA_0_3_20_PATCH_NOTES,
     '0.3.19': ALPHA_0_3_19_PATCH_NOTES,
     '0.3.18': ALPHA_0_3_18_PATCH_NOTES

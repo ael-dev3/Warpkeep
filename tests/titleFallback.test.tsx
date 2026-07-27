@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WarpkeepTitleScreenFallback } from '../src/components/title/WarpkeepTitleScreenFallback';
+import { resolveGatewayActivationOrigin } from '../src/components/title/gatewayActivation';
 
 describe('Warpkeep continuous-outline fallback', () => {
   beforeEach(() => {
@@ -34,26 +35,29 @@ describe('Warpkeep continuous-outline fallback', () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
       if (this.classList.contains('warpkeep-fallback-galaxy-core')) {
         return {
-          x: 600,
-          y: 190,
-          left: 600,
-          top: 190,
-          right: 752,
-          bottom: 246,
+          x: 680,
+          y: 230,
+          left: 680,
+          top: 230,
+          right: 832,
+          bottom: 286,
           width: 152,
           height: 56,
           toJSON: () => ({})
         } as DOMRect;
       }
 
-      if (this.classList.contains('warpkeep-title-screen')) {
+      if (
+        this.classList.contains('warpkeep-title-screen')
+        || this.classList.contains('warpkeep-gateway')
+      ) {
         return {
-          x: 0,
-          y: 0,
-          left: 0,
-          top: 0,
-          right: 1280,
-          bottom: 720,
+          x: 80,
+          y: 40,
+          left: 80,
+          top: 40,
+          right: 1360,
+          bottom: 760,
           width: 1280,
           height: 720,
           toJSON: () => ({})
@@ -84,12 +88,31 @@ describe('Warpkeep continuous-outline fallback', () => {
     expect(container.querySelector('.warpkeep-title-screen')?.getAttribute('data-gateway-surging')).toBe('true');
     expect(screen.queryByRole('status')).toBeNull();
     expect(onRequestEnterMenu).toHaveBeenCalledTimes(1);
-    expect(onRequestEnterMenu.mock.calls[0][0]).toMatchObject({
-      x: 676,
-      y: 218,
-      viewportWidth: 1280,
-      viewportHeight: 720,
-      visible: true
+    const activation = onRequestEnterMenu.mock.calls[0]![0];
+    expect(activation).toMatchObject({
+      input: 'keyboard',
+      projection: {
+        x: 676,
+        y: 218,
+        viewportWidth: 1280,
+        viewportHeight: 720,
+        visible: true
+      },
+      projectionSourceRect: {
+        left: 80,
+        top: 40,
+        width: 1280,
+        height: 720
+      }
+    });
+    expect(resolveGatewayActivationOrigin(activation, {
+      left: 0,
+      top: 0,
+      width: 1_440,
+      height: 900
+    })).toEqual({
+      x: 756,
+      y: 258
     });
   });
 });

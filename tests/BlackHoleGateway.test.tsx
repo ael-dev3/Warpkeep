@@ -7,6 +7,20 @@ import {
 } from '../src/components/title/BlackHoleGateway';
 import { titleSceneSpec } from '../src/components/title/titleSceneSpec';
 
+function rectangle(left: number, top: number, width: number, height: number): DOMRect {
+  return {
+    x: left,
+    y: top,
+    left,
+    top,
+    right: left + width,
+    bottom: top + height,
+    width,
+    height,
+    toJSON: () => ({})
+  } as DOMRect;
+}
+
 function renderVisibleGateway(props: React.ComponentProps<typeof BlackHoleGateway> = {}) {
   const gatewayRef = createRef<BlackHoleGatewayHandle>();
   const result = render(<BlackHoleGateway ref={gatewayRef} {...props} />);
@@ -76,7 +90,17 @@ describe('BlackHoleGateway', () => {
     const initialTransform = anchor.style.transform;
 
     fireEvent.click(button, { detail: 0 });
-    expect(onActivate).toHaveBeenLastCalledWith('keyboard');
+    expect(onActivate).toHaveBeenCalledTimes(1);
+    expect(onActivate.mock.calls[0]?.[0]).toMatchObject({
+      input: 'keyboard',
+      projection: {
+        x: 200,
+        y: 140,
+        viewportWidth: 400,
+        viewportHeight: 320,
+        visible: true
+      }
+    });
     expect(screen.queryByRole('status')).toBeNull();
     expect(button.hasAttribute('aria-expanded')).toBe(false);
     expect(button.disabled).toBe(true);
@@ -95,6 +119,55 @@ describe('BlackHoleGateway', () => {
       x: 200,
       y: 140,
       visible: false
+    });
+  });
+
+  it('captures exact pointer coordinates in one deeply immutable activation record', () => {
+    const onActivate = vi.fn();
+    const { container } = renderVisibleGateway({ onActivate });
+    const gateway = container.querySelector<HTMLElement>('.warpkeep-gateway')!;
+    const button = screen.getByRole('button', { name: 'Enter Warpkeep' });
+    vi.spyOn(gateway, 'getBoundingClientRect').mockReturnValue(
+      rectangle(100, 50, 800, 640)
+    );
+    vi.spyOn(button, 'getBoundingClientRect').mockReturnValue(
+      rectangle(430, 270, 140, 90)
+    );
+
+    fireEvent.click(button, {
+      detail: 1,
+      clientX: 548.25,
+      clientY: 301.75
+    });
+
+    const activation = onActivate.mock.calls[0]?.[0];
+    expect(activation).toMatchObject({
+      input: 'pointer',
+      clientPoint: { x: 548.25, y: 301.75 },
+      buttonRect: { left: 430, top: 270, width: 140, height: 90 },
+      projectionSourceRect: { left: 100, top: 50, width: 800, height: 640 }
+    });
+    expect(Object.isFrozen(activation)).toBe(true);
+    expect(Object.isFrozen(activation.clientPoint)).toBe(true);
+    expect(Object.isFrozen(activation.buttonRect)).toBe(true);
+    expect(Object.isFrozen(activation.projection)).toBe(true);
+    expect(Object.isFrozen(activation.projectionSourceRect)).toBe(true);
+  });
+
+  it('captures the measured button rectangle for keyboard activation', () => {
+    const onActivate = vi.fn();
+    renderVisibleGateway({ onActivate });
+    const button = screen.getByRole('button', { name: 'Enter Warpkeep' });
+    vi.spyOn(button, 'getBoundingClientRect').mockReturnValue(
+      rectangle(356, 172, 128, 88)
+    );
+
+    fireEvent.click(button, { detail: 0, clientX: 0, clientY: 0 });
+
+    expect(onActivate.mock.calls[0]?.[0]).toMatchObject({
+      input: 'keyboard',
+      clientPoint: null,
+      buttonRect: { left: 356, top: 172, width: 128, height: 88 }
     });
   });
 

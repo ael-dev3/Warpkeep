@@ -365,6 +365,8 @@ describe('disposable connected local QA dependency and network boundaries', () =
       'mobile-portrait-touch',
       'tablet-pointer',
       'short-landscape-touch',
+      'desktop-offset-scaled-keyboard',
+      'desktop-offset-scaled-pointer',
       'desktop-keyboard',
       'desktop-reduced-keyboard',
       'desktop-resize-pointer',
@@ -374,6 +376,9 @@ describe('disposable connected local QA dependency and network boundaries', () =
       "frame.phase === 'transitioning-to-menu'",
       "frame.activeTarget !== 'departure-landmark'",
       "frame.overlayMotion !== expectedMotion",
+      '!Number.isFinite(frame.overlayOriginX)',
+      '!Number.isFinite(frame.overlayOriginY)',
+      'Math.abs(frame.devicePixelRatio - probeCase.deviceScaleFactor) > 0.01',
       "frame.gatewayInteractive !== 'false'",
       'frame.buttonFocusVisible !== false',
       'frame.hitGateway !== false',
@@ -384,6 +389,9 @@ describe('disposable connected local QA dependency and network boundaries', () =
       "Input.dispatchKeyEvent",
       "Input.dispatchMouseEvent",
       "Input.dispatchTouchEvent",
+      'title.style.transformOrigin',
+      'probeCase.activationFraction',
+      'frozen-origin',
     ]) expect(browserSource).toContain(evidence);
     expect(browserSource).toContain(
       'await exerciseTitleGatewayDepartureFocus('
