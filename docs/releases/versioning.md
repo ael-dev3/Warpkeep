@@ -1,9 +1,9 @@
 # Versioning and releases
 
 Warpkeep uses semantic versions for the product and Git commit SHAs for builds.
-Alpha `0.3.20` is the current **The Crafted Lowlands** release candidate.
-Alpha `0.3.19` remains the live map-first worker release until protected
-review, matching client deployment, and the production smoke test all succeed.
+Alpha `0.3.20` is the live **The Crafted Lowlands** release. A version is
+described as live only after its protected review, matching client deployment,
+and production smoke test all succeed.
 
 ## Version numbers
 

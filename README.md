@@ -4,7 +4,7 @@
 
 ## What is this?
 
-Genesis 001 is a persistent, invite-only 10,000-cell Lowlands realm with 100 permanent castle sites kept close to its founding district. Each founder signs in with a verified Farcaster identity, receives one durable keep, and privately holds Food / Wood / Stone / Gold. Alpha 0.3.19 remains live while Alpha 0.3.20: The Crafted Lowlands awaits owner review, carrying steadier worker journeys and a calmer, more coherent Realm presentation without changing world authority. Each founded keep has four permanent workers that can be sent from resource sites on the map, gather all four resources, settle production automatically, and return home on command. Founders can explore the coast, twelve rivers, biome-shaped forests, resource sites, moving wagons, and public keeper portraits, then return to a world that remembers them, while the intended core strategy loop is not playable yet. Warpkeep is a one-person experiment—not a finished MMO or financial product; there are no token rewards, no financial promises, and joining does not earn an airdrop or financial return or guarantee a reward or future value.
+Genesis 001 is a persistent, invite-only 10,000-cell Lowlands realm with 100 permanent castle sites kept close to its founding district. Each founder signs in with a verified Farcaster identity, receives one durable keep, and privately holds Food / Wood / Stone / Gold. Alpha 0.3.20: The Crafted Lowlands is live, carrying steadier worker journeys and a calmer, more coherent Realm presentation without changing world authority. Each founded keep has four permanent workers that can be sent from resource sites on the map, gather all four resources, settle production automatically, and return home on command. Founders can explore the coast, twelve rivers, biome-shaped forests, resource sites, moving wagons, and public keeper portraits, then return to a world that remembers them, while the intended core strategy loop is not playable yet. Warpkeep is a one-person experiment—not a finished MMO or financial product; there are no token rewards, no financial promises, and joining does not earn an airdrop or financial return or guarantee a reward or future value.
 
 ![Development preview of Genesis 001 showing the Lowlands and an open Wheat Farm inspection panel.](docs/reference/screenshots/2026-07-22-realm-wheat-farm-preview/warpkeep-realm-wheat-farm-preview-f3b1f7e598c543d6.png)
 
@@ -27,7 +27,7 @@ Open the local URL Vite prints; shared Alpha access stays off by default. Contri
 
 | State | Today |
 | --- | --- |
-| 🚧 Release candidate | Alpha 0.3.20: The Crafted Lowlands awaits owner review; Alpha 0.3.19 remains live and invite-only until a reviewed deployment and smoke test succeed. |
+| ✅ Live | Alpha 0.3.20: The Crafted Lowlands is live and invite-only. |
 | ✅ World | Genesis 001 persists 10,000 cells, a coastline, twelve one-cell rivers, and 100 permanent castle sites near the founding district. Founders return to one durable keep, explore the Lowlands up to its fog, and inspect nearby founders through their public username / portrait / castle. The same authoritative world waits across sessions. |
 | ✅ Authority | FID is the durable identity; handles and portraits are bounded presentation metadata. Farcaster sign-in uses a browser-bound, least-privilege bridge. The browser presents. The server decides admission and ownership. It also owns resources, timers, and saved state. |
 | ✅ Resources | Each keep privately holds Food / Wood / Stone / Gold. Food, Wood, and Stone come from authoritative terrain yield and can also be gathered at Wheat Farms, Logging Camps, and Stone Quarries; Gold comes from Gold Mines. Completed yield settles without a Claim step, and occupied sites keep their gathering story in one record. The browser never invents balances. |
@@ -52,7 +52,7 @@ Open the local URL Vite prints; shared Alpha access stays off by default. Contri
 - **Architecture:** The [technical architecture](docs/technical-architecture.md) explains what the browser shows and what the server decides.
 - **Roadmap:** The [roadmap](docs/design/roadmap.md) and [game direction](docs/design/warpkeep-direction.md) separate today's game from later plans.
 - **Authentication:** The [Farcaster integration](docs/farcaster-integration.md) guide covers sign-in, privacy, and public configuration.
-- **Release candidate:** The [Alpha 0.3.20 release notes](CHANGELOG.md#0320--2026-07-27) describe The Crafted Lowlands; Alpha 0.3.19 remains live pending owner review and deployment.
+- **Release:** The [Alpha 0.3.20 release notes](CHANGELOG.md#0320--2026-07-27) describe The Crafted Lowlands.
 - **Licensing:** [LICENSING.md](LICENSING.md) explains release rules; [asset provenance](ASSETS-LICENSE.md) records where media came from and what permissions apply.
 - **Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md) covers checks and provenance; the [Realm Council issue forms](https://github.com/ael-dev3/Warpkeep/issues/new/choose) accept privacy-safe bugs and ideas.
 - **Security:** Report sensitive issues privately through [SECURITY.md](SECURITY.md), never through a public issue.
