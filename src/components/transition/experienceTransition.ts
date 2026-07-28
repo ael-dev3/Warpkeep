@@ -1,3 +1,5 @@
+import type { GatewayClientPoint } from '../title/gatewayActivation';
+
 export type WarpkeepExperiencePhase =
   | 'title'
   | 'transitioning-to-menu'
@@ -5,17 +7,38 @@ export type WarpkeepExperiencePhase =
   | 'realm'
   | 'transitioning-to-title';
 
+export type WarpTransitionDirection = 'to-menu' | 'to-title';
+
+export type GatewayTransitionInput =
+  | 'history'
+  | 'keyboard'
+  | 'pointer'
+  | 'touch'
+  | 'unknown';
+
+export type GatewayTransitionRequest = Readonly<{
+  sequence: number;
+  direction: WarpTransitionDirection;
+  input: GatewayTransitionInput;
+  gatewayClientOrigin: GatewayClientPoint;
+  acceptedAt: number;
+}>;
+
+type GatewayTransitionActionPayload = Readonly<{
+  input: GatewayTransitionInput;
+  gatewayClientOrigin: GatewayClientPoint;
+  acceptedAt: number;
+}>;
+
 export type WarpkeepExperienceAction =
-  | { type: 'request-menu' }
+  | ({ type: 'request-menu' } & GatewayTransitionActionPayload)
   | { type: 'complete-menu' }
   | { type: 'request-realm' }
   | { type: 'return-menu' }
-  | { type: 'request-title' }
+  | ({ type: 'request-title' } & GatewayTransitionActionPayload)
   | { type: 'complete-title' };
 
 export type WarpkeepStableExperiencePhase = Extract<WarpkeepExperiencePhase, 'title' | 'menu' | 'realm'>;
-
-export type WarpTransitionDirection = 'to-menu' | 'to-title';
 
 export type WarpTransitionMotion = 'standard' | 'reduced';
 
@@ -26,6 +49,7 @@ export type WarpkeepExperienceState = {
    * React `key` when a CSS transition needs to restart from its first frame.
    */
   transitionSequence: number;
+  transitionRequest: GatewayTransitionRequest | null;
 };
 
 export type WarpTransitionTiming = Readonly<{
@@ -52,7 +76,35 @@ export const REDUCED_WARP_TRANSITION_TIMING: WarpTransitionTiming = Object.freez
 export function createExperienceState(
   phase: WarpkeepStableExperiencePhase = 'title'
 ): WarpkeepExperienceState {
-  return { phase, transitionSequence: 0 };
+  return { phase, transitionSequence: 0, transitionRequest: null };
+}
+
+function acceptedTransitionRequest(
+  sequence: number,
+  direction: WarpTransitionDirection,
+  action: GatewayTransitionActionPayload
+): GatewayTransitionRequest | null {
+  const origin = action.gatewayClientOrigin;
+  if (
+    origin.space !== 'client'
+    || !Number.isFinite(origin.x)
+    || !Number.isFinite(origin.y)
+    || !Number.isFinite(action.acceptedAt)
+    || action.acceptedAt < 0
+  ) {
+    return null;
+  }
+  return Object.freeze({
+    sequence,
+    direction,
+    input: action.input,
+    gatewayClientOrigin: Object.freeze({
+      space: 'client',
+      x: origin.x,
+      y: origin.y
+    }),
+    acceptedAt: action.acceptedAt
+  });
 }
 
 /**
@@ -67,36 +119,57 @@ export function experienceTransitionReducer(
   switch (action.type) {
     case 'request-menu':
       if (state.phase !== 'title') return state;
-      return {
-        phase: 'transitioning-to-menu',
-        transitionSequence: state.transitionSequence + 1
-      };
+      {
+        const sequence = state.transitionSequence + 1;
+        const transitionRequest = acceptedTransitionRequest(
+          sequence,
+          'to-menu',
+          action
+        );
+        if (!transitionRequest) return state;
+        return {
+          phase: 'transitioning-to-menu',
+          transitionSequence: sequence,
+          transitionRequest
+        };
+      }
 
     case 'complete-menu':
       if (state.phase !== 'transitioning-to-menu') return state;
-      return { ...state, phase: 'menu' };
+      return { ...state, phase: 'menu', transitionRequest: null };
 
     case 'request-realm':
       if (state.phase !== 'menu') return state;
       return {
         phase: 'realm',
-        transitionSequence: state.transitionSequence + 1
+        transitionSequence: state.transitionSequence + 1,
+        transitionRequest: null
       };
 
     case 'return-menu':
       if (state.phase !== 'realm') return state;
-      return { ...state, phase: 'menu' };
+      return { ...state, phase: 'menu', transitionRequest: null };
 
     case 'request-title':
       if (state.phase !== 'menu') return state;
-      return {
-        phase: 'transitioning-to-title',
-        transitionSequence: state.transitionSequence + 1
-      };
+      {
+        const sequence = state.transitionSequence + 1;
+        const transitionRequest = acceptedTransitionRequest(
+          sequence,
+          'to-title',
+          action
+        );
+        if (!transitionRequest) return state;
+        return {
+          phase: 'transitioning-to-title',
+          transitionSequence: sequence,
+          transitionRequest
+        };
+      }
 
     case 'complete-title':
       if (state.phase !== 'transitioning-to-title') return state;
-      return { ...state, phase: 'title' };
+      return { ...state, phase: 'title', transitionRequest: null };
   }
 }
 

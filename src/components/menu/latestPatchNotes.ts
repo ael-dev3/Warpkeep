@@ -62,13 +62,27 @@ const ALPHA_0_3_21_PATCH_NOTES: LatestPatchNotes = Object.freeze({
     'Alpha 0.3.21 remains an unfinished, evolving world. Worker ownership, private accounting, settlement, node release, and recall remain server-authoritative; the additive control read does not change balances or gameplay authority.'
 });
 
+const ALPHA_0_3_23_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: '28 JUL 2026',
+  title: 'THE GATE ALIGNS',
+  summary:
+    'The violet passage now opens from the visible black-hole gateway itself, keeping every crossing centered on the same point in the title sky.',
+  highlights: Object.freeze([
+    'The first visible transition frame now begins at the rendered gateway center instead of a displaced browser or click coordinate.',
+    'Pointer, touch, keyboard, and returning passages share the same measured gateway origin across repeated crossings.',
+    'The gateway stays closed whenever its visible center, interaction target, and focus position do not agree.'
+  ]),
+  alphaNotice:
+    'Alpha 0.3.23 remains an unfinished, evolving world. This title-passage correction does not change authentication, Worker authority, resources, Realm rendering, or persistent world state.'
+});
+
 const ALPHA_0_3_22_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '28 JUL 2026',
-  title: 'THE GATE HOLDS',
+  title: 'THE WAGONS REST',
   summary:
-    'The violet gateway now holds beneath the keeper’s hand, while resting wagons wait unseen inside their keeps until the road calls.',
+    'Resting wagons now wait unseen inside their keeps until the road calls, while an early gateway-alignment pass prepared a fuller correction.',
   highlights: Object.freeze([
-    'The title gateway and its violet passage remain centered on the activation point throughout the visible transition instead of drifting beneath it.',
+    'An initial title-transition alignment pass shipped, but later production evidence confirmed that the visible gateway and violet passage could still disagree.',
     'Idle Supply Wagons now rest inside their keeps rather than gathering outside on the Realm map; outbound, gathering, and returning journeys remain visible.',
     'All four Workers remain available through keep controls, with dispatch, recall, routes, resources, and Realm authority unchanged.'
   ]),
@@ -78,6 +92,7 @@ const ALPHA_0_3_22_PATCH_NOTES: LatestPatchNotes = Object.freeze({
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
+    '0.3.23': ALPHA_0_3_23_PATCH_NOTES,
     '0.3.22': ALPHA_0_3_22_PATCH_NOTES,
     '0.3.21': ALPHA_0_3_21_PATCH_NOTES,
     '0.3.20': ALPHA_0_3_20_PATCH_NOTES,

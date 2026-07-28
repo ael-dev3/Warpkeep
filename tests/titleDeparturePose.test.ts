@@ -3,9 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   applyTitleDeparturePose,
-  captureTitleDeparturePose,
-  pinTitleDepartureGatewayToViewport,
-  titleDepartureClientPointToViewport
+  captureTitleDeparturePose
 } from '../src/components/title/titleDeparturePose';
 
 function projectedGateway(
@@ -81,38 +79,20 @@ describe('title departure pose', () => {
     expect(after.z).toBeCloseTo(before.z, 12);
   });
 
-  it('pins the gateway to the activation pixel after a departure resize', () => {
-    const initialWidth = 1_440;
-    const initialHeight = 900;
-    const resizedWidth = 1_024;
-    const resizedHeight = 768;
+  it('restores only the captured departure pose without chasing a client pixel', () => {
     const pointerTarget = { x: 0, y: 0 };
-    const pointerCurrent = { x: 0, y: 0 };
-    const scene = new THREE.Scene();
+    const pointerCurrent = { x: 0.24, y: -0.09 };
+    const sceneRoot = new THREE.Group();
     const galaxyGroup = new THREE.Group();
-    galaxyGroup.position.set(0, 1.55, -18);
+    galaxyGroup.position.set(-0.4, 1.3, -18);
     const galaxyParallaxGroup = new THREE.Group();
     const galaxyGrowthGroup = new THREE.Group();
-    const gateway = new THREE.Object3D();
-    galaxyGrowthGroup.add(gateway);
-    galaxyParallaxGroup.add(galaxyGrowthGroup);
+    const camera = new THREE.PerspectiveCamera(39, 16 / 9, 0.1, 100);
+    camera.position.set(0.8, 0.3, 10.8);
+    sceneRoot.add(galaxyGroup);
     galaxyGroup.add(galaxyParallaxGroup);
-    scene.add(galaxyGroup);
-    const camera = new THREE.PerspectiveCamera(
-      39,
-      initialWidth / initialHeight,
-      0.1,
-      100
-    );
-    camera.position.set(0, 0.22, 10.8);
-    camera.lookAt(0, -0.42, -1.4);
-    const activation = projectedGateway(
-      camera,
-      gateway,
-      scene,
-      initialWidth,
-      initialHeight
-    );
+    galaxyParallaxGroup.add(galaxyGrowthGroup);
+
     const pose = captureTitleDeparturePose({
       pointerCurrent,
       galaxyGroup,
@@ -121,10 +101,8 @@ describe('title departure pose', () => {
       camera
     });
 
-    camera.aspect = resizedWidth / resizedHeight;
-    camera.updateProjectionMatrix();
-    galaxyGroup.scale.setScalar(0.64);
-    galaxyGroup.position.y = 2.8;
+    sceneRoot.position.set(9, -4, 2);
+    galaxyGroup.position.set(3, 4, 5);
     applyTitleDeparturePose(pose, {
       pointerTarget,
       pointerCurrent,
@@ -133,35 +111,32 @@ describe('title departure pose', () => {
       galaxyParallaxGroup,
       camera
     });
-    pinTitleDepartureGatewayToViewport({
-      gateway,
-      movableRoot: galaxyGroup,
-      camera,
-      x: activation.x,
-      y: activation.y,
-      width: resizedWidth,
-      height: resizedHeight
+
+    expect(sceneRoot.position.toArray()).toEqual([9, -4, 2]);
+    expect(galaxyGroup.position.toArray()).toEqual([
+      pose.galaxyX,
+      pose.galaxyY,
+      pose.galaxyZ
+    ]);
+    expect(pointerTarget).toEqual({
+      x: pose.pointerX,
+      y: pose.pointerY
     });
-    const afterResize = projectedGateway(
-      camera,
-      gateway,
-      scene,
-      resizedWidth,
-      resizedHeight
-    );
 
-    expect(afterResize.x).toBeCloseTo(activation.x, 10);
-    expect(afterResize.y).toBeCloseTo(activation.y, 10);
-    expect(afterResize.z).toBeCloseTo(activation.z, 12);
-    expect(galaxyGroup.scale.x).toBe(pose.galaxyScaleX);
-  });
-
-  it('inverts an offset and scaled title surface before pinning', () => {
-    expect(titleDepartureClientPointToViewport(
-      { x: 686.4, y: 326 },
-      { left: 96, top: 80, width: 1_180.8, height: 738 },
-      { width: 1_440, height: 900 }
-    )).toEqual({ x: 720, y: 300 });
+    applyTitleDeparturePose(pose, {
+      pointerTarget,
+      pointerCurrent,
+      galaxyGroup,
+      galaxyGrowthGroup,
+      galaxyParallaxGroup,
+      camera
+    });
+    expect(sceneRoot.position.toArray()).toEqual([9, -4, 2]);
+    expect(galaxyGroup.position.toArray()).toEqual([
+      pose.galaxyX,
+      pose.galaxyY,
+      pose.galaxyZ
+    ]);
   });
 
   it('rejects a non-finite pose before it can move the rendered gateway', () => {

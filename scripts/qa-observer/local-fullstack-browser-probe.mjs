@@ -255,6 +255,8 @@ function validateTitleGatewayDepartureFocusObservation(value, probeCase) {
     || value.finalHash !== '#menu'
     || !Number.isFinite(value.activationTarget?.x)
     || !Number.isFinite(value.activationTarget?.y)
+    || !Number.isFinite(value.gatewayCenter?.x)
+    || !Number.isFinite(value.gatewayCenter?.y)
     || value.finalPhase !== 'menu'
     || value.finalSequence !== value.initialSequence + 1
     || value.finalMenuInteractive !== true
@@ -271,6 +273,8 @@ function validateTitleGatewayDepartureFocusObservation(value, probeCase) {
       value?.finalHash === '#menu',
       Number.isFinite(value?.activationTarget?.x)
         && Number.isFinite(value?.activationTarget?.y),
+      Number.isFinite(value?.gatewayCenter?.x)
+        && Number.isFinite(value?.gatewayCenter?.y),
       value?.finalPhase === 'menu',
       value?.finalSequence === value?.initialSequence + 1,
       value?.finalMenuInteractive === true,
@@ -357,15 +361,26 @@ function validateTitleGatewayDepartureFocusObservation(value, probeCase) {
   const frozenOrigin = departureFrames[0];
   if (
     !frozenOrigin
-    || Math.abs(frozenOrigin.overlayOriginX - value.activationTarget.x) > originTolerance
-    || Math.abs(frozenOrigin.overlayOriginY - value.activationTarget.y) > originTolerance
+    || Math.abs(frozenOrigin.overlayOriginX - value.gatewayCenter.x) > originTolerance
+    || Math.abs(frozenOrigin.overlayOriginY - value.gatewayCenter.y) > originTolerance
     || departureFrames.some((frame) => (
       Math.abs(frame.overlayOriginX - frozenOrigin.overlayOriginX) > 0.01
       || Math.abs(frame.overlayOriginY - frozenOrigin.overlayOriginY) > 0.01
     ))
   ) {
     throw new LocalFullstackBrowserError(
-      `Title gateway departure focus failed at ${probeCase.id}: frozen-origin.`
+      `Title gateway departure focus failed at ${probeCase.id}: frozen-gateway-origin.`
+    );
+  }
+  if (
+    probeCase.activationFraction
+    && Math.hypot(
+      value.activationTarget.x - value.gatewayCenter.x,
+      value.activationTarget.y - value.gatewayCenter.y
+    ) <= originTolerance * 2
+  ) {
+    throw new LocalFullstackBrowserError(
+      `Title gateway departure focus failed at ${probeCase.id}: pointer-origin-separation.`
     );
   }
 
@@ -541,7 +556,13 @@ async function prepareTitleGatewayDepartureFocusCase(session, probeCase) {
           && y <= innerHeight
           && hit instanceof Element
           && (hit === button || button.contains(hit))
-        ) ? { button, x, y } : undefined;
+        ) ? {
+          button,
+          centerX: bounds.left + bounds.width * 0.5,
+          centerY: bounds.top + bounds.height * 0.5,
+          x,
+          y
+        } : undefined;
       });
       if (!target) return { stage: 'gateway-ready' };
 
@@ -555,6 +576,10 @@ async function prepareTitleGatewayDepartureFocusCase(session, probeCase) {
       const state = {
         done: false,
         frames: [],
+        gatewayCenter: {
+          x: target.centerX,
+          y: target.centerY
+        },
         initialHistoryLength: history.length,
         initialSequence,
         menuFrames: 0,
@@ -695,6 +720,10 @@ async function prepareTitleGatewayDepartureFocusCase(session, probeCase) {
       const x = bounds.left + bounds.width * ${activationFraction.x};
       const y = bounds.top + bounds.height * ${activationFraction.y};
       state.target = { x, y };
+      state.gatewayCenter = {
+        x: bounds.left + bounds.width * 0.5,
+        y: bounds.top + bounds.height * 0.5
+      };
       return {
         stage: 'ready',
         x,
@@ -893,6 +922,7 @@ async function collectTitleGatewayDepartureFocusCase(session, probeCase) {
         finalHistoryLength: history.length,
         finalHash: location.hash,
         activationTarget: state.target,
+        gatewayCenter: state.gatewayCenter,
         finalPhase: experience?.getAttribute('data-phase') ?? '',
         finalSequence: Number(
           experience?.getAttribute('data-transition-sequence')
@@ -2204,7 +2234,9 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
           && current.routeReconciliations
             > recalledAllDynamicPresentation.routeReconciliations
           && current.workerPresentedCount === 28
-          && current.workerAnimatedCount >= 1
+          // Idle workers remain authoritative world records, but their wagons
+          // are parked inside the keep and must not render on the realm map.
+          && current.workerAnimatedCount === 0
           && current.workerPresenceCount === 0
           && current.visibleRouteCount === 0
           && current.routeMismatchCount === 0
@@ -2287,6 +2319,7 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
           && current.routeReconciliations
             > reusedWorker.presentation.routeReconciliations
           && current.workerPresentedCount === 28
+          && current.workerAnimatedCount === 0
           && current.workerPresenceCount === 0
           && current.visibleRouteCount === 0
           && current.routeMismatchCount === 0
@@ -2371,6 +2404,7 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
         dispatchedAnimatedWorkerCount: dispatchedDynamicPresentation.workerAnimatedCount,
         dispatchedWorldPresenceCount: dispatchedDynamicPresentation.workerPresenceCount,
         dispatchedVisibleRouteCount: dispatchedDynamicPresentation.visibleRouteCount,
+        returnedAnimatedWorkerCount: restoredDynamicPresentation.workerAnimatedCount,
         returnedWorldPresenceCount: restoredDynamicPresentation.workerPresenceCount,
         returnedVisibleRouteCount: restoredDynamicPresentation.visibleRouteCount
       };
@@ -2543,6 +2577,7 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
     || value.dispatchedWorldPresenceCount < 0
     || !Number.isSafeInteger(value.dispatchedVisibleRouteCount)
     || value.dispatchedVisibleRouteCount < 1
+    || value.returnedAnimatedWorkerCount !== 0
     || value.returnedWorldPresenceCount !== 0
     || value.returnedVisibleRouteCount !== 0
   ) {

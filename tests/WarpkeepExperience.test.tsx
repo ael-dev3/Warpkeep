@@ -17,6 +17,7 @@ import { NOT_REQUIRED_WORKER_PRIVATE_SYNC_STATUS } from '../src/spacetime/warpke
 import { createCanonicalGenesisSnapshot } from './fixtures/canonicalGenesisSnapshot';
 
 const mediaPaused = new WeakMap<HTMLMediaElement, boolean>();
+let titleGatewayMeasurable = true;
 
 function render(ui: ReactElement) {
   return testingLibraryRender(
@@ -69,10 +70,15 @@ function installBrowserStubs(reducedMotion = false) {
       return rectangle(0, 0, 1280, 720);
     }
     if (this.classList.contains('warpkeep-fallback-galaxy-core')) {
+      if (!titleGatewayMeasurable) return rectangle(0, 0, 0, 0);
       return rectangle(600, 190, 152, 56);
     }
     if (this.classList.contains('warpkeep-gateway-button')) {
+      if (!titleGatewayMeasurable) return rectangle(0, 0, 0, 0);
       return rectangle(612, 173, 128, 90);
+    }
+    if (this.classList.contains('warp-transition-overlay')) {
+      return rectangle(0, 0, 1280, 720);
     }
     if (this.classList.contains('warpkeep-menu-command')) {
       return rectangle(900, 320, 280, 54);
@@ -114,6 +120,7 @@ beforeEach(async () => {
     import('../src/components/realm/RealmMapScreen')
   ]);
   vi.useFakeTimers();
+  titleGatewayMeasurable = true;
   window.history.replaceState({}, '', '/');
   installBrowserStubs();
 });
@@ -259,8 +266,8 @@ describe('WarpkeepExperience', () => {
     const gateway = await settleInitialTitle();
     expect(screen.queryByText(/gateway is still under development/i)).toBeNull();
 
-    fireEvent.click(gateway, { detail: 1 });
-    fireEvent.click(gateway, { detail: 1 });
+    fireEvent.click(gateway, { detail: 1, clientX: 676, clientY: 218 });
+    fireEvent.click(gateway, { detail: 1, clientX: 676, clientY: 218 });
     const experience = container.querySelector('.warpkeep-experience')!;
     expect(experience.getAttribute('data-phase')).toBe('transitioning-to-menu');
     expect(experience.getAttribute('data-transition-sequence')).toBe('1');
@@ -277,7 +284,7 @@ describe('WarpkeepExperience', () => {
     expect(container.querySelectorAll('audio[data-audio-role^="realm"][src]')).toHaveLength(0);
   });
 
-  it('freezes the exact pointer origin throughout the departure lifecycle', async () => {
+  it('freezes the rendered gateway center rather than the physical pointer point', async () => {
     render(<WarpkeepExperience />);
     const gateway = await settleInitialTitle();
 
@@ -287,8 +294,11 @@ describe('WarpkeepExperience', () => {
       clientY: 250.25
     });
     const overlay = screen.getByTestId('warp-transition-overlay');
-    expect(overlay.style.getPropertyValue('--warp-origin-x')).toBe('731.5px');
-    expect(overlay.style.getPropertyValue('--warp-origin-y')).toBe('250.25px');
+    expect(overlay.getAttribute('data-input')).toBe('pointer');
+    expect(overlay.getAttribute('data-gateway-client-x')).toBe('676');
+    expect(Number(overlay.getAttribute('data-gateway-client-y'))).toBeCloseTo(218);
+    expect(overlay.style.getPropertyValue('--warp-origin-x')).toBe('676px');
+    expect(parseFloat(overlay.style.getPropertyValue('--warp-origin-y'))).toBeCloseTo(218);
 
     vi.stubGlobal('innerWidth', 900);
     vi.stubGlobal('innerHeight', 640);
@@ -297,11 +307,59 @@ describe('WarpkeepExperience', () => {
       vi.advanceTimersByTime(900);
     });
     expect(screen.getByTestId('warp-transition-overlay')).toBe(overlay);
-    expect(overlay.style.getPropertyValue('--warp-origin-x')).toBe('731.5px');
-    expect(overlay.style.getPropertyValue('--warp-origin-y')).toBe('250.25px');
+    expect(overlay.style.getPropertyValue('--warp-origin-x')).toBe('676px');
+    expect(parseFloat(overlay.style.getPropertyValue('--warp-origin-y'))).toBeCloseTo(218);
   });
 
-  it('maps a programmatic gateway projection through offset and scaled bounds', async () => {
+  it('does not advance fallback clocks before the overlay has a measured origin', async () => {
+    vi.stubGlobal('ResizeObserver', undefined);
+    let overlayMeasurable = false;
+    vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockImplementation(function (
+      this: HTMLElement
+    ) {
+      if (
+        this.classList.contains('warpkeep-title-screen')
+        || this.classList.contains('warpkeep-gateway')
+      ) {
+        return rectangle(0, 0, 1280, 720);
+      }
+      if (this.classList.contains('warpkeep-fallback-galaxy-core')) {
+        return rectangle(600, 190, 152, 56);
+      }
+      if (this.classList.contains('warpkeep-gateway-button')) {
+        return rectangle(612, 173, 128, 90);
+      }
+      if (this.classList.contains('warp-transition-overlay')) {
+        return overlayMeasurable
+          ? rectangle(0, 0, 1280, 720)
+          : rectangle(0, 0, 0, 0);
+      }
+      if (this.classList.contains('warpkeep-menu-command')) {
+        return rectangle(900, 320, 280, 54);
+      }
+      return rectangle(0, 0, 0, 0);
+    });
+    const { container } = render(<WarpkeepExperience />);
+    const gateway = await settleInitialTitle();
+
+    fireEvent.click(gateway, { detail: 0 });
+    const experience = container.querySelector('.warpkeep-experience')!;
+    const overlay = screen.getByTestId('warp-transition-overlay');
+    expect(overlay.getAttribute('data-origin-ready')).toBe('false');
+
+    await act(async () => vi.advanceTimersByTime(4_000));
+    expect(experience.getAttribute('data-phase')).toBe('transitioning-to-menu');
+    expect(experience.getAttribute('data-presented-screen')).toBe('title');
+
+    overlayMeasurable = true;
+    act(() => window.dispatchEvent(new Event('resize')));
+    expect(overlay.getAttribute('data-origin-ready')).toBe('true');
+
+    await act(async () => vi.advanceTimersByTime(2_250));
+    expect(experience.getAttribute('data-phase')).toBe('menu');
+  });
+
+  it('maps the visible gateway through offset source and overlay bounds', async () => {
     vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockImplementation(function (
       this: HTMLElement
     ) {
@@ -309,10 +367,16 @@ describe('WarpkeepExperience', () => {
         return rectangle(100, 50, 640, 360);
       }
       if (this.classList.contains('warpkeep-gateway')) {
-        return rectangle(100, 50, 512, 288);
+        return rectangle(20, 10, 1280, 720);
       }
       if (this.classList.contains('warpkeep-fallback-galaxy-core')) {
         return rectangle(300, 150, 100, 40);
+      }
+      if (this.classList.contains('warpkeep-gateway-button')) {
+        return rectangle(286, 125, 128, 90);
+      }
+      if (this.classList.contains('warp-transition-overlay')) {
+        return rectangle(40, 20, 900, 600);
       }
       if (this.classList.contains('warpkeep-menu-command')) {
         return rectangle(400, 240, 240, 48);
@@ -325,8 +389,12 @@ describe('WarpkeepExperience', () => {
     fireEvent.keyDown(document.body, { key: 'Enter' });
 
     const overlay = screen.getByTestId('warp-transition-overlay');
-    expect(overlay.style.getPropertyValue('--warp-origin-x')).toBe('300px');
-    expect(overlay.style.getPropertyValue('--warp-origin-y')).toBe('146px');
+    expect(overlay.getAttribute('data-gateway-client-x')).toBe('350');
+    expect(overlay.getAttribute('data-gateway-client-y')).toBe('170');
+    expect(overlay.getAttribute('data-overlay-left')).toBe('40');
+    expect(overlay.getAttribute('data-overlay-top')).toBe('20');
+    expect(overlay.style.getPropertyValue('--warp-origin-x')).toBe('310px');
+    expect(overlay.style.getPropertyValue('--warp-origin-y')).toBe('150px');
   });
 
   it('retires keyboard gateway focus before handing focus to the stable menu command', async () => {
@@ -343,7 +411,7 @@ describe('WarpkeepExperience', () => {
     const departureLandmark = screen.getByRole('status');
     const overlay = screen.getByTestId('warp-transition-overlay');
     expect(overlay.style.getPropertyValue('--warp-origin-x')).toBe('676px');
-    expect(overlay.style.getPropertyValue('--warp-origin-y')).toBe('218px');
+    expect(parseFloat(overlay.style.getPropertyValue('--warp-origin-y'))).toBeCloseTo(218);
     expect(departureLandmark.textContent).toBe('Entering Warpkeep. Opening the main menu.');
     expect(departureLandmark.getAttribute('data-active')).toBe('true');
     expect(document.activeElement).toBe(departureLandmark);
@@ -413,7 +481,7 @@ describe('WarpkeepExperience', () => {
     act(() => gateway.focus());
     expect(screen.getByRole('status')).toBe(hint);
 
-    fireEvent.click(gateway, { detail: 1 });
+    fireEvent.click(gateway, { detail: 1, clientX: 676, clientY: 218 });
     expect(screen.queryByRole('status')).toBeNull();
   });
 
@@ -512,6 +580,12 @@ describe('WarpkeepExperience', () => {
       if (this.classList.contains('warpkeep-fallback-galaxy-core')) {
         return rectangle(150, 275, 90, 40);
       }
+      if (this.classList.contains('warpkeep-gateway-button')) {
+        return rectangle(131, 250, 128, 90);
+      }
+      if (this.classList.contains('warp-transition-overlay')) {
+        return rectangle(20, 40, 350, 700);
+      }
       if (this.classList.contains('warpkeep-menu-command')) {
         return rectangle(40, 420, 310, 44);
       }
@@ -526,8 +600,141 @@ describe('WarpkeepExperience', () => {
     await act(async () => vi.advanceTimersByTime(1));
 
     const overlay = screen.getByTestId('warp-transition-overlay');
-    expect(overlay.style.getPropertyValue('--warp-origin-x')).toBe('195px');
-    expect(overlay.style.getPropertyValue('--warp-origin-y')).toBe('295px');
+    expect(overlay.getAttribute('data-input')).toBe('history');
+    expect(overlay.getAttribute('data-gateway-client-x')).toBe('195');
+    expect(overlay.getAttribute('data-gateway-client-y')).toBe('295');
+    expect(overlay.style.getPropertyValue('--warp-origin-x')).toBe('175px');
+    expect(overlay.style.getPropertyValue('--warp-origin-y')).toBe('255px');
+  });
+
+  it('keeps reverse passage unarmed until a fresh rendered gateway measurement exists', async () => {
+    window.history.replaceState({}, '', '/#menu');
+    let gatewayVisible = false;
+    vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockImplementation(function (
+      this: HTMLElement
+    ) {
+      if (
+        this.classList.contains('warpkeep-title-screen')
+        || this.classList.contains('warpkeep-gateway')
+      ) {
+        return rectangle(0, 0, 800, 600);
+      }
+      if (this.classList.contains('warpkeep-fallback-galaxy-core')) {
+        return gatewayVisible
+          ? rectangle(200, 280, 84, 62)
+          : rectangle(0, 0, 0, 0);
+      }
+      if (this.classList.contains('warpkeep-gateway-button')) {
+        return rectangle(178, 266, 128, 90);
+      }
+      if (this.classList.contains('warp-transition-overlay')) {
+        return rectangle(10, 15, 780, 570);
+      }
+      if (this.classList.contains('warpkeep-menu-command')) {
+        return rectangle(420, 420, 280, 54);
+      }
+      return rectangle(0, 0, 0, 0);
+    });
+    const { container } = render(<WarpkeepExperience />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Return to Title' }));
+    await act(async () => vi.advanceTimersByTime(3_000));
+
+    const experience = container.querySelector('.warpkeep-experience')!;
+    expect(experience.getAttribute('data-phase')).toBe('menu');
+    expect(experience.getAttribute('data-return-preparing')).toBe('true');
+    expect(screen.queryByTestId('warp-transition-overlay')).toBeNull();
+
+    gatewayVisible = true;
+    await act(async () => {
+      window.dispatchEvent(new Event('resize'));
+      vi.advanceTimersByTime(20);
+    });
+
+    const overlay = screen.getByTestId('warp-transition-overlay');
+    expect(experience.getAttribute('data-phase')).toBe('transitioning-to-title');
+    expect(overlay.getAttribute('data-origin-ready')).toBe('true');
+    expect(overlay.getAttribute('data-gateway-client-x')).toBe('242');
+    expect(overlay.getAttribute('data-gateway-client-y')).toBe('311');
+    expect(overlay.style.getPropertyValue('--warp-origin-x')).toBe('232px');
+    expect(overlay.style.getPropertyValue('--warp-origin-y')).toBe('296px');
+  });
+
+  it('uses each newly rendered gateway center across repeated bidirectional cycles', async () => {
+    let gatewayCenter = { x: 420, y: 210 };
+    vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockImplementation(function (
+      this: HTMLElement
+    ) {
+      if (
+        this.classList.contains('warpkeep-title-screen')
+        || this.classList.contains('warpkeep-gateway')
+      ) {
+        return rectangle(0, 0, 1280, 720);
+      }
+      if (this.classList.contains('warpkeep-fallback-galaxy-core')) {
+        return rectangle(gatewayCenter.x - 50, gatewayCenter.y - 20, 100, 40);
+      }
+      if (this.classList.contains('warpkeep-gateway-button')) {
+        return rectangle(gatewayCenter.x - 64, gatewayCenter.y - 45, 128, 90);
+      }
+      if (this.classList.contains('warp-transition-overlay')) {
+        return rectangle(25, 30, 1200, 660);
+      }
+      if (this.classList.contains('warpkeep-menu-command')) {
+        return rectangle(900, 320, 280, 54);
+      }
+      if (this.classList.contains('warpkeep-menu-notice')) {
+        return rectangle(0, 0, 360, 92);
+      }
+      return rectangle(0, 0, 0, 0);
+    });
+    const { container } = render(<WarpkeepExperience />);
+
+    const expectOrigin = (
+      sequence: number,
+      input: 'history' | 'keyboard',
+      x: number,
+      y: number
+    ) => {
+      const overlay = screen.getByTestId('warp-transition-overlay');
+      expect(overlay.getAttribute('data-transition-sequence')).toBe(String(sequence));
+      expect(overlay.getAttribute('data-input')).toBe(input);
+      expect(overlay.getAttribute('data-origin-ready')).toBe('true');
+      expect(overlay.getAttribute('data-gateway-client-x')).toBe(String(x));
+      expect(overlay.getAttribute('data-gateway-client-y')).toBe(String(y));
+      expect(overlay.style.getPropertyValue('--warp-origin-x')).toBe(`${x - 25}px`);
+      expect(overlay.style.getPropertyValue('--warp-origin-y')).toBe(`${y - 30}px`);
+    };
+
+    fireEvent.click(await settleInitialTitle(), { detail: 0 });
+    expectOrigin(1, 'keyboard', 420, 210);
+    await act(async () => vi.advanceTimersByTime(2_250));
+
+    window.history.replaceState({}, '', '/#menu');
+    gatewayCenter = { x: 760, y: 330 };
+    fireEvent.click(screen.getByRole('button', { name: 'Return to Title' }));
+    await act(async () => vi.advanceTimersByTime(1));
+    expectOrigin(2, 'history', 760, 330);
+    await act(async () => vi.advanceTimersByTime(2_250));
+
+    gatewayCenter = { x: 515, y: 260 };
+    await act(async () => {
+      window.dispatchEvent(new Event('resize'));
+      vi.advanceTimersByTime(1);
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Enter Warpkeep' }), {
+      detail: 0
+    });
+    expectOrigin(3, 'keyboard', 515, 260);
+    await act(async () => vi.advanceTimersByTime(2_250));
+
+    window.history.replaceState({}, '', '/#menu');
+    gatewayCenter = { x: 900, y: 410 };
+    fireEvent.click(screen.getByRole('button', { name: 'Return to Title' }));
+    await act(async () => vi.advanceTimersByTime(1));
+    expectOrigin(4, 'history', 900, 410);
+    expect(container.querySelector('.warpkeep-experience')
+      ?.getAttribute('data-transition-sequence')).toBe('4');
   });
 
   it('honors the latest hash when history changes during an in-flight entry transition', async () => {
@@ -556,6 +763,32 @@ describe('WarpkeepExperience', () => {
     expect(window.location.hash).toBe('');
   });
 
+  it('waits for a measured title gateway before honoring a menu history route', async () => {
+    titleGatewayMeasurable = false;
+    const { container } = render(<WarpkeepExperience />);
+    expect(screen.queryByRole('button', { name: 'Enter Warpkeep' })).toBeNull();
+
+    act(() => {
+      window.history.replaceState({ warpkeepMenu: true }, '', '/#menu');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+
+    const experience = container.querySelector('.warpkeep-experience')!;
+    expect(experience.getAttribute('data-phase')).toBe('title');
+    expect(container.querySelector('.warp-transition-overlay')).toBeNull();
+
+    titleGatewayMeasurable = true;
+    await act(async () => {
+      window.dispatchEvent(new Event('resize'));
+      vi.advanceTimersByTime(1);
+    });
+    const overlay = container.querySelector<HTMLElement>('.warp-transition-overlay');
+    expect(experience.getAttribute('data-phase')).toBe('transitioning-to-menu');
+    expect(overlay?.getAttribute('data-input')).toBe('history');
+    expect(Number(overlay?.getAttribute('data-gateway-client-x'))).toBeCloseTo(676, 5);
+    expect(Number(overlay?.getAttribute('data-gateway-client-y'))).toBeCloseTo(218, 5);
+  });
+
   it('serializes Back during entry without exposing an interactive wrong-hash menu', async () => {
     const { container } = render(<WarpkeepExperience />);
     const gateway = await settleInitialTitle();
@@ -566,12 +799,16 @@ describe('WarpkeepExperience', () => {
       window.history.replaceState({}, '', '/');
       window.dispatchEvent(new PopStateEvent('popstate'));
     });
-    await act(async () => vi.advanceTimersByTime(2_250));
-    expect(experience.getAttribute('data-return-preparing')).toBe('true');
+    await act(async () => vi.advanceTimersByTime(1_400));
     const menuCommand = screen.queryByRole('button', { name: 'ENTER REALM', hidden: true });
     expect(menuCommand ? (menuCommand as HTMLButtonElement).disabled : true).toBe(true);
 
-    await act(async () => vi.advanceTimersByTime(901));
+    await act(async () => vi.advanceTimersByTime(850));
+    await act(async () => {
+      window.dispatchEvent(new Event('resize'));
+      vi.advanceTimersByTime(20);
+    });
+    expect(experience.getAttribute('data-phase')).toBe('transitioning-to-title');
     await act(async () => vi.advanceTimersByTime(2_250));
     expect(experience.getAttribute('data-phase')).toBe('title');
     expect(window.location.hash).toBe('');

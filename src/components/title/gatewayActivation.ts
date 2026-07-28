@@ -1,6 +1,7 @@
-export type GatewayActivationInput = 'keyboard' | 'pointer';
+export type GatewayActivationInput = 'history' | 'keyboard' | 'pointer';
 
-export type GatewayProjection = Readonly<{
+export type GatewayRendererPoint = Readonly<{
+  space: 'renderer';
   x: number;
   y: number;
   viewportWidth: number;
@@ -9,23 +10,46 @@ export type GatewayProjection = Readonly<{
 }>;
 
 export type GatewayClientPoint = Readonly<{
+  space: 'client';
   x: number;
   y: number;
 }>;
 
-export type GatewayRectSnapshot = Readonly<{
+export type GatewayOverlayPoint = Readonly<{
+  space: 'overlay';
+  x: number;
+  y: number;
+}>;
+
+export type GatewaySurfaceRect = Readonly<{
+  space: 'client-rect';
   left: number;
   top: number;
   width: number;
   height: number;
 }>;
 
+export type GatewayRenderedMeasurement = Readonly<{
+  generation: number;
+  rendererPoint: GatewayRendererPoint;
+  sourceSurfaceRect: GatewaySurfaceRect | null;
+  gatewayClientCenter: GatewayClientPoint | null;
+  buttonClientCenter: GatewayClientPoint | null;
+  alignmentErrorPx: number | null;
+  ready: boolean;
+}>;
+
 export type GatewayActivationRecord = Readonly<{
   input: GatewayActivationInput;
-  clientPoint: GatewayClientPoint | null;
-  buttonRect: GatewayRectSnapshot | null;
-  projection: GatewayProjection;
-  projectionSourceRect: GatewayRectSnapshot | null;
+  pointerClientPoint: GatewayClientPoint | null;
+  buttonRect: GatewaySurfaceRect | null;
+  rendererPoint: GatewayRendererPoint;
+  sourceSurfaceRect: GatewaySurfaceRect | null;
+  gatewayClientCenter: GatewayClientPoint | null;
+  buttonClientCenter: GatewayClientPoint | null;
+  alignmentErrorPx: number | null;
+  measurementGeneration: number;
+  ready: boolean;
 }>;
 
 type RectLike = Readonly<{
@@ -35,24 +59,67 @@ type RectLike = Readonly<{
   height: number;
 }>;
 
-type GatewayActivationRecordInput = Readonly<{
-  input: GatewayActivationInput;
-  clientPoint?: GatewayClientPoint | null;
-  buttonRect?: RectLike | null;
-  projection: GatewayProjection;
-  projectionSourceRect?: RectLike | null;
+type GatewayRendererPointInput = Readonly<{
+  x: number;
+  y: number;
+  viewportWidth: number;
+  viewportHeight: number;
+  visible?: boolean;
 }>;
 
-function finitePoint(point: GatewayClientPoint | null | undefined): GatewayClientPoint | null {
-  if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+type GatewayActivationRecordInput = Readonly<{
+  input: GatewayActivationInput;
+  pointerClientPoint?: GatewayClientPoint | null;
+  buttonRect?: RectLike | GatewaySurfaceRect | null;
+  rendererPoint: GatewayRendererPoint;
+  sourceSurfaceRect?: RectLike | GatewaySurfaceRect | null;
+  gatewayClientCenter?: GatewayClientPoint | null;
+  buttonClientCenter?: GatewayClientPoint | null;
+  alignmentErrorPx?: number | null;
+  measurementGeneration?: number;
+  ready?: boolean;
+}>;
+
+export function createGatewayClientPoint(
+  x: number,
+  y: number
+): GatewayClientPoint | null {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
     return null;
   }
-  return Object.freeze({ x: point.x, y: point.y });
+  return Object.freeze({ space: 'client', x, y });
+}
+
+export function createGatewayRendererPoint(
+  input: GatewayRendererPointInput
+): GatewayRendererPoint {
+  const validViewport = Number.isFinite(input.viewportWidth)
+    && Number.isFinite(input.viewportHeight)
+    && input.viewportWidth > 0
+    && input.viewportHeight > 0;
+  const validPoint = Number.isFinite(input.x) && Number.isFinite(input.y);
+  const visible = Boolean(
+    input.visible !== false
+    && validViewport
+    && validPoint
+    && input.x >= 0
+    && input.x <= input.viewportWidth
+    && input.y >= 0
+    && input.y <= input.viewportHeight
+  );
+  return Object.freeze({
+    space: 'renderer',
+    x: validPoint ? input.x : 0,
+    y: validPoint ? input.y : 0,
+    viewportWidth: validViewport ? input.viewportWidth : 0,
+    viewportHeight: validViewport ? input.viewportHeight : 0,
+    visible
+  });
 }
 
 export function snapshotGatewayRect(
-  rect: RectLike | null | undefined
-): GatewayRectSnapshot | null {
+  rect: RectLike | GatewaySurfaceRect | null | undefined
+): GatewaySurfaceRect | null {
   if (
     !rect
     || !Number.isFinite(rect.left)
@@ -66,6 +133,7 @@ export function snapshotGatewayRect(
   }
 
   return Object.freeze({
+    space: 'client-rect',
     left: rect.left,
     top: rect.top,
     width: rect.width,
@@ -73,79 +141,83 @@ export function snapshotGatewayRect(
   });
 }
 
-function snapshotGatewayProjection(projection: GatewayProjection): GatewayProjection {
-  return Object.freeze({
-    x: projection.x,
-    y: projection.y,
-    viewportWidth: projection.viewportWidth,
-    viewportHeight: projection.viewportHeight,
-    visible: projection.visible
-  });
+function snapshotGatewayRendererPoint(
+  point: GatewayRendererPoint
+): GatewayRendererPoint {
+  return createGatewayRendererPoint(point);
 }
 
-export function createGatewayActivationRecord(
-  input: GatewayActivationRecordInput
-): GatewayActivationRecord {
-  return Object.freeze({
-    input: input.input,
-    clientPoint: finitePoint(input.clientPoint),
-    buttonRect: snapshotGatewayRect(input.buttonRect),
-    projection: snapshotGatewayProjection(input.projection),
-    projectionSourceRect: snapshotGatewayRect(input.projectionSourceRect)
-  });
-}
-
-export function currentGatewayViewport(): GatewayRectSnapshot {
-  const reportedWidth = typeof window === 'undefined' ? 1 : window.innerWidth;
-  const reportedHeight = typeof window === 'undefined' ? 1 : window.innerHeight;
-  const width = Number.isFinite(reportedWidth) && reportedWidth > 0 ? reportedWidth : 1;
-  const height = Number.isFinite(reportedHeight) && reportedHeight > 0 ? reportedHeight : 1;
-  return Object.freeze({ left: 0, top: 0, width, height });
-}
-
-function projectionPoint(
-  activation: GatewayActivationRecord
+function snapshotGatewayClientPoint(
+  point: GatewayClientPoint | null | undefined
 ): GatewayClientPoint | null {
-  const projection = activation.projection;
+  if (!point || point.space !== 'client') {
+    return null;
+  }
+  return createGatewayClientPoint(point.x, point.y);
+}
+
+export function rendererPointToClient(
+  point: GatewayRendererPoint,
+  surfaceRect: GatewaySurfaceRect | null
+): GatewayClientPoint | null {
   if (
-    !projection.visible
-    || !Number.isFinite(projection.x)
-    || !Number.isFinite(projection.y)
-    || !Number.isFinite(projection.viewportWidth)
-    || !Number.isFinite(projection.viewportHeight)
-    || projection.viewportWidth <= 0
-    || projection.viewportHeight <= 0
-    || projection.x < 0
-    || projection.x > projection.viewportWidth
-    || projection.y < 0
-    || projection.y > projection.viewportHeight
+    point.space !== 'renderer'
+    || !point.visible
+    || !surfaceRect
+    || surfaceRect.space !== 'client-rect'
+    || point.viewportWidth <= 0
+    || point.viewportHeight <= 0
   ) {
     return null;
   }
+  return createGatewayClientPoint(
+    surfaceRect.left + point.x / point.viewportWidth * surfaceRect.width,
+    surfaceRect.top + point.y / point.viewportHeight * surfaceRect.height
+  );
+}
 
-  const source = activation.projectionSourceRect ?? Object.freeze({
-    left: 0,
-    top: 0,
-    width: projection.viewportWidth,
-    height: projection.viewportHeight
-  });
+export function clientPointToOverlay(
+  point: GatewayClientPoint,
+  overlayRect: GatewaySurfaceRect
+): GatewayOverlayPoint | null {
+  if (
+    point.space !== 'client'
+    || overlayRect.space !== 'client-rect'
+    || point.x < overlayRect.left
+    || point.x > overlayRect.left + overlayRect.width
+    || point.y < overlayRect.top
+    || point.y > overlayRect.top + overlayRect.height
+  ) {
+    return null;
+  }
   return Object.freeze({
-    x: source.left + projection.x / projection.viewportWidth * source.width,
-    y: source.top + projection.y / projection.viewportHeight * source.height
+    space: 'overlay',
+    x: point.x - overlayRect.left,
+    y: point.y - overlayRect.top
   });
 }
 
-function rectCenter(rect: GatewayRectSnapshot | null): GatewayClientPoint | null {
+export function gatewayRectCenter(
+  rect: GatewaySurfaceRect | null
+): GatewayClientPoint | null {
   if (!rect) return null;
-  return Object.freeze({
-    x: rect.left + rect.width * 0.5,
-    y: rect.top + rect.height * 0.5
-  });
+  return createGatewayClientPoint(
+    rect.left + rect.width * 0.5,
+    rect.top + rect.height * 0.5
+  );
 }
 
-function pointInsideRect(
+export function gatewayClientDistance(
+  left: GatewayClientPoint | null,
+  right: GatewayClientPoint | null
+): number | null {
+  if (!left || !right) return null;
+  return Math.hypot(left.x - right.x, left.y - right.y);
+}
+
+export function gatewayClientPointInsideRect(
   point: GatewayClientPoint | null,
-  rect: GatewayRectSnapshot | null
+  rect: GatewaySurfaceRect | null
 ): point is GatewayClientPoint {
   return point !== null
     && rect !== null
@@ -155,29 +227,71 @@ function pointInsideRect(
     && point.y <= rect.top + rect.height;
 }
 
-function clampToViewport(
-  point: GatewayClientPoint,
-  viewport: GatewayRectSnapshot
-): GatewayClientPoint {
+export function createGatewayActivationRecord(
+  input: GatewayActivationRecordInput
+): GatewayActivationRecord {
+  const alignmentErrorPx = input.alignmentErrorPx;
+  const measurementGeneration = input.measurementGeneration;
   return Object.freeze({
-    x: Math.min(Math.max(point.x, viewport.left), viewport.left + viewport.width),
-    y: Math.min(Math.max(point.y, viewport.top), viewport.top + viewport.height)
+    input: input.input,
+    pointerClientPoint: snapshotGatewayClientPoint(input.pointerClientPoint),
+    buttonRect: snapshotGatewayRect(input.buttonRect),
+    rendererPoint: snapshotGatewayRendererPoint(input.rendererPoint),
+    sourceSurfaceRect: snapshotGatewayRect(input.sourceSurfaceRect),
+    gatewayClientCenter: snapshotGatewayClientPoint(input.gatewayClientCenter),
+    buttonClientCenter: snapshotGatewayClientPoint(input.buttonClientCenter),
+    alignmentErrorPx: typeof alignmentErrorPx === 'number'
+      && Number.isFinite(alignmentErrorPx)
+      && alignmentErrorPx >= 0
+      ? alignmentErrorPx
+      : null,
+    measurementGeneration: typeof measurementGeneration === 'number'
+      && Number.isSafeInteger(measurementGeneration)
+      && measurementGeneration >= 0
+      ? measurementGeneration
+      : 0,
+    ready: input.ready === true
   });
 }
 
+export function currentGatewayViewport(): GatewaySurfaceRect {
+  const reportedWidth = typeof window === 'undefined' ? 1 : window.innerWidth;
+  const reportedHeight = typeof window === 'undefined' ? 1 : window.innerHeight;
+  const width = Number.isFinite(reportedWidth) && reportedWidth > 0 ? reportedWidth : 1;
+  const height = Number.isFinite(reportedHeight) && reportedHeight > 0 ? reportedHeight : 1;
+  return Object.freeze({
+    space: 'client-rect',
+    left: 0,
+    top: 0,
+    width,
+    height
+  });
+}
+
+function clampToViewport(
+  point: GatewayClientPoint,
+  viewport: GatewaySurfaceRect
+): GatewayClientPoint {
+  return createGatewayClientPoint(
+    Math.min(Math.max(point.x, viewport.left), viewport.left + viewport.width),
+    Math.min(Math.max(point.y, viewport.top), viewport.top + viewport.height)
+  )!;
+}
+
+/**
+ * The cinematic origin is always the latest rendered gateway center. Pointer
+ * coordinates validate an activation but never become the visual origin.
+ */
 export function resolveGatewayActivationOrigin(
   activation: GatewayActivationRecord,
-  viewport: GatewayRectSnapshot = currentGatewayViewport()
+  viewport: GatewaySurfaceRect = currentGatewayViewport()
 ): GatewayClientPoint {
   const safeViewport = snapshotGatewayRect(viewport) ?? currentGatewayViewport();
-  const candidate = activation.input === 'pointer'
-    ? pointInsideRect(activation.clientPoint, activation.buttonRect)
-      ? activation.clientPoint
-      : null
-    : rectCenter(activation.buttonRect);
-  const point = candidate ?? projectionPoint(activation) ?? Object.freeze({
-    x: safeViewport.left + safeViewport.width * 0.5,
-    y: safeViewport.top + safeViewport.height * 0.36
-  });
-  return clampToViewport(point, safeViewport);
+  const renderedCenter = activation.gatewayClientCenter
+    ?? rendererPointToClient(activation.rendererPoint, activation.sourceSurfaceRect);
+  const fallback = createGatewayClientPoint(
+    safeViewport.left + safeViewport.width * 0.5,
+    safeViewport.top + safeViewport.height * 0.36
+  )!;
+  return clampToViewport(renderedCenter ?? fallback, safeViewport);
 }

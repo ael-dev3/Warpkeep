@@ -6,6 +6,7 @@
   isolation: isolate;
   pointer-events: auto;
   contain: strict;
+  visibility: hidden;
   background:
     radial-gradient(
       ellipse at var(--warp-origin-x) var(--warp-origin-y),
@@ -19,7 +20,11 @@
   will-change: clip-path, opacity;
 }
 
-.warp-transition-overlay[data-motion="standard"] {
+.warp-transition-overlay[data-origin-ready="true"] {
+  visibility: visible;
+}
+
+.warp-transition-overlay[data-origin-ready="true"][data-motion="standard"] {
   animation: warpkeepVeilPassage var(--warp-transition-duration) cubic-bezier(0.62, 0, 0.16, 1) both;
 }
 
@@ -44,6 +49,10 @@
   filter: blur(1.5px);
   mix-blend-mode: screen;
   opacity: 0;
+}
+
+.warp-transition-overlay[data-origin-ready="true"][data-motion="standard"]
+  .warp-transition-overlay__depth {
   animation: warpkeepVeilDepth var(--warp-transition-duration) cubic-bezier(0.44, 0, 0.18, 1) both;
 }
 
@@ -74,6 +83,10 @@
   );
   mix-blend-mode: screen;
   opacity: 0;
+}
+
+.warp-transition-overlay[data-origin-ready="true"][data-motion="standard"]
+  .warp-transition-overlay__ribbons {
   animation: warpkeepVeilRibbons var(--warp-transition-duration) cubic-bezier(0.54, 0.02, 0.18, 1) both;
 }
 
@@ -88,10 +101,14 @@
   overflow: hidden;
   opacity: 0;
   pointer-events: none;
+}
+
+.warp-transition-overlay[data-origin-ready="true"]
+  .warp-transition-overlay__cover-signal {
   animation: warpkeepVeilCoverSignal 1ms linear var(--warp-cover-at) both;
 }
 
-.warp-transition-overlay[data-motion="reduced"] {
+.warp-transition-overlay[data-origin-ready="true"][data-motion="reduced"] {
   clip-path: none;
   animation: warpkeepVeilReducedPassage var(--warp-transition-duration) ease-in-out both;
 }

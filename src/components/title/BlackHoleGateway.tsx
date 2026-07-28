@@ -10,12 +10,20 @@ import {
   useState
 } from 'react';
 import {
+  createGatewayClientPoint,
   createGatewayActivationRecord,
+  createGatewayRendererPoint,
+  gatewayClientDistance,
+  gatewayClientPointInsideRect,
+  gatewayRectCenter,
+  rendererPointToClient,
   snapshotGatewayRect,
   type GatewayActivationInput,
   type GatewayActivationRecord,
   type GatewayClientPoint,
-  type GatewayProjection
+  type GatewayRenderedMeasurement,
+  type GatewayRendererPoint,
+  type GatewaySurfaceRect
 } from './gatewayActivation';
 import { calculateGatewayNoticePosition } from './gatewayInteraction';
 import { titleSceneSpec } from './titleSceneSpec';
@@ -34,7 +42,10 @@ const gatewayHitAreaStyle = {
 export type {
   GatewayActivationInput,
   GatewayActivationRecord,
-  GatewayProjection
+  GatewayClientPoint,
+  GatewayRenderedMeasurement,
+  GatewayRendererPoint,
+  GatewaySurfaceRect
 } from './gatewayActivation';
 
 type GatewayNoticeState = {
@@ -43,14 +54,12 @@ type GatewayNoticeState = {
 };
 
 export type BlackHoleGatewayHandle = {
-  setProjectedPosition: (
-    x: number,
-    y: number,
-    viewportWidth: number,
-    viewportHeight: number,
-    visible?: boolean
-  ) => void;
-  getProjectedPosition: () => GatewayProjection;
+  setRenderedGateway: (
+    rendererPoint: GatewayRendererPoint,
+    sourceSurfaceRect: GatewaySurfaceRect | null
+  ) => boolean;
+  getRenderedMeasurement: () => GatewayRenderedMeasurement;
+  getGatewayClientCenter: () => GatewayClientPoint | null;
   captureActivation: (
     input: GatewayActivationInput,
     clientPoint?: GatewayClientPoint | null
@@ -73,6 +82,43 @@ function joinClassNames(...classNames: Array<string | undefined>) {
   return classNames.filter(Boolean).join(' ');
 }
 
+const emptyRendererPoint = () => createGatewayRendererPoint({
+  x: 0,
+  y: 0,
+  viewportWidth: 0,
+  viewportHeight: 0,
+  visible: false
+});
+
+const emptyRenderedMeasurement = (): GatewayRenderedMeasurement => Object.freeze({
+  generation: 0,
+  rendererPoint: emptyRendererPoint(),
+  sourceSurfaceRect: null,
+  gatewayClientCenter: null,
+  buttonClientCenter: null,
+  alignmentErrorPx: null,
+  ready: false
+});
+
+function gatewayAlignmentTolerance(surfaceRect: GatewaySurfaceRect) {
+  return surfaceRect.width <= 768 || surfaceRect.height <= 520 ? 3 : 2;
+}
+
+function clientPointToLayerLocal(
+  point: GatewayClientPoint,
+  layerRect: GatewaySurfaceRect,
+  layer: HTMLElement
+) {
+  const localWidth = layer.clientWidth > 0 ? layer.clientWidth : layerRect.width;
+  const localHeight = layer.clientHeight > 0 ? layer.clientHeight : layerRect.height;
+  return {
+    x: (point.x - layerRect.left) / layerRect.width * localWidth,
+    y: (point.y - layerRect.top) / layerRect.height * localHeight,
+    clientToLocalX: localWidth / layerRect.width,
+    clientToLocalY: localHeight / layerRect.height
+  };
+}
+
 export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGatewayProps>(
   function BlackHoleGateway(
     {
@@ -91,13 +137,9 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
     const anchorRef = useRef<HTMLDivElement>(null);
     const buttonRef = useRef<HTMLButtonElement>(null);
     const noticeRef = useRef<HTMLDivElement>(null);
-    const projectionRef = useRef<GatewayProjection>({
-      x: 0,
-      y: 0,
-      viewportWidth: 0,
-      viewportHeight: 0,
-      visible: false
-    });
+    const measurementRef = useRef<GatewayRenderedMeasurement>(
+      emptyRenderedMeasurement()
+    );
     const noticeSizeRef = useRef({ width: 0, height: 0 });
     const noticeLayoutAnchorRef = useRef({ x: Number.NaN, y: Number.NaN });
     const noticeOpenRef = useRef(false);
@@ -125,148 +167,256 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
         noticeSizeRef.current.height = Math.max(0, bounds.height);
       }
 
-      const projection = projectionRef.current;
+      const measurement = measurementRef.current;
+      const gatewayCenter = measurement.gatewayClientCenter;
+      const gatewayLayer = gatewayRef.current;
+      const layerRect = snapshotGatewayRect(gatewayLayer?.getBoundingClientRect());
+      if (!gatewayCenter || !gatewayLayer || !layerRect) {
+        return;
+      }
+      const layerPoint = clientPointToLayerLocal(gatewayCenter, layerRect, gatewayLayer);
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
       const position = calculateGatewayNoticePosition({
-        anchorX: projection.x,
-        anchorY: projection.y,
+        anchorX: gatewayCenter.x,
+        anchorY: gatewayCenter.y,
         noticeWidth: noticeSizeRef.current.width,
         noticeHeight: noticeSizeRef.current.height,
-        viewportWidth: projection.viewportWidth,
-        viewportHeight: projection.viewportHeight,
+        viewportWidth,
+        viewportHeight,
         hitRadius: titleSceneSpec.gateway.hitHeightMaxPx * 0.5,
-        preferredPlacement: projection.viewportHeight < 460 &&
-          projection.viewportWidth > projection.viewportHeight
+        preferredPlacement: viewportHeight < 460 &&
+          viewportWidth > viewportHeight
           ? 'above'
           : 'below'
       });
 
-      noticeElement.style.left = `${position.left - projection.x}px`;
-      noticeElement.style.top = `${position.top - projection.y}px`;
+      noticeElement.style.left =
+        `${(position.left - gatewayCenter.x) * layerPoint.clientToLocalX}px`;
+      noticeElement.style.top =
+        `${(position.top - gatewayCenter.y) * layerPoint.clientToLocalY}px`;
       const arrowX = Math.min(
-        Math.max(projection.x - position.left, 14),
+        Math.max(gatewayCenter.x - position.left, 14),
         Math.max(14, noticeSizeRef.current.width - 14)
       );
-      noticeElement.style.setProperty('--warpkeep-gateway-notice-arrow-x', `${arrowX}px`);
+      noticeElement.style.setProperty(
+        '--warpkeep-gateway-notice-arrow-x',
+        `${arrowX * layerPoint.clientToLocalX}px`
+      );
       noticeElement.dataset.placement = position.placement;
-      noticeLayoutAnchorRef.current.x = projection.x;
-      noticeLayoutAnchorRef.current.y = projection.y;
+      noticeLayoutAnchorRef.current.x = gatewayCenter.x;
+      noticeLayoutAnchorRef.current.y = gatewayCenter.y;
     }, []);
 
-    const setProjectedPosition = useCallback((
-      x: number,
-      y: number,
-      viewportWidth: number,
-      viewportHeight: number,
-      visible = true
+    const setRenderedGateway = useCallback((
+      rendererPoint: GatewayRendererPoint,
+      sourceSurfaceRect: GatewaySurfaceRect | null
     ) => {
-      const validProjection =
-        Number.isFinite(x) &&
-        Number.isFinite(y) &&
-        Number.isFinite(viewportWidth) &&
-        Number.isFinite(viewportHeight) &&
-        viewportWidth > 0 &&
-        viewportHeight > 0;
-      const projectionVisible = Boolean(
-        validProjection &&
-        visible &&
-        x >= 0 &&
-        x <= viewportWidth &&
-        y >= 0 &&
-        y <= viewportHeight
+      const normalizedRendererPoint = createGatewayRendererPoint(rendererPoint);
+      const normalizedSourceRect = snapshotGatewayRect(sourceSurfaceRect);
+      const gatewayClientCenter = rendererPointToClient(
+        normalizedRendererPoint,
+        normalizedSourceRect
       );
+      const previousMeasurement = measurementRef.current;
       const viewportChanged =
-        projectionRef.current.viewportWidth !== viewportWidth ||
-        projectionRef.current.viewportHeight !== viewportHeight;
-      if (!activationLockedRef.current) {
-        projectionRef.current = {
-          x: validProjection ? x : 0,
-          y: validProjection ? y : 0,
-          viewportWidth: validProjection ? viewportWidth : 0,
-          viewportHeight: validProjection ? viewportHeight : 0,
-          visible: projectionVisible
-        };
-      } else {
-        projectionRef.current = {
-          ...projectionRef.current,
-          visible: false
-        };
-      }
-      const projection = projectionRef.current;
-      const interactiveVisible = projection.visible
-        && !disabledRef.current
-        && !activationLockedRef.current;
-
+        previousMeasurement.rendererPoint.viewportWidth
+          !== normalizedRendererPoint.viewportWidth
+        || previousMeasurement.rendererPoint.viewportHeight
+          !== normalizedRendererPoint.viewportHeight
+        || previousMeasurement.sourceSurfaceRect?.left !== normalizedSourceRect?.left
+        || previousMeasurement.sourceSurfaceRect?.top !== normalizedSourceRect?.top
+        || previousMeasurement.sourceSurfaceRect?.width !== normalizedSourceRect?.width
+        || previousMeasurement.sourceSurfaceRect?.height !== normalizedSourceRect?.height;
       const gatewayElement = gatewayRef.current;
       const anchorElement = anchorRef.current;
       const buttonElement = buttonRef.current;
-      if (!anchorElement || !buttonElement) {
-        return;
+      const layerRect = snapshotGatewayRect(gatewayElement?.getBoundingClientRect());
+
+      let buttonRect: GatewaySurfaceRect | null = null;
+      let buttonClientCenter: GatewayClientPoint | null = null;
+      let alignmentErrorPx: number | null = null;
+      let measurementReady = Boolean(
+        normalizedRendererPoint.visible
+        && gatewayClientCenter
+        && normalizedSourceRect
+      );
+
+      if (
+        gatewayElement
+        && anchorElement
+        && buttonElement
+        && gatewayClientCenter
+        && normalizedSourceRect
+        && layerRect
+        && !activationLockedRef.current
+      ) {
+        const layerPoint = clientPointToLayerLocal(
+          gatewayClientCenter,
+          layerRect,
+          gatewayElement
+        );
+        anchorElement.style.transform =
+          `translate3d(${layerPoint.x}px, ${layerPoint.y}px, 0)`;
+
+        if (!disabledRef.current) {
+          gatewayElement.dataset.visible = 'true';
+          gatewayElement.dataset.interactive = 'true';
+          anchorElement.hidden = false;
+          anchorElement.dataset.visible = 'true';
+          anchorElement.setAttribute('aria-hidden', 'false');
+          buttonElement.disabled = false;
+          buttonRect = snapshotGatewayRect(buttonElement.getBoundingClientRect());
+          buttonClientCenter = gatewayRectCenter(buttonRect);
+          alignmentErrorPx = gatewayClientDistance(
+            gatewayClientCenter,
+            buttonClientCenter
+          );
+          measurementReady = measurementReady
+            && alignmentErrorPx !== null
+            && alignmentErrorPx <= gatewayAlignmentTolerance(normalizedSourceRect);
+        }
+      } else {
+        measurementReady = false;
       }
 
+      const nextMeasurement = Object.freeze({
+        generation: previousMeasurement.generation + 1,
+        rendererPoint: normalizedRendererPoint,
+        sourceSurfaceRect: normalizedSourceRect,
+        gatewayClientCenter,
+        buttonClientCenter,
+        alignmentErrorPx,
+        ready: measurementReady
+      }) satisfies GatewayRenderedMeasurement;
+      measurementRef.current = nextMeasurement;
+
+      const interactiveVisible = measurementReady
+        && !disabledRef.current
+        && !activationLockedRef.current;
       const visibilityValue = interactiveVisible ? 'true' : 'false';
-      if (anchorElement.hidden === interactiveVisible) {
+      if (anchorElement) {
         anchorElement.hidden = !interactiveVisible;
-      }
-      anchorElement.inert = !interactiveVisible;
-      anchorElement.setAttribute('aria-hidden', String(!interactiveVisible));
-      const buttonDisabled = !interactiveVisible;
-      if (buttonElement.disabled !== buttonDisabled) {
-        buttonElement.disabled = buttonDisabled;
-      }
-      buttonElement.tabIndex = interactiveVisible ? 0 : -1;
-      if (anchorElement.dataset.visible !== visibilityValue) {
+        anchorElement.inert = !interactiveVisible;
+        anchorElement.setAttribute('aria-hidden', String(!interactiveVisible));
         anchorElement.dataset.visible = visibilityValue;
       }
-      if (gatewayElement && gatewayElement.dataset.visible !== visibilityValue) {
+      if (buttonElement) {
+        buttonElement.disabled = !interactiveVisible;
+        buttonElement.tabIndex = interactiveVisible ? 0 : -1;
+      }
+      if (gatewayElement) {
         gatewayElement.dataset.visible = visibilityValue;
-      }
-      if (gatewayElement && gatewayElement.dataset.interactive !== visibilityValue) {
         gatewayElement.dataset.interactive = visibilityValue;
+        gatewayElement.dataset.ready = String(measurementReady);
+        gatewayElement.dataset.rendererViewportWidth =
+          String(normalizedRendererPoint.viewportWidth);
+        gatewayElement.dataset.rendererViewportHeight =
+          String(normalizedRendererPoint.viewportHeight);
+        gatewayElement.dataset.rendererX = String(normalizedRendererPoint.x);
+        gatewayElement.dataset.rendererY = String(normalizedRendererPoint.y);
+        gatewayElement.dataset.sourceLeft = String(normalizedSourceRect?.left ?? '');
+        gatewayElement.dataset.sourceTop = String(normalizedSourceRect?.top ?? '');
+        gatewayElement.dataset.sourceWidth = String(normalizedSourceRect?.width ?? '');
+        gatewayElement.dataset.sourceHeight = String(normalizedSourceRect?.height ?? '');
+        gatewayElement.dataset.clientX = String(gatewayClientCenter?.x ?? '');
+        gatewayElement.dataset.clientY = String(gatewayClientCenter?.y ?? '');
+        gatewayElement.dataset.buttonCenterX = String(buttonClientCenter?.x ?? '');
+        gatewayElement.dataset.buttonCenterY = String(buttonClientCenter?.y ?? '');
+        gatewayElement.dataset.alignmentError = String(alignmentErrorPx ?? '');
+        gatewayElement.dataset.measurementGeneration =
+          String(nextMeasurement.generation);
       }
-
-      if (!interactiveVisible) {
-        return;
-      }
-
-      anchorElement.style.transform = `translate3d(${x}px, ${y}px, 0)`;
 
       const noticeAnchor = noticeLayoutAnchorRef.current;
       if (
-        noticeOpenRef.current &&
-        (
-          viewportChanged ||
-          Math.abs(x - noticeAnchor.x) >= noticeRelayoutThreshold ||
-          Math.abs(y - noticeAnchor.y) >= noticeRelayoutThreshold
+        interactiveVisible
+        && noticeOpenRef.current
+        && gatewayClientCenter
+        && (
+          viewportChanged
+          || Math.abs(gatewayClientCenter.x - noticeAnchor.x) >= noticeRelayoutThreshold
+          || Math.abs(gatewayClientCenter.y - noticeAnchor.y) >= noticeRelayoutThreshold
         )
       ) {
         positionNotice(false);
       }
+      return measurementReady;
     }, [positionNotice]);
 
-    const getProjectedPosition = useCallback(() => ({ ...projectionRef.current }), []);
+    const getRenderedMeasurement = useCallback(
+      () => measurementRef.current,
+      []
+    );
+    const getGatewayClientCenter = useCallback(
+      () => measurementRef.current.gatewayClientCenter,
+      []
+    );
     const captureActivation = useCallback((
       input: GatewayActivationInput,
       clientPoint?: GatewayClientPoint | null
-    ) => createGatewayActivationRecord({
-      input,
-      clientPoint,
-      buttonRect: snapshotGatewayRect(buttonRef.current?.getBoundingClientRect()),
-      projection: projectionRef.current,
-      projectionSourceRect: snapshotGatewayRect(gatewayRef.current?.getBoundingClientRect())
-    }), []);
+    ) => {
+      const measurement = measurementRef.current;
+      const buttonRect = snapshotGatewayRect(
+        buttonRef.current?.getBoundingClientRect()
+      );
+      const buttonClientCenter = gatewayRectCenter(buttonRect)
+        ?? measurement.buttonClientCenter;
+      const alignmentErrorPx = gatewayClientDistance(
+        measurement.gatewayClientCenter,
+        buttonClientCenter
+      ) ?? measurement.alignmentErrorPx;
+      const interactiveAlignmentReady = Boolean(
+        measurement.sourceSurfaceRect
+        && alignmentErrorPx !== null
+        && alignmentErrorPx <= gatewayAlignmentTolerance(
+          measurement.sourceSurfaceRect
+        )
+      );
+      const requiresInteractiveAlignment =
+        input !== 'history' || !disabledRef.current;
+      return createGatewayActivationRecord({
+        input,
+        pointerClientPoint: clientPoint,
+        buttonRect,
+        rendererPoint: measurement.rendererPoint,
+        sourceSurfaceRect: measurement.sourceSurfaceRect,
+        gatewayClientCenter: measurement.gatewayClientCenter,
+        buttonClientCenter,
+        alignmentErrorPx,
+        measurementGeneration: measurement.generation,
+        ready: measurement.ready
+          && (
+            !requiresInteractiveAlignment
+            || interactiveAlignmentReady
+          )
+      });
+    }, []);
     const focus = useCallback(() => {
       if (
         disabledRef.current
         || activationLockedRef.current
-        || !projectionRef.current.visible
+        || !measurementRef.current.ready
       ) return;
       buttonRef.current?.focus();
     }, []);
 
     useImperativeHandle(
       forwardedRef,
-      () => ({ setProjectedPosition, getProjectedPosition, captureActivation, focus }),
-      [captureActivation, focus, getProjectedPosition, setProjectedPosition]
+      () => ({
+        setRenderedGateway,
+        getRenderedMeasurement,
+        getGatewayClientCenter,
+        captureActivation,
+        focus
+      }),
+      [
+        captureActivation,
+        focus,
+        getGatewayClientCenter,
+        getRenderedMeasurement,
+        setRenderedGateway
+      ]
     );
 
     useLayoutEffect(() => {
@@ -281,8 +431,9 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
       const gateway = gatewayRef.current;
       const anchor = anchorRef.current;
       const button = buttonRef.current;
-      const blocked = disabled || activationLockedRef.current;
-      const visible = projectionRef.current.visible && !blocked;
+      const visible = !disabled
+        && !activationLockedRef.current
+        && measurementRef.current.ready;
       if (gateway) {
         gateway.dataset.visible = String(visible);
         gateway.dataset.interactive = String(visible);
@@ -292,20 +443,23 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
         anchor.inert = !visible;
         anchor.dataset.visible = String(visible);
         anchor.setAttribute('aria-hidden', String(!visible));
-        if (visible) {
-          anchor.style.transform = `translate3d(${projectionRef.current.x}px, ${projectionRef.current.y}px, 0)`;
-        }
       }
       if (button) {
         button.disabled = !visible;
         button.tabIndex = visible ? 0 : -1;
         if (!visible && document.activeElement === button) button.blur();
       }
-    }, [disabled]);
+      if (!disabled && measurementRef.current.sourceSurfaceRect) {
+        setRenderedGateway(
+          measurementRef.current.rendererPoint,
+          measurementRef.current.sourceSurfaceRect
+        );
+      }
+    }, [disabled, setRenderedGateway]);
 
     useLayoutEffect(() => {
-      setProjectedPosition(0, 0, 0, 0, false);
-    }, [setProjectedPosition]);
+      setRenderedGateway(emptyRendererPoint(), null);
+    }, [setRenderedGateway]);
 
     const dismissNotice = useCallback(() => {
       if (!noticeOpenRef.current) {
@@ -324,12 +478,38 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
         disabledRef.current
         || activationLockedRef.current
         || activationInFlightRef.current
-        || !projectionRef.current.visible
+        || !measurementRef.current.ready
       ) {
         return;
       }
       activationInFlightRef.current = true;
       const activation = captureActivation(input, clientPoint);
+      if (
+        !activation.ready
+        || (
+          input === 'pointer'
+          && !gatewayClientPointInsideRect(
+            activation.pointerClientPoint,
+            activation.buttonRect
+          )
+        )
+      ) {
+        activationInFlightRef.current = false;
+        return;
+      }
+      const gatewayElement = gatewayRef.current;
+      if (gatewayElement) {
+        gatewayElement.dataset.acceptedPointerX =
+          String(activation.pointerClientPoint?.x ?? '');
+        gatewayElement.dataset.acceptedPointerY =
+          String(activation.pointerClientPoint?.y ?? '');
+        gatewayElement.dataset.frozenClientX =
+          String(activation.gatewayClientCenter?.x ?? '');
+        gatewayElement.dataset.frozenClientY =
+          String(activation.gatewayClientCenter?.y ?? '');
+        gatewayElement.dataset.measurementGeneration =
+          String(activation.measurementGeneration);
+      }
       if (notice) {
         noticeOpenRef.current = true;
         setNoticeState((current) => ({ open: true, version: current.version + 1 }));
@@ -341,10 +521,14 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
         activationInFlightRef.current = false;
         if (onActivate) {
           activationLockedRef.current = true;
-          projectionRef.current = {
-            ...projectionRef.current,
-            visible: false
-          };
+          measurementRef.current = Object.freeze({
+            ...measurementRef.current,
+            rendererPoint: createGatewayRendererPoint({
+              ...measurementRef.current.rendererPoint,
+              visible: false
+            }),
+            ready: false
+          });
           setActivationLocked(true);
           const gateway = gatewayRef.current;
           const anchor = anchorRef.current;
@@ -462,7 +646,7 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
                 && Number.isFinite(event.clientX)
                 && Number.isFinite(event.clientY)
               )
-                ? { x: event.clientX, y: event.clientY }
+                ? createGatewayClientPoint(event.clientX, event.clientY)
                 : null;
             }}
             onPointerCancel={() => {
@@ -475,7 +659,8 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
               activateGateway(
                 input,
                 input === 'pointer'
-                  ? pointerPoint ?? { x: event.clientX, y: event.clientY }
+                  ? pointerPoint
+                    ?? createGatewayClientPoint(event.clientX, event.clientY)
                   : null
               );
             }}

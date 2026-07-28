@@ -40,7 +40,7 @@ function finitePoseValues(pose: TitleDeparturePose) {
 
 /**
  * Freezes the last fully rendered gateway pose at activation. The CSS veil
- * already retains the activation point; holding the underlying scene prevents
+ * retains that rendered gateway center; holding the underlying scene prevents
  * camera and pointer-parallax drift from moving the violet gateway beneath it.
  */
 export function captureTitleDeparturePose(
@@ -99,93 +99,4 @@ export function applyTitleDeparturePose(
     pose.cameraQuaternionZ,
     pose.cameraQuaternionW
   );
-}
-
-type TitleDepartureViewportTarget = Readonly<{
-  gateway: THREE.Object3D;
-  movableRoot: THREE.Object3D;
-  camera: THREE.Camera;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}>;
-
-type TitleDepartureClientPoint = Readonly<{ x: number; y: number }>;
-type TitleDepartureSurfaceRect = Readonly<{
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-}>;
-type TitleDepartureViewport = Readonly<{ width: number; height: number }>;
-
-export function titleDepartureClientPointToViewport(
-  point: TitleDepartureClientPoint,
-  surface: TitleDepartureSurfaceRect,
-  viewport: TitleDepartureViewport
-) {
-  if (
-    ![
-      point.x,
-      point.y,
-      surface.left,
-      surface.top,
-      surface.width,
-      surface.height,
-      viewport.width,
-      viewport.height
-    ].every(Number.isFinite)
-    || surface.width <= 0
-    || surface.height <= 0
-    || viewport.width <= 0
-    || viewport.height <= 0
-  ) {
-    throw new Error('TITLE_DEPARTURE_VIEWPORT_INVALID');
-  }
-  return Object.freeze({
-    x: (point.x - surface.left) / surface.width * viewport.width,
-    y: (point.y - surface.top) / surface.height * viewport.height
-  });
-}
-
-/**
- * Keeps the rendered gateway on the frozen client-space activation point when
- * a resize changes the camera projection during the short departure.
- */
-export function pinTitleDepartureGatewayToViewport(
-  target: TitleDepartureViewportTarget
-) {
-  if (
-    !Number.isFinite(target.x)
-    || !Number.isFinite(target.y)
-    || !Number.isFinite(target.width)
-    || !Number.isFinite(target.height)
-    || target.width <= 0
-    || target.height <= 0
-  ) {
-    throw new Error('TITLE_DEPARTURE_VIEWPORT_INVALID');
-  }
-
-  target.camera.updateMatrixWorld(true);
-  target.movableRoot.updateWorldMatrix(true, true);
-  const gatewayWorld = target.gateway.getWorldPosition(new THREE.Vector3());
-  const projected = gatewayWorld.clone().project(target.camera);
-  if (![projected.x, projected.y, projected.z].every(Number.isFinite)) {
-    throw new Error('TITLE_DEPARTURE_PROJECTION_INVALID');
-  }
-
-  const desiredWorld = new THREE.Vector3(
-    target.x / target.width * 2 - 1,
-    -(target.y / target.height) * 2 + 1,
-    projected.z
-  ).unproject(target.camera);
-  const desiredRootWorld = target.movableRoot
-    .getWorldPosition(new THREE.Vector3())
-    .add(desiredWorld.sub(gatewayWorld));
-  const desiredRootLocal = target.movableRoot.parent
-    ? target.movableRoot.parent.worldToLocal(desiredRootWorld)
-    : desiredRootWorld;
-  target.movableRoot.position.copy(desiredRootLocal);
-  target.movableRoot.updateWorldMatrix(true, true);
 }

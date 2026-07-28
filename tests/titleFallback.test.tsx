@@ -47,6 +47,20 @@ describe('Warpkeep continuous-outline fallback', () => {
         } as DOMRect;
       }
 
+      if (this.classList.contains('warpkeep-gateway-button')) {
+        return {
+          x: 686,
+          y: 213,
+          left: 686,
+          top: 213,
+          right: 826,
+          bottom: 303,
+          width: 140,
+          height: 90,
+          toJSON: () => ({})
+        } as DOMRect;
+      }
+
       if (
         this.classList.contains('warpkeep-title-screen')
         || this.classList.contains('warpkeep-gateway')
@@ -91,28 +105,96 @@ describe('Warpkeep continuous-outline fallback', () => {
     const activation = onRequestEnterMenu.mock.calls[0]![0];
     expect(activation).toMatchObject({
       input: 'keyboard',
-      projection: {
+      pointerClientPoint: null,
+      rendererPoint: {
+        space: 'renderer',
         x: 676,
         y: 218,
         viewportWidth: 1280,
         viewportHeight: 720,
         visible: true
       },
-      projectionSourceRect: {
+      sourceSurfaceRect: {
+        space: 'client-rect',
         left: 80,
         top: 40,
         width: 1280,
         height: 720
-      }
+      },
+      gatewayClientCenter: {
+        space: 'client',
+        x: 756,
+        y: 258
+      },
+      buttonClientCenter: {
+        space: 'client',
+        x: 756,
+        y: 258
+      },
+      alignmentErrorPx: 0,
+      ready: true
     });
     expect(resolveGatewayActivationOrigin(activation, {
+      space: 'client-rect',
       left: 0,
       top: 0,
       width: 1_440,
       height: 900
     })).toEqual({
+      space: 'client',
       x: 756,
       y: 258
     });
+  });
+
+  it('freezes fallback surface geometry only after the reverse passage is accepted', () => {
+    const { container, rerender } = render(
+      <WarpkeepTitleScreenFallback phase="preparing-return" />
+    );
+    const surface = container.querySelector<HTMLElement>('.warpkeep-title-screen')!;
+    const galaxy = container.querySelector<HTMLElement>('.warpkeep-fallback-galaxy')!;
+    Object.defineProperty(surface, 'clientWidth', {
+      configurable: true,
+      value: 1280
+    });
+    Object.defineProperty(surface, 'clientHeight', {
+      configurable: true,
+      value: 720
+    });
+    Object.defineProperties(galaxy, {
+      offsetLeft: {
+        configurable: true,
+        value: 640
+      },
+      offsetTop: {
+        configurable: true,
+        value: -14
+      },
+      offsetWidth: {
+        configurable: true,
+        value: 1126
+      },
+      offsetHeight: {
+        configurable: true,
+        value: 619
+      }
+    });
+    expect(surface.style.width).toBe('');
+    expect(galaxy.style.width).toBe('');
+
+    rerender(<WarpkeepTitleScreenFallback phase="returning" />);
+    expect(surface.style.width).toBe('1280px');
+    expect(surface.style.height).toBe('720px');
+    expect(surface.style.minWidth).toBe('1280px');
+    expect(surface.style.maxHeight).toBe('720px');
+    expect(galaxy.style.left).toBe('640px');
+    expect(galaxy.style.top).toBe('-14px');
+    expect(galaxy.style.width).toBe('1126px');
+    expect(galaxy.style.height).toBe('619px');
+    expect(galaxy.style.aspectRatio).toBe('auto');
+
+    rerender(<WarpkeepTitleScreenFallback phase="active" />);
+    expect(surface.getAttribute('style')).toBeNull();
+    expect(galaxy.getAttribute('style')).toBeNull();
   });
 });

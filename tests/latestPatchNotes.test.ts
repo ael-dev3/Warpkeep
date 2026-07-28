@@ -18,24 +18,37 @@ describe('latest in-menu patch notes', () => {
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
       releasedOn: '28 JUL 2026',
-      title: 'THE GATE HOLDS'
+      title: 'THE GATE ALIGNS'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /title gateway.*violet passage.*centered.*activation point.*drifting/i
+      /first visible transition frame.*rendered gateway center.*displaced.*coordinate/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Idle Supply Wagons.*inside their keeps.*outbound.*gathering.*returning/i
+      /Pointer.*touch.*keyboard.*returning passages.*measured gateway origin.*repeated crossings/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /All four Workers.*keep controls.*dispatch.*recall.*Realm authority unchanged/i
+      /gateway stays closed.*visible center.*interaction target.*focus position.*agree/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /released to players|deployed to players|public balances|guaranteed rewards/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('keeper’s hand');
+    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain(
+      'visible black-hole gateway itself'
+    );
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'Worker ownership, private accounting, settlement'
+      'does not change authentication, Worker authority, resources'
+    );
+
+    const alpha0322 = getLatestPatchNotes('0.3.22');
+    expect(alpha0322).toMatchObject({
+      title: 'THE WAGONS REST'
+    });
+    expect(`${alpha0322?.summary} ${alpha0322?.highlights.join(' ')}`).toMatch(
+      /early gateway-alignment pass.*fuller correction.*initial title-transition alignment pass.*production evidence.*could still disagree/i
+    );
+    expect(`${alpha0322?.summary} ${alpha0322?.highlights.join(' ')}`).not.toMatch(
+      /holds beneath.*remain centered.*instead of drifting/i
     );
     expect(getLatestPatchNotes('0.3.15')).toBeUndefined();
     expect(getLatestPatchNotes('0.3.14')).toBeUndefined();

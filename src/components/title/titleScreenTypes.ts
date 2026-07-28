@@ -1,14 +1,23 @@
 import type { GraphicsQualityTier } from '../../settings/graphicsPreference';
 import {
+  createGatewayClientPoint,
   createGatewayActivationRecord,
+  createGatewayRendererPoint,
+  currentGatewayViewport,
   type GatewayActivationInput,
   type GatewayActivationRecord,
-  type GatewayProjection
+  type GatewayClientPoint,
+  type GatewayRenderedMeasurement,
+  type GatewayRendererPoint
 } from './gatewayActivation';
 
 export type WarpkeepInputModality = 'keyboard' | 'pointer' | 'unknown';
 
-export type WarpkeepTitlePhase = 'active' | 'departing' | 'returning';
+export type WarpkeepTitlePhase =
+  | 'active'
+  | 'departing'
+  | 'preparing-return'
+  | 'returning';
 
 export type WarpkeepTitleScreenProps = {
   phase?: WarpkeepTitlePhase;
@@ -21,30 +30,50 @@ export type WarpkeepTitleScreenProps = {
 export type WarpkeepTitleScreenHandle = {
   requestEnter: (input: GatewayActivationInput) => void;
   focusGateway: () => void;
-  getGatewayProjection: () => GatewayProjection;
+  getGatewayClientCenter: () => GatewayClientPoint | null;
+  getGatewayMeasurement: () => GatewayRenderedMeasurement;
   getGatewayActivation: (input: GatewayActivationInput) => GatewayActivationRecord;
 };
 
-export const fallbackGatewayProjection = (): GatewayProjection => ({
-  x: window.innerWidth * 0.5,
-  y: window.innerHeight * 0.36,
-  viewportWidth: window.innerWidth,
-  viewportHeight: window.innerHeight,
-  visible: true
-});
+export const fallbackGatewayRendererPoint = (): GatewayRendererPoint =>
+  createGatewayRendererPoint({
+    x: window.innerWidth * 0.5,
+    y: window.innerHeight * 0.36,
+    viewportWidth: window.innerWidth,
+    viewportHeight: window.innerHeight,
+    visible: true
+  });
+
+export const fallbackGatewayClientCenter = (): GatewayClientPoint =>
+  createGatewayClientPoint(
+    window.innerWidth * 0.5,
+    window.innerHeight * 0.36
+  )!;
+
+export const fallbackGatewayMeasurement = (): GatewayRenderedMeasurement => {
+  const rendererPoint = fallbackGatewayRendererPoint();
+  const gatewayClientCenter = fallbackGatewayClientCenter();
+  return Object.freeze({
+    generation: 1,
+    rendererPoint,
+    sourceSurfaceRect: currentGatewayViewport(),
+    gatewayClientCenter,
+    buttonClientCenter: null,
+    alignmentErrorPx: null,
+    ready: true
+  });
+};
 
 export const fallbackGatewayActivation = (
   input: GatewayActivationInput
 ): GatewayActivationRecord => {
-  const projection = fallbackGatewayProjection();
+  const measurement = fallbackGatewayMeasurement();
   return createGatewayActivationRecord({
     input,
-    projection,
-    projectionSourceRect: {
-      left: 0,
-      top: 0,
-      width: projection.viewportWidth,
-      height: projection.viewportHeight
-    }
+    rendererPoint: measurement.rendererPoint,
+    sourceSurfaceRect: measurement.sourceSurfaceRect,
+    gatewayClientCenter: measurement.gatewayClientCenter,
+    measurementGeneration: measurement.generation,
+    ready: true
   });
 };

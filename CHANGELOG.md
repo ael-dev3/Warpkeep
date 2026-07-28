@@ -6,10 +6,19 @@ full engineering record.
 
 ## [Unreleased]
 
+## [0.3.23] — 2026-07-28
+
+- Centered the violet title passage on the actual visible black-hole gateway
+  from its first rendered frame in both directions.
+- Kept pointer, touch, keyboard, and repeated crossings aligned to that same
+  gateway center without reusing a stale or arbitrary click origin.
+- Left authentication, Workers, resources, Realm rendering, and persistent
+  world state unchanged.
+
 ## [0.3.22] — 2026-07-28
 
-- Held the rendered title gateway beneath the exact pointer, touch, or keyboard
-  activation point until the violet passage covers it.
+- Shipped an initial title-transition alignment pass; later production
+  recording confirmed that a coordinate mismatch still remained.
 - Parked idle Supply Wagons invisibly inside their keeps so only active
   outbound, gathering, and returning journeys occupy the Realm map.
 - Kept all four Workers available through keep controls without changing
@@ -244,7 +253,8 @@ full engineering record.
   Lowlands, a first keep, Farcaster sign-in, and an admission-gated shared-world
   foundation.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.22...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.23...HEAD
+[0.3.23]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.22...v0.3.23
 [0.3.22]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.21...v0.3.22
 [0.3.21]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.20...v0.3.21
 [0.3.20]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.19...v0.3.20
