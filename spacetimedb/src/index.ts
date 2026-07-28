@@ -6,6 +6,7 @@ export { onConnect } from './lifecycle';
 export {
   getMyAdmissionStatus,
   getMyAdmissionStatusV2,
+  getMyEntryAgreementStatusV1,
   bootstrapPlayer,
   bootstrapPlayerV2,
   acceptAlphaTermsV1,

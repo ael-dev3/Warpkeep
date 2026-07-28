@@ -25,6 +25,7 @@ import {
   observeWarpkeepRealm,
   readWarpkeepBackendInfo,
   readWarpkeepAdmissionStatus,
+  readWarpkeepEntryAgreementStatus,
   readWarpkeepGoldExpeditionState,
   readWarpkeepStoneExpeditionState,
   readWarpkeepWoodExpeditionState,
@@ -1162,6 +1163,82 @@ describe('Warpkeep authenticated connection boundary', () => {
       termsVersion: BROWSER_ALPHA_TERMS_VERSION,
       accepted: true
     });
+  });
+
+  it.each([true, false])(
+    'reads the exact current entry-agreement status: %s',
+    async acceptedCurrent => {
+      const procedure = vi.fn(async () => ({
+        requiredVersion: BROWSER_ALPHA_TERMS_VERSION,
+        acceptedCurrent
+      }));
+      const connection = {
+        procedures: { getMyEntryAgreementStatusV1: procedure }
+      } as unknown as WarpkeepConnection;
+
+      await expect(readWarpkeepEntryAgreementStatus(connection)).resolves.toBe(acceptedCurrent);
+      expect(procedure).toHaveBeenCalledWith({});
+    }
+  );
+
+  it('returns undefined when the generated entry-agreement procedure is absent', async () => {
+    const connection = { procedures: {} } as unknown as WarpkeepConnection;
+
+    await expect(readWarpkeepEntryAgreementStatus(connection)).resolves.toBeUndefined();
+  });
+
+  it('returns undefined only for a recognizable missing entry-agreement procedure response', async () => {
+    const connection = {
+      procedures: {
+        getMyEntryAgreementStatusV1: vi.fn(async () => {
+          throw new Error(
+            'Unknown procedure: get_my_entry_agreement_status_v1'
+          );
+        })
+      }
+    } as unknown as WarpkeepConnection;
+
+    await expect(readWarpkeepEntryAgreementStatus(connection)).resolves.toBeUndefined();
+  });
+
+  it.each([
+    null,
+    {
+      requiredVersion: BROWSER_ALPHA_TERMS_VERSION,
+      acceptedCurrent: 'true'
+    },
+    {
+      requiredVersion: BROWSER_ALPHA_TERMS_VERSION,
+      acceptedCurrent: true,
+      fid: 12_345
+    },
+    {
+      requiredVersion: '2026-07-19-hegemony-entry-agreement-v2',
+      acceptedCurrent: true
+    }
+  ])('rejects malformed or mismatched entry-agreement status %#', async raw => {
+    const connection = {
+      procedures: {
+        getMyEntryAgreementStatusV1: vi.fn(async () => raw)
+      }
+    } as unknown as WarpkeepConnection;
+
+    await expect(readWarpkeepEntryAgreementStatus(connection)).rejects.toThrow(
+      'Warpkeep entry agreement status is unavailable.'
+    );
+  });
+
+  it('propagates unrelated entry-agreement procedure errors', async () => {
+    const rejection = new Error('ENTRY_AGREEMENT_AUTHORITY_UNAVAILABLE');
+    const connection = {
+      procedures: {
+        getMyEntryAgreementStatusV1: vi.fn(async () => {
+          throw rejection;
+        })
+      }
+    } as unknown as WarpkeepConnection;
+
+    await expect(readWarpkeepEntryAgreementStatus(connection)).rejects.toBe(rejection);
   });
 
   it('falls back only for a narrowly identified missing atomic Worker procedure', async () => {

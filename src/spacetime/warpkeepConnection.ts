@@ -388,6 +388,60 @@ export async function bootstrapWarpkeepPlayer(connection: WarpkeepConnection) {
   await connection.reducers.bootstrapPlayerV2({});
 }
 
+function isMissingEntryAgreementStatusProcedure(error: unknown): boolean {
+  const message = typeof error === 'string'
+    ? error
+    : error instanceof Error
+      ? error.message
+      : '';
+  const normalized = message.trim().toLowerCase();
+  const namesProcedure = normalized.includes('get_my_entry_agreement_status_v1')
+    || normalized.includes('getmyentryagreementstatusv1');
+  const identifiesMissingProcedure = /\b(no such|unknown|unrecognized|not found|does not exist|not registered)\b/.test(
+    normalized
+  ) && normalized.includes('procedure');
+  return identifiesMissingProcedure && (namesProcedure || normalized.length < 96);
+}
+
+/**
+ * Ask the authenticated module whether this caller already accepted the exact
+ * agreement compiled into the browser. `undefined` means only that the
+ * additive procedure is absent on an older deployment; malformed, mismatched,
+ * and unavailable responses remain hard failures.
+ */
+export async function readWarpkeepEntryAgreementStatus(
+  connection: WarpkeepConnection
+): Promise<boolean | undefined> {
+  const procedure = (connection.procedures as unknown as {
+    getMyEntryAgreementStatusV1?: (
+      input: Readonly<Record<string, never>>
+    ) => Promise<unknown>;
+  }).getMyEntryAgreementStatusV1;
+  if (typeof procedure !== 'function') return undefined;
+
+  let raw: unknown;
+  try {
+    raw = await procedure({});
+  } catch (error) {
+    if (isMissingEntryAgreementStatusProcedure(error)) return undefined;
+    throw error;
+  }
+  if (
+    raw === null
+    || typeof raw !== 'object'
+    || Array.isArray(raw)
+    || Object.keys(raw).length !== 2
+    || !Object.prototype.hasOwnProperty.call(raw, 'requiredVersion')
+    || !Object.prototype.hasOwnProperty.call(raw, 'acceptedCurrent')
+    || (raw as { requiredVersion?: unknown }).requiredVersion
+      !== WARPKEEP_ALPHA_TERMS_VERSION
+    || typeof (raw as { acceptedCurrent?: unknown }).acceptedCurrent !== 'boolean'
+  ) {
+    throw new Error('Warpkeep entry agreement status is unavailable.');
+  }
+  return (raw as { acceptedCurrent: boolean }).acceptedCurrent;
+}
+
 /**
  * Authenticated, idempotent current-entry-agreement acknowledgement; callers
  * must retain the one-box gesture intent in memory only.

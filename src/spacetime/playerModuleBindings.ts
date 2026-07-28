@@ -4,7 +4,7 @@
  *
  * The complete generated bindings remain the canonical schema artifact under
  * `module_bindings/` and are still used by server-side operators. The player
- * only needs the public realm tables plus ten read procedures and fifteen
+ * only needs the public realm tables plus eleven read procedures and fifteen
  * self-service reducers. Keeping that runtime projection separate prevents
  * private/admin and machine-bound QA procedure names from becoming part of
  * the public Vite graph while preserving generated-binding parity unchanged.
@@ -42,6 +42,7 @@ import CastleRow from './module_bindings/castle_table'
 import CastleWorkerV1Row from './module_bindings/castle_worker_v_1_table'
 import * as GetAlphaBackendInfoProcedure from './module_bindings/get_alpha_backend_info_procedure'
 import * as GetMyAdmissionStatusV2Procedure from './module_bindings/get_my_admission_status_v_2_procedure'
+import * as GetMyEntryAgreementStatusV1Procedure from './module_bindings/get_my_entry_agreement_status_v_1_procedure'
 import * as GetMyFoodExpeditionStateV1Procedure from './module_bindings/get_my_food_expedition_state_v_1_procedure'
 import * as GetMyGoldExpeditionStateV1Procedure from './module_bindings/get_my_gold_expedition_state_v_1_procedure'
 import * as GetMyWoodExpeditionStateV1Procedure from './module_bindings/get_my_wood_expedition_state_v_1_procedure'
@@ -410,6 +411,11 @@ const proceduresSchema = __procedures(
     'get_my_admission_status_v2',
     GetMyAdmissionStatusV2Procedure.params,
     GetMyAdmissionStatusV2Procedure.returnType,
+  ),
+  __procedureSchema(
+    'get_my_entry_agreement_status_v1',
+    GetMyEntryAgreementStatusV1Procedure.params,
+    GetMyEntryAgreementStatusV1Procedure.returnType,
   ),
   __procedureSchema(
     'get_my_food_expedition_state_v1',

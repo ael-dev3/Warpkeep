@@ -99,12 +99,177 @@ function BackendProbe() {
   );
 }
 
+type EntryAgreementStatusReader = NonNullable<
+  WarpkeepBackendRuntime['readEntryAgreementStatus']
+>;
+
+function createTermsGateRuntime(readStatus: EntryAgreementStatusReader) {
+  const connections: Array<{
+    isDisconnectRequested: boolean;
+    disconnect: ReturnType<typeof vi.fn>;
+  }> = [];
+  const readEntryAgreementStatus = vi.fn(readStatus);
+  const runtime = {
+    connect: vi.fn(async () => {
+      const connection = { isDisconnectRequested: false, disconnect: vi.fn() };
+      connections.push(connection);
+      return connection;
+    }),
+    disconnect: vi.fn(),
+    readBackendInfo: vi.fn(async () => ({
+      protocolVersion: 3,
+      worldSeed: 3_445_214_658,
+      worldSeedName: 'HEGEMONY_GENESIS_001'
+    })),
+    readAdmission: vi.fn(async () => 'ready'),
+    bootstrapPlayer: vi.fn(),
+    readEntryAgreementStatus,
+    acceptAlphaTerms: vi.fn(async () => undefined),
+    readResourceState: vi.fn(async (_candidate, fid: number) => createReadyResourceState(fid)),
+    collectResources: vi.fn(async (_candidate, fid: number) => createReadyResourceState(fid)),
+    observeRealm: vi.fn(() => vi.fn()),
+    readRealmSnapshot: vi.fn((_candidate, fid: number) => createCanonicalGenesisSnapshot(fid)),
+    subscribeRealm: vi.fn((_candidate, onApplied: () => void) => {
+      onApplied();
+      return { unsubscribe: vi.fn() };
+    })
+  } as unknown as WarpkeepBackendRuntime;
+  return Object.freeze({ runtime, connections, readEntryAgreementStatus });
+}
+
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
 });
 
 describe('Warpkeep server Terms gate', () => {
+  it('activates Realm from authoritative current agreement evidence without accepting again', async () => {
+    mockedFarcaster.current = authenticatedFarcasterState();
+    const backend = createTermsGateRuntime(async () => true);
+
+    render(
+      <WarpkeepSpacetimeProvider config={CONFIG} runtime={backend.runtime}>
+        <BackendProbe />
+      </WarpkeepSpacetimeProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('backend-phase').textContent).toBe('ready');
+    });
+    expect(screen.getByTestId('entry-agreement-satisfied').textContent).toBe('true');
+    expect(backend.readEntryAgreementStatus).toHaveBeenCalledTimes(1);
+    expect(backend.readEntryAgreementStatus).toHaveBeenCalledWith(backend.connections[0]);
+    expect(backend.runtime.acceptAlphaTerms).not.toHaveBeenCalled();
+    expect(backend.runtime.readResourceState).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.observeRealm).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.subscribeRealm).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['an authoritative false result', false],
+    ['the undefined predecessor compatibility result', undefined]
+  ] as const)('requires explicit Terms after %s', async (_label, status) => {
+    mockedFarcaster.current = authenticatedFarcasterState();
+    const backend = createTermsGateRuntime(async () => status);
+
+    render(
+      <WarpkeepSpacetimeProvider config={CONFIG} runtime={backend.runtime}>
+        <BackendProbe />
+      </WarpkeepSpacetimeProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('backend-phase').textContent).toBe('awaiting-terms');
+    });
+    expect(screen.getByTestId('entry-agreement-satisfied').textContent).toBe('false');
+    expect(backend.readEntryAgreementStatus).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.acceptAlphaTerms).not.toHaveBeenCalled();
+    expect(backend.runtime.readResourceState).not.toHaveBeenCalled();
+    expect(backend.runtime.observeRealm).not.toHaveBeenCalled();
+    expect(backend.runtime.subscribeRealm).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TEST TERMS' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('backend-phase').textContent).toBe('ready');
+    });
+    expect(screen.getByTestId('entry-agreement-satisfied').textContent).toBe('true');
+    expect(backend.runtime.acceptAlphaTerms).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.subscribeRealm).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails closed when the authoritative entry-agreement read rejects', async () => {
+    mockedFarcaster.current = authenticatedFarcasterState();
+    const diagnostic = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const backend = createTermsGateRuntime(async () => {
+      throw new Error('controlled entry-agreement read failure header.payload.signature');
+    });
+
+    render(
+      <WarpkeepSpacetimeProvider config={CONFIG} runtime={backend.runtime}>
+        <BackendProbe />
+      </WarpkeepSpacetimeProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('backend-phase').textContent).toBe('error');
+    });
+    expect(screen.getByTestId('entry-agreement-satisfied').textContent).toBe('false');
+    expect(diagnostic).toHaveBeenCalledWith(
+      'warpkeep_backend_stage_failed:entry_agreement_status'
+    );
+    expect(JSON.stringify(diagnostic.mock.calls)).not.toContain('header.payload.signature');
+    expect(backend.runtime.acceptAlphaTerms).not.toHaveBeenCalled();
+    expect(backend.runtime.readResourceState).not.toHaveBeenCalled();
+    expect(backend.runtime.observeRealm).not.toHaveBeenCalled();
+    expect(backend.runtime.subscribeRealm).not.toHaveBeenCalled();
+    expect(backend.runtime.disconnect).toHaveBeenCalledWith(backend.connections[0]);
+  });
+
+  it('cannot reuse a delayed accepted result after the authenticated identity changes', async () => {
+    mockedFarcaster.current = authenticatedFarcasterState();
+    let resolveFirstStatus!: (status: boolean) => void;
+    const firstStatus = new Promise<boolean>((resolve) => {
+      resolveFirstStatus = resolve;
+    });
+    const backend = createTermsGateRuntime(async () => false);
+    backend.readEntryAgreementStatus
+      .mockImplementationOnce(() => firstStatus)
+      .mockResolvedValueOnce(false);
+
+    const rendered = render(
+      <WarpkeepSpacetimeProvider config={CONFIG} runtime={backend.runtime}>
+        <BackendProbe />
+      </WarpkeepSpacetimeProvider>
+    );
+    await waitFor(() => {
+      expect(backend.readEntryAgreementStatus).toHaveBeenCalledTimes(1);
+    });
+
+    mockedFarcaster.current = authenticatedFarcasterState(54_321);
+    rendered.rerender(
+      <WarpkeepSpacetimeProvider config={CONFIG} runtime={backend.runtime}>
+        <BackendProbe />
+      </WarpkeepSpacetimeProvider>
+    );
+    await waitFor(() => {
+      expect(backend.readEntryAgreementStatus).toHaveBeenCalledTimes(2);
+      expect(screen.getByTestId('backend-phase').textContent).toBe('awaiting-terms');
+    });
+
+    await act(async () => {
+      resolveFirstStatus(true);
+      await firstStatus;
+    });
+
+    expect(backend.connections).toHaveLength(2);
+    expect(screen.getByTestId('backend-phase').textContent).toBe('awaiting-terms');
+    expect(screen.getByTestId('entry-agreement-satisfied').textContent).toBe('false');
+    expect(backend.runtime.acceptAlphaTerms).not.toHaveBeenCalled();
+    expect(backend.runtime.readResourceState).not.toHaveBeenCalled();
+    expect(backend.runtime.observeRealm).not.toHaveBeenCalled();
+    expect(backend.runtime.subscribeRealm).not.toHaveBeenCalled();
+  });
+
   it('does not emit stale diagnostics after an authenticated generation is replaced', async () => {
     mockedFarcaster.current = authenticatedFarcasterState();
     let rejectFirst!: (error: Error) => void;

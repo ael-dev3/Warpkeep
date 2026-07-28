@@ -28,3 +28,55 @@ export const WARPKEEP_ENTRY_AGREEMENT_EVIDENCE_VERSIONS = Object.freeze([
 /** Every supported version can create at most one immutable row for one FID. */
 export const WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM =
   WARPKEEP_ENTRY_AGREEMENT_EVIDENCE_VERSIONS.length;
+
+export type EntryAgreementAcceptanceEvidence = Readonly<{
+  acceptanceKey: string;
+  fid: bigint;
+  termsVersion: string;
+}>;
+
+export type CurrentEntryAgreementStatusV1 = Readonly<{
+  requiredVersion: typeof WARPKEEP_ALPHA_TERMS_VERSION;
+  acceptedCurrent: boolean;
+}>;
+
+/**
+ * Distinguishes corrupt keyed evidence from normal missing acceptance without
+ * exposing the row or relying on an error string inside the procedure.
+ */
+export class EntryAgreementStatusConflictError extends Error {
+  constructor() {
+    super('ALPHA_TERMS_ACCEPTANCE_CONFLICT');
+    this.name = 'EntryAgreementStatusConflictError';
+  }
+}
+
+/**
+ * The helper receives only the two capabilities needed by the caller-only
+ * procedure: establish the admitted FID, then perform one exact keyed read.
+ * It cannot enumerate or mutate acceptance evidence.
+ */
+export function readCurrentEntryAgreementStatusV1(
+  requireAdmittedFid: () => bigint,
+  findAcceptance: (
+    acceptanceKey: string
+  ) => EntryAgreementAcceptanceEvidence | null,
+): CurrentEntryAgreementStatusV1 {
+  const fid = requireAdmittedFid();
+  const acceptanceKey = `${fid}:${WARPKEEP_ALPHA_TERMS_VERSION}`;
+  const acceptance = findAcceptance(acceptanceKey);
+  if (
+    acceptance !== null
+    && (
+      acceptance.acceptanceKey !== acceptanceKey
+      || acceptance.fid !== fid
+      || acceptance.termsVersion !== WARPKEEP_ALPHA_TERMS_VERSION
+    )
+  ) {
+    throw new EntryAgreementStatusConflictError();
+  }
+  return Object.freeze({
+    requiredVersion: WARPKEEP_ALPHA_TERMS_VERSION,
+    acceptedCurrent: acceptance !== null,
+  });
+}

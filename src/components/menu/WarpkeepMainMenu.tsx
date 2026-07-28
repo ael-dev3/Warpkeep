@@ -67,6 +67,11 @@ export type WarpkeepMainMenuProps = {
   onDisposeFarcasterSignIn?: () => void;
   onRetryFarcasterSignIn?: () => void;
   onPrepareFarcasterQrCode?: () => void;
+  /**
+   * Explicit Enter Realm preflight that may restore only an existing HttpOnly
+   * session. It never starts SIWF or prepares a QR code.
+   */
+  onRestoreFarcasterSession?: () => Promise<boolean>;
   onRefreshFarcasterSession?: () => void;
   onSignOut?: () => void;
   rememberDevice?: boolean;
@@ -79,6 +84,8 @@ export type WarpkeepMainMenuProps = {
    * the current entry agreement. It permits repeat entry without another box.
    */
   entryAgreementSatisfied?: boolean;
+  /** The authenticated backend confirmed that the current agreement is absent. */
+  entryAgreementRequired?: boolean;
   /** Renders an admission rail whose retry is owned by the Terms gate. */
   renderAuthRailContent?: (controls: AuthRailRenderControls) => ReactNode;
   onRequestAuthRailCheck?: () => void;
@@ -121,6 +128,11 @@ type TermsRequest = {
   keyboardDriven: boolean;
 };
 
+type SessionRestoreRequest = {
+  sequence: number;
+  keyboardDriven: boolean;
+};
+
 function termsContinueLabel(
   continuation: TermsContinuation | undefined
 ): AlphaParticipationTermsContinueLabel {
@@ -155,11 +167,13 @@ const FarcasterQrAuthPanel = lazy(async () => {
 function FarcasterAuthPanelFallback({
   headingRef,
   primaryActionRef,
-  onCancel
+  onCancel,
+  statusMessage = 'Preparing sign-in'
 }: {
   headingRef: Ref<HTMLHeadingElement>;
   primaryActionRef: Ref<HTMLButtonElement>;
   onCancel: () => void;
+  statusMessage?: string;
 }) {
   return (
     <section
@@ -178,7 +192,7 @@ function FarcasterAuthPanelFallback({
         <h2 ref={headingRef} tabIndex={-1}>CLAIM YOUR KEEP</h2>
       </header>
       <p aria-live="polite" className="farcaster-auth-panel__live-region" role="status">
-        Preparing sign-in
+        {statusMessage}
       </p>
       <div className="farcaster-auth-panel__actions farcaster-auth-panel__actions--quiet">
         <button
@@ -255,6 +269,7 @@ export function WarpkeepMainMenu({
   onDisposeFarcasterSignIn,
   onRetryFarcasterSignIn,
   onPrepareFarcasterQrCode,
+  onRestoreFarcasterSession,
   onRefreshFarcasterSession,
   onSignOut,
   rememberDevice = false,
@@ -262,6 +277,7 @@ export function WarpkeepMainMenu({
   onRequestAuthenticatedRealm,
   onAcceptAlphaTermsAttempt,
   entryAgreementSatisfied = false,
+  entryAgreementRequired = false,
   renderAuthRailContent,
   onRequestAuthRailCheck,
   authRailAttemptFailed = false,
@@ -288,6 +304,7 @@ export function WarpkeepMainMenu({
   const patchNotesPanelRef = useRef<HTMLElement | null>(null);
   const patchNotesCloseTimerRef = useRef<number | null>(null);
   const noticeSequenceRef = useRef(0);
+  const sessionRestoreSequenceRef = useRef(0);
   const didFocusOnRevealRef = useRef(false);
   const playbackBlockedRef = useRef(false);
   const didReportVideoReadyRef = useRef(false);
@@ -302,11 +319,14 @@ export function WarpkeepMainMenu({
   const [patchNotesState, setPatchNotesState] = useState<WarpkeepPatchNotesState>('closed');
   const [surface, setSurface] = useState<MenuSurface>('commands');
   const [termsRequest, setTermsRequest] = useState<TermsRequest | null>(null);
+  const [sessionRestoreRequest, setSessionRestoreRequest] =
+    useState<SessionRestoreRequest | null>(null);
   const reducedMotion = useReducedMotionPreference();
   const interactive = interactiveOverride ?? (active && visible);
   const shouldFocusFirstCommand = focusFirstCommand ?? inputModality === 'keyboard';
   const authPanelOpen = surface === 'farcaster-auth';
   const termsOpen = termsRequest !== null;
+  const sessionRestorePending = sessionRestoreRequest !== null;
   const patchNotesOpen = patchNotesState !== 'closed';
   const modalSurfaceOpen = termsOpen || surface === 'settings' || surface === 'credits';
   const authenticatedIdentity = authState.phase === 'authenticated'
@@ -366,6 +386,11 @@ export function WarpkeepMainMenu({
     setActiveNotice(null);
     setPatchNotesState((current) => current === 'pinned' ? 'closed' : 'pinned');
   }, [cancelPatchNotesClose]);
+
+  const invalidateSessionRestore = useCallback(() => {
+    sessionRestoreSequenceRef.current += 1;
+    setSessionRestoreRequest(null);
+  }, []);
 
   const schedulePatchNotesClose = useCallback((pointerType: string) => {
     if (pointerType === 'touch') {
@@ -468,6 +493,11 @@ export function WarpkeepMainMenu({
 
   useEffect(() => {
     if (!interactive) {
+      if (authAttemptStartedRef.current) {
+        authAttemptStartedRef.current = false;
+        onCancelFarcasterSignIn?.();
+      }
+      invalidateSessionRestore();
       setActiveNotice(null);
       closePatchNotes();
       setSurface('commands');
@@ -482,7 +512,13 @@ export function WarpkeepMainMenu({
       didFocusOnRevealRef.current = true;
       commandRefs.current[0]?.focus({ preventScroll: true });
     }
-  }, [closePatchNotes, interactive, shouldFocusFirstCommand]);
+  }, [
+    closePatchNotes,
+    interactive,
+    invalidateSessionRestore,
+    onCancelFarcasterSignIn,
+    shouldFocusFirstCommand
+  ]);
 
   useEffect(() => {
     const previousPhase = previousAuthPhaseRef.current;
@@ -505,15 +541,18 @@ export function WarpkeepMainMenu({
       previousPhase !== 'anonymous'
       && authState.phase === 'anonymous'
     ) {
+      invalidateSessionRestore();
       setSurface('commands');
     }
-  }, [authState.phase]);
+  }, [authState.phase, invalidateSessionRestore]);
 
   useEffect(() => {
     if (authRailAttemptFailed) {
+      invalidateSessionRestore();
+      authAttemptStartedRef.current = false;
       acceptedEntryAttemptRef.current = false;
     }
-  }, [authRailAttemptFailed]);
+  }, [authRailAttemptFailed, invalidateSessionRestore]);
 
   const restoreFirstCommandFocus = useCallback(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -565,6 +604,7 @@ export function WarpkeepMainMenu({
   }, [restoreSurfaceTriggerFocus]);
 
   const closeAuthPanel = useCallback((restoreKeyboardFocus = false) => {
+    invalidateSessionRestore();
     acceptedEntryAttemptRef.current = false;
     authAttemptStartedRef.current = false;
     // Player-driven dismissal must also clear an authenticated admission
@@ -576,7 +616,11 @@ export function WarpkeepMainMenu({
     if (restoreKeyboardFocus) {
       restoreFirstCommandFocus();
     }
-  }, [onCancelFarcasterSignIn, restoreFirstCommandFocus]);
+  }, [
+    invalidateSessionRestore,
+    onCancelFarcasterSignIn,
+    restoreFirstCommandFocus
+  ]);
 
   const closeTerms = useCallback(() => {
     acceptedEntryAttemptRef.current = false;
@@ -585,6 +629,7 @@ export function WarpkeepMainMenu({
   }, [restoreTermsTriggerFocus]);
 
   const handleRequestReturn = useCallback(() => {
+    invalidateSessionRestore();
     acceptedEntryAttemptRef.current = false;
     if (authAttemptStartedRef.current) {
       authAttemptStartedRef.current = false;
@@ -592,7 +637,11 @@ export function WarpkeepMainMenu({
     }
     setSurface('commands');
     onRequestReturn();
-  }, [onCancelFarcasterSignIn, onRequestReturn]);
+  }, [
+    invalidateSessionRestore,
+    onCancelFarcasterSignIn,
+    onRequestReturn
+  ]);
 
   useEffect(() => {
     if (!interactive || !authPanelOpen) {
@@ -642,6 +691,10 @@ export function WarpkeepMainMenu({
     authAttemptStartedRef.current = false;
     (onDisposeFarcasterSignIn ?? onCancelFarcasterSignIn)?.();
   }, [onCancelFarcasterSignIn, onDisposeFarcasterSignIn]);
+
+  useEffect(() => () => {
+    sessionRestoreSequenceRef.current += 1;
+  }, []);
 
   useEffect(() => {
     if (!interactive) {
@@ -731,11 +784,100 @@ export function WarpkeepMainMenu({
     anchorElement: HTMLButtonElement | null,
     keyboardDriven: boolean
   ) => {
+    invalidateSessionRestore();
     termsTriggerRef.current = anchorElement;
     setActiveNotice(null);
     closePatchNotes();
     setTermsRequest({ continuation, keyboardDriven });
-  }, [closePatchNotes]);
+  }, [closePatchNotes, invalidateSessionRestore]);
+
+  const beginSessionRestore = useCallback((
+    anchorElement: HTMLButtonElement,
+    keyboardDriven: boolean
+  ) => {
+    if (!onRestoreFarcasterSession) {
+      openTerms('begin-sign-in', anchorElement, keyboardDriven);
+      return;
+    }
+
+    const sequence = sessionRestoreSequenceRef.current + 1;
+    sessionRestoreSequenceRef.current = sequence;
+    termsTriggerRef.current = anchorElement;
+    authWasKeyboardDrivenRef.current = keyboardDriven;
+    setActiveNotice(null);
+    closePatchNotes();
+    setSessionRestoreRequest({ sequence, keyboardDriven });
+    setSurface('farcaster-auth');
+    // Reuse the established lifecycle cancellation boundary so Return to
+    // Title, route deactivation, and unmount abort the credentialed refresh.
+    authAttemptStartedRef.current = true;
+
+    let restoration: Promise<boolean>;
+    try {
+      restoration = onRestoreFarcasterSession();
+    } catch {
+      restoration = Promise.resolve(false);
+    }
+    void restoration.then((restored) => {
+      if (sessionRestoreSequenceRef.current !== sequence || restored) return;
+      authAttemptStartedRef.current = false;
+      setSurface('commands');
+      openTerms('begin-sign-in', anchorElement, keyboardDriven);
+    }).catch(() => {
+      if (sessionRestoreSequenceRef.current !== sequence) return;
+      authAttemptStartedRef.current = false;
+      setSurface('commands');
+      openTerms('begin-sign-in', anchorElement, keyboardDriven);
+    });
+  }, [
+    closePatchNotes,
+    onRestoreFarcasterSession,
+    openTerms
+  ]);
+
+  useEffect(() => {
+    const request = sessionRestoreRequest;
+    if (!interactive || !request) return;
+
+    if (authState.phase === 'pending-admission') {
+      const trigger = termsTriggerRef.current;
+      authAttemptStartedRef.current = false;
+      setSurface('commands');
+      openTerms('show-pending', trigger, request.keyboardDriven);
+      return;
+    }
+    if (
+      authState.phase !== 'authenticated'
+      || !hasCurrentAuthenticatedAccess()
+    ) {
+      return;
+    }
+    if (entryAgreementSatisfied) {
+      const identity = authState.identity;
+      termsTriggerRef.current = null;
+      authAttemptStartedRef.current = false;
+      invalidateSessionRestore();
+      setSurface('commands');
+      onRequestAuthenticatedRealm?.(identity);
+      return;
+    }
+    if (entryAgreementRequired) {
+      const trigger = termsTriggerRef.current;
+      authAttemptStartedRef.current = false;
+      setSurface('commands');
+      openTerms('enter-authenticated', trigger, request.keyboardDriven);
+    }
+  }, [
+    authState,
+    entryAgreementRequired,
+    entryAgreementSatisfied,
+    hasCurrentAuthenticatedAccess,
+    interactive,
+    invalidateSessionRestore,
+    onRequestAuthenticatedRealm,
+    openTerms,
+    sessionRestoreRequest
+  ]);
 
   const handleCommandClick = useCallback((
     command: MenuCommand,
@@ -769,7 +911,7 @@ export function WarpkeepMainMenu({
       } else if (pendingIdentity) {
         openTerms('show-pending', anchorElement, keyboardDriven);
       } else {
-        openTerms('begin-sign-in', anchorElement, keyboardDriven);
+        beginSessionRestore(anchorElement, keyboardDriven);
       }
       return;
     }
@@ -781,6 +923,7 @@ export function WarpkeepMainMenu({
     openNotice(command, anchorElement);
   }, [
     authenticatedIdentity,
+    beginSessionRestore,
     pendingIdentity,
     backendUnavailableMessage,
     closePatchNotes,
@@ -872,6 +1015,7 @@ export function WarpkeepMainMenu({
 
   const handleSignOut = useCallback(() => {
     const restoreKeyboardFocus = lastActionModalityRef.current === 'keyboard';
+    invalidateSessionRestore();
     authAttemptStartedRef.current = false;
     acceptedEntryAttemptRef.current = false;
     onSignOut?.();
@@ -879,7 +1023,7 @@ export function WarpkeepMainMenu({
     if (restoreKeyboardFocus) {
       restoreFirstCommandFocus();
     }
-  }, [onSignOut, restoreFirstCommandFocus]);
+  }, [invalidateSessionRestore, onSignOut, restoreFirstCommandFocus]);
 
   const handleAuthenticatedRealmEntry = useCallback((identity: VerifiedFarcasterIdentity) => {
     const hasCurrentAccess = hasCurrentAuthenticatedAccess()
@@ -1159,54 +1303,65 @@ export function WarpkeepMainMenu({
         </>
       ) : (
         <div className="warpkeep-menu-auth-rail">
-          <Suspense fallback={
+          {sessionRestorePending ? (
             <FarcasterAuthPanelFallback
               headingRef={authHeadingRef}
               onCancel={() => closeAuthPanel(
                 lastActionModalityRef.current === 'keyboard'
               )}
               primaryActionRef={authPrimaryActionRef}
+              statusMessage="Checking your saved session"
             />
-          }>
-            {renderAuthRailContent?.({
-              headingRef: authHeadingRef,
-              primaryActionRef: authPrimaryActionRef,
-              onCheckAgain: handleAuthRailCheck,
-              onBackToMenu: handleBackToCommands,
-              onPresentationReady: handleAuthPanelPresentationReady
-            }) ?? (
-              <FarcasterQrAuthPanel
-                channelUrl={authState.phase === 'awaiting-approval'
-                  ? authState.channelUrl
-                  : undefined}
-                assurance={authenticatedAssurance}
-                errorMessage={authState.phase === 'error' || authState.phase === 'expired'
-                  ? authState.error.message
-                  : undefined}
+          ) : (
+            <Suspense fallback={
+              <FarcasterAuthPanelFallback
                 headingRef={authHeadingRef}
-                identity={sessionIdentity}
-                onPresentationReady={handleAuthPanelPresentationReady}
-                onBackToMenu={handleBackToCommands}
                 onCancel={() => closeAuthPanel(
                   lastActionModalityRef.current === 'keyboard'
                 )}
-                onEnterRealm={handleAuthenticatedRealmEntry}
-                onPrepareQrCode={onPrepareFarcasterQrCode}
-                onCheckAdmission={handleRefreshFarcasterSession}
-                onRememberDeviceChange={onRememberDeviceChange}
-                onRetry={handleRetrySignIn}
-                onSignOut={handleSignOut}
-                phase={authState.phase === 'anonymous'
-                  ? 'creating-channel'
-                  : authState.phase}
                 primaryActionRef={authPrimaryActionRef}
-                qr={authState.phase === 'awaiting-approval'
-                  ? authState.qr
-                  : undefined}
-                rememberDevice={rememberDevice}
               />
-            )}
-          </Suspense>
+            }>
+              {renderAuthRailContent?.({
+                headingRef: authHeadingRef,
+                primaryActionRef: authPrimaryActionRef,
+                onCheckAgain: handleAuthRailCheck,
+                onBackToMenu: handleBackToCommands,
+                onPresentationReady: handleAuthPanelPresentationReady
+              }) ?? (
+                <FarcasterQrAuthPanel
+                  channelUrl={authState.phase === 'awaiting-approval'
+                    ? authState.channelUrl
+                    : undefined}
+                  assurance={authenticatedAssurance}
+                  errorMessage={authState.phase === 'error' || authState.phase === 'expired'
+                    ? authState.error.message
+                    : undefined}
+                  headingRef={authHeadingRef}
+                  identity={sessionIdentity}
+                  onPresentationReady={handleAuthPanelPresentationReady}
+                  onBackToMenu={handleBackToCommands}
+                  onCancel={() => closeAuthPanel(
+                    lastActionModalityRef.current === 'keyboard'
+                  )}
+                  onEnterRealm={handleAuthenticatedRealmEntry}
+                  onPrepareQrCode={onPrepareFarcasterQrCode}
+                  onCheckAdmission={handleRefreshFarcasterSession}
+                  onRememberDeviceChange={onRememberDeviceChange}
+                  onRetry={handleRetrySignIn}
+                  onSignOut={handleSignOut}
+                  phase={authState.phase === 'anonymous'
+                    ? 'creating-channel'
+                    : authState.phase}
+                  primaryActionRef={authPrimaryActionRef}
+                  qr={authState.phase === 'awaiting-approval'
+                    ? authState.qr
+                    : undefined}
+                  rememberDevice={rememberDevice}
+                />
+              )}
+            </Suspense>
+          )}
         </div>
       )}
 

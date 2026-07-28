@@ -84,6 +84,11 @@ export type FarcasterAuthControllerValue = Readonly<{
   state: FarcasterAuthViewState;
   /** Bearer material is intentionally separate from presentation state. */
   oidcSession: FarcasterOidcSession | undefined;
+  /**
+   * From an explicit player gesture, try only the existing HttpOnly session
+   * family while anonymous. This never clears logout intent or starts SIWF.
+   */
+  restoreSession: () => Promise<boolean>;
   beginSignIn: () => void;
   cancelSignIn: () => void;
   retrySignIn: () => void;
@@ -1292,6 +1297,20 @@ export function FarcasterAuthProviderCore({
     }
   }, [refreshSession]);
 
+  const restoreSession = useCallback(() => {
+    if (
+      machineRef.current.view.phase !== 'anonymous'
+      || authActivationFlightRef.current !== undefined
+    ) {
+      return Promise.resolve(false);
+    }
+    // Unlike beginConsentGatedSignIn, this deliberately does not call
+    // beginExplicitAuthActivation: an active or unavailable logout-control
+    // record stays fail-closed, and a missing cookie never falls through to
+    // SIWF channel or QR creation.
+    return refreshSession(false);
+  }, [refreshSession]);
+
   useEffect(() => {
     const unmountController = controller.mount();
     return () => {
@@ -1418,6 +1437,7 @@ export function FarcasterAuthProviderCore({
   const value = useMemo<FarcasterAuthControllerValue>(() => ({
     state: machine.view,
     oidcSession,
+    restoreSession,
     beginSignIn: beginConsentGatedSignIn,
     cancelSignIn: cancelConsentGatedSignIn,
     retrySignIn: beginConsentGatedSignIn,
@@ -1434,6 +1454,7 @@ export function FarcasterAuthProviderCore({
     oidcSession,
     refreshActiveSession,
     rememberDevice,
+    restoreSession,
     setRememberDevice,
     signOut
   ]);
