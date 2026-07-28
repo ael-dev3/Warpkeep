@@ -129,6 +129,12 @@ describe('production title transition frame browser lane', () => {
       scaleY: 2,
       widthFraction: 0.5
     });
+    expect(ownerCase.overlayStress).toMatchObject({
+      heightViewportPercent: 200,
+      scaleX: 0.5,
+      scaleY: 0.5,
+      widthViewportPercent: 200
+    });
     expect(new Set(
       TITLE_TRANSITION_FRAME_CASES.map((probeCase) => probeCase.deviceScaleFactor)
     )).toEqual(new Set([1, 1.5, 2, 3]));
@@ -173,7 +179,7 @@ describe('production title transition frame browser lane', () => {
     expect(source).toContain('default_zoom_level');
     expect(source).toContain("x: titleTransitionBrowserZoomLevel(zoomPercent)");
     expect(source).toContain("session.command('Page.getLayoutMetrics')");
-    expect(source).toContain('cssVisualViewport?.zoom');
+    expect(source).toContain('const cdpVisualViewport = layoutMetrics?.cssVisualViewport');
     expect(source).toContain('initialFrame: publicFrameRecord(initialVisualFrame)');
     expect(source).not.toContain('Emulation.setPageScaleFactor');
   });
@@ -219,14 +225,21 @@ describe('production title transition frame browser lane', () => {
         acceptedPointerY: 345
       },
       overlay: {
+        clientHeight: 2160,
+        clientWidth: 3840,
         clientX: 960,
         clientY: 320,
         count: 1,
         direction: 'to-menu',
         input: 'pointer',
-        localX: 960,
-        localY: 320,
+        localX: 1920,
+        localY: 640,
+        normalizedU: 0.5,
+        normalizedV: 320 / 1080,
         originReady: true,
+        originCssX: '50%',
+        originCssY: `${320 / 1080 * 100}%`,
+        parentBody: true,
         rect: {
           height: 1080,
           left: 0,
@@ -234,9 +247,23 @@ describe('production title transition frame browser lane', () => {
           width: 1920
         },
         sequence: 1,
+        visualViewportHeight: 1080,
+        visualViewportOffsetLeft: 0,
+        visualViewportOffsetTop: 0,
+        visualViewportScale: 1,
+        visualViewportWidth: 1920,
         visible: true
       },
-      viewport: { height: 1080, width: 1920 }
+      viewport: { height: 1080, width: 1920 },
+      visualViewport: {
+        height: 1080,
+        offsetLeft: 0,
+        offsetTop: 0,
+        pageLeft: 0,
+        pageTop: 0,
+        scale: 1,
+        width: 1920
+      }
     };
     expect(validateTitleTransitionOverlayGeometry(
       observation,
@@ -253,7 +280,7 @@ describe('production title transition frame browser lane', () => {
     });
 
     observation.overlay.clientX = 1010;
-    observation.overlay.localX = 1010;
+    observation.overlay.localX = 2020;
     expect(() => validateTitleTransitionOverlayGeometry(
       observation,
       {
@@ -276,6 +303,8 @@ describe('production title transition frame browser lane', () => {
         acceptedPointerY: 420
       },
       overlay: {
+        clientHeight: 844,
+        clientWidth: 390,
         clientX: 195,
         clientY: 410,
         count: 1,
@@ -283,7 +312,12 @@ describe('production title transition frame browser lane', () => {
         input: 'touch',
         localX: 195,
         localY: 410,
+        normalizedU: 0.5,
+        normalizedV: 410 / 844,
         originReady: true,
+        originCssX: '50%',
+        originCssY: `${410 / 844 * 100}%`,
+        parentBody: true,
         rect: {
           height: 844,
           left: 0,
@@ -291,9 +325,23 @@ describe('production title transition frame browser lane', () => {
           width: 390
         },
         sequence: 1,
+        visualViewportHeight: 844,
+        visualViewportOffsetLeft: 0,
+        visualViewportOffsetTop: 0,
+        visualViewportScale: 1,
+        visualViewportWidth: 390,
         visible: true
       },
-      viewport: { height: 844, width: 390 }
+      viewport: { height: 844, width: 390 },
+      visualViewport: {
+        height: 844,
+        offsetLeft: 0,
+        offsetTop: 0,
+        pageLeft: 0,
+        pageTop: 0,
+        scale: 1,
+        width: 390
+      }
     };
     const expected = {
       direction: 'to-menu' as const,
@@ -352,16 +400,64 @@ describe('production title transition frame browser lane', () => {
       expect(veil.acceptedDirections).toBeGreaterThanOrEqual(24);
       expect(veil.boundaryRadiusCssPixels).toBeGreaterThan(45);
       expect(veil.deltaPhysicalPixels).toBeLessThanOrEqual(3);
-      expect(analyzeTitleTransitionFirstVisibleFrame(
+      const firstVisibleEvidence = analyzeTitleTransitionFirstVisibleFrame(
         inactive,
         early,
         viewport,
         center
-      ).deltaPhysicalPixels).toBeLessThanOrEqual(1);
+      );
+      expect(firstVisibleEvidence.deltaPhysicalPixels).toBeLessThanOrEqual(1);
+      expect(firstVisibleEvidence.searchScope).toBe('full-frame');
     } finally {
       gateway.fill(0);
       inactive.fill(0);
       early.fill(0);
+      expanded.fill(0);
+    }
+  });
+
+  it('finds a displaced transition disk globally instead of accepting an expected-point decoy', () => {
+    const viewport = { height: 320, width: 320 };
+    const expected = { x: 80, y: 80 };
+    const actual = { x: 230, y: 220 };
+    const inactive = syntheticPng(320, 320, () => [3, 4, 12]);
+    const firstVisible = syntheticPng(320, 320, (x, y) => {
+      if (Math.hypot(x - actual.x, y - actual.y) <= 18) return [88, 26, 120];
+      if (Math.hypot(x - expected.x, y - expected.y) <= 2) return [112, 28, 148];
+      return [3, 4, 12];
+    });
+    const expanded = syntheticPng(320, 320, (x, y) => {
+      if (Math.hypot(x - actual.x, y - actual.y) <= 54) return [88, 26, 120];
+      if (Math.hypot(x - expected.x, y - expected.y) <= 2) return [112, 28, 148];
+      return [3, 4, 12];
+    });
+    try {
+      const first = analyzeTitleTransitionFirstVisibleFrame(
+        inactive,
+        firstVisible,
+        viewport,
+        expected
+      );
+      expect(first.searchScope).toBe('full-frame');
+      expect(Math.hypot(
+        first.clientX - actual.x,
+        first.clientY - actual.y
+      )).toBeLessThanOrEqual(3);
+      expect(first.deltaPhysicalPixels).toBeGreaterThan(180);
+
+      const boundary = analyzeTitleTransitionFramePair(
+        inactive,
+        expanded,
+        viewport,
+        expected
+      );
+      expect(boundary.searchScope).toBe('full-frame');
+      expect(boundary.clientX).toBeCloseTo(actual.x, 0);
+      expect(boundary.clientY).toBeCloseTo(actual.y, 0);
+      expect(boundary.deltaPhysicalPixels).toBeGreaterThan(180);
+    } finally {
+      inactive.fill(0);
+      firstVisible.fill(0);
       expanded.fill(0);
     }
   });

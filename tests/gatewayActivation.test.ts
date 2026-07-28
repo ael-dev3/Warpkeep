@@ -251,9 +251,9 @@ describe('gateway activation coordinates', () => {
       createGatewayClientPoint(686.4, 326)!,
       overlayRect
     )).toEqual({
-      space: 'overlay',
-      x: 590.4,
-      y: 262
+      space: 'overlay-normalized',
+      u: 0.5,
+      v: 262 / 738
     });
     expect(clientPointToOverlay(
       createGatewayClientPoint(80, 326)!,

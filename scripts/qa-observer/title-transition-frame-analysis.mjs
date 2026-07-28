@@ -215,6 +215,91 @@ function median(values) {
     : ordered[middle];
 }
 
+function largestChangedVioletComponent(
+  before,
+  after,
+  {
+    minimumDifference,
+    minimumLuminance,
+    minimumViolet,
+    maximumLuminance,
+  },
+) {
+  const pixelCount = after.width * after.height;
+  const candidates = new Uint8Array(pixelCount);
+  let candidateCount = 0;
+  for (let y = 0; y < after.height; y += 1) {
+    for (let x = 0; x < after.width; x += 1) {
+      const [red, green, blue] = colourAt(after, x, y);
+      const violet = Math.min(red, blue) - green;
+      const difference = colourDifference(before, after, x, y);
+      const luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+      if (
+        violet < minimumViolet
+        || difference < minimumDifference
+        || luminance < minimumLuminance
+        || luminance > maximumLuminance
+      ) continue;
+      candidates[y * after.width + x] = 1;
+      candidateCount += 1;
+    }
+  }
+  if (candidateCount === 0) {
+    throw new TypeError(
+      'Title transition screenshot lacked changed violet evidence.',
+    );
+  }
+  const queue = new Int32Array(candidateCount);
+  let best;
+  for (let start = 0; start < candidates.length; start += 1) {
+    if (candidates[start] !== 1) continue;
+    let head = 0;
+    let tail = 1;
+    let count = 0;
+    let sumX = 0;
+    let sumY = 0;
+    queue[0] = start;
+    candidates[start] = 0;
+    while (head < tail) {
+      const index = queue[head++];
+      const y = Math.floor(index / after.width);
+      const x = index - y * after.width;
+      count += 1;
+      sumX += x;
+      sumY += y;
+      const left = index - 1;
+      const right = index + 1;
+      const above = index - after.width;
+      const below = index + after.width;
+      if (x > 0 && candidates[left] === 1) {
+        candidates[left] = 0;
+        queue[tail++] = left;
+      }
+      if (x + 1 < after.width && candidates[right] === 1) {
+        candidates[right] = 0;
+        queue[tail++] = right;
+      }
+      if (y > 0 && candidates[above] === 1) {
+        candidates[above] = 0;
+        queue[tail++] = above;
+      }
+      if (y + 1 < after.height && candidates[below] === 1) {
+        candidates[below] = 0;
+        queue[tail++] = below;
+      }
+    }
+    if (!best || count > best.count) {
+      best = { count, x: sumX / count, y: sumY / count };
+    }
+  }
+  if (!best) {
+    throw new TypeError(
+      'Title transition screenshot lacked coherent violet evidence.',
+    );
+  }
+  return Object.freeze(best);
+}
+
 /**
  * Reduces a last-active title frame to a non-identifying visual gateway
  * centroid. The browser geometry supplies only the bounded search region; the
@@ -302,10 +387,9 @@ export function analyzeTitleGatewayVisualFrame(
 }
 
 /**
- * Locates the first compositor-visible veil pixels inside the gateway core.
- * This is the strict physical-pixel assertion; the wider boundary fit below
- * supplies complementary shape evidence but is intentionally less sensitive
- * to asymmetric animated scene content.
+ * Locates the first compositor-visible veil pixels across the complete frame.
+ * The expected gateway is used only after the independent centroid is found;
+ * it never seeds or bounds the search.
  */
 export function analyzeTitleTransitionFirstVisibleFrame(
   lastActiveScreenshot,
@@ -326,43 +410,19 @@ export function analyzeTitleTransitionFirstVisibleFrame(
     ) throw new TypeError('Title transition first-visible frame pair mismatched.');
     const expectedX = expectedClientPoint.x * after.scale;
     const expectedY = expectedClientPoint.y * after.scale;
-    const searchRadius = 14 * after.scale;
-    const minimumX = Math.max(0, Math.floor(expectedX - searchRadius));
-    const maximumX = Math.min(after.width - 1, Math.ceil(expectedX + searchRadius));
-    const minimumY = Math.max(0, Math.floor(expectedY - searchRadius));
-    const maximumY = Math.min(after.height - 1, Math.ceil(expectedY + searchRadius));
-    let sampleCount = 0;
-    let weightTotal = 0;
-    let weightedX = 0;
-    let weightedY = 0;
-    for (let y = minimumY; y <= maximumY; y += 1) {
-      for (let x = minimumX; x <= maximumX; x += 1) {
-        if (Math.hypot(x - expectedX, y - expectedY) > searchRadius) continue;
-        const [red, green, blue] = colourAt(after, x, y);
-        const violet = Math.min(red, blue) - green;
-        const difference = colourDifference(before, after, x, y);
-        const luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue;
-        if (
-          violet < 8
-          || difference < 36
-          || luminance < 18
-          || luminance > 210
-        ) continue;
-        const weight = difference + violet * 2;
-        sampleCount += 1;
-        weightTotal += weight;
-        weightedX += x * weight;
-        weightedY += y * weight;
-      }
-    }
+    const component = largestChangedVioletComponent(before, after, {
+      maximumLuminance: 210,
+      minimumDifference: 36,
+      minimumLuminance: 18,
+      minimumViolet: 8,
+    });
     if (
-      sampleCount < Math.max(8, Math.round(6 * after.scale ** 2))
-      || weightTotal <= 0
+      component.count < Math.max(8, Math.round(6 * after.scale ** 2))
     ) throw new TypeError(
       'Title transition screenshot lacked first-visible pixel evidence.',
     );
-    const pixelX = weightedX / weightTotal;
-    const pixelY = weightedY / weightTotal;
+    const pixelX = component.x;
+    const pixelY = component.y;
     return Object.freeze({
       clientX: pixelX / after.scale,
       clientY: pixelY / after.scale,
@@ -372,13 +432,33 @@ export function analyzeTitleTransitionFirstVisibleFrame(
       ),
       pixelX,
       pixelY,
-      sampleCount,
+      sampleCount: component.count,
+      searchScope: 'full-frame',
       screenshotScale: after.scale,
     });
   } finally {
     before.pixels.fill(0);
     after.pixels.fill(0);
   }
+}
+
+function globalChangedVeilCentroid(before, after) {
+  const component = largestChangedVioletComponent(before, after, {
+    maximumLuminance: 224,
+    minimumDifference: 48,
+    minimumLuminance: 12,
+    minimumViolet: 6,
+  });
+  if (
+    component.count < Math.max(24, Math.round(12 * after.scale ** 2))
+  ) throw new TypeError(
+    'Title transition screenshots lacked global veil evidence.',
+  );
+  return Object.freeze({
+    sampleCount: component.count,
+    x: component.x,
+    y: component.y,
+  });
 }
 
 function radialBoundary(decodedBefore, decodedAfter, centerX, centerY, angle) {
@@ -430,10 +510,9 @@ function radialBoundary(decodedBefore, decodedAfter, centerX, centerY, angle) {
 }
 
 /**
- * Finds the independently rendered veil boundary between two early animation
- * screenshots. Search is intentionally bounded near the measured gateway:
- * the historical half-scale origin cannot pass by contributing unrelated
- * pixels hundreds of CSS pixels away.
+ * Finds the independently rendered veil boundary across the complete frame.
+ * A global changed-violet centroid seeds the bounded shape refinement; the
+ * expected gateway participates only in the final error calculation.
  */
 export function analyzeTitleTransitionFramePair(
   earlyScreenshot,
@@ -454,13 +533,14 @@ export function analyzeTitleTransitionFramePair(
     ) throw new TypeError('Title transition frame pair mismatched.');
     const expectedX = expectedClientPoint.x * after.scale;
     const expectedY = expectedClientPoint.y * after.scale;
+    const globalCentroid = globalChangedVeilCentroid(before, after);
     const directionCount = 32;
     let best;
     const searchRadius = Math.max(3, Math.ceil(5 * after.scale));
     for (let yOffset = -searchRadius; yOffset <= searchRadius; yOffset += 1) {
       for (let xOffset = -searchRadius; xOffset <= searchRadius; xOffset += 1) {
-        const centerX = expectedX + xOffset;
-        const centerY = expectedY + yOffset;
+        const centerX = globalCentroid.x + xOffset;
+        const centerY = globalCentroid.y + yOffset;
         const boundaries = [];
         for (let index = 0; index < directionCount; index += 1) {
           boundaries.push(radialBoundary(
@@ -518,6 +598,7 @@ export function analyzeTitleTransitionFramePair(
       oppositeBoundaryErrorPhysicalPixels: best.oppositeError,
       pixelX: best.centerX,
       pixelY: best.centerY,
+      searchScope: 'full-frame',
       screenshotScale: after.scale,
     });
   } finally {

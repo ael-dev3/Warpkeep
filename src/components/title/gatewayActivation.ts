@@ -16,9 +16,9 @@ export type GatewayClientPoint = Readonly<{
 }>;
 
 export type GatewayOverlayPoint = Readonly<{
-  space: 'overlay';
-  x: number;
-  y: number;
+  space: 'overlay-normalized';
+  u: number;
+  v: number;
 }>;
 
 export type GatewaySurfaceRect = Readonly<{
@@ -191,9 +191,9 @@ export function clientPointToOverlay(
     return null;
   }
   return Object.freeze({
-    space: 'overlay',
-    x: point.x - overlayRect.left,
-    y: point.y - overlayRect.top
+    space: 'overlay-normalized',
+    u: (point.x - overlayRect.left) / overlayRect.width,
+    v: (point.y - overlayRect.top) / overlayRect.height
   });
 }
 

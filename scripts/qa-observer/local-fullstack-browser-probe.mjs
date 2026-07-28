@@ -345,6 +345,8 @@ function validateTitleGatewayDepartureFocusObservation(value, probeCase) {
       || frame.overlayMotion !== expectedMotion
       || !Number.isFinite(frame.overlayOriginX)
       || !Number.isFinite(frame.overlayOriginY)
+      || !Number.isFinite(frame.overlayOriginPercentX)
+      || !Number.isFinite(frame.overlayOriginPercentY)
     ))
     || menuFrames.some((frame) => frame.sequence !== value.initialSequence + 1)
     || value.frames.some((frame) => (
@@ -366,6 +368,12 @@ function validateTitleGatewayDepartureFocusObservation(value, probeCase) {
     || departureFrames.some((frame) => (
       Math.abs(frame.overlayOriginX - frozenOrigin.overlayOriginX) > 0.01
       || Math.abs(frame.overlayOriginY - frozenOrigin.overlayOriginY) > 0.01
+      || Math.abs(
+        frame.overlayOriginPercentX - frozenOrigin.overlayOriginPercentX
+      ) > 0.01
+      || Math.abs(
+        frame.overlayOriginPercentY - frozenOrigin.overlayOriginPercentY
+      ) > 0.01
     ))
   ) {
     throw new LocalFullstackBrowserError(
@@ -696,9 +704,15 @@ async function prepareTitleGatewayDepartureFocusCase(session, probeCase) {
           ).length,
           overlayMotion: overlay?.getAttribute('data-motion') ?? '',
           overlayOriginX: Number.parseFloat(
-            overlayStyle?.getPropertyValue('--warp-origin-x') ?? ''
+            overlay?.getAttribute('data-gateway-client-x') ?? ''
           ),
           overlayOriginY: Number.parseFloat(
+            overlay?.getAttribute('data-gateway-client-y') ?? ''
+          ),
+          overlayOriginPercentX: Number.parseFloat(
+            overlayStyle?.getPropertyValue('--warp-origin-x') ?? ''
+          ),
+          overlayOriginPercentY: Number.parseFloat(
             overlayStyle?.getPropertyValue('--warp-origin-y') ?? ''
           )
         });

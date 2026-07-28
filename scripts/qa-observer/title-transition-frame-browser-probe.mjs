@@ -57,8 +57,7 @@ const TITLE_TRANSITION_SCREENSHOT_OFFSETS = Object.freeze([
 ]);
 const TITLE_TRANSITION_OWNER_CYCLE_INPUTS = Object.freeze([
   'pointer',
-  'keyboard',
-  'history',
+  'pointer',
 ]);
 const MIME_TYPES = new Map([
   ['.avif', 'image/avif'],
@@ -91,6 +90,13 @@ const OWNER_HALF_RENDERER_STRESS = Object.freeze({
   widthFraction: 0.5,
 });
 
+const OWNER_HALF_OVERLAY_STRESS = Object.freeze({
+  heightViewportPercent: 200,
+  scaleX: 0.5,
+  scaleY: 0.5,
+  widthViewportPercent: 200,
+});
+
 export const TITLE_TRANSITION_FRAME_CASES = Object.freeze([
   Object.freeze({
     cycles: 3,
@@ -98,6 +104,7 @@ export const TITLE_TRANSITION_FRAME_CASES = Object.freeze([
     id: 'owner-full-hd-half-renderer-repeated',
     input: 'pointer',
     mobile: false,
+    overlayStress: OWNER_HALF_OVERLAY_STRESS,
     reducedMotion: false,
     shellStress: OWNER_HALF_RENDERER_STRESS,
     viewport: Object.freeze({ height: 1_080, width: 1_920 }),
@@ -510,12 +517,17 @@ export async function createProductionDistLoopbackServer(
 
 function titleStressInjectionSource(probeCase) {
   const stress = probeCase.shellStress;
-  const css = stress
+  const shellCss = stress
     ? `.warpkeep-title-canvas-shell{left:${stress.left}px!important;top:${stress.top}px!important;right:auto!important;bottom:auto!important;width:${stress.widthFraction * 100}%!important;height:${stress.heightFraction * 100}%!important;transform-origin:0 0!important;transform:scale(${stress.scaleX},${stress.scaleY})!important;}`
     : '';
+  const overlayStress = probeCase.overlayStress;
+  const overlayCss = overlayStress
+    ? `.warp-transition-overlay{inset:auto!important;left:0!important;top:0!important;width:${overlayStress.widthViewportPercent}vw!important;height:${overlayStress.heightViewportPercent}vh!important;transform-origin:0 0!important;transform:scale(${overlayStress.scaleX},${overlayStress.scaleY})!important;}`
+    : '';
+  const isolationCss = 'html.warpkeep-title-transition-pixel-isolation body::before{content:"";position:fixed;inset:0;z-index:99;background:#010207;pointer-events:none;}';
+  const css = `${shellCss}${overlayCss}${isolationCss}`;
   return `(() => {
     const css = ${JSON.stringify(css)};
-    if (!css) return;
     const install = () => {
       if (document.getElementById('warpkeep-title-transition-stress')) return;
       const style = document.createElement('style');
@@ -546,6 +558,7 @@ const PAGE_OBSERVATION_EXPRESSION = `(() => {
     };
   };
   const experience = document.querySelector('.warpkeep-experience');
+  const root = document.querySelector('#root');
   const titleScreen = document.querySelector('.warpkeep-title-screen');
   const titleLayer = document.querySelector('.warpkeep-experience__screen--title');
   const menuLayer = document.querySelector('.warpkeep-experience__screen--menu');
@@ -557,6 +570,8 @@ const PAGE_OBSERVATION_EXPRESSION = `(() => {
   const overlayStyle = overlay instanceof HTMLElement
     ? getComputedStyle(overlay)
     : null;
+  const visualViewport = window.visualViewport;
+  const isolationStyle = getComputedStyle(document.body, '::before');
   const buttonBounds = rect(button);
   const active = document.activeElement;
   return {
@@ -604,6 +619,8 @@ const PAGE_OBSERVATION_EXPRESSION = `(() => {
       && menuLayer.getAttribute('aria-hidden') === 'false'
       && !menuLayer.inert,
     overlay: overlay instanceof HTMLElement ? {
+      clientHeight: overlay.clientHeight,
+      clientWidth: overlay.clientWidth,
       clientX: finite(overlay.dataset.gatewayClientX),
       clientY: finite(overlay.dataset.gatewayClientY),
       count: document.querySelectorAll('.warp-transition-overlay').length,
@@ -611,14 +628,38 @@ const PAGE_OBSERVATION_EXPRESSION = `(() => {
       input: overlay.dataset.input || '',
       localX: finite(overlay.dataset.overlayOriginX),
       localY: finite(overlay.dataset.overlayOriginY),
+      normalizedU: finite(overlay.dataset.overlayOriginU),
+      normalizedV: finite(overlay.dataset.overlayOriginV),
       motion: overlay.dataset.motion || '',
       originReady: overlay.dataset.originReady === 'true',
+      originCssX: overlayStyle?.getPropertyValue('--warp-origin-x') || '',
+      originCssY: overlayStyle?.getPropertyValue('--warp-origin-y') || '',
+      parentBody: overlay.parentElement === document.body,
       rect: rect(overlay),
       sequence: finite(overlay.dataset.transitionSequence),
+      visualViewportHeight: finite(overlay.dataset.visualViewportHeight),
+      visualViewportOffsetLeft: finite(
+        overlay.dataset.visualViewportOffsetLeft
+      ),
+      visualViewportOffsetTop: finite(
+        overlay.dataset.visualViewportOffsetTop
+      ),
+      visualViewportScale: finite(overlay.dataset.visualViewportScale),
+      visualViewportWidth: finite(overlay.dataset.visualViewportWidth),
       visible: overlayStyle?.visibility === 'visible',
       clipPath: overlayStyle?.clipPath || ''
     } : null,
     phase: experience?.getAttribute('data-phase') || '',
+    pixelIsolation: {
+      active: document.documentElement.classList.contains(
+        'warpkeep-title-transition-pixel-isolation'
+      ),
+      backgroundColor: isolationStyle.backgroundColor,
+      content: isolationStyle.content,
+      pointerEvents: isolationStyle.pointerEvents,
+      position: isolationStyle.position,
+      zIndex: isolationStyle.zIndex
+    },
     presentedScreen: experience?.getAttribute('data-presented-screen') || '',
     returnPreparing: experience?.getAttribute('data-return-preparing') === 'true',
     sequence: finite(experience?.getAttribute('data-transition-sequence')),
@@ -626,6 +667,16 @@ const PAGE_OBSERVATION_EXPRESSION = `(() => {
       clientHeight: shell.clientHeight,
       clientWidth: shell.clientWidth,
       rect: rect(shell)
+    } : null,
+    root: root instanceof HTMLElement ? {
+      clientHeight: root.clientHeight,
+      clientWidth: root.clientWidth,
+      rect: rect(root)
+    } : null,
+    experience: experience instanceof HTMLElement ? {
+      clientHeight: experience.clientHeight,
+      clientWidth: experience.clientWidth,
+      rect: rect(experience)
     } : null,
     canvas: canvas instanceof HTMLCanvasElement ? {
       clientHeight: canvas.clientHeight,
@@ -641,7 +692,16 @@ const PAGE_OBSERVATION_EXPRESSION = `(() => {
       && titleLayer.dataset.presented === 'true'
       && titleLayer.getAttribute('aria-hidden') === 'false'
       && !titleLayer.inert,
-    viewport: { height: innerHeight, width: innerWidth }
+    viewport: { height: innerHeight, width: innerWidth },
+    visualViewport: visualViewport ? {
+      height: visualViewport.height,
+      offsetLeft: visualViewport.offsetLeft,
+      offsetTop: visualViewport.offsetTop,
+      pageLeft: visualViewport.pageLeft,
+      pageTop: visualViewport.pageTop,
+      scale: visualViewport.scale,
+      width: visualViewport.width
+    } : null
   };
 })()`;
 
@@ -824,21 +884,130 @@ export function validateTitleTransitionOverlayGeometry(
   const clientY = exactFiniteNumber(overlay.clientY, 'overlay client y');
   const localX = exactFiniteNumber(overlay.localX, 'overlay local x');
   const localY = exactFiniteNumber(overlay.localY, 'overlay local y');
+  const normalizedU = exactFiniteNumber(
+    overlay.normalizedU,
+    'overlay normalized u',
+  );
+  const normalizedV = exactFiniteNumber(
+    overlay.normalizedV,
+    'overlay normalized v',
+  );
+  const clientWidth = exactFiniteNumber(
+    overlay.clientWidth,
+    'overlay client width',
+  );
+  const clientHeight = exactFiniteNumber(
+    overlay.clientHeight,
+    'overlay client height',
+  );
+  if (
+    clientWidth <= 0
+    || clientHeight <= 0
+    || overlay.parentBody !== true
+    || !String(overlay.originCssX).trim().endsWith('%')
+    || !String(overlay.originCssY).trim().endsWith('%')
+  ) throw new TitleTransitionFrameBrowserError(
+    `Title transition overlay coordinate boundary mismatched at ${probeCase.id}.`,
+  );
   const tolerance = probeCase.mobile ? 3 : 2;
   const clientError = Math.hypot(
     clientX - expected.gatewayClientPoint.x,
     clientY - expected.gatewayClientPoint.y,
   );
-  const expectedLocalX = (
+  const expectedU = (
     expected.gatewayClientPoint.x - overlay.rect.left
-  ) / overlay.rect.width * observation.viewport.width;
-  const expectedLocalY = (
+  ) / overlay.rect.width;
+  const expectedV = (
     expected.gatewayClientPoint.y - overlay.rect.top
-  ) / overlay.rect.height * observation.viewport.height;
-  const localError = Math.hypot(localX - expectedLocalX, localY - expectedLocalY);
-  if (clientError > tolerance || localError > tolerance) {
+  ) / overlay.rect.height;
+  const reprojectedClientX = overlay.rect.left
+    + localX / clientWidth * overlay.rect.width;
+  const reprojectedClientY = overlay.rect.top
+    + localY / clientHeight * overlay.rect.height;
+  const localError = Math.hypot(
+    reprojectedClientX - expected.gatewayClientPoint.x,
+    reprojectedClientY - expected.gatewayClientPoint.y,
+  );
+  const normalizedError = Math.hypot(
+    (normalizedU - expectedU) * overlay.rect.width,
+    (normalizedV - expectedV) * overlay.rect.height,
+  );
+  const cssPercentageError = Math.hypot(
+    (
+      Number.parseFloat(overlay.originCssX) / 100 - expectedU
+    ) * overlay.rect.width,
+    (
+      Number.parseFloat(overlay.originCssY) / 100 - expectedV
+    ) * overlay.rect.height,
+  );
+  if (
+    clientError > tolerance
+    || localError > tolerance
+    || normalizedError > tolerance
+    || cssPercentageError > tolerance
+  ) {
     throw new TitleTransitionFrameBrowserError(
       `Title transition overlay origin mismatched at ${probeCase.id}.`,
+    );
+  }
+  const visualViewport = observation.visualViewport;
+  if (
+    !visualViewport
+    || !Number.isFinite(visualViewport.offsetLeft)
+    || !Number.isFinite(visualViewport.offsetTop)
+    || !Number.isFinite(visualViewport.pageLeft)
+    || !Number.isFinite(visualViewport.pageTop)
+    || !Number.isFinite(visualViewport.width)
+    || visualViewport.width <= 0
+    || !Number.isFinite(visualViewport.height)
+    || visualViewport.height <= 0
+    || !Number.isFinite(visualViewport.scale)
+    || visualViewport.scale <= 0
+  ) throw new TitleTransitionFrameBrowserError(
+    `Title transition visual viewport telemetry was invalid at ${probeCase.id}.`,
+  );
+  if (
+    Math.abs(
+      exactFiniteNumber(
+        overlay.visualViewportOffsetLeft,
+        'overlay visual viewport offset left',
+      ) - visualViewport.offsetLeft
+    ) > 0.01
+    || Math.abs(
+      exactFiniteNumber(
+        overlay.visualViewportOffsetTop,
+        'overlay visual viewport offset top',
+      ) - visualViewport.offsetTop
+    ) > 0.01
+    || Math.abs(
+      exactFiniteNumber(
+        overlay.visualViewportWidth,
+        'overlay visual viewport width',
+      ) - visualViewport.width
+    ) > 0.01
+    || Math.abs(
+      exactFiniteNumber(
+        overlay.visualViewportHeight,
+        'overlay visual viewport height',
+      ) - visualViewport.height
+    ) > 0.01
+    || Math.abs(
+      exactFiniteNumber(
+        overlay.visualViewportScale,
+        'overlay visual viewport scale',
+      ) - visualViewport.scale
+    ) > 0.01
+  ) throw new TitleTransitionFrameBrowserError(
+    `Title transition visual viewport snapshot mismatched at ${probeCase.id}.`,
+  );
+  if (probeCase.id === 'owner-full-hd-half-renderer-repeated') {
+    if (
+      Math.abs(clientWidth - 3_840) > 4
+      || Math.abs(clientHeight - 2_160) > 4
+      || Math.abs(overlay.rect.width - 1_920) > 3
+      || Math.abs(overlay.rect.height - 1_080) > 3
+    ) throw new TitleTransitionFrameBrowserError(
+      'Owner-shaped half-overlay reproduction was not active.',
     );
   }
   if (
@@ -862,9 +1031,16 @@ export function validateTitleTransitionOverlayGeometry(
     clientErrorCssPixels: clientError,
     clientX,
     clientY,
+    clientHeight,
+    clientWidth,
+    cssPercentageErrorCssPixels: cssPercentageError,
     localErrorCssPixels: localError,
     localX,
     localY,
+    normalizedErrorCssPixels: normalizedError,
+    normalizedU,
+    normalizedV,
+    visualViewport,
   });
 }
 
@@ -1249,6 +1425,32 @@ async function dispatchReturnToTitle(session) {
   });
 }
 
+async function setTitleTransitionPixelIsolation(session, enabled) {
+  const result = await session.command('Runtime.evaluate', {
+    expression: `(() => {
+      document.documentElement.classList.toggle(
+        'warpkeep-title-transition-pixel-isolation',
+        ${enabled ? 'true' : 'false'}
+      );
+      return new Promise((resolve) => requestAnimationFrame(
+        () => requestAnimationFrame(() => resolve(
+          document.documentElement.classList.contains(
+            'warpkeep-title-transition-pixel-isolation'
+          )
+        ))
+      ));
+    })()`,
+    awaitPromise: true,
+    returnByValue: true,
+  });
+  if (
+    result?.exceptionDetails
+    || result?.result?.value !== enabled
+  ) throw new TitleTransitionFrameBrowserError(
+    'Title transition pixel-isolation boundary failed.',
+  );
+}
+
 function publicFrameRecord(frame) {
   return Object.freeze({
     actualOffsetMilliseconds: Math.round(frame.actualOffsetMilliseconds),
@@ -1362,6 +1564,25 @@ async function runTransitionPass({
               observation.viewport.height - expectedCssViewport.height,
             ) <= 1
             && observation.overlay?.sequence === sequence
+            && observation.overlay.rect !== null
+            && Math.abs(
+              observation.overlay.rect.width - expectedCssViewport.width,
+            ) <= 1
+            && Math.abs(
+              observation.overlay.rect.height - expectedCssViewport.height,
+            ) <= 1
+            && Number.isFinite(observation.overlay.normalizedU)
+            && Number.isFinite(observation.overlay.normalizedV)
+            && Math.abs(
+              observation.overlay.rect.left
+              + observation.overlay.normalizedU * observation.overlay.rect.width
+              - preparationGeometry.clientX
+            ) <= 1
+            && Math.abs(
+              observation.overlay.rect.top
+              + observation.overlay.normalizedV * observation.overlay.rect.height
+              - preparationGeometry.clientY
+            ) <= 1
           ),
           `${filePrefix}-mid-transition-resize`,
         );
@@ -1583,8 +1804,9 @@ async function runTitleTransitionCase(
   );
   const initialGeometry = validateTitleGatewayGeometry(initial, probeCase);
   const layoutMetrics = await session.command('Page.getLayoutMetrics');
-  const observedBrowserZoom = layoutMetrics?.cssVisualViewport?.zoom
-    ?? layoutMetrics?.visualViewport?.zoom;
+  const cdpVisualViewport = layoutMetrics?.cssVisualViewport
+    ?? layoutMetrics?.visualViewport;
+  const observedBrowserZoom = cdpVisualViewport?.zoom;
   const expectedBrowserZoom = probeCase.zoomPercent / 100;
   if (
     !Number.isFinite(observedBrowserZoom)
@@ -1593,6 +1815,37 @@ async function runTitleTransitionCase(
     `True browser zoom mismatched at ${probeCase.id}: expected `
     + `${expectedBrowserZoom}, observed ${String(observedBrowserZoom)}.`,
   );
+  const visualViewportTelemetry = Object.freeze({
+    clientHeight: exactFiniteNumber(
+      cdpVisualViewport?.clientHeight,
+      'CDP visual viewport height',
+    ),
+    clientWidth: exactFiniteNumber(
+      cdpVisualViewport?.clientWidth,
+      'CDP visual viewport width',
+    ),
+    offsetX: exactFiniteNumber(
+      cdpVisualViewport?.offsetX,
+      'CDP visual viewport offset x',
+    ),
+    offsetY: exactFiniteNumber(
+      cdpVisualViewport?.offsetY,
+      'CDP visual viewport offset y',
+    ),
+    pageX: exactFiniteNumber(
+      cdpVisualViewport?.pageX,
+      'CDP visual viewport page x',
+    ),
+    pageY: exactFiniteNumber(
+      cdpVisualViewport?.pageY,
+      'CDP visual viewport page y',
+    ),
+    scale: exactFiniteNumber(
+      cdpVisualViewport?.scale,
+      'CDP visual viewport scale',
+    ),
+    zoom: observedBrowserZoom,
+  });
   const cssViewport = Object.freeze({
     height: initial.viewport.height,
     width: initial.viewport.width,
@@ -1621,12 +1874,30 @@ async function runTitleTransitionCase(
   }
   initialVisualFrame.screenshot.fill(0);
 
+  const ownerRegression =
+    probeCase.id === 'owner-full-hd-half-renderer-repeated';
+  if (ownerRegression) {
+    await setTitleTransitionPixelIsolation(session, true);
+    const isolated = await readPageObservation(session);
+    if (
+      isolated.pixelIsolation?.active !== true
+      || isolated.pixelIsolation.position !== 'fixed'
+      || isolated.pixelIsolation.zIndex !== '99'
+      || isolated.pixelIsolation.pointerEvents !== 'none'
+      || !isolated.pixelIsolation.content
+      || isolated.pixelIsolation.content === 'none'
+    ) throw new TitleTransitionFrameBrowserError(
+      'Title transition pixel-isolation underlay was not active.',
+    );
+  }
+
   const passes = [];
   let previousGeometry = initialGeometry;
-  const cycleInputs = probeCase.cycles === 3
+  const cycleInputs = ownerRegression
     ? TITLE_TRANSITION_OWNER_CYCLE_INPUTS
     : [probeCase.input];
-  for (let cycle = 0; cycle < probeCase.cycles; cycle += 1) {
+  const toMenuPassCount = ownerRegression ? 2 : 1;
+  for (let cycle = 0; cycle < toMenuPassCount; cycle += 1) {
     const input = cycleInputs[cycle];
     const toMenuBaseline = await captureFrame(
       session,
@@ -1654,7 +1925,7 @@ async function runTitleTransitionCase(
     }));
     toMenuBaseline.screenshot.fill(0);
 
-    if (probeCase.cycles !== 3) break;
+    if (!ownerRegression || cycle === toMenuPassCount - 1) break;
     const toTitleBaseline = await captureFrame(
       session,
       artifactDirectory,
@@ -1689,11 +1960,29 @@ async function runTitleTransitionCase(
       `Title gateway accumulated drift at ${probeCase.id}.`,
     );
   }
+  if (ownerRegression) {
+    if (
+      passes.length !== 3
+      || passes.map(pass => pass.direction).join(',') !==
+        'to-menu,to-title,to-menu'
+      || passes.map(pass => pass.sequence).join(',') !== '1,2,3'
+      || passes[0]?.input !== 'pointer'
+      || passes[1]?.input !== 'history'
+      || passes[2]?.input !== 'pointer'
+      || passes.some(pass => (
+        pass.pixelEvidence?.firstVisible?.deltaPhysicalPixels > 3
+      ))
+    ) throw new TitleTransitionFrameBrowserError(
+      'Owner title transition regression sequence mismatched.',
+    );
+    await setTitleTransitionPixelIsolation(session, false);
+  }
   await session.command('Page.removeScriptToEvaluateOnNewDocument', {
     identifier: injection.identifier,
   });
   return Object.freeze({
     browserZoom: observedBrowserZoom,
+    cdpVisualViewport: visualViewportTelemetry,
     cssViewport,
     deviceScaleFactor: probeCase.deviceScaleFactor,
     gatewayVisualEvidence,

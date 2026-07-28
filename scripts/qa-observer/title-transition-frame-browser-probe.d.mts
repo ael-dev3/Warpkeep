@@ -10,6 +10,12 @@ export type TitleTransitionFrameCase = Readonly<{
   input: 'pointer' | 'touch' | 'keyboard';
   mobile: boolean;
   midTransitionViewport?: TitleTransitionFrameViewport;
+  overlayStress?: Readonly<{
+    heightViewportPercent: number;
+    scaleX: number;
+    scaleY: number;
+    widthViewportPercent: number;
+  }>;
   reducedMotion: boolean;
   shellStress?: Readonly<{
     heightFraction: number;
@@ -86,11 +92,18 @@ export function validateTitleTransitionOverlayGeometry(
   probeCase: TitleTransitionFrameCase,
 ): Readonly<{
   clientErrorCssPixels: number;
+  clientHeight: number;
+  clientWidth: number;
   clientX: number;
   clientY: number;
+  cssPercentageErrorCssPixels: number;
   localErrorCssPixels: number;
   localX: number;
   localY: number;
+  normalizedErrorCssPixels: number;
+  normalizedU: number;
+  normalizedV: number;
+  visualViewport: Readonly<Record<string, number>>;
 }>;
 
 export function runTitleTransitionFrameBrowserProbe(
