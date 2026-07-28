@@ -1,7 +1,7 @@
 {
   "name": "warpkeep",
   "private": true,
-  "version": "0.3.22",
+  "version": "0.3.23",
   "description": "A Farcaster-connected persistent strategy world in active Alpha development.",
   "license": "Apache-2.0",
   "homepage": "https://warpkeep.com",
@@ -57,6 +57,7 @@
     "qa:agent": "node scripts/qa/agent.mjs",
     "qa:fullstack:local": "node scripts/qa-observer/local-fullstack-browser-probe.mjs",
     "qa:rendered-webgl": "node scripts/qa-observer/rendered-webgl-browser-probe.mjs",
+    "qa:title-transition": "npm run build && node scripts/qa-observer/title-transition-frame-browser-probe.mjs",
     "verify:runtime-assets": "node scripts/verify-runtime-assets.mjs",
     "verify:gold-mine-candidates": "node scripts/verify-hegemony-gold-mine-candidates.mjs",
     "verify:hegemony-gold-mine-runtime": "node scripts/verify-hegemony-gold-mine-runtime.mjs",

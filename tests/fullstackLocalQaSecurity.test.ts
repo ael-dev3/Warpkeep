@@ -391,7 +391,8 @@ describe('disposable connected local QA dependency and network boundaries', () =
       "Input.dispatchTouchEvent",
       'title.style.transformOrigin',
       'probeCase.activationFraction',
-      'frozen-origin',
+      'frozen-gateway-origin',
+      'pointer-origin-separation',
     ]) expect(browserSource).toContain(evidence);
     expect(browserSource).toContain(
       'await exerciseTitleGatewayDepartureFocus('
@@ -475,6 +476,12 @@ describe('disposable connected local QA dependency and network boundaries', () =
     );
     expect(browserSource).toContain(
       "getAttribute('data-local-fullstack-worker-commands') === 'true'"
+    );
+    expect(browserSource).toContain(
+      'current.workerAnimatedCount === 0'
+    );
+    expect(browserSource).toContain(
+      'value.returnedAnimatedWorkerCount !== 0'
     );
     expect(appSource).toContain('LOCAL_FULLSTACK_DISPATCH_TARGETS');
     expect(appSource).toContain('exactAvailableSite(');

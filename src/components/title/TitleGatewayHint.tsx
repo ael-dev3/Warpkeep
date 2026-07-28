@@ -1,14 +1,17 @@
 import { useLayoutEffect, useRef } from 'react';
-import type { GatewayProjection } from './BlackHoleGateway';
+import type { GatewayClientPoint } from './gatewayActivation';
 import { calculateGatewayNoticePosition } from './gatewayInteraction';
 import { titleSceneSpec } from './titleSceneSpec';
 
 type TitleGatewayHintProps = {
-  getProjection: () => GatewayProjection;
+  getGatewayClientCenter: () => GatewayClientPoint | null;
   touch: boolean;
 };
 
-export function TitleGatewayHint({ getProjection, touch }: TitleGatewayHintProps) {
+export function TitleGatewayHint({
+  getGatewayClientCenter,
+  touch
+}: TitleGatewayHintProps) {
   const hintRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
@@ -30,14 +33,14 @@ export function TitleGatewayHint({ getProjection, touch }: TitleGatewayHintProps
     };
 
     const positionHint = (force = false) => {
-      const projection = getProjection();
+      const gatewayClientCenter = getGatewayClientCenter();
       const visualViewport = window.visualViewport;
       const viewportLeft = visualViewport?.offsetLeft ?? 0;
       const viewportTop = visualViewport?.offsetTop ?? 0;
-      const viewportWidth = visualViewport?.width || projection.viewportWidth || window.innerWidth;
-      const viewportHeight = visualViewport?.height || projection.viewportHeight || window.innerHeight;
-      const anchorX = (projection.visible ? projection.x : viewportWidth * 0.5) - viewportLeft;
-      const anchorY = (projection.visible ? projection.y : viewportHeight * 0.36) - viewportTop;
+      const viewportWidth = visualViewport?.width || window.innerWidth;
+      const viewportHeight = visualViewport?.height || window.innerHeight;
+      const anchorX = (gatewayClientCenter?.x ?? viewportWidth * 0.5) - viewportLeft;
+      const anchorY = (gatewayClientCenter?.y ?? viewportHeight * 0.36) - viewportTop;
       if (
         !force
         && Math.abs(anchorX - lastAnchorX) < 2
@@ -89,7 +92,7 @@ export function TitleGatewayHint({ getProjection, touch }: TitleGatewayHintProps
       window.visualViewport?.removeEventListener('resize', handleResize);
       window.visualViewport?.removeEventListener('scroll', handleResize);
     };
-  }, [getProjection]);
+  }, [getGatewayClientCenter]);
 
   return (
     <div

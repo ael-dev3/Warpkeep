@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useRef
 } from 'react';
 import {
@@ -11,10 +12,16 @@ import {
   type GatewayActivationInput,
   type GatewayActivationRecord
 } from './BlackHoleGateway';
+import {
+  createGatewayRendererPoint,
+  snapshotGatewayRect,
+  type GatewayRenderedMeasurement
+} from './gatewayActivation';
 import { titleSceneSpec } from './titleSceneSpec';
 import {
   fallbackGatewayActivation,
-  fallbackGatewayProjection,
+  fallbackGatewayClientCenter,
+  fallbackGatewayMeasurement,
   type WarpkeepTitleScreenHandle,
   type WarpkeepTitleScreenProps
 } from './titleScreenTypes';
@@ -41,13 +48,60 @@ export const WarpkeepTitleScreenFallback = forwardRef<
   forwardedRef
 ) {
   const screenRef = useRef<HTMLElement>(null);
+  const galaxyRef = useRef<HTMLDivElement>(null);
   const coreRef = useRef<HTMLDivElement>(null);
   const gatewayRef = useRef<BlackHoleGatewayHandle>(null);
+  const frozenLayoutStyleRef = useRef<{
+    surfaceCssText: string | null;
+    galaxyCssText: string | null;
+  } | null>(null);
   const surgeTimerRef = useRef(0);
   const entryRequestedRef = useRef(false);
   const readyNotifiedRef = useRef(false);
   const callbacksRef = useRef({ onRequestEnterMenu, onReady, onMeaningfulInteraction });
   callbacksRef.current = { onRequestEnterMenu, onReady, onMeaningfulInteraction };
+
+  useLayoutEffect(() => {
+    const surface = screenRef.current;
+    const galaxy = galaxyRef.current;
+    const shouldFreeze = phase === 'departing' || phase === 'returning';
+    if (surface && galaxy && shouldFreeze && !frozenLayoutStyleRef.current) {
+      const width = Math.max(1, surface.clientWidth);
+      const height = Math.max(1, surface.clientHeight);
+      const galaxyLeft = galaxy.offsetLeft;
+      const galaxyTop = galaxy.offsetTop;
+      const galaxyWidth = Math.max(1, galaxy.offsetWidth);
+      const galaxyHeight = Math.max(1, galaxy.offsetHeight);
+      frozenLayoutStyleRef.current = {
+        surfaceCssText: surface.getAttribute('style'),
+        galaxyCssText: galaxy.getAttribute('style')
+      };
+      surface.style.width = `${width}px`;
+      surface.style.height = `${height}px`;
+      surface.style.minWidth = `${width}px`;
+      surface.style.maxWidth = `${width}px`;
+      surface.style.minHeight = `${height}px`;
+      surface.style.maxHeight = `${height}px`;
+      galaxy.style.top = `${galaxyTop}px`;
+      galaxy.style.left = `${galaxyLeft}px`;
+      galaxy.style.width = `${galaxyWidth}px`;
+      galaxy.style.height = `${galaxyHeight}px`;
+      galaxy.style.aspectRatio = 'auto';
+    } else if (surface && galaxy && !shouldFreeze && frozenLayoutStyleRef.current) {
+      const { surfaceCssText, galaxyCssText } = frozenLayoutStyleRef.current;
+      if (surfaceCssText === null) {
+        surface.removeAttribute('style');
+      } else {
+        surface.setAttribute('style', surfaceCssText);
+      }
+      if (galaxyCssText === null) {
+        galaxy.removeAttribute('style');
+      } else {
+        galaxy.setAttribute('style', galaxyCssText);
+      }
+      frozenLayoutStyleRef.current = null;
+    }
+  }, [phase]);
 
   const positionGateway = useCallback(() => {
     const screen = screenRef.current;
@@ -62,14 +116,17 @@ export const WarpkeepTitleScreenFallback = forwardRef<
     const height = screenBounds.height || screen.clientHeight || window.innerHeight;
     const centerX = coreBounds.left - screenBounds.left + coreBounds.width * 0.5;
     const centerY = coreBounds.top - screenBounds.top + coreBounds.height * 0.5;
-    gatewayRef.current?.setProjectedPosition(
-      centerX,
-      centerY,
-      width,
-      height,
-      coreBounds.width > 0 && coreBounds.height > 0
+    const ready = gatewayRef.current?.setRenderedGateway(
+      createGatewayRendererPoint({
+        x: centerX,
+        y: centerY,
+        viewportWidth: width,
+        viewportHeight: height,
+        visible: coreBounds.width > 0 && coreBounds.height > 0
+      }),
+      snapshotGatewayRect(screenBounds)
     );
-    if (!readyNotifiedRef.current && coreBounds.width > 0 && coreBounds.height > 0) {
+    if (!readyNotifiedRef.current && ready) {
       readyNotifiedRef.current = true;
       callbacksRef.current.onReady?.();
     }
@@ -97,14 +154,21 @@ export const WarpkeepTitleScreenFallback = forwardRef<
       ? gatewayRef.current?.captureActivation(activationOrInput)
         ?? fallbackGatewayActivation(activationOrInput)
       : activationOrInput;
+    if (!activation.ready) {
+      entryRequestedRef.current = false;
+      return;
+    }
     callbacksRef.current.onRequestEnterMenu?.(activation);
   }, [phase]);
 
   useImperativeHandle(forwardedRef, () => ({
     requestEnter,
     focusGateway: () => gatewayRef.current?.focus(),
-    getGatewayProjection: () => (
-      gatewayRef.current?.getProjectedPosition() ?? fallbackGatewayProjection()
+    getGatewayClientCenter: () => (
+      gatewayRef.current?.getGatewayClientCenter() ?? fallbackGatewayClientCenter()
+    ),
+    getGatewayMeasurement: (): GatewayRenderedMeasurement => (
+      gatewayRef.current?.getRenderedMeasurement() ?? fallbackGatewayMeasurement()
     ),
     getGatewayActivation: (input) => (
       gatewayRef.current?.captureActivation(input) ?? fallbackGatewayActivation(input)
@@ -133,7 +197,16 @@ export const WarpkeepTitleScreenFallback = forwardRef<
       window.clearTimeout(surgeTimerRef.current);
       window.removeEventListener('resize', positionGateway);
       resizeObserver?.disconnect();
-      gatewayRef.current?.setProjectedPosition(0, 0, 0, 0, false);
+      gatewayRef.current?.setRenderedGateway(
+        createGatewayRendererPoint({
+          x: 0,
+          y: 0,
+          viewportWidth: 0,
+          viewportHeight: 0,
+          visible: false
+        }),
+        null
+      );
     };
   }, [positionGateway]);
 
@@ -160,7 +233,7 @@ export const WarpkeepTitleScreenFallback = forwardRef<
           />
         ))}
       </div>
-      <div className="warpkeep-fallback-galaxy" aria-hidden="true">
+      <div ref={galaxyRef} className="warpkeep-fallback-galaxy" aria-hidden="true">
         <div ref={coreRef} className="warpkeep-fallback-galaxy-core">
           <span className="warpkeep-fallback-lens warpkeep-fallback-lens--upper" />
           <span className="warpkeep-fallback-lens warpkeep-fallback-lens--lower" />

@@ -13,6 +13,28 @@ import {
   type WarpkeepExperienceState
 } from '../src/components/transition/experienceTransition';
 
+const menuRequest = (
+  x = 640,
+  y = 248,
+  acceptedAt = 100
+): Extract<WarpkeepExperienceAction, { type: 'request-menu' }> => ({
+  type: 'request-menu',
+  input: 'pointer',
+  gatewayClientOrigin: { space: 'client', x, y },
+  acceptedAt
+});
+
+const titleRequest = (
+  x = 641,
+  y = 249,
+  acceptedAt = 200
+): Extract<WarpkeepExperienceAction, { type: 'request-title' }> => ({
+  type: 'request-title',
+  input: 'history',
+  gatewayClientOrigin: { space: 'client', x, y },
+  acceptedAt
+});
+
 function reduce(
   state: WarpkeepExperienceState,
   ...actions: WarpkeepExperienceAction[]
@@ -22,62 +44,121 @@ function reduce(
 
 describe('Warpkeep experience transitions', () => {
   it('starts at the title and can explicitly initialize a direct menu visit', () => {
-    expect(createExperienceState()).toEqual({ phase: 'title', transitionSequence: 0 });
-    expect(createExperienceState('menu')).toEqual({ phase: 'menu', transitionSequence: 0 });
+    expect(createExperienceState()).toEqual({
+      phase: 'title',
+      transitionSequence: 0,
+      transitionRequest: null
+    });
+    expect(createExperienceState('menu')).toEqual({
+      phase: 'menu',
+      transitionSequence: 0,
+      transitionRequest: null
+    });
   });
 
-  it('accepts each request once and requires an explicit completion', () => {
+  it('accepts one immutable request atomically and clears it only on completion', () => {
     const initial = createExperienceState();
-    const entering = experienceTransitionReducer(initial, { type: 'request-menu' });
+    const action = menuRequest();
+    const entering = experienceTransitionReducer(initial, action);
 
-    expect(entering).toEqual({ phase: 'transitioning-to-menu', transitionSequence: 1 });
-    expect(experienceTransitionReducer(entering, { type: 'request-menu' })).toBe(entering);
+    expect(entering).toEqual({
+      phase: 'transitioning-to-menu',
+      transitionSequence: 1,
+      transitionRequest: {
+        sequence: 1,
+        direction: 'to-menu',
+        input: 'pointer',
+        gatewayClientOrigin: { space: 'client', x: 640, y: 248 },
+        acceptedAt: 100
+      }
+    });
+    expect(entering.transitionRequest).not.toBe(action);
+    expect(entering.transitionRequest?.gatewayClientOrigin)
+      .not.toBe(action.gatewayClientOrigin);
+    expect(Object.isFrozen(entering.transitionRequest)).toBe(true);
+    expect(Object.isFrozen(entering.transitionRequest?.gatewayClientOrigin)).toBe(true);
+    expect(experienceTransitionReducer(entering, menuRequest(100, 200, 300)))
+      .toBe(entering);
 
     const menu = experienceTransitionReducer(entering, { type: 'complete-menu' });
-    expect(menu).toEqual({ phase: 'menu', transitionSequence: 1 });
+    expect(menu).toEqual({
+      phase: 'menu',
+      transitionSequence: 1,
+      transitionRequest: null
+    });
 
-    const returning = experienceTransitionReducer(menu, { type: 'request-title' });
-    expect(returning).toEqual({ phase: 'transitioning-to-title', transitionSequence: 2 });
-    expect(experienceTransitionReducer(returning, { type: 'request-title' })).toBe(returning);
+    const returning = experienceTransitionReducer(menu, titleRequest());
+    expect(returning).toEqual({
+      phase: 'transitioning-to-title',
+      transitionSequence: 2,
+      transitionRequest: {
+        sequence: 2,
+        direction: 'to-title',
+        input: 'history',
+        gatewayClientOrigin: { space: 'client', x: 641, y: 249 },
+        acceptedAt: 200
+      }
+    });
+    expect(experienceTransitionReducer(returning, titleRequest(10, 20, 300)))
+      .toBe(returning);
 
     expect(experienceTransitionReducer(returning, { type: 'complete-title' })).toEqual({
       phase: 'title',
-      transitionSequence: 2
+      transitionSequence: 2,
+      transitionRequest: null
     });
+  });
+
+  it('rejects invalid request coordinates and timestamps without advancing state', () => {
+    const title = createExperienceState();
+    expect(experienceTransitionReducer(title, {
+      ...menuRequest(),
+      gatewayClientOrigin: { space: 'client', x: Number.NaN, y: 248 }
+    })).toBe(title);
+    expect(experienceTransitionReducer(title, {
+      ...menuRequest(),
+      acceptedAt: -1
+    })).toBe(title);
   });
 
   it('supports a stable realm phase without confusing it with the title-to-menu transition', () => {
     const menu = createExperienceState('menu');
     const realm = experienceTransitionReducer(menu, { type: 'request-realm' });
 
-    expect(realm).toEqual({ phase: 'realm', transitionSequence: 1 });
-    expect(experienceTransitionReducer(realm, { type: 'request-title' })).toBe(realm);
+    expect(realm).toEqual({
+      phase: 'realm',
+      transitionSequence: 1,
+      transitionRequest: null
+    });
+    expect(experienceTransitionReducer(realm, titleRequest())).toBe(realm);
     expect(experienceTransitionReducer(realm, { type: 'return-menu' })).toEqual({
       phase: 'menu',
-      transitionSequence: 1
+      transitionSequence: 1,
+      transitionRequest: null
     });
   });
 
   it('ignores impossible and stale transitions without corrupting state', () => {
     const title = createExperienceState();
     expect(experienceTransitionReducer(title, { type: 'complete-menu' })).toBe(title);
-    expect(experienceTransitionReducer(title, { type: 'request-title' })).toBe(title);
+    expect(experienceTransitionReducer(title, titleRequest())).toBe(title);
     expect(experienceTransitionReducer(title, { type: 'complete-title' })).toBe(title);
 
     const menu = createExperienceState('menu');
     expect(experienceTransitionReducer(menu, { type: 'complete-menu' })).toBe(menu);
-    expect(experienceTransitionReducer(menu, { type: 'request-menu' })).toBe(menu);
+    expect(experienceTransitionReducer(menu, menuRequest())).toBe(menu);
     expect(experienceTransitionReducer(menu, { type: 'complete-title' })).toBe(menu);
 
     const completedCycle = reduce(
       title,
-      { type: 'request-menu' },
+      menuRequest(),
       { type: 'complete-menu' },
-      { type: 'request-title' },
+      titleRequest(),
       { type: 'complete-title' }
     );
     expect(completedCycle.phase).toBe('title');
     expect(completedCycle.transitionSequence).toBe(2);
+    expect(completedCycle.transitionRequest).toBeNull();
   });
 
   it('maps only active transition phases to visual directions', () => {

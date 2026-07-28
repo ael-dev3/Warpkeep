@@ -33,15 +33,12 @@ import {
   type AuthRailRenderControls,
   type MenuInputModality
 } from './menu/WarpkeepMainMenu';
-import {
-  WarpTransitionOverlay,
-  type WarpTransitionOrigin
-} from './transition/WarpTransitionOverlay';
+import { WarpTransitionOverlay } from './transition/WarpTransitionOverlay';
 import {
   createExperienceState,
   experienceTransitionReducer,
-  getWarpTransitionDirection,
   getWarpTransitionTiming,
+  type GatewayTransitionInput,
   type WarpTransitionDirection,
   type WarpkeepStableExperiencePhase
 } from './transition/experienceTransition';
@@ -70,8 +67,7 @@ import {
 } from '../settings/networkPreloadPolicy';
 import { TitleGatewayHint } from './title/TitleGatewayHint';
 import {
-  fallbackGatewayActivation,
-  fallbackGatewayProjection,
+  fallbackGatewayClientCenter,
   type WarpkeepTitleScreenHandle
 } from './title/titleScreenTypes';
 import './WarpkeepExperience.css';
@@ -143,7 +139,7 @@ function isIgnoredShortcutTarget(target: EventTarget | null) {
   );
 }
 
-function safeGatewayOrigin(activation: GatewayActivationRecord): WarpTransitionOrigin {
+function safeGatewayOrigin(activation: GatewayActivationRecord) {
   return resolveGatewayActivationOrigin(activation, currentGatewayViewport());
 }
 
@@ -247,10 +243,6 @@ export function WarpkeepExperience() {
     initialPhase
   );
   const [pendingDestination, setPendingDestination] = useState<'realm' | null>(null);
-  const [gatewayOrigin, setGatewayOrigin] = useState<WarpTransitionOrigin>(() => ({
-    x: typeof window === 'undefined' ? 640 : window.innerWidth * 0.5,
-    y: typeof window === 'undefined' ? 280 : window.innerHeight * 0.36
-  }));
   const [inputModality, setInputModality] = useState<MenuInputModality>('unknown');
   const [reducedMotion, setReducedMotion] = useState(readReducedMotion);
   const [graphicsPreference, setGraphicsPreference] = useState(readGraphicsPreference);
@@ -261,6 +253,7 @@ export function WarpkeepExperience() {
   const [hintUsesTouchCopy, setHintUsesTouchCopy] = useState(false);
   const [menuPreloadReady, setMenuPreloadReady] = useState(initialPhase !== 'title');
   const [returnPreparing, setReturnPreparing] = useState(false);
+  const [armedTransitionSequence, setArmedTransitionSequence] = useState(-1);
   const titleRef = useRef<WarpkeepTitleScreenHandle>(null);
   const audioDirectorRef = useRef<WarpkeepAudioDirectorHandle>(null);
   const titleDepartureFocusRef = useRef<HTMLDivElement>(null);
@@ -426,7 +419,7 @@ export function WarpkeepExperience() {
     )
       ? 'menu'
       : 'title';
-  const transitionDirection = getWarpTransitionDirection(experience.phase);
+  const transitionRequest = experience.transitionRequest;
   const titleMounted = returnPreparing
     || experience.phase === 'title'
     || experience.phase === 'transitioning-to-title'
@@ -506,10 +499,14 @@ export function WarpkeepExperience() {
 
   const beginMenuTransition = useCallback((
     activation: GatewayActivationRecord,
-    input: 'keyboard' | 'pointer' | 'unknown',
+    input: GatewayTransitionInput,
     pushHistory: boolean
   ) => {
-    if (phaseRef.current !== 'title' || entryLockedRef.current) {
+    if (
+      phaseRef.current !== 'title'
+      || entryLockedRef.current
+      || !activation.ready
+    ) {
       return;
     }
 
@@ -519,10 +516,16 @@ export function WarpkeepExperience() {
       ? 'keyboard'
       : input === 'pointer' && lastPointerTypeRef.current === 'touch'
         ? 'touch'
+        : input === 'pointer'
+          ? 'pointer'
+          : 'unknown';
+    const transitionInput: GatewayTransitionInput =
+      input === 'pointer' && resolvedModality === 'touch'
+        ? 'touch'
         : input;
     setInputModality(resolvedModality);
     setMenuPreloadReady(true);
-    setGatewayOrigin(safeGatewayOrigin(activation));
+    const gatewayClientOrigin = safeGatewayOrigin(activation);
     if (resolvedModality === 'keyboard') {
       const landmark = titleDepartureFocusRef.current;
       if (landmark) {
@@ -541,7 +544,12 @@ export function WarpkeepExperience() {
       window.history.pushState(menuHistoryState(), '', `${pageUrlWithoutHash()}${MENU_HASH}`);
     }
 
-    dispatch({ type: 'request-menu' });
+    dispatch({
+      type: 'request-menu',
+      input: transitionInput,
+      gatewayClientOrigin,
+      acceptedAt: performance.now()
+    });
   }, [dismissTitleHint]);
 
   const handleTitleEntryRequest = useCallback((
@@ -707,19 +715,36 @@ export function WarpkeepExperience() {
     }
 
     const beginPreparedTransition = () => {
-      const activation = titleRef.current?.getGatewayActivation('keyboard')
-        ?? fallbackGatewayActivation('keyboard');
-      setGatewayOrigin(safeGatewayOrigin(activation));
+      const title = titleRef.current;
+      const measurement = title?.getGatewayMeasurement();
+      if (!title || !measurement?.ready || measurement.generation < 1) {
+        return false;
+      }
+      const activation = title.getGatewayActivation('history');
+      if (!activation.ready) {
+        return false;
+      }
+      const gatewayClientOrigin = safeGatewayOrigin(activation);
       setReturnPreparing(false);
-      dispatch({ type: 'request-title' });
+      dispatch({
+        type: 'request-title',
+        input: 'history',
+        gatewayClientOrigin,
+        acceptedAt: performance.now()
+      });
+      return true;
     };
-    if (titleReady) {
-      beginPreparedTransition();
+    if (!titleReady) {
       return undefined;
     }
-
-    const readinessFallback = window.setTimeout(beginPreparedTransition, 900);
-    return () => window.clearTimeout(readinessFallback);
+    let frame = 0;
+    const waitForFreshMeasurement = () => {
+      if (!beginPreparedTransition()) {
+        frame = window.requestAnimationFrame(waitForFreshMeasurement);
+      }
+    };
+    waitForFreshMeasurement();
+    return () => window.cancelAnimationFrame(frame);
   }, [returnPreparing, titleReady]);
 
   const handleExplicitReturn = useCallback(() => {
@@ -737,6 +762,12 @@ export function WarpkeepExperience() {
     }
     coveredSequenceRef.current = sequence;
     setPresentedScreen(direction === 'to-menu' ? 'menu' : 'title');
+  }, []);
+
+  const markTransitionArmed = useCallback((sequence: number) => {
+    setArmedTransitionSequence((current) => (
+      current === sequence ? current : sequence
+    ));
   }, []);
 
   const finishTransition = useCallback((
@@ -781,21 +812,24 @@ export function WarpkeepExperience() {
   }, [experience.phase, titleReady]);
 
   useEffect(() => {
-    if (!transitionDirection) {
+    if (
+      !transitionRequest
+      || armedTransitionSequence !== transitionRequest.sequence
+    ) {
       if (experience.phase === 'menu' && !returnPreparing) {
         entryLockedRef.current = false;
       }
       return undefined;
     }
 
-    const sequence = experience.transitionSequence;
+    const { direction, sequence } = transitionRequest;
     const timing = getWarpTransitionTiming(reducedMotion);
     const coverTimer = window.setTimeout(
-      () => markTransitionCovered(sequence, transitionDirection),
+      () => markTransitionCovered(sequence, direction),
       timing.coverAtMs + 80
     );
     const completionTimer = window.setTimeout(
-      () => finishTransition(sequence, transitionDirection),
+      () => finishTransition(sequence, direction),
       timing.totalMs + 180
     );
 
@@ -804,13 +838,13 @@ export function WarpkeepExperience() {
       window.clearTimeout(completionTimer);
     };
   }, [
+    armedTransitionSequence,
     experience.phase,
-    experience.transitionSequence,
     finishTransition,
     markTransitionCovered,
     reducedMotion,
     returnPreparing,
-    transitionDirection
+    transitionRequest
   ]);
 
   useEffect(() => {
@@ -877,11 +911,14 @@ export function WarpkeepExperience() {
       }
       if (hasMenuHash()) {
         if (phase === 'title') {
-          const activation = titleRef.current?.getGatewayActivation('keyboard')
-            ?? fallbackGatewayActivation('keyboard');
-          titleRef.current?.requestEnter('keyboard');
+          const title = titleRef.current;
+          if (!titleReady || !title) {
+            return;
+          }
+          const activation = title.getGatewayActivation('history');
+          title.requestEnter('history');
           if (phaseRef.current === 'title' && !entryLockedRef.current) {
-            beginMenuTransition(activation, 'unknown', false);
+            beginMenuTransition(activation, 'history', false);
           }
         } else if (phase === 'realm') {
           setPresentedScreen('menu');
@@ -910,7 +947,8 @@ export function WarpkeepExperience() {
     beginMenuTransition,
     beginTitleTransition,
     cancelPreparedReturn,
-    gateAnonymousRealmRoute
+    gateAnonymousRealmRoute,
+    titleReady
   ]);
 
   useEffect(() => {
@@ -925,23 +963,24 @@ export function WarpkeepExperience() {
         entryLockedRef.current = false;
         beginTitleTransition('none');
       }
-    } else if (experience.phase === 'title' && (hasMenuHash() || hasRealmHash())) {
+    } else if (
+      experience.phase === 'title'
+      && titleReady
+      && (hasMenuHash() || hasRealmHash())
+    ) {
       if (hasRealmHash()) {
         gateAnonymousRealmRoute();
       }
       entryLockedRef.current = false;
-      if (titleRef.current) {
-        titleRef.current.requestEnter('keyboard');
-      } else {
-        beginMenuTransition(fallbackGatewayActivation('keyboard'), 'unknown', false);
-      }
+      titleRef.current?.requestEnter('history');
     }
   }, [
     beginMenuTransition,
     beginTitleTransition,
     experience.phase,
     gateAnonymousRealmRoute,
-    returnPreparing
+    returnPreparing,
+    titleReady
   ]);
 
   useEffect(() => {
@@ -1045,8 +1084,8 @@ export function WarpkeepExperience() {
     };
   }, [experience.phase, reducedMotion, titleReady]);
 
-  const getCurrentGatewayProjection = useCallback(() => (
-    titleRef.current?.getGatewayProjection() ?? fallbackGatewayProjection()
+  const getCurrentGatewayClientCenter = useCallback(() => (
+    titleRef.current?.getGatewayClientCenter() ?? fallbackGatewayClientCenter()
   ), []);
 
   const admissionIdentity = verifiedIdentityRef.current;
@@ -1125,8 +1164,10 @@ export function WarpkeepExperience() {
               graphicsQuality={resolvedGraphicsQuality}
               phase={experience.phase === 'transitioning-to-menu'
                 ? 'departing'
-                : experience.phase === 'transitioning-to-title' || returnPreparing
+                : experience.phase === 'transitioning-to-title'
                   ? 'returning'
+                  : returnPreparing
+                    ? 'preparing-return'
                   : 'active'}
               onMeaningfulInteraction={dismissTitleHint}
               onReady={() => setTitleReady(true)}
@@ -1279,24 +1320,24 @@ export function WarpkeepExperience() {
 
       {showTitleHint && experience.phase === 'title' ? (
         <TitleGatewayHint
-          getProjection={getCurrentGatewayProjection}
+          getGatewayClientCenter={getCurrentGatewayClientCenter}
           touch={hintUsesTouchCopy}
         />
       ) : null}
 
-      {transitionDirection ? (
+      {transitionRequest ? (
         <WarpTransitionOverlay
-          key={experience.transitionSequence}
-          direction={transitionDirection}
-          origin={gatewayOrigin}
+          key={transitionRequest.sequence}
+          request={transitionRequest}
           reducedMotion={reducedMotion}
+          onArmed={() => markTransitionArmed(transitionRequest.sequence)}
           onCovered={() => markTransitionCovered(
-            experience.transitionSequence,
-            transitionDirection
+            transitionRequest.sequence,
+            transitionRequest.direction
           )}
           onComplete={() => finishTransition(
-            experience.transitionSequence,
-            transitionDirection
+            transitionRequest.sequence,
+            transitionRequest.direction
           )}
         />
       ) : null}
