@@ -22,7 +22,7 @@ function installMotionPreference(matches = false) {
 function getPatchNotesTrigger(options: { hidden?: boolean } = {}) {
   return screen.getByRole('button', {
     ...options,
-    name: 'Open patch notes for Warpkeep ALPHA 0.3.21'
+    name: 'Open patch notes for Warpkeep ALPHA 0.3.22'
   });
 }
 
@@ -131,11 +131,11 @@ describe('WarpkeepMainMenu', () => {
 
     act(() => patchNotes.focus());
     expect(screen.getByRole('status').textContent).toContain('living frontier');
-    expect(screen.queryByRole('region', { name: 'THE REALM ANSWERS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE GATE HOLDS' })).toBeNull();
 
     fireEvent.click(patchNotes, { detail: 0 });
     expect(screen.queryByRole('status')).toBeNull();
-    expect(screen.getByRole('region', { name: 'THE REALM ANSWERS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE GATE HOLDS' })).not.toBeNull();
     expect(document.activeElement).toBe(patchNotes);
   });
 
@@ -239,17 +239,17 @@ describe('WarpkeepMainMenu', () => {
 
     expect(patchNotes.getAttribute('aria-expanded')).toBe('false');
     expect(patchNotes.getAttribute('aria-controls')).toBe('warpkeep-latest-patch-notes');
-    expect(screen.queryByRole('region', { name: 'THE REALM ANSWERS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE GATE HOLDS' })).toBeNull();
 
     act(() => patchNotes.focus());
-    expect(screen.queryByRole('region', { name: 'THE REALM ANSWERS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE GATE HOLDS' })).toBeNull();
 
     fireEvent.click(patchNotes, { detail: 0 });
-    const notes = screen.getByRole('region', { name: 'THE REALM ANSWERS' });
+    const notes = screen.getByRole('region', { name: 'THE GATE HOLDS' });
     expect(patchNotes.getAttribute('aria-expanded')).toBe('true');
-    expect(notes.textContent).toContain('LATEST PATCH · ALPHA 0.3.21');
-    expect(notes.textContent).toContain('recover in place');
-    expect(notes.textContent).toContain('exact gateway activation point');
+    expect(notes.textContent).toContain('LATEST PATCH · ALPHA 0.3.22');
+    expect(notes.textContent).toContain('holds beneath the keeper’s hand');
+    expect(notes.textContent).toContain('centered on the activation point');
     expect(notes.textContent).toContain(
       'Worker ownership, private accounting, settlement'
     );
@@ -259,7 +259,7 @@ describe('WarpkeepMainMenu', () => {
     expect(document.activeElement).toBe(notes);
 
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(screen.queryByRole('region', { name: 'THE REALM ANSWERS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE GATE HOLDS' })).toBeNull();
     expect(document.activeElement).toBe(patchNotes);
     expect(onRequestReturn).not.toHaveBeenCalled();
 
@@ -272,19 +272,19 @@ describe('WarpkeepMainMenu', () => {
     const patchNotes = getPatchNotesTrigger();
 
     fireEvent.pointerEnter(patchNotes, { pointerType: 'mouse' });
-    expect(screen.getByRole('region', { name: 'THE REALM ANSWERS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE GATE HOLDS' })).not.toBeNull();
 
     fireEvent.pointerDown(document.body, { pointerType: 'mouse' });
-    expect(screen.queryByRole('region', { name: 'THE REALM ANSWERS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE GATE HOLDS' })).toBeNull();
 
     fireEvent.pointerDown(patchNotes, { pointerType: 'touch' });
     patchNotes.focus();
     fireEvent.click(patchNotes);
-    expect(screen.getByRole('region', { name: 'THE REALM ANSWERS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE GATE HOLDS' })).not.toBeNull();
 
     fireEvent.pointerDown(patchNotes, { pointerType: 'touch' });
     fireEvent.click(patchNotes);
-    expect(screen.queryByRole('region', { name: 'THE REALM ANSWERS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE GATE HOLDS' })).toBeNull();
   });
 
   it('keeps hover notes reachable across the anchor gap and toggles by activation', () => {
@@ -293,21 +293,21 @@ describe('WarpkeepMainMenu', () => {
     const patchNotes = getPatchNotesTrigger();
 
     fireEvent.pointerEnter(patchNotes, { pointerType: 'mouse' });
-    expect(screen.getByRole('region', { name: 'THE REALM ANSWERS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE GATE HOLDS' })).not.toBeNull();
     fireEvent.pointerLeave(patchNotes, { pointerType: 'mouse' });
 
     act(() => vi.advanceTimersByTime(250));
-    const panel = screen.getByRole('region', { name: 'THE REALM ANSWERS' });
+    const panel = screen.getByRole('region', { name: 'THE GATE HOLDS' });
     fireEvent.pointerEnter(panel, { pointerType: 'mouse' });
     act(() => vi.advanceTimersByTime(200));
-    expect(screen.getByRole('region', { name: 'THE REALM ANSWERS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE GATE HOLDS' })).not.toBeNull();
 
     fireEvent.click(patchNotes);
     fireEvent.pointerLeave(patchNotes, { pointerType: 'mouse' });
     act(() => vi.advanceTimersByTime(500));
-    expect(screen.getByRole('region', { name: 'THE REALM ANSWERS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE GATE HOLDS' })).not.toBeNull();
     fireEvent.click(patchNotes);
-    expect(screen.queryByRole('region', { name: 'THE REALM ANSWERS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE GATE HOLDS' })).toBeNull();
   });
 
   it('keeps inactive menu controls hidden, inert, and outside the tab order', () => {

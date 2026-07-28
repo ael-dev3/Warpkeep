@@ -17,22 +17,22 @@ describe('latest in-menu patch notes', () => {
 
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
-      releasedOn: '27 JUL 2026',
-      title: 'THE REALM ANSWERS'
+      releasedOn: '28 JUL 2026',
+      title: 'THE GATE HOLDS'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /four deployed Workers.*reloads and reconnects.*coherent private control/i
+      /title gateway.*violet passage.*centered.*activation point.*drifting/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Food.*Wood.*Stone.*Gold.*recall.*server authority/i
+      /Idle Supply Wagons.*inside their keeps.*outbound.*gathering.*returning/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /title passage.*exact gateway activation point.*command menu/i
+      /All four Workers.*keep controls.*dispatch.*recall.*Realm authority unchanged/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /released to players|deployed to players|public balances|guaranteed rewards/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('living Realm');
+    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('keeper’s hand');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
       'Worker ownership, private accounting, settlement'

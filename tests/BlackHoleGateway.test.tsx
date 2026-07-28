@@ -154,6 +154,33 @@ describe('BlackHoleGateway', () => {
     expect(Object.isFrozen(activation.projectionSourceRect)).toBe(true);
   });
 
+  it('retains the physical press point when a touch click omits usable coordinates', () => {
+    const onActivate = vi.fn();
+    renderVisibleGateway({ onActivate });
+    const button = screen.getByRole('button', { name: 'Enter Warpkeep' });
+    vi.spyOn(button, 'getBoundingClientRect').mockReturnValue(
+      rectangle(430, 270, 140, 90)
+    );
+
+    fireEvent.pointerDown(button, {
+      pointerType: 'touch',
+      isPrimary: true,
+      button: 0,
+      clientX: 503.5,
+      clientY: 312.25
+    });
+    fireEvent.click(button, {
+      detail: 1,
+      clientX: 0,
+      clientY: 0
+    });
+
+    expect(onActivate.mock.calls[0]?.[0]).toMatchObject({
+      input: 'pointer',
+      clientPoint: { x: 503.5, y: 312.25 }
+    });
+  });
+
   it('captures the measured button rectangle for keyboard activation', () => {
     const onActivate = vi.fn();
     renderVisibleGateway({ onActivate });

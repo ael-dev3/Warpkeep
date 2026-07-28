@@ -104,6 +104,7 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
     const disabledRef = useRef(disabled);
     const activationInFlightRef = useRef(false);
     const activationLockedRef = useRef(false);
+    const pointerActivationPointRef = useRef<GatewayClientPoint | null>(null);
     const [activationLocked, setActivationLocked] = useState(false);
     const [noticeState, setNoticeState] = useState<GatewayNoticeState>({
       open: false,
@@ -271,6 +272,7 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
     useLayoutEffect(() => {
       const wasDisabled = disabledRef.current;
       disabledRef.current = disabled;
+      pointerActivationPointRef.current = null;
       if (wasDisabled && !disabled) {
         activationLockedRef.current = false;
         activationInFlightRef.current = false;
@@ -453,12 +455,27 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
             aria-expanded={notice ? noticeState.open : undefined}
             disabled={disabled || activationLocked}
             tabIndex={disabled || activationLocked ? -1 : 0}
+            onPointerDown={(event) => {
+              pointerActivationPointRef.current = (
+                event.isPrimary !== false
+                && event.button === 0
+                && Number.isFinite(event.clientX)
+                && Number.isFinite(event.clientY)
+              )
+                ? { x: event.clientX, y: event.clientY }
+                : null;
+            }}
+            onPointerCancel={() => {
+              pointerActivationPointRef.current = null;
+            }}
             onClick={(event) => {
               const input = event.detail === 0 ? 'keyboard' : 'pointer';
+              const pointerPoint = pointerActivationPointRef.current;
+              pointerActivationPointRef.current = null;
               activateGateway(
                 input,
                 input === 'pointer'
-                  ? { x: event.clientX, y: event.clientY }
+                  ? pointerPoint ?? { x: event.clientX, y: event.clientY }
                   : null
               );
             }}

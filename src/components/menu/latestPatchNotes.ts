@@ -62,8 +62,23 @@ const ALPHA_0_3_21_PATCH_NOTES: LatestPatchNotes = Object.freeze({
     'Alpha 0.3.21 remains an unfinished, evolving world. Worker ownership, private accounting, settlement, node release, and recall remain server-authoritative; the additive control read does not change balances or gameplay authority.'
 });
 
+const ALPHA_0_3_22_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: '28 JUL 2026',
+  title: 'THE GATE HOLDS',
+  summary:
+    'The violet gateway now holds beneath the keeper’s hand, while resting wagons wait unseen inside their keeps until the road calls.',
+  highlights: Object.freeze([
+    'The title gateway and its violet passage remain centered on the activation point throughout the visible transition instead of drifting beneath it.',
+    'Idle Supply Wagons now rest inside their keeps rather than gathering outside on the Realm map; outbound, gathering, and returning journeys remain visible.',
+    'All four Workers remain available through keep controls, with dispatch, recall, routes, resources, and Realm authority unchanged.'
+  ]),
+  alphaNotice:
+    'Alpha 0.3.22 remains an unfinished, evolving world. This presentation pass does not change Worker ownership, private accounting, settlement, node release, recall, or the deployed database contract.'
+});
+
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
+    '0.3.22': ALPHA_0_3_22_PATCH_NOTES,
     '0.3.21': ALPHA_0_3_21_PATCH_NOTES,
     '0.3.20': ALPHA_0_3_20_PATCH_NOTES,
     '0.3.19': ALPHA_0_3_19_PATCH_NOTES,

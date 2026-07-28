@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useRef,
   useState
 } from 'react';
@@ -23,6 +24,11 @@ import {
   projectGatewayPointerToDisc,
   type GatewayPointerProjection
 } from './gatewayPointerProjection';
+import {
+  currentGatewayViewport,
+  resolveGatewayActivationOrigin,
+  type GatewayClientPoint
+} from './gatewayActivation';
 import {
   createGatewayVfxAssembly,
   type GatewayVfxAssembly,
@@ -47,6 +53,13 @@ import {
 } from './loadWarpkeepTitle';
 import { createTitlePresentationController } from './titlePresentationController';
 import { calculateTitleResponsiveLayout, titlePortraitAspect } from './titleLayout';
+import {
+  applyTitleDeparturePose,
+  captureTitleDeparturePose,
+  pinTitleDepartureGatewayToViewport,
+  titleDepartureClientPointToViewport,
+  type TitleDeparturePose
+} from './titleDeparturePose';
 import { calculateGalaxyGrowth, createSpiralGalaxyLayout, titleSceneSpec } from './titleSceneSpec';
 import {
   fallbackGatewayActivation,
@@ -663,6 +676,7 @@ export const WarpkeepTitleScreen3D = forwardRef<
   const gatewayRef = useRef<BlackHoleGatewayHandle>(null);
   const fallbackRef = useRef<WarpkeepTitleScreenHandle>(null);
   const gatewayActivationSequenceRef = useRef(0);
+  const gatewayDepartureOriginRef = useRef<GatewayClientPoint | null>(null);
   const gatewayFocusedRef = useRef(false);
   const reducedActivationRenderRef = useRef<(() => void) | null>(null);
   const phaseRef = useRef(phase);
@@ -680,6 +694,12 @@ export const WarpkeepTitleScreen3D = forwardRef<
     qualityChangeHandlerRef.current?.(graphicsQuality);
   }, [graphicsQuality]);
 
+  useLayoutEffect(() => {
+    if (phase === 'departing') {
+      reducedActivationRenderRef.current?.();
+    }
+  }, [phase]);
+
   const requestEnter = useCallback((
     activationOrInput: GatewayActivationRecord | GatewayActivationInput
   ) => {
@@ -695,13 +715,16 @@ export const WarpkeepTitleScreen3D = forwardRef<
       return;
     }
     entryRequestedRef.current = true;
-    gatewayActivationSequenceRef.current += 1;
-    reducedActivationRenderRef.current?.();
-    callbacksRef.current.onMeaningfulInteraction?.();
     const activation = typeof activationOrInput === 'string'
       ? gatewayRef.current?.captureActivation(activationOrInput)
         ?? fallbackGatewayActivation(activationOrInput)
       : activationOrInput;
+    gatewayDepartureOriginRef.current = resolveGatewayActivationOrigin(
+      activation,
+      currentGatewayViewport()
+    );
+    gatewayActivationSequenceRef.current += 1;
+    callbacksRef.current.onMeaningfulInteraction?.();
     callbacksRef.current.onRequestEnterMenu?.(activation);
   }, []);
 
@@ -1205,6 +1228,7 @@ export const WarpkeepTitleScreen3D = forwardRef<
       let handledActivationSequence = gatewayActivationSequenceRef.current;
       let surgeElapsed: number = gatewayActivationSpec.durationSeconds;
       let departureStartedAt: number | null = null;
+      let departurePose: TitleDeparturePose | null = null;
       const gatewayResponse: GatewayVfxResponse = {
         proximity: 0,
         proximitySquared: 0,
@@ -1280,20 +1304,34 @@ export const WarpkeepTitleScreen3D = forwardRef<
         const departing = phaseRef.current === 'departing';
         if (departing && departureStartedAt === null) {
           departureStartedAt = visibleElapsed;
+          departurePose = captureTitleDeparturePose({
+            pointerCurrent,
+            galaxyGroup: galaxy.group,
+            galaxyGrowthGroup: galaxy.growthGroup,
+            galaxyParallaxGroup: galaxy.parallaxGroup,
+            camera
+          });
         }
-        if (departing) {
-          pointerTarget.x = 0;
-          pointerTarget.y = 0;
+        if (departing && departurePose) {
+          applyTitleDeparturePose(departurePose, {
+            pointerTarget,
+            pointerCurrent,
+            galaxyGroup: galaxy.group,
+            galaxyGrowthGroup: galaxy.growthGroup,
+            galaxyParallaxGroup: galaxy.parallaxGroup,
+            camera
+          });
           pointerScreen.active = false;
         } else if (!departing) {
           departureStartedAt = null;
+          departurePose = null;
         }
         const departureProgress = departureStartedAt === null || prefersReducedMotion
           ? 0
           : THREE.MathUtils.clamp((visibleElapsed - departureStartedAt) / 1.45, 0, 1);
         const warpPull = departureProgress * departureProgress * (3 - 2 * departureProgress);
 
-        if (!prefersReducedMotion) {
+        if (!prefersReducedMotion && !departing) {
           pointerCurrent.x = dampValue(
             pointerCurrent.x,
             pointerTarget.x,
@@ -1319,18 +1357,18 @@ export const WarpkeepTitleScreen3D = forwardRef<
 
         galaxy.spinGroup.rotation.z = -0.13 +
           visibleElapsed * (Math.PI * 2) / titleSceneSpec.galaxy.rotationPeriodSeconds;
-        galaxy.growthGroup.scale.setScalar(
-          calculateGalaxyGrowth(visibleElapsed) * (1 + warpPull * 0.92)
-        );
-        galaxy.parallaxGroup.rotation.x =
-          pointerCurrent.y * titleSceneSpec.interaction.galaxyRotationX;
-        galaxy.parallaxGroup.rotation.y =
-          pointerCurrent.x * -titleSceneSpec.interaction.galaxyRotationY;
-        galaxy.group.position.x =
-          Math.sin(visibleElapsed * 0.05) * 0.065 -
-          pointerCurrent.x * titleSceneSpec.interaction.galaxyTravelX;
-        galaxy.group.position.y =
-          galaxyBaseY + pointerCurrent.y * titleSceneSpec.interaction.galaxyTravelY;
+        if (!departing) {
+          galaxy.growthGroup.scale.setScalar(calculateGalaxyGrowth(visibleElapsed));
+          galaxy.parallaxGroup.rotation.x =
+            pointerCurrent.y * titleSceneSpec.interaction.galaxyRotationX;
+          galaxy.parallaxGroup.rotation.y =
+            pointerCurrent.x * -titleSceneSpec.interaction.galaxyRotationY;
+          galaxy.group.position.x =
+            Math.sin(visibleElapsed * 0.05) * 0.065 -
+            pointerCurrent.x * titleSceneSpec.interaction.galaxyTravelX;
+          galaxy.group.position.y =
+            galaxyBaseY + pointerCurrent.y * titleSceneSpec.interaction.galaxyTravelY;
+        }
 
         titleStage.scale.setScalar(titleLayoutScale * (1 - warpPull * 0.08));
         titleStage.rotation.y =
@@ -1360,25 +1398,45 @@ export const WarpkeepTitleScreen3D = forwardRef<
         violetRimLight.position.y = 1.3 + pointerCurrent.y * 1.2;
         neutralFillLight.position.x = -6 + pointerCurrent.x * 0.65;
 
-        camera.position.x =
-          Math.sin(visibleElapsed * 0.052) * cameraDriftX +
-          pointerCurrent.x * titleSceneSpec.interaction.cameraTravelX;
-        camera.position.y =
-          0.18 + Math.cos(visibleElapsed * 0.046) * 0.04 +
-          pointerCurrent.y * titleSceneSpec.interaction.cameraTravelY;
-        camera.position.z = restingCameraZ - warpPull * 17.5;
-        camera.lookAt(
-          pointerCurrent.x * titleSceneSpec.interaction.cameraTargetX,
-          THREE.MathUtils.lerp(
+        if (!departing) {
+          camera.position.x =
+            Math.sin(visibleElapsed * 0.052) * cameraDriftX +
+            pointerCurrent.x * titleSceneSpec.interaction.cameraTravelX;
+          camera.position.y =
+            0.18 + Math.cos(visibleElapsed * 0.046) * 0.04 +
+            pointerCurrent.y * titleSceneSpec.interaction.cameraTravelY;
+          camera.position.z = restingCameraZ;
+          camera.lookAt(
+            pointerCurrent.x * titleSceneSpec.interaction.cameraTargetX,
             cameraTargetY + pointerCurrent.y * titleSceneSpec.interaction.cameraTargetY,
-            galaxyBaseY,
-            warpPull * 0.68
-          ),
-          THREE.MathUtils.lerp(-1.4, -18, warpPull * 0.74)
-        );
+            -1.4
+          );
+        }
 
         scene.updateMatrixWorld(true);
         camera.updateMatrixWorld(true);
+        const departureOrigin = gatewayDepartureOriginRef.current;
+        if (departing && departurePose && departureOrigin) {
+          // Transforms do not notify ResizeObserver, so sample the live client
+          // rect while departing before mapping the frozen overlay point back
+          // into the renderer's unscaled viewport.
+          const departureSurfaceBounds = interactionSurface.getBoundingClientRect();
+          const departureViewportPoint = titleDepartureClientPointToViewport(
+            departureOrigin,
+            departureSurfaceBounds,
+            { width: viewportWidth, height: viewportHeight }
+          );
+          pinTitleDepartureGatewayToViewport({
+            gateway: galaxy.gatewayAnchor,
+            movableRoot: galaxy.group,
+            camera,
+            x: departureViewportPoint.x,
+            y: departureViewportPoint.y,
+            width: viewportWidth,
+            height: viewportHeight
+          });
+          scene.updateMatrixWorld(true);
+        }
         galaxy.gatewayAnchor.getWorldPosition(gatewayWorldPosition);
         gatewayProjectedPosition.copy(gatewayWorldPosition).project(camera);
         const gatewayX = (gatewayProjectedPosition.x * 0.5 + 0.5) * viewportWidth;

@@ -1,6 +1,46 @@
 import * as THREE from 'three';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+const workerPrefabLoadControl = vi.hoisted(() => ({
+  mode: 'resolved' as 'resolved' | 'pending',
+  pending: [] as Array<Readonly<{
+    resolve: () => void;
+    reject: () => void;
+  }>>
+}));
+
+vi.mock('../src/components/realm/loadHegemonyExpeditionAssets', async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import('../src/components/realm/loadHegemonyExpeditionAssets')
+  >();
+  return {
+    ...actual,
+    acquireHegemonyExpeditionPrefab: (
+      options: Parameters<typeof actual.acquireHegemonyExpeditionPrefab>[0]
+    ) => {
+      const lease = () => ({
+        model: Object.freeze({
+          root: new THREE.Group(),
+          clips: Object.freeze([]),
+          footprintDiameter: options.targetFootprintDiameter,
+          visualHeight: 1,
+          assetUrl: options.asset.path
+        }),
+        release: vi.fn()
+      });
+      if (workerPrefabLoadControl.mode === 'pending') {
+        return new Promise<ReturnType<typeof lease>>((resolve, reject) => {
+          workerPrefabLoadControl.pending.push(Object.freeze({
+            resolve: () => resolve(lease()),
+            reject: () => reject(new Error('TEST_WORKER_PREFAB_REJECTED'))
+          }));
+        });
+      }
+      return Promise.resolve(lease());
+    }
+  };
+});
+
 import {
   createRealmWorkerLayer,
   realmWorkerWagonLodForQuality,
@@ -18,6 +58,7 @@ import {
   resolveRealmWorkerRoutePose,
   resolveRealmWorkerVisualRoute
 } from '../src/components/realm/realmWorkerRoutePresentation';
+import { REALM_QUALITY_SPECS } from '../src/components/realm/realmQuality';
 
 const idleWorker = Object.freeze({
   workerId: 'genesis-001-castle-7-worker-01',
@@ -47,6 +88,8 @@ const outboundWorker = Object.freeze({
 }) satisfies RealmWorkerSceneRecord;
 
 afterEach(() => {
+  workerPrefabLoadControl.pending.splice(0).forEach((load) => load.reject());
+  workerPrefabLoadControl.mode = 'resolved';
   vi.restoreAllMocks();
 });
 
@@ -175,11 +218,11 @@ describe('realm worker scene layer', () => {
 
   it('renders one bounded selectable identity and accepts only the same static catalog', () => {
     const layer = createRealmWorkerLayer({
-      workers: [idleWorker],
+      workers: [outboundWorker],
       hexSize: 1,
       heightAtWorld: () => 0
     });
-    const world = resolveRealmWorkerWorldPosition(idleWorker, 0n, 1);
+    const world = resolveRealmWorkerWorldPosition(outboundWorker, 0n, 1);
     const hit = layer.raycast(new THREE.Raycaster(
       new THREE.Vector3(world.x, 5, world.z),
       new THREE.Vector3(0, -1, 0),
@@ -187,13 +230,13 @@ describe('realm worker scene layer', () => {
       10
     ));
     expect(hit).toMatchObject({
-      workerId: idleWorker.workerId,
+      workerId: outboundWorker.workerId,
       workerOrdinal: 1,
       originCastleId: 7
     });
-    expect(layer.canReconcile([Object.freeze({ ...idleWorker, revision: 2n })])).toBe(true);
+    expect(layer.canReconcile([Object.freeze({ ...outboundWorker, revision: 2n })])).toBe(true);
     expect(layer.canReconcile([Object.freeze({
-      ...idleWorker,
+      ...outboundWorker,
       originCoord: Object.freeze({ q: 1, r: 0 })
     })])).toBe(false);
     const marker = layer.group.getObjectByName(
@@ -202,13 +245,179 @@ describe('realm worker scene layer', () => {
     const pick = layer.group.getObjectByName('realm-worker-pick-volumes') as THREE.InstancedMesh;
     const markerDispose = vi.spyOn(marker, 'dispose');
     const pickDispose = vi.spyOn(pick, 'dispose');
-    layer.reconcile([Object.freeze({ ...idleWorker, revision: 2n })]);
-    layer.setHoveredWorkerId(idleWorker.workerId);
-    layer.setSelectedWorkerId(idleWorker.workerId);
+    layer.reconcile([Object.freeze({ ...outboundWorker, revision: 2n })]);
+    layer.setHoveredWorkerId(outboundWorker.workerId);
+    layer.setSelectedWorkerId(outboundWorker.workerId);
     layer.dispose();
     expect(markerDispose).toHaveBeenCalledOnce();
     expect(pickDispose).toHaveBeenCalledOnce();
     expect(layer.raycast(new THREE.Raycaster())).toBeNull();
+  });
+
+  it('keeps idle wagons parked invisibly inside their keep', () => {
+    const layer = createRealmWorkerLayer({
+      workers: [idleWorker],
+      hexSize: 1,
+      heightAtWorld: () => 0
+    });
+    const marker = layer.group.getObjectByName(
+      'realm-worker-wagon-fallbacks'
+    ) as THREE.InstancedMesh;
+    const pick = layer.group.getObjectByName(
+      'realm-worker-pick-volumes'
+    ) as THREE.InstancedMesh;
+
+    expect(marker.count).toBe(0);
+    expect(pick.count).toBe(0);
+    expect(layer.getCurrentPose(idleWorker.workerId)).toMatchObject({
+      direction: 'idle',
+      coord: idleWorker.originCoord
+    });
+    expect(layer.getPresentationTelemetry()).toMatchObject({
+      publicWorkerCount: 1,
+      modelWorkerCount: 0,
+      fallbackWorkerCount: 0
+    });
+    expect(layer.raycast(new THREE.Raycaster(
+      new THREE.Vector3(0, 5, 0),
+      new THREE.Vector3(0, -1, 0),
+      0,
+      10
+    ))).toBeNull();
+    layer.dispose();
+  });
+
+  it('reveals the active journey and reparks the wagon when return completes', () => {
+    const layer = createRealmWorkerLayer({
+      workers: [idleWorker],
+      hexSize: 1,
+      heightAtWorld: () => 0
+    });
+    const marker = layer.group.getObjectByName(
+      'realm-worker-wagon-fallbacks'
+    ) as THREE.InstancedMesh;
+    const pick = layer.group.getObjectByName(
+      'realm-worker-pick-volumes'
+    ) as THREE.InstancedMesh;
+    const gathering = Object.freeze({
+      ...outboundWorker,
+      status: 'gathering' as const,
+      timelineRevision: 2,
+      revision: 2n
+    }) satisfies RealmWorkerSceneRecord;
+    const returning = Object.freeze({
+      ...outboundWorker,
+      status: 'returning' as const,
+      returnStartedAtMicros: 500n,
+      returnsAtMicros: 700n,
+      returnStartProgressBasisPoints: 10_000,
+      timelineRevision: 3,
+      revision: 3n
+    }) satisfies RealmWorkerSceneRecord;
+
+    layer.reconcile([outboundWorker]);
+    expect(marker.count).toBe(1);
+    expect(pick.count).toBe(1);
+    expect(layer.getCurrentPose(outboundWorker.workerId)?.direction).toBe('outbound');
+
+    layer.update(400n);
+    layer.reconcile([gathering]);
+    expect(marker.count).toBe(1);
+    expect(pick.count).toBe(1);
+    expect(layer.getCurrentPose(gathering.workerId)?.direction).toBe('gathering');
+
+    layer.reconcile([returning]);
+    expect(marker.count).toBe(1);
+    expect(pick.count).toBe(1);
+    expect(layer.getCurrentPose(returning.workerId)?.direction).toBe('returning');
+
+    const returnedIdle = Object.freeze({
+      ...idleWorker,
+      timelineRevision: 4,
+      revision: 4n
+    }) satisfies RealmWorkerSceneRecord;
+    layer.reconcile([returnedIdle]);
+    expect(marker.count).toBe(0);
+    expect(pick.count).toBe(0);
+    expect(layer.getCurrentPose(returnedIdle.workerId)).toMatchObject({
+      direction: 'idle',
+      coord: returnedIdle.originCoord
+    });
+    const parkedWorld = resolveRealmWorkerWorldPosition(returnedIdle, 400n, 1);
+    expect(layer.getCurrentPose(returnedIdle.workerId)?.world).toMatchObject({
+      x: parkedWorld.x,
+      z: parkedWorld.z
+    });
+    layer.dispose();
+  });
+
+  it('removes loaded models when workers park and ignores a late prefab for an idle worker', async () => {
+    const loadedReady = vi.fn();
+    const loadedLayer = createRealmWorkerLayer({
+      workers: [outboundWorker],
+      hexSize: 1,
+      heightAtWorld: () => 0,
+      quality: REALM_QUALITY_SPECS.balanced,
+      baseUrl: '/',
+      maxAnisotropy: 1,
+      reducedMotion: true,
+      onModelReady: loadedReady
+    });
+    const loadedModels = loadedLayer.group.getObjectByName(
+      'realm-worker-wagon-models'
+    ) as THREE.Group;
+
+    await vi.waitFor(() => expect(loadedReady).toHaveBeenCalledOnce());
+    expect(loadedModels.children).toHaveLength(1);
+    expect(loadedLayer.getPresentationTelemetry()).toMatchObject({
+      modelWorkerCount: 1,
+      fallbackWorkerCount: 0
+    });
+
+    loadedLayer.reconcile([Object.freeze({
+      ...idleWorker,
+      timelineRevision: 2,
+      revision: 2n
+    })]);
+    expect(loadedModels.children).toHaveLength(0);
+    expect(loadedLayer.getPresentationTelemetry()).toMatchObject({
+      modelWorkerCount: 0,
+      fallbackWorkerCount: 0
+    });
+    loadedLayer.dispose();
+
+    workerPrefabLoadControl.mode = 'pending';
+    const lateReady = vi.fn();
+    const lateLayer = createRealmWorkerLayer({
+      workers: [outboundWorker],
+      hexSize: 1,
+      heightAtWorld: () => 0,
+      quality: REALM_QUALITY_SPECS.balanced,
+      baseUrl: '/',
+      maxAnisotropy: 1,
+      reducedMotion: true,
+      onModelReady: lateReady
+    });
+    const lateModels = lateLayer.group.getObjectByName(
+      'realm-worker-wagon-models'
+    ) as THREE.Group;
+    const pending = workerPrefabLoadControl.pending.shift();
+    expect(pending).toBeDefined();
+
+    lateLayer.reconcile([Object.freeze({
+      ...idleWorker,
+      timelineRevision: 2,
+      revision: 2n
+    })]);
+    pending!.resolve();
+    await vi.waitFor(() => expect(lateReady).toHaveBeenCalledOnce());
+
+    expect(lateModels.children).toHaveLength(0);
+    expect(lateLayer.getPresentationTelemetry()).toMatchObject({
+      modelWorkerCount: 0,
+      fallbackWorkerCount: 0
+    });
+    lateLayer.dispose();
   });
 
   it('refuses duplicate or non-canonical scene identities', () => {
@@ -264,7 +473,7 @@ describe('realm worker scene layer', () => {
     expect(markerMaterialDispose).toHaveBeenCalledOnce();
   });
 
-  it('leaves idle instance buffers and terrain sampling untouched on unchanged frames', () => {
+  it('leaves parked idle instance buffers and terrain sampling untouched', () => {
     const heightAtWorld = vi.fn(() => 0);
     const layer = createRealmWorkerLayer({
       workers: [idleWorker],
@@ -286,10 +495,12 @@ describe('realm worker scene layer', () => {
     expect(marker.instanceMatrix.version).toBe(markerMatrixVersion);
     expect(marker.instanceColor?.version).toBe(markerColorVersion);
     expect(pick.instanceMatrix.version).toBe(pickMatrixVersion);
+    expect(marker.count).toBe(0);
+    expect(pick.count).toBe(0);
     layer.setHoveredWorkerId(idleWorker.workerId);
     expect(heightAtWorld).toHaveBeenCalledTimes(5);
-    expect(marker.instanceMatrix.version).toBeGreaterThan(markerMatrixVersion);
-    expect(marker.instanceColor?.version).toBeGreaterThan(markerColorVersion ?? -1);
+    expect(marker.instanceMatrix.version).toBe(markerMatrixVersion);
+    expect(marker.instanceColor?.version).toBe(markerColorVersion);
     expect(pick.instanceMatrix.version).toBe(pickMatrixVersion);
     layer.dispose();
   });
