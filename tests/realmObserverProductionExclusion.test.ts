@@ -318,6 +318,7 @@ describe('local QA production exclusion', () => {
     expect(verifier).toContain('worker-active');
     expect(verifier).toContain('warpkeep-local-');
     expect(verifier).toContain('data-local-fullstack-');
+    expect(verifier).toContain('entry-agreement-continuity=');
     expect(verifier).toContain('persistent-worker-reentry=');
     expect(verifier).toContain('worker-private-seams=');
     expect(verifier).toContain('LOCAL RENDERED WEBGL QA');

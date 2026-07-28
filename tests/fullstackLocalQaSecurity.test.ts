@@ -492,6 +492,65 @@ describe('disposable connected local QA dependency and network boundaries', () =
     expect(browserSource).not.toContain('genesis-001-tier1-stone-002');
   });
 
+  it('proves restored exact-current entry without Terms, QR, or client acceptance authority', () => {
+    const browserSource = readFileSync(
+      resolve(process.cwd(), 'scripts/qa-observer/local-fullstack-browser-probe.mjs'),
+      'utf8'
+    );
+    const appSource = readFileSync(
+      resolve(process.cwd(), 'src/dev/FullstackLocalQaApp.tsx'),
+      'utf8'
+    );
+    const spacetimeSource = readFileSync(
+      resolve(process.cwd(), 'scripts/qa-observer/local-fullstack-spacetime.mjs'),
+      'utf8'
+    );
+
+    for (const source of [appSource, browserSource]) {
+      expect(source).toContain(
+        '?entry-agreement-continuity=restored-current-v1'
+      );
+    }
+    expect(appSource).toContain('let authorized = restoredSession;');
+    expect(appSource).toContain(
+      'data-local-fullstack-entry-agreement-satisfied'
+    );
+    expect(appSource).toContain('data-local-fullstack-auth-begin-count');
+    expect(appSource).toContain('data-local-fullstack-qr-encode-count');
+    expect(appSource).toContain(
+      'data-local-fullstack-entry-agreement-read-count'
+    );
+    expect(appSource).toContain(
+      'data-local-fullstack-entry-agreement-accept-count'
+    );
+    expect(spacetimeSource).toContain(
+      "await callPlayer('get_my_entry_agreement_status_v1')"
+    );
+    expect(spacetimeSource).toContain(
+      'entryAgreementAcceptedCurrent: currentEntryAgreement[1]'
+    );
+    expect(browserSource).toContain(
+      'await exerciseRestoredEntryAgreementContinuity(devtools)'
+    );
+    expect(browserSource).toContain('value.refreshCount !== 1');
+    expect(browserSource).toContain('value.authBeginCount !== 0');
+    expect(browserSource).toContain('value.qrEncodeCount !== 0');
+    expect(browserSource).toContain('value.entryAgreementReadCount !== 1');
+    expect(browserSource).toContain('value.entryAgreementAcceptCount !== 0');
+    expect(browserSource).toContain('value.termsDialogInsertions !== 0');
+    expect(browserSource).toContain('value.checkboxInsertions !== 0');
+    expect(browserSource).toContain('value.qrInsertions !== 0');
+    expect(browserSource).toContain(
+      "value.stage !== 'restored-current-complete'"
+    );
+    expect(browserSource).toContain(
+      "value.acceptedCurrent !== true"
+    );
+    expect(browserSource).toContain(
+      "'one synthetic cold auth/bootstrap/Terms '"
+    );
+  });
+
   it('hard-reenters the persistent Worker realm while private reads delay and retry', () => {
     const browserSource = readFileSync(
       resolve(process.cwd(), 'scripts/qa-observer/local-fullstack-browser-probe.mjs'),

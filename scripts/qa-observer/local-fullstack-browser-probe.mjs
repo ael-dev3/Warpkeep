@@ -29,6 +29,8 @@ const PERSISTENT_WORKER_REENTRY_SEARCH =
   '?persistent-worker-reentry=delayed-private-v1';
 const WORKER_PRIVATE_SEAM_MATRIX_SEARCH =
   '?worker-private-seams=continuity-matrix-v1';
+const RESTORED_CURRENT_AGREEMENT_SEARCH =
+  '?entry-agreement-continuity=restored-current-v1';
 const RELEASE_PRIVATE_WORKER_READS_EVENT =
   'warpkeep-local-release-private-worker-reads';
 const SET_PRIVATE_WORKER_SEAM_EVENT =
@@ -196,6 +198,7 @@ function exactNavigationUrl(value, expectedUrl) {
         actual.search === expected.search
         || actual.search === PERSISTENT_WORKER_REENTRY_SEARCH
         || actual.search === WORKER_PRIVATE_SEAM_MATRIX_SEARCH
+        || actual.search === RESTORED_CURRENT_AGREEMENT_SEARCH
       )
       && actual.username === ''
       && actual.password === ''
@@ -995,6 +998,7 @@ async function exerciseTitleGatewayDepartureFocus(
       await setTitleGatewayCaseEnvironment(session, probeCase);
       stage = 'navigation';
       await session.command('Page.navigate', { url: titleUrl });
+      await delay(500);
       stage = 'preparation';
       const target = await prepareTitleGatewayDepartureFocusCase(session, probeCase);
       if (probeCase.input === 'keyboard') {
@@ -1046,6 +1050,213 @@ async function exerciseTitleGatewayDepartureFocus(
   });
 }
 
+async function exerciseRestoredEntryAgreementContinuity(session) {
+  const result = await session.command('Runtime.evaluate', {
+    expression: `(async () => {
+      const deadline = performance.now() + ${PRESENTATION_TIMEOUT_MILLISECONDS};
+      const waitFor = async (predicate) => {
+        while (performance.now() <= deadline) {
+          try {
+            const value = predicate();
+            if (value) return value;
+          } catch {}
+          await new Promise((resolve) => setTimeout(resolve, 32));
+        }
+        return undefined;
+      };
+      const visible = (element) => {
+        if (!(element instanceof HTMLElement)) return false;
+        const style = getComputedStyle(element);
+        const bounds = element.getBoundingClientRect();
+        return style.display !== 'none'
+          && style.visibility !== 'hidden'
+          && Number(style.opacity || '1') > 0
+          && bounds.width > 0
+          && bounds.height > 0;
+      };
+      const count = (attribute) => {
+        const value = document.documentElement.getAttribute(attribute) ?? '0';
+        return /^(?:0|[1-9]\\d{0,9})$/.test(value) ? Number(value) : -1;
+      };
+      const observation = {
+        checkboxInsertions: 0,
+        qrInsertions: 0,
+        termsDialogInsertions: 0
+      };
+      const inspect = (candidate) => {
+        if (!(candidate instanceof Element)) return;
+        const elements = [candidate, ...candidate.querySelectorAll('*')];
+        for (const element of elements) {
+          if (
+            element.matches('[role="dialog"][aria-modal="true"]')
+            && /ALPHA PARTICIPATION TERMS/i.test(element.textContent ?? '')
+          ) observation.termsDialogInsertions += 1;
+          if (element.matches('input[type="checkbox"]')) {
+            observation.checkboxInsertions += 1;
+          }
+          if (element.matches('.farcaster-auth-panel__qr-frame')) {
+            observation.qrInsertions += 1;
+          }
+        }
+      };
+      inspect(document.documentElement);
+      const observer = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+          if (mutation.type !== 'childList') continue;
+          for (const node of mutation.addedNodes) inspect(node);
+        }
+      });
+      observer.observe(document.documentElement, { childList: true, subtree: true });
+      try {
+        const enterMenu = await waitFor(() => {
+          const candidate = document.querySelector(
+            'button[data-command="enter-realm"]'
+          );
+          return candidate instanceof HTMLButtonElement
+            && !candidate.disabled
+            && visible(candidate)
+            ? candidate
+            : undefined;
+        });
+        if (!(enterMenu instanceof HTMLButtonElement)) {
+          return { stage: 'restored-current-menu' };
+        }
+        enterMenu.click();
+        const probe = await waitFor(() => {
+          const candidate = document.querySelector(
+            '[data-local-fullstack-backend]'
+          );
+          return (
+            candidate?.getAttribute('data-local-fullstack-auth') === 'authenticated'
+            && candidate.getAttribute('data-local-fullstack-backend') === 'ready'
+            && candidate.getAttribute(
+              'data-local-fullstack-entry-agreement-satisfied'
+            ) === 'true'
+          ) ? candidate : undefined;
+        });
+        if (!(probe instanceof HTMLOutputElement)) {
+          const candidate = document.querySelector(
+            '[data-local-fullstack-backend]'
+          );
+          return {
+            stage: 'restored-current-authority',
+            authPhase: candidate?.getAttribute(
+              'data-local-fullstack-auth'
+            ) ?? 'missing',
+            backendPhase: candidate?.getAttribute(
+              'data-local-fullstack-backend'
+            ) ?? 'missing',
+            agreementSatisfied: candidate?.getAttribute(
+              'data-local-fullstack-entry-agreement-satisfied'
+            ) ?? 'missing',
+            refreshCount: count('data-local-fullstack-access-refresh-count'),
+            entryAgreementReadCount: count(
+              'data-local-fullstack-entry-agreement-read-count'
+            )
+          };
+        }
+        const realm = await waitFor(() => {
+          const candidate = document.querySelector(
+            'main[aria-label="Hegemony realm"]'
+          );
+          return candidate instanceof HTMLElement
+            && visible(candidate)
+            && candidate.getAttribute('data-renderer-state') === 'ready'
+            ? candidate
+            : undefined;
+        });
+        if (!(realm instanceof HTMLElement)) {
+          return { stage: 'restored-current-realm' };
+        }
+        await new Promise((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(resolve));
+        });
+        const html = document.documentElement.innerHTML;
+        return {
+          stage: 'restored-current-complete',
+          acceptedCurrent: probe.getAttribute(
+            'data-local-fullstack-entry-agreement-satisfied'
+          ) === 'true',
+          refreshCount: count('data-local-fullstack-access-refresh-count'),
+          authBeginCount: count('data-local-fullstack-auth-begin-count'),
+          qrEncodeCount: count('data-local-fullstack-qr-encode-count'),
+          entryAgreementReadCount: count(
+            'data-local-fullstack-entry-agreement-read-count'
+          ),
+          entryAgreementAcceptCount: count(
+            'data-local-fullstack-entry-agreement-accept-count'
+          ),
+          termsDialogInsertions: observation.termsDialogInsertions,
+          checkboxInsertions: observation.checkboxInsertions,
+          qrInsertions: observation.qrInsertions,
+          termsDialogAbsent: !document.querySelector(
+            '[role="dialog"][aria-modal="true"]'
+          ),
+          checkboxAbsent: !document.querySelector('input[type="checkbox"]'),
+          qrAbsent: !document.querySelector('.farcaster-auth-panel__qr-frame'),
+          tokenAbsent: !/(?:LOCAL_QA_CHANNEL_NOT_A_REAL_PROOF|LOCAL_QA_SYNTHETIC_MESSAGE|eyJ[A-Za-z0-9_-]{20,}\\.)/.test(html),
+          storageEmpty: localStorage.length === 0 && sessionStorage.length === 0
+        };
+      } finally {
+        observer.disconnect();
+      }
+    })()`,
+    awaitPromise: true,
+    returnByValue: true,
+  }, COMMAND_TIMEOUT_MILLISECONDS);
+  const value = result?.result?.value;
+  if (
+    result?.exceptionDetails
+    || value === null
+    || typeof value !== 'object'
+    || Array.isArray(value)
+    || value.stage !== 'restored-current-complete'
+    || value.acceptedCurrent !== true
+    || value.refreshCount !== 1
+    || value.authBeginCount !== 0
+    || value.qrEncodeCount !== 0
+    || value.entryAgreementReadCount !== 1
+    || value.entryAgreementAcceptCount !== 0
+    || value.termsDialogInsertions !== 0
+    || value.checkboxInsertions !== 0
+    || value.qrInsertions !== 0
+    || value.termsDialogAbsent !== true
+    || value.checkboxAbsent !== true
+    || value.qrAbsent !== true
+    || value.tokenAbsent !== true
+    || value.storageEmpty !== true
+  ) {
+    const safeStage = typeof value?.stage === 'string'
+      && /^[a-z0-9-]{1,64}$/.test(value.stage)
+      ? value.stage
+      : 'unknown';
+    const safeAuthorityState = safeStage === 'restored-current-authority'
+      ? ` (${[
+          value?.authPhase,
+          value?.backendPhase,
+          value?.agreementSatisfied
+        ].map((entry) => (
+          typeof entry === 'string' && /^[a-z-]{1,32}$/.test(entry)
+            ? entry
+            : 'invalid'
+        )).join('/')}/${[
+          value?.refreshCount,
+          value?.entryAgreementReadCount
+        ].map((entry) => (
+          Number.isSafeInteger(entry) && entry >= 0 && entry <= 10
+            ? String(entry)
+            : 'invalid'
+        )).join('/')})`
+      : '';
+    throw new LocalFullstackBrowserError(
+      `Disposable restored Terms continuity failed at ${safeStage}${
+        safeAuthorityState
+      }.`
+    );
+  }
+  return Object.freeze({ ...value });
+}
+
 async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') {
   if (!['complete', 'persistent-worker-reentry'].includes(journeyMode)) {
     throw new LocalFullstackBrowserError('Disposable journey mode was invalid.');
@@ -1084,9 +1295,16 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
       const buttonWithText = (text, root = document) => [...root.querySelectorAll('button')]
         .find((button) => visible(button) && (button.textContent ?? '').trim() === text);
 
-      const enterMenu = await waitFor(() => (
-        document.querySelector('button[data-command="enter-realm"]')
-      ));
+      const enterMenu = await waitFor(() => {
+        const candidate = document.querySelector(
+          'button[data-command="enter-realm"]'
+        );
+        return candidate instanceof HTMLButtonElement
+          && !candidate.disabled
+          && visible(candidate)
+          ? candidate
+          : undefined;
+      });
       if (!(enterMenu instanceof HTMLButtonElement)) return { stage: 'menu' };
       enterMenu.click();
 
@@ -2665,9 +2883,23 @@ async function exerciseHardReloadWorkerContinuity(session) {
         }
         return undefined;
       };
-      const enterMenu = await waitFor(() => document.querySelector(
-        'button[data-command="enter-realm"]'
-      ));
+      const enterMenu = await waitFor(() => {
+        const candidate = document.querySelector(
+          'button[data-command="enter-realm"]'
+        );
+        if (!(candidate instanceof HTMLButtonElement) || candidate.disabled) {
+          return undefined;
+        }
+        const style = getComputedStyle(candidate);
+        const bounds = candidate.getBoundingClientRect();
+        return style.display !== 'none'
+          && style.visibility !== 'hidden'
+          && Number(style.opacity || '1') > 0
+          && bounds.width > 0
+          && bounds.height > 0
+          ? candidate
+          : undefined;
+      });
       if (!(enterMenu instanceof HTMLButtonElement)) {
         return { stage: 'hard-reload-menu' };
       }
@@ -2954,9 +3186,16 @@ async function exercisePersistentWorkerReentry(session, preparedEvidence) {
         )));
       };
 
-      const enterMenu = await waitFor(() => (
-        document.querySelector('button[data-command="enter-realm"]')
-      ));
+      const enterMenu = await waitFor(() => {
+        const candidate = document.querySelector(
+          'button[data-command="enter-realm"]'
+        );
+        return candidate instanceof HTMLButtonElement
+          && !candidate.disabled
+          && visible(candidate)
+          ? candidate
+          : undefined;
+      });
       if (!(enterMenu instanceof HTMLButtonElement)) return { stage: 'reentry-menu' };
       enterMenu.click();
 
@@ -4198,9 +4437,16 @@ async function exerciseWorkerPrivateSeamMatrix(session) {
           ? Number(value)
           : undefined;
       };
-      const enterMenu = await waitFor(() => document.querySelector(
-        'button[data-command="enter-realm"]'
-      ));
+      const enterMenu = await waitFor(() => {
+        const candidate = document.querySelector(
+          'button[data-command="enter-realm"]'
+        );
+        return candidate instanceof HTMLButtonElement
+          && !candidate.disabled
+          && visible(candidate)
+          ? candidate
+          : undefined;
+      });
       if (!(enterMenu instanceof HTMLButtonElement)) return { stage: 'seams-menu' };
       enterMenu.click();
       const dialog = await waitFor(() => document.querySelector(
@@ -4808,6 +5054,9 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
     if (
       database.seedAttestation?.castleCount !== 7
       || database.seedAttestation.workerCount !== 28
+      || database.seedAttestation.entryAgreementAcceptedCurrent !== true
+      || database.seedAttestation.entryAgreementRequiredVersion
+        !== '2026-07-19-hegemony-entry-agreement-v3'
       || database.seedAttestation.genericAssignments !== 0
       || database.seedAttestation.genericOccupations !== 0
       || database.seedAttestation.genericSchedules !== 0
@@ -5089,6 +5338,22 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
         `Disposable title browser left its boundary: ${state.violation}.`
       );
     }
+    probeStage = 'restored-current-entry-navigation';
+    await devtools.command('Page.navigate', {
+      url: `${viteOrigin}${FULLSTACK_ROUTE}${RESTORED_CURRENT_AGREEMENT_SEARCH}#menu`,
+    });
+    // Page.navigate acknowledges the request before the replacement execution
+    // context is guaranteed to exist. Do not evaluate the restored-session
+    // proof against the title matrix document being torn down.
+    await delay(500);
+    probeStage = 'restored-current-entry-continuity';
+    const restoredEntryAgreementContinuity =
+      await exerciseRestoredEntryAgreementContinuity(devtools);
+    if (state.violation) {
+      throw new Error(
+        `Disposable restored Terms browser left its boundary: ${state.violation}.`
+      );
+    }
     probeStage = 'title-browser-stop';
     devtools.close();
     await terminateHeadlessChromeProcessGroup(chrome);
@@ -5141,6 +5406,7 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
     const setupTargetId = state.targetId;
     probeStage = 'page-navigation';
     await devtools.command('Page.navigate', { url: pageUrl });
+    await delay(500);
     probeStage = 'persistent-worker-setup';
     const persistentWorkerSetup = await exerciseLocalFullstackJourney(
       devtools,
@@ -5212,6 +5478,7 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
     await devtools.command('Page.navigate', {
       url: `${viteOrigin}${FULLSTACK_ROUTE}${PERSISTENT_WORKER_REENTRY_SEARCH}#menu`,
     });
+    await delay(500);
     probeStage = 'persistent-worker-hard-reentry';
     state.controlledRendererRecovery = true;
     state.controlledRendererWarningCount = 0;
@@ -5238,10 +5505,12 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
     await devtools.command('Page.navigate', {
       url: `${viteOrigin}${FULLSTACK_ROUTE}${WORKER_PRIVATE_SEAM_MATRIX_SEARCH}#menu`,
     });
+    await delay(500);
     probeStage = 'worker-private-seam-matrix';
     const workerPrivateSeamMatrix = await exerciseWorkerPrivateSeamMatrix(devtools);
     probeStage = 'normal-journey-navigation';
     await devtools.command('Page.navigate', { url: pageUrl });
+    await delay(500);
     probeStage = 'browser-journey';
     const journey = await exerciseLocalFullstackJourney(devtools);
     probeStage = 'visual-capture';
@@ -5254,6 +5523,7 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
       hardReloadWorkerContinuity,
       moduleDigest: database.moduleDigest,
       persistentWorkerReentry,
+      restoredEntryAgreementContinuity,
       titleGatewayDepartureFocus,
       visual,
       workerPrivateSeamMatrix,
@@ -5302,7 +5572,8 @@ async function main() {
       'Warpkeep disposable local full-stack QA passed: one title-gateway departure/focus '
       + `matrix (${result.titleGatewayDepartureFocus.caseCount} cases, ${
         result.titleGatewayDepartureFocus.frameCount
-      } frames), one synthetic auth/bootstrap/Terms `
+      } frames), one restored exact-current server Terms continuity skip, `
+      + 'one synthetic cold auth/bootstrap/Terms '
       + 'journey, one hard four-phase Worker re-entry from a fresh browser process '
       + '(two outbound, one gathering, one returning) with delayed/failing private '
       + 'reads and in-place control recovery, one timeout/missing/torn/visibility private-seam '

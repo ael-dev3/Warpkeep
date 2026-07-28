@@ -38,6 +38,28 @@ const DISABLED_BROWSER_STORAGE = Object.freeze({
   localStorage: null,
   sessionStorage: null
 });
+
+function createLocalLogoutControlStorage() {
+  const values = new Map<string, string>();
+  return Object.freeze({
+    getItem(key: string) {
+      return values.get(key) ?? null;
+    },
+    setItem(key: string, value: string) {
+      values.set(key, value);
+    },
+    removeItem(key: string) {
+      values.delete(key);
+    },
+    key(index: number) {
+      return [...values.keys()][index] ?? null;
+    },
+    get length() {
+      return values.size;
+    }
+  });
+}
+
 const LOCAL_AUTH_ERROR = Object.freeze({
   code: 'unknown' as const,
   message: 'Disposable local authentication could not be completed.'
@@ -46,6 +68,8 @@ const LOCAL_PERSISTENT_WORKER_REENTRY_SEARCH =
   '?persistent-worker-reentry=delayed-private-v1';
 const LOCAL_WORKER_PRIVATE_SEAM_MATRIX_SEARCH =
   '?worker-private-seams=continuity-matrix-v1';
+const LOCAL_RESTORED_CURRENT_AGREEMENT_SEARCH =
+  '?entry-agreement-continuity=restored-current-v1';
 const LOCAL_RELEASE_PRIVATE_WORKER_READS_EVENT =
   'warpkeep-local-release-private-worker-reads';
 const LOCAL_SET_PRIVATE_WORKER_SEAM_EVENT =
@@ -55,6 +79,14 @@ const LOCAL_RELEASE_PRIVATE_WORKER_SEAM_EVENT =
 const LOCAL_RESTORE_TIMEOUT_VISIBILITY_EVENT =
   'warpkeep-local-restore-timeout-visibility';
 const LOCAL_REFRESH_ACCESS_EVENT = 'warpkeep-local-refresh-access';
+const LOCAL_AUTH_BEGIN_COUNT_ATTRIBUTE =
+  'data-local-fullstack-auth-begin-count';
+const LOCAL_QR_ENCODE_COUNT_ATTRIBUTE =
+  'data-local-fullstack-qr-encode-count';
+const LOCAL_ENTRY_AGREEMENT_READ_COUNT_ATTRIBUTE =
+  'data-local-fullstack-entry-agreement-read-count';
+const LOCAL_ENTRY_AGREEMENT_ACCEPT_COUNT_ATTRIBUTE =
+  'data-local-fullstack-entry-agreement-accept-count';
 const LOCAL_FULLSTACK_DISPATCH_TARGETS = Object.freeze([
   Object.freeze({
     ordinal: 1,
@@ -77,6 +109,14 @@ const LOCAL_FULLSTACK_DISPATCH_TARGETS = Object.freeze([
     siteId: 'genesis-001-tier1-stone-002'
   })
 ]);
+
+function incrementDocumentCounter(attribute: string) {
+  const current = Number(document.documentElement.getAttribute(attribute) ?? '0');
+  document.documentElement.setAttribute(
+    attribute,
+    String(Number.isSafeInteger(current) && current >= 0 ? current + 1 : 1)
+  );
+}
 
 type LocalWorkerPrivateSeam =
   | 'normal'
@@ -138,9 +178,24 @@ function privateReadGate(marker: string, releaseEvent: string) {
 function createLocalFullstackBackendRuntime(): WarpkeepBackendRuntime {
   const collectResources =
     DEFAULT_WARPKEEP_BACKEND_RUNTIME.collectResources;
+  const readEntryAgreementStatus =
+    DEFAULT_WARPKEEP_BACKEND_RUNTIME.readEntryAgreementStatus;
+  const acceptAlphaTerms =
+    DEFAULT_WARPKEEP_BACKEND_RUNTIME.acceptAlphaTerms;
+  if (!readEntryAgreementStatus) {
+    throw new Error('Disposable local entry agreement procedure is unavailable.');
+  }
   let resourceSettlementAttempt = 0;
   const instrumentedRuntime = Object.freeze({
     ...DEFAULT_WARPKEEP_BACKEND_RUNTIME,
+    async readEntryAgreementStatus(...args) {
+      incrementDocumentCounter(LOCAL_ENTRY_AGREEMENT_READ_COUNT_ATTRIBUTE);
+      return readEntryAgreementStatus(...args);
+    },
+    async acceptAlphaTerms(...args) {
+      incrementDocumentCounter(LOCAL_ENTRY_AGREEMENT_ACCEPT_COUNT_ATTRIBUTE);
+      return acceptAlphaTerms(...args);
+    },
     async collectResources(...args) {
       resourceSettlementAttempt += 1;
       const attempt = resourceSettlementAttempt;
@@ -627,6 +682,7 @@ function createLocalAuthority(
       context?: FarcasterAuthContext,
       challenge?: FarcasterBridgeChallenge
     ) {
+      incrementDocumentCounter(LOCAL_AUTH_BEGIN_COUNT_ATTRIBUTE);
       if (!context || !challenge) {
         throw new Error('Local QA challenge context is unavailable.');
       }
@@ -672,9 +728,10 @@ function createLocalAuthority(
 }
 
 function createLocalBridge(
-  bootstrap: LocalFullstackQaBootstrap
+  bootstrap: LocalFullstackQaBootstrap,
+  restoredSession: boolean
 ): FarcasterOidcBridgeClient {
-  let authorized = false;
+  let authorized = restoredSession;
   const authorizedResponse = () => Object.freeze({
     version: 2 as const,
     status: 'authorized' as const,
@@ -713,7 +770,9 @@ function createLocalBridge(
       );
       return authorizedResponse();
     },
-    async logoutSession() {}
+    async logoutSession() {
+      authorized = false;
+    }
   });
 }
 
@@ -874,6 +933,9 @@ function LocalFullstackStateProbe() {
     <output
       data-local-fullstack-auth={auth.state.phase}
       data-local-fullstack-backend={backend.state.phase}
+      data-local-fullstack-entry-agreement-satisfied={
+        String(backend.entryAgreementSatisfied)
+      }
       data-local-fullstack-deployed-workers={String(deployedWorkerCount)}
       data-local-fullstack-exact-dispatch-target-count={
         String(exactDispatchTargetCount)
@@ -918,8 +980,24 @@ export function FullstackLocalQaApp() {
     () => readLocalFullstackQaBootstrap(bootstrapValue),
     []
   );
+  const restoredCurrentAgreementSession =
+    window.location.search === LOCAL_RESTORED_CURRENT_AGREEMENT_SEARCH;
   const authority = useMemo(() => createLocalAuthority(bootstrap), [bootstrap]);
-  const bridge = useMemo(() => createLocalBridge(bootstrap), [bootstrap]);
+  const bridge = useMemo(
+    () => createLocalBridge(bootstrap, restoredCurrentAgreementSession),
+    [bootstrap, restoredCurrentAgreementSession]
+  );
+  const deviceSessionEnvironment = useMemo(() => {
+    if (!restoredCurrentAgreementSession) return DISABLED_BROWSER_STORAGE;
+    // The restored-session seam must represent an available, absent logout
+    // control record without touching real browser storage. Bearer authority
+    // remains exclusively inside the synthetic HttpOnly-bridge equivalent.
+    return Object.freeze({
+      localStorage: createLocalLogoutControlStorage(),
+      sessionStorage: null,
+      basePath: '/'
+    });
+  }, [restoredCurrentAgreementSession]);
   const config = useMemo(() => localFullstackQaRuntimeConfig(bootstrap), [bootstrap]);
 
   return (
@@ -929,8 +1007,11 @@ export function FullstackLocalQaApp() {
         challenge: LOCAL_BINDING_CHALLENGE,
         method: 'S256'
       })}
-      deviceSessionEnvironment={DISABLED_BROWSER_STORAGE}
-      encodeQrCode={async () => LOCAL_QR_DATA_URL}
+      deviceSessionEnvironment={deviceSessionEnvironment}
+      encodeQrCode={async () => {
+        incrementDocumentCounter(LOCAL_QR_ENCODE_COUNT_ATTRIBUTE);
+        return LOCAL_QR_DATA_URL;
+      }}
       loadAuthority={async () => authority}
       loadBridgeClient={async () => bridge}
       normalizeAuthError={() => LOCAL_AUTH_ERROR}
