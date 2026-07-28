@@ -364,6 +364,9 @@ function validateTitleGatewayDepartureFocusObservation(value, probeCase) {
 
   const originTolerance = probeCase.mobile ? 3 : 2;
   const frozenOrigin = departureFrames[0];
+  // The client-space gateway point remains frozen. Its normalized CSS
+  // percentage must be allowed to change when a mid-transition resize changes
+  // the overlay dimensions so the same client point can be reprojected.
   if (
     !frozenOrigin
     || Math.abs(frozenOrigin.overlayOriginX - value.gatewayCenter.x) > originTolerance
@@ -371,12 +374,6 @@ function validateTitleGatewayDepartureFocusObservation(value, probeCase) {
     || departureFrames.some((frame) => (
       Math.abs(frame.overlayOriginX - frozenOrigin.overlayOriginX) > 0.01
       || Math.abs(frame.overlayOriginY - frozenOrigin.overlayOriginY) > 0.01
-      || Math.abs(
-        frame.overlayOriginPercentX - frozenOrigin.overlayOriginPercentX
-      ) > 0.01
-      || Math.abs(
-        frame.overlayOriginPercentY - frozenOrigin.overlayOriginPercentY
-      ) > 0.01
     ))
   ) {
     throw new LocalFullstackBrowserError(
