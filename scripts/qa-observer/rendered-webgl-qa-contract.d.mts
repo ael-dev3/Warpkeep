@@ -8,7 +8,8 @@ export type RenderedWebglQaPresentationMode = 'observer' | 'player';
 export type RenderedWebglQaFixtureVariant =
   | 'baseline'
   | 'occupancy-stress'
-  | 'worker-active';
+  | 'worker-active'
+  | 'worker-locomotion';
 
 export type RenderedWebglQaObservation = Readonly<{
   version: 1;

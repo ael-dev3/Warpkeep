@@ -217,7 +217,7 @@ export function RenderedWebglQaHarness({
         data-castle-count={RENDERED_WEBGL_QA_CASTLE_COUNT}
         data-fixture={RENDERED_WEBGL_QA_FIXTURE_ID}
         data-fixture-variant={fixtureVariant}
-        {...(fixtureVariant === 'worker-active'
+        {...(fixtureVariant === 'worker-active' || fixtureVariant === 'worker-locomotion'
           ? { 'data-active-worker-fixture-marker':
             RENDERED_WEBGL_QA_ACTIVE_WORKER_FIXTURE_MARKER }
           : {})}

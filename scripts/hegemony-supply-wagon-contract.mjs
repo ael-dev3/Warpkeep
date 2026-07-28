@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 
+import { MeshoptDecoder } from 'meshoptimizer';
+
 import { inspectEmbeddedWebpGlb } from './rewrite-embedded-webp-glb.mjs';
 
 export const HEGEMONY_SUPPLY_WAGON_RELEASE = Object.freeze({
@@ -34,6 +36,178 @@ export const HEGEMONY_SUPPLY_WAGON_REQUIRED_EXTENSIONS = Object.freeze([
   'EXT_texture_webp',
   'KHR_mesh_quantization'
 ]);
+
+export const HEGEMONY_SUPPLY_WAGON_RIG_JOINT_NAMES = Object.freeze([
+  'WK_UnitRoot',
+  'H_Root',
+  'H_Pelvis',
+  'H_Spine_01',
+  'H_Spine_02',
+  'H_Chest',
+  'H_Neck_01',
+  'H_Neck_02',
+  'H_Head',
+  'A_Rein_L_Head',
+  'A_Rein_R_Head',
+  'H_Ear_L',
+  'H_Ear_R',
+  'H_Scapula_L',
+  'H_UpperArm_L',
+  'H_Forearm_L',
+  'H_CannonF_L',
+  'H_ToeF_L',
+  'H_HoofF_L',
+  'H_Scapula_R',
+  'H_UpperArm_R',
+  'H_Forearm_R',
+  'H_CannonF_R',
+  'H_ToeF_R',
+  'H_HoofF_R',
+  'H_Tail_01',
+  'H_Tail_02',
+  'H_Tail_03',
+  'H_Thigh_L',
+  'H_Shin_L',
+  'H_Hock_L',
+  'H_CannonH_L',
+  'H_HoofH_L',
+  'H_Thigh_R',
+  'H_Shin_R',
+  'H_Hock_R',
+  'H_CannonH_R',
+  'H_HoofH_R',
+  'W_Root',
+  'A_Rein_L_Wagon',
+  'A_Rein_R_Wagon',
+  'W_Banner_01',
+  'W_Banner_02',
+  'W_Cargo',
+  'W_Shafts',
+  'W_Wheel_L',
+  'W_Wheel_R'
+]);
+
+const GAIT_ROTATION_TARGETS = Object.freeze([
+  'H_CannonF_L',
+  'H_CannonF_R',
+  'H_CannonH_L',
+  'H_CannonH_R',
+  'H_Chest',
+  'H_Forearm_L',
+  'H_Forearm_R',
+  'H_Head',
+  'H_Hock_L',
+  'H_Hock_R',
+  'H_HoofF_L',
+  'H_HoofF_R',
+  'H_HoofH_L',
+  'H_HoofH_R',
+  'H_Neck_01',
+  'H_Neck_02',
+  'H_Pelvis',
+  'H_Scapula_L',
+  'H_Scapula_R',
+  'H_Shin_L',
+  'H_Shin_R',
+  'H_Spine_01',
+  'H_Spine_02',
+  'H_Tail_01',
+  'H_Tail_02',
+  'H_Tail_03',
+  'H_Thigh_L',
+  'H_Thigh_R',
+  'H_ToeF_L',
+  'H_ToeF_R',
+  'H_UpperArm_L',
+  'H_UpperArm_R'
+]);
+
+function rotationTracks(names) {
+  return names.map((name) => `${name}.rotation`);
+}
+
+const HEGEMONY_SUPPLY_WAGON_TRACK_FAMILIES = Object.freeze({
+  idle: Object.freeze([
+    ...rotationTracks([
+      'H_Chest',
+      'H_Ear_L',
+      'H_Ear_R',
+      'H_Head',
+      'H_Neck_01',
+      'H_Neck_02',
+      'H_Pelvis'
+    ]),
+    'H_Root.translation',
+    ...rotationTracks([
+      'H_Spine_01',
+      'H_Spine_02',
+      'H_Tail_01',
+      'H_Tail_02',
+      'H_Tail_03',
+      'W_Banner_01',
+      'W_Banner_02'
+    ])
+  ].sort()),
+  gait: Object.freeze([
+    ...rotationTracks(GAIT_ROTATION_TARGETS),
+    'H_Root.translation'
+  ].sort()),
+  turn: Object.freeze([
+    ...rotationTracks(GAIT_ROTATION_TARGETS),
+    'H_Root.translation',
+    ...rotationTracks(['W_Banner_01', 'W_Banner_02', 'W_Shafts'])
+  ].sort())
+});
+
+const HEGEMONY_SUPPLY_WAGON_TRACK_FAMILY_AUDIT = Object.freeze(
+  Object.fromEntries(Object.entries(HEGEMONY_SUPPLY_WAGON_TRACK_FAMILIES).map((
+    [family, trackNames]
+  ) => [
+    family,
+    Object.freeze({
+      trackNames,
+      affectedNodes: Object.freeze(trackNames.map((track) => (
+        track.slice(0, track.lastIndexOf('.'))
+      )))
+    })
+  ]))
+);
+
+const CLIP_TRACK_FAMILY = Object.freeze({
+  Idle: 'idle',
+  Start: 'gait',
+  Stop: 'gait',
+  Turn_Left: 'turn',
+  Turn_Right: 'turn',
+  Walk: 'gait'
+});
+
+const H_ROOT_VERTICAL_BOB_RANGES = Object.freeze({
+  Idle: Object.freeze([0.759765625, 0.76416015625]),
+  Start: Object.freeze([0.759765625, 0.77197265625]),
+  Stop: Object.freeze([0.759765625, 0.77197265625]),
+  Turn_Left: Object.freeze([0.759765625, 0.7685546875]),
+  Turn_Right: Object.freeze([0.759765625, 0.7685546875]),
+  Walk: Object.freeze([0.759765625, 0.77392578125])
+});
+
+/**
+ * Reviewed asset-space facts used by development verification and by the
+ * renderer's distance-driven wheel calibration. The prepared radius is before
+ * the worker root applies its quality/style and hex-size scale.
+ */
+export const HEGEMONY_SUPPLY_WAGON_WHEEL_SEMANTICS = Object.freeze({
+  nodeNames: Object.freeze(['W_Wheel_L', 'W_Wheel_R']),
+  renderNodeNames: Object.freeze(['RET_HI_Wheel_L', 'RET_HI_Wheel_R']),
+  axleNodeNames: Object.freeze(['RET_HI_Axle']),
+  suspensionNodeNames: Object.freeze([]),
+  localAxleAxis: '+Y',
+  authoredWorldAxleAxis: '+X',
+  authoredRadiusMeters: 0.6993783339858055,
+  authoredFootprintMeters: 3.83296752,
+  preparedFootprint: 0.64,
+  preparedRadius: 0.11677691799248942
+});
 
 const ANIMATIONS = Object.freeze([
   Object.freeze({ name: 'Idle', channels: 15, duration: 2 }),
@@ -135,10 +309,10 @@ function exactArray(actual, expected) {
     && actual.every((value, index) => value === expected[index]);
 }
 
-function readGlbJson(bytes, label) {
+function readGlb(bytes, label) {
   if (
     !Buffer.isBuffer(bytes)
-    || bytes.byteLength < 20
+    || bytes.byteLength < 28
     || bytes.subarray(0, 4).toString('ascii') !== 'glTF'
     || bytes.readUInt32LE(4) !== 2
     || bytes.readUInt32LE(8) !== bytes.byteLength
@@ -146,14 +320,35 @@ function readGlbJson(bytes, label) {
   const jsonLength = bytes.readUInt32LE(12);
   const jsonStart = 20;
   const jsonEnd = jsonStart + jsonLength;
-  if (bytes.readUInt32LE(16) !== 0x4e4f534a || jsonEnd > bytes.byteLength) {
+  const binaryHeaderEnd = jsonEnd + 8;
+  if (
+    bytes.readUInt32LE(16) !== 0x4e4f534a
+    || binaryHeaderEnd > bytes.byteLength
+    || bytes.readUInt32LE(jsonEnd + 4) !== 0x004e4942
+  ) {
     fail(label, 'has an invalid GLB JSON chunk.');
   }
+  const binaryLength = bytes.readUInt32LE(jsonEnd);
+  const binaryStart = binaryHeaderEnd;
+  const binaryEnd = binaryStart + binaryLength;
+  if (binaryEnd !== bytes.byteLength) fail(label, 'has an invalid GLB binary chunk.');
+  let json;
   try {
-    return JSON.parse(bytes.subarray(jsonStart, jsonEnd).toString('utf8').trim());
+    json = JSON.parse(bytes.subarray(jsonStart, jsonEnd).toString('utf8').trim());
   } catch {
     fail(label, 'has invalid GLB JSON.');
   }
+  const physicalLength = json?.buffers?.[0]?.byteLength;
+  if (
+    !Number.isSafeInteger(physicalLength)
+    || physicalLength <= 0
+    || physicalLength > binaryLength
+    || binaryLength - physicalLength > 3
+  ) fail(label, 'does not declare its physical GLB buffer exactly.');
+  return Object.freeze({
+    json,
+    binary: bytes.subarray(binaryStart, binaryStart + physicalLength)
+  });
 }
 
 function animationDuration(json, animation) {
@@ -216,12 +411,328 @@ function assertRuntimeShape(json, profile, label) {
   ) fail(label, 'does not satisfy the reviewed animated-runtime structure.');
 }
 
-export async function verifyHegemonySupplyWagonBytes(bytes, profile, label) {
+function namedNodeMap(json, label) {
+  const named = new Map();
+  for (const node of json.nodes ?? []) {
+    if (typeof node?.name !== 'string' || node.name.length === 0) continue;
+    if (named.has(node.name)) fail(label, `node name ${node.name} is not unique.`);
+    named.set(node.name, node);
+  }
+  return named;
+}
+
+function parentNameMap(json) {
+  const parents = new Map();
+  for (const parent of json.nodes ?? []) {
+    for (const childIndex of parent?.children ?? []) {
+      const childName = json.nodes?.[childIndex]?.name;
+      if (typeof childName === 'string' && typeof parent?.name === 'string') {
+        parents.set(childName, parent.name);
+      }
+    }
+  }
+  return parents;
+}
+
+function approximately(actual, expected, tolerance = 0.000_001) {
+  return Number.isFinite(actual) && Math.abs(actual - expected) <= tolerance;
+}
+
+function approximateArray(actual, expected, tolerance = 0.000_001) {
+  return Array.isArray(actual)
+    && actual.length === expected.length
+    && actual.every((value, index) => approximately(value, expected[index], tolerance));
+}
+
+function multiplyQuaternion(left, right) {
+  const [lx, ly, lz, lw] = left;
+  const [rx, ry, rz, rw] = right;
+  return [
+    lw * rx + lx * rw + ly * rz - lz * ry,
+    lw * ry - lx * rz + ly * rw + lz * rx,
+    lw * rz + lx * ry - ly * rx + lz * rw,
+    lw * rw - lx * rx - ly * ry - lz * rz
+  ];
+}
+
+function rotateVector(quaternion, vector) {
+  const [x, y, z, w] = quaternion;
+  const [vx, vy, vz] = vector;
+  const tx = 2 * (y * vz - z * vy);
+  const ty = 2 * (z * vx - x * vz);
+  const tz = 2 * (x * vy - y * vx);
+  return [
+    vx + w * tx + (y * tz - z * ty),
+    vy + w * ty + (z * tx - x * tz),
+    vz + w * tz + (x * ty - y * tx)
+  ];
+}
+
+async function decodeLogicalBufferView(parsed, viewIndex, label) {
+  const view = parsed.json.bufferViews?.[viewIndex];
+  if (!view) fail(label, `bufferView ${String(viewIndex)} is missing.`);
+  const meshopt = view.extensions?.EXT_meshopt_compression;
+  if (!meshopt) {
+    if (view.buffer !== 0) fail(label, `bufferView ${viewIndex} is not physically readable.`);
+    const offset = view.byteOffset ?? 0;
+    if (
+      !Number.isSafeInteger(offset)
+      || !Number.isSafeInteger(view.byteLength)
+      || offset < 0
+      || view.byteLength <= 0
+      || offset + view.byteLength > parsed.binary.byteLength
+    ) fail(label, `bufferView ${viewIndex} exceeds the physical GLB buffer.`);
+    return parsed.binary.subarray(offset, offset + view.byteLength);
+  }
+  if (
+    meshopt.buffer !== 0
+    || !Number.isSafeInteger(meshopt.byteOffset ?? 0)
+    || !Number.isSafeInteger(meshopt.byteLength)
+    || !Number.isSafeInteger(meshopt.byteStride)
+    || !Number.isSafeInteger(meshopt.count)
+    || meshopt.byteLength <= 0
+    || meshopt.byteStride <= 0
+    || meshopt.count <= 0
+    || (meshopt.byteOffset ?? 0) + meshopt.byteLength > parsed.binary.byteLength
+  ) fail(label, `bufferView ${viewIndex} has an invalid meshopt payload.`);
+  await MeshoptDecoder.ready;
+  const decoded = new Uint8Array(meshopt.count * meshopt.byteStride);
+  const sourceOffset = meshopt.byteOffset ?? 0;
+  try {
+    MeshoptDecoder.decodeGltfBuffer(
+      decoded,
+      meshopt.count,
+      meshopt.byteStride,
+      parsed.binary.subarray(sourceOffset, sourceOffset + meshopt.byteLength),
+      meshopt.mode,
+      meshopt.filter ?? 'NONE'
+    );
+  } catch {
+    fail(label, `bufferView ${viewIndex} cannot be decoded deterministically.`);
+  }
+  if (decoded.byteLength !== view.byteLength) {
+    fail(label, `bufferView ${viewIndex} decoded length changed.`);
+  }
+  return decoded;
+}
+
+async function readFloatVec3Accessor(parsed, accessorIndex, label) {
+  const accessor = parsed.json.accessors?.[accessorIndex];
+  if (
+    !accessor
+    || accessor.type !== 'VEC3'
+    || accessor.componentType !== 5_126
+    || !Number.isSafeInteger(accessor.count)
+    || accessor.count <= 0
+    || accessor.normalized === true
+    || accessor.sparse !== undefined
+    || !Number.isSafeInteger(accessor.bufferView)
+  ) fail(label, `accessor ${String(accessorIndex)} is not a reviewed float VEC3.`);
+  const bytes = await decodeLogicalBufferView(parsed, accessor.bufferView, label);
+  const view = parsed.json.bufferViews[accessor.bufferView];
+  const stride = view.byteStride
+    ?? view.extensions?.EXT_meshopt_compression?.byteStride
+    ?? 12;
+  const offset = accessor.byteOffset ?? 0;
+  if (
+    !Number.isSafeInteger(offset)
+    || offset < 0
+    || stride < 12
+    || offset + (accessor.count - 1) * stride + 12 > bytes.byteLength
+  ) fail(label, `accessor ${accessorIndex} exceeds its decoded bufferView.`);
+  const values = [];
+  const data = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  for (let index = 0; index < accessor.count; index += 1) {
+    const valueOffset = offset + index * stride;
+    const value = Object.freeze([
+      data.getFloat32(valueOffset, true),
+      data.getFloat32(valueOffset + 4, true),
+      data.getFloat32(valueOffset + 8, true)
+    ]);
+    if (value.some((component) => !Number.isFinite(component))) {
+      fail(label, `accessor ${accessorIndex} contains a non-finite value.`);
+    }
+    values.push(value);
+  }
+  return Object.freeze(values);
+}
+
+function componentRange(values, component) {
+  let minimum = Number.POSITIVE_INFINITY;
+  let maximum = Number.NEGATIVE_INFINITY;
+  for (const value of values) {
+    minimum = Math.min(minimum, value[component]);
+    maximum = Math.max(maximum, value[component]);
+  }
+  return Object.freeze([minimum, maximum]);
+}
+
+async function assertSemanticRuntimeShape(parsed, profile, label) {
+  const { json } = parsed;
+  const named = namedNodeMap(json, label);
+  const parents = parentNameMap(json);
+  const jointNames = (json.skins?.[0]?.joints ?? []).map((nodeIndex) => (
+    json.nodes?.[nodeIndex]?.name
+  ));
+  if (
+    json.skins?.[0]?.name !== 'RIG_WK_Hegemony_Draft_Wagon_47J'
+    || !exactArray(jointNames, HEGEMONY_SUPPLY_WAGON_RIG_JOINT_NAMES)
+    || parents.get('H_Root') !== 'WK_UnitRoot'
+    || parents.get('W_Root') !== 'WK_UnitRoot'
+  ) fail(label, 'does not preserve the reviewed named 47-joint rig.');
+
+  const unitRoot = named.get('WK_UnitRoot');
+  const wagonRoot = named.get('W_Root');
+  if (
+    !unitRoot
+    || !wagonRoot
+    || !approximateArray(unitRoot.rotation, [0, 0.70710677, 0.70710677, 0])
+    || !approximateArray(
+      wagonRoot.rotation,
+      [0.000000053385, -0.70710677, -0.70710677, 0.000000053385]
+    )
+  ) fail(label, 'does not preserve the reviewed coordinate-space roots.');
+
+  const wheelRestRotation = [-0.49999994, -0.5, -0.500000119, 0.5];
+  for (const wheelName of HEGEMONY_SUPPLY_WAGON_WHEEL_SEMANTICS.nodeNames) {
+    const wheel = named.get(wheelName);
+    if (
+      !wheel
+      || parents.get(wheelName) !== 'W_Root'
+      || !approximateArray(wheel.rotation, wheelRestRotation)
+    ) fail(label, `${wheelName} does not preserve its reviewed semantic axle.`);
+    const worldRotation = multiplyQuaternion(
+      multiplyQuaternion(unitRoot.rotation, wagonRoot.rotation),
+      wheel.rotation
+    );
+    const worldAxle = rotateVector(worldRotation, [0, 1, 0]);
+    if (
+      !approximately(Math.abs(worldAxle[0]), 1)
+      || !approximately(worldAxle[1], 0)
+      || !approximately(worldAxle[2], 0)
+    ) fail(label, `${wheelName} local +Y no longer resolves to the authored axle.`);
+  }
+  for (const nodeName of [
+    ...HEGEMONY_SUPPLY_WAGON_WHEEL_SEMANTICS.renderNodeNames,
+    ...HEGEMONY_SUPPLY_WAGON_WHEEL_SEMANTICS.axleNodeNames
+  ]) {
+    if (!named.has(nodeName)) fail(label, `reviewed semantic node ${nodeName} is missing.`);
+  }
+  const suspensionNames = [...named.keys()]
+    .filter((name) => /suspension/iu.test(name))
+    .sort();
+  if (!exactArray(suspensionNames, HEGEMONY_SUPPLY_WAGON_WHEEL_SEMANTICS.suspensionNodeNames)) {
+    fail(label, 'unexpected suspension semantics were introduced.');
+  }
+
+  const horseVerticalAxis = rotateVector(unitRoot.rotation, [0, 0, 1]);
+  if (
+    !approximately(horseVerticalAxis[0], 0)
+    || !approximately(horseVerticalAxis[1], 1)
+    || !approximately(horseVerticalAxis[2], 0)
+  ) fail(label, 'H_Root local +Z no longer resolves to glTF +Y vertical.');
+
+  const clips = [];
+  for (const expected of profile.animations) {
+    const animation = (json.animations ?? []).find(({ name }) => name === expected.name);
+    if (!animation) fail(label, `reviewed clip ${expected.name} is missing.`);
+    const trackNames = animation.channels.map((channel) => {
+      const nodeName = json.nodes?.[channel?.target?.node]?.name;
+      const path = channel?.target?.path;
+      if (typeof nodeName !== 'string' || typeof path !== 'string') {
+        fail(label, `${expected.name} contains an unnamed animation target.`);
+      }
+      return `${nodeName}.${path}`;
+    }).sort();
+    const familyName = CLIP_TRACK_FAMILY[expected.name];
+    const expectedTracks = HEGEMONY_SUPPLY_WAGON_TRACK_FAMILIES[familyName];
+    if (!familyName || !exactArray(trackNames, expectedTracks)) {
+      fail(label, `${expected.name} target family changed.`);
+    }
+    if (new Set(trackNames).size !== trackNames.length) {
+      fail(label, `${expected.name} contains duplicate animation targets.`);
+    }
+    const wheelTracks = trackNames.filter((track) => (
+      HEGEMONY_SUPPLY_WAGON_WHEEL_SEMANTICS.nodeNames.some((name) => (
+        track.startsWith(`${name}.`)
+      ))
+    ));
+    const routeRootTracks = trackNames.filter((track) => (
+      track.startsWith('WK_UnitRoot.') || track.startsWith('W_Root.')
+    ));
+    const rootTranslationTracks = trackNames.filter((track) => (
+      track === 'H_Root.translation'
+      || track === 'WK_UnitRoot.translation'
+      || track === 'W_Root.translation'
+    ));
+    const rootRotationTracks = trackNames.filter((track) => (
+      track === 'H_Root.rotation'
+      || track === 'WK_UnitRoot.rotation'
+      || track === 'W_Root.rotation'
+    ));
+    if (
+      wheelTracks.length !== 0
+      || routeRootTracks.length !== 0
+      || !exactArray(rootTranslationTracks, ['H_Root.translation'])
+      || rootRotationTracks.length !== 0
+    ) fail(label, `${expected.name} has conflicting root or wheel animation.`);
+
+    const hRootChannel = animation.channels.find((channel) => (
+      json.nodes?.[channel?.target?.node]?.name === 'H_Root'
+      && channel?.target?.path === 'translation'
+    ));
+    const sampler = animation.samplers?.[hRootChannel?.sampler];
+    if (
+      !sampler
+      || (sampler.interpolation !== undefined && sampler.interpolation !== 'LINEAR')
+    ) {
+      fail(label, `${expected.name} H_Root bob is not a reviewed linear track.`);
+    }
+    const values = await readFloatVec3Accessor(parsed, sampler.output, label);
+    const xRange = componentRange(values, 0);
+    const yRange = componentRange(values, 1);
+    const zRange = componentRange(values, 2);
+    if (
+      !approximateArray(xRange, [0, 0], 0.000_000_001)
+      || !approximateArray(yRange, [0.47998046875, 0.47998046875], 0.000_000_001)
+      || !approximateArray(zRange, H_ROOT_VERTICAL_BOB_RANGES[expected.name], 0.000_000_001)
+    ) fail(label, `${expected.name} H_Root track is not the reviewed vertical horse bob.`);
+
+    clips.push(Object.freeze({
+      name: expected.name,
+      duration: expected.duration,
+      trackFamily: familyName,
+      hasRootTranslation: true,
+      hasRootRotation: false,
+      routeConflictingRootMotion: false,
+      wheelNodesAnimated: false,
+      usable: true,
+      hRootVerticalBobLocalZ: zRange
+    }));
+  }
+
+  return Object.freeze({
+    profile: profile.id,
+    generator: profile.generator,
+    coordinateSystem: Object.freeze({ up: '+Y', forward: '+Z' }),
+    skinName: json.skins[0].name,
+    jointNames: HEGEMONY_SUPPLY_WAGON_RIG_JOINT_NAMES,
+    wheelSemantics: HEGEMONY_SUPPLY_WAGON_WHEEL_SEMANTICS,
+    trackFamilies: HEGEMONY_SUPPLY_WAGON_TRACK_FAMILY_AUDIT,
+    clips: Object.freeze(clips),
+    routeRootTranslationTracks: Object.freeze([]),
+    routeRootRotationTracks: Object.freeze([]),
+    compatibleRigAndClipContract: true
+  });
+}
+
+async function inspectVerifiedHegemonySupplyWagonBytes(bytes, profile, label) {
   if (bytes.byteLength !== profile.bytes || sha256(bytes) !== profile.sha256) {
     fail(label, 'does not match its exact approved bytes.');
   }
-  const json = readGlbJson(bytes, label);
-  assertRuntimeShape(json, profile, label);
+  const parsed = readGlb(bytes, label);
+  assertRuntimeShape(parsed.json, profile, label);
+  const audit = await assertSemanticRuntimeShape(parsed, profile, label);
   const embedded = await inspectEmbeddedWebpGlb(bytes, { label });
   if (embedded.images.length !== profile.images.length) {
     fail(label, 'embedded WebP image count changed.');
@@ -235,6 +746,39 @@ export async function verifyHegemonySupplyWagonBytes(bytes, profile, label) {
       || image.bytes !== expected.bytes
       || image.sha256 !== expected.sha256
     ) fail(label, `embedded WebP ${index} changed.`);
+  });
+  return audit;
+}
+
+export async function verifyHegemonySupplyWagonBytes(bytes, profile, label) {
+  await inspectVerifiedHegemonySupplyWagonBytes(bytes, profile, label);
+}
+
+export function auditHegemonySupplyWagonBytes(bytes, profile, label) {
+  return inspectVerifiedHegemonySupplyWagonBytes(bytes, profile, label);
+}
+
+export function aggregateHegemonySupplyWagonAudits(audits, label = 'Supply Wagon semantic audit') {
+  if (
+    !Array.isArray(audits)
+    || audits.length !== HEGEMONY_SUPPLY_WAGON_PROFILES.length
+    || !exactArray(
+      audits.map((audit) => audit?.profile),
+      HEGEMONY_SUPPLY_WAGON_PROFILES.map((profile) => profile.id)
+    )
+  ) fail(label, 'does not contain the exact High, Balanced, and Compact audit sequence.');
+  const comparable = ({ profile: _profile, generator: _generator, ...semantic }) => semantic;
+  const reference = JSON.stringify(comparable(audits[0]));
+  if (audits.slice(1).some((audit) => JSON.stringify(comparable(audit)) !== reference)) {
+    fail(label, 'High, Balanced, and Compact no longer share one rig and clip contract.');
+  }
+  const semantic = comparable(audits[0]);
+  return Object.freeze({
+    profiles: Object.freeze(audits.map(({ profile, generator }) => (
+      Object.freeze({ profile, generator })
+    ))),
+    ...semantic,
+    compatibleRigAndClipContract: true
   });
 }
 

@@ -122,13 +122,24 @@ vi.mock('../src/components/realm/realmAmbientScheduler', async (importOriginal) 
       options: Parameters<typeof actual.createRealmAmbientScheduler>[0]
     ) => {
       const scheduler = actual.createRealmAmbientScheduler(options);
-      ambientSchedulerState.creations.push({
+      const record = {
         active: options.active,
         frameCap: options.frameCap,
         isActive: scheduler.isActive,
         step: options.onStep
+      };
+      ambientSchedulerState.creations.push(record);
+      return Object.freeze({
+        ...scheduler,
+        setActive: (active: boolean) => {
+          record.active = active;
+          scheduler.setActive(active);
+        },
+        setFrameCap: (frameCap: number) => {
+          record.frameCap = frameCap;
+          scheduler.setFrameCap(frameCap);
+        }
       });
-      return scheduler;
     }
   };
 });

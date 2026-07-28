@@ -4,11 +4,15 @@ import { basename, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
+  aggregateHegemonySupplyWagonAudits,
+  auditHegemonySupplyWagonBytes,
   HEGEMONY_SUPPLY_WAGON_PROFILES,
   HEGEMONY_SUPPLY_WAGON_RELEASE,
+  HEGEMONY_SUPPLY_WAGON_RIG_JOINT_NAMES,
   HEGEMONY_SUPPLY_WAGON_RUNTIME_DIRECTORY,
   HEGEMONY_SUPPLY_WAGON_SOURCE,
-  verifyHegemonySupplyWagonBytes
+  HEGEMONY_SUPPLY_WAGON_WHEEL_SEMANTICS,
+  type HegemonySupplyWagonSemanticAudit
 } from '../scripts/hegemony-supply-wagon-contract.mjs';
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -23,6 +27,7 @@ describe('Hegemony Supply Wagon runtime assets', () => {
       HEGEMONY_SUPPLY_WAGON_PROFILES.map(({ filename }) => filename).sort()
     );
 
+    const audits: HegemonySupplyWagonSemanticAudit[] = [];
     for (const profile of HEGEMONY_SUPPLY_WAGON_PROFILES) {
       const relativePath = `${HEGEMONY_SUPPLY_WAGON_RUNTIME_DIRECTORY}/${profile.filename}`;
       const path = resolve(ROOT, relativePath);
@@ -31,10 +36,89 @@ describe('Hegemony Supply Wagon runtime assets', () => {
       expect(basename(path), relativePath).toBe(
         `hegemony-supply-wagon-${profile.id}-${profile.sha256.slice(0, 16)}.glb`
       );
-      await expect(
-        verifyHegemonySupplyWagonBytes(bytes, profile, relativePath)
-      ).resolves.toBeUndefined();
+      audits.push(await auditHegemonySupplyWagonBytes(bytes, profile, relativePath));
     }
+
+    const aggregate = aggregateHegemonySupplyWagonAudits(audits);
+    expect(aggregate.profiles.map(({ profile }: { profile: string }) => profile))
+      .toEqual(['high', 'balanced', 'compact']);
+    expect(aggregate).toMatchObject({
+      coordinateSystem: { up: '+Y', forward: '+Z' },
+      skinName: 'RIG_WK_Hegemony_Draft_Wagon_47J',
+      jointNames: HEGEMONY_SUPPLY_WAGON_RIG_JOINT_NAMES,
+      wheelSemantics: HEGEMONY_SUPPLY_WAGON_WHEEL_SEMANTICS,
+      routeRootTranslationTracks: [],
+      routeRootRotationTracks: [],
+      compatibleRigAndClipContract: true
+    });
+    expect(aggregate.jointNames).toHaveLength(47);
+    expect(aggregate.clips).toEqual([
+      expect.objectContaining({
+        name: 'Idle',
+        duration: 2,
+        trackFamily: 'idle',
+        hRootVerticalBobLocalZ: [0.759765625, 0.76416015625]
+      }),
+      expect.objectContaining({
+        name: 'Start',
+        duration: 0.8,
+        trackFamily: 'gait',
+        hRootVerticalBobLocalZ: [0.759765625, 0.77197265625]
+      }),
+      expect.objectContaining({
+        name: 'Stop',
+        duration: 0.8,
+        trackFamily: 'gait',
+        hRootVerticalBobLocalZ: [0.759765625, 0.77197265625]
+      }),
+      expect.objectContaining({
+        name: 'Turn_Left',
+        duration: 1,
+        trackFamily: 'turn',
+        hRootVerticalBobLocalZ: [0.759765625, 0.7685546875]
+      }),
+      expect.objectContaining({
+        name: 'Turn_Right',
+        duration: 1,
+        trackFamily: 'turn',
+        hRootVerticalBobLocalZ: [0.759765625, 0.7685546875]
+      }),
+      expect.objectContaining({
+        name: 'Walk',
+        duration: 1,
+        trackFamily: 'gait',
+        hRootVerticalBobLocalZ: [0.759765625, 0.77392578125]
+      })
+    ]);
+    aggregate.clips.forEach((clip) => {
+      expect(clip).toMatchObject({
+        hasRootTranslation: true,
+        hasRootRotation: false,
+        routeConflictingRootMotion: false,
+        wheelNodesAnimated: false,
+        usable: true
+      });
+    });
+    expect(Object.values(aggregate.trackFamilies)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          trackNames: expect.arrayContaining(['H_Root.translation']),
+          affectedNodes: expect.arrayContaining(['H_Root'])
+        })
+      ])
+    );
+    expect(JSON.stringify(aggregate.trackFamilies)).not.toContain('W_Wheel_');
+    expect(aggregate.wheelSemantics.preparedRadius).toBeCloseTo(
+      aggregate.wheelSemantics.authoredRadiusMeters
+        * aggregate.wheelSemantics.preparedFootprint
+        / aggregate.wheelSemantics.authoredFootprintMeters,
+      14
+    );
+    console.info(
+      'Supply Wagon GLB semantic audit: '
+      + `${aggregate.profiles.length} LODs / ${aggregate.jointNames.length} joints / `
+      + `${aggregate.clips.length} clips / in-place root / untracked named wheels.`
+    );
   });
 
   it('pins the release source, LOD derivations, and visual-only boundary', () => {
@@ -58,7 +142,15 @@ describe('Hegemony Supply Wagon runtime assets', () => {
       runtimeContract: {
         gltfUp: '+Y',
         frontFacing: '+Z',
-        animation: { jointCount: 47 }
+        authoredBoundsMeters: {
+          dimensions: [1.886, 2.41437826, HEGEMONY_SUPPLY_WAGON_WHEEL_SEMANTICS.authoredFootprintMeters]
+        },
+        animation: {
+          jointCount: 47,
+          wheelBones: HEGEMONY_SUPPLY_WAGON_WHEEL_SEMANTICS.nodeNames,
+          wheelRadiusMeters: HEGEMONY_SUPPLY_WAGON_WHEEL_SEMANTICS.authoredRadiusMeters,
+          rootMotion: 'in_place; world position is an interpolation of server-owned journey timestamps, not animation data'
+        }
       }
     });
     expect(record.runtimeAssets).toEqual(HEGEMONY_SUPPLY_WAGON_PROFILES.map((profile) => (

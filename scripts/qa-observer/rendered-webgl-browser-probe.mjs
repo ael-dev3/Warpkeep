@@ -60,6 +60,62 @@ const FULL_HD_VIEWPORT = Object.freeze({ width: 1_920, height: 1_080 });
 const TABLET_VIEWPORT = Object.freeze({ width: 1_024, height: 768 });
 const MOBILE_VIEWPORT = Object.freeze({ width: 390, height: 844 });
 const SHORT_LANDSCAPE_VIEWPORT = Object.freeze({ width: 667, height: 375 });
+const RENDERED_WEBGL_WORKER_LOCOMOTION_MODEL_COUNT = 3;
+const RENDERED_WEBGL_WORKER_LOCOMOTION_PRESENTED_COUNT = 400;
+const RENDERED_WEBGL_WORKER_LOCOMOTION_MINIMUM_VISIBLE_PROJECTION_COUNT = 1;
+const RENDERED_WEBGL_WORKER_LOCOMOTION_CASE_SPECS = Object.freeze([
+  Object.freeze({
+    id: 'full-hd-high-worker-locomotion',
+    quality: 'high',
+    viewport: FULL_HD_VIEWPORT,
+    reducedMotion: false,
+    assetProfile: 'high',
+    assetPath:
+      '/models/hegemony/hegemony-supply-wagon-high-4a0f762b9dadeadd.glb',
+    animatedCount: 3,
+    wheelDrivenCount: 3,
+    minimumLabelCount: 4,
+  }),
+  Object.freeze({
+    id: 'desktop-balanced-worker-locomotion',
+    quality: 'balanced',
+    viewport: DESKTOP_VIEWPORT,
+    reducedMotion: false,
+    assetProfile: 'balanced',
+    assetPath:
+      '/models/hegemony/hegemony-supply-wagon-balanced-af0f8788eaaf9a32.glb',
+    animatedCount: 3,
+    wheelDrivenCount: 3,
+    minimumLabelCount: 4,
+  }),
+  Object.freeze({
+    id: 'short-landscape-reduced-worker-locomotion',
+    quality: 'reduced',
+    viewport: SHORT_LANDSCAPE_VIEWPORT,
+    reducedMotion: false,
+    assetProfile: 'compact',
+    assetPath:
+      '/models/hegemony/hegemony-supply-wagon-compact-fefb5105b95d43b4.glb',
+    animatedCount: 0,
+    wheelDrivenCount: 3,
+    minimumLabelCount: 1,
+  }),
+  Object.freeze({
+    id: 'mobile-reduced-motion-worker-locomotion',
+    quality: 'reduced',
+    viewport: MOBILE_VIEWPORT,
+    reducedMotion: true,
+    assetProfile: 'compact',
+    assetPath:
+      '/models/hegemony/hegemony-supply-wagon-compact-fefb5105b95d43b4.glb',
+    animatedCount: 0,
+    wheelDrivenCount: 0,
+    minimumLabelCount: 4,
+  }),
+]);
+const RENDERED_WEBGL_WORKER_LOCOMOTION_CASE_SPEC_BY_ID = new Map(
+  RENDERED_WEBGL_WORKER_LOCOMOTION_CASE_SPECS.map((spec) => [spec.id, spec])
+);
 export const RENDERED_WEBGL_QA_CASE_COUNT = 14;
 export const RENDERED_WEBGL_QA_OCCUPANCY_STRESS_COUNT = 312;
 export const RENDERED_WEBGL_QA_OCCUPANCY_STRESS_MAXIMUM_PRESENCES = 400;
@@ -135,6 +191,46 @@ export function renderedWebglActiveWorkerProbeCase(port) {
     }),
     viewport: MOBILE_VIEWPORT,
   });
+}
+
+export function renderedWebglWorkerLocomotionProbeCases(port) {
+  const selectedPort = exactPort(port);
+  return Object.freeze(RENDERED_WEBGL_WORKER_LOCOMOTION_CASE_SPECS.map((spec) => (
+    Object.freeze({
+      id: spec.id,
+      expectedPresentationMode: 'player',
+      expectedQuality: spec.quality,
+      ...(spec.reducedMotion ? { expectedReducedMotion: true } : {}),
+      interaction: 'default',
+      maximumLabelOverflowCount: 0,
+      minimumLabelCount: spec.minimumLabelCount,
+      url: renderedWebglQaUrl({
+        fixture: 'worker-locomotion',
+        mode: 'player',
+        port: selectedPort,
+        quality: spec.quality,
+      }),
+      viewport: spec.viewport,
+      workerLocomotion: Object.freeze({
+        assetProfile: spec.assetProfile,
+        assetPath: spec.assetPath,
+        expectedAnimatedCount: spec.animatedCount,
+        expectedFallbackCount: 0,
+        expectedModelCount: RENDERED_WEBGL_WORKER_LOCOMOTION_MODEL_COUNT,
+        minimumVisibleProjectionCount:
+          RENDERED_WEBGL_WORKER_LOCOMOTION_MINIMUM_VISIBLE_PROJECTION_COUNT,
+        expectedWheelDrivenCount: spec.wheelDrivenCount,
+        reducedMotion: spec.reducedMotion,
+      }),
+    })
+  )));
+}
+
+/** Compatibility selector for callers that still request the original lane. */
+export function renderedWebglWorkerLocomotionProbeCase(port) {
+  return renderedWebglWorkerLocomotionProbeCases(port).find((probeCase) => (
+    probeCase.id === 'desktop-balanced-worker-locomotion'
+  ));
 }
 // Interactions may change the projection-visible set, but every eligible castle
 // must remain a direct label. Explore remains the complete accessible list and
@@ -1108,6 +1204,311 @@ export function parseRenderedWebglActiveWorkerEvidence(value) {
     );
   }
   return Object.freeze(Object.fromEntries(keys.map((key) => [key, true])));
+}
+
+const RENDERED_WEBGL_WORKER_LOCOMOTION_COUNT_TELEMETRY_KEYS = Object.freeze([
+  'clipIdleCount',
+  'clipStartCount',
+  'clipStopCount',
+  'clipTurnLeftCount',
+  'clipTurnRightCount',
+  'clipWalkCount',
+  'gatheringIdleCount',
+  'lateModelPhaseRestorationCount',
+  'modelPhaseRestorationCount',
+  'movingCount',
+  'oneShotOverrunCount',
+  'repeatedTurnSuppressionCount',
+  'renderedClipIdleCount',
+  'renderedClipStartCount',
+  'renderedClipStopCount',
+  'renderedClipTurnLeftCount',
+  'renderedClipTurnRightCount',
+  'renderedClipWalkCount',
+  'reversalCount',
+  'startingCount',
+  'stoppingCount',
+  'turningCount',
+  'cruisingCount',
+  'wheelDistanceMismatchCount',
+  'wheelDrivenCount',
+]);
+const RENDERED_WEBGL_WORKER_LOCOMOTION_METRIC_TELEMETRY_KEYS = Object.freeze([
+  'maximumHeadingError',
+  'maximumPositionCorrection',
+  'maximumSpeed',
+]);
+const RENDERED_WEBGL_WORKER_LOCOMOTION_TELEMETRY_KEYS = Object.freeze([
+  ...RENDERED_WEBGL_WORKER_LOCOMOTION_COUNT_TELEMETRY_KEYS,
+  ...RENDERED_WEBGL_WORKER_LOCOMOTION_METRIC_TELEMETRY_KEYS,
+].sort());
+
+function parseRenderedWebglWorkerLocomotionTelemetry(value, spec) {
+  const candidate = exactRecord(
+    value,
+    'Invalid rendered WebGL Worker locomotion telemetry.'
+  );
+  if (!exactMessageKeys(
+    candidate,
+    new Set(RENDERED_WEBGL_WORKER_LOCOMOTION_TELEMETRY_KEYS)
+  )) {
+    throw new TypeError('Invalid rendered WebGL Worker locomotion telemetry shape.');
+  }
+  for (const key of RENDERED_WEBGL_WORKER_LOCOMOTION_COUNT_TELEMETRY_KEYS) {
+    if (
+      !Number.isSafeInteger(candidate[key])
+      || candidate[key] < 0
+    ) {
+      throw new TypeError('Invalid rendered WebGL Worker locomotion telemetry.');
+    }
+  }
+  for (const key of RENDERED_WEBGL_WORKER_LOCOMOTION_METRIC_TELEMETRY_KEYS) {
+    if (
+      !Number.isFinite(candidate[key])
+      || candidate[key] < 0
+    ) {
+      throw new TypeError('Invalid rendered WebGL Worker locomotion telemetry.');
+    }
+  }
+  const clipCount = [
+    'clipIdleCount',
+    'clipStartCount',
+    'clipStopCount',
+    'clipTurnLeftCount',
+    'clipTurnRightCount',
+    'clipWalkCount',
+  ].reduce((total, key) => total + candidate[key], 0);
+  const phaseCount = [
+    'startingCount',
+    'cruisingCount',
+    'turningCount',
+    'stoppingCount',
+    'gatheringIdleCount',
+  ].reduce((total, key) => total + candidate[key], 0);
+  const renderedClipCount = [
+    'renderedClipIdleCount',
+    'renderedClipStartCount',
+    'renderedClipStopCount',
+    'renderedClipTurnLeftCount',
+    'renderedClipTurnRightCount',
+    'renderedClipWalkCount',
+  ].reduce((total, key) => total + candidate[key], 0);
+  const expectedRenderedIdleCount = spec.animatedCount > 0 ? 1 : 0;
+  const expectedRenderedWalkCount = spec.animatedCount > 0 ? 2 : 0;
+  if (
+    candidate.clipIdleCount !== 1
+    || candidate.gatheringIdleCount !== 1
+    || candidate.renderedClipIdleCount !== expectedRenderedIdleCount
+    || candidate.renderedClipStartCount !== 0
+    || candidate.renderedClipStopCount !== 0
+    || candidate.renderedClipTurnLeftCount !== 0
+    || candidate.renderedClipTurnRightCount !== 0
+    || candidate.renderedClipWalkCount !== expectedRenderedWalkCount
+    || renderedClipCount !== spec.animatedCount
+    || candidate.maximumSpeed <= 0
+    || candidate.movingCount !== 2
+    || candidate.oneShotOverrunCount !== 0
+    || candidate.wheelDistanceMismatchCount !== 0
+    || candidate.wheelDrivenCount !== spec.wheelDrivenCount
+    || clipCount !== RENDERED_WEBGL_WORKER_LOCOMOTION_MODEL_COUNT
+    || phaseCount !== RENDERED_WEBGL_WORKER_LOCOMOTION_MODEL_COUNT
+  ) {
+    throw new TypeError('Invalid rendered WebGL Worker locomotion telemetry contract.');
+  }
+  return Object.freeze(Object.fromEntries(
+    RENDERED_WEBGL_WORKER_LOCOMOTION_TELEMETRY_KEYS.map((key) => [
+      key,
+      candidate[key],
+    ])
+  ));
+}
+
+/**
+ * Privacy-safe frame evidence for the synthetic moving-wagon lane. Root
+ * projections contain only phase plus bounded viewport coordinates; Worker
+ * IDs, castle identities, routes, world coordinates, and asset URLs never
+ * cross CDP. Every post-integration field is mandatory and the case metadata
+ * binds the evidence to one member of the reviewed four-case real-asset matrix.
+ */
+export function parseRenderedWebglWorkerLocomotionEvidence(value) {
+  const candidate = exactRecord(
+    value,
+    'Invalid rendered WebGL Worker locomotion evidence.'
+  );
+  const spec = typeof candidate.caseId === 'string'
+    ? RENDERED_WEBGL_WORKER_LOCOMOTION_CASE_SPEC_BY_ID.get(candidate.caseId)
+    : undefined;
+  if (
+    !exactMessageKeys(candidate, new Set([
+      'approvedAssetLoaded',
+      'animatedCount',
+      'assetProfile',
+      'caseId',
+      'fallbackCount',
+      'fixtureSelected',
+      'modelCount',
+      'movementPixels',
+      'presentedCount',
+      'quality',
+      'readinessSatisfied',
+      'reducedMotion',
+      'rendererStable',
+      'samples',
+      'viewportHeight',
+      'viewportWidth',
+      'visibleProjectionCount',
+      'wheelDrivenCount',
+    ]))
+    || spec === undefined
+    || candidate.approvedAssetLoaded !== true
+    || candidate.animatedCount !== spec.animatedCount
+    || candidate.assetProfile !== spec.assetProfile
+    || candidate.fallbackCount !== 0
+    || candidate.fixtureSelected !== true
+    || candidate.modelCount !== RENDERED_WEBGL_WORKER_LOCOMOTION_MODEL_COUNT
+    || candidate.presentedCount !== RENDERED_WEBGL_WORKER_LOCOMOTION_PRESENTED_COUNT
+    || candidate.quality !== spec.quality
+    || candidate.readinessSatisfied !== true
+    || candidate.reducedMotion !== spec.reducedMotion
+    || candidate.rendererStable !== true
+    || candidate.viewportHeight !== spec.viewport.height
+    || candidate.viewportWidth !== spec.viewport.width
+    || !Number.isSafeInteger(candidate.visibleProjectionCount)
+    || candidate.visibleProjectionCount
+      < RENDERED_WEBGL_WORKER_LOCOMOTION_MINIMUM_VISIBLE_PROJECTION_COUNT
+    || candidate.visibleProjectionCount > 2
+    || candidate.wheelDrivenCount !== spec.wheelDrivenCount
+    || !Array.isArray(candidate.samples)
+    || candidate.samples.length !== 32
+  ) {
+    throw new TypeError('Invalid rendered WebGL Worker locomotion evidence.');
+  }
+  const movementPixels = exactRecord(
+    candidate.movementPixels,
+    'Invalid rendered WebGL Worker locomotion movement evidence.'
+  );
+  if (
+    !exactMessageKeys(movementPixels, new Set(['outbound', 'returning']))
+    || !Number.isFinite(movementPixels.outbound)
+    || !Number.isFinite(movementPixels.returning)
+    || Math.max(movementPixels.outbound, movementPixels.returning) <= 0.001
+    || movementPixels.outbound > RENDERED_WEBGL_QA_MAX_POINTER_COORDINATE_PIXELS
+    || movementPixels.returning > RENDERED_WEBGL_QA_MAX_POINTER_COORDINATE_PIXELS
+  ) {
+    throw new TypeError('Invalid rendered WebGL Worker locomotion movement evidence.');
+  }
+  let previousElapsed = -1;
+  const firstProjectionByPhase = new Map();
+  const maximumMovementByPhase = new Map([
+    ['outbound', 0],
+    ['returning', 0],
+  ]);
+  const samples = candidate.samples.map((sampleValue) => {
+    const sample = exactRecord(
+      sampleValue,
+      'Invalid rendered WebGL Worker locomotion frame sample.'
+    );
+    if (
+      !exactMessageKeys(sample, new Set([
+        'elapsedMilliseconds',
+        'rootProjections',
+        'telemetry',
+      ]))
+      || !Number.isFinite(sample.elapsedMilliseconds)
+      || sample.elapsedMilliseconds < 0
+      || sample.elapsedMilliseconds > 10_000
+      || sample.elapsedMilliseconds <= previousElapsed
+      || !Array.isArray(sample.rootProjections)
+      || sample.rootProjections.length
+        < RENDERED_WEBGL_WORKER_LOCOMOTION_MINIMUM_VISIBLE_PROJECTION_COUNT
+      || sample.rootProjections.length > 2
+    ) {
+      throw new TypeError('Invalid rendered WebGL Worker locomotion frame sample.');
+    }
+    previousElapsed = sample.elapsedMilliseconds;
+    const rootProjections = sample.rootProjections.map((rootValue) => {
+      const root = exactRecord(
+        rootValue,
+        'Invalid rendered WebGL Worker root projection.'
+      );
+      if (
+        !exactMessageKeys(root, new Set(['phase', 'x', 'y']))
+        || !['outbound', 'returning'].includes(root.phase)
+        || !Number.isFinite(root.x)
+        || !Number.isFinite(root.y)
+        || root.x < 0
+        || root.x > spec.viewport.width
+        || root.y < 0
+        || root.y > spec.viewport.height
+      ) {
+        throw new TypeError('Invalid rendered WebGL Worker root projection.');
+      }
+      const first = firstProjectionByPhase.get(root.phase);
+      if (first === undefined) {
+        firstProjectionByPhase.set(root.phase, Object.freeze({
+          x: root.x,
+          y: root.y,
+        }));
+      } else {
+        maximumMovementByPhase.set(
+          root.phase,
+          Math.max(
+            maximumMovementByPhase.get(root.phase) ?? 0,
+            Math.hypot(root.x - first.x, root.y - first.y)
+          )
+        );
+      }
+      return Object.freeze({ phase: root.phase, x: root.x, y: root.y });
+    });
+    if (new Set(rootProjections.map(({ phase }) => phase)).size
+      !== rootProjections.length) {
+      throw new TypeError('Invalid rendered WebGL Worker locomotion phase coverage.');
+    }
+    return Object.freeze({
+      elapsedMilliseconds: sample.elapsedMilliseconds,
+      rootProjections: Object.freeze(rootProjections),
+      telemetry: parseRenderedWebglWorkerLocomotionTelemetry(
+        sample.telemetry,
+        spec
+      ),
+    });
+  });
+  let movingPhaseCount = 0;
+  for (const phase of ['outbound', 'returning']) {
+    const observed = maximumMovementByPhase.get(phase) ?? 0;
+    if (
+      Math.abs(observed - movementPixels[phase]) > 0.000_001
+    ) {
+      throw new TypeError('Invalid rendered WebGL Worker locomotion movement evidence.');
+    }
+    if (observed > 0.001) movingPhaseCount += 1;
+  }
+  if (movingPhaseCount < 1) {
+    throw new TypeError('Invalid rendered WebGL Worker locomotion movement evidence.');
+  }
+  return Object.freeze({
+    approvedAssetLoaded: true,
+    animatedCount: candidate.animatedCount,
+    assetProfile: candidate.assetProfile,
+    caseId: candidate.caseId,
+    fallbackCount: candidate.fallbackCount,
+    fixtureSelected: true,
+    modelCount: candidate.modelCount,
+    movementPixels: Object.freeze({
+      outbound: movementPixels.outbound,
+      returning: movementPixels.returning,
+    }),
+    presentedCount: candidate.presentedCount,
+    quality: candidate.quality,
+    readinessSatisfied: true,
+    reducedMotion: candidate.reducedMotion,
+    rendererStable: true,
+    samples: Object.freeze(samples),
+    viewportHeight: candidate.viewportHeight,
+    viewportWidth: candidate.viewportWidth,
+    visibleProjectionCount: candidate.visibleProjectionCount,
+    wheelDrivenCount: candidate.wheelDrivenCount,
+  });
 }
 
 /**
@@ -6651,6 +7052,360 @@ export async function applyRenderedWebglActiveWorkerReconnectInteraction(session
   return Object.freeze({ localReconnectRehydrated: evaluation.result.value === true });
 }
 
+function workerLocomotionSpecForProbeCase(probeCase) {
+  const spec = typeof probeCase?.id === 'string'
+    ? RENDERED_WEBGL_WORKER_LOCOMOTION_CASE_SPEC_BY_ID.get(probeCase.id)
+    : undefined;
+  const expected = probeCase?.workerLocomotion;
+  if (
+    spec === undefined
+    || probeCase.expectedPresentationMode !== 'player'
+    || probeCase.expectedQuality !== spec.quality
+    || (probeCase.expectedReducedMotion === true) !== spec.reducedMotion
+    || probeCase.viewport?.width !== spec.viewport.width
+    || probeCase.viewport?.height !== spec.viewport.height
+    || expected?.assetProfile !== spec.assetProfile
+    || expected?.assetPath !== spec.assetPath
+    || expected?.expectedAnimatedCount !== spec.animatedCount
+    || expected?.expectedFallbackCount !== 0
+    || expected?.expectedModelCount
+      !== RENDERED_WEBGL_WORKER_LOCOMOTION_MODEL_COUNT
+    || expected?.minimumVisibleProjectionCount
+      !== RENDERED_WEBGL_WORKER_LOCOMOTION_MINIMUM_VISIBLE_PROJECTION_COUNT
+    || expected?.expectedWheelDrivenCount !== spec.wheelDrivenCount
+    || expected?.reducedMotion !== spec.reducedMotion
+  ) {
+    throw new TypeError('Invalid rendered WebGL Worker locomotion probe case.');
+  }
+  return spec;
+}
+
+export async function applyRenderedWebglWorkerLocomotionInteraction(
+  session,
+  probeCase
+) {
+  const spec = workerLocomotionSpecForProbeCase(probeCase);
+  const expected = JSON.stringify({
+    animatedCount: spec.animatedCount,
+    assetPath: spec.assetPath,
+    assetProfile: spec.assetProfile,
+    caseId: spec.id,
+    fallbackCount: 0,
+    modelCount: RENDERED_WEBGL_WORKER_LOCOMOTION_MODEL_COUNT,
+    presentedCount: RENDERED_WEBGL_WORKER_LOCOMOTION_PRESENTED_COUNT,
+    quality: spec.quality,
+    reducedMotion: spec.reducedMotion,
+    viewportHeight: spec.viewport.height,
+    viewportWidth: spec.viewport.width,
+    minimumVisibleProjectionCount:
+      RENDERED_WEBGL_WORKER_LOCOMOTION_MINIMUM_VISIBLE_PROJECTION_COUNT,
+    wheelDrivenCount: spec.wheelDrivenCount,
+  });
+  const evaluation = await session.command('Runtime.evaluate', {
+    expression: `(async () => {
+      const expected = Object.freeze(${expected});
+      const telemetryAttributes = Object.freeze({
+        clipIdleCount: 'data-realm-worker-clip-idle-count',
+        clipStartCount: 'data-realm-worker-clip-start-count',
+        clipStopCount: 'data-realm-worker-clip-stop-count',
+        clipTurnLeftCount: 'data-realm-worker-clip-turn-left-count',
+        clipTurnRightCount: 'data-realm-worker-clip-turn-right-count',
+        clipWalkCount: 'data-realm-worker-clip-walk-count',
+        gatheringIdleCount: 'data-realm-worker-locomotion-gathering-idle-count',
+        lateModelPhaseRestorationCount:
+          'data-realm-worker-late-model-phase-restoration-count',
+        maximumHeadingError:
+          'data-realm-worker-locomotion-maximum-heading-error',
+        maximumPositionCorrection:
+          'data-realm-worker-locomotion-maximum-position-correction',
+        maximumSpeed: 'data-realm-worker-locomotion-maximum-speed',
+        modelPhaseRestorationCount:
+          'data-realm-worker-model-phase-restoration-count',
+        movingCount: 'data-realm-worker-locomotion-moving-count',
+        oneShotOverrunCount:
+          'data-realm-worker-locomotion-one-shot-overrun-count',
+        repeatedTurnSuppressionCount:
+          'data-realm-worker-repeated-turn-suppression-count',
+        renderedClipIdleCount:
+          'data-realm-worker-rendered-clip-idle-count',
+        renderedClipStartCount:
+          'data-realm-worker-rendered-clip-start-count',
+        renderedClipStopCount:
+          'data-realm-worker-rendered-clip-stop-count',
+        renderedClipTurnLeftCount:
+          'data-realm-worker-rendered-clip-turn-left-count',
+        renderedClipTurnRightCount:
+          'data-realm-worker-rendered-clip-turn-right-count',
+        renderedClipWalkCount:
+          'data-realm-worker-rendered-clip-walk-count',
+        reversalCount: 'data-realm-worker-reversal-count',
+        startingCount: 'data-realm-worker-locomotion-starting-count',
+        stoppingCount: 'data-realm-worker-locomotion-stopping-count',
+        turningCount: 'data-realm-worker-locomotion-turning-count',
+        cruisingCount: 'data-realm-worker-locomotion-cruising-count',
+        wheelDistanceMismatchCount:
+          'data-realm-worker-wheel-distance-mismatch-count',
+        wheelDrivenCount: 'data-realm-worker-wheel-driven-count'
+      });
+      const waitFor = async (predicate, timeoutMilliseconds = 15_000) => {
+        const deadline = performance.now() + timeoutMilliseconds;
+        while (performance.now() <= deadline) {
+          if (predicate()) return true;
+          await new Promise((resolve) => setTimeout(resolve, 32));
+        }
+        return false;
+      };
+      const overlay = document.querySelector('[data-rendered-webgl-status]');
+      const map = document.querySelector('.realm-map-screen');
+      const canvas = map?.querySelector('canvas.realm-map-screen__canvas');
+      const context = canvas instanceof HTMLCanvasElement
+        ? canvas.getContext('webgl2') ?? canvas.getContext('webgl')
+        : null;
+      const rendererHealthy = () => (
+        overlay instanceof HTMLElement
+        && overlay.dataset.renderer === 'webgl'
+        && overlay.dataset.renderedWebglStatus === 'ready'
+        && map instanceof HTMLElement
+        && map.dataset.renderer === 'webgl'
+        && map.dataset.rendererState === 'ready'
+        && canvas instanceof HTMLCanvasElement
+        && context !== null
+        && !context.isContextLost()
+      );
+      const approvedAssetLoaded = () => performance.getEntriesByType('resource').some(
+        (entry) => {
+          try {
+            return new URL(entry.name).pathname === expected.assetPath;
+          } catch {
+            return false;
+          }
+        }
+      );
+      const integerAttribute = (attribute) => {
+        const value = canvas?.getAttribute(attribute);
+        return typeof value === 'string' && /^(?:0|[1-9][0-9]{0,8})$/.test(value)
+          ? Number(value)
+          : null;
+      };
+      const presentationCounts = () => Object.freeze({
+        animatedCount: integerAttribute('data-realm-worker-animated-count'),
+        fallbackCount: integerAttribute('data-realm-worker-fallback-count'),
+        modelCount: integerAttribute('data-realm-worker-model-count'),
+        presentedCount: integerAttribute('data-realm-worker-presented-count'),
+        wheelDrivenCount:
+          integerAttribute('data-realm-worker-wheel-driven-count')
+      });
+      const visibleRootProjections = () => [...document.querySelectorAll(
+        '.realm-worker-presence-marker[data-projected-visible="true"]'
+        + '[data-phase="outbound"],'
+        + '.realm-worker-presence-marker[data-projected-visible="true"]'
+        + '[data-phase="returning"]'
+      )].flatMap((marker) => {
+        if (!(marker instanceof HTMLElement)) return [];
+        const phase = marker.dataset.phase;
+        if (phase !== 'outbound' && phase !== 'returning') return [];
+        const style = getComputedStyle(marker);
+        const bounds = marker.getBoundingClientRect();
+        const x = Number.parseFloat(
+          style.getPropertyValue('--realm-worker-presence-x')
+        );
+        const y = Number.parseFloat(
+          style.getPropertyValue('--realm-worker-presence-y')
+        );
+        return (
+          marker.dataset.projectedVisible === 'true'
+          && style.display !== 'none'
+          && style.visibility !== 'hidden'
+          && Number.parseFloat(style.opacity || '1') > 0
+          && bounds.width > 0
+          && bounds.height > 0
+          && Number.isFinite(x)
+          && Number.isFinite(y)
+          && x >= 0
+          && x <= innerWidth
+          && y >= 0
+          && y <= innerHeight
+        ) ? [{ phase, x, y }] : [];
+      }).sort((left, right) => left.phase.localeCompare(right.phase));
+      const fixtureSelected = () => (
+        overlay instanceof HTMLElement
+        && overlay.dataset.fixtureVariant === 'worker-locomotion'
+        && overlay.dataset.presentationMode === 'player'
+        && overlay.dataset.quality === expected.quality
+      );
+      const exactCountsReady = () => {
+        const counts = presentationCounts();
+        return counts.animatedCount === expected.animatedCount
+          && counts.fallbackCount === expected.fallbackCount
+          && counts.modelCount === expected.modelCount
+          && counts.presentedCount === expected.presentedCount
+          && counts.wheelDrivenCount === expected.wheelDrivenCount;
+      };
+      const exactVisibleProjectionReady = () => {
+        const roots = visibleRootProjections();
+        return roots.length >= expected.minimumVisibleProjectionCount
+          && roots.length <= 2
+          && new Set(roots.map(({ phase }) => phase)).size
+            === roots.length;
+      };
+      const closeWorkerSurfaces = async () => {
+        const workerBack = document.querySelector(
+          '.worker-inspection__dismiss[aria-label="Back to workers"]'
+        );
+        if (workerBack instanceof HTMLButtonElement) workerBack.click();
+        await waitFor(() => document.querySelector(
+          '.worker-command-center[role="dialog"]'
+        ) instanceof HTMLElement, 2_000);
+        const menuBack = document.querySelector(
+          '.worker-command-center button[aria-label="Back to Realm menu"]'
+        );
+        if (menuBack instanceof HTMLButtonElement) menuBack.click();
+        await waitFor(() => document.querySelector(
+          '.realm-profile-menu__panel[role="dialog"]'
+        ) instanceof HTMLElement, 2_000);
+        const menuClose = document.querySelector(
+          '.realm-profile-menu__panel button[aria-label="Close Realm menu"]'
+        );
+        if (menuClose instanceof HTMLButtonElement) menuClose.click();
+        return waitFor(() => (
+          document.querySelector('.worker-inspection') === null
+          && document.querySelector('.worker-command-center') === null
+          && document.querySelector('.realm-profile-menu__panel') === null
+        ), 2_000);
+      };
+      const locateMovingWorkerWhenOccluded = async () => {
+        // Let the first renderer projection settle before treating label
+        // occlusion as persistent and exercising the real locate control.
+        if (expected.caseId !== 'mobile-reduced-motion-worker-locomotion') {
+          return waitFor(exactVisibleProjectionReady);
+        }
+        if (await waitFor(exactVisibleProjectionReady, 2_000)) return true;
+        const profileTrigger = document.querySelector('.realm-profile-trigger');
+        if (!(profileTrigger instanceof HTMLButtonElement)) return false;
+        profileTrigger.click();
+        const workersReady = await waitFor(() => (
+          document.querySelector(
+            '.realm-profile-menu__worker-actions button[aria-haspopup="dialog"]'
+          ) instanceof HTMLButtonElement
+        ), 2_000);
+        if (!workersReady) return false;
+        const workersButton = document.querySelector(
+          '.realm-profile-menu__worker-actions button[aria-haspopup="dialog"]'
+        );
+        if (!(workersButton instanceof HTMLButtonElement) || workersButton.disabled) {
+          return false;
+        }
+        workersButton.click();
+        const rosterReady = await waitFor(() => (
+          document.querySelector('.worker-command-center__worker')
+            instanceof HTMLButtonElement
+        ), 2_000);
+        if (!rosterReady) return false;
+        const firstWorker = document.querySelector(
+          '.worker-command-center__worker'
+        );
+        if (!(firstWorker instanceof HTMLButtonElement) || firstWorker.disabled) {
+          return false;
+        }
+        firstWorker.click();
+        const locateReady = await waitFor(() => (
+          document.querySelector('.worker-inspection__locate')
+            instanceof HTMLButtonElement
+        ), 2_000);
+        if (!locateReady) return false;
+        const locateButton = document.querySelector('.worker-inspection__locate');
+        if (!(locateButton instanceof HTMLButtonElement) || locateButton.disabled) {
+          return false;
+        }
+        locateButton.click();
+        const surfacesClosed = await closeWorkerSurfaces();
+        return surfacesClosed && waitFor(exactVisibleProjectionReady, 5_000);
+      };
+      const projectionPrepared = await locateMovingWorkerWhenOccluded();
+      const readinessSatisfied = await waitFor(() => (
+        rendererHealthy()
+        && fixtureSelected()
+        && matchMedia('(prefers-reduced-motion: reduce)').matches
+          === expected.reducedMotion
+        && innerWidth === expected.viewportWidth
+        && innerHeight === expected.viewportHeight
+        && approvedAssetLoaded()
+        && exactCountsReady()
+        && projectionPrepared
+        && exactVisibleProjectionReady()
+      ));
+      const startedAt = performance.now();
+      const samples = [];
+      let stable = true;
+      if (readinessSatisfied) {
+        for (let index = 0; index < 32; index += 1) {
+          await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+          await new Promise((resolve) => setTimeout(resolve, 32));
+          stable = stable && rendererHealthy();
+          const rootProjections = visibleRootProjections();
+          const telemetry = Object.fromEntries(
+            Object.entries(telemetryAttributes).map(([key, attribute]) => {
+              const value = canvas?.getAttribute(attribute);
+              if (value === null || value === undefined || value === '') {
+                return [key, null];
+              }
+              const parsed = Number(value);
+              return [key, Number.isFinite(parsed) && parsed >= 0 ? parsed : null];
+            })
+          );
+          samples.push({
+            elapsedMilliseconds: performance.now() - startedAt,
+            rootProjections,
+            telemetry
+          });
+        }
+      }
+      const counts = presentationCounts();
+      const movementPixels = Object.fromEntries(
+        ['outbound', 'returning'].map((phase) => {
+          const positions = samples.flatMap(({ rootProjections }) => (
+            rootProjections.filter((projection) => projection.phase === phase)
+          ));
+          const first = positions[0];
+          const maximum = first === undefined ? 0 : Math.max(
+            0,
+            ...positions.map(({ x, y }) => Math.hypot(x - first.x, y - first.y))
+          );
+          return [phase, maximum];
+        })
+      );
+      const finalRoots = visibleRootProjections();
+      return {
+        approvedAssetLoaded: approvedAssetLoaded(),
+        animatedCount: counts.animatedCount,
+        assetProfile: expected.assetProfile,
+        caseId: expected.caseId,
+        fallbackCount: counts.fallbackCount,
+        fixtureSelected: fixtureSelected(),
+        modelCount: counts.modelCount,
+        movementPixels,
+        presentedCount: counts.presentedCount,
+        quality: overlay instanceof HTMLElement ? overlay.dataset.quality : null,
+        readinessSatisfied,
+        reducedMotion:
+          matchMedia('(prefers-reduced-motion: reduce)').matches,
+        rendererStable: stable && rendererHealthy(),
+        samples,
+        viewportHeight: innerHeight,
+        viewportWidth: innerWidth,
+        visibleProjectionCount: finalRoots.length,
+        wheelDrivenCount: counts.wheelDrivenCount
+      };
+    })()`,
+    awaitPromise: true,
+    returnByValue: true,
+  }, CDP_COMMAND_TIMEOUT_MILLISECONDS * 4);
+  if (evaluation?.exceptionDetails || evaluation?.result?.type !== 'object') {
+    throw new Error('Rendered WebGL Worker locomotion evaluation failed.');
+  }
+  return evaluation.result.value;
+}
+
 export async function applyRenderedWebglOccupancyStressInteraction(session) {
   const evaluation = await session.command('Runtime.evaluate', {
     expression: `(async () => {
@@ -6921,6 +7676,46 @@ async function runRenderedOccupancyStressCase(session, probeCase, state) {
   }
 }
 
+async function runRenderedWorkerLocomotionCase(session, probeCase, state) {
+  await session.command('Emulation.setDeviceMetricsOverride', {
+    width: probeCase.viewport.width,
+    height: probeCase.viewport.height,
+    screenWidth: probeCase.viewport.width,
+    screenHeight: probeCase.viewport.height,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+  await session.command('Emulation.setEmulatedMedia', {
+    features: [{
+      name: 'prefers-reduced-motion',
+      value: probeCase.expectedReducedMotion === true
+        ? 'reduce'
+        : 'no-preference',
+    }],
+  });
+  await navigateRenderedWebglCase(session, probeCase.url);
+  await waitForAcceptedRenderedDom(session, probeCase, state);
+  await captureRenderedCasePixels(session, probeCase.viewport);
+  const rawEvidence =
+    await applyRenderedWebglWorkerLocomotionInteraction(session, probeCase);
+  let evidence;
+  try {
+    evidence = parseRenderedWebglWorkerLocomotionEvidence(rawEvidence);
+  } catch (error) {
+    if (process.env.WARPKEEP_QA_LOCAL_DIAGNOSTICS === '1') {
+      process.stderr.write(
+        `Local synthetic Worker locomotion evidence: ${JSON.stringify(rawEvidence)}\n`
+      );
+    }
+    throw error;
+  }
+  await captureRenderedCasePixels(session, probeCase.viewport);
+  if (state.violation) {
+    throw new Error('Rendered WebGL Worker locomotion left the local QA boundary.');
+  }
+  return evidence;
+}
+
 async function runRenderedActiveWorkerCase(session, probeCase, state) {
   await session.command('Emulation.setDeviceMetricsOverride', {
     width: probeCase.viewport.width,
@@ -7141,6 +7936,7 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
   const onCastleLodVisualBoundary = options?.onCastleLodVisualBoundary;
   const onCastleLodVisualEvidence = options?.onCastleLodVisualEvidence;
   const onQualityMetrics = options?.onQualityMetrics;
+  const onWorkerLocomotionEvidence = options?.onWorkerLocomotionEvidence;
   if (
     onCastleLodVisualBoundary !== undefined
     && typeof onCastleLodVisualBoundary !== 'function'
@@ -7153,6 +7949,10 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
     onQualityMetrics !== undefined
     && typeof onQualityMetrics !== 'function'
   ) throw new TypeError('Invalid rendered WebGL quality metrics callback.');
+  if (
+    onWorkerLocomotionEvidence !== undefined
+    && typeof onWorkerLocomotionEvidence !== 'function'
+  ) throw new TypeError('Invalid rendered WebGL Worker locomotion evidence callback.');
   const reviewedChromeIdentity = await attestStableHeadlessChromeExecutable();
   const temporaryProfileDirectory = await mkdtemp(join(tmpdir(), 'warpkeep-webgl-qa-'));
 
@@ -7182,6 +7982,8 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
     onCastleLodVisualBoundary?.(castleLodVisualBoundary);
     const cases = renderedWebglBrowserProbeCases(vite.port);
     const activeWorkerCase = renderedWebglActiveWorkerProbeCase(vite.port);
+    const workerLocomotionCases =
+      renderedWebglWorkerLocomotionProbeCases(vite.port);
     const occupancyStressCase = renderedWebglOccupancyStressProbeCase(vite.port);
     const journeyProbe = await import('./qa-journey-browser-probe.mjs');
     const journeyCases = journeyProbe.qaJourneyBrowserProbeCases(vite.port);
@@ -7193,6 +7995,10 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
     if (
       cases.length !== RENDERED_WEBGL_QA_CASE_COUNT
       || new Set(cases.map((probeCase) => probeCase.id)).size !== RENDERED_WEBGL_QA_CASE_COUNT
+      || workerLocomotionCases.length
+        !== RENDERED_WEBGL_WORKER_LOCOMOTION_CASE_SPECS.length
+      || new Set(workerLocomotionCases.map(({ id }) => id)).size
+        !== RENDERED_WEBGL_WORKER_LOCOMOTION_CASE_SPECS.length
     ) throw new Error('Rendered WebGL QA case manifest is invalid.');
     const loopbackOrigin = `http://127.0.0.1:${vite.port}`;
     await attestStableHeadlessChromeExecutable(reviewedChromeIdentity);
@@ -7214,6 +8020,7 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
           ))
           .map((probeCase) => renderedWebglResourceResetUrl(probeCase.url)),
         activeWorkerCase.url,
+        ...workerLocomotionCases.map((probeCase) => probeCase.url),
         occupancyStressCase.url,
         ...journeyCases.map((probeCase) => probeCase.url),
         castleLodVisualUrl,
@@ -7387,6 +8194,22 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
         cause: error,
       });
     }
+    for (const workerLocomotionCase of workerLocomotionCases) {
+      try {
+        onWorkerLocomotionEvidence?.(
+          await runRenderedWorkerLocomotionCase(
+            devtools,
+            workerLocomotionCase,
+            state
+          )
+        );
+      } catch (error) {
+        throw new Error(
+          `Rendered WebGL Worker locomotion case ${workerLocomotionCase.id} failed.`,
+          { cause: error }
+        );
+      }
+    }
     try {
       await runRenderedOccupancyStressCase(devtools, occupancyStressCase, state);
     } catch (error) {
@@ -7433,6 +8256,7 @@ async function main() {
   try {
     let castleLodVisualBoundary;
     let castleLodVisualEvidence;
+    const workerLocomotionEvidence = [];
     const qualityMetrics = {};
     const passedCaseCount = await runRenderedWebglBrowserProbe({
       onCastleLodVisualBoundary: (boundary) => {
@@ -7444,11 +8268,20 @@ async function main() {
       onQualityMetrics: (metrics) => {
         qualityMetrics[metrics.quality] = metrics;
       },
+      onWorkerLocomotionEvidence: (evidence) => {
+        workerLocomotionEvidence.push(evidence);
+      },
     });
     const lodMetrics = castleLodVisualEvidence?.profiles;
     if (
       !lodMetrics
       || !castleLodVisualBoundary
+      || workerLocomotionEvidence.length
+        !== RENDERED_WEBGL_WORKER_LOCOMOTION_CASE_SPECS.length
+      || workerLocomotionEvidence.some((evidence, index) => (
+        evidence.caseId
+          !== RENDERED_WEBGL_WORKER_LOCOMOTION_CASE_SPECS[index]?.id
+      ))
       || !['high', 'balanced', 'reduced'].every((quality) => (
         qualityMetrics[quality]?.quality === quality
       ))
@@ -7481,11 +8314,19 @@ async function main() {
       `High/Balanced/Reduced metrics ${JSON.stringify(qualityMetrics)}`;
     process.stdout.write(
       `Warpkeep local browser QA passed: ${passedCaseCount} rendered cases, one active generic `
-      + `Worker lifecycle check, one all-node occupancy stress check, 25 journey checks, and `
+      + `Worker lifecycle check, four Worker locomotion evidence checks, one all-node occupancy `
+      + `stress check, 25 journey checks, and `
       + `loopback LOD boundary ${JSON.stringify(castleLodVisualBoundary)}, ${lodFidelitySummary}, `
       + `${qualityMetricsSummary}.\n`
     );
-  } catch {
+  } catch (error) {
+    if (process.env.WARPKEEP_QA_LOCAL_DIAGNOSTICS === '1') {
+      process.stderr.write(
+        `Local rendered WebGL QA failure: ${
+          error instanceof Error ? error.message : 'unknown'
+        }\n`
+      );
+    }
     process.stderr.write('Warpkeep rendered WebGL QA failed closed.\n');
     process.exitCode = 1;
   }

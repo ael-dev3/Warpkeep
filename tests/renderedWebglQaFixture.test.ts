@@ -15,8 +15,12 @@ import {
   createRenderedWebglQaActiveWorkerRealm,
   createRenderedWebglQaFixtureRealm,
   createRenderedWebglQaOccupancyStressRealm,
+  createRenderedWebglQaWorkerLocomotionRealm,
   RENDERED_WEBGL_QA_ACTIVE_WORKER_SITE_ID,
   RENDERED_WEBGL_QA_FOREIGN_WORKER_SITE_ID,
+  RENDERED_WEBGL_QA_LOCOMOTION_GATHERING_SITE_ID,
+  RENDERED_WEBGL_QA_LOCOMOTION_OUTBOUND_SITE_ID,
+  RENDERED_WEBGL_QA_LOCOMOTION_RETURNING_SITE_ID,
   RENDERED_WEBGL_QA_LONG_DISPLAY_NAME,
   RENDERED_WEBGL_QA_LONG_PUBLIC_BIO,
   RENDERED_WEBGL_QA_OCCUPANT_CASTLE_ID,
@@ -254,6 +258,9 @@ describe('rendered WebGL local QA fixture', () => {
     expect(readRenderedWebglQaFixtureVariant(
       '?quality=balanced&mode=player&fixture=worker-active'
     )).toBe('worker-active');
+    expect(readRenderedWebglQaFixtureVariant(
+      '?quality=balanced&mode=player&fixture=worker-locomotion'
+    )).toBe('worker-locomotion');
     expect(readRenderedWebglQaFixtureVariant('?quality=high')).toBe(
       RENDERED_WEBGL_QA_DEFAULT_FIXTURE_VARIANT
     );
@@ -400,6 +407,50 @@ describe('rendered WebGL local QA fixture', () => {
     expect(new URL(foreignMarker!.profile.pfpUrl!).pathname).toBe(
       REALM_OBSERVER_PORTRAIT_PLACEHOLDER_PATH
     );
+  });
+
+  it('anchors a complete local locomotion graph to a relative synthetic clock', () => {
+    const nowMicros = 1_900_000_000_000_000n;
+    const realm = createRenderedWebglQaWorkerLocomotionRealm(nowMicros);
+
+    expect(realm.snapshot.castles).toHaveLength(100);
+    expect(realm.snapshot.workerWorkers).toHaveLength(400);
+    expect(realm.workerProjection.ownedWorkers).toHaveLength(4);
+    expect(realm.workerProjection.ownedWorkers.map((worker) => worker.status)).toEqual([
+      'outbound',
+      'returning',
+      'gathering',
+      'idle'
+    ]);
+    expect(realm.workerProjection.ownedWorkers.map((worker) => worker.siteId)).toEqual([
+      RENDERED_WEBGL_QA_LOCOMOTION_OUTBOUND_SITE_ID,
+      RENDERED_WEBGL_QA_LOCOMOTION_RETURNING_SITE_ID,
+      RENDERED_WEBGL_QA_LOCOMOTION_GATHERING_SITE_ID,
+      undefined
+    ]);
+    expect(realm.snapshot.workerOccupations).toHaveLength(2);
+    expect((realm.snapshot.workerOccupations ?? []).map((occupation) => occupation.phase))
+      .toEqual(['outbound', 'gathering']);
+    expect(realm.workerProjection.ownedWorkers[0]).toMatchObject({
+      startedAtMicros: nowMicros - 30_000_000n,
+      arrivesAtMicros: nowMicros + 90_000_000n
+    });
+    expect(realm.workerProjection.ownedWorkers[1]).toMatchObject({
+      returnStartedAtMicros: nowMicros - 75_000_000n,
+      returnsAtMicros: nowMicros + 45_000_000n,
+      returnStartProgressBasisPoints: 10_000
+    });
+    expect(realm.workerRoster.observedAtMicros).toBe(nowMicros);
+    expect(realm.workerResourceState.pending).toEqual({
+      food: 0n,
+      wood: 0n,
+      stone: 0n,
+      gold: 0n
+    });
+    expect(realm.snapshot.goldNodeOccupations).toEqual([]);
+    expect(realm.snapshot.foodNodeOccupations).toEqual([]);
+    expect(realm.snapshot.woodNodeOccupations).toEqual([]);
+    expect(realm.snapshot.stoneNodeOccupations).toEqual([]);
   });
 
   it('bounds a local-only all-node occupation stress projection to every presence and 24 controls', () => {

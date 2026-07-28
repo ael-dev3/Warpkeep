@@ -84,6 +84,10 @@ export type RenderedWebglBrowserProbeCase = Readonly<{
     | 'mobile-balanced'
     | 'mobile-reduced-inspector'
     | 'mobile-balanced-worker-active'
+    | 'full-hd-high-worker-locomotion'
+    | 'desktop-balanced-worker-locomotion'
+    | 'short-landscape-reduced-worker-locomotion'
+    | 'mobile-reduced-motion-worker-locomotion'
     | 'short-landscape-explore'
     | 'short-landscape-balanced-player-explore'
     | 'desktop-balanced-occupancy-stress';
@@ -122,6 +126,33 @@ export function renderedWebglOccupancyStressProbeCase(
 export function renderedWebglActiveWorkerProbeCase(
   port: number
 ): RenderedWebglBrowserProbeCase;
+
+export type RenderedWebglWorkerLocomotionProbeCase =
+  RenderedWebglBrowserProbeCase & Readonly<{
+    id:
+      | 'full-hd-high-worker-locomotion'
+      | 'desktop-balanced-worker-locomotion'
+      | 'short-landscape-reduced-worker-locomotion'
+      | 'mobile-reduced-motion-worker-locomotion';
+    workerLocomotion: Readonly<{
+      assetProfile: 'high' | 'balanced' | 'compact';
+      assetPath: string;
+      expectedAnimatedCount: number;
+      expectedFallbackCount: 0;
+      expectedModelCount: 3;
+      minimumVisibleProjectionCount: 1;
+      expectedWheelDrivenCount: number;
+      reducedMotion: boolean;
+    }>;
+  }>;
+
+export function renderedWebglWorkerLocomotionProbeCases(
+  port: number
+): readonly RenderedWebglWorkerLocomotionProbeCase[];
+
+export function renderedWebglWorkerLocomotionProbeCase(
+  port: number
+): RenderedWebglWorkerLocomotionProbeCase;
 
 export function headlessChromeProbeContract(profileDirectory: string): HeadlessChromeProbeContract;
 
@@ -180,6 +211,78 @@ export function applyRenderedWebglActiveWorkerInteraction(
 export function applyRenderedWebglActiveWorkerReconnectInteraction(
   session: RenderedWebglCastleCanvasPointerSession
 ): Promise<Pick<RenderedWebglActiveWorkerEvidence, 'localReconnectRehydrated'>>;
+
+export type RenderedWebglWorkerLocomotionTelemetry = Readonly<{
+  clipIdleCount: number;
+  clipStartCount: number;
+  clipStopCount: number;
+  clipTurnLeftCount: number;
+  clipTurnRightCount: number;
+  clipWalkCount: number;
+  gatheringIdleCount: number;
+  lateModelPhaseRestorationCount: number;
+  maximumHeadingError: number;
+  maximumPositionCorrection: number;
+  maximumSpeed: number;
+  modelPhaseRestorationCount: number;
+  movingCount: number;
+  oneShotOverrunCount: 0;
+  repeatedTurnSuppressionCount: number;
+  renderedClipIdleCount: number;
+  renderedClipStartCount: number;
+  renderedClipStopCount: number;
+  renderedClipTurnLeftCount: number;
+  renderedClipTurnRightCount: number;
+  renderedClipWalkCount: number;
+  reversalCount: number;
+  startingCount: number;
+  stoppingCount: number;
+  turningCount: number;
+  cruisingCount: number;
+  wheelDistanceMismatchCount: 0;
+  wheelDrivenCount: number;
+}>;
+
+export type RenderedWebglWorkerLocomotionEvidence = Readonly<{
+  approvedAssetLoaded: true;
+  animatedCount: number;
+  assetProfile: 'high' | 'balanced' | 'compact';
+  caseId: RenderedWebglWorkerLocomotionProbeCase['id'];
+  fallbackCount: 0;
+  fixtureSelected: true;
+  modelCount: 3;
+  movementPixels: Readonly<{
+    outbound: number;
+    returning: number;
+  }>;
+  presentedCount: 400;
+  quality: RenderedWebglBrowserProbeQuality;
+  readinessSatisfied: true;
+  reducedMotion: boolean;
+  rendererStable: true;
+  samples: readonly Readonly<{
+    elapsedMilliseconds: number;
+    rootProjections: readonly Readonly<{
+      phase: 'outbound' | 'returning';
+      x: number;
+      y: number;
+    }>[];
+    telemetry: RenderedWebglWorkerLocomotionTelemetry;
+  }>[];
+  viewportHeight: 1080 | 900 | 375 | 844;
+  viewportWidth: 1920 | 1440 | 667 | 390;
+  visibleProjectionCount: 1 | 2;
+  wheelDrivenCount: number;
+}>;
+
+export function parseRenderedWebglWorkerLocomotionEvidence(
+  value: unknown
+): RenderedWebglWorkerLocomotionEvidence;
+
+export function applyRenderedWebglWorkerLocomotionInteraction(
+  session: RenderedWebglCastleCanvasPointerSession,
+  probeCase: RenderedWebglWorkerLocomotionProbeCase
+): Promise<unknown>;
 
 export type RenderedWebglWaterOverviewEvidence = Readonly<{
   cameraMode: 'realm';
@@ -618,4 +721,7 @@ export function runRenderedWebglBrowserProbe(options?: Readonly<{
   onCastleLodVisualBoundary?: (boundary: RenderedWebglCastleLodVisualBoundary) => void;
   onCastleLodVisualEvidence?: (evidence: RenderedWebglCastleLodVisualEvidence) => void;
   onQualityMetrics?: (metrics: RenderedWebglQualityMetrics) => void;
+  onWorkerLocomotionEvidence?: (
+    evidence: RenderedWebglWorkerLocomotionEvidence
+  ) => void;
 }>): Promise<14>;

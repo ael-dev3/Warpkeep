@@ -26,11 +26,23 @@ import {
   type RealmWorkerRouteLayerTelemetry
 } from './realmWorkerRouteLayer';
 import {
-  resolveRealmWorkerAnimationClip,
   resolveRealmWorkerRoutePose,
+  resolveRealmWorkerVisualRoute,
   type RealmWorkerRoutePose,
   type RealmWorkerSceneRecord
 } from './realmWorkerRoutePresentation';
+import {
+  resolveRealmWorkerLocomotion,
+  type RealmWorkerLocomotionSample,
+  type RealmWorkerLocomotionState
+} from './realmWorkerLocomotion';
+import {
+  applyRealmWorkerWagonWheelDistance,
+  bindRealmWorkerWagonRuntime,
+  measureRealmWorkerWagonWheelDistanceMismatch,
+  REALM_WORKER_WAGON_NORMALIZED_WHEEL_RADIUS,
+  type RealmWorkerWagonRuntimeBinding
+} from './realmWorkerWagonRuntime';
 import { normalizePublicProfileText } from '../../security/publicProfileText';
 
 export type { RealmWorkerSceneRecord } from './realmWorkerRoutePresentation';
@@ -40,8 +52,12 @@ const MAX_VISIBLE_WORKER_FALLBACKS = 128;
 const WORKER_GROUND_LIFT = 0.018;
 const FALLBACK_GROUND_LIFT = 0.012;
 const WAGON_TARGET_FOOTPRINT = 0.64;
+const WAGON_WALK_CYCLE_DISTANCE_WORLD = 0.28;
 const MAX_WORKER_TERRAIN_SLOPE_RADIANS = THREE.MathUtils.degToRad(12);
+const MAX_WORKER_TERRAIN_NORMAL_RATE_RADIANS_PER_SECOND = Math.PI * 0.75;
+const MAX_WORKER_GROUND_CONTACT_RATE_PER_SECOND = 2;
 const WORKER_ANIMATION_CROSS_FADE_SECONDS = 0.16;
+const MAX_WORKER_PRESTART_FRAME_DEMAND_MICROS = 5_000_000n;
 
 export const REALM_WORKER_MODEL_BUDGET = Object.freeze({
   high: Object.freeze({ models: 12, animations: 4 }),
@@ -52,8 +68,11 @@ export const REALM_WORKER_MODEL_BUDGET = Object.freeze({
   animations: number;
 }>>>);
 
-export const REALM_WORKER_REDUCED_MOTION_POSITION_INTERVAL_MS = 500;
-export const REALM_WORKER_STANDARD_POSITION_INTERVAL_MS = 42;
+export const REALM_WORKER_HIGH_POSITION_INTERVAL_MS = 17;
+export const REALM_WORKER_BALANCED_POSITION_INTERVAL_MS = 34;
+export const REALM_WORKER_REDUCED_MOTION_POSITION_INTERVAL_MS = 42;
+export const REALM_WORKER_STANDARD_POSITION_INTERVAL_MS =
+  REALM_WORKER_HIGH_POSITION_INTERVAL_MS;
 
 export type RealmWorkerCurrentPose = Readonly<{
   workerId: string;
@@ -98,6 +117,34 @@ export type RealmWorkerLayerTelemetry = Readonly<{
   slopeAlignedWorkerCount: number;
   animationTransitionCount: number;
   suppressedAnimationRestartCount: number;
+  locomotionMovingCount: number;
+  locomotionStartingCount: number;
+  locomotionCruisingCount: number;
+  locomotionTurningCount: number;
+  locomotionStoppingCount: number;
+  locomotionGatheringIdleCount: number;
+  locomotionMaximumSpeed: number;
+  locomotionMaximumPositionCorrection: number;
+  locomotionMaximumHeadingError: number;
+  locomotionOneShotOverrunCount: number;
+  workerWheelDrivenCount: number;
+  workerWheelDistanceMismatchCount: number;
+  workerLateModelPhaseRestorationCount: number;
+  workerModelPhaseRestorationCount: number;
+  workerReversalCount: number;
+  workerRepeatedTurnSuppressionCount: number;
+  clipIdleCount: number;
+  clipStartCount: number;
+  clipStopCount: number;
+  clipTurnLeftCount: number;
+  clipTurnRightCount: number;
+  clipWalkCount: number;
+  renderedClipIdleCount: number;
+  renderedClipStartCount: number;
+  renderedClipStopCount: number;
+  renderedClipTurnLeftCount: number;
+  renderedClipTurnRightCount: number;
+  renderedClipWalkCount: number;
   route: RealmWorkerRouteLayerTelemetry;
 }>;
 
@@ -136,15 +183,26 @@ export type RealmWorkerLayerOptions = Readonly<{
 type WorkerModelVisual = {
   workerId: string;
   root: THREE.Group;
+  runtime: RealmWorkerWagonRuntimeBinding;
   mixer?: THREE.AnimationMixer;
   action?: THREE.AnimationAction;
   clipName?: string;
+  clipEpochKey?: string;
   animated: boolean;
+  phaseRestorationPending: boolean;
+  latePhaseRestorationPending: boolean;
 };
+
+type WorkerTerrainPresentationState = Readonly<{
+  normal: Readonly<{ x: number; y: number; z: number }>;
+  groundHeight: number;
+  positionCorrection: number;
+}>;
 
 export type RealmWorkerTerrainOrientation = Readonly<{
   quaternion: THREE.Quaternion;
   normal: Readonly<{ x: number; y: number; z: number }>;
+  groundHeight: number;
   slopeRadians: number;
   terrainAligned: boolean;
 }>;
@@ -152,8 +210,15 @@ export type RealmWorkerTerrainOrientation = Readonly<{
 export type RealmWorkerAnimationTransition = Readonly<{
   action: THREE.AnimationAction;
   clipName: string;
+  clipEpochKey: string;
   transitioned: boolean;
   suppressedRestart: boolean;
+}>;
+
+export type RealmWorkerAnimationPhase = Readonly<{
+  clipEpochKey: string;
+  timeSeconds: number;
+  playbackRate: number;
 }>;
 
 function finiteCoord(coord: HexCoord | undefined): coord is HexCoord {
@@ -236,10 +301,55 @@ function sameDynamicWorker(
 
 function isMovingAt(worker: RealmWorkerSceneRecord, nowMicros: bigint) {
   if (worker.status === 'outbound') {
-    return worker.arrivesAtMicros !== undefined && nowMicros < worker.arrivesAtMicros;
+    return worker.startedAtMicros !== undefined
+      && worker.arrivesAtMicros !== undefined
+      && nowMicros >= worker.startedAtMicros
+      && nowMicros < worker.arrivesAtMicros;
   }
   if (worker.status === 'returning') {
-    return worker.returnsAtMicros !== undefined && nowMicros < worker.returnsAtMicros;
+    return worker.returnStartedAtMicros !== undefined
+      && worker.returnsAtMicros !== undefined
+      && nowMicros >= worker.returnStartedAtMicros
+      && nowMicros < worker.returnsAtMicros;
+  }
+  return false;
+}
+
+function isVisibleAt(
+  worker: RealmWorkerSceneRecord,
+  nowMicros: bigint
+) {
+  if (worker.status === 'idle') return false;
+  return worker.status !== 'returning'
+    || worker.returnsAtMicros === undefined
+    || nowMicros < worker.returnsAtMicros;
+}
+
+function hasMovementDemandAt(
+  worker: RealmWorkerSceneRecord,
+  nowMicros: bigint
+) {
+  if (worker.status === 'outbound') {
+    return worker.startedAtMicros !== undefined
+      && worker.arrivesAtMicros !== undefined
+      && worker.arrivesAtMicros > worker.startedAtMicros
+      && (
+        nowMicros >= worker.startedAtMicros
+        || worker.startedAtMicros - nowMicros
+          <= MAX_WORKER_PRESTART_FRAME_DEMAND_MICROS
+      )
+      && nowMicros < worker.arrivesAtMicros;
+  }
+  if (worker.status === 'returning') {
+    return worker.returnStartedAtMicros !== undefined
+      && worker.returnsAtMicros !== undefined
+      && worker.returnsAtMicros > worker.returnStartedAtMicros
+      && (
+        nowMicros >= worker.returnStartedAtMicros
+        || worker.returnStartedAtMicros - nowMicros
+          <= MAX_WORKER_PRESTART_FRAME_DEMAND_MICROS
+      )
+      && nowMicros < worker.returnsAtMicros;
   }
   return false;
 }
@@ -268,6 +378,31 @@ function orderedWorkers(
     || left.ordinal - right.ordinal
     || left.workerId.localeCompare(right.workerId)
   ));
+}
+
+function isStartingPhase(phase: RealmWorkerLocomotionSample['phase']) {
+  return phase === 'starting-outbound' || phase === 'starting-return';
+}
+
+function isCruisingPhase(phase: RealmWorkerLocomotionSample['phase']) {
+  return phase === 'cruising-outbound' || phase === 'cruising-return';
+}
+
+function isTurningPhase(phase: RealmWorkerLocomotionSample['phase']) {
+  return phase === 'turning-outbound'
+    || phase === 'turnaround-return'
+    || phase === 'turning-return';
+}
+
+function isStoppingPhase(phase: RealmWorkerLocomotionSample['phase']) {
+  return phase === 'stopping-at-site' || phase === 'stopping-at-keep';
+}
+
+function isOneShotClip(clipName: RealmWorkerLocomotionSample['clipName']) {
+  return clipName === 'Start'
+    || clipName === 'Stop'
+    || clipName === 'Turn_Left'
+    || clipName === 'Turn_Right';
 }
 
 export function realmWorkerWagonLodForQuality(
@@ -318,34 +453,49 @@ export function resolveRealmWorkerTerrainOrientation(
   world: HexWorldPosition,
   tangent: HexWorldPosition,
   hexSize: number,
-  heightAtWorld: (world: HexWorldPosition) => number
+  heightAtWorld: (world: HexWorldPosition) => number,
+  fallbackGroundHeight = 0
 ): RealmWorkerTerrainOrientation {
   const safeTangent = new THREE.Vector2(tangent.x, tangent.z);
   if (safeTangent.lengthSq() <= 0.000_001) safeTangent.set(0, 1);
   safeTangent.normalize();
   const right = new THREE.Vector2(safeTangent.y, -safeTangent.x);
   const sampleDistance = Math.max(0.04, hexSize * 0.09);
-  const ahead = heightAtWorld({
+  const safeHeightAtWorld = (sample: HexWorldPosition) => {
+    try {
+      return heightAtWorld(sample);
+    } catch {
+      return Number.NaN;
+    }
+  };
+  const centerHeight = safeHeightAtWorld(world);
+  const ahead = safeHeightAtWorld({
     x: world.x + safeTangent.x * sampleDistance,
     z: world.z + safeTangent.y * sampleDistance
   });
-  const behind = heightAtWorld({
+  const behind = safeHeightAtWorld({
     x: world.x - safeTangent.x * sampleDistance,
     z: world.z - safeTangent.y * sampleDistance
   });
-  const rightHeight = heightAtWorld({
+  const rightHeight = safeHeightAtWorld({
     x: world.x + right.x * sampleDistance,
     z: world.z + right.y * sampleDistance
   });
-  const leftHeight = heightAtWorld({
+  const leftHeight = safeHeightAtWorld({
     x: world.x - right.x * sampleDistance,
     z: world.z - right.y * sampleDistance
   });
-  if (![ahead, behind, rightHeight, leftHeight].every(Number.isFinite)) {
+  if (![centerHeight, ahead, behind, rightHeight, leftHeight].every(Number.isFinite)) {
     const normal = Object.freeze({ x: 0, y: 1, z: 0 });
+    const safeGroundHeight = Number.isFinite(centerHeight)
+      ? centerHeight
+      : Number.isFinite(fallbackGroundHeight)
+        ? fallbackGroundHeight
+        : 0;
     return Object.freeze({
       quaternion: orientationFromTangentAndNormal(tangent, normal),
       normal,
+      groundHeight: safeGroundHeight,
       slopeRadians: 0,
       terrainAligned: false
     });
@@ -382,6 +532,10 @@ export function resolveRealmWorkerTerrainOrientation(
   return Object.freeze({
     quaternion: orientationFromTangentAndNormal(tangent, normal),
     normal,
+    groundHeight: Math.max(
+      centerHeight,
+      (ahead + behind + rightHeight + leftHeight) * 0.25
+    ),
     slopeRadians: Math.atan(Math.min(gradient, maximumGradient)),
     terrainAligned: true
   });
@@ -392,12 +546,38 @@ export function transitionRealmWorkerAnimation(
   mixer: THREE.AnimationMixer,
   currentAction: THREE.AnimationAction | undefined,
   currentClipName: string | undefined,
-  nextClip: THREE.AnimationClip
+  nextClip: THREE.AnimationClip,
+  currentClipEpochKey?: string,
+  phase: RealmWorkerAnimationPhase = Object.freeze({
+    clipEpochKey: nextClip.name,
+    timeSeconds: 0,
+    playbackRate: 1
+  })
 ): RealmWorkerAnimationTransition {
-  if (currentAction && currentClipName === nextClip.name) {
+  const sameEpoch = currentAction !== undefined
+    && currentClipName === nextClip.name
+    && (
+      currentClipEpochKey === undefined
+      || currentClipEpochKey === phase.clipEpochKey
+    );
+  if (sameEpoch) {
+    currentAction.enabled = true;
+    currentAction.paused = false;
+    currentAction.setEffectiveTimeScale(
+      Number.isFinite(phase.playbackRate)
+        ? Math.max(0, phase.playbackRate)
+        : 1
+    );
+    currentAction.time = THREE.MathUtils.clamp(
+      Number.isFinite(phase.timeSeconds) ? phase.timeSeconds : 0,
+      0,
+      Math.max(0, nextClip.duration)
+    );
+    mixer.update(0);
     return Object.freeze({
       action: currentAction,
       clipName: currentClipName,
+      clipEpochKey: phase.clipEpochKey,
       transitioned: false,
       suppressedRestart: true
     });
@@ -407,11 +587,25 @@ export function transitionRealmWorkerAnimation(
     || nextClip.name === 'Stop'
     || nextClip.name === 'Turn_Left'
     || nextClip.name === 'Turn_Right';
+  if (nextAction === currentAction) nextAction.stop();
   nextAction.reset();
   nextAction.enabled = true;
-  nextAction.clampWhenFinished = oneShot;
+  nextAction.paused = false;
+  // Locomotion state leaves a one-shot at its real duration. Never retain a
+  // frozen final rig pose if a frame or model promotion arrives late.
+  nextAction.clampWhenFinished = false;
   nextAction.setLoop(oneShot ? THREE.LoopOnce : THREE.LoopRepeat, oneShot ? 1 : Infinity);
   nextAction.setEffectiveWeight(1);
+  nextAction.setEffectiveTimeScale(
+    Number.isFinite(phase.playbackRate)
+      ? Math.max(0, phase.playbackRate)
+      : 1
+  );
+  nextAction.time = THREE.MathUtils.clamp(
+    Number.isFinite(phase.timeSeconds) ? phase.timeSeconds : 0,
+    0,
+    Math.max(0, nextClip.duration)
+  );
   nextAction.play();
   if (currentAction && currentAction !== nextAction) {
     currentAction.enabled = true;
@@ -421,18 +615,82 @@ export function transitionRealmWorkerAnimation(
       false
     );
   }
+  mixer.update(0);
   return Object.freeze({
     action: nextAction,
     clipName: nextClip.name,
+    clipEpochKey: phase.clipEpochKey,
     transitioned: true,
     suppressedRestart: false
+  });
+}
+
+function smoothTerrainPresentation(
+  target: RealmWorkerTerrainOrientation,
+  previous: WorkerTerrainPresentationState | undefined,
+  elapsedSeconds: number,
+  hexSize: number,
+  displayYaw: number
+): RealmWorkerTerrainOrientation & WorkerTerrainPresentationState {
+  const targetNormal = new THREE.Vector3(
+    target.normal.x,
+    target.normal.y,
+    target.normal.z
+  ).normalize();
+  let normal = targetNormal;
+  let groundHeight = target.groundHeight;
+  if (previous) {
+    const previousNormal = new THREE.Vector3(
+      previous.normal.x,
+      previous.normal.y,
+      previous.normal.z
+    ).normalize();
+    normal = previousNormal;
+    groundHeight = previous.groundHeight;
+    if (elapsedSeconds > 0) {
+      const angle = previousNormal.angleTo(targetNormal);
+      const maximumAngle =
+        MAX_WORKER_TERRAIN_NORMAL_RATE_RADIANS_PER_SECOND * elapsedSeconds;
+      if (angle <= maximumAngle || angle <= 0.000_001) {
+        normal = targetNormal;
+      } else {
+        normal = previousNormal.lerp(
+          targetNormal,
+          maximumAngle / angle
+        ).normalize();
+      }
+      const maximumGroundStep =
+        MAX_WORKER_GROUND_CONTACT_RATE_PER_SECOND * hexSize * elapsedSeconds;
+      groundHeight = previous.groundHeight + THREE.MathUtils.clamp(
+        target.groundHeight - previous.groundHeight,
+        -maximumGroundStep,
+        maximumGroundStep
+      );
+    }
+  }
+  const frozenNormal = Object.freeze({
+    x: normal.x,
+    y: normal.y,
+    z: normal.z
+  });
+  const tangent = Object.freeze({
+    x: Math.sin(displayYaw),
+    z: Math.cos(displayYaw)
+  });
+  return Object.freeze({
+    quaternion: orientationFromTangentAndNormal(tangent, frozenNormal),
+    normal: frozenNormal,
+    groundHeight,
+    slopeRadians: Math.acos(THREE.MathUtils.clamp(normal.y, -1, 1)),
+    terrainAligned: target.terrainAligned,
+    positionCorrection: Math.abs(target.groundHeight - groundHeight)
   });
 }
 
 function workerCurrentPose(
   worker: RealmWorkerSceneRecord,
   pose: RealmWorkerRoutePose,
-  groundY: number,
+  locomotion: RealmWorkerLocomotionSample,
   orientation: RealmWorkerTerrainOrientation
 ): RealmWorkerCurrentPose {
   let profile: RealmWorkerSceneRecord['profile'];
@@ -456,28 +714,21 @@ function workerCurrentPose(
     ...(profile === undefined ? {} : { profile }),
     world: Object.freeze({
       x: pose.world.x,
-      y: groundY + WORKER_GROUND_LIFT,
+      y: orientation.groundHeight + WORKER_GROUND_LIFT,
       z: pose.world.z
     }),
     coord: pose.coord,
-    yaw: pose.yaw,
-    tangent: pose.tangent,
+    yaw: locomotion.displayYaw,
+    tangent: Object.freeze({
+      x: Math.sin(locomotion.displayYaw),
+      z: Math.cos(locomotion.displayYaw)
+    }),
     groundNormal: orientation.normal,
     terrainAligned: orientation.terrainAligned,
     direction: pose.direction,
     forwardProgress: pose.forwardProgress,
     phaseProgress: pose.phaseProgress
   });
-}
-
-function chooseClip(
-  model: HegemonyExpeditionModel,
-  pose: RealmWorkerRoutePose
-) {
-  const preferred = resolveRealmWorkerAnimationClip(pose);
-  return model.clips.find((clip) => clip.name === preferred)
-    ?? model.clips.find((clip) => clip.name === 'Walk')
-    ?? model.clips.find((clip) => clip.name === 'Idle');
 }
 
 export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmWorkerLayer {
@@ -542,14 +793,21 @@ export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmW
 
   const posesById = new Map<string, RealmWorkerCurrentPose>();
   const routePoseById = new Map<string, RealmWorkerRoutePose>();
+  const locomotionById = new Map<string, RealmWorkerLocomotionSample>();
+  const terrainPresentationById =
+    new Map<string, WorkerTerrainPresentationState>();
   const visualSignaturesById = new Map<string, string>();
   const pickSignaturesById = new Map<string, string>();
   const routeMismatchWorkerIds = new Set<string>();
   const visibleWorkerIds: string[] = [];
+  const visibleWorkerIdSet = new Set<string>();
   const pickWorkerIds: string[] = [];
   const modelVisuals = new Map<string, WorkerModelVisual>();
   const movingWorkerIds = new Set<string>();
+  const movementDemandWorkerIds = new Set<string>();
   const previouslyMovingWorkerIds = new Set<string>();
+  const workerWheelDrivenIds = new Set<string>();
+  const workerWheelDistanceMismatchIds = new Set<string>();
   const dirtyWorkerIds = new Set(identities.map((worker) => worker.workerId));
   const matrix = new THREE.Matrix4();
   const position = new THREE.Vector3();
@@ -564,18 +822,56 @@ export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmW
   let selectedWorkerId: string | null = null;
   let hoveredWorkerId: string | null = null;
   let loadedModel: HegemonyExpeditionModel | undefined;
+  let loadedModelRouteSafe = false;
   let modelLease: HegemonyExpeditionPrefabLease | undefined;
   let lastNowMicros = 0n;
   let disposed = false;
   let routeMismatchCount = 0;
   let animationTransitionCount = 0;
   let suppressedAnimationRestartCount = 0;
+  let workerLateModelPhaseRestorationCount = 0;
+  let workerModelPhaseRestorationCount = 0;
+  let workerReversalCount = 0;
+  let workerRepeatedTurnSuppressionCount = 0;
+
+  const releaseVisualMixer = (visual: WorkerModelVisual) => {
+    if (!visual.mixer) return;
+    try {
+      visual.action?.stop();
+      visual.mixer.stopAllAction();
+    } catch {
+      // Continue with cache release even if an action cannot be stopped.
+    }
+    if (visual.action) {
+      try {
+        visual.mixer.uncacheAction(
+          visual.action.getClip(),
+          visual.root
+        );
+      } catch {
+        // The root cache is still released below.
+      }
+    }
+    try {
+      visual.mixer.uncacheRoot(visual.root);
+    } catch {
+      // Mixer cache teardown is best-effort during scene removal.
+    }
+    visual.root.traverse((node) => {
+      const skinned = node as THREE.SkinnedMesh;
+      if (skinned.isSkinnedMesh) skinned.skeleton.pose();
+    });
+    visual.mixer = undefined;
+    visual.action = undefined;
+    visual.clipName = undefined;
+    visual.clipEpochKey = undefined;
+    visual.animated = false;
+  };
 
   const removeModelVisual = (workerId: string) => {
     const visual = modelVisuals.get(workerId);
     if (!visual) return;
-    visual.action?.stop();
-    visual.mixer?.stopAllAction();
+    releaseVisualMixer(visual);
     modelGroup.remove(visual.root);
     modelVisuals.delete(workerId);
   };
@@ -596,6 +892,7 @@ export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmW
     }
     modelLease = undefined;
     loadedModel = undefined;
+    loadedModelRouteSafe = false;
     const cleanupSteps = [
       () => group.remove(routeLayer.group, fallbackMesh, pickMesh, modelGroup),
       () => routeLayer.dispose(),
@@ -616,18 +913,28 @@ export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmW
     recordsById.clear();
     posesById.clear();
     routePoseById.clear();
+    locomotionById.clear();
+    terrainPresentationById.clear();
     visualSignaturesById.clear();
     pickSignaturesById.clear();
     routeMismatchWorkerIds.clear();
     movingWorkerIds.clear();
+    movementDemandWorkerIds.clear();
     previouslyMovingWorkerIds.clear();
+    workerWheelDrivenIds.clear();
+    workerWheelDistanceMismatchIds.clear();
     dirtyWorkerIds.clear();
     visibleWorkerIds.length = 0;
+    visibleWorkerIdSet.clear();
     pickWorkerIds.length = 0;
   };
 
   const desiredModelWorkerIds = () => {
-    if (!loadedModel || modelBudget.models <= 0) return [];
+    if (
+      !loadedModel
+      || !loadedModelRouteSafe
+      || modelBudget.models <= 0
+    ) return [];
     return orderedWorkers(
       visibleWorkerIds
         .map((workerId) => recordsById.get(workerId))
@@ -639,8 +946,8 @@ export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmW
     ).slice(0, modelBudget.models).map((worker) => worker.workerId);
   };
 
-  const syncModelVisuals = () => {
-    if (!loadedModel) {
+  const syncModelVisuals = (lateAssetLoad = false) => {
+    if (!loadedModel || !loadedModelRouteSafe) {
       removeAllModelVisuals();
       return;
     }
@@ -650,27 +957,51 @@ export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmW
       if (!desiredSet.has(workerId)) removeModelVisual(workerId);
     }
     desired.forEach((workerId, index) => {
-      if (modelVisuals.has(workerId)) return;
-      const root = cloneSkinned(loadedModel!.root) as THREE.Group;
-      root.name = `realm-worker-wagon-${workerId}`;
-      const animated = !reducedMotion && index < modelBudget.animations;
-      const mixer = animated ? new THREE.AnimationMixer(root) : undefined;
-      const visual: WorkerModelVisual = { workerId, root, mixer, animated };
-      modelVisuals.set(workerId, visual);
-      modelGroup.add(root);
-      dirtyWorkerIds.add(workerId);
+      const shouldAnimate =
+        !reducedMotion && index < modelBudget.animations;
+      let visual = modelVisuals.get(workerId);
+      if (!visual) {
+        const root = cloneSkinned(loadedModel!.root) as THREE.Group;
+        root.name = `realm-worker-wagon-${workerId}`;
+        // Selection and priority may change presentation lanes, never the
+        // reviewed GLB's physical scale or wheel radius.
+        root.scale.setScalar(options.hexSize);
+        const runtime = bindRealmWorkerWagonRuntime(root, loadedModel!);
+        if (!runtime.routeSafe) return;
+        visual = {
+          workerId,
+          root,
+          runtime,
+          animated: false,
+          phaseRestorationPending: true,
+          latePhaseRestorationPending: lateAssetLoad
+        };
+        modelVisuals.set(workerId, visual);
+        modelGroup.add(root);
+        dirtyWorkerIds.add(workerId);
+      }
+      if (shouldAnimate && !visual.mixer) {
+        visual.mixer = new THREE.AnimationMixer(visual.root);
+        visual.animated = true;
+        visual.phaseRestorationPending = true;
+      } else if (!shouldAnimate && visual.mixer) {
+        releaseVisualMixer(visual);
+      }
+      visual.animated = shouldAnimate;
     });
   };
 
-  const syncVisibleWorkerIds = () => {
+  const syncVisibleWorkerIds = (nowMicros = lastNowMicros) => {
     const previouslyVisible = [...visibleWorkerIds];
     const ordered = orderedWorkers(recordsById.values(), selectedWorkerId, hoveredWorkerId)
-      .filter((worker) => worker.status !== 'idle')
+      .filter((worker) => isVisibleAt(worker, nowMicros))
       .slice(0, fallbackCapacity)
       .map((worker) => worker.workerId);
     const signature = ordered.join('|');
     if (signature === visibleWorkerIds.join('|')) return false;
     visibleWorkerIds.splice(0, visibleWorkerIds.length, ...ordered);
+    visibleWorkerIdSet.clear();
+    for (const workerId of ordered) visibleWorkerIdSet.add(workerId);
     pickWorkerIds.splice(0, pickWorkerIds.length, ...ordered);
     visualSignaturesById.clear();
     pickSignaturesById.clear();
@@ -686,19 +1017,26 @@ export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmW
 
   const updateVisualAnimation = (
     visual: WorkerModelVisual,
-    pose: RealmWorkerRoutePose
+    locomotion: RealmWorkerLocomotionSample
   ) => {
-    if (!visual.mixer || !loadedModel) return;
-    const clip = chooseClip(loadedModel, pose);
+    if (!visual.mixer) return;
+    const clip = visual.runtime.clipsByName.get(locomotion.clipName);
     if (!clip) return;
     const transition = transitionRealmWorkerAnimation(
       visual.mixer,
       visual.action,
       visual.clipName,
-      clip
+      clip,
+      visual.clipEpochKey,
+      Object.freeze({
+        clipEpochKey: locomotion.state.clipEpochKey,
+        timeSeconds: locomotion.clipTimeSeconds,
+        playbackRate: locomotion.playbackRate
+      })
     );
     visual.action = transition.action;
     visual.clipName = transition.clipName;
+    visual.clipEpochKey = transition.clipEpochKey;
     if (transition.transitioned) animationTransitionCount += 1;
     if (transition.suppressedRestart) suppressedAnimationRestartCount += 1;
   };
@@ -708,18 +1046,42 @@ export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmW
     let fallbackMatricesChanged = false;
     let fallbackColorsChanged = false;
     let pickMatricesChanged = false;
+    syncVisibleWorkerIds(nowMicros);
     previouslyMovingWorkerIds.clear();
     for (const workerId of movingWorkerIds) {
       previouslyMovingWorkerIds.add(workerId);
     }
     movingWorkerIds.clear();
+    movementDemandWorkerIds.clear();
+    workerWheelDrivenIds.clear();
+    workerWheelDistanceMismatchIds.clear();
 
     for (const worker of recordsById.values()) {
       const moving = isMovingAt(worker, nowMicros);
       if (moving) movingWorkerIds.add(worker.workerId);
+      const movementDemand = hasMovementDemandAt(worker, nowMicros);
+      if (movementDemand) movementDemandWorkerIds.add(worker.workerId);
+      const previousLocomotion = locomotionById.get(worker.workerId);
+      const presentationStillActive = previousLocomotion !== undefined
+        && (
+          previousLocomotion.phase === 'starting-outbound'
+          || previousLocomotion.phase === 'turning-outbound'
+          || previousLocomotion.phase === 'stopping-at-site'
+          || previousLocomotion.phase === 'turnaround-return'
+          || previousLocomotion.phase === 'starting-return'
+          || previousLocomotion.phase === 'turning-return'
+          || previousLocomotion.phase === 'stopping-at-keep'
+          || (
+            !reducedMotion
+            && previousLocomotion.phase === 'gathering'
+            && modelVisuals.get(worker.workerId)?.animated === true
+          )
+        );
       const shouldResolve = dirtyWorkerIds.has(worker.workerId)
         || moving
+        || movementDemand
         || previouslyMovingWorkerIds.has(worker.workerId)
+        || presentationStillActive
         || (!routePoseById.has(worker.workerId)
           && !routeMismatchWorkerIds.has(worker.workerId));
       if (!shouldResolve) continue;
@@ -727,20 +1089,78 @@ export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmW
       if (!pose) {
         posesById.delete(worker.workerId);
         routePoseById.delete(worker.workerId);
+        locomotionById.delete(worker.workerId);
+        terrainPresentationById.delete(worker.workerId);
         if (worker.status !== 'idle') routeMismatchWorkerIds.add(worker.workerId);
         continue;
       }
-      const groundY = options.heightAtWorld(pose.world);
-      if (!Number.isFinite(groundY)) throw new Error('REALM_WORKER_GROUND_INVALID');
-      const orientation = resolveRealmWorkerTerrainOrientation(
+      const visualRoute = pose.direction === 'idle'
+        ? undefined
+        : resolveRealmWorkerVisualRoute(worker, options.hexSize);
+      const locomotion = resolveRealmWorkerLocomotion({
+        worker,
+        pose,
+        ...(visualRoute === undefined ? {} : { visualRoute }),
+        nowMicros,
+        ...(previousLocomotion === undefined
+          ? {}
+          : { previous: previousLocomotion.state }),
+        tuning: Object.freeze({
+          wheelRadiusWorld:
+            REALM_WORKER_WAGON_NORMALIZED_WHEEL_RADIUS * options.hexSize,
+          walkCycleDistanceWorld: WAGON_WALK_CYCLE_DISTANCE_WORLD
+        })
+      });
+      if (!locomotion) {
+        posesById.delete(worker.workerId);
+        routePoseById.delete(worker.workerId);
+        locomotionById.delete(worker.workerId);
+        terrainPresentationById.delete(worker.workerId);
+        if (worker.status !== 'idle') routeMismatchWorkerIds.add(worker.workerId);
+        continue;
+      }
+      if (
+        previousLocomotion
+        && !previousLocomotion.phase.includes('return')
+        && previousLocomotion.phase !== 'parked'
+        && locomotion.phase.includes('return')
+      ) workerReversalCount += 1;
+      if (
+        locomotion.turnKey !== undefined
+        && previousLocomotion?.turnKey === locomotion.turnKey
+        && (
+          locomotion.phase === 'turning-outbound'
+          || locomotion.phase === 'turning-return'
+        )
+      ) workerRepeatedTurnSuppressionCount += 1;
+      const targetOrientation = resolveRealmWorkerTerrainOrientation(
         pose.world,
         pose.tangent,
         options.hexSize,
-        options.heightAtWorld
+        options.heightAtWorld,
+        terrainPresentationById.get(worker.workerId)?.groundHeight
       );
+      if (!Number.isFinite(targetOrientation.groundHeight)) {
+        throw new Error('REALM_WORKER_GROUND_INVALID');
+      }
+      const orientation = smoothTerrainPresentation(
+        targetOrientation,
+        previousLocomotion?.state.timelineRevision === worker.timelineRevision
+          ? terrainPresentationById.get(worker.workerId)
+          : undefined,
+        locomotion.boundedFrameDeltaSeconds,
+        options.hexSize,
+        locomotion.displayYaw
+      );
+      terrainPresentationById.set(worker.workerId, Object.freeze({
+        normal: orientation.normal,
+        groundHeight: orientation.groundHeight,
+        positionCorrection: orientation.positionCorrection
+      }));
+      locomotionById.set(worker.workerId, locomotion);
       posesById.set(
         worker.workerId,
-        workerCurrentPose(worker, pose, groundY, orientation)
+        workerCurrentPose(worker, pose, locomotion, orientation)
       );
       routePoseById.set(worker.workerId, pose);
       routeMismatchWorkerIds.delete(worker.workerId);
@@ -752,10 +1172,45 @@ export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmW
       const worker = recordsById.get(workerId);
       const current = posesById.get(workerId);
       const pose = routePoseById.get(workerId);
+      const locomotion = locomotionById.get(workerId);
       const selected = selectedWorkerId === workerId;
       const hovered = hoveredWorkerId === workerId;
       const modelVisual = modelVisuals.get(workerId);
-      const visualSignature = current && pose && worker
+      if (modelVisual && locomotion) {
+        if (!reducedMotion) {
+          updateVisualAnimation(modelVisual, locomotion);
+          if (modelVisual.runtime.proceduralWheelDrive) {
+            const wheelDriven = applyRealmWorkerWagonWheelDistance(
+              modelVisual.runtime,
+              locomotion.cumulativeTravelDistance,
+              options.hexSize
+            );
+            if (wheelDriven) {
+              workerWheelDrivenIds.add(workerId);
+              const angleMismatch =
+                measureRealmWorkerWagonWheelDistanceMismatch(
+                  modelVisual.runtime,
+                  locomotion.cumulativeTravelDistance,
+                  options.hexSize
+                );
+              if (angleMismatch > 0.000_001) {
+                workerWheelDistanceMismatchIds.add(workerId);
+              }
+            } else {
+              workerWheelDistanceMismatchIds.add(workerId);
+            }
+          }
+        }
+        if (modelVisual.phaseRestorationPending) {
+          workerModelPhaseRestorationCount += 1;
+          if (modelVisual.latePhaseRestorationPending) {
+            workerLateModelPhaseRestorationCount += 1;
+          }
+          modelVisual.phaseRestorationPending = false;
+          modelVisual.latePhaseRestorationPending = false;
+        }
+      }
+      const visualSignature = current && pose && worker && locomotion
         ? [
           current.world.x.toFixed(5),
           current.world.y.toFixed(5),
@@ -764,6 +1219,7 @@ export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmW
           current.groundNormal.x.toFixed(5),
           current.groundNormal.y.toFixed(5),
           current.groundNormal.z.toFixed(5),
+          locomotion.state.clipEpochKey,
           selected ? 1 : 0,
           hovered ? 1 : 0,
           worker.ownedByViewer ? 1 : 0,
@@ -783,7 +1239,7 @@ export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmW
         : 'hidden';
       if (visualSignaturesById.get(workerId) === visualSignature) return;
       visualSignaturesById.set(workerId, visualSignature);
-      if (!worker || !current || !pose) {
+      if (!worker || !current || !pose || !locomotion) {
         matrix.compose(position.set(0, -1000, 0), quaternion.identity(), zeroScale);
         fallbackMesh.setMatrixAt(index, matrix);
         fallbackMatricesChanged = true;
@@ -795,7 +1251,7 @@ export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmW
         return;
       }
 
-      const styleScale = selected ? 1.12 : hovered ? 1.06 : 1;
+      const fallbackStyleScale = selected ? 1.12 : hovered ? 1.06 : 1;
       position.set(current.world.x, current.world.y, current.world.z);
       quaternion.copy(orientationFromTangentAndNormal(
         current.tangent,
@@ -806,12 +1262,11 @@ export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmW
         modelVisual.root.visible = true;
         modelVisual.root.position.copy(position);
         modelVisual.root.quaternion.copy(quaternion);
-        modelVisual.root.scale.setScalar(options.hexSize * styleScale);
-        updateVisualAnimation(modelVisual, pose);
+        modelVisual.root.scale.setScalar(options.hexSize);
         matrix.compose(position, quaternion, zeroScale);
       } else {
         position.y += FALLBACK_GROUND_LIFT;
-        scale.setScalar(options.hexSize * styleScale);
+        scale.setScalar(options.hexSize * fallbackStyleScale);
         matrix.compose(position, quaternion, scale);
       }
       fallbackMesh.setMatrixAt(index, matrix);
@@ -881,7 +1336,11 @@ export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmW
       }
       modelLease = lease;
       loadedModel = lease.model;
-      syncModelVisuals();
+      loadedModelRouteSafe = bindRealmWorkerWagonRuntime(
+        lease.model.root,
+        lease.model
+      ).routeSafe;
+      syncModelVisuals(lastNowMicros > 0n);
       apply(lastNowMicros);
       options.onModelReady?.();
     }).catch(() => {
@@ -918,19 +1377,49 @@ export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmW
       const elapsedSeconds = lastNowMicros <= 0n || nowMicros <= lastNowMicros
         ? 0
         : Math.min(0.1, Number(nowMicros - lastNowMicros) / 1_000_000);
+      if (elapsedSeconds > 0 && !reducedMotion) {
+        for (const visual of modelVisuals.values()) {
+          visual.mixer?.update(elapsedSeconds);
+        }
+      }
       lastNowMicros = nowMicros;
       const workerChanged = apply(nowMicros);
       const routeChanged = routeLayer.update(nowMicros);
-      if (elapsedSeconds > 0 && !reducedMotion) {
-        for (const visual of modelVisuals.values()) visual.mixer?.update(elapsedSeconds);
-      }
-      return workerChanged || routeChanged || movingWorkerIds.size > 0;
+      const presentationActive = !reducedMotion
+        && visibleWorkerIds.some((workerId) => {
+          const locomotion = locomotionById.get(workerId);
+          return locomotion !== undefined
+            && (
+              locomotion.phase === 'stopping-at-site'
+              || locomotion.phase === 'gathering'
+            )
+            && modelVisuals.get(workerId)?.animated === true;
+        });
+      return workerChanged
+        || routeChanged
+        || movementDemandWorkerIds.size > 0
+        || presentationActive;
     },
-    hasMovingWorkers: () => !disposed && movingWorkerIds.size > 0,
+    hasMovingWorkers: () => (
+      !disposed
+      && visibleWorkerIds.some((workerId) => {
+        if (movementDemandWorkerIds.has(workerId)) return true;
+        if (reducedMotion) return false;
+        const locomotion = locomotionById.get(workerId);
+        return locomotion !== undefined
+          && (
+            locomotion.phase === 'stopping-at-site'
+            || locomotion.phase === 'gathering'
+          )
+          && modelVisuals.get(workerId)?.animated === true;
+      })
+    ),
     recommendedPositionUpdateIntervalMs: () => (
-      reducedMotion
+      reducedMotion || qualityId === 'reduced'
         ? REALM_WORKER_REDUCED_MOTION_POSITION_INTERVAL_MS
-        : REALM_WORKER_STANDARD_POSITION_INTERVAL_MS
+        : qualityId === 'balanced'
+          ? REALM_WORKER_BALANCED_POSITION_INTERVAL_MS
+          : REALM_WORKER_HIGH_POSITION_INTERVAL_MS
     ),
     raycast: (raycaster) => {
       if (disposed || pickWorkerIds.length === 0) return null;
@@ -959,7 +1448,7 @@ export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmW
       if (disposed) return Object.freeze([]);
       return Object.freeze(
         orderedWorkers(recordsById.values(), selectedWorkerId, hoveredWorkerId)
-          .filter((worker) => worker.status !== 'idle')
+          .filter((worker) => visibleWorkerIdSet.has(worker.workerId))
           .flatMap((worker) => {
             const current = posesById.get(worker.workerId);
             return current
@@ -975,6 +1464,27 @@ export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmW
     },
     getPresentationTelemetry: () => {
       const modelWorkerCount = modelVisuals.size;
+      const locomotionSamples = visibleWorkerIds.flatMap((workerId) => {
+        const sample = locomotionById.get(workerId);
+        return sample ? [sample] : [];
+      });
+      const clipCount = (clipName: RealmWorkerLocomotionSample['clipName']) => (
+        locomotionSamples.filter((sample) => sample.clipName === clipName).length
+      );
+      const renderedClipCount = (
+        clipName: RealmWorkerLocomotionSample['clipName']
+      ) => [...modelVisuals.values()].filter((visual) => {
+        const action = visual.action;
+        const expectedClip = visual.runtime.clipsByName.get(clipName);
+        return visual.animated
+          && visual.clipName === clipName
+          && action !== undefined
+          && expectedClip !== undefined
+          && action.getClip() === expectedClip
+          && action.enabled
+          && !action.paused
+          && action.isRunning();
+      }).length;
       return Object.freeze({
         publicWorkerCount: recordsById.size,
         presentedWorkerCount: posesById.size,
@@ -989,6 +1499,62 @@ export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmW
           .filter((pose) => pose.terrainAligned).length,
         animationTransitionCount,
         suppressedAnimationRestartCount,
+        locomotionMovingCount: visibleWorkerIds
+          .filter((workerId) => movingWorkerIds.has(workerId)).length,
+        locomotionStartingCount: locomotionSamples
+          .filter((sample) => isStartingPhase(sample.phase)).length,
+        locomotionCruisingCount: locomotionSamples
+          .filter((sample) => isCruisingPhase(sample.phase)).length,
+        locomotionTurningCount: locomotionSamples
+          .filter((sample) => isTurningPhase(sample.phase)).length,
+        locomotionStoppingCount: locomotionSamples
+          .filter((sample) => isStoppingPhase(sample.phase)).length,
+        locomotionGatheringIdleCount: locomotionSamples
+          .filter((sample) => sample.phase === 'gathering').length,
+        locomotionMaximumSpeed: Math.max(
+          0,
+          ...locomotionSamples.map((sample) => sample.worldSpeed)
+        ),
+        locomotionMaximumPositionCorrection: Math.max(
+          0,
+          ...visibleWorkerIds.map((workerId) => (
+            terrainPresentationById.get(workerId)?.positionCorrection ?? 0
+          ))
+        ),
+        locomotionMaximumHeadingError: Math.max(
+          0,
+          ...locomotionSamples.map((sample) => Math.abs(Math.atan2(
+            Math.sin(sample.targetYaw - sample.displayYaw),
+            Math.cos(sample.targetYaw - sample.displayYaw)
+          )))
+        ),
+        locomotionOneShotOverrunCount: locomotionSamples.filter((sample) => (
+          isOneShotClip(sample.clipName)
+          && (
+            sample.clipTimeSeconds < 0
+            || sample.clipTimeSeconds
+              > sample.clipDurationSeconds + 0.000_001
+          )
+        )).length,
+        workerWheelDrivenCount: workerWheelDrivenIds.size,
+        workerWheelDistanceMismatchCount:
+          workerWheelDistanceMismatchIds.size,
+        workerLateModelPhaseRestorationCount,
+        workerModelPhaseRestorationCount,
+        workerReversalCount,
+        workerRepeatedTurnSuppressionCount,
+        clipIdleCount: clipCount('Idle'),
+        clipStartCount: clipCount('Start'),
+        clipStopCount: clipCount('Stop'),
+        clipTurnLeftCount: clipCount('Turn_Left'),
+        clipTurnRightCount: clipCount('Turn_Right'),
+        clipWalkCount: clipCount('Walk'),
+        renderedClipIdleCount: renderedClipCount('Idle'),
+        renderedClipStartCount: renderedClipCount('Start'),
+        renderedClipStopCount: renderedClipCount('Stop'),
+        renderedClipTurnLeftCount: renderedClipCount('Turn_Left'),
+        renderedClipTurnRightCount: renderedClipCount('Turn_Right'),
+        renderedClipWalkCount: renderedClipCount('Walk'),
         route: routeLayer.getTelemetry()
       });
     },

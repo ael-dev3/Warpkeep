@@ -154,7 +154,6 @@ import type {
 import {
   createRealmWorkerLayer,
   isValidRealmWorkerSceneCatalog,
-  REALM_WORKER_REDUCED_MOTION_POSITION_INTERVAL_MS,
   type RealmWorkerLayer,
   type RealmWorkerSceneRecord
 } from './realmWorkerLayer';
@@ -2653,6 +2652,90 @@ function initializeRealmScene(
       options.canvas.dataset.realmWorkerSuppressedAnimationRestartCount = String(
         workerTelemetry.suppressedAnimationRestartCount
       );
+      options.canvas.dataset.realmWorkerLocomotionMovingCount = String(
+        workerTelemetry.locomotionMovingCount
+      );
+      options.canvas.dataset.realmWorkerLocomotionStartingCount = String(
+        workerTelemetry.locomotionStartingCount
+      );
+      options.canvas.dataset.realmWorkerLocomotionCruisingCount = String(
+        workerTelemetry.locomotionCruisingCount
+      );
+      options.canvas.dataset.realmWorkerLocomotionTurningCount = String(
+        workerTelemetry.locomotionTurningCount
+      );
+      options.canvas.dataset.realmWorkerLocomotionStoppingCount = String(
+        workerTelemetry.locomotionStoppingCount
+      );
+      options.canvas.dataset.realmWorkerLocomotionGatheringIdleCount = String(
+        workerTelemetry.locomotionGatheringIdleCount
+      );
+      options.canvas.dataset.realmWorkerLocomotionMaximumSpeed = String(
+        workerTelemetry.locomotionMaximumSpeed
+      );
+      options.canvas.dataset.realmWorkerLocomotionMaximumPositionCorrection = String(
+        workerTelemetry.locomotionMaximumPositionCorrection
+      );
+      options.canvas.dataset.realmWorkerLocomotionMaximumHeadingError = String(
+        workerTelemetry.locomotionMaximumHeadingError
+      );
+      options.canvas.dataset.realmWorkerLocomotionOneShotOverrunCount = String(
+        workerTelemetry.locomotionOneShotOverrunCount
+      );
+      options.canvas.dataset.realmWorkerWheelDrivenCount = String(
+        workerTelemetry.workerWheelDrivenCount
+      );
+      options.canvas.dataset.realmWorkerWheelDistanceMismatchCount = String(
+        workerTelemetry.workerWheelDistanceMismatchCount
+      );
+      options.canvas.dataset.realmWorkerLateModelPhaseRestorationCount = String(
+        workerTelemetry.workerLateModelPhaseRestorationCount
+      );
+      options.canvas.dataset.realmWorkerModelPhaseRestorationCount = String(
+        workerTelemetry.workerModelPhaseRestorationCount
+      );
+      options.canvas.dataset.realmWorkerReversalCount = String(
+        workerTelemetry.workerReversalCount
+      );
+      options.canvas.dataset.realmWorkerRepeatedTurnSuppressionCount = String(
+        workerTelemetry.workerRepeatedTurnSuppressionCount
+      );
+      options.canvas.dataset.realmWorkerClipIdleCount = String(
+        workerTelemetry.clipIdleCount
+      );
+      options.canvas.dataset.realmWorkerClipStartCount = String(
+        workerTelemetry.clipStartCount
+      );
+      options.canvas.dataset.realmWorkerClipStopCount = String(
+        workerTelemetry.clipStopCount
+      );
+      options.canvas.dataset.realmWorkerClipTurnLeftCount = String(
+        workerTelemetry.clipTurnLeftCount
+      );
+      options.canvas.dataset.realmWorkerClipTurnRightCount = String(
+        workerTelemetry.clipTurnRightCount
+      );
+      options.canvas.dataset.realmWorkerClipWalkCount = String(
+        workerTelemetry.clipWalkCount
+      );
+      options.canvas.dataset.realmWorkerRenderedClipIdleCount = String(
+        workerTelemetry.renderedClipIdleCount
+      );
+      options.canvas.dataset.realmWorkerRenderedClipStartCount = String(
+        workerTelemetry.renderedClipStartCount
+      );
+      options.canvas.dataset.realmWorkerRenderedClipStopCount = String(
+        workerTelemetry.renderedClipStopCount
+      );
+      options.canvas.dataset.realmWorkerRenderedClipTurnLeftCount = String(
+        workerTelemetry.renderedClipTurnLeftCount
+      );
+      options.canvas.dataset.realmWorkerRenderedClipTurnRightCount = String(
+        workerTelemetry.renderedClipTurnRightCount
+      );
+      options.canvas.dataset.realmWorkerRenderedClipWalkCount = String(
+        workerTelemetry.renderedClipWalkCount
+      );
       options.canvas.dataset.realmWorkerVisibleRouteCount = String(
         workerTelemetry.route.visibleRouteCount
       );
@@ -2708,6 +2791,7 @@ function initializeRealmScene(
         workerTelemetry.route.progressUpdateCount
       );
     }
+    syncAmbientFrameCap();
     ambientScheduler?.setActive(ambientIsNeeded());
     const viewportHeight = resolveRealmViewportSize({
       canvasWidth: options.canvas.clientWidth,
@@ -3122,21 +3206,30 @@ function initializeRealmScene(
   };
   document.addEventListener('visibilitychange', handleRenderVisibility);
   cleanup.add(() => document.removeEventListener('visibilitychange', handleRenderVisibility));
-  const ambientFrameCap = options.reducedMotion
-    ? Math.max(
-        1,
-        Math.floor(
-          1_000 / REALM_WORKER_REDUCED_MOTION_POSITION_INTERVAL_MS
-        )
-      )
+  const ambientBaseFrameCap = options.reducedMotion
+    ? 0
     : Math.max(
         renderPlan.grass.animationFrameCap,
-        REALM_WATER_ANIMATION_FRAME_CAPS[runtimeQuality.id],
-        30
+        REALM_WATER_ANIMATION_FRAME_CAPS[runtimeQuality.id]
       );
-  options.canvas.dataset.realmAmbientFrameCap = String(ambientFrameCap);
+  const resolveAmbientFrameCap = () => {
+    const workerInterval = workerLayer?.hasMovingWorkers() === true
+      ? workerLayer.recommendedPositionUpdateIntervalMs()
+      : 0;
+    const workerFrameCap = Number.isFinite(workerInterval) && workerInterval > 0
+      ? Math.max(1, Math.floor(1_000 / workerInterval))
+      : 0;
+    return Math.max(ambientBaseFrameCap, workerFrameCap);
+  };
+  const syncAmbientFrameCap = () => {
+    const frameCap = resolveAmbientFrameCap();
+    options.canvas.dataset.realmAmbientFrameCap = String(frameCap);
+    ambientScheduler?.setFrameCap(frameCap);
+  };
+  const initialAmbientFrameCap = resolveAmbientFrameCap();
+  options.canvas.dataset.realmAmbientFrameCap = String(initialAmbientFrameCap);
   ambientScheduler = createRealmAmbientScheduler({
-    frameCap: ambientFrameCap,
+    frameCap: initialAmbientFrameCap,
     active: ambientIsNeeded(),
     onStep: (elapsedSeconds) => {
       if (cleanup.isDisposed()) return;
