@@ -6,6 +6,15 @@ full engineering record.
 
 ## [Unreleased]
 
+## [0.3.22] — 2026-07-28
+
+- Held the rendered title gateway beneath the exact pointer, touch, or keyboard
+  activation point until the violet passage covers it.
+- Parked idle Supply Wagons invisibly inside their keeps so only active
+  outbound, gathering, and returning journeys occupy the Realm map.
+- Kept all four Workers available through keep controls without changing
+  dispatch, recall, routes, balances, authority, or persistent world state.
+
 ## [0.3.21] — 2026-07-27
 
 - Kept all four public Workers and their journeys present while caller-private
@@ -235,7 +244,8 @@ full engineering record.
   Lowlands, a first keep, Farcaster sign-in, and an admission-gated shared-world
   foundation.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.21...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.22...HEAD
+[0.3.22]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.21...v0.3.22
 [0.3.21]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.20...v0.3.21
 [0.3.20]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.19...v0.3.20
 [0.3.19]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.18...v0.3.19

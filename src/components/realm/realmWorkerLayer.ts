@@ -663,7 +663,9 @@ export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmW
   };
 
   const syncVisibleWorkerIds = () => {
+    const previouslyVisible = [...visibleWorkerIds];
     const ordered = orderedWorkers(recordsById.values(), selectedWorkerId, hoveredWorkerId)
+      .filter((worker) => worker.status !== 'idle')
       .slice(0, fallbackCapacity)
       .map((worker) => worker.workerId);
     const signature = ordered.join('|');
@@ -672,8 +674,12 @@ export function createRealmWorkerLayer(options: RealmWorkerLayerOptions): RealmW
     pickWorkerIds.splice(0, pickWorkerIds.length, ...ordered);
     visualSignaturesById.clear();
     pickSignaturesById.clear();
-    dirtyWorkerIds.clear();
-    for (const workerId of ordered) dirtyWorkerIds.add(workerId);
+    // Membership changes can remove an active wagon at the same moment its
+    // authority returns to idle. Keep both sides dirty so its logical pose
+    // returns to the keep even though the parked wagon is no longer rendered.
+    for (const workerId of [...previouslyVisible, ...ordered]) {
+      dirtyWorkerIds.add(workerId);
+    }
     syncModelVisuals();
     return true;
   };
