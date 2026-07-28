@@ -66,10 +66,10 @@ const ALPHA_0_3_23_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '28 JUL 2026',
   title: 'THE GATE ALIGNS',
   summary:
-    'The violet passage now opens from the visible black-hole gateway itself, keeping every crossing centered on the same point in the title sky.',
+    'The violet passage now opens from the visible black-hole gateway itself, keeping every crossing centered even when browser and overlay scales differ.',
   highlights: Object.freeze([
-    'The first visible transition frame now begins at the rendered gateway center instead of a displaced browser or click coordinate.',
-    'Pointer, touch, keyboard, and returning passages share the same measured gateway origin across repeated crossings.',
+    'The first visible transition frame now begins at the rendered gateway center instead of a displaced browser, overlay, or click coordinate.',
+    'Pointer, touch, keyboard, and returning passages share the same measured gateway origin across repeated crossings, normalized for transformed display spaces.',
     'The gateway stays closed whenever its visible center, interaction target, and focus position do not agree.'
   ]),
   alphaNotice:

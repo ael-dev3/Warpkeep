@@ -45,6 +45,7 @@ export function analyzeTitleTransitionFramePair(
   oppositeBoundaryErrorPhysicalPixels: number;
   pixelX: number;
   pixelY: number;
+  searchScope: 'full-frame';
   screenshotScale: number;
 }>;
 
@@ -60,5 +61,6 @@ export function analyzeTitleTransitionFirstVisibleFrame(
   pixelX: number;
   pixelY: number;
   sampleCount: number;
+  searchScope: 'full-frame';
   screenshotScale: number;
 }>;

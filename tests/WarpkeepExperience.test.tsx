@@ -43,6 +43,19 @@ function rectangle(left: number, top: number, width: number, height: number): DO
   } as DOMRect;
 }
 
+function expectOverlayPercentageOrigin(
+  overlay: HTMLElement,
+  u: number,
+  v: number
+) {
+  const x = overlay.style.getPropertyValue('--warp-origin-x');
+  const y = overlay.style.getPropertyValue('--warp-origin-y');
+  expect(x.endsWith('%')).toBe(true);
+  expect(y.endsWith('%')).toBe(true);
+  expect(Number.parseFloat(x)).toBeCloseTo(u * 100, 8);
+  expect(Number.parseFloat(y)).toBeCloseTo(v * 100, 8);
+}
+
 function installBrowserStubs(reducedMotion = false) {
   vi.stubGlobal('matchMedia', vi.fn((query: string) => ({
     matches: query.includes('prefers-reduced-motion') ? reducedMotion : false,
@@ -271,7 +284,7 @@ describe('WarpkeepExperience', () => {
     const experience = container.querySelector('.warpkeep-experience')!;
     expect(experience.getAttribute('data-phase')).toBe('transitioning-to-menu');
     expect(experience.getAttribute('data-transition-sequence')).toBe('1');
-    expect(container.querySelectorAll('.warp-transition-overlay')).toHaveLength(1);
+    expect(document.querySelectorAll('.warp-transition-overlay')).toHaveLength(1);
 
     await act(async () => {
       vi.advanceTimersByTime(2_250);
@@ -297,8 +310,7 @@ describe('WarpkeepExperience', () => {
     expect(overlay.getAttribute('data-input')).toBe('pointer');
     expect(overlay.getAttribute('data-gateway-client-x')).toBe('676');
     expect(Number(overlay.getAttribute('data-gateway-client-y'))).toBeCloseTo(218);
-    expect(overlay.style.getPropertyValue('--warp-origin-x')).toBe('676px');
-    expect(parseFloat(overlay.style.getPropertyValue('--warp-origin-y'))).toBeCloseTo(218);
+    expectOverlayPercentageOrigin(overlay, 676 / 1_280, 218 / 720);
 
     vi.stubGlobal('innerWidth', 900);
     vi.stubGlobal('innerHeight', 640);
@@ -307,8 +319,7 @@ describe('WarpkeepExperience', () => {
       vi.advanceTimersByTime(900);
     });
     expect(screen.getByTestId('warp-transition-overlay')).toBe(overlay);
-    expect(overlay.style.getPropertyValue('--warp-origin-x')).toBe('676px');
-    expect(parseFloat(overlay.style.getPropertyValue('--warp-origin-y'))).toBeCloseTo(218);
+    expectOverlayPercentageOrigin(overlay, 676 / 1_280, 218 / 720);
   });
 
   it('does not advance fallback clocks before the overlay has a measured origin', async () => {
@@ -393,8 +404,7 @@ describe('WarpkeepExperience', () => {
     expect(overlay.getAttribute('data-gateway-client-y')).toBe('170');
     expect(overlay.getAttribute('data-overlay-left')).toBe('40');
     expect(overlay.getAttribute('data-overlay-top')).toBe('20');
-    expect(overlay.style.getPropertyValue('--warp-origin-x')).toBe('310px');
-    expect(overlay.style.getPropertyValue('--warp-origin-y')).toBe('150px');
+    expectOverlayPercentageOrigin(overlay, 310 / 900, 150 / 600);
   });
 
   it('retires keyboard gateway focus before handing focus to the stable menu command', async () => {
@@ -410,8 +420,7 @@ describe('WarpkeepExperience', () => {
     expect(gatewayAnchor.inert).toBe(true);
     const departureLandmark = screen.getByRole('status');
     const overlay = screen.getByTestId('warp-transition-overlay');
-    expect(overlay.style.getPropertyValue('--warp-origin-x')).toBe('676px');
-    expect(parseFloat(overlay.style.getPropertyValue('--warp-origin-y'))).toBeCloseTo(218);
+    expectOverlayPercentageOrigin(overlay, 676 / 1_280, 218 / 720);
     expect(departureLandmark.textContent).toBe('Entering Warpkeep. Opening the main menu.');
     expect(departureLandmark.getAttribute('data-active')).toBe('true');
     expect(document.activeElement).toBe(departureLandmark);
@@ -603,8 +612,7 @@ describe('WarpkeepExperience', () => {
     expect(overlay.getAttribute('data-input')).toBe('history');
     expect(overlay.getAttribute('data-gateway-client-x')).toBe('195');
     expect(overlay.getAttribute('data-gateway-client-y')).toBe('295');
-    expect(overlay.style.getPropertyValue('--warp-origin-x')).toBe('175px');
-    expect(overlay.style.getPropertyValue('--warp-origin-y')).toBe('255px');
+    expectOverlayPercentageOrigin(overlay, 175 / 350, 255 / 700);
   });
 
   it('keeps reverse passage unarmed until a fresh rendered gateway measurement exists', async () => {
@@ -656,8 +664,7 @@ describe('WarpkeepExperience', () => {
     expect(overlay.getAttribute('data-origin-ready')).toBe('true');
     expect(overlay.getAttribute('data-gateway-client-x')).toBe('242');
     expect(overlay.getAttribute('data-gateway-client-y')).toBe('311');
-    expect(overlay.style.getPropertyValue('--warp-origin-x')).toBe('232px');
-    expect(overlay.style.getPropertyValue('--warp-origin-y')).toBe('296px');
+    expectOverlayPercentageOrigin(overlay, 232 / 780, 296 / 570);
   });
 
   it('uses each newly rendered gateway center across repeated bidirectional cycles', async () => {
@@ -702,8 +709,7 @@ describe('WarpkeepExperience', () => {
       expect(overlay.getAttribute('data-origin-ready')).toBe('true');
       expect(overlay.getAttribute('data-gateway-client-x')).toBe(String(x));
       expect(overlay.getAttribute('data-gateway-client-y')).toBe(String(y));
-      expect(overlay.style.getPropertyValue('--warp-origin-x')).toBe(`${x - 25}px`);
-      expect(overlay.style.getPropertyValue('--warp-origin-y')).toBe(`${y - 30}px`);
+      expectOverlayPercentageOrigin(overlay, (x - 25) / 1_200, (y - 30) / 660);
     };
 
     fireEvent.click(await settleInitialTitle(), { detail: 0 });
@@ -775,14 +781,14 @@ describe('WarpkeepExperience', () => {
 
     const experience = container.querySelector('.warpkeep-experience')!;
     expect(experience.getAttribute('data-phase')).toBe('title');
-    expect(container.querySelector('.warp-transition-overlay')).toBeNull();
+    expect(document.querySelector('.warp-transition-overlay')).toBeNull();
 
     titleGatewayMeasurable = true;
     await act(async () => {
       window.dispatchEvent(new Event('resize'));
       vi.advanceTimersByTime(1);
     });
-    const overlay = container.querySelector<HTMLElement>('.warp-transition-overlay');
+    const overlay = document.querySelector<HTMLElement>('.warp-transition-overlay');
     expect(experience.getAttribute('data-phase')).toBe('transitioning-to-menu');
     expect(overlay?.getAttribute('data-input')).toBe('history');
     expect(Number(overlay?.getAttribute('data-gateway-client-x'))).toBeCloseTo(676, 5);

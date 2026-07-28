@@ -5,6 +5,7 @@ import {
   useRef,
   useState
 } from 'react';
+import { createPortal } from 'react-dom';
 import {
   clientPointToOverlay,
   snapshotGatewayRect,
@@ -40,7 +41,33 @@ type WarpOverlayStyle = CSSProperties & {
 type ResolvedOverlayOrigin = Readonly<{
   point: GatewayOverlayPoint;
   rect: GatewaySurfaceRect;
+  clientWidth: number;
+  clientHeight: number;
+  visualViewport: Readonly<{
+    offsetLeft: number;
+    offsetTop: number;
+    width: number;
+    height: number;
+    scale: number;
+  }>;
 }>;
+
+function finiteOr(value: number | undefined, fallback: number) {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? value
+    : fallback;
+}
+
+function currentVisualViewportSnapshot() {
+  const viewport = window.visualViewport;
+  return Object.freeze({
+    offsetLeft: finiteOr(viewport?.offsetLeft, 0),
+    offsetTop: finiteOr(viewport?.offsetTop, 0),
+    width: finiteOr(viewport?.width, window.innerWidth),
+    height: finiteOr(viewport?.height, window.innerHeight),
+    scale: finiteOr(viewport?.scale, 1)
+  });
+}
 
 export function prefersReducedWarpMotion(): boolean {
   return typeof window !== 'undefined'
@@ -57,7 +84,7 @@ export function WarpTransitionOverlay({
   className
 }: WarpTransitionOverlayProps) {
   const rootRef = useRef<HTMLDivElement>(null);
-  const originLockedRef = useRef(false);
+  const armedRef = useRef(false);
   const onArmedRef = useRef(onArmed);
   const coveredNotifiedRef = useRef(false);
   const completedNotifiedRef = useRef(false);
@@ -70,31 +97,47 @@ export function WarpTransitionOverlay({
   useLayoutEffect(() => {
     const root = rootRef.current;
     if (!root) return undefined;
-    originLockedRef.current = false;
+    armedRef.current = false;
 
     const resolveOrigin = () => {
-      if (originLockedRef.current) return;
       const rect = snapshotGatewayRect(root.getBoundingClientRect());
       const point = rect
         ? clientPointToOverlay(request.gatewayClientOrigin, rect)
         : null;
       if (!rect || !point) {
-        setResolvedOrigin(null);
+        if (!armedRef.current) setResolvedOrigin(null);
         return;
       }
-      originLockedRef.current = true;
-      setResolvedOrigin(Object.freeze({ point, rect }));
-      onArmedRef.current?.();
+      const clientWidth = root.clientWidth > 0 ? root.clientWidth : rect.width;
+      const clientHeight = root.clientHeight > 0 ? root.clientHeight : rect.height;
+      setResolvedOrigin(Object.freeze({
+        point,
+        rect,
+        clientWidth,
+        clientHeight,
+        visualViewport: currentVisualViewportSnapshot()
+      }));
+      if (!armedRef.current) {
+        armedRef.current = true;
+        onArmedRef.current?.();
+      }
     };
 
     resolveOrigin();
-    if (typeof ResizeObserver === 'undefined') {
-      window.addEventListener('resize', resolveOrigin);
-      return () => window.removeEventListener('resize', resolveOrigin);
-    }
-    const observer = new ResizeObserver(resolveOrigin);
-    observer.observe(root);
-    return () => observer.disconnect();
+    const visualViewport = window.visualViewport;
+    const observer = typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver(resolveOrigin);
+    observer?.observe(root);
+    window.addEventListener('resize', resolveOrigin);
+    visualViewport?.addEventListener('resize', resolveOrigin);
+    visualViewport?.addEventListener('scroll', resolveOrigin);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', resolveOrigin);
+      visualViewport?.removeEventListener('resize', resolveOrigin);
+      visualViewport?.removeEventListener('scroll', resolveOrigin);
+    };
   }, [request]);
 
   const style: WarpOverlayStyle = {
@@ -102,8 +145,8 @@ export function WarpTransitionOverlay({
     '--warp-cover-at': `${timing.coverAtMs}ms`
   };
   if (resolvedOrigin) {
-    style['--warp-origin-x'] = `${resolvedOrigin.point.x}px`;
-    style['--warp-origin-y'] = `${resolvedOrigin.point.y}px`;
+    style['--warp-origin-x'] = `${resolvedOrigin.point.u * 100}%`;
+    style['--warp-origin-y'] = `${resolvedOrigin.point.v * 100}%`;
   }
 
   const notifyCovered = () => {
@@ -122,7 +165,7 @@ export function WarpTransitionOverlay({
     onComplete?.();
   };
 
-  return (
+  const overlay = (
     <div
       ref={rootRef}
       aria-hidden="true"
@@ -139,8 +182,26 @@ export function WarpTransitionOverlay({
       data-overlay-top={resolvedOrigin?.rect.top ?? ''}
       data-overlay-width={resolvedOrigin?.rect.width ?? ''}
       data-overlay-height={resolvedOrigin?.rect.height ?? ''}
-      data-overlay-origin-x={resolvedOrigin?.point.x ?? ''}
-      data-overlay-origin-y={resolvedOrigin?.point.y ?? ''}
+      data-overlay-client-width={resolvedOrigin?.clientWidth ?? ''}
+      data-overlay-client-height={resolvedOrigin?.clientHeight ?? ''}
+      data-overlay-origin-u={resolvedOrigin?.point.u ?? ''}
+      data-overlay-origin-v={resolvedOrigin?.point.v ?? ''}
+      data-overlay-origin-x={resolvedOrigin
+        ? resolvedOrigin.point.u * resolvedOrigin.clientWidth
+        : ''}
+      data-overlay-origin-y={resolvedOrigin
+        ? resolvedOrigin.point.v * resolvedOrigin.clientHeight
+        : ''}
+      data-visual-viewport-offset-left={
+        resolvedOrigin?.visualViewport.offsetLeft ?? ''
+      }
+      data-visual-viewport-offset-top={
+        resolvedOrigin?.visualViewport.offsetTop ?? ''
+      }
+      data-visual-viewport-width={resolvedOrigin?.visualViewport.width ?? ''}
+      data-visual-viewport-height={resolvedOrigin?.visualViewport.height ?? ''}
+      data-visual-viewport-scale={resolvedOrigin?.visualViewport.scale ?? ''}
+      data-portal-root="body"
       data-testid="warp-transition-overlay"
       onAnimationEnd={notifyComplete}
       style={style}
@@ -153,4 +214,7 @@ export function WarpTransitionOverlay({
       />
     </div>
   );
+  return typeof document === 'undefined'
+    ? overlay
+    : createPortal(overlay, document.body);
 }
