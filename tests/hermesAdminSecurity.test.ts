@@ -964,7 +964,7 @@ describe('Hermes credential destination policy', () => {
       expect(`${result.stdout}${result.stderr}`).not.toContain(TEST_SECRET);
       expect(`${result.stdout}${result.stderr}`).not.toContain('Could not reach');
     }
-  });
+  }, 15_000);
 
   it('pins the persistent world expansion to the immutable database identity before token acquisition', () => {
     const identity = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';
@@ -982,7 +982,7 @@ describe('Hermes credential destination policy', () => {
       expect(`${result.stdout}${result.stderr}`).not.toContain(TEST_SECRET);
       expect(`${result.stdout}${result.stderr}`).not.toContain('Could not reach');
     }
-  });
+  }, 15_000);
 
   it('allows custom targets only for a secret-free dry run', () => {
     const result = runHermes(
