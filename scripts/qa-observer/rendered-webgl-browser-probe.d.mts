@@ -574,6 +574,15 @@ export type RenderedWebglCastleCanvasPointerSession = Readonly<{
   ) => Promise<unknown>;
 }>;
 
+export type {
+  RenderedWebglSfxEvidence,
+  RenderedWebglSfxSession,
+} from './rendered-webgl-sfx-lifecycle.mjs';
+export {
+  applyRenderedWebglSfxInteraction,
+  parseRenderedWebglSfxEvidence,
+} from './rendered-webgl-sfx-lifecycle.mjs';
+
 export function applyRenderedWebglActiveForestCameraInteraction(
   session: RenderedWebglCastleCanvasPointerSession
 ): Promise<Readonly<{ wheelStepCount: 5 }>>;

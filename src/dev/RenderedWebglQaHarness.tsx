@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 
+import { WarpkeepSfxDirector } from '../components/audio/WarpkeepSfxDirector';
+import {
+  ProceduralSfxEngine,
+  type WarpkeepSfxEngineSnapshot
+} from '../components/audio/proceduralSfxEngine';
+import type { WarpkeepSfxEvent } from '../components/audio/sfxEvents';
 import { RealmMapScreen } from '../components/realm/RealmMapScreen';
 import type { RealmQuality } from '../components/realm/realmQuality';
 import type {
@@ -44,6 +50,51 @@ type RenderedWebglQaObservation = Readonly<{
   renderer: RenderedWebglQaRenderer;
   readyAfterMilliseconds?: number;
 }>;
+
+export type RenderedWebglQaSfxSnapshot = WarpkeepSfxEngineSnapshot & Readonly<{
+  acceptedLogicalVoiceCount: number;
+}>;
+
+let activeRenderedWebglQaSfxEngine: RenderedWebglQaSfxEngine | undefined;
+
+class RenderedWebglQaSfxEngine extends ProceduralSfxEngine {
+  private acceptedLogicalVoiceCount = 0;
+
+  override emitBatch(events: readonly WarpkeepSfxEvent[]) {
+    const accepted = super.emitBatch(events);
+    this.acceptedLogicalVoiceCount += accepted;
+    return accepted;
+  }
+
+  qaSnapshot(): RenderedWebglQaSfxSnapshot {
+    return Object.freeze({
+      ...this.snapshot(),
+      acceptedLogicalVoiceCount: this.acceptedLogicalVoiceCount
+    });
+  }
+
+  override dispose() {
+    super.dispose();
+    if (activeRenderedWebglQaSfxEngine === this) {
+      activeRenderedWebglQaSfxEngine = undefined;
+    }
+  }
+}
+
+function createRenderedWebglQaSfxEngine() {
+  const engine = new RenderedWebglQaSfxEngine();
+  activeRenderedWebglQaSfxEngine = engine;
+  return engine;
+}
+
+/**
+ * Dev-route-only anonymous audio evidence. The production graph has no counter
+ * or inspection seam, and the rendered probe receives no event payloads.
+ */
+export function readRenderedWebglQaSfxSnapshot():
+RenderedWebglQaSfxSnapshot | null {
+  return activeRenderedWebglQaSfxEngine?.qaSnapshot() ?? null;
+}
 
 export type RenderedWebglQaHarnessProps = Readonly<{
   fixtureVariant?: RenderedWebglQaFixtureVariant;
@@ -236,6 +287,12 @@ export function RenderedWebglQaHarness({
         <p>{copy}</p>
       </aside>
 
+      {phase.kind === 'active' ? (
+        <WarpkeepSfxDirector
+          createEngine={createRenderedWebglQaSfxEngine}
+          muted={audioMuted}
+        />
+      ) : null}
       {phase.kind === 'active' ? (
         <RealmMapScreen
           audioMuted={audioMuted}

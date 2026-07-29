@@ -1,7 +1,10 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { RenderedWebglQaHarness } from '../src/dev/RenderedWebglQaHarness';
+import {
+  readRenderedWebglQaSfxSnapshot,
+  RenderedWebglQaHarness
+} from '../src/dev/RenderedWebglQaHarness';
 import {
   createRenderedWebglQaActiveWorkerRealm,
   createRenderedWebglQaOccupancyStressRealm,
@@ -57,6 +60,17 @@ describe('rendered WebGL local QA harness', () => {
     if (!(status instanceof HTMLElement)) throw new Error('missing rendered QA status');
     await waitFor(() => expect(status.dataset.renderer).toBe('fallback'));
     expect(status.dataset.presentationMode).toBe('player');
+    expect(readRenderedWebglQaSfxSnapshot()).toEqual({
+      acceptedLogicalVoiceCount: 0,
+      activeVoices: 0,
+      contextCreated: false,
+      contextState: 'unavailable',
+      hidden: false,
+      muted: false,
+      voiceCap: 16,
+      waterAmbienceActive: false,
+      waterAmbienceRegime: 'none'
+    });
     expect(screen.getByRole('main', { name: 'Hegemony realm' })
       .getAttribute('data-presentation-mode')).toBe('player');
     const profileTrigger = screen.getByRole('button', {
