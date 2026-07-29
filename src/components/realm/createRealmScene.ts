@@ -736,6 +736,10 @@ export type RealmTerrainPresentationTelemetry = Readonly<{
   grassRejectedBySnow: number;
   grassRetainedInSnowTransition: number;
   grassAverageSnowCoverageOfActiveCells: number;
+  grassRejectedBySand: number;
+  grassRetainedInDryTransition: number;
+  grassActiveSandCellCount: number;
+  grassAverageSandCoverageOfActiveCells: number;
   grassOverviewHidden: boolean;
 }>;
 
@@ -2044,6 +2048,7 @@ function initializeRealmScene(
       alphaToCoverage: grassAlphaToCoverage,
       vegetationField,
       northernSnow,
+      southernDesert,
       isWorldExcluded: (world) => vegetationMask.isGrassExcluded(world)
         || activeForestGrassMask.isGrassExcluded(world),
       visualizeLegacyLakes: noLakeRevisionActive,
@@ -2107,6 +2112,10 @@ function initializeRealmScene(
     rejectedBySnow: 0,
     retainedInSnowTransition: 0,
     averageSnowCoverageOfActiveCells: 0,
+    rejectedBySand: 0,
+    retainedInDryTransition: 0,
+    activeSandCellCount: 0,
+    averageSandCoverageOfActiveCells: 0,
     overviewHidden: true
   });
   const terrainPresentationTelemetry = () => {
@@ -2307,6 +2316,11 @@ function initializeRealmScene(
       grassRetainedInSnowTransition: grass.retainedInSnowTransition,
       grassAverageSnowCoverageOfActiveCells:
         grass.averageSnowCoverageOfActiveCells,
+      grassRejectedBySand: grass.rejectedBySand,
+      grassRetainedInDryTransition: grass.retainedInDryTransition,
+      grassActiveSandCellCount: grass.activeSandCellCount,
+      grassAverageSandCoverageOfActiveCells:
+        grass.averageSandCoverageOfActiveCells,
       grassOverviewHidden: grass.overviewHidden
     } satisfies RealmTerrainPresentationTelemetry);
   };

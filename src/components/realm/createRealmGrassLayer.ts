@@ -19,6 +19,7 @@ import type { RealmTerrainSurface } from '../../game/map/realmTerrainSurface';
 import type { TerrainStructurePlacement } from '../../game/map/terrainPlacements';
 import type { RealmVegetationField } from '../../game/map/realmVegetationField';
 import type { RealmNorthernSnowField } from '../../game/map/realmNorthernSnow';
+import type { RealmSouthernDesertField } from '../../game/map/realmSouthernDesert';
 import { realmGrassColorMetrics } from '../../game/map/realmGrassPalette';
 import { createDeterministicBudgetCollector } from '../../game/map/deterministicBudget';
 import {
@@ -76,6 +77,10 @@ export type RealmGrassTelemetry = Readonly<{
   rejectedBySnow: number;
   retainedInSnowTransition: number;
   averageSnowCoverageOfActiveCells: number;
+  rejectedBySand: number;
+  retainedInDryTransition: number;
+  activeSandCellCount: number;
+  averageSandCoverageOfActiveCells: number;
   overviewHidden: boolean;
 }>;
 
@@ -91,6 +96,7 @@ export type CreateRealmGrassLayerOptions = Readonly<{
   alphaToCoverage?: boolean;
   vegetationField?: RealmVegetationField;
   northernSnow?: RealmNorthernSnowField;
+  southernDesert?: RealmSouthernDesertField;
   isWorldExcluded?: (world: HexWorldPosition) => boolean;
   visualizeLegacyLakes?: boolean;
   suppressCastleSlots?: boolean;
@@ -192,6 +198,10 @@ function emptyTelemetry(plan: RealmGrassRenderPlan, alphaToCoverage = false): Re
     rejectedBySnow: 0,
     retainedInSnowTransition: 0,
     averageSnowCoverageOfActiveCells: 0,
+    rejectedBySand: 0,
+    retainedInDryTransition: 0,
+    activeSandCellCount: 0,
+    averageSandCoverageOfActiveCells: 0,
     overviewHidden: true
   });
 }
@@ -293,6 +303,7 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
       densityMultiplier: plan.densityMultiplier,
       vegetationField: options.vegetationField,
       northernSnow: options.northernSnow,
+      southernDesert: options.southernDesert,
       isWorldExcluded: options.isWorldExcluded,
       visualizeLegacyLakes: options.visualizeLegacyLakes,
       suppressCastleSlots: options.suppressCastleSlots
@@ -348,6 +359,10 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
     let rejectedBySnow = 0;
     let retainedInSnowTransition = 0;
     let activeCellSnowCoverageTotal = 0;
+    let rejectedBySand = 0;
+    let retainedInDryTransition = 0;
+    let activeSandCellCount = 0;
+    let activeCellSandCoverageTotal = 0;
     // Both records are fixed to the eight presentation terrain kinds. The
     // outer ring is classified without generating or caching invisible grass.
     const candidateCellsByTerrain = emptyCounts();
@@ -365,6 +380,10 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
       rejectedBySnow += data.rejectedBySnow;
       retainedInSnowTransition += data.retainedInSnowTransition;
       activeCellSnowCoverageTotal += data.snowCoverage;
+      rejectedBySand += data.rejectedBySand;
+      retainedInDryTransition += data.retainedInDryTransition;
+      activeCellSandCoverageTotal += data.sandCoverage;
+      if (data.sandCoverage >= 0.15) activeSandCellCount += 1;
       const distance = window.anchor ? hexDistance(window.anchor, data.coord) : 0;
       data.points.forEach((point) => {
         collectors[point.variant % variantCount]!.add({
@@ -505,6 +524,11 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
       retainedInSnowTransition,
       averageSnowCoverageOfActiveCells:
         activeCellSnowCoverageTotal / Math.max(1, activeCellCount),
+      rejectedBySand,
+      retainedInDryTransition,
+      activeSandCellCount,
+      averageSandCoverageOfActiveCells:
+        activeCellSandCoverageTotal / Math.max(1, activeCellCount),
       overviewHidden: false
     });
     if (telemetry.triangleCount > plan.maximumActiveTriangles) {

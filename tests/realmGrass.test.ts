@@ -14,6 +14,7 @@ import {
   createRealmNorthernSnowField,
   type RealmNorthernSnowField
 } from '../src/game/map/realmNorthernSnow';
+import { createRealmSouthernDesertField } from '../src/game/map/realmSouthernDesert';
 import { createRealmTerrainSurface } from '../src/game/map/realmTerrainSurface';
 import { pointyHexBoundaryDistance } from '../src/game/map/terrainHeight';
 import { createRealmVegetationField } from '../src/game/map/realmVegetationField';
@@ -293,6 +294,84 @@ describe('procedural biome grass generation', () => {
     expect(result.points.length).toBeGreaterThan(0);
     expect(result.points.every((point) => point.snowCoverage === 0.2)).toBe(true);
     expect(result.retainedInSnowTransition).toBe(result.points.length);
+  });
+
+  it('thins and dry-tints southern grass while preserving quality subsets', () => {
+    const surface = createRealmTerrainSurface('grass-southern-desert', 58, 60);
+    const southernCells = surface.playableMap.cells.filter((cell) => (
+      cell.coord.r >= 22 && cell.coord.r <= 54
+    ));
+    const southernDesert = createRealmSouthernDesertField({
+      worldSeed: surface.renderMap.worldSeed,
+      hexSize: 1,
+      playableRadius: surface.playableMap.radius,
+      renderRadius: surface.renderMap.radius
+    });
+    const common = {
+      ...inputFor(surface, southernCells),
+      heightAtWorld: () => 0,
+      southernDesert
+    };
+    const baseline = generateRealmGrassCells({
+      ...common,
+      southernDesert: undefined,
+      quality: 'high'
+    });
+    const high = generateRealmGrassCells({ ...common, quality: 'high' });
+    const balanced = generateRealmGrassCells({ ...common, quality: 'balanced' });
+    const reduced = generateRealmGrassCells({ ...common, quality: 'reduced' });
+    const id = (point: (typeof high.points)[number]) =>
+      `${point.coord.q},${point.coord.r}:${point.candidateIndex}`;
+    const baselineById = new Map(baseline.points.map((point) => [id(point), point]));
+    const highById = new Map(high.points.map((point) => [id(point), point]));
+    const balancedById = new Map(balanced.points.map((point) => [id(point), point]));
+
+    expect(high.points.length).toBeLessThan(baseline.points.length);
+    expect(high.rejectedBySand).toBeGreaterThan(0);
+    expect(high.retainedInDryTransition).toBeGreaterThan(0);
+    expect(high.points.every((point) => (
+      point.sandCoverage >= 0 && point.sandCoverage <= 1
+    ))).toBe(true);
+    const transition = high.points.find((point) => (
+      point.sandCoverage >= 0.15 && point.sandCoverage < 0.88
+    ));
+    expect(transition).toBeDefined();
+    const original = baselineById.get(id(transition!));
+    expect(original).toBeDefined();
+    expect(transition!.height).toBeLessThan(original!.height);
+    expect(transition!.tint).not.toEqual(original!.tint);
+    expect(transition!.windScale).toBeLessThan(original!.windScale);
+
+    balanced.points.forEach((point) => expect(highById.get(id(point))).toEqual(point));
+    reduced.points.forEach((point) => {
+      expect(highById.get(id(point))).toEqual(point);
+      expect(balancedById.get(id(point))).toEqual(point);
+    });
+  });
+
+  it('keeps the central Lowlands grass byte-for-byte unchanged by both climates', () => {
+    const surface = createRealmTerrainSurface('grass-climate-center', 58, 60);
+    const centralCells = surface.playableMap.cells.filter((cell) => (
+      hexDistance(cell.coord, { q: 0, r: 0 }) <= 12
+    ));
+    const climateOptions = {
+      worldSeed: surface.renderMap.worldSeed,
+      hexSize: 1,
+      playableRadius: surface.playableMap.radius,
+      renderRadius: surface.renderMap.radius
+    } as const;
+    const baseline = generateRealmGrassCells({
+      ...inputFor(surface, centralCells),
+      heightAtWorld: () => 0
+    });
+    const climate = generateRealmGrassCells({
+      ...inputFor(surface, centralCells),
+      heightAtWorld: () => 0,
+      northernSnow: createRealmNorthernSnowField(climateOptions),
+      southernDesert: createRealmSouthernDesertField(climateOptions)
+    });
+
+    expect(climate).toEqual(baseline);
   });
 
   it('creates deterministic bare cells, tuft clusters, rests, and open soil pockets', () => {

@@ -648,6 +648,10 @@ describe('realm scene setup cleanup', () => {
       grassRejectedBySnow: 0,
       grassRetainedInSnowTransition: 0,
       grassAverageSnowCoverageOfActiveCells: 0,
+      grassRejectedBySand: 0,
+      grassRetainedInDryTransition: 0,
+      grassActiveSandCellCount: 0,
+      grassAverageSandCoverageOfActiveCells: 0,
       grassOverviewHidden: true
     });
 
