@@ -43,6 +43,9 @@ describe('Crafted Lowlands terrain material', () => {
     expect(fragment).toContain(
       `vec2 warpkeepSnowWind = ${REALM_TERRAIN_PREVAILING_WIND_GLSL};`
     );
+    expect(fragment).toContain(
+      `vec2 warpkeepSandWind = ${REALM_TERRAIN_PREVAILING_WIND_GLSL};`
+    );
     expect(fragment).not.toContain('normalize(vec2(0.7826, 0.6225))');
     expect(fragment).toContain('warpkeepMacroSlope');
     expect(fragment).toContain(

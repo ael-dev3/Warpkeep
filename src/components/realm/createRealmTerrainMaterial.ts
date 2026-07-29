@@ -133,7 +133,7 @@ vec2 warpkeepMacroSlope = vec2(
   -warpkeepMacroNormalWorld.x / warpkeepMacroNormalY,
   -warpkeepMacroNormalWorld.z / warpkeepMacroNormalY
 );
-vec2 warpkeepSandWind = normalize(vec2(0.7826, 0.6225));
+vec2 warpkeepSandWind = ${REALM_TERRAIN_PREVAILING_WIND_GLSL};
 vec2 warpkeepSandCrossWind = vec2(-warpkeepSandWind.y, warpkeepSandWind.x);
 float warpkeepSandPhase =
   dot(vTerrainWorldXZ, warpkeepSandWind) * ${mode === 'two-band' ? '3.25' : '5.15'} + 0.63;
