@@ -161,7 +161,7 @@ import {
   resolveRealmPinchGesture,
   type CreateRealmSceneOptions
 } from '../src/components/realm/createRealmScene';
-import { hexKey } from '../src/game/map/hexCoordinates';
+import { axialToWorld, hexKey } from '../src/game/map/hexCoordinates';
 import {
   createAuthoritativeRealmTerrainSurface,
   createRealmTerrainSurface
@@ -2590,6 +2590,47 @@ describe('realm scene setup cleanup', () => {
       zoom: 1,
       mode: 'keep'
     });
+    scene.dispose();
+  });
+
+  it('locates only exact clear or haze Water cells and keeps full fog out of camera authority', () => {
+    const canvas = document.createElement('canvas');
+    const scene = createRealmScene(createOptions(canvas, {
+      waterCells: GENESIS_WATER_REVISION_ENABLED_CELLS_V1,
+      quality: REALM_QUALITY_SPECS.reduced,
+      reducedMotion: true
+    }));
+    const renderer = webglState.instances[0]!;
+    const clearOcean = GENESIS_WATER_REVISION_ENABLED_CELLS_V1.find((cell) => (
+      cell.regime === 'ocean' && cell.fogBand === 'clear'
+    ))!;
+    const hazeOcean = GENESIS_WATER_REVISION_ENABLED_CELLS_V1.find((cell) => (
+      cell.regime === 'ocean' && cell.fogBand === 'haze'
+    ))!;
+    const river = GENESIS_WATER_REVISION_ENABLED_CELLS_V1.find((cell) => (
+      cell.regime === 'river' && cell.fogBand !== 'full'
+    ))!;
+    const fullFogOcean = GENESIS_WATER_REVISION_ENABLED_CELLS_V1.find((cell) => (
+      cell.regime === 'ocean' && cell.fogBand === 'full'
+    ))!;
+    const initialZoom = scene.getCameraAttestation().zoom;
+
+    for (const cell of [clearOcean, hazeOcean, river]) {
+      renderer.render.mockClear();
+      scene.locateCell({ q: cell.q, r: cell.r });
+      const world = axialToWorld(cell, 1);
+      const attestation = scene.getCameraAttestation();
+      expect(renderer.render).toHaveBeenCalledOnce();
+      expect(attestation.target.x).toBeCloseTo(world.x, 6);
+      expect(attestation.target.z).toBeCloseTo(world.z, 6);
+      expect(attestation.zoom).toBe(initialZoom);
+    }
+
+    renderer.render.mockClear();
+    scene.locateCell({ q: fullFogOcean.q, r: fullFogOcean.r });
+    scene.locateCell({ q: 70, r: -70 });
+    expect(renderer.render).not.toHaveBeenCalled();
+
     scene.dispose();
   });
 

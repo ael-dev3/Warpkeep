@@ -812,7 +812,7 @@ describe('Realm canonical water layer', () => {
     expect(ocean.material.userData.waterWaveComponents)
       .toBe(REALM_WATER_RENDER_BUDGETS.high.waveComponents);
     expect(shader.vertexShader.match(/sin\(/g)).toHaveLength(
-      REALM_WATER_RENDER_BUDGETS.high.waveComponents + 1
+      REALM_WATER_RENDER_BUDGETS.high.waveComponents
     );
     expect(shader.vertexShader).toContain('uniform float uWaterTime');
     expect(shader.fragmentShader).toContain('uniform float uWaterTime');
@@ -822,7 +822,7 @@ describe('Realm canonical water layer', () => {
     expect(shader.vertexShader).toContain('* warpkeepWaterWaveVisibility');
     expect(shader.vertexShader).not.toContain('vViewPosition.xz');
     expect(shader.fragmentShader).toContain('outgoingLight +=');
-    expect(ocean.material.userData.waterShaderContract).toContain('-v5');
+    expect(ocean.material.userData.waterShaderContract).toContain('-v6');
     expect(shader.uniforms).toHaveProperty('uWaterTime');
     expect(layer.updateEnvironment(1)).toBe(true);
     expect(layer.updateEnvironment(1)).toBe(false);
@@ -830,6 +830,27 @@ describe('Realm canonical water layer', () => {
 
     layer.dispose();
   });
+
+  it.each([
+    ['high', 2],
+    ['balanced', 1],
+    ['reduced', 0]
+  ] as const)(
+    'renders exactly the advertised %s river-wave component count',
+    (quality, expectedWaveCount) => {
+      const layer = createLayer(quality);
+      const rivers = layer.group.getObjectByName(
+        'canonical-river-full-cell-surface'
+      ) as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
+      const shader = compileMaterial(rivers.material);
+
+      expect(rivers.material.userData.waterWaveComponents).toBe(expectedWaveCount);
+      expect(shader.vertexShader.match(/sin\(/g) ?? []).toHaveLength(expectedWaveCount);
+      expect(rivers.material.userData.waterShaderContract).toContain('-v6');
+
+      layer.dispose();
+    }
+  );
 
   it('keeps river vertices welded while animating downstream light and normals', () => {
     const layer = createLayer('high');
@@ -839,6 +860,7 @@ describe('Realm canonical water layer', () => {
     const shader = compileMaterial(rivers.material);
 
     expect(rivers.material.userData.waterWaveComponents).toBe(2);
+    expect(shader.vertexShader.match(/sin\(/g)).toHaveLength(2);
     expect(rivers.material.userData.waterFoamQualityScale).toBe(1);
     expect(shader.vertexShader).toContain(
       'transformed.y += vWarpkeepWaterWave * (1.0 - step(0.5, waterRegime))'

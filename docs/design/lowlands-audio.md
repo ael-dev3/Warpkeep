@@ -43,5 +43,14 @@ easy to inspect:
 
 Keep, resource, Water, and ordinary interface selections are presentation
 events. Worker confirmations come only from changes in the viewer-owned public
-Worker projection, never from optimistic command submission. The current layer
-does not add continuous river or ocean ambience.
+Worker projection, never from optimistic command submission.
+
+The same local Web Audio graph provides a restrained Water ambience bed. It
+reuses the one in-memory noise buffer; it does not fetch a sample or open a
+network channel. The bed is available only while the authenticated Realm scene
+is active, the trusted-input audio context is running, audio is unmuted, and a
+validated clear-or-haze river or ocean cell is near the camera or explicitly
+selected. A bounded local hex search resolves relevance; camera distance and
+Water character shape gain and filtering, and full-fog cells are excluded. The
+presentation state carries only regime, normalized relevance/character, and a
+selection flag—never a cell key, Realm key, identity, or gameplay record.

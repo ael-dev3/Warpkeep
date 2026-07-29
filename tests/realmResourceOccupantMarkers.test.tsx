@@ -111,6 +111,7 @@ describe('resource occupant marker surface', () => {
     const control = screen.getByRole('button');
     expect(control.getAttribute('aria-label')).not.toContain('cell 4,-2');
     expect(control.dataset.resourceOccupantLane).toBe('control');
+    expect(control.dataset.warpkeepSfx).toBe('none');
 
     view.rerender(
       <RealmResourceOccupantMarkers

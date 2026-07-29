@@ -993,26 +993,33 @@ function createWaterMaterial(
           : 0
       : REALM_WATER_RENDER_BUDGETS[quality.id].waveComponents;
   const uniforms = { uWaterTime: { value: 0 } };
-  const waveTerms = Array.from({ length: activeWaveComponents }, (_, index) => {
+  const oceanWaveTerms = Array.from({ length: activeWaveComponents }, (_, index) => {
     const ordinal = index + 1;
     const directionX = (0.54 + ((ordinal * 17) % 31) / 100).toFixed(3);
     const directionZ = (0.84 - ((ordinal * 11) % 23) / 100).toFixed(3);
     const frequency = (0.28 + ordinal * 0.075).toFixed(3);
     const speed = (0.16 + ordinal * 0.031).toFixed(3);
-    const amplitude = (river ? 0.005 : 0.024 / Math.sqrt(ordinal)).toFixed(5);
+    const amplitude = (0.024 / Math.sqrt(ordinal)).toFixed(5);
     return `sin(dot(waterWorldXZ, vec2(${directionX}, ${directionZ})) * ${frequency} + uWaterTime * ${speed}) * ${amplitude}`;
   });
+  const riverWaveTerms = [
+    `sin(
+    dot(waterWorldXZ, normalize(waterFlow + vec2(0.0001))) * 2.65
+      + uWaterTime * (0.54 + waterFlowAccumulation * 0.24)
+      + waterFeaturePhase * 6.283185
+  ) * (0.0026 + waterFlowAccumulation * 0.0018)`,
+    `sin(
+    dot(waterWorldXZ, normalize(vec2(-waterFlow.y, waterFlow.x) + vec2(0.0001))) * 1.87
+      + uWaterTime * (0.31 + waterFlowAccumulation * 0.14)
+      + waterFeaturePhase * 3.141593
+  ) * (0.0010 + waterFlowAccumulation * 0.0006)`
+  ].slice(0, activeWaveComponents);
+  const effectiveWaveTerms = river ? riverWaveTerms : oceanWaveTerms;
   const timeUniform = activeWaveComponents > 0 ? 'uniform float uWaterTime;\n' : '';
   const heightFunction = activeWaveComponents === 0
     ? 'float warpkeepWaterHeight(vec2 waterWorldXZ, float waterRegime, vec2 waterFlow, float waterFlowAccumulation, float waterFeaturePhase) { return 0.0; }'
     : `float warpkeepWaterHeight(vec2 waterWorldXZ, float waterRegime, vec2 waterFlow, float waterFlowAccumulation, float waterFeaturePhase) {
-  float oceanWave = ${waveTerms.join(' + ')};
-  float riverWave = sin(
-    dot(waterWorldXZ, normalize(waterFlow + vec2(0.0001))) * 2.65
-      + uWaterTime * (0.54 + waterFlowAccumulation * 0.24)
-      + waterFeaturePhase * 6.283185
-  ) * (0.0026 + waterFlowAccumulation * 0.0018);
-  return waterRegime > 0.5 ? riverWave : oceanWave;
+  return ${effectiveWaveTerms.join(' + ')};
 }`;
   const foamQualityScale = quality.id === 'high'
     ? 1
@@ -1020,7 +1027,7 @@ function createWaterMaterial(
       ? 0.62
       : 0;
   const waterTimeExpression = activeWaveComponents > 0 ? 'uWaterTime' : '0.0';
-  const shaderContract = `warpkeep-water-world-space-r185-${river ? 'river' : 'ocean'}-v5`;
+  const shaderContract = `warpkeep-water-world-space-r185-${river ? 'river' : 'ocean'}-v6`;
   let shaderFallback = false;
   material.onBeforeCompile = (shader) => {
     if (

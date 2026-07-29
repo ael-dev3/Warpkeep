@@ -219,6 +219,7 @@ export function RealmResourceOccupantMarkers({
               data-resource-occupant-lane="control"
               data-projected-visible="false"
               data-selected={selectedMarkerKey === key ? 'true' : 'false'}
+              data-warpkeep-sfx="none"
               key={key}
               onBlur={() => onHover?.(null)}
               onClick={() => {

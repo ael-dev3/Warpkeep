@@ -105,6 +105,7 @@ export function RealmWorkerPresenceMarkers({
             data-projected-visible="false"
             data-selected={selectedWorkerId === worker.workerId ? 'true' : 'false'}
             data-worker-presence-id={worker.workerId}
+            data-warpkeep-sfx="none"
             key={worker.workerId}
             onBlur={() => onHover(null)}
             onClick={() => onSelect(worker)}

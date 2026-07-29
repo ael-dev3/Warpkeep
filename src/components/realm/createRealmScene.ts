@@ -112,6 +112,7 @@ import { createRealmAmbientScheduler, type RealmAmbientScheduler } from './realm
 import {
   createRealmWaterLayer,
   REALM_WATER_ANIMATION_FRAME_CAPS,
+  waterSurfaceLevelToWorldY,
   type RealmWaterLayer
 } from './realmWaterLayer';
 import { createRealmWaterAmbienceSampler } from './realmWaterAmbiencePresentation';
@@ -702,7 +703,7 @@ export type RealmSceneHandle = Readonly<{
   locateWorker: (workerId: string) => HexCoord | null;
   /** Latest interpolated route position; absent when route authority fails closed. */
   getWorkerCurrentCoord: (workerId: string) => HexCoord | null;
-  /** Centers a playable cell while retaining the controller's current zoom. */
+  /** Centers a validated playable terrain or visible Water cell while retaining zoom. */
   locateCell: (coord: HexCoord) => void;
   /** Centers a playable cell and enters the explicit close-view presentation. */
   focusCell: (coord: HexCoord) => void;
@@ -4607,7 +4608,7 @@ function initializeRealmScene(
       selectedStoneSiteId: selectedStoneSiteId ?? null
     });
   };
-  const cameraFocusForCell = (coord: HexCoord): RealmKeepFocus | null => {
+  const cameraFocusForTerrainCell = (coord: HexCoord): RealmKeepFocus | null => {
     if (!isPlayableRealmCoord(options.surface, coord)) return null;
     try {
       if (options.isCoordPassable && !options.isCoordPassable(coord)) return null;
@@ -4624,6 +4625,45 @@ function initializeRealmScene(
         HEX_SIZE,
         terrainPlacements
       ),
+      z: world.z,
+      height: 0.18,
+      footprintDiameter: 1.24
+    });
+  };
+  const cameraFocusForVisibleWaterCell = (
+    coord: HexCoord
+  ): RealmKeepFocus | null => {
+    if (
+      !waterLayer
+      || !activeWaterNavigationEnvelope
+      || !Number.isSafeInteger(coord.q)
+      || !Number.isSafeInteger(coord.r)
+    ) return null;
+    const cellKey = hexKey(coord);
+    const cell = waterLayer.getCellPresentation(cellKey);
+    if (
+      !cell
+      || cell.cellKey !== cellKey
+      || cell.q !== coord.q
+      || cell.r !== coord.r
+      || (cell.regime !== 'river' && cell.regime !== 'ocean')
+      || (cell.fogBand !== 'clear' && cell.fogBand !== 'haze')
+      || hexDistance({ q: 0, r: 0 }, coord)
+        > activeWaterNavigationEnvelope.maximumCenterHexRadius
+    ) return null;
+    const world = axialToWorld(coord, activeWaterNavigationEnvelope.hexSize);
+    const bounds = activeWaterNavigationEnvelope.bounds;
+    if (
+      world.x < bounds.minX
+      || world.x > bounds.maxX
+      || world.z < bounds.minZ
+      || world.z > bounds.maxZ
+    ) return null;
+    const surfaceY = waterSurfaceLevelToWorldY(cell.surfaceLevelMilli);
+    if (!Number.isFinite(surfaceY)) return null;
+    return Object.freeze({
+      x: world.x,
+      y: surfaceY,
       z: world.z,
       height: 0.18,
       footprintDiameter: 1.24
@@ -4713,12 +4753,13 @@ function initializeRealmScene(
     },
     locateCell: (coord) => {
       if (cleanup.isDisposed()) return;
-      const focus = cameraFocusForCell(coord);
+      const focus = cameraFocusForVisibleWaterCell(coord)
+        ?? cameraFocusForTerrainCell(coord);
       if (focus) cameraController.locateAt(focus);
     },
     focusCell: (coord) => {
       if (cleanup.isDisposed()) return;
-      const focus = cameraFocusForCell(coord);
+      const focus = cameraFocusForTerrainCell(coord);
       if (focus) cameraController.focusAt(focus);
     },
     frameFoundingDistrict: () => {

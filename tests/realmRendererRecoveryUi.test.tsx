@@ -19,6 +19,10 @@ vi.mock('../src/components/realm/realmMapPresentationHelpers', async (importOrig
 });
 
 import { RealmMapScreen } from '../src/components/realm/RealmMapScreen';
+import {
+  subscribeWarpkeepSfx,
+  type WarpkeepSfxEvent
+} from '../src/components/audio/sfxEvents';
 import { WATER_INSPECTION_FOLLOW_INTERVAL_MS } from '../src/components/realm/WaterInspectionPanel';
 import type { CreateRealmSceneOptions } from '../src/components/realm/createRealmScene';
 import { validateCanonicalGenesisSnapshot } from '../src/spacetime/canonicalGenesisSnapshot';
@@ -248,6 +252,36 @@ describe('Realm renderer recovery UI', () => {
     expect(handle.focusCell).not.toHaveBeenCalled();
     expect(handle.locateCell).not.toHaveBeenCalled();
     expect(handle.setSelectedWaterCellKey).toHaveBeenLastCalledWith(ocean.cellKey);
+  });
+
+  it('emits one material cue when an already-open world record is selected again', () => {
+    const fixture = createRenderedWebglQaFixtureRealm();
+    const events: WarpkeepSfxEvent[] = [];
+    const unsubscribe = subscribeWarpkeepSfx((batch) => events.push(...batch));
+    render(
+      <RealmMapScreen
+        identity={fixture.identity}
+        snapshot={fixture.snapshot}
+        onRequestReturn={vi.fn()}
+        resources={createReadyResourceState(fixture.identity.fid)}
+      />
+    );
+    const options = sceneState.create.mock.calls[0]![0] as CreateRealmSceneOptions;
+    const ownCastle = fixture.snapshot.ownCastle;
+    const target = {
+      kind: 'castle',
+      castleId: ownCastle.castleId,
+      coord: { q: ownCastle.q, r: ownCastle.r }
+    } as const;
+
+    act(() => {
+      options.onCastlesReady?.(fixture.snapshot.castles.length);
+      options.onTargetSelect?.(target);
+      options.onTargetSelect?.(target);
+    });
+    unsubscribe();
+
+    expect(events).toEqual([{ kind: 'select-keep' }]);
   });
 
   it('moves between river records camera-neutrally and locates only on explicit Focus Cell', () => {
