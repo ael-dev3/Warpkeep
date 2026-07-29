@@ -1810,7 +1810,8 @@ export function verifyPostPublishProductionV12ModuleSchema(
     if (
       !predecessor
       || (predecessor.moduleState !== 'predecessor'
-        && predecessor.moduleState !== 'active-predecessor')
+        && predecessor.moduleState !== 'active-predecessor'
+        && predecessor.moduleState !== 'candidate')
       || !predecessor.tableSignatures
       || typeof predecessor.tableSignatures !== 'object'
       || Array.isArray(predecessor.tableSignatures)
