@@ -15,8 +15,11 @@ import {
 import { terrainHeightForCell } from '../../game/map/terrainHeight';
 import {
   EMPTY_TERRAIN_PLACEMENTS,
+  placementInfluenceAtWorld,
+  terrainPlacementsForCell,
   type TerrainStructurePlacement
 } from '../../game/map/terrainPlacements';
+import type { RealmNorthernSnowField } from '../../game/map/realmNorthernSnow';
 import type { RealmTerrainMap } from '../../game/map/terrainTypes';
 import type { RealmTerrainKind } from '../../game/map/realmTerrainSemantics';
 import type {
@@ -47,6 +50,9 @@ export type TerrainGeometryData = Readonly<{
    */
   materialCues: Float32Array;
   materialCueMetrics: TerrainMaterialCueMetrics;
+  /** One optional renderer-only scalar; absent when the winter field is disabled. */
+  snowCoverage?: Float32Array;
+  snowCoverageMetrics: TerrainSnowCoverageMetrics;
   indices: Uint16Array | Uint32Array;
   bounds: TerrainBounds;
   /** Exact convex x/z perimeter of the rendered union of terrain hexes. */
@@ -77,6 +83,13 @@ export type TerrainMaterialCueMetrics = Readonly<{
   wetnessMax: number;
 }>;
 
+export type TerrainSnowCoverageMetrics = Readonly<{
+  minimum: number;
+  maximum: number;
+  mean: number;
+  attributeBytes: number;
+}>;
+
 export type TerrainGeometryOptions = Readonly<{
   subdivisionsPerEdge?: number;
   /** Cells through this radius retain the established triangular lattice. */
@@ -92,6 +105,10 @@ export type TerrainGeometryOptions = Readonly<{
   visualizeLegacyLakesAsLand?: boolean;
   /** Full-cell river boundary field used only for adjacent-land presentation. */
   riverBankPresentation?: RealmRiverBankPresentation;
+  /** Immutable renderer-only climate field; never changes terrain authority. */
+  northernSnow?: RealmNorthernSnowField;
+  /** Complete validated Water coordinates suppress the underlying land treatment. */
+  snowExcludedCellKeys?: ReadonlySet<string>;
 }>;
 
 type MutableTerrainBounds = {
@@ -225,6 +242,99 @@ function safeDetailRadius(value: number | undefined, renderRadius: number) {
 
 function clamp(value: number, minimum = 0, maximum = 1) {
   return Math.min(maximum, Math.max(minimum, value));
+}
+
+function smoothstep(edge0: number, edge1: number, value: number) {
+  const progress = clamp(
+    (value - edge0) / Math.max(0.000_001, edge1 - edge0)
+  );
+  return progress * progress * (3 - progress * 2);
+}
+
+function applySnowCpuColor(
+  colors: number[],
+  vertexIndex: number,
+  coverage: number,
+  concavity: number,
+  wetness: number
+) {
+  if (coverage <= 0) return;
+  const offset = vertexIndex * 3;
+  const hollow = Math.max(0, concavity);
+  const pearl = { r: 0.76, g: 0.81, b: 0.86 };
+  const blueGrey = { r: 0.58, g: 0.66, b: 0.75 };
+  const depthMix = clamp(hollow * 0.42 + wetness * 0.10);
+  const snow = {
+    r: pearl.r + (blueGrey.r - pearl.r) * depthMix,
+    g: pearl.g + (blueGrey.g - pearl.g) * depthMix,
+    b: pearl.b + (blueGrey.b - pearl.b) * depthMix
+  };
+  // Preserve underlying soil, stone and vegetation anchors even at the rim.
+  const amount = smoothstep(0.035, 0.93, coverage) * 0.91;
+  colors[offset] = colors[offset]! + (snow.r - colors[offset]!) * amount;
+  colors[offset + 1] = colors[offset + 1]!
+    + (snow.g - colors[offset + 1]!) * amount;
+  colors[offset + 2] = colors[offset + 2]!
+    + (snow.b - colors[offset + 2]!) * amount;
+}
+
+function applyNorthernSnowPresentation(
+  positions: readonly number[],
+  colors: number[],
+  materialCues: readonly number[],
+  options: TerrainGeometryOptions,
+  hexSize: number,
+  placements: readonly TerrainStructurePlacement[]
+) {
+  const field = options.northernSnow;
+  if (!field) return undefined;
+  const vertexCount = positions.length / 3;
+  const snowCoverage = new Float32Array(vertexCount);
+  let minimum = Number.POSITIVE_INFINITY;
+  let maximum = Number.NEGATIVE_INFINITY;
+  let sum = 0;
+
+  for (let index = 0; index < vertexCount; index += 1) {
+    const world = {
+      x: positions[index * 3]!,
+      z: positions[index * 3 + 2]!
+    };
+    const nearest = worldToNearestAxial(world, hexSize);
+    let placementInfluence = 0;
+    terrainPlacementsForCell(placements, nearest, hexSize).forEach((placement) => {
+      placementInfluence = Math.max(
+        placementInfluence,
+        placementInfluenceAtWorld(placement, world, hexSize)
+      );
+    });
+    const excluded = options.snowExcludedCellKeys?.has(hexKey(nearest)) === true;
+    const slope = materialCues[index * 4]!;
+    const concavity = materialCues[index * 4 + 1]!;
+    const wetness = materialCues[index * 4 + 3]!;
+    const coverage = excluded
+      ? 0
+      : field.retainedCoverageAtWorld(world, {
+        slope,
+        concavity,
+        placementInfluence
+      });
+    const safeCoverage = Number.isFinite(coverage) ? clamp(coverage) : 0;
+    snowCoverage[index] = safeCoverage;
+    minimum = Math.min(minimum, safeCoverage);
+    maximum = Math.max(maximum, safeCoverage);
+    sum += safeCoverage;
+    applySnowCpuColor(colors, index, safeCoverage, concavity, wetness);
+  }
+
+  return Object.freeze({
+    snowCoverage,
+    metrics: Object.freeze({
+      minimum: Number.isFinite(minimum) ? minimum : 0,
+      maximum: Number.isFinite(maximum) ? maximum : 0,
+      mean: vertexCount > 0 ? sum / vertexCount : 0,
+      attributeBytes: snowCoverage.byteLength
+    })
+  });
 }
 
 function terrainWetness(kind: RealmTerrainKind) {
@@ -664,6 +774,14 @@ export function createTerrainGeometryData(
     materialCues,
     materialCueMetrics
   );
+  const snowPresentation = applyNorthernSnowPresentation(
+    positions,
+    colors,
+    materialCues,
+    options,
+    hexSize,
+    placements
+  );
 
   const vertexCount = positions.length / 3;
   const typedIndices = vertexCount <= 0xffff ? new Uint16Array(indices) : new Uint32Array(indices);
@@ -681,6 +799,13 @@ export function createTerrainGeometryData(
       vegetationMax: safeMetric(materialCueMetrics.vegetationMax),
       wetnessMin: safeMetric(materialCueMetrics.wetnessMin),
       wetnessMax: safeMetric(materialCueMetrics.wetnessMax)
+    }),
+    snowCoverage: snowPresentation?.snowCoverage,
+    snowCoverageMetrics: snowPresentation?.metrics ?? Object.freeze({
+      minimum: 0,
+      maximum: 0,
+      mean: 0,
+      attributeBytes: 0
     }),
     indices: typedIndices,
     bounds,

@@ -1,14 +1,35 @@
 import * as THREE from 'three';
 
+import type { RealmQuality } from './realmQuality';
+
 export const REALM_TERRAIN_THREE_SHADER_CONTRACT = 'three-r185';
+export type RealmTerrainFineReliefMode = 'two-band' | 'one-band' | 'none';
+
+export function realmTerrainFineReliefMode(
+  quality: RealmQuality
+): RealmTerrainFineReliefMode {
+  if (quality === 'high') return 'two-band';
+  if (quality === 'balanced') return 'one-band';
+  return 'none';
+}
+
+export function realmTerrainShaderCacheKey(quality: RealmQuality) {
+  return [
+    'warpkeep-living-realm-terrain-v2',
+    REALM_TERRAIN_THREE_SHADER_CONTRACT,
+    realmTerrainFineReliefMode(quality)
+  ].join('-');
+}
+
 export const REALM_TERRAIN_SHADER_CACHE_KEY =
-  `warpkeep-crafted-lowlands-terrain-v1-${REALM_TERRAIN_THREE_SHADER_CONTRACT}`;
+  realmTerrainShaderCacheKey('balanced');
 
 export type RealmTerrainMaterialTelemetry = Readonly<{
   shaderContract: string;
   shaderEnhanced: boolean;
   shaderFallbackActive: boolean;
   compileAttemptCount: number;
+  fineReliefMode: RealmTerrainFineReliefMode;
 }>;
 
 export type RealmTerrainMaterial = Readonly<{
@@ -20,11 +41,16 @@ export type RealmTerrainMaterial = Readonly<{
 
 const VERTEX_DECLARATIONS = `
 attribute vec4 terrainSurfaceCue;
+attribute float terrainSnowCoverage;
 varying vec4 vTerrainSurfaceCue;
+varying float vTerrainSnowCoverage;
+varying vec2 vTerrainWorldXZ;
 `;
 
 const FRAGMENT_DECLARATIONS = `
 varying vec4 vTerrainSurfaceCue;
+varying float vTerrainSnowCoverage;
+varying vec2 vTerrainWorldXZ;
 `;
 
 /**
@@ -38,16 +64,62 @@ export function injectRealmTerrainVertexShader(vertexShader: string) {
   }
   return `${VERTEX_DECLARATIONS}\n${vertexShader.replace(
     marker,
-    `${marker}\nvTerrainSurfaceCue = terrainSurfaceCue;`
+    `${marker}
+vTerrainSurfaceCue = terrainSurfaceCue;
+vTerrainSnowCoverage = terrainSnowCoverage;
+vTerrainWorldXZ = (modelMatrix * vec4(transformed, 1.0)).xz;`
   )}`;
 }
 
-export function injectRealmTerrainFragmentShader(fragmentShader: string) {
+function snowReliefShader(mode: RealmTerrainFineReliefMode) {
+  if (mode === 'none') return '#include <normal_fragment_maps>';
+  const secondBand = mode === 'two-band'
+    ? `
+float warpkeepSnowCrossPhase =
+  dot(vTerrainWorldXZ, warpkeepSnowCrossWind) * 4.35 + 1.17;
+float warpkeepSnowCrossFootprint = fwidth(warpkeepSnowCrossPhase);
+float warpkeepSnowCrossFilter =
+  1.0 - smoothstep(0.24, 1.05, warpkeepSnowCrossFootprint);
+warpkeepSnowGradient += warpkeepSnowCrossWind
+  * cos(warpkeepSnowCrossPhase)
+  * 0.016
+  * warpkeepSnowCrossFilter;
+`
+    : '';
+  return `
+#include <normal_fragment_maps>
+vec2 warpkeepSnowWind = normalize(vec2(0.7826, 0.6225));
+vec2 warpkeepSnowCrossWind = vec2(-warpkeepSnowWind.y, warpkeepSnowWind.x);
+float warpkeepSnowPhase = dot(vTerrainWorldXZ, warpkeepSnowWind) * 7.15;
+float warpkeepSnowFootprint = fwidth(warpkeepSnowPhase);
+float warpkeepSnowFilter = 1.0 - smoothstep(0.22, 1.0, warpkeepSnowFootprint);
+vec2 warpkeepSnowGradient = warpkeepSnowWind
+  * cos(warpkeepSnowPhase)
+  * ${mode === 'two-band' ? '0.026' : '0.017'}
+  * warpkeepSnowFilter;
+${secondBand}
+float warpkeepSnowReliefCoverage =
+  smoothstep(0.18, 0.82, clamp(vTerrainSnowCoverage, 0.0, 1.0));
+normal = normalize(
+  normal
+  + mat3(viewMatrix)
+    * vec3(-warpkeepSnowGradient.x, 0.0, -warpkeepSnowGradient.y)
+    * warpkeepSnowReliefCoverage
+);
+`;
+}
+
+export function injectRealmTerrainFragmentShader(
+  fragmentShader: string,
+  fineReliefMode: RealmTerrainFineReliefMode = 'one-band'
+) {
   const colorMarker = '#include <color_fragment>';
   const roughnessMarker = '#include <roughnessmap_fragment>';
+  const normalMarker = '#include <normal_fragment_maps>';
   if (
     !fragmentShader.includes(colorMarker)
     || !fragmentShader.includes(roughnessMarker)
+    || !fragmentShader.includes(normalMarker)
   ) {
     throw new Error('REALM_TERRAIN_SHADER_FRAGMENT_CONTRACT_CHANGED');
   }
@@ -58,6 +130,7 @@ float terrainHollow = clamp(vTerrainSurfaceCue.y, 0.0, 1.0);
 float terrainCrest = clamp(-vTerrainSurfaceCue.y, 0.0, 1.0);
 float terrainVegetation = clamp(vTerrainSurfaceCue.z, 0.0, 1.0);
 float terrainWetness = clamp(vTerrainSurfaceCue.w, 0.0, 1.0);
+float terrainSnow = clamp(vTerrainSnowCoverage, 0.0, 1.0);
 diffuseColor.rgb *= 1.0 - terrainHollow * 0.085;
 diffuseColor.rgb *= 1.0 + terrainCrest * 0.032;
 diffuseColor.rgb *= 1.0 - terrainVegetation * 0.025;
@@ -71,6 +144,11 @@ diffuseColor.rgb = mix(
   diffuseColor.rgb * vec3(0.98, 0.965, 0.925),
   terrainSlope * 0.055
 );
+diffuseColor.rgb = mix(
+  diffuseColor.rgb,
+  diffuseColor.rgb * vec3(0.965, 0.99, 1.025),
+  terrainSnow * (0.035 + terrainHollow * 0.025)
+);
 `;
   const roughness = `
 ${roughnessMarker}
@@ -81,10 +159,16 @@ roughnessFactor = clamp(
   0.72,
   1.0
 );
+roughnessFactor = clamp(
+  mix(roughnessFactor, 0.91 + terrainHollow * 0.035, terrainSnow * 0.72),
+  0.78,
+  0.98
+);
 `;
   return `${FRAGMENT_DECLARATIONS}\n${fragmentShader
     .replace(colorMarker, color)
-    .replace(roughnessMarker, roughness)}`;
+    .replace(roughnessMarker, roughness)
+    .replace(normalMarker, snowReliefShader(fineReliefMode))}`;
 }
 
 /**
@@ -92,7 +176,10 @@ roughnessFactor = clamp(
  * markers drift, the callback retains the untouched MeshStandardMaterial
  * shaders instead of throwing and blanking the Realm.
  */
-export function createRealmTerrainMaterial(): RealmTerrainMaterial {
+export function createRealmTerrainMaterial(
+  quality: RealmQuality = 'balanced'
+): RealmTerrainMaterial {
+  const fineReliefMode = realmTerrainFineReliefMode(quality);
   const material = new THREE.MeshStandardMaterial({
     vertexColors: true,
     roughness: 0.94,
@@ -111,7 +198,10 @@ export function createRealmTerrainMaterial(): RealmTerrainMaterial {
     const originalFragmentShader = shader.fragmentShader;
     try {
       shader.vertexShader = injectRealmTerrainVertexShader(originalVertexShader);
-      shader.fragmentShader = injectRealmTerrainFragmentShader(originalFragmentShader);
+      shader.fragmentShader = injectRealmTerrainFragmentShader(
+        originalFragmentShader,
+        fineReliefMode
+      );
       shaderEnhanced = true;
       shaderFallbackActive = false;
     } catch {
@@ -123,8 +213,9 @@ export function createRealmTerrainMaterial(): RealmTerrainMaterial {
     }
     telemetryRevision += 1;
   };
-  material.customProgramCacheKey = () => REALM_TERRAIN_SHADER_CACHE_KEY;
+  material.customProgramCacheKey = () => realmTerrainShaderCacheKey(quality);
   material.userData.realmTerrainShaderContract = REALM_TERRAIN_THREE_SHADER_CONTRACT;
+  material.userData.realmTerrainFineReliefMode = fineReliefMode;
 
   return Object.freeze({
     material,
@@ -132,7 +223,8 @@ export function createRealmTerrainMaterial(): RealmTerrainMaterial {
       shaderContract: REALM_TERRAIN_THREE_SHADER_CONTRACT,
       shaderEnhanced,
       shaderFallbackActive,
-      compileAttemptCount
+      compileAttemptCount,
+      fineReliefMode
     }),
     getTelemetryRevision: () => telemetryRevision,
     dispose: () => {

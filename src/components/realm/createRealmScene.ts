@@ -33,6 +33,11 @@ import {
   type RealmTerrainSemanticRow
 } from '../../game/map/realmTerrainSemantics';
 import { isPlayableRealmCoord, type RealmTerrainSurface } from '../../game/map/realmTerrainSurface';
+import {
+  createRealmNorthernSnowField,
+  summarizeRealmNorthernSnowCoverage,
+  type RealmNorthernSnowField
+} from '../../game/map/realmNorthernSnow';
 import { createRealmVegetationField } from '../../game/map/realmVegetationField';
 import {
   createRealmVegetationMask,
@@ -621,6 +626,19 @@ export type RealmTerrainPresentationTelemetry = Readonly<{
   terrainShaderEnhanced: boolean;
   terrainShaderFallbackActive: boolean;
   terrainShaderCompileAttemptCount: number;
+  snowFieldRevision: string;
+  snowClimateCellCountAbove015: number;
+  snowDeepCellCountAbove075: number;
+  snowPlayableCoverageRatio: number;
+  snowDeepCoverageRatio: number;
+  snowInnerRadiusLeakCount: number;
+  snowVertexCoverageMin: number;
+  snowVertexCoverageMax: number;
+  snowVertexCoverageMean: number;
+  snowAttributeBytes: number;
+  snowFineReliefMode: 'two-band' | 'one-band' | 'none';
+  snowShaderEnhanced: boolean;
+  snowShaderFallbackActive: boolean;
   semanticCellCount: number;
   semanticKindCount: number;
   semanticFeatureCount: number;
@@ -972,7 +990,9 @@ function createTerrainGeometry(
   forestCanopyByKey?: ReadonlyMap<string, number>,
   vegetationDensityByKey?: ReadonlyMap<string, number>,
   riverBankPresentation?: RealmRiverBankPresentation,
-  visualizeLegacyLakesAsLand = false
+  visualizeLegacyLakesAsLand = false,
+  northernSnow?: RealmNorthernSnowField,
+  snowExcludedCellKeys?: ReadonlySet<string>
 ) {
   const data = createTerrainGeometryData(surface.renderMap, HEX_SIZE, {
     subdivisionsPerEdge,
@@ -983,7 +1003,9 @@ function createTerrainGeometry(
     forestCanopyByKey,
     vegetationDensityByKey,
     riverBankPresentation,
-    visualizeLegacyLakesAsLand
+    visualizeLegacyLakesAsLand,
+    northernSnow,
+    snowExcludedCellKeys
   });
   const geometry = new THREE.BufferGeometry();
   try {
@@ -992,6 +1014,16 @@ function createTerrainGeometry(
     geometry.setAttribute(
       'terrainSurfaceCue',
       new THREE.BufferAttribute(data.materialCues, 4)
+    );
+    if (
+      !data.snowCoverage
+      || data.snowCoverage.length !== data.vertexCount
+    ) {
+      throw new Error('REALM_TERRAIN_SNOW_ATTRIBUTE_ATTESTATION_FAILED');
+    }
+    geometry.setAttribute(
+      'terrainSnowCoverage',
+      new THREE.BufferAttribute(data.snowCoverage, 1)
     );
     geometry.setIndex(new THREE.BufferAttribute(data.indices, 1));
     geometry.computeVertexNormals();
@@ -1314,6 +1346,20 @@ function initializeRealmScene(
     dynamicShadows: renderPlan.dynamicShadows,
     shadowMapSize: renderPlan.shadowMapSize
   };
+  const snowPlayableRadius = Math.max(1, options.surface.playableMap.radius);
+  const northernSnow = createRealmNorthernSnowField({
+    worldSeed: presentationSurface.renderMap.worldSeed,
+    hexSize: HEX_SIZE,
+    playableRadius: snowPlayableRadius,
+    renderRadius: Math.max(snowPlayableRadius, presentationSurface.renderMap.radius)
+  });
+  const waterCellKeys = new Set((options.waterCells ?? []).map((cell) => cell.cellKey));
+  const snowCoverageSummary = summarizeRealmNorthernSnowCoverage(
+    northernSnow,
+    options.surface.playableMap.cells
+      .filter((cell) => !waterCellKeys.has(hexKey(cell.coord)))
+      .map((cell) => cell.coord)
+  );
   // Pure quality policy is needed by the first resize/projection callback;
   // initialize it before any observer or render loop can run.
   let castleLodPolicy = castleLodPolicyForQuality(runtimeQuality);
@@ -1598,7 +1644,9 @@ function initializeRealmScene(
     forestCanopyByTileKey,
     vegetationDensityByTileKey,
     riverBankPresentation,
-    noLakeRevisionActive
+    noLakeRevisionActive,
+    northernSnow,
+    waterCellKeys
   );
   cleanup.add(() => terrainGeometry.dispose());
   if (
@@ -1613,7 +1661,7 @@ function initializeRealmScene(
     terrainData.bounds,
     HEX_SIZE
   );
-  const terrainMaterialLayer = createRealmTerrainMaterial();
+  const terrainMaterialLayer = createRealmTerrainMaterial(runtimeQuality.id);
   cleanup.add(() => terrainMaterialLayer.dispose());
   const terrain = new THREE.Mesh(terrainGeometry, terrainMaterialLayer.material);
   terrain.name = 'hegemony-lowlands-surface';
@@ -2018,6 +2066,20 @@ function initializeRealmScene(
       terrainShaderEnhanced: terrainMaterialTelemetry.shaderEnhanced,
       terrainShaderFallbackActive: terrainMaterialTelemetry.shaderFallbackActive,
       terrainShaderCompileAttemptCount: terrainMaterialTelemetry.compileAttemptCount,
+      snowFieldRevision: northernSnow.revision,
+      snowClimateCellCountAbove015:
+        snowCoverageSummary.climateCellCountAbove015,
+      snowDeepCellCountAbove075: snowCoverageSummary.deepCellCountAbove075,
+      snowPlayableCoverageRatio: snowCoverageSummary.playableCoverageRatio,
+      snowDeepCoverageRatio: snowCoverageSummary.deepCoverageRatio,
+      snowInnerRadiusLeakCount: snowCoverageSummary.innerRadiusLeakCount,
+      snowVertexCoverageMin: terrainData.snowCoverageMetrics.minimum,
+      snowVertexCoverageMax: terrainData.snowCoverageMetrics.maximum,
+      snowVertexCoverageMean: terrainData.snowCoverageMetrics.mean,
+      snowAttributeBytes: terrainData.snowCoverageMetrics.attributeBytes,
+      snowFineReliefMode: terrainMaterialTelemetry.fineReliefMode,
+      snowShaderEnhanced: terrainMaterialTelemetry.shaderEnhanced,
+      snowShaderFallbackActive: terrainMaterialTelemetry.shaderFallbackActive,
       semanticCellCount: terrainSemantics.terrainKindsByKey.size,
       semanticKindCount: Object.values(terrainSemantics.terrainKindCounts)
         .filter((count) => count > 0).length,
