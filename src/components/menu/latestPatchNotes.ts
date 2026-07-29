@@ -6,7 +6,7 @@ export type LatestPatchNotes = Readonly<{
   alphaNotice: string;
 }>;
 
-const ALPHA_0_3_24_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+const ALPHA_0_3_25_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '29 JUL 2026',
   title: 'THE LIVING REALM',
   summary:
@@ -17,7 +17,7 @@ const ALPHA_0_3_24_PATCH_NOTES: LatestPatchNotes = Object.freeze({
     'River records can be followed one cell at a time upstream or downstream, with explicit source, mouth, and camera-focus actions.'
   ]),
   alphaNotice:
-    'Alpha 0.3.24 remains an unfinished, evolving world. This presentation release does not change Worker routes, timings, ownership, resources, balances, or persistent world authority.'
+    'Alpha 0.3.25 remains an unfinished, evolving world. This presentation release does not change Worker routes, timings, ownership, resources, balances, or persistent world authority.'
 });
 
 const ALPHA_0_3_18_PATCH_NOTES: LatestPatchNotes = Object.freeze({
@@ -106,7 +106,7 @@ const ALPHA_0_3_22_PATCH_NOTES: LatestPatchNotes = Object.freeze({
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
-    '0.3.24': ALPHA_0_3_24_PATCH_NOTES,
+    '0.3.25': ALPHA_0_3_25_PATCH_NOTES,
     '0.3.23': ALPHA_0_3_23_PATCH_NOTES,
     '0.3.22': ALPHA_0_3_22_PATCH_NOTES,
     '0.3.21': ALPHA_0_3_21_PATCH_NOTES,

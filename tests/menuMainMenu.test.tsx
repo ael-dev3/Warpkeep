@@ -22,7 +22,7 @@ function installMotionPreference(matches = false) {
 function getPatchNotesTrigger(options: { hidden?: boolean } = {}) {
   return screen.getByRole('button', {
     ...options,
-    name: 'Open patch notes for Warpkeep ALPHA 0.3.24'
+    name: 'Open patch notes for Warpkeep ALPHA 0.3.25'
   });
 }
 
@@ -247,7 +247,7 @@ describe('WarpkeepMainMenu', () => {
     fireEvent.click(patchNotes, { detail: 0 });
     const notes = screen.getByRole('region', { name: 'THE LIVING REALM' });
     expect(patchNotes.getAttribute('aria-expanded')).toBe('true');
-    expect(notes.textContent).toContain('LATEST PATCH · ALPHA 0.3.24');
+    expect(notes.textContent).toContain('LATEST PATCH · ALPHA 0.3.25');
     expect(notes.textContent).toContain('restrained sound');
     expect(notes.textContent).toContain('Every canonical river now fills its Water hex');
     expect(notes.textContent).toContain(

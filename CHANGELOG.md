@@ -6,7 +6,7 @@ full engineering record.
 
 ## [Unreleased]
 
-## [0.3.24] — 2026-07-29
+## [0.3.25] — 2026-07-29
 
 - Gave ordinary Realm interactions restrained procedural sound while preserving
   trusted browser gestures, the existing soundtrack, and exact mute behavior.
@@ -262,8 +262,8 @@ full engineering record.
   Lowlands, a first keep, Farcaster sign-in, and an admission-gated shared-world
   foundation.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.24...HEAD
-[0.3.24]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.23...v0.3.24
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.25...HEAD
+[0.3.25]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.24...v0.3.25
 [0.3.23]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.22...v0.3.23
 [0.3.22]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.21...v0.3.22
 [0.3.21]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.20...v0.3.21
