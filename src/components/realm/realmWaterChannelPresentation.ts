@@ -7,9 +7,9 @@ import {
 } from '../../game/map/hexCoordinates';
 
 /**
- * Public, presentation-only fields used to derive a river ribbon. Canonical
- * Water rows satisfy this shape, while the vegetation mask can deliberately
- * pass a narrower structural view of the same rows.
+ * Public, presentation-only fields used to derive an internal center-current
+ * lane. Canonical Water rows satisfy this shape; the complete authoritative
+ * hex remains Water regardless of this lane.
  */
 export type RealmWaterChannelCell = Readonly<{
   cellKey: string;
@@ -75,8 +75,8 @@ function normalizedDirection(
 
 /**
  * Width is deterministic and monotonic in the reviewed hydrology fields. It
- * remains comfortably inside a pointy hex's inradius, including the widest
- * mouth, so the presentation never invents Water outside canonical cells.
+ * remains comfortably inside a pointy hex's inradius. It may tune current,
+ * foam, or color concentration, but never defines the physical Water extent.
  */
 export function realmWaterChannelHalfWidth(
   cell: RealmWaterChannelCell,
@@ -260,9 +260,9 @@ function bodySections(
 }
 
 /**
- * Build one stable centerline per authoritative river body. Invalid bodies are
- * retained as explicit full-cell fallbacks rather than being partly rendered
- * or silently dropped.
+ * Build one stable internal flow lane per authoritative river body. Invalid
+ * bodies retain explicit topology-fallback metadata while their cells still
+ * render as complete Water hexes.
  */
 export function createRealmWaterChannelPlan(
   values: readonly RealmWaterChannelCell[],

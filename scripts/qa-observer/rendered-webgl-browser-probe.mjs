@@ -24,6 +24,12 @@ import {
   RENDERED_WEBGL_QA_ROUTE,
   renderedWebglQaUrl,
 } from './rendered-webgl-qa-contract.mjs';
+import { applyRenderedWebglSfxInteraction } from './rendered-webgl-sfx-lifecycle.mjs';
+
+export {
+  applyRenderedWebglSfxInteraction,
+  parseRenderedWebglSfxEvidence,
+} from './rendered-webgl-sfx-lifecycle.mjs';
 
 // The journey lane is dynamically loaded during the probe. Keep its shared
 // screenshot reducer in a leaf module rather than letting it import this CLI
@@ -201,6 +207,7 @@ const RENDERED_WEBGL_QA_MAP_GESTURE_CASES = new Map([
   ['mobile-balanced-persistent-labels', true],
 ]);
 const RENDERED_WEBGL_QA_LABEL_KEYBOARD_CASE_ID = 'desktop-high';
+const RENDERED_WEBGL_QA_SFX_CASE_ID = 'desktop-balanced-player';
 const RENDERED_WEBGL_QA_RESOURCE_OCCUPANT_CASE_IDS = new Set([
   'desktop-balanced',
   'desktop-balanced-player',
@@ -765,6 +772,7 @@ export function headlessChromeProbeContract(profileDirectory) {
       '--disable-search-engine-choice-screen',
       '--disable-sync',
       '--metrics-recording-only',
+      '--mute-audio',
       '--no-default-browser-check',
       '--no-first-run',
       '--no-proxy-server',
@@ -1586,15 +1594,27 @@ export function parseRenderedWebglWaterOverviewEvidence(value) {
     riverChannelSegmentCount: 1_200,
     riverFallbackBodyCount: 0,
     riverFallbackCellCount: 0,
+    riverFullCellCount: 400,
+    riverFullCellTriangleCount: 2_400,
+    riverBankEdgeCount: 1_601,
+    riverSharedEdgeCount: 388,
+    riverMouthEdgeCount: 23,
+    riverIncompleteCellCount: 0,
+    riverOverlappingPhysicalTriangleCount: 0,
     riverMouthConnectionCount: 12,
     routeDrawCalls: 0,
     routeSegments: 0,
     routeTriangles: 0,
     routeVisible: 0,
     waterDrawCalls: 3,
+    waterNavigationIssueCount: 0,
+    waterNavigationNodeCount: 1_852,
+    waterNavigationOceanNodeCount: 1_452,
+    waterNavigationRiverNodeCount: 400,
+    waterNavigationStatus: 'exact',
     waterPresentation: 'ready',
     waterShaderFallbackCount: 0,
-    waterTriangles: 25_998,
+    waterTriangles: 21_198,
   });
   if (!exactMessageKeys(candidate, new Set(Object.keys(expected)))) {
     throw new TypeError('Invalid rendered WebGL Water overview evidence shape.');
@@ -2675,8 +2695,11 @@ export class DevtoolsPipeSession {
           pending.resolve({});
           return;
         }
+        const errorCode = Number.isSafeInteger(message.error?.code)
+          ? ` (${message.error.code})`
+          : '';
         pending.reject(new Error(
-          `Chrome DevTools ${pending.method} command failed.`
+          `Chrome DevTools ${pending.method} command failed${errorCode}.`
         ));
         this.#fail('Chrome DevTools command failed.');
         return;
@@ -2865,7 +2888,7 @@ export class DevtoolsPipeSession {
     return new Promise((resolveCommand, rejectCommand) => {
       const timeout = setTimeout(() => {
         if (!this.#pending.has(id)) return;
-        this.#fail('Chrome DevTools command timed out.');
+        this.#fail(`Chrome DevTools command ${method} timed out.`);
       }, timeoutMilliseconds);
       this.#pending.set(id, {
         method,
@@ -4828,8 +4851,8 @@ export async function applyRenderedWebglPresentationBandInteraction(session) {
 /**
  * Replays the reported upper-right overview using only ordinary camera input.
  * The synthetic active-Worker fixture keeps route reconciliation present while
- * proving that overview policy suppresses its ribbon and retains the canonical
- * terrain-following river channel without a fallback or shader failure.
+ * proving that overview policy suppresses its route ribbon and retains the
+ * canonical full-cell river surface without a fallback or shader failure.
  */
 export async function applyRenderedWebglWaterOverviewInteraction(session) {
   const targetEvaluation = await session.command('Runtime.evaluate', {
@@ -4933,6 +4956,12 @@ export async function applyRenderedWebglWaterOverviewInteraction(session) {
           ? Number(value)
           : null;
       };
+      const rootInteger = (name) => {
+        const value = root.getAttribute(name);
+        return typeof value === 'string' && /^(?:0|[1-9]\\d*)$/u.test(value)
+          ? Number(value)
+          : null;
+      };
       const firstCameraStateToken =
         canvas.getAttribute('data-realm-camera-state-token');
       await new Promise((resolve) => requestAnimationFrame(() => (
@@ -4964,6 +4993,20 @@ export async function applyRenderedWebglWaterOverviewInteraction(session) {
           integer('data-water-river-fallback-body-count'),
         riverFallbackCellCount:
           integer('data-water-river-fallback-cell-count'),
+        riverFullCellCount:
+          integer('data-water-river-full-cell-count'),
+        riverFullCellTriangleCount:
+          integer('data-water-river-full-cell-triangle-count'),
+        riverBankEdgeCount:
+          integer('data-water-river-bank-edge-count'),
+        riverSharedEdgeCount:
+          integer('data-water-river-shared-edge-count'),
+        riverMouthEdgeCount:
+          integer('data-water-river-mouth-edge-count'),
+        riverIncompleteCellCount:
+          integer('data-water-river-incomplete-cell-count'),
+        riverOverlappingPhysicalTriangleCount:
+          integer('data-water-river-overlapping-physical-triangle-count'),
         riverMouthConnectionCount:
           integer('data-water-river-mouth-connection-count'),
         routeDrawCalls:
@@ -4975,6 +5018,16 @@ export async function applyRenderedWebglWaterOverviewInteraction(session) {
         routeVisible:
           integer('data-realm-worker-visible-route-count'),
         waterDrawCalls: integer('data-water-draw-calls'),
+        waterNavigationIssueCount:
+          rootInteger('data-water-navigation-issue-count'),
+        waterNavigationNodeCount:
+          rootInteger('data-water-navigation-node-count'),
+        waterNavigationOceanNodeCount:
+          rootInteger('data-water-navigation-ocean-node-count'),
+        waterNavigationRiverNodeCount:
+          rootInteger('data-water-navigation-river-node-count'),
+        waterNavigationStatus:
+          root.getAttribute('data-water-navigation-status'),
         waterPresentation: canvas.getAttribute('data-water-presentation'),
         waterShaderFallbackCount:
           integer('data-water-shader-fallback-count'),
@@ -5555,8 +5608,8 @@ export async function applyRenderedWebglCaseInteraction(
     throw new Error('Invalid rendered WebGL QA presentation mode.');
   }
   if (interaction === 'explore' && presentationMode === 'player') {
-    const evaluation = await session.command('Runtime.evaluate', {
-      expression: `(async () => {
+    const launcherEvaluation = await session.command('Runtime.evaluate', {
+      expression: `(() => {
         const visible = (element) => {
           if (!(element instanceof HTMLElement)) return false;
           const style = getComputedStyle(element);
@@ -5573,33 +5626,73 @@ export async function applyRenderedWebglCaseInteraction(
         }
         launcher.focus({ preventScroll: true });
         launcher.click();
-        const deadline = performance.now() + 2_000;
-        let target;
-        while (performance.now() <= deadline) {
-          const panel = document.querySelector('.realm-profile-menu__panel');
-          const targets = [...(panel?.querySelectorAll('nav button') ?? [])]
-            .filter((button) => (
-              button instanceof HTMLButtonElement
-              && !button.disabled
-              && visible(button)
-              && (button.querySelector('strong')?.textContent ?? '').trim()
-                === 'EXPLORE'
-            ));
-          if (targets.length === 1) {
-            target = targets[0];
-            break;
-          }
-          await new Promise((resolve) => setTimeout(resolve, 32));
-        }
-        if (!(target instanceof HTMLButtonElement)) return false;
-        target.focus({ preventScroll: true });
-        target.click();
         return true;
       })()`,
-      awaitPromise: true,
       returnByValue: true,
     });
-    if (evaluation?.exceptionDetails || evaluation?.result?.value !== true) {
+    if (
+      launcherEvaluation?.exceptionDetails
+      || launcherEvaluation?.result?.value !== true
+    ) {
+      throw new Error('Rendered WebGL QA player Explore launcher failed.');
+    }
+    const deadline = Date.now() + PRESENTATION_SETTLE_TIMEOUT_MILLISECONDS;
+    let targetReady = false;
+    while (Date.now() <= deadline && !targetReady) {
+      const targetEvaluation = await session.command('Runtime.evaluate', {
+        expression: `(() => {
+          const visible = (element) => {
+            if (!(element instanceof HTMLElement)) return false;
+            const style = getComputedStyle(element);
+            const bounds = element.getBoundingClientRect();
+            return style.display !== 'none'
+              && style.visibility !== 'hidden'
+              && Number(style.opacity || '1') > 0
+              && bounds.width > 0
+              && bounds.height > 0;
+          };
+          const panel = document.querySelector('.realm-profile-menu__panel');
+          const targets = [...(panel?.querySelectorAll('nav button') ?? [])].filter((button) => (
+            button instanceof HTMLButtonElement
+            && !button.disabled
+            && visible(button)
+            && (button.querySelector('strong')?.textContent ?? '').trim() === 'EXPLORE'
+          ));
+          return targets.length === 1;
+        })()`,
+        returnByValue: true,
+      });
+      if (targetEvaluation?.exceptionDetails) {
+        throw new Error('Rendered WebGL QA player Explore target evaluation failed.');
+      }
+      targetReady = targetEvaluation?.result?.value === true;
+      if (!targetReady) {
+        const remaining = deadline - Date.now();
+        if (remaining > 0) await delay(Math.min(40, remaining));
+      }
+    }
+    if (!targetReady) {
+      throw new Error('Rendered WebGL QA player Explore target did not settle.');
+    }
+    const activationEvaluation = await session.command('Runtime.evaluate', {
+      expression: `(() => {
+        const panel = document.querySelector('.realm-profile-menu__panel');
+        const targets = [...(panel?.querySelectorAll('nav button') ?? [])].filter((button) => (
+          button instanceof HTMLButtonElement
+          && !button.disabled
+          && (button.querySelector('strong')?.textContent ?? '').trim() === 'EXPLORE'
+        ));
+        if (targets.length !== 1) return false;
+        targets[0].focus({ preventScroll: true });
+        targets[0].click();
+        return true;
+      })()`,
+      returnByValue: true,
+    });
+    if (
+      activationEvaluation?.exceptionDetails
+      || activationEvaluation?.result?.value !== true
+    ) {
       throw new Error('Rendered WebGL QA player Explore interaction failed.');
     }
     return Object.freeze({});
@@ -8005,6 +8098,10 @@ async function runRenderedCase(session, probeCase, state, onQualityMetrics) {
     await navigateRenderedWebglCase(session, probeCase.url, state);
     await waitForAcceptedRenderedDom(session, baseline, state);
   }
+  if (probeCase.id === RENDERED_WEBGL_QA_SFX_CASE_ID) {
+    await applyRenderedWebglSfxInteraction(session);
+    await waitForAcceptedRenderedDom(session, baseline, state);
+  }
   if (RENDERED_WEBGL_QA_ACTIVE_FOREST_CASE_IDS.has(probeCase.id)) {
     await waitForRenderedWebglCameraSettled(session);
     const activeForestInteraction = await applyRenderedWebglActiveForestCameraInteraction(
@@ -8313,7 +8410,40 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
       }
       if (method === 'Target.targetCreated' || method === 'Target.targetInfoChanged') {
         const targetInfo = params?.targetInfo;
-        if (targetInfo?.targetId !== state.targetId) state.violation = 'target-id';
+        if (targetInfo?.targetId !== state.targetId) {
+          const targetUrlKind = targetInfo?.url === ''
+            ? 'empty'
+            : targetInfo?.url === 'about:blank'
+              ? 'blank'
+              : isAllowedRenderedWebglPageUrl(targetInfo?.url, loopbackOrigin)
+                ? 'allowed-local'
+                : typeof targetInfo?.url === 'string'
+                  && targetInfo.url.startsWith('chrome-error://')
+                  ? 'chrome-error'
+                  : typeof targetInfo?.url === 'string'
+                    && targetInfo.url.startsWith('chrome://')
+                    ? `chrome-${
+                      /^chrome:\/\/([a-z0-9-]+)/u.exec(targetInfo.url)?.[1]
+                        ?? 'invalid'
+                    }`
+                    : typeof targetInfo?.url === 'string'
+                      && targetInfo.url.startsWith('devtools://')
+                      ? 'devtools'
+                      : typeof targetInfo?.url === 'string'
+                        && targetInfo.url.startsWith('about:')
+                        ? 'about'
+                      : typeof targetInfo?.url === 'string'
+                        && /^https?:\/\//u.test(targetInfo.url)
+                        ? 'external-web'
+                        : typeof targetInfo?.url === 'string'
+                          && targetInfo.url.startsWith('blob:')
+                          ? 'blob'
+                          : typeof targetInfo?.url === 'string'
+                            && targetInfo.url.startsWith('data:')
+                            ? 'data'
+                            : 'other';
+          state.violation = `target-id-${String(targetInfo?.type ?? 'invalid')}-${targetUrlKind}`;
+        }
         else if (targetInfo?.type !== 'page') state.violation = 'target-type';
         else if (
           targetInfo.url !== ''

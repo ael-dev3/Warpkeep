@@ -37,6 +37,11 @@ export type TerrainColorContext = Readonly<{
   forestCanopy?: number;
   /** Continuous renderer-only ecology signal used when grass is hidden in overview. */
   vegetationDensity?: number;
+  /**
+   * Presentation-only wet-bank falloff sampled on land adjacent to a full-cell
+   * river. This never changes terrain identity, height, or passability.
+   */
+  riverBankInfluence?: number;
   /** Repaints legacy scenic lake cells as land; passability is unchanged. */
   visualizeLegacyLakeAsLand?: boolean;
   placements?: readonly TerrainStructurePlacement[];
@@ -195,6 +200,16 @@ export function sampleLowlandsColor(
         * (context.semanticColor ? 1 : cellInfluence)
         * (visualTerrainKind === 'forest' ? 0.18 : 0.13)
     );
+  }
+
+  const riverBankInfluence = clamp(context.riverBankInfluence ?? 0, 0, 1);
+  if (riverBankInfluence > 0) {
+    const wetSilt = mixColor(
+      hegemonyLowlandsSpec.palette.soil,
+      { r: 0.25, g: 0.31, b: 0.23 },
+      0.48
+    );
+    color = mixColor(color, wetSilt, riverBankInfluence * 0.58);
   }
 
   const placements = context.placements ?? EMPTY_TERRAIN_PLACEMENTS;

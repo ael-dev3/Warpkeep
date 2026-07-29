@@ -22,7 +22,9 @@ import {
 } from '../spacetime';
 import {
   WarpkeepAudioDirector,
+  WarpkeepSfxDirector,
   WARPKEEP_REALM_TO_MENU_TRANSITION_MS,
+  stopWarpkeepSfxVoices,
   type AudioScene,
   type WarpkeepAudioDirectorHandle
 } from './audio';
@@ -364,6 +366,7 @@ export function WarpkeepExperience() {
 
   const handleSignOut = useCallback(() => {
     clearPendingRealmDestination();
+    stopWarpkeepSfxVoices();
     backend.disconnect();
     if (phaseRef.current === 'realm') {
       fadeRealmAudioToMenuAndReset();
@@ -1358,6 +1361,7 @@ export function WarpkeepExperience() {
         scene={audioScene}
         preloadMenu={menuPreloadReady || audioScene === 'menu'}
       />
+      <WarpkeepSfxDirector muted={audioMuted} />
     </div>
   );
 }

@@ -19,6 +19,11 @@ vi.mock('../src/components/realm/realmMapPresentationHelpers', async (importOrig
 });
 
 import { RealmMapScreen } from '../src/components/realm/RealmMapScreen';
+import {
+  subscribeWarpkeepSfx,
+  type WarpkeepSfxEvent
+} from '../src/components/audio/sfxEvents';
+import { WATER_INSPECTION_FOLLOW_INTERVAL_MS } from '../src/components/realm/WaterInspectionPanel';
 import type { CreateRealmSceneOptions } from '../src/components/realm/createRealmScene';
 import { validateCanonicalGenesisSnapshot } from '../src/spacetime/canonicalGenesisSnapshot';
 import { WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION } from '../src/spacetime/warpkeepProtocol';
@@ -48,6 +53,7 @@ function sceneHandle() {
     getSceneBuildSequence: () => 1,
     focusCastle: noOp,
     locateCastle: noOp,
+    locateCell: vi.fn(),
     focusCell: vi.fn(),
     frameFoundingDistrict: noOp,
     focusKeep: noOp,
@@ -209,6 +215,12 @@ describe('Realm renderer recovery UI', () => {
     const options = sceneState.create.mock.calls[0]![0] as CreateRealmSceneOptions;
     const handle = sceneState.create.mock.results[0]!.value as ReturnType<typeof sceneHandle>;
     act(() => options.onCastlesReady?.(fixture.snapshot.castles.length));
+    const realm = screen.getByRole('main', { name: 'Hegemony realm' });
+    expect(realm.getAttribute('data-water-navigation-status')).toBe('exact');
+    expect(realm.getAttribute('data-water-navigation-node-count')).toBe('1852');
+    expect(realm.getAttribute('data-water-navigation-river-node-count')).toBe('400');
+    expect(realm.getAttribute('data-water-navigation-ocean-node-count')).toBe('1452');
+    expect(realm.getAttribute('data-water-navigation-issue-count')).toBe('0');
 
     const river = GENESIS_WATER_REVISION_ENABLED_CELLS_V1.find(
       (cell) => cell.regime === 'river'
@@ -216,6 +228,9 @@ describe('Realm renderer recovery UI', () => {
     const ocean = GENESIS_WATER_REVISION_ENABLED_CELLS_V1.find(
       (cell) => cell.regime === 'ocean' && cell.fogBand !== 'full'
     )!;
+    const cameraTargetBeforeSelection = realm.getAttribute(
+      'data-realm-camera-target-kind'
+    );
     for (const [cell, regime] of [[river, 'river'], [ocean, 'ocean']] as const) {
       act(() => options.onTargetSelect?.({
         kind: 'water-cell',
@@ -230,10 +245,120 @@ describe('Realm renderer recovery UI', () => {
       expect(record).not.toBeNull();
       expect(record?.dataset.waterRegime).toBe(regime);
       expect(record?.hasAttribute('data-water-cell-key')).toBe(false);
+      expect(realm.getAttribute('data-realm-camera-target-kind'))
+        .toBe(cameraTargetBeforeSelection);
     }
 
     expect(handle.focusCell).not.toHaveBeenCalled();
+    expect(handle.locateCell).not.toHaveBeenCalled();
     expect(handle.setSelectedWaterCellKey).toHaveBeenLastCalledWith(ocean.cellKey);
+  });
+
+  it('emits one material cue when an already-open world record is selected again', () => {
+    const fixture = createRenderedWebglQaFixtureRealm();
+    const events: WarpkeepSfxEvent[] = [];
+    const unsubscribe = subscribeWarpkeepSfx((batch) => events.push(...batch));
+    render(
+      <RealmMapScreen
+        identity={fixture.identity}
+        snapshot={fixture.snapshot}
+        onRequestReturn={vi.fn()}
+        resources={createReadyResourceState(fixture.identity.fid)}
+      />
+    );
+    const options = sceneState.create.mock.calls[0]![0] as CreateRealmSceneOptions;
+    const ownCastle = fixture.snapshot.ownCastle;
+    const target = {
+      kind: 'castle',
+      castleId: ownCastle.castleId,
+      coord: { q: ownCastle.q, r: ownCastle.r }
+    } as const;
+
+    act(() => {
+      options.onCastlesReady?.(fixture.snapshot.castles.length);
+      options.onTargetSelect?.(target);
+      options.onTargetSelect?.(target);
+    });
+    unsubscribe();
+
+    expect(events).toEqual([{ kind: 'select-keep' }]);
+  });
+
+  it('moves between river records camera-neutrally and locates only on explicit Focus Cell', () => {
+    vi.useFakeTimers();
+    const fixture = createRenderedWebglQaFixtureRealm();
+    render(
+      <RealmMapScreen
+        identity={fixture.identity}
+        snapshot={fixture.snapshot}
+        onRequestReturn={vi.fn()}
+        resources={createReadyResourceState(fixture.identity.fid)}
+      />
+    );
+    const options = sceneState.create.mock.calls[0]![0] as CreateRealmSceneOptions;
+    const handle = sceneState.create.mock.results[0]!.value as ReturnType<typeof sceneHandle>;
+    act(() => options.onCastlesReady?.(fixture.snapshot.castles.length));
+    const river = GENESIS_WATER_REVISION_ENABLED_CELLS_V1.find((cell) => {
+      if (cell.regime !== 'river' || !cell.downstreamWaterCellKey) return false;
+      return GENESIS_WATER_REVISION_ENABLED_CELLS_V1.some((candidate) => (
+        candidate.cellKey === cell.downstreamWaterCellKey
+        && candidate.regime === 'river'
+        && candidate.downstreamWaterCellKey !== undefined
+      ));
+    })!;
+
+    act(() => options.onTargetSelect?.({
+      kind: 'water-cell',
+      cellKey: river.cellKey,
+      bodyId: river.bodyId,
+      regime: 'river',
+      coord: { q: river.q, r: river.r }
+    }));
+    const cameraTargetBeforeRecordNavigation = screen
+      .getByRole('main', { name: 'Hegemony realm' })
+      .getAttribute('data-realm-camera-target-kind');
+    const nextButton = screen.getByRole('button', {
+      name: 'Next downstream river cell'
+    });
+    nextButton.focus();
+    fireEvent.click(nextButton);
+
+    expect(handle.locateCell).not.toHaveBeenCalled();
+    expect(handle.focusCell).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(nextButton);
+    expect(handle.setSelectedWaterCellKey)
+      .toHaveBeenLastCalledWith(river.downstreamWaterCellKey);
+    expect(screen.getByRole('main', { name: 'Hegemony realm' })
+      .getAttribute('data-realm-camera-target-kind'))
+      .toBe(cameraTargetBeforeRecordNavigation);
+
+    const focusButton = screen.getByRole('button', {
+      name: 'Focus river cell on map'
+    });
+    focusButton.focus();
+    fireEvent.click(focusButton);
+    const downstream = GENESIS_WATER_REVISION_ENABLED_CELLS_V1.find(
+      (cell) => cell.cellKey === river.downstreamWaterCellKey
+    )!;
+    expect(handle.locateCell).toHaveBeenCalledExactlyOnceWith({
+      q: downstream.q,
+      r: downstream.r
+    });
+    expect(screen.getByRole('main', { name: 'Hegemony realm' })
+      .getAttribute('data-realm-camera-target-kind')).toBe('cell-location');
+    expect(document.activeElement).toBe(focusButton);
+
+    const followButton = screen.getByRole('button', {
+      name: 'Follow river downstream'
+    });
+    followButton.focus();
+    fireEvent.click(followButton);
+    act(() => vi.advanceTimersByTime(WATER_INSPECTION_FOLLOW_INTERVAL_MS));
+    expect(handle.setSelectedWaterCellKey)
+      .toHaveBeenLastCalledWith(downstream.downstreamWaterCellKey);
+    expect(document.activeElement).toBe(followButton);
+    expect(handle.locateCell).toHaveBeenCalledTimes(1);
+    expect(handle.focusCell).not.toHaveBeenCalled();
   });
 
   it('opens every static resource record without invoking a camera focus', async () => {

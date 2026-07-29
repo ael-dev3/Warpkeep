@@ -15,6 +15,7 @@ import {
   applyRenderedWebglLabelKeyboardInteraction,
   applyRenderedWebglOccupancyStressInteraction,
   applyRenderedWebglResourceOccupantInteraction,
+  applyRenderedWebglSfxInteraction,
   applyRenderedWebglWaterOverviewInteraction,
   attestHeadlessChromeCodeSignature,
   closeRenderedWebglLoopbackServer,
@@ -35,6 +36,7 @@ import {
   parseRenderedWebglOccupancyStressEvidence,
   parseRenderedWebglQualityMetrics,
   parseRenderedWebglResourceOccupantEvidence,
+  parseRenderedWebglSfxEvidence,
   parseRenderedWebglWaterOverviewEvidence,
   RENDERED_WEBGL_QA_CHROME,
   RENDERED_WEBGL_QA_CHROME_APP,
@@ -82,6 +84,109 @@ const EXPECTED_LOCAL_VITE_FS_DENY = Object.freeze([
   '**/.wrangler/**',
   '**/.secrets/**'
 ]);
+
+function renderedWebglSfxSession(options: Readonly<{
+  failHiddenEmission?: boolean;
+  failOfflineCorpus?: boolean;
+}> = {}) {
+  const snapshot = {
+    acceptedLogicalVoiceCount: 0,
+    activeVoices: 0,
+    contextCreated: false,
+    contextState: 'unavailable',
+    hidden: false,
+    muted: false,
+    voiceCap: 16,
+    waterAmbienceActive: false,
+    waterAmbienceRegime: 'none'
+  };
+  let audioSwitchVisible = false;
+  const actions: string[] = [];
+  const command = vi.fn(async (
+    method: string,
+    parameters?: Readonly<Record<string, unknown>>
+  ) => {
+    if (method === 'Input.dispatchMouseEvent') {
+      if (parameters?.type === 'mouseReleased') {
+        snapshot.contextCreated = true;
+        snapshot.contextState = 'running';
+        snapshot.acceptedLogicalVoiceCount += 1;
+        snapshot.activeVoices = 1;
+      }
+      return {};
+    }
+    if (method === 'Input.dispatchKeyEvent') {
+      if (parameters?.type === 'keyDown') snapshot.contextState = 'running';
+      return {};
+    }
+    if (method !== 'Runtime.evaluate' || typeof parameters?.expression !== 'string') {
+      return {};
+    }
+    const expression = parameters.expression;
+    if (expression.includes('getBoundingClientRect()')) {
+      return { result: { type: 'object', value: { x: 720, y: 450 } } };
+    }
+    if (expression.startsWith('Promise.all([')) {
+      actions.push('install');
+      return { result: { type: 'object', value: { ...snapshot } } };
+    }
+    const bridgeCall = expression.match(/bridge\.([A-Za-z]+)\(\)/u)?.[1];
+    if (!bridgeCall) {
+      return { result: { type: 'object', value: null } };
+    }
+    actions.push(bridgeCall);
+    let value: unknown = true;
+    switch (bridgeCall) {
+      case 'snapshot':
+        value = { ...snapshot };
+        break;
+      case 'emitProbeVoice':
+        if (snapshot.hidden && options.failHiddenEmission) {
+          throw new Error('synthetic hidden emission failure');
+        }
+        if (!snapshot.hidden && !snapshot.muted && snapshot.contextState === 'running') {
+          snapshot.acceptedLogicalVoiceCount += 1;
+          snapshot.activeVoices += 1;
+        }
+        break;
+      case 'renderOfflineCorpus':
+        value = !options.failOfflineCorpus;
+        break;
+      case 'openSettings':
+        audioSwitchVisible = true;
+        break;
+      case 'hasAudioSwitch':
+        value = audioSwitchVisible;
+        break;
+      case 'toggleAudio':
+        snapshot.muted = !snapshot.muted;
+        break;
+      case 'hideVisibility':
+        snapshot.hidden = true;
+        snapshot.activeVoices = 0;
+        snapshot.contextState = 'suspended';
+        break;
+      case 'restoreVisibility':
+        snapshot.hidden = false;
+        break;
+      case 'settingsClosed':
+      case 'closeProfileMenuIfPresent':
+      case 'profileMenuClosed':
+        break;
+      case 'destroy':
+        break;
+      default:
+        value = false;
+    }
+    return {
+      result: {
+        type: value !== null && typeof value === 'object' ? 'object' : typeof value,
+        value
+      }
+    };
+  });
+  return { actions, command, snapshot };
+}
 
 function cdpPipeFrame(value: unknown) {
   return Buffer.from(`${JSON.stringify(value)}\0`, 'utf8');
@@ -445,6 +550,174 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(source).toContain("method === 'Target.targetCrashed'");
     expect(source).toContain("method === 'Target.detachedFromTarget'");
     expect(source).toContain("method === 'Inspector.detached'");
+  });
+
+  it('requires a real trusted SFX lifecycle without exposing event payloads', () => {
+    const evidence = {
+      exactLogicalVoice: true,
+      hiddenSuspended: true,
+      hiddenSuppressed: true,
+      mutedSuppressed: true,
+      offlineCorpusRendered: true,
+      pregestureAbsent: true,
+      restoredTrustedResume: true,
+      trustedActivation: true
+    };
+    expect(parseRenderedWebglSfxEvidence(evidence)).toEqual(evidence);
+    expect(() => parseRenderedWebglSfxEvidence({
+      ...evidence,
+      exactLogicalVoice: false
+    })).toThrow(/SFX evidence/i);
+    expect(() => parseRenderedWebglSfxEvidence({
+      ...evidence,
+      eventKind: 'ui-open'
+    })).toThrow(/SFX evidence/i);
+    expect(() => parseRenderedWebglSfxEvidence({
+      ...evidence,
+      offlineCorpusRendered: false
+    })).toThrow(/SFX evidence/i);
+
+    const source = readFileSync(resolve(
+      process.cwd(),
+      'scripts/qa-observer/rendered-webgl-browser-probe.mjs'
+    ), 'utf8');
+    const lifecycleSource = readFileSync(resolve(
+      process.cwd(),
+      'scripts/qa-observer/rendered-webgl-sfx-lifecycle.mjs'
+    ), 'utf8');
+    const harnessSource = readFileSync(resolve(
+      process.cwd(),
+      'src/dev/RenderedWebglQaHarness.tsx'
+    ), 'utf8');
+    expect(source).toContain(
+      "const RENDERED_WEBGL_QA_SFX_CASE_ID = 'desktop-balanced-player'"
+    );
+    expect(source).toContain(
+      "from './rendered-webgl-sfx-lifecycle.mjs'"
+    );
+    expect(source).toMatch(
+      /probeCase\.id === RENDERED_WEBGL_QA_SFX_CASE_ID[\s\S]*applyRenderedWebglSfxInteraction/
+    );
+    expect(source).not.toContain('__warpkeepRenderedWebglSfxLifecycleV1');
+    expect(source).not.toContain("import('/src/dev/RenderedWebglQaHarness.tsx')");
+    expect(source).not.toContain('waitForRenderedWebglSfxSnapshot');
+    expect(lifecycleSource).not.toContain(
+      "from './rendered-webgl-browser-probe.mjs'"
+    );
+    expect(lifecycleSource).toContain(
+      "import('/src/dev/RenderedWebglQaHarness.tsx')"
+    );
+    expect(lifecycleSource).not.toContain(
+      "import('/src/components/audio/sfxEvents.ts')"
+    );
+    expect(lifecycleSource).toContain('harness.emitRenderedWebglQaProbeSfx()');
+    expect(lifecycleSource).toContain(
+      'harness.proveRenderedWebglQaOfflineSfxCorpus()'
+    );
+    expect(lifecycleSource).not.toContain("kind: 'command-failed'");
+    expect(lifecycleSource).not.toContain('measureWarpkeepAudioBuffer');
+    expect(lifecycleSource).not.toContain('renderWarpkeepSfxEventOffline');
+    expect(lifecycleSource).not.toContain('spectralCentroidHz');
+    expect(harnessSource).toContain('measureWarpkeepAudioBuffer(buffer)');
+    expect(harnessSource).toContain('renderWarpkeepSfxEventOffline(event, 22_050)');
+    expect(harnessSource).toContain(
+      'WARPKEEP_SFX_EVENT_KINDS.every((kind) => renderedKinds.has(kind))'
+    );
+    expect(harnessSource).toContain(
+      "{ kind: 'ui-press', emphasis: 'quiet' }"
+    );
+    expect(harnessSource).toContain(
+      "{ kind: 'ui-press', emphasis: 'primary' }"
+    );
+    expect(harnessSource).toContain(
+      "{ kind: 'select-water', regime: 'ocean', screenX: 400 }"
+    );
+    expect(lifecycleSource).not.toContain('new MessageChannel()');
+    expect(lifecycleSource).not.toContain('const yieldTask =');
+    expect(lifecycleSource).toContain('waitForRenderedWebglSfxSnapshot');
+    expect(lifecycleSource).toContain(
+      'await delay(Math.min(RENDERED_WEBGL_QA_SFX_POLL_INTERVAL_MILLISECONDS'
+    );
+    expect(lifecycleSource).toContain(
+      "['restoreVisibility', 'final visibility restoration']"
+    );
+    expect(lifecycleSource).toContain("['destroy', 'bridge teardown']");
+    expect(lifecycleSource).toMatch(
+      /finally \{[\s\S]*cleanupRenderedWebglSfxBridge\(session\)/
+    );
+    expect(lifecycleSource).toMatch(
+      /mousePressed[\s\S]*mouseReleased[\s\S]*applyRenderedWebglSfxInteraction/
+    );
+    expect(lifecycleSource).toContain(
+      "document.dispatchEvent(new Event('visibilitychange'))"
+    );
+    expect(lifecycleSource).toContain("snapshot.contextState === 'suspended'");
+    expect(lifecycleSource).toContain(
+      "'.warpkeep-settings__actions button:last-child'"
+    );
+  });
+
+  it('drives SFX lifecycle polling from the host and restores visibility before teardown', async () => {
+    const session = renderedWebglSfxSession();
+
+    await expect(applyRenderedWebglSfxInteraction(session)).resolves.toEqual({
+      exactLogicalVoice: true,
+      hiddenSuspended: true,
+      hiddenSuppressed: true,
+      mutedSuppressed: true,
+      offlineCorpusRendered: true,
+      pregestureAbsent: true,
+      restoredTrustedResume: true,
+      trustedActivation: true
+    });
+
+    const runtimeEvaluations = session.command.mock.calls.filter(([method]) => (
+      method === 'Runtime.evaluate'
+    ));
+    expect(runtimeEvaluations.filter(([, parameters]) => (
+      parameters?.awaitPromise === true
+    ))).toHaveLength(2);
+    expect(runtimeEvaluations.every(([, parameters]) => (
+      typeof parameters?.expression !== 'string'
+      || (
+        !parameters.expression.includes('new MessageChannel()')
+        && !parameters.expression.includes('requestAnimationFrame')
+        && !parameters.expression.includes('setTimeout')
+      )
+    ))).toBe(true);
+    expect(session.actions.filter((action) => action === 'restoreVisibility').length)
+      .toBeGreaterThanOrEqual(2);
+    expect(session.actions.at(-1)).toBe('destroy');
+    expect(session.command.mock.calls.filter(([method]) => (
+      method === 'Input.dispatchMouseEvent'
+    ))).toHaveLength(6);
+    expect(session.command.mock.calls.filter(([method]) => (
+      method === 'Input.dispatchKeyEvent'
+    ))).toHaveLength(0);
+  });
+
+  it('restores the visibility override when a hidden-phase SFX command fails', async () => {
+    const session = renderedWebglSfxSession({ failHiddenEmission: true });
+
+    await expect(applyRenderedWebglSfxInteraction(session)).rejects.toThrow(
+      /hidden logical voice emission/i
+    );
+    expect(session.snapshot.hidden).toBe(false);
+    expect(session.actions).toContain('restoreVisibility');
+    expect(session.actions.at(-1)).toBe('destroy');
+  });
+
+  it('tears down before any live gesture when the anonymous offline corpus proof fails', async () => {
+    const session = renderedWebglSfxSession({ failOfflineCorpus: true });
+
+    await expect(applyRenderedWebglSfxInteraction(session)).rejects.toThrow(
+      /offline corpus proof failed/i
+    );
+    expect(session.actions).toContain('renderOfflineCorpus');
+    expect(session.actions.at(-1)).toBe('destroy');
+    expect(session.command.mock.calls.filter(([method]) => (
+      method === 'Input.dispatchMouseEvent'
+    ))).toHaveLength(0);
   });
 
   it('enters the active forest range through deterministic keyboard focus and bounded canvas wheel input', async () => {
@@ -1244,15 +1517,27 @@ describe('rendered WebGL headless browser probe contract', () => {
       riverChannelSegmentCount: 1_200,
       riverFallbackBodyCount: 0,
       riverFallbackCellCount: 0,
+      riverFullCellCount: 400,
+      riverFullCellTriangleCount: 2_400,
+      riverBankEdgeCount: 1_601,
+      riverSharedEdgeCount: 388,
+      riverMouthEdgeCount: 23,
+      riverIncompleteCellCount: 0,
+      riverOverlappingPhysicalTriangleCount: 0,
       riverMouthConnectionCount: 12,
       routeDrawCalls: 0,
       routeSegments: 0,
       routeTriangles: 0,
       routeVisible: 0,
       waterDrawCalls: 3,
+      waterNavigationIssueCount: 0,
+      waterNavigationNodeCount: 1_852,
+      waterNavigationOceanNodeCount: 1_452,
+      waterNavigationRiverNodeCount: 400,
+      waterNavigationStatus: 'exact',
       waterPresentation: 'ready',
       waterShaderFallbackCount: 0,
-      waterTriangles: 25_998
+      waterTriangles: 21_198
     } as const;
     expect(parseRenderedWebglWaterOverviewEvidence(overviewEvidence)).toEqual(
       overviewEvidence
@@ -1260,6 +1545,10 @@ describe('rendered WebGL headless browser probe contract', () => {
     for (const invalidEvidence of [
       { ...overviewEvidence, routeVisible: 1 },
       { ...overviewEvidence, riverFallbackBodyCount: 1 },
+      { ...overviewEvidence, riverIncompleteCellCount: 1 },
+      { ...overviewEvidence, riverOverlappingPhysicalTriangleCount: 1 },
+      { ...overviewEvidence, waterNavigationIssueCount: 1 },
+      { ...overviewEvidence, waterNavigationStatus: 'partial' },
       { ...overviewEvidence, cameraStateAttested: false },
       { ...overviewEvidence, privateRoutePoint: 'must-not-cross-the-boundary' }
     ]) {
@@ -1450,7 +1739,10 @@ describe('rendered WebGL headless browser probe contract', () => {
   });
 
   it('opens player Explore through the portrait menu without restoring a direct map control', async () => {
-    const command = vi.fn(async (method: string) => method === 'Runtime.evaluate'
+    const command = vi.fn(async (
+      method: string,
+      _parameters?: Readonly<Record<string, unknown>>
+    ) => method === 'Runtime.evaluate'
       ? { result: { type: 'boolean', value: true } }
       : {});
 
@@ -1460,7 +1752,6 @@ describe('rendered WebGL headless browser probe contract', () => {
       'player'
     )).resolves.toEqual({});
     expect(command).toHaveBeenCalledWith('Runtime.evaluate', expect.objectContaining({
-      awaitPromise: true,
       expression: expect.stringContaining("document.querySelector('.realm-profile-trigger')"),
       returnByValue: true
     }));
@@ -1471,16 +1762,6 @@ describe('rendered WebGL headless browser probe contract', () => {
     }));
     expect(command).toHaveBeenCalledWith('Runtime.evaluate', expect.objectContaining({
       expression: expect.stringContaining("=== 'EXPLORE'")
-    }));
-    expect(command).toHaveBeenCalledWith('Runtime.evaluate', expect.objectContaining({
-      expression: expect.stringContaining(
-        'const deadline = performance.now() + 2_000'
-      )
-    }));
-    expect(command).toHaveBeenCalledWith('Runtime.evaluate', expect.objectContaining({
-      expression: expect.stringContaining(
-        'await new Promise((resolve) => setTimeout(resolve, 32))'
-      )
     }));
     const source = readFileSync(resolve(
       process.cwd(),
@@ -1497,6 +1778,11 @@ describe('rendered WebGL headless browser probe contract', () => {
       source.indexOf('async function runRenderedOccupancyStressCase')
     );
     expect(navigationSource).not.toContain('await delay(150);');
+    expect(command.mock.calls.filter(([method]) => method === 'Runtime.evaluate'))
+      .toHaveLength(3);
+    expect(command.mock.calls.every(([, parameters]) => (
+      parameters?.awaitPromise !== true
+    ))).toBe(true);
     await expect(applyRenderedWebglCaseInteraction(
       { command },
       'explore',
@@ -1766,6 +2052,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       '--disable-field-trial-config',
       '--disable-sync',
       '--metrics-recording-only',
+      '--mute-audio',
       '--no-first-run',
       '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1',
       '--use-mock-keychain',
@@ -2057,7 +2344,27 @@ describe('rendered WebGL headless browser probe contract', () => {
       ['Fetch.continueRequest', null]
     ] as const) {
       const rejected = await replyWithError(method, error);
-      await expect(rejected.command).rejects.toThrow(/command failed/i);
+      const failure = await rejected.command.then(
+        () => null,
+        (reason: unknown) => reason
+      );
+      expect(failure).toBeInstanceOf(Error);
+      if (!(failure instanceof Error)) throw new Error('missing CDP failure');
+      expect(failure.message).toMatch(/command failed/i);
+      if (
+        error !== null
+        && typeof error === 'object'
+        && Number.isSafeInteger(error.code)
+      ) {
+        expect(failure.message).toContain(`(${String(error.code)})`);
+      }
+      if (
+        error !== null
+        && typeof error === 'object'
+        && typeof error.message === 'string'
+      ) {
+        expect(failure.message).not.toContain(error.message);
+      }
       await expect(rejected.attached.pipe.command('Page.enable'))
         .rejects.toThrow(/unavailable/i);
       rejected.attached.pipe.close();

@@ -6,6 +6,20 @@ export type LatestPatchNotes = Readonly<{
   alphaNotice: string;
 }>;
 
+const ALPHA_0_3_25_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: '29 JUL 2026',
+  title: 'THE LIVING REALM',
+  summary:
+    'The Realm now answers ordinary actions with restrained sound, while full-cell rivers carry a clearer path from their sources to the sea.',
+  highlights: Object.freeze([
+    'Interface, keep, resource, Water, and confirmed Worker actions receive a small procedural sound vocabulary that respects trusted browser gestures and the existing mute setting.',
+    'Every canonical river now fills its Water hex, with adjacent banks, directional flow, and a distinct shallow-river character from the surrounding ocean.',
+    'River records can be followed one cell at a time upstream or downstream, with explicit source, mouth, and camera-focus actions.'
+  ]),
+  alphaNotice:
+    'Alpha 0.3.25 remains an unfinished, evolving world. This presentation release does not change Worker routes, timings, ownership, resources, balances, or persistent world authority.'
+});
+
 const ALPHA_0_3_24_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '29 JUL 2026',
   title: 'WAGONS TAKE THE ROAD',
@@ -106,6 +120,7 @@ const ALPHA_0_3_22_PATCH_NOTES: LatestPatchNotes = Object.freeze({
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
+    '0.3.25': ALPHA_0_3_25_PATCH_NOTES,
     '0.3.24': ALPHA_0_3_24_PATCH_NOTES,
     '0.3.23': ALPHA_0_3_23_PATCH_NOTES,
     '0.3.22': ALPHA_0_3_22_PATCH_NOTES,

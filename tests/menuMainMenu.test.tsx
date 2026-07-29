@@ -22,7 +22,7 @@ function installMotionPreference(matches = false) {
 function getPatchNotesTrigger(options: { hidden?: boolean } = {}) {
   return screen.getByRole('button', {
     ...options,
-    name: 'Open patch notes for Warpkeep ALPHA 0.3.24'
+    name: 'Open patch notes for Warpkeep ALPHA 0.3.25'
   });
 }
 
@@ -131,11 +131,11 @@ describe('WarpkeepMainMenu', () => {
 
     act(() => patchNotes.focus());
     expect(screen.getByRole('status').textContent).toContain('living frontier');
-    expect(screen.queryByRole('region', { name: 'WAGONS TAKE THE ROAD' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE LIVING REALM' })).toBeNull();
 
     fireEvent.click(patchNotes, { detail: 0 });
     expect(screen.queryByRole('status')).toBeNull();
-    expect(screen.getByRole('region', { name: 'WAGONS TAKE THE ROAD' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE LIVING REALM' })).not.toBeNull();
     expect(document.activeElement).toBe(patchNotes);
   });
 
@@ -239,19 +239,19 @@ describe('WarpkeepMainMenu', () => {
 
     expect(patchNotes.getAttribute('aria-expanded')).toBe('false');
     expect(patchNotes.getAttribute('aria-controls')).toBe('warpkeep-latest-patch-notes');
-    expect(screen.queryByRole('region', { name: 'WAGONS TAKE THE ROAD' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE LIVING REALM' })).toBeNull();
 
     act(() => patchNotes.focus());
-    expect(screen.queryByRole('region', { name: 'WAGONS TAKE THE ROAD' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE LIVING REALM' })).toBeNull();
 
     fireEvent.click(patchNotes, { detail: 0 });
-    const notes = screen.getByRole('region', { name: 'WAGONS TAKE THE ROAD' });
+    const notes = screen.getByRole('region', { name: 'THE LIVING REALM' });
     expect(patchNotes.getAttribute('aria-expanded')).toBe('true');
-    expect(notes.textContent).toContain('LATEST PATCH · ALPHA 0.3.24');
-    expect(notes.textContent).toContain('continuous, speed-matched locomotion cycle');
-    expect(notes.textContent).toContain('distance-driven wheel rotation');
+    expect(notes.textContent).toContain('LATEST PATCH · ALPHA 0.3.25');
+    expect(notes.textContent).toContain('restrained sound');
+    expect(notes.textContent).toContain('Every canonical river now fills its Water hex');
     expect(notes.textContent).toContain(
-      'does not change authentication, Worker authority, routes'
+      'does not change Worker routes, timings, ownership, resources'
     );
     expect(notes.getAttribute('tabindex')).toBe('0');
     expect(within(notes).queryByRole('link')).toBeNull();
@@ -259,7 +259,7 @@ describe('WarpkeepMainMenu', () => {
     expect(document.activeElement).toBe(notes);
 
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(screen.queryByRole('region', { name: 'WAGONS TAKE THE ROAD' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE LIVING REALM' })).toBeNull();
     expect(document.activeElement).toBe(patchNotes);
     expect(onRequestReturn).not.toHaveBeenCalled();
 
@@ -272,19 +272,19 @@ describe('WarpkeepMainMenu', () => {
     const patchNotes = getPatchNotesTrigger();
 
     fireEvent.pointerEnter(patchNotes, { pointerType: 'mouse' });
-    expect(screen.getByRole('region', { name: 'WAGONS TAKE THE ROAD' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE LIVING REALM' })).not.toBeNull();
 
     fireEvent.pointerDown(document.body, { pointerType: 'mouse' });
-    expect(screen.queryByRole('region', { name: 'WAGONS TAKE THE ROAD' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE LIVING REALM' })).toBeNull();
 
     fireEvent.pointerDown(patchNotes, { pointerType: 'touch' });
     patchNotes.focus();
     fireEvent.click(patchNotes);
-    expect(screen.getByRole('region', { name: 'WAGONS TAKE THE ROAD' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE LIVING REALM' })).not.toBeNull();
 
     fireEvent.pointerDown(patchNotes, { pointerType: 'touch' });
     fireEvent.click(patchNotes);
-    expect(screen.queryByRole('region', { name: 'WAGONS TAKE THE ROAD' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE LIVING REALM' })).toBeNull();
   });
 
   it('keeps hover notes reachable across the anchor gap and toggles by activation', () => {
@@ -293,21 +293,21 @@ describe('WarpkeepMainMenu', () => {
     const patchNotes = getPatchNotesTrigger();
 
     fireEvent.pointerEnter(patchNotes, { pointerType: 'mouse' });
-    expect(screen.getByRole('region', { name: 'WAGONS TAKE THE ROAD' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE LIVING REALM' })).not.toBeNull();
     fireEvent.pointerLeave(patchNotes, { pointerType: 'mouse' });
 
     act(() => vi.advanceTimersByTime(250));
-    const panel = screen.getByRole('region', { name: 'WAGONS TAKE THE ROAD' });
+    const panel = screen.getByRole('region', { name: 'THE LIVING REALM' });
     fireEvent.pointerEnter(panel, { pointerType: 'mouse' });
     act(() => vi.advanceTimersByTime(200));
-    expect(screen.getByRole('region', { name: 'WAGONS TAKE THE ROAD' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE LIVING REALM' })).not.toBeNull();
 
     fireEvent.click(patchNotes);
     fireEvent.pointerLeave(patchNotes, { pointerType: 'mouse' });
     act(() => vi.advanceTimersByTime(500));
-    expect(screen.getByRole('region', { name: 'WAGONS TAKE THE ROAD' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE LIVING REALM' })).not.toBeNull();
     fireEvent.click(patchNotes);
-    expect(screen.queryByRole('region', { name: 'WAGONS TAKE THE ROAD' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE LIVING REALM' })).toBeNull();
   });
 
   it('keeps inactive menu controls hidden, inert, and outside the tab order', () => {

@@ -29,22 +29,25 @@ import {
 import { REALM_SKY_FALLBACK_COLOR } from './createRealmEnvironment';
 import {
   createRealmWaterChannelPlan,
-  type RealmWaterChannelBodyPlan,
   type RealmWaterChannelPlan,
   type RealmWaterChannelSection
 } from './realmWaterChannelPresentation';
+import {
+  createRealmRiverBankPresentation,
+  type RealmRiverBankPresentation,
+  type RealmRiverBoundaryEdge
+} from '../../game/map/realmRiverBankPresentation';
 
 const WATER_Y_LIFT = 0.035;
 const RIVER_BANK_BLEND = 0.28;
 // The adaptive terrain and the full-cell river mesh are intentionally close,
 // but a sub-centimetre gap aliases away at strategic camera distances. Keep a
-// small deterministic presentation clearance so the persisted channel wins
+// small deterministic presentation clearance so persisted full-cell Water wins
 // the depth buffer without reading as a floating sheet.
 const RIVER_TERRAIN_CLEARANCE = 0.014;
 const RIVER_SURFACE_PROBE_SUBDIVISIONS = 6;
 const MAXIMUM_RIVER_SURFACE_CORRECTION = 0.16;
 const RIVER_CHANNEL_LONGITUDINAL_STEP = 0.58;
-const RIVER_CHANNEL_LATERAL_STOPS = Object.freeze([-1, -0.64, 0.64, 1]);
 const OUTER_SKIRT_DEPTH = 1.25;
 const ANALYTIC_PICK_NEIGHBORHOOD_RADIUS = 2;
 const ANALYTIC_PICK_DIRECTION_EPSILON = 0.000_001;
@@ -99,6 +102,13 @@ export type RealmWaterLayerTelemetry = Readonly<{
   riverChannelSegmentCount: number;
   riverMouthConnectionCount: number;
   riverLocalizedFoamVertexCount: number;
+  riverFullCellCount: number;
+  riverFullCellTriangleCount: number;
+  riverBankEdgeCount: number;
+  riverSharedEdgeCount: number;
+  riverMouthEdgeCount: number;
+  riverIncompleteCellCount: number;
+  riverOverlappingPhysicalTriangleCount: number;
   shaderFallbackCount: number;
   riverFallbackReasons: readonly Readonly<{
     bodyId: string;
@@ -134,6 +144,7 @@ type WaterLayerOptions = Readonly<{
   heightAtWorld: (world: HexWorldPosition) => number;
   environment?: unknown;
   waterBodies?: readonly unknown[];
+  riverBankPresentation?: RealmRiverBankPresentation;
   /** Test seam; production defaults to a bounded local wall-clock sample. */
   nowMicros?: () => bigint;
 }>;
@@ -192,7 +203,8 @@ function waterPointKey(point: HexWorldPosition) {
 function surfaceGeometry(
   cells: readonly GenesisWaterCellV1[],
   hexSize: number,
-  heightAtWorld: (world: HexWorldPosition) => number
+  heightAtWorld: (world: HexWorldPosition) => number,
+  sharedCornerHeights: ReadonlyMap<string, number> = new Map()
 ) {
   const positions: number[] = [];
   const normals: number[] = [];
@@ -204,6 +216,10 @@ function surfaceGeometry(
   const waterShoreFoam: number[] = [];
   const waterFlowX: number[] = [];
   const waterFlowZ: number[] = [];
+  const waterFlowAccumulation: number[] = [];
+  const waterFeaturePhase: number[] = [];
+  const waterSourceMix: number[] = [];
+  const waterMouthMix: number[] = [];
   const indices: number[] = [];
   const cornerPresentation = new Map<string, {
     red: number;
@@ -263,11 +279,20 @@ function surfaceGeometry(
     waterShoreFoam.push(shoreFoamForCell(cell));
     waterFlowX.push(0);
     waterFlowZ.push(0);
+    waterFlowAccumulation.push(0);
+    waterFeaturePhase.push(0);
+    waterSourceMix.push(0);
+    waterMouthMix.push(0);
     normals.push(0, 1, 0);
     pointyHexCorners({ q: cell.q, r: cell.r }, hexSize).forEach((corner) => {
       const aggregate = cornerPresentation.get(waterPointKey(corner));
       const divisor = Math.max(1, aggregate?.count ?? 0);
-      positions.push(corner.x, ground, corner.z);
+      const sharedCornerHeight = sharedCornerHeights.get(waterPointKey(corner));
+      positions.push(
+        corner.x,
+        Number.isFinite(sharedCornerHeight) ? sharedCornerHeight! : ground,
+        corner.z
+      );
       colors.push(
         (aggregate?.red ?? color.r) / divisor,
         (aggregate?.green ?? color.g) / divisor,
@@ -280,6 +305,10 @@ function surfaceGeometry(
       waterShoreFoam.push((aggregate?.shoreFoam ?? shoreFoamForCell(cell)) / divisor);
       waterFlowX.push(0);
       waterFlowZ.push(0);
+      waterFlowAccumulation.push(0);
+      waterFeaturePhase.push(0);
+      waterSourceMix.push(0);
+      waterMouthMix.push(0);
       normals.push(0, 1, 0);
     });
     for (let corner = 0; corner < 6; corner += 1) {
@@ -299,6 +328,22 @@ function surfaceGeometry(
   geometry.setAttribute('waterShoreFoam', new THREE.Float32BufferAttribute(waterShoreFoam, 1));
   geometry.setAttribute('waterFlowX', new THREE.Float32BufferAttribute(waterFlowX, 1));
   geometry.setAttribute('waterFlowZ', new THREE.Float32BufferAttribute(waterFlowZ, 1));
+  geometry.setAttribute(
+    'waterFlowAccumulation',
+    new THREE.Float32BufferAttribute(waterFlowAccumulation, 1)
+  );
+  geometry.setAttribute(
+    'waterFeaturePhase',
+    new THREE.Float32BufferAttribute(waterFeaturePhase, 1)
+  );
+  geometry.setAttribute(
+    'waterSourceMix',
+    new THREE.Float32BufferAttribute(waterSourceMix, 1)
+  );
+  geometry.setAttribute(
+    'waterMouthMix',
+    new THREE.Float32BufferAttribute(waterMouthMix, 1)
+  );
   geometry.userData.realmWaterCellKeys = cells.map((cell) => cell.cellKey);
   try {
     geometry.setIndex(indices);
@@ -323,9 +368,9 @@ type RiverPickSurface = Readonly<{
 }>;
 
 /**
- * Canonical selection remains the complete authoritative river hex even
- * though the visible channel is narrow. These CPU-only surfaces keep exact
- * full-cell ray identity without adding a render draw or hidden GPU mesh.
+ * Canonical selection and rendered Water share the same complete river hex.
+ * These CPU surfaces retain exact full-cell ray identity without adding a
+ * hidden GPU pick mesh.
  */
 function createRiverPickSurfaces(
   cells: readonly GenesisWaterCellV1[],
@@ -409,6 +454,10 @@ type RiverGeometryArrays = {
   waterShoreFoam: number[];
   waterFlowX: number[];
   waterFlowZ: number[];
+  waterFlowAccumulation: number[];
+  waterFeaturePhase: number[];
+  waterSourceMix: number[];
+  waterMouthMix: number[];
   indices: number[];
 };
 
@@ -424,6 +473,10 @@ function createRiverGeometryArrays(): RiverGeometryArrays {
     waterShoreFoam: [],
     waterFlowX: [],
     waterFlowZ: [],
+    waterFlowAccumulation: [],
+    waterFeaturePhase: [],
+    waterSourceMix: [],
+    waterMouthMix: [],
     indices: []
   };
 }
@@ -438,6 +491,10 @@ function appendRiverVertex(
     bankBlend: number;
     shoreFoam: number;
     flow: HexWorldPosition;
+    flowAccumulation: number;
+    featurePhase: number;
+    sourceMix: number;
+    mouthMix: number;
   }>
 ) {
   arrays.positions.push(node.world.x, node.height, node.world.z);
@@ -450,61 +507,239 @@ function appendRiverVertex(
   arrays.waterShoreFoam.push(node.shoreFoam);
   arrays.waterFlowX.push(node.flow.x);
   arrays.waterFlowZ.push(node.flow.z);
+  arrays.waterFlowAccumulation.push(node.flowAccumulation);
+  arrays.waterFeaturePhase.push(node.featurePhase);
+  arrays.waterSourceMix.push(node.sourceMix);
+  arrays.waterMouthMix.push(node.mouthMix);
 }
 
-function appendFullCellFallback(
+type RiverCellGeometryRange = Readonly<{
+  cellKey: string;
+  vertexStart: number;
+  vertexCount: 7;
+  indexStart: number;
+  triangleCount: 6;
+}>;
+
+function edgeStrengthForCorner(
+  edges: readonly RealmRiverBoundaryEdge[],
+  cornerIndex: number,
+  sourceCenter: HexWorldPosition | undefined,
+  sourceFlow: HexWorldPosition | undefined
+) {
+  let bankBlend = 0;
+  let shoreFoam = 0.045;
+  edges.forEach((edge) => {
+    if (!edge.cornerIndices.includes(cornerIndex)) return;
+    if (edge.kind === 'land') {
+      bankBlend = Math.max(bankBlend, 1);
+      const edgeMidpoint = {
+        x: (edge.start.x + edge.end.x) * 0.5,
+        z: (edge.start.z + edge.end.z) * 0.5
+      };
+      const outwardX = sourceCenter ? edgeMidpoint.x - sourceCenter.x : 0;
+      const outwardZ = sourceCenter ? edgeMidpoint.z - sourceCenter.z : 0;
+      const outwardLength = Math.hypot(outwardX, outwardZ);
+      const sourceFacing = sourceFlow && outwardLength > 0.000_001
+        ? (outwardX * sourceFlow.x + outwardZ * sourceFlow.z) / outwardLength < -0.72
+        : false;
+      shoreFoam = Math.max(shoreFoam, sourceFacing ? 0.38 : 0.24);
+    } else if (edge.kind === 'ocean') {
+      bankBlend = Math.max(bankBlend, 0.16);
+      shoreFoam = Math.max(shoreFoam, 0.46);
+    } else if (edge.kind === 'lake') {
+      bankBlend = Math.max(bankBlend, 0.3);
+      shoreFoam = Math.max(shoreFoam, 0.18);
+    }
+  });
+  return Object.freeze({ bankBlend, shoreFoam });
+}
+
+function appendFullCellRiverCells(
   arrays: RiverGeometryArrays,
   cells: readonly GenesisWaterCellV1[],
   pickSurfaces: ReadonlyMap<string, RiverPickSurface>,
-  cellsByKey: ReadonlyMap<string, GenesisWaterCellV1>
+  cellsByKey: ReadonlyMap<string, GenesisWaterCellV1>,
+  riverBankPresentation: RealmRiverBankPresentation
 ) {
+  const ranges: RiverCellGeometryRange[] = [];
+  let localizedFoamVertexCount = 0;
+  const bankColor = new THREE.Color('#456d62');
+  const mouthColor = new THREE.Color('#3b737a');
+  const maximumFlowAccumulation = Math.max(
+    1,
+    ...cells.map((cell) => Math.max(0, cell.flowAccumulation))
+  );
+  const phaseForBody = (bodyId: string) => {
+    let state = 0x811c_9dc5;
+    for (let index = 0; index < bodyId.length; index += 1) {
+      state = Math.imul(state ^ bodyId.charCodeAt(index), 0x0100_0193);
+    }
+    return (state >>> 0) / 0xffff_ffff;
+  };
+  const cellFeatures = new Map(cells.map((cell) => {
+    const edges = riverBankPresentation.edgesForRiverCell(cell.cellKey);
+    return [cell.cellKey, Object.freeze({
+      edges,
+      flow: flowForCell(cell, cellsByKey),
+      flowAccumulation: Math.sqrt(
+        Math.max(0, cell.flowAccumulation) / maximumFlowAccumulation
+      ),
+      featurePhase: phaseForBody(cell.bodyId),
+      isSource: cell.riverOrder === 0,
+      isMouth: edges.some((edge) => edge.kind === 'ocean')
+    })] as const;
+  }));
+  type CornerPresentation = {
+    bankBlend: number;
+    count: number;
+    depth: number;
+    featurePhaseCos: number;
+    featurePhaseSin: number;
+    flowAccumulation: number;
+    flowX: number;
+    flowZ: number;
+    mouthMix: number;
+    shoreFoam: number;
+    sourceMix: number;
+    touchesOcean: boolean;
+  };
+  const cornerPresentation = new Map<string, CornerPresentation>();
   cells.forEach((cell) => {
     const surface = pickSurfaces.get(cell.cellKey);
-    if (!surface) throw new Error('REALM_WATER_FALLBACK_SURFACE_MISSING');
+    const features = cellFeatures.get(cell.cellKey);
+    if (!surface || !features) {
+      throw new Error('REALM_WATER_FALLBACK_SURFACE_MISSING');
+    }
+    surface.corners.forEach((node, cornerIndex) => {
+      const edgeStrength = edgeStrengthForCorner(
+        features.edges,
+        cornerIndex,
+        features.isSource ? surface.center.world : undefined,
+        features.isSource ? features.flow : undefined
+      );
+      const touchesOcean = features.edges.some((edge) => (
+        edge.kind === 'ocean'
+        && edge.cornerIndices.includes(cornerIndex)
+      ));
+      const key = waterPointKey(node.world);
+      const aggregate = cornerPresentation.get(key) ?? {
+        bankBlend: 0,
+        count: 0,
+        depth: 0,
+        featurePhaseCos: 0,
+        featurePhaseSin: 0,
+        flowAccumulation: 0,
+        flowX: 0,
+        flowZ: 0,
+        mouthMix: 0,
+        shoreFoam: 0,
+        sourceMix: 0,
+        touchesOcean: false
+      };
+      aggregate.bankBlend = Math.max(aggregate.bankBlend, edgeStrength.bankBlend);
+      aggregate.count += 1;
+      aggregate.depth += Math.min(
+        1,
+        Math.max(cell.depthCells / 5, cell.depthClass / 3)
+      );
+      aggregate.featurePhaseCos += Math.cos(features.featurePhase * Math.PI * 2);
+      aggregate.featurePhaseSin += Math.sin(features.featurePhase * Math.PI * 2);
+      aggregate.flowAccumulation += features.flowAccumulation;
+      aggregate.flowX += features.flow.x;
+      aggregate.flowZ += features.flow.z;
+      aggregate.mouthMix = Math.max(
+        aggregate.mouthMix,
+        touchesOcean ? 1 : 0
+      );
+      aggregate.shoreFoam = Math.max(aggregate.shoreFoam, edgeStrength.shoreFoam);
+      aggregate.sourceMix = Math.max(
+        aggregate.sourceMix,
+        features.isSource ? 1 : 0
+      );
+      aggregate.touchesOcean ||= touchesOcean;
+      cornerPresentation.set(key, aggregate);
+    });
+  });
+  cells.forEach((cell) => {
+    const surface = pickSurfaces.get(cell.cellKey);
+    const features = cellFeatures.get(cell.cellKey);
+    if (!surface || !features) {
+      throw new Error('REALM_WATER_FALLBACK_SURFACE_MISSING');
+    }
     const color = regimeColor(cell);
-    const flow = flowForCell(cell, cellsByKey);
     const base = arrays.positions.length / 3;
-    [surface.center, ...surface.corners].forEach((node) => {
+    const indexStart = arrays.indices.length;
+    appendRiverVertex(arrays, {
+      world: surface.center.world,
+      height: surface.center.height,
+      color,
+      depth: Math.min(1, Math.max(cell.depthCells / 5, cell.depthClass / 3)),
+      bankBlend: 0,
+      shoreFoam: cell.riverOrder === 0 ? 0.16 : 0.045,
+      flow: features.flow,
+      flowAccumulation: features.flowAccumulation,
+      featurePhase: features.featurePhase,
+      sourceMix: features.isSource ? 0.72 : 0,
+      mouthMix: features.isMouth ? 0.28 : 0
+    });
+    surface.corners.forEach((node, cornerIndex) => {
+      const aggregate = cornerPresentation.get(waterPointKey(node.world));
+      if (!aggregate) throw new Error('REALM_WATER_CORNER_PRESENTATION_MISSING');
+      const divisor = Math.max(1, aggregate.count);
+      const flowLength = Math.hypot(aggregate.flowX, aggregate.flowZ);
+      const flow = flowLength > 0.000_001
+        ? {
+            x: aggregate.flowX / flowLength,
+            z: aggregate.flowZ / flowLength
+          }
+        : features.flow;
+      const featurePhaseRadians = Math.atan2(
+        aggregate.featurePhaseSin,
+        aggregate.featurePhaseCos
+      );
+      const featurePhase = (
+        featurePhaseRadians < 0
+          ? featurePhaseRadians + Math.PI * 2
+          : featurePhaseRadians
+      ) / (Math.PI * 2);
+      const cornerColor = color.clone();
+      if (aggregate.bankBlend > 0) {
+        cornerColor.lerp(
+          aggregate.touchesOcean ? mouthColor : bankColor,
+          aggregate.bankBlend * 0.46
+        );
+      }
+      if (aggregate.shoreFoam >= 0.2) localizedFoamVertexCount += 1;
       appendRiverVertex(arrays, {
         world: node.world,
         height: node.height,
-        color,
-        depth: Math.min(1, cell.depthCells / 5),
-        bankBlend: RIVER_BANK_BLEND,
-        shoreFoam: 0.1,
-        flow
+        color: cornerColor,
+        depth: aggregate.depth / divisor,
+        bankBlend: aggregate.bankBlend,
+        shoreFoam: aggregate.shoreFoam,
+        flow,
+        flowAccumulation: aggregate.flowAccumulation / divisor,
+        featurePhase,
+        sourceMix: aggregate.sourceMix,
+        mouthMix: aggregate.mouthMix
       });
     });
     for (let corner = 0; corner < 6; corner += 1) {
       arrays.indices.push(base, base + ((corner + 1) % 6) + 1, base + corner + 1);
     }
+    ranges.push(Object.freeze({
+      cellKey: cell.cellKey,
+      vertexStart: base,
+      vertexCount: 7,
+      indexStart,
+      triangleCount: 6
+    }));
   });
-}
-
-type MutableRiverChannelNode = {
-  readonly world: HexWorldPosition;
-  readonly baseHeight: number;
-  readonly color: THREE.Color;
-  readonly depth: number;
-  readonly bankBlend: number;
-  readonly shoreFoam: number;
-  readonly flow: HexWorldPosition;
-  height: number;
-};
-
-type RiverChannelBuildResult = Readonly<{
-  segmentCount: number;
-  localizedFoamVertexCount: number;
-}>;
-
-function normalizeWorldDirection(
-  from: HexWorldPosition,
-  to: HexWorldPosition
-): HexWorldPosition | undefined {
-  const x = to.x - from.x;
-  const z = to.z - from.z;
-  const length = Math.hypot(x, z);
-  return length > 0.000_001 ? { x: x / length, z: z / length } : undefined;
+  return Object.freeze({
+    ranges: Object.freeze(ranges),
+    localizedFoamVertexCount
+  });
 }
 
 function interpolateSection(
@@ -556,189 +791,81 @@ function sampledChannelSections(
   return sampled;
 }
 
-function appendChannelBody(
-  arrays: RiverGeometryArrays,
-  body: RealmWaterChannelBodyPlan,
-  hexSize: number,
-  heightAtWorld: (world: HexWorldPosition) => number
-): RiverChannelBuildResult {
-  const samples = sampledChannelSections(body.sections, hexSize);
-  if (samples.length < 2) throw new Error('channel-has-no-segments');
-  const crossSections: MutableRiverChannelNode[][] = [];
-  const deepColor = new THREE.Color('#294f59');
-  const bankColor = new THREE.Color('#456d6d');
-  samples.forEach((sample, sampleIndex) => {
-    const previous = samples[Math.max(0, sampleIndex - 1)]!;
-    const next = samples[Math.min(samples.length - 1, sampleIndex + 1)]!;
-    const incoming = normalizeWorldDirection(previous.world, sample.world);
-    const outgoing = normalizeWorldDirection(sample.world, next.world);
-    const primary = outgoing ?? incoming;
-    if (!primary) throw new Error('channel-zero-length-tangent');
-    let tangent = primary;
-    if (incoming && outgoing) {
-      const joinedLength = Math.hypot(
-        incoming.x + outgoing.x,
-        incoming.z + outgoing.z
-      );
-      if (joinedLength > 0.000_001) {
-        tangent = {
-          x: (incoming.x + outgoing.x) / joinedLength,
-          z: (incoming.z + outgoing.z) / joinedLength
-        };
-      }
-    }
-    const normal = { x: -tangent.z, z: tangent.x };
-    const referenceNormal = { x: -primary.z, z: primary.x };
-    const miterDenominator = Math.max(
-      0.72,
-      Math.abs(normal.x * referenceNormal.x + normal.z * referenceNormal.z)
-    );
-    const miterHalfWidth = Math.min(
-      sample.halfWidth * 1.34,
-      sample.halfWidth / miterDenominator
-    );
-    const baseHeight = waterSurfaceLevelToWorldY(sample.surfaceLevelMilli) + WATER_Y_LIFT;
-    const crossSection = RIVER_CHANNEL_LATERAL_STOPS.map((lateral) => {
-      const bankBlend = Math.pow(Math.abs(lateral), 2.2);
-      const world = Object.freeze({
-        x: sample.world.x + normal.x * miterHalfWidth * lateral,
-        z: sample.world.z + normal.z * miterHalfWidth * lateral
-      });
-      return {
-        world,
-        baseHeight,
-        height: baseHeight,
-        color: deepColor.clone().lerp(bankColor, bankBlend * 0.72),
-        depth: THREE.MathUtils.clamp(0.46 + sample.halfWidth / hexSize * 0.62, 0, 1),
-        bankBlend,
-        shoreFoam: sample.foam * (0.16 + bankBlend * 0.84),
-        flow: Object.freeze({ ...tangent })
-      };
-    });
-    crossSections.push(crossSection);
-  });
-
-  const localIndices: number[] = [];
-  for (let sectionIndex = 0; sectionIndex < crossSections.length - 1; sectionIndex += 1) {
-    for (let lateralIndex = 0; lateralIndex < RIVER_CHANNEL_LATERAL_STOPS.length - 1; lateralIndex += 1) {
-      const current = sectionIndex * RIVER_CHANNEL_LATERAL_STOPS.length + lateralIndex;
-      const next = current + RIVER_CHANNEL_LATERAL_STOPS.length;
-      localIndices.push(
-        current, current + 1, next,
-        current + 1, next + 1, next
-      );
-    }
-  }
-  for (let indexOffset = 0; indexOffset < localIndices.length; indexOffset += 3) {
-    const first = crossSections[
-      Math.floor(localIndices[indexOffset]! / RIVER_CHANNEL_LATERAL_STOPS.length)
-    ]![
-      localIndices[indexOffset]! % RIVER_CHANNEL_LATERAL_STOPS.length
-    ]!;
-    const second = crossSections[
-      Math.floor(localIndices[indexOffset + 1]! / RIVER_CHANNEL_LATERAL_STOPS.length)
-    ]![
-      localIndices[indexOffset + 1]! % RIVER_CHANNEL_LATERAL_STOPS.length
-    ]!;
-    const third = crossSections[
-      Math.floor(localIndices[indexOffset + 2]! / RIVER_CHANNEL_LATERAL_STOPS.length)
-    ]![
-      localIndices[indexOffset + 2]! % RIVER_CHANNEL_LATERAL_STOPS.length
-    ]!;
-    for (let firstStep = 0; firstStep <= 3; firstStep += 1) {
-      for (let secondStep = 0; secondStep <= 3 - firstStep; secondStep += 1) {
-        const firstWeight = firstStep / 3;
-        const secondWeight = secondStep / 3;
-        const thirdWeight = 1 - firstWeight - secondWeight;
-        const world = {
-          x: first.world.x * firstWeight
-            + second.world.x * secondWeight
-            + third.world.x * thirdWeight,
-          z: first.world.z * firstWeight
-            + second.world.z * secondWeight
-            + third.world.z * thirdWeight
-        };
-        const terrainY = heightAtWorld(world);
-        const baseHeight = first.baseHeight * firstWeight
-          + second.baseHeight * secondWeight
-          + third.baseHeight * thirdWeight;
-        if (
-          !Number.isFinite(terrainY)
-          || terrainY + RIVER_TERRAIN_CLEARANCE - baseHeight
-            > MAXIMUM_RIVER_SURFACE_CORRECTION
-        ) throw new Error('channel-terrain-clearance');
-        const surfaceY = first.height * firstWeight
-          + second.height * secondWeight
-          + third.height * thirdWeight;
-        const correction = terrainY + RIVER_TERRAIN_CLEARANCE - surfaceY;
-        if (correction <= 0) continue;
-        first.height += correction;
-        second.height += correction;
-        third.height += correction;
-      }
-    }
-  }
-
-  const baseIndex = arrays.positions.length / 3;
-  let localizedFoamVertexCount = 0;
-  crossSections.flat().forEach((node) => {
-    if (node.shoreFoam >= 0.2) localizedFoamVertexCount += 1;
-    appendRiverVertex(arrays, node);
-  });
-  localIndices.forEach((index) => arrays.indices.push(baseIndex + index));
-  return Object.freeze({
-    segmentCount: crossSections.length - 1,
-    localizedFoamVertexCount
-  });
+function plannedChannelSegmentCount(
+  plan: RealmWaterChannelPlan,
+  hexSize: number
+) {
+  return plan.bodies.reduce((count, body) => (
+    count + (
+      body.mode === 'channel'
+        ? Math.max(0, sampledChannelSections(body.sections, hexSize).length - 1)
+        : 0
+    )
+  ), 0);
 }
 
 function riverSurfaceGeometry(
   cells: readonly GenesisWaterCellV1[],
   channelPlan: RealmWaterChannelPlan,
   hexSize: number,
-  heightAtWorld: (world: HexWorldPosition) => number
+  heightAtWorld: (world: HexWorldPosition) => number,
+  riverBankPresentation: RealmRiverBankPresentation
 ) {
   const arrays = createRiverGeometryArrays();
+  if (cells.some((cell) => (
+    !Number.isSafeInteger(cell.q)
+    || !Number.isSafeInteger(cell.r)
+    || typeof cell.cellKey !== 'string'
+    || cell.cellKey.length === 0
+  ))) throw new Error('REALM_WATER_INVALID_RIVER_IDENTITY');
   const cellsByKey = new Map(cells.map((cell) => [cell.cellKey, cell] as const));
+  if (cellsByKey.size !== cells.length) {
+    throw new Error('REALM_WATER_DUPLICATE_RIVER_IDENTITY');
+  }
+  if (new Set(cells.map((cell) => hexKey(cell))).size !== cells.length) {
+    throw new Error('REALM_WATER_DUPLICATE_RIVER_COORDINATE');
+  }
   const pickSurfaces = createRiverPickSurfaces(cells, hexSize, heightAtWorld);
-  const fallbackReasons: { bodyId: string; reason: string }[] = [];
-  let channelBodyCount = 0;
-  let fallbackCellCount = 0;
-  let channelSegmentCount = 0;
-  let localizedFoamVertexCount = 0;
-  channelPlan.bodies.forEach((body) => {
-    const bodyCells = body.cellKeys.map((cellKey) => cellsByKey.get(cellKey))
-      .filter((cell): cell is GenesisWaterCellV1 => cell !== undefined);
-    if (bodyCells.length !== body.cellKeys.length) {
-      throw new Error('REALM_WATER_CHANNEL_IDENTITY_MISSING');
-    }
-    if (body.mode === 'channel') {
-      const arrayLengths = Object.fromEntries(
-        Object.entries(arrays).map(([key, values]) => [key, values.length])
-      ) as Record<keyof RiverGeometryArrays, number>;
-      try {
-        const result = appendChannelBody(arrays, body, hexSize, heightAtWorld);
-        channelBodyCount += 1;
-        channelSegmentCount += result.segmentCount;
-        localizedFoamVertexCount += result.localizedFoamVertexCount;
-        return;
-      } catch (error) {
-        (Object.keys(arrays) as (keyof RiverGeometryArrays)[]).forEach((key) => {
-          arrays[key].length = arrayLengths[key];
-        });
-        fallbackReasons.push({
+  const orderedCells = [...cells].sort((left, right) => (
+    left.q - right.q
+    || left.r - right.r
+    || left.cellKey.localeCompare(right.cellKey)
+  ));
+  const fullCell = appendFullCellRiverCells(
+    arrays,
+    orderedCells,
+    pickSurfaces,
+    cellsByKey,
+    riverBankPresentation
+  );
+  const fallbackReasons = channelPlan.bodies.flatMap((body) => (
+    body.mode === 'full-cell-fallback'
+      ? [Object.freeze({
           bodyId: body.bodyId,
-          reason: error instanceof Error ? error.message : 'channel-build-failed'
-        });
-      }
-    } else {
-      fallbackReasons.push({
-        bodyId: body.bodyId,
-        reason: body.fallbackReason ?? 'channel-plan-failed'
+          reason: body.fallbackReason ?? 'channel-plan-failed'
+        })]
+      : []
+  ));
+  const fallbackBodyIds = new Set(fallbackReasons.map((reason) => reason.bodyId));
+  const fallbackCellCount = channelPlan.bodies.reduce((count, body) => (
+    count + (fallbackBodyIds.has(body.bodyId) ? body.cellKeys.length : 0)
+  ), 0);
+  const mouthCornerHeights = new Map<string, number>();
+  orderedCells.forEach((cell) => {
+    const surface = pickSurfaces.get(cell.cellKey);
+    if (!surface) return;
+    riverBankPresentation.edgesForRiverCell(cell.cellKey).forEach((edge) => {
+      if (edge.kind !== 'ocean') return;
+      edge.cornerIndices.forEach((cornerIndex) => {
+        const node = surface.corners[cornerIndex];
+        if (!node) return;
+        const key = waterPointKey(node.world);
+        mouthCornerHeights.set(
+          key,
+          Math.max(mouthCornerHeights.get(key) ?? Number.NEGATIVE_INFINITY, node.height)
+        );
       });
-    }
-    appendFullCellFallback(arrays, bodyCells, pickSurfaces, cellsByKey);
-    fallbackCellCount += bodyCells.length;
+    });
   });
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(arrays.positions, 3));
@@ -751,12 +878,29 @@ function riverSurfaceGeometry(
   geometry.setAttribute('waterShoreFoam', new THREE.Float32BufferAttribute(arrays.waterShoreFoam, 1));
   geometry.setAttribute('waterFlowX', new THREE.Float32BufferAttribute(arrays.waterFlowX, 1));
   geometry.setAttribute('waterFlowZ', new THREE.Float32BufferAttribute(arrays.waterFlowZ, 1));
+  geometry.setAttribute(
+    'waterFlowAccumulation',
+    new THREE.Float32BufferAttribute(arrays.waterFlowAccumulation, 1)
+  );
+  geometry.setAttribute(
+    'waterFeaturePhase',
+    new THREE.Float32BufferAttribute(arrays.waterFeaturePhase, 1)
+  );
+  geometry.setAttribute(
+    'waterSourceMix',
+    new THREE.Float32BufferAttribute(arrays.waterSourceMix, 1)
+  );
+  geometry.setAttribute(
+    'waterMouthMix',
+    new THREE.Float32BufferAttribute(arrays.waterMouthMix, 1)
+  );
   geometry.userData.realmWaterChannelPlan = channelPlan;
+  geometry.userData.realmWaterFullCellRanges = fullCell.ranges;
   geometry.userData.realmWaterVisibleBodyModes = channelPlan.bodies.map((body) => Object.freeze({
     bodyId: body.bodyId,
-    mode: fallbackReasons.some((fallback) => fallback.bodyId === body.bodyId)
-      ? 'full-cell-fallback'
-      : 'channel'
+    mode: fallbackBodyIds.has(body.bodyId)
+      ? 'full-cell-invalid-topology-fallback'
+      : 'full-cell'
   }));
   try {
     geometry.setIndex(arrays.indices);
@@ -764,12 +908,14 @@ function riverSurfaceGeometry(
     return Object.freeze({
       geometry,
       pickSurfaces,
-      channelBodyCount,
+      mouthCornerHeights,
+      fullCellRanges: fullCell.ranges,
+      channelBodyCount: channelPlan.channelBodyCount,
       fallbackBodyCount: fallbackReasons.length,
       fallbackCellCount,
-      channelSegmentCount,
-      localizedFoamVertexCount,
-      fallbackReasons: Object.freeze(fallbackReasons.map((fallback) => Object.freeze(fallback)))
+      channelSegmentCount: plannedChannelSegmentCount(channelPlan, hexSize),
+      localizedFoamVertexCount: fullCell.localizedFoamVertexCount,
+      fallbackReasons: Object.freeze(fallbackReasons)
     });
   } catch (error) {
     geometry.dispose();
@@ -840,27 +986,48 @@ function createWaterMaterial(
   const activeWaveComponents = reducedMotion
     ? 0
     : river
-      ? Math.min(2, REALM_WATER_RENDER_BUDGETS[quality.id].waveComponents)
+      ? quality.id === 'high'
+        ? 2
+        : quality.id === 'balanced'
+          ? 1
+          : 0
       : REALM_WATER_RENDER_BUDGETS[quality.id].waveComponents;
   const uniforms = { uWaterTime: { value: 0 } };
-  const waveTerms = Array.from({ length: activeWaveComponents }, (_, index) => {
+  const oceanWaveTerms = Array.from({ length: activeWaveComponents }, (_, index) => {
     const ordinal = index + 1;
     const directionX = (0.54 + ((ordinal * 17) % 31) / 100).toFixed(3);
     const directionZ = (0.84 - ((ordinal * 11) % 23) / 100).toFixed(3);
     const frequency = (0.28 + ordinal * 0.075).toFixed(3);
     const speed = (0.16 + ordinal * 0.031).toFixed(3);
-    const amplitude = (river ? 0.005 : 0.024 / Math.sqrt(ordinal)).toFixed(5);
+    const amplitude = (0.024 / Math.sqrt(ordinal)).toFixed(5);
     return `sin(dot(waterWorldXZ, vec2(${directionX}, ${directionZ})) * ${frequency} + uWaterTime * ${speed}) * ${amplitude}`;
   });
+  const riverWaveTerms = [
+    `sin(
+    dot(waterWorldXZ, normalize(waterFlow + vec2(0.0001))) * 2.65
+      + uWaterTime * (0.54 + waterFlowAccumulation * 0.24)
+      + waterFeaturePhase * 6.283185
+  ) * (0.0026 + waterFlowAccumulation * 0.0018)`,
+    `sin(
+    dot(waterWorldXZ, normalize(vec2(-waterFlow.y, waterFlow.x) + vec2(0.0001))) * 1.87
+      + uWaterTime * (0.31 + waterFlowAccumulation * 0.14)
+      + waterFeaturePhase * 3.141593
+  ) * (0.0010 + waterFlowAccumulation * 0.0006)`
+  ].slice(0, activeWaveComponents);
+  const effectiveWaveTerms = river ? riverWaveTerms : oceanWaveTerms;
   const timeUniform = activeWaveComponents > 0 ? 'uniform float uWaterTime;\n' : '';
   const heightFunction = activeWaveComponents === 0
-    ? 'float warpkeepWaterHeight(vec2 waterWorldXZ, float waterRegime, vec2 waterFlow) { return 0.0; }'
-    : `float warpkeepWaterHeight(vec2 waterWorldXZ, float waterRegime, vec2 waterFlow) {
-  float oceanWave = ${waveTerms.join(' + ')};
-  float riverWave = sin(dot(waterWorldXZ, normalize(waterFlow + vec2(0.0001))) * 2.3 + uWaterTime * 0.72) * 0.006;
-  return waterRegime > 0.5 ? riverWave : oceanWave;
+    ? 'float warpkeepWaterHeight(vec2 waterWorldXZ, float waterRegime, vec2 waterFlow, float waterFlowAccumulation, float waterFeaturePhase) { return 0.0; }'
+    : `float warpkeepWaterHeight(vec2 waterWorldXZ, float waterRegime, vec2 waterFlow, float waterFlowAccumulation, float waterFeaturePhase) {
+  return ${effectiveWaveTerms.join(' + ')};
 }`;
-  const shaderContract = `warpkeep-water-world-space-r185-${river ? 'river' : 'ocean'}-v4`;
+  const foamQualityScale = quality.id === 'high'
+    ? 1
+    : quality.id === 'balanced'
+      ? 0.62
+      : 0;
+  const waterTimeExpression = activeWaveComponents > 0 ? 'uWaterTime' : '0.0';
+  const shaderContract = `warpkeep-water-world-space-r185-${river ? 'river' : 'ocean'}-v6`;
   let shaderFallback = false;
   material.onBeforeCompile = (shader) => {
     if (
@@ -905,13 +1072,22 @@ attribute float waterRegime;
 attribute float waterShoreFoam;
 attribute float waterFlowX;
 attribute float waterFlowZ;
+attribute float waterFlowAccumulation;
+attribute float waterFeaturePhase;
+attribute float waterSourceMix;
+attribute float waterMouthMix;
 varying float vWarpkeepWaterDepth;
 varying float vWarpkeepWaterBankBlend;
 varying float vWarpkeepWaterFogMix;
 varying float vWarpkeepWaterRegime;
 varying float vWarpkeepWaterShoreFoam;
 varying float vWarpkeepWaterWave;
+varying float vWarpkeepWaterFlowAccumulation;
+varying float vWarpkeepWaterFeaturePhase;
+varying float vWarpkeepWaterSourceMix;
+varying float vWarpkeepWaterMouthMix;
 varying vec2 vWarpkeepWaterWorldXZ;
+varying vec2 vWarpkeepWaterFlow;
 ${heightFunction}
 ${shader.vertexShader}`
       .replace('#include <color_vertex>', `#include <color_vertex>
@@ -919,27 +1095,45 @@ ${shader.vertexShader}`
   vWarpkeepWaterBankBlend = waterBankBlend;
   vWarpkeepWaterFogMix = waterFogMix;
   vWarpkeepWaterRegime = waterRegime;
-  vWarpkeepWaterShoreFoam = waterShoreFoam;`)
+  vWarpkeepWaterShoreFoam = waterShoreFoam;
+  vWarpkeepWaterFlowAccumulation = waterFlowAccumulation;
+  vWarpkeepWaterFeaturePhase = waterFeaturePhase;
+  vWarpkeepWaterSourceMix = waterSourceMix;
+  vWarpkeepWaterMouthMix = waterMouthMix;
+  vWarpkeepWaterFlow = normalize(vec2(waterFlowX, waterFlowZ) + vec2(0.0001));`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
   vWarpkeepWaterWorldXZ = (modelMatrix * vec4(position, 1.0)).xz;
-  vWarpkeepWaterWave = warpkeepWaterHeight(vWarpkeepWaterWorldXZ, waterRegime, vec2(waterFlowX, waterFlowZ))
+  vWarpkeepWaterWave = warpkeepWaterHeight(
+    vWarpkeepWaterWorldXZ,
+    waterRegime,
+    vec2(waterFlowX, waterFlowZ),
+    waterFlowAccumulation,
+    waterFeaturePhase
+  )
     * (1.0 - clamp(waterFogMix, 0.0, 1.0));
-  transformed.y += vWarpkeepWaterWave;`)
+  // Full-cell river edges stay physically welded. Downstream motion is
+  // expressed by bounded normals and light, while only ocean vertices swell.
+  transformed.y += vWarpkeepWaterWave * (1.0 - step(0.5, waterRegime));`)
       .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
   float warpkeepWaterEpsilon = 0.045;
   float warpkeepWaterWaveVisibility = 1.0 - clamp(waterFogMix, 0.0, 1.0);
   vec2 warpkeepWaterNormalWorldXZ = (modelMatrix * vec4(position, 1.0)).xz;
-  float warpkeepWaterNormalHeight = warpkeepWaterHeight(warpkeepWaterNormalWorldXZ, waterRegime, vec2(waterFlowX, waterFlowZ));
-  float warpkeepWaterDx = ((warpkeepWaterHeight(warpkeepWaterNormalWorldXZ + vec2(warpkeepWaterEpsilon, 0.0), waterRegime, vec2(waterFlowX, waterFlowZ)) - warpkeepWaterNormalHeight) / warpkeepWaterEpsilon) * warpkeepWaterWaveVisibility;
-  float warpkeepWaterDz = ((warpkeepWaterHeight(warpkeepWaterNormalWorldXZ + vec2(0.0, warpkeepWaterEpsilon), waterRegime, vec2(waterFlowX, waterFlowZ)) - warpkeepWaterNormalHeight) / warpkeepWaterEpsilon) * warpkeepWaterWaveVisibility;
+  float warpkeepWaterNormalHeight = warpkeepWaterHeight(warpkeepWaterNormalWorldXZ, waterRegime, vec2(waterFlowX, waterFlowZ), waterFlowAccumulation, waterFeaturePhase);
+  float warpkeepWaterDx = ((warpkeepWaterHeight(warpkeepWaterNormalWorldXZ + vec2(warpkeepWaterEpsilon, 0.0), waterRegime, vec2(waterFlowX, waterFlowZ), waterFlowAccumulation, waterFeaturePhase) - warpkeepWaterNormalHeight) / warpkeepWaterEpsilon) * warpkeepWaterWaveVisibility;
+  float warpkeepWaterDz = ((warpkeepWaterHeight(warpkeepWaterNormalWorldXZ + vec2(0.0, warpkeepWaterEpsilon), waterRegime, vec2(waterFlowX, waterFlowZ), waterFlowAccumulation, waterFeaturePhase) - warpkeepWaterNormalHeight) / warpkeepWaterEpsilon) * warpkeepWaterWaveVisibility;
   objectNormal = normalize(vec3(-warpkeepWaterDx, 1.0, -warpkeepWaterDz));`);
-    shader.fragmentShader = `varying float vWarpkeepWaterDepth;
+    shader.fragmentShader = `${timeUniform}varying float vWarpkeepWaterDepth;
 varying float vWarpkeepWaterBankBlend;
 varying float vWarpkeepWaterFogMix;
 varying float vWarpkeepWaterRegime;
 varying float vWarpkeepWaterShoreFoam;
 varying float vWarpkeepWaterWave;
+varying float vWarpkeepWaterFlowAccumulation;
+varying float vWarpkeepWaterFeaturePhase;
+varying float vWarpkeepWaterSourceMix;
+varying float vWarpkeepWaterMouthMix;
 varying vec2 vWarpkeepWaterWorldXZ;
+varying vec2 vWarpkeepWaterFlow;
 ${shader.fragmentShader}`
       .replace('#include <opaque_fragment>', `
         float waterViewFacing = max(dot(normalize(vNormal), normalize(-vViewPosition)), 0.0);
@@ -951,18 +1145,53 @@ ${shader.fragmentShader}`
         vec3 waterDeepColor = mix(oceanDeepColor, riverDeepColor, step(0.5, vWarpkeepWaterRegime));
         vec3 waterShallowColor = mix(oceanShallowColor, riverShallowColor, step(0.5, vWarpkeepWaterRegime));
         vec3 waterBodyColor = mix(waterShallowColor, waterDeepColor, clamp(vWarpkeepWaterDepth, 0.0, 1.0) * 0.78);
-        float waterGlimmer = abs(vWarpkeepWaterWave) * (vWarpkeepWaterRegime > 0.5 ? 1.8 : 3.2);
-        float waterCrest = smoothstep(0.012, 0.032, abs(vWarpkeepWaterWave));
-        float waterFoamPattern = 0.58 + 0.42 * sin(dot(vWarpkeepWaterWorldXZ, vec2(3.7, 2.9)));
-        float waterFoam = clamp(vWarpkeepWaterShoreFoam, 0.0, 1.0)
-          * (0.055 + waterCrest * 0.26)
+        vec2 waterFlowDirection = normalize(vWarpkeepWaterFlow + vec2(0.0001));
+        vec2 waterCrossFlow = vec2(-waterFlowDirection.y, waterFlowDirection.x);
+        float waterDirectionalCurrent = 0.5 + 0.5 * sin(
+          dot(vWarpkeepWaterWorldXZ, waterFlowDirection) * 4.2
+            - ${waterTimeExpression} * (0.48 + vWarpkeepWaterFlowAccumulation * 0.24)
+            + vWarpkeepWaterFeaturePhase * 6.283185
+        );
+        float waterCrossCurrent = 0.5 + 0.5 * sin(
+          dot(vWarpkeepWaterWorldXZ, waterCrossFlow) * 2.35
+            + vWarpkeepWaterFeaturePhase * 3.141593
+        );
+        float waterGlimmer = abs(vWarpkeepWaterWave) * (vWarpkeepWaterRegime > 0.5 ? 1.45 : 2.8);
+        waterGlimmer += step(0.5, vWarpkeepWaterRegime)
+          * waterDirectionalCurrent
+          * (0.005 + vWarpkeepWaterFlowAccumulation * 0.006);
+        float waterCrest = vWarpkeepWaterRegime > 0.5
+          ? smoothstep(0.0018, 0.0046, abs(vWarpkeepWaterWave))
+          : smoothstep(0.012, 0.032, abs(vWarpkeepWaterWave));
+        float riverFoamPattern = mix(0.42, 1.0, waterDirectionalCurrent)
+          * mix(0.64, 1.0, waterCrossCurrent);
+        float oceanFoamPattern = 0.58 + 0.42 * sin(
+          dot(vWarpkeepWaterWorldXZ, vec2(3.7, 2.9))
+            - ${waterTimeExpression} * 0.11
+        );
+        float waterFoamPattern = mix(
+          oceanFoamPattern,
+          riverFoamPattern,
+          step(0.5, vWarpkeepWaterRegime)
+        );
+        float waterHydrologyFoam = max(
+          clamp(vWarpkeepWaterShoreFoam, 0.0, 1.0),
+          max(vWarpkeepWaterSourceMix * 0.34, vWarpkeepWaterMouthMix * 0.48)
+        );
+        float waterFoam = waterHydrologyFoam
+          * (0.035 + waterCrest * 0.2)
           * waterFoamPattern;
+        waterFoam *= ${foamQualityScale.toFixed(2)};
         float waterBankEdge = clamp(vWarpkeepWaterBankBlend, 0.0, 1.0);
         float bankSoftness = 1.0 - waterBankEdge * 0.2;
         outgoingLight = mix(outgoingLight, outgoingLight * waterBodyColor * 1.65, 0.42);
         outgoingLight += (waterBodyColor * waterFresnel + vec3(waterGlimmer)) * bankSoftness;
         outgoingLight = mix(outgoingLight, vec3(0.10, 0.20, 0.18), waterBankEdge * 0.12 * step(0.5, vWarpkeepWaterRegime));
+        float waterTransmission = step(0.5, vWarpkeepWaterRegime)
+          * (vWarpkeepWaterSourceMix * 0.012 + vWarpkeepWaterMouthMix * 0.008);
+        outgoingLight += vec3(0.12, 0.18, 0.11) * waterTransmission;
         outgoingLight = mix(outgoingLight, vec3(0.93, 0.91, 0.82), waterFoam);
+        outgoingLight = min(outgoingLight, vec3(1.35));
         #ifdef USE_FOG
           outgoingLight = mix(outgoingLight, fogColor, clamp(vWarpkeepWaterFogMix, 0.0, 1.0));
         #endif
@@ -974,6 +1203,8 @@ ${shader.fragmentShader}`
   );
   material.userData.waterUniforms = uniforms;
   material.userData.waterWaveComponents = activeWaveComponents;
+  material.userData.waterFoamQualityScale = foamQualityScale;
+  material.userData.waterPhysicalRiverDisplacement = 0;
   material.userData.waterShaderContract = shaderContract;
   material.userData.waterShaderFallbackReason = null;
   material.userData.waterShaderFallbackPresentation = null;
@@ -1019,6 +1250,8 @@ export function createRealmWaterLayer(options: WaterLayerOptions): RealmWaterLay
   const lakes = options.cells.filter((cell) => cell.regime === 'lake');
   const rivers = options.cells.filter((cell) => cell.regime === 'river');
   const channelPlan = createRealmWaterChannelPlan(options.cells, options.hexSize);
+  const riverBankPresentation = options.riverBankPresentation
+    ?? createRealmRiverBankPresentation(options.cells, options.hexSize);
   const budget = REALM_WATER_RENDER_BUDGETS[options.quality.id];
   const group = new THREE.Group();
   group.name = 'genesis-canonical-water';
@@ -1043,15 +1276,21 @@ export function createRealmWaterLayer(options: WaterLayerOptions): RealmWaterLay
     skirtMaterial?.dispose();
   };
   try {
-    oceanGeometry = surfaceGeometry(ocean, options.hexSize, options.heightAtWorld);
-    lakeGeometry = surfaceGeometry(lakes, options.hexSize, options.heightAtWorld);
     riverSurfaceData = riverSurfaceGeometry(
       rivers,
       channelPlan,
       options.hexSize,
-      options.heightAtWorld
+      options.heightAtWorld,
+      riverBankPresentation
     );
     riverGeometryData = riverSurfaceData.geometry;
+    oceanGeometry = surfaceGeometry(
+      ocean,
+      options.hexSize,
+      options.heightAtWorld,
+      riverSurfaceData.mouthCornerHeights
+    );
+    lakeGeometry = surfaceGeometry(lakes, options.hexSize, options.heightAtWorld);
     skirtGeometry = outerSkirtGeometry(ocean, options.hexSize);
     const recordShaderFallback = () => { shaderFallbackCount += 1; };
     waterMaterial = createWaterMaterial(
@@ -1099,7 +1338,7 @@ export function createRealmWaterLayer(options: WaterLayerOptions): RealmWaterLay
   const skirtMesh = new THREE.Mesh(skirtGeometry, skirtMaterial);
   oceanMesh.name = 'canonical-ocean-surface';
   lakeMesh.name = 'canonical-lake-surfaces';
-  riverMesh.name = 'canonical-river-ribbons';
+  riverMesh.name = 'canonical-river-full-cell-surface';
   skirtMesh.name = 'canonical-ocean-downward-skirt';
   riverMesh.renderOrder = 2;
   skirtMesh.renderOrder = 1;
@@ -1188,18 +1427,23 @@ export function createRealmWaterLayer(options: WaterLayerOptions): RealmWaterLay
     }
     const center = axialToWorld({ q: cell.q, r: cell.r }, options.hexSize);
     const corners = pointyHexCorners({ q: cell.q, r: cell.r }, options.hexSize);
-    const ground = cell.regime === 'river'
-      ? Math.max(
-        waterSurfaceLevelToWorldY(cell.surfaceLevelMilli) + WATER_Y_LIFT,
-        options.heightAtWorld(center) + 0.035
-      )
-      : waterSurfaceLevelToWorldY(cell.surfaceLevelMilli) + WATER_Y_LIFT;
+    const riverSurface = cell.regime === 'river'
+      ? riverPickSurfaces.get(cell.cellKey)
+      : undefined;
+    const ground = riverSurface?.center.height
+      ?? waterSurfaceLevelToWorldY(cell.surfaceLevelMilli) + WATER_Y_LIFT;
     const positions = overlay.geometry.getAttribute('position') as THREE.BufferAttribute;
     corners.forEach((corner, index) => {
+      const sharedMouthHeight = cell.regime === 'ocean'
+        ? riverSurfaceData.mouthCornerHeights.get(waterPointKey(corner))
+        : undefined;
+      const surfaceY = riverSurface?.corners[index]?.height
+        ?? sharedMouthHeight
+        ?? ground;
       positions.setXYZ(
         index,
         corner.x,
-        ground + (opacity > 0.8 ? 0.018 : 0.012),
+        surfaceY + (opacity > 0.8 ? 0.018 : 0.012),
         corner.z
       );
     });
@@ -1407,6 +1651,20 @@ export function createRealmWaterLayer(options: WaterLayerOptions): RealmWaterLay
       riverChannelSegmentCount: riverSurfaceData.channelSegmentCount,
       riverMouthConnectionCount,
       riverLocalizedFoamVertexCount: riverSurfaceData.localizedFoamVertexCount,
+      riverFullCellCount: riverSurfaceData.fullCellRanges.length,
+      riverFullCellTriangleCount: riverSurfaceData.fullCellRanges.length
+        * RIVER_TRIANGLES_PER_CELL,
+      riverBankEdgeCount:
+        riverBankPresentation.telemetry.riverBoundaryEdgeCount,
+      riverSharedEdgeCount:
+        riverBankPresentation.telemetry.riverSharedEdgeCount,
+      riverMouthEdgeCount:
+        riverBankPresentation.telemetry.riverMouthEdgeCount,
+      riverIncompleteCellCount: Math.max(
+        0,
+        rivers.length - riverSurfaceData.fullCellRanges.length
+      ),
+      riverOverlappingPhysicalTriangleCount: 0,
       shaderFallbackCount,
       riverFallbackReasons: riverSurfaceData.fallbackReasons
     });

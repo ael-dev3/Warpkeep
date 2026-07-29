@@ -6,9 +6,13 @@ import {
 } from '../spacetimedb/src/waterWorld';
 import { GENESIS_WATER_REVISION_ENABLED_CELLS_V1 } from '../spacetimedb/src/waterRevision';
 import {
+  realmWaterInspectionNavigation,
   realmWaterNavigatorBodies,
   resolveRealmWaterInspectionRecords
 } from '../src/components/realm/realmWaterInspectionPresentation';
+import {
+  createCanonicalWaterNavigationGraph
+} from '../src/game/map/canonicalWaterNavigation';
 
 describe('public water inspection presentation', () => {
   it('creates bounded river records with source, mouth, flow, and fog facts', () => {
@@ -94,5 +98,46 @@ describe('public water inspection presentation', () => {
       underlyingTerrainLabel: 'Lowland Forest',
       underlyingPassable: true
     });
+  });
+
+  it('joins each river record to exact graph routes without renderer inference', () => {
+    const graph = createCanonicalWaterNavigationGraph(
+      GENESIS_WATER_REVISION_ENABLED_CELLS_V1,
+      GENESIS_WATER_BODIES_V1
+    );
+    const records = resolveRealmWaterInspectionRecords(
+      GENESIS_WATER_REVISION_ENABLED_CELLS_V1
+    );
+    const riverRecords = records.filter((record) => record.regime === 'river');
+
+    for (const record of riverRecords) {
+      const navigation = realmWaterInspectionNavigation(graph, record);
+      expect(navigation, record.cellKey).toBeDefined();
+      expect(navigation?.cellKey).toBe(record.cellKey);
+      expect(navigation?.sourceCellKey).toBe(record.sourceCellKey);
+      expect(navigation?.mouthCellKey).toBe(record.mouthCellKey);
+      expect(navigation?.sourceDistance).toBe(record.riverOrder);
+      expect(navigation?.mouthDistance).toBe(
+        record.riverCellCount! - record.riverOrder! - 1
+      );
+      expect(Object.isFrozen(navigation)).toBe(true);
+      expect(Object.isFrozen(navigation?.previousCellKeys)).toBe(true);
+    }
+  });
+
+  it('fails one record navigation join closed when graph identity is unavailable', () => {
+    const graph = createCanonicalWaterNavigationGraph(undefined, undefined);
+    const record = resolveRealmWaterInspectionRecords(
+      GENESIS_WATER_REVISION_ENABLED_CELLS_V1
+    ).find((candidate) => candidate.regime === 'river')!;
+
+    expect(realmWaterInspectionNavigation(graph, record)).toBeUndefined();
+    expect(realmWaterInspectionNavigation(
+      createCanonicalWaterNavigationGraph(
+        GENESIS_WATER_REVISION_ENABLED_CELLS_V1,
+        GENESIS_WATER_BODIES_V1
+      ),
+      { ...record, bodyId: 'different-public-body' }
+    )).toBeUndefined();
   });
 });

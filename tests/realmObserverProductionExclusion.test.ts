@@ -318,6 +318,10 @@ describe('local QA production exclusion', () => {
     expect(verifier).toContain('createRenderedWebglQaWorkerLocomotionRealm');
     expect(verifier).toContain('worker-active');
     expect(verifier).toContain('worker-locomotion');
+    expect(verifier).toContain('readRenderedWebglQaSfxSnapshot');
+    expect(verifier).toContain('proveRenderedWebglQaOfflineSfxCorpus');
+    expect(verifier).toContain('emitRenderedWebglQaProbeSfx');
+    expect(verifier).toContain('__warpkeepRenderedWebglSfxLifecycleV1');
     expect(verifier).toContain('realmLocalQaWorkerProjections');
     expect(verifier).toContain('localQaWorkerProjectionTelemetry');
     expect(verifier).toContain('warpkeep-local-');

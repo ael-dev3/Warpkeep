@@ -587,6 +587,7 @@ describe('realm profile and PFP presentation regressions', () => {
     expect(button.getAttribute('aria-label')).not.toMatch(/^Inspect FID\b/i);
     expect(button.getAttribute('aria-pressed')).toBe('true');
     expect(button.getAttribute('aria-expanded')).toBe('true');
+    expect(button.dataset.warpkeepSfx).toBe('none');
 
     fireEvent.focus(button);
     expect(onActivate).not.toHaveBeenCalled();

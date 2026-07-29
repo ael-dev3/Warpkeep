@@ -339,7 +339,7 @@ export function realmInteractionReducer(
 
     case 'activate-water-cell': {
       const target = copyWaterCellTarget(action);
-      return activateCameraNeutralInspector(
+      const nextState = activateCameraNeutralInspector(
         state,
         target,
         {
@@ -347,6 +347,21 @@ export function realmInteractionReducer(
           cellKey: target.cellKey
         }
       );
+      // Opening a Water record requests the close control once. Moving between
+      // records inside the already-open inspector is a content transition, so
+      // retain the existing keyboard intent and let Previous, Next, or Follow
+      // keep ownership of focus.
+      if (
+        state.inspectorOpen
+        && state.inspectorTarget !== null
+        && 'cellKey' in state.inspectorTarget
+      ) {
+        return {
+          ...nextState,
+          keyboardIntent: state.keyboardIntent
+        };
+      }
+      return nextState;
     }
 
     case 'close-inspector': {

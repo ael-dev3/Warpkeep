@@ -152,6 +152,36 @@ describe('realm interaction state', () => {
     });
   });
 
+  it('preserves the consumed keyboard intent while an open Water record changes', () => {
+    const initial = createRealmInteractionState({ q: 0, r: 0 });
+    const opened = realmInteractionReducer(initial, {
+      type: 'activate-water-cell',
+      cellKey: '0,0',
+      bodyId: 'synthetic-river',
+      regime: 'river',
+      coord: { q: 0, r: 0 }
+    });
+    const transitioned = realmInteractionReducer(opened, {
+      type: 'activate-water-cell',
+      cellKey: '1,0',
+      bodyId: 'synthetic-river',
+      regime: 'river',
+      coord: { q: 1, r: 0 }
+    });
+
+    expect(transitioned.inspectorTarget).toEqual({
+      cellKey: '1,0',
+      bodyId: 'synthetic-river',
+      regime: 'river',
+      coord: { q: 1, r: 0 }
+    });
+    expect(transitioned.keyboardIntent).toBe(opened.keyboardIntent);
+    expect(transitioned.keyboardIntent).toEqual({
+      sequence: 1,
+      target: { kind: 'water-inspector', cellKey: '0,0' }
+    });
+  });
+
   it('opens a Food Farm inspector through a distinct target shape from Gold', () => {
     const state = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
       type: 'activate-food-site',

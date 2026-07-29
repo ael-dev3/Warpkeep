@@ -6,6 +6,15 @@ full engineering record.
 
 ## [Unreleased]
 
+## [0.3.25] — 2026-07-29
+
+- Gave ordinary Realm interactions restrained procedural sound while preserving
+  trusted browser gestures, the existing soundtrack, and exact mute behavior.
+- Made every canonical river occupy its full Water hex, with clearer banks,
+  directional movement, and continuous source-to-ocean identity.
+- Added exact cell-by-cell Water record navigation without changing Worker
+  routes, camera position on selection, ownership, balances, or world authority.
+
 ## [0.3.24] — 2026-07-29
 
 - Gave active Supply Wagons a continuous, demand-driven locomotion cycle whose
@@ -265,7 +274,8 @@ full engineering record.
   Lowlands, a first keep, Farcaster sign-in, and an admission-gated shared-world
   foundation.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.24...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.25...HEAD
+[0.3.25]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.24...v0.3.25
 [0.3.24]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.23...v0.3.24
 [0.3.23]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.22...v0.3.23
 [0.3.22]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.21...v0.3.22

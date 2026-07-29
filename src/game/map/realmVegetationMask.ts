@@ -2,15 +2,17 @@ import {
   axialToWorld,
   hexDistance,
   hexKey,
-  worldToNearestAxial,
   type HexCoord,
   type HexWorldPosition
 } from './hexCoordinates';
 import type { TerrainStructurePlacement } from './terrainPlacements';
 import {
-  createRealmWaterChannelPlan,
-  type RealmWaterChannelPlan
+  createRealmWaterChannelPlan
 } from '../../components/realm/realmWaterChannelPresentation';
+import {
+  createRealmRiverBankPresentation,
+  type RealmRiverBankPresentation
+} from './realmRiverBankPresentation';
 
 export type RealmVegetationWaterCell = Readonly<{
   cellKey: string;
@@ -49,6 +51,8 @@ export type RealmVegetationMaskTelemetry = Readonly<{
   riverFallbackBodyCount: number;
   riverFallbackCellCount: number;
   riverSegmentCount: number;
+  riverFullCellExclusionCount: number;
+  riverBankEdgeCount: number;
   routeSegmentCount: number;
   routePathCount: number;
   rejectedRoutePathCount: number;
@@ -64,6 +68,7 @@ export type RealmVegetationMask = Readonly<{
 export type CreateRealmVegetationMaskOptions = Readonly<{
   playableKeys: ReadonlySet<string>;
   waterCells?: readonly RealmVegetationWaterCell[];
+  riverBankPresentation?: RealmRiverBankPresentation;
   placements?: readonly TerrainStructurePlacement[];
   circles?: readonly RealmVegetationClearanceCircle[];
   /** Exact validated live paths; omitted means no route clearance. */
@@ -243,29 +248,6 @@ function primitivesFor(
   })));
 }
 
-function riverPrimitivesFor(
-  prefix: string,
-  plan: RealmWaterChannelPlan,
-  minimumRadius: number,
-  bankPadding: number
-): readonly IndexedPrimitive[] {
-  return Object.freeze(plan.bodies.flatMap((body) => {
-    if (body.mode !== 'channel') return [];
-    return body.sections.slice(1).map((section, index) => {
-      const previous = body.sections[index]!;
-      return Object.freeze({
-        id: `${prefix}:${body.bodyId}:${index}`,
-        start: previous.world,
-        end: section.world,
-        radius: Math.max(
-          minimumRadius,
-          Math.max(previous.halfWidth, section.halfWidth) + bankPadding
-        )
-      });
-    });
-  }));
-}
-
 function circlePrimitives(
   circles: readonly RealmVegetationClearanceCircle[],
   padding: number
@@ -286,10 +268,10 @@ function intersects(index: PrimitiveIndex, world: HexWorldPosition) {
 
 /**
  * Presentation-only clearance shared by grass and decorative tree infill.
- * Ocean and active lake cells are exact full-cell exclusions. Valid river
- * bodies use the same deterministic channel plus bank corridor as the Water
- * renderer; a malformed river body falls back to exact full-cell exclusions.
- * Canonical rows are never changed by this presentation mask.
+ * Every canonical Water coordinate is an exact full-cell exclusion. River
+ * banks extend one bounded falloff into adjacent land; no channel width is
+ * used as the physical Water footprint. Canonical rows are never changed by
+ * this presentation mask.
  *
  * Route clearances are intentionally caller-supplied. Older revisions drew a
  * synthetic spoke/ring network through the Realm, which implied permanent
@@ -303,8 +285,6 @@ export function createRealmVegetationMask(
     : 1;
   const grassRiverClearance = finiteNonNegative(options.grassRiverClearance, 0.36 * hexSize);
   const treeRiverClearance = finiteNonNegative(options.treeRiverClearance, 0.5 * hexSize);
-  const grassRiverBankPadding = 0.08 * hexSize;
-  const treeRiverBankPadding = 0.14 * hexSize;
   const grassRouteClearance = finiteNonNegative(options.grassRouteClearance, 0.14 * hexSize);
   const treeRouteClearance = finiteNonNegative(options.treeRouteClearance, 0.32 * hexSize);
   const treeCirclePadding = finiteNonNegative(options.treeCirclePadding, 0.08 * hexSize);
@@ -316,15 +296,8 @@ export function createRealmVegetationMask(
     cell.regime === 'river' && isSafeCoord(cell) ? [hexKey(cell)] : []
   )));
   const channelPlan = createRealmWaterChannelPlan(waterCells, hexSize);
-  const fallbackRiverKeys = new Set(channelPlan.bodies.flatMap((body) => (
-    body.mode === 'full-cell-fallback' ? body.cellKeys : []
-  )));
-  const fullCellWaterKeys = new Set(waterCells.flatMap((cell) => (
-    isSafeCoord(cell)
-      && (cell.regime !== 'river' || fallbackRiverKeys.has(cell.cellKey))
-      ? [hexKey(cell)]
-      : []
-  )));
+  const riverBankPresentation = options.riverBankPresentation
+    ?? createRealmRiverBankPresentation(waterCells, hexSize);
   const riverSegmentCount = channelPlan.bodies.reduce((sum, body) => (
     sum + (body.mode === 'channel' ? Math.max(0, body.sections.length - 1) : 0)
   ), 0);
@@ -340,33 +313,25 @@ export function createRealmVegetationMask(
   ]);
   const bucketSize = Math.max(0.5, hexSize);
   const grassIndex = createPrimitiveIndex(Object.freeze([
-    ...riverPrimitivesFor(
-      'river',
-      channelPlan,
-      grassRiverClearance,
-      grassRiverBankPadding
-    ),
     ...primitivesFor('route', routeSegments, grassRouteClearance),
     ...circlePrimitives(circles, 0)
   ]), bucketSize);
   const treeIndex = createPrimitiveIndex(Object.freeze([
-    ...riverPrimitivesFor(
-      'river',
-      channelPlan,
-      treeRiverClearance,
-      treeRiverBankPadding
-    ),
     ...primitivesFor('route', routeSegments, treeRouteClearance),
     ...circlePrimitives(circles, treeCirclePadding)
   ]), bucketSize);
-  const isValidatedWater = (world: HexWorldPosition) => {
-    const key = hexKey(worldToNearestAxial(world, hexSize));
-    return fullCellWaterKeys.has(key);
-  };
 
   return Object.freeze({
-    isGrassExcluded: (world) => isValidatedWater(world) || intersects(grassIndex, world),
-    isTreeExcluded: (world) => isValidatedWater(world) || intersects(treeIndex, world),
+    isGrassExcluded: (world) => (
+      riverBankPresentation.isFullCellWater(world)
+      || riverBankPresentation.bankInfluenceAtWorld(world, grassRiverClearance) > 0
+      || intersects(grassIndex, world)
+    ),
+    isTreeExcluded: (world) => (
+      riverBankPresentation.isFullCellWater(world)
+      || riverBankPresentation.bankInfluenceAtWorld(world, treeRiverClearance) > 0
+      || intersects(treeIndex, world)
+    ),
     telemetry: Object.freeze({
       oceanCellCount: oceanKeys.size,
       riverCellCount: riverKeys.size,
@@ -374,6 +339,10 @@ export function createRealmVegetationMask(
       riverFallbackBodyCount: channelPlan.fallbackBodyCount,
       riverFallbackCellCount: channelPlan.fallbackCellCount,
       riverSegmentCount,
+      riverFullCellExclusionCount:
+        riverBankPresentation.telemetry.riverCellCount,
+      riverBankEdgeCount:
+        riverBankPresentation.telemetry.riverBoundaryEdgeCount,
       routeSegmentCount: routeSegments.length,
       routePathCount: routeData.routePathCount,
       rejectedRoutePathCount: routeData.rejectedRoutePathCount,

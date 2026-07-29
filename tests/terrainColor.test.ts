@@ -160,4 +160,31 @@ describe('lowlands terrain color', () => {
     expect(visualLand).toEqual(lowland);
     expect(visualLand).not.toEqual(waterTint);
   });
+
+  it('adds a restrained wet-silt cue only when adjacent-bank influence is present', () => {
+    const map = generateRealmTerrainMap(HEGEMONY_GENESIS_001, 5);
+    const cell = terrainCellByCoord(map, { q: 1, r: -1 });
+    if (!cell) throw new Error('missing adjacent bank terrain cell');
+    const world = axialToWorld(cell.coord, 1);
+    const context = {
+      cell,
+      hexSize: 1,
+      playableRadius: 4,
+      renderRadius: 5
+    } as const;
+    const dry = sampleLowlandsColor(map.worldSeed, world, context);
+    const bank = sampleLowlandsColor(map.worldSeed, world, {
+      ...context,
+      riverBankInfluence: 0.8
+    });
+
+    expect(bank).not.toEqual(dry);
+    expect(bank).toEqual(sampleLowlandsColor(map.worldSeed, world, {
+      ...context,
+      riverBankInfluence: 0.8
+    }));
+    expect(Object.values(bank).every(Number.isFinite)).toBe(true);
+    expect(Object.values(bank).every((channel) => channel >= 0 && channel <= 1)).toBe(true);
+    expect(bank.g - bank.b).toBeLessThan(dry.g - dry.b);
+  });
 });

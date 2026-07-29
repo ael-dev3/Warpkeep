@@ -321,6 +321,7 @@ export function RealmCastleLabels({
             data-focused={focused ? 'true' : 'false'}
             data-hovered={hovered ? 'true' : 'false'}
             data-own={own ? 'true' : 'false'}
+            data-warpkeep-sfx="none"
             style={positionStyle}
             tabIndex={label.castleId === rovingCastleIdRef.current ? 0 : -1}
             onClick={() => onActivate(record.castle)}

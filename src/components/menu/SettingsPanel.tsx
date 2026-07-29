@@ -120,8 +120,8 @@ export function SettingsPanel({
               type="checkbox"
             />
             <span>
-              <strong>MUSIC &amp; AMBIENCE // {audioMuted ? 'MUTED' : 'ON'}</strong>
-              <small>Controls every Warpkeep soundtrack without affecting browser or system audio.</small>
+              <strong>MUSIC &amp; EFFECTS // {audioMuted ? 'MUTED' : 'ON'}</strong>
+              <small>Controls Warpkeep soundtracks and interaction effects without affecting browser or system audio.</small>
             </span>
           </label>
         </fieldset>

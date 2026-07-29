@@ -78,6 +78,8 @@ describe('travelling worker presence markers', () => {
     expect(returningControl.dataset.phase).toBe('returning');
     expect(outboundControl.dataset.ownedByViewer).toBe('true');
     expect(returningControl.dataset.ownedByViewer).toBe('false');
+    expect(outboundControl.dataset.warpkeepSfx).toBe('none');
+    expect(returningControl.dataset.warpkeepSfx).toBe('none');
     expect(container.querySelectorAll('.realm-castle-avatar')).toHaveLength(2);
     expect(container.querySelector('.realm-worker-presence-marker__route-ring')).toBeNull();
   });

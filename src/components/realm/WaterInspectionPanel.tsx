@@ -1,23 +1,37 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useRef,
+  useState,
   type KeyboardEvent,
   type Ref
 } from 'react';
 
-import type { RealmWaterInspectionRecord } from './realmWaterInspectionPresentation';
+import type {
+  RealmWaterInspectionNavigation,
+  RealmWaterInspectionRecord
+} from './realmWaterInspectionPresentation';
 import { RealmRecordField } from './RealmRecordPrimitives';
 import './WaterInspectionPanel.css';
+
+export const WATER_INSPECTION_FOLLOW_INTERVAL_MS = 1_100;
+
+type WaterFollowState = Readonly<{
+  direction: 'upstream' | 'downstream';
+  bodyId: string;
+}>;
 
 export type WaterInspectionPanelProps = Readonly<{
   id: string;
   record: RealmWaterInspectionRecord;
+  navigation?: RealmWaterInspectionNavigation;
   focusTargetRef?: Ref<HTMLButtonElement>;
   /** Enables operator-only realm coordinates and opaque persistence identifiers. */
   showDiagnostics?: boolean;
   onRequestClose: () => void;
   onSelectCell?: (cellKey: string) => void;
+  onFocusCell?: (cellKey: string) => void;
   onViewUnderlyingCell?: () => void;
 }>;
 
@@ -43,26 +57,78 @@ function WaterRecordArt({ record }: Readonly<{ record: RealmWaterInspectionRecor
   );
 }
 
+function eventBelongsToPanel(event: KeyboardEvent<HTMLElement>) {
+  const target = event.target;
+  if (!(target instanceof Element)) return true;
+  return target.closest('[role="dialog"]') === event.currentTarget;
+}
+
+function editableEventTarget(event: KeyboardEvent<HTMLElement>) {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return false;
+  return target.isContentEditable
+    || target.tagName === 'INPUT'
+    || target.tagName === 'TEXTAREA'
+    || target.tagName === 'SELECT';
+}
+
 export function WaterInspectionPanel({
   id,
   record,
+  navigation,
   focusTargetRef,
   showDiagnostics = false,
   onRequestClose,
   onSelectCell,
+  onFocusCell,
   onViewUnderlyingCell
 }: WaterInspectionPanelProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const titleId = `${id}-title`;
-  const descriptionId = `${id}-description`;
+  const initialFocusAppliedRef = useRef(false);
+  const [follow, setFollow] = useState<WaterFollowState>();
+  const opaqueId = useId();
+  // Public Water records must not echo canonical q,r persistence keys into
+  // ordinary DOM identifiers. Observer diagnostics may retain their explicit
+  // caller id alongside the already-gated coordinate attributes and text.
+  const panelId = showDiagnostics ? id : `${opaqueId}-water-record`;
+  const titleId = `${panelId}-title`;
+  const descriptionId = `${panelId}-description`;
   const setCloseButtonRef = useCallback((element: HTMLButtonElement | null) => {
     closeButtonRef.current = element;
     assignRef(focusTargetRef, element);
   }, [focusTargetRef]);
 
   useEffect(() => {
+    if (initialFocusAppliedRef.current) return;
+    initialFocusAppliedRef.current = true;
     closeButtonRef.current?.focus({ preventScroll: true });
   }, [id, record.cellKey]);
+
+  useEffect(() => {
+    if (!follow) return;
+    if (!navigation || !onSelectCell || navigation.bodyId !== follow.bodyId) {
+      setFollow(undefined);
+      return;
+    }
+    const nextCellKey = follow.direction === 'downstream'
+      ? navigation.nextCellKey
+      : navigation.previousCellKey;
+    if (!nextCellKey) {
+      setFollow(undefined);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      onSelectCell(nextCellKey);
+    }, WATER_INSPECTION_FOLLOW_INTERVAL_MS);
+    return () => window.clearTimeout(timer);
+  }, [
+    follow,
+    navigation,
+    navigation?.cellKey,
+    navigation?.nextCellKey,
+    navigation?.previousCellKey,
+    onSelectCell
+  ]);
 
   const eyebrow = record.regime === 'river'
     ? 'RIVER'
@@ -71,16 +137,51 @@ export function WaterInspectionPanel({
     ? `${record.riverPosition} · ${record.flowClass}`
     : `${record.oceanDepthClass} · ${record.fogBand} view`;
 
+  const selectRecord = (cellKey: string | undefined) => {
+    if (!cellKey || !onSelectCell) return;
+    setFollow(undefined);
+    onSelectCell(cellKey);
+  };
+
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-    if (event.key !== 'Escape' || event.repeat) return;
+    if (
+      event.defaultPrevented
+      || event.repeat
+      || !eventBelongsToPanel(event)
+      || editableEventTarget(event)
+    ) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      onRequestClose();
+      return;
+    }
+    if (
+      event.altKey
+      || event.ctrlKey
+      || event.metaKey
+      || event.shiftKey
+      || !navigation
+      || !onSelectCell
+    ) return;
+    const targetCellKey = event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+      ? navigation.previousCellKey
+      : event.key === 'ArrowRight' || event.key === 'ArrowDown'
+        ? navigation.nextCellKey
+        : event.key === 'Home'
+          ? navigation.sourceCellKey
+          : event.key === 'End'
+            ? navigation.mouthCellKey
+            : undefined;
+    if (!targetCellKey) return;
     event.preventDefault();
     event.stopPropagation();
-    onRequestClose();
+    selectRecord(targetCellKey);
   };
 
   return (
     <aside
-      id={id}
+      id={panelId}
       className="water-inspection realm-camera-neutral-inspector"
       role="dialog"
       aria-modal="false"
@@ -139,16 +240,20 @@ export function WaterInspectionPanel({
                 <RealmRecordField className="water-inspection__field" label="Flow">
                   {record.downstreamWaterCellKey ? 'downstream link recorded' : 'mouth reached'}
                 </RealmRecordField>
-                <RealmRecordField className="water-inspection__field" label="Underlying terrain">
-                  {record.underlyingTerrainLabel
-                    ?? (showDiagnostics ? record.underlyingTileKey : undefined)
-                    ?? 'not published'}
-                </RealmRecordField>
-                <RealmRecordField className="water-inspection__field" label="Underlying land">
-                  {record.underlyingPassable === false
-                    ? 'blocked'
-                    : record.underlyingPassable === true ? 'passable' : 'not asserted'}
-                </RealmRecordField>
+                {showDiagnostics ? (
+                  <>
+                    <RealmRecordField className="water-inspection__field" label="Underlying terrain">
+                      {record.underlyingTerrainLabel
+                        ?? record.underlyingTileKey
+                        ?? 'not published'}
+                    </RealmRecordField>
+                    <RealmRecordField className="water-inspection__field" label="Underlying land">
+                      {record.underlyingPassable === false
+                        ? 'blocked'
+                        : record.underlyingPassable === true ? 'passable' : 'not asserted'}
+                    </RealmRecordField>
+                  </>
+                ) : null}
               </>
             ) : (
               <>
@@ -163,14 +268,117 @@ export function WaterInspectionPanel({
           </dl>
           <p className="water-inspection__read-only">{record.gameplayBoundary}</p>
           <div className="water-inspection__actions">
-            {record.regime === 'river' && record.sourceCellKey && onSelectCell ? (
-              <button type="button" onClick={() => onSelectCell(record.sourceCellKey!)}>OPEN SOURCE RECORD</button>
+            {record.regime === 'river' && navigation && onSelectCell ? (
+              <>
+                <p
+                  aria-live="polite"
+                  className="water-inspection__navigation-status"
+                  role="status"
+                >
+                  {follow
+                    ? `Following ${follow.direction}`
+                    : `${navigation.sourceDistance} upstream · ${navigation.mouthDistance} downstream`}
+                </p>
+                <div
+                  aria-label="River step navigation"
+                  className="water-inspection__action-grid"
+                  role="group"
+                >
+                  <button
+                    aria-keyshortcuts="ArrowLeft ArrowUp"
+                    aria-label="Previous upstream river cell"
+                    disabled={!navigation.previousCellKey}
+                    onClick={() => selectRecord(navigation.previousCellKey)}
+                    type="button"
+                  >
+                    PREVIOUS
+                  </button>
+                  <button
+                    aria-keyshortcuts="ArrowRight ArrowDown"
+                    aria-label="Next downstream river cell"
+                    disabled={!navigation.nextCellKey}
+                    onClick={() => selectRecord(navigation.nextCellKey)}
+                    type="button"
+                  >
+                    NEXT
+                  </button>
+                  <button
+                    aria-keyshortcuts="Home"
+                    aria-label="Open river source"
+                    disabled={navigation.sourceDistance === 0}
+                    onClick={() => selectRecord(navigation.sourceCellKey)}
+                    type="button"
+                  >
+                    SOURCE
+                  </button>
+                  <button
+                    aria-keyshortcuts="End"
+                    aria-label="Open river mouth"
+                    disabled={navigation.mouthDistance === 0}
+                    onClick={() => selectRecord(navigation.mouthCellKey)}
+                    type="button"
+                  >
+                    MOUTH
+                  </button>
+                </div>
+                <div
+                  aria-label="River follow controls"
+                  className="water-inspection__action-grid"
+                  role="group"
+                >
+                  <button
+                    aria-label="Follow river upstream"
+                    aria-pressed={follow?.direction === 'upstream'}
+                    disabled={!navigation.previousCellKey}
+                    onClick={() => setFollow(Object.freeze({
+                      direction: 'upstream',
+                      bodyId: navigation.bodyId
+                    }))}
+                    type="button"
+                  >
+                    FOLLOW UP
+                  </button>
+                  <button
+                    aria-label="Follow river downstream"
+                    aria-pressed={follow?.direction === 'downstream'}
+                    disabled={!navigation.nextCellKey}
+                    onClick={() => setFollow(Object.freeze({
+                      direction: 'downstream',
+                      bodyId: navigation.bodyId
+                    }))}
+                    type="button"
+                  >
+                    FOLLOW DOWN
+                  </button>
+                  <button
+                    aria-label="Stop following river"
+                    className="water-inspection__action-wide"
+                    disabled={!follow}
+                    onClick={() => setFollow(undefined)}
+                    type="button"
+                  >
+                    STOP FOLLOWING
+                  </button>
+                </div>
+              </>
+            ) : record.regime === 'river' ? (
+              <p className="water-inspection__navigation-status" role="status">
+                River navigation is temporarily unavailable for this record.
+              </p>
             ) : null}
-            {record.regime === 'river' && record.mouthCellKey && onSelectCell ? (
-              <button type="button" onClick={() => onSelectCell(record.mouthCellKey!)}>OPEN MOUTH RECORD</button>
-            ) : null}
-            {record.regime === 'river' && onViewUnderlyingCell ? (
+            {onFocusCell ? (
               <button
+                aria-label={`Focus ${record.regime} cell on map`}
+                className="water-inspection__action-wide"
+                onClick={() => onFocusCell(record.cellKey)}
+                type="button"
+              >
+                FOCUS CELL
+              </button>
+            ) : null}
+            {showDiagnostics && record.regime === 'river' && onViewUnderlyingCell ? (
+              <button
+                className="water-inspection__action-wide"
                 type="button"
                 onClick={() => {
                   onRequestClose();

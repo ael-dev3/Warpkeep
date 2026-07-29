@@ -18,31 +18,40 @@ describe('latest in-menu patch notes', () => {
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
       releasedOn: '29 JUL 2026',
-      title: 'WAGONS TAKE THE ROAD'
+      title: 'THE LIVING REALM'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /smooth demand-driven cadence.*completed Start, Stop, or turn gesture.*frozen/i
+      /Interface.*keep.*resource.*Water.*confirmed Worker.*trusted browser gestures.*mute/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Horse gait.*distance-driven wheel rotation.*actual route speed.*terrain contact/i
+      /Every canonical river.*fills its Water hex.*adjacent banks.*directional flow.*ocean/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Reconnects.*late model loads.*LOD changes.*current movement phase.*reduced motion/i
+      /River records.*one cell at a time.*upstream.*downstream.*source.*mouth.*camera-focus/i
     );
-    expect(JSON.stringify(getLatestPatchNotes(packageJson.version))).not.toMatch(
-      /\blive\b|\bdeployed\b|released to players|guaranteed rewards/i
+    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
+      /released to players|deployed to players|public balances|guaranteed rewards/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.summary).toContain(
-      'continuous, speed-matched locomotion cycle'
+      'full-cell rivers'
     );
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
+      'does not change Worker routes, timings, ownership, resources'
+    );
+
+    const alpha0324 = getLatestPatchNotes('0.3.24');
+    expect(alpha0324).toMatchObject({
+      releasedOn: '29 JUL 2026',
+      title: 'WAGONS TAKE THE ROAD'
+    });
+    expect(alpha0324?.highlights.join(' ')).toMatch(
+      /Horse gait.*distance-driven wheel rotation.*actual route speed.*terrain contact/i
+    );
+    expect(alpha0324?.alphaNotice).toContain(
       'does not change authentication, Worker authority, routes'
     );
 
-    expect(getLatestPatchNotes('0.3.23')).toMatchObject({
-      title: 'THE GATE ALIGNS'
-    });
     const alpha0322 = getLatestPatchNotes('0.3.22');
     expect(alpha0322).toMatchObject({
       title: 'THE WAGONS REST'

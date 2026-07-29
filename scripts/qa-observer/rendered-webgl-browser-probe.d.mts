@@ -298,6 +298,13 @@ export type RenderedWebglWaterOverviewEvidence = Readonly<{
   riverChannelSegmentCount: 1200;
   riverFallbackBodyCount: 0;
   riverFallbackCellCount: 0;
+  riverFullCellCount: 400;
+  riverFullCellTriangleCount: 2400;
+  riverBankEdgeCount: 1601;
+  riverSharedEdgeCount: 388;
+  riverMouthEdgeCount: 23;
+  riverIncompleteCellCount: 0;
+  riverOverlappingPhysicalTriangleCount: 0;
   riverMouthConnectionCount: 12;
   routeDrawCalls: 0;
   routeSegments: 0;
@@ -306,7 +313,7 @@ export type RenderedWebglWaterOverviewEvidence = Readonly<{
   waterDrawCalls: 3;
   waterPresentation: 'ready';
   waterShaderFallbackCount: 0;
-  waterTriangles: 25998;
+  waterTriangles: 21198;
 }>;
 
 export function parseRenderedWebglWaterOverviewEvidence(
@@ -566,6 +573,15 @@ export type RenderedWebglCastleCanvasPointerSession = Readonly<{
     params?: Readonly<Record<string, unknown>>,
   ) => Promise<unknown>;
 }>;
+
+export type {
+  RenderedWebglSfxEvidence,
+  RenderedWebglSfxSession,
+} from './rendered-webgl-sfx-lifecycle.mjs';
+export {
+  applyRenderedWebglSfxInteraction,
+  parseRenderedWebglSfxEvidence,
+} from './rendered-webgl-sfx-lifecycle.mjs';
 
 export function applyRenderedWebglActiveForestCameraInteraction(
   session: RenderedWebglCastleCanvasPointerSession

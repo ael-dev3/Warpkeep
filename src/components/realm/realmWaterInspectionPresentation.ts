@@ -1,4 +1,7 @@
 import type { HexCoord } from '../../game/map/hexCoordinates';
+import type {
+  CanonicalWaterNavigationGraph
+} from '../../game/map/canonicalWaterNavigation';
 import {
   GENESIS_WATER_BODIES_V1,
   type GenesisWaterBodyV1,
@@ -46,6 +49,18 @@ export type RealmWaterNavigatorBody = Readonly<{
   mouthCellKey: string;
   sourceCoord: HexCoord;
   mouthCoord: HexCoord;
+}>;
+
+export type RealmWaterInspectionNavigation = Readonly<{
+  cellKey: string;
+  bodyId: string;
+  previousCellKeys: readonly string[];
+  previousCellKey?: string;
+  nextCellKey?: string;
+  sourceCellKey: string;
+  mouthCellKey: string;
+  sourceDistance: number;
+  mouthDistance: number;
 }>;
 
 function safeBodyMap(bodies: readonly GenesisWaterBodyV1[]) {
@@ -201,4 +216,50 @@ export function realmWaterNavigatorBodies(
       sourceCoord: record.sourceCoord!,
       mouthCoord: record.mouthCoord!
     })));
+}
+
+/**
+ * Joins a public river record to the independently validated navigation graph.
+ * A mismatch disables record navigation locally rather than guessing from
+ * renderer geometry, river labels, or q/r ordering.
+ */
+export function realmWaterInspectionNavigation(
+  graph: CanonicalWaterNavigationGraph,
+  record: RealmWaterInspectionRecord
+): RealmWaterInspectionNavigation | undefined {
+  if (
+    record.regime !== 'river'
+    || !record.sourceCellKey
+    || !record.mouthCellKey
+  ) return undefined;
+  const node = graph.node(record.cellKey);
+  if (
+    !node
+    || node.regime !== 'river'
+    || node.bodyId !== record.bodyId
+  ) return undefined;
+  const sourceRoute = graph.upstreamRouteToSource(record.cellKey);
+  const mouthRoute = graph.downstreamRouteToMouth(record.cellKey);
+  if (
+    !sourceRoute
+    || !mouthRoute
+    || sourceRoute.cellKeys[0] !== record.cellKey
+    || mouthRoute.cellKeys[0] !== record.cellKey
+    || sourceRoute.cellKeys.at(-1) !== record.sourceCellKey
+    || mouthRoute.cellKeys.at(-1) !== record.mouthCellKey
+  ) return undefined;
+  const previousCellKeys = Object.freeze([...node.upstream]);
+  return Object.freeze({
+    cellKey: record.cellKey,
+    bodyId: record.bodyId,
+    previousCellKeys,
+    ...(previousCellKeys[0] === undefined
+      ? {}
+      : { previousCellKey: previousCellKeys[0] }),
+    ...(node.downstream === undefined ? {} : { nextCellKey: node.downstream }),
+    sourceCellKey: record.sourceCellKey,
+    mouthCellKey: record.mouthCellKey,
+    sourceDistance: sourceRoute.cellKeys.length - 1,
+    mouthDistance: mouthRoute.cellKeys.length - 1
+  });
 }

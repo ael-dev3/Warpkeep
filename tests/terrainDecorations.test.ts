@@ -64,6 +64,27 @@ describe('static lowland stone decorations', () => {
     expect(details.counts).toEqual({ stone: 0 });
   });
 
+  it('never allocates static land detail inside caller-supplied full-cell Water', () => {
+    const surface = createRealmTerrainSurface(HEGEMONY_GENESIS_001, 4, 5);
+    const allCellKeys = new Set(surface.renderMap.cells.map(
+      (cell) => `${cell.coord.q},${cell.coord.r}`
+    ));
+    const details = generateTerrainDecorations(
+      surface.renderMap,
+      { playableRadius: 4, stoneChancePlayable: 1, stoneChanceApron: 1 },
+      1,
+      [],
+      undefined,
+      {
+        maximumPoints: 10_000,
+        excludedCellKeys: allCellKeys
+      }
+    );
+
+    expect(details.points).toEqual([]);
+    expect(details.counts).toEqual({ stone: 0 });
+  });
+
   it('keeps radius-sixty static detail under its independent static budget', () => {
     const surface = createRealmTerrainSurface(HEGEMONY_GENESIS_001, 58, 60);
     const plan = resolveRealmRenderPlan(REALM_QUALITY_SPECS.high, {
