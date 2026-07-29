@@ -10,7 +10,11 @@ const REVISION = Object.freeze({
   north: 'genesis-001-northern-snow-presentation-v1',
   south: 'genesis-001-southern-desert-presentation-v1',
 });
-const TARGET_MINIMUM_FRAME_CLIMATE_SAMPLES = 8;
+const TRANSITION_MINIMUM_FRAME_CLIMATE_SAMPLES = 8;
+const TRANSITION_MINIMUM_COMPOSED_CLIMATE_SAMPLES = 1;
+const DEEP_MINIMUM_FRAME_CLIMATE_SAMPLES = 64;
+const DEEP_MINIMUM_COMPOSED_CLIMATE_SAMPLES = 4;
+const DEEP_MINIMUM_CLIMATE_DOMINANCE_SAMPLES = 32;
 const OVERVIEW_MINIMUM_CLIMATE_SAMPLES = 3;
 const OVERVIEW_MINIMUM_SPATIAL_DIFFERENCE = 6;
 const MAXIMUM_CLIPPED_BLACK_SAMPLES = 1;
@@ -18,8 +22,9 @@ const MAXIMUM_CLIPPED_BLACK_SAMPLES = 1;
 export function parseRegionalClimateRenderedEvidence(value, expected) {
   const invalid = () => new TypeError('Invalid regional climate rendered evidence.');
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalid();
-  const keys = ['band', 'climate', 'coverage', 'material', 'quality', 'recovered',
-    'recoveryExercised', 'region', 'selected', 'separation', 'stable', 'vertices'].sort();
+  const keys = ['band', 'climate', 'compositionBucket', 'coverage', 'material',
+    'quality', 'recovered', 'recoveryExercised', 'region', 'selected',
+    'separation', 'stable', 'vertices'].sort();
   const actual = Object.keys(value).sort();
   const [climateCount, deep, playableRatio, deepRatio, innerLeaks, oppositeLeaks]
     = value.coverage ?? [];
@@ -42,6 +47,8 @@ export function parseRegionalClimateRenderedEvidence(value, expected) {
     || !Number.isSafeInteger(expected?.viewport?.height)
     || value.climate !== climate || value.quality !== quality
     || value.region !== region || value.band !== band
+    || !Number.isSafeInteger(value.compositionBucket)
+    || value.compositionBucket < 0 || value.compositionBucket > 8
     || value.selected !== true || value.stable !== true
     || value.recoveryExercised !== recover || value.recovered !== recover
     || !Array.isArray(value.coverage) || value.coverage.length !== 6
@@ -84,8 +91,14 @@ export function assertRegionalClimateRenderedVisual(evidence, visual) {
     : 0;
   const targetClimateTotal = evidence?.climate === 'north' ? cool : warm;
   const oppositeClimateTotal = evidence?.climate === 'north' ? warm : cool;
+  const targetSpatialBuckets = evidence?.climate === 'north'
+    ? visual?.coolSpatialBuckets
+    : visual?.warmSpatialBuckets;
+  const targetComposedClimateTotal =
+    targetSpatialBuckets?.[evidence?.compositionBucket];
   if (!visual || typeof visual !== 'object'
     || !Number.isSafeInteger(cool) || !Number.isSafeInteger(warm)
+    || !Number.isSafeInteger(targetComposedClimateTotal)
     || !exactSpatialAggregate(visual.coolSpatialBuckets, cool)
     || !exactSpatialAggregate(visual.warmSpatialBuckets, warm)
     || (evidence?.region === 'overview' && (
@@ -93,9 +106,16 @@ export function assertRegionalClimateRenderedVisual(evidence, visual) {
       || warm < OVERVIEW_MINIMUM_CLIMATE_SAMPLES
       || spatialDifference < OVERVIEW_MINIMUM_SPATIAL_DIFFERENCE
     ))
-    || (evidence?.region !== 'overview' && (
-      targetClimateTotal < TARGET_MINIMUM_FRAME_CLIMATE_SAMPLES
+    || (evidence?.region === 'transition' && (
+      targetClimateTotal < TRANSITION_MINIMUM_FRAME_CLIMATE_SAMPLES
       || targetClimateTotal <= oppositeClimateTotal
+      || targetComposedClimateTotal < TRANSITION_MINIMUM_COMPOSED_CLIMATE_SAMPLES
+    ))
+    || (evidence?.region === 'deep' && (
+      targetClimateTotal < DEEP_MINIMUM_FRAME_CLIMATE_SAMPLES
+      || targetClimateTotal - oppositeClimateTotal
+        < DEEP_MINIMUM_CLIMATE_DOMINANCE_SAMPLES
+      || targetComposedClimateTotal < DEEP_MINIMUM_COMPOSED_CLIMATE_SAMPLES
     ))
     || !Number.isSafeInteger(visual.clippedBlackSamples)
     || visual.clippedBlackSamples < 0
@@ -125,8 +145,10 @@ export async function applyRegionalClimateRenderedEvidence(session, options) {
       const overlay=document.querySelector('[data-rendered-webgl-status]');
       const canvas=()=>root?.querySelector('canvas[data-realm-canvas-active="true"]');
       const trigger=document.querySelector('.realm-cell-navigator > button');
+      const previousCameraStateToken=canvas()?.dataset.realmCameraStateToken;
       if(!(root instanceof HTMLElement)||!(overlay instanceof HTMLElement)
         ||!(trigger instanceof HTMLButtonElement)||trigger.disabled
+        ||!/^[0-9a-f]{24}$/.test(previousCameraStateToken??'')
         ||innerWidth!==viewport.width||innerHeight!==viewport.height)return null;
       trigger.click();
       if(!await wait(()=>document.querySelector('.realm-cell-navigator__dialog')
@@ -179,6 +201,7 @@ export async function applyRegionalClimateRenderedEvidence(session, options) {
       }
       if(!await wait(()=>document.querySelector('.realm-cell-navigator__dialog')===null
         &&root.dataset.rendererState==='ready'&&canvas()?.dataset.realmCameraSettled==='true'
+        &&canvas()?.dataset.realmCameraStateToken!==previousCameraStateToken
         &&(region==='overview'?root.dataset.realmCameraTargetKind==='realm'
           :root.dataset.realmCameraTargetKind==='cell-location'),5000))return null;
       const targetBand=region==='overview'?'overview'
@@ -207,8 +230,16 @@ export async function applyRegionalClimateRenderedEvidence(session, options) {
           &&canvas()?.dataset.realmCameraSettled==='true'&&signature()===before);
       }
       const number=name=>Number(root.dataset[name]);
+      const activeCanvas=canvas();
+      const safeCenterX=Number(activeCanvas?.dataset.realmCameraSafeCenterX);
+      const safeCenterY=Number(activeCanvas?.dataset.realmCameraSafeCenterY);
+      const bucket=(value,size,start,span)=>Math.min(2,Math.max(0,
+        Math.floor((((value/size)-start)/span)*3)));
+      if(!Number.isFinite(safeCenterX)||!Number.isFinite(safeCenterY))return null;
+      const compositionBucket=bucket(safeCenterY,viewport.height,0.16,0.68)*3
+        +bucket(safeCenterX,viewport.width,0.12,0.76);
       const north=climate==='north';
-      return {band:root.dataset.realmCameraPresentationBand,climate,
+      return {band:root.dataset.realmCameraPresentationBand,climate,compositionBucket,
         coverage:north
           ?[number('snowClimateCellCountAbove015'),number('snowDeepCellCountAbove075'),
             number('snowPlayableCoverageRatio'),number('snowDeepCoverageRatio'),
