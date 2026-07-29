@@ -41,6 +41,61 @@ function riverCells(bodyId: string) {
     ));
 }
 
+const SYNTHETIC_REALM_ID = 'synthetic-water-realm';
+const SYNTHETIC_RIVER_BODY_ID = 'synthetic-river';
+const SYNTHETIC_OCEAN_BODY_ID = 'synthetic-ocean';
+
+function syntheticRiverCell(
+  q: number,
+  r: number,
+  riverOrder: number,
+  downstreamWaterCellKey?: string
+) {
+  return Object.freeze({
+    realmId: SYNTHETIC_REALM_ID,
+    cellKey: hexKey({ q, r }),
+    q,
+    r,
+    regime: 'river',
+    bodyId: SYNTHETIC_RIVER_BODY_ID,
+    fogBand: 'clear',
+    riverOrder,
+    ...(downstreamWaterCellKey === undefined ? {} : { downstreamWaterCellKey })
+  });
+}
+
+function syntheticOceanCell(q: number, r: number) {
+  return Object.freeze({
+    realmId: SYNTHETIC_REALM_ID,
+    cellKey: hexKey({ q, r }),
+    q,
+    r,
+    regime: 'ocean',
+    bodyId: SYNTHETIC_OCEAN_BODY_ID,
+    fogBand: 'clear'
+  });
+}
+
+function syntheticRiverBody(cellCount: number) {
+  return Object.freeze({
+    realmId: SYNTHETIC_REALM_ID,
+    bodyId: SYNTHETIC_RIVER_BODY_ID,
+    regime: 'river',
+    cellCount,
+    sourceCellKey: '0,0',
+    mouthCellKey: '2,0'
+  });
+}
+
+const SYNTHETIC_OCEAN_BODY = Object.freeze({
+  realmId: SYNTHETIC_REALM_ID,
+  bodyId: SYNTHETIC_OCEAN_BODY_ID,
+  regime: 'ocean',
+  cellCount: 1,
+  sourceCellKey: '3,0',
+  mouthCellKey: '3,0'
+});
+
 describe('canonical Water navigation graph', () => {
   it('builds the exact bounded public Genesis graph without exposing full fog', () => {
     const graph = canonicalGraph();
@@ -187,6 +242,93 @@ describe('canonical Water navigation graph', () => {
     }
   });
 
+  it('preserves global body, headwater, endpoint, and reciprocal-edge invariants', () => {
+    const graph = canonicalGraph();
+    const bodyById = new Map(
+      GENESIS_WATER_REVISION_ENABLED_BODIES_V1.map((body) => [body.bodyId, body] as const)
+    );
+
+    for (const node of graph.nodes) {
+      const body = bodyById.get(node.bodyId);
+      expect(body, `${node.cellKey}:published-body`).toBeDefined();
+      expect(body?.regime, `${node.cellKey}:body-regime`).toBe(node.regime);
+      for (const neighborKey of node.navigableNeighbors) {
+        const neighbor = graph.node(neighborKey);
+        expect(neighbor, `${node.cellKey}:${neighborKey}:published-neighbor`).toBeDefined();
+        expect(neighbor?.navigableNeighbors, `${node.cellKey}:${neighborKey}:reciprocal`)
+          .toContain(node.cellKey);
+      }
+      if (node.downstream) {
+        const downstream = graph.node(node.downstream);
+        expect(downstream, `${node.cellKey}:published-downstream`).toBeDefined();
+        expect(downstream?.bodyId, `${node.cellKey}:downstream-body`).toBe(node.bodyId);
+        expect(downstream?.regime, `${node.cellKey}:downstream-regime`).toBe('river');
+      }
+    }
+
+    for (const body of GENESIS_WATER_REVISION_ENABLED_BODIES_V1) {
+      if (body.regime !== 'river') continue;
+      const bodyNodes = graph.nodes.filter((node) => node.bodyId === body.bodyId);
+      const headwaters = bodyNodes.filter((node) => node.upstream.length === 0);
+      expect(headwaters.map((node) => node.cellKey), `${body.bodyId}:headwater`)
+        .toEqual([body.sourceCellKey]);
+      const mouth = graph.node(body.mouthCellKey);
+      expect(mouth, `${body.bodyId}:mouth`).toBeDefined();
+      expect(
+        mouth?.navigableNeighbors.some((cellKey) => graph.node(cellKey)?.regime === 'ocean'),
+        `${body.bodyId}:mouth-ocean`
+      ).toBe(true);
+    }
+  });
+
+  it('rejects a second headwater even when every branch reaches the declared mouth', () => {
+    const cells = [
+      syntheticRiverCell(0, 0, 0, '1,0'),
+      syntheticRiverCell(0, 1, 1, '1,0'),
+      syntheticRiverCell(1, 0, 2, '2,0'),
+      syntheticRiverCell(2, 0, 3),
+      syntheticOceanCell(3, 0)
+    ];
+    const graph = createCanonicalWaterNavigationGraph(
+      cells,
+      [syntheticRiverBody(4), SYNTHETIC_OCEAN_BODY]
+    );
+
+    expect(graph.status).not.toBe('exact');
+    expect(graph.issues).toContainEqual({
+      code: 'river-headwater-mismatch',
+      scope: 'body',
+      bodyId: SYNTHETIC_RIVER_BODY_ID,
+      cellKey: '0,0'
+    });
+    expect(graph.nodes.some((node) => node.bodyId === SYNTHETIC_RIVER_BODY_ID))
+      .toBe(false);
+    expect(graph.upstreamRouteToSource('0,1')).toBeUndefined();
+    expect(graph.node('3,0')?.bodyId).toBe(SYNTHETIC_OCEAN_BODY_ID);
+  });
+
+  it('purges a river whose otherwise-valid mouth has no published ocean adjacency', () => {
+    const riverCells = [
+      syntheticRiverCell(0, 0, 0, '1,0'),
+      syntheticRiverCell(1, 0, 1, '2,0'),
+      syntheticRiverCell(2, 0, 2)
+    ];
+    const bodies = [syntheticRiverBody(riverCells.length)];
+    const graph = createCanonicalWaterNavigationGraph(riverCells, bodies);
+    const publishedBodyIds = new Set<string>(bodies.map((body) => body.bodyId));
+
+    expect(graph.issues).toContainEqual({
+      code: 'river-mouth-ocean-missing',
+      scope: 'body',
+      bodyId: SYNTHETIC_RIVER_BODY_ID,
+      cellKey: '2,0'
+    });
+    expect(graph.nodes).toEqual([]);
+    expect(graph.node('0,0')).toBeUndefined();
+    expect(graph.shortestRoute('0,0', '2,0')).toBeUndefined();
+    expect(graph.nodes.every((node) => publishedBodyIds.has(node.bodyId))).toBe(true);
+  });
+
   it('finds stable shortest routes only through adjacent published Water', () => {
     const graph = canonicalGraph();
     const riverBodies = GENESIS_WATER_REVISION_ENABLED_BODIES_V1
@@ -295,10 +437,13 @@ describe('canonical Water navigation graph', () => {
     expect(nonAdjacentGraph.nodes.some((node) => node.bodyId === riverBody.bodyId))
       .toBe(false);
 
+    const duplicatedRiverCell = GENESIS_WATER_REVISION_ENABLED_CELLS_V1.find(
+      (cell) => cell.regime === 'river'
+    )!;
     const duplicateGraph = createCanonicalWaterNavigationGraph(
       [
         ...GENESIS_WATER_REVISION_ENABLED_CELLS_V1,
-        GENESIS_WATER_REVISION_ENABLED_CELLS_V1[0]
+        duplicatedRiverCell
       ],
       GENESIS_WATER_BODIES_V1
     );

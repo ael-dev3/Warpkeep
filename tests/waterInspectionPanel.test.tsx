@@ -58,10 +58,11 @@ describe('WaterInspectionPanel', () => {
   it('focuses its close control and handles one Escape without leaking it outward', async () => {
     const onRequestClose = vi.fn();
     const outerEscape = vi.fn();
-    render(
+    const suppliedId = `water-record-${RECORD.cellKey}`;
+    const { container } = render(
       <div onKeyDown={(event) => event.key === 'Escape' && outerEscape()}>
         <WaterInspectionPanel
-          id="water-record"
+          id={suppliedId}
           record={RECORD}
           onRequestClose={onRequestClose}
         />
@@ -72,6 +73,13 @@ describe('WaterInspectionPanel', () => {
     const close = screen.getByRole('button', { name: 'CLOSE WATER RECORD' });
     await waitFor(() => expect(document.activeElement).toBe(close));
     expect(dialog.hasAttribute('data-water-cell-key')).toBe(false);
+    expect(dialog.id).not.toContain(RECORD.cellKey);
+    expect(dialog.id).not.toBe(suppliedId);
+    expect(dialog.getAttribute('aria-labelledby')).not.toContain(RECORD.cellKey);
+    expect(dialog.getAttribute('aria-describedby')).not.toContain(RECORD.cellKey);
+    expect([...container.querySelectorAll<HTMLElement>('[id]')].every(
+      (element) => !element.id.includes(RECORD.cellKey)
+    )).toBe(true);
     expect(screen.queryByText('Coordinates')).toBeNull();
     expect(screen.queryByText('Body')).toBeNull();
     expect(screen.queryByText('Source → mouth')).toBeNull();

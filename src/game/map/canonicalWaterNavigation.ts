@@ -36,6 +36,7 @@ export type CanonicalWaterNavigationIssueCode =
   | 'river-cycle'
   | 'river-route-does-not-reach-mouth'
   | 'river-source-mismatch'
+  | 'river-headwater-mismatch'
   | 'river-mouth-mismatch'
   | 'river-source-has-upstream'
   | 'river-mouth-ocean-missing';
@@ -478,6 +479,17 @@ export function createCanonicalWaterNavigationGraph(
       invalidBodies.add(body.bodyId);
       continue;
     }
+    const headwaters = cells.filter(
+      (cell) => (upstream.get(cell.cellKey)?.length ?? 0) === 0
+    );
+    if (
+      headwaters.length !== 1
+      || headwaters[0]?.cellKey !== body.sourceCellKey
+    ) {
+      addIssue('river-headwater-mismatch', 'body', body.bodyId, body.sourceCellKey);
+      invalidBodies.add(body.bodyId);
+      continue;
+    }
 
     for (const cell of cells) {
       const seen = new Set<string>();
@@ -546,7 +558,11 @@ export function createCanonicalWaterNavigationGraph(
   for (const body of riverBodies) {
     if (invalidBodies.has(body.bodyId)) continue;
     const mouth = mutableNodes.get(body.mouthCellKey);
-    if (!mouth) continue;
+    if (!mouth) {
+      addIssue('river-mouth-ocean-missing', 'body', body.bodyId, body.mouthCellKey);
+      invalidBodies.add(body.bodyId);
+      continue;
+    }
     const oceanNeighbors = hexNeighbors(mouth.cell)
       .map((coord) => mutableNodes.get(hexKey(coord)))
       .filter((candidate): candidate is MutableNode => candidate?.cell.regime === 'ocean')
@@ -560,12 +576,13 @@ export function createCanonicalWaterNavigationGraph(
     mouthOceanNeighbors.set(body.bodyId, keys);
   }
 
-  if (mouthOceanNeighbors.size !== riverBodies.filter(
-    (body) => !invalidBodies.has(body.bodyId)
-  ).length) {
-    for (const [cellKey, mutable] of mutableNodes) {
-      if (invalidBodies.has(mutable.cell.bodyId)) mutableNodes.delete(cellKey);
-    }
+  // Mouth validation happens after the initial public-node projection because
+  // it needs the visible ocean catalog. Purge every body invalidated in that
+  // phase unconditionally: comparing the two post-validation body counts can
+  // accidentally make an invalid river look balanced and leave its nodes
+  // published without a body or ocean connection.
+  for (const [cellKey, mutable] of mutableNodes) {
+    if (invalidBodies.has(mutable.cell.bodyId)) mutableNodes.delete(cellKey);
   }
 
   for (const [bodyId, oceanKeys] of mouthOceanNeighbors) {

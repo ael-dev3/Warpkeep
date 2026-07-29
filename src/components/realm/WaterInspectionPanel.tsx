@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useRef,
   useState,
   type KeyboardEvent,
@@ -85,8 +86,13 @@ export function WaterInspectionPanel({
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const initialFocusAppliedRef = useRef(false);
   const [follow, setFollow] = useState<WaterFollowState>();
-  const titleId = `${id}-title`;
-  const descriptionId = `${id}-description`;
+  const opaqueId = useId();
+  // Public Water records must not echo canonical q,r persistence keys into
+  // ordinary DOM identifiers. Observer diagnostics may retain their explicit
+  // caller id alongside the already-gated coordinate attributes and text.
+  const panelId = showDiagnostics ? id : `${opaqueId}-water-record`;
+  const titleId = `${panelId}-title`;
+  const descriptionId = `${panelId}-description`;
   const setCloseButtonRef = useCallback((element: HTMLButtonElement | null) => {
     closeButtonRef.current = element;
     assignRef(focusTargetRef, element);
@@ -175,7 +181,7 @@ export function WaterInspectionPanel({
 
   return (
     <aside
-      id={id}
+      id={panelId}
       className="water-inspection realm-camera-neutral-inspector"
       role="dialog"
       aria-modal="false"
