@@ -2642,6 +2642,9 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     root.dataset.forestSnowTintedTreeCount = String(
       telemetry.forestSnowTintedTreeCount
     );
+    root.dataset.forestDryTintedTreeCount = String(
+      telemetry.forestDryTintedTreeCount
+    );
     root.dataset.forestDecorativeTreeCount = String(
       telemetry.forestDecorativeTreeCount
     );
@@ -3342,6 +3345,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
         rootRef.current.dataset.forestClearingCellCount = '0';
         rootRef.current.dataset.forestSilhouetteCoverageRatio = '0';
         rootRef.current.dataset.forestSnowTintedTreeCount = '0';
+        rootRef.current.dataset.forestDryTintedTreeCount = '0';
         rootRef.current.dataset.forestDecorativeTreeCount = '0';
         rootRef.current.dataset.forestDecorativeTriangleCount = '0';
         rootRef.current.dataset.forestDecorativeDrawCalls = '0';

@@ -10,6 +10,7 @@ import { terrainHeightAtWorld } from '../../game/map/terrainHeight';
 import type { TerrainStructurePlacement } from '../../game/map/terrainPlacements';
 import type { RealmTerrainMap } from '../../game/map/terrainTypes';
 import type { RealmNorthernSnowField } from '../../game/map/realmNorthernSnow';
+import type { RealmSouthernDesertField } from '../../game/map/realmSouthernDesert';
 import {
   HEGEMONY_TREE_TARGET_VISUAL_HEIGHT,
   HEGEMONY_TREE_RUNTIME_ASSET_BY_ID,
@@ -26,14 +27,19 @@ import type { RealmQualitySpec } from './realmQuality';
 import {
   createRealmProceduralForestFallbackGeometry,
   createRealmProceduralForestFallbackMaterial,
+  applyRealmForestDrylandTint,
   applyRealmForestWinterTint,
   REALM_FOREST_CANOPY_MOTION_STATE,
+  REALM_FOREST_DRYLAND_DUST_LINEAR,
   REALM_FOREST_SNOW_PEARL_LINEAR,
   REALM_PROCEDURAL_FOREST_FALLBACK_TYPE,
+  realmForestAuthoredDryMix,
   realmForestAuthoredSnowMix,
+  realmForestDrylandTintMix,
   realmForestFallbackInstanceColor,
   realmForestModelInstanceTint,
   realmForestWinterTintMix,
+  sampleRealmForestSandCoverage,
   sampleRealmForestSnowCoverage,
   type RealmForestFallbackType,
   type RealmForestGroundingMode
@@ -41,6 +47,8 @@ import {
 
 const HEX_SIZE = 1;
 const TREE_TERRAIN_LIFT = 0.002;
+const FOREST_TINT_SNOW = 1;
+const FOREST_TINT_DRY = 2;
 /** A bounded parse/load pool prevents a High-quality world from spiking 22 GLBs at once. */
 export const HEGEMONY_TREE_PREFAB_LOAD_CONCURRENCY = 4;
 
@@ -61,6 +69,7 @@ export type RealmForestLayerPresentationTelemetry = Readonly<{
   triangleCount: number;
   /** Bounded aggregate only; no per-tree climate data leaves this layer. */
   snowTintedTreeCount: number;
+  dryTintedTreeCount: number;
 }>;
 
 export type RealmForestLayer = Readonly<{
@@ -92,6 +101,8 @@ export type CreateRealmForestLayerOptions = Readonly<{
   acquirePrefab?: RealmForestPrefabAcquirer;
   /** Immutable renderer-only climate sampled only during static batch builds. */
   northernSnow?: RealmNorthernSnowField;
+  /** Immutable renderer-only climate sampled only during static batch builds. */
+  southernDesert?: RealmSouthernDesertField;
 }>;
 
 type MutableTreeGeometry = {
@@ -132,10 +143,11 @@ function appendPrimitive(
   primitive: HegemonyTreePrefabPrimitive,
   instanceMatrix: THREE.Matrix4,
   habitat: RealmForestTreePoint['habitat'],
-  snowCoverage: number
+  snowCoverage: number,
+  sandCoverage: number
 ) {
   const position = primitive.geometry.getAttribute('position');
-  if (!position || position.count === 0) return false;
+  if (!position || position.count === 0) return 0;
   const normal = primitive.geometry.getAttribute('normal');
   const color = primitive.geometry.getAttribute('color');
   const normalAttribute = normal ?? undefined;
@@ -149,7 +161,8 @@ function appendPrimitive(
   const normalVector = new THREE.Vector3();
   const vertexOffset = output.positions.length / 3;
   const groundY = instanceMatrix.elements[13] ?? 0;
-  let snowTinted = false;
+  const dryMix = realmForestAuthoredDryMix(sandCoverage);
+  let tintFlags = dryMix > 0 ? FOREST_TINT_DRY : 0;
 
   for (let index = 0; index < position.count; index += 1) {
     positionVector
@@ -199,11 +212,32 @@ function appendPrimitive(
     const snowMix = normalAttribute
       ? realmForestAuthoredSnowMix(snowCoverage, normalVector.y)
       : 0;
-    snowTinted ||= snowMix > 0;
+    if (snowMix > 0) tintFlags |= FOREST_TINT_SNOW;
+    const dryRed = dryMix > 0
+      ? THREE.MathUtils.lerp(
+        baseRed,
+        REALM_FOREST_DRYLAND_DUST_LINEAR.r,
+        dryMix
+      )
+      : baseRed;
+    const dryGreen = dryMix > 0
+      ? THREE.MathUtils.lerp(
+        baseGreen,
+        REALM_FOREST_DRYLAND_DUST_LINEAR.g,
+        dryMix
+      )
+      : baseGreen;
+    const dryBlue = dryMix > 0
+      ? THREE.MathUtils.lerp(
+        baseBlue,
+        REALM_FOREST_DRYLAND_DUST_LINEAR.b,
+        dryMix
+      )
+      : baseBlue;
     output.colors.push(
-      THREE.MathUtils.lerp(baseRed, REALM_FOREST_SNOW_PEARL_LINEAR.r, snowMix),
-      THREE.MathUtils.lerp(baseGreen, REALM_FOREST_SNOW_PEARL_LINEAR.g, snowMix),
-      THREE.MathUtils.lerp(baseBlue, REALM_FOREST_SNOW_PEARL_LINEAR.b, snowMix)
+      THREE.MathUtils.lerp(dryRed, REALM_FOREST_SNOW_PEARL_LINEAR.r, snowMix),
+      THREE.MathUtils.lerp(dryGreen, REALM_FOREST_SNOW_PEARL_LINEAR.g, snowMix),
+      THREE.MathUtils.lerp(dryBlue, REALM_FOREST_SNOW_PEARL_LINEAR.b, snowMix)
     );
   }
 
@@ -212,10 +246,10 @@ function appendPrimitive(
     for (let index = 0; index < sourceIndex.count; index += 1) {
       output.indices.push(vertexOffset + sourceIndex.getX(index));
     }
-    return snowTinted;
+    return tintFlags;
   }
   for (let index = 0; index < position.count; index += 1) output.indices.push(vertexOffset + index);
-  return snowTinted;
+  return tintFlags;
 }
 
 function instanceMatrixForPoint(
@@ -240,7 +274,8 @@ function createMergedTreeMesh(
   prefabByAssetId: ReadonlyMap<string, HegemonyTreePrefab>,
   map: RealmTerrainMap,
   terrainPlacements: readonly TerrainStructurePlacement[],
-  northernSnow: RealmNorthernSnowField | undefined
+  northernSnow: RealmNorthernSnowField | undefined,
+  southernDesert: RealmSouthernDesertField | undefined
 ) {
   const source: MutableTreeGeometry = {
     positions: [],
@@ -250,6 +285,7 @@ function createMergedTreeMesh(
     hasCompleteNormals: true
   };
   let snowTintedTreeCount = 0;
+  let dryTintedTreeCount = 0;
   points.forEach((point) => {
     const prefab = prefabByAssetId.get(point.speciesId);
     if (!prefab) throw new Error('Missing loaded tree prefab for ' + point.speciesId + '.');
@@ -258,18 +294,23 @@ function createMergedTreeMesh(
       northernSnow,
       point.world
     );
-    let treeSnowTinted = false;
+    const sandCoverage = sampleRealmForestSandCoverage(
+      southernDesert,
+      point.world
+    );
+    let treeTintFlags = 0;
     prefab.primitives.forEach((primitive) => {
-      const primitiveSnowTinted = appendPrimitive(
+      treeTintFlags |= appendPrimitive(
         source,
         primitive,
         matrix,
         point.habitat,
-        snowCoverage
+        snowCoverage,
+        sandCoverage
       );
-      treeSnowTinted = primitiveSnowTinted || treeSnowTinted;
     });
-    if (treeSnowTinted) snowTintedTreeCount += 1;
+    if ((treeTintFlags & FOREST_TINT_SNOW) !== 0) snowTintedTreeCount += 1;
+    if ((treeTintFlags & FOREST_TINT_DRY) !== 0) dryTintedTreeCount += 1;
   });
   if (source.positions.length === 0 || source.indices.length === 0) {
     throw new Error('Loaded Hegemony trees produced no renderable geometry.');
@@ -298,7 +339,8 @@ function createMergedTreeMesh(
     return Object.freeze({
       mesh,
       triangleCount: source.indices.length / 3,
-      snowTintedTreeCount
+      snowTintedTreeCount,
+      dryTintedTreeCount
     });
   } catch (error) {
     geometry.dispose();
@@ -311,7 +353,8 @@ function createFallbackForestMesh(
   points: readonly RealmForestTreePoint[],
   map: RealmTerrainMap,
   terrainPlacements: readonly TerrainStructurePlacement[],
-  northernSnow: RealmNorthernSnowField | undefined
+  northernSnow: RealmNorthernSnowField | undefined,
+  southernDesert: RealmSouthernDesertField | undefined
 ) {
   const fallback = createRealmProceduralForestFallbackGeometry(
     HEGEMONY_TREE_TARGET_VISUAL_HEIGHT
@@ -333,6 +376,7 @@ function createFallbackForestMesh(
   mesh.raycast = () => {};
   const color = new THREE.Color();
   let snowTintedTreeCount = 0;
+  let dryTintedTreeCount = 0;
   points.forEach((point, index) => {
     mesh.setMatrixAt(index, instanceMatrixForPoint(point, map, terrainPlacements));
     color.set(realmForestFallbackInstanceColor(point.habitat));
@@ -340,9 +384,17 @@ function createFallbackForestMesh(
       northernSnow,
       point.world
     );
+    const sandCoverage = sampleRealmForestSandCoverage(
+      southernDesert,
+      point.world
+    );
     if (realmForestWinterTintMix(snowCoverage) > 0) {
       snowTintedTreeCount += 1;
     }
+    if (realmForestDrylandTintMix(sandCoverage) > 0) {
+      dryTintedTreeCount += 1;
+    }
+    applyRealmForestDrylandTint(color, sandCoverage);
     applyRealmForestWinterTint(color, snowCoverage);
     mesh.setColorAt(index, color);
   });
@@ -353,7 +405,8 @@ function createFallbackForestMesh(
   return Object.freeze({
     mesh,
     triangleCount: fallback.triangleCount * points.length,
-    snowTintedTreeCount
+    snowTintedTreeCount,
+    dryTintedTreeCount
   });
 }
 
@@ -438,7 +491,8 @@ export function createRealmForestLayer(
         silhouetteCoverageRatio: 0,
         canonicalTriangleCount,
         triangleCount: 0,
-        snowTintedTreeCount: 0
+        snowTintedTreeCount: 0,
+        dryTintedTreeCount: 0
       }),
       dispose: () => {
         if (disposed) return;
@@ -451,12 +505,14 @@ export function createRealmForestLayer(
     points,
     options.map,
     options.terrainPlacements,
-    options.northernSnow
+    options.northernSnow,
+    options.southernDesert
   );
   group.add(fallback.mesh);
   let activeMesh: THREE.Mesh | THREE.InstancedMesh = fallback.mesh;
   let activeTriangleCount = fallback.triangleCount;
   let activeSnowTintedTreeCount = fallback.snowTintedTreeCount;
+  let activeDryTintedTreeCount = fallback.dryTintedTreeCount;
   let usingFallback = true;
   let disposed = false;
   const abortController = new AbortController();
@@ -498,7 +554,8 @@ export function createRealmForestLayer(
         prefabs,
         options.map,
         options.terrainPlacements,
-        options.northernSnow
+        options.northernSnow,
+        options.southernDesert
       );
       if (disposed) {
         disposeMesh(next.mesh);
@@ -509,6 +566,7 @@ export function createRealmForestLayer(
       activeMesh = next.mesh;
       activeTriangleCount = next.triangleCount;
       activeSnowTintedTreeCount = next.snowTintedTreeCount;
+      activeDryTintedTreeCount = next.dryTintedTreeCount;
       usingFallback = false;
       disposeMesh(previousMesh);
       options.onModelReady?.();
@@ -542,7 +600,8 @@ export function createRealmForestLayer(
       silhouetteCoverageRatio: disposed ? 0 : silhouetteCoverageRatio,
       canonicalTriangleCount,
       triangleCount: disposed ? 0 : activeTriangleCount,
-      snowTintedTreeCount: disposed ? 0 : activeSnowTintedTreeCount
+      snowTintedTreeCount: disposed ? 0 : activeSnowTintedTreeCount,
+      dryTintedTreeCount: disposed ? 0 : activeDryTintedTreeCount
     }),
     dispose: () => {
       if (disposed) return;

@@ -24,6 +24,10 @@ import {
   REALM_NORTHERN_SNOW_FIELD_REVISION,
   type RealmNorthernSnowField
 } from '../src/game/map/realmNorthernSnow';
+import {
+  REALM_SOUTHERN_DESERT_FIELD_REVISION,
+  type RealmSouthernDesertField
+} from '../src/game/map/realmSouthernDesert';
 
 const FULLY_VISIBLE_VIEWPORT = Object.freeze({ radiusCells: 0 });
 
@@ -140,6 +144,22 @@ function constantSnowField(coverageInput: number): RealmNorthernSnowField {
     sampleCoord: () => sample,
     coverageAtWorld: () => coverage,
     retainedCoverageAtWorld: () => coverage
+  });
+}
+
+function constantDesertField(sandInput: number): RealmSouthernDesertField {
+  const sand = Math.min(1, Math.max(0, sandInput));
+  const sample = Object.freeze({ climate: sand, exposure: 0, sand });
+  return Object.freeze({
+    revision: REALM_SOUTHERN_DESERT_FIELD_REVISION,
+    worldSeed: 1,
+    hexSize: 1,
+    playableRadius: 57,
+    renderRadius: 60,
+    sampleWorld: () => sample,
+    sampleCoord: () => sample,
+    sandAtWorld: () => sand,
+    retainedSandAtWorld: () => sand
   });
 }
 
@@ -606,12 +626,15 @@ describe('camera-local decorative forest renderer', () => {
     layer.dispose();
   });
 
-  it('winter-tints the existing decorative pack without changing transforms or ceilings', () => {
+  it('climate-tints the existing decorative pack without changing transforms or ceilings', () => {
     const fixture = createForestFixture();
     const acquire = vi.fn(async () => {
       throw new Error('keep deterministic fallback');
     });
-    const create = (northernSnow?: RealmNorthernSnowField) => (
+    const create = (
+      northernSnow?: RealmNorthernSnowField,
+      southernDesert?: RealmSouthernDesertField
+    ) => (
       createRealmDecorativeForestLayer({
         map: fixture.surface.renderMap,
         terrainKindsByKey: fixture.terrainKinds,
@@ -623,11 +646,13 @@ describe('camera-local decorative forest renderer', () => {
         quality: REALM_QUALITY_SPECS.reduced,
         baseUrl: '/',
         acquirePrefab: acquire,
-        northernSnow
+        northernSnow,
+        southernDesert
       })
     );
     const neutral = create();
     const snowy = create(constantSnowField(1));
+    const dry = create(undefined, constantDesertField(1));
 
     expect(neutral.updateView(
       { x: 0, z: 0 },
@@ -639,24 +664,48 @@ describe('camera-local decorative forest renderer', () => {
       'keep',
       FULLY_VISIBLE_VIEWPORT
     )).toBe(true);
+    expect(dry.updateView(
+      { x: 0, z: 0 },
+      'keep',
+      FULLY_VISIBLE_VIEWPORT
+    )).toBe(true);
     const neutralFallback = neutral.group.getObjectByName(
       'realm-hegemony-forest-decorative-ecology-fallback'
     ) as THREE.InstancedMesh;
     const snowyFallback = snowy.group.getObjectByName(
       'realm-hegemony-forest-decorative-ecology-fallback'
     ) as THREE.InstancedMesh;
+    const dryFallback = dry.group.getObjectByName(
+      'realm-hegemony-forest-decorative-ecology-fallback'
+    ) as THREE.InstancedMesh;
     const neutralColor = new THREE.Color();
     const snowyColor = new THREE.Color();
+    const dryColor = new THREE.Color();
     neutralFallback.getColorAt(0, neutralColor);
     snowyFallback.getColorAt(0, snowyColor);
+    dryFallback.getColorAt(0, dryColor);
     const telemetry = snowy.getTelemetry();
+    const dryTelemetry = dry.getTelemetry();
 
     expect(Array.from(snowyFallback.instanceMatrix.array))
       .toEqual(Array.from(neutralFallback.instanceMatrix.array));
+    expect(Array.from(dryFallback.instanceMatrix.array))
+      .toEqual(Array.from(neutralFallback.instanceMatrix.array));
     expect(snowyFallback.count).toBe(neutralFallback.count);
+    expect(dryFallback.count).toBe(neutralFallback.count);
     expect(snowyColor.equals(neutralColor)).toBe(false);
     expect(Math.max(snowyColor.r, snowyColor.g, snowyColor.b)).toBeLessThan(0.8);
+    expect(dryColor.equals(neutralColor)).toBe(false);
+    expect(dryColor.r - neutralColor.r)
+      .toBeGreaterThan(dryColor.b - neutralColor.b);
     expect(telemetry.snowTintedTreeCount).toBe(telemetry.activeInstanceCount);
+    expect(dryTelemetry).toMatchObject({
+      activeInstanceCount: telemetry.activeInstanceCount,
+      snowTintedTreeCount: 0,
+      dryTintedTreeCount: telemetry.activeInstanceCount,
+      triangleCount: telemetry.triangleCount,
+      drawCalls: telemetry.drawCalls
+    });
     expect(telemetry.activeInstanceCount)
       .toBeLessThanOrEqual(REALM_DECORATIVE_FOREST_RENDER_BUDGETS.reduced.instances);
     expect(telemetry.triangleCount)
@@ -666,6 +715,7 @@ describe('camera-local decorative forest renderer', () => {
 
     neutral.dispose();
     snowy.dispose();
+    dry.dispose();
   });
 
   it.each(['high', 'balanced', 'reduced'] as const)(

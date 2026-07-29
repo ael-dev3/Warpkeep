@@ -2,19 +2,26 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 
 import {
+  applyRealmForestDrylandTint,
   applyRealmForestWinterTint,
   createRealmProceduralForestFallbackGeometry,
   createRealmProceduralForestFallbackMaterial,
+  REALM_FOREST_MAX_AUTHORED_DRY_MIX,
   REALM_FOREST_MAX_AUTHORED_SNOW_MIX,
+  REALM_FOREST_MAX_DRYLAND_TINT_MIX,
   REALM_FOREST_MAX_WINTER_TINT_MIX,
   REALM_PROCEDURAL_FOREST_FALLBACK_TYPE,
+  realmForestAuthoredDryMix,
   realmForestAuthoredSnowMix,
+  realmForestDrylandTintMix,
   realmForestFallbackInstanceColor,
   realmForestModelInstanceTint,
-  realmForestWinterTintMix
+  realmForestWinterTintMix,
+  sampleRealmForestSandCoverage
 } from '../src/components/realm/createRealmProceduralForestFallback';
 import { REALM_DECORATIVE_FOREST_RENDER_BUDGETS } from '../src/components/realm/createRealmDecorativeForestLayer';
 import { HEGEMONY_TREE_TARGET_VISUAL_HEIGHT } from '../src/components/realm/hegemonyTreeRuntimeAssets';
+import type { RealmSouthernDesertField } from '../src/game/map/realmSouthernDesert';
 
 describe('local procedural forest fallback', () => {
   it('builds a grounded trunk and asymmetric multi-canopy silhouette', () => {
@@ -97,5 +104,30 @@ describe('local procedural forest fallback', () => {
     expect(Math.max(winter.r, winter.g, winter.b)).toBeLessThan(0.8);
     expect(winter.b - base.b).toBeGreaterThan(winter.r - base.r);
     expect(realmForestWinterTintMix(Number.POSITIVE_INFINITY)).toBe(0);
+  });
+
+  it('keeps dryland warmth continuous, bounded, and a strict zero-sand no-op', () => {
+    const left = realmForestAuthoredDryMix(0.5 - 0.000_001);
+    const right = realmForestAuthoredDryMix(0.5 + 0.000_001);
+    const base = new THREE.Color(realmForestFallbackInstanceColor('forest'));
+    const central = applyRealmForestDrylandTint(base.clone(), 0);
+    const dry = applyRealmForestDrylandTint(base.clone(), 1);
+
+    expect(Math.abs(right - left)).toBeLessThan(0.000_01);
+    expect(realmForestAuthoredDryMix(1))
+      .toBeLessThanOrEqual(REALM_FOREST_MAX_AUTHORED_DRY_MIX);
+    expect(realmForestDrylandTintMix(1))
+      .toBeLessThanOrEqual(REALM_FOREST_MAX_DRYLAND_TINT_MIX);
+    expect([central.r, central.g, central.b]).toEqual([base.r, base.g, base.b]);
+    expect(dry.equals(base)).toBe(false);
+    expect(dry.r - base.r).toBeGreaterThan(dry.b - base.b);
+    expect(Math.max(dry.r, dry.g, dry.b)).toBeLessThan(0.8);
+    expect(realmForestAuthoredDryMix(Number.NaN)).toBe(0);
+    expect(realmForestDrylandTintMix(Number.POSITIVE_INFINITY)).toBe(0);
+    expect(sampleRealmForestSandCoverage({
+      sandAtWorld: () => {
+        throw new Error('synthetic field failure');
+      }
+    } as unknown as RealmSouthernDesertField, { x: 0, z: 0 })).toBe(0);
   });
 });

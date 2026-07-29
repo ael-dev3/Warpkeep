@@ -4,6 +4,9 @@ import type { RealmForestEcologyHabitat } from '../../game/map/realmForestEcolog
 import type {
   RealmNorthernSnowField
 } from '../../game/map/realmNorthernSnow';
+import type {
+  RealmSouthernDesertField
+} from '../../game/map/realmSouthernDesert';
 import type { HexWorldPosition } from '../../game/map/hexCoordinates';
 
 export const REALM_PROCEDURAL_FOREST_FALLBACK_TYPE =
@@ -22,6 +25,9 @@ export type RealmForestGroundingMode =
 export const REALM_FOREST_SNOW_COVERAGE_ONSET = 0.25;
 export const REALM_FOREST_MAX_AUTHORED_SNOW_MIX = 0.54;
 export const REALM_FOREST_MAX_WINTER_TINT_MIX = 0.18;
+export const REALM_FOREST_SAND_COVERAGE_ONSET = 0.25;
+export const REALM_FOREST_MAX_AUTHORED_DRY_MIX = 0.24;
+export const REALM_FOREST_MAX_DRYLAND_TINT_MIX = 0.16;
 
 type MutableFallbackGeometry = {
   positions: number[];
@@ -33,10 +39,17 @@ const ROOT_COLOR = new THREE.Color('#5f6652');
 const TRUNK_COLOR = new THREE.Color('#b79a72');
 const FOREST_SNOW_PEARL = new THREE.Color('#dbe7e8');
 const FOREST_WINTER_TINT = new THREE.Color('#c6d7dc');
+const FOREST_DRYLAND_DUST = new THREE.Color('#b89a66');
+const FOREST_DRYLAND_TINT = new THREE.Color('#b99b63');
 export const REALM_FOREST_SNOW_PEARL_LINEAR = Object.freeze({
   r: FOREST_SNOW_PEARL.r,
   g: FOREST_SNOW_PEARL.g,
   b: FOREST_SNOW_PEARL.b
+});
+export const REALM_FOREST_DRYLAND_DUST_LINEAR = Object.freeze({
+  r: FOREST_DRYLAND_DUST.r,
+  g: FOREST_DRYLAND_DUST.g,
+  b: FOREST_DRYLAND_DUST.b
 });
 const CANOPY_COLORS = Object.freeze([
   new THREE.Color('#e1edda'),
@@ -69,6 +82,22 @@ export function sampleRealmForestSnowCoverage(
   }
 }
 
+/**
+ * Static, fail-closed dryland sampling. Zero sand remains a strict no-op so
+ * the established northern and central forest color buffers stay identical.
+ */
+export function sampleRealmForestSandCoverage(
+  southernDesert: RealmSouthernDesertField | undefined,
+  world: HexWorldPosition
+) {
+  if (!southernDesert) return 0;
+  try {
+    return clampUnit(southernDesert.sandAtWorld(world));
+  } catch {
+    return 0;
+  }
+}
+
 /** Restrained top-facing dusting for the existing shared vertex-color batch. */
 export function realmForestAuthoredSnowMix(
   coverageInput: number,
@@ -96,11 +125,37 @@ export function realmForestWinterTintMix(coverageInput: number) {
   ) * REALM_FOREST_MAX_WINTER_TINT_MIX;
 }
 
+/** Warm, restrained dryland treatment for the existing authored color batch. */
+export function realmForestAuthoredDryMix(sandInput: number) {
+  return smoothstep(
+    REALM_FOREST_SAND_COVERAGE_ONSET,
+    0.88,
+    clampUnit(sandInput)
+  ) * REALM_FOREST_MAX_AUTHORED_DRY_MIX;
+}
+
+/** Smaller warm shift for the existing fallback/decorative instance colors. */
+export function realmForestDrylandTintMix(sandInput: number) {
+  return smoothstep(
+    REALM_FOREST_SAND_COVERAGE_ONSET,
+    0.88,
+    clampUnit(sandInput)
+  ) * REALM_FOREST_MAX_DRYLAND_TINT_MIX;
+}
+
 export function applyRealmForestWinterTint(
   color: THREE.Color,
   coverageInput: number
 ) {
   return color.lerp(FOREST_WINTER_TINT, realmForestWinterTintMix(coverageInput));
+}
+
+export function applyRealmForestDrylandTint(
+  color: THREE.Color,
+  sandInput: number
+) {
+  const mix = realmForestDrylandTintMix(sandInput);
+  return mix > 0 ? color.lerp(FOREST_DRYLAND_TINT, mix) : color;
 }
 
 function appendVertex(

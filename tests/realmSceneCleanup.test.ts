@@ -581,6 +581,7 @@ describe('realm scene setup cleanup', () => {
       },
       forestSilhouetteCoverageRatio: 0,
       forestSnowTintedTreeCount: 0,
+      forestDryTintedTreeCount: 0,
       forestDecorativeTreeCount: 0,
       forestDecorativeTriangleCount: 0,
       forestDecorativeDrawCalls: 0,
