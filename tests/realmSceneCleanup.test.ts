@@ -122,13 +122,24 @@ vi.mock('../src/components/realm/realmAmbientScheduler', async (importOriginal) 
       options: Parameters<typeof actual.createRealmAmbientScheduler>[0]
     ) => {
       const scheduler = actual.createRealmAmbientScheduler(options);
-      ambientSchedulerState.creations.push({
+      const record = {
         active: options.active,
         frameCap: options.frameCap,
         isActive: scheduler.isActive,
         step: options.onStep
+      };
+      ambientSchedulerState.creations.push(record);
+      return Object.freeze({
+        ...scheduler,
+        setActive: (active: boolean) => {
+          record.active = active;
+          scheduler.setActive(active);
+        },
+        setFrameCap: (frameCap: number) => {
+          record.frameCap = frameCap;
+          scheduler.setFrameCap(frameCap);
+        }
       });
-      return scheduler;
     }
   };
 });
@@ -315,6 +326,37 @@ function outboundWorkerRecord(
     originCoord: Object.freeze({ q: 0, r: 0 }),
     destinationCoord: Object.freeze({ q: 2, r: -1 }),
     ...overrides
+  });
+}
+
+function installManualWindowTimers() {
+  let nextTimerId = 40;
+  const timers = new Map<number, Readonly<{
+    callback: () => void;
+    delayMilliseconds: number;
+  }>>();
+  const setTimeoutSpy = vi.spyOn(window, 'setTimeout').mockImplementation(((
+    handler: TimerHandler,
+    timeout?: number
+  ) => {
+    const timerId = nextTimerId;
+    nextTimerId += 1;
+    if (typeof handler !== 'function') throw new Error('Unexpected string timer.');
+    timers.set(timerId, Object.freeze({
+      callback: () => handler(),
+      delayMilliseconds: Number(timeout ?? 0)
+    }));
+    return timerId;
+  }) as typeof window.setTimeout);
+  const clearTimeoutSpy = vi.spyOn(window, 'clearTimeout').mockImplementation(((
+    timerId?: number
+  ) => {
+    if (timerId !== undefined) timers.delete(Number(timerId));
+  }) as typeof window.clearTimeout);
+  return Object.freeze({
+    timers,
+    setTimeoutSpy,
+    clearTimeoutSpy
   });
 }
 
@@ -1224,6 +1266,345 @@ describe('realm scene setup cleanup', () => {
     sceneHandle.dispose();
   });
 
+  it('publishes Worker telemetry only when its diagnostic value changes', async () => {
+    const canvas = document.createElement('canvas');
+    Object.defineProperties(canvas, {
+      clientWidth: { configurable: true, value: 800 },
+      clientHeight: { configurable: true, value: 600 }
+    });
+    const now = vi.spyOn(Date, 'now').mockReturnValue(200);
+    const sceneHandle = createRealmScene(createOptions(canvas, {
+      surface: createRealmTerrainSurface('worker-telemetry-diff-cache', 4, 5),
+      reducedMotion: true,
+      workers: [outboundWorkerRecord()]
+    }));
+    const ambient = ambientSchedulerState.creations.at(-1)!;
+    const workerAttributes = () => Object.fromEntries(
+      [...canvas.attributes]
+        .filter((attribute) => attribute.name.startsWith('data-realm-worker-'))
+        .map((attribute) => [attribute.name, attribute.value])
+    );
+    const initialAttributes = workerAttributes();
+    const mutations: MutationRecord[] = [];
+    const observer = new MutationObserver((records) => {
+      mutations.push(...records.filter(
+        (record) => record.attributeName?.startsWith('data-realm-worker-')
+      ));
+    });
+    observer.observe(canvas, { attributes: true, attributeOldValue: true });
+
+    ambient.step(0);
+    await Promise.resolve();
+    expect(mutations).toEqual([]);
+    expect(workerAttributes()).toEqual(initialAttributes);
+
+    now.mockReturnValue(250);
+    ambient.step(0.05);
+    await Promise.resolve();
+    const changedAttributeNames = new Set(
+      mutations.flatMap((record) => (
+        record.attributeName ? [record.attributeName] : []
+      ))
+    );
+    expect(changedAttributeNames.size).toBeGreaterThan(0);
+    expect(changedAttributeNames.size).toBeLessThan(
+      Object.keys(initialAttributes).length
+    );
+    expect(Object.keys(workerAttributes())).toEqual(Object.keys(initialAttributes));
+
+    observer.disconnect();
+    sceneHandle.dispose();
+  });
+
+  it('repaints restored Worker continuity and makes the handoff inert after disposal', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(200);
+    const worker = outboundWorkerRecord();
+    const source = createRealmScene(createOptions(
+      document.createElement('canvas'),
+      {
+        surface: createRealmTerrainSurface('worker-continuity-source', 4, 5),
+        reducedMotion: true,
+        workers: [worker]
+      }
+    ));
+    const continuity = source.getWorkerPresentationContinuity();
+    expect(continuity?.records).toHaveLength(1);
+
+    const candidateCanvas = document.createElement('canvas');
+    const candidate = createRealmScene(createOptions(candidateCanvas, {
+      surface: createRealmTerrainSurface('worker-continuity-source', 4, 5),
+      reducedMotion: true,
+      workers: [worker]
+    }));
+    const renderer = webglState.instances.at(-1)!;
+    const rendersBeforeRestore = renderer.render.mock.calls.length;
+
+    expect(candidate.restoreWorkerPresentationContinuity(continuity)).toBe(true);
+    expect(renderer.render.mock.calls.length).toBeGreaterThan(rendersBeforeRestore);
+
+    source.dispose();
+    expect(source.getWorkerPresentationContinuity()).toBeNull();
+    expect(source.restoreWorkerPresentationContinuity(continuity)).toBe(false);
+    candidate.dispose();
+  });
+
+  it('wakes a far-future Worker at its exact journey start boundary', () => {
+    const canvas = document.createElement('canvas');
+    Object.defineProperties(canvas, {
+      clientWidth: { configurable: true, value: 800 },
+      clientHeight: { configurable: true, value: 600 }
+    });
+    const now = vi.spyOn(Date, 'now').mockReturnValue(0);
+    const { timers, clearTimeoutSpy } = installManualWindowTimers();
+    const worker = outboundWorkerRecord(0, {
+      startedAtMicros: 60_000_000n,
+      arrivesAtMicros: 70_000_000n,
+      gatheringEndsAtMicros: 80_000_000n,
+      returnsAtMicros: 90_000_000n
+    });
+    const sceneHandle = createRealmScene(createOptions(canvas, {
+      surface: createRealmTerrainSurface('future-worker-wake', 4, 5),
+      reducedMotion: true,
+      workers: [worker]
+    }));
+    const ambient = ambientSchedulerState.creations.at(-1)!;
+    const initialCoord = sceneHandle.getWorkerCurrentCoord(worker.workerId);
+
+    expect(initialCoord?.q).toBe(worker.originCoord.q);
+    expect(Math.abs(initialCoord?.r ?? Number.NaN)).toBe(worker.originCoord.r);
+    expect(ambient.frameCap).toBe(0);
+    expect(ambient.active).toBe(false);
+    expect(ambient.isActive()).toBe(false);
+    expect([...timers.values()].map((timer) => timer.delayMilliseconds))
+      .toEqual([60_000]);
+
+    now.mockReturnValue(59_999);
+    expect(sceneHandle.getWorkerCurrentCoord(worker.workerId)).toEqual(initialCoord);
+    expect(ambient.isActive()).toBe(false);
+
+    const [timerId, timer] = [...timers.entries()][0]!;
+    timers.delete(timerId);
+    now.mockReturnValue(60_000);
+    timer.callback();
+
+    const expectedFrameCap = Math.max(
+      1,
+      Math.floor(1_000 / REALM_WORKER_REDUCED_MOTION_POSITION_INTERVAL_MS)
+    );
+    expect(timers.size).toBe(0);
+    expect(ambient.frameCap).toBe(expectedFrameCap);
+    expect(ambient.active).toBe(true);
+    expect(ambient.isActive()).toBe(true);
+    expect(sceneHandle.getWorkerCurrentCoord(worker.workerId)).toEqual(initialCoord);
+
+    now.mockReturnValue(65_000);
+    ambient.step(0.5);
+    expect(sceneHandle.getWorkerCurrentCoord(worker.workerId)).not.toEqual(initialCoord);
+
+    sceneHandle.dispose();
+    expect(clearTimeoutSpy).not.toHaveBeenCalledWith(timerId);
+  });
+
+  it('re-arms one Worker wake and rejects stale callbacks after reconciliation', () => {
+    const canvas = document.createElement('canvas');
+    Object.defineProperties(canvas, {
+      clientWidth: { configurable: true, value: 800 },
+      clientHeight: { configurable: true, value: 600 }
+    });
+    vi.spyOn(Date, 'now').mockReturnValue(0);
+    const { timers, clearTimeoutSpy } = installManualWindowTimers();
+    const worker = outboundWorkerRecord(0, {
+      startedAtMicros: 60_000_000n,
+      arrivesAtMicros: 70_000_000n,
+      gatheringEndsAtMicros: 80_000_000n,
+      returnsAtMicros: 90_000_000n
+    });
+    const sceneHandle = createRealmScene(createOptions(canvas, {
+      surface: createRealmTerrainSurface('future-worker-rearm', 4, 5),
+      reducedMotion: true,
+      workers: [worker]
+    }));
+    const renderer = webglState.instances.at(-1)!;
+    const [firstTimerId, firstTimer] = [...timers.entries()][0]!;
+
+    sceneHandle.reconcileLiveGatheringState({
+      observedAtMicros: 0n,
+      goldNodes: [],
+      foodNodes: [],
+      woodNodes: [],
+      stoneNodes: [],
+      workers: [Object.freeze({
+        ...worker,
+        startedAtMicros: 80_000_000n,
+        arrivesAtMicros: 90_000_000n,
+        gatheringEndsAtMicros: 100_000_000n,
+        returnsAtMicros: 110_000_000n,
+        timelineRevision: 2,
+        revision: 2n
+      })]
+    });
+
+    expect(clearTimeoutSpy).toHaveBeenCalledWith(firstTimerId);
+    expect([...timers.values()].map((timer) => timer.delayMilliseconds))
+      .toEqual([80_000]);
+    const renderCountAfterReconcile = renderer.render.mock.calls.length;
+    firstTimer.callback();
+    expect(renderer.render).toHaveBeenCalledTimes(renderCountAfterReconcile);
+    expect([...timers.values()].map((timer) => timer.delayMilliseconds))
+      .toEqual([80_000]);
+
+    sceneHandle.setPresentationActive(false);
+    expect(timers.size).toBe(0);
+    sceneHandle.setPresentationActive(true);
+    expect([...timers.values()].map((timer) => timer.delayMilliseconds))
+      .toEqual([80_000]);
+
+    const staleAfterDispose = [...timers.values()][0]!.callback;
+    const renderCountBeforeDispose = renderer.render.mock.calls.length;
+    sceneHandle.dispose();
+    expect(timers.size).toBe(0);
+    staleAfterDispose();
+    expect(renderer.render).toHaveBeenCalledTimes(renderCountBeforeDispose);
+  });
+
+  it('catches up a due Worker wake once after a hidden tab becomes visible', () => {
+    let hidden = false;
+    vi.spyOn(document, 'hidden', 'get').mockImplementation(() => hidden);
+    const canvas = document.createElement('canvas');
+    Object.defineProperties(canvas, {
+      clientWidth: { configurable: true, value: 800 },
+      clientHeight: { configurable: true, value: 600 }
+    });
+    const now = vi.spyOn(Date, 'now').mockReturnValue(0);
+    const { timers } = installManualWindowTimers();
+    const worker = outboundWorkerRecord(0, {
+      startedAtMicros: 60_000_000n,
+      arrivesAtMicros: 70_000_000n,
+      gatheringEndsAtMicros: 80_000_000n,
+      returnsAtMicros: 90_000_000n
+    });
+    const sceneHandle = createRealmScene(createOptions(canvas, {
+      surface: createRealmTerrainSurface('future-worker-hidden-wake', 4, 5),
+      reducedMotion: true,
+      workers: [worker]
+    }));
+    const ambient = ambientSchedulerState.creations.at(-1)!;
+    const renderer = webglState.instances.at(-1)!;
+
+    expect(timers.size).toBe(1);
+    hidden = true;
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(timers.size).toBe(0);
+    expect(ambient.isActive()).toBe(false);
+
+    now.mockReturnValue(61_000);
+    hidden = false;
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(timers.size).toBe(0);
+    expect(ambient.isActive()).toBe(true);
+    const renderCountAfterCatchUp = renderer.render.mock.calls.length;
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(renderer.render).toHaveBeenCalledTimes(renderCountAfterCatchUp);
+
+    sceneHandle.dispose();
+  });
+
+  it('re-arms a future returning Worker across context loss and catches up once due', () => {
+    const canvas = document.createElement('canvas');
+    Object.defineProperties(canvas, {
+      clientWidth: { configurable: true, value: 800 },
+      clientHeight: { configurable: true, value: 600 }
+    });
+    const now = vi.spyOn(Date, 'now').mockReturnValue(0);
+    const { timers } = installManualWindowTimers();
+    const worker = outboundWorkerRecord(0, {
+      status: 'returning',
+      returnStartedAtMicros: 60_000_000n,
+      returnsAtMicros: 70_000_000n,
+      returnStartProgressBasisPoints: 10_000,
+      timelineRevision: 2,
+      revision: 2n
+    });
+    const sceneHandle = createRealmScene(createOptions(canvas, {
+      surface: createRealmTerrainSurface('future-return-context-wake', 4, 5),
+      reducedMotion: true,
+      workers: [worker]
+    }));
+    const ambient = ambientSchedulerState.creations.at(-1)!;
+    const renderer = webglState.instances.at(-1)!;
+
+    expect([...timers.values()].map((timer) => timer.delayMilliseconds))
+      .toEqual([60_000]);
+    canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
+    expect(timers.size).toBe(0);
+    expect(ambient.isActive()).toBe(false);
+
+    now.mockReturnValue(50_000);
+    canvas.dispatchEvent(new Event('webglcontextrestored'));
+    expect([...timers.values()].map((timer) => timer.delayMilliseconds))
+      .toEqual([10_000]);
+    expect(ambient.isActive()).toBe(false);
+
+    canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
+    expect(timers.size).toBe(0);
+    now.mockReturnValue(61_000);
+    canvas.dispatchEvent(new Event('webglcontextrestored'));
+    expect(timers.size).toBe(0);
+    expect(ambient.isActive()).toBe(true);
+    const renderCountAfterRestore = renderer.render.mock.calls.length;
+    canvas.dispatchEvent(new Event('webglcontextrestored'));
+    expect(renderer.render).toHaveBeenCalledTimes(renderCountAfterRestore);
+
+    sceneHandle.dispose();
+  });
+
+  it('chunks a Worker wake beyond the browser timeout limit without rendering early', () => {
+    const canvas = document.createElement('canvas');
+    Object.defineProperties(canvas, {
+      clientWidth: { configurable: true, value: 800 },
+      clientHeight: { configurable: true, value: 600 }
+    });
+    const maximumTimeoutMilliseconds = 2_147_483_647;
+    const demandAtMilliseconds = maximumTimeoutMilliseconds + 5_000;
+    const movementStartsAtMicros = BigInt(demandAtMilliseconds) * 1_000n;
+    const now = vi.spyOn(Date, 'now').mockReturnValue(0);
+    const { timers } = installManualWindowTimers();
+    const worker = outboundWorkerRecord(0, {
+      startedAtMicros: movementStartsAtMicros,
+      arrivesAtMicros: movementStartsAtMicros + 10_000_000n,
+      gatheringEndsAtMicros: movementStartsAtMicros + 20_000_000n,
+      returnsAtMicros: movementStartsAtMicros + 30_000_000n
+    });
+    const sceneHandle = createRealmScene(createOptions(canvas, {
+      surface: createRealmTerrainSurface('long-future-worker-wake', 4, 5),
+      reducedMotion: true,
+      workers: [worker]
+    }));
+    const ambient = ambientSchedulerState.creations.at(-1)!;
+    const renderer = webglState.instances.at(-1)!;
+
+    expect([...timers.values()].map((timer) => timer.delayMilliseconds))
+      .toEqual([maximumTimeoutMilliseconds]);
+    const [firstTimerId, firstTimer] = [...timers.entries()][0]!;
+    timers.delete(firstTimerId);
+    const renderCountBeforeChunk = renderer.render.mock.calls.length;
+    now.mockReturnValue(maximumTimeoutMilliseconds);
+    firstTimer.callback();
+    expect(renderer.render).toHaveBeenCalledTimes(renderCountBeforeChunk);
+    expect([...timers.values()].map((timer) => timer.delayMilliseconds))
+      .toEqual([5_000]);
+    expect(ambient.isActive()).toBe(false);
+
+    const [finalTimerId, finalTimer] = [...timers.entries()][0]!;
+    timers.delete(finalTimerId);
+    now.mockReturnValue(demandAtMilliseconds);
+    finalTimer.callback();
+    expect(timers.size).toBe(0);
+    expect(ambient.isActive()).toBe(true);
+
+    sceneHandle.dispose();
+  });
+
   it('bounds moving-worker projection membership and reports suppressed presences', () => {
     const canvas = document.createElement('canvas');
     Object.defineProperties(canvas, {
@@ -1807,6 +2188,94 @@ describe('realm scene setup cleanup', () => {
     scene.dispose();
     expect(geometryDispose).toHaveBeenCalledTimes(1);
     expect(materialDispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('bounds a replacement Worker-model preflight before accepting fallback readiness', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(200);
+    const { timers } = installManualWindowTimers();
+    const root = new THREE.Group();
+    root.add(new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial()
+    ));
+    keepLoadState.load.mockResolvedValue(loadedCastleAssembly(root));
+    const onCastlesReady = vi.fn();
+    const scene = createRealmScene(createOptions(
+      document.createElement('canvas'),
+      {
+        surface: createRealmTerrainSurface('worker-model-preflight', 4, 5),
+        workers: [outboundWorkerRecord()],
+        waitForWorkerModelBeforeReady: true,
+        onCastlesReady
+      }
+    ));
+
+    await vi.waitFor(() => {
+      expect([...timers.values()].some(
+        (timer) => timer.delayMilliseconds === 1_500
+      )).toBe(true);
+    });
+    expect(onCastlesReady).not.toHaveBeenCalled();
+    const [timerId, timer] = [...timers.entries()].find(
+      ([, candidate]) => candidate.delayMilliseconds === 1_500
+    )!;
+    timers.delete(timerId);
+    timer.callback();
+    expect(onCastlesReady).toHaveBeenCalledOnce();
+    expect(onCastlesReady).toHaveBeenCalledWith(1);
+
+    scene.dispose();
+  });
+
+  it('reopens Worker-model preflight when an idle replacement becomes active', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(200);
+    const { timers } = installManualWindowTimers();
+    const root = new THREE.Group();
+    root.add(new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial()
+    ));
+    let resolveCastle!: (value: unknown) => void;
+    keepLoadState.load.mockImplementation(() => new Promise((resolve) => {
+      resolveCastle = resolve;
+    }));
+    const onCastlesReady = vi.fn();
+    const scene = createRealmScene(createOptions(
+      document.createElement('canvas'),
+      {
+        surface: createRealmTerrainSurface('worker-model-dynamic-preflight', 4, 5),
+        workers: [idleWorkerRecord()],
+        waitForWorkerModelBeforeReady: true,
+        onCastlesReady
+      }
+    ));
+
+    await vi.waitFor(() => expect(resolveCastle).toBeTypeOf('function'));
+    scene.reconcileLiveGatheringState({
+      goldNodes: [],
+      foodNodes: [],
+      woodNodes: [],
+      stoneNodes: [],
+      workers: [outboundWorkerRecord()],
+      observedAtMicros: 200_000n
+    });
+    resolveCastle(loadedCastleAssembly(root));
+
+    await vi.waitFor(() => {
+      expect([...timers.values()].some(
+        (timer) => timer.delayMilliseconds === 1_500
+      )).toBe(true);
+    });
+    expect(onCastlesReady).not.toHaveBeenCalled();
+    const [timerId, timer] = [...timers.entries()].find(
+      ([, candidate]) => candidate.delayMilliseconds === 1_500
+    )!;
+    timers.delete(timerId);
+    timer.callback();
+    expect(onCastlesReady).toHaveBeenCalledOnce();
+    expect(onCastlesReady).toHaveBeenCalledWith(1);
+
+    scene.dispose();
   });
 
   it('starts optional castle LODs only after Compact reaches playable readiness', async () => {

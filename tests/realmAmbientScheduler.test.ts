@@ -111,4 +111,35 @@ describe('Realm ambient scheduler', () => {
     expect(frames.callbacks.size).toBe(0);
     scheduler.dispose();
   });
+
+  it('raises movement cadence without leaving a second frame loop behind', () => {
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
+    const frames = installAnimationFrames();
+    const onStep = vi.fn();
+    const scheduler = createRealmAmbientScheduler({
+      frameCap: 24,
+      active: true,
+      onStep
+    });
+
+    frames.frame(0);
+    frames.frame(20);
+    expect(onStep).not.toHaveBeenCalled();
+
+    scheduler.setFrameCap(60);
+    expect(scheduler.getFrameCap()).toBe(60);
+    expect(frames.callbacks.size).toBe(1);
+    frames.frame(30);
+    frames.frame(47);
+    expect(onStep).toHaveBeenCalledOnce();
+
+    scheduler.setFrameCap(0);
+    expect(scheduler.isActive()).toBe(false);
+    expect(frames.callbacks.size).toBe(0);
+    scheduler.setFrameCap(30);
+    expect(scheduler.isActive()).toBe(true);
+    expect(frames.callbacks.size).toBe(1);
+
+    scheduler.dispose();
+  });
 });

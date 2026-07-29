@@ -104,6 +104,34 @@ export function realmSceneConstructionKey(input: RealmSceneConstructionKeyInput)
   ]);
 }
 
+/**
+ * Presentation quality and reduced-motion materials may change without
+ * changing the authoritative world beneath a Worker. Keep that distinction
+ * explicit so presentation continuity can never cross a simultaneous
+ * topology mutation merely because the quality control changed too.
+ */
+export function realmSceneTopologyKey(input: RealmSceneConstructionKeyInput) {
+  return JSON.stringify([
+    'realm-scene-topology-v1',
+    input.canonicalFingerprint,
+    input.realmId,
+    input.numericSeed,
+    input.authoritativeRadius,
+    input.renderRadius,
+    input.ownCastleId,
+    input.keepCoord.q,
+    input.keepCoord.r,
+    sortedCastleCatalog(input.peerCastles),
+    sortedNodeCatalog(input.goldNodes),
+    sortedNodeCatalog(input.foodNodes),
+    sortedNodeCatalog(input.woodNodes),
+    sortedNodeCatalog(input.stoneNodes),
+    input.forestSignature,
+    input.waterSignature,
+    input.observerMode
+  ]);
+}
+
 export type RealmSceneRecreationReason =
   | 'initial-entry'
   | 'graphics-quality-change'
@@ -114,6 +142,7 @@ export type RealmSceneRecreationReason =
 
 export type RealmSceneConstructionProfile = Readonly<{
   key: string;
+  topologyKey: string;
   quality: string;
   reducedMotion: boolean;
 }>;
@@ -125,6 +154,9 @@ export function realmSceneRecreationReason(
 ): RealmSceneRecreationReason {
   if (previous === undefined) return 'initial-entry';
   if (requested !== undefined) return requested;
+  if (previous.topologyKey !== next.topologyKey) {
+    return 'canonical-topology-change';
+  }
   if (previous.quality !== next.quality) return 'graphics-quality-change';
   if (previous.reducedMotion !== next.reducedMotion) {
     return 'reduced-motion-material-change';

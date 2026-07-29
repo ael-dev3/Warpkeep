@@ -5,7 +5,12 @@ export const RENDERED_WEBGL_QA_MAX_READY_MILLISECONDS = 120_000;
 
 const QUALITY_VALUES = new Set(['high', 'balanced', 'reduced']);
 const PRESENTATION_MODE_VALUES = new Set(['observer', 'player']);
-const FIXTURE_VARIANT_VALUES = new Set(['baseline', 'occupancy-stress', 'worker-active']);
+const FIXTURE_VARIANT_VALUES = new Set([
+  'baseline',
+  'occupancy-stress',
+  'worker-active',
+  'worker-locomotion',
+]);
 
 function quality(value) {
   if (typeof value !== 'string' || !QUALITY_VALUES.has(value)) {

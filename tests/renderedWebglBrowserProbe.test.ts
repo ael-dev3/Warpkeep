@@ -9,6 +9,7 @@ import {
   analyzeRenderedWebglPngScreenshot,
   applyRenderedWebglActiveWorkerInteraction,
   applyRenderedWebglActiveWorkerReconnectInteraction,
+  applyRenderedWebglWorkerLocomotionInteraction,
   applyRenderedWebglActiveForestCameraInteraction,
   applyRenderedWebglCaseInteraction,
   applyRenderedWebglLabelKeyboardInteraction,
@@ -20,12 +21,14 @@ import {
   cleanupRenderedWebglProbeResources,
   controlledRendererRecoveryWarningKind,
   DevtoolsPipeSession,
+  formatRenderedWebglLocalDiagnostic,
   headlessChromeProbeContract,
   isAllowedRenderedWebglPageUrl,
   isBenignStaleFetchInterceptionError,
   parseHeadlessChromeCodeSignature,
   parseRenderedWebglActiveForestDom,
   parseRenderedWebglActiveWorkerEvidence,
+  parseRenderedWebglWorkerLocomotionEvidence,
   parseRenderedWebglBrowserDom,
   parseRenderedWebglInspectorLabelActivationEvidence,
   parseRenderedWebglLabelKeyboardEvidence,
@@ -48,6 +51,8 @@ import {
   renderedWebglActiveWorkerProbeCase,
   renderedWebglBrowserProbeCases,
   renderedWebglOccupancyStressProbeCase,
+  renderedWebglWorkerLocomotionProbeCase,
+  renderedWebglWorkerLocomotionProbeCases,
   selectBlankPageTarget,
   spawnHeadlessChromeProbe,
   terminateHeadlessChromeProcessGroup
@@ -191,6 +196,45 @@ async function attachedFakeChromePipe(
 }
 
 describe('rendered WebGL headless browser probe contract', () => {
+  it('keeps opt-in local failure causes bounded and redacted', () => {
+    const error = new Error(
+      'Rendered case failed at wss://127.0.0.1:4173/private '
+        + '/home/example/token /Volumes/Private/record '
+        + 'C:\\Users\\example\\secret \\\\server\\share\\secret',
+      {
+      cause: new Error(
+        'Source /Users/example/private/token.txt '
+          + 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+      )
+      }
+    );
+    const diagnostic = formatRenderedWebglLocalDiagnostic(error);
+    expect(diagnostic).toContain('Rendered case failed at [url]');
+    expect(diagnostic).toContain('Source [path] [opaque]');
+    expect(diagnostic).not.toContain('127.0.0.1');
+    expect(diagnostic).not.toContain('/home/');
+    expect(diagnostic).not.toContain('/Volumes/');
+    expect(diagnostic).not.toContain('/Users/');
+    expect(diagnostic).not.toContain('C:\\');
+    expect(diagnostic).not.toContain('server\\share');
+    expect(diagnostic.length).toBeLessThanOrEqual(1_280);
+    expect(formatRenderedWebglLocalDiagnostic('not-an-error')).toBe('unknown');
+
+    const hostile = new Error('ordinary');
+    Object.defineProperties(hostile, {
+      message: { get: () => { throw new Error('private message getter'); } },
+      name: { value: 'Error' },
+      cause: { get: () => { throw new Error('private cause getter'); } }
+    });
+    expect(formatRenderedWebglLocalDiagnostic(hostile)).toBe('Error');
+
+    const nonStringMessage = new Error();
+    Object.defineProperty(nonStringMessage, 'message', {
+      value: Object.freeze({ private: true })
+    });
+    expect(formatRenderedWebglLocalDiagnostic(nonStringMessage)).toBe('Error');
+  });
+
   it('zeroizes the source and removes the private profile even if Vite shutdown rejects', async () => {
     const calls: string[] = [];
     const closeFailure = new Error('synthetic Vite close failure');
@@ -607,6 +651,18 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(expression).toContain(
       'if (!inspectorReady || !(inspector instanceof HTMLElement)) return false;'
     );
+    expect(expression).toContain(
+      "root.getAttribute('data-realm-camera-target-kind') === 'cell-location'"
+    );
+    expect(expression).toContain(
+      "canvas.getAttribute('data-realm-camera-settled') === 'true'"
+    );
+    expect(expression).toContain(
+      'cameraSettledAfter(previousCameraToken)'
+    );
+    expect(expression).toContain(
+      'currentToken !== previousToken'
+    );
     expect(expression).toContain("resource: 'gold'");
     expect(expression).toContain("resource: 'food'");
     expect(expression).toContain("resource: 'wood'");
@@ -672,6 +728,9 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(source).toContain("name: 'prefers-reduced-motion'");
     expect(source).toContain('probeCase.expectedReducedMotion === true');
     expect(source).toContain("probeCase.expectedQuality === 'reduced'");
+    expect(source).toMatch(
+      /if \(RENDERED_WEBGL_QA_MAP_GESTURE_CASES\.has\(probeCase\.id\)\) \{\s+await waitForRenderedWebglCameraSettled\(session\);\s+await applyRenderedWebglMapGestureInteraction/
+    );
     expect(renderedWebglBrowserProbeCases(41_733)).toContainEqual(
       expect.objectContaining({
         id: 'mobile-balanced-persistent-labels',
@@ -874,6 +933,303 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(source).toContain('CONTROLLED_RENDERER_MAXIMUM_STALE_DELETE_WARNINGS');
     expect(source).toContain('state.controlledRendererWarningThrottleSeen');
     expect(source).toContain('one active generic ');
+  });
+
+  it('requires a strict four-case privacy-safe real-GLB Worker locomotion matrix', async () => {
+    const cases = renderedWebglWorkerLocomotionProbeCases(41_733);
+    const telemetryFor = (
+      wheelDrivenCount: number,
+      animatedCount: number
+    ) => ({
+      clipIdleCount: 1,
+      clipStartCount: 0,
+      clipStopCount: 0,
+      clipTurnLeftCount: 0,
+      clipTurnRightCount: 0,
+      clipWalkCount: 2,
+      cruisingCount: 2,
+      gatheringIdleCount: 1,
+      lateModelPhaseRestorationCount: 3,
+      maximumHeadingError: 0.02,
+      maximumPositionCorrection: 0.01,
+      maximumSpeed: 0.25,
+      modelPhaseRestorationCount: 3,
+      movingCount: 2,
+      oneShotOverrunCount: 0,
+      repeatedTurnSuppressionCount: 0,
+      renderedClipIdleCount: animatedCount > 0 ? 1 : 0,
+      renderedClipStartCount: 0,
+      renderedClipStopCount: 0,
+      renderedClipTurnLeftCount: 0,
+      renderedClipTurnRightCount: 0,
+      renderedClipWalkCount: animatedCount > 0 ? 2 : 0,
+      reversalCount: 0,
+      startingCount: 0,
+      stoppingCount: 0,
+      turningCount: 0,
+      wheelDistanceMismatchCount: 0,
+      wheelDrivenCount
+    });
+    const evidenceFor = (probeCase: (typeof cases)[number]) => {
+      const telemetry = telemetryFor(
+        probeCase.workerLocomotion.expectedWheelDrivenCount,
+        probeCase.workerLocomotion.expectedAnimatedCount
+      );
+      const samples = Array.from({ length: 32 }, (_, index) => {
+        const phase = index < 16 ? 'outbound' as const : 'returning' as const;
+        const phaseIndex = index % 16;
+        return {
+          elapsedMilliseconds: 33 + index * 48,
+          rootProjections: [{
+            phase,
+            x: phase === 'outbound'
+              ? Math.min(probeCase.viewport.width - 1, 120 + phaseIndex * 0.2)
+              : Math.min(probeCase.viewport.width - 1, 240 - phaseIndex * 0.25),
+            y: Math.min(
+              probeCase.viewport.height - 1,
+              phase === 'outbound' ? 140 : 150
+            )
+          }],
+          telemetry
+        };
+      });
+      const phaseMovement = (phase: 'outbound' | 'returning') => {
+        const positions = samples.flatMap((sample) => (
+          sample.rootProjections.filter((root) => root.phase === phase)
+        ));
+        const first = positions[0]!;
+        const last = positions.at(-1)!;
+        return Math.hypot(last.x - first.x, last.y - first.y);
+      };
+      return {
+        approvedAssetLoaded: true,
+        animatedCount: probeCase.workerLocomotion.expectedAnimatedCount,
+        assetProfile: probeCase.workerLocomotion.assetProfile,
+        caseId: probeCase.id,
+        fallbackCount: 0,
+        fixtureSelected: true,
+        modelCount: 3,
+        movementPixels: {
+          outbound: phaseMovement('outbound'),
+          returning: phaseMovement('returning')
+        },
+        presentedCount: 400,
+        quality: probeCase.expectedQuality,
+        readinessSatisfied: true,
+        reducedMotion: probeCase.expectedReducedMotion === true,
+        rendererStable: true,
+        samples,
+        viewportHeight: probeCase.viewport.height,
+        viewportWidth: probeCase.viewport.width,
+        visibleProjectionCount: 1,
+        wheelDrivenCount:
+          probeCase.workerLocomotion.expectedWheelDrivenCount
+      } as const;
+    };
+    const evidence = cases.map(evidenceFor);
+
+    expect(cases.map((probeCase) => ({
+      id: probeCase.id,
+      quality: probeCase.expectedQuality,
+      reducedMotion: probeCase.expectedReducedMotion === true,
+      viewport: probeCase.viewport,
+      assetProfile: probeCase.workerLocomotion.assetProfile,
+      animatedCount: probeCase.workerLocomotion.expectedAnimatedCount,
+      wheelDrivenCount:
+        probeCase.workerLocomotion.expectedWheelDrivenCount
+    }))).toEqual([
+      {
+        id: 'full-hd-high-worker-locomotion',
+        quality: 'high',
+        reducedMotion: false,
+        viewport: { width: 1_920, height: 1_080 },
+        assetProfile: 'high',
+        animatedCount: 3,
+        wheelDrivenCount: 3
+      },
+      {
+        id: 'desktop-balanced-worker-locomotion',
+        quality: 'balanced',
+        reducedMotion: false,
+        viewport: { width: 1_440, height: 900 },
+        assetProfile: 'balanced',
+        animatedCount: 3,
+        wheelDrivenCount: 3
+      },
+      {
+        id: 'short-landscape-reduced-worker-locomotion',
+        quality: 'reduced',
+        reducedMotion: false,
+        viewport: { width: 667, height: 375 },
+        assetProfile: 'compact',
+        animatedCount: 0,
+        wheelDrivenCount: 3
+      },
+      {
+        id: 'mobile-reduced-motion-worker-locomotion',
+        quality: 'reduced',
+        reducedMotion: true,
+        viewport: { width: 390, height: 844 },
+        assetProfile: 'compact',
+        animatedCount: 0,
+        wheelDrivenCount: 0
+      }
+    ]);
+    evidence.forEach((candidate) => {
+      expect(parseRenderedWebglWorkerLocomotionEvidence(candidate)).toEqual(
+        candidate
+      );
+    });
+
+    const balancedEvidence = evidence[1]!;
+    expect(() => parseRenderedWebglWorkerLocomotionEvidence({
+      ...balancedEvidence,
+      privateWorkerId: 'must-not-cross-cdp'
+    })).toThrow(/locomotion evidence/i);
+    expect(() => parseRenderedWebglWorkerLocomotionEvidence({
+      ...balancedEvidence,
+      readinessSatisfied: false
+    })).toThrow(/locomotion evidence/i);
+    expect(() => parseRenderedWebglWorkerLocomotionEvidence({
+      ...balancedEvidence,
+      samples: balancedEvidence.samples.map((sample) => ({
+        ...sample,
+        telemetry: { ...sample.telemetry, maximumSpeed: null }
+      }))
+    })).toThrow(/locomotion telemetry/i);
+    expect(() => parseRenderedWebglWorkerLocomotionEvidence({
+      ...balancedEvidence,
+      samples: balancedEvidence.samples.map((sample) => ({
+        ...sample,
+        telemetry: { ...sample.telemetry, wheelDistanceMismatchCount: 1 }
+      }))
+    })).toThrow(/locomotion telemetry contract/i);
+    expect(() => parseRenderedWebglWorkerLocomotionEvidence({
+      ...balancedEvidence,
+      samples: balancedEvidence.samples.map((sample) => ({
+        ...sample,
+        rootProjections: sample.rootProjections.map((root) => ({
+          ...root,
+          phase: 'outbound'
+        }))
+      }))
+    })).toThrow(/frame sample|phase coverage/i);
+    expect(() => parseRenderedWebglWorkerLocomotionEvidence({
+      ...balancedEvidence,
+      movementPixels: { outbound: 0, returning: 0 },
+      samples: balancedEvidence.samples.map((sample) => ({
+        ...sample,
+        rootProjections: sample.rootProjections.map((root) => ({
+          ...root,
+          x: root.phase === 'outbound' ? 120 : 240
+        }))
+      }))
+    })).toThrow(/movement evidence/i);
+    for (const frozenPhase of ['outbound', 'returning'] as const) {
+      const first = balancedEvidence.samples
+        .flatMap((sample) => sample.rootProjections)
+        .find((root) => root.phase === frozenPhase)!;
+      expect(() => parseRenderedWebglWorkerLocomotionEvidence({
+        ...balancedEvidence,
+        movementPixels: {
+          ...balancedEvidence.movementPixels,
+          [frozenPhase]: 0
+        },
+        samples: balancedEvidence.samples.map((sample) => ({
+          ...sample,
+          rootProjections: sample.rootProjections.map((root) => (
+            root.phase === frozenPhase
+              ? { ...root, x: first.x, y: first.y }
+              : root
+          ))
+        }))
+      })).toThrow(/movement evidence/i);
+    }
+
+    const command = vi.fn(async (
+      method: string,
+      _params?: Readonly<Record<string, unknown>>,
+      _timeoutMilliseconds?: number
+    ) => method === 'Runtime.evaluate'
+      ? { result: { type: 'object', value: balancedEvidence } }
+      : {});
+    await expect(applyRenderedWebglWorkerLocomotionInteraction(
+      { command },
+      cases[1]!
+    )).resolves.toEqual(balancedEvidence);
+    const evaluation = command.mock.calls.find(([method]) => (
+      method === 'Runtime.evaluate'
+    ));
+    expect(evaluation?.[1]).toMatchObject({
+      awaitPromise: true,
+      returnByValue: true
+    });
+    expect(evaluation?.[2]).toBe(100_000);
+    const expression = String(evaluation?.[1]?.expression);
+    expect(expression).toContain("overlay.dataset.fixtureVariant === 'worker-locomotion'");
+    expect(expression).toContain(
+      '/models/hegemony/hegemony-supply-wagon-balanced-af0f8788eaaf9a32.glb'
+    );
+    expect(expression).toContain(
+      'const baseReadinessSatisfied = await waitFor'
+    );
+    expect(expression).toContain('data-projected-visible="true"');
+    expect(expression).toContain('realmLocalQaWorkerProjections');
+    expect(expression).toContain("'data-realm-worker-locomotion-moving-count'");
+    expect(expression).toContain("'data-realm-worker-clip-walk-count'");
+    expect(expression).toContain(
+      "'data-realm-worker-rendered-clip-walk-count'"
+    );
+    expect(expression).toContain("'data-realm-worker-wheel-driven-count'");
+    expect(expression).toContain('--realm-worker-presence-x');
+    expect(expression).toContain("'data-realm-camera-settled'");
+    expect(expression).toContain("'data-realm-camera-state-token'");
+    expect(expression).toContain("{ ordinal: 1, phase: 'outbound' }");
+    expect(expression).toContain("{ ordinal: 2, phase: 'returning' }");
+    expect(expression).toContain('let samplingElapsedMilliseconds = 0');
+    expect(expression).toContain(
+      'const phaseSamplingStartedAt = performance.now();'
+    );
+    expect(expression).not.toContain('const startedAt = performance.now();');
+    expect(expression.indexOf(
+      'const phaseSamplingStartedAt = performance.now();'
+    )).toBeGreaterThan(expression.indexOf(
+      'const settledCameraToken = await locateMovingWorker(target);'
+    ));
+    expect(expression.indexOf(
+      'const elapsedMilliseconds = ('
+    )).toBeGreaterThan(expression.indexOf(
+      'const phaseSamplingStartedAt = performance.now();'
+    ));
+    expect(expression).toContain(
+      ".realm-profile-menu__worker-actions button[aria-haspopup=\"dialog\"]"
+    );
+    expect(expression).toContain('.worker-command-center__worker');
+    expect(expression).toContain('.worker-inspection__locate');
+    expect(expression).toContain(
+      '.realm-profile-menu__panel button[aria-label="Close Realm menu"]'
+    );
+    expect(expression).not.toContain('return {\\n        workerId');
+    expect(expression).not.toContain('return {\\n        fid');
+    await expect(applyRenderedWebglWorkerLocomotionInteraction(
+      { command },
+      { ...cases[1]!, id: 'unreviewed-worker-locomotion' } as never
+    )).rejects.toThrow(/probe case/i);
+
+    expect(renderedWebglWorkerLocomotionProbeCase(41_733)).toEqual(cases[1]);
+    expect(() => renderedWebglWorkerLocomotionProbeCases(0)).toThrow(/port/i);
+
+    const source = readFileSync(resolve(
+      process.cwd(),
+      'scripts/qa-observer/rendered-webgl-browser-probe.mjs'
+    ), 'utf8');
+    expect(source).toContain(
+      'for (const workerLocomotionCase of workerLocomotionCases)'
+    );
+    expect(source).toContain(
+      '...workerLocomotionCases.map((probeCase) => probeCase.url)'
+    );
+    expect(source).toContain('four Worker locomotion evidence checks');
   });
 
   it('locks the reported upper-right Water overview to the reviewed camera and scene', async () => {
@@ -1109,8 +1465,38 @@ describe('rendered WebGL headless browser probe contract', () => {
       returnByValue: true
     }));
     expect(command).toHaveBeenCalledWith('Runtime.evaluate', expect.objectContaining({
-      expression: expect.stringContaining(".trim() === 'EXPLORE'")
+      expression: expect.stringContaining(
+        "(button.querySelector('strong')?.textContent ?? '').trim()"
+      )
     }));
+    expect(command).toHaveBeenCalledWith('Runtime.evaluate', expect.objectContaining({
+      expression: expect.stringContaining("=== 'EXPLORE'")
+    }));
+    expect(command).toHaveBeenCalledWith('Runtime.evaluate', expect.objectContaining({
+      expression: expect.stringContaining(
+        'const deadline = performance.now() + 2_000'
+      )
+    }));
+    expect(command).toHaveBeenCalledWith('Runtime.evaluate', expect.objectContaining({
+      expression: expect.stringContaining(
+        'await new Promise((resolve) => setTimeout(resolve, 32))'
+      )
+    }));
+    const source = readFileSync(resolve(
+      process.cwd(),
+      'scripts/qa-observer/rendered-webgl-browser-probe.mjs'
+    ), 'utf8');
+    expect(source).toContain("method === 'Page.lifecycleEvent'");
+    expect(source).toContain("params?.name === 'load'");
+    expect(source).toContain('state.loadedPageLoaderIds.has(loaderId)');
+    expect(source).toContain(
+      "devtools.command('Page.setLifecycleEventsEnabled'"
+    );
+    const navigationSource = source.slice(
+      source.indexOf('async function navigateRenderedWebglCase'),
+      source.indexOf('async function runRenderedOccupancyStressCase')
+    );
+    expect(navigationSource).not.toContain('await delay(150);');
     await expect(applyRenderedWebglCaseInteraction(
       { command },
       'explore',

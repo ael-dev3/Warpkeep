@@ -3806,15 +3806,22 @@ async function exercisePersistentWorkerReentry(session, preparedEvidence) {
         if (retainedReconnect === undefined) {
           return { stage: 'reentry-retained-reconnect' };
         }
-        const staleRecallButtons = [...commandCenter.querySelectorAll(
-          '.worker-command-center__recall'
-        )];
-        if (
-          staleRecallButtons.length !== 3
-          || staleRecallButtons.some((button) => !(
-            button instanceof HTMLButtonElement && button.disabled
-          ))
-        ) return { stage: 'reentry-retained-reconnect-controls' };
+        const reconnectControlsDisabled = await waitFor(() => {
+          const staleRecallButtons = [...commandCenter.querySelectorAll(
+            '.worker-command-center__recall'
+          )];
+          return (
+            commandCenter.isConnected
+            && lifecycleStable()
+            && staleRecallButtons.length === 3
+            && staleRecallButtons.every((button) => (
+              button instanceof HTMLButtonElement && button.disabled
+            ))
+          );
+        }, 2_000);
+        if (!reconnectControlsDisabled) {
+          return { stage: 'reentry-retained-reconnect-controls' };
+        }
         window.dispatchEvent(new Event('${RELEASE_PRIVATE_WORKER_SEAM_EVENT}'));
         const reconnectRecovered = await waitFor(() => {
           const evidence = readContinuityEvidence(publicReadyProbe);

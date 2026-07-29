@@ -6,9 +6,10 @@ import {
   readContainedRegularFile
 } from './atomic-install-file-family.mjs';
 import {
+  aggregateHegemonySupplyWagonAudits,
+  auditHegemonySupplyWagonBytes,
   HEGEMONY_SUPPLY_WAGON_PROFILES,
-  HEGEMONY_SUPPLY_WAGON_RUNTIME_DIRECTORY,
-  verifyHegemonySupplyWagonBytes
+  HEGEMONY_SUPPLY_WAGON_RUNTIME_DIRECTORY
 } from './hegemony-supply-wagon-contract.mjs';
 
 const root = resolve(import.meta.dirname, '..');
@@ -30,6 +31,7 @@ if (unknown.length > 0 || missing.length > 0 || nonFiles.length > 0) {
   );
 }
 
+const audits = [];
 for (const profile of HEGEMONY_SUPPLY_WAGON_PROFILES) {
   const relativePath = `${HEGEMONY_SUPPLY_WAGON_RUNTIME_DIRECTORY}/${profile.filename}`;
   const bytes = readContainedRegularFile({
@@ -38,7 +40,19 @@ for (const profile of HEGEMONY_SUPPLY_WAGON_PROFILES) {
     label: `${profile.id} Hegemony supply-wagon runtime`,
     expectedBytes: profile.bytes
   });
-  await verifyHegemonySupplyWagonBytes(bytes, profile, `${profile.id} Hegemony supply-wagon runtime`);
+  audits.push(await auditHegemonySupplyWagonBytes(
+    bytes,
+    profile,
+    `${profile.id} Hegemony supply-wagon runtime`
+  ));
 }
 
+const aggregate = aggregateHegemonySupplyWagonAudits(audits);
 console.log(`Verified ${HEGEMONY_SUPPLY_WAGON_PROFILES.length} exact Hegemony supply-wagon runtime LODs.`);
+console.log(
+  'Supply Wagon semantic audit: '
+  + `${aggregate.jointNames.length} named joints, `
+  + `${aggregate.clips.length} in-place clips, `
+  + `${aggregate.wheelSemantics.nodeNames.join('/')} distance-driven at `
+  + `${aggregate.wheelSemantics.preparedRadius.toFixed(9)} world radius.`
+);

@@ -6,6 +6,20 @@ export type LatestPatchNotes = Readonly<{
   alphaNotice: string;
 }>;
 
+const ALPHA_0_3_24_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: '29 JUL 2026',
+  title: 'WAGONS TAKE THE ROAD',
+  summary:
+    'This build gives Supply Wagons a continuous, speed-matched locomotion cycle while every journey remains anchored to authoritative Realm time and route truth.',
+  highlights: Object.freeze([
+    'Visible journeys advance at a smooth demand-driven cadence; a completed Start, Stop, or turn gesture can no longer leave a moving wagon frozen on the road.',
+    'Horse gait and distance-driven wheel rotation follow actual route speed, with continuous heading and terrain contact through corners and recall.',
+    'Reconnects, late model loads, and LOD changes restore the current movement phase, while reduced motion keeps positional truth without permanent full-scene rendering.'
+  ]),
+  alphaNotice:
+    'Alpha 0.3.24 remains an unfinished, evolving world. This frontend presentation release does not change authentication, Worker authority, routes, assignments, timings, node leases, settlement, balances, terrain topology, or persistent world state.'
+});
+
 const ALPHA_0_3_18_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '24 JUL 2026',
   title: 'THE KEEP MUSTERS',
@@ -92,6 +106,7 @@ const ALPHA_0_3_22_PATCH_NOTES: LatestPatchNotes = Object.freeze({
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
+    '0.3.24': ALPHA_0_3_24_PATCH_NOTES,
     '0.3.23': ALPHA_0_3_23_PATCH_NOTES,
     '0.3.22': ALPHA_0_3_22_PATCH_NOTES,
     '0.3.21': ALPHA_0_3_21_PATCH_NOTES,

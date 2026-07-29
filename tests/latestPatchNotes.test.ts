@@ -17,29 +17,32 @@ describe('latest in-menu patch notes', () => {
 
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
-      releasedOn: '28 JUL 2026',
-      title: 'THE GATE ALIGNS'
+      releasedOn: '29 JUL 2026',
+      title: 'WAGONS TAKE THE ROAD'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /first visible transition frame.*rendered gateway center.*displaced.*coordinate/i
+      /smooth demand-driven cadence.*completed Start, Stop, or turn gesture.*frozen/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Pointer.*touch.*keyboard.*returning passages.*measured gateway origin.*repeated crossings/i
+      /Horse gait.*distance-driven wheel rotation.*actual route speed.*terrain contact/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /gateway stays closed.*visible center.*interaction target.*focus position.*agree/i
+      /Reconnects.*late model loads.*LOD changes.*current movement phase.*reduced motion/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
-      /released to players|deployed to players|public balances|guaranteed rewards/i
+    expect(JSON.stringify(getLatestPatchNotes(packageJson.version))).not.toMatch(
+      /\blive\b|\bdeployed\b|released to players|guaranteed rewards/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.summary).toContain(
-      'visible black-hole gateway itself'
+      'continuous, speed-matched locomotion cycle'
     );
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'does not change authentication, Worker authority, resources'
+      'does not change authentication, Worker authority, routes'
     );
 
+    expect(getLatestPatchNotes('0.3.23')).toMatchObject({
+      title: 'THE GATE ALIGNS'
+    });
     const alpha0322 = getLatestPatchNotes('0.3.22');
     expect(alpha0322).toMatchObject({
       title: 'THE WAGONS REST'

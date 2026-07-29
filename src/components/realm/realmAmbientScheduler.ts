@@ -5,7 +5,9 @@
  */
 export type RealmAmbientScheduler = Readonly<{
   dispose: () => void;
+  getFrameCap: () => number;
   setActive: (active: boolean) => void;
+  setFrameCap: (frameCap: number) => void;
   setVisible: (visible: boolean) => void;
   isActive: () => boolean;
 }>;
@@ -23,10 +25,10 @@ function safeFrameCap(value: number) {
 export function createRealmAmbientScheduler(
   options: CreateRealmAmbientSchedulerOptions
 ): RealmAmbientScheduler {
-  const frameCap = safeFrameCap(options.frameCap);
-  const intervalMilliseconds = frameCap > 0 ? 1_000 / frameCap : Infinity;
+  let frameCap = safeFrameCap(options.frameCap);
+  let intervalMilliseconds = frameCap > 0 ? 1_000 / frameCap : Infinity;
   let disposed = false;
-  let active = Boolean(options.active) && frameCap > 0;
+  let active = Boolean(options.active);
   let visible = true;
   let frame = 0;
   let lastTimestamp: number | null = null;
@@ -45,13 +47,20 @@ export function createRealmAmbientScheduler(
   };
 
   const schedule = () => {
-    if (disposed || !active || !visible || document.hidden || frame !== 0) return;
+    if (
+      disposed
+      || !active
+      || frameCap <= 0
+      || !visible
+      || document.hidden
+      || frame !== 0
+    ) return;
     frame = window.requestAnimationFrame(tick);
   };
 
   function tick(timestamp: number) {
     frame = 0;
-    if (disposed || !active || !visible || document.hidden) {
+    if (disposed || !active || frameCap <= 0 || !visible || document.hidden) {
       resetClock();
       return;
     }
@@ -99,11 +108,22 @@ export function createRealmAmbientScheduler(
       cancel();
       document.removeEventListener('visibilitychange', handleVisibility);
     },
+    getFrameCap: () => frameCap,
     setActive: (next) => {
       if (disposed) return;
-      const normalized = Boolean(next) && frameCap > 0;
+      const normalized = Boolean(next);
       if (normalized === active) return;
       active = normalized;
+      cancel();
+      resetClock();
+      schedule();
+    },
+    setFrameCap: (nextFrameCap) => {
+      if (disposed) return;
+      const normalized = safeFrameCap(nextFrameCap);
+      if (normalized === frameCap) return;
+      frameCap = normalized;
+      intervalMilliseconds = frameCap > 0 ? 1_000 / frameCap : Infinity;
       cancel();
       resetClock();
       schedule();
@@ -117,6 +137,12 @@ export function createRealmAmbientScheduler(
       resetClock();
       schedule();
     },
-    isActive: () => !disposed && active && visible && !document.hidden
+    isActive: () => (
+      !disposed
+      && active
+      && frameCap > 0
+      && visible
+      && !document.hidden
+    )
   });
 }

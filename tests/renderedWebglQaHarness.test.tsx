@@ -4,7 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RenderedWebglQaHarness } from '../src/dev/RenderedWebglQaHarness';
 import {
   createRenderedWebglQaActiveWorkerRealm,
-  createRenderedWebglQaOccupancyStressRealm
+  createRenderedWebglQaOccupancyStressRealm,
+  createRenderedWebglQaWorkerLocomotionRealm
 } from '../src/dev/renderedWebglQaFixture';
 import {
   RENDERED_WEBGL_QA_ACTIVE_WORKER_FIXTURE_MARKER,
@@ -146,6 +147,42 @@ describe('rendered WebGL local QA harness', () => {
     expect(status.dataset.fixtureVariant).toBe('occupancy-stress');
     expect(status.dataset.activeWorkerFixtureMarker).toBeUndefined();
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('exposes the local moving-wagon fixture without browser or backend authority', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    const fetchImpl = vi.fn((_value: unknown) => (
+      Promise.reject(new Error('Network is forbidden in fixture QA.'))
+    ));
+    vi.stubGlobal('fetch', fetchImpl);
+
+    render(
+      <RenderedWebglQaHarness
+        createFixtureRealm={() => (
+          createRenderedWebglQaWorkerLocomotionRealm(1_900_000_000_000_000n)
+        )}
+        fixtureVariant="worker-locomotion"
+        presentationMode="player"
+        quality="balanced"
+      />
+    );
+
+    const status = screen.getByText('LOCAL RENDERED WEBGL QA').closest('aside');
+    if (!(status instanceof HTMLElement)) throw new Error('missing rendered QA status');
+    await waitFor(() => expect(status.dataset.renderer).toBe('fallback'));
+    expect(status.dataset.fixtureVariant).toBe('worker-locomotion');
+    expect(status.dataset.activeWorkerFixtureMarker).toBe(
+      RENDERED_WEBGL_QA_ACTIVE_WORKER_FIXTURE_MARKER
+    );
+    expect(status.dataset.resourceOccupationCount).toBe('2');
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Open Realm menu for @qa-keep-001'
+    }));
+    expect(within(screen.getByRole('dialog', { name: 'REALM MENU' }))
+      .getByText('3/4 deployed · manage workers')).not.toBeNull();
+    expect(fetchImpl.mock.calls.every(([value]) => (
+      new URL(String(value)).origin === window.location.origin
+    ))).toBe(true);
   });
 
   it('fails closed when its deterministic fixture cannot initialize', () => {

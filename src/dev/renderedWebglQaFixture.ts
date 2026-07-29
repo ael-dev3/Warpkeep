@@ -54,6 +54,12 @@ export const RENDERED_WEBGL_QA_ACTIVE_WORKER_SITE_ID =
   RENDERED_WEBGL_QA_OVERVIEW_GOLD_SITE_ID;
 export const RENDERED_WEBGL_QA_FOREIGN_WORKER_SITE_ID =
   RENDERED_WEBGL_QA_OCCUPIED_GOLD_SITE_ID;
+export const RENDERED_WEBGL_QA_LOCOMOTION_OUTBOUND_SITE_ID =
+  'genesis-001-tier1-wood-043';
+export const RENDERED_WEBGL_QA_LOCOMOTION_RETURNING_SITE_ID =
+  'genesis-001-tier1-food-013';
+export const RENDERED_WEBGL_QA_LOCOMOTION_GATHERING_SITE_ID =
+  'genesis-001-tier1-gold-15';
 export const RENDERED_WEBGL_QA_OCCUPANCY_STRESS_COUNT =
   CANONICAL_TIER_I_GOLD_SITES_V1.length
   + CANONICAL_TIER_I_FOOD_SITES_V1.length
@@ -295,38 +301,26 @@ export function createRenderedWebglQaOccupancyStressRealm(): RealmObserverHarnes
 type ActiveWorkerAssignment = Readonly<{
   resourceKind: RealmEconomicResourceKey;
   siteId: string;
+  status: Exclude<RealmWorkerPublicPresentation['status'], 'idle'>;
+  startedAtMicros: bigint;
+  arrivesAtMicros: bigint;
+  gatheringEndsAtMicros: bigint;
+  returnStartedAtMicros?: bigint;
+  returnsAtMicros: bigint;
+  returnStartProgressBasisPoints?: number;
+  timelineRevision: number;
 }>;
 
-/**
- * Complete local-only generic-worker graph used by the rendered browser lane.
- * It contains the four canonical workers for every synthetic keep so the same
- * fail-closed public/private join used by the live UI is exercised. Only the
- * synthetic owner and one synthetic peer are gathering; no reducer, token,
- * subscription, external image, or production identity is introduced.
- */
-export function createRenderedWebglQaActiveWorkerRealm(): RenderedWebglQaActiveWorkerRealm {
+function createRenderedWebglQaWorkerRealm(
+  assignmentByWorkerId: ReadonlyMap<string, ActiveWorkerAssignment>,
+  observedAtMicros: bigint,
+  pendingByWorkerId: ReadonlyMap<string, bigint>
+): RenderedWebglQaActiveWorkerRealm {
   const baseRealm = createRealmObserverHarnessRealm(
     RENDERED_WEBGL_QA_FIXTURE_SNAPSHOT,
     RENDERED_WEBGL_QA_OWNER_SEED
   );
   const ownCastleId = baseRealm.snapshot.ownCastle.castleId;
-  const foreignCastleId = RENDERED_WEBGL_QA_OCCUPANT_CASTLE_ID;
-  const assignmentByWorkerId = new Map<string, ActiveWorkerAssignment>([
-    [
-      canonicalWorkerId(ownCastleId, 1),
-      Object.freeze({
-        resourceKind: 'gold',
-        siteId: RENDERED_WEBGL_QA_ACTIVE_WORKER_SITE_ID
-      })
-    ],
-    [
-      canonicalWorkerId(foreignCastleId, 1),
-      Object.freeze({
-        resourceKind: 'gold',
-        siteId: RENDERED_WEBGL_QA_FOREIGN_WORKER_SITE_ID
-      })
-    ]
-  ]);
   const workers: RealmWorkerPublicPresentation[] = [];
   const occupations: RealmWorkerNodeOccupation[] = [];
   for (const castle of baseRealm.snapshot.castles) {
@@ -338,23 +332,31 @@ export function createRenderedWebglQaActiveWorkerRealm(): RenderedWebglQaActiveW
         ordinal,
         originCastleId: castle.castleId,
         originCastleName: castle.name,
-        status: assignment ? 'gathering' : 'idle',
+        status: assignment?.status ?? 'idle',
         ...(assignment ? {
           resourceKind: assignment.resourceKind,
           siteId: assignment.siteId,
-          startedAtMicros: RENDERED_WEBGL_QA_OCCUPATION_STARTED_AT_MICROS,
-          arrivesAtMicros: RENDERED_WEBGL_QA_OCCUPATION_ARRIVES_AT_MICROS,
-          gatheringEndsAtMicros:
-            RENDERED_WEBGL_QA_OCCUPATION_GATHERING_ENDS_AT_MICROS,
-          returnsAtMicros: RENDERED_WEBGL_QA_OCCUPATION_RETURNS_AT_MICROS,
-          routeSteps: 12
+          startedAtMicros: assignment.startedAtMicros,
+          arrivesAtMicros: assignment.arrivesAtMicros,
+          gatheringEndsAtMicros: assignment.gatheringEndsAtMicros,
+          ...(assignment.returnStartedAtMicros === undefined
+            ? {}
+            : { returnStartedAtMicros: assignment.returnStartedAtMicros }),
+          returnsAtMicros: assignment.returnsAtMicros,
+          routeSteps: 12,
+          ...(assignment.returnStartProgressBasisPoints === undefined
+            ? {}
+            : {
+                returnStartProgressBasisPoints:
+                  assignment.returnStartProgressBasisPoints
+              })
         } : {}),
-        timelineRevision: assignment ? 1 : 0,
+        timelineRevision: assignment?.timelineRevision ?? 0,
         revision: 1n,
         ownedByViewer: castle.castleId === ownCastleId
       });
       workers.push(worker);
-      if (assignment) {
+      if (assignment?.status === 'outbound' || assignment?.status === 'gathering') {
         occupations.push(Object.freeze({
           nodeKey: `${assignment.resourceKind}:${assignment.siteId}`,
           resourceKind: assignment.resourceKind,
@@ -362,12 +364,11 @@ export function createRenderedWebglQaActiveWorkerRealm(): RenderedWebglQaActiveW
           workerId,
           workerOrdinal: ordinal,
           originCastleId: castle.castleId,
-          phase: 'gathering',
-          startedAtMicros: RENDERED_WEBGL_QA_OCCUPATION_STARTED_AT_MICROS,
-          arrivesAtMicros: RENDERED_WEBGL_QA_OCCUPATION_ARRIVES_AT_MICROS,
-          gatheringEndsAtMicros:
-            RENDERED_WEBGL_QA_OCCUPATION_GATHERING_ENDS_AT_MICROS,
-          timelineRevision: 1
+          phase: assignment.status,
+          startedAtMicros: assignment.startedAtMicros,
+          arrivesAtMicros: assignment.arrivesAtMicros,
+          gatheringEndsAtMicros: assignment.gatheringEndsAtMicros,
+          timelineRevision: assignment.timelineRevision
         }));
       }
     }
@@ -403,34 +404,40 @@ export function createRenderedWebglQaActiveWorkerRealm(): RenderedWebglQaActiveW
     allowLocalProfilePlaceholder: true
   });
   const ownedWorkers = workers.filter((worker) => worker.originCastleId === ownCastleId);
+  const pending = {
+    food: 0n,
+    wood: 0n,
+    stone: 0n,
+    gold: 0n
+  };
   const workerRoster: WorkerRosterPresentation = Object.freeze({
     castleId: ownCastleId,
-    observedAtMicros: RENDERED_WEBGL_QA_WORKER_OBSERVED_AT_MICROS,
+    observedAtMicros,
     workers: Object.freeze(ownedWorkers.map((worker) => Object.freeze({
       workerId: worker.workerId,
       ordinal: worker.ordinal,
       status: worker.status,
       ...(worker.resourceKind === undefined ? {} : { resourceKind: worker.resourceKind }),
       ...(worker.siteId === undefined ? {} : { siteId: worker.siteId }),
-      accruedAmount: worker.status === 'idle' ? 0n : RENDERED_WEBGL_QA_WORKER_PENDING_GOLD,
+      accruedAmount: pendingByWorkerId.get(worker.workerId) ?? 0n,
       materializedAmount: 0n,
-      availableAmount: worker.status === 'idle' ? 0n : RENDERED_WEBGL_QA_WORKER_PENDING_GOLD,
-      observedAtMicros: RENDERED_WEBGL_QA_WORKER_OBSERVED_AT_MICROS,
+      availableAmount: pendingByWorkerId.get(worker.workerId) ?? 0n,
+      observedAtMicros,
       revision: worker.revision
     })))
   });
+  for (const worker of ownedWorkers) {
+    if (worker.resourceKind !== undefined) {
+      pending[worker.resourceKind] += pendingByWorkerId.get(worker.workerId) ?? 0n;
+    }
+  }
   const workerResourceState: ReadyWorkerResourceState = Object.freeze({
     status: 'ready',
     fid: BigInt(baseRealm.identity.fid),
     available: Object.freeze({ food: 0n, wood: 0n, stone: 0n, gold: 0n }),
-    pending: Object.freeze({
-      food: 0n,
-      wood: 0n,
-      stone: 0n,
-      gold: RENDERED_WEBGL_QA_WORKER_PENDING_GOLD
-    }),
-    observedAtMicros: RENDERED_WEBGL_QA_WORKER_OBSERVED_AT_MICROS,
-    settledThroughMicros: RENDERED_WEBGL_QA_WORKER_OBSERVED_AT_MICROS,
+    pending: Object.freeze(pending),
+    observedAtMicros,
+    settledThroughMicros: observedAtMicros,
     revision: 1n,
     resourcePolicyVersion: REALM_RESOURCE_POLICY_VERSION,
     workerPolicyVersion: CASTLE_WORKER_POLICY_VERSION,
@@ -483,6 +490,109 @@ export function createRenderedWebglQaActiveWorkerRealm(): RenderedWebglQaActiveW
     workerResourceState,
     workerRoster
   });
+}
+
+/**
+ * Complete local-only generic-worker graph used by the rendered browser lane.
+ * It contains the four canonical workers for every synthetic keep so the same
+ * fail-closed public/private join used by the live UI is exercised. Only the
+ * synthetic owner and one synthetic peer are gathering; no reducer, token,
+ * subscription, external image, or production identity is introduced.
+ */
+export function createRenderedWebglQaActiveWorkerRealm(): RenderedWebglQaActiveWorkerRealm {
+  const ownCastleId = RENDERED_WEBGL_QA_OCCUPANT_CASTLE_ID - 1;
+  const foreignCastleId = RENDERED_WEBGL_QA_OCCUPANT_CASTLE_ID;
+  const assignment = (siteId: string): ActiveWorkerAssignment => Object.freeze({
+    resourceKind: 'gold',
+    siteId,
+    status: 'gathering',
+    startedAtMicros: RENDERED_WEBGL_QA_OCCUPATION_STARTED_AT_MICROS,
+    arrivesAtMicros: RENDERED_WEBGL_QA_OCCUPATION_ARRIVES_AT_MICROS,
+    gatheringEndsAtMicros: RENDERED_WEBGL_QA_OCCUPATION_GATHERING_ENDS_AT_MICROS,
+    returnsAtMicros: RENDERED_WEBGL_QA_OCCUPATION_RETURNS_AT_MICROS,
+    timelineRevision: 1
+  });
+  const ownWorkerId = canonicalWorkerId(ownCastleId, 1);
+  return createRenderedWebglQaWorkerRealm(
+    new Map<string, ActiveWorkerAssignment>([
+      [ownWorkerId, assignment(RENDERED_WEBGL_QA_ACTIVE_WORKER_SITE_ID)],
+      [
+        canonicalWorkerId(foreignCastleId, 1),
+        assignment(RENDERED_WEBGL_QA_FOREIGN_WORKER_SITE_ID)
+      ]
+    ]),
+    RENDERED_WEBGL_QA_WORKER_OBSERVED_AT_MICROS,
+    new Map([[ownWorkerId, RENDERED_WEBGL_QA_WORKER_PENDING_GOLD]])
+  );
+}
+
+/**
+ * Moving local-only fixture for real-GLB browser evidence. Its schedule is
+ * anchored to the page's synthetic creation time, so an owned outbound wagon,
+ * owned returning wagon, and owned site-idle wagon remain observable during a
+ * bounded local probe. The spatial destinations are the nearest reviewed
+ * canonical resource sites around the synthetic owner keep.
+ */
+export function createRenderedWebglQaWorkerLocomotionRealm(
+  nowMicros = BigInt(Date.now()) * 1_000n
+): RenderedWebglQaActiveWorkerRealm {
+  if (typeof nowMicros !== 'bigint' || nowMicros < 315_000_000n) {
+    throw new TypeError('Invalid rendered WebGL Worker locomotion clock.');
+  }
+  const ownCastleId = RENDERED_WEBGL_QA_OCCUPANT_CASTLE_ID - 1;
+  const phaseDuration = 120_000_000n;
+  const outboundStart = nowMicros - 30_000_000n;
+  const returningStart = nowMicros - 75_000_000n;
+  const returningAssignmentStart = returningStart - phaseDuration * 2n;
+  const gatheringAssignmentStart = nowMicros - phaseDuration - 30_000_000n;
+  const assignments = new Map<string, ActiveWorkerAssignment>([
+    [
+      canonicalWorkerId(ownCastleId, 1),
+      Object.freeze({
+        resourceKind: 'wood',
+        siteId: RENDERED_WEBGL_QA_LOCOMOTION_OUTBOUND_SITE_ID,
+        status: 'outbound',
+        startedAtMicros: outboundStart,
+        arrivesAtMicros: outboundStart + phaseDuration,
+        gatheringEndsAtMicros: outboundStart + phaseDuration * 2n,
+        returnsAtMicros: outboundStart + phaseDuration * 3n,
+        timelineRevision: 1
+      })
+    ],
+    [
+      canonicalWorkerId(ownCastleId, 2),
+      Object.freeze({
+        resourceKind: 'food',
+        siteId: RENDERED_WEBGL_QA_LOCOMOTION_RETURNING_SITE_ID,
+        status: 'returning',
+        startedAtMicros: returningAssignmentStart,
+        arrivesAtMicros: returningAssignmentStart + phaseDuration,
+        gatheringEndsAtMicros: returningStart,
+        returnStartedAtMicros: returningStart,
+        returnsAtMicros: returningStart + phaseDuration,
+        returnStartProgressBasisPoints: 10_000,
+        timelineRevision: 2
+      })
+    ],
+    [
+      canonicalWorkerId(ownCastleId, 3),
+      Object.freeze({
+        resourceKind: 'gold',
+        siteId: RENDERED_WEBGL_QA_LOCOMOTION_GATHERING_SITE_ID,
+        status: 'gathering',
+        startedAtMicros: gatheringAssignmentStart,
+        arrivesAtMicros: gatheringAssignmentStart + phaseDuration,
+        gatheringEndsAtMicros: gatheringAssignmentStart + phaseDuration * 2n,
+        returnsAtMicros: gatheringAssignmentStart + phaseDuration * 3n,
+        timelineRevision: 1
+      })
+    ]
+  ]);
+  return createRenderedWebglQaWorkerRealm(
+    assignments,
+    nowMicros,
+    new Map()
+  );
 }
 
 export { RENDERED_WEBGL_QA_FIXTURE_ID };

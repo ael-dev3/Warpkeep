@@ -24,7 +24,8 @@ export type RenderedWebglQaPresentationMode = 'observer' | 'player';
 export type RenderedWebglQaFixtureVariant =
   | 'baseline'
   | 'occupancy-stress'
-  | 'worker-active';
+  | 'worker-active'
+  | 'worker-locomotion';
 
 export type RenderedWebglQaRenderer = 'loading' | 'webgl' | 'fallback' | 'closed' | 'error';
 
@@ -38,7 +39,8 @@ const RENDERED_WEBGL_QA_PRESENTATION_MODES = new Set<RenderedWebglQaPresentation
 const RENDERED_WEBGL_QA_FIXTURE_VARIANTS = new Set<RenderedWebglQaFixtureVariant>([
   'baseline',
   'occupancy-stress',
-  'worker-active'
+  'worker-active',
+  'worker-locomotion'
 ]);
 
 function isRealmQuality(value: string | null): value is RealmQuality {

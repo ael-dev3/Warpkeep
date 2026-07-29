@@ -16,7 +16,8 @@ async function startRenderedWebglQa() {
       {
         createRenderedWebglQaActiveWorkerRealm,
         createRenderedWebglQaFixtureRealm,
-        createRenderedWebglQaOccupancyStressRealm
+        createRenderedWebglQaOccupancyStressRealm,
+        createRenderedWebglQaWorkerLocomotionRealm
       }
     ] = await Promise.all([
       import('./RenderedWebglQaHarness'),
@@ -32,7 +33,9 @@ async function startRenderedWebglQa() {
             ? createRenderedWebglQaOccupancyStressRealm
             : fixtureVariant === 'worker-active'
               ? createRenderedWebglQaActiveWorkerRealm
-            : createRenderedWebglQaFixtureRealm}
+              : fixtureVariant === 'worker-locomotion'
+                ? createRenderedWebglQaWorkerLocomotionRealm
+                : createRenderedWebglQaFixtureRealm}
           fixtureVariant={fixtureVariant}
           presentationMode={options.presentationMode}
           quality={options.quality}
