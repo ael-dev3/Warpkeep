@@ -7,7 +7,7 @@ export type LatestPatchNotes = Readonly<{
 }>;
 
 const ALPHA_0_3_24_PATCH_NOTES: LatestPatchNotes = Object.freeze({
-  releasedOn: '28 JUL 2026',
+  releasedOn: '29 JUL 2026',
   title: 'WAGONS TAKE THE ROAD',
   summary:
     'This build gives Supply Wagons a continuous, speed-matched locomotion cycle while every journey remains anchored to authoritative Realm time and route truth.',

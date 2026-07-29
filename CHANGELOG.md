@@ -6,7 +6,7 @@ full engineering record.
 
 ## [Unreleased]
 
-## [0.3.24] — 2026-07-28
+## [0.3.24] — 2026-07-29
 
 - Gave active Supply Wagons a continuous, demand-driven locomotion cycle whose
   horse gait and distance-driven wheels follow their real journey speed.
