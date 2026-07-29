@@ -35,6 +35,11 @@ export {
 // screenshot reducer in a leaf module rather than letting it import this CLI
 // module while this module's top-level await is still evaluating.
 export { analyzeRenderedWebglPngScreenshot };
+export {
+  applyNorthernReachRenderedEvidence,
+  assertNorthernReachRenderedVisual,
+  parseNorthernReachRenderedEvidence,
+} from './northern-reach-rendered-evidence.mjs';
 
 export const RENDERED_WEBGL_QA_CHROME =
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
@@ -327,6 +332,12 @@ const RENDERED_WEBGL_QA_QUALITY_METRIC_CASE_IDS = new Set([
   'desktop-high',
   'desktop-balanced',
   'desktop-reduced',
+]);
+const RENDERED_WEBGL_QA_NORTHERN_REACH_CASE_IDS = new Set([
+  'desktop-high',
+  'desktop-balanced',
+  'desktop-reduced',
+  'mobile-balanced',
 ]);
 const RENDERED_WEBGL_QA_ACTIVE_FOREST_WHEEL_STEPS = 5;
 const RENDERED_WEBGL_QA_ACTIVE_FOREST_WHEEL_DELTA = -250;
@@ -4079,7 +4090,7 @@ async function waitForAcceptedActiveForestDom(session, expected, state) {
   );
 }
 
-async function captureRenderedCasePixels(session, viewport) {
+async function captureRenderedCasePixels(session, viewport, analysisOptions) {
   const result = await session.command('Page.captureScreenshot', {
     captureBeyondViewport: false,
     format: 'png',
@@ -4092,7 +4103,11 @@ async function captureRenderedCasePixels(session, viewport) {
   ) throw new Error('Headless browser screenshot failed.');
   const screenshotBytes = Buffer.from(result.data, 'base64');
   try {
-    analyzeRenderedWebglPngScreenshot(screenshotBytes, viewport);
+    return analyzeRenderedWebglPngScreenshot(
+      screenshotBytes,
+      viewport,
+      analysisOptions
+    );
   } finally {
     screenshotBytes.fill(0);
   }
@@ -8057,7 +8072,13 @@ async function runRenderedActiveWorkerCase(session, probeCase, state) {
   }
 }
 
-async function runRenderedCase(session, probeCase, state, onQualityMetrics) {
+async function runRenderedCase(
+  session,
+  probeCase,
+  state,
+  onQualityMetrics,
+  northernReachProbe
+) {
   await session.command('Emulation.setDeviceMetricsOverride', {
     width: probeCase.viewport.width,
     height: probeCase.viewport.height,
@@ -8194,6 +8215,46 @@ async function runRenderedCase(session, probeCase, state, onQualityMetrics) {
     await waitForAcceptedRenderedDom(session, interacted, state);
     await captureRenderedCasePixels(session, probeCase.viewport);
   }
+  if (RENDERED_WEBGL_QA_NORTHERN_REACH_CASE_IDS.has(probeCase.id)) {
+    await navigateRenderedWebglCase(session, 'about:blank');
+    await navigateRenderedWebglCase(session, probeCase.url);
+    await waitForAcceptedRenderedDom(session, baseline, state);
+    for (const region of ['overview', 'transition', 'deep']) {
+      try {
+        const recover = probeCase.id === 'desktop-balanced' && region === 'deep';
+        if (recover) {
+          state.controlledRendererRecovery = true;
+          state.controlledRendererWarningCount = 0;
+          state.controlledRendererWarningThrottleSeen = false;
+        }
+        let evidence;
+        try {
+          evidence = await northernReachProbe.applyNorthernReachRenderedEvidence(
+            session,
+            {
+              quality: probeCase.expectedQuality,
+              recover,
+              region,
+              viewport: probeCase.viewport
+            }
+          );
+          if (recover) await delay(100);
+        } finally {
+          if (recover) state.controlledRendererRecovery = false;
+        }
+        northernReachProbe.assertNorthernReachRenderedVisual(
+          evidence,
+          await captureRenderedCasePixels(session, probeCase.viewport, {
+            minimumDistinctColourBuckets: 4
+          })
+        );
+      } catch (error) {
+        throw new Error(`Northern Reach ${region} rendered evidence failed.`, {
+          cause: error
+        });
+      }
+    }
+  }
 }
 
 /**
@@ -8256,6 +8317,7 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
       renderedWebglWorkerLocomotionProbeCases(vite.port);
     const occupancyStressCase = renderedWebglOccupancyStressProbeCase(vite.port);
     const journeyProbe = await import('./qa-journey-browser-probe.mjs');
+    const northernReachProbe = await import('./northern-reach-rendered-evidence.mjs');
     const journeyCases = journeyProbe.qaJourneyBrowserProbeCases(vite.port);
     const castleLodVisualUrl = castleLodVisualProbe.castleLodVisualEvidenceUrl(vite.port);
     const isAllowedProbeResourceUrl = (value) => (
@@ -8506,7 +8568,13 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
     });
     for (const probeCase of cases) {
       try {
-        await runRenderedCase(devtools, probeCase, state, onQualityMetrics);
+        await runRenderedCase(
+          devtools,
+          probeCase,
+          state,
+          onQualityMetrics,
+          northernReachProbe
+        );
       } catch (error) {
         throw new Error(`Rendered WebGL case ${probeCase.id} failed.`, { cause: error });
       }

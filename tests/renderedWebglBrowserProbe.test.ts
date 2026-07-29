@@ -7,6 +7,8 @@ import { resolve } from 'node:path';
 
 import {
   analyzeRenderedWebglPngScreenshot,
+  applyNorthernReachRenderedEvidence,
+  assertNorthernReachRenderedVisual,
   applyRenderedWebglActiveWorkerInteraction,
   applyRenderedWebglActiveWorkerReconnectInteraction,
   applyRenderedWebglWorkerLocomotionInteraction,
@@ -33,6 +35,7 @@ import {
   parseRenderedWebglBrowserDom,
   parseRenderedWebglInspectorLabelActivationEvidence,
   parseRenderedWebglLabelKeyboardEvidence,
+  parseNorthernReachRenderedEvidence,
   parseRenderedWebglOccupancyStressEvidence,
   parseRenderedWebglQualityMetrics,
   parseRenderedWebglResourceOccupantEvidence,
@@ -3396,7 +3399,9 @@ describe('rendered WebGL headless browser probe contract', () => {
       averageSaturationBasisPoints: expect.any(Number),
       saturationP95BasisPoints: expect.any(Number),
       clippedBlackSamples: 0,
-      clippedWhiteSamples: 0
+      clippedWhiteSamples: 0,
+      coolHighAlbedoSamples: expect.any(Number),
+      hotYellowSamples: expect.any(Number)
     });
     expect(() => analyzeRenderedWebglPngScreenshot(
       renderedScreenshotPng(true),
@@ -3406,6 +3411,71 @@ describe('rendered WebGL headless browser probe contract', () => {
       renderedScreenshotPng(false),
       { width: 321, height: 320 }
     )).toThrow(/screenshot/i);
+  });
+
+  it('keeps Northern Reach evidence bounded, anonymous, and fail-closed', async () => {
+    const evidence = {
+      band: 'close',
+      coverage: [2_400, 1_000, 0.26, 0.12, 0],
+      material: [
+        'genesis-001-northern-snow-presentation-v1',
+        'one-band',
+        true,
+        false
+      ],
+      quality: 'balanced',
+      recovered: true,
+      region: 'deep',
+      selected: true,
+      stable: true,
+      vertices: [0, 0.91, 0.21, 200_000]
+    } as const;
+    expect(parseNorthernReachRenderedEvidence(evidence, {
+      quality: 'balanced',
+      region: 'deep',
+      viewport: { width: 1_440, height: 900 }
+    })).toEqual(evidence);
+    expect(() => parseNorthernReachRenderedEvidence({
+      ...evidence,
+      q: 4
+    }, {
+      quality: 'balanced',
+      region: 'deep',
+      viewport: { width: 1_440, height: 900 }
+    })).toThrow(/Northern Reach/i);
+    expect(() => parseNorthernReachRenderedEvidence({
+      ...evidence,
+      vertices: [0, 0.91, Number.NaN, 200_000]
+    }, {
+      quality: 'balanced',
+      region: 'deep',
+      viewport: { width: 1_440, height: 900 }
+    })).toThrow(/Northern Reach/i);
+    expect(() => assertNorthernReachRenderedVisual(evidence, {
+      clippedBlackSamples: 0,
+      clippedWhiteSamples: 0,
+      coolHighAlbedoSamples: 0,
+      hotYellowSamples: 0
+    })).toThrow(/visual aggregate/i);
+
+    const command = vi.fn(async (
+      _method: string,
+      _params?: Readonly<Record<string, unknown>>,
+      _timeoutMilliseconds?: number
+    ) => ({
+      result: { type: 'object', value: evidence }
+    }));
+    await expect(applyNorthernReachRenderedEvidence({ command }, {
+      quality: 'balanced',
+      recover: true,
+      region: 'deep',
+      viewport: { width: 1_440, height: 900 }
+    })).resolves.toEqual(evidence);
+    const expression = String(command.mock.calls[0]?.[1]?.expression);
+    expect(expression).toContain("import('/src/game/map/realmNorthernSnow.ts')");
+    expect(expression).toContain("'.realm-cell-navigator__jump'");
+    expect(expression).toContain("getExtension('WEBGL_lose_context')");
+    expect(expression).not.toContain('return target');
   });
 
 });

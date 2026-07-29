@@ -651,7 +651,8 @@ export function applyRenderedWebglOccupancyStressInteraction(
 
 export function analyzeRenderedWebglPngScreenshot(
   value: Buffer,
-  viewport: Readonly<{ width: number; height: number }>
+  viewport: Readonly<{ width: number; height: number }>,
+  options?: Readonly<{ minimumDistinctColourBuckets?: number }>
 ): Readonly<{
   distinctColourBuckets: number;
   luminanceRange: number;
@@ -659,9 +660,47 @@ export function analyzeRenderedWebglPngScreenshot(
   saturationP95BasisPoints: number;
   clippedBlackSamples: number;
   clippedWhiteSamples: number;
+  coolHighAlbedoSamples: number;
+  hotYellowSamples: number;
   opaqueSamples: number;
   sampleCount: number;
 }>;
+
+export type NorthernReachRenderedEvidence = Readonly<{
+  band: 'overview' | 'strategy' | 'close';
+  coverage: readonly [number, number, number, number, number];
+  material: readonly [string, 'two-band' | 'one-band' | 'none', true, false];
+  quality: 'high' | 'balanced' | 'reduced';
+  recovered: true;
+  region: 'overview' | 'transition' | 'deep';
+  selected: true;
+  stable: true;
+  vertices: readonly [number, number, number, number];
+}>;
+
+export function parseNorthernReachRenderedEvidence(
+  value: unknown,
+  expected: Readonly<{
+    quality: NorthernReachRenderedEvidence['quality'];
+    region: NorthernReachRenderedEvidence['region'];
+    viewport: Readonly<{ width: number; height: number }>;
+  }>
+): NorthernReachRenderedEvidence;
+
+export function assertNorthernReachRenderedVisual(
+  evidence: NorthernReachRenderedEvidence,
+  visual: Readonly<Record<string, number>>
+): void;
+
+export function applyNorthernReachRenderedEvidence(
+  session: RenderedWebglCastleCanvasPointerSession,
+  options: Readonly<{
+    quality: NorthernReachRenderedEvidence['quality'];
+    recover?: boolean;
+    region: NorthernReachRenderedEvidence['region'];
+    viewport: Readonly<{ width: number; height: number }>;
+  }>
+): Promise<NorthernReachRenderedEvidence>;
 
 export type RenderedWebglQualityMetrics = Readonly<{
   cameraMode: 'realm' | 'approach' | 'keep';
