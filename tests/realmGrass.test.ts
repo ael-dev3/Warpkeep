@@ -10,7 +10,10 @@ import {
 import type { RealmTerrainKind } from '../src/game/map/realmTerrainSemantics';
 import { axialToWorld, hexDistance, hexKey } from '../src/game/map/hexCoordinates';
 import { sampleRealmGrassCoverage } from '../src/game/map/realmGrassNoise';
-import { createRealmNorthernSnowField } from '../src/game/map/realmNorthernSnow';
+import {
+  createRealmNorthernSnowField,
+  type RealmNorthernSnowField
+} from '../src/game/map/realmNorthernSnow';
 import { createRealmTerrainSurface } from '../src/game/map/realmTerrainSurface';
 import { pointyHexBoundaryDistance } from '../src/game/map/terrainHeight';
 import { createRealmVegetationField } from '../src/game/map/realmVegetationField';
@@ -259,6 +262,37 @@ describe('procedural biome grass generation', () => {
       expect(highById.get(id(point))).toEqual(point);
       expect(balancedById.get(id(point))).toEqual(point);
     });
+  });
+
+  it('uses final slope-shaped snow retention for exposed deterministic tufts', () => {
+    const surface = createRealmTerrainSurface('grass-retained-snow', 8, 9);
+    const baseSnow = createRealmNorthernSnowField({
+      worldSeed: surface.renderMap.worldSeed,
+      hexSize: 1,
+      playableRadius: surface.playableMap.radius,
+      renderRadius: surface.renderMap.radius
+    });
+    const retainedSnow = Object.freeze({
+      ...baseSnow,
+      coverageAtWorld: () => {
+        throw new Error('BROAD_SNOW_MUST_NOT_DRIVE_GRASS');
+      },
+      retainedCoverageAtWorld: (
+        _world,
+        cues
+      ) => cues.slope >= 0.05 ? 0.2 : 1
+    }) satisfies RealmNorthernSnowField;
+
+    const result = generateRealmGrassCells({
+      ...inputFor(surface),
+      quality: 'high',
+      heightAtWorld: (world) => world.x * 0.12,
+      northernSnow: retainedSnow
+    });
+
+    expect(result.points.length).toBeGreaterThan(0);
+    expect(result.points.every((point) => point.snowCoverage === 0.2)).toBe(true);
+    expect(result.retainedInSnowTransition).toBe(result.points.length);
   });
 
   it('creates deterministic bare cells, tuft clusters, rests, and open soil pockets', () => {

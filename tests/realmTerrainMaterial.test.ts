@@ -30,6 +30,14 @@ describe('Crafted Lowlands terrain material', () => {
     expect(fragment).toContain('float terrainSnow');
     expect(fragment).toContain('roughnessFactor = clamp(');
     expect(fragment).toContain('fwidth(warpkeepSnowPhase)');
+    expect(fragment).toContain('warpkeepMacroSlope');
+    expect(fragment).toContain(
+      'warpkeepMacroSlope + warpkeepSnowGradient * warpkeepSnowReliefCoverage'
+    );
+    expect(fragment).toContain(
+      'normalize(vec3(-warpkeepCombinedSlope.x, 1.0, -warpkeepCombinedSlope.y))'
+    );
+    expect(fragment).not.toContain('normal\n  + mat3(viewMatrix)');
     expect(() => injectRealmTerrainVertexShader('void main() {}'))
       .toThrow('REALM_TERRAIN_SHADER_VERTEX_CONTRACT_CHANGED');
     expect(() => injectRealmTerrainFragmentShader('void main() {}'))

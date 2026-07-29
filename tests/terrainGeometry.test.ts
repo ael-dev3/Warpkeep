@@ -277,6 +277,21 @@ describe('combined lowlands terrain geometry', () => {
     });
     expect(founded.snowCoverage![centerIndex!])
       .toBeLessThan(snowy.snowCoverage![centerIndex!] * 0.1);
+
+    const resourceCleared = createTerrainGeometryData(local, 1, {
+      ...geometryOptions,
+      northernSnow: snow,
+      snowClearanceCircles: [{
+        world: center,
+        radius: 0.55
+      }]
+    });
+    expect(resourceCleared.positions).toEqual(snowy.positions);
+    expect(resourceCleared.indices).toEqual(snowy.indices);
+    expect(resourceCleared.snowCoverage![centerIndex!])
+      .toBeLessThan(snowy.snowCoverage![centerIndex!] * 0.1);
+    expect(resourceCleared.snowCoverageMetrics.attributeBytes)
+      .toBe(snowy.snowCoverageMetrics.attributeBytes);
   });
 
   it('matches the pinned former radius-twenty-two topology at every runtime profile', () => {

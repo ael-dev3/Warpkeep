@@ -12,4 +12,3 @@ export const REALM_PREVAILING_WIND = Object.freeze({
   x: 0.78 / WIND_LENGTH,
   z: 0.62 / WIND_LENGTH
 });
-

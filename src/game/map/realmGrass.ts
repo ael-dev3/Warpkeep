@@ -459,7 +459,19 @@ export function generateRealmGrassCells(input: RealmGrassGenerationInput): Realm
     const profile = resolveRealmGrassProfile(terrainKind);
     const count = realmGrassCandidateCount(profile, input.quality, input.densityMultiplier);
     const center = axialToWorld(cell.coord, hexSize);
-    const cellSnowCoverage = input.northernSnow?.coverageAtWorld(center) ?? 0;
+    const centerSurfaceFrame = sampleRealmGrassSurfaceFrame(
+      center,
+      sampleHeight,
+      hexSize
+    );
+    const cellSnowCoverage = input.northernSnow?.retainedCoverageAtWorld(
+      center,
+      {
+        slope: centerSurfaceFrame.slope,
+        concavity: 0,
+        placementInfluence: 0
+      }
+    ) ?? 0;
     const coverage = sampleRealmGrassCoverage(input.map.worldSeed, center);
     const vegetation = input.vegetationField?.sampleCell(cell.coord);
     const cellRestHash = seededUnitFloat(
@@ -474,17 +486,12 @@ export function generateRealmGrassCells(input: RealmGrassGenerationInput): Realm
       || suppressCastleSlot
       || ecologyDormant
       || cellRestSignal < profile.completelyBareThreshold;
-    // A nearly complete field sample is the only snow condition that can
-    // suppress candidate allocation for the whole cell. Transition cells
-    // still evaluate the stable high-quality candidate reservoir.
-    const snowGuaranteedBare = !baselineCompletelyBare
-      && cellSnowCoverage >= 0.985;
-    const completelyBare = baselineCompletelyBare || snowGuaranteedBare;
+    const completelyBare = baselineCompletelyBare;
     const accepted: RealmGrassPoint[] = [];
     let localStructure = 0;
     let localExclusion = 0;
     let localSlope = 0;
-    let localSnow = snowGuaranteedBare ? count : 0;
+    let localSnow = 0;
     let localSnowTransition = 0;
     candidateCount += count;
 
@@ -544,7 +551,20 @@ export function generateRealmGrassCells(input: RealmGrassGenerationInput): Realm
           localExclusion += 1;
           continue;
         }
-        const snowCoverage = input.northernSnow?.coverageAtWorld(candidate.world) ?? 0;
+        const surfaceFrame = sampleRealmGrassSurfaceFrame(
+          candidate.world,
+          sampleHeight,
+          hexSize
+        );
+        const slope = surfaceFrame.slope;
+        const snowCoverage = input.northernSnow?.retainedCoverageAtWorld(
+          candidate.world,
+          {
+            slope,
+            concavity: 0,
+            placementInfluence: 0
+          }
+        ) ?? 0;
         if (snowCoverage > 0) {
           const snowRetention = 1
             - smoothstep(0.14, 0.91, snowCoverage) * 0.955;
@@ -556,12 +576,6 @@ export function generateRealmGrassCells(input: RealmGrassGenerationInput): Realm
             continue;
           }
         }
-        const surfaceFrame = sampleRealmGrassSurfaceFrame(
-          candidate.world,
-          sampleHeight,
-          hexSize
-        );
-        const slope = surfaceFrame.slope;
         if (slope >= profile.slopeHardLimit) {
           localSlope += 1;
           continue;

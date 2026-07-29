@@ -90,6 +90,14 @@ export type TerrainSnowCoverageMetrics = Readonly<{
   attributeBytes: number;
 }>;
 
+export type TerrainSnowClearanceCircle = Readonly<{
+  world: HexWorldPosition;
+  radius: number;
+}>;
+
+const EMPTY_TERRAIN_SNOW_CLEARANCE_CIRCLES:
+  readonly TerrainSnowClearanceCircle[] = Object.freeze([]);
+
 export type TerrainGeometryOptions = Readonly<{
   subdivisionsPerEdge?: number;
   /** Cells through this radius retain the established triangular lattice. */
@@ -109,6 +117,8 @@ export type TerrainGeometryOptions = Readonly<{
   northernSnow?: RealmNorthernSnowField;
   /** Complete validated Water coordinates suppress the underlying land treatment. */
   snowExcludedCellKeys?: ReadonlySet<string>;
+  /** Public structure footprints that attenuate snow without changing terrain height. */
+  snowClearanceCircles?: readonly TerrainSnowClearanceCircle[];
 }>;
 
 type MutableTerrainBounds = {
@@ -278,6 +288,44 @@ function applySnowCpuColor(
     + (snow.b - colors[offset + 2]!) * amount;
 }
 
+function indexTerrainSnowClearanceCircles(
+  circles: readonly TerrainSnowClearanceCircle[],
+  hexSize: number
+) {
+  const bucketSize = Math.max(hexSize, 0.000_001);
+  const feather = bucketSize * 0.24;
+  const buckets = new Map<string, TerrainSnowClearanceCircle[]>();
+  circles.forEach((circle) => {
+    if (
+      !Number.isFinite(circle.world.x)
+      || !Number.isFinite(circle.world.z)
+      || !Number.isFinite(circle.radius)
+      || circle.radius < 0
+    ) return;
+    const reach = circle.radius + feather;
+    const minimumX = Math.floor((circle.world.x - reach) / bucketSize);
+    const maximumX = Math.floor((circle.world.x + reach) / bucketSize);
+    const minimumZ = Math.floor((circle.world.z - reach) / bucketSize);
+    const maximumZ = Math.floor((circle.world.z + reach) / bucketSize);
+    for (let x = minimumX; x <= maximumX; x += 1) {
+      for (let z = minimumZ; z <= maximumZ; z += 1) {
+        const key = `${x},${z}`;
+        const bucket = buckets.get(key);
+        if (bucket) bucket.push(circle);
+        else buckets.set(key, [circle]);
+      }
+    }
+  });
+  return Object.freeze({
+    feather,
+    get: (world: HexWorldPosition) => (
+      buckets.get(
+        `${Math.floor(world.x / bucketSize)},${Math.floor(world.z / bucketSize)}`
+      ) ?? EMPTY_TERRAIN_SNOW_CLEARANCE_CIRCLES
+    )
+  });
+}
+
 function applyNorthernSnowPresentation(
   positions: readonly number[],
   colors: number[],
@@ -293,6 +341,10 @@ function applyNorthernSnowPresentation(
   let minimum = Number.POSITIVE_INFINITY;
   let maximum = Number.NEGATIVE_INFINITY;
   let sum = 0;
+  const snowClearanceIndex = indexTerrainSnowClearanceCircles(
+    options.snowClearanceCircles ?? [],
+    hexSize
+  );
 
   for (let index = 0; index < vertexCount; index += 1) {
     const world = {
@@ -306,6 +358,18 @@ function applyNorthernSnowPresentation(
         placementInfluence,
         placementInfluenceAtWorld(placement, world, hexSize)
       );
+    });
+    snowClearanceIndex.get(world).forEach((circle) => {
+      const distance = Math.hypot(
+        world.x - circle.world.x,
+        world.z - circle.world.z
+      );
+      const influence = 1 - smoothstep(
+        circle.radius,
+        circle.radius + snowClearanceIndex.feather,
+        distance
+      );
+      placementInfluence = Math.max(placementInfluence, influence);
     });
     const excluded = options.snowExcludedCellKeys?.has(hexKey(nearest)) === true;
     const slope = materialCues[index * 4]!;

@@ -100,11 +100,22 @@ vec2 warpkeepSnowGradient = warpkeepSnowWind
 ${secondBand}
 float warpkeepSnowReliefCoverage =
   smoothstep(0.18, 0.82, clamp(vTerrainSnowCoverage, 0.0, 1.0));
+mat3 warpkeepViewRotation = mat3(viewMatrix);
+vec3 warpkeepMacroNormalWorld = normalize(vec3(
+  dot(warpkeepViewRotation[0], normal),
+  dot(warpkeepViewRotation[1], normal),
+  dot(warpkeepViewRotation[2], normal)
+));
+float warpkeepMacroNormalY = max(warpkeepMacroNormalWorld.y, 0.08);
+vec2 warpkeepMacroSlope = vec2(
+  -warpkeepMacroNormalWorld.x / warpkeepMacroNormalY,
+  -warpkeepMacroNormalWorld.z / warpkeepMacroNormalY
+);
+vec2 warpkeepCombinedSlope =
+  warpkeepMacroSlope + warpkeepSnowGradient * warpkeepSnowReliefCoverage;
 normal = normalize(
-  normal
-  + mat3(viewMatrix)
-    * vec3(-warpkeepSnowGradient.x, 0.0, -warpkeepSnowGradient.y)
-    * warpkeepSnowReliefCoverage
+  warpkeepViewRotation
+    * normalize(vec3(-warpkeepCombinedSlope.x, 1.0, -warpkeepCombinedSlope.y))
 );
 `;
 }

@@ -2547,6 +2547,29 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     root.dataset.terrainShaderCompileAttemptCount = String(
       telemetry.terrainShaderCompileAttemptCount
     );
+    root.dataset.snowFieldRevision = telemetry.snowFieldRevision;
+    root.dataset.snowClimateCellCountAbove015 = String(
+      telemetry.snowClimateCellCountAbove015
+    );
+    root.dataset.snowDeepCellCountAbove075 = String(
+      telemetry.snowDeepCellCountAbove075
+    );
+    root.dataset.snowPlayableCoverageRatio = String(
+      telemetry.snowPlayableCoverageRatio
+    );
+    root.dataset.snowDeepCoverageRatio = String(telemetry.snowDeepCoverageRatio);
+    root.dataset.snowInnerRadiusLeakCount = String(
+      telemetry.snowInnerRadiusLeakCount
+    );
+    root.dataset.snowVertexCoverageMin = String(telemetry.snowVertexCoverageMin);
+    root.dataset.snowVertexCoverageMax = String(telemetry.snowVertexCoverageMax);
+    root.dataset.snowVertexCoverageMean = String(telemetry.snowVertexCoverageMean);
+    root.dataset.snowAttributeBytes = String(telemetry.snowAttributeBytes);
+    root.dataset.snowFineReliefMode = telemetry.snowFineReliefMode;
+    root.dataset.snowShaderEnhanced = String(telemetry.snowShaderEnhanced);
+    root.dataset.snowShaderFallbackActive = String(
+      telemetry.snowShaderFallbackActive
+    );
     root.dataset.semanticTerrainCellCount = String(telemetry.semanticCellCount);
     root.dataset.semanticTerrainKindCount = String(telemetry.semanticKindCount);
     root.dataset.semanticTerrainFeatureCount = String(telemetry.semanticFeatureCount);
@@ -2691,6 +2714,13 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       telemetry.grassRejectedByStructureClearance
     );
     root.dataset.grassRejectedBySlope = String(telemetry.grassRejectedBySlope);
+    root.dataset.grassRejectedBySnow = String(telemetry.grassRejectedBySnow);
+    root.dataset.grassRetainedInSnowTransition = String(
+      telemetry.grassRetainedInSnowTransition
+    );
+    root.dataset.grassAverageSnowCoverageOfActiveCells = String(
+      telemetry.grassAverageSnowCoverageOfActiveCells
+    );
     root.dataset.grassOverviewHidden = String(telemetry.grassOverviewHidden);
   }, []);
 
@@ -3241,6 +3271,19 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
         rootRef.current.dataset.waterLayoutVersion = '0';
         rootRef.current.dataset.waterTriangleCount = '0';
         rootRef.current.dataset.waterDrawCalls = '0';
+        rootRef.current.dataset.snowFieldRevision = 'pending';
+        rootRef.current.dataset.snowClimateCellCountAbove015 = '0';
+        rootRef.current.dataset.snowDeepCellCountAbove075 = '0';
+        rootRef.current.dataset.snowPlayableCoverageRatio = '0';
+        rootRef.current.dataset.snowDeepCoverageRatio = '0';
+        rootRef.current.dataset.snowInnerRadiusLeakCount = '0';
+        rootRef.current.dataset.snowVertexCoverageMin = '0';
+        rootRef.current.dataset.snowVertexCoverageMax = '0';
+        rootRef.current.dataset.snowVertexCoverageMean = '0';
+        rootRef.current.dataset.snowAttributeBytes = '0';
+        rootRef.current.dataset.snowFineReliefMode = 'none';
+        rootRef.current.dataset.snowShaderEnhanced = 'false';
+        rootRef.current.dataset.snowShaderFallbackActive = 'false';
         rootRef.current.dataset.totalTerrainDetailInstanceCount = '0';
         rootRef.current.dataset.totalTerrainDetailDrawCalls = '0';
         rootRef.current.dataset.forestPlacementSource = 'blocked';
@@ -3308,6 +3351,9 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
         rootRef.current.dataset.grassCompletelyBareActiveCells = '0';
         rootRef.current.dataset.grassRejectedByStructureClearance = '0';
         rootRef.current.dataset.grassRejectedBySlope = '0';
+        rootRef.current.dataset.grassRejectedBySnow = '0';
+        rootRef.current.dataset.grassRetainedInSnowTransition = '0';
+        rootRef.current.dataset.grassAverageSnowCoverageOfActiveCells = '0';
         rootRef.current.dataset.grassOverviewHidden = 'true';
         rootRef.current.dataset.labelBaseAnchorViolationCount = '0';
         rootRef.current.dataset.publicGoldSiteCount = String(goldNodeCatalog.length);

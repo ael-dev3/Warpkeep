@@ -996,7 +996,8 @@ function createTerrainGeometry(
   riverBankPresentation?: RealmRiverBankPresentation,
   visualizeLegacyLakesAsLand = false,
   northernSnow?: RealmNorthernSnowField,
-  snowExcludedCellKeys?: ReadonlySet<string>
+  snowExcludedCellKeys?: ReadonlySet<string>,
+  snowClearanceCircles?: readonly RealmGrassExclusion[]
 ) {
   const data = createTerrainGeometryData(surface.renderMap, HEX_SIZE, {
     subdivisionsPerEdge,
@@ -1009,7 +1010,8 @@ function createTerrainGeometry(
     riverBankPresentation,
     visualizeLegacyLakesAsLand,
     northernSnow,
-    snowExcludedCellKeys
+    snowExcludedCellKeys,
+    snowClearanceCircles
   });
   const geometry = new THREE.BufferGeometry();
   try {
@@ -1650,7 +1652,8 @@ function initializeRealmScene(
     riverBankPresentation,
     noLakeRevisionActive,
     northernSnow,
-    waterCellKeys
+    waterCellKeys,
+    resourceVegetationClearances
   );
   cleanup.add(() => terrainGeometry.dispose());
   if (
@@ -2213,6 +2216,19 @@ function initializeRealmScene(
       telemetry.terrainShaderEnhanced,
       telemetry.terrainShaderFallbackActive,
       telemetry.terrainShaderCompileAttemptCount,
+      telemetry.snowFieldRevision,
+      telemetry.snowClimateCellCountAbove015,
+      telemetry.snowDeepCellCountAbove075,
+      telemetry.snowPlayableCoverageRatio,
+      telemetry.snowDeepCoverageRatio,
+      telemetry.snowInnerRadiusLeakCount,
+      telemetry.snowVertexCoverageMin,
+      telemetry.snowVertexCoverageMax,
+      telemetry.snowVertexCoverageMean,
+      telemetry.snowAttributeBytes,
+      telemetry.snowFineReliefMode,
+      telemetry.snowShaderEnhanced,
+      telemetry.snowShaderFallbackActive,
       telemetry.semanticFeatureDrawCalls,
       Object.values(telemetry.semanticFeatureCounts).join(','),
       telemetry.totalDetailInstanceCount,
@@ -2269,6 +2285,9 @@ function initializeRealmScene(
       telemetry.grassCompletelyBareActiveCells,
       telemetry.grassRejectedByStructureClearance,
       telemetry.grassRejectedBySlope,
+      telemetry.grassRejectedBySnow,
+      telemetry.grassRetainedInSnowTransition,
+      telemetry.grassAverageSnowCoverageOfActiveCells,
       telemetry.grassOverviewHidden
     ].join(':');
     if (signature === lastTerrainTelemetrySignature) return;
