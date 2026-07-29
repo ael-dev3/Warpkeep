@@ -511,6 +511,8 @@ describe('realm scene setup cleanup', () => {
       terrainVegetationCueMax: expect.any(Number),
       terrainWetnessCueMin: expect.any(Number),
       terrainWetnessCueMax: expect.any(Number),
+      terrainRiverBankVertexCount: expect.any(Number),
+      terrainRiverBankInfluenceMax: expect.any(Number),
       terrainShaderEnhanced: false,
       terrainShaderFallbackActive: false,
       terrainShaderCompileAttemptCount: 0,

@@ -19,6 +19,9 @@ import {
 } from '../../game/map/terrainPlacements';
 import type { RealmTerrainMap } from '../../game/map/terrainTypes';
 import type { RealmTerrainKind } from '../../game/map/realmTerrainSemantics';
+import type {
+  RealmRiverBankPresentation
+} from '../../game/map/realmRiverBankPresentation';
 
 const SQRT_3 = Math.sqrt(3);
 const CORNER_COUNT = 6;
@@ -56,6 +59,8 @@ export type TerrainGeometryData = Readonly<{
   highDetailCellCount: number;
   coarseCellCount: number;
   transitionEdgeCount: number;
+  riverBankVertexCount: number;
+  riverBankInfluenceMax: number;
   detailRadius: number;
   subdivisionsPerEdge: number;
   outerSubdivisionsPerEdge: 1;
@@ -85,6 +90,8 @@ export type TerrainGeometryOptions = Readonly<{
   vegetationDensityByKey?: ReadonlyMap<string, number>;
   /** Renderer-only land treatment for legacy scenic lake cells. */
   visualizeLegacyLakesAsLand?: boolean;
+  /** Full-cell river boundary field used only for adjacent-land presentation. */
+  riverBankPresentation?: RealmRiverBankPresentation;
 }>;
 
 type MutableTerrainBounds = {
@@ -440,6 +447,8 @@ export function createTerrainGeometryData(
   let highDetailCellCount = 0;
   let coarseCellCount = 0;
   let transitionEdgeCount = 0;
+  let riverBankVertexCount = 0;
+  let riverBankInfluenceMax = 0;
   const materialCueMetrics = {
     slopeMin: Number.POSITIVE_INFINITY,
     slopeMax: Number.NEGATIVE_INFINITY,
@@ -475,6 +484,13 @@ export function createTerrainGeometryData(
       hexSize,
       options
     );
+    const riverBankInfluence = options.riverBankPresentation
+      ?.bankInfluenceAtWorld(world) ?? 0;
+    if (riverBankInfluence > 0) riverBankVertexCount += 1;
+    riverBankInfluenceMax = Math.max(
+      riverBankInfluenceMax,
+      riverBankInfluence
+    );
     const color = sampleLowlandsColor(map.worldSeed, world, {
       cell,
       hexSize,
@@ -485,9 +501,14 @@ export function createTerrainGeometryData(
       semanticStrength: presentation.semanticStrength,
       forestCanopy: presentation.forestCanopy,
       vegetationDensity: presentation.vegetationDensity,
+      riverBankInfluence,
       visualizeLegacyLakeAsLand: options.visualizeLegacyLakesAsLand,
       placements
     });
+    const wetness = Math.max(
+      presentation.wetness,
+      riverBankInfluence * 0.92
+    );
     const index = positions.length / 3;
     vertices.set(key, index);
     positions.push(world.x, height, world.z);
@@ -496,7 +517,7 @@ export function createTerrainGeometryData(
       0,
       0,
       presentation.vegetationDensity,
-      presentation.wetness
+      wetness
     );
     materialCueMetrics.vegetationMin = Math.min(
       materialCueMetrics.vegetationMin,
@@ -508,11 +529,11 @@ export function createTerrainGeometryData(
     );
     materialCueMetrics.wetnessMin = Math.min(
       materialCueMetrics.wetnessMin,
-      presentation.wetness
+      wetness
     );
     materialCueMetrics.wetnessMax = Math.max(
       materialCueMetrics.wetnessMax,
-      presentation.wetness
+      wetness
     );
     bounds.minX = Math.min(bounds.minX, world.x);
     bounds.maxX = Math.max(bounds.maxX, world.x);
@@ -672,6 +693,8 @@ export function createTerrainGeometryData(
     highDetailCellCount,
     coarseCellCount,
     transitionEdgeCount,
+    riverBankVertexCount,
+    riverBankInfluenceMax,
     detailRadius,
     subdivisionsPerEdge: subdivisions,
     outerSubdivisionsPerEdge: 1

@@ -1244,6 +1244,13 @@ describe('rendered WebGL headless browser probe contract', () => {
       riverChannelSegmentCount: 1_200,
       riverFallbackBodyCount: 0,
       riverFallbackCellCount: 0,
+      riverFullCellCount: 400,
+      riverFullCellTriangleCount: 2_400,
+      riverBankEdgeCount: 1_601,
+      riverSharedEdgeCount: 388,
+      riverMouthEdgeCount: 23,
+      riverIncompleteCellCount: 0,
+      riverOverlappingPhysicalTriangleCount: 0,
       riverMouthConnectionCount: 12,
       routeDrawCalls: 0,
       routeSegments: 0,
@@ -1252,7 +1259,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       waterDrawCalls: 3,
       waterPresentation: 'ready',
       waterShaderFallbackCount: 0,
-      waterTriangles: 25_998
+      waterTriangles: 21_198
     } as const;
     expect(parseRenderedWebglWaterOverviewEvidence(overviewEvidence)).toEqual(
       overviewEvidence
@@ -1260,6 +1267,8 @@ describe('rendered WebGL headless browser probe contract', () => {
     for (const invalidEvidence of [
       { ...overviewEvidence, routeVisible: 1 },
       { ...overviewEvidence, riverFallbackBodyCount: 1 },
+      { ...overviewEvidence, riverIncompleteCellCount: 1 },
+      { ...overviewEvidence, riverOverlappingPhysicalTriangleCount: 1 },
       { ...overviewEvidence, cameraStateAttested: false },
       { ...overviewEvidence, privateRoutePoint: 'must-not-cross-the-boundary' }
     ]) {

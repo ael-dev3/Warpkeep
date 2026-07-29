@@ -44,6 +44,8 @@ export type TerrainDecorationBudget = Readonly<{
   maximumPoints: number;
   preserveRadius?: number;
   playableKeys?: ReadonlySet<string>;
+  /** Presentation-only cell exclusions such as canonical full-cell Water. */
+  excludedCellKeys?: ReadonlySet<string>;
 }>;
 
 const CENTER_COORD = { q: 0, r: 0 } as const;
@@ -108,6 +110,7 @@ export function generateTerrainDecorations(
     .sort((left, right) => left.coord.q - right.coord.q || left.coord.r - right.coord.r)
     .forEach((cell) => {
       const key = hexKey(cell.coord);
+      if (budget?.excludedCellKeys?.has(key)) return;
       const terrainKind = terrainKindsByKey?.get(key);
       if (terrainKind === 'lake' || terrainKind === 'ridge' || terrainKind === 'ancient-stone') return;
       const apron = budget?.playableKeys !== undefined

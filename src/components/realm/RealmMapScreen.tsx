@@ -2502,6 +2502,12 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     root.dataset.terrainVegetationCueMax = String(telemetry.terrainVegetationCueMax);
     root.dataset.terrainWetnessCueMin = String(telemetry.terrainWetnessCueMin);
     root.dataset.terrainWetnessCueMax = String(telemetry.terrainWetnessCueMax);
+    root.dataset.terrainRiverBankVertexCount = String(
+      telemetry.terrainRiverBankVertexCount
+    );
+    root.dataset.terrainRiverBankInfluenceMax = String(
+      telemetry.terrainRiverBankInfluenceMax
+    );
     root.dataset.terrainShaderEnhanced = String(telemetry.terrainShaderEnhanced);
     root.dataset.terrainShaderFallbackActive = String(
       telemetry.terrainShaderFallbackActive

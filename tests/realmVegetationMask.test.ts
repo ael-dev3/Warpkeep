@@ -5,7 +5,7 @@ import { createHegemonyCastlePlacements } from '../src/game/map/terrainPlacement
 import { createRealmVegetationMask } from '../src/game/map/realmVegetationMask';
 
 describe('Realm vegetation clearance mask', () => {
-  it('uses exact oceans/lakes, channel banks, live routes, keeps, and resource circles', () => {
+  it('uses exact full-cell Water, adjacent banks, live routes, keeps, and resource circles', () => {
     const playableKeys = new Set(hexDisc({ q: 0, r: 0 }, 10).map(hexKey));
     const occupied = createHegemonyCastlePlacements([
       { id: 'occupied-keep', coord: { q: 2, r: -1 } }
@@ -35,18 +35,31 @@ describe('Realm vegetation clearance mask', () => {
     expect(mask.isGrassExcluded(axialToWorld({ q: 4, r: -2 }, 1))).toBe(true);
     expect(mask.isGrassExcluded(axialToWorld({ q: -4, r: 1 }, 1))).toBe(true);
     const riverCenter = axialToWorld({ q: -4, r: 1 }, 1);
-    const channelBank = {
+    const riverInterior = {
       x: riverCenter.x - 0.28,
       z: riverCenter.z + 0.16
     };
-    const dryRiverCellEdge = {
+    const riverCellEdge = {
       x: riverCenter.x - 0.62,
       z: riverCenter.z + 0.36
     };
-    expect(mask.isGrassExcluded(channelBank)).toBe(true);
-    expect(mask.isTreeExcluded(channelBank)).toBe(true);
-    expect(mask.isGrassExcluded(dryRiverCellEdge)).toBe(false);
-    expect(mask.isTreeExcluded(dryRiverCellEdge)).toBe(false);
+    expect(mask.isGrassExcluded(riverInterior)).toBe(true);
+    expect(mask.isTreeExcluded(riverInterior)).toBe(true);
+    expect(mask.isGrassExcluded(riverCellEdge)).toBe(true);
+    expect(mask.isTreeExcluded(riverCellEdge)).toBe(true);
+    const adjacentLandCenter = axialToWorld({ q: -3, r: 1 }, 1);
+    const sharedEdge = {
+      x: (riverCenter.x + adjacentLandCenter.x) * 0.5,
+      z: (riverCenter.z + adjacentLandCenter.z) * 0.5
+    };
+    const bankProbe = {
+      x: sharedEdge.x + (adjacentLandCenter.x - sharedEdge.x) * 0.18,
+      z: sharedEdge.z + (adjacentLandCenter.z - sharedEdge.z) * 0.18
+    };
+    expect(mask.isGrassExcluded(bankProbe)).toBe(true);
+    expect(mask.isTreeExcluded(bankProbe)).toBe(true);
+    expect(mask.isGrassExcluded(adjacentLandCenter)).toBe(false);
+    expect(mask.isTreeExcluded(adjacentLandCenter)).toBe(false);
     expect(mask.isGrassExcluded(axialToWorld({ q: 0, r: 7 }, 1))).toBe(true);
     const routeCenter = axialToWorld({ q: 0, r: 7 }, 1);
     expect(mask.isGrassExcluded({ x: routeCenter.x + 0.4, z: routeCenter.z })).toBe(false);
@@ -59,6 +72,8 @@ describe('Realm vegetation clearance mask', () => {
       riverFallbackBodyCount: 0,
       riverFallbackCellCount: 0,
       riverSegmentCount: 3,
+      riverFullCellExclusionCount: 2,
+      riverBankEdgeCount: 10,
       routePathCount: 1,
       rejectedRoutePathCount: 0,
       clearanceCircleCount: 2
@@ -194,7 +209,9 @@ describe('Realm vegetation clearance mask', () => {
       riverChannelBodyCount: 0,
       riverFallbackBodyCount: 1,
       riverFallbackCellCount: 2,
-      riverSegmentCount: 0
+      riverSegmentCount: 0,
+      riverFullCellExclusionCount: 2,
+      riverBankEdgeCount: 10
     });
   });
 });

@@ -121,6 +121,10 @@ import {
 } from './realmWaterNavigation';
 import type { GenesisWaterCellV1 } from '../../../spacetimedb/src/waterWorld';
 import {
+  createRealmRiverBankPresentation,
+  type RealmRiverBankPresentation
+} from '../../game/map/realmRiverBankPresentation';
+import {
   createRealmGoldNodeLayer,
   HEGEMONY_EXPEDITION_ASSET_BUDGETS,
   type RealmGoldNodeLayer,
@@ -606,6 +610,8 @@ export type RealmTerrainPresentationTelemetry = Readonly<{
   terrainVegetationCueMax: number;
   terrainWetnessCueMin: number;
   terrainWetnessCueMax: number;
+  terrainRiverBankVertexCount: number;
+  terrainRiverBankInfluenceMax: number;
   terrainShaderEnhanced: boolean;
   terrainShaderFallbackActive: boolean;
   terrainShaderCompileAttemptCount: number;
@@ -959,6 +965,7 @@ function createTerrainGeometry(
   terrainKindsByKey: ReadonlyMap<string, RealmTerrainKind>,
   forestCanopyByKey?: ReadonlyMap<string, number>,
   vegetationDensityByKey?: ReadonlyMap<string, number>,
+  riverBankPresentation?: RealmRiverBankPresentation,
   visualizeLegacyLakesAsLand = false
 ) {
   const data = createTerrainGeometryData(surface.renderMap, HEX_SIZE, {
@@ -969,6 +976,7 @@ function createTerrainGeometry(
     terrainKindsByKey,
     forestCanopyByKey,
     vegetationDensityByKey,
+    riverBankPresentation,
     visualizeLegacyLakesAsLand
   });
   const geometry = new THREE.BufferGeometry();
@@ -1307,6 +1315,21 @@ function initializeRealmScene(
     options.surface,
     options.terrainMetadata
   );
+  const riverBankPresentation = createRealmRiverBankPresentation(
+    options.waterCells ?? [],
+    HEX_SIZE
+  );
+  const fullCellWaterCoordinateKeys = new Set(
+    (options.waterCells ?? []).flatMap((cell) => (
+      Number.isSafeInteger(cell.q) && Number.isSafeInteger(cell.r)
+        ? [hexKey(cell)]
+        : []
+    ))
+  );
+  const landDecorationProtectedTileKeys = new Set([
+    ...terrainSemantics.castleSlotKeys,
+    ...fullCellWaterCoordinateKeys
+  ]);
   const terrainPlacements = createHegemonyCastlePlacements([
     ...(options.ownCastleId === undefined
       ? []
@@ -1377,7 +1400,8 @@ function initializeRealmScene(
     {
       maximumPoints: renderPlan.stoneDecorationInstanceBudget,
       preserveRadius: 20,
-      playableKeys: options.surface.playableKeys
+      playableKeys: options.surface.playableKeys,
+      excludedCellKeys: fullCellWaterCoordinateKeys
     }
   );
   // The original semantic layer still owns heath, lake, ridge, and ancient
@@ -1390,7 +1414,7 @@ function initializeRealmScene(
     runtimeQuality.id,
     HEX_SIZE,
     terrainPlacements,
-    terrainSemantics.castleSlotKeys,
+    landDecorationProtectedTileKeys,
     { includeForestTrees: false, includeLakeSheen: !noLakeRevisionActive }
   );
   const legacyForestProtectedTileKeys = forestPresentationProtectedTileKeys(
@@ -1490,6 +1514,7 @@ function initializeRealmScene(
   > = Object.freeze({
     playableKeys: presentationSurface.playableKeys,
     waterCells: options.waterCells,
+    riverBankPresentation,
     placements: terrainPlacements,
     circles: Object.freeze([
       ...resourceVegetationClearances,
@@ -1566,6 +1591,7 @@ function initializeRealmScene(
     terrainSemantics.terrainKindsByKey,
     forestCanopyByTileKey,
     vegetationDensityByTileKey,
+    riverBankPresentation,
     noLakeRevisionActive
   );
   cleanup.add(() => terrainGeometry.dispose());
@@ -1598,6 +1624,7 @@ function initializeRealmScene(
         hexSize: HEX_SIZE,
         environment: options.waterEnvironment,
         waterBodies: options.waterBodies,
+        riverBankPresentation,
         nowMicros: localPresentationNowMicros,
         heightAtWorld: (world) => terrainHeightAtWorld(
           options.surface.renderMap,
@@ -1655,6 +1682,27 @@ function initializeRealmScene(
     );
     options.canvas.dataset.waterLocalizedFoamVertexCount = String(
       telemetry?.riverLocalizedFoamVertexCount ?? 0
+    );
+    options.canvas.dataset.waterRiverFullCellCount = String(
+      telemetry?.riverFullCellCount ?? 0
+    );
+    options.canvas.dataset.waterRiverFullCellTriangleCount = String(
+      telemetry?.riverFullCellTriangleCount ?? 0
+    );
+    options.canvas.dataset.waterRiverBankEdgeCount = String(
+      telemetry?.riverBankEdgeCount ?? 0
+    );
+    options.canvas.dataset.waterRiverSharedEdgeCount = String(
+      telemetry?.riverSharedEdgeCount ?? 0
+    );
+    options.canvas.dataset.waterRiverMouthEdgeCount = String(
+      telemetry?.riverMouthEdgeCount ?? 0
+    );
+    options.canvas.dataset.waterRiverIncompleteCellCount = String(
+      telemetry?.riverIncompleteCellCount ?? 0
+    );
+    options.canvas.dataset.waterRiverOverlappingPhysicalTriangleCount = String(
+      telemetry?.riverOverlappingPhysicalTriangleCount ?? 0
     );
     options.canvas.dataset.waterShaderFallbackCount = String(
       telemetry?.shaderFallbackCount ?? 0
@@ -1773,7 +1821,7 @@ function initializeRealmScene(
       runtimeQuality.id,
       HEX_SIZE,
       terrainPlacements,
-      terrainSemantics.castleSlotKeys,
+      landDecorationProtectedTileKeys,
       { includeLakeSheen: !noLakeRevisionActive }
     );
   }
@@ -1954,6 +2002,8 @@ function initializeRealmScene(
       terrainVegetationCueMax: terrainData.materialCueMetrics.vegetationMax,
       terrainWetnessCueMin: terrainData.materialCueMetrics.wetnessMin,
       terrainWetnessCueMax: terrainData.materialCueMetrics.wetnessMax,
+      terrainRiverBankVertexCount: terrainData.riverBankVertexCount,
+      terrainRiverBankInfluenceMax: terrainData.riverBankInfluenceMax,
       terrainShaderEnhanced: terrainMaterialTelemetry.shaderEnhanced,
       terrainShaderFallbackActive: terrainMaterialTelemetry.shaderFallbackActive,
       terrainShaderCompileAttemptCount: terrainMaterialTelemetry.compileAttemptCount,
@@ -2068,6 +2118,8 @@ function initializeRealmScene(
     const telemetry = terrainPresentationTelemetry();
     const signature = [
       telemetry.semanticFeatureCount,
+      telemetry.terrainRiverBankVertexCount,
+      telemetry.terrainRiverBankInfluenceMax,
       telemetry.terrainShaderEnhanced,
       telemetry.terrainShaderFallbackActive,
       telemetry.terrainShaderCompileAttemptCount,

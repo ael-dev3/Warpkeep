@@ -12,6 +12,9 @@ import { generateRealmTerrainMap } from '../src/game/map/generateTerrainMap';
 import { axialToWorld } from '../src/game/map/hexCoordinates';
 import { HEGEMONY_GENESIS_001 } from '../src/game/map/realmSeed';
 import { createHegemonyKeepPlacement } from '../src/game/map/terrainPlacements';
+import {
+  createRealmRiverBankPresentation
+} from '../src/game/map/realmRiverBankPresentation';
 
 function footprintHeightRange(
   positions: Float32Array,
@@ -169,6 +172,31 @@ describe('combined lowlands terrain geometry', () => {
     expect(semantic.triangleCount).toBe(neutral.triangleCount);
     expect(semantic.vertexCount).toBe(neutral.vertexCount);
     expect(semantic.colors).not.toEqual(neutral.colors);
+  });
+
+  it('adds adjacent-land bank color and wetness without changing terrain topology', () => {
+    const map = generateRealmTerrainMap(HEGEMONY_GENESIS_001, 2);
+    const riverBankPresentation = createRealmRiverBankPresentation([
+      { cellKey: '0,0', q: 0, r: 0, regime: 'river' },
+      { cellKey: '1,0', q: 1, r: 0, regime: 'river' },
+      { cellKey: '2,0', q: 2, r: 0, regime: 'ocean' }
+    ]);
+    const neutral = createTerrainGeometryData(map, 1);
+    const banked = createTerrainGeometryData(map, 1, {
+      riverBankPresentation
+    });
+
+    expect(banked.positions).toEqual(neutral.positions);
+    expect(banked.indices).toEqual(neutral.indices);
+    expect(banked.triangleCount).toBe(neutral.triangleCount);
+    expect(banked.vertexCount).toBe(neutral.vertexCount);
+    expect(banked.colors).not.toEqual(neutral.colors);
+    expect(banked.materialCues).not.toEqual(neutral.materialCues);
+    expect(banked.riverBankVertexCount).toBeGreaterThan(0);
+    expect(banked.riverBankInfluenceMax).toBeGreaterThan(0);
+    expect(banked.riverBankInfluenceMax).toBeLessThanOrEqual(1);
+    expect(banked.materialCueMetrics.wetnessMax)
+      .toBeGreaterThanOrEqual(neutral.materialCueMetrics.wetnessMax);
   });
 
   it('matches the pinned former radius-twenty-two topology at every runtime profile', () => {

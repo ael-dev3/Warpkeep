@@ -1586,6 +1586,13 @@ export function parseRenderedWebglWaterOverviewEvidence(value) {
     riverChannelSegmentCount: 1_200,
     riverFallbackBodyCount: 0,
     riverFallbackCellCount: 0,
+    riverFullCellCount: 400,
+    riverFullCellTriangleCount: 2_400,
+    riverBankEdgeCount: 1_601,
+    riverSharedEdgeCount: 388,
+    riverMouthEdgeCount: 23,
+    riverIncompleteCellCount: 0,
+    riverOverlappingPhysicalTriangleCount: 0,
     riverMouthConnectionCount: 12,
     routeDrawCalls: 0,
     routeSegments: 0,
@@ -1594,7 +1601,7 @@ export function parseRenderedWebglWaterOverviewEvidence(value) {
     waterDrawCalls: 3,
     waterPresentation: 'ready',
     waterShaderFallbackCount: 0,
-    waterTriangles: 25_998,
+    waterTriangles: 21_198,
   });
   if (!exactMessageKeys(candidate, new Set(Object.keys(expected)))) {
     throw new TypeError('Invalid rendered WebGL Water overview evidence shape.');
@@ -4828,8 +4835,8 @@ export async function applyRenderedWebglPresentationBandInteraction(session) {
 /**
  * Replays the reported upper-right overview using only ordinary camera input.
  * The synthetic active-Worker fixture keeps route reconciliation present while
- * proving that overview policy suppresses its ribbon and retains the canonical
- * terrain-following river channel without a fallback or shader failure.
+ * proving that overview policy suppresses its route ribbon and retains the
+ * canonical full-cell river surface without a fallback or shader failure.
  */
 export async function applyRenderedWebglWaterOverviewInteraction(session) {
   const targetEvaluation = await session.command('Runtime.evaluate', {
@@ -4964,6 +4971,20 @@ export async function applyRenderedWebglWaterOverviewInteraction(session) {
           integer('data-water-river-fallback-body-count'),
         riverFallbackCellCount:
           integer('data-water-river-fallback-cell-count'),
+        riverFullCellCount:
+          integer('data-water-river-full-cell-count'),
+        riverFullCellTriangleCount:
+          integer('data-water-river-full-cell-triangle-count'),
+        riverBankEdgeCount:
+          integer('data-water-river-bank-edge-count'),
+        riverSharedEdgeCount:
+          integer('data-water-river-shared-edge-count'),
+        riverMouthEdgeCount:
+          integer('data-water-river-mouth-edge-count'),
+        riverIncompleteCellCount:
+          integer('data-water-river-incomplete-cell-count'),
+        riverOverlappingPhysicalTriangleCount:
+          integer('data-water-river-overlapping-physical-triangle-count'),
         riverMouthConnectionCount:
           integer('data-water-river-mouth-connection-count'),
         routeDrawCalls:
