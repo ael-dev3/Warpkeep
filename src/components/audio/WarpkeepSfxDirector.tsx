@@ -28,6 +28,15 @@ export type WarpkeepSfxDirectorProps = Readonly<{
   createEngine?: () => WarpkeepSfxDirectorEngine;
 }>;
 
+export type WarpkeepSfxActivationInput = Readonly<{
+  eventType: 'keydown' | 'pointerdown' | 'pointerup';
+  isTrusted: boolean;
+  key?: string;
+  pointerType?: string;
+  repeat?: boolean;
+  userActivationActive: boolean;
+}>;
+
 type SfxControl = HTMLElement & Readonly<{
   dataset: DOMStringMap & {
     warpkeepSfx?: string;
@@ -100,15 +109,34 @@ export function resolveWarpkeepUiSfx(
   return { kind: 'ui-press' };
 }
 
-function isMeaningfulKeyboardGesture(event: KeyboardEvent) {
-  return !event.repeat && ![
+function isMeaningfulKeyboardGesture(key: string, repeat: boolean) {
+  return !repeat && ![
     'Alt',
     'AltGraph',
     'CapsLock',
     'Control',
     'Meta',
     'Shift'
-  ].includes(event.key);
+  ].includes(key);
+}
+
+/**
+ * Keeps WebAudio initialization on the browser's activation-triggering edge.
+ * Touch and pen do not gain user activation until pointerup, while a mouse may
+ * activate on pointerdown. `isTrusted` alone is deliberately insufficient.
+ */
+export function shouldActivateWarpkeepSfx(
+  input: WarpkeepSfxActivationInput
+) {
+  if (!input.isTrusted || !input.userActivationActive) return false;
+  if (input.eventType === 'keydown') {
+    return isMeaningfulKeyboardGesture(input.key ?? '', input.repeat === true);
+  }
+  if (input.eventType === 'pointerdown') return input.pointerType === 'mouse';
+  return (
+    input.eventType === 'pointerup'
+    && (input.pointerType === 'touch' || input.pointerType === 'pen')
+  );
 }
 
 /**
@@ -133,8 +161,27 @@ export function WarpkeepSfxDirector({
     engine.setMuted(mutedRef.current);
     engine.setHidden(document.hidden);
 
-    const activate = (event: Event) => {
-      if (event instanceof KeyboardEvent && !isMeaningfulKeyboardGesture(event)) return;
+    const activate = (event: KeyboardEvent | PointerEvent) => {
+      const eventType = event.type;
+      if (
+        eventType !== 'keydown'
+        && eventType !== 'pointerdown'
+        && eventType !== 'pointerup'
+      ) return;
+      const keyboardEvent = eventType === 'keydown'
+        ? event as KeyboardEvent
+        : undefined;
+      const pointerEvent = eventType === 'keydown'
+        ? undefined
+        : event as PointerEvent;
+      if (!shouldActivateWarpkeepSfx({
+        eventType,
+        isTrusted: event.isTrusted,
+        key: keyboardEvent?.key,
+        pointerType: pointerEvent?.pointerType,
+        repeat: keyboardEvent?.repeat,
+        userActivationActive: navigator.userActivation?.isActive === true
+      })) return;
       void engine.activateFromTrustedGesture(event.isTrusted);
     };
     const playOrdinaryControl = (event: MouseEvent) => {
@@ -152,7 +199,7 @@ export function WarpkeepSfxDirector({
     });
 
     window.addEventListener('pointerdown', activate, { capture: true, passive: true });
-    window.addEventListener('touchstart', activate, { capture: true, passive: true });
+    window.addEventListener('pointerup', activate, { capture: true, passive: true });
     window.addEventListener('keydown', activate, { capture: true });
     document.addEventListener('click', playOrdinaryControl);
     document.addEventListener('visibilitychange', handleVisibility);
@@ -162,7 +209,7 @@ export function WarpkeepSfxDirector({
       unsubscribeStop();
       unsubscribeWaterAmbience();
       window.removeEventListener('pointerdown', activate, true);
-      window.removeEventListener('touchstart', activate, true);
+      window.removeEventListener('pointerup', activate, true);
       window.removeEventListener('keydown', activate, true);
       document.removeEventListener('click', playOrdinaryControl);
       document.removeEventListener('visibilitychange', handleVisibility);

@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   WarpkeepSfxDirector,
   resolveWarpkeepUiSfx,
+  shouldActivateWarpkeepSfx,
   type WarpkeepSfxDirectorEngine
 } from '../src/components/audio/WarpkeepSfxDirector';
 import {
@@ -65,6 +66,80 @@ describe('ordinary UI SFX classification', () => {
 });
 
 describe('WarpkeepSfxDirector', () => {
+  it('uses only trusted, actively authorized browser gesture edges for WebAudio', () => {
+    const activation = {
+      isTrusted: true,
+      userActivationActive: true
+    } as const;
+
+    expect(shouldActivateWarpkeepSfx({
+      ...activation,
+      eventType: 'pointerdown',
+      pointerType: 'mouse'
+    })).toBe(true);
+    expect(shouldActivateWarpkeepSfx({
+      ...activation,
+      eventType: 'pointerup',
+      pointerType: 'mouse'
+    })).toBe(false);
+    expect(shouldActivateWarpkeepSfx({
+      ...activation,
+      eventType: 'pointerdown',
+      pointerType: 'touch'
+    })).toBe(false);
+    expect(shouldActivateWarpkeepSfx({
+      ...activation,
+      eventType: 'pointerup',
+      pointerType: 'touch'
+    })).toBe(true);
+    expect(shouldActivateWarpkeepSfx({
+      ...activation,
+      eventType: 'pointerdown',
+      pointerType: 'pen'
+    })).toBe(false);
+    expect(shouldActivateWarpkeepSfx({
+      ...activation,
+      eventType: 'pointerup',
+      pointerType: 'pen'
+    })).toBe(true);
+    expect(shouldActivateWarpkeepSfx({
+      ...activation,
+      eventType: 'keydown',
+      key: 'Enter'
+    })).toBe(true);
+    expect(shouldActivateWarpkeepSfx({
+      ...activation,
+      eventType: 'keydown',
+      key: 'Enter',
+      repeat: true
+    })).toBe(false);
+    expect(shouldActivateWarpkeepSfx({
+      ...activation,
+      eventType: 'keydown',
+      key: 'Shift'
+    })).toBe(false);
+  });
+
+  it('rejects missing browser activation and untrusted input on every allowed edge', () => {
+    for (const input of [
+      { eventType: 'pointerdown', pointerType: 'mouse' },
+      { eventType: 'pointerup', pointerType: 'touch' },
+      { eventType: 'pointerup', pointerType: 'pen' },
+      { eventType: 'keydown', key: 'Enter' }
+    ] as const) {
+      expect(shouldActivateWarpkeepSfx({
+        ...input,
+        isTrusted: false,
+        userActivationActive: true
+      })).toBe(false);
+      expect(shouldActivateWarpkeepSfx({
+        ...input,
+        isTrusted: true,
+        userActivationActive: false
+      })).toBe(false);
+    }
+  });
+
   it('maintains one live event subscription through StrictMode and cleans it up', () => {
     const engines: WarpkeepSfxDirectorEngine[] = [];
     const view = render(
@@ -126,9 +201,10 @@ describe('WarpkeepSfxDirector', () => {
     const engine = fakeEngine();
     render(<WarpkeepSfxDirector createEngine={() => engine} />);
     fireEvent.pointerDown(window);
+    fireEvent.pointerUp(window);
     fireEvent.keyDown(window, { key: 'Enter' });
     fireEvent.click(document.body);
-    expect(engine.activateFromTrustedGesture).toHaveBeenCalledWith(false);
+    expect(engine.activateFromTrustedGesture).not.toHaveBeenCalled();
     expect(engine.emit).not.toHaveBeenCalled();
   });
 });
