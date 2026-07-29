@@ -2561,6 +2561,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     root.dataset.snowInnerRadiusLeakCount = String(
       telemetry.snowInnerRadiusLeakCount
     );
+    root.dataset.snowSouthernLeakCount = String(telemetry.snowSouthernLeakCount);
     root.dataset.snowVertexCoverageMin = String(telemetry.snowVertexCoverageMin);
     root.dataset.snowVertexCoverageMax = String(telemetry.snowVertexCoverageMax);
     root.dataset.snowVertexCoverageMean = String(telemetry.snowVertexCoverageMean);
@@ -3277,6 +3278,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
         rootRef.current.dataset.snowPlayableCoverageRatio = '0';
         rootRef.current.dataset.snowDeepCoverageRatio = '0';
         rootRef.current.dataset.snowInnerRadiusLeakCount = '0';
+        rootRef.current.dataset.snowSouthernLeakCount = '0';
         rootRef.current.dataset.snowVertexCoverageMin = '0';
         rootRef.current.dataset.snowVertexCoverageMax = '0';
         rootRef.current.dataset.snowVertexCoverageMean = '0';

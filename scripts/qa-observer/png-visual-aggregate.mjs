@@ -140,6 +140,10 @@ export function analyzeRenderedWebglPngScreenshot(value, viewport, options = {})
   let clippedBlackSamples = 0;
   let clippedWhiteSamples = 0;
   let coolHighAlbedoSamples = 0;
+  // Preserve only anonymous colour mass in coarse screen regions. The middle
+  // bucket can prove that a selected Northern target, rather than an unrelated
+  // cool pixel elsewhere in the frame, is actually being presented.
+  const coolSpatialBuckets = Array.from({ length: 9 }, () => 0);
   let hotYellowSamples = 0;
   for (let yStep = 1; yStep <= 9; yStep += 1) {
     const y = Math.floor(header.height * (0.16 + (0.68 * yStep) / 10));
@@ -171,6 +175,9 @@ export function analyzeRenderedWebglPngScreenshot(value, viewport, options = {})
         && blue >= red - 6
       ) {
         coolHighAlbedoSamples += 1;
+        const bucket = Math.min(2, Math.floor((yStep - 1) / 3)) * 3
+          + Math.min(2, Math.floor((xStep - 1) / 5));
+        coolSpatialBuckets[bucket] += 1;
       }
       if (red >= 245 && green >= 205 && blue <= 55) hotYellowSamples += 1;
       if (alpha >= 250) opaqueSamples += 1;
@@ -195,6 +202,7 @@ export function analyzeRenderedWebglPngScreenshot(value, viewport, options = {})
     clippedBlackSamples,
     clippedWhiteSamples,
     coolHighAlbedoSamples,
+    coolSpatialBuckets: Object.freeze(coolSpatialBuckets),
     hotYellowSamples,
     opaqueSamples,
     sampleCount,

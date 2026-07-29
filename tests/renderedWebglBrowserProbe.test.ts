@@ -3401,6 +3401,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       clippedBlackSamples: 0,
       clippedWhiteSamples: 0,
       coolHighAlbedoSamples: expect.any(Number),
+      coolSpatialBuckets: expect.arrayContaining([expect.any(Number)]),
       hotYellowSamples: expect.any(Number)
     });
     expect(() => analyzeRenderedWebglPngScreenshot(
@@ -3416,7 +3417,7 @@ describe('rendered WebGL headless browser probe contract', () => {
   it('keeps Northern Reach evidence bounded, anonymous, and fail-closed', async () => {
     const evidence = {
       band: 'close',
-      coverage: [2_400, 1_000, 0.26, 0.12, 0],
+      coverage: [2_400, 1_000, 0.26, 0.12, 0, 0],
       material: [
         'genesis-001-northern-snow-presentation-v1',
         'one-band',
@@ -3425,6 +3426,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       ],
       quality: 'balanced',
       recovered: true,
+      recoveryExercised: true,
       region: 'deep',
       selected: true,
       stable: true,
@@ -3432,6 +3434,7 @@ describe('rendered WebGL headless browser probe contract', () => {
     } as const;
     expect(parseNorthernReachRenderedEvidence(evidence, {
       quality: 'balanced',
+      recover: true,
       region: 'deep',
       viewport: { width: 1_440, height: 900 }
     })).toEqual(evidence);
@@ -3440,6 +3443,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       q: 4
     }, {
       quality: 'balanced',
+      recover: true,
       region: 'deep',
       viewport: { width: 1_440, height: 900 }
     })).toThrow(/Northern Reach/i);
@@ -3448,14 +3452,100 @@ describe('rendered WebGL headless browser probe contract', () => {
       vertices: [0, 0.91, Number.NaN, 200_000]
     }, {
       quality: 'balanced',
+      recover: true,
       region: 'deep',
       viewport: { width: 1_440, height: 900 }
     })).toThrow(/Northern Reach/i);
-    expect(() => assertNorthernReachRenderedVisual(evidence, {
+    expect(() => parseNorthernReachRenderedEvidence({
+      ...evidence,
+      coverage: [2_400, 1_000, 0.26, 0.12, 0, 1]
+    }, {
+      quality: 'balanced',
+      recover: true,
+      region: 'deep',
+      viewport: { width: 1_440, height: 900 }
+    })).toThrow(/Northern Reach/i);
+
+    const deepVisual = {
       clippedBlackSamples: 0,
       clippedWhiteSamples: 0,
-      coolHighAlbedoSamples: 0,
+      coolHighAlbedoSamples: 2,
+      coolSpatialBuckets: [0, 0, 0, 0, 2, 0, 0, 0, 0],
       hotYellowSamples: 0
+    } as const;
+    expect(() => assertNorthernReachRenderedVisual(
+      evidence,
+      deepVisual
+    )).not.toThrow();
+    expect(() => assertNorthernReachRenderedVisual(evidence, {
+      ...deepVisual,
+      coolHighAlbedoSamples: 1,
+      coolSpatialBuckets: [0, 0, 0, 0, 1, 0, 0, 0, 0]
+    })).toThrow(/visual aggregate/i);
+    expect(() => assertNorthernReachRenderedVisual(evidence, {
+      ...deepVisual,
+      coolSpatialBuckets: [2, 0, 0, 0, 0, 0, 0, 0, 0]
+    })).toThrow(/visual aggregate/i);
+
+    const ordinaryEvidence = {
+      ...evidence,
+      recovered: false,
+      recoveryExercised: false
+    } as const;
+    expect(parseNorthernReachRenderedEvidence(ordinaryEvidence, {
+      quality: 'balanced',
+      recover: false,
+      region: 'deep',
+      viewport: { width: 1_440, height: 900 }
+    })).toEqual(ordinaryEvidence);
+    expect(() => parseNorthernReachRenderedEvidence(ordinaryEvidence, {
+      quality: 'balanced',
+      recover: true,
+      region: 'deep',
+      viewport: { width: 1_440, height: 900 }
+    })).toThrow(/Northern Reach/i);
+
+    const transitionEvidence = {
+      ...ordinaryEvidence,
+      band: 'strategy',
+      region: 'transition'
+    } as const;
+    expect(parseNorthernReachRenderedEvidence(transitionEvidence, {
+      quality: 'balanced',
+      recover: false,
+      region: 'transition',
+      viewport: { width: 1_440, height: 900 }
+    })).toEqual(transitionEvidence);
+    expect(() => assertNorthernReachRenderedVisual(
+      transitionEvidence,
+      deepVisual
+    )).not.toThrow();
+    expect(() => assertNorthernReachRenderedVisual(transitionEvidence, {
+      ...deepVisual,
+      coolHighAlbedoSamples: 1,
+      coolSpatialBuckets: [0, 0, 0, 0, 1, 0, 0, 0, 0]
+    })).toThrow(/visual aggregate/i);
+
+    const overviewEvidence = {
+      ...ordinaryEvidence,
+      band: 'overview',
+      region: 'overview'
+    } as const;
+    expect(parseNorthernReachRenderedEvidence(overviewEvidence, {
+      quality: 'balanced',
+      recover: false,
+      region: 'overview',
+      viewport: { width: 1_440, height: 900 }
+    })).toEqual(overviewEvidence);
+    expect(() => assertNorthernReachRenderedVisual(overviewEvidence, {
+      ...deepVisual,
+      coolHighAlbedoSamples: 3,
+      coolSpatialBuckets: [3, 0, 0, 0, 0, 0, 0, 0, 0]
+    })).not.toThrow();
+    expect(() => assertNorthernReachRenderedVisual(overviewEvidence, {
+      ...deepVisual,
+      coolHighAlbedoSamples: 1,
+      coolSpatialBuckets: [1, 0, 0, 0, 0, 0, 0, 0, 0]
     })).toThrow(/visual aggregate/i);
 
     const command = vi.fn(async (
@@ -3475,7 +3565,20 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(expression).toContain("import('/src/game/map/realmNorthernSnow.ts')");
     expect(expression).toContain("'.realm-cell-navigator__jump'");
     expect(expression).toContain("getExtension('WEBGL_lose_context')");
+    expect(expression).toContain("let recovered=false");
+    expect(expression).toContain("recoveryExercised:recover");
+    expect(expression).toContain("number('snowSouthernLeakCount')");
     expect(expression).not.toContain('return target');
+
+    const ordinaryCommand = vi.fn(async () => ({
+      result: { type: 'object', value: ordinaryEvidence }
+    }));
+    await expect(applyNorthernReachRenderedEvidence({ command: ordinaryCommand }, {
+      quality: 'balanced',
+      recover: false,
+      region: 'deep',
+      viewport: { width: 1_440, height: 900 }
+    })).resolves.toEqual(ordinaryEvidence);
   });
 
 });

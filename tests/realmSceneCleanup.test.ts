@@ -522,6 +522,7 @@ describe('realm scene setup cleanup', () => {
       snowPlayableCoverageRatio: expect.any(Number),
       snowDeepCoverageRatio: expect.any(Number),
       snowInnerRadiusLeakCount: expect.any(Number),
+      snowSouthernLeakCount: 0,
       snowVertexCoverageMin: expect.any(Number),
       snowVertexCoverageMax: expect.any(Number),
       snowVertexCoverageMean: expect.any(Number),

@@ -661,6 +661,7 @@ export function analyzeRenderedWebglPngScreenshot(
   clippedBlackSamples: number;
   clippedWhiteSamples: number;
   coolHighAlbedoSamples: number;
+  coolSpatialBuckets: readonly number[];
   hotYellowSamples: number;
   opaqueSamples: number;
   sampleCount: number;
@@ -668,10 +669,11 @@ export function analyzeRenderedWebglPngScreenshot(
 
 export type NorthernReachRenderedEvidence = Readonly<{
   band: 'overview' | 'strategy' | 'close';
-  coverage: readonly [number, number, number, number, number];
+  coverage: readonly [number, number, number, number, 0, 0];
   material: readonly [string, 'two-band' | 'one-band' | 'none', true, false];
   quality: 'high' | 'balanced' | 'reduced';
-  recovered: true;
+  recovered: boolean;
+  recoveryExercised: boolean;
   region: 'overview' | 'transition' | 'deep';
   selected: true;
   stable: true;
@@ -682,6 +684,7 @@ export function parseNorthernReachRenderedEvidence(
   value: unknown,
   expected: Readonly<{
     quality: NorthernReachRenderedEvidence['quality'];
+    recover: boolean;
     region: NorthernReachRenderedEvidence['region'];
     viewport: Readonly<{ width: number; height: number }>;
   }>
@@ -689,7 +692,13 @@ export function parseNorthernReachRenderedEvidence(
 
 export function assertNorthernReachRenderedVisual(
   evidence: NorthernReachRenderedEvidence,
-  visual: Readonly<Record<string, number>>
+  visual: Readonly<{
+    clippedBlackSamples: number;
+    clippedWhiteSamples: number;
+    coolHighAlbedoSamples: number;
+    coolSpatialBuckets: readonly number[];
+    hotYellowSamples: number;
+  }>
 ): void;
 
 export function applyNorthernReachRenderedEvidence(

@@ -5,17 +5,22 @@ const BYTE_LIMIT = Object.freeze({
   balanced: 0.35 * 1_024 * 1_024,
   reduced: 0.25 * 1_024 * 1_024,
 });
+const TARGET_CENTER_BUCKET_INDEX = 4;
+const TARGET_MINIMUM_SNOW_SAMPLES = 2;
+const OVERVIEW_MINIMUM_SNOW_SAMPLES = 3;
 
 export function parseNorthernReachRenderedEvidence(value, expected) {
   const invalid = () => new TypeError('Invalid Northern Reach rendered evidence.');
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalid();
-  const keys = ['band', 'coverage', 'material', 'quality', 'recovered', 'region',
-    'selected', 'stable', 'vertices'].sort();
+  const keys = ['band', 'coverage', 'material', 'quality', 'recovered',
+    'recoveryExercised', 'region', 'selected', 'stable', 'vertices'].sort();
   const actual = Object.keys(value).sort();
-  const [climate, deep, playableRatio, deepRatio, innerLeaks] = value.coverage ?? [];
+  const [climate, deep, playableRatio, deepRatio, innerLeaks, southernLeaks]
+    = value.coverage ?? [];
   const [minimum, maximum, mean, bytes] = value.vertices ?? [];
   const [revision, relief, enhanced, fallback] = value.material ?? [];
   const quality = expected?.quality;
+  const recover = expected?.recover;
   const region = expected?.region;
   const band = region === 'overview' ? 'overview'
     : region === 'transition' || expected?.viewport?.width <= 480
@@ -24,18 +29,21 @@ export function parseNorthernReachRenderedEvidence(value, expected) {
   if (
     actual.length !== keys.length || actual.some((key, index) => key !== keys[index])
     || !Object.hasOwn(RELIEF, quality) || !REGIONS.has(region)
+    || typeof recover !== 'boolean'
     || !Number.isSafeInteger(expected?.viewport?.width)
     || !Number.isSafeInteger(expected?.viewport?.height)
     || value.quality !== quality || value.region !== region || value.band !== band
-    || value.selected !== true || value.stable !== true || value.recovered !== true
-    || !Array.isArray(value.coverage) || value.coverage.length !== 5
+    || value.selected !== true || value.stable !== true
+    || value.recoveryExercised !== recover || value.recovered !== recover
+    || !Array.isArray(value.coverage) || value.coverage.length !== 6
     || !Number.isSafeInteger(climate) || climate < 1 || climate > 10_000
     || !Number.isSafeInteger(deep) || deep < 1 || deep > climate
     || [playableRatio, deepRatio, minimum, maximum, mean].some(
       (entry) => !Number.isFinite(entry)
     )
     || playableRatio < 0.22 || playableRatio > 0.30
-    || deepRatio < 0.09 || deepRatio > 0.15 || innerLeaks !== 0
+    || deepRatio < 0.09 || deepRatio > 0.15
+    || innerLeaks !== 0 || southernLeaks !== 0
     || !Array.isArray(value.vertices) || value.vertices.length !== 4
     || minimum < 0 || maximum > 1 || maximum <= 0.75 || mean <= 0
     || !Number.isSafeInteger(bytes) || bytes < 1 || bytes > BYTE_LIMIT[quality]
@@ -46,9 +54,23 @@ export function parseNorthernReachRenderedEvidence(value, expected) {
   return Object.freeze({ ...value });
 }
 
+function exactSpatialAggregate(value, total) {
+  return Array.isArray(value)
+    && value.length === 9
+    && value.every((entry) => Number.isSafeInteger(entry) && entry >= 0)
+    && value.reduce((sum, entry) => sum + entry, 0) === total;
+}
+
 export function assertNorthernReachRenderedVisual(evidence, visual) {
+  const cool = visual?.coolHighAlbedoSamples;
+  const targetSnowMass = visual?.coolSpatialBuckets?.[TARGET_CENTER_BUCKET_INDEX];
   if (!visual || typeof visual !== 'object'
-    || (evidence.region !== 'overview' && visual.coolHighAlbedoSamples < 1)
+    || !Number.isSafeInteger(cool)
+    || !exactSpatialAggregate(visual.coolSpatialBuckets, cool)
+    || (evidence?.region === 'overview'
+      ? cool < OVERVIEW_MINIMUM_SNOW_SAMPLES
+      : !Number.isSafeInteger(targetSnowMass)
+        || targetSnowMass < TARGET_MINIMUM_SNOW_SAMPLES)
     || visual.clippedBlackSamples !== 0 || visual.clippedWhiteSamples !== 0
     || visual.hotYellowSamples !== 0) {
     throw new TypeError('Invalid Northern Reach visual aggregate.');
@@ -131,7 +153,7 @@ export async function applyNorthernReachRenderedEvidence(session, options) {
       const signature=()=>[root.dataset.snowFieldRevision,root.dataset.snowAttributeBytes,
         root.dataset.terrainTriangleCount,root.dataset.grassDrawCalls,
         root.dataset.forestDecorativeDrawCalls,root.dataset.sharedForestTreeCount].join('|');
-      const before=signature();let recovered=true;
+      const before=signature();let recovered=false;
       if(recover){
         const generation=Number(root.dataset.rendererGeneration);
         const context=canvas()?.getContext('webgl2')??canvas()?.getContext('webgl');
@@ -148,10 +170,10 @@ export async function applyNorthernReachRenderedEvidence(session, options) {
       return {band:root.dataset.realmCameraPresentationBand,
         coverage:[number('snowClimateCellCountAbove015'),number('snowDeepCellCountAbove075'),
           number('snowPlayableCoverageRatio'),number('snowDeepCoverageRatio'),
-          number('snowInnerRadiusLeakCount')],
+          number('snowInnerRadiusLeakCount'),number('snowSouthernLeakCount')],
         material:[root.dataset.snowFieldRevision,root.dataset.snowFineReliefMode,
           root.dataset.snowShaderEnhanced==='true',root.dataset.snowShaderFallbackActive==='true'],
-        quality:overlay.dataset.quality,recovered,region,selected,
+        quality:overlay.dataset.quality,recovered,recoveryExercised:recover,region,selected,
         stable:root.dataset.renderer==='webgl'&&root.dataset.rendererState==='ready'
           &&root.dataset.rendererFailure==='none'&&canvas()?.dataset.realmCameraSettled==='true',
         vertices:[number('snowVertexCoverageMin'),number('snowVertexCoverageMax'),
@@ -165,6 +187,7 @@ export async function applyNorthernReachRenderedEvidence(session, options) {
   }
   return parseNorthernReachRenderedEvidence(result.result.value, {
     quality,
+    recover,
     region,
     viewport
   });

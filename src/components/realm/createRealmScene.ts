@@ -632,6 +632,7 @@ export type RealmTerrainPresentationTelemetry = Readonly<{
   snowPlayableCoverageRatio: number;
   snowDeepCoverageRatio: number;
   snowInnerRadiusLeakCount: number;
+  snowSouthernLeakCount: number;
   snowVertexCoverageMin: number;
   snowVertexCoverageMax: number;
   snowVertexCoverageMean: number;
@@ -2086,6 +2087,7 @@ function initializeRealmScene(
       snowPlayableCoverageRatio: snowCoverageSummary.playableCoverageRatio,
       snowDeepCoverageRatio: snowCoverageSummary.deepCoverageRatio,
       snowInnerRadiusLeakCount: snowCoverageSummary.innerRadiusLeakCount,
+      snowSouthernLeakCount: snowCoverageSummary.southernLeakCount,
       snowVertexCoverageMin: terrainData.snowCoverageMetrics.minimum,
       snowVertexCoverageMax: terrainData.snowCoverageMetrics.maximum,
       snowVertexCoverageMean: terrainData.snowCoverageMetrics.mean,
@@ -2222,6 +2224,7 @@ function initializeRealmScene(
       telemetry.snowPlayableCoverageRatio,
       telemetry.snowDeepCoverageRatio,
       telemetry.snowInnerRadiusLeakCount,
+      telemetry.snowSouthernLeakCount,
       telemetry.snowVertexCoverageMin,
       telemetry.snowVertexCoverageMax,
       telemetry.snowVertexCoverageMean,
