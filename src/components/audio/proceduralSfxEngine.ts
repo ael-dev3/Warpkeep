@@ -556,6 +556,16 @@ function disconnectVoice(voice: ScheduledVoice) {
   }
 }
 
+function disconnectWaterAmbienceVoice(voice: WaterAmbienceVoice) {
+  for (const node of voice.nodes) {
+    try {
+      node.disconnect();
+    } catch {
+      // An already released browser node is inert.
+    }
+  }
+}
+
 function stopVoice(
   voice: ScheduledVoice,
   at: number,
@@ -609,6 +619,7 @@ export class ProceduralSfxEngine {
   private serial = 0;
   private waterAmbience = WARPKEEP_WATER_AMBIENCE_OFF;
   private waterAmbienceVoice: WaterAmbienceVoice | undefined;
+  private releasingWaterAmbienceVoice: WaterAmbienceVoice | undefined;
 
   constructor(options: WarpkeepSfxEngineOptions = {}) {
     this.contextFactory = options.contextFactory ?? createDefaultContext;
@@ -746,7 +757,12 @@ export class ProceduralSfxEngine {
       muted ? MIN_GAIN : this.effectsLevel,
       now + 0.025
     );
-    if (muted) this.stopAllAt(now + 0.025, false);
+    if (muted) {
+      // A muted ambience bed must not remain as an untracked physical voice
+      // during the short master-bus fade used by finite effects.
+      this.releaseWaterAmbience(now, true);
+      this.stopAllAt(now + 0.025, false);
+    }
     else this.syncWaterAmbience();
   }
 
@@ -785,7 +801,9 @@ export class ProceduralSfxEngine {
 
   snapshot(): WarpkeepSfxEngineSnapshot {
     return Object.freeze({
-      activeVoices: this.activeVoices.size + Number(this.waterAmbienceVoice !== undefined),
+      activeVoices: this.activeVoices.size
+        + Number(this.waterAmbienceVoice !== undefined)
+        + Number(this.releasingWaterAmbienceVoice !== undefined),
       waterAmbienceActive: this.waterAmbienceVoice !== undefined,
       waterAmbienceRegime: this.waterAmbienceVoice
         ? this.waterAmbience.regime
@@ -827,10 +845,12 @@ export class ProceduralSfxEngine {
 
   private makeRoom(priority: number, at: number) {
     if (
-      this.activeVoices.size + Number(this.waterAmbienceVoice !== undefined)
+      this.activeVoices.size
+        + Number(this.waterAmbienceVoice !== undefined)
+        + Number(this.releasingWaterAmbienceVoice !== undefined)
       < this.voiceCap
     ) return true;
-    if (this.waterAmbienceVoice) {
+    if (this.waterAmbienceVoice || this.releasingWaterAmbienceVoice) {
       this.releaseWaterAmbience(at, true);
       return this.activeVoices.size < this.voiceCap;
     }
@@ -886,7 +906,10 @@ export class ProceduralSfxEngine {
     }
     if (
       !this.waterAmbienceVoice
-      && this.activeVoices.size >= this.voiceCap
+      && (
+        this.releasingWaterAmbienceVoice
+        || this.activeVoices.size >= this.voiceCap
+      )
     ) return;
 
     let voice = this.waterAmbienceVoice;
@@ -918,16 +941,8 @@ export class ProceduralSfxEngine {
         ? SHARED_NOISE_SECONDS * 0.19
         : SHARED_NOISE_SECONDS * 0.61;
       source.start(context.currentTime, offset);
-      source.onended = () => {
-        source.onended = null;
-        for (const node of voice!.nodes) {
-          try {
-            node.disconnect();
-          } catch {
-            // An already released browser node is inert.
-          }
-        }
-      };
+      const createdVoice = voice;
+      source.onended = () => this.finishWaterAmbience(createdVoice, true);
     }
 
     const now = context.currentTime;
@@ -963,9 +978,21 @@ export class ProceduralSfxEngine {
   }
 
   private releaseWaterAmbience(at: number, disconnectImmediately: boolean) {
-    const voice = this.waterAmbienceVoice;
+    if (
+      !disconnectImmediately
+      && !this.waterAmbienceVoice
+      && this.releasingWaterAmbienceVoice
+    ) return;
+    const voice = this.waterAmbienceVoice ?? this.releasingWaterAmbienceVoice;
     if (!voice) return;
-    this.waterAmbienceVoice = undefined;
+    if (this.waterAmbienceVoice === voice) this.waterAmbienceVoice = undefined;
+    if (disconnectImmediately) {
+      if (this.releasingWaterAmbienceVoice === voice) {
+        this.releasingWaterAmbienceVoice = undefined;
+      }
+    } else {
+      this.releasingWaterAmbienceVoice = voice;
+    }
     const releaseAt = at + (disconnectImmediately ? 0 : WATER_AMBIENCE_RELEASE_SECONDS);
     try {
       voice.gain.gain.cancelScheduledValues(at);
@@ -977,17 +1004,23 @@ export class ProceduralSfxEngine {
       voice.source.stop(releaseAt);
     } catch {
       // The browser may already have ended this bounded ambience source.
+      this.finishWaterAmbience(voice, false);
+      return;
     }
     if (disconnectImmediately) {
       voice.source.onended = null;
-      for (const node of voice.nodes) {
-        try {
-          node.disconnect();
-        } catch {
-          // Already disconnected.
-        }
-      }
+      disconnectWaterAmbienceVoice(voice);
     }
+  }
+
+  private finishWaterAmbience(voice: WaterAmbienceVoice, resync: boolean) {
+    voice.source.onended = null;
+    if (this.waterAmbienceVoice === voice) this.waterAmbienceVoice = undefined;
+    if (this.releasingWaterAmbienceVoice === voice) {
+      this.releasingWaterAmbienceVoice = undefined;
+    }
+    disconnectWaterAmbienceVoice(voice);
+    if (resync) this.syncWaterAmbience();
   }
 }
 

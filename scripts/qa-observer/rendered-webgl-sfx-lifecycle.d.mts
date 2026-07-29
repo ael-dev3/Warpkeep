@@ -10,6 +10,7 @@ export type RenderedWebglSfxEvidence = Readonly<{
   hiddenSuspended: true;
   hiddenSuppressed: true;
   mutedSuppressed: true;
+  offlineCorpusRendered: true;
   pregestureAbsent: true;
   restoredTrustedResume: true;
   trustedActivation: true;

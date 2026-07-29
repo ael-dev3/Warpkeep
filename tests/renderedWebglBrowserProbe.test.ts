@@ -87,6 +87,7 @@ const EXPECTED_LOCAL_VITE_FS_DENY = Object.freeze([
 
 function renderedWebglSfxSession(options: Readonly<{
   failHiddenEmission?: boolean;
+  failOfflineCorpus?: boolean;
 }> = {}) {
   const snapshot = {
     acceptedLogicalVoiceCount: 0,
@@ -147,6 +148,9 @@ function renderedWebglSfxSession(options: Readonly<{
           snapshot.acceptedLogicalVoiceCount += 1;
           snapshot.activeVoices += 1;
         }
+        break;
+      case 'renderOfflineCorpus':
+        value = !options.failOfflineCorpus;
         break;
       case 'openSettings':
         audioSwitchVisible = true;
@@ -554,6 +558,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       hiddenSuspended: true,
       hiddenSuppressed: true,
       mutedSuppressed: true,
+      offlineCorpusRendered: true,
       pregestureAbsent: true,
       restoredTrustedResume: true,
       trustedActivation: true
@@ -567,6 +572,10 @@ describe('rendered WebGL headless browser probe contract', () => {
       ...evidence,
       eventKind: 'ui-open'
     })).toThrow(/SFX evidence/i);
+    expect(() => parseRenderedWebglSfxEvidence({
+      ...evidence,
+      offlineCorpusRendered: false
+    })).toThrow(/SFX evidence/i);
 
     const source = readFileSync(resolve(
       process.cwd(),
@@ -575,6 +584,10 @@ describe('rendered WebGL headless browser probe contract', () => {
     const lifecycleSource = readFileSync(resolve(
       process.cwd(),
       'scripts/qa-observer/rendered-webgl-sfx-lifecycle.mjs'
+    ), 'utf8');
+    const harnessSource = readFileSync(resolve(
+      process.cwd(),
+      'src/dev/RenderedWebglQaHarness.tsx'
     ), 'utf8');
     expect(source).toContain(
       "const RENDERED_WEBGL_QA_SFX_CASE_ID = 'desktop-balanced-player'"
@@ -594,8 +607,30 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(lifecycleSource).toContain(
       "import('/src/dev/RenderedWebglQaHarness.tsx')"
     );
-    expect(lifecycleSource).toContain(
+    expect(lifecycleSource).not.toContain(
       "import('/src/components/audio/sfxEvents.ts')"
+    );
+    expect(lifecycleSource).toContain('harness.emitRenderedWebglQaProbeSfx()');
+    expect(lifecycleSource).toContain(
+      'harness.proveRenderedWebglQaOfflineSfxCorpus()'
+    );
+    expect(lifecycleSource).not.toContain("kind: 'command-failed'");
+    expect(lifecycleSource).not.toContain('measureWarpkeepAudioBuffer');
+    expect(lifecycleSource).not.toContain('renderWarpkeepSfxEventOffline');
+    expect(lifecycleSource).not.toContain('spectralCentroidHz');
+    expect(harnessSource).toContain('measureWarpkeepAudioBuffer(buffer)');
+    expect(harnessSource).toContain('renderWarpkeepSfxEventOffline(event, 22_050)');
+    expect(harnessSource).toContain(
+      'WARPKEEP_SFX_EVENT_KINDS.every((kind) => renderedKinds.has(kind))'
+    );
+    expect(harnessSource).toContain(
+      "{ kind: 'ui-press', emphasis: 'quiet' }"
+    );
+    expect(harnessSource).toContain(
+      "{ kind: 'ui-press', emphasis: 'primary' }"
+    );
+    expect(harnessSource).toContain(
+      "{ kind: 'select-water', regime: 'ocean', screenX: 400 }"
     );
     expect(lifecycleSource).not.toContain('new MessageChannel()');
     expect(lifecycleSource).not.toContain('const yieldTask =');
@@ -630,6 +665,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       hiddenSuspended: true,
       hiddenSuppressed: true,
       mutedSuppressed: true,
+      offlineCorpusRendered: true,
       pregestureAbsent: true,
       restoredTrustedResume: true,
       trustedActivation: true
@@ -640,7 +676,7 @@ describe('rendered WebGL headless browser probe contract', () => {
     ));
     expect(runtimeEvaluations.filter(([, parameters]) => (
       parameters?.awaitPromise === true
-    ))).toHaveLength(1);
+    ))).toHaveLength(2);
     expect(runtimeEvaluations.every(([, parameters]) => (
       typeof parameters?.expression !== 'string'
       || (
@@ -669,6 +705,19 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(session.snapshot.hidden).toBe(false);
     expect(session.actions).toContain('restoreVisibility');
     expect(session.actions.at(-1)).toBe('destroy');
+  });
+
+  it('tears down before any live gesture when the anonymous offline corpus proof fails', async () => {
+    const session = renderedWebglSfxSession({ failOfflineCorpus: true });
+
+    await expect(applyRenderedWebglSfxInteraction(session)).rejects.toThrow(
+      /offline corpus proof failed/i
+    );
+    expect(session.actions).toContain('renderOfflineCorpus');
+    expect(session.actions.at(-1)).toBe('destroy');
+    expect(session.command.mock.calls.filter(([method]) => (
+      method === 'Input.dispatchMouseEvent'
+    ))).toHaveLength(0);
   });
 
   it('enters the active forest range through deterministic keyboard focus and bounded canvas wheel input', async () => {

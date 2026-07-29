@@ -42,6 +42,7 @@ export function parseRenderedWebglSfxEvidence(value) {
     'hiddenSuspended',
     'hiddenSuppressed',
     'mutedSuppressed',
+    'offlineCorpusRendered',
     'pregestureAbsent',
     'restoredTrustedResume',
     'trustedActivation',
@@ -201,6 +202,19 @@ async function readRenderedWebglSfxBoolean(session, method, phase) {
   return value;
 }
 
+async function readRenderedWebglSfxPromiseBoolean(session, method, phase) {
+  const value = await evaluateRenderedWebglSfxValue(
+    session,
+    renderedWebglSfxBridgeExpression(`bridge.${method}()`),
+    phase,
+    true
+  );
+  if (typeof value !== 'boolean') {
+    throw new Error(`Rendered WebGL SFX ${phase} returned an invalid result.`);
+  }
+  return value;
+}
+
 async function requireRenderedWebglSfxAction(session, method, phase) {
   if (!await readRenderedWebglSfxBoolean(session, method, phase)) {
     throw new Error(`Rendered WebGL SFX ${phase} was unavailable.`);
@@ -224,8 +238,7 @@ async function installRenderedWebglSfxBridge(session) {
     session,
     `Promise.all([
       import('/src/dev/RenderedWebglQaHarness.tsx'),
-      import('/src/components/audio/sfxEvents.ts'),
-    ]).then(([harness, events]) => {
+    ]).then(([harness]) => {
       const bridgeKey = ${JSON.stringify(RENDERED_WEBGL_QA_SFX_BRIDGE_KEY)};
       const previous = globalThis[bridgeKey];
       try {
@@ -250,9 +263,12 @@ async function installRenderedWebglSfxBridge(session) {
       const bridge = Object.freeze({
         snapshot: () => harness.readRenderedWebglQaSfxSnapshot(),
         emitProbeVoice: () => {
-          events.emitWarpkeepSfx({ kind: 'command-failed' });
+          harness.emitRenderedWebglQaProbeSfx();
           return true;
         },
+        renderOfflineCorpus: () => (
+          harness.proveRenderedWebglQaOfflineSfxCorpus()
+        ),
         openSettings: () => {
           const settings = document.querySelector(
             '.realm-profile-menu button[data-command-intent="secondary"]'
@@ -350,11 +366,23 @@ export async function applyRenderedWebglSfxInteraction(session) {
     const pregestureValue = await installRenderedWebglSfxBridge(session);
     bridgeInstalled = true;
     const pregesture = parseRenderedWebglSfxSnapshot(pregestureValue);
+    const offlineCorpusRendered = await readRenderedWebglSfxPromiseBoolean(
+      session,
+      'renderOfflineCorpus',
+      'offline corpus render'
+    );
+    if (!offlineCorpusRendered) {
+      throw new Error('Rendered WebGL SFX offline corpus proof failed.');
+    }
+    const afterOfflineCorpus = await readRenderedWebglSfxSnapshot(session);
     const pregestureAbsent = pregesture.contextCreated === false
       && pregesture.contextState === 'unavailable'
       && pregesture.acceptedLogicalVoiceCount === 0
       && pregesture.hidden === false
-      && pregesture.muted === false;
+      && pregesture.muted === false
+      && afterOfflineCorpus.contextCreated === false
+      && afterOfflineCorpus.contextState === 'unavailable'
+      && afterOfflineCorpus.acceptedLogicalVoiceCount === 0;
 
     await clickRenderedWebglSfxControl(session, '.realm-profile-trigger');
     const activated = await waitForRenderedWebglSfxSnapshot(
@@ -471,6 +499,7 @@ export async function applyRenderedWebglSfxInteraction(session) {
       hiddenSuppressed,
       hiddenSuspended: suspended.contextState === 'suspended',
       mutedSuppressed,
+      offlineCorpusRendered,
       pregestureAbsent,
       restoredTrustedResume: resumed.contextState === 'running',
       trustedActivation: activated.contextState === 'running',

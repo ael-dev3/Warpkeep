@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   ProceduralSfxEngine,
   getWarpkeepSfxRecipe,
-  measureWarpkeepAudioBuffer,
   renderWarpkeepSfxEventOffline
 } from '../src/components/audio/proceduralSfxEngine';
 import {
@@ -409,11 +408,115 @@ describe('ProceduralSfxEngine lifecycle', () => {
       selected: false
     });
     expect(engine.snapshot()).toMatchObject({
-      activeVoices: 0,
+      activeVoices: 1,
       waterAmbienceActive: false,
       waterAmbienceRegime: 'none'
     });
     expect(context.sources[0]?.stops).toEqual([0.08]);
+  });
+
+  it('delays rapid Water ambience restart until the fading physical voice ends', async () => {
+    const context = new FakeAudioContext();
+    const { engine } = createEngine(context);
+    engine.setWaterAmbience({
+      regime: 'river',
+      relevance: 0.7,
+      character: 0.6,
+      selected: false
+    });
+    await engine.activateFromTrustedGesture(true);
+    const firstSource = context.sources[0]!;
+
+    engine.setWaterAmbience({
+      regime: 'none',
+      relevance: 0,
+      character: 0,
+      selected: false
+    });
+    expect(engine.snapshot()).toMatchObject({
+      activeVoices: 1,
+      waterAmbienceActive: false,
+      waterAmbienceRegime: 'none'
+    });
+    engine.setWaterAmbience({
+      regime: 'ocean',
+      relevance: 0.5,
+      character: 0.8,
+      selected: true
+    });
+    expect(context.sources).toHaveLength(1);
+    expect(engine.snapshot()).toMatchObject({
+      activeVoices: 1,
+      waterAmbienceActive: false,
+      waterAmbienceRegime: 'none'
+    });
+
+    firstSource.onended?.();
+    expect(firstSource.disconnected).toBe(true);
+    expect(context.sources).toHaveLength(2);
+    expect(engine.snapshot()).toMatchObject({
+      activeVoices: 1,
+      waterAmbienceActive: true,
+      waterAmbienceRegime: 'ocean'
+    });
+  });
+
+  it('counts a fading Water voice against the cap and cleans it immediately at hard gates', async () => {
+    for (const gate of ['hidden', 'muted', 'dispose'] as const) {
+      const context = new FakeAudioContext();
+      const { engine } = createEngine(context, 1);
+      engine.setWaterAmbience({
+        regime: 'river',
+        relevance: 0.7,
+        character: 0.6,
+        selected: false
+      });
+      await engine.activateFromTrustedGesture(true);
+      const source = context.sources[0]!;
+      engine.setWaterAmbience({
+        regime: 'none',
+        relevance: 0,
+        character: 0,
+        selected: false
+      });
+
+      expect(engine.snapshot().activeVoices).toBe(1);
+      if (gate === 'hidden') engine.setHidden(true);
+      else if (gate === 'muted') engine.setMuted(true);
+      else engine.dispose();
+
+      expect(source.onended).toBeNull();
+      expect(source.disconnected).toBe(true);
+      expect(engine.snapshot()).toMatchObject({
+        activeVoices: 0,
+        waterAmbienceActive: false,
+        waterAmbienceRegime: 'none'
+      });
+    }
+  });
+
+  it('evicts a fading Water voice before accepting a finite voice at the cap', async () => {
+    const context = new FakeAudioContext();
+    const { engine } = createEngine(context, 1);
+    engine.setWaterAmbience({
+      regime: 'river',
+      relevance: 0.7,
+      character: 0.6,
+      selected: false
+    });
+    await engine.activateFromTrustedGesture(true);
+    const ambienceSource = context.sources[0]!;
+    engine.setWaterAmbience({
+      regime: 'none',
+      relevance: 0,
+      character: 0,
+      selected: false
+    });
+
+    expect(engine.emit({ kind: 'ui-open' })).toBe(true);
+    expect(ambienceSource.onended).toBeNull();
+    expect(ambienceSource.disconnected).toBe(true);
+    expect(engine.snapshot().activeVoices).toBe(1);
   });
 
   it('restores only the current Water context after hidden suspension', async () => {
@@ -531,24 +634,11 @@ describe('ProceduralSfxEngine lifecycle', () => {
   });
 });
 
-describe('OfflineAudioContext safety', () => {
-  it('renders and measures every event when the browser provides offline WebAudio', async () => {
-    if (typeof OfflineAudioContext === 'undefined') return;
-
-    for (const kind of WARPKEEP_SFX_EVENT_KINDS) {
-      const buffer = await renderWarpkeepSfxEventOffline(eventForKind(kind), 22_050);
-      expect(buffer).toBeDefined();
-      const metrics = measureWarpkeepAudioBuffer(buffer!);
-      expect(metrics.durationSeconds).toBeLessThan(0.55);
-      expect(metrics.nonFiniteSamples).toBe(0);
-      expect(metrics.peak).toBeLessThan(0.99);
-      expect(metrics.clippedFraction).toBe(0);
-      expect(Math.abs(metrics.dcOffset)).toBeLessThan(0.05);
-      expect(metrics.rms).toBeGreaterThan(0);
-      expect(metrics.tailSilenceSeconds).toBeGreaterThan(0.02);
-      expect(Number.isFinite(metrics.spectralCentroidHz)).toBe(true);
-      expect(metrics.highFrequencyEnergyRatio).toBeGreaterThanOrEqual(0);
-      expect(metrics.highFrequencyEnergyRatio).toBeLessThanOrEqual(1);
-    }
+describe('OfflineAudioContext boundary', () => {
+  it('reports unavailable honestly in the unit runtime without browser offline WebAudio', async () => {
+    expect(globalThis.OfflineAudioContext).toBeUndefined();
+    await expect(
+      renderWarpkeepSfxEventOffline({ kind: 'ui-open' }, 22_050)
+    ).resolves.toBeUndefined();
   });
 });

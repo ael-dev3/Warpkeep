@@ -2,10 +2,16 @@ import { useEffect, useRef, useState } from 'react';
 
 import { WarpkeepSfxDirector } from '../components/audio/WarpkeepSfxDirector';
 import {
+  measureWarpkeepAudioBuffer,
   ProceduralSfxEngine,
+  renderWarpkeepSfxEventOffline,
   type WarpkeepSfxEngineSnapshot
 } from '../components/audio/proceduralSfxEngine';
-import type { WarpkeepSfxEvent } from '../components/audio/sfxEvents';
+import {
+  emitWarpkeepSfx,
+  WARPKEEP_SFX_EVENT_KINDS,
+  type WarpkeepSfxEvent
+} from '../components/audio/sfxEvents';
 import { RealmMapScreen } from '../components/realm/RealmMapScreen';
 import type { RealmQuality } from '../components/realm/realmQuality';
 import type {
@@ -94,6 +100,85 @@ function createRenderedWebglQaSfxEngine() {
 export function readRenderedWebglQaSfxSnapshot():
 RenderedWebglQaSfxSnapshot | null {
   return activeRenderedWebglQaSfxEngine?.qaSnapshot() ?? null;
+}
+
+function renderedWebglQaSfxEventForKind(
+  kind: WarpkeepSfxEvent['kind']
+): WarpkeepSfxEvent {
+  switch (kind) {
+    case 'ui-press':
+      return { kind, emphasis: 'normal' };
+    case 'select-water':
+      return { kind, regime: 'river', screenX: 400 };
+    case 'worker-dispatch-confirmed':
+    case 'worker-recall-confirmed':
+    case 'worker-arrived':
+    case 'worker-returned':
+      return { kind, count: 4, screenX: 400 };
+    case 'select-keep':
+    case 'select-worker':
+    case 'select-gold':
+    case 'select-food':
+    case 'select-wood':
+    case 'select-stone':
+    case 'river-focus-entered':
+      return { kind, screenX: 400 };
+    default:
+      return { kind };
+  }
+}
+
+const RENDERED_WEBGL_QA_OFFLINE_SFX_CORPUS = Object.freeze([
+  ...WARPKEEP_SFX_EVENT_KINDS.map(renderedWebglQaSfxEventForKind),
+  Object.freeze({ kind: 'ui-press', emphasis: 'quiet' } as const),
+  Object.freeze({ kind: 'ui-press', emphasis: 'primary' } as const),
+  Object.freeze({ kind: 'select-water', regime: 'ocean', screenX: 400 } as const)
+] satisfies readonly WarpkeepSfxEvent[]);
+
+function renderedWebglQaOfflineSfxMetricsPass(
+  metrics: ReturnType<typeof measureWarpkeepAudioBuffer>
+) {
+  return metrics.durationSeconds < 0.55
+    && metrics.nonFiniteSamples === 0
+    && metrics.peak < 0.99
+    && metrics.clippedFraction === 0
+    && Math.abs(metrics.dcOffset) < 0.05
+    && metrics.rms > 0
+    && metrics.tailSilenceSeconds > 0.02
+    && Number.isFinite(metrics.spectralCentroidHz)
+    && metrics.highFrequencyEnergyRatio >= 0
+    && metrics.highFrequencyEnergyRatio <= 1;
+}
+
+/**
+ * Renders the complete procedural corpus inside the dev-only browser route.
+ * The caller receives one anonymous pass/fail bit; event payloads, samples,
+ * and measured values remain inside this page.
+ */
+export async function proveRenderedWebglQaOfflineSfxCorpus(): Promise<boolean> {
+  if (typeof OfflineAudioContext === 'undefined') return false;
+  const renderedKinds = new Set<WarpkeepSfxEvent['kind']>();
+  try {
+    for (const event of RENDERED_WEBGL_QA_OFFLINE_SFX_CORPUS) {
+      const buffer = await renderWarpkeepSfxEventOffline(event, 22_050);
+      if (!buffer) return false;
+      renderedKinds.add(event.kind);
+      if (!renderedWebglQaOfflineSfxMetricsPass(
+        measureWarpkeepAudioBuffer(buffer)
+      )) return false;
+    }
+  } catch {
+    return false;
+  }
+  return WARPKEEP_SFX_EVENT_KINDS.every((kind) => renderedKinds.has(kind));
+}
+
+/**
+ * The concrete probe event remains in the dev bundle rather than crossing
+ * the DevTools boundary as an event payload.
+ */
+export function emitRenderedWebglQaProbeSfx() {
+  emitWarpkeepSfx({ kind: 'command-failed' });
 }
 
 export type RenderedWebglQaHarnessProps = Readonly<{
