@@ -214,6 +214,7 @@ export function resolveRealmContinuityIdentity(
 export function WarpkeepExperience() {
   const {
     state: farcasterAuthState,
+    restoreSession: restoreFarcasterSession,
     beginSignIn: beginFarcasterSignIn,
     cancelSignIn: cancelFarcasterSignIn,
     retrySignIn: retryFarcasterSignIn,
@@ -958,7 +959,13 @@ export function WarpkeepExperience() {
 
     if (experience.phase === 'menu') {
       if (hasRealmHash()) {
-        gateAnonymousRealmRoute();
+        // A restored authorized session can finish its server checks in an
+        // effect. commitRealmEntry has already written #realm, while React has
+        // not yet reduced request-realm. Preserve that exact explicit intent
+        // for the next render instead of mistaking it for a forged deep link.
+        if (pendingDestination !== 'realm') {
+          gateAnonymousRealmRoute();
+        }
       } else if (!hasMenuHash() && !hasRealmHash()) {
         entryLockedRef.current = false;
         beginTitleTransition('none');
@@ -979,6 +986,7 @@ export function WarpkeepExperience() {
     beginTitleTransition,
     experience.phase,
     gateAnonymousRealmRoute,
+    pendingDestination,
     returnPreparing,
     titleReady
   ]);
@@ -1193,6 +1201,7 @@ export function WarpkeepExperience() {
             focusFirstCommand={menuInteractive && inputModality === 'keyboard'}
             authRailAttemptFailed={admissionPhase === 'denied' || admissionPhase === 'error'}
             entryAgreementSatisfied={backend.entryAgreementSatisfied}
+            entryAgreementRequired={admissionPhase === 'awaiting-terms'}
             backendUnavailableMessage={backend.sharedAlphaAvailable
               ? undefined
               : WARPKEEP_SHARED_ALPHA_UNAVAILABLE_MESSAGE}
@@ -1202,6 +1211,7 @@ export function WarpkeepExperience() {
             onRequestAuthenticatedRealm={beginRealmEntry}
             onRequestAuthRailCheck={backend.checkAgain}
             onRequestFarcasterSignIn={beginFarcasterSignIn}
+            onRestoreFarcasterSession={restoreFarcasterSession}
             onPrepareFarcasterQrCode={prepareFarcasterQrCode}
             onRefreshFarcasterSession={refreshFarcasterSession}
             onRequestReturn={handleExplicitReturn}

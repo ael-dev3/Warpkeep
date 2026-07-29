@@ -95,6 +95,7 @@ describe('player SpacetimeDB bindings', () => {
     expect(playerBindings).toContain("'dispatch_stone_expedition_v1'")
     expect(playerBindings).toContain("'get_alpha_backend_info'")
     expect(playerBindings).toContain("'get_my_admission_status_v2'")
+    expect(playerBindings).toContain("'get_my_entry_agreement_status_v1'")
     expect(playerBindings).toContain("'get_my_food_expedition_state_v1'")
     expect(playerBindings).toContain("'get_my_gold_expedition_state_v1'")
     expect(playerBindings).toContain("'get_my_wood_expedition_state_v1'")
@@ -171,6 +172,7 @@ describe('player SpacetimeDB bindings', () => {
     expect(Object.keys(connection.procedures).sort()).toEqual([
       'getAlphaBackendInfo',
       'getMyAdmissionStatusV2',
+      'getMyEntryAgreementStatusV1',
       'getMyFoodExpeditionStateV1',
       'getMyGoldExpeditionStateV1',
       'getMyResourceStateV1',

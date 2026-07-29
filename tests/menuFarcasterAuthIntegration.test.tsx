@@ -120,6 +120,8 @@ function menu(
     rememberDevice?: boolean;
     backendUnavailableMessage?: string;
     entryAgreementSatisfied?: boolean;
+    entryAgreementRequired?: boolean;
+    restoreSession?: () => Promise<boolean>;
   } = {}
 ) {
   return (
@@ -127,6 +129,7 @@ function menu(
       active
       authState={authState}
       backendUnavailableMessage={options.backendUnavailableMessage}
+      entryAgreementRequired={options.entryAgreementRequired}
       entryAgreementSatisfied={options.entryAgreementSatisfied}
       inputModality={inputModality}
       openFarcasterAuthPanel={openFarcasterAuthPanel}
@@ -136,6 +139,7 @@ function menu(
       onPrepareFarcasterQrCode={callbacks.prepareQrCode}
       onRefreshFarcasterSession={callbacks.refreshSession}
       onRequestReturn={callbacks.returnToTitle}
+      onRestoreFarcasterSession={options.restoreSession}
       onRetryFarcasterSignIn={callbacks.retry}
       onRememberDeviceChange={callbacks.rememberDeviceChange}
       onSignOut={callbacks.signOut}
@@ -253,6 +257,251 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(screen.queryByRole('region', { name: 'Farcaster sign-in' })).toBeNull();
     expect(screen.queryByRole('img', { name: 'Sign in with Farcaster QR code' })).toBeNull();
     expect(screen.queryByRole('link', { name: 'OPEN IN FARCASTER' })).toBeNull();
+    expect(screen.getByRole('navigation', { name: 'Hegemony main menu' })).not.toBeNull();
+  });
+
+  it('shows a pending cold-session restore without any authentication side effects', () => {
+    const callbacks = createMenuCallbacks();
+    const restoreSession = vi.fn(() => new Promise<boolean>(() => undefined));
+    render(menu(callbacks, anonymousState, 'unknown', false, { restoreSession }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+
+    expect(restoreSession).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('region', { name: 'Farcaster sign-in' })).not.toBeNull();
+    expect(screen.getByRole('status').textContent).toBe('Checking your saved session');
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
+    expect(callbacks.begin).not.toHaveBeenCalled();
+    expect(callbacks.cancel).not.toHaveBeenCalled();
+    expect(callbacks.retry).not.toHaveBeenCalled();
+    expect(callbacks.prepareQrCode).not.toHaveBeenCalled();
+    expect(callbacks.refreshSession).not.toHaveBeenCalled();
+    expect(callbacks.enterRealm).not.toHaveBeenCalled();
+  });
+
+  it('opens fresh unchecked Terms after a cold-session miss, then follows normal sign-in', async () => {
+    const callbacks = createMenuCallbacks();
+    const restoreSession = vi.fn(async () => false);
+    render(menu(callbacks, anonymousState, 'unknown', false, { restoreSession }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
+    const checkbox = within(dialog).getByRole('checkbox', {
+      name: 'I agree to the Alpha Terms and Hegemony Social Contract.'
+    });
+    expect((checkbox as HTMLInputElement).checked).toBe(false);
+    expect((within(dialog).getByRole('button', {
+      name: 'CONTINUE TO SIGN-IN'
+    }) as HTMLButtonElement).disabled).toBe(true);
+    expect(restoreSession).toHaveBeenCalledTimes(1);
+    expect(callbacks.begin).not.toHaveBeenCalled();
+    expect(callbacks.prepareQrCode).not.toHaveBeenCalled();
+
+    acceptAlphaTerms();
+    await settleDeferredPresentation();
+
+    expect(callbacks.begin).toHaveBeenCalledTimes(1);
+    expect(callbacks.prepareQrCode).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
+    expect(screen.getByRole('region', { name: 'Farcaster sign-in' })).not.toBeNull();
+  });
+
+  it('enters without Terms when cold restore finds authenticated current agreement', async () => {
+    const callbacks = createMenuCallbacks();
+    let resolveRestore!: (restored: boolean) => void;
+    const restoreSession = vi.fn(() => new Promise<boolean>((resolve) => {
+      resolveRestore = resolve;
+    }));
+    const rendered = render(menu(
+      callbacks,
+      anonymousState,
+      'unknown',
+      false,
+      { restoreSession }
+    ));
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await act(async () => {
+      resolveRestore(true);
+      await Promise.resolve();
+    });
+    rendered.rerender(menu(
+      callbacks,
+      authenticatedState,
+      'unknown',
+      false,
+      { entryAgreementSatisfied: true, restoreSession }
+    ));
+
+    await waitFor(() => expect(callbacks.enterRealm).toHaveBeenCalledTimes(1));
+    expect(callbacks.enterRealm).toHaveBeenCalledWith(identity);
+    expect(restoreSession).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
+    expect(callbacks.begin).not.toHaveBeenCalled();
+    expect(callbacks.cancel).not.toHaveBeenCalled();
+    expect(callbacks.retry).not.toHaveBeenCalled();
+    expect(callbacks.prepareQrCode).not.toHaveBeenCalled();
+    expect(callbacks.refreshSession).not.toHaveBeenCalled();
+  });
+
+  it('opens fresh Terms when cold restore finds authenticated missing agreement', async () => {
+    const callbacks = createMenuCallbacks();
+    let resolveRestore!: (restored: boolean) => void;
+    const restoreSession = vi.fn(() => new Promise<boolean>((resolve) => {
+      resolveRestore = resolve;
+    }));
+    const rendered = render(menu(
+      callbacks,
+      anonymousState,
+      'unknown',
+      false,
+      { restoreSession }
+    ));
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await act(async () => {
+      resolveRestore(true);
+      await Promise.resolve();
+    });
+    rendered.rerender(menu(
+      callbacks,
+      authenticatedState,
+      'unknown',
+      false,
+      { entryAgreementRequired: true, restoreSession }
+    ));
+
+    const dialog = await screen.findByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
+    expect((within(dialog).getByRole('checkbox', {
+      name: 'I agree to the Alpha Terms and Hegemony Social Contract.'
+    }) as HTMLInputElement).checked).toBe(false);
+    expect((within(dialog).getByRole('button', {
+      name: 'CONTINUE TO REALM'
+    }) as HTMLButtonElement).disabled).toBe(true);
+    expect(callbacks.enterRealm).not.toHaveBeenCalled();
+    expect(callbacks.begin).not.toHaveBeenCalled();
+
+    acceptAlphaTerms();
+
+    expect(callbacks.enterRealm).toHaveBeenCalledTimes(1);
+    expect(callbacks.enterRealm).toHaveBeenCalledWith(identity);
+    expect(callbacks.begin).not.toHaveBeenCalled();
+    expect(restoreSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('requires fresh Terms before revealing a restored pending-admission session', async () => {
+    const callbacks = createMenuCallbacks();
+    let resolveRestore!: (restored: boolean) => void;
+    const restoreSession = vi.fn(() => new Promise<boolean>((resolve) => {
+      resolveRestore = resolve;
+    }));
+    const rendered = render(menu(
+      callbacks,
+      anonymousState,
+      'unknown',
+      false,
+      { restoreSession }
+    ));
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await act(async () => {
+      resolveRestore(true);
+      await Promise.resolve();
+    });
+    rendered.rerender(menu(
+      callbacks,
+      pendingAdmissionState,
+      'unknown',
+      false,
+      { restoreSession }
+    ));
+
+    const dialog = await screen.findByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
+    expect((within(dialog).getByRole('checkbox', {
+      name: 'I agree to the Alpha Terms and Hegemony Social Contract.'
+    }) as HTMLInputElement).checked).toBe(false);
+    expect(screen.queryByText(/admission is still pending/i)).toBeNull();
+    expect(callbacks.begin).not.toHaveBeenCalled();
+    expect(callbacks.enterRealm).not.toHaveBeenCalled();
+
+    acceptAlphaTerms();
+    await settleDeferredPresentation();
+
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
+    expect(screen.getByRole('region', { name: 'Farcaster sign-in' })).not.toBeNull();
+    expect(callbacks.begin).not.toHaveBeenCalled();
+    expect(callbacks.enterRealm).not.toHaveBeenCalled();
+  });
+
+  it('cancels an in-flight cold restore before returning to the title', async () => {
+    const callbacks = createMenuCallbacks();
+    let resolveRestore!: (restored: boolean) => void;
+    const restoreSession = vi.fn(() => new Promise<boolean>((resolve) => {
+      resolveRestore = resolve;
+    }));
+    render(menu(callbacks, anonymousState, 'unknown', false, { restoreSession }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Return to Title' }));
+
+    expect(callbacks.cancel).toHaveBeenCalledTimes(1);
+    expect(callbacks.returnToTitle).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveRestore(false);
+      await Promise.resolve();
+    });
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
+    expect(callbacks.begin).not.toHaveBeenCalled();
+  });
+
+  it('cancels an in-flight cold restore when the menu unmounts', async () => {
+    const callbacks = createMenuCallbacks();
+    const restoreSession = vi.fn(() => new Promise<boolean>(() => undefined));
+    const rendered = render(menu(
+      callbacks,
+      anonymousState,
+      'unknown',
+      false,
+      { restoreSession }
+    ));
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    rendered.unmount();
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(callbacks.cancel).toHaveBeenCalledTimes(1);
+    expect(callbacks.begin).not.toHaveBeenCalled();
+  });
+
+  it('invalidates a late cold-session result after cancelling the pending restore', async () => {
+    const callbacks = createMenuCallbacks();
+    let resolveRestore!: (restored: boolean) => void;
+    const restoreSession = vi.fn(() => new Promise<boolean>((resolve) => {
+      resolveRestore = resolve;
+    }));
+    render(menu(callbacks, anonymousState, 'unknown', false, { restoreSession }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    expect(screen.getByRole('status').textContent).toBe('Checking your saved session');
+    fireEvent.click(screen.getByRole('button', { name: 'CANCEL' }));
+
+    await act(async () => {
+      resolveRestore(false);
+      await Promise.resolve();
+    });
+
+    expect(restoreSession).toHaveBeenCalledTimes(1);
+    expect(callbacks.cancel).toHaveBeenCalledTimes(1);
+    expect(callbacks.begin).not.toHaveBeenCalled();
+    expect(callbacks.prepareQrCode).not.toHaveBeenCalled();
+    expect(callbacks.refreshSession).not.toHaveBeenCalled();
+    expect(callbacks.enterRealm).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Farcaster sign-in' })).toBeNull();
     expect(screen.getByRole('navigation', { name: 'Hegemony main menu' })).not.toBeNull();
   });
 

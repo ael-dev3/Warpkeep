@@ -274,6 +274,7 @@ function createBackendRuntime(
       admissionSequence.length - 1
     )]!),
     bootstrapPlayer: vi.fn(async () => undefined),
+    readEntryAgreementStatus: vi.fn(async () => false),
     acceptAlphaTerms: vi.fn(async () => undefined),
     readResourceState: vi.fn(async (_candidate, fid: number) => (
       createReadyResourceState(fid)
@@ -356,7 +357,14 @@ async function settle() {
   });
 }
 
+async function openAlphaParticipationTerms() {
+  fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+  await settle();
+  return screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
+}
+
 async function acceptAlphaParticipationTerms() {
+  await settle();
   const dialog = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
   const terms = within(dialog);
   const checkbox = terms.getByRole('checkbox', {
@@ -453,9 +461,8 @@ describe('Warpkeep shared realm admission', () => {
       encodeQrCode
     } = renderExperience({ runtime: backend.runtime });
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
-    expect(screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).not.toBeNull();
-    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    expect(await openAlphaParticipationTerms()).not.toBeNull();
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
     expect(bridge.createChallenge).not.toHaveBeenCalled();
     expect(createBrowserBinding).not.toHaveBeenCalled();
     expect(authority.beginSignIn).not.toHaveBeenCalled();
@@ -471,7 +478,7 @@ describe('Warpkeep shared realm admission', () => {
     await act(async () => vi.advanceTimersByTime(1));
     await settle();
 
-    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(2);
     expect(bridge.createChallenge).toHaveBeenCalledTimes(1);
     expect(createBrowserBinding).toHaveBeenCalledTimes(1);
     expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
@@ -556,13 +563,12 @@ describe('Warpkeep shared realm admission', () => {
       encodeQrCode
     } = renderExperience({ runtime: backend.runtime });
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
-    const dialog = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
+    const dialog = await openAlphaParticipationTerms();
     fireEvent.click(within(dialog).getByRole('button', { name: 'CANCEL' }));
     await settle();
 
     expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
-    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
     expect(bridge.createChallenge).not.toHaveBeenCalled();
     expect(createBrowserBinding).not.toHaveBeenCalled();
     expect(authority.beginSignIn).not.toHaveBeenCalled();
@@ -572,8 +578,7 @@ describe('Warpkeep shared realm admission', () => {
     expect(backend.runtime.readAdmission).not.toHaveBeenCalled();
     expect(backend.runtime.acceptAlphaTerms).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
-    const freshDialog = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
+    const freshDialog = await openAlphaParticipationTerms();
     expect((within(freshDialog).getByRole('checkbox') as HTMLInputElement).checked).toBe(false);
     expect((within(freshDialog).getByRole('button', {
       name: 'CONTINUE TO SIGN-IN'
@@ -584,14 +589,13 @@ describe('Warpkeep shared realm admission', () => {
     const backend = createBackendRuntime();
     const { authority, bridge, encodeQrCode } = renderExperience({ runtime: backend.runtime });
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
-    const dialog = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
+    const dialog = await openAlphaParticipationTerms();
     fireEvent.click(within(dialog).getByRole('checkbox'));
     fireEvent.keyDown(document, { key: 'Escape' });
     await settle();
 
     expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
-    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
     expect(bridge.createChallenge).not.toHaveBeenCalled();
     expect(authority.beginSignIn).not.toHaveBeenCalled();
     expect(encodeQrCode).not.toHaveBeenCalled();
@@ -599,8 +603,7 @@ describe('Warpkeep shared realm admission', () => {
     expect(backend.runtime.readBackendInfo).not.toHaveBeenCalled();
     expect(backend.runtime.readAdmission).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
-    const freshDialog = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
+    const freshDialog = await openAlphaParticipationTerms();
     expect((within(freshDialog).getByRole('checkbox') as HTMLInputElement).checked).toBe(false);
   });
 
@@ -613,8 +616,7 @@ describe('Warpkeep shared realm admission', () => {
       encodeQrCode
     } = renderExperience({ runtime: backend.runtime });
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
-    const dialog = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
+    const dialog = await openAlphaParticipationTerms();
     fireEvent.click(within(dialog).getByRole('checkbox'));
 
     act(() => {
@@ -624,7 +626,7 @@ describe('Warpkeep shared realm admission', () => {
     await settle();
 
     expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
-    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
     expect(bridge.createChallenge).not.toHaveBeenCalled();
     expect(createBrowserBinding).not.toHaveBeenCalled();
     expect(authority.beginSignIn).not.toHaveBeenCalled();
@@ -638,8 +640,7 @@ describe('Warpkeep shared realm admission', () => {
       window.dispatchEvent(new PopStateEvent('popstate'));
     });
     await settle();
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
-    const freshDialog = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
+    const freshDialog = await openAlphaParticipationTerms();
     expect((within(freshDialog).getByRole('checkbox') as HTMLInputElement).checked).toBe(false);
   });
 
@@ -655,8 +656,7 @@ describe('Warpkeep shared realm admission', () => {
       runtime: backend.runtime
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
-    const dialog = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
+    const dialog = await openAlphaParticipationTerms();
     fireEvent.click(within(dialog).getByRole('checkbox'));
     fireEvent(window, new StorageEvent('storage', {
       key: getFarcasterDeviceSessionControlKey('/'),
@@ -664,7 +664,7 @@ describe('Warpkeep shared realm admission', () => {
     }));
     await settle();
 
-    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
     expect(bridge.createChallenge).not.toHaveBeenCalled();
     expect(first.authority.beginSignIn).not.toHaveBeenCalled();
     expect(first.encodeQrCode).not.toHaveBeenCalled();
@@ -674,7 +674,7 @@ describe('Warpkeep shared realm admission', () => {
 
     first.unmount();
     await settle();
-    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
     expect(bridge.createChallenge).not.toHaveBeenCalled();
 
     const second = renderExperience({
@@ -683,14 +683,13 @@ describe('Warpkeep shared realm admission', () => {
       now: environment.now,
       runtime: backend.runtime
     });
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
-    const freshDialog = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
+    const freshDialog = await openAlphaParticipationTerms();
     expect((within(freshDialog).getByRole('checkbox') as HTMLInputElement).checked).toBe(false);
     expect((within(freshDialog).getByRole('button', {
       name: 'CONTINUE TO SIGN-IN'
     }) as HTMLButtonElement).disabled).toBe(true);
     expect(second.authority.beginSignIn).not.toHaveBeenCalled();
-    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(2);
     expect(backend.runtime.connect).not.toHaveBeenCalled();
     expect(backend.runtime.readBackendInfo).not.toHaveBeenCalled();
     expect(backend.runtime.readAdmission).not.toHaveBeenCalled();
@@ -752,7 +751,7 @@ describe('Warpkeep shared realm admission', () => {
     expect(JSON.stringify(diagnostic.mock.calls)).not.toContain('controlled terms failure');
   });
 
-  it('waits for explicit terms acceptance before restoring a valid cookie session on mount or focus', async () => {
+  it('restores a valid cookie only after Enter Realm and reuses authoritative current Terms', async () => {
     const storage = new TestDeviceStorage();
     const environment = createDeviceSessionEnvironment(storage);
     const refreshedSession = createAuthorizedResponse(VERIFIED_IDENTITY.fid, TEST_NOW);
@@ -762,6 +761,7 @@ describe('Warpkeep shared realm admission', () => {
       refreshedSession
     );
     const backend = createBackendRuntime();
+    vi.mocked(backend.runtime.readEntryAgreementStatus!).mockResolvedValue(true);
     const { authority, createBrowserBinding, encodeQrCode } = renderExperience({
       bridge,
       deviceSessionEnvironment: environment,
@@ -784,22 +784,48 @@ describe('Warpkeep shared realm admission', () => {
     expect(backend.runtime.readAdmission).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
-    expect(screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).not.toBeNull();
-    expect(bridge.refreshSession).not.toHaveBeenCalled();
-    expect(backend.runtime.connect).not.toHaveBeenCalled();
+    await settle();
+    await act(async () => vi.advanceTimersByTime(1));
+    await settle();
 
-    await acceptAlphaParticipationTerms();
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
     expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
     expect(authority.beginSignIn).not.toHaveBeenCalled();
     expect(bridge.createChallenge).not.toHaveBeenCalled();
     expect(createBrowserBinding).not.toHaveBeenCalled();
     expect(encodeQrCode).not.toHaveBeenCalled();
     expect(backend.runtime.connect).toHaveBeenCalledTimes(1);
-
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
-    await settle();
+    expect(backend.runtime.readEntryAgreementStatus).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.acceptAlphaTerms).not.toHaveBeenCalled();
     expectPlayerRealmChrome();
     expect(window.location.hash).toBe('#realm');
+  });
+
+  it('restores a valid cookie but still requires unchecked Terms when authority says current acceptance is absent', async () => {
+    const refreshedSession = createAuthorizedResponse(VERIFIED_IDENTITY.fid, TEST_NOW);
+    const bridge = createBridge(
+      createAuthorizedResponse(VERIFIED_IDENTITY.fid, TEST_NOW),
+      () => TEST_NOW,
+      refreshedSession
+    );
+    const backend = createBackendRuntime();
+    renderExperience({ bridge, runtime: backend.runtime });
+
+    const dialog = await openAlphaParticipationTerms();
+    expect((within(dialog).getByRole('checkbox') as HTMLInputElement).checked).toBe(false);
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.connect).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.readEntryAgreementStatus).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.acceptAlphaTerms).not.toHaveBeenCalled();
+    expectPlayerRealmChromeAbsent();
+
+    await acceptAlphaParticipationTerms();
+    await act(async () => vi.advanceTimersByTime(1));
+    await settle();
+
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.acceptAlphaTerms).toHaveBeenCalledTimes(1);
+    expectPlayerRealmChrome();
   });
 
   it('disconnects Spacetime exactly when an access token expires while refresh is still pending', async () => {
@@ -869,8 +895,6 @@ describe('Warpkeep shared realm admission', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
     await acceptAlphaParticipationTerms();
-    await settle();
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
     await settle();
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
     const retainedRealmMain = screen.getByRole('main', { name: 'Hegemony realm' });
@@ -946,7 +970,6 @@ describe('Warpkeep shared realm admission', () => {
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
     await acceptAlphaParticipationTerms();
     await settle();
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
 
     await act(async () => vi.advanceTimersByTime(10_000));
     await settle();
@@ -1001,7 +1024,7 @@ describe('Warpkeep shared realm admission', () => {
     expectPlayerRealmChromeAbsent();
   });
 
-  it('never opens a Spacetime connection for a v2 pending-admission cookie session', async () => {
+  it('requires fresh Terms but never opens Spacetime for a pending-admission cookie session', async () => {
     const pendingSession = createPendingAdmissionResponse();
     const bridge = createBridge(
       createAuthorizedResponse(),
@@ -1015,15 +1038,22 @@ describe('Warpkeep shared realm admission', () => {
 
     expect(bridge.refreshSession).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
-    expect(screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).not.toBeNull();
-    expect(bridge.refreshSession).not.toHaveBeenCalled();
-    await acceptAlphaParticipationTerms();
+    await settle();
 
     expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
+    const dialog = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
+    expect((within(dialog).getByRole('checkbox', {
+      name: 'I agree to the Alpha Terms and Hegemony Social Contract.'
+    }) as HTMLInputElement).checked).toBe(false);
     expect(authority.beginSignIn).not.toHaveBeenCalled();
     expect(backend.runtime.connect).not.toHaveBeenCalled();
     expect(backend.runtime.readBackendInfo).not.toHaveBeenCalled();
     expect(backend.runtime.readAdmission).not.toHaveBeenCalled();
+    expect(screen.queryByRole('main', { name: 'Hegemony realm' })).toBeNull();
+
+    await acceptAlphaParticipationTerms();
+
+    expect(backend.runtime.connect).not.toHaveBeenCalled();
     expect(screen.queryByRole('main', { name: 'Hegemony realm' })).toBeNull();
     expect(screen.getByText(
       'Your Farcaster identity is verified. Admission to the Hegemony frontier is still pending.'
@@ -1234,8 +1264,7 @@ describe('Warpkeep shared realm admission', () => {
     expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
     expect(window.localStorage.getItem(getFarcasterDeviceSessionStorageKey('/')!)).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
-    expect(screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).not.toBeNull();
+    expect(await openAlphaParticipationTerms()).not.toBeNull();
     expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
     expect(backend.runtime.connect).toHaveBeenCalledTimes(1);
     await acceptAlphaParticipationTerms();

@@ -780,6 +780,17 @@ async function seedLocalRealm(server, privateKey, moduleDigest) {
     ENTRY_AGREEMENT_VERSION,
     true,
   ]));
+  const currentEntryAgreement = JSON.parse(
+    await callPlayer('get_my_entry_agreement_status_v1')
+  );
+  if (
+    !Array.isArray(currentEntryAgreement)
+    || currentEntryAgreement.length !== 2
+    || currentEntryAgreement[0] !== ENTRY_AGREEMENT_VERSION
+    || currentEntryAgreement[1] !== true
+  ) {
+    fail('Disposable founder did not retain exact-current entry agreement authority.');
+  }
   const readyAdmission = JSON.parse(
     await callPlayer('get_my_admission_status_v2')
   );
@@ -908,6 +919,8 @@ async function seedLocalRealm(server, privateKey, moduleDigest) {
     seedAttestation: Object.freeze({
       castleCount: Number(active.expectedCastleCount),
       workerCount: Number(active.actualWorkerCount),
+      entryAgreementAcceptedCurrent: currentEntryAgreement[1],
+      entryAgreementRequiredVersion: currentEntryAgreement[0],
       genericAssignments: Number(active.genericAssignments),
       genericOccupations: Number(active.genericOccupations),
       genericSchedules: Number(active.genericSchedules),

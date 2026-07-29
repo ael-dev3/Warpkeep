@@ -3,8 +3,12 @@ import { SenderError, t } from 'spacetimedb/server';
 import type { WarpkeepJwtClaims } from '../claims';
 import { evaluateAdmissionEpoch } from '../admissionPolicy';
 import { requireAdmittedPlayer, requireAllowedFid, requireWarpkeepJwt } from '../auth';
+import {
+  EntryAgreementStatusConflictError,
+  readCurrentEntryAgreementStatusV1,
+  WARPKEEP_ALPHA_TERMS_VERSION,
+} from '../entryAgreementPolicy';
 import { assertGenesisFounderForFid } from '../foundingAuthority';
-import { WARPKEEP_ALPHA_TERMS_VERSION } from '../entryAgreementPolicy';
 import { evaluatePlayerOwnership } from '../playerOwnershipPolicy';
 import warpkeep from '../schema';
 
@@ -13,6 +17,11 @@ export type AdmissionStatus =
   | 'admitted_needs_bootstrap'
   | 'ready'
   | 'disabled';
+
+const myEntryAgreementStatusV1 = t.object('MyEntryAgreementStatusV1', {
+  requiredVersion: t.string(),
+  acceptedCurrent: t.bool(),
+});
 
 function admissionStatusV2(ctx: Parameters<typeof requireWarpkeepJwt>[0]): AdmissionStatus {
   const claims = requireWarpkeepJwt(ctx);
@@ -52,6 +61,30 @@ export const getMyAdmissionStatusV2 = warpkeep.procedure(
   { name: 'get_my_admission_status_v2' },
   t.string(),
   ctx => ctx.withTx(tx => admissionStatusV2(tx)),
+);
+
+/**
+ * Caller-only current-version evidence. The browser supplies neither an FID
+ * nor a version, and receives no acceptance time or historical record.
+ */
+export const getMyEntryAgreementStatusV1 = warpkeep.procedure(
+  { name: 'get_my_entry_agreement_status_v1' },
+  myEntryAgreementStatusV1,
+  ctx => ctx.withTx(tx => {
+    try {
+      return readCurrentEntryAgreementStatusV1(
+        () => requireAdmittedPlayer(tx).claims.fid,
+        acceptanceKey => (
+          tx.db.alphaTermsAcceptanceV1.acceptanceKey.find(acceptanceKey)
+        ),
+      );
+    } catch (error) {
+      if (error instanceof EntryAgreementStatusConflictError) {
+        throw new SenderError('ALPHA_TERMS_ACCEPTANCE_CONFLICT');
+      }
+      throw error;
+    }
+  }),
 );
 
 function assertExistingPlayerV2Consistency(

@@ -1523,6 +1523,18 @@ describe('activation publish safety', () => {
       })) as never,
     )).toEqual(alreadyPublished);
 
+    expect(verifyPostPublishProductionV12ModuleSchema(
+      'spacetime',
+      alreadyPublished,
+      digest,
+      (() => ({
+        status: 0,
+        signal: null,
+        stdout: JSON.stringify(candidate),
+        stderr: '',
+      })) as never,
+    )).toEqual(alreadyPublished);
+
     const tableDrift = structuredClone(candidate);
     tableDrift.tables.find(table => table.name === 'castle')!.indexes[0] = {
       name: 'changed_after_capture',

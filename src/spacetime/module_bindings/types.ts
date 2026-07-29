@@ -568,6 +568,12 @@ export const MarkAccountV1 = __t.object("MarkAccountV1", {
 });
 export type MarkAccountV1 = __Infer<typeof MarkAccountV1>;
 
+export const MyEntryAgreementStatusV1 = __t.object("MyEntryAgreementStatusV1", {
+  requiredVersion: __t.string(),
+  acceptedCurrent: __t.bool(),
+});
+export type MyEntryAgreementStatusV1 = __Infer<typeof MyEntryAgreementStatusV1>;
+
 export const MyFoodExpeditionStateV1 = __t.object("MyFoodExpeditionStateV1", {
   active: __t.bool(),
   expeditionId: __t.option(__t.string()),

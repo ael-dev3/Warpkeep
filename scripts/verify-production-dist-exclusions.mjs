@@ -62,6 +62,7 @@ const forbiddenContent = Object.freeze([
   'fullstackLocalQaMain',
   'virtual:warpkeep-local-fullstack-bootstrap',
   'data-local-fullstack-',
+  'entry-agreement-continuity=',
   'persistent-worker-reentry=',
   'worker-private-seams=',
   'LOCAL_QA_CHANNEL_NOT_A_REAL_PROOF',

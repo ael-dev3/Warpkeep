@@ -29,6 +29,7 @@ import {
   observeWarpkeepRealm,
   readWarpkeepBackendInfo,
   readWarpkeepAdmissionStatus,
+  readWarpkeepEntryAgreementStatus,
   readWarpkeepGoldExpeditionState,
   readWarpkeepFoodExpeditionState,
   readWarpkeepWoodExpeditionState,
@@ -188,9 +189,9 @@ export type WarpkeepBackendControllerValue = Readonly<{
   /** True only when the explicit kill switch and all public bridge values are valid. */
   sharedAlphaAvailable: boolean;
   /**
-   * True only after this provider lifetime has recorded the current entry
-   * agreement for the same verified FID. This is memory-only UX evidence for
-   * repeat entry; it is never browser-stored or accepted as backend authority.
+   * True only after this provider lifetime either recorded or authoritatively
+   * confirmed the current agreement for the same verified FID. This remains
+   * memory-only presentation evidence; browser storage is never authority.
    */
   entryAgreementSatisfied: boolean;
   /** Recheck admission with the current, still-valid bridge session. */
@@ -249,6 +250,7 @@ export type WarpkeepBackendRuntime = Readonly<{
   readBackendInfo: typeof readWarpkeepBackendInfo;
   readAdmission: typeof readWarpkeepAdmissionStatus;
   bootstrapPlayer: typeof bootstrapWarpkeepPlayer;
+  readEntryAgreementStatus?: typeof readWarpkeepEntryAgreementStatus;
   acceptAlphaTerms: typeof acceptWarpkeepAlphaTerms;
   readResourceState: typeof readWarpkeepResourceState;
   collectResources: typeof collectWarpkeepResources;
@@ -295,6 +297,7 @@ export const DEFAULT_WARPKEEP_BACKEND_RUNTIME: WarpkeepBackendRuntime = Object.f
   readBackendInfo: readWarpkeepBackendInfo,
   readAdmission: readWarpkeepAdmissionStatus,
   bootstrapPlayer: bootstrapWarpkeepPlayer,
+  readEntryAgreementStatus: readWarpkeepEntryAgreementStatus,
   acceptAlphaTerms: acceptWarpkeepAlphaTerms,
   readResourceState: readWarpkeepResourceState,
   collectResources: collectWarpkeepResources,
@@ -3600,6 +3603,19 @@ export function WarpkeepSpacetimeProvider({
             if (realmActivationPromise === activation) realmActivationPromise = undefined;
           });
         };
+
+        stage = 'entry_agreement_status';
+        const acceptedCurrentAgreement = runtime.readEntryAgreementStatus
+          ? await withBackendStageOperationDeadline(
+              runtime.readEntryAgreementStatus(activeConnection)
+            )
+          : undefined;
+        if (!current()) return;
+        if (acceptedCurrentAgreement === true) {
+          setAcceptedEntryAgreementFid(identity.fid);
+          activateRealm();
+          return;
+        }
 
         stage = 'terms_acknowledgement';
         const acceptedNow = await acknowledgePendingTerms(activeConnection);

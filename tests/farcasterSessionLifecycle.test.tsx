@@ -284,6 +284,14 @@ function AuthHarness({ duplicateBegin = false }: { duplicateBegin?: boolean }) {
       <button onClick={auth.cancelSignIn} type="button">Cancel</button>
       <button onClick={auth.retrySignIn} type="button">Retry</button>
       <button onClick={auth.prepareQrCode} type="button">Prepare QR</button>
+      <button
+        onClick={() => {
+          void auth.restoreSession();
+        }}
+        type="button"
+      >
+        Restore session
+      </button>
       <button onClick={auth.refreshSession} type="button">Refresh session</button>
       <button onClick={auth.signOut} type="button">Sign out</button>
       <button
@@ -485,6 +493,163 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     });
     rendered.unmount();
     expect(challengeOptions?.signal?.aborted).toBe(true);
+  });
+
+  it('restores an existing cookie session only after an explicit anonymous request', async () => {
+    const authority = createAuthority({
+      beginSignIn: vi.fn(async () => createChannel('MUST_NOT_BEGIN'))
+    });
+    const bridge = createBridge({
+      refreshSession: vi.fn(async () => createAuthorizedResponse())
+    });
+    const createBrowserBinding = vi.fn(async () => ({
+      verifier: BINDING_VERIFIER,
+      challenge: BINDING_CHALLENGE,
+      method: 'S256' as const
+    }));
+    const encodeQrCode = vi.fn(async () => 'data:image/svg+xml,must-not-render');
+    renderProvider({
+      loadAuthority: vi.fn(async () => authority),
+      loadBridgeClient: vi.fn(async () => bridge),
+      createBrowserBinding,
+      encodeQrCode
+    });
+    await settleAsyncWork();
+
+    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Restore session' }));
+    await settleAsyncWork();
+
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
+    expect(readPublicState().phase).toBe('authenticated');
+    expect(screen.getByTestId('has-oidc-session').textContent).toBe('true');
+    expect(authority.beginSignIn).not.toHaveBeenCalled();
+    expect(bridge.createChallenge).not.toHaveBeenCalled();
+    expect(createBrowserBinding).not.toHaveBeenCalled();
+    expect(encodeQrCode).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restore session' }));
+    await settleAsyncWork();
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves an absent cookie session anonymous without starting SIWF or QR work', async () => {
+    const authority = createAuthority({
+      beginSignIn: vi.fn(async () => createChannel('MUST_NOT_BEGIN'))
+    });
+    const bridge = createBridge();
+    const createBrowserBinding = vi.fn(async () => ({
+      verifier: BINDING_VERIFIER,
+      challenge: BINDING_CHALLENGE,
+      method: 'S256' as const
+    }));
+    const encodeQrCode = vi.fn(async () => 'data:image/svg+xml,must-not-render');
+    renderProvider({
+      loadAuthority: vi.fn(async () => authority),
+      loadBridgeClient: vi.fn(async () => bridge),
+      createBrowserBinding,
+      encodeQrCode
+    });
+    await settleAsyncWork();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restore session' }));
+    await settleAsyncWork();
+
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
+    expect(readPublicState()).toEqual({ phase: 'anonymous' });
+    expect(screen.getByTestId('has-oidc-session').textContent).toBe('false');
+    expect(authority.beginSignIn).not.toHaveBeenCalled();
+    expect(bridge.createChallenge).not.toHaveBeenCalled();
+    expect(createBrowserBinding).not.toHaveBeenCalled();
+    expect(encodeQrCode).not.toHaveBeenCalled();
+  });
+
+  it('deduplicates concurrent anonymous session restoration', async () => {
+    const pendingRefresh = deferred<FarcasterBridgeSessionResponse>();
+    const bridge = createBridge({
+      refreshSession: vi.fn(() => pendingRefresh.promise)
+    });
+    const authority = createAuthority({
+      beginSignIn: vi.fn(async () => createChannel('MUST_NOT_BEGIN'))
+    });
+    renderProvider({
+      loadAuthority: vi.fn(async () => authority),
+      loadBridgeClient: vi.fn(async () => bridge)
+    });
+    await settleAsyncWork();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restore session' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Restore session' }));
+    await settleAsyncWork();
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
+    expect(readPublicState()).toEqual({ phase: 'anonymous' });
+
+    pendingRefresh.resolve(createAuthorizedResponse());
+    await settleAsyncWork();
+    expect(readPublicState().phase).toBe('authenticated');
+    expect(authority.beginSignIn).not.toHaveBeenCalled();
+    expect(bridge.createChallenge).not.toHaveBeenCalled();
+  });
+
+  it('aborts and ignores an in-flight anonymous restoration when cancelled', async () => {
+    const pendingRefresh = deferred<FarcasterBridgeSessionResponse>();
+    let refreshSignal: AbortSignal | undefined;
+    const refreshSession: FarcasterOidcBridgeClient['refreshSession'] = vi.fn((options) => {
+      refreshSignal = options?.signal;
+      return pendingRefresh.promise;
+    });
+    const bridge = createBridge({ refreshSession });
+    const authority = createAuthority({
+      beginSignIn: vi.fn(async () => createChannel('MUST_NOT_BEGIN'))
+    });
+    renderProvider({
+      loadAuthority: vi.fn(async () => authority),
+      loadBridgeClient: vi.fn(async () => bridge)
+    });
+    await settleAsyncWork();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restore session' }));
+    await settleAsyncWork();
+    expect(refreshSignal?.aborted).toBe(false);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(refreshSignal?.aborted).toBe(true);
+
+    pendingRefresh.resolve(createAuthorizedResponse());
+    await settleAsyncWork();
+    expect(readPublicState()).toEqual({ phase: 'anonymous' });
+    expect(screen.getByTestId('has-oidc-session').textContent).toBe('false');
+    expect(authority.beginSignIn).not.toHaveBeenCalled();
+    expect(bridge.createChallenge).not.toHaveBeenCalled();
+  });
+
+  it('honors logout intent during anonymous session restoration', async () => {
+    vi.useFakeTimers({ now: 9_000 });
+    const storage = new MemoryDeviceSessionStorage();
+    const controlKey = getFarcasterDeviceSessionControlKey(DEVICE_SESSION_BASE_PATH)!;
+    storage.values.set(controlKey, `logout-v1:${Date.now()}`);
+    const bridge = createBridge({
+      refreshSession: vi.fn(async () => createAuthorizedResponse())
+    });
+    const authority = createAuthority({
+      beginSignIn: vi.fn(async () => createChannel('MUST_NOT_BEGIN'))
+    });
+    renderProvider({
+      loadAuthority: vi.fn(async () => authority),
+      loadBridgeClient: vi.fn(async () => bridge),
+      now: Date.now,
+      deviceSessionEnvironment: deviceSessionEnvironment(storage)
+    });
+    await settleAsyncWork();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restore session' }));
+    await settleAsyncWork();
+
+    expect(storage.values.get(controlKey)).toBe(`logout-v1:${Date.now()}`);
+    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    expect(readPublicState()).toEqual({ phase: 'anonymous' });
+    expect(authority.beginSignIn).not.toHaveBeenCalled();
+    expect(bridge.createChallenge).not.toHaveBeenCalled();
   });
 
   it('cancels and invalidates a late explicit cookie restoration before SIWF begins', async () => {
