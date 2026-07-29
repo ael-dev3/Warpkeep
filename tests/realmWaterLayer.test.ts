@@ -311,6 +311,87 @@ describe('Realm canonical water layer', () => {
     layer.dispose();
   });
 
+  it.each([
+    ['high', 8, 2, true],
+    ['balanced', 5, 2, true],
+    ['reduced', 0, 0, false]
+  ] as const)(
+    'keeps the exact full-cell Water budget and motion contract at %s quality',
+    (quality, oceanWaveCount, riverWaveCount, animated) => {
+      const layer = createRealmWaterLayer({
+        cells: GENESIS_WATER_REVISION_ENABLED_CELLS_V1,
+        quality: REALM_QUALITY_SPECS[quality],
+        reducedMotion: false,
+        hexSize: 1,
+        heightAtWorld: canonicalHeightAtWorld
+      });
+      const telemetry = layer.getTelemetry();
+      const ocean = layer.group.getObjectByName(
+        'canonical-ocean-surface'
+      ) as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
+      const river = layer.group.getObjectByName(
+        'canonical-river-full-cell-surface'
+      ) as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
+
+      expect(telemetry).toMatchObject({
+        drawCalls: 3,
+        animated,
+        riverCellCount: 400,
+        riverFullCellCount: 400,
+        riverFullCellTriangleCount: 2_400,
+        riverIncompleteCellCount: 0,
+        riverOverlappingPhysicalTriangleCount: 0,
+        shaderFallbackCount: 0
+      });
+      expect(telemetry.triangleCount).toBe(21_198);
+      expect(telemetry.drawCalls).toBeLessThanOrEqual(
+        REALM_WATER_RENDER_BUDGETS[quality].draws
+      );
+      expect(telemetry.triangleCount).toBeLessThanOrEqual(
+        REALM_WATER_RENDER_BUDGETS[quality].triangles
+      );
+      expect(ocean.material.userData.waterWaveComponents).toBe(oceanWaveCount);
+      expect(river.material.userData.waterWaveComponents).toBe(riverWaveCount);
+      expect(layer.isAnimationActive()).toBe(animated);
+      expect(layer.updateEnvironment(1)).toBe(animated);
+      layer.dispose();
+    }
+  );
+
+  it('makes a high-quality Water layer fully static under reduced motion', () => {
+    const layer = createRealmWaterLayer({
+      cells: GENESIS_WATER_REVISION_ENABLED_CELLS_V1,
+      quality: REALM_QUALITY_SPECS.high,
+      reducedMotion: true,
+      hexSize: 1,
+      heightAtWorld: canonicalHeightAtWorld
+    });
+    const materials = [
+      'canonical-ocean-surface',
+      'canonical-lake-surfaces',
+      'canonical-river-full-cell-surface'
+    ].map((name) => (
+      (layer.group.getObjectByName(name) as THREE.Mesh<
+        THREE.BufferGeometry,
+        THREE.MeshStandardMaterial
+      >).material
+    ));
+
+    expect(materials.map((material) => material.userData.waterWaveComponents))
+      .toEqual([0, 0, 0]);
+    expect(layer.getTelemetry()).toMatchObject({
+      animated: false,
+      drawCalls: 3,
+      riverFullCellCount: 400,
+      riverFullCellTriangleCount: 2_400,
+      shaderFallbackCount: 0,
+      triangleCount: 21_198
+    });
+    expect(layer.isAnimationActive()).toBe(false);
+    expect(layer.updateEnvironment(1)).toBe(false);
+    layer.dispose();
+  });
+
   it('maps real direct and angled ray hits analytically and excludes full fog', () => {
     const layer = createRealmWaterLayer({
       cells: GENESIS_WATER_REVISION_ENABLED_CELLS_V1,
@@ -786,6 +867,16 @@ describe('Realm canonical water layer', () => {
     expect(layer.getTelemetry()).toBe(fallbackTelemetry);
     expect(layer.isAnimationActive()).toBe(false);
     expect(layer.updateEnvironment(1)).toBe(false);
+    const river = activeRiverCells[0]!;
+    const world = axialToWorld(river, 1);
+    expect(layer.raycast(new THREE.Raycaster(
+      new THREE.Vector3(world.x, 10, world.z),
+      new THREE.Vector3(0, -1, 0)
+    ))).toMatchObject({
+      cellKey: river.cellKey,
+      bodyId: river.bodyId,
+      regime: 'river'
+    });
     layer.dispose();
   });
 

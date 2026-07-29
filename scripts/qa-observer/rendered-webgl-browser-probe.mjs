@@ -1599,6 +1599,11 @@ export function parseRenderedWebglWaterOverviewEvidence(value) {
     routeTriangles: 0,
     routeVisible: 0,
     waterDrawCalls: 3,
+    waterNavigationIssueCount: 0,
+    waterNavigationNodeCount: 1_852,
+    waterNavigationOceanNodeCount: 1_452,
+    waterNavigationRiverNodeCount: 400,
+    waterNavigationStatus: 'exact',
     waterPresentation: 'ready',
     waterShaderFallbackCount: 0,
     waterTriangles: 21_198,
@@ -4940,6 +4945,12 @@ export async function applyRenderedWebglWaterOverviewInteraction(session) {
           ? Number(value)
           : null;
       };
+      const rootInteger = (name) => {
+        const value = root.getAttribute(name);
+        return typeof value === 'string' && /^(?:0|[1-9]\\d*)$/u.test(value)
+          ? Number(value)
+          : null;
+      };
       const firstCameraStateToken =
         canvas.getAttribute('data-realm-camera-state-token');
       await new Promise((resolve) => requestAnimationFrame(() => (
@@ -4996,6 +5007,16 @@ export async function applyRenderedWebglWaterOverviewInteraction(session) {
         routeVisible:
           integer('data-realm-worker-visible-route-count'),
         waterDrawCalls: integer('data-water-draw-calls'),
+        waterNavigationIssueCount:
+          rootInteger('data-water-navigation-issue-count'),
+        waterNavigationNodeCount:
+          rootInteger('data-water-navigation-node-count'),
+        waterNavigationOceanNodeCount:
+          rootInteger('data-water-navigation-ocean-node-count'),
+        waterNavigationRiverNodeCount:
+          rootInteger('data-water-navigation-river-node-count'),
+        waterNavigationStatus:
+          root.getAttribute('data-water-navigation-status'),
         waterPresentation: canvas.getAttribute('data-water-presentation'),
         waterShaderFallbackCount:
           integer('data-water-shader-fallback-count'),

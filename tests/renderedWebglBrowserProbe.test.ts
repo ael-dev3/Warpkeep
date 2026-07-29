@@ -1257,6 +1257,11 @@ describe('rendered WebGL headless browser probe contract', () => {
       routeTriangles: 0,
       routeVisible: 0,
       waterDrawCalls: 3,
+      waterNavigationIssueCount: 0,
+      waterNavigationNodeCount: 1_852,
+      waterNavigationOceanNodeCount: 1_452,
+      waterNavigationRiverNodeCount: 400,
+      waterNavigationStatus: 'exact',
       waterPresentation: 'ready',
       waterShaderFallbackCount: 0,
       waterTriangles: 21_198
@@ -1269,6 +1274,8 @@ describe('rendered WebGL headless browser probe contract', () => {
       { ...overviewEvidence, riverFallbackBodyCount: 1 },
       { ...overviewEvidence, riverIncompleteCellCount: 1 },
       { ...overviewEvidence, riverOverlappingPhysicalTriangleCount: 1 },
+      { ...overviewEvidence, waterNavigationIssueCount: 1 },
+      { ...overviewEvidence, waterNavigationStatus: 'partial' },
       { ...overviewEvidence, cameraStateAttested: false },
       { ...overviewEvidence, privateRoutePoint: 'must-not-cross-the-boundary' }
     ]) {

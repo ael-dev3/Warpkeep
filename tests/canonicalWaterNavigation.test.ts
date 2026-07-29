@@ -211,6 +211,29 @@ describe('canonical Water navigation graph', () => {
     expect(graph.shortestRoute(origin, '0,0-not-water')).toBeUndefined();
   });
 
+  it('bounds route memoization without changing deterministic route results', () => {
+    const graph = canonicalGraph();
+    const riverNodes = graph.nodes.filter((node) => node.regime === 'river');
+    expect(riverNodes.length).toBeGreaterThan(
+      CANONICAL_WATER_NAVIGATION_ROUTE_CACHE_LIMIT
+    );
+    const firstNode = riverNodes[0]!;
+    const firstRoute = graph.downstreamRouteToMouth(firstNode.cellKey)!;
+
+    riverNodes
+      .slice(1, CANONICAL_WATER_NAVIGATION_ROUTE_CACHE_LIMIT + 1)
+      .forEach((node) => {
+        expect(graph.downstreamRouteToMouth(node.cellKey)).toBeDefined();
+      });
+
+    const recomputed = graph.downstreamRouteToMouth(firstNode.cellKey)!;
+    expect(recomputed).not.toBe(firstRoute);
+    expect(recomputed).toEqual(firstRoute);
+    expect(Object.isFrozen(recomputed)).toBe(true);
+    expect(Object.isFrozen(recomputed.cellKeys)).toBe(true);
+    expect(Object.isFrozen(recomputed.coords)).toBe(true);
+  });
+
   it('keeps Water routes structurally distinct and all Water destinations dry-route blocked', () => {
     expectTypeOf<CanonicalWaterRoute>().not.toMatchTypeOf<CanonicalPassableRoute>();
     const graph = canonicalGraph();

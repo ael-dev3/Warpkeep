@@ -303,6 +303,39 @@ describe('ProceduralSfxEngine lifecycle', () => {
     await expect(Promise.all([first, second])).resolves.toEqual([true, true]);
   });
 
+  it('normalizes the voice budget and exposes only an immutable lifecycle snapshot', () => {
+    const lower = createEngine(new FakeAudioContext(), 0).engine;
+    const fractional = createEngine(new FakeAudioContext(), 3.9).engine;
+    const upper = createEngine(new FakeAudioContext(), 99).engine;
+
+    expect(lower.voiceCap).toBe(1);
+    expect(fractional.voiceCap).toBe(3);
+    expect(upper.voiceCap).toBe(32);
+    const snapshot = fractional.snapshot();
+    expect(snapshot).toEqual({
+      activeVoices: 0,
+      contextCreated: false,
+      contextState: 'unavailable',
+      hidden: false,
+      muted: false,
+      voiceCap: 3
+    });
+    expect(Object.isFrozen(snapshot)).toBe(true);
+  });
+
+  it('enforces family cooldowns without coupling river and ocean selection', async () => {
+    const context = new FakeAudioContext();
+    const { engine } = createEngine(context);
+    await engine.activateFromTrustedGesture(true);
+
+    expect(engine.emit({ kind: 'select-water', regime: 'river' })).toBe(true);
+    expect(engine.emit({ kind: 'select-water', regime: 'river' })).toBe(false);
+    expect(engine.emit({ kind: 'select-water', regime: 'ocean' })).toBe(true);
+    context.currentTime = 0.161;
+    expect(engine.emit({ kind: 'select-water', regime: 'river' })).toBe(true);
+    expect(engine.snapshot().activeVoices).toBeLessThanOrEqual(engine.voiceCap);
+  });
+
   it('never exceeds its voice cap and gives every source an explicit stop', async () => {
     const context = new FakeAudioContext();
     const { engine } = createEngine(context, 4);
@@ -321,6 +354,19 @@ describe('ProceduralSfxEngine lifecycle', () => {
       expect(source.stops.every(Number.isFinite)).toBe(true);
       expect(source.stops.some((stop) => stop > source.starts[0])).toBe(true);
     }
+  });
+
+  it('lets a critical confirmation replace one lower-priority voice at capacity', async () => {
+    const context = new FakeAudioContext();
+    const { engine } = createEngine(context, 1);
+    await engine.activateFromTrustedGesture(true);
+
+    expect(engine.emit({ kind: 'ui-press' })).toBe(true);
+    const replacedSources = [...context.sources, ...context.oscillators];
+    expect(engine.emit({ kind: 'worker-dispatch-confirmed', count: 1 })).toBe(true);
+    expect(engine.snapshot().activeVoices).toBe(1);
+    expect(replacedSources.every((source) => source.stops.includes(0))).toBe(true);
+    expect(replacedSources.every((source) => source.disconnected)).toBe(true);
   });
 
   it('drops a passive cue rather than stealing a critical confirmation', async () => {

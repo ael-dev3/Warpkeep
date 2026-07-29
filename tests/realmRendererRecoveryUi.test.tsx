@@ -223,6 +223,9 @@ describe('Realm renderer recovery UI', () => {
     const ocean = GENESIS_WATER_REVISION_ENABLED_CELLS_V1.find(
       (cell) => cell.regime === 'ocean' && cell.fogBand !== 'full'
     )!;
+    const cameraTargetBeforeSelection = realm.getAttribute(
+      'data-realm-camera-target-kind'
+    );
     for (const [cell, regime] of [[river, 'river'], [ocean, 'ocean']] as const) {
       act(() => options.onTargetSelect?.({
         kind: 'water-cell',
@@ -237,6 +240,8 @@ describe('Realm renderer recovery UI', () => {
       expect(record).not.toBeNull();
       expect(record?.dataset.waterRegime).toBe(regime);
       expect(record?.hasAttribute('data-water-cell-key')).toBe(false);
+      expect(realm.getAttribute('data-realm-camera-target-kind'))
+        .toBe(cameraTargetBeforeSelection);
     }
 
     expect(handle.focusCell).not.toHaveBeenCalled();
