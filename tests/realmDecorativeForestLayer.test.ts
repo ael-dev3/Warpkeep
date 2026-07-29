@@ -113,7 +113,9 @@ function createForestFixture(
 function syntheticCandidate(
   id: string,
   index: number,
-  estimatedTriangles = 1
+  estimatedTriangles = 1,
+  rank = 1,
+  sandCoverage = 0
 ): RealmDecorativeForestCandidate {
   return Object.freeze({
     cellKey: id,
@@ -123,11 +125,12 @@ function syntheticCandidate(
     rotation: 0,
     scale: 1,
     habitat: 'forest',
-    rank: 1,
+    rank,
     footprintDiameter: 0.1,
     estimatedTriangles,
     canopyContribution: 1,
-    edgeFade: 1
+    edgeFade: 1,
+    sandCoverage
   });
 }
 
@@ -626,12 +629,13 @@ describe('camera-local decorative forest renderer', () => {
     layer.dispose();
   });
 
-  it('climate-tints the existing decorative pack without changing transforms or ceilings', () => {
-    const fixture = createForestFixture();
+  it('climate-tints and deterministically thins only the dry decorative pack', () => {
+    const fixture = createForestFixture('high');
     const acquire = vi.fn(async () => {
       throw new Error('keep deterministic fallback');
     });
     const create = (
+      snapshots: Array<readonly RealmForestEcologyCandidate[]>,
       northernSnow?: RealmNorthernSnowField,
       southernDesert?: RealmSouthernDesertField
     ) => (
@@ -643,16 +647,20 @@ describe('camera-local decorative forest renderer', () => {
         species: fixture.species,
         canonicalTrees: [],
         terrainPlacements: [],
-        quality: REALM_QUALITY_SPECS.reduced,
+        quality: REALM_QUALITY_SPECS.high,
         baseUrl: '/',
         acquirePrefab: acquire,
         northernSnow,
-        southernDesert
+        southernDesert,
+        onActivePointsChange: (points) => snapshots.push(points)
       })
     );
-    const neutral = create();
-    const snowy = create(constantSnowField(1));
-    const dry = create(undefined, constantDesertField(1));
+    const neutralSnapshots: Array<readonly RealmForestEcologyCandidate[]> = [];
+    const snowySnapshots: Array<readonly RealmForestEcologyCandidate[]> = [];
+    const drySnapshots: Array<readonly RealmForestEcologyCandidate[]> = [];
+    const neutral = create(neutralSnapshots);
+    const snowy = create(snowySnapshots, constantSnowField(1));
+    const dry = create(drySnapshots, undefined, constantDesertField(1));
 
     expect(neutral.updateView(
       { x: 0, z: 0 },
@@ -689,10 +697,24 @@ describe('camera-local decorative forest renderer', () => {
 
     expect(Array.from(snowyFallback.instanceMatrix.array))
       .toEqual(Array.from(neutralFallback.instanceMatrix.array));
-    expect(Array.from(dryFallback.instanceMatrix.array))
-      .toEqual(Array.from(neutralFallback.instanceMatrix.array));
     expect(snowyFallback.count).toBe(neutralFallback.count);
-    expect(dryFallback.count).toBe(neutralFallback.count);
+    expect(dryFallback.count).toBeGreaterThan(0);
+    expect(dryFallback.count).toBeLessThan(neutralFallback.count);
+    const neutralByIdentity = new Map(neutralSnapshots.at(-1)!.map((point) => [
+      `${point.cellKey}:${point.world.x}:${point.world.z}`,
+      point
+    ]));
+    drySnapshots.at(-1)!.forEach((point) => {
+      const neutralPoint = neutralByIdentity.get(
+        `${point.cellKey}:${point.world.x}:${point.world.z}`
+      );
+      expect(neutralPoint).toMatchObject({
+        rotation: point.rotation,
+        scale: point.scale,
+        speciesId: point.speciesId,
+        habitat: point.habitat
+      });
+    });
     expect(snowyColor.equals(neutralColor)).toBe(false);
     expect(Math.max(snowyColor.r, snowyColor.g, snowyColor.b)).toBeLessThan(0.8);
     expect(dryColor.equals(neutralColor)).toBe(false);
@@ -700,22 +722,70 @@ describe('camera-local decorative forest renderer', () => {
       .toBeGreaterThan(dryColor.b - neutralColor.b);
     expect(telemetry.snowTintedTreeCount).toBe(telemetry.activeInstanceCount);
     expect(dryTelemetry).toMatchObject({
-      activeInstanceCount: telemetry.activeInstanceCount,
       snowTintedTreeCount: 0,
-      dryTintedTreeCount: telemetry.activeInstanceCount,
-      triangleCount: telemetry.triangleCount,
-      drawCalls: telemetry.drawCalls
+      dryTintedTreeCount: dryTelemetry.activeInstanceCount,
+      rejectedBySand: expect.any(Number),
+      drylandRetainedCount: dryTelemetry.activeInstanceCount,
+      sandTintedTreeCount: dryTelemetry.activeInstanceCount
     });
+    expect(dryTelemetry.rejectedBySand).toBeGreaterThan(0);
     expect(telemetry.activeInstanceCount)
-      .toBeLessThanOrEqual(REALM_DECORATIVE_FOREST_RENDER_BUDGETS.reduced.instances);
+      .toBeLessThanOrEqual(REALM_DECORATIVE_FOREST_RENDER_BUDGETS.high.instances);
     expect(telemetry.triangleCount)
-      .toBeLessThanOrEqual(REALM_DECORATIVE_FOREST_RENDER_BUDGETS.reduced.triangles);
+      .toBeLessThanOrEqual(REALM_DECORATIVE_FOREST_RENDER_BUDGETS.high.triangles);
     expect(telemetry.drawCalls)
-      .toBeLessThanOrEqual(REALM_DECORATIVE_FOREST_RENDER_BUDGETS.reduced.drawCalls);
+      .toBeLessThanOrEqual(REALM_DECORATIVE_FOREST_RENDER_BUDGETS.high.drawCalls);
 
     neutral.dispose();
     snowy.dispose();
     dry.dispose();
+  });
+
+  it('uses sand as a stable admission multiplier with a strict neutral subset', () => {
+    const candidates = Array.from({ length: 256 }, (_, index) => (
+      syntheticCandidate(
+        `dry-subset-${index}`,
+        index,
+        1,
+        (index + 0.5) / 256
+      )
+    ));
+    const dryCandidates = candidates.map((candidate) => Object.freeze({
+      ...candidate,
+      sandCoverage: 1
+    }));
+    const plan = REALM_FOREST_ACTIVE_WINDOW_PLANS.high;
+    const neutral = selectRealmDecorativeForestCandidates(
+      candidates,
+      [],
+      'high',
+      plan.activeRadius,
+      1
+    );
+    const dry = selectRealmDecorativeForestCandidates(
+      dryCandidates,
+      [],
+      'high',
+      plan.activeRadius,
+      1
+    );
+    const repeated = selectRealmDecorativeForestCandidates(
+      [...dryCandidates].reverse(),
+      [],
+      'high',
+      plan.activeRadius,
+      1
+    );
+    const neutralKeys = new Set(neutral.points.map((point) => point.cellKey));
+
+    expect(dry.points.length).toBeGreaterThan(0);
+    expect(dry.points.length).toBeLessThan(neutral.points.length);
+    expect(dry.points.every((point) => neutralKeys.has(point.cellKey))).toBe(true);
+    expect(dry.points.map((point) => point.cellKey))
+      .toEqual(repeated.points.map((point) => point.cellKey));
+    expect(dry.rejectedBySand).toBeGreaterThan(0);
+    expect(dry.drylandRetainedCount).toBe(dry.points.length);
+    expect(dry.sandTintedTreeCount).toBe(dry.points.length);
   });
 
   it.each(['high', 'balanced', 'reduced'] as const)(

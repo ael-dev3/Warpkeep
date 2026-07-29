@@ -133,12 +133,6 @@ vec2 warpkeepMacroSlope = vec2(
   -warpkeepMacroNormalWorld.x / warpkeepMacroNormalY,
   -warpkeepMacroNormalWorld.z / warpkeepMacroNormalY
 );
-vec2 warpkeepCombinedSlope =
-  warpkeepMacroSlope + warpkeepSnowGradient * warpkeepSnowReliefCoverage;
-normal = normalize(
-  warpkeepViewRotation
-    * normalize(vec3(-warpkeepCombinedSlope.x, 1.0, -warpkeepCombinedSlope.y))
-);
 vec2 warpkeepSandWind = normalize(vec2(0.7826, 0.6225));
 vec2 warpkeepSandCrossWind = vec2(-warpkeepSandWind.y, warpkeepSandWind.x);
 float warpkeepSandPhase =
@@ -163,11 +157,13 @@ warpkeepSandGradient += warpkeepSandWind
 ` : ''}
 float warpkeepSandReliefCoverage =
   smoothstep(0.16, 0.80, clamp(vTerrainSandCoverage, 0.0, 1.0));
+vec2 warpkeepCombinedSlope =
+  warpkeepMacroSlope
+  + warpkeepSnowGradient * warpkeepSnowReliefCoverage
+  + warpkeepSandGradient * warpkeepSandReliefCoverage;
 normal = normalize(
-  normal
-  + mat3(viewMatrix)
-    * vec3(-warpkeepSandGradient.x, 0.0, -warpkeepSandGradient.y)
-    * warpkeepSandReliefCoverage
+  warpkeepViewRotation
+    * normalize(vec3(-warpkeepCombinedSlope.x, 1.0, -warpkeepCombinedSlope.y))
 );
 `;
 }

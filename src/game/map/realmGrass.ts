@@ -436,6 +436,24 @@ function resolveTerrainKind(
   return visualizeLegacyLakes && terrainKind === 'lake' ? 'lowland' : terrainKind;
 }
 
+function realmGrassSandSemanticRetention(terrainKind: RealmGrassTerrainKind) {
+  switch (terrainKind) {
+    case 'meadow':
+    case 'lowland':
+      return 1;
+    case 'heath':
+      return 0.84;
+    case 'forest':
+      return 0.68;
+    case 'ridge':
+      return 0.58;
+    case 'ancient-stone':
+      return 0.46;
+    default:
+      return 0.9;
+  }
+}
+
 export function generateRealmGrassCells(input: RealmGrassGenerationInput): RealmGrassCellsData {
   const hexSize = Number.isFinite(input.hexSize) && input.hexSize! > 0 ? input.hexSize! : 1;
   const placements = input.placements ?? EMPTY_TERRAIN_PLACEMENTS;
@@ -496,12 +514,7 @@ export function generateRealmGrassCells(input: RealmGrassGenerationInput): Realm
         canopy: vegetation?.forestNeighbourShare
           ?? (terrainKind === 'forest' ? 0.55 : 0),
         wetness: terrainKind === 'lake' ? 1 : 0,
-        semanticRetention: terrainKind === 'meadow' || terrainKind === 'lowland'
-          ? 1
-          : terrainKind === 'heath' ? 0.84
-            : terrainKind === 'forest' ? 0.68
-              : terrainKind === 'ridge' ? 0.58
-                : terrainKind === 'ancient-stone' ? 0.46 : 0.9,
+        semanticRetention: realmGrassSandSemanticRetention(terrainKind),
         placementInfluence: 0
       }
     ) ?? 0;
@@ -608,12 +621,7 @@ export function generateRealmGrassCells(input: RealmGrassGenerationInput): Realm
             canopy: candidateVegetation?.forestNeighbourShare
               ?? (terrainKind === 'forest' ? 0.55 : 0),
             wetness: terrainKind === 'lake' ? 1 : 0,
-            semanticRetention: terrainKind === 'meadow' || terrainKind === 'lowland'
-              ? 1
-              : terrainKind === 'heath' ? 0.84
-                : terrainKind === 'forest' ? 0.68
-                  : terrainKind === 'ridge' ? 0.58
-                    : terrainKind === 'ancient-stone' ? 0.46 : 0.9,
+            semanticRetention: realmGrassSandSemanticRetention(terrainKind),
             placementInfluence: 0
           }
         ) ?? 0;
