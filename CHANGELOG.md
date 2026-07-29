@@ -8,15 +8,12 @@ full engineering record.
 
 ## [0.3.24] — 2026-07-29
 
-- Gave active Supply Wagons a continuous, demand-driven locomotion cycle whose
-  horse gait and distance-driven wheels follow their real journey speed.
-- Smoothed road headings, terrain contact, corners, and recalls without
-  changing the exact server-timed position of any Worker.
-- Restored the current movement phase through reconnects, late model loads,
-  quality changes, and reduced-motion play instead of replaying old gestures.
-- Left Worker authority, timings, routes, assignments, ownership, balances,
-  settlement, node leases, authentication, terrain, and persistent world state
-  unchanged.
+- Gave ordinary Realm interactions restrained procedural sound while preserving
+  trusted browser gestures, the existing soundtrack, and exact mute behavior.
+- Made every canonical river occupy its full Water hex, with clearer banks,
+  directional movement, and continuous source-to-ocean identity.
+- Added exact cell-by-cell Water record navigation without changing Worker
+  routes, camera position on selection, ownership, balances, or world authority.
 
 ## [0.3.23] — 2026-07-28
 

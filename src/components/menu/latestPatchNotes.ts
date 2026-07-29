@@ -8,16 +8,16 @@ export type LatestPatchNotes = Readonly<{
 
 const ALPHA_0_3_24_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '29 JUL 2026',
-  title: 'WAGONS TAKE THE ROAD',
+  title: 'THE LIVING REALM',
   summary:
-    'This build gives Supply Wagons a continuous, speed-matched locomotion cycle while every journey remains anchored to authoritative Realm time and route truth.',
+    'The Realm now answers ordinary actions with restrained sound, while full-cell rivers carry a clearer path from their sources to the sea.',
   highlights: Object.freeze([
-    'Visible journeys advance at a smooth demand-driven cadence; a completed Start, Stop, or turn gesture can no longer leave a moving wagon frozen on the road.',
-    'Horse gait and distance-driven wheel rotation follow actual route speed, with continuous heading and terrain contact through corners and recall.',
-    'Reconnects, late model loads, and LOD changes restore the current movement phase, while reduced motion keeps positional truth without permanent full-scene rendering.'
+    'Interface, keep, resource, Water, and confirmed Worker actions receive a small procedural sound vocabulary that respects trusted browser gestures and the existing mute setting.',
+    'Every canonical river now fills its Water hex, with adjacent banks, directional flow, and a distinct shallow-river character from the surrounding ocean.',
+    'River records can be followed one cell at a time upstream or downstream, with explicit source, mouth, and camera-focus actions.'
   ]),
   alphaNotice:
-    'Alpha 0.3.24 remains an unfinished, evolving world. This frontend presentation release does not change authentication, Worker authority, routes, assignments, timings, node leases, settlement, balances, terrain topology, or persistent world state.'
+    'Alpha 0.3.24 remains an unfinished, evolving world. This presentation release does not change Worker routes, timings, ownership, resources, balances, or persistent world authority.'
 });
 
 const ALPHA_0_3_18_PATCH_NOTES: LatestPatchNotes = Object.freeze({
