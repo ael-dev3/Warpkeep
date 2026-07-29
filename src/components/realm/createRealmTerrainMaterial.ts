@@ -33,7 +33,7 @@ export function realmTerrainFineReliefMode(
 
 export function realmTerrainShaderCacheKey(quality: RealmQuality) {
   return [
-    'warpkeep-living-realm-terrain-v2',
+    'warpkeep-living-realm-terrain-v3',
     REALM_TERRAIN_THREE_SHADER_CONTRACT,
     realmTerrainFineReliefMode(quality)
   ].join('-');
@@ -60,14 +60,17 @@ export type RealmTerrainMaterial = Readonly<{
 const VERTEX_DECLARATIONS = `
 attribute vec4 terrainSurfaceCue;
 attribute float terrainSnowCoverage;
+attribute float terrainSandCoverage;
 varying vec4 vTerrainSurfaceCue;
 varying float vTerrainSnowCoverage;
+varying float vTerrainSandCoverage;
 varying vec2 vTerrainWorldXZ;
 `;
 
 const FRAGMENT_DECLARATIONS = `
 varying vec4 vTerrainSurfaceCue;
 varying float vTerrainSnowCoverage;
+varying float vTerrainSandCoverage;
 varying vec2 vTerrainWorldXZ;
 `;
 
@@ -85,11 +88,12 @@ export function injectRealmTerrainVertexShader(vertexShader: string) {
     `${marker}
 vTerrainSurfaceCue = terrainSurfaceCue;
 vTerrainSnowCoverage = terrainSnowCoverage;
+vTerrainSandCoverage = terrainSandCoverage;
 vTerrainWorldXZ = (modelMatrix * vec4(transformed, 1.0)).xz;`
   )}`;
 }
 
-function snowReliefShader(mode: RealmTerrainFineReliefMode) {
+function climateReliefShader(mode: RealmTerrainFineReliefMode) {
   if (mode === 'none') return '#include <normal_fragment_maps>';
   const secondBand = mode === 'two-band'
     ? `
@@ -135,6 +139,36 @@ normal = normalize(
   warpkeepViewRotation
     * normalize(vec3(-warpkeepCombinedSlope.x, 1.0, -warpkeepCombinedSlope.y))
 );
+vec2 warpkeepSandWind = normalize(vec2(0.7826, 0.6225));
+vec2 warpkeepSandCrossWind = vec2(-warpkeepSandWind.y, warpkeepSandWind.x);
+float warpkeepSandPhase =
+  dot(vTerrainWorldXZ, warpkeepSandWind) * ${mode === 'two-band' ? '3.25' : '5.15'} + 0.63;
+float warpkeepSandFootprint = fwidth(warpkeepSandPhase);
+float warpkeepSandFilter = 1.0 - smoothstep(0.20, 0.96, warpkeepSandFootprint);
+vec2 warpkeepSandGradient = warpkeepSandWind
+  * cos(warpkeepSandPhase)
+  * ${mode === 'two-band' ? '0.023' : '0.015'}
+  * warpkeepSandFilter;
+${mode === 'two-band' ? `
+float warpkeepSandFinePhase =
+  dot(vTerrainWorldXZ, warpkeepSandWind) * 8.65
+  + dot(vTerrainWorldXZ, warpkeepSandCrossWind) * 0.55;
+float warpkeepSandFineFootprint = fwidth(warpkeepSandFinePhase);
+float warpkeepSandFineFilter =
+  1.0 - smoothstep(0.18, 0.88, warpkeepSandFineFootprint);
+warpkeepSandGradient += warpkeepSandWind
+  * cos(warpkeepSandFinePhase)
+  * 0.011
+  * warpkeepSandFineFilter;
+` : ''}
+float warpkeepSandReliefCoverage =
+  smoothstep(0.16, 0.80, clamp(vTerrainSandCoverage, 0.0, 1.0));
+normal = normalize(
+  normal
+  + mat3(viewMatrix)
+    * vec3(-warpkeepSandGradient.x, 0.0, -warpkeepSandGradient.y)
+    * warpkeepSandReliefCoverage
+);
 `;
 }
 
@@ -160,6 +194,7 @@ float terrainCrest = clamp(-vTerrainSurfaceCue.y, 0.0, 1.0);
 float terrainVegetation = clamp(vTerrainSurfaceCue.z, 0.0, 1.0);
 float terrainWetness = clamp(vTerrainSurfaceCue.w, 0.0, 1.0);
 float terrainSnow = clamp(vTerrainSnowCoverage, 0.0, 1.0);
+float terrainSand = clamp(vTerrainSandCoverage, 0.0, 1.0);
 diffuseColor.rgb *= 1.0 - terrainHollow * 0.085;
 diffuseColor.rgb *= 1.0 + terrainCrest * 0.032;
 diffuseColor.rgb *= 1.0 - terrainVegetation * 0.025;
@@ -178,6 +213,11 @@ diffuseColor.rgb = mix(
   diffuseColor.rgb * vec3(0.965, 0.99, 1.025),
   terrainSnow * (0.035 + terrainHollow * 0.025)
 );
+diffuseColor.rgb = mix(
+  diffuseColor.rgb,
+  diffuseColor.rgb * vec3(1.025, 0.99, 0.945),
+  terrainSand * (0.04 + terrainCrest * 0.02)
+);
 `;
   const roughness = `
 ${roughnessMarker}
@@ -193,11 +233,20 @@ roughnessFactor = clamp(
   0.78,
   0.98
 );
+roughnessFactor = clamp(
+  mix(
+    roughnessFactor,
+    0.955 - terrainHollow * 0.045 - terrainWetness * 0.025,
+    terrainSand * 0.76
+  ),
+  0.78,
+  0.985
+);
 `;
   return `${FRAGMENT_DECLARATIONS}\n${fragmentShader
     .replace(colorMarker, color)
     .replace(roughnessMarker, roughness)
-    .replace(normalMarker, snowReliefShader(fineReliefMode))}`;
+    .replace(normalMarker, climateReliefShader(fineReliefMode))}`;
 }
 
 /**

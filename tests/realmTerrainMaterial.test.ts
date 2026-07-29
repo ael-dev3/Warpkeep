@@ -22,14 +22,17 @@ describe('Crafted Lowlands terrain material', () => {
 
     expect(vertex).toContain('attribute vec4 terrainSurfaceCue;');
     expect(vertex).toContain('attribute float terrainSnowCoverage;');
+    expect(vertex).toContain('attribute float terrainSandCoverage;');
     expect(vertex).toContain('vTerrainSurfaceCue = terrainSurfaceCue;');
     expect(vertex).toContain('vTerrainSnowCoverage = terrainSnowCoverage;');
+    expect(vertex).toContain('vTerrainSandCoverage = terrainSandCoverage;');
     expect(vertex).toContain('vTerrainWorldXZ');
     expect(fragment).toContain('float terrainSlope');
     expect(fragment).toContain('float terrainHollow');
     expect(fragment).toContain('float terrainVegetation');
     expect(fragment).toContain('float terrainWetness');
     expect(fragment).toContain('float terrainSnow');
+    expect(fragment).toContain('float terrainSand');
     expect(fragment).toContain('roughnessFactor = clamp(');
     expect(fragment).toContain('fwidth(warpkeepSnowPhase)');
     expect(REALM_TERRAIN_PREVAILING_WIND_GLSL).toBe(
@@ -70,10 +73,13 @@ describe('Crafted Lowlands terrain material', () => {
     );
 
     expect(high).toContain('warpkeepSnowCrossPhase');
-    expect(high.match(/fwidth\(/g)).toHaveLength(2);
+    expect(high).toContain('warpkeepSandFinePhase');
+    expect(high.match(/fwidth\(/g)).toHaveLength(4);
     expect(balanced).not.toContain('warpkeepSnowCrossPhase');
-    expect(balanced.match(/fwidth\(/g)).toHaveLength(1);
+    expect(balanced).not.toContain('warpkeepSandFinePhase');
+    expect(balanced.match(/fwidth\(/g)).toHaveLength(2);
     expect(reduced).not.toContain('warpkeepSnowGradient');
+    expect(reduced).not.toContain('warpkeepSandGradient');
     expect(reduced).not.toContain('fwidth(');
     expect(new Set([
       realmTerrainShaderCacheKey('high'),

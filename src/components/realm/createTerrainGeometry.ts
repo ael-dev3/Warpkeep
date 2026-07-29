@@ -23,6 +23,7 @@ import {
   realmNorthernSnowRetentionSlope,
   type RealmNorthernSnowField
 } from '../../game/map/realmNorthernSnow';
+import type { RealmSouthernDesertField } from '../../game/map/realmSouthernDesert';
 import type { RealmTerrainMap } from '../../game/map/terrainTypes';
 import type { RealmTerrainKind } from '../../game/map/realmTerrainSemantics';
 import type {
@@ -56,6 +57,9 @@ export type TerrainGeometryData = Readonly<{
   /** One optional renderer-only scalar; absent when the winter field is disabled. */
   snowCoverage?: Float32Array;
   snowCoverageMetrics: TerrainSnowCoverageMetrics;
+  /** One optional renderer-only scalar; absent when the desert field is disabled. */
+  sandCoverage?: Float32Array;
+  sandCoverageMetrics: TerrainSandCoverageMetrics;
   indices: Uint16Array | Uint32Array;
   bounds: TerrainBounds;
   /** Exact convex x/z perimeter of the rendered union of terrain hexes. */
@@ -110,6 +114,14 @@ export type TerrainSnowClearanceCircle = Readonly<{
 const EMPTY_TERRAIN_SNOW_CLEARANCE_CIRCLES:
   readonly TerrainSnowClearanceCircle[] = Object.freeze([]);
 
+export type TerrainSandCoverageMetrics = Readonly<{
+  minimum: number;
+  maximum: number;
+  mean: number;
+  attributeBytes: number;
+  snowOverlapVertexCount: number;
+}>;
+
 export type TerrainGeometryOptions = Readonly<{
   subdivisionsPerEdge?: number;
   /** Cells through this radius retain the established triangular lattice. */
@@ -129,10 +141,16 @@ export type TerrainGeometryOptions = Readonly<{
   northernSnow?: RealmNorthernSnowField;
   /** Exact authoritative cells; prevents renderer apron cells entering telemetry. */
   snowPlayableCellKeys?: ReadonlySet<string>;
-  /** Complete validated Water coordinates suppress the underlying land treatment. */
+  /** Immutable renderer-only southern climate field. */
+  southernDesert?: RealmSouthernDesertField;
+  /** Complete validated Water coordinates suppress the winter treatment. */
   snowExcludedCellKeys?: ReadonlySet<string>;
+  /** Complete validated Water coordinates suppress the southern treatment. */
+  sandExcludedCellKeys?: ReadonlySet<string>;
   /** Public structure footprints that attenuate snow without changing terrain height. */
   snowClearanceCircles?: readonly TerrainSnowClearanceCircle[];
+  /** Public structure footprints that attenuate sand without changing terrain height. */
+  sandClearanceCircles?: readonly TerrainSnowClearanceCircle[];
 }>;
 
 type MutableTerrainBounds = {
@@ -487,6 +505,145 @@ function applyNorthernSnowPresentation(
       retainedNorthernmostRowCoverageMean:
         northernmostCellCenterCoverageNano
           / (Math.max(1, northernmostCellCenterCount) * 1_000_000_000)
+    })
+  });
+}
+
+function semanticSandRetention(kind: RealmTerrainKind | undefined) {
+  if (kind === 'meadow' || kind === 'lowland') return 1;
+  if (kind === 'heath') return 0.84;
+  if (kind === 'forest') return 0.68;
+  if (kind === 'ridge') return 0.58;
+  if (kind === 'ancient-stone') return 0.46;
+  if (kind === 'lake') return 0.24;
+  return 0.9;
+}
+
+function applySandCpuColor(
+  colors: number[],
+  vertexIndex: number,
+  coverage: number,
+  slope: number,
+  concavity: number,
+  wetness: number
+) {
+  if (coverage <= 0) return;
+  const offset = vertexIndex * 3;
+  const hollow = Math.max(0, concavity);
+  const crest = Math.max(0, -concavity);
+  const warmSand = { r: 0.58, g: 0.43, b: 0.245 };
+  const paleScour = { r: 0.66, g: 0.53, b: 0.33 };
+  const compactTrough = { r: 0.42, g: 0.305, b: 0.205 };
+  const scourMix = clamp(slope * 0.36 + crest * 0.28);
+  const compactMix = clamp(hollow * 0.42 + wetness * 0.24);
+  const drySand = {
+    r: warmSand.r + (paleScour.r - warmSand.r) * scourMix,
+    g: warmSand.g + (paleScour.g - warmSand.g) * scourMix,
+    b: warmSand.b + (paleScour.b - warmSand.b) * scourMix
+  };
+  const sand = {
+    r: drySand.r + (compactTrough.r - drySand.r) * compactMix,
+    g: drySand.g + (compactTrough.g - drySand.g) * compactMix,
+    b: drySand.b + (compactTrough.b - drySand.b) * compactMix
+  };
+  const amount = smoothstep(0.035, 0.93, coverage) * 0.89;
+  colors[offset] = colors[offset]! + (sand.r - colors[offset]!) * amount;
+  colors[offset + 1] = colors[offset + 1]!
+    + (sand.g - colors[offset + 1]!) * amount;
+  colors[offset + 2] = colors[offset + 2]!
+    + (sand.b - colors[offset + 2]!) * amount;
+}
+
+function applySouthernDesertPresentation(
+  positions: readonly number[],
+  colors: number[],
+  materialCues: readonly number[],
+  snowCoverage: Float32Array | undefined,
+  options: TerrainGeometryOptions,
+  hexSize: number,
+  placements: readonly TerrainStructurePlacement[]
+) {
+  const field = options.southernDesert;
+  if (!field) return undefined;
+  const vertexCount = positions.length / 3;
+  const sandCoverage = new Float32Array(vertexCount);
+  let minimum = Number.POSITIVE_INFINITY;
+  let maximum = Number.NEGATIVE_INFINITY;
+  let sum = 0;
+  let snowOverlapVertexCount = 0;
+  const sandClearanceIndex = indexTerrainSnowClearanceCircles(
+    options.sandClearanceCircles ?? [],
+    hexSize
+  );
+
+  for (let index = 0; index < vertexCount; index += 1) {
+    const world = {
+      x: positions[index * 3]!,
+      z: positions[index * 3 + 2]!
+    };
+    const nearest = worldToNearestAxial(world, hexSize);
+    let placementInfluence = 0;
+    terrainPlacementsForCell(placements, nearest, hexSize).forEach((placement) => {
+      placementInfluence = Math.max(
+        placementInfluence,
+        placementInfluenceAtWorld(placement, world, hexSize)
+      );
+    });
+    sandClearanceIndex.get(world).forEach((circle) => {
+      const distance = Math.hypot(
+        world.x - circle.world.x,
+        world.z - circle.world.z
+      );
+      const influence = 1 - smoothstep(
+        circle.radius,
+        circle.radius + sandClearanceIndex.feather,
+        distance
+      );
+      placementInfluence = Math.max(placementInfluence, influence);
+    });
+    const excluded = options.sandExcludedCellKeys?.has(hexKey(nearest)) === true;
+    const slope = materialCues[index * 4]!;
+    const concavity = materialCues[index * 4 + 1]!;
+    const vegetation = materialCues[index * 4 + 2]!;
+    const wetness = materialCues[index * 4 + 3]!;
+    const kind = options.terrainKindsByKey?.get(hexKey(nearest));
+    const coverage = excluded
+      ? 0
+      : field.retainedSandAtWorld(world, {
+        slope,
+        concavity,
+        vegetation,
+        canopy: kind === 'forest' ? Math.max(vegetation, 0.55) : vegetation * 0.35,
+        wetness,
+        semanticRetention: semanticSandRetention(kind),
+        placementInfluence
+      });
+    const safeCoverage = Number.isFinite(coverage) ? clamp(coverage) : 0;
+    sandCoverage[index] = safeCoverage;
+    minimum = Math.min(minimum, safeCoverage);
+    maximum = Math.max(maximum, safeCoverage);
+    sum += safeCoverage;
+    if (safeCoverage > 0.15 && (snowCoverage?.[index] ?? 0) > 0.15) {
+      snowOverlapVertexCount += 1;
+    }
+    applySandCpuColor(
+      colors,
+      index,
+      safeCoverage,
+      slope,
+      concavity,
+      wetness
+    );
+  }
+
+  return Object.freeze({
+    sandCoverage,
+    metrics: Object.freeze({
+      minimum: Number.isFinite(minimum) ? minimum : 0,
+      maximum: Number.isFinite(maximum) ? maximum : 0,
+      mean: vertexCount > 0 ? sum / vertexCount : 0,
+      attributeBytes: sandCoverage.byteLength,
+      snowOverlapVertexCount
     })
   });
 }
@@ -932,6 +1089,15 @@ export function createTerrainGeometryData(
     hexSize,
     placements
   );
+  const sandPresentation = applySouthernDesertPresentation(
+    positions,
+    colors,
+    materialCues,
+    snowPresentation?.snowCoverage,
+    options,
+    hexSize,
+    placements
+  );
 
   const vertexCount = positions.length / 3;
   const typedIndices = vertexCount <= 0xffff ? new Uint16Array(indices) : new Uint32Array(indices);
@@ -965,6 +1131,14 @@ export function createTerrainGeometryData(
       retainedCellCenterInnerRadiusLeakCount: 0,
       retainedCellCenterSouthernLeakCount: 0,
       retainedNorthernmostRowCoverageMean: 0
+    }),
+    sandCoverage: sandPresentation?.sandCoverage,
+    sandCoverageMetrics: sandPresentation?.metrics ?? Object.freeze({
+      minimum: 0,
+      maximum: 0,
+      mean: 0,
+      attributeBytes: 0,
+      snowOverlapVertexCount: 0
     }),
     indices: typedIndices,
     bounds,

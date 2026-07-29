@@ -38,6 +38,11 @@ import {
   summarizeRealmNorthernSnowCoverage,
   type RealmNorthernSnowField
 } from '../../game/map/realmNorthernSnow';
+import {
+  createRealmSouthernDesertField,
+  summarizeRealmSouthernDesertCoverage,
+  type RealmSouthernDesertField
+} from '../../game/map/realmSouthernDesert';
 import { createRealmVegetationField } from '../../game/map/realmVegetationField';
 import {
   createRealmVegetationMask,
@@ -649,6 +654,22 @@ export type RealmTerrainPresentationTelemetry = Readonly<{
   snowFineReliefMode: 'two-band' | 'one-band' | 'none';
   snowShaderEnhanced: boolean;
   snowShaderFallbackActive: boolean;
+  southernDesertFieldRevision: string;
+  desertClimateCellCountAbove015: number;
+  desertDeepCellCountAbove075: number;
+  desertPlayableCoverageRatio: number;
+  desertDeepCoverageRatio: number;
+  desertInnerRadiusLeakCount: number;
+  desertNorthernLeakCount: number;
+  sandVertexCoverageMin: number;
+  sandVertexCoverageMax: number;
+  sandVertexCoverageMean: number;
+  sandAttributeBytes: number;
+  sandFineReliefMode: 'two-band' | 'one-band' | 'none';
+  sandShaderEnhanced: boolean;
+  sandShaderFallbackActive: boolean;
+  sandSnowOverlapCellCount: number;
+  sandSnowOverlapVertexCount: number;
   semanticCellCount: number;
   semanticKindCount: number;
   semanticFeatureCount: number;
@@ -1007,8 +1028,11 @@ function createTerrainGeometry(
   visualizeLegacyLakesAsLand = false,
   northernSnow?: RealmNorthernSnowField,
   snowPlayableCellKeys?: ReadonlySet<string>,
+  southernDesert?: RealmSouthernDesertField,
   snowExcludedCellKeys?: ReadonlySet<string>,
-  snowClearanceCircles?: readonly RealmGrassExclusion[]
+  sandExcludedCellKeys?: ReadonlySet<string>,
+  snowClearanceCircles?: readonly RealmGrassExclusion[],
+  sandClearanceCircles?: readonly RealmGrassExclusion[]
 ) {
   const data = createTerrainGeometryData(surface.renderMap, HEX_SIZE, {
     subdivisionsPerEdge,
@@ -1022,8 +1046,11 @@ function createTerrainGeometry(
     visualizeLegacyLakesAsLand,
     northernSnow,
     snowPlayableCellKeys,
+    southernDesert,
     snowExcludedCellKeys,
-    snowClearanceCircles
+    sandExcludedCellKeys,
+    snowClearanceCircles,
+    sandClearanceCircles
   });
   const geometry = new THREE.BufferGeometry();
   try {
@@ -1042,6 +1069,16 @@ function createTerrainGeometry(
     geometry.setAttribute(
       'terrainSnowCoverage',
       new THREE.BufferAttribute(data.snowCoverage, 1)
+    );
+    if (
+      !data.sandCoverage
+      || data.sandCoverage.length !== data.vertexCount
+    ) {
+      throw new Error('REALM_TERRAIN_SAND_ATTRIBUTE_ATTESTATION_FAILED');
+    }
+    geometry.setAttribute(
+      'terrainSandCoverage',
+      new THREE.BufferAttribute(data.sandCoverage, 1)
     );
     geometry.setIndex(new THREE.BufferAttribute(data.indices, 1));
     geometry.computeVertexNormals();
@@ -1364,12 +1401,12 @@ function initializeRealmScene(
     dynamicShadows: renderPlan.dynamicShadows,
     shadowMapSize: renderPlan.shadowMapSize
   };
-  const snowPlayableRadius = Math.max(1, options.surface.playableMap.radius);
+  const climatePlayableRadius = Math.max(1, options.surface.playableMap.radius);
   const northernSnow = createRealmNorthernSnowField({
     worldSeed: presentationSurface.renderMap.worldSeed,
     hexSize: HEX_SIZE,
-    playableRadius: snowPlayableRadius,
-    renderRadius: Math.max(snowPlayableRadius, presentationSurface.renderMap.radius)
+    playableRadius: climatePlayableRadius,
+    renderRadius: Math.max(climatePlayableRadius, presentationSurface.renderMap.radius)
   });
   const waterCellKeys = new Set((options.waterCells ?? []).map((cell) => cell.cellKey));
   const snowCoverageSummary = summarizeRealmNorthernSnowCoverage(
@@ -1377,6 +1414,19 @@ function initializeRealmScene(
     options.surface.playableMap.cells
       .filter((cell) => !waterCellKeys.has(hexKey(cell.coord)))
       .map((cell) => cell.coord)
+  );
+  const southernDesert = createRealmSouthernDesertField({
+    worldSeed: presentationSurface.renderMap.worldSeed,
+    hexSize: HEX_SIZE,
+    playableRadius: climatePlayableRadius,
+    renderRadius: Math.max(climatePlayableRadius, presentationSurface.renderMap.radius)
+  });
+  const desertCoverageSummary = summarizeRealmSouthernDesertCoverage(
+    southernDesert,
+    options.surface.playableMap.cells
+      .filter((cell) => !waterCellKeys.has(hexKey(cell.coord)))
+      .map((cell) => cell.coord),
+    northernSnow
   );
   // Pure quality policy is needed by the first resize/projection callback;
   // initialize it before any observer or render loop can run.
@@ -1665,7 +1715,10 @@ function initializeRealmScene(
     noLakeRevisionActive,
     northernSnow,
     options.surface.playableKeys,
+    southernDesert,
     waterCellKeys,
+    waterCellKeys,
+    resourceVegetationClearances,
     resourceVegetationClearances
   );
   cleanup.add(() => terrainGeometry.dispose());
@@ -2128,6 +2181,24 @@ function initializeRealmScene(
       snowFineReliefMode: terrainMaterialTelemetry.fineReliefMode,
       snowShaderEnhanced: terrainMaterialTelemetry.shaderEnhanced,
       snowShaderFallbackActive: terrainMaterialTelemetry.shaderFallbackActive,
+      southernDesertFieldRevision: southernDesert.revision,
+      desertClimateCellCountAbove015:
+        desertCoverageSummary.climateCellCountAbove015,
+      desertDeepCellCountAbove075: desertCoverageSummary.deepCellCountAbove075,
+      desertPlayableCoverageRatio: desertCoverageSummary.playableCoverageRatio,
+      desertDeepCoverageRatio: desertCoverageSummary.deepCoverageRatio,
+      desertInnerRadiusLeakCount: desertCoverageSummary.innerRadiusLeakCount,
+      desertNorthernLeakCount: desertCoverageSummary.northernLeakCount,
+      sandVertexCoverageMin: terrainData.sandCoverageMetrics.minimum,
+      sandVertexCoverageMax: terrainData.sandCoverageMetrics.maximum,
+      sandVertexCoverageMean: terrainData.sandCoverageMetrics.mean,
+      sandAttributeBytes: terrainData.sandCoverageMetrics.attributeBytes,
+      sandFineReliefMode: terrainMaterialTelemetry.fineReliefMode,
+      sandShaderEnhanced: terrainMaterialTelemetry.shaderEnhanced,
+      sandShaderFallbackActive: terrainMaterialTelemetry.shaderFallbackActive,
+      sandSnowOverlapCellCount: desertCoverageSummary.snowOverlapCellCount,
+      sandSnowOverlapVertexCount:
+        terrainData.sandCoverageMetrics.snowOverlapVertexCount,
       semanticCellCount: terrainSemantics.terrainKindsByKey.size,
       semanticKindCount: Object.values(terrainSemantics.terrainKindCounts)
         .filter((count) => count > 0).length,
