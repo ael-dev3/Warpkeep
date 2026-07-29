@@ -7,9 +7,11 @@ import {
   injectRealmTerrainVertexShader,
   realmTerrainFineReliefMode,
   realmTerrainShaderCacheKey,
+  REALM_TERRAIN_PREVAILING_WIND_GLSL,
   REALM_TERRAIN_SHADER_CACHE_KEY,
   REALM_TERRAIN_THREE_SHADER_CONTRACT
 } from '../src/components/realm/createRealmTerrainMaterial';
+import { REALM_PREVAILING_WIND } from '../src/game/map/realmPrevailingWind';
 
 describe('Crafted Lowlands terrain material', () => {
   it('injects the pinned slope, hollow, vegetation, and wetness contract', () => {
@@ -30,6 +32,15 @@ describe('Crafted Lowlands terrain material', () => {
     expect(fragment).toContain('float terrainSnow');
     expect(fragment).toContain('roughnessFactor = clamp(');
     expect(fragment).toContain('fwidth(warpkeepSnowPhase)');
+    expect(REALM_TERRAIN_PREVAILING_WIND_GLSL).toBe(
+      `vec2(${String(REALM_PREVAILING_WIND.x)}, ${
+        String(REALM_PREVAILING_WIND.z)
+      })`
+    );
+    expect(fragment).toContain(
+      `vec2 warpkeepSnowWind = ${REALM_TERRAIN_PREVAILING_WIND_GLSL};`
+    );
+    expect(fragment).not.toContain('normalize(vec2(0.7826, 0.6225))');
     expect(fragment).toContain('warpkeepMacroSlope');
     expect(fragment).toContain(
       'warpkeepMacroSlope + warpkeepSnowGradient * warpkeepSnowReliefCoverage'

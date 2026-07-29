@@ -12,6 +12,7 @@ import {
   REALM_GRASS_SHADER_CACHE_KEY,
   REALM_GRASS_THREE_SHADER_CONTRACT
 } from '../src/components/realm/createRealmGrassMaterial';
+import { REALM_PREVAILING_WIND } from '../src/game/map/realmPrevailingWind';
 
 function projectWorldDirectionIntoLocalXZ(
   worldDirection: THREE.Vector2,
@@ -89,6 +90,10 @@ describe('procedural grass material contract', () => {
     expect(REALM_GRASS_SHADER_CACHE_KEY).toContain('bounded-tips');
     expect(REALM_GRASS_SHADER_CACHE_KEY).toContain(REALM_GRASS_THREE_SHADER_CONTRACT);
     expect(layer.uniforms.uGrassWindStrength.value).toBeCloseTo(0.78);
+    expect(layer.uniforms.uGrassWindDirection.value.toArray()).toEqual([
+      REALM_PREVAILING_WIND.x,
+      REALM_PREVAILING_WIND.z
+    ]);
     expect(layer.getShaderTelemetry()).toEqual({
       fallbackActive: false,
       fallbackCount: 0,
@@ -147,7 +152,10 @@ describe('procedural grass material contract', () => {
   });
 
   it('projects one world wind direction through yawed and scaled instance bases', () => {
-    const worldDirection = new THREE.Vector2(0.78, 0.62).normalize();
+    const worldDirection = new THREE.Vector2(
+      REALM_PREVAILING_WIND.x,
+      REALM_PREVAILING_WIND.z
+    );
     const worldCrossDirection = new THREE.Vector2(
       -worldDirection.y,
       worldDirection.x

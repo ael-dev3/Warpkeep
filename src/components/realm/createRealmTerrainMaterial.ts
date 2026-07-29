@@ -1,9 +1,27 @@
 import * as THREE from 'three';
 
+import { REALM_PREVAILING_WIND } from '../../game/map/realmPrevailingWind';
 import type { RealmQuality } from './realmQuality';
 
 export const REALM_TERRAIN_THREE_SHADER_CONTRACT = 'three-r185';
 export type RealmTerrainFineReliefMode = 'two-band' | 'one-band' | 'none';
+
+function finiteGlslFloatLiteral(value: number) {
+  if (!Number.isFinite(value)) {
+    throw new Error('REALM_TERRAIN_GLSL_FLOAT_MUST_BE_FINITE');
+  }
+  const literal = String(value);
+  return Number.isInteger(value) ? `${literal}.0` : literal;
+}
+
+/**
+ * ECMAScript number stringification is locale independent and round-trips to
+ * the exact source number. The shader therefore cannot drift from the shared
+ * renderer-neutral wind contract through a separately rounded literal.
+ */
+export const REALM_TERRAIN_PREVAILING_WIND_GLSL = `vec2(${
+  finiteGlslFloatLiteral(REALM_PREVAILING_WIND.x)
+}, ${finiteGlslFloatLiteral(REALM_PREVAILING_WIND.z)})`;
 
 export function realmTerrainFineReliefMode(
   quality: RealmQuality
@@ -88,7 +106,7 @@ warpkeepSnowGradient += warpkeepSnowCrossWind
     : '';
   return `
 #include <normal_fragment_maps>
-vec2 warpkeepSnowWind = normalize(vec2(0.7826, 0.6225));
+vec2 warpkeepSnowWind = ${REALM_TERRAIN_PREVAILING_WIND_GLSL};
 vec2 warpkeepSnowCrossWind = vec2(-warpkeepSnowWind.y, warpkeepSnowWind.x);
 float warpkeepSnowPhase = dot(vTerrainWorldXZ, warpkeepSnowWind) * 7.15;
 float warpkeepSnowFootprint = fwidth(warpkeepSnowPhase);
