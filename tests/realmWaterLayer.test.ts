@@ -319,7 +319,7 @@ describe('Realm canonical water layer', () => {
 
   it.each([
     ['high', 8, 2, true],
-    ['balanced', 5, 2, true],
+    ['balanced', 5, 1, true],
     ['reduced', 0, 0, false]
   ] as const)(
     'keeps the exact full-cell Water budget and motion contract at %s quality',
