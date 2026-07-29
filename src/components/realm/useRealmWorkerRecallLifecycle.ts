@@ -5,6 +5,7 @@ import {
   useState
 } from 'react';
 
+import { emitWarpkeepSfx } from '../audio/sfxEvents';
 import {
   realmWorkerCanRecall,
   type RealmWorkerPublicPresentation
@@ -190,6 +191,7 @@ export function useRealmWorkerRecallLifecycle(input: Readonly<{
       const pending = pendingWorkersRef.current.get(workerId);
       if (pending?.attempt === attempt && pending.fid === fid) {
         clearWorker(workerId);
+        emitWarpkeepSfx({ kind: 'command-failed' });
       }
       throw new Error('Worker command is unavailable.');
     }
@@ -244,7 +246,10 @@ export function useRealmWorkerRecallLifecycle(input: Readonly<{
         clearRecallAll();
       }, WORKER_RECONCILIATION_TIMEOUT_MILLISECONDS);
     } catch {
-      if (pendingRecallAllRef.current === pending) clearRecallAll();
+      if (pendingRecallAllRef.current === pending) {
+        clearRecallAll();
+        emitWarpkeepSfx({ kind: 'command-failed' });
+      }
       throw new Error('Worker command is unavailable.');
     }
   }, [clearRecallAll]);

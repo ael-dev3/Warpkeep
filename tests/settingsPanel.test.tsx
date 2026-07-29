@@ -57,7 +57,7 @@ describe('SettingsPanel', () => {
 
   it('offers an accessible soundtrack switch', () => {
     const { onAudioMutedChange } = renderSettings();
-    const soundtrack = screen.getByRole('switch', { name: /music & ambience/i });
+    const soundtrack = screen.getByRole('switch', { name: /music & effects/i });
 
     expect((soundtrack as HTMLInputElement).checked).toBe(true);
     fireEvent.click(soundtrack);

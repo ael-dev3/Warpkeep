@@ -33,6 +33,11 @@ import type {
   GraphicsQualityTier
 } from '../../settings/graphicsPreference';
 import type { CanonicalWarpkeepRealmSnapshot } from '../../spacetime/warpkeepBackendTypes';
+import {
+  emitWarpkeepSfx,
+  emitWarpkeepSfxBatch,
+  type WarpkeepSfxEvent
+} from '../audio/sfxEvents';
 import { isCanonicalGenesisSnapshot } from '../../spacetime/canonicalGenesisSnapshot';
 import type {
   ReadyRealmResourcePresentation,
@@ -218,6 +223,11 @@ import {
 import type { WarpkeepWorkerPrivateSyncStatus } from '../../spacetime/warpkeepBackendTypes';
 import { resolveRealmWorldPortraitLayout } from './realmWorldPortraitLayout';
 import { useRealmWorkerRecallLifecycle } from './useRealmWorkerRecallLifecycle';
+import {
+  realmWorkerSfxEvents,
+  realmWorkerSfxSnapshot,
+  type RealmWorkerSfxSnapshot
+} from './realmWorkerSfxPresentation';
 
 export {
   BLOCKED_SHARED_FOREST_PROJECTION_SIGNATURE,
@@ -280,6 +290,15 @@ type RealmMapScreenProps = Readonly<{
 type RendererMode = 'loading' | 'webgl' | 'fallback';
 
 const REALM_KEYBOARD_INSTRUCTIONS_ID = 'realm-map-keyboard-instructions';
+const RESOURCE_SELECTION_SFX_KINDS = Object.freeze({
+  food: 'select-food',
+  gold: 'select-gold',
+  stone: 'select-stone',
+  wood: 'select-wood'
+} as const satisfies Readonly<Record<
+  RealmEconomicResourceKey,
+  Extract<WarpkeepSfxEvent, { kind: `select-${string}` }>['kind']
+>>);
 
 type PendingNavigatorTarget =
   | Readonly<{ kind: 'cell'; coord: HexCoord }>
@@ -731,6 +750,23 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     ),
     [publicWorkerProjection]
   );
+  const workerSfxSnapshot = useMemo(
+    () => realmWorkerSfxSnapshot(observerMode ? [] : publicOwnedWorkers),
+    [observerMode, publicOwnedWorkers]
+  );
+  const workerSfxSignature = workerSfxSnapshot
+    .map((worker) => `${worker.workerId}:${worker.status}`)
+    .sort()
+    .join('|');
+  const previousWorkerSfxSnapshotRef = useRef<
+    readonly RealmWorkerSfxSnapshot[] | undefined
+  >(undefined);
+  useEffect(() => {
+    const previous = previousWorkerSfxSnapshotRef.current;
+    previousWorkerSfxSnapshotRef.current = workerSfxSnapshot;
+    if (!previous || workerSfxSnapshot.length === 0) return;
+    emitWarpkeepSfxBatch(realmWorkerSfxEvents(previous, workerSfxSnapshot));
+  }, [workerSfxSignature, workerSfxSnapshot]);
   const workerRecallLifecycle = useRealmWorkerRecallLifecycle({
     identityFid: identity.fid,
     workers: observerMode ? [] : publicOwnedWorkers,
@@ -1170,6 +1206,8 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
   cameraModeRef.current = cameraMode;
   const selectionFeedbackSequenceRef = useRef(0);
   const selectionFeedbackTimerRef = useRef<number | null>(null);
+  const pendingSelectionScreenXRef = useRef<number | undefined>(undefined);
+  const lastSfxSelectionKeyRef = useRef<string | undefined>(undefined);
   const [worldSelectionFeedback, setWorldSelectionFeedback] = useState<
     Readonly<{ sequence: number; x: number; y: number }> | undefined
   >(undefined);
@@ -1190,6 +1228,9 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
   );
   const interactionRef = useRef(interaction);
   interactionRef.current = interaction;
+  useEffect(() => {
+    if (!interaction.inspectorOpen) lastSfxSelectionKeyRef.current = undefined;
+  }, [interaction.inspectorOpen]);
   const selectedCoord = interaction.selectedCell;
   const selectedCoordRef = useRef<HexCoord>(interaction.selectedCell);
   const hoveredCoordRef = useRef<HexCoord | null>(null);
@@ -1743,7 +1784,27 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     dispatchInteraction({ type: 'select-cell', coord: keepCoord });
   }, [keepCoord]);
 
+  const consumeSelectionScreenX = useCallback(() => {
+    const screenX = pendingSelectionScreenXRef.current;
+    pendingSelectionScreenXRef.current = undefined;
+    return screenX;
+  }, []);
+
+  const emitWorldSelectionSfx = useCallback((
+    selectionKey: string,
+    event: WarpkeepSfxEvent & Readonly<{ screenX?: number }>
+  ) => {
+    const screenX = consumeSelectionScreenX();
+    if (lastSfxSelectionKeyRef.current === selectionKey) return;
+    lastSfxSelectionKeyRef.current = selectionKey;
+    emitWarpkeepSfx(Object.freeze({
+      ...event,
+      ...(screenX === undefined ? {} : { screenX })
+    }));
+  }, [consumeSelectionScreenX]);
+
   const selectCoord = useCallback((coord: HexCoord) => {
+    consumeSelectionScreenX();
     if (
       !isPlayableRealmCoord(surfaceRef.current, coord)
       || tileMetadataByKeyRef.current.get(hexKey(coord))?.passable === false
@@ -1751,16 +1812,20 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     updateHoveredCastleId(undefined);
     selectedCoordRef.current = coord;
     dispatchInteraction({ type: 'select-cell', coord });
-  }, [updateHoveredCastleId]);
+  }, [consumeSelectionScreenX, updateHoveredCastleId]);
 
   const selectCastle = useCallback((castle: RealmCastleProjection) => {
+    emitWorldSelectionSfx(
+      `keep:${castle.castleId}`,
+      { kind: 'select-keep' }
+    );
     selectedCoordRef.current = { q: castle.q, r: castle.r };
     dispatchInteraction({
       type: 'activate-castle',
       castleId: castle.castleId,
       coord: { q: castle.q, r: castle.r }
     });
-  }, []);
+  }, [emitWorldSelectionSfx]);
 
   const focusResourceOccupantCastle = useCallback((marker: RealmResourceOccupantMarker) => {
     const castle = allCastlesRef.current.find(
@@ -1779,42 +1844,50 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
   }, []);
 
   const selectGoldNode = useCallback((node: RealmGoldNodePresentation) => {
+    emitWorldSelectionSfx(`gold:${node.siteId}`, { kind: 'select-gold' });
     selectedCoordRef.current = { ...node.coord };
     dispatchInteraction({
       type: 'activate-gold-site',
       siteId: node.siteId,
       coord: node.coord
     });
-  }, []);
+  }, [emitWorldSelectionSfx]);
 
   const selectFoodNode = useCallback((node: RealmFoodNodePresentation) => {
+    emitWorldSelectionSfx(`food:${node.siteId}`, { kind: 'select-food' });
     selectedCoordRef.current = { ...node.coord };
     dispatchInteraction({
       type: 'activate-food-site',
       siteId: node.siteId,
       coord: node.coord
     });
-  }, []);
+  }, [emitWorldSelectionSfx]);
 
   const selectWoodNode = useCallback((node: RealmWoodNodePresentation) => {
+    emitWorldSelectionSfx(`wood:${node.siteId}`, { kind: 'select-wood' });
     selectedCoordRef.current = { ...node.coord };
     dispatchInteraction({
       type: 'activate-wood-site',
       siteId: node.siteId,
       coord: node.coord
     });
-  }, []);
+  }, [emitWorldSelectionSfx]);
 
   const selectStoneNode = useCallback((node: RealmStoneNodePresentation) => {
+    emitWorldSelectionSfx(`stone:${node.siteId}`, { kind: 'select-stone' });
     selectedCoordRef.current = { ...node.coord };
     dispatchInteraction({
       type: 'activate-stone-site',
       siteId: node.siteId,
       coord: node.coord
     });
-  }, []);
+  }, [emitWorldSelectionSfx]);
 
   const selectResourceOccupant = useCallback((marker: RealmResourceOccupantMarker) => {
+    emitWorldSelectionSfx(
+      `${marker.resource}:${marker.siteId}`,
+      { kind: RESOURCE_SELECTION_SFX_KINDS[marker.resource] }
+    );
     selectedCoordRef.current = { ...marker.nodeCoord };
     if (marker.resource === 'gold') {
       dispatchInteraction({
@@ -1845,9 +1918,13 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       siteId: marker.siteId,
       coord: marker.nodeCoord
     });
-  }, []);
+  }, [emitWorldSelectionSfx]);
 
   const selectWaterCell = useCallback((record: RealmWaterInspectionRecord) => {
+    emitWorldSelectionSfx(
+      `water:${record.cellKey}`,
+      { kind: 'select-water', regime: record.regime }
+    );
     selectedCoordRef.current = { ...record.coord };
     dispatchInteraction({
       type: 'activate-water-cell',
@@ -1856,9 +1933,13 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       regime: record.regime,
       coord: record.coord
     });
-  }, []);
+  }, [emitWorldSelectionSfx]);
 
   const selectWorker = useCallback((worker: RealmWorkerPublicPresentation, coord: HexCoord) => {
+    emitWorldSelectionSfx(
+      `worker:${worker.workerId}`,
+      { kind: 'select-worker' }
+    );
     selectedCoordRef.current = { ...coord };
     dispatchInteraction({
       type: 'activate-worker',
@@ -1867,7 +1948,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       originCastleId: worker.originCastleId,
       coord
     });
-  }, []);
+  }, [emitWorldSelectionSfx]);
 
   const selectWorkerOrOccupiedSite = useCallback((
     worker: RealmWorkerPublicPresentation,
@@ -2228,6 +2309,8 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     point: Readonly<{ x: number; y: number }>
   ) => {
     if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
+    const rootBounds = rootRef.current?.getBoundingClientRect();
+    pendingSelectionScreenXRef.current = point.x + (rootBounds?.left ?? 0);
     if (selectionFeedbackTimerRef.current !== null) {
       window.clearTimeout(selectionFeedbackTimerRef.current);
     }

@@ -25,10 +25,23 @@ The title and menu preserve their existing behavior. An authenticated `ENTER REA
 
 The realm elements have no `src` until an authenticated realm is prepared. This prevents Lowlands audio requests from anonymous title, menu, QR, and deep-link views. The complete source and runtime integrity record lives in [`../reference/audio/2026-07-11-lowlands-of-hegemony/`](../reference/audio/2026-07-11-lowlands-of-hegemony/).
 
-## Deferred interaction and ambience cues
+## Procedural interaction layer
 
-The current approved runtime inventory contains scores, not a dedicated cue or
-location-ambience bank. Selection, dispatch, recall, panel, forest, river, and
-ocean cues therefore remain outside Alpha 0.3.20. Add them only after the owner
-supplies or approves exact provenance-recorded assets; do not fetch substitute
-media or add procedural beeps merely to fill the mute preference.
+Short interaction cues use Web Audio synthesis rather than downloaded samples.
+This keeps the soundtrack inventory unchanged and makes the runtime boundary
+easy to inspect:
+
+- the context is created or resumed only after trusted player input;
+- one shared noise buffer and fixed UI/world bus graph feed a modest master
+  level under the existing mute preference;
+- at most 16 event voices are active, with cooldowns, Worker-event clustering,
+  and priority-based dropping at saturation;
+- every oscillator and buffer source has a finite envelope and explicit stop;
+- mute, hidden-tab, sign-out, and teardown paths stop pending voices;
+- no identity, gameplay authority, network request, or new persistent record
+  enters the SFX layer.
+
+Keep, resource, Water, and ordinary interface selections are presentation
+events. Worker confirmations come only from changes in the viewer-owned public
+Worker projection, never from optimistic command submission. The current layer
+does not add continuous river or ocean ambience.

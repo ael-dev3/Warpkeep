@@ -4,6 +4,38 @@ export {
   type WarpkeepAudioDirectorProps
 } from './WarpkeepAudioDirector';
 export {
+  WarpkeepSfxDirector,
+  resolveWarpkeepUiSfx,
+  type WarpkeepSfxDirectorEngine,
+  type WarpkeepSfxDirectorProps
+} from './WarpkeepSfxDirector';
+export {
+  ProceduralSfxEngine,
+  getWarpkeepSfxRecipe,
+  measureWarpkeepAudioBuffer,
+  renderWarpkeepSfxEventOffline,
+  type WarpkeepRenderedAudioMetrics,
+  type WarpkeepSfxEngineOptions,
+  type WarpkeepSfxEngineSnapshot,
+  type WarpkeepSfxRecipe
+} from './proceduralSfxEngine';
+export {
+  WARPKEEP_SFX_EFFECTS_LEVEL,
+  WARPKEEP_SFX_EVENT_KINDS,
+  WARPKEEP_SFX_VOICE_CAP,
+  clusterWarpkeepSfxEvents,
+  emitWarpkeepSfx,
+  emitWarpkeepSfxBatch,
+  stopWarpkeepSfxVoices,
+  subscribeWarpkeepSfx,
+  subscribeWarpkeepSfxStop,
+  warpkeepSfxEventCount,
+  warpkeepSfxEventFamily,
+  warpkeepSfxPan,
+  type WarpkeepSfxEmphasis,
+  type WarpkeepSfxEvent
+} from './sfxEvents';
+export {
   WARPKEEP_AUDIO_LEVELS,
   WARPKEEP_AUDIO_TRANSITION_MS,
   WARPKEEP_MENU_LOOP,

@@ -7,6 +7,7 @@ import {
   type RefObject
 } from 'react';
 
+import { emitWarpkeepSfx } from '../audio/sfxEvents';
 import type {
   RealmEconomicResourceKey
 } from './realmResourcePresentation';
@@ -210,6 +211,7 @@ export function RealmNodeWorkerDispatch({
         || activeCommandRef.current !== commandId
         || !targetStillCurrent()
       ) return;
+      emitWarpkeepSfx({ kind: 'command-failed' });
       setState({ phase: 'failed', ...target });
     } finally {
       if (activeCommandRef.current === commandId) {
