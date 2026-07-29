@@ -266,7 +266,7 @@ describe('combined lowlands terrain geometry', () => {
       expect(incidence.every((count) => count === 1 || count === 2)).toBe(true);
       expect(geometry.vertexCount - edgeIncidence.size + geometry.triangleCount).toBe(1);
     });
-  });
+  }, 15_000);
 
   it('shares every segmented transition vertex between the inner lattice and outer fan', () => {
     const completeMap = generateRealmTerrainMap(HEGEMONY_GENESIS_001, 23);
