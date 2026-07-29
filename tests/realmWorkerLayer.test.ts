@@ -321,11 +321,14 @@ describe('realm worker scene layer', () => {
       direction: 'idle',
       coord: idleWorker.originCoord
     });
-    expect(layer.getPresentationTelemetry()).toMatchObject({
+    const telemetry = layer.getPresentationTelemetry();
+    expect(telemetry).toMatchObject({
       publicWorkerCount: 1,
       modelWorkerCount: 0,
       fallbackWorkerCount: 0
     });
+    expect(layer.update(0n)).toBe(false);
+    expect(layer.getPresentationTelemetry()).toBe(telemetry);
     expect(layer.raycast(new THREE.Raycaster(
       new THREE.Vector3(0, 5, 0),
       new THREE.Vector3(0, -1, 0),
@@ -635,6 +638,213 @@ describe('realm worker scene layer', () => {
     layer.dispose();
   });
 
+  it('hands off only heading and terrain smoothing across a renderer rebuild', () => {
+    const heightAtWorld = ({ x, z }: Readonly<{ x: number; z: number }>) => (
+      x * 0.08 + z * 0.04
+    );
+    const source = createRealmWorkerLayer({
+      workers: [longOutboundWorker],
+      hexSize: 1,
+      heightAtWorld
+    });
+    source.update(5_600_000n);
+    source.update(7_600_000n);
+    const sourcePose = source.getCurrentPose(longOutboundWorker.workerId)!;
+    const continuity = source.getPresentationContinuity();
+    expect(continuity?.records).toHaveLength(1);
+
+    const candidate = createRealmWorkerLayer({
+      workers: [longOutboundWorker],
+      hexSize: 1,
+      heightAtWorld
+    });
+    candidate.update(7_600_000n);
+    const before = candidate.getCurrentPose(longOutboundWorker.workerId)!;
+    const angularDistance = (left: number, right: number) => Math.abs(Math.atan2(
+      Math.sin(left - right),
+      Math.cos(left - right)
+    ));
+    expect(angularDistance(before.yaw, sourcePose.yaw)).toBeGreaterThan(0.3);
+
+    expect(candidate.restorePresentationContinuity(
+      continuity,
+      7_600_000n
+    )).toBe(true);
+    const restored = candidate.getCurrentPose(longOutboundWorker.workerId)!;
+    expect(restored.yaw).toBeCloseTo(sourcePose.yaw, 12);
+    expect(restored.world.y).toBeCloseTo(sourcePose.world.y, 12);
+    expect(restored.forwardProgress).toBeCloseTo(before.forwardProgress, 12);
+
+    source.dispose();
+    candidate.dispose();
+  });
+
+  it('rolls back continuity when its final presentation apply fails', () => {
+    const source = createRealmWorkerLayer({
+      workers: [longOutboundWorker],
+      hexSize: 1,
+      heightAtWorld: () => 0
+    });
+    source.update(5_600_000n);
+    source.update(7_600_000n);
+    const continuity = source.getPresentationContinuity();
+
+    const candidate = createRealmWorkerLayer({
+      workers: [longOutboundWorker],
+      hexSize: 1,
+      heightAtWorld: () => 0
+    });
+    candidate.update(7_600_000n);
+    const before = candidate.getCurrentPose(longOutboundWorker.workerId);
+    vi.spyOn(THREE.InstancedMesh.prototype, 'computeBoundingSphere')
+      .mockImplementationOnce(() => {
+        throw new Error('synthetic continuity presentation failure');
+      });
+
+    expect(candidate.restorePresentationContinuity(
+      continuity,
+      7_600_000n
+    )).toBe(false);
+    expect(candidate.getCurrentPose(longOutboundWorker.workerId)).toEqual(before);
+    expect(() => candidate.update(7_700_000n)).not.toThrow();
+
+    source.dispose();
+    candidate.dispose();
+  });
+
+  it('restores a valid moving Worker when a peer continuity record is stale', () => {
+    const peer = Object.freeze({
+      ...longOutboundWorker,
+      workerId: 'genesis-001-castle-8-worker-01',
+      originCastleId: 8,
+      originCastleName: 'Hegemony Keep 008',
+      ownedByViewer: false
+    }) satisfies RealmWorkerSceneRecord;
+    const source = createRealmWorkerLayer({
+      workers: [longOutboundWorker, peer],
+      hexSize: 1,
+      heightAtWorld: () => 0
+    });
+    source.update(5_600_000n);
+    source.update(7_600_000n);
+    const continuity = source.getPresentationContinuity()!;
+    const primary = continuity.records.find(
+      (record) => record.workerId === longOutboundWorker.workerId
+    )!;
+    const mixed = Object.freeze({
+      ...continuity,
+      records: Object.freeze(continuity.records.map((record) => (
+        record.workerId === peer.workerId
+          ? Object.freeze({
+              ...record,
+              sampledAtMicros: 4_000_000n
+            })
+          : record
+      )))
+    });
+    const candidate = createRealmWorkerLayer({
+      workers: [longOutboundWorker, peer],
+      hexSize: 1,
+      heightAtWorld: () => 0
+    });
+    candidate.update(7_600_000n);
+
+    expect(candidate.restorePresentationContinuity(
+      mixed,
+      7_600_000n
+    )).toBe(true);
+    expect(candidate.getCurrentPose(longOutboundWorker.workerId)?.yaw)
+      .toBeCloseTo(primary.displayYaw, 12);
+
+    source.dispose();
+    candidate.dispose();
+  });
+
+  it.each([
+    ['duplicate ids', (record: Record<string, unknown>) => ({
+      version: 1,
+      records: [record, record]
+    })],
+    ['unknown id', (record: Record<string, unknown>) => ({
+      version: 1,
+      records: [{ ...record, workerId: 'unknown-worker' }]
+    })],
+    ['changed timeline', (record: Record<string, unknown>) => ({
+      version: 1,
+      records: [{
+        ...record,
+        timelineRevision: Number(record.timelineRevision) + 1
+      }]
+    })],
+    ['stale sample', (record: Record<string, unknown>) => ({
+      version: 1,
+      records: [{ ...record, sampledAtMicros: 4_000_000n }]
+    })],
+    ['future sample', (record: Record<string, unknown>) => ({
+      version: 1,
+      records: [{ ...record, sampledAtMicros: 8_000_000n }]
+    })],
+    ['non-finite yaw', (record: Record<string, unknown>) => ({
+      version: 1,
+      records: [{ ...record, displayYaw: Number.NaN }]
+    })],
+    ['over-steep terrain normal', (record: Record<string, unknown>) => ({
+      version: 1,
+      records: [{
+        ...record,
+        terrainNormal: {
+          x: 0.5,
+          y: Math.sqrt(0.75),
+          z: 0
+        }
+      }]
+    })]
+  ] as const)('rejects %s continuity without changing the candidate', (
+    _label,
+    corrupt
+  ) => {
+    const source = createRealmWorkerLayer({
+      workers: [longOutboundWorker],
+      hexSize: 1,
+      heightAtWorld: () => 0
+    });
+    source.update(7_600_000n);
+    const record = source.getPresentationContinuity()!.records[0]!;
+    const candidate = createRealmWorkerLayer({
+      workers: [longOutboundWorker],
+      hexSize: 1,
+      heightAtWorld: () => 0
+    });
+    candidate.update(7_600_000n);
+    const before = candidate.getCurrentPose(longOutboundWorker.workerId);
+
+    expect(candidate.restorePresentationContinuity(
+      corrupt(record as unknown as Record<string, unknown>),
+      7_600_000n
+    )).toBe(false);
+    expect(candidate.getCurrentPose(longOutboundWorker.workerId)).toEqual(before);
+
+    source.dispose();
+    candidate.dispose();
+  });
+
+  it('makes Worker continuity inert after disposal', () => {
+    const layer = createRealmWorkerLayer({
+      workers: [longOutboundWorker],
+      hexSize: 1,
+      heightAtWorld: () => 0
+    });
+    layer.update(7_600_000n);
+    const continuity = layer.getPresentationContinuity();
+    layer.dispose();
+
+    expect(layer.getPresentationContinuity()).toBeNull();
+    expect(layer.restorePresentationContinuity(
+      continuity,
+      7_600_000n
+    )).toBe(false);
+  });
+
   it('snaps terrain presentation to truth when the timeline revision changes', () => {
     let terrainHeight = 0;
     const layer = createRealmWorkerLayer({
@@ -671,8 +881,9 @@ describe('realm worker scene layer', () => {
     });
     const scheduled = layer.getCurrentPose(futureWorker.workerId)!;
 
-    expect(layer.hasMovingWorkers()).toBe(true);
-    expect(layer.update(1_000_000n)).toBe(true);
+    expect(layer.hasMovingWorkers()).toBe(false);
+    expect(layer.getNextMovementWakeAtMicros()).toBe(2_000_000n);
+    expect(layer.update(1_000_000n)).toBe(false);
     expect(layer.getCurrentPose(futureWorker.workerId)?.world).toEqual(
       scheduled.world
     );
@@ -701,9 +912,83 @@ describe('realm worker scene layer', () => {
     });
 
     expect(layer.hasMovingWorkers()).toBe(false);
-    expect(layer.update(59_000_000n)).toBe(true);
+    expect(layer.getNextMovementWakeAtMicros()).toBe(60_000_000n);
+    expect(layer.update(59_999_999n)).toBe(false);
+    expect(layer.hasMovingWorkers()).toBe(false);
+    expect(layer.getNextMovementWakeAtMicros()).toBe(60_000_000n);
+    expect(layer.update(60_000_000n)).toBe(true);
     expect(layer.hasMovingWorkers()).toBe(true);
-    expect(layer.getPresentationTelemetry().locomotionMovingCount).toBe(0);
+    expect(layer.getNextMovementWakeAtMicros()).toBeNull();
+    expect(layer.getPresentationTelemetry().locomotionMovingCount).toBe(1);
+    layer.dispose();
+    expect(layer.getNextMovementWakeAtMicros()).toBeNull();
+  });
+
+  it('schedules the presentation clock for a future returning journey', () => {
+    const futureReturn = Object.freeze({
+      ...longOutboundWorker,
+      status: 'returning' as const,
+      startedAtMicros: 1_000_000n,
+      arrivesAtMicros: 11_000_000n,
+      gatheringEndsAtMicros: 21_000_000n,
+      returnStartedAtMicros: 60_000_000n,
+      returnsAtMicros: 70_000_000n,
+      timelineRevision: 2,
+      revision: 2n
+    }) satisfies RealmWorkerSceneRecord;
+    const layer = createRealmWorkerLayer({
+      workers: [futureReturn],
+      hexSize: 1,
+      heightAtWorld: () => 0,
+      reducedMotion: true
+    });
+
+    layer.update(50_000_000n);
+    expect(layer.hasMovingWorkers()).toBe(false);
+    expect(layer.getNextMovementWakeAtMicros()).toBe(60_000_000n);
+
+    layer.update(60_000_000n);
+    expect(layer.hasMovingWorkers()).toBe(true);
+    expect(layer.getNextMovementWakeAtMicros()).toBeNull();
+    layer.dispose();
+  });
+
+  it('replaces or clears a future wake when authoritative timing reconciles', () => {
+    const futureWorker = Object.freeze({
+      ...longOutboundWorker,
+      startedAtMicros: 60_000_000n,
+      arrivesAtMicros: 70_000_000n,
+      gatheringEndsAtMicros: 80_000_000n,
+      returnsAtMicros: 90_000_000n
+    }) satisfies RealmWorkerSceneRecord;
+    const layer = createRealmWorkerLayer({
+      workers: [futureWorker],
+      hexSize: 1,
+      heightAtWorld: () => 0,
+      reducedMotion: true
+    });
+
+    layer.update(10_000_000n);
+    expect(layer.getNextMovementWakeAtMicros()).toBe(60_000_000n);
+
+    layer.reconcile([Object.freeze({
+      ...futureWorker,
+      startedAtMicros: 80_000_000n,
+      arrivesAtMicros: 90_000_000n,
+      gatheringEndsAtMicros: 100_000_000n,
+      returnsAtMicros: 110_000_000n,
+      timelineRevision: 2,
+      revision: 2n
+    })]);
+    expect(layer.getNextMovementWakeAtMicros()).toBe(80_000_000n);
+
+    layer.reconcile([Object.freeze({
+      ...idleWorker,
+      timelineRevision: 3,
+      revision: 3n
+    })]);
+    expect(layer.hasMovingWorkers()).toBe(false);
+    expect(layer.getNextMovementWakeAtMicros()).toBeNull();
     layer.dispose();
   });
 

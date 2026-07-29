@@ -920,24 +920,32 @@ describe('rendered WebGL headless browser probe contract', () => {
         probeCase.workerLocomotion.expectedWheelDrivenCount,
         probeCase.workerLocomotion.expectedAnimatedCount
       );
-      const samples = Array.from({ length: 32 }, (_, index) => ({
-        elapsedMilliseconds: 33 + index * 48,
-        rootProjections: [
-          {
-            phase: 'outbound' as const,
-            x: Math.min(probeCase.viewport.width - 1, 120 + index * 0.2),
-            y: Math.min(probeCase.viewport.height - 1, 140)
-          },
-          {
-            phase: 'returning' as const,
-            x: Math.min(probeCase.viewport.width - 1, 240 - index * 0.25),
-            y: Math.min(probeCase.viewport.height - 1, 150)
-          }
-        ],
-        telemetry
-      }));
-      const first = samples[0]!.rootProjections;
-      const last = samples.at(-1)!.rootProjections;
+      const samples = Array.from({ length: 32 }, (_, index) => {
+        const phase = index < 16 ? 'outbound' as const : 'returning' as const;
+        const phaseIndex = index % 16;
+        return {
+          elapsedMilliseconds: 33 + index * 48,
+          rootProjections: [{
+            phase,
+            x: phase === 'outbound'
+              ? Math.min(probeCase.viewport.width - 1, 120 + phaseIndex * 0.2)
+              : Math.min(probeCase.viewport.width - 1, 240 - phaseIndex * 0.25),
+            y: Math.min(
+              probeCase.viewport.height - 1,
+              phase === 'outbound' ? 140 : 150
+            )
+          }],
+          telemetry
+        };
+      });
+      const phaseMovement = (phase: 'outbound' | 'returning') => {
+        const positions = samples.flatMap((sample) => (
+          sample.rootProjections.filter((root) => root.phase === phase)
+        ));
+        const first = positions[0]!;
+        const last = positions.at(-1)!;
+        return Math.hypot(last.x - first.x, last.y - first.y);
+      };
       return {
         approvedAssetLoaded: true,
         animatedCount: probeCase.workerLocomotion.expectedAnimatedCount,
@@ -947,14 +955,8 @@ describe('rendered WebGL headless browser probe contract', () => {
         fixtureSelected: true,
         modelCount: 3,
         movementPixels: {
-          outbound: Math.hypot(
-            last[0]!.x - first[0]!.x,
-            last[0]!.y - first[0]!.y
-          ),
-          returning: Math.hypot(
-            last[1]!.x - first[1]!.x,
-            last[1]!.y - first[1]!.y
-          )
+          outbound: phaseMovement('outbound'),
+          returning: phaseMovement('returning')
         },
         presentedCount: 400,
         quality: probeCase.expectedQuality,
@@ -964,7 +966,7 @@ describe('rendered WebGL headless browser probe contract', () => {
         samples,
         viewportHeight: probeCase.viewport.height,
         viewportWidth: probeCase.viewport.width,
-        visibleProjectionCount: 2,
+        visibleProjectionCount: 1,
         wheelDrivenCount:
           probeCase.workerLocomotion.expectedWheelDrivenCount
       } as const;
@@ -1068,6 +1070,26 @@ describe('rendered WebGL headless browser probe contract', () => {
         }))
       }))
     })).toThrow(/movement evidence/i);
+    for (const frozenPhase of ['outbound', 'returning'] as const) {
+      const first = balancedEvidence.samples
+        .flatMap((sample) => sample.rootProjections)
+        .find((root) => root.phase === frozenPhase)!;
+      expect(() => parseRenderedWebglWorkerLocomotionEvidence({
+        ...balancedEvidence,
+        movementPixels: {
+          ...balancedEvidence.movementPixels,
+          [frozenPhase]: 0
+        },
+        samples: balancedEvidence.samples.map((sample) => ({
+          ...sample,
+          rootProjections: sample.rootProjections.map((root) => (
+            root.phase === frozenPhase
+              ? { ...root, x: first.x, y: first.y }
+              : root
+          ))
+        }))
+      })).toThrow(/movement evidence/i);
+    }
 
     const command = vi.fn(async (
       method: string,
@@ -1087,14 +1109,17 @@ describe('rendered WebGL headless browser probe contract', () => {
       awaitPromise: true,
       returnByValue: true
     });
-    expect(evaluation?.[2]).toBe(40_000);
+    expect(evaluation?.[2]).toBe(100_000);
     const expression = String(evaluation?.[1]?.expression);
     expect(expression).toContain("overlay.dataset.fixtureVariant === 'worker-locomotion'");
     expect(expression).toContain(
       '/models/hegemony/hegemony-supply-wagon-balanced-af0f8788eaaf9a32.glb'
     );
-    expect(expression).toContain('const readinessSatisfied = await waitFor');
+    expect(expression).toContain(
+      'const baseReadinessSatisfied = await waitFor'
+    );
     expect(expression).toContain('data-projected-visible="true"');
+    expect(expression).toContain('realmLocalQaWorkerProjections');
     expect(expression).toContain("'data-realm-worker-locomotion-moving-count'");
     expect(expression).toContain("'data-realm-worker-clip-walk-count'");
     expect(expression).toContain(
@@ -1102,9 +1127,25 @@ describe('rendered WebGL headless browser probe contract', () => {
     );
     expect(expression).toContain("'data-realm-worker-wheel-driven-count'");
     expect(expression).toContain('--realm-worker-presence-x');
+    expect(expression).toContain("'data-realm-camera-settled'");
+    expect(expression).toContain("'data-realm-camera-state-token'");
+    expect(expression).toContain("{ ordinal: 1, phase: 'outbound' }");
+    expect(expression).toContain("{ ordinal: 2, phase: 'returning' }");
+    expect(expression).toContain('let samplingElapsedMilliseconds = 0');
     expect(expression).toContain(
-      "expected.caseId !== 'mobile-reduced-motion-worker-locomotion'"
+      'const phaseSamplingStartedAt = performance.now();'
     );
+    expect(expression).not.toContain('const startedAt = performance.now();');
+    expect(expression.indexOf(
+      'const phaseSamplingStartedAt = performance.now();'
+    )).toBeGreaterThan(expression.indexOf(
+      'const settledCameraToken = await locateMovingWorker(target);'
+    ));
+    expect(expression.indexOf(
+      'const elapsedMilliseconds = ('
+    )).toBeGreaterThan(expression.indexOf(
+      'const phaseSamplingStartedAt = performance.now();'
+    ));
     expect(expression).toContain(
       ".realm-profile-menu__worker-actions button[aria-haspopup=\"dialog\"]"
     );
@@ -1369,8 +1410,38 @@ describe('rendered WebGL headless browser probe contract', () => {
       returnByValue: true
     }));
     expect(command).toHaveBeenCalledWith('Runtime.evaluate', expect.objectContaining({
-      expression: expect.stringContaining(".trim() === 'EXPLORE'")
+      expression: expect.stringContaining(
+        "(button.querySelector('strong')?.textContent ?? '').trim()"
+      )
     }));
+    expect(command).toHaveBeenCalledWith('Runtime.evaluate', expect.objectContaining({
+      expression: expect.stringContaining("=== 'EXPLORE'")
+    }));
+    expect(command).toHaveBeenCalledWith('Runtime.evaluate', expect.objectContaining({
+      expression: expect.stringContaining(
+        'const deadline = performance.now() + 2_000'
+      )
+    }));
+    expect(command).toHaveBeenCalledWith('Runtime.evaluate', expect.objectContaining({
+      expression: expect.stringContaining(
+        'await new Promise((resolve) => setTimeout(resolve, 32))'
+      )
+    }));
+    const source = readFileSync(resolve(
+      process.cwd(),
+      'scripts/qa-observer/rendered-webgl-browser-probe.mjs'
+    ), 'utf8');
+    expect(source).toContain("method === 'Page.lifecycleEvent'");
+    expect(source).toContain("params?.name === 'load'");
+    expect(source).toContain('state.loadedPageLoaderIds.has(loaderId)');
+    expect(source).toContain(
+      "devtools.command('Page.setLifecycleEventsEnabled'"
+    );
+    const navigationSource = source.slice(
+      source.indexOf('async function navigateRenderedWebglCase'),
+      source.indexOf('async function runRenderedOccupancyStressCase')
+    );
+    expect(navigationSource).not.toContain('await delay(150);');
     await expect(applyRenderedWebglCaseInteraction(
       { command },
       'explore',

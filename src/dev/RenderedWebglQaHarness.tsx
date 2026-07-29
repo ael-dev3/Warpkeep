@@ -244,6 +244,9 @@ export function RenderedWebglQaHarness({
           onAudioMutedChange={setAudioMuted}
           onGraphicsPreferenceChange={setGraphicsPreference}
           onRequestReturn={() => setPhase({ kind: 'closed' })}
+          localQaWorkerProjectionTelemetry={
+            fixtureVariant === 'worker-locomotion'
+          }
           presentationMode={presentationMode}
           qualityOverride={quality}
           resources={presentationMode === 'player'

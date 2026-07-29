@@ -155,6 +155,8 @@ import {
   createRealmWorkerLayer,
   isValidRealmWorkerSceneCatalog,
   type RealmWorkerLayer,
+  type RealmWorkerLayerTelemetry,
+  type RealmWorkerPresentationContinuityV1,
   type RealmWorkerSceneRecord
 } from './realmWorkerLayer';
 import { resolveRealmWorkerCanonicalRoute } from './realmWorkerRoutePresentation';
@@ -213,6 +215,8 @@ const RESOURCE_OCCUPANT_MARKER_LIFT: Readonly<Record<RealmResourceKind, number>>
 });
 const WORKER_PRESENCE_MARKER_LIFT = 0.82;
 const MAX_VISIBLE_WORKER_PRESENCES = 24;
+const MAX_BROWSER_TIMEOUT_MILLISECONDS = 2_147_483_647;
+const WORKER_MODEL_REPLACEMENT_PREFLIGHT_TIMEOUT_MILLISECONDS = 1_500;
 const CANONICAL_KEEP_CAMERA_FOCUS_SIZE = Object.freeze({
   height: 1.08,
   footprintDiameter: 1.48
@@ -677,6 +681,8 @@ export type RealmSceneHandle = Readonly<{
   reconcileLiveGatheringState: (state: RealmLiveGatheringState) => void;
   getCameraAttestation: () => RealmCameraAttestation;
   restoreCameraAttestation?: (attestation: RealmCameraAttestation) => void;
+  getWorkerPresentationContinuity: () => RealmWorkerPresentationContinuityV1 | null;
+  restoreWorkerPresentationContinuity: (snapshot: unknown) => boolean;
   getSceneBuildSequence: () => number;
   focusCastle: (castleId: number) => void;
   /** Centers a castle while retaining the controller's current zoom. */
@@ -802,6 +808,12 @@ export type CreateRealmSceneOptions = Readonly<{
   stoneNodes?: readonly RealmStoneNodeSceneRecord[];
   /** Complete validated public worker roster with public route coordinates only. */
   workers?: readonly RealmWorkerSceneRecord[];
+  /**
+   * Presentation-only renderer replacements may retain their predecessor
+   * briefly until the requested wagon LOD resolves. The fallback remains
+   * bounded and authoritative gameplay never waits on this visual preflight.
+   */
+  waitForWorkerModelBeforeReady?: boolean;
   /** Identity-minimized public leases used only for the bounded DOM marker lane. */
   resourceOccupants?: readonly RealmResourceOccupantSceneRecord[];
   /** Validated renderer-only projection of public lease state for site accents. */
@@ -2310,6 +2322,7 @@ function initializeRealmScene(
   let lastFoodNodePresentationTelemetryKey = '';
   let lastWoodNodePresentationTelemetryKey = '';
   let lastStoneNodePresentationTelemetryKey = '';
+  let lastWorkerPresentationTelemetry: RealmWorkerLayerTelemetry | undefined;
   const expeditionSceneBudget = createRealmExpeditionSceneBudget({
     quality: runtimeQuality.id,
     goldNodeCount: options.goldNodes?.length ?? 0,
@@ -2322,10 +2335,124 @@ function initializeRealmScene(
   let presentedCastleKey = '*';
   let renderPendingWhileHidden = false;
   let pendingCastlesReadyCount: number | null = null;
+  const workerModelPreflightEnabled =
+    options.waitForWorkerModelBeforeReady === true;
+  let workerModelPreflightSettled = true;
+  let workerModelPreflightTimer: number | null = null;
+  let workerModelReadyForCurrentLayer = false;
+  let workerReadinessPublished = false;
+  let renderWorkerModelPreflightSettlement: () => void = () => undefined;
+  const cancelWorkerModelPreflightTimer = () => {
+    if (workerModelPreflightTimer === null) return;
+    window.clearTimeout(workerModelPreflightTimer);
+    workerModelPreflightTimer = null;
+  };
+  const settleWorkerModelPreflight = () => {
+    if (workerModelPreflightSettled || cleanup.isDisposed()) return;
+    workerModelPreflightSettled = true;
+    cancelWorkerModelPreflightTimer();
+    renderWorkerModelPreflightSettlement();
+  };
+  const armWorkerModelPreflightFallback = () => {
+    if (
+      workerModelPreflightSettled
+      || cleanup.isDisposed()
+      || workerModelPreflightTimer !== null
+    ) return;
+    workerModelPreflightTimer = window.setTimeout(() => {
+      workerModelPreflightTimer = null;
+      settleWorkerModelPreflight();
+    }, WORKER_MODEL_REPLACEMENT_PREFLIGHT_TIMEOUT_MILLISECONDS);
+  };
+  const syncWorkerModelPreflight = (
+    workers: readonly RealmWorkerSceneRecord[]
+  ) => {
+    if (workerReadinessPublished || cleanup.isDisposed()) return;
+    const shouldWait = (
+      workerModelPreflightEnabled
+      && workers.some((worker) => worker.status !== 'idle')
+      && !workerModelReadyForCurrentLayer
+    );
+    if (shouldWait) {
+      workerModelPreflightSettled = false;
+      if (pendingCastlesReadyCount !== null) {
+        armWorkerModelPreflightFallback();
+      }
+      return;
+    }
+    if (!workerModelPreflightSettled) settleWorkerModelPreflight();
+  };
+  cleanup.add(cancelWorkerModelPreflightTimer);
   let contextLost = false;
   let contextLossCount = 0;
   let contextRestoreCount = 0;
   let ambientScheduler: RealmAmbientScheduler | null = null;
+  let workerMovementWakeTimer: number | null = null;
+  let workerMovementWakeGeneration = 0;
+  let workerMovementWakeSuspended = false;
+  let scheduledWorkerMovementWakeAtMicros: bigint | null = null;
+  const cancelWorkerMovementWake = () => {
+    workerMovementWakeGeneration += 1;
+    if (workerMovementWakeTimer !== null) {
+      window.clearTimeout(workerMovementWakeTimer);
+      workerMovementWakeTimer = null;
+    }
+    scheduledWorkerMovementWakeAtMicros = null;
+  };
+  const syncWorkerMovementWake = (nowMicros: bigint) => {
+    const layer = workerLayer;
+    if (
+      cleanup.isDisposed()
+      || contextLost
+      || options.canvas.dataset.realmCanvasActive === 'false'
+      || !layer
+      || layer.hasMovingWorkers()
+    ) {
+      cancelWorkerMovementWake();
+      return;
+    }
+    const wakeAtMicros = layer.getNextMovementWakeAtMicros();
+    if (wakeAtMicros === null || wakeAtMicros <= nowMicros) {
+      cancelWorkerMovementWake();
+      return;
+    }
+    if (
+      workerMovementWakeTimer !== null
+      && scheduledWorkerMovementWakeAtMicros === wakeAtMicros
+    ) return;
+    cancelWorkerMovementWake();
+    const remainingMicros = wakeAtMicros - nowMicros;
+    const maximumDelayMicros =
+      BigInt(MAX_BROWSER_TIMEOUT_MILLISECONDS) * 1_000n;
+    const boundedDelayMicros = remainingMicros > maximumDelayMicros
+      ? maximumDelayMicros
+      : remainingMicros;
+    const delayMilliseconds = Math.max(
+      1,
+      Math.ceil(Number(boundedDelayMicros) / 1_000)
+    );
+    scheduledWorkerMovementWakeAtMicros = wakeAtMicros;
+    const generation = workerMovementWakeGeneration;
+    let timerId = 0;
+    timerId = window.setTimeout(() => {
+      if (
+        generation !== workerMovementWakeGeneration
+        || workerMovementWakeTimer !== timerId
+      ) return;
+      workerMovementWakeGeneration += 1;
+      workerMovementWakeTimer = null;
+      scheduledWorkerMovementWakeAtMicros = null;
+      if (cleanup.isDisposed()) return;
+      const currentNowMicros = localPresentationNowMicros();
+      if (wakeAtMicros > currentNowMicros) {
+        syncWorkerMovementWake(currentNowMicros);
+        return;
+      }
+      render();
+    }, delayMilliseconds);
+    workerMovementWakeTimer = timerId;
+  };
+  cleanup.add(cancelWorkerMovementWake);
   const ambientIsNeeded = () => (
     !contextLost
     && options.canvas.dataset.realmCanvasActive !== 'false'
@@ -2531,10 +2658,10 @@ function initializeRealmScene(
         }];
       });
     const markers = projectedPresences.slice(0, MAX_VISIBLE_WORKER_PRESENCES);
-    options.canvas.dataset.realmWorkerPresenceCount = String(markers.length);
-    options.canvas.dataset.realmWorkerPresenceSuppressedCount = String(
+    setCanvasDatasetValue('realmWorkerPresenceCount', String(markers.length));
+    setCanvasDatasetValue('realmWorkerPresenceSuppressedCount', String(
       Math.max(0, movingPresences.length - markers.length)
-    );
+    ));
     const frame: RealmWorkerProjectionFrame = { width, height, markers };
     const numberKey = (value: number) => Number.isFinite(value)
       ? Math.round(value * 10)
@@ -2553,6 +2680,10 @@ function initializeRealmScene(
     if (projectionKey === lastWorkerProjectionKey) return;
     lastWorkerProjectionKey = projectionKey;
     options.onWorkerProjection(frame);
+  };
+  const setCanvasDatasetValue = (key: string, value: string) => {
+    if (options.canvas.dataset[key] === value) return;
+    options.canvas.dataset[key] = value;
   };
   const render = () => {
     if (cleanup.isDisposed()) return;
@@ -2625,172 +2756,90 @@ function initializeRealmScene(
     workerLayer?.setCameraMode(pose.mode);
     workerLayer?.update(expeditionPresentationNowMicros);
     const workerTelemetry = workerLayer?.getPresentationTelemetry();
-    if (workerTelemetry) {
-      options.canvas.dataset.realmWorkerPresentedCount = String(
-        workerTelemetry.presentedWorkerCount
-      );
-      options.canvas.dataset.realmWorkerModelCount = String(workerTelemetry.modelWorkerCount);
-      options.canvas.dataset.realmWorkerAnimatedCount = String(
-        workerTelemetry.animatedWorkerCount
-      );
-      options.canvas.dataset.realmWorkerFallbackCount = String(
-        workerTelemetry.fallbackWorkerCount
-      );
-      options.canvas.dataset.realmWorkerFallbackType = workerTelemetry.fallbackType;
-      options.canvas.dataset.realmWorkerFallbackTriangleCount = String(
-        workerTelemetry.fallbackTriangleCount
-      );
-      options.canvas.dataset.realmWorkerRouteMismatchCount = String(
-        workerTelemetry.routeMismatchCount
-      );
-      options.canvas.dataset.realmWorkerSlopeAlignedCount = String(
-        workerTelemetry.slopeAlignedWorkerCount
-      );
-      options.canvas.dataset.realmWorkerAnimationTransitionCount = String(
-        workerTelemetry.animationTransitionCount
-      );
-      options.canvas.dataset.realmWorkerSuppressedAnimationRestartCount = String(
-        workerTelemetry.suppressedAnimationRestartCount
-      );
-      options.canvas.dataset.realmWorkerLocomotionMovingCount = String(
-        workerTelemetry.locomotionMovingCount
-      );
-      options.canvas.dataset.realmWorkerLocomotionStartingCount = String(
-        workerTelemetry.locomotionStartingCount
-      );
-      options.canvas.dataset.realmWorkerLocomotionCruisingCount = String(
-        workerTelemetry.locomotionCruisingCount
-      );
-      options.canvas.dataset.realmWorkerLocomotionTurningCount = String(
-        workerTelemetry.locomotionTurningCount
-      );
-      options.canvas.dataset.realmWorkerLocomotionStoppingCount = String(
-        workerTelemetry.locomotionStoppingCount
-      );
-      options.canvas.dataset.realmWorkerLocomotionGatheringIdleCount = String(
-        workerTelemetry.locomotionGatheringIdleCount
-      );
-      options.canvas.dataset.realmWorkerLocomotionMaximumSpeed = String(
-        workerTelemetry.locomotionMaximumSpeed
-      );
-      options.canvas.dataset.realmWorkerLocomotionMaximumPositionCorrection = String(
-        workerTelemetry.locomotionMaximumPositionCorrection
-      );
-      options.canvas.dataset.realmWorkerLocomotionMaximumHeadingError = String(
-        workerTelemetry.locomotionMaximumHeadingError
-      );
-      options.canvas.dataset.realmWorkerLocomotionOneShotOverrunCount = String(
-        workerTelemetry.locomotionOneShotOverrunCount
-      );
-      options.canvas.dataset.realmWorkerWheelDrivenCount = String(
-        workerTelemetry.workerWheelDrivenCount
-      );
-      options.canvas.dataset.realmWorkerWheelDistanceMismatchCount = String(
-        workerTelemetry.workerWheelDistanceMismatchCount
-      );
-      options.canvas.dataset.realmWorkerLateModelPhaseRestorationCount = String(
-        workerTelemetry.workerLateModelPhaseRestorationCount
-      );
-      options.canvas.dataset.realmWorkerModelPhaseRestorationCount = String(
-        workerTelemetry.workerModelPhaseRestorationCount
-      );
-      options.canvas.dataset.realmWorkerReversalCount = String(
-        workerTelemetry.workerReversalCount
-      );
-      options.canvas.dataset.realmWorkerRepeatedTurnSuppressionCount = String(
-        workerTelemetry.workerRepeatedTurnSuppressionCount
-      );
-      options.canvas.dataset.realmWorkerClipIdleCount = String(
-        workerTelemetry.clipIdleCount
-      );
-      options.canvas.dataset.realmWorkerClipStartCount = String(
-        workerTelemetry.clipStartCount
-      );
-      options.canvas.dataset.realmWorkerClipStopCount = String(
-        workerTelemetry.clipStopCount
-      );
-      options.canvas.dataset.realmWorkerClipTurnLeftCount = String(
-        workerTelemetry.clipTurnLeftCount
-      );
-      options.canvas.dataset.realmWorkerClipTurnRightCount = String(
-        workerTelemetry.clipTurnRightCount
-      );
-      options.canvas.dataset.realmWorkerClipWalkCount = String(
-        workerTelemetry.clipWalkCount
-      );
-      options.canvas.dataset.realmWorkerRenderedClipIdleCount = String(
-        workerTelemetry.renderedClipIdleCount
-      );
-      options.canvas.dataset.realmWorkerRenderedClipStartCount = String(
-        workerTelemetry.renderedClipStartCount
-      );
-      options.canvas.dataset.realmWorkerRenderedClipStopCount = String(
-        workerTelemetry.renderedClipStopCount
-      );
-      options.canvas.dataset.realmWorkerRenderedClipTurnLeftCount = String(
-        workerTelemetry.renderedClipTurnLeftCount
-      );
-      options.canvas.dataset.realmWorkerRenderedClipTurnRightCount = String(
-        workerTelemetry.renderedClipTurnRightCount
-      );
-      options.canvas.dataset.realmWorkerRenderedClipWalkCount = String(
-        workerTelemetry.renderedClipWalkCount
-      );
-      options.canvas.dataset.realmWorkerVisibleRouteCount = String(
-        workerTelemetry.route.visibleRouteCount
-      );
-      options.canvas.dataset.realmWorkerVisibleRouteSegmentCount = String(
-        workerTelemetry.route.visibleSegmentCount
-      );
-      options.canvas.dataset.realmWorkerRouteDrawCallCount = String(
-        workerTelemetry.route.drawCallCount
-      );
-      options.canvas.dataset.realmWorkerRouteTriangleCount = String(
-        workerTelemetry.route.triangleCount
-      );
-      options.canvas.dataset.realmWorkerRejectedRouteCount = String(
-        workerTelemetry.route.rejectedRouteCount
-      );
-      options.canvas.dataset.realmWorkerSelectedRouteCount = String(
-        workerTelemetry.route.selectedRouteCount
-      );
-      options.canvas.dataset.realmWorkerOwnedRouteCount = String(
-        workerTelemetry.route.ownedRouteCount
-      );
-      options.canvas.dataset.realmWorkerPeerRouteCount = String(
-        workerTelemetry.route.peerRouteCount
-      );
-      options.canvas.dataset.realmWorkerExactMatchRouteCount = String(
-        workerTelemetry.route.exactMatchRouteCount
-      );
-      options.canvas.dataset.realmWorkerNormalizedTimeRouteCount = String(
-        workerTelemetry.route.normalizedTimeRouteCount
-      );
-      options.canvas.dataset.realmWorkerGenuineInvalidRouteCount = String(
-        workerTelemetry.route.genuineInvalidRouteCount
-      );
-      options.canvas.dataset.realmWorkerRouteHiddenByBudgetCount = String(
-        workerTelemetry.route.hiddenByBudgetCount
-      );
-      options.canvas.dataset.realmWorkerRouteSmoothingFallbackCount = String(
-        workerTelemetry.route.smoothingFallbackCount
-      );
-      options.canvas.dataset.realmWorkerRouteCorridorFailureCount = String(
-        workerTelemetry.route.corridorValidationFailureCount
-      );
-      options.canvas.dataset.realmWorkerRouteCompletedLength = String(
-        workerTelemetry.route.completedLength
-      );
-      options.canvas.dataset.realmWorkerRouteRemainingLength = String(
-        workerTelemetry.route.remainingLength
-      );
-      options.canvas.dataset.realmWorkerRouteTopologyRebuildCount = String(
-        workerTelemetry.route.topologyRebuildCount
-      );
-      options.canvas.dataset.realmWorkerRouteProgressUpdateCount = String(
-        workerTelemetry.route.progressUpdateCount
-      );
+    if (
+      workerTelemetry
+      && workerTelemetry !== lastWorkerPresentationTelemetry
+    ) {
+      lastWorkerPresentationTelemetry = workerTelemetry;
+      const workerDataset = {
+        realmWorkerPresentedCount: workerTelemetry.presentedWorkerCount,
+        realmWorkerModelCount: workerTelemetry.modelWorkerCount,
+        realmWorkerAnimatedCount: workerTelemetry.animatedWorkerCount,
+        realmWorkerFallbackCount: workerTelemetry.fallbackWorkerCount,
+        realmWorkerFallbackType: workerTelemetry.fallbackType,
+        realmWorkerFallbackTriangleCount: workerTelemetry.fallbackTriangleCount,
+        realmWorkerRouteMismatchCount: workerTelemetry.routeMismatchCount,
+        realmWorkerSlopeAlignedCount: workerTelemetry.slopeAlignedWorkerCount,
+        realmWorkerAnimationTransitionCount: workerTelemetry.animationTransitionCount,
+        realmWorkerSuppressedAnimationRestartCount:
+          workerTelemetry.suppressedAnimationRestartCount,
+        realmWorkerLocomotionMovingCount: workerTelemetry.locomotionMovingCount,
+        realmWorkerLocomotionStartingCount: workerTelemetry.locomotionStartingCount,
+        realmWorkerLocomotionCruisingCount: workerTelemetry.locomotionCruisingCount,
+        realmWorkerLocomotionTurningCount: workerTelemetry.locomotionTurningCount,
+        realmWorkerLocomotionStoppingCount: workerTelemetry.locomotionStoppingCount,
+        realmWorkerLocomotionGatheringIdleCount:
+          workerTelemetry.locomotionGatheringIdleCount,
+        realmWorkerLocomotionMaximumSpeed: workerTelemetry.locomotionMaximumSpeed,
+        realmWorkerLocomotionMaximumPositionCorrection:
+          workerTelemetry.locomotionMaximumPositionCorrection,
+        realmWorkerLocomotionMaximumHeadingError:
+          workerTelemetry.locomotionMaximumHeadingError,
+        realmWorkerLocomotionOneShotOverrunCount:
+          workerTelemetry.locomotionOneShotOverrunCount,
+        realmWorkerWheelDrivenCount: workerTelemetry.workerWheelDrivenCount,
+        realmWorkerWheelDistanceMismatchCount:
+          workerTelemetry.workerWheelDistanceMismatchCount,
+        realmWorkerLateModelPhaseRestorationCount:
+          workerTelemetry.workerLateModelPhaseRestorationCount,
+        realmWorkerModelPhaseRestorationCount:
+          workerTelemetry.workerModelPhaseRestorationCount,
+        realmWorkerReversalCount: workerTelemetry.workerReversalCount,
+        realmWorkerRepeatedTurnSuppressionCount:
+          workerTelemetry.workerRepeatedTurnSuppressionCount,
+        realmWorkerClipIdleCount: workerTelemetry.clipIdleCount,
+        realmWorkerClipStartCount: workerTelemetry.clipStartCount,
+        realmWorkerClipStopCount: workerTelemetry.clipStopCount,
+        realmWorkerClipTurnLeftCount: workerTelemetry.clipTurnLeftCount,
+        realmWorkerClipTurnRightCount: workerTelemetry.clipTurnRightCount,
+        realmWorkerClipWalkCount: workerTelemetry.clipWalkCount,
+        realmWorkerRenderedClipIdleCount: workerTelemetry.renderedClipIdleCount,
+        realmWorkerRenderedClipStartCount: workerTelemetry.renderedClipStartCount,
+        realmWorkerRenderedClipStopCount: workerTelemetry.renderedClipStopCount,
+        realmWorkerRenderedClipTurnLeftCount:
+          workerTelemetry.renderedClipTurnLeftCount,
+        realmWorkerRenderedClipTurnRightCount:
+          workerTelemetry.renderedClipTurnRightCount,
+        realmWorkerRenderedClipWalkCount: workerTelemetry.renderedClipWalkCount,
+        realmWorkerVisibleRouteCount: workerTelemetry.route.visibleRouteCount,
+        realmWorkerVisibleRouteSegmentCount: workerTelemetry.route.visibleSegmentCount,
+        realmWorkerRouteDrawCallCount: workerTelemetry.route.drawCallCount,
+        realmWorkerRouteTriangleCount: workerTelemetry.route.triangleCount,
+        realmWorkerRejectedRouteCount: workerTelemetry.route.rejectedRouteCount,
+        realmWorkerSelectedRouteCount: workerTelemetry.route.selectedRouteCount,
+        realmWorkerOwnedRouteCount: workerTelemetry.route.ownedRouteCount,
+        realmWorkerPeerRouteCount: workerTelemetry.route.peerRouteCount,
+        realmWorkerExactMatchRouteCount: workerTelemetry.route.exactMatchRouteCount,
+        realmWorkerNormalizedTimeRouteCount:
+          workerTelemetry.route.normalizedTimeRouteCount,
+        realmWorkerGenuineInvalidRouteCount:
+          workerTelemetry.route.genuineInvalidRouteCount,
+        realmWorkerRouteHiddenByBudgetCount: workerTelemetry.route.hiddenByBudgetCount,
+        realmWorkerRouteSmoothingFallbackCount:
+          workerTelemetry.route.smoothingFallbackCount,
+        realmWorkerRouteCorridorFailureCount:
+          workerTelemetry.route.corridorValidationFailureCount,
+        realmWorkerRouteCompletedLength: workerTelemetry.route.completedLength,
+        realmWorkerRouteRemainingLength: workerTelemetry.route.remainingLength,
+        realmWorkerRouteTopologyRebuildCount:
+          workerTelemetry.route.topologyRebuildCount,
+        realmWorkerRouteProgressUpdateCount: workerTelemetry.route.progressUpdateCount
+      } as const;
+      for (const [key, value] of Object.entries(workerDataset)) {
+        setCanvasDatasetValue(key, String(value));
+      }
     }
+    syncWorkerMovementWake(expeditionPresentationNowMicros);
     syncAmbientFrameCap();
     ambientScheduler?.setActive(ambientIsNeeded());
     const viewportHeight = resolveRealmViewportSize({
@@ -2974,10 +3023,16 @@ function initializeRealmScene(
         reportRendererFailureAndDispose(failure, true);
         return;
       }
-      pendingCastlesReadyCount = null;
-      options.onCastlesReady?.(castleCount);
+      if (workerModelPreflightSettled) {
+        pendingCastlesReadyCount = null;
+        workerReadinessPublished = true;
+        options.onCastlesReady?.(castleCount);
+      } else {
+        armWorkerModelPreflightFallback();
+      }
     }
   };
+  renderWorkerModelPreflightSettlement = render;
   // The forest's digest-pinned GLBs resolve after the immediate static
   // fallback. Repaint as soon as that batch is ready so it cannot remain a
   // cone forest until the player next pans, taps, or zooms.
@@ -3155,28 +3210,47 @@ function initializeRealmScene(
   } catch {
     stoneNodeLayer = null;
   }
-  const createWorkerLayer = (workers: readonly RealmWorkerSceneRecord[]) => (
-    createRealmWorkerLayer({
+  let nextWorkerLayerGeneration = 1;
+  let installedWorkerLayerGeneration = 0;
+  const createWorkerLayer = (workers: readonly RealmWorkerSceneRecord[]) => {
+    const generation = nextWorkerLayerGeneration;
+    nextWorkerLayerGeneration += 1;
+    const layer = createRealmWorkerLayer({
       workers,
       hexSize: HEX_SIZE,
       quality: runtimeQuality,
       baseUrl: options.baseUrl,
       maxAnisotropy: renderer.capabilities.getMaxAnisotropy(),
       reducedMotion: options.reducedMotion,
-      onModelReady: render,
+      onModelReady: () => {
+        if (
+          cleanup.isDisposed()
+          || installedWorkerLayerGeneration !== generation
+        ) return;
+        workerModelReadyForCurrentLayer = true;
+        if (workerModelPreflightSettled) render();
+        else settleWorkerModelPreflight();
+      },
       heightAtWorld: (world) => terrainHeightAtWorld(
         options.surface.renderMap,
         world,
         HEX_SIZE,
         terrainPlacements
       )
-    })
-  );
-  const installWorkerLayer = (next: RealmWorkerLayer, workerCount: number) => {
+    });
+    return Object.freeze({ generation, layer });
+  };
+  const installWorkerLayer = (
+    candidate: ReturnType<typeof createWorkerLayer>,
+    workers: readonly RealmWorkerSceneRecord[]
+  ) => {
+    const next = candidate.layer;
     const previous = workerLayer;
+    installedWorkerLayerGeneration = candidate.generation;
+    workerModelReadyForCurrentLayer = false;
     workerLayer = next;
     scene.add(next.group);
-    options.canvas.dataset.realmWorkerMarkerCount = String(workerCount);
+    options.canvas.dataset.realmWorkerMarkerCount = String(workers.length);
     next.setCameraMode(cameraController.getMode());
     next.setSelectedWorkerId(selectedWorkerRouteId ?? selectedWorkerId ?? null);
     next.setHoveredWorkerId(hoveredWorkerId ?? null);
@@ -3184,10 +3258,11 @@ function initializeRealmScene(
       scene.remove(previous.group);
       previous.dispose();
     }
+    syncWorkerModelPreflight(workers);
   };
   try {
     const initialWorkers = options.workers ?? [];
-    installWorkerLayer(createWorkerLayer(initialWorkers), initialWorkers.length);
+    installWorkerLayer(createWorkerLayer(initialWorkers), initialWorkers);
   } catch {
     // Generic workers are an additive public presentation. A malformed
     // catalog disables only their markers and command entry points.
@@ -3202,7 +3277,27 @@ function initializeRealmScene(
     if (workerLayer === layer) workerLayer = null;
   });
   const handleRenderVisibility = () => {
-    if (!document.hidden && renderPendingWhileHidden && !cleanup.isDisposed()) render();
+    if (document.hidden) {
+      workerMovementWakeSuspended = (
+        options.canvas.dataset.realmCanvasActive !== 'false'
+        && (
+          workerMovementWakeTimer !== null
+          || workerLayer?.getNextMovementWakeAtMicros() !== null
+        )
+      );
+      cancelWorkerMovementWake();
+      return;
+    }
+    const shouldCatchUpWorkerWake = workerMovementWakeSuspended;
+    workerMovementWakeSuspended = false;
+    if (
+      !cleanup.isDisposed()
+      && options.canvas.dataset.realmCanvasActive !== 'false'
+      && (
+        renderPendingWhileHidden
+        || shouldCatchUpWorkerWake
+      )
+    ) render();
   };
   document.addEventListener('visibilitychange', handleRenderVisibility);
   cleanup.add(() => document.removeEventListener('visibilitychange', handleRenderVisibility));
@@ -3771,6 +3866,7 @@ function initializeRealmScene(
     options.canvas.dataset.realmRendererContextLossCount = String(contextLossCount);
     options.canvas.dataset.realmRendererContextRestoreCount = String(contextRestoreCount);
     cancelAllPointers(pointerGestures.blur());
+    cancelWorkerMovementWake();
     ambientScheduler?.setActive(false);
     options.onRendererFailure?.({
       code: 'context-lost',
@@ -3786,7 +3882,7 @@ function initializeRealmScene(
     options.canvas.dataset.realmRendererContextLost = 'false';
     options.canvas.dataset.realmRendererContextLossCount = String(contextLossCount);
     options.canvas.dataset.realmRendererContextRestoreCount = String(contextRestoreCount);
-    ambientScheduler?.setActive(ambientIsNeeded());
+    if (options.canvas.dataset.realmCanvasActive !== 'false') render();
     options.onRendererContextRestored?.();
   };
 
@@ -4304,7 +4400,7 @@ function initializeRealmScene(
     }
     const nextWorkers = state.workers ?? [];
     const workerCanReconcile = workerLayer?.canReconcile(nextWorkers) === true;
-    let preparedWorkerLayer: RealmWorkerLayer | undefined;
+    let preparedWorkerLayer: ReturnType<typeof createWorkerLayer> | undefined;
     let workerCatalogAccepted = workerCanReconcile;
     if (!workerCanReconcile) {
       try {
@@ -4364,14 +4460,19 @@ function initializeRealmScene(
         );
       }
       if (preparedWorkerLayer) {
-        installWorkerLayer(preparedWorkerLayer, nextWorkers.length);
+        installWorkerLayer(preparedWorkerLayer, nextWorkers);
         workerLayerReconciliationCount += 1;
         routeLayerReconciliationCount += 1;
       } else if (workerLayer) {
         workerLayer.reconcile(nextWorkers);
+        syncWorkerModelPreflight(nextWorkers);
         workerLayerReconciliationCount += 1;
         routeLayerReconciliationCount += 1;
       }
+      // The authoritative timeline may have replaced an earlier future wake.
+      // Cancel first so a hidden or context-lost render cannot leave the stale
+      // callback armed; the next eligible render re-evaluates and re-arms it.
+      cancelWorkerMovementWake();
       const nextVegetationRoutePaths = realmVegetationRoutePathsForWorkers(
         nextWorkers
       );
@@ -4405,7 +4506,7 @@ function initializeRealmScene(
         routeLayerReconciliationCount
       );
     } else {
-      preparedWorkerLayer?.dispose();
+      preparedWorkerLayer?.layer.dispose();
     }
     recordLiveReconciliationTelemetry(accepted);
     if (accepted) render();
@@ -4460,11 +4561,29 @@ function initializeRealmScene(
     setPresentationActive: (active) => {
       if (cleanup.isDisposed()) return;
       options.canvas.dataset.realmCanvasActive = String(active);
+      if (!active) {
+        workerMovementWakeSuspended = false;
+        cancelWorkerMovementWake();
+      }
       ambientScheduler?.setActive(active && ambientIsNeeded());
       if (active) render();
     },
     reconcileLiveGatheringState,
     getCameraAttestation,
+    getWorkerPresentationContinuity: () => (
+      cleanup.isDisposed()
+        ? null
+        : workerLayer?.getPresentationContinuity() ?? null
+    ),
+    restoreWorkerPresentationContinuity: (snapshot) => {
+      if (cleanup.isDisposed()) return false;
+      const restored = workerLayer?.restorePresentationContinuity(
+        snapshot,
+        localPresentationNowMicros()
+      ) === true;
+      if (restored) render();
+      return restored;
+    },
     restoreCameraAttestation: (attestation) => {
       if (cleanup.isDisposed()) return;
       cameraController.restoreState(attestation.controllerState);

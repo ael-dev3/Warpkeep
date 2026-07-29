@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   realmSceneConstructionKey,
   realmSceneRecreationReason,
+  realmSceneTopologyKey,
   realmWaterSceneSignature,
   type RealmSceneConstructionKeyInput,
   type RealmSceneConstructionProfile
@@ -49,6 +50,7 @@ function profile(
 ): RealmSceneConstructionProfile {
   return Object.freeze({
     key: realmSceneConstructionKey(input),
+    topologyKey: realmSceneTopologyKey(input),
     quality: input.quality,
     reducedMotion: input.reducedMotion
   });
@@ -114,6 +116,21 @@ describe('realm scene construction lifecycle', () => {
     });
     const quality = profile({ ...BASE_INPUT, quality: 'high' });
     const reducedMotion = profile({ ...BASE_INPUT, reducedMotion: true });
+    const topologyAndQuality = profile({
+      ...BASE_INPUT,
+      quality: 'high',
+      peerCastles: BASE_INPUT.peerCastles.map((castle) => (
+        castle.castleId === 2 ? { ...castle, q: castle.q + 1 } : castle
+      ))
+    });
+    const topologyAndReducedMotion = profile({
+      ...BASE_INPUT,
+      reducedMotion: true,
+      stoneNodes: BASE_INPUT.stoneNodes.map((node) => ({
+        ...node,
+        tier: node.tier + 1
+      }))
+    });
 
     expect(realmSceneRecreationReason(undefined, initial)).toBe('initial-entry');
     expect(realmSceneRecreationReason(initial, topology))
@@ -122,6 +139,10 @@ describe('realm scene construction lifecycle', () => {
       .toBe('graphics-quality-change');
     expect(realmSceneRecreationReason(initial, reducedMotion))
       .toBe('reduced-motion-material-change');
+    expect(realmSceneRecreationReason(initial, topologyAndQuality))
+      .toBe('canonical-topology-change');
+    expect(realmSceneRecreationReason(initial, topologyAndReducedMotion))
+      .toBe('canonical-topology-change');
   });
 
   it('distinguishes both recognized Water revisions and blocks cloned payload identity', () => {
