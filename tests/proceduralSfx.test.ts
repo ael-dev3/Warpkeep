@@ -303,6 +303,36 @@ describe('ProceduralSfxEngine lifecycle', () => {
     await expect(Promise.all([first, second])).resolves.toEqual([true, true]);
   });
 
+  it('discards a failed graph and retries from a fresh trusted context', async () => {
+    const failedContext = new FakeAudioContext();
+    vi.spyOn(failedContext, 'createDynamicsCompressor').mockImplementationOnce(() => {
+      throw new Error('synthetic graph failure');
+    });
+    const recoveredContext = new FakeAudioContext();
+    const contextFactory = vi.fn()
+      .mockReturnValueOnce(failedContext as unknown as AudioContext)
+      .mockReturnValueOnce(recoveredContext as unknown as AudioContext);
+    const engine = new ProceduralSfxEngine({
+      contextFactory,
+      getViewportWidth: () => 800
+    });
+
+    await expect(engine.activateFromTrustedGesture(true)).resolves.toBe(false);
+    expect(failedContext.close).toHaveBeenCalledOnce();
+    expect(engine.snapshot()).toMatchObject({
+      contextCreated: false,
+      contextState: 'unavailable'
+    });
+
+    await expect(engine.activateFromTrustedGesture(true)).resolves.toBe(true);
+    expect(contextFactory).toHaveBeenCalledTimes(2);
+    expect(engine.emit({ kind: 'select-keep' })).toBe(true);
+    expect(engine.snapshot()).toMatchObject({
+      contextCreated: true,
+      contextState: 'running'
+    });
+  });
+
   it('normalizes the voice budget and exposes only an immutable lifecycle snapshot', () => {
     const lower = createEngine(new FakeAudioContext(), 0).engine;
     const fractional = createEngine(new FakeAudioContext(), 3.9).engine;

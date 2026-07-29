@@ -630,8 +630,22 @@ export class ProceduralSfxEngine {
     if (!trusted || this.disposed || this.muted || this.hidden) return false;
     try {
       if (!this.context) {
-        this.context = this.contextFactory();
-        this.graph = createGraph(this.context, this.effectsLevel);
+        const candidateContext = this.contextFactory();
+        try {
+          const candidateGraph = createGraph(candidateContext, this.effectsLevel);
+          this.context = candidateContext;
+          this.graph = candidateGraph;
+        } catch {
+          try {
+            await candidateContext.close();
+          } catch {
+            // A failed graph never becomes active authority. Some browser
+            // implementations may also reject close while initialization is
+            // unwinding; leave both engine fields empty so the next trusted
+            // gesture can still retry with a fresh context.
+          }
+          return false;
+        }
       }
       if (this.context.state === 'suspended') {
         const context = this.context;
