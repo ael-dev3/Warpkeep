@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 
 import type { RealmForestEcologyHabitat } from '../../game/map/realmForestEcology';
+import type {
+  RealmNorthernSnowField
+} from '../../game/map/realmNorthernSnow';
+import type { HexWorldPosition } from '../../game/map/hexCoordinates';
 
 export const REALM_PROCEDURAL_FOREST_FALLBACK_TYPE =
   'procedural-trunk-multi-canopy-v1' as const;
@@ -15,6 +19,10 @@ export type RealmForestGroundingMode =
   | 'terrain-canopy-baked-base'
   | 'terrain-canopy-procedural-root-contact';
 
+export const REALM_FOREST_SNOW_COVERAGE_ONSET = 0.25;
+export const REALM_FOREST_MAX_AUTHORED_SNOW_MIX = 0.54;
+export const REALM_FOREST_MAX_WINTER_TINT_MIX = 0.18;
+
 type MutableFallbackGeometry = {
   positions: number[];
   colors: number[];
@@ -23,11 +31,77 @@ type MutableFallbackGeometry = {
 
 const ROOT_COLOR = new THREE.Color('#5f6652');
 const TRUNK_COLOR = new THREE.Color('#b79a72');
+const FOREST_SNOW_PEARL = new THREE.Color('#dbe7e8');
+const FOREST_WINTER_TINT = new THREE.Color('#c6d7dc');
+export const REALM_FOREST_SNOW_PEARL_LINEAR = Object.freeze({
+  r: FOREST_SNOW_PEARL.r,
+  g: FOREST_SNOW_PEARL.g,
+  b: FOREST_SNOW_PEARL.b
+});
 const CANOPY_COLORS = Object.freeze([
   new THREE.Color('#e1edda'),
   new THREE.Color('#d5e7ce'),
   new THREE.Color('#edf3df')
 ]);
+
+function clampUnit(value: number) {
+  return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0;
+}
+
+function smoothstep(edge0: number, edge1: number, value: number) {
+  const progress = clampUnit((value - edge0) / (edge1 - edge0));
+  return progress * progress * (3 - 2 * progress);
+}
+
+/**
+ * Static, fail-closed forest snow sampling. Callers use this only while
+ * building an existing batch or repacking the existing camera-local window.
+ */
+export function sampleRealmForestSnowCoverage(
+  northernSnow: RealmNorthernSnowField | undefined,
+  world: HexWorldPosition
+) {
+  if (!northernSnow) return 0;
+  try {
+    return clampUnit(northernSnow.coverageAtWorld(world));
+  } catch {
+    return 0;
+  }
+}
+
+/** Restrained top-facing dusting for the existing shared vertex-color batch. */
+export function realmForestAuthoredSnowMix(
+  coverageInput: number,
+  transformedNormalYInput: number
+) {
+  const coverage = clampUnit(coverageInput);
+  const transformedNormalY = Number.isFinite(transformedNormalYInput)
+    ? Math.min(1, Math.max(-1, transformedNormalYInput))
+    : -1;
+  const coverageMix = smoothstep(
+    REALM_FOREST_SNOW_COVERAGE_ONSET,
+    0.88,
+    coverage
+  );
+  const topFacing = smoothstep(0.08, 0.78, transformedNormalY);
+  return coverageMix * topFacing * REALM_FOREST_MAX_AUTHORED_SNOW_MIX;
+}
+
+/** Simpler bounded tint for existing fallback and decorative instance colors. */
+export function realmForestWinterTintMix(coverageInput: number) {
+  return smoothstep(
+    REALM_FOREST_SNOW_COVERAGE_ONSET,
+    0.88,
+    clampUnit(coverageInput)
+  ) * REALM_FOREST_MAX_WINTER_TINT_MIX;
+}
+
+export function applyRealmForestWinterTint(
+  color: THREE.Color,
+  coverageInput: number
+) {
+  return color.lerp(FOREST_WINTER_TINT, realmForestWinterTintMix(coverageInput));
+}
 
 function appendVertex(
   output: MutableFallbackGeometry,

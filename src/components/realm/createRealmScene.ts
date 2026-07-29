@@ -657,6 +657,7 @@ export type RealmTerrainPresentationTelemetry = Readonly<{
   forestCanopyMotionState: 'static';
   forestStructureCellCounts: RealmForestStructureCounts;
   forestSilhouetteCoverageRatio: number;
+  forestSnowTintedTreeCount: number;
   forestDecorativeTreeCount: number;
   forestDecorativeTriangleCount: number;
   forestDecorativeDrawCalls: number;
@@ -1858,6 +1859,7 @@ function initializeRealmScene(
         terrainPlacements,
         quality: runtimeQuality,
         baseUrl: options.baseUrl,
+        northernSnow,
         onModelReady: () => {
           emitTerrainPresentationTelemetry();
           requestForestModelRender();
@@ -1899,6 +1901,7 @@ function initializeRealmScene(
         terrainPlacements,
         quality: runtimeQuality,
         baseUrl: options.baseUrl,
+        northernSnow,
         isWorldExcluded: (world) => vegetationMask.isTreeExcluded(world),
         isCoordPassable: options.isCoordPassable,
         onActivePointsChange: (points) => {
@@ -2124,6 +2127,9 @@ function initializeRealmScene(
         currentForestTelemetry?.structureCellCounts ?? EMPTY_FOREST_STRUCTURE_COUNTS,
       forestSilhouetteCoverageRatio:
         currentForestTelemetry?.silhouetteCoverageRatio ?? 0,
+      forestSnowTintedTreeCount:
+        (currentForestTelemetry?.snowTintedTreeCount ?? 0)
+        + (currentDecorativeForestTelemetry?.snowTintedTreeCount ?? 0),
       forestDecorativeTreeCount:
         currentDecorativeForestTelemetry?.activeInstanceCount ?? 0,
       forestDecorativeTriangleCount:
@@ -2221,6 +2227,7 @@ function initializeRealmScene(
       telemetry.forestCanopyMotionState,
       Object.values(telemetry.forestStructureCellCounts).join(','),
       telemetry.forestSilhouetteCoverageRatio,
+      telemetry.forestSnowTintedTreeCount,
       telemetry.forestDecorativeTreeCount,
       telemetry.forestDecorativeTriangleCount,
       telemetry.forestDecorativeDrawCalls,
