@@ -6,6 +6,20 @@ export type LatestPatchNotes = Readonly<{
   alphaNotice: string;
 }>;
 
+const ALPHA_0_3_27_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: '30 JUL 2026',
+  title: 'THE SUNSCOURED SOUTH',
+  summary:
+    'The southern outer Lowlands now open into a warm, wind-shaped frontier while the founding heartland remains familiar.',
+  highlights: Object.freeze([
+    'A broad dry transition gathers beyond the central district and deepens into pale and compact sand tones toward the southern rim.',
+    'Grass becomes shorter and sparse through the frontier, preserving quiet ground and the natural shape of Water, routes, keeps, and resource sites.',
+    'The north and founding center retain their established character, and the southern treatment adds no terrain height, movement, resource, or world-authority rule.'
+  ]),
+  alphaNotice:
+    'Alpha 0.3.27 remains an unfinished, evolving world. The Sunscoured South is a static visual treatment, not a desert terrain kind, climate system, hazard, yield change, or gameplay modifier.'
+});
+
 const ALPHA_0_3_26_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '30 JUL 2026',
   title: 'THE NORTHERN REACH',
@@ -134,6 +148,7 @@ const ALPHA_0_3_22_PATCH_NOTES: LatestPatchNotes = Object.freeze({
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
+    '0.3.27': ALPHA_0_3_27_PATCH_NOTES,
     '0.3.26': ALPHA_0_3_26_PATCH_NOTES,
     '0.3.25': ALPHA_0_3_25_PATCH_NOTES,
     '0.3.24': ALPHA_0_3_24_PATCH_NOTES,

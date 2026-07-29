@@ -18,26 +18,26 @@ describe('latest in-menu patch notes', () => {
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
       releasedOn: '30 JUL 2026',
-      title: 'THE NORTHERN REACH'
+      title: 'THE SUNSCOURED SOUTH'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /broad.*irregular frost transition.*central Lowlands.*deeper northern snow/i
+      /broad dry transition.*central district.*sand tones.*southern rim/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Grass.*shorter.*sparser.*snowline.*woodland.*restrained dusting/i
+      /Grass.*shorter.*sparse.*Water.*routes.*keeps.*resource sites/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /presentation only.*terrain topology.*movement.*Water.*Workers.*resources.*routes.*authority/i
+      /north.*founding center.*terrain height.*movement.*resource.*world-authority/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /released to players|deployed to players|public balances|guaranteed rewards/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.summary).toContain(
-      'northern outer Lowlands'
+      'southern outer Lowlands'
     );
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'not a new terrain rule, season, weather system, or gameplay modifier'
+      'not a desert terrain kind, climate system, hazard, yield change, or gameplay modifier'
     );
 
     const alpha0324 = getLatestPatchNotes('0.3.24');
@@ -52,6 +52,9 @@ describe('latest in-menu patch notes', () => {
       'does not change authentication, Worker authority, routes'
     );
 
+    expect(getLatestPatchNotes('0.3.26')).toMatchObject({
+      title: 'THE NORTHERN REACH'
+    });
     expect(getLatestPatchNotes('0.3.25')).toMatchObject({
       title: 'THE LIVING REALM'
     });
