@@ -10,6 +10,7 @@ import {
 import type { RealmTerrainKind } from '../src/game/map/realmTerrainSemantics';
 import { axialToWorld, hexDistance, hexKey } from '../src/game/map/hexCoordinates';
 import { sampleRealmGrassCoverage } from '../src/game/map/realmGrassNoise';
+import { createRealmNorthernSnowField } from '../src/game/map/realmNorthernSnow';
 import { createRealmTerrainSurface } from '../src/game/map/realmTerrainSurface';
 import { pointyHexBoundaryDistance } from '../src/game/map/terrainHeight';
 import { createRealmVegetationField } from '../src/game/map/realmVegetationField';
@@ -205,6 +206,59 @@ describe('procedural biome grass generation', () => {
       'high',
       10
     )).toBe(REALM_GRASS_BIOME_PROFILES.meadow.highCandidateCount);
+  });
+
+  it('thins and winter-tints northern grass while preserving quality subsets', () => {
+    const surface = createRealmTerrainSurface('grass-northern-snow', 58, 60);
+    const northernCells = surface.playableMap.cells.filter((cell) => (
+      cell.coord.r <= -22 && cell.coord.r >= -54
+    ));
+    const northernSnow = createRealmNorthernSnowField({
+      worldSeed: surface.renderMap.worldSeed,
+      hexSize: 1,
+      playableRadius: surface.playableMap.radius,
+      renderRadius: surface.renderMap.radius
+    });
+    const common = {
+      ...inputFor(surface, northernCells),
+      heightAtWorld: () => 0,
+      northernSnow
+    };
+    const baseline = generateRealmGrassCells({
+      ...common,
+      northernSnow: undefined,
+      quality: 'high'
+    });
+    const high = generateRealmGrassCells({ ...common, quality: 'high' });
+    const balanced = generateRealmGrassCells({ ...common, quality: 'balanced' });
+    const reduced = generateRealmGrassCells({ ...common, quality: 'reduced' });
+    const id = (point: (typeof high.points)[number]) =>
+      `${point.coord.q},${point.coord.r}:${point.candidateIndex}`;
+    const baselineById = new Map(baseline.points.map((point) => [id(point), point]));
+    const highById = new Map(high.points.map((point) => [id(point), point]));
+    const balancedById = new Map(balanced.points.map((point) => [id(point), point]));
+
+    expect(high.points.length).toBeLessThan(baseline.points.length);
+    expect(high.rejectedBySnow).toBeGreaterThan(0);
+    expect(high.retainedInSnowTransition).toBeGreaterThan(0);
+    expect(high.points.every((point) => (
+      point.snowCoverage >= 0 && point.snowCoverage <= 1
+    ))).toBe(true);
+    const transition = high.points.find((point) => (
+      point.snowCoverage >= 0.15 && point.snowCoverage < 0.88
+    ));
+    expect(transition).toBeDefined();
+    const original = baselineById.get(id(transition!));
+    expect(original).toBeDefined();
+    expect(transition!.height).toBeLessThan(original!.height);
+    expect(transition!.tint).not.toEqual(original!.tint);
+    expect(transition!.windScale).toBeLessThan(original!.windScale);
+
+    balanced.points.forEach((point) => expect(highById.get(id(point))).toEqual(point));
+    reduced.points.forEach((point) => {
+      expect(highById.get(id(point))).toEqual(point);
+      expect(balancedById.get(id(point))).toEqual(point);
+    });
   });
 
   it('creates deterministic bare cells, tuft clusters, rests, and open soil pockets', () => {
