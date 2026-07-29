@@ -40,6 +40,18 @@ describe('latest in-menu patch notes', () => {
       'does not change Worker routes, timings, ownership, resources'
     );
 
+    const alpha0324 = getLatestPatchNotes('0.3.24');
+    expect(alpha0324).toMatchObject({
+      releasedOn: '29 JUL 2026',
+      title: 'WAGONS TAKE THE ROAD'
+    });
+    expect(alpha0324?.highlights.join(' ')).toMatch(
+      /Horse gait.*distance-driven wheel rotation.*actual route speed.*terrain contact/i
+    );
+    expect(alpha0324?.alphaNotice).toContain(
+      'does not change authentication, Worker authority, routes'
+    );
+
     const alpha0322 = getLatestPatchNotes('0.3.22');
     expect(alpha0322).toMatchObject({
       title: 'THE WAGONS REST'

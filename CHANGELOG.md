@@ -15,6 +15,18 @@ full engineering record.
 - Added exact cell-by-cell Water record navigation without changing Worker
   routes, camera position on selection, ownership, balances, or world authority.
 
+## [0.3.24] — 2026-07-29
+
+- Gave active Supply Wagons a continuous, demand-driven locomotion cycle whose
+  horse gait and distance-driven wheels follow their real journey speed.
+- Smoothed road headings, terrain contact, corners, and recalls without
+  changing the exact server-timed position of any Worker.
+- Restored the current movement phase through reconnects, late model loads,
+  quality changes, and reduced-motion play instead of replaying old gestures.
+- Left Worker authority, timings, routes, assignments, ownership, balances,
+  settlement, node leases, authentication, terrain, and persistent world state
+  unchanged.
+
 ## [0.3.23] — 2026-07-28
 
 - Centered the violet title passage on the actual visible black-hole gateway
@@ -264,6 +276,7 @@ full engineering record.
 
 [Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.25...HEAD
 [0.3.25]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.24...v0.3.25
+[0.3.24]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.23...v0.3.24
 [0.3.23]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.22...v0.3.23
 [0.3.22]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.21...v0.3.22
 [0.3.21]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.20...v0.3.21
