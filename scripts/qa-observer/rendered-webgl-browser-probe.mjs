@@ -54,6 +54,9 @@ const CONTROLLED_RENDERER_STALE_DELETE_WARNING =
   /^WebGL: INVALID_OPERATION: delete(?:VertexArray)?: object does not belong to this context$/u;
 const CONTROLLED_RENDERER_WARNING_THROTTLE =
   /^WebGL: too many errors, no more errors will be reported to the console for this context\.$/u;
+const LOCAL_DIAGNOSTIC_CAUSE_LIMIT = 6;
+const LOCAL_DIAGNOSTIC_MESSAGE_LIMIT = 320;
+const LOCAL_DIAGNOSTIC_OUTPUT_LIMIT = 1_280;
 
 const DESKTOP_VIEWPORT = Object.freeze({ width: 1_440, height: 900 });
 const FULL_HD_VIEWPORT = Object.freeze({ width: 1_920, height: 1_080 });
@@ -63,6 +66,61 @@ const SHORT_LANDSCAPE_VIEWPORT = Object.freeze({ width: 667, height: 375 });
 const RENDERED_WEBGL_WORKER_LOCOMOTION_MODEL_COUNT = 3;
 const RENDERED_WEBGL_WORKER_LOCOMOTION_PRESENTED_COUNT = 400;
 const RENDERED_WEBGL_WORKER_LOCOMOTION_MINIMUM_VISIBLE_PROJECTION_COUNT = 1;
+
+/**
+ * Keeps opt-in local QA diagnostics useful without copying stacks, browser
+ * console payloads, absolute host paths, URLs, or long opaque values into
+ * terminal output. Rendered QA uses synthetic fixtures, but this boundary
+ * remains defensive so future probe errors cannot accidentally widen it.
+ */
+function isRenderedWebglDiagnosticError(value) {
+  try {
+    return value instanceof Error;
+  } catch {
+    return false;
+  }
+}
+
+function readRenderedWebglDiagnosticErrorProperty(error, property) {
+  try {
+    return error[property];
+  } catch {
+    return undefined;
+  }
+}
+
+export function formatRenderedWebglLocalDiagnostic(value) {
+  const messages = [];
+  let current = value;
+  while (
+    isRenderedWebglDiagnosticError(current)
+    && messages.length < LOCAL_DIAGNOSTIC_CAUSE_LIMIT
+  ) {
+    const rawMessage = readRenderedWebglDiagnosticErrorProperty(
+      current,
+      'message'
+    );
+    const rawName = readRenderedWebglDiagnosticErrorProperty(current, 'name');
+    const message = (typeof rawMessage === 'string'
+      ? rawMessage
+      : typeof rawName === 'string'
+        ? rawName
+        : 'Error')
+      .replace(/[A-Za-z][A-Za-z0-9+.-]*:\/\/[^\s"'<>]+/gu, '[url]')
+      .replace(/(?:[A-Za-z]:[\\/]|\\\\)[^\s"'<>]+/gu, '[path]')
+      .replace(/~[\\/][^\s"'<>]+/gu, '[path]')
+      .replace(/\/[^\s"'<>]+/gu, '[path]')
+      .replace(/[A-Za-z0-9_-]{48,}/gu, '[opaque]')
+      .replace(/\s+/gu, ' ')
+      .trim()
+      .slice(0, LOCAL_DIAGNOSTIC_MESSAGE_LIMIT);
+    messages.push(message || 'Error');
+    current = readRenderedWebglDiagnosticErrorProperty(current, 'cause');
+  }
+  return (messages.join(' <- ') || 'unknown')
+    .slice(0, LOCAL_DIAGNOSTIC_OUTPUT_LIMIT);
+}
+
 const RENDERED_WEBGL_WORKER_LOCOMOTION_CASE_SPECS = Object.freeze([
   Object.freeze({
     id: 'full-hd-high-worker-locomotion',
@@ -5691,6 +5749,30 @@ export async function applyRenderedWebglResourceOccupantInteraction(
           overviewTargetKey
         )
       );
+      const cameraStateToken = () => {
+        const root = document.querySelector('.realm-map-screen');
+        const canvas = root?.querySelector(
+          'canvas[data-realm-canvas-active="true"]'
+        );
+        return canvas?.getAttribute('data-realm-camera-state-token') ?? '';
+      };
+      const cameraSettledAfter = (previousToken) => {
+        const root = document.querySelector('.realm-map-screen');
+        const canvas = root?.querySelector(
+          'canvas[data-realm-canvas-active="true"]'
+        );
+        const currentToken = canvas?.getAttribute(
+          'data-realm-camera-state-token'
+        ) ?? '';
+        return root instanceof HTMLElement
+          && root.getAttribute('data-realm-camera-target-kind') === 'cell-location'
+          && root.getAttribute('data-renderer-state') === 'ready'
+          && !root.hasAttribute('data-camera-interacting')
+          && canvas instanceof HTMLCanvasElement
+          && canvas.getAttribute('data-realm-camera-settled') === 'true'
+          && /^[0-9a-f]{24}$/.test(currentToken)
+          && currentToken !== previousToken;
+      };
       const openExplore = async () => {
         if (expectedMode === 'player') {
           const launcher = document.querySelector('.realm-profile-trigger');
@@ -5722,6 +5804,8 @@ export async function applyRenderedWebglResourceOccupantInteraction(
         ));
       };
       const navigateToOccupiedSite = async (target) => {
+        const previousCameraToken = cameraStateToken();
+        if (!/^[0-9a-f]{24}$/.test(previousCameraToken)) return false;
         if (!await openExplore()) return false;
         if (expectedMode === 'player') {
           if (document.querySelector('.realm-cell-navigator__jump') !== null) return false;
@@ -5773,10 +5857,7 @@ export async function applyRenderedWebglResourceOccupantInteraction(
           return waitFor(() => (
             document.querySelector('.realm-cell-navigator__dialog') === null
             && document.querySelector(inspectorSelector) === null
-            && document.querySelector('.realm-map-screen') instanceof HTMLElement
-            && !document.querySelector('.realm-map-screen').hasAttribute(
-              'data-camera-interacting'
-            )
+            && cameraSettledAfter(previousCameraToken)
           ));
         }
         const form = document.querySelector('.realm-cell-navigator__jump');
@@ -5800,8 +5881,7 @@ export async function applyRenderedWebglResourceOccupantInteraction(
         form.requestSubmit();
         return waitFor(() => (
           document.querySelector('.realm-cell-navigator__dialog') === null
-          && document.querySelector('.realm-map-screen') instanceof HTMLElement
-          && !document.querySelector('.realm-map-screen').hasAttribute('data-camera-interacting')
+          && cameraSettledAfter(previousCameraToken)
         ));
       };
       const frameRealmOverview = async () => {
@@ -7959,6 +8039,7 @@ async function runRenderedCase(session, probeCase, state, onQualityMetrics) {
     await waitForAcceptedRenderedDom(session, baseline, state);
   }
   if (RENDERED_WEBGL_QA_MAP_GESTURE_CASES.has(probeCase.id)) {
+    await waitForRenderedWebglCameraSettled(session);
     await applyRenderedWebglMapGestureInteraction(
       session,
       RENDERED_WEBGL_QA_MAP_GESTURE_CASES.get(probeCase.id)
@@ -8436,7 +8517,7 @@ async function main() {
     if (process.env.WARPKEEP_QA_LOCAL_DIAGNOSTICS === '1') {
       process.stderr.write(
         `Local rendered WebGL QA failure: ${
-          error instanceof Error ? error.message : 'unknown'
+          formatRenderedWebglLocalDiagnostic(error)
         }\n`
       );
     }

@@ -363,6 +363,31 @@ function ownerExpeditionPublicJoin(node: GatheringNodePresentation | undefined) 
   });
 }
 
+const applyDevWorkerProjectionTelemetry = import.meta.env.DEV
+  ? (
+      root: HTMLElement | null,
+      enabled: boolean,
+      frame: RealmWorkerProjectionFrame
+    ) => {
+      if (!root) return;
+      if (!enabled) {
+        delete root.dataset.realmLocalQaWorkerProjections;
+        return;
+      }
+      root.dataset.realmLocalQaWorkerProjections = JSON.stringify(
+        frame.markers
+          .filter((marker) => (
+            marker.phase === 'outbound' || marker.phase === 'returning'
+          ))
+          .map((marker) => Object.freeze({
+            phase: marker.phase,
+            x: marker.x,
+            y: marker.y
+          }))
+      );
+    }
+  : undefined;
+
 function CanonicalRealmUnavailable({
   onRequestReturn
 }: Readonly<{ onRequestReturn: () => void }>) {
@@ -392,45 +417,44 @@ export function RealmMapScreen(props: RealmMapScreenProps) {
   return <CanonicalRealmMapScreen {...props} />;
 }
 
-function CanonicalRealmMapScreen({
-  identity,
-  snapshot,
-  resources,
-  goldExpedition,
-  onDispatchGoldExpedition,
-  foodExpedition,
-  onDispatchFoodExpedition,
-  woodExpedition,
-  onDispatchWoodExpedition,
-  stoneExpedition,
-  onDispatchStoneExpedition,
-  workerProjection,
-  workerRoster,
-  workerResourceState,
-  workerPrivateSync,
-  onRetryWorkerPrivateSync,
-  onDispatchWorker,
-  onRecallWorker,
-  onRecallAllWorkers,
-  onReturnLegacyExpedition,
-  graphicsPreference,
-  resolvedGraphicsQuality,
-  audioMuted,
-  onGraphicsPreferenceChange,
-  onAudioMutedChange,
-  onRequestReturn,
-  qualityOverride,
-  presentationMode = 'player',
-  localQaWorkerProjectionTelemetry = false
-}: RealmMapScreenProps) {
+function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
+  const {
+    identity,
+    snapshot,
+    resources,
+    goldExpedition,
+    onDispatchGoldExpedition,
+    foodExpedition,
+    onDispatchFoodExpedition,
+    woodExpedition,
+    onDispatchWoodExpedition,
+    stoneExpedition,
+    onDispatchStoneExpedition,
+    workerProjection,
+    workerRoster,
+    workerResourceState,
+    workerPrivateSync,
+    onRetryWorkerPrivateSync,
+    onDispatchWorker,
+    onRecallWorker,
+    onRecallAllWorkers,
+    onReturnLegacyExpedition,
+    graphicsPreference,
+    resolvedGraphicsQuality,
+    audioMuted,
+    onGraphicsPreferenceChange,
+    onAudioMutedChange,
+    onRequestReturn,
+    qualityOverride,
+    presentationMode = 'player'
+  } = props;
   // The observer is a development-only presentation of an already-sanitized
   // loopback snapshot. Compile the mode out of production even if a future
   // caller accidentally supplies the internal prop.
   const observerMode = import.meta.env.DEV && presentationMode === 'observer';
-  const workerProjectionTelemetryEnabled = (
-    import.meta.env.DEV
-    && localQaWorkerProjectionTelemetry
-  );
+  const workerProjectionTelemetryEnabled = import.meta.env.DEV
+    ? props.localQaWorkerProjectionTelemetry === true
+    : false;
   const workerProjectionTelemetryEnabledRef = useRef(
     workerProjectionTelemetryEnabled
   );
@@ -1561,22 +1585,10 @@ function CanonicalRealmMapScreen({
   const applyLocalQaWorkerProjectionTelemetry = useCallback((
     frame: RealmWorkerProjectionFrame
   ) => {
-    const root = rootRef.current;
-    if (!root) return;
-    if (!workerProjectionTelemetryEnabledRef.current) {
-      delete root.dataset.realmLocalQaWorkerProjections;
-      return;
-    }
-    root.dataset.realmLocalQaWorkerProjections = JSON.stringify(
-      frame.markers
-        .filter((marker) => (
-          marker.phase === 'outbound' || marker.phase === 'returning'
-        ))
-        .map((marker) => Object.freeze({
-          phase: marker.phase,
-          x: marker.x,
-          y: marker.y
-        }))
+    applyDevWorkerProjectionTelemetry?.(
+      rootRef.current,
+      workerProjectionTelemetryEnabledRef.current,
+      frame
     );
   }, []);
 

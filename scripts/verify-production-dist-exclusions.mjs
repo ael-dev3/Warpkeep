@@ -50,6 +50,8 @@ const forbiddenContent = Object.freeze([
   'createRenderedWebglQaFixtureRealm',
   'createRenderedWebglQaActiveWorkerRealm',
   'worker-active',
+  'realmLocalQaWorkerProjections',
+  'localQaWorkerProjectionTelemetry',
   'warpkeep-local-',
   'LOCAL RENDERED WEBGL QA',
   'SYNTHETIC · 100 CASTLES · NO AUTHORITY',

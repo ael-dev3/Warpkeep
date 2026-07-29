@@ -23,6 +23,9 @@ export const RENDERED_WEBGL_QA_VITE_FS_DENY: readonly [
   '**/.cache/**'
 ];
 
+/** Bounded, redacted cause summary for explicitly enabled local QA diagnostics. */
+export function formatRenderedWebglLocalDiagnostic(value: unknown): string;
+
 export function renderedWebglLabelAnchorDistanceTelemetry(distance: number): Readonly<{
   reportedDistance: number;
   violation: boolean;

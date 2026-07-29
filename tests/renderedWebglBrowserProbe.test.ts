@@ -21,6 +21,7 @@ import {
   cleanupRenderedWebglProbeResources,
   controlledRendererRecoveryWarningKind,
   DevtoolsPipeSession,
+  formatRenderedWebglLocalDiagnostic,
   headlessChromeProbeContract,
   isAllowedRenderedWebglPageUrl,
   isBenignStaleFetchInterceptionError,
@@ -195,6 +196,45 @@ async function attachedFakeChromePipe(
 }
 
 describe('rendered WebGL headless browser probe contract', () => {
+  it('keeps opt-in local failure causes bounded and redacted', () => {
+    const error = new Error(
+      'Rendered case failed at wss://127.0.0.1:4173/private '
+        + '/home/example/token /Volumes/Private/record '
+        + 'C:\\Users\\example\\secret \\\\server\\share\\secret',
+      {
+      cause: new Error(
+        'Source /Users/example/private/token.txt '
+          + 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+      )
+      }
+    );
+    const diagnostic = formatRenderedWebglLocalDiagnostic(error);
+    expect(diagnostic).toContain('Rendered case failed at [url]');
+    expect(diagnostic).toContain('Source [path] [opaque]');
+    expect(diagnostic).not.toContain('127.0.0.1');
+    expect(diagnostic).not.toContain('/home/');
+    expect(diagnostic).not.toContain('/Volumes/');
+    expect(diagnostic).not.toContain('/Users/');
+    expect(diagnostic).not.toContain('C:\\');
+    expect(diagnostic).not.toContain('server\\share');
+    expect(diagnostic.length).toBeLessThanOrEqual(1_280);
+    expect(formatRenderedWebglLocalDiagnostic('not-an-error')).toBe('unknown');
+
+    const hostile = new Error('ordinary');
+    Object.defineProperties(hostile, {
+      message: { get: () => { throw new Error('private message getter'); } },
+      name: { value: 'Error' },
+      cause: { get: () => { throw new Error('private cause getter'); } }
+    });
+    expect(formatRenderedWebglLocalDiagnostic(hostile)).toBe('Error');
+
+    const nonStringMessage = new Error();
+    Object.defineProperty(nonStringMessage, 'message', {
+      value: Object.freeze({ private: true })
+    });
+    expect(formatRenderedWebglLocalDiagnostic(nonStringMessage)).toBe('Error');
+  });
+
   it('zeroizes the source and removes the private profile even if Vite shutdown rejects', async () => {
     const calls: string[] = [];
     const closeFailure = new Error('synthetic Vite close failure');
@@ -611,6 +651,18 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(expression).toContain(
       'if (!inspectorReady || !(inspector instanceof HTMLElement)) return false;'
     );
+    expect(expression).toContain(
+      "root.getAttribute('data-realm-camera-target-kind') === 'cell-location'"
+    );
+    expect(expression).toContain(
+      "canvas.getAttribute('data-realm-camera-settled') === 'true'"
+    );
+    expect(expression).toContain(
+      'cameraSettledAfter(previousCameraToken)'
+    );
+    expect(expression).toContain(
+      'currentToken !== previousToken'
+    );
     expect(expression).toContain("resource: 'gold'");
     expect(expression).toContain("resource: 'food'");
     expect(expression).toContain("resource: 'wood'");
@@ -676,6 +728,9 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(source).toContain("name: 'prefers-reduced-motion'");
     expect(source).toContain('probeCase.expectedReducedMotion === true');
     expect(source).toContain("probeCase.expectedQuality === 'reduced'");
+    expect(source).toMatch(
+      /if \(RENDERED_WEBGL_QA_MAP_GESTURE_CASES\.has\(probeCase\.id\)\) \{\s+await waitForRenderedWebglCameraSettled\(session\);\s+await applyRenderedWebglMapGestureInteraction/
+    );
     expect(renderedWebglBrowserProbeCases(41_733)).toContainEqual(
       expect.objectContaining({
         id: 'mobile-balanced-persistent-labels',

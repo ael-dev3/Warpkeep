@@ -316,6 +316,8 @@ describe('local QA production exclusion', () => {
     expect(verifier).toContain('createRenderedWebglQaFixtureRealm');
     expect(verifier).toContain('createRenderedWebglQaActiveWorkerRealm');
     expect(verifier).toContain('worker-active');
+    expect(verifier).toContain('realmLocalQaWorkerProjections');
+    expect(verifier).toContain('localQaWorkerProjectionTelemetry');
     expect(verifier).toContain('warpkeep-local-');
     expect(verifier).toContain('data-local-fullstack-');
     expect(verifier).toContain('entry-agreement-continuity=');
