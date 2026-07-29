@@ -18,6 +18,9 @@ import {
   hexKey,
   type HexCoord
 } from '../../game/map/hexCoordinates';
+import {
+  createCanonicalWaterNavigationGraph
+} from '../../game/map/canonicalWaterNavigation';
 import { terrainCellByCoord } from '../../game/map/generateTerrainMap';
 import {
   createAuthoritativeRealmTerrainSurface,
@@ -73,6 +76,7 @@ import {
 import { resolveCanonicalWaterProjection } from './realmWaterProjection';
 import { projectRealmWaterRevisionTerrainMetadata } from './realmWaterTerrainProjection';
 import {
+  realmWaterInspectionNavigation,
   realmWaterNavigatorBodies,
   resolveRealmWaterInspectionRecords,
   type RealmWaterInspectionRecord
@@ -545,6 +549,13 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
   const projectedTileMetadata = useMemo(
     () => projectRealmWaterRevisionTerrainMetadata(sharedTileMetadata, waterCells),
     [sharedTileMetadata, waterCells]
+  );
+  const waterNavigationGraph = useMemo(
+    () => createCanonicalWaterNavigationGraph(
+      stableWaterSceneInputs.cells,
+      stableWaterSceneInputs.bodies
+    ),
+    [stableWaterSceneInputs.bodies, stableWaterSceneInputs.cells]
   );
   const waterRecords = useMemo(
     () => resolveRealmWaterInspectionRecords(waterCells, projectedTileMetadata),
@@ -1421,6 +1432,12 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     && 'cellKey' in selectedInspectorTarget
     ? waterRecordsByKey.get(selectedInspectorTarget.cellKey)
     : undefined;
+  const inspectorWaterNavigation = useMemo(
+    () => inspectorWater
+      ? realmWaterInspectionNavigation(waterNavigationGraph, inspectorWater)
+      : undefined,
+    [inspectorWater, waterNavigationGraph]
+  );
   const inspectorWorker = selectedInspectorTarget !== null
     && 'workerId' in selectedInspectorTarget
     ? publicWorkerProjection?.workers.find((worker) => (
@@ -1934,6 +1951,21 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       coord: record.coord
     });
   }, [emitWorldSelectionSfx]);
+
+  const selectWaterRecordByKey = useCallback((cellKey: string) => {
+    const record = waterRecordsByKeyRef.current.get(cellKey);
+    if (record) selectWaterCell(record);
+  }, [selectWaterCell]);
+
+  const focusWaterRecordByKey = useCallback((cellKey: string) => {
+    const record = waterRecordsByKeyRef.current.get(cellKey);
+    if (!record) return;
+    sceneRef.current?.locateCell(record.coord);
+    dispatchInteraction({
+      type: 'set-camera-target',
+      target: { kind: 'cell-location', coord: record.coord }
+    });
+  }, []);
 
   const selectWorker = useCallback((worker: RealmWorkerPublicPresentation, coord: HexCoord) => {
     emitWorldSelectionSfx(
@@ -3981,6 +4013,17 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       data-realm-camera-mode={cameraMode}
       data-realm-camera-presentation-band={realmCameraPresentationBand(cameraMode)}
       data-realm-camera-target-kind={interaction.cameraTarget.kind}
+      data-water-navigation-status={waterNavigationGraph.telemetry.status}
+      data-water-navigation-node-count={String(waterNavigationGraph.telemetry.nodeCount)}
+      data-water-navigation-river-node-count={String(
+        waterNavigationGraph.telemetry.riverNodeCount
+      )}
+      data-water-navigation-ocean-node-count={String(
+        waterNavigationGraph.telemetry.oceanNodeCount
+      )}
+      data-water-navigation-issue-count={String(
+        waterNavigationGraph.telemetry.issueCount
+      )}
       data-renderer={rendererMode}
       data-renderer-state={rendererLifecycle.state}
       data-renderer-ever-ready={String(rendererLifecycle.everReady)}
@@ -4712,14 +4755,13 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
             <WaterInspectionPanel
               id={`${inspectorId}-water-${inspectorWater.cellKey}`}
               record={inspectorWater}
+              navigation={inspectorWaterNavigation}
               showDiagnostics={observerMode}
               focusTargetRef={inspectorFocusRef}
               onRequestClose={() => dispatchInteraction({ type: 'close-inspector' })}
-              onSelectCell={(cellKey) => {
-                const record = waterRecordsByKeyRef.current.get(cellKey);
-                if (record) selectWaterCell(record);
-              }}
-              onViewUnderlyingCell={inspectorWater.underlyingTileKey
+              onSelectCell={selectWaterRecordByKey}
+              onFocusCell={focusWaterRecordByKey}
+              onViewUnderlyingCell={observerMode && inspectorWater.underlyingTileKey
                 ? () => selectCoord(inspectorWater.coord)
                 : undefined}
             />
