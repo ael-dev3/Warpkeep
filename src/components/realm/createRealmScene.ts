@@ -114,6 +114,11 @@ import {
   REALM_WATER_ANIMATION_FRAME_CAPS,
   type RealmWaterLayer
 } from './realmWaterLayer';
+import { createRealmWaterAmbienceSampler } from './realmWaterAmbiencePresentation';
+import {
+  WARPKEEP_WATER_AMBIENCE_OFF,
+  createWarpkeepWaterAmbiencePublisher
+} from '../audio/waterAmbience';
 import {
   realmLandPresentationMap,
   realmNoLakeRevisionActive,
@@ -1615,6 +1620,11 @@ function initializeRealmScene(
   scene.add(terrain);
 
   let waterLayer: RealmWaterLayer | null = null;
+  const waterAmbiencePublisher = createWarpkeepWaterAmbiencePublisher();
+  const waterAmbienceSampler = options.waterCells
+    ? createRealmWaterAmbienceSampler(options.waterCells)
+    : undefined;
+  cleanup.add(waterAmbiencePublisher.dispose);
   if (options.waterCells !== undefined) {
     try {
       waterLayer = createRealmWaterLayer({
@@ -2342,6 +2352,8 @@ function initializeRealmScene(
   let hoveredWorkerId: string | undefined;
   let selectedTerrainCoord: HexCoord | null = null;
   let hoveredTerrainCoord: HexCoord | null = null;
+  let selectedWaterCellKey: string | null = null;
+  let presentationActive = false;
   const goldSiteIdByCoord = new Map(
     (options.goldNodes ?? []).map((site) => [hexKey(site.coord), site.siteId] as const)
   );
@@ -2784,6 +2796,16 @@ function initializeRealmScene(
       realmCameraStateAttestationToken(pose, cameraState.currentZoom);
     options.canvas.dataset.realmCameraSettled = String(cameraSettled);
     options.canvas.dataset.realmCameraZoom = cameraController.getZoom().toFixed(6);
+    waterAmbiencePublisher.publish(
+      waterLayer && waterAmbienceSampler
+        ? waterAmbienceSampler.sample({
+            active: presentationActive,
+            cameraBand: cameraTelemetry.presentationBand,
+            focus: pose.focus,
+            selectedCellKey: selectedWaterCellKey
+          })
+        : WARPKEEP_WATER_AMBIENCE_OFF
+    );
     decorativeForestLayer?.updateView(
       pose.focus,
       pose.mode,
@@ -4612,6 +4634,7 @@ function initializeRealmScene(
     dispose: disposeScene,
     setPresentationActive: (active) => {
       if (cleanup.isDisposed()) return;
+      presentationActive = active;
       options.canvas.dataset.realmCanvasActive = String(active);
       if (!active) {
         workerMovementWakeSuspended = false;
@@ -4619,6 +4642,7 @@ function initializeRealmScene(
       }
       ambientScheduler?.setActive(active && ambientIsNeeded());
       if (active) render();
+      else waterAmbiencePublisher.publish(WARPKEEP_WATER_AMBIENCE_OFF);
     },
     reconcileLiveGatheringState,
     getCameraAttestation,
@@ -4764,6 +4788,7 @@ function initializeRealmScene(
     setSelected: (coord) => {
       if (cleanup.isDisposed()) return;
       waterLayer?.setSelectedCellKey(null);
+      selectedWaterCellKey = null;
       selectedWorkerId = undefined;
       workerLayer?.setSelectedWorkerId(selectedWorkerRouteId ?? null);
       selectedTerrainCoord = coord;
@@ -4788,6 +4813,7 @@ function initializeRealmScene(
       castleLayer?.setSelectedCastleId(castleId);
       if (castleId !== null) {
         waterLayer?.setSelectedCellKey(null);
+        selectedWaterCellKey = null;
         selectedGoldSiteId = undefined;
         selectedFoodSiteId = undefined;
         selectedWoodSiteId = undefined;
@@ -4810,6 +4836,7 @@ function initializeRealmScene(
       goldNodeLayer?.setSelectedSiteId(siteId);
       if (siteId !== null) {
         waterLayer?.setSelectedCellKey(null);
+        selectedWaterCellKey = null;
         selectedCastleId = undefined;
         castleLayer?.setSelectedCastleId(null);
         selectedWorkerId = undefined;
@@ -4824,6 +4851,7 @@ function initializeRealmScene(
       foodNodeLayer?.setSelectedSiteId(siteId);
       if (siteId !== null) {
         waterLayer?.setSelectedCellKey(null);
+        selectedWaterCellKey = null;
         selectedCastleId = undefined;
         castleLayer?.setSelectedCastleId(null);
         selectedWorkerId = undefined;
@@ -4838,6 +4866,7 @@ function initializeRealmScene(
       woodNodeLayer?.setSelectedSiteId(siteId);
       if (siteId !== null) {
         waterLayer?.setSelectedCellKey(null);
+        selectedWaterCellKey = null;
         selectedCastleId = undefined;
         castleLayer?.setSelectedCastleId(null);
         selectedWorkerId = undefined;
@@ -4852,6 +4881,7 @@ function initializeRealmScene(
       stoneNodeLayer?.setSelectedSiteId(siteId);
       if (siteId !== null) {
         waterLayer?.setSelectedCellKey(null);
+        selectedWaterCellKey = null;
         selectedCastleId = undefined;
         castleLayer?.setSelectedCastleId(null);
         selectedWorkerId = undefined;
@@ -4866,6 +4896,7 @@ function initializeRealmScene(
       workerLayer?.setSelectedWorkerId(selectedWorkerRouteId ?? workerId);
       if (workerId !== null) {
         waterLayer?.setSelectedCellKey(null);
+        selectedWaterCellKey = null;
         selectedTerrainCoord = null;
         selectedCastleId = undefined;
         castleLayer?.setSelectedCastleId(null);
@@ -4891,6 +4922,7 @@ function initializeRealmScene(
     setSelectedWaterCellKey: (cellKey) => {
       if (cleanup.isDisposed()) return;
       waterLayer?.setSelectedCellKey(cellKey);
+      selectedWaterCellKey = cellKey;
       if (cellKey !== null) {
         selectedTerrainCoord = null;
         selectedCastleId = undefined;

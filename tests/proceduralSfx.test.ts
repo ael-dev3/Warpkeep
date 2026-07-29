@@ -318,7 +318,9 @@ describe('ProceduralSfxEngine lifecycle', () => {
       contextState: 'unavailable',
       hidden: false,
       muted: false,
-      voiceCap: 3
+      voiceCap: 3,
+      waterAmbienceActive: false,
+      waterAmbienceRegime: 'none'
     });
     expect(Object.isFrozen(snapshot)).toBe(true);
   });
@@ -334,6 +336,75 @@ describe('ProceduralSfxEngine lifecycle', () => {
     context.currentTime = 0.161;
     expect(engine.emit({ kind: 'select-water', regime: 'river' })).toBe(true);
     expect(engine.snapshot().activeVoices).toBeLessThanOrEqual(engine.voiceCap);
+  });
+
+  it('runs one anonymous Water ambience voice only while relevant and audible', async () => {
+    const context = new FakeAudioContext();
+    const { engine, contextFactory } = createEngine(context);
+    engine.setWaterAmbience({
+      regime: 'river',
+      relevance: 0.7,
+      character: 0.6,
+      selected: false
+    });
+    expect(contextFactory).not.toHaveBeenCalled();
+    expect(engine.snapshot()).toMatchObject({
+      activeVoices: 0,
+      waterAmbienceActive: false,
+      waterAmbienceRegime: 'none'
+    });
+
+    await engine.activateFromTrustedGesture(true);
+    expect(context.sources).toHaveLength(1);
+    expect(context.sources[0]?.loop).toBe(true);
+    expect(engine.snapshot()).toMatchObject({
+      activeVoices: 1,
+      waterAmbienceActive: true,
+      waterAmbienceRegime: 'river'
+    });
+
+    engine.setWaterAmbience({
+      regime: 'ocean',
+      relevance: 0.5,
+      character: 0.8,
+      selected: true
+    });
+    expect(context.sources).toHaveLength(1);
+    expect(engine.snapshot().waterAmbienceRegime).toBe('ocean');
+
+    engine.setWaterAmbience({
+      regime: 'none',
+      relevance: 0,
+      character: 0,
+      selected: false
+    });
+    expect(engine.snapshot()).toMatchObject({
+      activeVoices: 0,
+      waterAmbienceActive: false,
+      waterAmbienceRegime: 'none'
+    });
+    expect(context.sources[0]?.stops).toEqual([0.08]);
+  });
+
+  it('restores only the current Water context after hidden suspension', async () => {
+    const context = new FakeAudioContext();
+    const { engine } = createEngine(context);
+    engine.setWaterAmbience({
+      regime: 'ocean',
+      relevance: 0.4,
+      character: 0.7,
+      selected: false
+    });
+    await engine.activateFromTrustedGesture(true);
+    expect(context.sources).toHaveLength(1);
+
+    engine.setHidden(true);
+    expect(engine.snapshot().waterAmbienceActive).toBe(false);
+    engine.setHidden(false);
+    expect(engine.snapshot().waterAmbienceActive).toBe(false);
+    await engine.activateFromTrustedGesture(true);
+    expect(context.sources).toHaveLength(2);
+    expect(engine.snapshot().waterAmbienceRegime).toBe('ocean');
   });
 
   it('never exceeds its voice cap and gives every source an explicit stop', async () => {

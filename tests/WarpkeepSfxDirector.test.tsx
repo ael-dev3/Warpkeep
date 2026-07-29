@@ -20,6 +20,7 @@ function fakeEngine(): WarpkeepSfxDirectorEngine {
     emitBatch: vi.fn(() => 1),
     setHidden: vi.fn(),
     setMuted: vi.fn(),
+    setWaterAmbience: vi.fn(),
     stopAll: vi.fn()
   };
 }
@@ -100,6 +101,12 @@ describe('WarpkeepSfxDirector', () => {
     );
     expect(engine.setMuted).toHaveBeenCalledWith(false);
     expect(engine.setHidden).toHaveBeenCalledWith(document.hidden);
+    expect(engine.setWaterAmbience).toHaveBeenCalledWith({
+      regime: 'none',
+      relevance: 0,
+      character: 0,
+      selected: false
+    });
 
     view.rerender(
       <WarpkeepSfxDirector createEngine={() => engine} muted />

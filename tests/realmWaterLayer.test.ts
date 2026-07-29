@@ -251,6 +251,10 @@ describe('Realm canonical water layer', () => {
     expect(telemetry.riverFallbackCellCount).toBe(0);
     expect(telemetry.riverMouthConnectionCount).toBe(GENESIS_RIVERS_V1.length);
     expect(telemetry.riverLocalizedFoamVertexCount).toBeGreaterThan(0);
+    expect(rivers.geometry.getAttribute('waterFlowAccumulation')).toBeDefined();
+    expect(rivers.geometry.getAttribute('waterFeaturePhase')).toBeDefined();
+    expect(rivers.geometry.getAttribute('waterSourceMix')).toBeDefined();
+    expect(rivers.geometry.getAttribute('waterMouthMix')).toBeDefined();
     expect((rivers.geometry.index?.count ?? 0) / 3)
       .toBe(telemetry.riverFullCellTriangleCount);
     expect(telemetry.riverFullCellCount).toBe(telemetry.riverCellCount);
@@ -262,6 +266,8 @@ describe('Realm canonical water layer', () => {
     expect(rivers.material.color.getHexString()).toBe('ffffff');
     expect(rivers.material.emissive.getHexString()).toBe('143d41');
     expect(rivers.material.emissiveIntensity).toBeCloseTo(0.08, 6);
+    expect(rivers.material.userData.waterPhysicalRiverDisplacement).toBe(0);
+    expect(rivers.material.userData.waterFoamQualityScale).toBe(0);
 
     const shader = compileMaterial(ocean.material);
     expect(ocean.material.userData.waterWaveComponents).toBe(0);
@@ -809,18 +815,89 @@ describe('Realm canonical water layer', () => {
       REALM_WATER_RENDER_BUDGETS.high.waveComponents + 1
     );
     expect(shader.vertexShader).toContain('uniform float uWaterTime');
+    expect(shader.fragmentShader).toContain('uniform float uWaterTime');
     expect(shader.vertexShader).not.toContain('uWaterWaveComponents');
     expect(shader.vertexShader).toContain('(modelMatrix * vec4(position, 1.0)).xz');
     expect(shader.vertexShader).toContain('1.0 - clamp(waterFogMix, 0.0, 1.0)');
     expect(shader.vertexShader).toContain('* warpkeepWaterWaveVisibility');
     expect(shader.vertexShader).not.toContain('vViewPosition.xz');
     expect(shader.fragmentShader).toContain('outgoingLight +=');
-    expect(ocean.material.userData.waterShaderContract).toContain('-v4');
+    expect(ocean.material.userData.waterShaderContract).toContain('-v5');
     expect(shader.uniforms).toHaveProperty('uWaterTime');
     expect(layer.updateEnvironment(1)).toBe(true);
     expect(layer.updateEnvironment(1)).toBe(false);
     expect(layer.updateEnvironment(2)).toBe(true);
 
+    layer.dispose();
+  });
+
+  it('keeps river vertices welded while animating downstream light and normals', () => {
+    const layer = createLayer('high');
+    const rivers = layer.group.getObjectByName(
+      'canonical-river-full-cell-surface'
+    ) as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
+    const shader = compileMaterial(rivers.material);
+
+    expect(rivers.material.userData.waterWaveComponents).toBe(2);
+    expect(rivers.material.userData.waterFoamQualityScale).toBe(1);
+    expect(shader.vertexShader).toContain(
+      'transformed.y += vWarpkeepWaterWave * (1.0 - step(0.5, waterRegime))'
+    );
+    expect(shader.vertexShader).toContain(
+      'uWaterTime * (0.54 + waterFlowAccumulation * 0.24)'
+    );
+    expect(shader.fragmentShader).toContain('waterDirectionalCurrent');
+    expect(shader.fragmentShader).toContain('waterHydrologyFoam');
+    expect(shader.fragmentShader).toContain('vWarpkeepWaterSourceMix');
+    expect(shader.fragmentShader).toContain('vWarpkeepWaterMouthMix');
+    expect(shader.fragmentShader).toContain('outgoingLight = min(outgoingLight, vec3(1.35))');
+
+    const positions = rivers.geometry.getAttribute('position');
+    const ranges = rivers.geometry.userData.realmWaterFullCellRanges as readonly Readonly<{
+      vertexStart: number;
+      vertexCount: number;
+    }>[];
+    const depth = rivers.geometry.getAttribute('waterDepth');
+    const bank = rivers.geometry.getAttribute('waterBankBlend');
+    const foam = rivers.geometry.getAttribute('waterShoreFoam');
+    const flowX = rivers.geometry.getAttribute('waterFlowX');
+    const flowZ = rivers.geometry.getAttribute('waterFlowZ');
+    const accumulation = rivers.geometry.getAttribute('waterFlowAccumulation');
+    const phase = rivers.geometry.getAttribute('waterFeaturePhase');
+    const source = rivers.geometry.getAttribute('waterSourceMix');
+    const mouth = rivers.geometry.getAttribute('waterMouthMix');
+    const points = new Map<string, number[][]>();
+    ranges.forEach((range) => {
+      for (let offset = 1; offset < range.vertexCount; offset += 1) {
+        const vertex = range.vertexStart + offset;
+        const key = `${
+          Math.round(positions.getX(vertex) * 1_000_000)
+        },${Math.round(positions.getZ(vertex) * 1_000_000)}`;
+        const samples = points.get(key) ?? [];
+        samples.push([
+          positions.getY(vertex),
+          depth.getX(vertex),
+          bank.getX(vertex),
+          foam.getX(vertex),
+          flowX.getX(vertex),
+          flowZ.getX(vertex),
+          accumulation.getX(vertex),
+          phase.getX(vertex),
+          source.getX(vertex),
+          mouth.getX(vertex)
+        ]);
+        points.set(key, samples);
+      }
+    });
+    [...points.values()]
+      .filter((samples) => samples.length > 1)
+      .forEach((samples) => {
+        for (let field = 0; field < samples[0]!.length; field += 1) {
+          const values = samples.map((sample) => sample[field]!);
+          expect(Math.max(...values) - Math.min(...values))
+            .toBeLessThan(0.000_001);
+        }
+      });
     layer.dispose();
   });
 

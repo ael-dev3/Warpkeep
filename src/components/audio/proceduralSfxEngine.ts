@@ -7,6 +7,11 @@ import {
   warpkeepSfxPan,
   type WarpkeepSfxEvent
 } from './sfxEvents';
+import {
+  WARPKEEP_WATER_AMBIENCE_OFF,
+  normalizeWarpkeepWaterAmbience,
+  type WarpkeepWaterAmbienceState
+} from './waterAmbience';
 
 type SfxBus = 'ui' | 'world';
 
@@ -62,8 +67,18 @@ type SfxGraph = Readonly<{
   worldBus: GainNode;
 }>;
 
+type WaterAmbienceVoice = Readonly<{
+  gain: GainNode;
+  highpass: BiquadFilterNode;
+  lowpass: BiquadFilterNode;
+  nodes: readonly AudioNode[];
+  source: AudioBufferSourceNode;
+}>;
+
 export type WarpkeepSfxEngineSnapshot = Readonly<{
   activeVoices: number;
+  waterAmbienceActive: boolean;
+  waterAmbienceRegime: WarpkeepWaterAmbienceState['regime'];
   contextCreated: boolean;
   contextState: AudioContextState | 'unavailable';
   hidden: boolean;
@@ -80,8 +95,12 @@ export type WarpkeepSfxEngineOptions = Readonly<{
 
 const MIN_GAIN = 0.0001;
 const GENERIC_UI_SUPPRESSION_MILLISECONDS = 32;
-const SHARED_NOISE_SECONDS = 0.5;
+// Long enough that a gently filtered ambience bed never reads as a short
+// repeating sample, while remaining one small shared mono buffer.
+const SHARED_NOISE_SECONDS = 2;
 const SHARED_NOISE_SEED = 0x7d31_94a5;
+const WATER_AMBIENCE_RAMP_SECONDS = 0.12;
+const WATER_AMBIENCE_RELEASE_SECONDS = 0.08;
 
 const EVENT_COOLDOWN_MILLISECONDS: Readonly<Record<WarpkeepSfxEvent['kind'], number>> =
   Object.freeze({
@@ -588,6 +607,8 @@ export class ProceduralSfxEngine {
   private muted = false;
   private resumePromise: Promise<void> | undefined;
   private serial = 0;
+  private waterAmbience = WARPKEEP_WATER_AMBIENCE_OFF;
+  private waterAmbienceVoice: WaterAmbienceVoice | undefined;
 
   constructor(options: WarpkeepSfxEngineOptions = {}) {
     this.contextFactory = options.contextFactory ?? createDefaultContext;
@@ -622,6 +643,7 @@ export class ProceduralSfxEngine {
           if (this.resumePromise === resume) this.resumePromise = undefined;
         }
       }
+      this.syncWaterAmbience();
       return this.context.state === 'running';
     } catch {
       return false;
@@ -711,21 +733,29 @@ export class ProceduralSfxEngine {
       now + 0.025
     );
     if (muted) this.stopAllAt(now + 0.025, false);
+    else this.syncWaterAmbience();
   }
 
   setHidden(hidden: boolean) {
     if (this.disposed || this.hidden === hidden) return;
     this.hidden = hidden;
     if (!hidden) return;
-    this.stopAll();
+    this.stopAllAt(this.context?.currentTime ?? 0, true);
     const suspension = this.context?.suspend();
     if (suspension && typeof suspension.catch === 'function') {
       void suspension.catch(() => undefined);
     }
   }
 
+  setWaterAmbience(input: WarpkeepWaterAmbienceState) {
+    if (this.disposed) return;
+    this.waterAmbience = normalizeWarpkeepWaterAmbience(input);
+    this.syncWaterAmbience();
+  }
+
   stopAll() {
     const at = this.context?.currentTime ?? 0;
+    this.waterAmbience = WARPKEEP_WATER_AMBIENCE_OFF;
     this.stopAllAt(at, true);
   }
 
@@ -734,13 +764,18 @@ export class ProceduralSfxEngine {
       stopVoice(voice, at, disconnectImmediately);
     }
     this.activeVoices.clear();
+    this.releaseWaterAmbience(at, disconnectImmediately);
     this.lastFamilyAt.clear();
     this.lastSpecificEventAt = Number.NEGATIVE_INFINITY;
   }
 
   snapshot(): WarpkeepSfxEngineSnapshot {
     return Object.freeze({
-      activeVoices: this.activeVoices.size,
+      activeVoices: this.activeVoices.size + Number(this.waterAmbienceVoice !== undefined),
+      waterAmbienceActive: this.waterAmbienceVoice !== undefined,
+      waterAmbienceRegime: this.waterAmbienceVoice
+        ? this.waterAmbience.regime
+        : 'none',
       contextCreated: this.context !== undefined,
       contextState: this.context?.state ?? 'unavailable',
       hidden: this.hidden,
@@ -773,10 +808,18 @@ export class ProceduralSfxEngine {
     if (!voice) return;
     this.activeVoices.delete(id);
     disconnectVoice(voice);
+    this.syncWaterAmbience();
   }
 
   private makeRoom(priority: number, at: number) {
-    if (this.activeVoices.size < this.voiceCap) return true;
+    if (
+      this.activeVoices.size + Number(this.waterAmbienceVoice !== undefined)
+      < this.voiceCap
+    ) return true;
+    if (this.waterAmbienceVoice) {
+      this.releaseWaterAmbience(at, true);
+      return this.activeVoices.size < this.voiceCap;
+    }
     let candidate: ActiveVoice | undefined;
     for (const voice of this.activeVoices.values()) {
       if (voice.priority > priority) continue;
@@ -800,6 +843,136 @@ export class ProceduralSfxEngine {
       if (voice.endsAt > at) continue;
       this.activeVoices.delete(id);
       disconnectVoice(voice);
+    }
+    this.syncWaterAmbience();
+  }
+
+  private syncWaterAmbience() {
+    const context = this.context;
+    const graph = this.graph;
+    const state = this.waterAmbience;
+    if (
+      this.disposed
+      || this.muted
+      || this.hidden
+      || !context
+      || !graph
+      || context.state !== 'running'
+      || state.regime === 'none'
+      || state.relevance <= 0
+    ) {
+      this.releaseWaterAmbience(
+        context?.currentTime ?? 0,
+        this.disposed
+          || this.hidden
+          || !context
+          || context.state !== 'running'
+      );
+      return;
+    }
+    if (
+      !this.waterAmbienceVoice
+      && this.activeVoices.size >= this.voiceCap
+    ) return;
+
+    let voice = this.waterAmbienceVoice;
+    if (!voice) {
+      const source = context.createBufferSource();
+      const highpass = context.createBiquadFilter();
+      const lowpass = context.createBiquadFilter();
+      const gain = context.createGain();
+      source.buffer = graph.noise;
+      source.loop = true;
+      highpass.type = 'highpass';
+      highpass.Q.value = 0.42;
+      lowpass.type = 'lowpass';
+      lowpass.Q.value = 0.38;
+      gain.gain.value = MIN_GAIN;
+      source.connect(highpass);
+      highpass.connect(lowpass);
+      lowpass.connect(gain);
+      gain.connect(graph.worldBus);
+      voice = Object.freeze({
+        gain,
+        highpass,
+        lowpass,
+        nodes: Object.freeze([source, highpass, lowpass, gain]),
+        source
+      });
+      this.waterAmbienceVoice = voice;
+      const offset = state.regime === 'river'
+        ? SHARED_NOISE_SECONDS * 0.19
+        : SHARED_NOISE_SECONDS * 0.61;
+      source.start(context.currentTime, offset);
+      source.onended = () => {
+        source.onended = null;
+        for (const node of voice!.nodes) {
+          try {
+            node.disconnect();
+          } catch {
+            // An already released browser node is inert.
+          }
+        }
+      };
+    }
+
+    const now = context.currentTime;
+    const targetGain = state.relevance * (
+      state.regime === 'river' ? 0.055 : 0.043
+    );
+    const targetHighpass = state.regime === 'river'
+      ? 125 + state.character * 65
+      : 48 + state.character * 24;
+    const targetLowpass = state.regime === 'river'
+      ? 820 + state.character * 620
+      : 360 + state.character * 260;
+    voice.gain.gain.cancelScheduledValues(now);
+    voice.gain.gain.setValueAtTime(
+      Math.max(MIN_GAIN, voice.gain.gain.value),
+      now
+    );
+    voice.gain.gain.linearRampToValueAtTime(
+      Math.max(MIN_GAIN, targetGain),
+      now + WATER_AMBIENCE_RAMP_SECONDS
+    );
+    for (const [parameter, target] of [
+      [voice.highpass.frequency, targetHighpass],
+      [voice.lowpass.frequency, targetLowpass]
+    ] as const) {
+      parameter.cancelScheduledValues(now);
+      parameter.setValueAtTime(Math.max(20, parameter.value), now);
+      parameter.linearRampToValueAtTime(
+        target,
+        now + WATER_AMBIENCE_RAMP_SECONDS * 12
+      );
+    }
+  }
+
+  private releaseWaterAmbience(at: number, disconnectImmediately: boolean) {
+    const voice = this.waterAmbienceVoice;
+    if (!voice) return;
+    this.waterAmbienceVoice = undefined;
+    const releaseAt = at + (disconnectImmediately ? 0 : WATER_AMBIENCE_RELEASE_SECONDS);
+    try {
+      voice.gain.gain.cancelScheduledValues(at);
+      voice.gain.gain.setValueAtTime(
+        Math.max(MIN_GAIN, voice.gain.gain.value),
+        at
+      );
+      voice.gain.gain.linearRampToValueAtTime(MIN_GAIN, releaseAt);
+      voice.source.stop(releaseAt);
+    } catch {
+      // The browser may already have ended this bounded ambience source.
+    }
+    if (disconnectImmediately) {
+      voice.source.onended = null;
+      for (const node of voice.nodes) {
+        try {
+          node.disconnect();
+        } catch {
+          // Already disconnected.
+        }
+      }
     }
   }
 }

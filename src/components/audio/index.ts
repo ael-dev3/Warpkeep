@@ -36,6 +36,15 @@ export {
   type WarpkeepSfxEvent
 } from './sfxEvents';
 export {
+  WARPKEEP_WATER_AMBIENCE_OFF,
+  createWarpkeepWaterAmbiencePublisher,
+  normalizeWarpkeepWaterAmbience,
+  subscribeWarpkeepWaterAmbience,
+  type WarpkeepWaterAmbiencePublisher,
+  type WarpkeepWaterAmbienceRegime,
+  type WarpkeepWaterAmbienceState
+} from './waterAmbience';
+export {
   WARPKEEP_AUDIO_LEVELS,
   WARPKEEP_AUDIO_TRANSITION_MS,
   WARPKEEP_MENU_LOOP,

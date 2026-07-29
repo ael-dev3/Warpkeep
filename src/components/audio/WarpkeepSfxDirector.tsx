@@ -6,6 +6,10 @@ import {
   subscribeWarpkeepSfxStop,
   type WarpkeepSfxEvent
 } from './sfxEvents';
+import {
+  subscribeWarpkeepWaterAmbience,
+  type WarpkeepWaterAmbienceState
+} from './waterAmbience';
 
 export interface WarpkeepSfxDirectorEngine {
   activateFromTrustedGesture: (trusted: boolean) => Promise<boolean>;
@@ -14,6 +18,7 @@ export interface WarpkeepSfxDirectorEngine {
   emitBatch: (events: readonly WarpkeepSfxEvent[]) => number;
   setHidden: (hidden: boolean) => void;
   setMuted: (muted: boolean) => void;
+  setWaterAmbience: (state: WarpkeepWaterAmbienceState) => void;
   stopAll: () => void;
 }
 
@@ -142,6 +147,9 @@ export function WarpkeepSfxDirector({
       engine.emitBatch(events);
     });
     const unsubscribeStop = subscribeWarpkeepSfxStop(() => engine.stopAll());
+    const unsubscribeWaterAmbience = subscribeWarpkeepWaterAmbience((state) => {
+      engine.setWaterAmbience(state);
+    });
 
     window.addEventListener('pointerdown', activate, { capture: true, passive: true });
     window.addEventListener('touchstart', activate, { capture: true, passive: true });
@@ -152,6 +160,7 @@ export function WarpkeepSfxDirector({
     return () => {
       unsubscribeEvents();
       unsubscribeStop();
+      unsubscribeWaterAmbience();
       window.removeEventListener('pointerdown', activate, true);
       window.removeEventListener('touchstart', activate, true);
       window.removeEventListener('keydown', activate, true);
