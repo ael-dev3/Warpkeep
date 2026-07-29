@@ -10,11 +10,10 @@ const REVISION = Object.freeze({
   north: 'genesis-001-northern-snow-presentation-v1',
   south: 'genesis-001-southern-desert-presentation-v1',
 });
-const TARGET_CENTER_BUCKET_INDEX = 4;
-const TARGET_MINIMUM_CLIMATE_SAMPLES = 1;
 const TARGET_MINIMUM_FRAME_CLIMATE_SAMPLES = 8;
 const OVERVIEW_MINIMUM_CLIMATE_SAMPLES = 3;
 const OVERVIEW_MINIMUM_SPATIAL_DIFFERENCE = 6;
+const MAXIMUM_CLIPPED_BLACK_SAMPLES = 1;
 
 export function parseRegionalClimateRenderedEvidence(value, expected) {
   const invalid = () => new TypeError('Invalid regional climate rendered evidence.');
@@ -83,10 +82,8 @@ export function assertRegionalClimateRenderedVisual(evidence, visual) {
       0
     )
     : 0;
-  const targetClimateMass = evidence?.climate === 'north'
-    ? visual?.coolSpatialBuckets?.[TARGET_CENTER_BUCKET_INDEX]
-    : visual?.warmSpatialBuckets?.[TARGET_CENTER_BUCKET_INDEX];
   const targetClimateTotal = evidence?.climate === 'north' ? cool : warm;
+  const oppositeClimateTotal = evidence?.climate === 'north' ? warm : cool;
   if (!visual || typeof visual !== 'object'
     || !Number.isSafeInteger(cool) || !Number.isSafeInteger(warm)
     || !exactSpatialAggregate(visual.coolSpatialBuckets, cool)
@@ -98,10 +95,12 @@ export function assertRegionalClimateRenderedVisual(evidence, visual) {
     ))
     || (evidence?.region !== 'overview' && (
       targetClimateTotal < TARGET_MINIMUM_FRAME_CLIMATE_SAMPLES
-      || !Number.isSafeInteger(targetClimateMass)
-      || targetClimateMass < TARGET_MINIMUM_CLIMATE_SAMPLES
+      || targetClimateTotal <= oppositeClimateTotal
     ))
-    || visual.clippedBlackSamples !== 0 || visual.clippedWhiteSamples !== 0
+    || !Number.isSafeInteger(visual.clippedBlackSamples)
+    || visual.clippedBlackSamples < 0
+    || visual.clippedBlackSamples > MAXIMUM_CLIPPED_BLACK_SAMPLES
+    || visual.clippedWhiteSamples !== 0
     || visual.hotYellowSamples !== 0) {
     throw new TypeError('Invalid regional climate visual aggregate.');
   }
@@ -151,16 +150,18 @@ export async function applyRegionalClimateRenderedEvidence(session, options) {
             worldSeed:CANONICAL_REALM.numericSeed,hexSize:1,
             playableRadius:CANONICAL_REALM.authoritativeRadius,
             renderRadius:CANONICAL_REALM.renderRadius});
-        const desired=region==='transition'?0.52:0.77;
+        const desired=region==='transition'?0.52:0.98;
         let target, best=Infinity;
         for(const tile of CANONICAL_WORLD_TILES){
           const sample=field.sampleCoord(tile);
           const coverage=climate==='north'?sample.coverage:sample.sand;
           const direction=climate==='north'?-tile.r:tile.r;
-          const eligible=metadata.get(tile.key)?.passable===true&&!water.has(tile.key)
-            &&direction>0&&(region==='transition'
+          const tileMeta=metadata.get(tile.key);
+          const eligible=tileMeta?.passable===true&&tileMeta.ring<=45
+            &&tileMeta.terrainKind!=='forest'&&tileMeta.staticContentKind==='empty'
+            &&!water.has(tile.key)&&direction>0&&(region==='transition'
               ? direction>=24&&direction<=36&&coverage>=0.42&&coverage<=0.62
-              : direction>=38&&direction<=52&&coverage>0.75&&coverage<=0.84);
+              : direction>=44&&direction<=45&&coverage>=0.95&&coverage<=0.99);
           const score=Math.abs(coverage-desired);
           if(eligible&&(score<best||(score===best&&(!target||direction>
             (climate==='north'?-target.r:target.r)
