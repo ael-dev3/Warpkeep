@@ -145,10 +145,16 @@ export function analyzeRenderedWebglPngScreenshot(value, viewport, options = {})
   // cool pixel elsewhere in the frame, is actually being presented.
   const coolSpatialBuckets = Array.from({ length: 9 }, () => 0);
   let hotYellowSamples = 0;
-  for (let yStep = 1; yStep <= 9; yStep += 1) {
-    const y = Math.floor(header.height * (0.16 + (0.68 * yStep) / 10));
-    for (let xStep = 1; xStep <= 13; xStep += 1) {
-      const x = Math.floor(header.width * (0.12 + (0.76 * xStep) / 14));
+  const sampleRows = 21;
+  const sampleColumns = 31;
+  for (let yStep = 1; yStep <= sampleRows; yStep += 1) {
+    const y = Math.floor(
+      header.height * (0.16 + (0.68 * yStep) / (sampleRows + 1))
+    );
+    for (let xStep = 1; xStep <= sampleColumns; xStep += 1) {
+      const x = Math.floor(
+        header.width * (0.12 + (0.76 * xStep) / (sampleColumns + 1))
+      );
       const offset = y * stride + x * bytesPerPixel;
       const red = pixels[offset];
       const green = pixels[offset + 1];
@@ -175,8 +181,13 @@ export function analyzeRenderedWebglPngScreenshot(value, viewport, options = {})
         && blue >= red - 6
       ) {
         coolHighAlbedoSamples += 1;
-        const bucket = Math.min(2, Math.floor((yStep - 1) / 3)) * 3
-          + Math.min(2, Math.floor((xStep - 1) / 5));
+        const bucket = Math.min(
+          2,
+          Math.floor(((yStep - 1) * 3) / sampleRows)
+        ) * 3 + Math.min(
+          2,
+          Math.floor(((xStep - 1) * 3) / sampleColumns)
+        );
         coolSpatialBuckets[bucket] += 1;
       }
       if (red >= 245 && green >= 205 && blue <= 55) hotYellowSamples += 1;

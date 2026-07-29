@@ -6,7 +6,8 @@ const BYTE_LIMIT = Object.freeze({
   reduced: 0.25 * 1_024 * 1_024,
 });
 const TARGET_CENTER_BUCKET_INDEX = 4;
-const TARGET_MINIMUM_SNOW_SAMPLES = 2;
+const TARGET_MINIMUM_SNOW_SAMPLES = 1;
+const TARGET_MINIMUM_FRAME_SNOW_SAMPLES = 8;
 const OVERVIEW_MINIMUM_SNOW_SAMPLES = 3;
 
 export function parseNorthernReachRenderedEvidence(value, expected) {
@@ -69,7 +70,8 @@ export function assertNorthernReachRenderedVisual(evidence, visual) {
     || !exactSpatialAggregate(visual.coolSpatialBuckets, cool)
     || (evidence?.region === 'overview'
       ? cool < OVERVIEW_MINIMUM_SNOW_SAMPLES
-      : !Number.isSafeInteger(targetSnowMass)
+      : cool < TARGET_MINIMUM_FRAME_SNOW_SAMPLES
+        || !Number.isSafeInteger(targetSnowMass)
         || targetSnowMass < TARGET_MINIMUM_SNOW_SAMPLES)
     || visual.clippedBlackSamples !== 0 || visual.clippedWhiteSamples !== 0
     || visual.hotYellowSamples !== 0) {

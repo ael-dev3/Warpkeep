@@ -3394,8 +3394,8 @@ describe('rendered WebGL headless browser probe contract', () => {
       renderedScreenshotPng(false),
       { width: 320, height: 320 }
     )).toMatchObject({
-      sampleCount: 117,
-      opaqueSamples: 117,
+      sampleCount: 651,
+      opaqueSamples: 651,
       averageSaturationBasisPoints: expect.any(Number),
       saturationP95BasisPoints: expect.any(Number),
       clippedBlackSamples: 0,
@@ -3469,8 +3469,8 @@ describe('rendered WebGL headless browser probe contract', () => {
     const deepVisual = {
       clippedBlackSamples: 0,
       clippedWhiteSamples: 0,
-      coolHighAlbedoSamples: 2,
-      coolSpatialBuckets: [0, 0, 0, 0, 2, 0, 0, 0, 0],
+      coolHighAlbedoSamples: 8,
+      coolSpatialBuckets: [7, 0, 0, 0, 1, 0, 0, 0, 0],
       hotYellowSamples: 0
     } as const;
     expect(() => assertNorthernReachRenderedVisual(
@@ -3484,7 +3484,7 @@ describe('rendered WebGL headless browser probe contract', () => {
     })).toThrow(/visual aggregate/i);
     expect(() => assertNorthernReachRenderedVisual(evidence, {
       ...deepVisual,
-      coolSpatialBuckets: [2, 0, 0, 0, 0, 0, 0, 0, 0]
+      coolSpatialBuckets: [8, 0, 0, 0, 0, 0, 0, 0, 0]
     })).toThrow(/visual aggregate/i);
 
     const ordinaryEvidence = {
