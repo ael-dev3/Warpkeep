@@ -216,7 +216,8 @@ written and could resume a still-valid copied cookie.
 
 ## Pending admission UX
 
-A missing FID creates a pending family and returns FID-only identity plus
+A missing FID or a freshly verified disabled founder creates a pending family
+tagged to that server-proven admission state and returns FID-only identity plus
 `status: "pending-admission"`; it returns **no access token** and therefore opens
 no SpacetimeDB connection or public-table subscription. The Hegemony menu may
 show exact-FID cached presentation under the rules above, or the returned FID
@@ -224,11 +225,13 @@ alone, plus a semantic **REQUEST ACCESS** link to
 `https://farcaster.xyz/0xael.eth`, **CHECK AGAIN**, and **SIGN OUT**.
 
 **CHECK AGAIN** calls credentialed `/v2/session/refresh`, not a new Farcaster
-channel. Missing stays pending/tokenless; enabled transitions once to an
-epoch-bound family and returns a fresh 600-second token; disabled revokes. A
-resolver outage remains a generic temporary-unavailable state and produces no
-token. Neither UI path reveals raw reducer, WebSocket, JWT, cookie, or OIDC
-errors.
+channel. A matching missing or disabled state stays pending/tokenless; enabled
+transitions once to an epoch-bound family and returns a fresh 600-second token.
+A bound family always revokes after disablement, and a pending family revokes
+if its non-enabled admission state no longer matches the state proven at
+creation. A resolver outage remains a generic temporary-unavailable state and
+produces no token. Neither UI path reveals raw reducer, WebSocket, JWT, cookie,
+or OIDC errors.
 
 ## Resolver contract
 

@@ -41,6 +41,7 @@ import { DurableObjectRateLimiter } from './rateLimit'
 import {
   DurableObjectSessionFamilyStore,
   matchesSessionFamilyReference,
+  pendingSessionAdmissionMatches,
 } from './sessionFamily'
 import {
   createSessionCookieValue,
@@ -1136,13 +1137,15 @@ function sessionFamilyRecord(
   rememberDevice: boolean,
   createdAt: number,
 ): SessionFamilyRecord {
-  if (admission.state === 'disabled') throw new Error('Disabled identities cannot create sessions.')
   return Object.freeze({
     version: 1,
     origin,
     identity,
     state: admission.state === 'enabled' ? 'bound' : 'pending',
     ...(admission.state === 'enabled' ? { authEpoch: admission.authEpoch } : {}),
+    ...(admission.state === 'enabled'
+      ? {}
+      : { pendingAdmissionState: admission.state }),
     rememberDevice,
     currentGeneration: 1,
     createdAt,
@@ -1206,7 +1209,7 @@ async function quickAuthResponseBody(
   config: BridgeConfig,
   signer: typeof signEs256Jwt,
   fid: string,
-  admission: Exclude<AdmissionResolution, Readonly<{ state: 'disabled'; authEpoch: 0 }>>,
+  admission: AdmissionResolution,
   issuedAtMilliseconds: number,
 ): Promise<Record<string, unknown>> {
   const identity = browserIdentity({ fid })
@@ -1214,7 +1217,7 @@ async function quickAuthResponseBody(
     version: 2,
     identity,
   }
-  if (admission.state === 'missing') {
+  if (admission.state !== 'enabled') {
     return { ...base, status: 'pending-admission' }
   }
   const issuedAt = Math.floor(issuedAtMilliseconds / 1_000)
@@ -1294,6 +1297,23 @@ function invalidSessionError(status = 401): HttpError {
   return new HttpError(status, 'session_invalid', 'This browser session is not authorized.', {
     'set-cookie': expiredSessionSetCookie(),
   })
+}
+
+async function revokeInvalidAccessSession(
+  store: SessionFamilyStore,
+  familyId: string,
+  logger: SafeLogger,
+  status = 401,
+): Promise<never> {
+  try {
+    await store.revoke(familyId)
+    logger.event('session_revoked')
+  } catch {
+    // Admission was already resolved as incompatible, so the request remains
+    // denied even if durable cleanup is temporarily unavailable.
+    logger.event('session_revoke_failed')
+  }
+  throw invalidSessionError(status)
 }
 
 async function enforceRateLimit(
@@ -1643,10 +1663,6 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             throw new HttpError(503, 'authorization_unavailable', 'Authorization is temporarily unavailable.')
           }
           logger.event('auth_epoch_resolved')
-          if (admission.state === 'disabled') {
-            throw new HttpError(403, 'quick_auth_not_authorized', 'This Farcaster identity is not authorized.')
-          }
-
           const signingTime = now()
           if (!Number.isSafeInteger(signingTime) || signingTime < verifiedAt) {
             throw new HttpError(503, 'signing_unavailable', 'Authentication signing is temporarily unavailable.')
@@ -1701,6 +1717,8 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           let verifiedFid: string
           let verifiedQuickAuthPayload: unknown
           let sessionRecord: SessionFamilyRecord | undefined
+          let sessionStore: SessionFamilyStore | undefined
+          let sessionFamilyId: string | undefined
           if (credentialMode === 'quick-auth') {
             let token: string
             try {
@@ -1773,6 +1791,8 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
               throw invalidSessionError()
             }
             verifiedFid = sessionRecord.identity.fid
+            sessionStore = store
+            sessionFamilyId = cookie.familyId
           }
 
           let admission: AdmissionResolution
@@ -1793,14 +1813,6 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           }
           logger.event('auth_epoch_resolved')
 
-          if (admission.state === 'disabled') {
-            if (credentialMode === 'pending-session') throw invalidSessionError(403)
-            throw new HttpError(
-              403,
-              'access_not_authorized',
-              'This Farcaster identity is not authorized.',
-            )
-          }
           if (
             sessionRecord?.state === 'bound'
             && (
@@ -1808,7 +1820,27 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
               || admission.authEpoch !== sessionRecord.authEpoch
             )
           ) {
-            throw invalidSessionError()
+            if (!sessionStore || !sessionFamilyId) throw invalidSessionError()
+            return await revokeInvalidAccessSession(
+              sessionStore,
+              sessionFamilyId,
+              logger,
+              admission.state === 'disabled' ? 403 : 401,
+            )
+          }
+          if (
+            sessionRecord?.state === 'pending'
+            && !pendingSessionAdmissionMatches(sessionRecord, admission)
+          ) {
+            if (!sessionStore || !sessionFamilyId) {
+              throw invalidSessionError(admission.state === 'disabled' ? 403 : 401)
+            }
+            return await revokeInvalidAccessSession(
+              sessionStore,
+              sessionFamilyId,
+              logger,
+              admission.state === 'disabled' ? 403 : 401,
+            )
           }
 
           let result: AccessRequestResolution
@@ -1955,11 +1987,6 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             throw new HttpError(503, 'authorization_unavailable', 'Authorization is temporarily unavailable.')
           }
           logger.event('auth_epoch_resolved')
-          if (admission.state === 'disabled') {
-            logger.event('session_rejected')
-            throw invalidSessionError(403)
-          }
-
           // Upstream verification and authorization can cross the challenge's
           // absolute deadline. Re-read authoritative time immediately before
           // signing; an already claimed expired challenge stays consumed.

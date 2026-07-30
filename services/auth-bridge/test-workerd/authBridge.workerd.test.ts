@@ -242,8 +242,12 @@ describe('auth bridge production bindings in workerd', () => {
 
     h.resolver.resolve.mockResolvedValueOnce({ state: 'disabled', authEpoch: 0 })
     const disabled = await h.app.fetch(quickAuthPost(), bridgeEnv)
-    expect(disabled.status).toBe(403)
-    expect(await disabled.json()).toMatchObject({ error: { code: 'quick_auth_not_authorized' } })
+    expect(disabled.status).toBe(200)
+    expect(await disabled.json()).toEqual({
+      version: 2,
+      identity: { fid: Number(FID) },
+      status: 'pending-admission',
+    })
     expect(disabled.headers.has('set-cookie')).toBe(false)
     expect(h.signer).toHaveBeenCalledTimes(1)
   })
@@ -367,6 +371,87 @@ describe('auth bridge production bindings in workerd', () => {
     ))
     expect(after).toEqual(before)
     expect(after).toMatchObject({ state: 'pending', currentGeneration: 1 })
+    expect(h.signer).not.toHaveBeenCalled()
+  })
+
+  it('supports revoked-founder reapplication without gameplay tokens in workerd', async () => {
+    const getStatus = vi.fn(async () => ({ status: 'not-requested' } as const))
+    const submit = vi.fn(async () => ({
+      status: 'requested',
+      requestedAtMicros: 1_785_414_896_000_000,
+    } as const))
+    const h = harness({
+      admission: { state: 'disabled', authEpoch: 0 },
+      accessRequestResolver: { getStatus, submit },
+    })
+    const bridgeEnv = env as unknown as WorkerEnv
+
+    const bearerSubmit = await h.app.fetch(
+      accessBearerPost(ACCESS_REQUEST_PATH),
+      bridgeEnv,
+    )
+    expect(bearerSubmit.status).toBe(200)
+    expect(await bearerSubmit.json()).toEqual({
+      version: 1,
+      status: 'requested',
+      requestedAt: 1_785_414_896_000,
+    })
+    expect(submit).toHaveBeenCalledWith(FID)
+
+    const issued = await h.app.fetch(post('/v2/farcaster/challenge', {
+      domain: DOMAIN,
+      siweUri: SIWE_URI,
+      bindingChallenge: BINDING_CHALLENGE,
+      bindingMethod: 'S256',
+    }), bridgeEnv)
+    const challenge = await issued.json() as IssuedChallenge
+    const exchange = await h.app.fetch(
+      post('/v2/farcaster/exchange', proofFor(challenge)),
+      bridgeEnv,
+    )
+    expect(exchange.status).toBe(200)
+    expect(await exchange.clone().json()).toMatchObject({
+      version: 2,
+      status: 'pending-admission',
+      identity: { fid: Number(FID) },
+    })
+    const cookie = exchange.headers.get('set-cookie')?.split(';', 1)[0]
+    expect(cookie).toMatch(/^__Host-warpkeep_session=v1\./)
+    const familyId = cookie!.split('=', 2)[1].split('.')[1]
+    const familyStub = env.SESSION_FAMILIES.get(
+      env.SESSION_FAMILIES.idFromName(`warpkeep-session:v1:${familyId}`),
+    )
+    const stored = await runInDurableObject(familyStub, async (_instance, state) => (
+      state.storage.get('session-family')
+    ))
+    expect(stored).toMatchObject({
+      state: 'pending',
+      pendingAdmissionState: 'disabled',
+      currentGeneration: 1,
+    })
+
+    const sessionStatus = await h.app.fetch(
+      post(ACCESS_STATUS_PATH, {}, { cookie: cookie! }),
+      bridgeEnv,
+    )
+    expect(sessionStatus.status).toBe(200)
+    expect(await sessionStatus.json()).toEqual({
+      version: 1,
+      status: 'not-requested',
+    })
+    expect(getStatus).toHaveBeenCalledWith(FID)
+
+    const refresh = await h.app.fetch(
+      post('/v2/session/refresh', {}, { cookie: cookie! }),
+      bridgeEnv,
+    )
+    expect(refresh.status).toBe(200)
+    expect(await refresh.json()).toMatchObject({
+      version: 2,
+      status: 'pending-admission',
+      identity: { fid: Number(FID) },
+    })
+    expect(refresh.headers.get('set-cookie')).toMatch(/__Host-warpkeep_session=v1\./)
     expect(h.signer).not.toHaveBeenCalled()
   })
 

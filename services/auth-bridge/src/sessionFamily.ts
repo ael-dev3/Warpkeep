@@ -84,7 +84,10 @@ export function isSessionFamilyRecord(value: unknown): value is SessionFamilyRec
         'version', 'origin', 'identity', 'state', 'rememberDevice', 'currentGeneration',
         'createdAt', 'expiresAt',
       ],
-      ['authEpoch', 'previousGeneration', 'previousGenerationGraceUntil'],
+      [
+        'authEpoch', 'pendingAdmissionState', 'previousGeneration',
+        'previousGenerationGraceUntil',
+      ],
     )
     || value.version !== 1
     || !isOrigin(value.origin)
@@ -102,8 +105,14 @@ export function isSessionFamilyRecord(value: unknown): value is SessionFamilyRec
 
   if (value.state === 'pending') {
     if (value.authEpoch !== undefined) return false
+    if (
+      value.pendingAdmissionState !== undefined
+      && value.pendingAdmissionState !== 'missing'
+      && value.pendingAdmissionState !== 'disabled'
+    ) return false
   } else if (
     value.state !== 'bound'
+    || value.pendingAdmissionState !== undefined
     || typeof value.authEpoch !== 'number'
     || !Number.isSafeInteger(value.authEpoch)
     || value.authEpoch < 1
@@ -124,6 +133,20 @@ export function isSessionFamilyRecord(value: unknown): value is SessionFamilyRec
     ) return false
   }
   return true
+}
+
+/**
+ * A pending family can follow only the admission state established by its
+ * fresh Farcaster proof. Legacy untagged families predate disabled admission
+ * support and are therefore valid only for `missing`.
+ */
+export function pendingSessionAdmissionMatches(
+  record: SessionFamilyRecord,
+  admission: AdmissionResolution,
+): boolean {
+  if (!isSessionFamilyRecord(record) || record.state !== 'pending') return false
+  if (admission.state === 'enabled') return true
+  return admission.state === (record.pendingAdmissionState ?? 'missing')
 }
 
 /**
@@ -202,7 +225,7 @@ export function transitionSessionFamily(
   let authEpoch = record.authEpoch
   if (state === 'bound') {
     if (admission.state !== 'enabled' || admission.authEpoch !== authEpoch) return { kind: 'revoke' }
-  } else if (admission.state === 'disabled') {
+  } else if (!pendingSessionAdmissionMatches(record, admission)) {
     return { kind: 'revoke' }
   } else if (admission.state === 'enabled') {
     state = 'bound'
@@ -222,7 +245,9 @@ export function transitionSessionFamily(
     const recovered = {
       ...record,
       state,
-      ...(state === 'bound' ? { authEpoch } : { authEpoch: undefined }),
+      ...(state === 'bound'
+        ? { authEpoch, pendingAdmissionState: undefined }
+        : { authEpoch: undefined }),
     }
     return isSessionFamilyRecord(recovered)
       ? { kind: 'ok', record: recovered }
@@ -233,7 +258,9 @@ export function transitionSessionFamily(
   const rotated: SessionFamilyRecord = {
     ...record,
     state,
-    ...(state === 'bound' ? { authEpoch } : {}),
+    ...(state === 'bound'
+      ? { authEpoch, pendingAdmissionState: undefined }
+      : {}),
     currentGeneration: record.currentGeneration + 1,
     previousGeneration: record.currentGeneration,
     previousGenerationGraceUntil: Math.min(

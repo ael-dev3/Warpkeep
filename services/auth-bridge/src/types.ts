@@ -346,6 +346,12 @@ export interface SessionFamilyRecord {
   identity: PublicIdentity
   state: SessionFamilyState
   authEpoch?: number
+  /**
+   * Admission state proven when a pending family was created. Older pending
+   * records omit this field and are treated as `missing`, the only state that
+   * could create a pending family before revoked-founder reapplication.
+   */
+  pendingAdmissionState?: 'missing' | 'disabled'
   rememberDevice: boolean
   currentGeneration: number
   previousGeneration?: number

@@ -3,6 +3,7 @@ import {
   MemorySessionFamilyStore,
   isSessionFamilyRecord,
   matchesSessionFamilyReference,
+  pendingSessionAdmissionMatches,
   transitionSessionFamily,
 } from '../src/sessionFamily'
 import {
@@ -87,7 +88,11 @@ describe('rotating browser session families', () => {
   })
 
   it('binds a genuinely pending family once but never lets a bound family adopt another epoch', () => {
-    const pending = record({ state: 'pending', authEpoch: undefined })
+    const pending = record({
+      state: 'pending',
+      authEpoch: undefined,
+      pendingAdmissionState: 'missing',
+    })
     expect(isSessionFamilyRecord(pending)).toBe(true)
     const bound = transitionSessionFamily(
       pending,
@@ -99,6 +104,7 @@ describe('rotating browser session families', () => {
     expect(bound.kind).toBe('ok')
     if (bound.kind !== 'ok') throw new Error('expected binding')
     expect(bound.record).toMatchObject({ state: 'bound', authEpoch: 11 })
+    expect(bound.record.pendingAdmissionState).toBeUndefined()
 
     expect(transitionSessionFamily(
       bound.record,
@@ -116,7 +122,51 @@ describe('rotating browser session families', () => {
     )).toEqual({ kind: 'revoke' })
   })
 
-  it('revokes disabled, cross-origin, expired, and unknown-generation attempts', () => {
+  it('keeps a fresh disabled pending family tokenless while rejecting mismatched pending eras', () => {
+    const disabledPending = record({
+      state: 'pending',
+      authEpoch: undefined,
+      pendingAdmissionState: 'disabled',
+    })
+    expect(isSessionFamilyRecord(disabledPending)).toBe(true)
+    expect(pendingSessionAdmissionMatches(
+      disabledPending,
+      { state: 'disabled', authEpoch: 0 },
+    )).toBe(true)
+    const refreshed = transitionSessionFamily(
+      disabledPending,
+      1,
+      ORIGIN,
+      { state: 'disabled', authEpoch: 0 },
+      NOW + 1,
+    )
+    expect(refreshed.kind).toBe('ok')
+    if (refreshed.kind !== 'ok') throw new Error('expected pending refresh')
+    expect(refreshed.record).toMatchObject({
+      state: 'pending',
+      pendingAdmissionState: 'disabled',
+      currentGeneration: 2,
+    })
+    expect(refreshed.record.authEpoch).toBeUndefined()
+
+    const missingPending = record({
+      state: 'pending',
+      authEpoch: undefined,
+      pendingAdmissionState: 'missing',
+    })
+    const legacyPending = record({ state: 'pending', authEpoch: undefined })
+    for (const candidate of [missingPending, legacyPending]) {
+      expect(transitionSessionFamily(
+        candidate,
+        1,
+        ORIGIN,
+        { state: 'disabled', authEpoch: 0 },
+        NOW + 1,
+      )).toEqual({ kind: 'revoke' })
+    }
+  })
+
+  it('revokes disabled bound sessions, cross-origin, expired, and unknown-generation attempts', () => {
     for (const [candidate, generation, origin, admission, now] of [
       [record(), 1, ORIGIN, { state: 'disabled', authEpoch: 0 }, NOW + 1],
       [record(), 1, 'https://hostile.example', { state: 'enabled', authEpoch: 7 }, NOW + 1],
@@ -125,6 +175,36 @@ describe('rotating browser session families', () => {
     ] as const) {
       expect(transitionSessionFamily(candidate, generation, origin, admission, now)).toEqual({ kind: 'revoke' })
     }
+  })
+
+  it('accepts only exact pending admission tags and treats legacy pending records as missing', () => {
+    expect(isSessionFamilyRecord(record({
+      state: 'pending',
+      authEpoch: undefined,
+      pendingAdmissionState: 'missing',
+    }))).toBe(true)
+    expect(isSessionFamilyRecord(record({
+      state: 'pending',
+      authEpoch: undefined,
+      pendingAdmissionState: 'disabled',
+    }))).toBe(true)
+    expect(isSessionFamilyRecord({
+      ...record({ state: 'pending', authEpoch: undefined }),
+      pendingAdmissionState: 'enabled',
+    })).toBe(false)
+    expect(isSessionFamilyRecord(record({
+      pendingAdmissionState: 'disabled',
+    }))).toBe(false)
+
+    const legacyPending = record({ state: 'pending', authEpoch: undefined })
+    expect(pendingSessionAdmissionMatches(
+      legacyPending,
+      { state: 'missing', authEpoch: 0 },
+    )).toBe(true)
+    expect(pendingSessionAdmissionMatches(
+      legacyPending,
+      { state: 'disabled', authEpoch: 0 },
+    )).toBe(false)
   })
 
   it('rejects corrupted rotation state unless the previous generation is exactly adjacent', () => {

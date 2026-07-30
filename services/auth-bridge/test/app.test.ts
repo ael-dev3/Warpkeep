@@ -637,6 +637,54 @@ describe('Warpkeep auth bridge', () => {
     expect(exchange.headers.get('set-cookie')).toContain('__Host-warpkeep_session=')
   })
 
+  it('creates and refreshes a tokenless pending family for a freshly proven disabled founder', async () => {
+    const signer = vi.fn(async () => 'must-not-be-issued')
+    const h = harness({
+      resolver: {
+        resolve: vi.fn(async () => ({ state: 'disabled', authEpoch: 0 } as const)),
+      },
+      signer,
+    })
+    const challenge = await issueChallenge(h)
+    const exchange = await h.app.fetch(request(
+      '/v2/farcaster/exchange',
+      proofFor(challenge),
+      { headers: { origin: ORIGIN } },
+    ), env())
+    expect(exchange.status).toBe(200)
+    const pending = await json(exchange)
+    expect(pending).toMatchObject({
+      version: 2,
+      status: 'pending-admission',
+      identity: { fid: Number(FID) },
+    })
+    expect(pending).not.toHaveProperty('accessToken')
+    expect(signer).not.toHaveBeenCalled()
+
+    const firstCookie = responseCookie(exchange)
+    const familyId = firstCookie.split('=', 2)[1]?.split('.')[1]
+    await expect(h.sessionStore.get(familyId!)).resolves.toMatchObject({
+      state: 'pending',
+      pendingAdmissionState: 'disabled',
+      identity: { fid: FID },
+    })
+
+    h.setNow(Number(challenge.createdAt) + 1_000)
+    const refresh = await h.app.fetch(request('/v2/session/refresh', {}, {
+      headers: { origin: ORIGIN, cookie: firstCookie },
+    }), env())
+    expect(refresh.status).toBe(200)
+    const refreshed = await json(refresh)
+    expect(refreshed).toMatchObject({
+      version: 2,
+      status: 'pending-admission',
+      identity: { fid: Number(FID) },
+    })
+    expect(refreshed).not.toHaveProperty('accessToken')
+    expect(responseCookie(refresh)).not.toBe(firstCookie)
+    expect(signer).not.toHaveBeenCalled()
+  })
+
   it('binds a pending cookie family once after first admission and only then returns a short access token', async () => {
     let admission: Awaited<ReturnType<AuthEpochResolver['resolve']>> = { state: 'missing', authEpoch: 0 }
     const resolver: AuthEpochResolver = { resolve: vi.fn(async () => admission) }
@@ -719,6 +767,34 @@ describe('Warpkeep auth bridge', () => {
       headers: { origin: ORIGIN, cookie: responseCookie(exchange) },
     }), env())
     expect(refresh.status).toBe(401)
+    expect(refresh.headers.get('set-cookie')).toContain('Max-Age=0')
+    expect(h.events).toContain('session_revoked')
+  })
+
+  it('revokes a pre-revocation bound family instead of downgrading it to application authority', async () => {
+    let admission: Awaited<ReturnType<AuthEpochResolver['resolve']>> = {
+      state: 'enabled',
+      authEpoch: 7,
+    }
+    const resolver: AuthEpochResolver = { resolve: vi.fn(async () => admission) }
+    const h = harness({ resolver })
+    const challenge = await issueChallenge(h)
+    const exchange = await h.app.fetch(request(
+      '/v2/farcaster/exchange',
+      proofFor(challenge),
+      { headers: { origin: ORIGIN } },
+    ), env())
+    expect(exchange.status).toBe(200)
+
+    admission = { state: 'disabled', authEpoch: 0 }
+    h.setNow(Number(challenge.createdAt) + 1_000)
+    const refresh = await h.app.fetch(request('/v2/session/refresh', {}, {
+      headers: { origin: ORIGIN, cookie: responseCookie(exchange) },
+    }), env())
+    expect(refresh.status).toBe(403)
+    await expect(refresh.json()).resolves.toMatchObject({
+      error: { code: 'session_invalid' },
+    })
     expect(refresh.headers.get('set-cookie')).toContain('Max-Age=0')
     expect(h.events).toContain('session_revoked')
   })
@@ -2287,7 +2363,59 @@ describe('Warpkeep auth bridge', () => {
       expect(h.quickAuthVerifier.verifyJwt).not.toHaveBeenCalled()
     })
 
-    it('short-circuits admitted identities and fails closed for disabled identities', async () => {
+    it('accepts a freshly proven disabled pending family without minting gameplay authority', async () => {
+      const signer = vi.fn(async () => 'must-not-be-issued')
+      const getStatus = vi.fn(async () => ({
+        status: 'requested',
+        requestedAtMicros: 1_785_414_896_000_000,
+      } as const))
+      const h = harness({
+        resolver: {
+          resolve: vi.fn(async () => ({ state: 'disabled', authEpoch: 0 } as const)),
+        },
+        signer,
+        accessRequestResolver: {
+          getStatus,
+          submit: vi.fn(async () => ({ status: 'already-admitted' } as const)),
+        },
+      })
+      const challenge = await issueChallenge(h)
+      const exchange = await h.app.fetch(request(
+        '/v2/farcaster/exchange',
+        proofFor(challenge),
+        { headers: { origin: ORIGIN } },
+      ), env())
+      expect(exchange.status).toBe(200)
+      const exchangeBody = await json(exchange)
+      expect(exchangeBody).toMatchObject({
+        version: 2,
+        status: 'pending-admission',
+        identity: { fid: Number(FID) },
+      })
+      expect(exchangeBody).not.toHaveProperty('accessToken')
+      expect(signer).not.toHaveBeenCalled()
+
+      const statusResponse = await h.app.fetch(request(
+        ACCESS_STATUS_PATH,
+        {},
+        {
+          headers: {
+            origin: ORIGIN,
+            cookie: responseCookie(exchange),
+          },
+        },
+      ), env())
+      expect(statusResponse.status).toBe(200)
+      await expect(statusResponse.json()).resolves.toEqual({
+        version: 1,
+        status: 'requested',
+        requestedAt: 1_785_414_896_000,
+      })
+      expect(getStatus).toHaveBeenCalledWith(FID)
+      expect(signer).not.toHaveBeenCalled()
+    })
+
+    it('short-circuits admitted identities and accepts tokenless disabled reapplications', async () => {
       const admittedResolver = {
         getStatus: vi.fn(async () => ({ status: 'not-requested' } as const)),
         submit: vi.fn(async () => ({ status: 'requested', requestedAtMicros: 1 } as const)),
@@ -2307,7 +2435,10 @@ describe('Warpkeep auth bridge', () => {
 
       const disabledResolver = {
         getStatus: vi.fn(async () => ({ status: 'not-requested' } as const)),
-        submit: vi.fn(async () => ({ status: 'requested', requestedAtMicros: 1 } as const)),
+        submit: vi.fn(async () => ({
+          status: 'requested',
+          requestedAtMicros: 1_785_414_896_000_000,
+        } as const)),
       }
       const disabled = harness({
         resolver: {
@@ -2319,18 +2450,21 @@ describe('Warpkeep auth bridge', () => {
         accessBearerRequest(ACCESS_REQUEST_PATH),
         env(),
       )
-      expect(disabledResponse.status).toBe(403)
+      expect(disabledResponse.status).toBe(200)
       await expect(disabledResponse.json()).resolves.toEqual({
-        error: {
-          code: 'access_not_authorized',
-          message: 'This Farcaster identity is not authorized.',
-        },
+        version: 1,
+        status: 'requested',
+        requestedAt: 1_785_414_896_000,
       })
       expect(disabledResolver.getStatus).not.toHaveBeenCalled()
-      expect(disabledResolver.submit).not.toHaveBeenCalled()
+      expect(disabledResolver.submit).toHaveBeenCalledOnce()
+      expect(disabledResolver.submit).toHaveBeenCalledWith(FID)
+      expect(disabledResponse.headers.has('set-cookie')).toBe(false)
+      expect(disabledResponse.headers.get('access-control-allow-origin'))
+        .toBe(QUICK_AUTH_ORIGIN)
     })
 
-    it('expires pending-session credentials on disablement or bound-epoch drift', async () => {
+    it('expires mismatched pending-session credentials or bound-epoch drift', async () => {
       const disabledResolve = vi.fn()
         .mockResolvedValueOnce({ state: 'missing', authEpoch: 0 } as const)
         .mockResolvedValueOnce({ state: 'disabled', authEpoch: 0 } as const)
@@ -2341,13 +2475,15 @@ describe('Warpkeep auth bridge', () => {
         proofFor(disabledChallenge),
         { headers: { origin: ORIGIN } },
       ), env())
+      const disabledCookie = responseCookie(disabledExchange)
+      const disabledFamilyId = disabledCookie.split('=', 2)[1]?.split('.')[1]
       const disabledResponse = await disabled.app.fetch(request(
         ACCESS_STATUS_PATH,
         {},
         {
           headers: {
             origin: ORIGIN,
-            cookie: responseCookie(disabledExchange),
+            cookie: disabledCookie,
           },
         },
       ), env())
@@ -2356,6 +2492,7 @@ describe('Warpkeep auth bridge', () => {
         error: { code: 'session_invalid' },
       })
       expect(disabledResponse.headers.get('set-cookie')).toContain('Max-Age=0')
+      await expect(disabled.sessionStore.get(disabledFamilyId!)).resolves.toBeNull()
 
       const driftResolve = vi.fn()
         .mockResolvedValueOnce({ state: 'enabled', authEpoch: 7 } as const)
@@ -2367,13 +2504,15 @@ describe('Warpkeep auth bridge', () => {
         proofFor(driftChallenge),
         { headers: { origin: ORIGIN } },
       ), env())
+      const driftCookie = responseCookie(driftExchange)
+      const driftFamilyId = driftCookie.split('=', 2)[1]?.split('.')[1]
       const driftResponse = await drifted.app.fetch(request(
         ACCESS_REQUEST_PATH,
         {},
         {
           headers: {
             origin: ORIGIN,
-            cookie: responseCookie(driftExchange),
+            cookie: driftCookie,
           },
         },
       ), env())
@@ -2382,6 +2521,7 @@ describe('Warpkeep auth bridge', () => {
         error: { code: 'session_invalid' },
       })
       expect(driftResponse.headers.get('set-cookie')).toContain('Max-Age=0')
+      await expect(drifted.sessionStore.get(driftFamilyId!)).resolves.toBeNull()
     })
 
     it('rejects caller FIDs, queries, mixed credentials, and malformed bearers before identity work', async () => {
@@ -2596,7 +2736,7 @@ describe('Warpkeep auth bridge', () => {
       expect(h.events).not.toContain('session_created')
     })
 
-    it('returns cookie-free pending semantics and fails closed for a disabled FID', async () => {
+    it('returns the same cookie-free tokenless pending semantics for missing and disabled FIDs', async () => {
       const pending = harness({ epoch: 0 })
       const pendingResponse = await pending.app.fetch(quickAuthRequest(), env())
       expect(pendingResponse.status).toBe(200)
@@ -2608,19 +2748,22 @@ describe('Warpkeep auth bridge', () => {
       expect(pendingResponse.headers.has('set-cookie')).toBe(false)
       expect(pendingResponse.headers.has('access-control-allow-credentials')).toBe(false)
 
+      const disabledSigner = vi.fn(async () => 'must-not-be-issued')
       const disabled = harness({
         resolver: { resolve: vi.fn(async () => ({ state: 'disabled', authEpoch: 0 } as const)) },
+        signer: disabledSigner,
       })
       const disabledResponse = await disabled.app.fetch(quickAuthRequest(), env())
-      expect(disabledResponse.status).toBe(403)
+      expect(disabledResponse.status).toBe(200)
       await expect(disabledResponse.json()).resolves.toEqual({
-        error: {
-          code: 'quick_auth_not_authorized',
-          message: 'This Farcaster identity is not authorized.',
-        },
+        version: 2,
+        identity: { fid: Number(FID) },
+        status: 'pending-admission',
       })
       expect(disabledResponse.headers.has('set-cookie')).toBe(false)
-      expect(disabled.events).toContain('quick_auth_rejected')
+      expect(disabledResponse.headers.has('access-control-allow-credentials')).toBe(false)
+      expect(disabledSigner).not.toHaveBeenCalled()
+      expect(disabled.events).toContain('quick_auth_succeeded')
     })
 
     it.each([
