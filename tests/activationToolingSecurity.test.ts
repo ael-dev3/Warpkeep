@@ -3615,6 +3615,9 @@ describe('bounded frontend root-asset verification', () => {
       'content-security-policy': "default-src 'self'; frame-ancestors https://farcaster.xyz",
     }))).toThrow(/frame-ancestors/i);
     expect(() => verifyFrontendEmbeddingHeaders(new Headers({
+      'content-security-policy': "default-src 'self', frame-ancestors 'none'",
+    }))).toThrow(/frame-ancestors/i);
+    expect(() => verifyFrontendEmbeddingHeaders(new Headers({
       'content-security-policy': "default-src 'self'; frame-src https://farcaster.xyz",
     }))).not.toThrow();
   });

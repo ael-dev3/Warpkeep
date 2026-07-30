@@ -651,7 +651,7 @@ export function verifyFrontendEmbeddingHeaders(headers) {
   const contentSecurityPolicy = headers.get('content-security-policy')?.trim() ?? '';
   if (
     contentSecurityPolicy
-    && /(?:^|;)\s*frame-ancestors(?:\s|;|$)/i.test(contentSecurityPolicy)
+    && /(?:^|[;,])\s*frame-ancestors(?:\s|[;,]|$)/i.test(contentSecurityPolicy)
   ) {
     fail(
       'frontend response CSP included a frame-ancestors directive that was not reviewed for Mini App hosts.',
