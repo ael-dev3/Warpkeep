@@ -93,12 +93,14 @@ export type RenderedWebglBrowserProbeCase = Readonly<{
     | 'mobile-reduced-motion-worker-locomotion'
     | 'desktop-balanced-northern-worker-locomotion'
     | 'desktop-balanced-southern-worker-locomotion'
+    | 'desktop-balanced-terrain-shader-fallback'
     | 'short-landscape-explore'
     | 'short-landscape-balanced-player-explore'
     | 'short-landscape-balanced-northern'
     | 'desktop-balanced-occupancy-stress';
   expectedQuality: RenderedWebglBrowserProbeQuality;
   expectedReducedMotion?: true;
+  expectedTerrainShaderFallback?: true;
   expectedPresentationMode: RenderedWebglBrowserProbePresentationMode;
   interaction: RenderedWebglBrowserProbeInteraction;
   /** Must remain zero: every projection-visible castle has a direct label. */
@@ -132,6 +134,19 @@ export function renderedWebglOccupancyStressProbeCase(
 export function renderedWebglActiveWorkerProbeCase(
   port: number
 ): RenderedWebglBrowserProbeCase;
+
+export function renderedWebglTerrainShaderFallbackProbeCase(
+  port: number
+): RenderedWebglBrowserProbeCase;
+
+export function renderedWebglTerrainShaderFallbackVitePlugin(): Readonly<{
+  name: 'warpkeep-local-terrain-shader-fallback';
+  enforce: 'pre';
+  transform: (
+    source: string,
+    id: string
+  ) => null | Readonly<{ code: string; map: null }>;
+}>;
 
 export type RenderedWebglWorkerLocomotionProbeCase =
   RenderedWebglBrowserProbeCase & Readonly<{
@@ -419,8 +434,8 @@ export function parseRenderedWebglBrowserDom(
   grassPaletteDisplaySrgbSaturationMin: number;
   grassPaletteDisplaySrgbSaturationMax: number;
   grassShaderFallbackActive: false;
-  terrainShaderEnhanced: true;
-  terrainShaderFallbackActive: false;
+  terrainShaderEnhanced: boolean;
+  terrainShaderFallbackActive: boolean;
   semanticTerrainCellCount: typeof RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_CELL_COUNT;
   semanticTerrainKindCount: typeof RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_KIND_COUNT;
   semanticTerrainFeatureCount: number;
@@ -687,7 +702,9 @@ export type RegionalClimateRenderedEvidence = Readonly<{
   climate: 'south';
   compositionBucket: number;
   coverage: readonly [number, number, number, number, 0, 0];
-  material: readonly [string, 'two-band' | 'one-band' | 'none', true, false];
+  material:
+    | readonly [string, 'two-band' | 'one-band' | 'none', true, false]
+    | readonly [string, 'two-band' | 'one-band' | 'none', false, true];
   quality: 'high' | 'balanced' | 'reduced';
   recovered: boolean;
   recoveryExercised: boolean;
@@ -731,6 +748,7 @@ export function parseRegionalClimateRenderedEvidence(
     quality: RegionalClimateRenderedEvidence['quality'];
     recover: boolean;
     region: RegionalClimateRenderedEvidence['region'];
+    shaderFallback?: boolean;
     viewport: Readonly<{ width: number; height: number }>;
   }>
 ): RegionalClimateRenderedEvidence;
@@ -783,6 +801,7 @@ export function applyRegionalClimateRenderedEvidence(
     quality: RegionalClimateRenderedEvidence['quality'];
     recover?: boolean;
     region: RegionalClimateRenderedEvidence['region'];
+    shaderFallback?: boolean;
     viewport: Readonly<{ width: number; height: number }>;
   }>
 ): Promise<RegionalClimateRenderedEvidence>;

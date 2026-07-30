@@ -86,6 +86,26 @@ const NORTHERN_REACH_REDUCED_MOTION_HOST_WAIT_MILLISECONDS = 480;
 const NORTHERN_REACH_REDUCED_MOTION_EVIDENCE_TOLERANCE = 0.000_001;
 const NORTHERN_REACH_REDUCED_MOTION_COOL_SAMPLE_TOLERANCE = 2;
 const NORTHERN_REACH_REDUCED_MOTION_BUCKET_TOLERANCE = 1;
+const RENDERED_WEBGL_TERRAIN_SHADER_FALLBACK_HASH =
+  '#warpkeep-qa-terrain-shader-fallback';
+const RENDERED_WEBGL_TERRAIN_MATERIAL_SOURCE = join(
+  REPOSITORY_ROOT,
+  'src',
+  'components',
+  'realm',
+  'createRealmTerrainMaterial.ts'
+);
+const RENDERED_WEBGL_TERRAIN_SHADER_FALLBACK_NEEDLE =
+  `    try {\n`
+  + `      shader.vertexShader = injectRealmTerrainVertexShader(originalVertexShader);`;
+const RENDERED_WEBGL_TERRAIN_SHADER_FALLBACK_REPLACEMENT =
+  `    try {\n`
+  + `      if (globalThis.location?.hash === ${
+    JSON.stringify(RENDERED_WEBGL_TERRAIN_SHADER_FALLBACK_HASH)
+  }) {\n`
+  + `        throw new Error('REALM_TERRAIN_SHADER_QA_FORCED_FALLBACK');\n`
+  + `      }\n`
+  + `      shader.vertexShader = injectRealmTerrainVertexShader(originalVertexShader);`;
 
 const DESKTOP_VIEWPORT = Object.freeze({ width: 1_440, height: 900 });
 const FULL_HD_VIEWPORT = Object.freeze({ width: 1_920, height: 1_080 });
@@ -338,6 +358,24 @@ export function renderedWebglActiveWorkerProbeCase(port) {
       quality: 'balanced',
     }),
     viewport: MOBILE_VIEWPORT,
+  });
+}
+
+export function renderedWebglTerrainShaderFallbackProbeCase(port) {
+  const selectedPort = exactPort(port);
+  return Object.freeze({
+    id: 'desktop-balanced-terrain-shader-fallback',
+    expectedPresentationMode: 'observer',
+    expectedQuality: 'balanced',
+    expectedTerrainShaderFallback: true,
+    interaction: 'default',
+    maximumLabelOverflowCount: 0,
+    minimumLabelCount: 10,
+    url: renderedWebglQaUrl({
+      port: selectedPort,
+      quality: 'balanced',
+    }) + RENDERED_WEBGL_TERRAIN_SHADER_FALLBACK_HASH,
+    viewport: DESKTOP_VIEWPORT,
   });
 }
 
@@ -2230,8 +2268,11 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     && (grassPaletteEmpty || grassPaletteNatural)
     && candidate.grassShaderFallbackActive === false;
   const terrainMaterialTelemetryValid =
-    candidate.terrainShaderEnhanced === true
-    && candidate.terrainShaderFallbackActive === false;
+    expected.expectedTerrainShaderFallback === true
+      ? candidate.terrainShaderEnhanced === false
+        && candidate.terrainShaderFallbackActive === true
+      : candidate.terrainShaderEnhanced === true
+        && candidate.terrainShaderFallbackActive === false;
   const ordinarySemanticFeatureCount = candidate.semanticTerrainFeatureCount
     - candidate.forestDecorativeTreeCount;
   const ordinaryTotalDetailInstanceCount = candidate.totalTerrainDetailInstanceCount
@@ -3394,6 +3435,37 @@ export async function createLoopbackViteServer(runtimeDirectory, localQaPlugins 
     port: address.port,
     async close() {
       await closeRenderedWebglLoopbackServer({ httpServer, sockets, vite });
+    },
+  });
+}
+
+/**
+ * Local rendered-QA transform only. One exact hash deliberately makes the
+ * terrain enhancement reject its pinned shader markers, exercising the
+ * existing ordinary MeshStandardMaterial fallback without adding any switch
+ * to production source or accepting caller-provided transform input.
+ */
+export function renderedWebglTerrainShaderFallbackVitePlugin() {
+  return Object.freeze({
+    name: 'warpkeep-local-terrain-shader-fallback',
+    enforce: 'pre',
+    transform(source, id) {
+      const sourceId = typeof id === 'string' ? id.split('?', 1)[0] : '';
+      if (sourceId !== RENDERED_WEBGL_TERRAIN_MATERIAL_SOURCE) return null;
+      if (
+        typeof source !== 'string'
+        || source.length < 1
+        || source.split(RENDERED_WEBGL_TERRAIN_SHADER_FALLBACK_NEEDLE).length !== 2
+      ) {
+        throw new Error('Rendered QA terrain shader fallback source contract changed.');
+      }
+      return Object.freeze({
+        code: source.replace(
+          RENDERED_WEBGL_TERRAIN_SHADER_FALLBACK_NEEDLE,
+          RENDERED_WEBGL_TERRAIN_SHADER_FALLBACK_REPLACEMENT
+        ),
+        map: null,
+      });
     },
   });
 }
@@ -9005,6 +9077,60 @@ async function runRenderedCase(
   }
 }
 
+async function runRenderedTerrainShaderFallbackCase(
+  session,
+  probeCase,
+  state,
+  regionalClimateProbe
+) {
+  await session.command('Emulation.setDeviceMetricsOverride', {
+    width: probeCase.viewport.width,
+    height: probeCase.viewport.height,
+    screenWidth: probeCase.viewport.width,
+    screenHeight: probeCase.viewport.height,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+  await session.command('Emulation.setEmulatedMedia', {
+    features: [{
+      name: 'prefers-reduced-motion',
+      value: 'no-preference',
+    }],
+  });
+  await navigateRenderedWebglCase(session, 'about:blank', state);
+  await navigateRenderedWebglCase(session, probeCase.url, state);
+  const accepted = await waitForAcceptedRenderedDom(session, probeCase, state);
+  if (
+    accepted.terrainShaderEnhanced !== false
+    || accepted.terrainShaderFallbackActive !== true
+  ) throw new Error('Rendered terrain shader fallback telemetry mismatched.');
+  const evidence = await regionalClimateProbe.applyRegionalClimateRenderedEvidence(
+    session,
+    {
+      quality: probeCase.expectedQuality,
+      recover: false,
+      region: 'deep',
+      shaderFallback: true,
+      viewport: probeCase.viewport,
+    }
+  );
+  const visual = await captureRenderedCasePixels(
+    session,
+    probeCase.viewport,
+    {
+      artifactName: process.env.WARPKEEP_QA_SOUTHERN_ARTIFACT_DIR
+        ? 'desktop-balanced-terrain-shader-fallback-deep.png'
+        : undefined,
+      artifactRegion: 'southern',
+      minimumDistinctColourBuckets: 4,
+    }
+  );
+  regionalClimateProbe.assertRegionalClimateRenderedVisual(evidence, visual);
+  if (state.violation) {
+    throw new Error('Rendered terrain shader fallback left the local QA boundary.');
+  }
+}
+
 /**
  * Runs the established rendered fixture matrix. Callers continue to receive
  * the numeric rendered-case count; an optional callback receives only the
@@ -9054,7 +9180,10 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
     disposeCastleLodVisualEvidenceSource = castleLodVisualProbe.disposeCastleLodVisualEvidenceSource;
     castleLodVisualSource = castleLodVisualProbe.loadCastleLodVisualEvidenceSource();
     vite = await createLoopbackViteServer(profileDirectory, [
-      castleLodVisualProbe.castleLodVisualEvidenceSourceVitePlugin(castleLodVisualSource)
+      castleLodVisualProbe.castleLodVisualEvidenceSourceVitePlugin(
+        castleLodVisualSource
+      ),
+      renderedWebglTerrainShaderFallbackVitePlugin(),
     ]);
     const castleLodVisualBoundary = await castleLodVisualProbe
       .assertCastleLodVisualEvidenceLoopbackBoundary(vite.port);
@@ -9064,6 +9193,8 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
     const workerLocomotionCases =
       renderedWebglWorkerLocomotionProbeCases(vite.port);
     const occupancyStressCase = renderedWebglOccupancyStressProbeCase(vite.port);
+    const terrainShaderFallbackCase =
+      renderedWebglTerrainShaderFallbackProbeCase(vite.port);
     const journeyProbe = await import('./qa-journey-browser-probe.mjs');
     const northernReachProbe = await import('./northern-reach-rendered-evidence.mjs');
     const regionalClimateProbe =
@@ -9105,6 +9236,7 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
         activeWorkerCase.url,
         ...workerLocomotionCases.map((probeCase) => probeCase.url),
         occupancyStressCase.url,
+        terrainShaderFallbackCase.url,
         ...journeyCases.map((probeCase) => probeCase.url),
         castleLodVisualUrl,
       ]),
@@ -9331,6 +9463,18 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
       }
     }
     try {
+      await runRenderedTerrainShaderFallbackCase(
+        devtools,
+        terrainShaderFallbackCase,
+        state,
+        regionalClimateProbe
+      );
+    } catch (error) {
+      throw new Error('Rendered terrain shader fallback case failed.', {
+        cause: error,
+      });
+    }
+    try {
       await runRenderedActiveWorkerCase(devtools, activeWorkerCase, state);
     } catch (error) {
       throw new Error('Rendered WebGL active generic Worker case failed.', {
@@ -9456,8 +9600,9 @@ async function main() {
     const qualityMetricsSummary =
       `High/Balanced/Reduced metrics ${JSON.stringify(qualityMetrics)}`;
     process.stdout.write(
-      `Warpkeep local browser QA passed: ${passedCaseCount} rendered cases, one active generic `
-      + `Worker lifecycle check, six Worker locomotion evidence checks, one all-node occupancy `
+      `Warpkeep local browser QA passed: ${passedCaseCount} rendered cases, one `
+      + `terrain shader fallback check, one active generic Worker lifecycle check, six Worker `
+      + `locomotion evidence checks, one all-node occupancy `
       + `stress check, 25 journey checks, and `
       + `loopback LOD boundary ${JSON.stringify(castleLodVisualBoundary)}, ${lodFidelitySummary}, `
       + `${qualityMetricsSummary}.\n`

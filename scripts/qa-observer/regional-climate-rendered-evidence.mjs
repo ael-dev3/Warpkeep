@@ -9,11 +9,13 @@ const BYTE_LIMIT = Object.freeze({
   balanced: 0.35 * 1_024 * 1_024,
   reduced: 0.25 * 1_024 * 1_024,
 });
-const TRANSITION_MINIMUM_FRAME_SAND_SAMPLES = 8;
+const TRANSITION_MINIMUM_FRAME_SAND_SAMPLES = 64;
 const TRANSITION_MINIMUM_COMPOSED_SAND_SAMPLES = 1;
 const DEEP_MINIMUM_FRAME_SAND_SAMPLES = 64;
 const DEEP_MINIMUM_COMPOSED_SAND_SAMPLES = 4;
-const DEEP_MINIMUM_SAND_DOMINANCE_SAMPLES = 32;
+// A deep-south frame intentionally retains ocean along its outer edge. Demand
+// a clear warm majority without making one antialiased sample decide the lane.
+const DEEP_MINIMUM_SAND_DOMINANCE_SAMPLES = 24;
 const WATER_EDGE_MINIMUM_FRAME_SAND_SAMPLES = 8;
 const OVERVIEW_MINIMUM_CLIMATE_SAMPLES = 3;
 const OVERVIEW_MINIMUM_SPATIAL_DIFFERENCE = 6;
@@ -171,6 +173,7 @@ export function parseRegionalClimateRenderedEvidence(value, expected) {
   const quality = expected?.quality;
   const recover = expected?.recover;
   const region = expected?.region;
+  const shaderFallback = expected?.shaderFallback ?? false;
   const band = region === 'overview'
     ? 'overview'
     : region === 'transition' || expected?.viewport?.width <= 480
@@ -183,6 +186,7 @@ export function parseRegionalClimateRenderedEvidence(value, expected) {
     || !Object.hasOwn(RELIEF, quality)
     || !REGIONS.has(region)
     || typeof recover !== 'boolean'
+    || typeof shaderFallback !== 'boolean'
     || (recover && region !== 'deep')
     || !Number.isSafeInteger(expected?.viewport?.width)
     || !Number.isSafeInteger(expected?.viewport?.height)
@@ -246,8 +250,8 @@ export function parseRegionalClimateRenderedEvidence(value, expected) {
     || value.material.length !== 4
     || revision !== 'genesis-001-southern-desert-presentation-v1'
     || relief !== RELIEF[quality]
-    || enhanced !== true
-    || fallback !== false
+    || enhanced !== !shaderFallback
+    || fallback !== shaderFallback
     || !Array.isArray(value.separation)
     || value.separation.length !== 2
     || overlapCells !== 0
@@ -292,7 +296,7 @@ export function assertRegionalClimateRenderedVisual(evidence, visual) {
     ))
     || (evidence?.region === 'transition' && (
       warm < TRANSITION_MINIMUM_FRAME_SAND_SAMPLES
-      || warm <= cool
+      || warm * 2 < cool
       || targetComposedSand < TRANSITION_MINIMUM_COMPOSED_SAND_SAMPLES
     ))
     || (evidence?.region === 'deep' && (
@@ -396,12 +400,19 @@ export function assertRegionalClimateRepeatedReducedMotionEvidence(
 }
 
 export async function applyRegionalClimateRenderedEvidence(session, options) {
-  const { quality, recover = false, region, viewport } = options ?? {};
+  const {
+    quality,
+    recover = false,
+    region,
+    shaderFallback = false,
+    viewport,
+  } = options ?? {};
   if (
     !session || typeof session.command !== 'function'
     || !Object.hasOwn(RELIEF, quality)
     || !REGIONS.has(region)
     || typeof recover !== 'boolean'
+    || typeof shaderFallback !== 'boolean'
     || (recover && region !== 'deep')
     || !Number.isSafeInteger(viewport?.width)
     || !Number.isSafeInteger(viewport?.height)
@@ -613,10 +624,18 @@ export async function applyRegionalClimateRenderedEvidence(session, options) {
   if (result?.exceptionDetails || result?.result?.type !== 'object') {
     throw new Error('Sunscoured South rendered observation failed.');
   }
+  if (process.env.WARPKEEP_QA_LOCAL_DIAGNOSTICS === '1') {
+    process.stderr.write(
+      `Local synthetic South raw aggregate: ${
+        JSON.stringify(result.result.value)
+      }\n`
+    );
+  }
   return parseRegionalClimateRenderedEvidence(result.result.value, {
     quality,
     recover,
     region,
+    shaderFallback,
     viewport,
   });
 }

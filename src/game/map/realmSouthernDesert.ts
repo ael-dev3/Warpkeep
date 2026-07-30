@@ -206,15 +206,20 @@ function evaluateDesert(
   );
   const hollow = Math.max(0, concavity);
   const crest = Math.max(0, -concavity);
+  // Terrain and ecology shape the desert's local surface without erasing its
+  // climate. Keep these as restrained subtractive cues: multiplying by the
+  // semantic and vegetation fields made almost every deep-south cell fall
+  // below the sand presentation threshold even though the underlying climate
+  // remained strongly arid.
   const retained = sand
-    * semanticRetention
-    * (1 - vegetation * 0.29)
-    * (1 - canopy * 0.26)
-    * (1 - wetness * 0.16)
-    - slope * sand * 0.33
-    + hollow * sand * 0.10
-    - crest * sand * 0.07
-    - exposure * sand * 0.08;
+    - slope * sand * 0.16
+    + hollow * sand * 0.08
+    - crest * sand * 0.035
+    - exposure * sand * 0.025
+    - vegetation * sand * 0.025
+    - canopy * sand * 0.02
+    - wetness * sand * 0.015
+    - (1 - semanticRetention) * sand * 0.025;
   return clampUnit(retained * (1 - placement * 0.90));
 }
 

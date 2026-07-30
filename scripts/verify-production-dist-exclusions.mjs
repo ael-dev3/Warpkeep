@@ -56,6 +56,8 @@ const forbiddenContent = Object.freeze([
   'worker-locomotion',
   'worker-locomotion-northern',
   'worker-locomotion-southern',
+  'warpkeep-qa-terrain-shader-fallback',
+  'REALM_TERRAIN_SHADER_QA_FORCED_FALLBACK',
   'readRenderedWebglQaSfxSnapshot',
   'proveRenderedWebglQaOfflineSfxCorpus',
   'emitRenderedWebglQaProbeSfx',

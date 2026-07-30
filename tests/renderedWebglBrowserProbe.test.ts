@@ -64,6 +64,8 @@ import {
   renderedWebglActiveWorkerProbeCase,
   renderedWebglBrowserProbeCases,
   renderedWebglOccupancyStressProbeCase,
+  renderedWebglTerrainShaderFallbackProbeCase,
+  renderedWebglTerrainShaderFallbackVitePlugin,
   renderedWebglWorkerLocomotionProbeCase,
   renderedWebglWorkerLocomotionProbeCases,
   selectBlankPageTarget,
@@ -500,7 +502,10 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(source).toContain(
       'plugins: [warpkeepLocalPublicBoundaryPlugin(), reactPlugin(), ...localQaPlugins]'
     );
-    expect(source).toContain('castleLodVisualEvidenceSourceVitePlugin(castleLodVisualSource)');
+    expect(source).toContain(
+      'castleLodVisualProbe.castleLodVisualEvidenceSourceVitePlugin('
+    );
+    expect(source).toContain('renderedWebglTerrainShaderFallbackVitePlugin()');
     expect(source).toContain('runCastleLodVisualEvidenceBrowserCase(devtools');
     expect(source).toContain('onCastleLodVisualEvidence?.(castleLodVisualEvidence)');
     expect(source).toContain('aggregate castle LOD fidelity ${JSON.stringify(lodMetrics)}');
@@ -571,6 +576,48 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(source).toContain("method === 'Target.targetCrashed'");
     expect(source).toContain("method === 'Target.detachedFromTarget'");
     expect(source).toContain("method === 'Inspector.detached'");
+  });
+
+  it('fixtures terrain shader fallback only in the exact local source module', () => {
+    const sourcePath = resolve(
+      process.cwd(),
+      'src/components/realm/createRealmTerrainMaterial.ts'
+    );
+    const source = readFileSync(sourcePath, 'utf8');
+    const plugin = renderedWebglTerrainShaderFallbackVitePlugin();
+    const transformed = plugin.transform(source, `${sourcePath}?v=reviewed`);
+
+    expect(plugin).toMatchObject({
+      name: 'warpkeep-local-terrain-shader-fallback',
+      enforce: 'pre'
+    });
+    expect(transformed?.code).toContain(
+      'globalThis.location?.hash === "#warpkeep-qa-terrain-shader-fallback"'
+    );
+    expect(transformed?.code).toContain(
+      "throw new Error('REALM_TERRAIN_SHADER_QA_FORCED_FALLBACK')"
+    );
+    expect(transformed?.code.match(/REALM_TERRAIN_SHADER_QA_FORCED_FALLBACK/g))
+      .toHaveLength(1);
+    expect(plugin.transform(
+      source,
+      resolve(process.cwd(), 'src/components/realm/createRealmGrassMaterial.ts')
+    )).toBeNull();
+    expect(() => plugin.transform('export {};', sourcePath))
+      .toThrow(/source contract changed/i);
+
+    const probeCase = renderedWebglTerrainShaderFallbackProbeCase(41_733);
+    expect(probeCase).toMatchObject({
+      id: 'desktop-balanced-terrain-shader-fallback',
+      expectedPresentationMode: 'observer',
+      expectedQuality: 'balanced',
+      expectedTerrainShaderFallback: true,
+      url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html'
+        + '?quality=balanced#warpkeep-qa-terrain-shader-fallback',
+      viewport: { width: 1_440, height: 900 }
+    });
+    expect(() => renderedWebglTerrainShaderFallbackProbeCase(0))
+      .toThrow(/port/i);
   });
 
   it('requires a real trusted SFX lifecycle without exposing event payloads', () => {
@@ -1634,7 +1681,8 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(source).toContain(
       '...workerLocomotionCases.map((probeCase) => probeCase.url)'
     );
-    expect(source).toContain('six Worker locomotion evidence checks');
+    expect(source).toContain('six Worker ');
+    expect(source).toContain('locomotion evidence checks');
   });
 
   it('locks the reported upper-right Water overview to the reviewed camera and scene', async () => {
@@ -2965,6 +3013,22 @@ describe('rendered WebGL headless browser probe contract', () => {
       terrainShaderEnhanced: false,
       terrainShaderFallbackActive: true
     }, expected)).toThrow(/terrain-material-telemetry/i);
+    const terrainFallbackExpected = {
+      ...expected,
+      expectedTerrainShaderFallback: true
+    } as const;
+    expect(parseRenderedWebglBrowserDom({
+      ...ready,
+      terrainShaderEnhanced: false,
+      terrainShaderFallbackActive: true
+    }, terrainFallbackExpected)).toMatchObject({
+      terrainShaderEnhanced: false,
+      terrainShaderFallbackActive: true
+    });
+    expect(() => parseRenderedWebglBrowserDom(
+      ready,
+      terrainFallbackExpected
+    )).toThrow(/terrain-material-telemetry/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...balancedForestFallback,
       forestDecorativeModelReady: true
@@ -3936,6 +4000,28 @@ describe('rendered WebGL headless browser probe contract', () => {
       region: 'deep',
       viewport: { width: 1_440, height: 900 }
     })).toEqual(evidence);
+    const fallbackEvidence = {
+      ...evidence,
+      material: [
+        'genesis-001-southern-desert-presentation-v1',
+        'one-band',
+        false,
+        true
+      ]
+    } as const;
+    expect(parseRegionalClimateRenderedEvidence(fallbackEvidence, {
+      quality: 'balanced',
+      recover: true,
+      region: 'deep',
+      shaderFallback: true,
+      viewport: { width: 1_440, height: 900 }
+    })).toEqual(fallbackEvidence);
+    expect(() => parseRegionalClimateRenderedEvidence(fallbackEvidence, {
+      quality: 'balanced',
+      recover: true,
+      region: 'deep',
+      viewport: { width: 1_440, height: 900 }
+    })).toThrow(/Sunscoured South/i);
     expect(() => parseRegionalClimateRenderedEvidence({
       ...evidence,
       desertTarget: '-43,48'
@@ -3986,6 +4072,30 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(() => assertRegionalClimateRenderedVisual(evidence, {
       ...deepVisual,
       warmSpatialBuckets: [40, 5, 5, 5, 0, 5, 5, 5, 10]
+    })).toThrow(/Sunscoured South/i);
+
+    const transitionEvidence = {
+      ...evidence,
+      band: 'strategy',
+      recovered: false,
+      recoveryExercised: false,
+      region: 'transition'
+    } as const;
+    const transitionVisual = {
+      ...deepVisual,
+      coolHighAlbedoSamples: 267,
+      coolSpatialBuckets: [0, 0, 0, 1, 20, 43, 63, 70, 70],
+      warmLowGreenSamples: 221,
+      warmSpatialBuckets: [65, 41, 7, 67, 34, 7, 0, 0, 0]
+    } as const;
+    expect(() => assertRegionalClimateRenderedVisual(
+      transitionEvidence,
+      transitionVisual
+    )).not.toThrow();
+    expect(() => assertRegionalClimateRenderedVisual(transitionEvidence, {
+      ...transitionVisual,
+      warmLowGreenSamples: 60,
+      warmSpatialBuckets: [20, 10, 2, 15, 10, 3, 0, 0, 0]
     })).toThrow(/Sunscoured South/i);
 
     const transitionTarget =
