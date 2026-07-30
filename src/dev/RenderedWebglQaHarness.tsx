@@ -356,6 +356,7 @@ export function RenderedWebglQaHarness({
         {...(fixtureVariant === 'worker-active'
           || fixtureVariant === 'worker-locomotion'
           || fixtureVariant === 'worker-locomotion-northern'
+          || fixtureVariant === 'worker-locomotion-southern'
           ? { 'data-active-worker-fixture-marker':
             RENDERED_WEBGL_QA_ACTIVE_WORKER_FIXTURE_MARKER }
           : {})}
@@ -391,6 +392,7 @@ export function RenderedWebglQaHarness({
           localQaWorkerProjectionTelemetry={
             fixtureVariant === 'worker-locomotion'
             || fixtureVariant === 'worker-locomotion-northern'
+            || fixtureVariant === 'worker-locomotion-southern'
           }
           presentationMode={presentationMode}
           qualityOverride={quality}

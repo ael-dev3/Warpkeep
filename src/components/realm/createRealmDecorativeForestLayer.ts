@@ -18,6 +18,7 @@ import type { RealmTerrainMap, TerrainCell } from '../../game/map/terrainTypes';
 import type { TerrainStructurePlacement } from '../../game/map/terrainPlacements';
 import type { RealmVegetationField } from '../../game/map/realmVegetationField';
 import type { RealmNorthernSnowField } from '../../game/map/realmNorthernSnow';
+import type { RealmSouthernDesertField } from '../../game/map/realmSouthernDesert';
 import { terrainHeightAtWorld } from '../../game/map/terrainHeight';
 import {
   HEGEMONY_TREE_TARGET_VISUAL_HEIGHT,
@@ -34,12 +35,15 @@ import type { RealmForestPrefabAcquirer } from './realmForestLayer';
 import {
   createRealmProceduralForestFallbackGeometry,
   createRealmProceduralForestFallbackMaterial,
+  applyRealmForestDrylandTint,
   applyRealmForestWinterTint,
   REALM_FOREST_CANOPY_MOTION_STATE,
   REALM_PROCEDURAL_FOREST_FALLBACK_TYPE,
   realmForestFallbackInstanceColor,
+  realmForestDrylandTintMix,
   realmForestModelInstanceTint,
   realmForestWinterTintMix,
+  sampleRealmForestSandCoverage,
   sampleRealmForestSnowCoverage,
   type RealmForestFallbackType,
   type RealmForestGroundingMode
@@ -65,6 +69,8 @@ export const REALM_DECORATIVE_FOREST_RENDER_BUDGETS: Readonly<Record<
   reduced: Object.freeze({ instances: 180, triangles: 45_000, drawCalls: 5 })
 });
 const REALM_FOREST_STABLE_BUDGET_UTILIZATION = 0.84;
+const REALM_FOREST_DRYLAND_COVERAGE_ONSET = 0.15;
+const REALM_FOREST_DEEP_SAND_RETENTION = 0.16;
 
 export type RealmDecorativeForestTelemetry = Readonly<{
   canonicalTreeCount: number;
@@ -95,6 +101,10 @@ export type RealmDecorativeForestTelemetry = Readonly<{
   reveal: number;
   /** Aggregate presentation count only; no per-tree climate samples escape. */
   snowTintedTreeCount: number;
+  dryTintedTreeCount: number;
+  rejectedBySand: number;
+  drylandRetainedCount: number;
+  sandTintedTreeCount: number;
 }>;
 
 export type CreateRealmDecorativeForestLayerOptions = Readonly<{
@@ -116,6 +126,8 @@ export type CreateRealmDecorativeForestLayerOptions = Readonly<{
   acquirePrefab?: RealmForestPrefabAcquirer;
   /** Immutable renderer-only climate sampled only during existing repacks. */
   northernSnow?: RealmNorthernSnowField;
+  /** Immutable renderer-only climate sampled only during existing repacks. */
+  southernDesert?: RealmSouthernDesertField;
 }>;
 
 export type RealmDecorativeForestLayer = Readonly<{
@@ -135,7 +147,11 @@ export type RealmDecorativeForestLayer = Readonly<{
 }>;
 
 export type RealmDecorativeForestCandidate =
-  RealmForestEcologyCandidate & Readonly<{ edgeFade: number }>;
+  RealmForestEcologyCandidate & Readonly<{
+    edgeFade: number;
+    /** Camera-local presentation input only; never shared as world state. */
+    sandCoverage?: number;
+  }>;
 
 function emptyHabitatCounts(): Record<RealmForestEcologyHabitat, number> {
   return { grove: 0, forest: 0, fringe: 0 };
@@ -150,7 +166,8 @@ function createFallback(
   map: RealmTerrainMap,
   placements: readonly TerrainStructurePlacement[],
   hexSize: number,
-  northernSnow: RealmNorthernSnowField | undefined
+  northernSnow: RealmNorthernSnowField | undefined,
+  southernDesert: RealmSouthernDesertField | undefined
 ) {
   const fallback = createRealmProceduralForestFallbackGeometry(
     HEGEMONY_TREE_TARGET_VISUAL_HEIGHT
@@ -187,6 +204,10 @@ function createFallback(
     matrix.compose(position, rotation, scale);
     mesh.setMatrixAt(index, matrix);
     color.set(realmForestFallbackInstanceColor(point.habitat));
+    applyRealmForestDrylandTint(
+      color,
+      sampleRealmForestSandCoverage(southernDesert, point.world)
+    );
     applyRealmForestWinterTint(
       color,
       sampleRealmForestSnowCoverage(northernSnow, point.world)
@@ -245,13 +266,20 @@ function emptyTelemetry(
     ),
     overviewHidden: true,
     reveal: 0,
-    snowTintedTreeCount: 0
+    snowTintedTreeCount: 0,
+    dryTintedTreeCount: 0,
+    rejectedBySand: 0,
+    drylandRetainedCount: 0,
+    sandTintedTreeCount: 0
   });
 }
 
 export type RealmDecorativeForestSelection = Readonly<{
   points: readonly RealmDecorativeForestCandidate[];
   triangleCount: number;
+  rejectedBySand: number;
+  drylandRetainedCount: number;
+  sandTintedTreeCount: number;
 }>;
 
 type ForestOccupancyCircle = Readonly<{ x: number; z: number; radius: number }>;
@@ -286,6 +314,32 @@ function createForestOccupancyIndex(bucketSizeInput: number) {
   return Object.freeze({ add, overlaps });
 }
 
+function clampUnit(value: number | undefined) {
+  const finiteValue = value ?? 0;
+  return Number.isFinite(finiteValue)
+    ? Math.min(1, Math.max(0, finiteValue))
+    : 0;
+}
+
+function smoothstep(edge0: number, edge1: number, value: number) {
+  const progress = clampUnit((value - edge0) / Math.max(0.000_1, edge1 - edge0));
+  return progress * progress * (3 - 2 * progress);
+}
+
+/**
+ * Deep sand reduces only the existing decorative admission probability.
+ * Zero sand is an exact no-op, and the stable candidate rank makes every
+ * drier selection a deterministic subset of the equivalent neutral window.
+ */
+export function realmDecorativeForestSandAdmissionFactor(sandCoverageInput: number) {
+  const sandCoverage = clampUnit(sandCoverageInput);
+  return 1 - smoothstep(
+    REALM_FOREST_DRYLAND_COVERAGE_ONSET,
+    0.9,
+    sandCoverage
+  ) * (1 - REALM_FOREST_DEEP_SAND_RETENTION);
+}
+
 /**
  * Stable rank thresholds do the ordinary thinning before the hard safety cap.
  * A camera shift therefore changes boundary cells rather than globally
@@ -314,14 +368,22 @@ export function selectRealmDecorativeForestCandidates(
   const stableTriangleAllowance = budget.triangles
     * REALM_FOREST_STABLE_BUDGET_UTILIZATION
     / maximumCandidateSlots;
+  let rejectedBySand = 0;
   const eligible = candidates.filter((candidate) => {
     const triangleProbability = stableTriangleAllowance
       / Math.max(1, candidate.estimatedTriangles);
     const stableProbability = Math.min(1, stableInstanceProbability, triangleProbability);
-    const presentationProbability = stableProbability
+    const neutralPresentationProbability = stableProbability
       * reveal
       * Math.min(1, Math.max(0, candidate.edgeFade));
-    return presentationProbability > 0 && candidate.rank >= 1 - presentationProbability;
+    const presentationProbability = neutralPresentationProbability
+      * realmDecorativeForestSandAdmissionFactor(candidate.sandCoverage ?? 0);
+    const neutralAdmission = neutralPresentationProbability > 0
+      && candidate.rank >= 1 - neutralPresentationProbability;
+    const sandAdmission = presentationProbability > 0
+      && candidate.rank >= 1 - presentationProbability;
+    if (neutralAdmission && !sandAdmission) rejectedBySand += 1;
+    return sandAdmission;
   }).sort((left, right) => right.rank - left.rank
     || left.cellKey.localeCompare(right.cellKey)
     || left.speciesId.localeCompare(right.speciesId));
@@ -348,9 +410,23 @@ export function selectRealmDecorativeForestCandidates(
     selected.push(candidate);
     triangleCount += candidate.estimatedTriangles;
   });
+  let drylandRetainedCount = 0;
+  let sandTintedTreeCount = 0;
+  selected.forEach((candidate) => {
+    const sandCoverage = clampUnit(candidate.sandCoverage);
+    if (sandCoverage >= REALM_FOREST_DRYLAND_COVERAGE_ONSET) {
+      drylandRetainedCount += 1;
+    }
+    if (realmForestDrylandTintMix(sandCoverage) > 0) {
+      sandTintedTreeCount += 1;
+    }
+  });
   return Object.freeze({
     points: Object.freeze(selected),
-    triangleCount
+    triangleCount,
+    rejectedBySand,
+    drylandRetainedCount,
+    sandTintedTreeCount
   });
 }
 
@@ -404,7 +480,8 @@ export function createRealmDecorativeForestLayer(options: CreateRealmDecorativeF
         options.map,
         options.terrainPlacements,
         hexSize,
-        options.northernSnow
+        options.northernSnow,
+        options.southernDesert
       )
       : null;
     fallback = next?.mesh ?? null;
@@ -512,6 +589,10 @@ export function createRealmDecorativeForestLayer(options: CreateRealmDecorativeF
           matrix.compose(position, rotation, scale).multiply(localMatrix);
           mesh.setMatrixAt(index, matrix);
           instanceTint.set(realmForestModelInstanceTint(point.habitat));
+          applyRealmForestDrylandTint(
+            instanceTint,
+            sampleRealmForestSandCoverage(options.southernDesert, point.world)
+          );
           applyRealmForestWinterTint(
             instanceTint,
             sampleRealmForestSnowCoverage(options.northernSnow, point.world)
@@ -642,7 +723,14 @@ export function createRealmDecorativeForestLayer(options: CreateRealmDecorativeF
       const cellEcology = cellDataFor(cell);
       if (cellEcology.structure) structureCellCounts[cellEcology.structure] += 1;
       cellEcology.candidates.forEach((candidate) => {
-        all.push(Object.freeze({ ...candidate, edgeFade }));
+        all.push(Object.freeze({
+          ...candidate,
+          edgeFade,
+          sandCoverage: sampleRealmForestSandCoverage(
+            options.southernDesert,
+            candidate.world
+          )
+        }));
       });
     });
     const selection = selectRealmDecorativeForestCandidates(
@@ -658,6 +746,14 @@ export function createRealmDecorativeForestLayer(options: CreateRealmDecorativeF
     const snowTintedTreeCount = selected.reduce((count, point) => (
       realmForestWinterTintMix(sampleRealmForestSnowCoverage(
         options.northernSnow,
+        point.world
+      )) > 0
+        ? count + 1
+        : count
+    ), 0);
+    const dryTintedTreeCount = selected.reduce((count, point) => (
+      realmForestDrylandTintMix(sampleRealmForestSandCoverage(
+        options.southernDesert,
         point.world
       )) > 0
         ? count + 1
@@ -707,7 +803,11 @@ export function createRealmDecorativeForestLayer(options: CreateRealmDecorativeF
       canopyMotionState: REALM_FOREST_CANOPY_MOTION_STATE,
       overviewHidden: false,
       reveal: window.reveal,
-      snowTintedTreeCount
+      snowTintedTreeCount,
+      dryTintedTreeCount,
+      rejectedBySand: selection.rejectedBySand,
+      drylandRetainedCount: selection.drylandRetainedCount,
+      sandTintedTreeCount: selection.sandTintedTreeCount
     });
     if (selected.length === 0) {
       replaceFallback(Object.freeze([]));

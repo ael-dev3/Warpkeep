@@ -40,7 +40,6 @@ export function analyzeRenderedWebglPngScreenshot(value, viewport, options = {})
     || minimumDistinctColourBuckets < 4
     || minimumDistinctColourBuckets > 8
   ) throw new TypeError('Invalid rendered WebGL screenshot analysis policy.');
-
   let cursor = 8;
   let chunkCount = 0;
   let header;
@@ -140,10 +139,13 @@ export function analyzeRenderedWebglPngScreenshot(value, viewport, options = {})
   let clippedBlackSamples = 0;
   let clippedWhiteSamples = 0;
   let coolHighAlbedoSamples = 0;
-  // Preserve only anonymous colour mass in coarse screen regions. The middle
-  // bucket can prove that a selected Northern target, rather than an unrelated
-  // cool pixel elsewhere in the frame, is actually being presented.
+  let warmLowGreenSamples = 0;
+  // Classify the same fixed full-frame grid before any climate journey is
+  // considered. These anonymous 3x3 coarse screen-region totals preserve only
+  // colour mass: no pixels, exact sample positions, or world coordinates leave
+  // this in-memory reduction.
   const coolSpatialBuckets = Array.from({ length: 9 }, () => 0);
+  const warmSpatialBuckets = Array.from({ length: 9 }, () => 0);
   let hotYellowSamples = 0;
   const sampleRows = 21;
   const sampleColumns = 31;
@@ -192,6 +194,23 @@ export function analyzeRenderedWebglPngScreenshot(value, viewport, options = {})
         );
         coolSpatialBuckets[bucket] += 1;
       }
+      if (
+        luminance >= 72
+        && luminance <= 235
+        && red >= green + 4
+        && green >= blue + 2
+        && saturationBasisPoints >= 650
+      ) {
+        warmLowGreenSamples += 1;
+        const bucket = Math.min(
+          2,
+          Math.floor(((yStep - 1) * 3) / sampleRows)
+        ) * 3 + Math.min(
+          2,
+          Math.floor(((xStep - 1) * 3) / sampleColumns)
+        );
+        warmSpatialBuckets[bucket] += 1;
+      }
       if (red >= 245 && green >= 205 && blue <= 55) hotYellowSamples += 1;
       if (alpha >= 250) opaqueSamples += 1;
       sampleCount += 1;
@@ -216,6 +235,8 @@ export function analyzeRenderedWebglPngScreenshot(value, viewport, options = {})
     clippedWhiteSamples,
     coolHighAlbedoSamples,
     coolSpatialBuckets: Object.freeze(coolSpatialBuckets),
+    warmLowGreenSamples,
+    warmSpatialBuckets: Object.freeze(warmSpatialBuckets),
     hotYellowSamples,
     opaqueSamples,
     sampleCount,

@@ -15,6 +15,7 @@ import {
   hexKey
 } from '../src/game/map/hexCoordinates';
 import { createRealmNorthernSnowField } from '../src/game/map/realmNorthernSnow';
+import { createRealmSouthernDesertField } from '../src/game/map/realmSouthernDesert';
 import { HEGEMONY_GENESIS_001 } from '../src/game/map/realmSeed';
 import { createHegemonyKeepPlacement } from '../src/game/map/terrainPlacements';
 import {
@@ -42,6 +43,9 @@ function geometryDigest(geometry: ReturnType<typeof createTerrainGeometryData>) 
   digest.update(new Uint8Array(geometry.materialCues.buffer));
   if (geometry.snowCoverage) {
     digest.update(new Uint8Array(geometry.snowCoverage.buffer));
+  }
+  if (geometry.sandCoverage) {
+    digest.update(new Uint8Array(geometry.sandCoverage.buffer));
   }
   digest.update(new Uint8Array(geometry.indices.buffer));
   return digest.digest('hex');
@@ -325,6 +329,112 @@ describe('combined lowlands terrain geometry', () => {
       .toBeLessThan(snowy.snowCoverageMetrics.retainedCellCenterCoverageMean);
   });
 
+  it('adds a separate bounded sand scalar with zero meaningful snow overlap', () => {
+    const complete = generateRealmTerrainMap(HEGEMONY_GENESIS_001, 60);
+    const southernCoord = { q: 0, r: 48 } as const;
+    const local = {
+      ...complete,
+      cells: complete.cells.filter((cell) => (
+        hexDistance(cell.coord, southernCoord) <= 2
+      ))
+    };
+    const climateOptions = {
+      worldSeed: complete.worldSeed,
+      hexSize: 1,
+      playableRadius: 58,
+      renderRadius: 60
+    } as const;
+    const snow = createRealmNorthernSnowField(climateOptions);
+    const desert = createRealmSouthernDesertField(climateOptions);
+    const geometryOptions = {
+      subdivisionsPerEdge: 2,
+      adaptiveDetailRadius: 0,
+      playableRadius: 58,
+      sandPlayableCellKeys: new Set(
+        local.cells.map((cell) => hexKey(cell.coord))
+      )
+    } as const;
+    const neutral = createTerrainGeometryData(local, 1, geometryOptions);
+    const climate = createTerrainGeometryData(local, 1, {
+      ...geometryOptions,
+      northernSnow: snow,
+      southernDesert: desert
+    });
+    const center = axialToWorld(southernCoord, 1);
+    const centerIndex = Array.from(
+      { length: climate.vertexCount },
+      (_, index) => index
+    ).sort((left, right) => (
+      Math.hypot(
+        climate.positions[left * 3]! - center.x,
+        climate.positions[left * 3 + 2]! - center.z
+      )
+      - Math.hypot(
+        climate.positions[right * 3]! - center.x,
+        climate.positions[right * 3 + 2]! - center.z
+      )
+    ))[0]!;
+
+    expect(climate.positions).toEqual(neutral.positions);
+    expect(climate.indices).toEqual(neutral.indices);
+    expect(climate.materialCues).toEqual(neutral.materialCues);
+    expect(climate.triangleCount).toBe(neutral.triangleCount);
+    expect(climate.vertexCount).toBe(neutral.vertexCount);
+    expect(climate.colors).not.toEqual(neutral.colors);
+    expect(climate.sandCoverage).toHaveLength(climate.vertexCount);
+    expect(Array.from(climate.sandCoverage!).every((value) => (
+      Number.isFinite(value) && value >= 0 && value <= 1
+    ))).toBe(true);
+    expect(climate.sandCoverage![centerIndex]).toBeGreaterThan(0.25);
+    expect(climate.snowCoverage![centerIndex]).toBeLessThan(0.01);
+    expect(climate.sandCoverageMetrics.snowOverlapVertexCount).toBe(0);
+    expect(climate.sandCoverageMetrics.attributeBytes).toBe(
+      climate.vertexCount * Float32Array.BYTES_PER_ELEMENT
+    );
+    expect(climate.sandCoverageMetrics.sampledPlayableLandCellCenterCount)
+      .toBe(local.cells.length);
+    expect(climate.sandCoverageMetrics.retainedCellCenterCountAbove015)
+      .toBeGreaterThan(0);
+    expect(climate.sandCoverageMetrics.retainedDeepCellCenterCountAbove075)
+      .toBeGreaterThan(0);
+    expect(climate.sandCoverageMetrics.retainedCellCenterCoverageRatio)
+      .toBe(
+        climate.sandCoverageMetrics.retainedCellCenterCountAbove015
+          / local.cells.length
+      );
+    expect(climate.sandCoverageMetrics.retainedDeepCellCenterCoverageRatio)
+      .toBe(
+        climate.sandCoverageMetrics.retainedDeepCellCenterCountAbove075
+          / local.cells.length
+      );
+    expect(climate.sandCoverageMetrics.retainedCellCenterCoverageMean)
+      .toBeGreaterThan(0);
+    expect(climate.sandCoverageMetrics.retainedCellCenterNorthernLeakCount)
+      .toBe(0);
+    expect(climate.sandCoverageMetrics.snowOverlapCellCenterCount).toBe(0);
+
+    const excluded = createTerrainGeometryData(local, 1, {
+      ...geometryOptions,
+      northernSnow: snow,
+      southernDesert: desert,
+      sandExcludedCellKeys: new Set(['0,48'])
+    });
+    expect(excluded.sandCoverage![centerIndex]).toBe(0);
+    expect(excluded.sandCoverageMetrics.sampledPlayableLandCellCenterCount)
+      .toBe(local.cells.length - 1);
+
+    const founded = createTerrainGeometryData(local, 1, {
+      ...geometryOptions,
+      placements: [createHegemonyKeepPlacement('southern-keep', southernCoord)],
+      northernSnow: snow,
+      southernDesert: desert
+    });
+    expect(founded.sandCoverage![centerIndex])
+      .toBeLessThan(climate.sandCoverage![centerIndex] * 0.1);
+    expect(founded.sandCoverageMetrics.retainedCellCenterCoverageMean)
+      .toBeLessThan(climate.sandCoverageMetrics.retainedCellCenterCoverageMean);
+  });
+
   it('matches the pinned former radius-twenty-two topology at every runtime profile', () => {
     const map = generateRealmTerrainMap(HEGEMONY_GENESIS_001, 22);
     const expectations = [
@@ -351,12 +461,18 @@ describe('combined lowlands terrain geometry', () => {
   it('uses the exact bounded adaptive topology for the radius-sixty render envelope', () => {
     const map = generateRealmTerrainMap(HEGEMONY_GENESIS_001, 60);
     const expectations = [
-      [4, 203_406, 102_067, 0.50],
-      [3, 139_338, 70_033, 0.35],
-      [2, 93_498, 47_113, 0.25]
+      [4, 203_406, 102_067, 0.50, 0.80],
+      [3, 139_338, 70_033, 0.35, 0.55],
+      [2, 93_498, 47_113, 0.25, 0.40]
     ] as const;
 
-    expectations.forEach(([subdivisions, triangleCount, vertexCount, attributeMiBCeiling]) => {
+    expectations.forEach(([
+      subdivisions,
+      triangleCount,
+      vertexCount,
+      attributeMiBCeiling,
+      combinedMiBCeiling
+    ]) => {
       const geometry = createTerrainGeometryData(map, 1, {
         subdivisionsPerEdge: subdivisions,
         adaptiveDetailRadius: 22,
@@ -374,6 +490,9 @@ describe('combined lowlands terrain geometry', () => {
       expect(
         geometry.vertexCount * Float32Array.BYTES_PER_ELEMENT / (1024 * 1024)
       ).toBeLessThan(attributeMiBCeiling);
+      expect(
+        geometry.vertexCount * Float32Array.BYTES_PER_ELEMENT * 2 / (1024 * 1024)
+      ).toBeLessThan(combinedMiBCeiling);
       expect(geometry.degenerateTriangleCount).toBe(0);
       expect(geometry.sharedVertexReuseCount).toBeGreaterThan(0);
 

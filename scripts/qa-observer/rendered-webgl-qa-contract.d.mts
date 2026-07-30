@@ -10,7 +10,8 @@ export type RenderedWebglQaFixtureVariant =
   | 'occupancy-stress'
   | 'worker-active'
   | 'worker-locomotion'
-  | 'worker-locomotion-northern';
+  | 'worker-locomotion-northern'
+  | 'worker-locomotion-southern';
 
 export type RenderedWebglQaObservation = Readonly<{
   version: 1;

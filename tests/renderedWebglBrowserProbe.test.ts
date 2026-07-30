@@ -8,8 +8,12 @@ import { resolve } from 'node:path';
 import {
   analyzeRenderedWebglPngScreenshot,
   applyNorthernReachRenderedEvidence,
+  applyRegionalClimateRenderedEvidence,
   assertNorthernReachRepeatedReducedMotionEvidence,
   assertNorthernReachRenderedVisual,
+  assertRegionalClimateRepeatedReducedMotionEvidence,
+  assertRegionalClimateRenderedVisual,
+  assertSunscouredSouthRenderedTarget,
   applyRenderedWebglActiveWorkerInteraction,
   applyRenderedWebglActiveWorkerReconnectInteraction,
   applyRenderedWebglWorkerLocomotionInteraction,
@@ -37,12 +41,14 @@ import {
   parseRenderedWebglInspectorLabelActivationEvidence,
   parseRenderedWebglLabelKeyboardEvidence,
   parseNorthernReachRenderedEvidence,
+  parseRegionalClimateRenderedEvidence,
   parseRenderedWebglOccupancyStressEvidence,
   parseRenderedWebglQualityMetrics,
   parseRenderedWebglResourceOccupantEvidence,
   parseRenderedWebglSfxEvidence,
   parseRenderedWebglWaterOverviewEvidence,
   readNorthernReachStaticFrameSignature,
+  SUNSCOURED_SOUTH_RENDERED_TARGET_MANIFEST,
   RENDERED_WEBGL_QA_CHROME,
   RENDERED_WEBGL_QA_CHROME_APP,
   RENDERED_WEBGL_QA_CASE_COUNT,
@@ -58,6 +64,8 @@ import {
   renderedWebglActiveWorkerProbeCase,
   renderedWebglBrowserProbeCases,
   renderedWebglOccupancyStressProbeCase,
+  renderedWebglTerrainShaderFallbackProbeCase,
+  renderedWebglTerrainShaderFallbackVitePlugin,
   renderedWebglWorkerLocomotionProbeCase,
   renderedWebglWorkerLocomotionProbeCases,
   selectBlankPageTarget,
@@ -494,7 +502,10 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(source).toContain(
       'plugins: [warpkeepLocalPublicBoundaryPlugin(), reactPlugin(), ...localQaPlugins]'
     );
-    expect(source).toContain('castleLodVisualEvidenceSourceVitePlugin(castleLodVisualSource)');
+    expect(source).toContain(
+      'castleLodVisualProbe.castleLodVisualEvidenceSourceVitePlugin('
+    );
+    expect(source).toContain('renderedWebglTerrainShaderFallbackVitePlugin()');
     expect(source).toContain('runCastleLodVisualEvidenceBrowserCase(devtools');
     expect(source).toContain('onCastleLodVisualEvidence?.(castleLodVisualEvidence)');
     expect(source).toContain('aggregate castle LOD fidelity ${JSON.stringify(lodMetrics)}');
@@ -565,6 +576,48 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(source).toContain("method === 'Target.targetCrashed'");
     expect(source).toContain("method === 'Target.detachedFromTarget'");
     expect(source).toContain("method === 'Inspector.detached'");
+  });
+
+  it('fixtures terrain shader fallback only in the exact local source module', () => {
+    const sourcePath = resolve(
+      process.cwd(),
+      'src/components/realm/createRealmTerrainMaterial.ts'
+    );
+    const source = readFileSync(sourcePath, 'utf8');
+    const plugin = renderedWebglTerrainShaderFallbackVitePlugin();
+    const transformed = plugin.transform(source, `${sourcePath}?v=reviewed`);
+
+    expect(plugin).toMatchObject({
+      name: 'warpkeep-local-terrain-shader-fallback',
+      enforce: 'pre'
+    });
+    expect(transformed?.code).toContain(
+      'globalThis.location?.hash === "#warpkeep-qa-terrain-shader-fallback"'
+    );
+    expect(transformed?.code).toContain(
+      "throw new Error('REALM_TERRAIN_SHADER_QA_FORCED_FALLBACK')"
+    );
+    expect(transformed?.code.match(/REALM_TERRAIN_SHADER_QA_FORCED_FALLBACK/g))
+      .toHaveLength(1);
+    expect(plugin.transform(
+      source,
+      resolve(process.cwd(), 'src/components/realm/createRealmGrassMaterial.ts')
+    )).toBeNull();
+    expect(() => plugin.transform('export {};', sourcePath))
+      .toThrow(/source contract changed/i);
+
+    const probeCase = renderedWebglTerrainShaderFallbackProbeCase(41_733);
+    expect(probeCase).toMatchObject({
+      id: 'desktop-balanced-terrain-shader-fallback',
+      expectedPresentationMode: 'observer',
+      expectedQuality: 'balanced',
+      expectedTerrainShaderFallback: true,
+      url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html'
+        + '?quality=balanced#warpkeep-qa-terrain-shader-fallback',
+      viewport: { width: 1_440, height: 900 }
+    });
+    expect(() => renderedWebglTerrainShaderFallbackProbeCase(0))
+      .toThrow(/port/i);
   });
 
   it('requires a real trusted SFX lifecycle without exposing event payloads', () => {
@@ -1223,7 +1276,7 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(source).toContain('one active generic ');
   });
 
-  it('requires a strict five-case privacy-safe real-GLB Worker locomotion matrix', async () => {
+  it('requires a strict six-case privacy-safe real-GLB Worker locomotion matrix', async () => {
     const cases = renderedWebglWorkerLocomotionProbeCases(41_733);
     const telemetryFor = (
       wheelDrivenCount: number,
@@ -1325,7 +1378,7 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(cases.map((probeCase) => ({
       id: probeCase.id,
       fixtureVariant: probeCase.workerLocomotion.fixtureVariant,
-      northern: probeCase.workerLocomotion.northern,
+      climate: probeCase.workerLocomotion.climate,
       quality: probeCase.expectedQuality,
       reducedMotion: probeCase.expectedReducedMotion === true,
       viewport: probeCase.viewport,
@@ -1341,7 +1394,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       {
         id: 'full-hd-high-worker-locomotion',
         fixtureVariant: 'worker-locomotion',
-        northern: false,
+        climate: 'center',
         quality: 'high',
         reducedMotion: false,
         viewport: { width: 1_920, height: 1_080 },
@@ -1355,7 +1408,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       {
         id: 'desktop-balanced-worker-locomotion',
         fixtureVariant: 'worker-locomotion',
-        northern: false,
+        climate: 'center',
         quality: 'balanced',
         reducedMotion: false,
         viewport: { width: 1_440, height: 900 },
@@ -1369,7 +1422,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       {
         id: 'short-landscape-reduced-worker-locomotion',
         fixtureVariant: 'worker-locomotion',
-        northern: false,
+        climate: 'center',
         quality: 'reduced',
         reducedMotion: false,
         viewport: { width: 667, height: 375 },
@@ -1383,7 +1436,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       {
         id: 'mobile-reduced-motion-worker-locomotion',
         fixtureVariant: 'worker-locomotion',
-        northern: false,
+        climate: 'center',
         quality: 'reduced',
         reducedMotion: true,
         viewport: { width: 390, height: 844 },
@@ -1397,7 +1450,21 @@ describe('rendered WebGL headless browser probe contract', () => {
       {
         id: 'desktop-balanced-northern-worker-locomotion',
         fixtureVariant: 'worker-locomotion-northern',
-        northern: true,
+        climate: 'north',
+        quality: 'balanced',
+        reducedMotion: false,
+        viewport: { width: 1_440, height: 900 },
+        assetProfile: 'balanced',
+        animatedCount: 4,
+        gatheringIdleCount: 1,
+        modelCount: 4,
+        movingCount: 3,
+        wheelDrivenCount: 4
+      },
+      {
+        id: 'desktop-balanced-southern-worker-locomotion',
+        fixtureVariant: 'worker-locomotion-southern',
+        climate: 'south',
         quality: 'balanced',
         reducedMotion: false,
         viewport: { width: 1_440, height: 900 },
@@ -1565,7 +1632,7 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(northernExpression).toContain(
       '"fixture":"worker-locomotion-northern"'
     );
-    expect(northernExpression).toContain('"northern":true');
+    expect(northernExpression).toContain('"climate":"north"');
     expect(northernExpression).toContain(
       "'data-realm-worker-selected-route-count'"
     );
@@ -1574,6 +1641,27 @@ describe('rendered WebGL headless browser probe contract', () => {
     );
     expect(northernExpression).toContain(
       "canvas.getAttribute('data-realm-camera-state-token')"
+    );
+    const southernCommand = vi.fn(async (
+      method: string,
+      _params?: Readonly<Record<string, unknown>>,
+      _timeoutMilliseconds?: number
+    ) => method === 'Runtime.evaluate'
+      ? { result: { type: 'object', value: evidence[5] } }
+      : {});
+    await expect(applyRenderedWebglWorkerLocomotionInteraction(
+      { command: southernCommand },
+      cases[5]!
+    )).resolves.toEqual(evidence[5]);
+    const southernExpression = String(southernCommand.mock.calls.find(
+      ([method]) => method === 'Runtime.evaluate'
+    )?.[1]?.expression);
+    expect(southernExpression).toContain(
+      '"fixture":"worker-locomotion-southern"'
+    );
+    expect(southernExpression).toContain('"climate":"south"');
+    expect(southernExpression).toContain(
+      "'data-realm-worker-selected-route-count'"
     );
     await expect(applyRenderedWebglWorkerLocomotionInteraction(
       { command },
@@ -1593,7 +1681,8 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(source).toContain(
       '...workerLocomotionCases.map((probeCase) => probeCase.url)'
     );
-    expect(source).toContain('five Worker locomotion evidence checks');
+    expect(source).toContain('six Worker ');
+    expect(source).toContain('locomotion evidence checks');
   });
 
   it('locks the reported upper-right Water overview to the reviewed camera and scene', async () => {
@@ -2924,6 +3013,22 @@ describe('rendered WebGL headless browser probe contract', () => {
       terrainShaderEnhanced: false,
       terrainShaderFallbackActive: true
     }, expected)).toThrow(/terrain-material-telemetry/i);
+    const terrainFallbackExpected = {
+      ...expected,
+      expectedTerrainShaderFallback: true
+    } as const;
+    expect(parseRenderedWebglBrowserDom({
+      ...ready,
+      terrainShaderEnhanced: false,
+      terrainShaderFallbackActive: true
+    }, terrainFallbackExpected)).toMatchObject({
+      terrainShaderEnhanced: false,
+      terrainShaderFallbackActive: true
+    });
+    expect(() => parseRenderedWebglBrowserDom(
+      ready,
+      terrainFallbackExpected
+    )).toThrow(/terrain-material-telemetry/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...balancedForestFallback,
       forestDecorativeModelReady: true
@@ -3505,6 +3610,8 @@ describe('rendered WebGL headless browser probe contract', () => {
       clippedWhiteSamples: 0,
       coolHighAlbedoSamples: expect.any(Number),
       coolSpatialBuckets: expect.arrayContaining([expect.any(Number)]),
+      warmLowGreenSamples: expect.any(Number),
+      warmSpatialBuckets: expect.arrayContaining([expect.any(Number)]),
       hotYellowSamples: expect.any(Number)
     });
     expect(() => analyzeRenderedWebglPngScreenshot(
@@ -3793,7 +3900,7 @@ describe('rendered WebGL headless browser probe contract', () => {
     );
     expect(source.match(
       /delay\(NORTHERN_REACH_REDUCED_MOTION_HOST_WAIT_MILLISECONDS\)/g
-    )).toHaveLength(2);
+    )).toHaveLength(4);
     expect(source).toContain(
       '[data-owned-by-viewer="true"][data-phase="returning"]'
     );
@@ -3853,6 +3960,288 @@ describe('rendered WebGL headless browser probe contract', () => {
       region: 'deep',
       viewport: { width: 1_440, height: 900 }
     })).resolves.toEqual(ordinaryEvidence);
+  });
+
+  it('keeps Sunscoured South targets and rendered evidence exact and fail-closed', async () => {
+    const evidence = {
+      band: 'close',
+      climate: 'south',
+      compositionBucket: 4,
+      coverage: [2_400, 1_000, 0.25, 1_000 / 9_600, 0, 0],
+      material: [
+        'genesis-001-southern-desert-presentation-v1',
+        'one-band',
+        true,
+        false
+      ],
+      quality: 'balanced',
+      recovered: true,
+      recoveryExercised: true,
+      region: 'deep',
+      retained: [
+        9_600,
+        2_400,
+        1_000,
+        0.25,
+        1_000 / 9_600,
+        0.22,
+        0,
+        0,
+        0.9
+      ],
+      selected: true,
+      separation: [0, 0],
+      stable: true,
+      vertices: [0, 0.94, 0.2, 200_000]
+    } as const;
+    expect(parseRegionalClimateRenderedEvidence(evidence, {
+      quality: 'balanced',
+      recover: true,
+      region: 'deep',
+      viewport: { width: 1_440, height: 900 }
+    })).toEqual(evidence);
+    const fallbackEvidence = {
+      ...evidence,
+      material: [
+        'genesis-001-southern-desert-presentation-v1',
+        'one-band',
+        false,
+        true
+      ]
+    } as const;
+    expect(parseRegionalClimateRenderedEvidence(fallbackEvidence, {
+      quality: 'balanced',
+      recover: true,
+      region: 'deep',
+      shaderFallback: true,
+      viewport: { width: 1_440, height: 900 }
+    })).toEqual(fallbackEvidence);
+    expect(() => parseRegionalClimateRenderedEvidence(fallbackEvidence, {
+      quality: 'balanced',
+      recover: true,
+      region: 'deep',
+      viewport: { width: 1_440, height: 900 }
+    })).toThrow(/Sunscoured South/i);
+    expect(() => parseRegionalClimateRenderedEvidence({
+      ...evidence,
+      desertTarget: '-43,48'
+    }, {
+      quality: 'balanced',
+      recover: true,
+      region: 'deep',
+      viewport: { width: 1_440, height: 900 }
+    })).toThrow(/Sunscoured South/i);
+    expect(() => parseRegionalClimateRenderedEvidence({
+      ...evidence,
+      retained: [
+        9_599,
+        2_400,
+        1_000,
+        0.25,
+        1_000 / 9_600,
+        0.22,
+        0,
+        0,
+        0.9
+      ]
+    }, {
+      quality: 'balanced',
+      recover: true,
+      region: 'deep',
+      viewport: { width: 1_440, height: 900 }
+    })).toThrow(/Sunscoured South/i);
+
+    const deepVisual = {
+      clippedBlackSamples: 0,
+      clippedWhiteSamples: 0,
+      coolHighAlbedoSamples: 10,
+      coolSpatialBuckets: [5, 0, 0, 0, 5, 0, 0, 0, 0],
+      warmLowGreenSamples: 80,
+      warmSpatialBuckets: [10, 5, 5, 5, 30, 5, 5, 5, 10],
+      hotYellowSamples: 0
+    } as const;
+    expect(() => assertRegionalClimateRenderedVisual(
+      evidence,
+      deepVisual
+    )).not.toThrow();
+    expect(() => assertRegionalClimateRenderedVisual(evidence, {
+      ...deepVisual,
+      warmLowGreenSamples: 40,
+      warmSpatialBuckets: [5, 5, 5, 5, 10, 5, 0, 0, 5]
+    })).toThrow(/Sunscoured South/i);
+    expect(() => assertRegionalClimateRenderedVisual(evidence, {
+      ...deepVisual,
+      warmSpatialBuckets: [40, 5, 5, 5, 0, 5, 5, 5, 10]
+    })).toThrow(/Sunscoured South/i);
+
+    const transitionEvidence = {
+      ...evidence,
+      band: 'strategy',
+      recovered: false,
+      recoveryExercised: false,
+      region: 'transition'
+    } as const;
+    const transitionVisual = {
+      ...deepVisual,
+      coolHighAlbedoSamples: 267,
+      coolSpatialBuckets: [0, 0, 0, 1, 20, 43, 63, 70, 70],
+      warmLowGreenSamples: 221,
+      warmSpatialBuckets: [65, 41, 7, 67, 34, 7, 0, 0, 0]
+    } as const;
+    expect(() => assertRegionalClimateRenderedVisual(
+      transitionEvidence,
+      transitionVisual
+    )).not.toThrow();
+    expect(() => assertRegionalClimateRenderedVisual(transitionEvidence, {
+      ...transitionVisual,
+      warmLowGreenSamples: 60,
+      warmSpatialBuckets: [20, 10, 2, 15, 10, 3, 0, 0, 0]
+    })).toThrow(/Sunscoured South/i);
+
+    const transitionTarget =
+      SUNSCOURED_SOUTH_RENDERED_TARGET_MANIFEST.transition;
+    expect(() => assertSunscouredSouthRenderedTarget(
+      transitionTarget,
+      {
+        coverage: transitionTarget.expectedCoverage,
+        terrainKind: transitionTarget.expectedTerrainKind,
+        passable: true,
+        staticContentKind: 'empty',
+        water: false,
+        resourceKind: 'food',
+        resourceSiteId: 'genesis-001-tier1-food-077',
+        resourceQ: 25,
+        resourceR: 32,
+        resourceTier: 1,
+        resourceActive: true
+      }
+    )).not.toThrow();
+    const waterTarget =
+      SUNSCOURED_SOUTH_RENDERED_TARGET_MANIFEST['water-edge'];
+    expect(() => assertSunscouredSouthRenderedTarget(
+      waterTarget,
+      {
+        coverage: waterTarget.expectedCoverage,
+        terrainKind: waterTarget.expectedTerrainKind,
+        passable: true,
+        staticContentKind: 'empty',
+        water: false,
+        waterBodyId:
+          'genesis-001-canonical-water-v1:river:genesis-001-river-06',
+        waterCellKey: '-35,35',
+        waterQ: -35,
+        waterR: 35,
+        waterRegime: 'river'
+      }
+    )).not.toThrow();
+    expect(() => assertSunscouredSouthRenderedTarget(
+      transitionTarget,
+      {
+        coverage: transitionTarget.expectedCoverage + 0.000_001,
+        terrainKind: transitionTarget.expectedTerrainKind,
+        passable: true,
+        staticContentKind: 'empty',
+        water: false
+      }
+    )).toThrow(/Sunscoured South/i);
+
+    const reducedEvidence = {
+      ...evidence,
+      material: [
+        'genesis-001-southern-desert-presentation-v1',
+        'none',
+        true,
+        false
+      ],
+      quality: 'reduced',
+      recovered: false,
+      recoveryExercised: false
+    } as const;
+    const signature = {
+      cameraMode: 'keep',
+      cameraPresentationBand: 'close',
+      cameraStateToken: '1a2b3c4d'.repeat(3),
+      cameraTargetKind: 'cell-location',
+      canvasLastSuccessfulGeneration: 4,
+      canvasRendererGeneration: 4,
+      rendererGeneration: 4,
+      rendererLastSuccessfulGeneration: 4
+    } as const;
+    expect(() => assertRegionalClimateRepeatedReducedMotionEvidence(
+      {
+        evidence: reducedEvidence,
+        signature,
+        visual: deepVisual
+      },
+      {
+        evidence: {
+          ...reducedEvidence,
+          coverage: [2_400, 1_000, 0.250_000_4, 1_000 / 9_600, 0, 0],
+          vertices: [0, 0.940_000_4, 0.200_000_4, 200_000]
+        },
+        signature,
+        visual: {
+          ...deepVisual,
+          warmLowGreenSamples: 81,
+          warmSpatialBuckets: [10, 5, 5, 5, 31, 5, 5, 5, 10]
+        }
+      }
+    )).not.toThrow();
+    expect(() => assertRegionalClimateRepeatedReducedMotionEvidence(
+      {
+        evidence: reducedEvidence,
+        signature,
+        visual: deepVisual
+      },
+      {
+        evidence: reducedEvidence,
+        signature: {
+          ...signature,
+          cameraStateToken: '4d3c2b1a'.repeat(3)
+        },
+        visual: deepVisual
+      }
+    )).toThrow(/repeated reduced-motion/i);
+
+    const command = vi.fn(async (
+      _method: string,
+      _params?: Readonly<Record<string, unknown>>,
+      _timeoutMilliseconds?: number
+    ) => ({
+      result: { type: 'object', value: evidence }
+    }));
+    await expect(applyRegionalClimateRenderedEvidence({ command }, {
+      quality: 'balanced',
+      recover: true,
+      region: 'deep',
+      viewport: { width: 1_440, height: 900 }
+    })).resolves.toEqual(evidence);
+    const expression = String(command.mock.calls[0]?.[1]?.expression);
+    expect(expression).toContain(
+      "import('/src/game/map/realmSouthernDesert.ts')"
+    );
+    expect(expression).toContain('"q":-43,"r":48');
+    expect(expression).toContain(
+      "number('desertSampledPlayableLandCellCenterCount')"
+    );
+    expect(expression).toContain(
+      'root.dataset.realmSelectedCellKey===selectedTargetKey'
+    );
+    expect(expression).toContain('cameraToken()===beforeCameraToken');
+    expect(expression).not.toContain('for(const tile of CANONICAL_WORLD_TILES)');
+
+    const source = readFileSync(resolve(
+      import.meta.dirname,
+      '../scripts/qa-observer/rendered-webgl-browser-probe.mjs'
+    ), 'utf8');
+    expect(source).toMatch(
+      /RENDERED_WEBGL_QA_SUNSCOURED_SOUTH_CASE_IDS[\s\S]*'short-landscape-explore'/
+    );
+    expect(source).toContain('WARPKEEP_QA_SOUTHERN_ARTIFACT_DIR');
+    expect(source).toContain("artifactRegion: 'southern'");
+    expect(source).toContain(
+      'assertRegionalClimateRepeatedReducedMotionEvidence'
+    );
   });
 
 });

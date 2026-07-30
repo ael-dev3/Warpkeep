@@ -20,6 +20,7 @@ import {
   realmNorthernSnowRetentionSlope,
   type RealmNorthernSnowField
 } from './realmNorthernSnow';
+import type { RealmSouthernDesertField } from './realmSouthernDesert';
 import type { RealmVegetationField } from './realmVegetationField';
 import type { RealmTerrainMap, TerrainCell } from './terrainTypes';
 
@@ -142,6 +143,7 @@ export type RealmGrassPoint = Readonly<{
   windScale: number;
   windShelter: number;
   snowCoverage: number;
+  sandCoverage: number;
   variant: number;
   rank: number;
 }>;
@@ -159,6 +161,9 @@ export type RealmGrassCellData = Readonly<{
   rejectedBySnow: number;
   retainedInSnowTransition: number;
   snowCoverage: number;
+  rejectedBySand: number;
+  retainedInDryTransition: number;
+  sandCoverage: number;
   points: readonly RealmGrassPoint[];
 }>;
 
@@ -172,6 +177,8 @@ export type RealmGrassCellsData = Readonly<{
   rejectedBySlope: number;
   rejectedBySnow: number;
   retainedInSnowTransition: number;
+  rejectedBySand: number;
+  retainedInDryTransition: number;
 }>;
 
 export type RealmGrassGenerationInput = Readonly<{
@@ -193,6 +200,8 @@ export type RealmGrassGenerationInput = Readonly<{
   vegetationField?: RealmVegetationField;
   /** Shared immutable climate field; sampled only during existing cache generation. */
   northernSnow?: RealmNorthernSnowField;
+  /** Shared immutable desert field; sampled only during existing cache generation. */
+  southernDesert?: RealmSouthernDesertField;
   /** Narrow water/route/root mask shared with decorative tree infill. */
   isWorldExcluded?: (world: HexWorldPosition) => boolean;
   /** Present legacy scenic lake semantics as grass-covered land only. */
@@ -427,6 +436,24 @@ function resolveTerrainKind(
   return visualizeLegacyLakes && terrainKind === 'lake' ? 'lowland' : terrainKind;
 }
 
+function realmGrassSandSemanticRetention(terrainKind: RealmGrassTerrainKind) {
+  switch (terrainKind) {
+    case 'meadow':
+    case 'lowland':
+      return 1;
+    case 'heath':
+      return 0.84;
+    case 'forest':
+      return 0.68;
+    case 'ridge':
+      return 0.58;
+    case 'ancient-stone':
+      return 0.46;
+    default:
+      return 0.9;
+  }
+}
+
 export function generateRealmGrassCells(input: RealmGrassGenerationInput): RealmGrassCellsData {
   const hexSize = Number.isFinite(input.hexSize) && input.hexSize! > 0 ? input.hexSize! : 1;
   const placements = input.placements ?? EMPTY_TERRAIN_PLACEMENTS;
@@ -449,6 +476,8 @@ export function generateRealmGrassCells(input: RealmGrassGenerationInput): Realm
   let rejectedBySlope = 0;
   let rejectedBySnow = 0;
   let retainedInSnowTransition = 0;
+  let rejectedBySand = 0;
+  let retainedInDryTransition = 0;
 
   stableCells(input.cells).forEach((cell) => {
     const key = hexKey(cell.coord);
@@ -462,6 +491,7 @@ export function generateRealmGrassCells(input: RealmGrassGenerationInput): Realm
     const profile = resolveRealmGrassProfile(terrainKind);
     const count = realmGrassCandidateCount(profile, input.quality, input.densityMultiplier);
     const center = axialToWorld(cell.coord, hexSize);
+    const vegetation = input.vegetationField?.sampleCell(cell.coord);
     const centerSurfaceFrame = sampleRealmGrassSurfaceFrame(
       center,
       sampleHeight,
@@ -475,8 +505,20 @@ export function generateRealmGrassCells(input: RealmGrassGenerationInput): Realm
         placementInfluence: 0
       }
     ) ?? 0;
+    const cellSandCoverage = input.southernDesert?.retainedSandAtWorld(
+      center,
+      {
+        slope: centerSurfaceFrame.slope,
+        concavity: 0,
+        vegetation: vegetation?.grassDensity ?? profile.retention,
+        canopy: vegetation?.forestNeighbourShare
+          ?? (terrainKind === 'forest' ? 0.55 : 0),
+        wetness: terrainKind === 'lake' ? 1 : 0,
+        semanticRetention: realmGrassSandSemanticRetention(terrainKind),
+        placementInfluence: 0
+      }
+    ) ?? 0;
     const coverage = sampleRealmGrassCoverage(input.map.worldSeed, center);
-    const vegetation = input.vegetationField?.sampleCell(cell.coord);
     const cellRestHash = seededUnitFloat(
       deriveChannelSeed(cell.seed, 0, 0, 'realm-grass-cell-rest-v2')
     );
@@ -496,6 +538,8 @@ export function generateRealmGrassCells(input: RealmGrassGenerationInput): Realm
     let localSlope = 0;
     let localSnow = 0;
     let localSnowTransition = 0;
+    let localSand = 0;
+    let localDryTransition = 0;
     candidateCount += count;
 
     if (!completelyBare) {
@@ -568,6 +612,19 @@ export function generateRealmGrassCells(input: RealmGrassGenerationInput): Realm
             placementInfluence: 0
           }
         ) ?? 0;
+        const sandCoverage = input.southernDesert?.retainedSandAtWorld(
+          candidate.world,
+          {
+            slope,
+            concavity: 0,
+            vegetation: candidateVegetation?.grassDensity ?? profile.retention,
+            canopy: candidateVegetation?.forestNeighbourShare
+              ?? (terrainKind === 'forest' ? 0.55 : 0),
+            wetness: terrainKind === 'lake' ? 1 : 0,
+            semanticRetention: realmGrassSandSemanticRetention(terrainKind),
+            placementInfluence: 0
+          }
+        ) ?? 0;
         if (snowCoverage > 0) {
           const snowRetention = 1
             - smoothstep(0.14, 0.91, snowCoverage) * 0.955;
@@ -576,6 +633,17 @@ export function generateRealmGrassCells(input: RealmGrassGenerationInput): Realm
           );
           if (snowHash > snowRetention) {
             localSnow += 1;
+            continue;
+          }
+        }
+        if (sandCoverage > 0) {
+          const sandRetention = 1
+            - smoothstep(0.12, 0.91, sandCoverage) * 0.96;
+          const sandHash = seededUnitFloat(
+            deriveChannelSeed(cell.seed, candidateIndex, 0, 'realm-grass-sand-retention-v1')
+          );
+          if (sandHash > sandRetention) {
+            localSand += 1;
             continue;
           }
         }
@@ -651,25 +719,32 @@ export function generateRealmGrassCells(input: RealmGrassGenerationInput): Realm
             deriveChannelSeed(cell.seed, candidateIndex, 0, 'realm-grass-yaw-v1')
           ) * Math.PI * 2,
           height: lerp(profile.height[0], profile.height[1], heightMix)
-            * (1 - smoothstep(0.10, 0.88, snowCoverage) * 0.36),
+            * (1 - smoothstep(0.10, 0.88, snowCoverage) * 0.36)
+            * (1 - smoothstep(0.08, 0.88, sandCoverage) * 0.32),
           width: lerp(profile.width[0], profile.width[1], widthMix),
           // Keep the renderer-linear authored palette dominant; terrain adds
           // only a restrained local response.
           tint: mixColor(
-            mixColor(groundTint, authoredTint, 0.86),
-            { r: 0.49, g: 0.52, b: 0.39 },
-            smoothstep(0.10, 0.86, snowCoverage) * 0.66
+            mixColor(
+              mixColor(groundTint, authoredTint, 0.86),
+              { r: 0.49, g: 0.52, b: 0.39 },
+              smoothstep(0.10, 0.86, snowCoverage) * 0.66
+            ),
+            { r: 0.52, g: 0.45, b: 0.285 },
+            smoothstep(0.08, 0.86, sandCoverage) * 0.72
           ),
           windPhase: phase,
           stiffness,
           windScale: terrainResponse
             * (1 - windShelter)
             * (1 - snowCoverage * 0.18)
+            * (1 - sandCoverage * 0.12)
             * (0.86 + seededUnitFloat(
               deriveChannelSeed(cell.seed, candidateIndex, 0, 'realm-grass-wind-scale-v1')
             ) * 0.28),
           windShelter,
           snowCoverage,
+          sandCoverage,
           variant: Math.floor(seededUnitFloat(
             deriveChannelSeed(cell.seed, candidateIndex, 0, 'realm-grass-geometry-variant-v1')
           ) * 3),
@@ -677,6 +752,9 @@ export function generateRealmGrassCells(input: RealmGrassGenerationInput): Realm
         }));
         if (snowCoverage >= 0.15 && snowCoverage < 0.88) {
           localSnowTransition += 1;
+        }
+        if (sandCoverage >= 0.15 && sandCoverage < 0.88) {
+          localDryTransition += 1;
         }
       }
     }
@@ -686,6 +764,8 @@ export function generateRealmGrassCells(input: RealmGrassGenerationInput): Realm
     rejectedBySlope += localSlope;
     rejectedBySnow += localSnow;
     retainedInSnowTransition += localSnowTransition;
+    rejectedBySand += localSand;
+    retainedInDryTransition += localDryTransition;
     points.push(...accepted);
     cells.push(Object.freeze({
       key,
@@ -700,6 +780,9 @@ export function generateRealmGrassCells(input: RealmGrassGenerationInput): Realm
       rejectedBySnow: localSnow,
       retainedInSnowTransition: localSnowTransition,
       snowCoverage: cellSnowCoverage,
+      rejectedBySand: localSand,
+      retainedInDryTransition: localDryTransition,
+      sandCoverage: cellSandCoverage,
       points: Object.freeze(accepted)
     }));
   });
@@ -713,6 +796,8 @@ export function generateRealmGrassCells(input: RealmGrassGenerationInput): Realm
     rejectedByExclusion,
     rejectedBySlope,
     rejectedBySnow,
-    retainedInSnowTransition
+    retainedInSnowTransition,
+    rejectedBySand,
+    retainedInDryTransition
   });
 }

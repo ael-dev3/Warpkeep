@@ -22,7 +22,7 @@ function installMotionPreference(matches = false) {
 function getPatchNotesTrigger(options: { hidden?: boolean } = {}) {
   return screen.getByRole('button', {
     ...options,
-    name: 'Open patch notes for Warpkeep ALPHA 0.3.26'
+    name: 'Open patch notes for Warpkeep ALPHA 0.3.27'
   });
 }
 
@@ -131,11 +131,11 @@ describe('WarpkeepMainMenu', () => {
 
     act(() => patchNotes.focus());
     expect(screen.getByRole('status').textContent).toContain('living frontier');
-    expect(screen.queryByRole('region', { name: 'THE NORTHERN REACH' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE SUNSCOURED SOUTH' })).toBeNull();
 
     fireEvent.click(patchNotes, { detail: 0 });
     expect(screen.queryByRole('status')).toBeNull();
-    expect(screen.getByRole('region', { name: 'THE NORTHERN REACH' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE SUNSCOURED SOUTH' })).not.toBeNull();
     expect(document.activeElement).toBe(patchNotes);
   });
 
@@ -239,19 +239,19 @@ describe('WarpkeepMainMenu', () => {
 
     expect(patchNotes.getAttribute('aria-expanded')).toBe('false');
     expect(patchNotes.getAttribute('aria-controls')).toBe('warpkeep-latest-patch-notes');
-    expect(screen.queryByRole('region', { name: 'THE NORTHERN REACH' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE SUNSCOURED SOUTH' })).toBeNull();
 
     act(() => patchNotes.focus());
-    expect(screen.queryByRole('region', { name: 'THE NORTHERN REACH' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE SUNSCOURED SOUTH' })).toBeNull();
 
     fireEvent.click(patchNotes, { detail: 0 });
-    const notes = screen.getByRole('region', { name: 'THE NORTHERN REACH' });
+    const notes = screen.getByRole('region', { name: 'THE SUNSCOURED SOUTH' });
     expect(patchNotes.getAttribute('aria-expanded')).toBe('true');
-    expect(notes.textContent).toContain('LATEST PATCH · ALPHA 0.3.26');
-    expect(notes.textContent).toContain('winter now gathers');
-    expect(notes.textContent).toContain('Grass becomes shorter and sparser');
+    expect(notes.textContent).toContain('LATEST PATCH · ALPHA 0.3.27');
+    expect(notes.textContent).toContain('warm, wind-shaped frontier');
+    expect(notes.textContent).toContain('Grass becomes shorter and sparse');
     expect(notes.textContent).toContain(
-      'not a new terrain rule, season, weather system, or gameplay modifier'
+      'not a desert terrain kind, climate system, hazard, yield change, or gameplay modifier'
     );
     expect(notes.getAttribute('tabindex')).toBe('0');
     expect(within(notes).queryByRole('link')).toBeNull();
@@ -259,7 +259,7 @@ describe('WarpkeepMainMenu', () => {
     expect(document.activeElement).toBe(notes);
 
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(screen.queryByRole('region', { name: 'THE NORTHERN REACH' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE SUNSCOURED SOUTH' })).toBeNull();
     expect(document.activeElement).toBe(patchNotes);
     expect(onRequestReturn).not.toHaveBeenCalled();
 
@@ -272,19 +272,19 @@ describe('WarpkeepMainMenu', () => {
     const patchNotes = getPatchNotesTrigger();
 
     fireEvent.pointerEnter(patchNotes, { pointerType: 'mouse' });
-    expect(screen.getByRole('region', { name: 'THE NORTHERN REACH' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE SUNSCOURED SOUTH' })).not.toBeNull();
 
     fireEvent.pointerDown(document.body, { pointerType: 'mouse' });
-    expect(screen.queryByRole('region', { name: 'THE NORTHERN REACH' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE SUNSCOURED SOUTH' })).toBeNull();
 
     fireEvent.pointerDown(patchNotes, { pointerType: 'touch' });
     patchNotes.focus();
     fireEvent.click(patchNotes);
-    expect(screen.getByRole('region', { name: 'THE NORTHERN REACH' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE SUNSCOURED SOUTH' })).not.toBeNull();
 
     fireEvent.pointerDown(patchNotes, { pointerType: 'touch' });
     fireEvent.click(patchNotes);
-    expect(screen.queryByRole('region', { name: 'THE NORTHERN REACH' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE SUNSCOURED SOUTH' })).toBeNull();
   });
 
   it('keeps hover notes reachable across the anchor gap and toggles by activation', () => {
@@ -293,21 +293,21 @@ describe('WarpkeepMainMenu', () => {
     const patchNotes = getPatchNotesTrigger();
 
     fireEvent.pointerEnter(patchNotes, { pointerType: 'mouse' });
-    expect(screen.getByRole('region', { name: 'THE NORTHERN REACH' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE SUNSCOURED SOUTH' })).not.toBeNull();
     fireEvent.pointerLeave(patchNotes, { pointerType: 'mouse' });
 
     act(() => vi.advanceTimersByTime(250));
-    const panel = screen.getByRole('region', { name: 'THE NORTHERN REACH' });
+    const panel = screen.getByRole('region', { name: 'THE SUNSCOURED SOUTH' });
     fireEvent.pointerEnter(panel, { pointerType: 'mouse' });
     act(() => vi.advanceTimersByTime(200));
-    expect(screen.getByRole('region', { name: 'THE NORTHERN REACH' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE SUNSCOURED SOUTH' })).not.toBeNull();
 
     fireEvent.click(patchNotes);
     fireEvent.pointerLeave(patchNotes, { pointerType: 'mouse' });
     act(() => vi.advanceTimersByTime(500));
-    expect(screen.getByRole('region', { name: 'THE NORTHERN REACH' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE SUNSCOURED SOUTH' })).not.toBeNull();
     fireEvent.click(patchNotes);
-    expect(screen.queryByRole('region', { name: 'THE NORTHERN REACH' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE SUNSCOURED SOUTH' })).toBeNull();
   });
 
   it('keeps inactive menu controls hidden, inert, and outside the tab order', () => {

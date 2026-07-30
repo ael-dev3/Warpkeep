@@ -6,6 +6,15 @@ full engineering record.
 
 ## [Unreleased]
 
+## [0.3.27] — 2026-07-30
+
+- Opened a broad dry frontier across the southern outer Lowlands, shaped by a
+  deterministic wind field rather than a new authoritative terrain kind.
+- Let grass and woodland thin and warm toward the rim while preserving exact
+  terrain height, topology, northern winter presentation, and central identity.
+- Left movement, Water, Workers, resources, routes, balances, and persistent
+  world rules unchanged.
+
 ## [0.3.26] — 2026-07-30
 
 - Let frost settle gradually across the northern outer Lowlands and deepen
@@ -283,7 +292,8 @@ full engineering record.
   Lowlands, a first keep, Farcaster sign-in, and an admission-gated shared-world
   foundation.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.26...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.27...HEAD
+[0.3.27]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.26...v0.3.27
 [0.3.26]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.25...v0.3.26
 [0.3.25]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.24...v0.3.25
 [0.3.24]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.23...v0.3.24

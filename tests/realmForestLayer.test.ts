@@ -30,9 +30,15 @@ import {
 } from '../src/game/map/realmForestBiomes';
 import type { HegemonyTreePrefabLease } from '../src/components/realm/loadHegemonyTreeAssets';
 import {
+  createRealmNorthernSnowField,
   REALM_NORTHERN_SNOW_FIELD_REVISION,
   type RealmNorthernSnowField
 } from '../src/game/map/realmNorthernSnow';
+import {
+  createRealmSouthernDesertField,
+  REALM_SOUTHERN_DESERT_FIELD_REVISION,
+  type RealmSouthernDesertField
+} from '../src/game/map/realmSouthernDesert';
 import { indexRealmTerrainSemantics } from '../src/game/map/realmTerrainSemantics';
 import { resolveRealmSharedForestLayout } from '../src/game/map/realmSharedForestPlacements';
 import { createCanonicalGenesisSnapshot } from './fixtures/canonicalGenesisSnapshot';
@@ -102,7 +108,8 @@ function createLayer(
   points: readonly RealmForestTreePoint[],
   acquirePrefab: RealmForestPrefabAcquirer,
   onModelReady?: () => void,
-  northernSnow?: RealmNorthernSnowField
+  northernSnow?: RealmNorthernSnowField,
+  southernDesert?: RealmSouthernDesertField
 ) {
   return createRealmForestLayer({
     data: biomeData(points),
@@ -112,7 +119,24 @@ function createLayer(
     baseUrl: '/',
     acquirePrefab,
     onModelReady,
-    northernSnow
+    northernSnow,
+    southernDesert
+  });
+}
+
+function constantDesertField(sandInput: number): RealmSouthernDesertField {
+  const sand = Math.min(1, Math.max(0, sandInput));
+  const sample = Object.freeze({ climate: sand, exposure: 0, sand });
+  return Object.freeze({
+    revision: REALM_SOUTHERN_DESERT_FIELD_REVISION,
+    worldSeed: 1,
+    hexSize: 1,
+    playableRadius: 57,
+    renderRadius: 60,
+    sampleWorld: () => sample,
+    sampleCoord: () => sample,
+    sandAtWorld: () => sand,
+    retainedSandAtWorld: () => sand
   });
 }
 
@@ -172,6 +196,21 @@ function authoredFacingLease(
       material.dispose();
     }
   });
+}
+
+function attributeBytes(attribute: THREE.BufferAttribute | THREE.InterleavedBufferAttribute) {
+  if (attribute instanceof THREE.InterleavedBufferAttribute) {
+    return Array.from(new Uint8Array(
+      attribute.data.array.buffer,
+      attribute.data.array.byteOffset,
+      attribute.data.array.byteLength
+    ));
+  }
+  return Array.from(new Uint8Array(
+    attribute.array.buffer,
+    attribute.array.byteOffset,
+    attribute.array.byteLength
+  ));
 }
 
 function canonicalSharedForestFixture() {
@@ -370,7 +409,116 @@ describe('static forest presentation layer', () => {
     snowy.dispose();
   });
 
-  it('preserves all 210 shared records, transforms, and budgets under fallback winter tint', () => {
+  it('keeps northern and central authored bytes exact while warming only southern trees', async () => {
+    const asset = HEGEMONY_TREE_RUNTIME_ASSETS[0]!;
+    const pointAt = (coord: Readonly<{ q: number; r: number }>) => Object.freeze({
+      ...pointForAsset(asset),
+      coord: Object.freeze({ ...coord }),
+      world: Object.freeze(axialToWorld(coord, 1))
+    });
+    const northPoint = pointAt({ q: 0, r: -46 });
+    const centerPoint = pointAt({ q: 0, r: 0 });
+    const southPoint = pointAt({ q: 0, r: 46 });
+    const climateOptions = {
+      worldSeed: 91_337,
+      hexSize: 1,
+      playableRadius: 57,
+      renderRadius: 60
+    };
+    const northernSnow = createRealmNorthernSnowField(climateOptions);
+    const southernDesert = createRealmSouthernDesertField(climateOptions);
+    const createAuthored = (
+      point: RealmForestTreePoint,
+      snow?: RealmNorthernSnowField,
+      desert?: RealmSouthernDesertField
+    ) => createLayer(
+      [point],
+      async () => authoredFacingLease(asset),
+      undefined,
+      snow,
+      desert
+    );
+    const northBaseline = createAuthored(northPoint, northernSnow);
+    const northWithSouth = createAuthored(
+      northPoint,
+      northernSnow,
+      southernDesert
+    );
+    const centerBaseline = createAuthored(centerPoint);
+    const centerWithSouth = createAuthored(
+      centerPoint,
+      undefined,
+      southernDesert
+    );
+    const southBaseline = createAuthored(southPoint);
+    const southWithDesert = createAuthored(
+      southPoint,
+      undefined,
+      southernDesert
+    );
+    const layers = [
+      northBaseline,
+      northWithSouth,
+      centerBaseline,
+      centerWithSouth,
+      southBaseline,
+      southWithDesert
+    ];
+
+    await vi.waitFor(() => {
+      expect(layers.every((layer) => (
+        layer.getPresentationTelemetry().usingFallback === false
+      ))).toBe(true);
+    });
+    const geometryFor = (layer: (typeof layers)[number]) => (
+      layer.group.getObjectByName('realm-hegemony-tree-static-batch') as THREE.Mesh
+    ).geometry;
+    const northBaselineGeometry = geometryFor(northBaseline);
+    const northWithSouthGeometry = geometryFor(northWithSouth);
+    const centerBaselineGeometry = geometryFor(centerBaseline);
+    const centerWithSouthGeometry = geometryFor(centerWithSouth);
+    const southBaselineGeometry = geometryFor(southBaseline);
+    const southWithDesertGeometry = geometryFor(southWithDesert);
+
+    expect(southernDesert.sandAtWorld(northPoint.world)).toBe(0);
+    expect(southernDesert.sandAtWorld(centerPoint.world)).toBe(0);
+    expect(southernDesert.sandAtWorld(southPoint.world)).toBeGreaterThan(0.75);
+    expect(attributeBytes(northWithSouthGeometry.getAttribute('color')))
+      .toEqual(attributeBytes(northBaselineGeometry.getAttribute('color')));
+    expect(attributeBytes(centerWithSouthGeometry.getAttribute('color')))
+      .toEqual(attributeBytes(centerBaselineGeometry.getAttribute('color')));
+    expect(attributeBytes(southWithDesertGeometry.getAttribute('color')))
+      .not.toEqual(attributeBytes(southBaselineGeometry.getAttribute('color')));
+    expect(attributeBytes(southWithDesertGeometry.getAttribute('position')))
+      .toEqual(attributeBytes(southBaselineGeometry.getAttribute('position')));
+    expect(Array.from(southWithDesertGeometry.getIndex()!.array))
+      .toEqual(Array.from(southBaselineGeometry.getIndex()!.array));
+    expect(northWithSouth.getPresentationTelemetry()).toMatchObject({
+      instanceCount: 1,
+      drawCalls: 1,
+      triangleCount: 2,
+      snowTintedTreeCount: 1,
+      dryTintedTreeCount: 0
+    });
+    expect(centerWithSouth.getPresentationTelemetry()).toMatchObject({
+      instanceCount: 1,
+      drawCalls: 1,
+      triangleCount: 2,
+      snowTintedTreeCount: 0,
+      dryTintedTreeCount: 0
+    });
+    expect(southWithDesert.getPresentationTelemetry()).toMatchObject({
+      instanceCount: 1,
+      drawCalls: 1,
+      triangleCount: 2,
+      snowTintedTreeCount: 0,
+      dryTintedTreeCount: 1
+    });
+
+    layers.forEach((layer) => layer.dispose());
+  });
+
+  it('preserves all 210 shared records, transforms, and budgets under climate tint', () => {
     const fixture = canonicalSharedForestFixture();
     const recordsBefore = fixture.data.points.map((point) => Object.freeze({
       speciesId: point.speciesId,
@@ -401,10 +549,22 @@ describe('static forest presentation layer', () => {
       acquirePrefab: keepFallback,
       northernSnow: constantSnowField(1)
     });
+    const dry = createRealmForestLayer({
+      data: fixture.data,
+      map: fixture.map,
+      terrainPlacements: [],
+      quality: REALM_QUALITY_SPECS.high,
+      baseUrl: '/',
+      acquirePrefab: keepFallback,
+      southernDesert: constantDesertField(1)
+    });
     const neutralFallback = neutral.group.getObjectByName(
       'realm-hegemony-tree-static-fallback'
     ) as THREE.InstancedMesh;
     const snowyFallback = snowy.group.getObjectByName(
+      'realm-hegemony-tree-static-fallback'
+    ) as THREE.InstancedMesh;
+    const dryFallback = dry.group.getObjectByName(
       'realm-hegemony-tree-static-fallback'
     ) as THREE.InstancedMesh;
     const neutralColor = new THREE.Color();
@@ -413,12 +573,16 @@ describe('static forest presentation layer', () => {
     snowyFallback.getColorAt(0, snowyColor);
     const neutralTelemetry = neutral.getPresentationTelemetry();
     const snowyTelemetry = snowy.getPresentationTelemetry();
+    const dryTelemetry = dry.getPresentationTelemetry();
 
     expect(fixture.data.points).toHaveLength(210);
     expect(Array.from(snowyFallback.instanceMatrix.array))
       .toEqual(Array.from(neutralFallback.instanceMatrix.array));
+    expect(Array.from(dryFallback.instanceMatrix.array))
+      .toEqual(Array.from(neutralFallback.instanceMatrix.array));
     expect(snowyFallback.count).toBe(210);
     expect(neutralFallback.count).toBe(210);
+    expect(dryFallback.count).toBe(210);
     expect(snowyColor.equals(neutralColor)).toBe(false);
     expect(Math.max(snowyColor.r, snowyColor.g, snowyColor.b)).toBeLessThan(0.8);
     expect(snowyTelemetry).toMatchObject({
@@ -430,6 +594,14 @@ describe('static forest presentation layer', () => {
     });
     expect(snowyTelemetry.canonicalTriangleCount)
       .toBeLessThanOrEqual(REALM_FOREST_BIOME_BUDGETS.high.triangles);
+    expect(dryTelemetry).toMatchObject({
+      instanceCount: 210,
+      drawCalls: 1,
+      canonicalTriangleCount: neutralTelemetry.canonicalTriangleCount,
+      triangleCount: neutralTelemetry.triangleCount,
+      snowTintedTreeCount: 0,
+      dryTintedTreeCount: 210
+    });
     expect(neutralTelemetry.snowTintedTreeCount).toBe(0);
     expect(fixture.data.points.map((point) => ({
       speciesId: point.speciesId,
@@ -443,6 +615,7 @@ describe('static forest presentation layer', () => {
 
     neutral.dispose();
     snowy.dispose();
+    dry.dispose();
   }, 15_000);
 
   it('keeps decorative infill distinct and requests the compact reviewed LOD', async () => {
