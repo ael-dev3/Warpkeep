@@ -33,6 +33,11 @@ import {
   type RealmTerrainSemanticRow
 } from '../../game/map/realmTerrainSemantics';
 import { isPlayableRealmCoord, type RealmTerrainSurface } from '../../game/map/realmTerrainSurface';
+import {
+  createRealmNorthernSnowField,
+  summarizeRealmNorthernSnowCoverage,
+  type RealmNorthernSnowField
+} from '../../game/map/realmNorthernSnow';
 import { createRealmVegetationField } from '../../game/map/realmVegetationField';
 import {
   createRealmVegetationMask,
@@ -621,6 +626,29 @@ export type RealmTerrainPresentationTelemetry = Readonly<{
   terrainShaderEnhanced: boolean;
   terrainShaderFallbackActive: boolean;
   terrainShaderCompileAttemptCount: number;
+  snowFieldRevision: string;
+  snowPreRetentionCellCountAbove015: number;
+  snowPreRetentionDeepCellCountAbove075: number;
+  snowPreRetentionCoverageRatio: number;
+  snowPreRetentionDeepCoverageRatio: number;
+  snowInnerRadiusLeakCount: number;
+  snowSouthernLeakCount: number;
+  snowVertexCoverageMin: number;
+  snowVertexCoverageMax: number;
+  snowVertexCoverageMean: number;
+  snowAttributeBytes: number;
+  snowSampledPlayableLandCellCenterCount: number;
+  snowRetainedCellCenterCountAbove015: number;
+  snowRetainedDeepCellCenterCountAbove075: number;
+  snowRetainedCellCenterCoverageRatio: number;
+  snowRetainedDeepCellCenterCoverageRatio: number;
+  snowRetainedCellCenterCoverageMean: number;
+  snowRetainedCellCenterInnerRadiusLeakCount: number;
+  snowRetainedCellCenterSouthernLeakCount: number;
+  snowRetainedNorthernmostRowCoverageMean: number;
+  snowFineReliefMode: 'two-band' | 'one-band' | 'none';
+  snowShaderEnhanced: boolean;
+  snowShaderFallbackActive: boolean;
   semanticCellCount: number;
   semanticKindCount: number;
   semanticFeatureCount: number;
@@ -639,6 +667,7 @@ export type RealmTerrainPresentationTelemetry = Readonly<{
   forestCanopyMotionState: 'static';
   forestStructureCellCounts: RealmForestStructureCounts;
   forestSilhouetteCoverageRatio: number;
+  forestSnowTintedTreeCount: number;
   forestDecorativeTreeCount: number;
   forestDecorativeTriangleCount: number;
   forestDecorativeDrawCalls: number;
@@ -683,6 +712,9 @@ export type RealmTerrainPresentationTelemetry = Readonly<{
   grassCompletelyBareActiveCells: number;
   grassRejectedByStructureClearance: number;
   grassRejectedBySlope: number;
+  grassRejectedBySnow: number;
+  grassRetainedInSnowTransition: number;
+  grassAverageSnowCoverageOfActiveCells: number;
   grassOverviewHidden: boolean;
 }>;
 
@@ -972,7 +1004,11 @@ function createTerrainGeometry(
   forestCanopyByKey?: ReadonlyMap<string, number>,
   vegetationDensityByKey?: ReadonlyMap<string, number>,
   riverBankPresentation?: RealmRiverBankPresentation,
-  visualizeLegacyLakesAsLand = false
+  visualizeLegacyLakesAsLand = false,
+  northernSnow?: RealmNorthernSnowField,
+  snowPlayableCellKeys?: ReadonlySet<string>,
+  snowExcludedCellKeys?: ReadonlySet<string>,
+  snowClearanceCircles?: readonly RealmGrassExclusion[]
 ) {
   const data = createTerrainGeometryData(surface.renderMap, HEX_SIZE, {
     subdivisionsPerEdge,
@@ -983,7 +1019,11 @@ function createTerrainGeometry(
     forestCanopyByKey,
     vegetationDensityByKey,
     riverBankPresentation,
-    visualizeLegacyLakesAsLand
+    visualizeLegacyLakesAsLand,
+    northernSnow,
+    snowPlayableCellKeys,
+    snowExcludedCellKeys,
+    snowClearanceCircles
   });
   const geometry = new THREE.BufferGeometry();
   try {
@@ -992,6 +1032,16 @@ function createTerrainGeometry(
     geometry.setAttribute(
       'terrainSurfaceCue',
       new THREE.BufferAttribute(data.materialCues, 4)
+    );
+    if (
+      !data.snowCoverage
+      || data.snowCoverage.length !== data.vertexCount
+    ) {
+      throw new Error('REALM_TERRAIN_SNOW_ATTRIBUTE_ATTESTATION_FAILED');
+    }
+    geometry.setAttribute(
+      'terrainSnowCoverage',
+      new THREE.BufferAttribute(data.snowCoverage, 1)
     );
     geometry.setIndex(new THREE.BufferAttribute(data.indices, 1));
     geometry.computeVertexNormals();
@@ -1314,6 +1364,20 @@ function initializeRealmScene(
     dynamicShadows: renderPlan.dynamicShadows,
     shadowMapSize: renderPlan.shadowMapSize
   };
+  const snowPlayableRadius = Math.max(1, options.surface.playableMap.radius);
+  const northernSnow = createRealmNorthernSnowField({
+    worldSeed: presentationSurface.renderMap.worldSeed,
+    hexSize: HEX_SIZE,
+    playableRadius: snowPlayableRadius,
+    renderRadius: Math.max(snowPlayableRadius, presentationSurface.renderMap.radius)
+  });
+  const waterCellKeys = new Set((options.waterCells ?? []).map((cell) => cell.cellKey));
+  const snowCoverageSummary = summarizeRealmNorthernSnowCoverage(
+    northernSnow,
+    options.surface.playableMap.cells
+      .filter((cell) => !waterCellKeys.has(hexKey(cell.coord)))
+      .map((cell) => cell.coord)
+  );
   // Pure quality policy is needed by the first resize/projection callback;
   // initialize it before any observer or render loop can run.
   let castleLodPolicy = castleLodPolicyForQuality(runtimeQuality);
@@ -1598,7 +1662,11 @@ function initializeRealmScene(
     forestCanopyByTileKey,
     vegetationDensityByTileKey,
     riverBankPresentation,
-    noLakeRevisionActive
+    noLakeRevisionActive,
+    northernSnow,
+    options.surface.playableKeys,
+    waterCellKeys,
+    resourceVegetationClearances
   );
   cleanup.add(() => terrainGeometry.dispose());
   if (
@@ -1613,7 +1681,7 @@ function initializeRealmScene(
     terrainData.bounds,
     HEX_SIZE
   );
-  const terrainMaterialLayer = createRealmTerrainMaterial();
+  const terrainMaterialLayer = createRealmTerrainMaterial(runtimeQuality.id);
   cleanup.add(() => terrainMaterialLayer.dispose());
   const terrain = new THREE.Mesh(terrainGeometry, terrainMaterialLayer.material);
   terrain.name = 'hegemony-lowlands-surface';
@@ -1807,6 +1875,7 @@ function initializeRealmScene(
         terrainPlacements,
         quality: runtimeQuality,
         baseUrl: options.baseUrl,
+        northernSnow,
         onModelReady: () => {
           emitTerrainPresentationTelemetry();
           requestForestModelRender();
@@ -1848,6 +1917,7 @@ function initializeRealmScene(
         terrainPlacements,
         quality: runtimeQuality,
         baseUrl: options.baseUrl,
+        northernSnow,
         isWorldExcluded: (world) => vegetationMask.isTreeExcluded(world),
         isCoordPassable: options.isCoordPassable,
         onActivePointsChange: (points) => {
@@ -1920,6 +1990,7 @@ function initializeRealmScene(
       hexSize: HEX_SIZE,
       alphaToCoverage: grassAlphaToCoverage,
       vegetationField,
+      northernSnow,
       isWorldExcluded: (world) => vegetationMask.isGrassExcluded(world)
         || activeForestGrassMask.isGrassExcluded(world),
       visualizeLegacyLakes: noLakeRevisionActive,
@@ -1980,6 +2051,9 @@ function initializeRealmScene(
     completelyBareActiveCells: 0,
     rejectedByStructureClearance: 0,
     rejectedBySlope: 0,
+    rejectedBySnow: 0,
+    retainedInSnowTransition: 0,
+    averageSnowCoverageOfActiveCells: 0,
     overviewHidden: true
   });
   const terrainPresentationTelemetry = () => {
@@ -2018,6 +2092,42 @@ function initializeRealmScene(
       terrainShaderEnhanced: terrainMaterialTelemetry.shaderEnhanced,
       terrainShaderFallbackActive: terrainMaterialTelemetry.shaderFallbackActive,
       terrainShaderCompileAttemptCount: terrainMaterialTelemetry.compileAttemptCount,
+      snowFieldRevision: northernSnow.revision,
+      snowPreRetentionCellCountAbove015:
+        snowCoverageSummary.preRetentionCellCountAbove015,
+      snowPreRetentionDeepCellCountAbove075:
+        snowCoverageSummary.preRetentionDeepCellCountAbove075,
+      snowPreRetentionCoverageRatio:
+        snowCoverageSummary.preRetentionCoverageRatio,
+      snowPreRetentionDeepCoverageRatio:
+        snowCoverageSummary.preRetentionDeepCoverageRatio,
+      snowInnerRadiusLeakCount: snowCoverageSummary.innerRadiusLeakCount,
+      snowSouthernLeakCount: snowCoverageSummary.southernLeakCount,
+      snowVertexCoverageMin: terrainData.snowCoverageMetrics.minimum,
+      snowVertexCoverageMax: terrainData.snowCoverageMetrics.maximum,
+      snowVertexCoverageMean: terrainData.snowCoverageMetrics.mean,
+      snowAttributeBytes: terrainData.snowCoverageMetrics.attributeBytes,
+      snowSampledPlayableLandCellCenterCount:
+        terrainData.snowCoverageMetrics.sampledPlayableLandCellCenterCount,
+      snowRetainedCellCenterCountAbove015:
+        terrainData.snowCoverageMetrics.retainedCellCenterCountAbove015,
+      snowRetainedDeepCellCenterCountAbove075:
+        terrainData.snowCoverageMetrics.retainedDeepCellCenterCountAbove075,
+      snowRetainedCellCenterCoverageRatio:
+        terrainData.snowCoverageMetrics.retainedCellCenterCoverageRatio,
+      snowRetainedDeepCellCenterCoverageRatio:
+        terrainData.snowCoverageMetrics.retainedDeepCellCenterCoverageRatio,
+      snowRetainedCellCenterCoverageMean:
+        terrainData.snowCoverageMetrics.retainedCellCenterCoverageMean,
+      snowRetainedCellCenterInnerRadiusLeakCount:
+        terrainData.snowCoverageMetrics.retainedCellCenterInnerRadiusLeakCount,
+      snowRetainedCellCenterSouthernLeakCount:
+        terrainData.snowCoverageMetrics.retainedCellCenterSouthernLeakCount,
+      snowRetainedNorthernmostRowCoverageMean:
+        terrainData.snowCoverageMetrics.retainedNorthernmostRowCoverageMean,
+      snowFineReliefMode: terrainMaterialTelemetry.fineReliefMode,
+      snowShaderEnhanced: terrainMaterialTelemetry.shaderEnhanced,
+      snowShaderFallbackActive: terrainMaterialTelemetry.shaderFallbackActive,
       semanticCellCount: terrainSemantics.terrainKindsByKey.size,
       semanticKindCount: Object.values(terrainSemantics.terrainKindCounts)
         .filter((count) => count > 0).length,
@@ -2055,6 +2165,9 @@ function initializeRealmScene(
         currentForestTelemetry?.structureCellCounts ?? EMPTY_FOREST_STRUCTURE_COUNTS,
       forestSilhouetteCoverageRatio:
         currentForestTelemetry?.silhouetteCoverageRatio ?? 0,
+      forestSnowTintedTreeCount:
+        (currentForestTelemetry?.snowTintedTreeCount ?? 0)
+        + (currentDecorativeForestTelemetry?.snowTintedTreeCount ?? 0),
       forestDecorativeTreeCount:
         currentDecorativeForestTelemetry?.activeInstanceCount ?? 0,
       forestDecorativeTriangleCount:
@@ -2119,6 +2232,10 @@ function initializeRealmScene(
       grassCompletelyBareActiveCells: grass.completelyBareActiveCells,
       grassRejectedByStructureClearance: grass.rejectedByStructureClearance,
       grassRejectedBySlope: grass.rejectedBySlope,
+      grassRejectedBySnow: grass.rejectedBySnow,
+      grassRetainedInSnowTransition: grass.retainedInSnowTransition,
+      grassAverageSnowCoverageOfActiveCells:
+        grass.averageSnowCoverageOfActiveCells,
       grassOverviewHidden: grass.overviewHidden
     } satisfies RealmTerrainPresentationTelemetry);
   };
@@ -2134,6 +2251,29 @@ function initializeRealmScene(
       telemetry.terrainShaderEnhanced,
       telemetry.terrainShaderFallbackActive,
       telemetry.terrainShaderCompileAttemptCount,
+      telemetry.snowFieldRevision,
+      telemetry.snowPreRetentionCellCountAbove015,
+      telemetry.snowPreRetentionDeepCellCountAbove075,
+      telemetry.snowPreRetentionCoverageRatio,
+      telemetry.snowPreRetentionDeepCoverageRatio,
+      telemetry.snowInnerRadiusLeakCount,
+      telemetry.snowSouthernLeakCount,
+      telemetry.snowVertexCoverageMin,
+      telemetry.snowVertexCoverageMax,
+      telemetry.snowVertexCoverageMean,
+      telemetry.snowAttributeBytes,
+      telemetry.snowSampledPlayableLandCellCenterCount,
+      telemetry.snowRetainedCellCenterCountAbove015,
+      telemetry.snowRetainedDeepCellCenterCountAbove075,
+      telemetry.snowRetainedCellCenterCoverageRatio,
+      telemetry.snowRetainedDeepCellCenterCoverageRatio,
+      telemetry.snowRetainedCellCenterCoverageMean,
+      telemetry.snowRetainedCellCenterInnerRadiusLeakCount,
+      telemetry.snowRetainedCellCenterSouthernLeakCount,
+      telemetry.snowRetainedNorthernmostRowCoverageMean,
+      telemetry.snowFineReliefMode,
+      telemetry.snowShaderEnhanced,
+      telemetry.snowShaderFallbackActive,
       telemetry.semanticFeatureDrawCalls,
       Object.values(telemetry.semanticFeatureCounts).join(','),
       telemetry.totalDetailInstanceCount,
@@ -2148,6 +2288,7 @@ function initializeRealmScene(
       telemetry.forestCanopyMotionState,
       Object.values(telemetry.forestStructureCellCounts).join(','),
       telemetry.forestSilhouetteCoverageRatio,
+      telemetry.forestSnowTintedTreeCount,
       telemetry.forestDecorativeTreeCount,
       telemetry.forestDecorativeTriangleCount,
       telemetry.forestDecorativeDrawCalls,
@@ -2189,6 +2330,9 @@ function initializeRealmScene(
       telemetry.grassCompletelyBareActiveCells,
       telemetry.grassRejectedByStructureClearance,
       telemetry.grassRejectedBySlope,
+      telemetry.grassRejectedBySnow,
+      telemetry.grassRetainedInSnowTransition,
+      telemetry.grassAverageSnowCoverageOfActiveCells,
       telemetry.grassOverviewHidden
     ].join(':');
     if (signature === lastTerrainTelemetrySignature) return;

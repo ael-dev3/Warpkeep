@@ -18,6 +18,7 @@ import type { RealmTerrainKind } from '../../game/map/realmTerrainSemantics';
 import type { RealmTerrainSurface } from '../../game/map/realmTerrainSurface';
 import type { TerrainStructurePlacement } from '../../game/map/terrainPlacements';
 import type { RealmVegetationField } from '../../game/map/realmVegetationField';
+import type { RealmNorthernSnowField } from '../../game/map/realmNorthernSnow';
 import { realmGrassColorMetrics } from '../../game/map/realmGrassPalette';
 import { createDeterministicBudgetCollector } from '../../game/map/deterministicBudget';
 import {
@@ -72,6 +73,9 @@ export type RealmGrassTelemetry = Readonly<{
   completelyBareActiveCells: number;
   rejectedByStructureClearance: number;
   rejectedBySlope: number;
+  rejectedBySnow: number;
+  retainedInSnowTransition: number;
+  averageSnowCoverageOfActiveCells: number;
   overviewHidden: boolean;
 }>;
 
@@ -86,6 +90,7 @@ export type CreateRealmGrassLayerOptions = Readonly<{
   hexSize?: number;
   alphaToCoverage?: boolean;
   vegetationField?: RealmVegetationField;
+  northernSnow?: RealmNorthernSnowField;
   isWorldExcluded?: (world: HexWorldPosition) => boolean;
   visualizeLegacyLakes?: boolean;
   suppressCastleSlots?: boolean;
@@ -184,6 +189,9 @@ function emptyTelemetry(plan: RealmGrassRenderPlan, alphaToCoverage = false): Re
     completelyBareActiveCells: 0,
     rejectedByStructureClearance: 0,
     rejectedBySlope: 0,
+    rejectedBySnow: 0,
+    retainedInSnowTransition: 0,
+    averageSnowCoverageOfActiveCells: 0,
     overviewHidden: true
   });
 }
@@ -284,6 +292,7 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
       hexSize,
       densityMultiplier: plan.densityMultiplier,
       vegetationField: options.vegetationField,
+      northernSnow: options.northernSnow,
       isWorldExcluded: options.isWorldExcluded,
       visualizeLegacyLakes: options.visualizeLegacyLakes,
       suppressCastleSlots: options.suppressCastleSlots
@@ -336,6 +345,9 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
     let completelyBareActiveCells = 0;
     let rejectedByStructureClearance = 0;
     let rejectedBySlope = 0;
+    let rejectedBySnow = 0;
+    let retainedInSnowTransition = 0;
+    let activeCellSnowCoverageTotal = 0;
     // Both records are fixed to the eight presentation terrain kinds. The
     // outer ring is classified without generating or caching invisible grass.
     const candidateCellsByTerrain = emptyCounts();
@@ -350,6 +362,9 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
       if (data.completelyBare) completelyBareActiveCells += 1;
       rejectedByStructureClearance += data.rejectedByStructure + data.rejectedByExclusion;
       rejectedBySlope += data.rejectedBySlope;
+      rejectedBySnow += data.rejectedBySnow;
+      retainedInSnowTransition += data.retainedInSnowTransition;
+      activeCellSnowCoverageTotal += data.snowCoverage;
       const distance = window.anchor ? hexDistance(window.anchor, data.coord) : 0;
       data.points.forEach((point) => {
         collectors[point.variant % variantCount]!.add({
@@ -486,6 +501,10 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
       completelyBareActiveCells,
       rejectedByStructureClearance,
       rejectedBySlope,
+      rejectedBySnow,
+      retainedInSnowTransition,
+      averageSnowCoverageOfActiveCells:
+        activeCellSnowCoverageTotal / Math.max(1, activeCellCount),
       overviewHidden: false
     });
     if (telemetry.triangleCount > plan.maximumActiveTriangles) {

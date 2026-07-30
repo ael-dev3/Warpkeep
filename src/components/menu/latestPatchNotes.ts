@@ -6,6 +6,20 @@ export type LatestPatchNotes = Readonly<{
   alphaNotice: string;
 }>;
 
+const ALPHA_0_3_26_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: '30 JUL 2026',
+  title: 'THE NORTHERN REACH',
+  summary:
+    'Beyond the founding heartland, winter now gathers across the northern outer Lowlands and deepens toward the rim.',
+  highlights: Object.freeze([
+    'A broad, irregular frost transition preserves the familiar central Lowlands before giving way to deeper northern snow.',
+    'Grass becomes shorter and sparser through the snowline, while woodland carries a restrained dusting on exposed upper growth.',
+    'The winter frontier is presentation only: terrain topology, movement, Water, Workers, resources, routes, and world authority remain unchanged.'
+  ]),
+  alphaNotice:
+    'Alpha 0.3.26 remains an unfinished, evolving world. The Northern Reach is a static visual climate treatment, not a new terrain rule, season, weather system, or gameplay modifier.'
+});
+
 const ALPHA_0_3_25_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '29 JUL 2026',
   title: 'THE LIVING REALM',
@@ -120,6 +134,7 @@ const ALPHA_0_3_22_PATCH_NOTES: LatestPatchNotes = Object.freeze({
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
+    '0.3.26': ALPHA_0_3_26_PATCH_NOTES,
     '0.3.25': ALPHA_0_3_25_PATCH_NOTES,
     '0.3.24': ALPHA_0_3_24_PATCH_NOTES,
     '0.3.23': ALPHA_0_3_23_PATCH_NOTES,

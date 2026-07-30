@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 
+import { REALM_PREVAILING_WIND } from '../../game/map/realmPrevailingWind';
+
 export const REALM_GRASS_THREE_SHADER_CONTRACT = 'three-r185';
 export const REALM_GRASS_SHADER_CACHE_KEY = `warpkeep-procedural-grass-v2-natural-gust-v6-bounded-tips-${REALM_GRASS_THREE_SHADER_CONTRACT}`;
 export const REALM_GRASS_MAX_WIND_SWAY = 0.075;
@@ -170,7 +172,12 @@ export function createRealmGrassMaterial(
 ): RealmGrassMaterial {
   const uniforms: RealmGrassUniforms = Object.freeze({
     uGrassTime: { value: 0 },
-    uGrassWindDirection: { value: new THREE.Vector2(0.78, 0.62).normalize() },
+    uGrassWindDirection: {
+      value: new THREE.Vector2(
+        REALM_PREVAILING_WIND.x,
+        REALM_PREVAILING_WIND.z
+      )
+    },
     uGrassWindStrength: {
       value: Math.max(0, Number.isFinite(windStrength) ? windStrength : 1)
     },

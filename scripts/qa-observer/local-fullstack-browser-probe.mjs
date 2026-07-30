@@ -1111,6 +1111,7 @@ async function exerciseRestoredEntryAgreementContinuity(session) {
           );
           return candidate instanceof HTMLButtonElement
             && !candidate.disabled
+            && candidate.closest('[inert]') === null
             && visible(candidate)
             ? candidate
             : undefined;
@@ -1298,6 +1299,7 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
         );
         return candidate instanceof HTMLButtonElement
           && !candidate.disabled
+          && candidate.closest('[inert]') === null
           && visible(candidate)
           ? candidate
           : undefined;
@@ -2869,8 +2871,8 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
 async function exerciseHardReloadWorkerContinuity(session) {
   const result = await session.command('Runtime.evaluate', {
     expression: `(async () => {
-      const deadline = performance.now() + 30_000;
-      const waitFor = async (predicate) => {
+      const waitFor = async (predicate, timeoutMilliseconds = 30_000) => {
+        const deadline = performance.now() + timeoutMilliseconds;
         while (performance.now() <= deadline) {
           try {
             const value = predicate();
@@ -2894,6 +2896,7 @@ async function exerciseHardReloadWorkerContinuity(session) {
           && Number(style.opacity || '1') > 0
           && bounds.width > 0
           && bounds.height > 0
+          && candidate.closest('[inert]') === null
           ? candidate
           : undefined;
       });
@@ -2901,23 +2904,15 @@ async function exerciseHardReloadWorkerContinuity(session) {
         return { stage: 'hard-reload-menu' };
       }
       enterMenu.click();
-      const dialog = await waitFor(() => document.querySelector(
-        '[role="dialog"][aria-modal="true"]'
-      ));
-      const checkbox = dialog?.querySelector('input[type="checkbox"]');
-      const continueButton = dialog instanceof HTMLElement
-        ? [...dialog.querySelectorAll('button')].find((button) => (
-            /^CONTINUE TO /.test((button.textContent ?? '').trim())
-          ))
-        : undefined;
-      if (
-        !(checkbox instanceof HTMLInputElement)
-        || !(continueButton instanceof HTMLButtonElement)
-      ) return { stage: 'hard-reload-terms' };
-      checkbox.click();
-      if (continueButton.disabled) return { stage: 'hard-reload-terms-control' };
-      continueButton.click();
+      let repeatedTermsVisible = false;
       const probe = await waitFor(() => {
+        const repeatedTerms = document.querySelector(
+          '[role="dialog"][aria-modal="true"]'
+        );
+        if (repeatedTerms instanceof HTMLElement) {
+          repeatedTermsVisible = true;
+          return repeatedTerms;
+        }
         const candidate = document.querySelector(
           '[data-local-fullstack-backend]'
         );
@@ -2935,8 +2930,34 @@ async function exerciseHardReloadWorkerContinuity(session) {
           ) === 'true'
         ) ? candidate : undefined;
       });
+      if (repeatedTermsVisible) {
+        return { stage: 'hard-reload-repeated-terms' };
+      }
       if (!(probe instanceof HTMLOutputElement)) {
-        return { stage: 'hard-reload-authority' };
+        const candidate = document.querySelector(
+          '[data-local-fullstack-backend]'
+        );
+        return {
+          stage: 'hard-reload-authority',
+          authPhase: candidate?.getAttribute(
+            'data-local-fullstack-auth'
+          ) ?? 'missing',
+          backendPhase: candidate?.getAttribute(
+            'data-local-fullstack-backend'
+          ) ?? 'missing',
+          agreementSatisfied: candidate?.getAttribute(
+            'data-local-fullstack-entry-agreement-satisfied'
+          ) ?? 'missing',
+          workerPrivateSync: candidate?.getAttribute(
+            'data-local-fullstack-worker-private-sync'
+          ) ?? 'missing'
+        };
+      }
+      await new Promise((resolve) => (
+        requestAnimationFrame(() => requestAnimationFrame(resolve))
+      ));
+      if (document.querySelector('[role="dialog"][aria-modal="true"]')) {
+        return { stage: 'hard-reload-late-terms' };
       }
       const publicRevisions = probe.getAttribute(
         'data-local-fullstack-public-assignment-revisions'
@@ -2967,6 +2988,7 @@ async function exerciseHardReloadWorkerContinuity(session) {
         stage: 'hard-reload-worker-continuity-complete',
         exactCastleCount: 7,
         exactWorkerCount: 28,
+        termsSkipped: true,
         storedBalanceRetained: true,
         pendingBalanceRetained: true,
         tokenAbsent: !/(?:LOCAL_QA_CHANNEL_NOT_A_REAL_PROOF|LOCAL_QA_SYNTHETIC_MESSAGE|eyJ[A-Za-z0-9_-]{20,}\\.)/.test(html),
@@ -2985,6 +3007,7 @@ async function exerciseHardReloadWorkerContinuity(session) {
     || value.stage !== 'hard-reload-worker-continuity-complete'
     || value.exactCastleCount !== 7
     || value.exactWorkerCount !== 28
+    || value.termsSkipped !== true
     || value.storedBalanceRetained !== true
     || value.pendingBalanceRetained !== true
     || value.tokenAbsent !== true
@@ -2994,8 +3017,22 @@ async function exerciseHardReloadWorkerContinuity(session) {
       && /^[a-z0-9-]{1,64}$/.test(value.stage)
       ? value.stage
       : 'unknown';
+    const safeAuthorityState = safeStage === 'hard-reload-authority'
+      ? ` (${[
+          value?.authPhase,
+          value?.backendPhase,
+          value?.agreementSatisfied,
+          value?.workerPrivateSync
+        ].map((entry) => (
+          typeof entry === 'string' && /^[a-z-]{1,32}$/.test(entry)
+            ? entry
+            : 'invalid'
+        )).join('/')})`
+      : '';
     throw new LocalFullstackBrowserError(
-      `Disposable hard-reload Worker continuity failed at ${safeStage}.`
+      `Disposable hard-reload Worker continuity failed at ${safeStage}${
+        safeAuthorityState
+      }.`
     );
   }
   return Object.freeze({ ...value });
@@ -3189,6 +3226,7 @@ async function exercisePersistentWorkerReentry(session, preparedEvidence) {
         );
         return candidate instanceof HTMLButtonElement
           && !candidate.disabled
+          && candidate.closest('[inert]') === null
           && visible(candidate)
           ? candidate
           : undefined;
@@ -4447,6 +4485,7 @@ async function exerciseWorkerPrivateSeamMatrix(session) {
         );
         return candidate instanceof HTMLButtonElement
           && !candidate.disabled
+          && candidate.closest('[inert]') === null
           && visible(candidate)
           ? candidate
           : undefined;
@@ -5385,6 +5424,7 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
       || preparedSeedAttestation.legacyOccupations !== 0
       || preparedSeedAttestation.legacySchedules !== 0
     ) throw new Error('Disposable prepared Worker seed was invalid.');
+    probeStage = 'setup-browser-profile';
     chromeProfile = join(runtimeRoot, 'chrome-setup');
     await mkdir(chromeProfile, { mode: 0o700 });
     probeStage = 'setup-browser-launch';
@@ -5416,6 +5456,27 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
       devtools,
       'persistent-worker-reentry'
     );
+    const hardReloadUrl =
+      `${viteOrigin}${FULLSTACK_ROUTE}${RESTORED_CURRENT_AGREEMENT_SEARCH}#menu`;
+    probeStage = 'persistent-worker-hard-reload-restore-seam';
+    const hardReloadSeam = await devtools.command('Runtime.evaluate', {
+      expression: `(() => {
+        const nextUrl = ${JSON.stringify(
+          `${FULLSTACK_ROUTE}${RESTORED_CURRENT_AGREEMENT_SEARCH}#menu`
+        )};
+        history.replaceState(null, '', nextUrl);
+        return location.href;
+      })()`,
+      returnByValue: true,
+    });
+    if (
+      hardReloadSeam?.exceptionDetails
+      || hardReloadSeam?.result?.value !== hardReloadUrl
+    ) {
+      throw new Error(
+        'The persistent Worker reload did not establish its retained-session seam.'
+      );
+    }
     probeStage = 'persistent-worker-hard-reload-navigation';
     await devtools.command('Page.reload', { ignoreCache: true });
     // Page.reload acknowledges the navigation request before the replacement

@@ -17,7 +17,7 @@ function paethPredictor(left, above, upperLeft) {
  * command. Pixels stay in memory for the duration of this call and are reduced
  * immediately to non-identifying aggregate colour evidence.
  */
-export function analyzeRenderedWebglPngScreenshot(value, viewport) {
+export function analyzeRenderedWebglPngScreenshot(value, viewport, options = {}) {
   if (!Buffer.isBuffer(value) || value.byteLength < 64 || value.byteLength > SCREENSHOT_MAXIMUM_BYTES) {
     throw new TypeError('Invalid rendered WebGL screenshot.');
   }
@@ -33,6 +33,13 @@ export function analyzeRenderedWebglPngScreenshot(value, viewport) {
     || viewport.width > 1_920
     || viewport.height > 1_080
   ) throw new TypeError('Invalid rendered WebGL screenshot viewport.');
+  const minimumDistinctColourBuckets =
+    options.minimumDistinctColourBuckets ?? 8;
+  if (
+    !Number.isSafeInteger(minimumDistinctColourBuckets)
+    || minimumDistinctColourBuckets < 4
+    || minimumDistinctColourBuckets > 8
+  ) throw new TypeError('Invalid rendered WebGL screenshot analysis policy.');
 
   let cursor = 8;
   let chunkCount = 0;
@@ -132,10 +139,22 @@ export function analyzeRenderedWebglPngScreenshot(value, viewport) {
   const saturationSamples = [];
   let clippedBlackSamples = 0;
   let clippedWhiteSamples = 0;
-  for (let yStep = 1; yStep <= 9; yStep += 1) {
-    const y = Math.floor(header.height * (0.16 + (0.68 * yStep) / 10));
-    for (let xStep = 1; xStep <= 13; xStep += 1) {
-      const x = Math.floor(header.width * (0.12 + (0.76 * xStep) / 14));
+  let coolHighAlbedoSamples = 0;
+  // Preserve only anonymous colour mass in coarse screen regions. The middle
+  // bucket can prove that a selected Northern target, rather than an unrelated
+  // cool pixel elsewhere in the frame, is actually being presented.
+  const coolSpatialBuckets = Array.from({ length: 9 }, () => 0);
+  let hotYellowSamples = 0;
+  const sampleRows = 21;
+  const sampleColumns = 31;
+  for (let yStep = 1; yStep <= sampleRows; yStep += 1) {
+    const y = Math.floor(
+      header.height * (0.16 + (0.68 * yStep) / (sampleRows + 1))
+    );
+    for (let xStep = 1; xStep <= sampleColumns; xStep += 1) {
+      const x = Math.floor(
+        header.width * (0.12 + (0.76 * xStep) / (sampleColumns + 1))
+      );
       const offset = y * stride + x * bytesPerPixel;
       const red = pixels[offset];
       const green = pixels[offset + 1];
@@ -156,6 +175,24 @@ export function analyzeRenderedWebglPngScreenshot(value, viewport) {
       saturationSamples.push(saturationBasisPoints);
       if (maximumChannel <= 2) clippedBlackSamples += 1;
       if (minimumChannel >= 253) clippedWhiteSamples += 1;
+      if (
+        luminance >= 150
+        && minimumChannel >= 125
+        && chroma <= 45
+        && green >= red - 5
+        && blue >= red - 12
+      ) {
+        coolHighAlbedoSamples += 1;
+        const bucket = Math.min(
+          2,
+          Math.floor(((yStep - 1) * 3) / sampleRows)
+        ) * 3 + Math.min(
+          2,
+          Math.floor(((xStep - 1) * 3) / sampleColumns)
+        );
+        coolSpatialBuckets[bucket] += 1;
+      }
+      if (red >= 245 && green >= 205 && blue <= 55) hotYellowSamples += 1;
       if (alpha >= 250) opaqueSamples += 1;
       sampleCount += 1;
     }
@@ -177,6 +214,9 @@ export function analyzeRenderedWebglPngScreenshot(value, viewport) {
     saturationP95BasisPoints: saturationSamples[saturationP95Index] ?? 0,
     clippedBlackSamples,
     clippedWhiteSamples,
+    coolHighAlbedoSamples,
+    coolSpatialBuckets: Object.freeze(coolSpatialBuckets),
+    hotYellowSamples,
     opaqueSamples,
     sampleCount,
   });
@@ -185,7 +225,7 @@ export function analyzeRenderedWebglPngScreenshot(value, viewport) {
   if (
     result.sampleCount < 100
     || result.opaqueSamples !== result.sampleCount
-    || result.distinctColourBuckets < 8
+    || result.distinctColourBuckets < minimumDistinctColourBuckets
     || result.luminanceRange < 28
   ) throw new TypeError('Rendered WebGL screenshot did not contain credible visual output.');
   return result;

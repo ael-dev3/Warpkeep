@@ -3,10 +3,12 @@ import { createServer as createHttpServer } from 'node:http';
 import {
   chmod,
   lstat,
+  mkdir,
   mkdtemp,
   readFile,
   realpath,
   rm,
+  writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
@@ -35,6 +37,11 @@ export {
 // screenshot reducer in a leaf module rather than letting it import this CLI
 // module while this module's top-level await is still evaluating.
 export { analyzeRenderedWebglPngScreenshot };
+export {
+  applyNorthernReachRenderedEvidence,
+  assertNorthernReachRenderedVisual,
+  parseNorthernReachRenderedEvidence,
+} from './northern-reach-rendered-evidence.mjs';
 
 export const RENDERED_WEBGL_QA_CHROME =
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
@@ -52,7 +59,11 @@ const CDP_PIPE_MAXIMUM_INBOUND_BYTES = 16 * 1_024 * 1_024;
 const CDP_PIPE_MAXIMUM_PENDING_COMMANDS = 1_024;
 const PRESENTATION_SETTLE_TIMEOUT_MILLISECONDS = 5_000;
 const SCREENSHOT_MAXIMUM_BYTES = 8 * 1_024 * 1_024;
-const TERMINATION_GRACE_MILLISECONDS = 2_000;
+const TERMINATION_GRACE_MILLISECONDS = 5_000;
+// Chrome's detached helpers can take longer than the signal grace to disappear
+// from the process table on a memory-constrained QA host. Verification remains
+// bounded and fail-closed, but does not mistake delayed reaping for a leak.
+const TERMINATION_VERIFICATION_MILLISECONDS = 15_000;
 const CODESIGN_TIMEOUT_MILLISECONDS = 15_000;
 const CODESIGN_MAXIMUM_BYTES = 64 * 1_024;
 const CONTROLLED_RENDERER_MAXIMUM_STALE_DELETE_WARNINGS = 256;
@@ -63,6 +74,10 @@ const CONTROLLED_RENDERER_WARNING_THROTTLE =
 const LOCAL_DIAGNOSTIC_CAUSE_LIMIT = 6;
 const LOCAL_DIAGNOSTIC_MESSAGE_LIMIT = 320;
 const LOCAL_DIAGNOSTIC_OUTPUT_LIMIT = 1_280;
+const NORTHERN_REACH_REDUCED_MOTION_HOST_WAIT_MILLISECONDS = 480;
+const NORTHERN_REACH_REDUCED_MOTION_EVIDENCE_TOLERANCE = 0.000_001;
+const NORTHERN_REACH_REDUCED_MOTION_COOL_SAMPLE_TOLERANCE = 2;
+const NORTHERN_REACH_REDUCED_MOTION_BUCKET_TOLERANCE = 1;
 
 const DESKTOP_VIEWPORT = Object.freeze({ width: 1_440, height: 900 });
 const FULL_HD_VIEWPORT = Object.freeze({ width: 1_920, height: 1_080 });
@@ -130,6 +145,8 @@ export function formatRenderedWebglLocalDiagnostic(value) {
 const RENDERED_WEBGL_WORKER_LOCOMOTION_CASE_SPECS = Object.freeze([
   Object.freeze({
     id: 'full-hd-high-worker-locomotion',
+    fixture: 'worker-locomotion',
+    northern: false,
     quality: 'high',
     viewport: FULL_HD_VIEWPORT,
     reducedMotion: false,
@@ -137,11 +154,17 @@ const RENDERED_WEBGL_WORKER_LOCOMOTION_CASE_SPECS = Object.freeze([
     assetPath:
       '/models/hegemony/hegemony-supply-wagon-high-4a0f762b9dadeadd.glb',
     animatedCount: 3,
+    gatheringIdleCount: 1,
+    modelCount: 3,
+    movingCount: 2,
+    maximumVisibleProjectionCount: 2,
     wheelDrivenCount: 3,
     minimumLabelCount: 4,
   }),
   Object.freeze({
     id: 'desktop-balanced-worker-locomotion',
+    fixture: 'worker-locomotion',
+    northern: false,
     quality: 'balanced',
     viewport: DESKTOP_VIEWPORT,
     reducedMotion: false,
@@ -149,11 +172,17 @@ const RENDERED_WEBGL_WORKER_LOCOMOTION_CASE_SPECS = Object.freeze([
     assetPath:
       '/models/hegemony/hegemony-supply-wagon-balanced-af0f8788eaaf9a32.glb',
     animatedCount: 3,
+    gatheringIdleCount: 1,
+    modelCount: 3,
+    movingCount: 2,
+    maximumVisibleProjectionCount: 2,
     wheelDrivenCount: 3,
     minimumLabelCount: 4,
   }),
   Object.freeze({
     id: 'short-landscape-reduced-worker-locomotion',
+    fixture: 'worker-locomotion',
+    northern: false,
     quality: 'reduced',
     viewport: SHORT_LANDSCAPE_VIEWPORT,
     reducedMotion: false,
@@ -161,11 +190,17 @@ const RENDERED_WEBGL_WORKER_LOCOMOTION_CASE_SPECS = Object.freeze([
     assetPath:
       '/models/hegemony/hegemony-supply-wagon-compact-fefb5105b95d43b4.glb',
     animatedCount: 0,
+    gatheringIdleCount: 1,
+    modelCount: 3,
+    movingCount: 2,
+    maximumVisibleProjectionCount: 2,
     wheelDrivenCount: 3,
     minimumLabelCount: 1,
   }),
   Object.freeze({
     id: 'mobile-reduced-motion-worker-locomotion',
+    fixture: 'worker-locomotion',
+    northern: false,
     quality: 'reduced',
     viewport: MOBILE_VIEWPORT,
     reducedMotion: true,
@@ -173,14 +208,36 @@ const RENDERED_WEBGL_WORKER_LOCOMOTION_CASE_SPECS = Object.freeze([
     assetPath:
       '/models/hegemony/hegemony-supply-wagon-compact-fefb5105b95d43b4.glb',
     animatedCount: 0,
+    gatheringIdleCount: 1,
+    modelCount: 3,
+    movingCount: 2,
+    maximumVisibleProjectionCount: 2,
     wheelDrivenCount: 0,
+    minimumLabelCount: 4,
+  }),
+  Object.freeze({
+    id: 'desktop-balanced-northern-worker-locomotion',
+    fixture: 'worker-locomotion-northern',
+    northern: true,
+    quality: 'balanced',
+    viewport: DESKTOP_VIEWPORT,
+    reducedMotion: false,
+    assetProfile: 'balanced',
+    assetPath:
+      '/models/hegemony/hegemony-supply-wagon-balanced-af0f8788eaaf9a32.glb',
+    animatedCount: 4,
+    gatheringIdleCount: 1,
+    modelCount: 4,
+    movingCount: 3,
+    maximumVisibleProjectionCount: 3,
+    wheelDrivenCount: 4,
     minimumLabelCount: 4,
   }),
 ]);
 const RENDERED_WEBGL_WORKER_LOCOMOTION_CASE_SPEC_BY_ID = new Map(
   RENDERED_WEBGL_WORKER_LOCOMOTION_CASE_SPECS.map((spec) => [spec.id, spec])
 );
-export const RENDERED_WEBGL_QA_CASE_COUNT = 14;
+export const RENDERED_WEBGL_QA_CASE_COUNT = 15;
 export const RENDERED_WEBGL_QA_OCCUPANCY_STRESS_COUNT = 312;
 export const RENDERED_WEBGL_QA_OCCUPANCY_STRESS_MAXIMUM_PRESENCES = 400;
 export const RENDERED_WEBGL_QA_OCCUPANCY_STRESS_MAXIMUM_CONTROLS = 24;
@@ -270,7 +327,7 @@ export function renderedWebglWorkerLocomotionProbeCases(port) {
       maximumLabelOverflowCount: 0,
       minimumLabelCount: spec.minimumLabelCount,
       url: renderedWebglQaUrl({
-        fixture: 'worker-locomotion',
+        fixture: spec.fixture,
         mode: 'player',
         port: selectedPort,
         quality: spec.quality,
@@ -281,10 +338,15 @@ export function renderedWebglWorkerLocomotionProbeCases(port) {
         assetPath: spec.assetPath,
         expectedAnimatedCount: spec.animatedCount,
         expectedFallbackCount: 0,
-        expectedModelCount: RENDERED_WEBGL_WORKER_LOCOMOTION_MODEL_COUNT,
+        expectedGatheringIdleCount: spec.gatheringIdleCount,
+        expectedModelCount: spec.modelCount,
+        expectedMovingCount: spec.movingCount,
         minimumVisibleProjectionCount:
           RENDERED_WEBGL_WORKER_LOCOMOTION_MINIMUM_VISIBLE_PROJECTION_COUNT,
+        maximumVisibleProjectionCount: spec.maximumVisibleProjectionCount,
         expectedWheelDrivenCount: spec.wheelDrivenCount,
+        fixtureVariant: spec.fixture,
+        northern: spec.northern,
         reducedMotion: spec.reducedMotion,
       }),
     })
@@ -327,6 +389,13 @@ const RENDERED_WEBGL_QA_QUALITY_METRIC_CASE_IDS = new Set([
   'desktop-high',
   'desktop-balanced',
   'desktop-reduced',
+]);
+const RENDERED_WEBGL_QA_NORTHERN_REACH_CASE_IDS = new Set([
+  'desktop-high',
+  'desktop-balanced',
+  'desktop-reduced',
+  'mobile-balanced',
+  'short-landscape-balanced-northern',
 ]);
 const RENDERED_WEBGL_QA_ACTIVE_FOREST_WHEEL_STEPS = 5;
 const RENDERED_WEBGL_QA_ACTIVE_FOREST_WHEEL_DELTA = -250;
@@ -703,6 +772,24 @@ export function renderedWebglBrowserProbeCases(port) {
       minimumLabelCount: 1,
       url: renderedWebglQaUrl({
         mode: 'player',
+        port: selectedPort,
+        quality: 'balanced'
+      }),
+      viewport: SHORT_LANDSCAPE_VIEWPORT,
+    }),
+    // Prove the fixed northern journey from the constrained observer
+    // landscape. The adjacent player case already owns the portrait-menu
+    // contract; keeping the reviewed navigator visible here makes the
+    // geographic selection a real accessible interaction rather than a
+    // programmatic click on hidden player chrome.
+    Object.freeze({
+      id: 'short-landscape-balanced-northern',
+      expectedPresentationMode: 'observer',
+      expectedQuality: 'balanced',
+      interaction: 'explore',
+      maximumLabelOverflowCount: 0,
+      minimumLabelCount: 1,
+      url: renderedWebglQaUrl({
         port: selectedPort,
         quality: 'balanced'
       }),
@@ -1359,11 +1446,13 @@ function parseRenderedWebglWorkerLocomotionTelemetry(value, spec) {
     'renderedClipTurnRightCount',
     'renderedClipWalkCount',
   ].reduce((total, key) => total + candidate[key], 0);
-  const expectedRenderedIdleCount = spec.animatedCount > 0 ? 1 : 0;
-  const expectedRenderedWalkCount = spec.animatedCount > 0 ? 2 : 0;
+  const expectedRenderedIdleCount =
+    spec.animatedCount > 0 ? spec.gatheringIdleCount : 0;
+  const expectedRenderedWalkCount =
+    spec.animatedCount > 0 ? spec.movingCount : 0;
   if (
-    candidate.clipIdleCount !== 1
-    || candidate.gatheringIdleCount !== 1
+    candidate.clipIdleCount !== spec.gatheringIdleCount
+    || candidate.gatheringIdleCount !== spec.gatheringIdleCount
     || candidate.renderedClipIdleCount !== expectedRenderedIdleCount
     || candidate.renderedClipStartCount !== 0
     || candidate.renderedClipStopCount !== 0
@@ -1372,12 +1461,12 @@ function parseRenderedWebglWorkerLocomotionTelemetry(value, spec) {
     || candidate.renderedClipWalkCount !== expectedRenderedWalkCount
     || renderedClipCount !== spec.animatedCount
     || candidate.maximumSpeed <= 0
-    || candidate.movingCount !== 2
+    || candidate.movingCount !== spec.movingCount
     || candidate.oneShotOverrunCount !== 0
     || candidate.wheelDistanceMismatchCount !== 0
     || candidate.wheelDrivenCount !== spec.wheelDrivenCount
-    || clipCount !== RENDERED_WEBGL_WORKER_LOCOMOTION_MODEL_COUNT
-    || phaseCount !== RENDERED_WEBGL_WORKER_LOCOMOTION_MODEL_COUNT
+    || clipCount !== spec.modelCount
+    || phaseCount !== spec.modelCount
   ) {
     throw new TypeError('Invalid rendered WebGL Worker locomotion telemetry contract.');
   }
@@ -1394,7 +1483,7 @@ function parseRenderedWebglWorkerLocomotionTelemetry(value, spec) {
  * projections contain only phase plus bounded viewport coordinates; Worker
  * IDs, castle identities, routes, world coordinates, and asset URLs never
  * cross CDP. Every post-integration field is mandatory and the case metadata
- * binds the evidence to one member of the reviewed four-case real-asset matrix.
+ * binds the evidence to one member of the reviewed five-case real-asset matrix.
  */
 export function parseRenderedWebglWorkerLocomotionEvidence(value) {
   const candidate = exactRecord(
@@ -1431,7 +1520,7 @@ export function parseRenderedWebglWorkerLocomotionEvidence(value) {
     || candidate.assetProfile !== spec.assetProfile
     || candidate.fallbackCount !== 0
     || candidate.fixtureSelected !== true
-    || candidate.modelCount !== RENDERED_WEBGL_WORKER_LOCOMOTION_MODEL_COUNT
+    || candidate.modelCount !== spec.modelCount
     || candidate.presentedCount !== RENDERED_WEBGL_WORKER_LOCOMOTION_PRESENTED_COUNT
     || candidate.quality !== spec.quality
     || candidate.readinessSatisfied !== true
@@ -1442,7 +1531,7 @@ export function parseRenderedWebglWorkerLocomotionEvidence(value) {
     || !Number.isSafeInteger(candidate.visibleProjectionCount)
     || candidate.visibleProjectionCount
       < RENDERED_WEBGL_WORKER_LOCOMOTION_MINIMUM_VISIBLE_PROJECTION_COUNT
-    || candidate.visibleProjectionCount > 2
+    || candidate.visibleProjectionCount > spec.maximumVisibleProjectionCount
     || candidate.wheelDrivenCount !== spec.wheelDrivenCount
     || !Array.isArray(candidate.samples)
     || candidate.samples.length !== 32
@@ -3011,7 +3100,7 @@ export async function terminateHeadlessChromeProcessGroup(child, options = {}) {
   const terminate = options.terminateProcessGroup ?? terminateProcessGroup;
   const wait = options.wait ?? delay;
   const verificationMilliseconds = options.verificationMilliseconds
-    ?? TERMINATION_GRACE_MILLISECONDS;
+    ?? TERMINATION_VERIFICATION_MILLISECONDS;
   const verificationPollMilliseconds = options.verificationPollMilliseconds
     ?? 50;
   if (
@@ -3050,6 +3139,10 @@ export async function terminateHeadlessChromeProcessGroup(child, options = {}) {
       break;
     } catch (error) {
       if (Date.now() >= verificationDeadline) throw error;
+      // A Chrome helper can fork between the first group-wide SIGKILL and the
+      // leader being reaped. Keep sweeping the original private process group
+      // while verification is bounded instead of merely polling a late helper.
+      terminate(child, 'SIGKILL');
       await wait(Math.min(
         verificationPollMilliseconds,
         Math.max(1, verificationDeadline - Date.now()),
@@ -4079,7 +4172,7 @@ async function waitForAcceptedActiveForestDom(session, expected, state) {
   );
 }
 
-async function captureRenderedCasePixels(session, viewport) {
+async function captureRenderedCasePixels(session, viewport, analysisOptions) {
   const result = await session.command('Page.captureScreenshot', {
     captureBeyondViewport: false,
     format: 'png',
@@ -4092,10 +4185,286 @@ async function captureRenderedCasePixels(session, viewport) {
   ) throw new Error('Headless browser screenshot failed.');
   const screenshotBytes = Buffer.from(result.data, 'base64');
   try {
-    analyzeRenderedWebglPngScreenshot(screenshotBytes, viewport);
+    const artifactName = analysisOptions?.artifactName;
+    const artifactDirectory =
+      process.env.WARPKEEP_QA_NORTHERN_ARTIFACT_DIR;
+    if (artifactName !== undefined) {
+      if (
+        typeof artifactDirectory !== 'string'
+        || !isAbsolute(artifactDirectory)
+        || typeof artifactName !== 'string'
+        || !/^[a-z0-9-]+\.png$/u.test(artifactName)
+      ) {
+        throw new Error('Northern Reach review artifact boundary failed.');
+      }
+      const cacheRoot = await realpath(join(REPOSITORY_ROOT, '.cache'));
+      const destinationDirectory = resolve(artifactDirectory);
+      if (
+        destinationDirectory !== cacheRoot
+        && !destinationDirectory.startsWith(`${cacheRoot}/`)
+      ) throw new Error('Northern Reach review artifact boundary failed.');
+      await mkdir(destinationDirectory, { mode: 0o700, recursive: true });
+      const realDestinationDirectory = await realpath(destinationDirectory);
+      if (
+        realDestinationDirectory !== cacheRoot
+        && !realDestinationDirectory.startsWith(`${cacheRoot}/`)
+      ) throw new Error('Northern Reach review artifact boundary failed.');
+      await writeFile(
+        join(realDestinationDirectory, artifactName),
+        screenshotBytes,
+        { flag: 'wx', mode: 0o600 }
+      );
+    }
+    return analyzeRenderedWebglPngScreenshot(
+      screenshotBytes,
+      viewport,
+      {
+        minimumDistinctColourBuckets:
+          analysisOptions?.minimumDistinctColourBuckets
+      }
+    );
   } finally {
     screenshotBytes.fill(0);
   }
+}
+
+function parseNorthernReachStaticFrameSignature(value) {
+  const invalid = () => new TypeError(
+    'Invalid Northern Reach static-frame signature.'
+  );
+  const keys = [
+    'cameraMode',
+    'cameraPresentationBand',
+    'cameraStateToken',
+    'cameraTargetKind',
+    'canvasLastSuccessfulGeneration',
+    'canvasRendererGeneration',
+    'rendererGeneration',
+    'rendererLastSuccessfulGeneration',
+  ].sort();
+  const actualKeys = value && typeof value === 'object' && !Array.isArray(value)
+    ? Object.keys(value).sort()
+    : [];
+  if (
+    !value || typeof value !== 'object' || Array.isArray(value)
+    || actualKeys.length !== keys.length
+    || actualKeys.some((key, index) => key !== keys[index])
+    || !['realm', 'approach', 'keep'].includes(value.cameraMode)
+    || !['overview', 'strategy', 'close'].includes(
+      value.cameraPresentationBand
+    )
+    || !/^[0-9a-f]{24}$/u.test(value.cameraStateToken)
+    || value.cameraTargetKind !== 'cell-location'
+    || ![
+      value.canvasLastSuccessfulGeneration,
+      value.canvasRendererGeneration,
+      value.rendererGeneration,
+      value.rendererLastSuccessfulGeneration,
+    ].every((entry) => Number.isSafeInteger(entry) && entry > 0)
+    || value.rendererGeneration !== value.rendererLastSuccessfulGeneration
+    || value.rendererGeneration !== value.canvasRendererGeneration
+    || value.rendererGeneration !== value.canvasLastSuccessfulGeneration
+  ) throw invalid();
+  return Object.freeze({ ...value });
+}
+
+export async function readNorthernReachStaticFrameSignature(session) {
+  if (!session || typeof session.command !== 'function') {
+    throw new TypeError('Invalid Northern Reach static-frame session.');
+  }
+  const evaluation = await session.command('Runtime.evaluate', {
+    expression: `(() => {
+      const root=document.querySelector('.realm-map-screen');
+      const canvas=root?.querySelector('canvas[data-realm-canvas-active="true"]');
+      const integer=value=>typeof value==='string'&&/^[1-9]\\d*$/.test(value)
+        ?Number(value):null;
+      if(!(root instanceof HTMLElement)||!(canvas instanceof HTMLCanvasElement)
+        ||root.dataset.rendererState!=='ready'||root.dataset.rendererFailure!=='none'
+        ||canvas.dataset.realmCameraSettled!=='true')return null;
+      return {
+        cameraMode:root.dataset.realmCameraMode,
+        cameraPresentationBand:root.dataset.realmCameraPresentationBand,
+        cameraStateToken:canvas.dataset.realmCameraStateToken,
+        cameraTargetKind:root.dataset.realmCameraTargetKind,
+        canvasLastSuccessfulGeneration:integer(
+          canvas.dataset.realmLastSuccessfulRenderedGeneration),
+        canvasRendererGeneration:integer(canvas.dataset.realmRendererGeneration),
+        rendererGeneration:integer(root.dataset.rendererGeneration),
+        rendererLastSuccessfulGeneration:integer(
+          root.dataset.rendererLastSuccessfulGeneration)
+      };
+    })()`,
+    returnByValue: true,
+  });
+  if (evaluation?.exceptionDetails || evaluation?.result?.type !== 'object') {
+    throw new Error('Northern Reach static-frame observation failed.');
+  }
+  return parseNorthernReachStaticFrameSignature(evaluation.result.value);
+}
+
+function northernReachEvidenceArraysWithinTolerance(first, repeated) {
+  return Array.isArray(first)
+    && Array.isArray(repeated)
+    && first.length === repeated.length
+    && first.every((entry, index) => (
+      Number.isFinite(entry)
+      && Number.isFinite(repeated[index])
+      && Math.abs(entry - repeated[index])
+        <= NORTHERN_REACH_REDUCED_MOTION_EVIDENCE_TOLERANCE
+    ));
+}
+
+function northernReachReducedMotionVisualShapeValid(value) {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    && [
+      value.clippedBlackSamples,
+      value.clippedWhiteSamples,
+      value.coolHighAlbedoSamples,
+      value.hotYellowSamples,
+    ].every((entry) => Number.isSafeInteger(entry) && entry >= 0)
+    && value.clippedBlackSamples === 0
+    && value.clippedWhiteSamples === 0
+    && value.hotYellowSamples === 0
+    && Array.isArray(value.coolSpatialBuckets)
+    && value.coolSpatialBuckets.length === 9
+    && value.coolSpatialBuckets.every(
+      (entry) => Number.isSafeInteger(entry) && entry >= 0
+    )
+    && value.coolSpatialBuckets.reduce((sum, entry) => sum + entry, 0)
+      === value.coolHighAlbedoSamples;
+}
+
+/**
+ * Compares only anonymous screenshot aggregates and bounded scene telemetry.
+ * Reduced motion should keep the same fixed northern target visually stable;
+ * one quantized edge sample may move between neighbouring buckets, while
+ * material identity and the rendered snow field remain effectively exact.
+ */
+export function assertNorthernReachRepeatedReducedMotionEvidence(
+  first,
+  repeated
+) {
+  const invalid = () => new TypeError(
+    'Invalid Northern Reach repeated reduced-motion evidence.'
+  );
+  const firstEvidence = first?.evidence;
+  const repeatedEvidence = repeated?.evidence;
+  let firstSignature;
+  let repeatedSignature;
+  try {
+    firstSignature = parseNorthernReachStaticFrameSignature(first?.signature);
+    repeatedSignature = parseNorthernReachStaticFrameSignature(
+      repeated?.signature
+    );
+  } catch {
+    throw invalid();
+  }
+  const firstVisual = first?.visual;
+  const repeatedVisual = repeated?.visual;
+  const exactEvidenceFields = [
+    'band',
+    'quality',
+    'recovered',
+    'recoveryExercised',
+    'region',
+    'selected',
+    'stable',
+  ];
+  const exactVisualFields = [
+    'clippedBlackSamples',
+    'clippedWhiteSamples',
+    'hotYellowSamples',
+  ];
+  const exactEvidenceKeys = [
+    'band',
+    'coverage',
+    'material',
+    'quality',
+    'recovered',
+    'recoveryExercised',
+    'region',
+    'retained',
+    'selected',
+    'stable',
+    'vertices',
+  ].sort();
+  const firstEvidenceKeys = firstEvidence && typeof firstEvidence === 'object'
+    ? Object.keys(firstEvidence).sort()
+    : [];
+  const repeatedEvidenceKeys =
+    repeatedEvidence && typeof repeatedEvidence === 'object'
+      ? Object.keys(repeatedEvidence).sort()
+      : [];
+  if (
+    !first || typeof first !== 'object' || Array.isArray(first)
+    || !repeated || typeof repeated !== 'object' || Array.isArray(repeated)
+    || Object.keys(firstSignature).some(
+      (key) => firstSignature[key] !== repeatedSignature[key]
+    )
+    || !firstEvidence || typeof firstEvidence !== 'object'
+    || !repeatedEvidence || typeof repeatedEvidence !== 'object'
+    || firstEvidenceKeys.length !== exactEvidenceKeys.length
+    || repeatedEvidenceKeys.length !== exactEvidenceKeys.length
+    || exactEvidenceKeys.some((key, index) => (
+      firstEvidenceKeys[index] !== key || repeatedEvidenceKeys[index] !== key
+    ))
+    || firstEvidence.quality !== 'reduced'
+    || repeatedEvidence.quality !== 'reduced'
+    || firstEvidence.region !== 'deep' || repeatedEvidence.region !== 'deep'
+    || firstEvidence.band !== 'close' || repeatedEvidence.band !== 'close'
+    || firstEvidence.stable !== true || repeatedEvidence.stable !== true
+    || firstEvidence.selected !== true || repeatedEvidence.selected !== true
+    || firstEvidence.recovered !== false
+    || repeatedEvidence.recovered !== false
+    || firstEvidence.recoveryExercised !== false
+    || repeatedEvidence.recoveryExercised !== false
+    || exactEvidenceFields.some(
+      (key) => firstEvidence[key] !== repeatedEvidence[key]
+    )
+    || !Array.isArray(firstEvidence.material)
+    || !Array.isArray(repeatedEvidence.material)
+    || firstEvidence.material.length !== 4
+    || firstEvidence.material.length !== repeatedEvidence.material.length
+    || firstEvidence.material.some(
+      (entry, index) => entry !== repeatedEvidence.material[index]
+    )
+    || !northernReachEvidenceArraysWithinTolerance(
+      firstEvidence.coverage,
+      repeatedEvidence.coverage
+    )
+    || firstEvidence.coverage.length !== 6
+    || !northernReachEvidenceArraysWithinTolerance(
+      firstEvidence.retained,
+      repeatedEvidence.retained
+    )
+    || firstEvidence.retained.length !== 9
+    || !northernReachEvidenceArraysWithinTolerance(
+      firstEvidence.vertices,
+      repeatedEvidence.vertices
+    )
+    || firstEvidence.vertices.length !== 4
+    || !northernReachReducedMotionVisualShapeValid(firstVisual)
+    || !northernReachReducedMotionVisualShapeValid(repeatedVisual)
+    || exactVisualFields.some(
+      (key) => firstVisual[key] !== repeatedVisual[key]
+    )
+    || !Number.isSafeInteger(firstVisual.coolHighAlbedoSamples)
+    || !Number.isSafeInteger(repeatedVisual.coolHighAlbedoSamples)
+    || Math.abs(
+      firstVisual.coolHighAlbedoSamples
+        - repeatedVisual.coolHighAlbedoSamples
+    ) > NORTHERN_REACH_REDUCED_MOTION_COOL_SAMPLE_TOLERANCE
+    || !Array.isArray(firstVisual.coolSpatialBuckets)
+    || !Array.isArray(repeatedVisual.coolSpatialBuckets)
+    || firstVisual.coolSpatialBuckets.length !== 9
+    || repeatedVisual.coolSpatialBuckets.length !== 9
+    || firstVisual.coolSpatialBuckets.some((entry, index) => (
+      !Number.isSafeInteger(entry)
+      || !Number.isSafeInteger(repeatedVisual.coolSpatialBuckets[index])
+      || Math.abs(entry - repeatedVisual.coolSpatialBuckets[index])
+        > NORTHERN_REACH_REDUCED_MOTION_BUCKET_TOLERANCE
+    ))
+  ) throw invalid();
 }
 
 async function readRenderedWebglCastleCanvasPointerTarget(session) {
@@ -7249,11 +7618,16 @@ function workerLocomotionSpecForProbeCase(probeCase) {
     || expected?.assetPath !== spec.assetPath
     || expected?.expectedAnimatedCount !== spec.animatedCount
     || expected?.expectedFallbackCount !== 0
-    || expected?.expectedModelCount
-      !== RENDERED_WEBGL_WORKER_LOCOMOTION_MODEL_COUNT
+    || expected?.expectedGatheringIdleCount !== spec.gatheringIdleCount
+    || expected?.expectedModelCount !== spec.modelCount
+    || expected?.expectedMovingCount !== spec.movingCount
     || expected?.minimumVisibleProjectionCount
       !== RENDERED_WEBGL_WORKER_LOCOMOTION_MINIMUM_VISIBLE_PROJECTION_COUNT
+    || expected?.maximumVisibleProjectionCount
+      !== spec.maximumVisibleProjectionCount
     || expected?.expectedWheelDrivenCount !== spec.wheelDrivenCount
+    || expected?.fixtureVariant !== spec.fixture
+    || expected?.northern !== spec.northern
     || expected?.reducedMotion !== spec.reducedMotion
   ) {
     throw new TypeError('Invalid rendered WebGL Worker locomotion probe case.');
@@ -7272,7 +7646,10 @@ export async function applyRenderedWebglWorkerLocomotionInteraction(
     assetProfile: spec.assetProfile,
     caseId: spec.id,
     fallbackCount: 0,
-    modelCount: RENDERED_WEBGL_WORKER_LOCOMOTION_MODEL_COUNT,
+    fixture: spec.fixture,
+    modelCount: spec.modelCount,
+    movingCount: spec.movingCount,
+    northern: spec.northern,
     presentedCount: RENDERED_WEBGL_WORKER_LOCOMOTION_PRESENTED_COUNT,
     quality: spec.quality,
     reducedMotion: spec.reducedMotion,
@@ -7405,13 +7782,14 @@ export async function applyRenderedWebglWorkerLocomotionInteraction(
           return [];
         }
       };
-      const portraitRootProjections = () => [...document.querySelectorAll(
+      const portraitRootProjections = (ownedOnly = false) => [...document.querySelectorAll(
         '.realm-worker-presence-marker[data-projected-visible="true"]'
         + '[data-phase="outbound"],'
         + '.realm-worker-presence-marker[data-projected-visible="true"]'
         + '[data-phase="returning"]'
       )].flatMap((marker) => {
         if (!(marker instanceof HTMLElement)) return [];
+        if (ownedOnly && marker.dataset.ownedByViewer !== 'true') return [];
         const phase = marker.dataset.phase;
         if (phase !== 'outbound' && phase !== 'returning') return [];
         const style = getComputedStyle(marker);
@@ -7438,12 +7816,13 @@ export async function applyRenderedWebglWorkerLocomotionInteraction(
         ) ? [{ phase, x, y }] : [];
       }).sort((left, right) => left.phase.localeCompare(right.phase));
       const visibleRootProjections = () => {
+        if (expected.northern) return portraitRootProjections(true);
         const local = localQaRootProjections();
         return local.length > 0 ? local : portraitRootProjections();
       };
       const fixtureSelected = () => (
         overlay instanceof HTMLElement
-        && overlay.dataset.fixtureVariant === 'worker-locomotion'
+        && overlay.dataset.fixtureVariant === expected.fixture
         && overlay.dataset.presentationMode === 'player'
         && overlay.dataset.quality === expected.quality
       );
@@ -7556,6 +7935,7 @@ export async function applyRenderedWebglWorkerLocomotionInteraction(
       let samplingElapsedMilliseconds = 0;
       let stable = true;
       let phaseReadinessSatisfied = baseReadinessSatisfied;
+      let northernSelectionStable = !expected.northern;
       if (baseReadinessSatisfied) {
         for (const target of [
           { ordinal: 1, phase: 'outbound' },
@@ -7606,9 +7986,72 @@ export async function applyRenderedWebglWorkerLocomotionInteraction(
           );
         }
       }
+      if (phaseReadinessSatisfied && expected.northern) {
+        const beforeSelectionCameraToken = canvas?.getAttribute(
+          'data-realm-camera-state-token'
+        );
+        const returningMarker = document.querySelector(
+          '.realm-worker-presence-marker[data-projected-visible="true"]'
+          + '[data-owned-by-viewer="true"][data-phase="returning"]'
+        );
+        if (
+          typeof beforeSelectionCameraToken === 'string'
+          && returningMarker instanceof HTMLButtonElement
+        ) {
+          returningMarker.click();
+          const inspectionMounted = await waitFor(() => (
+            document.querySelector('.worker-inspection') instanceof HTMLElement
+          ));
+          const peerMarker = document.querySelector(
+            '.realm-worker-presence-marker[data-projected-visible="true"]'
+            + '[data-owned-by-viewer="false"][data-phase="returning"]'
+          );
+          if (
+            inspectionMounted
+            && peerMarker instanceof HTMLButtonElement
+            && peerMarker.tabIndex === 0
+          ) {
+            peerMarker.dispatchEvent(new PointerEvent('pointerover', {
+              bubbles: true,
+              pointerType: 'mouse'
+            }));
+          }
+          const selectedRouteReady = inspectionMounted && await waitFor(() => (
+            integerAttribute('data-realm-worker-selected-route-count') === 1
+            && integerAttribute('data-realm-worker-visible-route-count') === 3
+            && (integerAttribute(
+              'data-realm-worker-visible-route-segment-count'
+            ) ?? 0) > 0
+            && integerAttribute('data-realm-worker-route-draw-call-count') === 3
+            && integerAttribute('data-realm-worker-owned-route-count') === 1
+            && integerAttribute('data-realm-worker-peer-route-count') === 1
+            && (integerAttribute('data-realm-worker-route-triangle-count') ?? 0) > 0
+            && integerAttribute('data-realm-worker-rejected-route-count') === 0
+            && integerAttribute(
+              'data-realm-worker-genuine-invalid-route-count'
+            ) === 0
+            && integerAttribute(
+              'data-realm-worker-route-hidden-by-budget-count'
+            ) === 0
+            && integerAttribute(
+              'data-realm-worker-route-corridor-failure-count'
+            ) === 0
+          ), 5_000);
+          northernSelectionStable = selectedRouteReady
+            && cameraSettled()
+            && canvas.getAttribute('data-realm-camera-state-token')
+              === beforeSelectionCameraToken;
+          const dismiss = document.querySelector(
+            '.worker-inspection__dismiss[aria-label="Back to workers"]'
+          );
+          if (dismiss instanceof HTMLButtonElement) dismiss.click();
+          await waitFor(() => document.querySelector('.worker-inspection') === null, 2_000);
+        }
+      }
       const readinessSatisfied = (
         baseReadinessSatisfied
         && phaseReadinessSatisfied
+        && northernSelectionStable
         && samples.length === 32
       );
       const counts = presentationCounts();
@@ -7974,7 +8417,19 @@ async function runRenderedWorkerLocomotionCase(session, probeCase, state) {
     }
     throw error;
   }
-  await captureRenderedCasePixels(session, probeCase.viewport);
+  const finalVisual = await captureRenderedCasePixels(
+    session,
+    probeCase.viewport,
+    { minimumDistinctColourBuckets: 4 }
+  );
+  if (probeCase.workerLocomotion.northern === true) {
+    const northernReachProbe =
+      await import('./northern-reach-rendered-evidence.mjs');
+    northernReachProbe.assertNorthernReachRenderedVisual(
+      { region: 'deep' },
+      finalVisual
+    );
+  }
   if (state.violation) {
     throw new Error('Rendered WebGL Worker locomotion left the local QA boundary.');
   }
@@ -8057,7 +8512,13 @@ async function runRenderedActiveWorkerCase(session, probeCase, state) {
   }
 }
 
-async function runRenderedCase(session, probeCase, state, onQualityMetrics) {
+async function runRenderedCase(
+  session,
+  probeCase,
+  state,
+  onQualityMetrics,
+  northernReachProbe
+) {
   await session.command('Emulation.setDeviceMetricsOverride', {
     width: probeCase.viewport.width,
     height: probeCase.viewport.height,
@@ -8194,6 +8655,156 @@ async function runRenderedCase(session, probeCase, state, onQualityMetrics) {
     await waitForAcceptedRenderedDom(session, interacted, state);
     await captureRenderedCasePixels(session, probeCase.viewport);
   }
+  if (RENDERED_WEBGL_QA_NORTHERN_REACH_CASE_IDS.has(probeCase.id)) {
+    // The short lane intentionally opened Explore above. A full allowlisted
+    // reset proves the fixed journey starts without any sheet retaining focus,
+    // safe-area space, or stale map state.
+    await navigateRenderedWebglCase(session, 'about:blank', state);
+    await navigateRenderedWebglCase(session, probeCase.url, state);
+    await waitForAcceptedRenderedDom(session, baseline, state);
+    const northernRegions = probeCase.id === 'short-landscape-balanced-northern'
+      ? ['overview', 'transition']
+      : ['overview', 'transition', 'deep'];
+    for (const region of northernRegions) {
+      try {
+        const recover = probeCase.id === 'desktop-balanced' && region === 'deep';
+        if (recover) {
+          state.controlledRendererRecovery = true;
+          state.controlledRendererWarningCount = 0;
+          state.controlledRendererWarningThrottleSeen = false;
+        }
+        let evidence;
+        try {
+          evidence = await northernReachProbe.applyNorthernReachRenderedEvidence(
+            session,
+            {
+              quality: probeCase.expectedQuality,
+              recover,
+              region,
+              viewport: probeCase.viewport
+            }
+          );
+          if (recover) await delay(100);
+        } finally {
+          if (recover) state.controlledRendererRecovery = false;
+        }
+        if (region === 'transition' && evidence.band !== 'strategy') {
+          throw new Error(
+            'Northern Reach transition did not settle at the strategy band.'
+          );
+        }
+        if (probeCase.id === 'desktop-reduced' && region === 'deep') {
+          // Both pauses are host timers, outside the observed page. This keeps
+          // the repeated frame proof independent of page-controlled clocks.
+          await delay(NORTHERN_REACH_REDUCED_MOTION_HOST_WAIT_MILLISECONDS);
+          const firstSignature = await readNorthernReachStaticFrameSignature(
+            session
+          );
+          const firstVisual = await captureRenderedCasePixels(
+            session,
+            probeCase.viewport,
+            {
+              artifactName:
+                process.env.WARPKEEP_QA_NORTHERN_ARTIFACT_DIR
+                  ? `${probeCase.id}-${region}-first.png`
+                  : undefined,
+              minimumDistinctColourBuckets: 4
+            }
+          );
+          northernReachProbe.assertNorthernReachRenderedVisual(
+            evidence,
+            firstVisual
+          );
+          await delay(NORTHERN_REACH_REDUCED_MOTION_HOST_WAIT_MILLISECONDS);
+          const repeatedSignature = await readNorthernReachStaticFrameSignature(
+            session
+          );
+          const repeatedVisual = await captureRenderedCasePixels(
+            session,
+            probeCase.viewport,
+            {
+              artifactName:
+                process.env.WARPKEEP_QA_NORTHERN_ARTIFACT_DIR
+                  ? `${probeCase.id}-${region}-repeated.png`
+                  : undefined,
+              minimumDistinctColourBuckets: 4
+            }
+          );
+          northernReachProbe.assertNorthernReachRenderedVisual(
+            evidence,
+            repeatedVisual
+          );
+          // Re-read the same immutable target only after the unchanged frame
+          // pair has been captured. Re-selecting between screenshots would
+          // measure camera/material settling rather than temporal snow crawl.
+          const repeatedEvidence =
+            await northernReachProbe.applyNorthernReachRenderedEvidence(
+              session,
+              {
+                quality: probeCase.expectedQuality,
+                recover: false,
+                region,
+                viewport: probeCase.viewport
+              }
+            );
+          if (process.env.WARPKEEP_QA_LOCAL_DIAGNOSTICS === '1') {
+            process.stderr.write(
+              `Local synthetic Northern reduced-motion aggregates: ${
+                JSON.stringify({
+                  first: {
+                    evidence,
+                    signature: firstSignature,
+                    visual: firstVisual
+                  },
+                  repeated: {
+                    evidence: repeatedEvidence,
+                    signature: repeatedSignature,
+                    visual: repeatedVisual
+                  }
+                })
+              }\n`
+            );
+          }
+          assertNorthernReachRepeatedReducedMotionEvidence(
+            { evidence, signature: firstSignature, visual: firstVisual },
+            {
+              evidence: repeatedEvidence,
+              signature: repeatedSignature,
+              visual: repeatedVisual
+            }
+          );
+        } else {
+          const visual = await captureRenderedCasePixels(
+            session,
+            probeCase.viewport,
+            {
+              artifactName: process.env.WARPKEEP_QA_NORTHERN_ARTIFACT_DIR
+                ? `${probeCase.id}-${region}.png`
+                : undefined,
+              minimumDistinctColourBuckets: 4
+            }
+          );
+          if (
+            process.env.WARPKEEP_QA_LOCAL_DIAGNOSTICS === '1'
+          ) {
+            process.stderr.write(
+              `Local synthetic Northern ${probeCase.id}/${region}: ${
+                JSON.stringify({ evidence, visual })
+              }\n`
+            );
+          }
+          northernReachProbe.assertNorthernReachRenderedVisual(
+            evidence,
+            visual
+          );
+        }
+      } catch (error) {
+        throw new Error(`Northern Reach ${region} rendered evidence failed.`, {
+          cause: error
+        });
+      }
+    }
+  }
 }
 
 /**
@@ -8256,6 +8867,7 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
       renderedWebglWorkerLocomotionProbeCases(vite.port);
     const occupancyStressCase = renderedWebglOccupancyStressProbeCase(vite.port);
     const journeyProbe = await import('./qa-journey-browser-probe.mjs');
+    const northernReachProbe = await import('./northern-reach-rendered-evidence.mjs');
     const journeyCases = journeyProbe.qaJourneyBrowserProbeCases(vite.port);
     const castleLodVisualUrl = castleLodVisualProbe.castleLodVisualEvidenceUrl(vite.port);
     const isAllowedProbeResourceUrl = (value) => (
@@ -8506,7 +9118,13 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
     });
     for (const probeCase of cases) {
       try {
-        await runRenderedCase(devtools, probeCase, state, onQualityMetrics);
+        await runRenderedCase(
+          devtools,
+          probeCase,
+          state,
+          onQualityMetrics,
+          northernReachProbe
+        );
       } catch (error) {
         throw new Error(`Rendered WebGL case ${probeCase.id} failed.`, { cause: error });
       }
@@ -8638,7 +9256,7 @@ async function main() {
       `High/Balanced/Reduced metrics ${JSON.stringify(qualityMetrics)}`;
     process.stdout.write(
       `Warpkeep local browser QA passed: ${passedCaseCount} rendered cases, one active generic `
-      + `Worker lifecycle check, four Worker locomotion evidence checks, one all-node occupancy `
+      + `Worker lifecycle check, five Worker locomotion evidence checks, one all-node occupancy `
       + `stress check, 25 journey checks, and `
       + `loopback LOD boundary ${JSON.stringify(castleLodVisualBoundary)}, ${lodFidelitySummary}, `
       + `${qualityMetricsSummary}.\n`

@@ -17,27 +17,27 @@ describe('latest in-menu patch notes', () => {
 
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
-      releasedOn: '29 JUL 2026',
-      title: 'THE LIVING REALM'
+      releasedOn: '30 JUL 2026',
+      title: 'THE NORTHERN REACH'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Interface.*keep.*resource.*Water.*confirmed Worker.*trusted browser gestures.*mute/i
+      /broad.*irregular frost transition.*central Lowlands.*deeper northern snow/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Every canonical river.*fills its Water hex.*adjacent banks.*directional flow.*ocean/i
+      /Grass.*shorter.*sparser.*snowline.*woodland.*restrained dusting/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /River records.*one cell at a time.*upstream.*downstream.*source.*mouth.*camera-focus/i
+      /presentation only.*terrain topology.*movement.*Water.*Workers.*resources.*routes.*authority/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /released to players|deployed to players|public balances|guaranteed rewards/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.summary).toContain(
-      'full-cell rivers'
+      'northern outer Lowlands'
     );
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'does not change Worker routes, timings, ownership, resources'
+      'not a new terrain rule, season, weather system, or gameplay modifier'
     );
 
     const alpha0324 = getLatestPatchNotes('0.3.24');
@@ -52,6 +52,9 @@ describe('latest in-menu patch notes', () => {
       'does not change authentication, Worker authority, routes'
     );
 
+    expect(getLatestPatchNotes('0.3.25')).toMatchObject({
+      title: 'THE LIVING REALM'
+    });
     const alpha0322 = getLatestPatchNotes('0.3.22');
     expect(alpha0322).toMatchObject({
       title: 'THE WAGONS REST'

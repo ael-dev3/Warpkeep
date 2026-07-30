@@ -1,11 +1,17 @@
+import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 
 import {
+  applyRealmForestWinterTint,
   createRealmProceduralForestFallbackGeometry,
   createRealmProceduralForestFallbackMaterial,
+  REALM_FOREST_MAX_AUTHORED_SNOW_MIX,
+  REALM_FOREST_MAX_WINTER_TINT_MIX,
   REALM_PROCEDURAL_FOREST_FALLBACK_TYPE,
+  realmForestAuthoredSnowMix,
   realmForestFallbackInstanceColor,
-  realmForestModelInstanceTint
+  realmForestModelInstanceTint,
+  realmForestWinterTintMix
 } from '../src/components/realm/createRealmProceduralForestFallback';
 import { REALM_DECORATIVE_FOREST_RENDER_BUDGETS } from '../src/components/realm/createRealmDecorativeForestLayer';
 import { HEGEMONY_TREE_TARGET_VISUAL_HEIGHT } from '../src/components/realm/hegemonyTreeRuntimeAssets';
@@ -63,5 +69,33 @@ describe('local procedural forest fallback', () => {
     expect(material.roughness).toBeGreaterThanOrEqual(0.9);
     expect(material.metalness).toBe(0);
     material.dispose();
+  });
+
+  it('keeps authored dusting continuous, capped, and materially top-facing', () => {
+    const transitionLeft = realmForestAuthoredSnowMix(0.5 - 0.000_001, 1);
+    const transitionRight = realmForestAuthoredSnowMix(0.5 + 0.000_001, 1);
+    const upward = realmForestAuthoredSnowMix(1, 1);
+    const sideways = realmForestAuthoredSnowMix(1, 0.2);
+    const downward = realmForestAuthoredSnowMix(1, -1);
+
+    expect(Math.abs(transitionRight - transitionLeft)).toBeLessThan(0.000_01);
+    expect(upward).toBeGreaterThan(sideways);
+    expect(sideways).toBeGreaterThan(downward);
+    expect(downward).toBe(0);
+    expect(upward).toBeLessThanOrEqual(REALM_FOREST_MAX_AUTHORED_SNOW_MIX);
+    expect(realmForestAuthoredSnowMix(Number.NaN, 1)).toBe(0);
+    expect(realmForestAuthoredSnowMix(1, Number.NaN)).toBe(0);
+  });
+
+  it('uses a bounded cool fallback tint without turning trees into white cones', () => {
+    const base = new THREE.Color(realmForestFallbackInstanceColor('forest'));
+    const winter = applyRealmForestWinterTint(base.clone(), 1);
+
+    expect(realmForestWinterTintMix(1))
+      .toBeLessThanOrEqual(REALM_FOREST_MAX_WINTER_TINT_MIX);
+    expect(winter.equals(base)).toBe(false);
+    expect(Math.max(winter.r, winter.g, winter.b)).toBeLessThan(0.8);
+    expect(winter.b - base.b).toBeGreaterThan(winter.r - base.r);
+    expect(realmForestWinterTintMix(Number.POSITIVE_INFINITY)).toBe(0);
   });
 });

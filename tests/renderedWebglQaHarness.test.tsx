@@ -7,6 +7,7 @@ import {
 } from '../src/dev/RenderedWebglQaHarness';
 import {
   createRenderedWebglQaActiveWorkerRealm,
+  createRenderedWebglQaNorthernWorkerLocomotionRealm,
   createRenderedWebglQaOccupancyStressRealm,
   createRenderedWebglQaWorkerLocomotionRealm
 } from '../src/dev/renderedWebglQaFixture';
@@ -197,6 +198,35 @@ describe('rendered WebGL local QA harness', () => {
     expect(fetchImpl.mock.calls.every(([value]) => (
       new URL(String(value)).origin === window.location.origin
     ))).toBe(true);
+  });
+
+  it('keeps the Northern moving-wagon fixture local and fully synthetic', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    vi.stubGlobal('fetch', vi.fn(() => (
+      Promise.reject(new Error('Network is forbidden in fixture QA.'))
+    )));
+
+    render(
+      <RenderedWebglQaHarness
+        createFixtureRealm={() => (
+          createRenderedWebglQaNorthernWorkerLocomotionRealm(
+            1_900_000_000_000_000n
+          )
+        )}
+        fixtureVariant="worker-locomotion-northern"
+        presentationMode="player"
+        quality="balanced"
+      />
+    );
+
+    const status = screen.getByText('LOCAL RENDERED WEBGL QA').closest('aside');
+    if (!(status instanceof HTMLElement)) throw new Error('missing rendered QA status');
+    await waitFor(() => expect(status.dataset.renderer).toBe('fallback'));
+    expect(status.dataset.fixtureVariant).toBe('worker-locomotion-northern');
+    expect(status.dataset.activeWorkerFixtureMarker).toBe(
+      RENDERED_WEBGL_QA_ACTIVE_WORKER_FIXTURE_MARKER
+    );
+    expect(status.dataset.resourceOccupationCount).toBe('2');
   });
 
   it('fails closed when its deterministic fixture cannot initialize', () => {

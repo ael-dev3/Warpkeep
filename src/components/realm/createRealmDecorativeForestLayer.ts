@@ -17,6 +17,7 @@ import type { RealmTerrainKind } from '../../game/map/realmTerrainSemantics';
 import type { RealmTerrainMap, TerrainCell } from '../../game/map/terrainTypes';
 import type { TerrainStructurePlacement } from '../../game/map/terrainPlacements';
 import type { RealmVegetationField } from '../../game/map/realmVegetationField';
+import type { RealmNorthernSnowField } from '../../game/map/realmNorthernSnow';
 import { terrainHeightAtWorld } from '../../game/map/terrainHeight';
 import {
   HEGEMONY_TREE_TARGET_VISUAL_HEIGHT,
@@ -33,10 +34,13 @@ import type { RealmForestPrefabAcquirer } from './realmForestLayer';
 import {
   createRealmProceduralForestFallbackGeometry,
   createRealmProceduralForestFallbackMaterial,
+  applyRealmForestWinterTint,
   REALM_FOREST_CANOPY_MOTION_STATE,
   REALM_PROCEDURAL_FOREST_FALLBACK_TYPE,
   realmForestFallbackInstanceColor,
   realmForestModelInstanceTint,
+  realmForestWinterTintMix,
+  sampleRealmForestSnowCoverage,
   type RealmForestFallbackType,
   type RealmForestGroundingMode
 } from './createRealmProceduralForestFallback';
@@ -89,6 +93,8 @@ export type RealmDecorativeForestTelemetry = Readonly<{
   canonicalTriangleCount: number;
   overviewHidden: boolean;
   reveal: number;
+  /** Aggregate presentation count only; no per-tree climate samples escape. */
+  snowTintedTreeCount: number;
 }>;
 
 export type CreateRealmDecorativeForestLayerOptions = Readonly<{
@@ -108,6 +114,8 @@ export type CreateRealmDecorativeForestLayerOptions = Readonly<{
   onTelemetryChange?: (telemetry: RealmDecorativeForestTelemetry) => void;
   onModelReady?: () => void;
   acquirePrefab?: RealmForestPrefabAcquirer;
+  /** Immutable renderer-only climate sampled only during existing repacks. */
+  northernSnow?: RealmNorthernSnowField;
 }>;
 
 export type RealmDecorativeForestLayer = Readonly<{
@@ -141,7 +149,8 @@ function createFallback(
   points: readonly RealmDecorativeForestCandidate[],
   map: RealmTerrainMap,
   placements: readonly TerrainStructurePlacement[],
-  hexSize: number
+  hexSize: number,
+  northernSnow: RealmNorthernSnowField | undefined
 ) {
   const fallback = createRealmProceduralForestFallbackGeometry(
     HEGEMONY_TREE_TARGET_VISUAL_HEIGHT
@@ -178,6 +187,10 @@ function createFallback(
     matrix.compose(position, rotation, scale);
     mesh.setMatrixAt(index, matrix);
     color.set(realmForestFallbackInstanceColor(point.habitat));
+    applyRealmForestWinterTint(
+      color,
+      sampleRealmForestSnowCoverage(northernSnow, point.world)
+    );
     mesh.setColorAt(index, color);
   });
   mesh.instanceMatrix.needsUpdate = true;
@@ -231,7 +244,8 @@ function emptyTelemetry(
       0
     ),
     overviewHidden: true,
-    reveal: 0
+    reveal: 0,
+    snowTintedTreeCount: 0
   });
 }
 
@@ -385,7 +399,13 @@ export function createRealmDecorativeForestLayer(options: CreateRealmDecorativeF
   const replaceFallback = (points: readonly RealmDecorativeForestCandidate[]) => {
     disposeFallback(fallback);
     const next = points.length > 0
-      ? createFallback(points, options.map, options.terrainPlacements, hexSize)
+      ? createFallback(
+        points,
+        options.map,
+        options.terrainPlacements,
+        hexSize,
+        options.northernSnow
+      )
       : null;
     fallback = next?.mesh ?? null;
     fallbackTriangleCount = next?.triangleCount ?? 0;
@@ -492,6 +512,10 @@ export function createRealmDecorativeForestLayer(options: CreateRealmDecorativeF
           matrix.compose(position, rotation, scale).multiply(localMatrix);
           mesh.setMatrixAt(index, matrix);
           instanceTint.set(realmForestModelInstanceTint(point.habitat));
+          applyRealmForestWinterTint(
+            instanceTint,
+            sampleRealmForestSnowCoverage(options.northernSnow, point.world)
+          );
           mesh.setColorAt(index, instanceTint);
         });
         mesh.instanceMatrix.needsUpdate = true;
@@ -631,6 +655,14 @@ export function createRealmDecorativeForestLayer(options: CreateRealmDecorativeF
     );
     const selected = selection.points;
     activePoints = selected;
+    const snowTintedTreeCount = selected.reduce((count, point) => (
+      realmForestWinterTintMix(sampleRealmForestSnowCoverage(
+        options.northernSnow,
+        point.world
+      )) > 0
+        ? count + 1
+        : count
+    ), 0);
     const byHabitat = emptyHabitatCounts();
     const bySpecies: Record<string, number> = {};
     selected.forEach((point) => {
@@ -674,7 +706,8 @@ export function createRealmDecorativeForestLayer(options: CreateRealmDecorativeF
       groundingMode: selected.length > 0 ? 'terrain-canopy' : 'none',
       canopyMotionState: REALM_FOREST_CANOPY_MOTION_STATE,
       overviewHidden: false,
-      reveal: window.reveal
+      reveal: window.reveal,
+      snowTintedTreeCount
     });
     if (selected.length === 0) {
       replaceFallback(Object.freeze([]));

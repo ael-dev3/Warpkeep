@@ -15,8 +15,14 @@ import {
 import { terrainHeightForCell } from '../../game/map/terrainHeight';
 import {
   EMPTY_TERRAIN_PLACEMENTS,
+  placementInfluenceAtWorld,
+  terrainPlacementsForCell,
   type TerrainStructurePlacement
 } from '../../game/map/terrainPlacements';
+import {
+  realmNorthernSnowRetentionSlope,
+  type RealmNorthernSnowField
+} from '../../game/map/realmNorthernSnow';
 import type { RealmTerrainMap } from '../../game/map/terrainTypes';
 import type { RealmTerrainKind } from '../../game/map/realmTerrainSemantics';
 import type {
@@ -47,6 +53,9 @@ export type TerrainGeometryData = Readonly<{
    */
   materialCues: Float32Array;
   materialCueMetrics: TerrainMaterialCueMetrics;
+  /** One optional renderer-only scalar; absent when the winter field is disabled. */
+  snowCoverage?: Float32Array;
+  snowCoverageMetrics: TerrainSnowCoverageMetrics;
   indices: Uint16Array | Uint32Array;
   bounds: TerrainBounds;
   /** Exact convex x/z perimeter of the rendered union of terrain hexes. */
@@ -77,6 +86,30 @@ export type TerrainMaterialCueMetrics = Readonly<{
   wetnessMax: number;
 }>;
 
+export type TerrainSnowCoverageMetrics = Readonly<{
+  minimum: number;
+  maximum: number;
+  mean: number;
+  attributeBytes: number;
+  sampledPlayableLandCellCenterCount: number;
+  retainedCellCenterCountAbove015: number;
+  retainedDeepCellCenterCountAbove075: number;
+  retainedCellCenterCoverageRatio: number;
+  retainedDeepCellCenterCoverageRatio: number;
+  retainedCellCenterCoverageMean: number;
+  retainedCellCenterInnerRadiusLeakCount: number;
+  retainedCellCenterSouthernLeakCount: number;
+  retainedNorthernmostRowCoverageMean: number;
+}>;
+
+export type TerrainSnowClearanceCircle = Readonly<{
+  world: HexWorldPosition;
+  radius: number;
+}>;
+
+const EMPTY_TERRAIN_SNOW_CLEARANCE_CIRCLES:
+  readonly TerrainSnowClearanceCircle[] = Object.freeze([]);
+
 export type TerrainGeometryOptions = Readonly<{
   subdivisionsPerEdge?: number;
   /** Cells through this radius retain the established triangular lattice. */
@@ -92,6 +125,14 @@ export type TerrainGeometryOptions = Readonly<{
   visualizeLegacyLakesAsLand?: boolean;
   /** Full-cell river boundary field used only for adjacent-land presentation. */
   riverBankPresentation?: RealmRiverBankPresentation;
+  /** Immutable renderer-only climate field; never changes terrain authority. */
+  northernSnow?: RealmNorthernSnowField;
+  /** Exact authoritative cells; prevents renderer apron cells entering telemetry. */
+  snowPlayableCellKeys?: ReadonlySet<string>;
+  /** Complete validated Water coordinates suppress the underlying land treatment. */
+  snowExcludedCellKeys?: ReadonlySet<string>;
+  /** Public structure footprints that attenuate snow without changing terrain height. */
+  snowClearanceCircles?: readonly TerrainSnowClearanceCircle[];
 }>;
 
 type MutableTerrainBounds = {
@@ -225,6 +266,229 @@ function safeDetailRadius(value: number | undefined, renderRadius: number) {
 
 function clamp(value: number, minimum = 0, maximum = 1) {
   return Math.min(maximum, Math.max(minimum, value));
+}
+
+function smoothstep(edge0: number, edge1: number, value: number) {
+  const progress = clamp(
+    (value - edge0) / Math.max(0.000_001, edge1 - edge0)
+  );
+  return progress * progress * (3 - progress * 2);
+}
+
+function applySnowCpuColor(
+  colors: number[],
+  vertexIndex: number,
+  coverage: number,
+  concavity: number,
+  wetness: number
+) {
+  if (coverage <= 0) return;
+  const offset = vertexIndex * 3;
+  const hollow = Math.max(0, concavity);
+  const pearl = { r: 0.76, g: 0.81, b: 0.86 };
+  const blueGrey = { r: 0.58, g: 0.66, b: 0.75 };
+  const depthMix = clamp(hollow * 0.42 + wetness * 0.10);
+  const snow = {
+    r: pearl.r + (blueGrey.r - pearl.r) * depthMix,
+    g: pearl.g + (blueGrey.g - pearl.g) * depthMix,
+    b: pearl.b + (blueGrey.b - pearl.b) * depthMix
+  };
+  // Preserve underlying soil, stone and vegetation anchors even at the rim.
+  const amount = smoothstep(0.035, 0.93, coverage) * 0.91;
+  colors[offset] = colors[offset]! + (snow.r - colors[offset]!) * amount;
+  colors[offset + 1] = colors[offset + 1]!
+    + (snow.g - colors[offset + 1]!) * amount;
+  colors[offset + 2] = colors[offset + 2]!
+    + (snow.b - colors[offset + 2]!) * amount;
+}
+
+function indexTerrainSnowClearanceCircles(
+  circles: readonly TerrainSnowClearanceCircle[],
+  hexSize: number
+) {
+  const bucketSize = Math.max(hexSize, 0.000_001);
+  const feather = bucketSize * 0.24;
+  const buckets = new Map<string, TerrainSnowClearanceCircle[]>();
+  circles.forEach((circle) => {
+    if (
+      !Number.isFinite(circle.world.x)
+      || !Number.isFinite(circle.world.z)
+      || !Number.isFinite(circle.radius)
+      || circle.radius < 0
+    ) return;
+    const reach = circle.radius + feather;
+    const minimumX = Math.floor((circle.world.x - reach) / bucketSize);
+    const maximumX = Math.floor((circle.world.x + reach) / bucketSize);
+    const minimumZ = Math.floor((circle.world.z - reach) / bucketSize);
+    const maximumZ = Math.floor((circle.world.z + reach) / bucketSize);
+    for (let x = minimumX; x <= maximumX; x += 1) {
+      for (let z = minimumZ; z <= maximumZ; z += 1) {
+        const key = `${x},${z}`;
+        const bucket = buckets.get(key);
+        if (bucket) bucket.push(circle);
+        else buckets.set(key, [circle]);
+      }
+    }
+  });
+  return Object.freeze({
+    feather,
+    get: (world: HexWorldPosition) => (
+      buckets.get(
+        `${Math.floor(world.x / bucketSize)},${Math.floor(world.z / bucketSize)}`
+      ) ?? EMPTY_TERRAIN_SNOW_CLEARANCE_CIRCLES
+    )
+  });
+}
+
+function applyNorthernSnowPresentation(
+  positions: readonly number[],
+  colors: number[],
+  materialCues: readonly number[],
+  options: TerrainGeometryOptions,
+  hexSize: number,
+  placements: readonly TerrainStructurePlacement[]
+) {
+  const field = options.northernSnow;
+  if (!field) return undefined;
+  const vertexCount = positions.length / 3;
+  const snowCoverage = new Float32Array(vertexCount);
+  let minimum = Number.POSITIVE_INFINITY;
+  let maximum = Number.NEGATIVE_INFINITY;
+  let sum = 0;
+  let sampledPlayableLandCellCenterCount = 0;
+  let retainedCellCenterCountAbove015 = 0;
+  let retainedDeepCellCenterCountAbove075 = 0;
+  let retainedCellCenterCoverageNano = 0;
+  let retainedCellCenterInnerRadiusLeakCount = 0;
+  let retainedCellCenterSouthernLeakCount = 0;
+  let northernmostCellCenterR = Number.POSITIVE_INFINITY;
+  let northernmostCellCenterCoverageNano = 0;
+  let northernmostCellCenterCount = 0;
+  const sampledCellCenterKeys = new Set<string>();
+  const snowClearanceIndex = indexTerrainSnowClearanceCircles(
+    options.snowClearanceCircles ?? [],
+    hexSize
+  );
+
+  for (let index = 0; index < vertexCount; index += 1) {
+    const world = {
+      x: positions[index * 3]!,
+      z: positions[index * 3 + 2]!
+    };
+    const nearest = worldToNearestAxial(world, hexSize);
+    let placementInfluence = 0;
+    terrainPlacementsForCell(placements, nearest, hexSize).forEach((placement) => {
+      placementInfluence = Math.max(
+        placementInfluence,
+        placementInfluenceAtWorld(placement, world, hexSize)
+      );
+    });
+    snowClearanceIndex.get(world).forEach((circle) => {
+      const distance = Math.hypot(
+        world.x - circle.world.x,
+        world.z - circle.world.z
+      );
+      const influence = 1 - smoothstep(
+        circle.radius,
+        circle.radius + snowClearanceIndex.feather,
+        distance
+      );
+      placementInfluence = Math.max(placementInfluence, influence);
+    });
+    const excluded = options.snowExcludedCellKeys?.has(hexKey(nearest)) === true;
+    const slope = materialCues[index * 4]!;
+    const concavity = materialCues[index * 4 + 1]!;
+    const wetness = materialCues[index * 4 + 3]!;
+    const coverage = excluded
+      ? 0
+      : field.retainedCoverageAtWorld(world, {
+        slope,
+        concavity,
+        placementInfluence
+      });
+    const safeCoverage = Number.isFinite(coverage) ? clamp(coverage) : 0;
+    snowCoverage[index] = safeCoverage;
+    const retainedCoverage = snowCoverage[index]!;
+    minimum = Math.min(minimum, retainedCoverage);
+    maximum = Math.max(maximum, retainedCoverage);
+    sum += retainedCoverage;
+    const cellCenter = axialToWorld(nearest, hexSize);
+    const cellKey = hexKey(nearest);
+    const authoritativePlayable = options.snowPlayableCellKeys
+      ? options.snowPlayableCellKeys.has(cellKey)
+      : hexDistance({ q: 0, r: 0 }, nearest) <= field.playableRadius;
+    const isPlayableLandCellCenter = (
+      Math.hypot(world.x - cellCenter.x, world.z - cellCenter.z)
+        <= hexSize * 0.000_001
+      && authoritativePlayable
+      && !excluded
+      && !sampledCellCenterKeys.has(cellKey)
+    );
+    if (isPlayableLandCellCenter) {
+      sampledCellCenterKeys.add(cellKey);
+      sampledPlayableLandCellCenterCount += 1;
+      const coverageNano = Math.round(retainedCoverage * 1_000_000_000);
+      retainedCellCenterCoverageNano += coverageNano;
+      if (retainedCoverage > 0.15) retainedCellCenterCountAbove015 += 1;
+      if (retainedCoverage > 0.75) retainedDeepCellCenterCountAbove075 += 1;
+      if (
+        hexDistance({ q: 0, r: 0 }, nearest) <= 18
+        && retainedCoverage > 0.15
+      ) retainedCellCenterInnerRadiusLeakCount += 1;
+      if (nearest.r > 0 && retainedCoverage > 0.01) {
+        retainedCellCenterSouthernLeakCount += 1;
+      }
+      if (nearest.r < northernmostCellCenterR) {
+        northernmostCellCenterR = nearest.r;
+        northernmostCellCenterCoverageNano = coverageNano;
+        northernmostCellCenterCount = 1;
+      } else if (nearest.r === northernmostCellCenterR) {
+        northernmostCellCenterCoverageNano += coverageNano;
+        northernmostCellCenterCount += 1;
+      }
+    }
+    applySnowCpuColor(colors, index, retainedCoverage, concavity, wetness);
+  }
+
+  const sampledCellCenterDenominator = Math.max(
+    1,
+    sampledPlayableLandCellCenterCount
+  );
+  if (options.snowPlayableCellKeys) {
+    let expectedCellCenterCount = 0;
+    options.snowPlayableCellKeys.forEach((key) => {
+      if (!options.snowExcludedCellKeys?.has(key)) {
+        expectedCellCenterCount += 1;
+      }
+    });
+    if (sampledPlayableLandCellCenterCount !== expectedCellCenterCount) {
+      throw new Error('REALM_TERRAIN_SNOW_CELL_CENTER_ATTESTATION_FAILED');
+    }
+  }
+  return Object.freeze({
+    snowCoverage,
+    metrics: Object.freeze({
+      minimum: Number.isFinite(minimum) ? minimum : 0,
+      maximum: Number.isFinite(maximum) ? maximum : 0,
+      mean: vertexCount > 0 ? sum / vertexCount : 0,
+      attributeBytes: snowCoverage.byteLength,
+      sampledPlayableLandCellCenterCount,
+      retainedCellCenterCountAbove015,
+      retainedDeepCellCenterCountAbove075,
+      retainedCellCenterCoverageRatio:
+        retainedCellCenterCountAbove015 / sampledCellCenterDenominator,
+      retainedDeepCellCenterCoverageRatio:
+        retainedDeepCellCenterCountAbove075 / sampledCellCenterDenominator,
+      retainedCellCenterCoverageMean:
+        retainedCellCenterCoverageNano
+          / (sampledCellCenterDenominator * 1_000_000_000),
+      retainedCellCenterInnerRadiusLeakCount,
+      retainedCellCenterSouthernLeakCount,
+      retainedNorthernmostRowCoverageMean:
+        northernmostCellCenterCoverageNano
+          / (Math.max(1, northernmostCellCenterCount) * 1_000_000_000)
+    })
+  });
 }
 
 function terrainWetness(kind: RealmTerrainKind) {
@@ -372,14 +636,10 @@ export function applyTerrainMaterialShapeCues(
     addNeighbour(third, second);
   }
   for (let index = 0; index < vertexCount; index += 1) {
-    const magnitude = Math.hypot(
-      normalX[index]!,
-      normalY[index]!,
-      normalZ[index]!
+    const slope = realmNorthernSnowRetentionSlope(
+      Math.hypot(normalX[index]!, normalZ[index]!),
+      normalY[index]!
     );
-    const slope = magnitude > 0.000_001
-      ? clamp(Math.hypot(normalX[index]!, normalZ[index]!) / magnitude * 2.8)
-      : 0;
     const concavity = neighbourCount[index]! > 0
       ? clamp(heightDelta[index]! / neighbourCount[index]! * 18, -1, 1)
       : 0;
@@ -664,6 +924,14 @@ export function createTerrainGeometryData(
     materialCues,
     materialCueMetrics
   );
+  const snowPresentation = applyNorthernSnowPresentation(
+    positions,
+    colors,
+    materialCues,
+    options,
+    hexSize,
+    placements
+  );
 
   const vertexCount = positions.length / 3;
   const typedIndices = vertexCount <= 0xffff ? new Uint16Array(indices) : new Uint32Array(indices);
@@ -681,6 +949,22 @@ export function createTerrainGeometryData(
       vegetationMax: safeMetric(materialCueMetrics.vegetationMax),
       wetnessMin: safeMetric(materialCueMetrics.wetnessMin),
       wetnessMax: safeMetric(materialCueMetrics.wetnessMax)
+    }),
+    snowCoverage: snowPresentation?.snowCoverage,
+    snowCoverageMetrics: snowPresentation?.metrics ?? Object.freeze({
+      minimum: 0,
+      maximum: 0,
+      mean: 0,
+      attributeBytes: 0,
+      sampledPlayableLandCellCenterCount: 0,
+      retainedCellCenterCountAbove015: 0,
+      retainedDeepCellCenterCountAbove075: 0,
+      retainedCellCenterCoverageRatio: 0,
+      retainedDeepCellCenterCoverageRatio: 0,
+      retainedCellCenterCoverageMean: 0,
+      retainedCellCenterInnerRadiusLeakCount: 0,
+      retainedCellCenterSouthernLeakCount: 0,
+      retainedNorthernmostRowCoverageMean: 0
     }),
     indices: typedIndices,
     bounds,

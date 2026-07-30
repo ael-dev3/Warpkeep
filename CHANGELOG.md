@@ -6,6 +6,15 @@ full engineering record.
 
 ## [Unreleased]
 
+## [0.3.26] — 2026-07-30
+
+- Let frost settle gradually across the northern outer Lowlands and deepen
+  toward the rim without adding a new authoritative terrain kind.
+- Made grass and woodland respond to the winter field while preserving exact
+  terrain topology, forest records, draw budgets, and central Lowlands identity.
+- Left movement, Water, Workers, resources, routes, balances, and persistent
+  world rules unchanged.
+
 ## [0.3.25] — 2026-07-29
 
 - Gave ordinary Realm interactions restrained procedural sound while preserving
@@ -274,7 +283,8 @@ full engineering record.
   Lowlands, a first keep, Farcaster sign-in, and an admission-gated shared-world
   foundation.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.25...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.26...HEAD
+[0.3.26]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.25...v0.3.26
 [0.3.25]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.24...v0.3.25
 [0.3.24]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.23...v0.3.24
 [0.3.23]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.22...v0.3.23

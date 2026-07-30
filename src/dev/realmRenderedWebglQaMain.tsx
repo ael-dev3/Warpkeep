@@ -16,6 +16,7 @@ async function startRenderedWebglQa() {
       {
         createRenderedWebglQaActiveWorkerRealm,
         createRenderedWebglQaFixtureRealm,
+        createRenderedWebglQaNorthernWorkerLocomotionRealm,
         createRenderedWebglQaOccupancyStressRealm,
         createRenderedWebglQaWorkerLocomotionRealm
       }
@@ -35,7 +36,9 @@ async function startRenderedWebglQa() {
               ? createRenderedWebglQaActiveWorkerRealm
               : fixtureVariant === 'worker-locomotion'
                 ? createRenderedWebglQaWorkerLocomotionRealm
-                : createRenderedWebglQaFixtureRealm}
+                : fixtureVariant === 'worker-locomotion-northern'
+                  ? createRenderedWebglQaNorthernWorkerLocomotionRealm
+                  : createRenderedWebglQaFixtureRealm}
           fixtureVariant={fixtureVariant}
           presentationMode={options.presentationMode}
           quality={options.quality}

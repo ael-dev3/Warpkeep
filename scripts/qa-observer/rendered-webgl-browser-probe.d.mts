@@ -4,7 +4,7 @@ export const RENDERED_WEBGL_QA_CHROME:
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 export const RENDERED_WEBGL_QA_CHROME_APP: '/Applications/Google Chrome.app';
 export const RENDERED_WEBGL_QA_CHROME_TEAM_ID: 'EQHXZ8M8AV';
-export const RENDERED_WEBGL_QA_CASE_COUNT: 14;
+export const RENDERED_WEBGL_QA_CASE_COUNT: 15;
 export const RENDERED_WEBGL_QA_OCCUPANCY_STRESS_COUNT: 312;
 export const RENDERED_WEBGL_QA_OCCUPANCY_STRESS_MAXIMUM_PRESENCES: 400;
 export const RENDERED_WEBGL_QA_OCCUPANCY_STRESS_MAXIMUM_CONTROLS: 24;
@@ -91,8 +91,10 @@ export type RenderedWebglBrowserProbeCase = Readonly<{
     | 'desktop-balanced-worker-locomotion'
     | 'short-landscape-reduced-worker-locomotion'
     | 'mobile-reduced-motion-worker-locomotion'
+    | 'desktop-balanced-northern-worker-locomotion'
     | 'short-landscape-explore'
     | 'short-landscape-balanced-player-explore'
+    | 'short-landscape-balanced-northern'
     | 'desktop-balanced-occupancy-stress';
   expectedQuality: RenderedWebglBrowserProbeQuality;
   expectedReducedMotion?: true;
@@ -136,15 +138,23 @@ export type RenderedWebglWorkerLocomotionProbeCase =
       | 'full-hd-high-worker-locomotion'
       | 'desktop-balanced-worker-locomotion'
       | 'short-landscape-reduced-worker-locomotion'
-      | 'mobile-reduced-motion-worker-locomotion';
+      | 'mobile-reduced-motion-worker-locomotion'
+      | 'desktop-balanced-northern-worker-locomotion';
     workerLocomotion: Readonly<{
       assetProfile: 'high' | 'balanced' | 'compact';
       assetPath: string;
       expectedAnimatedCount: number;
       expectedFallbackCount: 0;
-      expectedModelCount: 3;
+      expectedGatheringIdleCount: number;
+      expectedModelCount: number;
+      expectedMovingCount: number;
       minimumVisibleProjectionCount: 1;
+      maximumVisibleProjectionCount: number;
       expectedWheelDrivenCount: number;
+      fixtureVariant:
+        | 'worker-locomotion'
+        | 'worker-locomotion-northern';
+      northern: boolean;
       reducedMotion: boolean;
     }>;
   }>;
@@ -651,7 +661,8 @@ export function applyRenderedWebglOccupancyStressInteraction(
 
 export function analyzeRenderedWebglPngScreenshot(
   value: Buffer,
-  viewport: Readonly<{ width: number; height: number }>
+  viewport: Readonly<{ width: number; height: number }>,
+  options?: Readonly<{ minimumDistinctColourBuckets?: number }>
 ): Readonly<{
   distinctColourBuckets: number;
   luminanceRange: number;
@@ -659,9 +670,107 @@ export function analyzeRenderedWebglPngScreenshot(
   saturationP95BasisPoints: number;
   clippedBlackSamples: number;
   clippedWhiteSamples: number;
+  coolHighAlbedoSamples: number;
+  coolSpatialBuckets: readonly number[];
+  hotYellowSamples: number;
   opaqueSamples: number;
   sampleCount: number;
 }>;
+
+export type NorthernReachRenderedEvidence = Readonly<{
+  band: 'overview' | 'strategy' | 'close';
+  coverage: readonly [number, number, number, number, 0, 0];
+  material: readonly [string, 'two-band' | 'one-band' | 'none', true, false];
+  quality: 'high' | 'balanced' | 'reduced';
+  recovered: boolean;
+  recoveryExercised: boolean;
+  region: 'overview' | 'transition' | 'deep';
+  retained: readonly [
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+    0,
+    0,
+    number
+  ];
+  selected: true;
+  stable: true;
+  vertices: readonly [number, number, number, number];
+}>;
+
+export function parseNorthernReachRenderedEvidence(
+  value: unknown,
+  expected: Readonly<{
+    quality: NorthernReachRenderedEvidence['quality'];
+    recover: boolean;
+    region: NorthernReachRenderedEvidence['region'];
+    viewport: Readonly<{ width: number; height: number }>;
+  }>
+): NorthernReachRenderedEvidence;
+
+export function assertNorthernReachRenderedVisual(
+  evidence: NorthernReachRenderedEvidence,
+  visual: Readonly<{
+    clippedBlackSamples: number;
+    clippedWhiteSamples: number;
+    coolHighAlbedoSamples: number;
+    coolSpatialBuckets: readonly number[];
+    hotYellowSamples: number;
+  }>
+): void;
+
+export type NorthernReachStaticFrameSignature = Readonly<{
+  cameraMode: 'realm' | 'approach' | 'keep';
+  cameraPresentationBand: 'overview' | 'strategy' | 'close';
+  cameraStateToken: string;
+  cameraTargetKind: 'cell-location';
+  canvasLastSuccessfulGeneration: number;
+  canvasRendererGeneration: number;
+  rendererGeneration: number;
+  rendererLastSuccessfulGeneration: number;
+}>;
+
+export function readNorthernReachStaticFrameSignature(
+  session: RenderedWebglCastleCanvasPointerSession
+): Promise<NorthernReachStaticFrameSignature>;
+
+export function assertNorthernReachRepeatedReducedMotionEvidence(
+  first: Readonly<{
+    evidence: NorthernReachRenderedEvidence;
+    signature: NorthernReachStaticFrameSignature;
+    visual: Readonly<{
+      clippedBlackSamples: number;
+      clippedWhiteSamples: number;
+      coolHighAlbedoSamples: number;
+      coolSpatialBuckets: readonly number[];
+      hotYellowSamples: number;
+    }>;
+  }>,
+  repeated: Readonly<{
+    evidence: NorthernReachRenderedEvidence;
+    signature: NorthernReachStaticFrameSignature;
+    visual: Readonly<{
+      clippedBlackSamples: number;
+      clippedWhiteSamples: number;
+      coolHighAlbedoSamples: number;
+      coolSpatialBuckets: readonly number[];
+      hotYellowSamples: number;
+    }>;
+  }>
+): void;
+
+export function applyNorthernReachRenderedEvidence(
+  session: RenderedWebglCastleCanvasPointerSession,
+  options: Readonly<{
+    quality: NorthernReachRenderedEvidence['quality'];
+    recover?: boolean;
+    region: NorthernReachRenderedEvidence['region'];
+    viewport: Readonly<{ width: number; height: number }>;
+  }>
+): Promise<NorthernReachRenderedEvidence>;
 
 export type RenderedWebglQualityMetrics = Readonly<{
   cameraMode: 'realm' | 'approach' | 'keep';

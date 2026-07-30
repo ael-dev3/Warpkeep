@@ -9,7 +9,12 @@ import {
   sampleContinuousTerrainPresentation
 } from '../src/components/realm/createTerrainGeometry';
 import { generateRealmTerrainMap } from '../src/game/map/generateTerrainMap';
-import { axialToWorld } from '../src/game/map/hexCoordinates';
+import {
+  axialToWorld,
+  hexDistance,
+  hexKey
+} from '../src/game/map/hexCoordinates';
+import { createRealmNorthernSnowField } from '../src/game/map/realmNorthernSnow';
 import { HEGEMONY_GENESIS_001 } from '../src/game/map/realmSeed';
 import { createHegemonyKeepPlacement } from '../src/game/map/terrainPlacements';
 import {
@@ -35,6 +40,9 @@ function geometryDigest(geometry: ReturnType<typeof createTerrainGeometryData>) 
   digest.update(new Uint8Array(geometry.positions.buffer));
   digest.update(new Uint8Array(geometry.colors.buffer));
   digest.update(new Uint8Array(geometry.materialCues.buffer));
+  if (geometry.snowCoverage) {
+    digest.update(new Uint8Array(geometry.snowCoverage.buffer));
+  }
   digest.update(new Uint8Array(geometry.indices.buffer));
   return digest.digest('hex');
 }
@@ -199,6 +207,124 @@ describe('combined lowlands terrain geometry', () => {
       .toBeGreaterThanOrEqual(neutral.materialCueMetrics.wetnessMax);
   });
 
+  it('adds one bounded snow scalar and CPU fallback color without changing topology', () => {
+    const complete = generateRealmTerrainMap(HEGEMONY_GENESIS_001, 60);
+    const northernCoord = { q: 0, r: -48 } as const;
+    const local = {
+      ...complete,
+      cells: complete.cells.filter((cell) => (
+        hexDistance(cell.coord, northernCoord) <= 2
+      ))
+    };
+    const snow = createRealmNorthernSnowField({
+      worldSeed: complete.worldSeed,
+      hexSize: 1,
+      playableRadius: 58,
+      renderRadius: 60
+    });
+    const geometryOptions = {
+      subdivisionsPerEdge: 2,
+      adaptiveDetailRadius: 0,
+      playableRadius: 58,
+      snowPlayableCellKeys: new Set(
+        local.cells.map((cell) => hexKey(cell.coord))
+      )
+    } as const;
+    const neutral = createTerrainGeometryData(local, 1, geometryOptions);
+    const snowy = createTerrainGeometryData(local, 1, {
+      ...geometryOptions,
+      northernSnow: snow
+    });
+    const center = axialToWorld(northernCoord, 1);
+    const centerIndex = Array.from(
+      { length: snowy.vertexCount },
+      (_, index) => index
+    ).sort((left, right) => (
+      Math.hypot(
+        snowy.positions[left * 3]! - center.x,
+        snowy.positions[left * 3 + 2]! - center.z
+      )
+      - Math.hypot(
+        snowy.positions[right * 3]! - center.x,
+        snowy.positions[right * 3 + 2]! - center.z
+      )
+    ))[0];
+
+    expect(centerIndex).toBeDefined();
+    expect(Math.hypot(
+      snowy.positions[centerIndex! * 3]! - center.x,
+      snowy.positions[centerIndex! * 3 + 2]! - center.z
+    )).toBeLessThan(0.000_01);
+    expect(snowy.positions).toEqual(neutral.positions);
+    expect(snowy.indices).toEqual(neutral.indices);
+    expect(snowy.materialCues).toEqual(neutral.materialCues);
+    expect(snowy.triangleCount).toBe(neutral.triangleCount);
+    expect(snowy.vertexCount).toBe(neutral.vertexCount);
+    expect(snowy.colors).not.toEqual(neutral.colors);
+    expect(snowy.snowCoverage).toHaveLength(snowy.vertexCount);
+    expect(Array.from(snowy.snowCoverage!).every((value) => (
+      Number.isFinite(value) && value >= 0 && value <= 1
+    ))).toBe(true);
+    expect(snowy.snowCoverage![centerIndex!]).toBeGreaterThan(0.3);
+    expect(snowy.snowCoverageMetrics.attributeBytes).toBe(
+      snowy.vertexCount * Float32Array.BYTES_PER_ELEMENT
+    );
+    expect(snowy.snowCoverageMetrics.sampledPlayableLandCellCenterCount)
+      .toBe(local.cells.length);
+    expect(snowy.snowCoverageMetrics.retainedCellCenterCountAbove015)
+      .toBeGreaterThan(0);
+    expect(snowy.snowCoverageMetrics.retainedDeepCellCenterCountAbove075)
+      .toBeGreaterThan(0);
+    expect(snowy.snowCoverageMetrics.retainedCellCenterCoverageRatio)
+      .toBe(
+        snowy.snowCoverageMetrics.retainedCellCenterCountAbove015
+          / local.cells.length
+      );
+    expect(snowy.snowCoverageMetrics.retainedDeepCellCenterCoverageRatio)
+      .toBe(
+        snowy.snowCoverageMetrics.retainedDeepCellCenterCountAbove075
+          / local.cells.length
+      );
+    expect(snowy.snowCoverageMetrics.retainedCellCenterCoverageMean)
+      .toBeGreaterThan(0);
+    expect(snowy.snowCoverageMetrics.retainedCellCenterSouthernLeakCount)
+      .toBe(0);
+
+    const excluded = createTerrainGeometryData(local, 1, {
+      ...geometryOptions,
+      northernSnow: snow,
+      snowExcludedCellKeys: new Set(['0,-48'])
+    });
+    expect(excluded.snowCoverage![centerIndex!]).toBe(0);
+    expect(excluded.snowCoverageMetrics.sampledPlayableLandCellCenterCount)
+      .toBe(local.cells.length - 1);
+
+    const founded = createTerrainGeometryData(local, 1, {
+      ...geometryOptions,
+      placements: [createHegemonyKeepPlacement('northern-keep', northernCoord)],
+      northernSnow: snow
+    });
+    expect(founded.snowCoverage![centerIndex!])
+      .toBeLessThan(snowy.snowCoverage![centerIndex!] * 0.1);
+
+    const resourceCleared = createTerrainGeometryData(local, 1, {
+      ...geometryOptions,
+      northernSnow: snow,
+      snowClearanceCircles: [{
+        world: center,
+        radius: 0.55
+      }]
+    });
+    expect(resourceCleared.positions).toEqual(snowy.positions);
+    expect(resourceCleared.indices).toEqual(snowy.indices);
+    expect(resourceCleared.snowCoverage![centerIndex!])
+      .toBeLessThan(snowy.snowCoverage![centerIndex!] * 0.1);
+    expect(resourceCleared.snowCoverageMetrics.attributeBytes)
+      .toBe(snowy.snowCoverageMetrics.attributeBytes);
+    expect(resourceCleared.snowCoverageMetrics.retainedCellCenterCoverageMean)
+      .toBeLessThan(snowy.snowCoverageMetrics.retainedCellCenterCoverageMean);
+  });
+
   it('matches the pinned former radius-twenty-two topology at every runtime profile', () => {
     const map = generateRealmTerrainMap(HEGEMONY_GENESIS_001, 22);
     const expectations = [
@@ -225,12 +351,12 @@ describe('combined lowlands terrain geometry', () => {
   it('uses the exact bounded adaptive topology for the radius-sixty render envelope', () => {
     const map = generateRealmTerrainMap(HEGEMONY_GENESIS_001, 60);
     const expectations = [
-      [4, 203_406, 102_067],
-      [3, 139_338, 70_033],
-      [2, 93_498, 47_113]
+      [4, 203_406, 102_067, 0.50],
+      [3, 139_338, 70_033, 0.35],
+      [2, 93_498, 47_113, 0.25]
     ] as const;
 
-    expectations.forEach(([subdivisions, triangleCount, vertexCount]) => {
+    expectations.forEach(([subdivisions, triangleCount, vertexCount, attributeMiBCeiling]) => {
       const geometry = createTerrainGeometryData(map, 1, {
         subdivisionsPerEdge: subdivisions,
         adaptiveDetailRadius: 22,
@@ -245,6 +371,9 @@ describe('combined lowlands terrain geometry', () => {
       expect(geometry.transitionEdgeCount).toBe(270);
       expect(geometry.triangleCount).toBe(triangleCount);
       expect(geometry.vertexCount).toBe(vertexCount);
+      expect(
+        geometry.vertexCount * Float32Array.BYTES_PER_ELEMENT / (1024 * 1024)
+      ).toBeLessThan(attributeMiBCeiling);
       expect(geometry.degenerateTriangleCount).toBe(0);
       expect(geometry.sharedVertexReuseCount).toBeGreaterThan(0);
 

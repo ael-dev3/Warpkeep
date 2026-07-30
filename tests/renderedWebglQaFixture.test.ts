@@ -14,6 +14,7 @@ import {
 import {
   createRenderedWebglQaActiveWorkerRealm,
   createRenderedWebglQaFixtureRealm,
+  createRenderedWebglQaNorthernWorkerLocomotionRealm,
   createRenderedWebglQaOccupancyStressRealm,
   createRenderedWebglQaWorkerLocomotionRealm,
   RENDERED_WEBGL_QA_ACTIVE_WORKER_SITE_ID,
@@ -23,6 +24,7 @@ import {
   RENDERED_WEBGL_QA_LOCOMOTION_RETURNING_SITE_ID,
   RENDERED_WEBGL_QA_LONG_DISPLAY_NAME,
   RENDERED_WEBGL_QA_LONG_PUBLIC_BIO,
+  RENDERED_WEBGL_QA_NORTHERN_LOCOMOTION_SITE_ID,
   RENDERED_WEBGL_QA_OCCUPANT_CASTLE_ID,
   RENDERED_WEBGL_QA_OCCUPANCY_STRESS_COUNT,
   RENDERED_WEBGL_QA_OCCUPIED_GOLD_SITE_ID,
@@ -261,6 +263,9 @@ describe('rendered WebGL local QA fixture', () => {
     expect(readRenderedWebglQaFixtureVariant(
       '?quality=balanced&mode=player&fixture=worker-locomotion'
     )).toBe('worker-locomotion');
+    expect(readRenderedWebglQaFixtureVariant(
+      '?quality=balanced&mode=player&fixture=worker-locomotion-northern'
+    )).toBe('worker-locomotion-northern');
     expect(readRenderedWebglQaFixtureVariant('?quality=high')).toBe(
       RENDERED_WEBGL_QA_DEFAULT_FIXTURE_VARIANT
     );
@@ -428,6 +433,12 @@ describe('rendered WebGL local QA fixture', () => {
       RENDERED_WEBGL_QA_LOCOMOTION_GATHERING_SITE_ID,
       undefined
     ]);
+    expect(realm.workerProjection.ownedWorkers.map((worker) => worker.routeSteps)).toEqual([
+      22,
+      23,
+      27,
+      undefined
+    ]);
     expect(realm.snapshot.workerOccupations).toHaveLength(2);
     expect((realm.snapshot.workerOccupations ?? []).map((occupation) => occupation.phase))
       .toEqual(['outbound', 'gathering']);
@@ -451,6 +462,58 @@ describe('rendered WebGL local QA fixture', () => {
     expect(realm.snapshot.foodNodeOccupations).toEqual([]);
     expect(realm.snapshot.woodNodeOccupations).toEqual([]);
     expect(realm.snapshot.stoneNodeOccupations).toEqual([]);
+  });
+
+  it('holds real 42-step wagons in transition and deep Northern snow', () => {
+    const nowMicros = 1_900_000_000_000_000n;
+    const realm = createRenderedWebglQaNorthernWorkerLocomotionRealm(nowMicros);
+    const [outbound, returning, gathering, idle] =
+      realm.workerProjection.ownedWorkers;
+    const travelDuration = 42n * 60_000_000n;
+
+    expect(realm.workerProjection.ownedWorkers.map((worker) => worker.status)).toEqual([
+      'outbound',
+      'returning',
+      'gathering',
+      'idle'
+    ]);
+    expect(realm.workerProjection.ownedWorkers.map((worker) => worker.siteId)).toEqual([
+      RENDERED_WEBGL_QA_NORTHERN_LOCOMOTION_SITE_ID,
+      RENDERED_WEBGL_QA_NORTHERN_LOCOMOTION_SITE_ID,
+      RENDERED_WEBGL_QA_LOCOMOTION_GATHERING_SITE_ID,
+      undefined
+    ]);
+    expect(realm.workerProjection.ownedWorkers.map((worker) => worker.routeSteps)).toEqual([
+      42,
+      42,
+      27,
+      undefined
+    ]);
+    expect(outbound).toMatchObject({
+      startedAtMicros: nowMicros - travelDuration * 6_500n / 10_000n,
+      arrivesAtMicros:
+        nowMicros - travelDuration * 6_500n / 10_000n + travelDuration
+    });
+    expect(returning).toMatchObject({
+      returnStartedAtMicros: nowMicros - travelDuration * 500n / 10_000n,
+      returnsAtMicros:
+        nowMicros - travelDuration * 500n / 10_000n + travelDuration,
+      returnStartProgressBasisPoints: 10_000
+    });
+    expect(gathering?.routeSteps).toBe(27);
+    expect(idle?.routeSteps).toBeUndefined();
+    expect(realm.snapshot.workerOccupations).toHaveLength(2);
+    expect((realm.snapshot.workerWorkers ?? []).filter((worker) => (
+      !worker.ownedByViewer && worker.status !== 'idle'
+    ))).toEqual([
+      expect.objectContaining({
+        originCastleId: RENDERED_WEBGL_QA_OCCUPANT_CASTLE_ID,
+        resourceKind: 'food',
+        routeSteps: 43,
+        siteId: RENDERED_WEBGL_QA_NORTHERN_LOCOMOTION_SITE_ID,
+        status: 'returning'
+      })
+    ]);
   });
 
   it('bounds a local-only all-node occupation stress projection to every presence and 24 controls', () => {

@@ -9,6 +9,7 @@ import {
 import { terrainHeightAtWorld } from '../../game/map/terrainHeight';
 import type { TerrainStructurePlacement } from '../../game/map/terrainPlacements';
 import type { RealmTerrainMap } from '../../game/map/terrainTypes';
+import type { RealmNorthernSnowField } from '../../game/map/realmNorthernSnow';
 import {
   HEGEMONY_TREE_TARGET_VISUAL_HEIGHT,
   HEGEMONY_TREE_RUNTIME_ASSET_BY_ID,
@@ -25,10 +26,15 @@ import type { RealmQualitySpec } from './realmQuality';
 import {
   createRealmProceduralForestFallbackGeometry,
   createRealmProceduralForestFallbackMaterial,
+  applyRealmForestWinterTint,
   REALM_FOREST_CANOPY_MOTION_STATE,
+  REALM_FOREST_SNOW_PEARL_LINEAR,
   REALM_PROCEDURAL_FOREST_FALLBACK_TYPE,
+  realmForestAuthoredSnowMix,
   realmForestFallbackInstanceColor,
   realmForestModelInstanceTint,
+  realmForestWinterTintMix,
+  sampleRealmForestSnowCoverage,
   type RealmForestFallbackType,
   type RealmForestGroundingMode
 } from './createRealmProceduralForestFallback';
@@ -53,6 +59,8 @@ export type RealmForestLayerPresentationTelemetry = Readonly<{
   canonicalTriangleCount: number;
   /** Actual currently attached fallback or authored-batch triangles. */
   triangleCount: number;
+  /** Bounded aggregate only; no per-tree climate data leaves this layer. */
+  snowTintedTreeCount: number;
 }>;
 
 export type RealmForestLayer = Readonly<{
@@ -82,6 +90,8 @@ export type CreateRealmForestLayerOptions = Readonly<{
   presentationName?: string;
   /** Internal test seam; production always uses the digest-pinned acquirer. */
   acquirePrefab?: RealmForestPrefabAcquirer;
+  /** Immutable renderer-only climate sampled only during static batch builds. */
+  northernSnow?: RealmNorthernSnowField;
 }>;
 
 type MutableTreeGeometry = {
@@ -121,10 +131,11 @@ function appendPrimitive(
   output: MutableTreeGeometry,
   primitive: HegemonyTreePrefabPrimitive,
   instanceMatrix: THREE.Matrix4,
-  habitat: RealmForestTreePoint['habitat']
+  habitat: RealmForestTreePoint['habitat'],
+  snowCoverage: number
 ) {
   const position = primitive.geometry.getAttribute('position');
-  if (!position || position.count === 0) return;
+  if (!position || position.count === 0) return false;
   const normal = primitive.geometry.getAttribute('normal');
   const color = primitive.geometry.getAttribute('color');
   const normalAttribute = normal ?? undefined;
@@ -138,6 +149,7 @@ function appendPrimitive(
   const normalVector = new THREE.Vector3();
   const vertexOffset = output.positions.length / 3;
   const groundY = instanceMatrix.elements[13] ?? 0;
+  let snowTinted = false;
 
   for (let index = 0; index < position.count; index += 1) {
     positionVector
@@ -169,10 +181,29 @@ function appendPrimitive(
       0.16
     );
     const baseShade = THREE.MathUtils.lerp(0.74, 1, baseBlend);
+    const baseRed = THREE.MathUtils.clamp(
+      red * sourceColor.r * habitatTint.r * baseShade,
+      0,
+      1
+    );
+    const baseGreen = THREE.MathUtils.clamp(
+      green * sourceColor.g * habitatTint.g * baseShade,
+      0,
+      1
+    );
+    const baseBlue = THREE.MathUtils.clamp(
+      blue * sourceColor.b * habitatTint.b * baseShade,
+      0,
+      1
+    );
+    const snowMix = normalAttribute
+      ? realmForestAuthoredSnowMix(snowCoverage, normalVector.y)
+      : 0;
+    snowTinted ||= snowMix > 0;
     output.colors.push(
-      THREE.MathUtils.clamp(red * sourceColor.r * habitatTint.r * baseShade, 0, 1),
-      THREE.MathUtils.clamp(green * sourceColor.g * habitatTint.g * baseShade, 0, 1),
-      THREE.MathUtils.clamp(blue * sourceColor.b * habitatTint.b * baseShade, 0, 1)
+      THREE.MathUtils.lerp(baseRed, REALM_FOREST_SNOW_PEARL_LINEAR.r, snowMix),
+      THREE.MathUtils.lerp(baseGreen, REALM_FOREST_SNOW_PEARL_LINEAR.g, snowMix),
+      THREE.MathUtils.lerp(baseBlue, REALM_FOREST_SNOW_PEARL_LINEAR.b, snowMix)
     );
   }
 
@@ -181,9 +212,10 @@ function appendPrimitive(
     for (let index = 0; index < sourceIndex.count; index += 1) {
       output.indices.push(vertexOffset + sourceIndex.getX(index));
     }
-    return;
+    return snowTinted;
   }
   for (let index = 0; index < position.count; index += 1) output.indices.push(vertexOffset + index);
+  return snowTinted;
 }
 
 function instanceMatrixForPoint(
@@ -207,7 +239,8 @@ function createMergedTreeMesh(
   points: readonly RealmForestTreePoint[],
   prefabByAssetId: ReadonlyMap<string, HegemonyTreePrefab>,
   map: RealmTerrainMap,
-  terrainPlacements: readonly TerrainStructurePlacement[]
+  terrainPlacements: readonly TerrainStructurePlacement[],
+  northernSnow: RealmNorthernSnowField | undefined
 ) {
   const source: MutableTreeGeometry = {
     positions: [],
@@ -216,16 +249,27 @@ function createMergedTreeMesh(
     indices: [],
     hasCompleteNormals: true
   };
+  let snowTintedTreeCount = 0;
   points.forEach((point) => {
     const prefab = prefabByAssetId.get(point.speciesId);
     if (!prefab) throw new Error('Missing loaded tree prefab for ' + point.speciesId + '.');
     const matrix = instanceMatrixForPoint(point, map, terrainPlacements);
-    prefab.primitives.forEach((primitive) => appendPrimitive(
-      source,
-      primitive,
-      matrix,
-      point.habitat
-    ));
+    const snowCoverage = sampleRealmForestSnowCoverage(
+      northernSnow,
+      point.world
+    );
+    let treeSnowTinted = false;
+    prefab.primitives.forEach((primitive) => {
+      const primitiveSnowTinted = appendPrimitive(
+        source,
+        primitive,
+        matrix,
+        point.habitat,
+        snowCoverage
+      );
+      treeSnowTinted = primitiveSnowTinted || treeSnowTinted;
+    });
+    if (treeSnowTinted) snowTintedTreeCount += 1;
   });
   if (source.positions.length === 0 || source.indices.length === 0) {
     throw new Error('Loaded Hegemony trees produced no renderable geometry.');
@@ -253,7 +297,8 @@ function createMergedTreeMesh(
     mesh.raycast = () => {};
     return Object.freeze({
       mesh,
-      triangleCount: source.indices.length / 3
+      triangleCount: source.indices.length / 3,
+      snowTintedTreeCount
     });
   } catch (error) {
     geometry.dispose();
@@ -265,7 +310,8 @@ function createMergedTreeMesh(
 function createFallbackForestMesh(
   points: readonly RealmForestTreePoint[],
   map: RealmTerrainMap,
-  terrainPlacements: readonly TerrainStructurePlacement[]
+  terrainPlacements: readonly TerrainStructurePlacement[],
+  northernSnow: RealmNorthernSnowField | undefined
 ) {
   const fallback = createRealmProceduralForestFallbackGeometry(
     HEGEMONY_TREE_TARGET_VISUAL_HEIGHT
@@ -286,9 +332,18 @@ function createFallbackForestMesh(
   mesh.receiveShadow = false;
   mesh.raycast = () => {};
   const color = new THREE.Color();
+  let snowTintedTreeCount = 0;
   points.forEach((point, index) => {
     mesh.setMatrixAt(index, instanceMatrixForPoint(point, map, terrainPlacements));
     color.set(realmForestFallbackInstanceColor(point.habitat));
+    const snowCoverage = sampleRealmForestSnowCoverage(
+      northernSnow,
+      point.world
+    );
+    if (realmForestWinterTintMix(snowCoverage) > 0) {
+      snowTintedTreeCount += 1;
+    }
+    applyRealmForestWinterTint(color, snowCoverage);
     mesh.setColorAt(index, color);
   });
   mesh.instanceMatrix.needsUpdate = true;
@@ -297,7 +352,8 @@ function createFallbackForestMesh(
   mesh.computeBoundingSphere();
   return Object.freeze({
     mesh,
-    triangleCount: fallback.triangleCount * points.length
+    triangleCount: fallback.triangleCount * points.length,
+    snowTintedTreeCount
   });
 }
 
@@ -381,7 +437,8 @@ export function createRealmForestLayer(
         structureCellCounts,
         silhouetteCoverageRatio: 0,
         canonicalTriangleCount,
-        triangleCount: 0
+        triangleCount: 0,
+        snowTintedTreeCount: 0
       }),
       dispose: () => {
         if (disposed) return;
@@ -390,10 +447,16 @@ export function createRealmForestLayer(
     });
   }
 
-  const fallback = createFallbackForestMesh(points, options.map, options.terrainPlacements);
+  const fallback = createFallbackForestMesh(
+    points,
+    options.map,
+    options.terrainPlacements,
+    options.northernSnow
+  );
   group.add(fallback.mesh);
   let activeMesh: THREE.Mesh | THREE.InstancedMesh = fallback.mesh;
   let activeTriangleCount = fallback.triangleCount;
+  let activeSnowTintedTreeCount = fallback.snowTintedTreeCount;
   let usingFallback = true;
   let disposed = false;
   const abortController = new AbortController();
@@ -434,7 +497,8 @@ export function createRealmForestLayer(
         points,
         prefabs,
         options.map,
-        options.terrainPlacements
+        options.terrainPlacements,
+        options.northernSnow
       );
       if (disposed) {
         disposeMesh(next.mesh);
@@ -444,6 +508,7 @@ export function createRealmForestLayer(
       const previousMesh = activeMesh;
       activeMesh = next.mesh;
       activeTriangleCount = next.triangleCount;
+      activeSnowTintedTreeCount = next.snowTintedTreeCount;
       usingFallback = false;
       disposeMesh(previousMesh);
       options.onModelReady?.();
@@ -476,7 +541,8 @@ export function createRealmForestLayer(
       structureCellCounts,
       silhouetteCoverageRatio: disposed ? 0 : silhouetteCoverageRatio,
       canonicalTriangleCount,
-      triangleCount: disposed ? 0 : activeTriangleCount
+      triangleCount: disposed ? 0 : activeTriangleCount,
+      snowTintedTreeCount: disposed ? 0 : activeSnowTintedTreeCount
     }),
     dispose: () => {
       if (disposed) return;

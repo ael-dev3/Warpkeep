@@ -547,6 +547,14 @@ describe('disposable connected local QA dependency and network boundaries', () =
       "value.acceptedCurrent !== true"
     );
     expect(browserSource).toContain(
+      "return { stage: 'hard-reload-repeated-terms' };"
+    );
+    expect(browserSource).toContain('termsSkipped: true');
+    expect(browserSource).toContain('value.termsSkipped !== true');
+    expect(
+      browserSource.match(/candidate\.closest\('\[inert\]'\) === null/g)
+    ).toHaveLength(5);
+    expect(browserSource).toContain(
       "'one synthetic cold auth/bootstrap/Terms '"
     );
   });
@@ -594,6 +602,15 @@ describe('disposable connected local QA dependency and network boundaries', () =
     );
     expect(browserSource).toContain(
       "probeStage = 'persistent-worker-isolated-browser-stop'"
+    );
+    expect(browserSource).toContain(
+      "probeStage = 'persistent-worker-hard-reload-restore-seam'"
+    );
+    expect(browserSource).toContain(
+      'history.replaceState(null'
+    );
+    expect(browserSource).toContain(
+      'hardReloadSeam?.result?.value !== hardReloadUrl'
     );
     expect(browserSource).toContain(
       "probeStage = 'persistent-worker-isolated-browser-launch'"
