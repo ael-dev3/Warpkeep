@@ -353,7 +353,9 @@ export function RenderedWebglQaHarness({
         data-castle-count={RENDERED_WEBGL_QA_CASTLE_COUNT}
         data-fixture={RENDERED_WEBGL_QA_FIXTURE_ID}
         data-fixture-variant={fixtureVariant}
-        {...(fixtureVariant === 'worker-active' || fixtureVariant === 'worker-locomotion'
+        {...(fixtureVariant === 'worker-active'
+          || fixtureVariant === 'worker-locomotion'
+          || fixtureVariant === 'worker-locomotion-northern'
           ? { 'data-active-worker-fixture-marker':
             RENDERED_WEBGL_QA_ACTIVE_WORKER_FIXTURE_MARKER }
           : {})}
@@ -388,6 +390,7 @@ export function RenderedWebglQaHarness({
           onRequestReturn={() => setPhase({ kind: 'closed' })}
           localQaWorkerProjectionTelemetry={
             fixtureVariant === 'worker-locomotion'
+            || fixtureVariant === 'worker-locomotion-northern'
           }
           presentationMode={presentationMode}
           qualityOverride={quality}

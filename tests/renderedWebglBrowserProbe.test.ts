@@ -8,6 +8,7 @@ import { resolve } from 'node:path';
 import {
   analyzeRenderedWebglPngScreenshot,
   applyNorthernReachRenderedEvidence,
+  assertNorthernReachRepeatedReducedMotionEvidence,
   assertNorthernReachRenderedVisual,
   applyRenderedWebglActiveWorkerInteraction,
   applyRenderedWebglActiveWorkerReconnectInteraction,
@@ -41,6 +42,7 @@ import {
   parseRenderedWebglResourceOccupantEvidence,
   parseRenderedWebglSfxEvidence,
   parseRenderedWebglWaterOverviewEvidence,
+  readNorthernReachStaticFrameSignature,
   RENDERED_WEBGL_QA_CHROME,
   RENDERED_WEBGL_QA_CHROME_APP,
   RENDERED_WEBGL_QA_CASE_COUNT,
@@ -195,7 +197,10 @@ function cdpPipeFrame(value: unknown) {
   return Buffer.from(`${JSON.stringify(value)}\0`, 'utf8');
 }
 
-function renderedScreenshotPng(blank: boolean) {
+function renderedScreenshotPng(
+  blank: boolean,
+  palette: 'varied' | 'forest' = 'varied'
+) {
   const chunk = (type: string, data: Buffer) => {
     const length = Buffer.alloc(4);
     length.writeUInt32BE(data.byteLength);
@@ -214,9 +219,16 @@ function renderedScreenshotPng(blank: boolean) {
     rows[row] = 0;
     for (let x = 0; x < width; x += 1) {
       const offset = row + 1 + x * 4;
-      rows[offset] = blank ? 0 : (x * 7 + y * 3) & 0xff;
-      rows[offset + 1] = blank ? 0 : (x * 2 + y * 11) & 0xff;
-      rows[offset + 2] = blank ? 0 : (x * 13 + y * 5) & 0xff;
+      const forestTone = (Math.floor(x / 20) + Math.floor(y / 20)) % 16;
+      rows[offset] = blank ? 0
+        : palette === 'forest' ? 25 + forestTone * 6
+          : (x * 7 + y * 3) & 0xff;
+      rows[offset + 1] = blank ? 0
+        : palette === 'forest' ? 75 + forestTone * 10
+          : (x * 2 + y * 11) & 0xff;
+      rows[offset + 2] = blank ? 0
+        : palette === 'forest' ? 30 + forestTone * 5
+          : (x * 13 + y * 5) & 0xff;
       rows[offset + 3] = 255;
     }
   }
@@ -1211,34 +1223,37 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(source).toContain('one active generic ');
   });
 
-  it('requires a strict four-case privacy-safe real-GLB Worker locomotion matrix', async () => {
+  it('requires a strict five-case privacy-safe real-GLB Worker locomotion matrix', async () => {
     const cases = renderedWebglWorkerLocomotionProbeCases(41_733);
     const telemetryFor = (
       wheelDrivenCount: number,
-      animatedCount: number
+      animatedCount: number,
+      gatheringIdleCount: number,
+      modelCount: number,
+      movingCount: number
     ) => ({
-      clipIdleCount: 1,
+      clipIdleCount: gatheringIdleCount,
       clipStartCount: 0,
       clipStopCount: 0,
       clipTurnLeftCount: 0,
       clipTurnRightCount: 0,
-      clipWalkCount: 2,
-      cruisingCount: 2,
-      gatheringIdleCount: 1,
-      lateModelPhaseRestorationCount: 3,
+      clipWalkCount: movingCount,
+      cruisingCount: movingCount,
+      gatheringIdleCount,
+      lateModelPhaseRestorationCount: modelCount,
       maximumHeadingError: 0.02,
       maximumPositionCorrection: 0.01,
       maximumSpeed: 0.25,
-      modelPhaseRestorationCount: 3,
-      movingCount: 2,
+      modelPhaseRestorationCount: modelCount,
+      movingCount,
       oneShotOverrunCount: 0,
       repeatedTurnSuppressionCount: 0,
-      renderedClipIdleCount: animatedCount > 0 ? 1 : 0,
+      renderedClipIdleCount: animatedCount > 0 ? gatheringIdleCount : 0,
       renderedClipStartCount: 0,
       renderedClipStopCount: 0,
       renderedClipTurnLeftCount: 0,
       renderedClipTurnRightCount: 0,
-      renderedClipWalkCount: animatedCount > 0 ? 2 : 0,
+      renderedClipWalkCount: animatedCount > 0 ? movingCount : 0,
       reversalCount: 0,
       startingCount: 0,
       stoppingCount: 0,
@@ -1249,7 +1264,10 @@ describe('rendered WebGL headless browser probe contract', () => {
     const evidenceFor = (probeCase: (typeof cases)[number]) => {
       const telemetry = telemetryFor(
         probeCase.workerLocomotion.expectedWheelDrivenCount,
-        probeCase.workerLocomotion.expectedAnimatedCount
+        probeCase.workerLocomotion.expectedAnimatedCount,
+        probeCase.workerLocomotion.expectedGatheringIdleCount,
+        probeCase.workerLocomotion.expectedModelCount,
+        probeCase.workerLocomotion.expectedMovingCount
       );
       const samples = Array.from({ length: 32 }, (_, index) => {
         const phase = index < 16 ? 'outbound' as const : 'returning' as const;
@@ -1284,7 +1302,7 @@ describe('rendered WebGL headless browser probe contract', () => {
         caseId: probeCase.id,
         fallbackCount: 0,
         fixtureSelected: true,
-        modelCount: 3,
+        modelCount: probeCase.workerLocomotion.expectedModelCount,
         movementPixels: {
           outbound: phaseMovement('outbound'),
           returning: phaseMovement('returning')
@@ -1306,49 +1324,89 @@ describe('rendered WebGL headless browser probe contract', () => {
 
     expect(cases.map((probeCase) => ({
       id: probeCase.id,
+      fixtureVariant: probeCase.workerLocomotion.fixtureVariant,
+      northern: probeCase.workerLocomotion.northern,
       quality: probeCase.expectedQuality,
       reducedMotion: probeCase.expectedReducedMotion === true,
       viewport: probeCase.viewport,
       assetProfile: probeCase.workerLocomotion.assetProfile,
       animatedCount: probeCase.workerLocomotion.expectedAnimatedCount,
+      gatheringIdleCount:
+        probeCase.workerLocomotion.expectedGatheringIdleCount,
+      modelCount: probeCase.workerLocomotion.expectedModelCount,
+      movingCount: probeCase.workerLocomotion.expectedMovingCount,
       wheelDrivenCount:
         probeCase.workerLocomotion.expectedWheelDrivenCount
     }))).toEqual([
       {
         id: 'full-hd-high-worker-locomotion',
+        fixtureVariant: 'worker-locomotion',
+        northern: false,
         quality: 'high',
         reducedMotion: false,
         viewport: { width: 1_920, height: 1_080 },
         assetProfile: 'high',
         animatedCount: 3,
+        gatheringIdleCount: 1,
+        modelCount: 3,
+        movingCount: 2,
         wheelDrivenCount: 3
       },
       {
         id: 'desktop-balanced-worker-locomotion',
+        fixtureVariant: 'worker-locomotion',
+        northern: false,
         quality: 'balanced',
         reducedMotion: false,
         viewport: { width: 1_440, height: 900 },
         assetProfile: 'balanced',
         animatedCount: 3,
+        gatheringIdleCount: 1,
+        modelCount: 3,
+        movingCount: 2,
         wheelDrivenCount: 3
       },
       {
         id: 'short-landscape-reduced-worker-locomotion',
+        fixtureVariant: 'worker-locomotion',
+        northern: false,
         quality: 'reduced',
         reducedMotion: false,
         viewport: { width: 667, height: 375 },
         assetProfile: 'compact',
         animatedCount: 0,
+        gatheringIdleCount: 1,
+        modelCount: 3,
+        movingCount: 2,
         wheelDrivenCount: 3
       },
       {
         id: 'mobile-reduced-motion-worker-locomotion',
+        fixtureVariant: 'worker-locomotion',
+        northern: false,
         quality: 'reduced',
         reducedMotion: true,
         viewport: { width: 390, height: 844 },
         assetProfile: 'compact',
         animatedCount: 0,
+        gatheringIdleCount: 1,
+        modelCount: 3,
+        movingCount: 2,
         wheelDrivenCount: 0
+      },
+      {
+        id: 'desktop-balanced-northern-worker-locomotion',
+        fixtureVariant: 'worker-locomotion-northern',
+        northern: true,
+        quality: 'balanced',
+        reducedMotion: false,
+        viewport: { width: 1_440, height: 900 },
+        assetProfile: 'balanced',
+        animatedCount: 4,
+        gatheringIdleCount: 1,
+        modelCount: 4,
+        movingCount: 3,
+        wheelDrivenCount: 4
       }
     ]);
     evidence.forEach((candidate) => {
@@ -1442,7 +1500,9 @@ describe('rendered WebGL headless browser probe contract', () => {
     });
     expect(evaluation?.[2]).toBe(100_000);
     const expression = String(evaluation?.[1]?.expression);
-    expect(expression).toContain("overlay.dataset.fixtureVariant === 'worker-locomotion'");
+    expect(expression).toContain(
+      'overlay.dataset.fixtureVariant === expected.fixture'
+    );
     expect(expression).toContain(
       '/models/hegemony/hegemony-supply-wagon-balanced-af0f8788eaaf9a32.glb'
     );
@@ -1487,6 +1547,34 @@ describe('rendered WebGL headless browser probe contract', () => {
     );
     expect(expression).not.toContain('return {\\n        workerId');
     expect(expression).not.toContain('return {\\n        fid');
+
+    const northernCommand = vi.fn(async (
+      method: string,
+      _params?: Readonly<Record<string, unknown>>,
+      _timeoutMilliseconds?: number
+    ) => method === 'Runtime.evaluate'
+      ? { result: { type: 'object', value: evidence[4] } }
+      : {});
+    await expect(applyRenderedWebglWorkerLocomotionInteraction(
+      { command: northernCommand },
+      cases[4]!
+    )).resolves.toEqual(evidence[4]);
+    const northernExpression = String(northernCommand.mock.calls.find(
+      ([method]) => method === 'Runtime.evaluate'
+    )?.[1]?.expression);
+    expect(northernExpression).toContain(
+      '"fixture":"worker-locomotion-northern"'
+    );
+    expect(northernExpression).toContain('"northern":true');
+    expect(northernExpression).toContain(
+      "'data-realm-worker-selected-route-count'"
+    );
+    expect(northernExpression).toContain(
+      "'data-realm-worker-visible-route-segment-count'"
+    );
+    expect(northernExpression).toContain(
+      "canvas.getAttribute('data-realm-camera-state-token')"
+    );
     await expect(applyRenderedWebglWorkerLocomotionInteraction(
       { command },
       { ...cases[1]!, id: 'unreviewed-worker-locomotion' } as never
@@ -1505,7 +1593,7 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(source).toContain(
       '...workerLocomotionCases.map((probeCase) => probeCase.url)'
     );
-    expect(source).toContain('four Worker locomotion evidence checks');
+    expect(source).toContain('five Worker locomotion evidence checks');
   });
 
   it('locks the reported upper-right Water overview to the reviewed camera and scene', async () => {
@@ -1886,7 +1974,7 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(renderedWebglLabelDisplacementClassificationValid(0, true)).toBe(false);
   });
 
-  it('fixes fourteen responsive, interaction, and presentation cases to one numeric loopback origin', () => {
+  it('fixes fifteen responsive, interaction, and presentation cases to one numeric loopback origin', () => {
     const cases = renderedWebglBrowserProbeCases(41_733);
     expect(cases).toHaveLength(RENDERED_WEBGL_QA_CASE_COUNT);
     expect(new Set(cases.map((probeCase) => probeCase.id)).size).toBe(
@@ -2015,6 +2103,16 @@ describe('rendered WebGL headless browser probe contract', () => {
         viewport: { width: 667, height: 375 }
       },
       {
+        id: 'short-landscape-balanced-northern',
+        expectedPresentationMode: 'observer',
+        expectedQuality: 'balanced',
+        interaction: 'explore',
+        maximumLabelOverflowCount: 0,
+        minimumLabelCount: 1,
+        url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced',
+        viewport: { width: 667, height: 375 }
+      },
+      {
         id: 'desktop-balanced-player',
         expectedPresentationMode: 'player',
         expectedQuality: 'balanced',
@@ -2132,6 +2230,11 @@ describe('rendered WebGL headless browser probe contract', () => {
     });
 
     expect(assertProcessGroupStopped).toHaveBeenCalledTimes(2);
+    expect(terminateProcessGroup.mock.calls).toEqual([
+      [expect.objectContaining({ pid: 4322 }), 'SIGTERM'],
+      [expect.objectContaining({ pid: 4322 }), 'SIGKILL'],
+      [expect.objectContaining({ pid: 4322 }), 'SIGKILL']
+    ]);
     expect(wait).toHaveBeenCalledWith(1);
   });
 
@@ -3428,6 +3531,17 @@ describe('rendered WebGL headless browser probe contract', () => {
       recovered: true,
       recoveryExercised: true,
       region: 'deep',
+      retained: [
+        9_600,
+        2_493,
+        1_235,
+        2_493 / 9_600,
+        1_235 / 9_600,
+        0.23,
+        0,
+        0,
+        0.91
+      ],
       selected: true,
       stable: true,
       vertices: [0, 0.91, 0.21, 200_000]
@@ -3539,14 +3653,170 @@ describe('rendered WebGL headless browser probe contract', () => {
     })).toEqual(overviewEvidence);
     expect(() => assertNorthernReachRenderedVisual(overviewEvidence, {
       ...deepVisual,
-      coolHighAlbedoSamples: 3,
-      coolSpatialBuckets: [3, 0, 0, 0, 0, 0, 0, 0, 0]
+      coolHighAlbedoSamples: 8,
+      coolSpatialBuckets: [8, 0, 0, 0, 0, 0, 0, 0, 0]
     })).not.toThrow();
     expect(() => assertNorthernReachRenderedVisual(overviewEvidence, {
       ...deepVisual,
       coolHighAlbedoSamples: 1,
       coolSpatialBuckets: [1, 0, 0, 0, 0, 0, 0, 0, 0]
     })).toThrow(/visual aggregate/i);
+    const forestVisual = analyzeRenderedWebglPngScreenshot(
+      renderedScreenshotPng(false, 'forest'),
+      { width: 320, height: 320 }
+    );
+    expect(forestVisual.coolHighAlbedoSamples).toBe(0);
+    expect(() => assertNorthernReachRenderedVisual(
+      evidence,
+      forestVisual
+    )).toThrow(/visual aggregate/i);
+
+    const reducedEvidence = {
+      ...ordinaryEvidence,
+      material: [
+        'genesis-001-northern-snow-presentation-v1',
+        'none',
+        true,
+        false
+      ],
+      quality: 'reduced'
+    } as const;
+    const frameSignature = {
+      cameraMode: 'keep',
+      cameraPresentationBand: 'close',
+      cameraStateToken: '1a2b3c4d'.repeat(3),
+      cameraTargetKind: 'cell-location',
+      canvasLastSuccessfulGeneration: 4,
+      canvasRendererGeneration: 4,
+      rendererGeneration: 4,
+      rendererLastSuccessfulGeneration: 4
+    } as const;
+    expect(() => assertNorthernReachRepeatedReducedMotionEvidence(
+      {
+        evidence: reducedEvidence,
+        signature: frameSignature,
+        visual: deepVisual
+      },
+      {
+        evidence: {
+          ...reducedEvidence,
+          coverage: [2_400, 1_000, 0.260_000_4, 0.120_000_4, 0, 0],
+          vertices: [0, 0.910_000_4, 0.210_000_4, 200_000]
+        },
+        signature: frameSignature,
+        visual: {
+          ...deepVisual,
+          coolHighAlbedoSamples: 9,
+          coolSpatialBuckets: [7, 1, 0, 0, 1, 0, 0, 0, 0]
+        }
+      }
+    )).not.toThrow();
+    expect(() => assertNorthernReachRepeatedReducedMotionEvidence(
+      {
+        evidence: reducedEvidence,
+        signature: frameSignature,
+        visual: deepVisual
+      },
+      {
+        evidence: {
+          ...reducedEvidence,
+          coverage: [2_400, 1_000, 0.260_002, 0.12, 0, 0]
+        },
+        signature: frameSignature,
+        visual: deepVisual
+      }
+    )).toThrow(/repeated reduced-motion/i);
+    expect(() => assertNorthernReachRepeatedReducedMotionEvidence(
+      {
+        evidence: reducedEvidence,
+        signature: frameSignature,
+        visual: deepVisual
+      },
+      {
+        evidence: reducedEvidence,
+        signature: frameSignature,
+        visual: {
+          ...deepVisual,
+          coolHighAlbedoSamples: 11,
+          coolSpatialBuckets: [10, 0, 0, 0, 1, 0, 0, 0, 0]
+        }
+      }
+    )).toThrow(/repeated reduced-motion/i);
+    expect(() => assertNorthernReachRepeatedReducedMotionEvidence(
+      {
+        evidence: reducedEvidence,
+        signature: frameSignature,
+        visual: deepVisual
+      },
+      {
+        evidence: {
+          ...reducedEvidence,
+          material: [
+            'genesis-001-northern-snow-presentation-v1',
+            'one-band',
+            true,
+            false
+          ]
+        },
+        signature: frameSignature,
+        visual: deepVisual
+      }
+    )).toThrow(/repeated reduced-motion/i);
+    expect(() => assertNorthernReachRepeatedReducedMotionEvidence(
+      {
+        evidence: reducedEvidence,
+        signature: frameSignature,
+        visual: deepVisual
+      },
+      {
+        evidence: reducedEvidence,
+        signature: {
+          ...frameSignature,
+          cameraStateToken: '4d3c2b1a'.repeat(3)
+        },
+        visual: deepVisual
+      }
+    )).toThrow(/repeated reduced-motion/i);
+
+    const source = readFileSync(resolve(
+      import.meta.dirname,
+      '../scripts/qa-observer/rendered-webgl-browser-probe.mjs'
+    ), 'utf8');
+    expect(source).toMatch(
+      /RENDERED_WEBGL_QA_NORTHERN_REACH_CASE_IDS[\s\S]*'short-landscape-balanced-northern'/
+    );
+    expect(source).toMatch(
+      /navigateRenderedWebglCase\(session, 'about:blank', state\)[\s\S]*waitForAcceptedRenderedDom\(session, baseline, state\)/
+    );
+    expect(source).toContain(
+      "region === 'transition' && evidence.band !== 'strategy'"
+    );
+    expect(source.match(
+      /delay\(NORTHERN_REACH_REDUCED_MOTION_HOST_WAIT_MILLISECONDS\)/g
+    )).toHaveLength(2);
+    expect(source).toContain(
+      '[data-owned-by-viewer="true"][data-phase="returning"]'
+    );
+    expect(source).toMatch(
+      /inspectionMounted[\s\S]*dispatchEvent\(new PointerEvent\('pointerover'/
+    );
+    expect(source).toContain('WARPKEEP_QA_NORTHERN_ARTIFACT_DIR');
+    expect(source).toContain("flag: 'wx'");
+    expect(source).toContain(
+      'const realDestinationDirectory = await realpath(destinationDirectory)'
+    );
+
+    const signatureCommand = vi.fn(async (
+      _method: string,
+      _params?: Readonly<Record<string, unknown>>
+    ) => ({
+      result: { type: 'object', value: frameSignature }
+    }));
+    await expect(readNorthernReachStaticFrameSignature({
+      command: signatureCommand
+    })).resolves.toEqual(frameSignature);
+    expect(String(signatureCommand.mock.calls[0]?.[1]?.expression))
+      .toContain('realmCameraStateToken');
 
     const command = vi.fn(async (
       _method: string,
@@ -3568,6 +3838,10 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(expression).toContain("let recovered=false");
     expect(expression).toContain("recoveryExercised:recover");
     expect(expression).toContain("number('snowSouthernLeakCount')");
+    expect(expression).toContain(
+      'root.dataset.realmSelectedCellKey===selectedTargetKey'
+    );
+    expect(expression).toContain('cameraToken()===beforeCameraToken');
     expect(expression).not.toContain('return target');
 
     const ordinaryCommand = vi.fn(async () => ({

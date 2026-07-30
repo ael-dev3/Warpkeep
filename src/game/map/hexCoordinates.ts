@@ -23,6 +23,18 @@ export type HexWorldPosition = Readonly<{
 
 const SQRT_3 = Math.sqrt(3);
 
+/**
+ * Renderer-neutral geographic north for every realm map.
+ *
+ * Northward progress increases as axial `r` and world `z` decrease. Axial
+ * `q`, world `x`, and camera pose are lateral/presentation concerns and must
+ * never redefine this simulation-space direction.
+ */
+export const GEOGRAPHIC_NORTH = Object.freeze({
+  axialRDirection: -1 as const,
+  worldZDirection: -1 as const
+});
+
 export const POINTY_TOP_AXIAL_DIRECTIONS: readonly HexCoord[] = [
   { q: 1, r: 0 },
   { q: 1, r: -1 },
@@ -38,6 +50,20 @@ function integerOr(value: number, fallback = 0) {
 
 function positiveSize(size: number) {
   return Number.isFinite(size) && size > 0 ? size : 1;
+}
+
+export function axialNorthwardProgress(
+  coord: HexCoord
+): number {
+  const r = Number.isFinite(coord.r) ? coord.r : 0;
+  return r * GEOGRAPHIC_NORTH.axialRDirection;
+}
+
+export function worldNorthwardProgress(
+  world: HexWorldPosition
+): number {
+  const z = Number.isFinite(world.z) ? world.z : 0;
+  return z * GEOGRAPHIC_NORTH.worldZDirection;
 }
 
 export function axialToCube({ q, r }: HexCoord): CubeCoord {

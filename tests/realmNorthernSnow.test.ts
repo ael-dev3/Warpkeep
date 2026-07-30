@@ -2,12 +2,16 @@ import { describe, expect, it } from 'vitest';
 
 import {
   createRealmNorthernSnowField,
+  realmNorthernSnowRetentionSlope,
   summarizeRealmNorthernSnowCoverage
 } from '../src/game/map/realmNorthernSnow';
 import {
+  axialNorthwardProgress,
   axialToWorld,
+  GEOGRAPHIC_NORTH,
   hexDistance,
   hexKey,
+  worldNorthwardProgress,
   type HexCoord
 } from '../src/game/map/hexCoordinates';
 import { createAuthoritativeRealmTerrainSurface } from '../src/game/map/realmTerrainSurface';
@@ -38,6 +42,31 @@ function canonicalField() {
 }
 
 describe('Realm Northern snow field', () => {
+  it('freezes geographic north independently of q, world x, and camera framing', () => {
+    expect(Object.isFrozen(GEOGRAPHIC_NORTH)).toBe(true);
+    expect(GEOGRAPHIC_NORTH).toEqual({
+      axialRDirection: -1,
+      worldZDirection: -1
+    });
+
+    const fartherNorth = { q: 27, r: -12 };
+    const fartherSouth = { q: -27, r: 12 };
+    expect(axialNorthwardProgress(fartherNorth))
+      .toBeGreaterThan(axialNorthwardProgress(fartherSouth));
+    expect(axialNorthwardProgress({ q: -999, r: fartherNorth.r }))
+      .toBe(axialNorthwardProgress(fartherNorth));
+
+    const northWorld = axialToWorld(fartherNorth, 1);
+    const southWorld = axialToWorld(fartherSouth, 1);
+    expect(northWorld.z).toBeLessThan(southWorld.z);
+    expect(worldNorthwardProgress(northWorld))
+      .toBeGreaterThan(worldNorthwardProgress(southWorld));
+    expect(worldNorthwardProgress({ x: -99_999, z: northWorld.z }))
+      .toBe(worldNorthwardProgress({ x: 99_999, z: northWorld.z }));
+    expect(axialNorthwardProgress({ q: 0, r: 1 })).toBeLessThan(0);
+    expect(worldNorthwardProgress({ x: 0, z: 1 })).toBeLessThan(0);
+  });
+
   it('is immutable, deterministic, order independent, and coordinate equivalent', () => {
     const { field } = canonicalField();
     const coord = { q: -7, r: -41 };
@@ -78,10 +107,10 @@ describe('Realm Northern snow field', () => {
     expect(center.coverage).toBe(0);
     expect(south.coverage).toBeLessThan(0.01);
     expect(north.coverage).toBeGreaterThan(0.75);
-    expect(summary.playableCoverageRatio).toBeGreaterThanOrEqual(0.22);
-    expect(summary.playableCoverageRatio).toBeLessThanOrEqual(0.30);
-    expect(summary.deepCoverageRatio).toBeGreaterThanOrEqual(0.09);
-    expect(summary.deepCoverageRatio).toBeLessThanOrEqual(0.15);
+    expect(summary.preRetentionCoverageRatio).toBeGreaterThanOrEqual(0.22);
+    expect(summary.preRetentionCoverageRatio).toBeLessThanOrEqual(0.30);
+    expect(summary.preRetentionDeepCoverageRatio).toBeGreaterThanOrEqual(0.09);
+    expect(summary.preRetentionDeepCoverageRatio).toBeLessThanOrEqual(0.15);
     expect(summary.innerRadiusLeakCount).toBe(0);
     expect(summary.southernLeakCount).toBe(0);
     expect(summary.northernmostRowMean).toBeGreaterThan(0.75);
@@ -123,6 +152,14 @@ describe('Realm Northern snow field', () => {
       axialToWorld({ q: 0, r: -48 }, 1),
       { slope: 0, concavity: 0, placementInfluence: 1 }
     )).toBeLessThan(0.1);
+  });
+
+  it('shares one bounded slope-retention cue across terrain and ecology', () => {
+    expect(realmNorthernSnowRetentionSlope(0, 1)).toBe(0);
+    expect(realmNorthernSnowRetentionSlope(0.1, 1))
+      .toBeCloseTo(0.1 / Math.hypot(0.1, 1) * 2.8);
+    expect(realmNorthernSnowRetentionSlope(1, 0)).toBe(1);
+    expect(realmNorthernSnowRetentionSlope(Number.NaN, 1)).toBe(0);
   });
 
   it('does not depend on iteration order in aggregate summaries', () => {

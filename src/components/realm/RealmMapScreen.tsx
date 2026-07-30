@@ -2548,16 +2548,18 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       telemetry.terrainShaderCompileAttemptCount
     );
     root.dataset.snowFieldRevision = telemetry.snowFieldRevision;
-    root.dataset.snowClimateCellCountAbove015 = String(
-      telemetry.snowClimateCellCountAbove015
+    root.dataset.snowPreRetentionCellCountAbove015 = String(
+      telemetry.snowPreRetentionCellCountAbove015
     );
-    root.dataset.snowDeepCellCountAbove075 = String(
-      telemetry.snowDeepCellCountAbove075
+    root.dataset.snowPreRetentionDeepCellCountAbove075 = String(
+      telemetry.snowPreRetentionDeepCellCountAbove075
     );
-    root.dataset.snowPlayableCoverageRatio = String(
-      telemetry.snowPlayableCoverageRatio
+    root.dataset.snowPreRetentionCoverageRatio = String(
+      telemetry.snowPreRetentionCoverageRatio
     );
-    root.dataset.snowDeepCoverageRatio = String(telemetry.snowDeepCoverageRatio);
+    root.dataset.snowPreRetentionDeepCoverageRatio = String(
+      telemetry.snowPreRetentionDeepCoverageRatio
+    );
     root.dataset.snowInnerRadiusLeakCount = String(
       telemetry.snowInnerRadiusLeakCount
     );
@@ -2566,6 +2568,33 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     root.dataset.snowVertexCoverageMax = String(telemetry.snowVertexCoverageMax);
     root.dataset.snowVertexCoverageMean = String(telemetry.snowVertexCoverageMean);
     root.dataset.snowAttributeBytes = String(telemetry.snowAttributeBytes);
+    root.dataset.snowSampledPlayableLandCellCenterCount = String(
+      telemetry.snowSampledPlayableLandCellCenterCount
+    );
+    root.dataset.snowRetainedCellCenterCountAbove015 = String(
+      telemetry.snowRetainedCellCenterCountAbove015
+    );
+    root.dataset.snowRetainedDeepCellCenterCountAbove075 = String(
+      telemetry.snowRetainedDeepCellCenterCountAbove075
+    );
+    root.dataset.snowRetainedCellCenterCoverageRatio = String(
+      telemetry.snowRetainedCellCenterCoverageRatio
+    );
+    root.dataset.snowRetainedDeepCellCenterCoverageRatio = String(
+      telemetry.snowRetainedDeepCellCenterCoverageRatio
+    );
+    root.dataset.snowRetainedCellCenterCoverageMean = String(
+      telemetry.snowRetainedCellCenterCoverageMean
+    );
+    root.dataset.snowRetainedCellCenterInnerRadiusLeakCount = String(
+      telemetry.snowRetainedCellCenterInnerRadiusLeakCount
+    );
+    root.dataset.snowRetainedCellCenterSouthernLeakCount = String(
+      telemetry.snowRetainedCellCenterSouthernLeakCount
+    );
+    root.dataset.snowRetainedNorthernmostRowCoverageMean = String(
+      telemetry.snowRetainedNorthernmostRowCoverageMean
+    );
     root.dataset.snowFineReliefMode = telemetry.snowFineReliefMode;
     root.dataset.snowShaderEnhanced = String(telemetry.snowShaderEnhanced);
     root.dataset.snowShaderFallbackActive = String(
@@ -3273,16 +3302,25 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
         rootRef.current.dataset.waterTriangleCount = '0';
         rootRef.current.dataset.waterDrawCalls = '0';
         rootRef.current.dataset.snowFieldRevision = 'pending';
-        rootRef.current.dataset.snowClimateCellCountAbove015 = '0';
-        rootRef.current.dataset.snowDeepCellCountAbove075 = '0';
-        rootRef.current.dataset.snowPlayableCoverageRatio = '0';
-        rootRef.current.dataset.snowDeepCoverageRatio = '0';
+        rootRef.current.dataset.snowPreRetentionCellCountAbove015 = '0';
+        rootRef.current.dataset.snowPreRetentionDeepCellCountAbove075 = '0';
+        rootRef.current.dataset.snowPreRetentionCoverageRatio = '0';
+        rootRef.current.dataset.snowPreRetentionDeepCoverageRatio = '0';
         rootRef.current.dataset.snowInnerRadiusLeakCount = '0';
         rootRef.current.dataset.snowSouthernLeakCount = '0';
         rootRef.current.dataset.snowVertexCoverageMin = '0';
         rootRef.current.dataset.snowVertexCoverageMax = '0';
         rootRef.current.dataset.snowVertexCoverageMean = '0';
         rootRef.current.dataset.snowAttributeBytes = '0';
+        rootRef.current.dataset.snowSampledPlayableLandCellCenterCount = '0';
+        rootRef.current.dataset.snowRetainedCellCenterCountAbove015 = '0';
+        rootRef.current.dataset.snowRetainedDeepCellCenterCountAbove075 = '0';
+        rootRef.current.dataset.snowRetainedCellCenterCoverageRatio = '0';
+        rootRef.current.dataset.snowRetainedDeepCellCenterCoverageRatio = '0';
+        rootRef.current.dataset.snowRetainedCellCenterCoverageMean = '0';
+        rootRef.current.dataset.snowRetainedCellCenterInnerRadiusLeakCount = '0';
+        rootRef.current.dataset.snowRetainedCellCenterSouthernLeakCount = '0';
+        rootRef.current.dataset.snowRetainedNorthernmostRowCoverageMean = '0';
         rootRef.current.dataset.snowFineReliefMode = 'none';
         rootRef.current.dataset.snowShaderEnhanced = 'false';
         rootRef.current.dataset.snowShaderFallbackActive = 'false';
@@ -4065,6 +4103,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       data-realm-camera-mode={cameraMode}
       data-realm-camera-presentation-band={realmCameraPresentationBand(cameraMode)}
       data-realm-camera-target-kind={interaction.cameraTarget.kind}
+      data-realm-selected-cell-key={hexKey(selectedCoord)}
       data-water-navigation-status={waterNavigationGraph.telemetry.status}
       data-water-navigation-node-count={String(waterNavigationGraph.telemetry.nodeCount)}
       data-water-navigation-river-node-count={String(

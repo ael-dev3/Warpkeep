@@ -6,7 +6,7 @@ full engineering record.
 
 ## [Unreleased]
 
-## [0.3.26] — 2026-07-29
+## [0.3.26] — 2026-07-30
 
 - Let frost settle gradually across the northern outer Lowlands and deepen
   toward the rim without adding a new authoritative terrain kind.

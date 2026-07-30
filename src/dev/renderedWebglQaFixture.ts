@@ -28,6 +28,7 @@ import {
   REALM_RESOURCE_POLICY_VERSION,
   type RealmEconomicResourceKey
 } from '../components/realm/realmResourcePresentation';
+import { canonicalPassableRoute } from '../game/map/canonicalPassableRoute';
 import {
   createRealmObserverHarnessRealm,
   parseRealmObserverSnapshot,
@@ -60,6 +61,8 @@ export const RENDERED_WEBGL_QA_LOCOMOTION_RETURNING_SITE_ID =
   'genesis-001-tier1-food-013';
 export const RENDERED_WEBGL_QA_LOCOMOTION_GATHERING_SITE_ID =
   'genesis-001-tier1-gold-15';
+export const RENDERED_WEBGL_QA_NORTHERN_LOCOMOTION_SITE_ID =
+  'genesis-001-tier1-food-044';
 export const RENDERED_WEBGL_QA_OCCUPANCY_STRESS_COUNT =
   CANONICAL_TIER_I_GOLD_SITES_V1.length
   + CANONICAL_TIER_I_FOOD_SITES_V1.length
@@ -311,6 +314,42 @@ type ActiveWorkerAssignment = Readonly<{
   timelineRevision: number;
 }>;
 
+const RENDERED_WEBGL_QA_RESOURCE_SITE_BY_KEY = new Map([
+  ...CANONICAL_TIER_I_GOLD_SITES_V1.map((site) => [
+    `gold:${site.siteId}`,
+    site
+  ] as const),
+  ...CANONICAL_TIER_I_FOOD_SITES_V1.map((site) => [
+    `food:${site.siteId}`,
+    site
+  ] as const),
+  ...CANONICAL_TIER_I_WOOD_SITES_V1.map((site) => [
+    `wood:${site.siteId}`,
+    site
+  ] as const),
+  ...CANONICAL_TIER_I_STONE_SITES_V1.map((site) => [
+    `stone:${site.siteId}`,
+    site
+  ] as const)
+]);
+
+function canonicalRouteStepsForAssignment(
+  origin: Readonly<{ q: number; r: number }>,
+  assignment: ActiveWorkerAssignment
+) {
+  const destination = RENDERED_WEBGL_QA_RESOURCE_SITE_BY_KEY.get(
+    `${assignment.resourceKind}:${assignment.siteId}`
+  );
+  const route = destination === undefined
+    ? undefined
+    : canonicalPassableRoute(origin, destination);
+  const routeSteps = route === undefined ? 0 : route.length - 1;
+  if (!Number.isSafeInteger(routeSteps) || routeSteps < 1) {
+    throw new Error('Rendered WebGL QA Worker route is inconsistent.');
+  }
+  return routeSteps;
+}
+
 function createRenderedWebglQaWorkerRealm(
   assignmentByWorkerId: ReadonlyMap<string, ActiveWorkerAssignment>,
   observedAtMicros: bigint,
@@ -343,7 +382,7 @@ function createRenderedWebglQaWorkerRealm(
             ? {}
             : { returnStartedAtMicros: assignment.returnStartedAtMicros }),
           returnsAtMicros: assignment.returnsAtMicros,
-          routeSteps: 12,
+          routeSteps: canonicalRouteStepsForAssignment(castle, assignment),
           ...(assignment.returnStartProgressBasisPoints === undefined
             ? {}
             : {
@@ -593,6 +632,128 @@ export function createRenderedWebglQaWorkerLocomotionRealm(
     nowMicros,
     new Map()
   );
+}
+
+/**
+ * Local-only route evidence for the Northern Reach. The two moving owned
+ * wagons share the reviewed 42-step dry route from the founding keep to
+ * food-044: the outbound wagon is held in transition snow while the returning
+ * wagon has just left the deep northern field. Timings remain synthetic and
+ * never invoke a reducer or production authority.
+ */
+export function createRenderedWebglQaNorthernWorkerLocomotionRealm(
+  nowMicros = BigInt(Date.now()) * 1_000n
+): RenderedWebglQaActiveWorkerRealm {
+  const routeSteps = canonicalRouteStepsForAssignment(
+    CANONICAL_CASTLE_SLOTS[0]!,
+    {
+      resourceKind: 'food',
+      siteId: RENDERED_WEBGL_QA_NORTHERN_LOCOMOTION_SITE_ID,
+      status: 'outbound',
+      startedAtMicros: 0n,
+      arrivesAtMicros: 1n,
+      gatheringEndsAtMicros: 2n,
+      returnsAtMicros: 3n,
+      timelineRevision: 1
+    }
+  );
+  const travelDuration = BigInt(routeSteps) * 60_000_000n;
+  if (
+    typeof nowMicros !== 'bigint'
+    || nowMicros < travelDuration * 3n
+    || routeSteps !== 42
+  ) {
+    throw new TypeError('Invalid Northern Worker locomotion clock or route.');
+  }
+
+  const ownCastleId = RENDERED_WEBGL_QA_OCCUPANT_CASTLE_ID - 1;
+  const foreignCastleId = RENDERED_WEBGL_QA_OCCUPANT_CASTLE_ID;
+  const outboundStart = nowMicros - travelDuration * 6_500n / 10_000n;
+  const returningStart = nowMicros - travelDuration * 500n / 10_000n;
+  const returningAssignmentStart = returningStart - travelDuration * 2n;
+  const foreignRouteSteps = canonicalRouteStepsForAssignment(
+    CANONICAL_CASTLE_SLOTS[1]!,
+    {
+      resourceKind: 'food',
+      siteId: RENDERED_WEBGL_QA_NORTHERN_LOCOMOTION_SITE_ID,
+      status: 'returning',
+      startedAtMicros: 0n,
+      arrivesAtMicros: 1n,
+      gatheringEndsAtMicros: 2n,
+      returnsAtMicros: 3n,
+      timelineRevision: 1
+    }
+  );
+  if (foreignRouteSteps !== 43) {
+    throw new TypeError('Invalid Northern peer Worker route.');
+  }
+  const foreignTravelDuration = BigInt(foreignRouteSteps) * 60_000_000n;
+  const foreignReturningStart =
+    nowMicros - foreignTravelDuration * 1_200n / 10_000n;
+  const foreignAssignmentStart =
+    foreignReturningStart - foreignTravelDuration * 2n;
+  const gatheringDuration = 120_000_000n;
+  const gatheringAssignmentStart =
+    nowMicros - gatheringDuration - 30_000_000n;
+  const assignments = new Map<string, ActiveWorkerAssignment>([
+    [
+      canonicalWorkerId(ownCastleId, 1),
+      Object.freeze({
+        resourceKind: 'food',
+        siteId: RENDERED_WEBGL_QA_NORTHERN_LOCOMOTION_SITE_ID,
+        status: 'outbound',
+        startedAtMicros: outboundStart,
+        arrivesAtMicros: outboundStart + travelDuration,
+        gatheringEndsAtMicros: outboundStart + travelDuration * 2n,
+        returnsAtMicros: outboundStart + travelDuration * 3n,
+        timelineRevision: 1
+      })
+    ],
+    [
+      canonicalWorkerId(ownCastleId, 2),
+      Object.freeze({
+        resourceKind: 'food',
+        siteId: RENDERED_WEBGL_QA_NORTHERN_LOCOMOTION_SITE_ID,
+        status: 'returning',
+        startedAtMicros: returningAssignmentStart,
+        arrivesAtMicros: returningAssignmentStart + travelDuration,
+        gatheringEndsAtMicros: returningStart,
+        returnStartedAtMicros: returningStart,
+        returnsAtMicros: returningStart + travelDuration,
+        returnStartProgressBasisPoints: 10_000,
+        timelineRevision: 2
+      })
+    ],
+    [
+      canonicalWorkerId(ownCastleId, 3),
+      Object.freeze({
+        resourceKind: 'gold',
+        siteId: RENDERED_WEBGL_QA_LOCOMOTION_GATHERING_SITE_ID,
+        status: 'gathering',
+        startedAtMicros: gatheringAssignmentStart,
+        arrivesAtMicros: gatheringAssignmentStart + gatheringDuration,
+        gatheringEndsAtMicros: gatheringAssignmentStart + gatheringDuration * 2n,
+        returnsAtMicros: gatheringAssignmentStart + gatheringDuration * 3n,
+        timelineRevision: 1
+      })
+    ],
+    [
+      canonicalWorkerId(foreignCastleId, 1),
+      Object.freeze({
+        resourceKind: 'food',
+        siteId: RENDERED_WEBGL_QA_NORTHERN_LOCOMOTION_SITE_ID,
+        status: 'returning',
+        startedAtMicros: foreignAssignmentStart,
+        arrivesAtMicros: foreignAssignmentStart + foreignTravelDuration,
+        gatheringEndsAtMicros: foreignReturningStart,
+        returnStartedAtMicros: foreignReturningStart,
+        returnsAtMicros: foreignReturningStart + foreignTravelDuration,
+        returnStartProgressBasisPoints: 10_000,
+        timelineRevision: 2
+      })
+    ]
+  ]);
+  return createRenderedWebglQaWorkerRealm(assignments, nowMicros, new Map());
 }
 
 export { RENDERED_WEBGL_QA_FIXTURE_ID };

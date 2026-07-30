@@ -16,7 +16,10 @@ import {
 } from './terrainPlacements';
 import type { RealmTerrainKind } from './realmTerrainSemantics';
 import { sampleRealmGrassCoverage } from './realmGrassNoise';
-import type { RealmNorthernSnowField } from './realmNorthernSnow';
+import {
+  realmNorthernSnowRetentionSlope,
+  type RealmNorthernSnowField
+} from './realmNorthernSnow';
 import type { RealmVegetationField } from './realmVegetationField';
 import type { RealmTerrainMap, TerrainCell } from './terrainTypes';
 
@@ -467,7 +470,7 @@ export function generateRealmGrassCells(input: RealmGrassGenerationInput): Realm
     const cellSnowCoverage = input.northernSnow?.retainedCoverageAtWorld(
       center,
       {
-        slope: centerSurfaceFrame.slope,
+        slope: realmNorthernSnowRetentionSlope(centerSurfaceFrame.slope, 1),
         concavity: 0,
         placementInfluence: 0
       }
@@ -560,7 +563,7 @@ export function generateRealmGrassCells(input: RealmGrassGenerationInput): Realm
         const snowCoverage = input.northernSnow?.retainedCoverageAtWorld(
           candidate.world,
           {
-            slope,
+            slope: realmNorthernSnowRetentionSlope(slope, 1),
             concavity: 0,
             placementInfluence: 0
           }

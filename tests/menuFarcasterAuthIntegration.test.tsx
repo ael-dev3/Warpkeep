@@ -1,3 +1,4 @@
+import { StrictMode } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -305,6 +306,28 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(callbacks.prepareQrCode).not.toHaveBeenCalled();
     expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
     expect(screen.getByRole('region', { name: 'Farcaster sign-in' })).not.toBeNull();
+  });
+
+  it('settles a cold-session miss into Terms under the production StrictMode lifecycle', async () => {
+    const callbacks = createMenuCallbacks();
+    const restoreSession = vi.fn(async () => false);
+
+    render(
+      <StrictMode>
+        {menu(callbacks, anonymousState, 'unknown', false, { restoreSession })}
+      </StrictMode>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+
+    const dialog = await screen.findByRole('dialog', {
+      name: 'ALPHA PARTICIPATION TERMS'
+    });
+    expect((within(dialog).getByRole('checkbox', {
+      name: 'I agree to the Alpha Terms and Hegemony Social Contract.'
+    }) as HTMLInputElement).checked).toBe(false);
+    expect(restoreSession).toHaveBeenCalledTimes(1);
+    expect(callbacks.begin).not.toHaveBeenCalled();
   });
 
   it('enters without Terms when cold restore finds authenticated current agreement', async () => {

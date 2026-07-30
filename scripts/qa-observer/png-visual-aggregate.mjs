@@ -176,9 +176,11 @@ export function analyzeRenderedWebglPngScreenshot(value, viewport, options = {})
       if (maximumChannel <= 2) clippedBlackSamples += 1;
       if (minimumChannel >= 253) clippedWhiteSamples += 1;
       if (
-        luminance >= 100
-        && green >= red + 2
-        && blue >= red - 6
+        luminance >= 150
+        && minimumChannel >= 125
+        && chroma <= 45
+        && green >= red - 5
+        && blue >= red - 12
       ) {
         coolHighAlbedoSamples += 1;
         const bucket = Math.min(

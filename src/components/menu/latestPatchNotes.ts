@@ -7,7 +7,7 @@ export type LatestPatchNotes = Readonly<{
 }>;
 
 const ALPHA_0_3_26_PATCH_NOTES: LatestPatchNotes = Object.freeze({
-  releasedOn: '29 JUL 2026',
+  releasedOn: '30 JUL 2026',
   title: 'THE NORTHERN REACH',
   summary:
     'Beyond the founding heartland, winter now gathers across the northern outer Lowlands and deepens toward the rim.',

@@ -9,7 +9,11 @@ import {
   sampleContinuousTerrainPresentation
 } from '../src/components/realm/createTerrainGeometry';
 import { generateRealmTerrainMap } from '../src/game/map/generateTerrainMap';
-import { axialToWorld, hexDistance } from '../src/game/map/hexCoordinates';
+import {
+  axialToWorld,
+  hexDistance,
+  hexKey
+} from '../src/game/map/hexCoordinates';
 import { createRealmNorthernSnowField } from '../src/game/map/realmNorthernSnow';
 import { HEGEMONY_GENESIS_001 } from '../src/game/map/realmSeed';
 import { createHegemonyKeepPlacement } from '../src/game/map/terrainPlacements';
@@ -221,7 +225,10 @@ describe('combined lowlands terrain geometry', () => {
     const geometryOptions = {
       subdivisionsPerEdge: 2,
       adaptiveDetailRadius: 0,
-      playableRadius: 58
+      playableRadius: 58,
+      snowPlayableCellKeys: new Set(
+        local.cells.map((cell) => hexKey(cell.coord))
+      )
     } as const;
     const neutral = createTerrainGeometryData(local, 1, geometryOptions);
     const snowy = createTerrainGeometryData(local, 1, {
@@ -262,6 +269,26 @@ describe('combined lowlands terrain geometry', () => {
     expect(snowy.snowCoverageMetrics.attributeBytes).toBe(
       snowy.vertexCount * Float32Array.BYTES_PER_ELEMENT
     );
+    expect(snowy.snowCoverageMetrics.sampledPlayableLandCellCenterCount)
+      .toBe(local.cells.length);
+    expect(snowy.snowCoverageMetrics.retainedCellCenterCountAbove015)
+      .toBeGreaterThan(0);
+    expect(snowy.snowCoverageMetrics.retainedDeepCellCenterCountAbove075)
+      .toBeGreaterThan(0);
+    expect(snowy.snowCoverageMetrics.retainedCellCenterCoverageRatio)
+      .toBe(
+        snowy.snowCoverageMetrics.retainedCellCenterCountAbove015
+          / local.cells.length
+      );
+    expect(snowy.snowCoverageMetrics.retainedDeepCellCenterCoverageRatio)
+      .toBe(
+        snowy.snowCoverageMetrics.retainedDeepCellCenterCountAbove075
+          / local.cells.length
+      );
+    expect(snowy.snowCoverageMetrics.retainedCellCenterCoverageMean)
+      .toBeGreaterThan(0);
+    expect(snowy.snowCoverageMetrics.retainedCellCenterSouthernLeakCount)
+      .toBe(0);
 
     const excluded = createTerrainGeometryData(local, 1, {
       ...geometryOptions,
@@ -269,6 +296,8 @@ describe('combined lowlands terrain geometry', () => {
       snowExcludedCellKeys: new Set(['0,-48'])
     });
     expect(excluded.snowCoverage![centerIndex!]).toBe(0);
+    expect(excluded.snowCoverageMetrics.sampledPlayableLandCellCenterCount)
+      .toBe(local.cells.length - 1);
 
     const founded = createTerrainGeometryData(local, 1, {
       ...geometryOptions,
@@ -292,6 +321,8 @@ describe('combined lowlands terrain geometry', () => {
       .toBeLessThan(snowy.snowCoverage![centerIndex!] * 0.1);
     expect(resourceCleared.snowCoverageMetrics.attributeBytes)
       .toBe(snowy.snowCoverageMetrics.attributeBytes);
+    expect(resourceCleared.snowCoverageMetrics.retainedCellCenterCoverageMean)
+      .toBeLessThan(snowy.snowCoverageMetrics.retainedCellCenterCoverageMean);
   });
 
   it('matches the pinned former radius-twenty-two topology at every runtime profile', () => {

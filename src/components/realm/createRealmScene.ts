@@ -627,16 +627,25 @@ export type RealmTerrainPresentationTelemetry = Readonly<{
   terrainShaderFallbackActive: boolean;
   terrainShaderCompileAttemptCount: number;
   snowFieldRevision: string;
-  snowClimateCellCountAbove015: number;
-  snowDeepCellCountAbove075: number;
-  snowPlayableCoverageRatio: number;
-  snowDeepCoverageRatio: number;
+  snowPreRetentionCellCountAbove015: number;
+  snowPreRetentionDeepCellCountAbove075: number;
+  snowPreRetentionCoverageRatio: number;
+  snowPreRetentionDeepCoverageRatio: number;
   snowInnerRadiusLeakCount: number;
   snowSouthernLeakCount: number;
   snowVertexCoverageMin: number;
   snowVertexCoverageMax: number;
   snowVertexCoverageMean: number;
   snowAttributeBytes: number;
+  snowSampledPlayableLandCellCenterCount: number;
+  snowRetainedCellCenterCountAbove015: number;
+  snowRetainedDeepCellCenterCountAbove075: number;
+  snowRetainedCellCenterCoverageRatio: number;
+  snowRetainedDeepCellCenterCoverageRatio: number;
+  snowRetainedCellCenterCoverageMean: number;
+  snowRetainedCellCenterInnerRadiusLeakCount: number;
+  snowRetainedCellCenterSouthernLeakCount: number;
+  snowRetainedNorthernmostRowCoverageMean: number;
   snowFineReliefMode: 'two-band' | 'one-band' | 'none';
   snowShaderEnhanced: boolean;
   snowShaderFallbackActive: boolean;
@@ -997,6 +1006,7 @@ function createTerrainGeometry(
   riverBankPresentation?: RealmRiverBankPresentation,
   visualizeLegacyLakesAsLand = false,
   northernSnow?: RealmNorthernSnowField,
+  snowPlayableCellKeys?: ReadonlySet<string>,
   snowExcludedCellKeys?: ReadonlySet<string>,
   snowClearanceCircles?: readonly RealmGrassExclusion[]
 ) {
@@ -1011,6 +1021,7 @@ function createTerrainGeometry(
     riverBankPresentation,
     visualizeLegacyLakesAsLand,
     northernSnow,
+    snowPlayableCellKeys,
     snowExcludedCellKeys,
     snowClearanceCircles
   });
@@ -1653,6 +1664,7 @@ function initializeRealmScene(
     riverBankPresentation,
     noLakeRevisionActive,
     northernSnow,
+    options.surface.playableKeys,
     waterCellKeys,
     resourceVegetationClearances
   );
@@ -2081,17 +2093,38 @@ function initializeRealmScene(
       terrainShaderFallbackActive: terrainMaterialTelemetry.shaderFallbackActive,
       terrainShaderCompileAttemptCount: terrainMaterialTelemetry.compileAttemptCount,
       snowFieldRevision: northernSnow.revision,
-      snowClimateCellCountAbove015:
-        snowCoverageSummary.climateCellCountAbove015,
-      snowDeepCellCountAbove075: snowCoverageSummary.deepCellCountAbove075,
-      snowPlayableCoverageRatio: snowCoverageSummary.playableCoverageRatio,
-      snowDeepCoverageRatio: snowCoverageSummary.deepCoverageRatio,
+      snowPreRetentionCellCountAbove015:
+        snowCoverageSummary.preRetentionCellCountAbove015,
+      snowPreRetentionDeepCellCountAbove075:
+        snowCoverageSummary.preRetentionDeepCellCountAbove075,
+      snowPreRetentionCoverageRatio:
+        snowCoverageSummary.preRetentionCoverageRatio,
+      snowPreRetentionDeepCoverageRatio:
+        snowCoverageSummary.preRetentionDeepCoverageRatio,
       snowInnerRadiusLeakCount: snowCoverageSummary.innerRadiusLeakCount,
       snowSouthernLeakCount: snowCoverageSummary.southernLeakCount,
       snowVertexCoverageMin: terrainData.snowCoverageMetrics.minimum,
       snowVertexCoverageMax: terrainData.snowCoverageMetrics.maximum,
       snowVertexCoverageMean: terrainData.snowCoverageMetrics.mean,
       snowAttributeBytes: terrainData.snowCoverageMetrics.attributeBytes,
+      snowSampledPlayableLandCellCenterCount:
+        terrainData.snowCoverageMetrics.sampledPlayableLandCellCenterCount,
+      snowRetainedCellCenterCountAbove015:
+        terrainData.snowCoverageMetrics.retainedCellCenterCountAbove015,
+      snowRetainedDeepCellCenterCountAbove075:
+        terrainData.snowCoverageMetrics.retainedDeepCellCenterCountAbove075,
+      snowRetainedCellCenterCoverageRatio:
+        terrainData.snowCoverageMetrics.retainedCellCenterCoverageRatio,
+      snowRetainedDeepCellCenterCoverageRatio:
+        terrainData.snowCoverageMetrics.retainedDeepCellCenterCoverageRatio,
+      snowRetainedCellCenterCoverageMean:
+        terrainData.snowCoverageMetrics.retainedCellCenterCoverageMean,
+      snowRetainedCellCenterInnerRadiusLeakCount:
+        terrainData.snowCoverageMetrics.retainedCellCenterInnerRadiusLeakCount,
+      snowRetainedCellCenterSouthernLeakCount:
+        terrainData.snowCoverageMetrics.retainedCellCenterSouthernLeakCount,
+      snowRetainedNorthernmostRowCoverageMean:
+        terrainData.snowCoverageMetrics.retainedNorthernmostRowCoverageMean,
       snowFineReliefMode: terrainMaterialTelemetry.fineReliefMode,
       snowShaderEnhanced: terrainMaterialTelemetry.shaderEnhanced,
       snowShaderFallbackActive: terrainMaterialTelemetry.shaderFallbackActive,
@@ -2219,16 +2252,25 @@ function initializeRealmScene(
       telemetry.terrainShaderFallbackActive,
       telemetry.terrainShaderCompileAttemptCount,
       telemetry.snowFieldRevision,
-      telemetry.snowClimateCellCountAbove015,
-      telemetry.snowDeepCellCountAbove075,
-      telemetry.snowPlayableCoverageRatio,
-      telemetry.snowDeepCoverageRatio,
+      telemetry.snowPreRetentionCellCountAbove015,
+      telemetry.snowPreRetentionDeepCellCountAbove075,
+      telemetry.snowPreRetentionCoverageRatio,
+      telemetry.snowPreRetentionDeepCoverageRatio,
       telemetry.snowInnerRadiusLeakCount,
       telemetry.snowSouthernLeakCount,
       telemetry.snowVertexCoverageMin,
       telemetry.snowVertexCoverageMax,
       telemetry.snowVertexCoverageMean,
       telemetry.snowAttributeBytes,
+      telemetry.snowSampledPlayableLandCellCenterCount,
+      telemetry.snowRetainedCellCenterCountAbove015,
+      telemetry.snowRetainedDeepCellCenterCountAbove075,
+      telemetry.snowRetainedCellCenterCoverageRatio,
+      telemetry.snowRetainedDeepCellCenterCoverageRatio,
+      telemetry.snowRetainedCellCenterCoverageMean,
+      telemetry.snowRetainedCellCenterInnerRadiusLeakCount,
+      telemetry.snowRetainedCellCenterSouthernLeakCount,
+      telemetry.snowRetainedNorthernmostRowCoverageMean,
       telemetry.snowFineReliefMode,
       telemetry.snowShaderEnhanced,
       telemetry.snowShaderFallbackActive,

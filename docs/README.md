@@ -16,6 +16,8 @@ contributors. This page routes deeper work without duplicating it.
   layout
 - [Lowlands audio](design/lowlands-audio.md) — scene transitions and runtime
   sound boundaries
+- [Northern Reach reference boundary](design/northern-reach-reference-boundary.md)
+  — the snow-system clean-room and license record
 - [Contributing](../CONTRIBUTING.md) — local setup, checks, privacy, and
   provenance expectations
 - [Code of Conduct](../CODE_OF_CONDUCT.md) — expectations for project spaces

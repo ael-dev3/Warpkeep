@@ -1,4 +1,5 @@
 import {
+  axialNorthwardProgress,
   axialToWorld,
   worldToFractionalAxial,
   type HexCoord,
@@ -44,10 +45,15 @@ export type RealmNorthernSnowField = Readonly<{
 }>;
 
 export type RealmNorthernSnowCoverageSummary = Readonly<{
-  climateCellCountAbove015: number;
-  deepCellCountAbove075: number;
-  playableCoverageRatio: number;
-  deepCoverageRatio: number;
+  /**
+   * These values describe the pre-retention climate field at cell centres.
+   * Final retained presentation is measured by terrain geometry after slope,
+   * concavity, structure, resource, and Water clearances have been applied.
+   */
+  preRetentionCellCountAbove015: number;
+  preRetentionDeepCellCountAbove075: number;
+  preRetentionCoverageRatio: number;
+  preRetentionDeepCoverageRatio: number;
   innerRadiusLeakCount: number;
   northernmostRowMean: number;
   southernLeakCount: number;
@@ -61,6 +67,26 @@ export type CreateRealmNorthernSnowFieldOptions = Readonly<{
 }>;
 
 const clampUnit = (value: number) => Math.min(1, Math.max(0, value));
+
+/**
+ * Shared terrain/ecology slope cue for snow retention. The first argument is
+ * horizontal normal magnitude and the second is its vertical magnitude.
+ */
+export function realmNorthernSnowRetentionSlope(
+  horizontalMagnitude: number,
+  verticalMagnitude: number
+) {
+  if (
+    !Number.isFinite(horizontalMagnitude)
+    || !Number.isFinite(verticalMagnitude)
+  ) return 0;
+  const horizontal = Math.abs(horizontalMagnitude);
+  const vertical = Math.abs(verticalMagnitude);
+  const magnitude = Math.hypot(horizontal, vertical);
+  return magnitude > 0.000_001
+    ? clampUnit(horizontal / magnitude * 2.8)
+    : 0;
+}
 
 function smoothstep(edge0: number, edge1: number, value: number) {
   if (edge0 === edge1) return value < edge0 ? 0 : 1;
@@ -118,7 +144,7 @@ function evaluateSnow(
 
   const axial = worldToFractionalAxial(world, options.hexSize);
   const radial = Math.max(Math.abs(axial.q), Math.abs(axial.r), Math.abs(axial.s));
-  const north = -axial.r / options.playableRadius;
+  const north = axialNorthwardProgress(axial) / options.playableRadius;
   const wavelengthScale = options.hexSize;
   const macro = sampleRealmGrassValueNoise(
     options.worldSeed,
@@ -258,10 +284,10 @@ export function summarizeRealmNorthernSnowCoverage(
 
   const denominator = Math.max(1, visibleLandCoords.length);
   return Object.freeze({
-    climateCellCountAbove015,
-    deepCellCountAbove075,
-    playableCoverageRatio: climateCellCountAbove015 / denominator,
-    deepCoverageRatio: deepCellCountAbove075 / denominator,
+    preRetentionCellCountAbove015: climateCellCountAbove015,
+    preRetentionDeepCellCountAbove075: deepCellCountAbove075,
+    preRetentionCoverageRatio: climateCellCountAbove015 / denominator,
+    preRetentionDeepCoverageRatio: deepCellCountAbove075 / denominator,
     innerRadiusLeakCount,
     northernmostRowMean:
       northernmostRowCoverageNano / (Math.max(1, northernmostRowCount) * 1_000_000_000),
