@@ -804,11 +804,13 @@ describe('Hermes private access request review boundary', () => {
         fid: 123n,
         requestedAtMicros: 1_720_000_000_000_000n,
         admissionState: 'missing',
+        requestState: 'pending',
       },
       {
         fid: 456n,
         requestedAtMicros: 1_720_000_001_000_000n,
-        admissionState: 'missing',
+        admissionState: 'disabled',
+        requestState: 'pending',
       },
     ],
     nextRequestedAtMicros: 1_720_000_001_000_000n,
@@ -827,7 +829,15 @@ describe('Hermes private access request review boundary', () => {
       { ...page, entries: [{ ...page.entries[0], fid: 0n }, page.entries[1]] },
       {
         ...page,
-        entries: [{ ...page.entries[0], admissionState: 'enabled' }, page.entries[1]],
+        entries: [{
+          ...page.entries[0],
+          admissionState: 'enabled',
+          requestState: 'pending',
+        }, page.entries[1]],
+      },
+      {
+        ...page,
+        entries: [{ ...page.entries[0], requestState: 'resolved' }, page.entries[1]],
       },
       { ...page, nextFid: 123n },
       { ...page, nextRequestedAtMicros: undefined, nextFid: undefined },
@@ -859,11 +869,13 @@ describe('Hermes private access request review boundary', () => {
           fid: '123',
           requestedAt: '2024-07-03T09:46:40.000Z',
           admissionState: 'missing',
+          requestState: 'pending',
         },
         {
           fid: '456',
           requestedAt: '2024-07-03T09:46:41.000Z',
-          admissionState: 'missing',
+          admissionState: 'disabled',
+          requestState: 'pending',
         },
       ],
       nextCursor: {

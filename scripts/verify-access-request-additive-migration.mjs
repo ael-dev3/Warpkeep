@@ -84,10 +84,11 @@ for (const definition of [
 ]) {
   assert.match(definition, /name: 'access_request_v1'/);
   assert.match(definition, /fid: t\.u64\(\)\.primaryKey\(\)/);
+  assert.match(definition, /requestCycle: t\.u64\(\)/);
   assert.match(definition, /requestedAt: t\.timestamp\(\)/);
   assert.doesNotMatch(
     definition,
-    /public:\s*true|indexes:|status|approved|reviewed|note|source|requestCount|updatedAt/i,
+    /public:\s*true|indexes:|status|approved|reviewed|note|source|updatedAt/i,
   );
 }
 

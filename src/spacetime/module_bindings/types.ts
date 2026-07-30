@@ -18,6 +18,7 @@ export type AccessRequestStatusV1 = __Infer<typeof AccessRequestStatusV1>;
 
 export const AccessRequestV1 = __t.object("AccessRequestV1", {
   fid: __t.u64(),
+  requestCycle: __t.u64(),
   requestedAt: __t.timestamp(),
 });
 export type AccessRequestV1 = __Infer<typeof AccessRequestV1>;
@@ -26,6 +27,7 @@ export const AdminAccessRequestEntryV1 = __t.object("AdminAccessRequestEntryV1",
   fid: __t.u64(),
   requestedAtMicros: __t.u64(),
   admissionState: __t.string(),
+  requestState: __t.string(),
 });
 export type AdminAccessRequestEntryV1 = __Infer<typeof AdminAccessRequestEntryV1>;
 

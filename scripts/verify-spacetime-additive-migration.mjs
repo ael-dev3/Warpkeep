@@ -1372,6 +1372,7 @@ function assertAdditiveV13Schema(before, after) {
   assert.deepEqual(added, [...additiveV13Tables]);
   assert.deepEqual(fieldNames(after, 'access_request_v1'), [
     'fid',
+    'request_cycle',
     'requested_at',
   ]);
   assert.equal(access(after, 'access_request_v1'), 'Private');
@@ -1805,8 +1806,10 @@ function parseAdminAccessRequestPage(text) {
   const entries = value[0].map(entry => {
     if (
       !Array.isArray(entry)
-      || entry.length !== 3
+      || entry.length !== 4
       || !['missing', 'disabled', 'enabled'].includes(entry[2])
+      || !['pending', 'resolved'].includes(entry[3])
+      || (entry[2] === 'enabled' && entry[3] === 'pending')
     ) fail('Loopback access-request admin entry contract was invalid.');
     return Object.freeze({
       fid: readCanonicalUnsigned(entry[0], maximumU64, 'access-request admin FID'),
@@ -1816,6 +1819,7 @@ function parseAdminAccessRequestPage(text) {
         'access-request admin timestamp',
       ),
       admissionState: entry[2],
+      requestState: entry[3],
     });
   });
   return Object.freeze({
@@ -1965,6 +1969,7 @@ async function verifyAccessRequestHttpLifecycle(server, database, privateKey) {
         fid: BigInt(syntheticMissingAccessRequestFid),
         requestedAtMicros: submitted.requestedAtMicros,
         admissionState: 'missing',
+        requestState: 'pending',
       }],
       nextRequestedAtMicros: undefined,
       nextFid: undefined,
@@ -3096,6 +3101,83 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
       disabledFounderCount !== 1n
       || await founderAuthorityDigest(server, ownerToken, database) !== founderAuthorityBeforeReenable
     ) fail('Local disable changed permanent founder authority state.');
+
+    stage = 'disabled-founder-access-request';
+    const disabledRequestCredential = () => createEphemeralJwt(
+      privateKey,
+      accessRequestServiceClaims(actualModuleFounderFid),
+    );
+    await useActualModule();
+    const disabledInitialStatus = parseAccessRequestStatus(
+      await callLoopbackProcedure(
+        server,
+        database,
+        'access_request_get_status_v1',
+        disabledRequestCredential(),
+        '[]',
+        200,
+      ),
+      'disabled founder initial access-request status',
+    );
+    assert.deepEqual(disabledInitialStatus, {
+      status: 'not_requested',
+      requestedAtMicros: undefined,
+    });
+    const disabledSubmitted = parseAccessRequestStatus(
+      await callLoopbackProcedure(
+        server,
+        database,
+        'access_request_submit_v1',
+        disabledRequestCredential(),
+        '[]',
+        200,
+      ),
+      'disabled founder submitted access-request status',
+    );
+    assert.equal(disabledSubmitted.status, 'requested');
+    if (
+      disabledSubmitted.requestedAtMicros === undefined
+      || disabledSubmitted.requestedAtMicros <= 0n
+    ) fail('Disabled founder access request omitted its database timestamp.');
+    const disabledDuplicate = parseAccessRequestStatus(
+      await callLoopbackProcedure(
+        server,
+        database,
+        'access_request_submit_v1',
+        disabledRequestCredential(),
+        '[]',
+        200,
+      ),
+      'disabled founder duplicate access-request status',
+    );
+    assert.deepEqual(disabledDuplicate, disabledSubmitted);
+    const disabledPendingPage = parseAdminAccessRequestPage(await callLoopbackProcedure(
+      server,
+      database,
+      'admin_list_access_requests_v1',
+      adminCredential(),
+      '[0,0,100,false]',
+      200,
+    ));
+    assert.deepEqual(disabledPendingPage, {
+      entries: [{
+        fid: BigInt(actualModuleFounderFid),
+        requestedAtMicros: disabledSubmitted.requestedAtMicros,
+        admissionState: 'disabled',
+        requestState: 'pending',
+      }],
+      nextRequestedAtMicros: undefined,
+      nextFid: undefined,
+      hasMore: false,
+      totalRequests: 1n,
+      pendingRequests: 1n,
+    });
+    await usePrivateInspectionModule();
+    if (
+      await founderAuthorityDigest(server, ownerToken, database)
+        !== founderAuthorityBeforeReenable
+    ) fail('Disabled founder access request changed permanent founder authority state.');
+
     await useActualModule();
     await callLoopbackReducer(
       server,
@@ -3117,6 +3199,39 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
       || await founderAuthorityDigest(server, ownerToken, database) !== founderAuthorityBeforeReenable
       || await actionCount(server, ownerToken, database, 'allow_fid') !== 1n
     ) fail('Legacy allow did not preserve and re-enable exactly one complete founder graph.');
+
+    await useActualModule();
+    const reenabledRequestStatus = parseAccessRequestStatus(
+      await callLoopbackProcedure(
+        server,
+        database,
+        'access_request_get_status_v1',
+        disabledRequestCredential(),
+        '[]',
+        200,
+      ),
+      're-enabled founder access-request status',
+    );
+    assert.deepEqual(reenabledRequestStatus, {
+      status: 'already_admitted',
+      requestedAtMicros: undefined,
+    });
+    const noPendingAfterReenable = parseAdminAccessRequestPage(await callLoopbackProcedure(
+      server,
+      database,
+      'admin_list_access_requests_v1',
+      adminCredential(),
+      '[0,0,100,false]',
+      200,
+    ));
+    assert.deepEqual(noPendingAfterReenable, {
+      entries: [],
+      nextRequestedAtMicros: undefined,
+      nextFid: undefined,
+      hasMore: false,
+      totalRequests: 1n,
+      pendingRequests: 0n,
+    });
 
     stage = 'bootstrap-presentation-independent-authority';
     await useActualModule();
@@ -6583,6 +6698,7 @@ async function main() {
       assert.equal(access(description, 'access_request_v1'), 'Private');
       assert.deepEqual(fieldNames(description, 'access_request_v1'), [
         'fid',
+        'request_cycle',
         'requested_at',
       ]);
     }

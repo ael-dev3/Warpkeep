@@ -21,6 +21,7 @@ const adminAccessRequestEntryV1 = t.object('AdminAccessRequestEntryV1', {
   fid: t.u64(),
   requestedAtMicros: t.u64(),
   admissionState: t.string(),
+  requestState: t.string(),
 });
 
 const adminAccessRequestPageV1 = t.object('AdminAccessRequestPageV1', {
@@ -63,16 +64,34 @@ function requestedAtMicros(
   return micros;
 }
 
-function requireEligibleAdmission(state: AdmissionState): void {
-  if (state === 'disabled') {
-    throw new SenderError('ACCESS_REQUEST_NOT_ELIGIBLE');
+type AllowedFidRow = Parameters<typeof resolveAuthResolverAdmission>[0];
+
+/**
+ * Missing identities use cycle zero. A disabled founder uses one beyond the
+ * current auth epoch, so the request made before their original admission
+ * cannot silently become the request for a later revocation. The u32 epoch
+ * plus one is intentionally stored as u64 so its terminal value is valid.
+ */
+function requestCycleForAdmission(
+  allowed: AllowedFidRow,
+  state: AdmissionState,
+): bigint | undefined {
+  if (state === 'enabled') return undefined;
+  if (state === 'missing') return 0n;
+  if (allowed === null || allowed.enabled || allowed.authEpoch < 0) {
+    throw new SenderError('ACCESS_REQUEST_STATE_INTEGRITY');
   }
+  return BigInt(allowed.authEpoch) + 1n;
 }
 
 function statusForRow(
-  row: Readonly<{ requestedAt: Readonly<{ microsSinceUnixEpoch: bigint }> }> | null,
+  row: Readonly<{
+    requestCycle: bigint;
+    requestedAt: Readonly<{ microsSinceUnixEpoch: bigint }>;
+  }> | null,
+  requestCycle: bigint,
 ) {
-  return row === null
+  return row === null || row.requestCycle !== requestCycle
     ? {
       status: 'not_requested',
       requestedAtMicros: undefined,
@@ -93,21 +112,26 @@ export const accessRequestGetStatusV1 = warpkeep.procedure(
   ctx =>
     ctx.withTx(tx => {
       const { requestFid } = requireAccessRequestResolver(tx);
-      const admission = resolveAdmissionState(tx.db.allowedFid.fid.find(requestFid));
-      requireEligibleAdmission(admission);
+      const allowed = tx.db.allowedFid.fid.find(requestFid);
+      const admission = resolveAdmissionState(allowed);
       if (admission === 'enabled') {
         return {
           status: 'already_admitted',
           requestedAtMicros: undefined,
         };
       }
-      return statusForRow(tx.db.accessRequestV1.fid.find(requestFid));
+      const requestCycle = requestCycleForAdmission(allowed, admission);
+      if (requestCycle === undefined) {
+        throw new SenderError('ACCESS_REQUEST_STATE_INTEGRITY');
+      }
+      return statusForRow(tx.db.accessRequestV1.fid.find(requestFid), requestCycle);
     }),
 );
 
 /**
- * Atomic, idempotent request submission. The FID primary key is the natural
- * idempotency key and duplicate calls preserve the first database timestamp.
+ * Atomic, cycle-idempotent request submission. Duplicate calls in one
+ * admission era preserve the first database timestamp. A later revocation
+ * rotates the server-derived cycle and receives a fresh database timestamp.
  */
 export const accessRequestSubmitV1 = warpkeep.procedure(
   { name: 'access_request_submit_v1' },
@@ -115,8 +139,8 @@ export const accessRequestSubmitV1 = warpkeep.procedure(
   ctx =>
     ctx.withTx(tx => {
       const { requestFid } = requireAccessRequestResolver(tx);
-      const admission = resolveAdmissionState(tx.db.allowedFid.fid.find(requestFid));
-      requireEligibleAdmission(admission);
+      const allowed = tx.db.allowedFid.fid.find(requestFid);
+      const admission = resolveAdmissionState(allowed);
       if (admission === 'enabled') {
         return {
           status: 'already_admitted',
@@ -124,10 +148,22 @@ export const accessRequestSubmitV1 = warpkeep.procedure(
         };
       }
 
+      const requestCycle = requestCycleForAdmission(allowed, admission);
+      if (requestCycle === undefined) {
+        throw new SenderError('ACCESS_REQUEST_STATE_INTEGRITY');
+      }
       let request = tx.db.accessRequestV1.fid.find(requestFid);
       if (request === null) {
         tx.db.accessRequestV1.insert({
           fid: requestFid,
+          requestCycle,
+          requestedAt: tx.timestamp,
+        });
+        request = tx.db.accessRequestV1.fid.find(requestFid);
+      } else if (request.requestCycle !== requestCycle) {
+        tx.db.accessRequestV1.fid.update({
+          ...request,
+          requestCycle,
           requestedAt: tx.timestamp,
         });
         request = tx.db.accessRequestV1.fid.find(requestFid);
@@ -135,7 +171,7 @@ export const accessRequestSubmitV1 = warpkeep.procedure(
       if (request === null) {
         throw new SenderError('ACCESS_REQUEST_STATE_INTEGRITY');
       }
-      return statusForRow(request);
+      return statusForRow(request, requestCycle);
     }),
 );
 
@@ -188,13 +224,19 @@ export const adminListAccessRequestsV1 = warpkeep.procedure(
       const visible = rows.flatMap(row => {
         requireStoredFid(row.fid);
         const micros = requestedAtMicros(row);
-        const admissionState = resolveAdmissionState(tx.db.allowedFid.fid.find(row.fid));
-        if (admissionState === 'missing') pendingRequests += 1n;
-        if (!includeResolved && admissionState !== 'missing') return [];
+        const allowed = tx.db.allowedFid.fid.find(row.fid);
+        const admissionState = resolveAdmissionState(allowed);
+        const requestCycle = requestCycleForAdmission(allowed, admissionState);
+        const requestState = requestCycle !== undefined && row.requestCycle === requestCycle
+          ? 'pending'
+          : 'resolved';
+        if (requestState === 'pending') pendingRequests += 1n;
+        if (!includeResolved && requestState !== 'pending') return [];
         return [{
           fid: row.fid,
           requestedAtMicros: micros,
           admissionState,
+          requestState,
         }];
       });
 

@@ -224,6 +224,7 @@ export const ACCESS_REQUEST_V13_TABLE_CONTRACTS = Object.freeze({
     access: 'Private',
     fields: Object.freeze([
       'fid',
+      'request_cycle',
       'requested_at',
     ]),
   }),

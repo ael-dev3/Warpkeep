@@ -204,7 +204,7 @@ const workerAssignmentScheduleV1 = table({
 
 /** v13 private, append-only expression of interest in manual admission. */
 const accessRequestV1 = table({ name: 'access_request_v1' }, {
-  fid: t.u64().primaryKey(), requestedAt: t.timestamp(),
+  fid: t.u64().primaryKey(), requestCycle: t.u64(), requestedAt: t.timestamp(),
 });
 
 const db = schema({

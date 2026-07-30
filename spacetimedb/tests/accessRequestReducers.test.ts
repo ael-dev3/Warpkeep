@@ -42,9 +42,10 @@ test('access requests add one exact private table at the end of the deployed v12
   assert.doesNotMatch(definition, /public:\s*true|indexes:|status|note|source|username|pfp|wallet/i);
   assert.deepEqual(
     [...definition.matchAll(/^\s{4}([A-Za-z][A-Za-z0-9]*):/gm)].map(match => match[1]),
-    ['fid', 'requestedAt'],
+    ['fid', 'requestCycle', 'requestedAt'],
   );
   assert.match(definition, /fid: t\.u64\(\)\.primaryKey\(\)/);
+  assert.match(definition, /requestCycle: t\.u64\(\)/);
   assert.match(definition, /requestedAt: t\.timestamp\(\)/);
 });
 
@@ -65,7 +66,7 @@ test('caller procedures derive the sole FID from the resolver and expose one exa
   const getStatus = section(
     reducer,
     'export const accessRequestGetStatusV1',
-    '/**\n * Atomic, idempotent request submission.',
+    '/**\n * Atomic, cycle-idempotent request submission.',
   );
   const submit = section(
     reducer,
@@ -86,12 +87,12 @@ test('caller procedures derive the sole FID from the resolver and expose one exa
   assert.match(reducer, /status: 'already_admitted'/);
 });
 
-test('submission is primary-key idempotent, database-timestamped, and mutation-isolated', () => {
+test('submission is admission-cycle idempotent, database-timestamped, and mutation-isolated', () => {
   const reducer = source('../src/reducers/accessRequests.ts');
   const status = section(
     reducer,
     'export const accessRequestGetStatusV1',
-    '/**\n * Atomic, idempotent request submission.',
+    '/**\n * Atomic, cycle-idempotent request submission.',
   );
   const submit = section(
     reducer,
@@ -103,8 +104,12 @@ test('submission is primary-key idempotent, database-timestamped, and mutation-i
   assert.doesNotMatch(status, /\.(?:insert|update|delete)\s*\(/);
   assert.match(submit, /let request = tx\.db\.accessRequestV1\.fid\.find\(requestFid\)/);
   assert.match(submit, /if \(request === null\)[\s\S]*tx\.db\.accessRequestV1\.insert\(\{/);
-  assert.match(submit, /fid: requestFid,[\s\S]*requestedAt: tx\.timestamp/);
-  assert.doesNotMatch(submit, /\.(?:update|delete)\s*\(/);
+  assert.match(submit, /fid: requestFid,[\s\S]*requestCycle,[\s\S]*requestedAt: tx\.timestamp/);
+  assert.match(
+    submit,
+    /else if \(request\.requestCycle !== requestCycle\)[\s\S]*accessRequestV1\.fid\.update\(\{/,
+  );
+  assert.doesNotMatch(submit, /\.delete\s*\(/);
   assert.doesNotMatch(
     submit,
     /tx\.db\.(?:allowedFid|adminAudit|castle|player|playerV2|playerOwnershipV2|realmProfileV1|resourceAccountV1|castleWorkerV1)\.(?:insert|update|delete)/,
@@ -119,14 +124,36 @@ test('Hermes listing is admin-only, bounded, deterministic, and derives resoluti
   assert.match(admin, /requireAdmin\(tx\)/);
   assert.match(admin, /limit < 1[\s\S]*limit > MAX_ACCESS_REQUEST_PAGE_SIZE/);
   assert.match(reducer, /const MAX_ACCESS_REQUEST_PAGE_SIZE = 100/);
-  assert.match(admin, /resolveAdmissionState\(tx\.db\.allowedFid\.fid\.find\(row\.fid\)\)/);
-  assert.match(admin, /if \(!includeResolved && admissionState !== 'missing'\) return \[\]/);
+  assert.match(admin, /const allowed = tx\.db\.allowedFid\.fid\.find\(row\.fid\)/);
+  assert.match(admin, /resolveAdmissionState\(allowed\)/);
+  assert.match(admin, /requestState = requestCycle !== undefined && row\.requestCycle === requestCycle/);
+  assert.match(admin, /if \(!includeResolved && requestState !== 'pending'\) return \[\]/);
   assert.match(admin, /left\.requestedAtMicros < right\.requestedAtMicros/);
   assert.match(admin, /left\.fid < right\.fid/);
   assert.match(admin, /entry\.requestedAtMicros === afterRequestedAtMicros[\s\S]*entry\.fid > afterFid/);
   assert.match(admin, /const hasMore = remaining\.length > entries\.length/);
   assert.match(admin, /totalRequests: BigInt\(rows\.length\)/);
   assert.match(admin, /pendingRequests/);
+});
+
+test('disabled founders receive a fresh review cycle without gaining authority', () => {
+  const reducer = source('../src/reducers/accessRequests.ts');
+  const cycle = section(
+    reducer,
+    'function requestCycleForAdmission(',
+    '\n}\n\nfunction statusForRow',
+  );
+  const submit = section(
+    reducer,
+    'export const accessRequestSubmitV1',
+    '/**\n * Bounded, deterministic Hermes-only inspection.',
+  );
+
+  assert.match(cycle, /if \(state === 'enabled'\) return undefined/);
+  assert.match(cycle, /if \(state === 'missing'\) return 0n/);
+  assert.match(cycle, /BigInt\(allowed\.authEpoch\) \+ 1n/);
+  assert.doesNotMatch(reducer, /ACCESS_REQUEST_NOT_ELIGIBLE/);
+  assert.doesNotMatch(submit, /tx\.db\.allowedFid\.(?:insert|update|delete)/);
 });
 
 test('all new versioned wires are pinned and no private table binding is generated', () => {

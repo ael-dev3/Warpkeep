@@ -127,6 +127,7 @@ const ACCESS_REQUEST_PAGE_KEYS = Object.freeze([
 const ACCESS_REQUEST_ENTRY_KEYS = Object.freeze([
   'admissionState',
   'fid',
+  'requestState',
   'requestedAtMicros',
 ].sort());
 const WORKER_STATUS_V12_U64_FIELDS = Object.freeze([
@@ -624,6 +625,7 @@ type AccessRequestListEntry = Readonly<{
   fid: bigint;
   requestedAtMicros: bigint;
   admissionState: 'missing' | 'enabled' | 'disabled';
+  requestState: 'pending' | 'resolved';
 }>;
 
 type AccessRequestListPage = Readonly<{
@@ -732,13 +734,26 @@ export function projectAccessRequestListPage(
     ) {
       fail('Access request procedure returned an invalid admission state.');
     }
-    if (!options.includeResolved && entry.admissionState !== 'missing') {
+    if (
+      entry.requestState !== 'pending'
+      && entry.requestState !== 'resolved'
+    ) {
+      fail('Access request procedure returned an invalid request state.');
+    }
+    if (
+      entry.requestState === 'pending'
+      && entry.admissionState === 'enabled'
+    ) {
+      fail('Access request procedure returned an inconsistent request state.');
+    }
+    if (!options.includeResolved && entry.requestState !== 'pending') {
       fail('Access request procedure returned a resolved request unexpectedly.');
     }
     const projected = Object.freeze({
       fid,
       requestedAtMicros,
       admissionState: entry.admissionState,
+      requestState: entry.requestState,
     });
     const previous = entries.at(-1);
     if (previous && compareAccessRequestEntries(previous, projected) >= 0) {
@@ -852,6 +867,7 @@ export async function listAccessRequests(
     fid: entry.fid.toString(),
     requestedAt: accessRequestTimestamp(entry.requestedAtMicros),
     admissionState: entry.admissionState,
+    requestState: entry.requestState,
   }));
   if (machineReadable) {
     console.log(JSON.stringify({
@@ -871,7 +887,9 @@ export async function listAccessRequests(
 
   console.log('ACCESS REQUESTS');
   for (const entry of entries) {
-    console.log(`${entry.requestedAt} · FID ${entry.fid} · ${entry.admissionState}`);
+    console.log(
+      `${entry.requestedAt} · FID ${entry.fid} · ${entry.requestState} · ${entry.admissionState}`,
+    );
   }
   if (entries.length === 0) console.log('No matching requests.');
   console.log(`Pending: ${page.pendingRequests.toString()} · Total: ${page.totalRequests.toString()}`);

@@ -30,7 +30,10 @@ test('v13 fixture is the exact frozen v12 prefix plus one private request table'
   assert.deepEqual(v13Tables.slice(53), ['accessRequestV1']);
   assert.deepEqual(candidateTables.slice(53), ['accessRequestV1']);
   assert.match(v13, /const accessRequestV1 = table\(\{ name: 'access_request_v1' \}, \{/);
-  assert.match(v13, /fid: t\.u64\(\)\.primaryKey\(\), requestedAt: t\.timestamp\(\)/);
+  assert.match(
+    v13,
+    /fid: t\.u64\(\)\.primaryKey\(\), requestCycle: t\.u64\(\), requestedAt: t\.timestamp\(\)/,
+  );
   assert.doesNotMatch(
     v13.slice(v13.indexOf('const accessRequestV1 = table('), v13.indexOf('\nconst db = schema({')),
     /public:\s*true|status|approved|reviewed|note|source|updatedAt/i,
@@ -83,6 +86,11 @@ test('connected rehearsal contains the bounded private request lifecycle', () =>
   assert.match(lifecycle, /admissionState: 'missing'/);
   assert.match(lifecycle, /auth_resolver_get_fid_admission_v2/);
   assert.match(lifecycle, /assert\.deepEqual\(admission, \['missing', 0\]\)/);
+  assert.match(proof, /stage = 'disabled-founder-access-request'/);
+  assert.match(proof, /admissionState: 'disabled'[\s\S]*requestState: 'pending'/);
+  assert.match(proof, /Local disable changed permanent founder authority state/);
+  assert.match(proof, /Disabled founder access request changed permanent founder authority state/);
+  assert.match(proof, /status: 'already_admitted'[\s\S]*pendingRequests: 0n/);
 
   assert.ok(invocation >= 0);
   assert.match(finalOwnerRead, /additiveV13SchemaFixture/);
