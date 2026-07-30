@@ -12,6 +12,7 @@ import {
 } from 'react';
 
 import type {
+  AccessRequestViewState,
   FarcasterAuthViewState,
   VerifiedFarcasterIdentity
 } from '../../farcaster/farcasterAuthTypes';
@@ -73,6 +74,9 @@ export type WarpkeepMainMenuProps = {
    */
   onRestoreFarcasterSession?: () => Promise<boolean>;
   onRefreshFarcasterSession?: () => void;
+  accessRequest?: AccessRequestViewState;
+  onRequestAccess?: () => void;
+  onRetryAccessRequestStatus?: () => void;
   onSignOut?: () => void;
   rememberDevice?: boolean;
   onRememberDeviceChange?: (remember: boolean) => void;
@@ -271,6 +275,9 @@ export function WarpkeepMainMenu({
   onPrepareFarcasterQrCode,
   onRestoreFarcasterSession,
   onRefreshFarcasterSession,
+  accessRequest,
+  onRequestAccess,
+  onRetryAccessRequestStatus,
   onSignOut,
   rememberDevice = false,
   onRememberDeviceChange,
@@ -1347,6 +1354,9 @@ export function WarpkeepMainMenu({
                   onEnterRealm={handleAuthenticatedRealmEntry}
                   onPrepareQrCode={onPrepareFarcasterQrCode}
                   onCheckAdmission={handleRefreshFarcasterSession}
+                  accessRequest={accessRequest}
+                  onRequestAccess={onRequestAccess}
+                  onRetryAccessRequestStatus={onRetryAccessRequestStatus}
                   onRememberDeviceChange={onRememberDeviceChange}
                   onRetry={handleRetrySignIn}
                   onSignOut={handleSignOut}

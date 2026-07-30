@@ -770,6 +770,18 @@ function createLocalBridge(
       );
       return authorizedResponse();
     },
+    async getAccessRequestStatus() {
+      return Object.freeze({
+        version: 1 as const,
+        status: 'already-admitted' as const
+      });
+    },
+    async requestAccess() {
+      return Object.freeze({
+        version: 1 as const,
+        status: 'already-admitted' as const
+      });
+    },
     async logoutSession() {
       authorized = false;
     }

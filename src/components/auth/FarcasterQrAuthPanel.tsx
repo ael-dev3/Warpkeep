@@ -1,14 +1,22 @@
 import { useEffect, useId, useRef, useState, type Ref } from 'react';
 
 import type {
+  AccessRequestViewState,
   FarcasterAuthPhase,
   FarcasterAuthPresentation,
   FarcasterQrState,
   FarcasterSessionAssurance,
   VerifiedFarcasterIdentity
 } from '../../farcaster/farcasterAuthTypes';
+import {
+  accessRequestOwnsPrimaryAction,
+  FarcasterAccessRequestAction,
+  FarcasterAccessRequestMessage
+} from './FarcasterAccessRequest';
 import { FarcasterIdentityBadge, normalizeFarcasterUsername } from './FarcasterIdentityBadge';
 import './FarcasterQrAuthPanel.css';
+
+const IDLE_ACCESS_REQUEST: AccessRequestViewState = Object.freeze({ phase: 'idle' });
 
 export type FarcasterQrAuthPanelProps = {
   phase: Exclude<FarcasterAuthPhase, 'anonymous'>;
@@ -24,6 +32,9 @@ export type FarcasterQrAuthPanelProps = {
   onPresentationReady?: () => void;
   onPrepareQrCode?: () => void;
   onCheckAdmission?: () => void;
+  accessRequest?: AccessRequestViewState;
+  onRequestAccess?: () => void;
+  onRetryAccessRequestStatus?: () => void;
   onRememberDeviceChange?: (remember: boolean) => void;
   onCancel: () => void;
   onRetry: () => void;
@@ -206,6 +217,9 @@ export function FarcasterQrAuthPanel({
   onPresentationReady,
   onPrepareQrCode,
   onCheckAdmission,
+  accessRequest = IDLE_ACCESS_REQUEST,
+  onRequestAccess,
+  onRetryAccessRequestStatus,
   onRememberDeviceChange,
   onCancel,
   onRetry,
@@ -484,17 +498,34 @@ export function FarcasterQrAuthPanel({
           <p className="farcaster-auth-panel__lead" role="status">
             Your Farcaster identity is verified. Admission to the Hegemony frontier is still pending.
           </p>
-          <p className="farcaster-auth-panel__instruction">
-            Contact @0xael.eth on Farcaster to request access, then check again.
-          </p>
+          <FarcasterAccessRequestMessage state={accessRequest} />
           <div className="farcaster-auth-panel__actions">
+            {onRequestAccess && onRetryAccessRequestStatus ? (
+              <FarcasterAccessRequestAction
+                onRequestAccess={onRequestAccess}
+                onRetryStatus={onRetryAccessRequestStatus}
+                primaryActionRef={primaryActionRef}
+                state={accessRequest}
+              />
+            ) : null}
             <button
-              className="farcaster-auth-panel__action farcaster-auth-panel__action--primary"
+              className={
+                accessRequestOwnsPrimaryAction(accessRequest)
+                  ? 'farcaster-auth-panel__action'
+                  : 'farcaster-auth-panel__action farcaster-auth-panel__action--primary'
+              }
               onClick={onCheckAdmission}
-              ref={primaryActionRef}
+              ref={accessRequestOwnsPrimaryAction(accessRequest) ? undefined : primaryActionRef}
               type="button"
             >
               CHECK AGAIN
+            </button>
+            <button
+              className="farcaster-auth-panel__action farcaster-auth-panel__action--secondary"
+              onClick={onBackToMenu}
+              type="button"
+            >
+              BACK TO MENU
             </button>
             <button
               className="farcaster-auth-panel__action farcaster-auth-panel__action--secondary"

@@ -1,11 +1,19 @@
 import { useEffect, useId, useRef, type Ref } from 'react';
 
-import type { VerifiedFarcasterIdentity } from '../../farcaster/farcasterAuthTypes';
+import type {
+  AccessRequestViewState,
+  VerifiedFarcasterIdentity
+} from '../../farcaster/farcasterAuthTypes';
 import type { WarpkeepBackendPhase } from '../../spacetime/warpkeepBackendTypes';
+import {
+  accessRequestOwnsPrimaryAction,
+  FarcasterAccessRequestAction,
+  FarcasterAccessRequestMessage
+} from './FarcasterAccessRequest';
 import { FarcasterIdentityBadge } from './FarcasterIdentityBadge';
 import './FarcasterAdmissionPanel.css';
 
-export const WARPKEEP_ACCESS_REQUEST_URL = 'https://farcaster.xyz/0xael.eth';
+const IDLE_ACCESS_REQUEST: AccessRequestViewState = Object.freeze({ phase: 'idle' });
 
 export type FarcasterAdmissionPanelProps = Readonly<{
   phase: Exclude<WarpkeepBackendPhase, 'idle' | 'ready'>;
@@ -15,6 +23,9 @@ export type FarcasterAdmissionPanelProps = Readonly<{
   onPresentationReady?: () => void;
   onBackToMenu: () => void;
   onCheckAgain: () => void;
+  accessRequest?: AccessRequestViewState;
+  onRequestAccess?: () => void;
+  onRetryAccessRequestStatus?: () => void;
   onSignOut: () => void;
 }>;
 
@@ -80,6 +91,9 @@ export function FarcasterAdmissionPanel({
   onPresentationReady,
   onBackToMenu,
   onCheckAgain,
+  accessRequest = IDLE_ACCESS_REQUEST,
+  onRequestAccess,
+  onRetryAccessRequestStatus,
   onSignOut
 }: FarcasterAdmissionPanelProps) {
   const headingId = `farcaster-admission-heading-${useId().replace(/:/g, '')}`;
@@ -151,10 +165,7 @@ export function FarcasterAdmissionPanel({
             <p className="farcaster-admission-panel__lead" role="status">
               This Farcaster identity is not yet admitted to the Hegemony frontier.
             </p>
-            <p className="farcaster-admission-panel__support">
-              Warpkeep is opening as a small, manually admitted alpha. DM @0xael.eth on
-              {' '}Farcaster to request access.
-            </p>
+            <FarcasterAccessRequestMessage state={accessRequest} />
           </>
         ) : null}
 
@@ -178,23 +189,27 @@ export function FarcasterAdmissionPanel({
       </div>
 
       <div className="farcaster-auth-panel__actions farcaster-admission-panel__actions">
-        {denied ? (
-          <a
-            aria-label="Open @0xael.eth on Farcaster to request Warpkeep access"
-            className="farcaster-auth-panel__action farcaster-auth-panel__action--primary"
-            href={WARPKEEP_ACCESS_REQUEST_URL}
-            referrerPolicy="no-referrer"
-            rel="noopener noreferrer"
-            target="_blank"
-          >
-            REQUEST ACCESS
-          </a>
+        {denied && onRequestAccess && onRetryAccessRequestStatus ? (
+          <FarcasterAccessRequestAction
+            onRequestAccess={onRequestAccess}
+            onRetryStatus={onRetryAccessRequestStatus}
+            primaryActionRef={primaryActionRef}
+            state={accessRequest}
+          />
         ) : null}
         {!busy && !awaitingTerms ? (
           <button
-            className={denied ? 'farcaster-auth-panel__action' : 'farcaster-auth-panel__action farcaster-auth-panel__action--primary'}
+            className={
+              denied && accessRequestOwnsPrimaryAction(accessRequest)
+                ? 'farcaster-auth-panel__action'
+                : 'farcaster-auth-panel__action farcaster-auth-panel__action--primary'
+            }
             onClick={onCheckAgain}
-            ref={primaryActionRef}
+            ref={
+              denied && accessRequestOwnsPrimaryAction(accessRequest)
+                ? undefined
+                : primaryActionRef
+            }
             type="button"
           >
             CHECK AGAIN

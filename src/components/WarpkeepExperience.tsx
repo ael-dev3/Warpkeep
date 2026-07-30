@@ -238,12 +238,15 @@ export function resolveRealmContinuityIdentity(
 export function WarpkeepExperience() {
   const {
     state: farcasterAuthState,
+    accessRequest,
     restoreSession: restoreFarcasterSession,
     beginSignIn: beginFarcasterSignIn,
     cancelSignIn: cancelFarcasterSignIn,
     retrySignIn: retryFarcasterSignIn,
     prepareQrCode: prepareFarcasterQrCode,
     refreshSession: refreshFarcasterSession,
+    requestAccess,
+    retryAccessRequestStatus,
     signOut: signOutFarcaster,
     oidcSession,
     rememberDevice,
@@ -1139,11 +1142,14 @@ export function WarpkeepExperience() {
         onPresentationReady
       }: AuthRailRenderControls) => (
         <FarcasterAdmissionPanel
+          accessRequest={accessRequest}
           headingRef={headingRef}
           identity={admissionIdentity}
           onCheckAgain={onCheckAgain}
           onBackToMenu={onBackToMenu}
           onPresentationReady={onPresentationReady}
+          onRequestAccess={requestAccess}
+          onRetryAccessRequestStatus={retryAccessRequestStatus}
           onSignOut={handleSignOut}
           phase={admissionPhase}
           primaryActionRef={primaryActionRef}
@@ -1250,6 +1256,9 @@ export function WarpkeepExperience() {
             onRestoreFarcasterSession={restoreFarcasterSession}
             onPrepareFarcasterQrCode={prepareFarcasterQrCode}
             onRefreshFarcasterSession={refreshFarcasterSession}
+            accessRequest={accessRequest}
+            onRequestAccess={requestAccess}
+            onRetryAccessRequestStatus={retryAccessRequestStatus}
             onRequestReturn={handleExplicitReturn}
             onRememberDeviceChange={setRememberDevice}
             onRetryFarcasterSignIn={retryFarcasterSignIn}

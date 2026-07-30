@@ -200,6 +200,15 @@ function createBridge(
     refreshSession: vi.fn(async () => {
       throw new FarcasterOidcBridgeClientError('No cookie session in this fixture.');
     }),
+    getAccessRequestStatus: vi.fn(async () => ({
+      version: 1 as const,
+      status: 'not-requested' as const
+    })),
+    requestAccess: vi.fn(async () => ({
+      version: 1 as const,
+      status: 'requested' as const,
+      requestedAt: Date.now()
+    })),
     logoutSession: vi.fn(async () => undefined),
     ...overrides,
     issuer: overrides.issuer ?? 'https://auth.warpkeep.example',

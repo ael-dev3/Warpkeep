@@ -1,4 +1,6 @@
 import {
+  type AccessRequestAuthentication,
+  type AccessRequestStatus,
   isBoundedFarcasterSignature,
   type FarcasterBridgeChallenge,
   type FarcasterBridgeChallengeRequest,
@@ -319,6 +321,61 @@ function readSafeQuickAuthToken(value: unknown): string | undefined {
     return undefined;
   }
   return value;
+}
+
+function readAccessRequestSecurity(
+  value: AccessRequestAuthentication
+): Readonly<{
+  credentials: RequestCredentials;
+  authorization?: string;
+}> | undefined {
+  if (!isRecord(value)) return undefined;
+  if (
+    value.mode === 'pending-session'
+    && hasOnlyAllowedKeys(value, ['mode'])
+  ) {
+    return Object.freeze({ credentials: 'include' });
+  }
+  if (
+    value.mode === 'quick-auth'
+    && hasOnlyAllowedKeys(value, ['mode', 'token'])
+  ) {
+    const token = readSafeQuickAuthToken(value.token);
+    if (!token) return undefined;
+    return Object.freeze({
+      credentials: 'omit',
+      authorization: token
+    });
+  }
+  return undefined;
+}
+
+function readAccessRequestStatus(value: unknown): AccessRequestStatus | undefined {
+  if (!isRecord(value) || value.version !== 1 || typeof value.status !== 'string') {
+    return undefined;
+  }
+  if (
+    value.status === 'not-requested'
+    || value.status === 'already-admitted'
+  ) {
+    if (!hasOnlyAllowedKeys(value, ['version', 'status'])) return undefined;
+    return Object.freeze({ version: 1, status: value.status });
+  }
+  if (
+    value.status !== 'requested'
+    || !hasOnlyAllowedKeys(value, ['version', 'status', 'requestedAt'])
+    || typeof value.requestedAt !== 'number'
+    || !Number.isSafeInteger(value.requestedAt)
+    || value.requestedAt <= 0
+    || value.requestedAt > 8_640_000_000_000_000
+  ) {
+    return undefined;
+  }
+  return Object.freeze({
+    version: 1,
+    status: 'requested',
+    requestedAt: value.requestedAt
+  });
 }
 
 function readSafeQuickAuthSessionResponse(
@@ -668,6 +725,8 @@ export function createFarcasterOidcBridgeClient(
   );
   const refreshUrl = new URL('v2/session/refresh', bridgeUrl);
   const logoutUrl = new URL('v2/session/logout', bridgeUrl);
+  const accessStatusUrl = new URL('v2/access/status', bridgeUrl);
+  const accessRequestUrl = new URL('v2/access/request', bridgeUrl);
 
   return Object.freeze({
     issuer,
@@ -827,6 +886,46 @@ export function createFarcasterOidcBridgeClient(
         throw new FarcasterOidcBridgeClientError();
       }
       return session;
+    },
+
+    async getAccessRequestStatus(
+      authentication: AccessRequestAuthentication,
+      requestOptions?: FarcasterBridgeRequestOptions
+    ) {
+      const requestSecurity = readAccessRequestSecurity(authentication);
+      if (!requestSecurity) throw new FarcasterOidcBridgeClientError();
+      const result = await postJson(
+        fetchImplementation,
+        accessStatusUrl,
+        {},
+        requestOptions?.signal,
+        BRIDGE_REQUEST_TIMEOUT_MS,
+        undefined,
+        requestSecurity
+      );
+      const status = readAccessRequestStatus(result);
+      if (!status) throw new FarcasterOidcBridgeClientError();
+      return status;
+    },
+
+    async requestAccess(
+      authentication: AccessRequestAuthentication,
+      requestOptions?: FarcasterBridgeRequestOptions
+    ) {
+      const requestSecurity = readAccessRequestSecurity(authentication);
+      if (!requestSecurity) throw new FarcasterOidcBridgeClientError();
+      const result = await postJson(
+        fetchImplementation,
+        accessRequestUrl,
+        {},
+        requestOptions?.signal,
+        BRIDGE_REQUEST_TIMEOUT_MS,
+        undefined,
+        requestSecurity
+      );
+      const status = readAccessRequestStatus(result);
+      if (!status) throw new FarcasterOidcBridgeClientError();
+      return status;
     },
 
     async logoutSession(requestOptions?: FarcasterBridgeRequestOptions) {

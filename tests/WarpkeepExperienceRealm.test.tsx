@@ -244,6 +244,15 @@ function createBridge(
       if (!refreshResponse) throw new Error('No active cookie session');
       return refreshResponse;
     }),
+    getAccessRequestStatus: vi.fn(async () => ({
+      version: 1 as const,
+      status: 'not-requested' as const
+    })),
+    requestAccess: vi.fn(async () => ({
+      version: 1 as const,
+      status: 'requested' as const,
+      requestedAt: now()
+    })),
     logoutSession: vi.fn(async () => undefined)
   } satisfies FarcasterOidcBridgeClient;
 }
@@ -1140,10 +1149,9 @@ describe('Warpkeep shared realm admission', () => {
 
     expect(screen.getByText('This Farcaster identity is not yet admitted to the Hegemony frontier.')).not.toBeNull();
     expectPlayerRealmChromeAbsent();
-    const requestAccess = screen.getByRole('link', {
-      name: 'Open @0xael.eth on Farcaster to request Warpkeep access'
-    });
-    expect(requestAccess).toHaveProperty('href', 'https://farcaster.xyz/0xael.eth');
+    expect(screen.queryByRole('link', {
+      name: /request Warpkeep access/i
+    })).toBeNull();
 
     fireEvent.keyDown(document, { key: 'Escape' });
     await settle();
