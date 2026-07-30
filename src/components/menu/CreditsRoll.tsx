@@ -132,7 +132,7 @@ export function CreditsRoll({ onClose }: CreditsRollProps) {
             Stone title assembly by Clawberto, licensed under{' '}
             <a
               href="https://creativecommons.org/licenses/by/4.0/"
-              rel="noreferrer"
+              rel="noopener noreferrer"
               tabIndex={manualReading ? 0 : -1}
               target="_blank"
             >
@@ -140,7 +140,7 @@ export function CreditsRoll({ onClose }: CreditsRollProps) {
             </a>.{' '}
             <a
               href="https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/title-stone-letters-2026-07-12"
-              rel="noreferrer"
+              rel="noopener noreferrer"
               tabIndex={manualReading ? 0 : -1}
               target="_blank"
             >

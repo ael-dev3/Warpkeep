@@ -368,6 +368,46 @@ describe('Farcaster Mini App host provider', () => {
     expect(back.onback).toBeNull();
   });
 
+  it('updates nested Back callbacks without hiding and re-showing the host control', async () => {
+    const { sdk, back } = fakeSdk();
+    const runtime = runtimeFor('?miniApp=true');
+    const loader = async () => sdk;
+    const firstBack = vi.fn();
+    const secondBack = vi.fn();
+
+    function BackHookProbe({
+      depth,
+      onBack
+    }: Readonly<{
+      depth: number;
+      onBack: () => void;
+    }>) {
+      useMiniAppBackNavigation(depth, onBack);
+      return <div>realm detail</div>;
+    }
+
+    const view = render(
+      <MiniAppHostProvider runtime={runtime} sdkLoader={loader}>
+        <BackHookProbe depth={1} onBack={firstBack} />
+      </MiniAppHostProvider>
+    );
+
+    await waitFor(() => expect(back.show).toHaveBeenCalledTimes(1));
+    const hideCount = back.hide.mock.calls.length;
+    view.rerender(
+      <MiniAppHostProvider runtime={runtime} sdkLoader={loader}>
+        <BackHookProbe depth={2} onBack={secondBack} />
+      </MiniAppHostProvider>
+    );
+    await act(async () => Promise.resolve());
+
+    expect(back.show).toHaveBeenCalledTimes(1);
+    expect(back.hide).toHaveBeenCalledTimes(hideCount);
+    back.onback?.();
+    expect(firstBack).not.toHaveBeenCalled();
+    expect(secondBack).toHaveBeenCalledOnce();
+  });
+
   it('enters recovery and removes host CSS after a single ready failure', async () => {
     const ready = vi.fn(async () => {
       throw new Error('private host failure');
@@ -424,6 +464,67 @@ describe('Farcaster Mini App host provider', () => {
     );
     await waitFor(() => expect(latest?.state).toBe('miniapp'));
     expect(ready).toHaveBeenCalledTimes(2);
+  });
+
+  it('signals ready again for a genuine later host mount using the same runtime', async () => {
+    const runtime = runtimeFor('?miniApp=true');
+    const firstReady = vi.fn(async () => {});
+    const secondReady = vi.fn(async () => {});
+    const firstSdk = fakeSdk({ actions: { ready: firstReady } }).sdk;
+    const secondSdk = fakeSdk({ actions: { ready: secondReady } }).sdk;
+    let latest: MiniAppHostValue | undefined;
+
+    const first = render(
+      <Harness
+        runtime={runtime}
+        sdkLoader={async () => firstSdk}
+        capture={(value) => { latest = value; }}
+      />
+    );
+    await waitFor(() => expect(latest?.state).toBe('miniapp'));
+    expect(firstReady).toHaveBeenCalledOnce();
+    first.unmount();
+
+    latest = undefined;
+    render(
+      <Harness
+        runtime={runtime}
+        sdkLoader={async () => secondSdk}
+        capture={(value) => { latest = value; }}
+      />
+    );
+    await waitFor(() => expect(latest?.state).toBe('miniapp'));
+    expect(secondReady).toHaveBeenCalledOnce();
+  });
+
+  it('signals the replacement host when a mounted provider receives a new runtime', async () => {
+    const firstReady = vi.fn(async () => {});
+    const secondReady = vi.fn(async () => {});
+    const firstSdk = fakeSdk({ actions: { ready: firstReady } }).sdk;
+    const secondSdk = fakeSdk({ actions: { ready: secondReady } }).sdk;
+    const firstLoader = async () => firstSdk;
+    const secondLoader = async () => secondSdk;
+    let latest: MiniAppHostValue | undefined;
+
+    const view = render(
+      <Harness
+        runtime={runtimeFor('?miniApp=true')}
+        sdkLoader={firstLoader}
+        capture={(value) => { latest = value; }}
+      />
+    );
+    await waitFor(() => expect(latest?.state).toBe('miniapp'));
+    expect(firstReady).toHaveBeenCalledOnce();
+
+    latest = undefined;
+    view.rerender(
+      <Harness
+        runtime={runtimeFor('?miniApp=true')}
+        sdkLoader={secondLoader}
+        capture={(value) => { latest = value; }}
+      />
+    );
+    await waitFor(() => expect(secondReady).toHaveBeenCalledOnce());
   });
 
   it('bounds a stalled ready call before exposing Mini App authority', async () => {

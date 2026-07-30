@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
 
 // @ts-expect-error Repository JavaScript release contracts expose named test seams.
-import { FARCASTER_MINI_APP_CONFIG, FARCASTER_MINI_APP_DOMAIN, FARCASTER_MINI_APP_EMBED, FARCASTER_MINI_APP_IMAGES, FARCASTER_MINI_APP_ORIGIN, exactJsonValue, inspectFarcasterAccountAssociation, inspectPng } from '../scripts/farcaster-miniapp-contract.mjs';
+import { FARCASTER_MINI_APP_CONFIG, FARCASTER_MINI_APP_DOMAIN, FARCASTER_MINI_APP_EMBED, FARCASTER_MINI_APP_IMAGES, FARCASTER_MINI_APP_ORIGIN, FARCASTER_MINI_APP_OWNER_FID, exactJsonValue, inspectFarcasterAccountAssociation, inspectPng } from '../scripts/farcaster-miniapp-contract.mjs';
 // @ts-expect-error Repository JavaScript release verifier exposes a named test seam.
 import { verifyFarcasterAccountAssociationSignature } from '../scripts/verify-farcaster-miniapp.mjs';
 // @ts-expect-error Repository JavaScript production verifier exposes a named test seam.
@@ -23,13 +23,15 @@ async function signedAssociation({
   legacy = false,
   payload = { domain: FARCASTER_MINI_APP_DOMAIN },
   type = 'custody',
+  fid = FARCASTER_MINI_APP_OWNER_FID,
 }: {
   legacy?: boolean;
   payload?: Record<string, unknown>;
   type?: string;
+  fid?: number;
 } = {}) {
   const header = encodeJson({
-    fid: 1,
+    fid,
     type,
     key: testAccount.address,
   });
@@ -65,7 +67,7 @@ describe('Farcaster Mini App release contract', () => {
       const association = await signedAssociation({ legacy });
       const inspected = inspectFarcasterAccountAssociation(association);
       expect(inspected.header).toEqual({
-        fid: 1,
+        fid: FARCASTER_MINI_APP_OWNER_FID,
         type: 'custody',
         key: testAccount.address,
       });
@@ -95,6 +97,11 @@ describe('Farcaster Mini App release contract', () => {
         await signedAssociation({ type: 'app_key' }),
       ),
     ).rejects.toThrow(/type must be custody or auth/i);
+    await expect(
+      verifyFarcasterAccountAssociationSignature(
+        await signedAssociation({ fid: 1 }),
+      ),
+    ).rejects.toThrow(/reviewed owner FID/i);
 
     const association = await signedAssociation();
     association.signature = `${

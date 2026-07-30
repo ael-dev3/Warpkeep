@@ -58,10 +58,13 @@ export function RealmResourceBalancePanel({
   workers: readonly RealmWorkerPublicPresentation[];
   onBack: () => void;
   onCloseToRealm: () => void;
-  onOpenWorkers?: () => void;
+  onOpenWorkers?: (invoker: HTMLButtonElement) => void;
   resourceSites?: readonly RealmNavigatorResourceSite[];
-  onOpenResourceSite?: (site: RealmNavigatorResourceSite) => void;
-  onExplore?: () => void;
+  onOpenResourceSite?: (
+    site: RealmNavigatorResourceSite,
+    invoker: HTMLButtonElement
+  ) => void;
+  onExplore?: (invoker: HTMLButtonElement) => void;
   onRetry?: () => void;
 }>) {
   const title = RESOURCE_TITLES[resource];
@@ -155,8 +158,9 @@ export function RealmResourceBalancePanel({
               {relevantSites.map((site) => (
                 <li key={site.key}>
                   <button
+                    data-realm-focus-key={`resource-site:${site.key}`}
                     disabled={!onOpenResourceSite}
-                    onClick={() => onOpenResourceSite?.(site)}
+                    onClick={(event) => onOpenResourceSite?.(site, event.currentTarget)}
                     type="button"
                   >
                     <strong>{site.label}</strong>
@@ -170,10 +174,22 @@ export function RealmResourceBalancePanel({
 
         <nav aria-label={`${title} actions`} className="realm-resource-balance__actions">
           {onOpenWorkers && resource !== 'marks' ? (
-            <button onClick={onOpenWorkers} type="button">OPEN WORKERS</button>
+            <button
+              data-realm-focus-key="resource:workers"
+              onClick={(event) => onOpenWorkers(event.currentTarget)}
+              type="button"
+            >
+              OPEN WORKERS
+            </button>
           ) : null}
           {onExplore && resource !== 'marks' ? (
-            <button onClick={onExplore} type="button">EXPLORE RESOURCE SITES</button>
+            <button
+              data-realm-focus-key="resource:explore"
+              onClick={(event) => onExplore(event.currentTarget)}
+              type="button"
+            >
+              EXPLORE RESOURCE SITES
+            </button>
           ) : null}
         </nav>
       </div>

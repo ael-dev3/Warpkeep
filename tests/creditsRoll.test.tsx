@@ -41,6 +41,8 @@ describe('CreditsRoll', () => {
     expect(licenseLink.getAttribute('href'))
       .toBe('https://creativecommons.org/licenses/by/4.0/');
     expect(licenseLink.getAttribute('tabindex')).toBe('-1');
+    expect(licenseLink.getAttribute('rel')?.split(/\s+/))
+      .toEqual(expect.arrayContaining(['noopener', 'noreferrer']));
     CREDITS_ROLES.forEach(({ role, name }) => {
       expect(screen.getByText(role)).not.toBeNull();
       expect(screen.getAllByText(name).length).toBeGreaterThan(0);

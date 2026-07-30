@@ -219,7 +219,8 @@ import './RealmMapScreen.css';
 import './RealmCastlePresentation.css';
 import { WorkerInspectionPanel } from './WorkerInspectionPanel';
 import {
-  realmSurfacePresentation
+  realmSurfacePresentation,
+  type RealmChromeMode
 } from './realmChromePresentation';
 import {
   type RealmSurfaceRoute
@@ -347,6 +348,15 @@ type GatheringNodePresentation =
   | RealmFoodNodePresentation
   | RealmWoodNodePresentation
   | RealmStoneNodePresentation;
+
+function isRealmWorldSurfaceRoute(route: RealmSurfaceRoute | undefined) {
+  return route?.kind === 'explore'
+    || route?.kind === 'keep'
+    || route?.kind === 'worker'
+    || route?.kind === 'resource-site'
+    || route?.kind === 'water'
+    || route?.kind === 'terrain';
+}
 
 function unavailableNodeCatalog<Node extends GatheringNodePresentation>(
   nodes: readonly Node[]
@@ -490,16 +500,43 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
   // caller accidentally supplies the internal prop.
   const observerMode = import.meta.env.DEV && presentationMode === 'observer';
   const miniAppHost = useMiniAppHost();
-  const chromeMode = useRealmChromeMode(miniAppHost.isMiniApp);
-  const surfacePresentation = realmSurfacePresentation(chromeMode);
-  const fullscreenDestinations = surfacePresentation === 'fullscreen-destination';
+  const resolvedChromeMode = useRealmChromeMode(miniAppHost.isMiniApp);
+  const miniAppSafeAreaSignature = miniAppHost.context
+    ? Object.values(miniAppHost.context.client.safeAreaInsets).join(':')
+    : 'none';
   const surfaceNavigation = useRealmSurfaceNavigation({
     historyEnabled: true,
     identityKey: `${identity.fid}`
   });
+  const surfaceChromeModeRef = useRef<RealmChromeMode>(resolvedChromeMode);
+  if (surfaceNavigation.depth === 0) {
+    surfaceChromeModeRef.current = resolvedChromeMode;
+  }
+  // A destination keeps the presentation semantics under which it opened.
+  // Resizing cannot turn a compact history route into a desktop drawer (or
+  // vice versa) halfway through its lifecycle.
+  const chromeMode = surfaceNavigation.depth > 0
+    ? surfaceChromeModeRef.current
+    : resolvedChromeMode;
+  const surfacePresentation = realmSurfacePresentation(chromeMode);
+  const fullscreenDestinations = surfacePresentation === 'fullscreen-destination';
+  const currentSurfaceRoute = surfaceNavigation.current;
+  const workerRouteHostedByHud = !fullscreenDestinations
+    && currentSurfaceRoute?.kind === 'worker'
+    && surfaceNavigation.stack.at(-2)?.kind === 'workers';
+  // Browser Forward may restore a compact world route after the viewport has
+  // returned to desktop. It is then presented as a drawer, but it still owns a
+  // history entry and must be closed through navigation rather than only
+  // clearing local interaction state.
+  const historyBackedWorldRoute = surfaceNavigation.depth > 0
+    && isRealmWorldSurfaceRoute(currentSurfaceRoute)
+    && !workerRouteHostedByHud;
   const surfaceOpen = surfaceNavigation.depth > 0;
   const surfaceOpenRef = useRef(surfaceOpen);
   surfaceOpenRef.current = surfaceOpen;
+  const previousSurfaceStackRef = useRef(surfaceNavigation.stack);
+  const previousFullscreenDestinationsRef = useRef(fullscreenDestinations);
+  const [navigatorOpenGeneration, setNavigatorOpenGeneration] = useState(0);
   const pushSurface = surfaceNavigation.push;
   const replaceSurface = surfaceNavigation.replace;
   const backSurface = surfaceNavigation.back;
@@ -508,13 +545,11 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     if (fullscreenDestinations) pushSurface(route);
   }, [fullscreenDestinations, pushSurface]);
   const handleMiniAppBack = useCallback(() => {
-    if (surfaceNavigation.depth > 0) {
-      backSurface();
-      return;
-    }
-    onRequestReturn();
-  }, [backSurface, onRequestReturn, surfaceNavigation.depth]);
-  useMiniAppBackNavigation(surfaceNavigation.depth + 1, handleMiniAppBack);
+    if (surfaceNavigation.depth > 0) backSurface();
+  }, [backSurface, surfaceNavigation.depth]);
+  // The host owns Back at the Realm root. Only nested destinations bind an
+  // application handler; consuming root Back here would prevent native exit.
+  useMiniAppBackNavigation(surfaceNavigation.depth, handleMiniAppBack);
   const workerProjectionTelemetryEnabled = import.meta.env.DEV
     ? props.localQaWorkerProjectionTelemetry === true
     : false;
@@ -1282,6 +1317,30 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
   );
   const interactionRef = useRef(interaction);
   interactionRef.current = interaction;
+  const previousResolvedSurfacePresentationRef = useRef(
+    realmSurfacePresentation(resolvedChromeMode)
+  );
+  useLayoutEffect(() => {
+    const previousPresentation = previousResolvedSurfacePresentationRef.current;
+    const nextPresentation = realmSurfacePresentation(resolvedChromeMode);
+    previousResolvedSurfacePresentationRef.current = nextPresentation;
+    if (
+      surfaceNavigation.depth > 0
+      || previousPresentation === nextPresentation
+      || nextPresentation !== 'fullscreen-destination'
+    ) return;
+
+    // A stackless desktop inspector has no hosted Back route. If the viewport
+    // becomes compact, close it focus-safely before adopting fullscreen
+    // semantics instead of leaving an unreachable destination on screen.
+    const current = interactionRef.current;
+    if (current.inspectorOpen) {
+      dispatchInteraction({ type: 'close-inspector' });
+    }
+    if (current.navigatorOpen) {
+      dispatchInteraction({ type: 'close-navigator' });
+    }
+  }, [resolvedChromeMode, surfaceNavigation.depth]);
   useEffect(() => {
     if (!interaction.inspectorOpen) lastSfxSelectionKeyRef.current = undefined;
   }, [interaction.inspectorOpen]);
@@ -1307,6 +1366,14 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
   const stableCameraCompositionRef = useRef<ReturnType<typeof measuredRealmComposition> | null>(null);
   const compositionRafRef = useRef<number | null>(null);
   const pendingNavigatorTargetRef = useRef<PendingNavigatorTarget | null>(null);
+  const pendingNavigatorPermittedStackRef = useRef<
+    readonly RealmSurfaceRoute[] | null
+  >(null);
+  const surfaceNavigationStackRef = useRef(surfaceNavigation.stack);
+  surfaceNavigationStackRef.current = surfaceNavigation.stack;
+  const activatePendingNavigatorTargetRef = useRef<
+    (target: PendingNavigatorTarget) => void
+  >(() => undefined);
   const labelMembershipSignatureRef = useRef('');
   const presentedCastleIdsRef = useRef<readonly number[]>([]);
   const handledKeyboardIntentSequenceRef = useRef(-1);
@@ -1565,15 +1632,57 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
   const resourceOccupantElementsRef = useRef<readonly HTMLElement[]>([]);
 
   useEffect(() => {
-    if (!fullscreenDestinations) return;
     const route = surfaceNavigation.current;
+    const previousStack = previousSurfaceStackRef.current;
+    const previousFullscreenDestinations =
+      previousFullscreenDestinationsRef.current;
+    previousSurfaceStackRef.current = surfaceNavigation.stack;
+    previousFullscreenDestinationsRef.current = fullscreenDestinations;
+    const closingHistoryWorldRoute = route === undefined
+      && isRealmWorldSurfaceRoute(previousStack.at(-1));
+    const returningFromDirectWorldRoute = closingHistoryWorldRoute
+      && previousStack.length === 1;
+    const closingHostedStackAfterModeChange = !fullscreenDestinations
+      && route === undefined
+      && previousStack.length > 0
+      && previousFullscreenDestinations;
+    if (
+      !fullscreenDestinations
+      && route === undefined
+      && !closingHostedStackAfterModeChange
+      && !closingHistoryWorldRoute
+    ) return;
     const current = interactionRef.current;
     const closeWorldRecords = () => {
+      let restoredFocus = false;
       if (current.inspectorOpen) {
-        dispatchInteraction({ type: 'close-inspector' });
+        dispatchInteraction({
+          type: returningFromDirectWorldRoute
+            ? 'close-inspector'
+            : 'sync-close-inspector'
+        });
+        restoredFocus = returningFromDirectWorldRoute;
       }
       if (current.navigatorOpen) {
-        dispatchInteraction({ type: 'close-navigator' });
+        dispatchInteraction({
+          type: returningFromDirectWorldRoute
+            ? 'close-navigator'
+            : 'sync-close-navigator'
+        });
+        restoredFocus = returningFromDirectWorldRoute;
+      }
+      if (
+        returningFromDirectWorldRoute
+        && !restoredFocus
+        && previousStack[0]?.kind === 'terrain'
+      ) {
+        // Terrain has no secondary interaction-state panel to close. A direct
+        // hosted terrain route still unmounts a focused fullscreen heading, so
+        // explicitly return keyboard ownership to the map.
+        dispatchInteraction({ type: 'request-map-focus' });
+      }
+      if (route === undefined && pendingNavigatorTargetRef.current !== null) {
+        dispatchInteraction({ type: 'request-map-focus' });
       }
     };
 
@@ -1677,12 +1786,39 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       return;
     }
     if (route.kind === 'worker') {
+      const commandCenterWorkerRoute =
+        surfaceNavigation.stack.at(-2)?.kind === 'workers';
+      if (
+        !fullscreenDestinations
+        && commandCenterWorkerRoute
+      ) {
+        closeWorldRecords();
+        return;
+      }
       const worker = publicWorkerProjection?.workers.find(
         (candidate) => candidate.workerId === route.workerId
       );
       if (!worker) {
         backSurface();
         return;
+      }
+      if (!commandCenterWorkerRoute) {
+        const canonicalRoute = resolveRealmWorkerInspectionRoute(
+          resourceOccupantMarkers,
+          worker
+        );
+        if (canonicalRoute.kind === 'resource-site') {
+          replaceSurface({
+            kind: 'resource-site',
+            resource: canonicalRoute.marker.resource,
+            siteId: canonicalRoute.marker.siteId
+          });
+          return;
+        }
+        if (canonicalRoute.kind === 'unavailable') {
+          backSurface();
+          return;
+        }
       }
       const target = current.inspectorTarget;
       if (
@@ -1722,10 +1858,10 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       return;
     }
     if (current.inspectorOpen) {
-      dispatchInteraction({ type: 'close-inspector' });
+      dispatchInteraction({ type: 'sync-close-inspector' });
     }
     if (current.navigatorOpen) {
-      dispatchInteraction({ type: 'close-navigator' });
+      dispatchInteraction({ type: 'sync-close-navigator' });
     }
     if (!sameCoord(current.selectedCell, cell.coord)) {
       selectedCoordRef.current = { ...cell.coord };
@@ -1738,8 +1874,11 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     fullscreenDestinations,
     goldNodesBySiteId,
     publicWorkerProjection,
+    replaceSurface,
+    resourceOccupantMarkers,
     stoneNodesBySiteId,
     surfaceNavigation.current,
+    surfaceNavigation.stack,
     terrainCellsByKey,
     waterRecordsByKey,
     woodNodesBySiteId,
@@ -1747,6 +1886,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
   ]);
 
   const openNavigator = useCallback(() => {
+    setNavigatorOpenGeneration((generation) => generation + 1);
     dispatchInteraction({ type: 'open-navigator' });
     pushWorldSurface({ kind: 'explore' });
   }, [pushWorldSurface]);
@@ -2247,10 +2387,10 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       regime: record.regime,
       coord: record.coord
     });
-    if (fullscreenDestinations) {
+    if (historyBackedWorldRoute) {
       replaceSurface({ kind: 'water', cellKey: record.cellKey });
     }
-  }, [emitWorldSelectionSfx, fullscreenDestinations, replaceSurface]);
+  }, [emitWorldSelectionSfx, historyBackedWorldRoute, replaceSurface]);
 
   const focusWaterRecordByKey = useCallback((cellKey: string) => {
     const record = waterRecordsByKeyRef.current.get(cellKey);
@@ -2430,6 +2570,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     stoneNodesBySiteId,
     woodNodesBySiteId
   ]);
+  activatePendingNavigatorTargetRef.current = activatePendingNavigatorTarget;
 
   const openActiveWagon = useCallback((wagon: RealmActiveWagonMenuItem) => {
     if (!activeWagons.some((candidate) => (
@@ -3144,7 +3285,20 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
         const scene = sceneRef.current;
         const compositionApplied = composition !== null && scene !== null;
         if (compositionApplied) scene.setComposition(composition);
-        const pendingNavigatorTarget = pendingNavigatorTargetRef.current;
+        let pendingNavigatorTarget = pendingNavigatorTargetRef.current;
+        if (
+          pendingNavigatorTarget !== null
+          && surfaceOpenRef.current
+          && pendingNavigatorPermittedStackRef.current
+            !== surfaceNavigationStackRef.current
+        ) {
+          // A fresh destination opened after the target's source surface
+          // retired. The newer command wins; never replay a stale map jump
+          // under it or after it later closes.
+          pendingNavigatorTargetRef.current = null;
+          pendingNavigatorPermittedStackRef.current = null;
+          pendingNavigatorTarget = null;
+        }
         const remainingCoord = settlePendingNavigatorCellFocus({
           pendingCoord: pendingNavigatorTarget?.coord ?? null,
           navigatorOpen: interactionRef.current.navigatorOpen,
@@ -3157,21 +3311,63 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
           // Passive record selection never writes this pending ref.
           focusCell: () => {
             if (pendingNavigatorTarget) {
-              activatePendingNavigatorTarget(pendingNavigatorTarget);
+              activatePendingNavigatorTargetRef.current(pendingNavigatorTarget);
             }
           }
         });
         pendingNavigatorTargetRef.current = remainingCoord === null
           ? null
           : pendingNavigatorTarget;
+        if (remainingCoord === null) {
+          pendingNavigatorPermittedStackRef.current = null;
+        }
         updateCastleProjection(latestProjectionRef.current);
         applyWorldPortraitProjection();
       }
     });
   }, [
-    activatePendingNavigatorTarget,
     applyWorldPortraitProjection,
     updateCastleProjection
+  ]);
+
+  useEffect(() => {
+    if (
+      pendingNavigatorTargetRef.current !== null
+      && surfaceOpen
+      && pendingNavigatorPermittedStackRef.current
+        !== surfaceNavigation.stack
+    ) {
+      pendingNavigatorTargetRef.current = null;
+      pendingNavigatorPermittedStackRef.current = null;
+    }
+  }, [surfaceNavigation.stack, surfaceOpen]);
+
+  useEffect(() => {
+    if (
+      surfaceNavigation.current !== undefined
+      || interaction.navigatorOpen
+      || pendingNavigatorTargetRef.current === null
+    ) return;
+    if (sceneRef.current !== null) {
+      // Settle through the same post-layout composition boundary used by
+      // every rendered scene. This preserves the open surface's camera while
+      // browser history is still traversing.
+      updateSceneComposition();
+      return;
+    }
+    if (rendererMode !== 'fallback') return;
+    // The static renderer has no imperative scene camera. It can safely
+    // consume the deferred semantic target once Explore has unmounted.
+    const pendingTarget = pendingNavigatorTargetRef.current;
+    pendingNavigatorTargetRef.current = null;
+    pendingNavigatorPermittedStackRef.current = null;
+    activatePendingNavigatorTarget(pendingTarget);
+  }, [
+    activatePendingNavigatorTarget,
+    interaction.navigatorOpen,
+    rendererMode,
+    surfaceNavigation.current,
+    updateSceneComposition
   ]);
 
   useEffect(() => () => {
@@ -3180,6 +3376,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       compositionRafRef.current = null;
     }
     pendingNavigatorTargetRef.current = null;
+    pendingNavigatorPermittedStackRef.current = null;
   }, []);
 
   useEffect(() => {
@@ -3201,8 +3398,10 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       window.removeEventListener('resize', updateSceneComposition);
     };
   }, [
+    chromeMode,
     interaction.inspectorOpen,
     interaction.navigatorOpen,
+    miniAppSafeAreaSignature,
     rendererMode,
     updateSceneComposition
   ]);
@@ -4314,6 +4513,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
         nonblockingSceneReplacementRef.current = false;
         workerPresentationContinuityRef.current = null;
         pendingNavigatorTargetRef.current = null;
+        pendingNavigatorPermittedStackRef.current = null;
         activeRendererGenerationRef.current = 0;
         if (rendererRecoveryTimerRef.current !== null) {
           window.clearTimeout(rendererRecoveryTimerRef.current);
@@ -4386,7 +4586,6 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
         && surfaceNavigation.current?.kind === 'explore'
       ) {
         event.preventDefault();
-        dispatchInteraction({ type: 'close-navigator' });
         backSurface();
         return;
       }
@@ -4444,23 +4643,15 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
   }, [updateHoveredCastleId]);
 
   const closeInspectorSurface = useCallback(() => {
-    if (fullscreenDestinations && surfaceNavigation.depth > 0) {
+    if (historyBackedWorldRoute) {
       closeSurfacesToRealm();
       return;
     }
     dispatchInteraction({ type: 'close-inspector' });
-  }, [closeSurfacesToRealm, fullscreenDestinations, surfaceNavigation.depth]);
+  }, [closeSurfacesToRealm, historyBackedWorldRoute]);
 
   const closeNavigatorSurface = useCallback((reason: RealmNavigatorCloseReason) => {
-    if (
-      !fullscreenDestinations
-      && surfaceNavigation.current?.kind === 'explore'
-    ) {
-      dispatchInteraction({ type: 'close-navigator' });
-      backSurface();
-      return;
-    }
-    if (fullscreenDestinations && surfaceNavigation.depth > 0) {
+    if (surfaceNavigation.current?.kind === 'explore') {
       if (reason === 'camera-preset') closeSurfacesToRealm();
       else backSurface();
       return;
@@ -4469,47 +4660,45 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
   }, [
     backSurface,
     closeSurfacesToRealm,
-    fullscreenDestinations,
-    surfaceNavigation.current,
-    surfaceNavigation.depth
+    surfaceNavigation.current
   ]);
 
   const focusResourceOccupantCastleFromSurface = useCallback((
     marker: RealmResourceOccupantMarker
   ) => {
-    if (fullscreenDestinations) closeSurfacesToRealm();
+    if (historyBackedWorldRoute) closeSurfacesToRealm();
     focusResourceOccupantCastle(marker);
   }, [
     closeSurfacesToRealm,
     focusResourceOccupantCastle,
-    fullscreenDestinations
+    historyBackedWorldRoute
   ]);
 
   const locateWorkerFromSurface = useCallback((workerId: string) => {
-    if (fullscreenDestinations) closeSurfacesToRealm();
+    if (historyBackedWorldRoute) closeSurfacesToRealm();
     locateWorkerAtCurrentPosition(workerId);
   }, [
     closeSurfacesToRealm,
-    fullscreenDestinations,
+    historyBackedWorldRoute,
     locateWorkerAtCurrentPosition
   ]);
 
   const locateWorkerKeeperFromSurface = useCallback((castleId: number) => {
-    if (fullscreenDestinations) closeSurfacesToRealm();
+    if (historyBackedWorldRoute) closeSurfacesToRealm();
     locateWorkerKeeper(castleId);
   }, [
     closeSurfacesToRealm,
-    fullscreenDestinations,
+    historyBackedWorldRoute,
     locateWorkerKeeper
   ]);
 
   const focusWaterRecordFromSurface = useCallback((cellKey: string) => {
-    if (fullscreenDestinations) closeSurfacesToRealm();
+    if (historyBackedWorldRoute) closeSurfacesToRealm();
     focusWaterRecordByKey(cellKey);
   }, [
     closeSurfacesToRealm,
     focusWaterRecordByKey,
-    fullscreenDestinations
+    historyBackedWorldRoute
   ]);
 
   const queueNavigatorTarget = useCallback((target: PendingNavigatorTarget) => {
@@ -4517,37 +4706,37 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       ...target,
       coord: Object.freeze({ ...target.coord })
     }) as PendingNavigatorTarget;
-    if (
-      !fullscreenDestinations
-      && surfaceNavigation.current?.kind === 'explore'
-    ) {
-      backSurface();
+    const historyBackRequired = surfaceNavigation.current?.kind === 'explore';
+    if (historyBackRequired) {
+      closeSurfacesToRealm();
+    } else {
+      dispatchInteraction({ type: 'close-navigator' });
     }
-    dispatchInteraction({ type: 'close-navigator' });
+    if (historyBackRequired) {
+      pendingNavigatorTargetRef.current = pendingTarget;
+      pendingNavigatorPermittedStackRef.current = surfaceNavigation.stack;
+      return;
+    }
     if (sceneRef.current === null) {
       activatePendingNavigatorTarget(pendingTarget);
       return;
     }
     pendingNavigatorTargetRef.current = pendingTarget;
+    pendingNavigatorPermittedStackRef.current = surfaceNavigation.stack;
   }, [
     activatePendingNavigatorTarget,
-    backSurface,
-    fullscreenDestinations,
-    surfaceNavigation.current
+    closeSurfacesToRealm,
+    surfaceNavigation.current,
+    surfaceNavigation.stack
   ]);
 
   const selectFromNavigator = useCallback((coord: HexCoord) => {
-    // Compact Explore is a history-backed full-screen surface. Retire that
-    // route before the deferred camera command is allowed to settle; otherwise
-    // the hidden scene remains presentation-paused and a coordinate jump can
-    // retain the old overview zoom even though its selected cell changed.
-    if (fullscreenDestinations) closeSurfacesToRealm();
+    // A browser-restored Explore route remains history-backed even if it is
+    // now presented on desktop. Retire the complete branch before the
+    // deferred camera command may settle; otherwise a nested ancestor can
+    // retain the target and replay it unexpectedly much later.
     queueNavigatorTarget({ kind: 'cell', coord });
-  }, [
-    closeSurfacesToRealm,
-    fullscreenDestinations,
-    queueNavigatorTarget
-  ]);
+  }, [queueNavigatorTarget]);
 
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
     // The realm itself owns map-navigation shortcuts. Let nested controls keep
@@ -5157,7 +5346,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
               own={!observerMode && inspectorCastle.ownerFid === identity.fid}
               observer={observerMode}
               hostedDestination={fullscreenDestinations}
-              onRequestBack={fullscreenDestinations && surfaceNavigation.depth > 1
+              onRequestBack={historyBackedWorldRoute && surfaceNavigation.depth > 1
                 ? backSurface
                 : undefined}
               focusTargetRef={inspectorFocusRef}
@@ -5211,7 +5400,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
                   : onDispatchGoldExpedition
               }
               hostedDestination={fullscreenDestinations}
-              onRequestBack={fullscreenDestinations && surfaceNavigation.depth > 1
+              onRequestBack={historyBackedWorldRoute && surfaceNavigation.depth > 1
                 ? backSurface
                 : undefined}
               focusTargetRef={inspectorFocusRef}
@@ -5265,7 +5454,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
                   : onDispatchFoodExpedition
               }
               hostedDestination={fullscreenDestinations}
-              onRequestBack={fullscreenDestinations && surfaceNavigation.depth > 1
+              onRequestBack={historyBackedWorldRoute && surfaceNavigation.depth > 1
                 ? backSurface
                 : undefined}
               focusTargetRef={inspectorFocusRef}
@@ -5319,7 +5508,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
                   : onDispatchWoodExpedition
               }
               hostedDestination={fullscreenDestinations}
-              onRequestBack={fullscreenDestinations && surfaceNavigation.depth > 1
+              onRequestBack={historyBackedWorldRoute && surfaceNavigation.depth > 1
                 ? backSurface
                 : undefined}
               focusTargetRef={inspectorFocusRef}
@@ -5373,7 +5562,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
                   : onDispatchStoneExpedition
               }
               hostedDestination={fullscreenDestinations}
-              onRequestBack={fullscreenDestinations && surfaceNavigation.depth > 1
+              onRequestBack={historyBackedWorldRoute && surfaceNavigation.depth > 1
                 ? backSurface
                 : undefined}
               focusTargetRef={inspectorFocusRef}
@@ -5400,10 +5589,10 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
                   : guardedRecallWorker
               }
               controlsStatus={workerControlsStatus}
-              onCloseToRealm={fullscreenDestinations
+              onCloseToRealm={historyBackedWorldRoute
                 ? closeSurfacesToRealm
                 : undefined}
-              onRequestClose={fullscreenDestinations
+              onRequestClose={historyBackedWorldRoute
                 ? backSurface
                 : closeInspectorSurface}
               resourceTargetLabel={inspectorWorkerResourceTargetLabel}
@@ -5421,7 +5610,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
               hostedDestination={fullscreenDestinations}
               focusTargetRef={inspectorFocusRef}
               onRequestClose={closeInspectorSurface}
-              onRequestBack={fullscreenDestinations && surfaceNavigation.depth > 1
+              onRequestBack={historyBackedWorldRoute && surfaceNavigation.depth > 1
                 ? backSurface
                 : undefined}
               onSelectCell={selectWaterRecordByKey}
@@ -5432,7 +5621,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
             />
           ) : null}
 
-          {fullscreenDestinations && terrainSurfaceRoute && terrainSurfaceCell ? (
+          {historyBackedWorldRoute && terrainSurfaceRoute && terrainSurfaceCell ? (
             <RealmTerrainInspectionPanel
               onBack={backSurface}
               onCloseToRealm={closeSurfacesToRealm}
@@ -5467,6 +5656,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
             triggerVisible={observerMode}
             showDiagnostics={observerMode}
             hostedDestination={fullscreenDestinations}
+            hostedNavigationResetKey={`${identity.fid}:${navigatorOpenGeneration}`}
             cameraPresets={[
               {
                 id: 'realm',

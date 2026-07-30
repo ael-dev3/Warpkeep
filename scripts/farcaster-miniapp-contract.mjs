@@ -1,5 +1,6 @@
 export const FARCASTER_MINI_APP_ORIGIN = 'https://warpkeep.com';
 export const FARCASTER_MINI_APP_DOMAIN = 'warpkeep.com';
+export const FARCASTER_MINI_APP_OWNER_FID = 539_854;
 export const FARCASTER_MINI_APP_HOME_URL =
   `${FARCASTER_MINI_APP_ORIGIN}/?miniApp=true`;
 export const FARCASTER_MINI_APP_ASSET_ROOT =
@@ -194,8 +195,10 @@ export function inspectFarcasterAccountAssociation(accountAssociation) {
       'accountAssociation header must contain only fid, type, and key.',
     );
   }
-  if (!Number.isSafeInteger(header.fid) || header.fid <= 0) {
-    throw new Error('accountAssociation header FID must be a positive integer.');
+  if (header.fid !== FARCASTER_MINI_APP_OWNER_FID) {
+    throw new Error(
+      `accountAssociation header FID must be the reviewed owner FID ${FARCASTER_MINI_APP_OWNER_FID}.`,
+    );
   }
   if (header.type !== 'custody' && header.type !== 'auth') {
     throw new Error(

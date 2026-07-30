@@ -140,7 +140,11 @@
   display: grid;
   width: min(
     17.5rem,
-    calc(100vw - 1.1rem - env(safe-area-inset-left) - env(safe-area-inset-right))
+    calc(
+      100vw - 1.1rem
+      - var(--realm-safe-left, env(safe-area-inset-left))
+      - var(--realm-safe-right, env(safe-area-inset-right))
+    )
   );
   box-sizing: border-box;
   gap: 0.28rem;
@@ -213,9 +217,17 @@
   left: max(0.72rem, var(--realm-safe-left, env(safe-area-inset-left)));
   width: min(
     18rem,
-    calc(100vw - 1.44rem - env(safe-area-inset-left) - env(safe-area-inset-right))
+    calc(
+      100vw - 1.44rem
+      - var(--realm-safe-left, env(safe-area-inset-left))
+      - var(--realm-safe-right, env(safe-area-inset-right))
+    )
   );
-  max-height: calc(100svh - 5.4rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  max-height: calc(
+    100svh - 5.4rem
+    - var(--realm-safe-top, env(safe-area-inset-top))
+    - var(--realm-safe-bottom, env(safe-area-inset-bottom))
+  );
   box-sizing: border-box;
   padding: 0.85rem;
   overflow: auto;
@@ -481,11 +493,18 @@
   }
 
   .realm-profile-menu__panel {
-    top: max(4.25rem, calc(env(safe-area-inset-top) + 4.25rem));
-    left: max(0.55rem, env(safe-area-inset-left));
+    top: max(
+      4.25rem,
+      calc(var(--realm-safe-top, env(safe-area-inset-top)) + 4.25rem)
+    );
+    left: max(0.55rem, var(--realm-safe-left, env(safe-area-inset-left)));
     width: min(
       18rem,
-      calc(100vw - 1.1rem - env(safe-area-inset-left) - env(safe-area-inset-right))
+      calc(
+        100vw - 1.1rem
+        - var(--realm-safe-left, env(safe-area-inset-left))
+        - var(--realm-safe-right, env(safe-area-inset-right))
+      )
     );
   }
 }
@@ -515,19 +534,26 @@
 
 @media (max-height: 600px) and (min-width: 581px) {
   .realm-profile-trigger {
-    top: max(0.45rem, env(safe-area-inset-top));
-    left: max(0.45rem, env(safe-area-inset-left));
+    top: max(0.45rem, var(--realm-safe-top, env(safe-area-inset-top)));
+    left: max(0.45rem, var(--realm-safe-left, env(safe-area-inset-left)));
   }
 
   .realm-resource-rail {
-    top: max(0.32rem, env(safe-area-inset-top));
-    right: max(0.45rem, env(safe-area-inset-right));
+    top: max(0.32rem, var(--realm-safe-top, env(safe-area-inset-top)));
+    right: max(0.45rem, var(--realm-safe-right, env(safe-area-inset-right)));
   }
 
   .realm-profile-menu__panel {
-    top: max(4rem, calc(env(safe-area-inset-top) + 4rem));
+    top: max(
+      4rem,
+      calc(var(--realm-safe-top, env(safe-area-inset-top)) + 4rem)
+    );
     padding: 0.65rem;
-    max-height: calc(100svh - 4.45rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    max-height: calc(
+      100svh - 4.45rem
+      - var(--realm-safe-top, env(safe-area-inset-top))
+      - var(--realm-safe-bottom, env(safe-area-inset-bottom))
+    );
   }
 
   .realm-profile-menu__panel header {

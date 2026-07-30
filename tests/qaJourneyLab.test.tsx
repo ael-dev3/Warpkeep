@@ -4,6 +4,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within
 } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -403,7 +404,12 @@ describe('Warpkeep local QA journey lab', () => {
     fireEvent.click(target);
     await settlePresentation();
 
-    const inspector = screen.getByRole('dialog', { name: 'Cinderwatch Keep' });
+    await waitFor(() => expect(
+      screen.queryByRole('dialog', { name: 'Explore' })
+    ).toBeNull());
+    const inspector = await screen.findByRole('dialog', {
+      name: 'Cinderwatch Keep'
+    });
     expect(within(inspector).getByText('Cinderwatch Keep')).not.toBeNull();
     expect(inspector.textContent).toContain('@sentinel-two');
     const targetLabels = [...document.querySelectorAll<HTMLButtonElement>(

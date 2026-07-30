@@ -22,7 +22,10 @@ export type WorkerCommandCenterProps = Readonly<{
   recallAllAwaitingAuthority?: boolean;
   onRecallWorker?: (workerId: string) => Promise<void>;
   onRecallAllWorkers?: () => Promise<void>;
-  onSelectWorker: (worker: RealmWorkerPublicPresentation) => void;
+  onSelectWorker: (
+    worker: RealmWorkerPublicPresentation,
+    invoker: HTMLButtonElement
+  ) => void;
   onClose: () => void;
   onCloseToRealm?: () => void;
   hostedDestination?: boolean;
@@ -166,8 +169,9 @@ export function WorkerCommandCenter({
               <li key={worker.workerId}>
                 <button
                   className="worker-command-center__worker"
+                  data-realm-focus-key={`workers:${worker.workerId}`}
                   disabled={pendingCommand !== undefined}
-                  onClick={() => onSelectWorker(worker)}
+                  onClick={(event) => onSelectWorker(worker, event.currentTarget)}
                   type="button"
                 >
                   <span className="worker-command-center__ordinal">{worker.ordinal}</span>

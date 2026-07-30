@@ -189,6 +189,7 @@ import {
 import { CANONICAL_CASTLE_SLOTS } from '../spacetimedb/src/world';
 import { RealmMapScreen } from '../src/components/realm/RealmMapScreen';
 import type { ReadyFoodExpeditionPresentation } from '../src/components/realm/realmFoodExpeditionPresentation';
+import { REALM_SURFACE_HISTORY_KEY } from '../src/components/realm/realmSurfaceNavigation';
 import {
   CASTLE_WORKER_POLICY_VERSION,
   CASTLE_WORKER_REALM_ID,
@@ -197,6 +198,11 @@ import {
   workerRosterDigestForCastleIds
 } from '../src/components/realm/realmWorkerPresentation';
 import { createRenderedWebglQaFixtureRealm } from '../src/dev/renderedWebglQaFixture';
+import {
+  MiniAppHostProvider,
+  type MiniAppBrowserRuntime,
+  type MiniAppSdk
+} from '../src/farcaster/miniapp';
 import { validateCanonicalGenesisSnapshot } from '../src/spacetime/canonicalGenesisSnapshot';
 import type {
   CanonicalWarpkeepRealmSnapshot,
@@ -209,6 +215,7 @@ import {
   createCanonicalGenesisCandidate,
   createCanonicalGenesisSnapshot
 } from './fixtures/canonicalGenesisSnapshot';
+import { createReadyResourceState } from './fixtures/resourceState';
 
 const IDENTITY = { fid: CANONICAL_TEST_FID, username: 'warpkeeper' } as const;
 
@@ -418,7 +425,8 @@ function activePeerFoodWagonSnapshot(options: Readonly<{
 
 function workerOccupationRealm(
   activeOwner: 'peer' | 'viewer',
-  activePhase: 'outbound' | 'gathering' = 'gathering'
+  activePhase: 'outbound' | 'gathering' = 'gathering',
+  activeOrdinal: 1 | 2 | 3 | 4 = 1
 ) {
   const candidate = createCanonicalGenesisCandidate({
     ownFid: CANONICAL_TEST_FID,
@@ -431,7 +439,8 @@ function workerOccupationRealm(
   if (!activeCastle) throw new Error('missing canonical active worker castle fixture');
   const workers = candidate.castles.flatMap((castle) => (
     ([1, 2, 3, 4] as const).map((ordinal) => {
-      const assigned = castle.castleId === activeCastle.castleId && ordinal === 1;
+      const assigned = castle.castleId === activeCastle.castleId
+        && ordinal === activeOrdinal;
       return Object.freeze({
         workerId: `genesis-001-castle-${castle.castleId}-worker-${String(ordinal).padStart(2, '0')}`,
         ordinal,
@@ -454,7 +463,8 @@ function workerOccupationRealm(
     })
   ));
   const activeWorker = workers.find((worker) => (
-    worker.originCastleId === activeCastle.castleId && worker.ordinal === 1
+    worker.originCastleId === activeCastle.castleId
+    && worker.ordinal === activeOrdinal
   ));
   if (!activeWorker || activeWorker.status !== activePhase) {
     throw new Error('missing active worker fixture');
@@ -525,8 +535,8 @@ function peerWorkerOccupationRealm(activePhase: 'outbound' | 'gathering' = 'gath
   return workerOccupationRealm('peer', activePhase);
 }
 
-function viewerWorkerOccupationRealm() {
-  return workerOccupationRealm('viewer');
+function viewerWorkerOccupationRealm(activeOrdinal: 1 | 2 | 3 | 4 = 1) {
+  return workerOccupationRealm('viewer', 'gathering', activeOrdinal);
 }
 
 function degradedActiveWorkerOccupationRealm() {
@@ -616,6 +626,164 @@ afterEach(() => {
 });
 
 describe('live realm quality recreation', () => {
+  it('leaves root Back to the Mini App host and binds it only for nested Realm destinations', async () => {
+    installWebGlProbe();
+    const back = {
+      show: vi.fn(async () => {}),
+      hide: vi.fn(async () => {}),
+      onback: null as (() => void) | null
+    };
+    const sdk: MiniAppSdk = {
+      isInMiniApp: async () => true,
+      context: Promise.resolve({
+        user: {
+          fid: CANONICAL_TEST_FID,
+          username: 'warpkeeper',
+          displayName: 'Warp Keeper'
+        },
+        client: {
+          clientFid: 9_150,
+          added: true,
+          platformType: 'mobile',
+          safeAreaInsets: { top: 12, right: 8, bottom: 14, left: 8 }
+        },
+        features: { haptics: false },
+        location: { type: 'launcher' }
+      }),
+      getCapabilities: async () => ['actions.ready', 'back'],
+      actions: {
+        ready: async () => {}
+      },
+      back
+    };
+    const runtime: MiniAppBrowserRuntime = {
+      search: () => '?miniApp=true',
+      viewport: () => ({ width: 390, height: 844 }),
+      document,
+      getMountedShell: () => document.body,
+      waitForAnimationFrame: async () => {}
+    };
+    const onRequestReturn = vi.fn();
+
+    render(
+      <MiniAppHostProvider runtime={runtime} sdkLoader={async () => sdk}>
+        <RealmMapScreen
+          identity={IDENTITY}
+          snapshot={createCanonicalGenesisSnapshot({
+            ownFid: CANONICAL_TEST_FID,
+            peerFid: 77
+          })}
+          onGraphicsPreferenceChange={vi.fn()}
+          onRequestReturn={onRequestReturn}
+          qualityOverride="balanced"
+          resources={createReadyResourceState(CANONICAL_TEST_FID)}
+        />
+      </MiniAppHostProvider>
+    );
+
+    await waitFor(() => expect(back.hide).toHaveBeenCalled());
+    const realm = screen.getByRole('main', { name: 'Hegemony realm' });
+    await waitFor(() => expect(realm.dataset.realmChromeMode).toBe('miniapp'));
+    const sceneOptions = mocked.createRealmScene.mock.calls.at(-1)?.[0];
+    act(() => sceneOptions?.onCastlesReady?.(2));
+    expect(back.show).not.toHaveBeenCalled();
+    expect(back.onback).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: /Open Realm menu/i }));
+    await waitFor(() => expect(back.show).toHaveBeenCalledOnce());
+    let menu = screen.getByRole('region', { name: 'REALM MENU' });
+
+    fireEvent.click(within(menu).getByRole('button', { name: /EXPLORE/i }));
+    await waitFor(() => expect(
+      screen.getByRole('region', { name: 'Explore' })
+    ).not.toBeNull());
+    act(() => back.onback?.());
+    menu = await screen.findByRole('region', { name: 'REALM MENU' });
+    await waitFor(() => expect(document.activeElement).toBe(
+      within(menu).getByRole('button', { name: /EXPLORE/i })
+    ));
+
+    fireEvent.click(within(menu).getByRole('button', { name: /SETTINGS/i }));
+    await waitFor(() => expect(
+      screen.getByRole('region', { name: 'SETTINGS' })
+    ).not.toBeNull());
+    act(() => back.onback?.());
+    menu = await screen.findByRole('region', { name: 'REALM MENU' });
+    await waitFor(() => expect(document.activeElement).toBe(
+      within(menu).getByRole('button', { name: /SETTINGS/i })
+    ));
+
+    act(() => back.onback?.());
+    await waitFor(() => {
+      expect(screen.queryByRole('region', { name: 'REALM MENU' })).toBeNull();
+      expect(back.onback).toBeNull();
+    });
+    expect(onRequestReturn).not.toHaveBeenCalled();
+
+    // A retained HUD launcher must survive its own Back/Forward branch, but
+    // must not steal focus from a later, unrelated world-record branch.
+    const wood = screen.getByRole('button', {
+      name: /Wood: 0 stored; 0 gathering now/i
+    });
+    fireEvent.click(wood);
+    await screen.findByRole('region', { name: 'Wood' });
+    act(() => back.onback?.());
+    await waitFor(() => expect(document.activeElement).toBe(wood));
+
+    act(() => sceneOptions?.onCastleProjection?.({
+      width: 390,
+      height: 844,
+      castles: [
+        {
+          castleId: 1,
+          q: 0,
+          r: 0,
+          x: 110,
+          y: 420,
+          distance: 4,
+          visible: true,
+          presented: true
+        },
+        {
+          castleId: 2,
+          q: 2,
+          r: -1,
+          x: 275,
+          y: 430,
+          distance: 5,
+          visible: true,
+          presented: true
+        }
+      ]
+    }));
+    const peerLabel = await screen.findByRole('button', {
+      name: /Inspect Hegemony Keep castle, Peer Watch/i
+    });
+    fireEvent.click(peerLabel);
+    await waitFor(() => expect(
+      screen.getByRole('button', { name: 'CLOSE RECORD' })
+    ).not.toBeNull());
+    act(() => back.onback?.());
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'CLOSE RECORD' })).toBeNull();
+      expect(document.activeElement).toBe(peerLabel);
+    });
+
+    fireEvent.keyDown(realm, { key: 'ArrowRight' });
+    await waitFor(() => expect(
+      document.querySelector('.realm-player-chrome__selection-announcement')
+        ?.textContent
+    ).toContain('Terrain selected'));
+    fireEvent.keyDown(realm, { key: 'Enter' });
+    await waitFor(() => expect(back.onback).not.toBeNull());
+    await screen.findByRole('button', { name: 'LOCATE IN REALM' });
+    act(() => back.onback?.());
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'LOCATE IN REALM' })).toBeNull();
+      expect(document.activeElement).toBe(realm);
+    });
+  });
+
   it('retires an assigned scene when initial interaction synchronization throws', () => {
     installWebGlProbe();
     const defaultCreate = mocked.createRealmScene.getMockImplementation();
@@ -2409,8 +2577,11 @@ describe('live realm quality recreation', () => {
     });
 
     fireEvent.click(within(explore).getByRole('button', { name: 'CLOSE EXPLORE' }));
+    await waitFor(() => expect(
+      screen.queryByRole('dialog', { name: 'Explore' })
+    ).toBeNull());
     act(() => options.onResourceProjection?.(projection));
-    const reopenedMarker = screen.getByRole('button', {
+    const reopenedMarker = await screen.findByRole('button', {
       name: /Inspect @peerkeeper gathering at Stone Quarry/i
     });
     fireEvent.click(reopenedMarker);
@@ -2639,7 +2810,7 @@ describe('live realm quality recreation', () => {
     expect(dispatch).not.toHaveBeenCalled();
   });
 
-  it('fails site availability closed when the active public worker join degrades', () => {
+  it('fails site availability closed when the active public worker join degrades', async () => {
     installWebGlProbe();
     const fixture = degradedActiveWorkerOccupationRealm();
     const unoccupied = fixture.snapshot.stoneSites?.find(
@@ -2689,6 +2860,9 @@ describe('live realm quality recreation', () => {
     fireEvent.click(screen.getByRole('button', { name: /Open Realm menu/i }));
     expect(screen.getByText(/Worker presentation is temporarily unavailable/i)).not.toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Close Realm menu' }));
+    await waitFor(() => expect(
+      screen.queryByRole('dialog', { name: 'REALM MENU' })
+    ).toBeNull());
     act(() => options.onTargetSelect?.({
       kind: 'worker',
       workerId: fixture.activeWorker.workerId,
@@ -3054,7 +3228,7 @@ describe('live realm quality recreation', () => {
     expect(consoleWarn).not.toHaveBeenCalled();
   });
 
-  it('retires compact Explore before settling validated QA coordinate navigation', () => {
+  it('retires compact Explore before settling validated QA coordinate navigation', async () => {
     vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(390);
     vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(844);
     installWebGlProbe();
@@ -3090,13 +3264,474 @@ describe('live realm quality recreation', () => {
 
     expect(scene.locateCell).not.toHaveBeenCalled();
     animationFrames.flush();
-    expect(scene.locateCell).toHaveBeenCalledWith({ q: 20, r: -22 });
+    expect(scene.locateCell).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Explore' })).toBeNull();
+      expect(realm.dataset.realmSurfaceDepth).toBe('0');
+    });
+    await waitFor(() => {
+      animationFrames.flush();
+      expect(scene.locateCell).toHaveBeenCalledWith({ q: 20, r: -22 });
+    });
     expect(scene.setComposition.mock.invocationCallOrder.at(-1))
       .toBeLessThan(scene.locateCell.mock.invocationCallOrder.at(-1)!);
-    expect(screen.queryByRole('dialog', { name: 'Explore' })).toBeNull();
-    expect(realm.dataset.realmSurfaceDepth).toBe('0');
     expect(screen.getByText(/q 20, r -22/i)).not.toBeNull();
     expect(document.activeElement).toBe(realm);
+  });
+
+  it('keeps compact world records coherent through resize and closes stackless desktop records safely', async () => {
+    let viewportWidth = 390;
+    vi.spyOn(window, 'innerWidth', 'get').mockImplementation(() => viewportWidth);
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(844);
+    installWebGlProbe();
+    const animationFrames = installAnimationFrameQueue();
+    render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={createCanonicalGenesisSnapshot({
+          ownFid: CANONICAL_TEST_FID,
+          peerFid: 77
+        })}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+    const options = mocked.createRealmScene.mock.calls[0]![0];
+    act(() => {
+      options.onCastlesReady?.(2);
+      options.onCastleProjection?.({
+        width: 390,
+        height: 844,
+        castles: [
+          {
+            castleId: 1,
+            q: 0,
+            r: 0,
+            x: 110,
+            y: 420,
+            distance: 4,
+            visible: true,
+            presented: true
+          },
+          {
+            castleId: 2,
+            q: 2,
+            r: -1,
+            x: 275,
+            y: 430,
+            distance: 5,
+            visible: true,
+            presented: true
+          }
+        ]
+      });
+      animationFrames.flush();
+    });
+    const realm = screen.getByRole('main', { name: 'Hegemony realm' });
+    const peerLabel = await screen.findByRole('button', {
+      name: /Inspect Hegemony Keep castle, Peer Watch/i
+    });
+    expect(realm.dataset.realmChromeMode).toBe('compact-web');
+
+    fireEvent.click(peerLabel);
+    expect(document.querySelectorAll('.castle-inspection')).toHaveLength(1);
+    expect(realm.dataset.realmSurfaceDepth).toBe('1');
+
+    viewportWidth = 1_280;
+    act(() => {
+      window.dispatchEvent(new Event('resize'));
+      animationFrames.flush();
+    });
+    expect(realm.dataset.realmChromeMode).toBe('compact-web');
+    expect(document.querySelectorAll('.castle-inspection')).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'CLOSE RECORD' }));
+    await waitFor(() => {
+      expect(document.querySelectorAll('.castle-inspection')).toHaveLength(0);
+      expect(realm.dataset.realmSurfaceDepth).toBe('0');
+      expect(realm.dataset.realmChromeMode).toBe('desktop-web');
+    });
+
+    // A desktop record is intentionally stackless. Entering compact mode
+    // closes it once and returns focus instead of creating an unreachable
+    // hosted panel without a Back route.
+    fireEvent.click(peerLabel);
+    expect(document.querySelectorAll('.castle-inspection')).toHaveLength(1);
+    expect(realm.dataset.realmSurfaceDepth).toBe('0');
+    viewportWidth = 390;
+    act(() => {
+      window.dispatchEvent(new Event('resize'));
+      animationFrames.flush();
+    });
+    await waitFor(() => {
+      expect(document.querySelectorAll('.castle-inspection')).toHaveLength(0);
+      expect(realm.dataset.realmChromeMode).toBe('compact-web');
+      expect(realm.dataset.realmSurfaceDepth).toBe('0');
+      expect(document.activeElement).toBe(peerLabel);
+    });
+
+    fireEvent.keyDown(realm, { key: 'ArrowRight' });
+    await waitFor(() => expect(
+      document.querySelector('.realm-player-chrome__selection-announcement')
+        ?.textContent
+    ).toContain('Terrain selected'));
+    fireEvent.keyDown(realm, { key: 'Enter' });
+    await screen.findByRole('button', { name: 'LOCATE IN REALM' });
+
+    viewportWidth = 1_280;
+    act(() => {
+      window.dispatchEvent(new Event('resize'));
+      animationFrames.flush();
+    });
+    expect(realm.dataset.realmChromeMode).toBe('compact-web');
+    expect(screen.getAllByRole('button', { name: 'LOCATE IN REALM' })).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Realm' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'LOCATE IN REALM' })).toBeNull();
+      expect(realm.dataset.realmSurfaceDepth).toBe('0');
+      expect(realm.dataset.realmChromeMode).toBe('desktop-web');
+      expect(document.activeElement).toBe(realm);
+    });
+  });
+
+  it('keeps one compact Worker record through a desktop resize until Back commits', async () => {
+    let viewportWidth = 390;
+    vi.spyOn(window, 'innerWidth', 'get').mockImplementation(() => viewportWidth);
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(844);
+    installWebGlProbe();
+    const animationFrames = installAnimationFrameQueue();
+    const fixture = viewerWorkerOccupationRealm();
+    render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={fixture.snapshot}
+        workerProjection={fixture.workerProjection}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+    const options = mocked.createRealmScene.mock.calls[0]![0];
+    act(() => {
+      options.onCastlesReady?.(2);
+      animationFrames.flush();
+    });
+    const idleWorker = fixture.workerProjection.workers.find(
+      (worker) => worker.ownedByViewer && worker.status === 'idle'
+    );
+    expect(idleWorker).toBeDefined();
+    act(() => options.onTargetSelect?.({
+      kind: 'worker',
+      workerId: idleWorker!.workerId,
+      workerOrdinal: idleWorker!.ordinal,
+      originCastleId: idleWorker!.originCastleId,
+      coord: {
+        q: fixture.snapshot.ownCastle.q,
+        r: fixture.snapshot.ownCastle.r
+      }
+    }));
+
+    const realm = screen.getByRole('main', { name: 'Hegemony realm' });
+    expect(realm.dataset.realmChromeMode).toBe('compact-web');
+    expect(realm.dataset.realmSurfaceDepth).toBe('1');
+    expect(document.querySelectorAll('.worker-inspection')).toHaveLength(1);
+
+    viewportWidth = 1_280;
+    act(() => {
+      window.dispatchEvent(new Event('resize'));
+      animationFrames.flush();
+    });
+    expect(realm.dataset.realmChromeMode).toBe('compact-web');
+    expect(document.querySelectorAll('.worker-inspection')).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Back to workers' }));
+
+    await waitFor(() => {
+      expect(document.querySelectorAll('.worker-inspection')).toHaveLength(0);
+      expect(realm.dataset.realmSurfaceDepth).toBe('0');
+      expect(realm.dataset.realmChromeMode).toBe('desktop-web');
+    });
+  });
+
+  it('canonicalizes a stale standalone Worker history record after its occupation changes', async () => {
+    vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(390);
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(844);
+    installWebGlProbe();
+    const animationFrames = installAnimationFrameQueue();
+    const idleFixture = viewerWorkerOccupationRealm(1);
+    const idleWorker = idleFixture.workerProjection.workers.find((worker) => (
+      worker.ownedByViewer && worker.ordinal === 2
+    ));
+    expect(idleWorker?.status).toBe('idle');
+    const view = render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={idleFixture.snapshot}
+        workerProjection={idleFixture.workerProjection}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+    const initialOptions = mocked.createRealmScene.mock.calls[0]![0];
+    act(() => {
+      initialOptions.onCastlesReady?.(2);
+      animationFrames.flush();
+      initialOptions.onTargetSelect?.({
+        kind: 'worker',
+        workerId: idleWorker!.workerId,
+        workerOrdinal: idleWorker!.ordinal,
+        originCastleId: idleWorker!.originCastleId,
+        coord: {
+          q: idleFixture.snapshot.ownCastle.q,
+          r: idleFixture.snapshot.ownCastle.r
+        }
+      });
+    });
+    const realm = screen.getByRole('main', { name: 'Hegemony realm' });
+    const workerHistoryState = window.history.state;
+    expect(realm.dataset.realmSurfaceDepth).toBe('1');
+    expect(document.querySelectorAll('.worker-inspection')).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Back to workers' }));
+    await waitFor(() => expect(realm.dataset.realmSurfaceDepth).toBe('0'));
+
+    const occupiedFixture = viewerWorkerOccupationRealm(2);
+    expect(occupiedFixture.activeWorker.workerId).toBe(idleWorker!.workerId);
+    view.rerender(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={occupiedFixture.snapshot}
+        workerProjection={occupiedFixture.workerProjection}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate', {
+        state: workerHistoryState
+      }));
+    });
+
+    await waitFor(() => {
+      expect(realm.dataset.realmSurfaceDepth).toBe('1');
+      expect(document.querySelectorAll('.worker-inspection')).toHaveLength(0);
+      expect(screen.getByRole('region', { name: 'Stone Quarry' })).not.toBeNull();
+    });
+    const currentEnvelope = (
+      window.history.state as Record<string, unknown>
+    )[REALM_SURFACE_HISTORY_KEY] as {
+      stack: readonly { kind: string; resource?: string; siteId?: string }[];
+    };
+    expect(currentEnvelope.stack.at(-1)).toEqual({
+      kind: 'resource-site',
+      resource: 'stone',
+      siteId: occupiedFixture.site.siteId
+    });
+  });
+
+  it('replays a compact world-history record as one desktop drawer after Forward', async () => {
+    let viewportWidth = 390;
+    vi.spyOn(window, 'innerWidth', 'get').mockImplementation(() => viewportWidth);
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(844);
+    installWebGlProbe();
+    const animationFrames = installAnimationFrameQueue();
+    render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={createCanonicalGenesisSnapshot({
+          ownFid: CANONICAL_TEST_FID,
+          peerFid: 77
+        })}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+    const options = mocked.createRealmScene.mock.calls[0]![0];
+    act(() => {
+      options.onCastlesReady?.(2);
+      options.onCastleProjection?.({
+        width: 390,
+        height: 844,
+        castles: [
+          {
+            castleId: 1,
+            q: 0,
+            r: 0,
+            x: 110,
+            y: 420,
+            distance: 4,
+            visible: true,
+            presented: true
+          },
+          {
+            castleId: 2,
+            q: 2,
+            r: -1,
+            x: 275,
+            y: 430,
+            distance: 5,
+            visible: true,
+            presented: true
+          }
+        ]
+      });
+      animationFrames.flush();
+    });
+    const realm = screen.getByRole('main', { name: 'Hegemony realm' });
+    const rootHistoryState = window.history.state;
+    fireEvent.click(await screen.findByRole('button', {
+      name: /Inspect Hegemony Keep castle, Peer Watch/i
+    }));
+    const keepHistoryState = window.history.state;
+    expect(realm.dataset.realmChromeMode).toBe('compact-web');
+    fireEvent.click(screen.getByRole('button', { name: 'CLOSE RECORD' }));
+    await waitFor(() => expect(realm.dataset.realmSurfaceDepth).toBe('0'));
+
+    viewportWidth = 1_280;
+    act(() => {
+      window.dispatchEvent(new Event('resize'));
+      animationFrames.flush();
+    });
+    expect(realm.dataset.realmChromeMode).toBe('desktop-web');
+
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate', {
+        state: keepHistoryState
+      }));
+    });
+    await waitFor(() => {
+      expect(realm.dataset.realmSurfaceDepth).toBe('1');
+      expect(realm.dataset.realmChromeMode).toBe('desktop-web');
+      expect(document.querySelectorAll('.castle-inspection')).toHaveLength(1);
+      expect(screen.getByRole('dialog', { name: 'Peer Watch' })).not.toBeNull();
+    });
+
+    const go = vi.spyOn(window.history, 'go').mockImplementation(() => {});
+    fireEvent.click(screen.getByRole('button', { name: 'CLOSE RECORD' }));
+    expect(go).toHaveBeenCalledWith(-1);
+    expect(document.querySelectorAll('.castle-inspection')).toHaveLength(1);
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate', {
+        state: rootHistoryState
+      }));
+    });
+    await waitFor(() => {
+      expect(realm.dataset.realmSurfaceDepth).toBe('0');
+      expect(document.querySelectorAll('.castle-inspection')).toHaveLength(0);
+    });
+
+    const keepEnvelope = (
+      keepHistoryState as Record<string, unknown>
+    )[REALM_SURFACE_HISTORY_KEY] as {
+      version: 1;
+      session: string;
+    };
+    const nestedKeepHistoryState = {
+      ...(rootHistoryState as Record<string, unknown>),
+      [REALM_SURFACE_HISTORY_KEY]: {
+        ...keepEnvelope,
+        stack: [
+          { kind: 'commands' },
+          { kind: 'explore' },
+          { kind: 'keep', castleId: 2 }
+        ]
+      }
+    };
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate', {
+        state: nestedKeepHistoryState
+      }));
+    });
+    await waitFor(() => {
+      expect(realm.dataset.realmSurfaceDepth).toBe('3');
+      expect(document.querySelectorAll('.castle-inspection')).toHaveLength(1);
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'CLOSE RECORD' }));
+    expect(go).toHaveBeenLastCalledWith(-3);
+    expect(document.querySelectorAll('.castle-inspection')).toHaveLength(1);
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate', {
+        state: rootHistoryState
+      }));
+    });
+    await waitFor(() => {
+      expect(realm.dataset.realmSurfaceDepth).toBe('0');
+      expect(document.querySelectorAll('.castle-inspection')).toHaveLength(0);
+    });
+
+    const nestedExploreHistoryState = {
+      ...(rootHistoryState as Record<string, unknown>),
+      [REALM_SURFACE_HISTORY_KEY]: {
+        ...keepEnvelope,
+        stack: [
+          { kind: 'commands' },
+          { kind: 'explore' }
+        ]
+      }
+    };
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate', {
+        state: nestedExploreHistoryState
+      }));
+    });
+    const restoredExplore = await screen.findByRole('dialog', { name: 'Explore' });
+    expect(realm.dataset.realmSurfaceDepth).toBe('2');
+    fireEvent.click(within(restoredExplore).getByRole('button', {
+      name: /Inspect Hegemony Keep, Peer Watch/i
+    }));
+    expect(go).toHaveBeenLastCalledWith(-2);
+    expect(mocked.handles[0]!.locateCastle).not.toHaveBeenCalled();
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate', {
+        state: rootHistoryState
+      }));
+    });
+    await waitFor(() => {
+      animationFrames.flush();
+      expect(realm.dataset.realmSurfaceDepth).toBe('0');
+      expect(document.querySelectorAll('.castle-inspection')).toHaveLength(1);
+      expect(mocked.handles[0]!.locateCastle).toHaveBeenCalledTimes(1);
+      expect(mocked.handles[0]!.locateCastle).toHaveBeenCalledWith(2);
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'CLOSE RECORD' }));
+    await waitFor(() => {
+      expect(document.querySelectorAll('.castle-inspection')).toHaveLength(0);
+    });
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate', {
+        state: rootHistoryState
+      }));
+    });
+    expect(mocked.handles[0]!.locateCastle).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate', {
+        state: nestedExploreHistoryState
+      }));
+    });
+    const interruptedExplore = await screen.findByRole('dialog', { name: 'Explore' });
+    fireEvent.click(within(interruptedExplore).getByRole('button', {
+      name: /Inspect Hegemony Keep, Peer Watch/i
+    }));
+    expect(go).toHaveBeenLastCalledWith(-2);
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate', {
+        state: rootHistoryState
+      }));
+    });
+    fireEvent.click(playerMenuTrigger());
+    await screen.findByRole('dialog', { name: 'REALM MENU' });
+    animationFrames.flush();
+    expect(mocked.handles[0]!.locateCastle).toHaveBeenCalledTimes(1);
+    expect(document.querySelectorAll('.castle-inspection')).toHaveLength(0);
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate', {
+        state: rootHistoryState
+      }));
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'REALM MENU' })).toBeNull();
+    });
+    animationFrames.flush();
+    expect(mocked.handles[0]!.locateCastle).toHaveBeenCalledTimes(1);
+    expect(document.querySelectorAll('.castle-inspection')).toHaveLength(0);
   });
 
   it('activates a selected terrain cell from the keyboard without opening an inspector', () => {

@@ -119,11 +119,19 @@ const MINIMUM_HOST_DEADLINE_MILLISECONDS = 250;
 const MAXIMUM_HOST_DEADLINE_MILLISECONDS = 10_000;
 
 // React StrictMode replays effects. Share the exact ready promise so one
-// browser-runtime lifetime receives no more than one ready call while the
-// surviving mount can still await the first mount's in-flight result.
+// verified mount receives no more than one ready call while the surviving
+// StrictMode effect can still await the first effect's in-flight result.
 const READY_ATTEMPTS = new WeakMap<object, Promise<void>>();
 
 const noopBackCleanup = () => {};
+
+type ReadyAttemptScope = Readonly<{
+  runtime: MiniAppBrowserRuntime;
+  sdkLoader: MiniAppSdkLoader;
+  hostDeadline: number;
+  miniAppHinted: boolean;
+  key: object;
+}>;
 
 function recoverySnapshot(reason: MiniAppRecoveryReason): HostSnapshot {
   return Object.freeze({
@@ -247,6 +255,24 @@ export function MiniAppHostProvider({
   const hapticsEnabledRef = useRef(false);
   const activeBackCleanupRef = useRef<(() => void) | null>(null);
   const backCommandRef = useRef<Promise<void>>(Promise.resolve());
+  const readyAttemptScopeRef = useRef<ReadyAttemptScope | null>(null);
+  const retainedReadyScope = readyAttemptScopeRef.current;
+  if (
+    retainedReadyScope === null
+    || retainedReadyScope.runtime !== runtime
+    || retainedReadyScope.sdkLoader !== sdkLoader
+    || retainedReadyScope.hostDeadline !== hostDeadline
+    || retainedReadyScope.miniAppHinted !== miniAppHinted
+  ) {
+    readyAttemptScopeRef.current = Object.freeze({
+      runtime,
+      sdkLoader,
+      hostDeadline,
+      miniAppHinted,
+      key: {}
+    });
+  }
+  const readyMountKey = readyAttemptScopeRef.current!.key;
 
   const enqueueBackVisibility = useCallback((
     sdk: MiniAppSdk,
@@ -444,19 +470,19 @@ export function MiniAppHostProvider({
       }
       if (cancelled) return;
 
-      let readyAttempt = READY_ATTEMPTS.get(runtime as object);
+      let readyAttempt = READY_ATTEMPTS.get(readyMountKey);
       if (!readyAttempt) {
         readyAttempt = withMiniAppHostDeadline(
           sdk.actions.ready({ disableNativeGestures: true }),
           hostDeadline
         );
-        READY_ATTEMPTS.set(runtime as object, readyAttempt);
+        READY_ATTEMPTS.set(readyMountKey, readyAttempt);
       }
       try {
         await readyAttempt;
       } catch (error) {
-        if (READY_ATTEMPTS.get(runtime as object) === readyAttempt) {
-          READY_ATTEMPTS.delete(runtime as object);
+        if (READY_ATTEMPTS.get(readyMountKey) === readyAttempt) {
+          READY_ATTEMPTS.delete(readyMountKey);
         }
         recover(isMiniAppHostDeadlineError(error)
           ? 'host-timeout'
@@ -489,6 +515,7 @@ export function MiniAppHostProvider({
     clearBackBinding,
     hostDeadline,
     miniAppHinted,
+    readyMountKey,
     runtime,
     sdkLoader
   ]);
@@ -679,12 +706,13 @@ export function useMiniAppBackNavigation(
   const { bindBackNavigation, state } = useMiniAppHost();
   const onBackRef = useRef(onBack);
   onBackRef.current = onBack;
+  const visible = positiveNavigationDepth(depth) > 0;
 
   useEffect(
     () => bindBackNavigation({
-      depth,
+      depth: visible ? 1 : 0,
       onBack: () => onBackRef.current()
     }),
-    [bindBackNavigation, depth, state]
+    [bindBackNavigation, state, visible]
   );
 }

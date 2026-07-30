@@ -284,10 +284,96 @@ describe('CastleInspectionPanel', () => {
     const heading = screen.getByRole('heading', { level: 2, name: 'Genesis Bastion' });
     await waitFor(() => expect(heading).toBe(document.activeElement));
 
-    fireEvent.click(screen.getByRole('link', { name: 'View Farcaster profile' }));
+    fireEvent.click(screen.getByRole('button', { name: 'View Farcaster profile' }));
     await waitFor(() => expect(viewProfile).toHaveBeenCalledExactlyOnceWith({
       fid: CASTLE.ownerFid
     }));
+    expect(openUrl).not.toHaveBeenCalled();
+  });
+
+  it('does not bypass a Mini App host that lacks the profile capability', async () => {
+    const ready = vi.fn(async () => {});
+    const openUrl = vi.fn(async () => {});
+    const sdk: MiniAppSdk = {
+      isInMiniApp: async () => true,
+      context: Promise.resolve({
+        user: { fid: CASTLE.ownerFid },
+        client: {
+          clientFid: 9_150,
+          added: true,
+          platformType: 'mobile',
+          safeAreaInsets: { top: 12, right: 8, bottom: 14, left: 8 }
+        },
+        features: { haptics: false },
+        location: { type: 'launcher' }
+      }),
+      getCapabilities: async () => ['actions.ready', 'actions.openUrl'],
+      actions: { ready, openUrl }
+    };
+
+    render(
+      <MiniAppHostProvider runtime={miniAppRuntime()} sdkLoader={async () => sdk}>
+        <CastleInspectionPanel
+          id="hosted-castle-record"
+          castle={CASTLE}
+          hostedDestination
+          own
+          profile={PROFILE}
+          onRequestClose={vi.fn()}
+        />
+      </MiniAppHostProvider>
+    );
+
+    expect(screen.queryByRole('link', { name: 'View Farcaster profile' })).toBeNull();
+    await waitFor(() => expect(ready).toHaveBeenCalledOnce());
+    expect(screen.queryByRole('link', { name: 'View Farcaster profile' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'View Farcaster profile' })).toBeNull();
+    expect(openUrl).not.toHaveBeenCalled();
+  });
+
+  it('keeps a rejected Mini App profile action local', async () => {
+    const ready = vi.fn(async () => {});
+    const viewProfile = vi.fn(async () => {
+      throw new Error('private host failure');
+    });
+    const openUrl = vi.fn(async () => {});
+    const sdk: MiniAppSdk = {
+      isInMiniApp: async () => true,
+      context: Promise.resolve({
+        user: { fid: CASTLE.ownerFid },
+        client: {
+          clientFid: 9_150,
+          added: true,
+          platformType: 'mobile',
+          safeAreaInsets: { top: 12, right: 8, bottom: 14, left: 8 }
+        },
+        features: { haptics: false },
+        location: { type: 'launcher' }
+      }),
+      getCapabilities: async () => [
+        'actions.ready',
+        'actions.openUrl',
+        'actions.viewProfile'
+      ],
+      actions: { ready, openUrl, viewProfile }
+    };
+
+    render(
+      <MiniAppHostProvider runtime={miniAppRuntime()} sdkLoader={async () => sdk}>
+        <CastleInspectionPanel
+          id="hosted-castle-record"
+          castle={CASTLE}
+          hostedDestination
+          own
+          profile={PROFILE}
+          onRequestClose={vi.fn()}
+        />
+      </MiniAppHostProvider>
+    );
+
+    await waitFor(() => expect(ready).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole('button', { name: 'View Farcaster profile' }));
+    await waitFor(() => expect(viewProfile).toHaveBeenCalledOnce());
     expect(openUrl).not.toHaveBeenCalled();
   });
 });

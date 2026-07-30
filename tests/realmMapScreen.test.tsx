@@ -175,6 +175,7 @@ describe('RealmMapScreen', () => {
     resourceRail.className = 'realm-resource-rail';
     dialog.className = 'realm-cell-navigator__dialog';
     probe.className = 'realm-safe-area-probe';
+    probe.style.padding = '24px 18px 12px 6px';
     root.append(profileTrigger, resourceRail, dialog, probe);
 
     const rect = (left: number, top: number, right: number, bottom: number) => ({
@@ -194,7 +195,8 @@ describe('RealmMapScreen', () => {
     vi.spyOn(dialog, 'getBoundingClientRect').mockReturnValue(rect(550, 10, 834, 380));
 
     expect(measuredRealmComposition(root)).toMatchObject({
-      insets: { top: 0, right: 304, bottom: 0, left: 0 },
+      insets: { top: 0, right: 286, bottom: 0, left: 0 },
+      safeAreaInsets: { top: 24, right: 18, bottom: 12, left: 6 },
       focusPadding: 14
     });
   });
@@ -265,8 +267,10 @@ describe('RealmMapScreen', () => {
     expect(screen.queryByRole('button', { name: 'CLOSE RECORD' })).toBeNull();
 
     fireEvent.click(peer);
-    expect(screen.queryByRole('dialog', { name: 'Explore' })).toBeNull();
-    const record = screen.getByRole('dialog', { name: 'Peer Watch' });
+    await waitFor(() => expect(
+      screen.queryByRole('dialog', { name: 'Explore' })
+    ).toBeNull());
+    const record = await screen.findByRole('dialog', { name: 'Peer Watch' });
     expect(within(record).getByText('Peer Watch')).not.toBeNull();
     expect(within(record).queryByText('q 2 · r -1')).toBeNull();
     expect(selectionAnnouncement().textContent)
@@ -274,7 +278,7 @@ describe('RealmMapScreen', () => {
     expect(screen.getByRole('button', { name: 'CLOSE RECORD' })).toBe(document.activeElement);
   });
 
-  it('keeps player Explore useful through semantic resource sites without exposing q/r navigation', () => {
+  it('keeps player Explore useful through semantic resource sites without exposing q/r navigation', async () => {
     renderFallbackRealm(createRenderedWebglQaFixtureRealm());
 
     const { explore } = openPlayerExplore();
@@ -306,11 +310,13 @@ describe('RealmMapScreen', () => {
     expect(wheatFarm).toBeDefined();
     fireEvent.click(wheatFarm!);
 
-    expect(screen.queryByRole('dialog', { name: 'Explore' })).toBeNull();
-    expect(screen.getByRole('dialog', { name: 'Wheat Farm' })).not.toBeNull();
+    await waitFor(() => expect(
+      screen.queryByRole('dialog', { name: 'Explore' })
+    ).toBeNull());
+    expect(await screen.findByRole('dialog', { name: 'Wheat Farm' })).not.toBeNull();
   });
 
-  it('reconciles generic Worker occupations into semantic Explore site state', () => {
+  it('reconciles generic Worker occupations into semantic Explore site state', async () => {
     const realm = createRenderedWebglQaActiveWorkerRealm();
     renderFallbackRealm({ identity: realm.identity, snapshot: realm.snapshot });
 
@@ -329,8 +335,10 @@ describe('RealmMapScreen', () => {
     ))).toBe(true);
 
     fireEvent.click(occupiedSites[0]);
-    expect(screen.queryByRole('dialog', { name: 'Explore' })).toBeNull();
-    expect(screen.getByRole('dialog', { name: 'Gold Mine' })).not.toBeNull();
+    await waitFor(() => expect(
+      screen.queryByRole('dialog', { name: 'Explore' })
+    ).toBeNull());
+    expect(await screen.findByRole('dialog', { name: 'Gold Mine' })).not.toBeNull();
   });
 
   it('keeps fallback markers and labels bounded to the same cropped region', async () => {
@@ -367,7 +375,9 @@ describe('RealmMapScreen', () => {
     const views = screen.getByRole('region', { name: 'Realm views' });
     fireEvent.click(within(views).getByRole('button', { name: 'My Keep' }));
 
-    expect(screen.queryByRole('dialog', { name: 'Explore' })).toBeNull();
+    await waitFor(() => expect(
+      screen.queryByRole('dialog', { name: 'Explore' })
+    ).toBeNull());
     expect(screen.queryByRole('button', { name: 'CLOSE RECORD' })).toBeNull();
     expect(selectionAnnouncement().textContent)
       .toContain('Warpkeeper Bastion. Your keep is selected.');
@@ -387,6 +397,7 @@ describe('RealmMapScreen', () => {
       'button',
       { name: /Inspect Hegemony Keep, Peer Watch/i }
     ));
+    await screen.findByRole('button', { name: 'CLOSE RECORD' });
     fireEvent.click(screen.getByRole('button', { name: 'CLOSE RECORD' }));
 
     await waitFor(() => {
@@ -461,7 +472,7 @@ describe('RealmMapScreen', () => {
     expect(document.activeElement).toBe(trigger);
   });
 
-  it('closes the top interaction surface before Escape requests realm exit', () => {
+  it('closes the top interaction surface before Escape requests realm exit', async () => {
     const onRequestReturn = vi.fn();
     renderFallbackRealm({ onRequestReturn });
 
@@ -469,10 +480,14 @@ describe('RealmMapScreen', () => {
     fireEvent.click(within(explore).getByRole('button', {
       name: /Inspect Hegemony Keep, Warpkeeper Bastion, your castle/i
     }));
-    expect(screen.getByRole('dialog', { name: 'Warpkeeper Bastion' })).not.toBeNull();
+    expect(await screen.findByRole('dialog', {
+      name: 'Warpkeeper Bastion'
+    })).not.toBeNull();
 
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(screen.queryByRole('dialog', { name: 'Warpkeeper Bastion' })).toBeNull();
+    await waitFor(() => expect(
+      screen.queryByRole('dialog', { name: 'Warpkeeper Bastion' })
+    ).toBeNull());
     expect(onRequestReturn).not.toHaveBeenCalled();
 
     fireEvent.keyDown(document, { key: 'Escape' });

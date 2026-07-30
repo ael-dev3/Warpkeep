@@ -3,6 +3,7 @@ import {
   useId,
   useRef,
   useState,
+  type MouseEvent,
   type Ref
 } from 'react';
 
@@ -114,6 +115,27 @@ const RESOURCE_LABELS: Readonly<Record<RealmEconomicResourceKey, string>> = Obje
 });
 
 type RealmResourceTooltipKey = RealmEconomicResourceKey | 'marks';
+
+type RealmNestedSurfaceInvoker = Readonly<{
+  focusKey: string;
+  scrollTop?: number;
+}>;
+
+const REALM_FOCUS_SCROLL_CONTAINER_SELECTOR = [
+  '.realm-profile-menu__panel',
+  '.worker-command-center',
+  '.realm-fullscreen-surface__body'
+].join(', ');
+
+const REALM_SURFACE_FOCUS_FALLBACK_SELECTOR = [
+  '.realm-profile-menu__panel h2[tabindex="-1"]',
+  '.worker-command-center h2[tabindex="-1"]',
+  '.realm-fullscreen-surface h1[tabindex="-1"]'
+].join(', ');
+
+function isRealmHudRootRoute(route: RealmSurfaceRoute | undefined) {
+  return route?.kind === 'commands' || route?.kind === 'resource-balance';
+}
 
 export type RealmActiveWagonMenuItem = Readonly<{
   resource: RealmEconomicResourceKey;
@@ -282,7 +304,10 @@ function RealmResourceRail({
   genericWorkerMode?: boolean;
   workerResourceState?: ReadyWorkerResourceState;
   fullscreenDestinations: boolean;
-  onOpenResource?: (resource: RealmSurfaceResourceKey) => void;
+  onOpenResource?: (
+    resource: RealmSurfaceResourceKey,
+    invoker: HTMLButtonElement
+  ) => void;
 }>) {
   const tooltipIdPrefix = `realm-resource-tooltip-${useId().replace(/:/g, '')}`;
   const railRef = useRef<HTMLElement>(null);
@@ -338,10 +363,10 @@ function RealmResourceRail({
       if (fullscreenDestinations) return;
       setActiveTooltip((current) => current === resource ? null : current);
     },
-    onClick: () => {
+    onClick: (event: MouseEvent<HTMLButtonElement>) => {
       if (fullscreenDestinations) {
         setActiveTooltip(null);
-        onOpenResource?.(resource);
+        onOpenResource?.(resource, event.currentTarget);
       } else {
         setActiveTooltip(resource);
       }
@@ -477,17 +502,17 @@ type RealmCommandDialogProps = Readonly<{
   keeperLabel: string;
   keeperProfile: RealmCastlePublicPresentation;
   hostedDestination: boolean;
-  onWorkers?: () => void;
+  onWorkers?: (invoker: HTMLButtonElement) => void;
   onRecallAllWorkers?: () => void;
   onRetryWorkerPrivateSync?: () => void;
   onClose: () => void;
-  onExplore: () => void;
-  onMarks?: () => void;
+  onExplore: (invoker: HTMLButtonElement) => void;
+  onMarks?: (invoker: HTMLButtonElement) => void;
   onOpenActiveWagon?: (wagon: RealmActiveWagonMenuItem) => void;
   onRecenter: () => void;
   onRequestReturn: () => void;
   onExitMiniApp?: () => void;
-  onSettings: () => void;
+  onSettings: (invoker: HTMLButtonElement) => void;
 }>;
 
 function RealmCommandDialog({
@@ -571,7 +596,12 @@ function RealmCommandDialog({
             <strong>MY KEEP</strong>
             <span>Recenter the camera</span>
           </button>
-          <button data-command-intent="navigation" onClick={onExplore} type="button">
+          <button
+            data-command-intent="navigation"
+            data-realm-focus-key="commands:explore"
+            onClick={(event) => onExplore(event.currentTarget)}
+            type="button"
+          >
             <strong>EXPLORE</strong>
             <span>{castleCount} founded {castleCount === 1 ? 'castle' : 'castles'}</span>
           </button>
@@ -583,10 +613,11 @@ function RealmCommandDialog({
             >
               <button
                 aria-controls={workersId}
-                aria-haspopup="dialog"
+                aria-haspopup={hostedDestination ? undefined : 'dialog'}
                 data-command-intent="primary"
+                data-realm-focus-key="commands:workers"
                 disabled={!onWorkers || recallingAllWorkers}
-                onClick={onWorkers}
+                onClick={(event) => onWorkers?.(event.currentTarget)}
                 type="button"
               >
                 <strong>WORKERS</strong>
@@ -665,7 +696,12 @@ function RealmCommandDialog({
             </div>
           ) : null}
           {onMarks ? (
-            <button data-command-intent="secondary" onClick={onMarks} type="button">
+            <button
+              data-command-intent="secondary"
+              data-realm-focus-key="commands:marks"
+              onClick={(event) => onMarks(event.currentTarget)}
+              type="button"
+            >
               <strong>COMMUNITY MARKS</strong>
               <span>Open the current non-financial community record</span>
             </button>
@@ -704,9 +740,10 @@ function RealmCommandDialog({
           {canOpenSettings ? (
             <button
               aria-controls={settingsId}
-              aria-haspopup="dialog"
+              aria-haspopup={hostedDestination ? undefined : 'dialog'}
               data-command-intent="secondary"
-              onClick={onSettings}
+              data-realm-focus-key="commands:settings"
+              onClick={(event) => onSettings(event.currentTarget)}
               type="button"
             >
               <strong>SETTINGS</strong>
@@ -797,17 +834,22 @@ export function RealmHud({
   );
   const recallAllReconciliationTimerRef = useRef<number | undefined>(undefined);
   const recallWorkerReconciliationTimersRef = useRef(new Map<string, number>());
+  const chromeRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const wasOpenRef = useRef(false);
+  const rootSurfaceInvokerRef = useRef<HTMLElement | null>(null);
+  const nestedSurfaceInvokersRef = useRef(
+    new Map<number, RealmNestedSurfaceInvoker>()
+  );
   const surfaceRoute = surfaceNavigation?.current;
   const surface: RealmMenuSurface = surfaceNavigation
     ? surfaceRoute?.kind === 'commands'
       ? 'menu'
       : surfaceRoute?.kind === 'settings'
         ? 'settings'
-        : surfaceRoute?.kind === 'workers'
+          : surfaceRoute?.kind === 'workers'
           ? 'workers'
           : surfaceRoute?.kind === 'worker'
+            && surfaceNavigation.stack.length > 1
             ? 'worker-inspection'
             : 'closed'
     : localSurface;
@@ -817,6 +859,16 @@ export function RealmHud({
   const anySurfaceOpen = surfaceNavigation
     ? surfaceNavigation.depth > 0
     : surface !== 'closed';
+  const surfaceDepth = surfaceNavigation?.depth ?? (
+    surface === 'closed'
+      ? 0
+      : surface === 'menu'
+        ? 1
+        : surface === 'worker-inspection'
+          ? 3
+          : 2
+  );
+  const previousSurfaceDepthRef = useRef(surfaceDepth);
   const fullscreenDestinations = chromeMode !== 'desktop-web';
   const menuId = REALM_MENU_ID;
   const controlledSurfaceId = surface === 'menu'
@@ -935,7 +987,33 @@ export function RealmHud({
   const selectedWorker = publicWorkersActive && selectedWorkerId
     ? ownedWorkersForUi.find((worker) => worker.workerId === selectedWorkerId)
     : undefined;
-  const openSurface = (route: RealmSurfaceRoute) => {
+  const rememberNestedSurfaceInvoker = (
+    invoker: HTMLElement,
+    focusKey: string
+  ) => {
+    if (surfaceDepth <= 0 || !invoker.isConnected) return;
+    const scrollContainer = invoker.closest<HTMLElement>(
+      REALM_FOCUS_SCROLL_CONTAINER_SELECTOR
+    );
+    nestedSurfaceInvokersRef.current.set(surfaceDepth + 1, Object.freeze({
+      focusKey,
+      ...(scrollContainer ? { scrollTop: scrollContainer.scrollTop } : {})
+    }));
+  };
+  const openSurface = (
+    route: RealmSurfaceRoute,
+    rootInvoker?: HTMLElement | null,
+    nestedFocusKey?: string
+  ) => {
+    if (!anySurfaceOpen && rootInvoker?.isConnected) {
+      // A direct player activation starts a fresh branch. Browser Forward
+      // restores routes without calling this function, so retained metadata
+      // remains available only for genuine history replay.
+      nestedSurfaceInvokersRef.current.clear();
+      rootSurfaceInvokerRef.current = rootInvoker;
+    } else if (rootInvoker && nestedFocusKey) {
+      rememberNestedSurfaceInvoker(rootInvoker, nestedFocusKey);
+    }
     if (surfaceNavigation) {
       surfaceNavigation.push(route);
       return;
@@ -974,11 +1052,55 @@ export function RealmHud({
   }
 
   useEffect(() => {
-    if (!anySurfaceOpen && wasOpenRef.current) {
-      triggerRef.current?.focus({ preventScroll: true });
+    const previousDepth = previousSurfaceDepthRef.current;
+    if (
+      surfaceNavigation !== undefined
+      &&
+      previousDepth === 0
+      && surfaceDepth > 0
+      && !isRealmHudRootRoute(surfaceNavigation?.stack[0])
+    ) {
+      // A map-owned world record starts an unrelated history branch. Do not
+      // let a retained HUD launcher from an earlier Back/Forward branch steal
+      // focus when this record later closes.
+      rootSurfaceInvokerRef.current = null;
+      nestedSurfaceInvokersRef.current.clear();
+    } else if (surfaceDepth === 0 && previousDepth > 0) {
+      const invoker = rootSurfaceInvokerRef.current;
+      if (invoker?.isConnected) {
+        invoker.focus({ preventScroll: true });
+      } else if (invoker) {
+        triggerRef.current?.focus({ preventScroll: true });
+      }
+    } else if (surfaceDepth > 0 && surfaceDepth < previousDepth) {
+      const invoker = nestedSurfaceInvokersRef.current.get(surfaceDepth + 1);
+      if (invoker) {
+        const focusTarget = [
+          ...(chromeRef.current?.querySelectorAll<HTMLElement>(
+            '[data-realm-focus-key]'
+          ) ?? [])
+        ].find((element) => element.dataset.realmFocusKey === invoker.focusKey);
+        const scrollContainer = focusTarget?.closest<HTMLElement>(
+          REALM_FOCUS_SCROLL_CONTAINER_SELECTOR
+        );
+        if (scrollContainer && invoker.scrollTop !== undefined) {
+          scrollContainer.scrollTop = invoker.scrollTop;
+        }
+        (
+          focusTarget
+          ?? chromeRef.current?.querySelector<HTMLElement>(
+            REALM_SURFACE_FOCUS_FALLBACK_SELECTOR
+          )
+        )?.focus({ preventScroll: true });
+      }
     }
-    wasOpenRef.current = anySurfaceOpen;
-  }, [anySurfaceOpen]);
+    previousSurfaceDepthRef.current = surfaceDepth;
+  }, [surfaceDepth, surfaceNavigation?.stack]);
+
+  useEffect(() => {
+    rootSurfaceInvokerRef.current = null;
+    nestedSurfaceInvokersRef.current.clear();
+  }, [identity.fid]);
 
   useEffect(() => {
     if (publicWorkersActive) {
@@ -1216,7 +1338,8 @@ export function RealmHud({
     <div
       className="realm-player-chrome"
       data-realm-chrome-mode={chromeMode}
-      data-realm-surface-depth={surfaceNavigation?.depth ?? (surface === 'closed' ? 0 : 1)}
+      data-realm-surface-depth={surfaceDepth}
+      ref={chromeRef}
     >
       <div
         aria-hidden={anySurfaceOpen || undefined}
@@ -1230,7 +1353,9 @@ export function RealmHud({
           aria-label={`Open Realm menu for ${playerLabel}`}
           className="realm-profile-trigger"
           onClick={() => {
-            if (surface === 'closed') openSurface({ kind: 'commands' });
+            if (surface === 'closed') {
+              openSurface({ kind: 'commands' }, triggerRef.current);
+            }
             else closeSurfaces();
           }}
           ref={(element) => {
@@ -1246,10 +1371,10 @@ export function RealmHud({
           <RealmResourceRail
             fullscreenDestinations={fullscreenDestinations}
             genericWorkerMode={genericWorkerModeActive}
-            onOpenResource={(resource) => openSurface({
-              kind: 'resource-balance',
-              resource
-            })}
+            onOpenResource={(resource, invoker) => openSurface(
+              { kind: 'resource-balance', resource },
+              invoker
+            )}
             resources={resources}
             workerResourceState={
               privateAuthorityCurrent
@@ -1294,9 +1419,11 @@ export function RealmHud({
           keeperProfile={playerProfile}
           hostedDestination={fullscreenDestinations}
           onClose={closeSurfaces}
-          onExplore={() => {
+          onExplore={(invoker) => {
             if (surfaceNavigation) {
-              if (!fullscreenDestinations) {
+              if (fullscreenDestinations) {
+                rememberNestedSurfaceInvoker(invoker, 'commands:explore');
+              } else {
                 // Desktop Explore replaces the command entry so opening the
                 // navigator never races an asynchronous history traversal.
                 // Closing Explore then owns one exact Back step to the Realm.
@@ -1308,7 +1435,11 @@ export function RealmHud({
             }
           }}
           onMarks={resources
-            ? () => openSurface({ kind: 'resource-balance', resource: 'marks' })
+            ? (invoker) => openSurface(
+                { kind: 'resource-balance', resource: 'marks' },
+                invoker,
+                'commands:marks'
+              )
             : undefined}
           onOpenActiveWagon={!genericWorkerModeActive && onOpenActiveWagon
             ? (wagon) => closeThen(() => onOpenActiveWagon(wagon))
@@ -1325,9 +1456,17 @@ export function RealmHud({
                 }
               : undefined
           }
-          onSettings={() => openSurface({ kind: 'settings' })}
+          onSettings={(invoker) => openSurface(
+            { kind: 'settings' },
+            invoker,
+            'commands:settings'
+          )}
           onWorkers={publicWorkersActive
-            ? () => openSurface({ kind: 'workers' })
+            ? (invoker) => openSurface(
+                { kind: 'workers' },
+                invoker,
+                'commands:workers'
+              )
             : undefined}
           onRecallAllWorkers={recallAllControlsReady
             ? () => {
@@ -1360,8 +1499,12 @@ export function RealmHud({
           onRecallWorker={publicWorkersActive && onRecallWorker
             ? recallWorker
             : undefined}
-          onSelectWorker={(worker) => {
-            openSurface({ kind: 'worker', workerId: worker.workerId });
+          onSelectWorker={(worker, invoker) => {
+            openSurface(
+              { kind: 'worker', workerId: worker.workerId },
+              invoker,
+              `workers:${worker.workerId}`
+            );
           }}
           recallAllAwaitingAuthority={
             recallingAllWorkers
@@ -1421,12 +1564,28 @@ export function RealmHud({
         <RealmResourceBalancePanel
           onBack={surfaceNavigation.back}
           onCloseToRealm={surfaceNavigation.closeToRealm}
-          onExplore={onRequestExplore}
+          onExplore={onRequestExplore
+            ? (invoker) => {
+                rememberNestedSurfaceInvoker(invoker, 'resource:explore');
+                onRequestExplore();
+              }
+            : undefined}
           onOpenWorkers={publicWorkersActive
-            ? () => surfaceNavigation.push({ kind: 'workers' })
+            ? (invoker) => {
+                rememberNestedSurfaceInvoker(invoker, 'resource:workers');
+                surfaceNavigation.push({ kind: 'workers' });
+              }
             : undefined}
           resourceSites={resourceSites}
-          onOpenResourceSite={onOpenResourceSite}
+          onOpenResourceSite={onOpenResourceSite
+            ? (site, invoker) => {
+                rememberNestedSurfaceInvoker(
+                  invoker,
+                  `resource-site:${site.key}`
+                );
+                onOpenResourceSite(site);
+              }
+            : undefined}
           onRetry={workerPrivateSync?.phase === 'failed-localized'
             ? onRetryWorkerPrivateSync
             : undefined}

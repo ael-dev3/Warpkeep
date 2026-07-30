@@ -115,6 +115,57 @@ function TriggerlessNavigator({
   );
 }
 
+function HostedNestedNavigator() {
+  const [route, setRoute] = useState<'realm' | 'explore' | 'castle'>('explore');
+  const [resetGeneration, setResetGeneration] = useState(0);
+  return (
+    <>
+      <RealmAccessibilityControls
+        id="hosted-realm-navigator"
+        open={route === 'explore'}
+        castles={CASTLES}
+        hostedDestination
+        hostedNavigationResetKey={resetGeneration}
+        ownCastleId={1}
+        onActivateCastle={() => setRoute('castle')}
+        onRequestClose={() => setRoute('castle')}
+        onRequestOpen={() => setRoute('explore')}
+        triggerVisible={false}
+      />
+      {route === 'castle' ? (
+        <>
+          <button onClick={() => setRoute('explore')} type="button">
+            BACK TO EXPLORE
+          </button>
+          <button
+            onClick={() => {
+              setResetGeneration((generation) => generation + 1);
+              setRoute('realm');
+            }}
+            type="button"
+          >
+            CLOSE TO REALM
+          </button>
+        </>
+      ) : route === 'explore' ? (
+        <button onClick={() => setRoute('castle')} type="button">
+          FORWARD TO CASTLE
+        </button>
+      ) : (
+        <button
+          onClick={() => {
+            setResetGeneration((generation) => generation + 1);
+            setRoute('explore');
+          }}
+          type="button"
+        >
+          OPEN FRESH EXPLORE
+        </button>
+      )}
+    </>
+  );
+}
+
 afterEach(cleanup);
 
 describe('RealmAccessibilityControls', () => {
@@ -259,6 +310,71 @@ describe('RealmAccessibilityControls', () => {
     expect(onRequestClose).toHaveBeenCalledWith('camera-preset');
     expect(screen.queryByRole('dialog', { name: 'Explore' })).toBeNull();
     await waitFor(() => expect(document.activeElement).toBe(trigger));
+  });
+
+  it('restores the exact hosted result, filter, and scroll position after Back', async () => {
+    render(<HostedNestedNavigator />);
+
+    const search = screen.getByRole('searchbox', {
+      name: 'Search castles, workers, resources, and water'
+    });
+    fireEvent.change(search, { target: { value: 'peer' } });
+    const explore = screen.getByRole('region', { name: 'Explore' });
+    explore.scrollTop = 137;
+    const peer = screen.getByRole('button', {
+      name: 'Inspect @peer, Peer Watch'
+    });
+
+    fireEvent.click(peer);
+    expect(screen.queryByRole('region', { name: 'Explore' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'BACK TO EXPLORE' }));
+
+    const restoredExplore = screen.getByRole('region', { name: 'Explore' });
+    const restoredSearch = screen.getByRole('searchbox', {
+      name: 'Search castles, workers, resources, and water'
+    });
+    const restoredPeer = screen.getByRole('button', {
+      name: 'Inspect @peer, Peer Watch'
+    });
+    expect((restoredSearch as HTMLInputElement).value).toBe('peer');
+    expect(screen.queryByRole('button', {
+      name: /Inspect @warpkeeper, Genesis Bastion/
+    })).toBeNull();
+    await waitFor(() => {
+      expect(restoredExplore.scrollTop).toBe(137);
+      expect(document.activeElement).toBe(restoredPeer);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'FORWARD TO CASTLE' }));
+    fireEvent.click(screen.getByRole('button', { name: 'BACK TO EXPLORE' }));
+    await waitFor(() => {
+      expect((screen.getByRole('searchbox') as HTMLInputElement).value).toBe('peer');
+      expect(screen.getByRole('region', { name: 'Explore' }).scrollTop).toBe(137);
+      expect(document.activeElement).toBe(screen.getByRole('button', {
+        name: 'Inspect @peer, Peer Watch'
+      }));
+    });
+  });
+
+  it('starts fresh after a nested hosted destination closes to the Realm', async () => {
+    render(<HostedNestedNavigator />);
+
+    const search = screen.getByRole('searchbox');
+    fireEvent.change(search, { target: { value: 'peer' } });
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Inspect @peer, Peer Watch'
+    }));
+    fireEvent.click(screen.getByRole('button', { name: 'CLOSE TO REALM' }));
+    fireEvent.click(screen.getByRole('button', { name: 'OPEN FRESH EXPLORE' }));
+
+    const freshSearch = screen.getByRole('searchbox');
+    await waitFor(() => {
+      expect((freshSearch as HTMLInputElement).value).toBe('');
+      expect(document.activeElement).toBe(freshSearch);
+    });
+    expect(screen.getByRole('button', {
+      name: /Inspect @warpkeeper, Genesis Bastion/
+    })).not.toBeNull();
   });
 
   it('lists every public worker as a keyboard-operable identity target', () => {

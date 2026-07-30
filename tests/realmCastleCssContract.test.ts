@@ -210,6 +210,7 @@ describe('compact Realm CSS contract', () => {
   });
 
   it('keeps player chrome to a circular profile trigger and transparent resource rail', () => {
+    const safeAreaProbe = block(MAP, '.realm-safe-area-probe {');
     const profileTrigger = block(PLAYER_CHROME, '.realm-profile-trigger {');
     const profileAvatar = block(
       PLAYER_CHROME,
@@ -241,6 +242,18 @@ describe('compact Realm CSS contract', () => {
     );
     const commandPanel = block(PLAYER_CHROME, '.realm-profile-menu__panel {');
 
+    expect(safeAreaProbe).toContain(
+      'var(--realm-safe-top, env(safe-area-inset-top))'
+    );
+    expect(safeAreaProbe).toContain(
+      'var(--realm-safe-right, env(safe-area-inset-right))'
+    );
+    expect(safeAreaProbe).toContain(
+      'var(--realm-safe-bottom, env(safe-area-inset-bottom))'
+    );
+    expect(safeAreaProbe).toContain(
+      'var(--realm-safe-left, env(safe-area-inset-left))'
+    );
     expect(profileTrigger).toContain(
       'top: max(0.72rem, var(--realm-safe-top, env(safe-area-inset-top)));'
     );
@@ -575,7 +588,19 @@ describe('compact Realm CSS contract', () => {
       '.realm-map-screen:has(:is(.castle-inspection, .gold-mine-inspection, .food-farm-inspection)) .realm-hud__actions {'
     );
     expect(shortProfilePanel).toContain('padding: 0.65rem;');
-    expect(shortProfilePanel).toContain('max-height: calc(100svh - 4.45rem');
+    expect(shortProfilePanel).toContain('100svh - 4.45rem');
+    expect(shortPlayerChrome).toContain(
+      'var(--realm-safe-top, env(safe-area-inset-top))'
+    );
+    expect(shortPlayerChrome).toContain(
+      'var(--realm-safe-right, env(safe-area-inset-right))'
+    );
+    expect(shortPlayerChrome).toContain(
+      'var(--realm-safe-bottom, env(safe-area-inset-bottom))'
+    );
+    expect(shortPlayerChrome).toContain(
+      'var(--realm-safe-left, env(safe-area-inset-left))'
+    );
     expect(shortProfileButton).toContain('min-height: 2.85rem;');
     expect(shortProfileButton).toContain('padding: 0.42rem 0.6rem;');
 

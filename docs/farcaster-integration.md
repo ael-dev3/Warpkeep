@@ -344,14 +344,15 @@ opacity, byte ceilings, provenance, and repository digests; three portrait
 screenshots use local synthetic fixtures and contain no real player or
 production state.
 
-Only the domain owner may generate the public `accountAssociation` with
+Only the reviewed owner FID `539854` may generate the public
+`accountAssociation` with
 Farcaster's [Manifest Tool](https://farcaster.xyz/~/developers/mini-apps/manifest?domain=warpkeep.com).
-The repository verifier checks canonical shape, exact domain payload, declared
-EVM key, and ERC-191 signature integrity. That local cryptographic check does
-not prove that the declared key is still active for the stated FID; the
-official tool and a real Farcaster client remain the authority for that
-relationship. Never commit a wallet key, seed phrase, login credential, bearer,
-or private signing material.
+The repository verifier pins that FID and checks canonical shape, exact domain
+payload, declared EVM key, and ERC-191 signature integrity. That local
+cryptographic check does not prove that the declared key is still active for
+the pinned FID; the official tool and a real Farcaster client remain the
+authority for that relationship. Never commit a wallet key, seed phrase, login
+credential, bearer, or private signing material.
 
 Production builds permit only the reviewed `.well-known/farcaster.json` hidden
 file. The release check rejects other hidden paths, symlinks, redirects,

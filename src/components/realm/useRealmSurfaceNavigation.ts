@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState
 } from 'react';
@@ -69,6 +70,8 @@ export function useRealmSurfaceNavigation({
   const [stack, setStack] = useState<readonly RealmSurfaceRoute[]>([]);
   const stackRef = useRef(stack);
   const historyEnabledRef = useRef(historyEnabled);
+  const previousHistoryEnabledRef = useRef(historyEnabled);
+  const historyTraversalPendingRef = useRef(false);
   stackRef.current = stack;
   historyEnabledRef.current = historyEnabled;
 
@@ -88,9 +91,16 @@ export function useRealmSurfaceNavigation({
     );
   }, [envelopeFor]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     identityGenerationRef.current += 1;
     sessionRef.current = `realm-${reactId}-${identityGenerationRef.current}`;
+    if (
+      !historyEnabled
+      || previousHistoryEnabledRef.current !== historyEnabled
+    ) {
+      historyTraversalPendingRef.current = false;
+    }
+    previousHistoryEnabledRef.current = historyEnabled;
     stackRef.current = Object.freeze([]);
     setStack(stackRef.current);
     if (historyEnabled) replaceBrowserState(stackRef.current);
@@ -111,6 +121,7 @@ export function useRealmSurfaceNavigation({
         : undefined;
       const restored = readRealmSurfaceHistoryState(candidate, sessionRef.current);
       const nextStack = restored?.stack ?? Object.freeze([]);
+      historyTraversalPendingRef.current = false;
       stackRef.current = nextStack;
       setStack(nextStack);
     };
@@ -119,6 +130,7 @@ export function useRealmSurfaceNavigation({
   }, [historyEnabled]);
 
   const push = useCallback((route: RealmSurfaceRoute) => {
+    if (historyTraversalPendingRef.current) return;
     const atCapacity = stackRef.current.length >= REALM_SURFACE_MAX_DEPTH;
     const nextStack = pushRealmSurfaceRoute(stackRef.current, route);
     if (nextStack === stackRef.current) return;
@@ -138,34 +150,61 @@ export function useRealmSurfaceNavigation({
   }, [envelopeFor, replaceBrowserState]);
 
   const replace = useCallback((route: RealmSurfaceRoute) => {
+    if (historyTraversalPendingRef.current) return;
+    const replacingRoot = stackRef.current.length === 0;
     const nextStack = replaceRealmSurfaceRoute(stackRef.current, route);
     if (nextStack === stackRef.current) return;
     stackRef.current = nextStack;
     setStack(nextStack);
-    if (historyEnabledRef.current) replaceBrowserState(nextStack);
-  }, [replaceBrowserState]);
+    if (historyEnabledRef.current) {
+      if (replacingRoot) {
+        // A route cannot replace the only Realm root entry. Preserve a
+        // reachable root so Back and closeToRealm remain inside the Realm
+        // lifecycle instead of escaping to an unrelated previous page.
+        window.history.pushState(
+          withRealmNavigationState(envelopeFor(nextStack)),
+          '',
+          currentRealmUrl()
+        );
+      } else {
+        replaceBrowserState(nextStack);
+      }
+    }
+  }, [envelopeFor, replaceBrowserState]);
 
   const back = useCallback(() => {
     if (stackRef.current.length === 0) return;
     const nextStack = popRealmSurfaceRoute(stackRef.current);
-    stackRef.current = nextStack;
-    setStack(nextStack);
     if (historyEnabledRef.current) {
-      window.history.back();
+      if (historyTraversalPendingRef.current) return;
+      historyTraversalPendingRef.current = true;
+      try {
+        window.history.back();
+      } catch {
+        historyTraversalPendingRef.current = false;
+      }
       return;
     }
+    stackRef.current = nextStack;
+    setStack(nextStack);
   }, []);
 
   const closeToRealm = useCallback(() => {
     const depth = stackRef.current.length;
     if (depth === 0) return;
+    if (historyEnabledRef.current) {
+      if (historyTraversalPendingRef.current) return;
+      historyTraversalPendingRef.current = true;
+      try {
+        window.history.go(-depth);
+      } catch {
+        historyTraversalPendingRef.current = false;
+      }
+      return;
+    }
     const nextStack = Object.freeze([]) as readonly RealmSurfaceRoute[];
     stackRef.current = nextStack;
     setStack(nextStack);
-    if (historyEnabledRef.current) {
-      window.history.go(-depth);
-      return;
-    }
   }, []);
 
   return Object.freeze({

@@ -91,6 +91,8 @@ export type RealmAccessibilityControlsProps = Readonly<{
   showDiagnostics?: boolean;
   /** Compact and Mini App Explore is a hosted navigation destination. */
   hostedDestination?: boolean;
+  /** Changes only when an explicit fresh Explore branch replaces retained history. */
+  hostedNavigationResetKey?: string | number;
   cameraPresets?: readonly RealmNavigatorCameraPreset[];
   /** Player chrome may provide its own PFP launcher while reusing this dialog. */
   triggerVisible?: boolean;
@@ -99,6 +101,11 @@ export type RealmAccessibilityControlsProps = Readonly<{
    * launcher; focus is restored here after controlled close.
    */
   triggerRef?: RefObject<HTMLButtonElement | null>;
+}>;
+
+type RealmNavigatorReturnState = Readonly<{
+  focusKey: string;
+  scrollTop: number;
 }>;
 
 const RESOURCE_SITE_KIND_LABELS: Readonly<Record<RealmResourceKind, string>> =
@@ -152,6 +159,7 @@ export function RealmAccessibilityControls({
   coordinateJump,
   showDiagnostics = false,
   hostedDestination = false,
+  hostedNavigationResetKey,
   cameraPresets = [],
   triggerVisible = true,
   triggerRef
@@ -165,6 +173,8 @@ export function RealmAccessibilityControls({
   const providedTriggerRef = useRef(triggerRef);
   const searchRef = useRef<HTMLInputElement>(null);
   const wasOpenRef = useRef(false);
+  const nestedReturnRef = useRef<RealmNavigatorReturnState | undefined>(undefined);
+  const hostedNavigationResetKeyRef = useRef(hostedNavigationResetKey);
   const headingId = `${id}-title`;
   const searchId = `${id}-search`;
   const qId = `${id}-q`;
@@ -172,6 +182,10 @@ export function RealmAccessibilityControls({
   const jumpErrorId = `${id}-jump-error`;
 
   providedTriggerRef.current = triggerRef;
+  if (hostedNavigationResetKeyRef.current !== hostedNavigationResetKey) {
+    hostedNavigationResetKeyRef.current = hostedNavigationResetKey;
+    nestedReturnRef.current = undefined;
+  }
 
   const setTriggerRef = useCallback((element: HTMLButtonElement | null) => {
     internalTriggerRef.current = element;
@@ -180,17 +194,49 @@ export function RealmAccessibilityControls({
 
   useEffect(() => {
     if (open) {
-      setSearch('');
-      setQValue('');
-      setRValue('');
-      setJumpError(undefined);
-      searchRef.current?.focus({ preventScroll: true });
-    } else if (wasOpenRef.current) {
+      const nestedReturn = nestedReturnRef.current;
+      if (hostedDestination && nestedReturn) {
+        if (dialogRef.current) dialogRef.current.scrollTop = nestedReturn.scrollTop;
+        const target = [
+          ...(dialogRef.current?.querySelectorAll<HTMLElement>(
+            '[data-realm-explore-focus-key]'
+          ) ?? [])
+        ].find((element) => (
+          element.dataset.realmExploreFocusKey === nestedReturn.focusKey
+        ));
+        (target ?? searchRef.current)?.focus({ preventScroll: true });
+      } else {
+        nestedReturnRef.current = undefined;
+        setSearch('');
+        setQValue('');
+        setRValue('');
+        setJumpError(undefined);
+        searchRef.current?.focus({ preventScroll: true });
+      }
+    } else if (wasOpenRef.current && !hostedDestination) {
       const externalTrigger = providedTriggerRef.current?.current ?? null;
       (internalTriggerRef.current ?? externalTrigger)?.focus({ preventScroll: true });
     }
     wasOpenRef.current = open;
-  }, [open]);
+  }, [hostedDestination, open]);
+
+  const requestClose = (reason: RealmNavigatorCloseReason) => {
+    nestedReturnRef.current = undefined;
+    onRequestClose(reason);
+  };
+
+  const activateNestedDestination = (
+    focusKey: string,
+    action: () => void
+  ) => {
+    if (hostedDestination) {
+      nestedReturnRef.current = Object.freeze({
+        focusKey,
+        scrollTop: dialogRef.current?.scrollTop ?? 0
+      });
+    }
+    action();
+  };
 
   const visibleCastles = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
@@ -241,7 +287,7 @@ export function RealmAccessibilityControls({
     if (event.key !== 'Escape') return;
     event.preventDefault();
     event.stopPropagation();
-    onRequestClose('escape');
+    requestClose('escape');
   };
 
   const handleJump = (event: FormEvent<HTMLFormElement>) => {
@@ -301,7 +347,7 @@ export function RealmAccessibilityControls({
             </div>
             <button
               type="button"
-              onClick={() => onRequestClose('close-button')}
+              onClick={() => requestClose('close-button')}
             >
               CLOSE EXPLORE
             </button>
@@ -346,7 +392,7 @@ export function RealmAccessibilityControls({
                     aria-pressed={preset.active}
                     onClick={() => {
                       preset.onActivate();
-                      onRequestClose('camera-preset');
+                      requestClose('camera-preset');
                     }}
                   >
                     {preset.label}
@@ -385,8 +431,12 @@ export function RealmAccessibilityControls({
                         ? `, q ${castle.q}, r ${castle.r}`
                         : ''}${status ? `, ${status}` : ''}`}
                       aria-pressed={selected}
+                      data-realm-explore-focus-key={`castle:${castle.castleId}`}
                       data-own={own ? 'true' : 'false'}
-                      onClick={() => onActivateCastle(castle)}
+                      onClick={() => activateNestedDestination(
+                        `castle:${castle.castleId}`,
+                        () => onActivateCastle(castle)
+                      )}
                     >
                       <strong>{castle.label}</strong>
                       <span>{castle.name}</span>
@@ -423,8 +473,12 @@ export function RealmAccessibilityControls({
                         type="button"
                         aria-label={`Inspect worker ${worker.ordinal}, ${worker.originCastleName}, ${worker.status}, ${locationLabel}${worker.ownedByViewer ? ', your worker' : ''}${selected ? ', selected' : ''}`}
                         aria-pressed={selected}
+                        data-realm-explore-focus-key={`worker:${worker.workerId}`}
                         data-own={worker.ownedByViewer ? 'true' : 'false'}
-                        onClick={() => onActivateWorker(worker)}
+                        onClick={() => activateNestedDestination(
+                          `worker:${worker.workerId}`,
+                          () => onActivateWorker(worker)
+                        )}
                       >
                         <strong>Worker {worker.ordinal}</strong>
                         <span>{worker.originCastleName}</span>
@@ -462,9 +516,13 @@ export function RealmAccessibilityControls({
                         aria-label={`Inspect ${site.label}, tier ${site.tier}, ${availabilityLabel}${selected ? ', selected' : ''}`}
                         aria-pressed={selected}
                         className="realm-cell-navigator__resource-site"
+                        data-realm-explore-focus-key={`resource:${site.key}`}
                         data-resource-kind={site.resource}
                         data-resource-state={site.availability}
-                        onClick={() => onActivateResourceSite(site)}
+                        onClick={() => activateNestedDestination(
+                          `resource:${site.key}`,
+                          () => onActivateResourceSite(site)
+                        )}
                         type="button"
                       >
                         <strong>{site.label}</strong>
@@ -493,8 +551,26 @@ export function RealmAccessibilityControls({
                           : 'Source and mouth records'}
                       </small>
                       <div>
-                        <button type="button" onClick={() => onActivateWaterCell(body.sourceCellKey)}>SOURCE</button>
-                        <button type="button" onClick={() => onActivateWaterCell(body.mouthCellKey)}>MOUTH</button>
+                        <button
+                          data-realm-explore-focus-key={`water:${body.sourceCellKey}`}
+                          type="button"
+                          onClick={() => activateNestedDestination(
+                            `water:${body.sourceCellKey}`,
+                            () => onActivateWaterCell(body.sourceCellKey)
+                          )}
+                        >
+                          SOURCE
+                        </button>
+                        <button
+                          data-realm-explore-focus-key={`water:${body.mouthCellKey}`}
+                          type="button"
+                          onClick={() => activateNestedDestination(
+                            `water:${body.mouthCellKey}`,
+                            () => onActivateWaterCell(body.mouthCellKey)
+                          )}
+                        >
+                          MOUTH
+                        </button>
                       </div>
                     </div>
                   </li>

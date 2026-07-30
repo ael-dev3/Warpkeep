@@ -158,18 +158,25 @@ export function CastleInspectionPanel({
               <strong>{keeperName}</strong>
               {showUsernameUnderName ? <span>{username}</span> : null}
             </div>
-            {profileUrl ? (
+            {profileUrl && canUseMiniAppProfile && castle.ownerFid !== undefined ? (
+              <button
+                aria-label="View Farcaster profile"
+                className="castle-inspection__profile-link"
+                onClick={() => {
+                  // A verified Mini App may use only the declared host action.
+                  // Failure stays local; raw browser navigation is reserved
+                  // for ordinary web so a host cannot be bypassed.
+                  void miniAppHost.actions.viewProfile(castle.ownerFid!);
+                }}
+                type="button"
+              >
+                <span aria-hidden="true">↗</span>
+              </button>
+            ) : profileUrl && miniAppHost.state === 'regular-web' ? (
               <a
                 aria-label="View Farcaster profile"
                 className="castle-inspection__profile-link"
                 href={profileUrl}
-                onClick={(event) => {
-                  if (!canUseMiniAppProfile || castle.ownerFid === undefined) return;
-                  event.preventDefault();
-                  void miniAppHost.actions.viewProfile(castle.ownerFid).then((opened) => {
-                    if (!opened) void miniAppHost.actions.openUrl(profileUrl);
-                  });
-                }}
                 rel="noreferrer noopener"
                 target="_blank"
               >

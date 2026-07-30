@@ -127,10 +127,12 @@ export type RealmInteractionAction =
       coord: HexCoord;
     }>
   | Readonly<{ type: 'close-inspector' }>
+  | Readonly<{ type: 'sync-close-inspector' }>
   | Readonly<{ type: 'recenter-keep'; coord: HexCoord }>
   | Readonly<{ type: 'set-camera-target'; target: RealmCameraTarget }>
   | Readonly<{ type: 'open-navigator' }>
   | Readonly<{ type: 'close-navigator' }>
+  | Readonly<{ type: 'sync-close-navigator' }>
   | Readonly<{ type: 'request-castle-label-focus'; castleId: number }>
   | Readonly<{ type: 'request-map-focus' }>;
 
@@ -381,6 +383,11 @@ export function realmInteractionReducer(
       };
     }
 
+    case 'sync-close-inspector':
+      return state.inspectorOpen
+        ? { ...state, inspectorOpen: false }
+        : state;
+
     case 'recenter-keep':
       return {
         ...state,
@@ -410,6 +417,11 @@ export function realmInteractionReducer(
         navigatorOpen: false,
         keyboardIntent: withKeyboardIntent(state, { kind: 'navigator-trigger' })
       };
+
+    case 'sync-close-navigator':
+      return state.navigatorOpen
+        ? { ...state, navigatorOpen: false }
+        : state;
 
     case 'request-castle-label-focus':
       return {
