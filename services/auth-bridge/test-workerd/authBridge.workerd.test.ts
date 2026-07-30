@@ -14,6 +14,19 @@ const ORIGIN = 'https://warpkeep.test'
 const DOMAIN = 'warpkeep.test'
 const SIWE_URI = 'https://warpkeep.test/'
 const FID = '12345'
+const QUICK_AUTH_ORIGIN = 'https://warpkeep.com'
+const QUICK_AUTH_DOMAIN = 'warpkeep.com'
+const QUICK_AUTH_ISSUER = 'https://auth.farcaster.xyz'
+const QUICK_AUTH_PATH = '/v2/farcaster/quick-auth/exchange'
+const syntheticQuickAuthSegment = (value: object) => btoa(JSON.stringify(value))
+  .replaceAll('+', '-')
+  .replaceAll('/', '_')
+  .replace(/=+$/u, '')
+const QUICK_AUTH_TOKEN = [
+  syntheticQuickAuthSegment({ alg: 'ES256' }),
+  syntheticQuickAuthSegment({ sub: 12_345 }),
+  'signature',
+].join('.')
 const BINDING_VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'
 const BINDING_CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM'
 const WRONG_BINDING_VERIFIER = 'A'.repeat(43)
@@ -69,6 +82,24 @@ function post(path: string, body: unknown, headers: HeadersInit = {}): Request {
   })
 }
 
+function quickAuthPost(
+  token: string | null = QUICK_AUTH_TOKEN,
+  body: unknown = {},
+  headers: HeadersInit = {},
+): Request {
+  const requestHeaders = new Headers(headers)
+  requestHeaders.set('content-type', 'application/json')
+  requestHeaders.set('origin', QUICK_AUTH_ORIGIN)
+  if (token !== null && !requestHeaders.has('authorization')) {
+    requestHeaders.set('authorization', `Bearer ${token}`)
+  }
+  return new Request(`https://auth.warpkeep.test${QUICK_AUTH_PATH}`, {
+    method: 'POST',
+    headers: requestHeaders,
+    body: JSON.stringify(body),
+  })
+}
+
 function proofFor(challenge: IssuedChallenge, bindingVerifier = BINDING_VERIFIER) {
   return {
     message: createSiweMessage({
@@ -96,24 +127,130 @@ function proofFor(challenge: IssuedChallenge, bindingVerifier = BINDING_VERIFIER
   }
 }
 
-function harness() {
+function harness(options: {
+  admission?: AdmissionResolution
+  rateLimiter?: { check(request: Request, action: string): Promise<{ allowed: true } | { allowed: false; retryAfterSeconds: number }> }
+} = {}) {
   const verifier = { verify: vi.fn(async () => ({ fid: FID })) }
+  const quickAuthVerifier = {
+    verifyJwt: vi.fn(async () => {
+      const now = Math.floor(Date.now() / 1_000)
+      return {
+        sub: Number(FID),
+        iss: QUICK_AUTH_ISSUER,
+        aud: QUICK_AUTH_DOMAIN,
+        iat: now - 1,
+        exp: now + 300,
+      }
+    }),
+  }
   const resolver = {
-    resolve: vi.fn(async (): Promise<AdmissionResolution> => ({ state: 'enabled', authEpoch: 7 })),
+    resolve: vi.fn(async (): Promise<AdmissionResolution> => (
+      options.admission ?? { state: 'enabled', authEpoch: 7 }
+    )),
   }
   const signer = vi.fn(async (_config: BridgeConfig, _claims: unknown) => 'workerd.test.token')
   const app = createAuthBridge({
     configReader: () => CONFIG,
     verifier,
+    quickAuthVerifier,
     authEpochResolver: resolver,
-    rateLimiter: { check: async () => ({ allowed: true }) },
+    rateLimiter: options.rateLimiter ?? { check: async () => ({ allowed: true }) },
     signer,
     logger: { event: vi.fn() },
   })
-  return { app, verifier, resolver, signer }
+  return { app, verifier, quickAuthVerifier, resolver, signer }
 }
 
 describe('auth bridge production bindings in workerd', () => {
+  it('keeps Quick Auth cookie-free while reusing authoritative admission and player claims', async () => {
+    const h = harness()
+    const bridgeEnv = env as unknown as WorkerEnv
+    const authorized = await h.app.fetch(quickAuthPost(
+      QUICK_AUTH_TOKEN,
+      {},
+      { cookie: '__Host-warpkeep_session=must-be-ignored' },
+    ), bridgeEnv)
+
+    expect(authorized.status).toBe(200)
+    expect(authorized.headers.get('access-control-allow-origin')).toBe(QUICK_AUTH_ORIGIN)
+    expect(authorized.headers.has('access-control-allow-credentials')).toBe(false)
+    expect(authorized.headers.has('set-cookie')).toBe(false)
+    expect(await authorized.json()).toMatchObject({
+      version: 2,
+      identity: { fid: Number(FID) },
+      status: 'authorized',
+      accessToken: 'workerd.test.token',
+      tokenType: 'spacetime-access',
+    })
+    expect(h.quickAuthVerifier.verifyJwt).toHaveBeenCalledWith({
+      token: QUICK_AUTH_TOKEN,
+      domain: QUICK_AUTH_DOMAIN,
+    })
+    expect(h.resolver.resolve).toHaveBeenCalledWith(FID)
+    const signedClaims = h.signer.mock.calls[0]?.[1] as Record<string, unknown>
+    expect(signedClaims).toMatchObject({ fid: FID, auth_epoch: 7, token_type: 'spacetime-access' })
+    expect(signedClaims).not.toHaveProperty('username')
+    expect(signedClaims).not.toHaveProperty('pfp_url')
+
+    h.resolver.resolve.mockResolvedValueOnce({ state: 'missing', authEpoch: 0 })
+    const pending = await h.app.fetch(quickAuthPost(), bridgeEnv)
+    expect(pending.status).toBe(200)
+    expect(await pending.json()).toEqual({
+      version: 2,
+      identity: { fid: Number(FID) },
+      status: 'pending-admission',
+    })
+    expect(pending.headers.has('set-cookie')).toBe(false)
+
+    h.resolver.resolve.mockResolvedValueOnce({ state: 'disabled', authEpoch: 0 })
+    const disabled = await h.app.fetch(quickAuthPost(), bridgeEnv)
+    expect(disabled.status).toBe(403)
+    expect(await disabled.json()).toMatchObject({ error: { code: 'quick_auth_not_authorized' } })
+    expect(disabled.headers.has('set-cookie')).toBe(false)
+    expect(h.signer).toHaveBeenCalledTimes(1)
+  })
+
+  it('enforces Quick Auth CORS and rate limiting before verifier work in workerd', async () => {
+    const bridgeEnv = env as unknown as WorkerEnv
+    const preflight = await harness().app.fetch(new Request(
+      `https://auth.warpkeep.test${QUICK_AUTH_PATH}`,
+      {
+        method: 'OPTIONS',
+        headers: {
+          origin: QUICK_AUTH_ORIGIN,
+          'access-control-request-method': 'POST',
+          'access-control-request-headers': 'authorization, content-type',
+        },
+      },
+    ), bridgeEnv)
+    expect(preflight.status).toBe(204)
+    expect(preflight.headers.get('access-control-allow-origin')).toBe(QUICK_AUTH_ORIGIN)
+    expect(preflight.headers.get('access-control-allow-headers')).toBe('authorization, content-type')
+    expect(preflight.headers.has('access-control-allow-credentials')).toBe(false)
+
+    const check = vi.fn(async (_request: Request, _action: string) => ({
+      allowed: false as const,
+      retryAfterSeconds: 19,
+    }))
+    const limitedHarness = harness({ rateLimiter: { check } })
+    const limited = await limitedHarness.app.fetch(quickAuthPost(), bridgeEnv)
+    expect(limited.status).toBe(429)
+    expect(check.mock.calls[0]?.[1]).toBe('exchange')
+    expect(limitedHarness.quickAuthVerifier.verifyJwt).not.toHaveBeenCalled()
+    expect(limited.headers.has('set-cookie')).toBe(false)
+
+    const malformedHarness = harness()
+    const malformed = await malformedHarness.app.fetch(quickAuthPost(
+      null,
+      {},
+      { authorization: 'Bearer not-a-jwt' },
+    ), bridgeEnv)
+    expect(malformed.status).toBe(401)
+    expect(await malformed.json()).toMatchObject({ error: { code: 'quick_auth_invalid' } })
+    expect(malformedHarness.quickAuthVerifier.verifyJwt).not.toHaveBeenCalled()
+  })
+
   it('isolates QA challenges in their dedicated Durable Object and atomically consumes once', async () => {
     const store = new DurableObjectQaObserverChallengeStore(
       env.QA_CHALLENGE_REPLAY_GUARD as unknown as DurableObjectNamespace,

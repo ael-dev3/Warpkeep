@@ -1,17 +1,18 @@
-# Farcaster → OIDC integration
+# Farcaster authentication
 
-Warpkeep uses standard website Sign In with Farcaster (SIWF). It is not a Mini
-App, Quick Auth, wallet connection, or a client-only permanent identity system.
+Warpkeep supports two presentations of the same server-owned identity boundary:
+ordinary browsers use Sign In with Farcaster (SIWF), while a verified Farcaster
+Mini App host may use Quick Auth. Neither path is a wallet connection,
+client-owned identity, admission grant, or Terms acceptance.
 
-Alpha 0.3.19 uses backend protocol 3 and authentication contract v2; admission
+Alpha 0.3.28 keeps backend protocol 3 and authentication contract v2; admission
 remains gated. Production configuration and founder identities belong in the
-private operator record, not this guide. This document describes the contract
-but does not authorize admission or a production change.
+private operator record, not this guide.
 
 ## Authority boundary
 
 ```text
-player intentionally selects ENTER REALM
+ordinary browser player intentionally selects ENTER REALM
   -> the same in-memory authorized FID session may reuse its recorded agreement
   -> otherwise the player accepts the in-memory Alpha Terms
   -> browser may restore one cookie session or creates a fresh private S256 verifier and bound SIWF challenge
@@ -23,6 +24,17 @@ player intentionally selects ENTER REALM
   -> pending: HttpOnly cookie only, no access token, no database connection
   -> enabled: 600-second auth_version 2 access token held in JS memory only
   -> module accepts this browser access token only for a current admitted player connection
+```
+
+```text
+verified Mini App host
+  -> host supplies a fresh Quick Auth bearer
+  -> browser sends it without cookies to the exact Quick Auth exchange
+  -> bridge verifies signature, issuer, expiry, and domain warpkeep.com
+  -> verified numeric sub becomes the candidate FID
+  -> the same admission and auth-epoch resolver decides access
+  -> authorized: one short-lived memory-only SpacetimeDB access token
+  -> pending or disabled: no access token and no private Realm authority
 ```
 
 The bridge, not the browser, establishes `sub: farcaster:<fid>`. Its exchange
@@ -54,17 +66,17 @@ and never falls back to a local or anonymous database identity.
 
 ## Browser flow and privacy
 
-Selecting **ENTER REALM** opens the concise **ALPHA PARTICIPATION TERMS** gate;
-it does not begin authentication. The unchecked checkbox state and its continuation
-exist only in component memory. Only checking the explicit agreement and
-selecting **CONTINUE TO SIGN-IN** starts one auth activation. That activation
-may first restore a valid HttpOnly cookie session; otherwise it creates a fresh
-SIWF request. Cancel, close, Escape, browser Back, unmount, retry, and completion
-discard acceptance. A retry or later entry attempt starts unchecked again.
+Selecting **ENTER REALM** first checks whether the current authenticated FID has
+already recorded the exact required Terms version. That same authorized session
+may continue without asking again. A missing or stale record opens the concise
+**ALPHA PARTICIPATION TERMS** gate; only explicit agreement begins or completes
+entry. A checkbox alone has no authority, and Quick Auth never accepts Terms.
 
-Title load, anonymous menu load, focus/visibility/pageshow events, ordinary
-route rendering, and direct `#realm` navigation perform no cookie refresh,
-Farcaster channel, QR/deep-link, or SpacetimeDB connection. An unaccepted
+Outside a verified Mini App host, title load, anonymous menu load,
+focus/visibility/pageshow events, ordinary route rendering, and direct `#realm`
+navigation perform no cookie refresh, Farcaster channel, QR/deep-link, or
+SpacetimeDB connection. A verified Mini App host may begin bounded Quick Auth
+after host readiness, but never accepts Terms implicitly. An unaccepted
 `#realm` route is normalized to the menu. Desktop is QR-first; mobile/coarse
 layouts are deep-link-first with optional QR fallback after acceptance.
 
@@ -115,6 +127,52 @@ lifetime.
 
 The public v1 challenge/exchange routes are retired and return `410`; a client
 must never fall back from v2 to v1.
+
+## Mini App Quick Auth
+
+The browser loads `@farcaster/miniapp-sdk` only for the exact
+`?miniApp=true` hint, then requires `sdk.isInMiniApp()` before enabling host
+behavior. Host context, username, portrait, safe areas, and capabilities are
+untrusted presentation input. The verified bridge FID remains authoritative.
+
+Host initialization is bounded rather than trusted to settle. SDK import,
+`isInMiniApp`, context, capability, `actions.ready`, Back registration, and
+Quick Auth calls each have a four-second default deadline. Until
+`actions.ready({ disableNativeGestures: true })` succeeds, no Mini App authority
+or host-only styling is exposed. A timeout or malformed host enters the ordinary
+web recovery presentation with no bearer, Realm connection, or retry loop.
+Only a proven host receives the native Back integration; browser history remains
+the fallback.
+
+`sdk.quickAuth.getToken()` is requested only when a verified host needs an
+authentication or refresh attempt. The compact JWT is bounded to 8 KiB, kept in
+the current controller only, and sent as
+`Authorization: Bearer <token>` to:
+
+```txt
+POST https://auth.warpkeep.com/v2/farcaster/quick-auth/exchange
+Origin: https://warpkeep.com
+Content-Type: application/json
+
+{}
+```
+
+The request uses `credentials: "omit"`. The route allows only exact
+non-credentialed CORS for `https://warpkeep.com`, accepts no query or
+caller-supplied FID/profile/domain, and verifies through pinned
+`@farcaster/quick-auth` with domain `warpkeep.com` and issuer
+`https://auth.farcaster.xyz`. It then reuses the existing admission, auth epoch,
+access-token claims, TTL, and pending/disabled rules. It creates no session
+family and sets no cookie. A definitively invalid bearer returns the same
+generic `401 quick_auth_invalid`. A verifier/JWKS/network outage returns
+retryable `503 verification_unavailable`; neither response includes token,
+claim, FID, or upstream detail.
+
+Quick Auth tokens and player access tokens are never stored in localStorage,
+sessionStorage, IndexedDB, URLs, cookies, React host state, analytics, or logs.
+Explicit sign-out blocks passive reacquisition for the browser scope. A host FID
+change immediately clears the old in-memory bearer, private navigation, and
+pending commands. Ordinary SIWF and its `SameSite=Strict` cookie are unchanged.
 
 ## Access token and session family
 
@@ -254,10 +312,10 @@ The Worker configuration is documented in
 checked-in `PUBLIC_AUTH_ENABLED` remains false, while the recorded production
 override is true. Before any future enable, the server-only v2
 configuration attestation must match the reviewed issuer, origins, SIWF
-coordinates, key ID, Maincloud coordinates, S256 binding, 600-second access
-TTL, 15-second resolver TTL, five-second resolver timeout, five-minute
-challenge TTL, 30-day family ceiling, exact cookie attributes, and public-auth
-state.
+coordinates, Quick Auth issuer/domain/origin/path/verifier package/token bound,
+key ID, Maincloud coordinates, S256 binding, 600-second access TTL, 15-second
+resolver TTL, five-second resolver timeout, five-minute challenge TTL, 30-day
+family ceiling, exact cookie attributes, and public-auth state.
 
 Production frontend activation and the Pages deployment validator require the
 exact bridge and issuer `https://auth.warpkeep.com`, audience
@@ -277,6 +335,32 @@ updates are additive, and browser, Worker, database, component activation, and
 public-entry changes are deployed separately. The checked-in Worker and client
 configuration remain disabled by default.
 
+The Mini App is published through one reviewed static file at
+`/.well-known/farcaster.json` on `https://warpkeep.com`. Its home URL is exactly
+`https://warpkeep.com/?miniApp=true`, and the page carries one exact
+`fc:miniapp` embed record. The manifest intentionally declares no webhook,
+chains, or host capabilities. The eight referenced PNGs have fixed dimensions,
+opacity, byte ceilings, provenance, and repository digests; three portrait
+screenshots use local synthetic fixtures and contain no real player or
+production state.
+
+Only the reviewed owner FID `539854` may generate the public
+`accountAssociation` with
+Farcaster's [Manifest Tool](https://farcaster.xyz/~/developers/mini-apps/manifest?domain=warpkeep.com).
+The repository verifier pins that FID and checks canonical shape, exact domain
+payload, declared EVM key, and ERC-191 signature integrity. That local
+cryptographic check does not prove that the declared key is still active for
+the pinned FID; the official tool and a real Farcaster client remain the
+authority for that relationship. Never commit a wallet key, seed phrase, login
+credential, bearer, or private signing material.
+
+Production builds permit only the reviewed `.well-known/farcaster.json` hidden
+file. The release check rejects other hidden paths, symlinks, redirects,
+duplicate or legacy embed tags, manifest drift, image geometry/opacity drift,
+and bytes that differ from the reviewed source. The live verifier fetches the
+same-origin manifest and all eight images with bounded no-redirect requests and
+compares them with the exact checkout before a release is accepted.
+
 Before a production change, use disposable migration tests and fresh bounded
 aggregate inspection, then verify OIDC metadata, resolver behavior, retired
 routes, configuration attestation, and the deployed source revision. Stop on
@@ -289,9 +373,11 @@ identities and private operational records do not belong in this repository.
 
 ## Tests and manual QA
 
-Automated tests use injected Farcaster authorities and bridge clients; they do
+Automated tests use injected Farcaster authorities, Mini App hosts, and bridge
+clients; they do
 not call a real relay, publish a module, deploy a Worker, or use production
-proofs. Coverage includes S256 binding, v1 retirement, exact v2 response unions,
+proofs. Coverage includes Quick Auth domain/issuer/expiry/subject validation,
+bearer and CORS bounds, S256 binding, v1 retirement, exact v2 response unions,
 memory-only bearer handling, pending-without-token behavior, refresh/logout,
 FID-only bridge identity, default-off remember-device intent, 30-day logout
 tombstones and storage denial, durable-logout failure, session-family rotation

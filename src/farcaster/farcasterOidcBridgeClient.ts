@@ -6,7 +6,8 @@ import {
   type FarcasterBridgeRequestOptions,
   type FarcasterBridgeSessionIdentity,
   type FarcasterBridgeSessionResponse,
-  type FarcasterOidcBridgeClient
+  type FarcasterOidcBridgeClient,
+  type FarcasterQuickAuthSessionResponse
 } from './farcasterAuthTypes';
 import {
   FARCASTER_BROWSER_BINDING_METHOD,
@@ -25,12 +26,15 @@ import {
 
 const MAX_RESPONSE_BYTES = 32_768;
 const MAX_PROOF_MESSAGE_LENGTH = 8 * 1_024;
+const MAX_QUICK_AUTH_TOKEN_BYTES = 8 * 1_024;
 const BRIDGE_REQUEST_TIMEOUT_MS = 10_000;
 const BRIDGE_EXCHANGE_TIMEOUT_MS = 20_000;
 const BRIDGE_EXCHANGE_RETRY_DELAYS_MS = Object.freeze([250, 750] as const);
 const FARCASTER_SERVER_SESSION_MAX_TTL_MS = 30 * 24 * 60 * 60 * 1_000;
 const NONCE_PATTERN = /^[A-Za-z0-9]{8,128}$/;
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._~-]{8,256}$/;
+const COMPACT_JWT_PATTERN =
+  /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 const RETRYABLE_EXCHANGE_ERROR_CODES = new Set([
   'challenge_unavailable',
   'binding_verification_unavailable',
@@ -306,6 +310,81 @@ function readSafeSessionResponse(
   });
 }
 
+function readSafeQuickAuthToken(value: unknown): string | undefined {
+  if (
+    typeof value !== 'string'
+    || !COMPACT_JWT_PATTERN.test(value)
+    || new TextEncoder().encode(value).byteLength > MAX_QUICK_AUTH_TOKEN_BYTES
+  ) {
+    return undefined;
+  }
+  return value;
+}
+
+function readSafeQuickAuthSessionResponse(
+  value: unknown,
+  issuer: string,
+  audience: string,
+  now: number
+): FarcasterQuickAuthSessionResponse | undefined {
+  if (!isRecord(value) || value.version !== 2) {
+    return undefined;
+  }
+  const identity = readSafeSessionIdentity(value.identity);
+  if (!identity) return undefined;
+
+  if (value.status === 'pending-admission') {
+    if (!hasOnlyAllowedKeys(value, ['version', 'status', 'identity'])) {
+      return undefined;
+    }
+    return Object.freeze({
+      version: 2,
+      status: 'pending-admission',
+      identity
+    });
+  }
+
+  if (
+    value.status !== 'authorized'
+    || !hasOnlyAllowedKeys(value, [
+      'version',
+      'status',
+      'identity',
+      'accessToken',
+      'tokenType',
+      'accessExpiresAt'
+    ])
+    || typeof value.accessToken !== 'string'
+    || value.tokenType !== 'spacetime-access'
+    || typeof value.accessExpiresAt !== 'number'
+    || !Number.isSafeInteger(value.accessExpiresAt)
+    || value.accessExpiresAt <= now
+    || value.accessExpiresAt - now > FARCASTER_SERVER_SESSION_MAX_TTL_MS
+  ) {
+    return undefined;
+  }
+  const parsed = parseFarcasterOidcJwt(value.accessToken, {
+    issuer,
+    audience,
+    now
+  });
+  if (
+    !parsed
+    || parsed.claims.fid !== identity.fid
+    || parsed.session.expiresAt !== value.accessExpiresAt
+  ) {
+    return undefined;
+  }
+  return Object.freeze({
+    version: 2,
+    status: 'authorized',
+    identity,
+    accessToken: value.accessToken,
+    tokenType: 'spacetime-access',
+    accessExpiresAt: value.accessExpiresAt
+  });
+}
+
 function hasJsonContentType(response: Response) {
   return response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase() === 'application/json';
 }
@@ -385,7 +464,11 @@ async function postJson(
   body: unknown,
   callerSignal?: AbortSignal,
   timeoutMs = BRIDGE_REQUEST_TIMEOUT_MS,
-  retryableErrorCodes?: ReadonlySet<string>
+  retryableErrorCodes?: ReadonlySet<string>,
+  requestSecurity: Readonly<{
+    credentials: RequestCredentials;
+    authorization?: string;
+  }> = Object.freeze({ credentials: 'include' })
 ) {
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -399,12 +482,17 @@ async function postJson(
     const response = await fetchImplementation(url, {
       method: 'POST',
       mode: 'cors',
-      credentials: 'include',
+      credentials: requestSecurity.credentials,
       referrerPolicy: 'no-referrer',
       redirect: 'error',
       cache: 'no-store',
       signal: controller.signal,
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        ...(requestSecurity.authorization === undefined
+          ? {}
+          : { authorization: `Bearer ${requestSecurity.authorization}` })
+      },
       body: JSON.stringify(body)
     });
     if (controller.signal.aborted) {
@@ -574,6 +662,10 @@ export function createFarcasterOidcBridgeClient(
 
   const challengeUrl = new URL('v2/farcaster/challenge', bridgeUrl);
   const exchangeUrl = new URL('v2/farcaster/exchange', bridgeUrl);
+  const quickAuthExchangeUrl = new URL(
+    'v2/farcaster/quick-auth/exchange',
+    bridgeUrl
+  );
   const refreshUrl = new URL('v2/session/refresh', bridgeUrl);
   const logoutUrl = new URL('v2/session/logout', bridgeUrl);
 
@@ -679,6 +771,38 @@ export function createFarcasterOidcBridgeClient(
         audience,
         Date.now(),
         request.fid
+      );
+      if (!session) {
+        throw new FarcasterOidcBridgeClientError();
+      }
+      return session;
+    },
+
+    async exchangeQuickAuth(
+      token: string,
+      requestOptions?: FarcasterBridgeRequestOptions
+    ) {
+      const boundedToken = readSafeQuickAuthToken(token);
+      if (!boundedToken) {
+        throw new FarcasterOidcBridgeClientError();
+      }
+      const result = await postJson(
+        fetchImplementation,
+        quickAuthExchangeUrl,
+        {},
+        requestOptions?.signal,
+        BRIDGE_REQUEST_TIMEOUT_MS,
+        undefined,
+        Object.freeze({
+          credentials: 'omit',
+          authorization: boundedToken
+        })
+      );
+      const session = readSafeQuickAuthSessionResponse(
+        result,
+        issuer,
+        audience,
+        Date.now()
       );
       if (!session) {
         throw new FarcasterOidcBridgeClientError();

@@ -438,6 +438,9 @@ describe('real-browser synthetic journey probe', () => {
     expect(journeySource).toContain(
       "await waitForFlowStage(session, 'realm', realmHref, state)"
     );
+    expect(journeySource).toContain(
+      "await session.command('Page.resetNavigationHistory')"
+    );
     expect(journeySource).toContain("await activateRealmMenuCommand(session, 'EXPLORE')");
     expect(journeySource).toContain("await activateRealmMenuCommand(session, 'SETTINGS')");
     expect(journeySource).toContain("await activateRealmMenuCommand(session, 'MAIN MENU')");

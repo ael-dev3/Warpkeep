@@ -80,6 +80,10 @@ export type LoggingCampInspectionPanelProps = Readonly<{
   /** Authenticated provider boundary; no optimistic public node mutation. */
   onDispatchWoodExpedition?: (siteId: string) => Promise<void>;
   onRequestClose: () => void;
+  /** Compact and Mini App records are hosted navigation destinations. */
+  hostedDestination?: boolean;
+  /** Returns to the preceding nested destination without moving the camera. */
+  onRequestBack?: () => void;
   focusTargetRef?: Ref<HTMLButtonElement>;
   /** Enables operator-only spatial diagnostics in nested public records. */
   showDiagnostics?: boolean;
@@ -141,10 +145,14 @@ export function LoggingCampInspectionPanel({
   privateExpedition,
   onDispatchWoodExpedition,
   onRequestClose,
+  hostedDestination = false,
+  onRequestBack,
   focusTargetRef,
   showDiagnostics = false
 }: LoggingCampInspectionPanelProps) {
+  const dialogRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const [dispatchState, setDispatchState] = useState<
     'idle' | 'submitting' | 'submitted' | 'failed'
   >('idle');
@@ -207,8 +215,12 @@ export function LoggingCampInspectionPanel({
   }, [focusTargetRef]);
 
   useEffect(() => {
-    closeButtonRef.current?.focus({ preventScroll: true });
-  }, [camp.name, camp.tier, id]);
+    if (hostedDestination) {
+      headingRef.current?.focus({ preventScroll: true });
+    } else {
+      closeButtonRef.current?.focus({ preventScroll: true });
+    }
+  }, [camp.name, camp.tier, hostedDestination, id]);
 
   useEffect(() => {
     setDispatchState('idle');
@@ -235,12 +247,23 @@ export function LoggingCampInspectionPanel({
     <aside
       id={id}
       className="gold-mine-inspection logging-camp-inspection realm-camera-neutral-inspector"
-      role="dialog"
-      aria-modal="false"
+      role={hostedDestination ? 'region' : 'dialog'}
+      aria-modal={hostedDestination ? undefined : false}
       aria-labelledby={titleId}
       aria-describedby={descriptionId}
       data-open="true"
+      ref={dialogRef}
     >
+      {onRequestBack ? (
+        <button
+          className="realm-world-surface-back"
+          onClick={onRequestBack}
+          type="button"
+        >
+          <span aria-hidden="true">‹</span>
+          BACK
+        </button>
+      ) : null}
       <div
         aria-hidden="true"
         className="gold-mine-inspection__art-stage logging-camp-inspection__art-stage"
@@ -270,7 +293,7 @@ export function LoggingCampInspectionPanel({
           </button>
           <div className="gold-mine-inspection__title-lockup">
             <p>TIER {camp.tier} GATHERING SITE</p>
-            <h2 id={titleId}>{camp.name}</h2>
+            <h2 id={titleId} ref={headingRef} tabIndex={-1}>{camp.name}</h2>
           </div>
         </header>
 

@@ -951,6 +951,11 @@ async function runFullJourney(session, href, realmHref, state) {
   await setViewport(session, DESKTOP_VIEWPORT);
   await session.command('Page.navigate', { url: href });
   await waitForFlowStage(session, 'menu', href, state);
+  // Direct scenario evidence intentionally reuses one browser target, so it
+  // leaves a stack of prior fixture URLs behind. The full journey owns its
+  // history semantics and must begin at a deterministic base entry; otherwise
+  // a product Back/close action can traverse into an earlier fixture case.
+  await session.command('Page.resetNavigationHistory');
   await captureAnonymousVisualAggregate(session, DESKTOP_VIEWPORT);
   await runDesktopMenuSurfaces(session, href, state);
 

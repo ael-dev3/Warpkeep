@@ -2643,6 +2643,7 @@ function initializeRealmScene(
   let hoveredTerrainCoord: HexCoord | null = null;
   let selectedWaterCellKey: string | null = null;
   let presentationActive = false;
+  options.canvas.dataset.realmPresentationActive = 'false';
   const goldSiteIdByCoord = new Map(
     (options.goldNodes ?? []).map((site) => [hexKey(site.coord), site.siteId] as const)
   );
@@ -2757,6 +2758,7 @@ function initializeRealmScene(
     if (
       cleanup.isDisposed()
       || contextLost
+      || !presentationActive
       || options.canvas.dataset.realmCanvasActive === 'false'
       || !layer
       || layer.hasMovingWorkers()
@@ -2807,7 +2809,8 @@ function initializeRealmScene(
   };
   cleanup.add(cancelWorkerMovementWake);
   const ambientIsNeeded = () => (
-    !contextLost
+    presentationActive
+    && !contextLost
     && options.canvas.dataset.realmCanvasActive !== 'false'
     && (
       workerLayer?.hasMovingWorkers() === true
@@ -3041,6 +3044,10 @@ function initializeRealmScene(
   const render = () => {
     if (cleanup.isDisposed()) return;
     if (contextLost) return;
+    // Construction and replacement preflight may render before readiness.
+    // Once published, an opaque full-screen destination must keep this
+    // long-lived scene fully asleep until presentation resumes.
+    if (!presentationActive && workerReadinessPublished) return;
     if (document.hidden) {
       renderPendingWhileHidden = true;
       return;
@@ -3642,7 +3649,8 @@ function initializeRealmScene(
   const handleRenderVisibility = () => {
     if (document.hidden) {
       workerMovementWakeSuspended = (
-        options.canvas.dataset.realmCanvasActive !== 'false'
+        presentationActive
+        && options.canvas.dataset.realmCanvasActive !== 'false'
         && (
           workerMovementWakeTimer !== null
           || workerLayer?.getNextMovementWakeAtMicros() !== null
@@ -3655,6 +3663,7 @@ function initializeRealmScene(
     workerMovementWakeSuspended = false;
     if (
       !cleanup.isDisposed()
+      && presentationActive
       && options.canvas.dataset.realmCanvasActive !== 'false'
       && (
         renderPendingWhileHidden
@@ -3719,7 +3728,8 @@ function initializeRealmScene(
     ?? options.canvas.parentElement
     ?? options.canvas;
   const sceneAcceptsInteraction = () => (
-    options.canvas.dataset.realmCanvasActive !== 'false'
+    presentationActive
+    && options.canvas.dataset.realmCanvasActive !== 'false'
     && (!interactionRoot.matches('.realm-map-screen') || interactionRoot.isConnected)
   );
   const pointerGestures = createRealmPointerGestureCoordinator({
@@ -4245,7 +4255,10 @@ function initializeRealmScene(
     options.canvas.dataset.realmRendererContextLost = 'false';
     options.canvas.dataset.realmRendererContextLossCount = String(contextLossCount);
     options.canvas.dataset.realmRendererContextRestoreCount = String(contextRestoreCount);
-    if (options.canvas.dataset.realmCanvasActive !== 'false') render();
+    if (
+      presentationActive
+      && options.canvas.dataset.realmCanvasActive !== 'false'
+    ) render();
     options.onRendererContextRestored?.();
   };
 
@@ -4963,9 +4976,10 @@ function initializeRealmScene(
     setPresentationActive: (active) => {
       if (cleanup.isDisposed()) return;
       presentationActive = active;
-      options.canvas.dataset.realmCanvasActive = String(active);
+      options.canvas.dataset.realmPresentationActive = String(active);
       if (!active) {
         workerMovementWakeSuspended = false;
+        renderPendingWhileHidden = false;
         cancelWorkerMovementWake();
       }
       ambientScheduler?.setActive(active && ambientIsNeeded());

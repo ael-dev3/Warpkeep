@@ -8,6 +8,22 @@
   --realm-ivory: #fff7e5;
   --realm-muted: #c9bfd0;
   --realm-panel: var(--warpkeep-surface-bg, rgb(10 9 15 / 88%));
+  --realm-safe-top: max(
+    env(safe-area-inset-top, 0px),
+    var(--fc-safe-area-inset-top, 0px)
+  );
+  --realm-safe-right: max(
+    env(safe-area-inset-right, 0px),
+    var(--fc-safe-area-inset-right, 0px)
+  );
+  --realm-safe-bottom: max(
+    env(safe-area-inset-bottom, 0px),
+    var(--fc-safe-area-inset-bottom, 0px)
+  );
+  --realm-safe-left: max(
+    env(safe-area-inset-left, 0px),
+    var(--fc-safe-area-inset-left, 0px)
+  );
   position: absolute;
   inset: 0;
   overflow: hidden;
@@ -16,6 +32,175 @@
   background: #16131c;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
   outline: none;
+}
+
+.realm-map-screen__world-markers {
+  display: contents;
+}
+
+.realm-map-screen[data-realm-surface-depth]:not([data-realm-surface-depth="0"])
+  :is(
+    .realm-map-screen__canvas,
+    .realm-map-screen__fallback,
+    .realm-map-screen__world-markers
+  ) {
+  pointer-events: none;
+}
+
+.realm-map-screen[data-realm-surface-presentation="fullscreen-destination"]
+  :is(
+    .castle-inspection,
+    .gold-mine-inspection,
+    .worker-inspection,
+    .water-inspection
+  ) {
+  position: fixed;
+  z-index: 30;
+  inset: 0;
+  width: 100%;
+  height: 100vh;
+  height: 100svh;
+  height: 100dvh;
+  max-height: none;
+  box-sizing: border-box;
+  border-radius: 0;
+  background-color: #08070c;
+  box-shadow: none;
+}
+
+.realm-map-screen[data-realm-surface-presentation="fullscreen-destination"]
+  :is(.castle-inspection, .gold-mine-inspection) {
+  padding-top: var(--realm-safe-top);
+}
+
+.realm-map-screen[data-realm-surface-presentation="fullscreen-destination"]
+  :is(.castle-inspection__drawer, .gold-mine-inspection__drawer) {
+  display: flex;
+  width: min(100%, 54rem);
+  height: 100%;
+  max-height: none;
+  box-sizing: border-box;
+  margin-inline: auto;
+  flex-direction: column;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.realm-map-screen[data-realm-surface-presentation="fullscreen-destination"]
+  :is(.castle-inspection__body, .gold-mine-inspection__body) {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  padding-right: max(1rem, var(--realm-safe-right));
+  padding-bottom: max(1.15rem, var(--realm-safe-bottom));
+  padding-left: max(1rem, var(--realm-safe-left));
+  overflow-y: auto;
+}
+
+.realm-map-screen[data-realm-surface-presentation="fullscreen-destination"]
+  :is(.castle-inspection__dismiss, .gold-mine-inspection__dismiss) {
+  top: max(0.6rem, var(--realm-safe-top));
+  right: max(0.7rem, var(--realm-safe-right));
+}
+
+.realm-map-screen[data-realm-surface-presentation="fullscreen-destination"]
+  :is(.worker-inspection, .water-inspection) {
+  width: 100%;
+}
+
+.realm-map-screen[data-realm-surface-presentation="fullscreen-destination"]
+  :is(.worker-inspection__drawer, .water-inspection__drawer) {
+  width: min(100%, 54rem);
+  height: 100%;
+  margin-inline: auto;
+}
+
+.realm-map-screen[data-realm-surface-presentation="fullscreen-destination"]
+  :is(.worker-inspection__dismiss, .water-inspection__dismiss) {
+  top: max(0.68rem, var(--realm-safe-top));
+  right: max(0.7rem, var(--realm-safe-right));
+}
+
+.realm-map-screen[data-realm-surface-presentation="fullscreen-destination"]
+  :is(.worker-inspection__body, .water-inspection__body) {
+  padding-right: max(1rem, var(--realm-safe-right));
+  padding-bottom: max(1.15rem, var(--realm-safe-bottom));
+  padding-left: max(1rem, var(--realm-safe-left));
+}
+
+.realm-map-screen[data-realm-surface-presentation="fullscreen-destination"]
+  .realm-cell-navigator:has(.realm-cell-navigator__dialog) {
+  position: fixed;
+  z-index: 30;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100vh;
+  height: 100svh;
+  height: 100dvh;
+  background:
+    radial-gradient(circle at 18% -8%, rgb(111 60 139 / 30%), transparent 35rem),
+    #08070c;
+  pointer-events: auto;
+}
+
+.realm-map-screen[data-realm-surface-presentation="fullscreen-destination"]
+  .realm-cell-navigator:has(.realm-cell-navigator__dialog) > button {
+  display: none;
+}
+
+.realm-map-screen[data-realm-surface-presentation="fullscreen-destination"]
+  .realm-cell-navigator__dialog {
+  position: relative;
+  inset: auto;
+  width: min(100%, 54rem);
+  height: 100%;
+  max-height: none;
+  margin-inline: auto;
+  padding:
+    max(0.8rem, var(--realm-safe-top))
+    max(0.85rem, var(--realm-safe-right))
+    max(1rem, var(--realm-safe-bottom))
+    max(0.85rem, var(--realm-safe-left));
+  border: 0;
+  border-radius: 0;
+  background: rgb(7 6 11 / 98%);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.realm-world-surface-back {
+  position: fixed;
+  z-index: 36;
+  top: max(0.68rem, var(--realm-safe-top));
+  left: max(0.7rem, var(--realm-safe-left));
+  display: inline-flex;
+  min-width: 44px;
+  min-height: 44px;
+  gap: 0.3rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid rgb(240 211 139 / 42%);
+  border-radius: 0.5rem;
+  background: rgb(7 6 11 / 88%);
+  color: #f8e7b6;
+  font-size: 0.66rem;
+  font-weight: 820;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.realm-world-surface-back span {
+  font: 400 1.35rem/1 Georgia, "Times New Roman", serif;
+}
+
+.realm-world-surface-back:hover,
+.realm-world-surface-back:focus-visible {
+  outline: 2px solid #f2d58a;
+  outline-offset: 2px;
 }
 
 .realm-map-screen:focus-visible::after {
@@ -108,10 +293,10 @@
   width: 0;
   height: 0;
   padding:
-    env(safe-area-inset-top)
-    env(safe-area-inset-right)
-    env(safe-area-inset-bottom)
-    env(safe-area-inset-left);
+    var(--realm-safe-top, env(safe-area-inset-top))
+    var(--realm-safe-right, env(safe-area-inset-right))
+    var(--realm-safe-bottom, env(safe-area-inset-bottom))
+    var(--realm-safe-left, env(safe-area-inset-left));
   visibility: hidden;
   pointer-events: none;
 }

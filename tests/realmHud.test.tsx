@@ -1,7 +1,17 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { useRef, useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { RealmHud } from '../src/components/realm/RealmHud';
+import {
+  MiniAppHostProvider,
+  type MiniAppBrowserRuntime,
+  type MiniAppSdk
+} from '../src/farcaster/miniapp';
+import {
+  useRealmSurfaceNavigation,
+  type RealmSurfaceNavigation,
+} from '../src/components/realm/useRealmSurfaceNavigation';
 import type {
   ReadyWorkerProjection,
   ReadyWorkerResourceState,
@@ -30,6 +40,102 @@ function commonProps() {
     selectedCell: terrainCell(),
     onRecenterKeep: vi.fn(),
     onRequestReturn: vi.fn()
+  };
+}
+
+function ForwardNavigationHud() {
+  const [stack, setStack] = useState<RealmSurfaceNavigation['stack']>([]);
+  const [settingsAvailable, setSettingsAvailable] = useState(true);
+  const forwardRouteRef = useRef<RealmSurfaceNavigation['current']>(undefined);
+  const surfaceNavigation: RealmSurfaceNavigation = {
+    stack,
+    current: stack.at(-1),
+    depth: stack.length,
+    push: (route) => {
+      forwardRouteRef.current = undefined;
+      setStack((current) => [...current, route]);
+    },
+    replace: (route) => {
+      forwardRouteRef.current = undefined;
+      setStack((current) => (
+        current.length === 0 ? [route] : [...current.slice(0, -1), route]
+      ));
+    },
+    back: () => {
+      setStack((current) => {
+        forwardRouteRef.current = current.at(-1);
+        return current.slice(0, -1);
+      });
+    },
+    closeToRealm: () => {
+      setStack((current) => {
+        forwardRouteRef.current = current.at(-1);
+        return [];
+      });
+    }
+  };
+  return (
+    <>
+      <RealmHud
+        {...commonProps()}
+        onGraphicsPreferenceChange={settingsAvailable ? vi.fn() : undefined}
+        surfaceNavigation={surfaceNavigation}
+      />
+      <button onClick={surfaceNavigation.back} type="button">
+        SIMULATE BACK
+      </button>
+      <button
+        disabled={forwardRouteRef.current === undefined}
+        onClick={() => {
+          const route = forwardRouteRef.current;
+          if (!route) return;
+          setStack((current) => [...current, route]);
+        }}
+        type="button"
+      >
+        SIMULATE FORWARD
+      </button>
+      <button onClick={() => setSettingsAvailable(false)} type="button">
+        REMOVE SETTINGS
+      </button>
+    </>
+  );
+}
+
+function miniAppRuntime(): MiniAppBrowserRuntime {
+  return {
+    search: () => '?miniApp=true',
+    viewport: () => ({ width: 390, height: 844 }),
+    document,
+    getMountedShell: () => document.body,
+    waitForAnimationFrame: async () => {}
+  };
+}
+
+function miniAppSdk(close: () => Promise<void>): MiniAppSdk {
+  return {
+    isInMiniApp: async () => true,
+    context: Promise.resolve({
+      user: {
+        fid: 12_345,
+        username: 'warpkeeper',
+        displayName: 'Warp Keeper',
+        pfpUrl: 'https://images.example/warpkeeper.png'
+      },
+      client: {
+        clientFid: 9_150,
+        added: true,
+        platformType: 'mobile',
+        safeAreaInsets: { top: 12, right: 8, bottom: 14, left: 8 }
+      },
+      features: { haptics: false },
+      location: { type: 'launcher' }
+    }),
+    getCapabilities: async () => ['actions.ready', 'actions.close'],
+    actions: {
+      ready: async () => {},
+      close
+    }
   };
 }
 
@@ -359,6 +465,8 @@ describe('RealmHud', () => {
       .not.toBeNull();
     expect(within(opened.dialog).getByRole('button', { name: /SETTINGS/i })).not.toBeNull();
     expect(within(opened.dialog).getByRole('button', { name: /MAIN MENU/i })).not.toBeNull();
+    expect(within(opened.dialog).getByLabelText('Verified keeper identity').textContent)
+      .toContain('@warpkeeper');
     expect(within(opened.dialog).queryByText(/PATCH NOTES · ALPHA/i)).toBeNull();
     expect(opened.dialog.querySelector('details')).toBeNull();
     expect(opened.dialog.querySelector(
@@ -377,13 +485,18 @@ describe('RealmHud', () => {
     const settingsTrigger = within(opened.dialog).getByRole('button', { name: /SETTINGS/i });
     expect(settingsTrigger.getAttribute('aria-controls')).toBe('realm-player-settings');
     expect(settingsTrigger.getAttribute('aria-haspopup')).toBe('dialog');
+    opened.dialog.scrollTop = 91;
     fireEvent.click(settingsTrigger);
     const settings = screen.getByRole('dialog', { name: 'SETTINGS' });
     expect(settings.id).toBe('realm-player-settings');
     expect(opened.trigger.getAttribute('aria-controls')).toBe('realm-player-settings');
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'SETTINGS' }));
     fireEvent.click(screen.getByRole('button', { name: 'BACK TO REALM MENU' }));
-    expect(screen.getByRole('dialog', { name: 'REALM MENU' })).not.toBeNull();
+    const restoredMenu = screen.getByRole('dialog', { name: 'REALM MENU' });
+    await waitFor(() => expect(document.activeElement).toBe(
+      within(restoredMenu).getByRole('button', { name: /SETTINGS/i })
+    ));
+    expect(restoredMenu.scrollTop).toBe(91);
 
     fireEvent.click(screen.getByRole('button', { name: 'Close Realm menu' }));
     await waitFor(() => expect(document.activeElement).toBe(opened.trigger));
@@ -391,6 +504,132 @@ describe('RealmHud', () => {
     opened = openRealmMenu();
     fireEvent.click(within(opened.dialog).getByRole('button', { name: /MAIN MENU/i }));
     expect(onRequestReturn).toHaveBeenCalledOnce();
+  });
+
+  it('retains nested focus metadata across Back, Forward, and Back again', async () => {
+    render(<ForwardNavigationHud />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Open Realm menu/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^SETTINGS/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'BACK TO REALM MENU' }));
+    let restoredMenu = screen.getByRole('dialog', { name: 'REALM MENU' });
+    await waitFor(() => expect(document.activeElement).toBe(
+      within(restoredMenu).getByRole('button', { name: /SETTINGS/i })
+    ));
+
+    fireEvent.click(screen.getByRole('button', { name: 'SIMULATE FORWARD' }));
+    expect(screen.getByRole('dialog', { name: 'SETTINGS' })).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'BACK TO REALM MENU' }));
+    restoredMenu = screen.getByRole('dialog', { name: 'REALM MENU' });
+    await waitFor(() => expect(document.activeElement).toBe(
+      within(restoredMenu).getByRole('button', { name: /SETTINGS/i })
+    ));
+  });
+
+  it('retains the root invoker across Back, Forward, and Back again', async () => {
+    render(<ForwardNavigationHud />);
+
+    const profile = screen.getByRole('button', { name: /Open Realm menu/i });
+    fireEvent.click(profile);
+    fireEvent.click(screen.getByRole('button', { name: 'Close Realm menu' }));
+    await waitFor(() => expect(document.activeElement).toBe(profile));
+
+    fireEvent.click(screen.getByRole('button', { name: 'SIMULATE FORWARD' }));
+    expect(screen.getByRole('dialog', { name: 'REALM MENU' })).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Close Realm menu' }));
+    await waitFor(() => expect(document.activeElement).toBe(profile));
+  });
+
+  it('falls back to the parent heading when a dynamic invoker disappears', async () => {
+    render(<ForwardNavigationHud />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Open Realm menu/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^SETTINGS/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'REMOVE SETTINGS' }));
+    fireEvent.click(screen.getByRole('button', { name: 'SIMULATE BACK' }));
+
+    const menu = screen.getByRole('dialog', { name: 'REALM MENU' });
+    expect(within(menu).queryByRole('button', { name: /SETTINGS/i })).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(
+      within(menu).getByRole('heading', { name: 'REALM MENU' })
+    ));
+  });
+
+  it('uses hosted navigation semantics and exposes Exit only in a verified Mini App', async () => {
+    const closeMiniApp = vi.fn(async () => {});
+    const fixture = workerUiFixture();
+    const surfaceNavigation: RealmSurfaceNavigation = {
+      stack: [{ kind: 'commands' }],
+      current: { kind: 'commands' },
+      depth: 1,
+      push: vi.fn(),
+      replace: vi.fn(),
+      back: vi.fn(),
+      closeToRealm: vi.fn()
+    };
+
+    render(
+      <MiniAppHostProvider
+        runtime={miniAppRuntime()}
+        sdkLoader={async () => miniAppSdk(closeMiniApp)}
+      >
+        <RealmHud
+          {...commonProps()}
+          {...fixture}
+          chromeMode="miniapp"
+          onGraphicsPreferenceChange={vi.fn()}
+          surfaceNavigation={surfaceNavigation}
+        />
+      </MiniAppHostProvider>
+    );
+
+    const destination = screen.getByRole('region', { name: 'REALM MENU' });
+    expect(destination.hasAttribute('aria-modal')).toBe(false);
+    expect(screen.queryByRole('dialog', { name: 'REALM MENU' })).toBeNull();
+    expect(within(destination).getByLabelText('Verified keeper identity').textContent)
+      .toContain('@warpkeeper');
+    expect(within(destination).getByRole('button', { name: /SETTINGS/i })
+      .hasAttribute('aria-haspopup')).toBe(false);
+    expect(within(destination).getByRole('button', { name: /^WORKERS/i })
+      .hasAttribute('aria-haspopup')).toBe(false);
+
+    const exit = await within(destination).findByRole('button', {
+      name: /EXIT MINI APP/i
+    });
+    fireEvent.click(exit);
+    await waitFor(() => expect(closeMiniApp).toHaveBeenCalledOnce());
+  });
+
+  it('replaces the desktop command history entry when opening Explore', () => {
+    const onRequestExplore = vi.fn();
+    const surfaceNavigation: RealmSurfaceNavigation = {
+      stack: [{ kind: 'commands' }],
+      current: { kind: 'commands' },
+      depth: 1,
+      push: vi.fn(),
+      replace: vi.fn(),
+      back: vi.fn(),
+      closeToRealm: vi.fn(),
+    };
+    render(
+      <RealmHud
+        {...commonProps()}
+        chromeMode="desktop-web"
+        foundedCastleCount={2}
+        onRequestExplore={onRequestExplore}
+        surfaceNavigation={surfaceNavigation}
+      />,
+    );
+
+    const menu = screen.getByRole('dialog', { name: 'REALM MENU' });
+    fireEvent.click(within(menu).getByRole('button', { name: /EXPLORE/i }));
+
+    expect(surfaceNavigation.replace).toHaveBeenCalledExactlyOnceWith({
+      kind: 'explore',
+    });
+    expect(surfaceNavigation.closeToRealm).not.toHaveBeenCalled();
+    expect(surfaceNavigation.back).not.toHaveBeenCalled();
+    expect(onRequestExplore).toHaveBeenCalledOnce();
   });
 
   it('offers up to four privacy-bounded active wagon shortcuts in the PFP menu', async () => {
@@ -486,11 +725,51 @@ describe('RealmHud', () => {
     )).not.toBeNull();
 
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(screen.getByRole('dialog', { name: 'WORKERS' })).not.toBeNull();
+    const restoredWorkers = screen.getByRole('dialog', { name: 'WORKERS' });
+    await waitFor(() => expect(document.activeElement).toBe(
+      within(restoredWorkers).getByRole('button', { name: /Worker 1/i })
+    ));
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(screen.getByRole('dialog', { name: 'REALM MENU' })).not.toBeNull();
+    const restoredMenu = screen.getByRole('dialog', { name: 'REALM MENU' });
+    await waitFor(() => expect(document.activeElement).toBe(
+      within(restoredMenu).getByRole('button', { name: /^WORKERS/i })
+    ));
     fireEvent.keyDown(document, { key: 'Escape' });
     await waitFor(() => expect(document.activeElement).toBe(profileTrigger));
+  });
+
+  it('delegates compact Worker detail rendering to the Realm surface owner', () => {
+    const fixture = workerUiFixture();
+    const workerId = fixture.workerProjection.ownedWorkers[0]!.workerId;
+    const surfaceNavigation: RealmSurfaceNavigation = {
+      stack: [
+        { kind: 'commands' },
+        { kind: 'workers' },
+        { kind: 'worker', workerId },
+      ],
+      current: { kind: 'worker', workerId },
+      depth: 3,
+      push: vi.fn(),
+      replace: vi.fn(),
+      back: vi.fn(),
+      closeToRealm: vi.fn(),
+    };
+    render(
+      <RealmHud
+        {...commonProps()}
+        {...fixture}
+        chromeMode="compact-web"
+        surfaceNavigation={surfaceNavigation}
+      />,
+    );
+
+    expect(screen.queryByRole('dialog', { name: 'Worker 1' })).toBeNull();
+    expect(surfaceNavigation.back).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', {
+      name: /Open Realm menu/i,
+      hidden: true,
+    })
+      .getAttribute('aria-controls')).toBe('realm-worker-inspection');
   });
 
   it('keeps the public Worker catalog visible but fails commands closed for a wrong private FID', () => {
@@ -982,6 +1261,78 @@ describe('RealmHud', () => {
     expect(within(dialog).queryByRole('button', { name: /COLLECT YIELD/i })).toBeNull();
   });
 
+  it('shows bounded available and occupied resource-site shortcuts in hosted resource screens', async () => {
+    const onOpenResourceSite = vi.fn();
+    const surfaceNavigation: RealmSurfaceNavigation = {
+      stack: [{ kind: 'resource-balance', resource: 'wood' }],
+      current: { kind: 'resource-balance', resource: 'wood' },
+      depth: 1,
+      push: vi.fn(),
+      replace: vi.fn(),
+      back: vi.fn(),
+      closeToRealm: vi.fn()
+    };
+    render(
+      <RealmHud
+        {...commonProps()}
+        chromeMode="miniapp"
+        onOpenResourceSite={onOpenResourceSite}
+        resourceSites={[
+          {
+            key: 'wood:wood-1',
+            resource: 'wood',
+            label: 'Logging Camp 1',
+            tier: 1,
+            availability: 'available'
+          },
+          {
+            key: 'wood:wood-2',
+            resource: 'wood',
+            label: 'Logging Camp 2',
+            tier: 2,
+            availability: 'occupied'
+          },
+          {
+            key: 'wood:wood-3',
+            resource: 'wood',
+            label: 'Logging Camp 3',
+            tier: 3,
+            availability: 'unavailable'
+          },
+          {
+            key: 'food:food-1',
+            resource: 'food',
+            label: 'Wheat Farm 1',
+            tier: 1,
+            availability: 'available'
+          }
+        ]}
+        resources={createReadyResourceState()}
+        surfaceNavigation={surfaceNavigation}
+      />
+    );
+
+    const destination = screen.getByRole('region', { name: 'Wood' });
+    expect(destination.hasAttribute('aria-modal')).toBe(false);
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1, name: 'Wood' }))
+        .toBe(document.activeElement);
+    });
+    expect(within(destination).queryByText('Logging Camp 3')).toBeNull();
+    expect(within(destination).queryByText('Wheat Farm 1')).toBeNull();
+    const available = within(destination).getByRole('button', {
+      name: /Logging Camp 1.*Tier 1.*available/i
+    });
+    const occupied = within(destination).getByRole('button', {
+      name: /Logging Camp 2.*Tier 2.*occupied/i
+    });
+    expect(occupied).not.toBeNull();
+    fireEvent.click(available);
+    expect(onOpenResourceSite).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ key: 'wood:wood-1' })
+    );
+  });
+
   it('retains numeric same-caller core balances while Worker accrual synchronizes', () => {
     const base = createReadyResourceState();
     const props = {
@@ -1130,6 +1481,33 @@ describe('RealmHud', () => {
     expect(screen.getByRole('tooltip').getAttribute('data-resource')).toBe('gold');
     fireEvent.pointerDown(document.body, { pointerType: 'touch' });
     expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+
+  it('restores hosted resource-screen focus to the exact resource trigger', async () => {
+    function NavigatingHud() {
+      const surfaceNavigation = useRealmSurfaceNavigation({
+        historyEnabled: false,
+        identityKey: '12345'
+      });
+      return (
+        <RealmHud
+          {...commonProps()}
+          chromeMode="miniapp"
+          resources={createReadyResourceState()}
+          surfaceNavigation={surfaceNavigation}
+        />
+      );
+    }
+
+    render(<NavigatingHud />);
+    const wood = screen.getByRole('button', {
+      name: /Wood: 0 stored; 0 gathering now/i
+    });
+    wood.focus();
+    fireEvent.click(wood);
+    expect(screen.getByRole('region', { name: 'Wood' })).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Realm' }));
+    await waitFor(() => expect(document.activeElement).toBe(wood));
   });
 
   it('keeps gathering yield informational and exposes no manual collection control', () => {

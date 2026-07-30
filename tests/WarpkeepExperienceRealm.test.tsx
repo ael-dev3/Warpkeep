@@ -918,6 +918,8 @@ describe('Warpkeep shared realm admission', () => {
     expect(within(reconnectingMenu).queryByRole('button', { name: /COLLECT YIELD/i })).toBeNull();
     expect(backend.runtime.collectResources).not.toHaveBeenCalled();
     fireEvent.click(within(reconnectingMenu).getByRole('button', { name: 'Close Realm menu' }));
+    await act(async () => vi.advanceTimersByTime(1));
+    await settle();
 
     await act(async () => reconnect.resolve(reconnectConnection));
     await settle();

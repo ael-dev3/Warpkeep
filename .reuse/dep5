@@ -32,3 +32,13 @@ Files: public/images/factions/hegemony/marks/** docs/reference/factions/hegemony
 Copyright: 2026 Warpkeep project
 License: CC-BY-4.0
 Comment: Faithful runtime derivatives and metadata from the immutable Warpkeep-Assets Hegemony Mark release; see ASSETS-LICENSE.md.
+
+Files: public/images/miniapp/warpkeep-icon-1024.png public/images/miniapp/warpkeep-splash-200.png public/images/miniapp/warpkeep-hero-1200x630.png public/images/miniapp/warpkeep-og-1200x630.png public/images/miniapp/warpkeep-embed-1200x800.png
+Copyright: 2026 Warpkeep project
+License: CC-BY-4.0
+Comment: Code-generated project-owned Mini App release artwork; see ASSETS-LICENSE.md.
+
+Files: public/images/miniapp/warpkeep-portrait-realm-1284x2778.png public/images/miniapp/warpkeep-portrait-keep-1284x2778.png public/images/miniapp/warpkeep-portrait-worker-1284x2778.png
+Copyright: See ASSETS-LICENSE.md and the provenance records for depicted assets
+License: LicenseRef-Warpkeep-Provenance-Required
+Comment: Privacy-reviewed synthetic captures of the assembled Alpha 0.3.28 release UI; no real account or private state is depicted.

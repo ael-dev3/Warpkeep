@@ -67,6 +67,11 @@ import {
   allowsSpeculativeMenuMediaPreload,
   type NetworkNavigatorSnapshot
 } from '../settings/networkPreloadPolicy';
+import { useMiniAppBackNavigation } from '../farcaster/miniapp';
+import {
+  REALM_SURFACE_HISTORY_KEY,
+  readRealmSurfaceHistoryState
+} from './realm/realmSurfaceNavigation';
 import { TitleGatewayHint } from './title/TitleGatewayHint';
 import {
   fallbackGatewayClientCenter,
@@ -152,6 +157,7 @@ function menuHistoryState() {
     : {};
   const nextState = { ...safeCurrent, [MENU_HISTORY_KEY]: true } as WarpkeepHistoryState;
   delete nextState[REALM_HISTORY_KEY];
+  delete nextState[REALM_SURFACE_HISTORY_KEY];
   return nextState;
 }
 
@@ -160,7 +166,12 @@ function realmHistoryState() {
   const safeCurrent = current && typeof current === 'object'
     ? current as Record<string, unknown>
     : {};
-  return { ...safeCurrent, [REALM_HISTORY_KEY]: true } satisfies WarpkeepHistoryState;
+  const nextState = {
+    ...safeCurrent,
+    [REALM_HISTORY_KEY]: true
+  } as WarpkeepHistoryState;
+  delete nextState[REALM_SURFACE_HISTORY_KEY];
+  return nextState;
 }
 
 function pageUrlWithoutHash() {
@@ -172,6 +183,17 @@ function blurActiveElement() {
   if (activeElement instanceof HTMLElement && activeElement !== document.body) {
     activeElement.blur();
   }
+}
+
+function MiniAppMenuBackBinding({
+  active,
+  onBack
+}: Readonly<{
+  active: boolean;
+  onBack: () => void;
+}>) {
+  useMiniAppBackNavigation(active ? 1 : 0, onBack);
+  return null;
 }
 
 /**
@@ -667,10 +689,15 @@ export function WarpkeepExperience() {
     audioDirectorRef.current?.transitionTo('menu');
     const state = window.history.state as WarpkeepHistoryState | null;
     const canReturnThroughHistory = hasRealmHash() && state?.[REALM_HISTORY_KEY] === true;
+    const surfaceDepth = state && typeof state === 'object'
+      ? readRealmSurfaceHistoryState(
+          state[REALM_SURFACE_HISTORY_KEY]
+        )?.stack.length ?? 0
+      : 0;
     setPresentedScreen('menu');
     dispatch({ type: 'return-menu' });
     if (canReturnThroughHistory) {
-      window.history.back();
+      window.history.go(-(surfaceDepth + 1));
     } else {
       window.history.replaceState(menuHistoryState(), '', `${pageUrlWithoutHash()}${MENU_HASH}`);
     }
@@ -1134,6 +1161,12 @@ export function WarpkeepExperience() {
       data-graphics-quality={resolvedGraphicsQuality}
       data-audio-muted={audioMuted ? 'true' : 'false'}
     >
+      {menuMounted ? (
+        <MiniAppMenuBackBinding
+          active={menuInteractive}
+          onBack={handleExplicitReturn}
+        />
+      ) : null}
       <div
         aria-atomic="true"
         aria-hidden={

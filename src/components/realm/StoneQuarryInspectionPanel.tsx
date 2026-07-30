@@ -80,6 +80,10 @@ export type StoneQuarryInspectionPanelProps = Readonly<{
   /** Authenticated provider boundary; no optimistic public node mutation. */
   onDispatchStoneExpedition?: (siteId: string) => Promise<void>;
   onRequestClose: () => void;
+  /** Compact and Mini App records are hosted navigation destinations. */
+  hostedDestination?: boolean;
+  /** Returns to the preceding nested destination without moving the camera. */
+  onRequestBack?: () => void;
   focusTargetRef?: Ref<HTMLButtonElement>;
   /** Enables operator-only spatial diagnostics in nested public records. */
   showDiagnostics?: boolean;
@@ -141,10 +145,14 @@ export function StoneQuarryInspectionPanel({
   privateExpedition,
   onDispatchStoneExpedition,
   onRequestClose,
+  hostedDestination = false,
+  onRequestBack,
   focusTargetRef,
   showDiagnostics = false
 }: StoneQuarryInspectionPanelProps) {
+  const dialogRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const [dispatchState, setDispatchState] = useState<
     'idle' | 'submitting' | 'submitted' | 'failed'
   >('idle');
@@ -207,8 +215,12 @@ export function StoneQuarryInspectionPanel({
   }, [focusTargetRef]);
 
   useEffect(() => {
-    closeButtonRef.current?.focus({ preventScroll: true });
-  }, [quarry.name, quarry.tier, id]);
+    if (hostedDestination) {
+      headingRef.current?.focus({ preventScroll: true });
+    } else {
+      closeButtonRef.current?.focus({ preventScroll: true });
+    }
+  }, [hostedDestination, id, quarry.name, quarry.tier]);
 
   useEffect(() => {
     setDispatchState('idle');
@@ -235,12 +247,23 @@ export function StoneQuarryInspectionPanel({
     <aside
       id={id}
       className="gold-mine-inspection stone-quarry-inspection realm-camera-neutral-inspector"
-      role="dialog"
-      aria-modal="false"
+      role={hostedDestination ? 'region' : 'dialog'}
+      aria-modal={hostedDestination ? undefined : false}
       aria-labelledby={titleId}
       aria-describedby={descriptionId}
       data-open="true"
+      ref={dialogRef}
     >
+      {onRequestBack ? (
+        <button
+          className="realm-world-surface-back"
+          onClick={onRequestBack}
+          type="button"
+        >
+          <span aria-hidden="true">‹</span>
+          BACK
+        </button>
+      ) : null}
       <div
         aria-hidden="true"
         className="gold-mine-inspection__art-stage stone-quarry-inspection__art-stage"
@@ -270,7 +293,7 @@ export function StoneQuarryInspectionPanel({
           </button>
           <div className="gold-mine-inspection__title-lockup">
             <p>TIER {quarry.tier} GATHERING SITE</p>
-            <h2 id={titleId}>{quarry.name}</h2>
+            <h2 id={titleId} ref={headingRef} tabIndex={-1}>{quarry.name}</h2>
           </div>
         </header>
 

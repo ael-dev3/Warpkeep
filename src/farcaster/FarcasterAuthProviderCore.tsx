@@ -50,6 +50,7 @@ import type {
   FarcasterBridgeSessionResponse,
   FarcasterOidcBridgeClient,
   FarcasterOidcSession,
+  FarcasterQuickAuthSessionResponse,
   FarcasterSessionAuthority,
   FarcasterSignInChannel,
   PublicFarcasterIdentity,
@@ -61,6 +62,7 @@ const MAX_BROWSER_TIMER_DELAY_MS = 2_147_000_000;
 
 export type FarcasterAuthorityLoader = () => Promise<FarcasterSessionAuthority>;
 export type FarcasterOidcBridgeLoader = () => Promise<FarcasterOidcBridgeClient>;
+export type FarcasterQuickAuthTokenLoader = () => Promise<string | null>;
 export type FarcasterQrEncoder = (channelUrl: string) => Promise<string>;
 export type FarcasterAuthErrorNormalizer = (error: unknown) => FarcasterAuthError;
 
@@ -68,6 +70,10 @@ export type FarcasterAuthProviderCoreProps = Readonly<{
   children: ReactNode;
   loadAuthority: FarcasterAuthorityLoader;
   loadBridgeClient: FarcasterOidcBridgeLoader;
+  /** Present only after the host adapter proves an actual Mini App runtime. */
+  loadQuickAuthToken?: FarcasterQuickAuthTokenLoader;
+  /** Untrusted host presentation fields; retained only for a bridge-verified same FID. */
+  quickAuthPresentationIdentity?: FarcasterRelayDisplayIdentity;
   normalizeAuthError: FarcasterAuthErrorNormalizer;
   /** Kept injectable so a challenge and SIWF request share one exact context. */
   resolveAuthContext?: () => FarcasterAuthContext;
@@ -174,6 +180,7 @@ function isUsableVerifiedIdentity(identity: VerifiedFarcasterIdentity) {
 
 const SERVER_SESSION_MAX_TTL_MS = FARCASTER_SESSION_TERMINATION_INTENT_TTL_MS;
 const ACCESS_REFRESH_LEAD_MS = 30_000;
+const QUICK_AUTH_PENDING_PRESENTATION_TTL_MS = 5 * 60 * 1_000;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -318,6 +325,81 @@ function materializeBridgeSession(
     identity,
     session: parsed.session,
     sessionExpiresAt: response.sessionExpiresAt
+  });
+}
+
+type MaterializedQuickAuthSession =
+  | Readonly<{
+      status: 'authorized';
+      identity: VerifiedFarcasterIdentity;
+      session: FarcasterOidcSession;
+      sessionExpiresAt: number;
+    }>
+  | Readonly<{
+      status: 'pending-admission';
+      identity: VerifiedFarcasterIdentity;
+      sessionExpiresAt: number;
+    }>;
+
+function materializeQuickAuthSession(
+  response: FarcasterQuickAuthSessionResponse,
+  now: number,
+  issuer: string,
+  audience: string
+): MaterializedQuickAuthSession | undefined {
+  if (!Number.isSafeInteger(now) || now < 0 || !isRecord(response) || response.version !== 2) {
+    return undefined;
+  }
+  const identity = verifiedBridgeIdentity(response.identity, now);
+  if (!identity) return undefined;
+
+  if (response.status === 'pending-admission') {
+    if (!hasExactKeys(response, ['version', 'status', 'identity'])) {
+      return undefined;
+    }
+    return Object.freeze({
+      status: 'pending-admission',
+      identity,
+      // This is a presentation/retry window, never backend authority.
+      sessionExpiresAt: now + QUICK_AUTH_PENDING_PRESENTATION_TTL_MS
+    });
+  }
+
+  if (
+    response.status !== 'authorized'
+    || !hasExactKeys(response, [
+      'version',
+      'status',
+      'identity',
+      'accessToken',
+      'tokenType',
+      'accessExpiresAt'
+    ])
+    || response.tokenType !== 'spacetime-access'
+    || !Number.isSafeInteger(response.accessExpiresAt)
+    || response.accessExpiresAt <= now
+    || response.accessExpiresAt - now > SERVER_SESSION_MAX_TTL_MS
+  ) {
+    return undefined;
+  }
+  const parsed = parseFarcasterOidcJwt(response.accessToken, {
+    issuer,
+    audience,
+    now
+  });
+  if (
+    !parsed
+    || parsed.claims.fid !== identity.fid
+    || parsed.session.expiresAt !== response.accessExpiresAt
+  ) {
+    return undefined;
+  }
+  return Object.freeze({
+    status: 'authorized',
+    identity,
+    session: parsed.session,
+    // Quick Auth deliberately has no durable browser session family.
+    sessionExpiresAt: parsed.session.expiresAt
   });
 }
 
@@ -936,6 +1018,8 @@ export function FarcasterAuthProviderCore({
   children,
   loadAuthority,
   loadBridgeClient,
+  loadQuickAuthToken,
+  quickAuthPresentationIdentity,
   normalizeAuthError,
   resolveAuthContext = getBrowserFarcasterAuthContext,
   encodeQrCode,
@@ -958,11 +1042,17 @@ export function FarcasterAuthProviderCore({
   const lifecycleGenerationRef = useRef(0);
   const authActivationGenerationRef = useRef(0);
   const authActivationFlightRef = useRef<Promise<void> | undefined>(undefined);
+  const logoutIntentReadyRef = useRef(false);
   // Cookie authority is fail closed until the exact logout-control record has
   // been checked. Only an explicit, externally consent-gated auth activation
   // clears it; passive lifecycle events never activate an anonymous session.
   const logoutIntentBlocksRefreshRef = useRef(true);
   const refreshFlightRef = useRef<{
+    controller: AbortController;
+    promise: Promise<boolean>;
+    clearOnFailure: boolean;
+  } | undefined>(undefined);
+  const quickAuthFlightRef = useRef<{
     controller: AbortController;
     promise: Promise<boolean>;
     clearOnFailure: boolean;
@@ -1030,6 +1120,8 @@ export function FarcasterAuthProviderCore({
     lifecycleGenerationRef.current += 1;
     refreshFlightRef.current?.controller.abort();
     refreshFlightRef.current = undefined;
+    quickAuthFlightRef.current?.controller.abort();
+    quickAuthFlightRef.current = undefined;
   }, []);
 
   const invalidateAuthActivation = useCallback(() => {
@@ -1211,6 +1303,186 @@ export function FarcasterAuthProviderCore({
     resolveCachedPresentationIdentity
   ]);
 
+  const activateQuickAuth = useCallback((
+    clearOnFailure = false,
+    showProgress = false
+  ) => {
+    if (!loadQuickAuthToken || logoutIntentBlocksRefreshRef.current) {
+      return Promise.resolve(false);
+    }
+    const existing = quickAuthFlightRef.current;
+    if (existing) {
+      if (clearOnFailure) existing.clearOnFailure = true;
+      return existing.promise;
+    }
+
+    const lifecycleGeneration = lifecycleGenerationRef.current;
+    const viewAtStart = machineRef.current.view;
+    const startsVisibleAttempt = showProgress && canBeginFrom(viewAtStart.phase);
+    const machineGeneration = startsVisibleAttempt
+      ? machineRef.current.generation + 1
+      : machineRef.current.generation;
+    if (startsVisibleAttempt) {
+      dispatch({ type: 'begin', generation: machineGeneration });
+    }
+
+    const controller = new AbortController();
+    let flight: NonNullable<typeof quickAuthFlightRef.current>;
+    const promise = Promise.resolve()
+      .then(() => loadBridgeClient())
+      .then(async (client) => {
+        if (
+          controller.signal.aborted
+          || lifecycleGenerationRef.current !== lifecycleGeneration
+        ) {
+          return undefined;
+        }
+        let token = await loadQuickAuthToken();
+        try {
+          if (
+            controller.signal.aborted
+            || lifecycleGenerationRef.current !== lifecycleGeneration
+            || typeof token !== 'string'
+            || token.length === 0
+            || typeof client.exchangeQuickAuth !== 'function'
+          ) {
+            return undefined;
+          }
+          return {
+            client,
+            response: await client.exchangeQuickAuth(token, {
+              signal: controller.signal
+            })
+          };
+        } finally {
+          token = '';
+        }
+      })
+      .then((result) => {
+        if (
+          !result
+          || controller.signal.aborted
+          || lifecycleGenerationRef.current !== lifecycleGeneration
+        ) {
+          return false;
+        }
+        const currentTime = readProviderNow(now);
+        const resolved = currentTime === undefined
+          ? undefined
+          : materializeQuickAuthSession(
+              result.response,
+              currentTime,
+              result.client.issuer,
+              result.client.audience
+            );
+        if (!resolved) {
+          throw new Error('Invalid Quick Auth session.');
+        }
+
+        const currentView = machineRef.current.view;
+        const currentIdentity = currentView.phase === 'authenticated'
+          || currentView.phase === 'pending-admission'
+          ? currentView.identity
+          : undefined;
+        if (currentIdentity && currentIdentity.fid !== resolved.identity.fid) {
+          // A host account switch invalidates old private authority before the
+          // new verified FID is presented.
+          clearInMemoryAuthoritativeSession();
+          clearPresentationSession();
+        }
+        const presentedIdentity = withSameFidRelayDisplayMetadata(
+          resolved.identity,
+          quickAuthPresentationIdentity
+        );
+
+        if (resolved.status === 'pending-admission') {
+          clearInMemoryAuthoritativeSession();
+          dispatch({
+            type: 'session-pending',
+            generation: machineGeneration,
+            identity: presentedIdentity,
+            sessionExpiresAt: resolved.sessionExpiresAt
+          });
+        } else {
+          oidcSessionRef.current = resolved.session;
+          setOidcSession(resolved.session);
+          dispatch({
+            type: 'session-authorized',
+            generation: machineGeneration,
+            identity: presentedIdentity,
+            expiresAt: resolved.session.expiresAt,
+            sessionExpiresAt: resolved.sessionExpiresAt
+          });
+        }
+        return true;
+      })
+      .catch((error) => {
+        if (
+          controller.signal.aborted
+          || lifecycleGenerationRef.current !== lifecycleGeneration
+        ) {
+          return false;
+        }
+        if (startsVisibleAttempt) {
+          dispatch({
+            type: 'failed',
+            generation: machineGeneration,
+            error: normalizeAuthError(error)
+          });
+        }
+        if (flight.clearOnFailure) {
+          const currentTime = readProviderNow(now);
+          const currentSession = oidcSessionRef.current;
+          if (
+            currentTime === undefined
+            || !currentSession
+            || currentTime >= currentSession.expiresAt
+          ) {
+            const current = machineRef.current;
+            clearLocalAuthoritativeSession(false);
+            if (
+              current.view.phase === 'authenticated'
+              || current.view.phase === 'pending-admission'
+            ) {
+              dispatch({
+                type: 'sign-out',
+                generation: current.generation
+              });
+            }
+          }
+        }
+        return false;
+      })
+      .finally(() => {
+        if (quickAuthFlightRef.current === flight) {
+          quickAuthFlightRef.current = undefined;
+        }
+      });
+    flight = { controller, promise, clearOnFailure };
+    quickAuthFlightRef.current = flight;
+    return promise;
+  }, [
+    clearInMemoryAuthoritativeSession,
+    clearLocalAuthoritativeSession,
+    clearPresentationSession,
+    loadBridgeClient,
+    loadQuickAuthToken,
+    normalizeAuthError,
+    now,
+    quickAuthPresentationIdentity
+  ]);
+
+  const refreshAuthoritySession = useCallback((
+    clearOnFailure = false,
+    showProgress = false
+  ) => loadQuickAuthToken
+    ? activateQuickAuth(clearOnFailure, showProgress)
+    : refreshSession(clearOnFailure), [
+    activateQuickAuth,
+    loadQuickAuthToken,
+    refreshSession
+  ]);
+
   const config: ControllerConfig = {
     loadAuthority,
     loadBridgeClient,
@@ -1242,10 +1514,12 @@ export function FarcasterAuthProviderCore({
       return;
     }
 
-    // An explicit retry follows a failed/expired SIWF generation. It still
-    // requires the external Terms gate, but must not probe a cookie before
-    // creating the fresh request the player asked for.
-    if (phase === 'error' || phase === 'expired') {
+    // An explicit web retry follows a failed/expired SIWF generation. Mini App
+    // retries instead reacquire a fresh Quick Auth bearer below.
+    if (
+      !loadQuickAuthToken
+      && (phase === 'error' || phase === 'expired')
+    ) {
       controller.retrySignIn();
       return;
     }
@@ -1255,11 +1529,15 @@ export function FarcasterAuthProviderCore({
     beginExplicitAuthActivation();
 
     let activation: Promise<void>;
-    activation = refreshSession(false)
-      .then((restored) => {
+    activation = (
+      loadQuickAuthToken
+        ? activateQuickAuth(false, true)
+        : refreshSession(false)
+    ).then((restored) => {
         if (
           authActivationGenerationRef.current !== activationGeneration
           || restored
+          || loadQuickAuthToken
         ) {
           return;
         }
@@ -1271,13 +1549,19 @@ export function FarcasterAuthProviderCore({
         }
       });
     authActivationFlightRef.current = activation;
-  }, [beginExplicitAuthActivation, controller, refreshSession]);
+  }, [
+    activateQuickAuth,
+    beginExplicitAuthActivation,
+    controller,
+    loadQuickAuthToken,
+    refreshSession
+  ]);
 
   const cancelConsentGatedSignIn = useCallback(() => {
-    const cancelledCookiePreflight = authActivationFlightRef.current !== undefined;
+    const cancelledAuthPreflight = authActivationFlightRef.current !== undefined;
     invalidateAuthActivation();
     const cancelledControllerRequest = controller.cancelSignIn();
-    if (cancelledCookiePreflight && !cancelledControllerRequest) {
+    if (cancelledAuthPreflight && !cancelledControllerRequest) {
       // The refresh request may have reached the bridge before AbortSignal was
       // observed. Terminate any family it could have rotated so Cancel cannot
       // leave resumable server authority behind.
@@ -1293,9 +1577,9 @@ export function FarcasterAuthProviderCore({
   const refreshActiveSession = useCallback(() => {
     const phase = machineRef.current.view.phase;
     if (phase === 'authenticated' || phase === 'pending-admission') {
-      void refreshSession(false);
+      void refreshAuthoritySession(false);
     }
-  }, [refreshSession]);
+  }, [refreshAuthoritySession]);
 
   const restoreSession = useCallback(() => {
     if (
@@ -1308,8 +1592,8 @@ export function FarcasterAuthProviderCore({
     // beginExplicitAuthActivation: an active or unavailable logout-control
     // record stays fail-closed, and a missing cookie never falls through to
     // SIWF channel or QR creation.
-    return refreshSession(false);
-  }, [refreshSession]);
+    return refreshAuthoritySession(false, true);
+  }, [refreshAuthoritySession]);
 
   useEffect(() => {
     const unmountController = controller.mount();
@@ -1331,8 +1615,27 @@ export function FarcasterAuthProviderCore({
     });
     logoutIntentBlocksRefreshRef.current = terminationStatus !== 'absent'
       && terminationStatus !== 'stale';
+    logoutIntentReadyRef.current = true;
     return abortRefresh;
   }, [abortRefresh, deviceSessionEnvironment, now, purgeBearerStorage]);
+
+  useEffect(() => {
+    if (loadQuickAuthToken) return;
+    quickAuthFlightRef.current?.controller.abort();
+    quickAuthFlightRef.current = undefined;
+  }, [loadQuickAuthToken]);
+
+  useEffect(() => {
+    if (
+      !loadQuickAuthToken
+      || !logoutIntentReadyRef.current
+      || logoutIntentBlocksRefreshRef.current
+      || machineRef.current.view.phase !== 'anonymous'
+    ) {
+      return;
+    }
+    void activateQuickAuth(false, true);
+  }, [activateQuickAuth, loadQuickAuthToken]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return undefined;
@@ -1352,7 +1655,7 @@ export function FarcasterAuthProviderCore({
             )
           )
         );
-      if (shouldRefresh) void refreshSession(false);
+      if (shouldRefresh) void refreshAuthoritySession(false);
     };
     window.addEventListener('focus', reconcile);
     window.addEventListener('pageshow', reconcile);
@@ -1362,30 +1665,35 @@ export function FarcasterAuthProviderCore({
       window.removeEventListener('pageshow', reconcile);
       document.removeEventListener('visibilitychange', reconcile);
     };
-  }, [now, refreshSession]);
+  }, [now, refreshAuthoritySession]);
 
   useEffect(() => {
     if (!oidcSession || typeof window === 'undefined') return undefined;
     const currentTime = readProviderNow(now);
     if (currentTime === undefined || currentTime >= oidcSession.expiresAt) {
       clearInMemoryAuthoritativeSession();
-      void refreshSession(true);
+      void refreshAuthoritySession(true);
       return undefined;
     }
     const refreshDelay = Math.max(0, oidcSession.expiresAt - currentTime - ACCESS_REFRESH_LEAD_MS);
     const expiryDelay = oidcSession.expiresAt - currentTime;
     const refreshTimer = window.setTimeout(() => {
-      void refreshSession(false);
+      void refreshAuthoritySession(false);
     }, Math.min(refreshDelay, MAX_BROWSER_TIMER_DELAY_MS));
     const expiryTimer = window.setTimeout(() => {
       clearInMemoryAuthoritativeSession();
-      void refreshSession(true);
+      void refreshAuthoritySession(true);
     }, Math.min(expiryDelay, MAX_BROWSER_TIMER_DELAY_MS));
     return () => {
       window.clearTimeout(refreshTimer);
       window.clearTimeout(expiryTimer);
     };
-  }, [clearInMemoryAuthoritativeSession, now, oidcSession, refreshSession]);
+  }, [
+    clearInMemoryAuthoritativeSession,
+    now,
+    oidcSession,
+    refreshAuthoritySession
+  ]);
 
   useEffect(() => {
     const current = machine.view;
@@ -1400,7 +1708,7 @@ export function FarcasterAuthProviderCore({
       const delay = currentTime === undefined ? Number.NaN : sessionExpiresAt - currentTime;
       if (!Number.isFinite(delay) || delay <= 0) {
         const latest = machineRef.current;
-        clearLocalAuthoritativeSession(true);
+        clearLocalAuthoritativeSession(!loadQuickAuthToken);
         if (latest.view.phase === 'authenticated' || latest.view.phase === 'pending-admission') {
           dispatch({ type: 'sign-out', generation: latest.generation });
         }
@@ -1412,7 +1720,7 @@ export function FarcasterAuthProviderCore({
     return () => {
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [clearLocalAuthoritativeSession, machine.view, now]);
+  }, [clearLocalAuthoritativeSession, loadQuickAuthToken, machine.view, now]);
 
   useEffect(() => {
     const controlKey = getFarcasterDeviceSessionControlKey(deviceSessionEnvironment?.basePath);

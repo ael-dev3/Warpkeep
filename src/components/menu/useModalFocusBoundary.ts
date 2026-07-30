@@ -45,6 +45,8 @@ export type ModalFocusBoundaryOptions<T extends HTMLElement> = Readonly<{
   dialogRef: ElementRef<T>;
   initialFocusRef: ElementRef<HTMLElement>;
   onEscape: () => void;
+  /** Enables the boundary only for a genuine modal subtask. */
+  active?: boolean;
 }>;
 
 /**
@@ -54,13 +56,16 @@ export type ModalFocusBoundaryOptions<T extends HTMLElement> = Readonly<{
 export function useModalFocusBoundary<T extends HTMLElement>({
   dialogRef,
   initialFocusRef,
-  onEscape
+  onEscape,
+  active = true
 }: ModalFocusBoundaryOptions<T>) {
   useEffect(() => {
+    if (!active) return;
     initialFocusRef.current?.focus({ preventScroll: true });
-  }, [initialFocusRef]);
+  }, [active, initialFocusRef]);
 
   useEffect(() => {
+    if (!active) return undefined;
     const handleKeyDown = (event: KeyboardEvent) => {
       const dialog = dialogRef.current;
       if (!dialog) return;
@@ -107,5 +112,5 @@ export function useModalFocusBoundary<T extends HTMLElement>({
 
     document.addEventListener('keydown', handleKeyDown, true);
     return () => document.removeEventListener('keydown', handleKeyDown, true);
-  }, [dialogRef, initialFocusRef, onEscape]);
+  }, [active, dialogRef, initialFocusRef, onEscape]);
 }

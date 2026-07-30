@@ -1,4 +1,5 @@
 import { createSiweMessage } from 'viem/siwe'
+import { Errors as QuickAuthErrors } from '@farcaster/quick-auth'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   FARCASTER_VERIFICATION_TIMEOUT_MILLISECONDS,
@@ -8,7 +9,7 @@ import {
   type AuthBridgeDependencies,
 } from '../src/app'
 import { MemoryChallengeStore } from '../src/challengeStore'
-import { PRODUCTION_SPACETIMEDB_DATABASE } from '../src/config'
+import { PLAYER_TOKEN_TTL_SECONDS, PRODUCTION_SPACETIMEDB_DATABASE } from '../src/config'
 import { FarcasterVerifierUnavailableError } from '../src/farcaster'
 import { qaObserverKeyThumbprint } from '../src/qaObserver'
 import { MemorySessionFamilyStore } from '../src/sessionFamily'
@@ -21,6 +22,7 @@ import type {
   ChallengeRecord,
   ChallengeStore,
   FarcasterVerifier,
+  QuickAuthVerifier,
   RateLimiter,
   SafeLogEvent,
   SessionFamilyStore,
@@ -31,6 +33,19 @@ const ORIGIN = 'https://warpkeep.example'
 const DOMAIN = 'warpkeep.example'
 const SIWE_URI = 'https://warpkeep.example/Warpkeep/'
 const FID = '12345'
+const QUICK_AUTH_ORIGIN = 'https://warpkeep.com'
+const QUICK_AUTH_DOMAIN = 'warpkeep.com'
+const QUICK_AUTH_ISSUER = 'https://auth.farcaster.xyz'
+const QUICK_AUTH_PATH = '/v2/farcaster/quick-auth/exchange'
+const syntheticQuickAuthSegment = (value: object) => btoa(JSON.stringify(value))
+  .replaceAll('+', '-')
+  .replaceAll('/', '_')
+  .replace(/=+$/u, '')
+const QUICK_AUTH_TOKEN = [
+  syntheticQuickAuthSegment({ alg: 'ES256' }),
+  syntheticQuickAuthSegment({ sub: 12_345 }),
+  'signature',
+].join('.')
 const ADMIN_SECRET = 'TEST_ONLY_ADMIN_SECRET_'.repeat(2)
 const SESSION_COOKIE_KEY = 'TEST_ONLY_SESSION_COOKIE_KEY_'.repeat(2)
 const SERVER_ONLY_ADMIN_PATHS = [
@@ -104,6 +119,7 @@ function responseCookie(response: Response): string {
 interface Harness {
   app: ReturnType<typeof createAuthBridge>
   verifier: FarcasterVerifier & { verify: ReturnType<typeof vi.fn> }
+  quickAuthVerifier: QuickAuthVerifier & { verifyJwt: ReturnType<typeof vi.fn> }
   resolver: AuthEpochResolver & { resolve: ReturnType<typeof vi.fn> }
   sessionStore: SessionFamilyStore
   events: SafeLogEvent[]
@@ -114,13 +130,24 @@ function harness(options: {
   epoch?: number
   resolver?: AuthEpochResolver
   verifier?: FarcasterVerifier
+  quickAuthVerifier?: QuickAuthVerifier
   rateLimiter?: RateLimiter
   signer?: AuthBridgeDependencies['signer']
   challengeStore?: ChallengeStore
   sessionFamilyStore?: SessionFamilyStore
 } = {}): Harness {
+  let now = Date.now()
   const verifier = options.verifier ?? {
     verify: vi.fn(async () => ({ fid: FID })),
+  }
+  const quickAuthVerifier = options.quickAuthVerifier ?? {
+    verifyJwt: vi.fn(async () => ({
+      sub: Number(FID),
+      iss: QUICK_AUTH_ISSUER,
+      aud: QUICK_AUTH_DOMAIN,
+      iat: Math.floor(now / 1_000) - 1,
+      exp: Math.floor(now / 1_000) + 300,
+    })),
   }
   const resolver = options.resolver ?? {
     resolve: vi.fn(async () => (options.epoch ?? 7) === 0
@@ -129,10 +156,10 @@ function harness(options: {
   }
   const events: SafeLogEvent[] = []
   const sessionStore = options.sessionFamilyStore ?? new MemorySessionFamilyStore()
-  let now = Date.now()
   const app = createAuthBridge({
     challengeStore: options.challengeStore ?? new MemoryChallengeStore(),
     verifier,
+    quickAuthVerifier,
     authEpochResolver: resolver,
     sessionFamilyStore: sessionStore,
     rateLimiter: options.rateLimiter ?? { check: async () => ({ allowed: true }) },
@@ -143,11 +170,24 @@ function harness(options: {
   return {
     app,
     verifier: verifier as Harness['verifier'],
+    quickAuthVerifier: quickAuthVerifier as Harness['quickAuthVerifier'],
     resolver: resolver as Harness['resolver'],
     sessionStore,
     events,
     setNow(value) { now = value },
   }
+}
+
+function quickAuthRequest(
+  token: string | null = QUICK_AUTH_TOKEN,
+  body: unknown = {},
+  init: RequestInit = {},
+  path = QUICK_AUTH_PATH,
+): Request {
+  const headers = new Headers(init.headers)
+  if (!headers.has('origin')) headers.set('origin', QUICK_AUTH_ORIGIN)
+  if (token !== null && !headers.has('authorization')) headers.set('authorization', `Bearer ${token}`)
+  return request(path, body, { ...init, headers })
 }
 
 async function issueChallenge(h: Harness): Promise<Record<string, unknown>> {
@@ -1144,6 +1184,12 @@ describe('Warpkeep auth bridge', () => {
       profile: 'warpkeep-auth-v2',
       farcasterRpcEndpointFingerprints,
       signingPublicKeyThumbprint,
+      quickAuthIssuer: 'https://auth.farcaster.xyz',
+      quickAuthDomain: 'warpkeep.com',
+      quickAuthBrowserOrigin: 'https://warpkeep.com',
+      quickAuthExchangePath: '/v2/farcaster/quick-auth/exchange',
+      quickAuthVerifierPackage: '@farcaster/quick-auth@0.0.8',
+      quickAuthMaxTokenBytes: 8 * 1024,
       publicAuthEnabled: true,
       qaObserverEnabled: false,
       qaObserverSpacetimeDbUri: null,
@@ -1182,6 +1228,12 @@ describe('Warpkeep auth bridge', () => {
       qaSnapshotProcedure: 'qa_observer_get_realm_attestation_v2',
       environment: 'production',
       browserBinding: 'S256',
+      quickAuthIssuer: 'https://auth.farcaster.xyz',
+      quickAuthDomain: 'warpkeep.com',
+      quickAuthBrowserOrigin: 'https://warpkeep.com',
+      quickAuthExchangePath: '/v2/farcaster/quick-auth/exchange',
+      quickAuthVerifierPackage: '@farcaster/quick-auth@0.0.8',
+      quickAuthMaxTokenBytes: 8 * 1024,
       accessTokenTtlSeconds: 600,
       authEpochResolverTokenTtlSeconds: 15,
       authEpochResolverTimeoutMilliseconds: 5_000,
@@ -2077,5 +2129,341 @@ describe('Warpkeep auth bridge', () => {
       expect(h.events).toContain('internal_error')
     }
     expect(consumeFailure.verifier.verify).not.toHaveBeenCalled()
+  })
+
+  describe('Farcaster Quick Auth exchange', () => {
+    it('exchanges an exact verified bearer for the existing short player JWT without cookies', async () => {
+      const h = harness()
+      const now = 1_800_000_000_000
+      h.setNow(now)
+      const response = await h.app.fetch(quickAuthRequest(
+        QUICK_AUTH_TOKEN,
+        {},
+        { headers: { cookie: '__Host-warpkeep_session=ignored' } },
+      ), env())
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('access-control-allow-origin')).toBe(QUICK_AUTH_ORIGIN)
+      expect(response.headers.has('access-control-allow-credentials')).toBe(false)
+      expect(response.headers.has('set-cookie')).toBe(false)
+      expect(h.quickAuthVerifier.verifyJwt).toHaveBeenCalledOnce()
+      expect(h.quickAuthVerifier.verifyJwt).toHaveBeenCalledWith({
+        token: QUICK_AUTH_TOKEN,
+        domain: QUICK_AUTH_DOMAIN,
+      })
+      expect(h.resolver.resolve).toHaveBeenCalledWith(FID)
+      const body = await json(response)
+      expect(body).toMatchObject({
+        version: 2,
+        identity: { fid: Number(FID) },
+        status: 'authorized',
+        tokenType: 'spacetime-access',
+        accessExpiresAt: now + PLAYER_TOKEN_TTL_SECONDS * 1_000,
+      })
+      expect(body).not.toHaveProperty('sessionExpiresAt')
+      const claims = decodeJwtPayload(String(body.accessToken))
+      expect(claims).toMatchObject({
+        iss: 'https://auth.warpkeep.example',
+        sub: `farcaster:${FID}`,
+        aud: ['warpkeep-spacetimedb'],
+        fid: FID,
+        token_type: 'spacetime-access',
+        auth_version: 2,
+        auth_epoch: 7,
+        roles: [],
+        iat: Math.floor(now / 1_000),
+        nbf: Math.floor(now / 1_000),
+        exp: Math.floor(now / 1_000) + PLAYER_TOKEN_TTL_SECONDS,
+        session_iat: Math.floor(now / 1_000),
+        session_exp: Math.floor(now / 1_000) + PLAYER_TOKEN_TTL_SECONDS,
+      })
+      expect(claims).not.toHaveProperty('username')
+      expect(claims).not.toHaveProperty('pfp_url')
+      expect(h.events).toContain('auth_epoch_resolved')
+      expect(h.events).toContain('quick_auth_succeeded')
+      expect(h.events).not.toContain('session_created')
+    })
+
+    it('returns cookie-free pending semantics and fails closed for a disabled FID', async () => {
+      const pending = harness({ epoch: 0 })
+      const pendingResponse = await pending.app.fetch(quickAuthRequest(), env())
+      expect(pendingResponse.status).toBe(200)
+      await expect(pendingResponse.json()).resolves.toEqual({
+        version: 2,
+        identity: { fid: Number(FID) },
+        status: 'pending-admission',
+      })
+      expect(pendingResponse.headers.has('set-cookie')).toBe(false)
+      expect(pendingResponse.headers.has('access-control-allow-credentials')).toBe(false)
+
+      const disabled = harness({
+        resolver: { resolve: vi.fn(async () => ({ state: 'disabled', authEpoch: 0 } as const)) },
+      })
+      const disabledResponse = await disabled.app.fetch(quickAuthRequest(), env())
+      expect(disabledResponse.status).toBe(403)
+      await expect(disabledResponse.json()).resolves.toEqual({
+        error: {
+          code: 'quick_auth_not_authorized',
+          message: 'This Farcaster identity is not authorized.',
+        },
+      })
+      expect(disabledResponse.headers.has('set-cookie')).toBe(false)
+      expect(disabled.events).toContain('quick_auth_rejected')
+    })
+
+    it.each([
+      ['missing', null, undefined],
+      ['wrong scheme', null, 'Basic abc.def.ghi'],
+      ['empty bearer', null, 'Bearer '],
+      ['not a compact JWT', null, 'Bearer abc.def'],
+      ['embedded whitespace', null, 'Bearer abc.def.ghi extra'],
+      ['oversized', null, `Bearer ${'a'.repeat(8 * 1024)}.b.c`],
+    ] as const)('rejects a %s Authorization credential generically', async (_label, token, authorization) => {
+      const h = harness()
+      const headers: Record<string, string> = authorization === undefined
+        ? {}
+        : { authorization }
+      const response = await h.app.fetch(quickAuthRequest(token, {}, { headers }), env())
+
+      expect(response.status).toBe(401)
+      await expect(response.json()).resolves.toEqual({
+        error: {
+          code: 'quick_auth_invalid',
+          message: 'Farcaster authentication could not be verified.',
+        },
+      })
+      expect(response.headers.has('set-cookie')).toBe(false)
+      expect(h.quickAuthVerifier.verifyJwt).not.toHaveBeenCalled()
+      expect(h.resolver.resolve).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      ['zero FID', { sub: 0 }],
+      ['fractional FID', { sub: 12345.5 }],
+      ['string FID', { sub: FID }],
+      ['unsafe FID', { sub: Number.MAX_SAFE_INTEGER + 1 }],
+      ['wrong issuer', { iss: 'https://hostile.example' }],
+      ['wrong audience', { aud: 'hostile.example' }],
+      ['array audience', { aud: [QUICK_AUTH_DOMAIN] }],
+      ['future issued-at', { iat: 1_800_000_001 }],
+      ['expired', { exp: 1_800_000_000 }],
+      ['non-increasing lifetime', { iat: 1_799_999_999, exp: 1_799_999_999 }],
+      ['extra claim', { jti: 'caller-supplied' }],
+    ] as const)('rejects verified payloads with %s', async (_label, override) => {
+      const now = 1_800_000_000_000
+      const payload = {
+        sub: Number(FID),
+        iss: QUICK_AUTH_ISSUER,
+        aud: QUICK_AUTH_DOMAIN,
+        iat: 1_799_999_999,
+        exp: 1_800_000_300,
+        ...override,
+      }
+      const verifyJwt = vi.fn(async () => payload)
+      const h = harness({ quickAuthVerifier: { verifyJwt } })
+      h.setNow(now)
+      const response = await h.app.fetch(quickAuthRequest(), env())
+
+      expect(response.status).toBe(401)
+      await expect(response.json()).resolves.toMatchObject({
+        error: { code: 'quick_auth_invalid' },
+      })
+      expect(verifyJwt).toHaveBeenCalledOnce()
+      expect(h.resolver.resolve).not.toHaveBeenCalled()
+      expect(response.headers.has('set-cookie')).toBe(false)
+    })
+
+    it('maps verifier outages to a retryable generic response without exposing details', async () => {
+      const privateFailure = `${QUICK_AUTH_TOKEN}: private verifier detail`
+      const verifyJwt = vi.fn(async () => { throw new Error(privateFailure) })
+      const h = harness({ quickAuthVerifier: { verifyJwt } })
+      const response = await h.app.fetch(quickAuthRequest(), env())
+      const responseText = await response.text()
+
+      expect(response.status).toBe(503)
+      expect(responseText).toContain('verification_unavailable')
+      expect(responseText).not.toContain(QUICK_AUTH_TOKEN)
+      expect(responseText).not.toContain('private verifier detail')
+      expect(JSON.stringify(h.events)).not.toContain(QUICK_AUTH_TOKEN)
+      expect(JSON.stringify(h.events)).not.toContain('private verifier detail')
+      expect(h.events).toContain('quick_auth_verifier_unavailable')
+      expect(h.events).toContain('quick_auth_rejected')
+      expect(h.resolver.resolve).not.toHaveBeenCalled()
+      expect(response.headers.has('set-cookie')).toBe(false)
+    })
+
+    it('bounds a stalled Quick Auth verifier without reaching admission authority', async () => {
+      let markVerificationStarted!: () => void
+      const verificationStarted = new Promise<void>((resolve) => {
+        markVerificationStarted = resolve
+      })
+      const verifyJwt = vi.fn(async () => {
+        markVerificationStarted()
+        return new Promise<never>(() => undefined)
+      })
+      const h = harness({ quickAuthVerifier: { verifyJwt } })
+
+      vi.useFakeTimers()
+      try {
+        const pending = h.app.fetch(quickAuthRequest(), env())
+        await verificationStarted
+        await vi.advanceTimersByTimeAsync(FARCASTER_VERIFICATION_TIMEOUT_MILLISECONDS)
+
+        const unavailable = await pending
+        expect(unavailable.status).toBe(503)
+        await expect(unavailable.json()).resolves.toEqual({
+          error: {
+            code: 'verification_unavailable',
+            message: 'Farcaster authentication is temporarily unavailable.',
+          },
+        })
+        expect(verifyJwt).toHaveBeenCalledOnce()
+        expect(h.resolver.resolve).not.toHaveBeenCalled()
+        expect(h.events).toContain('quick_auth_verifier_unavailable')
+        expect(h.events).toContain('quick_auth_rejected')
+        expect(unavailable.headers.has('set-cookie')).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('maps an invalid Quick Auth JWT to the same non-retryable credential response', async () => {
+      const verifyJwt = vi.fn(async () => {
+        throw new QuickAuthErrors.InvalidTokenError('private invalid-token detail')
+      })
+      const h = harness({ quickAuthVerifier: { verifyJwt } })
+      const response = await h.app.fetch(quickAuthRequest(), env())
+      const responseText = await response.text()
+
+      expect(response.status).toBe(401)
+      expect(responseText).toContain('quick_auth_invalid')
+      expect(responseText).not.toContain('private invalid-token detail')
+      expect(h.events).not.toContain('quick_auth_verifier_unavailable')
+      expect(h.events).toContain('quick_auth_rejected')
+      expect(h.resolver.resolve).not.toHaveBeenCalled()
+      expect(response.headers.has('set-cookie')).toBe(false)
+    })
+
+    it('accepts only an empty JSON object and rejects every query before verification', async () => {
+      const h = harness()
+      const extraBody = await h.app.fetch(quickAuthRequest(QUICK_AUTH_TOKEN, {
+        fid: Number(FID),
+      }), env())
+      expect(extraBody.status).toBe(400)
+      await expect(extraBody.json()).resolves.toMatchObject({ error: { code: 'invalid_request' } })
+
+      const query = await h.app.fetch(quickAuthRequest(
+        QUICK_AUTH_TOKEN,
+        {},
+        {},
+        `${QUICK_AUTH_PATH}?domain=${QUICK_AUTH_DOMAIN}`,
+      ), env())
+      expect(query.status).toBe(400)
+      await expect(query.json()).resolves.toEqual({
+        error: {
+          code: 'quick_auth_query_not_allowed',
+          message: 'This endpoint does not accept query parameters.',
+        },
+      })
+      expect(h.quickAuthVerifier.verifyJwt).not.toHaveBeenCalled()
+      expect(h.resolver.resolve).not.toHaveBeenCalled()
+    })
+
+    it('uses exact non-credentialed CORS only on the Quick Auth route', async () => {
+      const h = harness()
+      const preflight = await h.app.fetch(request(QUICK_AUTH_PATH, undefined, {
+        method: 'OPTIONS',
+        headers: {
+          origin: QUICK_AUTH_ORIGIN,
+          'access-control-request-method': 'POST',
+          'access-control-request-headers': 'Authorization, Content-Type',
+        },
+      }), env())
+      expect(preflight.status).toBe(204)
+      expect(preflight.headers.get('access-control-allow-origin')).toBe(QUICK_AUTH_ORIGIN)
+      expect(preflight.headers.get('access-control-allow-headers')).toBe('authorization, content-type')
+      expect(preflight.headers.has('access-control-allow-credentials')).toBe(false)
+      expect(preflight.headers.has('set-cookie')).toBe(false)
+      expect(preflight.headers.has('content-type')).toBe(false)
+
+      const hostile = await h.app.fetch(quickAuthRequest(QUICK_AUTH_TOKEN, {}, {
+        headers: { origin: 'https://hostile.example' },
+      }), env())
+      expect(hostile.status).toBe(403)
+      expect(hostile.headers.has('access-control-allow-origin')).toBe(false)
+      expect(h.quickAuthVerifier.verifyJwt).not.toHaveBeenCalled()
+
+      const extraHeader = await h.app.fetch(request(QUICK_AUTH_PATH, undefined, {
+        method: 'OPTIONS',
+        headers: {
+          origin: QUICK_AUTH_ORIGIN,
+          'access-control-request-method': 'POST',
+          'access-control-request-headers': 'authorization, content-type, x-caller-fid',
+        },
+      }), env())
+      expect(extraHeader.status).toBe(403)
+      await expect(extraHeader.json()).resolves.toMatchObject({ error: { code: 'header_not_allowed' } })
+
+      const existingSiwf = await h.app.fetch(request('/v2/farcaster/exchange', undefined, {
+        method: 'OPTIONS',
+        headers: {
+          origin: ORIGIN,
+          'access-control-request-method': 'POST',
+          'access-control-request-headers': 'authorization, content-type',
+        },
+      }), env())
+      expect(existingSiwf.status).toBe(403)
+      expect(existingSiwf.headers.get('access-control-allow-headers')).toBe('content-type')
+      expect(existingSiwf.headers.get('access-control-allow-credentials')).toBe('true')
+    })
+
+    it('rate-limits before verifier work and shares the SIWF exchange action', async () => {
+      const check = vi.fn(async (_request: Request, _action: string) => ({
+        allowed: false as const,
+        retryAfterSeconds: 23,
+      }))
+      const h = harness({ rateLimiter: { check } })
+      const response = await h.app.fetch(quickAuthRequest(), env())
+
+      expect(response.status).toBe(429)
+      expect(response.headers.get('retry-after')).toBe('23')
+      expect(response.headers.get('access-control-allow-origin')).toBe(QUICK_AUTH_ORIGIN)
+      expect(response.headers.has('access-control-allow-credentials')).toBe(false)
+      expect(response.headers.has('set-cookie')).toBe(false)
+      expect(check).toHaveBeenCalledOnce()
+      expect(check.mock.calls[0]?.[1]).toBe('exchange')
+      expect(h.quickAuthVerifier.verifyJwt).not.toHaveBeenCalled()
+      expect(h.resolver.resolve).not.toHaveBeenCalled()
+    })
+
+    it('preserves the public-auth kill switch for Quick Auth', async () => {
+      const h = harness()
+      const response = await h.app.fetch(quickAuthRequest(), env({ PUBLIC_AUTH_ENABLED: 'false' }))
+
+      expect(response.status).toBe(503)
+      await expect(response.json()).resolves.toMatchObject({ error: { code: 'public_auth_paused' } })
+      expect(response.headers.get('access-control-allow-origin')).toBe(QUICK_AUTH_ORIGIN)
+      expect(response.headers.has('access-control-allow-credentials')).toBe(false)
+      expect(h.quickAuthVerifier.verifyJwt).not.toHaveBeenCalled()
+      expect(h.resolver.resolve).not.toHaveBeenCalled()
+    })
+
+    it('fails closed without a token when authoritative admission is unavailable', async () => {
+      const h = harness({
+        resolver: { resolve: vi.fn(async () => { throw new Error('private resolver detail') }) },
+      })
+      const response = await h.app.fetch(quickAuthRequest(), env())
+
+      expect(response.status).toBe(503)
+      await expect(response.json()).resolves.toEqual({
+        error: {
+          code: 'authorization_unavailable',
+          message: 'Authorization is temporarily unavailable.',
+        },
+      })
+      expect(response.headers.has('set-cookie')).toBe(false)
+      expect(h.events).toContain('auth_epoch_failed')
+      expect(h.events).toContain('quick_auth_rejected')
+    })
   })
 })

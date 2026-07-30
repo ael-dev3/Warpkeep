@@ -5,6 +5,7 @@ import {
   type Ref
 } from 'react';
 
+import { useMiniAppHost } from '../../farcaster/miniapp';
 import { CastleProfileAvatar } from './RealmCastleLabels';
 import { RealmRecordField } from './RealmRecordPrimitives';
 import {
@@ -35,6 +36,7 @@ export type CastleInspectionRecord = Readonly<{
   level: number;
   name: string;
   foundedAt?: number;
+  ownerFid?: number;
 }>;
 
 export type CastleInspectionPanelProps = Readonly<{
@@ -43,6 +45,10 @@ export type CastleInspectionPanelProps = Readonly<{
   profile: RealmCastlePublicPresentation;
   own: boolean;
   observer?: boolean;
+  /** Compact and Mini App records are hosted navigation destinations. */
+  hostedDestination?: boolean;
+  /** Returns to the preceding nested destination without moving the camera. */
+  onRequestBack?: () => void;
   onRequestClose: () => void;
   focusTargetRef?: Ref<HTMLButtonElement>;
 }>;
@@ -53,10 +59,15 @@ export function CastleInspectionPanel({
   profile,
   own,
   observer = false,
+  hostedDestination = false,
+  onRequestBack,
   onRequestClose,
   focusTargetRef
 }: CastleInspectionPanelProps) {
+  const dialogRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const miniAppHost = useMiniAppHost();
   const titleId = `${id}-title`;
   const keeperIdentityId = `${id}-keeper-identity`;
   const username = castleProfileLabel(profile);
@@ -70,6 +81,10 @@ export function CastleInspectionPanel({
   const foundedDate = formatPublicRealmDate(castle.foundedAt);
   const keeperName = profile.displayName ?? username;
   const showUsernameUnderName = keeperName !== username;
+  const canUseMiniAppProfile = miniAppHost.isMiniApp
+    && miniAppHost.hasCapability('actions.viewProfile')
+    && Number.isSafeInteger(castle.ownerFid)
+    && (castle.ownerFid ?? 0) > 0;
 
   const setCloseButtonRef = useCallback((element: HTMLButtonElement | null) => {
     closeButtonRef.current = element;
@@ -77,19 +92,34 @@ export function CastleInspectionPanel({
   }, [focusTargetRef]);
 
   useEffect(() => {
-    closeButtonRef.current?.focus({ preventScroll: true });
-  }, [castle.castleId, id]);
+    if (hostedDestination) {
+      headingRef.current?.focus({ preventScroll: true });
+    } else {
+      closeButtonRef.current?.focus({ preventScroll: true });
+    }
+  }, [castle.castleId, hostedDestination, id]);
 
   return (
     <aside
       id={id}
       className="castle-inspection realm-camera-neutral-inspector"
-      role="dialog"
-      aria-modal="false"
+      role={hostedDestination ? 'region' : 'dialog'}
+      aria-modal={hostedDestination ? undefined : false}
       aria-labelledby={titleId}
       aria-describedby={keeperIdentityId}
       data-open="true"
+      ref={dialogRef}
     >
+      {onRequestBack ? (
+        <button
+          className="realm-world-surface-back"
+          onClick={onRequestBack}
+          type="button"
+        >
+          <span aria-hidden="true">‹</span>
+          BACK
+        </button>
+      ) : null}
       <div className="castle-inspection__drawer">
         <header className="castle-inspection__hero">
           <div aria-hidden="true" className="castle-inspection__hero-orbit" />
@@ -116,7 +146,7 @@ export function CastleInspectionPanel({
           </button>
           <div className="castle-inspection__title-lockup">
             <p>{observer ? 'PUBLIC REALM RECORD' : own ? 'YOUR FOUNDED KEEP' : 'FOUNDED KEEP'}</p>
-            <h2 id={titleId}>{castle.name}</h2>
+            <h2 id={titleId} ref={headingRef} tabIndex={-1}>{castle.name}</h2>
           </div>
         </header>
 
@@ -128,7 +158,21 @@ export function CastleInspectionPanel({
               <strong>{keeperName}</strong>
               {showUsernameUnderName ? <span>{username}</span> : null}
             </div>
-            {profileUrl ? (
+            {profileUrl && canUseMiniAppProfile && castle.ownerFid !== undefined ? (
+              <button
+                aria-label="View Farcaster profile"
+                className="castle-inspection__profile-link"
+                onClick={() => {
+                  // A verified Mini App may use only the declared host action.
+                  // Failure stays local; raw browser navigation is reserved
+                  // for ordinary web so a host cannot be bypassed.
+                  void miniAppHost.actions.viewProfile(castle.ownerFid!);
+                }}
+                type="button"
+              >
+                <span aria-hidden="true">↗</span>
+              </button>
+            ) : profileUrl && miniAppHost.state === 'regular-web' ? (
               <a
                 aria-label="View Farcaster profile"
                 className="castle-inspection__profile-link"

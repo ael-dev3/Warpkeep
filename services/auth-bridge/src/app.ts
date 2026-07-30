@@ -1,4 +1,5 @@
 import { parseSiweMessage } from 'viem/siwe'
+import { Errors as QuickAuthErrors, createClient } from '@farcaster/quick-auth'
 import {
   BROWSER_BINDING_METHOD,
   isCanonicalBrowserBindingValue,
@@ -69,6 +70,7 @@ import type {
   FarcasterVerifier,
   PublicIdentity,
   QaObserverChallengeStore,
+  QuickAuthVerifier,
   RateLimitAction,
   RateLimiter,
   SafeLogEvent,
@@ -100,10 +102,16 @@ const CONFIG_ATTESTATION_PATH = '/v1/admin/config-attestation'
 const AUTH_EPOCH_PROBE_FID = '9007199254740991'
 const V2_CHALLENGE_PATH = '/v2/farcaster/challenge'
 const V2_EXCHANGE_PATH = '/v2/farcaster/exchange'
+const V2_QUICK_AUTH_EXCHANGE_PATH = '/v2/farcaster/quick-auth/exchange'
 const V2_REFRESH_PATH = '/v2/session/refresh'
 const V2_LOGOUT_PATH = '/v2/session/logout'
 const LEGACY_CHALLENGE_PATH = '/v1/farcaster/challenge'
 const LEGACY_EXCHANGE_PATH = '/v1/farcaster/exchange'
+const QUICK_AUTH_DOMAIN = 'warpkeep.com'
+const QUICK_AUTH_BROWSER_ORIGIN = 'https://warpkeep.com'
+const QUICK_AUTH_ISSUER = 'https://auth.farcaster.xyz'
+const MAX_QUICK_AUTH_TOKEN_BYTES = 8 * 1024
+const QUICK_AUTH_VERIFIER_PACKAGE = '@farcaster/quick-auth@0.0.8'
 
 const QA_SNAPSHOT_FAILURE_EVENTS: Readonly<Record<QaSnapshotFailureStage, SafeLogEvent>> = Object.freeze({
   signing: 'qa_snapshot_failed_signing',
@@ -141,6 +149,7 @@ class HttpError extends Error {
 export interface AuthBridgeDependencies {
   challengeStore?: ChallengeStore
   verifier?: FarcasterVerifier
+  quickAuthVerifier?: QuickAuthVerifier
   authEpochResolver?: AuthEpochResolver
   sessionFamilyStore?: SessionFamilyStore
   qaChallengeStore?: QaObserverChallengeStore
@@ -192,6 +201,16 @@ function corsHeaders(origin: string, credentials = false): HeadersInit {
   }
 }
 
+function quickAuthCorsHeaders(origin: string): HeadersInit {
+  return {
+    'access-control-allow-origin': origin,
+    'access-control-allow-methods': 'POST, OPTIONS',
+    'access-control-allow-headers': 'authorization, content-type',
+    'access-control-max-age': '600',
+    vary: 'Origin',
+  }
+}
+
 function isCredentialedPath(pathname: string): boolean {
   return pathname === V2_CHALLENGE_PATH
     || pathname === V2_EXCHANGE_PATH
@@ -206,9 +225,25 @@ function publicCorsHeaders(request: Request, config: BridgeConfig, pathname = ne
     : {}
 }
 
+function routeCorsHeaders(request: Request, config: BridgeConfig, pathname = new URL(request.url).pathname): HeadersInit {
+  if (pathname === V2_QUICK_AUTH_EXCHANGE_PATH) {
+    const origin = request.headers.get('origin')
+    return origin === QUICK_AUTH_BROWSER_ORIGIN ? quickAuthCorsHeaders(origin) : {}
+  }
+  return publicCorsHeaders(request, config, pathname)
+}
+
 function requireAllowedBrowserOrigin(request: Request, config: BridgeConfig): string {
   const origin = request.headers.get('origin')
   if (!origin || !config.allowedOrigins.has(origin)) {
+    throw new HttpError(403, 'origin_not_allowed', 'This browser origin is not allowed.')
+  }
+  return origin
+}
+
+function requireQuickAuthBrowserOrigin(request: Request): string {
+  const origin = request.headers.get('origin')
+  if (origin !== QUICK_AUTH_BROWSER_ORIGIN) {
     throw new HttpError(403, 'origin_not_allowed', 'This browser origin is not allowed.')
   }
   return origin
@@ -243,6 +278,7 @@ function isServerOnlyPath(pathname: string): boolean {
 function isPublicAuthPath(pathname: string): boolean {
   return pathname === V2_CHALLENGE_PATH
     || pathname === V2_EXCHANGE_PATH
+    || pathname === V2_QUICK_AUTH_EXCHANGE_PATH
     || pathname === V2_REFRESH_PATH
 }
 
@@ -275,6 +311,23 @@ function allowedPreflight(request: Request, config: BridgeConfig): Response {
   return new Response(null, {
     status: 204,
     headers: emptyResponseHeaders(corsHeaders(origin, isCredentialedPath(new URL(request.url).pathname))),
+  })
+}
+
+function allowedQuickAuthPreflight(request: Request): Response {
+  const origin = requireQuickAuthBrowserOrigin(request)
+  const method = request.headers.get('access-control-request-method')
+  if (method !== 'POST') throw new HttpError(405, 'method_not_allowed', 'Only POST is allowed.')
+  const requestHeaders = request.headers.get('access-control-request-headers')
+  if (requestHeaders) {
+    const headers = requestHeaders.split(',').map((header) => header.trim().toLowerCase()).filter(Boolean)
+    if (headers.some((header) => header !== 'authorization' && header !== 'content-type')) {
+      throw new HttpError(403, 'header_not_allowed', 'This request header is not allowed.')
+    }
+  }
+  return new Response(null, {
+    status: 204,
+    headers: emptyResponseHeaders(quickAuthCorsHeaders(origin)),
   })
 }
 
@@ -380,6 +433,58 @@ function requireExactKeys(value: Record<string, unknown>, allowed: readonly stri
       throw new HttpError(400, 'invalid_request', 'Request contains unsupported fields.')
     }
   }
+}
+
+function invalidQuickAuthCredential(): HttpError {
+  return new HttpError(401, 'quick_auth_invalid', 'Farcaster authentication could not be verified.')
+}
+
+function quickAuthCredential(request: Request): string {
+  const authorization = request.headers.get('authorization')
+  const match = authorization ? /^Bearer ([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/i.exec(authorization) : null
+  if (!match) throw invalidQuickAuthCredential()
+  const token = match[1]
+  const encoded = new TextEncoder().encode(token)
+  try {
+    if (encoded.byteLength > MAX_QUICK_AUTH_TOKEN_BYTES) throw invalidQuickAuthCredential()
+    return token
+  } finally {
+    encoded.fill(0)
+  }
+}
+
+function verifiedQuickAuthClaims(payload: unknown, nowSeconds: number): Readonly<{
+  fid: string
+}> {
+  if (
+    !payload
+    || typeof payload !== 'object'
+    || Array.isArray(payload)
+    || !Number.isSafeInteger(nowSeconds)
+    || nowSeconds < 0
+  ) throw invalidQuickAuthCredential()
+  const claims = payload as Record<string, unknown>
+  const expectedKeys = ['sub', 'iss', 'aud', 'exp', 'iat']
+  if (
+    Object.keys(claims).length !== expectedKeys.length
+    || Object.keys(claims).some((key) => !expectedKeys.includes(key))
+    || typeof claims.sub !== 'number'
+    || !Number.isSafeInteger(claims.sub)
+    || claims.sub <= 0
+    || claims.iss !== QUICK_AUTH_ISSUER
+    || claims.aud !== QUICK_AUTH_DOMAIN
+    || typeof claims.iat !== 'number'
+    || !Number.isSafeInteger(claims.iat)
+    || claims.iat < 0
+    || claims.iat > nowSeconds
+    || typeof claims.exp !== 'number'
+    || !Number.isSafeInteger(claims.exp)
+    || claims.exp <= claims.iat
+    || claims.exp <= nowSeconds
+  ) throw invalidQuickAuthCredential()
+  return Object.freeze({
+    fid: canonicalFid(claims.sub),
+  })
 }
 
 function requireString(value: unknown, name: string, maxLength: number): string {
@@ -743,6 +848,12 @@ async function configurationAttestation(
     qaSnapshotProcedure: SPACETIMEDB_QA_SNAPSHOT_PROCEDURE,
     environment: config.environment,
     browserBinding: 'S256',
+    quickAuthIssuer: QUICK_AUTH_ISSUER,
+    quickAuthDomain: QUICK_AUTH_DOMAIN,
+    quickAuthBrowserOrigin: QUICK_AUTH_BROWSER_ORIGIN,
+    quickAuthExchangePath: V2_QUICK_AUTH_EXCHANGE_PATH,
+    quickAuthVerifierPackage: QUICK_AUTH_VERIFIER_PACKAGE,
+    quickAuthMaxTokenBytes: MAX_QUICK_AUTH_TOKEN_BYTES,
     accessTokenTtlSeconds: PLAYER_TOKEN_TTL_SECONDS,
     authEpochResolverTokenTtlSeconds: INTERNAL_AUTH_EPOCH_RESOLVER_TOKEN_TTL_SECONDS,
     authEpochResolverTimeoutMilliseconds: AUTH_EPOCH_RESOLVER_TIMEOUT_MILLISECONDS,
@@ -858,6 +969,33 @@ function defaultAuthEpochResolver(config: BridgeConfig): AuthEpochResolver {
   })
 }
 
+function defaultQuickAuthVerifier(): QuickAuthVerifier {
+  return {
+    verifyJwt: ({ token }) => createClient().verifyJwt({
+      token,
+      domain: QUICK_AUTH_DOMAIN,
+    }),
+  }
+}
+
+async function verifyQuickAuthWithDeadline(
+  verifier: QuickAuthVerifier,
+  input: Parameters<QuickAuthVerifier['verifyJwt']>[0],
+): Promise<Awaited<ReturnType<QuickAuthVerifier['verifyJwt']>>> {
+  let timeout: ReturnType<typeof setTimeout> | undefined
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timeout = setTimeout(() => {
+      reject(new FarcasterVerifierUnavailableError())
+    }, FARCASTER_VERIFICATION_TIMEOUT_MILLISECONDS)
+  })
+  try {
+    const verification = Promise.resolve().then(() => verifier.verifyJwt(input))
+    return await Promise.race([verification, deadline])
+  } finally {
+    if (timeout !== undefined) clearTimeout(timeout)
+  }
+}
+
 function defaultChallengeStore(env: WorkerEnv): ChallengeStore {
   if (!env.CHALLENGE_REPLAY_GUARD) throw new ConfigurationError()
   return new DurableObjectChallengeStore(env.CHALLENGE_REPLAY_GUARD)
@@ -959,6 +1097,41 @@ async function sessionResponseBody(
     record.identity.fid,
     authEpoch as number,
     ttlSeconds,
+  )
+  const accessToken = await signer(config, claims)
+  return {
+    ...base,
+    status: 'authorized',
+    accessToken,
+    tokenType: 'spacetime-access',
+    accessExpiresAt: claims.exp * 1_000,
+  }
+}
+
+async function quickAuthResponseBody(
+  config: BridgeConfig,
+  signer: typeof signEs256Jwt,
+  fid: string,
+  admission: Exclude<AdmissionResolution, Readonly<{ state: 'disabled'; authEpoch: 0 }>>,
+  issuedAtMilliseconds: number,
+): Promise<Record<string, unknown>> {
+  const identity = browserIdentity({ fid })
+  const base = {
+    version: 2,
+    identity,
+  }
+  if (admission.state === 'missing') {
+    return { ...base, status: 'pending-admission' }
+  }
+  const issuedAt = Math.floor(issuedAtMilliseconds / 1_000)
+  if (!Number.isSafeInteger(issuedAt) || issuedAt < 0) {
+    throw new Error('Invalid signing time.')
+  }
+  const claims = playerClaims(
+    config,
+    issuedAt,
+    fid,
+    admission.authEpoch,
   )
   const accessToken = await signer(config, claims)
   return {
@@ -1072,6 +1245,9 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             'qa_observer_paused',
             'The read-only QA observer is disabled.',
           )
+        }
+        if (request.method === 'OPTIONS' && url.pathname === V2_QUICK_AUTH_EXCHANGE_PATH) {
+          return allowedQuickAuthPreflight(request)
         }
         if (request.method === 'OPTIONS' && isCredentialedPath(url.pathname)) {
           return allowedPreflight(request, config)
@@ -1285,6 +1461,90 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             siweUri: challenge.siweUri,
             expirationTime: new Date(expiresAt).toISOString(),
           }, 201, corsHeaders(origin, true))
+        }
+
+        if (request.method === 'POST' && url.pathname === V2_QUICK_AUTH_EXCHANGE_PATH) {
+          const origin = requireQuickAuthBrowserOrigin(request)
+          if (url.search) {
+            throw new HttpError(400, 'quick_auth_query_not_allowed', 'This endpoint does not accept query parameters.')
+          }
+          // Quick Auth and SIWF share one exchange envelope so callers cannot
+          // double their quota by switching authentication methods.
+          await enforceRateLimit(request, 'exchange', env, dependencies.rateLimiter, logger)
+          requireExactKeys(await parseObjectBody(request), [])
+
+          let token = quickAuthCredential(request)
+          let verifiedPayload: unknown
+          try {
+            verifiedPayload = await verifyQuickAuthWithDeadline(
+              dependencies.quickAuthVerifier ?? defaultQuickAuthVerifier(),
+              {
+                token,
+                domain: QUICK_AUTH_DOMAIN,
+              },
+            )
+          } catch (error) {
+            if (error instanceof QuickAuthErrors.InvalidTokenError) {
+              throw invalidQuickAuthCredential()
+            }
+            logger.event('quick_auth_verifier_unavailable')
+            throw new HttpError(
+              503,
+              'verification_unavailable',
+              'Farcaster authentication is temporarily unavailable.',
+            )
+          } finally {
+            token = ''
+          }
+
+          const verifiedAt = now()
+          if (!Number.isSafeInteger(verifiedAt) || verifiedAt < 0) {
+            throw new HttpError(503, 'verification_unavailable', 'Farcaster authentication is temporarily unavailable.')
+          }
+          const verification = verifiedQuickAuthClaims(verifiedPayload, Math.floor(verifiedAt / 1_000))
+
+          let admission: AdmissionResolution
+          try {
+            admission = requireAdmission(
+              await (dependencies.authEpochResolver ?? defaultAuthEpochResolver(config)).resolve(verification.fid),
+            )
+          } catch (error) {
+            logAuthEpochFailure(logger, error)
+            throw new HttpError(503, 'authorization_unavailable', 'Authorization is temporarily unavailable.')
+          }
+          logger.event('auth_epoch_resolved')
+          if (admission.state === 'disabled') {
+            throw new HttpError(403, 'quick_auth_not_authorized', 'This Farcaster identity is not authorized.')
+          }
+
+          const signingTime = now()
+          if (!Number.isSafeInteger(signingTime) || signingTime < verifiedAt) {
+            throw new HttpError(503, 'signing_unavailable', 'Authentication signing is temporarily unavailable.')
+          }
+          verifiedQuickAuthClaims(verifiedPayload, Math.floor(signingTime / 1_000))
+
+          let responseBody: Record<string, unknown>
+          try {
+            responseBody = await quickAuthResponseBody(
+              config,
+              dependencies.signer ?? signEs256Jwt,
+              verification.fid,
+              admission,
+              signingTime,
+            )
+          } catch (error) {
+            if (error instanceof HttpError) throw error
+            logger.event('configuration_error')
+            throw new HttpError(503, 'signing_unavailable', 'Authentication signing is temporarily unavailable.')
+          }
+
+          const completedAt = now()
+          if (!Number.isSafeInteger(completedAt) || completedAt < signingTime) {
+            throw new HttpError(503, 'signing_unavailable', 'Authentication signing is temporarily unavailable.')
+          }
+          verifiedQuickAuthClaims(verifiedPayload, Math.floor(completedAt / 1_000))
+          logger.event('quick_auth_succeeded')
+          return json(responseBody, 200, quickAuthCorsHeaders(origin))
         }
 
         if (request.method === 'POST' && url.pathname === V2_EXCHANGE_PATH) {
@@ -1631,6 +1891,12 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             digest: attestation.digest,
             farcasterRpcEndpointFingerprints: attestation.farcasterRpcEndpointFingerprints,
             signingPublicKeyThumbprint: attestation.signingPublicKeyThumbprint,
+            quickAuthIssuer: QUICK_AUTH_ISSUER,
+            quickAuthDomain: QUICK_AUTH_DOMAIN,
+            quickAuthBrowserOrigin: QUICK_AUTH_BROWSER_ORIGIN,
+            quickAuthExchangePath: V2_QUICK_AUTH_EXCHANGE_PATH,
+            quickAuthVerifierPackage: QUICK_AUTH_VERIFIER_PACKAGE,
+            quickAuthMaxTokenBytes: MAX_QUICK_AUTH_TOKEN_BYTES,
             publicAuthEnabled: config.publicAuthEnabled,
             qaObserverEnabled: config.qaObserverEnabled,
             qaObserverSpacetimeDbUri: config.qaObserverSpacetimeDb?.uri ?? null,
@@ -1649,16 +1915,17 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
 
         throw new HttpError(404, 'not_found', 'Route not found.')
       } catch (error) {
+        if (url.pathname === V2_QUICK_AUTH_EXCHANGE_PATH) logger.event('quick_auth_rejected')
         if (error instanceof HttpError) {
           if (url.pathname === QA_OBSERVER_CHALLENGE_PATH) logger.event('qa_challenge_rejected')
           if (url.pathname === QA_OBSERVER_SNAPSHOT_PATH) logger.event('qa_snapshot_rejected')
-          return errorResponse(error, isServerOnlyPath(url.pathname) ? {} : publicCorsHeaders(request, config))
+          return errorResponse(error, isServerOnlyPath(url.pathname) ? {} : routeCorsHeaders(request, config))
         }
         if (error instanceof ConfigurationError) {
           logger.event('configuration_error')
           return errorResponse(
             new HttpError(503, 'service_misconfigured', 'Authentication service is not configured.'),
-            isServerOnlyPath(url.pathname) ? {} : publicCorsHeaders(request, config),
+            isServerOnlyPath(url.pathname) ? {} : routeCorsHeaders(request, config),
           )
         }
         // Do not attach `error`, request body, headers, or any request-derived
@@ -1666,7 +1933,7 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
         logger.event('internal_error')
         return errorResponse(
           new HttpError(500, 'internal_error', 'Authentication service failed.'),
-          isServerOnlyPath(url.pathname) ? {} : publicCorsHeaders(request, config),
+          isServerOnlyPath(url.pathname) ? {} : routeCorsHeaders(request, config),
         )
       }
     },

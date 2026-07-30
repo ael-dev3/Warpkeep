@@ -155,7 +155,7 @@ vi.mock('../src/components/realm/loadHegemonyExpeditionAssets', async (importOri
 });
 
 import {
-  createRealmScene,
+  createRealmScene as createInactiveRealmScene,
   REALM_CASTLE_READABILITY_LIGHTING,
   resolveRealmViewportSize,
   resolveRealmPinchGesture,
@@ -180,6 +180,19 @@ import {
 } from '../src/components/realm/realmWorkerLayer';
 
 type ListenerSpy = ReturnType<typeof vi.spyOn>;
+
+/**
+ * Most direct scene tests model the currently presented canvas. Production
+ * activates presentation explicitly after construction; mirror that boundary
+ * here while replacement-scene tests can mark their slot inactive first.
+ */
+function createRealmScene(options: CreateRealmSceneOptions) {
+  const scene = createInactiveRealmScene(options);
+  if (options.canvas.dataset.realmCanvasActive !== 'false') {
+    scene.setPresentationActive(true);
+  }
+  return scene;
+}
 
 function listenerCalls(spy: ListenerSpy, eventName: string) {
   return spy.mock.calls.filter((call: unknown[]) => call[0] === eventName).length;
@@ -910,7 +923,7 @@ describe('realm scene setup cleanup', () => {
     const sceneHandle = createRealmScene(createOptions(canvas, { reducedMotion: true }));
 
     expect(canvas.dataset.grassPresentation).toBe('unavailable');
-    expect(webglState.instances[0].render).toHaveBeenCalledTimes(2);
+    expect(webglState.instances[0].render).toHaveBeenCalledTimes(3);
     sceneHandle.dispose();
   });
 
@@ -2043,7 +2056,11 @@ describe('realm scene setup cleanup', () => {
     expect(onSelect).not.toHaveBeenCalled();
 
     scene.setPresentationActive(true);
-    expect(canvas.dataset.realmCanvasActive).toBe('true');
+    expect(canvas.dataset.realmCanvasActive).toBe('false');
+    expect(canvas.dataset.realmPresentationActive).toBe('true');
+    expect(ambient.isActive()).toBe(false);
+    canvas.dataset.realmCanvasActive = 'true';
+    scene.setPresentationActive(true);
     expect(ambient.isActive()).toBe(true);
     canvas.dispatchEvent(new WheelEvent('wheel', {
       bubbles: true,

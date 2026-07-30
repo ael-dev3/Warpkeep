@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
 import {
   DEFAULT_GRAPHICS_PREFERENCE,
@@ -40,6 +40,8 @@ export type SettingsPanelProps = Readonly<{
   onAudioMutedChange?: (muted: boolean) => void;
   onChange: (preference: GraphicsPreference) => void;
   onClose: () => void;
+  onCloseToRealm?: () => void;
+  hostedDestination?: boolean;
 }>;
 
 export function SettingsPanel({
@@ -50,27 +52,35 @@ export function SettingsPanel({
   resolvedQuality,
   onAudioMutedChange,
   onChange,
-  onClose
+  onClose,
+  onCloseToRealm,
+  hostedDestination = false
 }: SettingsPanelProps) {
   const dialogRef = useRef<HTMLElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
 
   useModalFocusBoundary({
+    active: !hostedDestination,
     dialogRef,
     initialFocusRef: headingRef,
     onEscape: onClose
   });
+  useEffect(() => {
+    if (hostedDestination) {
+      headingRef.current?.focus({ preventScroll: true });
+    }
+  }, [hostedDestination]);
 
   return (
     <div className="warpkeep-settings" role="presentation">
       <section
         aria-describedby="warpkeep-settings-description"
         aria-labelledby="warpkeep-settings-title"
-        aria-modal="true"
+        aria-modal={hostedDestination ? undefined : true}
         className="warpkeep-settings__panel"
         id={id}
         ref={dialogRef}
-        role="dialog"
+        role={hostedDestination ? 'region' : 'dialog'}
       >
         <header>
           <p>REALM CONFIGURATION</p>
@@ -138,6 +148,9 @@ export function SettingsPanel({
           >
             RESTORE RECOMMENDED DEFAULT
           </button>
+          {onCloseToRealm ? (
+            <button onClick={onCloseToRealm} type="button">CLOSE TO REALM</button>
+          ) : null}
           <button onClick={onClose} type="button">{closeLabel}</button>
         </div>
       </section>

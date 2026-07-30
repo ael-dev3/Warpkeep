@@ -146,6 +146,8 @@ describe('GitHub workflow security policy', () => {
     );
     expect(source).not.toContain('actions/upload-artifact@');
     expect(source).toContain('path: ./dist');
+    expect(source).toContain('include-hidden-files: true');
+    expect(source).toContain('npm run verify:miniapp:release');
   });
 
   it('pins the reviewed Node 24 action generations instead of deprecated Node 20 releases', () => {

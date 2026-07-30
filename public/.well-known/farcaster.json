@@ -1,1 +1,37 @@
-{}
+{
+  "accountAssociation": {
+    "header": "eyJmaWQiOjUzOTg1NCwidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweDdhOUU2OTY1RkNGMWFkMmNmYmZmNjdmMEMwYUExMDJGMERFYTIzZDQifQ",
+    "payload": "eyJkb21haW4iOiJ3YXJwa2VlcC5jb20ifQ",
+    "signature": "XjhCEcXEmSgyG0cd/FxbmuC5W37EJ80EKWVcovvTrpoeDrclraw/8jT6KxcYvMxYr/nrjYYC8z8BGfFo/CLWghw="
+  },
+  "miniapp": {
+    "version": "1",
+    "name": "Warpkeep",
+    "homeUrl": "https://warpkeep.com/?miniApp=true",
+    "iconUrl": "https://warpkeep.com/images/miniapp/warpkeep-icon-1024.png",
+    "splashImageUrl": "https://warpkeep.com/images/miniapp/warpkeep-splash-200.png",
+    "splashBackgroundColor": "#010207",
+    "subtitle": "A persistent strategy realm",
+    "description": "Explore Genesis 001 manage Workers gather resources and return to a persistent keep tied to your Farcaster identity",
+    "screenshotUrls": [
+      "https://warpkeep.com/images/miniapp/warpkeep-portrait-realm-1284x2778.png",
+      "https://warpkeep.com/images/miniapp/warpkeep-portrait-keep-1284x2778.png",
+      "https://warpkeep.com/images/miniapp/warpkeep-portrait-worker-1284x2778.png"
+    ],
+    "primaryCategory": "games",
+    "tags": [
+      "strategy",
+      "fantasy",
+      "persistent",
+      "farcaster",
+      "game"
+    ],
+    "heroImageUrl": "https://warpkeep.com/images/miniapp/warpkeep-hero-1200x630.png",
+    "tagline": "Every FID has a castle",
+    "ogTitle": "Warpkeep",
+    "ogDescription": "A persistent Farcaster strategy realm where every admitted founder has a castle",
+    "ogImageUrl": "https://warpkeep.com/images/miniapp/warpkeep-og-1200x630.png",
+    "noindex": false,
+    "canonicalDomain": "warpkeep.com"
+  }
+}

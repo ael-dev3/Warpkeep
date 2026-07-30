@@ -5,7 +5,7 @@
     <meta
       data-warpkeep-production-csp
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; base-uri 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: https://auth.warpkeep.com https://relay.farcaster.xyz https://mainnet.optimism.io https://maincloud.spacetimedb.com wss://maincloud.spacetimedb.com https://imagedelivery.net https://wrpcd.net https://res.cloudinary.com https://i.imgur.com https://lh3.googleusercontent.com https://i.seadn.io; worker-src 'self' blob:; manifest-src 'none'"
+      content="default-src 'none'; base-uri 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: https://auth.warpkeep.com https://auth.farcaster.xyz https://relay.farcaster.xyz https://mainnet.optimism.io https://maincloud.spacetimedb.com wss://maincloud.spacetimedb.com https://imagedelivery.net https://wrpcd.net https://res.cloudinary.com https://i.imgur.com https://lh3.googleusercontent.com https://i.seadn.io; worker-src 'self' blob:; manifest-src 'none'"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta
@@ -25,6 +25,14 @@
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://warpkeep.com/" />
     <meta property="og:site_name" content="Warpkeep" />
+    <meta
+      property="og:image"
+      content="https://warpkeep.com/images/miniapp/warpkeep-og-1200x630.png"
+    />
+    <meta
+      name="fc:miniapp"
+      content='{"version":"1","imageUrl":"https://warpkeep.com/images/miniapp/warpkeep-embed-1200x800.png","button":{"title":"Enter the Realm","action":{"type":"launch_miniapp","url":"https://warpkeep.com/?miniApp=true","name":"Warpkeep","splashImageUrl":"https://warpkeep.com/images/miniapp/warpkeep-splash-200.png","splashBackgroundColor":"#010207"}}}'
+    />
     <link rel="stylesheet" href="/warpkeep-boot.css" />
     <title>Warpkeep</title>
   </head>

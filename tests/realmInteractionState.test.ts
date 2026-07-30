@@ -261,6 +261,31 @@ describe('realm interaction state', () => {
     });
   });
 
+  it('keeps route-synchronization cleanup focus-neutral', () => {
+    const inspector = realmInteractionReducer(
+      createRealmInteractionState({ q: 0, r: 0 }),
+      {
+        type: 'activate-castle',
+        castleId: 7,
+        coord: { q: -1, r: 1 }
+      }
+    );
+    const inspectorClosed = realmInteractionReducer(inspector, {
+      type: 'sync-close-inspector'
+    });
+    expect(inspectorClosed.inspectorOpen).toBe(false);
+    expect(inspectorClosed.keyboardIntent).toBe(inspector.keyboardIntent);
+
+    const navigator = realmInteractionReducer(inspectorClosed, {
+      type: 'open-navigator'
+    });
+    const navigatorClosed = realmInteractionReducer(navigator, {
+      type: 'sync-close-navigator'
+    });
+    expect(navigatorClosed.navigatorOpen).toBe(false);
+    expect(navigatorClosed.keyboardIntent).toBe(navigator.keyboardIntent);
+  });
+
   it('resolves Escape by closing the inspector before requesting realm exit', () => {
     const active = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
       type: 'activate-castle',

@@ -72,6 +72,27 @@ function pending(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function quickAuthorized(overrides: Record<string, unknown> = {}) {
+  return {
+    version: 2,
+    status: 'authorized',
+    identity,
+    accessToken: createJwt(),
+    tokenType: 'spacetime-access',
+    accessExpiresAt: ACCESS_EXPIRY,
+    ...overrides
+  };
+}
+
+function quickPending(overrides: Record<string, unknown> = {}) {
+  return {
+    version: 2,
+    status: 'pending-admission',
+    identity,
+    ...overrides
+  };
+}
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -251,6 +272,70 @@ describe('Farcaster OIDC bridge v2 client', () => {
     expect(body).not.toHaveProperty('custody');
     expect(body).not.toHaveProperty('signatureParams');
     expect(body).not.toHaveProperty('bindingChallenge');
+  });
+
+  it('exchanges Quick Auth with a bounded bearer and no cookie credentials', async () => {
+    vi.useFakeTimers({ now: NOW });
+    const fetch = createFetch(quickAuthorized(), quickPending());
+    const bridge = createBridge(fetch);
+    const exchangeQuickAuth = bridge.exchangeQuickAuth;
+    expect(exchangeQuickAuth).toBeTypeOf('function');
+    const token = `${'a'.repeat(16)}.${'b'.repeat(24)}.${'c'.repeat(32)}`;
+
+    await expect(exchangeQuickAuth!(token)).resolves.toEqual(
+      quickAuthorized()
+    );
+    await expect(exchangeQuickAuth!(token)).resolves.toEqual(
+      quickPending()
+    );
+
+    for (const [url, init] of vi.mocked(fetch).mock.calls) {
+      expect(String(url)).toBe(
+        'https://auth.warpkeep.example/v2/farcaster/quick-auth/exchange'
+      );
+      expect(init).toMatchObject({
+        method: 'POST',
+        credentials: 'omit',
+        referrerPolicy: 'no-referrer',
+        redirect: 'error',
+        cache: 'no-store',
+        body: '{}'
+      });
+      expect(new Headers(init?.headers).get('authorization')).toBe(
+        `Bearer ${token}`
+      );
+      expect(new Headers(init?.headers).get('cookie')).toBeNull();
+    }
+  });
+
+  it('rejects malformed Quick Auth credentials and response envelopes', async () => {
+    vi.useFakeTimers({ now: NOW });
+    const fetch = createFetch(
+      quickAuthorized({ sessionExpiresAt: SESSION_EXPIRY }),
+      quickPending({ accessToken: 'must-not-pass' }),
+      quickAuthorized({ identity: { fid: FID + 1 } })
+    );
+    const bridge = createBridge(fetch);
+    const exchangeQuickAuth = bridge.exchangeQuickAuth;
+    expect(exchangeQuickAuth).toBeTypeOf('function');
+    const token = `${'a'.repeat(16)}.${'b'.repeat(24)}.${'c'.repeat(32)}`;
+
+    for (const malformed of [
+      '',
+      'not-a-jwt',
+      `a.${'b'.repeat(8 * 1_024)}.c`
+    ]) {
+      await expect(exchangeQuickAuth!(malformed)).rejects
+        .toBeInstanceOf(FarcasterOidcBridgeClientError);
+    }
+    expect(fetch).not.toHaveBeenCalled();
+
+    await expect(exchangeQuickAuth!(token)).rejects
+      .toBeInstanceOf(FarcasterOidcBridgeClientError);
+    await expect(exchangeQuickAuth!(token)).rejects
+      .toBeInstanceOf(FarcasterOidcBridgeClientError);
+    await expect(exchangeQuickAuth!(token)).rejects
+      .toBeInstanceOf(FarcasterOidcBridgeClientError);
   });
 
   it('allows a completed proof exchange to use its bounded 20-second verification window', async () => {

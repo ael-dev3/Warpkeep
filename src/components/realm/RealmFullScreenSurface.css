@@ -1,0 +1,178 @@
+.realm-fullscreen-surface {
+  --realm-surface-gold: #f1d68b;
+  position: fixed;
+  z-index: 30;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: 100%;
+  height: 100vh;
+  height: 100svh;
+  height: 100dvh;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 18% -8%, rgb(111 60 139 / 30%), transparent 35rem),
+    linear-gradient(155deg, #100d16 0%, #08070c 54%, #050509 100%);
+  color: #f7f0df;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  isolation: isolate;
+}
+
+.realm-fullscreen-surface[data-tone="resource"] {
+  --realm-surface-gold: #fff0b1;
+}
+
+.realm-fullscreen-surface__header {
+  position: relative;
+  z-index: 2;
+  padding:
+    max(0.55rem, var(--realm-safe-top, env(safe-area-inset-top)))
+    max(0.65rem, var(--realm-safe-right, env(safe-area-inset-right)))
+    0.65rem
+    max(0.65rem, var(--realm-safe-left, env(safe-area-inset-left)));
+  border-bottom: 1px solid rgb(232 202 129 / 20%);
+  background: rgb(7 6 11 / 96%);
+  box-shadow: 0 0.7rem 1.8rem rgb(0 0 0 / 24%);
+}
+
+.realm-fullscreen-surface__header-grid {
+  display: grid;
+  grid-template-columns: minmax(3.2rem, auto) minmax(0, 1fr) minmax(3.2rem, auto);
+  gap: 0.45rem;
+  align-items: start;
+  width: min(100%, 54rem);
+  margin-inline: auto;
+}
+
+.realm-fullscreen-surface__header button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid rgb(232 202 129 / 24%);
+  border-radius: 0.5rem;
+  background: rgb(255 255 255 / 4%);
+  color: #f7edda;
+  font: 760 0.66rem/1 Inter, ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.realm-fullscreen-surface__back {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.realm-fullscreen-surface__back > span[aria-hidden] {
+  font: 400 1.35rem/1 Georgia, "Times New Roman", serif;
+}
+
+.realm-fullscreen-surface__close {
+  display: inline-flex;
+  gap: 0.25rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.realm-fullscreen-surface__close > span:last-child {
+  font-size: 1.1rem;
+}
+
+.realm-fullscreen-surface__header button:hover,
+.realm-fullscreen-surface__header button:focus-visible {
+  border-color: var(--realm-surface-gold);
+  outline: 2px solid var(--realm-surface-gold);
+  outline-offset: 2px;
+}
+
+.realm-fullscreen-surface__title {
+  min-width: 0;
+  padding-top: 0.08rem;
+  text-align: center;
+}
+
+.realm-fullscreen-surface__title p,
+.realm-fullscreen-surface__title h1,
+.realm-fullscreen-surface__title span {
+  display: block;
+  margin: 0;
+}
+
+.realm-fullscreen-surface__title p {
+  color: #c9a8dc;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.realm-fullscreen-surface__title h1 {
+  margin-top: 0.1rem;
+  overflow-wrap: anywhere;
+  color: var(--realm-surface-gold);
+  font: 500 clamp(1.1rem, 5vw, 1.7rem)/1.08 Georgia, "Times New Roman", serif;
+  letter-spacing: 0.045em;
+}
+
+.realm-fullscreen-surface__title h1:focus {
+  outline: none;
+}
+
+.realm-fullscreen-surface__title span {
+  margin-top: 0.15rem;
+  color: #cfc5d4;
+  font-size: 0.68rem;
+  line-height: 1.25;
+}
+
+.realm-fullscreen-surface__body {
+  width: min(100%, 54rem);
+  box-sizing: border-box;
+  margin-inline: auto;
+  padding:
+    1rem
+    max(0.85rem, var(--realm-safe-right, env(safe-area-inset-right)))
+    max(1.2rem, var(--realm-safe-bottom, env(safe-area-inset-bottom)))
+    max(0.85rem, var(--realm-safe-left, env(safe-area-inset-left)));
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.realm-fullscreen-surface__footer {
+  padding:
+    0.7rem
+    max(0.85rem, var(--realm-safe-right, env(safe-area-inset-right)))
+    max(0.7rem, var(--realm-safe-bottom, env(safe-area-inset-bottom)))
+    max(0.85rem, var(--realm-safe-left, env(safe-area-inset-left)));
+  border-top: 1px solid rgb(232 202 129 / 18%);
+  background: rgb(7 6 11 / 97%);
+}
+
+@media (max-width: 360px) {
+  .realm-fullscreen-surface__header-grid {
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+  }
+
+  .realm-fullscreen-surface__header button {
+    padding-inline: 0.3rem;
+  }
+
+  .realm-fullscreen-surface__header button > span:not([aria-hidden]) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .realm-fullscreen-surface,
+  .realm-fullscreen-surface * {
+    scroll-behavior: auto;
+    transition: none !important;
+  }
+}
+

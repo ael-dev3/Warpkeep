@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useModalFocusBoundary } from '../menu/useModalFocusBoundary';
 import { RealmRecordStatus } from './RealmRecordPrimitives';
@@ -22,8 +22,13 @@ export type WorkerCommandCenterProps = Readonly<{
   recallAllAwaitingAuthority?: boolean;
   onRecallWorker?: (workerId: string) => Promise<void>;
   onRecallAllWorkers?: () => Promise<void>;
-  onSelectWorker: (worker: RealmWorkerPublicPresentation) => void;
+  onSelectWorker: (
+    worker: RealmWorkerPublicPresentation,
+    invoker: HTMLButtonElement
+  ) => void;
   onClose: () => void;
+  onCloseToRealm?: () => void;
+  hostedDestination?: boolean;
 }>;
 
 type PendingCommand = 'all' | string | undefined;
@@ -46,7 +51,9 @@ export function WorkerCommandCenter({
   onRecallWorker,
   onRecallAllWorkers,
   onSelectWorker,
-  onClose
+  onClose,
+  onCloseToRealm,
+  hostedDestination = false
 }: WorkerCommandCenterProps) {
   const dialogRef = useRef<HTMLElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -56,12 +63,18 @@ export function WorkerCommandCenter({
   const available = workerAvailabilityCount(workers);
   const hasRecallableWorker = workers.some(realmWorkerCanRecall);
   useModalFocusBoundary({
+    active: !hostedDestination,
     dialogRef,
     initialFocusRef: headingRef,
     onEscape: () => {
       if (pendingCommand === undefined) onClose();
     }
   });
+  useEffect(() => {
+    if (hostedDestination) {
+      headingRef.current?.focus({ preventScroll: true });
+    }
+  }, [hostedDestination]);
 
   const recall = async (workerId: string) => {
     if (!onRecallWorker || pendingCommand !== undefined) return;
@@ -99,11 +112,11 @@ export function WorkerCommandCenter({
     >
       <section
         aria-labelledby={`${id}-title`}
-        aria-modal="true"
+        aria-modal={hostedDestination ? undefined : true}
         className="worker-command-center"
         id={id}
         ref={dialogRef}
-        role="dialog"
+        role={hostedDestination ? 'region' : 'dialog'}
       >
         <header className="worker-command-center__header">
           <div>
@@ -156,8 +169,9 @@ export function WorkerCommandCenter({
               <li key={worker.workerId}>
                 <button
                   className="worker-command-center__worker"
+                  data-realm-focus-key={`workers:${worker.workerId}`}
                   disabled={pendingCommand !== undefined}
-                  onClick={() => onSelectWorker(worker)}
+                  onClick={(event) => onSelectWorker(worker, event.currentTarget)}
                   type="button"
                 >
                   <span className="worker-command-center__ordinal">{worker.ordinal}</span>
@@ -194,6 +208,15 @@ export function WorkerCommandCenter({
           })}
         </ol>
         <footer className="worker-command-center__footer">
+          {onCloseToRealm ? (
+            <button
+              disabled={pendingCommand !== undefined}
+              onClick={onCloseToRealm}
+              type="button"
+            >
+              CLOSE TO REALM
+            </button>
+          ) : null}
           <button
             aria-describedby={!controlsAvailable && controlsStatus
               ? `${id}-sync-status`

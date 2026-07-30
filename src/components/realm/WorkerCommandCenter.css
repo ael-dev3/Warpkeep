@@ -2,6 +2,10 @@
 .worker-command-center__error{margin:.7rem 0 0;padding:.55rem .65rem;border:1px solid rgb(223 133 120 / 48%);border-radius:.4rem;background:rgb(97 35 38 / 26%);color:#ffd8cf;font-size:.72rem;line-height:1.4}.worker-command-center button:disabled{cursor:default;opacity:.52}
 .worker-command-center__sync{margin:.7rem 0 0;padding:.55rem .65rem;border:1px solid rgb(202 166 236 / 30%);border-radius:.4rem;background:rgb(74 47 93 / 22%);color:#e3d7e9;font-size:.72rem;line-height:1.4}
 
+.worker-command-center__header h2:focus {
+  outline: none;
+}
+
 .worker-command-center__scrim {
   padding-top: max(clamp(4.5rem, 12vh, 7rem), env(safe-area-inset-top));
   padding-right: max(clamp(0.75rem, 3vw, 2rem), env(safe-area-inset-right));

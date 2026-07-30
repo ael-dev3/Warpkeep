@@ -1,0 +1,48 @@
+.realm-terrain-record {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.realm-terrain-record section {
+  padding: 1rem;
+  border: 1px solid rgb(220 195 137 / 20%);
+  border-radius: 0.75rem;
+  background: rgb(255 255 255 / 3%);
+}
+
+.realm-terrain-record h2,
+.realm-terrain-record p {
+  margin: 0;
+}
+
+.realm-terrain-record h2 {
+  color: #c5a1d9;
+  font-size: 0.66rem;
+  letter-spacing: 0.15em;
+}
+
+.realm-terrain-record p {
+  margin-top: 0.45rem;
+  color: #ddd3df;
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+.realm-terrain-record > button {
+  min-height: 44px;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid rgb(240 211 139 / 46%);
+  border-radius: 0.5rem;
+  background: linear-gradient(180deg, #76508a, #3c2949);
+  color: #fff0bf;
+  font-size: 0.7rem;
+  font-weight: 840;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+
+.realm-terrain-record > button:hover,
+.realm-terrain-record > button:focus-visible {
+  outline: 2px solid #f2d58a;
+  outline-offset: 2px;
+}

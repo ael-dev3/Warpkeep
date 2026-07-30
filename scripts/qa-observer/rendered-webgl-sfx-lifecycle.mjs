@@ -270,9 +270,13 @@ async function installRenderedWebglSfxBridge(session) {
           harness.proveRenderedWebglQaOfflineSfxCorpus()
         ),
         openSettings: () => {
-          const settings = document.querySelector(
+          const settings = [...document.querySelectorAll(
             '.realm-profile-menu button[data-command-intent="secondary"]'
-          );
+          )].find((button) => (
+            button instanceof HTMLButtonElement
+            && (button.querySelector('strong')?.textContent ?? '').trim()
+              === 'SETTINGS'
+          ));
           if (!(settings instanceof HTMLButtonElement) || settings.disabled) return false;
           settings.click();
           return true;

@@ -41,6 +41,23 @@ const RESTORE_TIMEOUT_VISIBILITY_EVENT =
   'warpkeep-local-restore-timeout-visibility';
 const REFRESH_ACCESS_EVENT = 'warpkeep-local-refresh-access';
 const VIEWPORT = Object.freeze({ width: 1_440, height: 900 });
+
+export function safeBrowserRuntimeExceptionCode(exceptionDetails) {
+  if (!exceptionDetails || typeof exceptionDetails !== 'object') return '';
+  const description = typeof exceptionDetails.exception?.description === 'string'
+    ? exceptionDetails.exception.description
+    : typeof exceptionDetails.text === 'string'
+      ? exceptionDetails.text
+      : '';
+  const reference = /\bReferenceError: ([A-Za-z_$][A-Za-z0-9_$]{0,63}) is not defined\b/
+    .exec(description);
+  if (reference) return `reference-${reference[1]}`;
+  const invalidRead = /\bTypeError: Cannot read properties of (?:undefined|null) \(reading '([A-Za-z_$][A-Za-z0-9_$]{0,63})'\)/
+    .exec(description);
+  if (invalidRead) return `invalid-read-${invalidRead[1]}`;
+  return 'runtime-exception';
+}
+
 const TITLE_GATEWAY_CASES = Object.freeze([
   Object.freeze({
     id: 'desktop-keyboard',
@@ -1508,6 +1525,13 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
           rejectedRouteCount
         };
       };
+      const realmPresentationIs = (expected) => {
+        const activeCanvas = realm.querySelector(
+          'canvas[data-realm-canvas-active="true"]'
+        );
+        return activeCanvas instanceof HTMLCanvasElement
+          && activeCanvas.getAttribute('data-realm-presentation-active') === expected;
+      };
       const initialDynamicPresentation = readDynamicPresentation();
       if (initialDynamicPresentation === undefined) {
         return { stage: 'dynamic-telemetry-ready' };
@@ -1700,6 +1724,9 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
       const menuAction = (menu, label) => [...menu.querySelectorAll('button')].find(
         (button) => (button.querySelector('strong')?.textContent ?? '').trim() === label
       );
+      const workerFooterAction = (center, label) => [
+        ...center.querySelectorAll('.worker-command-center__footer button')
+      ].find((button) => (button.textContent ?? '').trim() === label);
       const openWorkers = async () => {
         const menu = await openRealmMenu();
         if (!(menu instanceof HTMLElement)) return undefined;
@@ -2367,6 +2394,26 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
       if (!(recallOneCompleted instanceof HTMLOutputElement)) {
         return { stage: 'worker-recall-one-completion' };
       }
+      const currentRecallOneCenter = document.querySelector(
+        '.worker-command-center'
+      );
+      const closeToRealmAfterRecallOne = currentRecallOneCenter instanceof HTMLElement
+        ? workerFooterAction(currentRecallOneCenter, 'CLOSE TO REALM')
+        : undefined;
+      if (
+        !(closeToRealmAfterRecallOne instanceof HTMLButtonElement)
+        || closeToRealmAfterRecallOne.disabled
+      ) return { stage: 'recall-one-close-to-realm' };
+      closeToRealmAfterRecallOne.click();
+      const recallOnePresentationResumed = await waitFor(() => (
+        !document.querySelector('.worker-command-center')
+        && realmPresentationIs('true')
+          ? true
+          : undefined
+      ), 10_000);
+      if (!recallOnePresentationResumed) {
+        return { stage: 'recall-one-presentation-resume' };
+      }
       const recallOneCompletedPresentation = await waitFor(() => {
         const current = readDynamicPresentation();
         return current
@@ -2390,16 +2437,7 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
         return { stage: 'recall-one-completion-scene-lifecycle' };
       }
 
-      const backToMenuForRecallAll = reopenedRecallCenter?.querySelector(
-        'button[aria-label="Back to Realm menu"]'
-      );
-      if (!(backToMenuForRecallAll instanceof HTMLButtonElement)) {
-        return { stage: 'recall-all-menu-return' };
-      }
-      backToMenuForRecallAll.click();
-      const recallAllMenu = await waitFor(() => document.querySelector(
-        '.realm-profile-menu__panel'
-      ));
+      const recallAllMenu = await openRealmMenu();
       if (!(recallAllMenu instanceof HTMLElement)) {
         return { stage: 'recall-all-menu' };
       }
@@ -2455,6 +2493,21 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
       if (!(allReturned instanceof HTMLOutputElement)) {
         return { stage: 'recall-all-completion' };
       }
+      const releasedSites = await waitFor(() => (
+        readyProbe.getAttribute('data-local-fullstack-dispatch-sites')
+          === initialDispatchSiteProjection
+          ? true
+          : undefined
+      ), 10_000);
+      if (!releasedSites) return { stage: 'worker-node-release' };
+      const closeAfterRecallAll = recallAllMenu.querySelector(
+        'button[aria-label="Close Realm menu"]'
+      );
+      if (closeAfterRecallAll instanceof HTMLButtonElement) closeAfterRecallAll.click();
+      if (!await waitFor(() => (
+        !document.querySelector('.realm-profile-menu__panel')
+        && realmPresentationIs('true')
+      ))) return { stage: 'recall-all-menu-close' };
       const returnedDynamicPresentation = await waitFor(() => {
         const current = readDynamicPresentation();
         return current
@@ -2482,20 +2535,6 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
           ...readDynamicPresentation()
         };
       }
-      const releasedSites = await waitFor(() => (
-        readyProbe.getAttribute('data-local-fullstack-dispatch-sites')
-          === initialDispatchSiteProjection
-          ? true
-          : undefined
-      ), 10_000);
-      if (!releasedSites) return { stage: 'worker-node-release' };
-      const closeAfterRecallAll = recallAllMenu.querySelector(
-        'button[aria-label="Close Realm menu"]'
-      );
-      if (closeAfterRecallAll instanceof HTMLButtonElement) closeAfterRecallAll.click();
-      if (!await waitFor(() => (
-        !document.querySelector('.realm-profile-menu__panel')
-      ))) return { stage: 'recall-all-menu-close' };
       await settleLifecycleObservation();
       if (!lifecycleRemainsStable()) {
         return { stage: 'recall-all-completion-scene-lifecycle' };
@@ -2525,8 +2564,9 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
       if (!(reuseRecallCenter instanceof HTMLElement)) {
         return { stage: 'reuse-recall-command-center' };
       }
-      const reuseRecall = reuseRecallCenter.querySelector(
-        '.worker-command-center__footer button'
+      const reuseRecall = workerFooterAction(
+        reuseRecallCenter,
+        'RETURN ALL TO KEEP'
       );
       if (!(reuseRecall instanceof HTMLButtonElement) || reuseRecall.disabled) {
         return { stage: 'reuse-recall-control' };
@@ -2539,6 +2579,33 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
       ), 20_000);
       if (!(reuseReturned instanceof HTMLOutputElement)) {
         return { stage: 'reuse-return-completion' };
+      }
+      const reusedSiteReleasedAgain = await waitFor(() => (
+        readyProbe.getAttribute('data-local-fullstack-dispatch-sites')
+          === initialDispatchSiteProjection
+          ? true
+          : undefined
+      ), 10_000);
+      if (!reusedSiteReleasedAgain) return { stage: 'reuse-node-release' };
+      const currentReuseRecallCenter = document.querySelector(
+        '.worker-command-center'
+      );
+      const closeToRealmAfterReuse = currentReuseRecallCenter instanceof HTMLElement
+        ? workerFooterAction(currentReuseRecallCenter, 'CLOSE TO REALM')
+        : undefined;
+      if (
+        !(closeToRealmAfterReuse instanceof HTMLButtonElement)
+        || closeToRealmAfterReuse.disabled
+      ) return { stage: 'reuse-close-to-realm' };
+      closeToRealmAfterReuse.click();
+      const reusePresentationResumed = await waitFor(() => (
+        !document.querySelector('.worker-command-center')
+        && realmPresentationIs('true')
+          ? true
+          : undefined
+      ), 10_000);
+      if (!reusePresentationResumed) {
+        return { stage: 'reuse-presentation-resume' };
       }
       const restoredDynamicPresentation = await waitFor(() => {
         const current = readDynamicPresentation();
@@ -2565,24 +2632,6 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
           ...readDynamicPresentation()
         };
       }
-      const reusedSiteReleasedAgain = await waitFor(() => (
-        readyProbe.getAttribute('data-local-fullstack-dispatch-sites')
-          === initialDispatchSiteProjection
-          ? true
-          : undefined
-      ), 10_000);
-      if (!reusedSiteReleasedAgain) return { stage: 'reuse-node-release' };
-      const reuseBackToMenu = reuseRecallCenter.querySelector(
-        'button[aria-label="Back to Realm menu"]'
-      );
-      if (reuseBackToMenu instanceof HTMLButtonElement) reuseBackToMenu.click();
-      const reuseMenu = await waitFor(() => document.querySelector(
-        '.realm-profile-menu__panel'
-      ));
-      const reuseCloseMenu = reuseMenu?.querySelector(
-        'button[aria-label="Close Realm menu"]'
-      );
-      if (reuseCloseMenu instanceof HTMLButtonElement) reuseCloseMenu.click();
       await settleLifecycleObservation();
       if (!lifecycleRemainsStable()) return { stage: 'reuse-scene-lifecycle' };
 
@@ -2859,10 +2908,13 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
             : 'invalid';
         }).join('/')})`
       : '';
+    const safeRuntimeException = safeBrowserRuntimeExceptionCode(
+      result?.exceptionDetails
+    );
     throw new LocalFullstackBrowserError(
       `Disposable browser journey failed at ${safeStage}${
         safeAuthorityState || safeSceneState || safeDynamicState
-      }.`
+      }${safeRuntimeException ? ` (${safeRuntimeException})` : ''}.`
     );
   }
   return Object.freeze({ ...value });
@@ -3605,6 +3657,9 @@ async function exercisePersistentWorkerReentry(session, preparedEvidence) {
       const menuAction = (label) => [...realmMenu.querySelectorAll('button')].find(
         (button) => (button.querySelector('strong')?.textContent ?? '').trim() === label
       );
+      const workerFooterAction = (center, label) => [
+        ...center.querySelectorAll('.worker-command-center__footer button')
+      ].find((button) => (button.textContent ?? '').trim() === label);
       const workersButton = menuAction('WORKERS');
       const recallAllMenuButton = menuAction('RECALL ALL TO KEEP');
       if (
@@ -3651,8 +3706,9 @@ async function exercisePersistentWorkerReentry(session, preparedEvidence) {
       const recallButtons = [...commandCenter.querySelectorAll(
         '.worker-command-center__recall'
       )];
-      const recallAll = commandCenter.querySelector(
-        '.worker-command-center__footer button'
+      const recallAll = workerFooterAction(
+        commandCenter,
+        'RETURN ALL TO KEEP'
       );
       if (
         workerRows.length !== 4
@@ -3772,8 +3828,9 @@ async function exercisePersistentWorkerReentry(session, preparedEvidence) {
         const enabledRecallButtons = [...commandCenter.querySelectorAll(
           '.worker-command-center__recall'
         )];
-        const enabledRecallAll = commandCenter.querySelector(
-          '.worker-command-center__footer button'
+        const enabledRecallAll = workerFooterAction(
+          commandCenter,
+          'RETURN ALL TO KEEP'
         );
         const recoveredOccupationEvidence = readOccupationEvidence();
         if (
@@ -3904,8 +3961,9 @@ async function exercisePersistentWorkerReentry(session, preparedEvidence) {
           };
         }
 
-        const recallRemaining = commandCenter.querySelector(
-          '.worker-command-center__footer button'
+        const recallRemaining = workerFooterAction(
+          commandCenter,
+          'RETURN ALL TO KEEP'
         );
         if (!(recallRemaining instanceof HTMLButtonElement) || recallRemaining.disabled) {
           return { stage: 'reentry-recall-all-control' };
@@ -3971,16 +4029,51 @@ async function exercisePersistentWorkerReentry(session, preparedEvidence) {
             canvas,
             'data-realm-worker-visible-route-count'
           );
+          const presentationInactive =
+            canvas.getAttribute('data-realm-presentation-active') === 'false';
           const occupations = readOccupationEvidence();
           return (
             deployed === '0'
             && recallable === '0'
             && workerPresence === 0
-            && visibleRoutes === 0
+            // An opaque full-screen destination deliberately idles rendering.
+            // Its last visual route count may remain frozen until presentation
+            // resumes, but active presentation must already expose zero.
+            && (
+              visibleRoutes === 0
+              || (
+                presentationInactive
+                && Number.isSafeInteger(visibleRoutes)
+                && visibleRoutes >= 0
+                && visibleRoutes <= 4
+              )
+            )
             && occupations.markerCount === 0
           ) ? true : undefined;
         }, 60_000);
-        if (!allReturned) return { stage: 'reentry-recall-completion' };
+        if (!allReturned) {
+          const occupations = readOccupationEvidence();
+          return {
+            stage: 'reentry-recall-completion',
+            deployedWorkerCount: Number(publicReadyProbe.getAttribute(
+              'data-local-fullstack-deployed-workers'
+            )),
+            recallableWorkerCount: Number(publicReadyProbe.getAttribute(
+              'data-local-fullstack-recallable-workers'
+            )),
+            workerPresenceCount: numericAttribute(
+              canvas,
+              'data-realm-worker-presence-count'
+            ),
+            visibleRouteCount: numericAttribute(
+              canvas,
+              'data-realm-worker-visible-route-count'
+            ),
+            occupationMarkerCount: occupations.markerCount,
+            presentationInactive:
+              canvas.getAttribute('data-realm-presentation-active') === 'false'
+          };
+        }
 
         const releasedDispatchProjection = await waitFor(() => {
           const value = publicReadyProbe.getAttribute(
@@ -4433,6 +4526,22 @@ async function exercisePersistentWorkerReentry(session, preparedEvidence) {
             : 'invalid';
         }).join('/')})`
       : '';
+    const safeRecallCompletionState = safeStage === 'reentry-recall-completion'
+      ? ` (counts:${[
+          'deployedWorkerCount',
+          'recallableWorkerCount',
+          'workerPresenceCount',
+          'visibleRouteCount',
+          'occupationMarkerCount'
+        ].map((key) => {
+          const count = value?.[key];
+          return Number.isSafeInteger(count) && count >= 0 && count <= 100
+            ? String(count)
+            : 'invalid';
+        }).join('/')};presentation-inactive:${
+          value?.presentationInactive === true ? 'true' : 'false'
+        })`
+      : '';
     throw new LocalFullstackBrowserError(
       `Disposable persistent Worker re-entry failed at ${safeStage}${
         safeOccupationState
@@ -4440,6 +4549,7 @@ async function exercisePersistentWorkerReentry(session, preparedEvidence) {
           || safeCompletionState
           || safeReconnectState
           || safeReadOnlyMenuState
+          || safeRecallCompletionState
       }.`
     );
   }

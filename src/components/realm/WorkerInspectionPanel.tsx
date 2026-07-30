@@ -49,7 +49,9 @@ export type WorkerInspectionPanelProps = Readonly<{
   awaitingAuthoritativeRecall?: boolean;
   onRecallWorker?: (workerId: string) => Promise<void>;
   onRequestClose: () => void;
+  onCloseToRealm?: () => void;
   focusTargetRef?: Ref<HTMLHeadingElement>;
+  hostedDestination?: boolean;
 }>;
 
 function sanitizeWorkerKeeperProfile(
@@ -101,7 +103,9 @@ export function WorkerInspectionPanel({
   awaitingAuthoritativeRecall = false,
   onRecallWorker,
   onRequestClose,
-  focusTargetRef
+  onCloseToRealm,
+  focusTargetRef,
+  hostedDestination = false
 }: WorkerInspectionPanelProps) {
   const dialogRef = useRef<HTMLElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -142,12 +146,18 @@ export function WorkerInspectionPanel({
   const scheduleRemaining = useRealmRemainingDuration(schedule?.deadlineMicros);
   const locateLabel = worker.status === 'idle' ? 'Locate at Keep' : 'Locate Worker';
   useModalFocusBoundary({
+    active: !hostedDestination,
     dialogRef,
     initialFocusRef: headingRef,
     onEscape: () => {
       if (!commandPending) onRequestClose();
     }
   });
+  useEffect(() => {
+    if (hostedDestination) {
+      headingRef.current?.focus({ preventScroll: true });
+    }
+  }, [hostedDestination, worker.workerId]);
 
   useEffect(() => {
     const commandWorkerId = recallWorkerIdRef.current;
@@ -235,11 +245,11 @@ export function WorkerInspectionPanel({
   return (
     <aside
       aria-labelledby={`${id}-title`}
-      aria-modal="true"
+      aria-modal={hostedDestination ? undefined : true}
       className="worker-inspection realm-camera-neutral-inspector"
       id={id}
       ref={dialogRef}
-      role="dialog"
+      role={hostedDestination ? 'region' : 'dialog'}
     >
       <div aria-hidden="true" className="worker-inspection__art-stage">
         <img
@@ -261,6 +271,17 @@ export function WorkerInspectionPanel({
             onClick={onRequestClose}
             type="button"
           >×</button>
+          {onCloseToRealm ? (
+            <button
+              aria-label="Close to Realm"
+              className="worker-inspection__close-to-realm"
+              disabled={commandPending}
+              onClick={onCloseToRealm}
+              type="button"
+            >
+              CLOSE
+            </button>
+          ) : null}
           <div className="worker-inspection__title-lockup">
             <p>CASTLE WORKER</p>
             <h2 id={`${id}-title`} ref={assignHeadingRef} tabIndex={-1}>{title}</h2>

@@ -18,26 +18,24 @@ describe('latest in-menu patch notes', () => {
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
       releasedOn: '30 JUL 2026',
-      title: 'THE SUNSCOURED SOUTH'
+      title: 'THE REALM IN HAND'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /broad dry transition.*central district.*sand tones.*southern rim/i
+      /compact portrait rail.*keeper portrait.*four resources.*safe areas/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Grass.*shorter.*sparse.*Water.*routes.*keeps.*resource sites/i
+      /Keeps.*Workers.*resources.*Water.*terrain.*Explore.*Settings.*Back/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /north.*founding center.*terrain height.*movement.*resource.*world-authority/i
+      /server-validated Quick Auth.*memory-only.*browser sign-in.*SIWF/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /released to players|deployed to players|public balances|guaranteed rewards/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain(
-      'southern outer Lowlands'
-    );
+    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('Farcaster');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'not a desert terrain kind, climate system, hazard, yield change, or gameplay modifier'
+      'not admission, ownership, balances, Worker authority, terrain, or persistent world rules'
     );
 
     const alpha0324 = getLatestPatchNotes('0.3.24');

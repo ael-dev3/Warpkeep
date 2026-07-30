@@ -10,3 +10,11 @@ condition = "AND"
 regexTarget = "secret"
 regexes = ['''^4a9977d2-c7c4-4d63-8e65-f28f966c0c33$''']
 paths = ['''^tests/warpkeepConnection\.test\.ts$''']
+
+[[allowlists]]
+description = "Public Farcaster custody address inside the signed domain-association header"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+regexes = ['''^0x7a9E6965FCF1ad2cfbff67f0C0aA102F0DEa23d4$''']
+paths = ['''^public/\.well-known/farcaster\.json$''']

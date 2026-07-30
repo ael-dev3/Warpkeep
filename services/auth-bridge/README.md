@@ -1,11 +1,12 @@
 # Warpkeep Farcaster → OIDC bridge
 
-This Cloudflare Worker verifies completed Farcaster SIWF proofs and issues ES256
-OIDC access JWTs for Warpkeep's SpacetimeDB connection. It is isolated from the
-static browser app: browser code never receives a signing key, admin secret,
-Optimism RPC URL, resolver JWT, private Hermes JWT, or Maincloud credential.
+This Cloudflare Worker verifies ordinary-browser Farcaster SIWF proofs and
+Farcaster Mini App Quick Auth bearers, then issues ES256 OIDC access JWTs for
+Warpkeep's SpacetimeDB connection. It is isolated from the static browser app:
+browser code never receives a signing key, admin secret, Optimism RPC URL,
+resolver JWT, private Hermes JWT, or Maincloud credential.
 
-Alpha 0.3.12 uses authentication contract v2 and backend protocol 3. The
+Alpha 0.3.28 uses authentication contract v2 and backend protocol 3. The
 checked-in configuration fails closed: `wrangler.toml` keeps
 `PUBLIC_AUTH_ENABLED = "false"`, while any production enablement is a separate,
 privately recorded operation. World generation and resource features do not
@@ -25,6 +26,7 @@ future rollout step requires exact-head verification and recorded authority.
 | `GET` | `/healthz` | Basic health response. |
 | `POST` | `/v2/farcaster/challenge` | Creates a five-minute, S256-bound SIWF challenge. |
 | `POST` | `/v2/farcaster/exchange` | Verifies SIWF and creates a rotating server-side session family. |
+| `POST` | `/v2/farcaster/quick-auth/exchange` | Verifies an exact-domain Mini App bearer and returns tokenless-pending or short-lived authorized access without a cookie. |
 | `POST` | `/v2/session/refresh` | Rotates the session reference and returns a fresh access token only for an authorized family. |
 | `POST` | `/v2/session/logout` | Revokes the server-side family and expires the cookie; fails closed if durable revocation cannot be confirmed. |
 | `POST` | `/v1/qa/challenge` | Server-only, zero-body 60-second challenge for the one registered read-only QA device. Disabled by default. |
@@ -35,9 +37,12 @@ future rollout step requires exact-head verification and recorded authority.
 
 The legacy public `/v1/farcaster/challenge` and `/v1/farcaster/exchange` routes
 are retired in the local contract and return `410 legacy_auth_retired`; they do
-not fall through to authentication work. The v2 browser routes allow only exact
-`ALLOWED_ORIGINS`, credentialed CORS, and strict request shapes. They never use
-wildcard CORS. JSON bodies are limited to 16 KiB. Server-only admin routes
+not fall through to authentication work. The SIWF/session routes allow only
+exact `ALLOWED_ORIGINS`, credentialed CORS, and strict request shapes. The Quick
+Auth route separately allows exact `https://warpkeep.com` non-credentialed CORS
+with only `authorization, content-type`; it never enables credentials or sets a
+cookie. No route uses wildcard CORS. JSON bodies are limited to 16 KiB.
+Server-only admin routes
 accept only a completed zero-byte stream, validate every present
 `Content-Length`, and cancel on the first body byte. The bridge rejects relay
 secrets such as `channelToken`, custody fields, verification lists, and relay
@@ -60,8 +65,8 @@ may be no more than 366 days after the fixed registration timestamp; the
 boundary is checked again on every QA request so annual owner review cannot be
 bypassed by a stale deployment.
 
-Challenge, exchange, refresh, and server-only credential routes use distributed
-Durable Object rolling windows.
+Challenge, SIWF exchange, Quick Auth exchange, refresh, and server-only
+credential routes use distributed Durable Object rolling windows.
 Browser Origin/no-Origin trust gates run before quota consumption, while the
 limiter still runs before body parsing, proof verification, credential checks,
 or Maincloud work. IPv4 is bucketed per address and IPv6 per routed `/64`;
@@ -192,6 +197,26 @@ browser-readable cookie. Each controller generation owns a separate abort
 signal. Cancel, expiry, logout, retry replacement, and provider unmount abort
 outstanding work and drop private verifier/proof references. Server-side
 one-time use and expiry remain authoritative if bytes have already arrived.
+
+## Mini App Quick Auth contract
+
+`POST /v2/farcaster/quick-auth/exchange` accepts one compact JWT no larger than
+8 KiB in `Authorization: Bearer`, exact body `{}`, no query parameters, and no
+caller identity or profile fields. Pinned `@farcaster/quick-auth@0.0.8`
+verifies the JWT against domain `warpkeep.com`. The Worker then requires exact
+issuer `https://auth.farcaster.xyz`, exact audience `warpkeep.com`, a positive
+safe-integer decimal `sub`, and bounded valid `iat`/`exp` claims before
+resolving admission.
+
+The endpoint reuses the SIWF exchange rate-limit bucket, structured admission
+resolver, positive auth epoch, access-token TTL/claims, and exact
+authorized/pending/disabled semantics. It creates no Durable Object session
+family, reads no session cookie, sets no cookie, and returns no access token for
+pending admission. A definitively invalid bearer returns generic
+`401 quick_auth_invalid`. A verifier, JWKS, or network outage returns retryable
+`503 verification_unavailable`. Static logs contain no bearer, claims, FID,
+upstream response, or failure detail. `PUBLIC_AUTH_ENABLED=false` pauses this
+path before verification.
 
 ## Verification and replay boundary
 
@@ -355,12 +380,13 @@ registration/expiry timestamps, and maximum registration lifetime after
 admin-secret authentication. Each endpoint fingerprint is lowercase hex
 `SHA-256("warpkeep-farcaster-rpc-endpoint-v1\0" + normalizedExactUrl)`, where
 `\0` is one NUL separator; the endpoint URLs themselves are never returned. The
-digest covers those values
-along with issuer, origins, SIWF coordinates, gameplay audience/key/Maincloud
-coordinates, observer coordinates, environment, binding and bounded lifetimes,
-both gates, and exact cookie attributes. Operators must compare it with the
-reviewed expected configuration; it is not a deployment action and reveals no
-secret material.
+digest covers those values along with issuer, origins, SIWF coordinates,
+gameplay audience/key/Maincloud coordinates, Quick Auth
+issuer/domain/browser-origin/exchange-path/verifier-package/token-size bounds,
+observer coordinates, environment, binding and bounded lifetimes, both gates,
+and exact cookie attributes. Operators must compare it with the reviewed
+expected configuration; it is not a deployment action and reveals no secret
+material.
 
 Copy `.dev.vars.example` to untracked `.dev.vars` only for local work and use
 separate development keys. Set real secrets only through approved Cloudflare
@@ -386,8 +412,9 @@ Run `cd services/auth-bridge && pnpm install --frozen-lockfile && pnpm run check
 locally. Run the separate repository-root
 `npm run stdb:verify-additive-migration` command for the loopback-only additive
 module proof; neither check contacts or mutates production. Coverage includes
-S256 binding, challenge replay, structured admission
-validation, FID-only exchange/storage/response/JWT identity, exact v2 claims,
+S256 binding, challenge replay, structured admission validation, Quick Auth
+claim/body/header/CORS/kill-switch boundaries, FID-only
+exchange/storage/response/JWT identity, exact v2 claims,
 pending-without-token responses, cookie integrity and attributes, session-family
 rotation and replay revocation, epoch-change revocation, durable-logout failure,
 default-off persistence intent, logout-tombstone suppression/storage denial,

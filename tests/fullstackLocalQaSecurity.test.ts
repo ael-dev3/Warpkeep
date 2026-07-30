@@ -23,7 +23,7 @@ import { hasUsableWarpkeepBridge } from '../src/spacetime/warpkeepConfig';
 // @ts-expect-error The development-only Vite plugin is an executable ESM module.
 import { LOCAL_FULLSTACK_BOOTSTRAP_MODULE_ID, localFullstackBootstrapVitePlugin } from '../scripts/qa-observer/local-fullstack-bootstrap-vite-plugin.mjs';
 // @ts-expect-error The development-only browser probe is an executable ESM module.
-import { installLocalFullstackSignalCleanup, isAllowedLocalFullstackBrowserUrl } from '../scripts/qa-observer/local-fullstack-browser-probe.mjs';
+import { installLocalFullstackSignalCleanup, isAllowedLocalFullstackBrowserUrl, safeBrowserRuntimeExceptionCode } from '../scripts/qa-observer/local-fullstack-browser-probe.mjs';
 // @ts-expect-error The disposable SpacetimeDB launcher is an executable ESM module.
 import { runDisposableLocalFullstackCli, startDisposableLocalFullstackSpacetime, terminateLocalFullstackProcessGroup } from '../scripts/qa-observer/local-fullstack-spacetime.mjs';
 
@@ -57,6 +57,23 @@ function changedBootstrap(overrides: Record<string, unknown>) {
 function changedPluginBootstrap(overrides: Record<string, unknown>) {
   return { ...VALID_PLUGIN_BOOTSTRAP, ...overrides };
 }
+
+describe('privacy-safe browser runtime diagnostics', () => {
+  it('exposes only bounded exception categories and identifiers', () => {
+    expect(safeBrowserRuntimeExceptionCode({
+      exception: { description: 'ReferenceError: canvas is not defined' },
+    })).toBe('reference-canvas');
+    expect(safeBrowserRuntimeExceptionCode({
+      exception: {
+        description: "TypeError: Cannot read properties of undefined (reading 'status')",
+      },
+    })).toBe('invalid-read-status');
+    expect(safeBrowserRuntimeExceptionCode({
+      exception: { description: 'Error: secret-like diagnostic must stay private' },
+    })).toBe('runtime-exception');
+    expect(safeBrowserRuntimeExceptionCode(undefined)).toBe('');
+  });
+});
 
 function importSpecifiers(source: string) {
   return [
@@ -726,6 +743,27 @@ describe('disposable connected local QA dependency and network boundaries', () =
     );
     expect(browserSource).toContain(
       "stage: 'reentry-recall-all-progress'"
+    );
+    expect(browserSource).toContain(
+      "safeStage === 'reentry-recall-completion'"
+    );
+    expect(browserSource).toContain("'occupationMarkerCount'");
+    expect(browserSource).toContain(
+      "canvas.getAttribute('data-realm-presentation-active') === 'false'"
+    );
+    expect(browserSource.match(
+      /workerFooterAction\(\s*[^,]+,\s*'RETURN ALL TO KEEP'\s*\)/g
+    )).toHaveLength(4);
+    expect(browserSource.match(
+      /document\.querySelector\(\s*'\.worker-command-center'\s*\)/g
+    )?.length).toBeGreaterThanOrEqual(2);
+    expect(browserSource.match(/realmPresentationIs\('true'\)/g)).toHaveLength(3);
+    expect(browserSource.match(/\bprofileTrigger\.click\(\)/g)).toHaveLength(2);
+    expect(browserSource).not.toContain(
+      "&& canvas.getAttribute('data-realm-presentation-active') === 'true'"
+    );
+    expect(browserSource).not.toContain(
+      "querySelector(\n          '.worker-command-center__footer button'"
     );
     expect(browserSource).toContain(
       'value.gatheringRecallConfirmed !== true'

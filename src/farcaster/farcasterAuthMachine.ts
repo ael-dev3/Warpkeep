@@ -377,6 +377,7 @@ export function farcasterAuthMachineReducer(
     case 'session-authorized':
       if (
         (state.view.phase !== 'anonymous'
+          && state.view.phase !== 'creating-channel'
           && state.view.phase !== 'authenticated'
           && state.view.phase !== 'pending-admission')
         || !isCurrentGeneration(state, action.generation)
@@ -401,6 +402,7 @@ export function farcasterAuthMachineReducer(
     case 'session-pending':
       if (
         (state.view.phase !== 'anonymous'
+          && state.view.phase !== 'creating-channel'
           && state.view.phase !== 'authenticated'
           && state.view.phase !== 'pending-admission')
         || !isCurrentGeneration(state, action.generation)

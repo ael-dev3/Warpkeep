@@ -1,0 +1,151 @@
+.realm-resource-balance {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.realm-resource-balance__amount,
+.realm-resource-balance__section,
+.realm-resource-balance__status {
+  padding: 1rem;
+  border: 1px solid rgb(232 202 129 / 20%);
+  border-radius: 0.75rem;
+  background: rgb(255 255 255 / 3%);
+}
+
+.realm-resource-balance__amount {
+  display: grid;
+  min-height: 8rem;
+  align-content: center;
+  justify-items: center;
+  background:
+    radial-gradient(circle at 50% 20%, rgb(133 79 159 / 25%), transparent 70%),
+    rgb(255 255 255 / 3%);
+  text-align: center;
+}
+
+.realm-resource-balance__amount span,
+.realm-resource-balance__section h2,
+.realm-resource-balance__status strong {
+  color: #c7a6da;
+  font-size: 0.65rem;
+  font-weight: 820;
+  letter-spacing: 0.14em;
+}
+
+.realm-resource-balance__amount strong {
+  margin-top: 0.35rem;
+  color: #fff0b1;
+  font: 500 clamp(2rem, 12vw, 3.6rem)/1 Georgia, "Times New Roman", serif;
+  font-variant-numeric: tabular-nums;
+}
+
+.realm-resource-balance__amount small {
+  margin-top: 0.45rem;
+  color: #d8cbdc;
+  font-size: 0.75rem;
+}
+
+.realm-resource-balance__section h2,
+.realm-resource-balance__section p,
+.realm-resource-balance__status p {
+  margin: 0;
+}
+
+.realm-resource-balance__section p,
+.realm-resource-balance__status p {
+  margin-top: 0.45rem;
+  color: #d8cedc;
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+.realm-resource-balance__section ul {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.65rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.realm-resource-balance__section li {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid rgb(232 202 129 / 14%);
+  border-radius: 0.45rem;
+  background: rgb(0 0 0 / 18%);
+}
+
+.realm-resource-balance__section li strong {
+  color: #f1d68b;
+  font-size: 0.78rem;
+}
+
+.realm-resource-balance__section li span {
+  color: #cfc4d2;
+  font-size: 0.72rem;
+  text-transform: capitalize;
+}
+
+.realm-resource-balance__section .realm-resource-balance__sites li {
+  min-height: 0;
+  padding: 0;
+}
+
+.realm-resource-balance__sites button {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.55rem 0.65rem;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.realm-resource-balance__sites button:disabled {
+  cursor: default;
+  opacity: 0.62;
+}
+
+.realm-resource-balance__status {
+  border-color: rgb(190 145 220 / 34%);
+  background: rgb(86 48 106 / 20%);
+}
+
+.realm-resource-balance__status button,
+.realm-resource-balance__actions button {
+  min-height: 44px;
+  margin-top: 0.7rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid rgb(232 202 129 / 34%);
+  border-radius: 0.45rem;
+  background: rgb(92 52 113 / 38%);
+  color: #f7e7b7;
+  font: 800 0.68rem/1.2 Inter, ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.realm-resource-balance__actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.55rem;
+}
+
+.realm-resource-balance__actions button {
+  margin-top: 0;
+}
+
+.realm-resource-balance button:hover,
+.realm-resource-balance button:focus-visible {
+  border-color: #f3d98f;
+  outline: 2px solid #f3d98f;
+  outline-offset: 2px;
+}
