@@ -6,6 +6,7 @@ import {
   type Ref
 } from 'react';
 
+import { useMiniAppHost } from '../../farcaster/miniapp';
 import { HEGEMONY_MAIN_CASTLE } from '../../game/map/hegemonyLandmarks';
 import type { HexCoord } from '../../game/map/hexCoordinates';
 import {
@@ -27,6 +28,7 @@ import {
   type RealmCastlePublicPresentation
 } from './realmCastlePresentation';
 import { CastleProfileAvatar } from './RealmCastleLabels';
+import type { RealmNavigatorResourceSite } from './RealmAccessibilityControls';
 import { RealmRecordStatus } from './RealmRecordPrimitives';
 import {
   REALM_ECONOMIC_RESOURCE_ORDER,
@@ -75,6 +77,8 @@ type RealmHudProps = Readonly<{
   onGraphicsPreferenceChange?: (preference: GraphicsPreference) => void;
   onAudioMutedChange?: (muted: boolean) => void;
   onRequestExplore?: () => void;
+  resourceSites?: readonly RealmNavigatorResourceSite[];
+  onOpenResourceSite?: (site: RealmNavigatorResourceSite) => void;
   activeWagons?: readonly RealmActiveWagonMenuItem[];
   onOpenActiveWagon?: (wagon: RealmActiveWagonMenuItem) => void;
   /** Validated public system-mode signal, independent from graph completeness. */
@@ -470,6 +474,9 @@ type RealmCommandDialogProps = Readonly<{
   recallAllWorkersConfirmed: boolean;
   workerRecallAwaitingAuthority: boolean;
   recallAllWorkersFailed: boolean;
+  keeperLabel: string;
+  keeperProfile: RealmCastlePublicPresentation;
+  hostedDestination: boolean;
   onWorkers?: () => void;
   onRecallAllWorkers?: () => void;
   onRetryWorkerPrivateSync?: () => void;
@@ -479,6 +486,7 @@ type RealmCommandDialogProps = Readonly<{
   onOpenActiveWagon?: (wagon: RealmActiveWagonMenuItem) => void;
   onRecenter: () => void;
   onRequestReturn: () => void;
+  onExitMiniApp?: () => void;
   onSettings: () => void;
 }>;
 
@@ -498,6 +506,9 @@ function RealmCommandDialog({
   recallAllWorkersConfirmed,
   workerRecallAwaitingAuthority,
   recallAllWorkersFailed,
+  keeperLabel,
+  keeperProfile,
+  hostedDestination,
   onWorkers,
   onRecallAllWorkers,
   onRetryWorkerPrivateSync,
@@ -507,33 +518,54 @@ function RealmCommandDialog({
   onOpenActiveWagon,
   onRecenter,
   onRequestReturn,
+  onExitMiniApp,
   onSettings
 }: RealmCommandDialogProps) {
   const dialogRef = useRef<HTMLElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
-  useModalFocusBoundary({ dialogRef, initialFocusRef: headingRef, onEscape: onClose });
+  useModalFocusBoundary({
+    active: !hostedDestination,
+    dialogRef,
+    initialFocusRef: headingRef,
+    onEscape: onClose
+  });
+  useEffect(() => {
+    if (hostedDestination) {
+      headingRef.current?.focus({ preventScroll: true });
+    }
+  }, [hostedDestination]);
 
   return (
     <div
       className="realm-profile-menu"
       role="presentation"
       onPointerDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
+        if (!hostedDestination && event.target === event.currentTarget) onClose();
       }}
     >
       <section
         aria-labelledby={`${id}-title`}
-        aria-modal="true"
+        aria-modal={hostedDestination ? undefined : true}
         className="realm-profile-menu__panel"
         id={id}
         ref={dialogRef}
-        role="dialog"
+        role={hostedDestination ? 'region' : 'dialog'}
       >
         <header>
           <p>PLAYER COMMANDS</p>
           <h2 id={`${id}-title`} ref={headingRef} tabIndex={-1}>REALM MENU</h2>
           <button aria-label="Close Realm menu" onClick={onClose} type="button">×</button>
         </header>
+        <section
+          aria-label="Verified keeper identity"
+          className="realm-profile-menu__identity"
+        >
+          <CastleProfileAvatar profile={keeperProfile} />
+          <div>
+            <span>VERIFIED KEEPER</span>
+            <strong>{keeperLabel}</strong>
+          </div>
+        </section>
         <nav aria-label="Realm menu">
           <button data-command-intent="navigation" onClick={onRecenter} type="button">
             <strong>MY KEEP</strong>
@@ -689,6 +721,16 @@ function RealmCommandDialog({
             <strong>MAIN MENU</strong>
             <span>Leave the Realm view</span>
           </button>
+          {onExitMiniApp ? (
+            <button
+              data-command-intent="exit-miniapp"
+              onClick={onExitMiniApp}
+              type="button"
+            >
+              <strong>EXIT MINI APP</strong>
+              <span>Close Warpkeep in Farcaster</span>
+            </button>
+          ) : null}
         </nav>
       </section>
     </div>
@@ -713,6 +755,8 @@ export function RealmHud({
   onGraphicsPreferenceChange,
   onAudioMutedChange,
   onRequestExplore,
+  resourceSites = [],
+  onOpenResourceSite,
   activeWagons = [],
   onOpenActiveWagon,
   publicWorkerSystemActive = false,
@@ -733,6 +777,7 @@ export function RealmHud({
   chromeMode = 'desktop-web',
   surfaceNavigation
 }: RealmHudProps) {
+  const miniAppHost = useMiniAppHost();
   const [localSurface, setLocalSurface] = useState<RealmMenuSurface>('closed');
   const [localSelectedWorkerId, setLocalSelectedWorkerId] =
     useState<string | undefined>(undefined);
@@ -1181,7 +1226,7 @@ export function RealmHud({
         <button
           aria-controls={controlledSurfaceId}
           aria-expanded={surface !== 'closed'}
-          aria-haspopup="dialog"
+          aria-haspopup={fullscreenDestinations ? undefined : 'dialog'}
           aria-label={`Open Realm menu for ${playerLabel}`}
           className="realm-profile-trigger"
           onClick={() => {
@@ -1245,6 +1290,9 @@ export function RealmHud({
           }
           workerRecallAwaitingAuthority={anyWorkerRecallAwaitingAuthority}
           recallAllWorkersFailed={recallAllWorkersFailed}
+          keeperLabel={playerLabel}
+          keeperProfile={playerProfile}
+          hostedDestination={fullscreenDestinations}
           onClose={closeSurfaces}
           onExplore={() => {
             if (surfaceNavigation) {
@@ -1269,6 +1317,14 @@ export function RealmHud({
           onRequestReturn={surfaceNavigation
             ? onRequestReturn
             : () => closeThen(onRequestReturn)}
+          onExitMiniApp={
+            miniAppHost.isMiniApp
+            && miniAppHost.hasCapability('actions.close')
+              ? () => {
+                  void miniAppHost.actions.close();
+                }
+              : undefined
+          }
           onSettings={() => openSurface({ kind: 'settings' })}
           onWorkers={publicWorkersActive
             ? () => openSurface({ kind: 'workers' })
@@ -1315,6 +1371,7 @@ export function RealmHud({
           roster={privateAuthorityCurrent ? workerRoster : undefined}
           key={`${identity.fid}:worker-command-center`}
           workers={ownedWorkersForUi}
+          hostedDestination={fullscreenDestinations}
         />
       ) : null}
       {publicWorkersActive
@@ -1341,6 +1398,7 @@ export function RealmHud({
           onCloseToRealm={surfaceNavigation?.closeToRealm}
           onRequestClose={backSurface}
           worker={selectedWorker}
+          hostedDestination={fullscreenDestinations}
         />
       ) : null}
 
@@ -1355,6 +1413,7 @@ export function RealmHud({
           onCloseToRealm={surfaceNavigation?.closeToRealm}
           preference={graphicsPreference}
           resolvedQuality={resolvedGraphicsQuality}
+          hostedDestination={fullscreenDestinations}
         />
       ) : null}
 
@@ -1366,6 +1425,8 @@ export function RealmHud({
           onOpenWorkers={publicWorkersActive
             ? () => surfaceNavigation.push({ kind: 'workers' })
             : undefined}
+          resourceSites={resourceSites}
+          onOpenResourceSite={onOpenResourceSite}
           onRetry={workerPrivateSync?.phase === 'failed-localized'
             ? onRetryWorkerPrivateSync
             : undefined}

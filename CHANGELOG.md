@@ -13,6 +13,8 @@ full engineering record.
 - Moved compact keep, Worker, resource, Water, terrain, Explore, and Settings
   records into focused full-screen destinations while preserving camera,
   selection, and the long-lived Realm scene beneath them.
+- Added verified keeper identity, relevant resource-site shortcuts, and
+  capability-aware Farcaster profile and Mini App exit actions.
 - Added exact-domain, server-verified Farcaster Quick Auth without persistent
   browser bearers or cross-site cookies; ordinary browser SIWF remains
   unchanged.

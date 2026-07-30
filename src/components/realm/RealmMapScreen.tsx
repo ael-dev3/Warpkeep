@@ -2143,6 +2143,38 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     pushWorldSurface({ kind: 'resource-site', resource: 'stone', siteId: node.siteId });
   }, [emitWorldSelectionSfx, pushWorldSurface]);
 
+  const openNavigatorResourceSite = useCallback((
+    entry: RealmNavigatorResourceSite
+  ) => {
+    const siteId = entry.key.slice(entry.resource.length + 1);
+    if (entry.resource === 'food') {
+      const node = foodNodesBySiteId.get(siteId);
+      if (node) selectFoodNode(node);
+      return;
+    }
+    if (entry.resource === 'wood') {
+      const node = woodNodesBySiteId.get(siteId);
+      if (node) selectWoodNode(node);
+      return;
+    }
+    if (entry.resource === 'stone') {
+      const node = stoneNodesBySiteId.get(siteId);
+      if (node) selectStoneNode(node);
+      return;
+    }
+    const node = goldNodesBySiteId.get(siteId);
+    if (node) selectGoldNode(node);
+  }, [
+    foodNodesBySiteId,
+    goldNodesBySiteId,
+    selectFoodNode,
+    selectGoldNode,
+    selectStoneNode,
+    selectWoodNode,
+    stoneNodesBySiteId,
+    woodNodesBySiteId
+  ]);
+
   const selectResourceOccupant = useCallback((marker: RealmResourceOccupantMarker) => {
     emitWorldSelectionSfx(
       `${marker.resource}:${marker.siteId}`,
@@ -5070,6 +5102,8 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
               onGraphicsPreferenceChange={onGraphicsPreferenceChange}
               onAudioMutedChange={onAudioMutedChange}
               onRequestExplore={openNavigator}
+              resourceSites={navigatorResourceSites}
+              onOpenResourceSite={openNavigatorResourceSite}
               showDiagnostics={observerMode}
               activeWagons={activeWagons}
               onOpenActiveWagon={openActiveWagon}
@@ -5122,7 +5156,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
               profile={profileRecords.get(inspectorCastle.castleId)!.profile}
               own={!observerMode && inspectorCastle.ownerFid === identity.fid}
               observer={observerMode}
-              modal={fullscreenDestinations}
+              hostedDestination={fullscreenDestinations}
               onRequestBack={fullscreenDestinations && surfaceNavigation.depth > 1
                 ? backSurface
                 : undefined}
@@ -5176,7 +5210,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
                   ? undefined
                   : onDispatchGoldExpedition
               }
-              modal={fullscreenDestinations}
+              hostedDestination={fullscreenDestinations}
               onRequestBack={fullscreenDestinations && surfaceNavigation.depth > 1
                 ? backSurface
                 : undefined}
@@ -5230,7 +5264,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
                   ? undefined
                   : onDispatchFoodExpedition
               }
-              modal={fullscreenDestinations}
+              hostedDestination={fullscreenDestinations}
               onRequestBack={fullscreenDestinations && surfaceNavigation.depth > 1
                 ? backSurface
                 : undefined}
@@ -5284,7 +5318,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
                   ? undefined
                   : onDispatchWoodExpedition
               }
-              modal={fullscreenDestinations}
+              hostedDestination={fullscreenDestinations}
               onRequestBack={fullscreenDestinations && surfaceNavigation.depth > 1
                 ? backSurface
                 : undefined}
@@ -5338,7 +5372,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
                   ? undefined
                   : onDispatchStoneExpedition
               }
-              modal={fullscreenDestinations}
+              hostedDestination={fullscreenDestinations}
               onRequestBack={fullscreenDestinations && surfaceNavigation.depth > 1
                 ? backSurface
                 : undefined}
@@ -5374,6 +5408,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
                 : closeInspectorSurface}
               resourceTargetLabel={inspectorWorkerResourceTargetLabel}
               worker={inspectorWorker}
+              hostedDestination={fullscreenDestinations}
             />
           ) : null}
 
@@ -5383,7 +5418,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
               record={inspectorWater}
               navigation={inspectorWaterNavigation}
               showDiagnostics={observerMode}
-              modal={fullscreenDestinations}
+              hostedDestination={fullscreenDestinations}
               focusTargetRef={inspectorFocusRef}
               onRequestClose={closeInspectorSurface}
               onRequestBack={fullscreenDestinations && surfaceNavigation.depth > 1
@@ -5431,7 +5466,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
             triggerRef={navigatorTriggerRef}
             triggerVisible={observerMode}
             showDiagnostics={observerMode}
-            modal={fullscreenDestinations}
+            hostedDestination={fullscreenDestinations}
             cameraPresets={[
               {
                 id: 'realm',
@@ -5500,6 +5535,10 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
               });
             }}
             onActivateResourceSite={(entry) => {
+              if (fullscreenDestinations) {
+                openNavigatorResourceSite(entry);
+                return;
+              }
               const siteId = entry.key.slice(entry.resource.length + 1);
               const node = entry.resource === 'food'
                 ? foodNodesBySiteId.get(siteId)
@@ -5509,13 +5548,6 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
                     ? stoneNodesBySiteId.get(siteId)
                     : goldNodesBySiteId.get(siteId);
               if (!node) return;
-              if (fullscreenDestinations) {
-                if (entry.resource === 'food') selectFoodNode(node);
-                else if (entry.resource === 'wood') selectWoodNode(node);
-                else if (entry.resource === 'stone') selectStoneNode(node);
-                else selectGoldNode(node);
-                return;
-              }
               queueNavigatorTarget({
                 kind: 'resource-site',
                 resource: entry.resource,

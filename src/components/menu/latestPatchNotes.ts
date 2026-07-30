@@ -13,7 +13,7 @@ const ALPHA_0_3_28_PATCH_NOTES: LatestPatchNotes = Object.freeze({
     'Warpkeep now fits naturally in Farcaster: the Realm remains the whole stage while every record opens as a focused, full-screen destination.',
   highlights: Object.freeze([
     'A compact portrait rail keeps the keeper portrait and four resources within reach, respects host safe areas, and leaves the rest of the viewport to Genesis 001.',
-    'Keeps, Workers, resources, Water, terrain, Explore, and Settings now share one predictable Back path while the camera, selection, and long-lived Realm scene remain where the player left them.',
+    'Keeps, Workers, resources, Water, terrain, Explore, and Settings now share one predictable Back path, with relevant site shortcuts and Farcaster-aware profile actions, while the Realm remains where the player left it.',
     'Verified Mini App entry uses exact-domain server-validated Quick Auth with memory-only access, while ordinary browser sign-in retains its existing bound SIWF session.'
   ]),
   alphaNotice:

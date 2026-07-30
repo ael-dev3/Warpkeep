@@ -45,7 +45,7 @@ export type ModalFocusBoundaryOptions<T extends HTMLElement> = Readonly<{
   dialogRef: ElementRef<T>;
   initialFocusRef: ElementRef<HTMLElement>;
   onEscape: () => void;
-  /** Keeps passive desktop records non-modal while compact records trap focus. */
+  /** Enables the boundary only for a genuine modal subtask. */
   active?: boolean;
 }>;
 

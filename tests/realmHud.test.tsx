@@ -2,6 +2,11 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { RealmHud } from '../src/components/realm/RealmHud';
+import {
+  MiniAppHostProvider,
+  type MiniAppBrowserRuntime,
+  type MiniAppSdk
+} from '../src/farcaster/miniapp';
 import type {
   RealmSurfaceNavigation,
 } from '../src/components/realm/useRealmSurfaceNavigation';
@@ -33,6 +38,43 @@ function commonProps() {
     selectedCell: terrainCell(),
     onRecenterKeep: vi.fn(),
     onRequestReturn: vi.fn()
+  };
+}
+
+function miniAppRuntime(): MiniAppBrowserRuntime {
+  return {
+    search: () => '?miniApp=true',
+    viewport: () => ({ width: 390, height: 844 }),
+    document,
+    getMountedShell: () => document.body,
+    waitForAnimationFrame: async () => {}
+  };
+}
+
+function miniAppSdk(close: () => Promise<void>): MiniAppSdk {
+  return {
+    isInMiniApp: async () => true,
+    context: Promise.resolve({
+      user: {
+        fid: 12_345,
+        username: 'warpkeeper',
+        displayName: 'Warp Keeper',
+        pfpUrl: 'https://images.example/warpkeeper.png'
+      },
+      client: {
+        clientFid: 9_150,
+        added: true,
+        platformType: 'mobile',
+        safeAreaInsets: { top: 12, right: 8, bottom: 14, left: 8 }
+      },
+      features: { haptics: false },
+      location: { type: 'launcher' }
+    }),
+    getCapabilities: async () => ['actions.ready', 'actions.close'],
+    actions: {
+      ready: async () => {},
+      close
+    }
   };
 }
 
@@ -362,6 +404,8 @@ describe('RealmHud', () => {
       .not.toBeNull();
     expect(within(opened.dialog).getByRole('button', { name: /SETTINGS/i })).not.toBeNull();
     expect(within(opened.dialog).getByRole('button', { name: /MAIN MENU/i })).not.toBeNull();
+    expect(within(opened.dialog).getByLabelText('Verified keeper identity').textContent)
+      .toContain('@warpkeeper');
     expect(within(opened.dialog).queryByText(/PATCH NOTES · ALPHA/i)).toBeNull();
     expect(opened.dialog.querySelector('details')).toBeNull();
     expect(opened.dialog.querySelector(
@@ -394,6 +438,44 @@ describe('RealmHud', () => {
     opened = openRealmMenu();
     fireEvent.click(within(opened.dialog).getByRole('button', { name: /MAIN MENU/i }));
     expect(onRequestReturn).toHaveBeenCalledOnce();
+  });
+
+  it('uses hosted navigation semantics and exposes Exit only in a verified Mini App', async () => {
+    const closeMiniApp = vi.fn(async () => {});
+    const surfaceNavigation: RealmSurfaceNavigation = {
+      stack: [{ kind: 'commands' }],
+      current: { kind: 'commands' },
+      depth: 1,
+      push: vi.fn(),
+      replace: vi.fn(),
+      back: vi.fn(),
+      closeToRealm: vi.fn()
+    };
+
+    render(
+      <MiniAppHostProvider
+        runtime={miniAppRuntime()}
+        sdkLoader={async () => miniAppSdk(closeMiniApp)}
+      >
+        <RealmHud
+          {...commonProps()}
+          chromeMode="miniapp"
+          surfaceNavigation={surfaceNavigation}
+        />
+      </MiniAppHostProvider>
+    );
+
+    const destination = screen.getByRole('region', { name: 'REALM MENU' });
+    expect(destination.hasAttribute('aria-modal')).toBe(false);
+    expect(screen.queryByRole('dialog', { name: 'REALM MENU' })).toBeNull();
+    expect(within(destination).getByLabelText('Verified keeper identity').textContent)
+      .toContain('@warpkeeper');
+
+    const exit = await within(destination).findByRole('button', {
+      name: /EXIT MINI APP/i
+    });
+    fireEvent.click(exit);
+    await waitFor(() => expect(closeMiniApp).toHaveBeenCalledOnce());
   });
 
   it('replaces the desktop command history entry when opening Explore', () => {
@@ -1049,6 +1131,78 @@ describe('RealmHud', () => {
       .toContain('hegemony-mark-64.png');
     const { dialog } = openRealmMenu();
     expect(within(dialog).queryByRole('button', { name: /COLLECT YIELD/i })).toBeNull();
+  });
+
+  it('shows bounded available and occupied resource-site shortcuts in hosted resource screens', async () => {
+    const onOpenResourceSite = vi.fn();
+    const surfaceNavigation: RealmSurfaceNavigation = {
+      stack: [{ kind: 'resource-balance', resource: 'wood' }],
+      current: { kind: 'resource-balance', resource: 'wood' },
+      depth: 1,
+      push: vi.fn(),
+      replace: vi.fn(),
+      back: vi.fn(),
+      closeToRealm: vi.fn()
+    };
+    render(
+      <RealmHud
+        {...commonProps()}
+        chromeMode="miniapp"
+        onOpenResourceSite={onOpenResourceSite}
+        resourceSites={[
+          {
+            key: 'wood:wood-1',
+            resource: 'wood',
+            label: 'Logging Camp 1',
+            tier: 1,
+            availability: 'available'
+          },
+          {
+            key: 'wood:wood-2',
+            resource: 'wood',
+            label: 'Logging Camp 2',
+            tier: 2,
+            availability: 'occupied'
+          },
+          {
+            key: 'wood:wood-3',
+            resource: 'wood',
+            label: 'Logging Camp 3',
+            tier: 3,
+            availability: 'unavailable'
+          },
+          {
+            key: 'food:food-1',
+            resource: 'food',
+            label: 'Wheat Farm 1',
+            tier: 1,
+            availability: 'available'
+          }
+        ]}
+        resources={createReadyResourceState()}
+        surfaceNavigation={surfaceNavigation}
+      />
+    );
+
+    const destination = screen.getByRole('region', { name: 'Wood' });
+    expect(destination.hasAttribute('aria-modal')).toBe(false);
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1, name: 'Wood' }))
+        .toBe(document.activeElement);
+    });
+    expect(within(destination).queryByText('Logging Camp 3')).toBeNull();
+    expect(within(destination).queryByText('Wheat Farm 1')).toBeNull();
+    const available = within(destination).getByRole('button', {
+      name: /Logging Camp 1.*Tier 1.*available/i
+    });
+    const occupied = within(destination).getByRole('button', {
+      name: /Logging Camp 2.*Tier 2.*occupied/i
+    });
+    expect(occupied).not.toBeNull();
+    fireEvent.click(available);
+    expect(onOpenResourceSite).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ key: 'wood:wood-1' })
+    );
   });
 
   it('retains numeric same-caller core balances while Worker accrual synchronizes', () => {

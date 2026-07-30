@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useModalFocusBoundary } from '../menu/useModalFocusBoundary';
 import { RealmRecordStatus } from './RealmRecordPrimitives';
@@ -25,6 +25,7 @@ export type WorkerCommandCenterProps = Readonly<{
   onSelectWorker: (worker: RealmWorkerPublicPresentation) => void;
   onClose: () => void;
   onCloseToRealm?: () => void;
+  hostedDestination?: boolean;
 }>;
 
 type PendingCommand = 'all' | string | undefined;
@@ -48,7 +49,8 @@ export function WorkerCommandCenter({
   onRecallAllWorkers,
   onSelectWorker,
   onClose,
-  onCloseToRealm
+  onCloseToRealm,
+  hostedDestination = false
 }: WorkerCommandCenterProps) {
   const dialogRef = useRef<HTMLElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -58,12 +60,18 @@ export function WorkerCommandCenter({
   const available = workerAvailabilityCount(workers);
   const hasRecallableWorker = workers.some(realmWorkerCanRecall);
   useModalFocusBoundary({
+    active: !hostedDestination,
     dialogRef,
     initialFocusRef: headingRef,
     onEscape: () => {
       if (pendingCommand === undefined) onClose();
     }
   });
+  useEffect(() => {
+    if (hostedDestination) {
+      headingRef.current?.focus({ preventScroll: true });
+    }
+  }, [hostedDestination]);
 
   const recall = async (workerId: string) => {
     if (!onRecallWorker || pendingCommand !== undefined) return;
@@ -101,11 +109,11 @@ export function WorkerCommandCenter({
     >
       <section
         aria-labelledby={`${id}-title`}
-        aria-modal="true"
+        aria-modal={hostedDestination ? undefined : true}
         className="worker-command-center"
         id={id}
         ref={dialogRef}
-        role="dialog"
+        role={hostedDestination ? 'region' : 'dialog'}
       >
         <header className="worker-command-center__header">
           <div>

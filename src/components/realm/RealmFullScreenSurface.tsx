@@ -1,10 +1,10 @@
 import {
+  useEffect,
   useId,
   useRef,
   type ReactNode
 } from 'react';
 
-import { useModalFocusBoundary } from '../menu/useModalFocusBoundary';
 import './RealmFullScreenSurface.css';
 
 export type RealmFullScreenSurfaceTone =
@@ -41,24 +41,19 @@ export function RealmFullScreenSurface({
 }>) {
   const generatedId = useId().replace(/:/g, '');
   const titleId = `realm-fullscreen-title-${generatedId}`;
-  const surfaceRef = useRef<HTMLElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
 
-  useModalFocusBoundary({
-    dialogRef: surfaceRef,
-    initialFocusRef: headingRef,
-    onEscape: onBack
-  });
+  useEffect(() => {
+    headingRef.current?.focus({ preventScroll: true });
+  }, [title]);
 
   return (
     <section
       aria-labelledby={titleId}
-      aria-modal="true"
       className="realm-fullscreen-surface"
       data-realm-fullscreen-surface="true"
       data-tone={tone}
-      ref={surfaceRef}
-      role="dialog"
+      role="region"
     >
       <header className="realm-fullscreen-surface__header">
         <div className="realm-fullscreen-surface__header-grid">

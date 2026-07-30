@@ -6667,11 +6667,11 @@ export async function applyRenderedWebglResourceOccupantInteraction(
       const worldMarkerLayer = document.querySelector(
         '.realm-map-screen__world-markers'
       );
-      const expectedRecordModal = map instanceof HTMLElement
+      const hostedRecordDestination = map instanceof HTMLElement
         && map.getAttribute('data-realm-surface-presentation')
-          === 'fullscreen-destination'
-        ? 'true'
-        : 'false';
+          === 'fullscreen-destination';
+      const expectedRecordRole = hostedRecordDestination ? 'region' : 'dialog';
+      const expectedRecordModal = hostedRecordDestination ? null : 'false';
       const markerPresent = map instanceof HTMLElement
         && map.getAttribute('data-presentation-mode') === expectedMode
         && focusedExpected !== undefined
@@ -6955,7 +6955,7 @@ export async function applyRenderedWebglResourceOccupantInteraction(
       const worker = panel?.querySelector('.realm-resource-occupant-details__worker');
       const recordHeaderCorrect = panelReady
         && panel instanceof HTMLElement
-        && panel.getAttribute('role') === 'dialog'
+        && panel.getAttribute('role') === expectedRecordRole
         && panel.getAttribute('aria-modal') === expectedRecordModal
         && (panel.querySelector('.realm-resource-occupant-details__record span')?.textContent ?? '').trim()
           === 'PUBLIC EXPEDITION RECORD'
@@ -7221,7 +7221,7 @@ export async function applyRenderedWebglResourceOccupantInteraction(
       const overviewRecordCorrect = overviewPanelReady
         && overviewExpected !== undefined
         && overviewPanel instanceof HTMLElement
-        && overviewPanel.getAttribute('role') === 'dialog'
+        && overviewPanel.getAttribute('role') === expectedRecordRole
         && overviewPanel.getAttribute('aria-modal') === expectedRecordModal
         && (overviewPanel.querySelector(
           '.realm-resource-occupant-details__record span'

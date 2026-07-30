@@ -190,7 +190,7 @@ describe('Farcaster Mini App host provider', () => {
       '[data-warpkeep-miniapp-quick-auth-preconnect]'
     )?.href).toBe('https://auth.farcaster.xyz/');
     });
-    const { sdk } = fakeSdk({
+    const { sdk, back } = fakeSdk({
       actions: { ready }
     });
     let latest: MiniAppHostValue | undefined;
@@ -212,6 +212,9 @@ describe('Farcaster Mini App host provider', () => {
     expect(ready).toHaveBeenCalledWith({
       disableNativeGestures: true
     });
+    expect(back.hide).toHaveBeenCalled();
+    expect(back.hide.mock.invocationCallOrder[0])
+      .toBeLessThan(ready.mock.invocationCallOrder[0]);
     expect(frames.length).toBeGreaterThanOrEqual(2);
     expect(latest?.state).toBe('miniapp');
     expect(latest?.context).toEqual({

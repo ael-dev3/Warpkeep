@@ -8,7 +8,6 @@ import {
   type Ref
 } from 'react';
 
-import { useModalFocusBoundary } from '../menu/useModalFocusBoundary';
 import type {
   RealmWaterInspectionNavigation,
   RealmWaterInspectionRecord
@@ -30,8 +29,8 @@ export type WaterInspectionPanelProps = Readonly<{
   focusTargetRef?: Ref<HTMLButtonElement>;
   /** Enables operator-only realm coordinates and opaque persistence identifiers. */
   showDiagnostics?: boolean;
-  /** Compact and Mini App records occupy the screen and contain keyboard focus. */
-  modal?: boolean;
+  /** Compact and Mini App records are hosted navigation destinations. */
+  hostedDestination?: boolean;
   onRequestClose: () => void;
   onRequestBack?: () => void;
   onSelectCell?: (cellKey: string) => void;
@@ -64,7 +63,7 @@ function WaterRecordArt({ record }: Readonly<{ record: RealmWaterInspectionRecor
 function eventBelongsToPanel(event: KeyboardEvent<HTMLElement>) {
   const target = event.target;
   if (!(target instanceof Element)) return true;
-  return target.closest('[role="dialog"]') === event.currentTarget;
+  return target.closest('[role="dialog"], [role="region"]') === event.currentTarget;
 }
 
 function editableEventTarget(event: KeyboardEvent<HTMLElement>) {
@@ -82,7 +81,7 @@ export function WaterInspectionPanel({
   navigation,
   focusTargetRef,
   showDiagnostics = false,
-  modal = false,
+  hostedDestination = false,
   onRequestClose,
   onRequestBack,
   onSelectCell,
@@ -91,6 +90,7 @@ export function WaterInspectionPanel({
 }: WaterInspectionPanelProps) {
   const dialogRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const initialFocusAppliedRef = useRef(false);
   const [follow, setFollow] = useState<WaterFollowState>();
   const opaqueId = useId();
@@ -108,15 +108,12 @@ export function WaterInspectionPanel({
   useEffect(() => {
     if (initialFocusAppliedRef.current) return;
     initialFocusAppliedRef.current = true;
-    closeButtonRef.current?.focus({ preventScroll: true });
-  }, [id, record.cellKey]);
-
-  useModalFocusBoundary({
-    active: modal,
-    dialogRef,
-    initialFocusRef: closeButtonRef,
-    onEscape: onRequestBack ?? onRequestClose
-  });
+    if (hostedDestination) {
+      headingRef.current?.focus({ preventScroll: true });
+    } else {
+      closeButtonRef.current?.focus({ preventScroll: true });
+    }
+  }, [hostedDestination, id, record.cellKey]);
 
   useEffect(() => {
     if (!follow) return;
@@ -197,8 +194,8 @@ export function WaterInspectionPanel({
     <aside
       id={panelId}
       className="water-inspection realm-camera-neutral-inspector"
-      role="dialog"
-      aria-modal={modal}
+      role={hostedDestination ? 'region' : 'dialog'}
+      aria-modal={hostedDestination ? undefined : false}
       aria-labelledby={titleId}
       aria-describedby={descriptionId}
       onKeyDown={handleKeyDown}
@@ -233,7 +230,7 @@ export function WaterInspectionPanel({
           </button>
           <div className="water-inspection__title-lockup">
             <p>{eyebrow} · PUBLIC REALM RECORD</p>
-            <h2 id={titleId}>{record.displayName}</h2>
+            <h2 id={titleId} ref={headingRef} tabIndex={-1}>{record.displayName}</h2>
           </div>
         </header>
         <div className="water-inspection__body">

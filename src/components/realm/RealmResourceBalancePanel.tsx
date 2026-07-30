@@ -1,4 +1,5 @@
 import type { WarpkeepWorkerPrivateSyncStatus } from '../../spacetime/warpkeepBackendTypes';
+import type { RealmNavigatorResourceSite } from './RealmAccessibilityControls';
 import { RealmFullScreenSurface } from './RealmFullScreenSurface';
 import { formatPublicMarkMicros } from './realmCastlePresentation';
 import {
@@ -42,6 +43,8 @@ export function RealmResourceBalancePanel({
   onBack,
   onCloseToRealm,
   onOpenWorkers,
+  resourceSites = [],
+  onOpenResourceSite,
   onExplore,
   onRetry
 }: Readonly<{
@@ -56,6 +59,8 @@ export function RealmResourceBalancePanel({
   onBack: () => void;
   onCloseToRealm: () => void;
   onOpenWorkers?: () => void;
+  resourceSites?: readonly RealmNavigatorResourceSite[];
+  onOpenResourceSite?: (site: RealmNavigatorResourceSite) => void;
   onExplore?: () => void;
   onRetry?: () => void;
 }>) {
@@ -77,6 +82,14 @@ export function RealmResourceBalancePanel({
   const syncReady = resource === 'marks'
     || workerPrivateSync === undefined
     || (workerPrivateSync.phase === 'ready' && workerPrivateSync.commandsEnabled);
+  const relevantSites = resource === 'marks'
+    ? []
+    : resourceSites
+      .filter((site) => (
+        site.resource === resource
+        && (site.availability === 'available' || site.availability === 'occupied')
+      ))
+      .slice(0, 6);
 
   return (
     <RealmFullScreenSurface
@@ -132,6 +145,26 @@ export function RealmResourceBalancePanel({
             ) : (
               <p>No Worker is currently assigned to {title.toLocaleLowerCase()}.</p>
             )}
+          </section>
+        ) : null}
+
+        {resource !== 'marks' && relevantSites.length > 0 ? (
+          <section className="realm-resource-balance__section">
+            <h2>RELEVANT SITES</h2>
+            <ul className="realm-resource-balance__sites">
+              {relevantSites.map((site) => (
+                <li key={site.key}>
+                  <button
+                    disabled={!onOpenResourceSite}
+                    onClick={() => onOpenResourceSite?.(site)}
+                    type="button"
+                  >
+                    <strong>{site.label}</strong>
+                    <span>Tier {site.tier} · {site.availability}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
           </section>
         ) : null}
 

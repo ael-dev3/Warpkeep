@@ -1059,6 +1059,9 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(expression).toContain(
       "panel.getAttribute('aria-modal') === expectedRecordModal"
     );
+    expect(expression).toContain(
+      "panel.getAttribute('role') === expectedRecordRole"
+    );
     expect(expression).toContain('Number.parseInt(getComputedStyle(castleLayer).zIndex, 10) === 4');
     expect(expression).toContain('document.elementFromPoint(');
     expect(expression).toContain(

@@ -3,6 +3,11 @@ import { createRef } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CastleInspectionPanel } from '../src/components/realm/CastleInspectionPanel';
+import {
+  MiniAppHostProvider,
+  type MiniAppBrowserRuntime,
+  type MiniAppSdk
+} from '../src/farcaster/miniapp';
 import type { WarpkeepRealmProfile } from '../src/spacetime/warpkeepBackendTypes';
 
 const CASTLE = Object.freeze({
@@ -32,6 +37,16 @@ const PROFILE = Object.freeze({
   marksBalanceMicros: 150_000_000n,
   marksPolicyVersion: 'snap-current-linked-wallet-1to1-v1'
 });
+
+function miniAppRuntime(): MiniAppBrowserRuntime {
+  return {
+    search: () => '?miniApp=true',
+    viewport: () => ({ width: 390, height: 844 }),
+    document,
+    getMountedShell: () => document.body,
+    waitForAnimationFrame: async () => {}
+  };
+}
 
 afterEach(() => {
   cleanup();
@@ -210,5 +225,69 @@ describe('CastleInspectionPanel', () => {
       />
     );
     await waitFor(() => expect(document.activeElement).toBe(close));
+  });
+
+  it('uses hosted navigation semantics and capability-checked Farcaster profile actions', async () => {
+    const ready = vi.fn(async () => {});
+    const viewProfile = vi.fn(async () => {});
+    const openUrl = vi.fn(async () => {});
+    const sdk: MiniAppSdk = {
+      isInMiniApp: async () => true,
+      context: Promise.resolve({
+        user: {
+          fid: CASTLE.ownerFid,
+          username: 'warpkeeper',
+          displayName: 'Warp Keeper',
+          pfpUrl: PROFILE.pfpUrl
+        },
+        client: {
+          clientFid: 9_150,
+          added: true,
+          platformType: 'mobile',
+          safeAreaInsets: { top: 12, right: 8, bottom: 14, left: 8 }
+        },
+        features: { haptics: false },
+        location: { type: 'launcher' }
+      }),
+      getCapabilities: async () => [
+        'actions.ready',
+        'actions.openUrl',
+        'actions.viewProfile'
+      ],
+      actions: {
+        ready,
+        openUrl,
+        viewProfile
+      }
+    };
+
+    render(
+      <MiniAppHostProvider
+        runtime={miniAppRuntime()}
+        sdkLoader={async () => sdk}
+      >
+        <CastleInspectionPanel
+          id="hosted-castle-record"
+          castle={CASTLE}
+          hostedDestination
+          own
+          profile={PROFILE}
+          onRequestClose={vi.fn()}
+        />
+      </MiniAppHostProvider>
+    );
+
+    await waitFor(() => expect(ready).toHaveBeenCalledOnce());
+    const destination = screen.getByRole('region', { name: 'Genesis Bastion' });
+    expect(destination.hasAttribute('aria-modal')).toBe(false);
+    expect(screen.queryByRole('dialog', { name: 'Genesis Bastion' })).toBeNull();
+    const heading = screen.getByRole('heading', { level: 2, name: 'Genesis Bastion' });
+    await waitFor(() => expect(heading).toBe(document.activeElement));
+
+    fireEvent.click(screen.getByRole('link', { name: 'View Farcaster profile' }));
+    await waitFor(() => expect(viewProfile).toHaveBeenCalledExactlyOnceWith({
+      fid: CASTLE.ownerFid
+    }));
+    expect(openUrl).not.toHaveBeenCalled();
   });
 });

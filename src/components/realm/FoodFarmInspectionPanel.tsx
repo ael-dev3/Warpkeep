@@ -6,7 +6,6 @@ import {
   type Ref
 } from 'react';
 
-import { useModalFocusBoundary } from '../menu/useModalFocusBoundary';
 import type { FoodExpeditionPresentation } from './realmFoodExpeditionPresentation';
 import {
   foodNodeAvailabilityLabel,
@@ -81,8 +80,8 @@ export type FoodFarmInspectionPanelProps = Readonly<{
   /** Authenticated provider boundary; no optimistic public node mutation. */
   onDispatchFoodExpedition?: (siteId: string) => Promise<void>;
   onRequestClose: () => void;
-  /** Compact and Mini App records occupy the screen and contain keyboard focus. */
-  modal?: boolean;
+  /** Compact and Mini App records are hosted navigation destinations. */
+  hostedDestination?: boolean;
   /** Returns to the preceding nested destination without moving the camera. */
   onRequestBack?: () => void;
   focusTargetRef?: Ref<HTMLButtonElement>;
@@ -145,13 +144,14 @@ export function FoodFarmInspectionPanel({
   privateExpedition,
   onDispatchFoodExpedition,
   onRequestClose,
-  modal = false,
+  hostedDestination = false,
   onRequestBack,
   focusTargetRef,
   showDiagnostics = false
 }: FoodFarmInspectionPanelProps) {
   const dialogRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const [dispatchState, setDispatchState] = useState<
     'idle' | 'submitting' | 'submitted' | 'failed'
   >('idle');
@@ -214,15 +214,12 @@ export function FoodFarmInspectionPanel({
   }, [focusTargetRef]);
 
   useEffect(() => {
-    closeButtonRef.current?.focus({ preventScroll: true });
-  }, [farm.name, farm.tier, id]);
-
-  useModalFocusBoundary({
-    active: modal,
-    dialogRef,
-    initialFocusRef: closeButtonRef,
-    onEscape: onRequestClose
-  });
+    if (hostedDestination) {
+      headingRef.current?.focus({ preventScroll: true });
+    } else {
+      closeButtonRef.current?.focus({ preventScroll: true });
+    }
+  }, [farm.name, farm.tier, hostedDestination, id]);
 
   useEffect(() => {
     setDispatchState('idle');
@@ -249,8 +246,8 @@ export function FoodFarmInspectionPanel({
     <aside
       id={id}
       className="gold-mine-inspection food-farm-inspection realm-camera-neutral-inspector"
-      role="dialog"
-      aria-modal={modal}
+      role={hostedDestination ? 'region' : 'dialog'}
+      aria-modal={hostedDestination ? undefined : false}
       aria-labelledby={titleId}
       aria-describedby={descriptionId}
       data-open="true"
@@ -292,7 +289,7 @@ export function FoodFarmInspectionPanel({
           </button>
           <div className="gold-mine-inspection__title-lockup">
             <p>TIER {farm.tier} GATHERING SITE</p>
-            <h2 id={titleId}>{farm.name}</h2>
+            <h2 id={titleId} ref={headingRef} tabIndex={-1}>{farm.name}</h2>
           </div>
         </header>
 

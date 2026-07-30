@@ -14,7 +14,6 @@ import {
   WARPKEEP_FARCASTER_CHANNEL_URL,
   WARPKEEP_GITHUB_ISSUE_INTAKE_URL
 } from '../../farcaster/farcasterProjectLinks';
-import { useModalFocusBoundary } from '../menu/useModalFocusBoundary';
 import type { RealmResourceKind } from './realmTypes';
 
 export type RealmNavigatorCastle = Readonly<{
@@ -90,8 +89,8 @@ export type RealmAccessibilityControlsProps = Readonly<{
   coordinateJump?: RealmNavigatorCoordinateJump;
   /** Enables operator-only q/r search, labels, and coordinate navigation. */
   showDiagnostics?: boolean;
-  /** Compact and Mini App Explore occupies the screen and contains keyboard focus. */
-  modal?: boolean;
+  /** Compact and Mini App Explore is a hosted navigation destination. */
+  hostedDestination?: boolean;
   cameraPresets?: readonly RealmNavigatorCameraPreset[];
   /** Player chrome may provide its own PFP launcher while reusing this dialog. */
   triggerVisible?: boolean;
@@ -152,7 +151,7 @@ export function RealmAccessibilityControls({
   onActivateWaterCell,
   coordinateJump,
   showDiagnostics = false,
-  modal = false,
+  hostedDestination = false,
   cameraPresets = [],
   triggerVisible = true,
   triggerRef
@@ -173,13 +172,6 @@ export function RealmAccessibilityControls({
   const jumpErrorId = `${id}-jump-error`;
 
   providedTriggerRef.current = triggerRef;
-
-  useModalFocusBoundary({
-    active: modal && open,
-    dialogRef,
-    initialFocusRef: searchRef,
-    onEscape: () => onRequestClose('escape')
-  });
 
   const setTriggerRef = useCallback((element: HTMLButtonElement | null) => {
     internalTriggerRef.current = element;
@@ -296,8 +288,8 @@ export function RealmAccessibilityControls({
         <section
           id={id}
           className="realm-cell-navigator__dialog"
-          role="dialog"
-          aria-modal={modal}
+          role={hostedDestination ? 'region' : 'dialog'}
+          aria-modal={hostedDestination ? undefined : false}
           aria-labelledby={headingId}
           onKeyDown={handleDialogKeyDown}
           ref={dialogRef}

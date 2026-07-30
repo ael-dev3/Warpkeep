@@ -51,6 +51,7 @@ export type WorkerInspectionPanelProps = Readonly<{
   onRequestClose: () => void;
   onCloseToRealm?: () => void;
   focusTargetRef?: Ref<HTMLHeadingElement>;
+  hostedDestination?: boolean;
 }>;
 
 function sanitizeWorkerKeeperProfile(
@@ -103,7 +104,8 @@ export function WorkerInspectionPanel({
   onRecallWorker,
   onRequestClose,
   onCloseToRealm,
-  focusTargetRef
+  focusTargetRef,
+  hostedDestination = false
 }: WorkerInspectionPanelProps) {
   const dialogRef = useRef<HTMLElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -144,12 +146,18 @@ export function WorkerInspectionPanel({
   const scheduleRemaining = useRealmRemainingDuration(schedule?.deadlineMicros);
   const locateLabel = worker.status === 'idle' ? 'Locate at Keep' : 'Locate Worker';
   useModalFocusBoundary({
+    active: !hostedDestination,
     dialogRef,
     initialFocusRef: headingRef,
     onEscape: () => {
       if (!commandPending) onRequestClose();
     }
   });
+  useEffect(() => {
+    if (hostedDestination) {
+      headingRef.current?.focus({ preventScroll: true });
+    }
+  }, [hostedDestination, worker.workerId]);
 
   useEffect(() => {
     const commandWorkerId = recallWorkerIdRef.current;
@@ -237,11 +245,11 @@ export function WorkerInspectionPanel({
   return (
     <aside
       aria-labelledby={`${id}-title`}
-      aria-modal="true"
+      aria-modal={hostedDestination ? undefined : true}
       className="worker-inspection realm-camera-neutral-inspector"
       id={id}
       ref={dialogRef}
-      role="dialog"
+      role={hostedDestination ? 'region' : 'dialog'}
     >
       <div aria-hidden="true" className="worker-inspection__art-stage">
         <img

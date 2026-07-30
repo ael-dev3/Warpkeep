@@ -89,6 +89,31 @@
   text-transform: capitalize;
 }
 
+.realm-resource-balance__section .realm-resource-balance__sites li {
+  min-height: 0;
+  padding: 0;
+}
+
+.realm-resource-balance__sites button {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.55rem 0.65rem;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.realm-resource-balance__sites button:disabled {
+  cursor: default;
+  opacity: 0.62;
+}
+
 .realm-resource-balance__status {
   border-color: rgb(190 145 220 / 34%);
   background: rgb(86 48 106 / 20%);

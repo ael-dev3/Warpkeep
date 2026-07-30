@@ -273,6 +273,38 @@
   cursor: pointer;
 }
 
+.realm-profile-menu__identity {
+  display: flex;
+  gap: 0.65rem;
+  align-items: center;
+  padding: 0.65rem 0 0;
+}
+
+.realm-profile-menu__identity .realm-castle-avatar {
+  flex: 0 0 auto;
+}
+
+.realm-profile-menu__identity div {
+  display: grid;
+  min-width: 0;
+  gap: 0.12rem;
+}
+
+.realm-profile-menu__identity span {
+  color: var(--realm-lavender);
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+}
+
+.realm-profile-menu__identity strong {
+  overflow: hidden;
+  color: #f5dfaa;
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .realm-profile-menu__panel nav {
   display: grid;
   gap: 0.42rem;

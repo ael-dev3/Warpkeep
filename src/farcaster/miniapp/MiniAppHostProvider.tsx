@@ -428,6 +428,22 @@ export function MiniAppHostProvider({
         return;
       }
 
+      // Establish a deterministic root Back state before dismissing the host
+      // splash. Nested application routes bind their handler after launch,
+      // but the initial shell must never inherit a stale native Back control.
+      if (
+        capabilities.includes('back')
+        && sdk.back
+      ) {
+        sdk.back.onback = null;
+        try {
+          await withMiniAppHostDeadline(sdk.back.hide(), hostDeadline);
+        } catch {
+          // Back is optional. A host failure must not blank the stable shell.
+        }
+      }
+      if (cancelled) return;
+
       let readyAttempt = READY_ATTEMPTS.get(runtime as object);
       if (!readyAttempt) {
         readyAttempt = withMiniAppHostDeadline(
