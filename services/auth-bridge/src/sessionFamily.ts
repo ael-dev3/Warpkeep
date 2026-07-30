@@ -126,6 +126,33 @@ export function isSessionFamilyRecord(value: unknown): value is SessionFamilyRec
   return true
 }
 
+/**
+ * Validate a family reference without rotating it. Access-request reads must not
+ * compete with the refresh endpoint's generation transition.
+ */
+export function matchesSessionFamilyReference(
+  record: SessionFamilyRecord,
+  presentedGeneration: number,
+  origin: string,
+  now: number,
+): boolean {
+  if (
+    !isSessionFamilyRecord(record)
+    || !isGeneration(presentedGeneration)
+    || !isOrigin(origin)
+    || !Number.isSafeInteger(now)
+    || now < record.createdAt
+    || now >= record.expiresAt
+    || origin !== record.origin
+  ) return false
+  return presentedGeneration === record.currentGeneration
+    || (
+      presentedGeneration === record.previousGeneration
+      && record.previousGenerationGraceUntil !== undefined
+      && now <= record.previousGenerationGraceUntil
+    )
+}
+
 function readRefreshRequest(value: unknown): {
   presentedGeneration: number
   origin: string

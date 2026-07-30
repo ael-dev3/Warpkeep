@@ -13,6 +13,7 @@ export {
   MemorySessionFamilyStore,
   SessionFamily,
 } from './sessionFamily'
+export { SpacetimeHttpAccessRequestResolver } from './spacetimeAccessRequestResolver'
 export { SpacetimeHttpAuthEpochResolver } from './spacetimeAuthEpochResolver'
 export { SpacetimeHttpQaObserverResolver } from './spacetimeQaObserverResolver'
 export type * from './types'

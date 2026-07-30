@@ -17,7 +17,9 @@ import {
   AuthEpochResolverFailure,
   type AuthEpochResolverFailureStage,
 } from '../src/spacetimeAuthEpochResolver'
+import { AccessRequestResolverFailure } from '../src/spacetimeAccessRequestResolver'
 import type {
+  AccessRequestResolver,
   AuthEpochResolver,
   ChallengeRecord,
   ChallengeStore,
@@ -37,6 +39,8 @@ const QUICK_AUTH_ORIGIN = 'https://warpkeep.com'
 const QUICK_AUTH_DOMAIN = 'warpkeep.com'
 const QUICK_AUTH_ISSUER = 'https://auth.farcaster.xyz'
 const QUICK_AUTH_PATH = '/v2/farcaster/quick-auth/exchange'
+const ACCESS_STATUS_PATH = '/v2/access/status'
+const ACCESS_REQUEST_PATH = '/v2/access/request'
 const syntheticQuickAuthSegment = (value: object) => btoa(JSON.stringify(value))
   .replaceAll('+', '-')
   .replaceAll('/', '_')
@@ -121,6 +125,7 @@ interface Harness {
   verifier: FarcasterVerifier & { verify: ReturnType<typeof vi.fn> }
   quickAuthVerifier: QuickAuthVerifier & { verifyJwt: ReturnType<typeof vi.fn> }
   resolver: AuthEpochResolver & { resolve: ReturnType<typeof vi.fn> }
+  accessRequestResolver: AccessRequestResolver
   sessionStore: SessionFamilyStore
   events: SafeLogEvent[]
   setNow(value: number): void
@@ -131,6 +136,7 @@ function harness(options: {
   resolver?: AuthEpochResolver
   verifier?: FarcasterVerifier
   quickAuthVerifier?: QuickAuthVerifier
+  accessRequestResolver?: AccessRequestResolver
   rateLimiter?: RateLimiter
   signer?: AuthBridgeDependencies['signer']
   challengeStore?: ChallengeStore
@@ -154,6 +160,13 @@ function harness(options: {
       ? ({ state: 'missing', authEpoch: 0 } as const)
       : ({ state: 'enabled', authEpoch: options.epoch ?? 7 } as const)),
   }
+  const accessRequestResolver = options.accessRequestResolver ?? {
+    getStatus: vi.fn(async () => ({ status: 'not-requested' } as const)),
+    submit: vi.fn(async () => ({
+      status: 'requested',
+      requestedAtMicros: 1_785_414_896_000_000,
+    } as const)),
+  }
   const events: SafeLogEvent[] = []
   const sessionStore = options.sessionFamilyStore ?? new MemorySessionFamilyStore()
   const app = createAuthBridge({
@@ -161,6 +174,7 @@ function harness(options: {
     verifier,
     quickAuthVerifier,
     authEpochResolver: resolver,
+    accessRequestResolver,
     sessionFamilyStore: sessionStore,
     rateLimiter: options.rateLimiter ?? { check: async () => ({ allowed: true }) },
     signer: options.signer,
@@ -172,6 +186,7 @@ function harness(options: {
     verifier: verifier as Harness['verifier'],
     quickAuthVerifier: quickAuthVerifier as Harness['quickAuthVerifier'],
     resolver: resolver as Harness['resolver'],
+    accessRequestResolver,
     sessionStore,
     events,
     setNow(value) { now = value },
@@ -187,6 +202,19 @@ function quickAuthRequest(
   const headers = new Headers(init.headers)
   if (!headers.has('origin')) headers.set('origin', QUICK_AUTH_ORIGIN)
   if (token !== null && !headers.has('authorization')) headers.set('authorization', `Bearer ${token}`)
+  return request(path, body, { ...init, headers })
+}
+
+function accessBearerRequest(
+  path: typeof ACCESS_STATUS_PATH | typeof ACCESS_REQUEST_PATH,
+  body: unknown = {},
+  init: RequestInit = {},
+): Request {
+  const headers = new Headers(init.headers)
+  if (!headers.has('origin')) headers.set('origin', QUICK_AUTH_ORIGIN)
+  if (!headers.has('authorization')) {
+    headers.set('authorization', `Bearer ${QUICK_AUTH_TOKEN}`)
+  }
   return request(path, body, { ...init, headers })
 }
 
@@ -1190,6 +1218,12 @@ describe('Warpkeep auth bridge', () => {
       quickAuthExchangePath: '/v2/farcaster/quick-auth/exchange',
       quickAuthVerifierPackage: '@farcaster/quick-auth@0.0.8',
       quickAuthMaxTokenBytes: 8 * 1024,
+      accessRequestStatusPath: '/v2/access/status',
+      accessRequestSubmitPath: '/v2/access/request',
+      accessRequestResolverTokenTtlSeconds: 15,
+      accessRequestResolverTimeoutMilliseconds: 5_000,
+      accessRequestStatusProcedure: 'access_request_get_status_v1',
+      accessRequestSubmitProcedure: 'access_request_submit_v1',
       publicAuthEnabled: true,
       qaObserverEnabled: false,
       qaObserverSpacetimeDbUri: null,
@@ -1237,6 +1271,12 @@ describe('Warpkeep auth bridge', () => {
       accessTokenTtlSeconds: 600,
       authEpochResolverTokenTtlSeconds: 15,
       authEpochResolverTimeoutMilliseconds: 5_000,
+      accessRequestStatusPath: '/v2/access/status',
+      accessRequestSubmitPath: '/v2/access/request',
+      accessRequestResolverTokenTtlSeconds: 15,
+      accessRequestResolverTimeoutMilliseconds: 5_000,
+      accessRequestStatusProcedure: 'access_request_get_status_v1',
+      accessRequestSubmitProcedure: 'access_request_submit_v1',
       challengeTtlMilliseconds: 5 * 60 * 1_000,
       sessionFamilyTtlSeconds: 30 * 24 * 60 * 60,
       sessionCookie: '__Host-warpkeep_session; Secure; HttpOnly; SameSite=Strict; Path=/',
@@ -2129,6 +2169,378 @@ describe('Warpkeep auth bridge', () => {
       expect(h.events).toContain('internal_error')
     }
     expect(consumeFailure.verifier.verify).not.toHaveBeenCalled()
+  })
+
+  describe('neutral access requests', () => {
+    it('reuses exact Quick Auth and returns only neutral status projections', async () => {
+      const getStatus = vi.fn(async () => ({ status: 'not-requested' } as const))
+      const submit = vi.fn(async () => ({
+        status: 'requested',
+        requestedAtMicros: 1_785_414_896_000_000,
+      } as const))
+      const h = harness({
+        epoch: 0,
+        accessRequestResolver: { getStatus, submit },
+      })
+      h.setNow(1_800_000_000_000)
+
+      const statusResponse = await h.app.fetch(
+        accessBearerRequest(ACCESS_STATUS_PATH),
+        env(),
+      )
+      const submitResponse = await h.app.fetch(
+        accessBearerRequest(ACCESS_REQUEST_PATH),
+        env(),
+      )
+
+      expect(statusResponse.status).toBe(200)
+      await expect(statusResponse.json()).resolves.toEqual({
+        version: 1,
+        status: 'not-requested',
+      })
+      expect(submitResponse.status).toBe(200)
+      const submitBody = await json(submitResponse)
+      expect(submitBody).toEqual({
+        version: 1,
+        status: 'requested',
+        requestedAt: 1_785_414_896_000,
+      })
+      expect(JSON.stringify(submitBody)).not.toContain(FID)
+      expect(getStatus).toHaveBeenCalledOnce()
+      expect(getStatus).toHaveBeenCalledWith(FID)
+      expect(submit).toHaveBeenCalledOnce()
+      expect(submit).toHaveBeenCalledWith(FID)
+      expect(h.quickAuthVerifier.verifyJwt).toHaveBeenCalledTimes(2)
+      expect(h.quickAuthVerifier.verifyJwt).toHaveBeenNthCalledWith(1, {
+        token: QUICK_AUTH_TOKEN,
+        domain: QUICK_AUTH_DOMAIN,
+      })
+      expect(h.resolver.resolve).toHaveBeenCalledTimes(2)
+      for (const response of [statusResponse, submitResponse]) {
+        expect(response.headers.get('access-control-allow-origin'))
+          .toBe(QUICK_AUTH_ORIGIN)
+        expect(response.headers.has('access-control-allow-credentials')).toBe(false)
+        expect(response.headers.has('set-cookie')).toBe(false)
+      }
+      expect(h.events).toContain('access_status_succeeded')
+      expect(h.events).toContain('access_request_succeeded')
+    })
+
+    it('accepts a valid pending family without rotating its generation or cookie', async () => {
+      const backing = new MemorySessionFamilyStore()
+      const refresh = vi.fn((
+        familyId: string,
+        generation: number,
+        origin: string,
+        admission: Parameters<SessionFamilyStore['refresh']>[3],
+        currentTime: number,
+      ) => backing.refresh(familyId, generation, origin, admission, currentTime))
+      const revoke = vi.fn((familyId: string) => backing.revoke(familyId))
+      const sessionFamilyStore: SessionFamilyStore = {
+        create: (familyId, record) => backing.create(familyId, record),
+        get: (familyId) => backing.get(familyId),
+        refresh,
+        revoke,
+      }
+      const getStatus = vi.fn(async () => ({
+        status: 'requested',
+        requestedAtMicros: 1_785_414_896_000_000,
+      } as const))
+      const h = harness({
+        epoch: 0,
+        sessionFamilyStore,
+        accessRequestResolver: {
+          getStatus,
+          submit: vi.fn(async () => ({ status: 'already-admitted' } as const)),
+        },
+      })
+      const challenge = await issueChallenge(h)
+      const exchange = await h.app.fetch(request(
+        '/v2/farcaster/exchange',
+        proofFor(challenge),
+        { headers: { origin: ORIGIN } },
+      ), env())
+      expect(exchange.status).toBe(200)
+      const cookie = responseCookie(exchange)
+      const familyId = cookie.split('=', 2)[1]?.split('.')[1]
+      const before = await backing.get(familyId!)
+
+      const statusResponse = await h.app.fetch(request(
+        ACCESS_STATUS_PATH,
+        {},
+        { headers: { origin: ORIGIN, cookie } },
+      ), env())
+
+      expect(statusResponse.status).toBe(200)
+      await expect(statusResponse.json()).resolves.toEqual({
+        version: 1,
+        status: 'requested',
+        requestedAt: 1_785_414_896_000,
+      })
+      expect(statusResponse.headers.get('access-control-allow-origin')).toBe(ORIGIN)
+      expect(statusResponse.headers.get('access-control-allow-credentials')).toBe('true')
+      expect(statusResponse.headers.has('set-cookie')).toBe(false)
+      expect(getStatus).toHaveBeenCalledWith(FID)
+      expect(refresh).not.toHaveBeenCalled()
+      expect(revoke).not.toHaveBeenCalled()
+      await expect(backing.get(familyId!)).resolves.toEqual(before)
+      expect(h.quickAuthVerifier.verifyJwt).not.toHaveBeenCalled()
+    })
+
+    it('short-circuits admitted identities and fails closed for disabled identities', async () => {
+      const admittedResolver = {
+        getStatus: vi.fn(async () => ({ status: 'not-requested' } as const)),
+        submit: vi.fn(async () => ({ status: 'requested', requestedAtMicros: 1 } as const)),
+      }
+      const admitted = harness({ accessRequestResolver: admittedResolver })
+      const admittedResponse = await admitted.app.fetch(
+        accessBearerRequest(ACCESS_REQUEST_PATH),
+        env(),
+      )
+      expect(admittedResponse.status).toBe(200)
+      await expect(admittedResponse.json()).resolves.toEqual({
+        version: 1,
+        status: 'already-admitted',
+      })
+      expect(admittedResolver.getStatus).not.toHaveBeenCalled()
+      expect(admittedResolver.submit).not.toHaveBeenCalled()
+
+      const disabledResolver = {
+        getStatus: vi.fn(async () => ({ status: 'not-requested' } as const)),
+        submit: vi.fn(async () => ({ status: 'requested', requestedAtMicros: 1 } as const)),
+      }
+      const disabled = harness({
+        resolver: {
+          resolve: vi.fn(async () => ({ state: 'disabled', authEpoch: 0 } as const)),
+        },
+        accessRequestResolver: disabledResolver,
+      })
+      const disabledResponse = await disabled.app.fetch(
+        accessBearerRequest(ACCESS_REQUEST_PATH),
+        env(),
+      )
+      expect(disabledResponse.status).toBe(403)
+      await expect(disabledResponse.json()).resolves.toEqual({
+        error: {
+          code: 'access_not_authorized',
+          message: 'This Farcaster identity is not authorized.',
+        },
+      })
+      expect(disabledResolver.getStatus).not.toHaveBeenCalled()
+      expect(disabledResolver.submit).not.toHaveBeenCalled()
+    })
+
+    it('expires pending-session credentials on disablement or bound-epoch drift', async () => {
+      const disabledResolve = vi.fn()
+        .mockResolvedValueOnce({ state: 'missing', authEpoch: 0 } as const)
+        .mockResolvedValueOnce({ state: 'disabled', authEpoch: 0 } as const)
+      const disabled = harness({ resolver: { resolve: disabledResolve } })
+      const disabledChallenge = await issueChallenge(disabled)
+      const disabledExchange = await disabled.app.fetch(request(
+        '/v2/farcaster/exchange',
+        proofFor(disabledChallenge),
+        { headers: { origin: ORIGIN } },
+      ), env())
+      const disabledResponse = await disabled.app.fetch(request(
+        ACCESS_STATUS_PATH,
+        {},
+        {
+          headers: {
+            origin: ORIGIN,
+            cookie: responseCookie(disabledExchange),
+          },
+        },
+      ), env())
+      expect(disabledResponse.status).toBe(403)
+      await expect(disabledResponse.json()).resolves.toMatchObject({
+        error: { code: 'session_invalid' },
+      })
+      expect(disabledResponse.headers.get('set-cookie')).toContain('Max-Age=0')
+
+      const driftResolve = vi.fn()
+        .mockResolvedValueOnce({ state: 'enabled', authEpoch: 7 } as const)
+        .mockResolvedValueOnce({ state: 'enabled', authEpoch: 8 } as const)
+      const drifted = harness({ resolver: { resolve: driftResolve } })
+      const driftChallenge = await issueChallenge(drifted)
+      const driftExchange = await drifted.app.fetch(request(
+        '/v2/farcaster/exchange',
+        proofFor(driftChallenge),
+        { headers: { origin: ORIGIN } },
+      ), env())
+      const driftResponse = await drifted.app.fetch(request(
+        ACCESS_REQUEST_PATH,
+        {},
+        {
+          headers: {
+            origin: ORIGIN,
+            cookie: responseCookie(driftExchange),
+          },
+        },
+      ), env())
+      expect(driftResponse.status).toBe(401)
+      await expect(driftResponse.json()).resolves.toMatchObject({
+        error: { code: 'session_invalid' },
+      })
+      expect(driftResponse.headers.get('set-cookie')).toContain('Max-Age=0')
+    })
+
+    it('rejects caller FIDs, queries, mixed credentials, and malformed bearers before identity work', async () => {
+      const h = harness({ epoch: 0 })
+      const callerFid = await h.app.fetch(accessBearerRequest(
+        ACCESS_REQUEST_PATH,
+        { fid: Number(FID) },
+      ), env())
+      expect(callerFid.status).toBe(400)
+      await expect(callerFid.json()).resolves.toMatchObject({
+        error: { code: 'invalid_request' },
+      })
+
+      const queried = await h.app.fetch(request(
+        `${ACCESS_STATUS_PATH}?fid=${FID}`,
+        {},
+        {
+          headers: {
+            origin: QUICK_AUTH_ORIGIN,
+            authorization: `Bearer ${QUICK_AUTH_TOKEN}`,
+          },
+        },
+      ), env())
+      expect(queried.status).toBe(400)
+      await expect(queried.json()).resolves.toMatchObject({
+        error: { code: 'access_query_not_allowed' },
+      })
+
+      const mixed = await h.app.fetch(accessBearerRequest(
+        ACCESS_STATUS_PATH,
+        {},
+        { headers: { cookie: '__Host-warpkeep_session=untrusted' } },
+      ), env())
+      expect(mixed.status).toBe(401)
+      await expect(mixed.json()).resolves.toMatchObject({
+        error: { code: 'access_auth_invalid' },
+      })
+
+      const malformed = await h.app.fetch(accessBearerRequest(
+        ACCESS_STATUS_PATH,
+        {},
+        { headers: { authorization: 'Bearer invalid' } },
+      ), env())
+      expect(malformed.status).toBe(401)
+      await expect(malformed.json()).resolves.toMatchObject({
+        error: { code: 'access_auth_invalid' },
+      })
+      expect(h.quickAuthVerifier.verifyJwt).not.toHaveBeenCalled()
+      expect(h.resolver.resolve).not.toHaveBeenCalled()
+    })
+
+    it('uses exact dual-mode CORS and a dedicated closed rate action', async () => {
+      const h = harness({ epoch: 0 })
+      const bearerPreflight = await h.app.fetch(request(
+        ACCESS_REQUEST_PATH,
+        undefined,
+        {
+          method: 'OPTIONS',
+          headers: {
+            origin: QUICK_AUTH_ORIGIN,
+            'access-control-request-method': 'POST',
+            'access-control-request-headers': 'Authorization, Content-Type',
+          },
+        },
+      ), env())
+      expect(bearerPreflight.status).toBe(204)
+      expect(bearerPreflight.headers.get('access-control-allow-origin'))
+        .toBe(QUICK_AUTH_ORIGIN)
+      expect(bearerPreflight.headers.get('access-control-allow-headers'))
+        .toBe('authorization, content-type')
+      expect(bearerPreflight.headers.has('access-control-allow-credentials'))
+        .toBe(false)
+
+      const sessionPreflight = await h.app.fetch(request(
+        ACCESS_STATUS_PATH,
+        undefined,
+        {
+          method: 'OPTIONS',
+          headers: {
+            origin: ORIGIN,
+            'access-control-request-method': 'POST',
+            'access-control-request-headers': 'Content-Type',
+          },
+        },
+      ), env())
+      expect(sessionPreflight.status).toBe(204)
+      expect(sessionPreflight.headers.get('access-control-allow-origin')).toBe(ORIGIN)
+      expect(sessionPreflight.headers.get('access-control-allow-headers'))
+        .toBe('content-type')
+      expect(sessionPreflight.headers.get('access-control-allow-credentials'))
+        .toBe('true')
+
+      const hostile = await h.app.fetch(accessBearerRequest(
+        ACCESS_STATUS_PATH,
+        {},
+        { headers: { origin: 'https://hostile.example' } },
+      ), env())
+      expect(hostile.status).toBe(403)
+      expect(hostile.headers.has('access-control-allow-origin')).toBe(false)
+      expect(h.quickAuthVerifier.verifyJwt).not.toHaveBeenCalled()
+
+      const check = vi.fn(async (_request: Request, _action: string) => ({
+        allowed: false as const,
+        retryAfterSeconds: 17,
+      }))
+      const limited = harness({ epoch: 0, rateLimiter: { check } })
+      const limitedResponse = await limited.app.fetch(
+        accessBearerRequest(ACCESS_REQUEST_PATH),
+        env(),
+      )
+      expect(limitedResponse.status).toBe(429)
+      expect(limitedResponse.headers.get('retry-after')).toBe('17')
+      expect(check).toHaveBeenCalledOnce()
+      expect(check.mock.calls[0]?.[1]).toBe('access-request')
+      expect(limited.quickAuthVerifier.verifyJwt).not.toHaveBeenCalled()
+      expect(limited.resolver.resolve).not.toHaveBeenCalled()
+    })
+
+    it('preserves the public-auth kill switch and emits only closed failure stages', async () => {
+      const paused = harness({ epoch: 0 })
+      const pausedResponse = await paused.app.fetch(
+        accessBearerRequest(ACCESS_REQUEST_PATH),
+        env({ PUBLIC_AUTH_ENABLED: 'false' }),
+      )
+      expect(pausedResponse.status).toBe(503)
+      await expect(pausedResponse.json()).resolves.toMatchObject({
+        error: { code: 'public_auth_paused' },
+      })
+      expect(paused.quickAuthVerifier.verifyJwt).not.toHaveBeenCalled()
+      expect(paused.resolver.resolve).not.toHaveBeenCalled()
+
+      const failure = harness({
+        epoch: 0,
+        accessRequestResolver: {
+          getStatus: vi.fn(async () => {
+            throw new AccessRequestResolverFailure('timeout')
+          }),
+          submit: vi.fn(async () => ({ status: 'already-admitted' } as const)),
+        },
+      })
+      const failureResponse = await failure.app.fetch(
+        accessBearerRequest(ACCESS_STATUS_PATH),
+        env(),
+      )
+      const failureText = await failureResponse.text()
+      expect(failureResponse.status).toBe(503)
+      expect(JSON.parse(failureText)).toEqual({
+        error: {
+          code: 'access_request_unavailable',
+          message: 'Access requests are temporarily unavailable.',
+        },
+      })
+      expect(failure.events).toContain('access_request_failed')
+      expect(failure.events).toContain('access_request_failed_timeout')
+      expect(failure.events).toContain('access_request_rejected')
+      expect(failureText).not.toContain(FID)
+      expect(JSON.stringify(failure.events)).not.toContain(FID)
+      expect(failureResponse.headers.has('set-cookie')).toBe(false)
+    })
   })
 
   describe('Farcaster Quick Auth exchange', () => {

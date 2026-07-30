@@ -87,6 +87,18 @@ export async function createSessionCookieValue(
   return `${unsigned}.${await signMac(secret, unsigned)}`
 }
 
+export function hasSessionCookie(request: Request): boolean {
+  const header = request.headers.get('cookie')
+  if (!header) return false
+  // An oversized Cookie header can never become the supported session mode,
+  // but must still prevent a bearer request from bypassing ambiguity checks.
+  if (header.length > 16_384) return true
+  return header.split(';').some((part) => {
+    const separator = part.indexOf('=')
+    return separator > 0 && part.slice(0, separator).trim() === SESSION_COOKIE_NAME
+  })
+}
+
 function readCookieValue(request: Request): string | null {
   const header = request.headers.get('cookie')
   if (!header || header.length > 16_384) return null

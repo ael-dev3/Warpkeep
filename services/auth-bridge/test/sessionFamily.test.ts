@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest'
 import {
   MemorySessionFamilyStore,
   isSessionFamilyRecord,
+  matchesSessionFamilyReference,
   transitionSessionFamily,
 } from '../src/sessionFamily'
 import {
   SESSION_COOKIE_NAME,
   createSessionCookieValue,
   expiredSessionSetCookie,
+  hasSessionCookie,
   readVerifiedSessionCookie,
   sessionSetCookie,
 } from '../src/sessionCookie'
@@ -141,6 +143,33 @@ describe('rotating browser session families', () => {
     )).toEqual({ kind: 'revoke' })
   })
 
+  it('validates current and recovery generations without mutating family state', () => {
+    const candidate = record({
+      currentGeneration: 2,
+      previousGeneration: 1,
+      previousGenerationGraceUntil: NOW + 30_000,
+    })
+    const before = structuredClone(candidate)
+
+    expect(matchesSessionFamilyReference(candidate, 2, ORIGIN, NOW + 1)).toBe(true)
+    expect(matchesSessionFamilyReference(candidate, 1, ORIGIN, NOW + 30_000)).toBe(true)
+    expect(matchesSessionFamilyReference(candidate, 1, ORIGIN, NOW + 30_001)).toBe(false)
+    expect(matchesSessionFamilyReference(candidate, 3, ORIGIN, NOW + 1)).toBe(false)
+    expect(matchesSessionFamilyReference(
+      candidate,
+      2,
+      'https://hostile.example',
+      NOW + 1,
+    )).toBe(false)
+    expect(matchesSessionFamilyReference(
+      candidate,
+      2,
+      ORIGIN,
+      candidate.expiresAt,
+    )).toBe(false)
+    expect(candidate).toEqual(before)
+  })
+
   it('deletes the whole local family after stale reuse or an epoch mismatch', async () => {
     const store = new MemorySessionFamilyStore()
     await store.create(FAMILY_ID, record())
@@ -164,6 +193,21 @@ describe('rotating browser session families', () => {
 })
 
 describe('opaque host-only session cookie', () => {
+  it('detects only the exact session-cookie name for credential ambiguity', () => {
+    expect(hasSessionCookie(new Request('https://auth.warpkeep.com', {
+      headers: { cookie: `${SESSION_COOKIE_NAME}=opaque` },
+    }))).toBe(true)
+    expect(hasSessionCookie(new Request('https://auth.warpkeep.com', {
+      headers: { cookie: `prefix-${SESSION_COOKIE_NAME}=opaque` },
+    }))).toBe(false)
+    expect(hasSessionCookie(new Request('https://auth.warpkeep.com', {
+      headers: { cookie: 'unrelated=opaque' },
+    }))).toBe(false)
+    expect(hasSessionCookie(new Request('https://auth.warpkeep.com', {
+      headers: { cookie: 'x'.repeat(16_385) },
+    }))).toBe(true)
+  })
+
   it('authenticates only an untampered HMAC reference and rejects duplicates', async () => {
     const value = await createSessionCookieValue(COOKIE_KEY, FAMILY_ID, 9)
     const request = new Request('https://auth.warpkeep.com/v2/session/refresh', {
