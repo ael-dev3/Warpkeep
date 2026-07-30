@@ -42,6 +42,14 @@ export {
   assertNorthernReachRenderedVisual,
   parseNorthernReachRenderedEvidence,
 } from './northern-reach-rendered-evidence.mjs';
+export {
+  applyRegionalClimateRenderedEvidence,
+  assertRegionalClimateRepeatedReducedMotionEvidence,
+  assertRegionalClimateRenderedVisual,
+  assertSunscouredSouthRenderedTarget,
+  parseRegionalClimateRenderedEvidence,
+  SUNSCOURED_SOUTH_RENDERED_TARGET_MANIFEST,
+} from './regional-climate-rendered-evidence.mjs';
 
 export const RENDERED_WEBGL_QA_CHROME =
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
@@ -146,7 +154,7 @@ const RENDERED_WEBGL_WORKER_LOCOMOTION_CASE_SPECS = Object.freeze([
   Object.freeze({
     id: 'full-hd-high-worker-locomotion',
     fixture: 'worker-locomotion',
-    northern: false,
+    climate: 'center',
     quality: 'high',
     viewport: FULL_HD_VIEWPORT,
     reducedMotion: false,
@@ -164,7 +172,7 @@ const RENDERED_WEBGL_WORKER_LOCOMOTION_CASE_SPECS = Object.freeze([
   Object.freeze({
     id: 'desktop-balanced-worker-locomotion',
     fixture: 'worker-locomotion',
-    northern: false,
+    climate: 'center',
     quality: 'balanced',
     viewport: DESKTOP_VIEWPORT,
     reducedMotion: false,
@@ -182,7 +190,7 @@ const RENDERED_WEBGL_WORKER_LOCOMOTION_CASE_SPECS = Object.freeze([
   Object.freeze({
     id: 'short-landscape-reduced-worker-locomotion',
     fixture: 'worker-locomotion',
-    northern: false,
+    climate: 'center',
     quality: 'reduced',
     viewport: SHORT_LANDSCAPE_VIEWPORT,
     reducedMotion: false,
@@ -200,7 +208,7 @@ const RENDERED_WEBGL_WORKER_LOCOMOTION_CASE_SPECS = Object.freeze([
   Object.freeze({
     id: 'mobile-reduced-motion-worker-locomotion',
     fixture: 'worker-locomotion',
-    northern: false,
+    climate: 'center',
     quality: 'reduced',
     viewport: MOBILE_VIEWPORT,
     reducedMotion: true,
@@ -218,7 +226,25 @@ const RENDERED_WEBGL_WORKER_LOCOMOTION_CASE_SPECS = Object.freeze([
   Object.freeze({
     id: 'desktop-balanced-northern-worker-locomotion',
     fixture: 'worker-locomotion-northern',
-    northern: true,
+    climate: 'north',
+    quality: 'balanced',
+    viewport: DESKTOP_VIEWPORT,
+    reducedMotion: false,
+    assetProfile: 'balanced',
+    assetPath:
+      '/models/hegemony/hegemony-supply-wagon-balanced-af0f8788eaaf9a32.glb',
+    animatedCount: 4,
+    gatheringIdleCount: 1,
+    modelCount: 4,
+    movingCount: 3,
+    maximumVisibleProjectionCount: 3,
+    wheelDrivenCount: 4,
+    minimumLabelCount: 4,
+  }),
+  Object.freeze({
+    id: 'desktop-balanced-southern-worker-locomotion',
+    fixture: 'worker-locomotion-southern',
+    climate: 'south',
     quality: 'balanced',
     viewport: DESKTOP_VIEWPORT,
     reducedMotion: false,
@@ -346,7 +372,7 @@ export function renderedWebglWorkerLocomotionProbeCases(port) {
         maximumVisibleProjectionCount: spec.maximumVisibleProjectionCount,
         expectedWheelDrivenCount: spec.wheelDrivenCount,
         fixtureVariant: spec.fixture,
-        northern: spec.northern,
+        climate: spec.climate,
         reducedMotion: spec.reducedMotion,
       }),
     })
@@ -396,6 +422,13 @@ const RENDERED_WEBGL_QA_NORTHERN_REACH_CASE_IDS = new Set([
   'desktop-reduced',
   'mobile-balanced',
   'short-landscape-balanced-northern',
+]);
+const RENDERED_WEBGL_QA_SUNSCOURED_SOUTH_CASE_IDS = new Set([
+  'desktop-high',
+  'desktop-balanced',
+  'desktop-reduced',
+  'mobile-balanced',
+  'short-landscape-explore',
 ]);
 const RENDERED_WEBGL_QA_ACTIVE_FOREST_WHEEL_STEPS = 5;
 const RENDERED_WEBGL_QA_ACTIVE_FOREST_WHEEL_DELTA = -250;
@@ -1483,7 +1516,7 @@ function parseRenderedWebglWorkerLocomotionTelemetry(value, spec) {
  * projections contain only phase plus bounded viewport coordinates; Worker
  * IDs, castle identities, routes, world coordinates, and asset URLs never
  * cross CDP. Every post-integration field is mandatory and the case metadata
- * binds the evidence to one member of the reviewed five-case real-asset matrix.
+ * binds the evidence to one member of the reviewed real-asset matrix.
  */
 export function parseRenderedWebglWorkerLocomotionEvidence(value) {
   const candidate = exactRecord(
@@ -4186,29 +4219,34 @@ async function captureRenderedCasePixels(session, viewport, analysisOptions) {
   const screenshotBytes = Buffer.from(result.data, 'base64');
   try {
     const artifactName = analysisOptions?.artifactName;
-    const artifactDirectory =
-      process.env.WARPKEEP_QA_NORTHERN_ARTIFACT_DIR;
+    const artifactRegion = analysisOptions?.artifactRegion ?? 'northern';
+    const artifactDirectory = artifactRegion === 'southern'
+      ? process.env.WARPKEEP_QA_SOUTHERN_ARTIFACT_DIR
+      : artifactRegion === 'northern'
+        ? process.env.WARPKEEP_QA_NORTHERN_ARTIFACT_DIR
+        : undefined;
     if (artifactName !== undefined) {
       if (
         typeof artifactDirectory !== 'string'
         || !isAbsolute(artifactDirectory)
+        || (artifactRegion !== 'northern' && artifactRegion !== 'southern')
         || typeof artifactName !== 'string'
         || !/^[a-z0-9-]+\.png$/u.test(artifactName)
       ) {
-        throw new Error('Northern Reach review artifact boundary failed.');
+        throw new Error('Regional climate review artifact boundary failed.');
       }
       const cacheRoot = await realpath(join(REPOSITORY_ROOT, '.cache'));
       const destinationDirectory = resolve(artifactDirectory);
       if (
         destinationDirectory !== cacheRoot
         && !destinationDirectory.startsWith(`${cacheRoot}/`)
-      ) throw new Error('Northern Reach review artifact boundary failed.');
+      ) throw new Error('Regional climate review artifact boundary failed.');
       await mkdir(destinationDirectory, { mode: 0o700, recursive: true });
       const realDestinationDirectory = await realpath(destinationDirectory);
       if (
         realDestinationDirectory !== cacheRoot
         && !realDestinationDirectory.startsWith(`${cacheRoot}/`)
-      ) throw new Error('Northern Reach review artifact boundary failed.');
+      ) throw new Error('Regional climate review artifact boundary failed.');
       await writeFile(
         join(realDestinationDirectory, artifactName),
         screenshotBytes,
@@ -7627,7 +7665,7 @@ function workerLocomotionSpecForProbeCase(probeCase) {
       !== spec.maximumVisibleProjectionCount
     || expected?.expectedWheelDrivenCount !== spec.wheelDrivenCount
     || expected?.fixtureVariant !== spec.fixture
-    || expected?.northern !== spec.northern
+    || expected?.climate !== spec.climate
     || expected?.reducedMotion !== spec.reducedMotion
   ) {
     throw new TypeError('Invalid rendered WebGL Worker locomotion probe case.');
@@ -7649,7 +7687,7 @@ export async function applyRenderedWebglWorkerLocomotionInteraction(
     fixture: spec.fixture,
     modelCount: spec.modelCount,
     movingCount: spec.movingCount,
-    northern: spec.northern,
+    climate: spec.climate,
     presentedCount: RENDERED_WEBGL_WORKER_LOCOMOTION_PRESENTED_COUNT,
     quality: spec.quality,
     reducedMotion: spec.reducedMotion,
@@ -7816,7 +7854,7 @@ export async function applyRenderedWebglWorkerLocomotionInteraction(
         ) ? [{ phase, x, y }] : [];
       }).sort((left, right) => left.phase.localeCompare(right.phase));
       const visibleRootProjections = () => {
-        if (expected.northern) return portraitRootProjections(true);
+        if (expected.climate !== 'center') return portraitRootProjections(true);
         const local = localQaRootProjections();
         return local.length > 0 ? local : portraitRootProjections();
       };
@@ -7935,7 +7973,7 @@ export async function applyRenderedWebglWorkerLocomotionInteraction(
       let samplingElapsedMilliseconds = 0;
       let stable = true;
       let phaseReadinessSatisfied = baseReadinessSatisfied;
-      let northernSelectionStable = !expected.northern;
+      let regionalSelectionStable = expected.climate === 'center';
       if (baseReadinessSatisfied) {
         for (const target of [
           { ordinal: 1, phase: 'outbound' },
@@ -7986,7 +8024,7 @@ export async function applyRenderedWebglWorkerLocomotionInteraction(
           );
         }
       }
-      if (phaseReadinessSatisfied && expected.northern) {
+      if (phaseReadinessSatisfied && expected.climate !== 'center') {
         const beforeSelectionCameraToken = canvas?.getAttribute(
           'data-realm-camera-state-token'
         );
@@ -8037,7 +8075,7 @@ export async function applyRenderedWebglWorkerLocomotionInteraction(
               'data-realm-worker-route-corridor-failure-count'
             ) === 0
           ), 5_000);
-          northernSelectionStable = selectedRouteReady
+          regionalSelectionStable = selectedRouteReady
             && cameraSettled()
             && canvas.getAttribute('data-realm-camera-state-token')
               === beforeSelectionCameraToken;
@@ -8051,7 +8089,7 @@ export async function applyRenderedWebglWorkerLocomotionInteraction(
       const readinessSatisfied = (
         baseReadinessSatisfied
         && phaseReadinessSatisfied
-        && northernSelectionStable
+        && regionalSelectionStable
         && samples.length === 32
       );
       const counts = presentationCounts();
@@ -8422,11 +8460,18 @@ async function runRenderedWorkerLocomotionCase(session, probeCase, state) {
     probeCase.viewport,
     { minimumDistinctColourBuckets: 4 }
   );
-  if (probeCase.workerLocomotion.northern === true) {
+  if (probeCase.workerLocomotion.climate === 'north') {
     const northernReachProbe =
       await import('./northern-reach-rendered-evidence.mjs');
     northernReachProbe.assertNorthernReachRenderedVisual(
       { region: 'deep' },
+      finalVisual
+    );
+  } else if (probeCase.workerLocomotion.climate === 'south') {
+    const regionalClimateProbe =
+      await import('./regional-climate-rendered-evidence.mjs');
+    regionalClimateProbe.assertRegionalClimateRenderedVisual(
+      { compositionBucket: 4, region: 'deep' },
       finalVisual
     );
   }
@@ -8517,7 +8562,8 @@ async function runRenderedCase(
   probeCase,
   state,
   onQualityMetrics,
-  northernReachProbe
+  northernReachProbe,
+  regionalClimateProbe
 ) {
   await session.command('Emulation.setDeviceMetricsOverride', {
     width: probeCase.viewport.width,
@@ -8805,6 +8851,158 @@ async function runRenderedCase(
       }
     }
   }
+  if (RENDERED_WEBGL_QA_SUNSCOURED_SOUTH_CASE_IDS.has(probeCase.id)) {
+    // Every southern journey begins from the same reviewed fixture state. This
+    // prevents the preceding north, inspector, or Explore camera from defining
+    // the evidence target.
+    await navigateRenderedWebglCase(session, 'about:blank', state);
+    await navigateRenderedWebglCase(session, probeCase.url, state);
+    await waitForAcceptedRenderedDom(session, baseline, state);
+    const southernRegions = probeCase.id === 'desktop-balanced'
+      ? ['overview', 'transition', 'deep', 'water-edge']
+      : probeCase.id === 'desktop-high' || probeCase.id === 'desktop-reduced'
+        ? ['overview', 'deep']
+        : probeCase.id === 'short-landscape-explore'
+          ? ['transition']
+          : ['deep'];
+    for (const region of southernRegions) {
+      try {
+        const recover = probeCase.id === 'desktop-balanced' && region === 'deep';
+        if (recover) {
+          state.controlledRendererRecovery = true;
+          state.controlledRendererWarningCount = 0;
+          state.controlledRendererWarningThrottleSeen = false;
+        }
+        let evidence;
+        try {
+          evidence =
+            await regionalClimateProbe.applyRegionalClimateRenderedEvidence(
+              session,
+              {
+                quality: probeCase.expectedQuality,
+                recover,
+                region,
+                viewport: probeCase.viewport
+              }
+            );
+          if (recover) await delay(100);
+        } finally {
+          if (recover) state.controlledRendererRecovery = false;
+        }
+        if (region === 'transition' && evidence.band !== 'strategy') {
+          throw new Error(
+            'Sunscoured South transition did not settle at the strategy band.'
+          );
+        }
+        if (probeCase.id === 'desktop-reduced' && region === 'deep') {
+          await delay(NORTHERN_REACH_REDUCED_MOTION_HOST_WAIT_MILLISECONDS);
+          const firstSignature = await readNorthernReachStaticFrameSignature(
+            session
+          );
+          const firstVisual = await captureRenderedCasePixels(
+            session,
+            probeCase.viewport,
+            {
+              artifactName: process.env.WARPKEEP_QA_SOUTHERN_ARTIFACT_DIR
+                ? `${probeCase.id}-${region}-first.png`
+                : undefined,
+              artifactRegion: 'southern',
+              minimumDistinctColourBuckets: 4
+            }
+          );
+          regionalClimateProbe.assertRegionalClimateRenderedVisual(
+            evidence,
+            firstVisual
+          );
+          await delay(NORTHERN_REACH_REDUCED_MOTION_HOST_WAIT_MILLISECONDS);
+          const repeatedSignature = await readNorthernReachStaticFrameSignature(
+            session
+          );
+          const repeatedVisual = await captureRenderedCasePixels(
+            session,
+            probeCase.viewport,
+            {
+              artifactName: process.env.WARPKEEP_QA_SOUTHERN_ARTIFACT_DIR
+                ? `${probeCase.id}-${region}-repeated.png`
+                : undefined,
+              artifactRegion: 'southern',
+              minimumDistinctColourBuckets: 4
+            }
+          );
+          regionalClimateProbe.assertRegionalClimateRenderedVisual(
+            evidence,
+            repeatedVisual
+          );
+          const repeatedEvidence =
+            await regionalClimateProbe.applyRegionalClimateRenderedEvidence(
+              session,
+              {
+                quality: probeCase.expectedQuality,
+                recover: false,
+                region,
+                viewport: probeCase.viewport
+              }
+            );
+          if (process.env.WARPKEEP_QA_LOCAL_DIAGNOSTICS === '1') {
+            process.stderr.write(
+              `Local synthetic South reduced-motion aggregates: ${
+                JSON.stringify({
+                  first: {
+                    evidence,
+                    signature: firstSignature,
+                    visual: firstVisual
+                  },
+                  repeated: {
+                    evidence: repeatedEvidence,
+                    signature: repeatedSignature,
+                    visual: repeatedVisual
+                  }
+                })
+              }\n`
+            );
+          }
+          regionalClimateProbe
+            .assertRegionalClimateRepeatedReducedMotionEvidence(
+              { evidence, signature: firstSignature, visual: firstVisual },
+              {
+                evidence: repeatedEvidence,
+                signature: repeatedSignature,
+                visual: repeatedVisual
+              }
+            );
+        } else {
+          const visual = await captureRenderedCasePixels(
+            session,
+            probeCase.viewport,
+            {
+              artifactName: process.env.WARPKEEP_QA_SOUTHERN_ARTIFACT_DIR
+                ? `${probeCase.id}-${region}.png`
+                : undefined,
+              artifactRegion: 'southern',
+              minimumDistinctColourBuckets:
+                probeCase.expectedQuality === 'reduced' ? 4 : undefined
+            }
+          );
+          if (process.env.WARPKEEP_QA_LOCAL_DIAGNOSTICS === '1') {
+            process.stderr.write(
+              `Local synthetic South ${probeCase.id}/${region}: ${
+                JSON.stringify({ evidence, visual })
+              }\n`
+            );
+          }
+          regionalClimateProbe.assertRegionalClimateRenderedVisual(
+            evidence,
+            visual
+          );
+        }
+      } catch (error) {
+        throw new Error(
+          `Sunscoured South ${region} rendered evidence failed.`,
+          { cause: error }
+        );
+      }
+    }
+  }
 }
 
 /**
@@ -8868,6 +9066,8 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
     const occupancyStressCase = renderedWebglOccupancyStressProbeCase(vite.port);
     const journeyProbe = await import('./qa-journey-browser-probe.mjs');
     const northernReachProbe = await import('./northern-reach-rendered-evidence.mjs');
+    const regionalClimateProbe =
+      await import('./regional-climate-rendered-evidence.mjs');
     const journeyCases = journeyProbe.qaJourneyBrowserProbeCases(vite.port);
     const castleLodVisualUrl = castleLodVisualProbe.castleLodVisualEvidenceUrl(vite.port);
     const isAllowedProbeResourceUrl = (value) => (
@@ -9123,7 +9323,8 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
           probeCase,
           state,
           onQualityMetrics,
-          northernReachProbe
+          northernReachProbe,
+          regionalClimateProbe
         );
       } catch (error) {
         throw new Error(`Rendered WebGL case ${probeCase.id} failed.`, { cause: error });
@@ -9256,7 +9457,7 @@ async function main() {
       `High/Balanced/Reduced metrics ${JSON.stringify(qualityMetrics)}`;
     process.stdout.write(
       `Warpkeep local browser QA passed: ${passedCaseCount} rendered cases, one active generic `
-      + `Worker lifecycle check, five Worker locomotion evidence checks, one all-node occupancy `
+      + `Worker lifecycle check, six Worker locomotion evidence checks, one all-node occupancy `
       + `stress check, 25 journey checks, and `
       + `loopback LOD boundary ${JSON.stringify(castleLodVisualBoundary)}, ${lodFidelitySummary}, `
       + `${qualityMetricsSummary}.\n`

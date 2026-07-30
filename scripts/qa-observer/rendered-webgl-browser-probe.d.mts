@@ -92,6 +92,7 @@ export type RenderedWebglBrowserProbeCase = Readonly<{
     | 'short-landscape-reduced-worker-locomotion'
     | 'mobile-reduced-motion-worker-locomotion'
     | 'desktop-balanced-northern-worker-locomotion'
+    | 'desktop-balanced-southern-worker-locomotion'
     | 'short-landscape-explore'
     | 'short-landscape-balanced-player-explore'
     | 'short-landscape-balanced-northern'
@@ -139,7 +140,8 @@ export type RenderedWebglWorkerLocomotionProbeCase =
       | 'desktop-balanced-worker-locomotion'
       | 'short-landscape-reduced-worker-locomotion'
       | 'mobile-reduced-motion-worker-locomotion'
-      | 'desktop-balanced-northern-worker-locomotion';
+      | 'desktop-balanced-northern-worker-locomotion'
+      | 'desktop-balanced-southern-worker-locomotion';
     workerLocomotion: Readonly<{
       assetProfile: 'high' | 'balanced' | 'compact';
       assetPath: string;
@@ -153,8 +155,9 @@ export type RenderedWebglWorkerLocomotionProbeCase =
       expectedWheelDrivenCount: number;
       fixtureVariant:
         | 'worker-locomotion'
-        | 'worker-locomotion-northern';
-      northern: boolean;
+        | 'worker-locomotion-northern'
+        | 'worker-locomotion-southern';
+      climate: 'center' | 'north' | 'south';
       reducedMotion: boolean;
     }>;
   }>;
@@ -672,10 +675,117 @@ export function analyzeRenderedWebglPngScreenshot(
   clippedWhiteSamples: number;
   coolHighAlbedoSamples: number;
   coolSpatialBuckets: readonly number[];
+  warmLowGreenSamples: number;
+  warmSpatialBuckets: readonly number[];
   hotYellowSamples: number;
   opaqueSamples: number;
   sampleCount: number;
 }>;
+
+export type RegionalClimateRenderedEvidence = Readonly<{
+  band: 'overview' | 'strategy' | 'close';
+  climate: 'south';
+  compositionBucket: number;
+  coverage: readonly [number, number, number, number, 0, 0];
+  material: readonly [string, 'two-band' | 'one-band' | 'none', true, false];
+  quality: 'high' | 'balanced' | 'reduced';
+  recovered: boolean;
+  recoveryExercised: boolean;
+  region: 'overview' | 'transition' | 'deep' | 'water-edge';
+  retained: readonly [
+    9_600,
+    number,
+    number,
+    number,
+    number,
+    number,
+    0,
+    0,
+    number
+  ];
+  selected: true;
+  separation: readonly [0, 0];
+  stable: true;
+  vertices: readonly [number, number, number, number];
+}>;
+
+export const SUNSCOURED_SOUTH_RENDERED_TARGET_MANIFEST:
+  Readonly<Record<'transition' | 'deep' | 'water-edge', Readonly<{
+    q: number;
+    r: number;
+    expectedCoverage: number;
+    expectedTerrainKind: string;
+    expectedPassable: true;
+    expectedStaticContentKind: 'empty';
+    expectedWater: false;
+  }>>>;
+
+export function assertSunscouredSouthRenderedTarget(
+  target: unknown,
+  observation: unknown
+): void;
+
+export function parseRegionalClimateRenderedEvidence(
+  value: unknown,
+  expected: Readonly<{
+    quality: RegionalClimateRenderedEvidence['quality'];
+    recover: boolean;
+    region: RegionalClimateRenderedEvidence['region'];
+    viewport: Readonly<{ width: number; height: number }>;
+  }>
+): RegionalClimateRenderedEvidence;
+
+export function assertRegionalClimateRenderedVisual(
+  evidence: RegionalClimateRenderedEvidence,
+  visual: Readonly<{
+    clippedBlackSamples: number;
+    clippedWhiteSamples: number;
+    coolHighAlbedoSamples: number;
+    coolSpatialBuckets: readonly number[];
+    warmLowGreenSamples: number;
+    warmSpatialBuckets: readonly number[];
+    hotYellowSamples: number;
+  }>
+): void;
+
+export function assertRegionalClimateRepeatedReducedMotionEvidence(
+  first: Readonly<{
+    evidence: RegionalClimateRenderedEvidence;
+    signature: NorthernReachStaticFrameSignature;
+    visual: Readonly<{
+      clippedBlackSamples: number;
+      clippedWhiteSamples: number;
+      coolHighAlbedoSamples: number;
+      coolSpatialBuckets: readonly number[];
+      warmLowGreenSamples: number;
+      warmSpatialBuckets: readonly number[];
+      hotYellowSamples: number;
+    }>;
+  }>,
+  repeated: Readonly<{
+    evidence: RegionalClimateRenderedEvidence;
+    signature: NorthernReachStaticFrameSignature;
+    visual: Readonly<{
+      clippedBlackSamples: number;
+      clippedWhiteSamples: number;
+      coolHighAlbedoSamples: number;
+      coolSpatialBuckets: readonly number[];
+      warmLowGreenSamples: number;
+      warmSpatialBuckets: readonly number[];
+      hotYellowSamples: number;
+    }>;
+  }>
+): void;
+
+export function applyRegionalClimateRenderedEvidence(
+  session: RenderedWebglCastleCanvasPointerSession,
+  options: Readonly<{
+    quality: RegionalClimateRenderedEvidence['quality'];
+    recover?: boolean;
+    region: RegionalClimateRenderedEvidence['region'];
+    viewport: Readonly<{ width: number; height: number }>;
+  }>
+): Promise<RegionalClimateRenderedEvidence>;
 
 export type NorthernReachRenderedEvidence = Readonly<{
   band: 'overview' | 'strategy' | 'close';

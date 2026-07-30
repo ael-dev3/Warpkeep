@@ -317,9 +317,11 @@ describe('local QA production exclusion', () => {
     expect(verifier).toContain('createRenderedWebglQaActiveWorkerRealm');
     expect(verifier).toContain('createRenderedWebglQaWorkerLocomotionRealm');
     expect(verifier).toContain('createRenderedWebglQaNorthernWorkerLocomotionRealm');
+    expect(verifier).toContain('createRenderedWebglQaSouthernWorkerLocomotionRealm');
     expect(verifier).toContain('worker-active');
     expect(verifier).toContain('worker-locomotion');
     expect(verifier).toContain('worker-locomotion-northern');
+    expect(verifier).toContain('worker-locomotion-southern');
     expect(verifier).toContain('readRenderedWebglQaSfxSnapshot');
     expect(verifier).toContain('proveRenderedWebglQaOfflineSfxCorpus');
     expect(verifier).toContain('emitRenderedWebglQaProbeSfx');

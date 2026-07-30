@@ -17,7 +17,7 @@ function paethPredictor(left, above, upperLeft) {
  * command. Pixels stay in memory for the duration of this call and are reduced
  * immediately to non-identifying aggregate colour evidence.
  */
-export function analyzeRenderedWebglPngScreenshot(value, viewport) {
+export function analyzeRenderedWebglPngScreenshot(value, viewport, options = {}) {
   if (!Buffer.isBuffer(value) || value.byteLength < 64 || value.byteLength > SCREENSHOT_MAXIMUM_BYTES) {
     throw new TypeError('Invalid rendered WebGL screenshot.');
   }
@@ -33,6 +33,13 @@ export function analyzeRenderedWebglPngScreenshot(value, viewport) {
     || viewport.width > 1_920
     || viewport.height > 1_080
   ) throw new TypeError('Invalid rendered WebGL screenshot viewport.');
+  const minimumDistinctColourBuckets =
+    options.minimumDistinctColourBuckets ?? 8;
+  if (
+    !Number.isSafeInteger(minimumDistinctColourBuckets)
+    || minimumDistinctColourBuckets < 4
+    || minimumDistinctColourBuckets > 8
+  ) throw new TypeError('Invalid rendered WebGL screenshot analysis policy.');
   let cursor = 8;
   let chunkCount = 0;
   let header;
@@ -239,7 +246,7 @@ export function analyzeRenderedWebglPngScreenshot(value, viewport) {
   if (
     result.sampleCount < 100
     || result.opaqueSamples !== result.sampleCount
-    || result.distinctColourBuckets < 8
+    || result.distinctColourBuckets < minimumDistinctColourBuckets
     || result.luminanceRange < 28
   ) throw new TypeError('Rendered WebGL screenshot did not contain credible visual output.');
   return result;

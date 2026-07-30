@@ -11,6 +11,7 @@ const FIXTURE_VARIANT_VALUES = new Set([
   'worker-active',
   'worker-locomotion',
   'worker-locomotion-northern',
+  'worker-locomotion-southern',
 ]);
 
 function quality(value) {

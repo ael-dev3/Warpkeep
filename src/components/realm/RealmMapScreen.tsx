@@ -2620,6 +2620,15 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     root.dataset.desertNorthernLeakCount = String(
       telemetry.desertNorthernLeakCount
     );
+    root.dataset.desertSampledPlayableLandCellCenterCount = String(
+      telemetry.desertSampledPlayableLandCellCenterCount
+    );
+    root.dataset.desertCellCenterCoverageMean = String(
+      telemetry.desertCellCenterCoverageMean
+    );
+    root.dataset.desertSouthernmostRowCoverageMean = String(
+      telemetry.desertSouthernmostRowCoverageMean
+    );
     root.dataset.sandVertexCoverageMin = String(
       telemetry.sandVertexCoverageMin
     );
@@ -3394,6 +3403,9 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
         rootRef.current.dataset.desertDeepCoverageRatio = '0';
         rootRef.current.dataset.desertInnerRadiusLeakCount = '0';
         rootRef.current.dataset.desertNorthernLeakCount = '0';
+        rootRef.current.dataset.desertSampledPlayableLandCellCenterCount = '0';
+        rootRef.current.dataset.desertCellCenterCoverageMean = '0';
+        rootRef.current.dataset.desertSouthernmostRowCoverageMean = '0';
         rootRef.current.dataset.sandVertexCoverageMin = '0';
         rootRef.current.dataset.sandVertexCoverageMax = '0';
         rootRef.current.dataset.sandVertexCoverageMean = '0';

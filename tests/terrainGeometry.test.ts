@@ -349,7 +349,10 @@ describe('combined lowlands terrain geometry', () => {
     const geometryOptions = {
       subdivisionsPerEdge: 2,
       adaptiveDetailRadius: 0,
-      playableRadius: 58
+      playableRadius: 58,
+      sandPlayableCellKeys: new Set(
+        local.cells.map((cell) => hexKey(cell.coord))
+      )
     } as const;
     const neutral = createTerrainGeometryData(local, 1, geometryOptions);
     const climate = createTerrainGeometryData(local, 1, {
@@ -388,6 +391,27 @@ describe('combined lowlands terrain geometry', () => {
     expect(climate.sandCoverageMetrics.attributeBytes).toBe(
       climate.vertexCount * Float32Array.BYTES_PER_ELEMENT
     );
+    expect(climate.sandCoverageMetrics.sampledPlayableLandCellCenterCount)
+      .toBe(local.cells.length);
+    expect(climate.sandCoverageMetrics.retainedCellCenterCountAbove015)
+      .toBeGreaterThan(0);
+    expect(climate.sandCoverageMetrics.retainedDeepCellCenterCountAbove075)
+      .toBeGreaterThan(0);
+    expect(climate.sandCoverageMetrics.retainedCellCenterCoverageRatio)
+      .toBe(
+        climate.sandCoverageMetrics.retainedCellCenterCountAbove015
+          / local.cells.length
+      );
+    expect(climate.sandCoverageMetrics.retainedDeepCellCenterCoverageRatio)
+      .toBe(
+        climate.sandCoverageMetrics.retainedDeepCellCenterCountAbove075
+          / local.cells.length
+      );
+    expect(climate.sandCoverageMetrics.retainedCellCenterCoverageMean)
+      .toBeGreaterThan(0);
+    expect(climate.sandCoverageMetrics.retainedCellCenterNorthernLeakCount)
+      .toBe(0);
+    expect(climate.sandCoverageMetrics.snowOverlapCellCenterCount).toBe(0);
 
     const excluded = createTerrainGeometryData(local, 1, {
       ...geometryOptions,
@@ -396,6 +420,8 @@ describe('combined lowlands terrain geometry', () => {
       sandExcludedCellKeys: new Set(['0,48'])
     });
     expect(excluded.sandCoverage![centerIndex]).toBe(0);
+    expect(excluded.sandCoverageMetrics.sampledPlayableLandCellCenterCount)
+      .toBe(local.cells.length - 1);
 
     const founded = createTerrainGeometryData(local, 1, {
       ...geometryOptions,
@@ -405,6 +431,8 @@ describe('combined lowlands terrain geometry', () => {
     });
     expect(founded.sandCoverage![centerIndex])
       .toBeLessThan(climate.sandCoverage![centerIndex] * 0.1);
+    expect(founded.sandCoverageMetrics.retainedCellCenterCoverageMean)
+      .toBeLessThan(climate.sandCoverageMetrics.retainedCellCenterCoverageMean);
   });
 
   it('matches the pinned former radius-twenty-two topology at every runtime profile', () => {

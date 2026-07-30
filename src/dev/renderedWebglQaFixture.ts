@@ -63,6 +63,8 @@ export const RENDERED_WEBGL_QA_LOCOMOTION_GATHERING_SITE_ID =
   'genesis-001-tier1-gold-15';
 export const RENDERED_WEBGL_QA_NORTHERN_LOCOMOTION_SITE_ID =
   'genesis-001-tier1-food-044';
+export const RENDERED_WEBGL_QA_SOUTHERN_LOCOMOTION_SITE_ID =
+  'genesis-001-tier1-food-023';
 export const RENDERED_WEBGL_QA_OCCUPANCY_STRESS_COUNT =
   CANONICAL_TIER_I_GOLD_SITES_V1.length
   + CANONICAL_TIER_I_FOOD_SITES_V1.length
@@ -635,20 +637,23 @@ export function createRenderedWebglQaWorkerLocomotionRealm(
 }
 
 /**
- * Local-only route evidence for the Northern Reach. The two moving owned
- * wagons share the reviewed 42-step dry route from the founding keep to
- * food-044: the outbound wagon is held in transition snow while the returning
- * wagon has just left the deep northern field. Timings remain synthetic and
- * never invoke a reducer or production authority.
+ * Local-only regional route evidence. Two moving owned wagons share one
+ * reviewed dry route: the outbound wagon is held in the climate transition
+ * while the returning wagon has just left the deep regional field. Timings
+ * remain synthetic and never invoke a reducer or production authority.
  */
-export function createRenderedWebglQaNorthernWorkerLocomotionRealm(
-  nowMicros = BigInt(Date.now()) * 1_000n
+function createRenderedWebglQaRegionalWorkerLocomotionRealm(
+  region: 'Northern' | 'Southern',
+  siteId: string,
+  expectedRouteSteps: number,
+  expectedPeerRouteSteps: number,
+  nowMicros: bigint
 ): RenderedWebglQaActiveWorkerRealm {
   const routeSteps = canonicalRouteStepsForAssignment(
     CANONICAL_CASTLE_SLOTS[0]!,
     {
       resourceKind: 'food',
-      siteId: RENDERED_WEBGL_QA_NORTHERN_LOCOMOTION_SITE_ID,
+      siteId,
       status: 'outbound',
       startedAtMicros: 0n,
       arrivesAtMicros: 1n,
@@ -661,9 +666,11 @@ export function createRenderedWebglQaNorthernWorkerLocomotionRealm(
   if (
     typeof nowMicros !== 'bigint'
     || nowMicros < travelDuration * 3n
-    || routeSteps !== 42
+    || routeSteps !== expectedRouteSteps
   ) {
-    throw new TypeError('Invalid Northern Worker locomotion clock or route.');
+    throw new TypeError(
+      `Invalid ${region} Worker locomotion clock or route.`
+    );
   }
 
   const ownCastleId = RENDERED_WEBGL_QA_OCCUPANT_CASTLE_ID - 1;
@@ -675,7 +682,7 @@ export function createRenderedWebglQaNorthernWorkerLocomotionRealm(
     CANONICAL_CASTLE_SLOTS[1]!,
     {
       resourceKind: 'food',
-      siteId: RENDERED_WEBGL_QA_NORTHERN_LOCOMOTION_SITE_ID,
+      siteId,
       status: 'returning',
       startedAtMicros: 0n,
       arrivesAtMicros: 1n,
@@ -684,8 +691,8 @@ export function createRenderedWebglQaNorthernWorkerLocomotionRealm(
       timelineRevision: 1
     }
   );
-  if (foreignRouteSteps !== 43) {
-    throw new TypeError('Invalid Northern peer Worker route.');
+  if (foreignRouteSteps !== expectedPeerRouteSteps) {
+    throw new TypeError(`Invalid ${region} peer Worker route.`);
   }
   const foreignTravelDuration = BigInt(foreignRouteSteps) * 60_000_000n;
   const foreignReturningStart =
@@ -700,7 +707,7 @@ export function createRenderedWebglQaNorthernWorkerLocomotionRealm(
       canonicalWorkerId(ownCastleId, 1),
       Object.freeze({
         resourceKind: 'food',
-        siteId: RENDERED_WEBGL_QA_NORTHERN_LOCOMOTION_SITE_ID,
+        siteId,
         status: 'outbound',
         startedAtMicros: outboundStart,
         arrivesAtMicros: outboundStart + travelDuration,
@@ -713,7 +720,7 @@ export function createRenderedWebglQaNorthernWorkerLocomotionRealm(
       canonicalWorkerId(ownCastleId, 2),
       Object.freeze({
         resourceKind: 'food',
-        siteId: RENDERED_WEBGL_QA_NORTHERN_LOCOMOTION_SITE_ID,
+        siteId,
         status: 'returning',
         startedAtMicros: returningAssignmentStart,
         arrivesAtMicros: returningAssignmentStart + travelDuration,
@@ -741,7 +748,7 @@ export function createRenderedWebglQaNorthernWorkerLocomotionRealm(
       canonicalWorkerId(foreignCastleId, 1),
       Object.freeze({
         resourceKind: 'food',
-        siteId: RENDERED_WEBGL_QA_NORTHERN_LOCOMOTION_SITE_ID,
+        siteId,
         status: 'returning',
         startedAtMicros: foreignAssignmentStart,
         arrivesAtMicros: foreignAssignmentStart + foreignTravelDuration,
@@ -754,6 +761,35 @@ export function createRenderedWebglQaNorthernWorkerLocomotionRealm(
     ]
   ]);
   return createRenderedWebglQaWorkerRealm(assignments, nowMicros, new Map());
+}
+
+export function createRenderedWebglQaNorthernWorkerLocomotionRealm(
+  nowMicros = BigInt(Date.now()) * 1_000n
+): RenderedWebglQaActiveWorkerRealm {
+  return createRenderedWebglQaRegionalWorkerLocomotionRealm(
+    'Northern',
+    RENDERED_WEBGL_QA_NORTHERN_LOCOMOTION_SITE_ID,
+    42,
+    43,
+    nowMicros
+  );
+}
+
+/**
+ * Local-only route evidence for the Sunscoured South. The same real Supply
+ * Wagon lifecycle crosses a reviewed 57-step dry route to food-023, holding
+ * one owned wagon in the transition and another near the deep southern rim.
+ */
+export function createRenderedWebglQaSouthernWorkerLocomotionRealm(
+  nowMicros = BigInt(Date.now()) * 1_000n
+): RenderedWebglQaActiveWorkerRealm {
+  return createRenderedWebglQaRegionalWorkerLocomotionRealm(
+    'Southern',
+    RENDERED_WEBGL_QA_SOUTHERN_LOCOMOTION_SITE_ID,
+    57,
+    58,
+    nowMicros
+  );
 }
 
 export { RENDERED_WEBGL_QA_FIXTURE_ID };

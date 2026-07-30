@@ -119,6 +119,16 @@ export type TerrainSandCoverageMetrics = Readonly<{
   maximum: number;
   mean: number;
   attributeBytes: number;
+  sampledPlayableLandCellCenterCount: number;
+  retainedCellCenterCountAbove015: number;
+  retainedDeepCellCenterCountAbove075: number;
+  retainedCellCenterCoverageRatio: number;
+  retainedDeepCellCenterCoverageRatio: number;
+  retainedCellCenterCoverageMean: number;
+  retainedCellCenterInnerRadiusLeakCount: number;
+  retainedCellCenterNorthernLeakCount: number;
+  retainedSouthernmostRowCoverageMean: number;
+  snowOverlapCellCenterCount: number;
   snowOverlapVertexCount: number;
 }>;
 
@@ -143,6 +153,8 @@ export type TerrainGeometryOptions = Readonly<{
   snowPlayableCellKeys?: ReadonlySet<string>;
   /** Immutable renderer-only southern climate field. */
   southernDesert?: RealmSouthernDesertField;
+  /** Exact authoritative cells; prevents renderer apron cells entering telemetry. */
+  sandPlayableCellKeys?: ReadonlySet<string>;
   /** Complete validated Water coordinates suppress the winter treatment. */
   snowExcludedCellKeys?: ReadonlySet<string>;
   /** Complete validated Water coordinates suppress the southern treatment. */
@@ -570,7 +582,18 @@ function applySouthernDesertPresentation(
   let minimum = Number.POSITIVE_INFINITY;
   let maximum = Number.NEGATIVE_INFINITY;
   let sum = 0;
+  let sampledPlayableLandCellCenterCount = 0;
+  let retainedCellCenterCountAbove015 = 0;
+  let retainedDeepCellCenterCountAbove075 = 0;
+  let retainedCellCenterCoverageNano = 0;
+  let retainedCellCenterInnerRadiusLeakCount = 0;
+  let retainedCellCenterNorthernLeakCount = 0;
+  let southernmostCellCenterR = Number.NEGATIVE_INFINITY;
+  let southernmostCellCenterCoverageNano = 0;
+  let southernmostCellCenterCount = 0;
+  let snowOverlapCellCenterCount = 0;
   let snowOverlapVertexCount = 0;
+  const sampledCellCenterKeys = new Set<string>();
   const sandClearanceIndex = indexTerrainSnowClearanceCircles(
     options.sandClearanceCircles ?? [],
     hexSize
@@ -582,6 +605,7 @@ function applySouthernDesertPresentation(
       z: positions[index * 3 + 2]!
     };
     const nearest = worldToNearestAxial(world, hexSize);
+    const cellKey = hexKey(nearest);
     let placementInfluence = 0;
     terrainPlacementsForCell(placements, nearest, hexSize).forEach((placement) => {
       placementInfluence = Math.max(
@@ -601,12 +625,12 @@ function applySouthernDesertPresentation(
       );
       placementInfluence = Math.max(placementInfluence, influence);
     });
-    const excluded = options.sandExcludedCellKeys?.has(hexKey(nearest)) === true;
+    const excluded = options.sandExcludedCellKeys?.has(cellKey) === true;
     const slope = materialCues[index * 4]!;
     const concavity = materialCues[index * 4 + 1]!;
     const vegetation = materialCues[index * 4 + 2]!;
     const wetness = materialCues[index * 4 + 3]!;
-    const kind = options.terrainKindsByKey?.get(hexKey(nearest));
+    const kind = options.terrainKindsByKey?.get(cellKey);
     const coverage = excluded
       ? 0
       : field.retainedSandAtWorld(world, {
@@ -626,6 +650,43 @@ function applySouthernDesertPresentation(
     if (safeCoverage > 0.15 && (snowCoverage?.[index] ?? 0) > 0.15) {
       snowOverlapVertexCount += 1;
     }
+    const cellCenter = axialToWorld(nearest, hexSize);
+    const authoritativePlayable = options.sandPlayableCellKeys
+      ? options.sandPlayableCellKeys.has(cellKey)
+      : hexDistance({ q: 0, r: 0 }, nearest) <= field.playableRadius;
+    const isPlayableLandCellCenter = (
+      Math.hypot(world.x - cellCenter.x, world.z - cellCenter.z)
+        <= hexSize * 0.000_001
+      && authoritativePlayable
+      && !excluded
+      && !sampledCellCenterKeys.has(cellKey)
+    );
+    if (isPlayableLandCellCenter) {
+      sampledCellCenterKeys.add(cellKey);
+      sampledPlayableLandCellCenterCount += 1;
+      const coverageNano = Math.round(safeCoverage * 1_000_000_000);
+      retainedCellCenterCoverageNano += coverageNano;
+      if (safeCoverage > 0.15) retainedCellCenterCountAbove015 += 1;
+      if (safeCoverage > 0.75) retainedDeepCellCenterCountAbove075 += 1;
+      if (
+        hexDistance({ q: 0, r: 0 }, nearest) <= 18
+        && safeCoverage > 0.15
+      ) retainedCellCenterInnerRadiusLeakCount += 1;
+      if (nearest.r < 0 && safeCoverage > 0.01) {
+        retainedCellCenterNorthernLeakCount += 1;
+      }
+      if (safeCoverage > 0.15 && (snowCoverage?.[index] ?? 0) > 0.15) {
+        snowOverlapCellCenterCount += 1;
+      }
+      if (nearest.r > southernmostCellCenterR) {
+        southernmostCellCenterR = nearest.r;
+        southernmostCellCenterCoverageNano = coverageNano;
+        southernmostCellCenterCount = 1;
+      } else if (nearest.r === southernmostCellCenterR) {
+        southernmostCellCenterCoverageNano += coverageNano;
+        southernmostCellCenterCount += 1;
+      }
+    }
     applySandCpuColor(
       colors,
       index,
@@ -636,6 +697,21 @@ function applySouthernDesertPresentation(
     );
   }
 
+  const sampledCellCenterDenominator = Math.max(
+    1,
+    sampledPlayableLandCellCenterCount
+  );
+  if (options.sandPlayableCellKeys) {
+    let expectedCellCenterCount = 0;
+    options.sandPlayableCellKeys.forEach((key) => {
+      if (!options.sandExcludedCellKeys?.has(key)) {
+        expectedCellCenterCount += 1;
+      }
+    });
+    if (sampledPlayableLandCellCenterCount !== expectedCellCenterCount) {
+      throw new Error('REALM_TERRAIN_SAND_CELL_CENTER_ATTESTATION_FAILED');
+    }
+  }
   return Object.freeze({
     sandCoverage,
     metrics: Object.freeze({
@@ -643,6 +719,22 @@ function applySouthernDesertPresentation(
       maximum: Number.isFinite(maximum) ? maximum : 0,
       mean: vertexCount > 0 ? sum / vertexCount : 0,
       attributeBytes: sandCoverage.byteLength,
+      sampledPlayableLandCellCenterCount,
+      retainedCellCenterCountAbove015,
+      retainedDeepCellCenterCountAbove075,
+      retainedCellCenterCoverageRatio:
+        retainedCellCenterCountAbove015 / sampledCellCenterDenominator,
+      retainedDeepCellCenterCoverageRatio:
+        retainedDeepCellCenterCountAbove075 / sampledCellCenterDenominator,
+      retainedCellCenterCoverageMean:
+        retainedCellCenterCoverageNano
+          / (sampledCellCenterDenominator * 1_000_000_000),
+      retainedCellCenterInnerRadiusLeakCount,
+      retainedCellCenterNorthernLeakCount,
+      retainedSouthernmostRowCoverageMean:
+        southernmostCellCenterCoverageNano
+          / (Math.max(1, southernmostCellCenterCount) * 1_000_000_000),
+      snowOverlapCellCenterCount,
       snowOverlapVertexCount
     })
   });
@@ -1138,6 +1230,16 @@ export function createTerrainGeometryData(
       maximum: 0,
       mean: 0,
       attributeBytes: 0,
+      sampledPlayableLandCellCenterCount: 0,
+      retainedCellCenterCountAbove015: 0,
+      retainedDeepCellCenterCountAbove075: 0,
+      retainedCellCenterCoverageRatio: 0,
+      retainedDeepCellCenterCoverageRatio: 0,
+      retainedCellCenterCoverageMean: 0,
+      retainedCellCenterInnerRadiusLeakCount: 0,
+      retainedCellCenterNorthernLeakCount: 0,
+      retainedSouthernmostRowCoverageMean: 0,
+      snowOverlapCellCenterCount: 0,
       snowOverlapVertexCount: 0
     }),
     indices: typedIndices,

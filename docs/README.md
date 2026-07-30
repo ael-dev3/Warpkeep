@@ -18,6 +18,8 @@ contributors. This page routes deeper work without duplicating it.
   sound boundaries
 - [Northern Reach reference boundary](design/northern-reach-reference-boundary.md)
   — the snow-system clean-room and license record
+- [Sunscoured South reference boundary](design/sunscoured-south-reference-boundary.md)
+  — the desert presentation's clean-room boundary
 - [Contributing](../CONTRIBUTING.md) — local setup, checks, privacy, and
   provenance expectations
 - [Code of Conduct](../CODE_OF_CONDUCT.md) — expectations for project spaces

@@ -18,6 +18,7 @@ async function startRenderedWebglQa() {
         createRenderedWebglQaFixtureRealm,
         createRenderedWebglQaNorthernWorkerLocomotionRealm,
         createRenderedWebglQaOccupancyStressRealm,
+        createRenderedWebglQaSouthernWorkerLocomotionRealm,
         createRenderedWebglQaWorkerLocomotionRealm
       }
     ] = await Promise.all([
@@ -38,6 +39,8 @@ async function startRenderedWebglQa() {
                 ? createRenderedWebglQaWorkerLocomotionRealm
                 : fixtureVariant === 'worker-locomotion-northern'
                   ? createRenderedWebglQaNorthernWorkerLocomotionRealm
+                  : fixtureVariant === 'worker-locomotion-southern'
+                    ? createRenderedWebglQaSouthernWorkerLocomotionRealm
                   : createRenderedWebglQaFixtureRealm}
           fixtureVariant={fixtureVariant}
           presentationMode={options.presentationMode}

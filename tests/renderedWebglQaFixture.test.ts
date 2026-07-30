@@ -16,6 +16,7 @@ import {
   createRenderedWebglQaFixtureRealm,
   createRenderedWebglQaNorthernWorkerLocomotionRealm,
   createRenderedWebglQaOccupancyStressRealm,
+  createRenderedWebglQaSouthernWorkerLocomotionRealm,
   createRenderedWebglQaWorkerLocomotionRealm,
   RENDERED_WEBGL_QA_ACTIVE_WORKER_SITE_ID,
   RENDERED_WEBGL_QA_FOREIGN_WORKER_SITE_ID,
@@ -30,6 +31,7 @@ import {
   RENDERED_WEBGL_QA_OCCUPIED_GOLD_SITE_ID,
   RENDERED_WEBGL_QA_OVERVIEW_GOLD_SITE_ID,
   RENDERED_WEBGL_QA_OVERVIEW_OCCUPANT_CASTLE_ID,
+  RENDERED_WEBGL_QA_SOUTHERN_LOCOMOTION_SITE_ID,
   renderedWebglQaFixtureSnapshot
 } from '../src/dev/renderedWebglQaFixture';
 import { REALM_OBSERVER_PORTRAIT_PLACEHOLDER_PATH } from '../src/dev/realmObserverSnapshot';
@@ -266,6 +268,9 @@ describe('rendered WebGL local QA fixture', () => {
     expect(readRenderedWebglQaFixtureVariant(
       '?quality=balanced&mode=player&fixture=worker-locomotion-northern'
     )).toBe('worker-locomotion-northern');
+    expect(readRenderedWebglQaFixtureVariant(
+      '?quality=balanced&mode=player&fixture=worker-locomotion-southern'
+    )).toBe('worker-locomotion-southern');
     expect(readRenderedWebglQaFixtureVariant('?quality=high')).toBe(
       RENDERED_WEBGL_QA_DEFAULT_FIXTURE_VARIANT
     );
@@ -511,6 +516,58 @@ describe('rendered WebGL local QA fixture', () => {
         resourceKind: 'food',
         routeSteps: 43,
         siteId: RENDERED_WEBGL_QA_NORTHERN_LOCOMOTION_SITE_ID,
+        status: 'returning'
+      })
+    ]);
+  });
+
+  it('holds real 57-step wagons in transition and the deep Sunscoured South', () => {
+    const nowMicros = 1_900_000_000_000_000n;
+    const realm = createRenderedWebglQaSouthernWorkerLocomotionRealm(nowMicros);
+    const [outbound, returning, gathering, idle] =
+      realm.workerProjection.ownedWorkers;
+    const travelDuration = 57n * 60_000_000n;
+
+    expect(realm.workerProjection.ownedWorkers.map((worker) => worker.status)).toEqual([
+      'outbound',
+      'returning',
+      'gathering',
+      'idle'
+    ]);
+    expect(realm.workerProjection.ownedWorkers.map((worker) => worker.siteId)).toEqual([
+      RENDERED_WEBGL_QA_SOUTHERN_LOCOMOTION_SITE_ID,
+      RENDERED_WEBGL_QA_SOUTHERN_LOCOMOTION_SITE_ID,
+      RENDERED_WEBGL_QA_LOCOMOTION_GATHERING_SITE_ID,
+      undefined
+    ]);
+    expect(realm.workerProjection.ownedWorkers.map((worker) => worker.routeSteps)).toEqual([
+      57,
+      57,
+      27,
+      undefined
+    ]);
+    expect(outbound).toMatchObject({
+      startedAtMicros: nowMicros - travelDuration * 6_500n / 10_000n,
+      arrivesAtMicros:
+        nowMicros - travelDuration * 6_500n / 10_000n + travelDuration
+    });
+    expect(returning).toMatchObject({
+      returnStartedAtMicros: nowMicros - travelDuration * 500n / 10_000n,
+      returnsAtMicros:
+        nowMicros - travelDuration * 500n / 10_000n + travelDuration,
+      returnStartProgressBasisPoints: 10_000
+    });
+    expect(gathering?.routeSteps).toBe(27);
+    expect(idle?.routeSteps).toBeUndefined();
+    expect(realm.snapshot.workerOccupations).toHaveLength(2);
+    expect((realm.snapshot.workerWorkers ?? []).filter((worker) => (
+      !worker.ownedByViewer && worker.status !== 'idle'
+    ))).toEqual([
+      expect.objectContaining({
+        originCastleId: RENDERED_WEBGL_QA_OCCUPANT_CASTLE_ID,
+        resourceKind: 'food',
+        routeSteps: 58,
+        siteId: RENDERED_WEBGL_QA_SOUTHERN_LOCOMOTION_SITE_ID,
         status: 'returning'
       })
     ]);
