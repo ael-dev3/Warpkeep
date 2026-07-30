@@ -107,8 +107,11 @@
               <li>
                 <strong>Access requests:</strong> when you explicitly request access, Warpkeep
                 stores your server-verified Farcaster FID and the SpacetimeDB server time of the
-                request in one private record for manual Alpha review. The request does not grant
-                access or create a castle.
+                current request cycle in one private record for manual Alpha review. Repeated
+                submissions in the same cycle do not change that time. If previously granted
+                access is later revoked, a new request can begin a new review cycle without
+                deleting the player's existing realm state. A request does not grant access or
+                create a castle.
               </li>
               <li>
                 <strong>Browser and session security:</strong> Warpkeep uses an origin, challenge
@@ -219,7 +222,7 @@
                   </tr>
                   <tr>
                     <td>Private access-request record</td>
-                    <td>No fixed Alpha deletion schedule yet. The verified FID and first server request time remain for manual review, service security, and the Alpha audit trail unless the Alpha is reset or the record is manually deleted.</td>
+                    <td>No fixed Alpha deletion schedule yet. The verified FID, current request cycle, and its server request time remain for manual review, service security, and the Alpha audit trail unless the Alpha is reset or the record is manually deleted. A later revocation can replace the current cycle and time with the new application cycle while preserving the player's realm state.</td>
                   </tr>
                   <tr>
                     <td>Sign-in challenge and browser-binding digest</td>

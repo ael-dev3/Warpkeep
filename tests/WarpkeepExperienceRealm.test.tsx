@@ -1035,7 +1035,7 @@ describe('Warpkeep shared realm admission', () => {
     expectPlayerRealmChromeAbsent();
   });
 
-  it('requires fresh Terms but never opens Spacetime for a pending-admission cookie session', async () => {
+  it('restores a pending-admission cookie session without repeating Terms or opening Spacetime', async () => {
     const pendingSession = createPendingAdmissionResponse();
     const bridge = createBridge(
       createAuthorizedResponse(),
@@ -1052,20 +1052,13 @@ describe('Warpkeep shared realm admission', () => {
     await settle();
 
     expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
-    const dialog = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
-    expect((within(dialog).getByRole('checkbox', {
-      name: 'I agree to the Alpha Terms and Hegemony Social Contract.'
-    }) as HTMLInputElement).checked).toBe(false);
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
     expect(authority.beginSignIn).not.toHaveBeenCalled();
     expect(backend.runtime.connect).not.toHaveBeenCalled();
     expect(backend.runtime.readBackendInfo).not.toHaveBeenCalled();
     expect(backend.runtime.readAdmission).not.toHaveBeenCalled();
     expect(screen.queryByRole('main', { name: 'Hegemony realm' })).toBeNull();
 
-    await acceptAlphaParticipationTerms();
-
-    expect(backend.runtime.connect).not.toHaveBeenCalled();
-    expect(screen.queryByRole('main', { name: 'Hegemony realm' })).toBeNull();
     expect(screen.getByText(
       'Your Farcaster identity is verified. Admission to the Hegemony frontier is still pending.'
     )).not.toBeNull();

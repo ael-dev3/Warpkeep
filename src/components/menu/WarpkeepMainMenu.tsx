@@ -124,7 +124,6 @@ type TermsContinuation =
   | 'refresh-session'
   | 'check-auth-rail'
   | 'enter-authenticated'
-  | 'show-pending'
   | 'legacy-enter';
 
 type TermsRequest = {
@@ -144,8 +143,7 @@ function termsContinueLabel(
     return 'CONTINUE TO REALM';
   }
   if (
-    continuation === 'show-pending'
-    || continuation === 'refresh-session'
+    continuation === 'refresh-session'
     || continuation === 'check-auth-rail'
   ) {
     return 'CONTINUE TO ACCESS CHECK';
@@ -531,8 +529,7 @@ export function WarpkeepMainMenu({
     const previousPhase = previousAuthPhaseRef.current;
     previousAuthPhaseRef.current = authState.phase;
     if (
-      authState.phase === 'error'
-      || authState.phase === 'expired'
+      authState.phase === 'expired'
       || (previousPhase !== 'anonymous' && authState.phase === 'anonymous')
     ) {
       acceptedEntryAttemptRef.current = false;
@@ -847,10 +844,9 @@ export function WarpkeepMainMenu({
     if (!interactive || !request) return;
 
     if (authState.phase === 'pending-admission') {
-      const trigger = termsTriggerRef.current;
       authAttemptStartedRef.current = false;
-      setSurface('commands');
-      openTerms('show-pending', trigger, request.keyboardDriven);
+      invalidateSessionRestore();
+      openAuthPanel(request.keyboardDriven);
       return;
     }
     if (
@@ -882,6 +878,7 @@ export function WarpkeepMainMenu({
     interactive,
     invalidateSessionRestore,
     onRequestAuthenticatedRealm,
+    openAuthPanel,
     openTerms,
     sessionRestoreRequest
   ]);
@@ -916,7 +913,8 @@ export function WarpkeepMainMenu({
           openTerms('enter-authenticated', anchorElement, keyboardDriven);
         }
       } else if (pendingIdentity) {
-        openTerms('show-pending', anchorElement, keyboardDriven);
+        termsTriggerRef.current = anchorElement;
+        openAuthPanel(keyboardDriven);
       } else {
         beginSessionRestore(anchorElement, keyboardDriven);
       }
@@ -939,6 +937,7 @@ export function WarpkeepMainMenu({
     onRequestEnterRealm,
     onRequestAuthenticatedRealm,
     openCredits,
+    openAuthPanel,
     openSettings,
     openNotice,
     openTerms
@@ -946,8 +945,17 @@ export function WarpkeepMainMenu({
 
   const handleRetrySignIn = useCallback(() => {
     const keyboardDriven = lastActionModalityRef.current === 'keyboard';
+    if (acceptedEntryAttemptRef.current) {
+      authAttemptStartedRef.current = true;
+      openAuthPanel(keyboardDriven);
+      onRetryFarcasterSignIn?.();
+      window.requestAnimationFrame(() => {
+        authHeadingRef.current?.focus({ preventScroll: true });
+      });
+      return;
+    }
     openTerms('retry-sign-in', authPrimaryActionRef.current, keyboardDriven);
-  }, [openTerms]);
+  }, [onRetryFarcasterSignIn, openAuthPanel, openTerms]);
 
   const handleTermsContinue = useCallback(() => {
     const request = termsRequest;
@@ -1070,7 +1078,11 @@ export function WarpkeepMainMenu({
   ]);
 
   const handleRefreshFarcasterSession = useCallback(() => {
-    if (acceptedEntryAttemptRef.current || canReuseEntryAgreement()) {
+    if (
+      authState.phase === 'pending-admission'
+      || acceptedEntryAttemptRef.current
+      || canReuseEntryAgreement()
+    ) {
       acceptedEntryAttemptRef.current = false;
       onRefreshFarcasterSession?.();
       return;
@@ -1080,7 +1092,12 @@ export function WarpkeepMainMenu({
       authPrimaryActionRef.current,
       lastActionModalityRef.current === 'keyboard'
     );
-  }, [canReuseEntryAgreement, onRefreshFarcasterSession, openTerms]);
+  }, [
+    authState.phase,
+    canReuseEntryAgreement,
+    onRefreshFarcasterSession,
+    openTerms
+  ]);
 
   const handleAuthRailCheck = useCallback(() => {
     if (acceptedEntryAttemptRef.current || canReuseEntryAgreement()) {
