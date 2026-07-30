@@ -3,6 +3,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -11,7 +12,7 @@ import { dirname, join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 // @ts-expect-error The production verifier is an executable ESM module with named test seams.
-import { allowedProductionHtmlPaths, expectedProductionCspByPath, verifyProductionDistExclusions } from '../scripts/verify-production-dist-exclusions.mjs';
+import { allowedProductionHiddenPaths, allowedProductionHtmlPaths, expectedProductionCspByPath, verifyProductionDistExclusions } from '../scripts/verify-production-dist-exclusions.mjs';
 
 const temporaryRoots: string[] = [];
 const productionIndex = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
@@ -49,6 +50,9 @@ afterEach(() => {
 
 describe('production output exclusions', () => {
   it('accepts only the exact reviewed production HTML family', () => {
+    expect(allowedProductionHiddenPaths).toEqual([
+      '.well-known/farcaster.json',
+    ]);
     expect(allowedProductionHtmlPaths).toEqual([
       'index.html',
       'privacy/index.html',
@@ -70,6 +74,33 @@ describe('production output exclusions', () => {
     const localEntry = createReviewedOutput();
     writeOutput(join(localEntry, 'dev/fullstack-local-qa.html'), '<!doctype html>');
     expect(() => verifyProductionDistExclusions(localEntry)).toThrow(/exact reviewed allowlist/i);
+  });
+
+  it('allows only the exact manifest hidden path and rejects non-regular output', () => {
+    const manifest = createReviewedOutput();
+    writeOutput(
+      join(manifest, '.well-known/farcaster.json'),
+      '{"accountAssociation":{},"miniapp":{}}',
+    );
+    expect(() => verifyProductionDistExclusions(manifest)).not.toThrow();
+
+    const hiddenLeak = createReviewedOutput();
+    writeOutput(join(hiddenLeak, '.well-known/owner-secret'), 'not public');
+    expect(() => verifyProductionDistExclusions(hiddenLeak)).toThrow(
+      /hidden output.*exact reviewed allowlist/i,
+    );
+
+    const nestedHiddenLeak = createReviewedOutput();
+    writeOutput(join(nestedHiddenLeak, 'assets/.source-map'), 'not public');
+    expect(() => verifyProductionDistExclusions(nestedHiddenLeak)).toThrow(
+      /hidden output.*exact reviewed allowlist/i,
+    );
+
+    const symlink = createReviewedOutput();
+    symlinkSync(join(symlink, 'assets/app.js'), join(symlink, 'assets/app-link.js'));
+    expect(() => verifyProductionDistExclusions(symlink)).toThrow(
+      /non-regular path/i,
+    );
   });
 
   it('requires one exact reviewed CSP meta in every production document', () => {

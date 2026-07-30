@@ -86,7 +86,7 @@ import { ADDITIVE_MIGRATION_PROOF_MINIMUM_LIFECYCLE_MILLISECONDS, ADDITIVE_MIGRA
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
 import { canonicalTableSchemaBoundaryDigest } from '../scripts/spacetime-table-schema-attestation.mjs';
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
-import { PROTECTED_AGGREGATE_STAGE, parseProductionVerifierArguments, protectedAggregateChildArguments, protectedAggregateChildEnvironment, protectedAggregateChildOptions, requiredProtectedAggregateSecret, resourceV4AggregateChildArguments, resourceV4ReadyAggregateChildEnvironment, resourceV4ReadyAggregateChildOptions, rootAssetUrls, validateProductionSigningKey, verifyBridge, verifyExpectedAlphaAggregate, verifyExpectedAlphaV2Aggregate, verifyExpectedAlphaV3Aggregate, verifyExpectedAlphaV4ResourcePrebackfillAggregate, verifyExpectedAlphaV4ResourceReadyAggregate, verifyPostBackfillResourceAggregateCheckpoints, verifyRootAssets } from '../scripts/verify-alpha-production.mjs';
+import { PROTECTED_AGGREGATE_STAGE, parseProductionVerifierArguments, protectedAggregateChildArguments, protectedAggregateChildEnvironment, protectedAggregateChildOptions, requiredProtectedAggregateSecret, resourceV4AggregateChildArguments, resourceV4ReadyAggregateChildEnvironment, resourceV4ReadyAggregateChildOptions, rootAssetUrls, validateProductionSigningKey, verifyBridge, verifyExpectedAlphaAggregate, verifyExpectedAlphaV2Aggregate, verifyExpectedAlphaV3Aggregate, verifyExpectedAlphaV4ResourcePrebackfillAggregate, verifyExpectedAlphaV4ResourceReadyAggregate, verifyFrontendEmbeddingHeaders, verifyPostBackfillResourceAggregateCheckpoints, verifyRootAssets } from '../scripts/verify-alpha-production.mjs';
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
 import { cleanupMigrationProofResources, containServerProcessErrors, installMigrationProofSignalCleanup, stopServer } from '../scripts/verify-spacetime-additive-migration.mjs';
 import {
@@ -133,10 +133,12 @@ const AUTH_V2_CREDENTIAL_PATHS = new Set([
   '/v2/session/refresh',
   '/v2/session/logout',
 ]);
+const AUTH_V2_QUICK_AUTH_PATH = '/v2/farcaster/quick-auth/exchange';
 const AUTH_V2_PAUSED_PATHS = new Set([
   '/v2/farcaster/challenge',
   '/v2/farcaster/exchange',
   '/v2/session/refresh',
+  AUTH_V2_QUICK_AUTH_PATH,
 ]);
 const AUTH_V2_SERVER_ONLY_ADMIN_PATHS = new Set([
   '/v1/admin/token',
@@ -840,6 +842,16 @@ function credentialedCors(origin: string): HeadersInit {
   };
 }
 
+function quickAuthCors(origin: string): HeadersInit {
+  return {
+    'access-control-allow-origin': origin,
+    'access-control-allow-methods': 'POST, OPTIONS',
+    'access-control-allow-headers': 'authorization, content-type',
+    'access-control-max-age': '600',
+    vary: 'Origin',
+  };
+}
+
 function authV2JsonResponse(
   value: unknown,
   status: number,
@@ -929,13 +941,23 @@ function authV2BridgeFetch(options: AuthV2FixtureOptions = {}) {
       } : {}, options.omitSecurityHeader);
     }
 
-    if (method === 'OPTIONS' && AUTH_V2_CREDENTIAL_PATHS.has(url.pathname)) {
+    if (
+      method === 'OPTIONS'
+      && (
+        AUTH_V2_CREDENTIAL_PATHS.has(url.pathname)
+        || url.pathname === AUTH_V2_QUICK_AUTH_PATH
+      )
+    ) {
+      const quickAuth = url.pathname === AUTH_V2_QUICK_AUTH_PATH;
+      const corsForOrigin = (value: string) => (
+        quickAuth ? quickAuthCors(value) : credentialedCors(value)
+      );
       const cors = origin === FRONTEND
-        ? credentialedCors(FRONTEND)
+        ? corsForOrigin(FRONTEND)
         : options.exposeHostileCors
-          ? credentialedCors(origin ?? '*')
+          ? corsForOrigin(origin ?? '*')
           : {};
-      if (options.omitCredentialedCors && origin === FRONTEND) {
+      if (!quickAuth && options.omitCredentialedCors && origin === FRONTEND) {
         delete (cors as Record<string, string>)['access-control-allow-credentials'];
       }
       const publicRoutesPaused = options.publicRoutesPaused
@@ -3376,7 +3398,7 @@ describe('bounded auth-v2 production readiness verification', () => {
       fetchImpl,
     })).resolves.toBeUndefined();
 
-    expect(fetchImpl).toHaveBeenCalledTimes(22);
+    expect(fetchImpl).toHaveBeenCalledTimes(24);
     for (const [input, init] of fetchImpl.mock.calls) {
       const url = new URL(String(input));
       const headers = new Headers(init?.headers);
@@ -3390,11 +3412,16 @@ describe('bounded auth-v2 production readiness verification', () => {
       expect(headers.has('cookie')).toBe(false);
       if (
         AUTH_V2_CREDENTIAL_PATHS.has(url.pathname)
+        || url.pathname === AUTH_V2_QUICK_AUTH_PATH
         || url.pathname === '/v1/farcaster/challenge'
         || url.pathname === '/v1/farcaster/exchange'
       ) {
         expect(headers.get('access-control-request-method')).toBe('POST');
-        expect(headers.get('access-control-request-headers')).toBe('content-type');
+        expect(headers.get('access-control-request-headers')).toBe(
+          url.pathname === AUTH_V2_QUICK_AUTH_PATH
+            ? 'authorization, content-type'
+            : 'content-type',
+        );
         expect([FRONTEND, 'https://not-warpkeep.invalid']).toContain(headers.get('origin'));
       }
       if (AUTH_V2_SERVER_ONLY_ADMIN_PATHS.has(url.pathname)) {
@@ -3414,7 +3441,7 @@ describe('bounded auth-v2 production readiness verification', () => {
       expect(calls.map(([, init]) => init?.method)).toEqual(['GET', 'OPTIONS', 'OPTIONS']);
     }
     expect(log).toHaveBeenCalledWith(
-      'bridge: contained auth-v2 health, discovery, JWKS, retired v1, security headers, and credentialed CORS verified',
+      'bridge: contained auth-v2 health, discovery, JWKS, retired v1, security headers, and credentialed plus bearer CORS verified',
     );
   });
 
@@ -3427,7 +3454,7 @@ describe('bounded auth-v2 production readiness verification', () => {
       fetchImpl,
     })).resolves.toBeUndefined();
 
-    expect(fetchImpl).toHaveBeenCalledTimes(22);
+    expect(fetchImpl).toHaveBeenCalledTimes(24);
     for (const [input, init] of fetchImpl.mock.calls) {
       const url = new URL(String(input));
       const headers = new Headers(init?.headers);
@@ -3447,7 +3474,7 @@ describe('bounded auth-v2 production readiness verification', () => {
       expect(calls.map(([, init]) => init?.method)).toEqual(['GET', 'OPTIONS', 'OPTIONS']);
     }
     expect(log).toHaveBeenCalledWith(
-      'bridge: enabled auth-v2 read-only health, discovery, JWKS, retired v1, security headers, and credentialed CORS verified',
+      'bridge: enabled auth-v2 read-only health, discovery, JWKS, retired v1, security headers, and credentialed plus bearer CORS verified',
     );
   });
 
@@ -3573,6 +3600,25 @@ describe('bounded auth-v2 production readiness verification', () => {
 });
 
 describe('bounded frontend root-asset verification', () => {
+  it('fails closed on response headers that can break Mini App embedding', () => {
+    expect(() => verifyFrontendEmbeddingHeaders(new Headers())).not.toThrow();
+    expect(() => verifyFrontendEmbeddingHeaders(new Headers({
+      'x-frame-options': 'SAMEORIGIN',
+    }))).toThrow(/x-frame-options/i);
+    expect(() => verifyFrontendEmbeddingHeaders(new Headers({
+      'cross-origin-opener-policy': 'same-origin',
+    }))).toThrow(/cross-origin-opener-policy/i);
+    expect(() => verifyFrontendEmbeddingHeaders(new Headers({
+      'cross-origin-embedder-policy': 'require-corp',
+    }))).toThrow(/cross-origin-embedder-policy/i);
+    expect(() => verifyFrontendEmbeddingHeaders(new Headers({
+      'content-security-policy': "default-src 'self'; frame-ancestors https://farcaster.xyz",
+    }))).toThrow(/frame-ancestors/i);
+    expect(() => verifyFrontendEmbeddingHeaders(new Headers({
+      'content-security-policy': "default-src 'self'; frame-src https://farcaster.xyz",
+    }))).not.toThrow();
+  });
+
   it('rejects a document with more than the fixed unique root-asset count', () => {
     const tags = Array.from({ length: 17 }, (_, index) => (
       `<script type="module" src="/assets/root-${index}.js"></script>`

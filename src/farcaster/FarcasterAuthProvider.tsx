@@ -13,6 +13,7 @@ import {
   type FarcasterAuthControllerValue,
   type FarcasterAuthorityLoader,
   type FarcasterOidcBridgeLoader,
+  type FarcasterQuickAuthTokenLoader,
   type FarcasterQrEncoder
 } from './FarcasterAuthProviderCore';
 import {
@@ -26,6 +27,7 @@ import type {
   FarcasterAuthContext,
   FarcasterBrowserBindingFactory
 } from './farcasterAuthTypes';
+import { useMiniAppHost } from './miniapp';
 
 export type FarcasterAuthProviderProps = Readonly<{
   children: ReactNode;
@@ -60,6 +62,12 @@ export function FarcasterAuthProvider({
   pollIntervalMs,
   deviceSessionEnvironment
 }: FarcasterAuthProviderProps) {
+  const miniAppHost = useMiniAppHost();
+  const loadQuickAuthToken: FarcasterQuickAuthTokenLoader | undefined =
+    miniAppHost.isMiniApp
+      ? miniAppHost.quickAuth.getToken
+      : undefined;
+
   return (
     <FarcasterAuthProviderCore
       createBrowserBinding={createBrowserBinding}
@@ -67,6 +75,12 @@ export function FarcasterAuthProvider({
       encodeQrCode={encodeQrCode}
       loadAuthority={loadAuthority}
       loadBridgeClient={loadBridgeClient}
+      loadQuickAuthToken={loadQuickAuthToken}
+      quickAuthPresentationIdentity={
+        miniAppHost.isMiniApp
+          ? miniAppHost.context?.user
+          : undefined
+      }
       normalizeAuthError={toFarcasterAuthError}
       now={now}
       pollIntervalMs={pollIntervalMs}
@@ -85,5 +99,6 @@ export type {
   FarcasterAuthControllerValue,
   FarcasterAuthorityLoader,
   FarcasterOidcBridgeLoader,
+  FarcasterQuickAuthTokenLoader,
   FarcasterQrEncoder
 } from './FarcasterAuthProviderCore';

@@ -6,6 +6,20 @@ export type LatestPatchNotes = Readonly<{
   alphaNotice: string;
 }>;
 
+const ALPHA_0_3_28_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: '30 JUL 2026',
+  title: 'THE REALM IN HAND',
+  summary:
+    'Warpkeep now fits naturally in Farcaster: the Realm remains the whole stage while every record opens as a focused, full-screen destination.',
+  highlights: Object.freeze([
+    'A compact portrait rail keeps the keeper portrait and four resources within reach, respects host safe areas, and leaves the rest of the viewport to Genesis 001.',
+    'Keeps, Workers, resources, Water, terrain, Explore, and Settings now share one predictable Back path while the camera, selection, and long-lived Realm scene remain where the player left them.',
+    'Verified Mini App entry uses exact-domain server-validated Quick Auth with memory-only access, while ordinary browser sign-in retains its existing bound SIWF session.'
+  ]),
+  alphaNotice:
+    'Alpha 0.3.28 remains an invite-only, unfinished world. This release changes access and presentation, not admission, ownership, balances, Worker authority, terrain, or persistent world rules.'
+});
+
 const ALPHA_0_3_27_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '30 JUL 2026',
   title: 'THE SUNSCOURED SOUTH',
@@ -148,6 +162,7 @@ const ALPHA_0_3_22_PATCH_NOTES: LatestPatchNotes = Object.freeze({
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
+    '0.3.28': ALPHA_0_3_28_PATCH_NOTES,
     '0.3.27': ALPHA_0_3_27_PATCH_NOTES,
     '0.3.26': ALPHA_0_3_26_PATCH_NOTES,
     '0.3.25': ALPHA_0_3_25_PATCH_NOTES,

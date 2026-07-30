@@ -8,6 +8,7 @@ import {
   type Ref
 } from 'react';
 
+import { useModalFocusBoundary } from '../menu/useModalFocusBoundary';
 import type {
   RealmWaterInspectionNavigation,
   RealmWaterInspectionRecord
@@ -29,7 +30,10 @@ export type WaterInspectionPanelProps = Readonly<{
   focusTargetRef?: Ref<HTMLButtonElement>;
   /** Enables operator-only realm coordinates and opaque persistence identifiers. */
   showDiagnostics?: boolean;
+  /** Compact and Mini App records occupy the screen and contain keyboard focus. */
+  modal?: boolean;
   onRequestClose: () => void;
+  onRequestBack?: () => void;
   onSelectCell?: (cellKey: string) => void;
   onFocusCell?: (cellKey: string) => void;
   onViewUnderlyingCell?: () => void;
@@ -78,11 +82,14 @@ export function WaterInspectionPanel({
   navigation,
   focusTargetRef,
   showDiagnostics = false,
+  modal = false,
   onRequestClose,
+  onRequestBack,
   onSelectCell,
   onFocusCell,
   onViewUnderlyingCell
 }: WaterInspectionPanelProps) {
+  const dialogRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const initialFocusAppliedRef = useRef(false);
   const [follow, setFollow] = useState<WaterFollowState>();
@@ -103,6 +110,13 @@ export function WaterInspectionPanel({
     initialFocusAppliedRef.current = true;
     closeButtonRef.current?.focus({ preventScroll: true });
   }, [id, record.cellKey]);
+
+  useModalFocusBoundary({
+    active: modal,
+    dialogRef,
+    initialFocusRef: closeButtonRef,
+    onEscape: onRequestBack ?? onRequestClose
+  });
 
   useEffect(() => {
     if (!follow) return;
@@ -153,7 +167,7 @@ export function WaterInspectionPanel({
     if (event.key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();
-      onRequestClose();
+      (onRequestBack ?? onRequestClose)();
       return;
     }
     if (
@@ -184,14 +198,25 @@ export function WaterInspectionPanel({
       id={panelId}
       className="water-inspection realm-camera-neutral-inspector"
       role="dialog"
-      aria-modal="false"
+      aria-modal={modal}
       aria-labelledby={titleId}
       aria-describedby={descriptionId}
       onKeyDown={handleKeyDown}
       data-open="true"
       data-water-cell-key={showDiagnostics ? record.cellKey : undefined}
       data-water-regime={record.regime}
+      ref={dialogRef}
     >
+      {onRequestBack ? (
+        <button
+          className="realm-world-surface-back"
+          onClick={onRequestBack}
+          type="button"
+        >
+          <span aria-hidden="true">‹</span>
+          BACK
+        </button>
+      ) : null}
       <div className="water-inspection__drawer">
         <header className="water-inspection__hero">
           <div className="water-inspection__hero-art-stage">

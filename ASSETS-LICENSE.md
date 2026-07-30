@@ -594,6 +594,46 @@ runtime dependency. Its [dated record](docs/reference/screenshots/2026-07-22-rea
 preserves the exact hash, display scope, privacy review, and authorization
 boundary. No general derivative or redistribution permission is granted.
 
+## Farcaster Mini App release artwork
+
+The Alpha 0.3.28 Mini App icon, splash, hero, Open Graph, and embed images are
+project-owned, code-generated Warpkeep artwork. They are composed only from
+shapes, gradients, typography, and the project’s shield motif in
+`scripts/prepare-farcaster-miniapp-assets.mjs`; no third-party raster source or
+generated-image service is used. The files are licensed under
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), without granting
+Warpkeep trademark or canonical-deployment rights.
+
+| Use | Repository file | Technical record |
+| --- | --- | --- |
+| Mini App icon | `public/images/miniapp/warpkeep-icon-1024.png` | 1024×1024 opaque PNG, 140,644 bytes, SHA-256 `251fc1d5c8b62276b4ec843b1bd7f9d0644bda1d3ea704949283608139a68c01`. |
+| Mini App splash | `public/images/miniapp/warpkeep-splash-200.png` | 200×200 opaque PNG, 21,681 bytes, SHA-256 `cca0de5a0ef290f453ad367e2887a08c5ead022f2bf2d5c64d9d9a073431ea73`. |
+| Directory hero | `public/images/miniapp/warpkeep-hero-1200x630.png` | 1200×630 opaque PNG, 157,511 bytes, SHA-256 `aa28b25357fdbddfcb347e41adf14a20c5f62a5cb4aaf498ce24f33f51eb9d14`. |
+| Open Graph image | `public/images/miniapp/warpkeep-og-1200x630.png` | 1200×630 opaque PNG, 157,511 bytes, SHA-256 `aa28b25357fdbddfcb347e41adf14a20c5f62a5cb4aaf498ce24f33f51eb9d14`. |
+| Feed embed image | `public/images/miniapp/warpkeep-embed-1200x800.png` | 1200×800 opaque PNG, 174,911 bytes, SHA-256 `75676b9068897360ba321923345767d580dcf32c3f16fdde967694e02e3fc7a7`. |
+
+The deterministic generator disables Sharp caching, limits concurrency to one,
+flattens every output onto `#010207`, removes alpha, and writes through a
+temporary staging directory.
+
+On 30 July 2026, the three portrait listing screenshots were captured from the
+actual Alpha 0.3.28 interface at a 428×926 CSS-pixel viewport, then encoded as
+the required 1284×2778 opaque PNGs. The capture used only the repository's
+synthetic, loopback-only rendered QA fixtures: no production account, real FID,
+private balance, token, session, or user profile appears in the images. The
+screenshots are release records of the assembled game presentation and retain
+the provenance requirements of every depicted runtime asset.
+
+| Use | Repository file | Technical record |
+| --- | --- | --- |
+| Portrait Realm listing | `public/images/miniapp/warpkeep-portrait-realm-1284x2778.png` | 1284×2778 opaque PNG, 2,627,611 bytes, SHA-256 `30c4092737d8b521d1aef5542173b42ff40b1a43fb45fadeee4c16eb1d754366`. |
+| Portrait Keep listing | `public/images/miniapp/warpkeep-portrait-keep-1284x2778.png` | 1284×2778 opaque PNG, 756,944 bytes, SHA-256 `ebe9c33222927b200db38c538e5d88c10778004c87b3bc77e921023bd2064130`. |
+| Portrait Worker listing | `public/images/miniapp/warpkeep-portrait-worker-1284x2778.png` | 1284×2778 opaque PNG, 1,162,444 bytes, SHA-256 `1d62bebb37ab20260a5a96f2873dd4fbc73aee1232a866c8ae882d790bed4741`. |
+
+These composite screenshots are `LicenseRef-Warpkeep-Provenance-Required`.
+They document the exact public release UI; repository inclusion does not grant
+independent relicensing of the depicted models, textures, marks, or fonts.
+
 ## Trademark and endorsement note
 
 These licenses do not grant trademark rights or imply endorsement by the project. Forks, mods, and community realms should avoid presenting themselves as the canonical Warpkeep deployment unless explicitly authorized; see [`TRADEMARKS.md`](TRADEMARKS.md).

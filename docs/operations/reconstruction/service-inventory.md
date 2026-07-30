@@ -77,7 +77,8 @@ development-only.
 - Compatibility flag: `nodejs_compat`
 - `workers_dev = false`
 - Checked-in/recovery default: `PUBLIC_AUTH_ENABLED=false`
-- Current Alpha 0.3.13 production state: `PUBLIC_AUTH_ENABLED=true`
+- Recorded production override: `PUBLIC_AUTH_ENABLED=true` (verify the live
+  health response before recovery)
 
 Durable Objects:
 
@@ -93,8 +94,11 @@ Unauthenticated metadata endpoints are `/healthz`,
 `/.well-known/openid-configuration`, and `/.well-known/jwks.json`. The deployed
 credentialed browser protocol uses `/v2/farcaster/challenge`,
 `/v2/farcaster/exchange`, `/v2/session/refresh`, and `/v2/session/logout`.
-Those public routes are active only while `PUBLIC_AUTH_ENABLED=true` and return
-the paused profile when it is false.
+Verified Mini App hosts use the separate cookie-free bearer route
+`/v2/farcaster/quick-auth/exchange`; it accepts only exact
+`https://warpkeep.com` non-credentialed CORS and verifies domain
+`warpkeep.com`. All public authentication routes are active only while
+`PUBLIC_AUTH_ENABLED=true` and return the paused profile when it is false.
 Public v1 challenge/exchange are retired with `410`; admin `/v1` routes are a
 separate server-only namespace. Secret names are `SIGNING_KEY_JWK`,
 `ADMIN_TOKEN_SECRET`, `SESSION_COOKIE_KEY`, `FARCASTER_RPC_URL`, and
@@ -102,14 +106,16 @@ separate server-only namespace. Secret names are `SIGNING_KEY_JWK`,
 [`credential-rotation.md`](credential-rotation.md). Never record their values.
 
 The server-only config attestation profile is `warpkeep-auth-v2`. Its
-fail-closed recovery target has `publicAuthEnabled: false`; the current Alpha
-0.3.13 active target has `publicAuthEnabled: true`. It covers
-issuer/origins/SIWF coordinates, both privacy-safe RPC endpoint fingerprints,
-the active signing-public-key thumbprint, gameplay key/Maincloud coordinates, the
-observer URI/database/audience tuple and gate, S256, the 600-second access TTL,
-15-second resolver TTL, five-second resolver timeout, five-minute challenge TTL,
-maximum-30-day family, and exact `__Host-` cookie attributes. Record only the
-reviewed digest and observed deployment version.
+fail-closed recovery target has `publicAuthEnabled: false`; the recorded active
+target has `publicAuthEnabled: true`. It covers
+issuer/origins/SIWF coordinates, Quick Auth
+issuer/domain/origin/path/verifier-package/token-size bounds, both privacy-safe
+RPC endpoint fingerprints, the active signing-public-key thumbprint, gameplay
+key/Maincloud coordinates, the observer URI/database/audience tuple and gate,
+S256, the 600-second access TTL, 15-second resolver TTL, five-second resolver
+timeout, five-minute challenge TTL, maximum-30-day family, and exact `__Host-`
+cookie attributes. Record only the reviewed digest and observed deployment
+version.
 
 Production Worker configuration pins both resolver origins to exact
 `https://maincloud.spacetimedb.com` and pins the gameplay database to

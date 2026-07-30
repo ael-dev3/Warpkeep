@@ -14,6 +14,7 @@ import {
   WARPKEEP_FARCASTER_CHANNEL_URL,
   WARPKEEP_GITHUB_ISSUE_INTAKE_URL
 } from '../../farcaster/farcasterProjectLinks';
+import { useModalFocusBoundary } from '../menu/useModalFocusBoundary';
 import type { RealmResourceKind } from './realmTypes';
 
 export type RealmNavigatorCastle = Readonly<{
@@ -89,6 +90,8 @@ export type RealmAccessibilityControlsProps = Readonly<{
   coordinateJump?: RealmNavigatorCoordinateJump;
   /** Enables operator-only q/r search, labels, and coordinate navigation. */
   showDiagnostics?: boolean;
+  /** Compact and Mini App Explore occupies the screen and contains keyboard focus. */
+  modal?: boolean;
   cameraPresets?: readonly RealmNavigatorCameraPreset[];
   /** Player chrome may provide its own PFP launcher while reusing this dialog. */
   triggerVisible?: boolean;
@@ -149,6 +152,7 @@ export function RealmAccessibilityControls({
   onActivateWaterCell,
   coordinateJump,
   showDiagnostics = false,
+  modal = false,
   cameraPresets = [],
   triggerVisible = true,
   triggerRef
@@ -158,6 +162,7 @@ export function RealmAccessibilityControls({
   const [rValue, setRValue] = useState('');
   const [jumpError, setJumpError] = useState<string>();
   const internalTriggerRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
   const providedTriggerRef = useRef(triggerRef);
   const searchRef = useRef<HTMLInputElement>(null);
   const wasOpenRef = useRef(false);
@@ -168,6 +173,13 @@ export function RealmAccessibilityControls({
   const jumpErrorId = `${id}-jump-error`;
 
   providedTriggerRef.current = triggerRef;
+
+  useModalFocusBoundary({
+    active: modal && open,
+    dialogRef,
+    initialFocusRef: searchRef,
+    onEscape: () => onRequestClose('escape')
+  });
 
   const setTriggerRef = useCallback((element: HTMLButtonElement | null) => {
     internalTriggerRef.current = element;
@@ -285,9 +297,10 @@ export function RealmAccessibilityControls({
           id={id}
           className="realm-cell-navigator__dialog"
           role="dialog"
-          aria-modal="false"
+          aria-modal={modal}
           aria-labelledby={headingId}
           onKeyDown={handleDialogKeyDown}
+          ref={dialogRef}
         >
           <header className="realm-cell-navigator__heading">
             <div>

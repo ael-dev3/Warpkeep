@@ -3,6 +3,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { RealmHud } from '../src/components/realm/RealmHud';
 import type {
+  RealmSurfaceNavigation,
+} from '../src/components/realm/useRealmSurfaceNavigation';
+import type {
   ReadyWorkerProjection,
   ReadyWorkerResourceState,
   WorkerRosterPresentation
@@ -393,6 +396,38 @@ describe('RealmHud', () => {
     expect(onRequestReturn).toHaveBeenCalledOnce();
   });
 
+  it('replaces the desktop command history entry when opening Explore', () => {
+    const onRequestExplore = vi.fn();
+    const surfaceNavigation: RealmSurfaceNavigation = {
+      stack: [{ kind: 'commands' }],
+      current: { kind: 'commands' },
+      depth: 1,
+      push: vi.fn(),
+      replace: vi.fn(),
+      back: vi.fn(),
+      closeToRealm: vi.fn(),
+    };
+    render(
+      <RealmHud
+        {...commonProps()}
+        chromeMode="desktop-web"
+        foundedCastleCount={2}
+        onRequestExplore={onRequestExplore}
+        surfaceNavigation={surfaceNavigation}
+      />,
+    );
+
+    const menu = screen.getByRole('dialog', { name: 'REALM MENU' });
+    fireEvent.click(within(menu).getByRole('button', { name: /EXPLORE/i }));
+
+    expect(surfaceNavigation.replace).toHaveBeenCalledExactlyOnceWith({
+      kind: 'explore',
+    });
+    expect(surfaceNavigation.closeToRealm).not.toHaveBeenCalled();
+    expect(surfaceNavigation.back).not.toHaveBeenCalled();
+    expect(onRequestExplore).toHaveBeenCalledOnce();
+  });
+
   it('offers up to four privacy-bounded active wagon shortcuts in the PFP menu', async () => {
     const onOpenActiveWagon = vi.fn();
     const activeWagons = [
@@ -491,6 +526,40 @@ describe('RealmHud', () => {
     expect(screen.getByRole('dialog', { name: 'REALM MENU' })).not.toBeNull();
     fireEvent.keyDown(document, { key: 'Escape' });
     await waitFor(() => expect(document.activeElement).toBe(profileTrigger));
+  });
+
+  it('delegates compact Worker detail rendering to the Realm surface owner', () => {
+    const fixture = workerUiFixture();
+    const workerId = fixture.workerProjection.ownedWorkers[0]!.workerId;
+    const surfaceNavigation: RealmSurfaceNavigation = {
+      stack: [
+        { kind: 'commands' },
+        { kind: 'workers' },
+        { kind: 'worker', workerId },
+      ],
+      current: { kind: 'worker', workerId },
+      depth: 3,
+      push: vi.fn(),
+      replace: vi.fn(),
+      back: vi.fn(),
+      closeToRealm: vi.fn(),
+    };
+    render(
+      <RealmHud
+        {...commonProps()}
+        {...fixture}
+        chromeMode="compact-web"
+        surfaceNavigation={surfaceNavigation}
+      />,
+    );
+
+    expect(screen.queryByRole('dialog', { name: 'Worker 1' })).toBeNull();
+    expect(surfaceNavigation.back).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', {
+      name: /Open Realm menu/i,
+      hidden: true,
+    })
+      .getAttribute('aria-controls')).toBe('realm-worker-inspection');
   });
 
   it('keeps the public Worker catalog visible but fails commands closed for a wrong private FID', () => {

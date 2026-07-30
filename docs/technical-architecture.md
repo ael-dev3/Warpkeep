@@ -10,8 +10,10 @@ cannot grant admission, claim a castle, or invent resources.
 ### Browser client
 
 The React and TypeScript client presents the title, menu, authentication flow,
-and Realm. Three.js/WebGL renders the Lowlands and founded castles, with
-responsive CSS and non-WebGL fallbacks for constrained devices.
+and Realm in ordinary browsers and as a Farcaster Mini App. Three.js/WebGL
+renders the Lowlands and founded castles, with responsive CSS and non-WebGL
+fallbacks for constrained devices. Compact screens keep the map full-screen and
+open complex records through one bounded, history-aware destination stack.
 
 The client holds short-lived presentation state. It validates server
 projections before showing the Realm and does not apply optimistic ownership or
@@ -19,10 +21,13 @@ resource changes.
 
 ### Identity bridge
 
-The Cloudflare Worker independently verifies Farcaster sign-in, binds the flow
-to the initiating browser, and manages short-lived sessions. Farcaster ID (FID)
-is the identity key; usernames, display names, biographies, and portraits are
-sanitized presentation data.
+The Cloudflare Worker independently verifies browser SIWF or an exact-domain
+Mini App Quick Auth bearer. Browser SIWF remains bound to the initiating browser
+and may use a rotating `SameSite=Strict` session; Mini App entry is cookie-free
+and reacquires a host bearer when needed. Both paths issue only short-lived,
+memory-held player access. Farcaster ID (FID) is the identity key; usernames,
+display names, biographies, portraits, and Mini App context are sanitized
+presentation data.
 
 Authentication proves identity but does not grant admission or game ownership.
 The bridge issues narrowly scoped claims that SpacetimeDB validates again.
@@ -110,8 +115,10 @@ state.
 GitHub Actions builds the client, auth bridge, and SpacetimeDB module; runs the
 test and dependency checks; verifies generated bindings and asset provenance;
 and scans code and committed history for security issues. Pages deployment is
-limited to `main`. Worker publication, database publication, data migration,
-and admission changes remain separate operator actions.
+limited to `main` and requires the signed static Mini App manifest, exact image
+contract, and hidden `.well-known` upload. Worker publication, database
+publication, data migration, and admission changes remain separate operator
+actions.
 
 ## Repository map
 

@@ -241,8 +241,12 @@ describe('compact Realm CSS contract', () => {
     );
     const commandPanel = block(PLAYER_CHROME, '.realm-profile-menu__panel {');
 
-    expect(profileTrigger).toContain('top: max(0.72rem, env(safe-area-inset-top));');
-    expect(profileTrigger).toContain('left: max(0.72rem, env(safe-area-inset-left));');
+    expect(profileTrigger).toContain(
+      'top: max(0.72rem, var(--realm-safe-top, env(safe-area-inset-top)));'
+    );
+    expect(profileTrigger).toContain(
+      'left: max(0.72rem, var(--realm-safe-left, env(safe-area-inset-left)));'
+    );
     expect(profileTrigger).toContain('width: 3.25rem;');
     expect(profileTrigger).toContain('height: 3.25rem;');
     expect(profileTrigger).toContain('border: 0;');
@@ -250,8 +254,12 @@ describe('compact Realm CSS contract', () => {
     expect(profileTrigger).toContain('background: transparent;');
     expect(profileAvatar).toContain('--realm-avatar-size: 3.05rem;');
 
-    expect(resourceRail).toContain('top: max(0.68rem, env(safe-area-inset-top));');
-    expect(resourceRail).toContain('right: max(0.78rem, env(safe-area-inset-right));');
+    expect(resourceRail).toContain(
+      'top: max(0.68rem, var(--realm-safe-top, env(safe-area-inset-top)));'
+    );
+    expect(resourceRail).toContain(
+      'right: max(0.78rem, var(--realm-safe-right, env(safe-area-inset-right)));'
+    );
     expect(resourceRail).toContain('border: 0;');
     expect(resourceRail).toContain('pointer-events: none;');
     expect(openResourceRail).toContain('pointer-events: auto;');
@@ -354,13 +362,15 @@ describe('compact Realm CSS contract', () => {
   });
 
   it('keeps Explore scrollable, readable, and responsive without reviving the old cell grid', () => {
-    const dialog = block(MAP, '.realm-cell-navigator__dialog {');
+    const fullScreenDialog = block(MAP, '.realm-cell-navigator__dialog {');
+    const baseMapRules = MAP.slice(MAP.indexOf('.realm-world-surface-back'));
+    const dialog = block(baseMapRules, '.realm-cell-navigator__dialog {');
     const openNavigator = block(
-      MAP,
+      baseMapRules,
       '.realm-cell-navigator:has(.realm-cell-navigator__dialog) {'
     );
     const interactiveDialog = block(
-      MAP,
+      baseMapRules,
       '.realm-cell-navigator:has(.realm-cell-navigator__dialog) .realm-cell-navigator__dialog {'
     );
     const presets = block(MAP, '.realm-cell-navigator__presets > div {');
@@ -378,6 +388,9 @@ describe('compact Realm CSS contract', () => {
     expect(dialog).toContain('overflow-x: hidden;');
     expect(dialog).toContain('overflow-y: auto;');
     expect(dialog).toContain('max-height: min(58svh, 35rem);');
+    expect(fullScreenDialog).toContain('height: 100%;');
+    expect(fullScreenDialog).toContain('max-height: none;');
+    expect(fullScreenDialog).toContain('var(--realm-safe-bottom)');
     expect(openNavigator).toContain('pointer-events: none;');
     expect(interactiveDialog).toContain('pointer-events: auto;');
     expect(presets).toContain('grid-template-columns: repeat(3, minmax(0, 1fr));');

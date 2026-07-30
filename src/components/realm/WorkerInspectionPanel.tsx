@@ -49,6 +49,7 @@ export type WorkerInspectionPanelProps = Readonly<{
   awaitingAuthoritativeRecall?: boolean;
   onRecallWorker?: (workerId: string) => Promise<void>;
   onRequestClose: () => void;
+  onCloseToRealm?: () => void;
   focusTargetRef?: Ref<HTMLHeadingElement>;
 }>;
 
@@ -101,6 +102,7 @@ export function WorkerInspectionPanel({
   awaitingAuthoritativeRecall = false,
   onRecallWorker,
   onRequestClose,
+  onCloseToRealm,
   focusTargetRef
 }: WorkerInspectionPanelProps) {
   const dialogRef = useRef<HTMLElement>(null);
@@ -261,6 +263,17 @@ export function WorkerInspectionPanel({
             onClick={onRequestClose}
             type="button"
           >×</button>
+          {onCloseToRealm ? (
+            <button
+              aria-label="Close to Realm"
+              className="worker-inspection__close-to-realm"
+              disabled={commandPending}
+              onClick={onCloseToRealm}
+              type="button"
+            >
+              CLOSE
+            </button>
+          ) : null}
           <div className="worker-inspection__title-lockup">
             <p>CASTLE WORKER</p>
             <h2 id={`${id}-title`} ref={assignHeadingRef} tabIndex={-1}>{title}</h2>

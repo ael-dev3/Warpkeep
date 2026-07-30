@@ -274,6 +274,33 @@ export type FarcasterBridgeSessionResponse =
   | FarcasterBridgeAuthorizedSession
   | FarcasterBridgePendingAdmissionSession;
 
+/**
+ * Cookie-independent response returned only after the bridge verifies a
+ * Farcaster Quick Auth bearer for the exact Warpkeep domain.
+ *
+ * There is deliberately no browser session-family expiry in this envelope.
+ * A Mini App must obtain another short-lived Quick Auth bearer when its
+ * memory-only access token expires.
+ */
+export type FarcasterQuickAuthAuthorizedSession = Readonly<{
+  version: 2;
+  status: 'authorized';
+  identity: FarcasterBridgeSessionIdentity;
+  accessToken: string;
+  tokenType: 'spacetime-access';
+  accessExpiresAt: number;
+}>;
+
+export type FarcasterQuickAuthPendingAdmissionSession = Readonly<{
+  version: 2;
+  status: 'pending-admission';
+  identity: FarcasterBridgeSessionIdentity;
+}>;
+
+export type FarcasterQuickAuthSessionResponse =
+  | FarcasterQuickAuthAuthorizedSession
+  | FarcasterQuickAuthPendingAdmissionSession;
+
 export type FarcasterBridgeChallengeRequest = Readonly<{
   domain: string;
   siweUri: string;
@@ -303,6 +330,10 @@ export interface FarcasterOidcBridgeClient {
     request: FarcasterBridgeExchangeRequest,
     options?: FarcasterBridgeRequestOptions
   ): Promise<FarcasterBridgeSessionResponse>;
+  exchangeQuickAuth?(
+    token: string,
+    options?: FarcasterBridgeRequestOptions
+  ): Promise<FarcasterQuickAuthSessionResponse>;
   refreshSession(
     options?: FarcasterBridgeRequestOptions
   ): Promise<FarcasterBridgeSessionResponse>;

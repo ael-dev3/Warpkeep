@@ -6,6 +6,21 @@ full engineering record.
 
 ## [Unreleased]
 
+## [0.3.28] — 2026-07-30
+
+- Added a portrait-first Farcaster Mini App entry with a compact top resource
+  rail, host safe areas, and one browser/host Back hierarchy.
+- Moved compact keep, Worker, resource, Water, terrain, Explore, and Settings
+  records into focused full-screen destinations while preserving camera,
+  selection, and the long-lived Realm scene beneath them.
+- Added exact-domain, server-verified Farcaster Quick Auth without persistent
+  browser bearers or cross-site cookies; ordinary browser SIWF remains
+  unchanged.
+- Added static Mini App embed metadata and fail-closed manifest, image,
+  provenance, CSP, and Pages release checks.
+- Left admission, ownership, balances, Worker authority, terrain, and
+  persistent world rules unchanged.
+
 ## [0.3.27] — 2026-07-30
 
 - Opened a broad dry frontier across the southern outer Lowlands, shaped by a
@@ -292,7 +307,8 @@ full engineering record.
   Lowlands, a first keep, Farcaster sign-in, and an admission-gated shared-world
   foundation.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.27...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.28...HEAD
+[0.3.28]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.27...v0.3.28
 [0.3.27]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.26...v0.3.27
 [0.3.26]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.25...v0.3.26
 [0.3.25]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.24...v0.3.25

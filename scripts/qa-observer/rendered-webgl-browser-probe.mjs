@@ -1049,6 +1049,22 @@ export function isBenignStaleFetchInterceptionError(method, value) {
     && value.message === 'Invalid InterceptionId.';
 }
 
+const BENIGN_RUNTIME_EVALUATION_TRANSITION_MESSAGES = new Set([
+  'Cannot find context with specified id',
+  'Execution context was destroyed.',
+  'Execution context was destroyed, most likely because of a navigation.',
+  'Inspected target navigated or closed',
+]);
+
+export function isBenignRuntimeEvaluationTransitionError(method, value) {
+  if (method !== 'Runtime.evaluate') return false;
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
+  return exactMessageKeys(value, new Set(['code', 'message']))
+    && value.code === -32000
+    && typeof value.message === 'string'
+    && BENIGN_RUNTIME_EVALUATION_TRANSITION_MESSAGES.has(value.message);
+}
+
 /**
  * The local browser fixture derives this point from a foundation-attached label but
  * intentionally returns only page coordinates. Castle IDs, FIDs, names, and
@@ -1406,8 +1422,8 @@ export function parseRenderedWebglActiveWorkerEvidence(value) {
   const candidate = exactRecord(value, 'Invalid rendered WebGL active Worker evidence.');
   const keys = [
     'activeFixtureSelected',
-    'foreignMarkerGeneric',
-    'foreignPortraitReady',
+    'foreignRecordGeneric',
+    'foreignRecordPortraitReady',
     'foreignRecordReadOnly',
     'localReconnectRehydrated',
     'mobileBoundsSafe',
@@ -2102,6 +2118,11 @@ export function parseRenderedWebglBrowserDom(value, expected) {
   const presentationControlsMayBeOccluded = ['inspector', 'explore'].includes(
     expected.interaction
   );
+  const fullScreenInspector = expected.interaction === 'inspector'
+    && (
+      expected.viewport.width <= 680
+      || expected.viewport.height <= 600
+    );
   const expectedPresentationControlStateValid = (state) => state === 'visible'
     || (presentationControlsMayBeOccluded && state === 'hidden');
   const playerPresentation = expected.expectedPresentationMode === 'player';
@@ -2418,7 +2439,10 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     candidate.clusterLeaderMismatchCount !== 0 ? 'label-cluster-leader' : '',
     candidate.clusterReservedOverlapCount !== 0 ? 'label-cluster-reserved-ui' : '',
     !Number.isSafeInteger(candidate.labelCount)
-      || candidate.labelCount < expected.minimumLabelCount ? 'label-count' : '',
+      ? 'label-count-shape'
+      : fullScreenInspector
+        ? candidate.labelCount !== 0 ? 'fullscreen-inspector-labels' : ''
+        : candidate.labelCount < expected.minimumLabelCount ? 'label-count' : '',
     !Number.isSafeInteger(candidate.tabbableLabelCount)
       || candidate.tabbableLabelCount !== (candidate.labelCount > 0 ? 1 : 0)
       ? 'label-roving-tab-stop' : '',
@@ -2713,6 +2737,7 @@ export class DevtoolsPipeSession {
   #child;
   #closed = true;
   #eventHandler;
+  #failureMessage;
   #inboundBytes = 0;
   #inboundChunks = [];
   #nextId = 1;
@@ -2850,6 +2875,11 @@ export class DevtoolsPipeSession {
           pending.method,
           message.error
         );
+        const runtimeEvaluationTransition =
+          isBenignRuntimeEvaluationTransitionError(
+            pending.method,
+            message.error
+          );
         // A paused request may be canceled by the page before Chrome consumes
         // its continue/fail command. The request no longer exists, so this
         // exact response cannot permit network access and must not tear down an
@@ -2858,13 +2888,26 @@ export class DevtoolsPipeSession {
           pending.resolve({});
           return;
         }
+        // Runtime.evaluate may race the exact instant a controlled local
+        // fixture replaces its document context. Reject only that sample so
+        // the caller's bounded readiness loop can retry. Any adjacent method,
+        // code, message, shape, external navigation, or closed target still
+        // fails the entire private pipe.
+        if (runtimeEvaluationTransition) {
+          pending.reject(new Error(
+            'Chrome DevTools runtime evaluation context transitioned.'
+          ));
+          return;
+        }
         const errorCode = Number.isSafeInteger(message.error?.code)
           ? ` (${message.error.code})`
           : '';
         pending.reject(new Error(
           `Chrome DevTools ${pending.method} command failed${errorCode}.`
         ));
-        this.#fail('Chrome DevTools command failed.');
+        this.#fail(
+          `Chrome DevTools ${pending.method} command failed${errorCode}.`
+        );
         return;
       }
       if (message.result === null || typeof message.result !== 'object' || Array.isArray(message.result)) {
@@ -3072,7 +3115,12 @@ export class DevtoolsPipeSession {
 
   command(method, params = {}, timeoutMilliseconds = CDP_COMMAND_TIMEOUT_MILLISECONDS) {
     if (!this.#pageSessionId) {
-      return Promise.reject(new Error('Chrome DevTools page session is unavailable.'));
+      const failureContext = this.#failureMessage
+        ? ` (${this.#failureMessage})`
+        : '';
+      return Promise.reject(new Error(
+        `Chrome DevTools page session is unavailable${failureContext}.`
+      ));
     }
     return this.#send(method, params, this.#pageSessionId, timeoutMilliseconds);
   }
@@ -3131,6 +3179,7 @@ export class DevtoolsPipeSession {
   #fail(message) {
     if (this.#closed) return;
     const error = new Error(message);
+    this.#failureMessage = message;
     this.#closed = true;
     this.#removeListeners();
     this.#clearInbound();
@@ -3144,6 +3193,7 @@ export class DevtoolsPipeSession {
 
   close() {
     if (this.#closed) return;
+    this.#failureMessage = 'Chrome DevTools pipe closed.';
     this.#closed = true;
     this.#removeListeners();
     this.#clearInbound();
@@ -6614,6 +6664,14 @@ export async function applyRenderedWebglResourceOccupantInteraction(
       const presenceLayer = document.querySelector('.realm-resource-occupant-presences');
       const controlLayer = marker?.closest('.realm-resource-occupant-markers');
       const castleLayer = document.querySelector('.realm-castle-labels');
+      const worldMarkerLayer = document.querySelector(
+        '.realm-map-screen__world-markers'
+      );
+      const expectedRecordModal = map instanceof HTMLElement
+        && map.getAttribute('data-realm-surface-presentation')
+          === 'fullscreen-destination'
+        ? 'true'
+        : 'false';
       const markerPresent = map instanceof HTMLElement
         && map.getAttribute('data-presentation-mode') === expectedMode
         && focusedExpected !== undefined
@@ -6650,12 +6708,15 @@ export async function applyRenderedWebglResourceOccupantInteraction(
         && hit instanceof Element
         && (hit === marker || marker.contains(hit));
       const layeringValid = map instanceof HTMLElement
+        && worldMarkerLayer instanceof HTMLElement
         && presenceLayer instanceof HTMLElement
         && controlLayer instanceof HTMLElement
         && castleLayer instanceof HTMLElement
-        && presenceLayer.parentElement === map
-        && controlLayer.parentElement === map
-        && castleLayer.parentElement === map
+        && worldMarkerLayer.parentElement === map
+        && presenceLayer.parentElement === worldMarkerLayer
+        && controlLayer.parentElement === worldMarkerLayer
+        && castleLayer.parentElement === worldMarkerLayer
+        && getComputedStyle(worldMarkerLayer).display === 'contents'
         && Number.parseInt(getComputedStyle(presenceLayer).zIndex, 10) === 3
         && Number.parseInt(getComputedStyle(castleLayer).zIndex, 10) === 4
         && Number.parseInt(getComputedStyle(controlLayer).zIndex, 10) === 5;
@@ -6895,7 +6956,7 @@ export async function applyRenderedWebglResourceOccupantInteraction(
       const recordHeaderCorrect = panelReady
         && panel instanceof HTMLElement
         && panel.getAttribute('role') === 'dialog'
-        && panel.getAttribute('aria-modal') === 'false'
+        && panel.getAttribute('aria-modal') === expectedRecordModal
         && (panel.querySelector('.realm-resource-occupant-details__record span')?.textContent ?? '').trim()
           === 'PUBLIC EXPEDITION RECORD'
         && (panel.querySelector('.gold-mine-inspection__title-lockup h2')?.textContent ?? '').trim()
@@ -7161,7 +7222,7 @@ export async function applyRenderedWebglResourceOccupantInteraction(
         && overviewExpected !== undefined
         && overviewPanel instanceof HTMLElement
         && overviewPanel.getAttribute('role') === 'dialog'
-        && overviewPanel.getAttribute('aria-modal') === 'false'
+        && overviewPanel.getAttribute('aria-modal') === expectedRecordModal
         && (overviewPanel.querySelector(
           '.realm-resource-occupant-details__record span'
         )?.textContent ?? '').trim() === 'PUBLIC EXPEDITION RECORD'
@@ -7318,6 +7379,33 @@ export async function applyRenderedWebglResourceOccupantInteraction(
   if (evaluation?.exceptionDetails || evaluation?.result?.type !== 'object') {
     throw new Error('Rendered WebGL resource occupant evaluation failed.');
   }
+  if (
+    process.env.WARPKEEP_QA_LOCAL_DIAGNOSTICS === '1'
+    && evaluation.result.value !== null
+    && typeof evaluation.result.value === 'object'
+  ) {
+    const structuralKeys = [
+      'keyboardControlCountBounded',
+      'layeringValid',
+      'markerControlVisible',
+      'markerGeometryValid',
+      'markerPortraitElementPresent',
+      'markerPortraitReady',
+      'markerPresent',
+      'markerProjectedVisible',
+      'markerHitTestable',
+    ];
+    const failedStructuralKeys = structuralKeys.filter(
+      (key) => evaluation.result.value[key] !== true
+    );
+    if (failedStructuralKeys.length > 0) {
+      process.stderr.write(
+        `Local synthetic resource-occupant structural failures: ${
+          failedStructuralKeys.join(',')
+        }.\n`
+      );
+    }
+  }
   return parseRenderedWebglResourceOccupantEvidence(evaluation.result.value);
 }
 
@@ -7368,8 +7456,8 @@ export async function applyRenderedWebglActiveWorkerInteraction(session) {
       if (!(launcher instanceof HTMLButtonElement) || !visible(launcher)) {
         return {
           activeFixtureSelected,
-          foreignMarkerGeneric: false,
-          foreignPortraitReady: false,
+          foreignRecordGeneric: false,
+          foreignRecordPortraitReady: false,
           foreignRecordReadOnly: false,
           mobileBoundsSafe: false,
           ownerCommandCenterAvailable: false,
@@ -7425,9 +7513,13 @@ export async function applyRenderedWebglActiveWorkerInteraction(session) {
       ) ?? [])].filter((button) => (
         button instanceof HTMLButtonElement && !button.disabled
       ));
-      const centerRecallAll = commandCenter?.querySelector(
+      const centerRecallAll = [...(commandCenter?.querySelectorAll(
         '.worker-command-center__footer button'
-      );
+      ) ?? [])].find((button) => (
+        button instanceof HTMLButtonElement
+        && !button.disabled
+        && (button.textContent ?? '').trim() === 'RETURN ALL TO KEEP'
+      ));
       const ownerRecallControlsAvailable = menuRecallAvailable
         && rowRecallButtons.length === 1
         && (rowRecallButtons[0]?.textContent ?? '').trim() === 'RETURN'
@@ -7519,9 +7611,64 @@ export async function applyRenderedWebglActiveWorkerInteraction(session) {
           '.gold-mine-inspection:has([data-resource-occupant-details="true"])'
         ) instanceof HTMLElement
       ));
+      const semanticForeignRecordReady = semanticInspectorReady && await waitFor(() => {
+        const inspector = document.querySelector(
+          '.gold-mine-inspection:has([data-resource-occupant-details="true"])'
+        );
+        const record = inspector?.querySelector(
+          '.realm-resource-occupant-details__record'
+        );
+        const identity = inspector?.querySelector(
+          '.realm-resource-occupant-details__identity'
+        );
+        return (record?.querySelector('span')?.textContent ?? '').trim()
+            === 'PUBLIC WORKER RECORD'
+          && (record?.querySelector('strong')?.textContent ?? '').trim()
+            === 'WORKER 01'
+          && identity?.querySelector(
+            'canvas[data-profile-image-state="ready"]'
+          ) instanceof HTMLCanvasElement;
+      });
       const semanticInspector = document.querySelector(
         '.gold-mine-inspection:has([data-resource-occupant-details="true"])'
       );
+      const semanticRecord = semanticInspector?.querySelector(
+        '.realm-resource-occupant-details__record'
+      );
+      const semanticIdentity = semanticInspector?.querySelector(
+        '.realm-resource-occupant-details__identity'
+      );
+      const foreignRecordGeneric = semanticForeignRecordReady
+        && (semanticRecord?.querySelector('span')?.textContent ?? '').trim()
+          === 'PUBLIC WORKER RECORD'
+        && (semanticRecord?.querySelector('strong')?.textContent ?? '').trim()
+          === 'WORKER 01';
+      const foreignRecordPortraitReady = semanticIdentity?.querySelector(
+        'canvas[data-profile-image-state="ready"]'
+      ) instanceof HTMLCanvasElement;
+      const foreignRecordReadOnly = foreignRecordGeneric
+        && (semanticIdentity?.querySelector(':scope > div > span')?.textContent ?? '').trim()
+          === 'GATHERING BY'
+        && foreignRecordPortraitReady
+        && semanticInspector?.querySelector(
+          '.realm-resource-occupant-details__recall'
+        ) === null
+        && !/(?:Recall Worker|RETURN ALL TO KEEP)/i.test(
+          semanticInspector?.textContent ?? ''
+        );
+      const privacyNodes = [commandCenter, semanticInspector].filter((node) => (
+        node instanceof HTMLElement
+      ));
+      const privacyBounded = privacyNodes.length === 2
+        && privacyNodes.every((root) => (
+          [root, ...root.querySelectorAll('*')].every((element) => (
+            [...element.attributes].every((attribute) => (
+              !/(?:^|[-_:])(?:fid|wallet|token|proof|auth|request)(?:$|[-_:])/i
+                .test(attribute.name)
+              && !/(?:https?:|blob:|data:|file:)/i.test(attribute.value)
+            ))
+          ))
+        ));
       const semanticInspectorClose = semanticInspector?.querySelector(
         '.gold-mine-inspection__dismiss'
       );
@@ -7536,71 +7683,6 @@ export async function applyRenderedWebglActiveWorkerInteraction(session) {
         && rendererHealthy()
         && !map?.hasAttribute('data-camera-interacting')
       ));
-      const foreignMarkerSelector = [
-        'button.realm-resource-occupant-marker',
-        '[data-resource-occupant-source="generic-worker"]',
-        '[data-resource-kind="gold"]',
-        '[data-resource-occupant-key="gold:genesis-001-tier1-gold-03"]'
-      ].join('');
-      const foreignMarkerReady = await waitFor(() => {
-        const marker = document.querySelector(foreignMarkerSelector);
-        return marker instanceof HTMLButtonElement
-          && marker.dataset.projectedVisible === 'true'
-          && marker.dataset.occupiedByViewer === 'false'
-          && visible(marker)
-          && marker.querySelector(
-            'canvas[data-profile-image-state="ready"]'
-          ) instanceof HTMLCanvasElement;
-      });
-      const foreignMarker = document.querySelector(foreignMarkerSelector);
-      const foreignMarkerGeneric = foreignMarkerReady
-        && foreignMarker instanceof HTMLButtonElement
-        && foreignMarker.dataset.resourceOccupantSource === 'generic-worker'
-        && foreignMarker.dataset.occupiedByViewer === 'false';
-      const foreignPortraitReady = foreignMarker?.querySelector(
-        'canvas[data-profile-image-state="ready"]'
-      ) instanceof HTMLCanvasElement;
-      foreignMarker?.click();
-      const panelReady = await waitFor(() => visible(
-        document.querySelector(
-          '.gold-mine-inspection:has([data-resource-occupant-details="true"])'
-        )
-      ));
-      const panel = document.querySelector(
-        '.gold-mine-inspection:has([data-resource-occupant-details="true"])'
-      );
-      const record = panel?.querySelector('.realm-resource-occupant-details__record');
-      const identity = panel?.querySelector('.realm-resource-occupant-details__identity');
-      const foreignRecordReadOnly = panelReady
-        && (record?.querySelector('span')?.textContent ?? '').trim()
-          === 'PUBLIC WORKER RECORD'
-        && (record?.querySelector('strong')?.textContent ?? '').trim()
-          === 'WORKER 01'
-        && (identity?.querySelector(':scope > div > span')?.textContent ?? '').trim()
-          === 'GATHERING BY'
-        && identity?.querySelector(
-          'canvas[data-profile-image-state="ready"]'
-        ) instanceof HTMLCanvasElement
-        && panel?.querySelector('.realm-resource-occupant-details__recall') === null
-        && !/(?:Recall Worker|RETURN ALL TO KEEP)/i.test(panel?.textContent ?? '');
-      const privacyNodes = [commandCenter, foreignMarker, panel].filter((node) => (
-        node instanceof HTMLElement
-      ));
-      const privacyBounded = privacyNodes.length === 3
-        && privacyNodes.every((root) => (
-          [root, ...root.querySelectorAll('*')].every((element) => (
-            [...element.attributes].every((attribute) => (
-              !/(?:^|[-_:])(?:fid|wallet|token|proof|auth|request)(?:$|[-_:])/i
-                .test(attribute.name)
-              && !/(?:https?:|blob:|data:|file:)/i.test(attribute.value)
-            ))
-          ))
-        ));
-      const dismiss = panel?.querySelector('.gold-mine-inspection__dismiss');
-      if (dismiss instanceof HTMLButtonElement) dismiss.click();
-      await waitFor(() => document.querySelector(
-        '.gold-mine-inspection:has([data-resource-occupant-details="true"])'
-      ) === null);
 
       const initialGeneration = Number(map?.dataset.rendererGeneration);
       const canvas = map?.querySelector('canvas.realm-map-screen__canvas');
@@ -7631,8 +7713,8 @@ export async function applyRenderedWebglActiveWorkerInteraction(session) {
       );
       return {
         activeFixtureSelected,
-        foreignMarkerGeneric,
-        foreignPortraitReady,
+        foreignRecordGeneric,
+        foreignRecordPortraitReady,
         foreignRecordReadOnly,
         mobileBoundsSafe: mobileBoundsSafe
           && semanticResourceNavigationSafe
@@ -7699,9 +7781,13 @@ export async function applyRenderedWebglActiveWorkerReconnectInteraction(session
       return centerReady
         && commandCenter instanceof HTMLElement
         && commandCenter.querySelectorAll('.worker-command-center__recall').length === 1
-        && commandCenter.querySelector(
+        && [...commandCenter.querySelectorAll(
           '.worker-command-center__footer button'
-        ) instanceof HTMLButtonElement;
+        )].some((button) => (
+          button instanceof HTMLButtonElement
+          && !button.disabled
+          && (button.textContent ?? '').trim() === 'RETURN ALL TO KEEP'
+        ));
     })()`,
     awaitPromise: true,
     returnByValue: true,

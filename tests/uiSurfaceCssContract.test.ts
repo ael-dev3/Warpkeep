@@ -133,11 +133,13 @@ describe('shared Warpkeep surface system', () => {
   it('keeps the mobile Worker inspector inside every device safe area', () => {
     const source = css('src/components/realm/WorkerInspectionPanel.css');
     const dismiss = lastBlock(source, '.worker-inspection__dismiss');
+    const closeToRealm = firstBlock(source, '.worker-inspection__close-to-realm{');
     const body = lastBlock(source, '.worker-inspection__body');
     const drawer = lastBlock(source, '.worker-inspection__drawer');
 
-    expect(dismiss).toContain('env(safe-area-inset-top)');
-    expect(dismiss).toContain('env(safe-area-inset-right)');
+    expect(closeToRealm).toContain('env(safe-area-inset-top)');
+    expect(closeToRealm).toContain('env(safe-area-inset-right)');
+    expect(dismiss).toContain('env(safe-area-inset-left)');
     expect(body).toContain('env(safe-area-inset-right)');
     expect(body).toContain('env(safe-area-inset-bottom)');
     expect(body).toContain('env(safe-area-inset-left)');

@@ -40,6 +40,7 @@ export type SettingsPanelProps = Readonly<{
   onAudioMutedChange?: (muted: boolean) => void;
   onChange: (preference: GraphicsPreference) => void;
   onClose: () => void;
+  onCloseToRealm?: () => void;
 }>;
 
 export function SettingsPanel({
@@ -50,7 +51,8 @@ export function SettingsPanel({
   resolvedQuality,
   onAudioMutedChange,
   onChange,
-  onClose
+  onClose,
+  onCloseToRealm
 }: SettingsPanelProps) {
   const dialogRef = useRef<HTMLElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -138,6 +140,9 @@ export function SettingsPanel({
           >
             RESTORE RECOMMENDED DEFAULT
           </button>
+          {onCloseToRealm ? (
+            <button onClick={onCloseToRealm} type="button">CLOSE TO REALM</button>
+          ) : null}
           <button onClick={onClose} type="button">{closeLabel}</button>
         </div>
       </section>

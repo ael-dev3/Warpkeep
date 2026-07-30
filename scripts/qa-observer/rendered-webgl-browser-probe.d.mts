@@ -41,6 +41,11 @@ export function isBenignStaleFetchInterceptionError(
   value: unknown
 ): boolean;
 
+export function isBenignRuntimeEvaluationTransitionError(
+  method: string,
+  value: unknown
+): boolean;
+
 export function controlledRendererRecoveryWarningKind(
   entry: unknown,
   loopbackOrigin: string,
@@ -218,8 +223,8 @@ export function cleanupRenderedWebglProbeResources(options?: Readonly<{
 
 export type RenderedWebglActiveWorkerEvidence = Readonly<{
   activeFixtureSelected: true;
-  foreignMarkerGeneric: true;
-  foreignPortraitReady: true;
+  foreignRecordGeneric: true;
+  foreignRecordPortraitReady: true;
   foreignRecordReadOnly: true;
   localReconnectRehydrated: true;
   mobileBoundsSafe: true;

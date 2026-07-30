@@ -32,6 +32,7 @@ import {
   formatRenderedWebglLocalDiagnostic,
   headlessChromeProbeContract,
   isAllowedRenderedWebglPageUrl,
+  isBenignRuntimeEvaluationTransitionError,
   isBenignStaleFetchInterceptionError,
   parseHeadlessChromeCodeSignature,
   parseRenderedWebglActiveForestDom,
@@ -682,6 +683,10 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(lifecycleSource).toContain(
       'harness.proveRenderedWebglQaOfflineSfxCorpus()'
     );
+    expect(lifecycleSource).toContain(
+      "button.querySelector('strong')?.textContent"
+    );
+    expect(lifecycleSource).toContain("=== 'SETTINGS'");
     expect(lifecycleSource).not.toContain("kind: 'command-failed'");
     expect(lifecycleSource).not.toContain('measureWarpkeepAudioBuffer');
     expect(lifecycleSource).not.toContain('renderWarpkeepSfxEventOffline');
@@ -1041,7 +1046,19 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(expression).not.toMatch(
       /button\.realm-castle-label[\s\S]{0,240}&& visible\(label\)/
     );
-    expect(expression).toContain('presenceLayer.parentElement === map');
+    expect(expression).toContain('worldMarkerLayer.parentElement === map');
+    expect(expression).toContain(
+      'presenceLayer.parentElement === worldMarkerLayer'
+    );
+    expect(expression).toContain(
+      "getComputedStyle(worldMarkerLayer).display === 'contents'"
+    );
+    expect(expression).toContain(
+      "map.getAttribute('data-realm-surface-presentation')"
+    );
+    expect(expression).toContain(
+      "panel.getAttribute('aria-modal') === expectedRecordModal"
+    );
     expect(expression).toContain('Number.parseInt(getComputedStyle(castleLayer).zIndex, 10) === 4');
     expect(expression).toContain('document.elementFromPoint(');
     expect(expression).toContain(
@@ -1159,8 +1176,8 @@ describe('rendered WebGL headless browser probe contract', () => {
   it('proves active generic Worker owner, foreign, mobile, reconnect, and recovery UX locally', async () => {
     const activeEvidence = {
       activeFixtureSelected: true,
-      foreignMarkerGeneric: true,
-      foreignPortraitReady: true,
+      foreignRecordGeneric: true,
+      foreignRecordPortraitReady: true,
       foreignRecordReadOnly: true,
       mobileBoundsSafe: true,
       ownerCommandCenterAvailable: true,
@@ -1210,7 +1227,7 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(activeExpression).toContain("=== 'Worker 1|Worker 2|Worker 3|Worker 4'");
     expect(activeExpression).toContain("=== '5 Gold'");
     expect(activeExpression).toContain("=== 'PUBLIC WORKER RECORD'");
-    expect(activeExpression).toContain("=== 'generic-worker'");
+    expect(activeExpression).toContain("=== 'RETURN ALL TO KEEP'");
     expect(activeExpression).toContain(
       "'.realm-cell-navigator__resource-site'"
     );
@@ -2505,6 +2522,39 @@ describe('rendered WebGL headless browser probe contract', () => {
     ] as const) {
       expect(isBenignStaleFetchInterceptionError(method, error)).toBe(false);
     }
+    for (const message of [
+      'Cannot find context with specified id',
+      'Execution context was destroyed.',
+      'Execution context was destroyed, most likely because of a navigation.',
+      'Inspected target navigated or closed',
+    ]) {
+      expect(isBenignRuntimeEvaluationTransitionError(
+        'Runtime.evaluate',
+        { code: -32000, message },
+      )).toBe(true);
+    }
+    for (const [method, error] of [
+      ['Page.navigate', {
+        code: -32000,
+        message: 'Execution context was destroyed.',
+      }],
+      ['Runtime.evaluate', {
+        code: -32602,
+        message: 'Execution context was destroyed.',
+      }],
+      ['Runtime.evaluate', {
+        code: -32000,
+        message: 'Other failure.',
+      }],
+      ['Runtime.evaluate', {
+        code: -32000,
+        message: 'Cannot find context with specified id',
+        data: 'unexpected',
+      }],
+      ['Runtime.evaluate', null],
+    ] as const) {
+      expect(isBenignRuntimeEvaluationTransitionError(method, error)).toBe(false);
+    }
 
     const replyWithError = async (
       method: string,
@@ -2520,6 +2570,21 @@ describe('rendered WebGL headless browser probe contract', () => {
       }));
       return { attached, command };
     };
+
+    const transitioned = await replyWithError('Runtime.evaluate', {
+      code: -32000,
+      message: 'Execution context was destroyed.',
+    });
+    await expect(transitioned.command).rejects.toThrow(/context transitioned/i);
+    const afterTransition = transitioned.attached.pipe.command('Page.enable');
+    await new Promise((resolveTick) => setImmediate(resolveTick));
+    transitioned.attached.child.stdio[4]!.write(cdpPipeFrame({
+      id: transitioned.attached.commands.at(-1)?.id,
+      result: {},
+      sessionId: TEST_SESSION_ID,
+    }));
+    await expect(afterTransition).resolves.toEqual({});
+    transitioned.attached.pipe.close();
 
     for (const method of ['Fetch.continueRequest', 'Fetch.failRequest']) {
       const benign = await replyWithError(
@@ -3478,7 +3543,7 @@ describe('rendered WebGL headless browser probe contract', () => {
 
     const inspectorCase = renderedWebglBrowserProbeCases(41_733)
       .find((probeCase) => probeCase.id === 'mobile-reduced-inspector')!;
-    expect(() => parseRenderedWebglBrowserDom({
+    const fullScreenInspectorReady = {
       ...ready,
       href: inspectorCase.url,
       quality: inspectorCase.expectedQuality,
@@ -3487,6 +3552,10 @@ describe('rendered WebGL headless browser probe contract', () => {
       documentWidth: inspectorCase.viewport.width,
       interactionState: 'inspector',
       inspectorProfileImageState: 'ready',
+      forestDecorativeCacheLimit: 512,
+      grassCacheLimit: 512,
+      semanticTerrainFeatureCount: 610,
+      totalTerrainDetailInstanceCount: 3_000,
       labelCount: 0,
       tabbableLabelCount: 0,
       labelEligibleCount: 0,
@@ -3498,7 +3567,24 @@ describe('rendered WebGL headless browser probe contract', () => {
       raycastTargetCount: 0,
       labelsTextBearingCount: 0,
       labelsWithinViewportCount: 0
-    }, { ...inspectorCase, minimumLabelCount: 1 })).toThrow(/label-count/i);
+    } as const;
+    expect(parseRenderedWebglBrowserDom(
+      fullScreenInspectorReady,
+      inspectorCase
+    )).toMatchObject({ presentationMode: 'observer' });
+    expect(() => parseRenderedWebglBrowserDom({
+      ...fullScreenInspectorReady,
+      labelCount: 1,
+      tabbableLabelCount: 1,
+      labelEligibleCount: 1,
+      labelPlacedCount: 1,
+      individualCastleCount: 1,
+      presentedModelCount: 1,
+      presentedLandscapeBaseCount: 1,
+      raycastTargetCount: 1,
+      labelsTextBearingCount: 1,
+      labelsWithinViewportCount: 1
+    }, inspectorCase)).toThrow(/fullscreen-inspector-labels/i);
 
     const exploreOnlyCase = renderedWebglBrowserProbeCases(41_733)
       .find((probeCase) => probeCase.id === 'short-landscape-explore')!;

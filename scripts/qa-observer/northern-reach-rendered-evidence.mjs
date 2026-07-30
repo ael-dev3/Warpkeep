@@ -314,10 +314,21 @@ export async function applyNorthernReachRenderedEvidence(session, options) {
   if (result?.exceptionDetails || result?.result?.type !== 'object') {
     throw new Error('Northern Reach rendered observation failed.');
   }
-  return parseNorthernReachRenderedEvidence(result.result.value, {
-    quality,
-    recover,
-    region,
-    viewport
-  });
+  try {
+    return parseNorthernReachRenderedEvidence(result.result.value, {
+      quality,
+      recover,
+      region,
+      viewport
+    });
+  } catch (error) {
+    if (process.env.WARPKEEP_QA_LOCAL_DIAGNOSTICS === '1') {
+      process.stderr.write(
+        `Local synthetic Northern raw aggregate: ${
+          JSON.stringify(result.result.value)
+        }\n`
+      );
+    }
+    throw error;
+  }
 }

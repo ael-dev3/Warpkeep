@@ -6,7 +6,8 @@ export {
 export type {
   FarcasterAuthorityLoader,
   FarcasterAuthControllerValue,
-  FarcasterOidcBridgeLoader
+  FarcasterOidcBridgeLoader,
+  FarcasterQuickAuthTokenLoader
 } from './FarcasterAuthProvider';
 export {
   FARCASTER_OIDC_ACCESS_TOKEN_TTL_MS,
@@ -53,6 +54,9 @@ export type {
   FarcasterBridgeRequestOptions,
   FarcasterBridgeSessionIdentity,
   FarcasterBridgeSessionResponse,
+  FarcasterQuickAuthAuthorizedSession,
+  FarcasterQuickAuthPendingAdmissionSession,
+  FarcasterQuickAuthSessionResponse,
   FarcasterOidcBridgeClient,
   FarcasterOidcSession,
   PublicFarcasterIdentity,

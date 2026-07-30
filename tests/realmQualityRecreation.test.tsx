@@ -1836,7 +1836,9 @@ describe('live realm quality recreation', () => {
     expect(document.activeElement).toBe(menuTrigger);
 
     unmount();
-    expect(motion.preference.removeEventListener).toHaveBeenCalledOnce();
+    expect(motion.preference.removeEventListener).toHaveBeenCalledTimes(
+      motion.preference.addEventListener.mock.calls.length
+    );
   });
 
   it('preserves district framing when castle selection survives a quality rebuild', () => {
@@ -3052,7 +3054,9 @@ describe('live realm quality recreation', () => {
     expect(consoleWarn).not.toHaveBeenCalled();
   });
 
-  it('keeps validated coordinate navigation in the explicit QA observer', () => {
+  it('retires compact Explore before settling validated QA coordinate navigation', () => {
+    vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(390);
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(844);
     installWebGlProbe();
     const animationFrames = installAnimationFrameQueue();
     render(
@@ -3069,8 +3073,13 @@ describe('live realm quality recreation', () => {
     act(() => options.onCastlesReady?.(1));
     animationFrames.flush();
 
+    const realm = screen.getByRole('main', {
+      name: 'Hegemony realm QA observer'
+    });
+    expect(realm.dataset.realmChromeMode).toBe('compact-web');
     fireEvent.click(screen.getByRole('button', { name: /Explore realm/i }));
     animationFrames.flush();
+    expect(realm.dataset.realmSurfaceDepth).toBe('1');
     fireEvent.change(screen.getByRole('textbox', { name: 'q coordinate' }), {
       target: { value: '20' }
     });
@@ -3085,10 +3094,9 @@ describe('live realm quality recreation', () => {
     expect(scene.setComposition.mock.invocationCallOrder.at(-1))
       .toBeLessThan(scene.locateCell.mock.invocationCallOrder.at(-1)!);
     expect(screen.queryByRole('dialog', { name: 'Explore' })).toBeNull();
+    expect(realm.dataset.realmSurfaceDepth).toBe('0');
     expect(screen.getByText(/q 20, r -22/i)).not.toBeNull();
-    expect(document.activeElement).toBe(screen.getByRole('main', {
-      name: 'Hegemony realm QA observer'
-    }));
+    expect(document.activeElement).toBe(realm);
   });
 
   it('activates a selected terrain cell from the keyboard without opening an inspector', () => {

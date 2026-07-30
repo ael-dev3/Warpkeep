@@ -6,6 +6,7 @@ import {
   type Ref
 } from 'react';
 
+import { useModalFocusBoundary } from '../menu/useModalFocusBoundary';
 import type { GoldExpeditionPresentation } from './realmGoldExpeditionPresentation';
 import {
   goldNodeAvailabilityLabel,
@@ -91,6 +92,10 @@ export type GoldMineInspectionPanelProps = Readonly<{
    */
   onDispatchGoldExpedition?: (siteId: string) => Promise<void>;
   onRequestClose: () => void;
+  /** Compact and Mini App records occupy the screen and contain keyboard focus. */
+  modal?: boolean;
+  /** Returns to the preceding nested destination without moving the camera. */
+  onRequestBack?: () => void;
   focusTargetRef?: Ref<HTMLButtonElement>;
   /** Enables operator-only spatial diagnostics in nested public records. */
   showDiagnostics?: boolean;
@@ -150,9 +155,12 @@ export function GoldMineInspectionPanel({
   privateExpedition,
   onDispatchGoldExpedition,
   onRequestClose,
+  modal = false,
+  onRequestBack,
   focusTargetRef,
   showDiagnostics = false
 }: GoldMineInspectionPanelProps) {
+  const dialogRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [dispatchState, setDispatchState] = useState<
     'idle' | 'submitting' | 'submitted' | 'failed'
@@ -219,6 +227,13 @@ export function GoldMineInspectionPanel({
     closeButtonRef.current?.focus({ preventScroll: true });
   }, [id, mine.name, mine.tier]);
 
+  useModalFocusBoundary({
+    active: modal,
+    dialogRef,
+    initialFocusRef: closeButtonRef,
+    onEscape: onRequestClose
+  });
+
   useEffect(() => {
     setDispatchState('idle');
   }, [node?.siteId, node?.availability]);
@@ -248,11 +263,22 @@ export function GoldMineInspectionPanel({
       id={id}
       className="gold-mine-inspection realm-camera-neutral-inspector"
       role="dialog"
-      aria-modal="false"
+      aria-modal={modal}
       aria-labelledby={titleId}
       aria-describedby={descriptionId}
       data-open="true"
+      ref={dialogRef}
     >
+      {onRequestBack ? (
+        <button
+          className="realm-world-surface-back"
+          onClick={onRequestBack}
+          type="button"
+        >
+          <span aria-hidden="true">‹</span>
+          BACK
+        </button>
+      ) : null}
       <div aria-hidden="true" className="gold-mine-inspection__art-stage">
         <img
           alt=""

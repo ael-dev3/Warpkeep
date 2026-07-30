@@ -5,6 +5,9 @@ import { pathToFileURL } from 'node:url';
 const root = resolve(import.meta.dirname, '..');
 const dist = resolve(root, 'dist');
 const staleTransactionPrefix = '.warpkeep-family-install-';
+export const allowedProductionHiddenPaths = Object.freeze([
+  '.well-known/farcaster.json',
+]);
 export const allowedProductionHtmlPaths = Object.freeze([
   'index.html',
   'privacy/index.html',
@@ -95,7 +98,7 @@ const forbiddenContent = Object.freeze([
   '/v1/qa/realm-snapshot'
 ]);
 const applicationProductionCsp =
-  "default-src 'none'; base-uri 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: https://auth.warpkeep.com https://relay.farcaster.xyz https://mainnet.optimism.io https://maincloud.spacetimedb.com wss://maincloud.spacetimedb.com https://imagedelivery.net https://wrpcd.net https://res.cloudinary.com https://i.imgur.com https://lh3.googleusercontent.com https://i.seadn.io; worker-src 'self' blob:; manifest-src 'none'";
+  "default-src 'none'; base-uri 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: https://auth.warpkeep.com https://auth.farcaster.xyz https://relay.farcaster.xyz https://mainnet.optimism.io https://maincloud.spacetimedb.com wss://maincloud.spacetimedb.com https://imagedelivery.net https://wrpcd.net https://res.cloudinary.com https://i.imgur.com https://lh3.googleusercontent.com https://i.seadn.io; worker-src 'self' blob:; manifest-src 'none'";
 const legalProductionCsp =
   "default-src 'none'; style-src 'self'; base-uri 'none'; form-action 'none'";
 export const expectedProductionCspByPath = Object.freeze({
@@ -141,9 +144,12 @@ function verifyExactProductionCsp(relativePath, document) {
 function filesUnder(directory, outputRoot) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = resolve(directory, entry.name);
+    const relativePath = relative(outputRoot, path).replaceAll('\\', '/');
     if (entry.name.startsWith(staleTransactionPrefix)) {
-      const relativePath = relative(outputRoot, path).replaceAll('\\', '/');
       throw new Error(`Unresolved atomic-family transaction state leaked into production output: ${relativePath}`);
+    }
+    if (entry.isSymbolicLink() || (!entry.isDirectory() && !entry.isFile())) {
+      throw new Error(`Production output contains a non-regular path: ${relativePath}`);
     }
     return entry.isDirectory() ? filesUnder(path, outputRoot) : [path];
   });
@@ -152,8 +158,22 @@ function filesUnder(directory, outputRoot) {
 export function verifyProductionDistExclusions(outputDirectory = dist) {
   const outputRoot = resolve(outputDirectory);
   const outputFiles = filesUnder(outputRoot, outputRoot);
-  const htmlPaths = outputFiles
-    .map((path) => relative(outputRoot, path).replaceAll('\\', '/'))
+  const relativeOutputPaths = outputFiles
+    .map((path) => relative(outputRoot, path).replaceAll('\\', '/'));
+  const hiddenPaths = relativeOutputPaths
+    .filter((path) => path.split('/').some((segment) => segment.startsWith('.')))
+    .sort();
+  if (
+    hiddenPaths.length > allowedProductionHiddenPaths.length
+    || hiddenPaths.some(
+      (path) => !allowedProductionHiddenPaths.includes(path),
+    )
+  ) {
+    throw new Error(
+      `Production hidden output must stay within the exact reviewed allowlist; received ${JSON.stringify(hiddenPaths)}.`,
+    );
+  }
+  const htmlPaths = relativeOutputPaths
     .filter((path) => path.toLowerCase().endsWith('.html'))
     .sort();
   if (

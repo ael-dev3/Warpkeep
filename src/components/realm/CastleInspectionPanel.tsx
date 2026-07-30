@@ -5,6 +5,7 @@ import {
   type Ref
 } from 'react';
 
+import { useModalFocusBoundary } from '../menu/useModalFocusBoundary';
 import { CastleProfileAvatar } from './RealmCastleLabels';
 import { RealmRecordField } from './RealmRecordPrimitives';
 import {
@@ -43,6 +44,10 @@ export type CastleInspectionPanelProps = Readonly<{
   profile: RealmCastlePublicPresentation;
   own: boolean;
   observer?: boolean;
+  /** Compact and Mini App records occupy the screen and contain keyboard focus. */
+  modal?: boolean;
+  /** Returns to the preceding nested destination without moving the camera. */
+  onRequestBack?: () => void;
   onRequestClose: () => void;
   focusTargetRef?: Ref<HTMLButtonElement>;
 }>;
@@ -53,9 +58,12 @@ export function CastleInspectionPanel({
   profile,
   own,
   observer = false,
+  modal = false,
+  onRequestBack,
   onRequestClose,
   focusTargetRef
 }: CastleInspectionPanelProps) {
+  const dialogRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const titleId = `${id}-title`;
   const keeperIdentityId = `${id}-keeper-identity`;
@@ -80,16 +88,34 @@ export function CastleInspectionPanel({
     closeButtonRef.current?.focus({ preventScroll: true });
   }, [castle.castleId, id]);
 
+  useModalFocusBoundary({
+    active: modal,
+    dialogRef,
+    initialFocusRef: closeButtonRef,
+    onEscape: onRequestClose
+  });
+
   return (
     <aside
       id={id}
       className="castle-inspection realm-camera-neutral-inspector"
       role="dialog"
-      aria-modal="false"
+      aria-modal={modal}
       aria-labelledby={titleId}
       aria-describedby={keeperIdentityId}
       data-open="true"
+      ref={dialogRef}
     >
+      {onRequestBack ? (
+        <button
+          className="realm-world-surface-back"
+          onClick={onRequestBack}
+          type="button"
+        >
+          <span aria-hidden="true">‹</span>
+          BACK
+        </button>
+      ) : null}
       <div className="castle-inspection__drawer">
         <header className="castle-inspection__hero">
           <div aria-hidden="true" className="castle-inspection__hero-orbit" />

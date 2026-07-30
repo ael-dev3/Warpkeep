@@ -14,6 +14,9 @@ importers:
       '@farcaster/auth-client':
         specifier: 0.7.1
         version: 0.7.1(typescript@7.0.2)(zod@3.25.76)
+      '@farcaster/quick-auth':
+        specifier: 0.0.8
+        version: 0.0.8(typescript@7.0.2)
       viem:
         specifier: 2.55.0
         version: 2.55.0(typescript@7.0.2)(zod@3.25.76)
@@ -269,6 +272,11 @@ packages:
 
   '@farcaster/auth-client@0.7.1':
     resolution: {integrity: sha512-Mo5FnQPCfcV1ECSEvLz/WeFbH5F0ok5SJkRtwyO27KTQIuXKeL8O8oq6PlcVEEP8rkDnGkGkQ5rnT5Re9DDyNA==}
+
+  '@farcaster/quick-auth@0.0.8':
+    resolution: {integrity: sha512-NRIq1BcbcQCC6xBF5owfckkY00xKQVpqhpLNl5rICVpl0xeDsiVbkenIrHaUuyjtCK2W28YVc2ZCFRyz9ERHKg==}
+    peerDependencies:
+      typescript: 5.8.3
 
   '@img/colour@1.1.0':
     resolution: {integrity: sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ==}
@@ -829,6 +837,9 @@ packages:
     peerDependencies:
       ws: '*'
 
+  jose@5.10.0:
+    resolution: {integrity: sha512-s+3Al/p9g32Iq+oqXxkW//7jk2Vig6FF1CFqzVXoTUXt2qz89YWbL+OwS17NFYEvxC35n0FKeGO2LGYSxeM2Gg==}
+
   kleur@4.1.5:
     resolution: {integrity: sha512-o+NO+8WrRiQEE4/7nwRJhN1HWpVmJm511pBHUxPLtp0BUISzlBplORYSmTclCnJvQq2tKu/sgl3xVpkc7ZWuQQ==}
     engines: {node: '>=6'}
@@ -1312,6 +1323,12 @@ snapshots:
       - utf-8-validate
       - zod
 
+  '@farcaster/quick-auth@0.0.8(typescript@7.0.2)':
+    dependencies:
+      jose: 5.10.0
+      typescript: 7.0.2
+      zod: 3.25.76
+
   '@img/colour@1.1.0': {}
 
   '@img/sharp-darwin-arm64@0.35.3':
@@ -1715,6 +1732,8 @@ snapshots:
   isows@1.0.7(ws@8.21.0):
     dependencies:
       ws: 8.21.0
+
+  jose@5.10.0: {}
 
   kleur@4.1.5: {}
 

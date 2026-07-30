@@ -105,6 +105,9 @@ jobs:
         env:
           GITHUB_PAGES: 'true'
 
+      - name: Verify signed Mini App release metadata
+        run: npm run verify:miniapp:release
+
       - name: Setup Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 

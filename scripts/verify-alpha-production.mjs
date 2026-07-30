@@ -1,10 +1,22 @@
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import {
   WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM,
 } from './entry-agreement-policy.mjs';
+import {
+  FARCASTER_MINI_APP_CONFIG,
+  FARCASTER_MINI_APP_EMBED,
+  FARCASTER_MINI_APP_IMAGES,
+  FARCASTER_MINI_APP_MANIFEST_PATH,
+  FARCASTER_MINI_APP_ORIGIN,
+  exactJsonValue,
+  inspectFarcasterAccountAssociation,
+  inspectPng,
+} from './farcaster-miniapp-contract.mjs';
 
 const DEFAULT_FRONTEND = 'https://warpkeep.com';
 const DEFAULT_BRIDGE = 'https://auth.warpkeep.com';
@@ -40,7 +52,11 @@ const AUTH_V2_CREDENTIAL_PATHS = Object.freeze([
   '/v2/session/refresh',
   '/v2/session/logout',
 ]);
-const AUTH_V2_PAUSED_PATHS = new Set(AUTH_V2_CREDENTIAL_PATHS.slice(0, 3));
+const AUTH_V2_QUICK_AUTH_PATH = '/v2/farcaster/quick-auth/exchange';
+const AUTH_V2_PAUSED_PATHS = new Set([
+  ...AUTH_V2_CREDENTIAL_PATHS.slice(0, 3),
+  AUTH_V2_QUICK_AUTH_PATH,
+]);
 const AUTH_V2_SERVER_ONLY_ADMIN_PATHS = Object.freeze([
   '/v1/admin/token',
   '/v1/admin/auth-epoch-probe',
@@ -63,6 +79,12 @@ const AUTH_V2_CORS_HEADERS = new Set([
   'access-control-allow-methods',
   'access-control-allow-headers',
   'access-control-allow-credentials',
+  'access-control-max-age',
+]);
+const AUTH_V2_QUICK_AUTH_CORS_HEADERS = new Set([
+  'access-control-allow-origin',
+  'access-control-allow-methods',
+  'access-control-allow-headers',
   'access-control-max-age',
 ]);
 const EXPECTED_ALPHA_AGGREGATE = Object.freeze({
@@ -460,6 +482,27 @@ function verifyExactCredentialedCors(response, frontend, label) {
   }
 }
 
+function verifyExactQuickAuthCors(response, frontend, label) {
+  const corsHeaders = [...response.headers.keys()]
+    .filter(name => name.startsWith('access-control-'));
+  if (
+    corsHeaders.length !== AUTH_V2_QUICK_AUTH_CORS_HEADERS.size
+    || corsHeaders.some(name => !AUTH_V2_QUICK_AUTH_CORS_HEADERS.has(name))
+    || response.headers.get('access-control-allow-origin') !== frontend
+    || response.headers.has('access-control-allow-credentials')
+    || !exactCommaHeader(response, 'access-control-allow-methods', ['POST', 'OPTIONS'])
+    || !exactCommaHeader(
+      response,
+      'access-control-allow-headers',
+      ['authorization', 'content-type'],
+    )
+    || response.headers.get('access-control-max-age') !== '600'
+    || !exactCommaHeader(response, 'vary', ['Origin'])
+  ) {
+    fail(`${label} did not return exact non-credentialed bearer CORS.`);
+  }
+}
+
 function verifyNoCors(response, label) {
   if ([...response.headers.keys()].some(name => name.startsWith('access-control-'))) {
     fail(`${label} exposed browser CORS to an untrusted origin.`);
@@ -591,6 +634,31 @@ export async function verifyRootAssets(
   return Object.freeze({ totalBytes, shaMatches });
 }
 
+const FRONTEND_EMBEDDING_RESPONSE_HEADERS = Object.freeze([
+  'x-frame-options',
+  'cross-origin-opener-policy',
+  'cross-origin-embedder-policy',
+]);
+
+export function verifyFrontendEmbeddingHeaders(headers) {
+  for (const name of FRONTEND_EMBEDDING_RESPONSE_HEADERS) {
+    const value = headers.get(name)?.trim() ?? '';
+    if (value) {
+      fail(`frontend response included reviewed embed-blocking header ${name}.`);
+    }
+  }
+
+  const contentSecurityPolicy = headers.get('content-security-policy')?.trim() ?? '';
+  if (
+    contentSecurityPolicy
+    && /(?:^|;)\s*frame-ancestors(?:\s|;|$)/i.test(contentSecurityPolicy)
+  ) {
+    fail(
+      'frontend response CSP included a frame-ancestors directive that was not reviewed for Mini App hosts.',
+    );
+  }
+}
+
 export async function verifyFrontend(frontend, expectedDeployedSha, fetchImpl = fetch) {
   const response = await fetchWithTimeout(rootUrl(frontend), {}, fetchImpl);
   if (response.status !== 200) {
@@ -599,6 +667,7 @@ export async function verifyFrontend(frontend, expectedDeployedSha, fetchImpl = 
   if (!response.headers.get('content-type')?.toLowerCase().startsWith('text/html')) {
     fail('frontend root did not return HTML.');
   }
+  verifyFrontendEmbeddingHeaders(response.headers);
   const html = await readBoundedText(response, 'frontend document', MAX_DOCUMENT_BYTES);
   if (!/\bid\s*=\s*(?:"root"|'root')/i.test(html)) {
     fail('frontend document is missing its application root.');
@@ -622,6 +691,177 @@ export async function verifyFrontend(frontend, expectedDeployedSha, fetchImpl = 
     fail('frontend assets did not contain the expected deployed build SHA.');
   }
   console.log(`frontend: canonical root and ${assets.length} root-base asset${assets.length === 1 ? '' : 's'} verified${expectedDeployedSha ? ' with expected build SHA' : ''}`);
+  return html;
+}
+
+function exactNamedMetaTags(html, name) {
+  return attributesForTags(html, 'meta').filter(
+    (attributes) => attributes.get('name')?.toLowerCase() === name,
+  );
+}
+
+function verifyReviewedMiniAppManifest(manifest) {
+  if (
+    !manifest
+    || typeof manifest !== 'object'
+    || Array.isArray(manifest)
+    || !hasExactKeys(manifest, ['accountAssociation', 'miniapp'])
+    || !exactJsonValue(manifest.miniapp, FARCASTER_MINI_APP_CONFIG)
+  ) {
+    fail('reviewed Mini App manifest does not match the exact release contract.');
+  }
+  try {
+    inspectFarcasterAccountAssociation(manifest.accountAssociation);
+  } catch {
+    fail('reviewed Mini App account association is malformed.');
+  }
+}
+
+async function readReviewedMiniAppManifest() {
+  let source;
+  try {
+    source = await readFile(
+      resolve(
+        import.meta.dirname,
+        '..',
+        'public',
+        FARCASTER_MINI_APP_MANIFEST_PATH,
+      ),
+      'utf8',
+    );
+  } catch {
+    fail('reviewed Mini App manifest is missing from the deployed source.');
+  }
+  let manifest;
+  try {
+    manifest = JSON.parse(source);
+  } catch {
+    fail('reviewed Mini App manifest is not valid JSON.');
+  }
+  verifyReviewedMiniAppManifest(manifest);
+  return manifest;
+}
+
+async function verifyLiveMiniAppImage(specification, fetchImpl) {
+  const response = await fetchWithTimeout(specification.url, {}, fetchImpl);
+  if (response.status !== 200) {
+    fail(
+      `Mini App image ${specification.file} returned HTTP ${response.status}.`,
+    );
+  }
+  if (
+    !/^image\/png(?:\s*;.*)?$/i.test(
+      response.headers.get('content-type') ?? '',
+    )
+  ) {
+    fail(`Mini App image ${specification.file} was not served as PNG.`);
+  }
+  const bytes = await readBoundedBytes(
+    response,
+    `Mini App image ${specification.file}`,
+    specification.maximumBytes,
+  );
+  if (bytes.byteLength === 0 || bytes.byteLength >= specification.maximumBytes) {
+    fail(`Mini App image ${specification.file} violates its byte budget.`);
+  }
+  let metadata;
+  try {
+    metadata = inspectPng(bytes);
+  } catch {
+    fail(`Mini App image ${specification.file} is not a structurally valid PNG.`);
+  }
+  if (
+    metadata.width !== specification.width
+    || metadata.height !== specification.height
+  ) {
+    fail(
+      `Mini App image ${specification.file} is not ${specification.width}x${specification.height}.`,
+    );
+  }
+  if (specification.opaque && metadata.hasAlpha) {
+    fail(`Mini App image ${specification.file} unexpectedly supports alpha.`);
+  }
+  let reviewedBytes;
+  try {
+    reviewedBytes = await readFile(
+      resolve(import.meta.dirname, '..', 'public', specification.path),
+    );
+  } catch {
+    fail(`reviewed Mini App image ${specification.file} is missing from source.`);
+  }
+  const digest = (value) => createHash('sha256').update(value).digest('hex');
+  if (
+    reviewedBytes.byteLength !== bytes.byteLength
+    || digest(reviewedBytes) !== digest(bytes)
+  ) {
+    fail(
+      `live Mini App image ${specification.file} does not match the reviewed source.`,
+    );
+  }
+}
+
+export async function verifyLiveFarcasterMiniApp(
+  frontend,
+  html,
+  reviewedManifest,
+  fetchImpl = fetch,
+) {
+  if (frontend !== FARCASTER_MINI_APP_ORIGIN) {
+    fail('Mini App verification requires the exact canonical frontend origin.');
+  }
+  const miniAppTags = exactNamedMetaTags(html, 'fc:miniapp');
+  if (
+    miniAppTags.length !== 1
+    || exactNamedMetaTags(html, 'fc:frame').length !== 0
+  ) {
+    fail('live HTML must contain one fc:miniapp meta and no fc:frame meta.');
+  }
+  let embed;
+  try {
+    embed = JSON.parse(miniAppTags[0].get('content') ?? '');
+  } catch {
+    fail('live fc:miniapp metadata is not valid JSON.');
+  }
+  if (!exactJsonValue(embed, FARCASTER_MINI_APP_EMBED)) {
+    fail('live fc:miniapp metadata drifted from the reviewed release contract.');
+  }
+
+  verifyReviewedMiniAppManifest(reviewedManifest);
+  const manifestUrl =
+    `${FARCASTER_MINI_APP_ORIGIN}/${FARCASTER_MINI_APP_MANIFEST_PATH}`;
+  const response = await fetchWithTimeout(manifestUrl, {}, fetchImpl);
+  if (response.status !== 200) {
+    fail(`live Mini App manifest returned HTTP ${response.status}.`);
+  }
+  if (
+    !/^application\/json(?:\s*;.*)?$/i.test(
+      response.headers.get('content-type') ?? '',
+    )
+  ) {
+    fail('live Mini App manifest was not served as JSON.');
+  }
+  let liveManifest;
+  try {
+    liveManifest = JSON.parse(
+      await readBoundedText(
+        response,
+        'live Mini App manifest',
+        MAX_DOCUMENT_BYTES,
+      ),
+    );
+  } catch {
+    fail('live Mini App manifest is not valid JSON.');
+  }
+  if (!exactJsonValue(liveManifest, reviewedManifest)) {
+    fail('live Mini App manifest does not match the reviewed deployed source.');
+  }
+
+  for (const specification of FARCASTER_MINI_APP_IMAGES) {
+    await verifyLiveMiniAppImage(specification, fetchImpl);
+  }
+  console.log(
+    `frontend: live Mini App embed, manifest, and ${FARCASTER_MINI_APP_IMAGES.length} release images verified`,
+  );
 }
 
 async function verifyRedirect(from, to, label) {
@@ -773,6 +1013,80 @@ async function verifyAuthV2Preflight(
   }
 }
 
+async function verifyAuthV2QuickAuthPreflight(
+  frontend,
+  bridge,
+  expectedPublicAuthEnabled,
+  fetchImpl,
+) {
+  const paused = !expectedPublicAuthEnabled
+    && AUTH_V2_PAUSED_PATHS.has(AUTH_V2_QUICK_AUTH_PATH);
+  const label = `bridge ${AUTH_V2_QUICK_AUTH_PATH} ${paused
+    ? 'paused check'
+    : expectedPublicAuthEnabled
+      ? 'enabled preflight'
+      : 'preflight'}`;
+  const preflight = await fetchWithTimeout(
+    `${bridge}${AUTH_V2_QUICK_AUTH_PATH}`,
+    {
+      method: 'OPTIONS',
+      headers: {
+        origin: frontend,
+        'access-control-request-method': 'POST',
+        'access-control-request-headers': 'authorization, content-type',
+      },
+    },
+    fetchImpl,
+  );
+  verifyAuthV2SecurityHeaders(preflight, label);
+  verifyExactQuickAuthCors(preflight, frontend, label);
+  if (paused) {
+    const payload = await readExactJsonAtStatus(preflight, label, 503);
+    verifyExactErrorPayload(
+      payload,
+      'public_auth_paused',
+      'Farcaster sign-in is temporarily paused for security hardening.',
+      label,
+    );
+  } else if (preflight.status !== 204 || preflight.headers.has('content-type')) {
+    fail(`${label} did not return an empty HTTP 204 response.`);
+  }
+
+  const hostileLabel =
+    `bridge ${AUTH_V2_QUICK_AUTH_PATH} hostile-origin check`;
+  const hostile = await fetchWithTimeout(
+    `${bridge}${AUTH_V2_QUICK_AUTH_PATH}`,
+    {
+      method: 'OPTIONS',
+      headers: {
+        origin: 'https://not-warpkeep.invalid',
+        'access-control-request-method': 'POST',
+        'access-control-request-headers': 'authorization, content-type',
+      },
+    },
+    fetchImpl,
+  );
+  verifyAuthV2SecurityHeaders(hostile, hostileLabel);
+  verifyNoCors(hostile, hostileLabel);
+  if (paused) {
+    const payload = await readExactJsonAtStatus(hostile, hostileLabel, 503);
+    verifyExactErrorPayload(
+      payload,
+      'public_auth_paused',
+      'Farcaster sign-in is temporarily paused for security hardening.',
+      hostileLabel,
+    );
+  } else {
+    const payload = await readExactJsonAtStatus(hostile, hostileLabel, 403);
+    verifyExactErrorPayload(
+      payload,
+      'origin_not_allowed',
+      'This browser origin is not allowed.',
+      hostileLabel,
+    );
+  }
+}
+
 async function verifyRetiredLegacyAuthPath(frontend, bridge, pathname, fetchImpl) {
   const label = `retired bridge ${pathname}`;
   const response = await fetchWithTimeout(`${bridge}${pathname}`, {
@@ -891,11 +1205,17 @@ async function verifyAuthV2Bridge(frontend, bridge, expectedPublicAuthEnabled, f
       fetchImpl,
     );
   }
+  await verifyAuthV2QuickAuthPreflight(
+    frontend,
+    bridge,
+    expectedPublicAuthEnabled,
+    fetchImpl,
+  );
 
   await verifyAuthV2AdminBrowserIsolation(frontend, bridge, fetchImpl);
   console.log(expectedPublicAuthEnabled
-    ? 'bridge: enabled auth-v2 read-only health, discovery, JWKS, retired v1, security headers, and credentialed CORS verified'
-    : 'bridge: contained auth-v2 health, discovery, JWKS, retired v1, security headers, and credentialed CORS verified');
+    ? 'bridge: enabled auth-v2 read-only health, discovery, JWKS, retired v1, security headers, and credentialed plus bearer CORS verified'
+    : 'bridge: contained auth-v2 health, discovery, JWKS, retired v1, security headers, and credentialed plus bearer CORS verified');
 }
 
 export async function verifyBridge(frontend, bridge, options = {}) {
@@ -1640,7 +1960,15 @@ async function main() {
   if (process.env.WARPKEEP_OIDC_AUDIENCE && process.env.WARPKEEP_OIDC_AUDIENCE !== EXPECTED_AUDIENCE) {
     fail(`WARPKEEP_OIDC_AUDIENCE must be ${EXPECTED_AUDIENCE}.`);
   }
-  await verifyFrontend(frontend, expectedDeployedSha);
+  const frontendDocument = await verifyFrontend(
+    frontend,
+    expectedDeployedSha,
+  );
+  await verifyLiveFarcasterMiniApp(
+    frontend,
+    frontendDocument,
+    await readReviewedMiniAppManifest(),
+  );
   await verifyFrontendRedirects(frontend, www, legacyPages);
   await verifyBridge(frontend, bridge, { requireAuthV2, requireAuthV2Enabled });
   if (requireResourceV4ReadyAggregate) {

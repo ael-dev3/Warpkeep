@@ -94,6 +94,9 @@ export type SafeLogEvent =
   | 'challenge_binding_created'
   | 'exchange_succeeded'
   | 'exchange_rejected'
+  | 'quick_auth_succeeded'
+  | 'quick_auth_rejected'
+  | 'quick_auth_verifier_unavailable'
   | 'exchange_binding_missing'
   | 'exchange_binding_invalid'
   | 'exchange_binding_mismatch'
@@ -183,6 +186,11 @@ export interface VerifiedFarcasterProof {
 /** An injectable adapter around the official Farcaster auth verifier. */
 export interface FarcasterVerifier {
   verify(input: FarcasterProofInput): Promise<VerifiedFarcasterProof>
+}
+
+/** An injectable boundary around Farcaster's Quick Auth JWT verifier. */
+export interface QuickAuthVerifier {
+  verifyJwt(input: Readonly<{ token: string; domain: string }>): Promise<unknown>
 }
 
 /**

@@ -4,11 +4,15 @@
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
 }
 
+.realm-player-chrome__map-controls {
+  display: contents;
+}
+
 .realm-profile-trigger {
   position: absolute;
   z-index: 8;
-  top: max(0.72rem, env(safe-area-inset-top));
-  left: max(0.72rem, env(safe-area-inset-left));
+  top: max(0.72rem, var(--realm-safe-top, env(safe-area-inset-top)));
+  left: max(0.72rem, var(--realm-safe-left, env(safe-area-inset-left)));
   display: grid;
   width: 3.25rem;
   min-width: 3.25rem;
@@ -47,8 +51,8 @@
 .realm-resource-rail {
   position: absolute;
   z-index: 7;
-  top: max(0.68rem, env(safe-area-inset-top));
-  right: max(0.78rem, env(safe-area-inset-right));
+  top: max(0.68rem, var(--realm-safe-top, env(safe-area-inset-top)));
+  right: max(0.78rem, var(--realm-safe-right, env(safe-area-inset-right)));
   padding: 0.08rem 0.18rem 0.14rem 0.45rem;
   border: 0;
   background: transparent;
@@ -205,8 +209,8 @@
 
 .realm-profile-menu__panel {
   position: absolute;
-  top: max(4.55rem, calc(env(safe-area-inset-top) + 4.55rem));
-  left: max(0.72rem, env(safe-area-inset-left));
+  top: max(4.55rem, calc(var(--realm-safe-top, env(safe-area-inset-top)) + 4.55rem));
+  left: max(0.72rem, var(--realm-safe-left, env(safe-area-inset-left)));
   width: min(
     18rem,
     calc(100vw - 1.44rem - env(safe-area-inset-left) - env(safe-area-inset-right))
@@ -411,13 +415,14 @@
 
 @media (max-width: 680px) {
   .realm-profile-trigger {
-    top: max(0.55rem, env(safe-area-inset-top));
-    left: max(0.55rem, env(safe-area-inset-left));
+    top: max(0.55rem, var(--realm-safe-top, env(safe-area-inset-top)));
+    left: max(0.55rem, var(--realm-safe-left, env(safe-area-inset-left)));
   }
 
   .realm-resource-rail {
-    top: max(0.42rem, env(safe-area-inset-top));
-    right: max(0.42rem, env(safe-area-inset-right));
+    top: max(0.42rem, var(--realm-safe-top, env(safe-area-inset-top)));
+    right: max(0.42rem, var(--realm-safe-right, env(safe-area-inset-right)));
+    left: calc(max(0.55rem, var(--realm-safe-left, env(safe-area-inset-left))) + 3.8rem);
   }
 
   .realm-resource-rail ul {
@@ -471,8 +476,8 @@
 }
 
 @media (max-width: 360px) {
-  .realm-resource-rail {
-    top: calc(max(0.42rem, env(safe-area-inset-top)) + 3.45rem);
+  .realm-resource-rail__marks {
+    display: none;
   }
 }
 
@@ -521,4 +526,100 @@
     scroll-behavior: auto;
     transition: none;
   }
+}
+
+:is(
+  .realm-player-chrome[data-realm-chrome-mode="compact-web"],
+  .realm-player-chrome[data-realm-chrome-mode="miniapp"]
+) .realm-profile-menu {
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 18% -8%, rgb(111 60 139 / 30%), transparent 35rem),
+    linear-gradient(155deg, #100d16 0%, #08070c 54%, #050509 100%);
+}
+
+:is(
+  .realm-player-chrome[data-realm-chrome-mode="compact-web"],
+  .realm-player-chrome[data-realm-chrome-mode="miniapp"]
+) .realm-profile-menu__panel {
+  position: relative;
+  inset: auto;
+  width: min(100%, 54rem);
+  height: 100vh;
+  height: 100svh;
+  height: 100dvh;
+  max-height: none;
+  margin-inline: auto;
+  padding:
+    max(0.8rem, var(--realm-safe-top, 0px))
+    max(0.85rem, var(--realm-safe-right, 0px))
+    max(1rem, var(--realm-safe-bottom, 0px))
+    max(0.85rem, var(--realm-safe-left, 0px));
+  border: 0;
+  border-radius: 0;
+  background: rgb(7 6 11 / 98%);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+:is(
+  .realm-player-chrome[data-realm-chrome-mode="compact-web"],
+  .realm-player-chrome[data-realm-chrome-mode="miniapp"]
+) .worker-command-center__scrim {
+  display: block;
+  padding: 0;
+  overflow: hidden;
+  background: #08070c;
+}
+
+:is(
+  .realm-player-chrome[data-realm-chrome-mode="compact-web"],
+  .realm-player-chrome[data-realm-chrome-mode="miniapp"]
+) .worker-command-center {
+  width: min(100%, 54rem);
+  height: 100vh;
+  height: 100svh;
+  height: 100dvh;
+  max-height: none;
+  margin-inline: auto;
+  padding:
+    max(0.8rem, var(--realm-safe-top, 0px))
+    max(0.85rem, var(--realm-safe-right, 0px))
+    max(1rem, var(--realm-safe-bottom, 0px))
+    max(0.85rem, var(--realm-safe-left, 0px));
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+:is(
+  .realm-player-chrome[data-realm-chrome-mode="compact-web"],
+  .realm-player-chrome[data-realm-chrome-mode="miniapp"]
+) .warpkeep-settings {
+  display: block;
+  padding: 0;
+  overflow: hidden;
+  background: #08070c;
+}
+
+:is(
+  .realm-player-chrome[data-realm-chrome-mode="compact-web"],
+  .realm-player-chrome[data-realm-chrome-mode="miniapp"]
+) .warpkeep-settings__panel {
+  width: min(100%, 54rem);
+  height: 100vh;
+  height: 100svh;
+  height: 100dvh;
+  max-height: none;
+  box-sizing: border-box;
+  margin-inline: auto;
+  padding:
+    max(0.9rem, var(--realm-safe-top, 0px))
+    max(0.85rem, var(--realm-safe-right, 0px))
+    max(1rem, var(--realm-safe-bottom, 0px))
+    max(0.85rem, var(--realm-safe-left, 0px));
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
 }

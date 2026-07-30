@@ -24,6 +24,7 @@ export type WorkerCommandCenterProps = Readonly<{
   onRecallAllWorkers?: () => Promise<void>;
   onSelectWorker: (worker: RealmWorkerPublicPresentation) => void;
   onClose: () => void;
+  onCloseToRealm?: () => void;
 }>;
 
 type PendingCommand = 'all' | string | undefined;
@@ -46,7 +47,8 @@ export function WorkerCommandCenter({
   onRecallWorker,
   onRecallAllWorkers,
   onSelectWorker,
-  onClose
+  onClose,
+  onCloseToRealm
 }: WorkerCommandCenterProps) {
   const dialogRef = useRef<HTMLElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -194,6 +196,15 @@ export function WorkerCommandCenter({
           })}
         </ol>
         <footer className="worker-command-center__footer">
+          {onCloseToRealm ? (
+            <button
+              disabled={pendingCommand !== undefined}
+              onClick={onCloseToRealm}
+              type="button"
+            >
+              CLOSE TO REALM
+            </button>
+          ) : null}
           <button
             aria-describedby={!controlsAvailable && controlsStatus
               ? `${id}-sync-status`

@@ -6,6 +6,7 @@ import {
   type Ref
 } from 'react';
 
+import { useModalFocusBoundary } from '../menu/useModalFocusBoundary';
 import type { StoneExpeditionPresentation } from './realmStoneExpeditionPresentation';
 import {
   stoneNodeAvailabilityLabel,
@@ -80,6 +81,10 @@ export type StoneQuarryInspectionPanelProps = Readonly<{
   /** Authenticated provider boundary; no optimistic public node mutation. */
   onDispatchStoneExpedition?: (siteId: string) => Promise<void>;
   onRequestClose: () => void;
+  /** Compact and Mini App records occupy the screen and contain keyboard focus. */
+  modal?: boolean;
+  /** Returns to the preceding nested destination without moving the camera. */
+  onRequestBack?: () => void;
   focusTargetRef?: Ref<HTMLButtonElement>;
   /** Enables operator-only spatial diagnostics in nested public records. */
   showDiagnostics?: boolean;
@@ -141,9 +146,12 @@ export function StoneQuarryInspectionPanel({
   privateExpedition,
   onDispatchStoneExpedition,
   onRequestClose,
+  modal = false,
+  onRequestBack,
   focusTargetRef,
   showDiagnostics = false
 }: StoneQuarryInspectionPanelProps) {
+  const dialogRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [dispatchState, setDispatchState] = useState<
     'idle' | 'submitting' | 'submitted' | 'failed'
@@ -210,6 +218,13 @@ export function StoneQuarryInspectionPanel({
     closeButtonRef.current?.focus({ preventScroll: true });
   }, [quarry.name, quarry.tier, id]);
 
+  useModalFocusBoundary({
+    active: modal,
+    dialogRef,
+    initialFocusRef: closeButtonRef,
+    onEscape: onRequestClose
+  });
+
   useEffect(() => {
     setDispatchState('idle');
   }, [node?.availability, node?.siteId]);
@@ -236,11 +251,22 @@ export function StoneQuarryInspectionPanel({
       id={id}
       className="gold-mine-inspection stone-quarry-inspection realm-camera-neutral-inspector"
       role="dialog"
-      aria-modal="false"
+      aria-modal={modal}
       aria-labelledby={titleId}
       aria-describedby={descriptionId}
       data-open="true"
+      ref={dialogRef}
     >
+      {onRequestBack ? (
+        <button
+          className="realm-world-surface-back"
+          onClick={onRequestBack}
+          type="button"
+        >
+          <span aria-hidden="true">‹</span>
+          BACK
+        </button>
+      ) : null}
       <div
         aria-hidden="true"
         className="gold-mine-inspection__art-stage stone-quarry-inspection__art-stage"
