@@ -72,6 +72,7 @@ import {
 type Command =
   | 'seed-world'
   | 'expand-world-v3'
+  | 'list-access-requests'
   | 'admit-founder'
   | 'allow-fid'
   | 'disable-fid'
@@ -113,6 +114,21 @@ const MAX_ENTRY_AGREEMENT_ACCEPTANCE_ROWS_PER_PLAYER = BigInt(
 const HEGEMONY_WORLD_SEED = 3_445_214_658;
 const HEGEMONY_WORLD_SEED_NAME = 'HEGEMONY_GENESIS_001';
 const U64_MAXIMUM = (1n << 64n) - 1n;
+const MAX_ACCESS_REQUEST_PAGE_SIZE = 100;
+const MAX_JAVASCRIPT_DATE_MICROS = 8_640_000_000_000_000_000n;
+const ACCESS_REQUEST_PAGE_KEYS = Object.freeze([
+  'entries',
+  'hasMore',
+  'nextFid',
+  'nextRequestedAtMicros',
+  'pendingRequests',
+  'totalRequests',
+].sort());
+const ACCESS_REQUEST_ENTRY_KEYS = Object.freeze([
+  'admissionState',
+  'fid',
+  'requestedAtMicros',
+].sort());
 const WORKER_STATUS_V12_U64_FIELDS = Object.freeze([
   'systemRows',
   'expectedCastleCount',
@@ -311,6 +327,7 @@ function commandFrom(value: string | undefined): Command {
   if (
     value === 'seed-world'
     || value === 'expand-world-v3'
+    || value === 'list-access-requests'
     || value === 'admit-founder'
     || value === 'allow-fid'
     || value === 'disable-fid'
@@ -332,23 +349,50 @@ function commandFrom(value: string | undefined): Command {
   }
   fail(
     'Usage: hermes-admin.ts '
-    + '<seed-world|expand-world-v3|admit-founder|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|seed-alpha-component|activate-alpha-water|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4|inspect-alpha-v8|inspect-alpha-v10|inspect-alpha-v12|inspect-publish-pre-v12|inspect-publish-post-v12> '
+    + '<seed-world|expand-world-v3|list-access-requests|admit-founder|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|seed-alpha-component|activate-alpha-water|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4|inspect-alpha-v8|inspect-alpha-v10|inspect-alpha-v12|inspect-publish-pre-v12|inspect-publish-post-v12> '
     + '[...args] [--dry-run] [--confirm]. admit-founder requires private stdin: '
     + '--input-stdin --dry-run creates a reviewed plan; --input-stdin --confirm consumes it; '
-    + 'allow-fid only re-enables an existing complete founder.',
+    + 'allow-fid only re-enables an existing complete founder. list-access-requests accepts '
+    + '[--limit 1..100] [--after-requested-at-micros U64 --after-fid FID] '
+    + '[--include-resolved] [--json].',
   );
 }
 
 export function parseHermesArguments(arguments_: readonly string[] = process.argv.slice(2)) {
-  const allowedFlags = new Set(['--dry-run', '--confirm', '--json', '--input-stdin']);
+  const allowedFlags = new Set([
+    '--dry-run',
+    '--confirm',
+    '--json',
+    '--input-stdin',
+    '--include-resolved',
+  ]);
+  const valuedFlags = new Set([
+    '--limit',
+    '--after-requested-at-micros',
+    '--after-fid',
+  ]);
   const flags = new Set<string>();
+  const options = new Map<string, string>();
   const positional: string[] = [];
-  for (const argument of arguments_) {
+  for (let index = 0; index < arguments_.length; index += 1) {
+    const argument = arguments_[index];
     if (argument.startsWith('--')) {
-      if (!allowedFlags.has(argument) || flags.has(argument)) {
+      if (valuedFlags.has(argument)) {
+        const value = arguments_[index + 1];
+        if (
+          options.has(argument)
+          || value === undefined
+          || value.startsWith('--')
+        ) {
+          fail('Unknown, duplicate, or incomplete Hermes command-line argument.');
+        }
+        options.set(argument, value);
+        index += 1;
+      } else if (!allowedFlags.has(argument) || flags.has(argument)) {
         fail('Unknown or duplicate Hermes command-line argument.');
+      } else {
+        flags.add(argument);
       }
-      flags.add(argument);
     } else {
       positional.push(argument);
     }
@@ -363,7 +407,8 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
     || command === 'inspect-alpha-v10'
     || command === 'inspect-alpha-v12'
     || command === 'inspect-publish-pre-v12'
-    || command === 'inspect-publish-post-v12';
+    || command === 'inspect-publish-post-v12'
+    || command === 'list-access-requests';
   const expectedPositionals = command === 'allow-fid'
     || command === 'disable-fid'
     || command === 'bump-auth-epoch'
@@ -378,6 +423,19 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
     (inspection && (flags.has('--confirm') || flags.has('--dry-run')))
     || (!inspection && flags.has('--json'))
   ) {
+    fail('Hermes command received a flag that is invalid for this operation.');
+  }
+  if (command !== 'list-access-requests' && (
+    flags.has('--include-resolved')
+    || options.size > 0
+  )) {
+    fail('Hermes command received a flag that is invalid for this operation.');
+  }
+  if (command === 'list-access-requests' && (
+    flags.has('--input-stdin')
+    || flags.has('--confirm')
+    || flags.has('--dry-run')
+  )) {
     fail('Hermes command received a flag that is invalid for this operation.');
   }
   if (command === 'admit-founder') {
@@ -406,6 +464,37 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
     fail('Hermes command received a flag that is invalid for this operation.');
   }
 
+  const accessRequestLimitText = options.get('--limit') ?? '100';
+  if (
+    command === 'list-access-requests'
+    && (
+      !/^[1-9][0-9]{0,2}$/.test(accessRequestLimitText)
+      || Number(accessRequestLimitText) > MAX_ACCESS_REQUEST_PAGE_SIZE
+    )
+  ) {
+    fail('Access request limit must be an integer from 1 to 100.');
+  }
+  const afterRequestedAtText = options.get('--after-requested-at-micros');
+  const afterFidText = options.get('--after-fid');
+  if (
+    command === 'list-access-requests'
+    && ((afterRequestedAtText === undefined) !== (afterFidText === undefined))
+  ) {
+    fail('Access request cursor requires both timestamp and FID.');
+  }
+  let afterRequestedAtMicros = 0n;
+  let afterFid = 0n;
+  if (command === 'list-access-requests' && afterRequestedAtText !== undefined) {
+    if (!/^[1-9][0-9]{0,19}$/.test(afterRequestedAtText)) {
+      fail('Access request cursor timestamp must be a positive u64 integer.');
+    }
+    afterRequestedAtMicros = BigInt(afterRequestedAtText);
+    if (afterRequestedAtMicros > U64_MAXIMUM) {
+      fail('Access request cursor timestamp must be a positive u64 integer.');
+    }
+    afterFid = readFid(afterFidText);
+  }
+
   return Object.freeze({
     command,
     positional: Object.freeze(positional),
@@ -415,6 +504,13 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
     machineReadableInspection: inspection && flags.has('--json'),
     existingFounderReenableOnly: command === 'allow-fid',
     privateInputStdin: flags.has('--input-stdin'),
+    accessRequestList: Object.freeze({
+      limit: command === 'list-access-requests' ? Number(accessRequestLimitText) : 0,
+      afterRequestedAtMicros,
+      afterFid,
+      includeResolved: command === 'list-access-requests'
+        && flags.has('--include-resolved'),
+    }),
   });
 }
 
@@ -515,6 +611,277 @@ export function projectWorkerSystemStatusV12(value: unknown) {
       ...WORKER_STATUS_V12_STRING_FIELDS]
       .map(field => [field, status[field]]),
   ));
+}
+
+type AccessRequestListOptions = Readonly<{
+  limit: number;
+  afterRequestedAtMicros: bigint;
+  afterFid: bigint;
+  includeResolved: boolean;
+}>;
+
+type AccessRequestListEntry = Readonly<{
+  fid: bigint;
+  requestedAtMicros: bigint;
+  admissionState: 'missing' | 'enabled' | 'disabled';
+}>;
+
+type AccessRequestListPage = Readonly<{
+  entries: readonly AccessRequestListEntry[];
+  nextRequestedAtMicros: bigint | undefined;
+  nextFid: bigint | undefined;
+  hasMore: boolean;
+  totalRequests: bigint;
+  pendingRequests: bigint;
+}>;
+
+function exactObjectKeys(
+  value: Record<string, unknown>,
+  expected: readonly string[],
+  message: string,
+): void {
+  const actual = Object.keys(value).sort();
+  if (
+    actual.length !== expected.length
+    || actual.some((key, index) => key !== expected[index])
+  ) {
+    fail(message);
+  }
+}
+
+function requireU64(value: unknown, allowZero: boolean, message: string): bigint {
+  if (
+    typeof value !== 'bigint'
+    || value < (allowZero ? 0n : 1n)
+    || value > U64_MAXIMUM
+  ) {
+    fail(message);
+  }
+  return value;
+}
+
+function compareAccessRequestEntries(
+  left: Pick<AccessRequestListEntry, 'requestedAtMicros' | 'fid'>,
+  right: Pick<AccessRequestListEntry, 'requestedAtMicros' | 'fid'>,
+): number {
+  if (left.requestedAtMicros !== right.requestedAtMicros) {
+    return left.requestedAtMicros < right.requestedAtMicros ? -1 : 1;
+  }
+  if (left.fid === right.fid) return 0;
+  return left.fid < right.fid ? -1 : 1;
+}
+
+/** Exact, privacy-bounded projection of the private owner review page. */
+export function projectAccessRequestListPage(
+  value: unknown,
+  options: AccessRequestListOptions,
+): AccessRequestListPage {
+  if (
+    !Number.isInteger(options.limit)
+    || options.limit < 1
+    || options.limit > MAX_ACCESS_REQUEST_PAGE_SIZE
+    || options.afterRequestedAtMicros < 0n
+    || options.afterRequestedAtMicros > U64_MAXIMUM
+    || options.afterFid < 0n
+    || options.afterFid > BigInt(Number.MAX_SAFE_INTEGER)
+    || ((options.afterRequestedAtMicros === 0n) !== (options.afterFid === 0n))
+  ) {
+    fail('Access request listing options were invalid.');
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    fail('Access request procedure returned an invalid page.');
+  }
+  const page = value as Record<string, unknown>;
+  exactObjectKeys(
+    page,
+    ACCESS_REQUEST_PAGE_KEYS,
+    'Access request procedure returned unexpected fields.',
+  );
+  if (!Array.isArray(page.entries) || page.entries.length > options.limit) {
+    fail('Access request procedure returned an invalid page.');
+  }
+
+  const entries: AccessRequestListEntry[] = [];
+  for (const candidate of page.entries) {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+      fail('Access request procedure returned an invalid entry.');
+    }
+    const entry = candidate as Record<string, unknown>;
+    exactObjectKeys(
+      entry,
+      ACCESS_REQUEST_ENTRY_KEYS,
+      'Access request procedure returned unexpected entry fields.',
+    );
+    const fid = requireU64(
+      entry.fid,
+      false,
+      'Access request procedure returned an invalid FID.',
+    );
+    if (fid > BigInt(Number.MAX_SAFE_INTEGER)) {
+      fail('Access request procedure returned an invalid FID.');
+    }
+    const requestedAtMicros = requireU64(
+      entry.requestedAtMicros,
+      false,
+      'Access request procedure returned an invalid timestamp.',
+    );
+    if (
+      entry.admissionState !== 'missing'
+      && entry.admissionState !== 'enabled'
+      && entry.admissionState !== 'disabled'
+    ) {
+      fail('Access request procedure returned an invalid admission state.');
+    }
+    if (!options.includeResolved && entry.admissionState !== 'missing') {
+      fail('Access request procedure returned a resolved request unexpectedly.');
+    }
+    const projected = Object.freeze({
+      fid,
+      requestedAtMicros,
+      admissionState: entry.admissionState,
+    });
+    const previous = entries.at(-1);
+    if (previous && compareAccessRequestEntries(previous, projected) >= 0) {
+      fail('Access request procedure returned an unsorted page.');
+    }
+    if (
+      options.afterRequestedAtMicros > 0n
+      && compareAccessRequestEntries(
+        projected,
+        {
+          requestedAtMicros: options.afterRequestedAtMicros,
+          fid: options.afterFid,
+        },
+      ) <= 0
+    ) {
+      fail('Access request procedure returned an invalid cursor page.');
+    }
+    entries.push(projected);
+  }
+
+  if (typeof page.hasMore !== 'boolean') {
+    fail('Access request procedure returned an invalid page flag.');
+  }
+  const totalRequests = requireU64(
+    page.totalRequests,
+    true,
+    'Access request procedure returned an invalid total.',
+  );
+  const pendingRequests = requireU64(
+    page.pendingRequests,
+    true,
+    'Access request procedure returned an invalid pending total.',
+  );
+  if (
+    pendingRequests > totalRequests
+    || BigInt(entries.length) > totalRequests
+    || (!options.includeResolved && BigInt(entries.length) > pendingRequests)
+  ) {
+    fail('Access request procedure returned inconsistent totals.');
+  }
+
+  const nextRequestedAtMicros = page.nextRequestedAtMicros === undefined
+    ? undefined
+    : requireU64(
+      page.nextRequestedAtMicros,
+      false,
+      'Access request procedure returned an invalid next cursor.',
+    );
+  const nextFid = page.nextFid === undefined
+    ? undefined
+    : requireU64(
+      page.nextFid,
+      false,
+      'Access request procedure returned an invalid next cursor.',
+    );
+  if (
+    (nextRequestedAtMicros === undefined) !== (nextFid === undefined)
+    || (page.hasMore && entries.length === 0)
+    || (page.hasMore !== (nextRequestedAtMicros !== undefined))
+  ) {
+    fail('Access request procedure returned an inconsistent next cursor.');
+  }
+  const last = entries.at(-1);
+  if (
+    page.hasMore
+    && (
+      last === undefined
+      || nextRequestedAtMicros !== last.requestedAtMicros
+      || nextFid !== last.fid
+    )
+  ) {
+    fail('Access request procedure returned an inconsistent next cursor.');
+  }
+
+  return Object.freeze({
+    entries: Object.freeze(entries),
+    nextRequestedAtMicros,
+    nextFid,
+    hasMore: page.hasMore,
+    totalRequests,
+    pendingRequests,
+  });
+}
+
+function accessRequestTimestamp(micros: bigint): string {
+  if (micros > MAX_JAVASCRIPT_DATE_MICROS) {
+    fail('Access request procedure returned an invalid timestamp.');
+  }
+  const date = new Date(Number(micros / 1_000n));
+  if (Number.isNaN(date.valueOf())) {
+    fail('Access request procedure returned an invalid timestamp.');
+  }
+  return date.toISOString();
+}
+
+export async function listAccessRequests(
+  connection: DbConnection,
+  options: AccessRequestListOptions,
+  machineReadable = false,
+): Promise<AccessRequestListPage> {
+  const raw = await withOperationTimeout(
+    connection.procedures.adminListAccessRequestsV1({
+      afterRequestedAtMicros: options.afterRequestedAtMicros,
+      afterFid: options.afterFid,
+      limit: options.limit,
+      includeResolved: options.includeResolved,
+    }),
+  );
+  const page = projectAccessRequestListPage(raw, options);
+  const entries = page.entries.map(entry => Object.freeze({
+    fid: entry.fid.toString(),
+    requestedAt: accessRequestTimestamp(entry.requestedAtMicros),
+    admissionState: entry.admissionState,
+  }));
+  if (machineReadable) {
+    console.log(JSON.stringify({
+      entries,
+      nextCursor: page.hasMore
+        ? {
+          requestedAtMicros: page.nextRequestedAtMicros?.toString(),
+          fid: page.nextFid?.toString(),
+        }
+        : null,
+      hasMore: page.hasMore,
+      totalRequests: page.totalRequests.toString(),
+      pendingRequests: page.pendingRequests.toString(),
+    }));
+    return page;
+  }
+
+  console.log('ACCESS REQUESTS');
+  for (const entry of entries) {
+    console.log(`${entry.requestedAt} · FID ${entry.fid} · ${entry.admissionState}`);
+  }
+  if (entries.length === 0) console.log('No matching requests.');
+  console.log(`Pending: ${page.pendingRequests.toString()} · Total: ${page.totalRequests.toString()}`);
+  if (page.hasMore) {
+    console.log(
+      'Next: --after-requested-at-micros '
+      + `${page.nextRequestedAtMicros?.toString()} --after-fid ${page.nextFid?.toString()}`,
+    );
+  }
+  return page;
 }
 
 type ResourceAggregateV4 = Readonly<{
@@ -1046,6 +1413,13 @@ export function requireGenesisExpansionProductionTarget(database: string): void 
   }
 }
 
+/** Private request inspection is pinned to the immutable production identity. */
+export function requireAccessRequestInspectionProductionTarget(database: string): void {
+  if (database !== DEFAULT_DATABASE_IDENTITY) {
+    fail('Access request inspection requires the immutable Warpkeep production database identity.');
+  }
+}
+
 /** Canonical economy/forest seeds may target only the attested identity. */
 export function requireAlphaComponentActivationProductionTarget(database: string): void {
   if (database !== DEFAULT_DATABASE_IDENTITY) {
@@ -1252,6 +1626,7 @@ async function main() {
     confirmedByFlag,
     inspection,
     machineReadableInspection,
+    accessRequestList,
   } = parseHermesArguments();
   configureHermesMachineOutput(machineReadableInspection);
   // Durable data migrations and new founder admission always require a visible
@@ -1335,6 +1710,9 @@ async function main() {
 
   if (command === 'expand-world-v3') {
     requireGenesisExpansionProductionTarget(database);
+  }
+  if (command === 'list-access-requests') {
+    requireAccessRequestInspectionProductionTarget(database);
   }
 
   if ((command === 'seed-alpha-component' || command === 'activate-alpha-water') && !dryRun) {
@@ -1431,7 +1809,14 @@ async function main() {
   let founderAdmissionClaimed = false;
   try {
     let mutationStatusHandled = false;
-    if (
+    if (command === 'list-access-requests') {
+      await listAccessRequests(
+        connection,
+        accessRequestList,
+        machineReadableInspection,
+      );
+      mutationStatusHandled = true;
+    } else if (
       command === 'inspect-publish-pre-v12'
       || command === 'inspect-publish-post-v12'
     ) {

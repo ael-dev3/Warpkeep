@@ -34,7 +34,7 @@ test('rollout source preserves all six deployed v12 table shapes and order', () 
     'workerAssignmentScheduleV1',
   ];
   assert.deepEqual(
-    registrations(schema, 'const warpkeep = schema({').slice(47),
+    registrations(schema, 'const warpkeep = schema({').slice(47, 53),
     expected,
   );
   assert.deepEqual(

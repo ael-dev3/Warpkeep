@@ -10,6 +10,11 @@ export const WORKER_V12_TABLE_CONTRACTS: Readonly<Record<string, Readonly<{
   access: string;
   fields: readonly string[];
 }>>>;
+export const ACCESS_REQUEST_V13_TABLE_CONTRACTS: Readonly<Record<string, Readonly<{
+  productTypeRef: number;
+  access: string;
+  fields: readonly string[];
+}>>>;
 
 export function alphaV8AggregateChildArguments(...args: any[]): any;
 export function alphaV10AggregateChildArguments(...args: any[]): any;
@@ -55,6 +60,8 @@ export function verifyPostPublishCombinedV12Aggregate(...args: any[]): any;
 export function verifyPostPublishFoundedProtocolV3Aggregate(...args: any[]): any;
 export function verifyPostPublishProductionV12Schema(...args: any[]): any;
 export function verifyPostPublishProductionV12ModuleSchema(...args: any[]): any;
+export function verifyPostPublishProductionV13ModuleSchema(...args: any[]): any;
+export function verifyPostPublishProductionV13SchemaFromV11(...args: any[]): any;
 export function verifyPostPublishResourceProtocolV4PrebackfillAggregate(...args: any[]): any;
 export function verifyPostPublishResourceProtocolV4ReadyAggregate(...args: any[]): any;
 export function verifyPostPublishResourcePublicationCheckpoints(...args: any[]): any;
@@ -70,5 +77,7 @@ export function verifyReturnNodeReuseRepairAlphaStatusV12(...args: any[]): any;
 export function verifyExactProductionV11Schema(...args: any[]): any;
 export function verifyExactProductionV12Schema(...args: any[]): any;
 export function verifyExactProductionV12ModuleSchema(...args: any[]): any;
+export function verifyExactProductionV13Schema(...args: any[]): any;
+export function verifyExactProductionV13SchemaFromV11(...args: any[]): any;
 export function verifyWorkerV12ModuleAbi(...args: any[]): any;
 export function verifyWorkerV12ModulePredecessor(...args: any[]): any;

@@ -80,6 +80,8 @@ import RecallWorkerV1Reducer from "./recall_worker_v_1_reducer";
 import ReturnLegacyExpeditionV1Reducer from "./return_legacy_expedition_v_1_reducer";
 
 // Import all procedure arg schemas
+import * as AccessRequestGetStatusV1Procedure from "./access_request_get_status_v_1_procedure";
+import * as AccessRequestSubmitV1Procedure from "./access_request_submit_v_1_procedure";
 import * as AdminGetAlphaStatusProcedure from "./admin_get_alpha_status_procedure";
 import * as AdminGetAlphaStatusV2Procedure from "./admin_get_alpha_status_v_2_procedure";
 import * as AdminGetAlphaStatusV3Procedure from "./admin_get_alpha_status_v_3_procedure";
@@ -92,6 +94,7 @@ import * as AdminGetWorkerRolloutStatusV2Procedure from "./admin_get_worker_roll
 import * as AdminGetWorkerSystemStatusV1Procedure from "./admin_get_worker_system_status_v_1_procedure";
 import * as AdminInspectGenesisWaterLayoutV1Procedure from "./admin_inspect_genesis_water_layout_v_1_procedure";
 import * as AdminInspectGenesisWaterRevisionV1Procedure from "./admin_inspect_genesis_water_revision_v_1_procedure";
+import * as AdminListAccessRequestsV1Procedure from "./admin_list_access_requests_v_1_procedure";
 import * as AdminPlanWorkerRosterV1Procedure from "./admin_plan_worker_roster_v_1_procedure";
 import * as AuthResolverGetFidAdmissionV2Procedure from "./auth_resolver_get_fid_admission_v_2_procedure";
 import * as GetAlphaBackendInfoProcedure from "./get_alpha_backend_info_procedure";
@@ -618,6 +621,8 @@ const reducersSchema = __reducers(
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */
 const proceduresSchema = __procedures(
+  __procedureSchema("access_request_get_status_v1", AccessRequestGetStatusV1Procedure.params, AccessRequestGetStatusV1Procedure.returnType),
+  __procedureSchema("access_request_submit_v1", AccessRequestSubmitV1Procedure.params, AccessRequestSubmitV1Procedure.returnType),
   __procedureSchema("admin_get_alpha_status", AdminGetAlphaStatusProcedure.params, AdminGetAlphaStatusProcedure.returnType),
   __procedureSchema("admin_get_alpha_status_v2", AdminGetAlphaStatusV2Procedure.params, AdminGetAlphaStatusV2Procedure.returnType),
   __procedureSchema("admin_get_alpha_status_v3", AdminGetAlphaStatusV3Procedure.params, AdminGetAlphaStatusV3Procedure.returnType),
@@ -630,6 +635,7 @@ const proceduresSchema = __procedures(
   __procedureSchema("admin_get_worker_system_status_v1", AdminGetWorkerSystemStatusV1Procedure.params, AdminGetWorkerSystemStatusV1Procedure.returnType),
   __procedureSchema("admin_inspect_genesis_water_layout_v1", AdminInspectGenesisWaterLayoutV1Procedure.params, AdminInspectGenesisWaterLayoutV1Procedure.returnType),
   __procedureSchema("admin_inspect_genesis_water_revision_v_1", AdminInspectGenesisWaterRevisionV1Procedure.params, AdminInspectGenesisWaterRevisionV1Procedure.returnType),
+  __procedureSchema("admin_list_access_requests_v1", AdminListAccessRequestsV1Procedure.params, AdminListAccessRequestsV1Procedure.returnType),
   __procedureSchema("admin_plan_worker_roster_v1", AdminPlanWorkerRosterV1Procedure.params, AdminPlanWorkerRosterV1Procedure.returnType),
   __procedureSchema("auth_resolver_get_fid_admission_v2", AuthResolverGetFidAdmissionV2Procedure.params, AuthResolverGetFidAdmissionV2Procedure.returnType),
   __procedureSchema("get_alpha_backend_info", GetAlphaBackendInfoProcedure.params, GetAlphaBackendInfoProcedure.returnType),

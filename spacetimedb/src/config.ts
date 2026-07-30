@@ -16,6 +16,12 @@ export const WARPKEEP_HERMES_SUBJECT = 'service:hermes';
 export const WARPKEEP_AUTH_EPOCH_RESOLVER_ROLE = 'warpkeep-auth-epoch-resolver';
 export const WARPKEEP_AUTH_EPOCH_RESOLVER_SUBJECT = 'service:auth-epoch-resolver';
 /**
+ * Bridge-internal principal for one verified identity's private Alpha access
+ * request. It grants no player, administrator, or admission authority.
+ */
+export const WARPKEEP_ACCESS_REQUEST_RESOLVER_ROLE = 'warpkeep-access-request-resolver';
+export const WARPKEEP_ACCESS_REQUEST_RESOLVER_SUBJECT = 'service:access-request-resolver';
+/**
  * Internal bridge-only principal for the bounded, aggregate-only QA realm
  * attestation. It is neither a player nor an administrator and is never
  * returned to a browser or local QA process.

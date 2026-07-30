@@ -308,5 +308,5 @@ test('CI runs both static and real populated v11 to v12 migration proofs', () =>
   assert.match(verifier, /fixture_seed_generic_worker_sentinel_v12/);
   assert.match(verifier, /populatedWaterStoneV12Rows/);
   assert.match(verifier, /additiveV11SchemaFixture,[\s\S]{0,120}populatedWaterStoneMigrationDatabase,[\s\S]{0,40}false/);
-  assert.match(verifier, /every v12 table was populated, retained through the real candidate/);
+  assert.match(verifier, /every v12 table was populated and retained through the real candidate/);
 });

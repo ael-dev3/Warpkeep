@@ -2,16 +2,20 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  ACCESS_REQUEST_RESOLVER_ISSUANCE_SECONDS,
   ClaimValidationError,
+  MAX_ACCESS_REQUEST_RESOLVER_SESSION_SECONDS,
   MAX_AUTH_EPOCH_RESOLVER_SESSION_SECONDS,
   MAX_HERMES_ADMIN_SESSION_SECONDS,
   MAX_PLAYER_SESSION_SECONDS,
   MAX_QA_SNAPSHOT_RESOLVER_SESSION_SECONDS,
   QA_SNAPSHOT_RESOLVER_ISSUANCE_SECONDS,
+  isAccessRequestResolverJwt,
   isAuthEpochResolverJwt,
   isHermesAdminJwt,
   isQaSnapshotResolverJwt,
   parseFidClaim,
+  readFreshAccessRequestResolverJwt,
   readFreshAuthEpochResolverJwt,
   readFreshHermesAdminJwt,
   readFreshQaSnapshotResolverJwt,
@@ -30,6 +34,12 @@ test('security authority windows stay pinned to the production limits', () => {
   assert.equal(MAX_PLAYER_SESSION_SECONDS, 600);
   assert.equal(MAX_HERMES_ADMIN_SESSION_SECONDS, 300);
   assert.equal(MAX_AUTH_EPOCH_RESOLVER_SESSION_SECONDS, 60);
+  assert.equal(ACCESS_REQUEST_RESOLVER_ISSUANCE_SECONDS, 15);
+  assert.equal(MAX_ACCESS_REQUEST_RESOLVER_SESSION_SECONDS, 15);
+  assert.equal(
+    ACCESS_REQUEST_RESOLVER_ISSUANCE_SECONDS,
+    MAX_ACCESS_REQUEST_RESOLVER_SESSION_SECONDS,
+  );
   assert.equal(QA_SNAPSHOT_RESOLVER_ISSUANCE_SECONDS, 15);
   assert.equal(MAX_QA_SNAPSHOT_RESOLVER_SESSION_SECONDS, 15);
   assert.equal(QA_SNAPSHOT_RESOLVER_ISSUANCE_SECONDS, MAX_QA_SNAPSHOT_RESOLVER_SESSION_SECONDS);
@@ -63,6 +73,21 @@ function resolverPayload(overrides: Record<string, unknown> = {}) {
     resolver_fid: '12345',
     iat,
     exp: iat + MAX_AUTH_EPOCH_RESOLVER_SESSION_SECONDS,
+    ...overrides,
+  };
+}
+
+function accessRequestResolverPayload(overrides: Record<string, unknown> = {}) {
+  const iat = 1_700_000_000;
+  return {
+    iss: config.issuer,
+    sub: 'service:access-request-resolver',
+    aud: [config.audience],
+    token_type: config.tokenType,
+    roles: ['warpkeep-access-request-resolver'],
+    request_fid: '12345',
+    iat,
+    exp: iat + ACCESS_REQUEST_RESOLVER_ISSUANCE_SECONDS,
     ...overrides,
   };
 }
@@ -346,6 +371,92 @@ test('rejects resolver impersonation, role expansion, expiry, and sessions over 
   );
 });
 
+test('accepts only the exact fresh FID-bound access-request resolver principal', () => {
+  const payload = accessRequestResolverPayload();
+  const base = readWarpkeepBaseJwt(payload, config);
+  assert.equal(isAccessRequestResolverJwt(base), true);
+  assert.equal(isHermesAdminJwt(base), false);
+  assert.equal(isAuthEpochResolverJwt(base), false);
+  assert.equal(isQaSnapshotResolverJwt(base), false);
+
+  const expiresAt = 1_700_000_000 + ACCESS_REQUEST_RESOLVER_ISSUANCE_SECONDS;
+  const fresh = readFreshAccessRequestResolverJwt(
+    payload,
+    BigInt(expiresAt) * 1_000_000n - 1n,
+    config,
+  );
+  assert.equal(fresh.subject, 'service:access-request-resolver');
+  assert.deepEqual(fresh.roles, ['warpkeep-access-request-resolver']);
+  assert.equal(fresh.requestFid, 12345n);
+});
+
+test('rejects access-request impersonation, authority mixing, malformed FIDs, and invalid windows', () => {
+  const nowMicros = 1_700_000_001n * 1_000_000n;
+  for (const payload of [
+    accessRequestResolverPayload({ sub: 'service:hermes' }),
+    accessRequestResolverPayload({ sub: 'service:auth-epoch-resolver' }),
+    accessRequestResolverPayload({ roles: ['warpkeep-admin'] }),
+    accessRequestResolverPayload({
+      roles: ['warpkeep-access-request-resolver', 'warpkeep-admin'],
+    }),
+    accessRequestResolverPayload({ roles: [] }),
+    accessRequestResolverPayload({ request_fid: undefined }),
+    accessRequestResolverPayload({ request_fid: 12345 }),
+    accessRequestResolverPayload({ request_fid: '0' }),
+    accessRequestResolverPayload({ request_fid: '9007199254740992' }),
+    accessRequestResolverPayload({ fid: '12345' }),
+    accessRequestResolverPayload({ auth_version: 2 }),
+    accessRequestResolverPayload({ auth_epoch: 1 }),
+    accessRequestResolverPayload({ session_iat: 1_700_000_000 }),
+    accessRequestResolverPayload({ session_exp: 1_700_000_600 }),
+    accessRequestResolverPayload({ resolver_fid: '12345' }),
+    accessRequestResolverPayload({ device_thumbprint: 'A'.repeat(43) }),
+    accessRequestResolverPayload({ iat: undefined }),
+    accessRequestResolverPayload({ exp: '1700000015' }),
+    accessRequestResolverPayload({ exp: 1_700_000_000 }),
+    accessRequestResolverPayload({
+      exp: 1_700_000_000 + MAX_ACCESS_REQUEST_RESOLVER_SESSION_SECONDS + 1,
+    }),
+  ]) {
+    assert.throws(
+      () => readFreshAccessRequestResolverJwt(payload, nowMicros, config),
+      (error: unknown) => error instanceof ClaimValidationError
+        && error.code === 'INVALID_ACCESS_REQUEST_RESOLVER_SESSION',
+    );
+  }
+
+  const issuedAt = 1_700_000_000;
+  const expiresAt = issuedAt + ACCESS_REQUEST_RESOLVER_ISSUANCE_SECONDS;
+  for (const currentTimeMicros of [
+    BigInt(issuedAt) * 1_000_000n - 1n,
+    BigInt(expiresAt) * 1_000_000n,
+    -1n,
+  ]) {
+    assert.throws(
+      () => readFreshAccessRequestResolverJwt(
+        accessRequestResolverPayload(),
+        currentTimeMicros,
+        config,
+      ),
+      (error: unknown) => error instanceof ClaimValidationError
+        && error.code === 'INVALID_ACCESS_REQUEST_RESOLVER_SESSION',
+    );
+  }
+});
+
+test('access-request resolver claims are rejected by every other authority parser', () => {
+  const payload = accessRequestResolverPayload();
+  const nowMicros = 1_700_000_001n * 1_000_000n;
+  for (const read of [
+    () => readFreshWarpkeepPlayerJwt(payload, nowMicros, config),
+    () => readFreshHermesAdminJwt(payload, nowMicros, config),
+    () => readFreshAuthEpochResolverJwt(payload, nowMicros, config),
+    () => readFreshQaSnapshotResolverJwt(payload, nowMicros, config),
+  ]) {
+    assert.throws(read, ClaimValidationError);
+  }
+});
+
 test('accepts only the exact fresh QA snapshot resolver principal', () => {
   const payload = qaSnapshotResolverPayload();
   const base = readWarpkeepBaseJwt(payload, config);
@@ -444,6 +555,7 @@ test('QA resolver claims are rejected by every player, admin, and admission-reso
     () => readFreshWarpkeepPlayerJwt(payload, nowMicros, config),
     () => readFreshHermesAdminJwt(payload, nowMicros, config),
     () => readFreshAuthEpochResolverJwt(payload, nowMicros, config),
+    () => readFreshAccessRequestResolverJwt(payload, nowMicros, config),
   ]) {
     assert.throws(read, ClaimValidationError);
   }

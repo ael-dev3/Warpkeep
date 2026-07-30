@@ -13,11 +13,14 @@ import {
   admissionReadinessSummary,
   connect,
   FOUNDER_ADMISSION_SOURCE_CONFIGURATION_DIGEST,
+  listAccessRequests,
   parseHermesArguments,
   privacySafeHermesErrorMessage,
+  projectAccessRequestListPage,
   projectWorkerSystemStatusV12,
   readStatus,
   requestAdminToken,
+  requireAccessRequestInspectionProductionTarget,
   requireAlphaComponentActivationProductionTarget,
   requireCredentialedProductionTarget,
   requireFounderAdmissionProductionTarget,
@@ -743,6 +746,166 @@ describe('Hermes command-line boundary', () => {
     });
     expect(() => parseHermesArguments(['expand-world-v3', '1261', '--confirm']))
       .toThrow(/unexpected number/i);
+    expect(parseHermesArguments([
+      'list-access-requests',
+      '--limit', '25',
+      '--after-requested-at-micros', '1720000000000000',
+      '--after-fid', '123',
+      '--include-resolved',
+      '--json',
+    ])).toMatchObject({
+      command: 'list-access-requests',
+      inspection: true,
+      machineReadableInspection: true,
+      accessRequestList: {
+        limit: 25,
+        afterRequestedAtMicros: 1_720_000_000_000_000n,
+        afterFid: 123n,
+        includeResolved: true,
+      },
+    });
+    expect(parseHermesArguments(['list-access-requests'])).toMatchObject({
+      accessRequestList: {
+        limit: 100,
+        afterRequestedAtMicros: 0n,
+        afterFid: 0n,
+        includeResolved: false,
+      },
+    });
+    expect(() => parseHermesArguments([
+      'list-access-requests', '--after-fid', '123',
+    ])).toThrow(/requires both/i);
+    expect(() => parseHermesArguments([
+      'list-access-requests', '--limit', '101',
+    ])).toThrow(/1 to 100/i);
+    expect(() => parseHermesArguments([
+      'list-access-requests', '--limit', '10', '--limit', '20',
+    ])).toThrow(/duplicate/i);
+    expect(() => parseHermesArguments([
+      'list-access-requests', '--confirm',
+    ])).toThrow(/invalid for this operation/i);
+    expect(() => parseHermesArguments([
+      'inspect-alpha', '--limit', '5',
+    ])).toThrow(/invalid for this operation/i);
+  });
+});
+
+describe('Hermes private access request review boundary', () => {
+  const options = {
+    limit: 2,
+    afterRequestedAtMicros: 0n,
+    afterFid: 0n,
+    includeResolved: false,
+  } as const;
+
+  const page = {
+    entries: [
+      {
+        fid: 123n,
+        requestedAtMicros: 1_720_000_000_000_000n,
+        admissionState: 'missing',
+      },
+      {
+        fid: 456n,
+        requestedAtMicros: 1_720_000_001_000_000n,
+        admissionState: 'missing',
+      },
+    ],
+    nextRequestedAtMicros: 1_720_000_001_000_000n,
+    nextFid: 456n,
+    hasMore: true,
+    totalRequests: 4n,
+    pendingRequests: 3n,
+  } as const;
+
+  it('accepts only the exact bounded, sorted, cursor-consistent owner page', () => {
+    expect(projectAccessRequestListPage(page, options)).toEqual(page);
+    for (const invalid of [
+      { ...page, identity: 'must-not-escape' },
+      { ...page, entries: [...page.entries, page.entries[0]] },
+      { ...page, entries: [...page.entries].reverse() },
+      { ...page, entries: [{ ...page.entries[0], fid: 0n }, page.entries[1]] },
+      {
+        ...page,
+        entries: [{ ...page.entries[0], admissionState: 'enabled' }, page.entries[1]],
+      },
+      { ...page, nextFid: 123n },
+      { ...page, nextRequestedAtMicros: undefined, nextFid: undefined },
+      { ...page, pendingRequests: 5n },
+    ]) {
+      expect(() => projectAccessRequestListPage(invalid, options)).toThrow();
+    }
+  });
+
+  it('calls one fixed read-only procedure and emits a minimal machine page', async () => {
+    const output = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const procedure = vi.fn(async () => page);
+    const connection = {
+      procedures: { adminListAccessRequestsV1: procedure },
+    };
+
+    await expect(listAccessRequests(connection as never, options, true)).resolves.toEqual(page);
+    expect(procedure).toHaveBeenCalledOnce();
+    expect(procedure).toHaveBeenCalledWith({
+      afterRequestedAtMicros: 0n,
+      afterFid: 0n,
+      limit: 2,
+      includeResolved: false,
+    });
+    const rendered = output.mock.calls[0]?.[0] as string;
+    expect(JSON.parse(rendered)).toEqual({
+      entries: [
+        {
+          fid: '123',
+          requestedAt: '2024-07-03T09:46:40.000Z',
+          admissionState: 'missing',
+        },
+        {
+          fid: '456',
+          requestedAt: '2024-07-03T09:46:41.000Z',
+          admissionState: 'missing',
+        },
+      ],
+      nextCursor: {
+        requestedAtMicros: '1720000001000000',
+        fid: '456',
+      },
+      hasMore: true,
+      totalRequests: '4',
+      pendingRequests: '3',
+    });
+    expect(rendered).not.toContain('identity');
+    expect(rendered).not.toContain('token');
+    expect(rendered).not.toContain('note');
+  });
+
+  it('keeps listing separate from every admission mutation surface', () => {
+    const source = readFileSync(resolve(repositoryRoot, 'scripts/hermes-admin.ts'), 'utf8');
+    const listing = source.slice(
+      source.indexOf('export async function listAccessRequests('),
+      source.indexOf('type ResourceAggregateV4'),
+    );
+    expect(listing).toContain('adminListAccessRequestsV1');
+    expect(listing).not.toContain('adminAdmitFounderV1');
+    expect(listing).not.toContain('adminAllowFid');
+    expect(listing).not.toContain('reducers.');
+    const documentation = readFileSync(
+      resolve(repositoryRoot, 'docs/operations/access-requests.md'),
+      'utf8',
+    );
+    expect(documentation).toContain('npm run stdb:list-access-requests');
+    expect(documentation).toMatch(/read-only/i);
+    expect(documentation).toMatch(/listing never.*admits/is);
+  });
+
+  it('pins private listing to the immutable production database identity', () => {
+    expect(() => requireAccessRequestInspectionProductionTarget(
+      'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e',
+    )).not.toThrow();
+    expect(() => requireAccessRequestInspectionProductionTarget('warpkeep-89e4u'))
+      .toThrow(/immutable.*identity/i);
+    expect(() => requireAccessRequestInspectionProductionTarget('lookalike'))
+      .toThrow(/immutable.*identity/i);
   });
 });
 

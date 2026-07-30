@@ -84,6 +84,7 @@ test('resource and Gold prefixes remain intact through later additive suffixes',
     'workerNodeOccupationV1',
     'workerCommandIdempotencyV1',
     'workerAssignmentScheduleV1',
+    'accessRequestV1',
   ]);
 
   const account = tableDefinition(schema, 'resourceAccountV1');

@@ -14,6 +14,8 @@ test('lifecycle admission accepts only exact fresh service principals or an admi
   assert.match(connectionGate, /readFreshHermesAdminJwt/);
   assert.match(connectionGate, /isAuthEpochResolverJwt\(base\)/);
   assert.match(connectionGate, /readFreshAuthEpochResolverJwt/);
+  assert.match(connectionGate, /isAccessRequestResolverJwt\(base\)/);
+  assert.match(connectionGate, /readFreshAccessRequestResolverJwt/);
   assert.match(connectionGate, /isQaSnapshotResolverJwt\(base\)/);
   assert.match(connectionGate, /readFreshQaSnapshotResolverJwt/);
   assert.match(connectionGate, /requireAllowedFid\(ctx\)\.claims/);
@@ -48,7 +50,7 @@ test('backend compatibility metadata stays static and explicitly excludes the QA
   assert.doesNotMatch(procedure, /\.(?:insert|update|delete)\s*\(/);
 });
 
-test('metadata connection guard fails closed for the QA principal', () => {
+test('metadata connection guard fails closed for narrow resolver principals', () => {
   const source = readFileSync(new URL('../src/auth.ts', import.meta.url), 'utf8');
   const start = source.indexOf('export function requireWarpkeepMetadataConnection');
   const end = source.indexOf('/** Require a bridge-issued admin token', start);
@@ -59,6 +61,40 @@ test('metadata connection guard fails closed for the QA principal', () => {
   assert.match(guard, /requireWarpkeepConnection\(ctx\)/);
   assert.match(guard, /isQaSnapshotResolverJwt\(claims\)/);
   assert.match(guard, /INVALID_QA_SNAPSHOT_RESOLVER_SESSION/);
+  assert.match(guard, /isAccessRequestResolverJwt\(claims\)/);
+  assert.match(guard, /INVALID_ACCESS_REQUEST_RESOLVER_SESSION/);
+});
+
+test('the access-request guard independently revalidates only its exact fresh principal', () => {
+  const source = readFileSync(new URL('../src/auth.ts', import.meta.url), 'utf8');
+  const start = source.indexOf('export function requireAccessRequestResolver');
+  const end = source.indexOf('/** Require the exact fresh bridge-internal principal for the QA snapshot', start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+
+  const accessRequestGate = source.slice(start, end);
+  assert.match(accessRequestGate, /readFreshAccessRequestResolverJwt/);
+  assert.doesNotMatch(
+    accessRequestGate,
+    /requireAdmin|requireAllowedFid|requireAdmittedPlayer|requireAuthEpochResolver|requireQaSnapshotResolver/,
+  );
+});
+
+test('the access-request guard is used only by the two caller-private request procedures', () => {
+  const reducerDirectory = new URL('../src/reducers/', import.meta.url);
+  const uses = readdirSync(reducerDirectory)
+    .filter(file => file.endsWith('.ts'))
+    .flatMap(file => {
+      const source = readFileSync(new URL(file, reducerDirectory), 'utf8');
+      const matches = source.match(/requireAccessRequestResolver\(/g)?.length ?? 0;
+      return matches === 0 ? [] : [{ file, matches, source }];
+    });
+  assert.deepEqual(uses.map(use => [use.file, use.matches]), [
+    ['accessRequests.ts', 2],
+  ]);
+  assert.match(uses[0]!.source, /name: 'access_request_get_status_v1'/);
+  assert.match(uses[0]!.source, /name: 'access_request_submit_v1'/);
+  assert.doesNotMatch(uses[0]!.source, /requireAccessRequestResolver\(tx,\s*fid/);
 });
 
 test('the resolver guard is used only by its read-only procedure', () => {
