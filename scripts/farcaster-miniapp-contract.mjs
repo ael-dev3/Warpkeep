@@ -174,6 +174,33 @@ function decodeCanonicalJson(value, label) {
   return parsed;
 }
 
+function decodeCanonicalSignature(value, label) {
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new Error(`${label} is not a canonical Base64 signature.`);
+  }
+
+  if (/^[A-Za-z0-9_-]+$/.test(value)) {
+    const bytes = Buffer.from(value, 'base64url');
+    if (bytes.length > 0 && bytes.toString('base64url') === value) {
+      return bytes;
+    }
+  }
+
+  if (
+    /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/
+      .test(value)
+  ) {
+    const bytes = Buffer.from(value, 'base64');
+    if (bytes.length > 0 && bytes.toString('base64') === value) {
+      return bytes;
+    }
+  }
+
+  throw new Error(
+    `${label} must be canonical unpadded Base64URL or padded Base64.`,
+  );
+}
+
 export function inspectFarcasterAccountAssociation(accountAssociation) {
   if (
     !hasExactObjectKeys(
@@ -227,7 +254,7 @@ export function inspectFarcasterAccountAssociation(accountAssociation) {
     );
   }
 
-  const encodedSignatureBytes = decodeCanonicalBase64Url(
+  const encodedSignatureBytes = decodeCanonicalSignature(
     accountAssociation.signature,
     'accountAssociation.signature',
   );

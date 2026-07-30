@@ -20,11 +20,13 @@ function encodeJson(value: unknown) {
 }
 
 async function signedAssociation({
+  encoding = 'base64url',
   legacy = false,
   payload = { domain: FARCASTER_MINI_APP_DOMAIN },
   type = 'custody',
   fid = FARCASTER_MINI_APP_OWNER_FID,
 }: {
+  encoding?: 'base64' | 'base64url';
   legacy?: boolean;
   payload?: Record<string, unknown>;
   type?: string;
@@ -45,7 +47,7 @@ async function signedAssociation({
     signature: Buffer.from(
       legacy ? signature : signature.slice(2),
       legacy ? 'utf8' : 'hex',
-    ).toString('base64url'),
+    ).toString(encoding),
   };
 }
 
@@ -61,10 +63,26 @@ describe('Farcaster Mini App release contract', () => {
     )).toBe(false);
   });
 
-  it.each([false, true])(
-    'accepts a canonical %s legacy-encoding custody association with valid signature integrity',
-    async (legacy) => {
-      const association = await signedAssociation({ legacy });
+  it.each([
+    {
+      encoding: 'base64url' as const,
+      label: 'unpadded Base64URL',
+      legacy: false,
+    },
+    {
+      encoding: 'base64' as const,
+      label: 'padded Base64',
+      legacy: false,
+    },
+    {
+      encoding: 'base64url' as const,
+      label: 'legacy hex-text Base64URL',
+      legacy: true,
+    },
+  ])(
+    'accepts a canonical $label custody association with valid signature integrity',
+    async ({ encoding, legacy }) => {
+      const association = await signedAssociation({ encoding, legacy });
       const inspected = inspectFarcasterAccountAssociation(association);
       expect(inspected.header).toEqual({
         fid: FARCASTER_MINI_APP_OWNER_FID,
@@ -81,7 +99,7 @@ describe('Farcaster Mini App release contract', () => {
     },
   );
 
-  it('rejects extra payload authority, unsupported key types, and bad signatures', async () => {
+  it('rejects extra payload authority, unsupported key types, noncanonical encoding, and bad signatures', async () => {
     await expect(
       verifyFarcasterAccountAssociationSignature(
         await signedAssociation({
@@ -110,6 +128,11 @@ describe('Farcaster Mini App release contract', () => {
     await expect(
       verifyFarcasterAccountAssociationSignature(association),
     ).rejects.toThrow(/signature does not match/i);
+
+    const noncanonical = await signedAssociation({ encoding: 'base64' });
+    noncanonical.signature = `${noncanonical.signature}=`;
+    expect(() => inspectFarcasterAccountAssociation(noncanonical))
+      .toThrow(/canonical unpadded Base64URL or padded Base64/i);
   });
 
   it('reads exact PNG geometry and opacity from release artwork', () => {
