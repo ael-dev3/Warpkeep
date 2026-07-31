@@ -75,6 +75,10 @@ const additiveV13SchemaFixture = resolve(
   repositoryRoot,
   'spacetimedb/migration-fixtures/additive-v13-schema',
 );
+const additiveV14SchemaFixture = resolve(
+  repositoryRoot,
+  'spacetimedb/migration-fixtures/additive-v14-schema',
+);
 const additiveModule = resolve(repositoryRoot, 'spacetimedb');
 const command = process.env.SPACETIME_BIN || 'spacetime';
 const expectedCliVersion = ADDITIVE_MIGRATION_PROOF_SPACETIME_CLI_VERSION;
@@ -88,6 +92,7 @@ const workerRolloutV11Database = 'warpkeep-migration-worker-rollout-v11';
 const worldExpansionDatabase = 'warpkeep-migration-world-expansion';
 const waterLifecycleDatabase = 'warpkeep-migration-water-lifecycle';
 const populatedWaterStoneMigrationDatabase = 'warpkeep-migration-populated-water-stone';
+const dailyMarksMigrationDatabase = 'warpkeep-migration-daily-marks-v14';
 const maximumOutputBytes = 1_000_000;
 const commandTimeoutMilliseconds = 120_000;
 const procedureTimeoutMilliseconds = 5_000;
@@ -98,13 +103,14 @@ const actualModuleOtherFid = 730_002;
 // and is used only to prove the private v13 access-request lifecycle.
 const syntheticMissingAccessRequestFid = '9007199254740991';
 const historicalEntryAgreementVersions = Object.freeze([
+  '2026-07-19-hegemony-entry-agreement-v3',
   '2026-07-19-hegemony-entry-agreement-v2',
   '2026-07-18-hegemony-entry-agreement-v1',
   '2026-07-14',
 ]);
-const alphaTermsVersion = '2026-07-19-hegemony-entry-agreement-v3';
+const alphaTermsVersion = '2026-07-31-hegemony-entry-agreement-v4';
 const resourcePolicyVersion = 'genesis-resource-yield-v1';
-const marksPolicyVersion = 'snap-current-linked-wallet-1to1-v1';
+const marksPolicyVersion = 'admitted-daily-mark-v1';
 const profilePolicyVersion = 'trusted-snapchain-profile-v3';
 const resourceQuantumMicros = 600_000_000n;
 const expeditionScheduleWaitMilliseconds = 12 * 60 * 1_000;
@@ -278,6 +284,10 @@ const additiveV12Tables = Object.freeze([
 const additiveV13Tables = Object.freeze([
   'access_request_v1',
 ]);
+const additiveV14Tables = Object.freeze([
+  'daily_mark_grant_v1',
+  'daily_mark_schedule_v_1',
+]);
 const deployedV3Tables = Object.freeze([
   ...existingTables,
   ...additiveV3Tables,
@@ -321,6 +331,10 @@ const deployedV12Tables = Object.freeze([
 const deployedV13Tables = Object.freeze([
   ...deployedV12Tables,
   ...additiveV13Tables,
+]);
+const deployedV14Tables = Object.freeze([
+  ...deployedV13Tables,
+  ...additiveV14Tables,
 ]);
 const expectedProductTypeRefs = Object.freeze({
   allowed_fid: 0,
@@ -377,6 +391,8 @@ const expectedProductTypeRefs = Object.freeze({
   worker_command_idempotency_v1: 51,
   worker_assignment_schedule_v_1: 52,
   access_request_v1: 53,
+  daily_mark_grant_v1: 54,
+  daily_mark_schedule_v_1: 55,
 });
 const childEnvironmentKeys = Object.freeze([
   'PATH', 'HOME', 'USER', 'LOGNAME', 'TMPDIR', 'TMP', 'TEMP',
@@ -1380,6 +1396,47 @@ function assertAdditiveV13Schema(before, after) {
     tableSignature(after, 'access_request_v1').product_type_ref,
     expectedProductTypeRefs.access_request_v1,
   );
+}
+
+function assertDeployedV13TablesUnchanged(before, after) {
+  for (const name of deployedV13Tables) {
+    assert.deepEqual(tableSignature(after, name), tableSignature(before, name));
+    assert.equal(
+      tableSignature(after, name).product_type_ref,
+      expectedProductTypeRefs[name],
+    );
+  }
+}
+
+function assertAdditiveV14Schema(before, after) {
+  assertDeployedV13TablesUnchanged(before, after);
+  const beforeNames = new Set(before.tables.map(table => table.name));
+  const added = after.tables
+    .map(table => table.name)
+    .filter(name => !beforeNames.has(name))
+    .sort();
+  assert.deepEqual(added, [...additiveV14Tables].sort());
+  const contracts = {
+    daily_mark_grant_v1: {
+      access: 'Private',
+      fields: [
+        'grant_key', 'fid', 'utc_day', 'amount_micros', 'policy_version',
+        'granted_at',
+      ],
+    },
+    daily_mark_schedule_v_1: {
+      access: 'Private',
+      fields: ['schedule_id', 'scheduled_at', 'policy_version'],
+    },
+  };
+  for (const [name, contract] of Object.entries(contracts)) {
+    assert.deepEqual(fieldNames(after, name), contract.fields);
+    assert.equal(access(after, name), contract.access);
+    assert.equal(
+      tableSignature(after, name).product_type_ref,
+      expectedProductTypeRefs[name],
+    );
+  }
 }
 
 async function freeLoopbackPort() {
@@ -2413,6 +2470,46 @@ function parseAdminResourceStatus(text) {
   });
 }
 
+function parseAdminDailyMarksStatus(text) {
+  const value = parseLoopbackJson(text, 'daily Marks aggregate');
+  if (
+    !Array.isArray(value)
+    || value.length !== 21
+    || value[0] !== marksPolicyVersion
+    || typeof value[16] !== 'boolean'
+    || typeof value[18] !== 'boolean'
+    || typeof value[19] !== 'boolean'
+    || typeof value[20] !== 'boolean'
+  ) fail('Loopback daily Marks aggregate contract was invalid.');
+  const countAt = (index, label) => readCanonicalUnsigned(
+    value[index],
+    maximumU64,
+    `daily Marks ${label}`,
+  );
+  return Object.freeze({
+    utcDay: countAt(1, 'UTC day'),
+    allowedFids: countAt(2, 'allowed count'),
+    enabledAllowedFids: countAt(3, 'enabled count'),
+    markAccounts: countAt(4, 'account count'),
+    dailyAccounts: countAt(5, 'daily-account count'),
+    legacyZeroAccounts: countAt(6, 'legacy-account count'),
+    invalidAccounts: countAt(7, 'invalid-account count'),
+    realmProfiles: countAt(8, 'profile count'),
+    profileProjectionViolations: countAt(9, 'projection violation count'),
+    missingFounderState: countAt(10, 'founder-state gap count'),
+    grants: countAt(11, 'grant count'),
+    currentDayGrants: countAt(12, 'current-day grant count'),
+    grantInvariantViolations: countAt(13, 'grant violation count'),
+    grantAccountReconciliationViolations: countAt(14, 'reconciliation violation count'),
+    scheduleRows: countAt(15, 'schedule count'),
+    scheduleConfigValid: value[16],
+    legacyCompatibilityRows: countAt(17, 'legacy compatibility count'),
+    readyForBackfill: value[18],
+    readyForActivation: value[19],
+    active: value[20],
+  });
+}
+
 function parseAdminWaterLayoutStatus(text) {
   const value = parseLoopbackJson(text, 'Water layout aggregate');
   if (
@@ -2757,6 +2854,17 @@ async function readActualAdminResourceStatus(server, database, credential) {
   ));
 }
 
+async function readActualAdminDailyMarksStatus(server, database, credential) {
+  return parseAdminDailyMarksStatus(await callLoopbackProcedure(
+    server,
+    database,
+    'admin_get_daily_marks_status_v1',
+    credential,
+    '[]',
+    200,
+  ));
+}
+
 async function prepareOneQuantumFixture(server, database, ownerCredential) {
   await callLoopbackReducer(
     server,
@@ -2772,9 +2880,9 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
   let stage = 'seed';
   let activeModule = 'actual';
   const actualArtifactPath = join(additiveModule, 'dist', 'bundle.js');
-  // Keep inspection on the complete v13 candidate schema. Reverting to a
+  // Keep inspection on the complete v14 candidate schema. Reverting to a
   // predecessor fixture after Stone is appended would be destructive.
-  const inspectionArtifactPath = join(additiveV13SchemaFixture, 'dist', 'bundle.js');
+  const inspectionArtifactPath = join(additiveV14SchemaFixture, 'dist', 'bundle.js');
   const useActualModule = async () => {
     if (activeModule === 'actual') return;
     await publishBuiltArtifact(server, ownerToken, actualArtifactPath, database);
@@ -3699,9 +3807,9 @@ async function verifyActualModuleExpeditionLifecycles(
   let stage = 'seed-world';
   let activeModule = 'actual';
   const actualArtifactPath = join(additiveModule, 'dist', 'bundle.js');
-  // Reusing the candidate fixture preserves the complete v13 suffix during
+  // Reusing the candidate fixture preserves the complete v14 suffix during
   // SQL inspection; publishing any predecessor would request a downgrade.
-  const inspectionArtifactPath = join(additiveV13SchemaFixture, 'dist', 'bundle.js');
+  const inspectionArtifactPath = join(additiveV14SchemaFixture, 'dist', 'bundle.js');
   const useActualModule = async () => {
     if (activeModule === 'actual') return;
     await publishBuiltArtifact(server, ownerToken, actualArtifactPath, database);
@@ -4407,9 +4515,10 @@ async function verifyActualModuleWorkerRolloutFromV11(
 ) {
   const fid = 730_003;
   const adminCredential = () => createEphemeralJwt(privateKey, adminServiceClaims());
+  let playerAuthEpoch = 1;
   const playerCredential = () => createEphemeralJwt(
     privateKey,
-    playerClaims(fid, `farcaster:${fid}`, 1, 540),
+    playerClaims(fid, `farcaster:${fid}`, playerAuthEpoch, 540),
   );
   const completedProductionAt = (state, observedAtMicros) => {
     if (
@@ -4495,6 +4604,236 @@ async function verifyActualModuleWorkerRolloutFromV11(
     .digest('hex');
   let stage = 'preactivation';
   try {
+    stage = 'daily-marks-v14-rollout';
+    const dailyMarksBefore = await readActualAdminDailyMarksStatus(
+      server,
+      database,
+      adminCredential(),
+    );
+    if (
+      dailyMarksBefore.allowedFids !== 1n
+      || dailyMarksBefore.enabledAllowedFids !== 1n
+      || dailyMarksBefore.markAccounts !== 1n
+      || dailyMarksBefore.dailyAccounts !== 0n
+      || dailyMarksBefore.legacyZeroAccounts !== 1n
+      || dailyMarksBefore.invalidAccounts !== 0n
+      || dailyMarksBefore.realmProfiles !== 1n
+      || dailyMarksBefore.profileProjectionViolations !== 0n
+      || dailyMarksBefore.missingFounderState !== 0n
+      || dailyMarksBefore.grants !== 0n
+      || dailyMarksBefore.currentDayGrants !== 0n
+      || dailyMarksBefore.grantInvariantViolations !== 0n
+      || dailyMarksBefore.grantAccountReconciliationViolations !== 0n
+      || dailyMarksBefore.scheduleRows !== 0n
+      || !dailyMarksBefore.scheduleConfigValid
+      || dailyMarksBefore.legacyCompatibilityRows !== 0n
+      || !dailyMarksBefore.readyForBackfill
+      || dailyMarksBefore.readyForActivation
+      || dailyMarksBefore.active
+    ) fail('Populated v11 daily Marks predecessor aggregate was not exact.');
+    // Exercise the publication-to-backfill interleaving explicitly: a player
+    // may accept the current agreement after v14 is published but before the
+    // operator migrates the frozen-zero predecessor account. That transition
+    // must retain the predecessor projection and keep backfill ready.
+    const agreementBeforeAcceptance = parseLoopbackJson(
+      await callLoopbackProcedure(
+        server,
+        database,
+        'get_my_entry_agreement_status_v1',
+        playerCredential(),
+        '[]',
+        200,
+      ),
+      'pre-backfill entry-agreement status',
+    );
+    if (
+      !Array.isArray(agreementBeforeAcceptance)
+      || agreementBeforeAcceptance.length !== 2
+      || agreementBeforeAcceptance[0] !== alphaTermsVersion
+      || agreementBeforeAcceptance[1] !== false
+    ) fail('Historical agreement evidence incorrectly authorized the v14 projection.');
+    await callLoopbackReducer(
+      server,
+      database,
+      'accept_alpha_terms_v1',
+      playerCredential(),
+      JSON.stringify([alphaTermsVersion, true]),
+      200,
+    );
+    const agreementAfterAcceptance = parseLoopbackJson(
+      await callLoopbackProcedure(
+        server,
+        database,
+        'get_my_entry_agreement_status_v1',
+        playerCredential(),
+        '[]',
+        200,
+      ),
+      'accepted pre-backfill entry-agreement status',
+    );
+    if (
+      !Array.isArray(agreementAfterAcceptance)
+      || agreementAfterAcceptance.length !== 2
+      || agreementAfterAcceptance[0] !== alphaTermsVersion
+      || agreementAfterAcceptance[1] !== true
+    ) fail('Current agreement evidence did not authorize the v14 projection.');
+    const dailyMarksAfterAcceptance = await readActualAdminDailyMarksStatus(
+      server,
+      database,
+      adminCredential(),
+    );
+    if (
+      dailyMarksAfterAcceptance.utcDay !== dailyMarksBefore.utcDay
+      || dailyMarksAfterAcceptance.dailyAccounts !== 0n
+      || dailyMarksAfterAcceptance.legacyZeroAccounts !== 1n
+      || dailyMarksAfterAcceptance.profileProjectionViolations !== 0n
+      || dailyMarksAfterAcceptance.grants !== 0n
+      || dailyMarksAfterAcceptance.scheduleRows !== 0n
+      || !dailyMarksAfterAcceptance.readyForBackfill
+      || dailyMarksAfterAcceptance.readyForActivation
+      || dailyMarksAfterAcceptance.active
+    ) fail('Agreement acceptance broke the frozen daily Marks predecessor.');
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_backfill_daily_mark_accounts_v1',
+      adminCredential(),
+      '[1]',
+      200,
+    );
+    const dailyMarksBackfilled = await readActualAdminDailyMarksStatus(
+      server,
+      database,
+      adminCredential(),
+    );
+    if (
+      dailyMarksBackfilled.utcDay !== dailyMarksBefore.utcDay
+      || dailyMarksBackfilled.dailyAccounts !== 1n
+      || dailyMarksBackfilled.legacyZeroAccounts !== 0n
+      || dailyMarksBackfilled.grants !== 0n
+      || dailyMarksBackfilled.scheduleRows !== 0n
+      || !dailyMarksBackfilled.readyForActivation
+      || dailyMarksBackfilled.active
+    ) fail('Populated v11 daily Marks backfill was not exact.');
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_activate_daily_marks_v1',
+      adminCredential(),
+      JSON.stringify([1, 1, Number(dailyMarksBackfilled.utcDay)]),
+      200,
+    );
+    const dailyMarksActive = await readActualAdminDailyMarksStatus(
+      server,
+      database,
+      adminCredential(),
+    );
+    if (
+      dailyMarksActive.utcDay !== dailyMarksBackfilled.utcDay
+      || dailyMarksActive.dailyAccounts !== 1n
+      || dailyMarksActive.legacyZeroAccounts !== 0n
+      || dailyMarksActive.grants !== 1n
+      || dailyMarksActive.currentDayGrants !== 1n
+      || dailyMarksActive.grantInvariantViolations !== 0n
+      || dailyMarksActive.grantAccountReconciliationViolations !== 0n
+      || dailyMarksActive.scheduleRows !== 1n
+      || !dailyMarksActive.scheduleConfigValid
+      || !dailyMarksActive.active
+    ) fail('Populated v11 daily Marks activation was not exact.');
+
+    // A revocation retains its immutable same-day receipt and balance, but the
+    // recovery checkpoint must compare only the currently enabled admission
+    // set. Prove both an active-schedule retry while revoked and idempotent
+    // re-entry without issuing a second receipt or Mark.
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_disable_fid',
+      adminCredential(),
+      JSON.stringify([fid, 'v14 revoked-receipt recovery proof']),
+      200,
+    );
+    const dailyMarksRevoked = await readActualAdminDailyMarksStatus(
+      server,
+      database,
+      adminCredential(),
+    );
+    if (
+      dailyMarksRevoked.utcDay !== dailyMarksActive.utcDay
+      || dailyMarksRevoked.allowedFids !== 1n
+      || dailyMarksRevoked.enabledAllowedFids !== 0n
+      || dailyMarksRevoked.dailyAccounts !== 1n
+      || dailyMarksRevoked.grants !== 1n
+      || dailyMarksRevoked.currentDayGrants !== 0n
+      || dailyMarksRevoked.grantInvariantViolations !== 0n
+      || dailyMarksRevoked.grantAccountReconciliationViolations !== 0n
+      || dailyMarksRevoked.profileProjectionViolations !== 0n
+      || !dailyMarksRevoked.active
+    ) fail('Same-day revoked daily Mark receipt was not eligibility-scoped.');
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_activate_daily_marks_v1',
+      adminCredential(),
+      JSON.stringify([1, 0, Number(dailyMarksRevoked.utcDay)]),
+      200,
+    );
+    const dailyMarksRevokedRetry = await readActualAdminDailyMarksStatus(
+      server,
+      database,
+      adminCredential(),
+    );
+    if (
+      dailyMarksRevokedRetry.grants !== 1n
+      || dailyMarksRevokedRetry.currentDayGrants !== 0n
+      || dailyMarksRevokedRetry.enabledAllowedFids !== 0n
+      || !dailyMarksRevokedRetry.active
+    ) fail('Revoked daily Marks activation recovery was not idempotent.');
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_allow_fid',
+      adminCredential(),
+      JSON.stringify([fid, 'v14 same-day re-enable proof']),
+      200,
+    );
+    playerAuthEpoch = 2;
+    const dailyMarksReenabled = await readActualAdminDailyMarksStatus(
+      server,
+      database,
+      adminCredential(),
+    );
+    if (
+      dailyMarksReenabled.utcDay !== dailyMarksRevoked.utcDay
+      || dailyMarksReenabled.enabledAllowedFids !== 1n
+      || dailyMarksReenabled.dailyAccounts !== 1n
+      || dailyMarksReenabled.grants !== 1n
+      || dailyMarksReenabled.currentDayGrants !== 1n
+      || dailyMarksReenabled.grantInvariantViolations !== 0n
+      || dailyMarksReenabled.grantAccountReconciliationViolations !== 0n
+      || dailyMarksReenabled.profileProjectionViolations !== 0n
+      || !dailyMarksReenabled.active
+    ) fail('Same-day daily Marks re-entry was not exactly-once.');
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_activate_daily_marks_v1',
+      adminCredential(),
+      JSON.stringify([1, 1, Number(dailyMarksReenabled.utcDay)]),
+      200,
+    );
+    const dailyMarksReenabledRetry = await readActualAdminDailyMarksStatus(
+      server,
+      database,
+      adminCredential(),
+    );
+    if (
+      dailyMarksReenabledRetry.grants !== 1n
+      || dailyMarksReenabledRetry.currentDayGrants !== 1n
+      || dailyMarksReenabledRetry.enabledAllowedFids !== 1n
+      || !dailyMarksReenabledRetry.active
+    ) fail('Re-enabled daily Marks activation recovery was not idempotent.');
+    stage = 'preactivation';
     const absent = await readActualWorkerRolloutStatus(
       server,
       database,
@@ -4887,7 +5226,7 @@ async function verifyActualModuleWaterLifecycle(server, database, privateKey, ow
   let stage = 'publish';
   let activeModule = 'actual';
   const actualArtifactPath = join(additiveModule, 'dist', 'bundle.js');
-  const inspectionArtifactPath = join(additiveV13SchemaFixture, 'dist', 'bundle.js');
+  const inspectionArtifactPath = join(additiveV14SchemaFixture, 'dist', 'bundle.js');
   const adminCredential = () => createEphemeralJwt(privateKey, adminServiceClaims());
   const useActualModule = async () => {
     if (activeModule === 'actual') return;
@@ -5358,7 +5697,7 @@ async function verifyGenesisWorldExpansionLifecycle(
   // Wood append. Reverting to an earlier protocol after publishing the
   // candidate would correctly be rejected as a destructive schema downgrade.
   const fixtureArtifactPath = join(additiveV8SchemaFixture, 'dist', 'bundle.js');
-  const inspectionArtifactPath = join(additiveV13SchemaFixture, 'dist', 'bundle.js');
+  const inspectionArtifactPath = join(additiveV14SchemaFixture, 'dist', 'bundle.js');
   const adminCredential = () => createEphemeralJwt(privateKey, adminServiceClaims());
 
   await publishBuiltArtifact(server, ownerToken, fixtureArtifactPath, database);
@@ -6448,22 +6787,176 @@ async function main() {
       0n,
     );
 
-    // Advance every database to the real v13 candidate so the implementation
-    // is exercised against the exact v13 table contract without production.
+    // Prove the complete v13 suffix survives the v14 append while populated.
+    // The sentinel is written before either daily-Mark table exists.
+    await publish(
+      server,
+      owner.token,
+      additiveV13SchemaFixture,
+      dailyMarksMigrationDatabase,
+    );
+    await callLoopbackReducer(
+      server,
+      dailyMarksMigrationDatabase,
+      'fixture_seed_access_request_sentinel_v13',
+      owner.token,
+      '[]',
+      200,
+    );
+    const dailyMarksV13 = await describe(
+      server,
+      owner.token,
+      dailyMarksMigrationDatabase,
+    );
+    const dailyMarksV13Rows = await tableRowDigests(
+      server,
+      owner.token,
+      dailyMarksMigrationDatabase,
+      deployedV13Tables,
+    );
+    assert.equal(
+      await count(server, owner.token, dailyMarksMigrationDatabase, 'access_request_v1'),
+      1n,
+    );
+    await publish(
+      server,
+      owner.token,
+      additiveV14SchemaFixture,
+      dailyMarksMigrationDatabase,
+    );
+    const dailyMarksV14 = await describe(
+      server,
+      owner.token,
+      dailyMarksMigrationDatabase,
+    );
+    assertAdditiveV14Schema(dailyMarksV13, dailyMarksV14);
+    assert.deepEqual(
+      await tableRowDigests(
+        server,
+        owner.token,
+        dailyMarksMigrationDatabase,
+        deployedV13Tables,
+      ),
+      dailyMarksV13Rows,
+    );
+    for (const table of additiveV14Tables) {
+      assert.equal(await count(server, owner.token, dailyMarksMigrationDatabase, table), 0n);
+    }
+    const populatedDailyMarksV14SchemaDigest = schemaDigest(dailyMarksV14);
+    await publish(
+      server,
+      owner.token,
+      additiveV14SchemaFixture,
+      dailyMarksMigrationDatabase,
+    );
+    assert.equal(
+      schemaDigest(await describe(server, owner.token, dailyMarksMigrationDatabase)),
+      populatedDailyMarksV14SchemaDigest,
+    );
+    assert.deepEqual(
+      await tableRowDigests(
+        server,
+        owner.token,
+        dailyMarksMigrationDatabase,
+        deployedV13Tables,
+      ),
+      dailyMarksV13Rows,
+    );
+    await publish(
+      server,
+      owner.token,
+      additiveV13SchemaFixture,
+      dailyMarksMigrationDatabase,
+      false,
+      /break|delete|remove|migration|incompatible|data loss|table/i,
+    );
+    assert.equal(
+      schemaDigest(await describe(server, owner.token, dailyMarksMigrationDatabase)),
+      populatedDailyMarksV14SchemaDigest,
+    );
+    assert.deepEqual(
+      await tableRowDigests(
+        server,
+        owner.token,
+        dailyMarksMigrationDatabase,
+        deployedV13Tables,
+      ),
+      dailyMarksV13Rows,
+    );
+    for (const table of additiveV14Tables) {
+      assert.equal(await count(server, owner.token, dailyMarksMigrationDatabase, table), 0n);
+    }
+
+    // Freeze v14 independently before the real candidate. Every v13 table
+    // remains byte-identical and both private daily-Mark tables start empty.
+    await publish(server, owner.token, additiveV14SchemaFixture, emptyDatabase);
+    await publish(server, owner.token, additiveV14SchemaFixture, nonemptyDatabase);
+    await publish(server, owner.token, additiveV14SchemaFixture, actualModuleDatabase);
+    await publish(server, owner.token, additiveV14SchemaFixture, resourceLifecycleDatabase);
+    await publish(
+      server,
+      owner.token,
+      additiveV14SchemaFixture,
+      populatedWaterStoneMigrationDatabase,
+    );
+    const emptyV14 = await describe(server, owner.token, emptyDatabase);
+    const nonemptyV14 = await describe(server, owner.token, nonemptyDatabase);
+    const actualModuleV14 = await describe(server, owner.token, actualModuleDatabase);
+    const populatedWaterStoneV14 = await describe(
+      server,
+      owner.token,
+      populatedWaterStoneMigrationDatabase,
+    );
+    assertAdditiveV14Schema(emptyV13, emptyV14);
+    assertAdditiveV14Schema(nonemptyV13, nonemptyV14);
+    assertAdditiveV14Schema(actualModuleV13, actualModuleV14);
+    assertAdditiveV14Schema(populatedWaterStoneV13, populatedWaterStoneV14);
+    const fixtureV14TableSchemaDigest = canonicalTableSchemaBoundaryDigest(
+      emptyV14,
+      deployedV14Tables,
+    );
+    for (const description of [
+      nonemptyV14,
+      actualModuleV14,
+      populatedWaterStoneV14,
+    ]) {
+      assert.equal(
+        canonicalTableSchemaBoundaryDigest(description, deployedV14Tables),
+        fixtureV14TableSchemaDigest,
+      );
+    }
+    assert.deepEqual(
+      await tableRowDigests(
+        server,
+        owner.token,
+        populatedWaterStoneMigrationDatabase,
+        deployedV12Tables,
+      ),
+      populatedWaterStoneV12Rows,
+    );
+    for (const table of additiveV14Tables) {
+      assert.equal(
+        await count(server, owner.token, populatedWaterStoneMigrationDatabase, table),
+        0n,
+      );
+    }
+
+    // Advance every database to the real v14 candidate so the implementation
+    // is exercised against the exact v14 table contract without production.
     await publish(server, owner.token, additiveModule, emptyDatabase);
     await publish(server, owner.token, additiveModule, nonemptyDatabase);
     await publish(server, owner.token, additiveModule, actualModuleDatabase);
     await publish(server, owner.token, additiveModule, resourceLifecycleDatabase);
     await publish(server, owner.token, additiveModule, populatedWaterStoneMigrationDatabase);
-    const populatedWaterStoneCandidateV13 = await describe(
+    const populatedWaterStoneCandidateV14 = await describe(
       server,
       owner.token,
       populatedWaterStoneMigrationDatabase,
     );
-    for (const name of deployedV13Tables) {
+    for (const name of deployedV14Tables) {
       assert.deepEqual(
-        tableSignature(populatedWaterStoneCandidateV13, name),
-        tableSignature(emptyV13, name),
+        tableSignature(populatedWaterStoneCandidateV14, name),
+        tableSignature(emptyV14, name),
       );
     }
     await verifyAccessRequestHttpLifecycle(
@@ -6471,13 +6964,13 @@ async function main() {
       populatedWaterStoneMigrationDatabase,
       privateKey,
     );
-    // Return to the exact auth-neutral v13 schema only for private owner SQL.
+    // Return to the exact auth-neutral v14 schema only for private owner SQL.
     // The append-only request row remains while every v12 row digest must stay
     // byte-for-byte identical to its pre-request baseline.
     await publish(
       server,
       owner.token,
-      additiveV13SchemaFixture,
+      additiveV14SchemaFixture,
       populatedWaterStoneMigrationDatabase,
     );
     assert.deepEqual(
@@ -6595,10 +7088,10 @@ async function main() {
         0n,
       );
     }
-    await publishBuiltArtifact(
+    await publish(
       server,
       owner.token,
-      builtArtifactPath,
+      additiveV13SchemaFixture,
       workerRolloutV11Database,
     );
     const workerRolloutCandidateV13 = await describe(
@@ -6607,14 +7100,26 @@ async function main() {
       workerRolloutV11Database,
     );
     assertAdditiveV13Schema(workerRolloutCandidateV12, workerRolloutCandidateV13);
+    await publishBuiltArtifact(
+      server,
+      owner.token,
+      builtArtifactPath,
+      workerRolloutV11Database,
+    );
+    const workerRolloutCandidateV14 = await describe(
+      server,
+      owner.token,
+      workerRolloutV11Database,
+    );
+    assertAdditiveV14Schema(workerRolloutCandidateV13, workerRolloutCandidateV14);
     // The real module rejects the disposable owner identity by design. Swap
-    // only this database to the schema-identical auth-neutral v13 fixture
-    // before private SQL proves that every v11 row survived and both additive
+    // only this database to the schema-identical auth-neutral v14 fixture
+    // before private SQL proves that every v11 row survived and all additive
     // suffixes remain empty.
     await publish(
       server,
       owner.token,
-      additiveV13SchemaFixture,
+      additiveV14SchemaFixture,
       workerRolloutV11Database,
     );
     assert.deepEqual(
@@ -6641,6 +7146,12 @@ async function main() {
       ),
       0n,
     );
+    for (const table of additiveV14Tables) {
+      assert.equal(
+        await count(server, owner.token, workerRolloutV11Database, table),
+        0n,
+      );
+    }
     await publishBuiltArtifact(
       server,
       owner.token,
@@ -6667,47 +7178,56 @@ async function main() {
     const builtArtifactDigest = createHash('sha256')
       .update(await readFile(builtArtifactPath))
       .digest('hex');
-    const emptyCandidateV13 = await describe(server, owner.token, emptyDatabase);
-    const nonemptyCandidateV13 = await describe(server, owner.token, nonemptyDatabase);
-    const actualCandidateV13 = await describe(server, owner.token, actualModuleDatabase);
+    const emptyCandidateV14 = await describe(server, owner.token, emptyDatabase);
+    const nonemptyCandidateV14 = await describe(server, owner.token, nonemptyDatabase);
+    const actualCandidateV14 = await describe(server, owner.token, actualModuleDatabase);
     const provenV12TableSchemaDigest = projectedTableSchemaBoundaryDigest(
-      emptyCandidateV13,
+      emptyCandidateV14,
       deployedV12Tables,
     );
     assert.equal(provenV12TableSchemaDigest, fixtureV12TableSchemaDigest);
-    const provenV13TableSchemaDigest = canonicalTableSchemaBoundaryDigest(
-      emptyCandidateV13,
+    const provenV13TableSchemaDigest = projectedTableSchemaBoundaryDigest(
+      emptyCandidateV14,
       deployedV13Tables,
     );
     assert.equal(provenV13TableSchemaDigest, fixtureV13TableSchemaDigest);
-    for (const description of [nonemptyCandidateV13, actualCandidateV13]) {
+    const provenV14TableSchemaDigest = canonicalTableSchemaBoundaryDigest(
+      emptyCandidateV14,
+      deployedV14Tables,
+    );
+    assert.equal(provenV14TableSchemaDigest, fixtureV14TableSchemaDigest);
+    for (const description of [nonemptyCandidateV14, actualCandidateV14]) {
       assert.equal(
         projectedTableSchemaBoundaryDigest(description, deployedV12Tables),
         provenV12TableSchemaDigest,
       );
       assert.equal(
-        canonicalTableSchemaBoundaryDigest(description, deployedV13Tables),
+        projectedTableSchemaBoundaryDigest(description, deployedV13Tables),
         provenV13TableSchemaDigest,
+      );
+      assert.equal(
+        canonicalTableSchemaBoundaryDigest(description, deployedV14Tables),
+        provenV14TableSchemaDigest,
       );
     }
     for (const name of deployedV12Tables) {
       assert.deepEqual(
-        tableSignature(actualCandidateV13, name),
+        tableSignature(actualCandidateV14, name),
         tableSignature(emptyV12, name),
       );
       assert.deepEqual(
-        tableSignature(nonemptyCandidateV13, name),
+        tableSignature(nonemptyCandidateV14, name),
         tableSignature(nonemptyV12, name),
       );
       assert.deepEqual(
-        tableSignature(actualCandidateV13, name),
+        tableSignature(actualCandidateV14, name),
         tableSignature(actualModuleV12, name),
       );
     }
     for (const description of [
-      emptyCandidateV13,
-      nonemptyCandidateV13,
-      actualCandidateV13,
+      emptyCandidateV14,
+      nonemptyCandidateV14,
+      actualCandidateV14,
     ]) {
       assert.equal(access(description, 'access_request_v1'), 'Private');
       assert.deepEqual(fieldNames(description, 'access_request_v1'), [
@@ -6715,14 +7235,29 @@ async function main() {
         'request_cycle',
         'requested_at',
       ]);
+      assert.equal(access(description, 'daily_mark_grant_v1'), 'Private');
+      assert.deepEqual(fieldNames(description, 'daily_mark_grant_v1'), [
+        'grant_key',
+        'fid',
+        'utc_day',
+        'amount_micros',
+        'policy_version',
+        'granted_at',
+      ]);
+      assert.equal(access(description, 'daily_mark_schedule_v_1'), 'Private');
+      assert.deepEqual(fieldNames(description, 'daily_mark_schedule_v_1'), [
+        'schedule_id',
+        'scheduled_at',
+        'policy_version',
+      ]);
     }
     // The candidate's on-connect policy intentionally rejects the disposable
-    // owner identity. Reuse the table-identical, auth-neutral v13 fixture before
+    // owner identity. Reuse the table-identical, auth-neutral v14 fixture before
     // owner SQL reads and never downgrade the schema suffix.
-    await publish(server, owner.token, additiveV13SchemaFixture, emptyDatabase);
-    await publish(server, owner.token, additiveV13SchemaFixture, nonemptyDatabase);
-    await publish(server, owner.token, additiveV13SchemaFixture, actualModuleDatabase);
-    // SQL preservation reads remain on the complete v13 candidate. No reducer
+    await publish(server, owner.token, additiveV14SchemaFixture, emptyDatabase);
+    await publish(server, owner.token, additiveV14SchemaFixture, nonemptyDatabase);
+    await publish(server, owner.token, additiveV14SchemaFixture, actualModuleDatabase);
+    // SQL preservation reads remain on the complete v14 candidate. No reducer
     // is invoked by these owner-only queries.
     for (const [database, beforeRows] of [
       [emptyDatabase, emptyV7Rows],
@@ -6735,7 +7270,7 @@ async function main() {
       );
     }
 
-    const idempotentSchemaBefore = schemaDigest(nonemptyCandidateV13);
+    const idempotentSchemaBefore = schemaDigest(nonemptyCandidateV14);
     await publishBuiltArtifact(
       server,
       owner.token,
@@ -6746,10 +7281,10 @@ async function main() {
       schemaDigest(await describe(server, owner.token, nonemptyDatabase)),
       idempotentSchemaBefore,
     );
-    await publish(server, owner.token, additiveV13SchemaFixture, nonemptyDatabase);
+    await publish(server, owner.token, additiveV14SchemaFixture, nonemptyDatabase);
 
     // The actual module correctly rejects the disposable local identity at its
-    // on-connect boundary; owner SQL still reads the unchanged v13 rows.
+    // on-connect boundary; owner SQL still reads the unchanged v14 rows.
     assert.equal(await count(server, owner.token, emptyDatabase, 'player'), 0n);
     assert.equal(await count(server, owner.token, emptyDatabase, 'player_v2'), 0n);
     await assertFixtureOwnershipCount(server, owner.token, emptyDatabase, 999999, 0);
@@ -6776,6 +7311,7 @@ async function main() {
         ...additiveV11Tables,
         ...additiveV12Tables,
         ...additiveV13Tables,
+        ...additiveV14Tables,
       ]) {
         assert.equal(await count(server, owner.token, database, table), 0n);
       }
@@ -6806,7 +7342,7 @@ async function main() {
     )), actualModuleWorldBefore);
 
     // Identity columns reject arbitrary SQL literals after the candidate's
-    // issuer boundary is active. The auth-neutral v13 fixture inserts the
+    // issuer boundary is active. The auth-neutral v14 fixture inserts the
     // caller's verified sender identity through a disposable reducer instead.
     await callLoopbackReducer(
       server,
@@ -6830,10 +7366,11 @@ async function main() {
       ...additiveV11Tables,
       ...additiveV12Tables,
       ...additiveV13Tables,
+      ...additiveV14Tables,
     ]) {
       assert.equal(await count(server, owner.token, emptyDatabase, table), 0n);
     }
-    const populatedV13SchemaDigest = schemaDigest(await describe(server, owner.token, emptyDatabase));
+    const populatedV14SchemaDigest = schemaDigest(await describe(server, owner.token, emptyDatabase));
 
     await callLoopbackReducer(
       server,
@@ -6855,7 +7392,7 @@ async function main() {
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      populatedV13SchemaDigest,
+      populatedV14SchemaDigest,
     );
     await assertFixtureOwnershipCount(server, owner.token, emptyDatabase, 999999, 1);
     assert.equal(await count(server, owner.token, emptyDatabase, 'castle_slot_v1'), 1n);
@@ -6870,6 +7407,7 @@ async function main() {
       ...additiveV11Tables,
       ...additiveV12Tables,
       ...additiveV13Tables,
+      ...additiveV14Tables,
     ]) {
       assert.equal(await count(server, owner.token, emptyDatabase, table), 0n);
     }
@@ -6883,7 +7421,7 @@ async function main() {
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      populatedV13SchemaDigest,
+      populatedV14SchemaDigest,
     );
     await assertFixtureOwnershipCount(server, owner.token, emptyDatabase, 999999, 1);
     assert.equal(await count(server, owner.token, emptyDatabase, 'castle_slot_v1'), 1n);
@@ -6898,6 +7436,7 @@ async function main() {
       ...additiveV11Tables,
       ...additiveV12Tables,
       ...additiveV13Tables,
+      ...additiveV14Tables,
     ]) {
       assert.equal(await count(server, owner.token, emptyDatabase, table), 0n);
     }
@@ -6911,7 +7450,7 @@ async function main() {
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      populatedV13SchemaDigest,
+      populatedV14SchemaDigest,
     );
     await publish(
       server,
@@ -6923,7 +7462,7 @@ async function main() {
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      populatedV13SchemaDigest,
+      populatedV14SchemaDigest,
     );
     await publish(
       server,
@@ -6935,10 +7474,23 @@ async function main() {
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      populatedV13SchemaDigest,
+      populatedV14SchemaDigest,
     );
-    // The v13 boundary must refuse its immediate predecessor before the
-    // private request table can be removed.
+    // The v14 boundary must refuse its immediate predecessor before either
+    // private daily-Mark table can be removed.
+    await publish(
+      server,
+      owner.token,
+      additiveV13SchemaFixture,
+      emptyDatabase,
+      false,
+      /break|delete|remove|migration|incompatible|data loss|table/i,
+    );
+    assert.equal(
+      schemaDigest(await describe(server, owner.token, emptyDatabase)),
+      populatedV14SchemaDigest,
+    );
+    // The v13 boundary also remains protected from its own predecessor.
     await publish(
       server,
       owner.token,
@@ -6949,7 +7501,7 @@ async function main() {
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      populatedV13SchemaDigest,
+      populatedV14SchemaDigest,
     );
     // Older predecessors must also remain unable to remove Worker or Water
     // state.
@@ -6963,7 +7515,7 @@ async function main() {
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      populatedV13SchemaDigest,
+      populatedV14SchemaDigest,
     );
     await publish(
       server,
@@ -6975,7 +7527,7 @@ async function main() {
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      populatedV13SchemaDigest,
+      populatedV14SchemaDigest,
     );
     await publish(
       server,
@@ -6987,7 +7539,7 @@ async function main() {
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      populatedV13SchemaDigest,
+      populatedV14SchemaDigest,
     );
     // Older fixture rollbacks remain refused as well.
     await publish(
@@ -7000,17 +7552,17 @@ async function main() {
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      populatedV13SchemaDigest,
+      populatedV14SchemaDigest,
     );
     await publish(server, owner.token, additiveModule, emptyDatabase);
-    assertAdditiveV13Schema(
-      emptyV12,
+    assertAdditiveV14Schema(
+      emptyV13,
       await describe(server, owner.token, emptyDatabase),
     );
     // Reuse the table-identical auth-neutral fixture for the final bounded
     // identity assertion; the candidate itself deliberately rejects the
     // disposable owner issuer before any private identity SQL can run.
-    await publish(server, owner.token, additiveV13SchemaFixture, emptyDatabase);
+    await publish(server, owner.token, additiveV14SchemaFixture, emptyDatabase);
     await assertFixtureOwnershipCount(server, owner.token, emptyDatabase, 999999, 1);
     assert.equal(await count(server, owner.token, emptyDatabase, 'castle_slot_v1'), 1n);
     for (const table of [
@@ -7024,6 +7576,7 @@ async function main() {
       ...additiveV11Tables,
       ...additiveV12Tables,
       ...additiveV13Tables,
+      ...additiveV14Tables,
     ]) {
       assert.equal(await count(server, owner.token, emptyDatabase, table), 0n);
     }
@@ -7048,9 +7601,11 @@ async function main() {
       + 'public ocean-and-river Water revision policy appended at exact ref 46, '
       + 'identity-safe generic worker readiness, roster, assignment, occupation, bounded receipt, and private schedule tables appended at exact refs 47-52, '
       + 'private access-request intent and authoritative request timestamp appended at exact ref 53, '
-      + '61-tile empty, synthetic nonempty, and populated Water/Stone/Water-revision fixtures remained preserved through v13, '
-      + 'every v12 table was populated and retained through the real candidate, the v13 request table started empty, '
-      + 'and the complete state was protected from v13-to-v12 and older downgrades, '
+      + 'private exactly-once daily Mark receipts and identity-free cadence appended at exact refs 54-55, '
+      + '61-tile empty, synthetic nonempty, and populated Water/Stone/Water-revision fixtures remained preserved through v14, '
+      + 'every v12 table was populated and retained through the real candidate, the v13 request suffix survived populated, '
+      + 'both v14 tables started empty, fixture republish remained idempotent, '
+      + 'and the complete state was protected from v14-to-v13 and older downgrades, '
       + 'exact resolver HTTP lifecycle enforced without mutation, '
       + `atomic 1,261-to-10,000 world expansion proved in ${worldExpansionDurationMilliseconds}ms with an idempotent retry, `
       + `actual Water administration exercised with ${waterLifecycleProof}, `
@@ -7063,11 +7618,12 @@ async function main() {
       + 'presentation-independent founder monitoring and bootstrap, '
       + 'legacy first-time admission rejection and complete-graph re-enable preservation, '
       + 'and guarded backfill rejection/idempotence held, '
-      + 'prebuilt-artifact republish idempotent, populated v3-prefix state retained through v13, '
-      + 'and guarded v12/v11/v10/v9/v8/v7/v6/v5/v4/v3/v2 rollbacks refused before schema change.',
+      + 'prebuilt-artifact republish idempotent, populated v3-prefix state retained through v14, '
+      + 'and guarded v13/v12/v11/v10/v9/v8/v7/v6/v5/v4/v3/v2 rollbacks refused before schema change.',
       v11TableSchemaDigest: provenV11TableSchemaDigest,
       v12TableSchemaDigest: provenV12TableSchemaDigest,
       v13TableSchemaDigest: provenV13TableSchemaDigest,
+      v14TableSchemaDigest: provenV14TableSchemaDigest,
       artifactDigest: builtArtifactDigest,
     }));
   } finally {

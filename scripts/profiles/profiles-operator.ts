@@ -21,9 +21,10 @@ import {
   withExclusiveOperatorLock,
   writePrivateOperatorReport,
   inspectPrivateOperatorReports,
+  PrivateOperatorReportError,
   type JsonValue,
   type PrivateOperatorReportCommand,
-} from '../marks/operator-report';
+} from '../private-operator-report';
 import {
   FARCASTER_PROFILE_POLICY_VERSION,
   FarcasterPublicProfileError,
@@ -70,7 +71,8 @@ const DEFAULT_REPORT_DIRECTORY = join(
   'reports',
 );
 const MAXIMUM_PRIVATE_INPUT_BYTES = 256 * 1_024;
-const DATABASE = 'warpkeep-89e4u';
+const DATABASE =
+  'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';
 const DATABASE_URI = 'https://maincloud.spacetimedb.com';
 const BRIDGE_URL = 'https://auth.warpkeep.com';
 /**
@@ -895,6 +897,7 @@ function publicError(error: unknown): string {
     || error instanceof FarcasterPublicProfileError
     || error instanceof ProfilePlanArtifactError
     || error instanceof ProfileApplyAuditError
+    || error instanceof PrivateOperatorReportError
   ) return error.code;
   if (error && typeof error === 'object' && 'code' in error && typeof error.code === 'string') {
     return 'PROFILES_PRIVATE_OPERATION_FAILED';

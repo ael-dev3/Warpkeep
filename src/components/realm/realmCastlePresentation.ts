@@ -38,7 +38,6 @@ export type RealmCastlePublicPresentation = Readonly<{
   pfpUrl?: string;
   publicBio?: string;
   communityStatsVisible: boolean;
-  totalSnapBurnedMicros?: bigint;
   marksBalanceMicros?: bigint;
 }>;
 
@@ -170,7 +169,6 @@ function publicPresentationFromProfile(
     publicBio: boundedDisplayText(profile.publicBio, 320),
     communityStatsVisible,
     ...(communityStatsVisible ? {
-      totalSnapBurnedMicros: profile.totalSnapBurnedMicros,
       marksBalanceMicros: profile.marksBalanceMicros
     } : {})
   };

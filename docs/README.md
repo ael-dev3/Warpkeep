@@ -30,7 +30,7 @@ contributors. This page routes deeper work without duplicating it.
 - [Auth bridge](../services/auth-bridge/README.md)
 - [SpacetimeDB module](../spacetimedb/README.md)
 - [Community Marks policy](gameplay/marks-policy-v1.md)
-- [Marks and profile operators](operations/marks-operator.md)
+- [Daily Marks operations](operations/daily-marks.md)
 - [Local visual QA](operations/qa-observatory.md)
 - [Threat model](security/threat-model.md)
 - [Operations and recovery](operations/reconstruction/README.md)

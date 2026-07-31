@@ -85,6 +85,8 @@ test('resource and Gold prefixes remain intact through later additive suffixes',
     'workerCommandIdempotencyV1',
     'workerAssignmentScheduleV1',
     'accessRequestV1',
+    'dailyMarkGrantV1',
+    'dailyMarkScheduleV1',
   ]);
 
   const account = tableDefinition(schema, 'resourceAccountV1');
@@ -278,7 +280,6 @@ test('collect preserves active Food and Wood reserves, settles with server time,
   assert.deepEqual(mutationTargets(collect), ['resourceAccountV1']);
   assert.match(collect, /updatedAt: ctx\.timestamp/);
   for (const field of [
-    'totalSnapBurnedMicros',
     'earnedMicros',
     'spentMicros',
     'balanceMicros',

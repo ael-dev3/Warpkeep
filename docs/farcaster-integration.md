@@ -5,7 +5,7 @@ ordinary browsers use Sign In with Farcaster (SIWF), while a verified Farcaster
 Mini App host may use Quick Auth. Neither path is a wallet connection,
 client-owned identity, admission grant, or Terms acceptance.
 
-Alpha 0.3.32 keeps backend protocol 3 and authentication contract v2; admission
+Alpha 0.3.33 keeps backend protocol 3 and authentication contract v2; admission
 remains gated. Production configuration and founder identities belong in the
 private operator record, not this guide.
 
@@ -286,13 +286,14 @@ including its opaque OIDC Identity column, and must remain empty. Protocol v2
 introduced the active public `player_v2` plus private `player_ownership_v2`
 split; protocol 3 preserves that pair and the complete deployed seven-table
 prefix unchanged. It appends the Genesis realm, terrain metadata, permanent
-slot/claim, trusted public profile, private Marks/wallet/scan, and private Terms
-evidence tables without widening browser identity authority. Generated browser
+slot/claim, trusted public profile, private Marks and Terms evidence, and frozen
+private compatibility tables without widening browser identity authority. Generated browser
 bindings expose only public shapes, and the active realm subscription reads
 `world_tile`, `world_tile_meta_v1`, `player_v2`, `castle`, `realm_v1`, and
 `realm_profile_v1`. It does not subscribe to the legacy `player` table, private
-ownership, founding claims, wallet records, Mark accounts, burn receipts, scan
-state, or Terms evidence.
+ownership, founding claims, Mark accounts, daily-grant receipts, retired
+compatibility state, or Terms evidence. Current Marks authority does not read a
+wallet or blockchain.
 
 The legacy module wires `get_my_admission_status` and `bootstrap_player` remain
 only for client/schema compatibility and immediately fail with
@@ -304,7 +305,7 @@ resolution continues to use the exact
 Hermes operators may read `admin_get_alpha_status_v3`, which returns only
 privacy-safe aggregate counts for the preserved legacy/v2 rows and the
 protocol-3 world, founding, profile, Terms, and private accounting invariants.
-It returns no FID, Identity, token, proof, cookie, wallet, receipt, or profile
+It returns no FID, Identity, token, proof, cookie, private receipt, or profile
 payload. It refuses the aggregate with `STATE_INTEGRITY` when canonical terrain,
 slot, claim, castle, occupancy, ownership, or accounting relationships drift.
 The browser separately requires protocol 3 plus the exact generation name and

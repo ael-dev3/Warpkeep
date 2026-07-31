@@ -39,7 +39,6 @@ const PROFILE = Object.freeze({
     displayName: 'Other Player',
     pfpUrl: 'https://warpkeep.com/pfp.webp',
     communityStatsVisible: true,
-    totalSnapBurnedMicros: 99n,
     marksBalanceMicros: 88n
   })
 });
@@ -162,7 +161,6 @@ describe('resource occupant presentation', () => {
     });
     expect(realmResourceOccupantMarkerKey(markers[0]!)).toBe('gold:genesis-001:gold:0001');
     expect(markers[0]!.castle).not.toHaveProperty('ownerFid');
-    expect(markers[0]!.profile).not.toHaveProperty('totalSnapBurnedMicros');
     expect(markers[0]!.profile).not.toHaveProperty('marksBalanceMicros');
   });
 

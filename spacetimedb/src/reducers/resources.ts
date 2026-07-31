@@ -198,7 +198,6 @@ export const collectResourcesV1 = warpkeep.reducer(
       const marksAfter = ctx.db.markAccountV1.fid.find(claims.fid);
       if (
         marksAfter === null
-        || marksAfter.totalSnapBurnedMicros !== marksBefore.totalSnapBurnedMicros
         || marksAfter.earnedMicros !== marksBefore.earnedMicros
         || marksAfter.spentMicros !== marksBefore.spentMicros
         || marksAfter.balanceMicros !== marksBefore.balanceMicros

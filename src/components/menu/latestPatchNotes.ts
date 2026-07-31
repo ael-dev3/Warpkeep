@@ -6,6 +6,20 @@ export type LatestPatchNotes = Readonly<{
   alphaNotice: string;
 }>;
 
+const ALPHA_0_3_33_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: '31 JUL 2026',
+  title: 'THE REALM REMEMBERS',
+  summary:
+    'Each admitted keeper now receives one experimental Community Mark for every eligible Realm day.',
+  highlights: Object.freeze([
+    'SpacetimeDB issues one exact Mark automatically to every admitted keeper each UTC Realm day; no wallet, token, transaction, or payment is involved.',
+    'Private daily receipts make retries harmless, while revoked admission pauses future grants without erasing the balance already recorded.',
+    'The former SNAP burn, wallet-attribution, and chain-scanning paths have been retired from the active game and its operator tools.'
+  ]),
+  alphaNotice:
+    'Alpha 0.3.33 remains an invite-only, unfinished world. Community Marks cannot be spent, transferred, redeemed, or converted and promise no token, airdrop, financial return, guaranteed reward, or future value.'
+});
+
 const ALPHA_0_3_32_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '31 JUL 2026',
   title: 'THE HEGEMONY CREST',
@@ -219,6 +233,7 @@ const ALPHA_0_3_22_PATCH_NOTES: LatestPatchNotes = Object.freeze({
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
+    '0.3.33': ALPHA_0_3_33_PATCH_NOTES,
     '0.3.32': ALPHA_0_3_32_PATCH_NOTES,
     '0.3.31': ALPHA_0_3_31_PATCH_NOTES,
     '0.3.30': ALPHA_0_3_30_PATCH_NOTES,

@@ -23,12 +23,6 @@ export {
   adminGetAlphaStatusV3,
   adminGetFidAuthEpoch,
   adminUpsertRealmProfileV1,
-  adminUpsertFidWalletAttributionV1,
-  adminReplaceFidWalletSnapshotV1,
-  adminBeginSnapScanBatchV1,
-  adminCreditSnapBurnV1,
-  adminFinalizeSnapScanBatchV1,
-  adminGetSnapScanBatchAggregateV1,
   authResolverGetFidAdmissionV2,
   getAlphaBackendInfo,
 } from './reducers/admin';
@@ -41,6 +35,11 @@ export {
   accessRequestSubmitV1,
   adminListAccessRequestsV1,
 } from './reducers/accessRequests';
+export {
+  adminGetDailyMarksStatusV1,
+  adminBackfillDailyMarkAccountsV1,
+  adminActivateDailyMarksV1,
+} from './reducers/dailyMarks';
 export {
   getMyResourceStateV1,
   collectResourcesV1,
@@ -108,4 +107,5 @@ export {
   runWoodExpeditionScheduleV1,
   runStoneExpeditionScheduleV1,
   runCastleWorkerScheduleV1,
+  runDailyMarkScheduleV1,
 } from './schema';

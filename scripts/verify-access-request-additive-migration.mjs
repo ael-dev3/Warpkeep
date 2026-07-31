@@ -57,14 +57,18 @@ assert.equal(v12Registrations.length, 53, 'v12 fixture must end at ref 52');
 assert.deepEqual(v13Registrations.slice(0, 53), v12Registrations);
 assert.deepEqual(candidateRegistrations.slice(0, 53), v12Registrations);
 assert.deepEqual(v13Registrations.slice(53), ['accessRequestV1']);
-assert.deepEqual(candidateRegistrations.slice(53), ['accessRequestV1']);
+assert.deepEqual(candidateRegistrations.slice(0, 54), v13Registrations);
+assert.deepEqual(candidateRegistrations.slice(54), [
+  'dailyMarkGrantV1',
+  'dailyMarkScheduleV1',
+]);
 
 const v13TailStart = v13Fixture.indexOf(
   '/** v13 private, append-only expression of interest in manual admission. */',
 );
 const v13SchemaStart = v13Fixture.indexOf('\nconst db = schema({', v13TailStart);
 assert.ok(v13TailStart >= 0 && v13SchemaStart > v13TailStart);
-const reconstructedV12Fixture = (
+const v13WithoutAccessRequestTable = (
   v13Fixture.slice(0, v13TailStart)
   + v13Fixture.slice(v13SchemaStart + 1)
 ).replace(
@@ -72,10 +76,22 @@ const reconstructedV12Fixture = (
     + '  accessRequestV1,\n',
   '  workerAssignmentV1, workerNodeOccupationV1, workerCommandIdempotencyV1, workerAssignmentScheduleV1,\n',
 );
+const v13SentinelStart = v13WithoutAccessRequestTable.indexOf(
+  '/** Populates the v13 suffix before the v13 -> v14 preservation proof. */',
+);
+const v13SentinelEnd = v13WithoutAccessRequestTable.indexOf(
+  '\nexport const runGoldExpeditionScheduleV1 = db.reducer(',
+  v13SentinelStart,
+);
+assert.ok(v13SentinelStart >= 0 && v13SentinelEnd > v13SentinelStart);
+const reconstructedV12Fixture = (
+  v13WithoutAccessRequestTable.slice(0, v13SentinelStart)
+  + v13WithoutAccessRequestTable.slice(v13SentinelEnd + 1)
+);
 assert.equal(
   reconstructedV12Fixture,
   v12Fixture,
-  'v13 fixture changed content outside its one appended table',
+  'v13 fixture changed content outside its appended table and isolated sentinel reducer',
 );
 
 for (const definition of [
@@ -101,11 +117,15 @@ assert.match(proof, /arguments_\.filter\(value => value === '--delete-data=never
 assert.match(proof, /arguments_\.some\(value => value\.startsWith\('--delete-data='/);
 assert.doesNotMatch(proof, /--delete-data=(?:always|on-conflict|if-required)/);
 
-assert.match(receipt, /ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION = 13/);
+assert.match(receipt, /ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION = 14/);
 assert.match(receipt, /v13_table_schema_sha256/);
 assert.match(receipt, /v13TableSchemaDigest/);
+assert.match(receipt, /v14_table_schema_sha256/);
+assert.match(receipt, /v14TableSchemaDigest/);
 
 console.log(
   'access-request additive migration proof passed: exact v12 refs 0–52 preserved, '
-  + 'private access_request_v1 appended at ref 53, v13 rehearsal remains deletion-disabled',
+  + 'private access_request_v1 remains the exact v13 ref 53 boundary, '
+  + 'the reviewed v14 daily Marks suffix is the only allowed extension, '
+  + 'and the rehearsal remains deletion-disabled',
 );

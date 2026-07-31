@@ -7,7 +7,7 @@ import {
   selectNextPermanentCastleSlot,
 } from './foundingPolicy';
 import {
-  SNAP_MARK_POLICY_VERSION,
+  ADMITTED_DAILY_MARK_POLICY_VERSION,
   markAccountIsConsistent,
 } from './marksAuthorityPolicy';
 import {
@@ -59,8 +59,12 @@ function profileProjectionIsConsistent(
       && profile.marksBalanceMicros === undefined
       && profile.marksPolicyVersion === undefined;
   }
+  const legacyProjectionMatches = account.policyVersion !== ADMITTED_DAILY_MARK_POLICY_VERSION
+    && profile.totalSnapBurnedMicros === account.totalSnapBurnedMicros;
+  const dailyProjectionMatches = account.policyVersion === ADMITTED_DAILY_MARK_POLICY_VERSION
+    && profile.totalSnapBurnedMicros === undefined;
   return profile.firstAuthenticatedAt !== undefined
-    && profile.totalSnapBurnedMicros === account.totalSnapBurnedMicros
+    && (legacyProjectionMatches || dailyProjectionMatches)
     && profile.marksEarnedMicros === account.earnedMicros
     && profile.marksSpentMicros === account.spentMicros
     && profile.marksBalanceMicros === account.balanceMicros
@@ -283,7 +287,7 @@ export function ensureGenesisFounder(
     earnedMicros: 0n,
     spentMicros: 0n,
     balanceMicros: 0n,
-    policyVersion: SNAP_MARK_POLICY_VERSION,
+    policyVersion: ADMITTED_DAILY_MARK_POLICY_VERSION,
     updatedAt: ctx.timestamp,
   });
   const castle = ctx.db.castle.insert({

@@ -1285,9 +1285,6 @@ function readRealmProfiles(connection: WarpkeepConnection): WarpkeepRealmProfile
       ...(firstAuthenticatedAt === undefined ? {} : { firstAuthenticatedAt }),
       publicStatus,
       communityStatsVisible: row.communityStatsVisible,
-      ...(row.totalSnapBurnedMicros === undefined
-        ? {}
-        : { totalSnapBurnedMicros: row.totalSnapBurnedMicros }),
       ...(row.marksEarnedMicros === undefined ? {} : { marksEarnedMicros: row.marksEarnedMicros }),
       ...(row.marksSpentMicros === undefined ? {} : { marksSpentMicros: row.marksSpentMicros }),
       ...(row.marksBalanceMicros === undefined ? {} : { marksBalanceMicros: row.marksBalanceMicros }),

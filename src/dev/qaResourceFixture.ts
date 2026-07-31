@@ -3,7 +3,7 @@ import {
   REALM_RESOURCE_POLICY_VERSION,
   type ReadyRealmResourcePresentation
 } from '../components/realm/realmResourcePresentation';
-import { MARK_ATTRIBUTION_POLICY_ID } from '../marks/marksPolicy';
+import { MARK_DAILY_GRANT_POLICY_ID } from '../marks/marksPolicy';
 
 const QA_RESOURCE_OBSERVED_AT_MICROS = 1_800_000_000_000_000n;
 const QA_RESOURCE_QUANTUM_MICROS = 600_000_000n;
@@ -27,7 +27,7 @@ export function createZeroQaResourcePresentation(
     nextCollectAtMicros: QA_RESOURCE_OBSERVED_AT_MICROS + QA_RESOURCE_QUANTUM_MICROS,
     revision: 0n,
     resourcePolicyVersion: REALM_RESOURCE_POLICY_VERSION,
-    marksPolicyVersion: MARK_ATTRIBUTION_POLICY_ID,
+    marksPolicyVersion: MARK_DAILY_GRANT_POLICY_ID,
     terrainKind: 'lowland'
   });
 }

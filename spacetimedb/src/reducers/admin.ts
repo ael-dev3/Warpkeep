@@ -19,46 +19,22 @@ import {
   ensureGenesisFounder,
 } from '../foundingAuthority';
 import {
-  ETHEREUM_MAINNET_CHAIN_ID,
-  MarksAuthorityPolicyError,
-  SNAP_APPROVED_IMPLEMENTATION,
-  SNAP_APPROVED_IMPLEMENTATION_CODE_HASH,
-  SNAP_APPROVED_PROXY_CODE_HASH,
-  SNAP_MARK_POLICY_VERSION,
-  SNAP_PROXY_ADDRESS,
-  SNAP_PROXY_DEPLOYMENT_BLOCK,
-  applyOneToOneBurnCredit,
+  ADMITTED_DAILY_MARK_POLICY_VERSION,
   markAccountIsConsistent,
-  normalizeSnapBurnCredit,
-  snapBurnCreditsEqual,
 } from '../marksAuthorityPolicy';
 import {
   WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM,
   WARPKEEP_ENTRY_AGREEMENT_EVIDENCE_VERSIONS,
+  retainedEntryAgreementEvidenceExists,
 } from '../entryAgreementPolicy';
 import {
   FARCASTER_PROFILE_POLICY_VERSION,
-  FARCASTER_WALLET_POLICY_VERSION,
   ProfileAuthorityPolicyError,
   admissionProfileIsComplete,
   normalizeAdmissionReadyTrustedProfile,
   normalizeTrustedPublicProfile,
-  normalizeTrustedWalletAttribution,
   trustedProfilesEqual,
 } from '../profileAuthorityPolicy';
-import {
-  FIRST_SCAN_PREVIOUS_BLOCK,
-  MAX_U32,
-  MAX_U64,
-  SNAP_SCAN_CURSOR_KEY,
-  ScanBatchPolicyError,
-  WALLET_SNAPSHOT_KEY,
-  applyScanBatchCredit,
-  normalizePrivateStateId,
-  normalizeScanBatchPlan,
-  planWalletSnapshotTransition,
-  scanBatchReadyToFinalize,
-} from '../scanBatchPolicy';
 import {
   requireAdmin,
   requireAuthEpochResolver,
@@ -87,6 +63,7 @@ import {
   assertGenesisResourceForFid,
   inspectGenesisResourceGraph,
 } from '../resourceAuthority';
+import { grantDailyMarkIfActive } from '../dailyMarksAuthority';
 
 type AdminContext = Parameters<typeof requireAdmin>[0];
 
@@ -96,12 +73,10 @@ type AdminContext = Parameters<typeof requireAdmin>[0];
  * while the current entry/gameplay gate still requires the newest bundle.
  */
 function hasRetainedEntryAgreementEvidence(ctx: AdminContext, fid: bigint): boolean {
-  return WARPKEEP_ENTRY_AGREEMENT_EVIDENCE_VERSIONS.some((entryAgreementVersion) => {
-    const acceptance = ctx.db.alphaTermsAcceptanceV1.acceptanceKey.find(
-      fid + ':' + entryAgreementVersion,
-    );
-    return acceptance?.fid === fid && acceptance.termsVersion === entryAgreementVersion;
-  });
+  return retainedEntryAgreementEvidenceExists(
+    fid,
+    acceptanceKey => ctx.db.alphaTermsAcceptanceV1.acceptanceKey.find(acceptanceKey),
+  );
 }
 
 function cleanAdminNote(note: string): string {
@@ -204,156 +179,6 @@ function assertExactGenesisDynamicGraph(ctx: Parameters<typeof requireAdmin>[0])
   return resource;
 }
 
-type WalletSnapshotLike = Readonly<{
-  generation: bigint;
-  snapshotId: string;
-  attributionCount: number;
-  policyVersion: string;
-}>;
-
-type ScanBatchLike = Readonly<{
-  batchId: string;
-  cursorKey: string;
-  status: string;
-  previousFinalizedBlock: bigint;
-  previousFinalizedBlockHash: string;
-  throughFinalizedBlock: bigint;
-  throughFinalizedBlockHash: string;
-  walletSnapshotGeneration: bigint;
-  walletSnapshotId: string;
-  walletAttributionCount: number;
-  expectedCredits: number;
-  expectedMicros: bigint;
-  appliedCredits: number;
-  appliedMicros: bigint;
-  proxyCodeHash: string;
-  implementationAddress: string;
-  implementationCodeHash: string;
-  finalizedAt?: unknown;
-}>;
-
-type NormalizedWalletSnapshotEntry = Readonly<{
-  attributionKey: string;
-  fid: bigint;
-  address: string;
-  addressType: string;
-  source: string;
-  attributionPolicyVersion: string;
-  active: boolean;
-}>;
-
-function senderPolicyError(error: unknown): never {
-  if (
-    error instanceof MarksAuthorityPolicyError
-    || error instanceof ProfileAuthorityPolicyError
-    || error instanceof ScanBatchPolicyError
-  ) throw new SenderError(error.code);
-  throw error;
-}
-
-function normalizePrivateId(value: string, code: string): string {
-  try {
-    return normalizePrivateStateId(value, code);
-  } catch (error) {
-    return senderPolicyError(error);
-  }
-}
-
-function walletSnapshotRowsReconcile(
-  ctx: AdminContext,
-  snapshot: Pick<WalletSnapshotLike, 'generation' | 'attributionCount'>,
-): boolean {
-  let count = 0;
-  for (const row of ctx.db.fidWalletAttributionV1.bySnapshotAndAddress.filter(
-    snapshot.generation,
-  )) {
-    if (row.snapshotGeneration !== snapshot.generation) return false;
-    count += 1;
-    if (count > MAX_U32) return false;
-  }
-  return count === snapshot.attributionCount;
-}
-
-function currentSnapshotMatchesBatch(
-  ctx: AdminContext,
-  batch: ScanBatchLike,
-  verifyRows = false,
-): boolean {
-  const snapshot = ctx.db.walletAttributionSnapshotV1.snapshotKey.find(WALLET_SNAPSHOT_KEY);
-  return snapshot !== null
-    && snapshot.generation === batch.walletSnapshotGeneration
-    && snapshot.snapshotId === batch.walletSnapshotId
-    && snapshot.attributionCount === batch.walletAttributionCount
-    && snapshot.policyVersion === FARCASTER_WALLET_POLICY_VERSION
-    && (!verifyRows || walletSnapshotRowsReconcile(ctx, snapshot));
-}
-
-function cursorIsAtBatchPrevious(ctx: AdminContext, batch: ScanBatchLike): boolean {
-  const cursor = ctx.db.snapScanCursorV1.cursorKey.find(SNAP_SCAN_CURSOR_KEY);
-  if (cursor === null) {
-    return batch.previousFinalizedBlock === FIRST_SCAN_PREVIOUS_BLOCK;
-  }
-  return cursor.chainId === ETHEREUM_MAINNET_CHAIN_ID
-    && cursor.tokenContract === SNAP_PROXY_ADDRESS
-    && cursor.policyVersion === SNAP_MARK_POLICY_VERSION
-    && cursor.deploymentStartBlock === SNAP_PROXY_DEPLOYMENT_BLOCK
-    && cursor.lastFinalizedBlock === batch.previousFinalizedBlock
-    && cursor.lastFinalizedBlockHash === batch.previousFinalizedBlockHash
-    && cursor.proxyCodeHash === SNAP_APPROVED_PROXY_CODE_HASH
-    && cursor.implementationAddress === SNAP_APPROVED_IMPLEMENTATION
-    && cursor.implementationCodeHash === SNAP_APPROVED_IMPLEMENTATION_CODE_HASH;
-}
-
-function cursorHasFinalizedBatch(ctx: AdminContext, batch: ScanBatchLike): boolean {
-  const cursor = ctx.db.snapScanCursorV1.cursorKey.find(SNAP_SCAN_CURSOR_KEY);
-  if (
-    cursor === null
-    || cursor.chainId !== ETHEREUM_MAINNET_CHAIN_ID
-    || cursor.tokenContract !== SNAP_PROXY_ADDRESS
-    || cursor.policyVersion !== SNAP_MARK_POLICY_VERSION
-    || cursor.deploymentStartBlock !== SNAP_PROXY_DEPLOYMENT_BLOCK
-    || cursor.proxyCodeHash !== SNAP_APPROVED_PROXY_CODE_HASH
-    || cursor.implementationAddress !== SNAP_APPROVED_IMPLEMENTATION
-    || cursor.implementationCodeHash !== SNAP_APPROVED_IMPLEMENTATION_CODE_HASH
-    || cursor.walletSnapshotGeneration <= 0n
-    || cursor.walletSnapshotGeneration > MAX_U64
-    || cursor.lastFinalizedBlock < batch.throughFinalizedBlock
-  ) return false;
-  try {
-    if (
-      normalizePrivateStateId(cursor.walletSnapshotId, 'SCAN_CURSOR_SNAPSHOT_INVALID')
-      !== cursor.walletSnapshotId
-    ) return false;
-  } catch {
-    return false;
-  }
-  if (cursor.lastFinalizedBlock > batch.throughFinalizedBlock) return true;
-  return cursor.lastFinalizedBlockHash === batch.throughFinalizedBlockHash
-    && cursor.walletSnapshotGeneration === batch.walletSnapshotGeneration
-    && cursor.walletSnapshotId === batch.walletSnapshotId;
-}
-
-function aggregateBatchReceipts(ctx: AdminContext, batchId: string): Readonly<{
-  receiptCredits: number;
-  receiptMicros: bigint;
-  creditedAccounts: number;
-}> {
-  let receiptCredits = 0;
-  let receiptMicros = 0n;
-  const creditedFids = new Set<bigint>();
-  for (const receipt of ctx.db.snapBurnCreditV1.batchId.filter(batchId)) {
-    receiptCredits += 1;
-    receiptMicros += receipt.amountMicros;
-    creditedFids.add(receipt.attributedFid);
-    if (receiptCredits > MAX_U32) throw new SenderError('SCAN_BATCH_RECEIPT_OVERFLOW');
-  }
-  return Object.freeze({
-    receiptCredits,
-    receiptMicros,
-    creditedAccounts: creditedFids.size,
-  });
-}
-
 const adminAlphaStatus = t.object('AdminAlphaStatus', {
   worldTiles: t.u64(),
   players: t.u64(),
@@ -432,29 +257,6 @@ const alphaBackendInfo = t.object('AlphaBackendInfo', {
 const authResolverFidAdmissionV2 = t.object('AuthResolverFidAdmissionV2', {
   state: t.string(),
   authEpoch: t.u32(),
-});
-
-const walletSnapshotEntryV1 = t.object('WalletSnapshotEntryV1', {
-  attributionKey: t.string(),
-  fid: t.u64(),
-  address: t.string(),
-  addressType: t.string(),
-  source: t.string(),
-  attributionPolicyVersion: t.string(),
-  active: t.bool(),
-});
-
-const adminSnapScanBatchAggregateV1 = t.object('AdminSnapScanBatchAggregateV1', {
-  status: t.string(),
-  expectedCredits: t.u32(),
-  expectedMicros: t.u128(),
-  appliedCredits: t.u32(),
-  appliedMicros: t.u128(),
-  receiptCredits: t.u32(),
-  receiptMicros: t.u128(),
-  creditedAccounts: t.u32(),
-  cursorAdvanced: t.bool(),
-  internallyConsistent: t.bool(),
 });
 
 /**
@@ -650,7 +452,11 @@ export const adminGetAlphaStatusV3 = warpkeep.procedure(
         const visibleProjectionMatches = account !== null
           && profile.firstAuthenticatedAt !== undefined
           && hasRetainedEntryAgreementEvidence(tx, profile.fid)
-          && profile.totalSnapBurnedMicros === account.totalSnapBurnedMicros
+          && (
+            account.policyVersion === ADMITTED_DAILY_MARK_POLICY_VERSION
+              ? profile.totalSnapBurnedMicros === undefined
+              : profile.totalSnapBurnedMicros === account.totalSnapBurnedMicros
+          )
           && profile.marksEarnedMicros === account.earnedMicros
           && profile.marksSpentMicros === account.spentMicros
           && profile.marksBalanceMicros === account.balanceMicros
@@ -722,9 +528,9 @@ export const adminGetAlphaStatusV3 = warpkeep.procedure(
       }
 
       const activeWalletFids = new Map<string, Set<bigint>>();
-      const currentWalletSnapshot = tx.db.walletAttributionSnapshotV1.snapshotKey.find(
-        WALLET_SNAPSHOT_KEY,
-      );
+      // Frozen v3 aggregate compatibility only. No reducer can create or
+      // replace this retired snapshot after the daily-Marks migration.
+      const currentWalletSnapshot = tx.db.walletAttributionSnapshotV1.snapshotKey.find('current');
       if (currentWalletSnapshot !== null) {
         for (const row of tx.db.fidWalletAttributionV1.bySnapshotAndAddress.filter(
           currentWalletSnapshot.generation,
@@ -961,6 +767,7 @@ export const adminAllowFid = warpkeep.reducer(
     });
     assertGenesisFounderForFid(ctx, fid);
     assertGenesisResourceForFid(ctx, fid);
+    grantDailyMarkIfActive(ctx, fid);
   },
 );
 
@@ -1017,6 +824,7 @@ export const adminAdmitFounderV1 = warpkeep.reducer(
     ) throw new SenderError('FOUNDER_PROFILE_INCOMPLETE');
     assertGenesisFounderForFid(ctx, input.fid);
     assertGenesisResourceForFid(ctx, input.fid);
+    grantDailyMarkIfActive(ctx, input.fid);
   },
 );
 
@@ -1070,528 +878,7 @@ export const adminUpsertRealmProfileV1 = warpkeep.reducer(
   },
 );
 
-/** Retired single-row mutation path; complete snapshots are required. */
-export const adminUpsertFidWalletAttributionV1 = warpkeep.reducer(
-  { name: 'admin_upsert_fid_wallet_attribution_v1' },
-  {
-    attributionKey: t.string(),
-    fid: t.u64(),
-    address: t.string(),
-    addressType: t.string(),
-    source: t.string(),
-    attributionPolicyVersion: t.string(),
-    active: t.bool(),
-  },
-  (ctx, _input) => {
-    requireAdmin(ctx);
-    throw new SenderError('WALLET_SNAPSHOT_REPLACEMENT_REQUIRED');
-  },
-);
-
-/**
- * Atomically replaces the complete current attribution snapshot. Historical
- * generations remain immutable, and a pending scan freezes replacement.
- */
-export const adminReplaceFidWalletSnapshotV1 = warpkeep.reducer(
-  { name: 'admin_replace_fid_wallet_snapshot_v1' },
-  {
-    expectedGeneration: t.u64(),
-    snapshotId: t.string(),
-    entries: t.array(walletSnapshotEntryV1),
-  },
-  (ctx, input) => {
-    const admin = requireAdmin(ctx);
-    const existing = ctx.db.walletAttributionSnapshotV1.snapshotKey.find(WALLET_SNAPSHOT_KEY);
-    const singletonCount = ctx.db.walletAttributionSnapshotV1.count();
-    if (singletonCount > 1n || (singletonCount === 1n) !== (existing !== null)) {
-      throw new SenderError('WALLET_SNAPSHOT_STATE_INTEGRITY');
-    }
-
-    let transition;
-    try {
-      transition = planWalletSnapshotTransition({
-        existing,
-        expectedGeneration: input.expectedGeneration,
-        snapshotId: input.snapshotId,
-        attributionCount: input.entries.length,
-      });
-    } catch (error) {
-      return senderPolicyError(error);
-    }
-
-    const normalizedEntries: NormalizedWalletSnapshotEntry[] = [];
-    const attributionKeys = new Set<string>();
-    const semanticLinks = new Set<string>();
-    for (const entry of input.entries) {
-      requireSupportedFid(entry.fid);
-      assertGenesisFounderForFid(ctx, entry.fid);
-      const allowed = ctx.db.allowedFid.fid.find(entry.fid);
-      if (allowed === null || !allowed.enabled) {
-        throw new SenderError('WALLET_SNAPSHOT_FID_NOT_ADMITTED');
-      }
-      let normalized;
-      try {
-        normalized = normalizeTrustedWalletAttribution(entry);
-      } catch (error) {
-        return senderPolicyError(error);
-      }
-      if (!normalized.active) throw new SenderError('WALLET_SNAPSHOT_INACTIVE_ENTRY');
-      if (attributionKeys.has(normalized.attributionKey)) {
-        throw new SenderError('WALLET_SNAPSHOT_DUPLICATE_KEY');
-      }
-      const semanticLink = `${entry.fid}:${normalized.address}`;
-      if (semanticLinks.has(semanticLink)) {
-        throw new SenderError('WALLET_SNAPSHOT_DUPLICATE_LINK');
-      }
-      attributionKeys.add(normalized.attributionKey);
-      semanticLinks.add(semanticLink);
-      normalizedEntries.push(Object.freeze({ ...normalized, fid: entry.fid }));
-    }
-
-    if (transition.kind === 'retry') {
-      if (existing === null || !walletSnapshotRowsReconcile(ctx, existing)) {
-        throw new SenderError('WALLET_SNAPSHOT_RETRY_CONFLICT');
-      }
-      for (const entry of normalizedEntries) {
-        const snapshotAttributionKey = `${transition.generation}:${entry.attributionKey}`;
-        const row = ctx.db.fidWalletAttributionV1.snapshotAttributionKey.find(
-          snapshotAttributionKey,
-        );
-        if (
-          row === null
-          || row.attributionKey !== entry.attributionKey
-          || row.snapshotGeneration !== transition.generation
-          || row.fid !== entry.fid
-          || row.address !== entry.address
-          || row.addressType !== entry.addressType
-          || row.source !== entry.source
-          || row.attributionPolicyVersion !== entry.attributionPolicyVersion
-          || row.active !== entry.active
-        ) throw new SenderError('WALLET_SNAPSHOT_RETRY_CONFLICT');
-      }
-      return;
-    }
-
-    for (const _pending of ctx.db.snapScanBatchV1.byCursorAndStatus.filter([
-      SNAP_SCAN_CURSOR_KEY,
-      'pending',
-    ])) {
-      throw new SenderError('WALLET_SNAPSHOT_FROZEN_BY_PENDING_BATCH');
-    }
-    if (existing === null && ctx.db.fidWalletAttributionV1.count() !== 0n) {
-      throw new SenderError('WALLET_SNAPSHOT_STATE_INTEGRITY');
-    }
-
-    for (const entry of normalizedEntries) {
-      ctx.db.fidWalletAttributionV1.insert({
-        snapshotAttributionKey: `${transition.generation}:${entry.attributionKey}`,
-        attributionKey: entry.attributionKey,
-        snapshotGeneration: transition.generation,
-        fid: entry.fid,
-        address: entry.address,
-        addressType: entry.addressType,
-        source: entry.source,
-        snapshotAt: ctx.timestamp,
-        attributionPolicyVersion: entry.attributionPolicyVersion,
-        active: entry.active,
-      });
-    }
-    const nextSnapshot = {
-      snapshotKey: WALLET_SNAPSHOT_KEY,
-      generation: transition.generation,
-      snapshotId: transition.snapshotId,
-      policyVersion: transition.policyVersion,
-      attributionCount: transition.attributionCount,
-      snapshotAt: ctx.timestamp,
-    };
-    if (existing === null) ctx.db.walletAttributionSnapshotV1.insert(nextSnapshot);
-    else ctx.db.walletAttributionSnapshotV1.snapshotKey.update(nextSnapshot);
-    audit(
-      ctx,
-      'replace_wallet_snapshot_v1',
-      undefined,
-      admin.subject,
-      `count=${transition.attributionCount};policy=${transition.policyVersion}`,
-    );
-  },
-);
-
-/**
- * Starts one resumable batch without advancing the finalized cursor. The
- * cursor, wallet snapshot, range totals, and code attestation are frozen.
- */
-export const adminBeginSnapScanBatchV1 = warpkeep.reducer(
-  { name: 'admin_begin_snap_scan_batch_v1' },
-  {
-    batchId: t.string(),
-    previousFinalizedBlock: t.u64(),
-    previousFinalizedBlockHash: t.string(),
-    throughFinalizedBlock: t.u64(),
-    throughFinalizedBlockHash: t.string(),
-    walletSnapshotGeneration: t.u64(),
-    walletSnapshotId: t.string(),
-    expectedCredits: t.u32(),
-    expectedMicros: t.u128(),
-    proxyCodeHash: t.string(),
-    implementationAddress: t.string(),
-    implementationCodeHash: t.string(),
-  },
-  (ctx, input) => {
-    const admin = requireAdmin(ctx);
-    const snapshot = ctx.db.walletAttributionSnapshotV1.snapshotKey.find(WALLET_SNAPSHOT_KEY);
-    if (
-      snapshot === null
-      || ctx.db.walletAttributionSnapshotV1.count() !== 1n
-      || !walletSnapshotRowsReconcile(ctx, snapshot)
-    ) throw new SenderError('WALLET_SNAPSHOT_STATE_INTEGRITY');
-    const cursor = ctx.db.snapScanCursorV1.cursorKey.find(SNAP_SCAN_CURSOR_KEY);
-
-    let plan;
-    try {
-      plan = normalizeScanBatchPlan(input, cursor, snapshot);
-    } catch (error) {
-      return senderPolicyError(error);
-    }
-    const existing = ctx.db.snapScanBatchV1.batchId.find(plan.batchId);
-    if (existing !== null) {
-      const receipts = aggregateBatchReceipts(ctx, plan.batchId);
-      const exactRetry = existing.status === 'pending'
-        && existing.finalizedAt === undefined
-        && existing.cursorKey === SNAP_SCAN_CURSOR_KEY
-        && existing.previousFinalizedBlock === plan.previousFinalizedBlock
-        && existing.previousFinalizedBlockHash === plan.previousFinalizedBlockHash
-        && existing.throughFinalizedBlock === plan.throughFinalizedBlock
-        && existing.throughFinalizedBlockHash === plan.throughFinalizedBlockHash
-        && existing.walletSnapshotGeneration === plan.walletSnapshotGeneration
-        && existing.walletSnapshotId === plan.walletSnapshotId
-        && existing.walletAttributionCount === snapshot.attributionCount
-        && existing.expectedCredits === plan.expectedCredits
-        && existing.expectedMicros === plan.expectedMicros
-        && existing.appliedCredits === receipts.receiptCredits
-        && existing.appliedMicros === receipts.receiptMicros
-        && existing.proxyCodeHash === plan.proxyCodeHash
-        && existing.implementationAddress === plan.implementationAddress
-        && existing.implementationCodeHash === plan.implementationCodeHash;
-      if (!exactRetry) throw new SenderError('SCAN_BATCH_RETRY_CONFLICT');
-      for (const pending of ctx.db.snapScanBatchV1.byCursorAndStatus.filter([
-        SNAP_SCAN_CURSOR_KEY,
-        'pending',
-      ])) {
-        if (pending.batchId !== plan.batchId) {
-          throw new SenderError('SCAN_BATCH_ALREADY_PENDING');
-        }
-      }
-      return;
-    }
-    for (const _pending of ctx.db.snapScanBatchV1.byCursorAndStatus.filter([
-      SNAP_SCAN_CURSOR_KEY,
-      'pending',
-    ])) {
-      throw new SenderError('SCAN_BATCH_ALREADY_PENDING');
-    }
-
-    ctx.db.snapScanBatchV1.insert({
-      batchId: plan.batchId,
-      cursorKey: SNAP_SCAN_CURSOR_KEY,
-      status: 'pending',
-      previousFinalizedBlock: plan.previousFinalizedBlock,
-      previousFinalizedBlockHash: plan.previousFinalizedBlockHash,
-      throughFinalizedBlock: plan.throughFinalizedBlock,
-      throughFinalizedBlockHash: plan.throughFinalizedBlockHash,
-      walletSnapshotGeneration: plan.walletSnapshotGeneration,
-      walletSnapshotId: plan.walletSnapshotId,
-      walletAttributionCount: snapshot.attributionCount,
-      expectedCredits: plan.expectedCredits,
-      expectedMicros: plan.expectedMicros,
-      appliedCredits: 0,
-      appliedMicros: 0n,
-      proxyCodeHash: plan.proxyCodeHash,
-      implementationAddress: plan.implementationAddress,
-      implementationCodeHash: plan.implementationCodeHash,
-      startedAt: ctx.timestamp,
-      finalizedAt: undefined,
-    });
-    audit(
-      ctx,
-      'begin_snap_scan_batch_v1',
-      undefined,
-      admin.subject,
-      `count=${plan.expectedCredits};policy=${SNAP_MARK_POLICY_VERSION}`,
-    );
-  },
-);
-
-/**
- * Applies one receipt inside the frozen pending batch. Exact receipt retries
- * are allowed after finalization, while all new credits require pending state.
- */
-export const adminCreditSnapBurnV1 = warpkeep.reducer(
-  { name: 'admin_credit_snap_burn_v1' },
-  {
-    batchId: t.string(),
-    eventKey: t.string(),
-    chainId: t.u32(),
-    tokenContract: t.string(),
-    transactionHash: t.string(),
-    logIndex: t.u32(),
-    burnReference: t.string(),
-    burnMethod: t.string(),
-    senderAddress: t.string(),
-    blockNumber: t.u64(),
-    blockHash: t.string(),
-    amountMicros: t.u128(),
-    attributedFid: t.u64(),
-    attributionPolicyVersion: t.string(),
-    implementationAddress: t.string(),
-    contractCodeHash: t.string(),
-  },
-  (ctx, input) => {
-    const admin = requireAdmin(ctx);
-    const batchId = normalizePrivateId(input.batchId, 'SCAN_BATCH_ID_INVALID');
-    let credit;
-    try {
-      credit = normalizeSnapBurnCredit(input);
-    } catch (error) {
-      return senderPolicyError(error);
-    }
-    requireSupportedFid(credit.attributedFid);
-
-    const existingReceipt = ctx.db.snapBurnCreditV1.eventKey.find(credit.eventKey);
-    if (existingReceipt !== null) {
-      if (existingReceipt.batchId !== batchId || !snapBurnCreditsEqual(existingReceipt, credit)) {
-        throw new SenderError('SNAP_EVENT_CONFLICT');
-      }
-      assertGenesisFounderForFid(ctx, credit.attributedFid);
-      const account = ctx.db.markAccountV1.fid.find(credit.attributedFid);
-      const existingBatch = ctx.db.snapScanBatchV1.batchId.find(batchId);
-      if (account === null || !markAccountIsConsistent(account)) {
-        throw new SenderError('MARK_ACCOUNT_INVARIANT');
-      }
-      if (
-        existingBatch === null
-        || existingBatch.appliedCredits < 1
-        || existingBatch.appliedMicros < credit.amountMicros
-      ) throw new SenderError('SNAP_EVENT_STATE_INTEGRITY');
-      return;
-    }
-    const duplicateReference = ctx.db.snapBurnCreditV1.burnReference.find(credit.burnReference);
-    if (duplicateReference !== null) throw new SenderError('SNAP_BURN_REFERENCE_CONFLICT');
-
-    const batch = ctx.db.snapScanBatchV1.batchId.find(batchId);
-    if (batch === null) throw new SenderError('SCAN_BATCH_NOT_FOUND');
-    if (batch.status !== 'pending' || batch.finalizedAt !== undefined) {
-      throw new SenderError('SCAN_BATCH_NOT_PENDING');
-    }
-    if (
-      batch.cursorKey !== SNAP_SCAN_CURSOR_KEY
-      || !cursorIsAtBatchPrevious(ctx, batch)
-    ) throw new SenderError('SCAN_CURSOR_MISMATCH');
-    if (!currentSnapshotMatchesBatch(ctx, batch)) {
-      throw new SenderError('SCAN_BATCH_WALLET_SNAPSHOT_MISMATCH');
-    }
-    if (
-      batch.proxyCodeHash !== SNAP_APPROVED_PROXY_CODE_HASH
-      || batch.implementationAddress !== input.implementationAddress.trim().toLowerCase()
-      || batch.implementationCodeHash !== credit.contractCodeHash
-    ) throw new SenderError('SCAN_BATCH_ATTESTATION_MISMATCH');
-    if (
-      credit.blockNumber <= batch.previousFinalizedBlock
-      || credit.blockNumber > batch.throughFinalizedBlock
-      || (
-        credit.blockNumber === batch.throughFinalizedBlock
-        && credit.blockHash !== batch.throughFinalizedBlockHash
-      )
-    ) throw new SenderError('SNAP_EVENT_OUTSIDE_BATCH');
-
-    assertGenesisFounderForFid(ctx, credit.attributedFid);
-    const attributedAllowed = ctx.db.allowedFid.fid.find(credit.attributedFid);
-    if (attributedAllowed === null || !attributedAllowed.enabled) {
-      throw new SenderError('SNAP_ATTRIBUTION_NOT_ADMITTED');
-    }
-    const currentFids = new Set<bigint>();
-    for (const attribution of ctx.db.fidWalletAttributionV1.bySnapshotAndAddress.filter([
-      batch.walletSnapshotGeneration,
-      credit.senderAddress,
-    ])) {
-      if (
-        !attribution.active
-        || attribution.snapshotGeneration !== batch.walletSnapshotGeneration
-        || attribution.attributionPolicyVersion !== FARCASTER_WALLET_POLICY_VERSION
-      ) continue;
-      const allowed = ctx.db.allowedFid.fid.find(attribution.fid);
-      if (allowed !== null && allowed.enabled) currentFids.add(attribution.fid);
-    }
-    if (currentFids.size !== 1 || !currentFids.has(credit.attributedFid)) {
-      throw new SenderError('SNAP_ATTRIBUTION_AMBIGUOUS');
-    }
-
-    const account = ctx.db.markAccountV1.fid.find(credit.attributedFid);
-    const profile = ctx.db.realmProfileV1.fid.find(credit.attributedFid);
-    if (account === null || profile === null) throw new SenderError('STATE_INTEGRITY');
-    let nextAccount;
-    let nextBatchTotals;
-    try {
-      nextAccount = applyOneToOneBurnCredit(account, credit.amountMicros);
-      nextBatchTotals = applyScanBatchCredit({
-        appliedCredits: batch.appliedCredits,
-        appliedMicros: batch.appliedMicros,
-        expectedCredits: batch.expectedCredits,
-        expectedMicros: batch.expectedMicros,
-        amountMicros: credit.amountMicros,
-      });
-    } catch (error) {
-      return senderPolicyError(error);
-    }
-
-    ctx.db.snapBurnCreditV1.insert({ ...credit, batchId, creditedAt: ctx.timestamp });
-    ctx.db.snapScanBatchV1.batchId.update({
-      ...batch,
-      appliedCredits: nextBatchTotals.appliedCredits,
-      appliedMicros: nextBatchTotals.appliedMicros,
-    });
-    ctx.db.markAccountV1.fid.update({
-      ...account,
-      ...nextAccount,
-      updatedAt: ctx.timestamp,
-    });
-    if (profile.communityStatsVisible) {
-      if (
-        profile.firstAuthenticatedAt === undefined
-        || !hasRetainedEntryAgreementEvidence(ctx, credit.attributedFid)
-      ) throw new SenderError('STATE_INTEGRITY');
-      ctx.db.realmProfileV1.fid.update({
-        ...profile,
-        totalSnapBurnedMicros: nextAccount.totalSnapBurnedMicros,
-        marksEarnedMicros: nextAccount.earnedMicros,
-        marksSpentMicros: nextAccount.spentMicros,
-        marksBalanceMicros: nextAccount.balanceMicros,
-        marksPolicyVersion: nextAccount.policyVersion,
-      });
-    }
-    audit(
-      ctx,
-      'credit_snap_burn_v1',
-      credit.attributedFid,
-      admin.subject,
-      credit.attributionPolicyVersion,
-    );
-  },
-);
-
-/** Reconciles the exact batch receipt set, then advances the cursor atomically. */
-export const adminFinalizeSnapScanBatchV1 = warpkeep.reducer(
-  { name: 'admin_finalize_snap_scan_batch_v1' },
-  { batchId: t.string() },
-  (ctx, { batchId: rawBatchId }) => {
-    const admin = requireAdmin(ctx);
-    const batchId = normalizePrivateId(rawBatchId, 'SCAN_BATCH_ID_INVALID');
-    const batch = ctx.db.snapScanBatchV1.batchId.find(batchId);
-    if (batch === null) throw new SenderError('SCAN_BATCH_NOT_FOUND');
-    const receipts = aggregateBatchReceipts(ctx, batchId);
-    const totalsReconcile = batch.expectedCredits === batch.appliedCredits
-      && batch.expectedMicros === batch.appliedMicros
-      && batch.appliedCredits === receipts.receiptCredits
-      && batch.appliedMicros === receipts.receiptMicros;
-
-    if (batch.status === 'finalized') {
-      if (
-        batch.finalizedAt === undefined
-        || !totalsReconcile
-        || !cursorHasFinalizedBatch(ctx, batch)
-      ) {
-        throw new SenderError('SCAN_BATCH_FINALIZED_STATE_MISMATCH');
-      }
-      return;
-    }
-    if (batch.status !== 'pending') throw new SenderError('SCAN_BATCH_STATUS_INVALID');
-    if (batch.finalizedAt !== undefined) throw new SenderError('SCAN_BATCH_STATUS_INVALID');
-    if (!cursorIsAtBatchPrevious(ctx, batch)) throw new SenderError('SCAN_CURSOR_MISMATCH');
-    if (!currentSnapshotMatchesBatch(ctx, batch, true)) {
-      throw new SenderError('SCAN_BATCH_WALLET_SNAPSHOT_MISMATCH');
-    }
-    if (!scanBatchReadyToFinalize({
-      status: batch.status,
-      expectedCredits: batch.expectedCredits,
-      expectedMicros: batch.expectedMicros,
-      appliedCredits: batch.appliedCredits,
-      appliedMicros: batch.appliedMicros,
-      receiptCredits: receipts.receiptCredits,
-      receiptMicros: receipts.receiptMicros,
-    })) throw new SenderError('SCAN_BATCH_NOT_RECONCILED');
-
-    const cursor = ctx.db.snapScanCursorV1.cursorKey.find(SNAP_SCAN_CURSOR_KEY);
-    const finalizedCursor = {
-      cursorKey: SNAP_SCAN_CURSOR_KEY,
-      chainId: ETHEREUM_MAINNET_CHAIN_ID,
-      tokenContract: SNAP_PROXY_ADDRESS,
-      policyVersion: SNAP_MARK_POLICY_VERSION,
-      deploymentStartBlock: SNAP_PROXY_DEPLOYMENT_BLOCK,
-      lastFinalizedBlock: batch.throughFinalizedBlock,
-      lastFinalizedBlockHash: batch.throughFinalizedBlockHash,
-      proxyCodeHash: batch.proxyCodeHash,
-      implementationAddress: batch.implementationAddress,
-      implementationCodeHash: batch.implementationCodeHash,
-      walletSnapshotGeneration: batch.walletSnapshotGeneration,
-      walletSnapshotId: batch.walletSnapshotId,
-      scannedAt: ctx.timestamp,
-    };
-    if (cursor === null) ctx.db.snapScanCursorV1.insert(finalizedCursor);
-    else ctx.db.snapScanCursorV1.cursorKey.update(finalizedCursor);
-    ctx.db.snapScanBatchV1.batchId.update({
-      ...batch,
-      status: 'finalized',
-      finalizedAt: ctx.timestamp,
-    });
-    audit(
-      ctx,
-      'finalize_snap_scan_batch_v1',
-      undefined,
-      admin.subject,
-      `count=${batch.expectedCredits};policy=${SNAP_MARK_POLICY_VERSION}`,
-    );
-  },
-);
-
-/** Counts-only private reconciliation view; it never returns event or wallet data. */
-export const adminGetSnapScanBatchAggregateV1 = warpkeep.procedure(
-  { name: 'admin_get_snap_scan_batch_aggregate_v1' },
-  { batchId: t.string() },
-  adminSnapScanBatchAggregateV1,
-  (ctx, { batchId: rawBatchId }) =>
-    ctx.withTx(tx => {
-      requireAdmin(tx);
-      const batchId = normalizePrivateId(rawBatchId, 'SCAN_BATCH_ID_INVALID');
-      const batch = tx.db.snapScanBatchV1.batchId.find(batchId);
-      if (batch === null) throw new SenderError('SCAN_BATCH_NOT_FOUND');
-      const receipts = aggregateBatchReceipts(tx, batchId);
-      const cursorAdvanced = cursorHasFinalizedBatch(tx, batch);
-      const receiptCountersReconcile = batch.appliedCredits === receipts.receiptCredits
-        && batch.appliedMicros === receipts.receiptMicros
-        && batch.appliedCredits <= batch.expectedCredits
-        && batch.appliedMicros <= batch.expectedMicros;
-      const complete = batch.expectedCredits === batch.appliedCredits
-        && batch.expectedMicros === batch.appliedMicros;
-      const stateReconciles = batch.status === 'finalized'
-        ? batch.finalizedAt !== undefined && cursorAdvanced && complete
-        : batch.status === 'pending'
-          && batch.finalizedAt === undefined
-          && cursorIsAtBatchPrevious(tx, batch)
-          && currentSnapshotMatchesBatch(tx, batch);
-      return {
-        status: batch.status,
-        expectedCredits: batch.expectedCredits,
-        expectedMicros: batch.expectedMicros,
-        appliedCredits: batch.appliedCredits,
-        appliedMicros: batch.appliedMicros,
-        receiptCredits: receipts.receiptCredits,
-        receiptMicros: receipts.receiptMicros,
-        creditedAccounts: receipts.creditedAccounts,
-        cursorAdvanced,
-        internallyConsistent: receiptCountersReconcile && stateReconciles,
-      };
-    }),
-);
-
+/** Burn and wallet-attribution mutation wires were retired in Alpha 0.3.33. */
 export const adminDisableFid = warpkeep.reducer(
   { name: 'admin_disable_fid' },
   { fid: t.u64(), note: t.string() },

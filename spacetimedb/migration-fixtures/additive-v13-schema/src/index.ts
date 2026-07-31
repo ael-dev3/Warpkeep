@@ -229,6 +229,21 @@ export const runWorkerAssignmentScheduleV1 = db.reducer(
   () => {},
 );
 
+/** Populates the v13 suffix before the v13 -> v14 preservation proof. */
+export const fixtureSeedAccessRequestSentinelV13 = db.reducer(
+  { name: 'fixture_seed_access_request_sentinel_v13' },
+  ctx => {
+    if (ctx.db.accessRequestV1.count() !== 0n) {
+      throw new Error('FIXTURE_ACCESS_REQUEST_NOT_EMPTY');
+    }
+    ctx.db.accessRequestV1.insert({
+      fid: 991_201n,
+      requestCycle: 1n,
+      requestedAt: ctx.timestamp,
+    });
+  },
+);
+
 export const runGoldExpeditionScheduleV1 = db.reducer(
   { name: 'run_gold_expedition_schedule_v_1' },
   { arg: goldExpeditionScheduleV1.rowType },

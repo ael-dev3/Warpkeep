@@ -130,6 +130,8 @@ describe('public Alpha legal documents', () => {
     expect(termsText).toContain('may change, break, pause, or be reset');
     expect(termsText).toContain('will not earn or entitle you to tokens, airdrops, allocations');
     expect(termsText).toContain('Marks are non-transferable, non-redeemable accounting units');
+    expect(termsText).toContain('receive one Mark per eligible Realm day');
+    expect(termsText).toContain('Marks are issued only as server-owned game accounting');
     expect(termsText).toContain('does not ask the browser to connect a wallet');
     expect(termsText).toContain('not sponsored, operated, or endorsed by Farcaster');
     expect(termsText).toContain('Formal legal review remains necessary');
@@ -175,10 +177,12 @@ describe('public Alpha legal documents', () => {
       'frozen legacy public player schema',
       'Private deployment checks read only its aggregate row count',
       'require it to remain empty',
-      'finalized public Ethereum mainnet events',
-      'wallet associations remain private operator state',
-      'browser never scans wallets',
+      'does not use Farcaster wallet associations to issue Marks',
+      'automatically add one Mark',
+      'browser cannot choose or submit them',
+      'does not scan a wallet or blockchain',
       'non-transferable, non-redeemable, without cash value',
+      'Daily Mark receipts and Mark account',
       'Only privacy-bounded aggregate figures become public game state',
       'no-referrer browser policy',
       'No fixed Alpha deletion schedule yet',

@@ -15,6 +15,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import {
   ACCESS_REQUEST_V13_TABLE_CONTRACTS,
+  DAILY_MARK_V14_TABLE_CONTRACTS,
   GENESIS_WORLD_PUBLISH_STAGE,
   PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS,
   RESOURCE_PUBLISH_ROLLOUT_STAGE,
@@ -28,6 +29,7 @@ import {
   alphaV8AggregateChildArguments,
   canonicalSchemaDescribeChildArguments,
   createPrivatePublishSnapshot,
+  dailyMarksV14InspectChildArguments,
   parseCanonicalSchemaDescription,
   parseMigrationProofReceipt,
   parsePublishArguments,
@@ -49,10 +51,12 @@ import {
   verifyFreshProductionV11Schema,
   verifyFreshProductionV12ModuleSchema,
   verifyFreshProductionV13ModuleSchema,
+  verifyFreshProductionV14ModuleSchema,
   verifyFreshFoundedProtocolV3Aggregate,
   verifyFreshResourceProtocolV4PrebackfillAggregate,
   verifyFreshResourceProtocolV4ReadyAggregate,
   verifyMigrationArtifactReceipt,
+  verifyEmptyDailyMarksV14StatusOutput,
   verifyPinnedCliAttestation,
   verifyPostPublishAlphaStatusV8Aggregate,
   verifyPostPublishAlphaStatusV10Aggregate,
@@ -64,6 +68,8 @@ import {
   verifyPostPublishProductionV13ModuleSchema,
   verifyPostPublishProductionV13ActiveModuleSchema,
   verifyPostPublishProductionV13SchemaFromV11,
+  verifyPostPublishProductionV14ModuleSchema,
+  verifyPostPublishEmptyDailyMarksV14,
   verifyPostPublishResourceProtocolV4PrebackfillAggregate,
   verifyPostPublishResourceProtocolV4ReadyAggregate,
   verifyPostPublishResourcePublicationCheckpoints,
@@ -84,6 +90,8 @@ import {
   verifyExactProductionV13Schema,
   verifyExactProductionV13SchemaFromV11,
   verifyExactProductionV13ModuleSchema,
+  verifyExactProductionV14Schema,
+  verifyExactProductionV14ModuleSchema,
   verifyWorkerV13ModulePredecessor,
 } from '../scripts/publish-spacetime-dev.mjs';
 import {
@@ -373,6 +381,33 @@ function publishResourceV4Status(
   };
 }
 
+function emptyDailyMarksV14Status(overrides: Record<string, unknown> = {}) {
+  return {
+    policyVersion: 'admitted-daily-mark-v1',
+    utcDay: '20665',
+    allowedFids: '4',
+    enabledAllowedFids: '3',
+    markAccounts: '4',
+    dailyAccounts: '0',
+    legacyZeroAccounts: '4',
+    invalidAccounts: '0',
+    realmProfiles: '4',
+    profileProjectionViolations: '0',
+    missingFounderState: '0',
+    grants: '0',
+    currentDayGrants: '0',
+    grantInvariantViolations: '0',
+    grantAccountReconciliationViolations: '0',
+    scheduleRows: '0',
+    scheduleConfigValid: true,
+    legacyCompatibilityRows: '0',
+    readyForBackfill: true,
+    readyForActivation: false,
+    active: false,
+    ...overrides,
+  };
+}
+
 function productionSchemaDescription(includeWorkerV12: boolean) {
   const refs: Record<string, number> = {
     ...PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS,
@@ -466,6 +501,59 @@ function withAccessRequestV13<T>(description: T): T {
       data: { Unique: { columns: [0] } },
     }],
   });
+  return candidate;
+}
+
+function withDailyMarksV14<T>(description: T): T {
+  const candidate = structuredClone(description) as T & {
+    tables: Array<{
+      name: string;
+      product_type_ref: number;
+      table_access: Record<string, object>;
+      indexes: Array<Record<string, unknown>>;
+      constraints: Array<Record<string, unknown>>;
+    }>;
+    typespace: {
+      types: Array<{
+        Product: {
+          elements: Array<{
+            name: { some: string };
+            algebraic_type: Record<string, unknown>;
+          }>;
+        };
+      }>;
+    };
+  };
+  for (const [name, contract] of Object.entries(
+    DAILY_MARK_V14_TABLE_CONTRACTS,
+  )) {
+    candidate.typespace.types[contract.productTypeRef] = {
+      Product: {
+        elements: contract.fields.map((field, index) => ({
+          name: { some: field },
+          algebraic_type: index === 0
+            ? { String: {} }
+            : field === 'granted_at'
+                || field === 'scheduled_at'
+              ? { Timestamp: {} }
+              : { U64: {} },
+        })),
+      },
+    };
+    candidate.tables.push({
+      name,
+      product_type_ref: contract.productTypeRef,
+      table_access: { [contract.access]: {} },
+      indexes: [{
+        name: `${name}_by_primary`,
+        algorithm: { BTree: { columns: [0] } },
+      }],
+      constraints: [{
+        name: `${name}_primary`,
+        data: { Unique: { columns: [0] } },
+      }],
+    });
+  }
   return candidate;
 }
 
@@ -658,11 +746,17 @@ const workerResourceStateFields = [
 function workerModuleSchemaDescription(
   state: 'predecessor' | 'active-predecessor' | 'candidate',
   includeAccessRequestV13 = false,
+  includeDailyMarksV14 = false,
 ) {
-  const description = (
+  const v13Description = (
     includeAccessRequestV13
       ? withAccessRequestV13(productionSchemaDescription(true))
       : productionSchemaDescription(true)
+  );
+  const description = (
+    includeDailyMarksV14
+      ? withDailyMarksV14(v13Description)
+      : v13Description
   ) as ReturnType<
     typeof productionSchemaDescription
   > & {
@@ -1130,6 +1224,7 @@ async function withTestProvenArtifact<T>(callback: (receipt: {
   v11TableSchemaDigest: string;
   v12TableSchemaDigest: string;
   v13TableSchemaDigest: string;
+  v14TableSchemaDigest: string;
   artifactDigest: string;
 }) => Promise<T> | T): Promise<T> {
   let previous: Buffer | undefined;
@@ -1146,6 +1241,7 @@ async function withTestProvenArtifact<T>(callback: (receipt: {
     v11TableSchemaDigest: 'a'.repeat(64),
     v12TableSchemaDigest: 'b'.repeat(64),
     v13TableSchemaDigest: 'c'.repeat(64),
+    v14TableSchemaDigest: 'd'.repeat(64),
     artifactDigest: createHash('sha256').update(content).digest('hex'),
   });
   try {
@@ -1712,6 +1808,10 @@ describe('activation publish safety', () => {
       alreadyCandidate.moduleState,
       WORKER_MODULE_PREDECESSOR.EXACT_V13_ACTIVE,
     )).toBe('candidate');
+    expect(verifyWorkerV13ModulePredecessor(
+      alreadyCandidate.moduleState,
+      WORKER_MODULE_PREDECESSOR.EXACT_V13_ACTIVE_V14_EMPTY,
+    )).toBe('candidate');
     expect(() => verifyWorkerV13ModulePredecessor(
       'predecessor',
       WORKER_MODULE_PREDECESSOR.EXACT_V13_ACTIVE,
@@ -1807,6 +1907,210 @@ describe('activation publish safety', () => {
     )).toThrow(/post-publication active-v13 module checkpoint is indeterminate/i);
   });
 
+  it('requires the exact private refs 54-55 v14 append over a captured active v13 predecessor', () => {
+    const v12 = workerModuleSchemaDescription('candidate');
+    const v13 = workerModuleSchemaDescription('candidate', true);
+    const v14 = workerModuleSchemaDescription('candidate', true, true);
+    const v12TableNames = [
+      ...Object.keys(PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS),
+      ...Object.keys(WORKER_V12_TABLE_CONTRACTS),
+    ];
+    const v13TableNames = [
+      ...v12TableNames,
+      ...Object.keys(ACCESS_REQUEST_V13_TABLE_CONTRACTS),
+    ];
+    const v14TableNames = [
+      ...v13TableNames,
+      ...Object.keys(DAILY_MARK_V14_TABLE_CONTRACTS),
+    ];
+    const v12TableSchemaDigest = canonicalTableSchemaBoundaryDigest(
+      v12,
+      v12TableNames,
+    );
+    const v13TableSchemaDigest = canonicalTableSchemaBoundaryDigest(
+      v13,
+      v13TableNames,
+    );
+    const v14TableSchemaDigest = canonicalTableSchemaBoundaryDigest(
+      v14,
+      v14TableNames,
+    );
+    const predecessor = verifyExactProductionV13ModuleSchema(
+      v13,
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+    );
+
+    expect(verifyExactProductionV14Schema(
+      predecessor.tableSignatures,
+      v14,
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+      v14TableSchemaDigest,
+    )).toEqual({
+      predecessorTableCount: 54,
+      appendedDailyMarkTableCount: 2,
+      totalTableCount: 56,
+    });
+    const completeV14 = verifyExactProductionV14ModuleSchema(
+      v14,
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+      v14TableSchemaDigest,
+    );
+    expect(completeV14.moduleState).toBe('candidate');
+    expect(completeV14.totalTableCount).toBe(56);
+    expect(Object.keys(completeV14.tableSignatures)).toHaveLength(56);
+    expect(verifyFreshProductionV14ModuleSchema(
+      'spacetime',
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+      v14TableSchemaDigest,
+      (() => ({
+        status: 0,
+        signal: null,
+        stdout: JSON.stringify(v14),
+        stderr: '',
+      })) as never,
+    )).toEqual(completeV14);
+    expect(verifyPostPublishProductionV14ModuleSchema(
+      'spacetime',
+      predecessor,
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+      v14TableSchemaDigest,
+      (() => ({
+        status: 0,
+        signal: null,
+        stdout: JSON.stringify(v14),
+        stderr: '',
+      })) as never,
+    )).toEqual({
+      predecessorTableCount: 54,
+      appendedDailyMarkTableCount: 2,
+      totalTableCount: 56,
+      moduleState: 'candidate',
+    });
+    const emptyStatus = emptyDailyMarksV14Status();
+    expect(verifyEmptyDailyMarksV14StatusOutput(JSON.stringify(emptyStatus)))
+      .toEqual(emptyStatus);
+    const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
+    expect(dailyMarksV14InspectChildArguments(tsxCli)).toEqual([
+      tsxCli,
+      'scripts/daily-marks-operator.ts',
+      'inspect',
+    ]);
+    const inspectCalls: unknown[][] = [];
+    expect(verifyPostPublishEmptyDailyMarksV14(
+      's'.repeat(32),
+      ((...args: unknown[]) => {
+        inspectCalls.push(args);
+        return {
+          status: 0,
+          signal: null,
+          stdout: JSON.stringify(emptyStatus),
+          stderr: '',
+        };
+      }) as never,
+    )).toEqual(emptyStatus);
+    expect(inspectCalls).toHaveLength(1);
+    expect(inspectCalls[0]?.[0]).toBe(process.execPath);
+    expect(inspectCalls[0]?.[1]).toEqual(
+      dailyMarksV14InspectChildArguments(tsxCli),
+    );
+    expect(inspectCalls[0]?.[2]).toMatchObject({
+      input: 's'.repeat(32),
+      timeout: 30_000,
+      env: {
+        WARPKEEP_SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
+        WARPKEEP_SPACETIMEDB_DATABASE: CANONICAL_DATABASE_IDENTITY,
+        WARPKEEP_AUTH_BRIDGE_URL: 'https://auth.warpkeep.com',
+        WARPKEEP_ADMIN_TOKEN_SECRET_STDIN: '1',
+      },
+    });
+    expect(() => verifyEmptyDailyMarksV14StatusOutput(JSON.stringify(
+      emptyDailyMarksV14Status({ grants: '1' }),
+    ))).toThrow(/exact empty pre-backfill state/i);
+    expect(() => verifyEmptyDailyMarksV14StatusOutput(JSON.stringify(
+      emptyDailyMarksV14Status({ scheduleRows: '1' }),
+    ))).toThrow(/exact empty pre-backfill state/i);
+    expect(() => verifyEmptyDailyMarksV14StatusOutput(JSON.stringify({
+      ...emptyStatus,
+      fid: '101',
+    }))).toThrow(/unexpected fields/i);
+    expect(() => verifyPostPublishEmptyDailyMarksV14(
+      's'.repeat(32),
+      (() => ({ status: 1, signal: null, stdout: 'private', stderr: 'private' })) as never,
+    )).toThrow(/empty daily-Marks v14 checkpoint is indeterminate/i);
+
+    const publicGrantTable = structuredClone(v14);
+    publicGrantTable.tables
+      .find(table => table.name === 'daily_mark_grant_v1')!.table_access = {
+        Public: {},
+      };
+    expect(() => verifyExactProductionV14Schema(
+      predecessor.tableSignatures,
+      publicGrantTable,
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+      v14TableSchemaDigest,
+    )).toThrow(/exact private v14 contract/i);
+
+    const changedScheduleField = structuredClone(v14);
+    changedScheduleField.typespace.types[
+      DAILY_MARK_V14_TABLE_CONTRACTS.daily_mark_schedule_v_1.productTypeRef
+    ].Product.elements[2]!.name.some = 'legacy_policy_version';
+    expect(() => verifyExactProductionV14Schema(
+      predecessor.tableSignatures,
+      changedScheduleField,
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+      v14TableSchemaDigest,
+    )).toThrow(/exact private v14 contract/i);
+
+    const changedGrantType = structuredClone(v14);
+    changedGrantType.typespace.types[
+      DAILY_MARK_V14_TABLE_CONTRACTS.daily_mark_grant_v1.productTypeRef
+    ].Product.elements[1]!.algebraic_type = { String: {} };
+    expect(() => verifyExactProductionV14Schema(
+      predecessor.tableSignatures,
+      changedGrantType,
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+      v14TableSchemaDigest,
+    )).toThrow(/v14 table schema.*proven publication boundary/i);
+
+    const changedPredecessor = structuredClone(v14);
+    changedPredecessor.tables
+      .find(table => table.name === 'access_request_v1')!.constraints.push({
+        name: 'unexpected_access_request_constraint',
+        data: { Unique: { columns: [1] } },
+      });
+    expect(() => verifyExactProductionV14Schema(
+      predecessor.tableSignatures,
+      changedPredecessor,
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+      v14TableSchemaDigest,
+    )).toThrow(/v13 table schema.*proven publication boundary|pre-existing production table/i);
+
+    expect(() => verifyExactProductionV14Schema(
+      predecessor.tableSignatures,
+      v14,
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+      '0'.repeat(64),
+    )).toThrow(/v14 table schema.*proven publication boundary/i);
+    expect(() => verifyPostPublishProductionV14ModuleSchema(
+      'spacetime',
+      predecessor,
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+      v14TableSchemaDigest,
+      (() => ({ status: 1, signal: null, stdout: 'private', stderr: 'private' })) as never,
+    )).toThrow(/post-publication v14 module checkpoint is indeterminate/i);
+  });
+
   it('retains the reviewed v11 lane while proving both v12 and v13 append boundaries', () => {
     const v11 = productionSchemaDescription(false);
     const v11TableNames = Object.keys(PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS);
@@ -1879,7 +2183,7 @@ describe('activation publish safety', () => {
     )).toThrow(/v12 table schema.*proven publication boundary|pre-existing production table/i);
   });
 
-  it('routes every retained publication lane through the exact v13 post-checkpoint', () => {
+  it('routes every retained publication lane through its exact post-checkpoint', () => {
     const publisher = readFileSync(
       resolve(repositoryRoot, 'scripts/publish-spacetime-dev.mjs'),
       'utf8',
@@ -1892,6 +2196,9 @@ describe('activation publish safety', () => {
     );
     expect(publisher).toMatch(
       /EXACT_V13_ACTIVE[\s\S]*verifyFreshProductionV13ModuleSchema\([\s\S]*artifactReceipt\.v12TableSchemaDigest,[\s\S]*artifactReceipt\.v13TableSchemaDigest,[\s\S]*await publishModule\(executable, CANONICAL_DATABASE_IDENTITY, artifactReceipt\);[\s\S]*verifyPostPublishProductionV13ActiveModuleSchema\([\s\S]*artifactReceipt\.v12TableSchemaDigest,[\s\S]*artifactReceipt\.v13TableSchemaDigest/,
+    );
+    expect(publisher).toMatch(
+      /EXACT_V13_ACTIVE_V14_EMPTY[\s\S]*verifyFreshProductionV13ModuleSchema\([\s\S]*artifactReceipt\.v12TableSchemaDigest,[\s\S]*artifactReceipt\.v13TableSchemaDigest,[\s\S]*await publishModule\(executable, CANONICAL_DATABASE_IDENTITY, artifactReceipt\);[\s\S]*verifyPostPublishProductionV14ModuleSchema\([\s\S]*artifactReceipt\.v12TableSchemaDigest,[\s\S]*artifactReceipt\.v13TableSchemaDigest,[\s\S]*artifactReceipt\.v14TableSchemaDigest,[\s\S]*verifyPostPublishEmptyDailyMarksV14\(adminTokenSecret\)/,
     );
     expect(publisher).toContain("'--delete-data=never'");
     const privateWorkerReceipt = publisher.slice(
@@ -2229,6 +2536,7 @@ describe('activation publish safety', () => {
         v11TableSchemaDigest: receipt.v11TableSchemaDigest,
         v12TableSchemaDigest: receipt.v12TableSchemaDigest,
         v13TableSchemaDigest: receipt.v13TableSchemaDigest,
+        v14TableSchemaDigest: receipt.v14TableSchemaDigest,
         artifactDigest: receipt.artifactDigest,
       })}\n`;
       const parsed = parseMigrationProofReceipt(success);
@@ -2258,6 +2566,10 @@ describe('activation publish safety', () => {
       ))).toThrow(/exact success receipt/i);
       expect(() => parseMigrationProofReceipt(success.replace(
         ` v13_table_schema_sha256=${receipt.v13TableSchemaDigest}`,
+        '',
+      ))).toThrow(/exact success receipt/i);
+      expect(() => parseMigrationProofReceipt(success.replace(
+        ` v14_table_schema_sha256=${receipt.v14TableSchemaDigest}`,
         '',
       ))).toThrow(/exact success receipt/i);
       expect(() => parseMigrationProofReceipt(success.replace(
@@ -2296,6 +2608,10 @@ describe('activation publish safety', () => {
         ...receipt,
         v13TableSchemaDigest: receipt.v13TableSchemaDigest.toUpperCase(),
       })).toThrow(/receipt was invalid/i);
+      expect(() => verifyMigrationArtifactReceipt({
+        ...receipt,
+        v14TableSchemaDigest: receipt.v14TableSchemaDigest.toUpperCase(),
+      })).toThrow(/receipt was invalid/i);
       expect(() => verifyMigrationArtifactReceipt({ ...receipt, extra: true }))
         .toThrow(/receipt was invalid/i);
       await expect(publishModule(
@@ -2326,6 +2642,7 @@ describe('activation publish safety', () => {
         v11TableSchemaDigest: receipt.v11TableSchemaDigest,
         v12TableSchemaDigest: receipt.v12TableSchemaDigest,
         v13TableSchemaDigest: receipt.v13TableSchemaDigest,
+        v14TableSchemaDigest: receipt.v14TableSchemaDigest,
         artifactDigest: receipt.artifactDigest,
       })}\n`;
       const fakeSpawnSync = (...args: unknown[]) => {
@@ -2348,7 +2665,7 @@ describe('activation publish safety', () => {
         timeout: ADDITIVE_MIGRATION_PROOF_PROCESS_TIMEOUT_MILLISECONDS,
       });
       expect(ADDITIVE_MIGRATION_PROOF_PROCESS_TIMEOUT_MILLISECONDS)
-        .toBe(15 * 60 * 1_000);
+        .toBe(20 * 60 * 1_000);
       expect(ADDITIVE_MIGRATION_PROOF_MINIMUM_LIFECYCLE_MILLISECONDS)
         .toBe(10 * 60 * 1_000);
       expect(ADDITIVE_MIGRATION_PROOF_MINIMUM_LIFECYCLE_MILLISECONDS)
@@ -2472,6 +2789,21 @@ describe('activation publish safety', () => {
       '--resource-rollout-stage=ready',
       '--genesis-world-stage=expanded',
       '--worker-rollout-stage=active',
+      '--worker-module-predecessor=exact-v13-active-v14-empty',
+      '--worker-forward-repair=none',
+    ])).toEqual({
+      dryRun: false,
+      resourceRolloutStage: RESOURCE_PUBLISH_ROLLOUT_STAGE.READY,
+      genesisWorldRolloutStage: GENESIS_WORLD_PUBLISH_STAGE.EXPANDED,
+      workerRolloutStage: WORKER_PUBLISH_ROLLOUT_STAGE.ACTIVE,
+      workerModulePredecessor:
+        WORKER_MODULE_PREDECESSOR.EXACT_V13_ACTIVE_V14_EMPTY,
+      workerForwardRepair: WORKER_FORWARD_REPAIR.NONE,
+    });
+    expect(parsePublishArguments([
+      '--resource-rollout-stage=ready',
+      '--genesis-world-stage=expanded',
+      '--worker-rollout-stage=active',
       '--worker-module-predecessor=exact-v12-active',
       '--worker-forward-repair=return-node-reuse-v1',
     ])).toEqual({
@@ -2563,6 +2895,20 @@ describe('activation publish safety', () => {
       '--worker-module-predecessor=exact-v13-active',
       '--worker-forward-repair=none',
     ])).toThrow(/exact active-v13 module predecessor/i);
+    expect(() => parsePublishArguments([
+      '--resource-rollout-stage=ready',
+      '--genesis-world-stage=expanded',
+      '--worker-rollout-stage=empty',
+      '--worker-module-predecessor=exact-v13-active-v14-empty',
+      '--worker-forward-repair=none',
+    ])).toThrow(/exact active-v13-to-empty-v14 module predecessor/i);
+    expect(() => parsePublishArguments([
+      '--resource-rollout-stage=ready',
+      '--genesis-world-stage=expanded',
+      '--worker-rollout-stage=active',
+      '--worker-module-predecessor=exact-v13-active-v14-empty',
+      '--worker-forward-repair=return-node-reuse-v1',
+    ])).toThrow(/schema-only.*worker-forward-repair=none/i);
     expect(() => parsePublishArguments([
       '--resource-rollout-stage=ready',
       '--genesis-world-stage=expanded',
@@ -2761,13 +3107,13 @@ describe('activation publish safety', () => {
       WARPKEEP_EXPECTED_ENABLED_ALLOWED_FID_COUNT: '3',
       WARPKEEP_EXPECTED_FOUNDER_COUNT: '3',
       WARPKEEP_EXPECTED_PLAYER_COUNT: '1',
-      WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT: '5',
+      WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT: '6',
     })).toThrow(/expectations were invalid/i);
     expect(() => readFoundedPublishExpectations({
       WARPKEEP_EXPECTED_ENABLED_ALLOWED_FID_COUNT: '100',
       WARPKEEP_EXPECTED_FOUNDER_COUNT: '100',
       WARPKEEP_EXPECTED_PLAYER_COUNT: '100',
-      WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT: '401',
+      WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT: '501',
     })).toThrow(/EXPECTED_TERMS_ACCEPTANCE_COUNT.*canonical integer/i);
     expect(() => readFoundedPublishExpectations({
       WARPKEEP_EXPECTED_ENABLED_ALLOWED_FID_COUNT: '5',
@@ -4371,7 +4717,7 @@ describe('protected aggregate child isolation', () => {
   });
   const completeEntryAgreementHistoryAggregate = Object.freeze({
     ...authenticatedGenesisV3FoundedAggregate,
-    alphaTermsAcceptances: '4',
+    alphaTermsAcceptances: '5',
   });
   const genesisGenerationV3FoundedAggregate = Object.freeze({
     ...genesisV3FoundedAggregate,
@@ -4627,14 +4973,14 @@ describe('protected aggregate child isolation', () => {
       PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
       3,
       1,
-      4,
+      5,
     )).not.toThrow();
     expect(() => verifyExpectedAlphaV3Aggregate(
       JSON.stringify(authenticatedGenesisV3FoundedAggregate),
       PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
       3,
       1,
-      5,
+      6,
     )).toThrow(/entry-agreement row count was invalid/i);
   });
 
@@ -4661,7 +5007,7 @@ describe('protected aggregate child isolation', () => {
 
   it.each([
     ['player count', genesisV3FoundedAggregate, 4, 0],
-    ['entry-agreement row count', authenticatedGenesisV3FoundedAggregate, 1, 5],
+    ['entry-agreement row count', authenticatedGenesisV3FoundedAggregate, 1, 6],
   ])('rejects an expected %s above its bounded aggregate limit', (_label, aggregate, players, terms) => {
     expect(() => verifyExpectedAlphaV3Aggregate(
       JSON.stringify(aggregate),
@@ -5252,7 +5598,7 @@ describe('protected aggregate child isolation', () => {
       ])).toThrow(/canonical integer/i);
     });
 
-  it.each(['-1', '00', '01', '+1', '1.0', '1e2', '401', 'abc', ''])
+  it.each(['-1', '00', '01', '+1', '1.0', '1e2', '501', 'abc', ''])
     ('rejects noncanonical or globally out-of-range entry-agreement counts: %j', value => {
       expect(() => parseProductionVerifierArguments([
         '--require-genesis-v3-founded-aggregate',
@@ -5292,28 +5638,28 @@ describe('protected aggregate child isolation', () => {
       '--require-genesis-v3-founded-aggregate',
       '--expected-founder-count=3',
       '--expected-player-count=1',
-      '--expected-terms-acceptance-count=4',
+      '--expected-terms-acceptance-count=5',
     ])).toMatchObject({
       expectedFounderCount: 3,
       expectedPlayerCount: 1,
-      expectedTermsAcceptanceCount: 4,
+      expectedTermsAcceptanceCount: 5,
       expectedEnabledAllowedFidCount: 3,
     });
     expect(() => parseProductionVerifierArguments([
       '--require-genesis-v3-founded-aggregate',
       '--expected-founder-count=3',
       '--expected-player-count=1',
-      '--expected-terms-acceptance-count=5',
+      '--expected-terms-acceptance-count=6',
     ])).toThrow(/supported immutable row history/i);
     expect(parseProductionVerifierArguments([
       '--require-genesis-v3-founded-aggregate',
       '--expected-founder-count=100',
       '--expected-player-count=100',
-      '--expected-terms-acceptance-count=300',
+      '--expected-terms-acceptance-count=500',
     ])).toMatchObject({
       expectedFounderCount: 100,
       expectedPlayerCount: 100,
-      expectedTermsAcceptanceCount: 300,
+      expectedTermsAcceptanceCount: 500,
       expectedEnabledAllowedFidCount: 100,
     });
   });

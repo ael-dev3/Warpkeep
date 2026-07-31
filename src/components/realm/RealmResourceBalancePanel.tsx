@@ -31,7 +31,7 @@ const RESOURCE_PURPOSE: Readonly<Record<RealmSurfaceResourceKey, string>> = Obje
   gold:
     'Gold is stored from Gold Mine gathering. It has no spending loop in the current Alpha.',
   marks:
-    'Community Marks are a separate experimental record. They are not money and have no transfer, conversion, redemption, reward, or spending loop.'
+    'Every admitted keeper receives one experimental Community Mark per eligible Realm day. Marks require no wallet or token action; they are not money and have no transfer, conversion, redemption, reward, or spending loop.'
 });
 
 export function RealmResourceBalancePanel({

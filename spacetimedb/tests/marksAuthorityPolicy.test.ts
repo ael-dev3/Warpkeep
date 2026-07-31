@@ -2,111 +2,104 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  ADMITTED_DAILY_MARK_GRANT_MICROS,
+  ADMITTED_DAILY_MARK_POLICY_VERSION,
+  FROZEN_LEGACY_ZERO_MARK_POLICY_VERSION,
+  MARK_MICROS_PER_MARK,
   MAX_U128,
-  SNAP_APPROVED_IMPLEMENTATION,
-  SNAP_APPROVED_IMPLEMENTATION_CODE_HASH,
-  SNAP_BURN_METHOD,
-  SNAP_MARK_POLICY_VERSION,
-  SNAP_PROXY_ADDRESS,
-  applyOneToOneBurnCredit,
-  markAccountIsConsistent,
-  normalizeSnapBurnCredit,
-  snapBurnCreditsEqual,
+  UTC_DAY_MICROS,
+  admittedDailyMarkAccountIsConsistent,
+  admittedDailyMarkUtcDay,
+  applyAdmittedDailyMarkGrant,
+  dailyMarkRolloutAccountIsConsistent,
+  frozenLegacyZeroMarkAccountIsConsistent,
+  migrateFrozenLegacyZeroMarkAccount,
 } from '../src/marksAuthorityPolicy';
 
-const zeroAccount = Object.freeze({
+const dailyZero = Object.freeze({
   totalSnapBurnedMicros: 0n,
   earnedMicros: 0n,
   spentMicros: 0n,
   balanceMicros: 0n,
-  policyVersion: SNAP_MARK_POLICY_VERSION,
+  policyVersion: ADMITTED_DAILY_MARK_POLICY_VERSION,
 });
 
-const transactionHash = `0x${'12'.repeat(32)}`;
-const blockHash = `0x${'34'.repeat(32)}`;
-const canonicalCredit = Object.freeze({
-  eventKey: `1:${transactionHash}:9`,
-  chainId: 1,
-  tokenContract: SNAP_PROXY_ADDRESS,
-  transactionHash,
-  logIndex: 9,
-  burnReference: '123456789',
-  burnMethod: SNAP_BURN_METHOD,
-  senderAddress: `0x${'56'.repeat(20)}`,
-  blockNumber: 25_012_700n,
-  blockHash,
-  amountMicros: 1_250_000n,
-  attributedFid: 42n,
-  attributionPolicyVersion: SNAP_MARK_POLICY_VERSION,
-  implementationAddress: SNAP_APPROVED_IMPLEMENTATION,
-  contractCodeHash: SNAP_APPROVED_IMPLEMENTATION_CODE_HASH,
+const legacyZero = Object.freeze({
+  ...dailyZero,
+  policyVersion: FROZEN_LEGACY_ZERO_MARK_POLICY_VERSION,
 });
 
-test('one SNAP micro credits exactly one Mark micro without floating point', () => {
-  assert.equal(markAccountIsConsistent(zeroAccount), true);
-  const credited = applyOneToOneBurnCredit(zeroAccount, 1_250_000n);
+test('one daily Mark is exactly one million integer micros', () => {
+  assert.equal(MARK_MICROS_PER_MARK, 1_000_000n);
+  assert.equal(ADMITTED_DAILY_MARK_GRANT_MICROS, MARK_MICROS_PER_MARK);
+  assert.equal(ADMITTED_DAILY_MARK_POLICY_VERSION, 'admitted-daily-mark-v1');
+
+  const credited = applyAdmittedDailyMarkGrant(dailyZero);
   assert.deepEqual(credited, {
-    totalSnapBurnedMicros: 1_250_000n,
-    earnedMicros: 1_250_000n,
+    totalSnapBurnedMicros: 0n,
+    earnedMicros: 1_000_000n,
     spentMicros: 0n,
-    balanceMicros: 1_250_000n,
-    policyVersion: SNAP_MARK_POLICY_VERSION,
+    balanceMicros: 1_000_000n,
+    policyVersion: ADMITTED_DAILY_MARK_POLICY_VERSION,
   });
-  assert.equal(markAccountIsConsistent(credited), true);
+  assert.equal(admittedDailyMarkAccountIsConsistent(credited), true);
 });
 
-test('Mark account corruption and u128 overflow fail closed before credit', () => {
-  assert.equal(markAccountIsConsistent({ ...zeroAccount, balanceMicros: 1n }), false);
-  assert.equal(markAccountIsConsistent({ ...zeroAccount, spentMicros: 1n }), false);
+test('UTC day boundaries use only whole authoritative Unix-day micros', () => {
+  assert.equal(admittedDailyMarkUtcDay(0n), 0n);
+  assert.equal(admittedDailyMarkUtcDay(UTC_DAY_MICROS - 1n), 0n);
+  assert.equal(admittedDailyMarkUtcDay(UTC_DAY_MICROS), 1n);
+  assert.equal(admittedDailyMarkUtcDay(UTC_DAY_MICROS * 20_000n + 1n), 20_000n);
+  assert.throws(() => admittedDailyMarkUtcDay(-1n), /MARK_SERVER_TIME_INVALID/);
+});
+
+test('legacy compatibility accepts only an exact all-zero frozen account', () => {
+  assert.equal(frozenLegacyZeroMarkAccountIsConsistent(legacyZero), true);
+  assert.equal(dailyMarkRolloutAccountIsConsistent(legacyZero), true);
+  assert.equal(admittedDailyMarkAccountIsConsistent(legacyZero), false);
+  for (const mutation of [
+    { totalSnapBurnedMicros: 1n },
+    { earnedMicros: 1n },
+    { spentMicros: 1n },
+    { balanceMicros: 1n },
+    { policyVersion: 'another-policy' },
+  ]) {
+    assert.equal(frozenLegacyZeroMarkAccountIsConsistent({ ...legacyZero, ...mutation }), false);
+  }
+  assert.deepEqual(migrateFrozenLegacyZeroMarkAccount(legacyZero), dailyZero);
+  assert.equal(migrateFrozenLegacyZeroMarkAccount(dailyZero), dailyZero);
   assert.throws(
-    () => applyOneToOneBurnCredit({ ...zeroAccount, balanceMicros: 1n }, 1n),
-    /MARK_ACCOUNT_INVARIANT/,
+    () => migrateFrozenLegacyZeroMarkAccount({ ...legacyZero, earnedMicros: 1n }),
+    /MARK_ACCOUNT_BACKFILL_INVARIANT/,
   );
+});
+
+test('daily accounts freeze legacy and spending fields and fail closed at u128 overflow', () => {
+  assert.equal(admittedDailyMarkAccountIsConsistent({
+    ...dailyZero,
+    earnedMicros: 10n,
+    balanceMicros: 10n,
+  }), true);
+  assert.equal(admittedDailyMarkAccountIsConsistent({
+    ...dailyZero,
+    totalSnapBurnedMicros: 1n,
+  }), false);
+  assert.equal(admittedDailyMarkAccountIsConsistent({
+    ...dailyZero,
+    spentMicros: 1n,
+  }), false);
+  assert.equal(admittedDailyMarkAccountIsConsistent({
+    ...dailyZero,
+    earnedMicros: 2n,
+    balanceMicros: 1n,
+  }), false);
   assert.throws(
-    () => applyOneToOneBurnCredit({
-      ...zeroAccount,
-      totalSnapBurnedMicros: MAX_U128,
+    () => applyAdmittedDailyMarkGrant({
+      ...dailyZero,
       earnedMicros: MAX_U128,
       balanceMicros: MAX_U128,
-    }, 1n),
+    }),
     /MARK_ACCOUNT_OVERFLOW/,
   );
-});
-
-test('burn receipts pin chain, proxy, implementation, code hash, method, policy, and event key', () => {
-  const normalized = normalizeSnapBurnCredit(canonicalCredit);
-  assert.equal(normalized.amountMicros, canonicalCredit.amountMicros);
-  assert.equal(normalized.eventKey, canonicalCredit.eventKey);
-  assert.equal(snapBurnCreditsEqual(normalized, normalized), true);
-
-  const mismatches = [
-    [{ chainId: 10 }, 'SNAP_CHAIN_MISMATCH'],
-    [{ tokenContract: `0x${'aa'.repeat(20)}` }, 'SNAP_PROXY_MISMATCH'],
-    [{ implementationAddress: `0x${'bb'.repeat(20)}` }, 'SNAP_IMPLEMENTATION_MISMATCH'],
-    [{ contractCodeHash: `0x${'cc'.repeat(32)}` }, 'SNAP_CODE_HASH_MISMATCH'],
-    [{ burnMethod: 'Transfer(address,address,uint256)' }, 'SNAP_BURN_METHOD_MISMATCH'],
-    [{ attributionPolicyVersion: 'another-policy' }, 'SNAP_ATTRIBUTION_POLICY_MISMATCH'],
-    [{ eventKey: `1:${transactionHash}:10` }, 'SNAP_EVENT_KEY_MISMATCH'],
-    [{ blockNumber: 25_012_690n }, 'SNAP_BLOCK_NUMBER_INVALID'],
-    [{ amountMicros: 0n }, 'SNAP_AMOUNT_INVALID'],
-  ] as const;
-  for (const [change, code] of mismatches) {
-    assert.throws(
-      () => normalizeSnapBurnCredit({ ...canonicalCredit, ...change }),
-      new RegExp(code),
-    );
-  }
-});
-
-test('an event key can be idempotent only when every immutable receipt field matches', () => {
-  const normalized = normalizeSnapBurnCredit(canonicalCredit);
-  assert.equal(snapBurnCreditsEqual(normalized, { ...normalized }), true);
-  assert.equal(snapBurnCreditsEqual(normalized, {
-    ...normalized,
-    amountMicros: normalized.amountMicros + 1n,
-  }), false);
-  assert.equal(snapBurnCreditsEqual(normalized, {
-    ...normalized,
-    attributedFid: normalized.attributedFid + 1n,
-  }), false);
+  assert.throws(() => applyAdmittedDailyMarkGrant(legacyZero), /MARK_ACCOUNT_INVARIANT/);
 });
