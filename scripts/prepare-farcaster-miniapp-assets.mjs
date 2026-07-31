@@ -7,6 +7,7 @@ import sharp from 'sharp';
 import {
   FARCASTER_MINI_APP_EMBED_SOURCE,
   FARCASTER_MINI_APP_ICON_SOURCE,
+  FARCASTER_MINI_APP_SPLASH_FILE,
 } from './farcaster-miniapp-contract.mjs';
 
 const root = resolve(import.meta.dirname, '..');
@@ -106,25 +107,6 @@ function castleMarkup(x, y, scale = 1) {
       <circle cx="-55" cy="8" r="7" fill="#d5a15e"/>
       <circle cx="55" cy="8" r="7" fill="#d5a15e"/>
     </g>`;
-}
-
-function squareArtwork(size) {
-  const markSize = Math.round(size * 0.56);
-  const markOffset = Math.round((size - markSize) / 2);
-  return Buffer.from(`
-    <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}"
-      viewBox="0 0 ${size} ${size}">
-      ${sharedDefinitions()}
-      <rect width="${size}" height="${size}" fill="#010207"/>
-      <rect width="${size}" height="${size}" fill="url(#night)"/>
-      <circle cx="${size / 2}" cy="${size / 2}" r="${size * 0.33}"
-        fill="#7a4e95" opacity=".24" filter="url(#softGlow)"/>
-      <circle cx="${size / 2}" cy="${size / 2}" r="${size * 0.37}"
-        fill="none" stroke="#a879bd" stroke-width="${Math.max(1, size / 250)}"
-        opacity=".22"/>
-      ${shieldMarkup(markOffset, markOffset, markSize)}
-    </svg>
-  `);
 }
 
 function landscapeArtwork(width, height, variant) {
@@ -298,7 +280,6 @@ async function main() {
   await rm(stagingDirectory, { recursive: true, force: true });
   await mkdir(stagingDirectory, { recursive: true });
   const generatedOutputs = [
-    ['warpkeep-splash-200.png', squareArtwork(200), 200, 200],
     [
       'warpkeep-hero-1200x630.png',
       landscapeArtwork(1200, 630, 'hero'),
@@ -313,6 +294,12 @@ async function main() {
     ],
   ];
   const brandOutputs = [
+    {
+      file: FARCASTER_MINI_APP_SPLASH_FILE,
+      width: 200,
+      height: 200,
+      destinationDirectory: outputDirectory,
+    },
     {
       file: 'warpkeep-icon-1024-d1b42d20f03c2905.png',
       width: 1024,

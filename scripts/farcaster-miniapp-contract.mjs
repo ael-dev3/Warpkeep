@@ -5,6 +5,8 @@ export const FARCASTER_MINI_APP_HOME_URL =
   `${FARCASTER_MINI_APP_ORIGIN}/?miniApp=true`;
 export const FARCASTER_MINI_APP_ASSET_ROOT =
   `${FARCASTER_MINI_APP_ORIGIN}/images/miniapp`;
+export const FARCASTER_MINI_APP_SPLASH_FILE =
+  'warpkeep-splash-200-117256827545daa1.png';
 export const FARCASTER_MINI_APP_MANIFEST_PATH =
   '.well-known/farcaster.json';
 export const FARCASTER_MINI_APP_MANIFEST_URL =
@@ -38,7 +40,7 @@ export const FARCASTER_MINI_APP_EMBED = Object.freeze({
       url: FARCASTER_MINI_APP_HOME_URL,
       name: 'Warpkeep',
       splashImageUrl:
-        `${FARCASTER_MINI_APP_ASSET_ROOT}/warpkeep-splash-200.png`,
+        `${FARCASTER_MINI_APP_ASSET_ROOT}/${FARCASTER_MINI_APP_SPLASH_FILE}`,
       splashBackgroundColor: '#010207',
     }),
   }),
@@ -51,7 +53,7 @@ export const FARCASTER_MINI_APP_CONFIG = Object.freeze({
   iconUrl:
     `${FARCASTER_MINI_APP_ASSET_ROOT}/warpkeep-icon-1024-d1b42d20f03c2905.png`,
   splashImageUrl:
-    `${FARCASTER_MINI_APP_ASSET_ROOT}/warpkeep-splash-200.png`,
+    `${FARCASTER_MINI_APP_ASSET_ROOT}/${FARCASTER_MINI_APP_SPLASH_FILE}`,
   splashBackgroundColor: '#010207',
   subtitle: 'A persistent strategy realm',
   description:
@@ -110,8 +112,9 @@ export const FARCASTER_MINI_APP_CORE_IMAGES = Object.freeze([
     maximumBytes: 1_000_000,
     sha256: 'd1b42d20f03c29058f0450e82ecffb92f756033314c55468eb23ea9b1c6e78ed',
   }),
-  imageSpecification('warpkeep-splash-200.png', 200, 200, {
+  imageSpecification(FARCASTER_MINI_APP_SPLASH_FILE, 200, 200, {
     maximumBytes: 1_000_000,
+    sha256: '117256827545daa14673847c3f20ead2aaebe6ca6c66691eda416336da599a6b',
   }),
   imageSpecification('warpkeep-hero-1200x630.png', 1200, 630),
   imageSpecification('warpkeep-og-1200x630.png', 1200, 630),

@@ -5,7 +5,7 @@ ordinary browsers use Sign In with Farcaster (SIWF), while a verified Farcaster
 Mini App host may use Quick Auth. Neither path is a wallet connection,
 client-owned identity, admission grant, or Terms acceptance.
 
-Alpha 0.3.31 keeps backend protocol 3 and authentication contract v2; admission
+Alpha 0.3.32 keeps backend protocol 3 and authentication contract v2; admission
 remains gated. Production configuration and founder identities belong in the
 private operator record, not this guide.
 

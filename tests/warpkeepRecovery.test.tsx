@@ -145,6 +145,10 @@ describe('Warpkeep document fallback', () => {
 
     expect(root?.querySelector('.warpkeep-boot')).not.toBeNull();
     expect(root?.querySelector('#warpkeep-boot-title')).toBeNull();
+    expect(root?.querySelector('.warpkeep-boot__sigil-image')?.getAttribute('src')).toBe(
+      '/images/miniapp/warpkeep-splash-200-117256827545daa1.png'
+    );
+    expect(indexHtml).not.toContain('class="warpkeep-boot__sigil">W');
     expect(root?.querySelector('.warpkeep-boot')?.getAttribute('aria-label')).toBe('Warpkeep is opening');
     expect(root?.textContent).not.toContain('WARPKEEP');
     expect(status?.getAttribute('aria-live')).toBe('polite');
@@ -187,6 +191,7 @@ describe('Warpkeep document fallback', () => {
     expect(indexHtml).toContain('href="/warpkeep-noscript.css"');
     expect(noscriptCss).toMatch(/#root\s*{[\s\S]*display:\s*none\s*!important/);
     expect(bootCss).toContain('.warpkeep-boot--noscript');
+    expect(bootCss).toContain('.warpkeep-boot__sigil-image');
     expect(bootCss).toContain('@media (prefers-reduced-motion: reduce)');
     expect(bootCss).toContain('@media (forced-colors: active)');
   });
