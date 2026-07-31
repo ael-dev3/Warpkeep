@@ -50,7 +50,6 @@ function actions() {
     onCheckBackend: vi.fn(),
     onRefreshSession: vi.fn(),
     onRequestAccess: vi.fn(),
-    onRetryAccessRequestStatus: vi.fn(),
     onRetryAuthentication: vi.fn(),
     onSignOut: vi.fn()
   };
@@ -98,9 +97,9 @@ describe('FarcasterMiniAppEntryGate', () => {
     expect(await screen.findByRole('heading', { name: 'ENTRY NOT YET GRANTED' })).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'BACK TO MENU' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
-    fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
+    expect(screen.queryByRole('button', { name: 'CHECK AGAIN' })).toBeNull();
     expect(callbacks.onRequestAccess).toHaveBeenCalledTimes(1);
-    expect(callbacks.onRefreshSession).toHaveBeenCalledTimes(1);
+    expect(callbacks.onRefreshSession).not.toHaveBeenCalled();
   });
 
   it('requires current Terms once, then leaves acceptance to the backend authority', async () => {

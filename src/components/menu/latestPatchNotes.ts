@@ -6,6 +6,20 @@ export type LatestPatchNotes = Readonly<{
   alphaNotice: string;
 }>;
 
+const ALPHA_0_3_31_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: '31 JUL 2026',
+  title: 'THE GATE LISTENS',
+  summary:
+    'A verified keeper still beyond the frontier can now place one clear petition before the gate and return when the Realm answers.',
+  highlights: Object.freeze([
+    'Entry Not Yet Granted now presents Request Access as its single primary action, even when an earlier request-status check could not be completed.',
+    'Try Again no longer competes with Check Again before a petition exists; once Request Received is confirmed, Check Again returns for the later admission decision.',
+    'Request submission remains private, manually reviewed, and idempotent: it grants no admission, creates no keep, and changes no existing Realm record.'
+  ]),
+  alphaNotice:
+    'Alpha 0.3.31 remains an invite-only, unfinished world. This gateway correction does not change admission decisions, castle ownership, Workers, resources, balances, terrain, or the larger strategy features still being built.'
+});
+
 const ALPHA_0_3_30_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '31 JUL 2026',
   title: 'THE GATE REMEMBERS',
@@ -191,6 +205,7 @@ const ALPHA_0_3_22_PATCH_NOTES: LatestPatchNotes = Object.freeze({
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
+    '0.3.31': ALPHA_0_3_31_PATCH_NOTES,
     '0.3.30': ALPHA_0_3_30_PATCH_NOTES,
     '0.3.29': ALPHA_0_3_29_PATCH_NOTES,
     '0.3.28': ALPHA_0_3_28_PATCH_NOTES,

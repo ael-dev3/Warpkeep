@@ -6,6 +6,16 @@ full engineering record.
 
 ## [Unreleased]
 
+## [0.3.31] — 2026-07-31
+
+- Restored one clear Request Access action for verified keepers whose admission
+  has not been granted, including after a temporary request-status failure.
+- Removed the competing Try Again and Check Again actions from that pre-request
+  state; Check Again returns after the petition is recorded for manual review.
+- Kept every request cycle idempotent and left admission decisions, castle
+  ownership, Workers, resources, balances, terrain, and persistent world data
+  unchanged.
+
 ## [0.3.30] — 2026-07-31
 
 - Let returning Farcaster Mini App players enter Genesis 001 directly when
@@ -340,7 +350,8 @@ full engineering record.
   Lowlands, a first keep, Farcaster sign-in, and an admission-gated shared-world
   foundation.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.30...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.31...HEAD
+[0.3.31]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.30...v0.3.31
 [0.3.30]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.29...v0.3.30
 [0.3.29]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.28...v0.3.29
 [0.3.28]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.27...v0.3.28

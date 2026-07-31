@@ -30,7 +30,6 @@ describe('FarcasterAdmissionPanel', () => {
         onBackToMenu={onBackToMenu}
         onCheckAgain={onCheckAgain}
         onRequestAccess={onRequestAccess}
-        onRetryAccessRequestStatus={vi.fn()}
         onSignOut={onSignOut}
         phase="denied"
       />
@@ -46,13 +45,55 @@ describe('FarcasterAdmissionPanel', () => {
     expect(screen.queryByRole('link', { name: /request/i })).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
-    fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
+    expect(screen.queryByRole('button', { name: 'CHECK AGAIN' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'BACK TO MENU' }));
     fireEvent.click(screen.getByRole('button', { name: 'SIGN OUT' }));
     expect(onRequestAccess).toHaveBeenCalledTimes(1);
-    expect(onCheckAgain).toHaveBeenCalledTimes(1);
+    expect(onCheckAgain).not.toHaveBeenCalled();
     expect(onBackToMenu).toHaveBeenCalledTimes(1);
     expect(onSignOut).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps REQUEST ACCESS as the sole denied recovery after a status outage', () => {
+    const onRequestAccess = vi.fn();
+    render(
+      <FarcasterAdmissionPanel
+        accessRequest={{ phase: 'error', retryable: true }}
+        identity={identity}
+        onBackToMenu={vi.fn()}
+        onCheckAgain={vi.fn()}
+        onRequestAccess={onRequestAccess}
+        onSignOut={vi.fn()}
+        phase="denied"
+      />
+    );
+
+    expect(screen.getByText(/could not confirm an existing request/i)).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'TRY AGAIN' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'CHECK AGAIN' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
+    expect(onRequestAccess).toHaveBeenCalledTimes(1);
+  });
+
+  it('restores CHECK AGAIN after the request is recorded for manual review', () => {
+    const onCheckAgain = vi.fn();
+    render(
+      <FarcasterAdmissionPanel
+        accessRequest={{ phase: 'requested', requestedAt: 1_750_000_000_000 }}
+        identity={identity}
+        onBackToMenu={vi.fn()}
+        onCheckAgain={onCheckAgain}
+        onRequestAccess={vi.fn()}
+        onSignOut={vi.fn()}
+        phase="denied"
+      />
+    );
+
+    expect((screen.getByRole('button', {
+      name: 'REQUEST RECEIVED'
+    }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
+    expect(onCheckAgain).toHaveBeenCalledTimes(1);
   });
 
   it('keeps a backend outage distinct from an admission rejection', () => {
