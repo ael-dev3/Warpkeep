@@ -6,6 +6,15 @@ full engineering record.
 
 ## [Unreleased]
 
+## [0.3.35] — 2026-08-01
+
+- Gave a newly placed access petition a restrained violet-and-gold Hegemony
+  seal as it settles into its immediate Request Sent state.
+- Kept the flourish outside layout and input handling, with no motion for
+  players who request reduced animation.
+- Left previously recorded petitions quiet and non-clickable, with private
+  SpacetimeDB authority and manual admission unchanged.
+
 ## [0.3.34] — 2026-07-31
 
 - Made Request Access become a disabled Request Sent action immediately after
@@ -380,7 +389,8 @@ full engineering record.
   Lowlands, a first keep, Farcaster sign-in, and an admission-gated shared-world
   foundation.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.34...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.35...HEAD
+[0.3.35]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.34...v0.3.35
 [0.3.34]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.33...v0.3.34
 [0.3.33]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.32...v0.3.33
 [0.3.32]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.31...v0.3.32

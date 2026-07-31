@@ -6,6 +6,20 @@ export type LatestPatchNotes = Readonly<{
   alphaNotice: string;
 }>;
 
+const ALPHA_0_3_35_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: '1 AUG 2026',
+  title: 'THE PETITION IS SEALED',
+  summary:
+    'A violet-and-gold answer now gathers around a keeper’s petition the moment it leaves their hand.',
+  highlights: Object.freeze([
+    'Request Access answers the first click with a restrained Hegemony seal while the petition settles into its immediate Request Sent state.',
+    'The flourish never shifts the gateway or captures another touch, and it quiets completely when reduced motion is requested.',
+    'Only a newly placed petition receives the ceremony; an existing private Realm record remains calm, received, and impossible to submit again.'
+  ]),
+  alphaNotice:
+    'Alpha 0.3.35 remains an invite-only, unfinished world. The seal confirms only that a petition was placed; it does not grant admission, create a keep, or change any Realm ownership or balance.'
+});
+
 const ALPHA_0_3_34_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '31 JUL 2026',
   title: 'THE PETITION STANDS',
@@ -247,6 +261,7 @@ const ALPHA_0_3_22_PATCH_NOTES: LatestPatchNotes = Object.freeze({
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
+    '0.3.35': ALPHA_0_3_35_PATCH_NOTES,
     '0.3.34': ALPHA_0_3_34_PATCH_NOTES,
     '0.3.33': ALPHA_0_3_33_PATCH_NOTES,
     '0.3.32': ALPHA_0_3_32_PATCH_NOTES,

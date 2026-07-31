@@ -302,6 +302,9 @@ describe('access-request controller lifecycle', () => {
     expect(screen.getByText('submitting')).not.toBeNull();
     const sent = screen.getByRole('button', { name: 'REQUEST SENT' }) as HTMLButtonElement;
     expect(sent.disabled).toBe(true);
+    expect(sent.classList.contains(
+      'farcaster-auth-panel__action--request-committed'
+    )).toBe(true);
     fireEvent.click(sent);
     await waitFor(() => expect(requestAccess).toHaveBeenCalledTimes(1));
 
@@ -312,6 +315,9 @@ describe('access-request controller lifecycle', () => {
     });
     await waitFor(() => expect(screen.getByText('requested')).not.toBeNull());
     expect(requestAccess).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'REQUEST RECEIVED' }).classList.contains(
+      'farcaster-auth-panel__action--request-committed'
+    )).toBe(true);
   });
 
   it('never submits when SpacetimeDB already contains the current request', async () => {
@@ -331,6 +337,9 @@ describe('access-request controller lifecycle', () => {
       name: 'REQUEST RECEIVED'
     }) as HTMLButtonElement;
     expect(received.disabled).toBe(true);
+    expect(received.classList.contains(
+      'farcaster-auth-panel__action--request-committed'
+    )).toBe(false);
     fireEvent.click(received);
     expect(requestAccess).not.toHaveBeenCalled();
   });

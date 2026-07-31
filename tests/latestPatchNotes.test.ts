@@ -17,17 +17,17 @@ describe('latest in-menu patch notes', () => {
 
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
-      releasedOn: '31 JUL 2026',
-      title: 'THE PETITION STANDS'
+      releasedOn: '1 AUG 2026',
+      title: 'THE PETITION IS SEALED'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Request Access.*disabled Request Sent.*first click.*without waiting/i
+      /Request Access.*first click.*Hegemony seal.*Request Sent/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /already recorded by SpacetimeDB.*received.*cannot be submitted again/i
+      /never shifts the gateway.*captures another touch.*reduced motion/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /repeated gestures.*absorbed locally.*cycle-idempotent.*manually reviewed/i
+      /newly placed petition.*existing private Realm record.*impossible to submit again/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /released to players|deployed to players|public balances|guaranteed rewards/i
@@ -37,6 +37,10 @@ describe('latest in-menu patch notes', () => {
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
       'does not grant admission'
     );
+
+    expect(getLatestPatchNotes('0.3.34')).toMatchObject({
+      title: 'THE PETITION STANDS'
+    });
 
     const alpha033 = getLatestPatchNotes('0.3.33');
     expect(alpha033).toMatchObject({

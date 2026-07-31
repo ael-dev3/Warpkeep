@@ -112,6 +112,28 @@ describe('shared Warpkeep surface system', () => {
     expect(reduced).not.toContain('scale(');
   });
 
+  it('seals a locally sent access petition with bounded Hegemony motion', () => {
+    const source = css('src/components/auth/FarcasterQrAuthPanel.css');
+    const seal = firstBlock(
+      source,
+      '.farcaster-auth-panel__action--request-committed::before {'
+    );
+    const reduced = lastBlock(
+      source,
+      '.farcaster-auth-panel__action--request-committed::before {'
+    );
+
+    expect(seal).toContain('pointer-events: none;');
+    expect(seal).toContain('rgba(246, 214, 151, 0.96)');
+    expect(seal).toContain('rgba(174, 94, 216, 0.82)');
+    expect(seal).toContain('farcaster-auth-request-commit 1.15s');
+    expect(source).toContain('@keyframes farcaster-auth-request-commit');
+    expect(source).toContain('@media (prefers-reduced-motion: reduce)');
+    expect(reduced).toContain('animation: none;');
+    expect(reduced).toContain('opacity: 0;');
+    expect(seal).not.toMatch(/filter|backdrop-filter/);
+  });
+
   it('keeps compact destination motion bounded, reversible, and reduced-motion safe', () => {
     const map = css('src/components/realm/RealmMapScreen.css');
     const surface = css('src/components/realm/RealmFullScreenSurface.css');
