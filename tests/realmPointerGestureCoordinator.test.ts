@@ -16,7 +16,7 @@ function startCanvas(coordinator: RealmPointerGestureCoordinator, pointerId = 1)
 }
 
 describe('Realm pointer gesture coordinator', () => {
-  it('accepts canvas and label lanes and resolves unmoved presses as taps', () => {
+  it('accepts canvas and world-control lanes and resolves unmoved presses as taps', () => {
     const coordinator = createRealmPointerGestureCoordinator();
 
     expect(startCanvas(coordinator)).toMatchObject({
@@ -28,24 +28,31 @@ describe('Realm pointer gesture coordinator', () => {
     expect(coordinator.end({ pointerId: 1, x: 102, y: 101 })).toMatchObject({
       phase: 'idle',
       pointerCount: 0,
-      tap: { pointerId: 1, lane: 'canvas', x: 102, y: 101 },
+      tap: {
+        pointerId: 1,
+        pointerType: 'mouse',
+        lane: 'canvas',
+        x: 102,
+        y: 101
+      },
       panDelta: null
     });
 
     coordinator.start({
       pointerId: 2,
       pointerType: 'touch',
-      lane: 'label',
+      lane: 'world-control',
       x: 40,
       y: 50
     });
     expect(coordinator.end({ pointerId: 2, x: 40, y: 50 }).tap).toEqual({
       pointerId: 2,
-      lane: 'label',
+      pointerType: 'touch',
+      lane: 'world-control',
       x: 40,
       y: 50
     });
-    expect(coordinator.consumeLabelClickSuppression()).toBe(false);
+    expect(coordinator.consumeWorldControlClickSuppression()).toBe(false);
   });
 
   it('applies every accumulated pixel when crossing the drag threshold', () => {
@@ -79,12 +86,52 @@ describe('Realm pointer gesture coordinator', () => {
     expect(coordinator.end({ pointerId: 1, x: 110, y: 98 }).tap).toBeNull();
   });
 
-  it('arms exactly one label click suppression after a drag', () => {
+  it('keeps ordinary finger jitter as a tap while retaining the tighter mouse threshold', () => {
+    const touch = createRealmPointerGestureCoordinator();
+    touch.start({
+      pointerId: 3,
+      pointerType: 'touch',
+      lane: 'world-control',
+      x: 50,
+      y: 50
+    });
+    expect(touch.move({
+      pointerId: 3,
+      pointerType: '',
+      buttons: 0,
+      x: 58,
+      y: 50
+    })).toMatchObject({
+      phase: 'pending',
+      panDelta: null,
+      cancelled: false
+    });
+    expect(touch.end({ pointerId: 3, x: 58, y: 50 }).tap).toMatchObject({
+      pointerId: 3,
+      pointerType: 'touch',
+      lane: 'world-control'
+    });
+
+    const mouse = createRealmPointerGestureCoordinator();
+    startCanvas(mouse, 4);
+    expect(mouse.move({
+      pointerId: 4,
+      pointerType: 'mouse',
+      buttons: 1,
+      x: 108,
+      y: 100
+    })).toMatchObject({
+      phase: 'dragging',
+      panDelta: { x: 8, y: 0 }
+    });
+  });
+
+  it('arms exactly one world-control click suppression after a drag', () => {
     const coordinator = createRealmPointerGestureCoordinator({ dragThreshold: 4 });
     coordinator.start({
       pointerId: 7,
       pointerType: 'mouse',
-      lane: 'label',
+      lane: 'world-control',
       x: 10,
       y: 10
     });
@@ -97,19 +144,19 @@ describe('Realm pointer gesture coordinator', () => {
       y: 10
     }).phase).toBe('dragging');
     coordinator.end({ pointerId: 7, x: 16, y: 10 });
-    expect(coordinator.snapshot().labelClickSuppressionPending).toBe(true);
-    expect(coordinator.consumeLabelClickSuppression()).toBe(true);
-    expect(coordinator.consumeLabelClickSuppression()).toBe(false);
+    expect(coordinator.snapshot().worldControlClickSuppressionPending).toBe(true);
+    expect(coordinator.consumeWorldControlClickSuppression()).toBe(true);
+    expect(coordinator.consumeWorldControlClickSuppression()).toBe(false);
 
     coordinator.start({
       pointerId: 8,
       pointerType: 'mouse',
-      lane: 'label',
+      lane: 'world-control',
       x: 10,
       y: 10
     });
     coordinator.end({ pointerId: 8, x: 10, y: 10 });
-    expect(coordinator.consumeLabelClickSuppression()).toBe(false);
+    expect(coordinator.consumeWorldControlClickSuppression()).toBe(false);
   });
 
   it('resets pinch at the second pointer and rebases the remaining drag pointer', () => {
@@ -117,7 +164,7 @@ describe('Realm pointer gesture coordinator', () => {
     coordinator.start({
       pointerId: 1,
       pointerType: 'touch',
-      lane: 'label',
+      lane: 'world-control',
       x: 100,
       y: 100
     });
@@ -165,7 +212,7 @@ describe('Realm pointer gesture coordinator', () => {
       y: 103
     }).panDelta).toEqual({ x: 4, y: 3 });
     coordinator.end({ pointerId: 1, x: 104, y: 103 });
-    expect(coordinator.consumeLabelClickSuppression()).toBe(true);
+    expect(coordinator.consumeWorldControlClickSuppression()).toBe(true);
   });
 
   it('keeps a session valid when capture throws and guards release failures', () => {
@@ -300,6 +347,32 @@ describe('Realm pointer gesture coordinator', () => {
       panDelta: { x: 4, y: 0 },
       cancelled: false
     });
+  });
+
+  it('keeps pen and unknown embedded pointers active when buttons metadata is zero', () => {
+    for (const [pointerId, pointerType] of [[5, 'pen'], [6, '']] as const) {
+      const coordinator = createRealmPointerGestureCoordinator({
+        dragThreshold: 2
+      });
+      coordinator.start({
+        pointerId,
+        pointerType,
+        lane: 'canvas',
+        x: 10,
+        y: 10
+      });
+      expect(coordinator.move({
+        pointerId,
+        pointerType: 'mouse',
+        buttons: 0,
+        x: 14,
+        y: 10
+      })).toMatchObject({
+        accepted: true,
+        phase: 'dragging',
+        cancelled: false
+      });
+    }
   });
 
   it('rejects invalid, duplicate, and third pointers without corrupting the gesture', () => {
