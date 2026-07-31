@@ -6,6 +6,20 @@ export type LatestPatchNotes = Readonly<{
   alphaNotice: string;
 }>;
 
+const ALPHA_0_3_32_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: '31 JUL 2026',
+  title: 'THE HEGEMONY CREST',
+  summary:
+    'Warpkeep now opens beneath the same current Hegemony crest in Farcaster and the browser.',
+  highlights: Object.freeze([
+    'The native Mini App launch splash now carries the current purple-and-gold Hegemony crest instead of the original draft mark.',
+    'The brief browser opening frame and no-JavaScript fallback use that same crest, so the retired standalone W no longer flashes between Farcaster and the Realm.',
+    'A content-addressed image URL gives the current crest a fresh cache identity while leaving every entry and Realm authority boundary unchanged.'
+  ]),
+  alphaNotice:
+    'Alpha 0.3.32 remains an invite-only, unfinished world. This presentation patch does not change authentication, admission, Terms acceptance, castle ownership, Workers, resources, balances, terrain, or persistent world state.'
+});
+
 const ALPHA_0_3_31_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '31 JUL 2026',
   title: 'THE GATE LISTENS',
@@ -205,6 +219,7 @@ const ALPHA_0_3_22_PATCH_NOTES: LatestPatchNotes = Object.freeze({
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
+    '0.3.32': ALPHA_0_3_32_PATCH_NOTES,
     '0.3.31': ALPHA_0_3_31_PATCH_NOTES,
     '0.3.30': ALPHA_0_3_30_PATCH_NOTES,
     '0.3.29': ALPHA_0_3_29_PATCH_NOTES,

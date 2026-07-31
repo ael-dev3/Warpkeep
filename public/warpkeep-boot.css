@@ -19,17 +19,23 @@
 
 .warpkeep-boot__sigil {
   align-items: center;
-  border: 1px solid rgba(224, 222, 230, 0.3);
-  border-radius: 50%;
+  border: 0;
+  border-radius: 18%;
   color: #f1eee4;
   display: inline-flex;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 2.25rem;
-  height: 4.4rem;
+  height: 5.75rem;
   justify-content: center;
   margin-bottom: 1.6rem;
   position: relative;
-  width: 4.4rem;
+  width: 5.75rem;
+}
+
+.warpkeep-boot__sigil-image {
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+  object-fit: contain;
+  width: 100%;
 }
 
 .warpkeep-boot__sigil::after {

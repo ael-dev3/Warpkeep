@@ -18,24 +18,24 @@ describe('latest in-menu patch notes', () => {
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
       releasedOn: '31 JUL 2026',
-      title: 'THE GATE LISTENS'
+      title: 'THE HEGEMONY CREST'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Request Access.*single primary action.*request-status check/i
+      /native Mini App launch splash.*current.*Hegemony crest.*original draft mark/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Try Again.*Check Again.*Request Received.*admission decision/i
+      /browser opening frame.*no-JavaScript fallback.*retired standalone W/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /private.*manually reviewed.*idempotent.*grants no admission.*creates no keep/i
+      /content-addressed image URL.*fresh cache identity.*entry.*authority boundary/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /released to players|deployed to players|public balances|guaranteed rewards/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('frontier');
+    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('Hegemony crest');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'does not change admission decisions, castle ownership, Workers, resources, balances, terrain'
+      'does not change authentication, admission, Terms acceptance, castle ownership, Workers, resources, balances, terrain'
     );
 
     const alpha0324 = getLatestPatchNotes('0.3.24');

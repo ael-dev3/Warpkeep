@@ -33,12 +33,12 @@ Copyright: 2026 Warpkeep project
 License: CC-BY-4.0
 Comment: Faithful runtime derivatives and metadata from the immutable Warpkeep-Assets Hegemony Mark release; see ASSETS-LICENSE.md.
 
-Files: public/images/miniapp/warpkeep-splash-200.png public/images/miniapp/warpkeep-hero-1200x630.png public/images/miniapp/warpkeep-og-1200x630.png
+Files: public/images/miniapp/warpkeep-hero-1200x630.png public/images/miniapp/warpkeep-og-1200x630.png
 Copyright: 2026 Warpkeep project
 License: CC-BY-4.0
 Comment: Code-generated project-owned Mini App release artwork; see ASSETS-LICENSE.md.
 
-Files: public/images/miniapp/warpkeep-icon-1024-d1b42d20f03c2905.png public/favicon-64-7b82ca973fe757f5.png public/apple-touch-icon-180-fe27e8dc1c97cc36.png docs/reference/miniapp/2026-07-31-hegemony-crest-icon/warpkeep-hegemony-crest-source.png
+Files: public/images/miniapp/warpkeep-splash-200-117256827545daa1.png public/images/miniapp/warpkeep-icon-1024-d1b42d20f03c2905.png public/favicon-64-7b82ca973fe757f5.png public/apple-touch-icon-180-fe27e8dc1c97cc36.png docs/reference/miniapp/2026-07-31-hegemony-crest-icon/warpkeep-hegemony-crest-source.png
 Copyright: See ASSETS-LICENSE.md
 License: LicenseRef-Warpkeep-Provenance-Required
 Comment: Owner-supplied Hegemony crest and its reviewed Mini App and website icon derivatives; repository and official deployment use are authorized without an independent open-content grant.

@@ -596,17 +596,16 @@ boundary. No general derivative or redistribution permission is granted.
 
 ## Farcaster Mini App release artwork
 
-The Alpha 0.3.28 Mini App splash, hero, and Open Graph images are
-project-owned, code-generated Warpkeep artwork. They are composed only from
+The Alpha 0.3.28 Mini App hero and Open Graph images are project-owned,
+code-generated Warpkeep artwork. They are composed only from
 shapes, gradients, typography, and the project’s shield motif in
 `scripts/prepare-farcaster-miniapp-assets.mjs`; no third-party raster source or
-generated-image service is used. These three files are licensed under
+generated-image service is used. These two files are licensed under
 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), without granting
 Warpkeep trademark or canonical-deployment rights.
 
 | Use | Repository file | Technical record |
 | --- | --- | --- |
-| Mini App splash | `public/images/miniapp/warpkeep-splash-200.png` | 200×200 opaque PNG, 21,681 bytes, SHA-256 `cca0de5a0ef290f453ad367e2887a08c5ead022f2bf2d5c64d9d9a073431ea73`. |
 | Directory hero | `public/images/miniapp/warpkeep-hero-1200x630.png` | 1200×630 opaque PNG, 157,511 bytes, SHA-256 `aa28b25357fdbddfcb347e41adf14a20c5f62a5cb4aaf498ce24f33f51eb9d14`. |
 | Open Graph image | `public/images/miniapp/warpkeep-og-1200x630.png` | 1200×630 opaque PNG, 157,511 bytes, SHA-256 `aa28b25357fdbddfcb347e41adf14a20c5f62a5cb4aaf498ce24f33f51eb9d14`. |
 
@@ -625,6 +624,7 @@ opaque palette PNG derivatives.
 
 | Use | Repository file | Technical record |
 | --- | --- | --- |
+| Mini App launch splash | `public/images/miniapp/warpkeep-splash-200-117256827545daa1.png` | 200×200 opaque PNG, 26,394 bytes, SHA-256 `117256827545daa14673847c3f20ead2aaebe6ca6c66691eda416336da599a6b`. |
 | Mini App icon | `public/images/miniapp/warpkeep-icon-1024-d1b42d20f03c2905.png` | 1024×1024 opaque PNG, 642,661 bytes, SHA-256 `d1b42d20f03c29058f0450e82ecffb92f756033314c55468eb23ea9b1c6e78ed`. |
 | Website favicon | `public/favicon-64-7b82ca973fe757f5.png` | 64×64 opaque PNG, 4,188 bytes, SHA-256 `7b82ca973fe757f54a37e256ac8a0e6f8fe2ed4e4ed6bfaa1c5472fc71fbe5f2`. |
 | Apple touch icon | `public/apple-touch-icon-180-fe27e8dc1c97cc36.png` | 180×180 opaque PNG, 22,146 bytes, SHA-256 `fe27e8dc1c97cc367274c9c786042b2d615b9af1dcd025c2c351c63dae4fdfb5`. |

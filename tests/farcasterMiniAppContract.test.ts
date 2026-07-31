@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -5,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
 
 // @ts-expect-error Repository JavaScript release contracts expose named test seams.
-import { FARCASTER_MINI_APP_CONFIG, FARCASTER_MINI_APP_DOMAIN, FARCASTER_MINI_APP_EMBED, FARCASTER_MINI_APP_IMAGES, FARCASTER_MINI_APP_ORIGIN, FARCASTER_MINI_APP_OWNER_FID, WARPKEEP_SITE_ICONS, exactJsonValue, inspectFarcasterAccountAssociation, inspectPng } from '../scripts/farcaster-miniapp-contract.mjs';
+import { FARCASTER_MINI_APP_CONFIG, FARCASTER_MINI_APP_DOMAIN, FARCASTER_MINI_APP_EMBED, FARCASTER_MINI_APP_IMAGES, FARCASTER_MINI_APP_ORIGIN, FARCASTER_MINI_APP_OWNER_FID, FARCASTER_MINI_APP_SPLASH_FILE, WARPKEEP_SITE_ICONS, exactJsonValue, inspectFarcasterAccountAssociation, inspectPng } from '../scripts/farcaster-miniapp-contract.mjs';
 // @ts-expect-error Repository JavaScript release verifier exposes a named test seam.
 import { verifyFarcasterAccountAssociationSignature } from '../scripts/verify-farcaster-miniapp.mjs';
 // @ts-expect-error Repository JavaScript production verifier exposes a named test seam.
@@ -135,18 +136,30 @@ describe('Farcaster Mini App release contract', () => {
       .toThrow(/canonical unpadded Base64URL or padded Base64/i);
   });
 
-  it('reads exact PNG geometry and opacity from release artwork', () => {
-    const bytes = readFileSync(
+  it('pins exact geometry, opacity, and identity for current crest artwork', () => {
+    const iconBytes = readFileSync(
       resolve(
         process.cwd(),
         'public/images/miniapp/warpkeep-icon-1024-d1b42d20f03c2905.png',
       ),
     );
-    expect(inspectPng(bytes)).toEqual({
+    expect(inspectPng(iconBytes)).toEqual({
       width: 1024,
       height: 1024,
       hasAlpha: false,
     });
+
+    const splashBytes = readFileSync(
+      resolve(process.cwd(), 'public/images/miniapp', FARCASTER_MINI_APP_SPLASH_FILE),
+    );
+    expect(inspectPng(splashBytes)).toEqual({
+      width: 200,
+      height: 200,
+      hasAlpha: false,
+    });
+    expect(createHash('sha256').update(splashBytes).digest('hex')).toBe(
+      '117256827545daa14673847c3f20ead2aaebe6ca6c66691eda416336da599a6b',
+    );
   });
 
   it('verifies the exact live embed, manifest, and reviewed release images', async () => {

@@ -6,6 +6,17 @@ full engineering record.
 
 ## [Unreleased]
 
+## [0.3.32] — 2026-07-31
+
+- Replaced the original draft Mini App launch mark with the current
+  purple-and-gold Hegemony crest.
+- Matched the brief browser opening frame and no-JavaScript fallback to that
+  same crest, removing the remaining standalone “W” flash.
+- Published the launch splash under a content-addressed URL so it cannot
+  collide with cached bytes from the retired image.
+- Left authentication, admission, Terms acceptance, keeps, Workers, resources,
+  balances, terrain, and persistent world data unchanged.
+
 ## [0.3.31] — 2026-07-31
 
 - Restored one clear Request Access action for verified keepers whose admission
@@ -350,7 +361,8 @@ full engineering record.
   Lowlands, a first keep, Farcaster sign-in, and an admission-gated shared-world
   foundation.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.31...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.32...HEAD
+[0.3.32]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.31...v0.3.32
 [0.3.31]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.30...v0.3.31
 [0.3.30]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.29...v0.3.30
 [0.3.29]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.28...v0.3.29
