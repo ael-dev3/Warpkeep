@@ -95,7 +95,7 @@ npm run stdb:publish:dev -- --dry-run \
   --resource-rollout-stage=ready \
   --genesis-world-stage=expanded \
   --worker-rollout-stage=active \
-  --worker-module-predecessor=exact-v12-active \
+  --worker-module-predecessor=exact-v13-active \
   --worker-forward-repair=none
 ```
 
@@ -125,6 +125,12 @@ npm run stdb:worker-return-repair:apply -- --confirm
 
 The apply path records an aggregate-only intent before submission and a second
 terminal receipt after the fresh post-inspection.
+
+`--worker-module-predecessor=exact-v13-active` is the normal code-only lane
+after the private v13 access-request suffix is deployed. Its anonymous
+preflight binds both proven schema digests and all 54 table signatures, accepts
+only the exact active or candidate Worker ABI, and requires the identical table
+boundary plus the candidate ABI after publication.
 
 `--worker-module-predecessor=exact-v12-empty` is the explicit code-only
 exception for an already-appended but still-inert v12 suffix. It requires the
