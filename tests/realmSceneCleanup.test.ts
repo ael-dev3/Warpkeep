@@ -2819,6 +2819,100 @@ describe('realm scene setup cleanup', () => {
     scene.dispose();
   });
 
+  it('adds bounded foreground hit tolerance only for touch taps', async () => {
+    const root = new THREE.Group();
+    root.add(new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial()
+    ));
+    keepLoadState.load.mockResolvedValue(loadedCastleAssembly(root));
+    const canvas = document.createElement('canvas');
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      right: 800,
+      bottom: 600,
+      left: 0,
+      width: 800,
+      height: 600,
+      toJSON: () => ({})
+    });
+    Object.defineProperties(canvas, {
+      clientWidth: { configurable: true, value: 800 },
+      clientHeight: { configurable: true, value: 600 }
+    });
+    const onCastlesReady = vi.fn();
+    const onTargetSelect = vi.fn();
+    const scene = createRealmScene(createOptions(canvas, {
+      onCastlesReady,
+      onTargetSelect
+    }));
+    await vi.waitFor(() => expect(onCastlesReady).toHaveBeenCalledWith(1));
+
+    const renderedScene = (
+      webglState.instances.at(-1)?.render.mock.calls.at(-1)?.[0]
+    ) as THREE.Scene;
+    let castleMesh: THREE.InstancedMesh | undefined;
+    renderedScene.traverse((candidate) => {
+      if (
+        candidate instanceof THREE.InstancedMesh
+        && candidate.name.startsWith('hegemony-castles-')
+      ) castleMesh = candidate;
+    });
+    expect(castleMesh).toBeInstanceOf(THREE.InstancedMesh);
+    if (!castleMesh) throw new Error('Castle instance mesh was not presented.');
+
+    let castleRaycastCount = 0;
+    vi.spyOn(THREE.Raycaster.prototype, 'intersectObjects').mockImplementation(() => {
+      castleRaycastCount += 1;
+      return castleRaycastCount === 2 ? [{
+        distance: 1,
+        instanceId: 0,
+        object: castleMesh!,
+        point: new THREE.Vector3()
+      } as THREE.Intersection] : [];
+    });
+    vi.spyOn(THREE.Raycaster.prototype, 'intersectObject').mockReturnValue([]);
+
+    dispatchPointer(canvas, 'pointerdown', {
+      pointerId: 51,
+      clientX: 400,
+      clientY: 300,
+      pointerType: 'mouse'
+    });
+    dispatchPointer(canvas, 'pointerup', {
+      pointerId: 51,
+      clientX: 400,
+      clientY: 300,
+      pointerType: 'mouse'
+    });
+    expect(castleRaycastCount).toBe(1);
+    expect(onTargetSelect).not.toHaveBeenCalled();
+
+    castleRaycastCount = 0;
+    dispatchPointer(canvas, 'pointerdown', {
+      pointerId: 52,
+      clientX: 400,
+      clientY: 300,
+      pointerType: 'touch'
+    });
+    dispatchPointer(canvas, 'pointerup', {
+      pointerId: 52,
+      clientX: 400,
+      clientY: 300,
+      pointerType: 'touch'
+    });
+    expect(castleRaycastCount).toBe(2);
+    expect(onTargetSelect).toHaveBeenCalledWith({
+      kind: 'castle',
+      castleId: 1,
+      coord: { q: 0, r: 0 }
+    });
+
+    scene.dispose();
+  });
+
   it('selects the viewer keep from the canvas without changing camera state', async () => {
     const root = new THREE.Group();
     root.add(new THREE.Mesh(
@@ -3102,6 +3196,7 @@ describe('realm scene setup cleanup', () => {
   });
 
   it('shares first-attempt drag and wheel control with permanent castle labels', () => {
+    const { timers } = installManualWindowTimers();
     const root = document.createElement('main');
     root.className = 'realm-map-screen';
     const canvas = document.createElement('canvas');
@@ -3159,6 +3254,9 @@ describe('realm scene setup cleanup', () => {
       clientX: 410,
       clientY: 322
     });
+    expect([...timers.values()].map(({ delayMilliseconds }) => (
+      delayMilliseconds
+    ))).toEqual([750]);
     label.dispatchEvent(new MouseEvent('click', {
       bubbles: true,
       cancelable: true,
@@ -3167,6 +3265,7 @@ describe('realm scene setup cleanup', () => {
 
     expect(camera.position.distanceTo(beforeDrag)).toBeGreaterThan(0.001);
     expect(onLabelClick).not.toHaveBeenCalled();
+    expect(timers.size).toBe(0);
     expect(canvas.dataset.dragging).toBeUndefined();
     expect(root.dataset.cameraInteracting).toBeUndefined();
 
@@ -3224,6 +3323,182 @@ describe('realm scene setup cleanup', () => {
       deltaMode: 0
     }));
     expect(camera.position.distanceTo(beforeWheel)).toBeGreaterThan(0.001);
+
+    scene.dispose();
+    root.remove();
+  });
+
+  it('shares touch tap, pan, and pinch ownership with every map-world control', () => {
+    const root = document.createElement('main');
+    root.className = 'realm-map-screen';
+    const canvas = document.createElement('canvas');
+    canvas.className = 'realm-map-screen__canvas';
+    const controls = [
+      'realm-castle-label',
+      'realm-worker-presence-marker',
+      'realm-resource-occupant-presence',
+      'realm-resource-occupant-marker'
+    ].map((className) => {
+      const control = document.createElement('button');
+      control.className = className;
+      control.type = 'button';
+      return control;
+    });
+    root.append(canvas, ...controls);
+    document.body.append(root);
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      right: 800,
+      bottom: 600,
+      left: 0,
+      width: 800,
+      height: 600,
+      toJSON: () => ({})
+    });
+    Object.defineProperties(canvas, {
+      clientWidth: { configurable: true, value: 800 },
+      clientHeight: { configurable: true, value: 600 }
+    });
+    const clicks = controls.map(() => vi.fn());
+    const captureSpies = controls.map(() => vi.fn());
+    controls.forEach((control, index) => {
+      control.addEventListener('click', clicks[index]);
+      Object.defineProperties(control, {
+        setPointerCapture: {
+          configurable: true,
+          value: captureSpies[index]
+        },
+        releasePointerCapture: {
+          configurable: true,
+          value: vi.fn()
+        },
+        hasPointerCapture: {
+          configurable: true,
+          value: vi.fn(() => true)
+        }
+      });
+    });
+    const scene = createRealmScene(createOptions(canvas, {
+      surface: createRealmTerrainSurface('realm-world-control-touch', 4, 5),
+      reducedMotion: true
+    }));
+    scene.frameFoundingDistrict();
+
+    controls.forEach((control, index) => {
+      const pointerId = 100 + index;
+      const x = 250 + index * 40;
+      dispatchPointer(control, 'pointerdown', {
+        pointerId,
+        pointerType: 'touch',
+        clientX: x,
+        clientY: 280
+      });
+      const jitter = dispatchPointer(window, 'pointermove', {
+        pointerId,
+        pointerType: '',
+        buttons: 0,
+        clientX: x + 8,
+        clientY: 280
+      });
+      dispatchPointer(window, 'pointerup', {
+        pointerId,
+        pointerType: 'touch',
+        buttons: 0,
+        clientX: x + 8,
+        clientY: 280
+      });
+      control.dispatchEvent(new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        detail: 1
+      }));
+
+      expect(jitter.defaultPrevented).toBe(false);
+      expect(clicks[index]).toHaveBeenCalledOnce();
+      expect(captureSpies[index]).not.toHaveBeenCalled();
+
+      dispatchPointer(control, 'pointerdown', {
+        pointerId: pointerId + 10,
+        pointerType: 'touch',
+        clientX: x,
+        clientY: 300
+      });
+      const drag = dispatchPointer(window, 'pointermove', {
+        pointerId: pointerId + 10,
+        pointerType: '',
+        buttons: 0,
+        clientX: x + 18,
+        clientY: 306
+      });
+      dispatchPointer(window, 'pointerup', {
+        pointerId: pointerId + 10,
+        pointerType: 'touch',
+        buttons: 0,
+        clientX: x + 18,
+        clientY: 306
+      });
+      control.dispatchEvent(new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        detail: 1
+      }));
+
+      expect(drag.defaultPrevented).toBe(true);
+      expect(clicks[index]).toHaveBeenCalledOnce();
+      expect(captureSpies[index]).toHaveBeenCalledWith(pointerId + 10);
+    });
+
+    const beforePinch = scene.getCameraAttestation();
+    dispatchPointer(controls[1]!, 'pointerdown', {
+      pointerId: 201,
+      pointerType: 'touch',
+      clientX: 280,
+      clientY: 320
+    });
+    const secondDown = dispatchPointer(controls[2]!, 'pointerdown', {
+      pointerId: 202,
+      pointerType: 'touch',
+      clientX: 520,
+      clientY: 320
+    });
+    dispatchPointer(window, 'pointermove', {
+      pointerId: 202,
+      pointerType: '',
+      buttons: 0,
+      clientX: 570,
+      clientY: 320
+    });
+    dispatchPointer(window, 'pointerup', {
+      pointerId: 202,
+      pointerType: 'touch',
+      buttons: 0,
+      clientX: 570,
+      clientY: 320
+    });
+    dispatchPointer(window, 'pointerup', {
+      pointerId: 201,
+      pointerType: 'touch',
+      buttons: 0,
+      clientX: 280,
+      clientY: 320
+    });
+    for (const index of [1, 2]) {
+      controls[index]!.dispatchEvent(new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        detail: 1
+      }));
+    }
+
+    const afterPinch = scene.getCameraAttestation();
+    expect(secondDown.defaultPrevented).toBe(true);
+    expect(afterPinch.zoom).not.toBe(beforePinch.zoom);
+    expect(clicks[1]).toHaveBeenCalledOnce();
+    expect(clicks[2]).toHaveBeenCalledOnce();
+    expect(canvas.dataset.dragging).toBeUndefined();
+    expect(root.dataset.cameraInteracting).toBeUndefined();
 
     scene.dispose();
     root.remove();

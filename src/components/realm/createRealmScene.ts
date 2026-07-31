@@ -240,6 +240,23 @@ const CANONICAL_KEEP_CAMERA_FOCUS_SIZE = Object.freeze({
   height: 1.08,
   footprintDiameter: 1.48
 });
+const REALM_WORLD_CONTROL_SELECTOR = [
+  '.realm-castle-label',
+  '.realm-worker-presence-marker',
+  '.realm-resource-occupant-presence',
+  '.realm-resource-occupant-marker'
+].join(',');
+const WORLD_CONTROL_COMPATIBILITY_CLICK_WINDOW_MILLISECONDS = 750;
+const TOUCH_PICK_OFFSETS = Object.freeze([
+  Object.freeze({ x: 0, y: -10 }),
+  Object.freeze({ x: 7, y: -7 }),
+  Object.freeze({ x: 10, y: 0 }),
+  Object.freeze({ x: 7, y: 7 }),
+  Object.freeze({ x: 0, y: 10 }),
+  Object.freeze({ x: -7, y: 7 }),
+  Object.freeze({ x: -10, y: 0 }),
+  Object.freeze({ x: -7, y: -7 })
+]);
 
 /**
  * Privacy-safe exact-camera attestation for rendered QA. The token binds the
@@ -3727,6 +3744,7 @@ function initializeRealmScene(
   const interactionRoot = options.canvas.closest<HTMLElement>('.realm-map-screen')
     ?? options.canvas.parentElement
     ?? options.canvas;
+  const pointerCaptureTargets = new Map<number, HTMLElement>();
   const sceneAcceptsInteraction = () => (
     presentationActive
     && options.canvas.dataset.realmCanvasActive !== 'false'
@@ -3734,22 +3752,23 @@ function initializeRealmScene(
   );
   const pointerGestures = createRealmPointerGestureCoordinator({
     capturePointer: (pointerId) => {
-      if (typeof interactionRoot.setPointerCapture !== 'function') return false;
-      interactionRoot.setPointerCapture(pointerId);
-      return typeof interactionRoot.hasPointerCapture !== 'function'
-        || interactionRoot.hasPointerCapture(pointerId);
+      const captureTarget = pointerCaptureTargets.get(pointerId) ?? interactionRoot;
+      if (typeof captureTarget.setPointerCapture !== 'function') return false;
+      captureTarget.setPointerCapture(pointerId);
+      return typeof captureTarget.hasPointerCapture !== 'function'
+        || captureTarget.hasPointerCapture(pointerId);
     },
     releasePointer: (pointerId) => {
+      const captureTarget = pointerCaptureTargets.get(pointerId) ?? interactionRoot;
       if (
-        typeof interactionRoot.hasPointerCapture === 'function'
-        && !interactionRoot.hasPointerCapture(pointerId)
+        typeof captureTarget.hasPointerCapture === 'function'
+        && !captureTarget.hasPointerCapture(pointerId)
       ) return;
-      interactionRoot.releasePointerCapture?.(pointerId);
+      captureTarget.releasePointerCapture?.(pointerId);
     }
   });
-  const labelPointerTargets = new Map<number, HTMLElement>();
-  let suppressedLabelClickTarget: HTMLElement | null = null;
-  let labelClickSuppressionTimer = 0;
+  const worldControlPointerTargets = new Map<number, HTMLElement>();
+  const suppressedWorldControlClicks = new Map<HTMLElement, number>();
   let pendingDirectGesture: PendingRealmDirectGesture | null = null;
   let directGestureFrame = 0;
   let pendingHoverPoint: Readonly<{ x: number; y: number }> | null = null;
@@ -3765,11 +3784,11 @@ function initializeRealmScene(
     if (resizeFrame !== 0) window.cancelAnimationFrame(resizeFrame);
     resizeFrame = 0;
     pendingDirectGesture = null;
-    if (labelClickSuppressionTimer !== 0) window.clearTimeout(labelClickSuppressionTimer);
-    labelClickSuppressionTimer = 0;
-    suppressedLabelClickTarget = null;
-    labelPointerTargets.clear();
+    suppressedWorldControlClicks.forEach((timer) => window.clearTimeout(timer));
+    suppressedWorldControlClicks.clear();
     pointerGestures.dispose();
+    pointerCaptureTargets.clear();
+    worldControlPointerTargets.clear();
     cameraController.cancelDirectManipulation();
     delete options.canvas.dataset.dragging;
     delete interactionRoot.dataset.cameraInteracting;
@@ -3801,14 +3820,30 @@ function initializeRealmScene(
     options.onSelect(target.coord);
   };
 
-  const pick = (clientX: number, clientY: number): RealmInteractionTarget | null => {
+  const aimRaycaster = (clientX: number, clientY: number) => {
     const bounds = options.canvas.getBoundingClientRect();
-    if (bounds.width <= 0 || bounds.height <= 0) return null;
+    if (
+      bounds.width <= 0
+      || bounds.height <= 0
+      || clientX < bounds.left
+      || clientY < bounds.top
+      || clientX > bounds.right
+      || clientY > bounds.bottom
+    ) return false;
     normalizedPointer.set(
       ((clientX - bounds.left) / bounds.width) * 2 - 1,
       -((clientY - bounds.top) / bounds.height) * 2 + 1
     );
     raycaster.setFromCamera(normalizedPointer, cameraController.camera);
+    return true;
+  };
+
+  const pickForeground = (
+    clientX: number,
+    clientY: number,
+    includeWater: boolean
+  ): RealmInteractionTarget | null => {
+    if (!aimRaycaster(clientX, clientY)) return null;
     const resourceHits: RealmResourcePickHit[] = [];
     const goldNodeHit = goldNodeLayer?.raycast(raycaster);
     if (goldNodeHit) resourceHits.push({ kind: 'gold-site', ...goldNodeHit });
@@ -3821,9 +3856,17 @@ function initializeRealmScene(
     const workerHit = workerLayer?.raycast(raycaster);
     const workerHits: RealmWorkerPickHit[] = workerHit ? [workerHit] : [];
     const castleHit = castleLayer?.raycast(raycaster);
-    const waterHit: RealmWaterPickHit | null = waterLayer?.raycast(raycaster) ?? null;
-    const foregroundHit = arbitrateRealmPick({ resourceHits, workerHits, castleHit, waterHit });
-    if (foregroundHit) return foregroundHit;
+    const waterHit: RealmWaterPickHit | null = includeWater
+      ? waterLayer?.raycast(raycaster) ?? null
+      : null;
+    return arbitrateRealmPick({ resourceHits, workerHits, castleHit, waterHit });
+  };
+
+  const pickTerrain = (
+    clientX: number,
+    clientY: number
+  ): RealmInteractionTarget | null => {
+    if (!aimRaycaster(clientX, clientY)) return null;
     const intersections = raycaster.intersectObject(terrain, false);
     for (const intersection of intersections) {
       const coord = worldToNearestAxial(
@@ -3838,6 +3881,30 @@ function initializeRealmScene(
       }
     }
     return null;
+  };
+
+  const pick = (
+    clientX: number,
+    clientY: number,
+    touchTolerance = false
+  ): RealmInteractionTarget | null => {
+    const exactForeground = pickForeground(clientX, clientY, true);
+    if (exactForeground) return exactForeground;
+    if (touchTolerance) {
+      // Portrait-scale castles, workers, and resource nodes can project below
+      // a comfortable finger target. Sample a bounded CSS-pixel ring only
+      // after the exact ray misses foreground content, retaining exact-hit
+      // priority and never widening terrain or water cells.
+      for (const offset of TOUCH_PICK_OFFSETS) {
+        const nearbyForeground = pickForeground(
+          clientX + offset.x,
+          clientY + offset.y,
+          false
+        );
+        if (nearbyForeground) return nearbyForeground;
+      }
+    }
+    return pickTerrain(clientX, clientY);
   };
 
   const cancelPendingHover = () => {
@@ -3864,11 +3931,15 @@ function initializeRealmScene(
     });
   };
 
+  const worldControlForTarget = (target: EventTarget | null) => {
+    if (!(target instanceof Element)) return null;
+    const control = target.closest<HTMLElement>(REALM_WORLD_CONTROL_SELECTOR);
+    return control && interactionRoot.contains(control) ? control : null;
+  };
+
   const laneForTarget = (target: EventTarget | null): RealmPointerStartLane | null => {
     if (target === options.canvas) return 'canvas';
-    if (!(target instanceof Element)) return null;
-    const label = target.closest('.realm-castle-label');
-    return label && interactionRoot.contains(label) ? 'label' : null;
+    return worldControlForTarget(target) ? 'world-control' : null;
   };
 
   const localPoint = (clientX: number, clientY: number) => {
@@ -3978,19 +4049,22 @@ function initializeRealmScene(
     scheduleDirectGesture();
   };
 
-  const clearLabelClickSuppression = () => {
-    if (labelClickSuppressionTimer !== 0) window.clearTimeout(labelClickSuppressionTimer);
-    labelClickSuppressionTimer = 0;
-    suppressedLabelClickTarget = null;
-    pointerGestures.consumeLabelClickSuppression();
+  const clearWorldControlClickSuppressions = () => {
+    suppressedWorldControlClicks.forEach((timer) => window.clearTimeout(timer));
+    suppressedWorldControlClicks.clear();
+    pointerGestures.consumeWorldControlClickSuppression();
   };
 
-  const armLabelClickSuppression = (target: HTMLElement) => {
-    if (labelClickSuppressionTimer !== 0) window.clearTimeout(labelClickSuppressionTimer);
-    suppressedLabelClickTarget = target;
-    // Compatibility clicks follow pointerup in the same user-interaction task.
-    // Expire after that task so stale guards cannot affect later input.
-    labelClickSuppressionTimer = window.setTimeout(clearLabelClickSuppression, 0);
+  const armWorldControlClickSuppression = (target: HTMLElement) => {
+    const previousTimer = suppressedWorldControlClicks.get(target);
+    if (previousTimer !== undefined) window.clearTimeout(previousTimer);
+    // Embedded WebViews may defer a compatibility click beyond the pointerup
+    // task, especially after a multi-contact gesture. Keep a short bounded
+    // guard, while a fresh intentional pointerdown clears it immediately.
+    const timer = window.setTimeout(() => {
+      suppressedWorldControlClicks.delete(target);
+    }, WORLD_CONTROL_COMPATIBILITY_CLICK_WINDOW_MILLISECONDS);
+    suppressedWorldControlClicks.set(target, timer);
   };
 
   const contextLostBlocksTarget = (target: EventTarget | null) => (
@@ -4005,7 +4079,16 @@ function initializeRealmScene(
       return;
     }
     if (!lane || (event.pointerType !== 'touch' && event.button !== 0)) return;
-    if (pointerGestures.snapshot().pointerCount === 0) clearLabelClickSuppression();
+    if (pointerGestures.snapshot().pointerCount === 0) {
+      clearWorldControlClickSuppressions();
+    }
+    const worldControl = lane === 'world-control'
+      ? worldControlForTarget(event.target)
+      : null;
+    pointerCaptureTargets.set(
+      event.pointerId,
+      worldControl ?? options.canvas
+    );
     const result = pointerGestures.start({
       pointerId: event.pointerId,
       pointerType: event.pointerType,
@@ -4013,11 +4096,11 @@ function initializeRealmScene(
       x: event.clientX,
       y: event.clientY
     });
-    if (!result.accepted) return;
-    if (lane === 'label' && event.target instanceof Element) {
-      const label = event.target.closest<HTMLElement>('.realm-castle-label');
-      if (label) labelPointerTargets.set(event.pointerId, label);
+    if (!result.accepted) {
+      pointerCaptureTargets.delete(event.pointerId);
+      return;
     }
+    if (worldControl) worldControlPointerTargets.set(event.pointerId, worldControl);
     if (lane === 'canvas' || result.phase === 'pinching') event.preventDefault();
     cancelPendingHover();
     dispatchHover(null);
@@ -4042,9 +4125,12 @@ function initializeRealmScene(
     const coalesced = event.getCoalescedEvents?.() ?? [];
     const sample = coalesced.at(-1) ?? event;
     const result = pointerGestures.move({
-      pointerId: sample.pointerId,
-      pointerType: sample.pointerType,
-      buttons: sample.buttons,
+      // Coalesced WebKit samples are trusted only for coordinates. Pointer
+      // identity and contact metadata belong to the dispatched event that
+      // owns this stream.
+      pointerId: event.pointerId,
+      pointerType: event.pointerType,
+      buttons: event.buttons,
       x: sample.clientX,
       y: sample.clientY
     });
@@ -4053,15 +4139,20 @@ function initializeRealmScene(
     if (result.phase !== 'pending' || result.cancelled) event.preventDefault();
     queueGesture(result, sample.clientX, sample.clientY);
     if (result.cancelled) {
-      labelPointerTargets.delete(sample.pointerId);
+      worldControlPointerTargets.delete(event.pointerId);
+      pointerCaptureTargets.delete(event.pointerId);
       flushDirectGesture();
-      clearLabelClickSuppression();
+      clearWorldControlClickSuppressions();
     }
     syncGesturePhase(result);
   };
 
-  const activateCanvasTap = (clientX: number, clientY: number) => {
-    const picked = pick(clientX, clientY);
+  const activateCanvasTap = (
+    clientX: number,
+    clientY: number,
+    pointerType: string
+  ) => {
+    const picked = pick(clientX, clientY, pointerType === 'touch');
     if (!picked) return;
     options.onWorldSelectionFeedback?.(localPoint(clientX, clientY));
     selectedCastleId = picked.kind === 'castle' ? picked.castleId : undefined;
@@ -4088,18 +4179,27 @@ function initializeRealmScene(
       return;
     }
     if (contextLost) return;
-    const labelTarget = labelPointerTargets.get(event.pointerId);
-    labelPointerTargets.delete(event.pointerId);
+    const worldControlTarget = worldControlPointerTargets.get(event.pointerId);
     const result = pointerGestures.end({
       pointerId: event.pointerId,
       x: event.clientX,
       y: event.clientY
     });
     if (!result.accepted) return;
+    worldControlPointerTargets.delete(event.pointerId);
+    pointerCaptureTargets.delete(event.pointerId);
     queueGesture(result, event.clientX, event.clientY);
     flushDirectGesture();
-    if (labelTarget && !result.tap) armLabelClickSuppression(labelTarget);
-    if (result.tap?.lane === 'canvas') activateCanvasTap(result.tap.x, result.tap.y);
+    if (worldControlTarget && !result.tap) {
+      armWorldControlClickSuppression(worldControlTarget);
+    }
+    if (result.tap?.lane === 'canvas') {
+      activateCanvasTap(
+        result.tap.x,
+        result.tap.y,
+        result.tap.pointerType
+      );
+    }
     syncGesturePhase(result);
     if (result.pointerCount === 0) {
       const hitTarget = document.elementFromPoint?.(event.clientX, event.clientY) ?? event.target;
@@ -4118,11 +4218,12 @@ function initializeRealmScene(
       return;
     }
     if (contextLost) return;
-    labelPointerTargets.delete(event.pointerId);
     const result = pointerGestures.cancel(event.pointerId);
     if (!result.accepted) return;
+    worldControlPointerTargets.delete(event.pointerId);
+    pointerCaptureTargets.delete(event.pointerId);
     flushDirectGesture();
-    clearLabelClickSuppression();
+    clearWorldControlClickSuppressions();
     dispatchHover(null);
     syncGesturePhase(result);
   };
@@ -4130,20 +4231,22 @@ function initializeRealmScene(
   const handleLostPointerCapture = (event: PointerEvent) => {
     if (!sceneAcceptsInteraction()) return;
     if (contextLost) return;
-    labelPointerTargets.delete(event.pointerId);
     const result = pointerGestures.lostCapture(event.pointerId);
     if (!result.accepted) return;
+    worldControlPointerTargets.delete(event.pointerId);
+    pointerCaptureTargets.delete(event.pointerId);
     flushDirectGesture();
-    clearLabelClickSuppression();
+    clearWorldControlClickSuppressions();
     dispatchHover(null);
     syncGesturePhase(result);
   };
 
   const cancelAllPointers = (result: RealmPointerGestureResult) => {
     if (!result.accepted) return;
-    labelPointerTargets.clear();
+    worldControlPointerTargets.clear();
+    pointerCaptureTargets.clear();
     flushDirectGesture();
-    clearLabelClickSuppression();
+    clearWorldControlClickSuppressions();
     cancelPendingHover();
     dispatchHover(null);
     syncGesturePhase(result);
@@ -4158,7 +4261,7 @@ function initializeRealmScene(
     cancelAllPointers(pointerGestures.visibilityChanged(document.hidden));
   };
 
-  const handleLabelClickCapture = (event: MouseEvent) => {
+  const handleWorldControlClickCapture = (event: MouseEvent) => {
     if (!sceneAcceptsInteraction()) return;
     if (contextLost && contextLostBlocksTarget(event.target)) {
       event.preventDefault();
@@ -4168,12 +4271,13 @@ function initializeRealmScene(
     // Keyboard and assistive-technology activation carries no mouse click
     // count and must never be consumed by a prior pointer gesture.
     if (event.detail === 0 || !(event.target instanceof Element)) return;
-    const label = event.target.closest<HTMLElement>('.realm-castle-label');
-    if (!label || label !== suppressedLabelClickTarget) return;
-    if (!pointerGestures.consumeLabelClickSuppression()) return;
-    if (labelClickSuppressionTimer !== 0) window.clearTimeout(labelClickSuppressionTimer);
-    labelClickSuppressionTimer = 0;
-    suppressedLabelClickTarget = null;
+    const worldControl = worldControlForTarget(event.target);
+    if (!worldControl) return;
+    const timer = suppressedWorldControlClicks.get(worldControl);
+    if (timer === undefined) return;
+    window.clearTimeout(timer);
+    suppressedWorldControlClicks.delete(worldControl);
+    pointerGestures.consumeWorldControlClickSuppression();
     event.preventDefault();
     event.stopImmediatePropagation();
   };
@@ -4202,7 +4306,7 @@ function initializeRealmScene(
     // identity-aware raycast.
     cancelPendingHover();
     dispatchHover(null);
-    const label = lane === 'label' && event.target instanceof Element
+    const label = lane === 'world-control' && event.target instanceof Element
       ? event.target.closest<HTMLElement>('.realm-castle-label')
       : null;
     const castleId = Number(label?.dataset.castleId);
@@ -4282,17 +4386,26 @@ function initializeRealmScene(
     window.addEventListener('pointercancel', handlePointerCancel, true);
     cleanup.add(() => window.removeEventListener('pointercancel', handlePointerCancel, true));
   }
-  interactionRoot.addEventListener('lostpointercapture', handleLostPointerCapture);
+  interactionRoot.addEventListener(
+    'lostpointercapture',
+    handleLostPointerCapture,
+    true
+  );
   cleanup.add(() => interactionRoot.removeEventListener(
     'lostpointercapture',
-    handleLostPointerCapture
+    handleLostPointerCapture,
+    true
   ));
   window.addEventListener('blur', handleWindowBlur);
   cleanup.add(() => window.removeEventListener('blur', handleWindowBlur));
   document.addEventListener('visibilitychange', handlePointerVisibility);
   cleanup.add(() => document.removeEventListener('visibilitychange', handlePointerVisibility));
-  interactionRoot.addEventListener('click', handleLabelClickCapture, true);
-  cleanup.add(() => interactionRoot.removeEventListener('click', handleLabelClickCapture, true));
+  interactionRoot.addEventListener('click', handleWorldControlClickCapture, true);
+  cleanup.add(() => interactionRoot.removeEventListener(
+    'click',
+    handleWorldControlClickCapture,
+    true
+  ));
   options.canvas.addEventListener('pointerleave', handlePointerLeave);
   cleanup.add(() => options.canvas.removeEventListener('pointerleave', handlePointerLeave));
   interactionRoot.addEventListener('wheel', handleWheel, { capture: true, passive: false });
@@ -4331,9 +4444,10 @@ function initializeRealmScene(
     if (directGestureFrame !== 0) window.cancelAnimationFrame(directGestureFrame);
     directGestureFrame = 0;
     pendingDirectGesture = null;
-    labelPointerTargets.clear();
     const result = pointerGestures.blur();
-    clearLabelClickSuppression();
+    worldControlPointerTargets.clear();
+    pointerCaptureTargets.clear();
+    clearWorldControlClickSuppressions();
     cancelPendingHover();
     dispatchHover(null);
     if (result.accepted) syncGesturePhase(result);

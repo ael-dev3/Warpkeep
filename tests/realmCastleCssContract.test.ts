@@ -16,6 +16,10 @@ const PLAYER_CHROME = readFileSync(
   resolve(ROOT, 'src/components/realm/RealmPlayerChrome.css'),
   'utf8'
 );
+const WORKER_PRESENCE = readFileSync(
+  resolve(ROOT, 'src/components/realm/RealmWorkerPresenceMarkers.css'),
+  'utf8'
+);
 const GLOBAL = readFileSync(resolve(ROOT, 'src/styles/global.css'), 'utf8');
 const HUD_COMPONENT = readFileSync(
   resolve(ROOT, 'src/components/realm/RealmHud.tsx'),
@@ -442,7 +446,9 @@ describe('compact Realm CSS contract', () => {
     expect(presence).toContain('height: var(--realm-resource-presence-hit-size);');
     expect(presence).toContain('pointer-events: auto;');
     expect(presence).toContain('cursor: pointer;');
-    expect(presence).toContain('touch-action: manipulation;');
+    expect(presence).toContain('touch-action: none;');
+    expect(presence).toContain('-webkit-touch-callout: none;');
+    expect(marker).toContain('touch-action: none;');
     expect(presence).not.toMatch(/transition:[^;]*transform/);
     expect(marker).toContain('--realm-resource-marker-size: 44px;');
     expect(marker).not.toMatch(/transition:[^;]*transform/);
@@ -453,6 +459,18 @@ describe('compact Realm CSS contract', () => {
     expect(castleAction).toContain('min-height: 3.75rem;');
     expect(recall).toContain('min-height: 2.75rem;');
     expect(MAP).not.toContain('.realm-resource-occupant-panel');
+  });
+
+  it('keeps travelling-worker portraits inside the direct map gesture lane', () => {
+    const workerMarker = block(
+      WORKER_PRESENCE,
+      '.realm-worker-presence-marker {'
+    );
+
+    expect(workerMarker).toContain('--realm-worker-presence-size: 44px;');
+    expect(workerMarker).toContain('pointer-events: auto;');
+    expect(workerMarker).toContain('touch-action: none;');
+    expect(workerMarker).toContain('-webkit-touch-callout: none;');
   });
 
   it('uses the device-safe edge for compact sheets instead of reserving a ghost toolbar band', () => {

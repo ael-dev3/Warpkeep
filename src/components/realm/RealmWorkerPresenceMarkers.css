@@ -28,7 +28,9 @@
   ) translate(-50%, -100%);
   pointer-events: auto;
   cursor: pointer;
-  touch-action: manipulation;
+  touch-action: none;
+  -webkit-touch-callout: none;
+  user-select: none;
   transition: filter 140ms ease, opacity 140ms ease;
 }
 

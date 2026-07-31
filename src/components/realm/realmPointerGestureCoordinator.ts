@@ -1,4 +1,4 @@
-export type RealmPointerStartLane = 'canvas' | 'label';
+export type RealmPointerStartLane = 'canvas' | 'world-control';
 
 export type RealmPointerPosition = Readonly<{
   x: number;
@@ -28,6 +28,7 @@ export type RealmPointerCaptureStatus = 'captured' | 'failed' | 'unavailable';
 
 export type RealmPointerTap = RealmPointerPosition & Readonly<{
   pointerId: number;
+  pointerType: string;
   lane: RealmPointerStartLane;
 }>;
 
@@ -55,11 +56,12 @@ export type RealmPointerGestureResult = Readonly<{
 export type RealmPointerGestureSnapshot = Readonly<{
   phase: RealmPointerGesturePhase;
   pointerCount: number;
-  labelClickSuppressionPending: boolean;
+  worldControlClickSuppressionPending: boolean;
 }>;
 
 export type RealmPointerGestureCoordinatorOptions = Readonly<{
   dragThreshold?: number;
+  touchDragThreshold?: number;
   /** Return false when capture was attempted but not acquired. */
   capturePointer?: (pointerId: number) => boolean | void;
   releasePointer?: (pointerId: number) => void;
@@ -76,11 +78,12 @@ export type RealmPointerGestureCoordinator = Readonly<{
   dispose: () => void;
   snapshot: () => RealmPointerGestureSnapshot;
   /**
-   * Consumes the synthetic/native click guard armed by a label drag or pinch.
+   * Consumes the synthetic/native click guard armed by a world-control drag or
+   * pinch.
    * A new pointer session clears an unconsumed stale
-   * guard, so it can never suppress a later intentional label tap.
+   * guard, so it can never suppress a later intentional control tap.
    */
-  consumeLabelClickSuppression: () => boolean;
+  consumeWorldControlClickSuppression: () => boolean;
 }>;
 
 type MutablePointer = {
@@ -103,6 +106,7 @@ type PinchBaseline = Readonly<{
 }>;
 
 const DEFAULT_DRAG_THRESHOLD = 5;
+const DEFAULT_TOUCH_DRAG_THRESHOLD = 10;
 
 function finitePosition(position: RealmPointerPosition) {
   return Number.isFinite(position.x) && Number.isFinite(position.y);
@@ -140,20 +144,29 @@ export function createRealmPointerGestureCoordinator(
   options: RealmPointerGestureCoordinatorOptions = {}
 ): RealmPointerGestureCoordinator {
   const pointers = new Map<number, MutablePointer>();
+  const hasExplicitDragThreshold = Number.isFinite(options.dragThreshold);
   const dragThreshold = Math.max(
     0,
-    Number.isFinite(options.dragThreshold)
+    hasExplicitDragThreshold
       ? options.dragThreshold ?? DEFAULT_DRAG_THRESHOLD
       : DEFAULT_DRAG_THRESHOLD
   );
+  const touchDragThreshold = Math.max(
+    0,
+    Number.isFinite(options.touchDragThreshold)
+      ? options.touchDragThreshold ?? DEFAULT_TOUCH_DRAG_THRESHOLD
+      : hasExplicitDragThreshold
+        ? dragThreshold
+        : DEFAULT_TOUCH_DRAG_THRESHOLD
+  );
   let pinchBaseline: PinchBaseline | null = null;
-  let labelClickSuppressionPending = false;
+  let worldControlClickSuppressionPending = false;
   let disposed = false;
 
   const snapshot = (): RealmPointerGestureSnapshot => Object.freeze({
     phase: phaseFor(pointers),
     pointerCount: pointers.size,
-    labelClickSuppressionPending
+    worldControlClickSuppressionPending
   });
 
   const result = (
@@ -186,7 +199,9 @@ export function createRealmPointerGestureCoordinator(
 
   const markDragged = (pointer: MutablePointer) => {
     pointer.dragged = true;
-    if (pointer.lane === 'label') labelClickSuppressionPending = true;
+    if (pointer.lane === 'world-control') {
+      worldControlClickSuppressionPending = true;
+    }
     return safelyCapture(pointer);
   };
 
@@ -248,11 +263,14 @@ export function createRealmPointerGestureCoordinator(
     }
 
     if (!pointer.dragged) {
+      const pointerDragThreshold = pointer.pointerType === 'mouse'
+        ? dragThreshold
+        : touchDragThreshold;
       const travelled = Math.hypot(
         pointer.x - pointer.originX,
         pointer.y - pointer.originY
       );
-      if (travelled < dragThreshold) return result();
+      if (travelled < pointerDragThreshold) return result();
       const captureStatus = markDragged(pointer);
       const panDelta = {
         x: pointer.x - pointer.lastAppliedX,
@@ -291,10 +309,14 @@ export function createRealmPointerGestureCoordinator(
       || pointers.size >= 2
     ) return rejected();
 
-    if (pointers.size === 0) labelClickSuppressionPending = false;
+    if (pointers.size === 0) worldControlClickSuppressionPending = false;
+    const pointerType = typeof input.pointerType === 'string'
+      && input.pointerType.trim() !== ''
+      ? input.pointerType.toLowerCase()
+      : 'unknown';
     const pointer: MutablePointer = {
       pointerId: input.pointerId,
-      pointerType: input.pointerType ?? 'unknown',
+      pointerType,
       lane: input.lane,
       originX: input.x,
       originY: input.y,
@@ -347,8 +369,10 @@ export function createRealmPointerGestureCoordinator(
     }
     const pointer = pointers.get(input.pointerId);
     if (!pointer) return rejected();
-    const pointerType = input.pointerType ?? pointer.pointerType;
-    if (pointerType !== 'touch' && input.buttons === 0) {
+    // The start event owns pointer identity. Some embedded WebKit versions
+    // report empty or inconsistent metadata on coalesced move samples; only a
+    // pointer that actually began as a mouse should be retired by buttons=0.
+    if (pointer.pointerType === 'mouse' && input.buttons === 0) {
       return cancel(input.pointerId);
     }
     return advancePointer(pointer, input.x, input.y);
@@ -366,6 +390,7 @@ export function createRealmPointerGestureCoordinator(
     const tap = wasOnlyPointer && !pointer.dragged
       ? Object.freeze({
           pointerId: pointer.pointerId,
+          pointerType: pointer.pointerType,
           lane: pointer.lane,
           x: pointer.x,
           y: pointer.y
@@ -405,9 +430,9 @@ export function createRealmPointerGestureCoordinator(
       disposed = true;
     },
     snapshot,
-    consumeLabelClickSuppression: () => {
-      const pending = labelClickSuppressionPending;
-      labelClickSuppressionPending = false;
+    consumeWorldControlClickSuppression: () => {
+      const pending = worldControlClickSuppressionPending;
+      worldControlClickSuppressionPending = false;
       return pending;
     }
   });

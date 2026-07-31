@@ -31,6 +31,7 @@
   pointer-events: auto;
   cursor: pointer;
   touch-action: none;
+  -webkit-touch-callout: none;
   user-select: none;
 }
 

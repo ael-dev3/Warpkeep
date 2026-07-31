@@ -26,6 +26,10 @@ import {
   RENDERED_WEBGL_QA_ROUTE,
   renderedWebglQaUrl,
 } from './rendered-webgl-qa-contract.mjs';
+import {
+  applyRenderedMobileMapGestureInteraction,
+  renderedMobileMapGestureProbeCases,
+} from './rendered-mobile-map-gesture.mjs';
 import { applyRenderedWebglSfxInteraction } from './rendered-webgl-sfx-lifecycle.mjs';
 
 export {
@@ -8639,6 +8643,48 @@ async function runRenderedWorkerLocomotionCase(session, probeCase, state) {
   return evidence;
 }
 
+async function runRenderedMobileTouchCase(session, probeCase, state) {
+  await session.command('Emulation.setDeviceMetricsOverride', {
+    width: probeCase.viewport.width,
+    height: probeCase.viewport.height,
+    screenWidth: probeCase.viewport.width,
+    screenHeight: probeCase.viewport.height,
+    deviceScaleFactor: probeCase.deviceScaleFactor,
+    mobile: true,
+    screenOrientation: {
+      angle: 0,
+      type: 'portraitPrimary',
+    },
+  });
+  await session.command('Emulation.setEmulatedMedia', {
+    features: [{
+      name: 'prefers-reduced-motion',
+      value: 'no-preference',
+    }],
+  });
+  await session.command('Emulation.setTouchEmulationEnabled', {
+    enabled: true,
+    maxTouchPoints: 5,
+  });
+  try {
+    await navigateRenderedWebglCase(session, probeCase.url, state);
+    await waitForAcceptedRenderedDom(session, probeCase, state);
+    const evidence = await applyRenderedMobileMapGestureInteraction(
+      session,
+      probeCase
+    );
+    if (state.violation) {
+      throw new Error('Rendered mobile touch case left the local QA boundary.');
+    }
+    return evidence;
+  } finally {
+    await session.command('Emulation.setTouchEmulationEnabled', {
+      enabled: false,
+      maxTouchPoints: 1,
+    });
+  }
+}
+
 async function runRenderedActiveWorkerCase(session, probeCase, state) {
   await session.command('Emulation.setDeviceMetricsOverride', {
     width: probeCase.viewport.width,
@@ -9276,6 +9322,7 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
     onCastleLodVisualBoundary?.(castleLodVisualBoundary);
     const cases = renderedWebglBrowserProbeCases(vite.port);
     const activeWorkerCase = renderedWebglActiveWorkerProbeCase(vite.port);
+    const mobileTouchCases = renderedMobileMapGestureProbeCases(vite.port);
     const workerLocomotionCases =
       renderedWebglWorkerLocomotionProbeCases(vite.port);
     const occupancyStressCase = renderedWebglOccupancyStressProbeCase(vite.port);
@@ -9294,6 +9341,8 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
     if (
       cases.length !== RENDERED_WEBGL_QA_CASE_COUNT
       || new Set(cases.map((probeCase) => probeCase.id)).size !== RENDERED_WEBGL_QA_CASE_COUNT
+      || mobileTouchCases.length !== 2
+      || new Set(mobileTouchCases.map(({ id }) => id)).size !== 2
       || workerLocomotionCases.length
         !== RENDERED_WEBGL_WORKER_LOCOMOTION_CASE_SPECS.length
       || new Set(workerLocomotionCases.map(({ id }) => id)).size
@@ -9320,6 +9369,7 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
           ))
           .map((probeCase) => renderedWebglResourceResetUrl(probeCase.url)),
         activeWorkerCase.url,
+        ...mobileTouchCases.map((probeCase) => probeCase.url),
         ...workerLocomotionCases.map((probeCase) => probeCase.url),
         occupancyStressCase.url,
         terrainShaderFallbackCase.url,
@@ -9559,6 +9609,20 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
       throw new Error('Rendered terrain shader fallback case failed.', {
         cause: error,
       });
+    }
+    for (const mobileTouchCase of mobileTouchCases) {
+      try {
+        await runRenderedMobileTouchCase(
+          devtools,
+          mobileTouchCase,
+          state
+        );
+      } catch (error) {
+        throw new Error(
+          `Rendered mobile map gesture case ${mobileTouchCase.id} failed.`,
+          { cause: error }
+        );
+      }
     }
     try {
       await runRenderedActiveWorkerCase(devtools, activeWorkerCase, state);

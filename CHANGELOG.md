@@ -7,6 +7,9 @@ full engineering record.
 ## [Unreleased]
 
 - Reframed the Mini App feed preview around the living Hegemony realm.
+- Restored direct Realm selection, panning, and pinch zoom across iPhone,
+  Android, and embedded Mini App browsers while keeping record scrolling
+  independent from the map.
 
 ## [0.3.28] — 2026-07-30
 
