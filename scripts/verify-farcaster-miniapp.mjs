@@ -63,6 +63,43 @@ function linkTags(html, relationship) {
     ));
 }
 
+function builtAssetHref(file) {
+  const requestedBase = process.env.DEPLOY_BASE
+    ?? (process.env.GITHUB_PAGES === 'true' ? '/Warpkeep/' : '/');
+  if (
+    !requestedBase.startsWith('/')
+    || requestedBase.startsWith('//')
+    || requestedBase.includes('\\')
+    || requestedBase.includes('?')
+    || requestedBase.includes('#')
+  ) {
+    fail('the active deployment base is not a canonical absolute path');
+  }
+  const segments = requestedBase.split('/').slice(1);
+  if (requestedBase.endsWith('/')) segments.pop();
+  for (const segment of segments) {
+    let decoded;
+    try {
+      decoded = decodeURIComponent(segment);
+    } catch {
+      fail('the active deployment base contains invalid encoding');
+    }
+    if (
+      !segment
+      || decoded !== segment
+      || !/^[A-Za-z0-9._~-]+$/.test(segment)
+      || segment === '.'
+      || segment === '..'
+    ) {
+      fail('the active deployment base contains a noncanonical path segment');
+    }
+  }
+  const base = requestedBase.endsWith('/')
+    ? requestedBase
+    : `${requestedBase}/`;
+  return `${base}${file}`;
+}
+
 async function verifyImage(specification) {
   const path = resolve(dist, specification.path);
   let file;
@@ -172,7 +209,7 @@ function verifySiteIconLinks(html) {
   if (
     faviconTags.length !== 1
     || htmlAttribute(faviconTags[0], 'href')
-      !== '/favicon-64-7b82ca973fe757f5.png'
+      !== builtAssetHref('favicon-64-7b82ca973fe757f5.png')
     || htmlAttribute(faviconTags[0], 'type') !== 'image/png'
     || htmlAttribute(faviconTags[0], 'sizes') !== '64x64'
   ) {
@@ -182,7 +219,7 @@ function verifySiteIconLinks(html) {
   if (
     appleTouchIconTags.length !== 1
     || htmlAttribute(appleTouchIconTags[0], 'href')
-      !== '/apple-touch-icon-180-fe27e8dc1c97cc36.png'
+      !== builtAssetHref('apple-touch-icon-180-fe27e8dc1c97cc36.png')
     || htmlAttribute(appleTouchIconTags[0], 'sizes') !== '180x180'
   ) {
     fail('built HTML must contain the exact reviewed Apple touch icon link');
