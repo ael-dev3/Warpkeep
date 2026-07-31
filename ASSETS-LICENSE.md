@@ -596,11 +596,11 @@ boundary. No general derivative or redistribution permission is granted.
 
 ## Farcaster Mini App release artwork
 
-The Alpha 0.3.28 Mini App icon, splash, hero, Open Graph, and embed images are
+The Alpha 0.3.28 Mini App icon, splash, hero, and Open Graph images are
 project-owned, code-generated Warpkeep artwork. They are composed only from
 shapes, gradients, typography, and the project’s shield motif in
 `scripts/prepare-farcaster-miniapp-assets.mjs`; no third-party raster source or
-generated-image service is used. The files are licensed under
+generated-image service is used. These four files are licensed under
 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), without granting
 Warpkeep trademark or canonical-deployment rights.
 
@@ -610,11 +610,28 @@ Warpkeep trademark or canonical-deployment rights.
 | Mini App splash | `public/images/miniapp/warpkeep-splash-200.png` | 200×200 opaque PNG, 21,681 bytes, SHA-256 `cca0de5a0ef290f453ad367e2887a08c5ead022f2bf2d5c64d9d9a073431ea73`. |
 | Directory hero | `public/images/miniapp/warpkeep-hero-1200x630.png` | 1200×630 opaque PNG, 157,511 bytes, SHA-256 `aa28b25357fdbddfcb347e41adf14a20c5f62a5cb4aaf498ce24f33f51eb9d14`. |
 | Open Graph image | `public/images/miniapp/warpkeep-og-1200x630.png` | 1200×630 opaque PNG, 157,511 bytes, SHA-256 `aa28b25357fdbddfcb347e41adf14a20c5f62a5cb4aaf498ce24f33f51eb9d14`. |
-| Feed embed image | `public/images/miniapp/warpkeep-embed-1200x800.png` | 1200×800 opaque PNG, 174,911 bytes, SHA-256 `75676b9068897360ba321923345767d580dcf32c3f16fdde967694e02e3fc7a7`. |
 
 The deterministic generator disables Sharp caching, limits concurrency to one,
 flattens every output onto `#010207`, removes alpha, and writes through a
 temporary staging directory.
+
+On 31 July 2026, the Warpkeep project owner supplied the exact realm landscape
+and instructed that it become the Mini App feed embed image. The source is
+preserved at
+`docs/reference/miniapp/2026-07-31-hegemony-realm-embed/warpkeep-hegemony-realm-embed-source.png`:
+a 1402×1122 opaque RGB PNG, 2,008,823 bytes, SHA-256
+`26378fdcdb9dfccfdbcf5f25f9a70df1238ac494ab7ed89762ab06b6e2c46771`.
+The preparation script center-crops it to 3:2, resizes it with Lanczos3, and
+writes the 1200×800 opaque runtime PNG deterministically.
+
+| Use | Repository file | Technical record |
+| --- | --- | --- |
+| Feed embed image | `public/images/miniapp/warpkeep-embed-1200x800.png` | 1200×800 opaque PNG, 1,146,834 bytes, SHA-256 `53071821f4a2cd1bd6d71cd53f02e78331582a9fef88c9931833b459e25d5596`. |
+
+The owner's instruction authorizes this exact source and derivative for
+Warpkeep's repository and official Mini App presentation. It does not
+independently establish underlying ownership or grant a general open-content
+license. Both files remain `LicenseRef-Warpkeep-Provenance-Required`.
 
 On 30 July 2026, the three portrait listing screenshots were captured from the
 actual Alpha 0.3.28 interface at a 428×926 CSS-pixel viewport, then encoded as

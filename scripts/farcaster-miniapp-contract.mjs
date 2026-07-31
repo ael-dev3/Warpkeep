@@ -10,6 +10,15 @@ export const FARCASTER_MINI_APP_MANIFEST_PATH =
 export const FARCASTER_MINI_APP_MANIFEST_URL =
   `${FARCASTER_MINI_APP_ORIGIN}/${FARCASTER_MINI_APP_MANIFEST_PATH}`;
 
+export const FARCASTER_MINI_APP_EMBED_SOURCE = Object.freeze({
+  path:
+    'docs/reference/miniapp/2026-07-31-hegemony-realm-embed/warpkeep-hegemony-realm-embed-source.png',
+  width: 1402,
+  height: 1122,
+  bytes: 2_008_823,
+  sha256: '26378fdcdb9dfccfdbcf5f25f9a70df1238ac494ab7ed89762ab06b6e2c46771',
+});
+
 export const FARCASTER_MINI_APP_EMBED = Object.freeze({
   version: '1',
   imageUrl: `${FARCASTER_MINI_APP_ASSET_ROOT}/warpkeep-embed-1200x800.png`,
@@ -70,6 +79,7 @@ function imageSpecification(
     maximumBytes = 10_000_000,
     opaque = true,
     screenshot = false,
+    sha256,
   } = {},
 ) {
   return Object.freeze({
@@ -81,6 +91,7 @@ function imageSpecification(
     maximumBytes,
     opaque,
     screenshot,
+    ...(sha256 === undefined ? {} : { sha256 }),
   });
 }
 
@@ -93,7 +104,9 @@ export const FARCASTER_MINI_APP_CORE_IMAGES = Object.freeze([
   }),
   imageSpecification('warpkeep-hero-1200x630.png', 1200, 630),
   imageSpecification('warpkeep-og-1200x630.png', 1200, 630),
-  imageSpecification('warpkeep-embed-1200x800.png', 1200, 800),
+  imageSpecification('warpkeep-embed-1200x800.png', 1200, 800, {
+    sha256: '53071821f4a2cd1bd6d71cd53f02e78331582a9fef88c9931833b459e25d5596',
+  }),
 ]);
 
 export const FARCASTER_MINI_APP_SCREENSHOTS = Object.freeze([

@@ -6,6 +6,8 @@ full engineering record.
 
 ## [Unreleased]
 
+- Reframed the Mini App feed preview around the living Hegemony realm.
+
 ## [0.3.28] — 2026-07-30
 
 - Added a portrait-first Farcaster Mini App entry with a compact top resource
