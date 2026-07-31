@@ -23,10 +23,16 @@ import type {
   FarcasterBridgeSessionResponse,
   FarcasterOidcBridgeClient,
   FarcasterOidcSession,
+  FarcasterQuickAuthSessionResponse,
   FarcasterSessionAuthority,
   FarcasterSignInChannel,
   VerifiedFarcasterIdentity
 } from '../src/farcaster/farcasterAuthTypes';
+import {
+  MiniAppHostProvider,
+  type MiniAppBrowserRuntime,
+  type MiniAppSdk
+} from '../src/farcaster/miniapp';
 import {
   WarpkeepSpacetimeProvider,
   useWarpkeepBackend,
@@ -50,6 +56,7 @@ const TEST_ISSUER = 'https://auth.warpkeep.com';
 const TEST_AUDIENCE = 'warpkeep-spacetimedb';
 const TEST_BINDING_VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
 const TEST_BINDING_CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
+const TEST_QUICK_AUTH_TOKEN = `${'a'.repeat(16)}.${'b'.repeat(24)}.${'c'.repeat(32)}`;
 const TEST_CONFIG: WarpkeepRuntimeConfig = Object.freeze({
   spacetimeUri: 'https://maincloud.spacetimedb.com',
   spacetimeDatabase: DEFAULT_SPACETIMEDB_DATABASE,
@@ -179,6 +186,70 @@ function createPendingAdmissionResponse(
   });
 }
 
+function createQuickAuthResponse(
+  status: 'authorized' | 'pending-admission' = 'authorized',
+  fid = VERIFIED_IDENTITY.fid,
+  now = TEST_NOW
+): FarcasterQuickAuthSessionResponse {
+  if (status === 'pending-admission') {
+    return Object.freeze({
+      version: 2,
+      status,
+      identity: Object.freeze({ fid })
+    });
+  }
+  const session = createOidcSession(fid, now);
+  return Object.freeze({
+    version: 2,
+    status,
+    identity: Object.freeze({ fid }),
+    accessToken: session.jwt,
+    tokenType: 'spacetime-access',
+    accessExpiresAt: session.expiresAt
+  });
+}
+
+function miniAppRuntime(): MiniAppBrowserRuntime {
+  return {
+    search: () => window.location.search,
+    viewport: () => ({ width: 390, height: 844 }),
+    document,
+    getMountedShell: () => document.body,
+    waitForAnimationFrame: async () => undefined
+  };
+}
+
+function miniAppSdk(isInMiniApp = true): MiniAppSdk {
+  return {
+    isInMiniApp: vi.fn(async () => isInMiniApp),
+    context: Promise.resolve({
+      user: {
+        fid: VERIFIED_IDENTITY.fid,
+        username: VERIFIED_IDENTITY.username,
+        displayName: VERIFIED_IDENTITY.displayName
+      },
+      client: {
+        clientFid: 9_150,
+        added: true,
+        platformType: 'mobile',
+        safeAreaInsets: { top: 20, right: 0, bottom: 12, left: 0 }
+      }
+    }),
+    getCapabilities: vi.fn(async () => ['actions.ready', 'back']),
+    quickAuth: {
+      getToken: vi.fn(async () => ({ token: TEST_QUICK_AUTH_TOKEN }))
+    },
+    back: {
+      onback: null,
+      show: vi.fn(async () => undefined),
+      hide: vi.fn(async () => undefined)
+    },
+    actions: {
+      ready: vi.fn(async () => undefined)
+    }
+  };
+}
+
 function createTestAuthority(now: () => number) {
   let activeChannel: FarcasterSignInChannel | undefined;
   return {
@@ -257,6 +328,16 @@ function createBridge(
   } satisfies FarcasterOidcBridgeClient;
 }
 
+function createQuickAuthBridge(
+  response: FarcasterQuickAuthSessionResponse,
+  now: () => number = () => TEST_NOW
+) {
+  return {
+    ...createBridge(createAuthorizedResponse(VERIFIED_IDENTITY.fid, now()), now),
+    exchangeQuickAuth: vi.fn(async () => response)
+  } satisfies FarcasterOidcBridgeClient;
+}
+
 function createBackendRuntime(
   admissionSequence: readonly WarpkeepAdmissionStatus[] = ['ready'],
   realm: WarpkeepRealmSnapshot = SHARED_REALM,
@@ -308,6 +389,10 @@ type RenderExperienceOptions = {
   bridge?: FarcasterOidcBridgeClient;
   config?: WarpkeepRuntimeConfig;
   exposeBackendDisconnect?: boolean;
+  miniApp?: Readonly<{
+    runtime: MiniAppBrowserRuntime;
+    sdk: MiniAppSdk;
+  }>;
 };
 
 function BackendDisconnectProbe() {
@@ -330,7 +415,8 @@ function renderExperience({
   runtime = createBackendRuntime().runtime,
   bridge = createBridge(createAuthorizedResponse(VERIFIED_IDENTITY.fid, now()), now),
   config = TEST_CONFIG,
-  exposeBackendDisconnect = false
+  exposeBackendDisconnect = false,
+  miniApp
 }: RenderExperienceOptions = {}) {
   const authority = createTestAuthority(now);
   const createBrowserBinding = vi.fn(async () => ({
@@ -339,7 +425,7 @@ function renderExperience({
     method: 'S256' as const
   }));
   const encodeQrCode = vi.fn(async () => 'data:image/svg+xml,TEST_QR');
-  const rendered = testingLibraryRender(
+  const experience = (
     <FarcasterAuthProvider
       createBrowserBinding={createBrowserBinding}
       deviceSessionEnvironment={deviceSessionEnvironment}
@@ -355,6 +441,14 @@ function renderExperience({
       </WarpkeepSpacetimeProvider>
     </FarcasterAuthProvider>
   );
+  const rendered = testingLibraryRender(miniApp ? (
+    <MiniAppHostProvider
+      runtime={miniApp.runtime}
+      sdkLoader={async () => miniApp.sdk}
+    >
+      {experience}
+    </MiniAppHostProvider>
+  ) : experience);
   return { ...rendered, authority, bridge, createBrowserBinding, encodeQrCode };
 }
 
@@ -409,7 +503,8 @@ function returnToMainMenuThroughPlayerProfile() {
   fireEvent.click(screen.getByRole('button', {
     name: /Open Realm menu/i
   }));
-  const menu = screen.getByRole('dialog', { name: 'REALM MENU' });
+  const menu = screen.queryByRole('dialog', { name: 'REALM MENU' })
+    ?? screen.getByRole('region', { name: 'REALM MENU' });
   fireEvent.click(within(menu).getByRole('button', { name: /MAIN MENU/i }));
 }
 
@@ -457,6 +552,149 @@ afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+});
+
+describe('Warpkeep Farcaster Mini App direct entry', () => {
+  it('never treats the query hint or a forged history marker as host or Realm authority', async () => {
+    window.history.replaceState(
+      { warpkeepRealm: true, warpkeepDirectRealm: true },
+      '',
+      '/?miniApp=true#realm'
+    );
+    const backend = createBackendRuntime();
+    const bridge = createQuickAuthBridge(createQuickAuthResponse());
+    const sdk = miniAppSdk(false);
+    const { container } = renderExperience({
+      bridge,
+      miniApp: { runtime: miniAppRuntime(), sdk },
+      runtime: backend.runtime
+    });
+
+    await settle();
+    await act(async () => vi.advanceTimersByTime(1));
+    await settle();
+
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).not.toBe('realm');
+    expect(window.location.hash).not.toBe('#realm');
+    expect(window.history.state?.warpkeepDirectRealm).toBeUndefined();
+    expect(bridge.exchangeQuickAuth).not.toHaveBeenCalled();
+    expect(backend.runtime.connect).not.toHaveBeenCalled();
+    expectPlayerRealmChromeAbsent();
+  });
+
+  it('opens the Realm directly after Quick Auth and authoritative current Terms', async () => {
+    window.history.replaceState({}, '', '/?miniApp=true');
+    const backend = createBackendRuntime();
+    vi.mocked(backend.runtime.readEntryAgreementStatus!).mockResolvedValue(true);
+    const bridge = createQuickAuthBridge(createQuickAuthResponse());
+    const sdk = miniAppSdk();
+    const { container, authority, encodeQrCode } = renderExperience({
+      bridge,
+      miniApp: { runtime: miniAppRuntime(), sdk },
+      runtime: backend.runtime
+    });
+
+    await settle();
+    await act(async () => vi.advanceTimersByTime(1));
+    await settle();
+
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
+    expectPlayerRealmChrome();
+    expect(window.location.hash).toBe('#realm');
+    expect(window.history.state).toMatchObject({
+      warpkeepRealm: true,
+      warpkeepDirectRealm: true
+    });
+    expect(screen.queryByRole('button', { name: 'ENTER REALM' })).toBeNull();
+    expect(bridge.exchangeQuickAuth).toHaveBeenCalledTimes(1);
+    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    expect(authority.beginSignIn).not.toHaveBeenCalled();
+    expect(encodeQrCode).not.toHaveBeenCalled();
+    expect(backend.runtime.acceptAlphaTerms).not.toHaveBeenCalled();
+
+    const traverseHistory = vi.spyOn(window.history, 'go');
+    returnToMainMenuThroughPlayerProfile();
+    await act(async () => vi.advanceTimersByTime(20));
+    await settle();
+    expect(traverseHistory).toHaveBeenCalledWith(-1);
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
+    expect(window.location.hash).toBe('#menu');
+    expect(window.history.state?.warpkeepDirectRealm).toBeUndefined();
+    expect(screen.getByRole('button', { name: 'ENTER REALM' })).not.toBeNull();
+
+    act(() => window.history.back());
+    await act(async () => vi.advanceTimersByTime(20));
+    await settle();
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).not.toBe('realm');
+    expect(window.history.state?.warpkeepDirectRealm).toBeUndefined();
+    expectPlayerRealmChromeAbsent();
+  });
+
+  it('keeps a non-admitted Quick Auth identity on Request Access', async () => {
+    window.history.replaceState({}, '', '/?miniApp=true');
+    const backend = createBackendRuntime();
+    const bridge = createQuickAuthBridge(createQuickAuthResponse('pending-admission'));
+    const { container } = renderExperience({
+      bridge,
+      miniApp: { runtime: miniAppRuntime(), sdk: miniAppSdk() },
+      runtime: backend.runtime
+    });
+
+    await settle();
+    await act(async () => vi.advanceTimersByTime(1));
+    await settle();
+
+    expect(screen.getByRole('heading', { name: 'ENTRY NOT YET GRANTED' })).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'REQUEST ACCESS' })).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'BACK TO MENU' })).toBeNull();
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
+    expect(container.querySelector('[data-warpkeep-audio-director="true"]')).toBeNull();
+    expect(window.location.hash).not.toBe('#realm');
+    expect(backend.runtime.connect).not.toHaveBeenCalled();
+    expectPlayerRealmChromeAbsent();
+  });
+
+  it('asks for missing current Terms without exposing the ordinary menu', async () => {
+    window.history.replaceState({}, '', '/?miniApp=true');
+    const backend = createBackendRuntime();
+    const bridge = createQuickAuthBridge(createQuickAuthResponse());
+    const sdk = miniAppSdk();
+    const { container } = renderExperience({
+      bridge,
+      miniApp: { runtime: miniAppRuntime(), sdk },
+      runtime: backend.runtime
+    });
+
+    await settle();
+    await act(async () => vi.advanceTimersByTime(1));
+    await settle();
+
+    expect(screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'ENTER REALM' })).toBeNull();
+    expect(backend.runtime.readEntryAgreementStatus).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.acceptAlphaTerms).not.toHaveBeenCalled();
+    expect(sdk.back?.show).toHaveBeenCalled();
+
+    act(() => {
+      sdk.back?.onback?.();
+    });
+    await act(async () => vi.advanceTimersByTime(20));
+    await settle();
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
+    const reviewTerms = screen.getByRole('button', { name: 'REVIEW TERMS' });
+    expect(document.activeElement).toBe(reviewTerms);
+    expect(window.location.hash).not.toBe('#realm');
+
+    fireEvent.click(reviewTerms);
+
+    await acceptAlphaParticipationTerms();
+    await act(async () => vi.advanceTimersByTime(1));
+    await settle();
+
+    expect(backend.runtime.acceptAlphaTerms).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
+    expectPlayerRealmChrome();
+  });
 });
 
 describe('Warpkeep shared realm admission', () => {

@@ -18,11 +18,14 @@ const IDLE_ACCESS_REQUEST: AccessRequestViewState = Object.freeze({ phase: 'idle
 export type FarcasterAdmissionPanelProps = Readonly<{
   phase: Exclude<WarpkeepBackendPhase, 'idle' | 'ready'>;
   identity: VerifiedFarcasterIdentity;
+  autoFocusHeading?: boolean;
   headingRef?: Ref<HTMLHeadingElement>;
   primaryActionRef?: Ref<HTMLButtonElement>;
   onPresentationReady?: () => void;
-  onBackToMenu: () => void;
+  /** Optional outside the ordinary menu flow, including direct Mini App entry. */
+  onBackToMenu?: () => void;
   onCheckAgain: () => void;
+  onReviewTerms?: () => void;
   accessRequest?: AccessRequestViewState;
   onRequestAccess?: () => void;
   onRetryAccessRequestStatus?: () => void;
@@ -86,11 +89,13 @@ const presentationByPhase: Record<Exclude<WarpkeepBackendPhase, 'idle' | 'ready'
 export function FarcasterAdmissionPanel({
   phase,
   identity,
+  autoFocusHeading = true,
   headingRef,
   primaryActionRef,
   onPresentationReady,
   onBackToMenu,
   onCheckAgain,
+  onReviewTerms,
   accessRequest = IDLE_ACCESS_REQUEST,
   onRequestAccess,
   onRetryAccessRequestStatus,
@@ -114,11 +119,12 @@ export function FarcasterAdmissionPanel({
   }, [onPresentationReady]);
 
   useEffect(() => {
+    if (!autoFocusHeading) return undefined;
     const frame = window.requestAnimationFrame(() => {
       localHeadingRef.current?.focus({ preventScroll: true });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [phase]);
+  }, [autoFocusHeading, phase]);
 
   return (
     <section
@@ -171,8 +177,8 @@ export function FarcasterAdmissionPanel({
 
         {awaitingTerms ? (
           <p className="farcaster-admission-panel__lead" role="status">
-            Return to Enter Realm and accept the current Alpha Terms and Hegemony Social Contract
-            before Hegemony records open.
+            Accept the current Alpha Terms and Hegemony Social Contract before Hegemony records
+            open.
           </p>
         ) : null}
 
@@ -189,6 +195,16 @@ export function FarcasterAdmissionPanel({
       </div>
 
       <div className="farcaster-auth-panel__actions farcaster-admission-panel__actions">
+        {awaitingTerms && onReviewTerms ? (
+          <button
+            className="farcaster-auth-panel__action farcaster-auth-panel__action--primary"
+            onClick={onReviewTerms}
+            ref={primaryActionRef}
+            type="button"
+          >
+            REVIEW TERMS
+          </button>
+        ) : null}
         {denied && onRequestAccess && onRetryAccessRequestStatus ? (
           <FarcasterAccessRequestAction
             onRequestAccess={onRequestAccess}
@@ -215,13 +231,15 @@ export function FarcasterAdmissionPanel({
             CHECK AGAIN
           </button>
         ) : null}
-        <button
-          className="farcaster-auth-panel__action farcaster-auth-panel__action--secondary"
-          onClick={onBackToMenu}
-          type="button"
-        >
-          BACK TO MENU
-        </button>
+        {onBackToMenu ? (
+          <button
+            className="farcaster-auth-panel__action farcaster-auth-panel__action--secondary"
+            onClick={onBackToMenu}
+            type="button"
+          >
+            BACK TO MENU
+          </button>
+        ) : null}
         <button
           className="farcaster-auth-panel__action farcaster-auth-panel__action--secondary"
           onClick={onSignOut}

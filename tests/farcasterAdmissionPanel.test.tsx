@@ -88,11 +88,12 @@ describe('FarcasterAdmissionPanel', () => {
   });
 
   it('names both contractual documents when current entry acceptance is required', () => {
+    const onReviewTerms = vi.fn();
     render(
       <FarcasterAdmissionPanel
         identity={identity}
-        onBackToMenu={vi.fn()}
         onCheckAgain={vi.fn()}
+        onReviewTerms={onReviewTerms}
         onSignOut={vi.fn()}
         phase="awaiting-terms"
       />
@@ -100,8 +101,11 @@ describe('FarcasterAdmissionPanel', () => {
 
     expect(screen.getByRole('heading', { level: 2, name: 'ENTRY AGREEMENT REQUIRED' })).not.toBeNull();
     expect(screen.getByRole('status').textContent).toBe(
-      'Return to Enter Realm and accept the current Alpha Terms and Hegemony Social Contract before Hegemony records open.',
+      'Accept the current Alpha Terms and Hegemony Social Contract before Hegemony records open.',
     );
+    expect(screen.queryByRole('button', { name: 'BACK TO MENU' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'REVIEW TERMS' }));
+    expect(onReviewTerms).toHaveBeenCalledTimes(1);
   });
 
   it('names the canonical opening boundary while subscription data is still pending', () => {

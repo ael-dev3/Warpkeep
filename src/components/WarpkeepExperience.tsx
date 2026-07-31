@@ -68,7 +68,11 @@ import {
   allowsSpeculativeMenuMediaPreload,
   type NetworkNavigatorSnapshot
 } from '../settings/networkPreloadPolicy';
-import { useMiniAppBackNavigation } from '../farcaster/miniapp';
+import {
+  hasExactMiniAppHint,
+  useMiniAppBackNavigation,
+  useMiniAppHost
+} from '../farcaster/miniapp';
 import {
   REALM_SURFACE_HISTORY_KEY,
   readRealmSurfaceHistoryState
@@ -78,12 +82,15 @@ import {
   fallbackGatewayClientCenter,
   type WarpkeepTitleScreenHandle
 } from './title/titleScreenTypes';
+import { FarcasterMiniAppEntryGate } from './auth/FarcasterMiniAppEntryGate';
 import './WarpkeepExperience.css';
 
 const MENU_HASH = '#menu';
 const REALM_HASH = '#realm';
 const MENU_HISTORY_KEY = 'warpkeepMenu';
 const REALM_HISTORY_KEY = 'warpkeepRealm';
+const DIRECT_REALM_HISTORY_KEY = 'warpkeepDirectRealm';
+const DIRECT_REALM_RETURN_WATCHDOG_MS = 1_500;
 const TITLE_HINT_DELAY_MS = 5_000;
 
 const WarpkeepTitleScreen3D = lazy(async () => {
@@ -113,6 +120,7 @@ function SceneModuleFallback({ label }: Readonly<{ label: string }>) {
 type WarpkeepHistoryState = Record<string, unknown> & {
   [MENU_HISTORY_KEY]?: true;
   [REALM_HISTORY_KEY]?: true;
+  [DIRECT_REALM_HISTORY_KEY]?: true;
 };
 
 function hasMenuHash() {
@@ -123,10 +131,17 @@ function hasRealmHash() {
   return typeof window !== 'undefined' && window.location.hash === REALM_HASH;
 }
 
+function hasMiniAppLaunchHint() {
+  return typeof window !== 'undefined' && hasExactMiniAppHint(window.location.search);
+}
+
 function initialStablePhase(): WarpkeepStableExperiencePhase {
   // A hash is never a credential. Even a restored bridge session must first
   // re-check admission before the authoritative realm may mount.
   if (hasRealmHash()) return 'menu';
+  // The exact Mini App launch URL opens on a lightweight authority gate. The
+  // host SDK must still verify the surface before any direct entry can occur.
+  if (hasMiniAppLaunchHint()) return 'menu';
   return hasMenuHash() ? 'menu' : 'title';
 }
 
@@ -158,11 +173,12 @@ function menuHistoryState() {
     : {};
   const nextState = { ...safeCurrent, [MENU_HISTORY_KEY]: true } as WarpkeepHistoryState;
   delete nextState[REALM_HISTORY_KEY];
+  delete nextState[DIRECT_REALM_HISTORY_KEY];
   delete nextState[REALM_SURFACE_HISTORY_KEY];
   return nextState;
 }
 
-function realmHistoryState() {
+function realmHistoryState(directMiniAppEntry = false) {
   const current = window.history.state;
   const safeCurrent = current && typeof current === 'object'
     ? current as Record<string, unknown>
@@ -171,6 +187,11 @@ function realmHistoryState() {
     ...safeCurrent,
     [REALM_HISTORY_KEY]: true
   } as WarpkeepHistoryState;
+  if (directMiniAppEntry) {
+    nextState[DIRECT_REALM_HISTORY_KEY] = true;
+  } else {
+    delete nextState[DIRECT_REALM_HISTORY_KEY];
+  }
   delete nextState[REALM_SURFACE_HISTORY_KEY];
   return nextState;
 }
@@ -253,6 +274,7 @@ export function WarpkeepExperience() {
     rememberDevice,
     setRememberDevice
   } = useFarcasterAuth();
+  const miniAppHost = useMiniAppHost();
   const backend = useWarpkeepBackend();
   const initiallyAuthenticated = farcasterAuthState.phase === 'authenticated'
     && farcasterAuthState.assurance === 'bridge-oidc-alpha'
@@ -272,6 +294,9 @@ export function WarpkeepExperience() {
     initialPhase
   );
   const [pendingDestination, setPendingDestination] = useState<'realm' | null>(null);
+  const [directMiniAppEntryEnabled, setDirectMiniAppEntryEnabled] = useState(
+    hasMiniAppLaunchHint
+  );
   const [inputModality, setInputModality] = useState<MenuInputModality>('unknown');
   const [reducedMotion, setReducedMotion] = useState(readReducedMotion);
   const [graphicsPreference, setGraphicsPreference] = useState(readGraphicsPreference);
@@ -297,6 +322,7 @@ export function WarpkeepExperience() {
   const restoreTitleFocusRef = useRef(false);
   const blockedInitialRealmRef = useRef(hasRealmHash());
   const realmAudioResetTimerRef = useRef<number | null>(null);
+  const directRealmReturnCleanupRef = useRef<(() => void) | null>(null);
   const verifiedIdentityRef = useRef<VerifiedFarcasterIdentity | null>(
     initiallyAuthenticated
       ? farcasterAuthState.identity
@@ -414,6 +440,7 @@ export function WarpkeepExperience() {
     if (realmAudioResetTimerRef.current !== null) {
       window.clearTimeout(realmAudioResetTimerRef.current);
     }
+    directRealmReturnCleanupRef.current?.();
   }, []);
 
   useEffect(() => {
@@ -486,6 +513,9 @@ export function WarpkeepExperience() {
   const titleInteractive = experience.phase === 'title';
   const menuInteractive = experience.phase === 'menu' && !returnPreparing;
   const menuMediaActive = menuMounted;
+  const miniAppEntryGateActive = menuMounted
+    && directMiniAppEntryEnabled
+    && (miniAppHost.state === 'detecting' || miniAppHost.isMiniApp);
 
   useEffect(() => {
     if (!realmMounted) {
@@ -588,7 +618,10 @@ export function WarpkeepExperience() {
     beginMenuTransition(activation, activation.input, true);
   }, [beginMenuTransition]);
 
-  const commitRealmEntry = useCallback((identity: VerifiedFarcasterIdentity) => {
+  const commitRealmEntry = useCallback((
+    identity: VerifiedFarcasterIdentity,
+    routeMode: 'push' | 'replace' = 'push'
+  ) => {
     if (
       !backend.sharedAlphaAvailable
       || phaseRef.current !== 'menu'
@@ -610,13 +643,21 @@ export function WarpkeepExperience() {
       window.clearTimeout(realmAudioResetTimerRef.current);
       realmAudioResetTimerRef.current = null;
     }
-    // Start source preparation and the spatial music handoff inside the
-    // authenticated player gesture, before the route can unmount the menu.
-    audioDirectorRef.current?.ensurePlaybackFromGesture();
+    // Explicit menu entry can unlock audio inside its player gesture. Direct
+    // Mini App entry only prepares the source; the first real touch remains
+    // responsible for satisfying iOS and Android autoplay policy.
+    if (routeMode === 'push') {
+      audioDirectorRef.current?.ensurePlaybackFromGesture();
+    }
     audioDirectorRef.current?.prepareScene('realm');
     audioDirectorRef.current?.transitionTo('realm');
     if (!hasRealmHash()) {
-      window.history.pushState(realmHistoryState(), '', `${pageUrlWithoutHash()}${REALM_HASH}`);
+      const nextState = realmHistoryState(routeMode === 'replace');
+      if (routeMode === 'replace') {
+        window.history.replaceState(nextState, '', `${pageUrlWithoutHash()}${REALM_HASH}`);
+      } else {
+        window.history.pushState(nextState, '', `${pageUrlWithoutHash()}${REALM_HASH}`);
+      }
     }
     setPresentedScreen('realm');
     dispatch({ type: 'request-realm' });
@@ -662,6 +703,38 @@ export function WarpkeepExperience() {
 
   useEffect(() => {
     if (
+      !directMiniAppEntryEnabled
+      || !miniAppHost.isMiniApp
+      || phaseRef.current !== 'menu'
+      || returnPreparingRef.current
+      || farcasterAuthState.phase !== 'authenticated'
+      || farcasterAuthState.assurance !== 'bridge-oidc-alpha'
+      || oidcSession === undefined
+      || oidcSession.expiresAt <= Date.now()
+      || backend.state.phase !== 'ready'
+      || !backend.entryAgreementSatisfied
+      || backend.state.identity?.fid !== farcasterAuthState.identity.fid
+      || backend.state.realm?.ownCastle.ownerFid !== farcasterAuthState.identity.fid
+      || !verifiedIdentityRef.current
+    ) {
+      return;
+    }
+
+    // Quick Auth, admission, current Terms acceptance, and canonical Realm
+    // readiness have all been proven by their existing authorities. Replace
+    // the launch entry instead of growing host history with a skipped menu.
+    commitRealmEntry(verifiedIdentityRef.current, 'replace');
+  }, [
+    backend.state.phase,
+    commitRealmEntry,
+    directMiniAppEntryEnabled,
+    farcasterAuthState,
+    miniAppHost.isMiniApp,
+    oidcSession
+  ]);
+
+  useEffect(() => {
+    if (
       pendingDestination !== 'realm'
       || (
         backend.state.phase !== 'denied'
@@ -682,17 +755,26 @@ export function WarpkeepExperience() {
   ]);
 
   const returnRealmToMenu = useCallback(() => {
-    if (phaseRef.current !== 'realm') {
+    if (
+      phaseRef.current !== 'realm'
+      || directRealmReturnCleanupRef.current
+    ) {
       return;
     }
 
     clearPendingRealmDestination();
+    setDirectMiniAppEntryEnabled(false);
     blurActiveElement();
     audioDirectorRef.current?.ensurePlaybackFromGesture();
     audioDirectorRef.current?.prepareScene('menu');
     audioDirectorRef.current?.transitionTo('menu');
     const state = window.history.state as WarpkeepHistoryState | null;
-    const canReturnThroughHistory = hasRealmHash() && state?.[REALM_HISTORY_KEY] === true;
+    const canReturnThroughHistory = hasRealmHash()
+      && state?.[REALM_HISTORY_KEY] === true
+      && state?.[DIRECT_REALM_HISTORY_KEY] !== true;
+    const returningFromDirectRealm = hasRealmHash()
+      && state?.[REALM_HISTORY_KEY] === true
+      && state?.[DIRECT_REALM_HISTORY_KEY] === true;
     const surfaceDepth = state && typeof state === 'object'
       ? readRealmSurfaceHistoryState(
           state[REALM_SURFACE_HISTORY_KEY]
@@ -700,7 +782,90 @@ export function WarpkeepExperience() {
       : 0;
     setPresentedScreen('menu');
     dispatch({ type: 'return-menu' });
-    if (canReturnThroughHistory) {
+    if (returningFromDirectRealm && surfaceDepth > 0) {
+      let completed = false;
+      let retriesRemaining = 1;
+      let watchdog: number | undefined;
+
+      const teardown = () => {
+        window.removeEventListener('popstate', handlePopState);
+        if (watchdog !== undefined) window.clearTimeout(watchdog);
+        watchdog = undefined;
+        if (directRealmReturnCleanupRef.current === cancel) {
+          directRealmReturnCleanupRef.current = null;
+        }
+      };
+      const finish = () => {
+        if (completed) return;
+        completed = true;
+        teardown();
+        window.history.replaceState(
+          menuHistoryState(),
+          '',
+          `${pageUrlWithoutHash()}${MENU_HASH}`
+        );
+      };
+      const cancel = () => {
+        if (completed) return;
+        completed = true;
+        teardown();
+      };
+      const currentSurfaceDepth = () => {
+        const current = window.history.state;
+        return current && typeof current === 'object'
+          ? readRealmSurfaceHistoryState(
+              (current as WarpkeepHistoryState)[REALM_SURFACE_HISTORY_KEY]
+            )?.stack.length ?? 0
+          : 0;
+      };
+      const armWatchdog = () => {
+        if (watchdog !== undefined) window.clearTimeout(watchdog);
+        watchdog = window.setTimeout(() => {
+          watchdog = undefined;
+          const remainingDepth = currentSurfaceDepth();
+          if (remainingDepth === 0) {
+            finish();
+            return;
+          }
+          if (retriesRemaining <= 0) {
+            // A WebView that refuses traversal still receives a safe menu
+            // route; subsequent Realm-shaped history is normalized by the
+            // ordinary route gate rather than reopening gameplay.
+            finish();
+            return;
+          }
+          retriesRemaining -= 1;
+          try {
+            window.history.go(-remainingDepth);
+            armWatchdog();
+          } catch {
+            finish();
+          }
+        }, DIRECT_REALM_RETURN_WATCHDOG_MS);
+      };
+      function handlePopState() {
+        const remainingDepth = currentSurfaceDepth();
+        if (remainingDepth === 0) {
+          finish();
+          return;
+        }
+        try {
+          window.history.go(-remainingDepth);
+          armWatchdog();
+        } catch {
+          finish();
+        }
+      }
+
+      directRealmReturnCleanupRef.current = cancel;
+      window.addEventListener('popstate', handlePopState);
+      try {
+        window.history.go(-surfaceDepth);
+        armWatchdog();
+      } catch {
+        finish();
+      }
+    } else if (canReturnThroughHistory) {
       window.history.go(-(surfaceDepth + 1));
     } else {
       window.history.replaceState(menuHistoryState(), '', `${pageUrlWithoutHash()}${MENU_HASH}`);
@@ -932,6 +1097,7 @@ export function WarpkeepExperience() {
 
   useEffect(() => {
     const synchronizeHistory = () => {
+      if (directRealmReturnCleanupRef.current) return;
       const phase = phaseRef.current;
       if (hasRealmHash() && phase !== 'realm') {
         gateAnonymousRealmRoute();
@@ -962,7 +1128,7 @@ export function WarpkeepExperience() {
         return;
       }
       if (phase === 'menu') {
-        beginTitleTransition('none');
+        if (!miniAppEntryGateActive) beginTitleTransition('none');
       } else if (phase === 'realm') {
         // A direct #realm visit has no preceding menu entry. Preserve a useful
         // in-app route rather than exposing a blank phase on browser Back.
@@ -983,6 +1149,7 @@ export function WarpkeepExperience() {
     beginTitleTransition,
     cancelPreparedReturn,
     gateAnonymousRealmRoute,
+    miniAppEntryGateActive,
     titleReady
   ]);
 
@@ -997,10 +1164,18 @@ export function WarpkeepExperience() {
         // effect. commitRealmEntry has already written #realm, while React has
         // not yet reduced request-realm. Preserve that exact explicit intent
         // for the next render instead of mistaking it for a forged deep link.
-        if (pendingDestination !== 'realm') {
+        const state = window.history.state as WarpkeepHistoryState | null;
+        if (
+          pendingDestination !== 'realm'
+          && state?.[DIRECT_REALM_HISTORY_KEY] !== true
+        ) {
           gateAnonymousRealmRoute();
         }
-      } else if (!hasMenuHash() && !hasRealmHash()) {
+      } else if (
+        !miniAppEntryGateActive
+        && !hasMenuHash()
+        && !hasRealmHash()
+      ) {
         entryLockedRef.current = false;
         beginTitleTransition('none');
       }
@@ -1020,6 +1195,7 @@ export function WarpkeepExperience() {
     beginTitleTransition,
     experience.phase,
     gateAnonymousRealmRoute,
+    miniAppEntryGateActive,
     pendingDestination,
     returnPreparing,
     titleReady
@@ -1170,7 +1346,7 @@ export function WarpkeepExperience() {
     >
       {menuMounted ? (
         <MiniAppMenuBackBinding
-          active={menuInteractive}
+          active={menuInteractive && !miniAppEntryGateActive}
           onBack={handleExplicitReturn}
         />
       ) : null}
@@ -1235,43 +1411,60 @@ export function WarpkeepExperience() {
           aria-hidden={!menuInteractive}
           inert={!menuInteractive ? true : undefined}
         >
-          <WarpkeepMainMenu
-            active={menuMediaActive}
-            authState={farcasterAuthState}
-            visible={presentedScreen === 'menu'}
-            interactive={menuInteractive}
-            inputModality={menuInteractive ? inputModality : 'unknown'}
-            focusFirstCommand={menuInteractive && inputModality === 'keyboard'}
-            authRailAttemptFailed={admissionPhase === 'denied' || admissionPhase === 'error'}
-            entryAgreementSatisfied={backend.entryAgreementSatisfied}
-            entryAgreementRequired={admissionPhase === 'awaiting-terms'}
-            backendUnavailableMessage={backend.sharedAlphaAvailable
-              ? undefined
-              : WARPKEEP_SHARED_ALPHA_UNAVAILABLE_MESSAGE}
-            onCancelFarcasterSignIn={cancelFarcasterSignInAndClearDestination}
-            onAcceptAlphaTermsAttempt={backend.beginAlphaTermsAcceptance}
-            onDisposeFarcasterSignIn={cancelFarcasterSignIn}
-            onRequestAuthenticatedRealm={beginRealmEntry}
-            onRequestAuthRailCheck={backend.checkAgain}
-            onRequestFarcasterSignIn={beginFarcasterSignIn}
-            onRestoreFarcasterSession={restoreFarcasterSession}
-            onPrepareFarcasterQrCode={prepareFarcasterQrCode}
-            onRefreshFarcasterSession={refreshFarcasterSession}
-            accessRequest={accessRequest}
-            onRequestAccess={requestAccess}
-            onRetryAccessRequestStatus={retryAccessRequestStatus}
-            onRequestReturn={handleExplicitReturn}
-            onRememberDeviceChange={setRememberDevice}
-            onRetryFarcasterSignIn={retryFarcasterSignIn}
-            onSignOut={handleSignOut}
-            renderAuthRailContent={renderAdmissionPanel}
-            rememberDevice={rememberDevice}
-            graphicsPreference={graphicsPreference}
-            resolvedGraphicsQuality={resolvedGraphicsQuality}
-            onGraphicsPreferenceChange={updateGraphicsPreference}
-            audioMuted={audioMuted}
-            onAudioMutedChange={updateAudioMuted}
-          />
+          {miniAppEntryGateActive ? (
+            <FarcasterMiniAppEntryGate
+              accessRequest={accessRequest}
+              authState={farcasterAuthState}
+              backendState={backend.state}
+              hostState={miniAppHost.state}
+              onAcceptTerms={backend.beginAlphaTermsAcceptance}
+              onCancelTermsAttempt={backend.cancelAlphaTermsAcceptance}
+              onCheckBackend={backend.checkAgain}
+              onRefreshSession={refreshFarcasterSession}
+              onRequestAccess={requestAccess}
+              onRetryAccessRequestStatus={retryAccessRequestStatus}
+              onRetryAuthentication={beginFarcasterSignIn}
+              onSignOut={handleSignOut}
+            />
+          ) : (
+            <WarpkeepMainMenu
+              active={menuMediaActive}
+              authState={farcasterAuthState}
+              visible={presentedScreen === 'menu'}
+              interactive={menuInteractive}
+              inputModality={menuInteractive ? inputModality : 'unknown'}
+              focusFirstCommand={menuInteractive && inputModality === 'keyboard'}
+              authRailAttemptFailed={admissionPhase === 'denied' || admissionPhase === 'error'}
+              entryAgreementSatisfied={backend.entryAgreementSatisfied}
+              entryAgreementRequired={admissionPhase === 'awaiting-terms'}
+              backendUnavailableMessage={backend.sharedAlphaAvailable
+                ? undefined
+                : WARPKEEP_SHARED_ALPHA_UNAVAILABLE_MESSAGE}
+              onCancelFarcasterSignIn={cancelFarcasterSignInAndClearDestination}
+              onAcceptAlphaTermsAttempt={backend.beginAlphaTermsAcceptance}
+              onDisposeFarcasterSignIn={cancelFarcasterSignIn}
+              onRequestAuthenticatedRealm={beginRealmEntry}
+              onRequestAuthRailCheck={backend.checkAgain}
+              onRequestFarcasterSignIn={beginFarcasterSignIn}
+              onRestoreFarcasterSession={restoreFarcasterSession}
+              onPrepareFarcasterQrCode={prepareFarcasterQrCode}
+              onRefreshFarcasterSession={refreshFarcasterSession}
+              accessRequest={accessRequest}
+              onRequestAccess={requestAccess}
+              onRetryAccessRequestStatus={retryAccessRequestStatus}
+              onRequestReturn={handleExplicitReturn}
+              onRememberDeviceChange={setRememberDevice}
+              onRetryFarcasterSignIn={retryFarcasterSignIn}
+              onSignOut={handleSignOut}
+              renderAuthRailContent={renderAdmissionPanel}
+              rememberDevice={rememberDevice}
+              graphicsPreference={graphicsPreference}
+              resolvedGraphicsQuality={resolvedGraphicsQuality}
+              onGraphicsPreferenceChange={updateGraphicsPreference}
+              audioMuted={audioMuted}
+              onAudioMutedChange={updateAudioMuted}
+            />
+          )}
         </div>
       ) : null}
 
@@ -1398,12 +1591,14 @@ export function WarpkeepExperience() {
         />
       ) : null}
 
-      <WarpkeepAudioDirector
-        muted={audioMuted}
-        ref={audioDirectorRef}
-        scene={audioScene}
-        preloadMenu={menuPreloadReady || audioScene === 'menu'}
-      />
+      {miniAppEntryGateActive ? null : (
+        <WarpkeepAudioDirector
+          muted={audioMuted}
+          ref={audioDirectorRef}
+          scene={audioScene}
+          preloadMenu={menuPreloadReady || audioScene === 'menu'}
+        />
+      )}
       <WarpkeepSfxDirector muted={audioMuted} />
       <WarpkeepHapticsDirector />
     </div>

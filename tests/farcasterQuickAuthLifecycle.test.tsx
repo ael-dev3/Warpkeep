@@ -1,3 +1,4 @@
+import { StrictMode } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -73,7 +74,7 @@ function miniAppRuntime(): MiniAppBrowserRuntime {
 }
 
 function miniAppSdk(
-  getToken = vi.fn(async () => ({ token: QUICK_AUTH_TOKEN })),
+  getToken: () => Promise<unknown> = vi.fn(async () => ({ token: QUICK_AUTH_TOKEN })),
   contextFid = FID
 ): MiniAppSdk {
   return {
@@ -145,9 +146,10 @@ function AuthProbe() {
 
 function renderMiniApp(
   sdk: MiniAppSdk,
-  authBridge: FarcasterOidcBridgeClient
+  authBridge: FarcasterOidcBridgeClient,
+  strict = false
 ) {
-  return render(
+  const tree = (
     <MiniAppHostProvider
       runtime={miniAppRuntime()}
       sdkLoader={async () => sdk}
@@ -162,6 +164,7 @@ function renderMiniApp(
       </FarcasterAuthProvider>
     </MiniAppHostProvider>
   );
+  return render(strict ? <StrictMode>{tree}</StrictMode> : tree);
 }
 
 function state(): Record<string, unknown> {
@@ -253,5 +256,33 @@ describe('Farcaster Mini App Quick Auth lifecycle', () => {
     await Promise.resolve();
     expect(exchangeQuickAuth).toHaveBeenCalledTimes(1);
     expect(authBridge.logoutSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails a visible launch cleanly when the host cannot issue a valid bearer', async () => {
+    const getToken = vi.fn(async () => ({ token: '' }));
+    const exchangeQuickAuth = vi.fn(async () => authorized());
+    const authBridge = bridge(exchangeQuickAuth);
+
+    renderMiniApp(miniAppSdk(getToken), authBridge);
+
+    await waitFor(() => expect(state().phase).toBe('error'));
+    expect(screen.getByTestId('token').textContent).toBe('false');
+    expect(getToken).toHaveBeenCalledTimes(1);
+    expect(exchangeQuickAuth).not.toHaveBeenCalled();
+    expect(window.localStorage.length).toBe(0);
+    expect(window.sessionStorage.length).toBe(0);
+  });
+
+  it('settles automatic Quick Auth under Strict Mode effect replay', async () => {
+    const getToken = vi.fn(async () => ({ token: QUICK_AUTH_TOKEN }));
+    const exchangeQuickAuth = vi.fn(async () => authorized());
+    const authBridge = bridge(exchangeQuickAuth);
+
+    renderMiniApp(miniAppSdk(getToken), authBridge, true);
+
+    await waitFor(() => expect(state().phase).toBe('authenticated'));
+    expect(screen.getByTestId('token').textContent).toBe('true');
+    expect(state().phase).not.toBe('creating-channel');
+    expect(exchangeQuickAuth).toHaveBeenCalledTimes(1);
   });
 });

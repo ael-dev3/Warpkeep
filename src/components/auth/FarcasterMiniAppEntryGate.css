@@ -1,0 +1,80 @@
+.farcaster-miniapp-entry {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  box-sizing: border-box;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100%;
+  padding:
+    max(1rem, env(safe-area-inset-top), var(--fc-safe-area-inset-top, 0px))
+    max(1rem, env(safe-area-inset-right), var(--fc-safe-area-inset-right, 0px))
+    max(1rem, env(safe-area-inset-bottom), var(--fc-safe-area-inset-bottom, 0px))
+    max(1rem, env(safe-area-inset-left), var(--fc-safe-area-inset-left, 0px));
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 38%, rgb(115 54 153 / 32%), transparent 31%),
+    radial-gradient(circle at 50% 112%, rgb(77 36 105 / 30%), transparent 46%),
+    linear-gradient(155deg, #090611 0%, #030309 56%, #010207 100%);
+  color: #f5e7c5;
+}
+
+.farcaster-miniapp-entry__atmosphere {
+  position: absolute;
+  inset: 0;
+  opacity: 0.5;
+  pointer-events: none;
+  background-image:
+    linear-gradient(115deg, transparent 22%, rgb(194 133 239 / 5%) 47%, transparent 72%),
+    radial-gradient(circle, rgb(227 202 151 / 24%) 0 1px, transparent 1.5px);
+  background-position: center, 0 0;
+  background-size: 100% 100%, 4.5rem 4.5rem;
+  mask-image: linear-gradient(to bottom, black, transparent 88%);
+}
+
+.farcaster-miniapp-entry__content {
+  z-index: 1;
+  display: contents;
+}
+
+.farcaster-miniapp-entry__content > .farcaster-auth-panel {
+  z-index: 1;
+  max-height: calc(
+    100dvh
+    - max(1rem, env(safe-area-inset-top), var(--fc-safe-area-inset-top, 0px))
+    - max(1rem, env(safe-area-inset-bottom), var(--fc-safe-area-inset-bottom, 0px))
+  );
+}
+
+.farcaster-miniapp-entry__status {
+  --farcaster-auth-qr-size: 0px;
+}
+
+.farcaster-miniapp-entry__message {
+  max-width: 21rem;
+  margin: 0;
+  color: #e5d2ac;
+  font-size: clamp(0.86rem, 2.8vw, 1rem);
+  letter-spacing: 0.045em;
+  line-height: 1.55;
+  text-wrap: balance;
+}
+
+@media (max-width: 480px) {
+  .farcaster-miniapp-entry {
+    place-items: stretch center;
+    overflow-y: auto;
+  }
+
+  .farcaster-miniapp-entry__content > .farcaster-auth-panel {
+    align-self: center;
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .farcaster-miniapp-entry .farcaster-auth-panel,
+  .farcaster-miniapp-entry .farcaster-auth-panel__seal-spinner {
+    animation: none;
+  }
+}

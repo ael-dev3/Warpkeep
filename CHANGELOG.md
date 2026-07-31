@@ -6,6 +6,21 @@ full engineering record.
 
 ## [Unreleased]
 
+## [0.3.30] — 2026-07-31
+
+- Let returning Farcaster Mini App players enter Genesis 001 directly when
+  Quick Auth, admission, current Terms acceptance, and their canonical keep all
+  agree.
+- Kept players awaiting admission on the private Request Access step, and
+  required explicit acceptance whenever the versioned Alpha Terms change.
+- Removed the title and ordinary menu from the successful Mini App launch path
+  without treating a query, host profile, route, or browser state as authority.
+- Made missing or malformed Quick Auth credentials settle into a safe retry
+  instead of an endless loading state, and let native Back dismiss the nested
+  Terms dialog without leaving Warpkeep.
+- Left ordinary browser entry, admission decisions, castle ownership, Workers,
+  resources, balances, terrain, and persistent world data unchanged.
+
 ## [0.3.29] — 2026-07-31
 
 - Made Realm gestures recover cleanly when a menu, record, or inactive
@@ -325,7 +340,8 @@ full engineering record.
   Lowlands, a first keep, Farcaster sign-in, and an admission-gated shared-world
   foundation.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.29...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.30...HEAD
+[0.3.30]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.29...v0.3.30
 [0.3.29]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.28...v0.3.29
 [0.3.28]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.27...v0.3.28
 [0.3.27]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.26...v0.3.27

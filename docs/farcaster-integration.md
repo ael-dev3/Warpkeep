@@ -5,7 +5,7 @@ ordinary browsers use Sign In with Farcaster (SIWF), while a verified Farcaster
 Mini App host may use Quick Auth. Neither path is a wallet connection,
 client-owned identity, admission grant, or Terms acceptance.
 
-Alpha 0.3.29 keeps backend protocol 3 and authentication contract v2; admission
+Alpha 0.3.30 keeps backend protocol 3 and authentication contract v2; admission
 remains gated. Production configuration and founder identities belong in the
 private operator record, not this guide.
 
@@ -33,8 +33,11 @@ verified Mini App host
   -> bridge verifies signature, issuer, expiry, and domain warpkeep.com
   -> verified numeric sub becomes the candidate FID
   -> the same admission and auth-epoch resolver decides access
+  -> pending or disabled: Request Access remains visible, with no access token or Realm connection
   -> authorized: one short-lived memory-only SpacetimeDB access token
-  -> pending or disabled: no access token and no private Realm authority
+  -> SpacetimeDB confirms the exact current versioned Terms record for that FID
+  -> current Terms plus the matching canonical keep: enter the Realm directly
+  -> missing current Terms: require one explicit acceptance before Realm activation
 ```
 
 The bridge, not the browser, establishes `sub: farcaster:<fid>`. Its exchange
@@ -66,11 +69,17 @@ and never falls back to a local or anonymous database identity.
 
 ## Browser flow and privacy
 
-Selecting **ENTER REALM** first checks whether the current authenticated FID has
-already recorded the exact required Terms version. That same authorized session
-may continue without asking again. A missing or stale record opens the concise
+In ordinary browsers, selecting **ENTER REALM** first checks whether the current
+authenticated FID has already recorded the exact required Terms version. In a
+verified Mini App, the same check runs automatically after Quick Auth: an admitted
+player with a matching canonical keep and current acceptance enters the Realm
+without crossing the title or ordinary menu. A missing or stale record opens the concise
 **ALPHA PARTICIPATION TERMS** gate; only explicit agreement begins or completes
 entry. A checkbox alone has no authority, and Quick Auth never accepts Terms.
+Acceptance is an immutable private FID/version record rather than a mutable
+browser checkbox. Changing the required version makes every older record
+non-current and prompts one new explicit acceptance while preserving the audit
+history.
 
 Outside a verified Mini App host, title load, anonymous menu load,
 focus/visibility/pageshow events, ordinary route rendering, and direct `#realm`
