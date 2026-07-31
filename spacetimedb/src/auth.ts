@@ -6,14 +6,17 @@ import {
 } from 'spacetimedb/server';
 
 import {
+  type AccessRequestResolverJwtClaims,
   type AuthEpochResolverJwtClaims,
   ClaimValidationError,
   type QaSnapshotResolverJwtClaims,
   type WarpkeepBaseJwtClaims,
   type WarpkeepJwtClaims,
+  isAccessRequestResolverJwt,
   isAuthEpochResolverJwt,
   isHermesAdminJwt,
   isQaSnapshotResolverJwt,
+  readFreshAccessRequestResolverJwt,
   readFreshAuthEpochResolverJwt,
   readFreshHermesAdminJwt,
   readFreshQaSnapshotResolverJwt,
@@ -61,10 +64,10 @@ export function requireWarpkeepJwt(ctx: WarpkeepReducerContext): WarpkeepJwtClai
 
 /**
  * Connections may be made only by a currently admitted player, the exact fresh
- * Hermes administrator, the exact fresh admission resolver, or the exact fresh
- * QA snapshot resolver. SpacetimeDB invokes this lifecycle gate before HTTP
- * procedures too, so either resolver must pass it before its independently
- * protected read-only procedure can run. A resolver bearer presented while
+ * Hermes administrator, the exact fresh admission resolver, the exact fresh
+ * access-request resolver, or the exact fresh QA snapshot resolver. SpacetimeDB
+ * invokes this lifecycle gate before HTTP procedures too, so a resolver must
+ * pass it before its independently protected procedure can run. A resolver bearer presented while
  * fresh can technically establish public subscriptions that may persist until
  * transport disconnect. Only the admission resolver can read static backend
  * metadata; the QA resolver is rejected there. Reducer/procedure guards still
@@ -85,6 +88,12 @@ export function requireWarpkeepConnection(
         ctx.timestamp.microsSinceUnixEpoch,
       );
     }
+    if (isAccessRequestResolverJwt(base)) {
+      return readFreshAccessRequestResolverJwt(
+        payload,
+        ctx.timestamp.microsSinceUnixEpoch,
+      );
+    }
     if (isQaSnapshotResolverJwt(base)) {
       return readFreshQaSnapshotResolverJwt(
         payload,
@@ -100,9 +109,9 @@ export function requireWarpkeepConnection(
 
 /**
  * Static compatibility metadata remains available to ordinary admitted,
- * administrator, and admission-resolver connections. The QA principal is
- * deliberately excluded so its sole callable procedure is the v2 aggregate
- * attestation; the retained v1 wire fails before entering this guard.
+ * administrator, and admission-resolver connections. The QA and access-request
+ * principals are deliberately excluded so each retains only its exact
+ * independently guarded procedure surface.
  */
 export function requireWarpkeepMetadataConnection(
   ctx: WarpkeepReducerContext,
@@ -110,6 +119,9 @@ export function requireWarpkeepMetadataConnection(
   const claims = requireWarpkeepConnection(ctx);
   if (isQaSnapshotResolverJwt(claims)) {
     throw new SenderError('INVALID_QA_SNAPSHOT_RESOLVER_SESSION');
+  }
+  if (isAccessRequestResolverJwt(claims)) {
+    throw new SenderError('INVALID_ACCESS_REQUEST_RESOLVER_SESSION');
   }
   return claims;
 }
@@ -140,6 +152,20 @@ export function requireAuthEpochResolver(
       throw new ClaimValidationError('INVALID_AUTH_RESOLVER_SESSION');
     }
     return claims;
+  } catch (error) {
+    return senderError(error);
+  }
+}
+
+/** Require the fresh bridge-internal principal and derive its sole bound FID. */
+export function requireAccessRequestResolver(
+  ctx: WarpkeepReducerContext,
+): AccessRequestResolverJwtClaims {
+  try {
+    return readFreshAccessRequestResolverJwt(
+      requireJwtPayload(ctx.senderAuth),
+      ctx.timestamp.microsSinceUnixEpoch,
+    );
   } catch (error) {
     return senderError(error);
   }

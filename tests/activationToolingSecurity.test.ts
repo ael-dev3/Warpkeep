@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import {
+  ACCESS_REQUEST_V13_TABLE_CONTRACTS,
   GENESIS_WORLD_PUBLISH_STAGE,
   PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS,
   RESOURCE_PUBLISH_ROLLOUT_STAGE,
@@ -59,6 +60,8 @@ import {
   verifyPostPublishFoundedProtocolV3Aggregate,
   verifyPostPublishProductionV12Schema,
   verifyPostPublishProductionV12ModuleSchema,
+  verifyPostPublishProductionV13ModuleSchema,
+  verifyPostPublishProductionV13SchemaFromV11,
   verifyPostPublishResourceProtocolV4PrebackfillAggregate,
   verifyPostPublishResourceProtocolV4ReadyAggregate,
   verifyPostPublishResourcePublicationCheckpoints,
@@ -76,6 +79,8 @@ import {
   verifyExactProductionV12ModuleSchema,
   verifyWorkerV12ModuleAbi,
   verifyWorkerV12ModulePredecessor,
+  verifyExactProductionV13Schema,
+  verifyExactProductionV13SchemaFromV11,
 } from '../scripts/publish-spacetime-dev.mjs';
 import {
   readPrivateSpacetimePublishSuccessReceipt,
@@ -408,6 +413,53 @@ function productionSchemaDescription(includeWorkerV12: boolean) {
   return { tables, typespace: { types } };
 }
 
+function withAccessRequestV13<T>(description: T): T {
+  const candidate = structuredClone(description) as T & {
+    tables: Array<{
+      name: string;
+      product_type_ref: number;
+      table_access: Record<string, object>;
+      indexes: Array<Record<string, unknown>>;
+      constraints: Array<Record<string, unknown>>;
+    }>;
+    typespace: {
+      types: Array<{
+        Product: {
+          elements: Array<{
+            name: { some: string };
+            algebraic_type: Record<string, unknown>;
+          }>;
+        };
+      }>;
+    };
+  };
+  const [name, contract] = Object.entries(
+    ACCESS_REQUEST_V13_TABLE_CONTRACTS,
+  )[0]!;
+  candidate.typespace.types[contract.productTypeRef] = {
+    Product: {
+      elements: contract.fields.map((field, index) => ({
+        name: { some: field },
+        algebraic_type: index === 0 ? { U64: {} } : { Timestamp: {} },
+      })),
+    },
+  };
+  candidate.tables.push({
+    name,
+    product_type_ref: contract.productTypeRef,
+    table_access: { [contract.access]: {} },
+    indexes: [{
+      name: `${name}_by_primary`,
+      algorithm: { BTree: { columns: [0] } },
+    }],
+    constraints: [{
+      name: `${name}_primary`,
+      data: { Unique: { columns: [0] } },
+    }],
+  });
+  return candidate;
+}
+
 const predecessorActivationFields = [
   ['capability', 'String'],
   ['clientRelease', 'String'],
@@ -596,8 +648,13 @@ const workerResourceStateFields = [
 
 function workerModuleSchemaDescription(
   state: 'predecessor' | 'active-predecessor' | 'candidate',
+  includeAccessRequestV13 = false,
 ) {
-  const description = productionSchemaDescription(true) as ReturnType<
+  const description = (
+    includeAccessRequestV13
+      ? withAccessRequestV13(productionSchemaDescription(true))
+      : productionSchemaDescription(true)
+  ) as ReturnType<
     typeof productionSchemaDescription
   > & {
     reducers: Array<Record<string, unknown>>;
@@ -1047,6 +1104,7 @@ async function withTestProvenArtifact<T>(callback: (receipt: {
   artifactPath: string;
   v11TableSchemaDigest: string;
   v12TableSchemaDigest: string;
+  v13TableSchemaDigest: string;
   artifactDigest: string;
 }) => Promise<T> | T): Promise<T> {
   let previous: Buffer | undefined;
@@ -1062,6 +1120,7 @@ async function withTestProvenArtifact<T>(callback: (receipt: {
     artifactPath: provenArtifactPath,
     v11TableSchemaDigest: 'a'.repeat(64),
     v12TableSchemaDigest: 'b'.repeat(64),
+    v13TableSchemaDigest: 'c'.repeat(64),
     artifactDigest: createHash('sha256').update(content).digest('hex'),
   });
   try {
@@ -1443,6 +1502,241 @@ describe('activation publish safety', () => {
       .toThrow(/machine-readable JSON/i);
   });
 
+  it('requires an exact private ref-53 v13 append over a captured v12 predecessor', () => {
+    const v12 = workerModuleSchemaDescription('candidate');
+    const v12TableNames = [
+      ...Object.keys(PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS),
+      ...Object.keys(WORKER_V12_TABLE_CONTRACTS),
+    ];
+    const v12TableSchemaDigest = canonicalTableSchemaBoundaryDigest(
+      v12,
+      v12TableNames,
+    );
+    const predecessor = verifyExactProductionV12ModuleSchema(
+      v12,
+      v12TableSchemaDigest,
+    );
+    const v13 = workerModuleSchemaDescription('candidate', true);
+    const v13TableNames = [
+      ...v12TableNames,
+      ...Object.keys(ACCESS_REQUEST_V13_TABLE_CONTRACTS),
+    ];
+    const v13TableSchemaDigest = canonicalTableSchemaBoundaryDigest(
+      v13,
+      v13TableNames,
+    );
+
+    expect(verifyExactProductionV13Schema(
+      predecessor.tableSignatures,
+      v13,
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+    )).toEqual({
+      predecessorTableCount: 53,
+      appendedAccessRequestTableCount: 1,
+      totalTableCount: 54,
+    });
+    expect(verifyPostPublishProductionV13ModuleSchema(
+      'spacetime',
+      predecessor,
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+      (() => ({
+        status: 0,
+        signal: null,
+        stdout: JSON.stringify(v13),
+        stderr: '',
+      })) as never,
+    )).toEqual({
+      predecessorTableCount: 53,
+      appendedAccessRequestTableCount: 1,
+      totalTableCount: 54,
+      moduleState: 'candidate',
+    });
+
+    const publicRequestTable = structuredClone(v13);
+    publicRequestTable.tables
+      .find(table => table.name === 'access_request_v1')!.table_access = {
+        Public: {},
+      };
+    expect(() => verifyExactProductionV13Schema(
+      predecessor.tableSignatures,
+      publicRequestTable,
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+    )).toThrow(/exact private v13 contract/i);
+
+    const changedRequestField = structuredClone(v13);
+    changedRequestField.typespace.types[
+      ACCESS_REQUEST_V13_TABLE_CONTRACTS.access_request_v1.productTypeRef
+    ].Product.elements[1]!.name.some = 'updated_at';
+    expect(() => verifyExactProductionV13Schema(
+      predecessor.tableSignatures,
+      changedRequestField,
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+    )).toThrow(/exact private v13 contract/i);
+
+    const changedRequestType = structuredClone(v13);
+    changedRequestType.typespace.types[
+      ACCESS_REQUEST_V13_TABLE_CONTRACTS.access_request_v1.productTypeRef
+    ].Product.elements[0]!.algebraic_type = { String: {} };
+    expect(() => verifyExactProductionV13Schema(
+      predecessor.tableSignatures,
+      changedRequestType,
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+    )).toThrow(/v13 table schema.*proven publication boundary/i);
+
+    const changedPredecessor = structuredClone(v13);
+    changedPredecessor.tables
+      .find(table => table.name === 'castle')!.table_access = { Private: {} };
+    expect(() => verifyExactProductionV13Schema(
+      predecessor.tableSignatures,
+      changedPredecessor,
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+    )).toThrow(/v12 table schema.*proven publication boundary|pre-existing production table/i);
+
+    const unexpectedTable = structuredClone(v13);
+    unexpectedTable.tables.push({
+      name: 'unexpected_table',
+      product_type_ref: 54,
+      table_access: { Private: {} },
+      indexes: [],
+      constraints: [],
+    });
+    expect(() => verifyExactProductionV13Schema(
+      predecessor.tableSignatures,
+      unexpectedTable,
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+    )).toThrow(/table set.*exact publication boundary/i);
+
+    expect(() => verifyExactProductionV13Schema(
+      predecessor.tableSignatures,
+      v13,
+      '0'.repeat(64),
+      v13TableSchemaDigest,
+    )).toThrow(/v12 table schema.*proven publication boundary/i);
+    expect(() => verifyExactProductionV13Schema(
+      predecessor.tableSignatures,
+      v13,
+      v12TableSchemaDigest,
+      '0'.repeat(64),
+    )).toThrow(/v13 table schema.*proven publication boundary/i);
+
+    const indeterminate = () => verifyPostPublishProductionV13ModuleSchema(
+      'spacetime',
+      predecessor,
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+      (() => ({
+        status: 1,
+        signal: null,
+        stdout: 'private',
+        stderr: 'private',
+      })) as never,
+    );
+    expect(indeterminate).toThrow(/post-publication v13 module checkpoint is indeterminate/i);
+    expect(indeterminate).not.toThrow(/private|retry/i);
+  });
+
+  it('retains the reviewed v11 lane while proving both v12 and v13 append boundaries', () => {
+    const v11 = productionSchemaDescription(false);
+    const v11TableNames = Object.keys(PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS);
+    const v11TableSchemaDigest = canonicalTableSchemaBoundaryDigest(
+      v11,
+      v11TableNames,
+    );
+    const predecessor = verifyExactProductionV11Schema(
+      v11,
+      v11TableSchemaDigest,
+    );
+    const v12 = workerModuleSchemaDescription('candidate');
+    const v13 = workerModuleSchemaDescription('candidate', true);
+    const v12TableNames = [
+      ...v11TableNames,
+      ...Object.keys(WORKER_V12_TABLE_CONTRACTS),
+    ];
+    const v13TableNames = [
+      ...v12TableNames,
+      ...Object.keys(ACCESS_REQUEST_V13_TABLE_CONTRACTS),
+    ];
+    const v12TableSchemaDigest = canonicalTableSchemaBoundaryDigest(
+      v12,
+      v12TableNames,
+    );
+    const v13TableSchemaDigest = canonicalTableSchemaBoundaryDigest(
+      v13,
+      v13TableNames,
+    );
+
+    expect(verifyExactProductionV13SchemaFromV11(
+      predecessor,
+      v13,
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+    )).toEqual({
+      predecessorTableCount: 47,
+      appendedWorkerTableCount: 6,
+      appendedAccessRequestTableCount: 1,
+      totalTableCount: 54,
+    });
+    expect(verifyPostPublishProductionV13SchemaFromV11(
+      'spacetime',
+      predecessor,
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+      (() => ({
+        status: 0,
+        signal: null,
+        stdout: JSON.stringify(v13),
+        stderr: '',
+      })) as never,
+    )).toEqual({
+      predecessorTableCount: 47,
+      appendedWorkerTableCount: 6,
+      appendedAccessRequestTableCount: 1,
+      totalTableCount: 54,
+    });
+
+    const driftedV11 = structuredClone(v13);
+    driftedV11.tables.find(table => table.name === 'castle')!.indexes[0] = {
+      name: 'castle_by_primary',
+      algorithm: { BTree: { columns: [1] } },
+    };
+    expect(() => verifyExactProductionV13SchemaFromV11(
+      predecessor,
+      driftedV11,
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+    )).toThrow(/v12 table schema.*proven publication boundary|pre-existing production table/i);
+  });
+
+  it('routes every retained publication lane through the exact v13 post-checkpoint', () => {
+    const publisher = readFileSync(
+      resolve(repositoryRoot, 'scripts/publish-spacetime-dev.mjs'),
+      'utf8',
+    );
+    expect(publisher).toMatch(
+      /await publishModule\(executable, CANONICAL_DATABASE_IDENTITY, artifactReceipt\);[\s\S]*verifyPostPublishProductionV13ModuleSchema\([\s\S]*artifactReceipt\.v12TableSchemaDigest,[\s\S]*artifactReceipt\.v13TableSchemaDigest/,
+    );
+    expect(publisher).toMatch(
+      /verifyFreshProductionV11Schema\([\s\S]*await publishModule\(executable, CANONICAL_DATABASE_IDENTITY, artifactReceipt\);[\s\S]*verifyPostPublishProductionV13SchemaFromV11\([\s\S]*artifactReceipt\.v12TableSchemaDigest,[\s\S]*artifactReceipt\.v13TableSchemaDigest/,
+    );
+    const privateWorkerReceipt = publisher.slice(
+      publisher.indexOf('const receipt = writePrivateSpacetimePublishSuccessReceipt({'),
+      publisher.indexOf("console.log(JSON.stringify({\n          publication: 'verified'", publisher.indexOf(
+        'const receipt = writePrivateSpacetimePublishSuccessReceipt({',
+      )),
+    );
+    expect(privateWorkerReceipt).toContain(
+      'v12TableSchemaDigest: artifactReceipt.v12TableSchemaDigest',
+    );
+    expect(privateWorkerReceipt).not.toContain('v13TableSchemaDigest');
+  });
+
   it('pins the inert boundary, exact active predecessor, and additive atomic candidate ABI', () => {
     const inertPredecessor = workerModuleSchemaDescription('predecessor');
     const activePredecessor = workerModuleSchemaDescription('active-predecessor');
@@ -1765,6 +2059,7 @@ describe('activation publish safety', () => {
         summary: 'test-only receipt.',
         v11TableSchemaDigest: receipt.v11TableSchemaDigest,
         v12TableSchemaDigest: receipt.v12TableSchemaDigest,
+        v13TableSchemaDigest: receipt.v13TableSchemaDigest,
         artifactDigest: receipt.artifactDigest,
       })}\n`;
       const parsed = parseMigrationProofReceipt(success);
@@ -1793,10 +2088,20 @@ describe('activation publish safety', () => {
           + ` v12_table_schema_sha256=${receipt.v12TableSchemaDigest}`,
       ))).toThrow(/exact success receipt/i);
       expect(() => parseMigrationProofReceipt(success.replace(
+        ` v13_table_schema_sha256=${receipt.v13TableSchemaDigest}`,
+        '',
+      ))).toThrow(/exact success receipt/i);
+      expect(() => parseMigrationProofReceipt(success.replace(
         ` v11_table_schema_sha256=${receipt.v11TableSchemaDigest}`
           + ` v12_table_schema_sha256=${receipt.v12TableSchemaDigest}`,
         ` v12_table_schema_sha256=${receipt.v12TableSchemaDigest}`
           + ` v11_table_schema_sha256=${receipt.v11TableSchemaDigest}`,
+      ))).toThrow(/exact success receipt/i);
+      expect(() => parseMigrationProofReceipt(success.replace(
+        ` v12_table_schema_sha256=${receipt.v12TableSchemaDigest}`
+          + ` v13_table_schema_sha256=${receipt.v13TableSchemaDigest}`,
+        ` v13_table_schema_sha256=${receipt.v13TableSchemaDigest}`
+          + ` v12_table_schema_sha256=${receipt.v12TableSchemaDigest}`,
       ))).toThrow(/exact success receipt/i);
       expect(() => parseMigrationProofReceipt(success.replace(
         receipt.v11TableSchemaDigest,
@@ -1817,6 +2122,10 @@ describe('activation publish safety', () => {
       expect(() => verifyMigrationArtifactReceipt({
         ...receipt,
         v12TableSchemaDigest: receipt.v12TableSchemaDigest.toUpperCase(),
+      })).toThrow(/receipt was invalid/i);
+      expect(() => verifyMigrationArtifactReceipt({
+        ...receipt,
+        v13TableSchemaDigest: receipt.v13TableSchemaDigest.toUpperCase(),
       })).toThrow(/receipt was invalid/i);
       expect(() => verifyMigrationArtifactReceipt({ ...receipt, extra: true }))
         .toThrow(/receipt was invalid/i);
@@ -1847,6 +2156,7 @@ describe('activation publish safety', () => {
         summary: 'test-only scheduler receipt.',
         v11TableSchemaDigest: receipt.v11TableSchemaDigest,
         v12TableSchemaDigest: receipt.v12TableSchemaDigest,
+        v13TableSchemaDigest: receipt.v13TableSchemaDigest,
         artifactDigest: receipt.artifactDigest,
       })}\n`;
       const fakeSpawnSync = (...args: unknown[]) => {

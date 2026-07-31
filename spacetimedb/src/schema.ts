@@ -1171,6 +1171,20 @@ export const workerAssignmentScheduleV1 = table(
     stage: t.string(),
   },
 );
+
+/**
+ * Private, idempotent expression of interest in manual Alpha admission. This
+ * grants no admission, castle, ownership, economy, or gameplay authority.
+ */
+export const accessRequestV1 = table(
+  { name: 'access_request_v1' },
+  {
+    fid: t.u64().primaryKey(),
+    requestCycle: t.u64(),
+    requestedAt: t.timestamp(),
+  },
+);
+
 const warpkeep = schema({
   // Preserve the original production schema prefix exactly. New tables are
   // append-only so SpacetimeDB can apply this migration without rewriting it.
@@ -1227,6 +1241,7 @@ const warpkeep = schema({
   workerNodeOccupationV1,
   workerCommandIdempotencyV1,
   workerAssignmentScheduleV1,
+  accessRequestV1,
 });
 
 /**
@@ -1374,6 +1389,9 @@ for (const name of [
   'admin_begin_worker_legacy_drain_v1',
   'admin_activate_worker_system_v1',
   'admin_get_worker_rollout_status_v2',
+  'access_request_get_status_v1',
+  'access_request_submit_v1',
+  'admin_list_access_requests_v1',
 ]) {
   warpkeep.moduleDef.explicitNames.entries.push({
     tag: 'Function',

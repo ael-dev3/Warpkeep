@@ -6,6 +6,8 @@
 import { type Infer as __Infer } from "spacetimedb";
 
 // Import all procedure arg schemas
+import * as AccessRequestGetStatusV1Procedure from "../access_request_get_status_v_1_procedure";
+import * as AccessRequestSubmitV1Procedure from "../access_request_submit_v_1_procedure";
 import * as AdminGetAlphaStatusProcedure from "../admin_get_alpha_status_procedure";
 import * as AdminGetAlphaStatusV2Procedure from "../admin_get_alpha_status_v_2_procedure";
 import * as AdminGetAlphaStatusV3Procedure from "../admin_get_alpha_status_v_3_procedure";
@@ -18,6 +20,7 @@ import * as AdminGetWorkerRolloutStatusV2Procedure from "../admin_get_worker_rol
 import * as AdminGetWorkerSystemStatusV1Procedure from "../admin_get_worker_system_status_v_1_procedure";
 import * as AdminInspectGenesisWaterLayoutV1Procedure from "../admin_inspect_genesis_water_layout_v_1_procedure";
 import * as AdminInspectGenesisWaterRevisionV1Procedure from "../admin_inspect_genesis_water_revision_v_1_procedure";
+import * as AdminListAccessRequestsV1Procedure from "../admin_list_access_requests_v_1_procedure";
 import * as AdminPlanWorkerRosterV1Procedure from "../admin_plan_worker_roster_v_1_procedure";
 import * as AuthResolverGetFidAdmissionV2Procedure from "../auth_resolver_get_fid_admission_v_2_procedure";
 import * as GetAlphaBackendInfoProcedure from "../get_alpha_backend_info_procedure";
@@ -35,6 +38,10 @@ import * as GetMyWorkerRosterV1Procedure from "../get_my_worker_roster_v_1_proce
 import * as QaObserverGetRealmAttestationV2Procedure from "../qa_observer_get_realm_attestation_v_2_procedure";
 import * as QaObserverGetRealmSnapshotV1Procedure from "../qa_observer_get_realm_snapshot_v_1_procedure";
 
+export type AccessRequestGetStatusV1Args = __Infer<typeof AccessRequestGetStatusV1Procedure.params>;
+export type AccessRequestGetStatusV1Result = __Infer<typeof AccessRequestGetStatusV1Procedure.returnType>;
+export type AccessRequestSubmitV1Args = __Infer<typeof AccessRequestSubmitV1Procedure.params>;
+export type AccessRequestSubmitV1Result = __Infer<typeof AccessRequestSubmitV1Procedure.returnType>;
 export type AdminGetAlphaStatusArgs = __Infer<typeof AdminGetAlphaStatusProcedure.params>;
 export type AdminGetAlphaStatusResult = __Infer<typeof AdminGetAlphaStatusProcedure.returnType>;
 export type AdminGetAlphaStatusV2Args = __Infer<typeof AdminGetAlphaStatusV2Procedure.params>;
@@ -59,6 +66,8 @@ export type AdminInspectGenesisWaterLayoutV1Args = __Infer<typeof AdminInspectGe
 export type AdminInspectGenesisWaterLayoutV1Result = __Infer<typeof AdminInspectGenesisWaterLayoutV1Procedure.returnType>;
 export type AdminInspectGenesisWaterRevisionV1Args = __Infer<typeof AdminInspectGenesisWaterRevisionV1Procedure.params>;
 export type AdminInspectGenesisWaterRevisionV1Result = __Infer<typeof AdminInspectGenesisWaterRevisionV1Procedure.returnType>;
+export type AdminListAccessRequestsV1Args = __Infer<typeof AdminListAccessRequestsV1Procedure.params>;
+export type AdminListAccessRequestsV1Result = __Infer<typeof AdminListAccessRequestsV1Procedure.returnType>;
 export type AdminPlanWorkerRosterV1Args = __Infer<typeof AdminPlanWorkerRosterV1Procedure.params>;
 export type AdminPlanWorkerRosterV1Result = __Infer<typeof AdminPlanWorkerRosterV1Procedure.returnType>;
 export type AuthResolverGetFidAdmissionV2Args = __Infer<typeof AuthResolverGetFidAdmissionV2Procedure.params>;

@@ -46,7 +46,11 @@ assert.deepEqual(candidate.slice(47), [
   'workerCommandIdempotencyV1',
   'workerAssignmentScheduleV1',
 ]);
-assert.deepEqual(current.slice(47), candidate.slice(47), 'module and fixture suffix differ');
+assert.deepEqual(
+  current.slice(47, 53),
+  candidate.slice(47),
+  'module and frozen v12 fixture suffix differ',
+);
 for (const name of ['realmWorkerSystemV1', 'castleWorkerV1', 'workerNodeOccupationV1']) {
   const definition = table(schema, name);
   assert.match(definition, /public: true/);

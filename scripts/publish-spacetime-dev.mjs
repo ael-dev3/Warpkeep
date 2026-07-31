@@ -218,6 +218,17 @@ export const WORKER_V12_TABLE_CONTRACTS = Object.freeze({
     ]),
   }),
 });
+export const ACCESS_REQUEST_V13_TABLE_CONTRACTS = Object.freeze({
+  access_request_v1: Object.freeze({
+    productTypeRef: 53,
+    access: 'Private',
+    fields: Object.freeze([
+      'fid',
+      'request_cycle',
+      'requested_at',
+    ]),
+  }),
+});
 
 const WORKER_V12_PREDECESSOR_ACTIVATION_FIELDS = Object.freeze([
   ['capability', 'String'],
@@ -1419,6 +1430,168 @@ function productionV12TableRefs() {
   });
 }
 
+function productionV13TableRefs() {
+  return Object.freeze({
+    ...productionV12TableRefs(),
+    ...Object.fromEntries(Object.entries(ACCESS_REQUEST_V13_TABLE_CONTRACTS)
+      .map(([name, contract]) => [name, contract.productTypeRef])),
+  });
+}
+
+function requireCapturedTableSignatures(signatures, refs, boundary) {
+  if (
+    !signatures
+    || typeof signatures !== 'object'
+    || Array.isArray(signatures)
+    || Object.keys(signatures).sort().join(',')
+      !== Object.keys(refs).sort().join(',')
+    || Object.values(signatures).some(value => typeof value !== 'string')
+  ) fail(`The captured production ${boundary} schema boundary was invalid.`);
+}
+
+function projectedTableSchemaBoundaryDigest(description, tableNames) {
+  if (
+    !description
+    || typeof description !== 'object'
+    || !Array.isArray(description.tables)
+    || !Array.isArray(tableNames)
+    || tableNames.some(name => typeof name !== 'string')
+  ) fail('The canonical schema projection was invalid.');
+  const selected = new Set(tableNames);
+  return canonicalTableSchemaBoundaryDigest({
+    ...description,
+    tables: description.tables.filter(table => selected.has(table?.name)),
+  }, tableNames);
+}
+
+function verifyProductionV13Contracts(
+  description,
+  expectedV12TableSchemaDigest,
+  expectedV13TableSchemaDigest,
+) {
+  const v12Refs = productionV12TableRefs();
+  const v13Refs = productionV13TableRefs();
+  verifyExactTableIdentities(description, v13Refs);
+  for (const [name, contract] of Object.entries(WORKER_V12_TABLE_CONTRACTS)) {
+    if (
+      schemaTableAccess(description, name) !== contract.access
+      || canonicalJson(schemaFieldNames(description, name))
+        !== canonicalJson(contract.fields)
+    ) fail('The appended Worker schema did not match the exact v12 contract.');
+  }
+  for (const [name, contract] of Object.entries(
+    ACCESS_REQUEST_V13_TABLE_CONTRACTS,
+  )) {
+    if (
+      schemaTableAccess(description, name) !== contract.access
+      || canonicalJson(schemaFieldNames(description, name))
+        !== canonicalJson(contract.fields)
+    ) fail('The appended access-request schema did not match the exact private v13 contract.');
+  }
+  try {
+    if (
+      typeof expectedV12TableSchemaDigest !== 'string'
+      || !SHA256_DIGEST.test(expectedV12TableSchemaDigest)
+      || projectedTableSchemaBoundaryDigest(
+        description,
+        Object.keys(v12Refs),
+      ) !== expectedV12TableSchemaDigest
+    ) fail('The canonical v12 table schema did not match the proven publication boundary.');
+    if (
+      typeof expectedV13TableSchemaDigest !== 'string'
+      || !SHA256_DIGEST.test(expectedV13TableSchemaDigest)
+      || canonicalTableSchemaBoundaryDigest(
+        description,
+        Object.keys(v13Refs),
+      ) !== expectedV13TableSchemaDigest
+    ) fail('The canonical v13 table schema did not match the proven publication boundary.');
+  } catch (error) {
+    if (
+      error instanceof SafePublishError
+      && (
+        error.message
+          === 'The canonical v12 table schema did not match the proven publication boundary.'
+        || error.message
+          === 'The canonical v13 table schema did not match the proven publication boundary.'
+      )
+    ) throw error;
+    fail('The canonical v13 table schema did not match the proven publication boundary.');
+  }
+  return Object.freeze({
+    v12Refs,
+    v13Refs,
+  });
+}
+
+/**
+ * Require the exact v13 append over a captured v12 predecessor. Every
+ * predecessor signature, the v12 boundary digest, and the new private ref-53
+ * boundary digest remain independently attested.
+ */
+export function verifyExactProductionV13Schema(
+  predecessorSignatures,
+  description,
+  expectedV12TableSchemaDigest,
+  expectedV13TableSchemaDigest,
+) {
+  const v12Refs = productionV12TableRefs();
+  requireCapturedTableSignatures(predecessorSignatures, v12Refs, 'v12');
+  const contracts = verifyProductionV13Contracts(
+    description,
+    expectedV12TableSchemaDigest,
+    expectedV13TableSchemaDigest,
+  );
+  for (const name of Object.keys(v12Refs)) {
+    if (
+      canonicalJson(schemaTableSignature(description, name))
+        !== predecessorSignatures[name]
+    ) fail('A pre-existing production table changed during the v13 publication.');
+  }
+  return Object.freeze({
+    predecessorTableCount: Object.keys(v12Refs).length,
+    appendedAccessRequestTableCount:
+      Object.keys(ACCESS_REQUEST_V13_TABLE_CONTRACTS).length,
+    totalTableCount: Object.keys(contracts.v13Refs).length,
+  });
+}
+
+/**
+ * Retain the reviewed v11 exceptional lane while binding both append
+ * boundaries. This proves the six exact Worker tables and the one exact
+ * private request table without weakening any captured v11 signature.
+ */
+export function verifyExactProductionV13SchemaFromV11(
+  predecessorSignatures,
+  description,
+  expectedV12TableSchemaDigest,
+  expectedV13TableSchemaDigest,
+) {
+  requireCapturedTableSignatures(
+    predecessorSignatures,
+    PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS,
+    'v11',
+  );
+  const contracts = verifyProductionV13Contracts(
+    description,
+    expectedV12TableSchemaDigest,
+    expectedV13TableSchemaDigest,
+  );
+  for (const name of Object.keys(PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS)) {
+    if (
+      canonicalJson(schemaTableSignature(description, name))
+        !== predecessorSignatures[name]
+    ) fail('A pre-existing production table changed during the v13 publication.');
+  }
+  return Object.freeze({
+    predecessorTableCount:
+      Object.keys(PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS).length,
+    appendedWorkerTableCount: Object.keys(WORKER_V12_TABLE_CONTRACTS).length,
+    appendedAccessRequestTableCount:
+      Object.keys(ACCESS_REQUEST_V13_TABLE_CONTRACTS).length,
+    totalTableCount: Object.keys(contracts.v13Refs).length,
+  });
+}
+
 function workerProductType(fields) {
   return `Product<${canonicalJson(fields)}>`;
 }
@@ -1731,10 +1904,10 @@ export function planWorkerV12CodePublication(
 }
 
 /**
- * Preflight for the exceptional code-only update over an already-appended,
- * still-inert v12 suffix. The migration proof supplies the one accepted table
- * boundary digest; all 53 exact table signatures are captured for the post
- * publication comparison.
+ * Preflight for a publication over an already-appended v12 Worker suffix. The
+ * migration proof supplies the accepted v12 boundary digest; all 53 exact
+ * table signatures are captured so the post-publication v13 check can prove
+ * that ref 53 was the sole schema append.
  */
 export function verifyExactProductionV12ModuleSchema(
   description,
@@ -1837,6 +2010,51 @@ export function verifyPostPublishProductionV12ModuleSchema(
   }
 }
 
+export function verifyPostPublishProductionV13ModuleSchema(
+  executable,
+  predecessor,
+  expectedV12TableSchemaDigest,
+  expectedV13TableSchemaDigest,
+  spawnSyncProcess = spawnSync,
+) {
+  try {
+    if (
+      !predecessor
+      || (
+        predecessor.moduleState !== 'predecessor'
+        && predecessor.moduleState !== 'active-predecessor'
+        && predecessor.moduleState !== 'candidate'
+      )
+      || !predecessor.tableSignatures
+      || typeof predecessor.tableSignatures !== 'object'
+      || Array.isArray(predecessor.tableSignatures)
+    ) fail('The captured production v12 predecessor was invalid.');
+    const result = runBoundedSync(
+      executable,
+      canonicalSchemaDescribeChildArguments(),
+      { timeout: 30_000 },
+      spawnSyncProcess,
+    );
+    const description = parseCanonicalSchemaDescription(result.stdout);
+    const schema = verifyExactProductionV13Schema(
+      predecessor.tableSignatures,
+      description,
+      expectedV12TableSchemaDigest,
+      expectedV13TableSchemaDigest,
+    );
+    const moduleState = verifyWorkerV12ModuleAbi(description);
+    if (moduleState !== 'candidate') {
+      fail('The v13 publication did not install the exact Worker candidate ABI.');
+    }
+    return Object.freeze({
+      ...schema,
+      moduleState,
+    });
+  } catch {
+    fail('Post-publication v13 module checkpoint is indeterminate; perform a fresh anonymous read-only schema and ABI inspection before any Worker command, client deployment, or further publication decision.');
+  }
+}
+
 export function verifyFreshProductionV11Schema(
   executable,
   expectedTableSchemaDigest,
@@ -1881,6 +2099,36 @@ export function verifyPostPublishProductionV12Schema(
   }
 }
 
+export function verifyPostPublishProductionV13SchemaFromV11(
+  executable,
+  predecessorSignatures,
+  expectedV12TableSchemaDigest,
+  expectedV13TableSchemaDigest,
+  spawnSyncProcess = spawnSync,
+) {
+  try {
+    const result = runBoundedSync(
+      executable,
+      canonicalSchemaDescribeChildArguments(),
+      { timeout: 30_000 },
+      spawnSyncProcess,
+    );
+    const description = parseCanonicalSchemaDescription(result.stdout);
+    const schema = verifyExactProductionV13SchemaFromV11(
+      predecessorSignatures,
+      description,
+      expectedV12TableSchemaDigest,
+      expectedV13TableSchemaDigest,
+    );
+    if (verifyWorkerV12ModuleAbi(description) !== 'candidate') {
+      fail('The v13 publication did not install the exact Worker candidate ABI.');
+    }
+    return schema;
+  } catch {
+    fail('Post-publication v13 schema checkpoint is indeterminate; a fresh anonymous read-only schema inspection is required before any merge, client deployment, Worker seed, backfill, activation, or further publication decision.');
+  }
+}
+
 function digestArtifact(artifactPath) {
   let descriptor;
   try {
@@ -1903,10 +2151,11 @@ function validateMigrationArtifactReceiptShape(receipt) {
     receipt === null
     || typeof receipt !== 'object'
     || Object.keys(receipt).sort().join(',')
-      !== 'artifactDigest,artifactPath,v11TableSchemaDigest,v12TableSchemaDigest'
+      !== 'artifactDigest,artifactPath,v11TableSchemaDigest,v12TableSchemaDigest,v13TableSchemaDigest'
     || receipt.artifactPath !== PROVEN_ARTIFACT_PATH
     || !SHA256_DIGEST.test(receipt.v11TableSchemaDigest ?? '')
     || !SHA256_DIGEST.test(receipt.v12TableSchemaDigest ?? '')
+    || !SHA256_DIGEST.test(receipt.v13TableSchemaDigest ?? '')
     || !SHA256_DIGEST.test(receipt.artifactDigest ?? '')
   ) {
     fail('The additive migration proof artifact receipt was invalid.');
@@ -1915,6 +2164,7 @@ function validateMigrationArtifactReceiptShape(receipt) {
     artifactPath: receipt.artifactPath,
     v11TableSchemaDigest: receipt.v11TableSchemaDigest,
     v12TableSchemaDigest: receipt.v12TableSchemaDigest,
+    v13TableSchemaDigest: receipt.v13TableSchemaDigest,
     artifactDigest: receipt.artifactDigest,
   });
 }
@@ -1939,6 +2189,7 @@ export function parseMigrationProofReceipt(output) {
     artifactPath: PROVEN_ARTIFACT_PATH,
     v11TableSchemaDigest: proofReceipt.v11TableSchemaDigest,
     v12TableSchemaDigest: proofReceipt.v12TableSchemaDigest,
+    v13TableSchemaDigest: proofReceipt.v13TableSchemaDigest,
     artifactDigest: proofReceipt.artifactDigest,
   });
 }
@@ -2994,10 +3245,11 @@ async function main() {
         publicationPlan.prePublicationCheckpoint,
       );
       await publishModule(executable, CANONICAL_DATABASE_IDENTITY, artifactReceipt);
-      verifyPostPublishProductionV12ModuleSchema(
+      verifyPostPublishProductionV13ModuleSchema(
         executable,
         predecessorSchema,
         artifactReceipt.v12TableSchemaDigest,
+        artifactReceipt.v13TableSchemaDigest,
       );
       verifyPostPublishResourcePublicationCheckpoints(
         adminTokenSecret,
@@ -3042,10 +3294,11 @@ async function main() {
         genesisWorldRolloutStage,
       );
       await publishModule(executable, CANONICAL_DATABASE_IDENTITY, artifactReceipt);
-      verifyPostPublishProductionV12Schema(
+      verifyPostPublishProductionV13SchemaFromV11(
         executable,
         predecessorSchema,
         artifactReceipt.v12TableSchemaDigest,
+        artifactReceipt.v13TableSchemaDigest,
       );
       verifyPostPublishResourcePublicationCheckpoints(
         adminTokenSecret,

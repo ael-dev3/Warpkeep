@@ -1,6 +1,8 @@
 import {
   MAX_AUTH_EPOCH,
   MAX_SUPPORTED_FID,
+  WARPKEEP_ACCESS_REQUEST_RESOLVER_ROLE,
+  WARPKEEP_ACCESS_REQUEST_RESOLVER_SUBJECT,
   WARPKEEP_ADMIN_ROLE,
   WARPKEEP_AUTH_EPOCH_RESOLVER_ROLE,
   WARPKEEP_AUTH_EPOCH_RESOLVER_SUBJECT,
@@ -24,11 +26,15 @@ export type ClaimErrorCode =
   | 'INVALID_PLAYER_SESSION'
   | 'INVALID_ADMIN_SESSION'
   | 'INVALID_AUTH_RESOLVER_SESSION'
+  | 'INVALID_ACCESS_REQUEST_RESOLVER_SESSION'
   | 'INVALID_QA_SNAPSHOT_RESOLVER_SESSION';
 
 export const MAX_PLAYER_SESSION_SECONDS = 10 * 60;
 export const MAX_HERMES_ADMIN_SESSION_SECONDS = 5 * 60;
 export const MAX_AUTH_EPOCH_RESOLVER_SESSION_SECONDS = 60;
+/** The bridge and module both limit this write-only principal to 15 seconds. */
+export const ACCESS_REQUEST_RESOLVER_ISSUANCE_SECONDS = 15;
+export const MAX_ACCESS_REQUEST_RESOLVER_SESSION_SECONDS = 15;
 /** The bridge intends to issue this internal principal for only 15 seconds. */
 export const QA_SNAPSHOT_RESOLVER_ISSUANCE_SECONDS = 15;
 /** The module independently enforces the same exact 15-second ceiling. */
@@ -70,6 +76,11 @@ export type WarpkeepJwtClaims = WarpkeepBaseJwtClaims &
 export type AuthEpochResolverJwtClaims = WarpkeepBaseJwtClaims &
   Readonly<{
     resolverFid: bigint;
+  }>;
+
+export type AccessRequestResolverJwtClaims = WarpkeepBaseJwtClaims &
+  Readonly<{
+    requestFid: bigint;
   }>;
 
 export type QaSnapshotResolverJwtClaims = WarpkeepBaseJwtClaims &
@@ -257,6 +268,15 @@ export function isAuthEpochResolverJwt(claims: WarpkeepBaseJwtClaims): boolean {
   );
 }
 
+/** The access-request resolver is one exact FID-bound service principal. */
+export function isAccessRequestResolverJwt(claims: WarpkeepBaseJwtClaims): boolean {
+  return (
+    claims.subject === WARPKEEP_ACCESS_REQUEST_RESOLVER_SUBJECT &&
+    claims.roles.length === 1 &&
+    claims.roles[0] === WARPKEEP_ACCESS_REQUEST_RESOLVER_ROLE
+  );
+}
+
 /** The QA snapshot resolver is one exact bridge-internal, read-only principal. */
 export function isQaSnapshotResolverJwt(claims: WarpkeepBaseJwtClaims): boolean {
   return (
@@ -364,6 +384,62 @@ export function readFreshAuthEpochResolverJwt(
     throw new ClaimValidationError('INVALID_AUTH_RESOLVER_SESSION');
   }
   return Object.freeze({ ...claims, resolverFid });
+}
+
+/**
+ * Validate the dedicated bridge-only access-request principal at authoritative
+ * module time. Known player, admin-resolver, and QA authority claims are
+ * rejected even though the exact sole role already keeps the principals
+ * disjoint.
+ */
+export function readFreshAccessRequestResolverJwt(
+  payload: unknown,
+  currentTimeMicros: bigint,
+  config: WarpkeepJwtConfig = WARPKEEP_JWT_CONFIG,
+): AccessRequestResolverJwtClaims {
+  let claims: WarpkeepBaseJwtClaims;
+  let issuedAt: number;
+  let expiresAt: number;
+  let requestFid: bigint;
+
+  try {
+    claims = readWarpkeepBaseJwt(payload, config);
+    const record = expectRecord(payload);
+    issuedAt = readNumericDate(record, 'iat', 'INVALID_ACCESS_REQUEST_RESOLVER_SESSION');
+    expiresAt = readNumericDate(record, 'exp', 'INVALID_ACCESS_REQUEST_RESOLVER_SESSION');
+    requestFid = parseFidClaim(record.request_fid);
+    if (
+      record.fid !== undefined
+      || record.auth_version !== undefined
+      || record.auth_epoch !== undefined
+      || record.session_iat !== undefined
+      || record.session_exp !== undefined
+      || record.resolver_fid !== undefined
+      || record.device_thumbprint !== undefined
+    ) {
+      throw new ClaimValidationError('INVALID_ACCESS_REQUEST_RESOLVER_SESSION');
+    }
+  } catch (error) {
+    if (
+      error instanceof ClaimValidationError
+      && error.code === 'INVALID_ACCESS_REQUEST_RESOLVER_SESSION'
+    ) {
+      throw error;
+    }
+    throw new ClaimValidationError('INVALID_ACCESS_REQUEST_RESOLVER_SESSION');
+  }
+
+  if (
+    !isAccessRequestResolverJwt(claims)
+    || currentTimeMicros < 0n
+    || currentTimeMicros < BigInt(issuedAt) * 1_000_000n
+    || expiresAt <= issuedAt
+    || expiresAt - issuedAt > MAX_ACCESS_REQUEST_RESOLVER_SESSION_SECONDS
+    || currentTimeMicros >= BigInt(expiresAt) * 1_000_000n
+  ) {
+    throw new ClaimValidationError('INVALID_ACCESS_REQUEST_RESOLVER_SESSION');
+  }
+  return Object.freeze({ ...claims, requestFid });
 }
 
 /**

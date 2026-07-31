@@ -40,7 +40,7 @@ test('v5 Gold authority prefix remains intact through later additive suffixes', 
   const registrations = schemaRegistrations(schema);
   const v4Registrations = schemaRegistrations(v4.replace('const db = schema({', 'const warpkeep = schema({'));
   assert.deepEqual(registrations.slice(0, v4Registrations.length), v4Registrations);
-  assert.deepEqual(registrations.slice(-33, -6), [
+  assert.deepEqual(registrations.slice(20, 47), [
     'goldSiteV1',
     'goldNodeOccupationV1',
     'goldExpeditionV1',
@@ -69,7 +69,7 @@ test('v5 Gold authority prefix remains intact through later additive suffixes', 
     'stoneExpeditionScheduleV1',
     'realmWaterRevisionV1',
   ]);
-  assert.deepEqual(registrations.slice(-33, -28), [
+  assert.deepEqual(registrations.slice(20, 25), [
     'goldSiteV1',
     'goldNodeOccupationV1',
     'goldExpeditionV1',

@@ -10,6 +10,39 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
+export const AccessRequestStatusV1 = __t.object("AccessRequestStatusV1", {
+  status: __t.string(),
+  requestedAtMicros: __t.option(__t.u64()),
+});
+export type AccessRequestStatusV1 = __Infer<typeof AccessRequestStatusV1>;
+
+export const AccessRequestV1 = __t.object("AccessRequestV1", {
+  fid: __t.u64(),
+  requestCycle: __t.u64(),
+  requestedAt: __t.timestamp(),
+});
+export type AccessRequestV1 = __Infer<typeof AccessRequestV1>;
+
+export const AdminAccessRequestEntryV1 = __t.object("AdminAccessRequestEntryV1", {
+  fid: __t.u64(),
+  requestedAtMicros: __t.u64(),
+  admissionState: __t.string(),
+  requestState: __t.string(),
+});
+export type AdminAccessRequestEntryV1 = __Infer<typeof AdminAccessRequestEntryV1>;
+
+export const AdminAccessRequestPageV1 = __t.object("AdminAccessRequestPageV1", {
+  get entries() {
+    return __t.array(AdminAccessRequestEntryV1);
+  },
+  nextRequestedAtMicros: __t.option(__t.u64()),
+  nextFid: __t.option(__t.u64()),
+  hasMore: __t.bool(),
+  totalRequests: __t.u64(),
+  pendingRequests: __t.u64(),
+});
+export type AdminAccessRequestPageV1 = __Infer<typeof AdminAccessRequestPageV1>;
+
 export const AdminAlphaStatus = __t.object("AdminAlphaStatus", {
   worldTiles: __t.u64(),
   players: __t.u64(),

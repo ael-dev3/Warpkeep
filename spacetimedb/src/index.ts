@@ -37,6 +37,11 @@ export {
   qaObserverGetRealmAttestationV2,
 } from './reducers/qaObserver';
 export {
+  accessRequestGetStatusV1,
+  accessRequestSubmitV1,
+  adminListAccessRequestsV1,
+} from './reducers/accessRequests';
+export {
   getMyResourceStateV1,
   collectResourcesV1,
   adminBackfillResourceAccountsV1,
