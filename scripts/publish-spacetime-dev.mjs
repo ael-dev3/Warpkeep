@@ -1135,6 +1135,7 @@ function validateFoundedPublishExpectations(value) {
     value === null
     || typeof value !== 'object'
     || Object.keys(value).sort().join(',') !== [
+      'expectedEnabledAllowedFidCount',
       'expectedFounderCount',
       'expectedPlayerCount',
       'expectedTermsAcceptanceCount',
@@ -1143,6 +1144,7 @@ function validateFoundedPublishExpectations(value) {
     fail('Exact founded protocol-v3 publication expectations are required.');
   }
   const {
+    expectedEnabledAllowedFidCount,
     expectedFounderCount,
     expectedPlayerCount,
     expectedTermsAcceptanceCount,
@@ -1151,6 +1153,9 @@ function validateFoundedPublishExpectations(value) {
     !Number.isSafeInteger(expectedFounderCount)
     || expectedFounderCount < 1
     || expectedFounderCount > 100
+    || !Number.isSafeInteger(expectedEnabledAllowedFidCount)
+    || expectedEnabledAllowedFidCount < 0
+    || expectedEnabledAllowedFidCount > expectedFounderCount
     || !Number.isSafeInteger(expectedPlayerCount)
     || expectedPlayerCount < 0
     || expectedPlayerCount > expectedFounderCount
@@ -1162,6 +1167,7 @@ function validateFoundedPublishExpectations(value) {
     fail('Founded protocol-v3 publication expectations were invalid.');
   }
   return Object.freeze({
+    expectedEnabledAllowedFidCount,
     expectedFounderCount,
     expectedPlayerCount,
     expectedTermsAcceptanceCount,
@@ -1183,6 +1189,10 @@ export function readFoundedPublishExpectations(source = process.env) {
   };
   return validateFoundedPublishExpectations({
     expectedFounderCount: readCount('WARPKEEP_EXPECTED_FOUNDER_COUNT', 1),
+    expectedEnabledAllowedFidCount: readCount(
+      'WARPKEEP_EXPECTED_ENABLED_ALLOWED_FID_COUNT',
+      0,
+    ),
     expectedPlayerCount: readCount('WARPKEEP_EXPECTED_PLAYER_COUNT', 0),
     expectedTermsAcceptanceCount: readCount(
       'WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT',
@@ -2375,6 +2385,7 @@ export function verifyFreshFoundedProtocolV3Aggregate(
     exactExpectations.expectedFounderCount,
     exactExpectations.expectedPlayerCount,
     exactExpectations.expectedTermsAcceptanceCount,
+    exactExpectations.expectedEnabledAllowedFidCount,
   );
 }
 
@@ -2962,6 +2973,7 @@ function verifyCombinedProtocolV3AndResourceV4(
     expectations.expectedFounderCount,
     expectations.expectedPlayerCount,
     expectations.expectedTermsAcceptanceCount,
+    expectations.expectedEnabledAllowedFidCount,
   );
   if (resourceRolloutStage === RESOURCE_PUBLISH_ROLLOUT_STAGE.PREBACKFILL) {
     verifyExpectedAlphaV4ResourcePrebackfillAggregate(

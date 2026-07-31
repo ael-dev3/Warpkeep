@@ -105,6 +105,18 @@ artifact, pinned CLI, issuer, expectation format, and selected stage contract;
 it does not inspect Maincloud or publish. Review the result, then use the same
 explicit stage arguments without `--dry-run` and with the publisher's exact
 confirmation variable set through the private operator environment.
+
+The private operator environment must also supply all four founded-state
+counts: `WARPKEEP_EXPECTED_FOUNDER_COUNT`,
+`WARPKEEP_EXPECTED_ENABLED_ALLOWED_FID_COUNT`,
+`WARPKEEP_EXPECTED_PLAYER_COUNT`, and
+`WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT`. Founder rows remain the durable
+castle-state count; the enabled allowlist count may be lower after an admission
+is revoked. Both are checked independently before and after publication.
+The standalone production verifier accepts the corresponding
+`--expected-enabled-allowed-fid-count=<count>` founded-stage flag; omitting it
+keeps the compatibility assertion that every founder remains enabled.
+
 Do not substitute raw `spacetime publish` commands. If publication times out or
 returns an ambiguous result, do not republish. A fresh read-only inspection must
 establish the live schema and counts before any further release decision.
