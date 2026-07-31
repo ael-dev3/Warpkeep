@@ -1449,11 +1449,16 @@ function expectedV3StateCounts(
   expectedFounderCount,
   expectedPlayerCount = 0,
   expectedTermsAcceptanceCount = 0,
+  expectedEnabledAllowedFidCount = expectedFounderCount,
 ) {
   if (
     stage !== PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED
     && stage !== PROTECTED_AGGREGATE_STAGE.GENESIS_GENERATION_V3_FOUNDED
-    && (expectedPlayerCount !== 0 || expectedTermsAcceptanceCount !== 0)
+    && (
+      expectedPlayerCount !== 0
+      || expectedTermsAcceptanceCount !== 0
+      || expectedEnabledAllowedFidCount !== undefined
+    )
   ) {
     fail('protocol-v3 authenticated count expectations require the founded aggregate stage.');
   }
@@ -1477,6 +1482,11 @@ function expectedV3StateCounts(
       expectedTermsAcceptanceCount,
       players,
     );
+    const enabledAllowedFids = readExpectedFoundedMutableCount(
+      expectedEnabledAllowedFidCount,
+      'enabled allowed-FID count',
+      founders,
+    );
     return Object.freeze({
       ...(stage === PROTECTED_AGGREGATE_STAGE.GENESIS_GENERATION_V3_FOUNDED
         ? EXPECTED_GENESIS_GENERATION_V3_COUNTS
@@ -1490,7 +1500,7 @@ function expectedV3StateCounts(
       markAccounts: founders,
       alphaTermsAcceptances: termsAcceptances,
       allowedFids: founders,
-      enabledAllowedFids: founders,
+      enabledAllowedFids,
     });
   }
   fail('protocol-v3 aggregate verification stage was invalid.');
@@ -1502,12 +1512,14 @@ export function verifyExpectedAlphaV3Aggregate(
   expectedFounderCount,
   expectedPlayerCount = 0,
   expectedTermsAcceptanceCount = 0,
+  expectedEnabledAllowedFidCount = expectedFounderCount,
 ) {
   const expectedCounts = expectedV3StateCounts(
     stage,
     expectedFounderCount,
     expectedPlayerCount,
     expectedTermsAcceptanceCount,
+    expectedEnabledAllowedFidCount,
   );
   let status;
   try {
@@ -1774,6 +1786,7 @@ function verifyProtectedAggregateIfConfigured(
   expectedFounderCount,
   expectedPlayerCount = 0,
   expectedTermsAcceptanceCount = 0,
+  expectedEnabledAllowedFidCount = expectedFounderCount,
 ) {
   const normalizedStage = normalizeProtectedAggregateStage(stage);
   const secret = requiredProtectedAggregateSecret(process.env.WARPKEEP_ADMIN_TOKEN_SECRET, required);
@@ -1802,6 +1815,7 @@ function verifyProtectedAggregateIfConfigured(
       expectedFounderCount,
       expectedPlayerCount,
       expectedTermsAcceptanceCount,
+      expectedEnabledAllowedFidCount,
     );
   }
   // Never mirror child-process output: even a future Hermes implementation
@@ -1827,6 +1841,7 @@ export function verifyPostBackfillResourceAggregateCheckpoints(
   repositoryRoot = resolve(dirname(resolve(process.argv[1])), '..'),
   sourceEnvironment = process.env,
   foundedStage = PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
+  expectedEnabledAllowedFidCount = expectedFounderCount,
 ) {
   const requiredSecret = requiredProtectedAggregateSecret(secret, true);
   const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
@@ -1856,6 +1871,7 @@ export function verifyPostBackfillResourceAggregateCheckpoints(
     expectedFounderCount,
     expectedPlayerCount,
     expectedTermsAcceptanceCount,
+    expectedEnabledAllowedFidCount,
   );
   console.log(
     foundedStage === PROTECTED_AGGREGATE_STAGE.GENESIS_GENERATION_V3_FOUNDED
@@ -1893,6 +1909,7 @@ export function parseProductionVerifierArguments(arguments_ = process.argv.slice
   let expectedFounderCount;
   let expectedPlayerCount;
   let expectedTermsAcceptanceCount;
+  let expectedEnabledAllowedFidCount;
   for (const argument of arguments_) {
     if (argument.startsWith('--expected-founder-count=')) {
       if (expectedFounderCount !== undefined) {
@@ -1933,6 +1950,17 @@ export function parseProductionVerifierArguments(arguments_ = process.argv.slice
       expectedTermsAcceptanceCount = Number(value);
       continue;
     }
+    if (argument.startsWith('--expected-enabled-allowed-fid-count=')) {
+      if (expectedEnabledAllowedFidCount !== undefined) {
+        fail('unknown or duplicate command-line argument.');
+      }
+      const value = argument.slice('--expected-enabled-allowed-fid-count='.length);
+      if (!/^(?:0|[1-9]|[1-9]\d|100)$/.test(value)) {
+        fail('expected enabled allowed-FID count must be a canonical integer from 0 through 100.');
+      }
+      expectedEnabledAllowedFidCount = Number(value);
+      continue;
+    }
     if (!allowed.has(argument) || seen.has(argument)) {
       fail('unknown or duplicate command-line argument.');
     }
@@ -1964,7 +1992,11 @@ export function parseProductionVerifierArguments(arguments_ = process.argv.slice
   }
   if (
     !requiresFoundedAggregate
-    && (expectedPlayerCount !== undefined || expectedTermsAcceptanceCount !== undefined)
+    && (
+      expectedPlayerCount !== undefined
+      || expectedTermsAcceptanceCount !== undefined
+      || expectedEnabledAllowedFidCount !== undefined
+    )
   ) {
     fail('authenticated count expectations require the founded aggregate stage.');
   }
@@ -1976,10 +2008,14 @@ export function parseProductionVerifierArguments(arguments_ = process.argv.slice
   }
   const foundedPlayerCount = expectedPlayerCount ?? 0;
   const foundedTermsAcceptanceCount = expectedTermsAcceptanceCount ?? 0;
+  const foundedEnabledAllowedFidCount = requiresFoundedAggregate
+    ? (expectedEnabledAllowedFidCount ?? expectedFounderCount)
+    : undefined;
   if (
     requiresFoundedAggregate
     && (
       foundedPlayerCount > expectedFounderCount
+      || foundedEnabledAllowedFidCount > expectedFounderCount
     )
   ) {
     fail('authenticated count expectations cannot exceed the expected founder count.');
@@ -2003,6 +2039,7 @@ export function parseProductionVerifierArguments(arguments_ = process.argv.slice
     expectedFounderCount,
     expectedPlayerCount: foundedPlayerCount,
     expectedTermsAcceptanceCount: foundedTermsAcceptanceCount,
+    expectedEnabledAllowedFidCount: foundedEnabledAllowedFidCount,
     requireAuthV2: seen.has('--require-auth-v2'),
     requireAuthV2Enabled: seen.has('--require-auth-v2-enabled'),
     aggregateStage,
@@ -2021,6 +2058,7 @@ async function main() {
     expectedFounderCount,
     expectedPlayerCount,
     expectedTermsAcceptanceCount,
+    expectedEnabledAllowedFidCount,
     requireAuthV2,
     requireAuthV2Enabled,
     aggregateStage,
@@ -2055,6 +2093,7 @@ async function main() {
       resolve(dirname(resolve(process.argv[1])), '..'),
       process.env,
       aggregateStage,
+      expectedEnabledAllowedFidCount,
     );
   } else {
     verifyProtectedAggregateIfConfigured(
@@ -2069,6 +2108,7 @@ async function main() {
       expectedFounderCount,
       expectedPlayerCount,
       expectedTermsAcceptanceCount,
+      expectedEnabledAllowedFidCount,
     );
   }
 }
