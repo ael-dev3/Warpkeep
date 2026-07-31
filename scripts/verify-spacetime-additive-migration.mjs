@@ -1474,13 +1474,23 @@ function resolverServiceClaims(resolverFid, roles = ['warpkeep-auth-epoch-resolv
 }
 
 function accessRequestServiceClaims(requestFid) {
+  const canonicalRequestFid = typeof requestFid === 'number'
+    && Number.isSafeInteger(requestFid)
+    ? String(requestFid)
+    : requestFid;
+  if (
+    typeof canonicalRequestFid !== 'string'
+    || !/^[1-9][0-9]{0,15}$/.test(canonicalRequestFid)
+    || BigInt(canonicalRequestFid) > BigInt(Number.MAX_SAFE_INTEGER)
+  ) fail('Disposable access-request resolver FID was invalid.');
   return {
     ...serviceClaims(
       'service:access-request-resolver',
       ['warpkeep-access-request-resolver'],
       15,
     ),
-    request_fid: requestFid,
+    // Production resolver FIDs are canonical decimal-string JWT claims.
+    request_fid: canonicalRequestFid,
   };
 }
 
