@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -13,6 +14,7 @@ import {
   FARCASTER_MINI_APP_CONFIG,
   FARCASTER_MINI_APP_CORE_IMAGES,
   FARCASTER_MINI_APP_EMBED,
+  FARCASTER_MINI_APP_EMBED_SOURCE,
   FARCASTER_MINI_APP_HOME_URL,
   FARCASTER_MINI_APP_MANIFEST_PATH,
   FARCASTER_MINI_APP_ORIGIN,
@@ -77,6 +79,46 @@ async function verifyImage(specification) {
   }
   if (specification.opaque && metadata.hasAlpha) {
     fail(`${specification.file} must not have an alpha channel`);
+  }
+  if (specification.sha256 !== undefined) {
+    const digest = createHash('sha256')
+      .update(await readFile(path))
+      .digest('hex');
+    if (digest !== specification.sha256) {
+      fail(`${specification.file} differs from the reviewed release image`);
+    }
+  }
+}
+
+async function verifyEmbedSource() {
+  const path = resolve(root, FARCASTER_MINI_APP_EMBED_SOURCE.path);
+  let file;
+  try {
+    file = await stat(path);
+  } catch {
+    fail('the Mini App embed provenance source is missing');
+  }
+  if (file.size !== FARCASTER_MINI_APP_EMBED_SOURCE.bytes) {
+    fail('the Mini App embed provenance source byte length changed');
+  }
+  const bytes = await readFile(path);
+  const digest = createHash('sha256').update(bytes).digest('hex');
+  if (digest !== FARCASTER_MINI_APP_EMBED_SOURCE.sha256) {
+    fail('the Mini App embed provenance source digest changed');
+  }
+  const metadata = await sharp(bytes, {
+    failOn: 'warning',
+    limitInputPixels:
+      FARCASTER_MINI_APP_EMBED_SOURCE.width
+      * FARCASTER_MINI_APP_EMBED_SOURCE.height,
+  }).metadata();
+  if (
+    metadata.format !== 'png'
+    || metadata.width !== FARCASTER_MINI_APP_EMBED_SOURCE.width
+    || metadata.height !== FARCASTER_MINI_APP_EMBED_SOURCE.height
+    || metadata.hasAlpha
+  ) {
+    fail('the Mini App embed provenance source geometry or opacity changed');
   }
 }
 
@@ -160,6 +202,7 @@ async function main() {
   if (unknownArguments.length > 0) {
     fail(`unknown argument ${unknownArguments[0]}`);
   }
+  await verifyEmbedSource();
   const html = await readFile(resolve(dist, 'index.html'), 'utf8');
   const miniAppTags = metaTags(html, 'fc:miniapp');
   if (miniAppTags.length !== 1 || metaTags(html, 'fc:frame').length !== 0) {

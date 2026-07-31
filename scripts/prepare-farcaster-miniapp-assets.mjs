@@ -4,11 +4,19 @@ import { basename, resolve } from 'node:path';
 
 import sharp from 'sharp';
 
+import {
+  FARCASTER_MINI_APP_EMBED_SOURCE,
+} from './farcaster-miniapp-contract.mjs';
+
 const root = resolve(import.meta.dirname, '..');
 const outputDirectory = resolve(root, 'public/images/miniapp');
 const stagingDirectory = resolve(
   root,
   `.tmp-miniapp-assets-${process.pid}`,
+);
+const embedSourcePath = resolve(
+  root,
+  FARCASTER_MINI_APP_EMBED_SOURCE.path,
 );
 
 sharp.cache(false);
@@ -180,6 +188,53 @@ async function writePng(svg, destination, width, height) {
     .toFile(destination);
 }
 
+async function readEmbedSource() {
+  const source = await readFile(embedSourcePath);
+  const sourceDigest = createHash('sha256').update(source).digest('hex');
+  if (sourceDigest !== FARCASTER_MINI_APP_EMBED_SOURCE.sha256) {
+    throw new Error('Mini App embed source digest does not match its provenance record.');
+  }
+  const metadata = await sharp(source, {
+    failOn: 'warning',
+    limitInputPixels:
+      FARCASTER_MINI_APP_EMBED_SOURCE.width
+      * FARCASTER_MINI_APP_EMBED_SOURCE.height,
+  }).metadata();
+  if (
+    metadata.format !== 'png'
+    || metadata.width !== FARCASTER_MINI_APP_EMBED_SOURCE.width
+    || metadata.height !== FARCASTER_MINI_APP_EMBED_SOURCE.height
+    || metadata.hasAlpha
+  ) {
+    throw new Error('Mini App embed source must be the reviewed 1402x1122 opaque PNG.');
+  }
+  return source;
+}
+
+async function writeEmbedPng(source, destination) {
+  await sharp(source, {
+    failOn: 'warning',
+    limitInputPixels:
+      FARCASTER_MINI_APP_EMBED_SOURCE.width
+      * FARCASTER_MINI_APP_EMBED_SOURCE.height,
+  })
+    .resize(1200, 800, {
+      fit: 'cover',
+      position: 'centre',
+      kernel: sharp.kernel.lanczos3,
+      fastShrinkOnLoad: false,
+    })
+    .flatten({ background: '#010207' })
+    .removeAlpha()
+    .png({
+      compressionLevel: 9,
+      adaptiveFiltering: true,
+      palette: false,
+      progressive: false,
+    })
+    .toFile(destination);
+}
+
 async function digest(path) {
   const bytes = await readFile(path);
   return createHash('sha256').update(bytes).digest('hex');
@@ -188,7 +243,7 @@ async function digest(path) {
 async function main() {
   await rm(stagingDirectory, { recursive: true, force: true });
   await mkdir(stagingDirectory, { recursive: true });
-  const outputs = [
+  const generatedOutputs = [
     ['warpkeep-icon-1024.png', squareArtwork(1024), 1024, 1024],
     ['warpkeep-splash-200.png', squareArtwork(200), 200, 200],
     [
@@ -203,19 +258,22 @@ async function main() {
       1200,
       630,
     ],
-    [
-      'warpkeep-embed-1200x800.png',
-      landscapeArtwork(1200, 800, 'embed'),
-      1200,
-      800,
-    ],
+  ];
+  const embedOutput = 'warpkeep-embed-1200x800.png';
+  const outputFiles = [
+    ...generatedOutputs.map(([file]) => file),
+    embedOutput,
   ];
   try {
-    for (const [file, svg, width, height] of outputs) {
+    for (const [file, svg, width, height] of generatedOutputs) {
       await writePng(svg, resolve(stagingDirectory, file), width, height);
     }
+    await writeEmbedPng(
+      await readEmbedSource(),
+      resolve(stagingDirectory, embedOutput),
+    );
     await mkdir(outputDirectory, { recursive: true });
-    for (const [file] of outputs) {
+    for (const file of outputFiles) {
       const staged = resolve(stagingDirectory, file);
       const destination = resolve(outputDirectory, file);
       await rename(staged, destination);
