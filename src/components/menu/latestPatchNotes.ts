@@ -6,6 +6,20 @@ export type LatestPatchNotes = Readonly<{
   alphaNotice: string;
 }>;
 
+const ALPHA_0_3_30_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: '31 JUL 2026',
+  title: 'THE GATE REMEMBERS',
+  summary:
+    'Returning keepers can now open directly inside Genesis 001 from Farcaster, while every unmet promise stops at the one gate that owns it.',
+  highlights: Object.freeze([
+    'An admitted Farcaster keeper whose current Alpha Terms and canonical keep are confirmed opens the Realm directly, without crossing the title or ordinary menu.',
+    'A keeper still outside the frontier remains on Request Access for manual review, while a new Terms version asks for one fresh, explicit acceptance.',
+    'Missing Quick Auth credentials settle into a safe retry, native Back dismisses the Terms record, and route or host presentation data never grants entry.'
+  ]),
+  alphaNotice:
+    'Alpha 0.3.30 remains an invite-only, unfinished world. This entry-flow release does not change admission decisions, castle ownership, Workers, resources, balances, terrain, or the larger strategy features still being built.'
+});
+
 const ALPHA_0_3_29_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '31 JUL 2026',
   title: 'THE REALM HOLDS',
@@ -177,6 +191,7 @@ const ALPHA_0_3_22_PATCH_NOTES: LatestPatchNotes = Object.freeze({
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
+    '0.3.30': ALPHA_0_3_30_PATCH_NOTES,
     '0.3.29': ALPHA_0_3_29_PATCH_NOTES,
     '0.3.28': ALPHA_0_3_28_PATCH_NOTES,
     '0.3.27': ALPHA_0_3_27_PATCH_NOTES,

@@ -18,16 +18,16 @@ describe('latest in-menu patch notes', () => {
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
       releasedOn: '31 JUL 2026',
-      title: 'THE REALM HOLDS'
+      title: 'THE GATE REMEMBERS'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Interrupted drags.*pinches.*menu.*embedded Back navigation/i
+      /admitted Farcaster keeper.*current Alpha Terms.*canonical keep.*Realm directly/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Gathering portraits.*accessible control lane.*overflow portraits.*no longer steal taps/i
+      /Request Access.*manual review.*new Terms version.*fresh, explicit acceptance/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Farcaster verification.*lifetime.*queue bounds.*Worker order.*without sending them twice/i
+      /Quick Auth.*safe retry.*native Back.*route or host presentation data.*never grants entry/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /released to players|deployed to players|public balances|guaranteed rewards/i
@@ -35,7 +35,7 @@ describe('latest in-menu patch notes', () => {
     expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('Genesis 001');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'does not change admission decisions, castle ownership, gathering rates, balances, terrain'
+      'does not change admission decisions, castle ownership, Workers, resources, balances, terrain'
     );
 
     const alpha0324 = getLatestPatchNotes('0.3.24');

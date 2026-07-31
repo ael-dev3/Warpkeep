@@ -1365,11 +1365,16 @@ export function FarcasterAuthProviderCore({
       })
       .then((result) => {
         if (
-          !result
-          || controller.signal.aborted
+          controller.signal.aborted
           || lifecycleGenerationRef.current !== lifecycleGeneration
         ) {
           return false;
+        }
+        // A visible Mini App launch attempt must always settle. A host that
+        // returns no bearer, or a bridge client without Quick Auth support,
+        // is an authentication failure rather than an indefinite spinner.
+        if (!result) {
+          throw new Error('Quick Auth is unavailable.');
         }
         const currentTime = readProviderNow(now);
         const resolved = currentTime === undefined
