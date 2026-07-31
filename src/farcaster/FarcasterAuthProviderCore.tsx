@@ -35,6 +35,7 @@ import {
   isCanonicalFarcasterBrowserBindingValue
 } from './farcasterBrowserBinding';
 import { parseFarcasterOidcJwt } from './farcasterOidcSession';
+import { useAccessRequest } from './useAccessRequest';
 import {
   clearFarcasterPresentationSession,
   persistFarcasterPresentationSession,
@@ -42,6 +43,7 @@ import {
 } from './farcasterPresentationSession';
 import type {
   FarcasterAuthError,
+  AccessRequestViewState,
   FarcasterAuthContext,
   FarcasterAuthPhase,
   FarcasterAuthViewState,
@@ -88,6 +90,7 @@ export type FarcasterAuthProviderCoreProps = Readonly<{
 
 export type FarcasterAuthControllerValue = Readonly<{
   state: FarcasterAuthViewState;
+  accessRequest: AccessRequestViewState;
   /** Bearer material is intentionally separate from presentation state. */
   oidcSession: FarcasterOidcSession | undefined;
   /**
@@ -100,6 +103,8 @@ export type FarcasterAuthControllerValue = Readonly<{
   retrySignIn: () => void;
   prepareQrCode: () => void;
   refreshSession: () => void;
+  requestAccess: () => void;
+  retryAccessRequestStatus: () => void;
   signOut: () => void;
   rememberDevice: boolean;
   setRememberDevice: (remember: boolean) => void;
@@ -1607,6 +1612,13 @@ export function FarcasterAuthProviderCore({
     setRememberDeviceState(Boolean(remember));
   }, []);
 
+  const accessRequest = useAccessRequest({
+    authState: machine.view,
+    authGeneration: machine.generation,
+    loadBridgeClient,
+    loadQuickAuthToken
+  });
+
   useEffect(() => {
     purgeBearerStorage();
     const terminationStatus = readFarcasterSessionTerminationIntent({
@@ -1744,6 +1756,7 @@ export function FarcasterAuthProviderCore({
 
   const value = useMemo<FarcasterAuthControllerValue>(() => ({
     state: machine.view,
+    accessRequest: accessRequest.state,
     oidcSession,
     restoreSession,
     beginSignIn: beginConsentGatedSignIn,
@@ -1751,6 +1764,8 @@ export function FarcasterAuthProviderCore({
     retrySignIn: beginConsentGatedSignIn,
     prepareQrCode: controller.prepareQrCode,
     refreshSession: refreshActiveSession,
+    requestAccess: accessRequest.requestAccess,
+    retryAccessRequestStatus: accessRequest.retryStatus,
     signOut,
     rememberDevice,
     setRememberDevice
@@ -1758,6 +1773,7 @@ export function FarcasterAuthProviderCore({
     beginConsentGatedSignIn,
     cancelConsentGatedSignIn,
     controller,
+    accessRequest,
     machine.view,
     oidcSession,
     refreshActiveSession,

@@ -1,10 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  FarcasterAdmissionPanel,
-  WARPKEEP_ACCESS_REQUEST_URL
-} from '../src/components/auth/FarcasterAdmissionPanel';
+import { FarcasterAdmissionPanel } from '../src/components/auth/FarcasterAdmissionPanel';
 import type { VerifiedFarcasterIdentity } from '../src/farcaster/farcasterAuthTypes';
 
 const identity: VerifiedFarcasterIdentity = Object.freeze({
@@ -21,15 +18,19 @@ afterEach(() => {
 });
 
 describe('FarcasterAdmissionPanel', () => {
-  it('renders the exact denied copy with a secure Farcaster request-access link', () => {
+  it('renders the verified denied state with one explicit in-app access request', () => {
     const onBackToMenu = vi.fn();
     const onCheckAgain = vi.fn();
+    const onRequestAccess = vi.fn();
     const onSignOut = vi.fn();
     render(
       <FarcasterAdmissionPanel
+        accessRequest={{ phase: 'not-requested' }}
         identity={identity}
         onBackToMenu={onBackToMenu}
         onCheckAgain={onCheckAgain}
+        onRequestAccess={onRequestAccess}
+        onRetryAccessRequestStatus={vi.fn()}
         onSignOut={onSignOut}
         phase="denied"
       />
@@ -39,22 +40,16 @@ describe('FarcasterAdmissionPanel', () => {
     expect(screen.getByText(
       'This Farcaster identity is not yet admitted to the Hegemony frontier.'
     )).not.toBeNull();
-    expect(screen.getByText(/Warpkeep is opening as a small, manually admitted alpha/i)).not.toBeNull();
+    expect(screen.getByText(/Warpkeep is a small, manually admitted Alpha/i)).not.toBeNull();
     expect(screen.getByText('@keeper')).not.toBeNull();
     expect(screen.queryByText('FID 12345')).toBeNull();
+    expect(screen.queryByRole('link', { name: /request/i })).toBeNull();
 
-    const requestAccess = screen.getByRole('link', {
-      name: 'Open @0xael.eth on Farcaster to request Warpkeep access'
-    });
-    expect(requestAccess.getAttribute('href')).toBe(WARPKEEP_ACCESS_REQUEST_URL);
-    expect(requestAccess.getAttribute('target')).toBe('_blank');
-    expect(requestAccess.getAttribute('rel')).toContain('noopener');
-    expect(requestAccess.getAttribute('rel')).toContain('noreferrer');
-    expect(requestAccess.getAttribute('referrerpolicy')).toBe('no-referrer');
-
+    fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
     fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
     fireEvent.click(screen.getByRole('button', { name: 'BACK TO MENU' }));
     fireEvent.click(screen.getByRole('button', { name: 'SIGN OUT' }));
+    expect(onRequestAccess).toHaveBeenCalledTimes(1);
     expect(onCheckAgain).toHaveBeenCalledTimes(1);
     expect(onBackToMenu).toHaveBeenCalledTimes(1);
     expect(onSignOut).toHaveBeenCalledTimes(1);

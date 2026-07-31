@@ -69,6 +69,8 @@ function renderPanel(props: RenderPanelProps) {
     onRetry: vi.fn(),
     onBackToMenu: vi.fn(),
     onCheckAdmission: vi.fn(),
+    onRequestAccess: vi.fn(),
+    onRetryAccessRequestStatus: vi.fn(),
     onEnterRealm: vi.fn(),
     onPrepareQrCode: vi.fn(),
     onRememberDeviceChange: vi.fn(),
@@ -85,6 +87,11 @@ function renderPanel(props: RenderPanelProps) {
       onBackToMenu={props.onBackToMenu ?? callbacks.onBackToMenu}
       onCancel={props.onCancel ?? callbacks.onCancel}
       onCheckAdmission={props.onCheckAdmission ?? callbacks.onCheckAdmission}
+      accessRequest={props.accessRequest}
+      onRequestAccess={props.onRequestAccess ?? callbacks.onRequestAccess}
+      onRetryAccessRequestStatus={
+        props.onRetryAccessRequestStatus ?? callbacks.onRetryAccessRequestStatus
+      }
       onEnterRealm={props.onEnterRealm ?? callbacks.onEnterRealm}
       onPrepareQrCode={props.onPrepareQrCode ?? callbacks.onPrepareQrCode}
       onPresentationReady={props.onPresentationReady}
@@ -329,7 +336,8 @@ describe('FarcasterQrAuthPanel', () => {
   it('renders pending admission without a realm action or credential details', () => {
     const { callbacks } = renderPanel({
       phase: 'pending-admission',
-      identity: verifiedIdentity
+      identity: verifiedIdentity,
+      accessRequest: { phase: 'not-requested' }
     });
 
     expect(screen.getByRole('heading', { name: 'ENTRY NOT YET GRANTED' })).not.toBeNull();
@@ -338,10 +346,31 @@ describe('FarcasterQrAuthPanel', () => {
     )).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'ENTER REALM' })).toBeNull();
     expect(document.body.textContent).not.toMatch(/accessToken|bearer|JWT/i);
+    fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
+    expect(callbacks.onRequestAccess).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
     expect(callbacks.onCheckAdmission).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole('button', { name: 'SIGN OUT' }));
     expect(callbacks.onSignOut).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders a confirmed request timestamp without exposing queue or identity authority', () => {
+    renderPanel({
+      phase: 'pending-admission',
+      identity: verifiedIdentity,
+      accessRequest: {
+        phase: 'requested',
+        requestedAt: Date.UTC(2026, 6, 30, 12, 34)
+      }
+    });
+
+    expect(screen.getByText('Request received.')).not.toBeNull();
+    const recorded = screen.getByText(/Recorded/).querySelector('time');
+    expect(recorded?.getAttribute('datetime')).toBe('2026-07-30T12:34:00.000Z');
+    expect((screen.getByRole('button', {
+      name: 'REQUEST RECEIVED'
+    }) as HTMLButtonElement).disabled).toBe(true);
+    expect(document.body.textContent).not.toMatch(/queue position|guaranteed time|FID 12345/i);
   });
 
   it('exposes heading and primary-action refs without forcing focus itself', () => {

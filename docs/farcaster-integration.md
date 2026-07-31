@@ -221,8 +221,12 @@ tagged to that server-proven admission state and returns FID-only identity plus
 `status: "pending-admission"`; it returns **no access token** and therefore opens
 no SpacetimeDB connection or public-table subscription. The Hegemony menu may
 show exact-FID cached presentation under the rules above, or the returned FID
-alone, plus a semantic **REQUEST ACCESS** link to
-`https://farcaster.xyz/0xael.eth`, **CHECK AGAIN**, and **SIGN OUT**.
+alone, plus an in-app **REQUEST ACCESS** action, **CHECK AGAIN**, and
+**SIGN OUT**. The access action submits the server-verified FID to a private
+SpacetimeDB review ledger; it does not grant admission, create a castle, expose
+the request publicly, or confer gameplay authority. Duplicate submissions in
+the same admission cycle are idempotent. A later revocation creates a distinct
+request cycle while retaining the founder's existing realm state.
 
 **CHECK AGAIN** calls credentialed `/v2/session/refresh`, not a new Farcaster
 channel. A matching missing or disabled state stays pending/tokenless; enabled

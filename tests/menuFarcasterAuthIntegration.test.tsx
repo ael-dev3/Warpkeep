@@ -413,7 +413,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(restoreSession).toHaveBeenCalledTimes(1);
   });
 
-  it('requires fresh Terms before revealing a restored pending-admission session', async () => {
+  it('reveals a restored pending authorization without repeating Terms', async () => {
     const callbacks = createMenuCallbacks();
     let resolveRestore!: (restored: boolean) => void;
     const restoreSession = vi.fn(() => new Promise<boolean>((resolve) => {
@@ -440,21 +440,14 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
       { restoreSession }
     ));
 
-    const dialog = await screen.findByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
-    expect((within(dialog).getByRole('checkbox', {
-      name: 'I agree to the Alpha Terms and Hegemony Social Contract.'
-    }) as HTMLInputElement).checked).toBe(false);
-    expect(screen.queryByText(/admission is still pending/i)).toBeNull();
-    expect(callbacks.begin).not.toHaveBeenCalled();
-    expect(callbacks.enterRealm).not.toHaveBeenCalled();
-
-    acceptAlphaTerms();
     await settleDeferredPresentation();
 
     expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
     expect(screen.getByRole('region', { name: 'Farcaster sign-in' })).not.toBeNull();
+    expect(screen.getByText(/admission.*still pending/i)).not.toBeNull();
     expect(callbacks.begin).not.toHaveBeenCalled();
     expect(callbacks.enterRealm).not.toHaveBeenCalled();
+    expect(restoreSession).toHaveBeenCalledTimes(1);
   });
 
   it('cancels an in-flight cold restore before returning to the title', async () => {
@@ -807,7 +800,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(screen.queryByText('REMEMBERED DEVICE')).toBeNull();
   });
 
-  it('gates pending admission without entering the realm or starting another sign-in', async () => {
+  it('opens pending admission without repeating Terms, entering, or starting another sign-in', async () => {
     const callbacks = createMenuCallbacks();
     render(menu(
       callbacks,
@@ -819,14 +812,9 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     await settleDeferredPresentation();
 
     expect(screen.getByText('ADMISSION PENDING')).not.toBeNull();
-    const terms = openAlphaTerms();
-    expect((within(terms).getByRole('checkbox', {
-      name: 'I agree to the Alpha Terms and Hegemony Social Contract.'
-    }) as HTMLInputElement).checked).toBe(false);
-    expect(callbacks.begin).not.toHaveBeenCalled();
-    expect(callbacks.enterRealm).not.toHaveBeenCalled();
-    acceptAlphaTerms();
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
     await settleDeferredPresentation();
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
     expect(callbacks.begin).not.toHaveBeenCalled();
     expect(callbacks.enterRealm).not.toHaveBeenCalled();
     expect(screen.getByRole('heading', { name: 'ENTRY NOT YET GRANTED' })).not.toBeNull();
@@ -939,7 +927,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(callbacks.enterRealm).toHaveBeenCalledWith(identity);
   });
 
-  it('does not let the pending identity badge refresh a session before fresh Terms', async () => {
+  it('lets the pending identity badge refresh its already authorized session without repeated Terms', async () => {
     const callbacks = createMenuCallbacks();
     render(menu(callbacks, pendingAdmissionState));
     await settleDeferredPresentation();
@@ -950,18 +938,11 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     await settleDeferredPresentation();
     fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
 
-    const terms = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
-    expect((within(terms).getByRole('checkbox') as HTMLInputElement).checked).toBe(false);
-    expect(within(terms).getByRole('button', {
-      name: 'CONTINUE TO ACCESS CHECK'
-    })).not.toBeNull();
-    expect(callbacks.refreshSession).not.toHaveBeenCalled();
-    acceptAlphaTerms();
-
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
     expect(callbacks.refreshSession).toHaveBeenCalledTimes(1);
   });
 
-  it('focuses retry after an accepted keyboard-driven error and gates retry again', async () => {
+  it('focuses retry and reuses accepted Terms within the same keyboard-driven authorization', async () => {
     const callbacks = createMenuCallbacks();
     const result = render(menu(callbacks, anonymousState, 'keyboard'));
     openAndAcceptAlphaTerms();
@@ -981,12 +962,8 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
 
     fireEvent.keyDown(screen.getByRole('button', { name: 'TRY AGAIN' }), { key: 'Enter' });
     fireEvent.click(screen.getByRole('button', { name: 'TRY AGAIN' }), { detail: 0 });
-    const retryTerms = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
-    expect((within(retryTerms).getByRole('checkbox', {
-      name: 'I agree to the Alpha Terms and Hegemony Social Contract.'
-    }) as HTMLInputElement).checked).toBe(false);
-    expect(callbacks.retry).not.toHaveBeenCalled();
-    acceptAlphaTerms();
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
+    expect(callbacks.retry).toHaveBeenCalledTimes(1);
     result.rerender(menu(callbacks, { phase: 'creating-channel' }, 'keyboard'));
     await settleDeferredPresentation();
     flushAnimationFrames();
@@ -998,7 +975,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     }));
   });
 
-  it('requires a fresh unchecked acceptance for every retry attempt', async () => {
+  it('reuses one accepted Terms intent across retries in the same authorization', async () => {
     const callbacks = createMenuCallbacks();
     const errorState: FarcasterAuthViewState = {
       phase: 'error',
@@ -1013,10 +990,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     await settleDeferredPresentation();
 
     fireEvent.click(screen.getByRole('button', { name: 'TRY AGAIN' }), { detail: 0 });
-    expect((screen.getByRole('checkbox', {
-      name: 'I agree to the Alpha Terms and Hegemony Social Contract.'
-    }) as HTMLInputElement).checked).toBe(false);
-    acceptAlphaTerms();
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
     expect(callbacks.retry).toHaveBeenCalledTimes(1);
 
     result.rerender(menu(callbacks, { phase: 'creating-channel' }, 'keyboard'));
@@ -1025,10 +999,8 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     await settleDeferredPresentation();
     fireEvent.click(screen.getByRole('button', { name: 'TRY AGAIN' }), { detail: 0 });
 
-    expect(callbacks.retry).toHaveBeenCalledTimes(1);
-    expect((screen.getByRole('checkbox', {
-      name: 'I agree to the Alpha Terms and Hegemony Social Contract.'
-    }) as HTMLInputElement).checked).toBe(false);
+    expect(callbacks.retry).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
   });
 
   it('closes a stale accepted auth surface after an external cancellation', () => {

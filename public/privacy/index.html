@@ -30,7 +30,7 @@
             why it is used, where it goes, and the limits of retention and deletion.
           </p>
           <p class="legal-page__version">
-            Alpha Privacy Notice revision 2026-07-19-v1 · Last updated 19 July 2026
+            Alpha Privacy Notice revision 2026-07-30-v2 · Last updated 30 July 2026
           </p>
           <p class="legal-page__notice">
             This is a factual, project-authored Alpha notice, not a legal-compliance certification
@@ -105,6 +105,15 @@
                 checkbox state, QR payload, proof, signature, token, cookie, or wallet information.
               </li>
               <li>
+                <strong>Access requests:</strong> when you explicitly request access, Warpkeep
+                stores your server-verified Farcaster FID and the SpacetimeDB server time of the
+                current request cycle in one private record for manual Alpha review. Repeated
+                submissions in the same cycle do not change that time. If previously granted
+                access is later revoked, a new request can begin a new review cycle without
+                deleting the player's existing realm state. A request does not grant access or
+                create a castle.
+              </li>
+              <li>
                 <strong>Browser and session security:</strong> Warpkeep uses an origin, challenge
                 timestamps, a one-attempt browser-binding digest, an opaque session-family
                 reference, remember-device choice, rotation state, and admission epoch to prevent
@@ -118,14 +127,15 @@
                 verified FID without cached presentation.
               </li>
               <li>
-                <strong>Server-to-server admission resolution:</strong> during proof exchange and
-                each session refresh, the bridge can mint an exact one-FID resolver credential
-                with a 15-second maximum authority window. It is used only to connect to the fixed
-                SpacetimeDB service and database and call the fixed admission procedure. Warpkeep
-                is designed not to persist it, return it to the browser, or place it in logs. A
-                public-table subscription opened while that credential is fresh can remain open
-                until its transport disconnects; credential expiry does not itself close that
-                subscription.
+                <strong>Server-to-server bounded resolvers:</strong> during proof exchange and
+                session refresh, the bridge can mint an exact one-FID admission resolver
+                credential. When an authenticated pending player checks or submits an access
+                request, it can mint a separate exact one-FID access-request resolver credential.
+                Each has a 15-second maximum authority window and can call only its fixed procedures
+                on the fixed SpacetimeDB service and database. Warpkeep is designed not to persist
+                either credential, return it to the browser, or place it in logs. A public-table
+                subscription opened while one is fresh can remain open until its transport
+                disconnects; credential expiry does not itself close that subscription.
               </li>
               <li>
                 <strong>Network abuse prevention:</strong> Cloudflare supplies the connecting IP.
@@ -211,6 +221,10 @@
                     <td>No fixed Alpha deletion schedule yet. The private FID, exact entry-agreement bundle version, and acceptance time remain while needed to enforce entry terms, resolve disputes, protect the service, and preserve the Alpha audit trail, unless reset or manually deleted.</td>
                   </tr>
                   <tr>
+                    <td>Private access-request record</td>
+                    <td>No fixed Alpha deletion schedule yet. The verified FID, current request cycle, and its server request time remain for manual review, service security, and the Alpha audit trail unless the Alpha is reset or the record is manually deleted. A later revocation can replace the current cycle and time with the new application cycle while preserving the player's realm state.</td>
+                  </tr>
+                  <tr>
                     <td>Sign-in challenge and browser-binding digest</td>
                     <td>Usable for at most five minutes and consumed on a definitive exchange. Expiry makes it unusable and schedules durable cleanup; physical deletion can be subject to provider cleanup and backup retention.</td>
                   </tr>
@@ -223,8 +237,8 @@
                     <td>Authority expires after at most ten minutes. It is held only in JavaScript memory and cleared when expiry/lifecycle handling runs, on logout, or on cancellation; browser suspension can delay cleanup without extending token authority.</td>
                   </tr>
                   <tr>
-                    <td>FID-bound resolver credential</td>
-                    <td>Authority is valid for at most fifteen seconds, used server-to-server only for the fixed admission lookup, and designed not to be persisted, returned to the browser, or logged. Expiry does not terminate a public-table subscription opened while it was fresh; that subscription can persist until transport disconnect.</td>
+                    <td>FID-bound resolver credentials</td>
+                    <td>Authority is valid for at most fifteen seconds, used server-to-server only for the fixed admission or access-request procedures, and designed not to be persisted, returned to the browser, or logged. Expiry does not terminate a public-table subscription opened while one was fresh; that subscription can persist until transport disconnect.</td>
                   </tr>
                   <tr>
                     <td>Hashed rate-limit bucket and timestamps</td>

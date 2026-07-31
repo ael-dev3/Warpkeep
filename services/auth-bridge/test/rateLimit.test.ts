@@ -260,6 +260,105 @@ describe('DurableObjectRateLimiter routing', () => {
     expect(names[2]).not.toBe(names[0])
   })
 
+  it('uses the preceding version exchange policy when its access-request route is absent', async () => {
+    const requests: Request[] = []
+    const namespace: DurableObjectNamespace = {
+      idFromName(name) {
+        return { name } as never
+      },
+      get() {
+        return {
+          fetch: async (input, init) => {
+            const request = new Request(input, init)
+            requests.push(request)
+            return new Response(null, {
+              status: request.url.endsWith('/check/access-request') ? 404 : 204,
+            })
+          },
+        }
+      },
+    }
+    const limiter = new DurableObjectRateLimiter(namespace)
+
+    await expect(limiter.check(new Request('https://auth.warpkeep.com/v2/access/status', {
+      headers: { 'cf-connecting-ip': '203.0.113.7' },
+    }), 'access-request')).resolves.toEqual({ allowed: true })
+
+    expect(requests.map(request => request.url)).toEqual([
+      'https://auth-rate-limiter.internal/check/access-request',
+      'https://auth-rate-limiter.internal/check/exchange',
+    ])
+  })
+
+  it('keeps the preceding version fallback bounded and fail-closed', async () => {
+    const responses = [
+      new Response(null, { status: 404 }),
+      new Response(null, { status: 429, headers: { 'retry-after': '37' } }),
+    ]
+    const namespace: DurableObjectNamespace = {
+      idFromName(name) {
+        return { name } as never
+      },
+      get() {
+        return { fetch: async () => responses.shift() ?? new Response(null, { status: 503 }) }
+      },
+    }
+    const limiter = new DurableObjectRateLimiter(namespace)
+
+    await expect(limiter.check(new Request('https://auth.warpkeep.com/v2/access/request', {
+      headers: { 'cf-connecting-ip': '203.0.113.7' },
+    }), 'access-request')).resolves.toEqual({
+      allowed: false,
+      retryAfterSeconds: 37,
+    })
+  })
+
+  it.each([
+    {
+      label: 'primary server error',
+      action: 'access-request' as const,
+      responses: [new Response(null, { status: 503 })],
+      expectedCalls: 1,
+    },
+    {
+      label: 'fallback server error',
+      action: 'access-request' as const,
+      responses: [new Response(null, { status: 404 }), new Response(null, { status: 503 })],
+      expectedCalls: 2,
+    },
+    {
+      label: 'fallback malformed denial',
+      action: 'access-request' as const,
+      responses: [new Response(null, { status: 404 }), new Response(null, {
+        status: 429,
+        headers: { 'retry-after': 'invalid' },
+      })],
+      expectedCalls: 2,
+    },
+    {
+      label: 'unrelated missing route',
+      action: 'challenge' as const,
+      responses: [new Response(null, { status: 404 })],
+      expectedCalls: 1,
+    },
+  ])('fails closed for $label', async ({ action, responses, expectedCalls }) => {
+    const fetch = vi.fn(async () => responses.shift() ?? new Response(null, { status: 503 }))
+    const namespace: DurableObjectNamespace = {
+      idFromName(name) {
+        return { name } as never
+      },
+      get() {
+        return { fetch }
+      },
+    }
+    const limiter = new DurableObjectRateLimiter(namespace)
+
+    await expect(limiter.check(new Request('https://auth.warpkeep.com', {
+      headers: { 'cf-connecting-ip': '203.0.113.7' },
+    }), action)).rejects.toThrow('Rate limiter')
+    expect(fetch).toHaveBeenCalledTimes(expectedCalls)
+  })
+
   it('fails closed for missing or malformed Cloudflare identity and ignores X-Forwarded-For', async () => {
     const idFromName = vi.fn()
     const namespace: DurableObjectNamespace = {

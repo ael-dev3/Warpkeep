@@ -693,6 +693,54 @@ describe('Farcaster OIDC bridge v2 client', () => {
     }
   });
 
+  it('uses exact credential modes and empty bodies for private access requests', async () => {
+    const fetch = createFetch(
+      { version: 1, status: 'not-requested' },
+      { version: 1, status: 'requested', requestedAt: NOW },
+    );
+    const bridge = createBridge(fetch);
+    await expect(bridge.getAccessRequestStatus!(
+      { mode: 'pending-session' }
+    )).resolves.toEqual({ version: 1, status: 'not-requested' });
+    await expect(bridge.requestAccess!(
+      { mode: 'quick-auth', token: 'header.payload.signature' }
+    )).resolves.toEqual({ version: 1, status: 'requested', requestedAt: NOW });
+
+    const [statusUrl, statusInit] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(statusUrl)).toBe('https://auth.warpkeep.example/v2/access/status');
+    expect(statusInit?.credentials).toBe('include');
+    expect(statusInit?.headers).not.toHaveProperty('authorization');
+    expect(JSON.parse(String(statusInit?.body))).toEqual({});
+
+    const [requestUrl, requestInit] = vi.mocked(fetch).mock.calls[1]!;
+    expect(String(requestUrl)).toBe('https://auth.warpkeep.example/v2/access/request');
+    expect(requestInit?.credentials).toBe('omit');
+    expect(requestInit?.headers).toMatchObject({
+      authorization: 'Bearer header.payload.signature'
+    });
+    expect(JSON.parse(String(requestInit?.body))).toEqual({});
+    expect(String(requestInit?.body)).not.toContain('fid');
+  });
+
+  it('rejects malformed access authentication and response envelopes', async () => {
+    const fetch = createFetch(
+      { version: 1, status: 'requested', requestedAt: NOW, fid: FID },
+      { version: 1, status: 'not-requested', requestedAt: NOW },
+      { version: 1, status: 'requested', requestedAt: Number.MAX_SAFE_INTEGER },
+    );
+    const bridge = createBridge(fetch);
+    await expect(bridge.getAccessRequestStatus!(
+      { mode: 'quick-auth', token: 'not-a-jwt' }
+    )).rejects.toBeInstanceOf(FarcasterOidcBridgeClientError);
+    expect(fetch).not.toHaveBeenCalled();
+
+    for (let index = 0; index < 3; index += 1) {
+      await expect(bridge.getAccessRequestStatus!(
+        { mode: 'pending-session' }
+      )).rejects.toBeInstanceOf(FarcasterOidcBridgeClientError);
+    }
+  });
+
   it('logs out with an empty POST body and requires status 204', async () => {
     const fetch = createFetch(new Response(null, { status: 204 }));
     await expect(createBridge(fetch).logoutSession()).resolves.toBeUndefined();

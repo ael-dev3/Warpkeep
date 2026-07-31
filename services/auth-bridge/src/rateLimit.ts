@@ -196,7 +196,16 @@ export class DurableObjectRateLimiter implements RateLimiter {
 
   async check(request: Request, action: RateLimitAction): Promise<RateLimitResult> {
     const id = this.namespace.idFromName(await clientBucketName(request))
-    const response = await this.namespace.get(id).fetch(`${INTERNAL_ORIGIN}/check/${action}`, { method: 'POST' })
+    const stub = this.namespace.get(id)
+    let response = await stub.fetch(`${INTERNAL_ORIGIN}/check/${action}`, { method: 'POST' })
+    if (action === 'access-request' && response.status === 404) {
+      // During a gradual deployment Cloudflare may assign this Durable Object
+      // to the preceding Worker version, which does not know the additive
+      // access-request route. Borrow its credential-exchange bucket only for
+      // that bounded compatibility window. Any other response still fails
+      // closed below, while the upgraded object keeps an independent policy.
+      response = await stub.fetch(`${INTERNAL_ORIGIN}/check/exchange`, { method: 'POST' })
+    }
     if (response.status === 204) return { allowed: true }
     if (response.status !== 429) throw new Error('Rate limiter unavailable.')
     const retryAfter = Number(response.headers.get('retry-after'))

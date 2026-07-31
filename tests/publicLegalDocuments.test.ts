@@ -165,6 +165,8 @@ describe('public Alpha legal documents', () => {
       'private, versioned acceptance evidence',
       'Privacy contact request',
       'accepts, stores, and issues only the verified FID as session identity',
+      'server-verified Farcaster FID and the SpacetimeDB server time',
+      'does not grant access or create a castle',
       'Cloudflare supplies the connecting IP',
       'SpacetimeDB stores admission, ownership, world, player',
       'Application logs are designed not to contain FIDs',
@@ -209,6 +211,7 @@ describe('public Alpha legal documents', () => {
     expect(tableRegion?.getAttribute('aria-labelledby')).toBe('retention');
     expect(tableRegion?.querySelector('table')).not.toBeNull();
     expect(privacyText).toContain('Versioned entry-agreement acceptance evidence');
+    expect(privacyText).toContain('Private access-request record');
     expect(legalCss).toContain('.legal-table-wrap:focus-visible');
     expect(legalCss).toContain('overflow-x: auto');
   });

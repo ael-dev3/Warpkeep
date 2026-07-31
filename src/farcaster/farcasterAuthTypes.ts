@@ -314,6 +314,30 @@ export type FarcasterBridgeRequestOptions = Readonly<{
 }>;
 
 /**
+ * Private per-request authentication for the access-request bridge routes.
+ * Quick Auth material exists only in the controller call stack; presentation
+ * state receives neither this value nor a token loader.
+ */
+export type AccessRequestAuthentication =
+  | Readonly<{ mode: 'pending-session' }>
+  | Readonly<{ mode: 'quick-auth'; token: string }>;
+
+export type AccessRequestStatus =
+  | Readonly<{ version: 1; status: 'not-requested' }>
+  | Readonly<{ version: 1; status: 'requested'; requestedAt: number }>
+  | Readonly<{ version: 1; status: 'already-admitted' }>;
+
+/** Bounded state safe for React presentation. It cannot represent credentials. */
+export type AccessRequestViewState =
+  | Readonly<{ phase: 'idle' }>
+  | Readonly<{ phase: 'loading' }>
+  | Readonly<{ phase: 'not-requested' }>
+  | Readonly<{ phase: 'submitting' }>
+  | Readonly<{ phase: 'requested'; requestedAt: number }>
+  | Readonly<{ phase: 'already-admitted' }>
+  | Readonly<{ phase: 'error'; retryable: boolean }>;
+
+/**
  * The authenticated bridge boundary. Implementations must independently
  * verify the proof passed to exchangeCompletedSignIn before issuing the OIDC
  * session. Unbound compatible deployments are intentionally unsupported.
@@ -337,6 +361,14 @@ export interface FarcasterOidcBridgeClient {
   refreshSession(
     options?: FarcasterBridgeRequestOptions
   ): Promise<FarcasterBridgeSessionResponse>;
+  getAccessRequestStatus(
+    authentication: AccessRequestAuthentication,
+    options?: FarcasterBridgeRequestOptions
+  ): Promise<AccessRequestStatus>;
+  requestAccess(
+    authentication: AccessRequestAuthentication,
+    options?: FarcasterBridgeRequestOptions
+  ): Promise<AccessRequestStatus>;
   logoutSession(options?: FarcasterBridgeRequestOptions): Promise<void>;
 }
 
