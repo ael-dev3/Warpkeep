@@ -571,11 +571,12 @@ export type RenderedWebglResourceOccupantEvidence = Readonly<{
   markerHitTestable: true;
   overviewPresenceDirectHit: boolean;
   overviewRecordCorrect: boolean;
-  overviewTargetPassiveOnly: boolean;
+  overviewTargetControlOnly: boolean;
+  passivePresenceVisualOnly: boolean;
   presenceComputedVisible: boolean;
   presenceAvatarGeometryValid: boolean;
   presenceGeometryValid: boolean;
-  presenceDelegatedActivation: boolean;
+  overviewControlActivation: boolean;
   presenceHitTestable: boolean;
   presencePointerActivatable: boolean;
   presencePortraitElementPresent: boolean;

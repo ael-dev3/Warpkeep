@@ -7,6 +7,7 @@ import {
   type RealmSurfaceRoute
 } from '../src/components/realm/realmSurfaceNavigation';
 import {
+  REALM_SURFACE_HISTORY_TRAVERSAL_WATCHDOG_MILLISECONDS,
   useRealmSurfaceNavigation,
   type RealmSurfaceNavigation
 } from '../src/components/realm/useRealmSurfaceNavigation';
@@ -76,6 +77,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   latestNavigation = undefined;
+  vi.useRealTimers();
   vi.restoreAllMocks();
   window.history.replaceState({}, '', '/');
 });
@@ -168,6 +170,73 @@ describe('useRealmSurfaceNavigation serialized browser history', () => {
     expectStack([]);
   });
 
+  it('releases a silent WebView traversal after a bounded same-session check', () => {
+    vi.useFakeTimers();
+    const back = vi.spyOn(window.history, 'back').mockImplementation(() => {});
+    render(<NavigationHarness identityKey="fid:watchdog" />);
+
+    act(() => navigation().push(COMMANDS));
+    act(() => navigation().push(SETTINGS));
+    act(() => navigation().back());
+    expect(back).toHaveBeenCalledOnce();
+
+    act(() => navigation().push(EXPLORE));
+    expectStack([COMMANDS, SETTINGS]);
+
+    act(() => {
+      vi.advanceTimersByTime(
+        REALM_SURFACE_HISTORY_TRAVERSAL_WATCHDOG_MILLISECONDS
+      );
+    });
+    expectStack([COMMANDS, SETTINGS]);
+
+    act(() => navigation().push(EXPLORE));
+    expectStack([COMMANDS, SETTINGS, EXPLORE]);
+  });
+
+  it('reconciles same-session history when a WebView loses popstate', () => {
+    vi.useFakeTimers();
+    let traversedState: Record<string, unknown> | undefined;
+    vi.spyOn(window.history, 'back').mockImplementation(() => {
+      if (traversedState) {
+        window.history.replaceState(
+          traversedState,
+          '',
+          '/realm-navigation-test?miniApp=true#realm'
+        );
+      }
+    });
+    render(<NavigationHarness identityKey="fid:lost-popstate" />);
+
+    act(() => navigation().push(COMMANDS));
+    traversedState = currentHistoryState();
+    act(() => navigation().push(SETTINGS));
+    expectStack([COMMANDS, SETTINGS]);
+    act(() => navigation().back());
+    expectStack([COMMANDS, SETTINGS]);
+
+    act(() => {
+      vi.advanceTimersByTime(
+        REALM_SURFACE_HISTORY_TRAVERSAL_WATCHDOG_MILLISECONDS
+      );
+    });
+    expectStack([COMMANDS]);
+    expect(navigation().motion).toBe('backward');
+  });
+
+  it('cancels a pending traversal watchdog when the navigation owner unmounts', () => {
+    vi.useFakeTimers();
+    vi.spyOn(window.history, 'back').mockImplementation(() => {});
+    const view = render(<NavigationHarness identityKey="fid:unmount" />);
+
+    act(() => navigation().push(COMMANDS));
+    act(() => navigation().back());
+    expect(vi.getTimerCount()).toBe(1);
+
+    view.unmount();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('fails malformed and wrong-session popstates to root and releases pending traversal', () => {
     const back = vi.spyOn(window.history, 'back').mockImplementation(() => {});
     render(<NavigationHarness identityKey="fid:3" />);
@@ -201,7 +270,7 @@ describe('useRealmSurfaceNavigation serialized browser history', () => {
     expect(back).toHaveBeenCalledTimes(2);
   });
 
-  it('keeps an old pending Back serialized across identity reset until its late state is rejected', () => {
+  it('clears an old pending Back across identity reset and rejects its late state', () => {
     const back = vi.spyOn(window.history, 'back').mockImplementation(() => {});
     const { rerender } = render(<NavigationHarness identityKey="fid:4" />);
 
@@ -219,7 +288,7 @@ describe('useRealmSurfaceNavigation serialized browser history', () => {
     expectStack([]);
 
     act(() => navigation().push(SETTINGS));
-    expectStack([]);
+    expectStack([SETTINGS]);
 
     dispatchPopState(oldState);
     expectStack([]);

@@ -1987,6 +1987,85 @@ describe('realm scene setup cleanup', () => {
     scene.dispose();
   });
 
+  it('retires active and inactive-terminal pointers across presentation boundaries', () => {
+    vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(1);
+    const canvas = document.createElement('canvas');
+    Object.defineProperties(canvas, {
+      setPointerCapture: { configurable: true, value: vi.fn() },
+      releasePointerCapture: { configurable: true, value: vi.fn() },
+      hasPointerCapture: { configurable: true, value: vi.fn(() => true) }
+    });
+    const scene = createRealmScene(createOptions(canvas));
+
+    dispatchPointer(canvas, 'pointerdown', {
+      pointerId: 81,
+      clientX: 100,
+      clientY: 100,
+      pointerType: 'touch'
+    });
+    dispatchPointer(canvas, 'pointermove', {
+      pointerId: 81,
+      clientX: 140,
+      clientY: 100,
+      pointerType: 'touch'
+    });
+    expect(canvas.dataset.dragging).toBe('true');
+
+    scene.setPresentationActive(false);
+    expect(canvas.dataset.dragging).toBeUndefined();
+    dispatchPointer(canvas, 'pointerup', {
+      pointerId: 81,
+      clientX: 140,
+      clientY: 100,
+      pointerType: 'touch'
+    });
+    scene.setPresentationActive(true);
+
+    const freshAfterPresentation = dispatchPointer(canvas, 'pointerdown', {
+      pointerId: 81,
+      clientX: 160,
+      clientY: 120,
+      pointerType: 'touch'
+    });
+    expect(freshAfterPresentation.defaultPrevented).toBe(true);
+    dispatchPointer(canvas, 'pointerup', {
+      pointerId: 81,
+      clientX: 160,
+      clientY: 120,
+      pointerType: 'touch'
+    });
+
+    dispatchPointer(canvas, 'pointerdown', {
+      pointerId: 82,
+      clientX: 180,
+      clientY: 140,
+      pointerType: 'touch'
+    });
+    canvas.dataset.realmCanvasActive = 'false';
+    dispatchPointer(canvas, 'pointerup', {
+      pointerId: 82,
+      clientX: 180,
+      clientY: 140,
+      pointerType: 'touch'
+    });
+    canvas.dataset.realmCanvasActive = 'true';
+    const freshAfterInactiveTerminal = dispatchPointer(canvas, 'pointerdown', {
+      pointerId: 82,
+      clientX: 200,
+      clientY: 160,
+      pointerType: 'touch'
+    });
+    expect(freshAfterInactiveTerminal.defaultPrevented).toBe(true);
+    dispatchPointer(canvas, 'pointerup', {
+      pointerId: 82,
+      clientX: 200,
+      clientY: 160,
+      pointerType: 'touch'
+    });
+
+    scene.dispose();
+  });
+
   it('clears stale castle hover before wheel-driven camera motion', () => {
     const canvas = document.createElement('canvas');
     const onHover = vi.fn();
@@ -3328,7 +3407,7 @@ describe('realm scene setup cleanup', () => {
     root.remove();
   });
 
-  it('shares touch tap, pan, and pinch ownership with every map-world control', () => {
+  it('shares touch tap, pan, and pinch ownership with every interactive map-world control', () => {
     const root = document.createElement('main');
     root.className = 'realm-map-screen';
     const canvas = document.createElement('canvas');
@@ -3336,7 +3415,6 @@ describe('realm scene setup cleanup', () => {
     const controls = [
       'realm-castle-label',
       'realm-worker-presence-marker',
-      'realm-resource-occupant-presence',
       'realm-resource-occupant-marker'
     ].map((className) => {
       const control = document.createElement('button');

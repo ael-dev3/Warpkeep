@@ -426,6 +426,34 @@ describe('RealmHud', () => {
         selectedCell={terrainCell(2, -1)}
         selectedCastle={{ name: 'Peer Watch', level: 3, q: 2, r: -1 }}
         selectedCastleProfile={{
+          canonicalUsername: 'peerkeeper-renamed',
+          communityStatsVisible: false
+        }}
+      />
+    );
+    expect(announcement.textContent)
+      .toBe('@peerkeeper-renamed, Peer Watch. Selected castle.');
+
+    rerender(
+      <RealmHud
+        {...common}
+        selectedCell={terrainCell(2, -1)}
+        selectedCastle={{ name: 'Peer Citadel', level: 3, q: 2, r: -1 }}
+        selectedCastleProfile={{
+          canonicalUsername: 'peerkeeper-renamed',
+          communityStatsVisible: false
+        }}
+      />
+    );
+    expect(announcement.textContent)
+      .toBe('@peerkeeper-renamed, Peer Citadel. Selected castle.');
+
+    rerender(
+      <RealmHud
+        {...common}
+        selectedCell={terrainCell(2, -1)}
+        selectedCastle={{ name: 'Peer Watch', level: 3, q: 2, r: -1 }}
+        selectedCastleProfile={{
           canonicalUsername: 'peerkeeper',
           communityStatsVisible: false
         }}

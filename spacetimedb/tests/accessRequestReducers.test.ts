@@ -2,6 +2,12 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 
+import {
+  ACCESS_REQUEST_QUEUE_CAPACITY,
+  accessRequestQueueAcceptsSubmission,
+  takeBoundedAccessRequestRows,
+} from '../src/accessRequestPolicy';
+
 function source(path: string): string {
   return readFileSync(new URL(path, import.meta.url), 'utf8');
 }
@@ -103,6 +109,10 @@ test('submission is admission-cycle idempotent, database-timestamped, and mutati
 
   assert.doesNotMatch(status, /\.(?:insert|update|delete)\s*\(/);
   assert.match(submit, /let request = tx\.db\.accessRequestV1\.fid\.find\(requestFid\)/);
+  assert.match(
+    submit,
+    /accessRequestQueueAcceptsSubmission\(requestCount, request !== null\)/,
+  );
   assert.match(submit, /if \(request === null\)[\s\S]*tx\.db\.accessRequestV1\.insert\(\{/);
   assert.match(submit, /fid: requestFid,[\s\S]*requestCycle,[\s\S]*requestedAt: tx\.timestamp/);
   assert.match(
@@ -124,6 +134,11 @@ test('Hermes listing is admin-only, bounded, deterministic, and derives resoluti
   assert.match(admin, /requireAdmin\(tx\)/);
   assert.match(admin, /limit < 1[\s\S]*limit > MAX_ACCESS_REQUEST_PAGE_SIZE/);
   assert.match(reducer, /const MAX_ACCESS_REQUEST_PAGE_SIZE = 100/);
+  assert.match(
+    admin,
+    /totalRequests > BigInt\(ACCESS_REQUEST_QUEUE_CAPACITY\)/,
+  );
+  assert.match(admin, /takeBoundedAccessRequestRows\([\s\S]*accessRequestV1\.iter\(\)/);
   assert.match(admin, /const allowed = tx\.db\.allowedFid\.fid\.find\(row\.fid\)/);
   assert.match(admin, /resolveAdmissionState\(allowed\)/);
   assert.match(admin, /requestState = requestCycle !== undefined && row\.requestCycle === requestCycle/);
@@ -132,8 +147,27 @@ test('Hermes listing is admin-only, bounded, deterministic, and derives resoluti
   assert.match(admin, /left\.fid < right\.fid/);
   assert.match(admin, /entry\.requestedAtMicros === afterRequestedAtMicros[\s\S]*entry\.fid > afterFid/);
   assert.match(admin, /const hasMore = remaining\.length > entries\.length/);
-  assert.match(admin, /totalRequests: BigInt\(rows\.length\)/);
+  assert.match(admin, /totalRequests,/);
   assert.match(admin, /pendingRequests/);
+});
+
+test('queue capacity rejects only first inserts and bounds materialization', () => {
+  assert.equal(ACCESS_REQUEST_QUEUE_CAPACITY, 4_096);
+  assert.equal(accessRequestQueueAcceptsSubmission(1n, false, 2), true);
+  assert.equal(accessRequestQueueAcceptsSubmission(2n, false, 2), false);
+  assert.equal(accessRequestQueueAcceptsSubmission(2n, true, 2), true);
+  assert.equal(accessRequestQueueAcceptsSubmission(3n, true, 2), true);
+
+  let reads = 0;
+  const result = takeBoundedAccessRequestRows((function* rows() {
+    for (let index = 0; index < 10; index += 1) {
+      reads += 1;
+      yield index;
+    }
+  }()), 2);
+  assert.deepEqual(result.rows, [0, 1]);
+  assert.equal(result.overflow, true);
+  assert.equal(reads, 3);
 });
 
 test('disabled founders receive a fresh review cycle without gaining authority', () => {

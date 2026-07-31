@@ -712,6 +712,8 @@ test('four workers share one resource across distinct nodes through replay, sche
     },
   ));
   assert.ok(dispatches.every(result => !result.idempotent));
+  assert.ok(dispatches.every(result => result.assignment !== undefined));
+  const activeAssignments = dispatches.map(result => result.assignment!);
   assert.deepEqual(fixture.counts(), {
     assignments: 4,
     occupations: 4,
@@ -719,11 +721,11 @@ test('four workers share one resource across distinct nodes through replay, sche
     receipts: 4,
   });
   assert.equal(
-    new Set(dispatches.map(result => result.assignment.resourceKind)).size,
+    new Set(activeAssignments.map(assignment => assignment.resourceKind)).size,
     1,
   );
   assert.equal(
-    new Set(dispatches.map(result => result.assignment.siteId)).size,
+    new Set(activeAssignments.map(assignment => assignment.siteId)).size,
     4,
   );
 
@@ -822,6 +824,89 @@ test('four workers share one resource across distinct nodes through replay, sche
     workerResourcePolicy('gold').gatheringTotal
       * BigInt(CASTLE_WORKERS_PER_CASTLE),
   );
+});
+
+test('an exact dispatch retry after normal completion is a terminal idempotent no-op', () => {
+  const fixture = makeLifecycleFixture();
+  const workerId = [...fixture.workers.keys()].sort()[0]!;
+  const siteId = fixture.sites[0]!.siteId;
+  const idempotencyKey = 'lost-response-terminal-dispatch';
+  const dispatched = dispatchCastleWorker(fixture.ctx, {
+    fid: fixture.fid,
+    castle: fixture.castle,
+    workerId,
+    resourceKind: 'gold',
+    siteId,
+    idempotencyKey,
+  });
+  assert.ok(dispatched.assignment);
+
+  fixture.runSchedule(fixture.scheduleFor(workerId, 'arrival'));
+  fixture.runSchedule(fixture.scheduleFor(workerId, 'gathering-expiry'));
+  fixture.runSchedule(fixture.scheduleFor(workerId, 'return-complete'));
+  assert.equal(fixture.assignments.size, 0);
+  assert.equal(fixture.workers.get(workerId)?.status, 'idle');
+  const countsAfterCompletion = fixture.counts();
+
+  const replay = dispatchCastleWorker(fixture.ctx, {
+    fid: fixture.fid,
+    castle: fixture.castle,
+    workerId,
+    resourceKind: 'gold',
+    siteId,
+    idempotencyKey,
+  });
+  assert.equal(replay.idempotent, true);
+  assert.equal(replay.assignment, undefined);
+  assert.deepEqual(fixture.counts(), countsAfterCompletion);
+
+  const laterSiteId = fixture.sites[1]!.siteId;
+  const laterDispatch = dispatchCastleWorker(fixture.ctx, {
+    fid: fixture.fid,
+    castle: fixture.castle,
+    workerId,
+    resourceKind: 'gold',
+    siteId: laterSiteId,
+    idempotencyKey: 'distinct-later-worker-dispatch',
+  });
+  assert.ok(laterDispatch.assignment);
+  const laterState = {
+    counts: fixture.counts(),
+    assignments: structuredClone([...fixture.assignments.values()]),
+    occupations: structuredClone([...fixture.occupations.values()]),
+    schedules: structuredClone([...fixture.schedules.values()]),
+  };
+
+  const replayDuringLaterAssignment = dispatchCastleWorker(fixture.ctx, {
+    fid: fixture.fid,
+    castle: fixture.castle,
+    workerId,
+    resourceKind: 'gold',
+    siteId,
+    idempotencyKey,
+  });
+  assert.equal(replayDuringLaterAssignment.idempotent, true);
+  assert.equal(replayDuringLaterAssignment.assignment, undefined);
+  assert.deepEqual(fixture.counts(), laterState.counts);
+  assert.deepEqual([...fixture.assignments.values()], laterState.assignments);
+  assert.deepEqual([...fixture.occupations.values()], laterState.occupations);
+  assert.deepEqual([...fixture.schedules.values()], laterState.schedules);
+
+  assert.throws(
+    () => dispatchCastleWorker(fixture.ctx, {
+      fid: fixture.fid,
+      castle: fixture.castle,
+      workerId,
+      resourceKind: 'gold',
+      siteId: laterSiteId,
+      idempotencyKey,
+    }),
+    /WORKER_IDEMPOTENCY_CONFLICT/,
+  );
+  assert.deepEqual(fixture.counts(), laterState.counts);
+  assert.deepEqual([...fixture.assignments.values()], laterState.assignments);
+  assert.deepEqual([...fixture.occupations.values()], laterState.occupations);
+  assert.deepEqual([...fixture.schedules.values()], laterState.schedules);
 });
 
 test('a returning worker completes after its former node is reused without touching the replacement worker', () => {
@@ -1439,6 +1524,7 @@ test('stateful rollout stages, deterministically backfills, drains, and activate
     idempotencyKey: 'dispatch-after-worker-activation',
   });
   assert.equal(dispatched.idempotent, false);
+  assert.ok(dispatched.assignment);
   assert.equal(dispatched.assignment.workerId, workerId);
   assert.deepEqual(fixture.counts(), {
     assignments: 1,
@@ -1491,6 +1577,17 @@ test('activation inspection rejects malformed roster identity and non-idle worke
     idempotencyKey: 'dispatch-orphan-state-01',
   });
   missingAuthority.deleteAssignmentForWorker(workerId);
+  assert.throws(
+    () => dispatchCastleWorker(missingAuthority.ctx, {
+      fid: missingAuthority.fid,
+      castle: missingAuthority.castle,
+      workerId,
+      resourceKind: 'gold',
+      siteId: missingAuthority.sites[0]!.siteId,
+      idempotencyKey: 'dispatch-orphan-state-01',
+    }),
+    /WORKER_IDEMPOTENCY_STALE/,
+  );
   const graph = inspectCastleWorkerGraph(missingAuthority.ctx);
   assert.ok(graph.assignmentPublicMismatches > 0n);
 });
@@ -1526,6 +1623,7 @@ test('late automatic expiry settles at server time after a preadvanced resource 
     siteId: fixture.sites[0]!.siteId,
     idempotencyKey: 'late-expiry-dispatch',
   });
+  assert.ok(result.assignment);
   fixture.runSchedule(fixture.scheduleFor(workerId, 'arrival'));
   const gatheringEndsAtMicros = result.assignment.gatheringEndsAtMicros;
   const preadvancedCursor =

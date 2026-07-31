@@ -53,7 +53,7 @@ const visibleKeys = [
 ] as const;
 
 describe('resource occupant marker surface', () => {
-  it('represents every public occupation exactly once across the bounded control and pointer lanes', () => {
+  it('represents every public occupation once and keeps overflow presences passive', () => {
     const markers = Array.from({ length: 40 }, (_, index) => marker(
       `genesis-001:wood:${String(index + 1).padStart(4, '0')}`,
       { nodeCoord: { q: index, r: -index } }
@@ -61,11 +61,13 @@ describe('resource occupant marker surface', () => {
     const presenceMarkerKeys = markers.map((entry) => `wood:${entry.siteId}`).reverse();
     const controlKeys = presenceMarkerKeys.slice(0, 24);
     const select = vi.fn();
+    const hover = vi.fn();
     const { container } = render(
       <RealmResourceOccupantMarkers
         markers={markers}
         presenceMarkerKeys={presenceMarkerKeys}
         visibleMarkerKeys={controlKeys}
+        onHover={hover}
         onMarkerLayout={() => undefined}
         onSelect={select}
       />
@@ -85,8 +87,10 @@ describe('resource occupant marker surface', () => {
     ));
     expect(passivePresence).toBeTruthy();
     fireEvent.click(passivePresence!);
-    expect(select).toHaveBeenCalledOnce();
-    expect(select).toHaveBeenCalledWith(markers[0]);
+    fireEvent.pointerEnter(passivePresence!);
+    expect(select).not.toHaveBeenCalled();
+    expect(hover).not.toHaveBeenCalled();
+    expect(passivePresence?.hasAttribute('title')).toBe(false);
   });
 
   it('mounts only projected-visible controls', () => {

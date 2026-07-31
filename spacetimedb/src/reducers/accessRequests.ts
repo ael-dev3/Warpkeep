@@ -5,6 +5,11 @@ import {
   resolveAuthResolverAdmission,
   type AuthResolverAdmission,
 } from '../admissionPolicy';
+import {
+  ACCESS_REQUEST_QUEUE_CAPACITY,
+  accessRequestQueueAcceptsSubmission,
+  takeBoundedAccessRequestRows,
+} from '../accessRequestPolicy';
 import { requireAccessRequestResolver, requireAdmin } from '../auth';
 import { MAX_SUPPORTED_FID } from '../config';
 import warpkeep from '../schema';
@@ -153,6 +158,10 @@ export const accessRequestSubmitV1 = warpkeep.procedure(
         throw new SenderError('ACCESS_REQUEST_STATE_INTEGRITY');
       }
       let request = tx.db.accessRequestV1.fid.find(requestFid);
+      const requestCount = tx.db.accessRequestV1.count();
+      if (!accessRequestQueueAcceptsSubmission(requestCount, request !== null)) {
+        throw new SenderError('ACCESS_REQUEST_QUEUE_FULL');
+      }
       if (request === null) {
         tx.db.accessRequestV1.insert({
           fid: requestFid,
@@ -215,10 +224,20 @@ export const adminListAccessRequestsV1 = warpkeep.procedure(
         throw new SenderError('ACCESS_REQUEST_CURSOR_INVALID');
       }
 
-      const rows = [...tx.db.accessRequestV1.iter()];
-      if (BigInt(rows.length) !== tx.db.accessRequestV1.count()) {
+      const totalRequests = tx.db.accessRequestV1.count();
+      if (totalRequests > BigInt(ACCESS_REQUEST_QUEUE_CAPACITY)) {
+        throw new SenderError('ACCESS_REQUEST_QUEUE_CAPACITY');
+      }
+      const boundedRows = takeBoundedAccessRequestRows(
+        tx.db.accessRequestV1.iter(),
+      );
+      if (
+        boundedRows.overflow
+        || BigInt(boundedRows.rows.length) !== totalRequests
+      ) {
         throw new SenderError('ACCESS_REQUEST_STATE_INTEGRITY');
       }
+      const rows = boundedRows.rows;
 
       let pendingRequests = 0n;
       const visible = rows.flatMap(row => {
@@ -269,7 +288,7 @@ export const adminListAccessRequestsV1 = warpkeep.procedure(
         nextRequestedAtMicros: next?.requestedAtMicros,
         nextFid: next?.fid,
         hasMore,
-        totalRequests: BigInt(rows.length),
+        totalRequests,
         pendingRequests,
       };
     }),

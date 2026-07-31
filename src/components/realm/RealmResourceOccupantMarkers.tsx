@@ -61,7 +61,7 @@ export function RealmResourceOccupantMarkers({
     const seen = new Set<string>();
     return presenceMarkerKeys.flatMap((key) => {
       // The bounded keyboard-control lane owns its selected keys. The passive
-      // pointer lane fills the remainder, so one public occupation is never
+      // presentation lane fills the remainder, so one public occupation is never
       // represented by two PFPs, reservation badges, or hit targets.
       if (seen.has(key) || visibleKeySet.has(key)) return [];
       seen.add(key);
@@ -123,18 +123,6 @@ export function RealmResourceOccupantMarkers({
         aria-hidden="true"
         className="realm-resource-occupant-presences"
         data-resource-occupant-presences="true"
-        onClick={(event) => {
-          const target = (event.target as Element).closest<HTMLElement>(
-            '[data-resource-occupant-lane="presence"][data-resource-occupant-key]'
-          );
-          if (!target || !event.currentTarget.contains(target)) return;
-          const marker = markersByKey.get(target.dataset.resourceOccupantKey ?? '');
-          if (!marker) return;
-          event.preventDefault();
-          event.stopPropagation();
-          onSelect(marker);
-        }}
-        onPointerDown={(event) => event.stopPropagation()}
       >
         {presenceMarkers.map((marker) => {
           const key = realmResourceOccupantMarkerKey(marker);
@@ -153,11 +141,6 @@ export function RealmResourceOccupantMarkers({
               data-resource-occupant-key={key}
               data-resource-occupant-lane="presence"
               key={`presence:${key}`}
-              onPointerEnter={() => onHover?.(key)}
-              onPointerLeave={() => onHover?.(null)}
-              title={reservedForGenericWorker
-                ? `Reserved ${RESOURCE_KIND_LABELS[marker.resource]} · worker en route`
-                : `Open ${castleProfileLabel(marker.profile)} at ${RESOURCE_KIND_LABELS[marker.resource]}`}
               style={{
                 '--realm-resource-marker-x': '0px',
                 '--realm-resource-marker-y': '0px'

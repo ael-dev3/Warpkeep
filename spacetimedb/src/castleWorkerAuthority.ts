@@ -618,7 +618,10 @@ function assertDispatchReservations(
   }
 }
 
-export type WorkerDispatchResult = Readonly<{ assignment: AssignmentRow; idempotent: boolean }>;
+export type WorkerDispatchResult = Readonly<{
+  assignment: AssignmentRow | undefined;
+  idempotent: boolean;
+}>;
 
 export function dispatchCastleWorker(
   ctx: WarpkeepReducerContext,
@@ -634,9 +637,34 @@ export function dispatchCastleWorker(
       || !receiptOwnerIsCanonical(ctx, prior, input.castle.castleId)
     ) fail('WORKER_IDEMPOTENCY_OWNER_INVALID');
     const assignment = ctx.db.workerAssignmentV1.assignmentId.find(prior.assignmentId);
+    const worker = ctx.db.castleWorkerV1.workerId.find(input.workerId);
     if (
-      assignment === null
-      || assignment.fid !== input.fid
+      worker === null
+      || worker.originCastleId !== input.castle.castleId
+    ) fail('WORKER_IDEMPOTENCY_STALE');
+    if (assignment === null) {
+      // A normal return completion removes the private assignment and advances
+      // the canonical public worker revision. That is sufficient terminal
+      // proof for an exact lost-response retry; an unadvanced revision remains
+      // a fail-closed orphan-state signal.
+      const currentAssignment = ctx.db.workerAssignmentV1.workerId.find(worker.workerId);
+      const currentStateIsCanonical = worker.status === 'idle'
+        ? currentAssignment === null
+        : currentAssignment !== null
+          && currentAssignment.assignmentId !== prior.assignmentId
+          && assignmentOwnerIsCanonical(ctx, currentAssignment)
+          && publicWorkerMatchesAssignment(worker, currentAssignment);
+      if (
+        worker.revision <= prior.resultRevision
+        || !castleWorkerPublicStateIsConsistent(worker)
+        || !currentStateIsCanonical
+      ) {
+        fail('WORKER_IDEMPOTENCY_STALE');
+      }
+      return Object.freeze({ assignment: undefined, idempotent: true });
+    }
+    if (
+      assignment.fid !== input.fid
       || assignment.workerId !== input.workerId
       || assignment.resourceKind !== input.resourceKind
       || assignment.siteId !== input.siteId
@@ -644,8 +672,7 @@ export function dispatchCastleWorker(
       || !assignmentOwnerIsCanonical(ctx, assignment)
     ) fail('WORKER_IDEMPOTENCY_STALE');
     assertAssignmentState(assignment);
-    const worker = ctx.db.castleWorkerV1.workerId.find(assignment.workerId);
-    if (worker === null || !publicWorkerMatchesAssignment(worker, assignment)) {
+    if (!publicWorkerMatchesAssignment(worker, assignment)) {
       fail('WORKER_IDEMPOTENCY_STALE');
     }
     return Object.freeze({ assignment, idempotent: true });

@@ -486,10 +486,8 @@
     var(--realm-resource-marker-y),
     0
   ) translate(-50%, -100%);
-  pointer-events: auto;
-  cursor: pointer;
-  touch-action: none;
-  -webkit-touch-callout: none;
+  pointer-events: none;
+  cursor: default;
   user-select: none;
 }
 

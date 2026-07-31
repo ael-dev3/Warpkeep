@@ -18,24 +18,24 @@ describe('latest in-menu patch notes', () => {
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
       releasedOn: '31 JUL 2026',
-      title: 'THE REALM IN HAND'
+      title: 'THE REALM HOLDS'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /compact portrait rail.*keeper portrait.*four resources.*safe areas/i
+      /Interrupted drags.*pinches.*menu.*embedded Back navigation/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Keeps.*Workers.*resources.*Water.*terrain.*Explore.*Settings.*Back/i
+      /Gathering portraits.*accessible control lane.*overflow portraits.*no longer steal taps/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /server-validated Quick Auth.*memory-only.*browser sign-in.*SIWF/i
+      /Farcaster verification.*lifetime.*queue bounds.*Worker order.*without sending them twice/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /released to players|deployed to players|public balances|guaranteed rewards/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('Farcaster');
+    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('Genesis 001');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'not admission; it creates no castle and changes no ownership, balance, Worker authority, terrain, or persistent world rule'
+      'does not change admission decisions, castle ownership, gathering rates, balances, terrain'
     );
 
     const alpha0324 = getLatestPatchNotes('0.3.24');
