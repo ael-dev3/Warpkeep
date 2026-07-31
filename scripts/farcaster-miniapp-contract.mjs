@@ -19,6 +19,15 @@ export const FARCASTER_MINI_APP_EMBED_SOURCE = Object.freeze({
   sha256: '26378fdcdb9dfccfdbcf5f25f9a70df1238ac494ab7ed89762ab06b6e2c46771',
 });
 
+export const FARCASTER_MINI_APP_ICON_SOURCE = Object.freeze({
+  path:
+    'docs/reference/miniapp/2026-07-31-hegemony-crest-icon/warpkeep-hegemony-crest-source.png',
+  width: 1254,
+  height: 1254,
+  bytes: 2_297_825,
+  sha256: 'd826fefc276f61490f152293aa80f0c266e9d986760e956eeb7837d00e0affe8',
+});
+
 export const FARCASTER_MINI_APP_EMBED = Object.freeze({
   version: '1',
   imageUrl: `${FARCASTER_MINI_APP_ASSET_ROOT}/warpkeep-embed-1200x800.png`,
@@ -39,7 +48,8 @@ export const FARCASTER_MINI_APP_CONFIG = Object.freeze({
   version: '1',
   name: 'Warpkeep',
   homeUrl: FARCASTER_MINI_APP_HOME_URL,
-  iconUrl: `${FARCASTER_MINI_APP_ASSET_ROOT}/warpkeep-icon-1024.png`,
+  iconUrl:
+    `${FARCASTER_MINI_APP_ASSET_ROOT}/warpkeep-icon-1024-d1b42d20f03c2905.png`,
   splashImageUrl:
     `${FARCASTER_MINI_APP_ASSET_ROOT}/warpkeep-splash-200.png`,
   splashBackgroundColor: '#010207',
@@ -96,8 +106,9 @@ function imageSpecification(
 }
 
 export const FARCASTER_MINI_APP_CORE_IMAGES = Object.freeze([
-  imageSpecification('warpkeep-icon-1024.png', 1024, 1024, {
+  imageSpecification('warpkeep-icon-1024-d1b42d20f03c2905.png', 1024, 1024, {
     maximumBytes: 1_000_000,
+    sha256: 'd1b42d20f03c29058f0450e82ecffb92f756033314c55468eb23ea9b1c6e78ed',
   }),
   imageSpecification('warpkeep-splash-200.png', 200, 200, {
     maximumBytes: 1_000_000,
@@ -107,6 +118,32 @@ export const FARCASTER_MINI_APP_CORE_IMAGES = Object.freeze([
   imageSpecification('warpkeep-embed-1200x800.png', 1200, 800, {
     sha256: '53071821f4a2cd1bd6d71cd53f02e78331582a9fef88c9931833b459e25d5596',
   }),
+]);
+
+function siteIconSpecification(file, width, sha256) {
+  return Object.freeze({
+    file,
+    path: file,
+    url: `${FARCASTER_MINI_APP_ORIGIN}/${file}`,
+    width,
+    height: width,
+    maximumBytes: 1_000_000,
+    opaque: true,
+    sha256,
+  });
+}
+
+export const WARPKEEP_SITE_ICONS = Object.freeze([
+  siteIconSpecification(
+    'favicon-64-7b82ca973fe757f5.png',
+    64,
+    '7b82ca973fe757f54a37e256ac8a0e6f8fe2ed4e4ed6bfaa1c5472fc71fbe5f2',
+  ),
+  siteIconSpecification(
+    'apple-touch-icon-180-fe27e8dc1c97cc36.png',
+    180,
+    'fe27e8dc1c97cc367274c9c786042b2d615b9af1dcd025c2c351c63dae4fdfb5',
+  ),
 ]);
 
 export const FARCASTER_MINI_APP_SCREENSHOTS = Object.freeze([

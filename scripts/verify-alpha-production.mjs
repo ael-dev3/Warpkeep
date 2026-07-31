@@ -13,6 +13,7 @@ import {
   FARCASTER_MINI_APP_IMAGES,
   FARCASTER_MINI_APP_MANIFEST_PATH,
   FARCASTER_MINI_APP_ORIGIN,
+  WARPKEEP_SITE_ICONS,
   exactJsonValue,
   inspectFarcasterAccountAssociation,
   inspectPng,
@@ -700,6 +701,18 @@ function exactNamedMetaTags(html, name) {
   );
 }
 
+function exactLinkTags(html, relationship) {
+  return attributesForTags(html, 'link').filter(
+    (attributes) => (
+      attributes
+        .get('rel')
+        ?.toLowerCase()
+        .split(/\s+/)
+        .includes(relationship)
+    ),
+  );
+}
+
 function verifyReviewedMiniAppManifest(manifest) {
   if (
     !manifest
@@ -825,6 +838,25 @@ export async function verifyLiveFarcasterMiniApp(
   if (!exactJsonValue(embed, FARCASTER_MINI_APP_EMBED)) {
     fail('live fc:miniapp metadata drifted from the reviewed release contract.');
   }
+  const faviconTags = exactLinkTags(html, 'icon');
+  if (
+    faviconTags.length !== 1
+    || faviconTags[0].get('href')
+      !== '/favicon-64-7b82ca973fe757f5.png'
+    || faviconTags[0].get('type') !== 'image/png'
+    || faviconTags[0].get('sizes') !== '64x64'
+  ) {
+    fail('live HTML does not contain the exact reviewed PNG favicon link.');
+  }
+  const appleTouchIconTags = exactLinkTags(html, 'apple-touch-icon');
+  if (
+    appleTouchIconTags.length !== 1
+    || appleTouchIconTags[0].get('href')
+      !== '/apple-touch-icon-180-fe27e8dc1c97cc36.png'
+    || appleTouchIconTags[0].get('sizes') !== '180x180'
+  ) {
+    fail('live HTML does not contain the exact reviewed Apple touch icon link.');
+  }
 
   verifyReviewedMiniAppManifest(reviewedManifest);
   const manifestUrl =
@@ -859,8 +891,11 @@ export async function verifyLiveFarcasterMiniApp(
   for (const specification of FARCASTER_MINI_APP_IMAGES) {
     await verifyLiveMiniAppImage(specification, fetchImpl);
   }
+  for (const specification of WARPKEEP_SITE_ICONS) {
+    await verifyLiveMiniAppImage(specification, fetchImpl);
+  }
   console.log(
-    `frontend: live Mini App embed, manifest, and ${FARCASTER_MINI_APP_IMAGES.length} release images verified`,
+    `frontend: live Mini App embed, manifest, ${FARCASTER_MINI_APP_IMAGES.length} release images, and ${WARPKEEP_SITE_ICONS.length} site icons verified`,
   );
 }
 

@@ -16,9 +16,11 @@ import {
   FARCASTER_MINI_APP_EMBED,
   FARCASTER_MINI_APP_EMBED_SOURCE,
   FARCASTER_MINI_APP_HOME_URL,
+  FARCASTER_MINI_APP_ICON_SOURCE,
   FARCASTER_MINI_APP_MANIFEST_PATH,
   FARCASTER_MINI_APP_ORIGIN,
   FARCASTER_MINI_APP_SCREENSHOTS,
+  WARPKEEP_SITE_ICONS,
   exactJsonValue,
   inspectFarcasterAccountAssociation,
 } from './farcaster-miniapp-contract.mjs';
@@ -48,6 +50,54 @@ function metaTags(html, name) {
   return [...html.matchAll(/<meta\b[^>]*>/gi)]
     .map((match) => match[0])
     .filter((tag) => htmlAttribute(tag, 'name')?.toLowerCase() === name);
+}
+
+function linkTags(html, relationship) {
+  return [...html.matchAll(/<link\b[^>]*>/gi)]
+    .map((match) => match[0])
+    .filter((tag) => (
+      htmlAttribute(tag, 'rel')
+        ?.toLowerCase()
+        .split(/\s+/)
+        .includes(relationship)
+    ));
+}
+
+function builtAssetHref(file) {
+  const requestedBase = process.env.DEPLOY_BASE
+    ?? (process.env.GITHUB_PAGES === 'true' ? '/Warpkeep/' : '/');
+  if (
+    !requestedBase.startsWith('/')
+    || requestedBase.startsWith('//')
+    || requestedBase.includes('\\')
+    || requestedBase.includes('?')
+    || requestedBase.includes('#')
+  ) {
+    fail('the active deployment base is not a canonical absolute path');
+  }
+  const segments = requestedBase.split('/').slice(1);
+  if (requestedBase.endsWith('/')) segments.pop();
+  for (const segment of segments) {
+    let decoded;
+    try {
+      decoded = decodeURIComponent(segment);
+    } catch {
+      fail('the active deployment base contains invalid encoding');
+    }
+    if (
+      !segment
+      || decoded !== segment
+      || !/^[A-Za-z0-9._~-]+$/.test(segment)
+      || segment === '.'
+      || segment === '..'
+    ) {
+      fail('the active deployment base contains a noncanonical path segment');
+    }
+  }
+  const base = requestedBase.endsWith('/')
+    ? requestedBase
+    : `${requestedBase}/`;
+  return `${base}${file}`;
 }
 
 async function verifyImage(specification) {
@@ -119,6 +169,60 @@ async function verifyEmbedSource() {
     || metadata.hasAlpha
   ) {
     fail('the Mini App embed provenance source geometry or opacity changed');
+  }
+}
+
+async function verifyIconSource() {
+  const path = resolve(root, FARCASTER_MINI_APP_ICON_SOURCE.path);
+  let file;
+  try {
+    file = await stat(path);
+  } catch {
+    fail('the Mini App icon provenance source is missing');
+  }
+  if (file.size !== FARCASTER_MINI_APP_ICON_SOURCE.bytes) {
+    fail('the Mini App icon provenance source byte length changed');
+  }
+  const bytes = await readFile(path);
+  const digest = createHash('sha256').update(bytes).digest('hex');
+  if (digest !== FARCASTER_MINI_APP_ICON_SOURCE.sha256) {
+    fail('the Mini App icon provenance source digest changed');
+  }
+  const metadata = await sharp(bytes, {
+    failOn: 'warning',
+    limitInputPixels:
+      FARCASTER_MINI_APP_ICON_SOURCE.width
+      * FARCASTER_MINI_APP_ICON_SOURCE.height,
+  }).metadata();
+  if (
+    metadata.format !== 'png'
+    || metadata.width !== FARCASTER_MINI_APP_ICON_SOURCE.width
+    || metadata.height !== FARCASTER_MINI_APP_ICON_SOURCE.height
+    || metadata.hasAlpha
+  ) {
+    fail('the Mini App icon provenance source geometry or opacity changed');
+  }
+}
+
+function verifySiteIconLinks(html) {
+  const faviconTags = linkTags(html, 'icon');
+  if (
+    faviconTags.length !== 1
+    || htmlAttribute(faviconTags[0], 'href')
+      !== builtAssetHref('favicon-64-7b82ca973fe757f5.png')
+    || htmlAttribute(faviconTags[0], 'type') !== 'image/png'
+    || htmlAttribute(faviconTags[0], 'sizes') !== '64x64'
+  ) {
+    fail('built HTML must contain the exact reviewed PNG favicon link');
+  }
+  const appleTouchIconTags = linkTags(html, 'apple-touch-icon');
+  if (
+    appleTouchIconTags.length !== 1
+    || htmlAttribute(appleTouchIconTags[0], 'href')
+      !== builtAssetHref('apple-touch-icon-180-fe27e8dc1c97cc36.png')
+    || htmlAttribute(appleTouchIconTags[0], 'sizes') !== '180x180'
+  ) {
+    fail('built HTML must contain the exact reviewed Apple touch icon link');
   }
 }
 
@@ -202,8 +306,10 @@ async function main() {
   if (unknownArguments.length > 0) {
     fail(`unknown argument ${unknownArguments[0]}`);
   }
+  await verifyIconSource();
   await verifyEmbedSource();
   const html = await readFile(resolve(dist, 'index.html'), 'utf8');
+  verifySiteIconLinks(html);
   const miniAppTags = metaTags(html, 'fc:miniapp');
   if (miniAppTags.length !== 1 || metaTags(html, 'fc:frame').length !== 0) {
     fail('built HTML must contain one fc:miniapp meta and no fc:frame meta');
@@ -236,6 +342,9 @@ async function main() {
   }
   for (const screenshot of FARCASTER_MINI_APP_SCREENSHOTS) {
     await verifyImage(screenshot);
+  }
+  for (const icon of WARPKEEP_SITE_ICONS) {
+    await verifyImage(icon);
   }
   const manifestPresent = await verifyManifest();
   process.stdout.write(

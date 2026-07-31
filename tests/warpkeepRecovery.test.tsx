@@ -151,7 +151,12 @@ describe('Warpkeep document fallback', () => {
     expect(status?.textContent).toContain('Opening the realm…');
     expect(indexHtml).toContain('href="/warpkeep-boot.css"');
     expect(indexHtml).toContain('<meta name="referrer" content="no-referrer" />');
-    expect(indexHtml).toContain('href="/favicon.svg"');
+    expect(indexHtml).toContain(
+      'href="/favicon-64-7b82ca973fe757f5.png" type="image/png" sizes="64x64"',
+    );
+    expect(indexHtml).toContain(
+      'href="/apple-touch-icon-180-fe27e8dc1c97cc36.png" sizes="180x180"',
+    );
     expect(mainSource).toContain('WARPKEEP_ROOT_ERROR_HANDLERS');
     expect(contentSecurityPolicy).toContain("default-src 'none'");
     expect(scriptSource).toBe("script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'");

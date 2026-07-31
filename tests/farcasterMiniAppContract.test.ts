@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
 
 // @ts-expect-error Repository JavaScript release contracts expose named test seams.
-import { FARCASTER_MINI_APP_CONFIG, FARCASTER_MINI_APP_DOMAIN, FARCASTER_MINI_APP_EMBED, FARCASTER_MINI_APP_IMAGES, FARCASTER_MINI_APP_ORIGIN, FARCASTER_MINI_APP_OWNER_FID, exactJsonValue, inspectFarcasterAccountAssociation, inspectPng } from '../scripts/farcaster-miniapp-contract.mjs';
+import { FARCASTER_MINI_APP_CONFIG, FARCASTER_MINI_APP_DOMAIN, FARCASTER_MINI_APP_EMBED, FARCASTER_MINI_APP_IMAGES, FARCASTER_MINI_APP_ORIGIN, FARCASTER_MINI_APP_OWNER_FID, WARPKEEP_SITE_ICONS, exactJsonValue, inspectFarcasterAccountAssociation, inspectPng } from '../scripts/farcaster-miniapp-contract.mjs';
 // @ts-expect-error Repository JavaScript release verifier exposes a named test seam.
 import { verifyFarcasterAccountAssociationSignature } from '../scripts/verify-farcaster-miniapp.mjs';
 // @ts-expect-error Repository JavaScript production verifier exposes a named test seam.
@@ -139,7 +139,7 @@ describe('Farcaster Mini App release contract', () => {
     const bytes = readFileSync(
       resolve(
         process.cwd(),
-        'public/images/miniapp/warpkeep-icon-1024.png',
+        'public/images/miniapp/warpkeep-icon-1024-d1b42d20f03c2905.png',
       ),
     );
     expect(inspectPng(bytes)).toEqual({
@@ -154,7 +154,7 @@ describe('Farcaster Mini App release contract', () => {
       accountAssociation: await signedAssociation(),
       miniapp: FARCASTER_MINI_APP_CONFIG,
     };
-    const html = `<!doctype html><meta name="fc:miniapp" content='${
+    const html = `<!doctype html><link rel="icon" href="/favicon-64-7b82ca973fe757f5.png" type="image/png" sizes="64x64"><link rel="apple-touch-icon" href="/apple-touch-icon-180-fe27e8dc1c97cc36.png" sizes="180x180"><meta name="fc:miniapp" content='${
       JSON.stringify(FARCASTER_MINI_APP_EMBED)
     }'>`;
     const fetchCalls: string[] = [];
@@ -167,7 +167,10 @@ describe('Farcaster Mini App release contract', () => {
           headers: { 'content-type': 'application/json; charset=utf-8' },
         });
       }
-      const image = FARCASTER_MINI_APP_IMAGES.find(
+      const image = [
+        ...FARCASTER_MINI_APP_IMAGES,
+        ...WARPKEEP_SITE_ICONS,
+      ].find(
         (candidate: { url: string }) => candidate.url === url,
       );
       if (!image) return new Response(null, { status: 404 });
@@ -189,7 +192,9 @@ describe('Farcaster Mini App release contract', () => {
         fetchImpl,
       ),
     ).resolves.toBeUndefined();
-    expect(fetchCalls).toHaveLength(FARCASTER_MINI_APP_IMAGES.length + 1);
+    expect(fetchCalls).toHaveLength(
+      FARCASTER_MINI_APP_IMAGES.length + WARPKEEP_SITE_ICONS.length + 1,
+    );
   });
 
   it('fails live verification closed on manifest redirects', async () => {
@@ -197,7 +202,7 @@ describe('Farcaster Mini App release contract', () => {
       accountAssociation: await signedAssociation(),
       miniapp: FARCASTER_MINI_APP_CONFIG,
     };
-    const html = `<!doctype html><meta name="fc:miniapp" content='${
+    const html = `<!doctype html><link rel="icon" href="/favicon-64-7b82ca973fe757f5.png" type="image/png" sizes="64x64"><link rel="apple-touch-icon" href="/apple-touch-icon-180-fe27e8dc1c97cc36.png" sizes="180x180"><meta name="fc:miniapp" content='${
       JSON.stringify(FARCASTER_MINI_APP_EMBED)
     }'>`;
     const redirectedFetch = async () => new Response(null, {
