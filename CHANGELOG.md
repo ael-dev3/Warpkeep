@@ -10,6 +10,8 @@ full engineering record.
 - Restored direct Realm selection, panning, and pinch zoom across iPhone,
   Android, and embedded Mini App browsers while keeping record scrolling
   independent from the map.
+- Adopted the Hegemony crest as Warpkeep's cache-safe Mini App icon, browser
+  favicon, and iOS home-screen mark.
 
 ## [0.3.28] — 2026-07-30
 

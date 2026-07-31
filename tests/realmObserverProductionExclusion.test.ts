@@ -76,8 +76,11 @@ describe('local QA production exclusion', () => {
       );
       const icons = parsed.querySelectorAll('link[rel="icon"]');
       expect(icons, entry).toHaveLength(1);
-      expect(icons[0]?.getAttribute('href'), entry).toBe('/favicon.svg');
-      expect(icons[0]?.getAttribute('type'), entry).toBe('image/svg+xml');
+      expect(icons[0]?.getAttribute('href'), entry).toBe(
+        '/favicon-64-7b82ca973fe757f5.png',
+      );
+      expect(icons[0]?.getAttribute('type'), entry).toBe('image/png');
+      expect(icons[0]?.getAttribute('sizes'), entry).toBe('64x64');
     }
 
     expect(LOCAL_QA_CONTENT_SECURITY_POLICY).not.toContain("'unsafe-eval'");
@@ -105,8 +108,11 @@ describe('local QA production exclusion', () => {
     );
     const icons = parsed.querySelectorAll('link[rel="icon"]');
     expect(icons).toHaveLength(1);
-    expect(icons[0]?.getAttribute('href')).toBe('/favicon.svg');
-    expect(icons[0]?.getAttribute('type')).toBe('image/svg+xml');
+    expect(icons[0]?.getAttribute('href')).toBe(
+      '/favicon-64-7b82ca973fe757f5.png',
+    );
+    expect(icons[0]?.getAttribute('type')).toBe('image/png');
+    expect(icons[0]?.getAttribute('sizes')).toBe('64x64');
 
     const connectDirective = FULLSTACK_LOCAL_QA_CONTENT_SECURITY_POLICY
       .split('; ')

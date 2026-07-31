@@ -6,9 +6,11 @@ import sharp from 'sharp';
 
 import {
   FARCASTER_MINI_APP_EMBED_SOURCE,
+  FARCASTER_MINI_APP_ICON_SOURCE,
 } from './farcaster-miniapp-contract.mjs';
 
 const root = resolve(import.meta.dirname, '..');
+const publicDirectory = resolve(root, 'public');
 const outputDirectory = resolve(root, 'public/images/miniapp');
 const stagingDirectory = resolve(
   root,
@@ -17,6 +19,10 @@ const stagingDirectory = resolve(
 const embedSourcePath = resolve(
   root,
   FARCASTER_MINI_APP_EMBED_SOURCE.path,
+);
+const iconSourcePath = resolve(
+  root,
+  FARCASTER_MINI_APP_ICON_SOURCE.path,
 );
 
 sharp.cache(false);
@@ -188,6 +194,54 @@ async function writePng(svg, destination, width, height) {
     .toFile(destination);
 }
 
+async function writeBrandPng(source, destination, width, height) {
+  await sharp(source, {
+    failOn: 'warning',
+    limitInputPixels:
+      FARCASTER_MINI_APP_ICON_SOURCE.width
+      * FARCASTER_MINI_APP_ICON_SOURCE.height,
+  })
+    .resize(width, height, {
+      fit: 'fill',
+      kernel: sharp.kernel.lanczos3,
+      fastShrinkOnLoad: false,
+    })
+    .flatten({ background: '#010207' })
+    .removeAlpha()
+    .png({
+      compressionLevel: 9,
+      adaptiveFiltering: true,
+      palette: true,
+      quality: 100,
+      effort: 10,
+      progressive: false,
+    })
+    .toFile(destination);
+}
+
+async function readIconSource() {
+  const source = await readFile(iconSourcePath);
+  const sourceDigest = createHash('sha256').update(source).digest('hex');
+  if (sourceDigest !== FARCASTER_MINI_APP_ICON_SOURCE.sha256) {
+    throw new Error('Mini App icon source digest does not match its provenance record.');
+  }
+  const metadata = await sharp(source, {
+    failOn: 'warning',
+    limitInputPixels:
+      FARCASTER_MINI_APP_ICON_SOURCE.width
+      * FARCASTER_MINI_APP_ICON_SOURCE.height,
+  }).metadata();
+  if (
+    metadata.format !== 'png'
+    || metadata.width !== FARCASTER_MINI_APP_ICON_SOURCE.width
+    || metadata.height !== FARCASTER_MINI_APP_ICON_SOURCE.height
+    || metadata.hasAlpha
+  ) {
+    throw new Error('Mini App icon source must be the reviewed 1254x1254 opaque PNG.');
+  }
+  return source;
+}
+
 async function readEmbedSource() {
   const source = await readFile(embedSourcePath);
   const sourceDigest = createHash('sha256').update(source).digest('hex');
@@ -244,7 +298,6 @@ async function main() {
   await rm(stagingDirectory, { recursive: true, force: true });
   await mkdir(stagingDirectory, { recursive: true });
   const generatedOutputs = [
-    ['warpkeep-icon-1024.png', squareArtwork(1024), 1024, 1024],
     ['warpkeep-splash-200.png', squareArtwork(200), 200, 200],
     [
       'warpkeep-hero-1200x630.png',
@@ -259,23 +312,59 @@ async function main() {
       630,
     ],
   ];
+  const brandOutputs = [
+    {
+      file: 'warpkeep-icon-1024-d1b42d20f03c2905.png',
+      width: 1024,
+      height: 1024,
+      destinationDirectory: outputDirectory,
+    },
+    {
+      file: 'favicon-64-7b82ca973fe757f5.png',
+      width: 64,
+      height: 64,
+      destinationDirectory: publicDirectory,
+    },
+    {
+      file: 'apple-touch-icon-180-fe27e8dc1c97cc36.png',
+      width: 180,
+      height: 180,
+      destinationDirectory: publicDirectory,
+    },
+  ];
   const embedOutput = 'warpkeep-embed-1200x800.png';
   const outputFiles = [
-    ...generatedOutputs.map(([file]) => file),
-    embedOutput,
+    ...generatedOutputs.map(([file]) => ({
+      file,
+      destinationDirectory: outputDirectory,
+    })),
+    ...brandOutputs,
+    {
+      file: embedOutput,
+      destinationDirectory: outputDirectory,
+    },
   ];
   try {
     for (const [file, svg, width, height] of generatedOutputs) {
       await writePng(svg, resolve(stagingDirectory, file), width, height);
     }
+    const iconSource = await readIconSource();
+    for (const { file, width, height } of brandOutputs) {
+      await writeBrandPng(
+        iconSource,
+        resolve(stagingDirectory, file),
+        width,
+        height,
+      );
+    }
     await writeEmbedPng(
       await readEmbedSource(),
       resolve(stagingDirectory, embedOutput),
     );
-    await mkdir(outputDirectory, { recursive: true });
-    for (const file of outputFiles) {
+    for (const { file, destinationDirectory } of outputFiles) {
+      await mkdir(destinationDirectory, { recursive: true });
       const staged = resolve(stagingDirectory, file);
-      const destination = resolve(outputDirectory, file);
+      const destination = resolve(destinationDirectory, file);
       await rename(staged, destination);
       const fileStat = await stat(destination);
       process.stdout.write(
