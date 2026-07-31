@@ -10,6 +10,11 @@ import {
   type MiniAppHostValue,
   type MiniAppSdk
 } from '../src/farcaster/miniapp';
+import {
+  WarpkeepHapticsDirector,
+  emitWarpkeepSfxBatch,
+  resolveWarpkeepHapticCue
+} from '../src/components/audio';
 
 afterEach(() => {
   vi.useRealTimers();
@@ -293,6 +298,67 @@ describe('Farcaster Mini App host provider', () => {
     expect(back.show).toHaveBeenCalledTimes(1);
     expect(back.onback).toBeNull();
     rootCleanup();
+  });
+
+  it('maps clustered game feedback to one capability-checked host haptic', async () => {
+    const { sdk } = fakeSdk({
+      getCapabilities: vi.fn(async () => [
+        'actions.ready',
+        'haptics.impactOccurred',
+        'haptics.notificationOccurred',
+        'haptics.selectionChanged'
+      ])
+    });
+    let latest: MiniAppHostValue | undefined;
+    render(
+      <Harness
+        runtime={runtimeFor('?miniApp=true')}
+        sdkLoader={async () => sdk}
+        capture={(value) => { latest = value; }}
+      >
+        <WarpkeepHapticsDirector />
+      </Harness>
+    );
+    await waitFor(() => expect(latest?.state).toBe('miniapp'));
+
+    expect(resolveWarpkeepHapticCue([
+      { kind: 'select-worker' },
+      { kind: 'worker-dispatch-confirmed', count: 1 }
+    ])).toEqual({ kind: 'notification', type: 'success' });
+    expect(resolveWarpkeepHapticCue([
+      { kind: 'worker-arrived', count: 1 },
+      { kind: 'select-water', regime: 'river' }
+    ])).toBeUndefined();
+
+    await act(async () => {
+      emitWarpkeepSfxBatch([
+        { kind: 'select-worker' },
+        { kind: 'worker-dispatch-confirmed', count: 1 }
+      ]);
+      await Promise.resolve();
+    });
+    expect(sdk.haptics?.notificationOccurred)
+      .toHaveBeenCalledExactlyOnceWith('success');
+    expect(sdk.haptics?.selectionChanged).not.toHaveBeenCalled();
+
+    await act(async () => {
+      emitWarpkeepSfxBatch([
+        { kind: 'select-gold' },
+        { kind: 'select-stone' }
+      ]);
+      await Promise.resolve();
+    });
+    expect(sdk.haptics?.selectionChanged).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      emitWarpkeepSfxBatch([
+        { kind: 'worker-recall-confirmed', count: 1 },
+        { kind: 'command-failed' }
+      ]);
+      await Promise.resolve();
+    });
+    expect(sdk.haptics?.notificationOccurred)
+      .toHaveBeenLastCalledWith('error');
   });
 
   it('returns a fresh Quick Auth bearer only after verified host detection', async () => {

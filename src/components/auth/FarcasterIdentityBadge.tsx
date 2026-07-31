@@ -21,6 +21,14 @@ export function normalizeFarcasterUsername(username: string | undefined) {
   return normalizedUsername ? `@${normalizedUsername}` : undefined;
 }
 
+export function getFarcasterPublicIdentityLabel(
+  identity: VerifiedFarcasterIdentity
+) {
+  return normalizeFarcasterUsername(identity.username)
+    ?? readDisplayText(identity.displayName)
+    ?? 'Verified Farcaster account';
+}
+
 export function getSafeFarcasterProfileImageUrl(profileImageUrl: string | undefined) {
   return reviewedRealmProfileImageUrl(safePublicHttpsImageUrl(profileImageUrl));
 }
@@ -40,7 +48,7 @@ export function FarcasterIdentityBadge({
 }: FarcasterIdentityBadgeProps) {
   const username = normalizeFarcasterUsername(identity.username);
   const displayName = readDisplayText(identity.displayName);
-  const publicLabel = username ?? `FID ${identity.fid}`;
+  const publicLabel = getFarcasterPublicIdentityLabel(identity);
   const safeProfileImageUrl = getSafeFarcasterProfileImageUrl(identity.pfpUrl);
   const monogram = getFarcasterIdentityMonogram(identity);
 
@@ -78,8 +86,10 @@ export function FarcasterIdentityBadge({
         {!compact && displayName && displayName !== username ? (
           <span className="farcaster-identity-badge__display-name">{displayName}</span>
         ) : null}
-        {!username ? (
-          <span className="farcaster-identity-badge__fid">FID {identity.fid}</span>
+        {!username && !displayName ? (
+          <span className="farcaster-identity-badge__fid">
+            Verified Farcaster account
+          </span>
         ) : null}
       </div>
     </>

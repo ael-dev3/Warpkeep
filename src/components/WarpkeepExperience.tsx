@@ -22,6 +22,7 @@ import {
 } from '../spacetime';
 import {
   WarpkeepAudioDirector,
+  WarpkeepHapticsDirector,
   WarpkeepSfxDirector,
   WARPKEEP_REALM_TO_MENU_TRANSITION_MS,
   stopWarpkeepSfxVoices,
@@ -1404,6 +1405,7 @@ export function WarpkeepExperience() {
         preloadMenu={menuPreloadReady || audioScene === 'menu'}
       />
       <WarpkeepSfxDirector muted={audioMuted} />
+      <WarpkeepHapticsDirector />
     </div>
   );
 }

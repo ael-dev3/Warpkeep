@@ -51,6 +51,7 @@ export type RealmSurfaceNavigation = Readonly<{
   stack: readonly RealmSurfaceRoute[];
   current: RealmSurfaceRoute | undefined;
   depth: number;
+  motion?: 'idle' | 'forward' | 'backward' | 'replace';
   push: (route: RealmSurfaceRoute) => void;
   replace: (route: RealmSurfaceRoute) => void;
   back: () => void;
@@ -68,6 +69,9 @@ export function useRealmSurfaceNavigation({
   const identityGenerationRef = useRef(0);
   const sessionRef = useRef(`realm-${reactId}-0`);
   const [stack, setStack] = useState<readonly RealmSurfaceRoute[]>([]);
+  const [motion, setMotion] = useState<
+    'idle' | 'forward' | 'backward' | 'replace'
+  >('idle');
   const stackRef = useRef(stack);
   const historyEnabledRef = useRef(historyEnabled);
   const previousHistoryEnabledRef = useRef(historyEnabled);
@@ -103,6 +107,7 @@ export function useRealmSurfaceNavigation({
     previousHistoryEnabledRef.current = historyEnabled;
     stackRef.current = Object.freeze([]);
     setStack(stackRef.current);
+    setMotion('idle');
     if (historyEnabled) replaceBrowserState(stackRef.current);
     else {
       window.history.replaceState(
@@ -121,6 +126,13 @@ export function useRealmSurfaceNavigation({
         : undefined;
       const restored = readRealmSurfaceHistoryState(candidate, sessionRef.current);
       const nextStack = restored?.stack ?? Object.freeze([]);
+      setMotion(
+        nextStack.length < stackRef.current.length
+          ? 'backward'
+          : nextStack.length > stackRef.current.length
+            ? 'forward'
+            : 'replace'
+      );
       historyTraversalPendingRef.current = false;
       stackRef.current = nextStack;
       setStack(nextStack);
@@ -134,6 +146,7 @@ export function useRealmSurfaceNavigation({
     const atCapacity = stackRef.current.length >= REALM_SURFACE_MAX_DEPTH;
     const nextStack = pushRealmSurfaceRoute(stackRef.current, route);
     if (nextStack === stackRef.current) return;
+    setMotion('forward');
     stackRef.current = nextStack;
     setStack(nextStack);
     if (historyEnabledRef.current) {
@@ -154,6 +167,7 @@ export function useRealmSurfaceNavigation({
     const replacingRoot = stackRef.current.length === 0;
     const nextStack = replaceRealmSurfaceRoute(stackRef.current, route);
     if (nextStack === stackRef.current) return;
+    setMotion('replace');
     stackRef.current = nextStack;
     setStack(nextStack);
     if (historyEnabledRef.current) {
@@ -185,6 +199,7 @@ export function useRealmSurfaceNavigation({
       }
       return;
     }
+    setMotion('backward');
     stackRef.current = nextStack;
     setStack(nextStack);
   }, []);
@@ -203,6 +218,7 @@ export function useRealmSurfaceNavigation({
       return;
     }
     const nextStack = Object.freeze([]) as readonly RealmSurfaceRoute[];
+    setMotion('backward');
     stackRef.current = nextStack;
     setStack(nextStack);
   }, []);
@@ -211,6 +227,7 @@ export function useRealmSurfaceNavigation({
     stack,
     current: stack.at(-1),
     depth: stack.length,
+    motion,
     push,
     replace,
     back,

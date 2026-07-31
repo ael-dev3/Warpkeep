@@ -1891,8 +1891,8 @@ async function verifyAccessRequestHttpLifecycle(server, database, privateKey) {
     });
 
     stage = 'request-submit';
-    const submitted = parseAccessRequestStatus(
-      await callLoopbackProcedure(
+    const [submittedText, duplicateText] = await Promise.all([
+      callLoopbackProcedure(
         server,
         database,
         'access_request_submit_v1',
@@ -1900,6 +1900,17 @@ async function verifyAccessRequestHttpLifecycle(server, database, privateKey) {
         '[]',
         200,
       ),
+      callLoopbackProcedure(
+        server,
+        database,
+        'access_request_submit_v1',
+        requestCredential(),
+        '[]',
+        200,
+      ),
+    ]);
+    const submitted = parseAccessRequestStatus(
+      submittedText,
       'submitted access-request status',
     );
     assert.equal(submitted.status, 'requested');
@@ -1909,14 +1920,7 @@ async function verifyAccessRequestHttpLifecycle(server, database, privateKey) {
 
     stage = 'request-duplicate';
     const duplicate = parseAccessRequestStatus(
-      await callLoopbackProcedure(
-        server,
-        database,
-        'access_request_submit_v1',
-        requestCredential(),
-        '[]',
-        200,
-      ),
+      duplicateText,
       'duplicate access-request status',
     );
     assert.deepEqual(duplicate, submitted);

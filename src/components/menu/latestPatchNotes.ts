@@ -7,17 +7,18 @@ export type LatestPatchNotes = Readonly<{
 }>;
 
 const ALPHA_0_3_28_PATCH_NOTES: LatestPatchNotes = Object.freeze({
-  releasedOn: '30 JUL 2026',
+  releasedOn: '31 JUL 2026',
   title: 'THE REALM IN HAND',
   summary:
-    'Warpkeep now fits naturally in Farcaster: the Realm remains the whole stage while every record opens as a focused, full-screen destination.',
+    'Genesis 001 now fits naturally in Farcaster and responds cleanly to touch, while the living Realm remains the whole stage beneath every focused record.',
   highlights: Object.freeze([
-    'A compact portrait rail keeps the keeper portrait and four resources within reach, respects host safe areas, and leaves the rest of the viewport to Genesis 001.',
-    'Keeps, Workers, resources, Water, terrain, Explore, and Settings now share one predictable Back path, with relevant site shortcuts and Farcaster-aware profile actions, while the Realm remains where the player left it.',
-    'Verified Mini App entry uses exact-domain server-validated Quick Auth with memory-only access, while ordinary browser sign-in retains its existing bound SIWF session.'
+    'A compact portrait rail keeps the keeper portrait and all four resources clear of device safe areas without covering the Realm.',
+    'Keeps, Workers, resources, Water, terrain, Explore, and Settings open as focused destinations with one predictable Back path and restrained motion.',
+    'Selection, one-finger panning, and pinch zoom share one reliable map gesture lane across iPhone, Android, and embedded browsers; supported Mini App hosts add quiet haptics after real outcomes.',
+    'Verified players awaiting admission can submit a private access request for manual review. Mini Apps prefer server-validated Quick Auth with memory-only authority, while ordinary browser sign-in remains bound to SIWF.'
   ]),
   alphaNotice:
-    'Alpha 0.3.28 remains an invite-only, unfinished world. This release changes access and presentation, not admission, ownership, balances, Worker authority, terrain, or persistent world rules.'
+    'Alpha 0.3.28 remains an invite-only, unfinished world. An access request is not admission; it creates no castle and changes no ownership, balance, Worker authority, terrain, or persistent world rule.'
 });
 
 const ALPHA_0_3_27_PATCH_NOTES: LatestPatchNotes = Object.freeze({

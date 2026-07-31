@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 
 import { ProceduralSfxEngine } from './proceduralSfxEngine';
 import {
+  emitWarpkeepSfx,
   subscribeWarpkeepSfx,
   subscribeWarpkeepSfxStop,
   type WarpkeepSfxEvent
@@ -187,7 +188,7 @@ export function WarpkeepSfxDirector({
     const playOrdinaryControl = (event: MouseEvent) => {
       if (!event.isTrusted || event.defaultPrevented) return;
       const resolved = resolveWarpkeepUiSfx(event.target);
-      if (resolved) engine.emit(resolved);
+      if (resolved) emitWarpkeepSfx(resolved);
     };
     const handleVisibility = () => engine.setHidden(document.hidden);
     const unsubscribeEvents = subscribeWarpkeepSfx((events) => {

@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { useAccessRequest } from '../src/farcaster/useAccessRequest';
 import type {
+  AccessRequestStatus,
   FarcasterAuthViewState,
   FarcasterOidcBridgeClient
 } from '../src/farcaster/farcasterAuthTypes';
@@ -123,6 +124,43 @@ describe('access-request controller lifecycle', () => {
       </StrictMode>
     );
     expect(screen.getByText('idle')).not.toBeNull();
+  });
+
+  it('cannot let a late response from an old identity replace the current state', async () => {
+    let resolveFirst: ((value: AccessRequestStatus) => void) | undefined;
+    let firstSignal: AbortSignal | undefined;
+    const firstStatus = new Promise<AccessRequestStatus>((resolve) => {
+      resolveFirst = resolve;
+    });
+    const getAccessRequestStatus = vi.fn()
+      .mockImplementationOnce(async (
+        _authentication,
+        options: Readonly<{ signal?: AbortSignal }>
+      ) => {
+        firstSignal = options.signal;
+        return firstStatus;
+      })
+      .mockResolvedValueOnce({
+        version: 1,
+        status: 'requested',
+        requestedAt: 1_785_414_897_000
+      });
+    const client = bridge({ getAccessRequestStatus });
+    const view = render(
+      <Harness authState={pending(12_345)} client={client} generation={1} />
+    );
+
+    await waitFor(() => expect(getAccessRequestStatus).toHaveBeenCalledTimes(1));
+    view.rerender(
+      <Harness authState={pending(67_890)} client={client} generation={2} />
+    );
+    await waitFor(() => expect(screen.getByText('requested')).not.toBeNull());
+    expect(firstSignal?.aborted).toBe(true);
+
+    resolveFirst?.({ version: 1, status: 'already-admitted' });
+    await Promise.resolve();
+    expect(screen.getByText('requested')).not.toBeNull();
+    expect(screen.queryByText('already-admitted')).toBeNull();
   });
 
   it('submits only after an explicit click and presents only bounded status', async () => {

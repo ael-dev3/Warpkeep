@@ -4811,6 +4811,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       data-realm-chrome-mode={chromeMode}
       data-realm-surface-presentation={surfacePresentation}
       data-realm-surface-depth={String(surfaceNavigation.depth)}
+      data-realm-surface-motion={surfaceNavigation.motion ?? 'idle'}
       data-realm-camera-mode={cameraMode}
       data-realm-camera-presentation-band={realmCameraPresentationBand(cameraMode)}
       data-realm-camera-target-kind={interaction.cameraTarget.kind}

@@ -35,6 +35,18 @@ export const GEOGRAPHIC_NORTH = Object.freeze({
   worldZDirection: -1 as const
 });
 
+/**
+ * Renderer-neutral geographic south for every realm map.
+ *
+ * Southward progress increases as axial `r` and world `z` increase. Keeping
+ * both poles explicit prevents climate and future navigation presentation
+ * from re-deriving opposite conventions in camera or screen space.
+ */
+export const GEOGRAPHIC_SOUTH = Object.freeze({
+  axialRDirection: 1 as const,
+  worldZDirection: 1 as const
+});
+
 export const POINTY_TOP_AXIAL_DIRECTIONS: readonly HexCoord[] = [
   { q: 1, r: 0 },
   { q: 1, r: -1 },
@@ -64,6 +76,20 @@ export function worldNorthwardProgress(
 ): number {
   const z = Number.isFinite(world.z) ? world.z : 0;
   return z * GEOGRAPHIC_NORTH.worldZDirection;
+}
+
+export function axialSouthwardProgress(
+  coord: HexCoord
+): number {
+  const r = Number.isFinite(coord.r) ? coord.r : 0;
+  return r * GEOGRAPHIC_SOUTH.axialRDirection;
+}
+
+export function worldSouthwardProgress(
+  world: HexWorldPosition
+): number {
+  const z = Number.isFinite(world.z) ? world.z : 0;
+  return z * GEOGRAPHIC_SOUTH.worldZDirection;
 }
 
 export function axialToCube({ q, r }: HexCoord): CubeCoord {

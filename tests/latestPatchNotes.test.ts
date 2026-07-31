@@ -17,7 +17,7 @@ describe('latest in-menu patch notes', () => {
 
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
-      releasedOn: '30 JUL 2026',
+      releasedOn: '31 JUL 2026',
       title: 'THE REALM IN HAND'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
@@ -35,7 +35,7 @@ describe('latest in-menu patch notes', () => {
     expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('Farcaster');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'not admission, ownership, balances, Worker authority, terrain, or persistent world rules'
+      'not admission; it creates no castle and changes no ownership, balance, Worker authority, terrain, or persistent world rule'
     );
 
     const alpha0324 = getLatestPatchNotes('0.3.24');

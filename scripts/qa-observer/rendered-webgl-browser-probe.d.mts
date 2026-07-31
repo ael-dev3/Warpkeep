@@ -353,6 +353,27 @@ export function parseRenderedWebglWaterOverviewEvidence(
   value: unknown
 ): RenderedWebglWaterOverviewEvidence;
 
+export type RenderedWebglWaterRecordJourneyEvidence = Readonly<{
+  cameraNeutral: true;
+  escapeClosed: true;
+  focusChangedCamera: true;
+  followAdvanced: true;
+  keyboardAdvanced: true;
+  mouthOpened: true;
+  nextOpened: true;
+  recordOpened: true;
+  sourceOpened: true;
+  stopCompleted: true;
+}>;
+
+export function parseRenderedWebglWaterRecordJourneyEvidence(
+  value: unknown
+): RenderedWebglWaterRecordJourneyEvidence;
+
+export function applyRenderedWebglWaterRecordJourney(
+  session: DevtoolsPipeSession
+): Promise<RenderedWebglWaterRecordJourneyEvidence>;
+
 /** Closes all accepted HTTP/HMR sockets before awaiting the loopback listener. */
 export function closeRenderedWebglLoopbackServer(options: Readonly<{
   httpServer: Readonly<{
