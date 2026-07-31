@@ -24,6 +24,7 @@ import {
   applyRenderedWebglResourceOccupantInteraction,
   applyRenderedWebglSfxInteraction,
   applyRenderedWebglWaterOverviewInteraction,
+  applyRenderedWebglWaterRecordJourney,
   attestHeadlessChromeCodeSignature,
   closeRenderedWebglLoopbackServer,
   cleanupRenderedWebglProbeResources,
@@ -48,6 +49,7 @@ import {
   parseRenderedWebglResourceOccupantEvidence,
   parseRenderedWebglSfxEvidence,
   parseRenderedWebglWaterOverviewEvidence,
+  parseRenderedWebglWaterRecordJourneyEvidence,
   readNorthernReachStaticFrameSignature,
   SUNSCOURED_SOUTH_RENDERED_TARGET_MANIFEST,
   RENDERED_WEBGL_QA_CHROME,
@@ -1795,6 +1797,52 @@ describe('rendered WebGL headless browser probe contract', () => {
     );
     expect(source).toMatch(
       /applyRenderedWebglWaterOverviewInteraction\(session\)[\s\S]{0,160}captureRenderedCasePixels/
+    );
+  });
+
+  it('keeps ordinary Water-record navigation camera-neutral until explicit Focus', () => {
+    const evidence = {
+      cameraNeutral: true,
+      escapeClosed: true,
+      focusChangedCamera: true,
+      followAdvanced: true,
+      keyboardAdvanced: true,
+      mouthOpened: true,
+      nextOpened: true,
+      recordOpened: true,
+      sourceOpened: true,
+      stopCompleted: true
+    } as const;
+    expect(parseRenderedWebglWaterRecordJourneyEvidence(evidence))
+      .toEqual(evidence);
+    for (const invalidEvidence of [
+      { ...evidence, cameraNeutral: false },
+      { ...evidence, focusChangedCamera: false },
+      { ...evidence, stopCompleted: false },
+      { ...evidence, cellKey: 'must-not-cross-the-boundary' }
+    ]) {
+      expect(() => parseRenderedWebglWaterRecordJourneyEvidence(
+        invalidEvidence
+      )).toThrow(/Water record journey evidence/i);
+    }
+    expect(typeof applyRenderedWebglWaterRecordJourney).toBe('function');
+
+    const source = readFileSync(resolve(
+      process.cwd(),
+      'scripts/qa-observer/rendered-webgl-browser-probe.mjs'
+    ), 'utf8');
+    expect(source).toContain(
+      'await applyRenderedWebglWaterRecordJourney(session)'
+    );
+    expect(source).toContain("'Input.dispatchKeyEvent'");
+    expect(source).toContain("'FOLLOW DOWN'");
+    expect(source).toContain("'STOP FOLLOWING'");
+    expect(source).toContain("'FOCUS CELL'");
+    expect(source).toContain("case 'neutral-cell-change':");
+    expect(source).not.toContain('Boolean(${expression})');
+    expect(source).not.toContain('state[${JSON.stringify(field)}]');
+    expect(source).toContain(
+      'delete globalThis.__warpkeepWaterRecordJourney'
     );
   });
 

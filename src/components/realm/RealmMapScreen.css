@@ -38,6 +38,64 @@
   display: contents;
 }
 
+.realm-map-screen[data-realm-surface-presentation="fullscreen-destination"]
+  :is(
+    .realm-profile-menu__panel,
+    .worker-command-center,
+    .warpkeep-settings__panel,
+    .realm-cell-navigator__dialog,
+    .castle-inspection__drawer,
+    .gold-mine-inspection__drawer,
+    .worker-inspection__drawer,
+    .water-inspection__drawer
+  ) {
+  animation-duration: 210ms;
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.2, 0.72, 0.28, 1);
+}
+
+.realm-map-screen[data-realm-surface-motion="forward"]
+  :is(
+    .realm-profile-menu__panel,
+    .worker-command-center,
+    .warpkeep-settings__panel,
+    .realm-cell-navigator__dialog,
+    .castle-inspection__drawer,
+    .gold-mine-inspection__drawer,
+    .worker-inspection__drawer,
+    .water-inspection__drawer
+  ) {
+  animation-name: realm-surface-content-forward;
+}
+
+.realm-map-screen[data-realm-surface-motion="backward"]
+  :is(
+    .realm-profile-menu__panel,
+    .worker-command-center,
+    .warpkeep-settings__panel,
+    .realm-cell-navigator__dialog,
+    .castle-inspection__drawer,
+    .gold-mine-inspection__drawer,
+    .worker-inspection__drawer,
+    .water-inspection__drawer
+  ) {
+  animation-name: realm-surface-content-backward;
+}
+
+.realm-map-screen[data-realm-surface-motion="replace"]
+  :is(
+    .realm-profile-menu__panel,
+    .worker-command-center,
+    .warpkeep-settings__panel,
+    .realm-cell-navigator__dialog,
+    .castle-inspection__drawer,
+    .gold-mine-inspection__drawer,
+    .worker-inspection__drawer,
+    .water-inspection__drawer
+  ) {
+  animation-name: realm-surface-content-replace;
+}
+
 .realm-map-screen[data-realm-surface-depth]:not([data-realm-surface-depth="0"])
   :is(
     .realm-map-screen__canvas,
@@ -1511,6 +1569,22 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .realm-map-screen[data-realm-surface-presentation="fullscreen-destination"]
+    :is(
+      .realm-profile-menu__panel,
+      .worker-command-center,
+      .warpkeep-settings__panel,
+      .realm-cell-navigator__dialog,
+      .castle-inspection__drawer,
+      .gold-mine-inspection__drawer,
+      .worker-inspection__drawer,
+      .water-inspection__drawer
+    ) {
+    animation-name: realm-surface-content-replace !important;
+    animation-duration: 80ms !important;
+    animation-timing-function: linear !important;
+  }
+
   .realm-map-screen *,
   .realm-map-screen *::before,
   .realm-map-screen *::after {

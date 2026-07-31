@@ -10,6 +10,11 @@ export {
   type WarpkeepSfxDirectorProps
 } from './WarpkeepSfxDirector';
 export {
+  WarpkeepHapticsDirector,
+  resolveWarpkeepHapticCue,
+  type WarpkeepHapticCue
+} from './WarpkeepHapticsDirector';
+export {
   ProceduralSfxEngine,
   getWarpkeepSfxRecipe,
   measureWarpkeepAudioBuffer,

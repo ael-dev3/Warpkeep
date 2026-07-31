@@ -139,11 +139,16 @@ const AUTH_V2_CREDENTIAL_PATHS = new Set([
   '/v2/session/logout',
 ]);
 const AUTH_V2_QUICK_AUTH_PATH = '/v2/farcaster/quick-auth/exchange';
+const AUTH_V2_ACCESS_REQUEST_PATHS = new Set([
+  '/v2/access/status',
+  '/v2/access/request',
+]);
 const AUTH_V2_PAUSED_PATHS = new Set([
   '/v2/farcaster/challenge',
   '/v2/farcaster/exchange',
   '/v2/session/refresh',
   AUTH_V2_QUICK_AUTH_PATH,
+  ...AUTH_V2_ACCESS_REQUEST_PATHS,
 ]);
 const AUTH_V2_SERVER_ONLY_ADMIN_PATHS = new Set([
   '/v1/admin/token',
@@ -1003,9 +1008,17 @@ function authV2BridgeFetch(options: AuthV2FixtureOptions = {}) {
       && (
         AUTH_V2_CREDENTIAL_PATHS.has(url.pathname)
         || url.pathname === AUTH_V2_QUICK_AUTH_PATH
+        || AUTH_V2_ACCESS_REQUEST_PATHS.has(url.pathname)
       )
     ) {
-      const quickAuth = url.pathname === AUTH_V2_QUICK_AUTH_PATH;
+      const quickAuth = url.pathname === AUTH_V2_QUICK_AUTH_PATH
+        || (
+          AUTH_V2_ACCESS_REQUEST_PATHS.has(url.pathname)
+          && requestHeaders
+            .get('access-control-request-headers')
+            ?.split(',')
+            .some(header => header.trim().toLowerCase() === 'authorization')
+        );
       const corsForOrigin = (value: string) => (
         quickAuth ? quickAuthCors(value) : credentialedCors(value)
       );
@@ -3708,7 +3721,7 @@ describe('bounded auth-v2 production readiness verification', () => {
       fetchImpl,
     })).resolves.toBeUndefined();
 
-    expect(fetchImpl).toHaveBeenCalledTimes(24);
+    expect(fetchImpl).toHaveBeenCalledTimes(32);
     for (const [input, init] of fetchImpl.mock.calls) {
       const url = new URL(String(input));
       const headers = new Headers(init?.headers);
@@ -3723,12 +3736,18 @@ describe('bounded auth-v2 production readiness verification', () => {
       if (
         AUTH_V2_CREDENTIAL_PATHS.has(url.pathname)
         || url.pathname === AUTH_V2_QUICK_AUTH_PATH
+        || AUTH_V2_ACCESS_REQUEST_PATHS.has(url.pathname)
         || url.pathname === '/v1/farcaster/challenge'
         || url.pathname === '/v1/farcaster/exchange'
       ) {
         expect(headers.get('access-control-request-method')).toBe('POST');
         expect(headers.get('access-control-request-headers')).toBe(
           url.pathname === AUTH_V2_QUICK_AUTH_PATH
+            || (
+              AUTH_V2_ACCESS_REQUEST_PATHS.has(url.pathname)
+              && headers.get('access-control-request-headers')
+                ?.includes('authorization')
+            )
             ? 'authorization, content-type'
             : 'content-type',
         );
@@ -3750,8 +3769,34 @@ describe('bounded auth-v2 production readiness verification', () => {
       expect(calls).toHaveLength(3);
       expect(calls.map(([, init]) => init?.method)).toEqual(['GET', 'OPTIONS', 'OPTIONS']);
     }
+    for (const pathname of AUTH_V2_ACCESS_REQUEST_PATHS) {
+      const calls = fetchImpl.mock.calls.filter(
+        ([input]) => new URL(String(input)).pathname === pathname,
+      );
+      expect(calls).toHaveLength(4);
+      expect(calls.map(([, init]) => init?.method)).toEqual([
+        'OPTIONS',
+        'OPTIONS',
+        'OPTIONS',
+        'OPTIONS',
+      ]);
+      expect(calls.map(([, init]) => new Headers(init?.headers).get('origin'))).toEqual([
+        FRONTEND,
+        'https://not-warpkeep.invalid',
+        FRONTEND,
+        'https://not-warpkeep.invalid',
+      ]);
+      expect(calls.map(([, init]) => (
+        new Headers(init?.headers).get('access-control-request-headers')
+      ))).toEqual([
+        'content-type',
+        'content-type',
+        'authorization, content-type',
+        'authorization, content-type',
+      ]);
+    }
     expect(log).toHaveBeenCalledWith(
-      'bridge: contained auth-v2 health, discovery, JWKS, retired v1, security headers, and credentialed plus bearer CORS verified',
+      'bridge: contained auth-v2 health, discovery, JWKS, retired v1, security headers, and credentialed plus bearer access CORS verified',
     );
   });
 
@@ -3764,7 +3809,7 @@ describe('bounded auth-v2 production readiness verification', () => {
       fetchImpl,
     })).resolves.toBeUndefined();
 
-    expect(fetchImpl).toHaveBeenCalledTimes(24);
+    expect(fetchImpl).toHaveBeenCalledTimes(32);
     for (const [input, init] of fetchImpl.mock.calls) {
       const url = new URL(String(input));
       const headers = new Headers(init?.headers);
@@ -3783,8 +3828,22 @@ describe('bounded auth-v2 production readiness verification', () => {
       expect(calls).toHaveLength(3);
       expect(calls.map(([, init]) => init?.method)).toEqual(['GET', 'OPTIONS', 'OPTIONS']);
     }
+    for (const pathname of AUTH_V2_ACCESS_REQUEST_PATHS) {
+      const calls = fetchImpl.mock.calls.filter(
+        ([input]) => new URL(String(input)).pathname === pathname,
+      );
+      expect(calls).toHaveLength(4);
+      expect(calls.map(([, init]) => (
+        new Headers(init?.headers).get('access-control-request-headers')
+      ))).toEqual([
+        'content-type',
+        'content-type',
+        'authorization, content-type',
+        'authorization, content-type',
+      ]);
+    }
     expect(log).toHaveBeenCalledWith(
-      'bridge: enabled auth-v2 read-only health, discovery, JWKS, retired v1, security headers, and credentialed plus bearer CORS verified',
+      'bridge: enabled auth-v2 read-only health, discovery, JWKS, retired v1, security headers, and credentialed plus bearer access CORS verified',
     );
   });
 

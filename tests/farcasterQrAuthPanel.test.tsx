@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   FarcasterIdentityBadge,
   getFarcasterIdentityMonogram,
+  getFarcasterPublicIdentityLabel,
   getSafeFarcasterProfileImageUrl
 } from '../src/components/auth/FarcasterIdentityBadge';
 import {
@@ -14,6 +15,7 @@ import {
   type FarcasterQrAuthPanelProps
 } from '../src/components/auth/FarcasterQrAuthPanel';
 import type { VerifiedFarcasterIdentity } from '../src/farcaster/farcasterAuthTypes';
+import { subscribeWarpkeepSfx } from '../src/components/audio/sfxEvents';
 
 const PROFILE_IMAGE_URL =
   'https://imagedelivery.net/BXluQx4ige9GuW0Ia56BHw/bc698287-5adc-4cc5-a503-de16963ed900/original';
@@ -354,6 +356,56 @@ describe('FarcasterQrAuthPanel', () => {
     expect(callbacks.onSignOut).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps an identity-only fallback useful without exposing a raw FID', () => {
+    const identity: VerifiedFarcasterIdentity = {
+      fid: 88,
+      verifications: [],
+      verifiedAt: verifiedIdentity.verifiedAt
+    };
+    renderPanel({
+      phase: 'pending-admission',
+      identity,
+      accessRequest: { phase: 'not-requested' }
+    });
+
+    expect(screen.getByText('Verified Farcaster account')).not.toBeNull();
+    expect(screen.getByText(/^Farcaster identity verified:/u).textContent).toContain(
+      'Verified Farcaster account'
+    );
+    expect(document.body.textContent).not.toContain('FID 88');
+  });
+
+  it('emits confirmed request feedback only after an explicit submission settles', () => {
+    const observedKinds: string[] = [];
+    const unsubscribe = subscribeWarpkeepSfx(events => {
+      observedKinds.push(...events.map(event => event.kind));
+    });
+    const panel = renderPanel({
+      phase: 'pending-admission',
+      identity: verifiedIdentity,
+      accessRequest: { phase: 'submitting' }
+    });
+
+    panel.rerender(
+      <FarcasterQrAuthPanel
+        phase="pending-admission"
+        identity={verifiedIdentity}
+        accessRequest={{ phase: 'requested', requestedAt: 1_750_000_000_000 }}
+        onCancel={panel.callbacks.onCancel}
+        onRetry={panel.callbacks.onRetry}
+        onBackToMenu={panel.callbacks.onBackToMenu}
+        onCheckAdmission={panel.callbacks.onCheckAdmission}
+        onRequestAccess={panel.callbacks.onRequestAccess}
+        onRetryAccessRequestStatus={panel.callbacks.onRetryAccessRequestStatus}
+        onEnterRealm={panel.callbacks.onEnterRealm}
+        onSignOut={panel.callbacks.onSignOut}
+      />
+    );
+
+    expect(observedKinds).toEqual(['access-request-confirmed']);
+    unsubscribe();
+  });
+
   it('renders a confirmed request timestamp without exposing queue or identity authority', () => {
     renderPanel({
       phase: 'pending-admission',
@@ -457,7 +509,9 @@ describe('FarcasterIdentityBadge', () => {
     expect(container.querySelector('.farcaster-identity-badge__monogram')?.textContent).toBe('S');
     expect(getFarcasterIdentityMonogram(fallbackIdentity)).toBe('S');
     expect(screen.queryByText(/^@/)).toBeNull();
-    expect(screen.getByText('FID 88')).not.toBeNull();
+    expect(screen.getByText('Steward')).not.toBeNull();
+    expect(screen.queryByText('FID 88')).toBeNull();
+    expect(getFarcasterPublicIdentityLabel(fallbackIdentity)).toBe('Steward');
   });
 
   it('uses a native button only when the compact badge is interactive', () => {
@@ -489,7 +543,8 @@ describe('FarcasterIdentityBadge', () => {
       />
     );
     expect(screen.getByRole('button', {
-      name: 'Open Farcaster identity, FID 88'
+      name: 'Open Farcaster identity, Verified Farcaster account'
     })).not.toBeNull();
+    expect(screen.queryByText('FID 88')).toBeNull();
   });
 });

@@ -54,9 +54,14 @@ const AUTH_V2_CREDENTIAL_PATHS = Object.freeze([
   '/v2/session/logout',
 ]);
 const AUTH_V2_QUICK_AUTH_PATH = '/v2/farcaster/quick-auth/exchange';
+const AUTH_V2_ACCESS_REQUEST_PATHS = Object.freeze([
+  '/v2/access/status',
+  '/v2/access/request',
+]);
 const AUTH_V2_PAUSED_PATHS = new Set([
   ...AUTH_V2_CREDENTIAL_PATHS.slice(0, 3),
   AUTH_V2_QUICK_AUTH_PATH,
+  ...AUTH_V2_ACCESS_REQUEST_PATHS,
 ]);
 const AUTH_V2_SERVER_ONLY_ADMIN_PATHS = Object.freeze([
   '/v1/admin/token',
@@ -1048,21 +1053,22 @@ async function verifyAuthV2Preflight(
   }
 }
 
-async function verifyAuthV2QuickAuthPreflight(
+async function verifyAuthV2BearerPreflight(
   frontend,
   bridge,
+  pathname,
   expectedPublicAuthEnabled,
   fetchImpl,
 ) {
   const paused = !expectedPublicAuthEnabled
-    && AUTH_V2_PAUSED_PATHS.has(AUTH_V2_QUICK_AUTH_PATH);
-  const label = `bridge ${AUTH_V2_QUICK_AUTH_PATH} ${paused
+    && AUTH_V2_PAUSED_PATHS.has(pathname);
+  const label = `bridge ${pathname} ${paused
     ? 'paused check'
     : expectedPublicAuthEnabled
       ? 'enabled preflight'
       : 'preflight'}`;
   const preflight = await fetchWithTimeout(
-    `${bridge}${AUTH_V2_QUICK_AUTH_PATH}`,
+    `${bridge}${pathname}`,
     {
       method: 'OPTIONS',
       headers: {
@@ -1088,9 +1094,9 @@ async function verifyAuthV2QuickAuthPreflight(
   }
 
   const hostileLabel =
-    `bridge ${AUTH_V2_QUICK_AUTH_PATH} hostile-origin check`;
+    `bridge ${pathname} hostile-origin check`;
   const hostile = await fetchWithTimeout(
-    `${bridge}${AUTH_V2_QUICK_AUTH_PATH}`,
+    `${bridge}${pathname}`,
     {
       method: 'OPTIONS',
       headers: {
@@ -1240,17 +1246,34 @@ async function verifyAuthV2Bridge(frontend, bridge, expectedPublicAuthEnabled, f
       fetchImpl,
     );
   }
-  await verifyAuthV2QuickAuthPreflight(
+  await verifyAuthV2BearerPreflight(
     frontend,
     bridge,
+    AUTH_V2_QUICK_AUTH_PATH,
     expectedPublicAuthEnabled,
     fetchImpl,
   );
+  for (const pathname of AUTH_V2_ACCESS_REQUEST_PATHS) {
+    await verifyAuthV2Preflight(
+      frontend,
+      bridge,
+      pathname,
+      expectedPublicAuthEnabled,
+      fetchImpl,
+    );
+    await verifyAuthV2BearerPreflight(
+      frontend,
+      bridge,
+      pathname,
+      expectedPublicAuthEnabled,
+      fetchImpl,
+    );
+  }
 
   await verifyAuthV2AdminBrowserIsolation(frontend, bridge, fetchImpl);
   console.log(expectedPublicAuthEnabled
-    ? 'bridge: enabled auth-v2 read-only health, discovery, JWKS, retired v1, security headers, and credentialed plus bearer CORS verified'
-    : 'bridge: contained auth-v2 health, discovery, JWKS, retired v1, security headers, and credentialed plus bearer CORS verified');
+    ? 'bridge: enabled auth-v2 read-only health, discovery, JWKS, retired v1, security headers, and credentialed plus bearer access CORS verified'
+    : 'bridge: contained auth-v2 health, discovery, JWKS, retired v1, security headers, and credentialed plus bearer access CORS verified');
 }
 
 export async function verifyBridge(frontend, bridge, options = {}) {

@@ -6,27 +6,21 @@ full engineering record.
 
 ## [Unreleased]
 
-- Reframed the Mini App feed preview around the living Hegemony realm.
-- Restored direct Realm selection, panning, and pinch zoom across iPhone,
-  Android, and embedded Mini App browsers while keeping record scrolling
-  independent from the map.
-- Adopted the Hegemony crest as Warpkeep's cache-safe Mini App icon, browser
-  favicon, and iOS home-screen mark.
+## [0.3.28] — 2026-07-31
 
-## [0.3.28] — 2026-07-30
-
-- Added a portrait-first Farcaster Mini App entry with a compact top resource
-  rail, host safe areas, and one browser/host Back hierarchy.
-- Moved compact keep, Worker, resource, Water, terrain, Explore, and Settings
-  records into focused full-screen destinations while preserving camera,
-  selection, and the long-lived Realm scene beneath them.
-- Added verified keeper identity, relevant resource-site shortcuts, and
-  capability-aware Farcaster profile and Mini App exit actions.
-- Added exact-domain, server-verified Farcaster Quick Auth without persistent
-  browser bearers or cross-site cookies; ordinary browser SIWF remains
-  unchanged.
-- Added static Mini App embed metadata and fail-closed manifest, image,
-  provenance, CSP, and Pages release checks.
+- Brought Genesis 001 into a portrait-first Farcaster Mini App with a compact
+  resource rail, host safe areas, and one predictable Back path through keeps,
+  Workers, resources, Water, Explore, and Settings.
+- Restored direct selection, panning, and pinch zoom across iPhone, Android,
+  and embedded browsers, with restrained destination motion and optional host
+  haptics that never replace visible or accessible feedback.
+- Let verified, not-yet-admitted players submit a private access request for
+  manual review without granting admission, creating a castle, or exposing a
+  raw identity number in ordinary presentation.
+- Added exact-domain, server-verified Quick Auth without persistent browser
+  bearers or cross-site cookies; ordinary browser SIWF remains available.
+- Reframed the Mini App preview around the living Realm and adopted the
+  Hegemony crest for the Mini App, browser favicon, and iOS home screen.
 - Left admission, ownership, balances, Worker authority, terrain, and
   persistent world rules unchanged.
 

@@ -1813,6 +1813,40 @@ export function parseRenderedWebglWaterOverviewEvidence(value) {
 }
 
 /**
+ * Boolean-only proof for the complete Water-record interaction path. Cell
+ * keys and camera tokens stay inside the isolated loopback page; the probe
+ * receives only whether each ordinary navigation path preserved the camera
+ * and whether the explicit Focus action changed it.
+ */
+export function parseRenderedWebglWaterRecordJourneyEvidence(value) {
+  const candidate = exactRecord(
+    value,
+    'Invalid rendered WebGL Water record journey evidence.'
+  );
+  const expected = Object.freeze({
+    cameraNeutral: true,
+    escapeClosed: true,
+    focusChangedCamera: true,
+    followAdvanced: true,
+    keyboardAdvanced: true,
+    mouthOpened: true,
+    nextOpened: true,
+    recordOpened: true,
+    sourceOpened: true,
+    stopCompleted: true,
+  });
+  if (
+    !exactMessageKeys(candidate, new Set(Object.keys(expected)))
+    || Object.keys(expected).some((key) => candidate[key] !== expected[key])
+  ) {
+    throw new TypeError(
+      'Invalid rendered WebGL Water record journey evidence.'
+    );
+  }
+  return expected;
+}
+
+/**
  * Boolean-only proof that the dense synthetic fixture reached the real
  * renderer, retained every source occupation, and exercised all four
  * resource-marker paths under the shared passive/control budgets.
@@ -5381,6 +5415,415 @@ export async function applyRenderedWebglPresentationBandInteraction(session) {
   }
 }
 
+async function readRenderedWebglVisibleButtonTarget(
+  session,
+  selector,
+  expectedText
+) {
+  const evaluation = await session.command('Runtime.evaluate', {
+    expression: `(() => {
+      const normalize = (value) => (value ?? '').replace(/\\s+/gu, ' ').trim();
+      const visible = (element) => {
+        if (!(element instanceof HTMLButtonElement) || element.disabled) return false;
+        const style = getComputedStyle(element);
+        const bounds = element.getBoundingClientRect();
+        return style.display !== 'none'
+          && style.visibility !== 'hidden'
+          && Number(style.opacity || '1') > 0
+          && bounds.width >= 1
+          && bounds.height >= 1;
+      };
+      const target = [...document.querySelectorAll(${JSON.stringify(selector)})]
+        .find((element) => (
+          visible(element)
+          && (
+            ${JSON.stringify(expectedText)} === null
+            || normalize(element.textContent) === ${JSON.stringify(expectedText)}
+            || normalize(element.querySelector('strong')?.textContent) === ${JSON.stringify(expectedText)}
+          )
+        ));
+      if (!(target instanceof HTMLButtonElement)) return null;
+      target.scrollIntoView({ block: 'center', inline: 'center' });
+      const bounds = target.getBoundingClientRect();
+      const x = (bounds.left + bounds.right) * 0.5;
+      const y = (bounds.top + bounds.bottom) * 0.5;
+      const hit = document.elementFromPoint(x, y);
+      return hit && target.contains(hit)
+        ? {
+            x: Math.round(x * 100) / 100,
+            y: Math.round(y * 100) / 100,
+          }
+        : null;
+    })()`,
+    returnByValue: true,
+  });
+  if (evaluation?.exceptionDetails || evaluation?.result?.type !== 'object') {
+    throw new Error('Rendered WebGL Water record control target failed.');
+  }
+  return parseRenderedWebglCastleCanvasPointerTarget(
+    evaluation.result.value
+  );
+}
+
+async function activateRenderedWebglVisibleButton(
+  session,
+  selector,
+  expectedText
+) {
+  const target = await readRenderedWebglVisibleButtonTarget(
+    session,
+    selector,
+    expectedText
+  );
+  await session.command('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: target.x,
+    y: target.y,
+    button: 'none',
+    buttons: 0,
+    pointerType: 'mouse',
+  });
+  await session.command('Input.dispatchMouseEvent', {
+    type: 'mousePressed',
+    x: target.x,
+    y: target.y,
+    button: 'left',
+    buttons: 1,
+    clickCount: 1,
+    pointerType: 'mouse',
+  });
+  await session.command('Input.dispatchMouseEvent', {
+    type: 'mouseReleased',
+    x: target.x,
+    y: target.y,
+    button: 'left',
+    buttons: 0,
+    clickCount: 1,
+    pointerType: 'mouse',
+  });
+}
+
+function renderedWebglWaterPagePredicate(name) {
+  switch (name) {
+    case 'profile-menu':
+      return 'document.querySelector(".realm-profile-menu__panel") instanceof HTMLElement';
+    case 'explore-destination':
+      return 'document.querySelector(".realm-cell-navigator__dialog") instanceof HTMLElement';
+    case 'river-record':
+      return 'document.querySelector(".water-inspection[data-water-regime=\\"river\\"]") instanceof HTMLElement';
+    case 'neutral-cell-change':
+      return `(() => {
+        const state = globalThis.__warpkeepWaterRecordJourney;
+        const root = document.querySelector('.realm-map-screen');
+        const canvas = root?.querySelector(
+          'canvas[data-realm-canvas-active="true"]'
+        );
+        const cellKey = root?.getAttribute('data-realm-selected-cell-key');
+        const cameraToken = canvas?.getAttribute('data-realm-camera-state-token');
+        if (
+          !state
+          || typeof cellKey !== 'string'
+          || cellKey.length === 0
+          || cellKey === state.cellKey
+        ) return false;
+        state.cameraNeutral = state.cameraNeutral
+          && cameraToken === state.cameraToken;
+        state.cellKey = cellKey;
+        return state.cameraNeutral;
+      })()`;
+    case 'follow-source-reset':
+      return `(() => {
+        const state = globalThis.__warpkeepWaterRecordJourney;
+        const root = document.querySelector('.realm-map-screen');
+        const canvas = root?.querySelector(
+          'canvas[data-realm-canvas-active="true"]'
+        );
+        const cellKey = root?.getAttribute('data-realm-selected-cell-key');
+        if (!state || typeof cellKey !== 'string' || cellKey === state.cellKey) {
+          return false;
+        }
+        state.cameraNeutral = state.cameraNeutral
+          && canvas?.getAttribute('data-realm-camera-state-token')
+            === state.cameraToken;
+        state.cellKey = cellKey;
+        return state.cameraNeutral;
+      })()`;
+    case 'follow-stop':
+      return `(() => {
+        const state = globalThis.__warpkeepWaterRecordJourney;
+        const stop = [...document.querySelectorAll('.water-inspection button')]
+          .find((button) => button.textContent?.trim() === 'STOP FOLLOWING');
+        if (!state || !(stop instanceof HTMLButtonElement) || !stop.disabled) {
+          return false;
+        }
+        state.stopCompleted = true;
+        return true;
+      })()`;
+    case 'explicit-focus':
+      return `(() => {
+        const state = globalThis.__warpkeepWaterRecordJourney;
+        const root = document.querySelector('.realm-map-screen');
+        const canvas = root?.querySelector(
+          'canvas[data-realm-canvas-active="true"]'
+        );
+        if (
+          !state
+          || root?.getAttribute('data-realm-camera-target-kind')
+            !== 'cell-location'
+          || canvas?.getAttribute('data-realm-camera-settled') !== 'true'
+          || canvas?.getAttribute('data-realm-camera-state-token')
+            === state.cameraToken
+        ) return false;
+        state.focusChangedCamera = true;
+        return true;
+      })()`;
+    case 'escape-close':
+      return 'document.querySelector(".water-inspection") === null';
+    default:
+      throw new TypeError('Invalid rendered WebGL Water record predicate.');
+  }
+}
+
+async function waitForRenderedWebglPageBoolean(
+  session,
+  predicate,
+  label,
+  timeoutMilliseconds = 5_000
+) {
+  const deadline = Date.now() + timeoutMilliseconds;
+  while (Date.now() < deadline) {
+    const evaluation = await session.command('Runtime.evaluate', {
+      expression: renderedWebglWaterPagePredicate(predicate),
+      returnByValue: true,
+    });
+    if (
+      !evaluation?.exceptionDetails
+      && evaluation?.result?.type === 'boolean'
+      && evaluation.result.value === true
+    ) return;
+    await delay(40);
+  }
+  throw new Error(`Rendered WebGL Water record ${label} did not settle.`);
+}
+
+async function dispatchRenderedWebglKey(session, key) {
+  const keySpec = Object.freeze({
+    ArrowRight: Object.freeze({
+      code: 'ArrowRight',
+      key: 'ArrowRight',
+      virtualKeyCode: 39,
+    }),
+    Escape: Object.freeze({
+      code: 'Escape',
+      key: 'Escape',
+      virtualKeyCode: 27,
+    }),
+  })[key];
+  if (!keySpec) throw new Error('Invalid rendered WebGL Water record key.');
+  await session.command('Input.dispatchKeyEvent', {
+    type: 'keyDown',
+    code: keySpec.code,
+    key: keySpec.key,
+    windowsVirtualKeyCode: keySpec.virtualKeyCode,
+    nativeVirtualKeyCode: keySpec.virtualKeyCode,
+  });
+  await session.command('Input.dispatchKeyEvent', {
+    type: 'keyUp',
+    code: keySpec.code,
+    key: keySpec.key,
+    windowsVirtualKeyCode: keySpec.virtualKeyCode,
+    nativeVirtualKeyCode: keySpec.virtualKeyCode,
+  });
+}
+
+/**
+ * Opens one canonical river through the real player Explore path, exercises
+ * pointer and keyboard navigation plus bounded follow/stop, then proves that
+ * only the explicit Focus action changes the camera. Private cell keys and
+ * camera tokens are compared only inside the isolated page.
+ */
+export async function applyRenderedWebglWaterRecordJourney(session) {
+  await activateRenderedWebglVisibleButton(
+    session,
+    '.realm-profile-trigger',
+    null
+  );
+  await waitForRenderedWebglPageBoolean(
+    session,
+    'profile-menu',
+    'profile menu'
+  );
+  await activateRenderedWebglVisibleButton(
+    session,
+    '.realm-profile-menu__panel nav button',
+    'EXPLORE'
+  );
+  await waitForRenderedWebglPageBoolean(
+    session,
+    'explore-destination',
+    'Explore destination'
+  );
+  await activateRenderedWebglVisibleButton(
+    session,
+    '.realm-cell-navigator__water-row button',
+    'SOURCE'
+  );
+  await waitForRenderedWebglPageBoolean(
+    session,
+    'river-record',
+    'river record'
+  );
+  await waitForRenderedWebglCameraSettled(session);
+
+  const initialized = await session.command('Runtime.evaluate', {
+    expression: `(() => {
+      const root = document.querySelector('.realm-map-screen');
+      const canvas = root?.querySelector(
+        'canvas[data-realm-canvas-active="true"]'
+      );
+      const record = document.querySelector(
+        '.water-inspection[data-water-regime="river"]'
+      );
+      const cameraToken = canvas?.getAttribute('data-realm-camera-state-token');
+      const cellKey = root?.getAttribute('data-realm-selected-cell-key');
+      if (
+        !(root instanceof HTMLElement)
+        || !(canvas instanceof HTMLCanvasElement)
+        || !(record instanceof HTMLElement)
+        || typeof cellKey !== 'string'
+        || cellKey.length === 0
+        || typeof cameraToken !== 'string'
+        || !/^[0-9a-f]{24}$/u.test(cameraToken)
+      ) return false;
+      globalThis.__warpkeepWaterRecordJourney = {
+        cameraNeutral: true,
+        cameraToken,
+        cellKey,
+        focusChangedCamera: false,
+        stopCompleted: false,
+      };
+      return true;
+    })()`,
+    returnByValue: true,
+  });
+  if (
+    initialized?.exceptionDetails
+    || initialized?.result?.type !== 'boolean'
+    || initialized.result.value !== true
+  ) throw new Error('Rendered WebGL Water record journey initialization failed.');
+
+  const completedSteps = new Set();
+  const waitForNeutralCellChange = async (step, label) => {
+    await waitForRenderedWebglPageBoolean(
+      session,
+      'neutral-cell-change',
+      label,
+      6_000
+    );
+    completedSteps.add(step);
+  };
+
+  await activateRenderedWebglVisibleButton(
+    session,
+    '.water-inspection button',
+    'NEXT'
+  );
+  await waitForNeutralCellChange('nextOpened', 'next step');
+
+  await dispatchRenderedWebglKey(session, 'ArrowRight');
+  await waitForNeutralCellChange('keyboardAdvanced', 'keyboard step');
+
+  await activateRenderedWebglVisibleButton(
+    session,
+    '.water-inspection button',
+    'SOURCE'
+  );
+  await waitForNeutralCellChange('sourceOpened', 'source step');
+
+  await activateRenderedWebglVisibleButton(
+    session,
+    '.water-inspection button',
+    'MOUTH'
+  );
+  await waitForNeutralCellChange('mouthOpened', 'mouth step');
+
+  await activateRenderedWebglVisibleButton(
+    session,
+    '.water-inspection button',
+    'SOURCE'
+  );
+  await waitForRenderedWebglPageBoolean(
+    session,
+    'follow-source-reset',
+    'follow source reset'
+  );
+
+  await activateRenderedWebglVisibleButton(
+    session,
+    '.water-inspection button',
+    'FOLLOW DOWN'
+  );
+  await waitForNeutralCellChange('followAdvanced', 'follow step');
+  await activateRenderedWebglVisibleButton(
+    session,
+    '.water-inspection button',
+    'STOP FOLLOWING'
+  );
+  await waitForRenderedWebglPageBoolean(
+    session,
+    'follow-stop',
+    'follow stop'
+  );
+
+  await activateRenderedWebglVisibleButton(
+    session,
+    '.water-inspection button',
+    'FOCUS CELL'
+  );
+  await waitForRenderedWebglPageBoolean(
+    session,
+    'explicit-focus',
+    'explicit focus',
+    6_000
+  );
+
+  await dispatchRenderedWebglKey(session, 'Escape');
+  await waitForRenderedWebglPageBoolean(
+    session,
+    'escape-close',
+    'Escape close'
+  );
+
+  const evidence = await session.command('Runtime.evaluate', {
+    expression: `(() => {
+      const state = globalThis.__warpkeepWaterRecordJourney;
+      delete globalThis.__warpkeepWaterRecordJourney;
+      if (!state) return null;
+      return {
+        cameraNeutral: state.cameraNeutral === true,
+        escapeClosed: document.querySelector('.water-inspection') === null,
+        focusChangedCamera: state.focusChangedCamera === true,
+        stopCompleted: state.stopCompleted === true,
+      };
+    })()`,
+    returnByValue: true,
+  });
+  if (evidence?.exceptionDetails || evidence?.result?.type !== 'object') {
+    throw new Error('Rendered WebGL Water record journey evidence failed.');
+  }
+  return parseRenderedWebglWaterRecordJourneyEvidence(
+    Object.freeze({
+      ...evidence.result.value,
+      followAdvanced: completedSteps.has('followAdvanced'),
+      keyboardAdvanced: completedSteps.has('keyboardAdvanced'),
+      mouthOpened: completedSteps.has('mouthOpened'),
+      nextOpened: completedSteps.has('nextOpened'),
+      recordOpened: true,
+      sourceOpened: completedSteps.has('sourceOpened'),
+    })
+  );
+}
+
 /**
  * Replays the reported upper-right overview using only ordinary camera input.
  * The synthetic active-Worker fixture keeps route reconciliation present while
@@ -8755,6 +9198,12 @@ async function runRenderedActiveWorkerCase(session, probeCase, state) {
   await navigateRenderedWebglCase(session, waterOverviewCase.url, state);
   await waitForAcceptedRenderedDom(session, waterOverviewCase, state);
   await applyRenderedWebglWaterOverviewInteraction(session);
+  await captureRenderedCasePixels(session, waterOverviewCase.viewport);
+
+  await navigateRenderedWebglCase(session, 'about:blank', state);
+  await navigateRenderedWebglCase(session, waterOverviewCase.url, state);
+  await waitForAcceptedRenderedDom(session, waterOverviewCase, state);
+  await applyRenderedWebglWaterRecordJourney(session);
   await captureRenderedCasePixels(session, waterOverviewCase.viewport);
   if (state.violation) {
     throw new Error('Rendered WebGL active Worker case left the local QA boundary.');

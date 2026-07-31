@@ -150,6 +150,68 @@
   background: rgb(7 6 11 / 97%);
 }
 
+@keyframes realm-surface-content-forward {
+  from {
+    opacity: 0;
+    transform: translate3d(12px, 0, 0);
+  }
+}
+
+@keyframes realm-surface-content-backward {
+  from {
+    opacity: 0;
+    transform: translate3d(-12px, 0, 0);
+  }
+}
+
+@keyframes realm-surface-content-replace {
+  from {
+    opacity: 0;
+  }
+}
+
+.realm-map-screen[data-realm-surface-presentation="fullscreen-destination"]
+  [data-realm-fullscreen-surface="true"]
+  :is(
+    .realm-fullscreen-surface__header-grid,
+    .realm-fullscreen-surface__body,
+    .realm-fullscreen-surface__footer
+  ) {
+  animation-duration: 210ms;
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.2, 0.72, 0.28, 1);
+}
+
+.realm-map-screen[data-realm-surface-motion="forward"]
+  [data-realm-fullscreen-surface="true"]
+  :is(
+    .realm-fullscreen-surface__header-grid,
+    .realm-fullscreen-surface__body,
+    .realm-fullscreen-surface__footer
+  ) {
+  animation-name: realm-surface-content-forward;
+}
+
+.realm-map-screen[data-realm-surface-motion="backward"]
+  [data-realm-fullscreen-surface="true"]
+  :is(
+    .realm-fullscreen-surface__header-grid,
+    .realm-fullscreen-surface__body,
+    .realm-fullscreen-surface__footer
+  ) {
+  animation-name: realm-surface-content-backward;
+}
+
+.realm-map-screen[data-realm-surface-motion="replace"]
+  [data-realm-fullscreen-surface="true"]
+  :is(
+    .realm-fullscreen-surface__header-grid,
+    .realm-fullscreen-surface__body,
+    .realm-fullscreen-surface__footer
+  ) {
+  animation-name: realm-surface-content-replace;
+}
+
 @media (max-width: 360px) {
   .realm-fullscreen-surface__header-grid {
     grid-template-columns: 44px minmax(0, 1fr) 44px;
@@ -174,5 +236,14 @@
     scroll-behavior: auto;
     transition: none !important;
   }
-}
 
+  .realm-map-screen[data-realm-surface-presentation="fullscreen-destination"]
+    [data-realm-fullscreen-surface="true"]
+    :is(
+      .realm-fullscreen-surface__header-grid,
+      .realm-fullscreen-surface__body,
+      .realm-fullscreen-surface__footer
+    ) {
+    animation: realm-surface-content-replace 80ms linear both;
+  }
+}

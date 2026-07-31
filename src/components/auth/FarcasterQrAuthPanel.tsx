@@ -8,12 +8,16 @@ import type {
   FarcasterSessionAssurance,
   VerifiedFarcasterIdentity
 } from '../../farcaster/farcasterAuthTypes';
+import { emitWarpkeepSfx } from '../audio/sfxEvents';
 import {
   accessRequestOwnsPrimaryAction,
   FarcasterAccessRequestAction,
   FarcasterAccessRequestMessage
 } from './FarcasterAccessRequest';
-import { FarcasterIdentityBadge, normalizeFarcasterUsername } from './FarcasterIdentityBadge';
+import {
+  FarcasterIdentityBadge,
+  getFarcasterPublicIdentityLabel
+} from './FarcasterIdentityBadge';
 import './FarcasterQrAuthPanel.css';
 
 const IDLE_ACCESS_REQUEST: AccessRequestViewState = Object.freeze({ phase: 'idle' });
@@ -152,7 +156,7 @@ function getLiveAnnouncement(
   assurance: FarcasterSessionAssurance
 ) {
   const publicIdentityLabel = identity
-    ? normalizeFarcasterUsername(identity.username) ?? `FID ${identity.fid}`
+    ? getFarcasterPublicIdentityLabel(identity)
     : undefined;
   switch (phase) {
     case 'creating-channel':
@@ -234,6 +238,7 @@ export function FarcasterQrAuthPanel({
     getFarcasterAuthPresentation
   );
   const autoRequestedChannelRef = useRef<string | undefined>(undefined);
+  const previousAccessRequestPhaseRef = useRef(accessRequest.phase);
   const heading = panelHeadings[phase];
   // Let the post-verification live-region update announce immediately instead
   // of being held until the bridge check finishes.
@@ -269,6 +274,17 @@ export function FarcasterQrAuthPanel({
       autoRequestedChannelRef.current = undefined;
     }
   }, [phase]);
+
+  useEffect(() => {
+    const previousPhase = previousAccessRequestPhaseRef.current;
+    previousAccessRequestPhaseRef.current = accessRequest.phase;
+    if (
+      previousPhase === 'submitting'
+      && accessRequest.phase === 'requested'
+    ) {
+      emitWarpkeepSfx({ kind: 'access-request-confirmed' });
+    }
+  }, [accessRequest.phase]);
 
   const showQr = () => {
     setPresentation('qr-first');

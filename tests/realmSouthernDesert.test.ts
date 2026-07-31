@@ -8,8 +8,13 @@ import {
   summarizeRealmSouthernDesertCoverage
 } from '../src/game/map/realmSouthernDesert';
 import {
+  axialNorthwardProgress,
+  axialSouthwardProgress,
   axialToWorld,
-  hexKey
+  GEOGRAPHIC_SOUTH,
+  hexKey,
+  worldNorthwardProgress,
+  worldSouthwardProgress
 } from '../src/game/map/hexCoordinates';
 import { createAuthoritativeRealmTerrainSurface } from '../src/game/map/realmTerrainSurface';
 import { GENESIS_RIVER_CELLS_V1 } from '../spacetimedb/src/waterWorld';
@@ -40,6 +45,33 @@ function canonicalFields() {
 }
 
 describe('Realm Southern desert field', () => {
+  it('freezes geographic south and keeps it exactly opposite geographic north', () => {
+    expect(Object.isFrozen(GEOGRAPHIC_SOUTH)).toBe(true);
+    expect(GEOGRAPHIC_SOUTH).toEqual({
+      axialRDirection: 1,
+      worldZDirection: 1
+    });
+
+    const fartherNorth = { q: 27, r: -12 };
+    const fartherSouth = { q: -27, r: 12 };
+    expect(axialSouthwardProgress(fartherSouth))
+      .toBeGreaterThan(axialSouthwardProgress(fartherNorth));
+    expect(axialSouthwardProgress({ q: 999, r: fartherSouth.r }))
+      .toBe(axialSouthwardProgress(fartherSouth));
+
+    const northWorld = axialToWorld(fartherNorth, 1);
+    const southWorld = axialToWorld(fartherSouth, 1);
+    expect(worldSouthwardProgress(southWorld))
+      .toBeGreaterThan(worldSouthwardProgress(northWorld));
+    expect(worldSouthwardProgress({ x: -99_999, z: southWorld.z }))
+      .toBe(worldSouthwardProgress({ x: 99_999, z: southWorld.z }));
+
+    expect(axialSouthwardProgress(fartherSouth))
+      .toBe(-axialNorthwardProgress(fartherSouth));
+    expect(worldSouthwardProgress(southWorld))
+      .toBe(-worldNorthwardProgress(southWorld));
+  });
+
   it('is immutable, deterministic, order independent, and coordinate equivalent', () => {
     const { desert } = canonicalFields();
     const coord = { q: 7, r: 41 };

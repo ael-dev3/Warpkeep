@@ -231,9 +231,11 @@ describe('useRealmSurfaceNavigation serialized browser history', () => {
 
   it('restores exact same-session stacks across external Back and Forward traversal', () => {
     render(<NavigationHarness identityKey="fid:6" />);
+    expect(navigation().motion).toBe('idle');
 
     const rootState = currentHistoryState();
     act(() => navigation().push(COMMANDS));
+    expect(navigation().motion).toBe('forward');
     const commandsState = currentHistoryState();
     act(() => navigation().push(SETTINGS));
     const settingsState = currentHistoryState();
@@ -241,11 +243,15 @@ describe('useRealmSurfaceNavigation serialized browser history', () => {
 
     dispatchPopState(commandsState);
     expectStack([COMMANDS]);
+    expect(navigation().motion).toBe('backward');
     dispatchPopState(settingsState);
     expectStack([COMMANDS, SETTINGS]);
+    expect(navigation().motion).toBe('forward');
     dispatchPopState(rootState);
     expectStack([]);
+    expect(navigation().motion).toBe('backward');
     dispatchPopState(settingsState);
     expectStack([COMMANDS, SETTINGS]);
+    expect(navigation().motion).toBe('forward');
   });
 });

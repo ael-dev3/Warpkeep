@@ -120,6 +120,7 @@ const EVENT_COOLDOWN_MILLISECONDS: Readonly<Record<WarpkeepSfxEvent['kind'], num
     'worker-recall-confirmed': 180,
     'worker-arrived': 750,
     'worker-returned': 750,
+    'access-request-confirmed': 500,
     'command-failed': 220,
     'river-focus-entered': 280,
     'river-focus-left': 280
@@ -370,6 +371,18 @@ export function getWarpkeepSfxRecipe(event: WarpkeepSfxEvent): WarpkeepSfxRecipe
         priority: 3,
         tones: Object.freeze([
           tone(214, 178, 0.19, 0.075, 'triangle', 0.02)
+        ])
+      });
+    case 'access-request-confirmed':
+      return Object.freeze({
+        bus: 'ui',
+        duration: 0.3,
+        gain: 0.56,
+        noise: noise(0.055, 0.04, 'lowpass', 1_150, 0.65),
+        priority: 5,
+        tones: Object.freeze([
+          tone(244, 286, 0.14, 0.075, 'sine'),
+          tone(326, 392, 0.2, 0.065, 'sine', 0.075)
         ])
       });
   }

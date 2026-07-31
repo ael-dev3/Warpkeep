@@ -112,6 +112,23 @@ describe('shared Warpkeep surface system', () => {
     expect(reduced).not.toContain('scale(');
   });
 
+  it('keeps compact destination motion bounded, reversible, and reduced-motion safe', () => {
+    const map = css('src/components/realm/RealmMapScreen.css');
+    const surface = css('src/components/realm/RealmFullScreenSurface.css');
+    const combined = `${surface}\n${map}`;
+
+    expect(surface).toContain('@keyframes realm-surface-content-forward');
+    expect(surface).toContain('@keyframes realm-surface-content-backward');
+    expect(surface).toContain('@keyframes realm-surface-content-replace');
+    expect(combined).toContain('animation-duration: 210ms;');
+    expect(combined).toContain('transform: translate3d(12px, 0, 0);');
+    expect(combined).toContain('transform: translate3d(-12px, 0, 0);');
+    expect(combined).toContain('animation-duration: 80ms !important;');
+    expect(combined).not.toContain('will-change: opacity, transform;');
+    expect(combined).not.toMatch(/animation[^;]*blur/);
+    expect(combined).not.toMatch(/animation[^;]*filter/);
+  });
+
   it('keeps persistent player chrome visually unboxed until the profile menu opens', () => {
     const source = css('src/components/realm/RealmPlayerChrome.css');
     const profileTrigger = firstBlock(source, '.realm-profile-trigger {');

@@ -35,6 +35,7 @@ export type WarpkeepSfxEvent =
         | 'worker-arrived'
         | 'worker-returned';
     }>)
+  | Readonly<{ kind: 'access-request-confirmed' }>
   | Readonly<{ kind: 'command-failed' }>
   | (ScreenPosition & Readonly<{ kind: 'river-focus-entered' }>)
   | Readonly<{ kind: 'river-focus-left' }>;
@@ -56,6 +57,7 @@ export const WARPKEEP_SFX_EVENT_KINDS = Object.freeze([
   'worker-recall-confirmed',
   'worker-arrived',
   'worker-returned',
+  'access-request-confirmed',
   'command-failed',
   'river-focus-entered',
   'river-focus-left'

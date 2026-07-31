@@ -1,4 +1,5 @@
 import {
+  axialSouthwardProgress,
   axialToWorld,
   worldToFractionalAxial,
   type HexCoord,
@@ -127,7 +128,7 @@ function evaluateDesert(
 
   const axial = worldToFractionalAxial(world, options.hexSize);
   const radial = Math.max(Math.abs(axial.q), Math.abs(axial.r), Math.abs(axial.s));
-  const south = axial.r / options.playableRadius;
+  const south = axialSouthwardProgress(axial) / options.playableRadius;
   const wavelengthScale = options.hexSize;
   const macro = sampleRealmGrassValueNoise(
     options.worldSeed,
