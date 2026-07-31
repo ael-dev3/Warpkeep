@@ -98,6 +98,7 @@ export const WORKER_MODULE_PREDECESSOR = Object.freeze({
   V11: 'v11',
   EXACT_V12_EMPTY: 'exact-v12-empty',
   EXACT_V12_ACTIVE: 'exact-v12-active',
+  EXACT_V13_ACTIVE: 'exact-v13-active',
 });
 export const WORKER_FORWARD_REPAIR = Object.freeze({
   NONE: 'none',
@@ -1073,7 +1074,7 @@ export function parsePublishArguments(arguments_ = process.argv.slice(2)) {
         continue;
       }
     }
-    fail('Usage: publish-spacetime-dev.mjs [--dry-run] --resource-rollout-stage=<prebackfill|ready> --genesis-world-stage=<pre-expansion|expanded> --worker-rollout-stage=<empty|active> [--worker-module-predecessor=<v11|exact-v12-empty|exact-v12-active>] --worker-forward-repair=<none|return-node-reuse-v1>. Unknown or duplicate arguments are rejected.');
+    fail('Usage: publish-spacetime-dev.mjs [--dry-run] --resource-rollout-stage=<prebackfill|ready> --genesis-world-stage=<pre-expansion|expanded> --worker-rollout-stage=<empty|active> [--worker-module-predecessor=<v11|exact-v12-empty|exact-v12-active|exact-v13-active>] --worker-forward-repair=<none|return-node-reuse-v1>. Unknown or duplicate arguments are rejected.');
   }
   if (resourceRolloutStage === undefined) {
     fail('An explicit resource rollout stage is required: prebackfill for the first additive publication or ready for an already-backfilled republish.');
@@ -1088,10 +1089,13 @@ export function parsePublishArguments(arguments_ = process.argv.slice(2)) {
     fail('An explicit Worker forward-repair selection is required.');
   }
   if (
-    (workerModulePredecessor === WORKER_MODULE_PREDECESSOR.EXACT_V12_ACTIVE)
+    (
+      workerModulePredecessor === WORKER_MODULE_PREDECESSOR.EXACT_V12_ACTIVE
+      || workerModulePredecessor === WORKER_MODULE_PREDECESSOR.EXACT_V13_ACTIVE
+    )
       !== (workerRolloutStage === WORKER_PUBLISH_ROLLOUT_STAGE.ACTIVE)
   ) {
-    fail('The exact active-v12 module predecessor requires the active Worker rollout stage, and no other predecessor may use it.');
+    fail('The exact active-v12 module predecessor or exact active-v13 module predecessor requires the active Worker rollout stage, and no other predecessor may use it.');
   }
   if (
     workerForwardRepair === WORKER_FORWARD_REPAIR.RETURN_NODE_REUSE_V1
@@ -1099,10 +1103,13 @@ export function parsePublishArguments(arguments_ = process.argv.slice(2)) {
       resourceRolloutStage !== RESOURCE_PUBLISH_ROLLOUT_STAGE.READY
       || genesisWorldRolloutStage !== GENESIS_WORLD_PUBLISH_STAGE.EXPANDED
       || workerRolloutStage !== WORKER_PUBLISH_ROLLOUT_STAGE.ACTIVE
-      || workerModulePredecessor !== WORKER_MODULE_PREDECESSOR.EXACT_V12_ACTIVE
+      || (
+        workerModulePredecessor !== WORKER_MODULE_PREDECESSOR.EXACT_V12_ACTIVE
+        && workerModulePredecessor !== WORKER_MODULE_PREDECESSOR.EXACT_V13_ACTIVE
+      )
     )
   ) {
-    fail('The return-node-reuse-v1 forward repair requires the exact ready, expanded, active-v12 production predecessor.');
+    fail('The return-node-reuse-v1 forward repair requires the exact ready, expanded, active-v12 production predecessor or exact active-v13 production predecessor.');
   }
   return Object.freeze({
     dryRun,
@@ -1871,6 +1878,23 @@ export function verifyWorkerV12ModulePredecessor(
   return moduleState;
 }
 
+/** Bind the code-only v13 lane to an exact active or already-candidate ABI. */
+export function verifyWorkerV13ModulePredecessor(
+  moduleState,
+  workerModulePredecessor,
+) {
+  if (
+    workerModulePredecessor !== WORKER_MODULE_PREDECESSOR.EXACT_V13_ACTIVE
+    || (
+      moduleState !== 'active-predecessor'
+      && moduleState !== 'candidate'
+    )
+  ) {
+    fail('The selected Worker module predecessor did not match the exact active production v13 ABI.');
+  }
+  return moduleState;
+}
+
 export function planWorkerV12CodePublication(
   moduleState,
   workerForwardRepair,
@@ -1973,6 +1997,64 @@ export function verifyFreshProductionV12ModuleSchema(
   }
 }
 
+/**
+ * Code-only v13 preflight. Both proven v12/v13 digests, every table contract,
+ * every product-type reference, and all 54 complete signatures are bound to
+ * one anonymous schema description before publication is allowed.
+ */
+export function verifyExactProductionV13ModuleSchema(
+  description,
+  expectedV12TableSchemaDigest,
+  expectedV13TableSchemaDigest,
+) {
+  const contracts = verifyProductionV13Contracts(
+    description,
+    expectedV12TableSchemaDigest,
+    expectedV13TableSchemaDigest,
+  );
+  const moduleState = verifyWorkerV12ModuleAbi(description);
+  if (
+    moduleState !== 'active-predecessor'
+    && moduleState !== 'candidate'
+  ) {
+    fail('The exact production v13 module did not expose an accepted active-or-candidate Worker ABI.');
+  }
+  const tableSignatures = Object.freeze(Object.fromEntries(
+    Object.keys(contracts.v13Refs).map(name => [
+      name,
+      canonicalJson(schemaTableSignature(description, name)),
+    ]),
+  ));
+  return Object.freeze({
+    moduleState,
+    tableSignatures,
+    totalTableCount: Object.keys(contracts.v13Refs).length,
+  });
+}
+
+export function verifyFreshProductionV13ModuleSchema(
+  executable,
+  expectedV12TableSchemaDigest,
+  expectedV13TableSchemaDigest,
+  spawnSyncProcess = spawnSync,
+) {
+  try {
+    const result = runBoundedSync(
+      executable,
+      canonicalSchemaDescribeChildArguments(),
+      { timeout: 30_000 },
+      spawnSyncProcess,
+    );
+    return verifyExactProductionV13ModuleSchema(
+      parseCanonicalSchemaDescription(result.stdout),
+      expectedV12TableSchemaDigest,
+      expectedV13TableSchemaDigest,
+    );
+  } catch {
+    fail('Exact production v13 schema and active-or-candidate module-ABI preflight failed. No publish was attempted.');
+  }
+}
+
 export function verifyPostPublishProductionV12ModuleSchema(
   executable,
   predecessor,
@@ -2052,6 +2134,55 @@ export function verifyPostPublishProductionV13ModuleSchema(
     });
   } catch {
     fail('Post-publication v13 module checkpoint is indeterminate; perform a fresh anonymous read-only schema and ABI inspection before any Worker command, client deployment, or further publication decision.');
+  }
+}
+
+/**
+ * Code-only v13 postflight. No table is appended here: all 54 captured table
+ * signatures must remain byte-for-byte identical while the exact candidate
+ * Worker ABI is installed under the same two proven schema digests.
+ */
+export function verifyPostPublishProductionV13ActiveModuleSchema(
+  executable,
+  predecessor,
+  expectedV12TableSchemaDigest,
+  expectedV13TableSchemaDigest,
+  spawnSyncProcess = spawnSync,
+) {
+  try {
+    if (
+      !predecessor
+      || (
+        predecessor.moduleState !== 'active-predecessor'
+        && predecessor.moduleState !== 'candidate'
+      )
+    ) fail('The captured production v13 predecessor ABI was invalid.');
+    requireCapturedTableSignatures(
+      predecessor.tableSignatures,
+      productionV13TableRefs(),
+      'v13',
+    );
+    const result = runBoundedSync(
+      executable,
+      canonicalSchemaDescribeChildArguments(),
+      { timeout: 30_000 },
+      spawnSyncProcess,
+    );
+    const after = verifyExactProductionV13ModuleSchema(
+      parseCanonicalSchemaDescription(result.stdout),
+      expectedV12TableSchemaDigest,
+      expectedV13TableSchemaDigest,
+    );
+    if (
+      after.moduleState !== 'candidate'
+      || canonicalJson(after.tableSignatures)
+        !== canonicalJson(predecessor.tableSignatures)
+    ) {
+      fail('The code-only v13 publication did not preserve every table signature and install the exact candidate ABI.');
+    }
+    return after;
+  } catch {
+    fail('Post-publication active-v13 module checkpoint is indeterminate; perform a fresh anonymous read-only schema and ABI inspection before any Worker command, client deployment, or further publication decision.');
   }
 }
 
@@ -3221,15 +3352,31 @@ async function main() {
     if (
       workerModulePredecessor === WORKER_MODULE_PREDECESSOR.EXACT_V12_EMPTY
       || workerModulePredecessor === WORKER_MODULE_PREDECESSOR.EXACT_V12_ACTIVE
+      || workerModulePredecessor === WORKER_MODULE_PREDECESSOR.EXACT_V13_ACTIVE
     ) {
-      const predecessorSchema = verifyFreshProductionV12ModuleSchema(
-        executable,
-        artifactReceipt.v12TableSchemaDigest,
-      );
-      verifyWorkerV12ModulePredecessor(
-        predecessorSchema.moduleState,
-        workerModulePredecessor,
-      );
+      const exactV13Active = workerModulePredecessor
+        === WORKER_MODULE_PREDECESSOR.EXACT_V13_ACTIVE;
+      const predecessorSchema = exactV13Active
+        ? verifyFreshProductionV13ModuleSchema(
+          executable,
+          artifactReceipt.v12TableSchemaDigest,
+          artifactReceipt.v13TableSchemaDigest,
+        )
+        : verifyFreshProductionV12ModuleSchema(
+          executable,
+          artifactReceipt.v12TableSchemaDigest,
+        );
+      if (exactV13Active) {
+        verifyWorkerV13ModulePredecessor(
+          predecessorSchema.moduleState,
+          workerModulePredecessor,
+        );
+      } else {
+        verifyWorkerV12ModulePredecessor(
+          predecessorSchema.moduleState,
+          workerModulePredecessor,
+        );
+      }
       const publicationPlan = planWorkerV12CodePublication(
         predecessorSchema.moduleState,
         workerForwardRepair,
@@ -3245,12 +3392,21 @@ async function main() {
         publicationPlan.prePublicationCheckpoint,
       );
       await publishModule(executable, CANONICAL_DATABASE_IDENTITY, artifactReceipt);
-      verifyPostPublishProductionV13ModuleSchema(
-        executable,
-        predecessorSchema,
-        artifactReceipt.v12TableSchemaDigest,
-        artifactReceipt.v13TableSchemaDigest,
-      );
+      if (exactV13Active) {
+        verifyPostPublishProductionV13ActiveModuleSchema(
+          executable,
+          predecessorSchema,
+          artifactReceipt.v12TableSchemaDigest,
+          artifactReceipt.v13TableSchemaDigest,
+        );
+      } else {
+        verifyPostPublishProductionV13ModuleSchema(
+          executable,
+          predecessorSchema,
+          artifactReceipt.v12TableSchemaDigest,
+          artifactReceipt.v13TableSchemaDigest,
+        );
+      }
       verifyPostPublishResourcePublicationCheckpoints(
         adminTokenSecret,
         foundedExpectations,

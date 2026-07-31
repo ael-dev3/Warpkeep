@@ -48,6 +48,7 @@ import {
   verifyFreshPublishPreV12Aggregate,
   verifyFreshProductionV11Schema,
   verifyFreshProductionV12ModuleSchema,
+  verifyFreshProductionV13ModuleSchema,
   verifyFreshFoundedProtocolV3Aggregate,
   verifyFreshResourceProtocolV4PrebackfillAggregate,
   verifyFreshResourceProtocolV4ReadyAggregate,
@@ -61,6 +62,7 @@ import {
   verifyPostPublishProductionV12Schema,
   verifyPostPublishProductionV12ModuleSchema,
   verifyPostPublishProductionV13ModuleSchema,
+  verifyPostPublishProductionV13ActiveModuleSchema,
   verifyPostPublishProductionV13SchemaFromV11,
   verifyPostPublishResourceProtocolV4PrebackfillAggregate,
   verifyPostPublishResourceProtocolV4ReadyAggregate,
@@ -81,6 +83,8 @@ import {
   verifyWorkerV12ModulePredecessor,
   verifyExactProductionV13Schema,
   verifyExactProductionV13SchemaFromV11,
+  verifyExactProductionV13ModuleSchema,
+  verifyWorkerV13ModulePredecessor,
 } from '../scripts/publish-spacetime-dev.mjs';
 import {
   readPrivateSpacetimePublishSuccessReceipt,
@@ -1663,6 +1667,146 @@ describe('activation publish safety', () => {
     expect(indeterminate).not.toThrow(/private|retry/i);
   });
 
+  it('guards an exact code-only active-v13 publication with complete signatures and candidate ABI', () => {
+    const activeV12 = workerModuleSchemaDescription('active-predecessor');
+    const activeV13 = workerModuleSchemaDescription('active-predecessor', true);
+    const candidateV13 = workerModuleSchemaDescription('candidate', true);
+    const v12TableNames = [
+      ...Object.keys(PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS),
+      ...Object.keys(WORKER_V12_TABLE_CONTRACTS),
+    ];
+    const v13TableNames = [
+      ...v12TableNames,
+      ...Object.keys(ACCESS_REQUEST_V13_TABLE_CONTRACTS),
+    ];
+    const v12TableSchemaDigest = canonicalTableSchemaBoundaryDigest(
+      activeV12,
+      v12TableNames,
+    );
+    const v13TableSchemaDigest = canonicalTableSchemaBoundaryDigest(
+      activeV13,
+      v13TableNames,
+    );
+    expect(canonicalTableSchemaBoundaryDigest(candidateV13, v13TableNames))
+      .toBe(v13TableSchemaDigest);
+
+    const predecessor = verifyExactProductionV13ModuleSchema(
+      activeV13,
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+    );
+    expect(predecessor.moduleState).toBe('active-predecessor');
+    expect(predecessor.totalTableCount).toBe(54);
+    expect(Object.keys(predecessor.tableSignatures)).toHaveLength(54);
+    expect(verifyWorkerV13ModulePredecessor(
+      predecessor.moduleState,
+      WORKER_MODULE_PREDECESSOR.EXACT_V13_ACTIVE,
+    )).toBe('active-predecessor');
+
+    const alreadyCandidate = verifyExactProductionV13ModuleSchema(
+      candidateV13,
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+    );
+    expect(verifyWorkerV13ModulePredecessor(
+      alreadyCandidate.moduleState,
+      WORKER_MODULE_PREDECESSOR.EXACT_V13_ACTIVE,
+    )).toBe('candidate');
+    expect(() => verifyWorkerV13ModulePredecessor(
+      'predecessor',
+      WORKER_MODULE_PREDECESSOR.EXACT_V13_ACTIVE,
+    )).toThrow(/exact active production v13 ABI/i);
+    expect(() => verifyWorkerV13ModulePredecessor(
+      'active-predecessor',
+      WORKER_MODULE_PREDECESSOR.EXACT_V12_ACTIVE,
+    )).toThrow(/exact active production v13 ABI/i);
+
+    const preflightCalls: unknown[][] = [];
+    expect(verifyFreshProductionV13ModuleSchema(
+      'spacetime',
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+      ((...args: unknown[]) => {
+        preflightCalls.push(args);
+        return {
+          status: 0,
+          signal: null,
+          stdout: JSON.stringify(activeV13),
+          stderr: '',
+        };
+      }) as never,
+    )).toEqual(predecessor);
+    expect(preflightCalls).toHaveLength(1);
+    expect(preflightCalls[0]?.[1]).toEqual(canonicalSchemaDescribeChildArguments());
+
+    expect(verifyPostPublishProductionV13ActiveModuleSchema(
+      'spacetime',
+      predecessor,
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+      (() => ({
+        status: 0,
+        signal: null,
+        stdout: JSON.stringify(candidateV13),
+        stderr: '',
+      })) as never,
+    )).toEqual(alreadyCandidate);
+    expect(verifyPostPublishProductionV13ActiveModuleSchema(
+      'spacetime',
+      alreadyCandidate,
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+      (() => ({
+        status: 0,
+        signal: null,
+        stdout: JSON.stringify(candidateV13),
+        stderr: '',
+      })) as never,
+    )).toEqual(alreadyCandidate);
+
+    expect(() => verifyExactProductionV13ModuleSchema(
+      workerModuleSchemaDescription('predecessor', true),
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+    )).toThrow(/active-or-candidate Worker ABI/i);
+    expect(() => verifyExactProductionV13ModuleSchema(
+      activeV13,
+      v12TableSchemaDigest,
+      '0'.repeat(64),
+    )).toThrow(/v13 table schema.*proven publication boundary/i);
+
+    const driftedCandidate = structuredClone(candidateV13);
+    driftedCandidate.tables
+      .find(table => table.name === 'access_request_v1')!.indexes.push({
+        name: 'unexpected_access_request_index',
+        algorithm: { BTree: { columns: [0] } },
+      });
+    expect(() => verifyPostPublishProductionV13ActiveModuleSchema(
+      'spacetime',
+      predecessor,
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+      (() => ({
+        status: 0,
+        signal: null,
+        stdout: JSON.stringify(driftedCandidate),
+        stderr: '',
+      })) as never,
+    )).toThrow(/post-publication active-v13 module checkpoint is indeterminate/i);
+    expect(() => verifyPostPublishProductionV13ActiveModuleSchema(
+      'spacetime',
+      predecessor,
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+      (() => ({
+        status: 0,
+        signal: null,
+        stdout: JSON.stringify(activeV13),
+        stderr: '',
+      })) as never,
+    )).toThrow(/post-publication active-v13 module checkpoint is indeterminate/i);
+  });
+
   it('retains the reviewed v11 lane while proving both v12 and v13 append boundaries', () => {
     const v11 = productionSchemaDescription(false);
     const v11TableNames = Object.keys(PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS);
@@ -1746,6 +1890,10 @@ describe('activation publish safety', () => {
     expect(publisher).toMatch(
       /verifyFreshProductionV11Schema\([\s\S]*await publishModule\(executable, CANONICAL_DATABASE_IDENTITY, artifactReceipt\);[\s\S]*verifyPostPublishProductionV13SchemaFromV11\([\s\S]*artifactReceipt\.v12TableSchemaDigest,[\s\S]*artifactReceipt\.v13TableSchemaDigest/,
     );
+    expect(publisher).toMatch(
+      /EXACT_V13_ACTIVE[\s\S]*verifyFreshProductionV13ModuleSchema\([\s\S]*artifactReceipt\.v12TableSchemaDigest,[\s\S]*artifactReceipt\.v13TableSchemaDigest,[\s\S]*await publishModule\(executable, CANONICAL_DATABASE_IDENTITY, artifactReceipt\);[\s\S]*verifyPostPublishProductionV13ActiveModuleSchema\([\s\S]*artifactReceipt\.v12TableSchemaDigest,[\s\S]*artifactReceipt\.v13TableSchemaDigest/,
+    );
+    expect(publisher).toContain("'--delete-data=never'");
     const privateWorkerReceipt = publisher.slice(
       publisher.indexOf('const receipt = writePrivateSpacetimePublishSuccessReceipt({'),
       publisher.indexOf("console.log(JSON.stringify({\n          publication: 'verified'", publisher.indexOf(
@@ -2310,6 +2458,20 @@ describe('activation publish safety', () => {
       '--resource-rollout-stage=ready',
       '--genesis-world-stage=expanded',
       '--worker-rollout-stage=active',
+      '--worker-module-predecessor=exact-v13-active',
+      '--worker-forward-repair=none',
+    ])).toEqual({
+      dryRun: false,
+      resourceRolloutStage: RESOURCE_PUBLISH_ROLLOUT_STAGE.READY,
+      genesisWorldRolloutStage: GENESIS_WORLD_PUBLISH_STAGE.EXPANDED,
+      workerRolloutStage: WORKER_PUBLISH_ROLLOUT_STAGE.ACTIVE,
+      workerModulePredecessor: WORKER_MODULE_PREDECESSOR.EXACT_V13_ACTIVE,
+      workerForwardRepair: WORKER_FORWARD_REPAIR.NONE,
+    });
+    expect(parsePublishArguments([
+      '--resource-rollout-stage=ready',
+      '--genesis-world-stage=expanded',
+      '--worker-rollout-stage=active',
       '--worker-module-predecessor=exact-v12-active',
       '--worker-forward-repair=return-node-reuse-v1',
     ])).toEqual({
@@ -2394,6 +2556,13 @@ describe('activation publish safety', () => {
       '--worker-module-predecessor=exact-v12-active',
       '--worker-forward-repair=none',
     ])).toThrow(/exact active-v12 module predecessor/i);
+    expect(() => parsePublishArguments([
+      '--resource-rollout-stage=ready',
+      '--genesis-world-stage=expanded',
+      '--worker-rollout-stage=empty',
+      '--worker-module-predecessor=exact-v13-active',
+      '--worker-forward-repair=none',
+    ])).toThrow(/exact active-v13 module predecessor/i);
     expect(() => parsePublishArguments([
       '--resource-rollout-stage=ready',
       '--genesis-world-stage=expanded',
