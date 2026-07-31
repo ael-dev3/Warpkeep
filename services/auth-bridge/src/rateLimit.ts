@@ -15,6 +15,7 @@ const POLICIES: Readonly<Record<RateLimitAction, number>> = Object.freeze({
   challenge: 12,
   exchange: 20,
   'session-refresh': 30,
+  'access-request': 12,
   'admin-token': 6,
   'qa-challenge': 12,
   'qa-snapshot': 60,

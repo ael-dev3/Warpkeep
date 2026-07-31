@@ -189,7 +189,9 @@ The v2 exchange and refresh response is an exact union:
   `sessionExpiresAt`;
 - a missing FID returns `status: "pending-admission"`, FID-only identity,
   and `sessionExpiresAt` **without any access token**;
-- a disabled FID is rejected and no session family or access token is created.
+- a freshly verified disabled FID returns the same public tokenless
+  `pending-admission` shape and receives a pending family tagged to that
+  disabled admission era.
 
 The browser holds an authorized access token only in JavaScript memory. It is
 never written to `localStorage`, `sessionStorage`, IndexedDB, a URL, or a
@@ -242,15 +244,18 @@ has an absolute maximum of 30 days; without `rememberDevice`, the same bounded
 server-side family is referenced by a non-persistent session cookie. The browser
 preference defaults false, so persistence is explicit opt-in. The Durable Object
 record binds origin, verified FID only, pending/bound state,
-positive epoch when bound, absolute expiry, and current generation.
+positive epoch when bound, the server-proven missing/disabled state when
+pending, absolute expiry, and current generation.
 
 Every successful refresh rotates the current generation. The immediately
 previous generation has only a bounded recovery grace for a lost response; an
 older or out-of-grace generation is a stale replay and revokes the family. A
 bound family also revokes when authoritative admission becomes missing or
 disabled, or when its positive epoch no longer matches. A pending family stays
-tokenless while admission is missing, transitions once to a bound positive
-epoch when enabled, and revokes if disabled. A successful logout confirms
+tokenless while admission matches the missing/disabled state proven when that
+family was created, transitions once to a bound positive epoch when enabled,
+and revokes on a non-enabled state mismatch. Legacy untagged pending families
+are treated as missing-only. A successful logout confirms
 server-side revocation, expires the current browser cookie, and returns `204`.
 If Durable Object revocation fails, the endpoint returns generic `503`, still
 expires the current browser cookie, and does not claim that the family was

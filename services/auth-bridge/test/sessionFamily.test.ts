@@ -2,12 +2,15 @@ import { describe, expect, it } from 'vitest'
 import {
   MemorySessionFamilyStore,
   isSessionFamilyRecord,
+  matchesSessionFamilyReference,
+  pendingSessionAdmissionMatches,
   transitionSessionFamily,
 } from '../src/sessionFamily'
 import {
   SESSION_COOKIE_NAME,
   createSessionCookieValue,
   expiredSessionSetCookie,
+  hasSessionCookie,
   readVerifiedSessionCookie,
   sessionSetCookie,
 } from '../src/sessionCookie'
@@ -85,7 +88,11 @@ describe('rotating browser session families', () => {
   })
 
   it('binds a genuinely pending family once but never lets a bound family adopt another epoch', () => {
-    const pending = record({ state: 'pending', authEpoch: undefined })
+    const pending = record({
+      state: 'pending',
+      authEpoch: undefined,
+      pendingAdmissionState: 'missing',
+    })
     expect(isSessionFamilyRecord(pending)).toBe(true)
     const bound = transitionSessionFamily(
       pending,
@@ -97,6 +104,7 @@ describe('rotating browser session families', () => {
     expect(bound.kind).toBe('ok')
     if (bound.kind !== 'ok') throw new Error('expected binding')
     expect(bound.record).toMatchObject({ state: 'bound', authEpoch: 11 })
+    expect(bound.record.pendingAdmissionState).toBeUndefined()
 
     expect(transitionSessionFamily(
       bound.record,
@@ -114,7 +122,51 @@ describe('rotating browser session families', () => {
     )).toEqual({ kind: 'revoke' })
   })
 
-  it('revokes disabled, cross-origin, expired, and unknown-generation attempts', () => {
+  it('keeps a fresh disabled pending family tokenless while rejecting mismatched pending eras', () => {
+    const disabledPending = record({
+      state: 'pending',
+      authEpoch: undefined,
+      pendingAdmissionState: 'disabled',
+    })
+    expect(isSessionFamilyRecord(disabledPending)).toBe(true)
+    expect(pendingSessionAdmissionMatches(
+      disabledPending,
+      { state: 'disabled', authEpoch: 0 },
+    )).toBe(true)
+    const refreshed = transitionSessionFamily(
+      disabledPending,
+      1,
+      ORIGIN,
+      { state: 'disabled', authEpoch: 0 },
+      NOW + 1,
+    )
+    expect(refreshed.kind).toBe('ok')
+    if (refreshed.kind !== 'ok') throw new Error('expected pending refresh')
+    expect(refreshed.record).toMatchObject({
+      state: 'pending',
+      pendingAdmissionState: 'disabled',
+      currentGeneration: 2,
+    })
+    expect(refreshed.record.authEpoch).toBeUndefined()
+
+    const missingPending = record({
+      state: 'pending',
+      authEpoch: undefined,
+      pendingAdmissionState: 'missing',
+    })
+    const legacyPending = record({ state: 'pending', authEpoch: undefined })
+    for (const candidate of [missingPending, legacyPending]) {
+      expect(transitionSessionFamily(
+        candidate,
+        1,
+        ORIGIN,
+        { state: 'disabled', authEpoch: 0 },
+        NOW + 1,
+      )).toEqual({ kind: 'revoke' })
+    }
+  })
+
+  it('revokes disabled bound sessions, cross-origin, expired, and unknown-generation attempts', () => {
     for (const [candidate, generation, origin, admission, now] of [
       [record(), 1, ORIGIN, { state: 'disabled', authEpoch: 0 }, NOW + 1],
       [record(), 1, 'https://hostile.example', { state: 'enabled', authEpoch: 7 }, NOW + 1],
@@ -123,6 +175,36 @@ describe('rotating browser session families', () => {
     ] as const) {
       expect(transitionSessionFamily(candidate, generation, origin, admission, now)).toEqual({ kind: 'revoke' })
     }
+  })
+
+  it('accepts only exact pending admission tags and treats legacy pending records as missing', () => {
+    expect(isSessionFamilyRecord(record({
+      state: 'pending',
+      authEpoch: undefined,
+      pendingAdmissionState: 'missing',
+    }))).toBe(true)
+    expect(isSessionFamilyRecord(record({
+      state: 'pending',
+      authEpoch: undefined,
+      pendingAdmissionState: 'disabled',
+    }))).toBe(true)
+    expect(isSessionFamilyRecord({
+      ...record({ state: 'pending', authEpoch: undefined }),
+      pendingAdmissionState: 'enabled',
+    })).toBe(false)
+    expect(isSessionFamilyRecord(record({
+      pendingAdmissionState: 'disabled',
+    }))).toBe(false)
+
+    const legacyPending = record({ state: 'pending', authEpoch: undefined })
+    expect(pendingSessionAdmissionMatches(
+      legacyPending,
+      { state: 'missing', authEpoch: 0 },
+    )).toBe(true)
+    expect(pendingSessionAdmissionMatches(
+      legacyPending,
+      { state: 'disabled', authEpoch: 0 },
+    )).toBe(false)
   })
 
   it('rejects corrupted rotation state unless the previous generation is exactly adjacent', () => {
@@ -139,6 +221,33 @@ describe('rotating browser session families', () => {
       { state: 'enabled', authEpoch: 7 },
       NOW + 1,
     )).toEqual({ kind: 'revoke' })
+  })
+
+  it('validates current and recovery generations without mutating family state', () => {
+    const candidate = record({
+      currentGeneration: 2,
+      previousGeneration: 1,
+      previousGenerationGraceUntil: NOW + 30_000,
+    })
+    const before = structuredClone(candidate)
+
+    expect(matchesSessionFamilyReference(candidate, 2, ORIGIN, NOW + 1)).toBe(true)
+    expect(matchesSessionFamilyReference(candidate, 1, ORIGIN, NOW + 30_000)).toBe(true)
+    expect(matchesSessionFamilyReference(candidate, 1, ORIGIN, NOW + 30_001)).toBe(false)
+    expect(matchesSessionFamilyReference(candidate, 3, ORIGIN, NOW + 1)).toBe(false)
+    expect(matchesSessionFamilyReference(
+      candidate,
+      2,
+      'https://hostile.example',
+      NOW + 1,
+    )).toBe(false)
+    expect(matchesSessionFamilyReference(
+      candidate,
+      2,
+      ORIGIN,
+      candidate.expiresAt,
+    )).toBe(false)
+    expect(candidate).toEqual(before)
   })
 
   it('deletes the whole local family after stale reuse or an epoch mismatch', async () => {
@@ -164,6 +273,21 @@ describe('rotating browser session families', () => {
 })
 
 describe('opaque host-only session cookie', () => {
+  it('detects only the exact session-cookie name for credential ambiguity', () => {
+    expect(hasSessionCookie(new Request('https://auth.warpkeep.com', {
+      headers: { cookie: `${SESSION_COOKIE_NAME}=opaque` },
+    }))).toBe(true)
+    expect(hasSessionCookie(new Request('https://auth.warpkeep.com', {
+      headers: { cookie: `prefix-${SESSION_COOKIE_NAME}=opaque` },
+    }))).toBe(false)
+    expect(hasSessionCookie(new Request('https://auth.warpkeep.com', {
+      headers: { cookie: 'unrelated=opaque' },
+    }))).toBe(false)
+    expect(hasSessionCookie(new Request('https://auth.warpkeep.com', {
+      headers: { cookie: 'x'.repeat(16_385) },
+    }))).toBe(true)
+  })
+
   it('authenticates only an untampered HMAC reference and rejects duplicates', async () => {
     const value = await createSessionCookieValue(COOKIE_KEY, FAMILY_ID, 9)
     const request = new Request('https://auth.warpkeep.com/v2/session/refresh', {

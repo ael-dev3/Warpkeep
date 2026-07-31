@@ -9,6 +9,7 @@ import {
   ADMIN_TOKEN_TTL_SECONDS,
   CHALLENGE_TTL_MILLISECONDS,
   ConfigurationError,
+  INTERNAL_ACCESS_REQUEST_RESOLVER_TOKEN_TTL_SECONDS,
   INTERNAL_AUTH_EPOCH_RESOLVER_TOKEN_TTL_SECONDS,
   MAX_ADMIN_TOKEN_SECRET_BYTES,
   MAX_REQUEST_BYTES,
@@ -39,14 +40,25 @@ import {
 import { DurableObjectRateLimiter } from './rateLimit'
 import {
   DurableObjectSessionFamilyStore,
+  matchesSessionFamilyReference,
+  pendingSessionAdmissionMatches,
 } from './sessionFamily'
 import {
   createSessionCookieValue,
   createSessionFamilyId,
   expiredSessionSetCookie,
+  hasSessionCookie,
   readVerifiedSessionCookie,
   sessionSetCookie,
 } from './sessionCookie'
+import {
+  ACCESS_REQUEST_RESOLVER_TIMEOUT_MILLISECONDS,
+  SPACETIMEDB_ACCESS_REQUEST_STATUS_PROCEDURE,
+  SPACETIMEDB_ACCESS_REQUEST_SUBMIT_PROCEDURE,
+  SpacetimeHttpAccessRequestResolver,
+  accessRequestResolverFailureStage,
+  type AccessRequestResolverFailureStage,
+} from './spacetimeAccessRequestResolver'
 import {
   AUTH_EPOCH_RESOLVER_TIMEOUT_MILLISECONDS,
   SpacetimeHttpAuthEpochResolver,
@@ -62,6 +74,8 @@ import {
   type QaSnapshotFailureStage,
 } from './spacetimeQaObserverResolver'
 import type {
+  AccessRequestResolution,
+  AccessRequestResolver,
   AdmissionResolution,
   AuthEpochResolver,
   BridgeFetchHandler,
@@ -105,6 +119,8 @@ const V2_EXCHANGE_PATH = '/v2/farcaster/exchange'
 const V2_QUICK_AUTH_EXCHANGE_PATH = '/v2/farcaster/quick-auth/exchange'
 const V2_REFRESH_PATH = '/v2/session/refresh'
 const V2_LOGOUT_PATH = '/v2/session/logout'
+const V2_ACCESS_STATUS_PATH = '/v2/access/status'
+const V2_ACCESS_REQUEST_PATH = '/v2/access/request'
 const LEGACY_CHALLENGE_PATH = '/v1/farcaster/challenge'
 const LEGACY_EXCHANGE_PATH = '/v1/farcaster/exchange'
 const QUICK_AUTH_DOMAIN = 'warpkeep.com'
@@ -112,6 +128,16 @@ const QUICK_AUTH_BROWSER_ORIGIN = 'https://warpkeep.com'
 const QUICK_AUTH_ISSUER = 'https://auth.farcaster.xyz'
 const MAX_QUICK_AUTH_TOKEN_BYTES = 8 * 1024
 const QUICK_AUTH_VERIFIER_PACKAGE = '@farcaster/quick-auth@0.0.8'
+
+const ACCESS_REQUEST_FAILURE_EVENTS:
+Readonly<Record<AccessRequestResolverFailureStage, SafeLogEvent>> = Object.freeze({
+  signing: 'access_request_failed_signing',
+  fetch_request: 'access_request_failed_fetch_request',
+  fetch_body: 'access_request_failed_fetch_body',
+  timeout: 'access_request_failed_timeout',
+  upstream_status: 'access_request_failed_upstream_status',
+  response_validation: 'access_request_failed_response_validation',
+})
 
 const QA_SNAPSHOT_FAILURE_EVENTS: Readonly<Record<QaSnapshotFailureStage, SafeLogEvent>> = Object.freeze({
   signing: 'qa_snapshot_failed_signing',
@@ -151,6 +177,7 @@ export interface AuthBridgeDependencies {
   verifier?: FarcasterVerifier
   quickAuthVerifier?: QuickAuthVerifier
   authEpochResolver?: AuthEpochResolver
+  accessRequestResolver?: AccessRequestResolver
   sessionFamilyStore?: SessionFamilyStore
   qaChallengeStore?: QaObserverChallengeStore
   qaSnapshotResolver?: QaObserverSnapshotResolver
@@ -218,6 +245,10 @@ function isCredentialedPath(pathname: string): boolean {
     || pathname === V2_LOGOUT_PATH
 }
 
+function isAccessRequestPath(pathname: string): boolean {
+  return pathname === V2_ACCESS_STATUS_PATH || pathname === V2_ACCESS_REQUEST_PATH
+}
+
 function publicCorsHeaders(request: Request, config: BridgeConfig, pathname = new URL(request.url).pathname): HeadersInit {
   const origin = request.headers.get('origin')
   return origin && config.allowedOrigins.has(origin)
@@ -229,6 +260,13 @@ function routeCorsHeaders(request: Request, config: BridgeConfig, pathname = new
   if (pathname === V2_QUICK_AUTH_EXCHANGE_PATH) {
     const origin = request.headers.get('origin')
     return origin === QUICK_AUTH_BROWSER_ORIGIN ? quickAuthCorsHeaders(origin) : {}
+  }
+  if (isAccessRequestPath(pathname)) {
+    const origin = request.headers.get('origin')
+    if (request.headers.has('authorization')) {
+      return origin === QUICK_AUTH_BROWSER_ORIGIN ? quickAuthCorsHeaders(origin) : {}
+    }
+    return origin && config.allowedOrigins.has(origin) ? corsHeaders(origin, true) : {}
   }
   return publicCorsHeaders(request, config, pathname)
 }
@@ -280,6 +318,7 @@ function isPublicAuthPath(pathname: string): boolean {
     || pathname === V2_EXCHANGE_PATH
     || pathname === V2_QUICK_AUTH_EXCHANGE_PATH
     || pathname === V2_REFRESH_PATH
+    || isAccessRequestPath(pathname)
 }
 
 function isLegacyAuthPath(pathname: string): boolean {
@@ -290,6 +329,12 @@ function logAuthEpochFailure(logger: SafeLogger, error: unknown): void {
   logger.event('auth_epoch_failed')
   const stage = authEpochResolverFailureStage(error)
   if (stage) logger.event(AUTH_EPOCH_FAILURE_EVENTS[stage])
+}
+
+function logAccessRequestFailure(logger: SafeLogger, error: unknown): void {
+  logger.event('access_request_failed')
+  const stage = accessRequestResolverFailureStage(error)
+  if (stage) logger.event(ACCESS_REQUEST_FAILURE_EVENTS[stage])
 }
 
 function logQaSnapshotFailure(logger: SafeLogger, error: unknown): void {
@@ -328,6 +373,38 @@ function allowedQuickAuthPreflight(request: Request): Response {
   return new Response(null, {
     status: 204,
     headers: emptyResponseHeaders(quickAuthCorsHeaders(origin)),
+  })
+}
+
+function allowedAccessRequestPreflight(
+  request: Request,
+  config: BridgeConfig,
+): Response {
+  const requestHeaders = request.headers.get('access-control-request-headers')
+  const headers = requestHeaders
+    ? requestHeaders.split(',').map(header => header.trim().toLowerCase()).filter(Boolean)
+    : []
+  const usesBearer = headers.includes('authorization')
+  const allowedHeaders = usesBearer
+    ? new Set(['authorization', 'content-type'])
+    : new Set(['content-type'])
+  if (headers.some(header => !allowedHeaders.has(header))) {
+    throw new HttpError(403, 'header_not_allowed', 'This request header is not allowed.')
+  }
+  if (request.headers.get('access-control-request-method') !== 'POST') {
+    throw new HttpError(405, 'method_not_allowed', 'Only POST is allowed.')
+  }
+  if (usesBearer) {
+    const origin = requireQuickAuthBrowserOrigin(request)
+    return new Response(null, {
+      status: 204,
+      headers: emptyResponseHeaders(quickAuthCorsHeaders(origin)),
+    })
+  }
+  const origin = requireAllowedBrowserOrigin(request, config)
+  return new Response(null, {
+    status: 204,
+    headers: emptyResponseHeaders(corsHeaders(origin, true)),
   })
 }
 
@@ -857,6 +934,12 @@ async function configurationAttestation(
     accessTokenTtlSeconds: PLAYER_TOKEN_TTL_SECONDS,
     authEpochResolverTokenTtlSeconds: INTERNAL_AUTH_EPOCH_RESOLVER_TOKEN_TTL_SECONDS,
     authEpochResolverTimeoutMilliseconds: AUTH_EPOCH_RESOLVER_TIMEOUT_MILLISECONDS,
+    accessRequestStatusPath: V2_ACCESS_STATUS_PATH,
+    accessRequestSubmitPath: V2_ACCESS_REQUEST_PATH,
+    accessRequestResolverTokenTtlSeconds: INTERNAL_ACCESS_REQUEST_RESOLVER_TOKEN_TTL_SECONDS,
+    accessRequestResolverTimeoutMilliseconds: ACCESS_REQUEST_RESOLVER_TIMEOUT_MILLISECONDS,
+    accessRequestStatusProcedure: SPACETIMEDB_ACCESS_REQUEST_STATUS_PROCEDURE,
+    accessRequestSubmitProcedure: SPACETIMEDB_ACCESS_REQUEST_SUBMIT_PROCEDURE,
     challengeTtlMilliseconds: CHALLENGE_TTL_MILLISECONDS,
     sessionFamilyTtlSeconds: SESSION_FAMILY_TTL_SECONDS,
     sessionCookie: '__Host-warpkeep_session; Secure; HttpOnly; SameSite=Strict; Path=/',
@@ -969,6 +1052,18 @@ function defaultAuthEpochResolver(config: BridgeConfig): AuthEpochResolver {
   })
 }
 
+function defaultAccessRequestResolver(config: BridgeConfig): AccessRequestResolver {
+  return new SpacetimeHttpAccessRequestResolver({
+    uri: config.spacetimeDbUri,
+    database: config.spacetimeDbDatabase,
+    issuer: config.issuer,
+    audience: config.audience,
+    timeoutMs: ACCESS_REQUEST_RESOLVER_TIMEOUT_MILLISECONDS,
+  }, {
+    signer: claims => signEs256Jwt(config, claims),
+  })
+}
+
 function defaultQuickAuthVerifier(): QuickAuthVerifier {
   return {
     verifyJwt: ({ token }) => createClient().verifyJwt({
@@ -1042,13 +1137,15 @@ function sessionFamilyRecord(
   rememberDevice: boolean,
   createdAt: number,
 ): SessionFamilyRecord {
-  if (admission.state === 'disabled') throw new Error('Disabled identities cannot create sessions.')
   return Object.freeze({
     version: 1,
     origin,
     identity,
     state: admission.state === 'enabled' ? 'bound' : 'pending',
     ...(admission.state === 'enabled' ? { authEpoch: admission.authEpoch } : {}),
+    ...(admission.state === 'enabled'
+      ? {}
+      : { pendingAdmissionState: admission.state }),
     rememberDevice,
     currentGeneration: 1,
     createdAt,
@@ -1112,7 +1209,7 @@ async function quickAuthResponseBody(
   config: BridgeConfig,
   signer: typeof signEs256Jwt,
   fid: string,
-  admission: Exclude<AdmissionResolution, Readonly<{ state: 'disabled'; authEpoch: 0 }>>,
+  admission: AdmissionResolution,
   issuedAtMilliseconds: number,
 ): Promise<Record<string, unknown>> {
   const identity = browserIdentity({ fid })
@@ -1120,7 +1217,7 @@ async function quickAuthResponseBody(
     version: 2,
     identity,
   }
-  if (admission.state === 'missing') {
+  if (admission.state !== 'enabled') {
     return { ...base, status: 'pending-admission' }
   }
   const issuedAt = Math.floor(issuedAtMilliseconds / 1_000)
@@ -1141,6 +1238,39 @@ async function quickAuthResponseBody(
     tokenType: 'spacetime-access',
     accessExpiresAt: claims.exp * 1_000,
   }
+}
+
+function accessRequestResponseBody(
+  result: AccessRequestResolution,
+): Record<string, unknown> {
+  if (result.status === 'not-requested') {
+    return { version: 1, status: 'not-requested' }
+  }
+  if (result.status === 'already-admitted') {
+    return { version: 1, status: 'already-admitted' }
+  }
+  const requestedAt = Math.floor(result.requestedAtMicros / 1_000)
+  if (!Number.isSafeInteger(requestedAt) || requestedAt <= 0) {
+    throw new Error('Invalid access request timestamp.')
+  }
+  return { version: 1, status: 'requested', requestedAt }
+}
+
+function invalidAccessCredential(): HttpError {
+  return new HttpError(
+    401,
+    'access_auth_invalid',
+    'Farcaster authentication could not be verified.',
+  )
+}
+
+type AccessCredentialMode = 'quick-auth' | 'pending-session'
+
+function accessCredentialMode(request: Request): AccessCredentialMode {
+  const hasAuthorization = request.headers.has('authorization')
+  const hasCookie = hasSessionCookie(request)
+  if (hasAuthorization && hasCookie) throw invalidAccessCredential()
+  return hasAuthorization ? 'quick-auth' : 'pending-session'
 }
 
 async function sessionCookieHeader(
@@ -1167,6 +1297,23 @@ function invalidSessionError(status = 401): HttpError {
   return new HttpError(status, 'session_invalid', 'This browser session is not authorized.', {
     'set-cookie': expiredSessionSetCookie(),
   })
+}
+
+async function revokeInvalidAccessSession(
+  store: SessionFamilyStore,
+  familyId: string,
+  logger: SafeLogger,
+  status = 401,
+): Promise<never> {
+  try {
+    await store.revoke(familyId)
+    logger.event('session_revoked')
+  } catch {
+    // Admission was already resolved as incompatible, so the request remains
+    // denied even if durable cleanup is temporarily unavailable.
+    logger.event('session_revoke_failed')
+  }
+  throw invalidSessionError(status)
 }
 
 async function enforceRateLimit(
@@ -1245,6 +1392,9 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             'qa_observer_paused',
             'The read-only QA observer is disabled.',
           )
+        }
+        if (request.method === 'OPTIONS' && isAccessRequestPath(url.pathname)) {
+          return allowedAccessRequestPreflight(request, config)
         }
         if (request.method === 'OPTIONS' && url.pathname === V2_QUICK_AUTH_EXCHANGE_PATH) {
           return allowedQuickAuthPreflight(request)
@@ -1513,10 +1663,6 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             throw new HttpError(503, 'authorization_unavailable', 'Authorization is temporarily unavailable.')
           }
           logger.event('auth_epoch_resolved')
-          if (admission.state === 'disabled') {
-            throw new HttpError(403, 'quick_auth_not_authorized', 'This Farcaster identity is not authorized.')
-          }
-
           const signingTime = now()
           if (!Number.isSafeInteger(signingTime) || signingTime < verifiedAt) {
             throw new HttpError(503, 'signing_unavailable', 'Authentication signing is temporarily unavailable.')
@@ -1545,6 +1691,211 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           verifiedQuickAuthClaims(verifiedPayload, Math.floor(completedAt / 1_000))
           logger.event('quick_auth_succeeded')
           return json(responseBody, 200, quickAuthCorsHeaders(origin))
+        }
+
+        if (request.method === 'POST' && isAccessRequestPath(url.pathname)) {
+          const credentialMode = accessCredentialMode(request)
+          const origin = credentialMode === 'quick-auth'
+            ? requireQuickAuthBrowserOrigin(request)
+            : requireAllowedBrowserOrigin(request, config)
+          if (url.search) {
+            throw new HttpError(
+              400,
+              'access_query_not_allowed',
+              'This endpoint does not accept query parameters.',
+            )
+          }
+          await enforceRateLimit(
+            request,
+            'access-request',
+            env,
+            dependencies.rateLimiter,
+            logger,
+          )
+          requireExactKeys(await parseObjectBody(request), [])
+
+          let verifiedFid: string
+          let verifiedQuickAuthPayload: unknown
+          let sessionRecord: SessionFamilyRecord | undefined
+          let sessionStore: SessionFamilyStore | undefined
+          let sessionFamilyId: string | undefined
+          if (credentialMode === 'quick-auth') {
+            let token: string
+            try {
+              token = quickAuthCredential(request)
+            } catch {
+              throw invalidAccessCredential()
+            }
+            try {
+              verifiedQuickAuthPayload = await verifyQuickAuthWithDeadline(
+                dependencies.quickAuthVerifier ?? defaultQuickAuthVerifier(),
+                {
+                  token,
+                  domain: QUICK_AUTH_DOMAIN,
+                },
+              )
+            } catch (error) {
+              if (error instanceof QuickAuthErrors.InvalidTokenError) {
+                throw invalidAccessCredential()
+              }
+              logger.event('quick_auth_verifier_unavailable')
+              throw new HttpError(
+                503,
+                'access_verification_unavailable',
+                'Farcaster authentication is temporarily unavailable.',
+              )
+            } finally {
+              token = ''
+            }
+            const verifiedAt = now()
+            if (!Number.isSafeInteger(verifiedAt) || verifiedAt < 0) {
+              throw new HttpError(
+                503,
+                'access_verification_unavailable',
+                'Farcaster authentication is temporarily unavailable.',
+              )
+            }
+            try {
+              verifiedFid = verifiedQuickAuthClaims(
+                verifiedQuickAuthPayload,
+                Math.floor(verifiedAt / 1_000),
+              ).fid
+            } catch {
+              throw invalidAccessCredential()
+            }
+          } else {
+            const cookie = await readVerifiedSessionCookie(request, config.sessionCookieKey)
+            if (!cookie) throw invalidSessionError()
+            const store = dependencies.sessionFamilyStore ?? defaultSessionFamilyStore(env)
+            try {
+              sessionRecord = await store.get(cookie.familyId) ?? undefined
+            } catch {
+              logger.event('internal_error')
+              throw new HttpError(
+                503,
+                'session_unavailable',
+                'Authentication is temporarily unavailable.',
+              )
+            }
+            const checkedAt = now()
+            if (
+              !sessionRecord
+              || !Number.isSafeInteger(checkedAt)
+              || !matchesSessionFamilyReference(
+                sessionRecord,
+                cookie.generation,
+                origin,
+                checkedAt,
+              )
+            ) {
+              throw invalidSessionError()
+            }
+            verifiedFid = sessionRecord.identity.fid
+            sessionStore = store
+            sessionFamilyId = cookie.familyId
+          }
+
+          let admission: AdmissionResolution
+          try {
+            admission = requireAdmission(
+              await (
+                dependencies.authEpochResolver
+                ?? defaultAuthEpochResolver(config)
+              ).resolve(verifiedFid),
+            )
+          } catch (error) {
+            logAuthEpochFailure(logger, error)
+            throw new HttpError(
+              503,
+              'authorization_unavailable',
+              'Authorization is temporarily unavailable.',
+            )
+          }
+          logger.event('auth_epoch_resolved')
+
+          if (
+            sessionRecord?.state === 'bound'
+            && (
+              admission.state !== 'enabled'
+              || admission.authEpoch !== sessionRecord.authEpoch
+            )
+          ) {
+            if (!sessionStore || !sessionFamilyId) throw invalidSessionError()
+            return await revokeInvalidAccessSession(
+              sessionStore,
+              sessionFamilyId,
+              logger,
+              admission.state === 'disabled' ? 403 : 401,
+            )
+          }
+          if (
+            sessionRecord?.state === 'pending'
+            && !pendingSessionAdmissionMatches(sessionRecord, admission)
+          ) {
+            if (!sessionStore || !sessionFamilyId) {
+              throw invalidSessionError(admission.state === 'disabled' ? 403 : 401)
+            }
+            return await revokeInvalidAccessSession(
+              sessionStore,
+              sessionFamilyId,
+              logger,
+              admission.state === 'disabled' ? 403 : 401,
+            )
+          }
+
+          let result: AccessRequestResolution
+          if (admission.state === 'enabled') {
+            result = Object.freeze({ status: 'already-admitted' })
+          } else {
+            // A bound family becoming missing is an inconsistent authority
+            // transition, not permission to write a new access request.
+            if (sessionRecord?.state === 'bound') throw invalidSessionError()
+            if (credentialMode === 'quick-auth') {
+              const checkedAt = now()
+              if (!Number.isSafeInteger(checkedAt) || checkedAt < 0) {
+                throw invalidAccessCredential()
+              }
+              try {
+                verifiedQuickAuthClaims(
+                  verifiedQuickAuthPayload,
+                  Math.floor(checkedAt / 1_000),
+                )
+              } catch {
+                throw invalidAccessCredential()
+              }
+            }
+            try {
+              const resolver = dependencies.accessRequestResolver
+                ?? defaultAccessRequestResolver(config)
+              result = url.pathname === V2_ACCESS_STATUS_PATH
+                ? await resolver.getStatus(verifiedFid)
+                : await resolver.submit(verifiedFid)
+            } catch (error) {
+              logAccessRequestFailure(logger, error)
+              if (accessRequestResolverFailureStage(error)) {
+                throw new HttpError(
+                  503,
+                  'access_request_unavailable',
+                  'Access requests are temporarily unavailable.',
+                )
+              }
+              throw error
+            }
+          }
+
+          const responseBody = accessRequestResponseBody(result)
+          if (url.pathname === V2_ACCESS_STATUS_PATH) {
+            logger.event('access_status_succeeded')
+          } else {
+            logger.event('access_request_succeeded')
+          }
+          return json(
+            responseBody,
+            200,
+            credentialMode === 'quick-auth'
+              ? quickAuthCorsHeaders(origin)
+              : corsHeaders(origin, true),
+          )
         }
 
         if (request.method === 'POST' && url.pathname === V2_EXCHANGE_PATH) {
@@ -1636,11 +1987,6 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             throw new HttpError(503, 'authorization_unavailable', 'Authorization is temporarily unavailable.')
           }
           logger.event('auth_epoch_resolved')
-          if (admission.state === 'disabled') {
-            logger.event('session_rejected')
-            throw invalidSessionError(403)
-          }
-
           // Upstream verification and authorization can cross the challenge's
           // absolute deadline. Re-read authoritative time immediately before
           // signing; an already claimed expired challenge stays consumed.
@@ -1897,6 +2243,12 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             quickAuthExchangePath: V2_QUICK_AUTH_EXCHANGE_PATH,
             quickAuthVerifierPackage: QUICK_AUTH_VERIFIER_PACKAGE,
             quickAuthMaxTokenBytes: MAX_QUICK_AUTH_TOKEN_BYTES,
+            accessRequestStatusPath: V2_ACCESS_STATUS_PATH,
+            accessRequestSubmitPath: V2_ACCESS_REQUEST_PATH,
+            accessRequestResolverTokenTtlSeconds: INTERNAL_ACCESS_REQUEST_RESOLVER_TOKEN_TTL_SECONDS,
+            accessRequestResolverTimeoutMilliseconds: ACCESS_REQUEST_RESOLVER_TIMEOUT_MILLISECONDS,
+            accessRequestStatusProcedure: SPACETIMEDB_ACCESS_REQUEST_STATUS_PROCEDURE,
+            accessRequestSubmitProcedure: SPACETIMEDB_ACCESS_REQUEST_SUBMIT_PROCEDURE,
             publicAuthEnabled: config.publicAuthEnabled,
             qaObserverEnabled: config.qaObserverEnabled,
             qaObserverSpacetimeDbUri: config.qaObserverSpacetimeDb?.uri ?? null,
@@ -1916,6 +2268,7 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
         throw new HttpError(404, 'not_found', 'Route not found.')
       } catch (error) {
         if (url.pathname === V2_QUICK_AUTH_EXCHANGE_PATH) logger.event('quick_auth_rejected')
+        if (isAccessRequestPath(url.pathname)) logger.event('access_request_rejected')
         if (error instanceof HttpError) {
           if (url.pathname === QA_OBSERVER_CHALLENGE_PATH) logger.event('qa_challenge_rejected')
           if (url.pathname === QA_OBSERVER_SNAPSHOT_PATH) logger.event('qa_snapshot_rejected')

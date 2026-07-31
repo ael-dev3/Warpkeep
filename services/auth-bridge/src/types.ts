@@ -123,6 +123,16 @@ export type SafeLogEvent =
   | 'auth_epoch_failed_response_validation'
   | 'auth_epoch_probe_succeeded'
   | 'auth_epoch_probe_failed'
+  | 'access_status_succeeded'
+  | 'access_request_succeeded'
+  | 'access_request_rejected'
+  | 'access_request_failed'
+  | 'access_request_failed_signing'
+  | 'access_request_failed_fetch_request'
+  | 'access_request_failed_fetch_body'
+  | 'access_request_failed_timeout'
+  | 'access_request_failed_upstream_status'
+  | 'access_request_failed_response_validation'
   | 'rate_limited'
   | 'rate_limit_failed'
   | 'configuration_error'
@@ -207,10 +217,22 @@ export interface AuthEpochResolver {
   resolve(fid: string): Promise<AdmissionResolution>
 }
 
+export type AccessRequestResolution =
+  | Readonly<{ status: 'not-requested' }>
+  | Readonly<{ status: 'requested'; requestedAtMicros: number }>
+  | Readonly<{ status: 'already-admitted' }>
+
+/** Narrow bridge-internal writer; the signed principal supplies the verified FID. */
+export interface AccessRequestResolver {
+  getStatus(fid: string): Promise<AccessRequestResolution>
+  submit(fid: string): Promise<AccessRequestResolution>
+}
+
 export type RateLimitAction =
   | 'challenge'
   | 'exchange'
   | 'session-refresh'
+  | 'access-request'
   | 'admin-token'
   | 'qa-challenge'
   | 'qa-snapshot'
@@ -271,6 +293,19 @@ export interface AuthEpochResolverTokenClaims {
   jti: string
 }
 
+export interface AccessRequestResolverTokenClaims {
+  iss: string
+  sub: 'service:access-request-resolver'
+  aud: string[]
+  token_type: 'spacetime-access'
+  roles: ['warpkeep-access-request-resolver']
+  request_fid: string
+  iat: number
+  nbf: number
+  exp: number
+  jti: string
+}
+
 export interface QaSnapshotResolverTokenClaims {
   iss: string
   sub: 'service:qa-snapshot-resolver'
@@ -311,6 +346,12 @@ export interface SessionFamilyRecord {
   identity: PublicIdentity
   state: SessionFamilyState
   authEpoch?: number
+  /**
+   * Admission state proven when a pending family was created. Older pending
+   * records omit this field and are treated as `missing`, the only state that
+   * could create a pending family before revoked-founder reapplication.
+   */
+  pendingAdmissionState?: 'missing' | 'disabled'
   rememberDevice: boolean
   currentGeneration: number
   previousGeneration?: number

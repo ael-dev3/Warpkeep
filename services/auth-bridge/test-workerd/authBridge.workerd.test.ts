@@ -8,7 +8,12 @@ import {
   createQaObserverChallenge,
 } from '../src/qaObserver'
 import type { BridgeConfig } from '../src/config'
-import type { AdmissionResolution, DurableObjectNamespace, WorkerEnv } from '../src/types'
+import type {
+  AccessRequestResolver,
+  AdmissionResolution,
+  DurableObjectNamespace,
+  WorkerEnv,
+} from '../src/types'
 
 const ORIGIN = 'https://warpkeep.test'
 const DOMAIN = 'warpkeep.test'
@@ -18,6 +23,8 @@ const QUICK_AUTH_ORIGIN = 'https://warpkeep.com'
 const QUICK_AUTH_DOMAIN = 'warpkeep.com'
 const QUICK_AUTH_ISSUER = 'https://auth.farcaster.xyz'
 const QUICK_AUTH_PATH = '/v2/farcaster/quick-auth/exchange'
+const ACCESS_STATUS_PATH = '/v2/access/status'
+const ACCESS_REQUEST_PATH = '/v2/access/request'
 const syntheticQuickAuthSegment = (value: object) => btoa(JSON.stringify(value))
   .replaceAll('+', '-')
   .replaceAll('/', '_')
@@ -100,6 +107,20 @@ function quickAuthPost(
   })
 }
 
+function accessBearerPost(
+  path: typeof ACCESS_STATUS_PATH | typeof ACCESS_REQUEST_PATH,
+): Request {
+  return new Request(`https://auth.warpkeep.test${path}`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${QUICK_AUTH_TOKEN}`,
+      'content-type': 'application/json',
+      origin: QUICK_AUTH_ORIGIN,
+    },
+    body: '{}',
+  })
+}
+
 function proofFor(challenge: IssuedChallenge, bindingVerifier = BINDING_VERIFIER) {
   return {
     message: createSiweMessage({
@@ -129,6 +150,7 @@ function proofFor(challenge: IssuedChallenge, bindingVerifier = BINDING_VERIFIER
 
 function harness(options: {
   admission?: AdmissionResolution
+  accessRequestResolver?: AccessRequestResolver
   rateLimiter?: { check(request: Request, action: string): Promise<{ allowed: true } | { allowed: false; retryAfterSeconds: number }> }
 } = {}) {
   const verifier = { verify: vi.fn(async () => ({ fid: FID })) }
@@ -150,16 +172,31 @@ function harness(options: {
     )),
   }
   const signer = vi.fn(async (_config: BridgeConfig, _claims: unknown) => 'workerd.test.token')
+  const accessRequestResolver = options.accessRequestResolver ?? {
+    getStatus: vi.fn(async () => ({ status: 'not-requested' } as const)),
+    submit: vi.fn(async () => ({
+      status: 'requested',
+      requestedAtMicros: 1_785_414_896_000_000,
+    } as const)),
+  }
   const app = createAuthBridge({
     configReader: () => CONFIG,
     verifier,
     quickAuthVerifier,
     authEpochResolver: resolver,
+    accessRequestResolver,
     rateLimiter: options.rateLimiter ?? { check: async () => ({ allowed: true }) },
     signer,
     logger: { event: vi.fn() },
   })
-  return { app, verifier, quickAuthVerifier, resolver, signer }
+  return {
+    app,
+    verifier,
+    quickAuthVerifier,
+    resolver,
+    accessRequestResolver,
+    signer,
+  }
 }
 
 describe('auth bridge production bindings in workerd', () => {
@@ -205,8 +242,12 @@ describe('auth bridge production bindings in workerd', () => {
 
     h.resolver.resolve.mockResolvedValueOnce({ state: 'disabled', authEpoch: 0 })
     const disabled = await h.app.fetch(quickAuthPost(), bridgeEnv)
-    expect(disabled.status).toBe(403)
-    expect(await disabled.json()).toMatchObject({ error: { code: 'quick_auth_not_authorized' } })
+    expect(disabled.status).toBe(200)
+    expect(await disabled.json()).toEqual({
+      version: 2,
+      identity: { fid: Number(FID) },
+      status: 'pending-admission',
+    })
     expect(disabled.headers.has('set-cookie')).toBe(false)
     expect(h.signer).toHaveBeenCalledTimes(1)
   })
@@ -249,6 +290,221 @@ describe('auth bridge production bindings in workerd', () => {
     expect(malformed.status).toBe(401)
     expect(await malformed.json()).toMatchObject({ error: { code: 'quick_auth_invalid' } })
     expect(malformedHarness.quickAuthVerifier.verifyJwt).not.toHaveBeenCalled()
+  })
+
+  it('supports neutral access requests through Quick Auth and a non-rotating pending family in workerd', async () => {
+    const getStatus = vi.fn(async () => ({ status: 'not-requested' } as const))
+    const submit = vi.fn(async () => ({
+      status: 'requested',
+      requestedAtMicros: 1_785_414_896_000_000,
+    } as const))
+    const h = harness({
+      admission: { state: 'missing', authEpoch: 0 },
+      accessRequestResolver: { getStatus, submit },
+    })
+    const bridgeEnv = env as unknown as WorkerEnv
+
+    const bearerStatus = await h.app.fetch(
+      accessBearerPost(ACCESS_STATUS_PATH),
+      bridgeEnv,
+    )
+    expect(bearerStatus.status).toBe(200)
+    expect(await bearerStatus.json()).toEqual({
+      version: 1,
+      status: 'not-requested',
+    })
+    expect(bearerStatus.headers.get('access-control-allow-origin'))
+      .toBe(QUICK_AUTH_ORIGIN)
+    expect(bearerStatus.headers.has('access-control-allow-credentials')).toBe(false)
+    expect(bearerStatus.headers.has('set-cookie')).toBe(false)
+
+    const bearerSubmit = await h.app.fetch(
+      accessBearerPost(ACCESS_REQUEST_PATH),
+      bridgeEnv,
+    )
+    expect(bearerSubmit.status).toBe(200)
+    expect(await bearerSubmit.json()).toEqual({
+      version: 1,
+      status: 'requested',
+      requestedAt: 1_785_414_896_000,
+    })
+    expect(getStatus).toHaveBeenCalledWith(FID)
+    expect(submit).toHaveBeenCalledWith(FID)
+
+    const issued = await h.app.fetch(post('/v2/farcaster/challenge', {
+      domain: DOMAIN,
+      siweUri: SIWE_URI,
+      bindingChallenge: BINDING_CHALLENGE,
+      bindingMethod: 'S256',
+    }), bridgeEnv)
+    expect(issued.status).toBe(201)
+    const challenge = await issued.json() as IssuedChallenge
+    const exchange = await h.app.fetch(
+      post('/v2/farcaster/exchange', proofFor(challenge)),
+      bridgeEnv,
+    )
+    expect(exchange.status).toBe(200)
+    const cookie = exchange.headers.get('set-cookie')?.split(';', 1)[0]
+    expect(cookie).toMatch(/^__Host-warpkeep_session=v1\./)
+    const familyId = cookie!.split('=', 2)[1].split('.')[1]
+    const familyStub = env.SESSION_FAMILIES.get(
+      env.SESSION_FAMILIES.idFromName(`warpkeep-session:v1:${familyId}`),
+    )
+    const before = await runInDurableObject(familyStub, async (_instance, state) => (
+      state.storage.get('session-family')
+    ))
+
+    const sessionStatus = await h.app.fetch(
+      post(ACCESS_STATUS_PATH, {}, { cookie: cookie! }),
+      bridgeEnv,
+    )
+    expect(sessionStatus.status).toBe(200)
+    expect(await sessionStatus.json()).toEqual({
+      version: 1,
+      status: 'not-requested',
+    })
+    expect(sessionStatus.headers.get('access-control-allow-origin')).toBe(ORIGIN)
+    expect(sessionStatus.headers.get('access-control-allow-credentials')).toBe('true')
+    expect(sessionStatus.headers.has('set-cookie')).toBe(false)
+    const after = await runInDurableObject(familyStub, async (_instance, state) => (
+      state.storage.get('session-family')
+    ))
+    expect(after).toEqual(before)
+    expect(after).toMatchObject({ state: 'pending', currentGeneration: 1 })
+    expect(h.signer).not.toHaveBeenCalled()
+  })
+
+  it('supports revoked-founder reapplication without gameplay tokens in workerd', async () => {
+    const getStatus = vi.fn(async () => ({ status: 'not-requested' } as const))
+    const submit = vi.fn(async () => ({
+      status: 'requested',
+      requestedAtMicros: 1_785_414_896_000_000,
+    } as const))
+    const h = harness({
+      admission: { state: 'disabled', authEpoch: 0 },
+      accessRequestResolver: { getStatus, submit },
+    })
+    const bridgeEnv = env as unknown as WorkerEnv
+
+    const bearerSubmit = await h.app.fetch(
+      accessBearerPost(ACCESS_REQUEST_PATH),
+      bridgeEnv,
+    )
+    expect(bearerSubmit.status).toBe(200)
+    expect(await bearerSubmit.json()).toEqual({
+      version: 1,
+      status: 'requested',
+      requestedAt: 1_785_414_896_000,
+    })
+    expect(submit).toHaveBeenCalledWith(FID)
+
+    const issued = await h.app.fetch(post('/v2/farcaster/challenge', {
+      domain: DOMAIN,
+      siweUri: SIWE_URI,
+      bindingChallenge: BINDING_CHALLENGE,
+      bindingMethod: 'S256',
+    }), bridgeEnv)
+    const challenge = await issued.json() as IssuedChallenge
+    const exchange = await h.app.fetch(
+      post('/v2/farcaster/exchange', proofFor(challenge)),
+      bridgeEnv,
+    )
+    expect(exchange.status).toBe(200)
+    expect(await exchange.clone().json()).toMatchObject({
+      version: 2,
+      status: 'pending-admission',
+      identity: { fid: Number(FID) },
+    })
+    const cookie = exchange.headers.get('set-cookie')?.split(';', 1)[0]
+    expect(cookie).toMatch(/^__Host-warpkeep_session=v1\./)
+    const familyId = cookie!.split('=', 2)[1].split('.')[1]
+    const familyStub = env.SESSION_FAMILIES.get(
+      env.SESSION_FAMILIES.idFromName(`warpkeep-session:v1:${familyId}`),
+    )
+    const stored = await runInDurableObject(familyStub, async (_instance, state) => (
+      state.storage.get('session-family')
+    ))
+    expect(stored).toMatchObject({
+      state: 'pending',
+      pendingAdmissionState: 'disabled',
+      currentGeneration: 1,
+    })
+
+    const sessionStatus = await h.app.fetch(
+      post(ACCESS_STATUS_PATH, {}, { cookie: cookie! }),
+      bridgeEnv,
+    )
+    expect(sessionStatus.status).toBe(200)
+    expect(await sessionStatus.json()).toEqual({
+      version: 1,
+      status: 'not-requested',
+    })
+    expect(getStatus).toHaveBeenCalledWith(FID)
+
+    const refresh = await h.app.fetch(
+      post('/v2/session/refresh', {}, { cookie: cookie! }),
+      bridgeEnv,
+    )
+    expect(refresh.status).toBe(200)
+    expect(await refresh.json()).toMatchObject({
+      version: 2,
+      status: 'pending-admission',
+      identity: { fid: Number(FID) },
+    })
+    expect(refresh.headers.get('set-cookie')).toMatch(/__Host-warpkeep_session=v1\./)
+    expect(h.signer).not.toHaveBeenCalled()
+  })
+
+  it('keeps access-request preflights and rate limits exact in workerd', async () => {
+    const bridgeEnv = env as unknown as WorkerEnv
+    const bearerPreflight = await harness().app.fetch(new Request(
+      `https://auth.warpkeep.test${ACCESS_REQUEST_PATH}`,
+      {
+        method: 'OPTIONS',
+        headers: {
+          origin: QUICK_AUTH_ORIGIN,
+          'access-control-request-method': 'POST',
+          'access-control-request-headers': 'authorization, content-type',
+        },
+      },
+    ), bridgeEnv)
+    expect(bearerPreflight.status).toBe(204)
+    expect(bearerPreflight.headers.get('access-control-allow-origin'))
+      .toBe(QUICK_AUTH_ORIGIN)
+    expect(bearerPreflight.headers.has('access-control-allow-credentials')).toBe(false)
+
+    const sessionPreflight = await harness().app.fetch(new Request(
+      `https://auth.warpkeep.test${ACCESS_STATUS_PATH}`,
+      {
+        method: 'OPTIONS',
+        headers: {
+          origin: ORIGIN,
+          'access-control-request-method': 'POST',
+          'access-control-request-headers': 'content-type',
+        },
+      },
+    ), bridgeEnv)
+    expect(sessionPreflight.status).toBe(204)
+    expect(sessionPreflight.headers.get('access-control-allow-origin')).toBe(ORIGIN)
+    expect(sessionPreflight.headers.get('access-control-allow-credentials')).toBe('true')
+
+    const check = vi.fn(async (_request: Request, _action: string) => ({
+      allowed: false as const,
+      retryAfterSeconds: 13,
+    }))
+    const limited = harness({
+      admission: { state: 'missing', authEpoch: 0 },
+      rateLimiter: { check },
+    })
+    const response = await limited.app.fetch(
+      accessBearerPost(ACCESS_REQUEST_PATH),
+      bridgeEnv,
+    )
+    expect(response.status).toBe(429)
+    expect(response.headers.get('retry-after')).toBe('13')
+    expect(check.mock.calls[0]?.[1]).toBe('access-request')
+    expect(limited.quickAuthVerifier.verifyJwt).not.toHaveBeenCalled()
+    expect(limited.resolver.resolve).not.toHaveBeenCalled()
   })
 
   it('isolates QA challenges in their dedicated Durable Object and atomically consumes once', async () => {

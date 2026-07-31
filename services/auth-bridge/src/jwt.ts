@@ -1,4 +1,5 @@
 import type {
+  AccessRequestResolverTokenClaims,
   AdminTokenClaims,
   AuthEpochResolverTokenClaims,
   PlayerTokenClaims,
@@ -6,6 +7,7 @@ import type {
 } from './types'
 import {
   ADMIN_TOKEN_TTL_SECONDS,
+  INTERNAL_ACCESS_REQUEST_RESOLVER_TOKEN_TTL_SECONDS,
   INTERNAL_AUTH_EPOCH_RESOLVER_TOKEN_TTL_SECONDS,
   PLAYER_TOKEN_TTL_SECONDS,
   QA_SNAPSHOT_RESOLVER_TOKEN_TTL_SECONDS,
@@ -49,7 +51,12 @@ async function signingKey(config: BridgeConfig): Promise<CryptoKey> {
 
 export async function signEs256Jwt(
   config: BridgeConfig,
-  claims: PlayerTokenClaims | AdminTokenClaims | AuthEpochResolverTokenClaims | QaSnapshotResolverTokenClaims,
+  claims:
+    | PlayerTokenClaims
+    | AdminTokenClaims
+    | AuthEpochResolverTokenClaims
+    | AccessRequestResolverTokenClaims
+    | QaSnapshotResolverTokenClaims,
 ): Promise<string> {
   const encodedHeader = base64UrlJson({ alg: 'ES256', typ: 'JWT', kid: config.keyId })
   const encodedPayload = base64UrlJson(claims)
@@ -131,6 +138,27 @@ export function authEpochResolverClaims(
     iat: nowSeconds,
     nbf: nowSeconds,
     exp: nowSeconds + INTERNAL_AUTH_EPOCH_RESOLVER_TOKEN_TTL_SECONDS,
+    jti: randomId(),
+  }
+}
+
+/** Fresh 15-second writer token bound to one canonical server-verified FID. */
+export function accessRequestResolverClaims(
+  issuer: string,
+  audience: string,
+  requestFid: string,
+  nowSeconds: number,
+): AccessRequestResolverTokenClaims {
+  return {
+    iss: issuer,
+    sub: 'service:access-request-resolver',
+    aud: [audience],
+    token_type: 'spacetime-access',
+    roles: ['warpkeep-access-request-resolver'],
+    request_fid: requestFid,
+    iat: nowSeconds,
+    nbf: nowSeconds,
+    exp: nowSeconds + INTERNAL_ACCESS_REQUEST_RESOLVER_TOKEN_TTL_SECONDS,
     jti: randomId(),
   }
 }
