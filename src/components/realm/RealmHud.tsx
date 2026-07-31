@@ -1044,7 +1044,13 @@ export function RealmHud({
     else setLocalSurface('closed');
   };
 
-  if (selectionAnnouncementRef.current.key !== selectionAnnouncementKey) {
+  if (
+    selectionAnnouncementRef.current.key !== selectionAnnouncementKey
+    || selectionAnnouncementRef.current.copy !== selectionAnnouncementCandidate
+  ) {
+    // Public profile data can resolve after the castle was selected. Refresh
+    // the live-region copy at the same coordinate without state or an effect,
+    // so unrelated renders remain silent and cannot create an update loop.
     selectionAnnouncementRef.current = {
       key: selectionAnnouncementKey,
       copy: selectionAnnouncementCandidate

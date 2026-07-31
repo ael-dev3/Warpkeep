@@ -910,11 +910,12 @@ describe('rendered WebGL headless browser probe contract', () => {
       markerHitTestable: true,
       overviewPresenceDirectHit: true,
       overviewRecordCorrect: true,
-      overviewTargetPassiveOnly: true,
+      overviewTargetControlOnly: true,
+      passivePresenceVisualOnly: true,
       presenceComputedVisible: true,
       presenceAvatarGeometryValid: true,
       presenceGeometryValid: true,
-      presenceDelegatedActivation: true,
+      overviewControlActivation: true,
       presenceHitTestable: true,
       presencePointerActivatable: true,
       presencePortraitElementPresent: true,
@@ -939,11 +940,12 @@ describe('rendered WebGL headless browser probe contract', () => {
       compactOverviewCullingValid: true,
       overviewPresenceDirectHit: false,
       overviewRecordCorrect: false,
-      overviewTargetPassiveOnly: false,
+      overviewTargetControlOnly: false,
+      passivePresenceVisualOnly: false,
       presenceComputedVisible: false,
       presenceAvatarGeometryValid: false,
       presenceGeometryValid: false,
-      presenceDelegatedActivation: false,
+      overviewControlActivation: false,
       presenceHitTestable: false,
       presencePointerActivatable: false,
       presencePortraitElementPresent: false,
@@ -1011,6 +1013,11 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(expression).toContain(
       'currentToken !== previousToken'
     );
+    expect(expression).toContain('const candidate = controlCandidate;');
+    expect(expression).toContain(
+      "getComputedStyle(passivePresence).pointerEvents === 'none'"
+    );
+    expect(expression).not.toContain('controlCandidate ?? passiveCandidate');
     expect(expression).toContain("resource: 'gold'");
     expect(expression).toContain("resource: 'food'");
     expect(expression).toContain("resource: 'wood'");

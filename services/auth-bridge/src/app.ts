@@ -127,6 +127,7 @@ const QUICK_AUTH_DOMAIN = 'warpkeep.com'
 const QUICK_AUTH_BROWSER_ORIGIN = 'https://warpkeep.com'
 const QUICK_AUTH_ISSUER = 'https://auth.farcaster.xyz'
 const MAX_QUICK_AUTH_TOKEN_BYTES = 8 * 1024
+export const QUICK_AUTH_MAX_ISSUER_LIFETIME_SECONDS = 60 * 60
 const QUICK_AUTH_VERIFIER_PACKAGE = '@farcaster/quick-auth@0.0.8'
 
 const ACCESS_REQUEST_FAILURE_EVENTS:
@@ -256,6 +257,21 @@ function publicCorsHeaders(request: Request, config: BridgeConfig, pathname = ne
     : {}
 }
 
+function accessControlRequestedHeaders(request: Request): string[] {
+  const requested = request.headers.get('access-control-request-headers')
+  return requested
+    ? requested.split(',').map(header => header.trim().toLowerCase()).filter(Boolean)
+    : []
+}
+
+function accessRequestUsesBearer(request: Request): boolean {
+  return request.headers.has('authorization')
+    || (
+      request.method === 'OPTIONS'
+      && accessControlRequestedHeaders(request).includes('authorization')
+    )
+}
+
 function routeCorsHeaders(request: Request, config: BridgeConfig, pathname = new URL(request.url).pathname): HeadersInit {
   if (pathname === V2_QUICK_AUTH_EXCHANGE_PATH) {
     const origin = request.headers.get('origin')
@@ -263,7 +279,7 @@ function routeCorsHeaders(request: Request, config: BridgeConfig, pathname = new
   }
   if (isAccessRequestPath(pathname)) {
     const origin = request.headers.get('origin')
-    if (request.headers.has('authorization')) {
+    if (accessRequestUsesBearer(request)) {
       return origin === QUICK_AUTH_BROWSER_ORIGIN ? quickAuthCorsHeaders(origin) : {}
     }
     return origin && config.allowedOrigins.has(origin) ? corsHeaders(origin, true) : {}
@@ -380,10 +396,7 @@ function allowedAccessRequestPreflight(
   request: Request,
   config: BridgeConfig,
 ): Response {
-  const requestHeaders = request.headers.get('access-control-request-headers')
-  const headers = requestHeaders
-    ? requestHeaders.split(',').map(header => header.trim().toLowerCase()).filter(Boolean)
-    : []
+  const headers = accessControlRequestedHeaders(request)
   const usesBearer = headers.includes('authorization')
   const allowedHeaders = usesBearer
     ? new Set(['authorization', 'content-type'])
@@ -558,6 +571,7 @@ function verifiedQuickAuthClaims(payload: unknown, nowSeconds: number): Readonly
     || !Number.isSafeInteger(claims.exp)
     || claims.exp <= claims.iat
     || claims.exp <= nowSeconds
+    || claims.exp - claims.iat > QUICK_AUTH_MAX_ISSUER_LIFETIME_SECONDS
   ) throw invalidQuickAuthCredential()
   return Object.freeze({
     fid: canonicalFid(claims.sub),
@@ -931,6 +945,7 @@ async function configurationAttestation(
     quickAuthExchangePath: V2_QUICK_AUTH_EXCHANGE_PATH,
     quickAuthVerifierPackage: QUICK_AUTH_VERIFIER_PACKAGE,
     quickAuthMaxTokenBytes: MAX_QUICK_AUTH_TOKEN_BYTES,
+    quickAuthMaxIssuerLifetimeSeconds: QUICK_AUTH_MAX_ISSUER_LIFETIME_SECONDS,
     accessTokenTtlSeconds: PLAYER_TOKEN_TTL_SECONDS,
     authEpochResolverTokenTtlSeconds: INTERNAL_AUTH_EPOCH_RESOLVER_TOKEN_TTL_SECONDS,
     authEpochResolverTimeoutMilliseconds: AUTH_EPOCH_RESOLVER_TIMEOUT_MILLISECONDS,
@@ -1576,6 +1591,9 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
 
         if (request.method === 'POST' && url.pathname === V2_CHALLENGE_PATH) {
           const origin = requireAllowedBrowserOrigin(request, config)
+          if (url.search) {
+            throw new HttpError(400, 'challenge_query_not_allowed', 'This endpoint does not accept query parameters.')
+          }
           await enforceRateLimit(request, 'challenge', env, dependencies.rateLimiter, logger)
           const body = await parseObjectBody(request)
           const browserBinding = parseChallengeRequest(body, config)
@@ -1900,6 +1918,9 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
 
         if (request.method === 'POST' && url.pathname === V2_EXCHANGE_PATH) {
           const origin = requireAllowedBrowserOrigin(request, config)
+          if (url.search) {
+            throw new HttpError(400, 'exchange_query_not_allowed', 'This endpoint does not accept query parameters.')
+          }
           await enforceRateLimit(request, 'exchange', env, dependencies.rateLimiter, logger)
           const body = await parseObjectBody(request)
           const input = parseExchangeRequest(body, logger)
@@ -2052,6 +2073,9 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
 
         if (request.method === 'POST' && url.pathname === V2_REFRESH_PATH) {
           const origin = requireAllowedBrowserOrigin(request, config)
+          if (url.search) {
+            throw new HttpError(400, 'refresh_query_not_allowed', 'This endpoint does not accept query parameters.')
+          }
           await enforceRateLimit(request, 'session-refresh', env, dependencies.rateLimiter, logger)
           requireExactKeys(await parseObjectBody(request), [])
           const cookie = await readVerifiedSessionCookie(request, config.sessionCookieKey)
@@ -2136,6 +2160,9 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
 
         if (request.method === 'POST' && url.pathname === V2_LOGOUT_PATH) {
           const origin = requireAllowedBrowserOrigin(request, config)
+          if (url.search) {
+            throw new HttpError(400, 'logout_query_not_allowed', 'This endpoint does not accept query parameters.')
+          }
           requireExactKeys(await parseObjectBody(request), [])
           const cookie = await readVerifiedSessionCookie(request, config.sessionCookieKey)
           if (cookie) {
@@ -2243,6 +2270,7 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             quickAuthExchangePath: V2_QUICK_AUTH_EXCHANGE_PATH,
             quickAuthVerifierPackage: QUICK_AUTH_VERIFIER_PACKAGE,
             quickAuthMaxTokenBytes: MAX_QUICK_AUTH_TOKEN_BYTES,
+            quickAuthMaxIssuerLifetimeSeconds: QUICK_AUTH_MAX_ISSUER_LIFETIME_SECONDS,
             accessRequestStatusPath: V2_ACCESS_STATUS_PATH,
             accessRequestSubmitPath: V2_ACCESS_REQUEST_PATH,
             accessRequestResolverTokenTtlSeconds: INTERNAL_ACCESS_REQUEST_RESOLVER_TOKEN_TTL_SECONDS,

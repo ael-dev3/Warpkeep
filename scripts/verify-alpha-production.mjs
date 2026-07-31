@@ -1176,6 +1176,11 @@ async function verifyAuthV2AdminBrowserIsolation(frontend, bridge, fetchImpl) {
         'access-control-request-headers': 'authorization, content-type',
       }),
     }),
+    Object.freeze({
+      name: 'allowed-origin credential-free POST',
+      method: 'POST',
+      headers: Object.freeze({ origin: frontend }),
+    }),
   ]);
 
   for (const pathname of AUTH_V2_SERVER_ONLY_ADMIN_PATHS) {
@@ -1187,8 +1192,18 @@ async function verifyAuthV2AdminBrowserIsolation(frontend, bridge, fetchImpl) {
       }, fetchImpl);
       verifyAuthV2SecurityHeaders(response, label);
       verifyNoCors(response, label);
-      const payload = await readExactJsonAtStatus(response, label, 404);
-      verifyExactErrorPayload(payload, 'not_found', 'Route not found.', label);
+      if (check.method === 'POST') {
+        const payload = await readExactJsonAtStatus(response, label, 403);
+        verifyExactErrorPayload(
+          payload,
+          'admin_browser_forbidden',
+          'This endpoint is server-only.',
+          label,
+        );
+      } else {
+        const payload = await readExactJsonAtStatus(response, label, 404);
+        verifyExactErrorPayload(payload, 'not_found', 'Route not found.', label);
+      }
     }
   }
 }

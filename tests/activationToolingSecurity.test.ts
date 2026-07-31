@@ -878,7 +878,7 @@ type AuthV2FixtureOptions = {
   publicRoutesPaused?: boolean;
   adminCorsLeak?: Readonly<{
     pathname: string;
-    method: 'GET' | 'OPTIONS';
+    method: 'GET' | 'OPTIONS' | 'POST';
     origin: string;
   }>;
 };
@@ -1052,7 +1052,7 @@ function authV2BridgeFetch(options: AuthV2FixtureOptions = {}) {
     }
 
     if (
-      (method === 'GET' || method === 'OPTIONS')
+      (method === 'GET' || method === 'OPTIONS' || method === 'POST')
       && AUTH_V2_SERVER_ONLY_ADMIN_PATHS.has(url.pathname)
     ) {
       const leak = options.adminCorsLeak;
@@ -1062,6 +1062,14 @@ function authV2BridgeFetch(options: AuthV2FixtureOptions = {}) {
         && leak.origin === origin
         ? { 'access-control-allow-origin': origin }
         : {};
+      if (method === 'POST') {
+        return authV2JsonResponse({
+          error: {
+            code: 'admin_browser_forbidden',
+            message: 'This endpoint is server-only.',
+          },
+        }, 403, cors, options.omitSecurityHeader);
+      }
       return authV2JsonResponse({
         error: { code: 'not_found', message: 'Route not found.' },
       }, 404, cors, options.omitSecurityHeader);
@@ -3712,7 +3720,7 @@ describe('bounded auth-v2 production readiness verification', () => {
     );
   });
 
-  it('attests contained auth-v2 using only bounded GET and OPTIONS requests', async () => {
+  it('attests contained auth-v2 using only bounded non-mutating requests', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     const fetchImpl = authV2BridgeFetch();
 
@@ -3721,12 +3729,12 @@ describe('bounded auth-v2 production readiness verification', () => {
       fetchImpl,
     })).resolves.toBeUndefined();
 
-    expect(fetchImpl).toHaveBeenCalledTimes(32);
+    expect(fetchImpl).toHaveBeenCalledTimes(35);
     for (const [input, init] of fetchImpl.mock.calls) {
       const url = new URL(String(input));
       const headers = new Headers(init?.headers);
       expect(url.origin).toBe(ISSUER);
-      expect(init?.method ?? 'GET').toMatch(/^(?:GET|OPTIONS)$/);
+      expect(init?.method ?? 'GET').toMatch(/^(?:GET|OPTIONS|POST)$/);
       expect(init?.body).toBeUndefined();
       expect(init?.redirect).toBe('manual');
       expect(init?.cache).toBe('no-store');
@@ -3766,8 +3774,8 @@ describe('bounded auth-v2 production readiness verification', () => {
     }
     for (const pathname of AUTH_V2_SERVER_ONLY_ADMIN_PATHS) {
       const calls = fetchImpl.mock.calls.filter(([input]) => new URL(String(input)).pathname === pathname);
-      expect(calls).toHaveLength(3);
-      expect(calls.map(([, init]) => init?.method)).toEqual(['GET', 'OPTIONS', 'OPTIONS']);
+      expect(calls).toHaveLength(4);
+      expect(calls.map(([, init]) => init?.method)).toEqual(['GET', 'OPTIONS', 'OPTIONS', 'POST']);
     }
     for (const pathname of AUTH_V2_ACCESS_REQUEST_PATHS) {
       const calls = fetchImpl.mock.calls.filter(
@@ -3809,12 +3817,12 @@ describe('bounded auth-v2 production readiness verification', () => {
       fetchImpl,
     })).resolves.toBeUndefined();
 
-    expect(fetchImpl).toHaveBeenCalledTimes(32);
+    expect(fetchImpl).toHaveBeenCalledTimes(35);
     for (const [input, init] of fetchImpl.mock.calls) {
       const url = new URL(String(input));
       const headers = new Headers(init?.headers);
       expect(url.origin).toBe(ISSUER);
-      expect(init?.method ?? 'GET').toMatch(/^(?:GET|OPTIONS)$/);
+      expect(init?.method ?? 'GET').toMatch(/^(?:GET|OPTIONS|POST)$/);
       expect(init?.body).toBeUndefined();
       expect(init?.redirect).toBe('manual');
       expect(init?.cache).toBe('no-store');
@@ -3825,8 +3833,8 @@ describe('bounded auth-v2 production readiness verification', () => {
     }
     for (const pathname of AUTH_V2_SERVER_ONLY_ADMIN_PATHS) {
       const calls = fetchImpl.mock.calls.filter(([input]) => new URL(String(input)).pathname === pathname);
-      expect(calls).toHaveLength(3);
-      expect(calls.map(([, init]) => init?.method)).toEqual(['GET', 'OPTIONS', 'OPTIONS']);
+      expect(calls).toHaveLength(4);
+      expect(calls.map(([, init]) => init?.method)).toEqual(['GET', 'OPTIONS', 'OPTIONS', 'POST']);
     }
     for (const pathname of AUTH_V2_ACCESS_REQUEST_PATHS) {
       const calls = fetchImpl.mock.calls.filter(
@@ -3878,6 +3886,20 @@ describe('bounded auth-v2 production readiness verification', () => {
         fetchImpl: authV2BridgeFetch({
           publicAuthEnabled: true,
           adminCorsLeak: { pathname, method: 'GET', origin: FRONTEND },
+        }),
+      })).rejects.toThrow(/exposed browser CORS/i);
+    },
+  );
+
+  it.each([...AUTH_V2_SERVER_ONLY_ADMIN_PATHS])(
+    'fails closed when credential-free allowed-origin POST exposes CORS on %s',
+    async (pathname) => {
+      vi.spyOn(console, 'log').mockImplementation(() => undefined);
+      await expect(verifyBridge(FRONTEND, ISSUER, {
+        requireAuthV2Enabled: true,
+        fetchImpl: authV2BridgeFetch({
+          publicAuthEnabled: true,
+          adminCorsLeak: { pathname, method: 'POST', origin: FRONTEND },
         }),
       })).rejects.toThrow(/exposed browser CORS/i);
     },

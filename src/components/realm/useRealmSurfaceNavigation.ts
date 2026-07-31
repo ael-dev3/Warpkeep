@@ -14,11 +14,14 @@ import {
   pushRealmSurfaceRoute,
   readRealmSurfaceHistoryState,
   replaceRealmSurfaceRoute,
+  sameRealmSurfaceRoute,
   type RealmSurfaceHistoryState,
   type RealmSurfaceRoute
 } from './realmSurfaceNavigation';
 
 type BrowserHistoryRecord = Record<string, unknown>;
+
+export const REALM_SURFACE_HISTORY_TRAVERSAL_WATCHDOG_MILLISECONDS = 1_500;
 
 function currentHistoryRecord(): BrowserHistoryRecord {
   const current = window.history.state;
@@ -45,6 +48,14 @@ function withoutRealmNavigationState() {
 
 function currentRealmUrl() {
   return `${window.location.pathname}${window.location.search}${window.location.hash}`;
+}
+
+function sameRealmSurfaceStack(
+  left: readonly RealmSurfaceRoute[],
+  right: readonly RealmSurfaceRoute[]
+) {
+  return left.length === right.length
+    && left.every((route, index) => sameRealmSurfaceRoute(route, right[index]));
 }
 
 export type RealmSurfaceNavigation = Readonly<{
@@ -74,10 +85,55 @@ export function useRealmSurfaceNavigation({
   >('idle');
   const stackRef = useRef(stack);
   const historyEnabledRef = useRef(historyEnabled);
-  const previousHistoryEnabledRef = useRef(historyEnabled);
   const historyTraversalPendingRef = useRef(false);
+  const historyTraversalWatchdogRef = useRef<number | undefined>(undefined);
   stackRef.current = stack;
   historyEnabledRef.current = historyEnabled;
+
+  const clearHistoryTraversalPending = useCallback(() => {
+    historyTraversalPendingRef.current = false;
+    const watchdog = historyTraversalWatchdogRef.current;
+    historyTraversalWatchdogRef.current = undefined;
+    if (watchdog !== undefined) window.clearTimeout(watchdog);
+  }, []);
+
+  const reconcileHistoryStack = useCallback((
+    nextStack: readonly RealmSurfaceRoute[]
+  ) => {
+    const previousStack = stackRef.current;
+    if (sameRealmSurfaceStack(previousStack, nextStack)) return;
+    setMotion(
+      nextStack.length < previousStack.length
+        ? 'backward'
+        : nextStack.length > previousStack.length
+          ? 'forward'
+          : 'replace'
+    );
+    stackRef.current = nextStack;
+    setStack(nextStack);
+  }, []);
+
+  const beginHistoryTraversal = useCallback(() => {
+    if (historyTraversalPendingRef.current) return false;
+    clearHistoryTraversalPending();
+    historyTraversalPendingRef.current = true;
+    const pendingSession = sessionRef.current;
+    historyTraversalWatchdogRef.current = window.setTimeout(() => {
+      historyTraversalWatchdogRef.current = undefined;
+      if (!historyTraversalPendingRef.current) return;
+      historyTraversalPendingRef.current = false;
+      if (sessionRef.current !== pendingSession) return;
+      const restored = readRealmSurfaceHistoryState(
+        currentHistoryRecord()[REALM_SURFACE_HISTORY_KEY],
+        pendingSession
+      );
+      // A WebView may traverse without delivering popstate. Reconcile only an
+      // exact same-session envelope; a silent no-op or unrelated host state
+      // simply releases the latch so the player can retry safely.
+      if (restored) reconcileHistoryStack(restored.stack);
+    }, REALM_SURFACE_HISTORY_TRAVERSAL_WATCHDOG_MILLISECONDS);
+    return true;
+  }, [clearHistoryTraversalPending, reconcileHistoryStack]);
 
   const envelopeFor = useCallback((nextStack: readonly RealmSurfaceRoute[]) => (
     Object.freeze({
@@ -96,15 +152,9 @@ export function useRealmSurfaceNavigation({
   }, [envelopeFor]);
 
   useLayoutEffect(() => {
+    clearHistoryTraversalPending();
     identityGenerationRef.current += 1;
     sessionRef.current = `realm-${reactId}-${identityGenerationRef.current}`;
-    if (
-      !historyEnabled
-      || previousHistoryEnabledRef.current !== historyEnabled
-    ) {
-      historyTraversalPendingRef.current = false;
-    }
-    previousHistoryEnabledRef.current = historyEnabled;
     stackRef.current = Object.freeze([]);
     setStack(stackRef.current);
     setMotion('idle');
@@ -116,7 +166,13 @@ export function useRealmSurfaceNavigation({
         currentRealmUrl()
       );
     }
-  }, [historyEnabled, identityKey, reactId, replaceBrowserState]);
+  }, [
+    clearHistoryTraversalPending,
+    historyEnabled,
+    identityKey,
+    reactId,
+    replaceBrowserState
+  ]);
 
   useEffect(() => {
     if (!historyEnabled) return undefined;
@@ -126,20 +182,19 @@ export function useRealmSurfaceNavigation({
         : undefined;
       const restored = readRealmSurfaceHistoryState(candidate, sessionRef.current);
       const nextStack = restored?.stack ?? Object.freeze([]);
-      setMotion(
-        nextStack.length < stackRef.current.length
-          ? 'backward'
-          : nextStack.length > stackRef.current.length
-            ? 'forward'
-            : 'replace'
-      );
-      historyTraversalPendingRef.current = false;
-      stackRef.current = nextStack;
-      setStack(nextStack);
+      clearHistoryTraversalPending();
+      reconcileHistoryStack(nextStack);
     };
     window.addEventListener('popstate', restore);
-    return () => window.removeEventListener('popstate', restore);
-  }, [historyEnabled]);
+    return () => {
+      window.removeEventListener('popstate', restore);
+      clearHistoryTraversalPending();
+    };
+  }, [
+    clearHistoryTraversalPending,
+    historyEnabled,
+    reconcileHistoryStack
+  ]);
 
   const push = useCallback((route: RealmSurfaceRoute) => {
     if (historyTraversalPendingRef.current) return;
@@ -190,30 +245,28 @@ export function useRealmSurfaceNavigation({
     if (stackRef.current.length === 0) return;
     const nextStack = popRealmSurfaceRoute(stackRef.current);
     if (historyEnabledRef.current) {
-      if (historyTraversalPendingRef.current) return;
-      historyTraversalPendingRef.current = true;
+      if (!beginHistoryTraversal()) return;
       try {
         window.history.back();
       } catch {
-        historyTraversalPendingRef.current = false;
+        clearHistoryTraversalPending();
       }
       return;
     }
     setMotion('backward');
     stackRef.current = nextStack;
     setStack(nextStack);
-  }, []);
+  }, [beginHistoryTraversal, clearHistoryTraversalPending]);
 
   const closeToRealm = useCallback(() => {
     const depth = stackRef.current.length;
     if (depth === 0) return;
     if (historyEnabledRef.current) {
-      if (historyTraversalPendingRef.current) return;
-      historyTraversalPendingRef.current = true;
+      if (!beginHistoryTraversal()) return;
       try {
         window.history.go(-depth);
       } catch {
-        historyTraversalPendingRef.current = false;
+        clearHistoryTraversalPending();
       }
       return;
     }
@@ -221,7 +274,7 @@ export function useRealmSurfaceNavigation({
     setMotion('backward');
     stackRef.current = nextStack;
     setStack(nextStack);
-  }, []);
+  }, [beginHistoryTraversal, clearHistoryTraversalPending]);
 
   return Object.freeze({
     stack,

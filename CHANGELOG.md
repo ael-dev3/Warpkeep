@@ -6,6 +6,21 @@ full engineering record.
 
 ## [Unreleased]
 
+## [0.3.29] — 2026-07-31
+
+- Made Realm gestures recover cleanly when a menu, record, or inactive
+  presentation interrupts an in-progress drag or pinch.
+- Added bounded recovery for embedded Back navigation when a host traverses
+  history without delivering its expected event.
+- Kept overflow gathering portraits visual-only while preserving one bounded,
+  keyboard-accessible control lane and current public keep labels.
+- Tightened Farcaster token lifetime, sensitive endpoint, browser-isolation,
+  and access-request queue boundaries without changing admission decisions.
+- Made exact Worker dispatch retries terminally idempotent after normal return,
+  including when the Worker has since begun a later valid assignment.
+- Left castle ownership, gathering rates, balances, terrain, and persistent
+  world data unchanged.
+
 ## [0.3.28] — 2026-07-31
 
 - Brought Genesis 001 into a portrait-first Farcaster Mini App with a compact
@@ -310,7 +325,8 @@ full engineering record.
   Lowlands, a first keep, Farcaster sign-in, and an admission-gated shared-world
   foundation.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.28...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.29...HEAD
+[0.3.29]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.28...v0.3.29
 [0.3.28]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.27...v0.3.28
 [0.3.27]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.26...v0.3.27
 [0.3.26]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.25...v0.3.26

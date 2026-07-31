@@ -6,6 +6,20 @@ export type LatestPatchNotes = Readonly<{
   alphaNotice: string;
 }>;
 
+const ALPHA_0_3_29_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: '31 JUL 2026',
+  title: 'THE REALM HOLDS',
+  summary:
+    'Genesis 001 now recovers more cleanly from interrupted touch and embedded navigation, while its gateway records and Worker orders hold to tighter boundaries.',
+  highlights: Object.freeze([
+    'Interrupted drags and pinches retire cleanly when a Realm record or menu takes focus, and embedded Back navigation recovers when a host silently drops its history event.',
+    'Gathering portraits keep one bounded accessible control lane, ambient overflow portraits no longer steal taps, and selected keep names refresh when public profile details arrive.',
+    'Farcaster verification and access requests now have firmer lifetime and queue bounds, while an exact Worker order can be retried after the Worker returns without sending them twice.'
+  ]),
+  alphaNotice:
+    'Alpha 0.3.29 remains an invite-only, unfinished world. This continuity patch does not change admission decisions, castle ownership, gathering rates, balances, terrain, or the larger strategy features still being built.'
+});
+
 const ALPHA_0_3_28_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '31 JUL 2026',
   title: 'THE REALM IN HAND',
@@ -163,6 +177,7 @@ const ALPHA_0_3_22_PATCH_NOTES: LatestPatchNotes = Object.freeze({
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
+    '0.3.29': ALPHA_0_3_29_PATCH_NOTES,
     '0.3.28': ALPHA_0_3_28_PATCH_NOTES,
     '0.3.27': ALPHA_0_3_27_PATCH_NOTES,
     '0.3.26': ALPHA_0_3_26_PATCH_NOTES,

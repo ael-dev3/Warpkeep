@@ -239,7 +239,6 @@ export async function applyRenderedMobileMapGestureInteraction(
       fixtureHost.append(fixtureControl);
       const visibleWorldControls = [...document.querySelectorAll(
         '.realm-castle-label, .realm-worker-presence-marker, '
-          + '.realm-resource-occupant-presence, '
           + '.realm-resource-occupant-marker'
       )].filter((control) => {
         if (!visible(control)) return false;

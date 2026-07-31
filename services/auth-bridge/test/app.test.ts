@@ -3,6 +3,7 @@ import { Errors as QuickAuthErrors } from '@farcaster/quick-auth'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   FARCASTER_VERIFICATION_TIMEOUT_MILLISECONDS,
+  QUICK_AUTH_MAX_ISSUER_LIFETIME_SECONDS,
   REQUEST_BODY_TIMEOUT_MILLISECONDS,
   createAuthBridge,
   farcasterRpcEndpointFingerprint,
@@ -482,6 +483,38 @@ describe('Warpkeep auth bridge', () => {
         error: { code: 'not_found', message: 'Route not found.' },
       })
       expect([...response.headers.keys()].filter(name => name.startsWith('access-control-'))).toEqual([])
+    },
+  )
+
+  it.each([
+    ['/v2/farcaster/challenge', 'challenge_query_not_allowed'],
+    ['/v2/farcaster/exchange', 'exchange_query_not_allowed'],
+    ['/v2/session/refresh', 'refresh_query_not_allowed'],
+    ['/v2/session/logout', 'logout_query_not_allowed'],
+  ] as const)(
+    'rejects query strings on %s before rate limiting or identity work',
+    async (pathname, code) => {
+      const check = vi.fn(async () => ({ allowed: true as const }))
+      const h = harness({ rateLimiter: { check } })
+      const response = await h.app.fetch(request(`${pathname}?caller=value`, {
+        caller: 'must-not-be-parsed',
+      }, {
+        headers: { origin: ORIGIN },
+      }), env())
+
+      expect(response.status).toBe(400)
+      await expect(response.json()).resolves.toEqual({
+        error: {
+          code,
+          message: 'This endpoint does not accept query parameters.',
+        },
+      })
+      expect(response.headers.get('access-control-allow-origin')).toBe(ORIGIN)
+      expect(response.headers.get('access-control-allow-credentials')).toBe('true')
+      expect(check).not.toHaveBeenCalled()
+      expect(h.verifier.verify).not.toHaveBeenCalled()
+      expect(h.quickAuthVerifier.verifyJwt).not.toHaveBeenCalled()
+      expect(h.resolver.resolve).not.toHaveBeenCalled()
     },
   )
 
@@ -1294,6 +1327,7 @@ describe('Warpkeep auth bridge', () => {
       quickAuthExchangePath: '/v2/farcaster/quick-auth/exchange',
       quickAuthVerifierPackage: '@farcaster/quick-auth@0.0.8',
       quickAuthMaxTokenBytes: 8 * 1024,
+      quickAuthMaxIssuerLifetimeSeconds: 60 * 60,
       accessRequestStatusPath: '/v2/access/status',
       accessRequestSubmitPath: '/v2/access/request',
       accessRequestResolverTokenTtlSeconds: 15,
@@ -1344,6 +1378,7 @@ describe('Warpkeep auth bridge', () => {
       quickAuthExchangePath: '/v2/farcaster/quick-auth/exchange',
       quickAuthVerifierPackage: '@farcaster/quick-auth@0.0.8',
       quickAuthMaxTokenBytes: 8 * 1024,
+      quickAuthMaxIssuerLifetimeSeconds: 60 * 60,
       accessTokenTtlSeconds: 600,
       authEpochResolverTokenTtlSeconds: 15,
       authEpochResolverTimeoutMilliseconds: 5_000,
@@ -2302,6 +2337,65 @@ describe('Warpkeep auth bridge', () => {
       expect(h.events).toContain('access_request_succeeded')
     })
 
+    it('enforces the reviewed Quick Auth issuer-lifetime boundary before access authority', async () => {
+      const nowSeconds = 1_800_000_000
+      const payload = (lifetimeSeconds: number) => ({
+        sub: Number(FID),
+        iss: QUICK_AUTH_ISSUER,
+        aud: QUICK_AUTH_DOMAIN,
+        iat: nowSeconds,
+        exp: nowSeconds + lifetimeSeconds,
+      })
+
+      const acceptedGetStatus = vi.fn(async () => ({ status: 'not-requested' } as const))
+      const accepted = harness({
+        epoch: 0,
+        quickAuthVerifier: {
+          verifyJwt: vi.fn(async () => payload(QUICK_AUTH_MAX_ISSUER_LIFETIME_SECONDS)),
+        },
+        accessRequestResolver: {
+          getStatus: acceptedGetStatus,
+          submit: vi.fn(async () => ({ status: 'already-admitted' } as const)),
+        },
+      })
+      accepted.setNow(nowSeconds * 1_000)
+      const acceptedResponse = await accepted.app.fetch(
+        accessBearerRequest(ACCESS_STATUS_PATH),
+        env(),
+      )
+
+      expect(acceptedResponse.status).toBe(200)
+      expect(accepted.resolver.resolve).toHaveBeenCalledOnce()
+      expect(acceptedGetStatus).toHaveBeenCalledOnce()
+
+      const rejectedGetStatus = vi.fn(async () => ({ status: 'not-requested' } as const))
+      const rejected = harness({
+        epoch: 0,
+        quickAuthVerifier: {
+          verifyJwt: vi.fn(async () => payload(QUICK_AUTH_MAX_ISSUER_LIFETIME_SECONDS + 1)),
+        },
+        accessRequestResolver: {
+          getStatus: rejectedGetStatus,
+          submit: vi.fn(async () => ({ status: 'already-admitted' } as const)),
+        },
+      })
+      rejected.setNow(nowSeconds * 1_000)
+      const rejectedResponse = await rejected.app.fetch(
+        accessBearerRequest(ACCESS_STATUS_PATH),
+        env(),
+      )
+
+      expect(rejectedResponse.status).toBe(401)
+      await expect(rejectedResponse.json()).resolves.toEqual({
+        error: {
+          code: 'access_auth_invalid',
+          message: 'Farcaster authentication could not be verified.',
+        },
+      })
+      expect(rejected.resolver.resolve).not.toHaveBeenCalled()
+      expect(rejectedGetStatus).not.toHaveBeenCalled()
+    })
+
     it('accepts a valid pending family without rotating its generation or cookie', async () => {
       const backing = new MemorySessionFamilyStore()
       const refresh = vi.fn((
@@ -2650,6 +2744,29 @@ describe('Warpkeep auth bridge', () => {
       await expect(pausedResponse.json()).resolves.toMatchObject({
         error: { code: 'public_auth_paused' },
       })
+
+      const pausedBearerPreflight = await paused.app.fetch(request(
+        ACCESS_REQUEST_PATH,
+        undefined,
+        {
+          method: 'OPTIONS',
+          headers: {
+            origin: QUICK_AUTH_ORIGIN,
+            'access-control-request-method': 'POST',
+            'access-control-request-headers': 'Authorization, Content-Type',
+          },
+        },
+      ), env({ PUBLIC_AUTH_ENABLED: 'false' }))
+      expect(pausedBearerPreflight.status).toBe(503)
+      await expect(pausedBearerPreflight.json()).resolves.toMatchObject({
+        error: { code: 'public_auth_paused' },
+      })
+      expect(pausedBearerPreflight.headers.get('access-control-allow-origin'))
+        .toBe(QUICK_AUTH_ORIGIN)
+      expect(pausedBearerPreflight.headers.get('access-control-allow-headers'))
+        .toBe('authorization, content-type')
+      expect(pausedBearerPreflight.headers.has('access-control-allow-credentials'))
+        .toBe(false)
       expect(paused.quickAuthVerifier.verifyJwt).not.toHaveBeenCalled()
       expect(paused.resolver.resolve).not.toHaveBeenCalled()
 
@@ -2734,6 +2851,43 @@ describe('Warpkeep auth bridge', () => {
       expect(h.events).toContain('auth_epoch_resolved')
       expect(h.events).toContain('quick_auth_succeeded')
       expect(h.events).not.toContain('session_created')
+    })
+
+    it('accepts the reviewed issuer-lifetime maximum and rejects one second longer', async () => {
+      const nowSeconds = 1_800_000_000
+      const payload = (lifetimeSeconds: number) => ({
+        sub: Number(FID),
+        iss: QUICK_AUTH_ISSUER,
+        aud: QUICK_AUTH_DOMAIN,
+        iat: nowSeconds,
+        exp: nowSeconds + lifetimeSeconds,
+      })
+
+      const accepted = harness({
+        quickAuthVerifier: {
+          verifyJwt: vi.fn(async () => payload(QUICK_AUTH_MAX_ISSUER_LIFETIME_SECONDS)),
+        },
+      })
+      accepted.setNow(nowSeconds * 1_000)
+      const acceptedResponse = await accepted.app.fetch(quickAuthRequest(), env())
+      expect(acceptedResponse.status).toBe(200)
+      expect(accepted.resolver.resolve).toHaveBeenCalledOnce()
+
+      const rejected = harness({
+        quickAuthVerifier: {
+          verifyJwt: vi.fn(async () => payload(QUICK_AUTH_MAX_ISSUER_LIFETIME_SECONDS + 1)),
+        },
+      })
+      rejected.setNow(nowSeconds * 1_000)
+      const rejectedResponse = await rejected.app.fetch(quickAuthRequest(), env())
+      expect(rejectedResponse.status).toBe(401)
+      await expect(rejectedResponse.json()).resolves.toEqual({
+        error: {
+          code: 'quick_auth_invalid',
+          message: 'Farcaster authentication could not be verified.',
+        },
+      })
+      expect(rejected.resolver.resolve).not.toHaveBeenCalled()
     })
 
     it('returns the same cookie-free tokenless pending semantics for missing and disabled FIDs', async () => {

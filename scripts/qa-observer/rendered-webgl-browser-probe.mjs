@@ -1355,11 +1355,12 @@ export function parseRenderedWebglResourceOccupantEvidence(value) {
     'markerHitTestable',
     'overviewPresenceDirectHit',
     'overviewRecordCorrect',
-    'overviewTargetPassiveOnly',
+    'overviewTargetControlOnly',
+    'passivePresenceVisualOnly',
     'presenceComputedVisible',
     'presenceAvatarGeometryValid',
     'presenceGeometryValid',
-    'presenceDelegatedActivation',
+    'overviewControlActivation',
     'presenceHitTestable',
     'presencePointerActivatable',
     'presencePortraitElementPresent',
@@ -1384,11 +1385,12 @@ export function parseRenderedWebglResourceOccupantEvidence(value) {
     'cameraNeutralWhileOpen',
     'overviewPresenceDirectHit',
     'overviewRecordCorrect',
-    'overviewTargetPassiveOnly',
+    'overviewTargetControlOnly',
+    'passivePresenceVisualOnly',
     'presenceComputedVisible',
     'presenceAvatarGeometryValid',
     'presenceGeometryValid',
-    'presenceDelegatedActivation',
+    'overviewControlActivation',
     'presenceHitTestable',
     'presencePointerActivatable',
     'presencePortraitElementPresent',
@@ -7208,11 +7210,12 @@ export async function applyRenderedWebglResourceOccupantInteraction(
           markerHitTestable,
           overviewPresenceDirectHit: false,
           overviewRecordCorrect: false,
-          overviewTargetPassiveOnly: false,
+          overviewTargetControlOnly: false,
+          passivePresenceVisualOnly: false,
           presenceComputedVisible: false,
           presenceAvatarGeometryValid: false,
           presenceGeometryValid: false,
-          presenceDelegatedActivation: false,
+          overviewControlActivation: false,
           presenceHitTestable: false,
           presencePointerActivatable: false,
           presencePortraitElementPresent: false,
@@ -7247,7 +7250,7 @@ export async function applyRenderedWebglResourceOccupantInteraction(
         && map.getAttribute('aria-busy') === 'false'
         && !map.hasAttribute('data-camera-interacting');
       const projectionSnapshot = () => {
-        // A selected peer may legitimately move from the passive pointer lane
+        // A selected peer may legitimately move from the passive presentation lane
         // into the bounded keyboard-control lane while its record is open.
         // Both lanes use the same renderer-owned world anchor, so camera
         // neutrality must follow that canonical key rather than DOM role.
@@ -7472,18 +7475,8 @@ export async function applyRenderedWebglResourceOccupantInteraction(
 
       const overviewFramed = focusedClosed && await frameRealmOverview();
       let overviewPresence;
-      let overviewLane = 'presence';
+      const overviewLane = 'control';
       const overviewPresenceReady = overviewFramed && await waitFor(() => {
-        const passiveCandidate = overviewPreferredKeys
-          .map((key) => presentationForKey(
-            '.realm-resource-occupant-presence',
-            key
-          ))
-          .find((element) => (
-            element instanceof HTMLElement
-            && element.getAttribute('data-projected-visible') === 'true'
-            && visible(element)
-          ));
         const controlCandidate = overviewPreferredKeys
           .map((key) => presentationForKey(
             'button.realm-resource-occupant-marker',
@@ -7494,13 +7487,11 @@ export async function applyRenderedWebglResourceOccupantInteraction(
             && element.getAttribute('data-projected-visible') === 'true'
             && visible(element)
           ));
-        // Compact viewports may truthfully have no collision-safe passive
-        // portrait after controls, castle labels, and safe areas are reserved.
-        // Exercise the same canonical record through its single bounded
-        // control lane instead of requiring an overlapping/clipped duplicate.
-        const candidate = passiveCandidate ?? controlCandidate;
-        if (!(candidate instanceof HTMLElement)) return false;
-        overviewLane = passiveCandidate ? 'presence' : 'control';
+        // Passive overflow portraits are visual context only. Record activation
+        // must always use the bounded native-button lane; never fall through to
+        // an aria-hidden presentation when collision admission changes.
+        const candidate = controlCandidate;
+        if (!(candidate instanceof HTMLButtonElement)) return false;
         overviewTargetKey = candidate.getAttribute(
           'data-resource-occupant-key'
         ) ?? '';
@@ -7522,16 +7513,41 @@ export async function applyRenderedWebglResourceOccupantInteraction(
       if (overviewProjectionSettled) {
         // Collision reconciliation may move the same canonical occupation
         // between its passive PFP and single keyboard-control lane while the
-        // projection settles. Reacquire that lane before measuring or
-        // activating it so the proof never clicks a detached stale element.
-        const settledPresentation = overviewPresentation();
-        if (settledPresentation instanceof HTMLElement) {
-          overviewPresence = settledPresentation;
-          overviewLane = settledPresentation.matches(
-            '.realm-resource-occupant-presence'
-          ) ? 'presence' : 'control';
+        // projection settles. Reacquire only the control; a passive fallback is
+        // deliberately not activatable.
+        const settledControl = presentationForKey(
+          'button.realm-resource-occupant-marker',
+          overviewTargetKey
+        );
+        if (settledControl instanceof HTMLButtonElement) {
+          overviewPresence = settledControl;
+        } else {
+          overviewPresence = undefined;
         }
       }
+      const passivePresence = [...document.querySelectorAll(
+        '.realm-resource-occupant-presence[data-projected-visible="true"]'
+      )].find((element) => element instanceof HTMLElement && visible(element));
+      const passivePresenceBounds = passivePresence instanceof HTMLElement
+        ? passivePresence.getBoundingClientRect()
+        : undefined;
+      const passiveDirectHit = passivePresenceBounds
+        ? document.elementFromPoint(
+            passivePresenceBounds.left + passivePresenceBounds.width / 2,
+            passivePresenceBounds.top + passivePresenceBounds.height / 2
+          )
+        : null;
+      const passivePresenceVisualOnly = overviewProjectionSettled
+        && passivePresence instanceof HTMLElement
+        && presenceLayer instanceof HTMLElement
+        && getComputedStyle(passivePresence).pointerEvents === 'none'
+        && getComputedStyle(passivePresence).cursor !== 'pointer'
+        && presenceLayer.getAttribute('aria-hidden') === 'true'
+        && !(passiveDirectHit instanceof HTMLElement
+          && (
+            passiveDirectHit === passivePresence
+            || passivePresence.contains(passiveDirectHit)
+          ));
       const overviewPresenceBounds = overviewPresence instanceof HTMLElement
         ? overviewPresence.getBoundingClientRect()
         : undefined;
@@ -7623,7 +7639,7 @@ export async function applyRenderedWebglResourceOccupantInteraction(
         '.realm-resource-occupant-presence',
         overviewTargetKey
       );
-      const overviewTargetPassiveOnly = overviewProjectionSettled
+      const overviewTargetControlOnly = overviewProjectionSettled
         && overviewPresenceDirectHit
         && (
           overviewLane === 'presence'
@@ -7635,7 +7651,7 @@ export async function applyRenderedWebglResourceOccupantInteraction(
       const beforeRenderer = rendererSnapshot();
       const beforeProjection = projectionSnapshot();
       const overviewPresencePrivacyBounded = subtreePrivacyBounded(overviewPresence);
-      if (overviewTargetPassiveOnly && overviewDirectHit instanceof HTMLElement) {
+      if (overviewTargetControlOnly && overviewDirectHit instanceof HTMLElement) {
         overviewDirectHit.click();
       }
       const overviewPanelReady = await waitFor(() => {
@@ -7702,7 +7718,7 @@ export async function applyRenderedWebglResourceOccupantInteraction(
               )
         )
         && [...overviewFacts.keys()].some((label) => label.endsWith('time left'));
-      const presenceDelegatedActivation = overviewTargetPassiveOnly
+      const overviewControlActivation = overviewTargetControlOnly
         && overviewPanelReady
         && overviewRecordCorrect;
       const focusedPrivacyBounded = markerPrivacyBounded
@@ -7801,11 +7817,12 @@ export async function applyRenderedWebglResourceOccupantInteraction(
         markerHitTestable,
         overviewPresenceDirectHit,
         overviewRecordCorrect,
-        overviewTargetPassiveOnly,
+        overviewTargetControlOnly,
+        passivePresenceVisualOnly,
         presenceComputedVisible,
         presenceAvatarGeometryValid,
         presenceGeometryValid,
-        presenceDelegatedActivation,
+        overviewControlActivation,
         presenceHitTestable,
         presencePointerActivatable,
         presencePortraitElementPresent,

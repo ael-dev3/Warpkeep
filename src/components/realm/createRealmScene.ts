@@ -243,7 +243,6 @@ const CANONICAL_KEEP_CAMERA_FOCUS_SIZE = Object.freeze({
 const REALM_WORLD_CONTROL_SELECTOR = [
   '.realm-castle-label',
   '.realm-worker-presence-marker',
-  '.realm-resource-occupant-presence',
   '.realm-resource-occupant-marker'
 ].join(',');
 const WORLD_CONTROL_COMPATIBILITY_CLICK_WINDOW_MILLISECONDS = 750;
@@ -4169,8 +4168,22 @@ function initializeRealmScene(
     render();
   };
 
+  const cancelAllPointers = (result: RealmPointerGestureResult) => {
+    if (!result.accepted) return;
+    worldControlPointerTargets.clear();
+    pointerCaptureTargets.clear();
+    flushDirectGesture();
+    clearWorldControlClickSuppressions();
+    cancelPendingHover();
+    dispatchHover(null);
+    syncGesturePhase(result);
+  };
+
   const handlePointerUp = (event: PointerEvent) => {
-    if (!sceneAcceptsInteraction()) return;
+    if (!sceneAcceptsInteraction()) {
+      cancelAllPointers(pointerGestures.blur());
+      return;
+    }
     if (contextLost && (
       contextLostBlocksTarget(event.target)
       || pointerGestures.snapshot().pointerCount > 0
@@ -4209,7 +4222,10 @@ function initializeRealmScene(
   };
 
   const handlePointerCancel = (event: PointerEvent) => {
-    if (!sceneAcceptsInteraction()) return;
+    if (!sceneAcceptsInteraction()) {
+      cancelAllPointers(pointerGestures.blur());
+      return;
+    }
     if (contextLost && (
       contextLostBlocksTarget(event.target)
       || pointerGestures.snapshot().pointerCount > 0
@@ -4229,7 +4245,10 @@ function initializeRealmScene(
   };
 
   const handleLostPointerCapture = (event: PointerEvent) => {
-    if (!sceneAcceptsInteraction()) return;
+    if (!sceneAcceptsInteraction()) {
+      cancelAllPointers(pointerGestures.blur());
+      return;
+    }
     if (contextLost) return;
     const result = pointerGestures.lostCapture(event.pointerId);
     if (!result.accepted) return;
@@ -4237,17 +4256,6 @@ function initializeRealmScene(
     pointerCaptureTargets.delete(event.pointerId);
     flushDirectGesture();
     clearWorldControlClickSuppressions();
-    dispatchHover(null);
-    syncGesturePhase(result);
-  };
-
-  const cancelAllPointers = (result: RealmPointerGestureResult) => {
-    if (!result.accepted) return;
-    worldControlPointerTargets.clear();
-    pointerCaptureTargets.clear();
-    flushDirectGesture();
-    clearWorldControlClickSuppressions();
-    cancelPendingHover();
     dispatchHover(null);
     syncGesturePhase(result);
   };
@@ -5089,6 +5097,13 @@ function initializeRealmScene(
     dispose: disposeScene,
     setPresentationActive: (active) => {
       if (cleanup.isDisposed()) return;
+      if (!active) {
+        // A browser-history or hosted-surface transition can hide the canvas
+        // between pointerdown and its terminal event. Retire the gesture before
+        // disabling interaction so a reused pointer ID cannot be rejected, or
+        // paired with a stale contact as a ghost pinch, when the Realm returns.
+        cancelAllPointers(pointerGestures.blur());
+      }
       presentationActive = active;
       options.canvas.dataset.realmPresentationActive = String(active);
       if (!active) {

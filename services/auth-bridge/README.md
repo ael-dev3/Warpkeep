@@ -6,7 +6,7 @@ Warpkeep's SpacetimeDB connection. It is isolated from the static browser app:
 browser code never receives a signing key, admin secret, Optimism RPC URL,
 resolver JWT, private Hermes JWT, or Maincloud credential.
 
-Alpha 0.3.28 uses authentication contract v2 and backend protocol 3. The
+Alpha 0.3.29 uses authentication contract v2 and backend protocol 3. The
 checked-in configuration fails closed: `wrangler.toml` keeps
 `PUBLIC_AUTH_ENABLED = "false"`, while any production enablement is a separate,
 privately recorded operation. World generation and resource features do not
@@ -207,8 +207,8 @@ one-time use and expiry remain authoritative if bytes have already arrived.
 caller identity or profile fields. Pinned `@farcaster/quick-auth@0.0.8`
 verifies the JWT against domain `warpkeep.com`. The Worker then requires exact
 issuer `https://auth.farcaster.xyz`, exact audience `warpkeep.com`, a positive
-safe-integer decimal `sub`, and bounded valid `iat`/`exp` claims before
-resolving admission.
+safe-integer decimal `sub`, valid `iat`/`exp` claims, and an issuer lifetime no
+longer than one hour before resolving admission.
 
 The endpoint reuses the SIWF exchange rate-limit bucket, structured admission
 resolver, positive auth epoch, access-token TTL/claims, and exact
@@ -387,7 +387,8 @@ admin-secret authentication. Each endpoint fingerprint is lowercase hex
 `\0` is one NUL separator; the endpoint URLs themselves are never returned. The
 digest covers those values along with issuer, origins, SIWF coordinates,
 gameplay audience/key/Maincloud coordinates, Quick Auth
-issuer/domain/browser-origin/exchange-path/verifier-package/token-size bounds,
+issuer/domain/browser-origin/exchange-path/verifier-package/token-size and
+one-hour issuer-lifetime bounds,
 observer coordinates, environment, binding and bounded lifetimes, both gates,
 and exact cookie attributes. Operators must compare it with the reviewed
 expected configuration; it is not a deployment action and reveals no secret

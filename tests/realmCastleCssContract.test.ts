@@ -426,7 +426,7 @@ describe('compact Realm CSS contract', () => {
     }
   });
 
-  it('keeps resource occupants camera-stable, embedded, and touch accessible', () => {
+  it('keeps resource occupants camera-stable with passive overflow and accessible controls', () => {
     const presenceLayer = block(MAP, '.realm-resource-occupant-presences {');
     const presence = block(MAP, '.realm-resource-occupant-presence {');
     const marker = block(MAP, '.realm-resource-occupant-marker {');
@@ -444,10 +444,10 @@ describe('compact Realm CSS contract', () => {
     expect(presence).toContain('--realm-resource-presence-hit-size: 44px;');
     expect(presence).toContain('width: var(--realm-resource-presence-hit-size);');
     expect(presence).toContain('height: var(--realm-resource-presence-hit-size);');
-    expect(presence).toContain('pointer-events: auto;');
-    expect(presence).toContain('cursor: pointer;');
-    expect(presence).toContain('touch-action: none;');
-    expect(presence).toContain('-webkit-touch-callout: none;');
+    expect(presence).toContain('pointer-events: none;');
+    expect(presence).toContain('cursor: default;');
+    expect(presence).not.toContain('touch-action: none;');
+    expect(presence).not.toContain('-webkit-touch-callout: none;');
     expect(marker).toContain('touch-action: none;');
     expect(presence).not.toMatch(/transition:[^;]*transform/);
     expect(marker).toContain('--realm-resource-marker-size: 44px;');
