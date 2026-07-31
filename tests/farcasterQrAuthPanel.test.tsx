@@ -396,6 +396,11 @@ describe('FarcasterQrAuthPanel', () => {
       accessRequest: { phase: 'submitting' }
     });
 
+    expect(screen.getByText('Request sent.')).not.toBeNull();
+    expect((screen.getByRole('button', {
+      name: 'REQUEST SENT'
+    }) as HTMLButtonElement).disabled).toBe(true);
+
     panel.rerender(
       <FarcasterQrAuthPanel
         phase="pending-admission"

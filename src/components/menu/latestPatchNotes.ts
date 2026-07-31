@@ -6,6 +6,20 @@ export type LatestPatchNotes = Readonly<{
   alphaNotice: string;
 }>;
 
+const ALPHA_0_3_34_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: '31 JUL 2026',
+  title: 'THE PETITION STANDS',
+  summary:
+    'A keeper’s petition now settles visibly the instant it is sent, while the Realm’s private record remains final.',
+  highlights: Object.freeze([
+    'Request Access becomes a disabled Request Sent action on the first click, without waiting for a network round trip.',
+    'A petition already recorded by SpacetimeDB remains visibly received and cannot be submitted again from the gateway.',
+    'Rapid repeated gestures are absorbed locally, while the existing private server record remains cycle-idempotent and manually reviewed.'
+  ]),
+  alphaNotice:
+    'Alpha 0.3.34 remains an invite-only, unfinished world. Sending a petition does not grant admission, create a keep, or change any Realm ownership or balance.'
+});
+
 const ALPHA_0_3_33_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '31 JUL 2026',
   title: 'THE REALM REMEMBERS',
@@ -233,6 +247,7 @@ const ALPHA_0_3_22_PATCH_NOTES: LatestPatchNotes = Object.freeze({
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
+    '0.3.34': ALPHA_0_3_34_PATCH_NOTES,
     '0.3.33': ALPHA_0_3_33_PATCH_NOTES,
     '0.3.32': ALPHA_0_3_32_PATCH_NOTES,
     '0.3.31': ALPHA_0_3_31_PATCH_NOTES,

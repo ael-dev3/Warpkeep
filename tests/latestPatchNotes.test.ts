@@ -18,24 +18,38 @@ describe('latest in-menu patch notes', () => {
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
       releasedOn: '31 JUL 2026',
-      title: 'THE REALM REMEMBERS'
+      title: 'THE PETITION STANDS'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /SpacetimeDB.*one exact Mark.*UTC Realm day.*no wallet.*token.*transaction.*payment/i
+      /Request Access.*disabled Request Sent.*first click.*without waiting/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Private daily receipts.*retries harmless.*revoked admission.*pauses future grants/i
+      /already recorded by SpacetimeDB.*received.*cannot be submitted again/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /SNAP burn.*wallet-attribution.*chain-scanning.*retired/i
+      /repeated gestures.*absorbed locally.*cycle-idempotent.*manually reviewed/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /released to players|deployed to players|public balances|guaranteed rewards/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('Community Mark');
+    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('petition');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'cannot be spent, transferred, redeemed, or converted'
+      'does not grant admission'
+    );
+
+    const alpha033 = getLatestPatchNotes('0.3.33');
+    expect(alpha033).toMatchObject({
+      title: 'THE REALM REMEMBERS'
+    });
+    expect(alpha033?.highlights.join(' ')).toMatch(
+      /SpacetimeDB.*one exact Mark.*UTC Realm day.*no wallet.*token.*transaction.*payment/i
+    );
+    expect(alpha033?.highlights.join(' ')).toMatch(
+      /Private daily receipts.*retries harmless.*revoked admission.*pauses future grants/i
+    );
+    expect(alpha033?.highlights.join(' ')).toMatch(
+      /SNAP burn.*wallet-attribution.*chain-scanning.*retired/i
     );
 
     const alpha0324 = getLatestPatchNotes('0.3.24');

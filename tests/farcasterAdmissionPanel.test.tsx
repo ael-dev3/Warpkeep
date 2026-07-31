@@ -96,6 +96,27 @@ describe('FarcasterAdmissionPanel', () => {
     expect(onCheckAgain).toHaveBeenCalledTimes(1);
   });
 
+  it('renders the local request latch immediately as a disabled sent action', () => {
+    render(
+      <FarcasterAdmissionPanel
+        accessRequest={{ phase: 'submitting' }}
+        identity={identity}
+        onBackToMenu={vi.fn()}
+        onCheckAgain={vi.fn()}
+        onRequestAccess={vi.fn()}
+        onSignOut={vi.fn()}
+        phase="denied"
+      />
+    );
+
+    expect(screen.getByText('Request sent.')).not.toBeNull();
+    expect(screen.getByText(/Confirming with the Hegemony records/i)).not.toBeNull();
+    expect((screen.getByRole('button', {
+      name: 'REQUEST SENT'
+    }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByRole('button', { name: 'CHECK AGAIN' })).toBeNull();
+  });
+
   it('keeps a backend outage distinct from an admission rejection', () => {
     render(
       <FarcasterAdmissionPanel

@@ -6,6 +6,15 @@ full engineering record.
 
 ## [Unreleased]
 
+## [0.3.34] — 2026-07-31
+
+- Made Request Access become a disabled Request Sent action immediately after
+  the first click, before the private authority response returns.
+- Kept a request already recorded in SpacetimeDB visibly received and
+  non-clickable across later status checks.
+- Added rapid-repeat coverage proving one player gesture produces at most one
+  bridge submission while the server remains cycle-idempotent.
+
 ## [0.3.33] — 2026-07-31
 
 - Gave every admitted keeper one experimental Community Mark per eligible
@@ -371,7 +380,8 @@ full engineering record.
   Lowlands, a first keep, Farcaster sign-in, and an admission-gated shared-world
   foundation.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.33...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.34...HEAD
+[0.3.34]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.33...v0.3.34
 [0.3.33]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.32...v0.3.33
 [0.3.32]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.31...v0.3.32
 [0.3.31]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.30...v0.3.31
