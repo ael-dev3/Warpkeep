@@ -8,6 +8,7 @@ import {
 } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { FarcasterAccessRequestAction } from '../src/components/auth/FarcasterAccessRequest';
 import { useAccessRequest } from '../src/farcaster/useAccessRequest';
 import type {
   AccessRequestStatus,
@@ -26,6 +27,14 @@ const pending = (fid: number): FarcasterAuthViewState => Object.freeze({
 });
 
 const anonymous: FarcasterAuthViewState = Object.freeze({ phase: 'anonymous' });
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return Object.freeze({ promise, resolve });
+}
 
 function bridge(overrides: Partial<FarcasterOidcBridgeClient> = {}): FarcasterOidcBridgeClient {
   return {
@@ -76,7 +85,10 @@ function Harness({
     <div>
       <output>{access.state.phase}</output>
       {'requestedAt' in access.state ? <time>{access.state.requestedAt}</time> : null}
-      <button onClick={access.requestAccess} type="button">request</button>
+      <FarcasterAccessRequestAction
+        onRequestAccess={access.requestAccess}
+        state={access.state}
+      />
     </div>
   );
 }
@@ -173,7 +185,7 @@ describe('access-request controller lifecycle', () => {
 
     await waitFor(() => expect(screen.getByText('not-requested')).not.toBeNull());
     expect(requestAccess).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'request' }));
+    fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
     await waitFor(() => expect(screen.getByText('requested')).not.toBeNull());
     expect(requestAccess).toHaveBeenCalledTimes(1);
     expect(screen.getByText('1785414896000')).not.toBeNull();
@@ -194,7 +206,7 @@ describe('access-request controller lifecycle', () => {
 
     await waitFor(() => expect(screen.getByText('error')).not.toBeNull());
     expect(requestAccess).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'request' }));
+    fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
     await waitFor(() => expect(screen.getByText('requested')).not.toBeNull());
 
     expect(getAccessRequestStatus).toHaveBeenCalledTimes(2);
@@ -212,7 +224,7 @@ describe('access-request controller lifecycle', () => {
     render(<Harness authState={pending(12_345)} client={client} generation={1} />);
 
     await waitFor(() => expect(screen.getByText('error')).not.toBeNull());
-    fireEvent.click(screen.getByRole('button', { name: 'request' }));
+    fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
     await waitFor(() => expect(screen.getByText('error')).not.toBeNull());
 
     expect(getAccessRequestStatus).toHaveBeenCalledTimes(2);
@@ -232,7 +244,7 @@ describe('access-request controller lifecycle', () => {
     render(<Harness authState={pending(12_345)} client={client} generation={1} />);
 
     await waitFor(() => expect(screen.getByText('error')).not.toBeNull());
-    fireEvent.click(screen.getByRole('button', { name: 'request' }));
+    fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
     await waitFor(() => expect(screen.getByText('requested')).not.toBeNull());
 
     expect(getAccessRequestStatus).toHaveBeenCalledTimes(2);
@@ -263,7 +275,7 @@ describe('access-request controller lifecycle', () => {
     );
 
     await waitFor(() => expect(screen.getByText('not-requested')).not.toBeNull());
-    fireEvent.click(screen.getByRole('button', { name: 'request' }));
+    fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
     await waitFor(() => expect(screen.getByText('requested')).not.toBeNull());
 
     expect(requestAccess).toHaveBeenCalledTimes(1);
@@ -275,5 +287,51 @@ describe('access-request controller lifecycle', () => {
     );
     expect(document.documentElement.innerHTML).not.toContain(token);
     expect(JSON.stringify(screen.getByText('requested').textContent)).not.toContain(token);
+  });
+
+  it('switches to a disabled sent state immediately and submits only once', async () => {
+    const submitted = deferred<AccessRequestStatus>();
+    const requestAccess = vi.fn(() => submitted.promise);
+    const client = bridge({ requestAccess });
+    render(<Harness authState={pending(12_345)} client={client} generation={1} />);
+
+    await waitFor(() => expect(screen.getByText('not-requested')).not.toBeNull());
+    const request = screen.getByRole('button', { name: 'REQUEST ACCESS' });
+    fireEvent.click(request);
+
+    expect(screen.getByText('submitting')).not.toBeNull();
+    const sent = screen.getByRole('button', { name: 'REQUEST SENT' }) as HTMLButtonElement;
+    expect(sent.disabled).toBe(true);
+    fireEvent.click(sent);
+    await waitFor(() => expect(requestAccess).toHaveBeenCalledTimes(1));
+
+    submitted.resolve({
+      version: 1,
+      status: 'requested',
+      requestedAt: 1_785_414_896_000
+    });
+    await waitFor(() => expect(screen.getByText('requested')).not.toBeNull());
+    expect(requestAccess).toHaveBeenCalledTimes(1);
+  });
+
+  it('never submits when SpacetimeDB already contains the current request', async () => {
+    const requestAccess = vi.fn();
+    const client = bridge({
+      getAccessRequestStatus: vi.fn(async () => ({
+        version: 1 as const,
+        status: 'requested' as const,
+        requestedAt: 1_785_414_896_000
+      })),
+      requestAccess
+    });
+    render(<Harness authState={pending(12_345)} client={client} generation={1} />);
+
+    await waitFor(() => expect(screen.getByText('requested')).not.toBeNull());
+    const received = screen.getByRole('button', {
+      name: 'REQUEST RECEIVED'
+    }) as HTMLButtonElement;
+    expect(received.disabled).toBe(true);
+    fireEvent.click(received);
+    expect(requestAccess).not.toHaveBeenCalled();
   });
 });

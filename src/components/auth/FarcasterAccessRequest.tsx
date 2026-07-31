@@ -56,7 +56,7 @@ export function FarcasterAccessRequestMessage({
   if (state.phase === 'submitting') {
     return (
       <p className="farcaster-auth-panel__instruction" role="status">
-        Sending request…
+        <strong>Request sent.</strong> Confirming with the Hegemony records…
       </p>
     );
   }
@@ -102,7 +102,7 @@ export function FarcasterAccessRequestAction({
   const label = isLoading
     ? 'CHECKING…'
     : isSubmitting
-      ? 'SENDING…'
+      ? 'REQUEST SENT'
       : isRequested
         ? 'REQUEST RECEIVED'
         : 'REQUEST ACCESS';
