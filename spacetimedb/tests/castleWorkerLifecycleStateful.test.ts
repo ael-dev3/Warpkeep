@@ -30,7 +30,7 @@ import {
   CANONICAL_TIER_I_GOLD_SITES_V1,
 } from '../src/goldSitePolicy';
 import {
-  SNAP_MARK_POLICY_VERSION,
+  ADMITTED_DAILY_MARK_POLICY_VERSION,
 } from '../src/marksAuthorityPolicy';
 import {
   assertLegacyExpeditionDispatchAllowed,
@@ -463,7 +463,7 @@ function makeLifecycleFixture(
               earnedMicros: 0n,
               spentMicros: 0n,
               balanceMicros: 0n,
-              policyVersion: SNAP_MARK_POLICY_VERSION,
+              policyVersion: ADMITTED_DAILY_MARK_POLICY_VERSION,
             }
             : null,
         },

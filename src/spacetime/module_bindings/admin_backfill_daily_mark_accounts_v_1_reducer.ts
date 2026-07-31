@@ -11,5 +11,5 @@ import {
 } from "spacetimedb";
 
 export default {
-  batchId: __t.string(),
+  expectedFounderCount: __t.u64(),
 };

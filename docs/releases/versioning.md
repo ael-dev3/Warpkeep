@@ -1,7 +1,7 @@
 # Versioning and releases
 
 Warpkeep uses semantic versions for the product and Git commit SHAs for builds.
-Alpha `0.3.32` is the live **The Hegemony Crest** release. A version is
+Alpha `0.3.33` is the live **The Realm Remembers** release. A version is
 described as live only after its protected review, matching client deployment,
 and production smoke test all succeed.
 

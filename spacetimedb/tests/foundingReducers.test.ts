@@ -92,7 +92,7 @@ test('profiled admission validates before writes and atomically creates the comp
 test('profile maintenance accepts canonical clears without touching ownership or castle state', () => {
   const admin = source('../src/reducers/admin.ts');
   const start = admin.indexOf('export const adminUpsertRealmProfileV1');
-  const end = admin.indexOf('export const adminUpsertFidWalletAttributionV1', start);
+  const end = admin.indexOf('/** Burn and wallet-attribution mutation wires', start);
   const reducer = admin.slice(start, end);
 
   assert.match(reducer, /normalizeTrustedPublicProfile\(input\)/);
@@ -186,60 +186,28 @@ test('public Mark projection is gated by an exact authenticated current entry-ag
       < reducer.indexOf('if (profile.communityStatsVisible) return'),
   );
   assert.match(reducer, /ALPHA_TERMS_ACCEPTANCE_CONFLICT/);
+  assert.match(reducer, /admittedDailyMarkAccountIsConsistent\(account\)/);
+  assert.match(reducer, /frozenLegacyZeroMarkAccountIsConsistent\(account\)/);
   assert.match(reducer, /communityStatsVisible: true/);
+  assert.match(reducer, /totalSnapBurnedMicros: frozenLegacyAccount \? 0n : undefined/);
   assert.match(reducer, /marksBalanceMicros: account\.balanceMicros/);
   assert.doesNotMatch(reducer, /ENTRY_AGREEMENT_EVIDENCE_VERSIONS/);
 });
 
-test('crediting is admin-only, receipt-immutable, fixed-policy, and never publishes private fields', () => {
+test('retired burn and wallet mutation wires are absent from the current module', () => {
   const admin = source('../src/reducers/admin.ts');
-  const start = admin.indexOf('export const adminCreditSnapBurnV1');
-  const end = admin.indexOf('/** Reconciles the exact batch receipt set', start);
-  const reducer = admin.slice(start, end);
-  assert.match(reducer, /requireAdmin\(ctx\)/);
-  assert.match(reducer, /normalizeSnapBurnCredit/);
-  assert.match(reducer, /snapBurnCreditsEqual/);
-  assert.match(reducer, /applyOneToOneBurnCredit/);
-  assert.match(reducer, /SNAP_BURN_REFERENCE_CONFLICT/);
-  assert.match(reducer, /SNAP_ATTRIBUTION_AMBIGUOUS/);
-  assert.match(reducer, /SCAN_BATCH_NOT_PENDING/);
-  assert.match(reducer, /applyScanBatchCredit/);
-  assert.match(reducer, /burnReference\.find/);
-  assert.match(reducer, /bySnapshotAndAddress\.filter/);
-  assert.doesNotMatch(reducer, /snapBurnCreditV1\.iter/);
-  assert.doesNotMatch(reducer, /fidWalletAttributionV1\.iter/);
-  assert.doesNotMatch(reducer, /realmProfileV1\.fid\.update\(\{[\s\S]*transactionHash/);
-});
-
-test('wallet snapshots and scan batches are atomic, resumable, and fail closed', () => {
-  const admin = source('../src/reducers/admin.ts');
-  const snapshotStart = admin.indexOf('export const adminReplaceFidWalletSnapshotV1');
-  const beginStart = admin.indexOf('export const adminBeginSnapScanBatchV1', snapshotStart);
-  const creditStart = admin.indexOf('export const adminCreditSnapBurnV1', beginStart);
-  const finalizeStart = admin.indexOf('export const adminFinalizeSnapScanBatchV1', creditStart);
-  const aggregateStart = admin.indexOf('export const adminGetSnapScanBatchAggregateV1', finalizeStart);
-  const snapshot = admin.slice(snapshotStart, beginStart);
-  const begin = admin.slice(beginStart, creditStart);
-  const finalize = admin.slice(finalizeStart, aggregateStart);
-  const aggregate = admin.slice(aggregateStart, admin.indexOf('export const adminDisableFid'));
-
-  assert.match(snapshot, /planWalletSnapshotTransition/);
-  assert.match(snapshot, /WALLET_SNAPSHOT_FROZEN_BY_PENDING_BATCH/);
-  assert.match(snapshot, /snapshotAttributionKey: `\$\{transition\.generation\}/);
-  assert.doesNotMatch(snapshot, /fidWalletAttributionV1\.(?:delete|snapshotAttributionKey\.update)/);
-  assert.match(begin, /normalizeScanBatchPlan/);
-  assert.match(begin, /existing\.appliedCredits === receipts\.receiptCredits/);
-  assert.match(begin, /existing\.finalizedAt === undefined/);
-  assert.doesNotMatch(begin, /snapScanCursorV1\.(?:insert|cursorKey\.update)/);
-  assert.match(finalize, /scanBatchReadyToFinalize/);
-  assert.match(finalize, /batch\.finalizedAt === undefined/);
-  assert.match(finalize, /batch\.finalizedAt !== undefined/);
-  assert.match(finalize, /snapScanCursorV1\.(?:insert|cursorKey\.update)/);
-  assert.match(finalize, /status: 'finalized'/);
-  assert.match(aggregate, /internallyConsistent/);
-  assert.match(aggregate, /batch\.finalizedAt !== undefined/);
-  assert.match(aggregate, /batch\.finalizedAt === undefined/);
-  assert.doesNotMatch(aggregate, /(?:transactionHash|senderAddress|walletSnapshotId):/);
+  const index = source('../src/index.ts');
+  for (const retired of [
+    'adminUpsertFidWalletAttributionV1',
+    'adminReplaceFidWalletSnapshotV1',
+    'adminBeginSnapScanBatchV1',
+    'adminCreditSnapBurnV1',
+    'adminFinalizeSnapScanBatchV1',
+    'adminGetSnapScanBatchAggregateV1',
+  ]) {
+    assert.doesNotMatch(admin, new RegExp(retired));
+    assert.doesNotMatch(index, new RegExp(retired));
+  }
 });
 
 test('v3 admin status is counts-only and includes founder and ledger orphan signals', () => {

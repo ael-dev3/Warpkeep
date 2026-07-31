@@ -8,7 +8,7 @@ export const WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_VERSION =
  * acceptance records bind the complete bundle rather than only one document.
  */
 export const WARPKEEP_ENTRY_AGREEMENT_VERSION =
-  '2026-07-19-hegemony-entry-agreement-v3';
+  '2026-07-31-hegemony-entry-agreement-v4';
 
 /**
  * Retained deployed reducer/input name. It identifies the complete linked
@@ -22,8 +22,8 @@ export const WARPKEEP_ALPHA_TERMS_VERSION = WARPKEEP_ENTRY_AGREEMENT_VERSION;
  * allowing the accepted document to drift behind an unchanged reducer value.
  */
 export const WARPKEEP_ALPHA_TERMS_TEXT_SHA256 =
-  '4eb57f45f09d5b895ccceb6eb194e1f742afcb03edd2b59de5d7a3f5301fffe1';
+  'b78bacc360df53f57bed668a68c311acf14e957156ecd8256e388a6ef38496bf';
 
 /** SHA-256 of the canonical Social Contract's normalized visible <main> text. */
 export const WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_TEXT_SHA256 =
-  '4116ad01c9d0cbcf26dede2cbb5776602077b18c1500eb4e276f13d0c3081489';
+  'a052a4f53aee749b702037f7a6eeb1e9dbd6fab0cbcd60aed81dacade8cbb66d';

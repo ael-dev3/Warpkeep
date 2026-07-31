@@ -158,7 +158,7 @@ const RESOURCE_TOOLTIP_COPY: Readonly<Record<RealmResourceTooltipKey, string>> =
   gold:
     'Gold comes from Gold Mine gathering; your keep’s terrain produces no Gold. The Realm stores completed yield automatically. No Gold spending is live yet.',
   marks:
-    'Community Marks are a separate experimental accounting balance, not an economic resource. They currently have no spending, transfer, conversion, redemption, or reward loop.'
+    'Every admitted keeper receives one experimental Community Mark per eligible Realm day. Marks require no wallet or token action and have no spending, transfer, conversion, redemption, or reward loop.'
 });
 
 const RESOURCE_ICON_PATHS: Readonly<

@@ -99,6 +99,7 @@ export const WORKER_MODULE_PREDECESSOR = Object.freeze({
   EXACT_V12_EMPTY: 'exact-v12-empty',
   EXACT_V12_ACTIVE: 'exact-v12-active',
   EXACT_V13_ACTIVE: 'exact-v13-active',
+  EXACT_V13_ACTIVE_V14_EMPTY: 'exact-v13-active-v14-empty',
 });
 export const WORKER_FORWARD_REPAIR = Object.freeze({
   NONE: 'none',
@@ -227,6 +228,29 @@ export const ACCESS_REQUEST_V13_TABLE_CONTRACTS = Object.freeze({
       'fid',
       'request_cycle',
       'requested_at',
+    ]),
+  }),
+});
+export const DAILY_MARK_V14_TABLE_CONTRACTS = Object.freeze({
+  daily_mark_grant_v1: Object.freeze({
+    productTypeRef: 54,
+    access: 'Private',
+    fields: Object.freeze([
+      'grant_key',
+      'fid',
+      'utc_day',
+      'amount_micros',
+      'policy_version',
+      'granted_at',
+    ]),
+  }),
+  daily_mark_schedule_v_1: Object.freeze({
+    productTypeRef: 55,
+    access: 'Private',
+    fields: Object.freeze([
+      'schedule_id',
+      'scheduled_at',
+      'policy_version',
     ]),
   }),
 });
@@ -676,6 +700,36 @@ const ALPHA_V12_STATUS_KEYS = Object.freeze([
   ...ALPHA_V12_BOOLEAN_FIELDS,
   ...ALPHA_V12_STRING_FIELDS,
 ].sort());
+const DAILY_MARK_V14_POLICY_VERSION = 'admitted-daily-mark-v1';
+const DAILY_MARK_V14_COUNT_FIELDS = Object.freeze([
+  'utcDay',
+  'allowedFids',
+  'enabledAllowedFids',
+  'markAccounts',
+  'dailyAccounts',
+  'legacyZeroAccounts',
+  'invalidAccounts',
+  'realmProfiles',
+  'profileProjectionViolations',
+  'missingFounderState',
+  'grants',
+  'currentDayGrants',
+  'grantInvariantViolations',
+  'grantAccountReconciliationViolations',
+  'scheduleRows',
+  'legacyCompatibilityRows',
+]);
+const DAILY_MARK_V14_BOOLEAN_FIELDS = Object.freeze([
+  'scheduleConfigValid',
+  'readyForBackfill',
+  'readyForActivation',
+  'active',
+]);
+const DAILY_MARK_V14_STATUS_KEYS = Object.freeze([
+  'policyVersion',
+  ...DAILY_MARK_V14_COUNT_FIELDS,
+  ...DAILY_MARK_V14_BOOLEAN_FIELDS,
+].sort());
 const EMPTY_WORKER_V12_ZERO_FIELDS = Object.freeze([
   'systemRows',
   'expectedCastleCount',
@@ -1074,7 +1128,7 @@ export function parsePublishArguments(arguments_ = process.argv.slice(2)) {
         continue;
       }
     }
-    fail('Usage: publish-spacetime-dev.mjs [--dry-run] --resource-rollout-stage=<prebackfill|ready> --genesis-world-stage=<pre-expansion|expanded> --worker-rollout-stage=<empty|active> [--worker-module-predecessor=<v11|exact-v12-empty|exact-v12-active|exact-v13-active>] --worker-forward-repair=<none|return-node-reuse-v1>. Unknown or duplicate arguments are rejected.');
+    fail('Usage: publish-spacetime-dev.mjs [--dry-run] --resource-rollout-stage=<prebackfill|ready> --genesis-world-stage=<pre-expansion|expanded> --worker-rollout-stage=<empty|active> [--worker-module-predecessor=<v11|exact-v12-empty|exact-v12-active|exact-v13-active|exact-v13-active-v14-empty>] --worker-forward-repair=<none|return-node-reuse-v1>. Unknown or duplicate arguments are rejected.');
   }
   if (resourceRolloutStage === undefined) {
     fail('An explicit resource rollout stage is required: prebackfill for the first additive publication or ready for an already-backfilled republish.');
@@ -1092,10 +1146,19 @@ export function parsePublishArguments(arguments_ = process.argv.slice(2)) {
     (
       workerModulePredecessor === WORKER_MODULE_PREDECESSOR.EXACT_V12_ACTIVE
       || workerModulePredecessor === WORKER_MODULE_PREDECESSOR.EXACT_V13_ACTIVE
+      || workerModulePredecessor
+        === WORKER_MODULE_PREDECESSOR.EXACT_V13_ACTIVE_V14_EMPTY
     )
       !== (workerRolloutStage === WORKER_PUBLISH_ROLLOUT_STAGE.ACTIVE)
   ) {
-    fail('The exact active-v12 module predecessor or exact active-v13 module predecessor requires the active Worker rollout stage, and no other predecessor may use it.');
+    fail('The exact active-v12 module predecessor, exact active-v13 module predecessor, or exact active-v13-to-empty-v14 module predecessor requires the active Worker rollout stage, and no other predecessor may use it.');
+  }
+  if (
+    workerModulePredecessor
+      === WORKER_MODULE_PREDECESSOR.EXACT_V13_ACTIVE_V14_EMPTY
+    && workerForwardRepair !== WORKER_FORWARD_REPAIR.NONE
+  ) {
+    fail('The exact active-v13-to-empty-v14 publication is schema-only and requires worker-forward-repair=none.');
   }
   if (
     workerForwardRepair === WORKER_FORWARD_REPAIR.RETURN_NODE_REUSE_V1
@@ -1455,6 +1518,14 @@ function productionV13TableRefs() {
   });
 }
 
+function productionV14TableRefs() {
+  return Object.freeze({
+    ...productionV13TableRefs(),
+    ...Object.fromEntries(Object.entries(DAILY_MARK_V14_TABLE_CONTRACTS)
+      .map(([name, contract]) => [name, contract.productTypeRef])),
+  });
+}
+
 function requireCapturedTableSignatures(signatures, refs, boundary) {
   if (
     !signatures
@@ -1569,6 +1640,121 @@ export function verifyExactProductionV13Schema(
     appendedAccessRequestTableCount:
       Object.keys(ACCESS_REQUEST_V13_TABLE_CONTRACTS).length,
     totalTableCount: Object.keys(contracts.v13Refs).length,
+  });
+}
+
+function verifyProductionV14Contracts(
+  description,
+  expectedV12TableSchemaDigest,
+  expectedV13TableSchemaDigest,
+  expectedV14TableSchemaDigest,
+) {
+  const v12Refs = productionV12TableRefs();
+  const v13Refs = productionV13TableRefs();
+  const v14Refs = productionV14TableRefs();
+  verifyExactTableIdentities(description, v14Refs);
+  for (const [name, contract] of Object.entries(WORKER_V12_TABLE_CONTRACTS)) {
+    if (
+      schemaTableAccess(description, name) !== contract.access
+      || canonicalJson(schemaFieldNames(description, name))
+        !== canonicalJson(contract.fields)
+    ) fail('The appended Worker schema did not match the exact v12 contract.');
+  }
+  for (const [name, contract] of Object.entries(
+    ACCESS_REQUEST_V13_TABLE_CONTRACTS,
+  )) {
+    if (
+      schemaTableAccess(description, name) !== contract.access
+      || canonicalJson(schemaFieldNames(description, name))
+        !== canonicalJson(contract.fields)
+    ) fail('The appended access-request schema did not match the exact private v13 contract.');
+  }
+  for (const [name, contract] of Object.entries(
+    DAILY_MARK_V14_TABLE_CONTRACTS,
+  )) {
+    if (
+      schemaTableAccess(description, name) !== contract.access
+      || canonicalJson(schemaFieldNames(description, name))
+        !== canonicalJson(contract.fields)
+    ) fail('The appended daily-Mark schema did not match the exact private v14 contract.');
+  }
+  try {
+    if (
+      typeof expectedV12TableSchemaDigest !== 'string'
+      || !SHA256_DIGEST.test(expectedV12TableSchemaDigest)
+      || projectedTableSchemaBoundaryDigest(
+        description,
+        Object.keys(v12Refs),
+      ) !== expectedV12TableSchemaDigest
+    ) fail('The canonical v12 table schema did not match the proven publication boundary.');
+    if (
+      typeof expectedV13TableSchemaDigest !== 'string'
+      || !SHA256_DIGEST.test(expectedV13TableSchemaDigest)
+      || projectedTableSchemaBoundaryDigest(
+        description,
+        Object.keys(v13Refs),
+      ) !== expectedV13TableSchemaDigest
+    ) fail('The canonical v13 table schema did not match the proven publication boundary.');
+    if (
+      typeof expectedV14TableSchemaDigest !== 'string'
+      || !SHA256_DIGEST.test(expectedV14TableSchemaDigest)
+      || canonicalTableSchemaBoundaryDigest(
+        description,
+        Object.keys(v14Refs),
+      ) !== expectedV14TableSchemaDigest
+    ) fail('The canonical v14 table schema did not match the proven publication boundary.');
+  } catch (error) {
+    if (
+      error instanceof SafePublishError
+      && (
+        error.message
+          === 'The canonical v12 table schema did not match the proven publication boundary.'
+        || error.message
+          === 'The canonical v13 table schema did not match the proven publication boundary.'
+        || error.message
+          === 'The canonical v14 table schema did not match the proven publication boundary.'
+      )
+    ) throw error;
+    fail('The canonical v14 table schema did not match the proven publication boundary.');
+  }
+  return Object.freeze({
+    v12Refs,
+    v13Refs,
+    v14Refs,
+  });
+}
+
+/**
+ * Require the exact two-table v14 append over a captured active v13 module.
+ * Every v13 signature and independently proven v12/v13 projection is retained;
+ * only the private refs 54-55 daily-Mark suffix may be introduced.
+ */
+export function verifyExactProductionV14Schema(
+  predecessorSignatures,
+  description,
+  expectedV12TableSchemaDigest,
+  expectedV13TableSchemaDigest,
+  expectedV14TableSchemaDigest,
+) {
+  const v13Refs = productionV13TableRefs();
+  requireCapturedTableSignatures(predecessorSignatures, v13Refs, 'v13');
+  const contracts = verifyProductionV14Contracts(
+    description,
+    expectedV12TableSchemaDigest,
+    expectedV13TableSchemaDigest,
+    expectedV14TableSchemaDigest,
+  );
+  for (const name of Object.keys(v13Refs)) {
+    if (
+      canonicalJson(schemaTableSignature(description, name))
+        !== predecessorSignatures[name]
+    ) fail('A pre-existing production table changed during the v14 publication.');
+  }
+  return Object.freeze({
+    predecessorTableCount: Object.keys(v13Refs).length,
+    appendedDailyMarkTableCount:
+      Object.keys(DAILY_MARK_V14_TABLE_CONTRACTS).length,
+    totalTableCount: Object.keys(contracts.v14Refs).length,
   });
 }
 
@@ -1895,7 +2081,13 @@ export function verifyWorkerV13ModulePredecessor(
 ) {
   if (
     workerModulePredecessor !== WORKER_MODULE_PREDECESSOR.EXACT_V13_ACTIVE
-    || (
+    && workerModulePredecessor
+      !== WORKER_MODULE_PREDECESSOR.EXACT_V13_ACTIVE_V14_EMPTY
+  ) {
+    fail('The selected Worker module predecessor did not match an exact active production v13 ABI lane.');
+  }
+  if (
+    (
       moduleState !== 'active-predecessor'
       && moduleState !== 'candidate'
     )
@@ -2065,6 +2257,65 @@ export function verifyFreshProductionV13ModuleSchema(
   }
 }
 
+/**
+ * Bind a complete v14 description to all three additive table digests and the
+ * reviewed Worker candidate ABI. This is a read-only recovery checkpoint; it
+ * does not authorize a backfill, schedule seed, or daily-Mark activation.
+ */
+export function verifyExactProductionV14ModuleSchema(
+  description,
+  expectedV12TableSchemaDigest,
+  expectedV13TableSchemaDigest,
+  expectedV14TableSchemaDigest,
+) {
+  const contracts = verifyProductionV14Contracts(
+    description,
+    expectedV12TableSchemaDigest,
+    expectedV13TableSchemaDigest,
+    expectedV14TableSchemaDigest,
+  );
+  const moduleState = verifyWorkerV12ModuleAbi(description);
+  if (moduleState !== 'candidate') {
+    fail('The exact production v14 module did not expose the reviewed Worker candidate ABI.');
+  }
+  const tableSignatures = Object.freeze(Object.fromEntries(
+    Object.keys(contracts.v14Refs).map(name => [
+      name,
+      canonicalJson(schemaTableSignature(description, name)),
+    ]),
+  ));
+  return Object.freeze({
+    moduleState,
+    tableSignatures,
+    totalTableCount: Object.keys(contracts.v14Refs).length,
+  });
+}
+
+export function verifyFreshProductionV14ModuleSchema(
+  executable,
+  expectedV12TableSchemaDigest,
+  expectedV13TableSchemaDigest,
+  expectedV14TableSchemaDigest,
+  spawnSyncProcess = spawnSync,
+) {
+  try {
+    const result = runBoundedSync(
+      executable,
+      canonicalSchemaDescribeChildArguments(),
+      { timeout: 30_000 },
+      spawnSyncProcess,
+    );
+    return verifyExactProductionV14ModuleSchema(
+      parseCanonicalSchemaDescription(result.stdout),
+      expectedV12TableSchemaDigest,
+      expectedV13TableSchemaDigest,
+      expectedV14TableSchemaDigest,
+    );
+  } catch {
+    fail('Exact production v14 schema and reviewed module-ABI checkpoint failed. No publish was attempted.');
+  }
+}
+
 export function verifyPostPublishProductionV12ModuleSchema(
   executable,
   predecessor,
@@ -2196,6 +2447,58 @@ export function verifyPostPublishProductionV13ActiveModuleSchema(
   }
 }
 
+/**
+ * Postflight for the schema-only v13-to-v14 lane. The exact 54 captured v13
+ * signatures must survive unchanged, the only append is private refs 54-55,
+ * and the reviewed candidate Worker ABI must remain installed.
+ */
+export function verifyPostPublishProductionV14ModuleSchema(
+  executable,
+  predecessor,
+  expectedV12TableSchemaDigest,
+  expectedV13TableSchemaDigest,
+  expectedV14TableSchemaDigest,
+  spawnSyncProcess = spawnSync,
+) {
+  try {
+    if (
+      !predecessor
+      || (
+        predecessor.moduleState !== 'active-predecessor'
+        && predecessor.moduleState !== 'candidate'
+      )
+    ) fail('The captured production v13 predecessor ABI was invalid.');
+    requireCapturedTableSignatures(
+      predecessor.tableSignatures,
+      productionV13TableRefs(),
+      'v13',
+    );
+    const result = runBoundedSync(
+      executable,
+      canonicalSchemaDescribeChildArguments(),
+      { timeout: 30_000 },
+      spawnSyncProcess,
+    );
+    const description = parseCanonicalSchemaDescription(result.stdout);
+    const schema = verifyExactProductionV14Schema(
+      predecessor.tableSignatures,
+      description,
+      expectedV12TableSchemaDigest,
+      expectedV13TableSchemaDigest,
+      expectedV14TableSchemaDigest,
+    );
+    if (verifyWorkerV12ModuleAbi(description) !== 'candidate') {
+      fail('The v14 publication did not preserve the reviewed Worker candidate ABI.');
+    }
+    return Object.freeze({
+      ...schema,
+      moduleState: 'candidate',
+    });
+  } catch {
+    fail('Post-publication v14 module checkpoint is indeterminate; perform a fresh anonymous read-only schema and ABI inspection before any daily-Mark backfill, schedule seed, activation, client deployment, or further publication decision.');
+  }
+}
+
 export function verifyFreshProductionV11Schema(
   executable,
   expectedTableSchemaDigest,
@@ -2292,11 +2595,12 @@ function validateMigrationArtifactReceiptShape(receipt) {
     receipt === null
     || typeof receipt !== 'object'
     || Object.keys(receipt).sort().join(',')
-      !== 'artifactDigest,artifactPath,v11TableSchemaDigest,v12TableSchemaDigest,v13TableSchemaDigest'
+      !== 'artifactDigest,artifactPath,v11TableSchemaDigest,v12TableSchemaDigest,v13TableSchemaDigest,v14TableSchemaDigest'
     || receipt.artifactPath !== PROVEN_ARTIFACT_PATH
     || !SHA256_DIGEST.test(receipt.v11TableSchemaDigest ?? '')
     || !SHA256_DIGEST.test(receipt.v12TableSchemaDigest ?? '')
     || !SHA256_DIGEST.test(receipt.v13TableSchemaDigest ?? '')
+    || !SHA256_DIGEST.test(receipt.v14TableSchemaDigest ?? '')
     || !SHA256_DIGEST.test(receipt.artifactDigest ?? '')
   ) {
     fail('The additive migration proof artifact receipt was invalid.');
@@ -2306,6 +2610,7 @@ function validateMigrationArtifactReceiptShape(receipt) {
     v11TableSchemaDigest: receipt.v11TableSchemaDigest,
     v12TableSchemaDigest: receipt.v12TableSchemaDigest,
     v13TableSchemaDigest: receipt.v13TableSchemaDigest,
+    v14TableSchemaDigest: receipt.v14TableSchemaDigest,
     artifactDigest: receipt.artifactDigest,
   });
 }
@@ -2331,6 +2636,7 @@ export function parseMigrationProofReceipt(output) {
     v11TableSchemaDigest: proofReceipt.v11TableSchemaDigest,
     v12TableSchemaDigest: proofReceipt.v12TableSchemaDigest,
     v13TableSchemaDigest: proofReceipt.v13TableSchemaDigest,
+    v14TableSchemaDigest: proofReceipt.v14TableSchemaDigest,
     artifactDigest: proofReceipt.artifactDigest,
   });
 }
@@ -2494,6 +2800,103 @@ export function publishPostV12AggregateChildArguments(tsxCli) {
     'inspect-publish-post-v12',
     '--json',
   ];
+}
+
+export function dailyMarksV14InspectChildArguments(tsxCli) {
+  return [
+    tsxCli,
+    'scripts/daily-marks-operator.ts',
+    'inspect',
+  ];
+}
+
+/** Accept only the operator's closed, counts-only daily-Marks status. */
+export function verifyEmptyDailyMarksV14StatusOutput(output) {
+  let status;
+  try {
+    status = JSON.parse(output);
+  } catch {
+    fail('Daily Marks v14 inspection did not return machine-readable JSON.');
+  }
+  if (!status || typeof status !== 'object' || Array.isArray(status)) {
+    fail('Daily Marks v14 inspection returned an invalid status object.');
+  }
+  const actualKeys = Object.keys(status).sort();
+  if (
+    actualKeys.length !== DAILY_MARK_V14_STATUS_KEYS.length
+    || actualKeys.some((key, index) => key !== DAILY_MARK_V14_STATUS_KEYS[index])
+    || status.policyVersion !== DAILY_MARK_V14_POLICY_VERSION
+  ) fail('Daily Marks v14 inspection returned unexpected fields.');
+  for (const field of DAILY_MARK_V14_COUNT_FIELDS) {
+    const value = status[field];
+    if (
+      typeof value !== 'string'
+      || !/^(?:0|[1-9]\d*)$/.test(value)
+      || value.length > 20
+      || BigInt(value) > U64_MAXIMUM
+    ) fail('Daily Marks v14 inspection returned an invalid aggregate count.');
+  }
+  for (const field of DAILY_MARK_V14_BOOLEAN_FIELDS) {
+    if (typeof status[field] !== 'boolean') {
+      fail('Daily Marks v14 inspection returned an invalid status flag.');
+    }
+  }
+  if (
+    status.allowedFids !== status.markAccounts
+    || status.allowedFids !== status.realmProfiles
+    || BigInt(status.enabledAllowedFids) > BigInt(status.allowedFids)
+    || status.dailyAccounts !== '0'
+    || status.legacyZeroAccounts !== status.markAccounts
+    || status.invalidAccounts !== '0'
+    || status.profileProjectionViolations !== '0'
+    || status.missingFounderState !== '0'
+    || status.grants !== '0'
+    || status.currentDayGrants !== '0'
+    || status.grantInvariantViolations !== '0'
+    || status.grantAccountReconciliationViolations !== '0'
+    || status.scheduleRows !== '0'
+    || status.scheduleConfigValid !== true
+    || status.legacyCompatibilityRows !== '0'
+    || status.readyForBackfill !== true
+    || status.readyForActivation !== false
+    || status.active !== false
+  ) {
+    fail('Daily Marks v14 did not prove the exact empty pre-backfill state.');
+  }
+  return Object.freeze({ ...status });
+}
+
+export function verifyPostPublishEmptyDailyMarksV14(
+  secret,
+  spawnSyncProcess = spawnSync,
+) {
+  const secretBytes = typeof secret === 'string'
+    ? new TextEncoder().encode(secret).byteLength
+    : 0;
+  if (secretBytes < 32 || secretBytes > 512) {
+    fail('A local 32-to-512-byte Hermes credential is required for the empty daily-Marks v14 checkpoint.');
+  }
+  try {
+    const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
+    const result = runBoundedSync(
+      process.execPath,
+      dailyMarksV14InspectChildArguments(tsxCli),
+      {
+        env: {
+          WARPKEEP_SPACETIMEDB_URI: CANONICAL_MAINCLOUD_URI,
+          WARPKEEP_SPACETIMEDB_DATABASE: CANONICAL_DATABASE_IDENTITY,
+          WARPKEEP_AUTH_BRIDGE_URL: CANONICAL_BRIDGE,
+          WARPKEEP_ADMIN_TOKEN_SECRET_STDIN: '1',
+        },
+        input: secret,
+        timeout: 30_000,
+      },
+      spawnSyncProcess,
+    );
+    return verifyEmptyDailyMarksV14StatusOutput(result.stdout);
+  } catch {
+    fail('Post-publication empty daily-Marks v14 checkpoint is indeterminate; perform a fresh protected read-only inspection before any backfill, schedule seed, activation, client deployment, or further publication decision.');
+  }
 }
 
 function parsePublishAggregateEnvelope(output, expectedKeys, label) {
@@ -3365,10 +3768,14 @@ async function main() {
       workerModulePredecessor === WORKER_MODULE_PREDECESSOR.EXACT_V12_EMPTY
       || workerModulePredecessor === WORKER_MODULE_PREDECESSOR.EXACT_V12_ACTIVE
       || workerModulePredecessor === WORKER_MODULE_PREDECESSOR.EXACT_V13_ACTIVE
+      || workerModulePredecessor
+        === WORKER_MODULE_PREDECESSOR.EXACT_V13_ACTIVE_V14_EMPTY
     ) {
-      const exactV13Active = workerModulePredecessor
+      const exactV14Append = workerModulePredecessor
+        === WORKER_MODULE_PREDECESSOR.EXACT_V13_ACTIVE_V14_EMPTY;
+      const exactV13Predecessor = exactV14Append || workerModulePredecessor
         === WORKER_MODULE_PREDECESSOR.EXACT_V13_ACTIVE;
-      const predecessorSchema = exactV13Active
+      const predecessorSchema = exactV13Predecessor
         ? verifyFreshProductionV13ModuleSchema(
           executable,
           artifactReceipt.v12TableSchemaDigest,
@@ -3378,7 +3785,7 @@ async function main() {
           executable,
           artifactReceipt.v12TableSchemaDigest,
         );
-      if (exactV13Active) {
+      if (exactV13Predecessor) {
         verifyWorkerV13ModulePredecessor(
           predecessorSchema.moduleState,
           workerModulePredecessor,
@@ -3404,7 +3811,16 @@ async function main() {
         publicationPlan.prePublicationCheckpoint,
       );
       await publishModule(executable, CANONICAL_DATABASE_IDENTITY, artifactReceipt);
-      if (exactV13Active) {
+      if (exactV14Append) {
+        verifyPostPublishProductionV14ModuleSchema(
+          executable,
+          predecessorSchema,
+          artifactReceipt.v12TableSchemaDigest,
+          artifactReceipt.v13TableSchemaDigest,
+          artifactReceipt.v14TableSchemaDigest,
+        );
+        verifyPostPublishEmptyDailyMarksV14(adminTokenSecret);
+      } else if (exactV13Predecessor) {
         verifyPostPublishProductionV13ActiveModuleSchema(
           executable,
           predecessorSchema,

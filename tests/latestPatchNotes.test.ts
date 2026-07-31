@@ -18,24 +18,24 @@ describe('latest in-menu patch notes', () => {
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
       releasedOn: '31 JUL 2026',
-      title: 'THE HEGEMONY CREST'
+      title: 'THE REALM REMEMBERS'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /native Mini App launch splash.*current.*Hegemony crest.*original draft mark/i
+      /SpacetimeDB.*one exact Mark.*UTC Realm day.*no wallet.*token.*transaction.*payment/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /browser opening frame.*no-JavaScript fallback.*retired standalone W/i
+      /Private daily receipts.*retries harmless.*revoked admission.*pauses future grants/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /content-addressed image URL.*fresh cache identity.*entry.*authority boundary/i
+      /SNAP burn.*wallet-attribution.*chain-scanning.*retired/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /released to players|deployed to players|public balances|guaranteed rewards/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('Hegemony crest');
+    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('Community Mark');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'does not change authentication, admission, Terms acceptance, castle ownership, Workers, resources, balances, terrain'
+      'cannot be spent, transferred, redeemed, or converted'
     );
 
     const alpha0324 = getLatestPatchNotes('0.3.24');

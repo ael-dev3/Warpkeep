@@ -15,6 +15,11 @@ export const ACCESS_REQUEST_V13_TABLE_CONTRACTS: Readonly<Record<string, Readonl
   access: string;
   fields: readonly string[];
 }>>>;
+export const DAILY_MARK_V14_TABLE_CONTRACTS: Readonly<Record<string, Readonly<{
+  productTypeRef: number;
+  access: string;
+  fields: readonly string[];
+}>>>;
 
 export interface FoundedPublishExpectations {
   readonly expectedEnabledAllowedFidCount: number;
@@ -35,6 +40,7 @@ export function attestPinnedSpacetimeCli(
 }>;
 export function canonicalSchemaDescribeChildArguments(...args: any[]): any;
 export function createPrivatePublishSnapshot(...args: any[]): any;
+export function dailyMarksV14InspectChildArguments(...args: any[]): any;
 export function parseCanonicalSchemaDescription(...args: any[]): any;
 export function parseMigrationProofReceipt(...args: any[]): any;
 export function parsePublishArguments(...args: any[]): any;
@@ -66,6 +72,7 @@ export function verifyFreshPublishPreV12Aggregate(
 export function verifyFreshProductionV11Schema(...args: any[]): any;
 export function verifyFreshProductionV12ModuleSchema(...args: any[]): any;
 export function verifyFreshProductionV13ModuleSchema(...args: any[]): any;
+export function verifyFreshProductionV14ModuleSchema(...args: any[]): any;
 export function verifyFreshFoundedProtocolV3Aggregate(
   secret: string,
   expectations: FoundedPublishExpectations,
@@ -74,6 +81,7 @@ export function verifyFreshFoundedProtocolV3Aggregate(
 export function verifyFreshResourceProtocolV4PrebackfillAggregate(...args: any[]): any;
 export function verifyFreshResourceProtocolV4ReadyAggregate(...args: any[]): any;
 export function verifyMigrationArtifactReceipt(...args: any[]): any;
+export function verifyEmptyDailyMarksV14StatusOutput(...args: any[]): any;
 export function verifyPinnedCliAttestation(...args: any[]): any;
 export function verifyPostPublishAlphaStatusV8Aggregate(...args: any[]): any;
 export function verifyPostPublishAlphaStatusV10Aggregate(...args: any[]): any;
@@ -93,6 +101,8 @@ export function verifyPostPublishProductionV12ModuleSchema(...args: any[]): any;
 export function verifyPostPublishProductionV13ModuleSchema(...args: any[]): any;
 export function verifyPostPublishProductionV13ActiveModuleSchema(...args: any[]): any;
 export function verifyPostPublishProductionV13SchemaFromV11(...args: any[]): any;
+export function verifyPostPublishProductionV14ModuleSchema(...args: any[]): any;
+export function verifyPostPublishEmptyDailyMarksV14(...args: any[]): any;
 export function verifyPostPublishResourceProtocolV4PrebackfillAggregate(...args: any[]): any;
 export function verifyPostPublishResourceProtocolV4ReadyAggregate(...args: any[]): any;
 export function verifyPostPublishResourcePublicationCheckpoints(
@@ -115,6 +125,8 @@ export function verifyExactProductionV12ModuleSchema(...args: any[]): any;
 export function verifyExactProductionV13Schema(...args: any[]): any;
 export function verifyExactProductionV13SchemaFromV11(...args: any[]): any;
 export function verifyExactProductionV13ModuleSchema(...args: any[]): any;
+export function verifyExactProductionV14Schema(...args: any[]): any;
+export function verifyExactProductionV14ModuleSchema(...args: any[]): any;
 export function verifyWorkerV12ModuleAbi(...args: any[]): any;
 export function verifyWorkerV12ModulePredecessor(...args: any[]): any;
 export function verifyWorkerV13ModulePredecessor(...args: any[]): any;

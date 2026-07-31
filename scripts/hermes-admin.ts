@@ -93,7 +93,7 @@ type Command =
 type AlphaStatusVersion = 'v1' | 'v2' | 'v3' | 'v4' | 'v8' | 'v10' | 'v12';
 type SeedableAlphaComponent = AlphaActivationComponent | AlphaV10ActivationComponent;
 
-const DEFAULT_DATABASE = 'warpkeep-89e4u';
+const LEGACY_DATABASE_ALIAS = 'warpkeep-89e4u';
 const DEFAULT_DATABASE_IDENTITY = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';
 const DEFAULT_URI = 'https://maincloud.spacetimedb.com';
 const DEFAULT_BRIDGE = 'https://auth.warpkeep.com';
@@ -190,7 +190,7 @@ export const FOUNDER_ADMISSION_SOURCE_CONFIGURATION_DIGEST = createHash('sha256'
 export const FOUNDER_ADMISSION_TARGET_CONFIGURATION_DIGEST = createHash('sha256')
   .update(JSON.stringify({
     databaseUri: DEFAULT_URI,
-    databaseName: DEFAULT_DATABASE,
+    databaseName: LEGACY_DATABASE_ALIAS,
     databaseIdentity: DEFAULT_DATABASE_IDENTITY,
     bridgeUrl: DEFAULT_BRIDGE,
     reducer: 'admin_admit_founder_v1',
@@ -269,8 +269,8 @@ function readHttpsUrl(value: string | undefined, label: string) {
   return url.pathname === '/' ? url.origin : url.toString().replace(/\/$/, '');
 }
 
-function readDatabase(value: string | undefined) {
-  const database = value || DEFAULT_DATABASE;
+function readDatabase(value: string | undefined, fallback = LEGACY_DATABASE_ALIAS) {
+  const database = value || fallback;
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(database)) {
     fail('WARPKEEP_SPACETIMEDB_DATABASE is invalid.');
   }
@@ -1403,7 +1403,7 @@ export function requireCredentialedProductionTarget(
 ): void {
   if (
     uri !== DEFAULT_URI
-    || (database !== DEFAULT_DATABASE && database !== DEFAULT_DATABASE_IDENTITY)
+    || (database !== LEGACY_DATABASE_ALIAS && database !== DEFAULT_DATABASE_IDENTITY)
     || bridgeUrl !== DEFAULT_BRIDGE
   ) {
     fail('Credentialed Hermes commands require the canonical Warpkeep production targets.');
@@ -1660,7 +1660,13 @@ async function main() {
     && process.env.WARPKEEP_HERMES_NONINTERACTIVE === 'yes'
   );
   const mutation = !inspection;
-  const database = readDatabase(process.env.WARPKEEP_SPACETIMEDB_DATABASE);
+  // The public alias no longer resolves consistently through the current SDK.
+  // Read-only inspection can safely default to the immutable production
+  // identity. Durable mutations preserve the explicit-target safety boundary.
+  const database = readDatabase(
+    process.env.WARPKEEP_SPACETIMEDB_DATABASE,
+    inspection ? DEFAULT_DATABASE_IDENTITY : LEGACY_DATABASE_ALIAS,
+  );
   const uri = readHttpsUrl(process.env.WARPKEEP_SPACETIMEDB_URI || DEFAULT_URI, 'WARPKEEP_SPACETIMEDB_URI');
 
   let fid = command === 'allow-fid'

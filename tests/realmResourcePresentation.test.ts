@@ -32,7 +32,7 @@ function validResourceProjection() {
     nextCollectAtMicros: 2_500n,
     revision: 7n,
     resourcePolicyVersion: REALM_RESOURCE_POLICY_VERSION,
-    marksPolicyVersion: 'snap-current-linked-wallet-1to1-v1',
+    marksPolicyVersion: 'admitted-daily-mark-v1',
     terrainKind: 'forest'
   } as const;
 }
@@ -67,7 +67,7 @@ describe('Realm resource presentation', () => {
       nextCollectAtMicros: 2_500n,
       revision: 7n,
       resourcePolicyVersion: REALM_RESOURCE_POLICY_VERSION,
-      marksPolicyVersion: 'snap-current-linked-wallet-1to1-v1',
+      marksPolicyVersion: 'admitted-daily-mark-v1',
       terrainKind: 'forest'
     });
     expect(Object.isFrozen(decoded)).toBe(true);
@@ -162,12 +162,12 @@ describe('Realm resource presentation', () => {
     }
     for (const marksPolicyVersion of [
       '',
-      ' snap-current-linked-wallet-1to1-v1',
-      'snap-current-linked-wallet-1to1-v2',
-      'SNAP-V1',
-      'snap--v1',
+      ' admitted-daily-mark-v1',
+      'admitted-daily-mark-v2',
+      'DAILY-MARK-V1',
+      'daily--mark-v1',
       `a${'-a'.repeat(64)}`,
-      'snap\u0000v1'
+      'daily\u0000mark'
     ]) {
       expect(decodeRealmResourceProjection({
         ...validResourceProjection(),

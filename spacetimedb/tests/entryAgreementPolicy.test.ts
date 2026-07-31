@@ -5,6 +5,7 @@ import test from 'node:test';
 import {
   EntryAgreementStatusConflictError,
   readCurrentEntryAgreementStatusV1,
+  retainedEntryAgreementEvidenceExists,
   WARPKEEP_ALPHA_TERMS_VERSION,
   WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM,
   WARPKEEP_ENTRY_AGREEMENT_EVIDENCE_VERSIONS,
@@ -23,7 +24,7 @@ function source(path: string): string {
 test('the current Hegemony entry agreement preserves the deployed Terms-shaped version alias', () => {
   assert.equal(
     WARPKEEP_ENTRY_AGREEMENT_VERSION,
-    '2026-07-19-hegemony-entry-agreement-v3',
+    '2026-07-31-hegemony-entry-agreement-v4',
   );
   assert.equal(WARPKEEP_ALPHA_TERMS_VERSION, WARPKEEP_ENTRY_AGREEMENT_VERSION);
   assert.equal(REEXPORTED_ALPHA_TERMS_VERSION, WARPKEEP_ENTRY_AGREEMENT_VERSION);
@@ -32,6 +33,7 @@ test('the current Hegemony entry agreement preserves the deployed Terms-shaped v
 
 test('historical immutable evidence remains bounded and never becomes the current version', () => {
   assert.deepEqual(WARPKEEP_HISTORICAL_ENTRY_AGREEMENT_VERSIONS, [
+    '2026-07-19-hegemony-entry-agreement-v3',
     '2026-07-19-hegemony-entry-agreement-v2',
     '2026-07-18-hegemony-entry-agreement-v1',
     '2026-07-14',
@@ -50,10 +52,29 @@ test('historical immutable evidence remains bounded and never becomes the curren
   );
 });
 
+test('retained public-projection evidence requires an exact keyed FID and version', () => {
+  const fid = 101n;
+  const version = '2026-07-19-hegemony-entry-agreement-v3';
+  const key = `${fid}:${version}`;
+  assert.equal(retainedEntryAgreementEvidenceExists(
+    fid,
+    acceptanceKey => acceptanceKey === key
+      ? { acceptanceKey: key, fid, termsVersion: version }
+      : null,
+  ), true);
+  assert.equal(retainedEntryAgreementEvidenceExists(
+    fid,
+    acceptanceKey => acceptanceKey === key
+      ? { acceptanceKey: key, fid: fid + 1n, termsVersion: version }
+      : null,
+  ), false);
+});
+
 test('the current reducer wire and gameplay gate remain exact-current while Marks retain bounded history', () => {
   const admission = source('../src/reducers/admission.ts');
   const auth = source('../src/auth.ts');
   const admin = source('../src/reducers/admin.ts');
+  const agreementPolicy = source('../src/entryAgreementPolicy.ts');
 
   assert.match(admission, /\{ name: 'accept_alpha_terms_v1' \}/);
   assert.match(admission, /\{ termsVersion: t\.string\(\), accepted: t\.bool\(\) \}/);
@@ -65,9 +86,12 @@ test('the current reducer wire and gameplay gate remain exact-current while Mark
   assert.doesNotMatch(auth, /WARPKEEP_ENTRY_AGREEMENT_EVIDENCE_VERSIONS/);
 
   assert.match(admin, /hasRetainedEntryAgreementEvidence/);
-  assert.match(admin, /WARPKEEP_ENTRY_AGREEMENT_EVIDENCE_VERSIONS\.some/);
-  assert.match(admin, /fid \+ ':' \+ entryAgreementVersion/);
-  assert.match(admin, /acceptance\.termsVersion === entryAgreementVersion/);
+  assert.match(admin, /retainedEntryAgreementEvidenceExists/);
+  assert.match(agreementPolicy, /WARPKEEP_ENTRY_AGREEMENT_EVIDENCE_VERSIONS\.some/);
+  assert.match(agreementPolicy, /acceptanceKey = `\$\{fid\}:\$\{version\}`/);
+  assert.match(agreementPolicy, /acceptance\?\.acceptanceKey === acceptanceKey/);
+  assert.match(agreementPolicy, /acceptance\.fid === fid/);
+  assert.match(agreementPolicy, /acceptance\.termsVersion === version/);
   assert.match(admin, /entryAgreementAcceptanceCounts = new Map<bigint, number>\(\)/);
   assert.match(
     admin,
@@ -109,6 +133,31 @@ test('caller status reports missing exact-current evidence without mutation', ()
   ]);
   assert.equal(mutationCount, 0);
   assert.ok(Object.isFrozen(result));
+});
+
+test('a retained V3 acceptance is historical and cannot satisfy the V4 entry gate', () => {
+  const fid = 101n;
+  const v3Version = '2026-07-19-hegemony-entry-agreement-v3';
+  const v3Key = `${fid}:${v3Version}`;
+  const retainedEvidence = new Map([
+    [v3Key, Object.freeze({ acceptanceKey: v3Key, fid, termsVersion: v3Version })],
+  ]);
+  const lookupKeys: string[] = [];
+
+  const result = readCurrentEntryAgreementStatusV1(
+    () => fid,
+    acceptanceKey => {
+      lookupKeys.push(acceptanceKey);
+      return retainedEvidence.get(acceptanceKey) ?? null;
+    },
+  );
+
+  assert.deepEqual(result, {
+    requiredVersion: WARPKEEP_ENTRY_AGREEMENT_VERSION,
+    acceptedCurrent: false,
+  });
+  assert.deepEqual(lookupKeys, [`${fid}:${WARPKEEP_ENTRY_AGREEMENT_VERSION}`]);
+  assert.equal(retainedEvidence.size, 1);
 });
 
 test('caller status accepts only one exact-current row for the admitted FID', () => {

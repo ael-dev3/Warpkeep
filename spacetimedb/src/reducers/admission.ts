@@ -9,6 +9,10 @@ import {
   WARPKEEP_ALPHA_TERMS_VERSION,
 } from '../entryAgreementPolicy';
 import { assertGenesisFounderForFid } from '../foundingAuthority';
+import {
+  admittedDailyMarkAccountIsConsistent,
+  frozenLegacyZeroMarkAccountIsConsistent,
+} from '../marksAuthorityPolicy';
 import { evaluatePlayerOwnership } from '../playerOwnershipPolicy';
 import warpkeep from '../schema';
 
@@ -175,7 +179,7 @@ export const bootstrapPlayerV2 = warpkeep.reducer(
  * Records the explicit current Hegemony entry-agreement bundle after genuine
  * authentication. The deployed reducer wire remains Terms-shaped for
  * compatibility; its version identifies the linked Terms + Social Contract.
- * This is the only player transition that makes private Mark aggregates public.
+ * This is the only player transition that makes current Mark aggregates public.
  */
 export const acceptAlphaTermsV1 = warpkeep.reducer(
   { name: 'accept_alpha_terms_v1' },
@@ -190,6 +194,9 @@ export const acceptAlphaTermsV1 = warpkeep.reducer(
     if (profile === null || account === null || profile.firstAuthenticatedAt === undefined) {
       throw new SenderError('STATE_INTEGRITY');
     }
+    const dailyAccount = admittedDailyMarkAccountIsConsistent(account);
+    const frozenLegacyAccount = frozenLegacyZeroMarkAccountIsConsistent(account);
+    if (!dailyAccount && !frozenLegacyAccount) throw new SenderError('STATE_INTEGRITY');
     const acceptanceKey = `${claims.fid}:${WARPKEEP_ALPHA_TERMS_VERSION}`;
     const existingAcceptance = ctx.db.alphaTermsAcceptanceV1.acceptanceKey.find(acceptanceKey);
     if (existingAcceptance === null) {
@@ -210,7 +217,9 @@ export const acceptAlphaTermsV1 = warpkeep.reducer(
       ...profile,
       publicStatus: 'active',
       communityStatsVisible: true,
-      totalSnapBurnedMicros: account.totalSnapBurnedMicros,
+      // Preserve the exact predecessor projection during the bounded window
+      // between v14 publication and all-or-nothing daily-account backfill.
+      totalSnapBurnedMicros: frozenLegacyAccount ? 0n : undefined,
       marksEarnedMicros: account.earnedMicros,
       marksSpentMicros: account.spentMicros,
       marksBalanceMicros: account.balanceMicros,

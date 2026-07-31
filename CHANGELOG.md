@@ -6,6 +6,16 @@ full engineering record.
 
 ## [Unreleased]
 
+## [0.3.33] — 2026-07-31
+
+- Gave every admitted keeper one experimental Community Mark per eligible
+  Realm day, recorded automatically by SpacetimeDB.
+- Added private exactly-once daily receipts so retries cannot issue a second
+  Mark; revoked admission pauses future grants without removing prior balance.
+- Retired the SNAP burn, wallet-attribution, and chain-scanning product paths.
+  Marks require no wallet, token, transaction, or payment and remain game-only,
+  non-transferable Alpha accounting with no cash value or promised reward.
+
 ## [0.3.32] — 2026-07-31
 
 - Replaced the original draft Mini App launch mark with the current
@@ -361,7 +371,8 @@ full engineering record.
   Lowlands, a first keep, Farcaster sign-in, and an admission-gated shared-world
   foundation.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.32...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.33...HEAD
+[0.3.33]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.32...v0.3.33
 [0.3.32]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.31...v0.3.32
 [0.3.31]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.30...v0.3.31
 [0.3.30]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.29...v0.3.30

@@ -10,11 +10,8 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
-import {
-  AdminSnapScanBatchAggregateV1,
-} from "./types";
-
-export const params = {
-  batchId: __t.string(),
+export default {
+  expectedFounderCount: __t.u64(),
+  expectedEnabledCount: __t.u64(),
+  expectedUtcDay: __t.u64(),
 };
-export const returnType = AdminSnapScanBatchAggregateV1

@@ -1289,7 +1289,7 @@ describe('Warpkeep authenticated connection boundary', () => {
       nextCollectAtMicros: 1_800_001_200_000_000n,
       revision: 4n,
       resourcePolicyVersion: 'genesis-resource-yield-v1',
-      marksPolicyVersion: 'snap-current-linked-wallet-1to1-v1',
+      marksPolicyVersion: 'admitted-daily-mark-v1',
       terrainKind: 'lowland'
     } as const;
     const connection = {
@@ -1335,7 +1335,7 @@ describe('Warpkeep authenticated connection boundary', () => {
       nextCollectAtMicros: 1_800_001_200_000_000n,
       revision: 4n,
       resourcePolicyVersion: 'genesis-resource-yield-v1',
-      marksPolicyVersion: 'snap-current-linked-wallet-1to1-v1',
+      marksPolicyVersion: 'admitted-daily-mark-v1',
       terrainKind: 'lowland'
     } as const;
     const goldProjection = {
@@ -1405,7 +1405,7 @@ describe('Warpkeep authenticated connection boundary', () => {
       nextCollectAtMicros: 1_800_001_200_000_000n,
       revision: 4n,
       resourcePolicyVersion: 'genesis-resource-yield-v1',
-      marksPolicyVersion: 'snap-current-linked-wallet-1to1-v1',
+      marksPolicyVersion: 'admitted-daily-mark-v1',
       terrainKind: 'lowland'
     } as const;
     const woodProjection = {
@@ -1475,7 +1475,7 @@ describe('Warpkeep authenticated connection boundary', () => {
       nextCollectAtMicros: 1_800_001_200_000_000n,
       revision: 4n,
       resourcePolicyVersion: 'genesis-resource-yield-v1',
-      marksPolicyVersion: 'snap-current-linked-wallet-1to1-v1',
+      marksPolicyVersion: 'admitted-daily-mark-v1',
       terrainKind: 'lowland'
     } as const;
     const stoneProjection = {
@@ -1545,7 +1545,7 @@ describe('Warpkeep authenticated connection boundary', () => {
       nextCollectAtMicros: 1_800_001_300_000_000n,
       revision: 5n,
       resourcePolicyVersion: 'genesis-resource-yield-v1',
-      marksPolicyVersion: 'snap-current-linked-wallet-1to1-v1',
+      marksPolicyVersion: 'admitted-daily-mark-v1',
       terrainKind: 'lowland'
     } as const;
     const inactiveGold = {
@@ -1658,7 +1658,7 @@ describe('Warpkeep authenticated connection boundary', () => {
   it('pins the browser and authoritative module to the same Terms version', () => {
     expect(BROWSER_ALPHA_TERMS_VERSION).toBe(MODULE_ALPHA_TERMS_VERSION);
     expect(BROWSER_ALPHA_TERMS_VERSION).toBe(
-      '2026-07-19-hegemony-entry-agreement-v3'
+      '2026-07-31-hegemony-entry-agreement-v4'
     );
   });
 
@@ -1726,11 +1726,10 @@ describe('Warpkeep authenticated connection boundary', () => {
         firstAuthenticatedAt: 1_752_494_400_000,
         publicStatus: 'founding-player',
         communityStatsVisible: true,
-        totalSnapBurnedMicros: 25_000_000n,
         marksEarnedMicros: 25_000_000n,
         marksSpentMicros: 1_000_000n,
         marksBalanceMicros: 24_000_000n,
-        marksPolicyVersion: 'snap-current-linked-wallet-1to1-v1'
+        marksPolicyVersion: 'admitted-daily-mark-v1'
       }]
     };
     const snapshot = readWarpkeepRealmSnapshot(

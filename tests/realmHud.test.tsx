@@ -1482,7 +1482,9 @@ describe('RealmHud', () => {
       .toContain('No Gold spending is live yet');
     act(() => marks.focus());
     expect(screen.getByRole('tooltip').textContent)
-      .toContain('separate experimental accounting balance, not an economic resource');
+      .toContain('one experimental Community Mark per eligible Realm day');
+    expect(screen.getByRole('tooltip').textContent)
+      .toContain('require no wallet or token action');
     expect(rail.getAttribute('data-tooltip-open')).toBe('marks');
 
     const tooltipCopy = [...document.querySelectorAll('.realm-resource-tooltip__copy')]

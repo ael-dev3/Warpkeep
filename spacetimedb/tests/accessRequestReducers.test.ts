@@ -32,12 +32,19 @@ function section(text: string, startMarker: string, endMarker: string): string {
 test('access requests add one exact private table at the end of the deployed v12 schema', () => {
   const schema = source('../src/schema.ts');
   const v12 = source('../migration-fixtures/additive-v12-schema/src/index.ts');
+  const v13 = source('../migration-fixtures/additive-v13-schema/src/index.ts');
   const currentRegistrations = registrations(schema, 'const warpkeep = schema({');
   const v12Registrations = registrations(v12, 'const db = schema({');
+  const v13Registrations = registrations(v13, 'const db = schema({');
 
   assert.equal(v12Registrations.length, 53);
-  assert.deepEqual(currentRegistrations.slice(0, 53), v12Registrations);
-  assert.deepEqual(currentRegistrations.slice(53), ['accessRequestV1']);
+  assert.deepEqual(v13Registrations.slice(0, 53), v12Registrations);
+  assert.deepEqual(v13Registrations.slice(53), ['accessRequestV1']);
+  assert.deepEqual(currentRegistrations.slice(0, 54), v13Registrations);
+  assert.deepEqual(currentRegistrations.slice(54), [
+    'dailyMarkGrantV1',
+    'dailyMarkScheduleV1',
+  ]);
 
   const definition = section(
     schema,

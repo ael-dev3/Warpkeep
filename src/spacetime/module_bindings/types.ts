@@ -206,19 +206,30 @@ export const AdminAudit = __t.object("AdminAudit", {
 });
 export type AdminAudit = __Infer<typeof AdminAudit>;
 
-export const AdminSnapScanBatchAggregateV1 = __t.object("AdminSnapScanBatchAggregateV1", {
-  status: __t.string(),
-  expectedCredits: __t.u32(),
-  expectedMicros: __t.u128(),
-  appliedCredits: __t.u32(),
-  appliedMicros: __t.u128(),
-  receiptCredits: __t.u32(),
-  receiptMicros: __t.u128(),
-  creditedAccounts: __t.u32(),
-  cursorAdvanced: __t.bool(),
-  internallyConsistent: __t.bool(),
+export const AdminDailyMarksStatusV1 = __t.object("AdminDailyMarksStatusV1", {
+  policyVersion: __t.string(),
+  utcDay: __t.u64(),
+  allowedFids: __t.u64(),
+  enabledAllowedFids: __t.u64(),
+  markAccounts: __t.u64(),
+  dailyAccounts: __t.u64(),
+  legacyZeroAccounts: __t.u64(),
+  invalidAccounts: __t.u64(),
+  realmProfiles: __t.u64(),
+  profileProjectionViolations: __t.u64(),
+  missingFounderState: __t.u64(),
+  grants: __t.u64(),
+  currentDayGrants: __t.u64(),
+  grantInvariantViolations: __t.u64(),
+  grantAccountReconciliationViolations: __t.u64(),
+  scheduleRows: __t.u64(),
+  scheduleConfigValid: __t.bool(),
+  legacyCompatibilityRows: __t.u64(),
+  readyForBackfill: __t.bool(),
+  readyForActivation: __t.bool(),
+  active: __t.bool(),
 });
-export type AdminSnapScanBatchAggregateV1 = __Infer<typeof AdminSnapScanBatchAggregateV1>;
+export type AdminDailyMarksStatusV1 = __Infer<typeof AdminDailyMarksStatusV1>;
 
 export const AdminWaterLayoutStatusV1 = __t.object("AdminWaterLayoutStatusV1", {
   ready: __t.bool(),
@@ -461,6 +472,23 @@ export const CastleWorkerV1 = __t.object("CastleWorkerV1", {
   revision: __t.u64(),
 });
 export type CastleWorkerV1 = __Infer<typeof CastleWorkerV1>;
+
+export const DailyMarkGrantV1 = __t.object("DailyMarkGrantV1", {
+  grantKey: __t.string(),
+  fid: __t.u64(),
+  utcDay: __t.u64(),
+  amountMicros: __t.u128(),
+  policyVersion: __t.string(),
+  grantedAt: __t.timestamp(),
+});
+export type DailyMarkGrantV1 = __Infer<typeof DailyMarkGrantV1>;
+
+export const DailyMarkScheduleV1 = __t.object("DailyMarkScheduleV1", {
+  scheduleId: __t.u64(),
+  scheduledAt: __t.scheduleAt(),
+  policyVersion: __t.string(),
+});
+export type DailyMarkScheduleV1 = __Infer<typeof DailyMarkScheduleV1>;
 
 export const FidWalletAttributionV1 = __t.object("FidWalletAttributionV1", {
   snapshotAttributionKey: __t.string(),
@@ -1181,17 +1209,6 @@ export const WalletAttributionSnapshotV1 = __t.object("WalletAttributionSnapshot
   snapshotAt: __t.timestamp(),
 });
 export type WalletAttributionSnapshotV1 = __Infer<typeof WalletAttributionSnapshotV1>;
-
-export const WalletSnapshotEntryV1 = __t.object("WalletSnapshotEntryV1", {
-  attributionKey: __t.string(),
-  fid: __t.u64(),
-  address: __t.string(),
-  addressType: __t.string(),
-  source: __t.string(),
-  attributionPolicyVersion: __t.string(),
-  active: __t.bool(),
-});
-export type WalletSnapshotEntryV1 = __Infer<typeof WalletSnapshotEntryV1>;
 
 export const WoodExpeditionIdempotencyV1 = __t.object("WoodExpeditionIdempotencyV1", {
   requestKey: __t.string(),

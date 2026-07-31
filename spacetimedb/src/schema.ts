@@ -20,6 +20,10 @@ import {
   castleWorkerErrorCode,
   runCastleWorkerSchedule,
 } from './castleWorkerAuthority';
+import {
+  dailyMarksErrorCode,
+  runDailyMarkSchedule,
+} from './dailyMarksAuthority';
 
 /**
  * Private closed-alpha admission list. This table is intentionally omitted
@@ -223,7 +227,11 @@ export const realmProfileV1 = table(
   },
 );
 
-/** Private authoritative Mark account; never subscribed to by browsers. */
+/**
+ * Private authoritative Mark account. `totalSnapBurnedMicros` is a frozen,
+ * permanently-zero deployed compatibility column; current economy code never
+ * reads it as an earning source.
+ */
 export const markAccountV1 = table(
   { name: 'mark_account_v1' },
   {
@@ -237,10 +245,7 @@ export const markAccountV1 = table(
   },
 );
 
-/**
- * Private event-neutral Ethereum mainnet burn credit receipt. Its policy pins
- * the reviewed SNAP contract/event separately from product semantics.
- */
+/** Frozen empty compatibility table from the retired burn-credit experiment. */
 export const snapBurnCreditV1 = table(
   { name: 'snap_burn_credit_v1' },
   {
@@ -263,7 +268,7 @@ export const snapBurnCreditV1 = table(
   },
 );
 
-/** Private trusted Farcaster address attribution snapshot. */
+/** Frozen empty compatibility table; wallet attribution is retired. */
 export const fidWalletAttributionV1 = table(
   {
     name: 'fid_wallet_attribution_v1',
@@ -289,7 +294,7 @@ export const fidWalletAttributionV1 = table(
   },
 );
 
-/** Private singleton naming the complete current wallet attribution snapshot. */
+/** Frozen empty compatibility table; no current writer exists. */
 export const walletAttributionSnapshotV1 = table(
   { name: 'wallet_attribution_snapshot_v1' },
   {
@@ -302,7 +307,7 @@ export const walletAttributionSnapshotV1 = table(
   },
 );
 
-/** Private finalized-chain scan checkpoint. */
+/** Frozen empty compatibility table; chain scanning is retired. */
 export const snapScanCursorV1 = table(
   { name: 'snap_scan_cursor_v1' },
   {
@@ -322,7 +327,7 @@ export const snapScanCursorV1 = table(
   },
 );
 
-/** Private resumable apply transaction; at most one row may be pending. */
+/** Frozen empty compatibility table; burn scan batches are retired. */
 export const snapScanBatchV1 = table(
   {
     name: 'snap_scan_batch_v1',
@@ -1185,6 +1190,38 @@ export const accessRequestV1 = table(
   },
 );
 
+/**
+ * Private exactly-once receipt for one admitted player's UTC-day grant.
+ * Browser clients can neither subscribe to nor write this authority record.
+ */
+export const dailyMarkGrantV1 = table(
+  { name: 'daily_mark_grant_v1' },
+  {
+    grantKey: t.string().primaryKey(),
+    fid: t.u64().index(),
+    utcDay: t.u64().index(),
+    amountMicros: t.u128(),
+    policyVersion: t.string(),
+    grantedAt: t.timestamp(),
+  },
+);
+
+/**
+ * Identity-free singleton cadence for the admitted-player daily grant. The
+ * `_v_1` spelling is required by the pinned TypeScript scheduler runtime.
+ */
+export const dailyMarkScheduleV1 = table(
+  {
+    name: 'daily_mark_schedule_v_1',
+    scheduled: (): any => runDailyMarkScheduleV1,
+  },
+  {
+    scheduleId: t.u64().primaryKey().autoInc(),
+    scheduledAt: t.scheduleAt(),
+    policyVersion: t.string().unique(),
+  },
+);
+
 const warpkeep = schema({
   // Preserve the original production schema prefix exactly. New tables are
   // append-only so SpacetimeDB can apply this migration without rewriting it.
@@ -1242,6 +1279,8 @@ const warpkeep = schema({
   workerCommandIdempotencyV1,
   workerAssignmentScheduleV1,
   accessRequestV1,
+  dailyMarkGrantV1,
+  dailyMarkScheduleV1,
 });
 
 /**
@@ -1330,6 +1369,21 @@ export const runCastleWorkerScheduleV1 = warpkeep.reducer(
   },
 );
 
+/** Scheduler-only UTC-day Marks sweep. No caller controls FID, date, or amount. */
+export const runDailyMarkScheduleV1 = warpkeep.reducer(
+  { name: 'run_daily_mark_schedule_v_1' },
+  { arg: dailyMarkScheduleV1.rowType },
+  (ctx, { arg }) => {
+    try {
+      runDailyMarkSchedule(ctx, arg);
+    } catch (error) {
+      const code = dailyMarksErrorCode(error);
+      if (code !== undefined) throw new SenderError(code);
+      throw error;
+    }
+  },
+);
+
 // SpacetimeDB 2.6's default case converter separates a trailing digit from
 // its prefix (`v2` -> `v_2`). Pin every versioned wire spelling explicitly.
 for (const name of [
@@ -1343,12 +1397,6 @@ for (const name of [
   'admin_get_alpha_status_v3',
   'admin_admit_founder_v1',
   'admin_upsert_realm_profile_v1',
-  'admin_upsert_fid_wallet_attribution_v1',
-  'admin_replace_fid_wallet_snapshot_v1',
-  'admin_begin_snap_scan_batch_v1',
-  'admin_credit_snap_burn_v1',
-  'admin_finalize_snap_scan_batch_v1',
-  'admin_get_snap_scan_batch_aggregate_v1',
   'accept_alpha_terms_v1',
   'get_my_resource_state_v1',
   'collect_resources_v1',
@@ -1392,6 +1440,9 @@ for (const name of [
   'access_request_get_status_v1',
   'access_request_submit_v1',
   'admin_list_access_requests_v1',
+  'admin_get_daily_marks_status_v1',
+  'admin_backfill_daily_mark_accounts_v1',
+  'admin_activate_daily_marks_v1',
 ]) {
   warpkeep.moduleDef.explicitNames.entries.push({
     tag: 'Function',

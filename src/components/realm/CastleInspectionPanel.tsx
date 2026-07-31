@@ -72,9 +72,6 @@ export function CastleInspectionPanel({
   const keeperIdentityId = `${id}-keeper-identity`;
   const username = castleProfileLabel(profile);
   const profileUrl = observer ? undefined : farcasterProfileUrl(profile.canonicalUsername);
-  const totalSnapBurned = !observer && profile.communityStatsVisible
-    ? formatPublicMarkMicros(profile.totalSnapBurnedMicros)
-    : undefined;
   const marksBalance = !observer && profile.communityStatsVisible
     ? formatPublicMarkMicros(profile.marksBalanceMicros)
     : undefined;
@@ -208,26 +205,16 @@ export function CastleInspectionPanel({
             ) : null}
           </dl>
 
-          {totalSnapBurned !== undefined || marksBalance !== undefined ? (
+          {marksBalance !== undefined ? (
             <section className="castle-inspection__marks" aria-label="Public Marks record">
               <h3>PUBLIC COMMUNITY MARKS</h3>
               <dl className="castle-inspection__fields">
-                {totalSnapBurned !== undefined ? (
-                  <RealmRecordField
-                    className="castle-inspection__field"
-                    label="Total SNAP burned"
-                  >
-                    {totalSnapBurned}
-                  </RealmRecordField>
-                ) : null}
-                {marksBalance !== undefined ? (
-                  <RealmRecordField
-                    className="castle-inspection__field"
-                    label="Marks balance"
-                  >
-                    {marksBalance}
-                  </RealmRecordField>
-                ) : null}
+                <RealmRecordField
+                  className="castle-inspection__field"
+                  label="Marks balance"
+                >
+                  {marksBalance}
+                </RealmRecordField>
               </dl>
             </section>
           ) : null}

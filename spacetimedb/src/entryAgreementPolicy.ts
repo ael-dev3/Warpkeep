@@ -4,7 +4,7 @@
  * "terms" for deployed wire compatibility only.
  */
 export const WARPKEEP_ENTRY_AGREEMENT_VERSION =
-  '2026-07-19-hegemony-entry-agreement-v3';
+  '2026-07-31-hegemony-entry-agreement-v4';
 
 /** Compatibility alias retained by existing reducer and client imports. */
 export const WARPKEEP_ALPHA_TERMS_VERSION = WARPKEEP_ENTRY_AGREEMENT_VERSION;
@@ -15,6 +15,7 @@ export const WARPKEEP_ALPHA_TERMS_VERSION = WARPKEEP_ENTRY_AGREEMENT_VERSION;
  * entry or gameplay requirement, which always compares the exact current ID.
  */
 export const WARPKEEP_HISTORICAL_ENTRY_AGREEMENT_VERSIONS = Object.freeze([
+  '2026-07-19-hegemony-entry-agreement-v3',
   '2026-07-19-hegemony-entry-agreement-v2',
   '2026-07-18-hegemony-entry-agreement-v1',
   '2026-07-14',
@@ -78,5 +79,25 @@ export function readCurrentEntryAgreementStatusV1(
   return Object.freeze({
     requiredVersion: WARPKEEP_ALPHA_TERMS_VERSION,
     acceptedCurrent: acceptance !== null,
+  });
+}
+
+/**
+ * Privacy gate for an already-enabled public Community Marks projection.
+ * Historical evidence can preserve an earlier explicit publication choice,
+ * but every accepted row must still match its exact keyed FID and version.
+ */
+export function retainedEntryAgreementEvidenceExists(
+  fid: bigint,
+  findAcceptance: (
+    acceptanceKey: string
+  ) => EntryAgreementAcceptanceEvidence | null,
+): boolean {
+  return WARPKEEP_ENTRY_AGREEMENT_EVIDENCE_VERSIONS.some((version) => {
+    const acceptanceKey = `${fid}:${version}`;
+    const acceptance = findAcceptance(acceptanceKey);
+    return acceptance?.acceptanceKey === acceptanceKey
+      && acceptance.fid === fid
+      && acceptance.termsVersion === version;
   });
 }

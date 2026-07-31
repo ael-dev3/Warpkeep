@@ -1,9 +1,6 @@
 const USERNAME_PATTERN = /^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$/;
-const ADDRESS_PATTERN = /^0x[0-9a-f]{40}$/i;
-const ATTRIBUTION_KEY_PATTERN = /^[a-f0-9]{64}$/;
 
 export const FARCASTER_PROFILE_POLICY_VERSION = 'trusted-snapchain-profile-v3';
-export const FARCASTER_WALLET_POLICY_VERSION = 'trusted-snapchain-current-wallet-v1';
 
 export class ProfileAuthorityPolicyError extends Error {
   constructor(readonly code: string) {
@@ -226,43 +223,4 @@ export function trustedProfilesEqual(
     && left.displayName === right.displayName
     && left.pfpUrl === right.pfpUrl
     && left.publicBio === right.publicBio;
-}
-
-export type TrustedWalletAttributionInput = Readonly<{
-  attributionKey: string;
-  address: string;
-  addressType: string;
-  source: string;
-  attributionPolicyVersion: string;
-  active: boolean;
-}>;
-
-export function normalizeTrustedWalletAttribution(
-  input: TrustedWalletAttributionInput,
-): TrustedWalletAttributionInput {
-  const attributionKey = input.attributionKey.trim().toLowerCase();
-  const address = input.address.trim().toLowerCase();
-  if (!ATTRIBUTION_KEY_PATTERN.test(attributionKey)) {
-    throw new ProfileAuthorityPolicyError('WALLET_ATTRIBUTION_KEY_INVALID');
-  }
-  if (!ADDRESS_PATTERN.test(address)) {
-    throw new ProfileAuthorityPolicyError('WALLET_ADDRESS_INVALID');
-  }
-  if (input.addressType !== 'custody' && input.addressType !== 'verified_evm') {
-    throw new ProfileAuthorityPolicyError('WALLET_ADDRESS_TYPE_INVALID');
-  }
-  if (input.source !== 'snapchain_id_registry' && input.source !== 'snapchain_verification') {
-    throw new ProfileAuthorityPolicyError('WALLET_SOURCE_INVALID');
-  }
-  if (input.attributionPolicyVersion !== FARCASTER_WALLET_POLICY_VERSION) {
-    throw new ProfileAuthorityPolicyError('WALLET_POLICY_MISMATCH');
-  }
-  return Object.freeze({
-    attributionKey,
-    address,
-    addressType: input.addressType,
-    source: input.source,
-    attributionPolicyVersion: input.attributionPolicyVersion,
-    active: input.active,
-  });
 }

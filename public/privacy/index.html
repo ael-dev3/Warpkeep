@@ -30,7 +30,7 @@
             why it is used, where it goes, and the limits of retention and deletion.
           </p>
           <p class="legal-page__version">
-            Alpha Privacy Notice revision 2026-07-30-v2 · Last updated 30 July 2026
+            Alpha Privacy Notice revision 2026-07-31-v4 · Last updated 31 July 2026
           </p>
           <p class="legal-page__notice">
             This is a factual, project-authored Alpha notice, not a legal-compliance certification
@@ -88,9 +88,9 @@
                 verify account control. The authentication bridge accepts, stores, and issues only
                 the verified FID as session identity. Separately, trusted Farcaster network data
                 may supply the admitted player's current public username, display name, avatar,
-                bio, custody address, and verified EVM addresses. Presentation fields may be
-                copied into public realm state; wallet associations remain private operator state
-                and are never accepted from the browser as authoritative.
+                and bio. These presentation fields may be copied into public Realm state. Warpkeep
+                does not use Farcaster wallet associations to issue Marks and never accepts wallet
+                data from the browser as game-accounting authority.
               </li>
               <li>
                 <strong>Entry-agreement acceptance:</strong> after an admitted player checks the gate,
@@ -98,7 +98,7 @@
                 containing the verified FID, exact entry-agreement bundle version, and acceptance
                 time. The Alpha Terms incorporate Hegemony Social Contract version
                 <code>2026-07-19-HEGEMONY-SOCIAL-CONTRACT-V3</code> in entry-agreement bundle
-                <code>2026-07-19-hegemony-entry-agreement-v3</code>; the published browser policy
+                <code>2026-07-31-hegemony-entry-agreement-v4</code>; the published browser policy
                 cryptographically binds the exact visible Terms and Social Contract texts to their
                 reviewed hashes. This evidence is used to enforce the current entry agreement and
                 preserve an audit trail. It is not a public projection and does not contain the
@@ -149,7 +149,7 @@
                 Alpha. Active public player/game projections can expose an admitted player's FID,
                 trusted Farcaster presentation, castle, and gameplay presentation to connected
                 clients. After the player's first intentional Alpha entry, public presentation may
-                also include aggregate SNAP burned and Mark earned, spent, and balance figures.
+                also include aggregate Mark earned, spent, and balance figures.
                 The opaque-identity ownership mapping, allowlist, slot claim, authoritative Mark
                 account, and administrative audit rows are private. A frozen legacy public player
                 schema still contains its original public opaque-identity column for wire
@@ -158,17 +158,16 @@
                 remain empty.
               </li>
               <li>
-                <strong>SNAP burns and Marks:</strong> a privacy-bounded operator process may read
-                finalized public Ethereum mainnet events for the pinned SNAP contract and current
-                public Farcaster wallet associations for admitted FIDs. It credits an event only
-                when one eligible sender address maps to exactly one admitted FID. Private state
-                can retain the wallet attribution, transaction and block references, scan cursor,
-                and immutable credit receipt needed for deduplication, correction, and audit. The
-                browser never scans wallets and never receives wallet addresses or individual
-                burn receipts. Warpkeep does not connect a wallet, request a signature or token
-                approval, submit a transaction, take custody, or receive a payment through this
-                process. Marks are experimental game-only accounting units: non-transferable,
-                non-redeemable, without cash value, and subject to correction or reset.
+                <strong>Daily Marks:</strong> SpacetimeDB may automatically add one Mark to each
+                admitted player's private balance for an eligible Realm day. Eligibility, time,
+                amount, and replay protection come from server-owned admission and schedule state;
+                the browser cannot choose or submit them. Private state can retain an exact daily
+                grant receipt for correction and audit. An enabled public community projection may
+                show only aggregate Mark figures. Warpkeep does not scan a wallet or blockchain,
+                request a signature or token approval, submit a transaction, take custody, or
+                receive a payment to issue Marks. Marks are experimental game-only accounting
+                units: non-transferable, non-redeemable, without cash value, and subject to
+                correction or reset.
               </li>
               <li>
                 <strong>Operations:</strong> Warpkeep emits a closed list of generic security and
@@ -180,7 +179,7 @@
             <p>
               These data are used only to deliver requested Alpha access and gameplay, verify and
               authorize players, keep sessions, prevent abuse, protect the service, diagnose safe
-              operational failures, reconcile the published game-accounting policy, and meet
+              operational failures, maintain the published game-accounting policy, and meet
               applicable legal obligations. Warpkeep's code does not currently add advertising or
               analytics and the project does not sell player data.
             </p>
@@ -261,12 +260,12 @@
                     <td>No fixed Alpha deletion schedule yet. It remains while needed for the shared realm, security, and audit, unless reset or manually deleted.</td>
                   </tr>
                   <tr>
-                    <td>Trusted Farcaster profile and wallet-attribution snapshot</td>
-                    <td>No fixed Alpha deletion schedule yet. Current public presentation may remain in replicated game state; wallet associations remain private and are retained only while needed for attribution, correction, security, and audit.</td>
+                    <td>Trusted Farcaster public profile</td>
+                    <td>No fixed Alpha deletion schedule yet. Current public presentation may remain in replicated game state while needed for the shared Realm, correction, security, and audit.</td>
                   </tr>
                   <tr>
-                    <td>Finalized SNAP burn receipts, scan cursor, and Mark account</td>
-                    <td>No fixed Alpha deletion schedule yet. Private receipts and chain references may remain for deduplication, reproducibility, correction, security, and audit. Only privacy-bounded aggregate figures become public game state.</td>
+                    <td>Daily Mark receipts and Mark account</td>
+                    <td>No fixed Alpha deletion schedule yet. Private daily-grant receipts and balances may remain for replay protection, correction, security, and audit. Only privacy-bounded aggregate figures become public game state.</td>
                   </tr>
                 </tbody>
               </table>
@@ -323,9 +322,9 @@
             <h2 id="automation-finance">8. Automated checks and no financial decisions</h2>
             <p>
               Automated rules validate challenges, apply rate limits, check Alpha admission, and
-              revoke invalid sessions. Deterministic rules can also quarantine ambiguous burn
-              attribution and apply the published 1:1 decimal-unit conversion to eligible finalized
-              events. Those rules affect only technical access and experimental game accounting.
+              revoke invalid sessions. Deterministic server rules can also establish daily Mark
+              eligibility and apply one exact Mark to an admitted player's game balance. Those
+              rules affect only technical access and experimental game accounting.
               Warpkeep does not use player data for credit scoring, behavioral advertising, or
               automated decisions that award, promise, or determine financial rewards, airdrops,
               or guaranteed gains. Alpha participation earns none of those benefits.

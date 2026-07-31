@@ -137,9 +137,8 @@ export type WarpkeepPlayer = Readonly<{
 }>;
 
 /**
- * Public, privacy-bounded realm presentation. Wallet associations, burn-event
- * receipts, authorization fields, and operator records must never enter this
- * browser-facing projection.
+ * Public, privacy-bounded realm presentation. Authorization fields and private
+ * accounting records must never enter this browser-facing projection.
  */
 export type WarpkeepRealmProfile = Readonly<{
   fid: number;
@@ -151,7 +150,6 @@ export type WarpkeepRealmProfile = Readonly<{
   firstAuthenticatedAt?: number;
   publicStatus: string;
   communityStatsVisible: boolean;
-  totalSnapBurnedMicros?: bigint;
   marksEarnedMicros?: bigint;
   marksSpentMicros?: bigint;
   marksBalanceMicros?: bigint;

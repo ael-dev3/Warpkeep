@@ -278,7 +278,7 @@ describe('disposable connected local QA dependency and network boundaries', () =
       'scripts/qa-observer/local-fullstack-browser-probe.mjs',
       'scripts/qa-observer/local-fullstack-spacetime.mjs',
     ];
-    const forbidden = /(?:publish-spacetime-dev|hermes-admin|marks-operator|profiles-operator|services\/auth-bridge|farcasterAuthClient|farcasterOidcBridgeClient)/;
+    const forbidden = /(?:publish-spacetime-dev|hermes-admin|profiles-operator|services\/auth-bridge|farcasterAuthClient|farcasterOidcBridgeClient)/;
 
     for (const relativePath of paths) {
       const source = readFileSync(resolve(process.cwd(), relativePath), 'utf8');

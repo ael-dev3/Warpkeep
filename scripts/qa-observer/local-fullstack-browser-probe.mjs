@@ -5209,7 +5209,7 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
       || database.seedAttestation.workerCount !== 28
       || database.seedAttestation.entryAgreementAcceptedCurrent !== true
       || database.seedAttestation.entryAgreementRequiredVersion
-        !== '2026-07-19-hegemony-entry-agreement-v3'
+        !== '2026-07-31-hegemony-entry-agreement-v4'
       || database.seedAttestation.genericAssignments !== 0
       || database.seedAttestation.genericOccupations !== 0
       || database.seedAttestation.genericSchedules !== 0

@@ -2,11 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-  FARCASTER_WALLET_POLICY_VERSION,
   admissionProfileIsComplete,
   normalizeAdmissionReadyTrustedProfile,
   normalizeTrustedPublicProfile,
-  normalizeTrustedWalletAttribution,
   trustedProfilesEqual,
 } from '../src/profileAuthorityPolicy';
 
@@ -199,27 +197,5 @@ test('public labels strip bidi, isolate, and zero-width spoofing controls but re
   assert.doesNotMatch(
     `${normalized.displayName}${normalized.publicBio}`,
     /[\u061c\u200b-\u200f\u202a-\u202e\u2060\u2066-\u2069\ufeff]/,
-  );
-});
-
-test('private wallet snapshots pin key shape, address class, source, and policy', () => {
-  const normalized = normalizeTrustedWalletAttribution({
-    attributionKey: 'ab'.repeat(32),
-    address: `0x${'CD'.repeat(20)}`,
-    addressType: 'verified_evm',
-    source: 'snapchain_verification',
-    attributionPolicyVersion: FARCASTER_WALLET_POLICY_VERSION,
-    active: true,
-  });
-  assert.equal(normalized.address, `0x${'cd'.repeat(20)}`);
-  assert.equal(normalized.active, true);
-
-  assert.throws(
-    () => normalizeTrustedWalletAttribution({ ...normalized, addressType: 'browser' }),
-    /WALLET_ADDRESS_TYPE_INVALID/,
-  );
-  assert.throws(
-    () => normalizeTrustedWalletAttribution({ ...normalized, attributionPolicyVersion: 'latest' }),
-    /WALLET_POLICY_MISMATCH/,
   );
 });

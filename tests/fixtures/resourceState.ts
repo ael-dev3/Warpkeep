@@ -15,7 +15,7 @@ export function createReadyResourceState(
     nextCollectAtMicros: 1_800_000_600_000_000n,
     revision,
     resourcePolicyVersion: 'genesis-resource-yield-v1',
-    marksPolicyVersion: 'snap-current-linked-wallet-1to1-v1',
+    marksPolicyVersion: 'admitted-daily-mark-v1',
     terrainKind: 'lowland',
   });
 }

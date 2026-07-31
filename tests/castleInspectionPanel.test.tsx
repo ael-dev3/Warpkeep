@@ -31,11 +31,10 @@ const PROFILE = Object.freeze({
   firstAuthenticatedAt: Date.UTC(2026, 6, 14),
   publicStatus: 'founding-player',
   communityStatsVisible: true,
-  totalSnapBurnedMicros: 150_000_000n,
   marksEarnedMicros: 150_000_000n,
   marksSpentMicros: 0n,
   marksBalanceMicros: 150_000_000n,
-  marksPolicyVersion: 'snap-current-linked-wallet-1to1-v1'
+  marksPolicyVersion: 'admitted-daily-mark-v1'
 });
 
 function miniAppRuntime(): MiniAppBrowserRuntime {
@@ -86,7 +85,7 @@ describe('CastleInspectionPanel', () => {
     expect(screen.queryByText('Coordinates')).toBeNull();
     expect(document.body.textContent).not.toContain('q 2 · r -1');
     expect(screen.getByText('2026-07-14')).not.toBeNull();
-    expect(screen.getAllByText('150')).toHaveLength(2);
+    expect(screen.getByText('150')).not.toBeNull();
     expect(screen.getByText('Keeper').nextElementSibling?.textContent).toBe('@warpkeeper');
     expect(screen.getByText('Castle level').nextElementSibling?.textContent).toBe('3');
 

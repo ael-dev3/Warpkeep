@@ -2,7 +2,7 @@ import {
   isRealmTerrainKind,
   type RealmTerrainKind
 } from '../../game/map/realmTerrainSemantics';
-import { MARK_ATTRIBUTION_POLICY_ID } from '../../marks/marksPolicy';
+import { MARK_DAILY_GRANT_POLICY_ID } from '../../marks/marksPolicy';
 
 /**
  * Economic resources are authoritative server state. Marks remain a distinct,
@@ -166,7 +166,7 @@ export function decodeRealmResourceProjection(
     || !boundedU64(raw.nextCollectAtMicros)
     || !boundedU64(raw.revision)
     || raw.resourcePolicyVersion !== REALM_RESOURCE_POLICY_VERSION
-    || raw.marksPolicyVersion !== MARK_ATTRIBUTION_POLICY_ID
+    || raw.marksPolicyVersion !== MARK_DAILY_GRANT_POLICY_ID
     || !isRealmTerrainKind(raw.terrainKind)
   ) return undefined;
 

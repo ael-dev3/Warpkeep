@@ -12,9 +12,11 @@ balance, advance a timer, or decide an expedition outcome.
 | Browser/backend wire protocol | 3 |
 | Player authentication contract | 2 |
 | Genesis world generation | 3 |
-| Append-only schema generation | 12 (active suffix) |
+| Append-only schema generation | 14 (daily Marks suffix) |
 | Alpha 0.3.12 suffix | Water refs 37–40; Stone refs 41–45 |
 | Generic worker suffix | refs 47–52; active |
+| Access-request suffix | ref 53; active |
+| Daily Marks suffix | private refs 54–55; activation is separate |
 
 Deployed tables retain their original declaration order and shape. Later
 features append new tables; they do not rename or delete existing data. The
@@ -61,8 +63,10 @@ Public subscriptions contain only shared-world presentation:
 - public Community Marks projection only when its policy permits it.
 
 Private tables contain admission, ownership, unclaimed-slot decisions, resource
-and Marks accounts, agreement evidence, wallet attribution, operator audit,
-expedition state, retry receipts, and balances.
+and Marks accounts, agreement evidence, daily-grant receipts, operator audit,
+expedition state, retry receipts, and balances. Retired compatibility tables
+remain private and frozen to preserve the deployed append-only schema; current
+authority paths do not write or interpret them.
 
 The pinned SDK requires scheduled expedition rows to be public. Those rows are
 therefore deliberately minimal: schedule/stage identifiers, site, origin
@@ -121,9 +125,12 @@ Contract bundle. Immutable evidence from explicitly retained earlier versions
 may preserve an existing public Marks projection, but never satisfies the
 current gameplay gate.
 
-Community Marks are separate from economic resources. The current policy may
-attribute an ordinary SNAP token burn on Ethereum mainnet; it does not create a
-transfer, conversion, redemption, spending, airdrop, or financial-reward loop.
+Community Marks are separate from economic resources. SpacetimeDB automatically
+grants one Mark per eligible Realm day to each admitted player. The server owns
+eligibility, cadence, amount, and replay protection; a browser cannot mint or
+redirect a grant. Disabled admission pauses future grants without deleting the
+existing balance. Marks have no transfer, redemption, purchase, airdrop, or
+financial-reward loop and require no wallet or blockchain activity.
 
 ## Local development
 
@@ -167,6 +174,7 @@ npm run stdb:inspect-alpha-v4 -- --json
 npm run stdb:inspect-alpha-v8 -- --json
 npm run stdb:inspect-alpha-v10 -- --json
 npm run stdb:inspect-alpha-v12 -- --json
+npm run stdb:daily-marks:inspect
 ```
 
 Component setup is separate from module publication and must be reviewed one

@@ -1,20 +1,13 @@
-export const SNAP_DECIMALS = 6;
 export const MARK_DECIMALS = 6;
 export const MICROS_PER_MARK = 1_000_000n;
 export const MAX_U128 = 0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffffn;
-export const MARK_ATTRIBUTION_POLICY_ID = 'snap-current-linked-wallet-1to1-v1';
+export const MARK_DAILY_GRANT_POLICY_ID = 'admitted-daily-mark-v1';
 
 export class MarksPolicyError extends Error {
   constructor(readonly code: string) {
     super(code);
     this.name = 'MarksPolicyError';
   }
-}
-
-export function snapMicrosToMarkMicros(snapMicros: bigint): bigint {
-  if (snapMicros <= 0n) throw new MarksPolicyError('MARK_AMOUNT_NOT_POSITIVE');
-  if (snapMicros > MAX_U128) throw new MarksPolicyError('MARK_AMOUNT_OUT_OF_RANGE');
-  return snapMicros;
 }
 
 export function checkedMarkMicrosTotal(values: Iterable<bigint>): bigint {

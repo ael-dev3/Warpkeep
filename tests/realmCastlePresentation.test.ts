@@ -60,7 +60,6 @@ describe('realm castle public presentation', () => {
       firstAuthenticatedAt: Date.UTC(2026, 6, 2),
       publicStatus: 'active',
       communityStatsVisible: true,
-      totalSnapBurnedMicros: 200_000_000n,
       marksEarnedMicros: 200_000_000n,
       marksSpentMicros: 50_000_000n,
       marksBalanceMicros: 150_000_000n,
@@ -78,7 +77,6 @@ describe('realm castle public presentation', () => {
       pfpUrl: 'https://images.example/keeper.png',
       publicBio: 'Fixture public bio.',
       communityStatsVisible: true,
-      totalSnapBurnedMicros: 200_000_000n,
       marksBalanceMicros: 150_000_000n
     });
 
@@ -117,7 +115,6 @@ describe('realm castle public presentation', () => {
       pfpUrl: undefined,
       publicBio: undefined,
       communityStatsVisible: true,
-      totalSnapBurnedMicros: 200_000_000n,
       marksBalanceMicros: 150_000_000n
     });
     expect(castleProfileIdentityReady(cleared)).toBe(false);

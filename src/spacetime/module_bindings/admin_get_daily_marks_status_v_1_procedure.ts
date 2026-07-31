@@ -10,12 +10,10 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
-export default {
-  attributionKey: __t.string(),
-  fid: __t.u64(),
-  address: __t.string(),
-  addressType: __t.string(),
-  source: __t.string(),
-  attributionPolicyVersion: __t.string(),
-  active: __t.bool(),
+import {
+  AdminDailyMarksStatusV1,
+} from "./types";
+
+export const params = {
 };
+export const returnType = AdminDailyMarksStatusV1
