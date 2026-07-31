@@ -1,4 +1,4 @@
-import type { Ref } from 'react';
+import { useState, type Ref } from 'react';
 
 import type { AccessRequestViewState } from '../../farcaster/farcasterAuthTypes';
 
@@ -93,6 +93,8 @@ export function FarcasterAccessRequestAction({
   onRequestAccess,
   primaryActionRef
 }: FarcasterAccessRequestProps) {
+  const [requestCommittedLocally, setRequestCommittedLocally] = useState(false);
+
   if (state.phase === 'idle' || state.phase === 'already-admitted') return null;
 
   const isLoading = state.phase === 'loading';
@@ -106,17 +108,27 @@ export function FarcasterAccessRequestAction({
       : isRequested
         ? 'REQUEST RECEIVED'
         : 'REQUEST ACCESS';
+  const className = [
+    'farcaster-auth-panel__action',
+    accessRequestOwnsPrimaryAction(state)
+      ? 'farcaster-auth-panel__action--primary'
+      : '',
+    requestCommittedLocally
+      ? 'farcaster-auth-panel__action--request-committed'
+      : ''
+  ].filter(Boolean).join(' ');
+
+  const handleRequestAccess = () => {
+    setRequestCommittedLocally(true);
+    onRequestAccess();
+  };
 
   return (
     <button
       aria-label={label.replace('…', '')}
-      className={
-        accessRequestOwnsPrimaryAction(state)
-          ? 'farcaster-auth-panel__action farcaster-auth-panel__action--primary'
-          : 'farcaster-auth-panel__action'
-      }
+      className={className}
       disabled={disabled}
-      onClick={onRequestAccess}
+      onClick={handleRequestAccess}
       ref={accessRequestAcceptsPrimaryFocus(state) ? primaryActionRef : undefined}
       type="button"
     >

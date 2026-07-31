@@ -327,6 +327,23 @@
   opacity: 0.48;
 }
 
+.farcaster-auth-panel__action--request-committed::before {
+  content: "";
+  position: absolute;
+  inset: -0.28rem;
+  border: 1px solid rgba(246, 214, 151, 0.96);
+  border-radius: calc(0.45rem + 0.28rem);
+  opacity: 0;
+  pointer-events: none;
+  box-shadow:
+    0 0 0 1px rgba(174, 94, 216, 0.82),
+    0 0 0.95rem rgba(158, 74, 205, 0.68),
+    inset 0 0 0.45rem rgba(238, 196, 119, 0.3);
+  transform: scale(0.97);
+  transform-origin: center;
+  animation: farcaster-auth-request-commit 1.15s cubic-bezier(0.16, 0.8, 0.22, 1) 1 both;
+}
+
 @media (hover: hover) and (pointer: fine) {
   .farcaster-auth-panel__action:hover:not(:disabled) {
     border-color: #d9ae68;
@@ -504,6 +521,28 @@ button.farcaster-identity-badge {
   }
 }
 
+@keyframes farcaster-auth-request-commit {
+  0% {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+
+  28% {
+    opacity: 1;
+    transform: scale(1.005);
+  }
+
+  62% {
+    opacity: 0.7;
+    transform: scale(1.022);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.055);
+  }
+}
+
 @media (max-width: 600px), (orientation: portrait) {
   .farcaster-auth-panel {
     --farcaster-auth-qr-size: 190px;
@@ -621,5 +660,10 @@ button.farcaster-identity-badge {
 
   .farcaster-auth-panel__action {
     transition-duration: 1ms;
+  }
+
+  .farcaster-auth-panel__action--request-committed::before {
+    animation: none;
+    opacity: 0;
   }
 }
