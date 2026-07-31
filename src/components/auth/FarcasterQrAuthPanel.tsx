@@ -38,7 +38,6 @@ export type FarcasterQrAuthPanelProps = {
   onCheckAdmission?: () => void;
   accessRequest?: AccessRequestViewState;
   onRequestAccess?: () => void;
-  onRetryAccessRequestStatus?: () => void;
   onRememberDeviceChange?: (remember: boolean) => void;
   onCancel: () => void;
   onRetry: () => void;
@@ -223,7 +222,6 @@ export function FarcasterQrAuthPanel({
   onCheckAdmission,
   accessRequest = IDLE_ACCESS_REQUEST,
   onRequestAccess,
-  onRetryAccessRequestStatus,
   onRememberDeviceChange,
   onCancel,
   onRetry,
@@ -516,26 +514,23 @@ export function FarcasterQrAuthPanel({
           </p>
           <FarcasterAccessRequestMessage state={accessRequest} />
           <div className="farcaster-auth-panel__actions">
-            {onRequestAccess && onRetryAccessRequestStatus ? (
+            {onRequestAccess ? (
               <FarcasterAccessRequestAction
                 onRequestAccess={onRequestAccess}
-                onRetryStatus={onRetryAccessRequestStatus}
                 primaryActionRef={primaryActionRef}
                 state={accessRequest}
               />
             ) : null}
-            <button
-              className={
-                accessRequestOwnsPrimaryAction(accessRequest)
-                  ? 'farcaster-auth-panel__action'
-                  : 'farcaster-auth-panel__action farcaster-auth-panel__action--primary'
-              }
-              onClick={onCheckAdmission}
-              ref={accessRequestOwnsPrimaryAction(accessRequest) ? undefined : primaryActionRef}
-              type="button"
-            >
-              CHECK AGAIN
-            </button>
+            {!accessRequestOwnsPrimaryAction(accessRequest) ? (
+              <button
+                className="farcaster-auth-panel__action farcaster-auth-panel__action--primary"
+                onClick={onCheckAdmission}
+                ref={primaryActionRef}
+                type="button"
+              >
+                CHECK AGAIN
+              </button>
+            ) : null}
             <button
               className="farcaster-auth-panel__action farcaster-auth-panel__action--secondary"
               onClick={onBackToMenu}

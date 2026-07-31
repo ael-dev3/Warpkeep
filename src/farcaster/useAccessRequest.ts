@@ -160,17 +160,42 @@ export function useAccessRequest({
   }, [lifecycleKey]);
 
   const requestAccess = useCallback(() => {
-    if (!lifecycleKey || stateRef.current.phase !== 'not-requested') return;
+    const currentPhase = stateRef.current.phase;
+    if (
+      !lifecycleKey
+      || (
+        currentPhase !== 'not-requested'
+        && currentPhase !== 'error'
+      )
+    ) return;
+    const requiresStatusPreflight = currentPhase === 'error';
     const controller = new AbortController();
     activeControllerRef.current?.abort();
     activeControllerRef.current = controller;
-    setState(SUBMITTING);
+    const initialState = requiresStatusPreflight ? LOADING : SUBMITTING;
+    stateRef.current = initialState;
+    setState(initialState);
 
     void (async () => {
       try {
         const client = await loadBridgeClient();
         const submit = client.requestAccess.bind(client);
         const getStatus = client.getAccessRequestStatus.bind(client);
+        if (requiresStatusPreflight) {
+          const currentStatus = await withAccessAuthentication(
+            loadQuickAuthToken,
+            authentication => getStatus(authentication, {
+              signal: controller.signal
+            })
+          );
+          if (controller.signal.aborted) return;
+          if (currentStatus.status !== 'not-requested') {
+            setState(projectStatus(currentStatus));
+            return;
+          }
+          stateRef.current = SUBMITTING;
+          setState(SUBMITTING);
+        }
         let status: AccessRequestStatus;
         try {
           status = await withAccessAuthentication(

@@ -77,7 +77,6 @@ function Harness({
       <output>{access.state.phase}</output>
       {'requestedAt' in access.state ? <time>{access.state.requestedAt}</time> : null}
       <button onClick={access.requestAccess} type="button">request</button>
-      <button onClick={access.retryStatus} type="button">retry status</button>
     </div>
   );
 }
@@ -179,6 +178,65 @@ describe('access-request controller lifecycle', () => {
     expect(requestAccess).toHaveBeenCalledTimes(1);
     expect(screen.getByText('1785414896000')).not.toBeNull();
     expect(document.body.textContent).not.toContain('12345');
+  });
+
+  it('submits safely after the initial status lookup is unavailable', async () => {
+    const getAccessRequestStatus = vi.fn()
+      .mockRejectedValueOnce(new Error('private status outage'))
+      .mockResolvedValueOnce({ version: 1 as const, status: 'not-requested' as const });
+    const requestAccess = vi.fn(async () => ({
+      version: 1 as const,
+      status: 'requested' as const,
+      requestedAt: 1_785_414_896_000
+    }));
+    const client = bridge({ getAccessRequestStatus, requestAccess });
+    render(<Harness authState={pending(12_345)} client={client} generation={1} />);
+
+    await waitFor(() => expect(screen.getByText('error')).not.toBeNull());
+    expect(requestAccess).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'request' }));
+    await waitFor(() => expect(screen.getByText('requested')).not.toBeNull());
+
+    expect(getAccessRequestStatus).toHaveBeenCalledTimes(2);
+    expect(requestAccess).toHaveBeenCalledTimes(1);
+    expect(document.body.textContent).not.toContain('12345');
+    expect(document.body.textContent).not.toContain('private status outage');
+  });
+
+  it('never submits when the required status preflight remains unavailable', async () => {
+    const getAccessRequestStatus = vi.fn(async () => {
+      throw new Error('private status outage');
+    });
+    const requestAccess = vi.fn();
+    const client = bridge({ getAccessRequestStatus, requestAccess });
+    render(<Harness authState={pending(12_345)} client={client} generation={1} />);
+
+    await waitFor(() => expect(screen.getByText('error')).not.toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: 'request' }));
+    await waitFor(() => expect(screen.getByText('error')).not.toBeNull());
+
+    expect(getAccessRequestStatus).toHaveBeenCalledTimes(2);
+    expect(requestAccess).not.toHaveBeenCalled();
+  });
+
+  it('restores an existing request without resubmitting after a status outage', async () => {
+    const getAccessRequestStatus = vi.fn()
+      .mockRejectedValueOnce(new Error('private status outage'))
+      .mockResolvedValueOnce({
+        version: 1 as const,
+        status: 'requested' as const,
+        requestedAt: 1_785_414_896_000
+      });
+    const requestAccess = vi.fn();
+    const client = bridge({ getAccessRequestStatus, requestAccess });
+    render(<Harness authState={pending(12_345)} client={client} generation={1} />);
+
+    await waitFor(() => expect(screen.getByText('error')).not.toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: 'request' }));
+    await waitFor(() => expect(screen.getByText('requested')).not.toBeNull());
+
+    expect(getAccessRequestStatus).toHaveBeenCalledTimes(2);
+    expect(requestAccess).not.toHaveBeenCalled();
   });
 
   it('reconciles an ambiguous submit once and keeps Quick Auth out of view state', async () => {

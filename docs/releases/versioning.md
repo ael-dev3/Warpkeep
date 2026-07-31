@@ -1,7 +1,7 @@
 # Versioning and releases
 
 Warpkeep uses semantic versions for the product and Git commit SHAs for builds.
-Alpha `0.3.30` is the live **The Gate Remembers** release. A version is
+Alpha `0.3.31` is the live **The Gate Listens** release. A version is
 described as live only after its protected review, matching client deployment,
 and production smoke test all succeed.
 

@@ -72,7 +72,6 @@ function renderPanel(props: RenderPanelProps) {
     onBackToMenu: vi.fn(),
     onCheckAdmission: vi.fn(),
     onRequestAccess: vi.fn(),
-    onRetryAccessRequestStatus: vi.fn(),
     onEnterRealm: vi.fn(),
     onPrepareQrCode: vi.fn(),
     onRememberDeviceChange: vi.fn(),
@@ -91,9 +90,6 @@ function renderPanel(props: RenderPanelProps) {
       onCheckAdmission={props.onCheckAdmission ?? callbacks.onCheckAdmission}
       accessRequest={props.accessRequest}
       onRequestAccess={props.onRequestAccess ?? callbacks.onRequestAccess}
-      onRetryAccessRequestStatus={
-        props.onRetryAccessRequestStatus ?? callbacks.onRetryAccessRequestStatus
-      }
       onEnterRealm={props.onEnterRealm ?? callbacks.onEnterRealm}
       onPrepareQrCode={props.onPrepareQrCode ?? callbacks.onPrepareQrCode}
       onPresentationReady={props.onPresentationReady}
@@ -350,10 +346,24 @@ describe('FarcasterQrAuthPanel', () => {
     expect(document.body.textContent).not.toMatch(/accessToken|bearer|JWT/i);
     fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
     expect(callbacks.onRequestAccess).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
-    expect(callbacks.onCheckAdmission).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: 'CHECK AGAIN' })).toBeNull();
+    expect(callbacks.onCheckAdmission).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'SIGN OUT' }));
     expect(callbacks.onSignOut).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows CHECK AGAIN only after a pending request is confirmed', () => {
+    const { callbacks } = renderPanel({
+      phase: 'pending-admission',
+      identity: verifiedIdentity,
+      accessRequest: { phase: 'requested', requestedAt: 1_750_000_000_000 }
+    });
+
+    expect((screen.getByRole('button', {
+      name: 'REQUEST RECEIVED'
+    }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
+    expect(callbacks.onCheckAdmission).toHaveBeenCalledTimes(1);
   });
 
   it('keeps an identity-only fallback useful without exposing a raw FID', () => {
@@ -396,7 +406,6 @@ describe('FarcasterQrAuthPanel', () => {
         onBackToMenu={panel.callbacks.onBackToMenu}
         onCheckAdmission={panel.callbacks.onCheckAdmission}
         onRequestAccess={panel.callbacks.onRequestAccess}
-        onRetryAccessRequestStatus={panel.callbacks.onRetryAccessRequestStatus}
         onEnterRealm={panel.callbacks.onEnterRealm}
         onSignOut={panel.callbacks.onSignOut}
       />

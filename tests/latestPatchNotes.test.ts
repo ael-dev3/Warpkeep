@@ -18,21 +18,21 @@ describe('latest in-menu patch notes', () => {
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
       releasedOn: '31 JUL 2026',
-      title: 'THE GATE REMEMBERS'
+      title: 'THE GATE LISTENS'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /admitted Farcaster keeper.*current Alpha Terms.*canonical keep.*Realm directly/i
+      /Request Access.*single primary action.*request-status check/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Request Access.*manual review.*new Terms version.*fresh, explicit acceptance/i
+      /Try Again.*Check Again.*Request Received.*admission decision/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Quick Auth.*safe retry.*native Back.*route or host presentation data.*never grants entry/i
+      /private.*manually reviewed.*idempotent.*grants no admission.*creates no keep/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /released to players|deployed to players|public balances|guaranteed rewards/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('Genesis 001');
+    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('frontier');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
       'does not change admission decisions, castle ownership, Workers, resources, balances, terrain'

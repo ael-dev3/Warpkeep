@@ -42,7 +42,6 @@ export type FarcasterMiniAppEntryGateProps = Readonly<{
   onCheckBackend: () => void;
   onRefreshSession: () => void;
   onRequestAccess?: () => void;
-  onRetryAccessRequestStatus?: () => void;
   onRetryAuthentication: () => void;
   onSignOut: () => void;
 }>;
@@ -171,7 +170,6 @@ export function FarcasterMiniAppEntryGate({
   onCheckBackend,
   onRefreshSession,
   onRequestAccess,
-  onRetryAccessRequestStatus,
   onRetryAuthentication,
   onSignOut
 }: FarcasterMiniAppEntryGateProps) {
@@ -225,7 +223,6 @@ export function FarcasterMiniAppEntryGate({
         identity={authState.identity}
         onCheckAgain={onRefreshSession}
         onRequestAccess={onRequestAccess}
-        onRetryAccessRequestStatus={onRetryAccessRequestStatus}
         onSignOut={onSignOut}
         phase="denied"
       />
@@ -238,7 +235,6 @@ export function FarcasterMiniAppEntryGate({
         identity={identity}
         onCheckAgain={onCheckBackend}
         onRequestAccess={onRequestAccess}
-        onRetryAccessRequestStatus={onRetryAccessRequestStatus}
         onReviewTerms={awaitingTerms ? reviewTerms : undefined}
         primaryActionRef={awaitingTerms ? reviewTermsButtonRef : undefined}
         onSignOut={onSignOut}

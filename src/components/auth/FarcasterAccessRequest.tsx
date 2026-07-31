@@ -5,7 +5,6 @@ import type { AccessRequestViewState } from '../../farcaster/farcasterAuthTypes'
 export type FarcasterAccessRequestProps = Readonly<{
   state: AccessRequestViewState;
   onRequestAccess: () => void;
-  onRetryStatus: () => void;
   primaryActionRef?: Ref<HTMLButtonElement>;
 }>;
 
@@ -84,7 +83,7 @@ export function FarcasterAccessRequestMessage({
   }
   return (
     <p aria-live="polite" className="farcaster-auth-panel__instruction" role="status">
-      Request status is temporarily unavailable. Try again.
+      We could not confirm an existing request. Request Access will check once more before sending.
     </p>
   );
 }
@@ -92,7 +91,6 @@ export function FarcasterAccessRequestMessage({
 export function FarcasterAccessRequestAction({
   state,
   onRequestAccess,
-  onRetryStatus,
   primaryActionRef
 }: FarcasterAccessRequestProps) {
   if (state.phase === 'idle' || state.phase === 'already-admitted') return null;
@@ -107,9 +105,7 @@ export function FarcasterAccessRequestAction({
       ? 'SENDING…'
       : isRequested
         ? 'REQUEST RECEIVED'
-        : state.phase === 'error'
-          ? 'TRY AGAIN'
-          : 'REQUEST ACCESS';
+        : 'REQUEST ACCESS';
 
   return (
     <button
@@ -120,7 +116,7 @@ export function FarcasterAccessRequestAction({
           : 'farcaster-auth-panel__action'
       }
       disabled={disabled}
-      onClick={state.phase === 'error' ? onRetryStatus : onRequestAccess}
+      onClick={onRequestAccess}
       ref={accessRequestAcceptsPrimaryFocus(state) ? primaryActionRef : undefined}
       type="button"
     >
