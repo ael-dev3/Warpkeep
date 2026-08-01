@@ -2188,6 +2188,7 @@ describe('realm scene setup cleanup', () => {
       onRendererUnavailable
     }));
     const ambient = ambientSchedulerState.creations.at(-1)!;
+    const renderer = webglState.instances.at(-1)!;
 
     const lost = new Event('webglcontextlost', { cancelable: true });
     canvas.dispatchEvent(lost);
@@ -2200,6 +2201,9 @@ describe('realm scene setup cleanup', () => {
       code: 'context-lost',
       retryable: true
     }));
+    canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
+    expect(canvas.dataset.realmRendererContextLossCount).toBe('1');
+    expect(onRendererFailure).toHaveBeenCalledOnce();
     expect(onRendererUnavailable).not.toHaveBeenCalled();
 
     const wheel = new WheelEvent('wheel', {
@@ -2226,10 +2230,15 @@ describe('realm scene setup cleanup', () => {
     overlayRetry.click();
     expect(overlayClick).toHaveBeenCalledOnce();
 
+    const renderCountBeforeRestore = renderer.render.mock.calls.length;
+    webglState.failGenericRenderOnce = true;
     canvas.dispatchEvent(new Event('webglcontextrestored'));
     expect(canvas.dataset.realmRendererContextLost).toBe('false');
     expect(canvas.dataset.realmRendererContextRestoreCount).toBe('1');
     expect(onRendererContextRestored).toHaveBeenCalledOnce();
+    expect(renderer.render).toHaveBeenCalledTimes(renderCountBeforeRestore);
+    expect(onRendererFailure).toHaveBeenCalledOnce();
+    webglState.failGenericRenderOnce = false;
     scene.dispose();
     root.remove();
   });

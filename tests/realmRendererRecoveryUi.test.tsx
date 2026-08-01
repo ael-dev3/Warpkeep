@@ -24,6 +24,7 @@ import {
   type WarpkeepSfxEvent
 } from '../src/components/audio/sfxEvents';
 import { WATER_INSPECTION_FOLLOW_INTERVAL_MS } from '../src/components/realm/WaterInspectionPanel';
+import { REALM_RENDERER_EMERGENCY_QUALITY_SESSION_KEY } from '../src/components/realm/realmRendererEmergencyQuality';
 import type { CreateRealmSceneOptions } from '../src/components/realm/createRealmScene';
 import { validateCanonicalGenesisSnapshot } from '../src/spacetime/canonicalGenesisSnapshot';
 import { WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION } from '../src/spacetime/warpkeepProtocol';
@@ -77,6 +78,7 @@ function sceneHandle() {
 
 describe('Realm renderer recovery UI', () => {
   beforeEach(() => {
+    window.sessionStorage.removeItem(REALM_RENDERER_EMERGENCY_QUALITY_SESSION_KEY);
     sceneState.create.mockReset();
     sceneState.create.mockImplementation(() => sceneHandle());
     sceneState.webglAvailable = true;
@@ -155,9 +157,18 @@ describe('Realm renderer recovery UI', () => {
     act(() => firstOptions.onCastleLodChange?.('high'));
     expect(realm.getAttribute('data-renderer-state')).toBe('recovering');
 
-    act(() => vi.advanceTimersByTime(8_000));
+    act(() => vi.advanceTimersByTime(4_000));
+    act(() => firstOptions.onRendererFailure?.({
+      code: 'context-lost',
+      retryable: true,
+      phase: 'recovering'
+    }));
+    act(() => vi.advanceTimersByTime(3_999));
+    expect(realm.getAttribute('data-renderer-state')).toBe('recovering');
+    act(() => vi.advanceTimersByTime(1));
     expect(screen.getByRole('alert').textContent).toMatch(/THE REALM COULD NOT BE RESTORED/i);
     expect(realm.getAttribute('aria-busy')).toBe('false');
+    expect(firstHandle.dispose).toHaveBeenCalledOnce();
     const retry = screen.getByRole('button', { name: 'Retry 3D Realm' });
     fireEvent.click(screen.getByRole('button', { name: 'Return to Menu' }));
     expect(onRequestReturn).toHaveBeenCalledOnce();
@@ -165,6 +176,8 @@ describe('Realm renderer recovery UI', () => {
     fireEvent.click(retry);
     expect(sceneState.create).toHaveBeenCalledTimes(2);
     expect(firstHandle.dispose).toHaveBeenCalledOnce();
+    expect((sceneState.create.mock.calls[1]![0] as CreateRealmSceneOptions).quality.id)
+      .toBe('balanced');
     expect(realm.getAttribute('data-renderer-state')).toBe('loading');
     expect(realm.getAttribute('aria-busy')).toBe('true');
 

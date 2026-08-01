@@ -18,25 +18,29 @@ describe('latest in-menu patch notes', () => {
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
       releasedOn: '1 AUG 2026',
-      title: 'THE PETITION HOLDS'
+      title: 'THE REALM ENDURES'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Request Access.*Request Sent.*first gesture.*menu.*Mini App/i
+      /disrupted Realm.*one visual tier lighter.*browser session.*chosen graphics setting/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /delayed confirmation.*Hegemony resonance.*violet-and-gold seal.*private submission/i
+      /firm boundary.*released safely.*Retry.*Return/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /SpacetimeDB.*one private petition.*admission cycle.*separate manual decision/i
+      /Android Chrome.*Farcaster.*Android passage.*authentication.*admission.*living world/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /released to players|deployed to players|public balances|guaranteed rewards/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('first petition');
+    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('gentler footing');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'grants no admission'
+      'changes no admission decision'
     );
+
+    expect(getLatestPatchNotes('0.3.39')).toMatchObject({
+      title: 'THE PETITION HOLDS'
+    });
 
     expect(getLatestPatchNotes('0.3.38')).toMatchObject({
       title: 'THE WAY BACK'

@@ -4344,7 +4344,7 @@ function initializeRealmScene(
   };
   const handleContextLost = (event: Event) => {
     event.preventDefault();
-    if (cleanup.isDisposed()) return;
+    if (cleanup.isDisposed() || contextLost) return;
     contextLost = true;
     contextLossCount += 1;
     options.canvas.dataset.realmRendererContextLost = 'true';
@@ -4367,11 +4367,17 @@ function initializeRealmScene(
     options.canvas.dataset.realmRendererContextLost = 'false';
     options.canvas.dataset.realmRendererContextLossCount = String(contextLossCount);
     options.canvas.dataset.realmRendererContextRestoreCount = String(contextRestoreCount);
-    if (
+    if (options.onRendererContextRestored) {
+      // The owner rebuilds this generation at its staged emergency tier. Do
+      // not render the restored, higher-pressure scene once more before that
+      // callback can retire it.
+      options.onRendererContextRestored();
+    } else if (
       presentationActive
       && options.canvas.dataset.realmCanvasActive !== 'false'
-    ) render();
-    options.onRendererContextRestored?.();
+    ) {
+      render();
+    }
   };
 
   interactionRoot.addEventListener('pointerdown', handlePointerDown, {
