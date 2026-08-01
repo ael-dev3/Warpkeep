@@ -79,10 +79,16 @@ test('connected rehearsal contains the bounded private request lifecycle', () =>
     proof,
     /serviceClaims\(\s*'service:access-request-resolver',\s*\['warpkeep-access-request-resolver'\],\s*15,/,
   );
-  assert.match(lifecycle, /access_request_get_status_v1[\s\S]*access_request_submit_v1/);
-  assert.equal((lifecycle.match(/access_request_submit_v1/g) ?? []).length, 2);
+  assert.match(lifecycle, /const submitConcurrentBatch = async[\s\S]*access_request_submit_v1/);
+  assert.equal((lifecycle.match(/access_request_submit_v1/g) ?? []).length, 1);
   assert.equal((lifecycle.match(/access_request_get_status_v1/g) ?? []).length, 2);
-  assert.match(lifecycle, /assert\.deepEqual\(duplicate, submitted\)/);
+  assert.match(lifecycle, /syntheticMissingAccessRequestFid,\s*2,\s*'two-call concurrent'/);
+  assert.match(lifecycle, /syntheticMissingAccessRequestFid,\s*10,\s*'ten-call concurrent'/);
+  assert.match(lifecycle, /syntheticMissingAccessRequestFid,\s*50,\s*'fifty-call concurrent'/);
+  assert.match(lifecycle, /syntheticSecondAccessRequestFid,\s*2,\s*'second-FID concurrent'/);
+  assert.match(lifecycle, /for \(const result of results\) assert\.deepEqual\(result, first\)/);
+  assert.match(lifecycle, /assert\.deepEqual\(tenCallResult, submitted\)/);
+  assert.match(lifecycle, /assert\.deepEqual\(fiftyCallResult, submitted\)/);
   assert.match(lifecycle, /assert\.deepEqual\(finalStatus, submitted\)/);
   assert.match(lifecycle, /admin_list_access_requests_v1[\s\S]*requestCredential\(\)[\s\S]*500/);
   assert.match(lifecycle, /get_alpha_backend_info[\s\S]*requestCredential\(\)[\s\S]*500/);
@@ -101,7 +107,9 @@ test('connected rehearsal contains the bounded private request lifecycle', () =>
   assert.match(finalOwnerRead, /additiveV14SchemaFixture/);
   assert.match(finalOwnerRead, /tableRowDigests\([\s\S]*deployedV12Tables/);
   assert.match(finalOwnerRead, /access_request_v1 WHERE fid = \$\{syntheticMissingAccessRequestFid\}/);
+  assert.match(finalOwnerRead, /access_request_v1 WHERE fid = \$\{syntheticSecondAccessRequestFid\}/);
   assert.match(finalOwnerRead, /allowed_fid WHERE fid = \$\{syntheticMissingAccessRequestFid\}/);
+  assert.match(finalOwnerRead, /allowed_fid WHERE fid = \$\{syntheticSecondAccessRequestFid\}/);
 });
 
 test('dedicated Worker v11-to-v12 proof remains a separate frozen boundary', () => {

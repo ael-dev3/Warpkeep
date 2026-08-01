@@ -1,0 +1,100 @@
+.farcaster-access-request {
+  display: grid;
+  align-content: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 11.125rem;
+  box-sizing: border-box;
+  gap: 0.5rem;
+  opacity: 1;
+  overflow-wrap: anywhere;
+  transition: opacity 160ms ease;
+}
+
+.farcaster-access-request__instruction--reserved {
+  visibility: hidden;
+}
+
+.farcaster-access-request:focus {
+  outline: none;
+}
+
+.farcaster-access-request:focus-visible {
+  outline: 2px solid rgba(250, 220, 163, 0.9);
+  outline-offset: 3px;
+  border-radius: 0.45rem;
+}
+
+.farcaster-access-request__status-copy {
+  display: grid;
+  justify-items: center;
+  min-width: 0;
+  gap: 0.32rem;
+  color: #d3c2a2;
+  font-size: 0.72rem;
+  letter-spacing: 0.025em;
+  line-height: 1.48;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.farcaster-access-request__status-copy strong {
+  color: #f3dba9;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  line-height: 1.35;
+}
+
+.farcaster-access-request__status-copy--failure strong,
+.farcaster-access-request__status-copy--unavailable strong {
+  color: #e6c6a0;
+}
+
+.farcaster-access-request__spinner,
+.farcaster-access-request__seal {
+  display: inline-grid;
+  width: 1.65rem;
+  height: 1.65rem;
+  place-items: center;
+  box-sizing: border-box;
+  border: 1px solid rgba(214, 173, 101, 0.62);
+  color: #f0d28f;
+  font-style: normal;
+  line-height: 1;
+  transform: rotate(45deg);
+}
+
+.farcaster-access-request__spinner {
+  border-right-color: rgba(170, 91, 207, 0.92);
+  border-bottom-color: rgba(170, 91, 207, 0.32);
+  animation: farcaster-access-request-turn 1s linear infinite;
+}
+
+.farcaster-access-request__seal {
+  background: rgba(91, 54, 105, 0.28);
+}
+
+.farcaster-access-request__seal > span {
+  display: block;
+  transform: rotate(-45deg);
+}
+
+.farcaster-access-request time {
+  color: #ead5af;
+}
+
+@keyframes farcaster-access-request-turn {
+  to {
+    transform: rotate(405deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .farcaster-access-request {
+    transition-duration: 1ms;
+  }
+
+  .farcaster-access-request__spinner {
+    animation: none;
+  }
+}

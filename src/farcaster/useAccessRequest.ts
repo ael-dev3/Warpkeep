@@ -1,24 +1,55 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState
 } from 'react';
 
+import {
+  emitAccessRequestDiagnostic,
+  IDLE_ACCESS_REQUEST_STATE,
+  transitionAccessRequestState,
+  type AccessRequestDiagnosticEvent,
+  type AccessRequestStateEvent
+} from './accessRequestStateMachine';
 import type {
   AccessRequestAuthentication,
   AccessRequestStatus,
+  AccessRequestStatusContext,
   AccessRequestViewState,
   FarcasterAuthViewState,
   FarcasterOidcBridgeClient
 } from './farcasterAuthTypes';
+
+const DEFAULT_MINIMUM_SUBMITTING_MILLISECONDS = 350;
+const DEFAULT_MINIMUM_VERIFYING_MILLISECONDS = 160;
+const MAXIMUM_PRESENTATION_DELAY_MILLISECONDS = 2_000;
+
+type AccessRequestOperationKind =
+  | 'initial-status'
+  | 'manual-status'
+  | 'submit';
+
+type AccessRequestOperation = Readonly<{
+  lifecycleKey: string;
+  sequence: number;
+  kind: AccessRequestOperationKind;
+  controller: AbortController;
+}>;
 
 type AccessRequestControllerOptions = Readonly<{
   authState: FarcasterAuthViewState;
   authGeneration: number;
   loadBridgeClient: () => Promise<FarcasterOidcBridgeClient>;
   loadQuickAuthToken?: () => Promise<string | null>;
+  /** Local test seam; production uses the bounded 350 ms presentation. */
+  minimumSubmittingMilliseconds?: number;
+  /** Local test seam for the short ambiguous-result handoff. */
+  minimumVerifyingMilliseconds?: number;
+  monotonicNow?: () => number;
+  reportDiagnostic?: (event: AccessRequestDiagnosticEvent) => void;
 }>;
 
 export type AccessRequestController = Readonly<{
@@ -27,28 +58,52 @@ export type AccessRequestController = Readonly<{
   retryStatus: () => void;
 }>;
 
-const IDLE: AccessRequestViewState = Object.freeze({ phase: 'idle' });
-const LOADING: AccessRequestViewState = Object.freeze({ phase: 'loading' });
-const SUBMITTING: AccessRequestViewState = Object.freeze({ phase: 'submitting' });
-const CONFIRMATION_PENDING: AccessRequestViewState = Object.freeze({
-  phase: 'confirmation-pending'
-});
-const RETRYABLE_ERROR: AccessRequestViewState = Object.freeze({
-  phase: 'error',
-  retryable: true
-});
+function boundedPresentationDelay(value: number | undefined, fallback: number): number {
+  return value !== undefined
+    && Number.isFinite(value)
+    && value >= 0
+    && value <= MAXIMUM_PRESENTATION_DELAY_MILLISECONDS
+    ? value
+    : fallback;
+}
 
-function projectStatus(status: AccessRequestStatus): AccessRequestViewState {
-  if (status.status === 'requested') {
-    return Object.freeze({
-      phase: 'requested',
-      requestedAt: status.requestedAt
-    });
-  }
-  if (status.status === 'already-admitted') {
-    return Object.freeze({ phase: 'already-admitted' });
-  }
-  return Object.freeze({ phase: 'not-requested' });
+function readMonotonicNow(now: () => number): number {
+  const value = now();
+  return Number.isFinite(value) && value >= 0 ? value : 0;
+}
+
+function waitForPresentationDelay(
+  milliseconds: number,
+  signal: AbortSignal
+): Promise<boolean> {
+  if (signal.aborted) return Promise.resolve(false);
+  if (milliseconds <= 0) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (completed: boolean) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      signal.removeEventListener('abort', abort);
+      resolve(completed);
+    };
+    const abort = () => finish(false);
+    const timeout = setTimeout(() => finish(true), milliseconds);
+    signal.addEventListener('abort', abort, { once: true });
+  });
+}
+
+async function waitForMinimumPresentation(
+  startedAt: number,
+  minimumMilliseconds: number,
+  now: () => number,
+  signal: AbortSignal
+): Promise<boolean> {
+  const elapsed = Math.max(0, readMonotonicNow(now) - startedAt);
+  return waitForPresentationDelay(
+    Math.max(0, minimumMilliseconds - elapsed),
+    signal
+  );
 }
 
 /**
@@ -57,8 +112,10 @@ function projectStatus(status: AccessRequestStatus): AccessRequestViewState {
  */
 async function withAccessAuthentication<T>(
   loadQuickAuthToken: (() => Promise<string | null>) | undefined,
+  shouldContinue: () => boolean,
   operation: (authentication: AccessRequestAuthentication) => Promise<T>
 ): Promise<T> {
+  if (!shouldContinue()) throw new Error('ACCESS_AUTH_CANCELLED');
   if (!loadQuickAuthToken) {
     return operation(Object.freeze({ mode: 'pending-session' }));
   }
@@ -66,6 +123,9 @@ async function withAccessAuthentication<T>(
   let token = await loadQuickAuthToken();
   if (!token) throw new Error('ACCESS_AUTH_UNAVAILABLE');
   try {
+    // Credential acquisition may outlive the identity generation that began
+    // it. Revalidate before the token can reach a mutation or status client.
+    if (!shouldContinue()) throw new Error('ACCESS_AUTH_CANCELLED');
     return await operation(Object.freeze({ mode: 'quick-auth', token }));
   } finally {
     token = '';
@@ -76,17 +136,28 @@ export function useAccessRequest({
   authState,
   authGeneration,
   loadBridgeClient,
-  loadQuickAuthToken
+  loadQuickAuthToken,
+  minimumSubmittingMilliseconds,
+  minimumVerifyingMilliseconds,
+  monotonicNow = () => (
+    typeof performance === 'undefined' ? Date.now() : performance.now()
+  ),
+  reportDiagnostic = emitAccessRequestDiagnostic
 }: AccessRequestControllerOptions): AccessRequestController {
-  const [state, setState] = useState<AccessRequestViewState>(IDLE);
-  const [statusAttempt, setStatusAttempt] = useState(0);
-  const statusAttemptRef = useRef(0);
-  const stateRef = useRef(state);
-  const loadedKeyRef = useRef<string | undefined>(undefined);
-  const activeControllerRef = useRef<AbortController | undefined>(undefined);
-  const committedLifecycleKeyRef = useRef<string | undefined>(undefined);
-  const committedStatusCheckAttemptKeyRef = useRef<string | undefined>(undefined);
-  stateRef.current = state;
+  const [state, setState] = useState<AccessRequestViewState>(
+    IDLE_ACCESS_REQUEST_STATE
+  );
+  const stateRef = useRef<AccessRequestViewState>(IDLE_ACCESS_REQUEST_STATE);
+  const stateLifecycleKeyRef = useRef<string | undefined>(undefined);
+  const currentLifecycleKeyRef = useRef<string | undefined>(undefined);
+  const operationSequenceRef = useRef(0);
+  const activeOperationRef = useRef<AccessRequestOperation | undefined>(undefined);
+  const submissionLockRef = useRef<string | undefined>(undefined);
+  const duplicateDiagnosticKeyRef = useRef<string | undefined>(undefined);
+  const loadBridgeClientRef = useRef(loadBridgeClient);
+  const loadQuickAuthTokenRef = useRef(loadQuickAuthToken);
+  const monotonicNowRef = useRef(monotonicNow);
+  const reportDiagnosticRef = useRef(reportDiagnostic);
 
   const pendingFid = authState.phase === 'pending-admission'
     ? authState.identity.fid
@@ -94,206 +165,386 @@ export function useAccessRequest({
   const lifecycleKey = pendingFid === undefined
     ? undefined
     : `${authGeneration}:${pendingFid}`;
-
-  useEffect(() => {
-    activeControllerRef.current?.abort();
-    activeControllerRef.current = undefined;
-
-    if (!lifecycleKey) {
-      loadedKeyRef.current = undefined;
-      committedLifecycleKeyRef.current = undefined;
-      committedStatusCheckAttemptKeyRef.current = undefined;
-      setState(IDLE);
-      return undefined;
-    }
-
-    if (
-      committedLifecycleKeyRef.current !== undefined
-      && committedLifecycleKeyRef.current !== lifecycleKey
-    ) {
-      committedLifecycleKeyRef.current = undefined;
-      committedStatusCheckAttemptKeyRef.current = undefined;
-    }
-
-    const attemptKey = `${lifecycleKey}:${statusAttempt}`;
-    if (loadedKeyRef.current === attemptKey) return undefined;
-    loadedKeyRef.current = attemptKey;
-    stateRef.current = LOADING;
-    setState(LOADING);
-
-    const controller = new AbortController();
-    activeControllerRef.current = controller;
-    let disposed = false;
-
-    // Deferring one microtask prevents React Strict Mode's probe effect from
-    // producing a real duplicate request while retaining normal cancellation.
-    void Promise.resolve().then(async () => {
-      if (disposed || controller.signal.aborted) return;
-      try {
-        const client = await loadBridgeClient();
-        const getStatus = client.getAccessRequestStatus.bind(client);
-        const status = await withAccessAuthentication(
-          loadQuickAuthToken,
-          authentication => getStatus(authentication, {
-            signal: controller.signal
-          })
-        );
-        if (!disposed && !controller.signal.aborted) {
-          const committedStatusCheck =
-            committedStatusCheckAttemptKeyRef.current === attemptKey;
-          const committedNotRequested = (
-            status.status === 'not-requested'
-            && committedLifecycleKeyRef.current === lifecycleKey
-          );
-          if (committedNotRequested && committedStatusCheck) {
-            // A deliberate, successful status-only reconciliation can prove
-            // that an ambiguous submission did not settle. Only that exact
-            // authority result may reopen the action in the same lifecycle.
-            committedLifecycleKeyRef.current = undefined;
-          }
-          if (committedStatusCheck) {
-            committedStatusCheckAttemptKeyRef.current = undefined;
-          }
-          const projected = committedNotRequested && !committedStatusCheck
-            ? CONFIRMATION_PENDING
-            : projectStatus(status);
-          stateRef.current = projected;
-          setState(projected);
-        }
-      } catch {
-        if (!disposed && !controller.signal.aborted) {
-          if (committedStatusCheckAttemptKeyRef.current === attemptKey) {
-            committedStatusCheckAttemptKeyRef.current = undefined;
-          }
-          const projected =
-            committedLifecycleKeyRef.current === lifecycleKey
-              ? CONFIRMATION_PENDING
-              : RETRYABLE_ERROR;
-          stateRef.current = projected;
-          setState(projected);
-        }
-      } finally {
-        if (activeControllerRef.current === controller) {
-          activeControllerRef.current = undefined;
-        }
-      }
-    });
-
-    return () => {
-      disposed = true;
-      controller.abort();
-      if (activeControllerRef.current === controller) {
-        activeControllerRef.current = undefined;
-      }
-      if (loadedKeyRef.current === attemptKey) {
-        loadedKeyRef.current = undefined;
-      }
-    };
+  // Commit the latest dependencies before passive lifecycle effects or user
+  // events can run. Render-time ref mutation would let an abandoned concurrent
+  // render invalidate the still-committed identity.
+  useLayoutEffect(() => {
+    currentLifecycleKeyRef.current = lifecycleKey;
+    loadBridgeClientRef.current = loadBridgeClient;
+    loadQuickAuthTokenRef.current = loadQuickAuthToken;
+    monotonicNowRef.current = monotonicNow;
+    reportDiagnosticRef.current = reportDiagnostic;
   }, [
     lifecycleKey,
     loadBridgeClient,
     loadQuickAuthToken,
-    statusAttempt
+    monotonicNow,
+    reportDiagnostic
   ]);
 
+  const minimumSubmitting = boundedPresentationDelay(
+    minimumSubmittingMilliseconds,
+    DEFAULT_MINIMUM_SUBMITTING_MILLISECONDS
+  );
+  const minimumVerifying = boundedPresentationDelay(
+    minimumVerifyingMilliseconds,
+    DEFAULT_MINIMUM_VERIFYING_MILLISECONDS
+  );
+
+  const diagnose = useCallback((event: AccessRequestDiagnosticEvent) => {
+    try {
+      reportDiagnosticRef.current(event);
+    } catch {
+      // Diagnostics cannot affect submission or presentation.
+    }
+  }, []);
+
+  const abortActiveOperation = useCallback(() => {
+    const active = activeOperationRef.current;
+    if (!active) return;
+    activeOperationRef.current = undefined;
+    active.controller.abort();
+  }, []);
+
+  const beginOperation = useCallback((
+    exactLifecycleKey: string,
+    kind: AccessRequestOperationKind
+  ): AccessRequestOperation => {
+    abortActiveOperation();
+    const operation = Object.freeze({
+      lifecycleKey: exactLifecycleKey,
+      sequence: operationSequenceRef.current + 1,
+      kind,
+      controller: new AbortController()
+    });
+    operationSequenceRef.current = operation.sequence;
+    activeOperationRef.current = operation;
+    return operation;
+  }, [abortActiveOperation]);
+
+  const isCurrentOperation = useCallback((operation: AccessRequestOperation) => (
+    !operation.controller.signal.aborted
+    && currentLifecycleKeyRef.current === operation.lifecycleKey
+    && operationSequenceRef.current === operation.sequence
+    && activeOperationRef.current === operation
+  ), []);
+
+  const finishOperation = useCallback((operation: AccessRequestOperation) => {
+    if (activeOperationRef.current === operation) {
+      activeOperationRef.current = undefined;
+    }
+  }, []);
+
+  const applyEvent = useCallback((
+    operation: AccessRequestOperation,
+    event: AccessRequestStateEvent
+  ): AccessRequestViewState | undefined => {
+    if (!isCurrentOperation(operation)) return undefined;
+    const current = stateLifecycleKeyRef.current === operation.lifecycleKey
+      ? stateRef.current
+      : IDLE_ACCESS_REQUEST_STATE;
+    const next = transitionAccessRequestState(current, event);
+    if (next !== current) {
+      stateLifecycleKeyRef.current = operation.lifecycleKey;
+      stateRef.current = next;
+      setState(next);
+    }
+    return next;
+  }, [isCurrentOperation]);
+
+  const applyStatus = useCallback((
+    operation: AccessRequestOperation,
+    context: AccessRequestStatusContext,
+    status: AccessRequestStatus
+  ) => {
+    if (status.status === 'requested') {
+      applyEvent(operation, {
+        type: 'status-requested',
+        context,
+        requestedAt: status.requestedAt
+      });
+      diagnose(context === 'post-submission'
+        ? 'request_reconciled_existing'
+        : 'request_already_exists');
+      return;
+    }
+    if (status.status === 'already-admitted') {
+      applyEvent(operation, { type: 'already-admitted' });
+      diagnose('request_already_admitted');
+      return;
+    }
+    if (context === 'post-submission') {
+      // A missing projection cannot prove that an interrupted mutation never
+      // crossed its write boundary. Keep the submission sealed.
+      applyEvent(operation, { type: 'status-unavailable', context });
+      diagnose('request_status_unavailable');
+      return;
+    }
+    applyEvent(operation, { type: 'status-available', context });
+  }, [applyEvent, diagnose]);
+
+  const startStatusRead = useCallback((
+    exactLifecycleKey: string,
+    context: AccessRequestStatusContext,
+    kind: Extract<AccessRequestOperationKind, 'initial-status' | 'manual-status'>
+  ): AccessRequestOperation | undefined => {
+    if (currentLifecycleKeyRef.current !== exactLifecycleKey) return undefined;
+    const operation = beginOperation(exactLifecycleKey, kind);
+    const next = applyEvent(operation, { type: 'status-load-started', context });
+    if (next?.phase !== 'loading-status') {
+      finishOperation(operation);
+      operation.controller.abort();
+      return undefined;
+    }
+
+    // A microtask lets React Strict Mode dispose its probe effect before any
+    // credential or network work begins.
+    void Promise.resolve().then(async () => {
+      if (!isCurrentOperation(operation)) return;
+      try {
+        const client = await loadBridgeClientRef.current();
+        if (!isCurrentOperation(operation)) return;
+        const status = await withAccessAuthentication(
+          loadQuickAuthTokenRef.current,
+          () => isCurrentOperation(operation),
+          authentication => client.getAccessRequestStatus(authentication, {
+            signal: operation.controller.signal
+          })
+        );
+        if (!isCurrentOperation(operation)) return;
+        applyStatus(operation, context, status);
+      } catch {
+        if (!isCurrentOperation(operation)) return;
+        applyEvent(operation, { type: 'status-unavailable', context });
+        diagnose('request_status_unavailable');
+      } finally {
+        finishOperation(operation);
+      }
+    });
+    return operation;
+  }, [
+    applyEvent,
+    applyStatus,
+    beginOperation,
+    diagnose,
+    finishOperation,
+    isCurrentOperation
+  ]);
+
+  useEffect(() => {
+    abortActiveOperation();
+    operationSequenceRef.current += 1;
+    submissionLockRef.current = undefined;
+    duplicateDiagnosticKeyRef.current = undefined;
+
+    if (!lifecycleKey) {
+      stateLifecycleKeyRef.current = undefined;
+      stateRef.current = IDLE_ACCESS_REQUEST_STATE;
+      setState(IDLE_ACCESS_REQUEST_STATE);
+      return undefined;
+    }
+
+    stateLifecycleKeyRef.current = lifecycleKey;
+    stateRef.current = IDLE_ACCESS_REQUEST_STATE;
+    setState(IDLE_ACCESS_REQUEST_STATE);
+    const operation = startStatusRead(lifecycleKey, 'initial', 'initial-status');
+
+    return () => {
+      if (activeOperationRef.current?.lifecycleKey === lifecycleKey) {
+        abortActiveOperation();
+        operationSequenceRef.current += 1;
+      } else {
+        operation?.controller.abort();
+      }
+      // Do not release the submission lock merely because presentation
+      // unmounted or a transport was aborted. A new lifecycle resets it above.
+    };
+  }, [abortActiveOperation, lifecycleKey, startStatusRead]);
+
   const retryStatus = useCallback(() => {
-    const currentPhase = stateRef.current.phase;
+    const exactLifecycleKey = lifecycleKey;
     if (
-      !lifecycleKey
-      || (
-        currentPhase !== 'error'
-        && currentPhase !== 'confirmation-pending'
-      )
+      !exactLifecycleKey
+      || currentLifecycleKeyRef.current !== exactLifecycleKey
+      || stateLifecycleKeyRef.current !== exactLifecycleKey
+      || stateRef.current.phase !== 'status-unavailable'
     ) return;
-    const nextAttempt = statusAttemptRef.current + 1;
-    statusAttemptRef.current = nextAttempt;
-    committedStatusCheckAttemptKeyRef.current =
-      currentPhase === 'confirmation-pending'
-        ? `${lifecycleKey}:${nextAttempt}`
-        : undefined;
-    stateRef.current = LOADING;
-    setState(LOADING);
-    activeControllerRef.current?.abort();
-    loadedKeyRef.current = undefined;
-    setStatusAttempt(nextAttempt);
-  }, [lifecycleKey]);
+    startStatusRead(
+      exactLifecycleKey,
+      stateRef.current.context,
+      'manual-status'
+    );
+  }, [lifecycleKey, startStatusRead]);
 
   const requestAccess = useCallback(() => {
-    const currentPhase = stateRef.current.phase;
+    // Capture the exact lifecycle in this callback. A retained handler from an
+    // older identity/generation must not submit for whatever identity happens
+    // to be current when that stale callback is invoked.
+    const exactLifecycleKey = lifecycleKey;
+    const currentState = stateLifecycleKeyRef.current === exactLifecycleKey
+      ? stateRef.current
+      : IDLE_ACCESS_REQUEST_STATE;
     if (
-      !lifecycleKey
-      || committedLifecycleKeyRef.current === lifecycleKey
+      !exactLifecycleKey
+      || currentLifecycleKeyRef.current !== exactLifecycleKey
+      || submissionLockRef.current === exactLifecycleKey
       || (
-        currentPhase !== 'not-requested'
-        && currentPhase !== 'error'
+        currentState.phase !== 'request-available'
+        && currentState.phase !== 'definitive-failure'
       )
-    ) return;
-    // The exact authorization lifecycle owns the optimistic commitment, not
-    // whichever menu or Mini App component currently presents it. Seal the
-    // gesture before any asynchronous work so remounts and transport errors
-    // cannot turn one petition into another clickable submission.
-    committedLifecycleKeyRef.current = lifecycleKey;
-    committedStatusCheckAttemptKeyRef.current = undefined;
-    const controller = new AbortController();
-    activeControllerRef.current?.abort();
-    activeControllerRef.current = controller;
-    stateRef.current = SUBMITTING;
-    setState(SUBMITTING);
+    ) {
+      if (exactLifecycleKey && submissionLockRef.current === exactLifecycleKey) {
+        const duplicateKey = `${exactLifecycleKey}:${operationSequenceRef.current}`;
+        if (duplicateDiagnosticKeyRef.current !== duplicateKey) {
+          duplicateDiagnosticKeyRef.current = duplicateKey;
+          diagnose('duplicate_client_activation_suppressed');
+        }
+      }
+      return;
+    }
+
+    // This synchronous lock is acquired before state, animation, diagnostics,
+    // credential acquisition, or network work.
+    submissionLockRef.current = exactLifecycleKey;
+    duplicateDiagnosticKeyRef.current = undefined;
+    const operation = beginOperation(exactLifecycleKey, 'submit');
+    const next = applyEvent(operation, { type: 'submit-started' });
+    if (next?.phase !== 'submitting') {
+      finishOperation(operation);
+      operation.controller.abort();
+      return;
+    }
+    diagnose('request_submit_started');
+    const startedAt = readMonotonicNow(monotonicNowRef.current);
 
     void (async () => {
+      let client: FarcasterOidcBridgeClient | undefined;
+      let mutationInvoked = false;
       try {
-        const client = await loadBridgeClient();
-        const submit = client.requestAccess.bind(client);
-        const getStatus = client.getAccessRequestStatus.bind(client);
-        let status: AccessRequestStatus;
-        try {
-          status = await withAccessAuthentication(
-            loadQuickAuthToken,
-            authentication => submit(authentication, {
-              signal: controller.signal
-            })
-          );
-        } catch {
-          if (controller.signal.aborted) return;
-          // The submit may have committed after the response path failed.
-          // Reconcile exactly once; never blindly resubmit.
-          status = await withAccessAuthentication(
-            loadQuickAuthToken,
-            authentication => getStatus(authentication, {
-              signal: controller.signal
-            })
-          );
+        client = await loadBridgeClientRef.current();
+        if (!isCurrentOperation(operation)) return;
+        const status = await withAccessAuthentication(
+          loadQuickAuthTokenRef.current,
+          () => isCurrentOperation(operation),
+          authentication => {
+            mutationInvoked = true;
+            return client!.requestAccess(authentication, {
+              signal: operation.controller.signal
+            });
+          }
+        );
+        if (!isCurrentOperation(operation)) return;
+        if (status.status === 'not-requested') {
+          throw new Error('ACCESS_REQUEST_INVALID_SUBMIT_RESULT');
         }
-        if (!controller.signal.aborted) {
-          // The automatic fallback answers only whether the first call might
-          // have settled. Even an immediate not-requested response does not
-          // reopen the gesture; the player must choose a later status-only
-          // check before another submission can ever become available.
-          const projected = status.status === 'not-requested'
-            ? CONFIRMATION_PENDING
-            : projectStatus(status);
-          stateRef.current = projected;
-          setState(projected);
+        if (!await waitForMinimumPresentation(
+          startedAt,
+          minimumSubmitting,
+          monotonicNowRef.current,
+          operation.controller.signal
+        ) || !isCurrentOperation(operation)) return;
+        if (status.status === 'already-admitted') {
+          applyEvent(operation, { type: 'already-admitted' });
+          diagnose('request_already_admitted');
+        } else {
+          applyEvent(operation, {
+            type: 'submit-confirmed',
+            requestedAt: status.requestedAt
+          });
+          diagnose('request_confirmed');
         }
+        return;
       } catch {
-        if (!controller.signal.aborted) {
-          stateRef.current = CONFIRMATION_PENDING;
-          setState(CONFIRMATION_PENDING);
+        if (!isCurrentOperation(operation)) return;
+        if (!mutationInvoked) {
+          if (!await waitForMinimumPresentation(
+            startedAt,
+            minimumSubmitting,
+            monotonicNowRef.current,
+            operation.controller.signal
+          ) || !isCurrentOperation(operation)) return;
+          applyEvent(operation, { type: 'definitive-failure' });
+          if (submissionLockRef.current === exactLifecycleKey) {
+            submissionLockRef.current = undefined;
+          }
+          diagnose('request_definitive_failure');
+          return;
+        }
+
+        // The mutation may have reached authority. Start one read-only
+        // reconciliation immediately, but never retry the mutation.
+        const reconciliation = (async () => {
+          try {
+            if (!client) return undefined;
+            return await withAccessAuthentication(
+              loadQuickAuthTokenRef.current,
+              () => isCurrentOperation(operation),
+              authentication => client!.getAccessRequestStatus(authentication, {
+                signal: operation.controller.signal
+              })
+            );
+          } catch {
+            return undefined;
+          }
+        })();
+
+        if (!await waitForMinimumPresentation(
+          startedAt,
+          minimumSubmitting,
+          monotonicNowRef.current,
+          operation.controller.signal
+        ) || !isCurrentOperation(operation)) return;
+        applyEvent(operation, { type: 'submit-ambiguous' });
+        diagnose('request_ambiguous');
+
+        const [reconciled, verificationShown] = await Promise.all([
+          reconciliation,
+          waitForPresentationDelay(
+            minimumVerifying,
+            operation.controller.signal
+          )
+        ]);
+        if (!verificationShown || !isCurrentOperation(operation)) return;
+        if (reconciled) {
+          applyStatus(operation, 'post-submission', reconciled);
+        } else {
+          applyEvent(operation, {
+            type: 'status-unavailable',
+            context: 'post-submission'
+          });
+          diagnose('request_status_unavailable');
         }
       } finally {
-        if (activeControllerRef.current === controller) {
-          activeControllerRef.current = undefined;
-        }
+        finishOperation(operation);
       }
     })();
   }, [
+    applyEvent,
+    applyStatus,
+    beginOperation,
+    diagnose,
+    finishOperation,
+    isCurrentOperation,
     lifecycleKey,
-    loadBridgeClient,
-    loadQuickAuthToken
+    minimumSubmitting,
+    minimumVerifying
   ]);
 
+  const visibleState = lifecycleKey === undefined
+    ? IDLE_ACCESS_REQUEST_STATE
+    : stateLifecycleKeyRef.current === lifecycleKey
+      ? state
+      : Object.freeze({
+          phase: 'loading-status',
+          context: 'initial'
+        } as const);
+
   return useMemo(
-    () => Object.freeze({ state, requestAccess, retryStatus }),
-    [requestAccess, retryStatus, state]
+    () => Object.freeze({
+      state: visibleState,
+      requestAccess,
+      retryStatus
+    }),
+    [requestAccess, retryStatus, visibleState]
   );
 }

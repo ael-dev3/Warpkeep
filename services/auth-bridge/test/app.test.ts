@@ -2734,6 +2734,48 @@ describe('Warpkeep auth bridge', () => {
       expect(limited.resolver.resolve).not.toHaveBeenCalled()
     })
 
+    it('does not retry or status-read after an outcome-ambiguous submit failure', async () => {
+      const privateDetail = 'private upstream response detail'
+      const ambiguousFailure = Object.assign(
+        new AccessRequestResolverFailure('fetch_body'),
+        { privateDetail },
+      )
+      const getStatus = vi.fn(async () => ({ status: 'not-requested' } as const))
+      const submit = vi.fn(async () => {
+        throw ambiguousFailure
+      })
+      const h = harness({
+        epoch: 0,
+        accessRequestResolver: { getStatus, submit },
+      })
+
+      const response = await h.app.fetch(
+        accessBearerRequest(ACCESS_REQUEST_PATH),
+        env(),
+      )
+      const responseText = await response.text()
+
+      expect(response.status).toBe(503)
+      expect(JSON.parse(responseText)).toEqual({
+        error: {
+          code: 'access_request_unavailable',
+          message: 'Access requests are temporarily unavailable.',
+        },
+      })
+      expect(submit).toHaveBeenCalledOnce()
+      expect(submit).toHaveBeenCalledWith(FID)
+      expect(getStatus).not.toHaveBeenCalled()
+      expect(h.events).toContain('access_request_failed')
+      expect(h.events).toContain('access_request_failed_fetch_body')
+      expect(h.events).toContain('access_request_rejected')
+      expect(h.events).not.toContain('access_request_succeeded')
+      expect(responseText).not.toContain(FID)
+      expect(responseText).not.toContain(privateDetail)
+      expect(JSON.stringify(h.events)).not.toContain(FID)
+      expect(JSON.stringify(h.events)).not.toContain(privateDetail)
+      expect(response.headers.has('set-cookie')).toBe(false)
+    })
+
     it('preserves the public-auth kill switch and emits only closed failure stages', async () => {
       const paused = harness({ epoch: 0 })
       const pausedResponse = await paused.app.fetch(

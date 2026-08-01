@@ -113,6 +113,11 @@ assert.match(proof, /function assertAdditiveV13Schema\(before, after\)/);
 assert.match(proof, /assertAdditiveV13Schema\(emptyV12, emptyV13\)/);
 assert.match(proof, /deployedV12Tables[\s\S]*populatedWaterStoneV12Rows/);
 assert.match(proof, /'access_request_v1',[\s\S]*\),\s*0n/);
+assert.match(proof, /submitConcurrentBatch\([\s\S]*syntheticMissingAccessRequestFid,\s*2,/);
+assert.match(proof, /syntheticMissingAccessRequestFid,\s*10,/);
+assert.match(proof, /syntheticMissingAccessRequestFid,\s*50,/);
+assert.match(proof, /syntheticSecondAccessRequestFid,\s*2,/);
+assert.match(proof, /page\.totalRequests, 2n/);
 assert.match(proof, /arguments_\.filter\(value => value === '--delete-data=never'\)\.length !== 1/);
 assert.match(proof, /arguments_\.some\(value => value\.startsWith\('--delete-data='/);
 assert.doesNotMatch(proof, /--delete-data=(?:always|on-conflict|if-required)/);
@@ -127,5 +132,6 @@ console.log(
   'access-request additive migration proof passed: exact v12 refs 0–52 preserved, '
   + 'private access_request_v1 remains the exact v13 ref 53 boundary, '
   + 'the reviewed v14 daily Marks suffix is the only allowed extension, '
-  + 'and the rehearsal remains deletion-disabled',
+  + 'the loopback proof exercises 2/10/50 same-cycle calls and two FIDs, '
+  + 'and every rehearsal remains deletion-disabled',
 );

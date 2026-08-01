@@ -102,6 +102,7 @@ const actualModuleOtherFid = 730_002;
 // A JS-safe, intentionally absent loopback-only identity. It is never admitted
 // and is used only to prove the private v13 access-request lifecycle.
 const syntheticMissingAccessRequestFid = '9007199254740991';
+const syntheticSecondAccessRequestFid = '9007199254740990';
 const historicalEntryAgreementVersions = Object.freeze([
   '2026-07-19-hegemony-entry-agreement-v3',
   '2026-07-19-hegemony-entry-agreement-v2',
@@ -1926,10 +1927,32 @@ function parseAdminAccessRequestPage(text) {
  */
 async function verifyAccessRequestHttpLifecycle(server, database, privateKey) {
   let stage = 'request-status';
-  const requestCredential = () => createEphemeralJwt(
+  const requestCredential = (fid = syntheticMissingAccessRequestFid) => createEphemeralJwt(
     privateKey,
-    accessRequestServiceClaims(syntheticMissingAccessRequestFid),
+    accessRequestServiceClaims(fid),
   );
+  const submitConcurrentBatch = async (fid, concurrency, label) => {
+    const texts = await Promise.all(Array.from({ length: concurrency }, () => (
+      callLoopbackProcedure(
+        server,
+        database,
+        'access_request_submit_v1',
+        requestCredential(fid),
+        '[]',
+        200,
+      )
+    )));
+    const results = texts.map((text, index) => parseAccessRequestStatus(
+      text,
+      `${label} access-request status ${index + 1}`,
+    ));
+    const first = results[0];
+    if (!first || first.status !== 'requested' || first.requestedAtMicros === undefined) {
+      fail(`Loopback ${label} access-request batch omitted its canonical result.`);
+    }
+    for (const result of results) assert.deepEqual(result, first);
+    return first;
+  };
   try {
     const initial = parseAccessRequestStatus(
       await callLoopbackProcedure(
@@ -1948,39 +1971,41 @@ async function verifyAccessRequestHttpLifecycle(server, database, privateKey) {
     });
 
     stage = 'request-submit';
-    const [submittedText, duplicateText] = await Promise.all([
-      callLoopbackProcedure(
-        server,
-        database,
-        'access_request_submit_v1',
-        requestCredential(),
-        '[]',
-        200,
-      ),
-      callLoopbackProcedure(
-        server,
-        database,
-        'access_request_submit_v1',
-        requestCredential(),
-        '[]',
-        200,
-      ),
-    ]);
-    const submitted = parseAccessRequestStatus(
-      submittedText,
-      'submitted access-request status',
+    const submitted = await submitConcurrentBatch(
+      syntheticMissingAccessRequestFid,
+      2,
+      'two-call concurrent',
     );
-    assert.equal(submitted.status, 'requested');
     if (submitted.requestedAtMicros === undefined || submitted.requestedAtMicros <= 0n) {
       fail('Loopback access-request submission omitted its database timestamp.');
     }
 
-    stage = 'request-duplicate';
-    const duplicate = parseAccessRequestStatus(
-      duplicateText,
-      'duplicate access-request status',
+    stage = 'request-ten-call-concurrency';
+    const tenCallResult = await submitConcurrentBatch(
+      syntheticMissingAccessRequestFid,
+      10,
+      'ten-call concurrent',
     );
-    assert.deepEqual(duplicate, submitted);
+    assert.deepEqual(tenCallResult, submitted);
+
+    stage = 'request-fifty-call-concurrency';
+    const fiftyCallResult = await submitConcurrentBatch(
+      syntheticMissingAccessRequestFid,
+      50,
+      'fifty-call concurrent',
+    );
+    assert.deepEqual(fiftyCallResult, submitted);
+
+    stage = 'request-second-fid';
+    const secondSubmitted = await submitConcurrentBatch(
+      syntheticSecondAccessRequestFid,
+      2,
+      'second-FID concurrent',
+    );
+    if (
+      secondSubmitted.requestedAtMicros === undefined
+      || secondSubmitted.requestedAtMicros <= 0n
+    ) fail('Loopback second-FID access request omitted its database timestamp.');
 
     stage = 'request-final-status';
     const finalStatus = parseAccessRequestStatus(
@@ -2035,19 +2060,28 @@ async function verifyAccessRequestHttpLifecycle(server, database, privateKey) {
       '[0,0,100,false]',
       200,
     ));
-    assert.deepEqual(page, {
-      entries: [{
-        fid: BigInt(syntheticMissingAccessRequestFid),
-        requestedAtMicros: submitted.requestedAtMicros,
-        admissionState: 'missing',
-        requestState: 'pending',
-      }],
-      nextRequestedAtMicros: undefined,
-      nextFid: undefined,
-      hasMore: false,
-      totalRequests: 1n,
-      pendingRequests: 1n,
-    });
+    assert.equal(page.nextRequestedAtMicros, undefined);
+    assert.equal(page.nextFid, undefined);
+    assert.equal(page.hasMore, false);
+    assert.equal(page.totalRequests, 2n);
+    assert.equal(page.pendingRequests, 2n);
+    assert.deepEqual(
+      [...page.entries].sort((left, right) => Number(left.fid - right.fid)),
+      [
+        {
+          fid: BigInt(syntheticSecondAccessRequestFid),
+          requestedAtMicros: secondSubmitted.requestedAtMicros,
+          admissionState: 'missing',
+          requestState: 'pending',
+        },
+        {
+          fid: BigInt(syntheticMissingAccessRequestFid),
+          requestedAtMicros: submitted.requestedAtMicros,
+          admissionState: 'missing',
+          requestState: 'pending',
+        },
+      ],
+    );
 
     stage = 'request-auth-resolver';
     const admission = parseLoopbackJson(await callLoopbackProcedure(
@@ -6989,7 +7023,7 @@ async function main() {
         populatedWaterStoneMigrationDatabase,
         'access_request_v1',
       ),
-      1n,
+      2n,
     );
     assert.equal(
       countFromSql(await sql(
@@ -7005,7 +7039,25 @@ async function main() {
         server,
         owner.token,
         populatedWaterStoneMigrationDatabase,
+        `SELECT COUNT(*) AS warpkeep_count FROM access_request_v1 WHERE fid = ${syntheticSecondAccessRequestFid}`,
+      )),
+      1n,
+    );
+    assert.equal(
+      countFromSql(await sql(
+        server,
+        owner.token,
+        populatedWaterStoneMigrationDatabase,
         `SELECT COUNT(*) AS warpkeep_count FROM allowed_fid WHERE fid = ${syntheticMissingAccessRequestFid}`,
+      )),
+      0n,
+    );
+    assert.equal(
+      countFromSql(await sql(
+        server,
+        owner.token,
+        populatedWaterStoneMigrationDatabase,
+        `SELECT COUNT(*) AS warpkeep_count FROM allowed_fid WHERE fid = ${syntheticSecondAccessRequestFid}`,
       )),
       0n,
     );

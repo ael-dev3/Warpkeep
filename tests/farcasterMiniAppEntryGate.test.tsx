@@ -84,7 +84,7 @@ describe('FarcasterMiniAppEntryGate', () => {
     render(
       <FarcasterMiniAppEntryGate
         {...callbacks}
-        accessRequest={{ phase: 'not-requested' }}
+        accessRequest={{ phase: 'request-available' }}
         authState={{
           phase: 'pending-admission',
           identity,
@@ -98,17 +98,17 @@ describe('FarcasterMiniAppEntryGate', () => {
     expect(await screen.findByRole('heading', { name: 'ENTRY NOT YET GRANTED' })).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'BACK TO MENU' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
-    expect(screen.queryByRole('button', { name: 'CHECK AGAIN' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'CHECK ADMISSION' })).toBeNull();
     expect(callbacks.onRequestAccess).toHaveBeenCalledTimes(1);
     expect(callbacks.onRefreshSession).not.toHaveBeenCalled();
   });
 
-  it('keeps a delayed Mini App petition sealed while CHECK AGAIN reconciles it', async () => {
+  it('keeps an ambiguous Mini App petition sealed while CHECK STATUS reconciles it', async () => {
     const callbacks = actions();
     render(
       <FarcasterMiniAppEntryGate
         {...callbacks}
-        accessRequest={{ phase: 'confirmation-pending' }}
+        accessRequest={{ phase: 'status-unavailable', context: 'post-submission' }}
         authState={{
           phase: 'pending-admission',
           identity,
@@ -119,10 +119,10 @@ describe('FarcasterMiniAppEntryGate', () => {
       />
     );
 
-    expect((await screen.findByRole('button', {
-      name: 'REQUEST SENT'
-    }) as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
+    expect(await screen.findByText('REQUEST STATUS UNAVAILABLE')).not.toBeNull();
+    expect(screen.getByText(/remains sealed and will not be sent again/i)).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'CHECK STATUS' }));
     expect(callbacks.onRetryAccessRequestStatus).toHaveBeenCalledTimes(1);
     expect(callbacks.onRefreshSession).not.toHaveBeenCalled();
     expect(callbacks.onRequestAccess).not.toHaveBeenCalled();

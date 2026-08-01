@@ -102,8 +102,12 @@ export function FarcasterAdmissionPanel({
   onSignOut
 }: FarcasterAdmissionPanelProps) {
   const headingId = `farcaster-admission-heading-${useId().replace(/:/g, '')}`;
+  const accessRequestDescriptionId = `${headingId}-access-request-description`;
   const localHeadingRef = useRef<HTMLHeadingElement>(null);
   const presentation = presentationByPhase[phase];
+  const accessRequestBusy = accessRequest.phase === 'loading-status'
+    || accessRequest.phase === 'submitting'
+    || accessRequest.phase === 'verifying-ambiguous-result';
   const busy = phase === 'connecting'
     || phase === 'reconnecting'
     || phase === 'checking-admission'
@@ -128,7 +132,7 @@ export function FarcasterAdmissionPanel({
 
   return (
     <section
-      aria-busy={busy || undefined}
+      aria-busy={busy || (phase === 'denied' && accessRequestBusy) || undefined}
       aria-labelledby={headingId}
       className={`farcaster-auth-panel farcaster-admission-panel farcaster-admission-panel--${phase}`}
       data-phase={phase}
@@ -168,10 +172,13 @@ export function FarcasterAdmissionPanel({
 
         {denied ? (
           <>
-            <p className="farcaster-admission-panel__lead" role="status">
+            <p className="farcaster-admission-panel__lead">
               This Farcaster identity is not yet admitted to the Hegemony frontier.
             </p>
-            <FarcasterAccessRequestMessage state={accessRequest} />
+            <FarcasterAccessRequestMessage
+              descriptionId={accessRequestDescriptionId}
+              state={accessRequest}
+            />
           </>
         ) : null}
 
@@ -207,7 +214,10 @@ export function FarcasterAdmissionPanel({
         ) : null}
         {denied && onRequestAccess ? (
           <FarcasterAccessRequestAction
+            descriptionId={accessRequestDescriptionId}
+            onCheckAdmission={onCheckAgain}
             onRequestAccess={onRequestAccess}
+            onRetryStatus={onRetryAccessRequestStatus}
             primaryActionRef={primaryActionRef}
             state={accessRequest}
           />
@@ -217,17 +227,7 @@ export function FarcasterAdmissionPanel({
           && (!denied || !accessRequestOwnsPrimaryAction(accessRequest)) ? (
           <button
             className="farcaster-auth-panel__action farcaster-auth-panel__action--primary"
-            disabled={
-              accessRequest.phase === 'confirmation-pending'
-              && !onRetryAccessRequestStatus
-            }
-            onClick={() => {
-              if (accessRequest.phase === 'confirmation-pending') {
-                onRetryAccessRequestStatus?.();
-                return;
-              }
-              onCheckAgain();
-            }}
+            onClick={onCheckAgain}
             ref={primaryActionRef}
             type="button"
           >

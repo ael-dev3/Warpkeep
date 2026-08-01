@@ -6,6 +6,14 @@ full engineering record.
 
 ## [Unreleased]
 
+- Made Request Access a single-flight interaction: the button leaves the input
+  lane immediately, then settles through a stable submitting presentation into
+  a durable Request Received record.
+- Reconciled interrupted responses with one read-only check while keeping the
+  request sealed; the browser never retries an ambiguous mutation.
+- Preserved the existing private, cycle-idempotent SpacetimeDB authority and
+  manual admission boundary without a schema or production-data change.
+
 ## [0.3.42] — 2026-08-01
 
 - Removed the Request Access audio sample, playback path, preload, and runtime

@@ -8,7 +8,6 @@ import type {
   FarcasterSessionAssurance,
   VerifiedFarcasterIdentity
 } from '../../farcaster/farcasterAuthTypes';
-import { emitWarpkeepSfx } from '../audio/sfxEvents';
 import {
   accessRequestOwnsPrimaryAction,
   FarcasterAccessRequestAction,
@@ -233,17 +232,21 @@ export function FarcasterQrAuthPanel({
 }: FarcasterQrAuthPanelProps) {
   const instanceId = useId();
   const headingId = `farcaster-auth-heading-${instanceId.replace(/:/g, '')}`;
+  const accessRequestDescriptionId = `${headingId}-access-request-description`;
   const safeChannelUrl = getSafeFarcasterChannelUrl(channelUrl);
   const [presentation, setPresentation] = useState<FarcasterAuthPresentation>(
     getFarcasterAuthPresentation
   );
   const autoRequestedChannelRef = useRef<string | undefined>(undefined);
-  const previousAccessRequestPhaseRef = useRef(accessRequest.phase);
   const heading = panelHeadings[phase];
   // Let the post-verification live-region update announce immediately instead
   // of being held until the bridge check finishes.
+  const accessRequestBusy = accessRequest.phase === 'loading-status'
+    || accessRequest.phase === 'submitting'
+    || accessRequest.phase === 'verifying-ambiguous-result';
   const isBusy = phase === 'creating-channel'
-    || (phase === 'verifying' && !identity);
+    || (phase === 'verifying' && !identity)
+    || (phase === 'pending-admission' && accessRequestBusy);
   const rootClassName = [
     'farcaster-auth-panel',
     `farcaster-auth-panel--${phase}`,
@@ -274,17 +277,6 @@ export function FarcasterQrAuthPanel({
       autoRequestedChannelRef.current = undefined;
     }
   }, [phase]);
-
-  useEffect(() => {
-    const previousPhase = previousAccessRequestPhaseRef.current;
-    previousAccessRequestPhaseRef.current = accessRequest.phase;
-    if (
-      previousPhase === 'submitting'
-      && accessRequest.phase === 'requested'
-    ) {
-      emitWarpkeepSfx({ kind: 'access-request-confirmed' });
-    }
-  }, [accessRequest.phase]);
 
   const showQr = () => {
     setPresentation('qr-first');
@@ -511,14 +503,20 @@ export function FarcasterQrAuthPanel({
       {phase === 'pending-admission' ? (
         <div className="farcaster-auth-panel__body farcaster-auth-panel__body--authenticated">
           {identity ? <FarcasterIdentityBadge identity={identity} /> : null}
-          <p className="farcaster-auth-panel__lead" role="status">
+          <p className="farcaster-auth-panel__lead">
             Your Farcaster identity is verified. Admission to the Hegemony frontier is still pending.
           </p>
-          <FarcasterAccessRequestMessage state={accessRequest} />
+          <FarcasterAccessRequestMessage
+            descriptionId={accessRequestDescriptionId}
+            state={accessRequest}
+          />
           <div className="farcaster-auth-panel__actions">
             {onRequestAccess ? (
               <FarcasterAccessRequestAction
+                descriptionId={accessRequestDescriptionId}
+                onCheckAdmission={onCheckAdmission}
                 onRequestAccess={onRequestAccess}
+                onRetryStatus={onRetryAccessRequestStatus}
                 primaryActionRef={primaryActionRef}
                 state={accessRequest}
               />
@@ -526,17 +524,7 @@ export function FarcasterQrAuthPanel({
             {!accessRequestOwnsPrimaryAction(accessRequest) ? (
               <button
                 className="farcaster-auth-panel__action farcaster-auth-panel__action--primary"
-                disabled={
-                  accessRequest.phase === 'confirmation-pending'
-                  && !onRetryAccessRequestStatus
-                }
-                onClick={() => {
-                  if (accessRequest.phase === 'confirmation-pending') {
-                    onRetryAccessRequestStatus?.();
-                    return;
-                  }
-                  onCheckAdmission?.();
-                }}
+                onClick={onCheckAdmission}
                 ref={primaryActionRef}
                 type="button"
               >

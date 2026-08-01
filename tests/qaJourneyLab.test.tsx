@@ -10,6 +10,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { WarpkeepQaJourneyLab } from '../src/dev/WarpkeepQaJourneyLab';
+import { readAccessRequestQaMode } from '../src/dev/AccessRequestQaStage';
 import { REALM_RENDERER_EMERGENCY_QUALITY_SESSION_KEY } from '../src/components/realm/realmRendererEmergencyQuality';
 import { WARPKEEP_SAME_ORIGIN_PROFILE_PLACEHOLDER_PATH } from '../src/security/publicImageUrl';
 import {
@@ -203,6 +204,29 @@ describe('Warpkeep local QA journey lab', () => {
     expect(boundQaAutoCycleInterval(1)).toBe(6_000);
     expect(boundQaAutoCycleInterval(2_000)).toBe(2_000);
     expect(boundQaAutoCycleInterval(30_001)).toBe(6_000);
+    expect(readAccessRequestQaMode('?access=latency')).toBe('latency');
+    expect(readAccessRequestQaMode('?access=lost-after-write')).toBe('lost-after-write');
+    expect(readAccessRequestQaMode('?access=pre-write-failure')).toBe('pre-write-failure');
+    expect(readAccessRequestQaMode('?access=existing')).toBe('existing');
+    expect(readAccessRequestQaMode('?access=unknown')).toBe('success');
+  });
+
+  it('runs the denied-access fixture through one silent single-flight request', async () => {
+    render(<WarpkeepQaJourneyLab initialScenario="admission-denied" />);
+
+    const request = await screen.findByRole('button', { name: 'REQUEST ACCESS' });
+    fireEvent.click(request);
+    fireEvent.click(request);
+
+    expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
+    expect(screen.getByText('SUBMITTING REQUEST')).not.toBeNull();
+    await waitFor(() => expect(screen.getByText('REQUEST RECEIVED')).not.toBeNull());
+
+    const stage = document.querySelector<HTMLElement>('.qa-journey__auth-stage');
+    expect(stage?.getAttribute('data-access-status-reads')).toBe('1');
+    expect(stage?.getAttribute('data-access-mutations')).toBe('1');
+    expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
+    expectNoExternalSideEffects();
   });
 
   it.each(QA_JOURNEY_SCENARIOS)(

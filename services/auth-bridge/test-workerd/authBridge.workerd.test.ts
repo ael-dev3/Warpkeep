@@ -328,7 +328,9 @@ describe('auth bridge production bindings in workerd', () => {
       status: 'requested',
       requestedAt: 1_785_414_896_000,
     })
+    expect(getStatus).toHaveBeenCalledOnce()
     expect(getStatus).toHaveBeenCalledWith(FID)
+    expect(submit).toHaveBeenCalledOnce()
     expect(submit).toHaveBeenCalledWith(FID)
 
     const issued = await h.app.fetch(post('/v2/farcaster/challenge', {
@@ -371,6 +373,8 @@ describe('auth bridge production bindings in workerd', () => {
     ))
     expect(after).toEqual(before)
     expect(after).toMatchObject({ state: 'pending', currentGeneration: 1 })
+    expect(getStatus).toHaveBeenCalledTimes(2)
+    expect(submit).toHaveBeenCalledOnce()
     expect(h.signer).not.toHaveBeenCalled()
   })
 
@@ -396,6 +400,7 @@ describe('auth bridge production bindings in workerd', () => {
       status: 'requested',
       requestedAt: 1_785_414_896_000,
     })
+    expect(submit).toHaveBeenCalledOnce()
     expect(submit).toHaveBeenCalledWith(FID)
 
     const issued = await h.app.fetch(post('/v2/farcaster/challenge', {
@@ -439,6 +444,7 @@ describe('auth bridge production bindings in workerd', () => {
       version: 1,
       status: 'not-requested',
     })
+    expect(getStatus).toHaveBeenCalledOnce()
     expect(getStatus).toHaveBeenCalledWith(FID)
 
     const refresh = await h.app.fetch(
@@ -452,6 +458,8 @@ describe('auth bridge production bindings in workerd', () => {
       identity: { fid: Number(FID) },
     })
     expect(refresh.headers.get('set-cookie')).toMatch(/__Host-warpkeep_session=v1\./)
+    expect(getStatus).toHaveBeenCalledOnce()
+    expect(submit).toHaveBeenCalledOnce()
     expect(h.signer).not.toHaveBeenCalled()
   })
 
