@@ -22,7 +22,7 @@ function installMotionPreference(matches = false) {
 function getPatchNotesTrigger(options: { hidden?: boolean } = {}) {
   return screen.getByRole('button', {
     ...options,
-    name: 'Open patch notes for Warpkeep ALPHA 0.3.37'
+    name: 'Open patch notes for Warpkeep ALPHA 0.3.38'
   });
 }
 
@@ -131,11 +131,11 @@ describe('WarpkeepMainMenu', () => {
 
     act(() => patchNotes.focus());
     expect(screen.getByRole('status').textContent).toContain('living frontier');
-    expect(screen.queryByRole('region', { name: 'THE GATE HEEDS ONCE' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE WAY BACK' })).toBeNull();
 
     fireEvent.click(patchNotes, { detail: 0 });
     expect(screen.queryByRole('status')).toBeNull();
-    expect(screen.getByRole('region', { name: 'THE GATE HEEDS ONCE' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE WAY BACK' })).not.toBeNull();
     expect(document.activeElement).toBe(patchNotes);
   });
 
@@ -239,25 +239,25 @@ describe('WarpkeepMainMenu', () => {
 
     expect(patchNotes.getAttribute('aria-expanded')).toBe('false');
     expect(patchNotes.getAttribute('aria-controls')).toBe('warpkeep-latest-patch-notes');
-    expect(screen.queryByRole('region', { name: 'THE GATE HEEDS ONCE' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE WAY BACK' })).toBeNull();
 
     act(() => patchNotes.focus());
-    expect(screen.queryByRole('region', { name: 'THE GATE HEEDS ONCE' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE WAY BACK' })).toBeNull();
 
     fireEvent.click(patchNotes, { detail: 0 });
-    const notes = screen.getByRole('region', { name: 'THE GATE HEEDS ONCE' });
+    const notes = screen.getByRole('region', { name: 'THE WAY BACK' });
     expect(patchNotes.getAttribute('aria-expanded')).toBe('true');
-    expect(notes.textContent).toContain('LATEST PATCH · ALPHA 0.3.37');
-    expect(notes.textContent).toContain('before any network round trip');
-    expect(notes.textContent).toContain('violet water-like echo');
-    expect(notes.textContent).toContain('closed across refreshes');
+    expect(notes.textContent).toContain('LATEST PATCH · ALPHA 0.3.38');
+    expect(notes.textContent).toContain('native Back control');
+    expect(notes.textContent).toContain('without signing the keeper out');
+    expect(notes.textContent).toContain('no new map overlay');
     expect(notes.getAttribute('tabindex')).toBe('0');
     expect(within(notes).queryByRole('link')).toBeNull();
     act(() => notes.focus());
     expect(document.activeElement).toBe(notes);
 
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(screen.queryByRole('region', { name: 'THE GATE HEEDS ONCE' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE WAY BACK' })).toBeNull();
     expect(document.activeElement).toBe(patchNotes);
     expect(onRequestReturn).not.toHaveBeenCalled();
 
@@ -270,19 +270,19 @@ describe('WarpkeepMainMenu', () => {
     const patchNotes = getPatchNotesTrigger();
 
     fireEvent.pointerEnter(patchNotes, { pointerType: 'mouse' });
-    expect(screen.getByRole('region', { name: 'THE GATE HEEDS ONCE' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE WAY BACK' })).not.toBeNull();
 
     fireEvent.pointerDown(document.body, { pointerType: 'mouse' });
-    expect(screen.queryByRole('region', { name: 'THE GATE HEEDS ONCE' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE WAY BACK' })).toBeNull();
 
     fireEvent.pointerDown(patchNotes, { pointerType: 'touch' });
     patchNotes.focus();
     fireEvent.click(patchNotes);
-    expect(screen.getByRole('region', { name: 'THE GATE HEEDS ONCE' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE WAY BACK' })).not.toBeNull();
 
     fireEvent.pointerDown(patchNotes, { pointerType: 'touch' });
     fireEvent.click(patchNotes);
-    expect(screen.queryByRole('region', { name: 'THE GATE HEEDS ONCE' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE WAY BACK' })).toBeNull();
   });
 
   it('keeps hover notes reachable across the anchor gap and toggles by activation', () => {
@@ -291,21 +291,21 @@ describe('WarpkeepMainMenu', () => {
     const patchNotes = getPatchNotesTrigger();
 
     fireEvent.pointerEnter(patchNotes, { pointerType: 'mouse' });
-    expect(screen.getByRole('region', { name: 'THE GATE HEEDS ONCE' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE WAY BACK' })).not.toBeNull();
     fireEvent.pointerLeave(patchNotes, { pointerType: 'mouse' });
 
     act(() => vi.advanceTimersByTime(250));
-    const panel = screen.getByRole('region', { name: 'THE GATE HEEDS ONCE' });
+    const panel = screen.getByRole('region', { name: 'THE WAY BACK' });
     fireEvent.pointerEnter(panel, { pointerType: 'mouse' });
     act(() => vi.advanceTimersByTime(200));
-    expect(screen.getByRole('region', { name: 'THE GATE HEEDS ONCE' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE WAY BACK' })).not.toBeNull();
 
     fireEvent.click(patchNotes);
     fireEvent.pointerLeave(patchNotes, { pointerType: 'mouse' });
     act(() => vi.advanceTimersByTime(500));
-    expect(screen.getByRole('region', { name: 'THE GATE HEEDS ONCE' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE WAY BACK' })).not.toBeNull();
     fireEvent.click(patchNotes);
-    expect(screen.queryByRole('region', { name: 'THE GATE HEEDS ONCE' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE WAY BACK' })).toBeNull();
   });
 
   it('keeps inactive menu controls hidden, inert, and outside the tab order', () => {

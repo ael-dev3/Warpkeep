@@ -626,7 +626,7 @@ afterEach(() => {
 });
 
 describe('live realm quality recreation', () => {
-  it('leaves root Back to the Mini App host and binds it only for nested Realm destinations', async () => {
+  it('keeps native Mini App Back available from the Realm root through nested destinations', async () => {
     installWebGlProbe();
     const back = {
       show: vi.fn(async () => {}),
@@ -681,16 +681,14 @@ describe('live realm quality recreation', () => {
       </MiniAppHostProvider>
     );
 
-    await waitFor(() => expect(back.hide).toHaveBeenCalled());
+    await waitFor(() => expect(back.show).toHaveBeenCalledOnce());
     const realm = screen.getByRole('main', { name: 'Hegemony realm' });
     await waitFor(() => expect(realm.dataset.realmChromeMode).toBe('miniapp'));
     const sceneOptions = mocked.createRealmScene.mock.calls.at(-1)?.[0];
     act(() => sceneOptions?.onCastlesReady?.(2));
-    expect(back.show).not.toHaveBeenCalled();
-    expect(back.onback).toBeNull();
+    expect(back.onback).not.toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: /Open Realm menu/i }));
-    await waitFor(() => expect(back.show).toHaveBeenCalledOnce());
     let menu = screen.getByRole('region', { name: 'REALM MENU' });
 
     fireEvent.click(within(menu).getByRole('button', { name: /EXPLORE/i }));
@@ -716,7 +714,7 @@ describe('live realm quality recreation', () => {
     act(() => back.onback?.());
     await waitFor(() => {
       expect(screen.queryByRole('region', { name: 'REALM MENU' })).toBeNull();
-      expect(back.onback).toBeNull();
+      expect(back.onback).not.toBeNull();
     });
     expect(onRequestReturn).not.toHaveBeenCalled();
 
@@ -782,6 +780,9 @@ describe('live realm quality recreation', () => {
       expect(screen.queryByRole('button', { name: 'LOCATE IN REALM' })).toBeNull();
       expect(document.activeElement).toBe(realm);
     });
+
+    act(() => back.onback?.());
+    expect(onRequestReturn).toHaveBeenCalledOnce();
   });
 
   it('retires an assigned scene when initial interaction synchronization throws', () => {
