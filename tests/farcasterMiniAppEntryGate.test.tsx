@@ -46,6 +46,7 @@ function backendState(
 function actions() {
   return {
     onAcceptTerms: vi.fn(),
+    onBackToMenu: vi.fn(),
     onCancelTermsAttempt: vi.fn(),
     onCheckBackend: vi.fn(),
     onRefreshSession: vi.fn(),
@@ -96,7 +97,8 @@ describe('FarcasterMiniAppEntryGate', () => {
     );
 
     expect(await screen.findByRole('heading', { name: 'ENTRY NOT YET GRANTED' })).not.toBeNull();
-    expect(screen.queryByRole('button', { name: 'BACK TO MENU' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'BACK TO MENU' }));
+    expect(callbacks.onBackToMenu).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
     expect(screen.queryByRole('button', { name: 'CHECK ADMISSION' })).toBeNull();
     expect(callbacks.onRequestAccess).toHaveBeenCalledTimes(1);
@@ -126,6 +128,24 @@ describe('FarcasterMiniAppEntryGate', () => {
     expect(callbacks.onRetryAccessRequestStatus).toHaveBeenCalledTimes(1);
     expect(callbacks.onRefreshSession).not.toHaveBeenCalled();
     expect(callbacks.onRequestAccess).not.toHaveBeenCalled();
+  });
+
+  it('keeps an ordinary-menu escape beside a backend CHECK AGAIN action', () => {
+    const callbacks = actions();
+    render(
+      <FarcasterMiniAppEntryGate
+        {...callbacks}
+        authState={authenticated}
+        backendState={backendState('error')}
+        hostState="miniapp"
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
+    fireEvent.click(screen.getByRole('button', { name: 'BACK TO MENU' }));
+    expect(callbacks.onCheckBackend).toHaveBeenCalledTimes(1);
+    expect(callbacks.onBackToMenu).toHaveBeenCalledTimes(1);
+    expect(callbacks.onSignOut).not.toHaveBeenCalled();
   });
 
   it('requires current Terms once, then leaves acceptance to the backend authority', async () => {

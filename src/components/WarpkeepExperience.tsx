@@ -953,6 +953,16 @@ export function WarpkeepExperience() {
     beginTitleTransition(canReturnThroughHistory ? 'back' : 'replace');
   }, [beginTitleTransition]);
 
+  const openOrdinaryMiniAppMenu = useCallback(() => {
+    clearPendingRealmDestination();
+    window.history.replaceState(
+      menuHistoryState(),
+      '',
+      `${pageUrlWithoutHash()}${MENU_HASH}`
+    );
+    setDirectMiniAppEntryEnabled(false);
+  }, [clearPendingRealmDestination]);
+
   const markTransitionCovered = useCallback((
     sequence: number,
     direction: WarpTransitionDirection
@@ -1418,6 +1428,7 @@ export function WarpkeepExperience() {
               backendState={backend.state}
               hostState={miniAppHost.state}
               onAcceptTerms={backend.beginAlphaTermsAcceptance}
+              onBackToMenu={openOrdinaryMiniAppMenu}
               onCancelTermsAttempt={backend.cancelAlphaTermsAcceptance}
               onCheckBackend={backend.checkAgain}
               onRefreshSession={refreshFarcasterSession}

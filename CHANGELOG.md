@@ -13,6 +13,8 @@ full engineering record.
   request sealed; the browser never retries an ambiguous mutation.
 - Preserved the existing private, cycle-idempotent SpacetimeDB authority and
   manual admission boundary without a schema or production-data change.
+- Kept a direct route to the full menu beside Request Access and Check Again
+  throughout the Farcaster Mini App entry gate.
 
 ## [0.3.42] — 2026-08-01
 

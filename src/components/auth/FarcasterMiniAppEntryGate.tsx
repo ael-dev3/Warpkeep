@@ -38,6 +38,7 @@ export type FarcasterMiniAppEntryGateProps = Readonly<{
   backendState: WarpkeepBackendState;
   accessRequest?: AccessRequestViewState;
   onAcceptTerms: () => void;
+  onBackToMenu: () => void;
   onCancelTermsAttempt: () => void;
   onCheckBackend: () => void;
   onRefreshSession: () => void;
@@ -167,6 +168,7 @@ export function FarcasterMiniAppEntryGate({
   backendState,
   accessRequest = IDLE_ACCESS_REQUEST,
   onAcceptTerms,
+  onBackToMenu,
   onCancelTermsAttempt,
   onCheckBackend,
   onRefreshSession,
@@ -223,6 +225,7 @@ export function FarcasterMiniAppEntryGate({
       <FarcasterAdmissionPanel
         accessRequest={accessRequest}
         identity={authState.identity}
+        onBackToMenu={onBackToMenu}
         onCheckAgain={onRefreshSession}
         onRequestAccess={onRequestAccess}
         onRetryAccessRequestStatus={onRetryAccessRequestStatus}
@@ -236,6 +239,11 @@ export function FarcasterMiniAppEntryGate({
         accessRequest={accessRequest}
         autoFocusHeading={!awaitingTerms}
         identity={identity}
+        onBackToMenu={
+          backendState.phase === 'denied' || backendState.phase === 'error'
+            ? onBackToMenu
+            : undefined
+        }
         onCheckAgain={onCheckBackend}
         onRequestAccess={onRequestAccess}
         onRetryAccessRequestStatus={onRetryAccessRequestStatus}
