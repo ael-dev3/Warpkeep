@@ -28,6 +28,7 @@ export type FarcasterAdmissionPanelProps = Readonly<{
   onReviewTerms?: () => void;
   accessRequest?: AccessRequestViewState;
   onRequestAccess?: () => void;
+  onRetryAccessRequestStatus?: () => void;
   onSignOut: () => void;
 }>;
 
@@ -97,6 +98,7 @@ export function FarcasterAdmissionPanel({
   onReviewTerms,
   accessRequest = IDLE_ACCESS_REQUEST,
   onRequestAccess,
+  onRetryAccessRequestStatus,
   onSignOut
 }: FarcasterAdmissionPanelProps) {
   const headingId = `farcaster-admission-heading-${useId().replace(/:/g, '')}`;
@@ -215,7 +217,17 @@ export function FarcasterAdmissionPanel({
           && (!denied || !accessRequestOwnsPrimaryAction(accessRequest)) ? (
           <button
             className="farcaster-auth-panel__action farcaster-auth-panel__action--primary"
-            onClick={onCheckAgain}
+            disabled={
+              accessRequest.phase === 'confirmation-pending'
+              && !onRetryAccessRequestStatus
+            }
+            onClick={() => {
+              if (accessRequest.phase === 'confirmation-pending') {
+                onRetryAccessRequestStatus?.();
+                return;
+              }
+              onCheckAgain();
+            }}
             ref={primaryActionRef}
             type="button"
           >

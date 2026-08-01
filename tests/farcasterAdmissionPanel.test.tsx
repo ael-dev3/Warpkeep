@@ -96,6 +96,55 @@ describe('FarcasterAdmissionPanel', () => {
     expect(onCheckAgain).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps delayed confirmation sealed and makes CHECK AGAIN status-only', () => {
+    const onCheckAgain = vi.fn();
+    const onRequestAccess = vi.fn();
+    const onRetryAccessRequestStatus = vi.fn();
+    render(
+      <FarcasterAdmissionPanel
+        accessRequest={{ phase: 'confirmation-pending' }}
+        identity={identity}
+        onBackToMenu={vi.fn()}
+        onCheckAgain={onCheckAgain}
+        onRequestAccess={onRequestAccess}
+        onRetryAccessRequestStatus={onRetryAccessRequestStatus}
+        onSignOut={vi.fn()}
+        phase="denied"
+      />
+    );
+
+    expect(screen.getByText(/remains sealed and will not be sent twice/i)).not.toBeNull();
+    const sent = screen.getByRole('button', { name: 'REQUEST SENT' }) as HTMLButtonElement;
+    expect(sent.disabled).toBe(true);
+    fireEvent.click(sent);
+    expect(onRequestAccess).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
+    expect(onRetryAccessRequestStatus).toHaveBeenCalledTimes(1);
+    expect(onCheckAgain).not.toHaveBeenCalled();
+    expect(onRequestAccess).not.toHaveBeenCalled();
+  });
+
+  it('never presents a silent confirmation retry when no status callback exists', () => {
+    const onCheckAgain = vi.fn();
+    render(
+      <FarcasterAdmissionPanel
+        accessRequest={{ phase: 'confirmation-pending' }}
+        identity={identity}
+        onBackToMenu={vi.fn()}
+        onCheckAgain={onCheckAgain}
+        onRequestAccess={vi.fn()}
+        onSignOut={vi.fn()}
+        phase="denied"
+      />
+    );
+
+    const checkAgain = screen.getByRole('button', { name: 'CHECK AGAIN' }) as HTMLButtonElement;
+    expect(checkAgain.disabled).toBe(true);
+    fireEvent.click(checkAgain);
+    expect(onCheckAgain).not.toHaveBeenCalled();
+  });
+
   it('renders the local request latch immediately as a disabled sent action', () => {
     render(
       <FarcasterAdmissionPanel

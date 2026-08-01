@@ -268,6 +268,7 @@ export function WarpkeepExperience() {
     prepareQrCode: prepareFarcasterQrCode,
     refreshSession: refreshFarcasterSession,
     requestAccess,
+    retryAccessRequestStatus,
     signOut: signOutFarcaster,
     oidcSession,
     rememberDevice,
@@ -1325,6 +1326,7 @@ export function WarpkeepExperience() {
           onBackToMenu={onBackToMenu}
           onPresentationReady={onPresentationReady}
           onRequestAccess={requestAccess}
+          onRetryAccessRequestStatus={retryAccessRequestStatus}
           onSignOut={handleSignOut}
           phase={admissionPhase}
           primaryActionRef={primaryActionRef}
@@ -1420,6 +1422,7 @@ export function WarpkeepExperience() {
               onCheckBackend={backend.checkAgain}
               onRefreshSession={refreshFarcasterSession}
               onRequestAccess={requestAccess}
+              onRetryAccessRequestStatus={retryAccessRequestStatus}
               onRetryAuthentication={beginFarcasterSignIn}
               onSignOut={handleSignOut}
             />
@@ -1448,6 +1451,7 @@ export function WarpkeepExperience() {
               onRefreshFarcasterSession={refreshFarcasterSession}
               accessRequest={accessRequest}
               onRequestAccess={requestAccess}
+              onRetryAccessRequestStatus={retryAccessRequestStatus}
               onRequestReturn={handleExplicitReturn}
               onRememberDeviceChange={setRememberDevice}
               onRetryFarcasterSignIn={retryFarcasterSignIn}

@@ -30,6 +30,9 @@ export type AccessRequestController = Readonly<{
 const IDLE: AccessRequestViewState = Object.freeze({ phase: 'idle' });
 const LOADING: AccessRequestViewState = Object.freeze({ phase: 'loading' });
 const SUBMITTING: AccessRequestViewState = Object.freeze({ phase: 'submitting' });
+const CONFIRMATION_PENDING: AccessRequestViewState = Object.freeze({
+  phase: 'confirmation-pending'
+});
 const RETRYABLE_ERROR: AccessRequestViewState = Object.freeze({
   phase: 'error',
   retryable: true
@@ -77,9 +80,12 @@ export function useAccessRequest({
 }: AccessRequestControllerOptions): AccessRequestController {
   const [state, setState] = useState<AccessRequestViewState>(IDLE);
   const [statusAttempt, setStatusAttempt] = useState(0);
+  const statusAttemptRef = useRef(0);
   const stateRef = useRef(state);
   const loadedKeyRef = useRef<string | undefined>(undefined);
   const activeControllerRef = useRef<AbortController | undefined>(undefined);
+  const committedLifecycleKeyRef = useRef<string | undefined>(undefined);
+  const committedStatusCheckAttemptKeyRef = useRef<string | undefined>(undefined);
   stateRef.current = state;
 
   const pendingFid = authState.phase === 'pending-admission'
@@ -95,13 +101,24 @@ export function useAccessRequest({
 
     if (!lifecycleKey) {
       loadedKeyRef.current = undefined;
+      committedLifecycleKeyRef.current = undefined;
+      committedStatusCheckAttemptKeyRef.current = undefined;
       setState(IDLE);
       return undefined;
+    }
+
+    if (
+      committedLifecycleKeyRef.current !== undefined
+      && committedLifecycleKeyRef.current !== lifecycleKey
+    ) {
+      committedLifecycleKeyRef.current = undefined;
+      committedStatusCheckAttemptKeyRef.current = undefined;
     }
 
     const attemptKey = `${lifecycleKey}:${statusAttempt}`;
     if (loadedKeyRef.current === attemptKey) return undefined;
     loadedKeyRef.current = attemptKey;
+    stateRef.current = LOADING;
     setState(LOADING);
 
     const controller = new AbortController();
@@ -122,11 +139,38 @@ export function useAccessRequest({
           })
         );
         if (!disposed && !controller.signal.aborted) {
-          setState(projectStatus(status));
+          const committedStatusCheck =
+            committedStatusCheckAttemptKeyRef.current === attemptKey;
+          const committedNotRequested = (
+            status.status === 'not-requested'
+            && committedLifecycleKeyRef.current === lifecycleKey
+          );
+          if (committedNotRequested && committedStatusCheck) {
+            // A deliberate, successful status-only reconciliation can prove
+            // that an ambiguous submission did not settle. Only that exact
+            // authority result may reopen the action in the same lifecycle.
+            committedLifecycleKeyRef.current = undefined;
+          }
+          if (committedStatusCheck) {
+            committedStatusCheckAttemptKeyRef.current = undefined;
+          }
+          const projected = committedNotRequested && !committedStatusCheck
+            ? CONFIRMATION_PENDING
+            : projectStatus(status);
+          stateRef.current = projected;
+          setState(projected);
         }
       } catch {
         if (!disposed && !controller.signal.aborted) {
-          setState(RETRYABLE_ERROR);
+          if (committedStatusCheckAttemptKeyRef.current === attemptKey) {
+            committedStatusCheckAttemptKeyRef.current = undefined;
+          }
+          const projected =
+            committedLifecycleKeyRef.current === lifecycleKey
+              ? CONFIRMATION_PENDING
+              : RETRYABLE_ERROR;
+          stateRef.current = projected;
+          setState(projected);
         }
       } finally {
         if (activeControllerRef.current === controller) {
@@ -153,49 +197,54 @@ export function useAccessRequest({
   ]);
 
   const retryStatus = useCallback(() => {
-    if (!lifecycleKey || stateRef.current.phase === 'submitting') return;
+    const currentPhase = stateRef.current.phase;
+    if (
+      !lifecycleKey
+      || (
+        currentPhase !== 'error'
+        && currentPhase !== 'confirmation-pending'
+      )
+    ) return;
+    const nextAttempt = statusAttemptRef.current + 1;
+    statusAttemptRef.current = nextAttempt;
+    committedStatusCheckAttemptKeyRef.current =
+      currentPhase === 'confirmation-pending'
+        ? `${lifecycleKey}:${nextAttempt}`
+        : undefined;
+    stateRef.current = LOADING;
+    setState(LOADING);
     activeControllerRef.current?.abort();
     loadedKeyRef.current = undefined;
-    setStatusAttempt(attempt => attempt + 1);
+    setStatusAttempt(nextAttempt);
   }, [lifecycleKey]);
 
   const requestAccess = useCallback(() => {
     const currentPhase = stateRef.current.phase;
     if (
       !lifecycleKey
+      || committedLifecycleKeyRef.current === lifecycleKey
       || (
         currentPhase !== 'not-requested'
         && currentPhase !== 'error'
       )
     ) return;
-    const requiresStatusPreflight = currentPhase === 'error';
+    // The exact authorization lifecycle owns the optimistic commitment, not
+    // whichever menu or Mini App component currently presents it. Seal the
+    // gesture before any asynchronous work so remounts and transport errors
+    // cannot turn one petition into another clickable submission.
+    committedLifecycleKeyRef.current = lifecycleKey;
+    committedStatusCheckAttemptKeyRef.current = undefined;
     const controller = new AbortController();
     activeControllerRef.current?.abort();
     activeControllerRef.current = controller;
-    const initialState = requiresStatusPreflight ? LOADING : SUBMITTING;
-    stateRef.current = initialState;
-    setState(initialState);
+    stateRef.current = SUBMITTING;
+    setState(SUBMITTING);
 
     void (async () => {
       try {
         const client = await loadBridgeClient();
         const submit = client.requestAccess.bind(client);
         const getStatus = client.getAccessRequestStatus.bind(client);
-        if (requiresStatusPreflight) {
-          const currentStatus = await withAccessAuthentication(
-            loadQuickAuthToken,
-            authentication => getStatus(authentication, {
-              signal: controller.signal
-            })
-          );
-          if (controller.signal.aborted) return;
-          if (currentStatus.status !== 'not-requested') {
-            setState(projectStatus(currentStatus));
-            return;
-          }
-          stateRef.current = SUBMITTING;
-          setState(SUBMITTING);
-        }
         let status: AccessRequestStatus;
         try {
           status = await withAccessAuthentication(
@@ -216,11 +265,20 @@ export function useAccessRequest({
           );
         }
         if (!controller.signal.aborted) {
-          setState(projectStatus(status));
+          // The automatic fallback answers only whether the first call might
+          // have settled. Even an immediate not-requested response does not
+          // reopen the gesture; the player must choose a later status-only
+          // check before another submission can ever become available.
+          const projected = status.status === 'not-requested'
+            ? CONFIRMATION_PENDING
+            : projectStatus(status);
+          stateRef.current = projected;
+          setState(projected);
         }
       } catch {
         if (!controller.signal.aborted) {
-          setState(RETRYABLE_ERROR);
+          stateRef.current = CONFIRMATION_PENDING;
+          setState(CONFIRMATION_PENDING);
         }
       } finally {
         if (activeControllerRef.current === controller) {

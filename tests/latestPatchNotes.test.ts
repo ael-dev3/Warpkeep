@@ -18,25 +18,29 @@ describe('latest in-menu patch notes', () => {
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
       releasedOn: '1 AUG 2026',
-      title: 'THE WAY BACK'
+      title: 'THE PETITION HOLDS'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /native Back control.*Realm root.*Genesis 001 directly/i
+      /Request Access.*Request Sent.*first gesture.*menu.*Mini App/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /nested Realm records.*one step.*menu.*without signing.*out/i
+      /delayed confirmation.*Hegemony resonance.*violet-and-gold seal.*private submission/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /no new map overlay.*authentication.*admission.*Terms.*world state untouched/i
+      /SpacetimeDB.*one private petition.*admission cycle.*separate manual decision/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /released to players|deployed to players|public balances|guaranteed rewards/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('road back');
+    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('first petition');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'changes no admission decision'
+      'grants no admission'
     );
+
+    expect(getLatestPatchNotes('0.3.38')).toMatchObject({
+      title: 'THE WAY BACK'
+    });
 
     expect(getLatestPatchNotes('0.3.37')).toMatchObject({
       title: 'THE GATE HEEDS ONCE'
