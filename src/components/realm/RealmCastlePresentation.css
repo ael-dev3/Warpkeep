@@ -236,10 +236,10 @@
 .castle-inspection {
   position: absolute;
   z-index: 9;
-  top: max(0.8rem, env(safe-area-inset-top));
-  right: max(0.8rem, env(safe-area-inset-right));
+  top: max(0.8rem, var(--realm-safe-top, env(safe-area-inset-top)));
+  right: max(0.8rem, var(--realm-safe-right, env(safe-area-inset-right)));
   width: min(21.5rem, calc(100vw - 1.6rem));
-  max-height: calc(100svh - 1.6rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  max-height: calc(100svh - 1.6rem - var(--realm-safe-top, env(safe-area-inset-top)) - var(--realm-safe-bottom, env(safe-area-inset-bottom)));
   box-sizing: border-box;
   padding-top: 1rem;
   color: #fff7e5;
@@ -395,7 +395,7 @@
 }
 
 .castle-inspection__body {
-  max-height: calc(100svh - 15.8rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  max-height: calc(100svh - 15.8rem - var(--realm-safe-top, env(safe-area-inset-top)) - var(--realm-safe-bottom, env(safe-area-inset-bottom)));
   padding: 0 0.82rem 0.82rem;
   overflow-x: hidden;
   overflow-y: auto;
@@ -543,21 +543,21 @@
 
 @media (min-width: 761px) and (min-height: 601px) {
   .realm-map-screen[data-presentation-mode="player"] .castle-inspection {
-    top: max(3.05rem, calc(env(safe-area-inset-top) + 3.05rem));
-    max-height: calc(100svh - 3.85rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    top: max(3.05rem, calc(var(--realm-safe-top, env(safe-area-inset-top)) + 3.05rem));
+    max-height: calc(100svh - 3.85rem - var(--realm-safe-top, env(safe-area-inset-top)) - var(--realm-safe-bottom, env(safe-area-inset-bottom)));
   }
 
   .realm-map-screen[data-presentation-mode="player"] .castle-inspection__body {
-    max-height: calc(100svh - 17rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    max-height: calc(100svh - 17rem - var(--realm-safe-top, env(safe-area-inset-top)) - var(--realm-safe-bottom, env(safe-area-inset-bottom)));
   }
 }
 
 @media (max-width: 760px) {
   .castle-inspection {
     top: auto;
-    right: max(0.55rem, env(safe-area-inset-right));
-    bottom: max(0.55rem, env(safe-area-inset-bottom));
-    left: max(0.55rem, env(safe-area-inset-left));
+    right: max(0.55rem, var(--realm-safe-right, env(safe-area-inset-right)));
+    bottom: max(0.55rem, var(--realm-safe-bottom, env(safe-area-inset-bottom)));
+    left: max(0.55rem, var(--realm-safe-left, env(safe-area-inset-left)));
     width: auto;
     max-height: min(78svh, 36rem);
     padding-top: 0.9rem;
@@ -591,9 +591,9 @@
 
 @media (max-height: 600px) and (min-width: 581px) {
   .castle-inspection {
-    top: max(0.45rem, env(safe-area-inset-top));
-    right: max(0.55rem, env(safe-area-inset-right));
-    bottom: max(0.45rem, env(safe-area-inset-bottom));
+    top: max(0.45rem, var(--realm-safe-top, env(safe-area-inset-top)));
+    right: max(0.55rem, var(--realm-safe-right, env(safe-area-inset-right)));
+    bottom: max(0.45rem, var(--realm-safe-bottom, env(safe-area-inset-bottom)));
     left: auto;
     width: min(19.5rem, 43vw);
     max-height: none;
@@ -606,7 +606,7 @@
   }
 
   .castle-inspection__body {
-    max-height: calc(100svh - 9.4rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    max-height: calc(100svh - 9.4rem - var(--realm-safe-top, env(safe-area-inset-top)) - var(--realm-safe-bottom, env(safe-area-inset-bottom)));
   }
 
   .castle-inspection__hero {
@@ -634,11 +634,11 @@
   }
 
   .realm-map-screen[data-presentation-mode="player"] .castle-inspection {
-    top: max(2.85rem, calc(env(safe-area-inset-top) + 2.85rem));
+    top: max(2.85rem, calc(var(--realm-safe-top, env(safe-area-inset-top)) + 2.85rem));
   }
 
   .realm-map-screen[data-presentation-mode="player"] .castle-inspection__body {
-    max-height: calc(100svh - 12.25rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    max-height: calc(100svh - 12.25rem - var(--realm-safe-top, env(safe-area-inset-top)) - var(--realm-safe-bottom, env(safe-area-inset-bottom)));
   }
 }
 

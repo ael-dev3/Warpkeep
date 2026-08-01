@@ -91,6 +91,6 @@
   }
 
   .stone-quarry-inspection .gold-mine-inspection__body {
-    max-height: calc(100svh - 8.45rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    max-height: calc(100svh - 8.45rem - var(--realm-safe-top, env(safe-area-inset-top)) - var(--realm-safe-bottom, env(safe-area-inset-bottom)));
   }
 }

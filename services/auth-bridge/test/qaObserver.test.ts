@@ -238,6 +238,7 @@ describe('machine-bound QA observer bridge', () => {
     await expect(response.json()).resolves.toMatchObject({
       profile: 'warpkeep-auth-v2',
       publicAuthEnabled: false,
+      accessExpectedFidRequired: false,
       qaObserverEnabled: true,
       qaObserverSpacetimeDbUri: 'https://maincloud.spacetimedb.com',
       qaObserverSpacetimeDbDatabase: QA_DATABASE_IDENTITY,

@@ -1,6 +1,7 @@
 import {
   type AccessRequestAuthentication,
   type AccessRequestStatus,
+  type FarcasterAccessRequestOptions,
   isBoundedFarcasterSignature,
   type FarcasterBridgeChallenge,
   type FarcasterBridgeChallengeRequest,
@@ -44,6 +45,15 @@ const RETRYABLE_EXCHANGE_ERROR_CODES = new Set([
   'authorization_unavailable',
   'signing_unavailable'
 ]);
+const ACCESS_EXPECTED_FID_HEADER = 'x-warpkeep-expected-fid';
+const ACCESS_IDENTITY_CHANGED_ERROR_CODES = new Set(['access_identity_changed']);
+const ACCESS_STATUS_IDENTITY_CHANGED_RESPONSES = new Map([
+  [409, ACCESS_IDENTITY_CHANGED_ERROR_CODES]
+] as const);
+const DEFINITIVE_ACCESS_REQUEST_NO_MUTATION_CODES = new Map([
+  [429, new Set(['rate_limited'])],
+  [409, ACCESS_IDENTITY_CHANGED_ERROR_CODES]
+] as const);
 
 export type FarcasterOidcBridgeFetch = (
   input: RequestInfo | URL,
@@ -68,11 +78,40 @@ export class FarcasterOidcBridgeClientError extends Error {
 }
 
 const retryableExchangeErrors = new WeakSet<FarcasterOidcBridgeClientError>();
+export type AccessRequestNoMutationReason = 'rate-limited' | 'identity-changed';
+
+const definitiveAccessRequestNoMutationErrors = new WeakMap<
+  FarcasterOidcBridgeClientError,
+  AccessRequestNoMutationReason
+>();
 
 function createRetryableExchangeError() {
   const error = new FarcasterOidcBridgeClientError();
   retryableExchangeErrors.add(error);
   return error;
+}
+
+function createDefinitiveAccessRequestNoMutationError(
+  reason: AccessRequestNoMutationReason
+) {
+  const error = new FarcasterOidcBridgeClientError();
+  definitiveAccessRequestNoMutationErrors.set(error, reason);
+  return error;
+}
+
+/** Returns a closed reason only for an exact pre-mutation bridge response. */
+export function accessRequestNoMutationReason(
+  error: unknown
+): AccessRequestNoMutationReason | null {
+  return error instanceof FarcasterOidcBridgeClientError
+    ? definitiveAccessRequestNoMutationErrors.get(error) ?? null
+    : null;
+}
+
+export function isDefinitiveAccessRequestNoMutationError(
+  error: unknown
+): boolean {
+  return accessRequestNoMutationReason(error) !== null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -324,17 +363,24 @@ function readSafeQuickAuthToken(value: unknown): string | undefined {
 }
 
 function readAccessRequestSecurity(
-  value: AccessRequestAuthentication
+  value: AccessRequestAuthentication,
+  expectedFid: unknown
 ): Readonly<{
   credentials: RequestCredentials;
   authorization?: string;
+  expectedFid: string;
 }> | undefined {
+  if (!isSafeFid(expectedFid)) return undefined;
+  const canonicalExpectedFid = String(expectedFid);
   if (!isRecord(value)) return undefined;
   if (
     value.mode === 'pending-session'
     && hasOnlyAllowedKeys(value, ['mode'])
   ) {
-    return Object.freeze({ credentials: 'include' });
+    return Object.freeze({
+      credentials: 'include',
+      expectedFid: canonicalExpectedFid
+    });
   }
   if (
     value.mode === 'quick-auth'
@@ -344,7 +390,8 @@ function readAccessRequestSecurity(
     if (!token) return undefined;
     return Object.freeze({
       credentials: 'omit',
-      authorization: token
+      authorization: token,
+      expectedFid: canonicalExpectedFid
     });
   }
   return undefined;
@@ -525,7 +572,9 @@ async function postJson(
   requestSecurity: Readonly<{
     credentials: RequestCredentials;
     authorization?: string;
-  }> = Object.freeze({ credentials: 'include' })
+    expectedFid?: string;
+  }> = Object.freeze({ credentials: 'include' }),
+  definitiveNoMutationResponses?: ReadonlyMap<number, ReadonlySet<string>>
 ) {
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -548,7 +597,10 @@ async function postJson(
         'content-type': 'application/json',
         ...(requestSecurity.authorization === undefined
           ? {}
-          : { authorization: `Bearer ${requestSecurity.authorization}` })
+          : { authorization: `Bearer ${requestSecurity.authorization}` }),
+        ...(requestSecurity.expectedFid === undefined
+          ? {}
+          : { [ACCESS_EXPECTED_FID_HEADER]: requestSecurity.expectedFid })
       },
       body: JSON.stringify(body)
     });
@@ -557,24 +609,42 @@ async function postJson(
     }
     if (!response.ok) {
       let retryable = false;
+      let definitiveNoMutation = false;
+      let definitiveNoMutationReason: AccessRequestNoMutationReason | null = null;
+      const definitiveCodes = definitiveNoMutationResponses?.get(response.status);
       if (
-        response.status === 503
-        && retryableErrorCodes
+        (
+          (response.status === 503 && retryableErrorCodes)
+          || definitiveCodes !== undefined
+        )
         && hasJsonContentType(response)
       ) {
         const responseText = await readBoundedResponseText(response, controller.signal);
         try {
-          retryable = isRetryableBridgeErrorEnvelope(
-            JSON.parse(responseText) as unknown,
-            retryableErrorCodes
-          );
+          const parsed = JSON.parse(responseText) as unknown;
+          retryable = response.status === 503
+            && retryableErrorCodes !== undefined
+            && isRetryableBridgeErrorEnvelope(parsed, retryableErrorCodes);
+          definitiveNoMutation = definitiveCodes !== undefined
+            && isRetryableBridgeErrorEnvelope(parsed, definitiveCodes);
+          if (definitiveNoMutation) {
+            definitiveNoMutationReason = response.status === 409
+              ? 'identity-changed'
+              : 'rate-limited';
+          }
         } catch {
           retryable = false;
+          definitiveNoMutation = false;
+          definitiveNoMutationReason = null;
         }
       }
-      throw retryable
-        ? createRetryableExchangeError()
-        : new FarcasterOidcBridgeClientError();
+      if (retryable) throw createRetryableExchangeError();
+      if (definitiveNoMutation && definitiveNoMutationReason) {
+        throw createDefinitiveAccessRequestNoMutationError(
+          definitiveNoMutationReason
+        );
+      }
+      throw new FarcasterOidcBridgeClientError();
     }
     if (!hasJsonContentType(response)) {
       throw new FarcasterOidcBridgeClientError();
@@ -890,9 +960,12 @@ export function createFarcasterOidcBridgeClient(
 
     async getAccessRequestStatus(
       authentication: AccessRequestAuthentication,
-      requestOptions?: FarcasterBridgeRequestOptions
+      requestOptions: FarcasterAccessRequestOptions
     ) {
-      const requestSecurity = readAccessRequestSecurity(authentication);
+      const requestSecurity = readAccessRequestSecurity(
+        authentication,
+        requestOptions?.expectedFid
+      );
       if (!requestSecurity) throw new FarcasterOidcBridgeClientError();
       const result = await postJson(
         fetchImplementation,
@@ -901,7 +974,8 @@ export function createFarcasterOidcBridgeClient(
         requestOptions?.signal,
         BRIDGE_REQUEST_TIMEOUT_MS,
         undefined,
-        requestSecurity
+        requestSecurity,
+        ACCESS_STATUS_IDENTITY_CHANGED_RESPONSES
       );
       const status = readAccessRequestStatus(result);
       if (!status) throw new FarcasterOidcBridgeClientError();
@@ -910,9 +984,12 @@ export function createFarcasterOidcBridgeClient(
 
     async requestAccess(
       authentication: AccessRequestAuthentication,
-      requestOptions?: FarcasterBridgeRequestOptions
+      requestOptions: FarcasterAccessRequestOptions
     ) {
-      const requestSecurity = readAccessRequestSecurity(authentication);
+      const requestSecurity = readAccessRequestSecurity(
+        authentication,
+        requestOptions?.expectedFid
+      );
       if (!requestSecurity) throw new FarcasterOidcBridgeClientError();
       const result = await postJson(
         fetchImplementation,
@@ -921,7 +998,8 @@ export function createFarcasterOidcBridgeClient(
         requestOptions?.signal,
         BRIDGE_REQUEST_TIMEOUT_MS,
         undefined,
-        requestSecurity
+        requestSecurity,
+        DEFINITIVE_ACCESS_REQUEST_NO_MUTATION_CODES
       );
       const status = readAccessRequestStatus(result);
       if (!status) throw new FarcasterOidcBridgeClientError();

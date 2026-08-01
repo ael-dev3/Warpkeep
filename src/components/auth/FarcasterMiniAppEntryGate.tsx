@@ -131,7 +131,8 @@ function launchStatus(
       title: 'ENTER THE REALM',
       message: 'Continue with your Farcaster account',
       busy: false,
-      action: Object.freeze({ label: 'CONTINUE WITH FARCASTER', run: onRetryAuthentication })
+      action: Object.freeze({ label: 'CONTINUE WITH FARCASTER', run: onRetryAuthentication }),
+      secondaryAction: Object.freeze({ label: 'BACK TO MENU', run: onBackToMenu })
     });
   }
   if (authState.phase === 'error' || authState.phase === 'expired') {
@@ -139,7 +140,8 @@ function launchStatus(
       title: 'FARCASTER SIGN-IN UNAVAILABLE',
       message: 'Your identity could not be verified safely. Try again when ready.',
       busy: false,
-      action: Object.freeze({ label: 'TRY AGAIN', run: onRetryAuthentication })
+      action: Object.freeze({ label: 'TRY AGAIN', run: onRetryAuthentication }),
+      secondaryAction: Object.freeze({ label: 'BACK TO MENU', run: onBackToMenu })
     });
   }
   return Object.freeze({

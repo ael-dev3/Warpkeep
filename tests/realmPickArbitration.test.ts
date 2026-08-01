@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   arbitrateRealmPick,
+  REALM_PICK_OVERLAP_DEPTH_TOLERANCE,
+  selectRealmResourceLayerHit,
   type RealmResourcePickKind
 } from '../src/components/realm/realmPickArbitration';
 
@@ -21,8 +23,8 @@ describe('realm scene pick arbitration', () => {
         { workerId: 'worker-1', workerOrdinal: 1, originCastleId: 77, coord: { q: 1, r: 0 }, distance: 2 }
       ],
       resourceHits: [],
-      castleHit: { castleId: 77, coord: { q: 0, r: 0 } },
-      terrainHit: { coord: { q: 2, r: 0 } }
+      castleHit: { castleId: 77, coord: { q: 0, r: 0 }, distance: 2.3 },
+      terrainHit: { coord: { q: 2, r: 0 }, distance: 2.5 }
     })).toEqual({ kind: 'worker', workerId: 'worker-1', workerOrdinal: 1, originCastleId: 77, coord: { q: 1, r: 0 } });
   });
 
@@ -36,7 +38,7 @@ describe('realm scene pick arbitration', () => {
             siteId: `${kind}:static`,
             coord: { q: 3, r: -1 },
             source: 'site',
-            distance: 0.1
+            distance: 2.4
           },
           {
             kind: kind === 'gold-site' ? 'food-site' : 'gold-site',
@@ -53,8 +55,8 @@ describe('realm scene pick arbitration', () => {
             distance: 3
           }
         ],
-        castleHit: { castleId: 77, coord: { q: 0, r: 0 } },
-        terrainHit: { coord: { q: 1, r: 0 } }
+        castleHit: { castleId: 77, coord: { q: 0, r: 0 }, distance: 3.1 },
+        terrainHit: { coord: { q: 1, r: 0 }, distance: 3.2 }
       })).toEqual({
         kind,
         siteId: `${kind}:wagon`,
@@ -75,8 +77,8 @@ describe('realm scene pick arbitration', () => {
           source: 'site',
           distance: 0.01
         }],
-        castleHit: { castleId: 91, coord: { q: 0, r: 0 } },
-        terrainHit: { coord: { q: 0, r: 0 } }
+        castleHit: { castleId: 91, coord: { q: 0, r: 0 }, distance: 0.5 },
+        terrainHit: { coord: { q: 0, r: 0 }, distance: 0.6 }
       })).toEqual({ kind: 'castle', castleId: 91, coord: { q: 0, r: 0 } });
     }
   );
@@ -90,7 +92,7 @@ describe('realm scene pick arbitration', () => {
         source: 'site' as const,
         distance: 9 - index
       })),
-      terrainHit: { coord: { q: 0, r: 0 } }
+      terrainHit: { coord: { q: 0, r: 0 }, distance: 6.4 }
     })).toEqual({
       kind: 'stone-site',
       siteId: 'stone-site:3',
@@ -102,7 +104,7 @@ describe('realm scene pick arbitration', () => {
   it('falls through to terrain only when no foreground target exists', () => {
     expect(arbitrateRealmPick({
       resourceHits: [],
-      terrainHit: { coord: { q: -2, r: 1 } }
+      terrainHit: { coord: { q: -2, r: 1 }, distance: 1 }
     })).toEqual({ kind: 'terrain', coord: { q: -2, r: 1 } });
   });
 
@@ -116,7 +118,7 @@ describe('realm scene pick arbitration', () => {
         coord: { q: 2, r: -1 },
         distance: 8
       },
-      terrainHit: { coord: { q: 2, r: -1 } }
+      terrainHit: { coord: { q: 2, r: -1 }, distance: 8.2 }
     })).toEqual({
       kind: 'water-cell',
       cellKey: 'genesis-001:river:01:0001',
@@ -140,10 +142,68 @@ describe('realm scene pick arbitration', () => {
         distance: 1
       }
     })).toEqual({
-      kind: 'gold-site',
-      siteId: 'gold-1',
-      coord: { q: 2, r: -1 },
+      kind: 'water-cell',
+      cellKey: 'ocean:1',
+      bodyId: 'genesis-001:ocean',
+      regime: 'ocean',
+      coord: { q: 2, r: -1 }
+    });
+  });
+
+  it('does not let distant gameplay-priority colliders win through nearer features', () => {
+    expect(arbitrateRealmPick({
+      workerHits: [{
+        workerId: 'worker-behind',
+        workerOrdinal: 1,
+        originCastleId: 77,
+        coord: { q: 4, r: 0 },
+        distance: 7
+      }],
+      resourceHits: [{
+        kind: 'wood-site',
+        siteId: 'wood-front',
+        coord: { q: 1, r: 0 },
+        source: 'site',
+        distance: 2
+      }],
+      castleHit: { castleId: 77, coord: { q: 0, r: 0 }, distance: 6 },
+      terrainHit: { coord: { q: 1, r: 0 }, distance: 2.2 }
+    })).toEqual({
+      kind: 'wood-site',
+      siteId: 'wood-front',
+      coord: { q: 1, r: 0 },
       source: 'site'
     });
+
+    expect(arbitrateRealmPick({
+      resourceHits: [{
+        kind: 'stone-site',
+        siteId: 'stone-behind-ridge',
+        coord: { q: 3, r: -1 },
+        source: 'wagon',
+        distance: 4
+      }],
+      terrainHit: { coord: { q: 1, r: 0 }, distance: 1 }
+    })).toEqual({ kind: 'terrain', coord: { q: 1, r: 0 } });
+  });
+
+  it('retains gameplay priority at the overlap boundary only', () => {
+    const site = {
+      kind: 'gold-site' as const,
+      siteId: 'site',
+      coord: { q: 1, r: 0 },
+      source: 'site' as const,
+      distance: 3
+    };
+    const overlappingWagon = {
+      ...site,
+      source: 'wagon' as const,
+      distance: 3 + REALM_PICK_OVERLAP_DEPTH_TOLERANCE
+    };
+    expect(selectRealmResourceLayerHit(site, overlappingWagon)?.source).toBe('wagon');
+    expect(selectRealmResourceLayerHit(site, {
+      ...overlappingWagon,
+      distance: overlappingWagon.distance + 0.000_001
+    })?.source).toBe('site');
   });
 });

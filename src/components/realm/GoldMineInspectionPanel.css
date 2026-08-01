@@ -1,10 +1,10 @@
 .gold-mine-inspection {
   position: absolute;
   z-index: 9;
-  top: max(0.8rem, env(safe-area-inset-top));
-  right: max(0.8rem, env(safe-area-inset-right));
+  top: max(0.8rem, var(--realm-safe-top, env(safe-area-inset-top)));
+  right: max(0.8rem, var(--realm-safe-right, env(safe-area-inset-right)));
   width: min(21.5rem, calc(100vw - 1.6rem));
-  max-height: calc(100svh - 1.6rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  max-height: calc(100svh - 1.6rem - var(--realm-safe-top, env(safe-area-inset-top)) - var(--realm-safe-bottom, env(safe-area-inset-bottom)));
   padding-top: clamp(4.45rem, 13vw, 5.6rem);
   color: #fff7e5;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
@@ -141,7 +141,7 @@
 }
 
 .gold-mine-inspection__body {
-  max-height: calc(100svh - 15.5rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  max-height: calc(100svh - 15.5rem - var(--realm-safe-top, env(safe-area-inset-top)) - var(--realm-safe-bottom, env(safe-area-inset-bottom)));
   padding: 0.78rem 0.82rem 0.82rem;
   overflow-x: hidden;
   overflow-y: auto;
@@ -258,9 +258,9 @@
 @media (max-width: 760px) {
   .gold-mine-inspection {
     top: auto;
-    right: max(0.55rem, env(safe-area-inset-right));
-    bottom: max(0.55rem, env(safe-area-inset-bottom));
-    left: max(0.55rem, env(safe-area-inset-left));
+    right: max(0.55rem, var(--realm-safe-right, env(safe-area-inset-right)));
+    bottom: max(0.55rem, var(--realm-safe-bottom, env(safe-area-inset-bottom)));
+    left: max(0.55rem, var(--realm-safe-left, env(safe-area-inset-left)));
     width: auto;
     max-height: min(78svh, 36rem);
     padding-top: 4.2rem;
@@ -288,9 +288,9 @@
 
 @media (max-height: 600px) and (min-width: 581px) {
   .gold-mine-inspection {
-    top: max(0.45rem, env(safe-area-inset-top));
-    right: max(0.55rem, env(safe-area-inset-right));
-    bottom: max(0.45rem, env(safe-area-inset-bottom));
+    top: max(0.45rem, var(--realm-safe-top, env(safe-area-inset-top)));
+    right: max(0.55rem, var(--realm-safe-right, env(safe-area-inset-right)));
+    bottom: max(0.45rem, var(--realm-safe-bottom, env(safe-area-inset-bottom)));
     left: auto;
     width: min(19.5rem, 43vw);
     max-height: none;
@@ -312,7 +312,7 @@
   }
 
   .gold-mine-inspection__body {
-    max-height: calc(100svh - 11rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    max-height: calc(100svh - 11rem - var(--realm-safe-top, env(safe-area-inset-top)) - var(--realm-safe-bottom, env(safe-area-inset-bottom)));
   }
 
   .gold-mine-inspection__title-lockup h2 {

@@ -66,6 +66,8 @@ export interface WorkerEnv {
   QA_OBSERVER_OIDC_AUDIENCE?: string
   /** Emergency public-auth kill switch. Trust coordinates remain immutable. */
   PUBLIC_AUTH_ENABLED?: string
+  /** Staged rollout gate for rejecting cached access clients without FID correlation. */
+  ACCESS_EXPECTED_FID_REQUIRED?: string
   /** Independent fail-closed gate for the machine-bound read-only QA observer. */
   QA_OBSERVER_ENABLED?: string
   /** One registered public P-256 JWK. The corresponding private key stays on the QA Mac. */
@@ -228,6 +230,8 @@ export interface AccessRequestResolver {
   submit(fid: string): Promise<AccessRequestResolution>
 }
 
+export type AccessRequestOperation = 'status' | 'submit'
+
 export type RateLimitAction =
   | 'challenge'
   | 'exchange'
@@ -300,6 +304,7 @@ export interface AccessRequestResolverTokenClaims {
   token_type: 'spacetime-access'
   roles: ['warpkeep-access-request-resolver']
   request_fid: string
+  request_operation: AccessRequestOperation
   iat: number
   nbf: number
   exp: number

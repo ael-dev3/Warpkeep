@@ -63,6 +63,7 @@ const CONFIG: BridgeConfig = {
   spacetimeDbUri: 'https://maincloud.spacetimedb.com',
   spacetimeDbDatabase: 'warpkeep-test',
   publicAuthEnabled: true,
+  accessExpectedFidRequired: false,
   qaObserverEnabled: false,
   environment: 'production',
 }
@@ -479,6 +480,8 @@ describe('auth bridge production bindings in workerd', () => {
     expect(bearerPreflight.status).toBe(204)
     expect(bearerPreflight.headers.get('access-control-allow-origin'))
       .toBe(QUICK_AUTH_ORIGIN)
+    expect(bearerPreflight.headers.get('access-control-allow-headers'))
+      .toBe('authorization, content-type, x-warpkeep-expected-fid')
     expect(bearerPreflight.headers.has('access-control-allow-credentials')).toBe(false)
 
     const sessionPreflight = await harness().app.fetch(new Request(
@@ -494,6 +497,8 @@ describe('auth bridge production bindings in workerd', () => {
     ), bridgeEnv)
     expect(sessionPreflight.status).toBe(204)
     expect(sessionPreflight.headers.get('access-control-allow-origin')).toBe(ORIGIN)
+    expect(sessionPreflight.headers.get('access-control-allow-headers'))
+      .toBe('content-type, x-warpkeep-expected-fid')
     expect(sessionPreflight.headers.get('access-control-allow-credentials')).toBe('true')
 
     const check = vi.fn(async (_request: Request, _action: string) => ({

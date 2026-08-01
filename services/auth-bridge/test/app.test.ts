@@ -216,6 +216,9 @@ function accessBearerRequest(
   if (!headers.has('authorization')) {
     headers.set('authorization', `Bearer ${QUICK_AUTH_TOKEN}`)
   }
+  if (!headers.has('x-warpkeep-expected-fid')) {
+    headers.set('x-warpkeep-expected-fid', FID)
+  }
   return request(path, body, { ...init, headers })
 }
 
@@ -1335,6 +1338,7 @@ describe('Warpkeep auth bridge', () => {
       accessRequestStatusProcedure: 'access_request_get_status_v1',
       accessRequestSubmitProcedure: 'access_request_submit_v1',
       publicAuthEnabled: true,
+      accessExpectedFidRequired: false,
       qaObserverEnabled: false,
       qaObserverSpacetimeDbUri: null,
       qaObserverSpacetimeDbDatabase: null,
@@ -1357,6 +1361,7 @@ describe('Warpkeep auth bridge', () => {
       spacetimeDbUri: 'https://maincloud.spacetimedb.com',
       spacetimeDbDatabase: PRODUCTION_SPACETIMEDB_DATABASE,
       publicAuthEnabled: true,
+      accessExpectedFidRequired: false,
       qaObserverEnabled: false,
       qaObserverSpacetimeDbUri: null,
       qaObserverSpacetimeDbDatabase: null,
@@ -1405,6 +1410,11 @@ describe('Warpkeep auth bridge', () => {
     const paused = await json(await call({ PUBLIC_AUTH_ENABLED: 'false' }))
     expect(paused.digest).not.toBe(reviewedDigest)
     expect(paused.publicAuthEnabled).toBe(false)
+    const strictAccessCorrelation = await json(await call({
+      ACCESS_EXPECTED_FID_REQUIRED: 'true',
+    }))
+    expect(strictAccessCorrelation.digest).not.toBe(reviewedDigest)
+    expect(strictAccessCorrelation.accessExpectedFidRequired).toBe(true)
     const rpcDrift = await json(await call({
       FARCASTER_RPC_URL_SECONDARY: 'https://optimism-rpc-three.example.org',
     }))
@@ -1768,6 +1778,29 @@ describe('Warpkeep auth bridge', () => {
     const response = await h.app.fetch(request('/healthz'), env({ ADMIN_TOKEN_SECRET: 'too-short' }))
     expect(response.status).toBe(503)
     await expect(response.json()).resolves.toMatchObject({ error: { code: 'service_misconfigured' } })
+  })
+
+  it('defaults staged access correlation off and accepts only exact boolean overrides', async () => {
+    const h = harness()
+    expect((await h.app.fetch(request('/healthz'), env({
+      ACCESS_EXPECTED_FID_REQUIRED: undefined,
+    }))).status).toBe(200)
+    expect((await h.app.fetch(request('/healthz'), env({
+      ACCESS_EXPECTED_FID_REQUIRED: 'true',
+    }))).status).toBe(200)
+    expect((await h.app.fetch(request('/healthz'), env({
+      ACCESS_EXPECTED_FID_REQUIRED: 'false',
+    }))).status).toBe(200)
+
+    for (const value of ['', 'TRUE', '1', 'false ']) {
+      const response = await h.app.fetch(request('/healthz'), env({
+        ACCESS_EXPECTED_FID_REQUIRED: value,
+      }))
+      expect(response.status).toBe(503)
+      await expect(response.json()).resolves.toMatchObject({
+        error: { code: 'service_misconfigured' },
+      })
+    }
   })
 
   it('fails closed when the session-cookie HMAC key is missing, short, or reused implicitly', async () => {
@@ -2337,6 +2370,37 @@ describe('Warpkeep auth bridge', () => {
       expect(h.events).toContain('access_request_succeeded')
     })
 
+    it('keeps a legacy headerless client available while correlation is staged', async () => {
+      const getStatus = vi.fn(async () => ({ status: 'not-requested' } as const))
+      const h = harness({
+        epoch: 0,
+        accessRequestResolver: {
+          getStatus,
+          submit: vi.fn(async () => ({ status: 'already-admitted' } as const)),
+        },
+      })
+      const response = await h.app.fetch(request(
+        ACCESS_STATUS_PATH,
+        {},
+        {
+          headers: {
+            origin: QUICK_AUTH_ORIGIN,
+            authorization: `Bearer ${QUICK_AUTH_TOKEN}`,
+          },
+        },
+      ), env({ ACCESS_EXPECTED_FID_REQUIRED: undefined }))
+
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toEqual({
+        version: 1,
+        status: 'not-requested',
+      })
+      expect(h.quickAuthVerifier.verifyJwt).toHaveBeenCalledOnce()
+      expect(h.resolver.resolve).toHaveBeenCalledOnce()
+      expect(getStatus).toHaveBeenCalledOnce()
+      expect(getStatus).toHaveBeenCalledWith(FID)
+    })
+
     it('enforces the reviewed Quick Auth issuer-lifetime boundary before access authority', async () => {
       const nowSeconds = 1_800_000_000
       const payload = (lifetimeSeconds: number) => ({
@@ -2396,6 +2460,37 @@ describe('Warpkeep auth bridge', () => {
       expect(rejectedGetStatus).not.toHaveBeenCalled()
     })
 
+    it('rejects Quick Auth identity drift before admission or request resolution', async () => {
+      const getStatus = vi.fn(async () => ({ status: 'not-requested' } as const))
+      const submit = vi.fn(async () => ({
+        status: 'requested',
+        requestedAtMicros: 1_785_414_896_000_000,
+      } as const))
+      const h = harness({
+        epoch: 0,
+        accessRequestResolver: { getStatus, submit },
+      })
+      const response = await h.app.fetch(accessBearerRequest(
+        ACCESS_REQUEST_PATH,
+        {},
+        { headers: { 'x-warpkeep-expected-fid': '54321' } },
+      ), env())
+
+      expect(response.status).toBe(409)
+      await expect(response.json()).resolves.toEqual({
+        error: {
+          code: 'access_identity_changed',
+          message: 'The authenticated identity changed. Refresh and try again.',
+        },
+      })
+      expect(h.quickAuthVerifier.verifyJwt).toHaveBeenCalledOnce()
+      expect(h.resolver.resolve).not.toHaveBeenCalled()
+      expect(getStatus).not.toHaveBeenCalled()
+      expect(submit).not.toHaveBeenCalled()
+      expect(JSON.stringify(h.events)).not.toContain(FID)
+      expect(JSON.stringify(h.events)).not.toContain('54321')
+    })
+
     it('accepts a valid pending family without rotating its generation or cookie', async () => {
       const backing = new MemorySessionFamilyStore()
       const refresh = vi.fn((
@@ -2438,7 +2533,13 @@ describe('Warpkeep auth bridge', () => {
       const statusResponse = await h.app.fetch(request(
         ACCESS_STATUS_PATH,
         {},
-        { headers: { origin: ORIGIN, cookie } },
+        {
+          headers: {
+            origin: ORIGIN,
+            cookie,
+            'x-warpkeep-expected-fid': FID,
+          },
+        },
       ), env())
 
       expect(statusResponse.status).toBe(200)
@@ -2455,6 +2556,64 @@ describe('Warpkeep auth bridge', () => {
       expect(revoke).not.toHaveBeenCalled()
       await expect(backing.get(familyId!)).resolves.toEqual(before)
       expect(h.quickAuthVerifier.verifyJwt).not.toHaveBeenCalled()
+    })
+
+    it('rejects a replaced pending-session cookie before reading another FID request', async () => {
+      const secondFid = '54321'
+      const verifier = {
+        verify: vi.fn()
+          .mockResolvedValueOnce({ fid: FID })
+          .mockResolvedValueOnce({ fid: secondFid }),
+      }
+      const getStatus = vi.fn(async () => ({ status: 'not-requested' } as const))
+      const submit = vi.fn(async () => ({ status: 'already-admitted' } as const))
+      const h = harness({
+        epoch: 0,
+        verifier,
+        accessRequestResolver: { getStatus, submit },
+      })
+
+      const firstChallenge = await issueChallenge(h)
+      const firstExchange = await h.app.fetch(request(
+        '/v2/farcaster/exchange',
+        proofFor(firstChallenge),
+        { headers: { origin: ORIGIN } },
+      ), env())
+      expect(firstExchange.status).toBe(200)
+
+      const secondChallenge = await issueChallenge(h)
+      const secondExchange = await h.app.fetch(request(
+        '/v2/farcaster/exchange',
+        proofFor(secondChallenge, {
+          fid: secondFid,
+          identity: { fid: secondFid },
+        }),
+        { headers: { origin: ORIGIN } },
+      ), env())
+      expect(secondExchange.status).toBe(200)
+      h.resolver.resolve.mockClear()
+
+      const response = await h.app.fetch(request(
+        ACCESS_STATUS_PATH,
+        {},
+        {
+          headers: {
+            origin: ORIGIN,
+            cookie: responseCookie(secondExchange),
+            'x-warpkeep-expected-fid': FID,
+          },
+        },
+      ), env())
+
+      expect(response.status).toBe(409)
+      await expect(response.json()).resolves.toMatchObject({
+        error: { code: 'access_identity_changed' },
+      })
+      expect(h.resolver.resolve).not.toHaveBeenCalled()
+      expect(getStatus).not.toHaveBeenCalled()
+      expect(submit).not.toHaveBeenCalled()
+      expect(JSON.stringify(h.events)).not.toContain(FID)
+      expect(JSON.stringify(h.events)).not.toContain(secondFid)
     })
 
     it('accepts a freshly proven disabled pending family without minting gameplay authority', async () => {
@@ -2496,6 +2655,7 @@ describe('Warpkeep auth bridge', () => {
           headers: {
             origin: ORIGIN,
             cookie: responseCookie(exchange),
+            'x-warpkeep-expected-fid': FID,
           },
         },
       ), env())
@@ -2578,6 +2738,7 @@ describe('Warpkeep auth bridge', () => {
           headers: {
             origin: ORIGIN,
             cookie: disabledCookie,
+            'x-warpkeep-expected-fid': FID,
           },
         },
       ), env())
@@ -2607,6 +2768,7 @@ describe('Warpkeep auth bridge', () => {
           headers: {
             origin: ORIGIN,
             cookie: driftCookie,
+            'x-warpkeep-expected-fid': FID,
           },
         },
       ), env())
@@ -2620,6 +2782,31 @@ describe('Warpkeep auth bridge', () => {
 
     it('rejects caller FIDs, queries, mixed credentials, and malformed bearers before identity work', async () => {
       const h = harness({ epoch: 0 })
+      const missingCorrelation = await h.app.fetch(request(
+        ACCESS_STATUS_PATH,
+        {},
+        {
+          headers: {
+            origin: QUICK_AUTH_ORIGIN,
+            authorization: `Bearer ${QUICK_AUTH_TOKEN}`,
+          },
+        },
+      ), env({ ACCESS_EXPECTED_FID_REQUIRED: 'true' }))
+      expect(missingCorrelation.status).toBe(400)
+      await expect(missingCorrelation.json()).resolves.toMatchObject({
+        error: { code: 'access_expected_fid_required' },
+      })
+
+      const malformedCorrelation = await h.app.fetch(accessBearerRequest(
+        ACCESS_STATUS_PATH,
+        {},
+        { headers: { 'x-warpkeep-expected-fid': `0${FID}` } },
+      ), env())
+      expect(malformedCorrelation.status).toBe(400)
+      await expect(malformedCorrelation.json()).resolves.toMatchObject({
+        error: { code: 'access_expected_fid_invalid' },
+      })
+
       const callerFid = await h.app.fetch(accessBearerRequest(
         ACCESS_REQUEST_PATH,
         { fid: Number(FID) },
@@ -2677,7 +2864,7 @@ describe('Warpkeep auth bridge', () => {
           headers: {
             origin: QUICK_AUTH_ORIGIN,
             'access-control-request-method': 'POST',
-            'access-control-request-headers': 'Authorization, Content-Type',
+            'access-control-request-headers': 'Authorization, Content-Type, X-Warpkeep-Expected-Fid',
           },
         },
       ), env())
@@ -2685,7 +2872,7 @@ describe('Warpkeep auth bridge', () => {
       expect(bearerPreflight.headers.get('access-control-allow-origin'))
         .toBe(QUICK_AUTH_ORIGIN)
       expect(bearerPreflight.headers.get('access-control-allow-headers'))
-        .toBe('authorization, content-type')
+        .toBe('authorization, content-type, x-warpkeep-expected-fid')
       expect(bearerPreflight.headers.has('access-control-allow-credentials'))
         .toBe(false)
 
@@ -2697,16 +2884,49 @@ describe('Warpkeep auth bridge', () => {
           headers: {
             origin: ORIGIN,
             'access-control-request-method': 'POST',
-            'access-control-request-headers': 'Content-Type',
+            'access-control-request-headers': 'Content-Type, X-Warpkeep-Expected-Fid',
           },
         },
       ), env())
       expect(sessionPreflight.status).toBe(204)
       expect(sessionPreflight.headers.get('access-control-allow-origin')).toBe(ORIGIN)
       expect(sessionPreflight.headers.get('access-control-allow-headers'))
-        .toBe('content-type')
+        .toBe('content-type, x-warpkeep-expected-fid')
       expect(sessionPreflight.headers.get('access-control-allow-credentials'))
         .toBe('true')
+
+      const stagedLegacyPreflight = await h.app.fetch(request(
+        ACCESS_REQUEST_PATH,
+        undefined,
+        {
+          method: 'OPTIONS',
+          headers: {
+            origin: QUICK_AUTH_ORIGIN,
+            'access-control-request-method': 'POST',
+            'access-control-request-headers': 'Authorization, Content-Type',
+          },
+        },
+      ), env({ ACCESS_EXPECTED_FID_REQUIRED: undefined }))
+      expect(stagedLegacyPreflight.status).toBe(204)
+      expect(stagedLegacyPreflight.headers.get('access-control-allow-headers'))
+        .toBe('authorization, content-type, x-warpkeep-expected-fid')
+
+      const missingCorrelationPreflight = await h.app.fetch(request(
+        ACCESS_REQUEST_PATH,
+        undefined,
+        {
+          method: 'OPTIONS',
+          headers: {
+            origin: QUICK_AUTH_ORIGIN,
+            'access-control-request-method': 'POST',
+            'access-control-request-headers': 'Authorization, Content-Type',
+          },
+        },
+      ), env({ ACCESS_EXPECTED_FID_REQUIRED: 'true' }))
+      expect(missingCorrelationPreflight.status).toBe(403)
+      await expect(missingCorrelationPreflight.json()).resolves.toMatchObject({
+        error: { code: 'header_not_allowed' },
+      })
 
       const hostile = await h.app.fetch(accessBearerRequest(
         ACCESS_STATUS_PATH,
@@ -2795,7 +3015,7 @@ describe('Warpkeep auth bridge', () => {
           headers: {
             origin: QUICK_AUTH_ORIGIN,
             'access-control-request-method': 'POST',
-            'access-control-request-headers': 'Authorization, Content-Type',
+            'access-control-request-headers': 'Authorization, Content-Type, X-Warpkeep-Expected-Fid',
           },
         },
       ), env({ PUBLIC_AUTH_ENABLED: 'false' }))
@@ -2806,7 +3026,7 @@ describe('Warpkeep auth bridge', () => {
       expect(pausedBearerPreflight.headers.get('access-control-allow-origin'))
         .toBe(QUICK_AUTH_ORIGIN)
       expect(pausedBearerPreflight.headers.get('access-control-allow-headers'))
-        .toBe('authorization, content-type')
+        .toBe('authorization, content-type, x-warpkeep-expected-fid')
       expect(pausedBearerPreflight.headers.has('access-control-allow-credentials'))
         .toBe(false)
       expect(paused.quickAuthVerifier.verifyJwt).not.toHaveBeenCalled()

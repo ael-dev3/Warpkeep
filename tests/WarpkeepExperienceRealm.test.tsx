@@ -555,6 +555,52 @@ afterEach(() => {
 });
 
 describe('Warpkeep Farcaster Mini App direct entry', () => {
+  it('blocks an unverified regular-web frame before any realm interaction', () => {
+    renderExperience({
+      miniApp: {
+        runtime: {
+          ...miniAppRuntime(),
+          search: () => '',
+          isFramed: () => true
+        },
+        sdk: miniAppSdk(false)
+      }
+    });
+
+    expect(screen.getByRole('heading', {
+      name: 'OPEN WARPKEEP DIRECTLY'
+    })).not.toBeNull();
+    expect(screen.getByRole('link', { name: 'OPEN WARPKEEP' })
+      .getAttribute('target')).toBe('_top');
+    expect(screen.queryByRole('button', { name: 'ENTER REALM' })).toBeNull();
+  });
+
+  it('does not let a failed framed host fall through to the ordinary menu', async () => {
+    const sdk = {
+      ...miniAppSdk(),
+      isInMiniApp: vi.fn(async () => {
+        throw new Error('private host failure');
+      })
+    };
+    renderExperience({
+      miniApp: {
+        runtime: {
+          ...miniAppRuntime(),
+          search: () => '?miniApp=true',
+          isFramed: () => true
+        },
+        sdk
+      }
+    });
+
+    await settle();
+    expect(screen.getByRole('heading', {
+      name: 'OPEN WARPKEEP DIRECTLY'
+    })).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'BACK TO MENU' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'ENTER REALM' })).toBeNull();
+  });
+
   it('never treats the query hint or a forged history marker as host or Realm authority', async () => {
     window.history.replaceState(
       { warpkeepRealm: true, warpkeepDirectRealm: true },

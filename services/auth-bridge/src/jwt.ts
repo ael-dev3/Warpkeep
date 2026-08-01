@@ -1,4 +1,5 @@
 import type {
+  AccessRequestOperation,
   AccessRequestResolverTokenClaims,
   AdminTokenClaims,
   AuthEpochResolverTokenClaims,
@@ -147,6 +148,7 @@ export function accessRequestResolverClaims(
   issuer: string,
   audience: string,
   requestFid: string,
+  requestOperation: AccessRequestOperation,
   nowSeconds: number,
 ): AccessRequestResolverTokenClaims {
   return {
@@ -156,6 +158,7 @@ export function accessRequestResolverClaims(
     token_type: 'spacetime-access',
     roles: ['warpkeep-access-request-resolver'],
     request_fid: requestFid,
+    request_operation: requestOperation,
     iat: nowSeconds,
     nbf: nowSeconds,
     exp: nowSeconds + INTERNAL_ACCESS_REQUEST_RESOLVER_TOKEN_TTL_SECONDS,

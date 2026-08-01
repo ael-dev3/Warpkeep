@@ -1348,6 +1348,33 @@ export function WarpkeepExperience() {
       )
     : undefined;
 
+  if (
+    miniAppHost.isFramed
+    && (
+      miniAppHost.state === 'regular-web'
+      || miniAppHost.state === 'recovery'
+    )
+  ) {
+    return (
+      <main className="warpkeep-frame-boundary" role="alert">
+        <section
+          aria-labelledby="warpkeep-frame-boundary-title"
+          className="warpkeep-frame-boundary__panel"
+        >
+          <p className="warpkeep-frame-boundary__eyebrow">SECURE REALM ENTRY</p>
+          <h1 id="warpkeep-frame-boundary-title">OPEN WARPKEEP DIRECTLY</h1>
+          <p>
+            This embedded page is not a verified Farcaster Mini App. Open the
+            Realm directly before signing in or issuing commands.
+          </p>
+          <a href="https://warpkeep.com/" target="_top">
+            OPEN WARPKEEP
+          </a>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <div
       className="warpkeep-experience"

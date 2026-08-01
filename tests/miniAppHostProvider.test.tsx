@@ -157,6 +157,23 @@ describe('Farcaster Mini App host provider', () => {
     }
   });
 
+  it('reports a framed regular-web surface without treating it as a Mini App', () => {
+    let latest: MiniAppHostValue | undefined;
+    const loader = vi.fn(async () => fakeSdk().sdk);
+    render(
+      <Harness
+        runtime={{ ...runtimeFor(''), isFramed: () => true }}
+        sdkLoader={loader}
+        capture={(value) => { latest = value; }}
+      />
+    );
+
+    expect(latest?.state).toBe('regular-web');
+    expect(latest?.isMiniApp).toBe(false);
+    expect(latest?.isFramed).toBe(true);
+    expect(loader).not.toHaveBeenCalled();
+  });
+
   it('requires isInMiniApp proof before reading context or calling ready', async () => {
     let contextRead = false;
     const { sdk } = fakeSdk({
@@ -183,6 +200,9 @@ describe('Farcaster Mini App host provider', () => {
     expect(latest?.retry()).toBe(false);
     expect(contextRead).toBe(false);
     expect(sdk.actions.ready).not.toHaveBeenCalled();
+    expect(document.head.querySelector(
+      '[data-warpkeep-miniapp-quick-auth-preconnect]'
+    )).toBeNull();
   });
 
   it('distinguishes an SDK detection exception from an explicit regular-web result', async () => {
@@ -330,6 +350,63 @@ describe('Farcaster Mini App host provider', () => {
 
     view.unmount();
     expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('never re-reads mutable raw host identity or insets after sanitization', async () => {
+    let viewport = { width: 400, height: 800 };
+    let notifyViewportChange = () => {};
+    const rawContext = validContext();
+    const runtime: MiniAppBrowserRuntime = {
+      ...runtimeFor('?miniApp=true'),
+      viewport: () => viewport,
+      subscribeViewportChange: (listener) => {
+        notifyViewportChange = listener;
+        return () => {};
+      }
+    };
+    const { sdk } = fakeSdk({ context: Promise.resolve(rawContext) });
+    let latest: MiniAppHostValue | undefined;
+
+    render(
+      <Harness
+        runtime={runtime}
+        sdkLoader={async () => sdk}
+        capture={(value) => { latest = value; }}
+      />
+    );
+
+    await waitFor(() => expect(latest?.state).toBe('miniapp'));
+    rawContext.user.fid = 1_000_001;
+    rawContext.user.username = 'spoofed';
+    rawContext.client.safeAreaInsets.top = 0;
+    rawContext.client.safeAreaInsets.left = 0;
+
+    act(() => {
+      viewport = { width: 200, height: 400 };
+      notifyViewportChange();
+    });
+
+    await waitFor(() => {
+      expect(latest?.context?.client.safeAreaInsets.top).toBe(100);
+      expect(latest?.context?.client.safeAreaInsets.left).toBe(50);
+    });
+    expect(latest?.context?.user).toEqual({
+      fid: 539_854,
+      username: '0xael.eth',
+      displayName: 'Ael',
+      pfpUrl: 'https://images.example/ael.png'
+    });
+
+    act(() => {
+      viewport = { width: 800, height: 1_200 };
+      notifyViewportChange();
+    });
+
+    await waitFor(() => {
+      expect(latest?.context?.client.safeAreaInsets.top).toBe(160);
+      expect(latest?.context?.client.safeAreaInsets.left).toBe(160);
+    });
+    expect(latest?.context?.user.fid).toBe(539_854);
   });
 
   it('gates actions, haptics, and back navigation by exact capabilities', async () => {
@@ -572,6 +649,54 @@ describe('Farcaster Mini App host provider', () => {
     expect(document.head.querySelector(
       '[data-warpkeep-miniapp-safe-area]'
     )).toBeNull();
+  });
+
+  it('recovers when the host ready method changes after SDK validation', async () => {
+    const { sdk } = fakeSdk();
+    let readyReads = 0;
+    Object.defineProperty(sdk.actions, 'ready', {
+      configurable: true,
+      get() {
+        readyReads += 1;
+        if (readyReads === 1) return async () => {};
+        throw new Error('private mutable host failure');
+      }
+    });
+    let latest: MiniAppHostValue | undefined;
+
+    render(
+      <Harness
+        runtime={runtimeFor('?miniApp=true')}
+        sdkLoader={async () => sdk}
+        capture={(value) => { latest = value; }}
+      />
+    );
+
+    await waitFor(() => expect(latest?.state).toBe('recovery'));
+    expect(latest?.recoveryReason).toBe('ready-failed');
+  });
+
+  it('ignores a throwing optional Back getter and still opens the Mini App', async () => {
+    const { sdk } = fakeSdk();
+    Object.defineProperty(sdk, 'back', {
+      configurable: true,
+      get() {
+        throw new Error('private optional host failure');
+      }
+    });
+    let latest: MiniAppHostValue | undefined;
+
+    render(
+      <Harness
+        runtime={runtimeFor('?miniApp=true')}
+        sdkLoader={async () => sdk}
+        capture={(value) => { latest = value; }}
+      />
+    );
+
+    await waitFor(() => expect(latest?.state).toBe('miniapp'));
+    expect(latest?.recoveryReason).toBeNull();
+    expect(sdk.actions.ready).toHaveBeenCalledTimes(1);
   });
 
   it('allows a fresh mount to retry after a failed ready attempt', async () => {

@@ -110,6 +110,29 @@ describe('FarcasterMiniAppEntryGate', () => {
     expect(callbacks.onSignOut).not.toHaveBeenCalled();
   });
 
+  it.each([
+    [{ phase: 'anonymous' } as const, 'CONTINUE WITH FARCASTER'],
+    [{
+      phase: 'error',
+      error: { code: 'verification', message: 'Verification failed.' }
+    } as const, 'TRY AGAIN']
+  ])('keeps a menu escape beside the %s launch action', (authState, actionLabel) => {
+    const callbacks = actions();
+    render(
+      <FarcasterMiniAppEntryGate
+        {...callbacks}
+        authState={authState as FarcasterAuthViewState}
+        backendState={backendState('idle')}
+        hostState="miniapp"
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: actionLabel }));
+    fireEvent.click(screen.getByRole('button', { name: 'BACK TO MENU' }));
+    expect(callbacks.onRetryAuthentication).toHaveBeenCalledOnce();
+    expect(callbacks.onBackToMenu).toHaveBeenCalledOnce();
+  });
+
   it('keeps a non-admitted player on the manual access-request step', async () => {
     const callbacks = actions();
     render(

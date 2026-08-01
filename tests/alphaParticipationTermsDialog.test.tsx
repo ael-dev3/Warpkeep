@@ -246,7 +246,10 @@ describe('AlphaParticipationTermsDialog', () => {
 
     expect(css).toContain('min-height: 100svh');
     expect(css).toContain('env(safe-area-inset-top)');
-    expect(css).toContain('max-height: calc(100svh - 2rem)');
+    expect(css).toContain('var(--fc-safe-area-inset-top, 0px)');
+    expect(css).toContain('var(--fc-safe-area-inset-bottom, 0px)');
+    expect(css).toContain('- max(1rem, var(--warpkeep-terms-safe-top))');
+    expect(css).toContain('- max(0.5rem, var(--warpkeep-terms-safe-bottom))');
     expect(css).toContain('overflow-y: auto');
     expect(css).toContain('min-height: 44px');
     expect(css).toContain('@media (max-width: 520px)');

@@ -22,6 +22,7 @@ import type {
   FarcasterAuthViewState,
   FarcasterOidcBridgeClient
 } from './farcasterAuthTypes';
+import { accessRequestNoMutationReason } from './farcasterOidcBridgeClient';
 
 const DEFAULT_MINIMUM_SUBMITTING_MILLISECONDS = 350;
 const DEFAULT_MINIMUM_VERIFYING_MILLISECONDS = 160;
@@ -50,6 +51,7 @@ type AccessRequestControllerOptions = Readonly<{
   minimumVerifyingMilliseconds?: number;
   monotonicNow?: () => number;
   reportDiagnostic?: (event: AccessRequestDiagnosticEvent) => void;
+  onAuthenticationIdentityChanged?: () => void;
 }>;
 
 export type AccessRequestController = Readonly<{
@@ -142,7 +144,8 @@ export function useAccessRequest({
   monotonicNow = () => (
     typeof performance === 'undefined' ? Date.now() : performance.now()
   ),
-  reportDiagnostic = emitAccessRequestDiagnostic
+  reportDiagnostic = emitAccessRequestDiagnostic,
+  onAuthenticationIdentityChanged
 }: AccessRequestControllerOptions): AccessRequestController {
   const [state, setState] = useState<AccessRequestViewState>(
     IDLE_ACCESS_REQUEST_STATE
@@ -158,6 +161,9 @@ export function useAccessRequest({
   const loadQuickAuthTokenRef = useRef(loadQuickAuthToken);
   const monotonicNowRef = useRef(monotonicNow);
   const reportDiagnosticRef = useRef(reportDiagnostic);
+  const onAuthenticationIdentityChangedRef = useRef(
+    onAuthenticationIdentityChanged
+  );
 
   const pendingFid = authState.phase === 'pending-admission'
     ? authState.identity.fid
@@ -174,11 +180,13 @@ export function useAccessRequest({
     loadQuickAuthTokenRef.current = loadQuickAuthToken;
     monotonicNowRef.current = monotonicNow;
     reportDiagnosticRef.current = reportDiagnostic;
+    onAuthenticationIdentityChangedRef.current = onAuthenticationIdentityChanged;
   }, [
     lifecycleKey,
     loadBridgeClient,
     loadQuickAuthToken,
     monotonicNow,
+    onAuthenticationIdentityChanged,
     reportDiagnostic
   ]);
 
@@ -198,6 +206,15 @@ export function useAccessRequest({
       // Diagnostics cannot affect submission or presentation.
     }
   }, []);
+
+  const reconcileAuthenticationIdentity = useCallback(() => {
+    diagnose('request_identity_changed');
+    try {
+      onAuthenticationIdentityChangedRef.current?.();
+    } catch {
+      // Identity reconciliation cannot re-open the sealed request lifecycle.
+    }
+  }, [diagnose]);
 
   const abortActiveOperation = useCallback(() => {
     const active = activeOperationRef.current;
@@ -285,6 +302,7 @@ export function useAccessRequest({
 
   const startStatusRead = useCallback((
     exactLifecycleKey: string,
+    expectedFid: number,
     context: AccessRequestStatusContext,
     kind: Extract<AccessRequestOperationKind, 'initial-status' | 'manual-status'>
   ): AccessRequestOperation | undefined => {
@@ -308,15 +326,20 @@ export function useAccessRequest({
           loadQuickAuthTokenRef.current,
           () => isCurrentOperation(operation),
           authentication => client.getAccessRequestStatus(authentication, {
+            expectedFid,
             signal: operation.controller.signal
           })
         );
         if (!isCurrentOperation(operation)) return;
         applyStatus(operation, context, status);
-      } catch {
+      } catch (error) {
         if (!isCurrentOperation(operation)) return;
         applyEvent(operation, { type: 'status-unavailable', context });
-        diagnose('request_status_unavailable');
+        if (accessRequestNoMutationReason(error) === 'identity-changed') {
+          reconcileAuthenticationIdentity();
+        } else {
+          diagnose('request_status_unavailable');
+        }
       } finally {
         finishOperation(operation);
       }
@@ -328,7 +351,8 @@ export function useAccessRequest({
     beginOperation,
     diagnose,
     finishOperation,
-    isCurrentOperation
+    isCurrentOperation,
+    reconcileAuthenticationIdentity
   ]);
 
   useEffect(() => {
@@ -337,7 +361,7 @@ export function useAccessRequest({
     submissionLockRef.current = undefined;
     duplicateDiagnosticKeyRef.current = undefined;
 
-    if (!lifecycleKey) {
+    if (!lifecycleKey || pendingFid === undefined) {
       stateLifecycleKeyRef.current = undefined;
       stateRef.current = IDLE_ACCESS_REQUEST_STATE;
       setState(IDLE_ACCESS_REQUEST_STATE);
@@ -347,7 +371,12 @@ export function useAccessRequest({
     stateLifecycleKeyRef.current = lifecycleKey;
     stateRef.current = IDLE_ACCESS_REQUEST_STATE;
     setState(IDLE_ACCESS_REQUEST_STATE);
-    const operation = startStatusRead(lifecycleKey, 'initial', 'initial-status');
+    const operation = startStatusRead(
+      lifecycleKey,
+      pendingFid,
+      'initial',
+      'initial-status'
+    );
 
     return () => {
       if (activeOperationRef.current?.lifecycleKey === lifecycleKey) {
@@ -359,7 +388,7 @@ export function useAccessRequest({
       // Do not release the submission lock merely because presentation
       // unmounted or a transport was aborted. A new lifecycle resets it above.
     };
-  }, [abortActiveOperation, lifecycleKey, startStatusRead]);
+  }, [abortActiveOperation, lifecycleKey, pendingFid, startStatusRead]);
 
   const retryStatus = useCallback(() => {
     const exactLifecycleKey = lifecycleKey;
@@ -367,25 +396,29 @@ export function useAccessRequest({
       !exactLifecycleKey
       || currentLifecycleKeyRef.current !== exactLifecycleKey
       || stateLifecycleKeyRef.current !== exactLifecycleKey
+      || pendingFid === undefined
       || stateRef.current.phase !== 'status-unavailable'
     ) return;
     startStatusRead(
       exactLifecycleKey,
+      pendingFid,
       stateRef.current.context,
       'manual-status'
     );
-  }, [lifecycleKey, startStatusRead]);
+  }, [lifecycleKey, pendingFid, startStatusRead]);
 
   const requestAccess = useCallback(() => {
     // Capture the exact lifecycle in this callback. A retained handler from an
     // older identity/generation must not submit for whatever identity happens
     // to be current when that stale callback is invoked.
     const exactLifecycleKey = lifecycleKey;
+    const expectedFid = pendingFid;
     const currentState = stateLifecycleKeyRef.current === exactLifecycleKey
       ? stateRef.current
       : IDLE_ACCESS_REQUEST_STATE;
     if (
       !exactLifecycleKey
+      || expectedFid === undefined
       || currentLifecycleKeyRef.current !== exactLifecycleKey
       || submissionLockRef.current === exactLifecycleKey
       || (
@@ -429,6 +462,7 @@ export function useAccessRequest({
           authentication => {
             mutationInvoked = true;
             return client!.requestAccess(authentication, {
+              expectedFid,
               signal: operation.controller.signal
             });
           }
@@ -454,9 +488,27 @@ export function useAccessRequest({
           diagnose('request_confirmed');
         }
         return;
-      } catch {
+      } catch (error) {
         if (!isCurrentOperation(operation)) return;
-        if (!mutationInvoked) {
+        const noMutationReason = accessRequestNoMutationReason(error);
+        if (noMutationReason === 'identity-changed') {
+          if (!await waitForMinimumPresentation(
+            startedAt,
+            minimumSubmitting,
+            monotonicNowRef.current,
+            operation.controller.signal
+          ) || !isCurrentOperation(operation)) return;
+          applyEvent(operation, {
+            type: 'status-unavailable',
+            context: 'initial'
+          });
+          reconcileAuthenticationIdentity();
+          return;
+        }
+        if (
+          !mutationInvoked
+          || noMutationReason === 'rate-limited'
+        ) {
           if (!await waitForMinimumPresentation(
             startedAt,
             minimumSubmitting,
@@ -480,6 +532,7 @@ export function useAccessRequest({
               loadQuickAuthTokenRef.current,
               () => isCurrentOperation(operation),
               authentication => client!.getAccessRequestStatus(authentication, {
+                expectedFid,
                 signal: operation.controller.signal
               })
             );
@@ -527,7 +580,9 @@ export function useAccessRequest({
     isCurrentOperation,
     lifecycleKey,
     minimumSubmitting,
-    minimumVerifying
+    minimumVerifying,
+    pendingFid,
+    reconcileAuthenticationIdentity
   ]);
 
   const visibleState = lifecycleKey === undefined

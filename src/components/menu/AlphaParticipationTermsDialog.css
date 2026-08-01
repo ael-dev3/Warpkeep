@@ -4,6 +4,10 @@
 }
 
 .warpkeep-alpha-terms {
+  --warpkeep-terms-safe-top: max(env(safe-area-inset-top), var(--fc-safe-area-inset-top, 0px));
+  --warpkeep-terms-safe-right: max(env(safe-area-inset-right), var(--fc-safe-area-inset-right, 0px));
+  --warpkeep-terms-safe-bottom: max(env(safe-area-inset-bottom), var(--fc-safe-area-inset-bottom, 0px));
+  --warpkeep-terms-safe-left: max(env(safe-area-inset-left), var(--fc-safe-area-inset-left, 0px));
   position: fixed;
   inset: 0;
   z-index: 20;
@@ -13,10 +17,10 @@
   overflow: auto;
   place-items: center;
   padding:
-    max(1rem, env(safe-area-inset-top))
-    max(1rem, env(safe-area-inset-right))
-    max(1rem, env(safe-area-inset-bottom))
-    max(1rem, env(safe-area-inset-left));
+    max(1rem, var(--warpkeep-terms-safe-top))
+    max(1rem, var(--warpkeep-terms-safe-right))
+    max(1rem, var(--warpkeep-terms-safe-bottom))
+    max(1rem, var(--warpkeep-terms-safe-left));
   color: #f4dfaa;
   background:
     radial-gradient(circle at 50% 22%, rgba(107, 55, 127, 0.34), transparent 44%),
@@ -28,7 +32,11 @@
 .warpkeep-alpha-terms__panel {
   position: relative;
   width: min(42rem, 100%);
-  max-height: calc(100svh - 2rem);
+  max-height: calc(
+    100svh
+    - max(1rem, var(--warpkeep-terms-safe-top))
+    - max(1rem, var(--warpkeep-terms-safe-bottom))
+  );
   overflow-x: hidden;
   overflow-y: auto;
   padding: clamp(1.35rem, 4vw, 2.5rem);
@@ -209,15 +217,19 @@
   .warpkeep-alpha-terms {
     place-items: center stretch;
     padding:
-      max(0.5rem, env(safe-area-inset-top))
-      max(0.5rem, env(safe-area-inset-right))
-      max(0.5rem, env(safe-area-inset-bottom))
-      max(0.5rem, env(safe-area-inset-left));
+      max(0.5rem, var(--warpkeep-terms-safe-top))
+      max(0.5rem, var(--warpkeep-terms-safe-right))
+      max(0.5rem, var(--warpkeep-terms-safe-bottom))
+      max(0.5rem, var(--warpkeep-terms-safe-left));
   }
 
   .warpkeep-alpha-terms__panel {
     width: 100%;
-    max-height: calc(100svh - 1rem);
+    max-height: calc(
+      100svh
+      - max(0.5rem, var(--warpkeep-terms-safe-top))
+      - max(0.5rem, var(--warpkeep-terms-safe-bottom))
+    );
     padding: 1.15rem;
   }
 

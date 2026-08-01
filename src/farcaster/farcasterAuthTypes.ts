@@ -313,6 +313,14 @@ export type FarcasterBridgeRequestOptions = Readonly<{
   signal?: AbortSignal;
 }>;
 
+export type FarcasterAccessRequestOptions = FarcasterBridgeRequestOptions & Readonly<{
+  /**
+   * Non-authoritative UI correlation. The bridge still derives sole authority
+   * from the signed credential and rejects if this committed FID is stale.
+   */
+  expectedFid: number;
+}>;
+
 /**
  * Private per-request authentication for the access-request bridge routes.
  * Quick Auth material exists only in the controller call stack; presentation
@@ -374,11 +382,11 @@ export interface FarcasterOidcBridgeClient {
   ): Promise<FarcasterBridgeSessionResponse>;
   getAccessRequestStatus(
     authentication: AccessRequestAuthentication,
-    options?: FarcasterBridgeRequestOptions
+    options: FarcasterAccessRequestOptions
   ): Promise<AccessRequestStatus>;
   requestAccess(
     authentication: AccessRequestAuthentication,
-    options?: FarcasterBridgeRequestOptions
+    options: FarcasterAccessRequestOptions
   ): Promise<AccessRequestStatus>;
   logoutSession(options?: FarcasterBridgeRequestOptions): Promise<void>;
 }

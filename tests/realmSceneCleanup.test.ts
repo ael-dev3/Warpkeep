@@ -465,23 +465,20 @@ describe('realm scene setup cleanup', () => {
     animated.dispose();
   });
 
-  it('keeps land-only navigation when its Water layer fails to construct', () => {
+  it('rejects and disposes a scene whose required Water layer cannot construct', () => {
     waterLayerState.failNextCreation = true;
     const canvas = document.createElement('canvas');
-    const scene = createRealmScene(createOptions(canvas, {
+    const onCastlesReady = vi.fn();
+
+    expect(() => createRealmScene(createOptions(canvas, {
       waterCells: GENESIS_WATER_REVISION_ENABLED_CELLS_V1,
-      reducedMotion: true
-    }));
+      reducedMotion: true,
+      onCastlesReady
+    }))).toThrow('synthetic water allocation failure');
     const renderer = webglState.instances[0]!;
-
     expect(canvas.dataset.waterPresentation).toBe('unavailable');
-    expect(canvas.dataset.waterNavigation).toBe('land-only');
-    expect(scene).not.toHaveProperty('focusWaterCell');
-    renderer.render.mockClear();
-    scene.focusCell({ q: 0, r: 0 });
-    expect(renderer.render).toHaveBeenCalled();
-
-    scene.dispose();
+    expect(onCastlesReady).not.toHaveBeenCalled();
+    expect(renderer.dispose).toHaveBeenCalledOnce();
   });
 
   it('renders the procedural environment centred on the active camera', () => {
@@ -2199,7 +2196,8 @@ describe('realm scene setup cleanup', () => {
     expect(ambient.isActive()).toBe(false);
     expect(onRendererFailure).toHaveBeenCalledWith(expect.objectContaining({
       code: 'context-lost',
-      retryable: true
+      retryable: true,
+      phase: 'loading'
     }));
     canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
     expect(canvas.dataset.realmRendererContextLossCount).toBe('1');
@@ -2857,7 +2855,8 @@ describe('realm scene setup cleanup', () => {
       hasPointerCapture: { configurable: true, value: vi.fn(() => true) }
     });
     vi.spyOn(THREE.Raycaster.prototype, 'intersectObject').mockReturnValue([{
-      point: new THREE.Vector3(0, 0, 0)
+      point: new THREE.Vector3(0, 0, 0),
+      distance: 1
     }] as THREE.Intersection[]);
     const onTargetSelect = vi.fn();
     const scene = createRealmScene(createOptions(canvas, { onTargetSelect }));

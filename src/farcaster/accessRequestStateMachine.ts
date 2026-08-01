@@ -141,6 +141,7 @@ export type AccessRequestDiagnosticEvent =
   | 'request_ambiguous'
   | 'request_reconciled_existing'
   | 'request_definitive_failure'
+  | 'request_identity_changed'
   | 'request_status_unavailable'
   | 'duplicate_client_activation_suppressed';
 

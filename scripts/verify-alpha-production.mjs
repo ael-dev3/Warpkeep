@@ -471,7 +471,12 @@ function exactCommaHeader(response, name, expected) {
     && new Set(values).size === values.length;
 }
 
-function verifyExactCredentialedCors(response, frontend, label) {
+function verifyExactCredentialedCors(
+  response,
+  frontend,
+  label,
+  expectedAllowedHeaders = ['content-type'],
+) {
   const corsHeaders = [...response.headers.keys()]
     .filter(name => name.startsWith('access-control-'));
   if (
@@ -480,7 +485,7 @@ function verifyExactCredentialedCors(response, frontend, label) {
     || response.headers.get('access-control-allow-origin') !== frontend
     || response.headers.get('access-control-allow-credentials') !== 'true'
     || !exactCommaHeader(response, 'access-control-allow-methods', ['POST', 'OPTIONS'])
-    || !exactCommaHeader(response, 'access-control-allow-headers', ['content-type'])
+    || !exactCommaHeader(response, 'access-control-allow-headers', expectedAllowedHeaders)
     || response.headers.get('access-control-max-age') !== '600'
     || !exactCommaHeader(response, 'vary', ['Origin'])
   ) {
@@ -488,7 +493,12 @@ function verifyExactCredentialedCors(response, frontend, label) {
   }
 }
 
-function verifyExactQuickAuthCors(response, frontend, label) {
+function verifyExactQuickAuthCors(
+  response,
+  frontend,
+  label,
+  expectedAllowedHeaders = ['authorization', 'content-type'],
+) {
   const corsHeaders = [...response.headers.keys()]
     .filter(name => name.startsWith('access-control-'));
   if (
@@ -500,7 +510,7 @@ function verifyExactQuickAuthCors(response, frontend, label) {
     || !exactCommaHeader(
       response,
       'access-control-allow-headers',
-      ['authorization', 'content-type'],
+      expectedAllowedHeaders,
     )
     || response.headers.get('access-control-max-age') !== '600'
     || !exactCommaHeader(response, 'vary', ['Origin'])
@@ -993,6 +1003,10 @@ async function verifyAuthV2Preflight(
   expectedPublicAuthEnabled,
   fetchImpl,
 ) {
+  const isAccessRequest = AUTH_V2_ACCESS_REQUEST_PATHS.includes(pathname);
+  const requestedHeaders = isAccessRequest
+    ? 'content-type, x-warpkeep-expected-fid'
+    : 'content-type';
   const paused = !expectedPublicAuthEnabled && AUTH_V2_PAUSED_PATHS.has(pathname);
   const label = `bridge ${pathname} ${paused
     ? 'paused check'
@@ -1004,11 +1018,16 @@ async function verifyAuthV2Preflight(
     headers: {
       origin: frontend,
       'access-control-request-method': 'POST',
-      'access-control-request-headers': 'content-type',
+      'access-control-request-headers': requestedHeaders,
     },
   }, fetchImpl);
   verifyAuthV2SecurityHeaders(preflight, label);
-  verifyExactCredentialedCors(preflight, frontend, label);
+  verifyExactCredentialedCors(
+    preflight,
+    frontend,
+    label,
+    requestedHeaders.split(', '),
+  );
   if (paused) {
     const payload = await readExactJsonAtStatus(preflight, label, 503);
     verifyExactErrorPayload(
@@ -1029,7 +1048,7 @@ async function verifyAuthV2Preflight(
     headers: {
       origin: 'https://not-warpkeep.invalid',
       'access-control-request-method': 'POST',
-      'access-control-request-headers': 'content-type',
+      'access-control-request-headers': requestedHeaders,
     },
   }, fetchImpl);
   verifyAuthV2SecurityHeaders(hostile, hostileLabel);
@@ -1060,6 +1079,10 @@ async function verifyAuthV2BearerPreflight(
   expectedPublicAuthEnabled,
   fetchImpl,
 ) {
+  const isAccessRequest = AUTH_V2_ACCESS_REQUEST_PATHS.includes(pathname);
+  const requestedHeaders = isAccessRequest
+    ? 'authorization, content-type, x-warpkeep-expected-fid'
+    : 'authorization, content-type';
   const paused = !expectedPublicAuthEnabled
     && AUTH_V2_PAUSED_PATHS.has(pathname);
   const label = `bridge ${pathname} ${paused
@@ -1074,13 +1097,18 @@ async function verifyAuthV2BearerPreflight(
       headers: {
         origin: frontend,
         'access-control-request-method': 'POST',
-        'access-control-request-headers': 'authorization, content-type',
+        'access-control-request-headers': requestedHeaders,
       },
     },
     fetchImpl,
   );
   verifyAuthV2SecurityHeaders(preflight, label);
-  verifyExactQuickAuthCors(preflight, frontend, label);
+  verifyExactQuickAuthCors(
+    preflight,
+    frontend,
+    label,
+    requestedHeaders.split(', '),
+  );
   if (paused) {
     const payload = await readExactJsonAtStatus(preflight, label, 503);
     verifyExactErrorPayload(
@@ -1102,7 +1130,7 @@ async function verifyAuthV2BearerPreflight(
       headers: {
         origin: 'https://not-warpkeep.invalid',
         'access-control-request-method': 'POST',
-        'access-control-request-headers': 'authorization, content-type',
+        'access-control-request-headers': requestedHeaders,
       },
     },
     fetchImpl,

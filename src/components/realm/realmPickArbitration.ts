@@ -30,6 +30,24 @@ export type RealmWaterPickHit = Readonly<{
   distance: number;
 }>;
 
+export type RealmCastlePickHit = Readonly<{
+  castleId: number;
+  coord: HexCoord;
+  distance: number;
+}>;
+
+export type RealmTerrainPickHit = Readonly<{
+  coord: HexCoord;
+  distance: number;
+}>;
+
+/**
+ * Small colliders belonging to the same visible feature can enter a ray at
+ * slightly different depths. Preserve gameplay priority only inside that
+ * overlap envelope; a genuinely nearer feature must otherwise win.
+ */
+export const REALM_PICK_OVERLAP_DEPTH_TOLERANCE = 0.9;
+
 /** A visible, public water identity that can be handed to the interaction lane. */
 export type RealmWaterInteractionTarget = Readonly<{
   kind: 'water-cell';
@@ -51,88 +69,134 @@ export type RealmInteractionTarget =
   | RealmWaterInteractionTarget
   | Readonly<{ kind: 'terrain'; coord: HexCoord }>;
 
-function nearestValidHit(
-  hits: readonly RealmResourcePickHit[],
-  source: RealmResourcePickHit['source']
-) {
-  let nearest: RealmResourcePickHit | undefined;
-  for (const hit of hits) {
-    if (
-      hit.source !== source
-      || !Number.isFinite(hit.distance)
-      || hit.distance < 0
-    ) continue;
-    if (!nearest || hit.distance < nearest.distance) nearest = hit;
-  }
-  return nearest;
+type RealmLayerResourceHit = Readonly<{
+  source: 'site' | 'wagon';
+  distance: number;
+}>;
+
+function hasValidDistance(hit: Readonly<{ distance: number }> | null | undefined) {
+  return hit !== null
+    && hit !== undefined
+    && Number.isFinite(hit.distance)
+    && hit.distance >= 0;
 }
 
-function nearestValidWorkerHit(hits: readonly RealmWorkerPickHit[]) {
-  let nearest: RealmWorkerPickHit | undefined;
-  for (const hit of hits) {
-    if (!Number.isFinite(hit.distance) || hit.distance < 0) continue;
-    if (!nearest || hit.distance < nearest.distance) nearest = hit;
-  }
-  return nearest;
+/** Keep a wagon operable over its site without letting it steal a distant ray. */
+export function selectRealmResourceLayerHit<
+  TSite extends RealmLayerResourceHit,
+  TWagon extends RealmLayerResourceHit
+>(
+  siteHit: TSite | null | undefined,
+  wagonHit: TWagon | null | undefined
+): TSite | TWagon | null {
+  const site = hasValidDistance(siteHit) ? siteHit : undefined;
+  const wagon = hasValidDistance(wagonHit) ? wagonHit : undefined;
+  if (!site) return wagon ?? null;
+  if (!wagon) return site;
+  return wagon.distance <= site.distance + REALM_PICK_OVERLAP_DEPTH_TOLERANCE
+    ? wagon
+    : site;
+}
+
+type RealmRankedPick = Readonly<{
+  distance: number;
+  priority: number;
+  key: string;
+  target: RealmInteractionTarget;
+}>;
+
+function rankedPickComparator(left: RealmRankedPick, right: RealmRankedPick) {
+  return left.priority - right.priority
+    || left.distance - right.distance
+    || (left.key < right.key ? -1 : left.key > right.key ? 1 : 0);
 }
 
 /**
- * Resolve overlapping scene targets by gameplay intent, not mesh distance.
- * Moving wagons remain operable over a keep; keeps remain operable beneath a
- * static site collider; only then does the nearest static site or terrain win.
+ * Resolve genuinely overlapping scene targets by gameplay intent while never
+ * allowing a distant collider to win through a nearer visible feature.
  */
 export function arbitrateRealmPick(input: Readonly<{
   resourceHits: readonly RealmResourcePickHit[];
   workerHits?: readonly RealmWorkerPickHit[];
   waterHit?: RealmWaterPickHit | null;
-  castleHit?: Readonly<{ castleId: number; coord: HexCoord }> | null;
-  terrainHit?: Readonly<{ coord: HexCoord }> | null;
+  castleHit?: RealmCastlePickHit | null;
+  terrainHit?: RealmTerrainPickHit | null;
 }>): RealmInteractionTarget | null {
-  const worker = nearestValidWorkerHit(input.workerHits ?? []);
-  if (worker) {
-    return Object.freeze({
-      kind: 'worker',
-      workerId: worker.workerId,
-      workerOrdinal: worker.workerOrdinal,
-      originCastleId: worker.originCastleId,
-      coord: worker.coord
-    });
+  const candidates: RealmRankedPick[] = [];
+  for (const worker of input.workerHits ?? []) {
+    if (!hasValidDistance(worker)) continue;
+    candidates.push(Object.freeze({
+      distance: worker.distance,
+      priority: 0,
+      key: `worker:${worker.workerId}`,
+      target: Object.freeze({
+        kind: 'worker',
+        workerId: worker.workerId,
+        workerOrdinal: worker.workerOrdinal,
+        originCastleId: worker.originCastleId,
+        coord: worker.coord
+      })
+    }));
   }
-  const wagon = nearestValidHit(input.resourceHits, 'wagon');
-  if (wagon) {
-    return Object.freeze({
-      kind: wagon.kind,
-      siteId: wagon.siteId,
-      coord: wagon.coord,
-      source: wagon.source
-    });
+  for (const resource of input.resourceHits) {
+    if (!hasValidDistance(resource)) continue;
+    candidates.push(Object.freeze({
+      distance: resource.distance,
+      priority: resource.source === 'wagon' ? 1 : 3,
+      key: `${resource.source}:${resource.kind}:${resource.siteId}`,
+      target: Object.freeze({
+        kind: resource.kind,
+        siteId: resource.siteId,
+        coord: resource.coord,
+        source: resource.source
+      })
+    }));
   }
-  if (input.castleHit) {
-    return Object.freeze({
-      kind: 'castle',
-      castleId: input.castleHit.castleId,
-      coord: input.castleHit.coord
-    });
+  const castle = input.castleHit;
+  if (castle && hasValidDistance(castle)) {
+    candidates.push(Object.freeze({
+      distance: castle.distance,
+      priority: 2,
+      key: `castle:${castle.castleId}`,
+      target: Object.freeze({
+        kind: 'castle',
+        castleId: castle.castleId,
+        coord: castle.coord
+      })
+    }));
   }
-  const site = nearestValidHit(input.resourceHits, 'site');
-  if (site) {
-    return Object.freeze({
-      kind: site.kind,
-      siteId: site.siteId,
-      coord: site.coord,
-      source: site.source
-    });
+  const water = input.waterHit;
+  if (water && hasValidDistance(water)) {
+    candidates.push(Object.freeze({
+      distance: water.distance,
+      priority: 4,
+      key: `water:${water.cellKey}`,
+      target: Object.freeze({
+        kind: 'water-cell',
+        cellKey: water.cellKey,
+        bodyId: water.bodyId,
+        regime: water.regime,
+        coord: water.coord
+      })
+    }));
   }
-  if (input.waterHit && Number.isFinite(input.waterHit.distance) && input.waterHit.distance >= 0) {
-    return Object.freeze({
-      kind: 'water-cell',
-      cellKey: input.waterHit.cellKey,
-      bodyId: input.waterHit.bodyId,
-      regime: input.waterHit.regime,
-      coord: input.waterHit.coord
-    });
+  const terrain = input.terrainHit;
+  if (terrain && hasValidDistance(terrain)) {
+    candidates.push(Object.freeze({
+      distance: terrain.distance,
+      priority: 5,
+      key: `terrain:${terrain.coord.q},${terrain.coord.r}`,
+      target: Object.freeze({ kind: 'terrain', coord: terrain.coord })
+    }));
   }
-  return input.terrainHit
-    ? Object.freeze({ kind: 'terrain', coord: input.terrainHit.coord })
-    : null;
+  if (candidates.length === 0) return null;
+  const nearestDistance = candidates.reduce(
+    (nearest, candidate) => Math.min(nearest, candidate.distance),
+    Number.POSITIVE_INFINITY
+  );
+  return candidates
+    .filter((candidate) => (
+      candidate.distance <= nearestDistance + REALM_PICK_OVERLAP_DEPTH_TOLERANCE
+    ))
+    .sort(rankedPickComparator)[0]?.target ?? null;
 }

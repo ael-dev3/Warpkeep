@@ -117,6 +117,10 @@ assert.match(proof, /submitConcurrentBatch\([\s\S]*syntheticMissingAccessRequest
 assert.match(proof, /syntheticMissingAccessRequestFid,\s*10,/);
 assert.match(proof, /syntheticMissingAccessRequestFid,\s*50,/);
 assert.match(proof, /syntheticSecondAccessRequestFid,\s*2,/);
+assert.match(
+  proof,
+  /function accessRequestServiceClaims\(requestFid, requestOperation\)[\s\S]*request_operation: requestOperation/,
+);
 assert.match(proof, /page\.totalRequests, 2n/);
 assert.match(proof, /arguments_\.filter\(value => value === '--delete-data=never'\)\.length !== 1/);
 assert.match(proof, /arguments_\.some\(value => value\.startsWith\('--delete-data='/);

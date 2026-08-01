@@ -1531,7 +1531,7 @@ function resolverServiceClaims(resolverFid, roles = ['warpkeep-auth-epoch-resolv
   };
 }
 
-function accessRequestServiceClaims(requestFid) {
+function accessRequestServiceClaims(requestFid, requestOperation) {
   const canonicalRequestFid = typeof requestFid === 'number'
     && Number.isSafeInteger(requestFid)
     ? String(requestFid)
@@ -1541,6 +1541,9 @@ function accessRequestServiceClaims(requestFid) {
     || !/^[1-9][0-9]{0,15}$/.test(canonicalRequestFid)
     || BigInt(canonicalRequestFid) > BigInt(Number.MAX_SAFE_INTEGER)
   ) fail('Disposable access-request resolver FID was invalid.');
+  if (requestOperation !== 'status' && requestOperation !== 'submit') {
+    fail('Disposable access-request resolver operation was invalid.');
+  }
   return {
     ...serviceClaims(
       'service:access-request-resolver',
@@ -1549,6 +1552,7 @@ function accessRequestServiceClaims(requestFid) {
     ),
     // Production resolver FIDs are canonical decimal-string JWT claims.
     request_fid: canonicalRequestFid,
+    request_operation: requestOperation,
   };
 }
 
@@ -1927,9 +1931,12 @@ function parseAdminAccessRequestPage(text) {
  */
 async function verifyAccessRequestHttpLifecycle(server, database, privateKey) {
   let stage = 'request-status';
-  const requestCredential = (fid = syntheticMissingAccessRequestFid) => createEphemeralJwt(
+  const requestCredential = (
+    operation,
+    fid = syntheticMissingAccessRequestFid,
+  ) => createEphemeralJwt(
     privateKey,
-    accessRequestServiceClaims(fid),
+    accessRequestServiceClaims(fid, operation),
   );
   const submitConcurrentBatch = async (fid, concurrency, label) => {
     const texts = await Promise.all(Array.from({ length: concurrency }, () => (
@@ -1937,7 +1944,7 @@ async function verifyAccessRequestHttpLifecycle(server, database, privateKey) {
         server,
         database,
         'access_request_submit_v1',
-        requestCredential(fid),
+        requestCredential('submit', fid),
         '[]',
         200,
       )
@@ -1959,7 +1966,7 @@ async function verifyAccessRequestHttpLifecycle(server, database, privateKey) {
         server,
         database,
         'access_request_get_status_v1',
-        requestCredential(),
+        requestCredential('status'),
         '[]',
         200,
       ),
@@ -2013,7 +2020,7 @@ async function verifyAccessRequestHttpLifecycle(server, database, privateKey) {
         server,
         database,
         'access_request_get_status_v1',
-        requestCredential(),
+        requestCredential('status'),
         '[]',
         200,
       ),
@@ -2026,7 +2033,7 @@ async function verifyAccessRequestHttpLifecycle(server, database, privateKey) {
       server,
       database,
       'admin_list_access_requests_v1',
-      requestCredential(),
+      requestCredential('status'),
       '[0,0,100,false]',
       500,
     );
@@ -2036,7 +2043,7 @@ async function verifyAccessRequestHttpLifecycle(server, database, privateKey) {
       server,
       database,
       'get_alpha_backend_info',
-      requestCredential(),
+      requestCredential('status'),
       '[]',
       500,
     );
@@ -2046,7 +2053,7 @@ async function verifyAccessRequestHttpLifecycle(server, database, privateKey) {
       server,
       database,
       'get_my_resource_state_v1',
-      requestCredential(),
+      requestCredential('status'),
       '[]',
       500,
     );
@@ -3259,9 +3266,9 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
     ) fail('Local disable changed permanent founder authority state.');
 
     stage = 'disabled-founder-access-request';
-    const disabledRequestCredential = () => createEphemeralJwt(
+    const disabledRequestCredential = operation => createEphemeralJwt(
       privateKey,
-      accessRequestServiceClaims(actualModuleFounderFid),
+      accessRequestServiceClaims(actualModuleFounderFid, operation),
     );
     await useActualModule();
     const disabledInitialStatus = parseAccessRequestStatus(
@@ -3269,7 +3276,7 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
         server,
         database,
         'access_request_get_status_v1',
-        disabledRequestCredential(),
+        disabledRequestCredential('status'),
         '[]',
         200,
       ),
@@ -3284,7 +3291,7 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
         server,
         database,
         'access_request_submit_v1',
-        disabledRequestCredential(),
+        disabledRequestCredential('submit'),
         '[]',
         200,
       ),
@@ -3300,7 +3307,7 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
         server,
         database,
         'access_request_submit_v1',
-        disabledRequestCredential(),
+        disabledRequestCredential('submit'),
         '[]',
         200,
       ),
@@ -3362,7 +3369,7 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
         server,
         database,
         'access_request_get_status_v1',
-        disabledRequestCredential(),
+        disabledRequestCredential('status'),
         '[]',
         200,
       ),

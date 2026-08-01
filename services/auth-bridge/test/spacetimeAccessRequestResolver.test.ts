@@ -87,7 +87,9 @@ describe('Spacetime HTTP access-request resolver', () => {
     })
 
     expect(signer).toHaveBeenCalledTimes(2)
-    for (const [claims] of signer.mock.calls as unknown as [AccessRequestResolverTokenClaims][]) {
+    for (const [index, [claims]] of (
+      signer.mock.calls as unknown as [AccessRequestResolverTokenClaims][]
+    ).entries()) {
       expect(claims).toMatchObject({
         iss: ISSUER,
         sub: 'service:access-request-resolver',
@@ -95,6 +97,7 @@ describe('Spacetime HTTP access-request resolver', () => {
         token_type: 'spacetime-access',
         roles: ['warpkeep-access-request-resolver'],
         request_fid: FID,
+        request_operation: index === 0 ? 'status' : 'submit',
         iat: 1_700_000_000,
         nbf: 1_700_000_000,
       })

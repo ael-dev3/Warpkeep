@@ -7,10 +7,10 @@
 }
 
 .worker-command-center__scrim {
-  padding-top: max(clamp(4.5rem, 12vh, 7rem), env(safe-area-inset-top));
-  padding-right: max(clamp(0.75rem, 3vw, 2rem), env(safe-area-inset-right));
-  padding-bottom: max(clamp(0.75rem, 3vw, 2rem), env(safe-area-inset-bottom));
-  padding-left: max(clamp(0.75rem, 3vw, 2rem), env(safe-area-inset-left));
+  padding-top: max(clamp(4.5rem, 12vh, 7rem), var(--realm-safe-top, env(safe-area-inset-top)));
+  padding-right: max(clamp(0.75rem, 3vw, 2rem), var(--realm-safe-right, env(safe-area-inset-right)));
+  padding-bottom: max(clamp(0.75rem, 3vw, 2rem), var(--realm-safe-bottom, env(safe-area-inset-bottom)));
+  padding-left: max(clamp(0.75rem, 3vw, 2rem), var(--realm-safe-left, env(safe-area-inset-left)));
 }
 
 .worker-command-center__header button {
@@ -27,14 +27,14 @@
 
 @media (max-width: 40rem) {
   .worker-command-center__scrim {
-    padding-top: max(4.1rem, calc(env(safe-area-inset-top) + 4.1rem));
-    padding-right: max(0.5rem, env(safe-area-inset-right));
-    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
-    padding-left: max(0.5rem, env(safe-area-inset-left));
+    padding-top: max(4.1rem, calc(var(--realm-safe-top, env(safe-area-inset-top)) + 4.1rem));
+    padding-right: max(0.5rem, var(--realm-safe-right, env(safe-area-inset-right)));
+    padding-bottom: max(0.5rem, var(--realm-safe-bottom, env(safe-area-inset-bottom)));
+    padding-left: max(0.5rem, var(--realm-safe-left, env(safe-area-inset-left)));
   }
 
   .worker-command-center {
-    max-height: calc(100dvh - 4.6rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    max-height: calc(100dvh - 4.6rem - var(--realm-safe-top, env(safe-area-inset-top)) - var(--realm-safe-bottom, env(safe-area-inset-bottom)));
     overflow-x: hidden;
   }
 }

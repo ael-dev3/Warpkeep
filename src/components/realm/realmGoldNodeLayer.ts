@@ -14,6 +14,7 @@ import {
   type HegemonyExpeditionPrefabLease
 } from './loadHegemonyExpeditionAssets';
 import type { RealmQualitySpec } from './realmQuality';
+import { selectRealmResourceLayerHit } from './realmPickArbitration';
 import {
   resolveRealmGoldWagonPose,
   type RealmGoldNodePresentation,
@@ -675,22 +676,29 @@ export function createRealmGoldNodeLayer(
   const raycast = (raycaster: THREE.Raycaster) => {
     const siteIntersection = raycaster.intersectObject(pickVolumes, false)[0];
     const wagonIntersection = raycaster.intersectObject(wagonPickVolumes, false)[0];
-    // A visible moving wagon is a transient, precise target and wins any
-    // overlap with its linked static site regardless of mesh depth.
-    const useWagon = wagonIntersection !== undefined;
-    const intersection = useWagon ? wagonIntersection : siteIntersection;
-    const instanceId = intersection?.instanceId;
-    const node = instanceId === undefined
+    const siteNode = siteIntersection?.instanceId === undefined
       ? undefined
-      : (useWagon ? wagonPickIndexByInstance : pickIndexByInstance).get(instanceId);
-    return node
+      : pickIndexByInstance.get(siteIntersection.instanceId);
+    const wagonNode = wagonIntersection?.instanceId === undefined
+      ? undefined
+      : wagonPickIndexByInstance.get(wagonIntersection.instanceId);
+    const siteHit: RealmGoldNodeInstanceHit | null = siteNode && siteIntersection
       ? Object.freeze({
-        siteId: node.record.siteId,
-        coord: node.record.coord,
-        source: useWagon ? 'wagon' as const : 'site' as const,
-        distance: intersection!.distance
+        siteId: siteNode.record.siteId,
+        coord: siteNode.record.coord,
+        source: 'site',
+        distance: siteIntersection.distance
       })
       : null;
+    const wagonHit: RealmGoldNodeInstanceHit | null = wagonNode && wagonIntersection
+      ? Object.freeze({
+        siteId: wagonNode.record.siteId,
+        coord: wagonNode.record.coord,
+        source: 'wagon',
+        distance: wagonIntersection.distance
+      })
+      : null;
+    return selectRealmResourceLayerHit(siteHit, wagonHit);
   };
 
   const dispose = () => {

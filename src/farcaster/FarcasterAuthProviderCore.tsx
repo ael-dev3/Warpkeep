@@ -1621,7 +1621,11 @@ export function FarcasterAuthProviderCore({
     authState: machine.view,
     authGeneration: machine.generation,
     loadBridgeClient,
-    loadQuickAuthToken
+    loadQuickAuthToken,
+    onAuthenticationIdentityChanged: () => {
+      clearInMemoryAuthoritativeSession();
+      void refreshAuthoritySession(true);
+    }
   });
 
   useEffect(() => {
@@ -1661,18 +1665,32 @@ export function FarcasterAuthProviderCore({
       const current = machineRef.current.view;
       const currentSession = oidcSessionRef.current;
       const currentTime = readProviderNow(now);
-      const shouldRefresh = current.phase === 'pending-admission'
-        || (
-          current.phase === 'authenticated'
-          && (
-            !currentSession
-            || (
-              currentTime !== undefined
-              && currentSession.expiresAt - currentTime <= ACCESS_REFRESH_LEAD_MS
+      // Farcaster can switch the host account while this WebView is
+      // backgrounded. Re-verify Quick Auth on every foreground return; the
+      // coalesced flight prevents focus/pageshow/visibility bursts from
+      // producing duplicate exchanges.
+      const shouldRefresh = loadQuickAuthToken
+        ? current.phase === 'pending-admission' || current.phase === 'authenticated'
+        : current.phase === 'pending-admission'
+          || (
+            current.phase === 'authenticated'
+            && (
+              !currentSession
+              || (
+                currentTime !== undefined
+                && currentSession.expiresAt - currentTime <= ACCESS_REFRESH_LEAD_MS
+              )
             )
-          )
-        );
-      if (shouldRefresh) void refreshAuthoritySession(false);
+          );
+      if (shouldRefresh) {
+        if (loadQuickAuthToken) {
+          // Host account state may have changed while the WebView was hidden.
+          // Freeze private commands before acquiring and verifying a fresh host
+          // bearer; the retained Realm projection remains public/read-only.
+          clearInMemoryAuthoritativeSession();
+        }
+        void refreshAuthoritySession(Boolean(loadQuickAuthToken));
+      }
     };
     window.addEventListener('focus', reconcile);
     window.addEventListener('pageshow', reconcile);
@@ -1682,7 +1700,12 @@ export function FarcasterAuthProviderCore({
       window.removeEventListener('pageshow', reconcile);
       document.removeEventListener('visibilitychange', reconcile);
     };
-  }, [now, refreshAuthoritySession]);
+  }, [
+    clearInMemoryAuthoritativeSession,
+    loadQuickAuthToken,
+    now,
+    refreshAuthoritySession
+  ]);
 
   useEffect(() => {
     if (!oidcSession || typeof window === 'undefined') return undefined;
@@ -1717,6 +1740,12 @@ export function FarcasterAuthProviderCore({
     const sessionExpiresAt = current.phase === 'authenticated' || current.phase === 'pending-admission'
       ? current.sessionExpiresAt
       : undefined;
+    // An authenticated Quick Auth session has the same absolute deadline as
+    // its in-memory OIDC token. The OIDC lifecycle above exclusively clears
+    // and refreshes it so a duplicate generic timer cannot abort that flight.
+    // Pending Quick Auth has no backend authority; its presentation deadline
+    // below reacquires through the same coalesced Quick Auth flight.
+    if (loadQuickAuthToken && current.phase === 'authenticated') return undefined;
     if (sessionExpiresAt === undefined || typeof window === 'undefined') return undefined;
 
     let timer: number | undefined;
@@ -1725,6 +1754,12 @@ export function FarcasterAuthProviderCore({
       const delay = currentTime === undefined ? Number.NaN : sessionExpiresAt - currentTime;
       if (!Number.isFinite(delay) || delay <= 0) {
         const latest = machineRef.current;
+        if (loadQuickAuthToken) {
+          if (latest.view.phase === 'pending-admission') {
+            void refreshAuthoritySession(true);
+          }
+          return;
+        }
         clearLocalAuthoritativeSession(!loadQuickAuthToken);
         if (latest.view.phase === 'authenticated' || latest.view.phase === 'pending-admission') {
           dispatch({ type: 'sign-out', generation: latest.generation });
@@ -1737,7 +1772,13 @@ export function FarcasterAuthProviderCore({
     return () => {
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [clearLocalAuthoritativeSession, loadQuickAuthToken, machine.view, now]);
+  }, [
+    clearLocalAuthoritativeSession,
+    loadQuickAuthToken,
+    machine.view,
+    now,
+    refreshAuthoritySession
+  ]);
 
   useEffect(() => {
     const controlKey = getFarcasterDeviceSessionControlKey(deviceSessionEnvironment?.basePath);

@@ -79,6 +79,18 @@ test('connected rehearsal contains the bounded private request lifecycle', () =>
     proof,
     /serviceClaims\(\s*'service:access-request-resolver',\s*\['warpkeep-access-request-resolver'\],\s*15,/,
   );
+  assert.match(
+    proof,
+    /function accessRequestServiceClaims\(requestFid, requestOperation\)[\s\S]*request_operation: requestOperation/,
+  );
+  assert.match(
+    lifecycle,
+    /access_request_submit_v1[\s\S]*requestCredential\('submit', fid\)/,
+  );
+  assert.match(
+    lifecycle,
+    /access_request_get_status_v1[\s\S]*requestCredential\('status'\)/,
+  );
   assert.match(lifecycle, /const submitConcurrentBatch = async[\s\S]*access_request_submit_v1/);
   assert.equal((lifecycle.match(/access_request_submit_v1/g) ?? []).length, 1);
   assert.equal((lifecycle.match(/access_request_get_status_v1/g) ?? []).length, 2);
@@ -90,9 +102,9 @@ test('connected rehearsal contains the bounded private request lifecycle', () =>
   assert.match(lifecycle, /assert\.deepEqual\(tenCallResult, submitted\)/);
   assert.match(lifecycle, /assert\.deepEqual\(fiftyCallResult, submitted\)/);
   assert.match(lifecycle, /assert\.deepEqual\(finalStatus, submitted\)/);
-  assert.match(lifecycle, /admin_list_access_requests_v1[\s\S]*requestCredential\(\)[\s\S]*500/);
-  assert.match(lifecycle, /get_alpha_backend_info[\s\S]*requestCredential\(\)[\s\S]*500/);
-  assert.match(lifecycle, /get_my_resource_state_v1[\s\S]*requestCredential\(\)[\s\S]*500/);
+  assert.match(lifecycle, /admin_list_access_requests_v1[\s\S]*requestCredential\('status'\)[\s\S]*500/);
+  assert.match(lifecycle, /get_alpha_backend_info[\s\S]*requestCredential\('status'\)[\s\S]*500/);
+  assert.match(lifecycle, /get_my_resource_state_v1[\s\S]*requestCredential\('status'\)[\s\S]*500/);
   assert.match(lifecycle, /createEphemeralJwt\(privateKey, adminServiceClaims\(\)\)/);
   assert.match(lifecycle, /admissionState: 'missing'/);
   assert.match(lifecycle, /auth_resolver_get_fid_admission_v2/);

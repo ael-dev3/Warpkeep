@@ -175,10 +175,10 @@ describe('compact Realm CSS contract', () => {
     const body = block(PRESENTATION, '.castle-inspection__body {');
 
     expect(inspector).toContain('width: min(21.5rem, calc(100vw - 1.6rem));');
-    expect(inspector).toContain('top: max(0.8rem, env(safe-area-inset-top));');
+    expect(inspector).toContain('top: max(0.8rem, var(--realm-safe-top, env(safe-area-inset-top)));');
     expect(inspector).toContain('padding-top: 1rem;');
     expect(playerInspector).toContain(
-      'top: max(3.05rem, calc(env(safe-area-inset-top) + 3.05rem));'
+      'top: max(3.05rem, calc(var(--realm-safe-top, env(safe-area-inset-top)) + 3.05rem));'
     );
     expect(playerBody).toContain('max-height: calc(100svh - 17rem');
     expect(drawer).toContain('overflow: visible;');
@@ -331,9 +331,9 @@ describe('compact Realm CSS contract', () => {
     expect(actions).toContain('position: fixed;');
     expect(actions).toContain('grid-template-columns: repeat(2, minmax(0, 1fr));');
     expect(actions).toContain('width: 9.75rem;');
-    expect(actions).toContain('bottom: max(0.8rem, env(safe-area-inset-bottom));');
-    expect(explore).toContain('left: max(11.2rem, calc(env(safe-area-inset-left) + 11.2rem));');
-    expect(explore).toContain('bottom: max(0.8rem, env(safe-area-inset-bottom));');
+    expect(actions).toContain('bottom: max(0.8rem, var(--realm-safe-bottom, env(safe-area-inset-bottom)));');
+    expect(explore).toContain('left: max(11.2rem, calc(var(--realm-safe-left, env(safe-area-inset-left)) + 11.2rem));');
+    expect(explore).toContain('bottom: max(0.8rem, var(--realm-safe-bottom, env(safe-area-inset-bottom)));');
     expect(exploreTrigger).toContain('width: 8.75rem;');
 
     expect(EXPLORE_COMPONENT).toContain('Explore <span>{castles.length}');
@@ -492,16 +492,16 @@ describe('compact Realm CSS contract', () => {
     const compactDrawer = block(compactPresentation, '.castle-inspection__drawer {');
 
     expect(compactHud).toContain('width: min(14.75rem,');
-    expect(compactActions).toContain('bottom: max(0.55rem, env(safe-area-inset-bottom));');
+    expect(compactActions).toContain('bottom: max(0.55rem, var(--realm-safe-bottom, env(safe-area-inset-bottom)));');
     expect(compactActions).toContain('* 0.56);');
-    expect(compactExplore).toContain('right: max(0.55rem, env(safe-area-inset-right));');
-    expect(compactExplore).toContain('bottom: max(0.55rem, env(safe-area-inset-bottom));');
+    expect(compactExplore).toContain('right: max(0.55rem, var(--realm-safe-right, env(safe-area-inset-right)));');
+    expect(compactExplore).toContain('bottom: max(0.55rem, var(--realm-safe-bottom, env(safe-area-inset-bottom)));');
     expect(compactExplore).toContain('* 0.42);');
 
     expect(compactDialog).toContain('position: fixed;');
-    expect(compactDialog).toContain('right: max(0.55rem, env(safe-area-inset-right));');
-    expect(compactDialog).toContain('bottom: max(0.55rem, env(safe-area-inset-bottom));');
-    expect(compactDialog).toContain('left: max(0.55rem, env(safe-area-inset-left));');
+    expect(compactDialog).toContain('right: max(0.55rem, var(--realm-safe-right, env(safe-area-inset-right)));');
+    expect(compactDialog).toContain('bottom: max(0.55rem, var(--realm-safe-bottom, env(safe-area-inset-bottom)));');
+    expect(compactDialog).toContain('left: max(0.55rem, var(--realm-safe-left, env(safe-area-inset-left)));');
     expect(compactDialog).toContain('max-height: calc(100svh - 1.1rem');
     expect(hiddenTrigger).toContain('visibility: hidden;');
     expect(hiddenTrigger).toContain('pointer-events: none;');
@@ -514,7 +514,7 @@ describe('compact Realm CSS contract', () => {
       '.realm-map-screen:has(.realm-cell-navigator__dialog) .realm-hud__actions {'
     );
 
-    expect(compactInspector).toContain('bottom: max(0.55rem, env(safe-area-inset-bottom));');
+    expect(compactInspector).toContain('bottom: max(0.55rem, var(--realm-safe-bottom, env(safe-area-inset-bottom)));');
     expect(compactInspector).toContain('max-height: min(78svh, 36rem);');
     expect(compactInspector).toContain('padding-top: 0.9rem;');
     expect(compactDrawer).toContain('max-height: min(calc(78svh - 0.9rem), 35.1rem);');
@@ -592,11 +592,11 @@ describe('compact Realm CSS contract', () => {
 
     expect(shortHud).toContain('width: min(13.5rem, 31vw);');
     expect(shortActions).toContain('width: 8.75rem;');
-    expect(shortActions).toContain('bottom: max(0.45rem, env(safe-area-inset-bottom));');
-    expect(shortExplore).toContain('left: max(10rem, calc(env(safe-area-inset-left) + 10rem));');
+    expect(shortActions).toContain('bottom: max(0.45rem, var(--realm-safe-bottom, env(safe-area-inset-bottom)));');
+    expect(shortExplore).toContain('left: max(10rem, calc(var(--realm-safe-left, env(safe-area-inset-left)) + 10rem));');
     expect(shortExplore).toContain('width: 7.75rem;');
-    expect(shortDialog).toContain('right: max(0.55rem, env(safe-area-inset-right));');
-    expect(shortDialog).toContain('bottom: max(0.45rem, env(safe-area-inset-bottom));');
+    expect(shortDialog).toContain('right: max(0.55rem, var(--realm-safe-right, env(safe-area-inset-right)));');
+    expect(shortDialog).toContain('bottom: max(0.45rem, var(--realm-safe-bottom, env(safe-area-inset-bottom)));');
     expect(shortDialog).toContain('width: min(18rem, 43vw);');
     expect(shortDialog).toContain('max-height: none;');
     expect(shortJump).toContain('grid-template-columns: auto minmax(2.75rem, 1fr);');
@@ -622,13 +622,13 @@ describe('compact Realm CSS contract', () => {
     expect(shortProfileButton).toContain('min-height: 2.85rem;');
     expect(shortProfileButton).toContain('padding: 0.42rem 0.6rem;');
 
-    expect(shortInspector).toContain('right: max(0.55rem, env(safe-area-inset-right));');
-    expect(shortInspector).toContain('top: max(0.45rem, env(safe-area-inset-top));');
-    expect(shortInspector).toContain('bottom: max(0.45rem, env(safe-area-inset-bottom));');
+    expect(shortInspector).toContain('right: max(0.55rem, var(--realm-safe-right, env(safe-area-inset-right)));');
+    expect(shortInspector).toContain('top: max(0.45rem, var(--realm-safe-top, env(safe-area-inset-top)));');
+    expect(shortInspector).toContain('bottom: max(0.45rem, var(--realm-safe-bottom, env(safe-area-inset-bottom)));');
     expect(shortInspector).toContain('width: min(19.5rem, 43vw);');
     expect(shortInspector).toContain('padding-top: 0.7rem;');
     expect(shortPlayerInspector).toContain(
-      'top: max(2.85rem, calc(env(safe-area-inset-top) + 2.85rem));'
+      'top: max(2.85rem, calc(var(--realm-safe-top, env(safe-area-inset-top)) + 2.85rem));'
     );
     expect(shortPlayerBody).toContain('max-height: calc(100svh - 12.25rem');
     expect(shortHero).toContain('min-height: 7.8rem;');

@@ -212,7 +212,7 @@ export function FarcasterAccessRequestAction({
         <div className="farcaster-access-request__status-copy farcaster-access-request__status-copy--failure">
           <i aria-hidden="true" className="farcaster-access-request__seal"><span>!</span></i>
           <strong>REQUEST NOT SENT</strong>
-          <span>Warpkeep stopped before any request operation left this browser. You may try again.</span>
+          <span>This attempt did not record an access request. Wait a moment, then try again.</span>
         </div>
         <button
           className="farcaster-auth-panel__action farcaster-auth-panel__action--primary"

@@ -160,12 +160,17 @@ export function requireAuthEpochResolver(
 /** Require the fresh bridge-internal principal and derive its sole bound FID. */
 export function requireAccessRequestResolver(
   ctx: WarpkeepReducerContext,
+  expectedOperation: 'status' | 'submit',
 ): AccessRequestResolverJwtClaims {
   try {
-    return readFreshAccessRequestResolverJwt(
+    const claims = readFreshAccessRequestResolverJwt(
       requireJwtPayload(ctx.senderAuth),
       ctx.timestamp.microsSinceUnixEpoch,
     );
+    if (claims.requestOperation !== expectedOperation) {
+      throw new ClaimValidationError('INVALID_ACCESS_REQUEST_RESOLVER_SESSION');
+    }
+    return claims;
   } catch (error) {
     return senderError(error);
   }

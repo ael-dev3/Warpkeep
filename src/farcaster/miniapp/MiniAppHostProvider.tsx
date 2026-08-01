@@ -17,6 +17,7 @@ import {
   installMiniAppSafeAreaVariables,
   readMiniAppQuickAuthToken,
   readMiniAppSdk,
+  reclampMiniAppPresentationContext,
   sanitizeMiniAppActionUrl,
   sanitizeMiniAppCapabilities,
   sanitizeMiniAppContext,
@@ -75,6 +76,7 @@ export type MiniAppHostQuickAuth = Readonly<{
 export type MiniAppHostValue = Readonly<{
   state: MiniAppHostState;
   isMiniApp: boolean;
+  isFramed: boolean;
   context: MiniAppPresentationContext | null;
   capabilities: readonly MiniAppCapability[];
   recoveryReason: MiniAppRecoveryReason | null;
@@ -212,9 +214,23 @@ function settleUnknownResult(value: unknown): void {
   }
 }
 
+function readOptionalMiniAppBack(sdk: MiniAppSdk): MiniAppSdk['back'] | null {
+  try {
+    const back = sdk.back;
+    return back
+      && typeof back.show === 'function'
+      && typeof back.hide === 'function'
+      ? back
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 const MISSING_PROVIDER_VALUE: MiniAppHostValue = Object.freeze({
   state: 'regular-web',
   isMiniApp: false,
+  isFramed: false,
   context: null,
   capabilities: EMPTY_CAPABILITIES,
   recoveryReason: null,
@@ -250,6 +266,13 @@ export function MiniAppHostProvider({
 }: MiniAppHostProviderProps) {
   const hostDeadline = normalizedHostDeadline(hostDeadlineMilliseconds);
   const miniAppHinted = isMiniAppHinted(runtime);
+  let isFramed = false;
+  try {
+    isFramed = runtime.isFramed?.() === true;
+  } catch {
+    // An inaccessible ancestor is conservatively treated as an embed.
+    isFramed = true;
+  }
   const [snapshot, setSnapshot] = useState<HostSnapshot>(
     miniAppHinted ? DETECTING_SNAPSHOT : REGULAR_WEB_SNAPSHOT
   );
@@ -287,7 +310,7 @@ export function MiniAppHostProvider({
     sdk: MiniAppSdk,
     visible: boolean
   ) => {
-    const back = sdk.back;
+    const back = readOptionalMiniAppBack(sdk);
     if (!back) return;
     backCommandRef.current = backCommandRef.current
       .catch(() => {})
@@ -314,13 +337,6 @@ export function MiniAppHostProvider({
     let removeQuickAuthPreconnect: (() => void) | null = null;
     let removeViewportSubscription: (() => void) | null = null;
     setSnapshot(DETECTING_SNAPSHOT);
-    try {
-      removeQuickAuthPreconnect = installMiniAppQuickAuthPreconnect(
-        runtime.document
-      );
-    } catch {
-      // A preconnect is performance-only; host verification remains usable.
-    }
 
     const recover = (reason: MiniAppRecoveryReason) => {
       if (
@@ -385,16 +401,18 @@ export function MiniAppHostProvider({
         recover('not-in-miniapp');
         return;
       }
+      try {
+        removeQuickAuthPreconnect = installMiniAppQuickAuthPreconnect(
+          runtime.document
+        );
+      } catch {
+        // A preconnect is performance-only; host verification remains usable.
+      }
 
       let context: MiniAppPresentationContext | null = null;
-      let rawContext: unknown;
       try {
-        rawContext = await withMiniAppHostDeadline(
-          sdk.context,
-          hostDeadline
-        );
         context = sanitizeMiniAppContext(
-          rawContext,
+          await withMiniAppHostDeadline(sdk.context, hostDeadline),
           runtime.viewport()
         );
       } catch (error) {
@@ -409,6 +427,10 @@ export function MiniAppHostProvider({
         recover('context-invalid');
         return;
       }
+      // Keep only the deeply sanitized projection. The raw host object may be
+      // mutable and can contain unrelated private fields; a later resize must
+      // never re-read it or let it alter the verified presentation snapshot.
+      const presentationContextSeed = context;
 
       let capabilities: readonly MiniAppCapability[] = EMPTY_CAPABILITIES;
       try {
@@ -448,8 +470,8 @@ export function MiniAppHostProvider({
             ) return;
             let refreshedContext: MiniAppPresentationContext | null = null;
             try {
-              refreshedContext = sanitizeMiniAppContext(
-                rawContext,
+              refreshedContext = reclampMiniAppPresentationContext(
+                presentationContextSeed,
                 runtime.viewport()
               );
             } catch {
@@ -525,13 +547,13 @@ export function MiniAppHostProvider({
       // Establish a deterministic root Back state before dismissing the host
       // splash. Nested application routes bind their handler after launch,
       // but the initial shell must never inherit a stale native Back control.
-      if (
-        capabilities.includes('back')
-        && sdk.back
-      ) {
-        sdk.back.onback = null;
+      const launchBack = capabilities.includes('back')
+        ? readOptionalMiniAppBack(sdk)
+        : null;
+      if (launchBack) {
         try {
-          await withMiniAppHostDeadline(sdk.back.hide(), hostDeadline);
+          launchBack.onback = null;
+          await withMiniAppHostDeadline(launchBack.hide(), hostDeadline);
         } catch {
           // Back is optional. A host failure must not blank the stable shell.
         }
@@ -539,14 +561,19 @@ export function MiniAppHostProvider({
       if (cancelled) return;
 
       let readyAttempt = READY_ATTEMPTS.get(readyMountKey);
-      if (!readyAttempt) {
-        readyAttempt = withMiniAppHostDeadline(
-          sdk.actions.ready({ disableNativeGestures: true }),
-          hostDeadline
-        );
-        READY_ATTEMPTS.set(readyMountKey, readyAttempt);
-      }
       try {
+        if (!readyAttempt) {
+          const actions = sdk.actions;
+          const ready = actions.ready;
+          if (typeof ready !== 'function') throw new Error();
+          readyAttempt = withMiniAppHostDeadline(
+            Promise.resolve().then(() => ready.call(actions, {
+              disableNativeGestures: true
+            })),
+            hostDeadline
+          );
+          READY_ATTEMPTS.set(readyMountKey, readyAttempt);
+        }
         await readyAttempt;
       } catch (error) {
         if (READY_ATTEMPTS.get(readyMountKey) === readyAttempt) {
@@ -617,7 +644,7 @@ export function MiniAppHostProvider({
     onBack
   }: MiniAppBackBinding) => {
     const sdk = sdkRef.current;
-    const back = sdk?.back;
+    const back = sdk ? readOptionalMiniAppBack(sdk) : null;
     if (
       !sdk
       || !back
@@ -647,14 +674,22 @@ export function MiniAppHostProvider({
     const cleanup = () => {
       if (!active) return;
       active = false;
-      if (back.onback === hostBack) back.onback = null;
+      try {
+        if (back.onback === hostBack) back.onback = null;
+      } catch {
+        // An optional host Back implementation cannot break local teardown.
+      }
       if (activeBackCleanupRef.current === cleanup) {
         activeBackCleanupRef.current = null;
       }
       enqueueBackVisibility(sdk, false);
     };
 
-    back.onback = normalizedDepth > 0 ? hostBack : null;
+    try {
+      back.onback = normalizedDepth > 0 ? hostBack : null;
+    } catch {
+      return noopBackCleanup;
+    }
     enqueueBackVisibility(sdk, normalizedDepth > 0);
     activeBackCleanupRef.current = cleanup;
     return cleanup;
@@ -757,6 +792,7 @@ export function MiniAppHostProvider({
   const value = useMemo<MiniAppHostValue>(() => Object.freeze({
     state: snapshot.state,
     isMiniApp: snapshot.state === 'miniapp',
+    isFramed,
     context: snapshot.context,
     capabilities: snapshot.capabilities,
     recoveryReason: snapshot.recoveryReason,
@@ -773,7 +809,8 @@ export function MiniAppHostProvider({
     hasCapability,
     quickAuth,
     retry,
-    snapshot
+    snapshot,
+    isFramed
   ]);
 
   return (

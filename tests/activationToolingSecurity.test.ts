@@ -991,22 +991,28 @@ function authV2Headers(
   return headers;
 }
 
-function credentialedCors(origin: string): HeadersInit {
+function credentialedCors(
+  origin: string,
+  allowedHeaders = 'content-type',
+): HeadersInit {
   return {
     'access-control-allow-origin': origin,
     'access-control-allow-methods': 'POST, OPTIONS',
-    'access-control-allow-headers': 'content-type',
+    'access-control-allow-headers': allowedHeaders,
     'access-control-allow-credentials': 'true',
     'access-control-max-age': '600',
     vary: 'Origin',
   };
 }
 
-function quickAuthCors(origin: string): HeadersInit {
+function quickAuthCors(
+  origin: string,
+  allowedHeaders = 'authorization, content-type',
+): HeadersInit {
   return {
     'access-control-allow-origin': origin,
     'access-control-allow-methods': 'POST, OPTIONS',
-    'access-control-allow-headers': 'authorization, content-type',
+    'access-control-allow-headers': allowedHeaders,
     'access-control-max-age': '600',
     vary: 'Origin',
   };
@@ -1118,7 +1124,19 @@ function authV2BridgeFetch(options: AuthV2FixtureOptions = {}) {
             .some(header => header.trim().toLowerCase() === 'authorization')
         );
       const corsForOrigin = (value: string) => (
-        quickAuth ? quickAuthCors(value) : credentialedCors(value)
+        quickAuth
+          ? quickAuthCors(
+              value,
+              AUTH_V2_ACCESS_REQUEST_PATHS.has(url.pathname)
+                ? 'authorization, content-type, x-warpkeep-expected-fid'
+                : undefined,
+            )
+          : credentialedCors(
+              value,
+              AUTH_V2_ACCESS_REQUEST_PATHS.has(url.pathname)
+                ? 'content-type, x-warpkeep-expected-fid'
+                : undefined,
+            )
       );
       const cors = origin === FRONTEND
         ? corsForOrigin(FRONTEND)
@@ -4328,8 +4346,12 @@ describe('bounded auth-v2 production readiness verification', () => {
               && headers.get('access-control-request-headers')
                 ?.includes('authorization')
             )
-            ? 'authorization, content-type'
-            : 'content-type',
+            ? AUTH_V2_ACCESS_REQUEST_PATHS.has(url.pathname)
+              ? 'authorization, content-type, x-warpkeep-expected-fid'
+              : 'authorization, content-type'
+            : AUTH_V2_ACCESS_REQUEST_PATHS.has(url.pathname)
+              ? 'content-type, x-warpkeep-expected-fid'
+              : 'content-type',
         );
         expect([FRONTEND, 'https://not-warpkeep.invalid']).toContain(headers.get('origin'));
       }
@@ -4369,10 +4391,10 @@ describe('bounded auth-v2 production readiness verification', () => {
       expect(calls.map(([, init]) => (
         new Headers(init?.headers).get('access-control-request-headers')
       ))).toEqual([
-        'content-type',
-        'content-type',
-        'authorization, content-type',
-        'authorization, content-type',
+        'content-type, x-warpkeep-expected-fid',
+        'content-type, x-warpkeep-expected-fid',
+        'authorization, content-type, x-warpkeep-expected-fid',
+        'authorization, content-type, x-warpkeep-expected-fid',
       ]);
     }
     expect(log).toHaveBeenCalledWith(
@@ -4416,10 +4438,10 @@ describe('bounded auth-v2 production readiness verification', () => {
       expect(calls.map(([, init]) => (
         new Headers(init?.headers).get('access-control-request-headers')
       ))).toEqual([
-        'content-type',
-        'content-type',
-        'authorization, content-type',
-        'authorization, content-type',
+        'content-type, x-warpkeep-expected-fid',
+        'content-type, x-warpkeep-expected-fid',
+        'authorization, content-type, x-warpkeep-expected-fid',
+        'authorization, content-type, x-warpkeep-expected-fid',
       ]);
     }
     expect(log).toHaveBeenCalledWith(

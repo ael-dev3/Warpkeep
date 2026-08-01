@@ -19,6 +19,7 @@ import {
 } from '../src/components/auth/FarcasterAccessRequest';
 import type { AccessRequestDiagnosticEvent } from '../src/farcaster/accessRequestStateMachine';
 import { useAccessRequest } from '../src/farcaster/useAccessRequest';
+import { createFarcasterOidcBridgeClient } from '../src/farcaster/farcasterOidcBridgeClient';
 import type {
   AccessRequestStatus,
   FarcasterAuthViewState,
@@ -84,6 +85,7 @@ type HarnessProps = Readonly<{
   minimumSubmittingMilliseconds?: number;
   minimumVerifyingMilliseconds?: number;
   reportDiagnostic?: (event: AccessRequestDiagnosticEvent) => void;
+  onAuthenticationIdentityChanged?: () => void;
   bridgeLoaderVersion?: number;
   captureRequestAccess?: (callback: () => void) => void;
   extra?: ReactNode;
@@ -97,6 +99,7 @@ function Harness({
   minimumSubmittingMilliseconds = 0,
   minimumVerifyingMilliseconds = 0,
   reportDiagnostic,
+  onAuthenticationIdentityChanged,
   bridgeLoaderVersion = 0,
   captureRequestAccess,
   extra
@@ -114,7 +117,8 @@ function Harness({
     minimumSubmittingMilliseconds,
     minimumVerifyingMilliseconds,
     monotonicNow: Date.now,
-    reportDiagnostic
+    reportDiagnostic,
+    onAuthenticationIdentityChanged
   });
   captureRequestAccess?.(access.requestAccess);
   return (
@@ -397,6 +401,79 @@ describe('professional access-request lifecycle', () => {
     expect(screen.getByRole('button', { name: 'CHECK STATUS' })).not.toBeNull();
   });
 
+  it('reconciles authentication when an initial status read proves the host identity changed', async () => {
+    const fetch = vi.fn(async () => new Response(JSON.stringify({
+      error: {
+        code: 'access_identity_changed',
+        message: 'The authenticated identity changed. Refresh and try again.'
+      }
+    }), {
+      status: 409,
+      headers: { 'content-type': 'application/json' }
+    }));
+    const onAuthenticationIdentityChanged = vi.fn();
+    const client = createFarcasterOidcBridgeClient({
+      bridgeUrl: 'https://auth.warpkeep.example',
+      issuer: 'https://auth.warpkeep.example',
+      audience: 'warpkeep-spacetimedb',
+      fetch
+    });
+
+    render(
+      <Harness
+        authState={pending(12_345)}
+        client={client}
+        generation={1}
+        onAuthenticationIdentityChanged={onAuthenticationIdentityChanged}
+      />
+    );
+
+    await waitFor(() => expect(onAuthenticationIdentityChanged).toHaveBeenCalledTimes(1));
+    expect(screen.getByText('REQUEST STATUS UNAVAILABLE')).not.toBeNull();
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('reconciles authentication when a manual status retry proves the host identity changed', async () => {
+    const json = (body: unknown, status: number) => new Response(JSON.stringify(body), {
+      status,
+      headers: { 'content-type': 'application/json' }
+    });
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(json({
+        error: {
+          code: 'access_request_unavailable',
+          message: 'Access requests are temporarily unavailable.'
+        }
+      }, 503))
+      .mockResolvedValueOnce(json({
+        error: {
+          code: 'access_identity_changed',
+          message: 'The authenticated identity changed. Refresh and try again.'
+        }
+      }, 409));
+    const onAuthenticationIdentityChanged = vi.fn();
+    const client = createFarcasterOidcBridgeClient({
+      bridgeUrl: 'https://auth.warpkeep.example',
+      issuer: 'https://auth.warpkeep.example',
+      audience: 'warpkeep-spacetimedb',
+      fetch
+    });
+
+    render(
+      <Harness
+        authState={pending(12_345)}
+        client={client}
+        generation={1}
+        onAuthenticationIdentityChanged={onAuthenticationIdentityChanged}
+      />
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'CHECK STATUS' }));
+    await waitFor(() => expect(onAuthenticationIdentityChanged).toHaveBeenCalledTimes(1));
+    expect(screen.getByText('REQUEST STATUS UNAVAILABLE')).not.toBeNull();
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
   it('permits deliberate retry only when credential acquisition proves no mutation began', async () => {
     const requestAccess = vi.fn(async () => ({
       version: 1 as const,
@@ -424,6 +501,50 @@ describe('professional access-request lifecycle', () => {
     await waitFor(() => expect(screen.getByTestId('access-phase').textContent)
       .toBe('request-received'));
     expect(requestAccess).toHaveBeenCalledTimes(1);
+  });
+
+  it('permits retry after the bridge proves rate limiting happened before mutation', async () => {
+    const json = (body: unknown, status = 200) => new Response(
+      JSON.stringify(body),
+      {
+        status,
+        headers: { 'content-type': 'application/json' }
+      }
+    );
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(json({ version: 1, status: 'not-requested' }))
+      .mockResolvedValueOnce(json({
+        error: {
+          code: 'rate_limited',
+          message: 'Too many requests. Try again later.'
+        }
+      }, 429))
+      .mockResolvedValueOnce(json({
+        version: 1,
+        status: 'requested',
+        requestedAt: REQUESTED_AT
+      }));
+    const client = createFarcasterOidcBridgeClient({
+      bridgeUrl: 'https://auth.warpkeep.example',
+      issuer: 'https://auth.warpkeep.example',
+      audience: 'warpkeep-spacetimedb',
+      fetch
+    });
+    render(
+      <Harness
+        authState={pending(12_345)}
+        client={client}
+        generation={1}
+        minimumSubmittingMilliseconds={0}
+      />
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'REQUEST ACCESS' }));
+    await waitFor(() => expect(screen.getByText('REQUEST NOT SENT')).not.toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: 'TRY AGAIN' }));
+    await waitFor(() => expect(screen.getByTestId('access-phase').textContent)
+      .toBe('request-received'));
+    expect(fetch).toHaveBeenCalledTimes(3);
   });
 
   it('invalidates an old timer and response when identity generation changes', async () => {

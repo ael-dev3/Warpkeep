@@ -5624,27 +5624,6 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       data-worker-private-sync-phase={
         observerMode ? 'not-required' : workerPrivateSync?.phase ?? 'not-required'
       }
-      data-worker-private-sync-attempt={String(
-        observerMode ? 0 : workerPrivateSync?.attempt ?? 0
-      )}
-      data-worker-private-sync-queued={String(
-        !observerMode && (workerPrivateSync?.queuedRefresh ?? false)
-      )}
-      data-worker-private-sync-retained-stale={String(
-        !observerMode && (workerPrivateSync?.retainedStale ?? false)
-      )}
-      data-worker-private-sync-localized-error-count={String(
-        observerMode ? 0 : workerPrivateSync?.localizedFailureCount ?? 0
-      )}
-      data-worker-private-sync-last-success-generation={String(
-        observerMode ? 0 : workerPrivateSync?.lastSuccessGeneration ?? 0
-      )}
-      data-worker-private-sync-last-success-revision={
-        observerMode ? 'none' : workerPrivateSync?.lastSuccessRevision ?? 'none'
-      }
-      data-worker-private-sync-ready-latency-ms={String(
-        observerMode ? 0 : workerPrivateSync?.readyLatencyMilliseconds ?? 0
-      )}
       data-worker-private-sync-commands-enabled={String(
         !observerMode && (workerPrivateSync?.commandsEnabled ?? false)
       )}
