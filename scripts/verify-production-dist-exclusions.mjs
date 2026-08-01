@@ -22,6 +22,14 @@ const forbiddenPathFragments = Object.freeze([
   'castle-lod-visual-evidence.html',
   'realm-qa.html'
 ]);
+const retiredAdmissionSoundPathFragments = Object.freeze([
+  'audio/Hegemony_Empire_Admission_Request_Button.mp3'
+]);
+const retiredAdmissionSoundContent = Object.freeze([
+  'Hegemony_Empire_Admission_Request_Button.mp3',
+  'hegemony-empire-admission.request',
+  'hegemony-admission-request'
+]);
 const forbiddenContent = Object.freeze([
   'http://127.0.0.1:41731',
   'WarpkeepQaJourneyLab',
@@ -219,9 +227,20 @@ export function verifyProductionDistExclusions(outputDirectory = dist) {
     if (forbiddenPathFragments.some((fragment) => relativePath.includes(fragment))) {
       throw new Error(`Local QA entry leaked into production output: ${relativePath}`);
     }
+    if (retiredAdmissionSoundPathFragments.some((fragment) => relativePath.includes(fragment))) {
+      throw new Error(`Retired admission-request sound leaked into production output: ${relativePath}`);
+    }
     const mustScanRegardlessOfSize = /\.(?:css|html|js|json|mjs|txt)$/i.test(relativePath);
     if (statSync(path).size > 10 * 1024 * 1024 && !mustScanRegardlessOfSize) continue;
     const content = readFileSync(path, 'utf8');
+    const retiredAdmissionSoundMarker = retiredAdmissionSoundContent.find(
+      (marker) => content.includes(marker)
+    );
+    if (retiredAdmissionSoundMarker) {
+      throw new Error(
+        `Retired admission-request sound marker ${JSON.stringify(retiredAdmissionSoundMarker)} leaked into ${relativePath}.`
+      );
+    }
     const leaked = forbiddenContent.find((marker) => content.includes(marker));
     if (leaked) throw new Error(`Local QA marker ${JSON.stringify(leaked)} leaked into ${relativePath}.`);
   }
@@ -232,5 +251,5 @@ if (
   && import.meta.url === pathToFileURL(resolve(process.argv[1])).href
 ) {
   verifyProductionDistExclusions();
-  console.log('Verified local QA entries, observer routes, and broker coordinates are absent from production output.');
+  console.log('Verified local QA entries, observer routes, broker coordinates, and the retired admission-request sound are absent from production output.');
 }

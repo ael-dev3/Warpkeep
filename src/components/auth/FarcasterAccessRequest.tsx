@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type Ref } from 'react';
 
-import { emitHegemonyAdmissionRequestSound } from '../audio/hegemonyAdmissionRequestSound';
 import type { AccessRequestViewState } from '../../farcaster/farcasterAuthTypes';
 
 export type FarcasterAccessRequestProps = Readonly<{
@@ -142,7 +141,6 @@ export function FarcasterAccessRequestAction({
   const handleRequestAccess = () => {
     if (disabled || requestCommittedLocallyRef.current) return;
     requestCommittedLocallyRef.current = true;
-    emitHegemonyAdmissionRequestSound();
     setRequestCommittedLocally(true);
     onRequestAccess();
   };

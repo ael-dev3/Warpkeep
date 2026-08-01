@@ -12,10 +12,6 @@ import {
   emitWarpkeepSfx,
   stopWarpkeepSfxVoices
 } from '../src/components/audio/sfxEvents';
-import {
-  emitHegemonyAdmissionRequestSound,
-  type HegemonyAdmissionRequestSoundPlayer
-} from '../src/components/audio/hegemonyAdmissionRequestSound';
 
 function fakeEngine(): WarpkeepSfxDirectorEngine {
   return {
@@ -27,16 +23,6 @@ function fakeEngine(): WarpkeepSfxDirectorEngine {
     setMuted: vi.fn(),
     setWaterAmbience: vi.fn(),
     stopAll: vi.fn()
-  };
-}
-
-function fakeAdmissionPlayer(): HegemonyAdmissionRequestSoundPlayer {
-  return {
-    dispose: vi.fn(),
-    play: vi.fn(() => true),
-    setHidden: vi.fn(),
-    setMuted: vi.fn(),
-    stop: vi.fn()
   };
 }
 
@@ -156,15 +142,9 @@ describe('WarpkeepSfxDirector', () => {
 
   it('maintains one live event subscription through StrictMode and cleans it up', () => {
     const engines: WarpkeepSfxDirectorEngine[] = [];
-    const admissionPlayers: HegemonyAdmissionRequestSoundPlayer[] = [];
     const view = render(
       <StrictMode>
         <WarpkeepSfxDirector
-          createAdmissionSoundPlayer={() => {
-            const player = fakeAdmissionPlayer();
-            admissionPlayers.push(player);
-            return player;
-          }}
           createEngine={() => {
             const engine = fakeEngine();
             engines.push(engine);
@@ -175,19 +155,13 @@ describe('WarpkeepSfxDirector', () => {
     );
 
     emitWarpkeepSfx({ kind: 'select-keep' });
-    emitHegemonyAdmissionRequestSound();
     expect(engines.reduce(
       (count, engine) => count + vi.mocked(engine.emitBatch).mock.calls.length,
-      0
-    )).toBe(1);
-    expect(admissionPlayers.reduce(
-      (count, player) => count + vi.mocked(player.play).mock.calls.length,
       0
     )).toBe(1);
 
     view.unmount();
     emitWarpkeepSfx({ kind: 'select-gold' });
-    emitHegemonyAdmissionRequestSound();
     expect(engines.reduce(
       (count, engine) => count + vi.mocked(engine.emitBatch).mock.calls.length,
       0
@@ -195,37 +169,21 @@ describe('WarpkeepSfxDirector', () => {
     expect(engines.every((engine) => (
       vi.mocked(engine.dispose).mock.calls.length === 1
     ))).toBe(true);
-    expect(admissionPlayers.reduce(
-      (count, player) => count + vi.mocked(player.play).mock.calls.length,
-      0
-    )).toBe(1);
-    expect(admissionPlayers.every((player) => (
-      vi.mocked(player.dispose).mock.calls.length === 1
-    ))).toBe(true);
   });
 
-  it('forwards mute, visibility, and explicit stop lifecycle to both bounded voices', () => {
+  it('forwards mute, visibility, and explicit stop lifecycle to the procedural engine', () => {
     const engine = fakeEngine();
-    const admissionPlayer = fakeAdmissionPlayer();
     const view = render(
       <WarpkeepSfxDirector
-        createAdmissionSoundPlayer={() => admissionPlayer}
         createEngine={() => engine}
         muted={false}
       />
     );
-    const audio = document.querySelector<HTMLAudioElement>(
+    expect(document.querySelector(
       'audio[data-warpkeep-audio-role="hegemony-admission-request"]'
-    );
-    expect(audio?.hidden).toBe(true);
-    expect(audio?.preload).toBe('auto');
-    expect(audio?.getAttribute('src')).toBe(
-      '/audio/Hegemony_Empire_Admission_Request_Button.mp3'
-    );
+    )).toBeNull();
     expect(engine.setMuted).toHaveBeenCalledWith(false);
     expect(engine.setHidden).toHaveBeenCalledWith(document.hidden);
-    expect(admissionPlayer.setMuted).toHaveBeenCalledWith(false);
-    expect(admissionPlayer.setHidden).toHaveBeenCalledWith(document.hidden);
     expect(engine.setWaterAmbience).toHaveBeenCalledWith({
       regime: 'none',
       relevance: 0,
@@ -235,33 +193,25 @@ describe('WarpkeepSfxDirector', () => {
 
     view.rerender(
       <WarpkeepSfxDirector
-        createAdmissionSoundPlayer={() => admissionPlayer}
         createEngine={() => engine}
         muted
       />
     );
     expect(engine.setMuted).toHaveBeenLastCalledWith(true);
-    expect(admissionPlayer.setMuted).toHaveBeenLastCalledWith(true);
 
     const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true);
     document.dispatchEvent(new Event('visibilitychange'));
     expect(engine.setHidden).toHaveBeenLastCalledWith(true);
-    expect(admissionPlayer.setHidden).toHaveBeenLastCalledWith(true);
     hidden.mockRestore();
 
-    emitHegemonyAdmissionRequestSound();
-    expect(admissionPlayer.play).toHaveBeenCalledOnce();
     stopWarpkeepSfxVoices();
     expect(engine.stopAll).toHaveBeenCalledOnce();
-    expect(admissionPlayer.stop).toHaveBeenCalledOnce();
   });
 
   it('does not treat synthetic test input as a trusted browser gesture', () => {
     const engine = fakeEngine();
-    const admissionPlayer = fakeAdmissionPlayer();
     render(
       <WarpkeepSfxDirector
-        createAdmissionSoundPlayer={() => admissionPlayer}
         createEngine={() => engine}
       />
     );
