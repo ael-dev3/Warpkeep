@@ -11,6 +11,7 @@ export type RealmRendererFailureCode =
   | 'renderer-construction-failed'
   | 'context-lost'
   | 'context-restore-timeout'
+  | 'scene-rebuild-timeout'
   | 'castle-count-mismatch'
   | 'castle-prefab-assembly-failed'
   | 'castle-pairing-failed'
@@ -39,6 +40,7 @@ export type RealmRendererLifecycle = Readonly<{
 
 export const REALM_RENDERER_MAX_RECOVERY_ATTEMPTS = 2;
 export const REALM_RENDERER_CONTEXT_RESTORE_TIMEOUT_MS = 8_000;
+export const REALM_RENDERER_SCENE_REBUILD_TIMEOUT_MS = 20_000;
 
 export function initialRealmRendererLifecycle(): RealmRendererLifecycle {
   return Object.freeze({ state: 'probing', attempt: 0, generation: 0, everReady: false });

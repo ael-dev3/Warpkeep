@@ -6,6 +6,17 @@ full engineering record.
 
 ## [Unreleased]
 
+## [0.3.40] — 2026-08-01
+
+- Let a disrupted Realm return one visual tier lighter for the current browser
+  session without changing the keeper's saved graphics choice.
+- Gave every restored scene a bounded rebuilding window, then safely released
+  a stalled generation into clear Retry and Return choices.
+- Added exact Android Chrome and Farcaster Android WebView recovery journeys,
+  including stale callbacks, repeated context loss, and dependency churn.
+- Left authentication, admission, keeps, Workers, resources, balances, and
+  persistent world state unchanged.
+
 ## [0.3.39] — 2026-08-01
 
 - Kept one deliberate Request Access gesture sealed across menu and Mini App

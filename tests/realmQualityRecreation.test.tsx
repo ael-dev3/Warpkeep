@@ -188,6 +188,7 @@ import {
 } from '../spacetimedb/src/waterWorld';
 import { CANONICAL_CASTLE_SLOTS } from '../spacetimedb/src/world';
 import { RealmMapScreen } from '../src/components/realm/RealmMapScreen';
+import { REALM_RENDERER_EMERGENCY_QUALITY_SESSION_KEY } from '../src/components/realm/realmRendererEmergencyQuality';
 import type { ReadyFoodExpeditionPresentation } from '../src/components/realm/realmFoodExpeditionPresentation';
 import { REALM_SURFACE_HISTORY_KEY } from '../src/components/realm/realmSurfaceNavigation';
 import {
@@ -619,6 +620,7 @@ function installMotionPreference(initialMatches = false) {
 
 afterEach(() => {
   cleanup();
+  window.sessionStorage.removeItem(REALM_RENDERER_EMERGENCY_QUALITY_SESSION_KEY);
   mocked.createRealmScene.mockClear();
   mocked.handles.length = 0;
   vi.restoreAllMocks();

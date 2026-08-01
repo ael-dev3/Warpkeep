@@ -6,6 +6,20 @@ export type LatestPatchNotes = Readonly<{
   alphaNotice: string;
 }>;
 
+const ALPHA_0_3_40_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: '1 AUG 2026',
+  title: 'THE REALM ENDURES',
+  summary:
+    'When a keeper’s device falters, Genesis 001 now returns on gentler footing instead of leaving them at an endless threshold.',
+  highlights: Object.freeze([
+    'A disrupted Realm now rebuilds one visual tier lighter for the current browser session without rewriting the keeper’s chosen graphics setting.',
+    'Every restoration has a firm boundary; a scene that cannot return is released safely into clear Retry and Return choices.',
+    'Android Chrome and Farcaster’s Android passage now carry the same recovery journey, while authentication, admission, and the living world remain untouched.'
+  ]),
+  alphaNotice:
+    'Alpha 0.3.40 remains an invite-only, unfinished world. This compatibility release changes no admission decision, keep, Worker, resource, balance, reward, or persistent Realm record.'
+});
+
 const ALPHA_0_3_39_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '1 AUG 2026',
   title: 'THE PETITION HOLDS',
@@ -317,6 +331,7 @@ const ALPHA_0_3_22_PATCH_NOTES: LatestPatchNotes = Object.freeze({
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
+    '0.3.40': ALPHA_0_3_40_PATCH_NOTES,
     '0.3.39': ALPHA_0_3_39_PATCH_NOTES,
     '0.3.38': ALPHA_0_3_38_PATCH_NOTES,
     '0.3.37': ALPHA_0_3_37_PATCH_NOTES,

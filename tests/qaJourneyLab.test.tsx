@@ -10,6 +10,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { WarpkeepQaJourneyLab } from '../src/dev/WarpkeepQaJourneyLab';
+import { REALM_RENDERER_EMERGENCY_QUALITY_SESSION_KEY } from '../src/components/realm/realmRendererEmergencyQuality';
 import { WARPKEEP_SAME_ORIGIN_PROFILE_PLACEHOLDER_PATH } from '../src/security/publicImageUrl';
 import {
   boundQaAutoCycleInterval,
@@ -72,7 +73,9 @@ function expectNoExternalSideEffects() {
   fetchImpl.mock.calls.forEach(([input]) => {
     expect(input).toBe(allowedProfileFixtureUrl);
   });
-  expect(storageRead).not.toHaveBeenCalled();
+  expect(storageRead.mock.calls.every((call: unknown[]) => (
+    call[0] === REALM_RENDERER_EMERGENCY_QUALITY_SESSION_KEY
+  ))).toBe(true);
   expect(storageWrite).not.toHaveBeenCalled();
   expect(storageRemove).not.toHaveBeenCalled();
   expect(storageClear).not.toHaveBeenCalled();
