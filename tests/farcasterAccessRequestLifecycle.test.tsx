@@ -100,6 +100,35 @@ afterEach(() => {
 });
 
 describe('access-request controller lifecycle', () => {
+  it('latches the action locally before a parent state round trip', () => {
+    const onRequestAccess = vi.fn();
+    const admissionSoundTriggers: string[] = [];
+    const unsubscribeSound = subscribeHegemonyAdmissionRequestSound((trigger) => {
+      admissionSoundTriggers.push(trigger);
+    });
+    render(
+      <FarcasterAccessRequestAction
+        onRequestAccess={onRequestAccess}
+        state={{ phase: 'not-requested' }}
+      />
+    );
+
+    const request = screen.getByRole('button', { name: 'REQUEST ACCESS' });
+    fireEvent.click(request);
+    fireEvent.click(request);
+    unsubscribeSound();
+
+    expect(onRequestAccess).toHaveBeenCalledTimes(1);
+    expect(admissionSoundTriggers).toEqual([
+      'hegemony-empire-admission.request'
+    ]);
+    const sent = screen.getByRole('button', { name: 'REQUEST SENT' }) as HTMLButtonElement;
+    expect(sent.disabled).toBe(true);
+    expect(sent.classList.contains(
+      'farcaster-auth-panel__action--request-committed'
+    )).toBe(true);
+  });
+
   it('loads once per pending FID generation and clears on phase departure', async () => {
     const getAccessRequestStatus = vi.fn(async () => ({
       version: 1 as const,

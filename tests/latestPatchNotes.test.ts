@@ -18,16 +18,16 @@ describe('latest in-menu patch notes', () => {
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
       releasedOn: '1 AUG 2026',
-      title: 'THE GATE RESOUNDS'
+      title: 'THE GATE HEEDS ONCE'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Request Access.*exact Hegemony admission chime.*trusted gesture.*ordinary interface press/i
+      /Request Access.*Request Sent.*first gesture.*network round trip.*second tap/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /gold seal.*violet echo.*water-like decay.*gateway quiet/i
+      /gold strike.*violet water-like echo.*exact admission resonance.*first accepted gesture/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /one bounded voice.*mute.*reduced-motion.*private record/i
+      /SpacetimeDB.*Request Received.*closed across refreshes.*status-first retry/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /released to players|deployed to players|public balances|guaranteed rewards/i
@@ -37,6 +37,10 @@ describe('latest in-menu patch notes', () => {
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
       'does not grant admission'
     );
+
+    expect(getLatestPatchNotes('0.3.36')).toMatchObject({
+      title: 'THE GATE RESOUNDS'
+    });
 
     expect(getLatestPatchNotes('0.3.35')).toMatchObject({
       title: 'THE PETITION IS SEALED'

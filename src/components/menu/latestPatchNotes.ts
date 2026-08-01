@@ -6,6 +6,20 @@ export type LatestPatchNotes = Readonly<{
   alphaNotice: string;
 }>;
 
+const ALPHA_0_3_37_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: '1 AUG 2026',
+  title: 'THE GATE HEEDS ONCE',
+  summary:
+    'One deliberate petition now carries the full answer of the Hegemony gate.',
+  highlights: Object.freeze([
+    'Request Access seals itself as Request Sent on the first gesture, before any network round trip can invite a second tap.',
+    'The gold strike, violet water-like echo, and exact admission resonance now answer only that first accepted gesture.',
+    'A petition already held by SpacetimeDB returns as Request Received and remains closed across refreshes, while a proven outage can still recover through one status-first retry.'
+  ]),
+  alphaNotice:
+    'Alpha 0.3.37 remains an invite-only, unfinished world. A petition requests manual review only; it does not grant admission, create a keep, or change any Realm ownership or balance.'
+});
+
 const ALPHA_0_3_36_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '1 AUG 2026',
   title: 'THE GATE RESOUNDS',
@@ -275,6 +289,7 @@ const ALPHA_0_3_22_PATCH_NOTES: LatestPatchNotes = Object.freeze({
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
+    '0.3.37': ALPHA_0_3_37_PATCH_NOTES,
     '0.3.36': ALPHA_0_3_36_PATCH_NOTES,
     '0.3.35': ALPHA_0_3_35_PATCH_NOTES,
     '0.3.34': ALPHA_0_3_34_PATCH_NOTES,
