@@ -1,4 +1,4 @@
-import { useState, type Ref } from 'react';
+import { useEffect, useRef, useState, type Ref } from 'react';
 
 import { emitHegemonyAdmissionRequestSound } from '../audio/hegemonyAdmissionRequestSound';
 import type { AccessRequestViewState } from '../../farcaster/farcasterAuthTypes';
@@ -95,19 +95,29 @@ export function FarcasterAccessRequestAction({
   primaryActionRef
 }: FarcasterAccessRequestProps) {
   const [requestCommittedLocally, setRequestCommittedLocally] = useState(false);
+  const requestCommittedLocallyRef = useRef(false);
+
+  useEffect(() => {
+    if (state.phase !== 'not-requested' && state.phase !== 'error') return;
+    requestCommittedLocallyRef.current = false;
+    setRequestCommittedLocally(false);
+  }, [state.phase]);
 
   if (state.phase === 'idle' || state.phase === 'already-admitted') return null;
 
   const isLoading = state.phase === 'loading';
   const isSubmitting = state.phase === 'submitting';
   const isRequested = state.phase === 'requested';
-  const disabled = isLoading || isSubmitting || isRequested;
+  const disabled = isLoading
+    || isSubmitting
+    || isRequested
+    || requestCommittedLocally;
   const label = isLoading
     ? 'CHECKING…'
-    : isSubmitting
-      ? 'REQUEST SENT'
-      : isRequested
-        ? 'REQUEST RECEIVED'
+    : isRequested
+      ? 'REQUEST RECEIVED'
+      : isSubmitting || requestCommittedLocally
+        ? 'REQUEST SENT'
         : 'REQUEST ACCESS';
   const className = [
     'farcaster-auth-panel__action',
@@ -120,6 +130,8 @@ export function FarcasterAccessRequestAction({
   ].filter(Boolean).join(' ');
 
   const handleRequestAccess = () => {
+    if (disabled || requestCommittedLocallyRef.current) return;
+    requestCommittedLocallyRef.current = true;
     emitHegemonyAdmissionRequestSound();
     setRequestCommittedLocally(true);
     onRequestAccess();

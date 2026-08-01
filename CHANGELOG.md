@@ -6,6 +6,16 @@ full engineering record.
 
 ## [Unreleased]
 
+## [0.3.37] — 2026-08-01
+
+- Latched Request Access at the button boundary before the parent state round
+  trip, so same-frame repeated gestures cannot replay its sound, animation, or
+  submission callback.
+- Kept recorded petitions disabled across refreshes through the existing
+  private SpacetimeDB status, cycle-idempotent procedure, and first timestamp.
+- Preserved one status-first retry after a confirmed availability failure,
+  without weakening manual admission or changing Realm data.
+
 ## [0.3.36] — 2026-08-01
 
 - Gave Request Access its exact Hegemony admission resonance on the player’s
@@ -399,7 +409,8 @@ full engineering record.
   Lowlands, a first keep, Farcaster sign-in, and an admission-gated shared-world
   foundation.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.36...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.37...HEAD
+[0.3.37]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.36...v0.3.37
 [0.3.36]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.35...v0.3.36
 [0.3.35]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.34...v0.3.35
 [0.3.34]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.33...v0.3.34
