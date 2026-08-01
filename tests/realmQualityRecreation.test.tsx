@@ -189,6 +189,7 @@ import {
 import { CANONICAL_CASTLE_SLOTS } from '../spacetimedb/src/world';
 import { RealmMapScreen } from '../src/components/realm/RealmMapScreen';
 import { REALM_RENDERER_EMERGENCY_QUALITY_SESSION_KEY } from '../src/components/realm/realmRendererEmergencyQuality';
+import { REALM_RENDERER_SCENE_REBUILD_TIMEOUT_MS } from '../src/components/realm/realmRendererRecovery';
 import type { ReadyFoodExpeditionPresentation } from '../src/components/realm/realmFoodExpeditionPresentation';
 import { REALM_SURFACE_HISTORY_KEY } from '../src/components/realm/realmSurfaceNavigation';
 import {
@@ -620,6 +621,7 @@ function installMotionPreference(initialMatches = false) {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   window.sessionStorage.removeItem(REALM_RENDERER_EMERGENCY_QUALITY_SESSION_KEY);
   mocked.createRealmScene.mockClear();
   mocked.handles.length = 0;
@@ -1260,7 +1262,14 @@ describe('live realm quality recreation', () => {
     );
     const realm = screen.getByRole('main', { name: 'Hegemony realm' });
     act(() => mocked.createRealmScene.mock.calls[0]![0].onCastlesReady?.(1));
+    const predecessorCanvas = (
+      mocked.createRealmScene.mock.calls[0]![0] as unknown as {
+        canvas: HTMLCanvasElement;
+      }
+    ).canvas;
+    predecessorCanvas.dataset.realmRendererContextLossCount = '1';
     fireEvent.keyDown(realm, { key: 'ArrowRight' });
+    vi.useFakeTimers();
 
     rerender(
       <RealmMapScreen
@@ -1283,6 +1292,8 @@ describe('live realm quality recreation', () => {
     expect(mocked.handles[0]!.dispose).not.toHaveBeenCalled();
     expect(mocked.handles[1]!.dispose).toHaveBeenCalledOnce();
     expect(realm.dataset.rendererState).toBe('ready');
+    expect(realm.dataset.rendererDeadlineKind).toBe('none');
+    expect(realm.dataset.rendererContextLossCount).toBe('0');
     expect(realm.dataset.realmSceneReplacementFailureCount).toBe('1');
     expect(realm.dataset.realmBlockingLoadingOverlayVisible).toBe('false');
     expect(screen.queryByText('Updating Realm visuals…')).toBeNull();
@@ -1291,6 +1302,21 @@ describe('live realm quality recreation', () => {
     )).not.toBeNull();
     expect(selectionAnnouncement().textContent)
       .toContain('Lowland Forest. Terrain selected.');
+
+    // The rejected candidate's expired deadline must never be inherited by
+    // a later, independent recovery of the retained predecessor.
+    act(() => vi.advanceTimersByTime(REALM_RENDERER_SCENE_REBUILD_TIMEOUT_MS + 1));
+    act(() => mocked.createRealmScene.mock.calls[0]![0].onRendererFailure?.({
+      code: 'scene-build-failed',
+      retryable: true,
+      phase: 'ready',
+      message: 'Synthetic later predecessor failure.'
+    }));
+    expect(mocked.createRealmScene).toHaveBeenCalledTimes(3);
+    expect(realm.dataset.rendererState).toBe('loading');
+    expect(realm.dataset.rendererDeadlineKind).toBe('scene-rebuild');
+    act(() => vi.advanceTimersByTime(1));
+    expect(mocked.createRealmScene).toHaveBeenCalledTimes(3);
   });
 
   it('retains a healthy scene when candidate activation rendering fails', () => {
@@ -1700,7 +1726,7 @@ describe('live realm quality recreation', () => {
     expect(realm.dataset.realmSceneReplacementFailureCount).toBe('0');
   });
 
-  it('restores exact-key Worker presentation continuity during renderer recovery', () => {
+  it('restores exact-topology Worker presentation continuity across a lighter recovery tier', () => {
     installWebGlProbe();
     const snapshot = createCanonicalGenesisSnapshot(CANONICAL_TEST_FID);
     render(
@@ -2010,6 +2036,38 @@ describe('live realm quality recreation', () => {
     expect(motion.preference.removeEventListener).toHaveBeenCalledTimes(
       motion.preference.addEventListener.mock.calls.length
     );
+  });
+
+  it('retires a stalled nonblocking presentation candidate and keeps the healthy scene', () => {
+    const motion = installMotionPreference();
+    installWebGlProbe();
+    render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={createCanonicalGenesisSnapshot(CANONICAL_TEST_FID)}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+    const initialOptions = mocked.createRealmScene.mock.calls[0]![0];
+    act(() => initialOptions.onCastlesReady?.(1));
+    vi.useFakeTimers();
+
+    act(() => motion.set(true));
+    const realm = screen.getByRole('main', { name: 'Hegemony realm' });
+    expect(mocked.createRealmScene).toHaveBeenCalledTimes(2);
+    expect(mocked.handles[0]!.dispose).not.toHaveBeenCalled();
+    expect(realm.dataset.rendererState).toBe('loading');
+    expect(realm.dataset.rendererDeadlineKind).toBe('scene-rebuild');
+    expect(screen.getByText('Updating Realm visuals…')).not.toBeNull();
+
+    act(() => vi.advanceTimersByTime(REALM_RENDERER_SCENE_REBUILD_TIMEOUT_MS));
+    expect(mocked.handles[1]!.dispose).toHaveBeenCalledOnce();
+    expect(mocked.handles[0]!.dispose).not.toHaveBeenCalled();
+    expect(realm.dataset.rendererState).toBe('ready');
+    expect(realm.dataset.rendererDeadlineKind).toBe('none');
+    expect(realm.dataset.realmSceneReplacementFailureCount).toBe('1');
+    expect(screen.queryByText('Updating Realm visuals…')).toBeNull();
   });
 
   it('preserves district framing when castle selection survives a quality rebuild', () => {

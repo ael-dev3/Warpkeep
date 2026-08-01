@@ -6,6 +6,19 @@ full engineering record.
 
 ## [Unreleased]
 
+## [0.3.41] — 2026-08-01
+
+- Let Warpkeep repair an interrupted graphics session through lighter visual
+  tiers and a fresh canvas before opening a lightweight 2D safety overview.
+- Made Android and embedded-view recovery respect app backgrounding while a
+  hard deadline still prevents an abandoned restoration screen from lingering.
+- Required a visibly stable recovery before reopening its retry budget, and
+  kept a healthy Realm active when an optional visual replacement stalls.
+- Added plain-language error references, privacy-safe compatibility details,
+  and a direct support route for every classified Realm renderer failure.
+- Preserved Worker motion across recovery when the canonical world topology is
+  unchanged, without changing authentication, admission, or persistent state.
+
 ## [0.3.40] — 2026-08-01
 
 - Let a disrupted Realm return one visual tier lighter for the current browser

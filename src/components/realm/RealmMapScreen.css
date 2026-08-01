@@ -364,13 +364,20 @@
   z-index: 20;
   inset: 0;
   display: grid;
-  padding: 1rem;
+  padding:
+    max(1rem, var(--realm-safe-top))
+    max(1rem, var(--realm-safe-right))
+    max(1rem, var(--realm-safe-bottom))
+    max(1rem, var(--realm-safe-left));
   place-items: center;
   background:
     radial-gradient(circle at 50% 44%, rgb(111 61 144 / 24%), transparent 28rem),
     linear-gradient(145deg, #08060d, #21112b 58%, #0b0810);
   color: var(--realm-electrum);
   text-align: center;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .realm-map-screen__loading > div,
@@ -415,6 +422,168 @@
 
 .realm-map-screen__loading button:hover,
 .realm-map-screen__loading button:focus-visible {
+  border-color: var(--realm-electrum);
+  outline: 2px solid var(--realm-electrum);
+  outline-offset: 2px;
+}
+
+.realm-renderer-recovery-panel {
+  display: grid;
+  gap: 0.78rem;
+  width: min(
+    40rem,
+    calc(
+      100vw
+      - max(1rem, var(--realm-safe-left))
+      - max(1rem, var(--realm-safe-right))
+    )
+  );
+  max-height: calc(
+    100vh
+    - max(1rem, var(--realm-safe-top))
+    - max(1rem, var(--realm-safe-bottom))
+  );
+  box-sizing: border-box;
+  padding: 1rem 1.05rem;
+  border: 1px solid rgb(227 193 111 / 48%);
+  border-radius: 0.65rem;
+  background: rgb(13 8 18 / 91%);
+  box-shadow: 0 1.2rem 4rem rgb(0 0 0 / 42%);
+  color: var(--realm-ivory);
+  text-align: left;
+  text-shadow: none;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+@supports (max-height: 100dvh) {
+  .realm-renderer-recovery-panel {
+    max-height: calc(
+      100dvh
+      - max(1rem, var(--realm-safe-top))
+      - max(1rem, var(--realm-safe-bottom))
+    );
+  }
+}
+
+.realm-renderer-recovery-panel > strong {
+  color: var(--realm-electrum);
+  font: 500 1.08rem/1.25 Georgia, "Times New Roman", serif;
+  letter-spacing: 0.06em;
+  text-align: center;
+}
+
+.realm-renderer-recovery-panel__summary,
+.realm-renderer-recovery-panel p {
+  margin: 0;
+  color: var(--realm-muted);
+  font-size: 0.82rem;
+  line-height: 1.52;
+}
+
+.realm-renderer-recovery-panel__status {
+  display: grid;
+  gap: 0.42rem;
+  margin: 0;
+}
+
+.realm-renderer-recovery-panel__status > div {
+  display: grid;
+  grid-template-columns: minmax(5.5rem, 0.32fr) minmax(0, 1fr);
+  gap: 0.65rem;
+  padding: 0.48rem 0.55rem;
+  border: 1px solid rgb(227 193 111 / 18%);
+  border-radius: 0.4rem;
+  background: rgb(255 255 255 / 3%);
+}
+
+.realm-renderer-recovery-panel__status dt,
+.realm-renderer-recovery-panel__status dd {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.42;
+}
+
+.realm-renderer-recovery-panel__status dt {
+  color: var(--realm-electrum);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.realm-renderer-recovery-panel__status dd {
+  color: var(--realm-ivory);
+}
+
+.realm-renderer-recovery-panel code {
+  color: #ead8ff;
+  font: 600 0.72rem/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.realm-renderer-recovery-panel__details {
+  border-top: 1px solid rgb(227 193 111 / 24%);
+  border-bottom: 1px solid rgb(227 193 111 / 24%);
+  padding: 0.58rem 0;
+}
+
+.realm-renderer-recovery-panel__details summary {
+  color: var(--realm-electrum);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.realm-renderer-recovery-panel__details > div {
+  display: grid;
+  gap: 0.55rem;
+  padding-top: 0.62rem;
+}
+
+.realm-renderer-recovery-panel__details b {
+  color: var(--realm-ivory);
+}
+
+.realm-renderer-recovery-panel__report {
+  display: block;
+  padding: 0.55rem;
+  border: 1px solid rgb(201 167 234 / 22%);
+  border-radius: 0.35rem;
+  background: rgb(0 0 0 / 25%);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.realm-renderer-recovery-panel small {
+  color: rgb(201 191 208 / 78%);
+  font-size: 0.68rem;
+  line-height: 1.45;
+}
+
+.realm-renderer-recovery-panel__actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.realm-renderer-recovery-panel__actions > :is(button, a) {
+  display: grid;
+  min-height: 2.75rem;
+  box-sizing: border-box;
+  place-items: center;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid rgb(230 196 114 / 58%);
+  border-radius: 0.4rem;
+  background: linear-gradient(135deg, var(--realm-purple), var(--realm-amethyst-deep));
+  color: var(--realm-ivory);
+  font: 700 0.75rem/1.2 Inter, ui-sans-serif, system-ui, sans-serif;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.realm-renderer-recovery-panel__actions > :is(button, a):hover,
+.realm-renderer-recovery-panel__actions > :is(button, a):focus-visible {
   border-color: var(--realm-electrum);
   outline: 2px solid var(--realm-electrum);
   outline-offset: 2px;
@@ -972,19 +1141,56 @@
 
 .realm-map-screen__fallback-copy {
   position: absolute;
-  z-index: 2;
-  right: max(0.8rem, env(safe-area-inset-right));
-  bottom: max(4.55rem, calc(env(safe-area-inset-bottom) + 4rem));
+  z-index: 18;
+  right: max(0.8rem, var(--realm-safe-right));
+  bottom: max(4.55rem, calc(var(--realm-safe-bottom) + 4rem));
   display: grid;
   justify-items: end;
   gap: 0.5rem;
-  width: min(28rem, calc(100vw - 1.6rem));
+  width: min(
+    40rem,
+    calc(
+      100vw
+      - max(0.8rem, var(--realm-safe-left))
+      - max(0.8rem, var(--realm-safe-right))
+    )
+  );
   margin: 0;
   color: #f8f0d6;
   font-size: 0.8125rem;
   line-height: 1.45;
   text-align: right;
   text-shadow: 0 1px 8px #293018;
+  pointer-events: none;
+}
+
+.realm-map-screen__fallback-copy .realm-renderer-recovery-panel {
+  width: 100%;
+  max-height: min(
+    68vh,
+    34rem,
+    calc(
+      100vh
+      - max(1rem, var(--realm-safe-top))
+      - max(4.55rem, calc(var(--realm-safe-bottom) + 4rem))
+    )
+  );
+  background: rgb(13 8 18 / 88%);
+  pointer-events: auto;
+}
+
+@supports (max-height: 100dvh) {
+  .realm-map-screen__fallback-copy .realm-renderer-recovery-panel {
+    max-height: min(
+      68dvh,
+      34rem,
+      calc(
+        100dvh
+        - max(1rem, var(--realm-safe-top))
+        - max(4.55rem, calc(var(--realm-safe-bottom) + 4rem))
+      )
+    );
+  }
 }
 
 .realm-map-screen__fallback-copy button {
@@ -1003,6 +1209,43 @@
   border-color: #fff1b8;
   outline: 2px solid #fff1b8;
   outline-offset: 2px;
+}
+
+@media (max-width: 520px) {
+  .realm-renderer-recovery-panel {
+    gap: 0.62rem;
+    width: calc(
+      100vw
+      - max(0.5rem, var(--realm-safe-left))
+      - max(0.5rem, var(--realm-safe-right))
+    );
+    max-height: calc(
+      100vh
+      - max(0.5rem, var(--realm-safe-top))
+      - max(0.5rem, var(--realm-safe-bottom))
+    );
+    max-height: calc(
+      100dvh
+      - max(0.5rem, var(--realm-safe-top))
+      - max(0.5rem, var(--realm-safe-bottom))
+    );
+    padding: 0.78rem;
+  }
+
+  .realm-renderer-recovery-panel__status > div,
+  .realm-renderer-recovery-panel__actions {
+    grid-template-columns: 1fr;
+  }
+
+  .realm-map-screen__fallback-copy {
+    right: max(0.5rem, var(--realm-safe-right));
+    bottom: max(3.75rem, calc(var(--realm-safe-bottom) + 3.25rem));
+    width: calc(
+      100vw
+      - max(0.5rem, var(--realm-safe-left))
+      - max(0.5rem, var(--realm-safe-right))
+    );
+  }
 }
 
 .realm-hud {

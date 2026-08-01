@@ -25,6 +25,7 @@ import {
 } from '../src/components/audio/sfxEvents';
 import { WATER_INSPECTION_FOLLOW_INTERVAL_MS } from '../src/components/realm/WaterInspectionPanel';
 import { REALM_RENDERER_EMERGENCY_QUALITY_SESSION_KEY } from '../src/components/realm/realmRendererEmergencyQuality';
+import { REALM_RENDERER_SCENE_REBUILD_TIMEOUT_MS } from '../src/components/realm/realmRendererRecovery';
 import type { CreateRealmSceneOptions } from '../src/components/realm/createRealmScene';
 import { validateCanonicalGenesisSnapshot } from '../src/spacetime/canonicalGenesisSnapshot';
 import { WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION } from '../src/spacetime/warpkeepProtocol';
@@ -124,7 +125,7 @@ describe('Realm renderer recovery UI', () => {
     expect(realm.getAttribute('data-renderer-state')).toBe('loading');
   });
 
-  it('offers a functional manual retry after context restoration times out', () => {
+  it('uses a fresh lighter canvas after restore timeout and retains a manual retry from safety view', () => {
     vi.useFakeTimers();
     const snapshot = createCanonicalGenesisSnapshot(CANONICAL_TEST_FID);
     const onRequestReturn = vi.fn();
@@ -166,22 +167,33 @@ describe('Realm renderer recovery UI', () => {
     act(() => vi.advanceTimersByTime(3_999));
     expect(realm.getAttribute('data-renderer-state')).toBe('recovering');
     act(() => vi.advanceTimersByTime(1));
-    expect(screen.getByRole('alert').textContent).toMatch(/THE REALM COULD NOT BE RESTORED/i);
-    expect(realm.getAttribute('aria-busy')).toBe('false');
+    expect(sceneState.create).toHaveBeenCalledTimes(2);
     expect(firstHandle.dispose).toHaveBeenCalledOnce();
+    const automaticRetryOptions = sceneState.create.mock.calls[1]![0] as CreateRealmSceneOptions;
+    expect(automaticRetryOptions.canvas).not.toBe(firstOptions.canvas);
+    expect(automaticRetryOptions.quality.id).toBe('balanced');
+    expect(realm.getAttribute('data-renderer-state')).toBe('loading');
+    expect(realm.getAttribute('data-renderer-last-failure-code'))
+      .toBe('context-restore-timeout');
+    expect(realm.getAttribute('aria-busy')).toBe('true');
+
+    act(() => vi.advanceTimersByTime(REALM_RENDERER_SCENE_REBUILD_TIMEOUT_MS));
+    expect(screen.getByText('2D SAFETY VIEW ACTIVE')).not.toBeNull();
+    expect(realm.getAttribute('data-renderer-state')).toBe('static-degraded');
+    expect(realm.getAttribute('aria-busy')).toBe('false');
     const retry = screen.getByRole('button', { name: 'Retry 3D Realm' });
     fireEvent.click(screen.getByRole('button', { name: 'Return to Menu' }));
     expect(onRequestReturn).toHaveBeenCalledOnce();
 
     fireEvent.click(retry);
-    expect(sceneState.create).toHaveBeenCalledTimes(2);
+    expect(sceneState.create).toHaveBeenCalledTimes(3);
     expect(firstHandle.dispose).toHaveBeenCalledOnce();
-    expect((sceneState.create.mock.calls[1]![0] as CreateRealmSceneOptions).quality.id)
+    expect((sceneState.create.mock.calls[2]![0] as CreateRealmSceneOptions).quality.id)
       .toBe('balanced');
     expect(realm.getAttribute('data-renderer-state')).toBe('loading');
     expect(realm.getAttribute('aria-busy')).toBe('true');
 
-    const retryOptions = sceneState.create.mock.calls[1]![0] as CreateRealmSceneOptions;
+    const retryOptions = sceneState.create.mock.calls[2]![0] as CreateRealmSceneOptions;
     act(() => retryOptions.onRendererFailure?.({
       code: 'context-lost',
       retryable: true,

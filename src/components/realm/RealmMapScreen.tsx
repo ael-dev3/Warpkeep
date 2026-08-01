@@ -68,6 +68,7 @@ import {
 } from './RealmCastleLabels';
 import { RealmHud, type RealmActiveWagonMenuItem } from './RealmHud';
 import { RealmObserverHud } from './RealmObserverHud';
+import { RealmRendererRecoveryPanel } from './RealmRendererRecoveryPanel';
 import { RealmResourceOccupantMarkers } from './RealmResourceOccupantMarkers';
 import { RealmTerrainInspectionPanel } from './RealmTerrainInspectionPanel';
 import { RealmWorkerPresenceMarkers } from './RealmWorkerPresenceMarkers';
@@ -210,12 +211,19 @@ import {
   classifyRealmRendererFailure,
   initialRealmRendererLifecycle,
   REALM_RENDERER_CONTEXT_RESTORE_TIMEOUT_MS,
+  REALM_RENDERER_INITIAL_SCENE_TIMEOUT_MS,
+  REALM_RENDERER_RECOVERY_WALL_TIMEOUT_MS,
   REALM_RENDERER_SCENE_REBUILD_TIMEOUT_MS,
+  REALM_RENDERER_STABILITY_WINDOW_MS,
   shouldRetryRealmRenderer,
   transitionRealmRendererLifecycle,
   type RealmRendererFailure,
   type RealmRendererLifecycle
 } from './realmRendererRecovery';
+import {
+  canUseStaticRealmFallback,
+  shouldRebalanceRealmRendererQuality
+} from './realmRendererDiagnostics';
 import {
   nextLowerRealmRendererQuality,
   readRealmRendererEmergencyQuality,
@@ -314,6 +322,13 @@ type RealmMapScreenProps = Readonly<{
 }>;
 
 type RendererMode = 'loading' | 'webgl' | 'fallback';
+type RendererDeadlineKind = 'context-restore' | 'scene-build' | 'scene-rebuild';
+
+function rendererTelemetryCount(value: string | undefined) {
+  if (!value || !/^\d{1,9}$/.test(value)) return 0;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : 0;
+}
 
 const REALM_KEYBOARD_INSTRUCTIONS_ID = 'realm-map-keyboard-instructions';
 const RESOURCE_SELECTION_SFX_KINDS = Object.freeze({
@@ -599,6 +614,9 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
   ]>([null, null]);
   const activeCanvasSlotRef = useRef<0 | 1>(0);
   const [activeCanvasSlot, setActiveCanvasSlot] = useState<0 | 1>(0);
+  const [canvasSlotEpochs, setCanvasSlotEpochs] = useState<readonly [number, number]>(
+    [0, 0]
+  );
   const setPrimaryCanvasRef = useCallback((canvas: HTMLCanvasElement | null) => {
     canvasSlotRefs.current[0] = canvas;
     if (activeCanvasSlotRef.current === 0) canvasRef.current = canvas;
@@ -1279,7 +1297,10 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
   const [rendererLifecycle, setRendererLifecycle] = useState<RealmRendererLifecycle>(
     initialRealmRendererLifecycle
   );
-  const rendererMode: RendererMode = rendererLifecycle.state === 'static-unsupported'
+  const rendererMode: RendererMode = (
+    rendererLifecycle.state === 'static-unsupported'
+    || rendererLifecycle.state === 'static-degraded'
+  )
     ? 'fallback'
     : rendererLifecycle.state === 'ready'
       || (
@@ -1299,27 +1320,51 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
   const activeRendererGenerationRef = useRef(0);
   const lastSuccessfulRendererGenerationRef = useRef(0);
   const nextRendererGenerationRef = useRef(1);
-  const rendererDeadlineRef = useRef<Readonly<{
+  const rendererDeadlineRef = useRef<{
     generation: number;
-    kind: 'context-restore' | 'scene-rebuild';
+    kind: RendererDeadlineKind;
     expiresAt: number;
+    wallExpiresAt: number;
+    durationMilliseconds: number;
     token: number;
     timer: number;
-  }> | null>(null);
+    handleVisibilityChange: () => void;
+  } | null>(null);
   const nextRendererDeadlineTokenRef = useRef(1);
+  const rendererStabilityTimerRef = useRef<{
+    generation: number;
+    remainingMilliseconds: number;
+    visibleStartedAt: number;
+    timer: number;
+    handleVisibilityChange: () => void;
+  } | null>(null);
+  const armRendererStabilityTimerRef = useRef<(generation: number) => void>(
+    () => undefined
+  );
+  const rendererWebGLProbeAvailableRef = useRef<boolean | undefined>(undefined);
+  const markRendererFailureRef = useRef<(
+    failureInput?: RealmRendererFailure | unknown,
+    reportedGeneration?: number
+  ) => void>(() => undefined);
   const pendingEmergencyQualityRef = useRef<Readonly<{
     generation: number;
     quality: RealmQuality;
   }> | undefined>(undefined);
   const recoverySceneRebuildDeadlinePendingRef = useRef(false);
+  const recoverySceneRebuildDeadlineKindRef = useRef<
+    Exclude<RendererDeadlineKind, 'context-restore'> | undefined
+  >(undefined);
   const recoverySceneRebuildDeadlineExpiresAtRef = useRef<number | undefined>(
+    undefined
+  );
+  const recoverySceneRebuildDeadlineWallExpiresAtRef = useRef<number | undefined>(
     undefined
   );
   const rendererRecoveryNonceRef = useRef(0);
   const [rendererRecoveryNonce, setRendererRecoveryNonce] = useState(0);
   const rendererAttestationRef = useRef<ReturnType<RealmSceneHandle['getCameraAttestation']> | null>(null);
   const workerPresentationContinuityRef = useRef<Readonly<{
-    constructionKey: string;
+    topologyKey: string;
     snapshot: RealmWorkerPresentationContinuityV1;
   }> | null>(null);
   const sceneConstructionProfileRef = useRef<RealmSceneConstructionProfile | undefined>(undefined);
@@ -1330,6 +1375,13 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
   const sceneCreationCountRef = useRef(0);
   const sceneDisposalCountRef = useRef(0);
   const sceneReplacementFailureCountRef = useRef(0);
+  const rendererContextLossCountRef = useRef(0);
+  const rendererContextRestoreCountRef = useRef(0);
+  const rendererCanvasByGenerationRef = useRef(new Map<number, HTMLCanvasElement>());
+  const rendererContextTelemetryByGenerationRef = useRef(new Map<number, Readonly<{
+    losses: number;
+    restores: number;
+  }>>());
   const firstReadyAtRef = useRef<number | null>(null);
   const cameraAttestationRestoreCountRef = useRef(0);
   const [cameraMode, setCameraMode] = useState<RealmCameraMode>('realm');
@@ -2649,7 +2701,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
 
   const clearRendererDeadline = useCallback((expected?: Readonly<{
     generation: number;
-    kind: 'context-restore' | 'scene-rebuild';
+    kind: RendererDeadlineKind;
   }>) => {
     const deadline = rendererDeadlineRef.current;
     if (!deadline) return false;
@@ -2661,9 +2713,113 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       )
     ) return false;
     window.clearTimeout(deadline.timer);
+    document.removeEventListener('visibilitychange', deadline.handleVisibilityChange);
+    window.removeEventListener('pageshow', deadline.handleVisibilityChange);
     rendererDeadlineRef.current = null;
     return true;
   }, []);
+
+  const clearRendererStabilityTimer = useCallback(() => {
+    const stability = rendererStabilityTimerRef.current;
+    if (stability === null) return;
+    window.clearTimeout(stability.timer);
+    document.removeEventListener(
+      'visibilitychange',
+      stability.handleVisibilityChange
+    );
+    window.removeEventListener('pageshow', stability.handleVisibilityChange);
+    rendererStabilityTimerRef.current = null;
+  }, []);
+
+  const captureRendererContextTelemetry = useCallback((
+    generation: number,
+    telemetry: DOMStringMap | undefined
+  ) => {
+    if (!Number.isSafeInteger(generation) || generation <= 0 || !telemetry) return;
+    const current = Object.freeze({
+      losses: rendererTelemetryCount(telemetry.realmRendererContextLossCount),
+      restores: rendererTelemetryCount(telemetry.realmRendererContextRestoreCount)
+    });
+    const previous = rendererContextTelemetryByGenerationRef.current.get(generation)
+      ?? { losses: 0, restores: 0 };
+    rendererContextLossCountRef.current += Math.max(0, current.losses - previous.losses);
+    rendererContextRestoreCountRef.current += Math.max(
+      0,
+      current.restores - previous.restores
+    );
+    rendererContextTelemetryByGenerationRef.current.set(generation, current);
+
+    // Long-running QA sessions can create many explicit retry generations.
+    // Keep only a bounded amount of non-sensitive counter state; callbacks
+    // from older retired generations are rejected before reaching this path.
+    if (rendererContextTelemetryByGenerationRef.current.size > 24) {
+      const oldestGeneration = rendererContextTelemetryByGenerationRef.current
+        .keys().next().value;
+      if (typeof oldestGeneration === 'number') {
+        rendererContextTelemetryByGenerationRef.current.delete(oldestGeneration);
+      }
+    }
+  }, []);
+
+  const armRendererStabilityTimer = useCallback((generation: number) => {
+    clearRendererStabilityTimer();
+    if (rendererLifecycleRef.current.attempt === 0) return;
+    const stability = {
+      generation,
+      remainingMilliseconds: REALM_RENDERER_STABILITY_WINDOW_MS,
+      visibleStartedAt: Date.now(),
+      timer: 0,
+      handleVisibilityChange: () => undefined
+    };
+    const publishStable = () => {
+      if (rendererStabilityTimerRef.current !== stability) return;
+      document.removeEventListener(
+        'visibilitychange',
+        stability.handleVisibilityChange
+      );
+      window.removeEventListener('pageshow', stability.handleVisibilityChange);
+      rendererStabilityTimerRef.current = null;
+      const current = rendererLifecycleRef.current;
+      if (
+        current.state !== 'ready'
+        || current.generation !== generation
+        || activeRendererGenerationRef.current !== generation
+      ) return;
+      const stableLifecycle = transitionRealmRendererLifecycle(current, {
+        type: 'stable',
+        generation
+      });
+      rendererLifecycleRef.current = stableLifecycle;
+      setRendererLifecycle(stableLifecycle);
+    };
+    const schedule = () => {
+      if (rendererStabilityTimerRef.current !== stability) return;
+      window.clearTimeout(stability.timer);
+      if (document.hidden) return;
+      stability.visibleStartedAt = Date.now();
+      stability.timer = window.setTimeout(
+        publishStable,
+        stability.remainingMilliseconds
+      );
+    };
+    stability.handleVisibilityChange = () => {
+      if (rendererStabilityTimerRef.current !== stability) return;
+      if (document.hidden) {
+        window.clearTimeout(stability.timer);
+        stability.remainingMilliseconds = Math.max(
+          0,
+          stability.remainingMilliseconds - (Date.now() - stability.visibleStartedAt)
+        );
+        return;
+      }
+      schedule();
+    };
+    rendererStabilityTimerRef.current = stability;
+    document.addEventListener('visibilitychange', stability.handleVisibilityChange);
+    window.addEventListener('pageshow', stability.handleVisibilityChange);
+    schedule();
+  }, [clearRendererStabilityTimer]);
+  armRendererStabilityTimerRef.current = armRendererStabilityTimer;
 
   const retireRendererGeneration = useCallback((generation: number) => {
     if (!Number.isSafeInteger(generation) || generation <= 0) return false;
@@ -2708,14 +2864,38 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
         );
       }
     }
+    rendererCanvasByGenerationRef.current.delete(generation);
+    rendererContextTelemetryByGenerationRef.current.delete(generation);
     return scenes.size > 0;
   }, []);
 
+  const rotateRendererCanvasSlot = useCallback(() => {
+    const nextSlot: 0 | 1 = activeCanvasSlotRef.current === 0 ? 1 : 0;
+    activeCanvasSlotRef.current = nextSlot;
+    canvasRef.current = canvasSlotRefs.current[nextSlot];
+    for (const slot of [0, 1] as const) {
+      const slotCanvas = canvasSlotRefs.current[slot];
+      if (slotCanvas) slotCanvas.dataset.realmCanvasActive = String(slot === nextSlot);
+    }
+    // Replace the destination DOM node before a new scene is constructed.
+    // Merely alternating between two persistent canvases can return to a
+    // context that the browser never restored; an epoch key guarantees that
+    // every recovery destination is a genuinely fresh context owner.
+    setCanvasSlotEpochs((current) => {
+      const next: [number, number] = [current[0], current[1]];
+      next[nextSlot] += 1;
+      return next;
+    });
+    setActiveCanvasSlot(nextSlot);
+    return nextSlot;
+  }, []);
+
   const armRendererDeadline = useCallback((
-    kind: 'context-restore' | 'scene-rebuild',
+    kind: RendererDeadlineKind,
     generation: number,
     durationMilliseconds: number,
-    absoluteExpiresAt?: number
+    absoluteExpiresAt?: number,
+    absoluteWallExpiresAt?: number
   ) => {
     const existing = rendererDeadlineRef.current;
     if (existing?.generation === generation && existing.kind === kind) {
@@ -2725,9 +2905,19 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     clearRendererDeadline();
     const token = nextRendererDeadlineTokenRef.current;
     nextRendererDeadlineTokenRef.current += 1;
-    const expiresAt = absoluteExpiresAt
-      ?? Date.now() + durationMilliseconds;
-    const timer = window.setTimeout(() => {
+    const startedAt = Date.now();
+    const deadline = {
+      generation,
+      kind,
+      expiresAt: absoluteExpiresAt ?? startedAt + durationMilliseconds,
+      wallExpiresAt: absoluteWallExpiresAt
+        ?? startedAt + REALM_RENDERER_RECOVERY_WALL_TIMEOUT_MS,
+      durationMilliseconds,
+      token,
+      timer: 0,
+      handleVisibilityChange: () => undefined
+    };
+    const expire = () => {
       const deadline = rendererDeadlineRef.current;
       if (
         !deadline
@@ -2735,9 +2925,32 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
         || deadline.generation !== generation
         || deadline.kind !== kind
       ) return;
+      const now = Date.now();
+      if (
+        document.hidden
+        && now < deadline.wallExpiresAt
+      ) {
+        // A backgrounded WebView cannot render a completion frame. Preserve a
+        // full visible recovery budget while retaining an absolute wall guard
+        // against an abandoned tab living forever.
+        deadline.expiresAt = Math.min(
+          deadline.wallExpiresAt,
+          now + deadline.durationMilliseconds
+        );
+        deadline.timer = window.setTimeout(
+          expire,
+          Math.max(0, deadline.wallExpiresAt - now)
+        );
+        return;
+      }
+      window.clearTimeout(deadline.timer);
+      document.removeEventListener('visibilitychange', deadline.handleVisibilityChange);
+      window.removeEventListener('pageshow', deadline.handleVisibilityChange);
       rendererDeadlineRef.current = null;
-      if (kind === 'scene-rebuild') {
+      if (kind !== 'context-restore') {
+        recoverySceneRebuildDeadlineKindRef.current = undefined;
         recoverySceneRebuildDeadlineExpiresAtRef.current = undefined;
+        recoverySceneRebuildDeadlineWallExpiresAtRef.current = undefined;
       }
       const latest = rendererLifecycleRef.current;
       const stillWaiting = latest.generation === generation && (
@@ -2747,8 +2960,6 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       );
       if (!stillWaiting) return;
       recoverySceneRebuildDeadlinePendingRef.current = false;
-      retireRendererGeneration(generation);
-      rendererModeRef.current = 'loading';
       const timeoutFailure: RealmRendererFailure = kind === 'context-restore'
         ? {
             code: 'context-restore-timeout',
@@ -2757,26 +2968,75 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
             message: 'The browser did not restore the Realm graphics context in time.'
           }
         : {
-            code: 'scene-rebuild-timeout',
+            code: kind === 'scene-build'
+              ? 'scene-build-timeout'
+              : 'scene-rebuild-timeout',
             retryable: true,
             phase: latest.state,
-            message: 'The restored graphics context could not rebuild the Realm in time.'
+            message: kind === 'scene-build'
+              ? 'The Realm scene did not become ready in time.'
+              : 'The restored graphics context could not rebuild the Realm in time.'
           };
-      const failedLifecycle = transitionRealmRendererLifecycle(latest, {
-        type: 'failed',
-        failure: timeoutFailure,
-        generation
-      });
-      rendererLifecycleRef.current = failedLifecycle;
-      setRendererLifecycle(failedLifecycle);
-    }, Math.max(0, expiresAt - Date.now()));
-    rendererDeadlineRef.current = Object.freeze({
-      generation,
-      kind,
-      expiresAt,
-      token,
-      timer
-    });
+      const healthyPredecessorGeneration = activeRendererGenerationRef.current;
+      const nonblockingCandidateTimedOut = (
+        kind === 'scene-rebuild'
+        && nonblockingSceneReplacementRef.current
+        && healthyPredecessorGeneration > 0
+        && healthyPredecessorGeneration !== generation
+        && sceneRef.current !== null
+      );
+      retireRendererGeneration(generation);
+      if (nonblockingCandidateTimedOut) {
+        nonblockingSceneReplacementRef.current = false;
+        sceneReplacementFailureCountRef.current += 1;
+        rendererModeRef.current = 'webgl';
+        const retainedLifecycle: RealmRendererLifecycle = Object.freeze({
+          ...latest,
+          state: 'ready',
+          generation: healthyPredecessorGeneration,
+          failure: undefined,
+          lastFailure: timeoutFailure,
+          everReady: true
+        });
+        rendererLifecycleRef.current = retainedLifecycle;
+        setRendererLifecycle(retainedLifecycle);
+        armRendererStabilityTimerRef.current(healthyPredecessorGeneration);
+        const currentRoot = rootRef.current;
+        if (currentRoot) {
+          currentRoot.dataset.realmSceneReplacementFailureCount = String(
+            sceneReplacementFailureCountRef.current
+          );
+          currentRoot.dataset.realmSceneDisposalCount = String(
+            sceneDisposalCountRef.current
+          );
+        }
+        return;
+      }
+      rendererModeRef.current = 'loading';
+      markRendererFailureRef.current(timeoutFailure, generation);
+    };
+    const schedule = (grantVisibleBudget: boolean) => {
+      if (rendererDeadlineRef.current !== deadline) return;
+      const now = Date.now();
+      window.clearTimeout(deadline.timer);
+      if (!document.hidden && grantVisibleBudget) {
+        deadline.expiresAt = Math.min(
+          deadline.wallExpiresAt,
+          now + deadline.durationMilliseconds
+        );
+      }
+      const dueAt = document.hidden
+        ? deadline.wallExpiresAt
+        : Math.min(deadline.expiresAt, deadline.wallExpiresAt);
+      deadline.timer = window.setTimeout(expire, Math.max(0, dueAt - now));
+    };
+    deadline.handleVisibilityChange = () => {
+      schedule(!document.hidden);
+    };
+    rendererDeadlineRef.current = deadline;
+    document.addEventListener('visibilitychange', deadline.handleVisibilityChange);
+    window.addEventListener('pageshow', deadline.handleVisibilityChange);
+    schedule(false);
   }, [clearRendererDeadline, retireRendererGeneration]);
 
   const applyPendingEmergencyQuality = useCallback((generation: number) => {
@@ -2803,9 +3063,46 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     const failure = failureInput && typeof failureInput === 'object' && 'code' in failureInput
       ? failureInput as RealmRendererFailure
       : classifyRealmRendererFailure(failureInput, current.state);
+    if (
+      generation === current.generation
+      || generation === activeRendererGenerationRef.current
+    ) {
+      clearRendererStabilityTimer();
+      captureRendererContextTelemetry(
+        generation,
+        rendererCanvasByGenerationRef.current.get(generation)?.dataset
+      );
+    }
+    const publishTerminalLifecycle = (
+      terminalFailure: RealmRendererFailure,
+      terminalGeneration: number
+    ) => {
+      clearRendererDeadline();
+      recoverySceneRebuildDeadlineKindRef.current = undefined;
+      recoverySceneRebuildDeadlineExpiresAtRef.current = undefined;
+      recoverySceneRebuildDeadlineWallExpiresAtRef.current = undefined;
+      recoverySceneRebuildDeadlinePendingRef.current = false;
+      pendingEmergencyQualityRef.current = undefined;
+      rendererModeRef.current = canUseStaticRealmFallback(terminalFailure)
+        ? 'fallback'
+        : 'loading';
+      const terminalLifecycle = canUseStaticRealmFallback(terminalFailure)
+        ? transitionRealmRendererLifecycle(current, {
+            type: 'static-fallback',
+            failure: terminalFailure,
+            generation: terminalGeneration
+          })
+        : transitionRealmRendererLifecycle(current, {
+            type: 'failed',
+            failure: terminalFailure,
+            generation: terminalGeneration
+          });
+      rendererLifecycleRef.current = terminalLifecycle;
+      setRendererLifecycle(terminalLifecycle);
+    };
     if (failure.code === 'webgl-unavailable') {
       if (reportedGeneration !== undefined && generation !== current.generation) return;
-      rendererModeRef.current = current.everReady ? 'loading' : 'fallback';
+      rendererModeRef.current = 'fallback';
       const nextLifecycle = transitionRealmRendererLifecycle(current, {
         type: 'webgl-unsupported',
         failure
@@ -2830,31 +3127,27 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
         clearRendererDeadline();
       }
       recoverySceneRebuildDeadlineExpiresAtRef.current = undefined;
-      const lowerQuality = nextLowerRealmRendererQuality(qualityRef.current);
+      recoverySceneRebuildDeadlineWallExpiresAtRef.current = undefined;
+      recoverySceneRebuildDeadlineKindRef.current = undefined;
+      const lowerQuality = shouldRebalanceRealmRendererQuality(failure)
+        ? nextLowerRealmRendererQuality(qualityRef.current)
+        : undefined;
       const retryable = shouldRetryRealmRenderer(current, failure);
       retireRendererGeneration(current.generation);
       retireRendererGeneration(generation);
+      rotateRendererCanvasSlot();
       nonblockingSceneReplacementRef.current = false;
-      if (!retryable || !lowerQuality) {
-        const failedLifecycle = transitionRealmRendererLifecycle(current, {
-          type: 'failed',
-          failure: {
-            ...failure,
-            message: lowerQuality
-              ? failure.message
-              : 'The Realm graphics context was lost at the safest quality tier.'
-          },
-          generation: current.generation
-        });
-        rendererLifecycleRef.current = failedLifecycle;
-        setRendererLifecycle(failedLifecycle);
+      if (!retryable) {
+        publishTerminalLifecycle(failure, current.generation);
         return;
       }
-      pendingEmergencyQualityRef.current = Object.freeze({
-        generation: current.generation,
-        quality: retainRealmRendererEmergencyQuality(lowerQuality)
-      });
-      applyPendingEmergencyQuality(current.generation);
+      if (lowerQuality) {
+        pendingEmergencyQualityRef.current = Object.freeze({
+          generation: current.generation,
+          quality: retainRealmRendererEmergencyQuality(lowerQuality)
+        });
+        applyPendingEmergencyQuality(current.generation);
+      }
       const recoveryLifecycle = transitionRealmRendererLifecycle(current, {
         type: 'recover',
         failure,
@@ -2864,6 +3157,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       rendererLifecycleRef.current = recoveryLifecycle;
       setRendererLifecycle(recoveryLifecycle);
       recoverySceneRebuildDeadlinePendingRef.current = true;
+      recoverySceneRebuildDeadlineKindRef.current = 'scene-rebuild';
       requestedSceneRecreationReasonRef.current = 'renderer-recovery';
       rendererRecoveryNonceRef.current += 1;
       setRendererRecoveryNonce(rendererRecoveryNonceRef.current);
@@ -2890,39 +3184,51 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
         activeDeadline.kind === 'scene-rebuild'
         && failure.code !== 'context-lost'
       ) ? activeDeadline.expiresAt : undefined;
+      recoverySceneRebuildDeadlineWallExpiresAtRef.current = (
+        activeDeadline.kind === 'scene-rebuild'
+        && failure.code !== 'context-lost'
+      ) ? activeDeadline.wallExpiresAt : undefined;
+      recoverySceneRebuildDeadlineKindRef.current = (
+        activeDeadline.kind === 'scene-rebuild'
+        && failure.code !== 'context-lost'
+      ) ? 'scene-rebuild' : undefined;
       clearRendererDeadline();
     }
     const retryable = shouldRetryRealmRenderer(current, failure);
     if (failure.code === 'context-lost') {
       const lowerQuality = nextLowerRealmRendererQuality(qualityRef.current);
-      if (!retryable || !lowerQuality) {
-        clearRendererDeadline();
-        recoverySceneRebuildDeadlineExpiresAtRef.current = undefined;
+      if (!retryable) {
         retireRendererGeneration(generation);
-        const failedLifecycle = transitionRealmRendererLifecycle(current, {
-          type: 'failed',
-          failure: {
-            ...failure,
-            message: lowerQuality
-              ? failure.message
-              : 'The Realm graphics context was lost at the safest quality tier.'
-          },
-          generation
-        });
-        rendererLifecycleRef.current = failedLifecycle;
-        setRendererLifecycle(failedLifecycle);
+        publishTerminalLifecycle(failure, generation);
         return;
       }
       // Retain the emergency ceiling immediately for a Return/Re-enter path,
       // but do not change the active quality until this context restores (or
       // the player explicitly retries). Recreating now would remove the only
       // listener capable of observing webglcontextrestored.
-      pendingEmergencyQualityRef.current = Object.freeze({
-        generation,
-        quality: retainRealmRendererEmergencyQuality(lowerQuality)
-      });
+      if (lowerQuality) {
+        pendingEmergencyQualityRef.current = Object.freeze({
+          generation,
+          quality: retainRealmRendererEmergencyQuality(lowerQuality)
+        });
+      }
     }
     if (retryable) {
+      if (
+        failure.code !== 'context-lost'
+        && shouldRebalanceRealmRendererQuality(failure)
+      ) {
+        const lowerQuality = nextLowerRealmRendererQuality(qualityRef.current);
+        if (lowerQuality) {
+          pendingEmergencyQualityRef.current = Object.freeze({
+            generation,
+            quality: retainRealmRendererEmergencyQuality(lowerQuality)
+          });
+        }
+        // A construction/rebuild fault receives a genuinely fresh canvas;
+        // otherwise a permanently lost WebGL context can poison the retry.
+        rotateRendererCanvasSlot();
+      }
       const nextAttempt = current.attempt + 1;
       const nextLifecycle = transitionRealmRendererLifecycle(current, {
         type: 'recover',
@@ -2935,8 +3241,12 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       if (failure.code !== 'context-lost') {
         applyPendingEmergencyQuality(generation);
         recoverySceneRebuildDeadlinePendingRef.current = current.everReady;
+        recoverySceneRebuildDeadlineKindRef.current = current.everReady
+          ? recoverySceneRebuildDeadlineKindRef.current ?? 'scene-rebuild'
+          : undefined;
         if (!current.everReady) {
           recoverySceneRebuildDeadlineExpiresAtRef.current = undefined;
+          recoverySceneRebuildDeadlineWallExpiresAtRef.current = undefined;
         }
         requestedSceneRecreationReasonRef.current = 'renderer-recovery';
         rendererRecoveryNonceRef.current += 1;
@@ -2950,28 +3260,32 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       }
       return;
     }
-    clearRendererDeadline();
-    recoverySceneRebuildDeadlineExpiresAtRef.current = undefined;
-    const failedLifecycle = transitionRealmRendererLifecycle(current, {
-      type: 'failed',
-      failure,
-      generation
-    });
-    rendererLifecycleRef.current = failedLifecycle;
-    setRendererLifecycle(failedLifecycle);
+    retireRendererGeneration(generation);
+    publishTerminalLifecycle(failure, generation);
   }, [
     applyPendingEmergencyQuality,
     armRendererDeadline,
+    captureRendererContextTelemetry,
     clearRendererDeadline,
-    retireRendererGeneration
+    clearRendererStabilityTimer,
+    retireRendererGeneration,
+    rotateRendererCanvasSlot
   ]);
+  markRendererFailureRef.current = markRendererFailure;
 
   const retryRenderer = useCallback(() => {
     clearRendererDeadline();
+    clearRendererStabilityTimer();
+    recoverySceneRebuildDeadlineKindRef.current = undefined;
     recoverySceneRebuildDeadlineExpiresAtRef.current = undefined;
+    recoverySceneRebuildDeadlineWallExpiresAtRef.current = undefined;
+    rotateRendererCanvasSlot();
     const current = rendererLifecycleRef.current;
     applyPendingEmergencyQuality(current.generation);
     recoverySceneRebuildDeadlinePendingRef.current = current.everReady;
+    recoverySceneRebuildDeadlineKindRef.current = current.everReady
+      ? 'scene-rebuild'
+      : undefined;
     const loadingLifecycle = transitionRealmRendererLifecycle(current, {
       type: 'load-start',
       attempt: 0
@@ -2982,7 +3296,12 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     requestedSceneRecreationReasonRef.current = 'explicit-retry';
     rendererRecoveryNonceRef.current += 1;
     setRendererRecoveryNonce(rendererRecoveryNonceRef.current);
-  }, [applyPendingEmergencyQuality, clearRendererDeadline]);
+  }, [
+    applyPendingEmergencyQuality,
+    clearRendererDeadline,
+    clearRendererStabilityTimer,
+    rotateRendererCanvasSlot
+  ]);
 
   const isSceneCoordPassable = useCallback((coord: HexCoord) => (
     isPlayableRealmCoord(surfaceRef.current, coord)
@@ -3821,10 +4140,13 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     if (pendingConstruction) {
       if (
         rendererDeadlineRef.current?.generation === pendingConstruction.generation
-        && rendererDeadlineRef.current.kind === 'scene-rebuild'
+        && rendererDeadlineRef.current.kind !== 'context-restore'
       ) {
+        recoverySceneRebuildDeadlineKindRef.current = rendererDeadlineRef.current.kind;
         recoverySceneRebuildDeadlineExpiresAtRef.current =
           rendererDeadlineRef.current.expiresAt;
+        recoverySceneRebuildDeadlineWallExpiresAtRef.current =
+          rendererDeadlineRef.current.wallExpiresAt;
         clearRendererDeadline();
         recoverySceneRebuildDeadlinePendingRef.current = true;
       }
@@ -3858,9 +4180,9 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       }
       try {
         const snapshot = unhealthyScene.getWorkerPresentationContinuity();
-        const constructionKey = sceneConstructionProfileRef.current?.key;
-        workerPresentationContinuityRef.current = snapshot && constructionKey
-          ? Object.freeze({ constructionKey, snapshot })
+        const topologyKey = sceneConstructionProfileRef.current?.topologyKey;
+        workerPresentationContinuityRef.current = snapshot && topologyKey
+          ? Object.freeze({ topologyKey, snapshot })
           : null;
       } catch {
         workerPresentationContinuityRef.current = null;
@@ -3890,7 +4212,19 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       ? (activeCanvasSlotRef.current === 0 ? 1 : 0)
       : activeCanvasSlotRef.current;
     const canvas = canvasSlotRefs.current[candidateSlot] ?? canvasRef.current;
-    if (!canvas || !canUseWebGL()) {
+    const webgl2Available = canUseWebGL();
+    rendererWebGLProbeAvailableRef.current = webgl2Available;
+    if (!canvas) {
+      nonblockingSceneReplacementRef.current = false;
+      markRendererFailure({
+        code: 'renderer-construction-failed',
+        retryable: true,
+        phase: 'probing',
+        message: 'The Realm canvas was not available for renderer construction.'
+      });
+      return undefined;
+    }
+    if (!webgl2Available) {
       nonblockingSceneReplacementRef.current = false;
       sceneRef.current?.setPresentationActive(false);
       markRendererFailure({
@@ -4031,6 +4365,14 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     }
     const rendererGeneration = nextRendererGenerationRef.current;
     nextRendererGenerationRef.current += 1;
+    rendererCanvasByGenerationRef.current.set(rendererGeneration, canvas);
+    if (rendererCanvasByGenerationRef.current.size > 24) {
+      const oldestGeneration = rendererCanvasByGenerationRef.current.keys().next().value;
+      if (typeof oldestGeneration === 'number') {
+        rendererCanvasByGenerationRef.current.delete(oldestGeneration);
+        rendererContextTelemetryByGenerationRef.current.delete(oldestGeneration);
+      }
+    }
     const constructionProfile: RealmSceneConstructionProfile = Object.freeze({
       key: sceneConstructionKey,
       topologyKey: sceneTopologyKey,
@@ -4058,6 +4400,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
         sceneReplacementFailureCountRef.current
       );
     }
+    clearRendererStabilityTimer();
     const loadingLifecycle = transitionRealmRendererLifecycle(rendererLifecycleRef.current, {
       type: 'load-start',
       attempt: rendererLifecycleRef.current.attempt,
@@ -4070,13 +4413,41 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     rendererLifecycleRef.current = loadingLifecycle;
     if (recoverySceneRebuildDeadlinePendingRef.current) {
       recoverySceneRebuildDeadlinePendingRef.current = false;
+      const deadlineKind = recoverySceneRebuildDeadlineKindRef.current
+        ?? 'scene-rebuild';
       const absoluteExpiresAt = recoverySceneRebuildDeadlineExpiresAtRef.current;
+      const absoluteWallExpiresAt =
+        recoverySceneRebuildDeadlineWallExpiresAtRef.current;
+      recoverySceneRebuildDeadlineKindRef.current = undefined;
       recoverySceneRebuildDeadlineExpiresAtRef.current = undefined;
+      recoverySceneRebuildDeadlineWallExpiresAtRef.current = undefined;
+      armRendererDeadline(
+        deadlineKind,
+        rendererGeneration,
+        deadlineKind === 'scene-build'
+          ? REALM_RENDERER_INITIAL_SCENE_TIMEOUT_MS
+          : REALM_RENDERER_SCENE_REBUILD_TIMEOUT_MS,
+        absoluteExpiresAt,
+        absoluteWallExpiresAt
+      );
+    } else if (!replacingReadyScene) {
+      // The first scene and an explicit retry must also be bounded. This is
+      // the path older devices take before any WebGL frame has ever become
+      // ready, so it cannot rely on post-restore recovery state.
+      armRendererDeadline(
+        'scene-build',
+        rendererGeneration,
+        REALM_RENDERER_INITIAL_SCENE_TIMEOUT_MS
+      );
+    } else {
+      // Quality and reduced-motion replacements remain visually nonblocking,
+      // but their hidden renderer must still have a bounded lifetime. If it
+      // stalls, the deadline retires only the candidate and keeps the healthy
+      // predecessor active.
       armRendererDeadline(
         'scene-rebuild',
         rendererGeneration,
-        REALM_RENDERER_SCENE_REBUILD_TIMEOUT_MS,
-        absoluteExpiresAt
+        REALM_RENDERER_SCENE_REBUILD_TIMEOUT_MS
       );
     }
     const updateSceneLifecycleTelemetry = () => {
@@ -4093,12 +4464,17 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       if (retired) return;
       if (
         rendererDeadlineRef.current?.generation === rendererGeneration
-        && rendererDeadlineRef.current.kind === 'scene-rebuild'
+        && rendererDeadlineRef.current.kind !== 'context-restore'
       ) {
+        recoverySceneRebuildDeadlineKindRef.current = rendererDeadlineRef.current.kind;
         recoverySceneRebuildDeadlineExpiresAtRef.current =
           rendererDeadlineRef.current.expiresAt;
+        recoverySceneRebuildDeadlineWallExpiresAtRef.current =
+          rendererDeadlineRef.current.wallExpiresAt;
       }
-      clearRendererDeadline({ generation: rendererGeneration, kind: 'scene-rebuild' });
+      if (rendererDeadlineRef.current?.generation === rendererGeneration) {
+        clearRendererDeadline();
+      }
       retired = true;
       candidatePresentationActive = false;
       if (pendingSceneConstructionRef.current?.scene === scene) {
@@ -4114,6 +4490,9 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
         // construction error retire that scope internally.
         sceneDisposalCountRef.current += 1;
       }
+      captureRendererContextTelemetry(rendererGeneration, canvas.dataset);
+      rendererCanvasByGenerationRef.current.delete(rendererGeneration);
+      rendererContextTelemetryByGenerationRef.current.delete(rendererGeneration);
       if (sceneSlotsRef.current[candidateSlot] === scene) {
         sceneSlotsRef.current[candidateSlot] = null;
       }
@@ -4129,6 +4508,10 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
         && sceneSlotsRef.current[previousActiveSlot] === previousActiveScene
       );
       if (canRetainActiveScene) {
+        recoverySceneRebuildDeadlinePendingRef.current = false;
+        recoverySceneRebuildDeadlineKindRef.current = undefined;
+        recoverySceneRebuildDeadlineExpiresAtRef.current = undefined;
+        recoverySceneRebuildDeadlineWallExpiresAtRef.current = undefined;
         sceneRef.current = previousActiveScene;
         activeRendererGenerationRef.current = previousActiveGeneration;
         nonblockingSceneReplacementRef.current = false;
@@ -4137,10 +4520,12 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
           state: 'ready',
           generation: activeRendererGenerationRef.current,
           failure: undefined,
+          lastFailure: failure,
           everReady: true
         });
         rendererLifecycleRef.current = retainedLifecycle;
         setRendererLifecycle(retainedLifecycle);
+        armRendererStabilityTimer(activeRendererGenerationRef.current);
         updateSceneLifecycleTelemetry();
         return;
       }
@@ -4165,6 +4550,10 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
             sceneSlotsRef.current[slot] = null;
           }
         }
+        rendererCanvasByGenerationRef.current.delete(previousActiveGeneration);
+        rendererContextTelemetryByGenerationRef.current.delete(
+          previousActiveGeneration
+        );
         if (sceneRef.current === previousActiveScene) sceneRef.current = null;
       }
       activeRendererGenerationRef.current = 0;
@@ -4447,8 +4836,8 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
               recreationReason === 'renderer-recovery'
               || recreationReason === 'explicit-retry'
             )
-            && workerPresentationContinuityRef.current?.constructionKey
-              === sceneConstructionKey
+            && workerPresentationContinuityRef.current?.topologyKey
+              === sceneTopologyKey
           ) {
             activationWorkerContinuity =
               workerPresentationContinuityRef.current.snapshot;
@@ -4515,6 +4904,10 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
               oldScene.dispose();
               sceneDisposalCountRef.current += 1;
               sceneSlotsRef.current[oldSlot] = null;
+              rendererCanvasByGenerationRef.current.delete(previousActiveGeneration);
+              rendererContextTelemetryByGenerationRef.current.delete(
+                previousActiveGeneration
+              );
               const latestRoot = rootRef.current;
               if (latestRoot) {
                 latestRoot.dataset.realmSceneDisposalCount = String(
@@ -4531,11 +4924,12 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
           workerPresentationContinuityRef.current = null;
           nonblockingSceneReplacementRef.current = false;
           rendererModeRef.current = 'webgl';
-          clearRendererDeadline({
-            generation: rendererGeneration,
-            kind: 'scene-rebuild'
-          });
+          if (rendererDeadlineRef.current?.generation === rendererGeneration) {
+            clearRendererDeadline();
+          }
+          recoverySceneRebuildDeadlineKindRef.current = undefined;
           recoverySceneRebuildDeadlineExpiresAtRef.current = undefined;
+          recoverySceneRebuildDeadlineWallExpiresAtRef.current = undefined;
           const activeLod = canvas.dataset.realmCastleActiveLod;
           lastSuccessfulRendererGenerationRef.current = rendererGeneration;
           if (firstReadyAtRef.current === null) {
@@ -4550,6 +4944,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
           });
           rendererLifecycleRef.current = readyLifecycle;
           setRendererLifecycle(readyLifecycle);
+          armRendererStabilityTimer(rendererGeneration);
           const currentRoot = rootRef.current;
           if (currentRoot) {
             currentRoot.dataset.realmFirstReady = 'true';
@@ -4670,7 +5065,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
               try {
                 const snapshot = scene.getWorkerPresentationContinuity();
                 workerPresentationContinuityRef.current = snapshot
-                  ? Object.freeze({ constructionKey: sceneConstructionKey, snapshot })
+                  ? Object.freeze({ topologyKey: sceneTopologyKey, snapshot })
                   : null;
               } catch {
                 workerPresentationContinuityRef.current = null;
@@ -4702,12 +5097,15 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
         },
         onRendererContextRestored: () => {
           if (activeRendererGenerationRef.current !== rendererGeneration) return;
+          captureRendererContextTelemetry(rendererGeneration, canvas.dataset);
           if (!clearRendererDeadline({
             generation: rendererGeneration,
             kind: 'context-restore'
           })) return;
           applyPendingEmergencyQuality(rendererGeneration);
+          recoverySceneRebuildDeadlineKindRef.current = 'scene-rebuild';
           recoverySceneRebuildDeadlineExpiresAtRef.current = undefined;
+          recoverySceneRebuildDeadlineWallExpiresAtRef.current = undefined;
           recoverySceneRebuildDeadlinePendingRef.current = true;
           requestedSceneRecreationReasonRef.current = 'renderer-recovery';
           rendererRecoveryNonceRef.current += 1;
@@ -4808,7 +5206,10 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
   }, [
     applyPendingEmergencyQuality,
     armRendererDeadline,
+    armRendererStabilityTimer,
+    captureRendererContextTelemetry,
     clearRendererDeadline,
+    clearRendererStabilityTimer,
     foodNodeCatalog,
     goldNodeCatalog,
     handleSceneTargetHover,
@@ -4873,11 +5274,16 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
         pendingNavigatorTargetRef.current = null;
         pendingNavigatorPermittedStackRef.current = null;
         activeRendererGenerationRef.current = 0;
+        rendererCanvasByGenerationRef.current.clear();
+        rendererContextTelemetryByGenerationRef.current.clear();
         clearRendererDeadline();
+        clearRendererStabilityTimer();
+        recoverySceneRebuildDeadlineKindRef.current = undefined;
         recoverySceneRebuildDeadlineExpiresAtRef.current = undefined;
+        recoverySceneRebuildDeadlineWallExpiresAtRef.current = undefined;
       });
     };
-  }, [clearRendererDeadline]);
+  }, [clearRendererDeadline, clearRendererStabilityTimer]);
 
   useEffect(() => {
     sceneRef.current?.reconcileLiveGatheringState?.(liveGatheringState);
@@ -5141,10 +5547,14 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
 
   // The scene mirrors these counters onto the canvas so a context event can
   // be diagnosed without exposing implementation details in user copy.
-  const canvasTelemetry = canvasRef.current?.dataset;
+  const rendererDiagnosticFailure = rendererLifecycle.failure
+    ?? rendererLifecycle.lastFailure;
+  const rendererContextLossCount = String(rendererContextLossCountRef.current);
+  const rendererContextRestoreCount = String(rendererContextRestoreCountRef.current);
   const blockingLoadingOverlayVisible = (
     rendererLifecycle.state !== 'ready'
     && rendererLifecycle.state !== 'static-unsupported'
+    && rendererLifecycle.state !== 'static-degraded'
     && !nonblockingSceneReplacementRef.current
   );
   const nonblockingSceneUpdateVisible = (
@@ -5155,7 +5565,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     rendererLifecycle.state === 'recovering'
     || (
       rendererLifecycle.state === 'loading'
-      && rendererLifecycle.everReady
+      && rendererLifecycle.lastFailure !== undefined
       && !nonblockingSceneReplacementRef.current
     )
   );
@@ -5189,14 +5599,15 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       data-renderer-recovery-attempt={String(rendererLifecycle.attempt)}
       data-renderer-failure={rendererLifecycle.failure?.code ?? 'none'}
       data-renderer-failure-code={rendererLifecycle.failure?.code ?? 'none'}
+      data-renderer-last-failure-code={rendererLifecycle.lastFailure?.code ?? 'none'}
       data-renderer-generation={String(rendererLifecycle.generation)}
       data-renderer-deadline-kind={rendererDeadlineRef.current?.kind ?? 'none'}
       data-renderer-requested-quality={requestedQuality}
       data-renderer-emergency-quality={emergencyQualityCeiling ?? 'none'}
       data-renderer-effective-quality={quality}
       data-renderer-last-successful-generation={String(lastSuccessfulRendererGenerationRef.current)}
-      data-renderer-context-loss-count={canvasTelemetry?.realmRendererContextLossCount ?? '0'}
-      data-renderer-context-restore-count={canvasTelemetry?.realmRendererContextRestoreCount ?? '0'}
+      data-renderer-context-loss-count={rendererContextLossCount}
+      data-renderer-context-restore-count={rendererContextRestoreCount}
       data-renderer-degraded-quality={rendererLifecycle.degradedQuality ?? 'none'}
       data-realm-scene-creation-count={String(sceneCreationCountRef.current)}
       data-realm-scene-disposal-count={String(sceneDisposalCountRef.current)}
@@ -5261,10 +5672,11 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
         activeCanvasSlot === 0 ? 1 : 0
       ] as const).map((slot) => (
         <canvas
-          key={`realm-canvas-${slot}`}
+          key={`realm-canvas-${slot}-${canvasSlotEpochs[slot]}`}
           ref={slot === 0 ? setPrimaryCanvasRef : setSecondaryCanvasRef}
           className="realm-map-screen__canvas"
           data-realm-canvas-active={String(slot === activeCanvasSlot)}
+          data-realm-canvas-epoch={String(canvasSlotEpochs[slot])}
           data-realm-canvas-slot={String(slot)}
           aria-hidden="true"
         />
@@ -5532,13 +5944,32 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
               })}
             </g>
           </svg>
-          <div className="realm-map-screen__fallback-copy">
-            <span>
-              WebGL is unavailable on this device. Showing a bounded, accessible view of the
-              canonical Genesis 001 region around your keep.
-            </span>
-            <button type="button" onClick={retryRenderer}>Retry 3D Realm</button>
-          </div>
+        </div>
+      ) : null}
+
+      {rendererMode === 'fallback' ? (
+        <div
+          aria-hidden={surfaceOpen || undefined}
+          className="realm-map-screen__fallback-copy"
+          inert={surfaceOpen || undefined}
+        >
+          <RealmRendererRecoveryPanel
+            attempt={rendererLifecycle.attempt}
+            contextLossCount={rendererContextLossCount}
+            contextRestoreCount={rendererContextRestoreCount}
+            effectiveQuality={quality}
+            emergencyQuality={emergencyQualityCeiling}
+            everReady={rendererLifecycle.everReady}
+            failure={rendererDiagnosticFailure}
+            generation={rendererLifecycle.generation}
+            host={chromeMode === 'miniapp' ? 'miniapp' : 'web'}
+            mode="fallback"
+            observerMode={observerMode}
+            onRetry={retryRenderer}
+            onReturn={onRequestReturn}
+            requestedQuality={requestedQuality}
+            webgl2Available={rendererWebGLProbeAvailableRef.current}
+          />
         </div>
       ) : null}
 
@@ -5549,28 +5980,33 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
           aria-label="Preparing Hegemony realm"
           inert={surfaceOpen || undefined}
         >
-          <div>
-            {rendererLifecycle.state === 'failed' ? (
-              <strong role="alert">THE REALM COULD NOT BE RESTORED</strong>
-            ) : rendererRecoveryLoading ? (
-              <strong role="status">RESTORING THE REALM…</strong>
-            ) : (
+          {rendererLifecycle.state === 'failed' || rendererRecoveryLoading ? (
+            <RealmRendererRecoveryPanel
+              attempt={rendererLifecycle.attempt}
+              contextLossCount={rendererContextLossCount}
+              contextRestoreCount={rendererContextRestoreCount}
+              effectiveQuality={quality}
+              emergencyQuality={emergencyQualityCeiling}
+              everReady={rendererLifecycle.everReady}
+              failure={rendererDiagnosticFailure}
+              generation={rendererLifecycle.generation}
+              host={chromeMode === 'miniapp' ? 'miniapp' : 'web'}
+              mode={rendererLifecycle.state === 'failed' ? 'failed' : 'recovering'}
+              observerMode={observerMode}
+              onRetry={rendererLifecycle.state === 'failed' ? retryRenderer : undefined}
+              onReturn={onRequestReturn}
+              requestedQuality={requestedQuality}
+              webgl2Available={rendererWebGLProbeAvailableRef.current}
+            />
+          ) : (
+            <div>
               <strong role="status">Surveying the bright lowlands…</strong>
-            )}
-            <span>
-              {rendererLifecycle.state === 'failed'
-                ? 'Warpkeep could not restart 3D rendering. Your server-owned progress was not changed.'
-                : rendererRecoveryLoading
-                  ? 'The graphics device was interrupted. Your game state is safe while the realm is restored.'
-                  : 'Preparing every canonical castle before the realm is revealed.'}
-            </span>
-            {rendererLifecycle.state === 'failed' && rendererLifecycle.failure?.retryable !== false ? (
-              <button type="button" onClick={retryRenderer}>Retry 3D Realm</button>
-            ) : null}
-            <button type="button" onClick={onRequestReturn}>
-              {observerMode ? 'Close QA Observer' : 'Return to Menu'}
-            </button>
-          </div>
+              <span>Preparing every canonical castle before the realm is revealed.</span>
+              <button type="button" onClick={onRequestReturn}>
+                {observerMode ? 'Close QA Observer' : 'Return to Menu'}
+              </button>
+            </div>
+          )}
         </div>
       ) : null}
 

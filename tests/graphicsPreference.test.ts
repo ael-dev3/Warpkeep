@@ -118,6 +118,14 @@ describe('graphics preference', () => {
       deviceMemory: 2,
       maxTextureSize: 2_048
     })).toBe('performance');
+    expect(resolveGraphicsQuality(DEFAULT_GRAPHICS_PREFERENCE, {
+      width: 1_440,
+      height: 900,
+      devicePixelRatio: 2,
+      hardwareConcurrency: 8,
+      deviceMemory: 8,
+      maxTextureSize: 4_096
+    })).toBe('performance');
 
     const unmeasuredGpu = {
       width: 1_440,

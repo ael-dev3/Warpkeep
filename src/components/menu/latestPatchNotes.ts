@@ -6,6 +6,20 @@ export type LatestPatchNotes = Readonly<{
   alphaNotice: string;
 }>;
 
+const ALPHA_0_3_41_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: '1 AUG 2026',
+  title: 'THE REALM MENDS ITSELF',
+  summary:
+    'When a keeper’s graphics falter, Genesis 001 now seeks a lighter path, explains what happened, and keeps the Realm within reach.',
+  highlights: Object.freeze([
+    'Warpkeep now descends through lighter session-only graphics tiers and a fresh canvas before preserving a readable 2D safety overview with clear Retry and Return choices.',
+    'Android and embedded passages count only visible healthy time, bound repeated first-frame interruptions, and keep an already healthy Realm when an optional visual update stalls.',
+    'Every classified graphics failure now carries a clear reference, likely causes, the repair in progress, privacy-safe compatibility details, and a direct path to support.'
+  ]),
+  alphaNotice:
+    'Alpha 0.3.41 remains an invite-only, unfinished world. Renderer recovery changes presentation only; it does not alter authentication, admission, keeps, Workers, resources, balances, rewards, or persistent Realm records.'
+});
+
 const ALPHA_0_3_40_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '1 AUG 2026',
   title: 'THE REALM ENDURES',
@@ -331,6 +345,7 @@ const ALPHA_0_3_22_PATCH_NOTES: LatestPatchNotes = Object.freeze({
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
+    '0.3.41': ALPHA_0_3_41_PATCH_NOTES,
     '0.3.40': ALPHA_0_3_40_PATCH_NOTES,
     '0.3.39': ALPHA_0_3_39_PATCH_NOTES,
     '0.3.38': ALPHA_0_3_38_PATCH_NOTES,

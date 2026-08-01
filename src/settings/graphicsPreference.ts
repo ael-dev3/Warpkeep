@@ -129,13 +129,20 @@ export function resolveGraphicsQuality(
   // unreported or failed WebGL2 probe on the broadly compatible Balanced path;
   // explicit player choices still take precedence above.
   const maxTextureSize = finitePositive(input.maxTextureSize, 4096);
+  const minimumTextureCapability = input.maxTextureSize !== undefined
+    && Number.isFinite(input.maxTextureSize)
+    && input.maxTextureSize > 0
+    && maxTextureSize <= 4096;
   const shortestSide = Math.min(width, height);
   const drawingBufferPixels = width * height * Math.min(
     finitePositive(input.devicePixelRatio, 1),
     2.5
   ) ** 2;
 
-  if (shortestSide < 280 || cores <= 2 || memory <= 2 || maxTextureSize < 4096) {
+  // 4096 is the WebGL 2 minimum, so it is evidence of a minimum-capability
+  // implementation rather than Balanced headroom. Start those devices on the
+  // lightest profile before they need renderer recovery.
+  if (shortestSide < 280 || cores <= 2 || memory <= 2 || minimumTextureCapability) {
     return 'performance';
   }
   if (width <= 1024 || height < 680) return 'balanced';
