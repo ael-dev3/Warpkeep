@@ -6,6 +6,20 @@ export type LatestPatchNotes = Readonly<{
   alphaNotice: string;
 }>;
 
+const ALPHA_0_3_43_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: '1 AUG 2026',
+  title: 'THE PETITION SETTLES',
+  summary:
+    'A petition now follows one clear passage from the keeper’s first touch to the Hegemony record, without reopening the gate to another submission.',
+  highlights: Object.freeze([
+    'Request Access leaves the input lane on the first accepted gesture and settles through one stable submitting state into Request Received.',
+    'If a response is interrupted after submission, Warpkeep performs one read-only reconciliation; the browser never retries the mutation or invents a successful record.',
+    'Pending keepers in the Farcaster Mini App retain clear Check Admission, Back to Menu, and Sign Out paths while admission remains a separate manual decision.'
+  ]),
+  alphaNotice:
+    'Alpha 0.3.43 remains invite-only and unfinished. A petition requests manual review only; it grants no admission, keep, ownership, balance, reward, or financial promise.'
+});
+
 const ALPHA_0_3_42_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '1 AUG 2026',
   title: 'THE GATE FALLS QUIET',
@@ -359,6 +373,7 @@ const ALPHA_0_3_22_PATCH_NOTES: LatestPatchNotes = Object.freeze({
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
+    '0.3.43': ALPHA_0_3_43_PATCH_NOTES,
     '0.3.42': ALPHA_0_3_42_PATCH_NOTES,
     '0.3.41': ALPHA_0_3_41_PATCH_NOTES,
     '0.3.40': ALPHA_0_3_40_PATCH_NOTES,

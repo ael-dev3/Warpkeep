@@ -178,9 +178,32 @@ describe('Farcaster Mini App host provider', () => {
       />
     );
 
-    await waitFor(() => expect(latest?.state).toBe('recovery'));
-    expect(latest?.recoveryReason).toBe('not-in-miniapp');
+    await waitFor(() => expect(latest?.state).toBe('regular-web'));
+    expect(latest?.recoveryReason).toBeNull();
+    expect(latest?.retry()).toBe(false);
     expect(contextRead).toBe(false);
+    expect(sdk.actions.ready).not.toHaveBeenCalled();
+  });
+
+  it('distinguishes an SDK detection exception from an explicit regular-web result', async () => {
+    const { sdk } = fakeSdk({
+      isInMiniApp: vi.fn(async () => {
+        throw new Error('private host detail');
+      })
+    });
+    let latest: MiniAppHostValue | undefined;
+
+    render(
+      <Harness
+        runtime={runtimeFor('?miniApp=true')}
+        sdkLoader={async () => sdk}
+        capture={(value) => { latest = value; }}
+      />
+    );
+
+    await waitFor(() => expect(latest?.state).toBe('recovery'));
+    expect(latest?.recoveryReason).toBe('sdk-unavailable');
+    expect(latest?.retry()).toBe(true);
     expect(sdk.actions.ready).not.toHaveBeenCalled();
   });
 
@@ -257,6 +280,56 @@ describe('Farcaster Mini App host provider', () => {
     expect(safeAreaStyle?.textContent).toContain(
       '--fc-safe-area-inset-left:100px;'
     );
+  });
+
+  it('reclamps host safe areas when the embedded viewport changes', async () => {
+    let viewport = { width: 400, height: 800 };
+    let notifyViewportChange = () => {};
+    const unsubscribe = vi.fn();
+    const runtime: MiniAppBrowserRuntime = {
+      ...runtimeFor('?miniApp=true'),
+      viewport: () => viewport,
+      subscribeViewportChange: (listener) => {
+        notifyViewportChange = listener;
+        return unsubscribe;
+      }
+    };
+    const { sdk } = fakeSdk();
+    let latest: MiniAppHostValue | undefined;
+    const view = render(
+      <Harness
+        runtime={runtime}
+        sdkLoader={async () => sdk}
+        capture={(value) => { latest = value; }}
+      />
+    );
+
+    await waitFor(() => expect(latest?.state).toBe('miniapp'));
+    expect(latest?.context?.client.safeAreaInsets.top).toBe(160);
+    expect(latest?.context?.client.safeAreaInsets.left).toBe(100);
+
+    act(() => {
+      viewport = { width: 200, height: 400 };
+      notifyViewportChange();
+    });
+
+    await waitFor(() => {
+      expect(latest?.context?.client.safeAreaInsets.top).toBe(100);
+      expect(latest?.context?.client.safeAreaInsets.left).toBe(50);
+    });
+    const styles = document.head.querySelectorAll(
+      '[data-warpkeep-miniapp-safe-area]'
+    );
+    expect(styles).toHaveLength(1);
+    expect(styles[0]?.textContent).toContain(
+      '--fc-safe-area-inset-top:100px;'
+    );
+    expect(styles[0]?.textContent).toContain(
+      '--fc-safe-area-inset-left:50px;'
+    );
+
+    view.unmount();
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
   });
 
   it('gates actions, haptics, and back navigation by exact capabilities', async () => {
@@ -530,6 +603,39 @@ describe('Farcaster Mini App host provider', () => {
     );
     await waitFor(() => expect(latest?.state).toBe('miniapp'));
     expect(ready).toHaveBeenCalledTimes(2);
+  });
+
+  it('single-flights an in-place recovery retry and ignores the sealed generation', async () => {
+    const ready = vi.fn()
+      .mockRejectedValueOnce(new Error('private transient host failure'))
+      .mockResolvedValue(undefined);
+    const { sdk } = fakeSdk({ actions: { ready } });
+    let latest: MiniAppHostValue | undefined;
+
+    render(
+      <Harness
+        runtime={runtimeFor('?miniApp=true')}
+        sdkLoader={async () => sdk}
+        capture={(value) => { latest = value; }}
+      />
+    );
+
+    await waitFor(() => expect(latest?.state).toBe('recovery'));
+    expect(latest?.recoveryReason).toBe('ready-failed');
+    expect(document.head.querySelector(
+      '[data-warpkeep-miniapp-safe-area]'
+    )).toBeNull();
+
+    expect(latest?.retry()).toBe(true);
+    expect(latest?.retry()).toBe(false);
+    expect(latest?.state).toBe('recovery');
+
+    await waitFor(() => expect(latest?.state).toBe('miniapp'));
+    expect(ready).toHaveBeenCalledTimes(2);
+    expect(latest?.recoveryReason).toBeNull();
+    expect(document.head.querySelector(
+      '[data-warpkeep-miniapp-safe-area]'
+    )).not.toBeNull();
   });
 
   it('signals ready again for a genuine later host mount using the same runtime', async () => {

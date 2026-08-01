@@ -53,6 +53,20 @@ async function signedAssociation({
 }
 
 describe('Farcaster Mini App release contract', () => {
+  it('pins the supported Node runtime floor required by the current Farcaster toolchain', () => {
+    const packageJson = JSON.parse(
+      readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')
+    ) as { engines?: { node?: string } };
+    const packageLock = JSON.parse(
+      readFileSync(resolve(process.cwd(), 'package-lock.json'), 'utf8')
+    ) as { packages?: Record<string, { engines?: { node?: string } }> };
+
+    expect(packageJson.engines?.node).toBe('>=22.11 <23');
+    expect(packageLock.packages?.['']?.engines?.node).toBe(
+      packageJson.engines?.node
+    );
+  });
+
   it('compares reviewed JSON values without making property order authoritative', () => {
     expect(exactJsonValue(
       { nested: { second: 2, first: 1 }, enabled: true },

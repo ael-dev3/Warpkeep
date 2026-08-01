@@ -582,6 +582,38 @@ describe('Warpkeep Farcaster Mini App direct entry', () => {
     expectPlayerRealmChromeAbsent();
   });
 
+  it('keeps an SDK host failure visible until the player retries or opens the menu', async () => {
+    window.history.replaceState({}, '', '/?miniApp=true');
+    const backend = createBackendRuntime();
+    const sdk = miniAppSdk();
+    sdk.isInMiniApp = vi.fn(async () => {
+      throw new Error('private Farcaster host detail');
+    });
+    const bridge = createQuickAuthBridge(createQuickAuthResponse());
+    const { container } = renderExperience({
+      bridge,
+      miniApp: { runtime: miniAppRuntime(), sdk },
+      runtime: backend.runtime
+    });
+
+    await settle();
+
+    expect(screen.getByRole('heading', {
+      name: 'MINI APP COULD NOT OPEN'
+    })).not.toBeNull();
+    expect(container.textContent).not.toContain('private Farcaster host detail');
+    expect(bridge.exchangeQuickAuth).not.toHaveBeenCalled();
+    expect(backend.runtime.connect).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'BACK TO MENU' }));
+    await settle();
+    expect(screen.getByRole('navigation', {
+      name: 'Hegemony main menu'
+    })).not.toBeNull();
+    expect(window.location.hash).toBe('#menu');
+    expect(bridge.logoutSession).not.toHaveBeenCalled();
+  });
+
   it('opens the Realm directly after Quick Auth and authoritative current Terms', async () => {
     window.history.replaceState({}, '', '/?miniApp=true');
     const backend = createBackendRuntime();

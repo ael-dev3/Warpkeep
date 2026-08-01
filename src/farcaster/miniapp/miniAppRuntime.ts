@@ -101,6 +101,7 @@ export type MiniAppSdkLoader = () => Promise<unknown>;
 export type MiniAppBrowserRuntime = Readonly<{
   search: () => string;
   viewport: () => Readonly<{ width: number; height: number }>;
+  subscribeViewportChange?: (listener: () => void) => () => void;
   document: Document;
   getMountedShell: () => Element | null;
   waitForAnimationFrame: () => Promise<void>;
@@ -372,10 +373,20 @@ function waitForBoundedAnimationFrame(): Promise<void> {
   });
 }
 
+function subscribeDefaultViewportChange(listener: () => void): () => void {
+  window.addEventListener('resize', listener, { passive: true });
+  window.visualViewport?.addEventListener('resize', listener, { passive: true });
+  return () => {
+    window.removeEventListener('resize', listener);
+    window.visualViewport?.removeEventListener('resize', listener);
+  };
+}
+
 export const DEFAULT_MINI_APP_BROWSER_RUNTIME: MiniAppBrowserRuntime =
   Object.freeze({
     search: () => window.location.search,
     viewport: defaultViewport,
+    subscribeViewportChange: subscribeDefaultViewportChange,
     document,
     getMountedShell: () => document.getElementById('root'),
     waitForAnimationFrame: waitForBoundedAnimationFrame

@@ -78,6 +78,7 @@ export type MiniAppHostValue = Readonly<{
   context: MiniAppPresentationContext | null;
   capabilities: readonly MiniAppCapability[];
   recoveryReason: MiniAppRecoveryReason | null;
+  retry: () => boolean;
   hasCapability: (capability: MiniAppCapability) => boolean;
   bindBackNavigation: (binding: MiniAppBackBinding) => () => void;
   actions: MiniAppHostActions;
@@ -130,6 +131,7 @@ type ReadyAttemptScope = Readonly<{
   sdkLoader: MiniAppSdkLoader;
   hostDeadline: number;
   miniAppHinted: boolean;
+  attemptGeneration: number;
   key: object;
 }>;
 
@@ -216,6 +218,7 @@ const MISSING_PROVIDER_VALUE: MiniAppHostValue = Object.freeze({
   context: null,
   capabilities: EMPTY_CAPABILITIES,
   recoveryReason: null,
+  retry: () => false,
   hasCapability: () => false,
   bindBackNavigation: () => noopBackCleanup,
   actions: Object.freeze({
@@ -250,6 +253,10 @@ export function MiniAppHostProvider({
   const [snapshot, setSnapshot] = useState<HostSnapshot>(
     miniAppHinted ? DETECTING_SNAPSHOT : REGULAR_WEB_SNAPSHOT
   );
+  const snapshotRef = useRef(snapshot);
+  snapshotRef.current = snapshot;
+  const [attemptGeneration, setAttemptGeneration] = useState(0);
+  const activeAttemptGenerationRef = useRef(attemptGeneration);
   const sdkRef = useRef<MiniAppSdk | null>(null);
   const capabilitiesRef = useRef<ReadonlySet<MiniAppCapability>>(new Set());
   const hapticsEnabledRef = useRef(false);
@@ -263,12 +270,14 @@ export function MiniAppHostProvider({
     || retainedReadyScope.sdkLoader !== sdkLoader
     || retainedReadyScope.hostDeadline !== hostDeadline
     || retainedReadyScope.miniAppHinted !== miniAppHinted
+    || retainedReadyScope.attemptGeneration !== attemptGeneration
   ) {
     readyAttemptScopeRef.current = Object.freeze({
       runtime,
       sdkLoader,
       hostDeadline,
       miniAppHinted,
+      attemptGeneration,
       key: {}
     });
   }
@@ -303,6 +312,7 @@ export function MiniAppHostProvider({
     let cancelled = false;
     let removeSafeAreaVariables: (() => void) | null = null;
     let removeQuickAuthPreconnect: (() => void) | null = null;
+    let removeViewportSubscription: (() => void) | null = null;
     setSnapshot(DETECTING_SNAPSHOT);
     try {
       removeQuickAuthPreconnect = installMiniAppQuickAuthPreconnect(
@@ -313,7 +323,10 @@ export function MiniAppHostProvider({
     }
 
     const recover = (reason: MiniAppRecoveryReason) => {
-      if (cancelled) return;
+      if (
+        cancelled
+        || activeAttemptGenerationRef.current !== attemptGeneration
+      ) return;
       clearBackBinding();
       sdkRef.current = null;
       capabilitiesRef.current = new Set();
@@ -322,7 +335,16 @@ export function MiniAppHostProvider({
       removeSafeAreaVariables = null;
       removeQuickAuthPreconnect?.();
       removeQuickAuthPreconnect = null;
-      setSnapshot(recoverySnapshot(reason));
+      removeViewportSubscription?.();
+      removeViewportSubscription = null;
+      // The query is only a loading hint. A host that explicitly reports that
+      // it is not a Mini App must settle into ordinary web, not a retryable
+      // Farcaster error. All other bounded failures remain visibly recoverable.
+      setSnapshot(
+        reason === 'not-in-miniapp'
+          ? REGULAR_WEB_SNAPSHOT
+          : recoverySnapshot(reason)
+      );
     };
 
     void (async () => {
@@ -353,11 +375,10 @@ export function MiniAppHostProvider({
           hostDeadline
         ) === true;
       } catch (error) {
-        if (isMiniAppHostDeadlineError(error)) {
-          recover('host-timeout');
-          return;
-        }
-        verified = false;
+        recover(isMiniAppHostDeadlineError(error)
+          ? 'host-timeout'
+          : 'sdk-unavailable');
+        return;
       }
       if (cancelled) return;
       if (!verified) {
@@ -366,9 +387,14 @@ export function MiniAppHostProvider({
       }
 
       let context: MiniAppPresentationContext | null = null;
+      let rawContext: unknown;
       try {
+        rawContext = await withMiniAppHostDeadline(
+          sdk.context,
+          hostDeadline
+        );
         context = sanitizeMiniAppContext(
-          await withMiniAppHostDeadline(sdk.context, hostDeadline),
+          rawContext,
           runtime.viewport()
         );
       } catch (error) {
@@ -411,6 +437,48 @@ export function MiniAppHostProvider({
       if (cancelled) {
         removeSafeAreaVariables();
         return;
+      }
+
+      if (runtime.subscribeViewportChange) {
+        try {
+          removeViewportSubscription = runtime.subscribeViewportChange(() => {
+            if (
+              cancelled
+              || activeAttemptGenerationRef.current !== attemptGeneration
+            ) return;
+            let refreshedContext: MiniAppPresentationContext | null = null;
+            try {
+              refreshedContext = sanitizeMiniAppContext(
+                rawContext,
+                runtime.viewport()
+              );
+            } catch {
+              return;
+            }
+            if (!refreshedContext) return;
+            try {
+              const nextSafeAreaCleanup = installMiniAppSafeAreaVariables(
+                runtime.document,
+                refreshedContext.client.safeAreaInsets
+              );
+              removeSafeAreaVariables?.();
+              removeSafeAreaVariables = nextSafeAreaCleanup;
+            } catch {
+              return;
+            }
+            context = refreshedContext;
+            if (sdkRef.current === sdk) {
+              setSnapshot(Object.freeze({
+                state: 'miniapp',
+                context: refreshedContext,
+                capabilities,
+                recoveryReason: null
+              }));
+            }
+          });
+        } catch {
+          removeViewportSubscription = null;
+        }
       }
 
       let mountedShell: Element | null = null;
@@ -509,16 +577,34 @@ export function MiniAppHostProvider({
       capabilitiesRef.current = new Set();
       hapticsEnabledRef.current = false;
       removeSafeAreaVariables?.();
+      removeViewportSubscription?.();
       removeQuickAuthPreconnect?.();
     };
   }, [
     clearBackBinding,
+    attemptGeneration,
     hostDeadline,
     miniAppHinted,
     readyMountKey,
     runtime,
     sdkLoader
   ]);
+
+  const retry = useCallback(() => {
+    if (
+      !miniAppHinted
+      || snapshotRef.current.state !== 'recovery'
+    ) return false;
+
+    const nextGeneration = activeAttemptGenerationRef.current + 1;
+    // Seal the retry synchronously so a same-frame second gesture cannot start
+    // another SDK/context/ready lifecycle before React commits the next state.
+    activeAttemptGenerationRef.current = nextGeneration;
+    snapshotRef.current = DETECTING_SNAPSHOT;
+    setSnapshot(DETECTING_SNAPSHOT);
+    setAttemptGeneration(nextGeneration);
+    return true;
+  }, [miniAppHinted]);
 
   const hasCapability = useCallback(
     (capability: MiniAppCapability) =>
@@ -674,6 +760,7 @@ export function MiniAppHostProvider({
     context: snapshot.context,
     capabilities: snapshot.capabilities,
     recoveryReason: snapshot.recoveryReason,
+    retry,
     hasCapability,
     bindBackNavigation,
     actions,
@@ -685,6 +772,7 @@ export function MiniAppHostProvider({
     haptics,
     hasCapability,
     quickAuth,
+    retry,
     snapshot
   ]);
 

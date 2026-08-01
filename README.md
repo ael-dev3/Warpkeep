@@ -6,7 +6,7 @@
 
 Genesis 001 is a persistent, invite-only 10,000-cell Lowlands realm with 100 permanent castle sites gathered near its founding district. Each admitted founder enters through a verified Farcaster identity, receives one durable keep, and returns to a world that remembers its coastline, twelve rivers, wintering north, sunscoured south, shaped forests, resource sites, Workers, wagons, and public keeper portraits. Four permanent Workers can gather Food / Wood / Stone / Gold, settle production automatically, and return home on command.
 
-Alpha 0.3.33: The Realm now records one experimental Community Mark for each admitted keeper per eligible day. Returning admitted players with current Alpha Terms enter directly in ordinary browsers and the portrait-first Farcaster Mini App; verified players still outside the gate can place one private request for manual review. The intended core strategy loop is not playable yet: Warpkeep is a one-person, open-source experiment—not a finished MMO or financial product. Participation earns no token reward, airdrop, financial return, guaranteed reward, or future value.
+The Realm records one experimental Community Mark for each admitted keeper per eligible day. Returning admitted players with current Alpha Terms enter directly in ordinary browsers and the portrait-first Farcaster Mini App; verified players still outside the gate can place one private request for manual review. The intended core strategy loop is not playable yet: Warpkeep is a one-person, open-source experiment—not a finished MMO or financial product. Participation earns no token reward, airdrop, financial return, guaranteed reward, or future value.
 
 ![Development preview of Genesis 001 showing the Lowlands and an open Wheat Farm inspection panel.](docs/reference/screenshots/2026-07-22-realm-wheat-farm-preview/warpkeep-realm-wheat-farm-preview-f3b1f7e598c543d6.png)
 
@@ -14,7 +14,7 @@ Alpha 0.3.33: The Realm now records one experimental Community Mark for each adm
 
 ## Quick start
 
-Prerequisites: Git, Node.js 22, and npm 10.
+Prerequisites: Git, Node.js 22.11 or newer within the Node 22 LTS line, and npm 10.
 
 ```sh
 git clone https://github.com/ael-dev3/Warpkeep.git
@@ -29,7 +29,7 @@ Open the local URL Vite prints; shared Alpha access stays off by default. Contri
 
 | State | Today |
 | --- | --- |
-| ✅ Live | Alpha 0.3.33: The Realm Remembers is live and invite-only in browsers and the Farcaster Mini App. |
+| ✅ Live | The current invite-only Alpha is playable in ordinary browsers and the Farcaster Mini App. |
 | ✅ World | Genesis 001 persists 10,000 cells, a coastline, twelve one-cell rivers, colder northern and drier southern frontiers, and 100 permanent castle sites near the founding district. Founders return to one durable keep, explore the Lowlands up to its fog, and inspect nearby founders through their public username / portrait / castle. |
 | ✅ Authority | FID is the durable identity; handles and portraits are bounded presentation metadata. Farcaster sign-in uses a browser-bound, least-privilege bridge. The browser presents; the server decides admission, ownership, resources, timers, and saved state. A private access request asks for manual review and grants nothing by itself. |
 | ✅ Resources | Each keep privately holds Food / Wood / Stone / Gold. Food, Wood, and Stone come from authoritative terrain yield and can also be gathered at Wheat Farms, Logging Camps, and Stone Quarries; Gold comes from Gold Mines. Completed yield settles without a Claim step, and occupied sites keep their gathering story in one record. The browser never invents balances. |
@@ -54,7 +54,7 @@ Open the local URL Vite prints; shared Alpha access stays off by default. Contri
 - **Architecture:** The [technical architecture](docs/technical-architecture.md) explains what the browser shows and what the server decides.
 - **Roadmap:** The [roadmap](docs/design/roadmap.md) and [game direction](docs/design/warpkeep-direction.md) separate today's game from later plans.
 - **Authentication:** The [Farcaster integration](docs/farcaster-integration.md) guide covers sign-in, privacy, and public configuration.
-- **Release:** The [Alpha 0.3.33 release notes](CHANGELOG.md#0333--2026-07-31) describe daily Community Marks.
+- **Release:** The [latest GitHub release](https://github.com/ael-dev3/Warpkeep/releases/latest) and [player-facing changelog](CHANGELOG.md) describe what has reached the living Realm.
 - **Licensing:** [LICENSING.md](LICENSING.md) explains release rules; [asset provenance](ASSETS-LICENSE.md) records where media came from and what permissions apply.
 - **Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md) covers checks and provenance; the [Realm Council issue forms](https://github.com/ael-dev3/Warpkeep/issues/new/choose) accept privacy-safe bugs and ideas.
 - **Security:** Report sensitive issues privately through [SECURITY.md](SECURITY.md), never through a public issue.

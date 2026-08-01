@@ -45,6 +45,7 @@ function backendState(
 
 function actions() {
   return {
+    recoveryReason: null,
     onAcceptTerms: vi.fn(),
     onBackToMenu: vi.fn(),
     onCancelTermsAttempt: vi.fn(),
@@ -53,6 +54,7 @@ function actions() {
     onRequestAccess: vi.fn(),
     onRetryAccessRequestStatus: vi.fn(),
     onRetryAuthentication: vi.fn(),
+    onRetryHost: vi.fn(),
     onSignOut: vi.fn()
   };
 }
@@ -78,6 +80,34 @@ describe('FarcasterMiniAppEntryGate', () => {
       'Preparing the Realm inside Farcaster'
     );
     expect(screen.queryByRole('button', { name: /continue/i })).toBeNull();
+  });
+
+  it('keeps a bounded host failure visible with one retry and a menu escape', () => {
+    const callbacks = actions();
+    render(
+      <FarcasterMiniAppEntryGate
+        {...callbacks}
+        authState={authenticated}
+        backendState={backendState('idle')}
+        hostState="recovery"
+        recoveryReason="host-timeout"
+      />
+    );
+
+    expect(screen.getByRole('heading', {
+      name: 'MINI APP COULD NOT OPEN'
+    })).not.toBeNull();
+    expect(screen.getByRole('status').textContent).toMatch(
+      /did not answer before the secure opening window closed/i
+    );
+    expect(document.body.textContent).not.toContain('private detail');
+
+    fireEvent.click(screen.getByRole('button', { name: 'TRY AGAIN' }));
+    fireEvent.click(screen.getByRole('button', { name: 'BACK TO MENU' }));
+    expect(callbacks.onRetryHost).toHaveBeenCalledTimes(1);
+    expect(callbacks.onBackToMenu).toHaveBeenCalledTimes(1);
+    expect(callbacks.onRetryAuthentication).not.toHaveBeenCalled();
+    expect(callbacks.onSignOut).not.toHaveBeenCalled();
   });
 
   it('keeps a non-admitted player on the manual access-request step', async () => {

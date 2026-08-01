@@ -515,7 +515,11 @@ export function WarpkeepExperience() {
   const menuMediaActive = menuMounted;
   const miniAppEntryGateActive = menuMounted
     && directMiniAppEntryEnabled
-    && (miniAppHost.state === 'detecting' || miniAppHost.isMiniApp);
+    && (
+      miniAppHost.state === 'detecting'
+      || miniAppHost.state === 'recovery'
+      || miniAppHost.isMiniApp
+    );
 
   useEffect(() => {
     if (!realmMounted) {
@@ -1427,6 +1431,7 @@ export function WarpkeepExperience() {
               authState={farcasterAuthState}
               backendState={backend.state}
               hostState={miniAppHost.state}
+              recoveryReason={miniAppHost.recoveryReason}
               onAcceptTerms={backend.beginAlphaTermsAcceptance}
               onBackToMenu={openOrdinaryMiniAppMenu}
               onCancelTermsAttempt={backend.cancelAlphaTermsAcceptance}
@@ -1435,6 +1440,7 @@ export function WarpkeepExperience() {
               onRequestAccess={requestAccess}
               onRetryAccessRequestStatus={retryAccessRequestStatus}
               onRetryAuthentication={beginFarcasterSignIn}
+              onRetryHost={miniAppHost.retry}
               onSignOut={handleSignOut}
             />
           ) : (

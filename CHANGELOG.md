@@ -6,6 +6,8 @@ full engineering record.
 
 ## [Unreleased]
 
+## [0.3.43] — 2026-08-01
+
 - Made Request Access a single-flight interaction: the button leaves the input
   lane immediately, then settles through a stable submitting presentation into
   a durable Request Received record.
