@@ -76,6 +76,7 @@ export type WarpkeepMainMenuProps = {
   onRefreshFarcasterSession?: () => void;
   accessRequest?: AccessRequestViewState;
   onRequestAccess?: () => void;
+  onRetryAccessRequestStatus?: () => void;
   onSignOut?: () => void;
   rememberDevice?: boolean;
   onRememberDeviceChange?: (remember: boolean) => void;
@@ -274,6 +275,7 @@ export function WarpkeepMainMenu({
   onRefreshFarcasterSession,
   accessRequest,
   onRequestAccess,
+  onRetryAccessRequestStatus,
   onSignOut,
   rememberDevice = false,
   onRememberDeviceChange,
@@ -1371,6 +1373,7 @@ export function WarpkeepMainMenu({
                   onCheckAdmission={handleRefreshFarcasterSession}
                   accessRequest={accessRequest}
                   onRequestAccess={onRequestAccess}
+                  onRetryAccessRequestStatus={onRetryAccessRequestStatus}
                   onRememberDeviceChange={onRememberDeviceChange}
                   onRetry={handleRetrySignIn}
                   onSignOut={handleSignOut}

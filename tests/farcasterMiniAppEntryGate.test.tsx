@@ -50,6 +50,7 @@ function actions() {
     onCheckBackend: vi.fn(),
     onRefreshSession: vi.fn(),
     onRequestAccess: vi.fn(),
+    onRetryAccessRequestStatus: vi.fn(),
     onRetryAuthentication: vi.fn(),
     onSignOut: vi.fn()
   };
@@ -100,6 +101,31 @@ describe('FarcasterMiniAppEntryGate', () => {
     expect(screen.queryByRole('button', { name: 'CHECK AGAIN' })).toBeNull();
     expect(callbacks.onRequestAccess).toHaveBeenCalledTimes(1);
     expect(callbacks.onRefreshSession).not.toHaveBeenCalled();
+  });
+
+  it('keeps a delayed Mini App petition sealed while CHECK AGAIN reconciles it', async () => {
+    const callbacks = actions();
+    render(
+      <FarcasterMiniAppEntryGate
+        {...callbacks}
+        accessRequest={{ phase: 'confirmation-pending' }}
+        authState={{
+          phase: 'pending-admission',
+          identity,
+          sessionExpiresAt: Date.now() + 60_000
+        }}
+        backendState={backendState('idle')}
+        hostState="miniapp"
+      />
+    );
+
+    expect((await screen.findByRole('button', {
+      name: 'REQUEST SENT'
+    }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
+    expect(callbacks.onRetryAccessRequestStatus).toHaveBeenCalledTimes(1);
+    expect(callbacks.onRefreshSession).not.toHaveBeenCalled();
+    expect(callbacks.onRequestAccess).not.toHaveBeenCalled();
   });
 
   it('requires current Terms once, then leaves acceptance to the backend authority', async () => {

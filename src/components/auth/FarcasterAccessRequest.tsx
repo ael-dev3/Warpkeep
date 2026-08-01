@@ -61,6 +61,14 @@ export function FarcasterAccessRequestMessage({
       </p>
     );
   }
+  if (state.phase === 'confirmation-pending') {
+    return (
+      <p aria-live="polite" className="farcaster-auth-panel__instruction" role="status">
+        <strong>Request sent.</strong> Confirmation is taking longer than expected. This request
+        remains sealed and will not be sent twice.
+      </p>
+    );
+  }
   if (state.phase === 'requested') {
     const time = formattedRequestTime(state.requestedAt);
     return (
@@ -84,7 +92,7 @@ export function FarcasterAccessRequestMessage({
   }
   return (
     <p aria-live="polite" className="farcaster-auth-panel__instruction" role="status">
-      We could not confirm an existing request. Request Access will check once more before sending.
+      We could not confirm an existing request. You can still send one request safely.
     </p>
   );
 }
@@ -107,16 +115,18 @@ export function FarcasterAccessRequestAction({
 
   const isLoading = state.phase === 'loading';
   const isSubmitting = state.phase === 'submitting';
+  const isConfirmationPending = state.phase === 'confirmation-pending';
   const isRequested = state.phase === 'requested';
   const disabled = isLoading
     || isSubmitting
+    || isConfirmationPending
     || isRequested
     || requestCommittedLocally;
   const label = isLoading
     ? 'CHECKING…'
     : isRequested
       ? 'REQUEST RECEIVED'
-      : isSubmitting || requestCommittedLocally
+      : isSubmitting || isConfirmationPending || requestCommittedLocally
         ? 'REQUEST SENT'
         : 'REQUEST ACCESS';
   const className = [

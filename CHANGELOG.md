@@ -6,6 +6,15 @@ full engineering record.
 
 ## [Unreleased]
 
+## [0.3.39] — 2026-08-01
+
+- Kept one deliberate Request Access gesture sealed across menu and Mini App
+  presentation changes, including when private confirmation is delayed.
+- Left an uncertain request visibly disabled as Request Sent instead of
+  replaying its sound, animation, or submission after a temporary outage.
+- Preserved the existing private, cycle-idempotent SpacetimeDB record and made
+  no change to admission, ownership, balances, or persistent Realm state.
+
 ## [0.3.38] — 2026-08-01
 
 - Kept Farcaster's native Back control visible inside the Realm, including for
@@ -418,7 +427,8 @@ full engineering record.
   Lowlands, a first keep, Farcaster sign-in, and an admission-gated shared-world
   foundation.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.38...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.39...HEAD
+[0.3.39]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.38...v0.3.39
 [0.3.38]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.37...v0.3.38
 [0.3.37]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.36...v0.3.37
 [0.3.36]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.35...v0.3.36

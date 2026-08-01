@@ -5,7 +5,7 @@ ordinary browsers use Sign In with Farcaster (SIWF), while a verified Farcaster
 Mini App host may use Quick Auth. Neither path is a wallet connection,
 client-owned identity, admission grant, or Terms acceptance.
 
-Alpha 0.3.38 keeps backend protocol 3 and authentication contract v2; admission
+Alpha 0.3.39 keeps backend protocol 3 and authentication contract v2; admission
 remains gated. Production configuration and founder identities belong in the
 private operator record, not this guide.
 
@@ -236,6 +236,14 @@ SpacetimeDB review ledger; it does not grant admission, create a castle, expose
 the request publicly, or confer gameplay authority. Duplicate submissions in
 the same admission cycle are idempotent. A later revocation creates a distinct
 request cycle while retaining the founder's existing realm state.
+
+The first accepted gesture is also sealed in the exact authorization
+lifecycle before the request leaves the browser. A menu or Mini App
+presentation change cannot reopen it, and an uncertain transport result stays
+visibly disabled as **REQUEST SENT** while the caller-private status is
+reconciled. Only an authoritative current-cycle `not-requested` result can
+offer a fresh submission; a network error alone cannot replay the petition,
+its animation, or its sound.
 
 **CHECK AGAIN** calls credentialed `/v2/session/refresh`, not a new Farcaster
 channel. A matching missing or disabled state stays pending/tokenless; enabled

@@ -6,6 +6,20 @@ export type LatestPatchNotes = Readonly<{
   alphaNotice: string;
 }>;
 
+const ALPHA_0_3_39_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: '1 AUG 2026',
+  title: 'THE PETITION HOLDS',
+  summary:
+    'A keeper’s first petition now stays sealed even when the road to the Hegemony records briefly goes dark.',
+  highlights: Object.freeze([
+    'Request Access becomes Request Sent on the first gesture and stays closed across menu and Mini App presentation changes.',
+    'A delayed confirmation can no longer replay the Hegemony resonance, violet-and-gold seal, or private submission.',
+    'SpacetimeDB still preserves one private petition per admission cycle while admission itself remains a separate manual decision.'
+  ]),
+  alphaNotice:
+    'Alpha 0.3.39 remains an invite-only, unfinished world. A petition requests review only; it grants no admission, keep, ownership, balance, reward, or financial promise.'
+});
+
 const ALPHA_0_3_38_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '1 AUG 2026',
   title: 'THE WAY BACK',
@@ -303,6 +317,7 @@ const ALPHA_0_3_22_PATCH_NOTES: LatestPatchNotes = Object.freeze({
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
+    '0.3.39': ALPHA_0_3_39_PATCH_NOTES,
     '0.3.38': ALPHA_0_3_38_PATCH_NOTES,
     '0.3.37': ALPHA_0_3_37_PATCH_NOTES,
     '0.3.36': ALPHA_0_3_36_PATCH_NOTES,

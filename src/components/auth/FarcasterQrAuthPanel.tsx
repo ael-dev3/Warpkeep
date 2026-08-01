@@ -38,6 +38,7 @@ export type FarcasterQrAuthPanelProps = {
   onCheckAdmission?: () => void;
   accessRequest?: AccessRequestViewState;
   onRequestAccess?: () => void;
+  onRetryAccessRequestStatus?: () => void;
   onRememberDeviceChange?: (remember: boolean) => void;
   onCancel: () => void;
   onRetry: () => void;
@@ -222,6 +223,7 @@ export function FarcasterQrAuthPanel({
   onCheckAdmission,
   accessRequest = IDLE_ACCESS_REQUEST,
   onRequestAccess,
+  onRetryAccessRequestStatus,
   onRememberDeviceChange,
   onCancel,
   onRetry,
@@ -524,7 +526,17 @@ export function FarcasterQrAuthPanel({
             {!accessRequestOwnsPrimaryAction(accessRequest) ? (
               <button
                 className="farcaster-auth-panel__action farcaster-auth-panel__action--primary"
-                onClick={onCheckAdmission}
+                disabled={
+                  accessRequest.phase === 'confirmation-pending'
+                  && !onRetryAccessRequestStatus
+                }
+                onClick={() => {
+                  if (accessRequest.phase === 'confirmation-pending') {
+                    onRetryAccessRequestStatus?.();
+                    return;
+                  }
+                  onCheckAdmission?.();
+                }}
                 ref={primaryActionRef}
                 type="button"
               >

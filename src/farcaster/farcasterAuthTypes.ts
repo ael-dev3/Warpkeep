@@ -333,6 +333,7 @@ export type AccessRequestViewState =
   | Readonly<{ phase: 'loading' }>
   | Readonly<{ phase: 'not-requested' }>
   | Readonly<{ phase: 'submitting' }>
+  | Readonly<{ phase: 'confirmation-pending' }>
   | Readonly<{ phase: 'requested'; requestedAt: number }>
   | Readonly<{ phase: 'already-admitted' }>
   | Readonly<{ phase: 'error'; retryable: boolean }>;
