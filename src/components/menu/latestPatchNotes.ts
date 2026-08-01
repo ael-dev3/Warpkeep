@@ -6,6 +6,20 @@ export type LatestPatchNotes = Readonly<{
   alphaNotice: string;
 }>;
 
+const ALPHA_0_3_38_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: '1 AUG 2026',
+  title: 'THE WAY BACK',
+  summary:
+    'The Realm now keeps one clear road back to Warpkeep’s gates, even when Farcaster carries a keeper straight inside.',
+  highlights: Object.freeze([
+    'Farcaster’s native Back control now remains available at the Realm root for keepers who enter Genesis 001 directly.',
+    'Back closes nested Realm records one step at a time, then returns to Warpkeep’s menu without signing the keeper out.',
+    'The route adds no new map overlay and leaves authentication, admission, Terms, keeps, Workers, resources, and world state untouched.'
+  ]),
+  alphaNotice:
+    'Alpha 0.3.38 remains an invite-only, unfinished world. This navigation release changes no admission decision, ownership record, balance, or persistent Realm data.'
+});
+
 const ALPHA_0_3_37_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '1 AUG 2026',
   title: 'THE GATE HEEDS ONCE',
@@ -289,6 +303,7 @@ const ALPHA_0_3_22_PATCH_NOTES: LatestPatchNotes = Object.freeze({
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
+    '0.3.38': ALPHA_0_3_38_PATCH_NOTES,
     '0.3.37': ALPHA_0_3_37_PATCH_NOTES,
     '0.3.36': ALPHA_0_3_36_PATCH_NOTES,
     '0.3.35': ALPHA_0_3_35_PATCH_NOTES,

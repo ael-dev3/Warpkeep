@@ -611,16 +611,18 @@ describe('Warpkeep Farcaster Mini App direct entry', () => {
     expect(authority.beginSignIn).not.toHaveBeenCalled();
     expect(encodeQrCode).not.toHaveBeenCalled();
     expect(backend.runtime.acceptAlphaTerms).not.toHaveBeenCalled();
+    await settle();
+    expect(sdk.back?.show).toHaveBeenCalled();
+    expect(sdk.back?.onback).not.toBeNull();
 
-    const traverseHistory = vi.spyOn(window.history, 'go');
-    returnToMainMenuThroughPlayerProfile();
+    act(() => sdk.back?.onback?.());
     await act(async () => vi.advanceTimersByTime(20));
     await settle();
-    expect(traverseHistory).toHaveBeenCalledWith(-1);
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
     expect(window.location.hash).toBe('#menu');
     expect(window.history.state?.warpkeepDirectRealm).toBeUndefined();
     expect(screen.getByRole('button', { name: 'ENTER REALM' })).not.toBeNull();
+    expect(bridge.logoutSession).not.toHaveBeenCalled();
 
     act(() => window.history.back());
     await act(async () => vi.advanceTimersByTime(20));

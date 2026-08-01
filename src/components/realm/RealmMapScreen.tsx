@@ -545,11 +545,16 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     if (fullscreenDestinations) pushSurface(route);
   }, [fullscreenDestinations, pushSurface]);
   const handleMiniAppBack = useCallback(() => {
-    if (surfaceNavigation.depth > 0) backSurface();
-  }, [backSurface, surfaceNavigation.depth]);
-  // The host owns Back at the Realm root. Only nested destinations bind an
-  // application handler; consuming root Back here would prevent native exit.
-  useMiniAppBackNavigation(surfaceNavigation.depth, handleMiniAppBack);
+    if (surfaceNavigation.depth > 0) {
+      backSurface();
+      return;
+    }
+    onRequestReturn();
+  }, [backSurface, onRequestReturn, surfaceNavigation.depth]);
+  // Direct-entry Mini Apps skip Warpkeep's menu, so keep the native host Back
+  // control available at the Realm root as their explicit route to it. Nested
+  // destinations still consume one navigation step before the root can leave.
+  useMiniAppBackNavigation(surfaceNavigation.depth + 1, handleMiniAppBack);
   const workerProjectionTelemetryEnabled = import.meta.env.DEV
     ? props.localQaWorkerProjectionTelemetry === true
     : false;

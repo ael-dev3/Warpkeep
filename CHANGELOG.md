@@ -6,6 +6,15 @@ full engineering record.
 
 ## [Unreleased]
 
+## [0.3.38] — 2026-08-01
+
+- Kept Farcaster's native Back control visible inside the Realm, including for
+  returning keepers who enter Genesis 001 directly from the Mini App.
+- Made root Back return to Warpkeep's menu without signing out, while nested
+  Realm records still close one step at a time.
+- Left the ordinary browser experience, authentication, admission, Terms,
+  ownership, resources, and persistent world state unchanged.
+
 ## [0.3.37] — 2026-08-01
 
 - Latched Request Access at the button boundary before the parent state round
@@ -409,7 +418,8 @@ full engineering record.
   Lowlands, a first keep, Farcaster sign-in, and an admission-gated shared-world
   foundation.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.37...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.38...HEAD
+[0.3.38]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.37...v0.3.38
 [0.3.37]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.36...v0.3.37
 [0.3.36]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.35...v0.3.36
 [0.3.35]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.34...v0.3.35
