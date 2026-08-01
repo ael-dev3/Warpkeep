@@ -6,6 +6,20 @@ export type LatestPatchNotes = Readonly<{
   alphaNotice: string;
 }>;
 
+const ALPHA_0_3_36_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: '1 AUG 2026',
+  title: 'THE GATE RESOUNDS',
+  summary:
+    'The Hegemony gate now answers a keeper’s petition with a measured resonance of its own.',
+  highlights: Object.freeze([
+    'Request Access now carries the exact Hegemony admission chime on the first trusted gesture, without layering the ordinary interface press over it.',
+    'A close gold seal and softer violet echo follow the sound’s strike and water-like decay, then leave the gateway quiet and untouched.',
+    'The one bounded voice respects mute and reduced-motion preferences, stops when the Realm is concealed, and remains distinct from the later confirmation that the private record has settled.'
+  ]),
+  alphaNotice:
+    'Alpha 0.3.36 remains an invite-only, unfinished world. The resonance marks only a petition leaving the player’s hand; it does not grant admission, create a keep, or change any Realm ownership or balance.'
+});
+
 const ALPHA_0_3_35_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '1 AUG 2026',
   title: 'THE PETITION IS SEALED',
@@ -261,6 +275,7 @@ const ALPHA_0_3_22_PATCH_NOTES: LatestPatchNotes = Object.freeze({
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
+    '0.3.36': ALPHA_0_3_36_PATCH_NOTES,
     '0.3.35': ALPHA_0_3_35_PATCH_NOTES,
     '0.3.34': ALPHA_0_3_34_PATCH_NOTES,
     '0.3.33': ALPHA_0_3_33_PATCH_NOTES,

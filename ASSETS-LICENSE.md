@@ -42,6 +42,19 @@ The original 1280×720 runtime film and poster were superseded on 2026-07-11. Th
 
 The unresolved-rights source film/audio binaries are not present in the v0.3.0 HEAD and were not uploaded to a public asset release. Exact technical records remain in `docs/reference/`; required runtime derivatives remain in `public/` under the same unresolved source terms.
 
+## Hegemony admission-request sound provenance
+
+The Request Access control uses the exact 49,581-byte MP3 from the public
+[`hegemony-empire-admission-request-button-sound-2026-07-30`](https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/hegemony-empire-admission-request-button-sound-2026-07-30)
+asset release. `public/audio/Hegemony_Empire_Admission_Request_Button.mp3` has
+SHA-256 `73465f59b6d0f9b1166b547608750ca6ec58bad7aac36e9899b3995ffb50d070`
+and is preserved byte-for-byte as a 2.0-second, 48 kHz stereo MP3. Its exact UI
+trigger is `hegemony-empire-admission.request`; it carries no admission or game
+authority. Ael authorized public archival and release distribution, but no
+separate open-content license was supplied or inferred. The asset remains
+`LicenseRef-Warpkeep-Provenance-Required`; complete source, package, playback,
+and rights coordinates are in the [dated audio record](docs/reference/audio/2026-07-30-hegemony-empire-admission-request-button/README.md).
+
 ## WARPKEEP stone title provenance
 
 The optimized WARPKEEP stone-letter assemblies were supplied with explicit v0.3 archival and CC-BY-4.0 authorization. Source/master material is held in the public [Warpkeep-Assets](https://github.com/ael-dev3/Warpkeep-Assets) release [`title-stone-letters-2026-07-12`](https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/title-stone-letters-2026-07-12); the browser serves only the verified runtime assemblies committed here.

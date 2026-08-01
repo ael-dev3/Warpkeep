@@ -1,0 +1,39 @@
+{
+  "assetId": "warpkeep.ui.audio.hegemony-empire-admission.request",
+  "recordedAt": "2026-08-01",
+  "source": {
+    "repository": "ael-dev3/Warpkeep-Assets",
+    "commit": "cd0ba48e00a743251b5d3d20562705fc4faab872",
+    "releaseTag": "hegemony-empire-admission-request-button-sound-2026-07-30",
+    "packageBytes": 53222,
+    "packageSha256": "a31cca839de568e461c646303328ec360aee90a160f7d08481d8b560f5dc16da"
+  },
+  "runtime": {
+    "path": "public/audio/Hegemony_Empire_Admission_Request_Button.mp3",
+    "mediaType": "audio/mpeg",
+    "bytes": 49581,
+    "sha256": "73465f59b6d0f9b1166b547608750ca6ec58bad7aac36e9899b3995ffb50d070",
+    "sourceBytesPreservedExactly": true,
+    "audio": {
+      "codec": "MP3",
+      "sampleRateHz": 48000,
+      "channels": 2,
+      "channelLayout": "stereo",
+      "bitRateBitsPerSecond": 192000,
+      "durationSeconds": 2.0,
+      "integratedLufs": -20.8,
+      "truePeakDbfs": -4.9
+    }
+  },
+  "ui": {
+    "role": "Hegemony admission Request Access button sound",
+    "trigger": "hegemony-empire-admission.request",
+    "audibleResolutionSeconds": 1.2,
+    "gameplayAuthority": false
+  },
+  "provenance": {
+    "publicArchiveAuthorization": "authorized by Ael",
+    "separateOpenLicense": "not asserted",
+    "license": "LicenseRef-Warpkeep-Provenance-Required"
+  }
+}

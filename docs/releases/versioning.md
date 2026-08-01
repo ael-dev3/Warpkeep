@@ -1,7 +1,7 @@
 # Versioning and releases
 
 Warpkeep uses semantic versions for the product and Git commit SHAs for builds.
-Alpha `0.3.35` is the live **The Petition Is Sealed** release. A version is
+Alpha `0.3.36` is the live **The Gate Resounds** release. A version is
 described as live only after its protected review, matching client deployment,
 and production smoke test all succeed.
 

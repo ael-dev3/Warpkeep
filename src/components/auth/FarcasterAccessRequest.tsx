@@ -1,5 +1,6 @@
 import { useState, type Ref } from 'react';
 
+import { emitHegemonyAdmissionRequestSound } from '../audio/hegemonyAdmissionRequestSound';
 import type { AccessRequestViewState } from '../../farcaster/farcasterAuthTypes';
 
 export type FarcasterAccessRequestProps = Readonly<{
@@ -119,6 +120,7 @@ export function FarcasterAccessRequestAction({
   ].filter(Boolean).join(' ');
 
   const handleRequestAccess = () => {
+    emitHegemonyAdmissionRequestSound();
     setRequestCommittedLocally(true);
     onRequestAccess();
   };
@@ -127,6 +129,7 @@ export function FarcasterAccessRequestAction({
     <button
       aria-label={label.replace('…', '')}
       className={className}
+      data-warpkeep-sfx="none"
       disabled={disabled}
       onClick={handleRequestAccess}
       ref={accessRequestAcceptsPrimaryFocus(state) ? primaryActionRef : undefined}

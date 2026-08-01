@@ -330,18 +330,34 @@
 .farcaster-auth-panel__action--request-committed::before {
   content: "";
   position: absolute;
-  inset: -0.28rem;
+  inset: -0.24rem;
   border: 1px solid rgba(246, 214, 151, 0.96);
-  border-radius: calc(0.45rem + 0.28rem);
+  border-radius: calc(0.45rem + 0.24rem);
   opacity: 0;
   pointer-events: none;
   box-shadow:
-    0 0 0 1px rgba(174, 94, 216, 0.82),
-    0 0 0.95rem rgba(158, 74, 205, 0.68),
-    inset 0 0 0.45rem rgba(238, 196, 119, 0.3);
-  transform: scale(0.97);
+    0 0 0 1px rgba(174, 94, 216, 0.78),
+    0 0 0.82rem rgba(238, 196, 119, 0.5),
+    inset 0 0 0.46rem rgba(157, 73, 204, 0.34);
+  transform: scale(0.986);
   transform-origin: center;
-  animation: farcaster-auth-request-commit 1.15s cubic-bezier(0.16, 0.8, 0.22, 1) 1 both;
+  animation: farcaster-auth-request-commit 1.2s cubic-bezier(0.16, 0.8, 0.22, 1) 1 both;
+}
+
+.farcaster-auth-panel__action--request-committed::after {
+  content: "";
+  position: absolute;
+  inset: -0.42rem;
+  border: 1px solid rgba(178, 100, 220, 0.74);
+  border-radius: calc(0.45rem + 0.42rem);
+  opacity: 0;
+  pointer-events: none;
+  box-shadow:
+    0 0 0 1px rgba(236, 193, 116, 0.38),
+    0 0 1.05rem rgba(143, 63, 188, 0.42);
+  transform: scale(0.994);
+  transform-origin: center;
+  animation: farcaster-auth-request-echo 1.08s cubic-bezier(0.16, 0.8, 0.22, 1) 140ms 1 both;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -524,22 +540,54 @@ button.farcaster-identity-badge {
 @keyframes farcaster-auth-request-commit {
   0% {
     opacity: 0;
-    transform: scale(0.97);
+    transform: scale(0.986);
   }
 
-  28% {
+  6% {
     opacity: 1;
-    transform: scale(1.005);
+    transform: scale(1.002);
   }
 
-  62% {
-    opacity: 0.7;
-    transform: scale(1.022);
+  18% {
+    opacity: 0.82;
+    transform: scale(1.014);
+  }
+
+  34% {
+    opacity: 0.48;
+    transform: scale(1.01);
+  }
+
+  58% {
+    opacity: 0.24;
+    transform: scale(1.032);
   }
 
   100% {
     opacity: 0;
-    transform: scale(1.055);
+    transform: scale(1.058);
+  }
+}
+
+@keyframes farcaster-auth-request-echo {
+  0% {
+    opacity: 0;
+    transform: scale(0.994);
+  }
+
+  22% {
+    opacity: 0.72;
+    transform: scale(1.012);
+  }
+
+  48% {
+    opacity: 0.34;
+    transform: scale(1.034);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.072);
   }
 }
 
@@ -662,7 +710,8 @@ button.farcaster-identity-badge {
     transition-duration: 1ms;
   }
 
-  .farcaster-auth-panel__action--request-committed::before {
+  .farcaster-auth-panel__action--request-committed::before,
+  .farcaster-auth-panel__action--request-committed::after {
     animation: none;
     opacity: 0;
   }
