@@ -6,6 +6,15 @@ full engineering record.
 
 ## [Unreleased]
 
+## [0.3.42] — 2026-08-01
+
+- Removed the Request Access audio sample, playback path, preload, and runtime
+  trigger from the browser and Farcaster Mini App.
+- Kept the one-shot request boundary and violet-and-gold visual response intact,
+  while making the control deliberately silent.
+- Preserved the retired sample only in its checksummed Warpkeep Assets archive
+  and made production verification reject its former path and trigger.
+
 ## [0.3.41] — 2026-08-01
 
 - Let Warpkeep repair an interrupted graphics session through lighter visual

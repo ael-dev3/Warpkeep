@@ -165,4 +165,30 @@ describe('production output exclusions', () => {
     writeOutput(join(root, 'assets/local-leak.js'), `export const leaked = ${JSON.stringify(marker)};`);
     expect(() => verifyProductionDistExclusions(root)).toThrow(/local QA marker/i);
   });
+
+  it('rejects the retired admission-request sample and every runtime marker', () => {
+    const retiredFile = createReviewedOutput();
+    writeOutput(
+      join(retiredFile, 'audio/Hegemony_Empire_Admission_Request_Button.mp3'),
+      'retired sample bytes',
+    );
+    expect(() => verifyProductionDistExclusions(retiredFile)).toThrow(
+      /retired admission-request sound leaked/i,
+    );
+
+    for (const marker of [
+      'Hegemony_Empire_Admission_Request_Button.mp3',
+      'hegemony-empire-admission.request',
+      'hegemony-admission-request',
+    ]) {
+      const retiredMarker = createReviewedOutput();
+      writeOutput(
+        join(retiredMarker, 'assets/app.js'),
+        `export const retired = ${JSON.stringify(marker)};`,
+      );
+      expect(() => verifyProductionDistExclusions(retiredMarker)).toThrow(
+        /retired admission-request sound marker/i,
+      );
+    }
+  });
 });

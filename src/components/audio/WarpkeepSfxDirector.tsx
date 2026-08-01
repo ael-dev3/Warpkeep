@@ -2,12 +2,6 @@ import { useEffect, useRef } from 'react';
 
 import { ProceduralSfxEngine } from './proceduralSfxEngine';
 import {
-  createHegemonyAdmissionRequestSoundPlayer,
-  HEGEMONY_ADMISSION_REQUEST_SOUND_ASSET,
-  subscribeHegemonyAdmissionRequestSound,
-  type HegemonyAdmissionRequestSoundPlayer
-} from './hegemonyAdmissionRequestSound';
-import {
   emitWarpkeepSfx,
   subscribeWarpkeepSfx,
   subscribeWarpkeepSfxStop,
@@ -33,10 +27,6 @@ export type WarpkeepSfxDirectorProps = Readonly<{
   muted?: boolean;
   /** Test seam; production always uses the bounded procedural engine. */
   createEngine?: () => WarpkeepSfxDirectorEngine;
-  /** Test seam; production always owns one bounded admission sample voice. */
-  createAdmissionSoundPlayer?: (
-    audio: HTMLAudioElement
-  ) => HegemonyAdmissionRequestSoundPlayer;
 }>;
 
 export type WarpkeepSfxActivationInput = Readonly<{
@@ -151,39 +141,26 @@ export function shouldActivateWarpkeepSfx(
 }
 
 /**
- * Owns one lazy WebAudio graph and one tiny admission sample voice for the
- * application lifetime. It renders no visible UI and holds no per-frame state.
+ * Owns one lazy procedural WebAudio graph for the application lifetime. It
+ * renders no visible UI and holds no per-frame state.
  */
 export function WarpkeepSfxDirector({
   muted = false,
-  createEngine,
-  createAdmissionSoundPlayer
+  createEngine
 }: WarpkeepSfxDirectorProps) {
   const engineRef = useRef<WarpkeepSfxDirectorEngine | null>(null);
-  const admissionAudioRef = useRef<HTMLAudioElement | null>(null);
-  const admissionPlayerRef = useRef<HegemonyAdmissionRequestSoundPlayer | null>(null);
   const createEngineRef = useRef(createEngine);
-  const createAdmissionSoundPlayerRef = useRef(createAdmissionSoundPlayer);
   const mutedRef = useRef(muted);
   createEngineRef.current = createEngine;
-  createAdmissionSoundPlayerRef.current = createAdmissionSoundPlayer;
   mutedRef.current = muted;
 
   useEffect(() => {
     // Construct inside the effect so React StrictMode's setup/cleanup replay
     // receives a fresh engine rather than reusing one it has just disposed.
     const engine = createEngineRef.current?.() ?? new ProceduralSfxEngine();
-    const admissionAudio = admissionAudioRef.current;
-    const admissionPlayer = admissionAudio
-      ? createAdmissionSoundPlayerRef.current?.(admissionAudio)
-        ?? createHegemonyAdmissionRequestSoundPlayer(admissionAudio)
-      : null;
     engineRef.current = engine;
-    admissionPlayerRef.current = admissionPlayer;
     engine.setMuted(mutedRef.current);
     engine.setHidden(document.hidden);
-    admissionPlayer?.setMuted(mutedRef.current);
-    admissionPlayer?.setHidden(document.hidden);
 
     const activate = (event: KeyboardEvent | PointerEvent) => {
       const eventType = event.type;
@@ -215,17 +192,12 @@ export function WarpkeepSfxDirector({
     };
     const handleVisibility = () => {
       engine.setHidden(document.hidden);
-      admissionPlayer?.setHidden(document.hidden);
     };
     const unsubscribeEvents = subscribeWarpkeepSfx((events) => {
       engine.emitBatch(events);
     });
-    const unsubscribeAdmissionSound = subscribeHegemonyAdmissionRequestSound(() => {
-      admissionPlayer?.play();
-    });
     const unsubscribeStop = subscribeWarpkeepSfxStop(() => {
       engine.stopAll();
-      admissionPlayer?.stop();
     });
     const unsubscribeWaterAmbience = subscribeWarpkeepWaterAmbience((state) => {
       engine.setWaterAmbience(state);
@@ -239,7 +211,6 @@ export function WarpkeepSfxDirector({
 
     return () => {
       unsubscribeEvents();
-      unsubscribeAdmissionSound();
       unsubscribeStop();
       unsubscribeWaterAmbience();
       window.removeEventListener('pointerdown', activate, true);
@@ -248,10 +219,6 @@ export function WarpkeepSfxDirector({
       document.removeEventListener('click', playOrdinaryControl);
       document.removeEventListener('visibilitychange', handleVisibility);
       if (engineRef.current === engine) engineRef.current = null;
-      if (admissionPlayerRef.current === admissionPlayer) {
-        admissionPlayerRef.current = null;
-      }
-      admissionPlayer?.dispose();
       engine.dispose();
     };
   // The director intentionally owns one engine for one mount.
@@ -260,17 +227,7 @@ export function WarpkeepSfxDirector({
 
   useEffect(() => {
     engineRef.current?.setMuted(muted);
-    admissionPlayerRef.current?.setMuted(muted);
   }, [muted]);
 
-  return (
-    <audio
-      aria-hidden="true"
-      data-warpkeep-audio-role="hegemony-admission-request"
-      hidden
-      preload="auto"
-      ref={admissionAudioRef}
-      src={`${import.meta.env.BASE_URL}${HEGEMONY_ADMISSION_REQUEST_SOUND_ASSET}`}
-    />
-  );
+  return null;
 }

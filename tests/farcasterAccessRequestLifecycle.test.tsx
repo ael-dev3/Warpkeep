@@ -8,7 +8,6 @@ import {
 } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { subscribeHegemonyAdmissionRequestSound } from '../src/components/audio/hegemonyAdmissionRequestSound';
 import { FarcasterAccessRequestAction } from '../src/components/auth/FarcasterAccessRequest';
 import { useAccessRequest } from '../src/farcaster/useAccessRequest';
 import type {
@@ -115,10 +114,6 @@ afterEach(() => {
 describe('access-request controller lifecycle', () => {
   it('latches the action locally before a parent state round trip', () => {
     const onRequestAccess = vi.fn();
-    const admissionSoundTriggers: string[] = [];
-    const unsubscribeSound = subscribeHegemonyAdmissionRequestSound((trigger) => {
-      admissionSoundTriggers.push(trigger);
-    });
     render(
       <FarcasterAccessRequestAction
         onRequestAccess={onRequestAccess}
@@ -129,14 +124,11 @@ describe('access-request controller lifecycle', () => {
     const request = screen.getByRole('button', { name: 'REQUEST ACCESS' });
     fireEvent.click(request);
     fireEvent.click(request);
-    unsubscribeSound();
 
     expect(onRequestAccess).toHaveBeenCalledTimes(1);
-    expect(admissionSoundTriggers).toEqual([
-      'hegemony-empire-admission.request'
-    ]);
     const sent = screen.getByRole('button', { name: 'REQUEST SENT' }) as HTMLButtonElement;
     expect(sent.disabled).toBe(true);
+    expect(sent.dataset.warpkeepSfx).toBe('none');
     expect(sent.classList.contains(
       'farcaster-auth-panel__action--request-committed'
     )).toBe(true);
@@ -276,10 +268,6 @@ describe('access-request controller lifecycle', () => {
     );
 
     await waitFor(() => expect(screen.getByText('error')).not.toBeNull());
-    const admissionSoundTriggers: string[] = [];
-    const unsubscribeSound = subscribeHegemonyAdmissionRequestSound((trigger) => {
-      admissionSoundTriggers.push(trigger);
-    });
     fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
     await waitFor(() => expect(screen.getByText('confirmation-pending')).not.toBeNull());
 
@@ -301,13 +289,9 @@ describe('access-request controller lifecycle', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'CHECK REQUEST STATUS' }));
     await waitFor(() => expect(screen.getByText('requested')).not.toBeNull());
-    unsubscribeSound();
 
     expect(getAccessRequestStatus).toHaveBeenCalledTimes(3);
     expect(requestAccess).toHaveBeenCalledTimes(1);
-    expect(admissionSoundTriggers).toEqual([
-      'hegemony-empire-admission.request'
-    ]);
     expect(document.body.textContent).not.toContain('private status outage');
     expect(document.body.textContent).not.toContain('ambiguous submit outage');
   });
@@ -590,12 +574,7 @@ describe('access-request controller lifecycle', () => {
 
     await waitFor(() => expect(screen.getByText('not-requested')).not.toBeNull());
     const request = screen.getByRole('button', { name: 'REQUEST ACCESS' });
-    const admissionSoundTriggers: string[] = [];
-    const unsubscribeSound = subscribeHegemonyAdmissionRequestSound((trigger) => {
-      admissionSoundTriggers.push(trigger);
-    });
     fireEvent.click(request);
-    unsubscribeSound();
 
     expect(screen.getByText('submitting')).not.toBeNull();
     const sent = screen.getByRole('button', { name: 'REQUEST SENT' }) as HTMLButtonElement;
@@ -604,9 +583,6 @@ describe('access-request controller lifecycle', () => {
       'farcaster-auth-panel__action--request-committed'
     )).toBe(true);
     expect(sent.dataset.warpkeepSfx).toBe('none');
-    expect(admissionSoundTriggers).toEqual([
-      'hegemony-empire-admission.request'
-    ]);
     fireEvent.click(sent);
     await waitFor(() => expect(requestAccess).toHaveBeenCalledTimes(1));
 

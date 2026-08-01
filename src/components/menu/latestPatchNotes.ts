@@ -6,6 +6,20 @@ export type LatestPatchNotes = Readonly<{
   alphaNotice: string;
 }>;
 
+const ALPHA_0_3_42_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: '1 AUG 2026',
+  title: 'THE GATE FALLS QUIET',
+  summary:
+    'The Hegemony gate now answers a petition through light and motion alone, leaving its archived resonance outside the living client.',
+  highlights: Object.freeze([
+    'Request Access is now deliberately silent in ordinary browsers and the Farcaster Mini App; its former sample is no longer loaded, preloaded, decoded, or emitted.',
+    'The violet-and-gold response and immediate one-shot Request Sent state remain intact, with the same private submission and manual admission boundaries.',
+    'The exact retired recording remains preserved in the checksummed Warpkeep Assets archive while production verification rejects its former path and trigger.'
+  ]),
+  alphaNotice:
+    'Alpha 0.3.42 remains an invite-only, unfinished world. This presentation change does not alter authentication, petitions, admission, keeps, Workers, resources, balances, rewards, or persistent Realm records.'
+});
+
 const ALPHA_0_3_41_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '1 AUG 2026',
   title: 'THE REALM MENDS ITSELF',
@@ -345,6 +359,7 @@ const ALPHA_0_3_22_PATCH_NOTES: LatestPatchNotes = Object.freeze({
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
+    '0.3.42': ALPHA_0_3_42_PATCH_NOTES,
     '0.3.41': ALPHA_0_3_41_PATCH_NOTES,
     '0.3.40': ALPHA_0_3_40_PATCH_NOTES,
     '0.3.39': ALPHA_0_3_39_PATCH_NOTES,

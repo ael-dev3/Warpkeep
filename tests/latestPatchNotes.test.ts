@@ -18,25 +18,29 @@ describe('latest in-menu patch notes', () => {
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
       releasedOn: '1 AUG 2026',
-      title: 'THE REALM MENDS ITSELF'
+      title: 'THE GATE FALLS QUIET'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /lighter session-only graphics tiers.*fresh canvas.*readable 2D safety overview.*Retry.*Return/i
+      /Request Access.*deliberately silent.*ordinary browsers.*Farcaster Mini App.*no longer loaded.*preloaded.*decoded.*emitted/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Android.*embedded passages.*visible healthy time.*first-frame interruptions.*healthy Realm/i
+      /violet-and-gold response.*one-shot Request Sent.*private submission.*manual admission/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /classified graphics failure.*clear reference.*likely causes.*privacy-safe.*support/i
+      /retired recording.*checksummed Warpkeep Assets archive.*production verification.*former path.*trigger/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /released to players|deployed to players|public balances|guaranteed rewards/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('lighter path');
+    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('light and motion alone');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'does not alter authentication, admission'
+      'does not alter authentication, petitions, admission'
     );
+
+    expect(getLatestPatchNotes('0.3.41')).toMatchObject({
+      title: 'THE REALM MENDS ITSELF'
+    });
 
     expect(getLatestPatchNotes('0.3.39')).toMatchObject({
       title: 'THE PETITION HOLDS'
