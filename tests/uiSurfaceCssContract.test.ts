@@ -118,20 +118,35 @@ describe('shared Warpkeep surface system', () => {
       source,
       '.farcaster-auth-panel__action--request-committed::before {'
     );
-    const reduced = lastBlock(
+    const echo = firstBlock(
       source,
-      '.farcaster-auth-panel__action--request-committed::before {'
+      '.farcaster-auth-panel__action--request-committed::after {'
+    );
+    const reduced = source.slice(
+      source.lastIndexOf('@media (prefers-reduced-motion: reduce)')
     );
 
     expect(seal).toContain('pointer-events: none;');
     expect(seal).toContain('rgba(246, 214, 151, 0.96)');
-    expect(seal).toContain('rgba(174, 94, 216, 0.82)');
-    expect(seal).toContain('farcaster-auth-request-commit 1.15s');
+    expect(seal).toContain('rgba(174, 94, 216, 0.78)');
+    expect(seal).toContain('farcaster-auth-request-commit 1.2s');
+    expect(echo).toContain('pointer-events: none;');
+    expect(echo).toContain('rgba(178, 100, 220, 0.74)');
+    expect(echo).toContain('farcaster-auth-request-echo 1.08s');
+    expect(echo).toContain('140ms');
     expect(source).toContain('@keyframes farcaster-auth-request-commit');
+    expect(source).toContain('@keyframes farcaster-auth-request-echo');
     expect(source).toContain('@media (prefers-reduced-motion: reduce)');
+    expect(reduced).toContain(
+      '.farcaster-auth-panel__action--request-committed::before,'
+    );
+    expect(reduced).toContain(
+      '.farcaster-auth-panel__action--request-committed::after {'
+    );
     expect(reduced).toContain('animation: none;');
     expect(reduced).toContain('opacity: 0;');
     expect(seal).not.toMatch(/filter|backdrop-filter/);
+    expect(echo).not.toMatch(/filter|backdrop-filter/);
   });
 
   it('keeps compact destination motion bounded, reversible, and reduced-motion safe', () => {

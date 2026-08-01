@@ -6,6 +6,16 @@ full engineering record.
 
 ## [Unreleased]
 
+## [0.3.36] — 2026-08-01
+
+- Gave Request Access its exact Hegemony admission resonance on the player’s
+  trusted gesture, without layering the ordinary interface sound over it.
+- Matched the sound’s immediate strike and softer echo with two restrained
+  gold-and-violet ripples that settle without moving or blocking the gateway.
+- Kept the sample to one bounded voice that respects mute, hidden-page, global
+  stop, teardown, and reduced-motion boundaries while leaving the later
+  authoritative request-confirmation cue distinct.
+
 ## [0.3.35] — 2026-08-01
 
 - Gave a newly placed access petition a restrained violet-and-gold Hegemony
@@ -389,7 +399,8 @@ full engineering record.
   Lowlands, a first keep, Farcaster sign-in, and an admission-gated shared-world
   foundation.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.35...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.36...HEAD
+[0.3.36]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.35...v0.3.36
 [0.3.35]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.34...v0.3.35
 [0.3.34]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.33...v0.3.34
 [0.3.33]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.32...v0.3.33

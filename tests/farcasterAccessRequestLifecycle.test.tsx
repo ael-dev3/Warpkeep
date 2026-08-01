@@ -8,6 +8,7 @@ import {
 } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { subscribeHegemonyAdmissionRequestSound } from '../src/components/audio/hegemonyAdmissionRequestSound';
 import { FarcasterAccessRequestAction } from '../src/components/auth/FarcasterAccessRequest';
 import { useAccessRequest } from '../src/farcaster/useAccessRequest';
 import type {
@@ -297,7 +298,12 @@ describe('access-request controller lifecycle', () => {
 
     await waitFor(() => expect(screen.getByText('not-requested')).not.toBeNull());
     const request = screen.getByRole('button', { name: 'REQUEST ACCESS' });
+    const admissionSoundTriggers: string[] = [];
+    const unsubscribeSound = subscribeHegemonyAdmissionRequestSound((trigger) => {
+      admissionSoundTriggers.push(trigger);
+    });
     fireEvent.click(request);
+    unsubscribeSound();
 
     expect(screen.getByText('submitting')).not.toBeNull();
     const sent = screen.getByRole('button', { name: 'REQUEST SENT' }) as HTMLButtonElement;
@@ -305,6 +311,10 @@ describe('access-request controller lifecycle', () => {
     expect(sent.classList.contains(
       'farcaster-auth-panel__action--request-committed'
     )).toBe(true);
+    expect(sent.dataset.warpkeepSfx).toBe('none');
+    expect(admissionSoundTriggers).toEqual([
+      'hegemony-empire-admission.request'
+    ]);
     fireEvent.click(sent);
     await waitFor(() => expect(requestAccess).toHaveBeenCalledTimes(1));
 
