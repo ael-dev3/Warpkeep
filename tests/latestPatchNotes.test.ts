@@ -18,24 +18,24 @@ describe('latest in-menu patch notes', () => {
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
       releasedOn: '1 AUG 2026',
-      title: 'THE REALM ENDURES'
+      title: 'THE REALM MENDS ITSELF'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /disrupted Realm.*one visual tier lighter.*browser session.*chosen graphics setting/i
+      /lighter session-only graphics tiers.*fresh canvas.*readable 2D safety overview.*Retry.*Return/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /firm boundary.*released safely.*Retry.*Return/i
+      /Android.*embedded passages.*visible healthy time.*first-frame interruptions.*healthy Realm/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Android Chrome.*Farcaster.*Android passage.*authentication.*admission.*living world/i
+      /classified graphics failure.*clear reference.*likely causes.*privacy-safe.*support/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /released to players|deployed to players|public balances|guaranteed rewards/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('gentler footing');
+    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('lighter path');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'changes no admission decision'
+      'does not alter authentication, admission'
     );
 
     expect(getLatestPatchNotes('0.3.39')).toMatchObject({

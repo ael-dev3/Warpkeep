@@ -896,9 +896,11 @@ export const WarpkeepTitleScreen3D = forwardRef<
       camera.position.set(0, 0.18, restingCameraZ);
 
       renderer = new THREE.WebGLRenderer({
-        antialias: true,
+        antialias: activeGraphicsQuality !== 'performance',
         alpha: false,
-        powerPreference: 'high-performance'
+        powerPreference: activeGraphicsQuality === 'cinematic'
+          ? 'high-performance'
+          : 'default'
       });
       renderer.setPixelRatio(pixelRatio);
       renderer.setSize(initialWidth, initialHeight, false);

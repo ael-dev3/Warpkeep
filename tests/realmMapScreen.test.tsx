@@ -209,9 +209,10 @@ describe('RealmMapScreen', () => {
     expect(playerMenuTrigger()).not.toBeNull();
     expect(screen.getByRole('region', { name: 'Your resources' })).not.toBeNull();
     const fallback = screen.getByTestId('realm-static-fallback');
-    expect(within(fallback).getByText(
-      'WebGL is unavailable on this device. Showing a bounded, accessible view of the canonical Genesis 001 region around your keep.'
+    expect(screen.getByText(
+      'This browser did not provide the WebGL 2 graphics interface required by the 3D Realm.'
     )).not.toBeNull();
+    expect(screen.getByText('WK-GFX-001')).not.toBeNull();
     expect(fallback.textContent).not.toContain(
       'Detailed terrain is unavailable. Showing the canonical Genesis 001 realm map.'
     );
@@ -238,6 +239,7 @@ describe('RealmMapScreen', () => {
       .toContain('Warpkeeper Bastion. Your keep is selected.');
     expect(screen.queryByRole('button', { name: /Explore realm/i })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Return to Menu' })).toBeNull();
+    expect(screen.getByText(/lightweight, read-only overview/i)).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'Recenter Keep' })).toBeNull();
   });
 

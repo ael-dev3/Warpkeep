@@ -23,7 +23,7 @@ describe('Realm renderer recovery lifecycle', () => {
     expect(state.everReady).toBe(false);
   });
 
-  it('recovers after a loss without changing the ready history', () => {
+  it('clears a recovery attempt only after the ready generation proves stable', () => {
     const ready = transitionRealmRendererLifecycle(initialRealmRendererLifecycle(), {
       type: 'ready'
     });
@@ -34,10 +34,15 @@ describe('Realm renderer recovery lifecycle', () => {
     });
     expect(recovering.state).toBe('recovering');
     expect(recovering.everReady).toBe(true);
-    expect(transitionRealmRendererLifecycle(recovering, { type: 'ready' }).state).toBe('ready');
+    const restored = transitionRealmRendererLifecycle(recovering, { type: 'ready' });
+    expect(restored.state).toBe('ready');
+    expect(restored.attempt).toBe(1);
+    const stable = transitionRealmRendererLifecycle(restored, { type: 'stable' });
+    expect(stable.state).toBe('ready');
+    expect(stable.attempt).toBe(0);
   });
 
-  it('never downgrades a previously-ready renderer to static unsupported mode', () => {
+  it('moves a previously-ready renderer into the explicit degraded static mode', () => {
     const ready = transitionRealmRendererLifecycle(initialRealmRendererLifecycle(), {
       type: 'ready'
     });
@@ -49,10 +54,34 @@ describe('Realm renderer recovery lifecycle', () => {
         phase: 'probing'
       }
     });
-    expect(state.state).toBe('failed');
+    expect(state.state).toBe('static-degraded');
     expect(state.state).not.toBe('static-unsupported');
     expect(state.everReady).toBe(true);
     expect(state.failure?.code).toBe('renderer-construction-failed');
+    expect(state.lastFailure).toBe(state.failure);
+  });
+
+  it('preserves an explicit terminal failure in the post-ready static fallback', () => {
+    const ready = transitionRealmRendererLifecycle(initialRealmRendererLifecycle(), {
+      type: 'ready'
+    });
+    const failure = {
+      code: 'scene-rebuild-timeout' as const,
+      retryable: true,
+      phase: 'loading' as const,
+      message: 'Synthetic bounded rebuild timeout.'
+    };
+    const state = transitionRealmRendererLifecycle(ready, {
+      type: 'static-fallback',
+      failure
+    });
+
+    expect(state).toMatchObject({
+      state: 'static-degraded',
+      everReady: true,
+      failure,
+      lastFailure: failure
+    });
   });
 
   it('increments the generation when a scene load begins', () => {
@@ -93,6 +122,19 @@ describe('Realm renderer recovery lifecycle', () => {
       generation: 1,
       failure: { code: 'scene-build-failed', retryable: true, phase: 'loading' }
     })).toBe(current);
+    expect(transitionRealmRendererLifecycle(current, {
+      type: 'static-fallback',
+      generation: 1,
+      failure: {
+        code: 'scene-rebuild-timeout',
+        retryable: true,
+        phase: 'loading'
+      }
+    })).toBe(current);
+    expect(transitionRealmRendererLifecycle(current, {
+      type: 'stable',
+      generation: 1
+    })).toBe(current);
     expect(current.state).toBe('loading');
     expect(current.generation).toBe(2);
   });
@@ -111,6 +153,13 @@ describe('Realm renderer recovery lifecycle', () => {
     });
     expect(classifyRealmRendererFailure(new Error('request timed out'), 'loading').code)
       .toBe('castle-compact-load-failed');
+    expect(classifyRealmRendererFailure(
+      new Error('landscape-base request timed out while fetching the compact asset'),
+      'loading'
+    )).toMatchObject({
+      code: 'castle-compact-load-failed',
+      retryable: true
+    });
   });
 
   it('bounds automatic retries and leaves manual retry available', () => {

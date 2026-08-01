@@ -1500,7 +1500,11 @@ function initializeRealmScene(
     canvas: options.canvas,
     antialias: options.quality.id !== 'reduced',
     alpha: false,
-    powerPreference: 'high-performance'
+    // Let browsers and embedded WebViews select their stable adapter for the
+    // compatibility tiers. Re-requesting a stressed high-performance path can
+    // otherwise repeat a context-loss loop on older and thermally constrained
+    // devices.
+    powerPreference: options.quality.id === 'high' ? 'high-performance' : 'default'
   });
   cleanup.add(() => renderer.dispose());
   renderer.outputColorSpace = THREE.SRGBColorSpace;
