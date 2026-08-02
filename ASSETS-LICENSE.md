@@ -611,22 +611,22 @@ history but are intentionally absent from the current release tree.
 
 ## Farcaster Mini App release artwork
 
-The Alpha 0.3.28 Mini App hero and Open Graph images are project-owned,
-code-generated Warpkeep artwork. They are composed only from
-shapes, gradients, typography, and the project’s shield motif in
-`scripts/prepare-farcaster-miniapp-assets.mjs`; no third-party raster source or
-generated-image service is used. These two files are licensed under
-[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), without granting
-Warpkeep trademark or canonical-deployment rights.
+The former Alpha 0.3.28 Mini App hero and Open Graph images are project-owned,
+code-generated Warpkeep artwork. They are composed only from shapes,
+gradients, typography, and the project’s shield motif. They are no longer
+referenced by Warpkeep metadata, but remain at their immutable paths for
+compatibility with already-cached manifests. These two files are licensed
+under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), without
+granting Warpkeep trademark or canonical-deployment rights.
 
 | Use | Repository file | Technical record |
 | --- | --- | --- |
 | Directory hero | `public/images/miniapp/warpkeep-hero-1200x630.png` | 1200×630 opaque PNG, 157,511 bytes, SHA-256 `aa28b25357fdbddfcb347e41adf14a20c5f62a5cb4aaf498ce24f33f51eb9d14`. |
 | Open Graph image | `public/images/miniapp/warpkeep-og-1200x630.png` | 1200×630 opaque PNG, 157,511 bytes, SHA-256 `aa28b25357fdbddfcb347e41adf14a20c5f62a5cb4aaf498ce24f33f51eb9d14`. |
 
-The deterministic generator disables Sharp caching, limits concurrency to one,
-flattens every output onto `#010207`, removes alpha, and writes through a
-temporary staging directory.
+The deterministic preparation pipeline disables Sharp caching, limits
+concurrency to one, flattens outputs onto `#010207`, removes alpha, and writes
+through a temporary staging directory.
 
 On 31 July 2026, the Warpkeep project owner supplied the exact Hegemony crest
 and instructed that it become the Mini App icon and website favicon. The
@@ -675,20 +675,23 @@ embed. The source is preserved at
 a 1536×1024 opaque RGB PNG, 3,504,459 bytes, SHA-256
 `1cef5f67aa17a4fa812518c8c376a5f57a1c4c6509c0788e332ab97568a4a783`.
 It is already 3:2; the preparation script resizes it with Lanczos3 and writes
-the 1200×800 opaque runtime PNG deterministically. The artwork contains seven
-public Farcaster handles as authored labels and is promotional artwork, not a
-claim that the composition is an exact live gameplay capture.
+the 1200×800 opaque runtime PNG deterministically. The same reviewed source is
+resized to 1200×800 and cropped from y=30 to produce the standard 1200×630
+directory/Open Graph card without removing any of the seven authored public
+Farcaster labels. The artwork is promotional rather than a claim that the
+composition is an exact live gameplay capture.
 
 | Use | Repository file | Technical record |
 | --- | --- | --- |
 | Current feed embed image | `public/images/miniapp/warpkeep-embed-1200x800-a07da89d7df56da9.png` | 1200×800 opaque PNG, 2,163,184 bytes, SHA-256 `a07da89d7df56da96ce220043f5355b0bbe383cd9d8ff80e9547736b44fd560e`. |
+| Current directory and Open Graph card | `public/images/miniapp/warpkeep-realm-card-1200x630-d800619debbded6f.png` | 1200×630 opaque PNG, 1,727,085 bytes, SHA-256 `d800619debbded6fff22b011160e9eecbeb02da1781ed8e4aecd6138de2f5de7`. |
 
 The former `warpkeep-embed-1200x800.png` runtime image remains immutable and
 unreferenced for compatibility with already-published embed metadata. The
-owner's instruction authorizes the replacement source and derivative for the
+owner's instruction authorizes the replacement source and both derivatives for the
 official Warpkeep repository and Mini App presentation. It does not establish
-underlying ownership or grant a general open-content license. Both replacement
-files remain `LicenseRef-Warpkeep-Provenance-Required`.
+underlying ownership or grant a general open-content license. All three files
+remain `LicenseRef-Warpkeep-Provenance-Required`.
 
 On 2 August 2026, the three portrait listing screenshots were captured from the
 actual Alpha 0.3.43 interface at a 428×926 CSS-pixel viewport, then encoded as
