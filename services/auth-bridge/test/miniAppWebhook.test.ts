@@ -1,4 +1,5 @@
 import { generateKeyPairSync, sign } from 'node:crypto'
+import { encodeAbiParameters } from 'viem'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { BridgeConfig } from '../src/config'
@@ -16,6 +17,15 @@ const KEY_PAIR = generateKeyPairSync('ed25519')
 const PUBLIC_KEY = KEY_PAIR.publicKey
   .export({ format: 'der', type: 'spki' })
   .subarray(-32)
+const SIGNED_KEY_REQUEST_ABI = [{
+  type: 'tuple',
+  components: [
+    { type: 'uint256' },
+    { type: 'address' },
+    { type: 'bytes' },
+    { type: 'uint256' },
+  ],
+}] as const
 
 function config(): BridgeConfig {
   return {
@@ -69,6 +79,35 @@ function signed(event: unknown) {
   const signature = sign(null, signedInput, KEY_PAIR.privateKey).toString('base64url')
   signedInput.fill(0)
   return { header, payload, signature }
+}
+
+function hubSignerEvent(
+  appFid = APP_FID,
+  requestSigner = '0x1111111111111111111111111111111111111111' as const,
+) {
+  const encodedMetadata = encodeAbiParameters(SIGNED_KEY_REQUEST_ABI, [[
+    BigInt(appFid),
+    requestSigner,
+    `0x${'ab'.repeat(65)}`,
+    9_999_999_999n,
+  ]])
+  return {
+    type: 'EVENT_TYPE_SIGNER',
+    signerEventBody: {
+      eventType: 'SIGNER_EVENT_TYPE_ADD',
+      keyType: 1,
+      metadataType: 1,
+      key: `0x${PUBLIC_KEY.toString('hex')}`,
+      metadata: Buffer.from(encodedMetadata.slice(2), 'hex').toString('base64'),
+    },
+  }
+}
+
+function hubJson(events: readonly unknown[], status = 200) {
+  return new Response(JSON.stringify({ events }), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  })
 }
 
 function verifier(appFid = APP_FID) {
@@ -145,5 +184,104 @@ describe('signed Farcaster Mini App webhook verification', () => {
     await expect(webhookVerifier.verify(signed({
       event: 'miniapp_removed',
     }))).rejects.toBeInstanceOf(MiniAppWebhookVerifierUnavailableError)
+  })
+
+  it('accepts one current Hub attestation when the other healthy Hub is stale', async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => (
+      new URL(String(input)).hostname === 'rho.farcaster.xyz'
+        ? hubJson([hubSignerEvent()])
+        : hubJson([])
+    )) as typeof fetch
+    const activeOnChainAppKeyVerifier = vi.fn(async () => true)
+    const webhookVerifier = createMiniAppWebhookVerifier(config(), {
+      fetchImpl,
+      activeOnChainAppKeyVerifier,
+    })
+
+    await expect(webhookVerifier.verify(signed({
+      event: 'notifications_enabled',
+      notificationDetails: { token: TOKEN, url: DELIVERY_URL },
+    }))).resolves.toMatchObject({
+      fid: String(USER_FID),
+      appFid: APP_FID,
+      event: { type: 'enabled' },
+    })
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    expect(activeOnChainAppKeyVerifier).toHaveBeenCalledOnce()
+  })
+
+  it('rejects conflicting matching Hub attestations as retryable unavailability', async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => (
+      new URL(String(input)).hostname === 'rho.farcaster.xyz'
+        ? hubJson([hubSignerEvent()])
+        : hubJson([hubSignerEvent(42_424)])
+    )) as typeof fetch
+    const activeOnChainAppKeyVerifier = vi.fn(async () => true)
+    const webhookVerifier = createMiniAppWebhookVerifier(config(), {
+      fetchImpl,
+      activeOnChainAppKeyVerifier,
+    })
+
+    await expect(webhookVerifier.verify(signed({
+      event: 'notifications_disabled',
+    }))).rejects.toBeInstanceOf(MiniAppWebhookVerifierUnavailableError)
+    expect(activeOnChainAppKeyVerifier).not.toHaveBeenCalled()
+  })
+
+  it('rejects malformed exact-key Hub metadata instead of treating it as lag', async () => {
+    const malformed = hubSignerEvent()
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => (
+      new URL(String(input)).hostname === 'rho.farcaster.xyz'
+        ? hubJson([hubSignerEvent()])
+        : hubJson([{
+            ...malformed,
+            signerEventBody: {
+              ...malformed.signerEventBody,
+              metadata: 'not-canonical-base64',
+            },
+          }])
+    )) as typeof fetch
+    const activeOnChainAppKeyVerifier = vi.fn(async () => true)
+    const webhookVerifier = createMiniAppWebhookVerifier(config(), {
+      fetchImpl,
+      activeOnChainAppKeyVerifier,
+    })
+
+    await expect(webhookVerifier.verify(signed({
+      event: 'notifications_disabled',
+    }))).rejects.toBeInstanceOf(MiniAppWebhookVerifierUnavailableError)
+    expect(activeOnChainAppKeyVerifier).not.toHaveBeenCalled()
+  })
+
+  it('rejects an app key absent from both healthy Hubs', async () => {
+    const fetchImpl = vi.fn(async () => hubJson([])) as typeof fetch
+    const activeOnChainAppKeyVerifier = vi.fn(async () => true)
+    const webhookVerifier = createMiniAppWebhookVerifier(config(), {
+      fetchImpl,
+      activeOnChainAppKeyVerifier,
+    })
+
+    await expect(webhookVerifier.verify(signed({
+      event: 'notifications_disabled',
+    }))).rejects.toBeInstanceOf(MiniAppWebhookInvalidError)
+    expect(activeOnChainAppKeyVerifier).not.toHaveBeenCalled()
+  })
+
+  it('still fails closed when either configured Hub is unavailable', async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => (
+      new URL(String(input)).hostname === 'rho.farcaster.xyz'
+        ? hubJson([hubSignerEvent()])
+        : hubJson([], 503)
+    )) as typeof fetch
+    const activeOnChainAppKeyVerifier = vi.fn(async () => true)
+    const webhookVerifier = createMiniAppWebhookVerifier(config(), {
+      fetchImpl,
+      activeOnChainAppKeyVerifier,
+    })
+
+    await expect(webhookVerifier.verify(signed({
+      event: 'notifications_disabled',
+    }))).rejects.toBeInstanceOf(MiniAppWebhookVerifierUnavailableError)
+    expect(activeOnChainAppKeyVerifier).not.toHaveBeenCalled()
   })
 })

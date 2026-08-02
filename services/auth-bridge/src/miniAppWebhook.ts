@@ -75,18 +75,25 @@ type ParsedMiniAppWebhook = Readonly<{
   event: ParsedMiniAppWebhookEvent
 }>
 
-export type MiniAppWebhookVerifierDependencies = Readonly<{
-  fetchImpl?: FetchLike
-  /** Test seam only; production callers omit this dual-Hub/on-chain verifier. */
-  appKeyVerifier?: VerifyAppKey
-}>
-
 type HubAppKeyAttestation = Readonly<{
   appFid: number
   requestSigner: Address
   signature: Hex
   deadline: bigint
   canonicalMetadata: string
+}>
+
+export type MiniAppWebhookVerifierDependencies = Readonly<{
+  fetchImpl?: FetchLike
+  /** Test seam only; production callers omit this complete authority verifier. */
+  appKeyVerifier?: VerifyAppKey
+  /** Test seam only; production callers retain the redundant Optimism checks. */
+  activeOnChainAppKeyVerifier?: (
+    config: BridgeConfig,
+    fid: number,
+    appKey: Hex,
+    attestation: HubAppKeyAttestation,
+  ) => Promise<boolean>
 }>
 
 export class MiniAppWebhookInvalidError extends Error {
@@ -433,21 +440,30 @@ async function hubAppKeyAttestation(
     throw new MiniAppWebhookVerifierUnavailableError()
   }
 
-  const matches = body.events.flatMap(event => {
-    if (!isRecord(event) || !isRecord(event.signerEventBody)) return []
+  const matches: HubAppKeyAttestation[] = []
+  for (const event of body.events) {
+    if (!isRecord(event) || !isRecord(event.signerEventBody)) continue
     const signer = event.signerEventBody
     if (
-      event.type !== 'EVENT_TYPE_SIGNER'
-      || signer.eventType !== 'SIGNER_EVENT_TYPE_ADD'
-      || signer.keyType !== 1
-      || signer.metadataType !== 1
+      signer.eventType !== 'SIGNER_EVENT_TYPE_ADD'
       || canonicalAppKey(signer.key) !== appKey
     ) {
-      return []
+      continue
+    }
+    // Once a Hub claims an ADD for the exact app key, malformed authority
+    // metadata is not replication lag. Fail closed instead of silently using
+    // the other Hub's otherwise valid record.
+    if (
+      event.type !== 'EVENT_TYPE_SIGNER'
+      || signer.keyType !== 1
+      || signer.metadataType !== 1
+    ) {
+      throw new MiniAppWebhookVerifierUnavailableError()
     }
     const decoded = decodeSignedKeyRequest(signer.metadata)
-    return decoded ? [decoded] : []
-  })
+    if (!decoded) throw new MiniAppWebhookVerifierUnavailableError()
+    matches.push(decoded)
+  }
   if (matches.length === 0) return null
   const first = matches[0]
   if (matches.some(candidate => (
@@ -471,6 +487,26 @@ function sameAttestation(
     && left.signature === right.signature
     && left.deadline === right.deadline
     && left.canonicalMetadata === right.canonicalMetadata
+}
+
+/**
+ * Hubs are replicated indexes rather than the final app-key authority. A
+ * healthy but lagging Hub may not have indexed a newer signer event yet. Use a
+ * matching attestation from either healthy Hub, reject conflicting matches,
+ * and leave final authority to the independently redundant on-chain checks.
+ */
+function compatibleHubAttestation(
+  attestations: readonly (HubAppKeyAttestation | null)[],
+): HubAppKeyAttestation | null {
+  const matches = attestations.filter(
+    (attestation): attestation is HubAppKeyAttestation => attestation !== null,
+  )
+  if (matches.length === 0) return null
+  const first = matches[0]
+  if (matches.some(candidate => !sameAttestation(first, candidate))) {
+    throw new MiniAppWebhookVerifierUnavailableError()
+  }
+  return first
 }
 
 async function activeOnChainAppKey(
@@ -594,6 +630,8 @@ export function createMiniAppWebhookVerifier(
     config.miniAppNotifications.clients.map(client => client.appFid),
   )
   const fetchImpl = dependencies.fetchImpl ?? fetch
+  const verifyActiveOnChainAppKey = dependencies.activeOnChainAppKeyVerifier
+    ?? activeOnChainAppKey
 
   const productionAppKeyVerifier: VerifyAppKey = async (
     rawFid: number,
@@ -608,16 +646,12 @@ export function createMiniAppWebhookVerifier(
         hubAppKeyAttestation(url, fid, appKey, fetchImpl)
       )),
     )
-    const [first, second] = attestations
-    if (!first && !second) return { valid: false }
-    if (!first || !second) throw new MiniAppWebhookVerifierUnavailableError()
-    if (!sameAttestation(first, second)) {
-      throw new MiniAppWebhookVerifierUnavailableError()
-    }
-    if (!(await activeOnChainAppKey(config, fid, appKey, first))) {
+    const attestation = compatibleHubAttestation(attestations)
+    if (!attestation) return { valid: false }
+    if (!(await verifyActiveOnChainAppKey(config, fid, appKey, attestation))) {
       return { valid: false }
     }
-    return { valid: true, appFid: first.appFid }
+    return { valid: true, appFid: attestation.appFid }
   }
   const verifyAppKey = dependencies.appKeyVerifier ?? productionAppKeyVerifier
 
