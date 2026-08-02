@@ -18,7 +18,9 @@ import {
   privacySafeHermesErrorMessage,
   projectAccessRequestListPage,
   projectWorkerSystemStatusV12,
+  readNotificationOperatorSecret,
   readStatus,
+  requestAdmissionNotification,
   requestAdminToken,
   requireAccessRequestInspectionProductionTarget,
   requireAlphaComponentActivationProductionTarget,
@@ -43,6 +45,7 @@ import {
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
 const TEST_SECRET = 'TEST_ONLY_HERMES_SECRET_'.repeat(2);
+const NOTIFICATION_SECRET = 'TEST_ONLY_NOTIFICATION_SECRET_'.repeat(2);
 
 afterEach(() => {
   vi.useRealTimers();
@@ -655,6 +658,17 @@ describe('Hermes command-line boundary', () => {
       command: 'allow-fid',
       existingFounderReenableOnly: true,
     });
+    expect(parseHermesArguments(['notify-admitted', '123', '--confirm'])).toMatchObject({
+      command: 'notify-admitted',
+      confirmedByFlag: true,
+      inspection: false,
+    });
+    expect(() => parseHermesArguments(['notify-admitted', '123']))
+      .toThrow(/exactly --confirm/i);
+    expect(() => parseHermesArguments(['notify-admitted', '123', '--dry-run']))
+      .toThrow(/exactly --confirm/i);
+    expect(() => parseHermesArguments(['notify-admitted', '123', '--confirm', '--json']))
+      .toThrow(/invalid for this operation/i);
     expect(() => parseHermesArguments(['admit-founder', '123', 'note', '--dry-run']))
       .toThrow(/unexpected number/i);
     expect(() => parseHermesArguments(['admit-founder', '--dry-run']))
@@ -1057,6 +1071,8 @@ describe('Hermes atomic profiled admission boundary', () => {
     ) as { scripts: Record<string, string> };
     expect(packageManifest.scripts['stdb:admit-founder'])
       .toBe('tsx scripts/hermes-admin.ts admit-founder');
+    expect(packageManifest.scripts['stdb:notify-admitted'])
+      .toBe('tsx scripts/hermes-admin.ts notify-admitted');
   });
 
   it('does not accept a founder identity or note in argv', () => {
@@ -1315,6 +1331,51 @@ describe('Hermes credential destination policy', () => {
     expect(resolved).toBe(false);
     await vi.advanceTimersByTimeAsync(1);
     await expect(request).resolves.toBe('header.payload.signature');
+  });
+
+  it('queues admission notifications through a separate exact server-only contract', async () => {
+    expect(readNotificationOperatorSecret(NOTIFICATION_SECRET)).toBe(NOTIFICATION_SECRET);
+    expect(() => readNotificationOperatorSecret('replace-me')).toThrow(/32 to 512 bytes/i);
+
+    const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
+      expect(String(input)).toBe('https://auth.warpkeep.com/v1/admin/admission-notification');
+      expect(init?.method).toBe('POST');
+      expect(init?.redirect).toBe('error');
+      expect(init?.cache).toBe('no-store');
+      const headers = new Headers(init?.headers);
+      expect(headers.get('authorization')).toBe(`Bearer ${NOTIFICATION_SECRET}`);
+      expect(headers.has('origin')).toBe(false);
+      expect(JSON.parse(String(init?.body))).toEqual({ fid: '12345' });
+      return Response.json({ status: 'queued' }, { status: 202 });
+    });
+    await expect(requestAdmissionNotification(
+      'https://auth.warpkeep.com',
+      12_345n,
+      NOTIFICATION_SECRET,
+      fetchImpl,
+    )).resolves.toBe('queued');
+
+    const extraField = vi.fn<typeof fetch>(async () => Response.json({
+      status: 'queued',
+      token: 'must-not-be-accepted',
+    }));
+    await expect(requestAdmissionNotification(
+      'https://auth.warpkeep.com',
+      12_345n,
+      NOTIFICATION_SECRET,
+      extraField,
+    )).rejects.toThrow(/invalid response/i);
+
+    const rejected = vi.fn<typeof fetch>(async () => Response.json(
+      { error: { code: 'founder_not_admitted' } },
+      { status: 409 },
+    ));
+    await expect(requestAdmissionNotification(
+      'https://auth.warpkeep.com',
+      12_345n,
+      NOTIFICATION_SECRET,
+      rejected,
+    )).rejects.toThrow(/rejected the request/i);
   });
 
   it('rejects wrong-media and chunked oversized admin responses generically', async () => {

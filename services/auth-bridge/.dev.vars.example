@@ -25,6 +25,13 @@ SESSION_COOKIE_KEY=replace-me-separately
 # database and audience must differ from the gameplay values above. The tuple is
 # intentionally absent until an identity-free observer target is approved.
 QA_OBSERVER_ENABLED=false
+# Admission notifications are independently gated. Notification tokens are
+# accepted only from signed Farcaster webhooks and remain inside one Durable
+# Object per FID. Use a third, unrelated secret for the operator endpoint.
+APPROVAL_NOTIFICATIONS_ENABLED=false
+MINIAPP_NOTIFICATION_HUB_URLS=https://rho.farcaster.xyz:3381/,https://hub.pinata.cloud/
+MINIAPP_NOTIFICATION_CLIENTS=9152=https://api.farcaster.xyz/v1/frame-notifications
+# NOTIFICATION_OPERATOR_SECRET=<managed-secret-not-committed-here>
 # QA_OBSERVER_SPACETIMEDB_URI=https://maincloud.spacetimedb.com
 # QA_OBSERVER_SPACETIMEDB_DATABASE=warpkeep-qa-observer-dev
 # QA_OBSERVER_OIDC_AUDIENCE=warpkeep-qa-observer-spacetimedb

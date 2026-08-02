@@ -13,6 +13,10 @@ import { MemoryChallengeStore } from '../src/challengeStore'
 import { PLAYER_TOKEN_TTL_SECONDS, PRODUCTION_SPACETIMEDB_DATABASE } from '../src/config'
 import { FarcasterVerifierUnavailableError } from '../src/farcaster'
 import { qaObserverKeyThumbprint } from '../src/qaObserver'
+import {
+  MiniAppWebhookInvalidError,
+  MiniAppWebhookVerifierUnavailableError,
+} from '../src/miniAppWebhook'
 import { MemorySessionFamilyStore } from '../src/sessionFamily'
 import {
   AuthEpochResolverFailure,
@@ -21,10 +25,12 @@ import {
 import { AccessRequestResolverFailure } from '../src/spacetimeAccessRequestResolver'
 import type {
   AccessRequestResolver,
+  AdmissionNotificationStore,
   AuthEpochResolver,
   ChallengeRecord,
   ChallengeStore,
   FarcasterVerifier,
+  MiniAppWebhookVerifier,
   QuickAuthVerifier,
   RateLimiter,
   SafeLogEvent,
@@ -53,10 +59,14 @@ const QUICK_AUTH_TOKEN = [
 ].join('.')
 const ADMIN_SECRET = 'TEST_ONLY_ADMIN_SECRET_'.repeat(2)
 const SESSION_COOKIE_KEY = 'TEST_ONLY_SESSION_COOKIE_KEY_'.repeat(2)
+const NOTIFICATION_OPERATOR_SECRET = 'TEST_ONLY_NOTIFICATION_OPERATOR_SECRET_'.repeat(2)
+const MINIAPP_WEBHOOK_PATH = '/v1/farcaster/miniapp/webhook'
+const ADMISSION_NOTIFICATION_PATH = '/v1/admin/admission-notification'
 const SERVER_ONLY_ADMIN_PATHS = [
   '/v1/admin/token',
   '/v1/admin/auth-epoch-probe',
   '/v1/admin/config-attestation',
+  ADMISSION_NOTIFICATION_PATH,
 ] as const
 const BINDING_VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'
 const BINDING_CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM'
@@ -88,6 +98,18 @@ function env(overrides: Partial<WorkerEnv> = {}): WorkerEnv {
     ENVIRONMENT: 'production',
     ...overrides,
   }
+}
+
+function notificationEnv(overrides: Partial<WorkerEnv> = {}): WorkerEnv {
+  return env({
+    APPROVAL_NOTIFICATIONS_ENABLED: 'true',
+    MINIAPP_NOTIFICATION_HUB_URLS:
+      'https://rho.farcaster.xyz:3381/,https://hub.pinata.cloud/',
+    MINIAPP_NOTIFICATION_CLIENTS:
+      '9152=https://api.farcaster.xyz/v1/frame-notifications',
+    NOTIFICATION_OPERATOR_SECRET,
+    ...overrides,
+  })
 }
 
 function request(path: string, body?: unknown, init: RequestInit = {}): Request {
@@ -142,6 +164,8 @@ function harness(options: {
   signer?: AuthBridgeDependencies['signer']
   challengeStore?: ChallengeStore
   sessionFamilyStore?: SessionFamilyStore
+  miniAppWebhookVerifier?: MiniAppWebhookVerifier
+  admissionNotificationStore?: AdmissionNotificationStore
 } = {}): Harness {
   let now = Date.now()
   const verifier = options.verifier ?? {
@@ -177,6 +201,8 @@ function harness(options: {
     authEpochResolver: resolver,
     accessRequestResolver,
     sessionFamilyStore: sessionStore,
+    miniAppWebhookVerifier: options.miniAppWebhookVerifier,
+    admissionNotificationStore: options.admissionNotificationStore,
     rateLimiter: options.rateLimiter ?? { check: async () => ({ allowed: true }) },
     signer: options.signer,
     now: () => now,
@@ -1323,6 +1349,9 @@ describe('Warpkeep auth bridge', () => {
     expect(firstBody).toMatchObject({
       profile: 'warpkeep-auth-v2',
       farcasterRpcEndpointFingerprints,
+      approvalNotificationsEnabled: false,
+      miniAppHubEndpointFingerprints: [],
+      miniAppNotificationClientFids: [],
       signingPublicKeyThumbprint,
       quickAuthIssuer: 'https://auth.farcaster.xyz',
       quickAuthDomain: 'warpkeep.com',
@@ -1357,6 +1386,9 @@ describe('Warpkeep auth bridge', () => {
       audience: 'warpkeep-spacetimedb',
       keyId: 'test-es256-2026',
       farcasterRpcEndpointFingerprints,
+      approvalNotificationsEnabled: false,
+      miniAppHubEndpointFingerprints: [],
+      miniAppNotificationClients: [],
       signingPublicKeyThumbprint,
       spacetimeDbUri: 'https://maincloud.spacetimedb.com',
       spacetimeDbDatabase: PRODUCTION_SPACETIMEDB_DATABASE,
@@ -1861,6 +1893,48 @@ describe('Warpkeep auth bridge', () => {
     expect(remoteSingle.status).toBe(503)
   })
 
+  it('pins notification trust coordinates and requires an unrelated operator secret', async () => {
+    const h = harness()
+    expect((await h.app.fetch(request('/healthz'), notificationEnv())).status).toBe(200)
+    expect((await h.app.fetch(request('/healthz'), notificationEnv({
+      APPROVAL_NOTIFICATIONS_ENABLED: 'false',
+    }))).status).toBe(200)
+
+    const invalidOverrides: readonly Partial<WorkerEnv>[] = [
+      {
+        APPROVAL_NOTIFICATIONS_ENABLED: 'true',
+        MINIAPP_NOTIFICATION_HUB_URLS: undefined,
+        MINIAPP_NOTIFICATION_CLIENTS: undefined,
+        NOTIFICATION_OPERATOR_SECRET: undefined,
+      },
+      {
+        APPROVAL_NOTIFICATIONS_ENABLED: 'false',
+        MINIAPP_NOTIFICATION_HUB_URLS: 'https://hub.pinata.cloud/,https://rho.farcaster.xyz:3381/',
+        MINIAPP_NOTIFICATION_CLIENTS: undefined,
+        NOTIFICATION_OPERATOR_SECRET: undefined,
+      },
+      { MINIAPP_NOTIFICATION_HUB_URLS: 'https://hub.pinata.cloud/,https://hub.pinata.cloud/' },
+      { MINIAPP_NOTIFICATION_HUB_URLS: 'http://hub-one.example.com/,https://hub-two.example.net/' },
+      { MINIAPP_NOTIFICATION_HUB_URLS: 'https://127.0.0.1/,https://hub-two.example.net/' },
+      { MINIAPP_NOTIFICATION_HUB_URLS: 'https://hub-one.example.com/path,https://hub-two.example.net/' },
+      { MINIAPP_NOTIFICATION_CLIENTS: '9152=http://api.farcaster.xyz/v1/frame-notifications' },
+      { MINIAPP_NOTIFICATION_CLIENTS: '9152=https://127.0.0.1/v1/frame-notifications' },
+      { MINIAPP_NOTIFICATION_CLIENTS: '9152=https://api.farcaster.xyz/' },
+      { MINIAPP_NOTIFICATION_CLIENTS: '9152=https://api.farcaster.xyz/v1/frame-notifications?token=bad' },
+      { NOTIFICATION_OPERATOR_SECRET: ADMIN_SECRET },
+      { NOTIFICATION_OPERATOR_SECRET: SESSION_COOKIE_KEY },
+      { NOTIFICATION_OPERATOR_SECRET: privateJwk.d },
+      { APPROVAL_NOTIFICATIONS_ENABLED: 'TRUE' },
+    ]
+    for (const overrides of invalidOverrides) {
+      const response = await h.app.fetch(request('/healthz'), notificationEnv(overrides))
+      expect(response.status).toBe(503)
+      await expect(response.json()).resolves.toMatchObject({
+        error: { code: 'service_misconfigured' },
+      })
+    }
+  })
+
   it('fails closed without a public issuer and writes only static safe log events', async () => {
     const h = harness()
     const response = await h.app.fetch(request('/healthz'), env({ ISSUER: undefined }))
@@ -2313,6 +2387,204 @@ describe('Warpkeep auth bridge', () => {
       expect(h.events).toContain('internal_error')
     }
     expect(consumeFailure.verifier.verify).not.toHaveBeenCalled()
+  })
+
+  describe('Farcaster admission notifications', () => {
+    const verifiedEnableEvent = Object.freeze({
+      eventId: 'a'.repeat(64),
+      fid: FID,
+      appFid: 9_152,
+      event: Object.freeze({
+        type: 'enabled' as const,
+        details: Object.freeze({
+          token: 'notification-token-that-never-enters-browser-state',
+          url: 'https://api.farcaster.xyz/v1/frame-notifications',
+        }),
+      }),
+    })
+
+    it('keeps both endpoints independently fail-closed while rollout is paused', async () => {
+      const verify = vi.fn(async () => verifiedEnableEvent)
+      const applyEvent = vi.fn(async () => undefined)
+      const queueAdmission = vi.fn(async () => 'queued' as const)
+      const h = harness({
+        miniAppWebhookVerifier: { verify },
+        admissionNotificationStore: { applyEvent, queueAdmission },
+      })
+
+      for (const candidate of [
+        request(MINIAPP_WEBHOOK_PATH, { header: 'h', payload: 'p', signature: 's' }),
+        request(ADMISSION_NOTIFICATION_PATH, { fid: FID }, {
+          headers: { authorization: `Bearer ${NOTIFICATION_OPERATOR_SECRET}` },
+        }),
+      ]) {
+        const response = await h.app.fetch(candidate, env())
+        expect(response.status).toBe(503)
+        await expect(response.json()).resolves.toMatchObject({
+          error: { code: 'approval_notifications_paused' },
+        })
+        expect(response.headers.has('access-control-allow-origin')).toBe(false)
+      }
+      // The webhook must still be authenticated while paused so a genuine
+      // disable/remove can erase consent; enabled events remain unpersisted.
+      expect(verify).toHaveBeenCalledOnce()
+      expect(applyEvent).not.toHaveBeenCalled()
+      expect(queueAdmission).not.toHaveBeenCalled()
+    })
+
+    it('accepts only a server-to-server verified webhook and returns no token material', async () => {
+      const verify = vi.fn(async () => verifiedEnableEvent)
+      const applyEvent = vi.fn(async () => undefined)
+      const h = harness({
+        miniAppWebhookVerifier: { verify },
+        admissionNotificationStore: {
+          applyEvent,
+          queueAdmission: vi.fn(async () => 'queued' as const),
+        },
+      })
+      const signedEnvelope = { header: 'header', payload: 'payload', signature: 'signature' }
+
+      const browserAttempt = await h.app.fetch(request(MINIAPP_WEBHOOK_PATH, signedEnvelope, {
+        headers: { origin: ORIGIN },
+      }), notificationEnv())
+      expect(browserAttempt.status).toBe(403)
+      expect(verify).not.toHaveBeenCalled()
+
+      const accepted = await h.app.fetch(
+        request(MINIAPP_WEBHOOK_PATH, signedEnvelope),
+        notificationEnv(),
+      )
+      expect(accepted.status).toBe(200)
+      expect(await accepted.text()).toBe('')
+      expect(accepted.headers.has('access-control-allow-origin')).toBe(false)
+      expect(verify).toHaveBeenCalledWith(signedEnvelope)
+      expect(applyEvent).toHaveBeenCalledWith(verifiedEnableEvent)
+      expect(h.events).toEqual([
+        'miniapp_webhook_verified',
+        'miniapp_notification_subscribed',
+      ])
+      expect(JSON.stringify(h.events)).not.toContain(verifiedEnableEvent.event.details.token)
+    })
+
+    it('continues accepting signed opt-outs while delivery is paused', async () => {
+      const disabledEvent = Object.freeze({
+        eventId: 'd'.repeat(64),
+        fid: FID,
+        appFid: 9_152,
+        event: Object.freeze({ type: 'disabled' as const }),
+      })
+      const verify = vi.fn(async () => disabledEvent)
+      const applyEvent = vi.fn(async () => undefined)
+      const h = harness({
+        miniAppWebhookVerifier: { verify },
+        admissionNotificationStore: {
+          applyEvent,
+          queueAdmission: vi.fn(async () => 'not-subscribed' as const),
+        },
+      })
+      const response = await h.app.fetch(request(
+        MINIAPP_WEBHOOK_PATH,
+        { header: 'header', payload: 'payload', signature: 'signature' },
+      ), notificationEnv({ APPROVAL_NOTIFICATIONS_ENABLED: 'false' }))
+
+      expect(response.status).toBe(200)
+      expect(verify).toHaveBeenCalledOnce()
+      expect(applyEvent).toHaveBeenCalledWith(disabledEvent)
+      expect(h.events).toEqual([
+        'miniapp_webhook_verified',
+        'miniapp_notification_unsubscribed',
+      ])
+    })
+
+    it('distinguishes invalid signed input from verifier dependency failure', async () => {
+      for (const [error, status, code] of [
+        [new MiniAppWebhookInvalidError(), 400, 'miniapp_webhook_invalid'],
+        [
+          new MiniAppWebhookVerifierUnavailableError(),
+          503,
+          'miniapp_webhook_verification_unavailable',
+        ],
+      ] as const) {
+        const applyEvent = vi.fn(async () => undefined)
+        const h = harness({
+          miniAppWebhookVerifier: { verify: vi.fn(async () => { throw error }) },
+          admissionNotificationStore: {
+            applyEvent,
+            queueAdmission: vi.fn(async () => 'queued' as const),
+          },
+        })
+        const response = await h.app.fetch(request(
+          MINIAPP_WEBHOOK_PATH,
+          { header: 'h', payload: 'p', signature: 's' },
+        ), notificationEnv())
+        expect(response.status).toBe(status)
+        await expect(response.json()).resolves.toMatchObject({ error: { code } })
+        expect(applyEvent).not.toHaveBeenCalled()
+      }
+    })
+
+    it('uses the separate operator secret and rechecks live admission before queuing', async () => {
+      const queueAdmission = vi.fn(async () => 'queued' as const)
+      const store: AdmissionNotificationStore = {
+        applyEvent: vi.fn(async () => undefined),
+        queueAdmission,
+      }
+      const h = harness({ admissionNotificationStore: store })
+
+      for (const headers of [
+        new Headers({ authorization: `Bearer ${ADMIN_SECRET}` }),
+        new Headers({
+          authorization: `Bearer ${NOTIFICATION_OPERATOR_SECRET}`,
+          origin: ORIGIN,
+        }),
+      ]) {
+        const rejected = await h.app.fetch(
+          request(ADMISSION_NOTIFICATION_PATH, { fid: FID }, { headers }),
+          notificationEnv(),
+        )
+        expect(rejected.status).toBe(headers.has('origin') ? 403 : 401)
+        expect(rejected.headers.has('access-control-allow-origin')).toBe(false)
+      }
+      expect(queueAdmission).not.toHaveBeenCalled()
+
+      const accepted = await h.app.fetch(request(
+        ADMISSION_NOTIFICATION_PATH,
+        { fid: FID },
+        { headers: { authorization: `Bearer ${NOTIFICATION_OPERATOR_SECRET}` } },
+      ), notificationEnv())
+      expect(accepted.status).toBe(202)
+      const acceptedBody = await accepted.json()
+      expect(acceptedBody).toEqual({ status: 'queued' })
+      expect(h.resolver.resolve).toHaveBeenCalledWith(FID)
+      expect(queueAdmission).toHaveBeenCalledWith({
+        fid: FID,
+        authEpoch: 7,
+        queuedAt: expect.any(Number),
+      })
+      expect(h.events).toContain('admission_notification_queued')
+      expect(JSON.stringify(acceptedBody)).not.toContain(NOTIFICATION_OPERATOR_SECRET)
+    })
+
+    it('does not queue for a missing or disabled admission', async () => {
+      const queueAdmission = vi.fn(async () => 'queued' as const)
+      const h = harness({
+        epoch: 0,
+        admissionNotificationStore: {
+          applyEvent: vi.fn(async () => undefined),
+          queueAdmission,
+        },
+      })
+      const response = await h.app.fetch(request(
+        ADMISSION_NOTIFICATION_PATH,
+        { fid: FID },
+        { headers: { authorization: `Bearer ${NOTIFICATION_OPERATOR_SECRET}` } },
+      ), notificationEnv())
+      expect(response.status).toBe(409)
+      await expect(response.json()).resolves.toMatchObject({
+        error: { code: 'founder_not_admitted' },
+      })
+      expect(queueAdmission).not.toHaveBeenCalled()
+    })
   })
 
   describe('neutral access requests', () => {

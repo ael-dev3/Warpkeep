@@ -16,6 +16,12 @@ const POLICIES: Readonly<Record<RateLimitAction, number>> = Object.freeze({
   exchange: 20,
   'session-refresh': 30,
   'access-request': 12,
+  // Farcaster hosts legitimately fan many users through a small server egress
+  // pool. Keep a coarse abuse ceiling without turning that shared IP into a
+  // 120-user launch bottleneck; signature, app-key and per-FID replay checks
+  // still run before any consent state is accepted.
+  'miniapp-webhook': 2_000,
+  'admission-notification': 12,
   'admin-token': 6,
   'qa-challenge': 12,
   'qa-snapshot': 60,

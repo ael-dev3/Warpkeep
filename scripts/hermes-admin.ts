@@ -74,6 +74,7 @@ type Command =
   | 'expand-world-v3'
   | 'list-access-requests'
   | 'admit-founder'
+  | 'notify-admitted'
   | 'allow-fid'
   | 'disable-fid'
   | 'bump-auth-epoch'
@@ -100,6 +101,7 @@ const DEFAULT_BRIDGE = 'https://auth.warpkeep.com';
 const CONNECT_TIMEOUT_MS = 30_000;
 const OPERATION_TIMEOUT_MS = 15_000;
 const MAX_ADMIN_TOKEN_RESPONSE_BYTES = 32 * 1_024;
+const ADMISSION_NOTIFICATION_PATH = 'v1/admin/admission-notification';
 const ADMIN_TOKEN_CLOCK_SAFETY_MILLISECONDS = 20_000;
 const MAX_RESOURCE_BACKFILL_FOUNDERS = 100n;
 const GENESIS_GENERATION_V2_WORLD_CELLS = 1_261n;
@@ -330,6 +332,7 @@ function commandFrom(value: string | undefined): Command {
     || value === 'expand-world-v3'
     || value === 'list-access-requests'
     || value === 'admit-founder'
+    || value === 'notify-admitted'
     || value === 'allow-fid'
     || value === 'disable-fid'
     || value === 'bump-auth-epoch'
@@ -350,7 +353,7 @@ function commandFrom(value: string | undefined): Command {
   }
   fail(
     'Usage: hermes-admin.ts '
-    + '<seed-world|expand-world-v3|list-access-requests|admit-founder|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|seed-alpha-component|activate-alpha-water|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4|inspect-alpha-v8|inspect-alpha-v10|inspect-alpha-v12|inspect-publish-pre-v12|inspect-publish-post-v12> '
+    + '<seed-world|expand-world-v3|list-access-requests|admit-founder|notify-admitted|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|seed-alpha-component|activate-alpha-water|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4|inspect-alpha-v8|inspect-alpha-v10|inspect-alpha-v12|inspect-publish-pre-v12|inspect-publish-post-v12> '
     + '[...args] [--dry-run] [--confirm]. admit-founder requires private stdin: '
     + '--input-stdin --dry-run creates a reviewed plan; --input-stdin --confirm consumes it; '
     + 'allow-fid only re-enables an existing complete founder. list-access-requests accepts '
@@ -414,6 +417,8 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
     || command === 'disable-fid'
     || command === 'bump-auth-epoch'
     ? 3
+    : command === 'notify-admitted'
+      ? 2
     : command === 'backfill-resources' || command === 'seed-alpha-component'
       ? 2
     : 1;
@@ -445,6 +450,15 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
     }
     if (flags.has('--dry-run') === flags.has('--confirm')) {
       fail('Profiled admission requires exactly one of --dry-run or --confirm.');
+    }
+  } else if (command === 'notify-admitted') {
+    if (
+      flags.has('--input-stdin')
+      || flags.has('--json')
+      || flags.has('--dry-run')
+      || !flags.has('--confirm')
+    ) {
+      fail('Admission notification reconciliation requires exactly --confirm.');
     }
   } else if (command === 'seed-alpha-component') {
     parseSeedableAlphaComponent(positional[1]);
@@ -1374,6 +1388,101 @@ export async function requestAdminToken(
   return token;
 }
 
+export type AdmissionNotificationStatus =
+  | 'queued'
+  | 'already-sent'
+  | 'delivery-exhausted'
+  | 'not-subscribed';
+
+export function readNotificationOperatorSecret(value: string | undefined): string {
+  const bytes = new TextEncoder().encode(value ?? '');
+  try {
+    if (bytes.byteLength < 32 || bytes.byteLength > 512) {
+      fail('WARPKEEP_NOTIFICATION_OPERATOR_SECRET must contain 32 to 512 bytes.');
+    }
+    return value as string;
+  } finally {
+    bytes.fill(0);
+  }
+}
+
+export async function requestAdmissionNotification(
+  bridgeUrl: string,
+  fid: bigint,
+  secret: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<AdmissionNotificationStatus> {
+  if (fid < 1n || fid > BigInt(Number.MAX_SAFE_INTEGER)) {
+    fail('A positive, JavaScript-safe decimal FID is required.');
+  }
+  readNotificationOperatorSecret(secret);
+  let response: Response;
+  try {
+    response = await fetchImpl(new URL(ADMISSION_NOTIFICATION_PATH, `${bridgeUrl}/`), {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${secret}`,
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'cache-control': 'no-store',
+      },
+      body: JSON.stringify({ fid: fid.toString() }),
+      cache: 'no-store',
+      redirect: 'error',
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch {
+    fail('Could not reach the Warpkeep admission notification bridge.');
+  }
+  if (!response.ok) fail('The Warpkeep admission notification bridge rejected the request.');
+  const body = await readBoundedAdminResponse(response);
+  if (
+    !body
+    || typeof body !== 'object'
+    || Array.isArray(body)
+    || Object.keys(body).length !== 1
+    || !Object.prototype.hasOwnProperty.call(body, 'status')
+  ) {
+    fail('The Warpkeep admission notification bridge returned an invalid response.');
+  }
+  const status = (body as { status?: unknown }).status;
+  if (
+    status !== 'queued'
+    && status !== 'already-sent'
+    && status !== 'delivery-exhausted'
+    && status !== 'not-subscribed'
+  ) {
+    fail('The Warpkeep admission notification bridge returned an invalid response.');
+  }
+  return status;
+}
+
+async function notifyCommittedAdmission(
+  bridgeUrl: string,
+  fid: bigint,
+  secret: string | undefined,
+): Promise<void> {
+  if (secret === undefined) {
+    console.warn(
+      'Admission committed; Farcaster notification was not queued because the local '
+      + 'notification operator credential is unavailable. Run notify-admitted with --confirm.',
+    );
+    return;
+  }
+  try {
+    const status = await requestAdmissionNotification(bridgeUrl, fid, secret);
+    console.log(JSON.stringify({ admissionNotification: status }));
+  } catch {
+    // The database mutation is already authoritative. Never turn a delivery
+    // side-effect failure into an apparent admission failure that invites an
+    // unsafe reducer retry; the exact-epoch reconciliation command is idempotent.
+    console.warn(
+      'Admission committed; Farcaster notification was not queued. '
+      + 'Run notify-admitted with --confirm after checking the bridge.',
+    );
+  }
+}
+
 type AdminTokenSleeper = (milliseconds: number) => Promise<void>;
 
 const sleepForAdminTokenReadiness: AdminTokenSleeper = milliseconds => (
@@ -1646,6 +1755,8 @@ async function main() {
     machineReadableInspection,
     accessRequestList,
   } = parseHermesArguments();
+  const notificationOperatorSecret = process.env.WARPKEEP_NOTIFICATION_OPERATOR_SECRET;
+  delete process.env.WARPKEEP_NOTIFICATION_OPERATOR_SECRET;
   configureHermesMachineOutput(machineReadableInspection);
   // Durable data migrations and new founder admission always require a visible
   // command-line confirmation.
@@ -1655,6 +1766,7 @@ async function main() {
     command !== 'backfill-resources'
     && command !== 'expand-world-v3'
     && command !== 'admit-founder'
+    && command !== 'notify-admitted'
     && command !== 'seed-alpha-component'
     && command !== 'activate-alpha-water'
     && process.env.WARPKEEP_HERMES_NONINTERACTIVE === 'yes'
@@ -1672,6 +1784,7 @@ async function main() {
   let fid = command === 'allow-fid'
     || command === 'disable-fid'
     || command === 'bump-auth-epoch'
+    || command === 'notify-admitted'
     ? readFid(positional[1])
     : undefined;
   const expectedFounderCount = command === 'backfill-resources'
@@ -1761,6 +1874,9 @@ async function main() {
   if (command === 'activate-alpha-water' && !dryRun && !confirmed) {
     fail('Refusing Water activation without --confirm.');
   }
+  if (command === 'notify-admitted' && !confirmed) {
+    fail('Refusing admission notification reconciliation without --confirm.');
+  }
 
   let prevalidatedBridgeUrl: string | undefined;
   if (command === 'admit-founder' && !dryRun) {
@@ -1824,6 +1940,15 @@ async function main() {
   const bridgeUrl = prevalidatedBridgeUrl
     ?? readHttpsUrl(process.env.WARPKEEP_AUTH_BRIDGE_URL, 'WARPKEEP_AUTH_BRIDGE_URL');
   requireCredentialedProductionTarget(uri, database, bridgeUrl);
+  if (command === 'notify-admitted' && fid !== undefined) {
+    const status = await requestAdmissionNotification(
+      bridgeUrl,
+      fid,
+      readNotificationOperatorSecret(notificationOperatorSecret),
+    );
+    console.log(JSON.stringify({ admissionNotification: status }));
+    return;
+  }
   const secret = readAdminSecret(
     process.env.WARPKEEP_ADMIN_TOKEN_SECRET,
     process.env.WARPKEEP_ADMIN_TOKEN_SECRET_STDIN,
@@ -1951,9 +2076,11 @@ async function main() {
         beforeResources,
       );
       founderAdmissionClaimed = false;
+      await notifyCommittedAdmission(bridgeUrl, fid, notificationOperatorSecret);
       mutationStatusHandled = true;
     } else if (command === 'allow-fid' && fid !== undefined && note !== undefined) {
       await withOperationTimeout(connection.reducers.adminAllowFid({ fid, note }));
+      await notifyCommittedAdmission(bridgeUrl, fid, notificationOperatorSecret);
     } else if (command === 'disable-fid' && fid !== undefined && note !== undefined) {
       await withOperationTimeout(connection.reducers.adminDisableFid({ fid, note }));
     } else if (command === 'bump-auth-epoch' && fid !== undefined && note !== undefined) {

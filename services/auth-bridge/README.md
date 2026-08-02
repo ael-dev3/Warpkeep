@@ -2,13 +2,16 @@
 
 This Cloudflare Worker verifies ordinary-browser Farcaster SIWF proofs and
 Farcaster Mini App Quick Auth bearers, then issues ES256 OIDC access JWTs for
-Warpkeep's SpacetimeDB connection. It is isolated from the static browser app:
+Warpkeep's SpacetimeDB connection. It also verifies Farcaster's signed Mini App
+notification lifecycle and can send one admission alert after a live epoch
+recheck. It is isolated from the static browser app:
 browser code never receives a signing key, admin secret, Optimism RPC URL,
 resolver JWT, private Hermes JWT, or Maincloud credential.
 
-Alpha 0.3.32 uses authentication contract v2 and backend protocol 3. The
+The current Alpha uses authentication contract v2 and backend protocol 3. The
 checked-in configuration fails closed: `wrangler.toml` keeps
-`PUBLIC_AUTH_ENABLED = "false"`, while any production enablement is a separate,
+`PUBLIC_AUTH_ENABLED = "false"` and `APPROVAL_NOTIFICATIONS_ENABLED = "false"`,
+while any production enablement is a separate,
 privately recorded operation. World generation and resource features do not
 change this bridge contract. The QA aggregate parser recognizes only supported
 world tuples and never infers economy readiness from partial counts.
@@ -34,6 +37,8 @@ future rollout step requires exact-head verification and recorded authority.
 | `POST` | `/v1/admin/token` | Server-only five-minute Hermes/admin JWT. |
 | `POST` | `/v1/admin/auth-epoch-probe` | Server-only, input-free structured resolver check. |
 | `POST` | `/v1/admin/config-attestation` | Server-only digest of security-relevant runtime configuration. |
+| `POST` | `/v1/farcaster/miniapp/webhook` | Verifies signed add/remove and notification enable/disable events; returns exact `200`. |
+| `POST` | `/v1/admin/admission-notification` | Separate-secret Hermes hook; rechecks live admission and queues one exact-epoch alert. |
 
 The legacy public `/v1/farcaster/challenge` and `/v1/farcaster/exchange` routes
 are retired in the local contract and return `410 legacy_auth_retired`; they do
@@ -372,6 +377,18 @@ days, so an old excessive expiry cannot become valid merely as time passes.
 Keep the registered public key in managed Worker configuration so the machine
 fingerprint does not become public repository metadata.
 
+Admission notification state uses the separate `ADMISSION_NOTIFICATIONS`
+SQLite binding and additive `v5` migration. Production enablement additionally
+requires two exact Hub origins in `MINIAPP_NOTIFICATION_HUB_URLS`, an exact
+`clientFid=deliveryUrl` allowlist in `MINIAPP_NOTIFICATION_CLIENTS`, and a
+managed `NOTIFICATION_OPERATOR_SECRET` that differs from the admin, session,
+and signing secrets. Raw notification tokens stay in one private per-FID
+object, are never returned to the browser or stored in SpacetimeDB, and expire
+within 366 days. Signed opt-outs remain accepted while delivery is paused and
+erase raw token material immediately. Each send rechecks the exact current
+admission epoch; stable notification IDs, retry ceilings, replay tombstones,
+and bounded epoch receipts make retries idempotent.
+
 The production browser and Pages activation gate separately pin the exact bridge
 and issuer `https://auth.warpkeep.com`, audience `warpkeep-spacetimedb`, and the
 same Maincloud/database pair. Development remains explicitly configurable and is
@@ -406,7 +423,7 @@ migration proof, bounded production aggregates, OIDC metadata, resolver probe,
 retired routes, cookie policy, and configuration attestation are verified.
 
 Database publication, Durable Object migration, managed-secret changes, Worker
-deployment, frontend deployment, and public enablement are separate operator
+deployment, notification enablement, manifest/frontend deployment, and public enablement are separate operator
 actions. A mismatch stops the release with public authentication disabled;
 historical approval or counts cannot be reused. Follow the current
 [activation runbook](../../docs/operations/alpha-activation.md) rather than
@@ -427,7 +444,10 @@ default-off persistence intent, logout-tombstone suppression/storage denial,
 profile-claim discard, production resolver-coordinate pins, route retirement,
 retired legacy module wires, v2-only browser player data, privacy-safe v2 admin
 aggregation, configuration attestation, limits, admin separation, and static
-safe log events. Stalled verifier and body-stream fixtures prove the Worker
+safe log events. Notification coverage includes official JFS parsing, hostile
+URL rejection, queue-before-consent recovery, opt-out replay resistance,
+live-epoch rechecks, gate invalidation, token purging, retry ceilings, and
+366-day cleanup. Stalled verifier and body-stream fixtures prove the Worker
 returns within its fixed deadlines without recording caller material.
 
 Logs are closed static event names only. The Worker never logs a SIWF message,
@@ -437,3 +457,8 @@ request/response, or symmetric secret. `/v1/admin/token`,
 `Authorization: Bearer <ADMIN_TOKEN_SECRET>`, reject browser `Origin` headers,
 emit no admin CORS headers, and are only for a server-side operator process.
 Never expose their credential or response to frontend code.
+`/v1/admin/admission-notification` has the same no-Origin/no-CORS boundary but
+uses only `NOTIFICATION_OPERATOR_SECRET`; it never accepts the general admin
+secret. The public webhook accepts no browser Origin and trusts only a valid
+Farcaster JFS envelope whose app key agrees across both configured Hubs and is
+active on both configured Optimism RPC views.

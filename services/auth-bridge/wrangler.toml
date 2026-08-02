@@ -24,6 +24,11 @@ PUBLIC_AUTH_ENABLED = "false"
 # The protected configuration attestation makes the final state observable.
 ACCESS_EXPECTED_FID_REQUIRED = "false"
 QA_OBSERVER_ENABLED = "false"
+# Independent rollout gate. The public manifest must not advertise its webhook
+# until the matching Worker deployment has this enabled and attested.
+APPROVAL_NOTIFICATIONS_ENABLED = "false"
+MINIAPP_NOTIFICATION_HUB_URLS = "https://rho.farcaster.xyz:3381/,https://hub.pinata.cloud/"
+MINIAPP_NOTIFICATION_CLIENTS = "9152=https://api.farcaster.xyz/v1/frame-notifications"
 
 [[routes]]
 pattern = "auth.warpkeep.com"
@@ -45,6 +50,10 @@ class_name = "AuthRateLimiter"
 name = "SESSION_FAMILIES"
 class_name = "SessionFamily"
 
+[[durable_objects.bindings]]
+name = "ADMISSION_NOTIFICATIONS"
+class_name = "AdmissionNotification"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["ChallengeReplayGuard"]
@@ -60,3 +69,7 @@ new_sqlite_classes = ["SessionFamily"]
 [[migrations]]
 tag = "v4"
 new_sqlite_classes = ["QaChallengeReplayGuard"]
+
+[[migrations]]
+tag = "v5"
+new_sqlite_classes = ["AdmissionNotification"]
