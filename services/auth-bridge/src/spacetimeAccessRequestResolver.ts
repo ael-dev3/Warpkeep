@@ -179,8 +179,33 @@ async function readBoundedBody(response: Response): Promise<string> {
   }
 }
 
+function exactRequestedAtMicros(value: unknown): number {
+  if (
+    typeof value !== 'number'
+    || !Number.isSafeInteger(value)
+    || value <= 0
+  ) return fail('response_validation')
+  return value
+}
+
 function exactOption(value: unknown): { kind: 'none' } | { kind: 'some'; value: number } {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  // SpacetimeDB's current HTTP procedure surface uses compact SATS options:
+  // [0, value] for Some and [1, []] for None. Retain the previously deployed
+  // tagged-object representation as an exact compatibility encoding; reject
+  // every other array/object shape instead of guessing across wire formats.
+  if (Array.isArray(value)) {
+    if (
+      value.length === 2
+      && value[0] === 1
+      && Array.isArray(value[1])
+      && value[1].length === 0
+    ) return { kind: 'none' }
+    if (value.length === 2 && value[0] === 0) {
+      return { kind: 'some', value: exactRequestedAtMicros(value[1]) }
+    }
+    return fail('response_validation')
+  }
+  if (!value || typeof value !== 'object') {
     return fail('response_validation')
   }
   const record = value as Record<string, unknown>
@@ -196,11 +221,8 @@ function exactOption(value: unknown): { kind: 'none' } | { kind: 'some'; value: 
   if (
     keys.length === 1
     && keys[0] === 'some'
-    && typeof record.some === 'number'
-    && Number.isSafeInteger(record.some)
-    && record.some > 0
   ) {
-    return { kind: 'some', value: record.some }
+    return { kind: 'some', value: exactRequestedAtMicros(record.some) }
   }
   return fail('response_validation')
 }

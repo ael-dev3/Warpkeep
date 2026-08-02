@@ -130,7 +130,7 @@ describe('Spacetime HTTP access-request resolver', () => {
     })
   })
 
-  it('accepts only the exact SATS product and option encoding', () => {
+  it('accepts only the exact SATS product and supported option encodings', () => {
     expect(parseAccessRequestResolution(
       '["not_requested",{"none":[]}]',
       'application/json',
@@ -141,6 +141,21 @@ describe('Spacetime HTTP access-request resolver', () => {
     )).toEqual({ status: 'already-admitted' })
     expect(parseAccessRequestResolution(
       `["requested",{"some":${REQUESTED_AT_MICROS}}]`,
+      'application/json',
+    )).toEqual({
+      status: 'requested',
+      requestedAtMicros: REQUESTED_AT_MICROS,
+    })
+    expect(parseAccessRequestResolution(
+      '["not_requested",[1,[]]]',
+      'application/json',
+    )).toEqual({ status: 'not-requested' })
+    expect(parseAccessRequestResolution(
+      '["already_admitted",[1,[]]]',
+      'application/json; charset=utf-8',
+    )).toEqual({ status: 'already-admitted' })
+    expect(parseAccessRequestResolution(
+      `["requested",[0,${REQUESTED_AT_MICROS}]]`,
       'application/json',
     )).toEqual({
       status: 'requested',
@@ -159,6 +174,13 @@ describe('Spacetime HTTP access-request resolver', () => {
       '["requested",{"some":1.5}]',
       `["requested",{"some":${Number.MAX_SAFE_INTEGER + 1}}]`,
       '["requested",{"some":1,"none":[]}]',
+      '["not_requested",[0,1]]',
+      '["not_requested",[1,[0]]]',
+      '["requested",[1,[]]]',
+      '["requested",[0,0]]',
+      '["requested",[0,"1785414896000000"]]',
+      '["requested",[2,1]]',
+      '["requested",[0,1,true]]',
       '["requested",{"some":1},true]',
       '{"status":"requested"}',
     ]) {
