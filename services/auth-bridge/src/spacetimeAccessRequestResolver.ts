@@ -1,5 +1,6 @@
 import { accessRequestResolverClaims } from './jwt'
 import type {
+  AccessRequestOperation,
   AccessRequestResolution,
   AccessRequestResolver,
   AccessRequestResolverTokenClaims,
@@ -266,11 +267,11 @@ export class SpacetimeHttpAccessRequestResolver implements AccessRequestResolver
   }
 
   getStatus(fid: string): Promise<AccessRequestResolution> {
-    return this.call(fid, this.statusEndpoint)
+    return this.call(fid, this.statusEndpoint, 'status')
   }
 
   async submit(fid: string): Promise<AccessRequestResolution> {
-    const result = await this.call(fid, this.submitEndpoint)
+    const result = await this.call(fid, this.submitEndpoint, 'submit')
     if (result.status === 'not-requested') return fail('response_validation')
     return result
   }
@@ -278,6 +279,7 @@ export class SpacetimeHttpAccessRequestResolver implements AccessRequestResolver
   private async call(
     fid: string,
     endpoint: URL,
+    operation: AccessRequestOperation,
   ): Promise<AccessRequestResolution> {
     const requestFid = supportedFid(fid)
     const issuedAt = issuedAtSeconds(this.clock)
@@ -300,6 +302,7 @@ export class SpacetimeHttpAccessRequestResolver implements AccessRequestResolver
             this.config.issuer,
             this.config.audience,
             requestFid,
+            operation,
             issuedAt,
           )),
           deadline,

@@ -29,6 +29,7 @@ export type RealmCastleInstanceRecord = Readonly<{
 export type RealmCastleInstanceHit = Readonly<{
   castleId: number;
   coord: HexCoord;
+  distance: number;
 }>;
 
 /**
@@ -636,7 +637,7 @@ export function createRealmCastleInstanceLayer(
       const castle = castleById.get(castleId);
       if (castle) {
         castleCandidate = {
-          hit: { castleId, coord: castle.coord },
+          hit: { castleId, coord: castle.coord, distance: intersection.distance },
           distance: intersection.distance
         };
         break;
@@ -649,7 +650,7 @@ export function createRealmCastleInstanceLayer(
       const castle = castleId === undefined ? undefined : castleById.get(castleId);
       if (!castle) continue;
       if (!castleCandidate || intersection.distance < castleCandidate.distance) {
-        return { castleId, coord: castle.coord };
+        return { castleId, coord: castle.coord, distance: intersection.distance };
       }
       break;
     }

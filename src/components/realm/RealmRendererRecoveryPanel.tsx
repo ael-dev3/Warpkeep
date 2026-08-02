@@ -1,9 +1,11 @@
-import { useId } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 import { WARPKEEP_BUILD_INFO } from '../../build/buildInfo';
+import type { GraphicsPreference } from '../../settings/graphicsPreference';
 import type { RealmQuality } from './realmQuality';
 import {
   WARPKEEP_RENDERER_SUPPORT_URL,
+  copyRealmRendererDiagnosticReport,
   readRealmRendererCompatibilitySnapshot,
   realmRendererCompatibilityExplanation,
   realmRendererDiagnostic,
@@ -26,36 +28,38 @@ export function RealmRendererRecoveryPanel({
   attempt,
   contextLossCount,
   contextRestoreCount,
+  drawingBufferHeight,
+  drawingBufferWidth,
   effectiveQuality,
-  emergencyQuality,
   everReady,
   failure,
   generation,
-  host,
+  maxTextureSize,
   mode,
-  observerMode,
-  onRetry,
   onReturn,
-  requestedQuality,
+  onTryPerformance,
+  selectedQuality,
   webgl2Available
 }: Readonly<{
   attempt: number;
   contextLossCount?: string;
   contextRestoreCount?: string;
+  drawingBufferHeight?: number;
+  drawingBufferWidth?: number;
   effectiveQuality: RealmQuality;
-  emergencyQuality?: RealmQuality;
   everReady: boolean;
   failure?: RealmRendererFailure;
   generation: number;
-  host: 'miniapp' | 'web';
+  maxTextureSize?: number;
   mode: RealmRendererRecoveryPanelMode;
-  observerMode: boolean;
-  onRetry?: () => void;
   onReturn: () => void;
-  requestedQuality: RealmQuality;
+  onTryPerformance?: () => void;
+  selectedQuality: GraphicsPreference;
   webgl2Available?: boolean;
 }>) {
   const titleId = useId();
+  const manualCopyRef = useRef<HTMLTextAreaElement>(null);
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'manual'>('idle');
   const diagnostic = realmRendererDiagnostic(failure);
   const compatibility = readRealmRendererCompatibilitySnapshot({
     webgl2Available: failure?.code === 'webgl-unavailable' ? false : webgl2Available,
@@ -63,19 +67,44 @@ export function RealmRendererRecoveryPanel({
   });
   const losses = finiteCount(contextLossCount);
   const restores = finiteCount(contextRestoreCount);
+  const visualViewport = typeof window === 'undefined' ? undefined : window.visualViewport;
+  const viewportWidth = visualViewport?.width
+    ?? (typeof window === 'undefined' ? undefined : window.innerWidth);
+  const viewportHeight = visualViewport?.height
+    ?? (typeof window === 'undefined' ? undefined : window.innerHeight);
+  const resolvedQuality = effectiveQuality === 'high'
+    ? 'cinematic'
+    : effectiveQuality === 'balanced'
+      ? 'balanced'
+      : 'performance';
   const report = realmRendererSafeDiagnosticReport({
-    failure,
+    version: WARPKEEP_BUILD_INFO.version,
+    buildSha: WARPKEEP_BUILD_INFO.fullSha ?? WARPKEEP_BUILD_INFO.shortSha,
+    viewportWidth,
+    viewportHeight,
+    devicePixelRatio: typeof window === 'undefined' ? undefined : window.devicePixelRatio,
+    selectedQuality,
+    resolvedQuality,
+    maxTextureSize,
+    drawingBufferWidth,
+    drawingBufferHeight,
+    failureCode: failure?.code,
     generation,
-    attempt,
-    maximumAttempts: REALM_RENDERER_MAX_RECOVERY_ATTEMPTS,
-    requestedQuality,
-    effectiveQuality,
-    emergencyQuality,
-    compatibility,
     contextLossCount: losses,
-    contextRestoreCount: restores,
-    host
+    contextRestoreCount: restores
   });
+  const copyDiagnostics = async () => {
+    const copied = await copyRealmRendererDiagnosticReport(report);
+    setCopyState(copied ? 'copied' : 'manual');
+  };
+  useEffect(() => {
+    setCopyState('idle');
+  }, [report]);
+  useEffect(() => {
+    if (copyState !== 'manual') return;
+    manualCopyRef.current?.focus();
+    manualCopyRef.current?.select();
+  }, [copyState]);
   const title = mode === 'recovering'
     ? 'RESTORING THE REALM…'
     : mode === 'fallback'
@@ -88,15 +117,6 @@ export function RealmRendererRecoveryPanel({
     : mode === 'fallback'
       ? 'Warpkeep stopped the unstable 3D renderer and preserved a lightweight, read-only overview of the canonical Realm.'
       : 'The bounded automatic repair ended without publishing an incomplete 3D scene.';
-  // A never-capable browser already retains the visible player menu or QA
-  // Observer exit beside this read-only overview. Actual stalls and crashes
-  // receive an explicit Return action here, so they cannot become endless or
-  // depend on discovering another control.
-  const showReturn = mode !== 'fallback' || failure?.code !== 'webgl-unavailable';
-  const returnLabel = import.meta.env.DEV && observerMode
-    ? 'Close QA Observer'
-    : 'Return to Menu';
-
   return (
     <section
       aria-labelledby={titleId}
@@ -134,29 +154,40 @@ export function RealmRendererRecoveryPanel({
           </p>
           <code className="realm-renderer-recovery-panel__report">{report}</code>
           <small>
-            This report stays on your device and contains only the coarse compatibility
-            fields shown above—no identity, account, authentication, precise hardware,
-            location, or private Realm data.
+            Diagnostics stay on this device unless you choose to share them. The copy
+            contains only the allowlisted renderer facts shown above—no identity,
+            account, authentication, URL, location, or private Realm data.
           </small>
         </div>
       </details>
       <div className="realm-renderer-recovery-panel__actions">
-        {onRetry ? (
-          <button type="button" onClick={onRetry}>Retry 3D Realm</button>
+        {onTryPerformance ? (
+          <button type="button" onClick={onTryPerformance}>TRY PERFORMANCE MODE</button>
         ) : null}
-        {showReturn ? (
-          <button type="button" onClick={onReturn}>
-            {returnLabel}
-          </button>
-        ) : null}
+        <button type="button" onClick={copyDiagnostics}>COPY DIAGNOSTICS</button>
+        <button type="button" onClick={onReturn}>RETURN TO MENU</button>
         <a
           href={WARPKEEP_RENDERER_SUPPORT_URL}
           rel="noreferrer noopener"
           target="_blank"
         >
-          Contact @0xael.eth
+          REPORT A PROBLEM
         </a>
       </div>
+      {copyState === 'copied' ? (
+        <small aria-live="polite" role="status">Diagnostics copied.</small>
+      ) : null}
+      {copyState === 'manual' ? (
+        <label className="realm-renderer-recovery-panel__manual-copy">
+          Clipboard access is unavailable. Copy this local report manually.
+          <textarea
+            aria-label="Renderer diagnostics for manual copy"
+            readOnly
+            ref={manualCopyRef}
+            value={report}
+          />
+        </label>
+      ) : null}
     </section>
   );
 }

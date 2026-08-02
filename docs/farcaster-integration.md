@@ -5,7 +5,7 @@ ordinary browsers use Sign In with Farcaster (SIWF), while a verified Farcaster
 Mini App host may use Quick Auth. Neither path is a wallet connection,
 client-owned identity, admission grant, or Terms acceptance.
 
-Alpha 0.3.42 keeps backend protocol 3 and authentication contract v2; admission
+Alpha 0.3.43 keeps backend protocol 3 and authentication contract v2; admission
 remains gated. Production configuration and founder identities belong in the
 private operator record, not this guide.
 
@@ -33,7 +33,7 @@ verified Mini App host
   -> bridge verifies signature, issuer, expiry, and domain warpkeep.com
   -> verified numeric sub becomes the candidate FID
   -> the same admission and auth-epoch resolver decides access
-  -> pending or disabled: Request Access remains visible, with no access token or Realm connection
+  -> pending or disabled: the private access-request flow remains available, with no access token or Realm connection
   -> authorized: one short-lived memory-only SpacetimeDB access token
   -> SpacetimeDB confirms the exact current versioned Terms record for that FID
   -> current Terms plus the matching canonical keep: enter the Realm directly
@@ -230,20 +230,31 @@ tagged to that server-proven admission state and returns FID-only identity plus
 `status: "pending-admission"`; it returns **no access token** and therefore opens
 no SpacetimeDB connection or public-table subscription. The Hegemony menu may
 show exact-FID cached presentation under the rules above, or the returned FID
-alone, plus an in-app **REQUEST ACCESS** action, **CHECK AGAIN**, and
+alone, plus an in-app access-request status region, **BACK TO MENU**, and
 **SIGN OUT**. The access action submits the server-verified FID to a private
 SpacetimeDB review ledger; it does not grant admission, create a castle, expose
 the request publicly, or confer gameplay authority. Duplicate submissions in
 the same admission cycle are idempotent. A later revocation creates a distinct
 request cycle while retaining the founder's existing realm state.
 
-The first accepted gesture is also sealed in the exact authorization
-lifecycle before the request leaves the browser. A menu or Mini App
-presentation change cannot reopen it, and an uncertain transport result stays
-visibly disabled as **REQUEST SENT** while the caller-private status is
-reconciled. Only an authoritative current-cycle `not-requested` result can
-offer a fresh submission; a network error alone cannot replay the petition,
-its animation, or its sound.
+The browser offers **REQUEST ACCESS** only after one caller-private status read
+confirms the action is available for the exact FID and auth generation. The
+first accepted gesture synchronously seals that lifecycle before React state,
+credentials, or network work begins. The interactive button leaves the input
+lane in the same frame and is replaced by a stable, focused **SUBMITTING
+REQUEST** status region. The browser then invokes one idempotent mutation and
+never retries it automatically.
+
+A valid mutation result settles into terminal **REQUEST RECEIVED** with the
+authoritative first timestamp and a separate read-only **CHECK ADMISSION**
+action. If the mutation response is interrupted, the browser performs exactly
+one status reconciliation. A recorded row converges to **REQUEST RECEIVED**;
+an unavailable or missing reconciliation remains sealed as **REQUEST STATUS
+UNAVAILABLE** with read-only **CHECK STATUS**. Only a failure proven to occur
+before the mutation client was invoked exposes a deliberate **TRY AGAIN**.
+Menu changes, Mini App remounts, stale callbacks, timers, and status errors
+cannot reopen a confirmed or ambiguous request. The complete request flow is
+silent and emits no request sound or haptic.
 
 **CHECK AGAIN** calls credentialed `/v2/session/refresh`, not a new Farcaster
 channel. A matching missing or disabled state stays pending/tokenless; enabled

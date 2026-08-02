@@ -116,7 +116,7 @@ export const accessRequestGetStatusV1 = warpkeep.procedure(
   accessRequestStatusV1,
   ctx =>
     ctx.withTx(tx => {
-      const { requestFid } = requireAccessRequestResolver(tx);
+      const { requestFid } = requireAccessRequestResolver(tx, 'status');
       const allowed = tx.db.allowedFid.fid.find(requestFid);
       const admission = resolveAdmissionState(allowed);
       if (admission === 'enabled') {
@@ -143,7 +143,7 @@ export const accessRequestSubmitV1 = warpkeep.procedure(
   accessRequestStatusV1,
   ctx =>
     ctx.withTx(tx => {
-      const { requestFid } = requireAccessRequestResolver(tx);
+      const { requestFid } = requireAccessRequestResolver(tx, 'submit');
       const allowed = tx.db.allowedFid.fid.find(requestFid);
       const admission = resolveAdmissionState(allowed);
       if (admission === 'enabled') {

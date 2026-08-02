@@ -74,6 +74,7 @@ test('the access-request guard independently revalidates only its exact fresh pr
 
   const accessRequestGate = source.slice(start, end);
   assert.match(accessRequestGate, /readFreshAccessRequestResolverJwt/);
+  assert.match(accessRequestGate, /claims\.requestOperation !== expectedOperation/);
   assert.doesNotMatch(
     accessRequestGate,
     /requireAdmin|requireAllowedFid|requireAdmittedPlayer|requireAuthEpochResolver|requireQaSnapshotResolver/,
@@ -94,7 +95,8 @@ test('the access-request guard is used only by the two caller-private request pr
   ]);
   assert.match(uses[0]!.source, /name: 'access_request_get_status_v1'/);
   assert.match(uses[0]!.source, /name: 'access_request_submit_v1'/);
-  assert.doesNotMatch(uses[0]!.source, /requireAccessRequestResolver\(tx,\s*fid/);
+  assert.match(uses[0]!.source, /requireAccessRequestResolver\(tx, 'status'\)/);
+  assert.match(uses[0]!.source, /requireAccessRequestResolver\(tx, 'submit'\)/);
 });
 
 test('the resolver guard is used only by its read-only procedure', () => {

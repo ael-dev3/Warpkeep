@@ -45,13 +45,16 @@ function backendState(
 
 function actions() {
   return {
+    recoveryReason: null,
     onAcceptTerms: vi.fn(),
+    onBackToMenu: vi.fn(),
     onCancelTermsAttempt: vi.fn(),
     onCheckBackend: vi.fn(),
     onRefreshSession: vi.fn(),
     onRequestAccess: vi.fn(),
     onRetryAccessRequestStatus: vi.fn(),
     onRetryAuthentication: vi.fn(),
+    onRetryHost: vi.fn(),
     onSignOut: vi.fn()
   };
 }
@@ -79,12 +82,63 @@ describe('FarcasterMiniAppEntryGate', () => {
     expect(screen.queryByRole('button', { name: /continue/i })).toBeNull();
   });
 
+  it('keeps a bounded host failure visible with one retry and a menu escape', () => {
+    const callbacks = actions();
+    render(
+      <FarcasterMiniAppEntryGate
+        {...callbacks}
+        authState={authenticated}
+        backendState={backendState('idle')}
+        hostState="recovery"
+        recoveryReason="host-timeout"
+      />
+    );
+
+    expect(screen.getByRole('heading', {
+      name: 'MINI APP COULD NOT OPEN'
+    })).not.toBeNull();
+    expect(screen.getByRole('status').textContent).toMatch(
+      /did not answer before the secure opening window closed/i
+    );
+    expect(document.body.textContent).not.toContain('private detail');
+
+    fireEvent.click(screen.getByRole('button', { name: 'TRY AGAIN' }));
+    fireEvent.click(screen.getByRole('button', { name: 'BACK TO MENU' }));
+    expect(callbacks.onRetryHost).toHaveBeenCalledTimes(1);
+    expect(callbacks.onBackToMenu).toHaveBeenCalledTimes(1);
+    expect(callbacks.onRetryAuthentication).not.toHaveBeenCalled();
+    expect(callbacks.onSignOut).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ phase: 'anonymous' } as const, 'CONTINUE WITH FARCASTER'],
+    [{
+      phase: 'error',
+      error: { code: 'verification', message: 'Verification failed.' }
+    } as const, 'TRY AGAIN']
+  ])('keeps a menu escape beside the %s launch action', (authState, actionLabel) => {
+    const callbacks = actions();
+    render(
+      <FarcasterMiniAppEntryGate
+        {...callbacks}
+        authState={authState as FarcasterAuthViewState}
+        backendState={backendState('idle')}
+        hostState="miniapp"
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: actionLabel }));
+    fireEvent.click(screen.getByRole('button', { name: 'BACK TO MENU' }));
+    expect(callbacks.onRetryAuthentication).toHaveBeenCalledOnce();
+    expect(callbacks.onBackToMenu).toHaveBeenCalledOnce();
+  });
+
   it('keeps a non-admitted player on the manual access-request step', async () => {
     const callbacks = actions();
     render(
       <FarcasterMiniAppEntryGate
         {...callbacks}
-        accessRequest={{ phase: 'not-requested' }}
+        accessRequest={{ phase: 'request-available' }}
         authState={{
           phase: 'pending-admission',
           identity,
@@ -96,19 +150,20 @@ describe('FarcasterMiniAppEntryGate', () => {
     );
 
     expect(await screen.findByRole('heading', { name: 'ENTRY NOT YET GRANTED' })).not.toBeNull();
-    expect(screen.queryByRole('button', { name: 'BACK TO MENU' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'BACK TO MENU' }));
+    expect(callbacks.onBackToMenu).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
     expect(screen.queryByRole('button', { name: 'CHECK AGAIN' })).toBeNull();
     expect(callbacks.onRequestAccess).toHaveBeenCalledTimes(1);
     expect(callbacks.onRefreshSession).not.toHaveBeenCalled();
   });
 
-  it('keeps a delayed Mini App petition sealed while CHECK AGAIN reconciles it', async () => {
+  it('keeps an ambiguous Mini App petition sealed while CHECK STATUS reconciles it', async () => {
     const callbacks = actions();
     render(
       <FarcasterMiniAppEntryGate
         {...callbacks}
-        accessRequest={{ phase: 'confirmation-pending' }}
+        accessRequest={{ phase: 'status-unavailable', context: 'post-submission' }}
         authState={{
           phase: 'pending-admission',
           identity,
@@ -119,13 +174,31 @@ describe('FarcasterMiniAppEntryGate', () => {
       />
     );
 
-    expect((await screen.findByRole('button', {
-      name: 'REQUEST SENT'
-    }) as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
+    expect(await screen.findByText('REQUEST STATUS UNAVAILABLE')).not.toBeNull();
+    expect(screen.getByText(/remains sealed and will not be sent again/i)).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'CHECK STATUS' }));
     expect(callbacks.onRetryAccessRequestStatus).toHaveBeenCalledTimes(1);
     expect(callbacks.onRefreshSession).not.toHaveBeenCalled();
     expect(callbacks.onRequestAccess).not.toHaveBeenCalled();
+  });
+
+  it('keeps an ordinary-menu escape beside a backend CHECK AGAIN action', () => {
+    const callbacks = actions();
+    render(
+      <FarcasterMiniAppEntryGate
+        {...callbacks}
+        authState={authenticated}
+        backendState={backendState('error')}
+        hostState="miniapp"
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
+    fireEvent.click(screen.getByRole('button', { name: 'BACK TO MENU' }));
+    expect(callbacks.onCheckBackend).toHaveBeenCalledTimes(1);
+    expect(callbacks.onBackToMenu).toHaveBeenCalledTimes(1);
+    expect(callbacks.onSignOut).not.toHaveBeenCalled();
   });
 
   it('requires current Terms once, then leaves acceptance to the backend authority', async () => {

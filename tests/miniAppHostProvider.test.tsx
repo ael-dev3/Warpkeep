@@ -1,4 +1,4 @@
-import { act, cleanup, render, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { StrictMode, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -15,6 +15,7 @@ import {
   emitWarpkeepSfxBatch,
   resolveWarpkeepHapticCue
 } from '../src/components/audio';
+import { FarcasterAccessRequestAction } from '../src/components/auth/FarcasterAccessRequest';
 
 afterEach(() => {
   vi.useRealTimers();
@@ -157,6 +158,23 @@ describe('Farcaster Mini App host provider', () => {
     }
   });
 
+  it('reports a framed regular-web surface without treating it as a Mini App', () => {
+    let latest: MiniAppHostValue | undefined;
+    const loader = vi.fn(async () => fakeSdk().sdk);
+    render(
+      <Harness
+        runtime={{ ...runtimeFor(''), isFramed: () => true }}
+        sdkLoader={loader}
+        capture={(value) => { latest = value; }}
+      />
+    );
+
+    expect(latest?.state).toBe('regular-web');
+    expect(latest?.isMiniApp).toBe(false);
+    expect(latest?.isFramed).toBe(true);
+    expect(loader).not.toHaveBeenCalled();
+  });
+
   it('requires isInMiniApp proof before reading context or calling ready', async () => {
     let contextRead = false;
     const { sdk } = fakeSdk({
@@ -178,9 +196,35 @@ describe('Farcaster Mini App host provider', () => {
       />
     );
 
-    await waitFor(() => expect(latest?.state).toBe('recovery'));
-    expect(latest?.recoveryReason).toBe('not-in-miniapp');
+    await waitFor(() => expect(latest?.state).toBe('regular-web'));
+    expect(latest?.recoveryReason).toBeNull();
+    expect(latest?.retry()).toBe(false);
     expect(contextRead).toBe(false);
+    expect(sdk.actions.ready).not.toHaveBeenCalled();
+    expect(document.head.querySelector(
+      '[data-warpkeep-miniapp-quick-auth-preconnect]'
+    )).toBeNull();
+  });
+
+  it('distinguishes an SDK detection exception from an explicit regular-web result', async () => {
+    const { sdk } = fakeSdk({
+      isInMiniApp: vi.fn(async () => {
+        throw new Error('private host detail');
+      })
+    });
+    let latest: MiniAppHostValue | undefined;
+
+    render(
+      <Harness
+        runtime={runtimeFor('?miniApp=true')}
+        sdkLoader={async () => sdk}
+        capture={(value) => { latest = value; }}
+      />
+    );
+
+    await waitFor(() => expect(latest?.state).toBe('recovery'));
+    expect(latest?.recoveryReason).toBe('sdk-unavailable');
+    expect(latest?.retry()).toBe(true);
     expect(sdk.actions.ready).not.toHaveBeenCalled();
   });
 
@@ -259,6 +303,113 @@ describe('Farcaster Mini App host provider', () => {
     );
   });
 
+  it('reclamps host safe areas when the embedded viewport changes', async () => {
+    let viewport = { width: 400, height: 800 };
+    let notifyViewportChange = () => {};
+    const unsubscribe = vi.fn();
+    const runtime: MiniAppBrowserRuntime = {
+      ...runtimeFor('?miniApp=true'),
+      viewport: () => viewport,
+      subscribeViewportChange: (listener) => {
+        notifyViewportChange = listener;
+        return unsubscribe;
+      }
+    };
+    const { sdk } = fakeSdk();
+    let latest: MiniAppHostValue | undefined;
+    const view = render(
+      <Harness
+        runtime={runtime}
+        sdkLoader={async () => sdk}
+        capture={(value) => { latest = value; }}
+      />
+    );
+
+    await waitFor(() => expect(latest?.state).toBe('miniapp'));
+    expect(latest?.context?.client.safeAreaInsets.top).toBe(160);
+    expect(latest?.context?.client.safeAreaInsets.left).toBe(100);
+
+    act(() => {
+      viewport = { width: 200, height: 400 };
+      notifyViewportChange();
+    });
+
+    await waitFor(() => {
+      expect(latest?.context?.client.safeAreaInsets.top).toBe(100);
+      expect(latest?.context?.client.safeAreaInsets.left).toBe(50);
+    });
+    const styles = document.head.querySelectorAll(
+      '[data-warpkeep-miniapp-safe-area]'
+    );
+    expect(styles).toHaveLength(1);
+    expect(styles[0]?.textContent).toContain(
+      '--fc-safe-area-inset-top:100px;'
+    );
+    expect(styles[0]?.textContent).toContain(
+      '--fc-safe-area-inset-left:50px;'
+    );
+
+    view.unmount();
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('never re-reads mutable raw host identity or insets after sanitization', async () => {
+    let viewport = { width: 400, height: 800 };
+    let notifyViewportChange = () => {};
+    const rawContext = validContext();
+    const runtime: MiniAppBrowserRuntime = {
+      ...runtimeFor('?miniApp=true'),
+      viewport: () => viewport,
+      subscribeViewportChange: (listener) => {
+        notifyViewportChange = listener;
+        return () => {};
+      }
+    };
+    const { sdk } = fakeSdk({ context: Promise.resolve(rawContext) });
+    let latest: MiniAppHostValue | undefined;
+
+    render(
+      <Harness
+        runtime={runtime}
+        sdkLoader={async () => sdk}
+        capture={(value) => { latest = value; }}
+      />
+    );
+
+    await waitFor(() => expect(latest?.state).toBe('miniapp'));
+    rawContext.user.fid = 1_000_001;
+    rawContext.user.username = 'spoofed';
+    rawContext.client.safeAreaInsets.top = 0;
+    rawContext.client.safeAreaInsets.left = 0;
+
+    act(() => {
+      viewport = { width: 200, height: 400 };
+      notifyViewportChange();
+    });
+
+    await waitFor(() => {
+      expect(latest?.context?.client.safeAreaInsets.top).toBe(100);
+      expect(latest?.context?.client.safeAreaInsets.left).toBe(50);
+    });
+    expect(latest?.context?.user).toEqual({
+      fid: 539_854,
+      username: '0xael.eth',
+      displayName: 'Ael',
+      pfpUrl: 'https://images.example/ael.png'
+    });
+
+    act(() => {
+      viewport = { width: 800, height: 1_200 };
+      notifyViewportChange();
+    });
+
+    await waitFor(() => {
+      expect(latest?.context?.client.safeAreaInsets.top).toBe(160);
+      expect(latest?.context?.client.safeAreaInsets.left).toBe(160);
+    });
+    expect(latest?.context?.user.fid).toBe(539_854);
+  });
+
   it('gates actions, haptics, and back navigation by exact capabilities', async () => {
     const { sdk, back } = fakeSdk();
     let latest: MiniAppHostValue | undefined;
@@ -329,6 +480,9 @@ describe('Farcaster Mini App host provider', () => {
       { kind: 'worker-arrived', count: 1 },
       { kind: 'select-water', regime: 'river' }
     ])).toBeUndefined();
+    expect(resolveWarpkeepHapticCue([
+      { kind: 'access-request-confirmed' }
+    ])).toEqual({ kind: 'notification', type: 'success' });
 
     await act(async () => {
       emitWarpkeepSfxBatch([
@@ -340,6 +494,13 @@ describe('Farcaster Mini App host provider', () => {
     expect(sdk.haptics?.notificationOccurred)
       .toHaveBeenCalledExactlyOnceWith('success');
     expect(sdk.haptics?.selectionChanged).not.toHaveBeenCalled();
+
+    await act(async () => {
+      emitWarpkeepSfxBatch([{ kind: 'access-request-confirmed' }]);
+      await Promise.resolve();
+    });
+    expect(sdk.haptics?.notificationOccurred).toHaveBeenCalledTimes(2);
+    expect(sdk.haptics?.notificationOccurred).toHaveBeenLastCalledWith('success');
 
     await act(async () => {
       emitWarpkeepSfxBatch([
@@ -359,6 +520,40 @@ describe('Farcaster Mini App host provider', () => {
     });
     expect(sdk.haptics?.notificationOccurred)
       .toHaveBeenLastCalledWith('error');
+  });
+
+  it('gives one light haptic only to the access activation that wins its lock', async () => {
+    const { sdk } = fakeSdk({
+      getCapabilities: vi.fn(async () => [
+        'actions.ready',
+        'haptics.impactOccurred'
+      ])
+    });
+    const onRequestAccess = vi.fn()
+      .mockReturnValueOnce(true)
+      .mockReturnValue(false);
+    let latest: MiniAppHostValue | undefined;
+    render(
+      <Harness
+        runtime={runtimeFor('?miniApp=true')}
+        sdkLoader={async () => sdk}
+        capture={(value) => { latest = value; }}
+      >
+        <FarcasterAccessRequestAction
+          onRequestAccess={onRequestAccess}
+          state={{ phase: 'request-available' }}
+        />
+      </Harness>
+    );
+    await waitFor(() => expect(latest?.state).toBe('miniapp'));
+
+    const request = screen.getByRole('button', { name: 'REQUEST ACCESS' });
+    fireEvent.click(request);
+    fireEvent.click(request);
+
+    expect(onRequestAccess).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(sdk.haptics?.impactOccurred)
+      .toHaveBeenCalledExactlyOnceWith('light'));
   });
 
   it('returns a fresh Quick Auth bearer only after verified host detection', async () => {
@@ -501,6 +696,54 @@ describe('Farcaster Mini App host provider', () => {
     )).toBeNull();
   });
 
+  it('recovers when the host ready method changes after SDK validation', async () => {
+    const { sdk } = fakeSdk();
+    let readyReads = 0;
+    Object.defineProperty(sdk.actions, 'ready', {
+      configurable: true,
+      get() {
+        readyReads += 1;
+        if (readyReads === 1) return async () => {};
+        throw new Error('private mutable host failure');
+      }
+    });
+    let latest: MiniAppHostValue | undefined;
+
+    render(
+      <Harness
+        runtime={runtimeFor('?miniApp=true')}
+        sdkLoader={async () => sdk}
+        capture={(value) => { latest = value; }}
+      />
+    );
+
+    await waitFor(() => expect(latest?.state).toBe('recovery'));
+    expect(latest?.recoveryReason).toBe('ready-failed');
+  });
+
+  it('ignores a throwing optional Back getter and still opens the Mini App', async () => {
+    const { sdk } = fakeSdk();
+    Object.defineProperty(sdk, 'back', {
+      configurable: true,
+      get() {
+        throw new Error('private optional host failure');
+      }
+    });
+    let latest: MiniAppHostValue | undefined;
+
+    render(
+      <Harness
+        runtime={runtimeFor('?miniApp=true')}
+        sdkLoader={async () => sdk}
+        capture={(value) => { latest = value; }}
+      />
+    );
+
+    await waitFor(() => expect(latest?.state).toBe('miniapp'));
+    expect(latest?.recoveryReason).toBeNull();
+    expect(sdk.actions.ready).toHaveBeenCalledTimes(1);
+  });
+
   it('allows a fresh mount to retry after a failed ready attempt', async () => {
     const ready = vi.fn()
       .mockRejectedValueOnce(new Error('private transient host failure'))
@@ -530,6 +773,39 @@ describe('Farcaster Mini App host provider', () => {
     );
     await waitFor(() => expect(latest?.state).toBe('miniapp'));
     expect(ready).toHaveBeenCalledTimes(2);
+  });
+
+  it('single-flights an in-place recovery retry and ignores the sealed generation', async () => {
+    const ready = vi.fn()
+      .mockRejectedValueOnce(new Error('private transient host failure'))
+      .mockResolvedValue(undefined);
+    const { sdk } = fakeSdk({ actions: { ready } });
+    let latest: MiniAppHostValue | undefined;
+
+    render(
+      <Harness
+        runtime={runtimeFor('?miniApp=true')}
+        sdkLoader={async () => sdk}
+        capture={(value) => { latest = value; }}
+      />
+    );
+
+    await waitFor(() => expect(latest?.state).toBe('recovery'));
+    expect(latest?.recoveryReason).toBe('ready-failed');
+    expect(document.head.querySelector(
+      '[data-warpkeep-miniapp-safe-area]'
+    )).toBeNull();
+
+    expect(latest?.retry()).toBe(true);
+    expect(latest?.retry()).toBe(false);
+    expect(latest?.state).toBe('recovery');
+
+    await waitFor(() => expect(latest?.state).toBe('miniapp'));
+    expect(ready).toHaveBeenCalledTimes(2);
+    expect(latest?.recoveryReason).toBeNull();
+    expect(document.head.querySelector(
+      '[data-warpkeep-miniapp-safe-area]'
+    )).not.toBeNull();
   });
 
   it('signals ready again for a genuine later host mount using the same runtime', async () => {

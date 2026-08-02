@@ -255,7 +255,8 @@ describe('realm castle instance layer', () => {
     );
     expect(layer.raycast(raycaster)).toEqual({
       castleId: 2,
-      coord: { q: 2, r: -2 }
+      coord: { q: 2, r: -2 },
+      distance: expect.any(Number)
     });
     layer.dispose();
   });
@@ -301,7 +302,8 @@ describe('realm castle instance layer', () => {
     );
     expect(layer.raycast(raycaster)).toEqual({
       castleId: 41,
-      coord: { q: 41, r: -41 }
+      coord: { q: 41, r: -41 },
+      distance: expect.any(Number)
     });
 
     baseMesh.count = 0;
@@ -515,14 +517,16 @@ describe('realm castle instance layer', () => {
     const nearerForeignBase = makeLayer(1);
     expect(nearerForeignBase.raycast(raycaster)).toEqual({
       castleId: 2,
-      coord: { q: 2, r: -2 }
+      coord: { q: 2, r: -2 },
+      distance: expect.any(Number)
     });
     nearerForeignBase.dispose();
 
     const nearerCastleTriangles = makeLayer(-0.8);
     expect(nearerCastleTriangles.raycast(raycaster)).toEqual({
       castleId: 1,
-      coord: { q: 1, r: -1 }
+      coord: { q: 1, r: -1 },
+      distance: expect.any(Number)
     });
     nearerCastleTriangles.dispose();
   });
@@ -624,7 +628,8 @@ describe('realm castle instance layer', () => {
       pointerRaycaster.setFromCamera(new THREE.Vector2(0, 0), pickCamera);
       expect(layer.raycast(pointerRaycaster)).toEqual({
         castleId: 439,
-        coord: { q: 439, r: -439 }
+        coord: { q: 439, r: -439 },
+        distance: expect.any(Number)
       });
       expect(fetchMock).toHaveBeenCalledWith(
         '/models/hegemony/hegemony-main-castle-compact-b665d75e10e3e289.glb',
@@ -692,7 +697,8 @@ describe('realm castle instance layer', () => {
     expect(rayAt(new THREE.Vector3(-1.5, 0.5, 0))).toBeNull();
     expect(rayAt(new THREE.Vector3(1.5, 0.5, 0))).toEqual({
       castleId: 4,
-      coord: { q: 4, r: -4 }
+      coord: { q: 4, r: -4 },
+      distance: expect.any(Number)
     });
 
     expect(() => layer.setPresentedCastleIds([999])).toThrow(

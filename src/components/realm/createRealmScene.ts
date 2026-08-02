@@ -189,6 +189,7 @@ import {
   arbitrateRealmPick,
   type RealmInteractionTarget,
   type RealmResourcePickHit,
+  type RealmTerrainPickHit,
   type RealmWorkerPickHit,
   type RealmWaterPickHit
 } from './realmPickArbitration';
@@ -1506,6 +1507,14 @@ function initializeRealmScene(
     // devices.
     powerPreference: options.quality.id === 'high' ? 'high-performance' : 'default'
   });
+  if (
+    Number.isFinite(renderer.capabilities.maxTextureSize)
+    && renderer.capabilities.maxTextureSize > 0
+  ) {
+    options.canvas.dataset.realmRendererMaxTextureSize = String(
+      Math.trunc(renderer.capabilities.maxTextureSize)
+    );
+  }
   cleanup.add(() => renderer.dispose());
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -1803,8 +1812,13 @@ function initializeRealmScene(
         layer.dispose();
         if (waterLayer === layer) waterLayer = null;
       });
-    } catch {
+    } catch (error) {
       options.canvas.dataset.waterPresentation = 'unavailable';
+      // Canonical Water is part of the required public world presentation.
+      // Never publish a visually incomplete 3D generation: the owner will
+      // retry this throw on a fresh, lighter renderer before using its explicit
+      // static safety view.
+      throw error;
     }
   } else {
     options.canvas.dataset.waterPresentation = 'unavailable';
@@ -2709,6 +2723,7 @@ function initializeRealmScene(
   let presentedCastleKey = '*';
   let renderPendingWhileHidden = false;
   let pendingCastlesReadyCount: number | null = null;
+  let sceneReadinessPublished = false;
   const workerModelPreflightEnabled =
     options.waitForWorkerModelBeforeReady === true;
   let workerModelPreflightSettled = true;
@@ -3416,6 +3431,7 @@ function initializeRealmScene(
       if (workerModelPreflightSettled) {
         pendingCastlesReadyCount = null;
         workerReadinessPublished = true;
+        sceneReadinessPublished = true;
         options.onCastlesReady?.(castleCount);
       } else {
         armWorkerModelPreflightFallback();
@@ -3844,7 +3860,8 @@ function initializeRealmScene(
   const pickForeground = (
     clientX: number,
     clientY: number,
-    includeWater: boolean
+    includeWater: boolean,
+    includeTerrain = false
   ): RealmInteractionTarget | null => {
     if (!aimRaycaster(clientX, clientY)) return null;
     const resourceHits: RealmResourcePickHit[] = [];
@@ -3862,28 +3879,27 @@ function initializeRealmScene(
     const waterHit: RealmWaterPickHit | null = includeWater
       ? waterLayer?.raycast(raycaster) ?? null
       : null;
-    return arbitrateRealmPick({ resourceHits, workerHits, castleHit, waterHit });
-  };
-
-  const pickTerrain = (
-    clientX: number,
-    clientY: number
-  ): RealmInteractionTarget | null => {
-    if (!aimRaycaster(clientX, clientY)) return null;
-    const intersections = raycaster.intersectObject(terrain, false);
-    for (const intersection of intersections) {
-      const coord = worldToNearestAxial(
-        { x: intersection.point.x, z: intersection.point.z },
-        HEX_SIZE
-      );
-      if (isPlayableRealmCoord(options.surface, coord)) {
-        return arbitrateRealmPick({
-          resourceHits: [],
-          terrainHit: { coord }
-        });
+    let terrainHit: RealmTerrainPickHit | null = null;
+    if (includeTerrain) {
+      const intersections = raycaster.intersectObject(terrain, false);
+      for (const intersection of intersections) {
+        const coord = worldToNearestAxial(
+          { x: intersection.point.x, z: intersection.point.z },
+          HEX_SIZE
+        );
+        if (isPlayableRealmCoord(options.surface, coord)) {
+          terrainHit = Object.freeze({ coord, distance: intersection.distance });
+          break;
+        }
       }
     }
-    return null;
+    return arbitrateRealmPick({
+      resourceHits,
+      workerHits,
+      castleHit,
+      waterHit,
+      terrainHit
+    });
   };
 
   const pick = (
@@ -3891,8 +3907,8 @@ function initializeRealmScene(
     clientY: number,
     touchTolerance = false
   ): RealmInteractionTarget | null => {
-    const exactForeground = pickForeground(clientX, clientY, true);
-    if (exactForeground) return exactForeground;
+    const exactPick = pickForeground(clientX, clientY, true, true);
+    if (exactPick?.kind !== 'terrain' && exactPick !== null) return exactPick;
     if (touchTolerance) {
       // Portrait-scale castles, workers, and resource nodes can project below
       // a comfortable finger target. Sample a bounded CSS-pixel ring only
@@ -3902,12 +3918,15 @@ function initializeRealmScene(
         const nearbyForeground = pickForeground(
           clientX + offset.x,
           clientY + offset.y,
-          false
+          false,
+          true
         );
-        if (nearbyForeground) return nearbyForeground;
+        if (nearbyForeground?.kind !== 'terrain' && nearbyForeground !== null) {
+          return nearbyForeground;
+        }
       }
     }
-    return pickTerrain(clientX, clientY);
+    return exactPick;
   };
 
   const cancelPendingHover = () => {
@@ -4360,7 +4379,7 @@ function initializeRealmScene(
     options.onRendererFailure?.({
       code: 'context-lost',
       retryable: true,
-      phase: pendingCastlesReadyCount === null ? 'ready' : 'loading',
+      phase: sceneReadinessPublished ? 'ready' : 'loading',
       message: 'The WebGL context was lost; waiting for the browser to restore it.'
     });
   };

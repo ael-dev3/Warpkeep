@@ -25,7 +25,7 @@ describe('FarcasterAdmissionPanel', () => {
     const onSignOut = vi.fn();
     render(
       <FarcasterAdmissionPanel
-        accessRequest={{ phase: 'not-requested' }}
+        accessRequest={{ phase: 'request-available' }}
         identity={identity}
         onBackToMenu={onBackToMenu}
         onCheckAgain={onCheckAgain}
@@ -39,12 +39,17 @@ describe('FarcasterAdmissionPanel', () => {
     expect(screen.getByText(
       'This Farcaster identity is not yet admitted to the Hegemony frontier.'
     )).not.toBeNull();
-    expect(screen.getByText(/Warpkeep is a small, manually admitted Alpha/i)).not.toBeNull();
+    expect(screen.getByText(/Request access for manual review/i)).not.toBeNull();
     expect(screen.getByText('@keeper')).not.toBeNull();
     expect(screen.queryByText('FID 12345')).toBeNull();
     expect(screen.queryByRole('link', { name: /request/i })).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
+    const requestButton = screen.getByRole('button', { name: 'REQUEST ACCESS' });
+    const descriptionId = requestButton.getAttribute('aria-describedby');
+    expect(descriptionId).toBeTruthy();
+    expect(document.getElementById(descriptionId!)?.textContent)
+      .toMatch(/does not grant entry or reserve a castle/i);
+    fireEvent.click(requestButton);
     expect(screen.queryByRole('button', { name: 'CHECK AGAIN' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'BACK TO MENU' }));
     fireEvent.click(screen.getByRole('button', { name: 'SIGN OUT' }));
@@ -54,32 +59,35 @@ describe('FarcasterAdmissionPanel', () => {
     expect(onSignOut).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps REQUEST ACCESS as the sole denied recovery after a status outage', () => {
+  it('keeps an initial status outage read-only until authority confirms availability', () => {
     const onRequestAccess = vi.fn();
+    const onRetryAccessRequestStatus = vi.fn();
     render(
       <FarcasterAdmissionPanel
-        accessRequest={{ phase: 'error', retryable: true }}
+        accessRequest={{ phase: 'status-unavailable', context: 'initial' }}
         identity={identity}
         onBackToMenu={vi.fn()}
         onCheckAgain={vi.fn()}
         onRequestAccess={onRequestAccess}
+        onRetryAccessRequestStatus={onRetryAccessRequestStatus}
         onSignOut={vi.fn()}
         phase="denied"
       />
     );
 
-    expect(screen.getByText(/could not confirm an existing request/i)).not.toBeNull();
+    expect(screen.getByText(/could not confirm whether a request is already on record/i)).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'TRY AGAIN' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'CHECK AGAIN' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
-    expect(onRequestAccess).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'CHECK STATUS' }));
+    expect(onRetryAccessRequestStatus).toHaveBeenCalledTimes(1);
+    expect(onRequestAccess).not.toHaveBeenCalled();
   });
 
-  it('restores CHECK AGAIN after the request is recorded for manual review', () => {
+  it('retains CHECK AGAIN after the request is recorded for manual review', () => {
     const onCheckAgain = vi.fn();
     render(
       <FarcasterAdmissionPanel
-        accessRequest={{ phase: 'requested', requestedAt: 1_750_000_000_000 }}
+        accessRequest={{ phase: 'request-received', requestedAt: 1_750_000_000_000 }}
         identity={identity}
         onBackToMenu={vi.fn()}
         onCheckAgain={onCheckAgain}
@@ -89,20 +97,18 @@ describe('FarcasterAdmissionPanel', () => {
       />
     );
 
-    expect((screen.getByRole('button', {
-      name: 'REQUEST RECEIVED'
-    }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText('REQUEST RECEIVED')).not.toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
     expect(onCheckAgain).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps delayed confirmation sealed and makes CHECK AGAIN status-only', () => {
+  it('keeps an ambiguous confirmation sealed and makes CHECK STATUS read-only', () => {
     const onCheckAgain = vi.fn();
     const onRequestAccess = vi.fn();
     const onRetryAccessRequestStatus = vi.fn();
     render(
       <FarcasterAdmissionPanel
-        accessRequest={{ phase: 'confirmation-pending' }}
+        accessRequest={{ phase: 'status-unavailable', context: 'post-submission' }}
         identity={identity}
         onBackToMenu={vi.fn()}
         onCheckAgain={onCheckAgain}
@@ -113,13 +119,11 @@ describe('FarcasterAdmissionPanel', () => {
       />
     );
 
-    expect(screen.getByText(/remains sealed and will not be sent twice/i)).not.toBeNull();
-    const sent = screen.getByRole('button', { name: 'REQUEST SENT' }) as HTMLButtonElement;
-    expect(sent.disabled).toBe(true);
-    fireEvent.click(sent);
+    expect(screen.getByText(/remains sealed and will not be sent again/i)).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
     expect(onRequestAccess).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
+    fireEvent.click(screen.getByRole('button', { name: 'CHECK STATUS' }));
     expect(onRetryAccessRequestStatus).toHaveBeenCalledTimes(1);
     expect(onCheckAgain).not.toHaveBeenCalled();
     expect(onRequestAccess).not.toHaveBeenCalled();
@@ -129,7 +133,7 @@ describe('FarcasterAdmissionPanel', () => {
     const onCheckAgain = vi.fn();
     render(
       <FarcasterAdmissionPanel
-        accessRequest={{ phase: 'confirmation-pending' }}
+        accessRequest={{ phase: 'status-unavailable', context: 'post-submission' }}
         identity={identity}
         onBackToMenu={vi.fn()}
         onCheckAgain={onCheckAgain}
@@ -139,13 +143,12 @@ describe('FarcasterAdmissionPanel', () => {
       />
     );
 
-    const checkAgain = screen.getByRole('button', { name: 'CHECK AGAIN' }) as HTMLButtonElement;
-    expect(checkAgain.disabled).toBe(true);
-    fireEvent.click(checkAgain);
+    expect(screen.queryByRole('button', { name: 'CHECK STATUS' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
     expect(onCheckAgain).not.toHaveBeenCalled();
   });
 
-  it('renders the local request latch immediately as a disabled sent action', () => {
+  it('renders submission as a non-interactive focused status presentation', () => {
     render(
       <FarcasterAdmissionPanel
         accessRequest={{ phase: 'submitting' }}
@@ -158,11 +161,9 @@ describe('FarcasterAdmissionPanel', () => {
       />
     );
 
-    expect(screen.getByText('Request sent.')).not.toBeNull();
+    expect(screen.getByText('REQUEST SENT')).not.toBeNull();
     expect(screen.getByText(/Confirming with the Hegemony records/i)).not.toBeNull();
-    expect((screen.getByRole('button', {
-      name: 'REQUEST SENT'
-    }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'CHECK AGAIN' })).toBeNull();
   });
 

@@ -136,6 +136,19 @@ describe('GitHub workflow security policy', () => {
     expect(liveVerification).not.toMatch(/\b(?:curl|wget)\b/);
   });
 
+  it('makes the default local production verifier match the enabled live auth-v2 contract', () => {
+    const packageJson = JSON.parse(
+      readFileSync(resolve(repositoryRoot, 'package.json'), 'utf8')
+    ) as { scripts?: Record<string, string> };
+
+    expect(packageJson.scripts?.['verify:alpha-production']).toBe(
+      'node scripts/verify-alpha-production.mjs --require-auth-v2-enabled'
+    );
+    expect(packageJson.scripts?.['verify:alpha-production:contained']).toBe(
+      'node scripts/verify-alpha-production.mjs --require-auth-v2'
+    );
+  });
+
   it('uses the reviewed Pages uploader with a SHA-pinned nested dependency', () => {
     const source = workflow('deploy-pages.yml');
     expect(source).toContain(

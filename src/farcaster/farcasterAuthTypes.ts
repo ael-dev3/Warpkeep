@@ -313,6 +313,14 @@ export type FarcasterBridgeRequestOptions = Readonly<{
   signal?: AbortSignal;
 }>;
 
+export type FarcasterAccessRequestOptions = FarcasterBridgeRequestOptions & Readonly<{
+  /**
+   * Non-authoritative UI correlation. The bridge still derives sole authority
+   * from the signed credential and rejects if this committed FID is stale.
+   */
+  expectedFid: number;
+}>;
+
 /**
  * Private per-request authentication for the access-request bridge routes.
  * Quick Auth material exists only in the controller call stack; presentation
@@ -327,16 +335,26 @@ export type AccessRequestStatus =
   | Readonly<{ version: 1; status: 'requested'; requestedAt: number }>
   | Readonly<{ version: 1; status: 'already-admitted' }>;
 
-/** Bounded state safe for React presentation. It cannot represent credentials. */
+export type AccessRequestStatusContext = 'initial' | 'post-submission';
+
+/**
+ * Bounded, monotonic state safe for React presentation. It cannot represent
+ * credentials, FIDs, private request rows, or server application-cycle data.
+ */
 export type AccessRequestViewState =
   | Readonly<{ phase: 'idle' }>
-  | Readonly<{ phase: 'loading' }>
-  | Readonly<{ phase: 'not-requested' }>
+  | Readonly<{ phase: 'loading-status'; context: AccessRequestStatusContext }>
+  | Readonly<{ phase: 'request-available' }>
   | Readonly<{ phase: 'submitting' }>
-  | Readonly<{ phase: 'confirmation-pending' }>
-  | Readonly<{ phase: 'requested'; requestedAt: number }>
+  | Readonly<{ phase: 'verifying-ambiguous-result' }>
+  | Readonly<{ phase: 'request-received'; requestedAt: number }>
+  | Readonly<{ phase: 'already-requested'; requestedAt: number }>
   | Readonly<{ phase: 'already-admitted' }>
-  | Readonly<{ phase: 'error'; retryable: boolean }>;
+  | Readonly<{ phase: 'definitive-failure' }>
+  | Readonly<{
+      phase: 'status-unavailable';
+      context: AccessRequestStatusContext;
+    }>;
 
 /**
  * The authenticated bridge boundary. Implementations must independently
@@ -364,11 +382,11 @@ export interface FarcasterOidcBridgeClient {
   ): Promise<FarcasterBridgeSessionResponse>;
   getAccessRequestStatus(
     authentication: AccessRequestAuthentication,
-    options?: FarcasterBridgeRequestOptions
+    options: FarcasterAccessRequestOptions
   ): Promise<AccessRequestStatus>;
   requestAccess(
     authentication: AccessRequestAuthentication,
-    options?: FarcasterBridgeRequestOptions
+    options: FarcasterAccessRequestOptions
   ): Promise<AccessRequestStatus>;
   logoutSession(options?: FarcasterBridgeRequestOptions): Promise<void>;
 }

@@ -100,6 +100,7 @@ export const WORKER_MODULE_PREDECESSOR = Object.freeze({
   EXACT_V12_ACTIVE: 'exact-v12-active',
   EXACT_V13_ACTIVE: 'exact-v13-active',
   EXACT_V13_ACTIVE_V14_EMPTY: 'exact-v13-active-v14-empty',
+  EXACT_V14_ACTIVE: 'exact-v14-active',
 });
 export const WORKER_FORWARD_REPAIR = Object.freeze({
   NONE: 'none',
@@ -1128,7 +1129,7 @@ export function parsePublishArguments(arguments_ = process.argv.slice(2)) {
         continue;
       }
     }
-    fail('Usage: publish-spacetime-dev.mjs [--dry-run] --resource-rollout-stage=<prebackfill|ready> --genesis-world-stage=<pre-expansion|expanded> --worker-rollout-stage=<empty|active> [--worker-module-predecessor=<v11|exact-v12-empty|exact-v12-active|exact-v13-active|exact-v13-active-v14-empty>] --worker-forward-repair=<none|return-node-reuse-v1>. Unknown or duplicate arguments are rejected.');
+    fail('Usage: publish-spacetime-dev.mjs [--dry-run] --resource-rollout-stage=<prebackfill|ready> --genesis-world-stage=<pre-expansion|expanded> --worker-rollout-stage=<empty|active> [--worker-module-predecessor=<v11|exact-v12-empty|exact-v12-active|exact-v13-active|exact-v13-active-v14-empty|exact-v14-active>] --worker-forward-repair=<none|return-node-reuse-v1>. Unknown or duplicate arguments are rejected.');
   }
   if (resourceRolloutStage === undefined) {
     fail('An explicit resource rollout stage is required: prebackfill for the first additive publication or ready for an already-backfilled republish.');
@@ -1148,10 +1149,11 @@ export function parsePublishArguments(arguments_ = process.argv.slice(2)) {
       || workerModulePredecessor === WORKER_MODULE_PREDECESSOR.EXACT_V13_ACTIVE
       || workerModulePredecessor
         === WORKER_MODULE_PREDECESSOR.EXACT_V13_ACTIVE_V14_EMPTY
+      || workerModulePredecessor === WORKER_MODULE_PREDECESSOR.EXACT_V14_ACTIVE
     )
       !== (workerRolloutStage === WORKER_PUBLISH_ROLLOUT_STAGE.ACTIVE)
   ) {
-    fail('The exact active-v12 module predecessor, exact active-v13 module predecessor, or exact active-v13-to-empty-v14 module predecessor requires the active Worker rollout stage, and no other predecessor may use it.');
+    fail('The exact active-v12 module predecessor, exact active-v13 module predecessor, exact active-v13-to-empty-v14 module predecessor, or exact active-v14 module predecessor requires the active Worker rollout stage, and no other predecessor may use it.');
   }
   if (
     workerModulePredecessor
@@ -1159,6 +1161,17 @@ export function parsePublishArguments(arguments_ = process.argv.slice(2)) {
     && workerForwardRepair !== WORKER_FORWARD_REPAIR.NONE
   ) {
     fail('The exact active-v13-to-empty-v14 publication is schema-only and requires worker-forward-repair=none.');
+  }
+  if (
+    workerModulePredecessor === WORKER_MODULE_PREDECESSOR.EXACT_V14_ACTIVE
+    && (
+      resourceRolloutStage !== RESOURCE_PUBLISH_ROLLOUT_STAGE.READY
+      || genesisWorldRolloutStage !== GENESIS_WORLD_PUBLISH_STAGE.EXPANDED
+      || workerRolloutStage !== WORKER_PUBLISH_ROLLOUT_STAGE.ACTIVE
+      || workerForwardRepair !== WORKER_FORWARD_REPAIR.NONE
+    )
+  ) {
+    fail('The exact active-v14 code-only publication requires resource ready, Genesis expanded, Worker active, and worker-forward-repair=none.');
   }
   if (
     workerForwardRepair === WORKER_FORWARD_REPAIR.RETURN_NODE_REUSE_V1
@@ -2097,6 +2110,20 @@ export function verifyWorkerV13ModulePredecessor(
   return moduleState;
 }
 
+/** Bind the code-only v14 lane to the exact reviewed candidate ABI. */
+export function verifyWorkerV14ModulePredecessor(
+  moduleState,
+  workerModulePredecessor,
+) {
+  if (
+    workerModulePredecessor !== WORKER_MODULE_PREDECESSOR.EXACT_V14_ACTIVE
+    || moduleState !== 'candidate'
+  ) {
+    fail('The selected Worker module predecessor did not match the exact active production v14 candidate ABI.');
+  }
+  return moduleState;
+}
+
 export function planWorkerV12CodePublication(
   moduleState,
   workerForwardRepair,
@@ -2499,6 +2526,52 @@ export function verifyPostPublishProductionV14ModuleSchema(
   }
 }
 
+/**
+ * Code-only v14 postflight. The already-active module may change executable
+ * code only: all 56 captured table signatures, all three proven schema
+ * digests, and the reviewed Worker candidate ABI must remain exact.
+ */
+export function verifyPostPublishProductionV14ActiveModuleSchema(
+  executable,
+  predecessor,
+  expectedV12TableSchemaDigest,
+  expectedV13TableSchemaDigest,
+  expectedV14TableSchemaDigest,
+  spawnSyncProcess = spawnSync,
+) {
+  try {
+    if (!predecessor || predecessor.moduleState !== 'candidate') {
+      fail('The captured production v14 predecessor ABI was invalid.');
+    }
+    requireCapturedTableSignatures(
+      predecessor.tableSignatures,
+      productionV14TableRefs(),
+      'v14',
+    );
+    const result = runBoundedSync(
+      executable,
+      canonicalSchemaDescribeChildArguments(),
+      { timeout: 30_000 },
+      spawnSyncProcess,
+    );
+    const after = verifyExactProductionV14ModuleSchema(
+      parseCanonicalSchemaDescription(result.stdout),
+      expectedV12TableSchemaDigest,
+      expectedV13TableSchemaDigest,
+      expectedV14TableSchemaDigest,
+    );
+    if (
+      canonicalJson(after.tableSignatures)
+        !== canonicalJson(predecessor.tableSignatures)
+    ) {
+      fail('The code-only v14 publication did not preserve every table signature and the exact reviewed candidate ABI.');
+    }
+    return after;
+  } catch {
+    fail('Post-publication active-v14 module checkpoint is indeterminate; perform a fresh anonymous read-only schema and ABI inspection before any Daily Marks operation, client deployment, or further publication decision.');
+  }
+}
+
 export function verifyFreshProductionV11Schema(
   executable,
   expectedTableSchemaDigest,
@@ -2810,8 +2883,8 @@ export function dailyMarksV14InspectChildArguments(tsxCli) {
   ];
 }
 
-/** Accept only the operator's closed, counts-only daily-Marks status. */
-export function verifyEmptyDailyMarksV14StatusOutput(output) {
+/** Parse only the operator's closed, counts-only daily-Marks status. */
+function parseDailyMarksV14StatusOutput(output) {
   let status;
   try {
     status = JSON.parse(output);
@@ -2841,6 +2914,12 @@ export function verifyEmptyDailyMarksV14StatusOutput(output) {
       fail('Daily Marks v14 inspection returned an invalid status flag.');
     }
   }
+  return status;
+}
+
+/** Accept only the exact empty pre-backfill daily-Marks state. */
+export function verifyEmptyDailyMarksV14StatusOutput(output) {
+  const status = parseDailyMarksV14StatusOutput(output);
   if (
     status.allowedFids !== status.markAccounts
     || status.allowedFids !== status.realmProfiles
@@ -2864,6 +2943,118 @@ export function verifyEmptyDailyMarksV14StatusOutput(output) {
     fail('Daily Marks v14 did not prove the exact empty pre-backfill state.');
   }
   return Object.freeze({ ...status });
+}
+
+/**
+ * Accept only an internally coherent active daily-Marks graph and bind its
+ * founder totals to the separately reviewed publication expectations.
+ */
+export function verifyActiveDailyMarksV14StatusOutput(
+  output,
+  expectedFounderCount,
+  expectedEnabledAllowedFidCount,
+) {
+  if (
+    !Number.isSafeInteger(expectedFounderCount)
+    || expectedFounderCount < 1
+    || expectedFounderCount > 100
+    || !Number.isSafeInteger(expectedEnabledAllowedFidCount)
+    || expectedEnabledAllowedFidCount < 0
+    || expectedEnabledAllowedFidCount > expectedFounderCount
+  ) {
+    fail('Daily Marks v14 active inspection expectations were invalid.');
+  }
+  const status = parseDailyMarksV14StatusOutput(output);
+  const allowedFids = BigInt(status.allowedFids);
+  const enabledAllowedFids = BigInt(status.enabledAllowedFids);
+  const grants = BigInt(status.grants);
+  const currentDayGrants = BigInt(status.currentDayGrants);
+  // The singleton hourly sweep can legitimately lag a UTC-day rollover. The
+  // active graph remains valid in that bounded interval, but one current-day
+  // receipt per enabled FID is still the absolute maximum.
+  if (
+    allowedFids !== BigInt(expectedFounderCount)
+    || enabledAllowedFids !== BigInt(expectedEnabledAllowedFidCount)
+    || status.allowedFids !== status.markAccounts
+    || status.allowedFids !== status.realmProfiles
+    || status.dailyAccounts !== status.markAccounts
+    || status.legacyZeroAccounts !== '0'
+    || status.invalidAccounts !== '0'
+    || status.profileProjectionViolations !== '0'
+    || status.missingFounderState !== '0'
+    || status.grantInvariantViolations !== '0'
+    || status.grantAccountReconciliationViolations !== '0'
+    || currentDayGrants > enabledAllowedFids
+    || currentDayGrants > grants
+    || status.scheduleRows !== '1'
+    || status.scheduleConfigValid !== true
+    || status.legacyCompatibilityRows !== '0'
+    || status.readyForBackfill !== false
+    || status.readyForActivation !== false
+    || status.active !== true
+  ) {
+    fail('Daily Marks v14 did not prove the exact active internally valid state.');
+  }
+  return Object.freeze({ ...status });
+}
+
+function inspectActiveDailyMarksV14(
+  secret,
+  expectations,
+  spawnSyncProcess,
+) {
+  const secretBytes = typeof secret === 'string'
+    ? new TextEncoder().encode(secret).byteLength
+    : 0;
+  if (secretBytes < 32 || secretBytes > 512) {
+    fail('A local 32-to-512-byte Hermes credential is required for the active daily-Marks v14 checkpoint.');
+  }
+  const exactExpectations = validateFoundedPublishExpectations(expectations);
+  const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
+  const result = runBoundedSync(
+    process.execPath,
+    dailyMarksV14InspectChildArguments(tsxCli),
+    {
+      env: {
+        WARPKEEP_SPACETIMEDB_URI: CANONICAL_MAINCLOUD_URI,
+        WARPKEEP_SPACETIMEDB_DATABASE: CANONICAL_DATABASE_IDENTITY,
+        WARPKEEP_AUTH_BRIDGE_URL: CANONICAL_BRIDGE,
+        WARPKEEP_ADMIN_TOKEN_SECRET_STDIN: '1',
+      },
+      input: secret,
+      timeout: 30_000,
+    },
+    spawnSyncProcess,
+  );
+  return verifyActiveDailyMarksV14StatusOutput(
+    result.stdout,
+    exactExpectations.expectedFounderCount,
+    exactExpectations.expectedEnabledAllowedFidCount,
+  );
+}
+
+export function verifyFreshActiveDailyMarksV14(
+  secret,
+  expectations,
+  spawnSyncProcess = spawnSync,
+) {
+  try {
+    return inspectActiveDailyMarksV14(secret, expectations, spawnSyncProcess);
+  } catch {
+    fail('Fresh protected active daily-Marks v14 checkpoint failed. No publish was attempted.');
+  }
+}
+
+export function verifyPostPublishActiveDailyMarksV14(
+  secret,
+  expectations,
+  spawnSyncProcess = spawnSync,
+) {
+  try {
+    return inspectActiveDailyMarksV14(secret, expectations, spawnSyncProcess);
+  } catch {
+    fail('Post-publication active daily-Marks v14 checkpoint is indeterminate; perform a fresh protected read-only inspection before any Daily Marks operation, client deployment, or further publication decision.');
+  }
 }
 
 export function verifyPostPublishEmptyDailyMarksV14(
@@ -3770,22 +3961,37 @@ async function main() {
       || workerModulePredecessor === WORKER_MODULE_PREDECESSOR.EXACT_V13_ACTIVE
       || workerModulePredecessor
         === WORKER_MODULE_PREDECESSOR.EXACT_V13_ACTIVE_V14_EMPTY
+      || workerModulePredecessor === WORKER_MODULE_PREDECESSOR.EXACT_V14_ACTIVE
     ) {
+      const exactV14Active = workerModulePredecessor
+        === WORKER_MODULE_PREDECESSOR.EXACT_V14_ACTIVE;
       const exactV14Append = workerModulePredecessor
         === WORKER_MODULE_PREDECESSOR.EXACT_V13_ACTIVE_V14_EMPTY;
       const exactV13Predecessor = exactV14Append || workerModulePredecessor
         === WORKER_MODULE_PREDECESSOR.EXACT_V13_ACTIVE;
-      const predecessorSchema = exactV13Predecessor
-        ? verifyFreshProductionV13ModuleSchema(
+      const predecessorSchema = exactV14Active
+        ? verifyFreshProductionV14ModuleSchema(
           executable,
           artifactReceipt.v12TableSchemaDigest,
           artifactReceipt.v13TableSchemaDigest,
+          artifactReceipt.v14TableSchemaDigest,
         )
-        : verifyFreshProductionV12ModuleSchema(
-          executable,
-          artifactReceipt.v12TableSchemaDigest,
+        : exactV13Predecessor
+          ? verifyFreshProductionV13ModuleSchema(
+            executable,
+            artifactReceipt.v12TableSchemaDigest,
+            artifactReceipt.v13TableSchemaDigest,
+          )
+          : verifyFreshProductionV12ModuleSchema(
+            executable,
+            artifactReceipt.v12TableSchemaDigest,
+          );
+      if (exactV14Active) {
+        verifyWorkerV14ModulePredecessor(
+          predecessorSchema.moduleState,
+          workerModulePredecessor,
         );
-      if (exactV13Predecessor) {
+      } else if (exactV13Predecessor) {
         verifyWorkerV13ModulePredecessor(
           predecessorSchema.moduleState,
           workerModulePredecessor,
@@ -3810,8 +4016,26 @@ async function main() {
         workerForwardRepair,
         publicationPlan.prePublicationCheckpoint,
       );
+      if (exactV14Active) {
+        verifyFreshActiveDailyMarksV14(
+          adminTokenSecret,
+          foundedExpectations,
+        );
+      }
       await publishModule(executable, CANONICAL_DATABASE_IDENTITY, artifactReceipt);
-      if (exactV14Append) {
+      if (exactV14Active) {
+        verifyPostPublishProductionV14ActiveModuleSchema(
+          executable,
+          predecessorSchema,
+          artifactReceipt.v12TableSchemaDigest,
+          artifactReceipt.v13TableSchemaDigest,
+          artifactReceipt.v14TableSchemaDigest,
+        );
+        verifyPostPublishActiveDailyMarksV14(
+          adminTokenSecret,
+          foundedExpectations,
+        );
+      } else if (exactV14Append) {
         verifyPostPublishProductionV14ModuleSchema(
           executable,
           predecessorSchema,

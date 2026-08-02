@@ -17,26 +17,30 @@ describe('latest in-menu patch notes', () => {
 
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
-      releasedOn: '1 AUG 2026',
-      title: 'THE GATE FALLS QUIET'
+      releasedOn: '2 AUG 2026',
+      title: 'THE REALM STANDS READY'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Request Access.*deliberately silent.*ordinary browsers.*Farcaster Mini App.*no longer loaded.*preloaded.*decoded.*emitted/i
+      /mobile graphics session falters.*Performance mode.*privacy-safe diagnostics/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /violet-and-gold response.*one-shot Request Sent.*private submission.*manual admission/i
+      /Request Access.*first accepted gesture.*Request Received.*never retries/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /retired recording.*checksummed Warpkeep Assets archive.*production verification.*former path.*trigger/i
+      /Mini App.*available resource order.*four permanent Workers/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /released to players|deployed to players|public balances|guaranteed rewards/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('light and motion alone');
+    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('one clear account');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'does not alter authentication, petitions, admission'
+      'requests manual review only'
     );
+
+    expect(getLatestPatchNotes('0.3.42')).toMatchObject({
+      title: 'THE GATE FALLS QUIET'
+    });
 
     expect(getLatestPatchNotes('0.3.41')).toMatchObject({
       title: 'THE REALM MENDS ITSELF'

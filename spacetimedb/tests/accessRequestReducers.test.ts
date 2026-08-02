@@ -91,7 +91,12 @@ test('caller procedures derive the sole FID from the resolver and expose one exa
     [submit, 'access_request_submit_v1'],
   ] as const) {
     assert.match(body, new RegExp(`name: '${wireName}'`));
-    assert.match(body, /const \{ requestFid \} = requireAccessRequestResolver\(tx\)/);
+    assert.match(
+      body,
+      new RegExp(`const \\{ requestFid \\} = requireAccessRequestResolver\\(tx, '${
+        wireName === 'access_request_get_status_v1' ? 'status' : 'submit'
+      }'\\)`),
+    );
     assert.doesNotMatch(body, /\{\s*fid:\s*t\.u64\(\)/);
     assert.doesNotMatch(body, /requireAdmin|requireAllowedFid|requireAdmittedPlayer/);
   }

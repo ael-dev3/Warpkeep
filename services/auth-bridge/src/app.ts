@@ -161,6 +161,7 @@ const AUTH_EPOCH_FAILURE_EVENTS: Readonly<Record<AuthEpochResolverFailureStage, 
 const FORBIDDEN_REQUEST_KEYS = new Set([
   'channelToken', 'channelUrl', 'custody', 'verifications', 'authMethod', 'metadata',
 ])
+const ACCESS_EXPECTED_FID_HEADER = 'x-warpkeep-expected-fid'
 
 class HttpError extends Error {
   constructor(
@@ -239,6 +240,24 @@ function quickAuthCorsHeaders(origin: string): HeadersInit {
   }
 }
 
+function accessRequestCorsHeaders(
+  origin: string,
+  credentialMode: 'pending-session' | 'quick-auth',
+): HeadersInit {
+  return {
+    'access-control-allow-origin': origin,
+    'access-control-allow-methods': 'POST, OPTIONS',
+    'access-control-allow-headers': credentialMode === 'quick-auth'
+      ? `authorization, content-type, ${ACCESS_EXPECTED_FID_HEADER}`
+      : `content-type, ${ACCESS_EXPECTED_FID_HEADER}`,
+    'access-control-max-age': '600',
+    ...(credentialMode === 'pending-session'
+      ? { 'access-control-allow-credentials': 'true' }
+      : {}),
+    vary: 'Origin',
+  }
+}
+
 function isCredentialedPath(pathname: string): boolean {
   return pathname === V2_CHALLENGE_PATH
     || pathname === V2_EXCHANGE_PATH
@@ -280,9 +299,13 @@ function routeCorsHeaders(request: Request, config: BridgeConfig, pathname = new
   if (isAccessRequestPath(pathname)) {
     const origin = request.headers.get('origin')
     if (accessRequestUsesBearer(request)) {
-      return origin === QUICK_AUTH_BROWSER_ORIGIN ? quickAuthCorsHeaders(origin) : {}
+      return origin === QUICK_AUTH_BROWSER_ORIGIN
+        ? accessRequestCorsHeaders(origin, 'quick-auth')
+        : {}
     }
-    return origin && config.allowedOrigins.has(origin) ? corsHeaders(origin, true) : {}
+    return origin && config.allowedOrigins.has(origin)
+      ? accessRequestCorsHeaders(origin, 'pending-session')
+      : {}
   }
   return publicCorsHeaders(request, config, pathname)
 }
@@ -399,9 +422,12 @@ function allowedAccessRequestPreflight(
   const headers = accessControlRequestedHeaders(request)
   const usesBearer = headers.includes('authorization')
   const allowedHeaders = usesBearer
-    ? new Set(['authorization', 'content-type'])
-    : new Set(['content-type'])
-  if (headers.some(header => !allowedHeaders.has(header))) {
+    ? new Set(['authorization', 'content-type', ACCESS_EXPECTED_FID_HEADER])
+    : new Set(['content-type', ACCESS_EXPECTED_FID_HEADER])
+  if (
+    (config.accessExpectedFidRequired && !headers.includes(ACCESS_EXPECTED_FID_HEADER))
+    || headers.some(header => !allowedHeaders.has(header))
+  ) {
     throw new HttpError(403, 'header_not_allowed', 'This request header is not allowed.')
   }
   if (request.headers.get('access-control-request-method') !== 'POST') {
@@ -411,13 +437,13 @@ function allowedAccessRequestPreflight(
     const origin = requireQuickAuthBrowserOrigin(request)
     return new Response(null, {
       status: 204,
-      headers: emptyResponseHeaders(quickAuthCorsHeaders(origin)),
+      headers: emptyResponseHeaders(accessRequestCorsHeaders(origin, 'quick-auth')),
     })
   }
   const origin = requireAllowedBrowserOrigin(request, config)
   return new Response(null, {
     status: 204,
-    headers: emptyResponseHeaders(corsHeaders(origin, true)),
+    headers: emptyResponseHeaders(accessRequestCorsHeaders(origin, 'pending-session')),
   })
 }
 
@@ -657,6 +683,36 @@ function canonicalFid(value: unknown): string {
     return BigInt(value).toString(10)
   } catch {
     throw new HttpError(400, 'invalid_request', 'Invalid fid.')
+  }
+}
+
+/**
+ * Browser-supplied presentation correlation only. The credential remains the
+ * sole identity authority; this value can only make a stale UI fail closed.
+ */
+function requireExpectedAccessFid(
+  request: Request,
+  required: boolean,
+): string | null {
+  const value = request.headers.get(ACCESS_EXPECTED_FID_HEADER)
+  if (value === null) {
+    if (!required) return null
+    throw new HttpError(
+      400,
+      'access_expected_fid_required',
+      'The authenticated identity could not be correlated.',
+    )
+  }
+  try {
+    const fid = canonicalFid(value)
+    if (fid !== value) throw new Error()
+    return fid
+  } catch {
+    throw new HttpError(
+      400,
+      'access_expected_fid_invalid',
+      'The authenticated identity could not be correlated.',
+    )
   }
 }
 
@@ -920,6 +976,7 @@ async function configurationAttestation(
     spacetimeDbUri: config.spacetimeDbUri,
     spacetimeDbDatabase: config.spacetimeDbDatabase,
     publicAuthEnabled: config.publicAuthEnabled,
+    accessExpectedFidRequired: config.accessExpectedFidRequired,
     qaObserverEnabled: config.qaObserverEnabled,
     qaObserverSpacetimeDbUri: config.qaObserverSpacetimeDb?.uri ?? null,
     qaObserverSpacetimeDbDatabase: config.qaObserverSpacetimeDb?.database ?? null,
@@ -1731,6 +1788,10 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             logger,
           )
           requireExactKeys(await parseObjectBody(request), [])
+          const expectedFid = requireExpectedAccessFid(
+            request,
+            config.accessExpectedFidRequired,
+          )
 
           let verifiedFid: string
           let verifiedQuickAuthPayload: unknown
@@ -1811,6 +1872,17 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             verifiedFid = sessionRecord.identity.fid
             sessionStore = store
             sessionFamilyId = cookie.familyId
+          }
+
+          // The signed bearer/session is authoritative. This non-authoritative
+          // precondition only prevents a stale tab or switched Mini App account
+          // from reading or submitting for a different verified identity.
+          if (expectedFid !== null && verifiedFid !== expectedFid) {
+            throw new HttpError(
+              409,
+              'access_identity_changed',
+              'The authenticated identity changed. Refresh and try again.',
+            )
           }
 
           let admission: AdmissionResolution
@@ -1910,9 +1982,7 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           return json(
             responseBody,
             200,
-            credentialMode === 'quick-auth'
-              ? quickAuthCorsHeaders(origin)
-              : corsHeaders(origin, true),
+            accessRequestCorsHeaders(origin, credentialMode),
           )
         }
 
@@ -2278,6 +2348,7 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             accessRequestStatusProcedure: SPACETIMEDB_ACCESS_REQUEST_STATUS_PROCEDURE,
             accessRequestSubmitProcedure: SPACETIMEDB_ACCESS_REQUEST_SUBMIT_PROCEDURE,
             publicAuthEnabled: config.publicAuthEnabled,
+            accessExpectedFidRequired: config.accessExpectedFidRequired,
             qaObserverEnabled: config.qaObserverEnabled,
             qaObserverSpacetimeDbUri: config.qaObserverSpacetimeDb?.uri ?? null,
             qaObserverSpacetimeDbDatabase: config.qaObserverSpacetimeDb?.database ?? null,

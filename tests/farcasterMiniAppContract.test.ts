@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
 
 // @ts-expect-error Repository JavaScript release contracts expose named test seams.
-import { FARCASTER_MINI_APP_CONFIG, FARCASTER_MINI_APP_DOMAIN, FARCASTER_MINI_APP_EMBED, FARCASTER_MINI_APP_IMAGES, FARCASTER_MINI_APP_ORIGIN, FARCASTER_MINI_APP_OWNER_FID, FARCASTER_MINI_APP_SPLASH_FILE, WARPKEEP_SITE_ICONS, exactJsonValue, inspectFarcasterAccountAssociation, inspectPng } from '../scripts/farcaster-miniapp-contract.mjs';
+import { FARCASTER_MINI_APP_CONFIG, FARCASTER_MINI_APP_DOMAIN, FARCASTER_MINI_APP_EMBED, FARCASTER_MINI_APP_IMAGES, FARCASTER_MINI_APP_ORIGIN, FARCASTER_MINI_APP_OWNER_FID, FARCASTER_MINI_APP_SCREENSHOTS, FARCASTER_MINI_APP_SPLASH_FILE, WARPKEEP_SITE_ICONS, exactJsonValue, inspectFarcasterAccountAssociation, inspectPng } from '../scripts/farcaster-miniapp-contract.mjs';
 // @ts-expect-error Repository JavaScript release verifier exposes a named test seam.
 import { verifyFarcasterAccountAssociationSignature } from '../scripts/verify-farcaster-miniapp.mjs';
 // @ts-expect-error Repository JavaScript production verifier exposes a named test seam.
@@ -53,6 +53,20 @@ async function signedAssociation({
 }
 
 describe('Farcaster Mini App release contract', () => {
+  it('pins the supported Node runtime floor required by the current Farcaster toolchain', () => {
+    const packageJson = JSON.parse(
+      readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')
+    ) as { engines?: { node?: string } };
+    const packageLock = JSON.parse(
+      readFileSync(resolve(process.cwd(), 'package-lock.json'), 'utf8')
+    ) as { packages?: Record<string, { engines?: { node?: string } }> };
+
+    expect(packageJson.engines?.node).toBe('>=22.11 <23');
+    expect(packageLock.packages?.['']?.engines?.node).toBe(
+      packageJson.engines?.node
+    );
+  });
+
   it('compares reviewed JSON values without making property order authoritative', () => {
     expect(exactJsonValue(
       { nested: { second: 2, first: 1 }, enabled: true },
@@ -62,6 +76,23 @@ describe('Farcaster Mini App release contract', () => {
       { enabled: true, extra: true },
       { enabled: true },
     )).toBe(false);
+  });
+
+  it('keeps the checked-in directory metadata aligned with the reviewed contract', () => {
+    const manifest = JSON.parse(
+      readFileSync(
+        resolve(process.cwd(), 'public/.well-known/farcaster.json'),
+        'utf8',
+      ),
+    ) as { miniapp?: unknown };
+
+    expect(manifest.miniapp).toEqual(FARCASTER_MINI_APP_CONFIG);
+    expect(FARCASTER_MINI_APP_CONFIG.subtitle)
+      .toBe('Persistent Farcaster strategy');
+    expect(FARCASTER_MINI_APP_CONFIG.description).toBe(
+      'Command four Workers, gather resources and return to a permanent keep in Genesis 001. Invite-only Alpha.',
+    );
+    expect(FARCASTER_MINI_APP_CONFIG.tagline).toBe('Every FID has a castle');
   });
 
   it.each([
@@ -160,6 +191,23 @@ describe('Farcaster Mini App release contract', () => {
     expect(createHash('sha256').update(splashBytes).digest('hex')).toBe(
       '117256827545daa14673847c3f20ead2aaebe6ca6c66691eda416336da599a6b',
     );
+  });
+
+  it('pins exact geometry, opacity, and identity for directory screenshots', () => {
+    for (const screenshot of FARCASTER_MINI_APP_SCREENSHOTS) {
+      const bytes = readFileSync(
+        resolve(process.cwd(), 'public', screenshot.path),
+      );
+      expect(inspectPng(bytes)).toEqual({
+        width: screenshot.width,
+        height: screenshot.height,
+        hasAlpha: false,
+      });
+      expect(screenshot.opaque).toBe(true);
+      expect(createHash('sha256').update(bytes).digest('hex')).toBe(
+        screenshot.sha256,
+      );
+    }
   });
 
   it('verifies the exact live embed, manifest, and reviewed release images', async () => {

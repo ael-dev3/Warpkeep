@@ -161,6 +161,35 @@ describe('graphics preference', () => {
     expect(realmProfileForQuality('performance')).toBe('reduced');
   });
 
+  it('starts memory-unreported Mini App phones conservatively without overriding a choice', () => {
+    const embeddedPhone = {
+      width: 390,
+      height: 844,
+      devicePixelRatio: 3,
+      hardwareConcurrency: 8,
+      maxTextureSize: 8_192,
+      conservativeEmbeddedMobile: true
+    } as const;
+
+    expect(resolveGraphicsQuality('auto', embeddedPhone)).toBe('performance');
+    expect(resolveGraphicsQuality('auto', {
+      ...embeddedPhone,
+      deviceMemory: Number.NaN
+    })).toBe('performance');
+    expect(resolveGraphicsQuality('auto', {
+      ...embeddedPhone,
+      deviceMemory: 4
+    })).toBe('balanced');
+    expect(resolveGraphicsQuality('balanced', embeddedPhone)).toBe('balanced');
+    expect(resolveGraphicsQuality('cinematic', embeddedPhone)).toBe('cinematic');
+
+    expect(resolveGraphicsQuality('auto', {
+      ...embeddedPhone,
+      width: 1_440,
+      height: 900
+    })).toBe('balanced');
+  });
+
   it('accepts cross-tab preference changes and ignores unrelated storage', () => {
     const listener = vi.fn();
     const unsubscribe = subscribeGraphicsPreference(listener);

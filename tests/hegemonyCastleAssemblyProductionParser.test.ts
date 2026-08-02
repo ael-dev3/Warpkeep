@@ -422,7 +422,8 @@ describe('production Hegemony castle and landscape-base assemblies', () => {
       );
       expect(layer.raycast(raycaster)).toEqual({
         castleId: 535,
-        coord: { q: 0, r: 0 }
+        coord: { q: 0, r: 0 },
+        distance: expect.any(Number)
       });
 
       layer.dispose();

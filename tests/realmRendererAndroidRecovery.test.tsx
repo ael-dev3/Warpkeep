@@ -226,7 +226,15 @@ beforeEach(() => {
   window.sessionStorage.clear();
   window.localStorage.setItem(WARPKEEP_GRAPHICS_PREFERENCE_KEY, 'balanced');
   sceneState.create.mockReset();
-  sceneState.create.mockImplementation(() => sceneHandle());
+  sceneState.create.mockImplementation((options: CreateRealmSceneOptions) => {
+    options.canvas.dataset.realmRendererGeneration = String(
+      options.rendererGeneration ?? 1
+    );
+    options.canvas.dataset.realmRendererMaxTextureSize = '8192';
+    options.canvas.width = 1_082;
+    options.canvas.height = 2_402;
+    return sceneHandle();
+  });
 });
 
 afterEach(() => {
@@ -270,7 +278,7 @@ describe.each(BROWSER_SHAPES)('$label renderer recovery', (shape) => {
     expect(root.dataset.rendererState).toBe('static-degraded');
     expect(root.dataset.rendererFailure).toBe('scene-build-timeout');
     expect(screen.getByText('WK-GFX-013')).not.toBeNull();
-    expect(screen.getByText(/webgl2=available/)).not.toBeNull();
+    expect(screen.getByText(/failure_code=scene-build-timeout/)).not.toBeNull();
     expect(root.getAttribute('aria-busy')).toBe('false');
   });
 
@@ -342,10 +350,21 @@ describe.each(BROWSER_SHAPES)('$label renderer recovery', (shape) => {
     expect(root.getAttribute('aria-busy')).toBe('false');
     expect(screen.getByText('2D SAFETY VIEW ACTIVE')).not.toBeNull();
     expect(screen.getByText('WK-GFX-005')).not.toBeNull();
-    expect(screen.getByRole('link', { name: 'Contact @0xael.eth' }).getAttribute('href'))
+    const diagnosticReport = screen.getByText(/warpkeep_version=/).textContent ?? '';
+    expect(diagnosticReport).toContain('viewport_css_px=412x915');
+    expect(diagnosticReport).toContain('device_pixel_ratio=2.625');
+    expect(diagnosticReport).toContain('selected_quality=balanced');
+    expect(diagnosticReport).toContain('resolved_quality=performance');
+    expect(diagnosticReport).toContain('webgl_max_texture_size=8192');
+    expect(diagnosticReport).toContain('drawing_buffer_px=1082x2402');
+    expect(diagnosticReport).toContain('failure_code=scene-rebuild-timeout');
+    expect(diagnosticReport).not.toMatch(/fid|token|username|cookie|url|mozilla|angle/i);
+    expect(screen.getByRole('button', { name: 'TRY PERFORMANCE MODE' })).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'COPY DIAGNOSTICS' })).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'RETURN TO MENU' })).not.toBeNull();
+    expect(screen.getByRole('link', { name: 'REPORT A PROBLEM' }).getAttribute('href'))
       .toBe('https://farcaster.xyz/0xael.eth');
-    expect(screen.getByRole('button', { name: 'Retry 3D Realm' })).not.toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Return to Menu' }));
+    fireEvent.click(screen.getByRole('button', { name: 'RETURN TO MENU' }));
     expect(onRequestReturn).toHaveBeenCalledOnce();
 
     act(() => {

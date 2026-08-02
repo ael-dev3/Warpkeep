@@ -81,6 +81,7 @@ export type AuthEpochResolverJwtClaims = WarpkeepBaseJwtClaims &
 export type AccessRequestResolverJwtClaims = WarpkeepBaseJwtClaims &
   Readonly<{
     requestFid: bigint;
+    requestOperation: 'status' | 'submit';
   }>;
 
 export type QaSnapshotResolverJwtClaims = WarpkeepBaseJwtClaims &
@@ -401,6 +402,7 @@ export function readFreshAccessRequestResolverJwt(
   let issuedAt: number;
   let expiresAt: number;
   let requestFid: bigint;
+  let requestOperation: 'status' | 'submit';
 
   try {
     claims = readWarpkeepBaseJwt(payload, config);
@@ -408,6 +410,10 @@ export function readFreshAccessRequestResolverJwt(
     issuedAt = readNumericDate(record, 'iat', 'INVALID_ACCESS_REQUEST_RESOLVER_SESSION');
     expiresAt = readNumericDate(record, 'exp', 'INVALID_ACCESS_REQUEST_RESOLVER_SESSION');
     requestFid = parseFidClaim(record.request_fid);
+    if (record.request_operation !== 'status' && record.request_operation !== 'submit') {
+      throw new ClaimValidationError('INVALID_ACCESS_REQUEST_RESOLVER_SESSION');
+    }
+    requestOperation = record.request_operation;
     if (
       record.fid !== undefined
       || record.auth_version !== undefined
@@ -439,7 +445,7 @@ export function readFreshAccessRequestResolverJwt(
   ) {
     throw new ClaimValidationError('INVALID_ACCESS_REQUEST_RESOLVER_SESSION');
   }
-  return Object.freeze({ ...claims, requestFid });
+  return Object.freeze({ ...claims, requestFid, requestOperation });
 }
 
 /**

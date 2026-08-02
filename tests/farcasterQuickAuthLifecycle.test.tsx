@@ -1,5 +1,5 @@
 import { StrictMode } from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -60,6 +60,14 @@ function authorized(
     accessToken: jwt,
     tokenType: 'spacetime-access',
     accessExpiresAt: expiresAt * 1_000
+  };
+}
+
+function pendingAdmission(fid = FID): FarcasterQuickAuthSessionResponse {
+  return {
+    version: 2,
+    status: 'pending-admission',
+    identity: { fid }
   };
 }
 
@@ -174,8 +182,17 @@ function state(): Record<string, unknown> {
   >;
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   window.localStorage.clear();
   window.sessionStorage.clear();
   document.head
@@ -236,13 +253,90 @@ describe('Farcaster Mini App Quick Auth lifecycle', () => {
     expect(authBridge.refreshSession).not.toHaveBeenCalled();
   });
 
+  it('coalesces every foreground signal and replaces switched host authority', async () => {
+    const getToken = vi.fn(async () => ({ token: QUICK_AUTH_TOKEN }));
+    const switched = deferred<FarcasterQuickAuthSessionResponse>();
+    const exchangeQuickAuth = vi.fn()
+      .mockResolvedValueOnce(authorized(FID))
+      .mockImplementationOnce(() => switched.promise);
+    const authBridge = bridge(exchangeQuickAuth);
+
+    renderMiniApp(miniAppSdk(getToken), authBridge);
+    await waitFor(() => expect(state().phase).toBe('authenticated'));
+    expect(state()).toMatchObject({ identity: { fid: FID } });
+
+    fireEvent(window, new Event('focus'));
+    fireEvent(window, new Event('pageshow'));
+    fireEvent(document, new Event('visibilitychange'));
+    await waitFor(() => expect(exchangeQuickAuth).toHaveBeenCalledTimes(2));
+    expect(getToken).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(screen.getByTestId('token').textContent).toBe('false'));
+
+    switched.resolve(authorized(FID + 1));
+    await waitFor(() => expect(state()).toMatchObject({
+      phase: 'authenticated',
+      identity: { fid: FID + 1 }
+    }));
+    expect(JSON.stringify(state())).not.toContain('keeper');
+    expect(screen.getByTestId('token').textContent).toBe('true');
+  });
+
+  it('fails closed if foreground Quick Auth cannot reverify the host account', async () => {
+    const getToken = vi.fn(async () => ({ token: QUICK_AUTH_TOKEN }));
+    const exchangeQuickAuth = vi.fn()
+      .mockResolvedValueOnce(authorized(FID))
+      .mockRejectedValueOnce(new Error('private host verification failure'));
+    const authBridge = bridge(exchangeQuickAuth);
+
+    renderMiniApp(miniAppSdk(getToken), authBridge);
+    await waitFor(() => expect(state().phase).toBe('authenticated'));
+
+    fireEvent(window, new Event('focus'));
+    await waitFor(() => expect(exchangeQuickAuth).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(state().phase).toBe('anonymous'));
+    expect(screen.getByTestId('token').textContent).toBe('false');
+    expect(JSON.stringify(state())).not.toContain('keeper');
+  });
+
+  it('keeps the single Quick Auth refresh alive across its shared expiry deadline', async () => {
+    const start = Date.UTC(2026, 7, 1, 12, 0, 0);
+    vi.useFakeTimers({ now: start });
+    const getToken = vi.fn(async () => ({ token: QUICK_AUTH_TOKEN }));
+    const refresh = deferred<FarcasterQuickAuthSessionResponse>();
+    let refreshSignal: AbortSignal | undefined;
+    const exchangeQuickAuth = vi.fn()
+      .mockResolvedValueOnce(authorized(FID, start))
+      .mockImplementationOnce((_token, options) => {
+        refreshSignal = options?.signal;
+        return refresh.promise;
+      });
+    const authBridge = bridge(exchangeQuickAuth);
+
+    renderMiniApp(miniAppSdk(getToken), authBridge);
+    await act(async () => { await Promise.resolve(); });
+    expect(state().phase).toBe('authenticated');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(9 * 60_000 + 30_000);
+    });
+    expect(exchangeQuickAuth).toHaveBeenCalledTimes(2);
+    expect(refreshSignal?.aborted).toBe(false);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    expect(refreshSignal?.aborted).toBe(false);
+    expect(exchangeQuickAuth).toHaveBeenCalledTimes(2);
+
+    refresh.resolve(authorized(FID, Date.now()));
+    await act(async () => { await Promise.resolve(); });
+    expect(state().phase).toBe('authenticated');
+    expect(screen.getByTestId('token').textContent).toBe('true');
+  });
+
   it('keeps pending admission tokenless and explicit logout blocks passive reacquisition', async () => {
     const getToken = vi.fn(async () => ({ token: QUICK_AUTH_TOKEN }));
-    const exchangeQuickAuth = vi.fn(async () => ({
-      version: 2 as const,
-      status: 'pending-admission' as const,
-      identity: { fid: FID }
-    }));
+    const exchangeQuickAuth = vi.fn(async () => pendingAdmission());
     const authBridge = bridge(exchangeQuickAuth);
 
     renderMiniApp(miniAppSdk(getToken), authBridge);
@@ -256,6 +350,38 @@ describe('Farcaster Mini App Quick Auth lifecycle', () => {
     await Promise.resolve();
     expect(exchangeQuickAuth).toHaveBeenCalledTimes(1);
     expect(authBridge.logoutSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('reacquires an expired pending presentation through one coalesced Quick Auth flight', async () => {
+    const start = Date.UTC(2026, 7, 1, 12, 0, 0);
+    vi.useFakeTimers({ now: start });
+    const getToken = vi.fn(async () => ({ token: QUICK_AUTH_TOKEN }));
+    const renewal = deferred<FarcasterQuickAuthSessionResponse>();
+    const exchangeQuickAuth = vi.fn()
+      .mockResolvedValueOnce(pendingAdmission())
+      .mockImplementationOnce(() => renewal.promise);
+    const authBridge = bridge(exchangeQuickAuth);
+
+    renderMiniApp(miniAppSdk(getToken), authBridge);
+    await act(async () => { await Promise.resolve(); });
+    expect(state().phase).toBe('pending-admission');
+    expect(screen.getByTestId('token').textContent).toBe('false');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5 * 60_000);
+    });
+    expect(exchangeQuickAuth).toHaveBeenCalledTimes(2);
+    expect(state().phase).toBe('pending-admission');
+
+    fireEvent(window, new Event('focus'));
+    fireEvent(window, new Event('pageshow'));
+    await act(async () => { await Promise.resolve(); });
+    expect(exchangeQuickAuth).toHaveBeenCalledTimes(2);
+
+    renewal.resolve(pendingAdmission());
+    await act(async () => { await Promise.resolve(); });
+    expect(state().phase).toBe('pending-admission');
+    expect(screen.getByTestId('token').textContent).toBe('false');
   });
 
   it('fails a visible launch cleanly when the host cannot issue a valid bearer', async () => {

@@ -552,6 +552,7 @@
   background: rgb(0 0 0 / 25%);
   overflow-wrap: anywhere;
   user-select: text;
+  white-space: pre-wrap;
 }
 
 .realm-renderer-recovery-panel small {
@@ -562,7 +563,7 @@
 
 .realm-renderer-recovery-panel__actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.5rem;
 }
 
@@ -589,11 +590,38 @@
   outline-offset: 2px;
 }
 
+.realm-renderer-recovery-panel__manual-copy {
+  display: grid;
+  gap: 0.42rem;
+  color: rgb(201 191 208 / 88%);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.realm-renderer-recovery-panel__manual-copy textarea {
+  width: 100%;
+  min-height: 8rem;
+  box-sizing: border-box;
+  resize: vertical;
+  padding: 0.58rem;
+  border: 1px solid rgb(201 167 234 / 34%);
+  border-radius: 0.35rem;
+  background: rgb(0 0 0 / 34%);
+  color: #ead8ff;
+  font: 600 0.7rem/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.realm-renderer-recovery-panel__manual-copy textarea:focus-visible {
+  border-color: var(--realm-electrum);
+  outline: 2px solid var(--realm-electrum);
+  outline-offset: 2px;
+}
+
 .realm-map-screen__visual-update {
   position: absolute;
   z-index: 11;
-  right: max(0.75rem, env(safe-area-inset-right));
-  bottom: max(0.75rem, env(safe-area-inset-bottom));
+  right: max(0.75rem, var(--realm-safe-right, env(safe-area-inset-right)));
+  bottom: max(0.75rem, var(--realm-safe-bottom, env(safe-area-inset-bottom)));
   padding: 0.48rem 0.7rem;
   border: 1px solid rgb(227 193 111 / 42%);
   border-radius: 999px;
@@ -1251,8 +1279,8 @@
 .realm-hud {
   position: absolute;
   z-index: 5;
-  top: max(0.8rem, env(safe-area-inset-top));
-  left: max(0.8rem, env(safe-area-inset-left));
+  top: max(0.8rem, var(--realm-safe-top, env(safe-area-inset-top)));
+  left: max(0.8rem, var(--realm-safe-left, env(safe-area-inset-left)));
   display: grid;
   gap: 0.42rem;
   width: min(15.5rem, calc(100vw - 1.6rem));
@@ -1333,8 +1361,8 @@
 .realm-hud__actions {
   position: fixed;
   z-index: 7;
-  bottom: max(0.8rem, env(safe-area-inset-bottom));
-  left: max(0.8rem, env(safe-area-inset-left));
+  bottom: max(0.8rem, var(--realm-safe-bottom, env(safe-area-inset-bottom)));
+  left: max(0.8rem, var(--realm-safe-left, env(safe-area-inset-left)));
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.32rem;
@@ -1377,8 +1405,8 @@
 .realm-cell-navigator {
   position: absolute;
   z-index: 8;
-  bottom: max(0.8rem, env(safe-area-inset-bottom));
-  left: max(11.2rem, calc(env(safe-area-inset-left) + 11.2rem));
+  bottom: max(0.8rem, var(--realm-safe-bottom, env(safe-area-inset-bottom)));
+  left: max(11.2rem, calc(var(--realm-safe-left, env(safe-area-inset-left)) + 11.2rem));
   width: min(20rem, calc(100vw - 12rem));
   box-sizing: border-box;
 }
@@ -1667,9 +1695,9 @@
 
 @media (max-width: 760px) {
   .realm-hud {
-    top: max(0.55rem, env(safe-area-inset-top));
-    left: max(0.55rem, env(safe-area-inset-left));
-    width: min(14.75rem, calc(100vw - 1.1rem - env(safe-area-inset-left) - env(safe-area-inset-right)));
+    top: max(0.55rem, var(--realm-safe-top, env(safe-area-inset-top)));
+    left: max(0.55rem, var(--realm-safe-left, env(safe-area-inset-left)));
+    width: min(14.75rem, calc(100vw - 1.1rem - var(--realm-safe-left, env(safe-area-inset-left)) - var(--realm-safe-right, env(safe-area-inset-right))));
     padding: 0.58rem 0.64rem;
   }
 
@@ -1682,16 +1710,16 @@
   }
 
   .realm-hud__actions {
-    bottom: max(0.55rem, env(safe-area-inset-bottom));
-    left: max(0.55rem, env(safe-area-inset-left));
-    width: calc((100vw - 1.42rem - env(safe-area-inset-left) - env(safe-area-inset-right)) * 0.56);
+    bottom: max(0.55rem, var(--realm-safe-bottom, env(safe-area-inset-bottom)));
+    left: max(0.55rem, var(--realm-safe-left, env(safe-area-inset-left)));
+    width: calc((100vw - 1.42rem - var(--realm-safe-left, env(safe-area-inset-left)) - var(--realm-safe-right, env(safe-area-inset-right))) * 0.56);
   }
 
   .realm-cell-navigator {
-    right: max(0.55rem, env(safe-area-inset-right));
-    bottom: max(0.55rem, env(safe-area-inset-bottom));
+    right: max(0.55rem, var(--realm-safe-right, env(safe-area-inset-right)));
+    bottom: max(0.55rem, var(--realm-safe-bottom, env(safe-area-inset-bottom)));
     left: auto;
-    width: calc((100vw - 1.42rem - env(safe-area-inset-left) - env(safe-area-inset-right)) * 0.42);
+    width: calc((100vw - 1.42rem - var(--realm-safe-left, env(safe-area-inset-left)) - var(--realm-safe-right, env(safe-area-inset-right))) * 0.42);
   }
 
   .realm-cell-navigator > button {
@@ -1706,11 +1734,11 @@
 
   .realm-cell-navigator__dialog {
     position: fixed;
-    right: max(0.55rem, env(safe-area-inset-right));
-    bottom: max(0.55rem, env(safe-area-inset-bottom));
-    left: max(0.55rem, env(safe-area-inset-left));
+    right: max(0.55rem, var(--realm-safe-right, env(safe-area-inset-right)));
+    bottom: max(0.55rem, var(--realm-safe-bottom, env(safe-area-inset-bottom)));
+    left: max(0.55rem, var(--realm-safe-left, env(safe-area-inset-left)));
     width: auto;
-    max-height: calc(100svh - 1.1rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    max-height: calc(100svh - 1.1rem - var(--realm-safe-top, env(safe-area-inset-top)) - var(--realm-safe-bottom, env(safe-area-inset-bottom)));
   }
 
   .realm-map-screen:has(:is(.castle-inspection, .gold-mine-inspection, .food-farm-inspection)) .realm-hud,
@@ -1723,14 +1751,14 @@
   }
 
   .realm-map-screen__fallback-copy {
-    bottom: max(4.55rem, calc(env(safe-area-inset-bottom) + 4rem));
+    bottom: max(4.55rem, calc(var(--realm-safe-bottom, env(safe-area-inset-bottom)) + 4rem));
     width: calc(100vw - 1.1rem);
   }
 }
 
 @media (max-width: 430px) {
   .realm-hud {
-    width: min(13.75rem, calc(100vw - 1.1rem - env(safe-area-inset-left) - env(safe-area-inset-right)));
+    width: min(13.75rem, calc(100vw - 1.1rem - var(--realm-safe-left, env(safe-area-inset-left)) - var(--realm-safe-right, env(safe-area-inset-right))));
   }
 
   .realm-cell-navigator > button {
@@ -1760,8 +1788,8 @@
 
 @media (max-height: 600px) and (min-width: 581px) {
   .realm-hud {
-    top: max(0.45rem, env(safe-area-inset-top));
-    left: max(0.55rem, env(safe-area-inset-left));
+    top: max(0.45rem, var(--realm-safe-top, env(safe-area-inset-top)));
+    left: max(0.55rem, var(--realm-safe-left, env(safe-area-inset-left)));
     width: min(13.5rem, 31vw);
     padding: 0.5rem 0.58rem;
   }
@@ -1771,15 +1799,15 @@
   }
 
   .realm-hud__actions {
-    bottom: max(0.45rem, env(safe-area-inset-bottom));
-    left: max(0.55rem, env(safe-area-inset-left));
+    bottom: max(0.45rem, var(--realm-safe-bottom, env(safe-area-inset-bottom)));
+    left: max(0.55rem, var(--realm-safe-left, env(safe-area-inset-left)));
     width: 8.75rem;
   }
 
   .realm-cell-navigator {
     right: auto;
-    bottom: max(0.45rem, env(safe-area-inset-bottom));
-    left: max(10rem, calc(env(safe-area-inset-left) + 10rem));
+    bottom: max(0.45rem, var(--realm-safe-bottom, env(safe-area-inset-bottom)));
+    left: max(10rem, calc(var(--realm-safe-left, env(safe-area-inset-left)) + 10rem));
     width: 7.75rem;
   }
 
@@ -1789,9 +1817,9 @@
 
   .realm-cell-navigator__dialog {
     position: fixed;
-    top: max(0.45rem, env(safe-area-inset-top));
-    right: max(0.55rem, env(safe-area-inset-right));
-    bottom: max(0.45rem, env(safe-area-inset-bottom));
+    top: max(0.45rem, var(--realm-safe-top, env(safe-area-inset-top)));
+    right: max(0.55rem, var(--realm-safe-right, env(safe-area-inset-right)));
+    bottom: max(0.45rem, var(--realm-safe-bottom, env(safe-area-inset-bottom)));
     left: auto;
     width: min(18rem, 43vw);
     max-height: none;

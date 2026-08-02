@@ -19,6 +19,7 @@ import {
   HEGEMONY_STONE_QUARRY_RENDER_LIMITS
 } from './realmExpeditionPresentationBudget';
 import type { RealmQualitySpec } from './realmQuality';
+import { selectRealmResourceLayerHit } from './realmPickArbitration';
 import {
   resolveRealmStoneWagonPose,
   type RealmStoneNodePresentation,
@@ -573,17 +574,29 @@ export function createRealmStoneNodeLayer(options: CreateRealmStoneNodeLayerOpti
   const raycast = (raycaster: THREE.Raycaster) => {
     const siteHit = raycaster.intersectObject(pickVolumes, false)[0];
     const wagonHit = raycaster.intersectObject(wagonPickVolumes, false)[0];
-    const useWagon = wagonHit !== undefined;
-    const hit = useWagon ? wagonHit : siteHit;
-    const node = hit?.instanceId === undefined
+    const siteNode = siteHit?.instanceId === undefined
       ? undefined
-      : (useWagon ? wagonPickIndexByInstance : pickIndexByInstance).get(hit.instanceId);
-    return node ? Object.freeze({
-      siteId: node.record.siteId,
-      coord: node.record.coord,
-      source: useWagon ? 'wagon' as const : 'site' as const,
-      distance: hit!.distance
-    }) : null;
+      : pickIndexByInstance.get(siteHit.instanceId);
+    const wagonNode = wagonHit?.instanceId === undefined
+      ? undefined
+      : wagonPickIndexByInstance.get(wagonHit.instanceId);
+    const siteCandidate: RealmStoneNodeInstanceHit | null = siteNode && siteHit
+      ? Object.freeze({
+        siteId: siteNode.record.siteId,
+        coord: siteNode.record.coord,
+        source: 'site',
+        distance: siteHit.distance
+      })
+      : null;
+    const wagonCandidate: RealmStoneNodeInstanceHit | null = wagonNode && wagonHit
+      ? Object.freeze({
+        siteId: wagonNode.record.siteId,
+        coord: wagonNode.record.coord,
+        source: 'wagon',
+        distance: wagonHit.distance
+      })
+      : null;
+    return selectRealmResourceLayerHit(siteCandidate, wagonCandidate);
   };
   const dispose = () => {
     if (disposed) return;

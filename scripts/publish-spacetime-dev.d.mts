@@ -73,6 +73,11 @@ export function verifyFreshProductionV11Schema(...args: any[]): any;
 export function verifyFreshProductionV12ModuleSchema(...args: any[]): any;
 export function verifyFreshProductionV13ModuleSchema(...args: any[]): any;
 export function verifyFreshProductionV14ModuleSchema(...args: any[]): any;
+export function verifyFreshActiveDailyMarksV14(
+  secret: string,
+  expectations: FoundedPublishExpectations,
+  ...args: any[]
+): any;
 export function verifyFreshFoundedProtocolV3Aggregate(
   secret: string,
   expectations: FoundedPublishExpectations,
@@ -82,6 +87,11 @@ export function verifyFreshResourceProtocolV4PrebackfillAggregate(...args: any[]
 export function verifyFreshResourceProtocolV4ReadyAggregate(...args: any[]): any;
 export function verifyMigrationArtifactReceipt(...args: any[]): any;
 export function verifyEmptyDailyMarksV14StatusOutput(...args: any[]): any;
+export function verifyActiveDailyMarksV14StatusOutput(
+  output: string,
+  expectedFounderCount: number,
+  expectedEnabledAllowedFidCount: number,
+): any;
 export function verifyPinnedCliAttestation(...args: any[]): any;
 export function verifyPostPublishAlphaStatusV8Aggregate(...args: any[]): any;
 export function verifyPostPublishAlphaStatusV10Aggregate(...args: any[]): any;
@@ -102,7 +112,13 @@ export function verifyPostPublishProductionV13ModuleSchema(...args: any[]): any;
 export function verifyPostPublishProductionV13ActiveModuleSchema(...args: any[]): any;
 export function verifyPostPublishProductionV13SchemaFromV11(...args: any[]): any;
 export function verifyPostPublishProductionV14ModuleSchema(...args: any[]): any;
+export function verifyPostPublishProductionV14ActiveModuleSchema(...args: any[]): any;
 export function verifyPostPublishEmptyDailyMarksV14(...args: any[]): any;
+export function verifyPostPublishActiveDailyMarksV14(
+  secret: string,
+  expectations: FoundedPublishExpectations,
+  ...args: any[]
+): any;
 export function verifyPostPublishResourceProtocolV4PrebackfillAggregate(...args: any[]): any;
 export function verifyPostPublishResourceProtocolV4ReadyAggregate(...args: any[]): any;
 export function verifyPostPublishResourcePublicationCheckpoints(
@@ -130,3 +146,4 @@ export function verifyExactProductionV14ModuleSchema(...args: any[]): any;
 export function verifyWorkerV12ModuleAbi(...args: any[]): any;
 export function verifyWorkerV12ModulePredecessor(...args: any[]): any;
 export function verifyWorkerV13ModulePredecessor(...args: any[]): any;
+export function verifyWorkerV14ModulePredecessor(...args: any[]): any;

@@ -1,3 +1,69 @@
+.warpkeep-frame-boundary {
+  display: grid;
+  min-height: 100vh;
+  min-height: 100svh;
+  place-items: center;
+  padding: max(1rem, env(safe-area-inset-top))
+    max(1rem, env(safe-area-inset-right))
+    max(1rem, env(safe-area-inset-bottom))
+    max(1rem, env(safe-area-inset-left));
+  color: #f2dfae;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(116, 61, 145, 0.34), transparent 42%),
+    #05040a;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.warpkeep-frame-boundary__panel {
+  width: min(32rem, 100%);
+  padding: clamp(1.4rem, 5vw, 2.5rem);
+  border: 1px solid rgba(231, 194, 119, 0.5);
+  border-radius: 0.7rem;
+  background: rgba(8, 7, 13, 0.96);
+  box-shadow: 0 1.5rem 5rem rgba(0, 0, 0, 0.72);
+  text-align: center;
+}
+
+.warpkeep-frame-boundary__eyebrow {
+  margin: 0;
+  color: #b895ca;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+}
+
+.warpkeep-frame-boundary h1 {
+  margin: 0.55rem 0 0;
+  font: 400 clamp(1.7rem, 7vw, 2.8rem)/1.05 Georgia, "Times New Roman", serif;
+  letter-spacing: 0.06em;
+}
+
+.warpkeep-frame-boundary__panel > p:not(.warpkeep-frame-boundary__eyebrow) {
+  margin: 1rem auto 0;
+  color: #cdbb9a;
+  line-height: 1.55;
+}
+
+.warpkeep-frame-boundary a {
+  display: inline-grid;
+  min-height: 44px;
+  margin-top: 1.35rem;
+  place-items: center;
+  padding: 0.75rem 1.1rem;
+  border: 1px solid rgba(238, 205, 125, 0.82);
+  color: #f0d9a6;
+  background: rgba(103, 66, 122, 0.74);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-decoration: none;
+}
+
+.warpkeep-frame-boundary a:focus-visible {
+  outline: 2px solid rgba(250, 220, 163, 0.95);
+  outline-offset: 3px;
+}
+
 .warpkeep-experience {
   position: fixed;
   inset: 0;

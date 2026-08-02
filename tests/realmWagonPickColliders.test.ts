@@ -183,14 +183,26 @@ describe('moving resource wagon pick colliders', () => {
 
       const overlappingRay = {
         intersectObject: vi.fn()
-          // Static site is geometrically nearer, but must remain below wagon.
+          // Small collider-depth differences still represent one operable
+          // overlap, so the moving wagon retains gameplay priority.
           .mockReturnValueOnce([{ instanceId: 0, distance: 1 }])
-          .mockReturnValueOnce([{ instanceId: 0, distance: 9 }])
+          .mockReturnValueOnce([{ instanceId: 0, distance: 1.6 }])
       } as unknown as THREE.Raycaster;
       expect(layer.raycast(overlappingRay)).toMatchObject({
         siteId: `test-${resource}-site`,
         source: 'wagon',
-        distance: 9
+        distance: 1.6
+      });
+
+      const occludedWagonRay = {
+        intersectObject: vi.fn()
+          .mockReturnValueOnce([{ instanceId: 0, distance: 1 }])
+          .mockReturnValueOnce([{ instanceId: 0, distance: 9 }])
+      } as unknown as THREE.Raycaster;
+      expect(layer.raycast(occludedWagonRay)).toMatchObject({
+        siteId: `test-${resource}-site`,
+        source: 'site',
+        distance: 1
       });
       layer.dispose();
     }

@@ -26,6 +26,10 @@ import {
   type QaJourneyScenario
 } from './qaJourneyFixture';
 import { createZeroQaResourcePresentation } from './qaResourceFixture';
+import {
+  AccessRequestQaStage,
+  readAccessRequestQaMode
+} from './AccessRequestQaStage';
 import './qaJourney.css';
 
 type WarpkeepQaJourneyLabProps = Readonly<{
@@ -190,6 +194,14 @@ function DirectAdmissionStage({
   scenario: QaAdmissionScenario;
   onScenarioChange: (scenario: QaJourneyScenario) => void;
 }>) {
+  if (scenario === 'admission-denied') {
+    return (
+      <AccessRequestQaStage
+        mode={readAccessRequestQaMode(window.location.search)}
+        onBackToMenu={() => onScenarioChange('menu')}
+      />
+    );
+  }
   return (
     <main className="qa-journey__auth-stage">
       <div className="warpkeep-menu-auth-rail">

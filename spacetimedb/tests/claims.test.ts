@@ -86,6 +86,7 @@ function accessRequestResolverPayload(overrides: Record<string, unknown> = {}) {
     token_type: config.tokenType,
     roles: ['warpkeep-access-request-resolver'],
     request_fid: '12345',
+    request_operation: 'status',
     iat,
     exp: iat + ACCESS_REQUEST_RESOLVER_ISSUANCE_SECONDS,
     ...overrides,
@@ -388,6 +389,7 @@ test('accepts only the exact fresh FID-bound access-request resolver principal',
   assert.equal(fresh.subject, 'service:access-request-resolver');
   assert.deepEqual(fresh.roles, ['warpkeep-access-request-resolver']);
   assert.equal(fresh.requestFid, 12345n);
+  assert.equal(fresh.requestOperation, 'status');
 });
 
 test('rejects access-request impersonation, authority mixing, malformed FIDs, and invalid windows', () => {
@@ -404,6 +406,9 @@ test('rejects access-request impersonation, authority mixing, malformed FIDs, an
     accessRequestResolverPayload({ request_fid: 12345 }),
     accessRequestResolverPayload({ request_fid: '0' }),
     accessRequestResolverPayload({ request_fid: '9007199254740992' }),
+    accessRequestResolverPayload({ request_operation: undefined }),
+    accessRequestResolverPayload({ request_operation: 'read' }),
+    accessRequestResolverPayload({ request_operation: ['status'] }),
     accessRequestResolverPayload({ fid: '12345' }),
     accessRequestResolverPayload({ auth_version: 2 }),
     accessRequestResolverPayload({ auth_epoch: 1 }),

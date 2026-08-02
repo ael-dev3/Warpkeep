@@ -330,6 +330,11 @@ function rendererTelemetryCount(value: string | undefined) {
   return Number.isSafeInteger(parsed) ? parsed : 0;
 }
 
+function rendererTelemetryPositiveInteger(value: string | undefined) {
+  const parsed = rendererTelemetryCount(value);
+  return parsed > 0 ? parsed : undefined;
+}
+
 const REALM_KEYBOARD_INSTRUCTIONS_ID = 'realm-map-keyboard-instructions';
 const RESOURCE_SELECTION_SFX_KINDS = Object.freeze({
   food: 'select-food',
@@ -3303,6 +3308,15 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     rotateRendererCanvasSlot
   ]);
 
+  const retryRendererInPerformanceMode = useCallback(() => {
+    const current = rendererLifecycleRef.current;
+    pendingEmergencyQualityRef.current = Object.freeze({
+      generation: current.generation,
+      quality: 'reduced'
+    });
+    retryRenderer();
+  }, [retryRenderer]);
+
   const isSceneCoordPassable = useCallback((coord: HexCoord) => (
     isPlayableRealmCoord(surfaceRef.current, coord)
     && tileMetadataByKeyRef.current.get(hexKey(coord))?.passable !== false
@@ -5551,6 +5565,22 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     ?? rendererLifecycle.lastFailure;
   const rendererContextLossCount = String(rendererContextLossCountRef.current);
   const rendererContextRestoreCount = String(rendererContextRestoreCountRef.current);
+  const rendererDiagnosticCanvas = rendererCanvasByGenerationRef.current.get(
+    rendererLifecycle.generation
+  ) ?? canvasRef.current;
+  const rendererDiagnosticMaxTextureSize = rendererTelemetryPositiveInteger(
+    rendererDiagnosticCanvas?.dataset.realmRendererMaxTextureSize
+  );
+  const rendererDiagnosticCanvasInitialized =
+    rendererDiagnosticCanvas?.dataset.realmRendererGeneration !== undefined
+    && rendererDiagnosticMaxTextureSize !== undefined;
+  const rendererSelectedQuality = graphicsPreference
+    ?? resolvedGraphicsQuality
+    ?? (requestedQuality === 'high'
+      ? 'cinematic'
+      : requestedQuality === 'balanced'
+        ? 'balanced'
+        : 'performance');
   const blockingLoadingOverlayVisible = (
     rendererLifecycle.state !== 'ready'
     && rendererLifecycle.state !== 'static-unsupported'
@@ -5624,27 +5654,6 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       data-worker-private-sync-phase={
         observerMode ? 'not-required' : workerPrivateSync?.phase ?? 'not-required'
       }
-      data-worker-private-sync-attempt={String(
-        observerMode ? 0 : workerPrivateSync?.attempt ?? 0
-      )}
-      data-worker-private-sync-queued={String(
-        !observerMode && (workerPrivateSync?.queuedRefresh ?? false)
-      )}
-      data-worker-private-sync-retained-stale={String(
-        !observerMode && (workerPrivateSync?.retainedStale ?? false)
-      )}
-      data-worker-private-sync-localized-error-count={String(
-        observerMode ? 0 : workerPrivateSync?.localizedFailureCount ?? 0
-      )}
-      data-worker-private-sync-last-success-generation={String(
-        observerMode ? 0 : workerPrivateSync?.lastSuccessGeneration ?? 0
-      )}
-      data-worker-private-sync-last-success-revision={
-        observerMode ? 'none' : workerPrivateSync?.lastSuccessRevision ?? 'none'
-      }
-      data-worker-private-sync-ready-latency-ms={String(
-        observerMode ? 0 : workerPrivateSync?.readyLatencyMilliseconds ?? 0
-      )}
       data-worker-private-sync-commands-enabled={String(
         !observerMode && (workerPrivateSync?.commandsEnabled ?? false)
       )}
@@ -5957,17 +5966,21 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
             attempt={rendererLifecycle.attempt}
             contextLossCount={rendererContextLossCount}
             contextRestoreCount={rendererContextRestoreCount}
+            drawingBufferHeight={rendererDiagnosticCanvasInitialized
+              ? rendererDiagnosticCanvas?.height
+              : undefined}
+            drawingBufferWidth={rendererDiagnosticCanvasInitialized
+              ? rendererDiagnosticCanvas?.width
+              : undefined}
             effectiveQuality={quality}
-            emergencyQuality={emergencyQualityCeiling}
             everReady={rendererLifecycle.everReady}
             failure={rendererDiagnosticFailure}
             generation={rendererLifecycle.generation}
-            host={chromeMode === 'miniapp' ? 'miniapp' : 'web'}
+            maxTextureSize={rendererDiagnosticMaxTextureSize}
             mode="fallback"
-            observerMode={observerMode}
-            onRetry={retryRenderer}
             onReturn={onRequestReturn}
-            requestedQuality={requestedQuality}
+            onTryPerformance={retryRendererInPerformanceMode}
+            selectedQuality={rendererSelectedQuality}
             webgl2Available={rendererWebGLProbeAvailableRef.current}
           />
         </div>
@@ -5985,17 +5998,23 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
               attempt={rendererLifecycle.attempt}
               contextLossCount={rendererContextLossCount}
               contextRestoreCount={rendererContextRestoreCount}
+              drawingBufferHeight={rendererDiagnosticCanvasInitialized
+                ? rendererDiagnosticCanvas?.height
+                : undefined}
+              drawingBufferWidth={rendererDiagnosticCanvasInitialized
+                ? rendererDiagnosticCanvas?.width
+                : undefined}
               effectiveQuality={quality}
-              emergencyQuality={emergencyQualityCeiling}
               everReady={rendererLifecycle.everReady}
               failure={rendererDiagnosticFailure}
               generation={rendererLifecycle.generation}
-              host={chromeMode === 'miniapp' ? 'miniapp' : 'web'}
+              maxTextureSize={rendererDiagnosticMaxTextureSize}
               mode={rendererLifecycle.state === 'failed' ? 'failed' : 'recovering'}
-              observerMode={observerMode}
-              onRetry={rendererLifecycle.state === 'failed' ? retryRenderer : undefined}
               onReturn={onRequestReturn}
-              requestedQuality={requestedQuality}
+              onTryPerformance={rendererLifecycle.state === 'failed'
+                ? retryRendererInPerformanceMode
+                : undefined}
+              selectedQuality={rendererSelectedQuality}
               webgl2Available={rendererWebGLProbeAvailableRef.current}
             />
           ) : (

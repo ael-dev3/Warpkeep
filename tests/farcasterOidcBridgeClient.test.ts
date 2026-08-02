@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  accessRequestNoMutationReason,
   FarcasterOidcBridgeClientError,
   createFarcasterOidcBridgeClient,
+  isDefinitiveAccessRequestNoMutationError,
   type FarcasterOidcBridgeFetch
 } from '../src/farcaster/farcasterOidcBridgeClient';
 import type {
@@ -700,23 +702,29 @@ describe('Farcaster OIDC bridge v2 client', () => {
     );
     const bridge = createBridge(fetch);
     await expect(bridge.getAccessRequestStatus!(
-      { mode: 'pending-session' }
+      { mode: 'pending-session' },
+      { expectedFid: Number(FID) }
     )).resolves.toEqual({ version: 1, status: 'not-requested' });
     await expect(bridge.requestAccess!(
-      { mode: 'quick-auth', token: 'header.payload.signature' }
+      { mode: 'quick-auth', token: 'header.payload.signature' },
+      { expectedFid: Number(FID) }
     )).resolves.toEqual({ version: 1, status: 'requested', requestedAt: NOW });
 
     const [statusUrl, statusInit] = vi.mocked(fetch).mock.calls[0]!;
     expect(String(statusUrl)).toBe('https://auth.warpkeep.example/v2/access/status');
     expect(statusInit?.credentials).toBe('include');
     expect(statusInit?.headers).not.toHaveProperty('authorization');
+    expect(statusInit?.headers).toMatchObject({
+      'x-warpkeep-expected-fid': String(FID)
+    });
     expect(JSON.parse(String(statusInit?.body))).toEqual({});
 
     const [requestUrl, requestInit] = vi.mocked(fetch).mock.calls[1]!;
     expect(String(requestUrl)).toBe('https://auth.warpkeep.example/v2/access/request');
     expect(requestInit?.credentials).toBe('omit');
     expect(requestInit?.headers).toMatchObject({
-      authorization: 'Bearer header.payload.signature'
+      authorization: 'Bearer header.payload.signature',
+      'x-warpkeep-expected-fid': String(FID)
     });
     expect(JSON.parse(String(requestInit?.body))).toEqual({});
     expect(String(requestInit?.body)).not.toContain('fid');
@@ -730,15 +738,93 @@ describe('Farcaster OIDC bridge v2 client', () => {
     );
     const bridge = createBridge(fetch);
     await expect(bridge.getAccessRequestStatus!(
-      { mode: 'quick-auth', token: 'not-a-jwt' }
+      { mode: 'quick-auth', token: 'not-a-jwt' },
+      { expectedFid: Number(FID) }
     )).rejects.toBeInstanceOf(FarcasterOidcBridgeClientError);
     expect(fetch).not.toHaveBeenCalled();
 
     for (let index = 0; index < 3; index += 1) {
       await expect(bridge.getAccessRequestStatus!(
-        { mode: 'pending-session' }
+        { mode: 'pending-session' },
+        { expectedFid: Number(FID) }
       )).rejects.toBeInstanceOf(FarcasterOidcBridgeClientError);
     }
+  });
+
+  it('brands only the exact pre-mutation access-request rate-limit response', async () => {
+    const fetch = createFetch(
+      jsonResponse({
+        error: {
+          code: 'rate_limited',
+          message: 'Too many requests. Try again later.'
+        }
+      }, 429),
+      jsonResponse({
+        error: {
+          code: 'access_request_unavailable',
+          message: 'Access requests are temporarily unavailable.'
+        }
+      }, 503)
+    );
+    const bridge = createBridge(fetch);
+
+    const definitive = await bridge.requestAccess(
+      { mode: 'pending-session' },
+      { expectedFid: FID }
+    ).catch((error: unknown) => error);
+    expect(definitive).toBeInstanceOf(FarcasterOidcBridgeClientError);
+    expect(isDefinitiveAccessRequestNoMutationError(definitive)).toBe(true);
+    expect(accessRequestNoMutationReason(definitive)).toBe('rate-limited');
+
+    const ambiguous = await bridge.requestAccess(
+      { mode: 'pending-session' },
+      { expectedFid: FID }
+    ).catch((error: unknown) => error);
+    expect(ambiguous).toBeInstanceOf(FarcasterOidcBridgeClientError);
+    expect(isDefinitiveAccessRequestNoMutationError(ambiguous)).toBe(false);
+    expect(accessRequestNoMutationReason(ambiguous)).toBeNull();
+  });
+
+  it('brands only the exact access identity change on status reads', async () => {
+    const fetch = createFetch(
+      jsonResponse({
+        error: {
+          code: 'access_identity_changed',
+          message: 'The authenticated identity changed. Refresh and try again.'
+        }
+      }, 409),
+      jsonResponse({
+        error: {
+          code: 'access_request_unavailable',
+          message: 'Access requests are temporarily unavailable.'
+        }
+      }, 409),
+      jsonResponse({
+        error: {
+          code: 'rate_limited',
+          message: 'Too many requests. Try again later.'
+        }
+      }, 429)
+    );
+    const bridge = createBridge(fetch);
+
+    const identityChanged = await bridge.getAccessRequestStatus(
+      { mode: 'pending-session' },
+      { expectedFid: FID }
+    ).catch((error: unknown) => error);
+    expect(accessRequestNoMutationReason(identityChanged)).toBe('identity-changed');
+
+    const wrongCode = await bridge.getAccessRequestStatus(
+      { mode: 'pending-session' },
+      { expectedFid: FID }
+    ).catch((error: unknown) => error);
+    expect(accessRequestNoMutationReason(wrongCode)).toBeNull();
+
+    const rateLimited = await bridge.getAccessRequestStatus(
+      { mode: 'pending-session' },
+      { expectedFid: FID }
+    ).catch((error: unknown) => error);
+    expect(accessRequestNoMutationReason(rateLimited)).toBeNull();
   });
 
   it('logs out with an empty POST body and requires status 204', async () => {

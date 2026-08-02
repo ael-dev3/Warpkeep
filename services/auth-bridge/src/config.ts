@@ -47,6 +47,7 @@ export interface BridgeConfig {
   spacetimeDbUri: string
   spacetimeDbDatabase: string
   publicAuthEnabled: boolean
+  accessExpectedFidRequired: boolean
   qaObserverEnabled: boolean
   qaObserverSpacetimeDb?: QaObserverSpacetimeDbConfig
   qaObserverPublicJwk?: PublicEcJwk
@@ -477,6 +478,9 @@ export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
     spacetimeDbUri,
     spacetimeDbDatabase,
     publicAuthEnabled: parsePublicAuthEnabled(required(env, 'PUBLIC_AUTH_ENABLED')),
+    accessExpectedFidRequired: env.ACCESS_EXPECTED_FID_REQUIRED === undefined
+      ? false
+      : parsePublicAuthEnabled(env.ACCESS_EXPECTED_FID_REQUIRED),
     qaObserverEnabled,
     ...(qaObserverSpacetimeDb ? { qaObserverSpacetimeDb } : {}),
     ...(qaObserverPublicJwk ? { qaObserverPublicJwk } : {}),

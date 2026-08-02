@@ -100,7 +100,9 @@ export type MiniAppSdkLoader = () => Promise<unknown>;
 
 export type MiniAppBrowserRuntime = Readonly<{
   search: () => string;
+  isFramed?: () => boolean;
   viewport: () => Readonly<{ width: number; height: number }>;
+  subscribeViewportChange?: (listener: () => void) => () => void;
   document: Document;
   getMountedShell: () => Element | null;
   waitForAnimationFrame: () => Promise<void>;
@@ -189,6 +191,25 @@ function clampInset(value: unknown, axis: number): number {
   return Math.round(Math.min(maximum, Math.max(0, untrusted)) * 1_000) / 1_000;
 }
 
+type MiniAppInsetSeed = Readonly<{
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}>;
+
+const MINI_APP_CONTEXT_INSET_SEEDS = new WeakMap<
+  MiniAppPresentationContext,
+  MiniAppInsetSeed
+>();
+
+function boundedInsetSeed(value: unknown): number {
+  const untrusted = typeof value === 'number' && Number.isFinite(value)
+    ? value
+    : 0;
+  return Math.round(Math.min(160, Math.max(0, untrusted)) * 1_000) / 1_000;
+}
+
 export function hasExactMiniAppHint(search: string): boolean {
   if (typeof search !== 'string' || !search.startsWith('?')) return false;
   const rawQuery = search.slice(1);
@@ -233,11 +254,17 @@ export function sanitizeMiniAppContext(
     const rawInsets = isRecord(value.client.safeAreaInsets)
       ? value.client.safeAreaInsets
       : {};
+    const insetSeed = Object.freeze({
+      top: boundedInsetSeed(rawInsets.top),
+      right: boundedInsetSeed(rawInsets.right),
+      bottom: boundedInsetSeed(rawInsets.bottom),
+      left: boundedInsetSeed(rawInsets.left)
+    });
     const insets = Object.freeze({
-      top: clampInset(rawInsets.top, viewport.height),
-      right: clampInset(rawInsets.right, viewport.width),
-      bottom: clampInset(rawInsets.bottom, viewport.height),
-      left: clampInset(rawInsets.left, viewport.width)
+      top: clampInset(insetSeed.top, viewport.height),
+      right: clampInset(insetSeed.right, viewport.width),
+      bottom: clampInset(insetSeed.bottom, viewport.height),
+      left: clampInset(insetSeed.left, viewport.width)
     });
 
     const username = sanitizedText(value.user.username, 64, USERNAME_PATTERN);
@@ -263,7 +290,7 @@ export function sanitizeMiniAppContext(
       ? rawLocationType as MiniAppPresentationContext['locationType']
       : undefined;
 
-    return Object.freeze({
+    const context: MiniAppPresentationContext = Object.freeze({
       user,
       client: Object.freeze({
         clientFid,
@@ -278,9 +305,44 @@ export function sanitizeMiniAppContext(
       }),
       ...(locationType ? { locationType } : {})
     });
+    MINI_APP_CONTEXT_INSET_SEEDS.set(context, insetSeed);
+    return context;
   } catch {
     return null;
   }
+}
+
+/**
+ * Re-clamp an already-sanitized presentation snapshot without retaining or
+ * re-reading the mutable raw host object that produced it. Identity and other
+ * host metadata stay pinned to the first verified snapshot for this attempt.
+ */
+export function reclampMiniAppPresentationContext(
+  context: MiniAppPresentationContext,
+  viewport: Readonly<{ width: number; height: number }>
+): MiniAppPresentationContext {
+  const insets = MINI_APP_CONTEXT_INSET_SEEDS.get(context)
+    ?? context.client.safeAreaInsets;
+  const reclamped: MiniAppPresentationContext = Object.freeze({
+    user: context.user,
+    client: Object.freeze({
+      clientFid: context.client.clientFid,
+      added: context.client.added,
+      ...(context.client.platformType
+        ? { platformType: context.client.platformType }
+        : {}),
+      safeAreaInsets: Object.freeze({
+        top: clampInset(insets.top, viewport.height),
+        right: clampInset(insets.right, viewport.width),
+        bottom: clampInset(insets.bottom, viewport.height),
+        left: clampInset(insets.left, viewport.width)
+      })
+    }),
+    features: context.features,
+    ...(context.locationType ? { locationType: context.locationType } : {})
+  });
+  MINI_APP_CONTEXT_INSET_SEEDS.set(reclamped, insets);
+  return reclamped;
 }
 
 export function readMiniAppSdk(value: unknown): MiniAppSdk | null {
@@ -372,10 +434,27 @@ function waitForBoundedAnimationFrame(): Promise<void> {
   });
 }
 
+function subscribeDefaultViewportChange(listener: () => void): () => void {
+  window.addEventListener('resize', listener, { passive: true });
+  window.visualViewport?.addEventListener('resize', listener, { passive: true });
+  return () => {
+    window.removeEventListener('resize', listener);
+    window.visualViewport?.removeEventListener('resize', listener);
+  };
+}
+
 export const DEFAULT_MINI_APP_BROWSER_RUNTIME: MiniAppBrowserRuntime =
   Object.freeze({
     search: () => window.location.search,
+    isFramed: () => {
+      try {
+        return window.self !== window.top;
+      } catch {
+        return true;
+      }
+    },
     viewport: defaultViewport,
+    subscribeViewportChange: subscribeDefaultViewportChange,
     document,
     getMountedShell: () => document.getElementById('root'),
     waitForAnimationFrame: waitForBoundedAnimationFrame

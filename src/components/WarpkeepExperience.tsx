@@ -344,8 +344,11 @@ export function WarpkeepExperience() {
     || backend.state.phase === 'reconnecting';
 
   const resolvedGraphicsQuality = useMemo(
-    () => resolveGraphicsQuality(graphicsPreference, graphicsCapabilities),
-    [graphicsCapabilities, graphicsPreference]
+    () => resolveGraphicsQuality(graphicsPreference, {
+      ...graphicsCapabilities,
+      conservativeEmbeddedMobile: miniAppHost.isMiniApp
+    }),
+    [graphicsCapabilities, graphicsPreference, miniAppHost.isMiniApp]
   );
 
   const updateGraphicsPreference = useCallback((preference: GraphicsPreference) => {
@@ -515,7 +518,11 @@ export function WarpkeepExperience() {
   const menuMediaActive = menuMounted;
   const miniAppEntryGateActive = menuMounted
     && directMiniAppEntryEnabled
-    && (miniAppHost.state === 'detecting' || miniAppHost.isMiniApp);
+    && (
+      miniAppHost.state === 'detecting'
+      || miniAppHost.state === 'recovery'
+      || miniAppHost.isMiniApp
+    );
 
   useEffect(() => {
     if (!realmMounted) {
@@ -953,6 +960,16 @@ export function WarpkeepExperience() {
     beginTitleTransition(canReturnThroughHistory ? 'back' : 'replace');
   }, [beginTitleTransition]);
 
+  const openOrdinaryMiniAppMenu = useCallback(() => {
+    clearPendingRealmDestination();
+    window.history.replaceState(
+      menuHistoryState(),
+      '',
+      `${pageUrlWithoutHash()}${MENU_HASH}`
+    );
+    setDirectMiniAppEntryEnabled(false);
+  }, [clearPendingRealmDestination]);
+
   const markTransitionCovered = useCallback((
     sequence: number,
     direction: WarpTransitionDirection
@@ -1334,6 +1351,33 @@ export function WarpkeepExperience() {
       )
     : undefined;
 
+  if (
+    miniAppHost.isFramed
+    && (
+      miniAppHost.state === 'regular-web'
+      || miniAppHost.state === 'recovery'
+    )
+  ) {
+    return (
+      <main className="warpkeep-frame-boundary" role="alert">
+        <section
+          aria-labelledby="warpkeep-frame-boundary-title"
+          className="warpkeep-frame-boundary__panel"
+        >
+          <p className="warpkeep-frame-boundary__eyebrow">SECURE REALM ENTRY</p>
+          <h1 id="warpkeep-frame-boundary-title">OPEN WARPKEEP DIRECTLY</h1>
+          <p>
+            This embedded page is not a verified Farcaster Mini App. Open the
+            Realm directly before signing in or issuing commands.
+          </p>
+          <a href="https://warpkeep.com/" target="_top">
+            OPEN WARPKEEP
+          </a>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <div
       className="warpkeep-experience"
@@ -1417,13 +1461,16 @@ export function WarpkeepExperience() {
               authState={farcasterAuthState}
               backendState={backend.state}
               hostState={miniAppHost.state}
+              recoveryReason={miniAppHost.recoveryReason}
               onAcceptTerms={backend.beginAlphaTermsAcceptance}
+              onBackToMenu={openOrdinaryMiniAppMenu}
               onCancelTermsAttempt={backend.cancelAlphaTermsAcceptance}
               onCheckBackend={backend.checkAgain}
               onRefreshSession={refreshFarcasterSession}
               onRequestAccess={requestAccess}
               onRetryAccessRequestStatus={retryAccessRequestStatus}
               onRetryAuthentication={beginFarcasterSignIn}
+              onRetryHost={miniAppHost.retry}
               onSignOut={handleSignOut}
             />
           ) : (

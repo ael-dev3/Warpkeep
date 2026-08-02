@@ -6,6 +6,20 @@ export type LatestPatchNotes = Readonly<{
   alphaNotice: string;
 }>;
 
+const ALPHA_0_3_43_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: '2 AUG 2026',
+  title: 'THE REALM STANDS READY',
+  summary:
+    'Genesis 001 now meets uncertain roads with a gentler path, a settled gateway, and one clear account of the living Realm.',
+  highlights: Object.freeze([
+    'If a mobile graphics session falters, Warpkeep now descends through lighter visual footing before offering Performance mode, privacy-safe diagnostics, a return path, and direct support.',
+    'Request Access answers the first accepted gesture quietly, settles into a durable Request Received record, and never retries an uncertain mutation.',
+    'The current Mini App presentation now shows the Realm, an available resource order, and all four permanent Workers exactly as they appear in this release.'
+  ]),
+  alphaNotice:
+    'Alpha 0.3.43 remains invite-only and unfinished. Permanent keeps, four Worker journeys, and persistent gathering are live; construction, units, combat, alliances, and the larger strategy loop are still being built. A petition requests manual review only and promises no admission, reward, or financial value.'
+});
+
 const ALPHA_0_3_42_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '1 AUG 2026',
   title: 'THE GATE FALLS QUIET',
@@ -359,6 +373,7 @@ const ALPHA_0_3_22_PATCH_NOTES: LatestPatchNotes = Object.freeze({
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
+    '0.3.43': ALPHA_0_3_43_PATCH_NOTES,
     '0.3.42': ALPHA_0_3_42_PATCH_NOTES,
     '0.3.41': ALPHA_0_3_41_PATCH_NOTES,
     '0.3.40': ALPHA_0_3_40_PATCH_NOTES,

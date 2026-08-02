@@ -555,6 +555,52 @@ afterEach(() => {
 });
 
 describe('Warpkeep Farcaster Mini App direct entry', () => {
+  it('blocks an unverified regular-web frame before any realm interaction', () => {
+    renderExperience({
+      miniApp: {
+        runtime: {
+          ...miniAppRuntime(),
+          search: () => '',
+          isFramed: () => true
+        },
+        sdk: miniAppSdk(false)
+      }
+    });
+
+    expect(screen.getByRole('heading', {
+      name: 'OPEN WARPKEEP DIRECTLY'
+    })).not.toBeNull();
+    expect(screen.getByRole('link', { name: 'OPEN WARPKEEP' })
+      .getAttribute('target')).toBe('_top');
+    expect(screen.queryByRole('button', { name: 'ENTER REALM' })).toBeNull();
+  });
+
+  it('does not let a failed framed host fall through to the ordinary menu', async () => {
+    const sdk = {
+      ...miniAppSdk(),
+      isInMiniApp: vi.fn(async () => {
+        throw new Error('private host failure');
+      })
+    };
+    renderExperience({
+      miniApp: {
+        runtime: {
+          ...miniAppRuntime(),
+          search: () => '?miniApp=true',
+          isFramed: () => true
+        },
+        sdk
+      }
+    });
+
+    await settle();
+    expect(screen.getByRole('heading', {
+      name: 'OPEN WARPKEEP DIRECTLY'
+    })).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'BACK TO MENU' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'ENTER REALM' })).toBeNull();
+  });
+
   it('never treats the query hint or a forged history marker as host or Realm authority', async () => {
     window.history.replaceState(
       { warpkeepRealm: true, warpkeepDirectRealm: true },
@@ -580,6 +626,38 @@ describe('Warpkeep Farcaster Mini App direct entry', () => {
     expect(bridge.exchangeQuickAuth).not.toHaveBeenCalled();
     expect(backend.runtime.connect).not.toHaveBeenCalled();
     expectPlayerRealmChromeAbsent();
+  });
+
+  it('keeps an SDK host failure visible until the player retries or opens the menu', async () => {
+    window.history.replaceState({}, '', '/?miniApp=true');
+    const backend = createBackendRuntime();
+    const sdk = miniAppSdk();
+    sdk.isInMiniApp = vi.fn(async () => {
+      throw new Error('private Farcaster host detail');
+    });
+    const bridge = createQuickAuthBridge(createQuickAuthResponse());
+    const { container } = renderExperience({
+      bridge,
+      miniApp: { runtime: miniAppRuntime(), sdk },
+      runtime: backend.runtime
+    });
+
+    await settle();
+
+    expect(screen.getByRole('heading', {
+      name: 'MINI APP COULD NOT OPEN'
+    })).not.toBeNull();
+    expect(container.textContent).not.toContain('private Farcaster host detail');
+    expect(bridge.exchangeQuickAuth).not.toHaveBeenCalled();
+    expect(backend.runtime.connect).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'BACK TO MENU' }));
+    await settle();
+    expect(screen.getByRole('navigation', {
+      name: 'Hegemony main menu'
+    })).not.toBeNull();
+    expect(window.location.hash).toBe('#menu');
+    expect(bridge.logoutSession).not.toHaveBeenCalled();
   });
 
   it('opens the Realm directly after Quick Auth and authoritative current Terms', async () => {
@@ -648,11 +726,15 @@ describe('Warpkeep Farcaster Mini App direct entry', () => {
 
     expect(screen.getByRole('heading', { name: 'ENTRY NOT YET GRANTED' })).not.toBeNull();
     expect(screen.getByRole('button', { name: 'REQUEST ACCESS' })).not.toBeNull();
-    expect(screen.queryByRole('button', { name: 'BACK TO MENU' })).toBeNull();
-    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
     expect(container.querySelector('[data-warpkeep-audio-director="true"]')).toBeNull();
-    expect(window.location.hash).not.toBe('#realm');
+    fireEvent.click(screen.getByRole('button', { name: 'BACK TO MENU' }));
+    await settle();
+    expect(screen.getByRole('navigation', { name: 'Hegemony main menu' })).not.toBeNull();
+    expect(window.location.hash).toBe('#menu');
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
+    expect(container.querySelector('[data-warpkeep-audio-director="true"]')).not.toBeNull();
     expect(backend.runtime.connect).not.toHaveBeenCalled();
+    expect(bridge.logoutSession).not.toHaveBeenCalled();
     expectPlayerRealmChromeAbsent();
   });
 

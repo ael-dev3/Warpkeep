@@ -1,5 +1,10 @@
-import { StrictMode, useCallback } from 'react';
 import {
+  StrictMode,
+  useCallback,
+  type ReactNode
+} from 'react';
+import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -8,20 +13,28 @@ import {
 } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { FarcasterAccessRequestAction } from '../src/components/auth/FarcasterAccessRequest';
+import {
+  FarcasterAccessRequestAction,
+  FarcasterAccessRequestMessage
+} from '../src/components/auth/FarcasterAccessRequest';
+import { subscribeWarpkeepSfx } from '../src/components/audio/sfxEvents';
+import type { AccessRequestDiagnosticEvent } from '../src/farcaster/accessRequestStateMachine';
 import { useAccessRequest } from '../src/farcaster/useAccessRequest';
+import { createFarcasterOidcBridgeClient } from '../src/farcaster/farcasterOidcBridgeClient';
 import type {
   AccessRequestStatus,
   FarcasterAuthViewState,
   FarcasterOidcBridgeClient
 } from '../src/farcaster/farcasterAuthTypes';
 
+const REQUESTED_AT = 1_785_414_896_000;
+
 const pending = (fid: number): FarcasterAuthViewState => Object.freeze({
   phase: 'pending-admission',
   identity: Object.freeze({
     fid,
     verifications: [] as const,
-    verifiedAt: 1_785_414_896_000
+    verifiedAt: REQUESTED_AT
   }),
   sessionExpiresAt: 1_788_006_896_000
 });
@@ -30,10 +43,12 @@ const anonymous: FarcasterAuthViewState = Object.freeze({ phase: 'anonymous' });
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((resolvePromise) => {
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
     resolve = resolvePromise;
+    reject = rejectPromise;
   });
-  return Object.freeze({ promise, resolve });
+  return Object.freeze({ promise, reject, resolve });
 }
 
 function bridge(overrides: Partial<FarcasterOidcBridgeClient> = {}): FarcasterOidcBridgeClient {
@@ -57,88 +72,92 @@ function bridge(overrides: Partial<FarcasterOidcBridgeClient> = {}): FarcasterOi
     requestAccess: vi.fn(async () => ({
       version: 1 as const,
       status: 'requested' as const,
-      requestedAt: 1_785_414_896_000
+      requestedAt: REQUESTED_AT
     })),
     ...overrides
   };
 }
+
+type HarnessProps = Readonly<{
+  authState: FarcasterAuthViewState;
+  generation: number;
+  client: FarcasterOidcBridgeClient;
+  loadQuickAuthToken?: () => Promise<string | null>;
+  minimumSubmittingMilliseconds?: number;
+  minimumVerifyingMilliseconds?: number;
+  reportDiagnostic?: (event: AccessRequestDiagnosticEvent) => void;
+  onAuthenticationIdentityChanged?: () => void;
+  bridgeLoaderVersion?: number;
+  captureRequestAccess?: (callback: () => boolean) => void;
+  extra?: ReactNode;
+}>;
 
 function Harness({
   authState,
   generation,
   client,
   loadQuickAuthToken,
-  actionKey = 'access-request-action'
-}: Readonly<{
-  authState: FarcasterAuthViewState;
-  generation: number;
-  client: FarcasterOidcBridgeClient;
-  loadQuickAuthToken?: () => Promise<string | null>;
-  actionKey?: string;
-}>) {
-  const loadBridgeClient = useCallback(async () => client, [client]);
+  minimumSubmittingMilliseconds = 0,
+  minimumVerifyingMilliseconds = 0,
+  reportDiagnostic,
+  onAuthenticationIdentityChanged,
+  bridgeLoaderVersion = 0,
+  captureRequestAccess,
+  extra
+}: HarnessProps) {
+  // The version is intentionally captured so tests can churn loader identity.
+  const loadBridgeClient = useCallback(async () => {
+    void bridgeLoaderVersion;
+    return client;
+  }, [bridgeLoaderVersion, client]);
   const access = useAccessRequest({
     authState,
     authGeneration: generation,
     loadBridgeClient,
-    loadQuickAuthToken
+    loadQuickAuthToken,
+    minimumSubmittingMilliseconds,
+    minimumVerifyingMilliseconds,
+    monotonicNow: Date.now,
+    reportDiagnostic,
+    onAuthenticationIdentityChanged
   });
+  captureRequestAccess?.(access.requestAccess);
   return (
     <div>
-      <output>{access.state.phase}</output>
-      {'requestedAt' in access.state ? <time>{access.state.requestedAt}</time> : null}
+      <output data-testid="access-phase">{access.state.phase}</output>
+      {'requestedAt' in access.state ? (
+        <time data-testid="access-timestamp">{access.state.requestedAt}</time>
+      ) : null}
+      <FarcasterAccessRequestMessage state={access.state} />
       <FarcasterAccessRequestAction
-        key={actionKey}
+        onCheckAdmission={() => undefined}
         onRequestAccess={access.requestAccess}
+        onRetryStatus={access.retryStatus}
         state={access.state}
       />
       <button
         onClick={() => {
-          access.requestAccess();
-          access.requestAccess();
+          for (let index = 0; index < 20; index += 1) access.requestAccess();
         }}
         type="button"
       >
-        DIRECT DOUBLE REQUEST
+        DIRECT 20 REQUESTS
       </button>
-      <button onClick={access.retryStatus} type="button">CHECK REQUEST STATUS</button>
+      {extra}
     </div>
   );
 }
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
-describe('access-request controller lifecycle', () => {
-  it('latches the action locally before a parent state round trip', () => {
-    const onRequestAccess = vi.fn();
-    render(
-      <FarcasterAccessRequestAction
-        onRequestAccess={onRequestAccess}
-        state={{ phase: 'not-requested' }}
-      />
-    );
-
-    const request = screen.getByRole('button', { name: 'REQUEST ACCESS' });
-    fireEvent.click(request);
-    fireEvent.click(request);
-
-    expect(onRequestAccess).toHaveBeenCalledTimes(1);
-    const sent = screen.getByRole('button', { name: 'REQUEST SENT' }) as HTMLButtonElement;
-    expect(sent.disabled).toBe(true);
-    expect(sent.dataset.warpkeepSfx).toBe('none');
-    expect(sent.classList.contains(
-      'farcaster-auth-panel__action--request-committed'
-    )).toBe(true);
-  });
-
-  it('loads once per pending FID generation and clears on phase departure', async () => {
-    const getAccessRequestStatus = vi.fn(async () => ({
-      version: 1 as const,
-      status: 'not-requested' as const
-    }));
+describe('professional access-request lifecycle', () => {
+  it('loads status once per identity generation without flashing the request button', async () => {
+    const status = deferred<AccessRequestStatus>();
+    const getAccessRequestStatus = vi.fn(() => status.promise);
     const client = bridge({ getAccessRequestStatus });
     const view = render(
       <StrictMode>
@@ -146,403 +165,529 @@ describe('access-request controller lifecycle', () => {
       </StrictMode>
     );
 
-    await waitFor(() => expect(screen.getByText('not-requested')).not.toBeNull());
-    expect(getAccessRequestStatus).toHaveBeenCalledTimes(1);
-
-    view.rerender(
-      <StrictMode>
-        <Harness authState={pending(12_345)} client={client} generation={7} />
-      </StrictMode>
-    );
-    await Promise.resolve();
-    expect(getAccessRequestStatus).toHaveBeenCalledTimes(1);
-
-    view.rerender(
-      <StrictMode>
-        <Harness authState={pending(67_890)} client={client} generation={8} />
-      </StrictMode>
-    );
-    await waitFor(() => expect(getAccessRequestStatus).toHaveBeenCalledTimes(2));
-
-    view.rerender(
-      <StrictMode>
-        <Harness authState={anonymous} client={client} generation={9} />
-      </StrictMode>
-    );
-    expect(screen.getByText('idle')).not.toBeNull();
-  });
-
-  it('cannot let a late response from an old identity replace the current state', async () => {
-    let resolveFirst: ((value: AccessRequestStatus) => void) | undefined;
-    let firstSignal: AbortSignal | undefined;
-    const firstStatus = new Promise<AccessRequestStatus>((resolve) => {
-      resolveFirst = resolve;
-    });
-    const getAccessRequestStatus = vi.fn()
-      .mockImplementationOnce(async (
-        _authentication,
-        options: Readonly<{ signal?: AbortSignal }>
-      ) => {
-        firstSignal = options.signal;
-        return firstStatus;
-      })
-      .mockResolvedValueOnce({
-        version: 1,
-        status: 'requested',
-        requestedAt: 1_785_414_897_000
-      });
-    const client = bridge({ getAccessRequestStatus });
-    const view = render(
-      <Harness authState={pending(12_345)} client={client} generation={1} />
-    );
-
+    expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
+    expect(screen.getByText('CHECKING REQUEST STATUS')).not.toBeNull();
     await waitFor(() => expect(getAccessRequestStatus).toHaveBeenCalledTimes(1));
-    view.rerender(
-      <Harness authState={pending(67_890)} client={client} generation={2} />
-    );
-    await waitFor(() => expect(screen.getByText('requested')).not.toBeNull());
-    expect(firstSignal?.aborted).toBe(true);
 
-    resolveFirst?.({ version: 1, status: 'already-admitted' });
-    await Promise.resolve();
-    expect(screen.getByText('requested')).not.toBeNull();
-    expect(screen.queryByText('already-admitted')).toBeNull();
-  });
-
-  it('submits only after an explicit click and presents only bounded status', async () => {
-    const requestAccess = vi.fn(async () => ({
-      version: 1 as const,
-      status: 'requested' as const,
-      requestedAt: 1_785_414_896_000
-    }));
-    const client = bridge({ requestAccess });
-    render(<Harness authState={pending(12_345)} client={client} generation={1} />);
-
-    await waitFor(() => expect(screen.getByText('not-requested')).not.toBeNull());
-    expect(requestAccess).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
-    await waitFor(() => expect(screen.getByText('requested')).not.toBeNull());
-    expect(requestAccess).toHaveBeenCalledTimes(1);
-    expect(screen.getByText('1785414896000')).not.toBeNull();
-    expect(document.body.textContent).not.toContain('12345');
-  });
-
-  it('submits safely after the initial status lookup is unavailable', async () => {
-    const getAccessRequestStatus = vi.fn(async () => {
-      throw new Error('private status outage');
-    });
-    const requestAccess = vi.fn(async () => ({
-      version: 1 as const,
-      status: 'requested' as const,
-      requestedAt: 1_785_414_896_000
-    }));
-    const client = bridge({ getAccessRequestStatus, requestAccess });
-    render(<Harness authState={pending(12_345)} client={client} generation={1} />);
-
-    await waitFor(() => expect(screen.getByText('error')).not.toBeNull());
-    expect(requestAccess).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
-    await waitFor(() => expect(screen.getByText('requested')).not.toBeNull());
-
-    expect(getAccessRequestStatus).toHaveBeenCalledTimes(1);
-    expect(requestAccess).toHaveBeenCalledTimes(1);
-    expect(document.body.textContent).not.toContain('12345');
-    expect(document.body.textContent).not.toContain('private status outage');
-  });
-
-  it('keeps an ambiguous request sealed across errors and presentation remounts', async () => {
-    const getAccessRequestStatus = vi.fn()
-      .mockRejectedValueOnce(new Error('private status outage'))
-      .mockRejectedValueOnce(new Error('private status outage'))
-      .mockResolvedValueOnce({
-        version: 1 as const,
-        status: 'requested' as const,
-        requestedAt: 1_785_414_896_000
-      });
-    const requestAccess = vi.fn(async () => {
-      throw new Error('ambiguous submit outage');
-    });
-    const client = bridge({ getAccessRequestStatus, requestAccess });
-    const view = render(
-      <Harness authState={pending(12_345)} client={client} generation={1} />
-    );
-
-    await waitFor(() => expect(screen.getByText('error')).not.toBeNull());
-    fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
-    await waitFor(() => expect(screen.getByText('confirmation-pending')).not.toBeNull());
-
-    let sent = screen.getByRole('button', { name: 'REQUEST SENT' }) as HTMLButtonElement;
-    expect(sent.disabled).toBe(true);
-    fireEvent.click(sent);
-
-    view.rerender(
-      <Harness
-        actionKey="remounted-access-request-action"
-        authState={pending(12_345)}
-        client={client}
-        generation={1}
-      />
-    );
-    sent = screen.getByRole('button', { name: 'REQUEST SENT' }) as HTMLButtonElement;
-    expect(sent.disabled).toBe(true);
-    fireEvent.click(sent);
-
-    fireEvent.click(screen.getByRole('button', { name: 'CHECK REQUEST STATUS' }));
-    await waitFor(() => expect(screen.getByText('requested')).not.toBeNull());
-
-    expect(getAccessRequestStatus).toHaveBeenCalledTimes(3);
-    expect(requestAccess).toHaveBeenCalledTimes(1);
-    expect(document.body.textContent).not.toContain('private status outage');
-    expect(document.body.textContent).not.toContain('ambiguous submit outage');
-  });
-
-  it('does not reopen after an automatic not-requested reconciliation', async () => {
-    const getAccessRequestStatus = vi.fn()
-      .mockResolvedValueOnce({
-        version: 1 as const,
-        status: 'not-requested' as const
-      })
-      .mockResolvedValueOnce({
-        version: 1 as const,
-        status: 'not-requested' as const
-      })
-      .mockResolvedValueOnce({
-        version: 1 as const,
-        status: 'not-requested' as const
-      });
-    const requestAccess = vi.fn(async () => {
-      throw new Error('ambiguous submit outage');
-    });
-    const client = bridge({ getAccessRequestStatus, requestAccess });
-    render(<Harness authState={pending(12_345)} client={client} generation={1} />);
-
-    await waitFor(() => expect(screen.getByText('not-requested')).not.toBeNull());
-    fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
-    await waitFor(() => expect(screen.getByText('confirmation-pending')).not.toBeNull());
-
-    const sent = screen.getByRole('button', { name: 'REQUEST SENT' }) as HTMLButtonElement;
-    expect(sent.disabled).toBe(true);
-    fireEvent.click(sent);
-    expect(requestAccess).toHaveBeenCalledTimes(1);
-
-    fireEvent.click(screen.getByRole('button', { name: 'CHECK REQUEST STATUS' }));
-    await waitFor(() => expect(screen.getByText('not-requested')).not.toBeNull());
-
-    expect(getAccessRequestStatus).toHaveBeenCalledTimes(3);
-    expect(requestAccess).toHaveBeenCalledTimes(1);
+    status.resolve({ version: 1, status: 'not-requested' });
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'REQUEST ACCESS' })).not.toBeNull();
     });
+
+    view.rerender(
+      <StrictMode>
+        <Harness
+          authState={pending(12_345)}
+          bridgeLoaderVersion={1}
+          client={client}
+          generation={7}
+        />
+      </StrictMode>
+    );
+    await Promise.resolve();
+    expect(getAccessRequestStatus).toHaveBeenCalledTimes(1);
   });
 
-  it('does not treat a pre-submit status retry as post-submit authority', async () => {
-    const getAccessRequestStatus = vi.fn()
-      .mockRejectedValueOnce(new Error('initial status outage'))
-      .mockResolvedValueOnce({
-        version: 1 as const,
-        status: 'not-requested' as const
-      })
-      .mockResolvedValueOnce({
-        version: 1 as const,
-        status: 'not-requested' as const
-      });
-    const requestAccess = vi.fn(async () => {
-      throw new Error('ambiguous submit outage');
-    });
-    const client = bridge({ getAccessRequestStatus, requestAccess });
-    render(<Harness authState={pending(12_345)} client={client} generation={1} />);
-
-    await waitFor(() => expect(screen.getByText('error')).not.toBeNull());
-    fireEvent.click(screen.getByRole('button', { name: 'CHECK REQUEST STATUS' }));
-    await waitFor(() => expect(screen.getByText('not-requested')).not.toBeNull());
-
-    fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
-    await waitFor(() => expect(screen.getByText('confirmation-pending')).not.toBeNull());
-
-    expect(getAccessRequestStatus).toHaveBeenCalledTimes(3);
-    expect(requestAccess).toHaveBeenCalledTimes(1);
-    expect((screen.getByRole('button', { name: 'REQUEST SENT' }) as HTMLButtonElement).disabled)
-      .toBe(true);
-  });
-
-  it('collapses rapid status retries into one read-only reconciliation', async () => {
-    const reconciled = deferred<AccessRequestStatus>();
-    const getAccessRequestStatus = vi.fn()
-      .mockResolvedValueOnce({
-        version: 1 as const,
-        status: 'not-requested' as const
-      })
-      .mockRejectedValueOnce(new Error('automatic reconciliation outage'))
-      .mockImplementationOnce(() => reconciled.promise);
-    const requestAccess = vi.fn(async () => {
-      throw new Error('ambiguous submit outage');
-    });
-    const client = bridge({ getAccessRequestStatus, requestAccess });
-    render(<Harness authState={pending(12_345)} client={client} generation={1} />);
-
-    await waitFor(() => expect(screen.getByText('not-requested')).not.toBeNull());
-    fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
-    await waitFor(() => expect(screen.getByText('confirmation-pending')).not.toBeNull());
-
-    const checkStatus = screen.getByRole('button', { name: 'CHECK REQUEST STATUS' });
-    fireEvent.click(checkStatus);
-    fireEvent.click(checkStatus);
-    await waitFor(() => expect(getAccessRequestStatus).toHaveBeenCalledTimes(3));
-    expect(requestAccess).toHaveBeenCalledTimes(1);
-
-    reconciled.resolve({
-      version: 1,
-      status: 'requested',
-      requestedAt: 1_785_414_896_000
-    });
-    await waitFor(() => expect(screen.getByText('requested')).not.toBeNull());
-    expect(getAccessRequestStatus).toHaveBeenCalledTimes(3);
-  });
-
-  it('guards the controller itself against same-frame duplicate calls', async () => {
+  it('removes the button in the accepted frame, transfers focus, and keeps one stable region', async () => {
     const submitted = deferred<AccessRequestStatus>();
     const requestAccess = vi.fn(() => submitted.promise);
-    const loadQuickAuthToken = vi.fn(async () => 'header.payload.signature');
-    const client = bridge({ requestAccess });
+    render(<Harness authState={pending(12_345)} client={bridge({ requestAccess })} generation={1} />);
+
+    const button = await screen.findByRole('button', { name: 'REQUEST ACCESS' });
+    button.focus();
+    const stableRegion = document.querySelector('.farcaster-access-request');
+    fireEvent.click(button);
+
+    expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
+    expect(screen.getByText('REQUEST SENT')).not.toBeNull();
+    expect(document.querySelector('.farcaster-access-request')).toBe(stableRegion);
+    expect(document.activeElement).toBe(stableRegion);
+    expect(stableRegion?.getAttribute('aria-busy')).toBe('true');
+    await waitFor(() => expect(requestAccess).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: 'DIRECT 20 REQUESTS' }));
+    await waitFor(() => expect(requestAccess).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
+  });
+
+  it('suppresses 20 same-frame calls and reports one identity-free duplicate event', async () => {
+    const submitted = deferred<AccessRequestStatus>();
+    const requestAccess = vi.fn(() => submitted.promise);
+    const reportDiagnostic = vi.fn<(event: AccessRequestDiagnosticEvent) => void>();
+    let activateRequest = () => false;
+    render(
+      <Harness
+        authState={pending(12_345)}
+        captureRequestAccess={(callback) => { activateRequest = callback; }}
+        client={bridge({ requestAccess })}
+        generation={1}
+        reportDiagnostic={reportDiagnostic}
+      />
+    );
+
+    await screen.findByRole('button', { name: 'REQUEST ACCESS' });
+    const accepted: boolean[] = [];
+    act(() => {
+      for (let index = 0; index < 20; index += 1) {
+        accepted.push(activateRequest());
+      }
+    });
+
+    await waitFor(() => expect(requestAccess).toHaveBeenCalledTimes(1));
+    expect(accepted).toEqual([true, ...Array.from({ length: 19 }, () => false)]);
+    expect(reportDiagnostic).toHaveBeenCalledWith('request_submit_started');
+    expect(reportDiagnostic).toHaveBeenCalledWith('duplicate_client_activation_suppressed');
+    expect(reportDiagnostic.mock.calls.filter(
+      ([event]) => event === 'duplicate_client_activation_suppressed'
+    )).toHaveLength(1);
+    expect(JSON.stringify(reportDiagnostic.mock.calls)).not.toContain('12345');
+  });
+
+  it.each([
+    ['touch plus compatibility click', (button: HTMLButtonElement) => {
+      fireEvent.touchStart(button);
+      fireEvent.touchEnd(button);
+      fireEvent.click(button);
+    }],
+    ['Enter plus click', (button: HTMLButtonElement) => {
+      fireEvent.keyDown(button, { key: 'Enter', repeat: false });
+      fireEvent.keyUp(button, { key: 'Enter' });
+      fireEvent.click(button);
+    }],
+    ['repeated Space plus click', (button: HTMLButtonElement) => {
+      for (let index = 0; index < 8; index += 1) {
+        fireEvent.keyDown(button, { key: ' ', repeat: index > 0 });
+      }
+      fireEvent.keyUp(button, { key: ' ' });
+      fireEvent.click(button);
+    }]
+  ])('accepts one operation for %s', async (_label, activate) => {
+    const submitted = deferred<AccessRequestStatus>();
+    const requestAccess = vi.fn(() => submitted.promise);
+    render(<Harness authState={pending(12_345)} client={bridge({ requestAccess })} generation={1} />);
+
+    const button = await screen.findByRole('button', { name: 'REQUEST ACCESS' });
+    activate(button as HTMLButtonElement);
+    await waitFor(() => expect(requestAccess).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
+  });
+
+  it('holds a fast authoritative result for the bounded submitting interval', async () => {
+    vi.useFakeTimers();
+    const observedKinds: string[] = [];
+    const unsubscribe = subscribeWarpkeepSfx(events => {
+      observedKinds.push(...events.map(event => event.kind));
+    });
+    const requestAccess = vi.fn(async () => ({
+      version: 1 as const,
+      status: 'requested' as const,
+      requestedAt: REQUESTED_AT
+    }));
+    render(
+      <Harness
+        authState={pending(12_345)}
+        client={bridge({ requestAccess })}
+        generation={1}
+        minimumSubmittingMilliseconds={350}
+      />
+    );
+
+    await act(async () => {
+      await vi.runOnlyPendingTimersAsync();
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
+    await Promise.resolve();
+    expect(screen.getByText('REQUEST SENT')).not.toBeNull();
+    expect(observedKinds).toEqual([]);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(349);
+    });
+    expect(screen.getByText('REQUEST SENT')).not.toBeNull();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(screen.getByText('REQUEST RECEIVED')).not.toBeNull();
+    expect(screen.getByTestId('access-timestamp').textContent).toBe(String(REQUESTED_AT));
+    expect(observedKinds).toEqual(['access-request-confirmed']);
+    unsubscribe();
+  });
+
+  it('restores an existing request as a distinct terminal state without sound or mutation', async () => {
+    const observedKinds: string[] = [];
+    const unsubscribe = subscribeWarpkeepSfx(events => {
+      observedKinds.push(...events.map(event => event.kind));
+    });
+    const requestAccess = vi.fn();
+    render(
+      <Harness
+        authState={pending(12_345)}
+        client={bridge({
+          getAccessRequestStatus: vi.fn(async () => ({
+            version: 1 as const,
+            status: 'requested' as const,
+            requestedAt: REQUESTED_AT
+          })),
+          requestAccess
+        })}
+        generation={1}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByTestId('access-phase').textContent)
+      .toBe('already-requested'));
+    expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
+    expect(screen.getByText('REQUEST RECEIVED')).not.toBeNull();
+    expect(requestAccess).not.toHaveBeenCalled();
+    expect(observedKinds).toEqual([]);
+    unsubscribe();
+  });
+
+  it('reconciles one lost mutation response with one authoritative confirmation cue', async () => {
+    const observedKinds: string[] = [];
+    const unsubscribe = subscribeWarpkeepSfx(events => {
+      observedKinds.push(...events.map(event => event.kind));
+    });
+    const getAccessRequestStatus = vi.fn()
+      .mockResolvedValueOnce({ version: 1, status: 'not-requested' })
+      .mockResolvedValueOnce({
+        version: 1 as const,
+        status: 'requested' as const,
+        requestedAt: REQUESTED_AT
+      });
+    const requestAccess = vi.fn(async () => {
+      throw new Error('lost response after write');
+    });
+    render(
+      <Harness
+        authState={pending(12_345)}
+        client={bridge({ getAccessRequestStatus, requestAccess })}
+        generation={1}
+      />
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'REQUEST ACCESS' }));
+    await waitFor(() => expect(screen.getByTestId('access-phase').textContent)
+      .toBe('request-received'));
+
+    expect(requestAccess).toHaveBeenCalledTimes(1);
+    expect(getAccessRequestStatus).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('access-timestamp').textContent).toBe(String(REQUESTED_AT));
+    expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
+    expect(observedKinds).toEqual(['access-request-confirmed']);
+    unsubscribe();
+  });
+
+  it('keeps an ambiguous missing result sealed and makes CHECK STATUS read-only', async () => {
+    const observedKinds: string[] = [];
+    const unsubscribe = subscribeWarpkeepSfx(events => {
+      observedKinds.push(...events.map(event => event.kind));
+    });
+    const getAccessRequestStatus = vi.fn()
+      .mockResolvedValue({ version: 1, status: 'not-requested' });
+    const requestAccess = vi.fn(async () => {
+      throw new Error('ambiguous mutation');
+    });
+    render(
+      <Harness
+        authState={pending(12_345)}
+        client={bridge({ getAccessRequestStatus, requestAccess })}
+        generation={1}
+      />
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'REQUEST ACCESS' }));
+    await waitFor(() => expect(screen.getByText('REQUEST STATUS UNAVAILABLE')).not.toBeNull());
+    expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
+    expect(requestAccess).toHaveBeenCalledTimes(1);
+    expect(getAccessRequestStatus).toHaveBeenCalledTimes(2);
+
+    const statusButton = screen.getByRole('button', { name: 'CHECK STATUS' });
+    const stableRegion = document.querySelector('.farcaster-access-request');
+    statusButton.focus();
+    fireEvent.click(statusButton);
+    expect(document.activeElement).toBe(stableRegion);
+    await waitFor(() => expect(getAccessRequestStatus).toHaveBeenCalledTimes(3));
+    expect(requestAccess).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('REQUEST STATUS UNAVAILABLE')).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
+    expect(observedKinds).toEqual([]);
+    unsubscribe();
+  });
+
+  it('does not allow an initial status outage to become a mutation', async () => {
+    const getAccessRequestStatus = vi.fn(async () => {
+      throw new Error('status unavailable');
+    });
+    const requestAccess = vi.fn();
+    render(
+      <Harness
+        authState={pending(12_345)}
+        client={bridge({ getAccessRequestStatus, requestAccess })}
+        generation={1}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByText('REQUEST STATUS UNAVAILABLE')).not.toBeNull());
+    expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
+    expect(requestAccess).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'CHECK STATUS' })).not.toBeNull();
+  });
+
+  it('reconciles authentication when an initial status read proves the host identity changed', async () => {
+    const fetch = vi.fn(async () => new Response(JSON.stringify({
+      error: {
+        code: 'access_identity_changed',
+        message: 'The authenticated identity changed. Refresh and try again.'
+      }
+    }), {
+      status: 409,
+      headers: { 'content-type': 'application/json' }
+    }));
+    const onAuthenticationIdentityChanged = vi.fn();
+    const client = createFarcasterOidcBridgeClient({
+      bridgeUrl: 'https://auth.warpkeep.example',
+      issuer: 'https://auth.warpkeep.example',
+      audience: 'warpkeep-spacetimedb',
+      fetch
+    });
+
     render(
       <Harness
         authState={pending(12_345)}
         client={client}
+        generation={1}
+        onAuthenticationIdentityChanged={onAuthenticationIdentityChanged}
+      />
+    );
+
+    await waitFor(() => expect(onAuthenticationIdentityChanged).toHaveBeenCalledTimes(1));
+    expect(screen.getByText('REQUEST STATUS UNAVAILABLE')).not.toBeNull();
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('reconciles authentication when a manual status retry proves the host identity changed', async () => {
+    const json = (body: unknown, status: number) => new Response(JSON.stringify(body), {
+      status,
+      headers: { 'content-type': 'application/json' }
+    });
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(json({
+        error: {
+          code: 'access_request_unavailable',
+          message: 'Access requests are temporarily unavailable.'
+        }
+      }, 503))
+      .mockResolvedValueOnce(json({
+        error: {
+          code: 'access_identity_changed',
+          message: 'The authenticated identity changed. Refresh and try again.'
+        }
+      }, 409));
+    const onAuthenticationIdentityChanged = vi.fn();
+    const client = createFarcasterOidcBridgeClient({
+      bridgeUrl: 'https://auth.warpkeep.example',
+      issuer: 'https://auth.warpkeep.example',
+      audience: 'warpkeep-spacetimedb',
+      fetch
+    });
+
+    render(
+      <Harness
+        authState={pending(12_345)}
+        client={client}
+        generation={1}
+        onAuthenticationIdentityChanged={onAuthenticationIdentityChanged}
+      />
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'CHECK STATUS' }));
+    await waitFor(() => expect(onAuthenticationIdentityChanged).toHaveBeenCalledTimes(1));
+    expect(screen.getByText('REQUEST STATUS UNAVAILABLE')).not.toBeNull();
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('permits deliberate retry only when credential acquisition proves no mutation began', async () => {
+    const observedKinds: string[] = [];
+    const unsubscribe = subscribeWarpkeepSfx(events => {
+      observedKinds.push(...events.map(event => event.kind));
+    });
+    const requestAccess = vi.fn(async () => ({
+      version: 1 as const,
+      status: 'requested' as const,
+      requestedAt: REQUESTED_AT
+    }));
+    const loadQuickAuthToken = vi.fn()
+      .mockResolvedValueOnce('header.payload.signature')
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce('header.payload.signature');
+    render(
+      <Harness
+        authState={pending(12_345)}
+        client={bridge({ requestAccess })}
         generation={1}
         loadQuickAuthToken={loadQuickAuthToken}
       />
     );
 
-    await waitFor(() => expect(screen.getByText('not-requested')).not.toBeNull());
-    fireEvent.click(screen.getByRole('button', { name: 'DIRECT DOUBLE REQUEST' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'REQUEST ACCESS' }));
+    await waitFor(() => expect(screen.getByText('REQUEST NOT SENT')).not.toBeNull());
+    expect(requestAccess).not.toHaveBeenCalled();
+    expect(observedKinds).toEqual([]);
 
-    await waitFor(() => expect(requestAccess).toHaveBeenCalledTimes(1));
-    expect(loadQuickAuthToken).toHaveBeenCalledTimes(2);
-    expect(screen.getByText('submitting')).not.toBeNull();
-
-    submitted.resolve({
-      version: 1,
-      status: 'requested',
-      requestedAt: 1_785_414_896_000
-    });
-    await waitFor(() => expect(screen.getByText('requested')).not.toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: 'TRY AGAIN' }));
+    await waitFor(() => expect(screen.getByTestId('access-phase').textContent)
+      .toBe('request-received'));
     expect(requestAccess).toHaveBeenCalledTimes(1);
+    expect(observedKinds).toEqual(['access-request-confirmed']);
+    unsubscribe();
   });
 
-  it('cannot carry a committed request across sign-out into another FID', async () => {
+  it('permits retry after the bridge proves rate limiting happened before mutation', async () => {
+    const json = (body: unknown, status = 200) => new Response(
+      JSON.stringify(body),
+      {
+        status,
+        headers: { 'content-type': 'application/json' }
+      }
+    );
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(json({ version: 1, status: 'not-requested' }))
+      .mockResolvedValueOnce(json({
+        error: {
+          code: 'rate_limited',
+          message: 'Too many requests. Try again later.'
+        }
+      }, 429))
+      .mockResolvedValueOnce(json({
+        version: 1,
+        status: 'requested',
+        requestedAt: REQUESTED_AT
+      }));
+    const client = createFarcasterOidcBridgeClient({
+      bridgeUrl: 'https://auth.warpkeep.example',
+      issuer: 'https://auth.warpkeep.example',
+      audience: 'warpkeep-spacetimedb',
+      fetch
+    });
+    render(
+      <Harness
+        authState={pending(12_345)}
+        client={client}
+        generation={1}
+        minimumSubmittingMilliseconds={0}
+      />
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'REQUEST ACCESS' }));
+    await waitFor(() => expect(screen.getByText('REQUEST NOT SENT')).not.toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: 'TRY AGAIN' }));
+    await waitFor(() => expect(screen.getByTestId('access-phase').textContent)
+      .toBe('request-received'));
+    expect(fetch).toHaveBeenCalledTimes(3);
+  });
+
+  it('invalidates an old timer and response when identity generation changes', async () => {
+    vi.useFakeTimers();
     const oldSubmission = deferred<AccessRequestStatus>();
-    const getAccessRequestStatus = vi.fn()
-      .mockResolvedValueOnce({
-        version: 1 as const,
-        status: 'not-requested' as const
-      })
-      .mockResolvedValueOnce({
-        version: 1 as const,
-        status: 'requested' as const,
-        requestedAt: 1_785_414_897_000
-      });
-    const requestAccess = vi.fn(() => oldSubmission.promise);
-    const client = bridge({ getAccessRequestStatus, requestAccess });
-    const view = render(
-      <Harness authState={pending(12_345)} client={client} generation={1} />
-    );
-
-    await waitFor(() => expect(screen.getByText('not-requested')).not.toBeNull());
-    fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
-    await waitFor(() => expect(screen.getByText('submitting')).not.toBeNull());
-
-    view.rerender(<Harness authState={anonymous} client={client} generation={2} />);
-    expect(screen.getByText('idle')).not.toBeNull();
-    view.rerender(
-      <Harness authState={pending(67_890)} client={client} generation={3} />
-    );
-    await waitFor(() => expect(screen.getByText('requested')).not.toBeNull());
-
-    oldSubmission.resolve({
-      version: 1,
-      status: 'not-requested'
-    });
-    await Promise.resolve();
-    expect(screen.getByText('requested')).not.toBeNull();
-    expect(requestAccess).toHaveBeenCalledTimes(1);
-    expect(getAccessRequestStatus).toHaveBeenCalledTimes(2);
-  });
-
-  it('restores the same FID from authority after a new auth generation', async () => {
-    const oldSubmission = deferred<AccessRequestStatus>();
-    const getAccessRequestStatus = vi.fn()
-      .mockResolvedValueOnce({
-        version: 1 as const,
-        status: 'not-requested' as const
-      })
-      .mockResolvedValueOnce({
-        version: 1 as const,
-        status: 'requested' as const,
-        requestedAt: 1_785_414_898_000
-      });
-    const requestAccess = vi.fn(() => oldSubmission.promise);
-    const client = bridge({ getAccessRequestStatus, requestAccess });
-    const view = render(
-      <Harness authState={pending(12_345)} client={client} generation={1} />
-    );
-
-    await waitFor(() => expect(screen.getByText('not-requested')).not.toBeNull());
-    fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
-    await waitFor(() => expect(screen.getByText('submitting')).not.toBeNull());
-
-    view.rerender(<Harness authState={anonymous} client={client} generation={2} />);
-    view.rerender(
-      <Harness authState={pending(12_345)} client={client} generation={3} />
-    );
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'REQUEST RECEIVED' })).not.toBeNull();
-    });
-
-    oldSubmission.resolve({
-      version: 1,
-      status: 'not-requested'
-    });
-    await Promise.resolve();
-    expect(screen.getByRole('button', { name: 'REQUEST RECEIVED' })).not.toBeNull();
-    expect(requestAccess).toHaveBeenCalledTimes(1);
-    expect(getAccessRequestStatus).toHaveBeenCalledTimes(2);
-  });
-
-  it('uses the idempotent submit boundary after a status outage', async () => {
-    const getAccessRequestStatus = vi.fn(async () => {
-      throw new Error('private status outage');
-    });
-    const requestAccess = vi.fn(async () => ({
-      version: 1 as const,
-      status: 'requested' as const,
-      requestedAt: 1_785_414_896_000
-    }));
-    const client = bridge({ getAccessRequestStatus, requestAccess });
-    render(<Harness authState={pending(12_345)} client={client} generation={1} />);
-
-    await waitFor(() => expect(screen.getByText('error')).not.toBeNull());
-    fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
-    await waitFor(() => expect(screen.getByText('requested')).not.toBeNull());
-
-    expect(getAccessRequestStatus).toHaveBeenCalledTimes(1);
-    expect(requestAccess).toHaveBeenCalledTimes(1);
-  });
-
-  it('reconciles an ambiguous submit once and keeps Quick Auth out of view state', async () => {
-    const token = 'header.payload.signature';
     const getAccessRequestStatus = vi.fn()
       .mockResolvedValueOnce({ version: 1, status: 'not-requested' })
       .mockResolvedValueOnce({
         version: 1,
         status: 'requested',
-        requestedAt: 1_785_414_896_000
+        requestedAt: REQUESTED_AT + 1_000
       });
-    const requestAccess = vi.fn(async () => {
-      throw new Error('ambiguous transport failure');
-    });
+    const requestAccess = vi.fn(() => oldSubmission.promise);
     const client = bridge({ getAccessRequestStatus, requestAccess });
-    const loadQuickAuthToken = vi.fn(async () => token);
-    render(
+    const view = render(
+      <Harness
+        authState={pending(12_345)}
+        client={client}
+        generation={1}
+        minimumSubmittingMilliseconds={350}
+      />
+    );
+    await act(async () => {
+      await vi.runOnlyPendingTimersAsync();
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
+
+    view.rerender(
+      <Harness
+        authState={pending(67_890)}
+        client={client}
+        generation={2}
+        minimumSubmittingMilliseconds={350}
+      />
+    );
+    await act(async () => {
+      await vi.runOnlyPendingTimersAsync();
+    });
+    expect(screen.getByTestId('access-phase').textContent).toBe('already-requested');
+
+    oldSubmission.resolve({
+      version: 1,
+      status: 'requested',
+      requestedAt: REQUESTED_AT
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+    expect(screen.getByTestId('access-timestamp').textContent)
+      .toBe(String(REQUESTED_AT + 1_000));
+  });
+
+  it('rejects a retained callback from an older identity generation', async () => {
+    const requestAccess = vi.fn(async () => ({
+      version: 1 as const,
+      status: 'requested' as const,
+      requestedAt: REQUESTED_AT
+    }));
+    const client = bridge({ requestAccess });
+    let retainedOldRequest: () => boolean = () => false;
+    const view = render(
+      <Harness
+        authState={pending(12_345)}
+        captureRequestAccess={(callback) => { retainedOldRequest = callback; }}
+        client={client}
+        generation={1}
+      />
+    );
+    await screen.findByRole('button', { name: 'REQUEST ACCESS' });
+    const oldRequest = retainedOldRequest;
+
+    view.rerender(
+      <Harness
+        authState={pending(67_890)}
+        client={client}
+        generation={2}
+      />
+    );
+    await screen.findByRole('button', { name: 'REQUEST ACCESS' });
+
+    act(() => oldRequest());
+    await Promise.resolve();
+    expect(requestAccess).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'REQUEST ACCESS' })).not.toBeNull();
+  });
+
+  it('cannot invoke a mutation after Quick Auth acquisition outlives its identity generation', async () => {
+    const staleToken = deferred<string | null>();
+    const loadQuickAuthToken = vi.fn()
+      .mockResolvedValueOnce('initial.status.credential')
+      .mockImplementationOnce(() => staleToken.promise)
+      .mockResolvedValue('next.generation.credential');
+    const requestAccess = vi.fn(async () => ({
+      version: 1 as const,
+      status: 'requested' as const,
+      requestedAt: REQUESTED_AT
+    }));
+    const getAccessRequestStatus = vi.fn(async () => ({
+      version: 1 as const,
+      status: 'not-requested' as const
+    }));
+    const client = bridge({ getAccessRequestStatus, requestAccess });
+    const view = render(
       <Harness
         authState={pending(12_345)}
         client={client}
@@ -551,74 +696,166 @@ describe('access-request controller lifecycle', () => {
       />
     );
 
-    await waitFor(() => expect(screen.getByText('not-requested')).not.toBeNull());
-    fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
-    await waitFor(() => expect(screen.getByText('requested')).not.toBeNull());
+    fireEvent.click(await screen.findByRole('button', { name: 'REQUEST ACCESS' }));
+    await waitFor(() => expect(loadQuickAuthToken).toHaveBeenCalledTimes(2));
 
-    expect(requestAccess).toHaveBeenCalledTimes(1);
-    expect(getAccessRequestStatus).toHaveBeenCalledTimes(2);
-    expect(loadQuickAuthToken).toHaveBeenCalledTimes(3);
-    expect(requestAccess).toHaveBeenCalledWith(
-      { mode: 'quick-auth', token },
-      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    view.rerender(
+      <Harness
+        authState={pending(67_890)}
+        client={client}
+        generation={2}
+        loadQuickAuthToken={loadQuickAuthToken}
+      />
     );
-    expect(document.documentElement.innerHTML).not.toContain(token);
-    expect(JSON.stringify(screen.getByText('requested').textContent)).not.toContain(token);
-  });
+    await screen.findByRole('button', { name: 'REQUEST ACCESS' });
 
-  it('switches to a disabled sent state immediately and submits only once', async () => {
-    const submitted = deferred<AccessRequestStatus>();
-    const requestAccess = vi.fn(() => submitted.promise);
-    const client = bridge({ requestAccess });
-    render(<Harness authState={pending(12_345)} client={client} generation={1} />);
-
-    await waitFor(() => expect(screen.getByText('not-requested')).not.toBeNull());
-    const request = screen.getByRole('button', { name: 'REQUEST ACCESS' });
-    fireEvent.click(request);
-
-    expect(screen.getByText('submitting')).not.toBeNull();
-    const sent = screen.getByRole('button', { name: 'REQUEST SENT' }) as HTMLButtonElement;
-    expect(sent.disabled).toBe(true);
-    expect(sent.classList.contains(
-      'farcaster-auth-panel__action--request-committed'
-    )).toBe(true);
-    expect(sent.dataset.warpkeepSfx).toBe('none');
-    fireEvent.click(sent);
-    await waitFor(() => expect(requestAccess).toHaveBeenCalledTimes(1));
-
-    submitted.resolve({
-      version: 1,
-      status: 'requested',
-      requestedAt: 1_785_414_896_000
-    });
-    await waitFor(() => expect(screen.getByText('requested')).not.toBeNull());
-    expect(requestAccess).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('button', { name: 'REQUEST RECEIVED' }).classList.contains(
-      'farcaster-auth-panel__action--request-committed'
-    )).toBe(true);
-  });
-
-  it('never submits when SpacetimeDB already contains the current request', async () => {
-    const requestAccess = vi.fn();
-    const client = bridge({
-      getAccessRequestStatus: vi.fn(async () => ({
-        version: 1 as const,
-        status: 'requested' as const,
-        requestedAt: 1_785_414_896_000
-      })),
-      requestAccess
-    });
-    render(<Harness authState={pending(12_345)} client={client} generation={1} />);
-
-    await waitFor(() => expect(screen.getByText('requested')).not.toBeNull());
-    const received = screen.getByRole('button', {
-      name: 'REQUEST RECEIVED'
-    }) as HTMLButtonElement;
-    expect(received.disabled).toBe(true);
-    expect(received.classList.contains(
-      'farcaster-auth-panel__action--request-committed'
-    )).toBe(false);
-    fireEvent.click(received);
+    staleToken.resolve('stale.generation.credential');
+    await act(async () => Promise.resolve());
     expect(requestAccess).not.toHaveBeenCalled();
+    expect(getAccessRequestStatus).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(['success', 'ambiguous'] as const)(
+    'keeps a Quick Auth credential out of React presentation, diagnostics, and storage on %s',
+    async outcome => {
+      const credential = 'private.quick-auth.credential.sentinel';
+      const reportDiagnostic = vi.fn<(event: AccessRequestDiagnosticEvent) => void>();
+      const getAccessRequestStatus = vi.fn()
+        .mockResolvedValueOnce({ version: 1, status: 'not-requested' })
+        .mockResolvedValue({
+          version: 1 as const,
+          status: 'requested' as const,
+          requestedAt: REQUESTED_AT
+        });
+      const requestAccess = vi.fn(async () => {
+        if (outcome === 'ambiguous') throw new Error('synthetic response loss');
+        return {
+          version: 1 as const,
+          status: 'requested' as const,
+          requestedAt: REQUESTED_AT
+        };
+      });
+      const view = render(
+        <Harness
+          authState={pending(12_345)}
+          client={bridge({ getAccessRequestStatus, requestAccess })}
+          generation={1}
+          loadQuickAuthToken={async () => credential}
+          reportDiagnostic={reportDiagnostic}
+        />
+      );
+
+      fireEvent.click(await screen.findByRole('button', { name: 'REQUEST ACCESS' }));
+      await waitFor(() => expect(screen.getByTestId('access-phase').textContent)
+        .toBe('request-received'));
+
+      const presentationEvidence = JSON.stringify({
+        body: document.body.innerHTML,
+        diagnostics: reportDiagnostic.mock.calls,
+        localStorage: Object.entries(window.localStorage),
+        sessionStorage: Object.entries(window.sessionStorage)
+      });
+      expect(presentationEvidence).not.toContain(credential);
+
+      view.rerender(
+        <Harness
+          authState={anonymous}
+          client={bridge()}
+          generation={2}
+          loadQuickAuthToken={async () => credential}
+          reportDiagnostic={reportDiagnostic}
+        />
+      );
+      expect(screen.getByTestId('access-phase').textContent).toBe('idle');
+      expect(document.body.innerHTML).not.toContain(credential);
+      expect(JSON.stringify(Object.entries(window.localStorage))).not.toContain(credential);
+      expect(JSON.stringify(Object.entries(window.sessionStorage))).not.toContain(credential);
+    }
+  );
+
+  it('clears presentation on sign-out and lets a genuine new auth generation load availability', async () => {
+    const getAccessRequestStatus = vi.fn()
+      .mockResolvedValueOnce({
+        version: 1,
+        status: 'requested',
+        requestedAt: REQUESTED_AT
+      })
+      .mockResolvedValueOnce({ version: 1, status: 'not-requested' });
+    const client = bridge({ getAccessRequestStatus });
+    const view = render(
+      <Harness authState={pending(12_345)} client={client} generation={1} />
+    );
+    await waitFor(() => expect(screen.getByTestId('access-phase').textContent)
+      .toBe('already-requested'));
+
+    view.rerender(<Harness authState={anonymous} client={client} generation={2} />);
+    expect(screen.getByTestId('access-phase').textContent).toBe('idle');
+    expect(document.body.textContent).not.toContain(String(REQUESTED_AT));
+
+    view.rerender(
+      <Harness authState={pending(12_345)} client={client} generation={3} />
+    );
+    await waitFor(() => expect(screen.getByRole('button', { name: 'REQUEST ACCESS' }))
+      .not.toBeNull());
+    expect(getAccessRequestStatus).toHaveBeenCalledTimes(2);
+  });
+
+  it('restores after remount from authority without an available-action flash', async () => {
+    const observedKinds: string[] = [];
+    const unsubscribe = subscribeWarpkeepSfx(events => {
+      observedKinds.push(...events.map(event => event.kind));
+    });
+    const requestedStatus = vi.fn(async () => ({
+      version: 1 as const,
+      status: 'requested' as const,
+      requestedAt: REQUESTED_AT
+    }));
+    const client = bridge({ getAccessRequestStatus: requestedStatus });
+    const first = render(
+      <Harness authState={pending(12_345)} client={client} generation={1} />
+    );
+    await waitFor(() => expect(screen.getByText('REQUEST RECEIVED')).not.toBeNull());
+    first.unmount();
+
+    render(<Harness authState={pending(12_345)} client={client} generation={1} />);
+    expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
+    expect(screen.getByText('CHECKING REQUEST STATUS')).not.toBeNull();
+    await waitFor(() => expect(screen.getByText('REQUEST RECEIVED')).not.toBeNull());
+    expect(requestedStatus).toHaveBeenCalledTimes(2);
+    expect(observedKinds).toEqual([]);
+    unsubscribe();
+  });
+
+  it('lets two independent clients converge on one authoritative timestamp', async () => {
+    const requestAccess = vi.fn(async () => ({
+      version: 1 as const,
+      status: 'requested' as const,
+      requestedAt: REQUESTED_AT
+    }));
+    const getAccessRequestStatus = vi.fn(async () => ({
+      version: 1 as const,
+      status: 'not-requested' as const
+    }));
+    const client = bridge({ getAccessRequestStatus, requestAccess });
+    render(
+      <>
+        <section aria-label="ordinary browser">
+          <Harness authState={pending(12_345)} client={client} generation={1} />
+        </section>
+        <section aria-label="mini app">
+          <Harness authState={pending(12_345)} client={client} generation={1} />
+        </section>
+      </>
+    );
+
+    const buttons = await screen.findAllByRole('button', { name: 'REQUEST ACCESS' });
+    fireEvent.click(buttons[0]);
+    fireEvent.click(buttons[1]);
+    await waitFor(() => expect(screen.getAllByText('REQUEST RECEIVED')).toHaveLength(2));
+
+    expect(requestAccess).toHaveBeenCalledTimes(2);
+    expect(screen.getAllByTestId('access-timestamp').map(node => node.textContent))
+      .toEqual([String(REQUESTED_AT), String(REQUESTED_AT)]);
+    expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
   });
 });

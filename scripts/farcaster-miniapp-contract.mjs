@@ -55,13 +55,13 @@ export const FARCASTER_MINI_APP_CONFIG = Object.freeze({
   splashImageUrl:
     `${FARCASTER_MINI_APP_ASSET_ROOT}/${FARCASTER_MINI_APP_SPLASH_FILE}`,
   splashBackgroundColor: '#010207',
-  subtitle: 'A persistent strategy realm',
+  subtitle: 'Persistent Farcaster strategy',
   description:
-    'Explore Genesis 001 manage Workers gather resources and return to a persistent keep tied to your Farcaster identity',
+    'Command four Workers, gather resources and return to a permanent keep in Genesis 001. Invite-only Alpha.',
   screenshotUrls: Object.freeze([
-    `${FARCASTER_MINI_APP_ASSET_ROOT}/warpkeep-portrait-realm-1284x2778.png`,
-    `${FARCASTER_MINI_APP_ASSET_ROOT}/warpkeep-portrait-keep-1284x2778.png`,
-    `${FARCASTER_MINI_APP_ASSET_ROOT}/warpkeep-portrait-worker-1284x2778.png`,
+    `${FARCASTER_MINI_APP_ASSET_ROOT}/warpkeep-portrait-realm-alpha-0.3.43-1284x2778.png`,
+    `${FARCASTER_MINI_APP_ASSET_ROOT}/warpkeep-portrait-resource-alpha-0.3.43-1284x2778.png`,
+    `${FARCASTER_MINI_APP_ASSET_ROOT}/warpkeep-portrait-worker-alpha-0.3.43-1284x2778.png`,
   ]),
   primaryCategory: 'games',
   tags: Object.freeze([
@@ -151,22 +151,34 @@ export const WARPKEEP_SITE_ICONS = Object.freeze([
 
 export const FARCASTER_MINI_APP_SCREENSHOTS = Object.freeze([
   imageSpecification(
-    'warpkeep-portrait-realm-1284x2778.png',
+    'warpkeep-portrait-realm-alpha-0.3.43-1284x2778.png',
     1284,
     2778,
-    { opaque: false, screenshot: true },
+    {
+      opaque: true,
+      screenshot: true,
+      sha256: '6a48ed6f7ed778d4bad2e5dadc8586e0ac2a6809c3ac9b1f6fa66d59f7c705b6',
+    },
   ),
   imageSpecification(
-    'warpkeep-portrait-keep-1284x2778.png',
+    'warpkeep-portrait-resource-alpha-0.3.43-1284x2778.png',
     1284,
     2778,
-    { opaque: false, screenshot: true },
+    {
+      opaque: true,
+      screenshot: true,
+      sha256: 'fdf053213f349f1bddfe91629b1c26898976176a49ccf35d5b10d89346f0726a',
+    },
   ),
   imageSpecification(
-    'warpkeep-portrait-worker-1284x2778.png',
+    'warpkeep-portrait-worker-alpha-0.3.43-1284x2778.png',
     1284,
     2778,
-    { opaque: false, screenshot: true },
+    {
+      opaque: true,
+      screenshot: true,
+      sha256: '94080050c0d73557a67872f0b6112a262b1d868542d8427fdaa50c5017d97989',
+    },
   ),
 ]);
 

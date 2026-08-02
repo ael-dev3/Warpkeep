@@ -589,25 +589,25 @@ decoded RGBA hash, alpha profile, and visible bounds are recorded in the
 The runtime file remains under `LicenseRef-Warpkeep-Provenance-Required`; neither
 its location in `public/` nor the cleanup operation silently relicenses it.
 
-## Realm Wheat Farm README preview
+## Alpha 0.3.43 README Realm preview
 
-On 22 July 2026, the Warpkeep project owner supplied an exact Realm screenshot
-of the Wheat Farm inspection presentation and instructed that it appear in the
-root README. That instruction authorizes the exact checked-in PNG for
-documentation in this public Warpkeep repository; it does not establish
-underlying ownership or grant a separate open license for the embedded runtime
-assets, public profile imagery, names, or trademarks. The image is explicitly
-labeled as a documentation preview and does not itself activate or authorize a
-gameplay state.
+On 2 August 2026, the current Realm renderer was captured at a 1400×900
+CSS-pixel viewport from Warpkeep's synthetic, loopback-only rendered QA
+fixture. The image contains no production account, real FID, private balance,
+token, session, or user profile. It is a release record of the assembled game
+presentation and retains the provenance requirements of every depicted
+runtime asset.
 
 | Intended use | Repository file | Technical record |
 | --- | --- | --- |
-| Root README development preview | `docs/reference/screenshots/2026-07-22-realm-wheat-farm-preview/warpkeep-realm-wheat-farm-preview-f3b1f7e598c543d6.png` | 2000×1264 RGB PNG, 3,146,015 bytes, SHA-256 `f3b1f7e598c543d6c0e74813286da97d96b219ee56bc5d764c9853bfec27fe3e`. |
+| Root README Alpha preview | `docs/reference/screenshots/2026-08-02-alpha-0.3.43-launch/warpkeep-alpha-0.3.43-genesis-001.png` | 1400×900 opaque RGB PNG, 1,592,990 bytes, SHA-256 `c4bf41748646fa6753c592ae7e0f2dd51bac39d8bc2e7893b7a868c25c16bc37`. |
 
 The screenshot remains `LicenseRef-Warpkeep-Provenance-Required` and is not a
-runtime dependency. Its [dated record](docs/reference/screenshots/2026-07-22-realm-wheat-farm-preview/)
-preserves the exact hash, display scope, privacy review, and authorization
-boundary. No general derivative or redistribution permission is granted.
+runtime dependency. Its [dated record](docs/reference/screenshots/2026-08-02-alpha-0.3.43-launch/)
+preserves the exact capture boundary, privacy review, and technical identity.
+No general derivative or redistribution permission is granted. The superseded
+22 July Wheat Farm preview and its provenance record remain available in Git
+history but are intentionally absent from the current release tree.
 
 ## Farcaster Mini App release artwork
 
@@ -668,8 +668,8 @@ Warpkeep's repository and official Mini App presentation. It does not
 independently establish underlying ownership or grant a general open-content
 license. Both files remain `LicenseRef-Warpkeep-Provenance-Required`.
 
-On 30 July 2026, the three portrait listing screenshots were captured from the
-actual Alpha 0.3.28 interface at a 428×926 CSS-pixel viewport, then encoded as
+On 2 August 2026, the three portrait listing screenshots were captured from the
+actual Alpha 0.3.43 interface at a 428×926 CSS-pixel viewport, then encoded as
 the required 1284×2778 opaque PNGs. The capture used only the repository's
 synthetic, loopback-only rendered QA fixtures: no production account, real FID,
 private balance, token, session, or user profile appears in the images. The
@@ -678,9 +678,9 @@ the provenance requirements of every depicted runtime asset.
 
 | Use | Repository file | Technical record |
 | --- | --- | --- |
-| Portrait Realm listing | `public/images/miniapp/warpkeep-portrait-realm-1284x2778.png` | 1284×2778 opaque PNG, 2,627,611 bytes, SHA-256 `30c4092737d8b521d1aef5542173b42ff40b1a43fb45fadeee4c16eb1d754366`. |
-| Portrait Keep listing | `public/images/miniapp/warpkeep-portrait-keep-1284x2778.png` | 1284×2778 opaque PNG, 756,944 bytes, SHA-256 `ebe9c33222927b200db38c538e5d88c10778004c87b3bc77e921023bd2064130`. |
-| Portrait Worker listing | `public/images/miniapp/warpkeep-portrait-worker-1284x2778.png` | 1284×2778 opaque PNG, 1,162,444 bytes, SHA-256 `1d62bebb37ab20260a5a96f2873dd4fbc73aee1232a866c8ae882d790bed4741`. |
+| Portrait Realm listing | `public/images/miniapp/warpkeep-portrait-realm-alpha-0.3.43-1284x2778.png` | 1284×2778 opaque PNG, 4,734,007 bytes, SHA-256 `6a48ed6f7ed778d4bad2e5dadc8586e0ac2a6809c3ac9b1f6fa66d59f7c705b6`. |
+| Portrait resource action listing | `public/images/miniapp/warpkeep-portrait-resource-alpha-0.3.43-1284x2778.png` | 1284×2778 opaque PNG, 1,815,911 bytes, SHA-256 `fdf053213f349f1bddfe91629b1c26898976176a49ccf35d5b10d89346f0726a`. |
+| Portrait Worker listing | `public/images/miniapp/warpkeep-portrait-worker-alpha-0.3.43-1284x2778.png` | 1284×2778 opaque PNG, 941,965 bytes, SHA-256 `94080050c0d73557a67872f0b6112a262b1d868542d8427fdaa50c5017d97989`. |
 
 These composite screenshots are `LicenseRef-Warpkeep-Provenance-Required`.
 They document the exact public release UI; repository inclusion does not grant

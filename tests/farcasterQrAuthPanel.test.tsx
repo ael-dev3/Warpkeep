@@ -339,7 +339,7 @@ describe('FarcasterQrAuthPanel', () => {
     const { callbacks } = renderPanel({
       phase: 'pending-admission',
       identity: verifiedIdentity,
-      accessRequest: { phase: 'not-requested' }
+      accessRequest: { phase: 'request-available' }
     });
 
     expect(screen.getByRole('heading', { name: 'ENTRY NOT YET GRANTED' })).not.toBeNull();
@@ -348,7 +348,9 @@ describe('FarcasterQrAuthPanel', () => {
     )).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'ENTER REALM' })).toBeNull();
     expect(document.body.textContent).not.toMatch(/accessToken|bearer|JWT/i);
-    fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
+    const requestButton = screen.getByRole('button', { name: 'REQUEST ACCESS' });
+    expect(requestButton.getAttribute('data-warpkeep-sfx')).toBe('none');
+    fireEvent.click(requestButton);
     expect(callbacks.onRequestAccess).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('button', { name: 'CHECK AGAIN' })).toBeNull();
     expect(callbacks.onCheckAdmission).not.toHaveBeenCalled();
@@ -360,27 +362,26 @@ describe('FarcasterQrAuthPanel', () => {
     const { callbacks } = renderPanel({
       phase: 'pending-admission',
       identity: verifiedIdentity,
-      accessRequest: { phase: 'requested', requestedAt: 1_750_000_000_000 }
+      accessRequest: { phase: 'request-received', requestedAt: 1_750_000_000_000 }
     });
 
-    expect((screen.getByRole('button', {
-      name: 'REQUEST RECEIVED'
-    }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText('REQUEST RECEIVED')).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'REQUEST RECEIVED' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
     expect(callbacks.onCheckAdmission).toHaveBeenCalledTimes(1);
   });
 
-  it('checks delayed request confirmation without resubmitting it', () => {
+  it('checks an ambiguous request status without resubmitting it', () => {
     const { callbacks } = renderPanel({
       phase: 'pending-admission',
       identity: verifiedIdentity,
-      accessRequest: { phase: 'confirmation-pending' }
+      accessRequest: { phase: 'status-unavailable', context: 'post-submission' }
     });
 
-    expect((screen.getByRole('button', {
-      name: 'REQUEST SENT'
-    }) as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
+    expect(screen.getByText('REQUEST STATUS UNAVAILABLE')).not.toBeNull();
+    expect(screen.getByText(/remains sealed and will not be sent again/i)).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'CHECK STATUS' }));
     expect(callbacks.onRetryAccessRequestStatus).toHaveBeenCalledTimes(1);
     expect(callbacks.onCheckAdmission).not.toHaveBeenCalled();
     expect(callbacks.onRequestAccess).not.toHaveBeenCalled();
@@ -395,7 +396,7 @@ describe('FarcasterQrAuthPanel', () => {
     renderPanel({
       phase: 'pending-admission',
       identity,
-      accessRequest: { phase: 'not-requested' }
+      accessRequest: { phase: 'request-available' }
     });
 
     expect(screen.getByText('Verified Farcaster account')).not.toBeNull();
@@ -405,7 +406,7 @@ describe('FarcasterQrAuthPanel', () => {
     expect(document.body.textContent).not.toContain('FID 88');
   });
 
-  it('emits confirmed request feedback only after an explicit submission settles', () => {
+  it('keeps press and presentation rerenders silent while the controller owns confirmation feedback', () => {
     const observedKinds: string[] = [];
     const unsubscribe = subscribeWarpkeepSfx(events => {
       observedKinds.push(...events.map(event => event.kind));
@@ -413,19 +414,20 @@ describe('FarcasterQrAuthPanel', () => {
     const panel = renderPanel({
       phase: 'pending-admission',
       identity: verifiedIdentity,
-      accessRequest: { phase: 'submitting' }
+      accessRequest: { phase: 'request-available' }
     });
 
-    expect(screen.getByText('Request sent.')).not.toBeNull();
-    expect((screen.getByRole('button', {
-      name: 'REQUEST SENT'
-    }) as HTMLButtonElement).disabled).toBe(true);
+    const requestButton = screen.getByRole('button', { name: 'REQUEST ACCESS' });
+    expect(requestButton.getAttribute('data-warpkeep-sfx')).toBe('none');
+    fireEvent.click(requestButton);
+    expect(panel.callbacks.onRequestAccess).toHaveBeenCalledTimes(1);
+    expect(observedKinds).toEqual([]);
 
     panel.rerender(
       <FarcasterQrAuthPanel
         phase="pending-admission"
         identity={verifiedIdentity}
-        accessRequest={{ phase: 'requested', requestedAt: 1_750_000_000_000 }}
+        accessRequest={{ phase: 'submitting' }}
         onCancel={panel.callbacks.onCancel}
         onRetry={panel.callbacks.onRetry}
         onBackToMenu={panel.callbacks.onBackToMenu}
@@ -436,7 +438,26 @@ describe('FarcasterQrAuthPanel', () => {
       />
     );
 
-    expect(observedKinds).toEqual(['access-request-confirmed']);
+    expect(screen.getByText('REQUEST SENT')).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
+
+    panel.rerender(
+      <FarcasterQrAuthPanel
+        phase="pending-admission"
+        identity={verifiedIdentity}
+        accessRequest={{ phase: 'request-received', requestedAt: 1_750_000_000_000 }}
+        onCancel={panel.callbacks.onCancel}
+        onRetry={panel.callbacks.onRetry}
+        onBackToMenu={panel.callbacks.onBackToMenu}
+        onCheckAdmission={panel.callbacks.onCheckAdmission}
+        onRequestAccess={panel.callbacks.onRequestAccess}
+        onEnterRealm={panel.callbacks.onEnterRealm}
+        onSignOut={panel.callbacks.onSignOut}
+      />
+    );
+
+    expect(screen.getByText('REQUEST RECEIVED')).not.toBeNull();
+    expect(observedKinds).toEqual([]);
     unsubscribe();
   });
 
@@ -445,17 +466,18 @@ describe('FarcasterQrAuthPanel', () => {
       phase: 'pending-admission',
       identity: verifiedIdentity,
       accessRequest: {
-        phase: 'requested',
+        phase: 'request-received',
         requestedAt: Date.UTC(2026, 6, 30, 12, 34)
       }
     });
 
-    expect(screen.getByText('Request received.')).not.toBeNull();
+    expect(screen.getByText('REQUEST RECEIVED')).not.toBeNull();
     const recorded = screen.getByText(/Recorded/).querySelector('time');
     expect(recorded?.getAttribute('datetime')).toBe('2026-07-30T12:34:00.000Z');
-    expect((screen.getByRole('button', {
-      name: 'REQUEST RECEIVED'
-    }) as HTMLButtonElement).disabled).toBe(true);
+    expect(recorded?.textContent).toMatch(/30 Jul 2026, 12:34 UTC/);
+    expect(screen.queryByRole('button', { name: 'REQUEST RECEIVED' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'CHECK AGAIN' })).not.toBeNull();
+    expect(document.body.textContent).toMatch(/Access is reviewed manually/i);
     expect(document.body.textContent).not.toMatch(/queue position|guaranteed time|FID 12345/i);
   });
 

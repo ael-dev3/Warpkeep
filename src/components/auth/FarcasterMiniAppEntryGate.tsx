@@ -15,6 +15,7 @@ import type {
 } from '../../farcaster/farcasterAuthTypes';
 import {
   useMiniAppBackNavigation,
+  type MiniAppRecoveryReason,
   type MiniAppHostState
 } from '../../farcaster/miniapp';
 import type {
@@ -34,16 +35,19 @@ const FarcasterAdmissionPanel = lazy(async () => {
 
 export type FarcasterMiniAppEntryGateProps = Readonly<{
   hostState: MiniAppHostState;
+  recoveryReason: MiniAppRecoveryReason | null;
   authState: FarcasterAuthViewState;
   backendState: WarpkeepBackendState;
   accessRequest?: AccessRequestViewState;
   onAcceptTerms: () => void;
+  onBackToMenu: () => void;
   onCancelTermsAttempt: () => void;
   onCheckBackend: () => void;
   onRefreshSession: () => void;
-  onRequestAccess?: () => void;
+  onRequestAccess?: () => boolean;
   onRetryAccessRequestStatus?: () => void;
   onRetryAuthentication: () => void;
+  onRetryHost: () => void;
   onSignOut: () => void;
 }>;
 
@@ -52,6 +56,10 @@ type LaunchStatus = Readonly<{
   message: string;
   busy: boolean;
   action?: Readonly<{
+    label: string;
+    run: () => void;
+  }>;
+  secondaryAction?: Readonly<{
     label: string;
     run: () => void;
   }>;
@@ -84,8 +92,11 @@ function authenticatedIdentity(
 
 function launchStatus(
   hostState: MiniAppHostState,
+  recoveryReason: MiniAppRecoveryReason | null,
   authState: FarcasterAuthViewState,
-  onRetryAuthentication: () => void
+  onRetryAuthentication: () => void,
+  onRetryHost: () => void,
+  onBackToMenu: () => void
 ): LaunchStatus {
   if (hostState === 'detecting') {
     return Object.freeze({
@@ -94,12 +105,34 @@ function launchStatus(
       busy: true
     });
   }
+  if (hostState === 'recovery') {
+    const message = recoveryReason === 'host-timeout'
+      ? 'Farcaster did not answer before the secure opening window closed.'
+      : recoveryReason === 'context-invalid'
+        ? 'Farcaster returned incomplete display information for this opening.'
+        : recoveryReason === 'shell-unavailable'
+          ? 'Warpkeep’s opening screen could not settle safely inside Farcaster.'
+          : recoveryReason === 'ready-failed'
+            ? 'Farcaster could not finish handing control to Warpkeep.'
+            : 'The Farcaster Mini App connection could not be loaded.';
+    return Object.freeze({
+      title: 'MINI APP COULD NOT OPEN',
+      message,
+      busy: false,
+      action: Object.freeze({ label: 'TRY AGAIN', run: onRetryHost }),
+      secondaryAction: Object.freeze({
+        label: 'BACK TO MENU',
+        run: onBackToMenu
+      })
+    });
+  }
   if (authState.phase === 'anonymous') {
     return Object.freeze({
       title: 'ENTER THE REALM',
       message: 'Continue with your Farcaster account',
       busy: false,
-      action: Object.freeze({ label: 'CONTINUE WITH FARCASTER', run: onRetryAuthentication })
+      action: Object.freeze({ label: 'CONTINUE WITH FARCASTER', run: onRetryAuthentication }),
+      secondaryAction: Object.freeze({ label: 'BACK TO MENU', run: onBackToMenu })
     });
   }
   if (authState.phase === 'error' || authState.phase === 'expired') {
@@ -107,7 +140,8 @@ function launchStatus(
       title: 'FARCASTER SIGN-IN UNAVAILABLE',
       message: 'Your identity could not be verified safely. Try again when ready.',
       busy: false,
-      action: Object.freeze({ label: 'TRY AGAIN', run: onRetryAuthentication })
+      action: Object.freeze({ label: 'TRY AGAIN', run: onRetryAuthentication }),
+      secondaryAction: Object.freeze({ label: 'BACK TO MENU', run: onBackToMenu })
     });
   }
   return Object.freeze({
@@ -140,15 +174,26 @@ function MiniAppLaunchStatusPanel({ status }: Readonly<{ status: LaunchStatus }>
           {status.message}
         </p>
       </div>
-      {status.action ? (
+      {status.action || status.secondaryAction ? (
         <div className="farcaster-auth-panel__actions">
-          <button
-            className="farcaster-auth-panel__action farcaster-auth-panel__action--primary"
-            onClick={status.action.run}
-            type="button"
-          >
-            {status.action.label}
-          </button>
+          {status.action ? (
+            <button
+              className="farcaster-auth-panel__action farcaster-auth-panel__action--primary"
+              onClick={status.action.run}
+              type="button"
+            >
+              {status.action.label}
+            </button>
+          ) : null}
+          {status.secondaryAction ? (
+            <button
+              className="farcaster-auth-panel__action farcaster-auth-panel__action--secondary"
+              onClick={status.secondaryAction.run}
+              type="button"
+            >
+              {status.secondaryAction.label}
+            </button>
+          ) : null}
         </div>
       ) : null}
     </section>
@@ -166,13 +211,16 @@ export function FarcasterMiniAppEntryGate({
   authState,
   backendState,
   accessRequest = IDLE_ACCESS_REQUEST,
+  recoveryReason,
   onAcceptTerms,
+  onBackToMenu,
   onCancelTermsAttempt,
   onCheckBackend,
   onRefreshSession,
   onRequestAccess,
   onRetryAccessRequestStatus,
   onRetryAuthentication,
+  onRetryHost,
   onSignOut
 }: FarcasterMiniAppEntryGateProps) {
   const [termsDismissed, setTermsDismissed] = useState(false);
@@ -218,11 +266,25 @@ export function FarcasterMiniAppEntryGate({
   }, [awaitingTerms, termsDismissed]);
 
   let content;
-  if (authState.phase === 'pending-admission') {
+  if (hostState === 'detecting' || hostState === 'recovery') {
+    content = (
+      <MiniAppLaunchStatusPanel
+        status={launchStatus(
+          hostState,
+          recoveryReason,
+          authState,
+          onRetryAuthentication,
+          onRetryHost,
+          onBackToMenu
+        )}
+      />
+    );
+  } else if (authState.phase === 'pending-admission') {
     content = (
       <FarcasterAdmissionPanel
         accessRequest={accessRequest}
         identity={authState.identity}
+        onBackToMenu={onBackToMenu}
         onCheckAgain={onRefreshSession}
         onRequestAccess={onRequestAccess}
         onRetryAccessRequestStatus={onRetryAccessRequestStatus}
@@ -236,6 +298,11 @@ export function FarcasterMiniAppEntryGate({
         accessRequest={accessRequest}
         autoFocusHeading={!awaitingTerms}
         identity={identity}
+        onBackToMenu={
+          backendState.phase === 'denied' || backendState.phase === 'error'
+            ? onBackToMenu
+            : undefined
+        }
         onCheckAgain={onCheckBackend}
         onRequestAccess={onRequestAccess}
         onRetryAccessRequestStatus={onRetryAccessRequestStatus}
@@ -248,7 +315,14 @@ export function FarcasterMiniAppEntryGate({
   } else {
     content = (
       <MiniAppLaunchStatusPanel
-        status={launchStatus(hostState, authState, onRetryAuthentication)}
+        status={launchStatus(
+          hostState,
+          recoveryReason,
+          authState,
+          onRetryAuthentication,
+          onRetryHost,
+          onBackToMenu
+        )}
       />
     );
   }
