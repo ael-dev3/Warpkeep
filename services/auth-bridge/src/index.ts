@@ -1,6 +1,10 @@
 import { createAuthBridge } from './app'
 
 export { createAuthBridge } from './app'
+export {
+  AdmissionNotification,
+  DurableObjectAdmissionNotificationStore,
+} from './admissionNotifications'
 export { ChallengeReplayGuard, DurableObjectChallengeStore, MemoryChallengeStore } from './challengeStore'
 export {
   DurableObjectQaObserverChallengeStore,
@@ -16,6 +20,11 @@ export {
 export { SpacetimeHttpAccessRequestResolver } from './spacetimeAccessRequestResolver'
 export { SpacetimeHttpAuthEpochResolver } from './spacetimeAuthEpochResolver'
 export { SpacetimeHttpQaObserverResolver } from './spacetimeQaObserverResolver'
+export {
+  createMiniAppWebhookVerifier,
+  MiniAppWebhookInvalidError,
+  MiniAppWebhookVerifierUnavailableError,
+} from './miniAppWebhook'
 export type * from './types'
 
 export default createAuthBridge()

@@ -8,6 +8,7 @@ import {
   createQaObserverChallenge,
 } from '../src/qaObserver'
 import type { BridgeConfig } from '../src/config'
+import { createMiniAppWebhookVerifier } from '../src/miniAppWebhook'
 import type {
   AccessRequestResolver,
   AdmissionResolution,
@@ -65,6 +66,7 @@ const CONFIG: BridgeConfig = {
   publicAuthEnabled: true,
   accessExpectedFidRequired: false,
   qaObserverEnabled: false,
+  approvalNotificationsEnabled: false,
   environment: 'production',
 }
 
@@ -201,6 +203,56 @@ function harness(options: {
 }
 
 describe('auth bridge production bindings in workerd', () => {
+  it('verifies Farcaster Ed25519 JFS envelopes with the production workerd runtime', async () => {
+    const keyPair = await crypto.subtle.generateKey(
+      { name: 'Ed25519' },
+      true,
+      ['sign', 'verify'],
+    ) as CryptoKeyPair
+    const rawPublicKey = new Uint8Array(await crypto.subtle.exportKey('raw', keyPair.publicKey))
+    const header = Buffer.from(JSON.stringify({
+      fid: Number(FID),
+      type: 'app_key',
+      key: `0x${Buffer.from(rawPublicKey).toString('hex')}`,
+    })).toString('base64url')
+    const deliveryUrl = 'https://api.farcaster.xyz/v1/frame-notifications'
+    const token = 'workerd-notification-token-with-enough-entropy'
+    const payload = Buffer.from(JSON.stringify({
+      event: 'notifications_enabled',
+      notificationDetails: { token, url: deliveryUrl },
+    })).toString('base64url')
+    const signedInput = new TextEncoder().encode(`${header}.${payload}`)
+    const signature = Buffer.from(await crypto.subtle.sign(
+      { name: 'Ed25519' },
+      keyPair.privateKey,
+      signedInput,
+    )).toString('base64url')
+    const webhookConfig: BridgeConfig = {
+      ...CONFIG,
+      approvalNotificationsEnabled: true,
+      miniAppNotifications: {
+        hubUrls: Object.freeze([
+          'https://rho.farcaster.xyz:3381/',
+          'https://hub.pinata.cloud/',
+        ]),
+        clients: Object.freeze([{ appFid: 9_152, deliveryUrl }]),
+        operatorSecret: 'workerd-notification-secret-at-least-32-bytes',
+      },
+    }
+    const verifier = createMiniAppWebhookVerifier(webhookConfig, {
+      appKeyVerifier: async () => ({ valid: true, appFid: 9_152 }),
+    })
+
+    await expect(verifier.verify({ header, payload, signature })).resolves.toMatchObject({
+      fid: FID,
+      appFid: 9_152,
+      event: {
+        type: 'enabled',
+        details: { token, url: deliveryUrl },
+      },
+    })
+  })
+
   it('keeps Quick Auth cookie-free while reusing authoritative admission and player claims', async () => {
     const h = harness()
     const bridgeEnv = env as unknown as WorkerEnv

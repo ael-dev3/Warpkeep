@@ -47,6 +47,11 @@ export type MiniAppPresentationContext = Readonly<{
   client: Readonly<{
     clientFid: number;
     added: boolean;
+    /**
+     * Presentation-only hint derived from the presence of host notification
+     * details. The secret notification token and delivery URL are never kept.
+     */
+    notificationsEnabled: boolean;
     platformType?: 'web' | 'mobile';
     safeAreaInsets: MiniAppSafeAreaInsets;
   }>;
@@ -177,6 +182,19 @@ function sanitizedHttpsUrl(value: unknown): string | undefined {
   }
 }
 
+function hostReportsNotificationDetails(value: unknown): boolean {
+  if (!isRecord(value) || typeof value.token !== 'string') return false;
+  const tokenBytes = new TextEncoder().encode(value.token);
+  try {
+    return tokenBytes.byteLength >= 16
+      && tokenBytes.byteLength <= 2 * 1_024
+      && !/[\u0000-\u0020\u007f]/.test(value.token)
+      && sanitizedHttpsUrl(value.url) !== undefined;
+  } finally {
+    tokenBytes.fill(0);
+  }
+}
+
 function finiteAxis(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0
     ? value
@@ -295,6 +313,11 @@ export function sanitizeMiniAppContext(
       client: Object.freeze({
         clientFid,
         added: value.client.added === true,
+        // This is only a sanitized host preference hint. Server-side consent
+        // exists solely after the signed webhook is verified and persisted.
+        notificationsEnabled: hostReportsNotificationDetails(
+          value.client.notificationDetails
+        ),
         ...(platformType ? { platformType } : {}),
         safeAreaInsets: insets
       }),
@@ -328,6 +351,7 @@ export function reclampMiniAppPresentationContext(
     client: Object.freeze({
       clientFid: context.client.clientFid,
       added: context.client.added,
+      notificationsEnabled: context.client.notificationsEnabled,
       ...(context.client.platformType
         ? { platformType: context.client.platformType }
         : {}),

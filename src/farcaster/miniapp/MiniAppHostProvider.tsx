@@ -285,6 +285,7 @@ export function MiniAppHostProvider({
   const hapticsEnabledRef = useRef(false);
   const activeBackCleanupRef = useRef<(() => void) | null>(null);
   const backCommandRef = useRef<Promise<void>>(Promise.resolve());
+  const addMiniAppAttemptRef = useRef<Promise<boolean> | null>(null);
   const readyAttemptScopeRef = useRef<ReadyAttemptScope | null>(null);
   const retainedReadyScope = readyAttemptScopeRef.current;
   if (
@@ -709,6 +710,26 @@ export function MiniAppHostProvider({
     }
   }, [hostDeadline]);
 
+  const addMiniApp = useCallback((): Promise<boolean> => {
+    const activeAttempt = addMiniAppAttemptRef.current;
+    if (activeAttempt) return activeAttempt;
+
+    // The host result may contain a private notification token and delivery
+    // URL. Deliberately discard it inside this adapter and expose only whether
+    // the capability-checked operation completed.
+    const attempt = runOptional('actions.addMiniApp', async (sdk) => {
+      if (!sdk.actions.addMiniApp) throw new Error();
+      await sdk.actions.addMiniApp();
+    });
+    addMiniAppAttemptRef.current = attempt;
+    void attempt.then(() => {
+      if (addMiniAppAttemptRef.current === attempt) {
+        addMiniAppAttemptRef.current = null;
+      }
+    });
+    return attempt;
+  }, [runOptional]);
+
   const actions = useMemo<MiniAppHostActions>(() => Object.freeze({
     openUrl: async (url: string) => {
       const safeUrl = sanitizeMiniAppActionUrl(url);
@@ -722,10 +743,7 @@ export function MiniAppHostProvider({
       if (!sdk.actions.close) throw new Error();
       await sdk.actions.close();
     }),
-    addMiniApp: () => runOptional('actions.addMiniApp', async (sdk) => {
-      if (!sdk.actions.addMiniApp) throw new Error();
-      await sdk.actions.addMiniApp();
-    }),
+    addMiniApp,
     viewProfile: async (fid: number) => {
       if (!positiveFid(fid)) return false;
       return runOptional('actions.viewProfile', async (sdk) => {
@@ -741,7 +759,7 @@ export function MiniAppHostProvider({
         await sdk.actions.openMiniApp({ url: safeUrl });
       });
     }
-  }), [runOptional]);
+  }), [addMiniApp, runOptional]);
 
   const haptics = useMemo<MiniAppHostHaptics>(() => Object.freeze({
     impactOccurred: (

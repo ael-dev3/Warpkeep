@@ -51,6 +51,12 @@ import {
   readVerifiedSessionCookie,
   sessionSetCookie,
 } from './sessionCookie'
+import { DurableObjectAdmissionNotificationStore } from './admissionNotifications'
+import {
+  MiniAppWebhookInvalidError,
+  MiniAppWebhookVerifierUnavailableError,
+  createMiniAppWebhookVerifier,
+} from './miniAppWebhook'
 import {
   ACCESS_REQUEST_RESOLVER_TIMEOUT_MILLISECONDS,
   SPACETIMEDB_ACCESS_REQUEST_STATUS_PROCEDURE,
@@ -76,12 +82,14 @@ import {
 import type {
   AccessRequestResolution,
   AccessRequestResolver,
+  AdmissionNotificationStore,
   AdmissionResolution,
   AuthEpochResolver,
   BridgeFetchHandler,
   ChallengeRecord,
   ChallengeStore,
   FarcasterVerifier,
+  MiniAppWebhookVerifier,
   PublicIdentity,
   QaObserverChallengeStore,
   QuickAuthVerifier,
@@ -121,6 +129,8 @@ const V2_REFRESH_PATH = '/v2/session/refresh'
 const V2_LOGOUT_PATH = '/v2/session/logout'
 const V2_ACCESS_STATUS_PATH = '/v2/access/status'
 const V2_ACCESS_REQUEST_PATH = '/v2/access/request'
+export const MINIAPP_WEBHOOK_PATH = '/v1/farcaster/miniapp/webhook'
+export const ADMISSION_NOTIFICATION_PATH = '/v1/admin/admission-notification'
 const LEGACY_CHALLENGE_PATH = '/v1/farcaster/challenge'
 const LEGACY_EXCHANGE_PATH = '/v1/farcaster/exchange'
 const QUICK_AUTH_DOMAIN = 'warpkeep.com'
@@ -180,6 +190,8 @@ export interface AuthBridgeDependencies {
   quickAuthVerifier?: QuickAuthVerifier
   authEpochResolver?: AuthEpochResolver
   accessRequestResolver?: AccessRequestResolver
+  miniAppWebhookVerifier?: MiniAppWebhookVerifier
+  admissionNotificationStore?: AdmissionNotificationStore
   sessionFamilyStore?: SessionFamilyStore
   qaChallengeStore?: QaObserverChallengeStore
   qaSnapshotResolver?: QaObserverSnapshotResolver
@@ -338,10 +350,17 @@ function requireQaNoOrigin(request: Request): void {
   }
 }
 
+function requireMiniAppWebhookNoOrigin(request: Request): void {
+  if (request.headers.has('origin')) {
+    throw new HttpError(403, 'miniapp_webhook_browser_forbidden', 'This endpoint is server-to-server only.')
+  }
+}
+
 function isServerOnlyAdminPath(pathname: string): boolean {
   return pathname === '/v1/admin/token'
     || pathname === AUTH_EPOCH_PROBE_PATH
     || pathname === CONFIG_ATTESTATION_PATH
+    || pathname === ADMISSION_NOTIFICATION_PATH
 }
 
 function isQaObserverPath(pathname: string): boolean {
@@ -349,7 +368,9 @@ function isQaObserverPath(pathname: string): boolean {
 }
 
 function isServerOnlyPath(pathname: string): boolean {
-  return isServerOnlyAdminPath(pathname) || isQaObserverPath(pathname)
+  return isServerOnlyAdminPath(pathname)
+    || isQaObserverPath(pathname)
+    || pathname === MINIAPP_WEBHOOK_PATH
 }
 
 function isPublicAuthPath(pathname: string): boolean {
@@ -686,6 +707,14 @@ function canonicalFid(value: unknown): string {
   }
 }
 
+function canonicalNotificationFid(value: unknown): string {
+  const fid = canonicalFid(value)
+  if (BigInt(fid) > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new HttpError(400, 'invalid_request', 'Invalid fid.')
+  }
+  return fid
+}
+
 /**
  * Browser-supplied presentation correlation only. The credential remains the
  * sole identity authority; this value can only make a stale UI fail closed.
@@ -946,16 +975,24 @@ export function farcasterRpcEndpointFingerprint(rpcUrl: string): Promise<string>
   return sha256Hex(`warpkeep-farcaster-rpc-endpoint-v1\0${rpcUrl}`)
 }
 
+function miniAppHubEndpointFingerprint(hubUrl: string): Promise<string> {
+  return sha256Hex(`warpkeep-miniapp-hub-endpoint-v1\0${hubUrl}`)
+}
+
 async function configurationAttestation(
   config: BridgeConfig,
   qaObserverKeyFingerprint: string | null,
 ): Promise<Readonly<{
   digest: string
   farcasterRpcEndpointFingerprints: readonly string[]
+  miniAppHubEndpointFingerprints: readonly string[]
   signingPublicKeyThumbprint: string
 }>> {
   const farcasterRpcEndpointFingerprints = Object.freeze((await Promise.all(
     config.farcasterRpcUrls.map(farcasterRpcEndpointFingerprint),
+  )).sort())
+  const miniAppHubEndpointFingerprints = Object.freeze((await Promise.all(
+    (config.miniAppNotifications?.hubUrls ?? []).map(miniAppHubEndpointFingerprint),
   )).sort())
   const signingPublicKeyThumbprint = await qaObserverKeyThumbprint({
     kty: 'EC',
@@ -972,6 +1009,12 @@ async function configurationAttestation(
     audience: config.audience,
     keyId: config.keyId,
     farcasterRpcEndpointFingerprints,
+    approvalNotificationsEnabled: config.approvalNotificationsEnabled,
+    miniAppHubEndpointFingerprints,
+    miniAppNotificationClients: (config.miniAppNotifications?.clients ?? []).map(client => ({
+      appFid: client.appFid,
+      deliveryUrl: client.deliveryUrl,
+    })),
     signingPublicKeyThumbprint,
     spacetimeDbUri: config.spacetimeDbUri,
     spacetimeDbDatabase: config.spacetimeDbDatabase,
@@ -1019,6 +1062,7 @@ async function configurationAttestation(
   return Object.freeze({
     digest: await sha256Hex(canonical),
     farcasterRpcEndpointFingerprints,
+    miniAppHubEndpointFingerprints,
     signingPublicKeyThumbprint,
   })
 }
@@ -1181,6 +1225,11 @@ function defaultRateLimiter(env: WorkerEnv): RateLimiter {
 function defaultSessionFamilyStore(env: WorkerEnv): SessionFamilyStore {
   if (!env.SESSION_FAMILIES) throw new ConfigurationError()
   return new DurableObjectSessionFamilyStore(env.SESSION_FAMILIES)
+}
+
+function defaultAdmissionNotificationStore(env: WorkerEnv): AdmissionNotificationStore {
+  if (!env.ADMISSION_NOTIFICATIONS) throw new ConfigurationError()
+  return new DurableObjectAdmissionNotificationStore(env.ADMISSION_NOTIFICATIONS)
 }
 
 function defaultQaSnapshotResolver(
@@ -1499,6 +1548,60 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
 
         if (request.method === 'GET' && url.pathname === '/.well-known/jwks.json') {
           return json({ keys: [publicJwk(config)] }, 200, publicCorsHeaders(request, config))
+        }
+
+        if (request.method === 'POST' && url.pathname === MINIAPP_WEBHOOK_PATH) {
+          requireMiniAppWebhookNoOrigin(request)
+          if (url.search) {
+            throw new HttpError(400, 'miniapp_webhook_query_not_allowed', 'This endpoint does not accept query parameters.')
+          }
+          await enforceRateLimit(request, 'miniapp-webhook', env, dependencies.rateLimiter, logger)
+          const body = await parseObjectBody(request)
+          let event
+          try {
+            event = await (
+              dependencies.miniAppWebhookVerifier
+              ?? createMiniAppWebhookVerifier(config)
+            ).verify(body)
+          } catch (error) {
+            if (error instanceof MiniAppWebhookVerifierUnavailableError) {
+              logger.event('miniapp_webhook_verifier_unavailable')
+              throw new HttpError(
+                503,
+                'miniapp_webhook_verification_unavailable',
+                'Mini App webhook verification is temporarily unavailable.',
+              )
+            }
+            logger.event('miniapp_webhook_rejected')
+            if (error instanceof MiniAppWebhookInvalidError) {
+              throw new HttpError(400, 'miniapp_webhook_invalid', 'The Mini App webhook is invalid.')
+            }
+            throw error
+          }
+          if (!config.approvalNotificationsEnabled && event.event.type === 'enabled') {
+            throw new HttpError(
+              503,
+              'approval_notifications_paused',
+              'Admission notifications are temporarily unavailable.',
+            )
+          }
+          try {
+            await (
+              dependencies.admissionNotificationStore
+              ?? defaultAdmissionNotificationStore(env)
+            ).applyEvent(event)
+          } catch {
+            throw new HttpError(
+              503,
+              'miniapp_webhook_store_unavailable',
+              'Mini App notification consent could not be recorded.',
+            )
+          }
+          logger.event('miniapp_webhook_verified')
+          if (event.event.type === 'enabled') logger.event('miniapp_notification_subscribed')
+          if (event.event.type === 'disabled') logger.event('miniapp_notification_unsubscribed')
+          // Farcaster's webhook contract retries every non-200 response.
+          return new Response(null, { status: 200, headers: emptyResponseHeaders() })
         }
 
         if (request.method === 'POST' && url.pathname === QA_OBSERVER_CHALLENGE_PATH) {
@@ -2279,6 +2382,88 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           return json({ token, tokenType: 'spacetime-access', expiresIn: ADMIN_TOKEN_TTL_SECONDS })
         }
 
+        if (request.method === 'POST' && url.pathname === ADMISSION_NOTIFICATION_PATH) {
+          requireAdminNoOrigin(request)
+          if (!config.approvalNotificationsEnabled) {
+            throw new HttpError(
+              503,
+              'approval_notifications_paused',
+              'Admission notifications are temporarily unavailable.',
+            )
+          }
+          if (url.search) {
+            throw new HttpError(400, 'notification_query_not_allowed', 'This endpoint does not accept query parameters.')
+          }
+          await enforceRateLimit(
+            request,
+            'admission-notification',
+            env,
+            dependencies.rateLimiter,
+            logger,
+          )
+          const notificationConfig = config.miniAppNotifications
+          if (!notificationConfig) throw new ConfigurationError()
+          const credential = adminCredential(request)
+          if (!credential || !(await timingSafeSecretMatch(
+            credential,
+            notificationConfig.operatorSecret,
+          ))) {
+            logger.event('admission_notification_rejected')
+            throw new HttpError(
+              401,
+              'invalid_notification_credentials',
+              'Notification operator credentials are invalid.',
+            )
+          }
+          const body = await parseObjectBody(request)
+          requireExactKeys(body, ['fid'])
+          const fid = canonicalNotificationFid(body.fid)
+          let admission: AdmissionResolution
+          try {
+            admission = await (
+              dependencies.authEpochResolver
+              ?? defaultAuthEpochResolver(config)
+            ).resolve(fid)
+          } catch (error) {
+            logAuthEpochFailure(logger, error)
+            throw new HttpError(
+              503,
+              'authorization_unavailable',
+              'Authorization is temporarily unavailable.',
+            )
+          }
+          if (admission.state !== 'enabled') {
+            logger.event('admission_notification_rejected')
+            throw new HttpError(
+              409,
+              'founder_not_admitted',
+              'Admission is not active for this Farcaster identity.',
+            )
+          }
+          const queuedAt = now()
+          if (!Number.isSafeInteger(queuedAt) || queuedAt < 0) {
+            throw new ConfigurationError()
+          }
+          let status
+          try {
+            status = await (
+              dependencies.admissionNotificationStore
+              ?? defaultAdmissionNotificationStore(env)
+            ).queueAdmission({ fid, authEpoch: admission.authEpoch, queuedAt })
+          } catch {
+            throw new HttpError(
+              503,
+              'admission_notification_unavailable',
+              'Admission notification delivery is temporarily unavailable.',
+            )
+          }
+          if (status === 'already-sent') logger.event('admission_notification_succeeded')
+          else if (status === 'delivery-exhausted') logger.event('admission_notification_exhausted')
+          else if (status === 'not-subscribed') logger.event('admission_notification_not_subscribed')
+          else logger.event('admission_notification_queued')
+          return json({ status }, status === 'queued' ? 202 : 200)
+        }
+
         if (request.method === 'POST' && url.pathname === AUTH_EPOCH_PROBE_PATH) {
           requireAdminNoOrigin(request)
           // Reusing the existing persisted action preserves rollback compatibility.
@@ -2333,6 +2518,7 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             profile: 'warpkeep-auth-v2',
             digest: attestation.digest,
             farcasterRpcEndpointFingerprints: attestation.farcasterRpcEndpointFingerprints,
+            miniAppHubEndpointFingerprints: attestation.miniAppHubEndpointFingerprints,
             signingPublicKeyThumbprint: attestation.signingPublicKeyThumbprint,
             quickAuthIssuer: QUICK_AUTH_ISSUER,
             quickAuthDomain: QUICK_AUTH_DOMAIN,
@@ -2347,6 +2533,11 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             accessRequestResolverTimeoutMilliseconds: ACCESS_REQUEST_RESOLVER_TIMEOUT_MILLISECONDS,
             accessRequestStatusProcedure: SPACETIMEDB_ACCESS_REQUEST_STATUS_PROCEDURE,
             accessRequestSubmitProcedure: SPACETIMEDB_ACCESS_REQUEST_SUBMIT_PROCEDURE,
+            approvalNotificationsEnabled: config.approvalNotificationsEnabled,
+            miniAppNotificationClientFids:
+              config.miniAppNotifications?.clients.map(client => client.appFid) ?? [],
+            miniAppWebhookPath: MINIAPP_WEBHOOK_PATH,
+            admissionNotificationPath: ADMISSION_NOTIFICATION_PATH,
             publicAuthEnabled: config.publicAuthEnabled,
             accessExpectedFidRequired: config.accessExpectedFidRequired,
             qaObserverEnabled: config.qaObserverEnabled,

@@ -32,6 +32,17 @@ export type QaObserverSpacetimeDbConfig = Readonly<{
 
 export type FarcasterRpcUrls = readonly [string] | readonly [string, string]
 
+export type MiniAppNotificationClient = Readonly<{
+  appFid: number
+  deliveryUrl: string
+}>
+
+export type MiniAppNotificationConfig = Readonly<{
+  hubUrls: readonly [string, string]
+  clients: readonly MiniAppNotificationClient[]
+  operatorSecret: string
+}>
+
 export interface BridgeConfig {
   issuer: string
   issuerUrl: URL
@@ -53,6 +64,8 @@ export interface BridgeConfig {
   qaObserverPublicJwk?: PublicEcJwk
   qaObserverKeyRegisteredAt?: number
   qaObserverKeyExpiresAt?: number
+  approvalNotificationsEnabled: boolean
+  miniAppNotifications?: MiniAppNotificationConfig
   environment: 'development' | 'production'
 }
 
@@ -281,6 +294,71 @@ function parsePublicAuthEnabled(value: string): boolean {
   return value === 'true'
 }
 
+function parseMiniAppHubUrls(value: string, production: boolean): readonly [string, string] {
+  const entries = value.split(',').map(entry => entry.trim()).filter(Boolean)
+  if (entries.length !== 2) throw new ConfigurationError()
+  const urls = entries.map(entry => parseAbsoluteUrl(entry))
+  for (const url of urls) {
+    if (
+      url.username
+      || url.password
+      || url.search
+      || url.hash
+      || (url.pathname !== '/' && url.pathname !== '')
+      || (production && (url.protocol !== 'https:' || !isPublicDnsHostname(url.hostname)))
+      || (!production && url.protocol === 'http:' && !isLoopbackHostname(url.hostname))
+    ) {
+      throw new ConfigurationError()
+    }
+  }
+  if (urls[0].origin === urls[1].origin) throw new ConfigurationError()
+  return Object.freeze([urls[0].toString(), urls[1].toString()])
+}
+
+function parseMiniAppNotificationClients(
+  value: string,
+  production: boolean,
+): readonly MiniAppNotificationClient[] {
+  const entries = value.split(',').map(entry => entry.trim()).filter(Boolean)
+  if (entries.length < 1 || entries.length > 8) throw new ConfigurationError()
+  const seenFids = new Set<number>()
+  const seenUrls = new Set<string>()
+  const clients = entries.map(entry => {
+    const separator = entry.indexOf('=')
+    if (separator < 1 || separator !== entry.lastIndexOf('=')) {
+      throw new ConfigurationError()
+    }
+    const fidText = entry.slice(0, separator)
+    if (!/^[1-9]\d{0,15}$/.test(fidText)) throw new ConfigurationError()
+    const appFid = Number(fidText)
+    if (!Number.isSafeInteger(appFid) || seenFids.has(appFid)) {
+      throw new ConfigurationError()
+    }
+    const url = parseAbsoluteUrl(entry.slice(separator + 1))
+    if (
+      url.username
+      || url.password
+      || url.search
+      || url.hash
+      || url.pathname === '/'
+      || (production && (
+        url.protocol !== 'https:'
+        || Boolean(url.port)
+        || !isPublicDnsHostname(url.hostname)
+      ))
+      || (!production && url.protocol === 'http:' && !isLoopbackHostname(url.hostname))
+      || seenUrls.has(url.toString())
+    ) {
+      throw new ConfigurationError()
+    }
+    seenFids.add(appFid)
+    seenUrls.add(url.toString())
+    return Object.freeze({ appFid, deliveryUrl: url.toString() })
+  })
+  clients.sort((left, right) => left.appFid - right.appFid)
+  return Object.freeze(clients)
+}
+
 function isCanonicalBase64UrlCoordinate(value: string): boolean {
   if (!/^[A-Za-z0-9_-]{43}$/.test(value)) return false
   try {
@@ -415,6 +493,42 @@ export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
   }
 
   const qaObserverEnabled = parsePublicAuthEnabled(required(env, 'QA_OBSERVER_ENABLED'))
+  const approvalNotificationsEnabled = env.APPROVAL_NOTIFICATIONS_ENABLED === undefined
+    ? false
+    : parsePublicAuthEnabled(env.APPROVAL_NOTIFICATIONS_ENABLED)
+  let miniAppNotifications: MiniAppNotificationConfig | undefined
+  const notificationConfigurationValues = [
+    env.MINIAPP_NOTIFICATION_HUB_URLS?.trim(),
+    env.MINIAPP_NOTIFICATION_CLIENTS?.trim(),
+    env.NOTIFICATION_OPERATOR_SECRET?.trim(),
+  ]
+  if (
+    notificationConfigurationValues.some(Boolean)
+    && !notificationConfigurationValues.every(Boolean)
+  ) {
+    throw new ConfigurationError()
+  }
+  if (notificationConfigurationValues.every(Boolean)) {
+    const operatorSecret = parseAdminTokenSecret(required(env, 'NOTIFICATION_OPERATOR_SECRET'))
+    if (
+      operatorSecret === adminTokenSecret
+      || operatorSecret === sessionCookieKey
+      || operatorSecret === privateJwk.d
+    ) {
+      throw new ConfigurationError()
+    }
+    miniAppNotifications = Object.freeze({
+      hubUrls: parseMiniAppHubUrls(required(env, 'MINIAPP_NOTIFICATION_HUB_URLS'), production),
+      clients: parseMiniAppNotificationClients(
+        required(env, 'MINIAPP_NOTIFICATION_CLIENTS'),
+        production,
+      ),
+      operatorSecret,
+    })
+  }
+  if (approvalNotificationsEnabled && !miniAppNotifications) {
+    throw new ConfigurationError()
+  }
   const qaSpacetimeDbUriValue = env.QA_OBSERVER_SPACETIMEDB_URI?.trim()
   const qaSpacetimeDbDatabaseValue = env.QA_OBSERVER_SPACETIMEDB_DATABASE?.trim()
   const qaAudienceValue = env.QA_OBSERVER_OIDC_AUDIENCE?.trim()
@@ -482,6 +596,8 @@ export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
       ? false
       : parsePublicAuthEnabled(env.ACCESS_EXPECTED_FID_REQUIRED),
     qaObserverEnabled,
+    approvalNotificationsEnabled,
+    ...(miniAppNotifications ? { miniAppNotifications } : {}),
     ...(qaObserverSpacetimeDb ? { qaObserverSpacetimeDb } : {}),
     ...(qaObserverPublicJwk ? { qaObserverPublicJwk } : {}),
     ...(qaObserverKeyRegisteredAt === undefined ? {} : { qaObserverKeyRegisteredAt }),

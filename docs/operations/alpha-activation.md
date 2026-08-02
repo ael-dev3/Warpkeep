@@ -230,6 +230,37 @@ pass. Confirm:
 - the Terms, Social Contract, and Privacy Notice match the accepted version;
 - realm entry stays fail-closed until backend/module compatibility is ready.
 
+### Admission notification rollout
+
+Farcaster admission notifications are an optional auth-bridge capability, not
+a SpacetimeDB schema change. Roll them out in this order:
+
+1. Add a dedicated managed `NOTIFICATION_OPERATOR_SECRET` to the currently
+   deployed bridge before introducing the two checked-in notification settings.
+   It must be distinct from every auth, session, wallet, and database
+   credential. Confirm only the managed binding name, never its value.
+2. Deploy the reviewed auth bridge and its additive Durable Object migration
+   with `APPROVAL_NOTIFICATIONS_ENABLED=false`. Preserve the live values of
+   `PUBLIC_AUTH_ENABLED` and `ACCESS_EXPECTED_FID_REQUIRED`; never replace
+   production configuration with the checked-in staging defaults. The Hub,
+   client, and secret tuple must be complete in that first candidate.
+3. Verify the configured Farcaster Hub origins, approved client FID/delivery
+   pair, Durable Object binding, webhook isolation, and redacted configuration
+   attestation. Keep raw notification tokens and signed webhook bodies out of
+   logs and release evidence.
+4. Enable the notification gate, prove that signed enable and disable events
+   reach the Worker, and only then deploy the manifest `webhookUrl` and client
+   opt-in control.
+5. Give Hermes the operator secret through its private environment. A committed
+   admission may call the notification route best-effort; if delivery cannot be
+   queued, preserve the admission result and reconcile later with
+   `npm run stdb:notify-admitted -- <fid> --confirm`.
+
+For rollback, pause the notification gate first. Leave the webhook verifier and
+client configuration available long enough to accept signed disable/remove
+events and erase stored tokens. Pausing notifications must not disable public
+authentication or revoke admission.
+
 ## 6. Bounded owner smoke test
 
 Use one owner-controlled account. Verify sign-in, current agreement acceptance,

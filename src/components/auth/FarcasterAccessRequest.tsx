@@ -7,6 +7,7 @@ import {
 
 import type { AccessRequestViewState } from '../../farcaster/farcasterAuthTypes';
 import { useMiniAppHost } from '../../farcaster/miniapp';
+import { FarcasterAdmissionNotificationOptIn } from './FarcasterAdmissionNotificationOptIn';
 import './FarcasterAccessRequest.css';
 
 export type FarcasterAccessRequestProps = Readonly<{
@@ -173,6 +174,7 @@ export function FarcasterAccessRequestAction({
           </span>
           <span>Access is reviewed manually.</span>
         </div>
+        <FarcasterAdmissionNotificationOptIn />
         {onCheckAdmission ? (
           <button
             className="farcaster-auth-panel__action farcaster-auth-panel__action--secondary"

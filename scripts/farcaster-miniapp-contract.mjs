@@ -3,6 +3,8 @@ export const FARCASTER_MINI_APP_DOMAIN = 'warpkeep.com';
 export const FARCASTER_MINI_APP_OWNER_FID = 539_854;
 export const FARCASTER_MINI_APP_HOME_URL =
   `${FARCASTER_MINI_APP_ORIGIN}/?miniApp=true`;
+export const FARCASTER_MINI_APP_WEBHOOK_URL =
+  'https://auth.warpkeep.com/v1/farcaster/miniapp/webhook';
 export const FARCASTER_MINI_APP_ASSET_ROOT =
   `${FARCASTER_MINI_APP_ORIGIN}/images/miniapp`;
 export const FARCASTER_MINI_APP_SPLASH_FILE =
@@ -53,6 +55,7 @@ export const FARCASTER_MINI_APP_CONFIG = Object.freeze({
   version: '1',
   name: 'Warpkeep',
   homeUrl: FARCASTER_MINI_APP_HOME_URL,
+  webhookUrl: FARCASTER_MINI_APP_WEBHOOK_URL,
   iconUrl:
     `${FARCASTER_MINI_APP_ASSET_ROOT}/warpkeep-icon-1024-d1b42d20f03c2905.png`,
   splashImageUrl:

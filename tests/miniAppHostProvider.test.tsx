@@ -276,6 +276,7 @@ describe('Farcaster Mini App host provider', () => {
       client: {
         clientFid: 9_150,
         added: true,
+        notificationsEnabled: false,
         platformType: 'mobile',
         safeAreaInsets: {
           top: 160,
@@ -554,6 +555,144 @@ describe('Farcaster Mini App host provider', () => {
     expect(onRequestAccess).toHaveBeenCalledTimes(2);
     await waitFor(() => expect(sdk.haptics?.impactOccurred)
       .toHaveBeenCalledExactlyOnceWith('light'));
+  });
+
+  it('single-flights the optional admission notification prompt and discards its private result', async () => {
+    let resolveAddMiniApp!: (value: unknown) => void;
+    const addMiniAppResult = new Promise<unknown>((resolve) => {
+      resolveAddMiniApp = resolve;
+    });
+    const addMiniApp = vi.fn(() => addMiniAppResult);
+    const { sdk } = fakeSdk({
+      getCapabilities: vi.fn(async () => [
+        'actions.ready',
+        'actions.addMiniApp'
+      ]),
+      actions: {
+        ready: vi.fn(async () => {}),
+        addMiniApp
+      }
+    });
+    let latest: MiniAppHostValue | undefined;
+    render(
+      <StrictMode>
+        <Harness
+          runtime={runtimeFor('?miniApp=true')}
+          sdkLoader={async () => sdk}
+          capture={(value) => { latest = value; }}
+        >
+          <FarcasterAccessRequestAction
+            onRequestAccess={() => false}
+            state={{ phase: 'request-received', requestedAt: 1_785_414_896_000 }}
+          />
+        </Harness>
+      </StrictMode>
+    );
+    await waitFor(() => expect(latest?.state).toBe('miniapp'));
+
+    const notify = screen.getByRole('button', {
+      name: 'NOTIFY ME WHEN ADMITTED'
+    });
+    fireEvent.click(notify);
+    fireEvent.click(notify);
+
+    expect(addMiniApp).toHaveBeenCalledTimes(1);
+    expect((notify as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText('Waiting for Farcaster’s confirmation…'))
+      .not.toBeNull();
+
+    resolveAddMiniApp({
+      notificationDetails: {
+        token: 'private-notification-token',
+        url: 'https://notify.example/private-delivery'
+      }
+    });
+    await waitFor(() => {
+      expect(screen.getByText('NOTIFICATION SETUP OPENED')).not.toBeNull();
+    });
+    expect(document.body.textContent).not.toContain('private-notification-token');
+    expect(document.body.textContent).not.toContain('notify.example');
+    expect(JSON.stringify(latest?.context)).not.toContain('notificationDetails');
+  });
+
+  it('shows only the sanitized enabled state and hides opt-in outside capable Mini Apps', async () => {
+    const rawContext = validContext();
+    const addMiniApp = vi.fn(async () => ({
+      notificationDetails: {
+        token: 'must-not-pass-through',
+        url: 'https://notify.example/must-not-pass-through'
+      }
+    }));
+    const { sdk } = fakeSdk({
+      context: Promise.resolve({
+        ...rawContext,
+        client: {
+          ...rawContext.client,
+          notificationDetails: {
+            token: 'must-not-pass-through',
+            url: 'https://notify.example/must-not-pass-through'
+          }
+        }
+      }),
+      getCapabilities: vi.fn(async () => [
+        'actions.ready',
+        'actions.addMiniApp'
+      ]),
+      actions: {
+        ready: vi.fn(async () => {}),
+        addMiniApp
+      }
+    });
+    let latest: MiniAppHostValue | undefined;
+    const capable = render(
+      <Harness
+        runtime={runtimeFor('?miniApp=true')}
+        sdkLoader={async () => sdk}
+        capture={(value) => { latest = value; }}
+      >
+        <FarcasterAccessRequestAction
+          onRequestAccess={() => false}
+          state={{ phase: 'already-requested', requestedAt: 1_785_414_896_000 }}
+        />
+      </Harness>
+    );
+    await waitFor(() => expect(latest?.state).toBe('miniapp'));
+
+    expect(latest?.context?.client.notificationsEnabled).toBe(true);
+    expect(screen.getByText('FARCASTER ALERTS REPORTED ON')).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'NOTIFY ME WHEN ADMITTED' }))
+      .toBeNull();
+    expect(JSON.stringify(latest?.context)).not.toContain('must-not-pass-through');
+    expect(addMiniApp).not.toHaveBeenCalled();
+
+    capable.unmount();
+    const incapableSdk = fakeSdk().sdk;
+    let incapableState: MiniAppHostValue | undefined;
+    const incapable = render(
+      <Harness
+        runtime={runtimeFor('?miniApp=true')}
+        sdkLoader={async () => incapableSdk}
+        capture={(value) => { incapableState = value; }}
+      >
+        <FarcasterAccessRequestAction
+          onRequestAccess={() => false}
+          state={{ phase: 'request-received', requestedAt: 1_785_414_896_000 }}
+        />
+      </Harness>
+    );
+    await waitFor(() => expect(incapableState?.state).toBe('miniapp'));
+    expect(screen.queryByLabelText('Admission notification preference'))
+      .toBeNull();
+
+    incapable.unmount();
+    render(
+      <FarcasterAccessRequestAction
+        onRequestAccess={() => false}
+        state={{ phase: 'request-received', requestedAt: 1_785_414_896_000 }}
+      />
+    );
+    expect(screen.queryByLabelText('Admission notification preference'))
+      .toBeNull();
   });
 
   it('returns a fresh Quick Auth bearer only after verified host detection', async () => {

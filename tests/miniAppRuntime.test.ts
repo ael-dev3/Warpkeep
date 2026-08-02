@@ -64,7 +64,10 @@ describe('Farcaster Mini App runtime sanitization', () => {
           bottom: -20,
           left: 999
         },
-        notificationDetails: { token: 'must-not-pass-through' }
+        notificationDetails: {
+          token: 'must-not-pass-through',
+          url: 'https://notify.example/must-not-pass-through'
+        }
       },
       features: {
         haptics: true,
@@ -89,6 +92,7 @@ describe('Farcaster Mini App runtime sanitization', () => {
       client: {
         clientFid: 9_150,
         added: true,
+        notificationsEnabled: true,
         platformType: 'mobile',
         safeAreaInsets: {
           top: 160,
@@ -121,6 +125,7 @@ describe('Farcaster Mini App runtime sanitization', () => {
       client: {
         clientFid: 9_150,
         added: false,
+        notificationDetails: {},
         safeAreaInsets: {
           top: Number.NaN,
           right: Number.POSITIVE_INFINITY,
@@ -133,6 +138,7 @@ describe('Farcaster Mini App runtime sanitization', () => {
       client: {
         clientFid: 9_150,
         added: false,
+        notificationsEnabled: false,
         safeAreaInsets: { top: 0, right: 0, bottom: 2, left: 3 }
       },
       features: {
