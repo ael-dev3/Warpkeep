@@ -50,7 +50,7 @@ describe('FarcasterAdmissionPanel', () => {
     expect(document.getElementById(descriptionId!)?.textContent)
       .toMatch(/does not grant entry or reserve a castle/i);
     fireEvent.click(requestButton);
-    expect(screen.queryByRole('button', { name: 'CHECK ADMISSION' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'CHECK AGAIN' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'BACK TO MENU' }));
     fireEvent.click(screen.getByRole('button', { name: 'SIGN OUT' }));
     expect(onRequestAccess).toHaveBeenCalledTimes(1);
@@ -83,7 +83,7 @@ describe('FarcasterAdmissionPanel', () => {
     expect(onRequestAccess).not.toHaveBeenCalled();
   });
 
-  it('retains CHECK ADMISSION after the request is recorded for manual review', () => {
+  it('retains CHECK AGAIN after the request is recorded for manual review', () => {
     const onCheckAgain = vi.fn();
     render(
       <FarcasterAdmissionPanel
@@ -98,7 +98,7 @@ describe('FarcasterAdmissionPanel', () => {
     );
 
     expect(screen.getByText('REQUEST RECEIVED')).not.toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'CHECK ADMISSION' }));
+    fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
     expect(onCheckAgain).toHaveBeenCalledTimes(1);
   });
 
@@ -161,10 +161,10 @@ describe('FarcasterAdmissionPanel', () => {
       />
     );
 
-    expect(screen.getByText('SUBMITTING REQUEST')).not.toBeNull();
-    expect(screen.getByText(/Confirming your identity and recording your request/i)).not.toBeNull();
+    expect(screen.getByText('REQUEST SENT')).not.toBeNull();
+    expect(screen.getByText(/Confirming with the Hegemony records/i)).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'CHECK ADMISSION' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'CHECK AGAIN' })).toBeNull();
   });
 
   it('keeps a backend outage distinct from an admission rejection', () => {

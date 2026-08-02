@@ -219,7 +219,7 @@ describe('Warpkeep local QA journey lab', () => {
     fireEvent.click(request);
 
     expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
-    expect(screen.getByText('SUBMITTING REQUEST')).not.toBeNull();
+    expect(screen.getByText('REQUEST SENT')).not.toBeNull();
     await waitFor(() => expect(screen.getByText('REQUEST RECEIVED')).not.toBeNull());
 
     const stage = document.querySelector<HTMLElement>('.qa-journey__auth-stage');

@@ -48,7 +48,7 @@ Copyright: See ASSETS-LICENSE.md
 License: LicenseRef-Warpkeep-Provenance-Required
 Comment: Owner-supplied Mini App embed source and its reviewed runtime derivative; repository use is authorized without an independent open-content grant.
 
-Files: public/images/miniapp/warpkeep-portrait-realm-1284x2778.png public/images/miniapp/warpkeep-portrait-keep-1284x2778.png public/images/miniapp/warpkeep-portrait-worker-1284x2778.png
+Files: public/images/miniapp/warpkeep-portrait-realm-alpha-0.3.43-1284x2778.png public/images/miniapp/warpkeep-portrait-resource-alpha-0.3.43-1284x2778.png public/images/miniapp/warpkeep-portrait-worker-alpha-0.3.43-1284x2778.png docs/reference/screenshots/2026-08-02-alpha-0.3.43-launch/**
 Copyright: See ASSETS-LICENSE.md and the provenance records for depicted assets
 License: LicenseRef-Warpkeep-Provenance-Required
-Comment: Privacy-reviewed synthetic captures of the assembled Alpha 0.3.28 release UI; no real account or private state is depicted.
+Comment: Privacy-reviewed synthetic captures of the assembled Alpha 0.3.43 release UI; no real account or private state is depicted.

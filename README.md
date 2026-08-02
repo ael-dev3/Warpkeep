@@ -6,11 +6,11 @@
 
 Genesis 001 is a persistent, invite-only 10,000-cell Lowlands realm with 100 permanent castle sites gathered near its founding district. Each admitted founder enters through a verified Farcaster identity, receives one durable keep, and returns to a world that remembers its coastline, twelve rivers, wintering north, sunscoured south, shaped forests, resource sites, Workers, wagons, and public keeper portraits. Four permanent Workers can gather Food / Wood / Stone / Gold, settle production automatically, and return home on command.
 
-The Realm records one experimental Community Mark for each admitted keeper per eligible day. Returning admitted players with current Alpha Terms enter directly in ordinary browsers and the portrait-first Farcaster Mini App; verified players still outside the gate can place one private request for manual review. The intended core strategy loop is not playable yet: Warpkeep is a one-person, open-source experiment—not a finished MMO or financial product. Participation earns no token reward, airdrop, financial return, guaranteed reward, or future value.
+The Realm records one experimental Community Mark for each admitted keeper per eligible day. In the current invite-only Alpha, returning admitted players whose Alpha Terms remain current enter directly in ordinary browsers or the portrait-first Farcaster Mini App; verified players outside the gate may submit one private access request for manual review, which does not itself grant admission. The current Alpha supports permanent keeps, four Worker journeys, and persistent resource gathering; construction, units, combat, alliances, and the larger strategy loop are still in development. Warpkeep is a one-person, open-source experiment—not a finished MMO or financial product. Participation earns no token reward, airdrop, financial return, guaranteed reward, or future value.
 
-![Development preview of Genesis 001 showing the Lowlands and an open Wheat Farm inspection panel.](docs/reference/screenshots/2026-07-22-realm-wheat-farm-preview/warpkeep-realm-wheat-farm-preview-f3b1f7e598c543d6.png)
+![Current Alpha preview of the keeps and Worker road network in Genesis 001.](docs/reference/screenshots/2026-08-02-alpha-0.3.43-launch/warpkeep-alpha-0.3.43-genesis-001.png)
 
-*Development preview of the Realm Wheat Farm inspection flow; this documentation image does not itself activate or authorize gameplay.*
+*A privacy-safe local capture of the current Realm renderer using synthetic keep records; this documentation image does not activate or authorize gameplay.*
 
 ## Quick start
 

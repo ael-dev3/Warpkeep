@@ -153,7 +153,7 @@ describe('FarcasterMiniAppEntryGate', () => {
     fireEvent.click(screen.getByRole('button', { name: 'BACK TO MENU' }));
     expect(callbacks.onBackToMenu).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
-    expect(screen.queryByRole('button', { name: 'CHECK ADMISSION' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'CHECK AGAIN' })).toBeNull();
     expect(callbacks.onRequestAccess).toHaveBeenCalledTimes(1);
     expect(callbacks.onRefreshSession).not.toHaveBeenCalled();
   });

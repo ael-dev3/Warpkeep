@@ -239,6 +239,17 @@ describe('procedural SFX contracts', () => {
     }
   });
 
+  it('keeps the access confirmation to one quiet 100–180 ms seal', () => {
+    const recipe = getWarpkeepSfxRecipe({ kind: 'access-request-confirmed' });
+    expect(recipe.bus).toBe('ui');
+    expect(recipe.duration).toBeGreaterThanOrEqual(0.1);
+    expect(recipe.duration).toBeLessThanOrEqual(0.18);
+    expect(recipe.gain).toBeLessThanOrEqual(0.4);
+    expect(recipe.tones.every(layer => (
+      (layer.offset ?? 0) + layer.duration <= recipe.duration
+    ))).toBe(true);
+  });
+
   it('clusters simultaneous Worker events and derives bounded stereo pan', () => {
     expect(clusterWarpkeepSfxEvents([
       { kind: 'worker-recall-confirmed', count: 1, screenX: 100 },

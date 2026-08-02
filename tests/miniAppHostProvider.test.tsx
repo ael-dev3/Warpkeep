@@ -1,4 +1,4 @@
-import { act, cleanup, render, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { StrictMode, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -15,6 +15,7 @@ import {
   emitWarpkeepSfxBatch,
   resolveWarpkeepHapticCue
 } from '../src/components/audio';
+import { FarcasterAccessRequestAction } from '../src/components/auth/FarcasterAccessRequest';
 
 afterEach(() => {
   vi.useRealTimers();
@@ -479,6 +480,9 @@ describe('Farcaster Mini App host provider', () => {
       { kind: 'worker-arrived', count: 1 },
       { kind: 'select-water', regime: 'river' }
     ])).toBeUndefined();
+    expect(resolveWarpkeepHapticCue([
+      { kind: 'access-request-confirmed' }
+    ])).toEqual({ kind: 'notification', type: 'success' });
 
     await act(async () => {
       emitWarpkeepSfxBatch([
@@ -490,6 +494,13 @@ describe('Farcaster Mini App host provider', () => {
     expect(sdk.haptics?.notificationOccurred)
       .toHaveBeenCalledExactlyOnceWith('success');
     expect(sdk.haptics?.selectionChanged).not.toHaveBeenCalled();
+
+    await act(async () => {
+      emitWarpkeepSfxBatch([{ kind: 'access-request-confirmed' }]);
+      await Promise.resolve();
+    });
+    expect(sdk.haptics?.notificationOccurred).toHaveBeenCalledTimes(2);
+    expect(sdk.haptics?.notificationOccurred).toHaveBeenLastCalledWith('success');
 
     await act(async () => {
       emitWarpkeepSfxBatch([
@@ -509,6 +520,40 @@ describe('Farcaster Mini App host provider', () => {
     });
     expect(sdk.haptics?.notificationOccurred)
       .toHaveBeenLastCalledWith('error');
+  });
+
+  it('gives one light haptic only to the access activation that wins its lock', async () => {
+    const { sdk } = fakeSdk({
+      getCapabilities: vi.fn(async () => [
+        'actions.ready',
+        'haptics.impactOccurred'
+      ])
+    });
+    const onRequestAccess = vi.fn()
+      .mockReturnValueOnce(true)
+      .mockReturnValue(false);
+    let latest: MiniAppHostValue | undefined;
+    render(
+      <Harness
+        runtime={runtimeFor('?miniApp=true')}
+        sdkLoader={async () => sdk}
+        capture={(value) => { latest = value; }}
+      >
+        <FarcasterAccessRequestAction
+          onRequestAccess={onRequestAccess}
+          state={{ phase: 'request-available' }}
+        />
+      </Harness>
+    );
+    await waitFor(() => expect(latest?.state).toBe('miniapp'));
+
+    const request = screen.getByRole('button', { name: 'REQUEST ACCESS' });
+    fireEvent.click(request);
+    fireEvent.click(request);
+
+    expect(onRequestAccess).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(sdk.haptics?.impactOccurred)
+      .toHaveBeenCalledExactlyOnceWith('light'));
   });
 
   it('returns a fresh Quick Auth bearer only after verified host detection', async () => {

@@ -36,7 +36,7 @@ export type FarcasterQrAuthPanelProps = {
   onPrepareQrCode?: () => void;
   onCheckAdmission?: () => void;
   accessRequest?: AccessRequestViewState;
-  onRequestAccess?: () => void;
+  onRequestAccess?: () => boolean;
   onRetryAccessRequestStatus?: () => void;
   onRememberDeviceChange?: (remember: boolean) => void;
   onCancel: () => void;

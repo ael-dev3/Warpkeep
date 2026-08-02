@@ -376,13 +376,13 @@ export function getWarpkeepSfxRecipe(event: WarpkeepSfxEvent): WarpkeepSfxRecipe
     case 'access-request-confirmed':
       return Object.freeze({
         bus: 'ui',
-        duration: 0.3,
-        gain: 0.56,
-        noise: noise(0.055, 0.04, 'lowpass', 1_150, 0.65),
+        duration: 0.16,
+        gain: 0.4,
+        noise: noise(0.035, 0.026, 'lowpass', 1_150, 0.6),
         priority: 5,
         tones: Object.freeze([
-          tone(244, 286, 0.14, 0.075, 'sine'),
-          tone(326, 392, 0.2, 0.065, 'sine', 0.075)
+          tone(252, 292, 0.09, 0.05, 'sine'),
+          tone(330, 382, 0.1, 0.042, 'sine', 0.04)
         ])
       });
   }

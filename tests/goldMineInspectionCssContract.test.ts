@@ -31,6 +31,7 @@ describe('Gold Mine inspection visual contract', () => {
     const art = block(CSS, '.gold-mine-inspection__hero-art {');
     const drawer = block(CSS, '.gold-mine-inspection__drawer {');
     const close = block(CSS, '.gold-mine-inspection__dismiss {');
+    const focusedTitle = block(CSS, '.gold-mine-inspection__title-lockup h2:focus {');
 
     expect(inspector).toContain('padding-top: clamp(4.45rem, 13vw, 5.6rem);');
     expect(stage).toContain('position: absolute;');
@@ -43,6 +44,7 @@ describe('Gold Mine inspection visual contract', () => {
     expect(close).toContain('z-index: 5;');
     expect(close).toContain('min-width: 2.75rem;');
     expect(close).toContain('min-height: 2.75rem;');
+    expect(focusedTitle).toContain('outline: none;');
     expect(CSS).toContain('@media (prefers-reduced-motion: reduce)');
   });
 });

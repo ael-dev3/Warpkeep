@@ -17,6 +17,7 @@ import {
   FarcasterAccessRequestAction,
   FarcasterAccessRequestMessage
 } from '../src/components/auth/FarcasterAccessRequest';
+import { subscribeWarpkeepSfx } from '../src/components/audio/sfxEvents';
 import type { AccessRequestDiagnosticEvent } from '../src/farcaster/accessRequestStateMachine';
 import { useAccessRequest } from '../src/farcaster/useAccessRequest';
 import { createFarcasterOidcBridgeClient } from '../src/farcaster/farcasterOidcBridgeClient';
@@ -87,7 +88,7 @@ type HarnessProps = Readonly<{
   reportDiagnostic?: (event: AccessRequestDiagnosticEvent) => void;
   onAuthenticationIdentityChanged?: () => void;
   bridgeLoaderVersion?: number;
-  captureRequestAccess?: (callback: () => void) => void;
+  captureRequestAccess?: (callback: () => boolean) => void;
   extra?: ReactNode;
 }>;
 
@@ -198,7 +199,7 @@ describe('professional access-request lifecycle', () => {
     fireEvent.click(button);
 
     expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
-    expect(screen.getByText('SUBMITTING REQUEST')).not.toBeNull();
+    expect(screen.getByText('REQUEST SENT')).not.toBeNull();
     expect(document.querySelector('.farcaster-access-request')).toBe(stableRegion);
     expect(document.activeElement).toBe(stableRegion);
     expect(stableRegion?.getAttribute('aria-busy')).toBe('true');
@@ -213,9 +214,11 @@ describe('professional access-request lifecycle', () => {
     const submitted = deferred<AccessRequestStatus>();
     const requestAccess = vi.fn(() => submitted.promise);
     const reportDiagnostic = vi.fn<(event: AccessRequestDiagnosticEvent) => void>();
+    let activateRequest = () => false;
     render(
       <Harness
         authState={pending(12_345)}
+        captureRequestAccess={(callback) => { activateRequest = callback; }}
         client={bridge({ requestAccess })}
         generation={1}
         reportDiagnostic={reportDiagnostic}
@@ -223,9 +226,15 @@ describe('professional access-request lifecycle', () => {
     );
 
     await screen.findByRole('button', { name: 'REQUEST ACCESS' });
-    fireEvent.click(screen.getByRole('button', { name: 'DIRECT 20 REQUESTS' }));
+    const accepted: boolean[] = [];
+    act(() => {
+      for (let index = 0; index < 20; index += 1) {
+        accepted.push(activateRequest());
+      }
+    });
 
     await waitFor(() => expect(requestAccess).toHaveBeenCalledTimes(1));
+    expect(accepted).toEqual([true, ...Array.from({ length: 19 }, () => false)]);
     expect(reportDiagnostic).toHaveBeenCalledWith('request_submit_started');
     expect(reportDiagnostic).toHaveBeenCalledWith('duplicate_client_activation_suppressed');
     expect(reportDiagnostic.mock.calls.filter(
@@ -265,6 +274,10 @@ describe('professional access-request lifecycle', () => {
 
   it('holds a fast authoritative result for the bounded submitting interval', async () => {
     vi.useFakeTimers();
+    const observedKinds: string[] = [];
+    const unsubscribe = subscribeWarpkeepSfx(events => {
+      observedKinds.push(...events.map(event => event.kind));
+    });
     const requestAccess = vi.fn(async () => ({
       version: 1 as const,
       status: 'requested' as const,
@@ -284,20 +297,27 @@ describe('professional access-request lifecycle', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
     await Promise.resolve();
-    expect(screen.getByText('SUBMITTING REQUEST')).not.toBeNull();
+    expect(screen.getByText('REQUEST SENT')).not.toBeNull();
+    expect(observedKinds).toEqual([]);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(349);
     });
-    expect(screen.getByText('SUBMITTING REQUEST')).not.toBeNull();
+    expect(screen.getByText('REQUEST SENT')).not.toBeNull();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
     expect(screen.getByText('REQUEST RECEIVED')).not.toBeNull();
     expect(screen.getByTestId('access-timestamp').textContent).toBe(String(REQUESTED_AT));
+    expect(observedKinds).toEqual(['access-request-confirmed']);
+    unsubscribe();
   });
 
   it('restores an existing request as a distinct terminal state without sound or mutation', async () => {
+    const observedKinds: string[] = [];
+    const unsubscribe = subscribeWarpkeepSfx(events => {
+      observedKinds.push(...events.map(event => event.kind));
+    });
     const requestAccess = vi.fn();
     render(
       <Harness
@@ -319,10 +339,15 @@ describe('professional access-request lifecycle', () => {
     expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
     expect(screen.getByText('REQUEST RECEIVED')).not.toBeNull();
     expect(requestAccess).not.toHaveBeenCalled();
-    expect(document.querySelector('[data-warpkeep-sfx="access-request-confirmed"]')).toBeNull();
+    expect(observedKinds).toEqual([]);
+    unsubscribe();
   });
 
-  it('reconciles one lost mutation response and converges to the first timestamp', async () => {
+  it('reconciles one lost mutation response with one authoritative confirmation cue', async () => {
+    const observedKinds: string[] = [];
+    const unsubscribe = subscribeWarpkeepSfx(events => {
+      observedKinds.push(...events.map(event => event.kind));
+    });
     const getAccessRequestStatus = vi.fn()
       .mockResolvedValueOnce({ version: 1, status: 'not-requested' })
       .mockResolvedValueOnce({
@@ -349,9 +374,15 @@ describe('professional access-request lifecycle', () => {
     expect(getAccessRequestStatus).toHaveBeenCalledTimes(2);
     expect(screen.getByTestId('access-timestamp').textContent).toBe(String(REQUESTED_AT));
     expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
+    expect(observedKinds).toEqual(['access-request-confirmed']);
+    unsubscribe();
   });
 
   it('keeps an ambiguous missing result sealed and makes CHECK STATUS read-only', async () => {
+    const observedKinds: string[] = [];
+    const unsubscribe = subscribeWarpkeepSfx(events => {
+      observedKinds.push(...events.map(event => event.kind));
+    });
     const getAccessRequestStatus = vi.fn()
       .mockResolvedValue({ version: 1, status: 'not-requested' });
     const requestAccess = vi.fn(async () => {
@@ -380,6 +411,8 @@ describe('professional access-request lifecycle', () => {
     expect(requestAccess).toHaveBeenCalledTimes(1);
     expect(screen.getByText('REQUEST STATUS UNAVAILABLE')).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
+    expect(observedKinds).toEqual([]);
+    unsubscribe();
   });
 
   it('does not allow an initial status outage to become a mutation', async () => {
@@ -475,6 +508,10 @@ describe('professional access-request lifecycle', () => {
   });
 
   it('permits deliberate retry only when credential acquisition proves no mutation began', async () => {
+    const observedKinds: string[] = [];
+    const unsubscribe = subscribeWarpkeepSfx(events => {
+      observedKinds.push(...events.map(event => event.kind));
+    });
     const requestAccess = vi.fn(async () => ({
       version: 1 as const,
       status: 'requested' as const,
@@ -496,11 +533,14 @@ describe('professional access-request lifecycle', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'REQUEST ACCESS' }));
     await waitFor(() => expect(screen.getByText('REQUEST NOT SENT')).not.toBeNull());
     expect(requestAccess).not.toHaveBeenCalled();
+    expect(observedKinds).toEqual([]);
 
     fireEvent.click(screen.getByRole('button', { name: 'TRY AGAIN' }));
     await waitFor(() => expect(screen.getByTestId('access-phase').textContent)
       .toBe('request-received'));
     expect(requestAccess).toHaveBeenCalledTimes(1);
+    expect(observedKinds).toEqual(['access-request-confirmed']);
+    unsubscribe();
   });
 
   it('permits retry after the bridge proves rate limiting happened before mutation', async () => {
@@ -604,7 +644,7 @@ describe('professional access-request lifecycle', () => {
       requestedAt: REQUESTED_AT
     }));
     const client = bridge({ requestAccess });
-    let retainedOldRequest: () => void = () => undefined;
+    let retainedOldRequest: () => boolean = () => false;
     const view = render(
       <Harness
         authState={pending(12_345)}
@@ -761,6 +801,10 @@ describe('professional access-request lifecycle', () => {
   });
 
   it('restores after remount from authority without an available-action flash', async () => {
+    const observedKinds: string[] = [];
+    const unsubscribe = subscribeWarpkeepSfx(events => {
+      observedKinds.push(...events.map(event => event.kind));
+    });
     const requestedStatus = vi.fn(async () => ({
       version: 1 as const,
       status: 'requested' as const,
@@ -778,6 +822,8 @@ describe('professional access-request lifecycle', () => {
     expect(screen.getByText('CHECKING REQUEST STATUS')).not.toBeNull();
     await waitFor(() => expect(screen.getByText('REQUEST RECEIVED')).not.toBeNull());
     expect(requestedStatus).toHaveBeenCalledTimes(2);
+    expect(observedKinds).toEqual([]);
+    unsubscribe();
   });
 
   it('lets two independent clients converge on one authoritative timestamp', async () => {

@@ -6,17 +6,22 @@ full engineering record.
 
 ## [Unreleased]
 
-## [0.3.43] — 2026-08-01
+## [0.3.43] — 2026-08-02
 
-- Made Request Access a single-flight interaction: the button leaves the input
-  lane immediately, then settles through a stable submitting presentation into
-  a durable Request Received record.
-- Reconciled interrupted responses with one read-only check while keeping the
-  request sealed; the browser never retries an ambiguous mutation.
-- Preserved the existing private, cycle-idempotent SpacetimeDB authority and
-  manual admission boundary without a schema or production-data change.
-- Kept a direct route to the full menu beside Request Access and Check Again
-  throughout the Farcaster Mini App entry gate.
+- Let an interrupted Realm rebuild one visual tier lighter, then stop safely
+  with explicit Performance, diagnostics, menu, and support choices instead of
+  leaving weaker Android or embedded browsers behind a restoration overlay.
+- Started compact Farcaster Mini App phones with unreliable memory reporting on
+  the conservative Performance profile while preserving every explicit player
+  graphics choice.
+- Finished Request Access as one silent press and one authoritative confirmation:
+  the input becomes a stable record, interrupted responses reconcile read-only,
+  and the browser never repeats an ambiguous mutation.
+- Refreshed the Mini App directory copy and all three portrait screenshots from
+  the exact current interface, and aligned the public README and release story
+  around permanent keeps, four Worker journeys, and persistent gathering.
+- Kept authentication, manual admission, ownership, resources, and persistent
+  Realm authority unchanged; diagnostics never include identity or private state.
 
 ## [0.3.42] — 2026-08-01
 
@@ -472,7 +477,11 @@ full engineering record.
   Lowlands, a first keep, Farcaster sign-in, and an admission-gated shared-world
   foundation.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.39...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.43...HEAD
+[0.3.43]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.42...v0.3.43
+[0.3.42]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.41...v0.3.42
+[0.3.41]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.40...v0.3.41
+[0.3.40]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.39...v0.3.40
 [0.3.39]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.38...v0.3.39
 [0.3.38]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.37...v0.3.38
 [0.3.37]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.36...v0.3.37

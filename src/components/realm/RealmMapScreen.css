@@ -552,6 +552,7 @@
   background: rgb(0 0 0 / 25%);
   overflow-wrap: anywhere;
   user-select: text;
+  white-space: pre-wrap;
 }
 
 .realm-renderer-recovery-panel small {
@@ -562,7 +563,7 @@
 
 .realm-renderer-recovery-panel__actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.5rem;
 }
 
@@ -584,6 +585,33 @@
 
 .realm-renderer-recovery-panel__actions > :is(button, a):hover,
 .realm-renderer-recovery-panel__actions > :is(button, a):focus-visible {
+  border-color: var(--realm-electrum);
+  outline: 2px solid var(--realm-electrum);
+  outline-offset: 2px;
+}
+
+.realm-renderer-recovery-panel__manual-copy {
+  display: grid;
+  gap: 0.42rem;
+  color: rgb(201 191 208 / 88%);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.realm-renderer-recovery-panel__manual-copy textarea {
+  width: 100%;
+  min-height: 8rem;
+  box-sizing: border-box;
+  resize: vertical;
+  padding: 0.58rem;
+  border: 1px solid rgb(201 167 234 / 34%);
+  border-radius: 0.35rem;
+  background: rgb(0 0 0 / 34%);
+  color: #ead8ff;
+  font: 600 0.7rem/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.realm-renderer-recovery-panel__manual-copy textarea:focus-visible {
   border-color: var(--realm-electrum);
   outline: 2px solid var(--realm-electrum);
   outline-offset: 2px;

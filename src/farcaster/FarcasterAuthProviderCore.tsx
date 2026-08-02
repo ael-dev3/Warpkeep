@@ -103,7 +103,7 @@ export type FarcasterAuthControllerValue = Readonly<{
   retrySignIn: () => void;
   prepareQrCode: () => void;
   refreshSession: () => void;
-  requestAccess: () => void;
+  requestAccess: () => boolean;
   retryAccessRequestStatus: () => void;
   signOut: () => void;
   rememberDevice: boolean;

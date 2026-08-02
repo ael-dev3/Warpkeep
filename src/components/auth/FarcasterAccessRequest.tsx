@@ -1,15 +1,17 @@
 import {
+  useCallback,
   useLayoutEffect,
   useRef,
   type Ref
 } from 'react';
 
 import type { AccessRequestViewState } from '../../farcaster/farcasterAuthTypes';
+import { useMiniAppHost } from '../../farcaster/miniapp';
 import './FarcasterAccessRequest.css';
 
 export type FarcasterAccessRequestProps = Readonly<{
   state: AccessRequestViewState;
-  onRequestAccess: () => void;
+  onRequestAccess: () => boolean;
   onRetryStatus?: () => void;
   onCheckAdmission?: () => void;
   descriptionId?: string;
@@ -20,13 +22,6 @@ function formattedRequestTime(requestedAt: number) {
   const date = new Date(requestedAt);
   return Object.freeze({
     iso: date.toISOString(),
-    local: new Intl.DateTimeFormat(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(date),
     utc: new Intl.DateTimeFormat('en-GB', {
       year: 'numeric',
       month: 'short',
@@ -81,8 +76,14 @@ export function FarcasterAccessRequestAction({
   descriptionId,
   primaryActionRef
 }: FarcasterAccessRequestProps) {
+  const { haptics } = useMiniAppHost();
   const regionRef = useRef<HTMLDivElement>(null);
   const previousPhaseRef = useRef(state.phase);
+  const handleRequestActivation = useCallback(() => {
+    if (onRequestAccess() === true) {
+      void haptics.impactOccurred('light');
+    }
+  }, [haptics, onRequestAccess]);
 
   useLayoutEffect(() => {
     const previousPhase = previousPhaseRef.current;
@@ -123,7 +124,7 @@ export function FarcasterAccessRequestAction({
         aria-describedby={descriptionId}
         className="farcaster-auth-panel__action farcaster-auth-panel__action--primary"
         data-warpkeep-sfx="none"
-        onClick={onRequestAccess}
+        onClick={handleRequestActivation}
         ref={(element) => assignButtonRef(primaryActionRef, element)}
         type="button"
       >
@@ -142,8 +143,8 @@ export function FarcasterAccessRequestAction({
     content = (
       <div className="farcaster-access-request__status-copy">
         <i aria-hidden="true" className="farcaster-access-request__spinner" />
-        <strong>SUBMITTING REQUEST</strong>
-        <span>Confirming your identity and recording your request…</span>
+        <strong>REQUEST SENT</strong>
+        <span>Confirming with the Hegemony records…</span>
       </div>
     );
   } else if (state.phase === 'verifying-ambiguous-result') {
@@ -165,14 +166,12 @@ export function FarcasterAccessRequestAction({
           <i aria-hidden="true" className="farcaster-access-request__seal"><span>✓</span></i>
           <strong>REQUEST RECEIVED</strong>
           <span>
-            Submitted{' '}
+            Recorded{' '}
             <time dateTime={time.iso}>
-              {time.local} · {time.utc} UTC
+              {time.utc} UTC
             </time>
           </span>
-          <span>
-            Manual review does not guarantee approval or timing. Check admission later.
-          </span>
+          <span>Access is reviewed manually.</span>
         </div>
         {onCheckAdmission ? (
           <button
@@ -181,7 +180,7 @@ export function FarcasterAccessRequestAction({
             ref={(element) => assignButtonRef(primaryActionRef, element)}
             type="button"
           >
-            CHECK ADMISSION
+            CHECK AGAIN
           </button>
         ) : null}
       </>
@@ -201,7 +200,7 @@ export function FarcasterAccessRequestAction({
             ref={(element) => assignButtonRef(primaryActionRef, element)}
             type="button"
           >
-            CHECK ADMISSION
+            CHECK AGAIN
           </button>
         ) : null}
       </>
@@ -217,7 +216,7 @@ export function FarcasterAccessRequestAction({
         <button
           className="farcaster-auth-panel__action farcaster-auth-panel__action--primary"
           data-warpkeep-sfx="none"
-          onClick={onRequestAccess}
+          onClick={handleRequestActivation}
           ref={(element) => assignButtonRef(primaryActionRef, element)}
           type="button"
         >

@@ -330,6 +330,11 @@ function rendererTelemetryCount(value: string | undefined) {
   return Number.isSafeInteger(parsed) ? parsed : 0;
 }
 
+function rendererTelemetryPositiveInteger(value: string | undefined) {
+  const parsed = rendererTelemetryCount(value);
+  return parsed > 0 ? parsed : undefined;
+}
+
 const REALM_KEYBOARD_INSTRUCTIONS_ID = 'realm-map-keyboard-instructions';
 const RESOURCE_SELECTION_SFX_KINDS = Object.freeze({
   food: 'select-food',
@@ -3303,6 +3308,15 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     rotateRendererCanvasSlot
   ]);
 
+  const retryRendererInPerformanceMode = useCallback(() => {
+    const current = rendererLifecycleRef.current;
+    pendingEmergencyQualityRef.current = Object.freeze({
+      generation: current.generation,
+      quality: 'reduced'
+    });
+    retryRenderer();
+  }, [retryRenderer]);
+
   const isSceneCoordPassable = useCallback((coord: HexCoord) => (
     isPlayableRealmCoord(surfaceRef.current, coord)
     && tileMetadataByKeyRef.current.get(hexKey(coord))?.passable !== false
@@ -5551,6 +5565,22 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     ?? rendererLifecycle.lastFailure;
   const rendererContextLossCount = String(rendererContextLossCountRef.current);
   const rendererContextRestoreCount = String(rendererContextRestoreCountRef.current);
+  const rendererDiagnosticCanvas = rendererCanvasByGenerationRef.current.get(
+    rendererLifecycle.generation
+  ) ?? canvasRef.current;
+  const rendererDiagnosticMaxTextureSize = rendererTelemetryPositiveInteger(
+    rendererDiagnosticCanvas?.dataset.realmRendererMaxTextureSize
+  );
+  const rendererDiagnosticCanvasInitialized =
+    rendererDiagnosticCanvas?.dataset.realmRendererGeneration !== undefined
+    && rendererDiagnosticMaxTextureSize !== undefined;
+  const rendererSelectedQuality = graphicsPreference
+    ?? resolvedGraphicsQuality
+    ?? (requestedQuality === 'high'
+      ? 'cinematic'
+      : requestedQuality === 'balanced'
+        ? 'balanced'
+        : 'performance');
   const blockingLoadingOverlayVisible = (
     rendererLifecycle.state !== 'ready'
     && rendererLifecycle.state !== 'static-unsupported'
@@ -5936,17 +5966,21 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
             attempt={rendererLifecycle.attempt}
             contextLossCount={rendererContextLossCount}
             contextRestoreCount={rendererContextRestoreCount}
+            drawingBufferHeight={rendererDiagnosticCanvasInitialized
+              ? rendererDiagnosticCanvas?.height
+              : undefined}
+            drawingBufferWidth={rendererDiagnosticCanvasInitialized
+              ? rendererDiagnosticCanvas?.width
+              : undefined}
             effectiveQuality={quality}
-            emergencyQuality={emergencyQualityCeiling}
             everReady={rendererLifecycle.everReady}
             failure={rendererDiagnosticFailure}
             generation={rendererLifecycle.generation}
-            host={chromeMode === 'miniapp' ? 'miniapp' : 'web'}
+            maxTextureSize={rendererDiagnosticMaxTextureSize}
             mode="fallback"
-            observerMode={observerMode}
-            onRetry={retryRenderer}
             onReturn={onRequestReturn}
-            requestedQuality={requestedQuality}
+            onTryPerformance={retryRendererInPerformanceMode}
+            selectedQuality={rendererSelectedQuality}
             webgl2Available={rendererWebGLProbeAvailableRef.current}
           />
         </div>
@@ -5964,17 +5998,23 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
               attempt={rendererLifecycle.attempt}
               contextLossCount={rendererContextLossCount}
               contextRestoreCount={rendererContextRestoreCount}
+              drawingBufferHeight={rendererDiagnosticCanvasInitialized
+                ? rendererDiagnosticCanvas?.height
+                : undefined}
+              drawingBufferWidth={rendererDiagnosticCanvasInitialized
+                ? rendererDiagnosticCanvas?.width
+                : undefined}
               effectiveQuality={quality}
-              emergencyQuality={emergencyQualityCeiling}
               everReady={rendererLifecycle.everReady}
               failure={rendererDiagnosticFailure}
               generation={rendererLifecycle.generation}
-              host={chromeMode === 'miniapp' ? 'miniapp' : 'web'}
+              maxTextureSize={rendererDiagnosticMaxTextureSize}
               mode={rendererLifecycle.state === 'failed' ? 'failed' : 'recovering'}
-              observerMode={observerMode}
-              onRetry={rendererLifecycle.state === 'failed' ? retryRenderer : undefined}
               onReturn={onRequestReturn}
-              requestedQuality={requestedQuality}
+              onTryPerformance={rendererLifecycle.state === 'failed'
+                ? retryRendererInPerformanceMode
+                : undefined}
+              selectedQuality={rendererSelectedQuality}
               webgl2Available={rendererWebGLProbeAvailableRef.current}
             />
           ) : (

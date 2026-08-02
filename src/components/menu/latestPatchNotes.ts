@@ -7,17 +7,17 @@ export type LatestPatchNotes = Readonly<{
 }>;
 
 const ALPHA_0_3_43_PATCH_NOTES: LatestPatchNotes = Object.freeze({
-  releasedOn: '1 AUG 2026',
-  title: 'THE PETITION SETTLES',
+  releasedOn: '2 AUG 2026',
+  title: 'THE REALM STANDS READY',
   summary:
-    'A petition now follows one clear passage from the keeper’s first touch to the Hegemony record, without reopening the gate to another submission.',
+    'Genesis 001 now meets uncertain roads with a gentler path, a settled gateway, and one clear account of the living Realm.',
   highlights: Object.freeze([
-    'Request Access leaves the input lane on the first accepted gesture and settles through one stable submitting state into Request Received.',
-    'If a response is interrupted after submission, Warpkeep performs one read-only reconciliation; the browser never retries the mutation or invents a successful record.',
-    'Pending keepers in the Farcaster Mini App retain clear Check Admission, Back to Menu, and Sign Out paths while admission remains a separate manual decision.'
+    'If a mobile graphics session falters, Warpkeep now descends through lighter visual footing before offering Performance mode, privacy-safe diagnostics, a return path, and direct support.',
+    'Request Access answers the first accepted gesture quietly, settles into a durable Request Received record, and never retries an uncertain mutation.',
+    'The current Mini App presentation now shows the Realm, an available resource order, and all four permanent Workers exactly as they appear in this release.'
   ]),
   alphaNotice:
-    'Alpha 0.3.43 remains invite-only and unfinished. A petition requests manual review only; it grants no admission, keep, ownership, balance, reward, or financial promise.'
+    'Alpha 0.3.43 remains invite-only and unfinished. Permanent keeps, four Worker journeys, and persistent gathering are live; construction, units, combat, alliances, and the larger strategy loop are still being built. A petition requests manual review only and promises no admission, reward, or financial value.'
 });
 
 const ALPHA_0_3_42_PATCH_NOTES: LatestPatchNotes = Object.freeze({

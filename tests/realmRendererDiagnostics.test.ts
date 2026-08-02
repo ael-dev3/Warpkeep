@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { RealmRendererFailureCode } from '../src/components/realm/realmRendererRecovery';
 import {
   WARPKEEP_RENDERER_SUPPORT_URL,
   canUseStaticRealmFallback,
+  copyRealmRendererDiagnosticReport,
   readRealmRendererCompatibilitySnapshot,
   realmRendererCompatibilityExplanation,
   realmRendererDiagnostic,
@@ -64,46 +65,57 @@ describe('Realm renderer player diagnostics', () => {
     })).toBe(false);
   });
 
-  it('redacts arbitrary exception details from the safe report', () => {
-    const hostileMessage = [
-      'eyJhbGciOiJIUzI1NiJ9.secret.signature',
-      'https://example.invalid/model.glb?token=private',
-      '/Users/player/private/file',
-      'Mozilla/5.0 SecretAgent',
-      'ANGLE (Vendor GPU 1234)'
-    ].join(' ');
-    const compatibility = readRealmRendererCompatibilitySnapshot({
-      webgl2PreviouslyAvailable: true,
-      width: 412,
-      height: 915,
-      devicePixelRatio: 2.625,
-      hardwareConcurrency: 4,
-      deviceMemory: 4
-    });
+  it('emits only the exact privacy-safe renderer support fields', () => {
     const report = realmRendererSafeDiagnosticReport({
-      failure: {
-        code: 'scene-build-failed',
-        retryable: true,
-        phase: 'loading',
-        message: hostileMessage
-      },
+      version: '0.3.43',
+      buildSha: '0123456789abcdef0123456789abcdef01234567',
+      viewportWidth: 412,
+      viewportHeight: 915,
+      devicePixelRatio: 2.625,
+      selectedQuality: 'auto',
+      resolvedQuality: 'performance',
+      maxTextureSize: 8_192,
+      drawingBufferWidth: 1_082,
+      drawingBufferHeight: 2_402,
+      failureCode: 'scene-build-failed',
       generation: 9,
-      attempt: 2,
-      maximumAttempts: 2,
-      requestedQuality: 'high',
-      effectiveQuality: 'reduced',
-      emergencyQuality: 'reduced',
-      compatibility,
       contextLossCount: 2,
-      contextRestoreCount: 1,
-      host: 'miniapp'
+      contextRestoreCount: 1
     });
-    expect(report).toContain('WK-GFX-011');
-    expect(report).toContain('requested=high');
-    expect(report).toContain('active=reduced');
-    expect(report).toContain('host=miniapp');
-    expect(report).not.toContain(hostileMessage);
-    expect(report).not.toMatch(/token=|\/Users\/|Mozilla|ANGLE|Vendor|secret/i);
+    expect(report.split('\n')).toEqual([
+      'warpkeep_version=0.3.43',
+      'build_sha=0123456789abcdef0123456789abcdef01234567',
+      'viewport_css_px=412x915',
+      'device_pixel_ratio=2.625',
+      'selected_quality=auto',
+      'resolved_quality=performance',
+      'webgl_max_texture_size=8192',
+      'drawing_buffer_px=1082x2402',
+      'context_loss_count=2',
+      'context_restore_count=1',
+      'renderer_generation=9',
+      'failure_code=scene-build-failed'
+    ]);
+    expect(report).not.toMatch(
+      /fid|token|username|cookie|url|user.?agent|mozilla|angle|private.realm|host=/i
+    );
+  });
+
+  it('copies only after an explicit call and fails safely when clipboard access is blocked', async () => {
+    const report = 'warpkeep_version=0.3.43';
+    const writeText = vi.fn(async () => undefined);
+    expect(writeText).not.toHaveBeenCalled();
+    await expect(copyRealmRendererDiagnosticReport(report, { writeText })).resolves.toBe(true);
+    expect(writeText).toHaveBeenCalledOnce();
+    expect(writeText).toHaveBeenCalledWith(report);
+
+    const blockedWriter = {
+      writeText: vi.fn(async () => {
+        throw new DOMException('Clipboard permission denied.', 'NotAllowedError');
+      })
+    };
+    await expect(copyRealmRendererDiagnosticReport(report, blockedWriter)).resolves.toBe(false);
+    expect(blockedWriter.writeText).toHaveBeenCalledOnce();
   });
 
   it('reports only coarse local compatibility bands and disclaims exact driver diagnosis', () => {

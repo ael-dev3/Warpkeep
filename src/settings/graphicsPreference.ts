@@ -20,6 +20,12 @@ export type GraphicsCapabilityInput = Readonly<{
   hardwareConcurrency?: number;
   deviceMemory?: number;
   maxTextureSize?: number;
+  /**
+   * A verified embedded mobile host whose memory signal may be absent. This
+   * is presentation context only and never participates in authentication or
+   * admission authority.
+   */
+  conservativeEmbeddedMobile?: boolean;
 }>;
 
 export type WebGL2Capability = Readonly<{
@@ -138,6 +144,23 @@ export function resolveGraphicsQuality(
     finitePositive(input.devicePixelRatio, 1),
     2.5
   ) ** 2;
+  const memorySignalReliable = input.deviceMemory !== undefined
+    && Number.isFinite(input.deviceMemory)
+    && input.deviceMemory > 0;
+  const compactEmbeddedViewport = shortestSide <= 768
+    && Math.max(width, height) <= 1_440;
+
+  // Several mobile WebViews omit `deviceMemory` even when their reported CPU
+  // and texture limits look ordinary. Begin verified Mini App phones on the
+  // lowest-risk profile until the player explicitly chooses otherwise. An
+  // explicit Balanced or Cinematic preference already returned above.
+  if (
+    input.conservativeEmbeddedMobile === true
+    && compactEmbeddedViewport
+    && !memorySignalReliable
+  ) {
+    return 'performance';
+  }
 
   // 4096 is the WebGL 2 minimum, so it is evidence of a minimum-capability
   // implementation rather than Balanced headroom. Start those devices on the

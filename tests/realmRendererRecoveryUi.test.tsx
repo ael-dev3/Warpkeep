@@ -81,7 +81,15 @@ describe('Realm renderer recovery UI', () => {
   beforeEach(() => {
     window.sessionStorage.removeItem(REALM_RENDERER_EMERGENCY_QUALITY_SESSION_KEY);
     sceneState.create.mockReset();
-    sceneState.create.mockImplementation(() => sceneHandle());
+    sceneState.create.mockImplementation((options: CreateRealmSceneOptions) => {
+      options.canvas.dataset.realmRendererGeneration = String(
+        options.rendererGeneration ?? 1
+      );
+      options.canvas.dataset.realmRendererMaxTextureSize = '8192';
+      options.canvas.width = 1_082;
+      options.canvas.height = 2_402;
+      return sceneHandle();
+    });
     sceneState.webglAvailable = true;
   });
 
@@ -125,15 +133,17 @@ describe('Realm renderer recovery UI', () => {
     expect(realm.getAttribute('data-renderer-state')).toBe('loading');
   });
 
-  it('uses a fresh lighter canvas after restore timeout and retains a manual retry from safety view', () => {
+  it('uses a fresh lighter canvas after restore timeout and offers a bounded Performance retry', async () => {
     vi.useFakeTimers();
     const snapshot = createCanonicalGenesisSnapshot(CANONICAL_TEST_FID);
     const onRequestReturn = vi.fn();
+    const onGraphicsPreferenceChange = vi.fn();
     render(
       <RealmMapScreen
         identity={{ fid: CANONICAL_TEST_FID, username: 'warpkeeper' }}
         snapshot={snapshot}
         onRequestReturn={onRequestReturn}
+        onGraphicsPreferenceChange={onGraphicsPreferenceChange}
         resources={createReadyResourceState(CANONICAL_TEST_FID)}
       />
     );
@@ -181,15 +191,30 @@ describe('Realm renderer recovery UI', () => {
     expect(screen.getByText('2D SAFETY VIEW ACTIVE')).not.toBeNull();
     expect(realm.getAttribute('data-renderer-state')).toBe('static-degraded');
     expect(realm.getAttribute('aria-busy')).toBe('false');
-    const retry = screen.getByRole('button', { name: 'Retry 3D Realm' });
-    fireEvent.click(screen.getByRole('button', { name: 'Return to Menu' }));
+    const retry = screen.getByRole('button', { name: 'TRY PERFORMANCE MODE' });
+    expect(screen.getByRole('button', { name: 'COPY DIAGNOSTICS' })).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'RETURN TO MENU' })).not.toBeNull();
+    expect(screen.getByRole('link', { name: 'REPORT A PROBLEM' })).not.toBeNull();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'COPY DIAGNOSTICS' }));
+    });
+    const manualCopy = screen.getByRole('textbox', {
+      name: 'Renderer diagnostics for manual copy'
+    }) as HTMLTextAreaElement;
+    expect(manualCopy.value).toContain('webgl_max_texture_size=8192');
+    expect(manualCopy.value).toContain('drawing_buffer_px=1082x2402');
+    expect(manualCopy.value).not.toMatch(/fid|token|username|cookie|url|mozilla|angle/i);
+
+    fireEvent.click(screen.getByRole('button', { name: 'RETURN TO MENU' }));
     expect(onRequestReturn).toHaveBeenCalledOnce();
 
     fireEvent.click(retry);
     expect(sceneState.create).toHaveBeenCalledTimes(3);
     expect(firstHandle.dispose).toHaveBeenCalledOnce();
     expect((sceneState.create.mock.calls[2]![0] as CreateRealmSceneOptions).quality.id)
-      .toBe('balanced');
+      .toBe('reduced');
+    expect(onGraphicsPreferenceChange).not.toHaveBeenCalled();
     expect(realm.getAttribute('data-renderer-state')).toBe('loading');
     expect(realm.getAttribute('aria-busy')).toBe('true');
 
@@ -221,8 +246,10 @@ describe('Realm renderer recovery UI', () => {
     expect(sceneState.create).not.toHaveBeenCalled();
 
     sceneState.webglAvailable = true;
-    fireEvent.click(screen.getByRole('button', { name: 'Retry 3D Realm' }));
+    fireEvent.click(screen.getByRole('button', { name: 'TRY PERFORMANCE MODE' }));
     expect(sceneState.create).toHaveBeenCalledOnce();
+    expect((sceneState.create.mock.calls[0]![0] as CreateRealmSceneOptions).quality.id)
+      .toBe('reduced');
     expect(realm.getAttribute('data-renderer-state')).toBe('loading');
     expect(realm.getAttribute('aria-busy')).toBe('true');
   });

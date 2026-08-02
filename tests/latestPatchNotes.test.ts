@@ -17,22 +17,22 @@ describe('latest in-menu patch notes', () => {
 
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
-      releasedOn: '1 AUG 2026',
-      title: 'THE PETITION SETTLES'
+      releasedOn: '2 AUG 2026',
+      title: 'THE REALM STANDS READY'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Request Access.*first accepted gesture.*stable submitting state.*Request Received/i
+      /mobile graphics session falters.*Performance mode.*privacy-safe diagnostics/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /interrupted.*one read-only reconciliation.*never retries the mutation.*successful record/i
+      /Request Access.*first accepted gesture.*Request Received.*never retries/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Farcaster Mini App.*Check Admission.*Back to Menu.*Sign Out.*manual decision/i
+      /Mini App.*available resource order.*four permanent Workers/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /released to players|deployed to players|public balances|guaranteed rewards/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('one clear passage');
+    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('one clear account');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
       'requests manual review only'

@@ -27,7 +27,7 @@ export type FarcasterAdmissionPanelProps = Readonly<{
   onCheckAgain: () => void;
   onReviewTerms?: () => void;
   accessRequest?: AccessRequestViewState;
-  onRequestAccess?: () => void;
+  onRequestAccess?: () => boolean;
   onRetryAccessRequestStatus?: () => void;
   onSignOut: () => void;
 }>;

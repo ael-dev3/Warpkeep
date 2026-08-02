@@ -112,6 +112,13 @@
   white-space: nowrap;
 }
 
+/* Hosted records move programmatic focus to this non-interactive heading so
+ * assistive technology announces the new destination. Suppress the browser's
+ * default text-box outline; actionable controls retain their visible rings. */
+.gold-mine-inspection__title-lockup h2:focus {
+  outline: none;
+}
+
 .gold-mine-inspection__dismiss {
   position: absolute;
   z-index: 5;

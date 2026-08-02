@@ -14,6 +14,7 @@ import {
   type AccessRequestDiagnosticEvent,
   type AccessRequestStateEvent
 } from './accessRequestStateMachine';
+import { emitWarpkeepSfx } from '../components/audio/sfxEvents';
 import type {
   AccessRequestAuthentication,
   AccessRequestStatus,
@@ -56,7 +57,8 @@ type AccessRequestControllerOptions = Readonly<{
 
 export type AccessRequestController = Readonly<{
   state: AccessRequestViewState;
-  requestAccess: () => void;
+  /** True only when this activation acquired the exact lifecycle lock. */
+  requestAccess: () => boolean;
   retryStatus: () => void;
 }>;
 
@@ -269,17 +271,53 @@ export function useAccessRequest({
     return next;
   }, [isCurrentOperation]);
 
+  const applyAuthoritativeRequestConfirmation = useCallback((
+    operation: AccessRequestOperation,
+    requestedAt: number,
+    source: 'submit' | 'reconciliation'
+  ): AccessRequestViewState | undefined => {
+    const previous = stateLifecycleKeyRef.current === operation.lifecycleKey
+      ? stateRef.current
+      : IDLE_ACCESS_REQUEST_STATE;
+    const next = applyEvent(operation, source === 'submit'
+      ? { type: 'submit-confirmed', requestedAt }
+      : {
+          type: 'status-requested',
+          context: 'post-submission',
+          requestedAt
+        });
+    if (
+      next !== previous
+      && next?.phase === 'request-received'
+    ) {
+      try {
+        emitWarpkeepSfx({ kind: 'access-request-confirmed' });
+      } catch {
+        // Sensory feedback cannot affect the authoritative request lifecycle.
+      }
+    }
+    return next;
+  }, [applyEvent]);
+
   const applyStatus = useCallback((
     operation: AccessRequestOperation,
     context: AccessRequestStatusContext,
     status: AccessRequestStatus
   ) => {
     if (status.status === 'requested') {
-      applyEvent(operation, {
-        type: 'status-requested',
-        context,
-        requestedAt: status.requestedAt
-      });
+      if (context === 'post-submission') {
+        applyAuthoritativeRequestConfirmation(
+          operation,
+          status.requestedAt,
+          'reconciliation'
+        );
+      } else {
+        applyEvent(operation, {
+          type: 'status-requested',
+          context,
+          requestedAt: status.requestedAt
+        });
+      }
       diagnose(context === 'post-submission'
         ? 'request_reconciled_existing'
         : 'request_already_exists');
@@ -298,7 +336,7 @@ export function useAccessRequest({
       return;
     }
     applyEvent(operation, { type: 'status-available', context });
-  }, [applyEvent, diagnose]);
+  }, [applyAuthoritativeRequestConfirmation, applyEvent, diagnose]);
 
   const startStatusRead = useCallback((
     exactLifecycleKey: string,
@@ -433,7 +471,7 @@ export function useAccessRequest({
           diagnose('duplicate_client_activation_suppressed');
         }
       }
-      return;
+      return false;
     }
 
     // This synchronous lock is acquired before state, animation, diagnostics,
@@ -445,7 +483,7 @@ export function useAccessRequest({
     if (next?.phase !== 'submitting') {
       finishOperation(operation);
       operation.controller.abort();
-      return;
+      return false;
     }
     diagnose('request_submit_started');
     const startedAt = readMonotonicNow(monotonicNowRef.current);
@@ -481,10 +519,7 @@ export function useAccessRequest({
           applyEvent(operation, { type: 'already-admitted' });
           diagnose('request_already_admitted');
         } else {
-          applyEvent(operation, {
-            type: 'submit-confirmed',
-            requestedAt: status.requestedAt
-          });
+          applyAuthoritativeRequestConfirmation(operation, status.requestedAt, 'submit');
           diagnose('request_confirmed');
         }
         return;
@@ -571,7 +606,9 @@ export function useAccessRequest({
         finishOperation(operation);
       }
     })();
+    return true;
   }, [
+    applyAuthoritativeRequestConfirmation,
     applyEvent,
     applyStatus,
     beginOperation,

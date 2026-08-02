@@ -1,4 +1,7 @@
-import type { RealmQuality } from './realmQuality';
+import type {
+  GraphicsPreference,
+  GraphicsQualityTier
+} from '../../settings/graphicsPreference';
 import type {
   RealmRendererFailure,
   RealmRendererFailureCode
@@ -26,6 +29,10 @@ export type RealmRendererDiagnostic = Readonly<{
   likelyCause: string;
   automaticResponse: string;
   suggestedAction: string;
+}>;
+
+export type RealmRendererClipboardWriter = Readonly<{
+  writeText: (value: string) => Promise<void>;
 }>;
 
 type DiagnosticCatalogEntry = RealmRendererDiagnostic & Readonly<{
@@ -265,35 +272,134 @@ export function realmRendererCompatibilityExplanation(
   return `${graphics} ${capacity} Browsers do not expose a trustworthy graphics-driver version, so Warpkeep cannot safely identify a specific driver fault.`;
 }
 
+function boundedInteger(value: number | undefined, minimum = 0) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+  const bounded = Math.trunc(value);
+  return bounded >= minimum && bounded <= 1_000_000_000
+    ? bounded
+    : undefined;
+}
+
+function boundedDevicePixelRatio(value: number | undefined) {
+  if (
+    typeof value !== 'number'
+    || !Number.isFinite(value)
+    || value <= 0
+    || value > 16
+  ) return 'unknown';
+  return String(Math.round(value * 1_000) / 1_000);
+}
+
+function boundedCssPixels(value: number | undefined) {
+  if (
+    typeof value !== 'number'
+    || !Number.isFinite(value)
+    || value <= 0
+    || value > 1_000_000
+  ) return undefined;
+  return String(Math.round(value * 1_000) / 1_000);
+}
+
+function boundedVersion(value: string) {
+  return /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:[-+][0-9A-Za-z.-]+)?$/.test(value)
+    ? value
+    : 'unknown';
+}
+
+function boundedBuildSha(value: string) {
+  const candidate = value.trim();
+  return /^(?:[0-9a-f]{7}|[0-9a-f]{40})$/i.test(candidate)
+    ? candidate.toLowerCase()
+    : candidate === 'LOCAL'
+      ? candidate
+      : 'unknown';
+}
+
+function boundedGraphicsPreference(value: GraphicsPreference) {
+  return value === 'auto'
+    || value === 'cinematic'
+    || value === 'balanced'
+    || value === 'performance'
+    ? value
+    : 'auto';
+}
+
+function boundedGraphicsQuality(value: GraphicsQualityTier) {
+  return value === 'cinematic' || value === 'balanced' || value === 'performance'
+    ? value
+    : 'performance';
+}
+
+/**
+ * Produces the complete, allowlisted support payload. It accepts no identity,
+ * URL, user-agent, raw exception, or Realm-state fields, so those values cannot
+ * accidentally cross the user-triggered clipboard boundary.
+ */
 export function realmRendererSafeDiagnosticReport(input: Readonly<{
-  failure: RealmRendererFailure | undefined;
+  version: string;
+  buildSha: string;
+  viewportWidth?: number;
+  viewportHeight?: number;
+  devicePixelRatio?: number;
+  selectedQuality: GraphicsPreference;
+  resolvedQuality: GraphicsQualityTier;
+  maxTextureSize?: number;
+  drawingBufferWidth?: number;
+  drawingBufferHeight?: number;
+  failureCode?: RealmRendererFailureCode;
   generation: number;
-  attempt: number;
-  maximumAttempts: number;
-  requestedQuality: RealmQuality;
-  effectiveQuality: RealmQuality;
-  emergencyQuality?: RealmQuality;
-  compatibility: RealmRendererCompatibilitySnapshot;
   contextLossCount?: number;
   contextRestoreCount?: number;
-  host: 'miniapp' | 'web';
 }>) {
-  const diagnostic = realmRendererDiagnostic(input.failure);
-  const phase = input.failure?.phase ?? 'loading';
+  const viewportWidth = boundedCssPixels(input.viewportWidth);
+  const viewportHeight = boundedCssPixels(input.viewportHeight);
+  const maxTextureSize = boundedInteger(input.maxTextureSize, 1);
+  const drawingBufferWidth = boundedInteger(input.drawingBufferWidth, 1);
+  const drawingBufferHeight = boundedInteger(input.drawingBufferHeight, 1);
   return [
-    diagnostic.reference,
-    `phase=${phase}`,
-    `generation=${Math.max(0, Math.trunc(input.generation))}`,
-    `attempt=${Math.max(0, Math.trunc(input.attempt))}/${Math.max(0, Math.trunc(input.maximumAttempts))}`,
-    `requested=${input.requestedQuality}`,
-    `active=${input.effectiveQuality}`,
-    `session-ceiling=${input.emergencyQuality ?? 'none'}`,
-    `webgl2=${input.compatibility.webgl2}`,
-    `viewport=${input.compatibility.viewport}`,
-    `density=${input.compatibility.pixelDensity}`,
-    `capacity=${input.compatibility.capacity}`,
-    `losses=${Math.max(0, Math.trunc(input.contextLossCount ?? 0))}`,
-    `restores=${Math.max(0, Math.trunc(input.contextRestoreCount ?? 0))}`,
-    `host=${input.host}`
-  ].join(' · ');
+    `warpkeep_version=${boundedVersion(input.version)}`,
+    `build_sha=${boundedBuildSha(input.buildSha)}`,
+    `viewport_css_px=${viewportWidth !== undefined && viewportHeight !== undefined
+      ? `${viewportWidth}x${viewportHeight}`
+      : 'unknown'}`,
+    `device_pixel_ratio=${boundedDevicePixelRatio(input.devicePixelRatio)}`,
+    `selected_quality=${boundedGraphicsPreference(input.selectedQuality)}`,
+    `resolved_quality=${boundedGraphicsQuality(input.resolvedQuality)}`,
+    `webgl_max_texture_size=${maxTextureSize ?? 'unknown'}`,
+    `drawing_buffer_px=${drawingBufferWidth !== undefined && drawingBufferHeight !== undefined
+      ? `${drawingBufferWidth}x${drawingBufferHeight}`
+      : 'unknown'}`,
+    `context_loss_count=${boundedInteger(input.contextLossCount) ?? 0}`,
+    `context_restore_count=${boundedInteger(input.contextRestoreCount) ?? 0}`,
+    `renderer_generation=${boundedInteger(input.generation) ?? 0}`,
+    `failure_code=${input.failureCode ?? 'none'}`
+  ].join('\n');
+}
+
+/**
+ * Clipboard access is best-effort and user initiated. A blocked or missing
+ * Clipboard API returns false so the caller can reveal a selectable local
+ * fallback; diagnostics are never sent, logged, or persisted here.
+ */
+export async function copyRealmRendererDiagnosticReport(
+  report: string,
+  writer?: RealmRendererClipboardWriter
+) {
+  let resolvedWriter = writer;
+  if (!resolvedWriter) {
+    try {
+      resolvedWriter = typeof navigator === 'undefined'
+        ? undefined
+        : navigator.clipboard;
+    } catch {
+      resolvedWriter = undefined;
+    }
+  }
+  if (!resolvedWriter || typeof resolvedWriter.writeText !== 'function') return false;
+  try {
+    await resolvedWriter.writeText(report);
+    return true;
+  } catch {
+    return false;
+  }
 }

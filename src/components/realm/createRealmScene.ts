@@ -1507,6 +1507,14 @@ function initializeRealmScene(
     // devices.
     powerPreference: options.quality.id === 'high' ? 'high-performance' : 'default'
   });
+  if (
+    Number.isFinite(renderer.capabilities.maxTextureSize)
+    && renderer.capabilities.maxTextureSize > 0
+  ) {
+    options.canvas.dataset.realmRendererMaxTextureSize = String(
+      Math.trunc(renderer.capabilities.maxTextureSize)
+    );
+  }
   cleanup.add(() => renderer.dispose());
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;

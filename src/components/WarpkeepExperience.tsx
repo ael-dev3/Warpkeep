@@ -344,8 +344,11 @@ export function WarpkeepExperience() {
     || backend.state.phase === 'reconnecting';
 
   const resolvedGraphicsQuality = useMemo(
-    () => resolveGraphicsQuality(graphicsPreference, graphicsCapabilities),
-    [graphicsCapabilities, graphicsPreference]
+    () => resolveGraphicsQuality(graphicsPreference, {
+      ...graphicsCapabilities,
+      conservativeEmbeddedMobile: miniAppHost.isMiniApp
+    }),
+    [graphicsCapabilities, graphicsPreference, miniAppHost.isMiniApp]
   );
 
   const updateGraphicsPreference = useCallback((preference: GraphicsPreference) => {

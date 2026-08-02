@@ -75,7 +75,7 @@ export type WarpkeepMainMenuProps = {
   onRestoreFarcasterSession?: () => Promise<boolean>;
   onRefreshFarcasterSession?: () => void;
   accessRequest?: AccessRequestViewState;
-  onRequestAccess?: () => void;
+  onRequestAccess?: () => boolean;
   onRetryAccessRequestStatus?: () => void;
   onSignOut?: () => void;
   rememberDevice?: boolean;
