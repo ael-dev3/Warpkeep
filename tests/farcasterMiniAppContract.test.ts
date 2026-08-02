@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
 
 // @ts-expect-error Repository JavaScript release contracts expose named test seams.
-import { FARCASTER_MINI_APP_CONFIG, FARCASTER_MINI_APP_DOMAIN, FARCASTER_MINI_APP_EMBED, FARCASTER_MINI_APP_IMAGES, FARCASTER_MINI_APP_ORIGIN, FARCASTER_MINI_APP_OWNER_FID, FARCASTER_MINI_APP_SCREENSHOTS, FARCASTER_MINI_APP_SPLASH_FILE, WARPKEEP_SITE_ICONS, exactJsonValue, inspectFarcasterAccountAssociation, inspectPng } from '../scripts/farcaster-miniapp-contract.mjs';
+import { FARCASTER_MINI_APP_CONFIG, FARCASTER_MINI_APP_DOMAIN, FARCASTER_MINI_APP_EMBED, FARCASTER_MINI_APP_IMAGES, FARCASTER_MINI_APP_ORIGIN, FARCASTER_MINI_APP_OWNER_FID, FARCASTER_MINI_APP_SCREENSHOTS, FARCASTER_MINI_APP_SPLASH_FILE, FARCASTER_MINI_APP_WEBHOOK_URL, WARPKEEP_SITE_ICONS, exactJsonValue, inspectFarcasterAccountAssociation, inspectPng } from '../scripts/farcaster-miniapp-contract.mjs';
 // @ts-expect-error Repository JavaScript release verifier exposes a named test seam.
 import { verifyFarcasterAccountAssociationSignature } from '../scripts/verify-farcaster-miniapp.mjs';
 // @ts-expect-error Repository JavaScript production verifier exposes a named test seam.
@@ -93,6 +93,15 @@ describe('Farcaster Mini App release contract', () => {
       'Command four Workers, gather resources and return to a permanent keep in Genesis 001. Invite-only Alpha.',
     );
     expect(FARCASTER_MINI_APP_CONFIG.tagline).toBe('Every FID has a castle');
+    expect(FARCASTER_MINI_APP_CONFIG.webhookUrl).toBe(
+      FARCASTER_MINI_APP_WEBHOOK_URL,
+    );
+    expect(new URL(FARCASTER_MINI_APP_CONFIG.webhookUrl)).toMatchObject({
+      origin: 'https://auth.warpkeep.com',
+      pathname: '/v1/farcaster/miniapp/webhook',
+      search: '',
+      hash: '',
+    });
   });
 
   it.each([
