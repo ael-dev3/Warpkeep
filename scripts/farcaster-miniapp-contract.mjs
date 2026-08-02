@@ -53,6 +53,17 @@ export const FARCASTER_MINI_APP_EMBED = Object.freeze({
   }),
 });
 
+export const FARCASTER_FRAME_EMBED = Object.freeze({
+  ...FARCASTER_MINI_APP_EMBED,
+  button: Object.freeze({
+    ...FARCASTER_MINI_APP_EMBED.button,
+    action: Object.freeze({
+      ...FARCASTER_MINI_APP_EMBED.button.action,
+      type: 'launch_frame',
+    }),
+  }),
+});
+
 export const FARCASTER_MINI_APP_CONFIG = Object.freeze({
   version: '1',
   name: 'Warpkeep',

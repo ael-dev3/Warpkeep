@@ -11,6 +11,7 @@ import sharp from 'sharp';
 import { verifyMessage } from 'viem';
 
 import {
+  FARCASTER_FRAME_EMBED,
   FARCASTER_MINI_APP_CONFIG,
   FARCASTER_MINI_APP_CORE_IMAGES,
   FARCASTER_MINI_APP_EMBED,
@@ -311,8 +312,9 @@ async function main() {
   const html = await readFile(resolve(dist, 'index.html'), 'utf8');
   verifySiteIconLinks(html);
   const miniAppTags = metaTags(html, 'fc:miniapp');
-  if (miniAppTags.length !== 1 || metaTags(html, 'fc:frame').length !== 0) {
-    fail('built HTML must contain one fc:miniapp meta and no fc:frame meta');
+  const frameTags = metaTags(html, 'fc:frame');
+  if (miniAppTags.length !== 1 || frameTags.length !== 1) {
+    fail('built HTML must contain one fc:miniapp and one fc:frame meta');
   }
   const content = htmlAttribute(miniAppTags[0], 'content');
   let embed;
@@ -335,6 +337,23 @@ async function main() {
     || embed.button.action.url !== FARCASTER_MINI_APP_HOME_URL
   ) {
     fail('embed URLs are not exact production Warpkeep URLs');
+  }
+
+  let frameEmbed;
+  try {
+    frameEmbed = JSON.parse(htmlAttribute(frameTags[0], 'content'));
+  } catch {
+    fail('fc:frame content is not compact valid JSON');
+  }
+  const parsedFrameEmbed = safeParseMiniAppEmbed(frameEmbed);
+  if (
+    !parsedFrameEmbed.success
+    || !exactJsonValue(frameEmbed, FARCASTER_FRAME_EMBED)
+  ) {
+    fail('fc:frame metadata drifted from the reviewed compatibility contract');
+  }
+  if (frameEmbed.imageUrl !== embed.imageUrl) {
+    fail('fc:miniapp and fc:frame must advertise the same reviewed feed image');
   }
 
   for (const image of FARCASTER_MINI_APP_CORE_IMAGES) {
