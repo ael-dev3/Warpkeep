@@ -448,17 +448,29 @@ describe('signed Farcaster Mini App webhook verification', () => {
     const signerEvent = await signedHubSignerEvent()
     const fetchImpl = vi.fn(async () => hubJson([signerEvent])) as typeof fetch
 
-    for (const [outcomes, expected] of [
-      [[true, true], 'valid'],
-      [['reject', true], 'rpc_primary_transport'],
-      [[true, 'reject'], 'rpc_secondary_transport'],
-      [[true, false], 'rpc_disagreement'],
-      [[false, false], 'invalid'],
+    for (const [outcomes, expected, expectedProviderCalls] of [
+      [[[true], [true]], 'valid', [1, 1]],
+      [[['reject', true], [true]], 'valid', [2, 1]],
+      [[['reject', 'reject'], [true]], 'rpc_primary_transport', [2, 1]],
+      [[[true], ['reject', 'reject']], 'rpc_secondary_transport', [1, 2]],
+      [[[true], [false]], 'rpc_disagreement', [1, 1]],
+      [[[false], [false]], 'invalid', [1, 1]],
     ] as const) {
-      const activeOnChainRpcVerifier = vi.fn(async (rpcUrl: string) => {
+      const providerCalls = [0, 0]
+      const attemptSignals: AbortSignal[] = []
+      const activeOnChainRpcVerifier = vi.fn(async (
+        rpcUrl: string,
+        _fid: number,
+        _appKey: Hex,
+        _attestation: unknown,
+        signal: AbortSignal,
+      ) => {
         const index = rpcUrl.includes('rpc-one') ? 0 : 1
-        const outcome = outcomes[index]
+        attemptSignals.push(signal)
+        const providerOutcomes = outcomes[index]
+        const outcome = providerOutcomes[providerCalls[index]++]
         if (outcome === 'reject') throw new Error('private provider failure')
+        if (typeof outcome !== 'boolean') throw new Error('unexpected extra provider attempt')
         return outcome
       })
       const webhookVerifier = createMiniAppWebhookVerifier(config(), {
@@ -484,7 +496,93 @@ describe('signed Farcaster Mini App webhook verification', () => {
         expect(Object.keys(result as object)).toEqual(['stage', 'name'])
         expect(Object.prototype.hasOwnProperty.call(result, 'cause')).toBe(false)
       }
-      expect(activeOnChainRpcVerifier).toHaveBeenCalledTimes(2)
+      expect(providerCalls).toEqual(expectedProviderCalls)
+      expect(activeOnChainRpcVerifier).toHaveBeenCalledTimes(
+        expectedProviderCalls[0] + expectedProviderCalls[1],
+      )
+      expect(attemptSignals.every(signal => signal.aborted)).toBe(true)
     }
+  })
+
+  it('bounds stalled RPC attempts and cancels every abandoned generation', async () => {
+    vi.useFakeTimers()
+    try {
+      const signerEvent = await signedHubSignerEvent()
+      const fetchImpl = vi.fn(async () => hubJson([signerEvent])) as typeof fetch
+      const providerCalls = [0, 0]
+      const attemptSignals: AbortSignal[] = []
+      const activeOnChainRpcVerifier = vi.fn((
+        rpcUrl: string,
+        _fid: number,
+        _appKey: Hex,
+        _attestation: unknown,
+        signal: AbortSignal,
+      ): Promise<boolean> => {
+        const index = rpcUrl.includes('rpc-one') ? 0 : 1
+        providerCalls[index] += 1
+        attemptSignals.push(signal)
+        if (index === 0) return new Promise(() => {})
+        return Promise.resolve(true)
+      })
+      const webhookVerifier = createMiniAppWebhookVerifier(config(), {
+        fetchImpl,
+        activeOnChainRpcVerifier,
+      })
+      const verification = webhookVerifier.verify(signed({
+        event: 'notifications_disabled',
+      })).catch((error: unknown) => error)
+
+      await vi.waitFor(() => expect(providerCalls).toEqual([1, 1]))
+      await vi.advanceTimersByTimeAsync(2_250)
+      await vi.waitFor(() => expect(providerCalls).toEqual([2, 1]))
+      await vi.advanceTimersByTimeAsync(2_250)
+      const failure = await verification
+
+      expect(failure).toBeInstanceOf(MiniAppWebhookVerifierUnavailableError)
+      expect(miniAppWebhookVerifierFailureStage(failure)).toBe('rpc_primary_transport')
+      expect(providerCalls).toEqual([2, 1])
+      expect(attemptSignals.every(signal => signal.aborted)).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('cancels sibling RPC work before retrying a rejected attempt', async () => {
+    const signerEvent = await signedHubSignerEvent()
+    const fetchImpl = vi.fn(async () => hubJson([signerEvent])) as typeof fetch
+    const providerCalls = [0, 0]
+    let cancelledSiblingReads = 0
+    const activeOnChainRpcVerifier = vi.fn((
+      rpcUrl: string,
+      _fid: number,
+      _appKey: Hex,
+      _attestation: unknown,
+      signal: AbortSignal,
+    ): Promise<boolean> => {
+      const index = rpcUrl.includes('rpc-one') ? 0 : 1
+      providerCalls[index] += 1
+      if (index !== 0 || providerCalls[index] > 1) return Promise.resolve(true)
+
+      const siblingRead = new Promise<boolean>((_, reject) => {
+        signal.addEventListener('abort', () => {
+          cancelledSiblingReads += 1
+          reject(new Error('cancelled sibling read'))
+        }, { once: true })
+      })
+      return Promise.all([
+        Promise.reject(new Error('private first read failure')),
+        siblingRead,
+      ]).then(([result]) => result)
+    })
+    const webhookVerifier = createMiniAppWebhookVerifier(config(), {
+      fetchImpl,
+      activeOnChainRpcVerifier,
+    })
+
+    await expect(webhookVerifier.verify(signed({
+      event: 'notifications_disabled',
+    }))).resolves.toMatchObject({ event: { type: 'disabled' } })
+    expect(providerCalls).toEqual([2, 1])
+    expect(cancelledSiblingReads).toBe(1)
   })
 })

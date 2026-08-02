@@ -16,6 +16,8 @@ import type {
 } from './types'
 
 const HUB_RESPONSE_TIMEOUT_MILLISECONDS = 5_000
+const RPC_ATTEMPT_TIMEOUT_MILLISECONDS = 2_250
+const RPC_TRANSPORT_ATTEMPTS = 2
 const HUB_RESPONSE_MAX_BYTES = 2 * 1_024 * 1_024
 const MAX_HUB_SIGNER_EVENTS = 2_048
 const MAX_METADATA_BYTES = 4 * 1_024
@@ -62,6 +64,7 @@ type VerifyOnChainAppKeyAtRpc = (
   fid: number,
   appKey: Hex,
   attestation: HubAppKeyAttestation,
+  signal: AbortSignal,
 ) => Promise<boolean>
 
 type ParsedNotificationDetails = Readonly<{
@@ -588,10 +591,15 @@ async function activeOnChainAppKeyAtRpc(
   fid: number,
   appKey: Hex,
   attestation: HubAppKeyAttestation,
+  signal: AbortSignal,
 ): Promise<boolean> {
   const client = createPublicClient({
     chain: optimism,
-    transport: http(rpcUrl, { retryCount: 0, timeout: HUB_RESPONSE_TIMEOUT_MILLISECONDS }),
+    transport: http(rpcUrl, {
+      fetchOptions: { signal },
+      retryCount: 0,
+      timeout: RPC_ATTEMPT_TIMEOUT_MILLISECONDS,
+    }),
   })
   const [keyData, ownerFid] = await Promise.all([
     client.readContract({
@@ -609,6 +617,38 @@ async function activeOnChainAppKeyAtRpc(
   ])
   const [state, keyType] = keyData
   return state === 1 && keyType === 1 && ownerFid === BigInt(attestation.appFid)
+}
+
+async function activeOnChainAppKeyAtRpcWithRetry(
+  verifyAtRpc: VerifyOnChainAppKeyAtRpc,
+  rpcUrl: string,
+  fid: number,
+  appKey: Hex,
+  attestation: HubAppKeyAttestation,
+): Promise<boolean> {
+  for (let attempt = 0; attempt < RPC_TRANSPORT_ATTEMPTS; attempt += 1) {
+    const controller = new AbortController()
+    const deadline = new Promise<never>((_, reject) => {
+      const timeout = setTimeout(() => {
+        controller.abort()
+        reject(new Error('On-chain app-key verification is unavailable.'))
+      }, RPC_ATTEMPT_TIMEOUT_MILLISECONDS)
+      controller.signal.addEventListener('abort', () => clearTimeout(timeout), { once: true })
+    })
+    try {
+      return await Promise.race([
+        verifyAtRpc(rpcUrl, fid, appKey, attestation, controller.signal),
+        deadline,
+      ])
+    } catch {
+      if (attempt + 1 === RPC_TRANSPORT_ATTEMPTS) {
+        throw new Error('On-chain app-key verification is unavailable.')
+      }
+    } finally {
+      controller.abort()
+    }
+  }
+  return false
 }
 
 async function activeOnChainAppKey(
@@ -649,7 +689,7 @@ async function activeOnChainAppKey(
   if (!metadataSignatureValid) return false
 
   const results = await Promise.allSettled(config.farcasterRpcUrls.map(rpcUrl => (
-    verifyAtRpc(rpcUrl, fid, appKey, attestation)
+    activeOnChainAppKeyAtRpcWithRetry(verifyAtRpc, rpcUrl, fid, appKey, attestation)
   )))
   if (results[0]?.status === 'rejected') verifierUnavailable('rpc_primary_transport')
   if (results[1]?.status === 'rejected') verifierUnavailable('rpc_secondary_transport')
