@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { setGlobalLogLevel } from 'spacetimedb';
 
 import { DbConnection } from '../src/spacetime/module_bindings';
 import { ADMITTED_DAILY_MARK_POLICY_VERSION } from '../spacetimedb/src/marksAuthorityPolicy';
@@ -266,6 +267,10 @@ function printable(status: DailyMarksStatus) {
 }
 
 async function main() {
+  // This operator's stdout is a closed JSON contract consumed by the guarded
+  // publisher. Keep SDK connection notices from contaminating that channel;
+  // operator failures still use the privacy-safe stderr boundary below.
+  setGlobalLogLevel('error');
   const args = parseDailyMarksArguments();
   const target = canonicalTarget();
   if (args.command !== 'inspect' && !args.dryRun && !args.confirmed) {
