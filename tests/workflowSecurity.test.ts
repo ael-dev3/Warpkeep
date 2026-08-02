@@ -82,6 +82,9 @@ describe('GitHub workflow security policy', () => {
     expect(build).toContain(
       'VITE_WARPKEEP_SHARED_ALPHA_ENABLED: ${{ vars.WARPKEEP_SHARED_ALPHA_ENABLED }}',
     );
+    expect(build).toContain(
+      "VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: ${{ vars.WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED || 'false' }}",
+    );
     expect(build).toContain('true | false) ;;');
     expect(build).toContain(
       'WARPKEEP_SHARED_ALPHA_ENABLED must be exactly true or false.',

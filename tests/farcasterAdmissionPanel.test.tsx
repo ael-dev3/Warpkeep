@@ -235,4 +235,58 @@ describe('FarcasterAdmissionPanel', () => {
     expect(screen.getByRole('status').textContent).toBe('Opening Genesis 001…');
     expect(screen.queryByRole('button', { name: 'CHECK ADMISSION' })).toBeNull();
   });
+
+  it('rechecks authority instead of trusting an approval-notification launch', () => {
+    const view = render(
+      <FarcasterAdmissionPanel
+        approvalNotificationLaunch
+        identity={identity}
+        onCheckAgain={vi.fn()}
+        onSignOut={vi.fn()}
+        phase="checking-admission"
+      />
+    );
+
+    expect(screen.getByRole('heading', {
+      name: 'CONFIRMING HEGEMONY ADMISSION'
+    })).not.toBeNull();
+    expect(screen.getByRole('status').textContent).toBe(
+      'Rechecking your current Warpkeep access…'
+    );
+
+    view.rerender(
+      <FarcasterAdmissionPanel
+        accessRequest={{ phase: 'already-requested', requestedAt: 1_750_000_000_000 }}
+        approvalNotificationLaunch
+        identity={identity}
+        onCheckAgain={vi.fn()}
+        onRequestAccess={vi.fn()}
+        onSignOut={vi.fn()}
+        phase="denied"
+      />
+    );
+    expect(screen.getByRole('heading', { name: 'ENTRY NOT YET GRANTED' })).not.toBeNull();
+    expect(screen.getByText(
+      'Warpkeep has not yet confirmed active admission. Check again in a moment.'
+    )).not.toBeNull();
+  });
+
+  it('shows approval only after the normal backend path reaches Realm readiness', () => {
+    render(
+      <FarcasterAdmissionPanel
+        approvalNotificationLaunch
+        identity={identity}
+        onCheckAgain={vi.fn()}
+        onSignOut={vi.fn()}
+        phase="opening-realm"
+      />
+    );
+
+    expect(screen.getByRole('heading', {
+      name: 'HEGEMONY ADMISSION APPROVED'
+    })).not.toBeNull();
+    expect(screen.getByRole('status').textContent).toBe(
+      'Your active admission has been confirmed.'
+    );
+  });
 });

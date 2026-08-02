@@ -92,6 +92,7 @@ const MENU_HISTORY_KEY = 'warpkeepMenu';
 const REALM_HISTORY_KEY = 'warpkeepRealm';
 const DIRECT_REALM_HISTORY_KEY = 'warpkeepDirectRealm';
 const DIRECT_REALM_RETURN_WATCHDOG_MS = 1_500;
+const NOTIFICATION_ADMISSION_CONFIRMATION_MS = 900;
 const TITLE_HINT_DELAY_MS = 5_000;
 
 const WarpkeepTitleScreen3D = lazy(async () => {
@@ -328,6 +329,7 @@ export function WarpkeepExperience() {
   const blockedInitialRealmRef = useRef(hasRealmHash());
   const realmAudioResetTimerRef = useRef<number | null>(null);
   const directRealmReturnCleanupRef = useRef<(() => void) | null>(null);
+  const notificationRealmEntryTimerRef = useRef<number | null>(null);
   const verifiedIdentityRef = useRef<VerifiedFarcasterIdentity | null>(
     initiallyAuthenticated
       ? farcasterAuthState.identity
@@ -729,19 +731,40 @@ export function WarpkeepExperience() {
       || backend.state.realm?.ownCastle.ownerFid !== farcasterAuthState.identity.fid
       || !verifiedIdentityRef.current
     ) {
+      if (notificationRealmEntryTimerRef.current !== null) {
+        window.clearTimeout(notificationRealmEntryTimerRef.current);
+        notificationRealmEntryTimerRef.current = null;
+      }
       return;
     }
 
     // Quick Auth, admission, current Terms acceptance, and canonical Realm
     // readiness have all been proven by their existing authorities. Replace
     // the launch entry instead of growing host history with a skipped menu.
-    commitRealmEntry(verifiedIdentityRef.current, 'replace');
+    if (miniAppHost.context?.notificationId === undefined) {
+      commitRealmEntry(verifiedIdentityRef.current, 'replace');
+      return;
+    }
+    if (notificationRealmEntryTimerRef.current !== null) return;
+    notificationRealmEntryTimerRef.current = window.setTimeout(() => {
+      notificationRealmEntryTimerRef.current = null;
+      const currentIdentity = verifiedIdentityRef.current;
+      if (!currentIdentity) return;
+      commitRealmEntry(currentIdentity, 'replace');
+    }, NOTIFICATION_ADMISSION_CONFIRMATION_MS);
+    return () => {
+      if (notificationRealmEntryTimerRef.current !== null) {
+        window.clearTimeout(notificationRealmEntryTimerRef.current);
+        notificationRealmEntryTimerRef.current = null;
+      }
+    };
   }, [
     backend.state.phase,
     commitRealmEntry,
     directMiniAppEntryEnabled,
     farcasterAuthState,
     miniAppHost.isMiniApp,
+    miniAppHost.context?.notificationId,
     oidcSession
   ]);
 

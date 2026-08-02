@@ -19,6 +19,7 @@ export type WarpkeepRuntimeEnvironment = Readonly<{
   VITE_WARPKEEP_OIDC_ISSUER?: string;
   VITE_WARPKEEP_OIDC_AUDIENCE?: string;
   VITE_WARPKEEP_SHARED_ALPHA_ENABLED?: string;
+  VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED?: string;
 }>;
 
 export type WarpkeepRuntimeConfig = Readonly<{
@@ -29,6 +30,11 @@ export type WarpkeepRuntimeConfig = Readonly<{
   publicConfigValid: boolean;
   /** Explicit public kill switch. Shared alpha remains off unless this is true. */
   sharedAlphaEnabled: boolean;
+  /**
+   * Presentation-only release gate for the native Farcaster notification opt-in.
+   * Delivery authority remains entirely server-side.
+   */
+  admissionNotificationsEnabled?: boolean;
   /** A public HTTPS bridge base. Undefined means shared-alpha activation is off. */
   bridgeUrl?: string;
   /** Exact OIDC issuer that the bridge and SpacetimeDB module must agree on. */
@@ -107,6 +113,10 @@ function readSharedAlphaEnabled(value: string | undefined) {
   return value?.trim().toLowerCase() === 'true';
 }
 
+function readAdmissionNotificationsEnabled(value: string | undefined) {
+  return value === 'true';
+}
+
 /**
  * Does not throw for malformed public configuration. A malformed bridge
  * configuration must leave title/menu usable and disable all shared-state I/O.
@@ -138,6 +148,9 @@ export function readWarpkeepRuntimeConfig(
     audience: audience ?? DEFAULT_WARPKEEP_OIDC_AUDIENCE,
     publicConfigValid,
     sharedAlphaEnabled: readSharedAlphaEnabled(environment.VITE_WARPKEEP_SHARED_ALPHA_ENABLED),
+    admissionNotificationsEnabled: readAdmissionNotificationsEnabled(
+      environment.VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED
+    ),
     ...(bridgeUrl ? { bridgeUrl } : {}),
     ...(issuer ? { issuer } : {}),
     ...(allowLocalHttp ? { allowLocalHttp: true } : {})

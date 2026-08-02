@@ -1092,6 +1092,7 @@ describe('local credentials, artifacts, and private receipts', () => {
           'https://github.com/ael-dev3/Warpkeep',
         VITE_WARPKEEP_CANONICAL_ORIGIN: 'https://warpkeep.com',
         VITE_WARPKEEP_SHARED_ALPHA_ENABLED: 'true',
+        VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'false',
         VITE_WARPKEEP_AUTH_BRIDGE_URL: 'https://auth.warpkeep.com',
         VITE_WARPKEEP_OIDC_ISSUER: 'https://auth.warpkeep.com',
         VITE_WARPKEEP_OIDC_AUDIENCE: 'warpkeep-spacetimedb',
