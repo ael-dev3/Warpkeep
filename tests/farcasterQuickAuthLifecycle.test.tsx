@@ -15,6 +15,7 @@ import type {
   FarcasterOidcBridgeClient,
   FarcasterQuickAuthSessionResponse
 } from '../src/farcaster/farcasterAuthTypes';
+import { createFarcasterOidcBridgeClient } from '../src/farcaster/farcasterOidcBridgeClient';
 
 const ISSUER = 'https://auth.warpkeep.example';
 const AUDIENCE = 'warpkeep-spacetimedb';
@@ -392,11 +393,138 @@ describe('Farcaster Mini App Quick Auth lifecycle', () => {
     renderMiniApp(miniAppSdk(getToken), authBridge);
 
     await waitFor(() => expect(state().phase).toBe('error'));
+    expect(state().error).toMatchObject({
+      code: 'invalid-response',
+      stage: 'quick_auth_token_invalid_shape'
+    });
     expect(screen.getByTestId('token').textContent).toBe('false');
     expect(getToken).toHaveBeenCalledTimes(1);
     expect(exchangeQuickAuth).not.toHaveBeenCalled();
     expect(window.localStorage.length).toBe(0);
     expect(window.sessionStorage.length).toBe(0);
+  });
+
+  it('force-refreshes one SDK-cached bearer after a definitive bridge 401', async () => {
+    const freshToken = `${'d'.repeat(16)}.${'e'.repeat(24)}.${'f'.repeat(32)}`;
+    const getToken = vi.fn(async (options?: { force?: boolean }) => ({
+      token: options?.force === true ? freshToken : QUICK_AUTH_TOKEN
+    }));
+    const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
+      status,
+      headers: { 'content-type': 'application/json' }
+    });
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(json({ error: { code: 'quick_auth_invalid' } }, 401))
+      .mockResolvedValueOnce(json(authorized()));
+    const authBridge = createFarcasterOidcBridgeClient({
+      bridgeUrl: ISSUER,
+      issuer: ISSUER,
+      audience: AUDIENCE,
+      fetch
+    });
+
+    renderMiniApp(miniAppSdk(getToken), authBridge);
+
+    await waitFor(() => expect(state().phase).toBe('authenticated'));
+    expect(getToken).toHaveBeenCalledTimes(2);
+    expect(getToken).toHaveBeenNthCalledWith(1, undefined);
+    expect(getToken).toHaveBeenNthCalledWith(2, { force: true });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    const firstHeaders = new Headers(fetch.mock.calls[0]?.[1]?.headers);
+    const secondHeaders = new Headers(fetch.mock.calls[1]?.[1]?.headers);
+    expect(firstHeaders.get('authorization')).toBe(`Bearer ${QUICK_AUTH_TOKEN}`);
+    expect(secondHeaders.get('authorization')).toBe(`Bearer ${freshToken}`);
+  });
+
+  it('does not acquire a forced bearer after the auth generation is cancelled', async () => {
+    const rejectedClient = createFarcasterOidcBridgeClient({
+      bridgeUrl: ISSUER,
+      issuer: ISSUER,
+      audience: AUDIENCE,
+      fetch: vi.fn(async () => new Response(JSON.stringify({
+        error: { code: 'quick_auth_invalid' }
+      }), {
+        status: 401,
+        headers: { 'content-type': 'application/json' }
+      }))
+    });
+    const rejectedError = await rejectedClient.exchangeQuickAuth!(
+      QUICK_AUTH_TOKEN
+    ).catch((error: unknown) => error);
+    const getToken = vi.fn(async () => ({ token: QUICK_AUTH_TOKEN }));
+    let view!: ReturnType<typeof renderMiniApp>;
+    const exchangeQuickAuth = vi.fn(async () => {
+      view.unmount();
+      throw rejectedError;
+    });
+
+    view = renderMiniApp(miniAppSdk(getToken), bridge(exchangeQuickAuth));
+
+    await waitFor(() => expect(exchangeQuickAuth).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(getToken).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops after one forced refresh when the fresh bearer is also rejected', async () => {
+    const getToken = vi.fn(async () => ({ token: QUICK_AUTH_TOKEN }));
+    const rejected = () => new Response(JSON.stringify({
+      error: { code: 'quick_auth_invalid' }
+    }), {
+      status: 401,
+      headers: { 'content-type': 'application/json' }
+    });
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(rejected())
+      .mockResolvedValueOnce(rejected());
+    const authBridge = createFarcasterOidcBridgeClient({
+      bridgeUrl: ISSUER,
+      issuer: ISSUER,
+      audience: AUDIENCE,
+      fetch
+    });
+
+    renderMiniApp(miniAppSdk(getToken), authBridge);
+
+    await waitFor(() => expect(state().phase).toBe('error'));
+    expect(state().error).toMatchObject({
+      code: 'verification',
+      stage: 'bridge_http_401'
+    });
+    expect(getToken).toHaveBeenCalledTimes(2);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not retry a temporary bridge outage or expose its response', async () => {
+    const getToken = vi.fn(async () => ({ token: QUICK_AUTH_TOKEN }));
+    const fetch = vi.fn(async () => new Response(JSON.stringify({
+      error: {
+        code: 'verification_unavailable',
+        message: 'private upstream detail'
+      }
+    }), {
+      status: 503,
+      headers: { 'content-type': 'application/json' }
+    }));
+    const authBridge = createFarcasterOidcBridgeClient({
+      bridgeUrl: ISSUER,
+      issuer: ISSUER,
+      audience: AUDIENCE,
+      fetch
+    });
+
+    renderMiniApp(miniAppSdk(getToken), authBridge);
+
+    await waitFor(() => expect(state().phase).toBe('error'));
+    expect(state().error).toMatchObject({
+      code: 'bridge',
+      stage: 'bridge_http_503'
+    });
+    expect(JSON.stringify(state())).not.toContain('private upstream detail');
+    expect(getToken).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it('settles automatic Quick Auth under Strict Mode effect replay', async () => {

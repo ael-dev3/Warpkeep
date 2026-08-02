@@ -24,7 +24,9 @@ import { createFarcasterOidcBridgeClient } from '../src/farcaster/farcasterOidcB
 import type {
   AccessRequestStatus,
   FarcasterAuthViewState,
-  FarcasterOidcBridgeClient
+  FarcasterOidcBridgeClient,
+  FarcasterQuickAuthTokenOptions,
+  FarcasterQuickAuthTokenResult
 } from '../src/farcaster/farcasterAuthTypes';
 
 const REQUESTED_AT = 1_785_414_896_000;
@@ -40,6 +42,15 @@ const pending = (fid: number): FarcasterAuthViewState => Object.freeze({
 });
 
 const anonymous: FarcasterAuthViewState = Object.freeze({ phase: 'anonymous' });
+
+const quickToken = (token: string): FarcasterQuickAuthTokenResult => Object.freeze({
+  status: 'token',
+  token
+});
+
+const quickRejected: FarcasterQuickAuthTokenResult = Object.freeze({
+  status: 'rejected'
+});
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -82,7 +93,9 @@ type HarnessProps = Readonly<{
   authState: FarcasterAuthViewState;
   generation: number;
   client: FarcasterOidcBridgeClient;
-  loadQuickAuthToken?: () => Promise<string | null>;
+  loadQuickAuthToken?: (
+    options?: FarcasterQuickAuthTokenOptions
+  ) => Promise<FarcasterQuickAuthTokenResult>;
   minimumSubmittingMilliseconds?: number;
   minimumVerifyingMilliseconds?: number;
   reportDiagnostic?: (event: AccessRequestDiagnosticEvent) => void;
@@ -518,9 +531,9 @@ describe('professional access-request lifecycle', () => {
       requestedAt: REQUESTED_AT
     }));
     const loadQuickAuthToken = vi.fn()
-      .mockResolvedValueOnce('header.payload.signature')
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce('header.payload.signature');
+      .mockResolvedValueOnce(quickToken('header.payload.signature'))
+      .mockResolvedValueOnce(quickRejected)
+      .mockResolvedValueOnce(quickToken('header.payload.signature'));
     render(
       <Harness
         authState={pending(12_345)}
@@ -672,11 +685,11 @@ describe('professional access-request lifecycle', () => {
   });
 
   it('cannot invoke a mutation after Quick Auth acquisition outlives its identity generation', async () => {
-    const staleToken = deferred<string | null>();
+    const staleToken = deferred<FarcasterQuickAuthTokenResult>();
     const loadQuickAuthToken = vi.fn()
-      .mockResolvedValueOnce('initial.status.credential')
+      .mockResolvedValueOnce(quickToken('initial.status.credential'))
       .mockImplementationOnce(() => staleToken.promise)
-      .mockResolvedValue('next.generation.credential');
+      .mockResolvedValue(quickToken('next.generation.credential'));
     const requestAccess = vi.fn(async () => ({
       version: 1 as const,
       status: 'requested' as const,
@@ -709,10 +722,60 @@ describe('professional access-request lifecycle', () => {
     );
     await screen.findByRole('button', { name: 'REQUEST ACCESS' });
 
-    staleToken.resolve('stale.generation.credential');
+    staleToken.resolve(quickToken('stale.generation.credential'));
     await act(async () => Promise.resolve());
     expect(requestAccess).not.toHaveBeenCalled();
     expect(getAccessRequestStatus).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not force-acquire after a 401 invalidates the request generation', async () => {
+    const rejectedBridge = createFarcasterOidcBridgeClient({
+      bridgeUrl: 'https://auth.warpkeep.example',
+      issuer: 'https://auth.warpkeep.example',
+      audience: 'warpkeep-spacetimedb',
+      fetch: vi.fn(async () => new Response(JSON.stringify({
+        error: { code: 'quick_auth_invalid' }
+      }), {
+        status: 401,
+        headers: { 'content-type': 'application/json' }
+      }))
+    });
+    const rejectedError = await rejectedBridge.getAccessRequestStatus!(
+      { mode: 'quick-auth', token: 'initial.status.credential' },
+      { expectedFid: 12_345 }
+    ).catch((error: unknown) => error);
+    const loadQuickAuthToken = vi.fn(async () => quickToken('status.credential'));
+    let firstStatus = true;
+    let view!: ReturnType<typeof render>;
+    const getAccessRequestStatus = vi.fn(async () => {
+      if (firstStatus) {
+        firstStatus = false;
+        act(() => view.rerender(
+          <Harness
+            authState={pending(67_890)}
+            client={client}
+            generation={2}
+            loadQuickAuthToken={loadQuickAuthToken}
+          />
+        ));
+        throw rejectedError;
+      }
+      return { version: 1 as const, status: 'not-requested' as const };
+    });
+    const client = bridge({ getAccessRequestStatus });
+
+    view = render(
+      <Harness
+        authState={pending(12_345)}
+        client={client}
+        generation={1}
+        loadQuickAuthToken={loadQuickAuthToken}
+      />
+    );
+
+    await screen.findByRole('button', { name: 'REQUEST ACCESS' });
+    expect(loadQuickAuthToken).toHaveBeenCalled();
+    expect(loadQuickAuthToken.mock.calls).not.toContainEqual([{ force: true }]);
   });
 
   it.each(['success', 'ambiguous'] as const)(
@@ -740,7 +803,7 @@ describe('professional access-request lifecycle', () => {
           authState={pending(12_345)}
           client={bridge({ getAccessRequestStatus, requestAccess })}
           generation={1}
-          loadQuickAuthToken={async () => credential}
+          loadQuickAuthToken={async () => quickToken(credential)}
           reportDiagnostic={reportDiagnostic}
         />
       );
@@ -762,7 +825,7 @@ describe('professional access-request lifecycle', () => {
           authState={anonymous}
           client={bridge()}
           generation={2}
-          loadQuickAuthToken={async () => credential}
+          loadQuickAuthToken={async () => quickToken(credential)}
           reportDiagnostic={reportDiagnostic}
         />
       );

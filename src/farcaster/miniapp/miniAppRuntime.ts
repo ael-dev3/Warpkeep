@@ -1,3 +1,5 @@
+import type { FarcasterQuickAuthTokenOptions } from '../farcasterAuthTypes';
+
 export const MINI_APP_CAPABILITIES = Object.freeze([
   'wallet.getEthereumProvider',
   'wallet.getSolanaProvider',
@@ -70,11 +72,11 @@ export type MiniAppBack = {
 };
 
 export type MiniAppSdk = {
-  isInMiniApp: () => Promise<boolean>;
+  isInMiniApp: (timeoutMilliseconds?: number) => Promise<boolean>;
   context: Promise<unknown>;
   getCapabilities?: () => Promise<unknown>;
   quickAuth?: {
-    getToken?: () => Promise<unknown>;
+    getToken?: (options?: FarcasterQuickAuthTokenOptions) => Promise<unknown>;
   };
   back?: MiniAppBack;
   actions: {
@@ -397,9 +399,15 @@ export function installMiniAppSafeAreaVariables(
 export function installMiniAppQuickAuthPreconnect(
   document: Document
 ): () => void {
-  const existing = document.head.querySelector<HTMLLinkElement>(
-    `link[${QUICK_AUTH_PRECONNECT_ATTRIBUTE}]`
-  );
+  const existing = Array.from(
+    document.head.querySelectorAll<HTMLLinkElement>('link[rel~="preconnect"]')
+  ).find((link) => {
+    try {
+      return new URL(link.href, document.baseURI).origin === QUICK_AUTH_ORIGIN;
+    } catch {
+      return false;
+    }
+  });
   if (existing) return () => {};
   const link = document.createElement('link');
   link.rel = 'preconnect';

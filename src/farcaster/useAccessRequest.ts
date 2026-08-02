@@ -21,9 +21,14 @@ import type {
   AccessRequestStatusContext,
   AccessRequestViewState,
   FarcasterAuthViewState,
-  FarcasterOidcBridgeClient
+  FarcasterOidcBridgeClient,
+  FarcasterQuickAuthTokenOptions,
+  FarcasterQuickAuthTokenResult
 } from './farcasterAuthTypes';
-import { accessRequestNoMutationReason } from './farcasterOidcBridgeClient';
+import {
+  accessRequestNoMutationReason,
+  farcasterOidcBridgeFailureKind
+} from './farcasterOidcBridgeClient';
 
 const DEFAULT_MINIMUM_SUBMITTING_MILLISECONDS = 350;
 const DEFAULT_MINIMUM_VERIFYING_MILLISECONDS = 160;
@@ -45,7 +50,9 @@ type AccessRequestControllerOptions = Readonly<{
   authState: FarcasterAuthViewState;
   authGeneration: number;
   loadBridgeClient: () => Promise<FarcasterOidcBridgeClient>;
-  loadQuickAuthToken?: () => Promise<string | null>;
+  loadQuickAuthToken?: (
+    options?: FarcasterQuickAuthTokenOptions
+  ) => Promise<FarcasterQuickAuthTokenResult>;
   /** Local test seam; production uses the bounded 350 ms presentation. */
   minimumSubmittingMilliseconds?: number;
   /** Local test seam for the short ambiguous-result handoff. */
@@ -115,7 +122,9 @@ async function waitForMinimumPresentation(
  * this call stack. Quick Auth material never enters React state or context.
  */
 async function withAccessAuthentication<T>(
-  loadQuickAuthToken: (() => Promise<string | null>) | undefined,
+  loadQuickAuthToken: ((
+    options?: FarcasterQuickAuthTokenOptions
+  ) => Promise<FarcasterQuickAuthTokenResult>) | undefined,
   shouldContinue: () => boolean,
   operation: (authentication: AccessRequestAuthentication) => Promise<T>
 ): Promise<T> {
@@ -124,15 +133,34 @@ async function withAccessAuthentication<T>(
     return operation(Object.freeze({ mode: 'pending-session' }));
   }
 
-  let token = await loadQuickAuthToken();
-  if (!token) throw new Error('ACCESS_AUTH_UNAVAILABLE');
-  try {
-    // Credential acquisition may outlive the identity generation that began
-    // it. Revalidate before the token can reach a mutation or status client.
+  const run = async (force: boolean) => {
     if (!shouldContinue()) throw new Error('ACCESS_AUTH_CANCELLED');
-    return await operation(Object.freeze({ mode: 'quick-auth', token }));
-  } finally {
-    token = '';
+    const acquisition = await loadQuickAuthToken(
+      force ? { force: true } : undefined
+    );
+    if (acquisition.status !== 'token') {
+      throw new Error('ACCESS_AUTH_UNAVAILABLE');
+    }
+    let token = acquisition.token;
+    try {
+      // Credential acquisition may outlive the identity generation that began
+      // it. Revalidate before the token can reach a mutation or status client.
+      if (!shouldContinue()) throw new Error('ACCESS_AUTH_CANCELLED');
+      return await operation(Object.freeze({ mode: 'quick-auth', token }));
+    } finally {
+      token = '';
+    }
+  };
+
+  try {
+    return await run(false);
+  } catch (error) {
+    // Authentication rejection happens before an access status read or request
+    // mutation. One forced bearer refresh is therefore safe and bounded.
+    if (farcasterOidcBridgeFailureKind(error) !== 'invalid-credential') {
+      throw error;
+    }
+    return run(true);
   }
 }
 

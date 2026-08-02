@@ -36,4 +36,14 @@ describe('Warpkeep deployment base and canonical metadata', () => {
       'content="Warpkeep is a persistent Farcaster strategy world where every admitted founder has a castle in Genesis 001."',
     );
   });
+
+  it('preconnects the two fixed Quick Auth origins before Mini App entry', () => {
+    const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
+    expect(html).toContain(
+      '<link rel="preconnect" href="https://auth.farcaster.xyz" crossorigin />'
+    );
+    expect(html).toContain(
+      '<link rel="preconnect" href="https://auth.warpkeep.com" crossorigin />'
+    );
+  });
 });

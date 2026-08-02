@@ -72,8 +72,10 @@ export function AccessRequestQaStage({
   const loadBridgeClient = useCallback(async () => bridgeClient, [bridgeClient]);
   const loadQuickAuthToken = useCallback(async () => {
     quickAuthReadsRef.current += 1;
-    if (mode === 'pre-write-failure' && quickAuthReadsRef.current === 2) return null;
-    return 'local.qa.credential';
+    if (mode === 'pre-write-failure' && quickAuthReadsRef.current === 2) {
+      return { status: 'rejected' as const };
+    }
+    return { status: 'token' as const, token: 'local.qa.credential' };
   }, [mode]);
   const accessRequest = useAccessRequest({
     authState: QA_AUTH_STATES.pending,

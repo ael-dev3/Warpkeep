@@ -43,6 +43,7 @@ import {
 } from './farcasterPresentationSession';
 import type {
   FarcasterAuthError,
+  FarcasterAuthEntryStage,
   AccessRequestViewState,
   FarcasterAuthContext,
   FarcasterAuthPhase,
@@ -51,8 +52,11 @@ import type {
   FarcasterBrowserBindingFactory,
   FarcasterBridgeSessionResponse,
   FarcasterOidcBridgeClient,
+  FarcasterOidcBridgeFailureKind,
   FarcasterOidcSession,
   FarcasterQuickAuthSessionResponse,
+  FarcasterQuickAuthTokenOptions,
+  FarcasterQuickAuthTokenResult,
   FarcasterSessionAuthority,
   FarcasterSignInChannel,
   PublicFarcasterIdentity,
@@ -64,9 +68,16 @@ const MAX_BROWSER_TIMER_DELAY_MS = 2_147_000_000;
 
 export type FarcasterAuthorityLoader = () => Promise<FarcasterSessionAuthority>;
 export type FarcasterOidcBridgeLoader = () => Promise<FarcasterOidcBridgeClient>;
-export type FarcasterQuickAuthTokenLoader = () => Promise<string | null>;
+export type FarcasterQuickAuthTokenLoader = (
+  options?: FarcasterQuickAuthTokenOptions
+) => Promise<FarcasterQuickAuthTokenResult>;
 export type FarcasterQrEncoder = (channelUrl: string) => Promise<string>;
 export type FarcasterAuthErrorNormalizer = (error: unknown) => FarcasterAuthError;
+export type FarcasterBridgeFailureClassifier = (
+  error: unknown
+) => FarcasterOidcBridgeFailureKind | null;
+
+const NO_BRIDGE_FAILURE_CLASSIFICATION: FarcasterBridgeFailureClassifier = () => null;
 
 export type FarcasterAuthProviderCoreProps = Readonly<{
   children: ReactNode;
@@ -77,6 +88,8 @@ export type FarcasterAuthProviderCoreProps = Readonly<{
   /** Untrusted host presentation fields; retained only for a bridge-verified same FID. */
   quickAuthPresentationIdentity?: FarcasterRelayDisplayIdentity;
   normalizeAuthError: FarcasterAuthErrorNormalizer;
+  /** Concrete transport details stay outside the full-stack auth core. */
+  classifyBridgeFailure?: FarcasterBridgeFailureClassifier;
   /** Kept injectable so a challenge and SIWF request share one exact context. */
   resolveAuthContext?: () => FarcasterAuthContext;
   encodeQrCode: FarcasterQrEncoder;
@@ -186,6 +199,139 @@ function isUsableVerifiedIdentity(identity: VerifiedFarcasterIdentity) {
 const SERVER_SESSION_MAX_TTL_MS = FARCASTER_SESSION_TERMINATION_INTENT_TTL_MS;
 const ACCESS_REFRESH_LEAD_MS = 30_000;
 const QUICK_AUTH_PENDING_PRESENTATION_TTL_MS = 5 * 60 * 1_000;
+
+class FarcasterQuickAuthPipelineError extends Error {
+  override readonly name = 'FarcasterQuickAuthPipelineError';
+
+  constructor(readonly publicError: FarcasterAuthError) {
+    super(publicError.message);
+  }
+}
+
+function quickAuthPublicError(
+  code: FarcasterAuthError['code'],
+  stage: FarcasterAuthEntryStage,
+  message: string
+): FarcasterAuthError {
+  return Object.freeze({ code, stage, message });
+}
+
+function quickAuthTokenFailure(
+  result: unknown
+): FarcasterAuthError {
+  const status = isRecord(result) && typeof result.status === 'string'
+    ? result.status
+    : 'invalid-shape';
+  if (status === 'unsupported') {
+    return quickAuthPublicError(
+      'unknown',
+      'quick_auth_api_missing',
+      'This Farcaster client does not offer secure Mini App sign-in.'
+    );
+  }
+  if (status === 'timeout') {
+    return quickAuthPublicError(
+      'network',
+      'quick_auth_token_timeout',
+      'Farcaster did not finish secure sign-in in time.'
+    );
+  }
+  if (status === 'invalid-shape') {
+    return quickAuthPublicError(
+      'invalid-response',
+      'quick_auth_token_invalid_shape',
+      'Farcaster returned an invalid secure sign-in response.'
+    );
+  }
+  if (status === 'host-replaced') {
+    return quickAuthPublicError(
+      'cancelled',
+      'quick_auth_host_replaced',
+      'The Farcaster Mini App changed while sign-in was in progress.'
+    );
+  }
+  return quickAuthPublicError(
+    'verification',
+    'quick_auth_token_rejected',
+    'Farcaster could not approve secure Mini App sign-in.'
+  );
+}
+
+function quickAuthBridgeFailure(
+  error: unknown,
+  classifyBridgeFailure: FarcasterBridgeFailureClassifier
+): FarcasterAuthError | undefined {
+  const kind = classifyBridgeFailure(error);
+  if (!kind) return undefined;
+  if (kind === 'invalid-credential') {
+    return quickAuthPublicError(
+      'verification',
+      'bridge_http_401',
+      'The current Farcaster Mini App session was not accepted.'
+    );
+  }
+  if (kind === 'forbidden') {
+    return quickAuthPublicError(
+      'bridge',
+      'bridge_http_403',
+      'This secure Warpkeep release could not complete sign-in.'
+    );
+  }
+  if (kind === 'rate-limited') {
+    return quickAuthPublicError(
+      'bridge',
+      'bridge_http_429',
+      'Secure sign-in is temporarily busy.'
+    );
+  }
+  if (kind === 'service-unavailable') {
+    return quickAuthPublicError(
+      'bridge',
+      'bridge_http_503',
+      'Secure sign-in is temporarily unavailable.'
+    );
+  }
+  if (kind === 'timeout') {
+    return quickAuthPublicError(
+      'network',
+      'bridge_exchange_timeout',
+      'Warpkeep did not finish secure verification in time.'
+    );
+  }
+  if (kind === 'network-or-cors') {
+    return quickAuthPublicError(
+      'network',
+      'bridge_network_failed',
+      'Warpkeep could not reach secure verification.'
+    );
+  }
+  if (kind === 'configuration') {
+    return quickAuthPublicError(
+      'bridge',
+      'deployment_contract_mismatch',
+      'This Warpkeep release does not match secure verification.'
+    );
+  }
+  if (kind === 'invalid-response') {
+    return quickAuthPublicError(
+      'invalid-response',
+      'bridge_response_invalid',
+      'Warpkeep received an invalid secure verification response.'
+    );
+  }
+  if (kind === 'cancelled') {
+    return quickAuthPublicError(
+      'cancelled',
+      'stale_result_discarded',
+      'Secure sign-in was cancelled safely.'
+    );
+  }
+  return quickAuthPublicError(
+    'bridge',
+    'bridge_response_invalid',
+    'Warpkeep could not confirm secure sign-in.'
+  );
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -1026,6 +1172,7 @@ export function FarcasterAuthProviderCore({
   loadQuickAuthToken,
   quickAuthPresentationIdentity,
   normalizeAuthError,
+  classifyBridgeFailure = NO_BRIDGE_FAILURE_CLASSIFICATION,
   resolveAuthContext = getBrowserFarcasterAuthContext,
   encodeQrCode,
   createBrowserBinding,
@@ -1334,7 +1481,23 @@ export function FarcasterAuthProviderCore({
     const controller = new AbortController();
     let flight: NonNullable<typeof quickAuthFlightRef.current>;
     const promise = Promise.resolve()
-      .then(() => loadBridgeClient())
+      .then(async () => {
+        try {
+          return await loadBridgeClient();
+        } catch (error) {
+          const classified = quickAuthBridgeFailure(
+            error,
+            classifyBridgeFailure
+          );
+          throw new FarcasterQuickAuthPipelineError(
+            classified ?? quickAuthPublicError(
+              'bridge',
+              'bridge_client_unavailable',
+              'Warpkeep could not prepare secure verification.'
+            )
+          );
+        }
+      })
       .then(async (client) => {
         if (
           controller.signal.aborted
@@ -1342,25 +1505,63 @@ export function FarcasterAuthProviderCore({
         ) {
           return undefined;
         }
-        let token = await loadQuickAuthToken();
-        try {
+
+        if (typeof client.exchangeQuickAuth !== 'function') {
+          throw new FarcasterQuickAuthPipelineError(quickAuthPublicError(
+            'bridge',
+            'deployment_contract_mismatch',
+            'This Warpkeep release does not support secure Mini App sign-in.'
+          ));
+        }
+
+        const exchangeOnce = async (force: boolean) => {
           if (
             controller.signal.aborted
             || lifecycleGenerationRef.current !== lifecycleGeneration
-            || typeof token !== 'string'
-            || token.length === 0
-            || typeof client.exchangeQuickAuth !== 'function'
           ) {
             return undefined;
           }
-          return {
-            client,
-            response: await client.exchangeQuickAuth(token, {
+          const acquisition = await loadQuickAuthToken(
+            force ? { force: true } : undefined
+          );
+          if (
+            controller.signal.aborted
+            || lifecycleGenerationRef.current !== lifecycleGeneration
+          ) {
+            return undefined;
+          }
+          if (
+            !isRecord(acquisition)
+            || acquisition.status !== 'token'
+            || typeof acquisition.token !== 'string'
+            || acquisition.token.length === 0
+          ) {
+            throw new FarcasterQuickAuthPipelineError(
+              quickAuthTokenFailure(acquisition)
+            );
+          }
+
+          let token = acquisition.token;
+          try {
+            return await client.exchangeQuickAuth!(token, {
               signal: controller.signal
-            })
-          };
-        } finally {
-          token = '';
+            });
+          } finally {
+            token = '';
+          }
+        };
+
+        try {
+          const response = await exchangeOnce(false);
+          return response ? { client, response } : undefined;
+        } catch (error) {
+          // A definitive rejection may describe an SDK-cached bearer. Acquire
+          // and exchange one forced-fresh token; every other failure stops.
+          if (classifyBridgeFailure(error) !== 'invalid-credential') {
+            throw error;
+          }
+          const response = await exchangeOnce(true);
+          return response ? { client, response } : undefined;
         }
       })
       .then((result) => {
@@ -1377,16 +1578,25 @@ export function FarcasterAuthProviderCore({
           throw new Error('Quick Auth is unavailable.');
         }
         const currentTime = readProviderNow(now);
-        const resolved = currentTime === undefined
-          ? undefined
-          : materializeQuickAuthSession(
-              result.response,
-              currentTime,
-              result.client.issuer,
-              result.client.audience
-            );
+        if (currentTime === undefined) {
+          throw new FarcasterQuickAuthPipelineError(quickAuthPublicError(
+            'invalid-response',
+            'client_clock_invalid',
+            'This device could not provide a usable clock for secure sign-in.'
+          ));
+        }
+        const resolved = materializeQuickAuthSession(
+          result.response,
+          currentTime,
+          result.client.issuer,
+          result.client.audience
+        );
         if (!resolved) {
-          throw new Error('Invalid Quick Auth session.');
+          throw new FarcasterQuickAuthPipelineError(quickAuthPublicError(
+            'invalid-response',
+            'access_token_invalid',
+            'Warpkeep could not validate the secure access session.'
+          ));
         }
 
         const currentView = machineRef.current.view;
@@ -1434,10 +1644,14 @@ export function FarcasterAuthProviderCore({
           return false;
         }
         if (startsVisibleAttempt) {
+          const publicError = error instanceof FarcasterQuickAuthPipelineError
+            ? error.publicError
+            : quickAuthBridgeFailure(error, classifyBridgeFailure)
+              ?? normalizeAuthError(error);
           dispatch({
             type: 'failed',
             generation: machineGeneration,
-            error: normalizeAuthError(error)
+            error: publicError
           });
         }
         if (flight.clearOnFailure) {
@@ -1475,6 +1689,7 @@ export function FarcasterAuthProviderCore({
     clearInMemoryAuthoritativeSession,
     clearLocalAuthoritativeSession,
     clearPresentationSession,
+    classifyBridgeFailure,
     loadBridgeClient,
     loadQuickAuthToken,
     normalizeAuthError,

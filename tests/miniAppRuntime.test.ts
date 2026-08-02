@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   hasExactMiniAppHint,
+  installMiniAppQuickAuthPreconnect,
   readMiniAppQuickAuthToken,
   sanitizeMiniAppCapabilities,
   sanitizeMiniAppContext
@@ -43,6 +44,20 @@ describe('Farcaster Mini App runtime sanitization', () => {
     expect(readMiniAppQuickAuthToken({
       token: `a.${'b'.repeat(8 * 1_024)}.c`
     })).toBeNull();
+  });
+
+  it('reuses the static Quick Auth preconnect without creating a duplicate', () => {
+    const link = document.createElement('link');
+    link.rel = 'preconnect';
+    link.href = 'https://auth.farcaster.xyz';
+    document.head.append(link);
+
+    const cleanup = installMiniAppQuickAuthPreconnect(document);
+    expect(document.head.querySelectorAll('link[rel~="preconnect"]')).toHaveLength(1);
+
+    cleanup();
+    expect(link.isConnected).toBe(true);
+    link.remove();
   });
 
   it('minimizes profile context and clamps every safe-area axis', () => {

@@ -60,6 +60,39 @@
   text-wrap: balance;
 }
 
+.farcaster-miniapp-entry__support {
+  display: grid;
+  width: 100%;
+  gap: 0.35rem;
+  margin-top: 0.15rem;
+}
+
+.farcaster-miniapp-entry__support small,
+.farcaster-miniapp-entry__support label {
+  color: #a99779;
+  font-size: 0.64rem;
+  letter-spacing: 0.035em;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.farcaster-miniapp-entry__support label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.farcaster-miniapp-entry__support textarea {
+  min-height: 7rem;
+  box-sizing: border-box;
+  resize: vertical;
+  border: 1px solid rgb(202 156 83 / 28%);
+  border-radius: 0.35rem;
+  padding: 0.5rem;
+  color: #ddc99e;
+  background: rgb(2 2 7 / 72%);
+  font: 0.64rem/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
 @media (max-width: 480px) {
   .farcaster-miniapp-entry {
     place-items: stretch center;

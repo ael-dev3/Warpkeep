@@ -27,6 +27,10 @@ import {
   type MiniAppSdk,
   type MiniAppSdkLoader
 } from './miniAppRuntime';
+import type {
+  FarcasterQuickAuthTokenOptions,
+  FarcasterQuickAuthTokenResult
+} from '../farcasterAuthTypes';
 
 export type MiniAppHostState =
   | 'regular-web'
@@ -70,7 +74,9 @@ export type MiniAppHostQuickAuth = Readonly<{
    * Returns a fresh, memory-only host bearer. The adapter never stores the
    * token in React state, browser storage, URLs, or logs.
    */
-  getToken: () => Promise<string | null>;
+  getToken: (
+    options?: FarcasterQuickAuthTokenOptions
+  ) => Promise<FarcasterQuickAuthTokenResult>;
 }>;
 
 export type MiniAppHostValue = Readonly<{
@@ -101,6 +107,8 @@ export type MiniAppHostProviderProps = Readonly<{
   runtime?: MiniAppBrowserRuntime;
   /** Test/runtime injection only; production uses the bounded default. */
   hostDeadlineMilliseconds?: number;
+  /** Quick Auth spans two network calls and one native-host round trip. */
+  quickAuthDeadlineMilliseconds?: number;
 }>;
 
 const EMPTY_CAPABILITIES: readonly MiniAppCapability[] = Object.freeze([]);
@@ -120,6 +128,25 @@ const DETECTING_SNAPSHOT: HostSnapshot = Object.freeze({
 const DEFAULT_HOST_DEADLINE_MILLISECONDS = 4_000;
 const MINIMUM_HOST_DEADLINE_MILLISECONDS = 250;
 const MAXIMUM_HOST_DEADLINE_MILLISECONDS = 10_000;
+const DEFAULT_QUICK_AUTH_DEADLINE_MILLISECONDS = 10_000;
+const MINIMUM_QUICK_AUTH_DEADLINE_MILLISECONDS = 1_000;
+const MAXIMUM_QUICK_AUTH_DEADLINE_MILLISECONDS = 15_000;
+
+const QUICK_AUTH_UNSUPPORTED: FarcasterQuickAuthTokenResult = Object.freeze({
+  status: 'unsupported'
+});
+const QUICK_AUTH_TIMEOUT: FarcasterQuickAuthTokenResult = Object.freeze({
+  status: 'timeout'
+});
+const QUICK_AUTH_REJECTED: FarcasterQuickAuthTokenResult = Object.freeze({
+  status: 'rejected'
+});
+const QUICK_AUTH_INVALID_SHAPE: FarcasterQuickAuthTokenResult = Object.freeze({
+  status: 'invalid-shape'
+});
+const QUICK_AUTH_HOST_REPLACED: FarcasterQuickAuthTokenResult = Object.freeze({
+  status: 'host-replaced'
+});
 
 // React StrictMode replays effects. Share the exact ready promise so one
 // verified mount receives no more than one ready call while the surviving
@@ -166,6 +193,14 @@ function normalizedHostDeadline(value: number | undefined) {
   return Math.min(
     MAXIMUM_HOST_DEADLINE_MILLISECONDS,
     Math.max(MINIMUM_HOST_DEADLINE_MILLISECONDS, Math.round(value!))
+  );
+}
+
+function normalizedQuickAuthDeadline(value: number | undefined) {
+  if (!Number.isFinite(value)) return DEFAULT_QUICK_AUTH_DEADLINE_MILLISECONDS;
+  return Math.min(
+    MAXIMUM_QUICK_AUTH_DEADLINE_MILLISECONDS,
+    Math.max(MINIMUM_QUICK_AUTH_DEADLINE_MILLISECONDS, Math.round(value!))
   );
 }
 
@@ -250,7 +285,7 @@ const MISSING_PROVIDER_VALUE: MiniAppHostValue = Object.freeze({
     selectionChanged: async () => false
   }),
   quickAuth: Object.freeze({
-    getToken: async () => null
+    getToken: async () => QUICK_AUTH_UNSUPPORTED
   })
 });
 
@@ -262,9 +297,13 @@ export function MiniAppHostProvider({
   children,
   sdkLoader = defaultMiniAppSdkLoader,
   runtime = DEFAULT_MINI_APP_BROWSER_RUNTIME,
-  hostDeadlineMilliseconds
+  hostDeadlineMilliseconds,
+  quickAuthDeadlineMilliseconds
 }: MiniAppHostProviderProps) {
   const hostDeadline = normalizedHostDeadline(hostDeadlineMilliseconds);
+  const quickAuthDeadline = normalizedQuickAuthDeadline(
+    quickAuthDeadlineMilliseconds
+  );
   const miniAppHinted = isMiniAppHinted(runtime);
   let isFramed = false;
   try {
@@ -286,6 +325,10 @@ export function MiniAppHostProvider({
   const activeBackCleanupRef = useRef<(() => void) | null>(null);
   const backCommandRef = useRef<Promise<void>>(Promise.resolve());
   const readyAttemptScopeRef = useRef<ReadyAttemptScope | null>(null);
+  const quickAuthFlightRef = useRef<Readonly<{
+    force: boolean;
+    promise: Promise<FarcasterQuickAuthTokenResult>;
+  }> | undefined>(undefined);
   const retainedReadyScope = readyAttemptScopeRef.current;
   if (
     retainedReadyScope === null
@@ -387,7 +430,7 @@ export function MiniAppHostProvider({
       let verified = false;
       try {
         verified = await withMiniAppHostDeadline(
-          sdk.isInMiniApp(),
+          sdk.isInMiniApp(hostDeadline),
           hostDeadline
         ) === true;
       } catch (error) {
@@ -771,23 +814,60 @@ export function MiniAppHostProvider({
       : Promise.resolve(false)
   }), [runOptional]);
 
-  const quickAuth = useMemo<MiniAppHostQuickAuth>(() => Object.freeze({
-    getToken: async () => {
-      const sdk = sdkRef.current;
-      const getToken = sdk?.quickAuth?.getToken;
-      if (!sdk || typeof getToken !== 'function') return null;
-      try {
-        const result = await withMiniAppHostDeadline(
-          getToken(),
-          hostDeadline
-        );
-        if (sdkRef.current !== sdk) return null;
-        return readMiniAppQuickAuthToken(result);
-      } catch {
-        return null;
+  const quickAuth = useMemo<MiniAppHostQuickAuth>(() => {
+    const getToken: MiniAppHostQuickAuth['getToken'] = (options = {}) => {
+      const force = options.force === true;
+      const activeFlight = quickAuthFlightRef.current;
+      if (activeFlight) {
+        // A forced refresh must not silently inherit a non-forced acquisition.
+        // It runs only after that single shared host request has settled.
+        return force && !activeFlight.force
+          ? activeFlight.promise.then(() => getToken({ force: true }))
+          : activeFlight.promise;
       }
-    }
-  }), [hostDeadline]);
+
+      const sdk = sdkRef.current;
+      const sdkQuickAuth = sdk?.quickAuth;
+      const acquire = sdkQuickAuth?.getToken;
+      if (!sdk || !sdkQuickAuth || typeof acquire !== 'function') {
+        return Promise.resolve(QUICK_AUTH_UNSUPPORTED);
+      }
+
+      let flight: NonNullable<typeof quickAuthFlightRef.current>;
+      const promise = Promise.resolve()
+        .then(async (): Promise<FarcasterQuickAuthTokenResult> => {
+          try {
+            const result = await withMiniAppHostDeadline(
+              Promise.resolve().then(() => acquire.call(
+                sdkQuickAuth,
+                force ? { force: true } : undefined
+              )),
+              quickAuthDeadline
+            );
+            if (sdkRef.current !== sdk) return QUICK_AUTH_HOST_REPLACED;
+            const token = readMiniAppQuickAuthToken(result);
+            return token
+              ? Object.freeze({ status: 'token', token })
+              : QUICK_AUTH_INVALID_SHAPE;
+          } catch (error) {
+            if (sdkRef.current !== sdk) return QUICK_AUTH_HOST_REPLACED;
+            return isMiniAppHostDeadlineError(error)
+              ? QUICK_AUTH_TIMEOUT
+              : QUICK_AUTH_REJECTED;
+          }
+        })
+        .finally(() => {
+          if (quickAuthFlightRef.current === flight) {
+            quickAuthFlightRef.current = undefined;
+          }
+        });
+      flight = Object.freeze({ force, promise });
+      quickAuthFlightRef.current = flight;
+      return promise;
+    };
+
+    return Object.freeze({ getToken });
+  }, [quickAuthDeadline]);
 
   const value = useMemo<MiniAppHostValue>(() => Object.freeze({
     state: snapshot.state,

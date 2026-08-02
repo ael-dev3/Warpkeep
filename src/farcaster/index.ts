@@ -6,6 +6,7 @@ export {
 export type {
   FarcasterAuthorityLoader,
   FarcasterAuthControllerValue,
+  FarcasterBridgeFailureClassifier,
   FarcasterOidcBridgeLoader,
   FarcasterQuickAuthTokenLoader
 } from './FarcasterAuthProvider';
@@ -21,6 +22,7 @@ export {
 export {
   FarcasterOidcBridgeClientError,
   createFarcasterOidcBridgeClient,
+  farcasterOidcBridgeFailureKind,
   getDefaultFarcasterOidcBridgeClient
 } from './farcasterOidcBridgeClient';
 export {
@@ -37,6 +39,7 @@ export {
 export type {
   FarcasterAuthError,
   FarcasterAuthErrorCode,
+  FarcasterAuthEntryStage,
   FarcasterAuthPresentation,
   FarcasterAuthPhase,
   FarcasterAuthViewState,
@@ -57,7 +60,10 @@ export type {
   FarcasterQuickAuthAuthorizedSession,
   FarcasterQuickAuthPendingAdmissionSession,
   FarcasterQuickAuthSessionResponse,
+  FarcasterQuickAuthTokenOptions,
+  FarcasterQuickAuthTokenResult,
   FarcasterOidcBridgeClient,
+  FarcasterOidcBridgeFailureKind,
   FarcasterOidcSession,
   PublicFarcasterIdentity,
   VerifiedFarcasterIdentity

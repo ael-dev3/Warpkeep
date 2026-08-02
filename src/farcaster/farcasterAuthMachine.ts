@@ -171,7 +171,8 @@ function publicIdentity(
 function publicError(error: FarcasterAuthError): FarcasterAuthError {
   return {
     code: error.code,
-    message: error.message
+    message: error.message,
+    ...(error.stage === undefined ? {} : { stage: error.stage })
   };
 }
 
