@@ -87,6 +87,7 @@ describe('WarpTransitionOverlay', () => {
     expect(overlay.getAttribute('data-direction')).toBe('to-menu');
     expect(overlay.getAttribute('data-input')).toBe('pointer');
     expect(overlay.getAttribute('data-motion')).toBe('standard');
+    expect(overlay.getAttribute('data-variant')).toBe('standard');
     expect(overlay.getAttribute('data-origin-ready')).toBe('true');
     expect(overlay.getAttribute('data-transition-sequence')).toBe('1');
     expect(overlay.getAttribute('data-gateway-client-x')).toBe('643.25');
@@ -100,6 +101,32 @@ describe('WarpTransitionOverlay', () => {
     expect(Number(overlay.getAttribute('data-overlay-origin-y'))).toBeCloseTo(224.5);
     expect(overlay.style.getPropertyValue('--warp-transition-duration')).toBe('2000ms');
     expect(overlay.style.getPropertyValue('--warp-cover-at')).toBe('1240ms');
+  });
+
+  it('uses the restrained compact timing without changing reduced-motion policy', () => {
+    mockOverlayRect(() => rectangle(0, 0, 390, 844));
+    const rendered = render(
+      <WarpTransitionOverlay
+        request={transitionRequest({ x: 195, y: 310 })}
+        reducedMotion={false}
+        variant="compact"
+      />
+    );
+
+    const overlay = screen.getByTestId('warp-transition-overlay');
+    expect(overlay.getAttribute('data-variant')).toBe('compact');
+    expect(overlay.style.getPropertyValue('--warp-transition-duration')).toBe('880ms');
+    expect(overlay.style.getPropertyValue('--warp-cover-at')).toBe('546ms');
+
+    rendered.rerender(
+      <WarpTransitionOverlay
+        request={transitionRequest({ x: 195, y: 310 })}
+        reducedMotion
+        variant="compact"
+      />
+    );
+    expect(overlay.getAttribute('data-motion')).toBe('reduced');
+    expect(overlay.style.getPropertyValue('--warp-transition-duration')).toBe('240ms');
   });
 
   it('normalizes through an overlay whose local dimensions are twice its rendered bounds', () => {

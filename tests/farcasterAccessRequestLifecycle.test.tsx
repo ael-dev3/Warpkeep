@@ -143,7 +143,7 @@ function Harness({
       ) : null}
       <FarcasterAccessRequestMessage state={access.state} />
       <FarcasterAccessRequestAction
-        onCheckAdmission={() => undefined}
+        onCheckAdmission={() => true}
         onRequestAccess={access.requestAccess}
         onRetryStatus={access.retryStatus}
         state={access.state}

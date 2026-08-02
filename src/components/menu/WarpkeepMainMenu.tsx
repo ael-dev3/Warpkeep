@@ -13,6 +13,7 @@ import {
 
 import type {
   AccessRequestViewState,
+  FarcasterAdmissionCheckViewState,
   FarcasterAuthViewState,
   VerifiedFarcasterIdentity
 } from '../../farcaster/farcasterAuthTypes';
@@ -75,6 +76,8 @@ export type WarpkeepMainMenuProps = {
   onRestoreFarcasterSession?: () => Promise<boolean>;
   onRefreshFarcasterSession?: () => void;
   accessRequest?: AccessRequestViewState;
+  admissionCheck?: FarcasterAdmissionCheckViewState;
+  onCheckFarcasterAdmission?: () => boolean;
   onRequestAccess?: () => boolean;
   onRetryAccessRequestStatus?: () => void;
   onSignOut?: () => void;
@@ -155,6 +158,7 @@ const ANONYMOUS_AUTH_STATE: FarcasterAuthViewState = Object.freeze({
   phase: 'anonymous'
 });
 const PATCH_NOTES_POINTER_LEAVE_DELAY_MS = 360;
+const SESSION_RESTORE_COMPACT_THRESHOLD_MS = 360;
 
 const FarcasterIdentityBadge = lazy(async () => {
   const module = await import('../auth/FarcasterIdentityBadge');
@@ -170,11 +174,15 @@ function FarcasterAuthPanelFallback({
   headingRef,
   primaryActionRef,
   onCancel,
+  eyebrow = 'FARCASTER SIGN-IN',
+  heading = 'CLAIM YOUR KEEP',
   statusMessage = 'Preparing sign-in'
 }: {
   headingRef: Ref<HTMLHeadingElement>;
   primaryActionRef: Ref<HTMLButtonElement>;
   onCancel: () => void;
+  eyebrow?: string;
+  heading?: string;
   statusMessage?: string;
 }) {
   return (
@@ -190,8 +198,8 @@ function FarcasterAuthPanelFallback({
         <span />
       </div>
       <header className="farcaster-auth-panel__header">
-        <p className="farcaster-auth-panel__eyebrow">FARCASTER SIGN-IN</p>
-        <h2 ref={headingRef} tabIndex={-1}>CLAIM YOUR KEEP</h2>
+        <p className="farcaster-auth-panel__eyebrow">{eyebrow}</p>
+        <h2 ref={headingRef} tabIndex={-1}>{heading}</h2>
       </header>
       <p aria-live="polite" className="farcaster-auth-panel__live-region" role="status">
         {statusMessage}
@@ -274,6 +282,8 @@ export function WarpkeepMainMenu({
   onRestoreFarcasterSession,
   onRefreshFarcasterSession,
   accessRequest,
+  admissionCheck,
+  onCheckFarcasterAdmission,
   onRequestAccess,
   onRetryAccessRequestStatus,
   onSignOut,
@@ -799,6 +809,9 @@ export function WarpkeepMainMenu({
     anchorElement: HTMLButtonElement,
     keyboardDriven: boolean
   ) => {
+    if (authAttemptStartedRef.current) {
+      return;
+    }
     if (!onRestoreFarcasterSession) {
       openTerms('begin-sign-in', anchorElement, keyboardDriven);
       return;
@@ -811,7 +824,6 @@ export function WarpkeepMainMenu({
     setActiveNotice(null);
     closePatchNotes();
     setSessionRestoreRequest({ sequence, keyboardDriven });
-    setSurface('farcaster-auth');
     // Reuse the established lifecycle cancellation boundary so Return to
     // Title, route deactivation, and unmount abort the credentialed refresh.
     authAttemptStartedRef.current = true;
@@ -825,12 +837,10 @@ export function WarpkeepMainMenu({
     void restoration.then((restored) => {
       if (sessionRestoreSequenceRef.current !== sequence || restored) return;
       authAttemptStartedRef.current = false;
-      setSurface('commands');
       openTerms('begin-sign-in', anchorElement, keyboardDriven);
     }).catch(() => {
       if (sessionRestoreSequenceRef.current !== sequence) return;
       authAttemptStartedRef.current = false;
-      setSurface('commands');
       openTerms('begin-sign-in', anchorElement, keyboardDriven);
     });
   }, [
@@ -838,6 +848,22 @@ export function WarpkeepMainMenu({
     onRestoreFarcasterSession,
     openTerms
   ]);
+
+  useEffect(() => {
+    const request = sessionRestoreRequest;
+    if (!interactive || !request || authPanelOpen) return undefined;
+
+    const timer = window.setTimeout(() => {
+      if (
+        sessionRestoreSequenceRef.current === request.sequence
+        && authAttemptStartedRef.current
+      ) {
+        setSurface('farcaster-auth');
+      }
+    }, SESSION_RESTORE_COMPACT_THRESHOLD_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [authPanelOpen, interactive, sessionRestoreRequest]);
 
   useEffect(() => {
     const request = sessionRestoreRequest;
@@ -1084,20 +1110,31 @@ export function WarpkeepMainMenu({
       || canReuseEntryAgreement()
     ) {
       acceptedEntryAttemptRef.current = false;
+      if (!onRefreshFarcasterSession) {
+        return false;
+      }
       onRefreshFarcasterSession?.();
-      return;
+      return true;
     }
     openTerms(
       'refresh-session',
       authPrimaryActionRef.current,
       lastActionModalityRef.current === 'keyboard'
     );
+    return true;
   }, [
     authState.phase,
     canReuseEntryAgreement,
     onRefreshFarcasterSession,
     openTerms
   ]);
+
+  const handleCheckFarcasterAdmission = useCallback(() => {
+    // A pending-admission refresh is not an entry-agreement acceptance. Keep
+    // the existing Terms boundary intact when authority later becomes valid.
+    acceptedEntryAttemptRef.current = false;
+    return onCheckFarcasterAdmission?.() ?? handleRefreshFarcasterSession();
+  }, [handleRefreshFarcasterSession, onCheckFarcasterAdmission]);
 
   const handleAuthRailCheck = useCallback(() => {
     if (acceptedEntryAttemptRef.current || canReuseEntryAgreement()) {
@@ -1196,7 +1233,7 @@ export function WarpkeepMainMenu({
       <div aria-hidden="true" className="warpkeep-menu-color-grade" />
       <div aria-hidden="true" className="warpkeep-menu-vignette" />
 
-      <header className="warpkeep-menu-heading">
+      <header aria-hidden={authPanelOpen} className="warpkeep-menu-heading">
         <div aria-hidden="true" className="warpkeep-menu-heading__crest">
           <span />
           <i />
@@ -1211,27 +1248,26 @@ export function WarpkeepMainMenu({
         <p className="warpkeep-menu-tagline">
           BUILD YOUR LEGACY. DEFEND THE REALM. DEFY THE CORE.
         </p>
+        {!authPanelOpen && sessionIdentity ? (
+          <div className="warpkeep-menu-identity">
+            <Suspense fallback={null}>
+              <FarcasterIdentityBadge
+                compact
+                identity={sessionIdentity}
+                onActivate={farcasterAuthEnabled && !sessionRestorePending
+                  ? () => openAuthPanel(lastActionModalityRef.current === 'keyboard')
+                  : undefined}
+              />
+            </Suspense>
+            <span className="warpkeep-menu-identity__assurance">
+              {pendingIdentity ? 'ADMISSION PENDING' : 'FARCASTER VERIFIED'}
+            </span>
+          </div>
+        ) : null}
       </header>
 
       {!authPanelOpen ? (
         <>
-          {sessionIdentity ? (
-            <div className="warpkeep-menu-identity">
-              <Suspense fallback={null}>
-                <FarcasterIdentityBadge
-                  compact
-                  identity={sessionIdentity}
-                  onActivate={farcasterAuthEnabled
-                    ? () => openAuthPanel(lastActionModalityRef.current === 'keyboard')
-                    : undefined}
-                />
-              </Suspense>
-              <span className="warpkeep-menu-identity__assurance">
-                {pendingIdentity ? 'ADMISSION PENDING' : 'FARCASTER VERIFIED'}
-              </span>
-            </div>
-          ) : null}
-
           <nav
             aria-label="Hegemony main menu"
             className="warpkeep-menu-nav"
@@ -1241,11 +1277,19 @@ export function WarpkeepMainMenu({
               {menuCommands.map((command, commandIndex) => (
                 <li className="warpkeep-menu-command-item" key={command.id}>
                   <button
+                    aria-busy={command.id === 'enter-realm' && sessionRestorePending
+                      ? true
+                      : undefined}
                     aria-describedby={activeNotice?.command.id === command.id ? describedNoticeId : undefined}
                     className="warpkeep-menu-command"
                     data-command={command.id}
                     data-prominent={commandIndex === 0 ? 'true' : undefined}
-                    disabled={!interactive}
+                    data-restoring={command.id === 'enter-realm' && sessionRestorePending
+                      ? 'true'
+                      : undefined}
+                    disabled={!interactive || (
+                      command.id === 'enter-realm' && sessionRestorePending
+                    )}
                     onClick={(event) => handleCommandClick(
                       command,
                       event.currentTarget,
@@ -1257,7 +1301,14 @@ export function WarpkeepMainMenu({
                     tabIndex={interactive ? 0 : -1}
                     type="button"
                   >
-                    <span>{command.label}</span>
+                    {command.id === 'enter-realm' && sessionRestorePending ? (
+                      <span className="warpkeep-menu-command__busy-label">
+                        <i aria-hidden="true" className="warpkeep-menu-command__busy-indicator" />
+                        <span>CHECKING ACCESS…</span>
+                      </span>
+                    ) : (
+                      <span>{command.label}</span>
+                    )}
                   </button>
                 </li>
               ))}
@@ -1329,6 +1380,8 @@ export function WarpkeepMainMenu({
         <div className="warpkeep-menu-auth-rail">
           {sessionRestorePending ? (
             <FarcasterAuthPanelFallback
+              eyebrow="FARCASTER SESSION"
+              heading="RESTORING FARCASTER SESSION"
               headingRef={authHeadingRef}
               onCancel={() => closeAuthPanel(
                 lastActionModalityRef.current === 'keyboard'
@@ -1370,8 +1423,9 @@ export function WarpkeepMainMenu({
                   )}
                   onEnterRealm={handleAuthenticatedRealmEntry}
                   onPrepareQrCode={onPrepareFarcasterQrCode}
-                  onCheckAdmission={handleRefreshFarcasterSession}
+                  onCheckAdmission={handleCheckFarcasterAdmission}
                   accessRequest={accessRequest}
+                  admissionCheck={admissionCheck}
                   onRequestAccess={onRequestAccess}
                   onRetryAccessRequestStatus={onRetryAccessRequestStatus}
                   onRememberDeviceChange={onRememberDeviceChange}
@@ -1404,8 +1458,14 @@ export function WarpkeepMainMenu({
         <span className="warpkeep-menu-back__label">Return to Title</span>
       </button>
 
-      <p aria-live="polite" className="warpkeep-menu-live-region">
-        {interactive && !authPanelOpen ? 'Main menu' : ''}
+      <p
+        aria-live="polite"
+        className="warpkeep-menu-live-region"
+        role={sessionRestorePending && !authPanelOpen ? 'status' : undefined}
+      >
+        {interactive && sessionRestorePending && !authPanelOpen
+          ? 'Checking access. Restoring your saved Farcaster session.'
+          : interactive && !authPanelOpen ? 'Main menu' : ''}
       </p>
 
       {activeNotice ? (

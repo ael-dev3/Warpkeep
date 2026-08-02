@@ -356,6 +356,37 @@ describe('farcasterAuthMachineReducer', () => {
     })).toEqual(verifying());
   });
 
+  it('retires the old identity when an authoritative refresh detects an account change', () => {
+    const pending = farcasterAuthMachineReducer(verifying(), {
+      type: 'pending-admission',
+      generation: 1,
+      identity,
+      sessionExpiresAt: expiresAt + 1_000
+    });
+    const changed = farcasterAuthMachineReducer(pending, {
+      type: 'identity-changed',
+      generation: 1,
+      error: {
+        code: 'fid-mismatch',
+        stage: 'identity_changed',
+        message: 'Farcaster account changed.'
+      }
+    });
+
+    expect(changed).toEqual({
+      generation: 2,
+      view: {
+        phase: 'error',
+        error: {
+          code: 'fid-mismatch',
+          stage: 'identity_changed',
+          message: 'Farcaster account changed.'
+        }
+      }
+    });
+    expect(JSON.stringify(changed)).not.toContain(String(identity.fid));
+  });
+
   it('ignores stale results from superseded request generations', () => {
     const secondRequest = farcasterAuthMachineReducer(
       farcasterAuthMachineReducer(awaiting(), {

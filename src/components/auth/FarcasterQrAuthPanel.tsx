@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type Ref } from 'react';
 
 import type {
   AccessRequestViewState,
+  FarcasterAdmissionCheckViewState,
   FarcasterAuthPhase,
   FarcasterAuthPresentation,
   FarcasterQrState,
@@ -17,6 +18,10 @@ import {
   FarcasterIdentityBadge,
   getFarcasterPublicIdentityLabel
 } from './FarcasterIdentityBadge';
+import {
+  FarcasterAdmissionCheckAction,
+  IDLE_ADMISSION_CHECK
+} from './FarcasterAdmissionCheck';
 import './FarcasterQrAuthPanel.css';
 
 const IDLE_ACCESS_REQUEST: AccessRequestViewState = Object.freeze({ phase: 'idle' });
@@ -34,8 +39,9 @@ export type FarcasterQrAuthPanelProps = {
   primaryActionRef?: Ref<HTMLButtonElement>;
   onPresentationReady?: () => void;
   onPrepareQrCode?: () => void;
-  onCheckAdmission?: () => void;
+  onCheckAdmission?: () => boolean;
   accessRequest?: AccessRequestViewState;
+  admissionCheck?: FarcasterAdmissionCheckViewState;
   onRequestAccess?: () => boolean;
   onRetryAccessRequestStatus?: () => void;
   onRememberDeviceChange?: (remember: boolean) => void;
@@ -221,6 +227,7 @@ export function FarcasterQrAuthPanel({
   onPrepareQrCode,
   onCheckAdmission,
   accessRequest = IDLE_ACCESS_REQUEST,
+  admissionCheck = IDLE_ADMISSION_CHECK,
   onRequestAccess,
   onRetryAccessRequestStatus,
   onRememberDeviceChange,
@@ -246,7 +253,9 @@ export function FarcasterQrAuthPanel({
     || accessRequest.phase === 'verifying-ambiguous-result';
   const isBusy = phase === 'creating-channel'
     || (phase === 'verifying' && !identity)
-    || (phase === 'pending-admission' && accessRequestBusy);
+    || (phase === 'pending-admission' && (
+      accessRequestBusy || admissionCheck.phase === 'checking'
+    ));
   const rootClassName = [
     'farcaster-auth-panel',
     `farcaster-auth-panel--${phase}`,
@@ -513,6 +522,7 @@ export function FarcasterQrAuthPanel({
           <div className="farcaster-auth-panel__actions">
             {onRequestAccess ? (
               <FarcasterAccessRequestAction
+                admissionCheck={admissionCheck}
                 descriptionId={accessRequestDescriptionId}
                 onCheckAdmission={onCheckAdmission}
                 onRequestAccess={onRequestAccess}
@@ -521,15 +531,12 @@ export function FarcasterQrAuthPanel({
                 state={accessRequest}
               />
             ) : null}
-            {!accessRequestOwnsPrimaryAction(accessRequest) ? (
-              <button
-                className="farcaster-auth-panel__action farcaster-auth-panel__action--primary"
-                onClick={onCheckAdmission}
-                ref={primaryActionRef}
-                type="button"
-              >
-                CHECK AGAIN
-              </button>
+            {!accessRequestOwnsPrimaryAction(accessRequest) && onCheckAdmission ? (
+              <FarcasterAdmissionCheckAction
+                onCheckAdmission={onCheckAdmission}
+                primaryActionRef={primaryActionRef}
+                state={admissionCheck}
+              />
             ) : null}
             <button
               className="farcaster-auth-panel__action farcaster-auth-panel__action--secondary"

@@ -45,6 +45,7 @@ import type {
   FarcasterAuthError,
   FarcasterAuthEntryStage,
   AccessRequestViewState,
+  FarcasterAdmissionCheckViewState,
   FarcasterAuthContext,
   FarcasterAuthPhase,
   FarcasterAuthViewState,
@@ -79,6 +80,64 @@ export type FarcasterBridgeFailureClassifier = (
 
 const NO_BRIDGE_FAILURE_CLASSIFICATION: FarcasterBridgeFailureClassifier = () => null;
 
+const MANUAL_ADMISSION_CHECK_MINIMUM_MS = 300;
+
+type AuthorityRefreshOutcome =
+  | Readonly<{ status: 'authorized'; fid: number }>
+  | Readonly<{ status: 'pending'; fid: number }>
+  | Readonly<{ status: 'identity-changed'; fid: number }>
+  | Readonly<{
+      status: 'superseded';
+      replacement: Promise<AuthorityRefreshOutcome>;
+    }>
+  | Readonly<{ status: 'stale' }>
+  | Readonly<{ status: 'failed' }>;
+
+const FAILED_AUTHORITY_REFRESH: AuthorityRefreshOutcome = Object.freeze({
+  status: 'failed'
+});
+const STALE_AUTHORITY_REFRESH: AuthorityRefreshOutcome = Object.freeze({
+  status: 'stale'
+});
+
+function authorityRefreshSucceeded(outcome: AuthorityRefreshOutcome) {
+  return outcome.status === 'authorized' || outcome.status === 'pending';
+}
+
+async function followSupersededAuthorityRefresh(
+  initial: Promise<AuthorityRefreshOutcome>
+): Promise<AuthorityRefreshOutcome> {
+  let outcome = await initial;
+  // A forced foreground reconciliation may replace one ordinary Quick Auth
+  // flight. Follow that exact verified replacement without starting new work.
+  for (
+    let replacementCount = 0;
+    outcome.status === 'superseded' && replacementCount < 2;
+    replacementCount += 1
+  ) {
+    outcome = await outcome.replacement;
+  }
+  return outcome.status === 'superseded' ? STALE_AUTHORITY_REFRESH : outcome;
+}
+
+async function settleWithAbort<T>(
+  work: Promise<T>,
+  signal: AbortSignal
+): Promise<T | undefined> {
+  if (signal.aborted) return undefined;
+  let removeAbortListener: () => void = () => {};
+  const aborted = new Promise<undefined>((resolve) => {
+    const onAbort = () => resolve(undefined);
+    signal.addEventListener('abort', onAbort, { once: true });
+    removeAbortListener = () => signal.removeEventListener('abort', onAbort);
+  });
+  try {
+    return await Promise.race([work, aborted]);
+  } finally {
+    removeAbortListener();
+  }
+}
+
 export type FarcasterAuthProviderCoreProps = Readonly<{
   children: ReactNode;
   loadAuthority: FarcasterAuthorityLoader;
@@ -104,6 +163,7 @@ export type FarcasterAuthProviderCoreProps = Readonly<{
 export type FarcasterAuthControllerValue = Readonly<{
   state: FarcasterAuthViewState;
   accessRequest: AccessRequestViewState;
+  admissionCheck: FarcasterAdmissionCheckViewState;
   /** Bearer material is intentionally separate from presentation state. */
   oidcSession: FarcasterOidcSession | undefined;
   /**
@@ -116,6 +176,8 @@ export type FarcasterAuthControllerValue = Readonly<{
   retrySignIn: () => void;
   prepareQrCode: () => void;
   refreshSession: () => void;
+  /** Read-only refresh; false means another accepted activation owns the lock. */
+  checkAdmission: () => boolean;
   requestAccess: () => boolean;
   retryAccessRequestStatus: () => void;
   signOut: () => void;
@@ -1187,6 +1249,9 @@ export function FarcasterAuthProviderCore({
   );
   const [oidcSession, setOidcSession] = useState<FarcasterOidcSession | undefined>();
   const [rememberDevice, setRememberDeviceState] = useState(false);
+  const [admissionCheck, setAdmissionCheck] = useState<FarcasterAdmissionCheckViewState>({
+    phase: 'idle'
+  });
   const controllerRef = useRef<FarcasterAuthController | undefined>(undefined);
   const machineRef = useRef(machine);
   const rememberDeviceRef = useRef(rememberDevice);
@@ -1195,20 +1260,28 @@ export function FarcasterAuthProviderCore({
   const authActivationGenerationRef = useRef(0);
   const authActivationFlightRef = useRef<Promise<void> | undefined>(undefined);
   const logoutIntentReadyRef = useRef(false);
+  const admissionCheckLockedRef = useRef(false);
+  const admissionCheckGenerationRef = useRef(0);
+  const admissionCheckFidRef = useRef<number | undefined>(undefined);
+  const admissionCheckMinimumRef = useRef<Readonly<{
+    cancel: () => void;
+    settle: () => void;
+  }> | undefined>(undefined);
   // Cookie authority is fail closed until the exact logout-control record has
   // been checked. Only an explicit, externally consent-gated auth activation
   // clears it; passive lifecycle events never activate an anonymous session.
   const logoutIntentBlocksRefreshRef = useRef(true);
   const refreshFlightRef = useRef<{
     controller: AbortController;
-    promise: Promise<boolean>;
+    promise: Promise<AuthorityRefreshOutcome>;
     clearOnFailure: boolean;
   } | undefined>(undefined);
   const quickAuthFlightRef = useRef<{
     controller: AbortController;
-    promise: Promise<boolean>;
+    promise: Promise<AuthorityRefreshOutcome>;
     clearOnFailure: boolean;
     forceInitial: boolean;
+    replacement?: Promise<AuthorityRefreshOutcome>;
   } | undefined>(undefined);
   machineRef.current = machine;
   rememberDeviceRef.current = rememberDevice;
@@ -1277,11 +1350,23 @@ export function FarcasterAuthProviderCore({
     quickAuthFlightRef.current = undefined;
   }, []);
 
+  const clearAdmissionCheckMinimum = useCallback(() => {
+    const minimum = admissionCheckMinimumRef.current;
+    admissionCheckMinimumRef.current = undefined;
+    minimum?.cancel();
+    minimum?.settle();
+  }, []);
+
   const invalidateAuthActivation = useCallback(() => {
     authActivationGenerationRef.current += 1;
     authActivationFlightRef.current = undefined;
+    admissionCheckGenerationRef.current += 1;
+    admissionCheckLockedRef.current = false;
+    admissionCheckFidRef.current = undefined;
+    clearAdmissionCheckMinimum();
+    setAdmissionCheck({ phase: 'idle' });
     abortRefresh();
-  }, [abortRefresh]);
+  }, [abortRefresh, clearAdmissionCheckMinimum]);
 
   const clearInMemoryAuthoritativeSession = useCallback(() => {
     oidcSessionRef.current = undefined;
@@ -1335,7 +1420,9 @@ export function FarcasterAuthProviderCore({
   }, [clearLocalAuthoritativeSession, loadBridgeClient]);
 
   const refreshSession = useCallback((clearOnFailure = false) => {
-    if (logoutIntentBlocksRefreshRef.current) return Promise.resolve(false);
+    if (logoutIntentBlocksRefreshRef.current) {
+      return Promise.resolve(FAILED_AUTHORITY_REFRESH);
+    }
     const existing = refreshFlightRef.current;
     if (existing) {
       if (clearOnFailure) existing.clearOnFailure = true;
@@ -1367,10 +1454,10 @@ export function FarcasterAuthProviderCore({
         };
       })
       .then((result) => {
-        if (!result) return false;
+        if (!result) return STALE_AUTHORITY_REFRESH;
         const { client, response } = result;
         if (controller.signal.aborted || lifecycleGenerationRef.current !== generation) {
-          return false;
+          return STALE_AUTHORITY_REFRESH;
         }
         const currentTime = readProviderNow(now);
         const resolved = currentTime === undefined
@@ -1379,12 +1466,37 @@ export function FarcasterAuthProviderCore({
               response,
               currentTime,
               client.issuer,
-              client.audience,
-              expectedFid
+              client.audience
             );
         if (!resolved) {
           clearPresentationSession();
           throw new Error('Invalid refreshed session.');
+        }
+        if (expectedFid !== undefined && resolved.identity.fid !== expectedFid) {
+          // A valid ambient cookie for another FID must never replace the
+          // current presentation or private authority silently. Retire the old
+          // identity and require one deliberate activation for the new account.
+          logoutIntentBlocksRefreshRef.current = true;
+          clearInMemoryAuthoritativeSession();
+          purgeBearerStorage();
+          clearPresentationSession();
+          signalFarcasterSessionTermination({
+            ...deviceSessionEnvironment,
+            now
+          });
+          dispatch({
+            type: 'identity-changed',
+            generation: machineGeneration,
+            error: {
+              code: 'fid-mismatch',
+              stage: 'identity_changed',
+              message: 'Farcaster account changed. Verify the current account to continue.'
+            }
+          });
+          return Object.freeze({
+            status: 'identity-changed',
+            fid: resolved.identity.fid
+          }) satisfies AuthorityRefreshOutcome;
         }
         const presentedIdentity = existingDisplayIdentity
           ? withSameFidRelayDisplayMetadata(resolved.identity, existingDisplayIdentity)
@@ -1399,7 +1511,7 @@ export function FarcasterAuthProviderCore({
           && currentPhase !== 'authenticated'
           && currentPhase !== 'pending-admission'
         ) {
-          return false;
+          return FAILED_AUTHORITY_REFRESH;
         }
 
         if (resolved.status === 'pending-admission') {
@@ -1410,6 +1522,10 @@ export function FarcasterAuthProviderCore({
             identity: presentedIdentity,
             sessionExpiresAt: resolved.sessionExpiresAt
           });
+          return Object.freeze({
+            status: 'pending',
+            fid: presentedIdentity.fid
+          }) satisfies AuthorityRefreshOutcome;
         } else {
           oidcSessionRef.current = resolved.session;
           setOidcSession(resolved.session);
@@ -1420,14 +1536,18 @@ export function FarcasterAuthProviderCore({
             expiresAt: resolved.session.expiresAt,
             sessionExpiresAt: resolved.sessionExpiresAt
           });
+          return Object.freeze({
+            status: 'authorized',
+            fid: presentedIdentity.fid
+          }) satisfies AuthorityRefreshOutcome;
         }
-        return true;
       })
       .catch(() => {
+        if (controller.signal.aborted || lifecycleGenerationRef.current !== generation) {
+          return STALE_AUTHORITY_REFRESH;
+        }
         if (
-          !controller.signal.aborted
-          && lifecycleGenerationRef.current === generation
-          && flight.clearOnFailure
+          flight.clearOnFailure
         ) {
           const currentTime = readProviderNow(now);
           const currentSession = oidcSessionRef.current;
@@ -1439,7 +1559,7 @@ export function FarcasterAuthProviderCore({
             }
           }
         }
-        return false;
+        return FAILED_AUTHORITY_REFRESH;
       })
       .finally(() => {
         if (refreshFlightRef.current === flight) refreshFlightRef.current = undefined;
@@ -1451,8 +1571,10 @@ export function FarcasterAuthProviderCore({
     clearInMemoryAuthoritativeSession,
     clearLocalAuthoritativeSession,
     clearPresentationSession,
+    deviceSessionEnvironment,
     loadBridgeClient,
     now,
+    purgeBearerStorage,
     resolveCachedPresentationIdentity
   ]);
 
@@ -1462,9 +1584,10 @@ export function FarcasterAuthProviderCore({
     forceInitial = false
   ) => {
     if (!loadQuickAuthToken || logoutIntentBlocksRefreshRef.current) {
-      return Promise.resolve(false);
+      return Promise.resolve(FAILED_AUTHORITY_REFRESH);
     }
     const existing = quickAuthFlightRef.current;
+    let supersededFlight: typeof existing;
     if (existing) {
       if (clearOnFailure) existing.clearOnFailure = true;
       if (!forceInitial || existing.forceInitial) {
@@ -1474,6 +1597,7 @@ export function FarcasterAuthProviderCore({
       // ordinary cached-token refresh. Abort that provider generation and let
       // the host adapter serialize one forced acquisition behind any SDK call
       // it cannot cancel.
+      supersededFlight = existing;
       existing.controller.abort();
       quickAuthFlightRef.current = undefined;
     }
@@ -1553,9 +1677,12 @@ export function FarcasterAuthProviderCore({
 
           let token = acquisition.token;
           try {
-            return await client.exchangeQuickAuth!(token, {
-              signal: controller.signal
-            });
+            return await settleWithAbort(
+              Promise.resolve(client.exchangeQuickAuth!(token, {
+                signal: controller.signal
+              })),
+              controller.signal
+            );
           } finally {
             token = '';
           }
@@ -1584,7 +1711,14 @@ export function FarcasterAuthProviderCore({
           controller.signal.aborted
           || lifecycleGenerationRef.current !== lifecycleGeneration
         ) {
-          return false;
+          return controller.signal.aborted
+            && lifecycleGenerationRef.current === lifecycleGeneration
+            && flight.replacement
+            ? Object.freeze({
+                status: 'superseded',
+                replacement: flight.replacement
+              }) satisfies AuthorityRefreshOutcome
+            : STALE_AUTHORITY_REFRESH;
         }
         // A visible Mini App launch attempt must always settle. A host that
         // returns no bearer, or a bridge client without Quick Auth support,
@@ -1638,6 +1772,10 @@ export function FarcasterAuthProviderCore({
             identity: presentedIdentity,
             sessionExpiresAt: resolved.sessionExpiresAt
           });
+          return Object.freeze({
+            status: 'pending',
+            fid: presentedIdentity.fid
+          }) satisfies AuthorityRefreshOutcome;
         } else {
           oidcSessionRef.current = resolved.session;
           setOidcSession(resolved.session);
@@ -1648,15 +1786,25 @@ export function FarcasterAuthProviderCore({
             expiresAt: resolved.session.expiresAt,
             sessionExpiresAt: resolved.sessionExpiresAt
           });
+          return Object.freeze({
+            status: 'authorized',
+            fid: presentedIdentity.fid
+          }) satisfies AuthorityRefreshOutcome;
         }
-        return true;
       })
       .catch((error) => {
         if (
           controller.signal.aborted
           || lifecycleGenerationRef.current !== lifecycleGeneration
         ) {
-          return false;
+          return controller.signal.aborted
+            && lifecycleGenerationRef.current === lifecycleGeneration
+            && flight.replacement
+            ? Object.freeze({
+                status: 'superseded',
+                replacement: flight.replacement
+              }) satisfies AuthorityRefreshOutcome
+            : STALE_AUTHORITY_REFRESH;
         }
         if (startsVisibleAttempt) {
           const publicError = error instanceof FarcasterQuickAuthPipelineError
@@ -1690,7 +1838,7 @@ export function FarcasterAuthProviderCore({
             }
           }
         }
-        return false;
+        return FAILED_AUTHORITY_REFRESH;
       })
       .finally(() => {
         if (quickAuthFlightRef.current === flight) {
@@ -1699,6 +1847,7 @@ export function FarcasterAuthProviderCore({
       });
     flight = { controller, promise, clearOnFailure, forceInitial };
     quickAuthFlightRef.current = flight;
+    if (supersededFlight) supersededFlight.replacement = promise;
     return promise;
   }, [
     clearInMemoryAuthoritativeSession,
@@ -1774,10 +1923,10 @@ export function FarcasterAuthProviderCore({
       loadQuickAuthToken
         ? activateQuickAuth(false, true)
         : refreshSession(false)
-    ).then((restored) => {
+    ).then((outcome) => {
         if (
           authActivationGenerationRef.current !== activationGeneration
-          || restored
+          || authorityRefreshSucceeded(outcome)
           || loadQuickAuthToken
         ) {
           return;
@@ -1822,6 +1971,99 @@ export function FarcasterAuthProviderCore({
     }
   }, [refreshAuthoritySession]);
 
+  const checkAdmission = useCallback(() => {
+    const view = machineRef.current.view;
+    if (
+      admissionCheckLockedRef.current
+      || view.phase !== 'pending-admission'
+    ) {
+      return false;
+    }
+
+    const generation = admissionCheckGenerationRef.current + 1;
+    const expectedFid = view.identity.fid;
+    admissionCheckGenerationRef.current = generation;
+    admissionCheckFidRef.current = expectedFid;
+    admissionCheckLockedRef.current = true;
+    setAdmissionCheck({ phase: 'checking' });
+
+    const minimumPresentation = new Promise<void>((resolve) => {
+      let settled = false;
+      const settle = () => {
+        if (settled) return;
+        settled = true;
+        if (admissionCheckMinimumRef.current?.settle === settle) {
+          admissionCheckMinimumRef.current = undefined;
+        }
+        resolve();
+      };
+      const timer = globalThis.setTimeout(settle, MANUAL_ADMISSION_CHECK_MINIMUM_MS);
+      admissionCheckMinimumRef.current = Object.freeze({
+        cancel: () => globalThis.clearTimeout(timer),
+        settle
+      });
+    });
+
+    void Promise.all([
+      followSupersededAuthorityRefresh(refreshAuthoritySession(false)),
+      minimumPresentation
+    ]).then(([outcome]) => {
+      if (admissionCheckGenerationRef.current !== generation) return;
+      const checkedAt = readProviderNow(now) ?? Date.now();
+      if (outcome.status === 'failed') {
+        setAdmissionCheck({ phase: 'temporary-error', checkedAt });
+      } else if (outcome.status === 'stale' || outcome.status === 'superseded') {
+        setAdmissionCheck({ phase: 'idle' });
+      } else if (outcome.status === 'identity-changed') {
+        setAdmissionCheck({ phase: 'identity-changed', checkedAt });
+        admissionCheckFidRef.current = outcome.fid;
+      } else if (outcome.fid !== expectedFid) {
+        setAdmissionCheck({ phase: 'identity-changed', checkedAt });
+        admissionCheckFidRef.current = outcome.fid;
+      } else if (outcome.status === 'authorized') {
+        setAdmissionCheck({ phase: 'granted', checkedAt });
+      } else {
+        setAdmissionCheck({ phase: 'still-pending', checkedAt });
+      }
+    }).finally(() => {
+      if (admissionCheckGenerationRef.current === generation) {
+        admissionCheckLockedRef.current = false;
+      }
+    });
+
+    return true;
+  }, [now, refreshAuthoritySession]);
+
+  useEffect(() => {
+    const view = machine.view;
+    if (
+      view.phase === 'anonymous'
+      || view.phase === 'error'
+      || view.phase === 'expired'
+    ) {
+      admissionCheckGenerationRef.current += 1;
+      admissionCheckLockedRef.current = false;
+      admissionCheckFidRef.current = undefined;
+      clearAdmissionCheckMinimum();
+      setAdmissionCheck({ phase: 'idle' });
+      return;
+    }
+    if (
+      (view.phase === 'authenticated' || view.phase === 'pending-admission')
+      && admissionCheckFidRef.current !== undefined
+      && admissionCheckFidRef.current !== view.identity.fid
+    ) {
+      admissionCheckGenerationRef.current += 1;
+      admissionCheckLockedRef.current = false;
+      admissionCheckFidRef.current = view.identity.fid;
+      clearAdmissionCheckMinimum();
+      setAdmissionCheck({
+        phase: 'identity-changed',
+        checkedAt: readProviderNow(now) ?? Date.now()
+      });
+    }
+  }, [clearAdmissionCheckMinimum, machine.view, now]);
+
   const restoreSession = useCallback(() => {
     if (
       machineRef.current.view.phase !== 'anonymous'
@@ -1833,7 +2075,7 @@ export function FarcasterAuthProviderCore({
     // beginExplicitAuthActivation: an active or unavailable logout-control
     // record stays fail-closed, and a missing cookie never falls through to
     // SIWF channel or QR creation.
-    return refreshAuthoritySession(false, true);
+    return refreshAuthoritySession(false, true).then(authorityRefreshSucceeded);
   }, [refreshAuthoritySession]);
 
   useEffect(() => {
@@ -2038,6 +2280,7 @@ export function FarcasterAuthProviderCore({
   const value = useMemo<FarcasterAuthControllerValue>(() => ({
     state: machine.view,
     accessRequest: accessRequest.state,
+    admissionCheck,
     oidcSession,
     restoreSession,
     beginSignIn: beginConsentGatedSignIn,
@@ -2045,6 +2288,7 @@ export function FarcasterAuthProviderCore({
     retrySignIn: beginConsentGatedSignIn,
     prepareQrCode: controller.prepareQrCode,
     refreshSession: refreshActiveSession,
+    checkAdmission,
     requestAccess: accessRequest.requestAccess,
     retryAccessRequestStatus: accessRequest.retryStatus,
     signOut,
@@ -2055,6 +2299,8 @@ export function FarcasterAuthProviderCore({
     cancelConsentGatedSignIn,
     controller,
     accessRequest,
+    admissionCheck,
+    checkAdmission,
     machine.view,
     oidcSession,
     refreshActiveSession,

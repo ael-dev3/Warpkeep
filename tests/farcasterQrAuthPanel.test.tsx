@@ -352,13 +352,13 @@ describe('FarcasterQrAuthPanel', () => {
     expect(requestButton.getAttribute('data-warpkeep-sfx')).toBe('none');
     fireEvent.click(requestButton);
     expect(callbacks.onRequestAccess).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole('button', { name: 'CHECK AGAIN' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'CHECK ADMISSION' })).toBeNull();
     expect(callbacks.onCheckAdmission).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'SIGN OUT' }));
     expect(callbacks.onSignOut).toHaveBeenCalledTimes(1);
   });
 
-  it('shows CHECK AGAIN only after a pending request is confirmed', () => {
+  it('shows CHECK ADMISSION only after a pending request is confirmed', () => {
     const { callbacks } = renderPanel({
       phase: 'pending-admission',
       identity: verifiedIdentity,
@@ -367,7 +367,7 @@ describe('FarcasterQrAuthPanel', () => {
 
     expect(screen.getByText('REQUEST RECEIVED')).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'REQUEST RECEIVED' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
+    fireEvent.click(screen.getByRole('button', { name: 'CHECK ADMISSION' }));
     expect(callbacks.onCheckAdmission).toHaveBeenCalledTimes(1);
   });
 
@@ -476,7 +476,7 @@ describe('FarcasterQrAuthPanel', () => {
     expect(recorded?.getAttribute('datetime')).toBe('2026-07-30T12:34:00.000Z');
     expect(recorded?.textContent).toMatch(/30 Jul 2026, 12:34 UTC/);
     expect(screen.queryByRole('button', { name: 'REQUEST RECEIVED' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'CHECK AGAIN' })).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'CHECK ADMISSION' })).not.toBeNull();
     expect(document.body.textContent).toMatch(/Access is reviewed manually/i);
     expect(document.body.textContent).not.toMatch(/queue position|guaranteed time|FID 12345/i);
   });

@@ -241,6 +241,21 @@ describe('Warpkeep local QA journey lab', () => {
     }
   );
 
+  it('renders the direct pending check as one locked flight before a still-pending result', async () => {
+    render(<WarpkeepQaJourneyLab initialScenario="admission-pending" />);
+    const check = screen.getByRole('button', { name: 'CHECK ADMISSION' });
+
+    for (let index = 0; index < 20; index += 1) fireEvent.click(check);
+
+    expect(screen.getByRole('button', { name: 'CHECKING ADMISSION…' })).not.toBeNull();
+    expect(document.querySelector('.qa-journey__auth-stage')
+      ?.getAttribute('data-admission-check-flights')).toBe('1');
+    await waitFor(() => expect(screen.getByText('STILL PENDING')).not.toBeNull());
+    expect(screen.getByText(/original request remains on record/i)).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'CHECK ADMISSION' })).not.toBeNull();
+    expectNoExternalSideEffects();
+  });
+
   it('runs the complete Terms, synthetic auth, admission, and realm journey without authority', async () => {
     render(<WarpkeepQaJourneyLab initialScenario="journey" />);
 
@@ -282,8 +297,11 @@ describe('Warpkeep local QA journey lab', () => {
     expect(screen.getByRole('heading', { name: 'ENTRY NOT YET GRANTED' })).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'ENTER REALM' })).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
-    expect(screen.getByRole('heading', { name: 'HEGEMONY RECORD VERIFIED' })).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'CHECK ADMISSION' }));
+    expect(screen.getByRole('button', { name: 'CHECKING ADMISSION…' })).not.toBeNull();
+    await waitFor(() => expect(
+      screen.getByRole('heading', { name: 'HEGEMONY RECORD VERIFIED' })
+    ).not.toBeNull());
     expect(document.body.textContent).toContain(`@${QA_SYNTHETIC_IDENTITY.username}`);
     expect(document.body.textContent).not.toContain(String(QA_SYNTHETIC_IDENTITY.fid));
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));

@@ -279,6 +279,9 @@ function AuthHarness({ duplicateBegin = false }: { duplicateBegin?: boolean }) {
   return (
     <div>
       <output data-testid="auth-state">{JSON.stringify(auth.state)}</output>
+      <output data-testid="admission-check-state">
+        {JSON.stringify(auth.admissionCheck)}
+      </output>
       <button
         onClick={() => {
           auth.beginSignIn();
@@ -302,6 +305,15 @@ function AuthHarness({ duplicateBegin = false }: { duplicateBegin?: boolean }) {
         Restore session
       </button>
       <button onClick={auth.refreshSession} type="button">Refresh session</button>
+      <button onClick={auth.checkAdmission} type="button">Check admission</button>
+      <button
+        onClick={() => {
+          for (let index = 0; index < 20; index += 1) auth.checkAdmission();
+        }}
+        type="button"
+      >
+        Burst check admission
+      </button>
       <button onClick={auth.signOut} type="button">Sign out</button>
       <button
         onClick={() => auth.setRememberDevice(!auth.rememberDevice)}
@@ -345,6 +357,13 @@ function renderProvider({
 
 function readPublicState() {
   return JSON.parse(screen.getByTestId('auth-state').textContent ?? '{}') as {
+    phase: string;
+    [key: string]: unknown;
+  };
+}
+
+function readAdmissionCheckState() {
+  return JSON.parse(screen.getByTestId('admission-check-state').textContent ?? '{}') as {
     phase: string;
     [key: string]: unknown;
   };
@@ -540,6 +559,191 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Restore session' }));
     await settleAsyncWork();
     expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('single-flights a deliberate pending admission check and holds visible feedback', async () => {
+    vi.useFakeTimers({ now: 7_500 });
+    const bridge = createBridge({
+      refreshSession: vi.fn()
+        .mockResolvedValueOnce(createPendingResponse(12_345, Date.now()))
+        .mockResolvedValueOnce(createPendingResponse(12_345, Date.now()))
+    });
+    renderProvider({
+      loadBridgeClient: vi.fn(async () => bridge),
+      now: Date.now
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restore session' }));
+    await settleAsyncWork();
+    expect(readPublicState()).toMatchObject({
+      phase: 'pending-admission',
+      identity: { fid: 12_345 }
+    });
+
+    // Pending-session bootstrap may hydrate the existing request projection.
+    // Isolate the deliberate admission refresh from that separate read path.
+    vi.mocked(bridge.refreshSession).mockClear();
+    vi.mocked(bridge.getAccessRequestStatus).mockClear();
+    vi.mocked(bridge.requestAccess).mockClear();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Burst check admission' }));
+    expect(readAdmissionCheckState()).toEqual({ phase: 'checking' });
+    await settleAsyncWork();
+
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
+    expect(bridge.getAccessRequestStatus).not.toHaveBeenCalled();
+    expect(bridge.requestAccess).not.toHaveBeenCalled();
+    await advanceTime(299);
+    expect(readAdmissionCheckState()).toEqual({ phase: 'checking' });
+    await advanceTime(1);
+    expect(readAdmissionCheckState()).toMatchObject({
+      phase: 'still-pending',
+      checkedAt: Date.now()
+    });
+    expect(readPublicState().phase).toBe('pending-admission');
+  });
+
+  it('preserves pending authority on a temporary admission-check failure', async () => {
+    vi.useFakeTimers({ now: 8_500 });
+    const bridge = createBridge({
+      refreshSession: vi.fn()
+        .mockResolvedValueOnce(createPendingResponse(12_345, Date.now()))
+        .mockRejectedValueOnce(new FarcasterOidcBridgeClientError('temporary outage'))
+    });
+    renderProvider({
+      loadBridgeClient: vi.fn(async () => bridge),
+      now: Date.now
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restore session' }));
+    await settleAsyncWork();
+    fireEvent.click(screen.getByRole('button', { name: 'Check admission' }));
+    await settleAsyncWork();
+    await advanceTime(300);
+
+    expect(readAdmissionCheckState()).toMatchObject({
+      phase: 'temporary-error',
+      checkedAt: Date.now()
+    });
+    expect(readPublicState()).toMatchObject({
+      phase: 'pending-admission',
+      identity: { fid: 12_345 }
+    });
+  });
+
+  it('joins an already active authority refresh instead of opening a second flight', async () => {
+    vi.useFakeTimers({ now: 9_000 });
+    const joinedRefresh = deferred<FarcasterBridgeSessionResponse>();
+    const bridge = createBridge({
+      refreshSession: vi.fn()
+        .mockResolvedValueOnce(createPendingResponse(12_345, Date.now()))
+        .mockImplementationOnce(() => joinedRefresh.promise)
+    });
+    renderProvider({
+      loadBridgeClient: vi.fn(async () => bridge),
+      now: Date.now
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restore session' }));
+    await settleAsyncWork();
+    vi.mocked(bridge.refreshSession).mockClear();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh session' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Check admission' }));
+    await settleAsyncWork();
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
+    expect(readAdmissionCheckState()).toEqual({ phase: 'checking' });
+
+    joinedRefresh.resolve(createPendingResponse(12_345, Date.now()));
+    await settleAsyncWork();
+    await advanceTime(300);
+    expect(readAdmissionCheckState()).toMatchObject({ phase: 'still-pending' });
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('retires a pending identity when a valid cookie belongs to another FID', async () => {
+    vi.useFakeTimers({ now: 9_250 });
+    const bridge = createBridge({
+      refreshSession: vi.fn()
+        .mockResolvedValueOnce(createPendingResponse(12_345, Date.now()))
+        .mockResolvedValueOnce(createPendingResponse(54_321, Date.now()))
+    });
+    renderProvider({
+      loadBridgeClient: vi.fn(async () => bridge),
+      now: Date.now
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restore session' }));
+    await settleAsyncWork();
+    fireEvent.click(screen.getByRole('button', { name: 'Check admission' }));
+    await settleAsyncWork();
+    await advanceTime(300);
+
+    expect(readPublicState()).toMatchObject({
+      phase: 'error',
+      error: {
+        code: 'fid-mismatch',
+        stage: 'identity_changed'
+      }
+    });
+    expect(JSON.stringify(readPublicState())).not.toContain('12345');
+    expect(JSON.stringify(readPublicState())).not.toContain('54321');
+    expect(readAdmissionCheckState()).toEqual({ phase: 'idle' });
+  });
+
+  it('cannot let the minimum feedback timer overwrite a later sign-out', async () => {
+    vi.useFakeTimers({ now: 9_375 });
+    const bridge = createBridge({
+      refreshSession: vi.fn()
+        .mockResolvedValueOnce(createPendingResponse(12_345, Date.now()))
+        .mockResolvedValueOnce(createPendingResponse(12_345, Date.now()))
+    });
+    renderProvider({
+      loadBridgeClient: vi.fn(async () => bridge),
+      now: Date.now
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restore session' }));
+    await settleAsyncWork();
+    fireEvent.click(screen.getByRole('button', { name: 'Check admission' }));
+    await settleAsyncWork();
+    expect(readAdmissionCheckState()).toEqual({ phase: 'checking' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
+    await settleAsyncWork();
+    await advanceTime(300);
+
+    expect(readPublicState()).toEqual({ phase: 'anonymous' });
+    expect(readAdmissionCheckState()).toEqual({ phase: 'idle' });
+  });
+
+  it('reports a granted manual check only after bridge authority changes', async () => {
+    vi.useFakeTimers({ now: 9_500 });
+    const bridge = createBridge({
+      refreshSession: vi.fn()
+        .mockResolvedValueOnce(createPendingResponse(12_345, Date.now()))
+        .mockResolvedValueOnce(createAuthorizedResponse(12_345, Date.now()))
+    });
+    renderProvider({
+      loadBridgeClient: vi.fn(async () => bridge),
+      now: Date.now
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restore session' }));
+    await settleAsyncWork();
+    fireEvent.click(screen.getByRole('button', { name: 'Check admission' }));
+    await settleAsyncWork();
+    await advanceTime(300);
+
+    expect(readAdmissionCheckState()).toMatchObject({
+      phase: 'granted',
+      checkedAt: Date.now()
+    });
+    expect(readPublicState()).toMatchObject({
+      phase: 'authenticated',
+      identity: { fid: 12_345 }
+    });
+    expect(screen.getByTestId('has-oidc-session').textContent).toBe('true');
   });
 
   it('leaves an absent cookie session anonymous without starting SIWF or QR work', async () => {
@@ -1295,7 +1499,7 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     expect(screen.getByTestId('has-oidc-session').textContent).toBe('true');
   });
 
-  it('pins refreshes to the current in-memory FID while allowing anonymous cookie restoration', async () => {
+  it('allows anonymous restoration but retires a later cross-FID cookie refresh', async () => {
     vi.useFakeTimers({ now: 250_000 });
     const bridge = createBridge({
       refreshSession: vi.fn()
@@ -1321,10 +1525,15 @@ describe('FarcasterAuthProvider session lifecycle', () => {
 
     expect(bridge.refreshSession).toHaveBeenCalledTimes(2);
     expect(readPublicState()).toMatchObject({
-      phase: 'authenticated',
-      identity: { fid: 12_345 }
+      phase: 'error',
+      error: {
+        code: 'fid-mismatch',
+        stage: 'identity_changed'
+      }
     });
-    expect(screen.getByTestId('has-oidc-session').textContent).toBe('true');
+    expect(JSON.stringify(readPublicState())).not.toContain('12345');
+    expect(JSON.stringify(readPublicState())).not.toContain('54321');
+    expect(screen.getByTestId('has-oidc-session').textContent).toBe('false');
   });
 
   it('gates resume refreshes by auth state/proximity and preserves single-flight', async () => {

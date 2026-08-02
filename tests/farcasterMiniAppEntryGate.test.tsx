@@ -133,6 +133,35 @@ describe('FarcasterMiniAppEntryGate', () => {
     expect(callbacks.onBackToMenu).toHaveBeenCalledOnce();
   });
 
+  it('explains an authoritative account change without retaining the old identity', () => {
+    const callbacks = actions();
+    render(
+      <FarcasterMiniAppEntryGate
+        {...callbacks}
+        authState={{
+          phase: 'error',
+          error: {
+            code: 'fid-mismatch',
+            stage: 'identity_changed',
+            message: 'Farcaster account changed.'
+          }
+        }}
+        backendState={backendState('idle')}
+        hostState="miniapp"
+      />
+    );
+
+    expect(screen.getByRole('heading', {
+      name: 'FARCASTER ACCOUNT CHANGED'
+    })).not.toBeNull();
+    expect(screen.getByRole('status').textContent).toMatch(
+      /cleared the previous access presentation/i
+    );
+    expect(document.body.textContent).not.toContain('The Keeper');
+    fireEvent.click(screen.getByRole('button', { name: 'TRY AGAIN' }));
+    expect(callbacks.onRetryAuthentication).toHaveBeenCalledOnce();
+  });
+
   it('keeps a non-admitted player on the manual access-request step', async () => {
     const callbacks = actions();
     render(
@@ -153,8 +182,31 @@ describe('FarcasterMiniAppEntryGate', () => {
     fireEvent.click(screen.getByRole('button', { name: 'BACK TO MENU' }));
     expect(callbacks.onBackToMenu).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
-    expect(screen.queryByRole('button', { name: 'CHECK AGAIN' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'CHECK ADMISSION' })).toBeNull();
     expect(callbacks.onRequestAccess).toHaveBeenCalledTimes(1);
+    expect(callbacks.onRefreshSession).not.toHaveBeenCalled();
+  });
+
+  it('maps root Escape to the Warpkeep menu without signing out', () => {
+    const callbacks = actions();
+    render(
+      <FarcasterMiniAppEntryGate
+        {...callbacks}
+        accessRequest={{ phase: 'request-received', requestedAt: Date.now() }}
+        authState={{
+          phase: 'pending-admission',
+          identity,
+          sessionExpiresAt: Date.now() + 60_000
+        }}
+        backendState={backendState('idle')}
+        hostState="miniapp"
+      />
+    );
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    expect(callbacks.onBackToMenu).toHaveBeenCalledTimes(1);
+    expect(callbacks.onSignOut).not.toHaveBeenCalled();
     expect(callbacks.onRefreshSession).not.toHaveBeenCalled();
   });
 
@@ -183,7 +235,7 @@ describe('FarcasterMiniAppEntryGate', () => {
     expect(callbacks.onRequestAccess).not.toHaveBeenCalled();
   });
 
-  it('keeps an ordinary-menu escape beside a backend CHECK AGAIN action', () => {
+  it('keeps an ordinary-menu escape beside a backend retry action', () => {
     const callbacks = actions();
     render(
       <FarcasterMiniAppEntryGate
@@ -194,7 +246,7 @@ describe('FarcasterMiniAppEntryGate', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
+    fireEvent.click(screen.getByRole('button', { name: 'TRY AGAIN' }));
     fireEvent.click(screen.getByRole('button', { name: 'BACK TO MENU' }));
     expect(callbacks.onCheckBackend).toHaveBeenCalledTimes(1);
     expect(callbacks.onBackToMenu).toHaveBeenCalledTimes(1);

@@ -10,6 +10,7 @@ import {
 
 import type {
   AccessRequestViewState,
+  FarcasterAdmissionCheckViewState,
   FarcasterAuthEntryStage,
   FarcasterAuthViewState,
   VerifiedFarcasterIdentity
@@ -33,6 +34,7 @@ import type {
 import { AlphaParticipationTermsDialog } from '../menu/AlphaParticipationTermsDialog';
 import './FarcasterQrAuthPanel.css';
 import './FarcasterMiniAppEntryGate.css';
+import { IDLE_ADMISSION_CHECK } from './FarcasterAdmissionCheck';
 
 const IDLE_ACCESS_REQUEST: AccessRequestViewState = Object.freeze({ phase: 'idle' });
 
@@ -47,11 +49,12 @@ export type FarcasterMiniAppEntryGateProps = Readonly<{
   authState: FarcasterAuthViewState;
   backendState: WarpkeepBackendState;
   accessRequest?: AccessRequestViewState;
+  admissionCheck?: FarcasterAdmissionCheckViewState;
   onAcceptTerms: () => void;
   onBackToMenu: () => void;
   onCancelTermsAttempt: () => void;
   onCheckBackend: () => void;
-  onRefreshSession: () => void;
+  onRefreshSession: () => boolean;
   onRequestAccess?: () => boolean;
   onRetryAccessRequestStatus?: () => void;
   onRetryAuthentication: () => void;
@@ -151,26 +154,31 @@ function launchStatus(
     const configurationMismatch = stage === 'bridge_http_403'
       || stage === 'deployment_contract_mismatch';
     const hostUnsupported = stage === 'quick_auth_api_missing';
+    const identityChanged = stage === 'identity_changed';
     const requiresFreshOpen = configurationMismatch
       || stage === 'quick_auth_token_timeout'
       || stage === 'quick_auth_host_replaced';
     return Object.freeze({
-      title: tokenRejected
-        ? 'FARCASTER SESSION NEEDS TO BE REFRESHED'
-        : configurationMismatch
-          ? 'WARPKEEP NEEDS A FRESH OPEN'
-          : hostUnsupported
-            ? 'SECURE SIGN-IN IS NOT SUPPORTED HERE'
-            : 'SECURE SIGN-IN IS TEMPORARILY UNAVAILABLE',
-      message: tokenRejected
-        ? 'Warpkeep could not accept the current Mini App session. Your account has not been changed.'
-        : configurationMismatch
-          ? 'This Mini App session does not match the current secure release. Close it, then open Warpkeep again.'
-          : stage === 'quick_auth_token_timeout'
-            ? 'Farcaster did not finish secure sign-in. Reopen Warpkeep to start a fresh session; your account has not been changed.'
-          : hostUnsupported
-            ? 'Open Warpkeep in a current Farcaster client or use the web version.'
-            : 'Farcaster or Warpkeep did not complete verification. Your account has not been changed.',
+      title: identityChanged
+        ? 'FARCASTER ACCOUNT CHANGED'
+        : tokenRejected
+          ? 'FARCASTER SESSION NEEDS TO BE REFRESHED'
+          : configurationMismatch
+            ? 'WARPKEEP NEEDS A FRESH OPEN'
+            : hostUnsupported
+              ? 'SECURE SIGN-IN IS NOT SUPPORTED HERE'
+              : 'SECURE SIGN-IN IS TEMPORARILY UNAVAILABLE',
+      message: identityChanged
+        ? 'Warpkeep cleared the previous access presentation. Verify the current Farcaster account to continue.'
+        : tokenRejected
+          ? 'Warpkeep could not accept the current Mini App session. Your account has not been changed.'
+          : configurationMismatch
+            ? 'This Mini App session does not match the current secure release. Close it, then open Warpkeep again.'
+            : stage === 'quick_auth_token_timeout'
+              ? 'Farcaster did not finish secure sign-in. Reopen Warpkeep to start a fresh session; your account has not been changed.'
+              : hostUnsupported
+                ? 'Open Warpkeep in a current Farcaster client or use the web version.'
+                : 'Farcaster or Warpkeep did not complete verification. Your account has not been changed.',
       busy: false,
       action: Object.freeze({
         label: requiresFreshOpen ? 'REOPEN WARPKEEP' : 'TRY AGAIN',
@@ -341,6 +349,7 @@ export function FarcasterMiniAppEntryGate({
   authState,
   backendState,
   accessRequest = IDLE_ACCESS_REQUEST,
+  admissionCheck = IDLE_ADMISSION_CHECK,
   recoveryReason,
   onAcceptTerms,
   onBackToMenu,
@@ -382,10 +391,18 @@ export function FarcasterMiniAppEntryGate({
 
   // The direct gate is a Mini App root, but Terms is a nested surface. Let the
   // host Back control dismiss only that dialog without escaping Warpkeep.
-  useMiniAppBackNavigation(
-    termsOpen ? 1 : 0,
-    dismissTerms
-  );
+  useMiniAppBackNavigation(1, termsOpen ? dismissTerms : onBackToMenu);
+
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      if (termsOpen) dismissTerms();
+      else onBackToMenu();
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [dismissTerms, onBackToMenu, termsOpen]);
 
   useEffect(() => {
     if (!awaitingTerms) setTermsDismissed(false);
@@ -426,6 +443,7 @@ export function FarcasterMiniAppEntryGate({
     content = (
       <FarcasterAdmissionPanel
         accessRequest={accessRequest}
+        admissionCheck={admissionCheck}
         identity={authState.identity}
         onBackToMenu={onBackToMenu}
         onCheckAgain={onRefreshSession}
@@ -439,6 +457,7 @@ export function FarcasterMiniAppEntryGate({
     content = (
       <FarcasterAdmissionPanel
         accessRequest={accessRequest}
+        admissionCheck={admissionCheck}
         autoFocusHeading={!awaitingTerms}
         identity={identity}
         onBackToMenu={
@@ -446,7 +465,10 @@ export function FarcasterMiniAppEntryGate({
             ? onBackToMenu
             : undefined
         }
-        onCheckAgain={onCheckBackend}
+        onCheckAgain={() => {
+          onCheckBackend();
+          return true;
+        }}
         onRequestAccess={onRequestAccess}
         onRetryAccessRequestStatus={onRetryAccessRequestStatus}
         onReviewTerms={awaitingTerms ? reviewTerms : undefined}

@@ -1,4 +1,7 @@
 .warp-transition-overlay {
+  --warp-focus-radius: 3.5vmax;
+  --warp-mid-radius: 27vmax;
+  --warp-cover-radius: 180vmax;
   position: fixed;
   inset: 0;
   z-index: 100;
@@ -18,6 +21,30 @@
     );
   clip-path: circle(0vmax at var(--warp-origin-x) var(--warp-origin-y));
   will-change: clip-path, opacity;
+}
+
+.warp-transition-overlay[data-variant="compact"] {
+  --warp-focus-radius: 2.4vmax;
+  --warp-mid-radius: 14vmax;
+  --warp-cover-radius: 145vmax;
+  background:
+    radial-gradient(
+      ellipse at var(--warp-origin-x) var(--warp-origin-y),
+      rgba(128, 67, 185, 0.5) 0%,
+      rgba(54, 23, 88, 0.86) 7%,
+      rgba(13, 5, 27, 0.985) 21%,
+      #020108 52%,
+      #010106 100%
+    );
+}
+
+.warp-transition-overlay[data-variant="compact"] .warp-transition-overlay__depth {
+  display: none;
+  filter: none;
+}
+
+.warp-transition-overlay[data-variant="compact"] .warp-transition-overlay__ribbons {
+  filter: blur(0.6px);
 }
 
 .warp-transition-overlay[data-origin-ready="true"] {
@@ -123,13 +150,13 @@
     clip-path: circle(0vmax at var(--warp-origin-x) var(--warp-origin-y));
   }
   12% {
-    clip-path: circle(3.5vmax at var(--warp-origin-x) var(--warp-origin-y));
+    clip-path: circle(var(--warp-focus-radius) at var(--warp-origin-x) var(--warp-origin-y));
   }
   34% {
-    clip-path: circle(27vmax at var(--warp-origin-x) var(--warp-origin-y));
+    clip-path: circle(var(--warp-mid-radius) at var(--warp-origin-x) var(--warp-origin-y));
   }
   62%, 70% {
-    clip-path: circle(180vmax at var(--warp-origin-x) var(--warp-origin-y));
+    clip-path: circle(var(--warp-cover-radius) at var(--warp-origin-x) var(--warp-origin-y));
   }
   100% {
     clip-path: circle(0vmax at var(--warp-origin-x) var(--warp-origin-y));

@@ -11,7 +11,8 @@
     max(1rem, env(safe-area-inset-right), var(--fc-safe-area-inset-right, 0px))
     max(1rem, env(safe-area-inset-bottom), var(--fc-safe-area-inset-bottom, 0px))
     max(1rem, env(safe-area-inset-left), var(--fc-safe-area-inset-left, 0px));
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   background:
     radial-gradient(circle at 50% 38%, rgb(115 54 153 / 32%), transparent 31%),
     radial-gradient(circle at 50% 112%, rgb(77 36 105 / 30%), transparent 46%),
@@ -39,11 +40,16 @@
 
 .farcaster-miniapp-entry__content > .farcaster-auth-panel {
   z-index: 1;
-  max-height: calc(
-    100dvh
-    - max(1rem, env(safe-area-inset-top), var(--fc-safe-area-inset-top, 0px))
-    - max(1rem, env(safe-area-inset-bottom), var(--fc-safe-area-inset-bottom, 0px))
-  );
+  max-height: none;
+  overflow: visible;
+}
+
+.farcaster-miniapp-entry .farcaster-admission-panel__actions {
+  position: sticky;
+  z-index: 2;
+  bottom: 0;
+  padding-top: 0.65rem;
+  background: linear-gradient(to bottom, transparent, rgba(5, 4, 10, 0.98) 28%);
 }
 
 .farcaster-miniapp-entry__status {
@@ -96,12 +102,21 @@
 @media (max-width: 480px) {
   .farcaster-miniapp-entry {
     place-items: stretch center;
-    overflow-y: auto;
   }
 
   .farcaster-miniapp-entry__content > .farcaster-auth-panel {
     align-self: center;
     width: 100%;
+  }
+}
+
+@media (max-height: 560px) {
+  .farcaster-miniapp-entry {
+    align-items: start;
+  }
+
+  .farcaster-miniapp-entry__content > .farcaster-auth-panel {
+    align-self: start;
   }
 }
 

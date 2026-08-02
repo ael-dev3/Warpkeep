@@ -425,6 +425,19 @@ export type AccessRequestViewState =
     }>;
 
 /**
+ * Presentation-only result of a deliberate admission refresh. The refresh may
+ * read existing session/admission authority, but it can never submit an access
+ * request or grant entry on its own.
+ */
+export type FarcasterAdmissionCheckViewState =
+  | Readonly<{ phase: 'idle' }>
+  | Readonly<{ phase: 'checking' }>
+  | Readonly<{ phase: 'still-pending'; checkedAt: number }>
+  | Readonly<{ phase: 'granted'; checkedAt: number }>
+  | Readonly<{ phase: 'temporary-error'; checkedAt: number }>
+  | Readonly<{ phase: 'identity-changed'; checkedAt: number }>;
+
+/**
  * The authenticated bridge boundary. Implementations must independently
  * verify the proof passed to exchangeCompletedSignIn before issuing the OIDC
  * session. Unbound compatible deployments are intentionally unsupported.

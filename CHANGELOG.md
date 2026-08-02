@@ -6,6 +6,16 @@ full engineering record.
 
 ## [Unreleased]
 
+- Made **Check Admission** visibly lock on the first press, show a bounded
+  checking state, and settle to clear granted, still-pending, account-changed,
+  or temporary-unavailable feedback without resubmitting an access request.
+- Kept fast saved-session restoration on the complete menu and gave slower
+  restores their own truthful status, removing the false **Claim Your Keep**
+  flash and keeping portrait navigation in one safe-area-aware scroll surface.
+- Tightened Mini App passage motion and menu-audio handoff while preserving the
+  desktop transition, reduced-motion behavior, Terms boundary, and all server
+  authority decisions.
+
 ## [0.3.43] — 2026-08-02
 
 - Let an interrupted Realm rebuild one visual tier lighter, then stop safely

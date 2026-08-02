@@ -41,6 +41,7 @@ export type WarpkeepExperienceAction =
 export type WarpkeepStableExperiencePhase = Extract<WarpkeepExperiencePhase, 'title' | 'menu' | 'realm'>;
 
 export type WarpTransitionMotion = 'standard' | 'reduced';
+export type WarpTransitionVariant = 'standard' | 'compact';
 
 export type WarpkeepExperienceState = {
   phase: WarpkeepExperiencePhase;
@@ -64,6 +65,16 @@ export const STANDARD_WARP_TRANSITION_TIMING: WarpTransitionTiming = Object.free
   coverAtMs: 1_240,
   intakeEndMs: 250,
   focusEndMs: 700
+});
+
+/** Portrait/Mini App passage: complete enough to mask the surface swap, but
+ * short enough to feel like one deliberate gateway gesture. */
+export const COMPACT_WARP_TRANSITION_TIMING: WarpTransitionTiming = Object.freeze({
+  totalMs: 880,
+  // The veil reaches its full-frame 62% keyframe before the destination swap.
+  coverAtMs: 546,
+  intakeEndMs: 140,
+  focusEndMs: 360
 });
 
 export const REDUCED_WARP_TRANSITION_TIMING: WarpTransitionTiming = Object.freeze({
@@ -186,10 +197,14 @@ export function getWarpTransitionDirection(
 }
 
 export function getWarpTransitionTiming(
-  reducedMotion: boolean | WarpTransitionMotion
+  reducedMotion: boolean | WarpTransitionMotion,
+  variant: WarpTransitionVariant = 'standard'
 ): WarpTransitionTiming {
-  return reducedMotion === true || reducedMotion === 'reduced'
-    ? REDUCED_WARP_TRANSITION_TIMING
+  if (reducedMotion === true || reducedMotion === 'reduced') {
+    return REDUCED_WARP_TRANSITION_TIMING;
+  }
+  return variant === 'compact'
+    ? COMPACT_WARP_TRANSITION_TIMING
     : STANDARD_WARP_TRANSITION_TIMING;
 }
 

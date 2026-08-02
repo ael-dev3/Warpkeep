@@ -83,6 +83,7 @@ import {
   type WarpkeepTitleScreenHandle
 } from './title/titleScreenTypes';
 import { FarcasterMiniAppEntryGate } from './auth/FarcasterMiniAppEntryGate';
+import { useFarcasterAdmissionCheckResultHaptic } from './auth/FarcasterAdmissionCheck';
 import './WarpkeepExperience.css';
 
 const MENU_HASH = '#menu';
@@ -261,12 +262,14 @@ export function WarpkeepExperience() {
   const {
     state: farcasterAuthState,
     accessRequest,
+    admissionCheck,
     restoreSession: restoreFarcasterSession,
     beginSignIn: beginFarcasterSignIn,
     cancelSignIn: cancelFarcasterSignIn,
     retrySignIn: retryFarcasterSignIn,
     prepareQrCode: prepareFarcasterQrCode,
     refreshSession: refreshFarcasterSession,
+    checkAdmission,
     requestAccess,
     retryAccessRequestStatus,
     signOut: signOutFarcaster,
@@ -275,6 +278,7 @@ export function WarpkeepExperience() {
     setRememberDevice
   } = useFarcasterAuth();
   const miniAppHost = useMiniAppHost();
+  useFarcasterAdmissionCheckResultHaptic(admissionCheck);
   const backend = useWarpkeepBackend();
   const initiallyAuthenticated = farcasterAuthState.phase === 'authenticated'
     && farcasterAuthState.assurance === 'bridge-oidc-alpha'
@@ -1337,9 +1341,17 @@ export function WarpkeepExperience() {
       }: AuthRailRenderControls) => (
         <FarcasterAdmissionPanel
           accessRequest={accessRequest}
+          admissionCheck={farcasterAuthState.phase === 'pending-admission'
+            ? admissionCheck
+            : undefined}
           headingRef={headingRef}
           identity={admissionIdentity}
-          onCheckAgain={onCheckAgain}
+          onCheckAgain={farcasterAuthState.phase === 'pending-admission'
+            ? checkAdmission
+            : () => {
+                onCheckAgain();
+                return true;
+              }}
           onBackToMenu={onBackToMenu}
           onPresentationReady={onPresentationReady}
           onRequestAccess={requestAccess}
@@ -1458,6 +1470,7 @@ export function WarpkeepExperience() {
           {miniAppEntryGateActive ? (
             <FarcasterMiniAppEntryGate
               accessRequest={accessRequest}
+              admissionCheck={admissionCheck}
               authState={farcasterAuthState}
               backendState={backend.state}
               hostState={miniAppHost.state}
@@ -1466,7 +1479,7 @@ export function WarpkeepExperience() {
               onBackToMenu={openOrdinaryMiniAppMenu}
               onCancelTermsAttempt={backend.cancelAlphaTermsAcceptance}
               onCheckBackend={backend.checkAgain}
-              onRefreshSession={refreshFarcasterSession}
+              onRefreshSession={checkAdmission}
               onRequestAccess={requestAccess}
               onRetryAccessRequestStatus={retryAccessRequestStatus}
               onRetryAuthentication={beginFarcasterSignIn}
@@ -1496,6 +1509,8 @@ export function WarpkeepExperience() {
               onRestoreFarcasterSession={restoreFarcasterSession}
               onPrepareFarcasterQrCode={prepareFarcasterQrCode}
               onRefreshFarcasterSession={refreshFarcasterSession}
+              admissionCheck={admissionCheck}
+              onCheckFarcasterAdmission={checkAdmission}
               accessRequest={accessRequest}
               onRequestAccess={requestAccess}
               onRetryAccessRequestStatus={retryAccessRequestStatus}
@@ -1626,6 +1641,7 @@ export function WarpkeepExperience() {
           key={transitionRequest.sequence}
           request={transitionRequest}
           reducedMotion={reducedMotion}
+          variant={miniAppHost.isMiniApp ? 'compact' : 'standard'}
           onArmed={() => markTransitionArmed(transitionRequest.sequence)}
           onCovered={() => markTransitionCovered(
             transitionRequest.sequence,
@@ -1638,14 +1654,14 @@ export function WarpkeepExperience() {
         />
       ) : null}
 
-      {miniAppEntryGateActive ? null : (
-        <WarpkeepAudioDirector
-          muted={audioMuted}
-          ref={audioDirectorRef}
-          scene={audioScene}
-          preloadMenu={menuPreloadReady || audioScene === 'menu'}
-        />
-      )}
+      <WarpkeepAudioDirector
+        muted={audioMuted}
+        ref={audioDirectorRef}
+        scene={audioScene}
+        preloadMenu={menuPreloadReady || audioScene === 'menu'}
+        resumeFadeMs={520}
+        suspended={miniAppEntryGateActive}
+      />
       <WarpkeepSfxDirector muted={audioMuted} />
       <WarpkeepHapticsDirector />
     </div>

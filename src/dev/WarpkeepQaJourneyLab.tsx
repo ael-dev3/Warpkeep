@@ -12,7 +12,10 @@ import { AlphaParticipationTermsDialog } from '../components/menu/AlphaParticipa
 import { WarpkeepMainMenu } from '../components/menu/WarpkeepMainMenu';
 import { RealmMapScreen } from '../components/realm/RealmMapScreen';
 import type { GraphicsPreference } from '../settings/graphicsPreference';
-import type { FarcasterAuthViewState } from '../farcaster/farcasterAuthTypes';
+import type {
+  FarcasterAdmissionCheckViewState,
+  FarcasterAuthViewState
+} from '../farcaster/farcasterAuthTypes';
 import {
   boundQaAutoCycleInterval,
   createQaJourneyRealm,
@@ -64,7 +67,7 @@ function advanceLabel(state: FarcasterAuthViewState) {
     case 'verifying':
       return 'COMPLETE LOCAL VERIFICATION';
     case 'pending-admission':
-      return 'USE CHECK AGAIN IN THE AUTH PANEL';
+      return 'USE CHECK ADMISSION IN THE AUTH PANEL';
     case 'authenticated':
       return 'USE ENTER REALM IN THE AUTH PANEL';
     default:
@@ -80,7 +83,12 @@ function SyntheticJourney({
   onEnterRealm: () => void;
 }>) {
   const [authState, setAuthState] = useState<FarcasterAuthViewState>(QA_AUTH_STATES.anonymous);
+  const [admissionCheck, setAdmissionCheck] = useState<FarcasterAdmissionCheckViewState>({
+    phase: 'idle'
+  });
   const [rememberDevice, setRememberDevice] = useState(false);
+  const admissionCheckLockedRef = useRef(false);
+  const admissionCheckTimerRef = useRef<number | null>(null);
   const canAdvance = [
     'creating-channel',
     'awaiting-approval',
@@ -90,17 +98,46 @@ function SyntheticJourney({
   ].includes(authState.phase);
 
   const reset = useCallback(() => {
+    if (admissionCheckTimerRef.current !== null) {
+      window.clearTimeout(admissionCheckTimerRef.current);
+      admissionCheckTimerRef.current = null;
+    }
+    admissionCheckLockedRef.current = false;
+    setAdmissionCheck({ phase: 'idle' });
     setAuthState(QA_AUTH_STATES.anonymous);
     setRememberDevice(false);
   }, []);
+
+  useEffect(() => () => {
+    if (admissionCheckTimerRef.current !== null) {
+      window.clearTimeout(admissionCheckTimerRef.current);
+    }
+  }, []);
+
+  const checkAdmission = useCallback(() => {
+    if (authState.phase !== 'pending-admission' || admissionCheckLockedRef.current) {
+      return false;
+    }
+    admissionCheckLockedRef.current = true;
+    setAdmissionCheck({ phase: 'checking' });
+    admissionCheckTimerRef.current = window.setTimeout(() => {
+      admissionCheckTimerRef.current = null;
+      admissionCheckLockedRef.current = false;
+      setAdmissionCheck({ phase: 'granted', checkedAt: Date.now() });
+      setAuthState(QA_AUTH_STATES.authenticated);
+    }, 320);
+    return true;
+  }, [authState.phase]);
 
   return (
     <>
       <WarpkeepMainMenu
         active
+        admissionCheck={admissionCheck}
         authState={authState}
         onCancelFarcasterSignIn={reset}
         onPrepareFarcasterQrCode={() => undefined}
+        onCheckFarcasterAdmission={checkAdmission}
         onRefreshFarcasterSession={() => setAuthState(QA_AUTH_STATES.authenticated)}
         onRememberDeviceChange={setRememberDevice}
         onRequestAuthenticatedRealm={(identity) => {
@@ -148,6 +185,12 @@ function DirectAuthStage({
   >;
   onScenarioChange: (scenario: QaJourneyScenario) => void;
 }>) {
+  const [admissionCheck, setAdmissionCheck] = useState<FarcasterAdmissionCheckViewState>({
+    phase: 'idle'
+  });
+  const admissionCheckLockedRef = useRef(false);
+  const admissionCheckTimerRef = useRef<number | null>(null);
+  const admissionCheckFlightsRef = useRef(0);
   const state: FarcasterAuthViewState = {
     'auth-creating': QA_AUTH_STATES.creating,
     'auth-awaiting': QA_AUTH_STATES.awaiting,
@@ -163,10 +206,44 @@ function DirectAuthStage({
     ? state.identity
     : undefined;
 
+  useEffect(() => {
+    admissionCheckLockedRef.current = false;
+    admissionCheckFlightsRef.current = 0;
+    setAdmissionCheck({ phase: 'idle' });
+    if (admissionCheckTimerRef.current !== null) {
+      window.clearTimeout(admissionCheckTimerRef.current);
+      admissionCheckTimerRef.current = null;
+    }
+    return () => {
+      if (admissionCheckTimerRef.current !== null) {
+        window.clearTimeout(admissionCheckTimerRef.current);
+      }
+    };
+  }, [scenario]);
+
+  const checkAdmission = useCallback(() => {
+    if (state.phase !== 'pending-admission' || admissionCheckLockedRef.current) {
+      return false;
+    }
+    admissionCheckLockedRef.current = true;
+    admissionCheckFlightsRef.current += 1;
+    setAdmissionCheck({ phase: 'checking' });
+    admissionCheckTimerRef.current = window.setTimeout(() => {
+      admissionCheckTimerRef.current = null;
+      admissionCheckLockedRef.current = false;
+      setAdmissionCheck({ phase: 'still-pending', checkedAt: Date.now() });
+    }, 320);
+    return true;
+  }, [state.phase]);
+
   return (
-    <main className="qa-journey__auth-stage">
+    <main
+      className="qa-journey__auth-stage"
+      data-admission-check-flights={admissionCheckFlightsRef.current}
+    >
       <div className="warpkeep-menu-auth-rail">
         <FarcasterQrAuthPanel
+          admissionCheck={admissionCheck}
           assurance={state.phase === 'authenticated' ? state.assurance : undefined}
           errorMessage={state.phase === 'error' || state.phase === 'expired'
             ? state.error.message
@@ -174,7 +251,7 @@ function DirectAuthStage({
           identity={identity}
           onBackToMenu={() => onScenarioChange('menu')}
           onCancel={() => onScenarioChange('menu')}
-          onCheckAdmission={() => onScenarioChange('auth-authenticated')}
+          onCheckAdmission={checkAdmission}
           onEnterRealm={() => undefined}
           onPrepareQrCode={() => onScenarioChange('auth-awaiting')}
           onRetry={() => onScenarioChange('auth-creating')}
@@ -208,7 +285,10 @@ function DirectAdmissionStage({
         <FarcasterAdmissionPanel
           identity={QA_SYNTHETIC_IDENTITY}
           onBackToMenu={() => onScenarioChange('menu')}
-          onCheckAgain={() => onScenarioChange('auth-authenticated')}
+          onCheckAgain={() => {
+            onScenarioChange('auth-authenticated');
+            return true;
+          }}
           onSignOut={() => onScenarioChange('menu')}
           phase={QA_ADMISSION_PHASE_BY_SCENARIO[scenario]}
         />

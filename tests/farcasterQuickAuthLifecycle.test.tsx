@@ -148,8 +148,10 @@ function AuthProbe() {
   return (
     <>
       <output data-testid="state">{JSON.stringify(auth.state)}</output>
+      <output data-testid="admission-check">{JSON.stringify(auth.admissionCheck)}</output>
       <output data-testid="token">{String(Boolean(auth.oidcSession))}</output>
       <button onClick={auth.refreshSession} type="button">Refresh</button>
+      <button onClick={auth.checkAdmission} type="button">Check admission</button>
       <button onClick={auth.signOut} type="button">Sign out</button>
     </>
   );
@@ -183,6 +185,12 @@ function state(): Record<string, unknown> {
     string,
     unknown
   >;
+}
+
+function admissionCheckState(): Record<string, unknown> {
+  return JSON.parse(
+    screen.getByTestId('admission-check').textContent ?? '{}'
+  ) as Record<string, unknown>;
 }
 
 function deferred<T>() {
@@ -422,6 +430,56 @@ describe('Farcaster Mini App Quick Auth lifecycle', () => {
       phase: 'pending-admission',
       identity: { fid: FID }
     });
+  });
+
+  it('follows a foreground-forced replacement of a manual admission check', async () => {
+    const freshToken = `${'d'.repeat(16)}.${'e'.repeat(24)}.${'f'.repeat(32)}`;
+    const manual = deferred<FarcasterQuickAuthSessionResponse>();
+    const foreground = deferred<FarcasterQuickAuthSessionResponse>();
+    let manualSignal: AbortSignal | undefined;
+    const getToken = vi.fn(async (options?: { force?: boolean }) => ({
+      token: options?.force === true ? freshToken : QUICK_AUTH_TOKEN
+    }));
+    const exchangeQuickAuth = vi.fn()
+      .mockResolvedValueOnce(pendingAdmission())
+      .mockImplementationOnce((_token, options) => {
+        manualSignal = options?.signal;
+        return manual.promise;
+      })
+      .mockImplementationOnce(() => foreground.promise);
+
+    renderMiniApp(miniAppSdk(getToken), bridge(exchangeQuickAuth));
+    await waitFor(() => expect(state().phase).toBe('pending-admission'));
+    vi.useFakeTimers({ now: Date.UTC(2026, 7, 2, 12, 0, 0) });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Check admission' }));
+    await act(async () => {
+      for (let index = 0; index < 12; index += 1) await Promise.resolve();
+    });
+    expect(admissionCheckState()).toEqual({ phase: 'checking' });
+    expect(exchangeQuickAuth).toHaveBeenCalledTimes(2);
+
+    fireEvent(window, new Event('focus'));
+    await act(async () => {
+      for (let index = 0; index < 12; index += 1) await Promise.resolve();
+    });
+    expect(manualSignal?.aborted).toBe(true);
+    expect(exchangeQuickAuth).toHaveBeenCalledTimes(3);
+
+    foreground.resolve(pendingAdmission());
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(301);
+      for (let index = 0; index < 12; index += 1) await Promise.resolve();
+    });
+    expect(admissionCheckState()).toMatchObject({ phase: 'still-pending' });
+    expect(state()).toMatchObject({
+      phase: 'pending-admission',
+      identity: { fid: FID }
+    });
+
+    manual.resolve(pendingAdmission(FID + 1));
+    await act(async () => { await Promise.resolve(); });
+    expect(state()).toMatchObject({ identity: { fid: FID } });
   });
 
   it('fails a visible launch cleanly when the host cannot issue a valid bearer', async () => {

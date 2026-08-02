@@ -94,7 +94,9 @@ npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
 The useful local pages are:
 
 - `http://127.0.0.1:5173/dev/qa-journey.html` — synthetic menu, Terms,
-  authentication presentation, admission, and Realm states.
+  authentication presentation, admission, and Realm states. Its direct pending
+  state holds **Check Admission** for a visible local interval and exposes a
+  still-pending result without contacting an external authority.
 - `http://127.0.0.1:5173/dev/realm-observer-qa.html` — deterministic read-only
   Realm fixture.
 - `http://127.0.0.1:5173/dev/realm-rendered-webgl-qa.html` — the real Realm

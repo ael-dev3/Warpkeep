@@ -96,7 +96,7 @@ export function AccessRequestQaStage({
           accessRequest={accessRequest.state}
           identity={QA_SYNTHETIC_IDENTITY}
           onBackToMenu={onBackToMenu}
-          onCheckAgain={() => undefined}
+          onCheckAgain={() => true}
           onRequestAccess={accessRequest.requestAccess}
           onRetryAccessRequestStatus={accessRequest.retryStatus}
           onSignOut={onBackToMenu}
