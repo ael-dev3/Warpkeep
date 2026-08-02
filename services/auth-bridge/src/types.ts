@@ -8,6 +8,7 @@ export interface DurableObjectStorage {
   delete(key: string): Promise<boolean>
   deleteAll(): Promise<void>
   setAlarm(scheduledTime: number | Date): Promise<void>
+  deleteAlarm?(): Promise<void>
   transaction<T>(closure: (txn: DurableObjectTransaction) => Promise<T>): Promise<T>
 }
 
@@ -70,6 +71,14 @@ export interface WorkerEnv {
   ACCESS_EXPECTED_FID_REQUIRED?: string
   /** Independent fail-closed gate for the machine-bound read-only QA observer. */
   QA_OBSERVER_ENABLED?: string
+  /** Fail-closed gate for Farcaster admission notification consent and delivery. */
+  APPROVAL_NOTIFICATIONS_ENABLED?: string
+  /** Two exact, independently operated Hub HTTP origins used to verify app keys. */
+  MINIAPP_NOTIFICATION_HUB_URLS?: string
+  /** Exact `clientFid=deliveryUrl` allowlist; prevents webhook-driven SSRF. */
+  MINIAPP_NOTIFICATION_CLIENTS?: string
+  /** Independent managed secret for Hermes-to-notification delivery requests. */
+  NOTIFICATION_OPERATOR_SECRET?: string
   /** One registered public P-256 JWK. The corresponding private key stays on the QA Mac. */
   QA_OBSERVER_PUBLIC_JWK?: string
   /** Canonical RFC 3339 expiry for the registered QA public key. */
@@ -81,6 +90,7 @@ export interface WorkerEnv {
   QA_CHALLENGE_REPLAY_GUARD?: DurableObjectNamespace
   AUTH_RATE_LIMITER?: DurableObjectNamespace
   SESSION_FAMILIES?: DurableObjectNamespace
+  ADMISSION_NOTIFICATIONS?: DurableObjectNamespace
 }
 
 export interface ExecutionContextLike {
@@ -135,6 +145,17 @@ export type SafeLogEvent =
   | 'access_request_failed_timeout'
   | 'access_request_failed_upstream_status'
   | 'access_request_failed_response_validation'
+  | 'miniapp_webhook_verified'
+  | 'miniapp_webhook_rejected'
+  | 'miniapp_webhook_verifier_unavailable'
+  | 'miniapp_notification_subscribed'
+  | 'miniapp_notification_unsubscribed'
+  | 'admission_notification_queued'
+  | 'admission_notification_succeeded'
+  | 'admission_notification_exhausted'
+  | 'admission_notification_retrying'
+  | 'admission_notification_not_subscribed'
+  | 'admission_notification_rejected'
   | 'rate_limited'
   | 'rate_limit_failed'
   | 'configuration_error'
@@ -237,6 +258,8 @@ export type RateLimitAction =
   | 'exchange'
   | 'session-refresh'
   | 'access-request'
+  | 'miniapp-webhook'
+  | 'admission-notification'
   | 'admin-token'
   | 'qa-challenge'
   | 'qa-snapshot'
@@ -247,6 +270,43 @@ export type RateLimitResult =
 
 export interface RateLimiter {
   check(request: Request, action: RateLimitAction): Promise<RateLimitResult>
+}
+
+export type MiniAppNotificationDetails = Readonly<{
+  token: string
+  url: string
+}>
+
+export type VerifiedMiniAppWebhookEvent = Readonly<{
+  /** SHA-256 of the exact signed envelope; retained only for bounded replay suppression. */
+  eventId: string
+  fid: string
+  appFid: number
+  event:
+    | Readonly<{ type: 'enabled'; details: MiniAppNotificationDetails }>
+    | Readonly<{ type: 'disabled' }>
+    | Readonly<{ type: 'observed' }>
+}>
+
+/** Signature verification is injectable so route tests never need real Farcaster material. */
+export interface MiniAppWebhookVerifier {
+  verify(value: unknown): Promise<VerifiedMiniAppWebhookEvent>
+}
+
+export type AdmissionNotificationQueueStatus =
+  | 'queued'
+  | 'already-sent'
+  | 'delivery-exhausted'
+  | 'not-subscribed'
+
+/** Raw notification tokens remain behind this server-only interface. */
+export interface AdmissionNotificationStore {
+  applyEvent(event: VerifiedMiniAppWebhookEvent): Promise<void>
+  queueAdmission(input: Readonly<{
+    fid: string
+    authEpoch: number
+    queuedAt: number
+  }>): Promise<AdmissionNotificationQueueStatus>
 }
 
 export interface PublicIdentity {

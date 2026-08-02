@@ -30,7 +30,7 @@
             why it is used, where it goes, and the limits of retention and deletion.
           </p>
           <p class="legal-page__version">
-            Alpha Privacy Notice revision 2026-07-31-v4 · Last updated 31 July 2026
+            Alpha Privacy Notice revision 2026-08-02-v5 · Last updated 2 August 2026
           </p>
           <p class="legal-page__notice">
             This is a factual, project-authored Alpha notice, not a legal-compliance certification
@@ -112,6 +112,21 @@
                 access is later revoked, a new request can begin a new review cycle without
                 deleting the player's existing realm state. A request does not grant access or
                 create a castle.
+              </li>
+              <li>
+                <strong>Optional admission notifications:</strong> after an access request is
+                recorded, a verified Farcaster Mini App may offer a separate native control to
+                add Warpkeep and enable notifications. If you choose it, Farcaster sends the auth
+                bridge a signed event containing your FID, the Farcaster client FID, and, only
+                when notifications are enabled, a private delivery URL and notification token.
+                The Farcaster host can pass those values transiently to the Mini App runtime; the
+                Warpkeep adapter immediately discards them and keeps only a yes/no presentation
+                hint. It never retains them in React state, browser storage, URLs, or logs. Warpkeep
+                keeps the raw token only in private per-FID Cloudflare durable state; it is not
+                copied to SpacetimeDB, public game state, analytics, or application logs. After an
+                operator admits you, the bridge rechecks your live
+                admission epoch before asking the exact allowlisted Farcaster delivery service to
+                send one admission message. This choice is optional and does not affect access.
               </li>
               <li>
                 <strong>Browser and session security:</strong> Warpkeep uses an origin, challenge
@@ -224,6 +239,10 @@
                     <td>No fixed Alpha deletion schedule yet. The verified FID, current request cycle, and its server request time remain for manual review, service security, and the Alpha audit trail unless the Alpha is reset or the record is manually deleted. A later revocation can replace the current cycle and time with the new application cycle while preserving the player's realm state.</td>
                   </tr>
                   <tr>
+                    <td>Optional Farcaster notification token and delivery state</td>
+                    <td>The raw token is private server state and retained for at most 366 days from its valid enable event. A signed disable/remove event, an invalid-token response, expiry, or a retired delivery configuration removes raw token material earlier. Token hashes, bounded webhook replay hashes, the FID, and one admission-epoch delivery receipt may remain only inside the same private object for replay prevention and idempotency. A valid disable/remove event can extend that token-free metadata object's deletion deadline, but never beyond 366 days from the most recent valid enable or disable event, subject to provider backup retention.</td>
+                  </tr>
+                  <tr>
                     <td>Sign-in challenge and browser-binding digest</td>
                     <td>Usable for at most five minutes and consumed on a definitive exchange. Expiry makes it unusable and schedules durable cleanup; physical deletion can be subject to provider cleanup and backup retention.</td>
                   </tr>
@@ -285,8 +304,9 @@
             <h2 id="recipients-transfers">6. Services, recipients, and locations</h2>
             <p>
               The Alpha depends on GitHub Pages for the public site, Cloudflare for the auth bridge
-              and durable session/security state, Farcaster network services and an Optimism RPC
-              service for account verification, Ethereum RPC providers for bounded finalized-event
+              and durable session/security/notification state, Farcaster network services for
+              sign-in, Mini App hosting, notification preference events, and opted-in admission
+              delivery, two Optimism RPC services for account and app-key verification, Ethereum RPC providers for bounded finalized-event
               reconciliation, and Clockwork Labs' SpacetimeDB Maincloud for shared realm state.
               Connected clients receive the public game projections described above. A public
               Farcaster avatar may be loaded from its HTTPS host with a no-referrer browser policy;
@@ -305,7 +325,9 @@
             <h2 id="choices-rights">7. Your choices and rights</h2>
             <p>
               You can decline the entry-agreement gate and avoid starting Warpkeep authentication. Remember
-              device defaults off. You can sign out, close the application, and ask the project to
+              device defaults off. Admission notifications are also off unless you deliberately
+              enable them through Farcaster; you can disable notifications or remove Warpkeep in
+              the Farcaster client without losing Realm access. You can sign out, close the application, and ask the project to
               access, correct, erase, restrict, or provide applicable personal data, or object to
               certain processing. Depending on applicable law, some rights—including portability
               or withdrawal of consent—may apply only in particular circumstances. The project may

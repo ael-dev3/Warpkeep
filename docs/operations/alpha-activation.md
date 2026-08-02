@@ -230,6 +230,46 @@ pass. Confirm:
 - the Terms, Social Contract, and Privacy Notice match the accepted version;
 - realm entry stays fail-closed until backend/module compatibility is ready.
 
+### Admission notification rollout
+
+Farcaster admission notifications are an optional auth-bridge capability, not
+a SpacetimeDB schema change. Roll them out in this order:
+
+1. Add a dedicated managed `NOTIFICATION_OPERATOR_SECRET` to the currently
+   deployed bridge before introducing the two checked-in notification settings.
+   It must be distinct from every auth, session, wallet, and database
+   credential. Confirm only the managed binding name, never its value.
+2. Deploy the reviewed auth bridge and its additive Durable Object migration
+   with `APPROVAL_NOTIFICATIONS_ENABLED=false`. Preserve the live values of
+   `PUBLIC_AUTH_ENABLED` and `ACCESS_EXPECTED_FID_REQUIRED`; never replace
+   production configuration with the checked-in staging defaults. The Hub,
+   client, and secret tuple must be complete in that first candidate.
+3. Verify the configured Farcaster Hub origins, approved client FID/delivery
+   pair, Durable Object binding, webhook isolation, and redacted configuration
+   attestation. Keep raw notification tokens and signed webhook bodies out of
+   logs and release evidence.
+4. Enable and attest the backend gate while the public manifest still has no
+   `webhookUrl`. This proves configuration and route isolation, but it cannot
+   prove a real client event: Farcaster clients discover the endpoint from the
+   production-domain manifest.
+5. Publish the manifest `webhookUrl` alone as a bounded canary. After manifest
+   convergence, use one owner-controlled production client to generate a real
+   enable/add event followed by a disable/remove event. Confirm only
+   privacy-safe static evidence; never retain the signed body or token.
+6. Publish the client opt-in control only after both signed canary events pass.
+7. Give Hermes the operator secret through its private environment. A committed
+   admission may call the notification route best-effort; if delivery cannot be
+   queued, preserve the admission result and reconcile later with
+   `npm run stdb:notify-admitted -- <fid> --confirm`.
+
+For rollback, pause the notification gate first. Leave the webhook verifier and
+client configuration available long enough to accept signed disable/remove
+events and erase stored tokens. Pausing notifications must not disable public
+authentication or revoke admission. Do not remove the `v5` class, binding, or
+cleanup implementation until at least 366 days after the last possible accepted
+enable event and a separately reviewed zero-state drain proof exists. In the
+absence of that proof, retain the inert forward-compatible cleanup path.
+
 ## 6. Bounded owner smoke test
 
 Use one owner-controlled account. Verify sign-in, current agreement acceptance,

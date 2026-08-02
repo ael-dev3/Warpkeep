@@ -256,6 +256,37 @@ Menu changes, Mini App remounts, stale callbacks, timers, and status errors
 cannot reopen a confirmed or ambiguous request. The complete request flow is
 silent and emits no request sound or haptic.
 
+After an authoritative **REQUEST RECEIVED** or restored existing request, a
+verified Mini App host that advertises `actions.addMiniApp` may show one
+optional admission-alert control. It calls the native Farcaster prompt with a
+same-frame single-flight lock. Ordinary web surfaces and hosts without that
+capability show nothing. The browser keeps only a boolean presentation hint
+derived from whether host context contains `notificationDetails`; it never
+retains or exposes the notification token or delivery URL. A completed prompt
+is described as setup requested, not as proof that server registration or
+future delivery succeeded.
+
+Farcaster sends notification preference changes to the manifest's exact
+server-only webhook as a signed JFS envelope. The bridge verifies the official
+envelope format, requires two independent Hub views of the app key, verifies
+its signed-key metadata and active on-chain state through both configured
+Optimism RPCs, and accepts delivery only for the exact configured client FID
+and URL. A valid disable/remove remains usable while outbound delivery is
+paused so opt-out cannot be trapped behind a feature gate. Raw notification
+tokens stay inside one private Cloudflare Durable Object per FID, never in
+React, browser storage, logs, URLs, public state, or SpacetimeDB.
+
+After Hermes has committed and verified founder admission, it invokes a
+separate-secret operator endpoint. That endpoint resolves current admission
+again; the Durable Object repeats the exact epoch check immediately before each
+delivery attempt. Queue-before-webhook races are retained without a token for
+at most 24 hours, signed opt-outs erase token material immediately, invalid
+tokens are purged, retry attempts are bounded, and one epoch cannot notify
+twice. `notify-admitted <fid> --confirm` is the idempotent recovery path if the
+database commit succeeds but the notification side effect is interrupted.
+Notification preference and delivery add no SpacetimeDB schema or browser
+authority.
+
 **CHECK AGAIN** calls credentialed `/v2/session/refresh`, not a new Farcaster
 channel. A matching missing or disabled state stays pending/tokenless; enabled
 transitions once to an epoch-bound family and returns a fresh 600-second token.
@@ -374,9 +405,13 @@ configuration remain disabled by default.
 The Mini App is published through one reviewed static file at
 `/.well-known/farcaster.json` on `https://warpkeep.com`. Its home URL is exactly
 `https://warpkeep.com/?miniApp=true`, and the page carries one exact
-`fc:miniapp` embed record. The manifest intentionally declares no webhook,
-chains, or host capabilities. The eight referenced PNGs have fixed dimensions,
-opacity, byte ceilings, provenance, and repository digests; three portrait
+`fc:miniapp` embed record. The manifest declares the exact server-only webhook
+`https://auth.warpkeep.com/v1/farcaster/miniapp/webhook` for notification
+subscription lifecycle events, and declares no chains or required host
+capabilities. Notification credentials belong only behind that endpoint and
+must never enter public tables, browser state, URLs, logs, or diagnostics. The
+eight referenced PNGs have fixed dimensions, opacity, byte ceilings,
+provenance, and repository digests; three portrait
 screenshots use local synthetic fixtures and contain no real player or
 production state. The current promotional feed embed is separately identified
 as authored artwork and contains only its deliberately visible public
@@ -399,6 +434,16 @@ duplicate or legacy embed tags, manifest drift, image geometry/opacity drift,
 and bytes that differ from the reviewed source. The live verifier fetches the
 same-origin manifest and all eight images with bounded no-redirect requests and
 compares them with the exact checkout before a release is accepted.
+
+Notification rollout is ordered: install the independent operator secret on
+the current bridge first; publish the complete Hub/client/secret tuple plus the
+additive Durable Object and Worker routes with outbound delivery paused; enable
+and attest the Worker; publish the manifest alone as a production-domain canary;
+prove one owner-controlled signed enable and disable cycle; then publish the
+opt-in UI. Farcaster cannot deliver a real event before the production manifest
+advertises the webhook, so automated fixtures are never accepted as that canary
+proof. Rollback pauses outbound delivery first but keeps the manifest, verifier,
+`v5` cleanup implementation, and signed opt-outs reachable.
 
 Before a production change, use disposable migration tests and fresh bounded
 aggregate inspection, then verify OIDC metadata, resolver behavior, retired
