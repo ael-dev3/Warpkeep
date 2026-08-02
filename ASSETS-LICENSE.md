@@ -668,6 +668,28 @@ Warpkeep's repository and official Mini App presentation. It does not
 independently establish underlying ownership or grant a general open-content
 license. Both files remain `LicenseRef-Warpkeep-Provenance-Required`.
 
+On 2 August 2026, the Warpkeep project owner supplied replacement Genesis 001
+founder-realm artwork and instructed that it become the current Mini App feed
+embed. The source is preserved at
+`docs/reference/miniapp/2026-08-02-genesis-001-founder-realm-embed/warpkeep-genesis-001-founder-realm-embed-source.png`:
+a 1536×1024 opaque RGB PNG, 3,504,459 bytes, SHA-256
+`1cef5f67aa17a4fa812518c8c376a5f57a1c4c6509c0788e332ab97568a4a783`.
+It is already 3:2; the preparation script resizes it with Lanczos3 and writes
+the 1200×800 opaque runtime PNG deterministically. The artwork contains seven
+public Farcaster handles as authored labels and is promotional artwork, not a
+claim that the composition is an exact live gameplay capture.
+
+| Use | Repository file | Technical record |
+| --- | --- | --- |
+| Current feed embed image | `public/images/miniapp/warpkeep-embed-1200x800-a07da89d7df56da9.png` | 1200×800 opaque PNG, 2,163,184 bytes, SHA-256 `a07da89d7df56da96ce220043f5355b0bbe383cd9d8ff80e9547736b44fd560e`. |
+
+The former `warpkeep-embed-1200x800.png` runtime image remains immutable and
+unreferenced for compatibility with already-published embed metadata. The
+owner's instruction authorizes the replacement source and derivative for the
+official Warpkeep repository and Mini App presentation. It does not establish
+underlying ownership or grant a general open-content license. Both replacement
+files remain `LicenseRef-Warpkeep-Provenance-Required`.
+
 On 2 August 2026, the three portrait listing screenshots were captured from the
 actual Alpha 0.3.43 interface at a 428×926 CSS-pixel viewport, then encoded as
 the required 1284×2778 opaque PNGs. The capture used only the repository's
