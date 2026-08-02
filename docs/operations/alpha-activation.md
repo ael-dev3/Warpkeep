@@ -74,6 +74,13 @@ After the Worker v12 suffix exists, its separate aggregate inspection is:
 npm run stdb:inspect-alpha-v12 -- --json
 ```
 
+After the Daily Marks v14 suffix is active, also run its closed aggregate
+inspection. It reports counts and invariant flags only:
+
+```sh
+npm run stdb:daily-marks:inspect
+```
+
 The first v12 publication cannot run that procedure beforehand. Its guarded
 publisher instead requires an anonymous schema description of the immutable
 database identity to match the exact 47-table v11 predecessor.
@@ -95,7 +102,7 @@ npm run stdb:publish:dev -- --dry-run \
   --resource-rollout-stage=ready \
   --genesis-world-stage=expanded \
   --worker-rollout-stage=active \
-  --worker-module-predecessor=exact-v13-active \
+  --worker-module-predecessor=exact-v14-active \
   --worker-forward-repair=none
 ```
 
@@ -138,11 +145,18 @@ npm run stdb:worker-return-repair:apply -- --confirm
 The apply path records an aggregate-only intent before submission and a second
 terminal receipt after the fresh post-inspection.
 
-`--worker-module-predecessor=exact-v13-active` is the normal code-only lane
-after the private v13 access-request suffix is deployed. Its anonymous
-preflight binds both proven schema digests and all 54 table signatures, accepts
-only the exact active or candidate Worker ABI, and requires the identical table
-boundary plus the candidate ABI after publication.
+`--worker-module-predecessor=exact-v14-active` is the normal code-only lane
+after Daily Marks is active. Its anonymous preflight binds all three proven
+schema digests and all 56 table signatures, accepts only the reviewed candidate
+Worker ABI, and requires the identical table boundary and ABI after
+publication. Protected pre- and postflight checks also require the active Daily
+Marks account, grant, schedule, and reconciliation invariants to remain valid.
+
+`--worker-module-predecessor=exact-v13-active` remains available only for a
+code-only release before the private v14 Daily Marks suffix is appended. It
+binds the v12/v13 schema digests and all 54 table signatures. The one-time v14
+append uses its separate explicit predecessor; neither v13 lane is valid once
+the 56-table v14 boundary is live.
 
 `--worker-module-predecessor=exact-v12-empty` is the explicit code-only
 exception for an already-appended but still-inert v12 suffix. It requires the

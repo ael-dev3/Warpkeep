@@ -52,11 +52,13 @@ import {
   verifyFreshProductionV12ModuleSchema,
   verifyFreshProductionV13ModuleSchema,
   verifyFreshProductionV14ModuleSchema,
+  verifyFreshActiveDailyMarksV14,
   verifyFreshFoundedProtocolV3Aggregate,
   verifyFreshResourceProtocolV4PrebackfillAggregate,
   verifyFreshResourceProtocolV4ReadyAggregate,
   verifyMigrationArtifactReceipt,
   verifyEmptyDailyMarksV14StatusOutput,
+  verifyActiveDailyMarksV14StatusOutput,
   verifyPinnedCliAttestation,
   verifyPostPublishAlphaStatusV8Aggregate,
   verifyPostPublishAlphaStatusV10Aggregate,
@@ -69,7 +71,9 @@ import {
   verifyPostPublishProductionV13ActiveModuleSchema,
   verifyPostPublishProductionV13SchemaFromV11,
   verifyPostPublishProductionV14ModuleSchema,
+  verifyPostPublishProductionV14ActiveModuleSchema,
   verifyPostPublishEmptyDailyMarksV14,
+  verifyPostPublishActiveDailyMarksV14,
   verifyPostPublishResourceProtocolV4PrebackfillAggregate,
   verifyPostPublishResourceProtocolV4ReadyAggregate,
   verifyPostPublishResourcePublicationCheckpoints,
@@ -93,6 +97,7 @@ import {
   verifyExactProductionV14Schema,
   verifyExactProductionV14ModuleSchema,
   verifyWorkerV13ModulePredecessor,
+  verifyWorkerV14ModulePredecessor,
 } from '../scripts/publish-spacetime-dev.mjs';
 import {
   readPrivateSpacetimePublishSuccessReceipt,
@@ -404,6 +409,21 @@ function emptyDailyMarksV14Status(overrides: Record<string, unknown> = {}) {
     readyForBackfill: true,
     readyForActivation: false,
     active: false,
+    ...overrides,
+  };
+}
+
+function activeDailyMarksV14Status(overrides: Record<string, unknown> = {}) {
+  return {
+    ...emptyDailyMarksV14Status(),
+    dailyAccounts: '4',
+    legacyZeroAccounts: '0',
+    grants: '21',
+    currentDayGrants: '3',
+    scheduleRows: '1',
+    readyForBackfill: false,
+    readyForActivation: false,
+    active: true,
     ...overrides,
   };
 }
@@ -1979,8 +1999,46 @@ describe('activation publish safety', () => {
     expect(completeV14.moduleState).toBe('candidate');
     expect(completeV14.totalTableCount).toBe(56);
     expect(Object.keys(completeV14.tableSignatures)).toHaveLength(56);
+    expect(verifyWorkerV14ModulePredecessor(
+      completeV14.moduleState,
+      WORKER_MODULE_PREDECESSOR.EXACT_V14_ACTIVE,
+    )).toBe('candidate');
+    expect(() => verifyWorkerV14ModulePredecessor(
+      'active-predecessor',
+      WORKER_MODULE_PREDECESSOR.EXACT_V14_ACTIVE,
+    )).toThrow(/exact active production v14 candidate ABI/i);
+    expect(() => verifyWorkerV14ModulePredecessor(
+      'candidate',
+      WORKER_MODULE_PREDECESSOR.EXACT_V13_ACTIVE,
+    )).toThrow(/exact active production v14 candidate ABI/i);
     expect(verifyFreshProductionV14ModuleSchema(
       'spacetime',
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+      v14TableSchemaDigest,
+      (() => ({
+        status: 0,
+        signal: null,
+        stdout: JSON.stringify(v14),
+        stderr: '',
+      })) as never,
+    )).toEqual(completeV14);
+    const wrongAbiV14 = workerModuleSchemaDescription(
+      'active-predecessor',
+      true,
+      true,
+    );
+    expect(canonicalTableSchemaBoundaryDigest(wrongAbiV14, v14TableNames))
+      .toBe(v14TableSchemaDigest);
+    expect(() => verifyExactProductionV14ModuleSchema(
+      wrongAbiV14,
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+      v14TableSchemaDigest,
+    )).toThrow(/reviewed Worker candidate ABI/i);
+    expect(verifyPostPublishProductionV14ActiveModuleSchema(
+      'spacetime',
+      completeV14,
       v12TableSchemaDigest,
       v13TableSchemaDigest,
       v14TableSchemaDigest,
@@ -2009,6 +2067,34 @@ describe('activation publish safety', () => {
       totalTableCount: 56,
       moduleState: 'candidate',
     });
+    const changedCapturedV14 = {
+      ...completeV14,
+      tableSignatures: {
+        ...completeV14.tableSignatures,
+        castle: 'tampered-signature',
+      },
+    };
+    expect(() => verifyPostPublishProductionV14ActiveModuleSchema(
+      'spacetime',
+      changedCapturedV14,
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+      v14TableSchemaDigest,
+      (() => ({
+        status: 0,
+        signal: null,
+        stdout: JSON.stringify(v14),
+        stderr: '',
+      })) as never,
+    )).toThrow(/post-publication active-v14 module checkpoint is indeterminate/i);
+    expect(() => verifyPostPublishProductionV14ActiveModuleSchema(
+      'spacetime',
+      completeV14,
+      v12TableSchemaDigest,
+      v13TableSchemaDigest,
+      v14TableSchemaDigest,
+      (() => ({ status: 1, signal: null, stdout: 'private', stderr: 'private' })) as never,
+    )).toThrow(/post-publication active-v14 module checkpoint is indeterminate/i);
     const emptyStatus = emptyDailyMarksV14Status();
     expect(verifyEmptyDailyMarksV14StatusOutput(JSON.stringify(emptyStatus)))
       .toEqual(emptyStatus);
@@ -2060,6 +2146,90 @@ describe('activation publish safety', () => {
       's'.repeat(32),
       (() => ({ status: 1, signal: null, stdout: 'private', stderr: 'private' })) as never,
     )).toThrow(/empty daily-Marks v14 checkpoint is indeterminate/i);
+
+    const activeStatus = activeDailyMarksV14Status();
+    const activeExpectations = {
+      expectedEnabledAllowedFidCount: 3,
+      expectedFounderCount: 4,
+      expectedPlayerCount: 1,
+      expectedTermsAcceptanceCount: 1,
+    };
+    expect(verifyActiveDailyMarksV14StatusOutput(
+      JSON.stringify(activeStatus),
+      4,
+      3,
+    )).toEqual(activeStatus);
+    expect(verifyActiveDailyMarksV14StatusOutput(
+      JSON.stringify(activeDailyMarksV14Status({ currentDayGrants: '0' })),
+      4,
+      3,
+    )).toEqual(activeDailyMarksV14Status({ currentDayGrants: '0' }));
+    const activeInspectCalls: unknown[][] = [];
+    const activeInspectSpawn = ((...args: unknown[]) => {
+      activeInspectCalls.push(args);
+      return {
+        status: 0,
+        signal: null,
+        stdout: JSON.stringify(activeStatus),
+        stderr: '',
+      };
+    }) as never;
+    expect(verifyFreshActiveDailyMarksV14(
+      's'.repeat(32),
+      activeExpectations,
+      activeInspectSpawn,
+    )).toEqual(activeStatus);
+    expect(verifyPostPublishActiveDailyMarksV14(
+      's'.repeat(32),
+      activeExpectations,
+      activeInspectSpawn,
+    )).toEqual(activeStatus);
+    expect(activeInspectCalls).toHaveLength(2);
+    for (const call of activeInspectCalls) {
+      expect(call[0]).toBe(process.execPath);
+      expect(call[1]).toEqual(dailyMarksV14InspectChildArguments(tsxCli));
+      expect(call[2]).toMatchObject({
+        input: 's'.repeat(32),
+        timeout: 30_000,
+        env: {
+          WARPKEEP_SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
+          WARPKEEP_SPACETIMEDB_DATABASE: CANONICAL_DATABASE_IDENTITY,
+          WARPKEEP_AUTH_BRIDGE_URL: 'https://auth.warpkeep.com',
+          WARPKEEP_ADMIN_TOKEN_SECRET_STDIN: '1',
+        },
+      });
+    }
+    for (const invalid of [
+      { enabledAllowedFids: '2' },
+      { dailyAccounts: '3' },
+      { currentDayGrants: '4' },
+      { grantInvariantViolations: '1' },
+      { grantAccountReconciliationViolations: '1' },
+      { scheduleRows: '0' },
+      { scheduleConfigValid: false },
+      { active: false },
+    ]) {
+      expect(() => verifyActiveDailyMarksV14StatusOutput(
+        JSON.stringify(activeDailyMarksV14Status(invalid)),
+        4,
+        3,
+      )).toThrow(/exact active internally valid state/i);
+    }
+    expect(() => verifyActiveDailyMarksV14StatusOutput(
+      JSON.stringify({ ...activeStatus, fid: '101' }),
+      4,
+      3,
+    )).toThrow(/unexpected fields/i);
+    expect(() => verifyFreshActiveDailyMarksV14(
+      's'.repeat(32),
+      activeExpectations,
+      (() => ({ status: 1, signal: null, stdout: 'private', stderr: 'private' })) as never,
+    )).toThrow(/failed.*no publish was attempted/i);
+    expect(() => verifyPostPublishActiveDailyMarksV14(
+      's'.repeat(32),
+      activeExpectations,
+      (() => ({ status: 1, signal: null, stdout: 'private', stderr: 'private' })) as never,
+    )).toThrow(/active daily-Marks v14 checkpoint is indeterminate/i);
 
     const publicGrantTable = structuredClone(v14);
     publicGrantTable.tables
@@ -2218,6 +2388,31 @@ describe('activation publish safety', () => {
     expect(publisher).toMatch(
       /EXACT_V13_ACTIVE_V14_EMPTY[\s\S]*verifyFreshProductionV13ModuleSchema\([\s\S]*artifactReceipt\.v12TableSchemaDigest,[\s\S]*artifactReceipt\.v13TableSchemaDigest,[\s\S]*await publishModule\(executable, CANONICAL_DATABASE_IDENTITY, artifactReceipt\);[\s\S]*verifyPostPublishProductionV14ModuleSchema\([\s\S]*artifactReceipt\.v12TableSchemaDigest,[\s\S]*artifactReceipt\.v13TableSchemaDigest,[\s\S]*artifactReceipt\.v14TableSchemaDigest,[\s\S]*verifyPostPublishEmptyDailyMarksV14\(adminTokenSecret\)/,
     );
+    const exactV14ActiveLane = publisher.slice(
+      publisher.indexOf('const exactV14Active = workerModulePredecessor'),
+      publisher.indexOf('} else if (exactV14Append)', publisher.indexOf(
+        'const exactV14Active = workerModulePredecessor',
+      )),
+    );
+    expect(exactV14ActiveLane).toContain('WORKER_MODULE_PREDECESSOR.EXACT_V14_ACTIVE');
+    expect(exactV14ActiveLane).toContain('verifyFreshProductionV14ModuleSchema(');
+    expect(exactV14ActiveLane).toContain('artifactReceipt.v12TableSchemaDigest');
+    expect(exactV14ActiveLane).toContain('artifactReceipt.v13TableSchemaDigest');
+    expect(exactV14ActiveLane).toContain('artifactReceipt.v14TableSchemaDigest');
+    expect(exactV14ActiveLane).toContain('verifyFreshActiveDailyMarksV14(');
+    expect(exactV14ActiveLane).toContain(
+      'await publishModule(executable, CANONICAL_DATABASE_IDENTITY, artifactReceipt);',
+    );
+    expect(exactV14ActiveLane).toContain('verifyPostPublishProductionV14ActiveModuleSchema(');
+    expect(exactV14ActiveLane).toContain('verifyPostPublishActiveDailyMarksV14(');
+    expect(exactV14ActiveLane.indexOf('verifyFreshProductionV14ModuleSchema('))
+      .toBeLessThan(exactV14ActiveLane.indexOf('await publishModule('));
+    expect(exactV14ActiveLane.indexOf('verifyFreshActiveDailyMarksV14('))
+      .toBeLessThan(exactV14ActiveLane.indexOf('await publishModule('));
+    expect(exactV14ActiveLane.indexOf('verifyPostPublishProductionV14ActiveModuleSchema('))
+      .toBeGreaterThan(exactV14ActiveLane.indexOf('await publishModule('));
+    expect(exactV14ActiveLane.indexOf('verifyPostPublishActiveDailyMarksV14('))
+      .toBeGreaterThan(exactV14ActiveLane.indexOf('await publishModule('));
     expect(publisher).toContain("'--delete-data=never'");
     const privateWorkerReceipt = publisher.slice(
       publisher.indexOf('const receipt = writePrivateSpacetimePublishSuccessReceipt({'),
@@ -2822,6 +3017,20 @@ describe('activation publish safety', () => {
       '--resource-rollout-stage=ready',
       '--genesis-world-stage=expanded',
       '--worker-rollout-stage=active',
+      '--worker-module-predecessor=exact-v14-active',
+      '--worker-forward-repair=none',
+    ])).toEqual({
+      dryRun: false,
+      resourceRolloutStage: RESOURCE_PUBLISH_ROLLOUT_STAGE.READY,
+      genesisWorldRolloutStage: GENESIS_WORLD_PUBLISH_STAGE.EXPANDED,
+      workerRolloutStage: WORKER_PUBLISH_ROLLOUT_STAGE.ACTIVE,
+      workerModulePredecessor: WORKER_MODULE_PREDECESSOR.EXACT_V14_ACTIVE,
+      workerForwardRepair: WORKER_FORWARD_REPAIR.NONE,
+    });
+    expect(parsePublishArguments([
+      '--resource-rollout-stage=ready',
+      '--genesis-world-stage=expanded',
+      '--worker-rollout-stage=active',
       '--worker-module-predecessor=exact-v12-active',
       '--worker-forward-repair=return-node-reuse-v1',
     ])).toEqual({
@@ -2923,10 +3132,38 @@ describe('activation publish safety', () => {
     expect(() => parsePublishArguments([
       '--resource-rollout-stage=ready',
       '--genesis-world-stage=expanded',
+      '--worker-rollout-stage=empty',
+      '--worker-module-predecessor=exact-v14-active',
+      '--worker-forward-repair=none',
+    ])).toThrow(/exact active-v14 module predecessor/i);
+    expect(() => parsePublishArguments([
+      '--resource-rollout-stage=ready',
+      '--genesis-world-stage=expanded',
       '--worker-rollout-stage=active',
       '--worker-module-predecessor=exact-v13-active-v14-empty',
       '--worker-forward-repair=return-node-reuse-v1',
     ])).toThrow(/schema-only.*worker-forward-repair=none/i);
+    expect(() => parsePublishArguments([
+      '--resource-rollout-stage=prebackfill',
+      '--genesis-world-stage=expanded',
+      '--worker-rollout-stage=active',
+      '--worker-module-predecessor=exact-v14-active',
+      '--worker-forward-repair=none',
+    ])).toThrow(/active-v14.*resource ready.*Genesis expanded.*Worker active.*worker-forward-repair=none/i);
+    expect(() => parsePublishArguments([
+      '--resource-rollout-stage=ready',
+      '--genesis-world-stage=pre-expansion',
+      '--worker-rollout-stage=active',
+      '--worker-module-predecessor=exact-v14-active',
+      '--worker-forward-repair=none',
+    ])).toThrow(/active-v14.*resource ready.*Genesis expanded.*Worker active.*worker-forward-repair=none/i);
+    expect(() => parsePublishArguments([
+      '--resource-rollout-stage=ready',
+      '--genesis-world-stage=expanded',
+      '--worker-rollout-stage=active',
+      '--worker-module-predecessor=exact-v14-active',
+      '--worker-forward-repair=return-node-reuse-v1',
+    ])).toThrow(/active-v14.*resource ready.*Genesis expanded.*Worker active.*worker-forward-repair=none/i);
     expect(() => parsePublishArguments([
       '--resource-rollout-stage=ready',
       '--genesis-world-stage=expanded',
