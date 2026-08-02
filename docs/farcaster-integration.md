@@ -186,12 +186,20 @@ generic `401 quick_auth_invalid`. A verifier/JWKS/network outage returns
 retryable `503 verification_unavailable`; neither response includes token,
 claim, FID, or upstream detail.
 
-Only a definitive bridge `401` may cause automatic bearer recovery. Warpkeep
-asks the SDK for one documented forced-fresh token and exchanges it once. A
-second rejection, or any `403`, `429`, `503`, timeout, network, CORS, or response
-failure stops and waits for a deliberate player retry. Every acquisition and
-exchange remains generation-bound so a stale completion cannot authorize a
-remounted host or changed account. Static preconnects cover both Farcaster's
+Only a definitive bridge `401` may cause an automatic bearer retry within one
+exchange attempt. Warpkeep asks the SDK for one documented forced-fresh token
+and exchanges it once. A second rejection, or any `403`, `429`, `503`, timeout,
+network, CORS, or response failure stops and waits for a deliberate player
+retry.
+
+Foreground return is a separate account-continuity boundary. An authorized or
+pending Mini App freezes private authority, acquires one forced-fresh host token,
+and exchanges it before restoring the session. Focus, pageshow, and visibility
+bursts coalesce. If an ordinary cached-token refresh is already running, its
+provider generation is aborted and the forced acquisition is serialized behind
+any SDK call the browser cannot cancel. Every acquisition and exchange remains
+generation-bound so a stale completion cannot authorize a remounted host or the
+previous Farcaster account. Static preconnects cover both Farcaster's
 authentication origin and Warpkeep's bridge origin.
 
 Failed Mini App entry offers a local, user-triggered diagnostic report. Its

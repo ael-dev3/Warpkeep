@@ -83,7 +83,9 @@ function miniAppRuntime(): MiniAppBrowserRuntime {
 }
 
 function miniAppSdk(
-  getToken: () => Promise<unknown> = vi.fn(async () => ({ token: QUICK_AUTH_TOKEN })),
+  getToken: (
+    options?: { force?: boolean }
+  ) => Promise<unknown> = vi.fn(async () => ({ token: QUICK_AUTH_TOKEN })),
   contextFid = FID
 ): MiniAppSdk {
   return {
@@ -255,11 +257,16 @@ describe('Farcaster Mini App Quick Auth lifecycle', () => {
   });
 
   it('coalesces every foreground signal and replaces switched host authority', async () => {
-    const getToken = vi.fn(async () => ({ token: QUICK_AUTH_TOKEN }));
+    const switchedToken = `${'d'.repeat(16)}.${'e'.repeat(24)}.${'f'.repeat(32)}`;
+    const getToken = vi.fn(async (options?: { force?: boolean }) => ({
+      token: options?.force === true ? switchedToken : QUICK_AUTH_TOKEN
+    }));
     const switched = deferred<FarcasterQuickAuthSessionResponse>();
-    const exchangeQuickAuth = vi.fn()
-      .mockResolvedValueOnce(authorized(FID))
-      .mockImplementationOnce(() => switched.promise);
+    const exchangeQuickAuth = vi.fn(async (token: string) => {
+      if (token === QUICK_AUTH_TOKEN) return authorized(FID);
+      if (token === switchedToken) return switched.promise;
+      throw new Error('unexpected Quick Auth token');
+    });
     const authBridge = bridge(exchangeQuickAuth);
 
     renderMiniApp(miniAppSdk(getToken), authBridge);
@@ -271,6 +278,13 @@ describe('Farcaster Mini App Quick Auth lifecycle', () => {
     fireEvent(document, new Event('visibilitychange'));
     await waitFor(() => expect(exchangeQuickAuth).toHaveBeenCalledTimes(2));
     expect(getToken).toHaveBeenCalledTimes(2);
+    expect(getToken).toHaveBeenNthCalledWith(1, undefined);
+    expect(getToken).toHaveBeenNthCalledWith(2, { force: true });
+    expect(exchangeQuickAuth).toHaveBeenNthCalledWith(
+      2,
+      switchedToken,
+      { signal: expect.any(AbortSignal) }
+    );
     await waitFor(() => expect(screen.getByTestId('token').textContent).toBe('false'));
 
     switched.resolve(authorized(FID + 1));
@@ -356,11 +370,20 @@ describe('Farcaster Mini App Quick Auth lifecycle', () => {
   it('reacquires an expired pending presentation through one coalesced Quick Auth flight', async () => {
     const start = Date.UTC(2026, 7, 1, 12, 0, 0);
     vi.useFakeTimers({ now: start });
-    const getToken = vi.fn(async () => ({ token: QUICK_AUTH_TOKEN }));
+    const freshToken = `${'d'.repeat(16)}.${'e'.repeat(24)}.${'f'.repeat(32)}`;
+    const getToken = vi.fn(async (options?: { force?: boolean }) => ({
+      token: options?.force === true ? freshToken : QUICK_AUTH_TOKEN
+    }));
     const renewal = deferred<FarcasterQuickAuthSessionResponse>();
+    const foregroundRenewal = deferred<FarcasterQuickAuthSessionResponse>();
+    let renewalSignal: AbortSignal | undefined;
     const exchangeQuickAuth = vi.fn()
       .mockResolvedValueOnce(pendingAdmission())
-      .mockImplementationOnce(() => renewal.promise);
+      .mockImplementationOnce((_token, options) => {
+        renewalSignal = options?.signal;
+        return renewal.promise;
+      })
+      .mockImplementationOnce(() => foregroundRenewal.promise);
     const authBridge = bridge(exchangeQuickAuth);
 
     renderMiniApp(miniAppSdk(getToken), authBridge);
@@ -377,12 +400,28 @@ describe('Farcaster Mini App Quick Auth lifecycle', () => {
     fireEvent(window, new Event('focus'));
     fireEvent(window, new Event('pageshow'));
     await act(async () => { await Promise.resolve(); });
-    expect(exchangeQuickAuth).toHaveBeenCalledTimes(2);
+    expect(exchangeQuickAuth).toHaveBeenCalledTimes(3);
+    expect(renewalSignal?.aborted).toBe(true);
+    expect(
+      getToken.mock.calls.filter(([options]) => options?.force === true)
+    ).toHaveLength(1);
+    expect(exchangeQuickAuth).toHaveBeenNthCalledWith(
+      3,
+      freshToken,
+      { signal: expect.any(AbortSignal) }
+    );
 
-    renewal.resolve(pendingAdmission());
+    foregroundRenewal.resolve(pendingAdmission());
     await act(async () => { await Promise.resolve(); });
     expect(state().phase).toBe('pending-admission');
     expect(screen.getByTestId('token').textContent).toBe('false');
+
+    renewal.resolve(pendingAdmission(FID + 1));
+    await act(async () => { await Promise.resolve(); });
+    expect(state()).toMatchObject({
+      phase: 'pending-admission',
+      identity: { fid: FID }
+    });
   });
 
   it('fails a visible launch cleanly when the host cannot issue a valid bearer', async () => {
@@ -434,6 +473,39 @@ describe('Farcaster Mini App Quick Auth lifecycle', () => {
     const secondHeaders = new Headers(fetch.mock.calls[1]?.[1]?.headers);
     expect(firstHeaders.get('authorization')).toBe(`Bearer ${QUICK_AUTH_TOKEN}`);
     expect(secondHeaders.get('authorization')).toBe(`Bearer ${freshToken}`);
+  });
+
+  it('does not force twice when a foreground-fresh bearer is rejected', async () => {
+    const freshToken = `${'d'.repeat(16)}.${'e'.repeat(24)}.${'f'.repeat(32)}`;
+    const getToken = vi.fn(async (options?: { force?: boolean }) => ({
+      token: options?.force === true ? freshToken : QUICK_AUTH_TOKEN
+    }));
+    const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
+      status,
+      headers: { 'content-type': 'application/json' }
+    });
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(json(authorized()))
+      .mockResolvedValueOnce(json({ error: { code: 'quick_auth_invalid' } }, 401));
+    const authBridge = createFarcasterOidcBridgeClient({
+      bridgeUrl: ISSUER,
+      issuer: ISSUER,
+      audience: AUDIENCE,
+      fetch
+    });
+
+    renderMiniApp(miniAppSdk(getToken), authBridge);
+    await waitFor(() => expect(state().phase).toBe('authenticated'));
+
+    fireEvent(window, new Event('focus'));
+    await waitFor(() => expect(state().phase).toBe('anonymous'));
+
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(getToken).toHaveBeenCalledTimes(2);
+    expect(
+      getToken.mock.calls.filter(([options]) => options?.force === true)
+    ).toHaveLength(1);
+    expect(screen.getByTestId('token').textContent).toBe('false');
   });
 
   it('does not acquire a forced bearer after the auth generation is cancelled', async () => {

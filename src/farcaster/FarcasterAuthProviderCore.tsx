@@ -1208,6 +1208,7 @@ export function FarcasterAuthProviderCore({
     controller: AbortController;
     promise: Promise<boolean>;
     clearOnFailure: boolean;
+    forceInitial: boolean;
   } | undefined>(undefined);
   machineRef.current = machine;
   rememberDeviceRef.current = rememberDevice;
@@ -1457,7 +1458,8 @@ export function FarcasterAuthProviderCore({
 
   const activateQuickAuth = useCallback((
     clearOnFailure = false,
-    showProgress = false
+    showProgress = false,
+    forceInitial = false
   ) => {
     if (!loadQuickAuthToken || logoutIntentBlocksRefreshRef.current) {
       return Promise.resolve(false);
@@ -1465,7 +1467,15 @@ export function FarcasterAuthProviderCore({
     const existing = quickAuthFlightRef.current;
     if (existing) {
       if (clearOnFailure) existing.clearOnFailure = true;
-      return existing.promise;
+      if (!forceInitial || existing.forceInitial) {
+        return existing.promise;
+      }
+      // A foreground/account-sensitive reconciliation cannot inherit an
+      // ordinary cached-token refresh. Abort that provider generation and let
+      // the host adapter serialize one forced acquisition behind any SDK call
+      // it cannot cancel.
+      existing.controller.abort();
+      quickAuthFlightRef.current = undefined;
     }
 
     const lifecycleGeneration = lifecycleGenerationRef.current;
@@ -1552,12 +1562,17 @@ export function FarcasterAuthProviderCore({
         };
 
         try {
-          const response = await exchangeOnce(false);
+          const response = await exchangeOnce(forceInitial);
           return response ? { client, response } : undefined;
         } catch (error) {
           // A definitive rejection may describe an SDK-cached bearer. Acquire
-          // and exchange one forced-fresh token; every other failure stops.
-          if (classifyBridgeFailure(error) !== 'invalid-credential') {
+          // and exchange one forced-fresh token only when this attempt began
+          // from the cache. An account-sensitive attempt that already forced
+          // acquisition stops after its first rejection.
+          if (
+            forceInitial
+            || classifyBridgeFailure(error) !== 'invalid-credential'
+          ) {
             throw error;
           }
           const response = await exchangeOnce(true);
@@ -1682,7 +1697,7 @@ export function FarcasterAuthProviderCore({
           quickAuthFlightRef.current = undefined;
         }
       });
-    flight = { controller, promise, clearOnFailure };
+    flight = { controller, promise, clearOnFailure, forceInitial };
     quickAuthFlightRef.current = flight;
     return promise;
   }, [
@@ -1699,9 +1714,10 @@ export function FarcasterAuthProviderCore({
 
   const refreshAuthoritySession = useCallback((
     clearOnFailure = false,
-    showProgress = false
+    showProgress = false,
+    forceQuickAuth = false
   ) => loadQuickAuthToken
-    ? activateQuickAuth(clearOnFailure, showProgress)
+    ? activateQuickAuth(clearOnFailure, showProgress, forceQuickAuth)
     : refreshSession(clearOnFailure), [
     activateQuickAuth,
     loadQuickAuthToken,
@@ -1839,7 +1855,7 @@ export function FarcasterAuthProviderCore({
     loadQuickAuthToken,
     onAuthenticationIdentityChanged: () => {
       clearInMemoryAuthoritativeSession();
-      void refreshAuthoritySession(true);
+      void refreshAuthoritySession(true, false, Boolean(loadQuickAuthToken));
     }
   });
 
@@ -1904,7 +1920,11 @@ export function FarcasterAuthProviderCore({
           // bearer; the retained Realm projection remains public/read-only.
           clearInMemoryAuthoritativeSession();
         }
-        void refreshAuthoritySession(Boolean(loadQuickAuthToken));
+        void refreshAuthoritySession(
+          Boolean(loadQuickAuthToken),
+          false,
+          Boolean(loadQuickAuthToken)
+        );
       }
     };
     window.addEventListener('focus', reconcile);
