@@ -378,7 +378,10 @@ The Mini App is published through one reviewed static file at
 chains, or host capabilities. The eight referenced PNGs have fixed dimensions,
 opacity, byte ceilings, provenance, and repository digests; three portrait
 screenshots use local synthetic fixtures and contain no real player or
-production state.
+production state. The current promotional feed embed is separately identified
+as authored artwork and contains only its deliberately visible public
+Farcaster-handle labels—never an FID, authentication material, or private Realm
+record.
 
 Only the reviewed owner FID `539854` may generate the public
 `accountAssociation` with

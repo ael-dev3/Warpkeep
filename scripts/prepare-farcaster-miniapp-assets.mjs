@@ -5,6 +5,7 @@ import { basename, resolve } from 'node:path';
 import sharp from 'sharp';
 
 import {
+  FARCASTER_MINI_APP_EMBED_FILE,
   FARCASTER_MINI_APP_EMBED_SOURCE,
   FARCASTER_MINI_APP_ICON_SOURCE,
   FARCASTER_MINI_APP_SPLASH_FILE,
@@ -242,7 +243,9 @@ async function readEmbedSource() {
     || metadata.height !== FARCASTER_MINI_APP_EMBED_SOURCE.height
     || metadata.hasAlpha
   ) {
-    throw new Error('Mini App embed source must be the reviewed 1402x1122 opaque PNG.');
+    throw new Error(
+      `Mini App embed source must be the reviewed ${FARCASTER_MINI_APP_EMBED_SOURCE.width}x${FARCASTER_MINI_APP_EMBED_SOURCE.height} opaque PNG.`,
+    );
   }
   return source;
 }
@@ -319,7 +322,7 @@ async function main() {
       destinationDirectory: publicDirectory,
     },
   ];
-  const embedOutput = 'warpkeep-embed-1200x800.png';
+  const embedOutput = FARCASTER_MINI_APP_EMBED_FILE;
   const outputFiles = [
     ...generatedOutputs.map(([file]) => ({
       file,

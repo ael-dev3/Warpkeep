@@ -14,12 +14,15 @@ export const FARCASTER_MINI_APP_MANIFEST_URL =
 
 export const FARCASTER_MINI_APP_EMBED_SOURCE = Object.freeze({
   path:
-    'docs/reference/miniapp/2026-07-31-hegemony-realm-embed/warpkeep-hegemony-realm-embed-source.png',
-  width: 1402,
-  height: 1122,
-  bytes: 2_008_823,
-  sha256: '26378fdcdb9dfccfdbcf5f25f9a70df1238ac494ab7ed89762ab06b6e2c46771',
+    'docs/reference/miniapp/2026-08-02-genesis-001-founder-realm-embed/warpkeep-genesis-001-founder-realm-embed-source.png',
+  width: 1536,
+  height: 1024,
+  bytes: 3_504_459,
+  sha256: '1cef5f67aa17a4fa812518c8c376a5f57a1c4c6509c0788e332ab97568a4a783',
 });
+
+export const FARCASTER_MINI_APP_EMBED_FILE =
+  'warpkeep-embed-1200x800-a07da89d7df56da9.png';
 
 export const FARCASTER_MINI_APP_ICON_SOURCE = Object.freeze({
   path:
@@ -32,7 +35,7 @@ export const FARCASTER_MINI_APP_ICON_SOURCE = Object.freeze({
 
 export const FARCASTER_MINI_APP_EMBED = Object.freeze({
   version: '1',
-  imageUrl: `${FARCASTER_MINI_APP_ASSET_ROOT}/warpkeep-embed-1200x800.png`,
+  imageUrl: `${FARCASTER_MINI_APP_ASSET_ROOT}/${FARCASTER_MINI_APP_EMBED_FILE}`,
   button: Object.freeze({
     title: 'Enter the Realm',
     action: Object.freeze({
@@ -118,8 +121,8 @@ export const FARCASTER_MINI_APP_CORE_IMAGES = Object.freeze([
   }),
   imageSpecification('warpkeep-hero-1200x630.png', 1200, 630),
   imageSpecification('warpkeep-og-1200x630.png', 1200, 630),
-  imageSpecification('warpkeep-embed-1200x800.png', 1200, 800, {
-    sha256: '53071821f4a2cd1bd6d71cd53f02e78331582a9fef88c9931833b459e25d5596',
+  imageSpecification(FARCASTER_MINI_APP_EMBED_FILE, 1200, 800, {
+    sha256: 'a07da89d7df56da96ce220043f5355b0bbe383cd9d8ff80e9547736b44fd560e',
   }),
 ]);
 
