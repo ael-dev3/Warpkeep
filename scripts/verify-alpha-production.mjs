@@ -8,6 +8,7 @@ import {
   WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM,
 } from './entry-agreement-policy.mjs';
 import {
+  FARCASTER_FRAME_EMBED,
   FARCASTER_MINI_APP_CONFIG,
   FARCASTER_MINI_APP_EMBED,
   FARCASTER_MINI_APP_IMAGES,
@@ -838,11 +839,9 @@ export async function verifyLiveFarcasterMiniApp(
     fail('Mini App verification requires the exact canonical frontend origin.');
   }
   const miniAppTags = exactNamedMetaTags(html, 'fc:miniapp');
-  if (
-    miniAppTags.length !== 1
-    || exactNamedMetaTags(html, 'fc:frame').length !== 0
-  ) {
-    fail('live HTML must contain one fc:miniapp meta and no fc:frame meta.');
+  const frameTags = exactNamedMetaTags(html, 'fc:frame');
+  if (miniAppTags.length !== 1 || frameTags.length !== 1) {
+    fail('live HTML must contain one fc:miniapp and one fc:frame meta.');
   }
   let embed;
   try {
@@ -852,6 +851,18 @@ export async function verifyLiveFarcasterMiniApp(
   }
   if (!exactJsonValue(embed, FARCASTER_MINI_APP_EMBED)) {
     fail('live fc:miniapp metadata drifted from the reviewed release contract.');
+  }
+  let frameEmbed;
+  try {
+    frameEmbed = JSON.parse(frameTags[0].get('content') ?? '');
+  } catch {
+    fail('live fc:frame metadata is not valid JSON.');
+  }
+  if (!exactJsonValue(frameEmbed, FARCASTER_FRAME_EMBED)) {
+    fail('live fc:frame metadata drifted from the reviewed compatibility contract.');
+  }
+  if (frameEmbed.imageUrl !== embed.imageUrl) {
+    fail('live fc:miniapp and fc:frame metadata do not share one feed image.');
   }
   const faviconTags = exactLinkTags(html, 'icon');
   if (
