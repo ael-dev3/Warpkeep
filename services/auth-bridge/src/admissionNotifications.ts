@@ -650,7 +650,6 @@ function deliveryResult(value: unknown, requestedToken: string): DeliveryResult 
   if (!exactKeys(
     result,
     ['successfulTokens', 'invalidTokens', 'rateLimitedTokens'],
-    ['failedTokens'],
   )) return null
   if (
     !tokenArray(result.successfulTokens, requestedToken)
@@ -660,31 +659,10 @@ function deliveryResult(value: unknown, requestedToken: string): DeliveryResult 
   const successful = (result.successfulTokens as unknown[]).length
   const invalid = (result.invalidTokens as unknown[]).length
   const rateLimited = (result.rateLimitedTokens as unknown[]).length
-  let failed: 'invalid' | 'retryable' | null = null
-  if (result.failedTokens !== undefined) {
-    if (!Array.isArray(result.failedTokens) || result.failedTokens.length > 1) return null
-    if (result.failedTokens.length === 1) {
-      const entry = result.failedTokens[0]
-      if (
-        !isRecord(entry)
-        || !exactKeys(entry, ['token', 'reason'], ['fid'])
-        || entry.token !== requestedToken
-        || (
-          entry.reason !== 'domain_mismatch'
-          && entry.reason !== 'target_url_mismatch'
-          && entry.reason !== 'no_webhook_url'
-          && entry.reason !== 'invalid_token'
-          && entry.reason !== 'unknown'
-        )
-        || (entry.fid !== undefined && !isAppFid(entry.fid))
-      ) return null
-      failed = entry.reason === 'unknown' ? 'retryable' : 'invalid'
-    }
-  }
-  const categories = successful + invalid + rateLimited + (failed ? 1 : 0)
+  const categories = successful + invalid + rateLimited
   if (categories !== 1) return null
   if (successful === 1) return 'successful'
-  if (invalid === 1 || failed === 'invalid') return 'invalid'
+  if (invalid === 1) return 'invalid'
   return 'retryable'
 }
 
