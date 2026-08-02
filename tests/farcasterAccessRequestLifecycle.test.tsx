@@ -556,6 +556,111 @@ describe('professional access-request lifecycle', () => {
     unsubscribe();
   });
 
+  it('keeps submission retryable when a definitive 401 precedes forced acquisition failure', async () => {
+    const json = (body: unknown, status = 200) => new Response(
+      JSON.stringify(body),
+      {
+        status,
+        headers: { 'content-type': 'application/json' }
+      }
+    );
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(json({ version: 1, status: 'not-requested' }))
+      .mockResolvedValueOnce(json({}, 401))
+      .mockResolvedValueOnce(json({
+        version: 1,
+        status: 'requested',
+        requestedAt: REQUESTED_AT
+      }));
+    const client = createFarcasterOidcBridgeClient({
+      bridgeUrl: 'https://auth.warpkeep.example',
+      issuer: 'https://auth.warpkeep.example',
+      audience: 'warpkeep-spacetimedb',
+      fetch
+    });
+    const loadQuickAuthToken = vi.fn()
+      .mockResolvedValueOnce(quickToken('initial.status.credential'))
+      .mockResolvedValueOnce(quickToken('stale.request.credential'))
+      .mockResolvedValueOnce(quickRejected)
+      .mockResolvedValueOnce(quickToken('retry.request.credential'));
+    render(
+      <Harness
+        authState={pending(12_345)}
+        client={client}
+        generation={1}
+        loadQuickAuthToken={loadQuickAuthToken}
+        minimumSubmittingMilliseconds={0}
+      />
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'REQUEST ACCESS' }));
+    await waitFor(() => expect(screen.getByText('REQUEST NOT SENT')).not.toBeNull());
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch.mock.calls.filter(([input]) => (
+      new URL(String(input)).pathname === '/v2/access/request'
+    ))).toHaveLength(1);
+    expect(loadQuickAuthToken).toHaveBeenCalledTimes(3);
+    expect(loadQuickAuthToken).toHaveBeenNthCalledWith(3, { force: true });
+
+    fireEvent.click(screen.getByRole('button', { name: 'TRY AGAIN' }));
+    await waitFor(() => expect(screen.getByTestId('access-phase').textContent)
+      .toBe('request-received'));
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(loadQuickAuthToken).toHaveBeenCalledTimes(4);
+  });
+
+  it('keeps submission retryable after two definitive credential rejections', async () => {
+    const json = (body: unknown, status = 200) => new Response(
+      JSON.stringify(body),
+      {
+        status,
+        headers: { 'content-type': 'application/json' }
+      }
+    );
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(json({ version: 1, status: 'not-requested' }))
+      .mockResolvedValueOnce(json({}, 401))
+      .mockResolvedValueOnce(json({}, 401))
+      .mockResolvedValueOnce(json({
+        version: 1,
+        status: 'requested',
+        requestedAt: REQUESTED_AT
+      }));
+    const client = createFarcasterOidcBridgeClient({
+      bridgeUrl: 'https://auth.warpkeep.example',
+      issuer: 'https://auth.warpkeep.example',
+      audience: 'warpkeep-spacetimedb',
+      fetch
+    });
+    const loadQuickAuthToken = vi.fn()
+      .mockResolvedValueOnce(quickToken('initial.status.credential'))
+      .mockResolvedValueOnce(quickToken('stale.request.credential'))
+      .mockResolvedValueOnce(quickToken('forced.request.credential'))
+      .mockResolvedValueOnce(quickToken('retry.request.credential'));
+    render(
+      <Harness
+        authState={pending(12_345)}
+        client={client}
+        generation={1}
+        loadQuickAuthToken={loadQuickAuthToken}
+        minimumSubmittingMilliseconds={0}
+      />
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'REQUEST ACCESS' }));
+    await waitFor(() => expect(screen.getByText('REQUEST NOT SENT')).not.toBeNull());
+    expect(fetch.mock.calls.filter(([input]) => (
+      new URL(String(input)).pathname === '/v2/access/request'
+    ))).toHaveLength(2);
+    expect(loadQuickAuthToken).toHaveBeenNthCalledWith(3, { force: true });
+
+    fireEvent.click(screen.getByRole('button', { name: 'TRY AGAIN' }));
+    await waitFor(() => expect(screen.getByTestId('access-phase').textContent)
+      .toBe('request-received'));
+    expect(fetch).toHaveBeenCalledTimes(4);
+    expect(loadQuickAuthToken).toHaveBeenCalledTimes(4);
+  });
+
   it('permits retry after the bridge proves rate limiting happened before mutation', async () => {
     const json = (body: unknown, status = 200) => new Response(
       JSON.stringify(body),

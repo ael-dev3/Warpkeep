@@ -126,7 +126,8 @@ async function withAccessAuthentication<T>(
     options?: FarcasterQuickAuthTokenOptions
   ) => Promise<FarcasterQuickAuthTokenResult>) | undefined,
   shouldContinue: () => boolean,
-  operation: (authentication: AccessRequestAuthentication) => Promise<T>
+  operation: (authentication: AccessRequestAuthentication) => Promise<T>,
+  onInvalidCredentialBeforeRetry?: () => void
 ): Promise<T> {
   if (!shouldContinue()) throw new Error('ACCESS_AUTH_CANCELLED');
   if (!loadQuickAuthToken) {
@@ -160,7 +161,18 @@ async function withAccessAuthentication<T>(
     if (farcasterOidcBridgeFailureKind(error) !== 'invalid-credential') {
       throw error;
     }
-    return run(true);
+    // The bridge rejected the credential before invoking its mutation. Reset
+    // mutation provenance before forced acquisition so a failure to acquire
+    // the replacement token remains definitively retryable.
+    onInvalidCredentialBeforeRetry?.();
+    try {
+      return await run(true);
+    } catch (forcedError) {
+      if (farcasterOidcBridgeFailureKind(forcedError) === 'invalid-credential') {
+        onInvalidCredentialBeforeRetry?.();
+      }
+      throw forcedError;
+    }
   }
 }
 
@@ -518,7 +530,7 @@ export function useAccessRequest({
 
     void (async () => {
       let client: FarcasterOidcBridgeClient | undefined;
-      let mutationInvoked = false;
+      let mutationMayHaveReachedAuthority = false;
       try {
         client = await loadBridgeClientRef.current();
         if (!isCurrentOperation(operation)) return;
@@ -526,11 +538,14 @@ export function useAccessRequest({
           loadQuickAuthTokenRef.current,
           () => isCurrentOperation(operation),
           authentication => {
-            mutationInvoked = true;
+            mutationMayHaveReachedAuthority = true;
             return client!.requestAccess(authentication, {
               expectedFid,
               signal: operation.controller.signal
             });
+          },
+          () => {
+            mutationMayHaveReachedAuthority = false;
           }
         );
         if (!isCurrentOperation(operation)) return;
@@ -569,7 +584,7 @@ export function useAccessRequest({
           return;
         }
         if (
-          !mutationInvoked
+          !mutationMayHaveReachedAuthority
           || noMutationReason === 'rate-limited'
         ) {
           if (!await waitForMinimumPresentation(
