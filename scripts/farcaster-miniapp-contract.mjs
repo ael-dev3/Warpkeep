@@ -25,6 +25,8 @@ export const FARCASTER_MINI_APP_EMBED_SOURCE = Object.freeze({
 
 export const FARCASTER_MINI_APP_EMBED_FILE =
   'warpkeep-embed-1200x800-a07da89d7df56da9.png';
+export const FARCASTER_MINI_APP_REALM_CARD_FILE =
+  'warpkeep-realm-card-1200x630-d800619debbded6f.png';
 
 export const FARCASTER_MINI_APP_ICON_SOURCE = Object.freeze({
   path:
@@ -78,13 +80,13 @@ export const FARCASTER_MINI_APP_CONFIG = Object.freeze({
     'game',
   ]),
   heroImageUrl:
-    `${FARCASTER_MINI_APP_ASSET_ROOT}/warpkeep-hero-1200x630.png`,
+    `${FARCASTER_MINI_APP_ASSET_ROOT}/${FARCASTER_MINI_APP_REALM_CARD_FILE}`,
   tagline: 'Every FID has a castle',
   ogTitle: 'Warpkeep',
   ogDescription:
     'A persistent Farcaster strategy realm where every admitted founder has a castle',
   ogImageUrl:
-    `${FARCASTER_MINI_APP_ASSET_ROOT}/warpkeep-og-1200x630.png`,
+    `${FARCASTER_MINI_APP_ASSET_ROOT}/${FARCASTER_MINI_APP_REALM_CARD_FILE}`,
   noindex: false,
   canonicalDomain: FARCASTER_MINI_APP_DOMAIN,
 });
@@ -122,8 +124,9 @@ export const FARCASTER_MINI_APP_CORE_IMAGES = Object.freeze([
     maximumBytes: 1_000_000,
     sha256: '117256827545daa14673847c3f20ead2aaebe6ca6c66691eda416336da599a6b',
   }),
-  imageSpecification('warpkeep-hero-1200x630.png', 1200, 630),
-  imageSpecification('warpkeep-og-1200x630.png', 1200, 630),
+  imageSpecification(FARCASTER_MINI_APP_REALM_CARD_FILE, 1200, 630, {
+    sha256: 'd800619debbded6fff22b011160e9eecbeb02da1781ed8e4aecd6138de2f5de7',
+  }),
   imageSpecification(FARCASTER_MINI_APP_EMBED_FILE, 1200, 800, {
     sha256: 'a07da89d7df56da96ce220043f5355b0bbe383cd9d8ff80e9547736b44fd560e',
   }),

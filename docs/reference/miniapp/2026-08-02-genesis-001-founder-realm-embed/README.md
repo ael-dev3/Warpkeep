@@ -15,9 +15,18 @@ runtime derivative is 2,163,184 bytes with SHA-256
 Its content-addressed filename prevents stale Mini App and social-preview
 caches from presenting the superseded image.
 
+The same reviewed source now supplies the Mini App directory hero and Open
+Graph card. The deterministic preparation first resizes the 3:2 source to
+1200×800, then extracts the 1200×630 region beginning 30 pixels below the top.
+That framing retains all seven authored player labels while filling the
+required wide card. The opaque derivative is 1,727,085 bytes with SHA-256
+`d800619debbded6fff22b011160e9eecbeb02da1781ed8e4aecd6138de2f5de7`.
+Its content-addressed filename is
+`warpkeep-realm-card-1200x630-d800619debbded6f.png`.
+
 This is promotional artwork rather than an exact gameplay screenshot. It
 contains seven deliberately visible public Farcaster handles as authored
 labels. It contains no FID, profile image, QR payload, authentication proof,
-token, credential, private log, or private Realm record. The source and
-derivative remain `LicenseRef-Warpkeep-Provenance-Required`; see
+token, credential, private log, or private Realm record. The source and both
+derivatives remain `LicenseRef-Warpkeep-Provenance-Required`; see
 [`../../../../ASSETS-LICENSE.md`](../../../../ASSETS-LICENSE.md).

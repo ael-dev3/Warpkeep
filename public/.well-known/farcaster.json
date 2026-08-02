@@ -27,11 +27,11 @@
       "farcaster",
       "game"
     ],
-    "heroImageUrl": "https://warpkeep.com/images/miniapp/warpkeep-hero-1200x630.png",
+    "heroImageUrl": "https://warpkeep.com/images/miniapp/warpkeep-realm-card-1200x630-d800619debbded6f.png",
     "tagline": "Every FID has a castle",
     "ogTitle": "Warpkeep",
     "ogDescription": "A persistent Farcaster strategy realm where every admitted founder has a castle",
-    "ogImageUrl": "https://warpkeep.com/images/miniapp/warpkeep-og-1200x630.png",
+    "ogImageUrl": "https://warpkeep.com/images/miniapp/warpkeep-realm-card-1200x630-d800619debbded6f.png",
     "noindex": false,
     "canonicalDomain": "warpkeep.com"
   }
