@@ -56,6 +56,8 @@ import {
   MiniAppWebhookInvalidError,
   MiniAppWebhookVerifierUnavailableError,
   createMiniAppWebhookVerifier,
+  miniAppWebhookVerifierFailureStage,
+  type MiniAppWebhookVerifierFailureStage,
 } from './miniAppWebhook'
 import {
   ACCESS_REQUEST_RESOLVER_TIMEOUT_MILLISECONDS,
@@ -166,6 +168,22 @@ const AUTH_EPOCH_FAILURE_EVENTS: Readonly<Record<AuthEpochResolverFailureStage, 
   timeout: 'auth_epoch_failed_timeout',
   upstream_status: 'auth_epoch_failed_upstream_status',
   response_validation: 'auth_epoch_failed_response_validation',
+})
+
+const MINI_APP_WEBHOOK_VERIFIER_FAILURE_EVENTS:
+Readonly<Record<MiniAppWebhookVerifierFailureStage, SafeLogEvent>> = Object.freeze({
+  configuration: 'miniapp_webhook_verifier_unavailable_configuration',
+  hub_primary_fetch: 'miniapp_webhook_verifier_unavailable_hub_primary_fetch',
+  hub_primary_response: 'miniapp_webhook_verifier_unavailable_hub_primary_response',
+  hub_primary_attestation: 'miniapp_webhook_verifier_unavailable_hub_primary_attestation',
+  hub_secondary_fetch: 'miniapp_webhook_verifier_unavailable_hub_secondary_fetch',
+  hub_secondary_response: 'miniapp_webhook_verifier_unavailable_hub_secondary_response',
+  hub_secondary_attestation: 'miniapp_webhook_verifier_unavailable_hub_secondary_attestation',
+  hub_attestation_conflict: 'miniapp_webhook_verifier_unavailable_hub_attestation_conflict',
+  rpc_primary_transport: 'miniapp_webhook_verifier_unavailable_rpc_primary_transport',
+  rpc_secondary_transport: 'miniapp_webhook_verifier_unavailable_rpc_secondary_transport',
+  rpc_disagreement: 'miniapp_webhook_verifier_unavailable_rpc_disagreement',
+  unexpected: 'miniapp_webhook_verifier_unavailable_unexpected',
 })
 
 const FORBIDDEN_REQUEST_KEYS = new Set([
@@ -400,6 +418,12 @@ function logAccessRequestFailure(logger: SafeLogger, error: unknown): void {
 function logQaSnapshotFailure(logger: SafeLogger, error: unknown): void {
   const stage = qaSnapshotResolverFailureStage(error)
   if (stage) logger.event(QA_SNAPSHOT_FAILURE_EVENTS[stage])
+}
+
+function logMiniAppWebhookVerifierFailure(logger: SafeLogger, error: unknown): void {
+  logger.event('miniapp_webhook_verifier_unavailable')
+  const stage = miniAppWebhookVerifierFailureStage(error)
+  if (stage) logger.event(MINI_APP_WEBHOOK_VERIFIER_FAILURE_EVENTS[stage])
 }
 
 function allowedPreflight(request: Request, config: BridgeConfig): Response {
@@ -1565,7 +1589,7 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             ).verify(body)
           } catch (error) {
             if (error instanceof MiniAppWebhookVerifierUnavailableError) {
-              logger.event('miniapp_webhook_verifier_unavailable')
+              logMiniAppWebhookVerifierFailure(logger, error)
               throw new HttpError(
                 503,
                 'miniapp_webhook_verification_unavailable',

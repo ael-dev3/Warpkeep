@@ -57,6 +57,13 @@ type VerifyAppKey = (
   appKey: string,
 ) => Promise<VerifyAppKeyResult>
 
+type VerifyOnChainAppKeyAtRpc = (
+  rpcUrl: string,
+  fid: number,
+  appKey: Hex,
+  attestation: HubAppKeyAttestation,
+) => Promise<boolean>
+
 type ParsedNotificationDetails = Readonly<{
   token: string
   url: string
@@ -94,7 +101,50 @@ export type MiniAppWebhookVerifierDependencies = Readonly<{
     appKey: Hex,
     attestation: HubAppKeyAttestation,
   ) => Promise<boolean>
+  /** Test seam below the redundant provider aggregator; production uses viem. */
+  activeOnChainRpcVerifier?: VerifyOnChainAppKeyAtRpc
 }>
+
+export const MINI_APP_WEBHOOK_VERIFIER_FAILURE_STAGES = Object.freeze([
+  'configuration',
+  'hub_primary_fetch',
+  'hub_primary_response',
+  'hub_primary_attestation',
+  'hub_secondary_fetch',
+  'hub_secondary_response',
+  'hub_secondary_attestation',
+  'hub_attestation_conflict',
+  'rpc_primary_transport',
+  'rpc_secondary_transport',
+  'rpc_disagreement',
+  'unexpected',
+] as const)
+
+export type MiniAppWebhookVerifierFailureStage =
+  typeof MINI_APP_WEBHOOK_VERIFIER_FAILURE_STAGES[number]
+
+const MINI_APP_WEBHOOK_VERIFIER_FAILURE_STAGE_SET = new Set<string>(
+  MINI_APP_WEBHOOK_VERIFIER_FAILURE_STAGES,
+)
+
+type HubFailureStages = Readonly<{
+  fetch: MiniAppWebhookVerifierFailureStage
+  response: MiniAppWebhookVerifierFailureStage
+  attestation: MiniAppWebhookVerifierFailureStage
+}>
+
+const HUB_FAILURE_STAGES: readonly [HubFailureStages, HubFailureStages] = Object.freeze([
+  Object.freeze({
+    fetch: 'hub_primary_fetch',
+    response: 'hub_primary_response',
+    attestation: 'hub_primary_attestation',
+  }),
+  Object.freeze({
+    fetch: 'hub_secondary_fetch',
+    response: 'hub_secondary_response',
+    attestation: 'hub_secondary_attestation',
+  }),
+])
 
 export class MiniAppWebhookInvalidError extends Error {
   constructor() {
@@ -104,10 +154,26 @@ export class MiniAppWebhookInvalidError extends Error {
 }
 
 export class MiniAppWebhookVerifierUnavailableError extends Error {
-  constructor() {
+  constructor(readonly stage: MiniAppWebhookVerifierFailureStage) {
+    if (!MINI_APP_WEBHOOK_VERIFIER_FAILURE_STAGE_SET.has(stage)) {
+      throw new Error('Mini App webhook verifier failure stage is invalid.')
+    }
     super('Mini App webhook verification is unavailable.')
     this.name = 'MiniAppWebhookVerifierUnavailableError'
   }
+}
+
+export function miniAppWebhookVerifierFailureStage(
+  error: unknown,
+): MiniAppWebhookVerifierFailureStage | null {
+  return error instanceof MiniAppWebhookVerifierUnavailableError
+    && MINI_APP_WEBHOOK_VERIFIER_FAILURE_STAGE_SET.has(error.stage)
+    ? error.stage
+    : null
+}
+
+function verifierUnavailable(stage: MiniAppWebhookVerifierFailureStage): never {
+  throw new MiniAppWebhookVerifierUnavailableError(stage)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -296,8 +362,9 @@ async function parseFarcasterWebhook(
     let appKeyResult: VerifyAppKeyResult
     try {
       appKeyResult = await verifyAppKey(fid, appKey)
-    } catch {
-      throw new MiniAppWebhookVerifierUnavailableError()
+    } catch (error) {
+      if (error instanceof MiniAppWebhookVerifierUnavailableError) throw error
+      verifierUnavailable('unexpected')
     }
     if (!appKeyResult.valid || !safeFid(appKeyResult.appFid)) {
       throw new MiniAppWebhookInvalidError()
@@ -370,16 +437,19 @@ function decodeSignedKeyRequest(value: unknown): HubAppKeyAttestation | null {
   }
 }
 
-async function boundedJson(response: Response): Promise<unknown> {
-  if (!response.ok) throw new MiniAppWebhookVerifierUnavailableError()
+async function boundedJson(
+  response: Response,
+  failureStage: MiniAppWebhookVerifierFailureStage,
+): Promise<unknown> {
+  if (!response.ok) verifierUnavailable(failureStage)
   if (!/^application\/json(?:\s*;.*)?$/i.test(response.headers.get('content-type') ?? '')) {
-    throw new MiniAppWebhookVerifierUnavailableError()
+    verifierUnavailable(failureStage)
   }
   const length = response.headers.get('content-length')
   if (length && (!/^\d+$/.test(length) || Number(length) > HUB_RESPONSE_MAX_BYTES)) {
-    throw new MiniAppWebhookVerifierUnavailableError()
+    verifierUnavailable(failureStage)
   }
-  if (!response.body) throw new MiniAppWebhookVerifierUnavailableError()
+  if (!response.body) verifierUnavailable(failureStage)
 
   const reader = response.body.getReader()
   const chunks: Uint8Array[] = []
@@ -391,13 +461,13 @@ async function boundedJson(response: Response): Promise<unknown> {
       total += value.byteLength
       if (total > HUB_RESPONSE_MAX_BYTES) {
         try { await reader.cancel() } catch { /* Fail closed below. */ }
-        throw new MiniAppWebhookVerifierUnavailableError()
+        verifierUnavailable(failureStage)
       }
       chunks.push(value)
     }
   } catch (error) {
     if (error instanceof MiniAppWebhookVerifierUnavailableError) throw error
-    throw new MiniAppWebhookVerifierUnavailableError()
+    verifierUnavailable(failureStage)
   } finally {
     try { reader.releaseLock() } catch { /* Reader cleanup is best effort. */ }
   }
@@ -411,7 +481,7 @@ async function boundedJson(response: Response): Promise<unknown> {
   try {
     return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes))
   } catch {
-    throw new MiniAppWebhookVerifierUnavailableError()
+    verifierUnavailable(failureStage)
   }
 }
 
@@ -420,6 +490,7 @@ async function hubAppKeyAttestation(
   fid: number,
   appKey: Hex,
   fetchImpl: FetchLike,
+  failureStages: HubFailureStages,
 ): Promise<HubAppKeyAttestation | null> {
   const url = new URL('/v1/onChainSignersByFid', hubUrl)
   url.searchParams.set('fid', String(fid))
@@ -433,11 +504,11 @@ async function hubAppKeyAttestation(
       signal: AbortSignal.timeout(HUB_RESPONSE_TIMEOUT_MILLISECONDS),
     })
   } catch {
-    throw new MiniAppWebhookVerifierUnavailableError()
+    verifierUnavailable(failureStages.fetch)
   }
-  const body = await boundedJson(response)
+  const body = await boundedJson(response, failureStages.response)
   if (!isRecord(body) || !Array.isArray(body.events) || body.events.length > MAX_HUB_SIGNER_EVENTS) {
-    throw new MiniAppWebhookVerifierUnavailableError()
+    verifierUnavailable(failureStages.response)
   }
 
   const matches: HubAppKeyAttestation[] = []
@@ -458,10 +529,10 @@ async function hubAppKeyAttestation(
       || signer.keyType !== 1
       || signer.metadataType !== 1
     ) {
-      throw new MiniAppWebhookVerifierUnavailableError()
+      verifierUnavailable(failureStages.attestation)
     }
     const decoded = decodeSignedKeyRequest(signer.metadata)
-    if (!decoded) throw new MiniAppWebhookVerifierUnavailableError()
+    if (!decoded) verifierUnavailable(failureStages.attestation)
     matches.push(decoded)
   }
   if (matches.length === 0) return null
@@ -473,7 +544,7 @@ async function hubAppKeyAttestation(
     || candidate.deadline !== first.deadline
     || candidate.canonicalMetadata !== first.canonicalMetadata
   ))) {
-    throw new MiniAppWebhookVerifierUnavailableError()
+    verifierUnavailable(failureStages.attestation)
   }
   return first
 }
@@ -504,9 +575,37 @@ function compatibleHubAttestation(
   if (matches.length === 0) return null
   const first = matches[0]
   if (matches.some(candidate => !sameAttestation(first, candidate))) {
-    throw new MiniAppWebhookVerifierUnavailableError()
+    verifierUnavailable('hub_attestation_conflict')
   }
   return first
+}
+
+async function activeOnChainAppKeyAtRpc(
+  rpcUrl: string,
+  fid: number,
+  appKey: Hex,
+  attestation: HubAppKeyAttestation,
+): Promise<boolean> {
+  const client = createPublicClient({
+    chain: optimism,
+    transport: http(rpcUrl, { retryCount: 0, timeout: HUB_RESPONSE_TIMEOUT_MILLISECONDS }),
+  })
+  const [keyData, ownerFid] = await Promise.all([
+    client.readContract({
+      address: KEY_REGISTRY_ADDRESS,
+      abi: KEY_REGISTRY_ABI,
+      functionName: 'keyDataOf',
+      args: [BigInt(fid), appKey],
+    }),
+    client.readContract({
+      address: ID_REGISTRY_ADDRESS,
+      abi: ID_REGISTRY_ABI,
+      functionName: 'idOf',
+      args: [attestation.requestSigner],
+    }),
+  ])
+  const [state, keyType] = keyData
+  return state === 1 && keyType === 1 && ownerFid === BigInt(attestation.appFid)
 }
 
 async function activeOnChainAppKey(
@@ -514,6 +613,7 @@ async function activeOnChainAppKey(
   fid: number,
   appKey: Hex,
   attestation: HubAppKeyAttestation,
+  verifyAtRpc: VerifyOnChainAppKeyAtRpc = activeOnChainAppKeyAtRpc,
 ): Promise<boolean> {
   let metadataSignatureValid = false
   try {
@@ -545,32 +645,16 @@ async function activeOnChainAppKey(
   }
   if (!metadataSignatureValid) return false
 
-  const results = await Promise.allSettled(config.farcasterRpcUrls.map(async rpcUrl => {
-    const client = createPublicClient({
-      chain: optimism,
-      transport: http(rpcUrl, { retryCount: 0, timeout: HUB_RESPONSE_TIMEOUT_MILLISECONDS }),
-    })
-    const [keyData, ownerFid] = await Promise.all([
-      client.readContract({
-        address: KEY_REGISTRY_ADDRESS,
-        abi: KEY_REGISTRY_ABI,
-        functionName: 'keyDataOf',
-        args: [BigInt(fid), appKey],
-      }),
-      client.readContract({
-        address: ID_REGISTRY_ADDRESS,
-        abi: ID_REGISTRY_ABI,
-        functionName: 'idOf',
-        args: [attestation.requestSigner],
-      }),
-    ])
-    const [state, keyType] = keyData
-    return state === 1 && keyType === 1 && ownerFid === BigInt(attestation.appFid)
-  }))
-  if (results.some(result => result.status === 'rejected')) {
-    throw new MiniAppWebhookVerifierUnavailableError()
+  const results = await Promise.allSettled(config.farcasterRpcUrls.map(rpcUrl => (
+    verifyAtRpc(rpcUrl, fid, appKey, attestation)
+  )))
+  if (results[0]?.status === 'rejected') verifierUnavailable('rpc_primary_transport')
+  if (results[1]?.status === 'rejected') verifierUnavailable('rpc_secondary_transport')
+  const values = results.flatMap(result => result.status === 'fulfilled' ? [result.value] : [])
+  if (values.length === 2 && values[0] !== values[1]) {
+    verifierUnavailable('rpc_disagreement')
   }
-  return results.every(result => result.status === 'fulfilled' && result.value)
+  return values.length > 0 && values.every(Boolean)
 }
 
 function configuredDeliveryUrl(config: BridgeConfig, appFid: number): string | null {
@@ -624,14 +708,20 @@ export function createMiniAppWebhookVerifier(
   // Signature verification remains available while delivery is paused so an
   // authentic disable/remove event can still erase stored consent and tokens.
   if (!config.miniAppNotifications) {
-    throw new MiniAppWebhookVerifierUnavailableError()
+    verifierUnavailable('configuration')
   }
   const allowedClientFids = new Set(
     config.miniAppNotifications.clients.map(client => client.appFid),
   )
   const fetchImpl = dependencies.fetchImpl ?? fetch
   const verifyActiveOnChainAppKey = dependencies.activeOnChainAppKeyVerifier
-    ?? activeOnChainAppKey
+    ?? ((activeConfig, fid, appKey, attestation) => activeOnChainAppKey(
+      activeConfig,
+      fid,
+      appKey,
+      attestation,
+      dependencies.activeOnChainRpcVerifier,
+    ))
 
   const productionAppKeyVerifier: VerifyAppKey = async (
     rawFid: number,
@@ -642,8 +732,8 @@ export function createMiniAppWebhookVerifier(
     if (!fid || !appKey) return { valid: false }
 
     const attestations = await Promise.all(
-      config.miniAppNotifications!.hubUrls.map(url => (
-        hubAppKeyAttestation(url, fid, appKey, fetchImpl)
+      config.miniAppNotifications!.hubUrls.map((url, index) => (
+        hubAppKeyAttestation(url, fid, appKey, fetchImpl, HUB_FAILURE_STAGES[index]!)
       )),
     )
     const attestation = compatibleHubAttestation(attestations)

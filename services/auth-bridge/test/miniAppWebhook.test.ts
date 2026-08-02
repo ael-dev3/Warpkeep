@@ -1,5 +1,6 @@
 import { generateKeyPairSync, sign } from 'node:crypto'
-import { encodeAbiParameters } from 'viem'
+import { encodeAbiParameters, type Address, type Hex } from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { BridgeConfig } from '../src/config'
@@ -7,6 +8,7 @@ import {
   createMiniAppWebhookVerifier,
   MiniAppWebhookInvalidError,
   MiniAppWebhookVerifierUnavailableError,
+  miniAppWebhookVerifierFailureStage,
 } from '../src/miniAppWebhook'
 
 const USER_FID = 12_345
@@ -17,6 +19,7 @@ const KEY_PAIR = generateKeyPairSync('ed25519')
 const PUBLIC_KEY = KEY_PAIR.publicKey
   .export({ format: 'der', type: 'spki' })
   .subarray(-32)
+const REQUEST_ACCOUNT = privateKeyToAccount(`0x${'11'.repeat(32)}`)
 const SIGNED_KEY_REQUEST_ABI = [{
   type: 'tuple',
   components: [
@@ -83,13 +86,15 @@ function signed(event: unknown) {
 
 function hubSignerEvent(
   appFid = APP_FID,
-  requestSigner = '0x1111111111111111111111111111111111111111' as const,
+  requestSigner: Address = '0x1111111111111111111111111111111111111111',
+  signature: Hex = `0x${'ab'.repeat(65)}`,
+  deadline = 9_999_999_999n,
 ) {
   const encodedMetadata = encodeAbiParameters(SIGNED_KEY_REQUEST_ABI, [[
     BigInt(appFid),
     requestSigner,
-    `0x${'ab'.repeat(65)}`,
-    9_999_999_999n,
+    signature,
+    deadline,
   ]])
   return {
     type: 'EVENT_TYPE_SIGNER',
@@ -101,6 +106,33 @@ function hubSignerEvent(
       metadata: Buffer.from(encodedMetadata.slice(2), 'hex').toString('base64'),
     },
   }
+}
+
+async function signedHubSignerEvent() {
+  const deadline = 9_999_999_999n
+  const key = `0x${PUBLIC_KEY.toString('hex')}` as const
+  const signature = await REQUEST_ACCOUNT.signTypedData({
+    domain: {
+      name: 'Farcaster SignedKeyRequestValidator',
+      version: '1',
+      chainId: 10,
+      verifyingContract: '0x00000000fc700472606ed4fa22623acf62c60553',
+    },
+    types: {
+      SignedKeyRequest: [
+        { name: 'requestFid', type: 'uint256' },
+        { name: 'key', type: 'bytes' },
+        { name: 'deadline', type: 'uint256' },
+      ],
+    },
+    primaryType: 'SignedKeyRequest',
+    message: {
+      requestFid: BigInt(APP_FID),
+      key,
+      deadline,
+    },
+  })
+  return hubSignerEvent(APP_FID, REQUEST_ACCOUNT.address, signature, deadline)
 }
 
 function hubJson(events: readonly unknown[], status = 200) {
@@ -181,9 +213,11 @@ describe('signed Farcaster Mini App webhook verification', () => {
   it('treats app-key authority outages as retryable instead of invalid consent', async () => {
     const appKeyVerifier = vi.fn(async () => { throw new Error('private Hub outage') })
     const webhookVerifier = createMiniAppWebhookVerifier(config(), { appKeyVerifier })
-    await expect(webhookVerifier.verify(signed({
+    const failure = await webhookVerifier.verify(signed({
       event: 'miniapp_removed',
-    }))).rejects.toBeInstanceOf(MiniAppWebhookVerifierUnavailableError)
+    })).catch((error: unknown) => error)
+    expect(failure).toBeInstanceOf(MiniAppWebhookVerifierUnavailableError)
+    expect(miniAppWebhookVerifierFailureStage(failure)).toBe('unexpected')
   })
 
   it('accepts one current Hub attestation when the other healthy Hub is stale', async () => {
@@ -222,9 +256,11 @@ describe('signed Farcaster Mini App webhook verification', () => {
       activeOnChainAppKeyVerifier,
     })
 
-    await expect(webhookVerifier.verify(signed({
+    const failure = await webhookVerifier.verify(signed({
       event: 'notifications_disabled',
-    }))).rejects.toBeInstanceOf(MiniAppWebhookVerifierUnavailableError)
+    })).catch((error: unknown) => error)
+    expect(failure).toBeInstanceOf(MiniAppWebhookVerifierUnavailableError)
+    expect(miniAppWebhookVerifierFailureStage(failure)).toBe('hub_attestation_conflict')
     expect(activeOnChainAppKeyVerifier).not.toHaveBeenCalled()
   })
 
@@ -247,9 +283,11 @@ describe('signed Farcaster Mini App webhook verification', () => {
       activeOnChainAppKeyVerifier,
     })
 
-    await expect(webhookVerifier.verify(signed({
+    const failure = await webhookVerifier.verify(signed({
       event: 'notifications_disabled',
-    }))).rejects.toBeInstanceOf(MiniAppWebhookVerifierUnavailableError)
+    })).catch((error: unknown) => error)
+    expect(failure).toBeInstanceOf(MiniAppWebhookVerifierUnavailableError)
+    expect(miniAppWebhookVerifierFailureStage(failure)).toBe('hub_secondary_attestation')
     expect(activeOnChainAppKeyVerifier).not.toHaveBeenCalled()
   })
 
@@ -279,9 +317,137 @@ describe('signed Farcaster Mini App webhook verification', () => {
       activeOnChainAppKeyVerifier,
     })
 
-    await expect(webhookVerifier.verify(signed({
+    const failure = await webhookVerifier.verify(signed({
       event: 'notifications_disabled',
-    }))).rejects.toBeInstanceOf(MiniAppWebhookVerifierUnavailableError)
+    })).catch((error: unknown) => error)
+    expect(failure).toBeInstanceOf(MiniAppWebhookVerifierUnavailableError)
+    expect(miniAppWebhookVerifierFailureStage(failure)).toBe('hub_secondary_response')
     expect(activeOnChainAppKeyVerifier).not.toHaveBeenCalled()
+  })
+
+  it('identifies the exact Hub transport without recording an upstream error', async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      if (new URL(String(input)).hostname === 'rho.farcaster.xyz') {
+        throw new Error('private transport details must not escape')
+      }
+      return hubJson([hubSignerEvent()])
+    }) as typeof fetch
+    const webhookVerifier = createMiniAppWebhookVerifier(config(), {
+      fetchImpl,
+      activeOnChainAppKeyVerifier: vi.fn(async () => true),
+    })
+
+    const failure = await webhookVerifier.verify(signed({
+      event: 'notifications_disabled',
+    })).catch((error: unknown) => error)
+    expect(failure).toBeInstanceOf(MiniAppWebhookVerifierUnavailableError)
+    expect(miniAppWebhookVerifierFailureStage(failure)).toBe('hub_primary_fetch')
+    expect(failure).toMatchObject({
+      name: 'MiniAppWebhookVerifierUnavailableError',
+      message: 'Mini App webhook verification is unavailable.',
+      stage: 'hub_primary_fetch',
+    })
+    expect(Object.keys(failure as object)).toEqual(['stage', 'name'])
+    expect(Object.prototype.hasOwnProperty.call(failure, 'cause')).toBe(false)
+  })
+
+  it('reports the remaining configuration and symmetric Hub stages exactly', async () => {
+    const missingNotifications = { ...config(), miniAppNotifications: undefined }
+    let configurationFailure: unknown
+    try {
+      createMiniAppWebhookVerifier(missingNotifications)
+    } catch (error) {
+      configurationFailure = error
+    }
+    expect(miniAppWebhookVerifierFailureStage(configurationFailure)).toBe('configuration')
+
+    const malformed = hubSignerEvent()
+    for (const [expected, fetchImpl] of [
+      [
+        'hub_primary_response',
+        vi.fn(async (input: RequestInfo | URL) => (
+          new URL(String(input)).hostname === 'rho.farcaster.xyz'
+            ? hubJson([], 503)
+            : hubJson([hubSignerEvent()])
+        )) as typeof fetch,
+      ],
+      [
+        'hub_primary_attestation',
+        vi.fn(async (input: RequestInfo | URL) => (
+          new URL(String(input)).hostname === 'rho.farcaster.xyz'
+            ? hubJson([{
+                ...malformed,
+                signerEventBody: {
+                  ...malformed.signerEventBody,
+                  metadata: 'not-canonical-base64',
+                },
+              }])
+            : hubJson([hubSignerEvent()])
+        )) as typeof fetch,
+      ],
+      [
+        'hub_secondary_fetch',
+        vi.fn(async (input: RequestInfo | URL) => {
+          if (new URL(String(input)).hostname === 'hub.pinata.cloud') {
+            throw new Error('private secondary transport details')
+          }
+          return hubJson([hubSignerEvent()])
+        }) as typeof fetch,
+      ],
+    ] as const) {
+      const webhookVerifier = createMiniAppWebhookVerifier(config(), {
+        fetchImpl,
+        activeOnChainAppKeyVerifier: vi.fn(async () => true),
+      })
+      const failure = await webhookVerifier.verify(signed({
+        event: 'notifications_disabled',
+      })).catch((error: unknown) => error)
+      expect(failure).toBeInstanceOf(MiniAppWebhookVerifierUnavailableError)
+      expect(miniAppWebhookVerifierFailureStage(failure)).toBe(expected)
+    }
+  })
+
+  it('requires both production RPC authorities to agree and identifies transport failures', async () => {
+    const signerEvent = await signedHubSignerEvent()
+    const fetchImpl = vi.fn(async () => hubJson([signerEvent])) as typeof fetch
+
+    for (const [outcomes, expected] of [
+      [[true, true], 'valid'],
+      [['reject', true], 'rpc_primary_transport'],
+      [[true, 'reject'], 'rpc_secondary_transport'],
+      [[true, false], 'rpc_disagreement'],
+      [[false, false], 'invalid'],
+    ] as const) {
+      const activeOnChainRpcVerifier = vi.fn(async (rpcUrl: string) => {
+        const index = rpcUrl.includes('rpc-one') ? 0 : 1
+        const outcome = outcomes[index]
+        if (outcome === 'reject') throw new Error('private provider failure')
+        return outcome
+      })
+      const webhookVerifier = createMiniAppWebhookVerifier(config(), {
+        fetchImpl,
+        activeOnChainRpcVerifier,
+      })
+      const result = await webhookVerifier.verify(signed({
+        event: 'notifications_disabled',
+      })).catch((error: unknown) => error)
+
+      if (expected === 'valid') {
+        expect(result).toMatchObject({ event: { type: 'disabled' } })
+      } else if (expected === 'invalid') {
+        expect(result).toBeInstanceOf(MiniAppWebhookInvalidError)
+      } else {
+        expect(result).toBeInstanceOf(MiniAppWebhookVerifierUnavailableError)
+        expect(miniAppWebhookVerifierFailureStage(result)).toBe(expected)
+        expect(result).toMatchObject({
+          name: 'MiniAppWebhookVerifierUnavailableError',
+          message: 'Mini App webhook verification is unavailable.',
+          stage: expected,
+        })
+        expect(Object.keys(result as object)).toEqual(['stage', 'name'])
+        expect(Object.prototype.hasOwnProperty.call(result, 'cause')).toBe(false)
+      }
+      expect(activeOnChainRpcVerifier).toHaveBeenCalledTimes(2)
+    }
   })
 })
