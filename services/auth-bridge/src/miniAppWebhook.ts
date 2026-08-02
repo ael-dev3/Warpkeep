@@ -500,7 +500,10 @@ async function hubAppKeyAttestation(
       method: 'GET',
       headers: { accept: 'application/json' },
       cache: 'no-store',
-      redirect: 'error',
+      // Cloudflare's production fetch path rejects `redirect: "error"`
+      // before issuing the subrequest. Manual mode preserves the same policy:
+      // boundedJson rejects every non-2xx response without following it.
+      redirect: 'manual',
       signal: AbortSignal.timeout(HUB_RESPONSE_TIMEOUT_MILLISECONDS),
     })
   } catch {

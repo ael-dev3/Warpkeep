@@ -270,18 +270,22 @@ describe('auth bridge production bindings in workerd', () => {
         { type: 'uint256' },
       ],
     }], [[9_152n, requestAccount.address, requestSignature, deadline]])
-    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({
-      events: [{
-        type: 'EVENT_TYPE_SIGNER',
-        signerEventBody: {
-          eventType: 'SIGNER_EVENT_TYPE_ADD',
-          keyType: 1,
-          metadataType: 1,
-          key: appKey,
-          metadata: Buffer.from(metadata.slice(2), 'hex').toString('base64'),
-        },
-      }],
-    }), { headers: { 'content-type': 'application/json' } })) as typeof fetch
+    const requestInits: (RequestInit | undefined)[] = []
+    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      requestInits.push(init)
+      return new Response(JSON.stringify({
+        events: [{
+          type: 'EVENT_TYPE_SIGNER',
+          signerEventBody: {
+            eventType: 'SIGNER_EVENT_TYPE_ADD',
+            keyType: 1,
+            metadataType: 1,
+            key: appKey,
+            metadata: Buffer.from(metadata.slice(2), 'hex').toString('base64'),
+          },
+        }],
+      }), { headers: { 'content-type': 'application/json' } })
+    }) as typeof fetch
     const activeOnChainRpcVerifier = vi.fn(async () => true)
     const verifier = createMiniAppWebhookVerifier(webhookConfig, {
       fetchImpl,
@@ -297,6 +301,14 @@ describe('auth bridge production bindings in workerd', () => {
       },
     })
     expect(fetchImpl).toHaveBeenCalledTimes(2)
+    for (const init of requestInits) {
+      expect(init).toMatchObject({
+        method: 'GET',
+        cache: 'no-store',
+        redirect: 'manual',
+      })
+      expect(init?.signal).toBeInstanceOf(AbortSignal)
+    }
     expect(activeOnChainRpcVerifier).toHaveBeenCalledTimes(2)
   })
 

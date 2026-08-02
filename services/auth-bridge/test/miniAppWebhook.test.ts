@@ -221,11 +221,16 @@ describe('signed Farcaster Mini App webhook verification', () => {
   })
 
   it('accepts one current Hub attestation when the other healthy Hub is stale', async () => {
-    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => (
-      new URL(String(input)).hostname === 'rho.farcaster.xyz'
+    const requestInits: (RequestInit | undefined)[] = []
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      requestInits.push(init)
+      if (init?.redirect !== 'manual') {
+        throw new Error('Cloudflare rejects redirect:error before issuing the subrequest')
+      }
+      return new URL(String(input)).hostname === 'rho.farcaster.xyz'
         ? hubJson([hubSignerEvent()])
         : hubJson([])
-    )) as typeof fetch
+    }) as typeof fetch
     const activeOnChainAppKeyVerifier = vi.fn(async () => true)
     const webhookVerifier = createMiniAppWebhookVerifier(config(), {
       fetchImpl,
@@ -241,7 +246,39 @@ describe('signed Farcaster Mini App webhook verification', () => {
       event: { type: 'enabled' },
     })
     expect(fetchImpl).toHaveBeenCalledTimes(2)
+    for (const init of requestInits) {
+      expect(init).toMatchObject({
+        method: 'GET',
+        cache: 'no-store',
+        redirect: 'manual',
+      })
+      expect(init?.signal).toBeInstanceOf(AbortSignal)
+    }
     expect(activeOnChainAppKeyVerifier).toHaveBeenCalledOnce()
+  })
+
+  it('returns Hub redirects for fail-closed validation instead of following them', async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(init?.redirect).toBe('manual')
+      return new URL(String(input)).hostname === 'rho.farcaster.xyz'
+        ? new Response(null, {
+            status: 302,
+            headers: { location: 'https://hostile.example/collect' },
+          })
+        : hubJson([hubSignerEvent()])
+    }) as typeof fetch
+    const activeOnChainAppKeyVerifier = vi.fn(async () => true)
+    const webhookVerifier = createMiniAppWebhookVerifier(config(), {
+      fetchImpl,
+      activeOnChainAppKeyVerifier,
+    })
+
+    const failure = await webhookVerifier.verify(signed({
+      event: 'notifications_disabled',
+    })).catch((error: unknown) => error)
+    expect(failure).toBeInstanceOf(MiniAppWebhookVerifierUnavailableError)
+    expect(miniAppWebhookVerifierFailureStage(failure)).toBe('hub_primary_response')
+    expect(activeOnChainAppKeyVerifier).not.toHaveBeenCalled()
   })
 
   it('rejects conflicting matching Hub attestations as retryable unavailability', async () => {
