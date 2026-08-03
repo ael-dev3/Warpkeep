@@ -4,6 +4,68 @@ import type { RealmGrassRenderPlan } from './realmGrassActiveWindow';
 
 export type RealmQuality = 'high' | 'balanced' | 'reduced';
 
+export type RealmLivingRealmBudget = Readonly<{
+  grassDisturbanceSlots: 0 | 4 | 8;
+  waterRippleSlots: 0 | 2 | 4;
+  forestGustEnabled: boolean;
+  birdInstances: 0 | 6 | 12;
+  moteCount: 0 | 18 | 36;
+  transientParticleCount: 0 | 48 | 96;
+  plannerHz: 0 | 7 | 10;
+  addedDrawCalls: 0 | 2;
+  addedTriangles: 0 | 480 | 960;
+}>;
+
+/**
+ * Hard, reviewable ceilings for optional presentation-only ecology. These
+ * limits are independent of world cardinality and resolve to zero before any
+ * moving ambience is allocated for Reduced quality or reduced motion.
+ */
+export const REALM_LIVING_REALM_BUDGETS = Object.freeze({
+  high: Object.freeze({
+    grassDisturbanceSlots: 8,
+    waterRippleSlots: 4,
+    forestGustEnabled: true,
+    birdInstances: 12,
+    moteCount: 36,
+    transientParticleCount: 96,
+    plannerHz: 10,
+    addedDrawCalls: 2,
+    addedTriangles: 960
+  }),
+  balanced: Object.freeze({
+    grassDisturbanceSlots: 4,
+    waterRippleSlots: 2,
+    forestGustEnabled: true,
+    birdInstances: 6,
+    moteCount: 18,
+    transientParticleCount: 48,
+    plannerHz: 7,
+    addedDrawCalls: 2,
+    addedTriangles: 480
+  }),
+  reduced: Object.freeze({
+    grassDisturbanceSlots: 0,
+    waterRippleSlots: 0,
+    forestGustEnabled: false,
+    birdInstances: 0,
+    moteCount: 0,
+    transientParticleCount: 0,
+    plannerHz: 0,
+    addedDrawCalls: 0,
+    addedTriangles: 0
+  })
+} satisfies Readonly<Record<RealmQuality, RealmLivingRealmBudget>>);
+
+export function resolveRealmLivingRealmBudget(
+  quality: RealmQuality,
+  reducedMotion: boolean
+): RealmLivingRealmBudget {
+  return reducedMotion
+    ? REALM_LIVING_REALM_BUDGETS.reduced
+    : REALM_LIVING_REALM_BUDGETS[quality];
+}
+
 export type RealmLightingSpec = Readonly<{
   toneMappingExposure: number;
   sunIntensity: number;
