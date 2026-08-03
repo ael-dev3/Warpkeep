@@ -186,7 +186,7 @@ import {
   type RealmPointerStartLane
 } from './realmPointerGestureCoordinator';
 import {
-  realmPinchZoomAmount,
+  createRealmPinchZoomGesture,
   realmPinchZoomProfileForChromeMode
 } from './realmPinchZoom';
 import {
@@ -3790,6 +3790,7 @@ function initializeRealmScene(
       captureTarget.releasePointerCapture?.(pointerId);
     }
   });
+  const pinchZoomGesture = createRealmPinchZoomGesture();
   const worldControlPointerTargets = new Map<number, HTMLElement>();
   const suppressedWorldControlClicks = new Map<HTMLElement, number>();
   let pendingDirectGesture: PendingRealmDirectGesture | null = null;
@@ -3810,6 +3811,7 @@ function initializeRealmScene(
     suppressedWorldControlClicks.forEach((timer) => window.clearTimeout(timer));
     suppressedWorldControlClicks.clear();
     pointerGestures.dispose();
+    pinchZoomGesture.reset();
     pointerCaptureTargets.clear();
     worldControlPointerTargets.clear();
     cameraController.cancelDirectManipulation();
@@ -4047,12 +4049,13 @@ function initializeRealmScene(
     // two-finger gesture can never inherit velocity from the preceding pan.
     cameraController.beginDirectManipulation('pinch');
     if (result.pinch.reset) {
+      pinchZoomGesture.reset();
       flushDirectGesture();
       return;
     }
     const current = localPoint(result.pinch.centroid.x, result.pinch.centroid.y);
-    const zoomAmount = realmPinchZoomAmount(
-      result.pinch.scaleRatio,
+    const zoomAmount = pinchZoomGesture.amount(
+      result.pinch,
       realmPinchZoomProfileForChromeMode(
         interactionRoot.dataset.realmChromeMode
       )
@@ -4203,6 +4206,7 @@ function initializeRealmScene(
     worldControlPointerTargets.clear();
     pointerCaptureTargets.clear();
     flushDirectGesture();
+    pinchZoomGesture.reset();
     clearWorldControlClickSuppressions();
     cancelPendingHover();
     dispatchHover(null);
@@ -4233,6 +4237,7 @@ function initializeRealmScene(
     pointerCaptureTargets.delete(event.pointerId);
     queueGesture(result, event.clientX, event.clientY);
     flushDirectGesture();
+    if (result.phase !== 'pinching') pinchZoomGesture.reset();
     if (worldControlTarget && !result.tap) {
       armWorldControlClickSuppression(worldControlTarget);
     }
@@ -4269,6 +4274,7 @@ function initializeRealmScene(
     worldControlPointerTargets.delete(event.pointerId);
     pointerCaptureTargets.delete(event.pointerId);
     flushDirectGesture();
+    if (result.phase !== 'pinching') pinchZoomGesture.reset();
     clearWorldControlClickSuppressions();
     dispatchHover(null);
     syncGesturePhase(result);
@@ -4285,6 +4291,7 @@ function initializeRealmScene(
     worldControlPointerTargets.delete(event.pointerId);
     pointerCaptureTargets.delete(event.pointerId);
     flushDirectGesture();
+    if (result.phase !== 'pinching') pinchZoomGesture.reset();
     clearWorldControlClickSuppressions();
     dispatchHover(null);
     syncGesturePhase(result);
@@ -4480,6 +4487,7 @@ function initializeRealmScene(
     cameraController.setViewport(width, height);
   };
   const cancelGestureForViewportChange = () => {
+    pinchZoomGesture.reset();
     if (
       directGestureFrame === 0
       && pendingDirectGesture === null
