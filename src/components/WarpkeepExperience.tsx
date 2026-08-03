@@ -278,6 +278,7 @@ export function WarpkeepExperience() {
     setRememberDevice
   } = useFarcasterAuth();
   const miniAppHost = useMiniAppHost();
+  const warpTransitionVariant = miniAppHost.isMiniApp ? 'compact' : 'standard';
   useFarcasterAdmissionCheckResultHaptic(admissionCheck);
   const backend = useWarpkeepBackend();
   const initiallyAuthenticated = farcasterAuthState.phase === 'authenticated'
@@ -1044,7 +1045,7 @@ export function WarpkeepExperience() {
     }
 
     const { direction, sequence } = transitionRequest;
-    const timing = getWarpTransitionTiming(reducedMotion);
+    const timing = getWarpTransitionTiming(reducedMotion, warpTransitionVariant);
     const coverTimer = window.setTimeout(
       () => markTransitionCovered(sequence, direction),
       timing.coverAtMs + 80
@@ -1065,7 +1066,8 @@ export function WarpkeepExperience() {
     markTransitionCovered,
     reducedMotion,
     returnPreparing,
-    transitionRequest
+    transitionRequest,
+    warpTransitionVariant
   ]);
 
   useEffect(() => {
@@ -1641,7 +1643,7 @@ export function WarpkeepExperience() {
           key={transitionRequest.sequence}
           request={transitionRequest}
           reducedMotion={reducedMotion}
-          variant={miniAppHost.isMiniApp ? 'compact' : 'standard'}
+          variant={warpTransitionVariant}
           onArmed={() => markTransitionArmed(transitionRequest.sequence)}
           onCovered={() => markTransitionCovered(
             transitionRequest.sequence,

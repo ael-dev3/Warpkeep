@@ -1391,6 +1391,42 @@ export function FarcasterAuthProviderCore({
     purgeBearerStorage
   ]);
 
+  const retireChangedIdentity = useCallback((
+    generation: number,
+    replacementFid: number
+  ): AuthorityRefreshOutcome => {
+    // A bridge-verified account switch is not an implicit sign-in. Retire the
+    // previous session family across tabs and require a deliberate activation
+    // before authority for the replacement account can be installed.
+    logoutIntentBlocksRefreshRef.current = true;
+    clearInMemoryAuthoritativeSession();
+    purgeBearerStorage();
+    clearPresentationSession();
+    signalFarcasterSessionTermination({
+      ...deviceSessionEnvironment,
+      now
+    });
+    dispatch({
+      type: 'identity-changed',
+      generation,
+      error: {
+        code: 'fid-mismatch',
+        stage: 'identity_changed',
+        message: 'Farcaster account changed. Verify the current account to continue.'
+      }
+    });
+    return Object.freeze({
+      status: 'identity-changed',
+      fid: replacementFid
+    }) satisfies AuthorityRefreshOutcome;
+  }, [
+    clearInMemoryAuthoritativeSession,
+    clearPresentationSession,
+    deviceSessionEnvironment,
+    now,
+    purgeBearerStorage
+  ]);
+
   const beginExplicitAuthActivation = useCallback(() => {
     abortRefresh();
     logoutIntentBlocksRefreshRef.current = false;
@@ -1474,29 +1510,11 @@ export function FarcasterAuthProviderCore({
         }
         if (expectedFid !== undefined && resolved.identity.fid !== expectedFid) {
           // A valid ambient cookie for another FID must never replace the
-          // current presentation or private authority silently. Retire the old
-          // identity and require one deliberate activation for the new account.
-          logoutIntentBlocksRefreshRef.current = true;
-          clearInMemoryAuthoritativeSession();
-          purgeBearerStorage();
-          clearPresentationSession();
-          signalFarcasterSessionTermination({
-            ...deviceSessionEnvironment,
-            now
-          });
-          dispatch({
-            type: 'identity-changed',
-            generation: machineGeneration,
-            error: {
-              code: 'fid-mismatch',
-              stage: 'identity_changed',
-              message: 'Farcaster account changed. Verify the current account to continue.'
-            }
-          });
-          return Object.freeze({
-            status: 'identity-changed',
-            fid: resolved.identity.fid
-          }) satisfies AuthorityRefreshOutcome;
+          // current presentation or private authority silently.
+          return retireChangedIdentity(
+            machineGeneration,
+            resolved.identity.fid
+          );
         }
         const presentedIdentity = existingDisplayIdentity
           ? withSameFidRelayDisplayMetadata(resolved.identity, existingDisplayIdentity)
@@ -1575,7 +1593,8 @@ export function FarcasterAuthProviderCore({
     loadBridgeClient,
     now,
     purgeBearerStorage,
-    resolveCachedPresentationIdentity
+    resolveCachedPresentationIdentity,
+    retireChangedIdentity
   ]);
 
   const activateQuickAuth = useCallback((
@@ -1604,6 +1623,10 @@ export function FarcasterAuthProviderCore({
 
     const lifecycleGeneration = lifecycleGenerationRef.current;
     const viewAtStart = machineRef.current.view;
+    const expectedFid = viewAtStart.phase === 'authenticated'
+      || viewAtStart.phase === 'pending-admission'
+      ? viewAtStart.identity.fid
+      : undefined;
     const startsVisibleAttempt = showProgress && canBeginFrom(viewAtStart.phase);
     const machineGeneration = startsVisibleAttempt
       ? machineRef.current.generation + 1
@@ -1749,15 +1772,19 @@ export function FarcasterAuthProviderCore({
         }
 
         const currentView = machineRef.current.view;
-        const currentIdentity = currentView.phase === 'authenticated'
+        const currentFid = currentView.phase === 'authenticated'
           || currentView.phase === 'pending-admission'
-          ? currentView.identity
+          ? currentView.identity.fid
           : undefined;
-        if (currentIdentity && currentIdentity.fid !== resolved.identity.fid) {
-          // A host account switch invalidates old private authority before the
-          // new verified FID is presented.
-          clearInMemoryAuthoritativeSession();
-          clearPresentationSession();
+        const guardedFid = expectedFid ?? currentFid;
+        if (guardedFid !== undefined && guardedFid !== resolved.identity.fid) {
+          // A forced host-account reconciliation may prove a different FID,
+          // but it must not commit that account before the current player's
+          // admission guard has had a chance to fail closed.
+          return retireChangedIdentity(
+            machineGeneration,
+            resolved.identity.fid
+          );
         }
         const presentedIdentity = withSameFidRelayDisplayMetadata(
           resolved.identity,
@@ -1858,7 +1885,8 @@ export function FarcasterAuthProviderCore({
     loadQuickAuthToken,
     normalizeAuthError,
     now,
-    quickAuthPresentationIdentity
+    quickAuthPresentationIdentity,
+    retireChangedIdentity
   ]);
 
   const refreshAuthoritySession = useCallback((
@@ -2005,7 +2033,11 @@ export function FarcasterAuthProviderCore({
     });
 
     void Promise.all([
-      followSupersededAuthorityRefresh(refreshAuthoritySession(false)),
+      followSupersededAuthorityRefresh(refreshAuthoritySession(
+        false,
+        false,
+        Boolean(loadQuickAuthToken)
+      )),
       minimumPresentation
     ]).then(([outcome]) => {
       if (admissionCheckGenerationRef.current !== generation) return;
@@ -2032,7 +2064,7 @@ export function FarcasterAuthProviderCore({
     });
 
     return true;
-  }, [now, refreshAuthoritySession]);
+  }, [loadQuickAuthToken, now, refreshAuthoritySession]);
 
   useEffect(() => {
     const view = machine.view;
