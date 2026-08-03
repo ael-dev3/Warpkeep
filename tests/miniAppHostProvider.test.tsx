@@ -144,6 +144,7 @@ function Harness({
   sdkLoader,
   capture,
   hostDeadlineMilliseconds,
+  addMiniAppDeadlineMilliseconds,
   quickAuthDeadlineMilliseconds
 }: {
   children?: ReactNode;
@@ -151,6 +152,7 @@ function Harness({
   sdkLoader: () => Promise<unknown>;
   capture: (value: MiniAppHostValue) => void;
   hostDeadlineMilliseconds?: number;
+  addMiniAppDeadlineMilliseconds?: number;
   quickAuthDeadlineMilliseconds?: number;
 }) {
   function Probe() {
@@ -160,6 +162,7 @@ function Harness({
   return (
     <MiniAppHostProvider
       hostDeadlineMilliseconds={hostDeadlineMilliseconds}
+      addMiniAppDeadlineMilliseconds={addMiniAppDeadlineMilliseconds}
       quickAuthDeadlineMilliseconds={quickAuthDeadlineMilliseconds}
       runtime={runtime}
       sdkLoader={sdkLoader}
@@ -912,7 +915,7 @@ describe('Farcaster Mini App host provider', () => {
     expect(document.body.textContent).not.toContain('private generic detail');
   });
 
-  it('bounds a stalled add prompt and reports a secret-free timeout', async () => {
+  it('keeps a timed-out native prompt single-flight and reconciles its late result', async () => {
     vi.useFakeTimers();
     const context = validContext();
     const host = fakeSdk({
@@ -925,12 +928,13 @@ describe('Farcaster Mini App host provider', () => {
         'actions.addMiniApp'
       ])
     });
-    const addMiniApp = vi.fn(() => new Promise<unknown>(() => undefined));
+    const pending = deferred<unknown>();
+    const addMiniApp = vi.fn(() => pending.promise);
     host.sdk.actions.addMiniApp = addMiniApp;
     let latest: MiniAppHostValue | undefined;
     render(
       <Harness
-        hostDeadlineMilliseconds={250}
+        addMiniAppDeadlineMilliseconds={250}
         runtime={runtimeFor('?miniApp=true')}
         sdkLoader={async () => host.sdk}
         capture={(value) => { latest = value; }}
@@ -947,7 +951,68 @@ describe('Farcaster Mini App host provider', () => {
       await vi.advanceTimersByTimeAsync(251);
     });
     await expect(attempt).resolves.toEqual({ status: 'timeout' });
-    expect(latest?.notificationPresentation).toBe('failed');
+    expect(latest?.notificationPresentation).toBe('setup-requested');
+    await expect(latest!.actions.addMiniApp()).resolves.toEqual({
+      status: 'timeout'
+    });
+    expect(addMiniApp).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      pending.resolve({
+        notificationDetails: {
+          token: 'private-notification-token',
+          url: 'https://api.warpcast.com/v1/frame-notifications'
+        }
+      });
+      await pending.promise;
+    });
+    expect(latest?.notificationPresentation).toBe('enabled-hint');
+    expect(addMiniApp).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves a definitive rejection event over a late successful add result', async () => {
+    const pending = deferred<unknown>();
+    const context = validContext();
+    const host = fakeSdk({
+      context: Promise.resolve({
+        ...context,
+        client: { ...context.client, added: false }
+      }),
+      getCapabilities: vi.fn(async () => [
+        'actions.ready',
+        'actions.addMiniApp'
+      ])
+    });
+    const addMiniApp = vi.fn(() => pending.promise);
+    host.sdk.actions.addMiniApp = addMiniApp;
+    let latest: MiniAppHostValue | undefined;
+    render(
+      <Harness
+        runtime={runtimeFor('?miniApp=true')}
+        sdkLoader={async () => host.sdk}
+        capture={(value) => { latest = value; }}
+      />
+    );
+    await waitFor(() => expect(latest?.state).toBe('miniapp'));
+
+    const attempt = latest!.actions.addMiniApp();
+    await act(async () => Promise.resolve());
+    act(() => host.emit('miniAppAddRejected', {
+      reason: 'rejected_by_user'
+    }));
+    expect(latest?.notificationPresentation).toBe('rejected');
+
+    await act(async () => {
+      pending.resolve({
+        notificationDetails: {
+          token: 'private-notification-token',
+          url: 'https://api.warpcast.com/v1/frame-notifications'
+        }
+      });
+      await attempt;
+    });
+    await expect(attempt).resolves.toEqual({ status: 'enabled-hint' });
+    expect(latest?.notificationPresentation).toBe('rejected');
     expect(addMiniApp).toHaveBeenCalledTimes(1);
   });
 

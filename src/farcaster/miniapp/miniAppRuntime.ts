@@ -216,17 +216,23 @@ function sanitizedHttpsUrl(value: unknown): string | undefined {
  */
 export function readMiniAppNotificationDetailsHint(value: unknown): boolean {
   try {
+    if (!isRecord(value)) return false;
+    // Snapshot hostile getters exactly once and reject by UTF-16 length before
+    // allocating an encoded copy. The byte check below remains authoritative.
+    const token = value.token;
+    const url = value.url;
     if (
-      !isRecord(value)
-      || typeof value.token !== 'string'
-      || typeof value.url !== 'string'
+      typeof token !== 'string'
+      || typeof url !== 'string'
+      || token.length === 0
+      || token.length > MAX_NOTIFICATION_TOKEN_BYTES
     ) return false;
-    const tokenBytes = new TextEncoder().encode(value.token);
+    const tokenBytes = new TextEncoder().encode(token);
     try {
       return tokenBytes.byteLength >= 16
         && tokenBytes.byteLength <= MAX_NOTIFICATION_TOKEN_BYTES
-        && !/[\u0000-\u0020\u007f]/.test(value.token)
-        && sanitizedHttpsUrl(value.url) !== undefined;
+        && !/[\u0000-\u0020\u007f]/.test(token)
+        && sanitizedHttpsUrl(url) !== undefined;
     } finally {
       tokenBytes.fill(0);
     }

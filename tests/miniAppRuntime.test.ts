@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   hasExactMiniAppHint,
@@ -198,6 +198,39 @@ describe('Farcaster Mini App runtime sanitization', () => {
       client: mutableClient
     }, { width: 400, height: 800 });
     expect(poisoned?.client.notificationsEnabledHint).toBe(false);
+  });
+
+  it('rejects oversized or mutable notification tokens before encoding them', () => {
+    const encode = vi.spyOn(TextEncoder.prototype, 'encode');
+    expect(readMiniAppNotificationDetailsHint({
+      token: 'x'.repeat(2_049),
+      url: 'https://api.warpcast.com/v1/frame-notifications'
+    })).toBe(false);
+    expect(encode).not.toHaveBeenCalled();
+
+    let tokenReads = 0;
+    let urlReads = 0;
+    const mutable: Record<string, unknown> = {};
+    Object.defineProperties(mutable, {
+      token: {
+        get() {
+          tokenReads += 1;
+          return tokenReads === 1
+            ? 'private-notification-token'
+            : 'mutated-private-token';
+        }
+      },
+      url: {
+        get() {
+          urlReads += 1;
+          return 'https://api.warpcast.com/v1/frame-notifications';
+        }
+      }
+    });
+    expect(readMiniAppNotificationDetailsHint(mutable)).toBe(true);
+    expect(tokenReads).toBe(1);
+    expect(urlReads).toBe(1);
+    encode.mockRestore();
   });
 
   it('accepts only an exact bounded Warpkeep approval notification launch', () => {

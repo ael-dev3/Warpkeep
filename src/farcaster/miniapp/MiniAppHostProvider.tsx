@@ -138,6 +138,8 @@ export type MiniAppHostProviderProps = Readonly<{
   runtime?: MiniAppBrowserRuntime;
   /** Test/runtime injection only; production uses the bounded default. */
   hostDeadlineMilliseconds?: number;
+  /** Native permission prompts need a human-scale deadline. */
+  addMiniAppDeadlineMilliseconds?: number;
   /** Quick Auth spans two network calls and one native-host round trip. */
   quickAuthDeadlineMilliseconds?: number;
 }>;
@@ -161,6 +163,9 @@ const DETECTING_SNAPSHOT: HostSnapshot = Object.freeze({
 const DEFAULT_HOST_DEADLINE_MILLISECONDS = 4_000;
 const MINIMUM_HOST_DEADLINE_MILLISECONDS = 250;
 const MAXIMUM_HOST_DEADLINE_MILLISECONDS = 10_000;
+const DEFAULT_ADD_MINI_APP_DEADLINE_MILLISECONDS = 60_000;
+const MINIMUM_ADD_MINI_APP_DEADLINE_MILLISECONDS = 250;
+const MAXIMUM_ADD_MINI_APP_DEADLINE_MILLISECONDS = 120_000;
 const DEFAULT_QUICK_AUTH_DEADLINE_MILLISECONDS = 10_000;
 const MINIMUM_QUICK_AUTH_DEADLINE_MILLISECONDS = 1_000;
 const MAXIMUM_QUICK_AUTH_DEADLINE_MILLISECONDS = 15_000;
@@ -260,6 +265,19 @@ function normalizedQuickAuthDeadline(value: number | undefined) {
   return Math.min(
     MAXIMUM_QUICK_AUTH_DEADLINE_MILLISECONDS,
     Math.max(MINIMUM_QUICK_AUTH_DEADLINE_MILLISECONDS, Math.round(value!))
+  );
+}
+
+function normalizedAddMiniAppDeadline(value: number | undefined) {
+  if (!Number.isFinite(value)) {
+    return DEFAULT_ADD_MINI_APP_DEADLINE_MILLISECONDS;
+  }
+  return Math.min(
+    MAXIMUM_ADD_MINI_APP_DEADLINE_MILLISECONDS,
+    Math.max(
+      MINIMUM_ADD_MINI_APP_DEADLINE_MILLISECONDS,
+      Math.round(value!)
+    )
   );
 }
 
@@ -536,9 +554,13 @@ export function MiniAppHostProvider({
   sdkLoader = defaultMiniAppSdkLoader,
   runtime = DEFAULT_MINI_APP_BROWSER_RUNTIME,
   hostDeadlineMilliseconds,
+  addMiniAppDeadlineMilliseconds,
   quickAuthDeadlineMilliseconds
 }: MiniAppHostProviderProps) {
   const hostDeadline = normalizedHostDeadline(hostDeadlineMilliseconds);
+  const addMiniAppDeadline = normalizedAddMiniAppDeadline(
+    addMiniAppDeadlineMilliseconds
+  );
   const quickAuthDeadline = normalizedQuickAuthDeadline(
     quickAuthDeadlineMilliseconds
   );
@@ -1130,20 +1152,64 @@ export function MiniAppHostProvider({
     // before any host promise or React commit can allow a duplicate prompt.
     projection.apply({ presentation: 'requesting' });
 
-    let flight: NonNullable<typeof addMiniAppFlightRef.current>;
-    const promise = Promise.resolve()
+    const reconcileResult = (result: MiniAppAddResult) => {
+      const activeProjection = notificationProjectionRef.current;
+      if (
+        !activeProjection
+        || activeProjection.sdk !== sdk
+        || activeProjection.generation !== generation
+      ) return;
+
+      const current = notificationPresentationRef.current;
+      if (result.status === 'enabled-hint') {
+        if (
+          current === 'requesting'
+          || current === 'setup-requested'
+          || current === 'added-status-unknown'
+        ) {
+          activeProjection.apply({
+            presentation: 'enabled-hint',
+            added: true,
+            notificationsEnabledHint: true
+          });
+        }
+      } else if (result.status === 'setup-requested') {
+        if (current === 'requesting' || current === 'setup-requested') {
+          activeProjection.apply({
+            presentation: 'setup-requested',
+            added: true,
+            notificationsEnabledHint: false
+          });
+        }
+      } else if (result.status === 'timeout') {
+        if (current === 'requesting') {
+          // A deadline cannot cancel a native prompt. Keep this generation
+          // sealed until the host actually settles instead of exposing Retry.
+          activeProjection.apply({ presentation: 'setup-requested' });
+        }
+      } else if (
+        current === 'requesting'
+        || current === 'setup-requested'
+      ) {
+        activeProjection.apply({
+          presentation: result.status === 'rejected'
+            ? 'rejected'
+            : result.status === 'invalid-manifest'
+              ? 'invalid-manifest'
+              : 'failed'
+        });
+      }
+    };
+
+    const hostResultPromise = Promise.resolve()
       .then(async (): Promise<MiniAppAddResult> => {
-        let result: MiniAppAddResult;
         try {
-          const hostResult = await withMiniAppHostDeadline(
-            Promise.resolve().then(() => invoke.call(sdkActions)),
-            hostDeadline
-          );
+          const hostResult = await invoke.call(sdkActions);
           if (
             sdkRef.current !== sdk
             || activeAttemptGenerationRef.current !== generation
           ) return MINI_APP_ADD_HOST_REPLACED;
-          result = readMiniAppAddResultNotificationHint(hostResult)
+          return readMiniAppAddResultNotificationHint(hostResult)
             ? MINI_APP_ADD_ENABLED_HINT
             : MINI_APP_ADD_SETUP_REQUESTED;
         } catch (error) {
@@ -1151,55 +1217,51 @@ export function MiniAppHostProvider({
             sdkRef.current !== sdk
             || activeAttemptGenerationRef.current !== generation
           ) return MINI_APP_ADD_HOST_REPLACED;
-          result = isMiniAppHostDeadlineError(error)
-            ? MINI_APP_ADD_TIMEOUT
-            : boundedMiniAppAddError(error);
+          return boundedMiniAppAddError(error);
         }
+      });
 
-        const activeProjection = notificationProjectionRef.current;
-        if (
-          !activeProjection
-          || activeProjection.sdk !== sdk
-          || activeProjection.generation !== generation
-        ) return MINI_APP_ADD_HOST_REPLACED;
-
-        const current = notificationPresentationRef.current;
-        if (result.status === 'enabled-hint') {
-          if (current !== 'disabled-hint' && current !== 'not-added') {
-            activeProjection.apply({
-              presentation: 'enabled-hint',
-              added: true,
-              notificationsEnabledHint: true
-            });
-          }
-        } else if (result.status === 'setup-requested') {
-          if (current === 'requesting' || current === 'added-status-unknown') {
-            activeProjection.apply({
-              presentation: 'setup-requested',
-              added: true,
-              notificationsEnabledHint: false
-            });
-          }
-        } else if (current === 'requesting') {
-          activeProjection.apply({
-            presentation: result.status === 'rejected'
-              ? 'rejected'
-              : result.status === 'invalid-manifest'
-                ? 'invalid-manifest'
-                : 'failed'
-          });
-        }
+    let flight: NonNullable<typeof addMiniAppFlightRef.current>;
+    const promise = withMiniAppHostDeadline(
+      hostResultPromise,
+      addMiniAppDeadline
+    )
+      .catch((error: unknown) => isMiniAppHostDeadlineError(error)
+        ? MINI_APP_ADD_TIMEOUT
+        : MINI_APP_ADD_FAILED)
+      .then((result) => {
+        if (result.status === 'timeout') reconcileResult(result);
         return result;
-      })
-      .finally(() => {
-        if (addMiniAppFlightRef.current === flight) {
-          addMiniAppFlightRef.current = undefined;
-        }
       });
     flight = Object.freeze({ sdk, generation, promise });
     addMiniAppFlightRef.current = flight;
+
+    // The bounded caller may settle before the user-controlled native prompt.
+    // Retain the single-flight lock and reconcile the eventual host result so a
+    // slow decision can never create two overlapping prompts or be discarded.
+    const releaseFlight = () => {
+      if (addMiniAppFlightRef.current === flight) {
+        addMiniAppFlightRef.current = undefined;
+      }
+    };
+    void hostResultPromise.then(
+      (result) => {
+        try {
+          reconcileResult(result);
+        } catch {
+          // A presentation failure cannot escape the optional host boundary.
+        } finally {
+          releaseFlight();
+        }
+      },
+      () => {
+        // hostResultPromise is intentionally total, but keep the lock releasable
+        // if an injected thenable violates that contract.
+        releaseFlight();
+      }
+    );
     return promise;
-  }, [hostDeadline]);
+  }, [addMiniAppDeadline]);
 
   const actions = useMemo<MiniAppHostActions>(() => Object.freeze({
     openUrl: async (url: string) => {
