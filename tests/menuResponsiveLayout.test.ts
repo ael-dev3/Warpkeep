@@ -60,6 +60,18 @@ describe('Warpkeep main-menu responsive layout', () => {
     expect(identityStart).toBeLessThan(headingEnd);
   });
 
+  it('bounds the compact identity card so long public names truncate on narrow menus', () => {
+    const css = readFileSync(
+      resolve(process.cwd(), 'src/components/auth/FarcasterQrAuthPanel.css'),
+      'utf8'
+    );
+    const compactIdentity = readCssBlock(css, '.farcaster-identity-badge--compact {');
+
+    expect(compactIdentity).toContain('width: auto;');
+    expect(compactIdentity).toContain('max-width: 100%;');
+    expect(compactIdentity).toContain('min-width: 0;');
+  });
+
   it('gives Farcaster auth one opaque full-screen scroll owner without nested panel scroll', () => {
     const css = readFileSync(
       resolve(process.cwd(), 'src/components/menu/WarpkeepMainMenu.css'),
@@ -74,10 +86,6 @@ describe('Warpkeep main-menu responsive layout', () => {
       css,
       '.warpkeep-menu-auth-rail .farcaster-auth-panel__actions {'
     );
-    const authBack = readCssBlock(
-      css,
-      '.warpkeep-menu[data-menu-surface="farcaster-auth"] .warpkeep-menu-back {'
-    );
     const portrait = readCssBlock(css, '@media (orientation: portrait)');
 
     expect(authRail).toContain('position: fixed;');
@@ -89,8 +97,9 @@ describe('Warpkeep main-menu responsive layout', () => {
     expect(authPanel).toContain('overflow: visible;');
     expect(authActions).toContain('position: sticky;');
     expect(authActions).toContain('bottom: 0;');
-    expect(authBack).toContain('z-index: 6;');
-    expect(authBack).toContain('bottom: auto;');
+    expect(css).not.toContain(
+      '.warpkeep-menu[data-menu-surface="farcaster-auth"] .warpkeep-menu-back {'
+    );
     expect(portrait).not.toMatch(
       /\.warpkeep-menu-auth-rail\s*\{[^}]*overflow:\s*hidden;/s
     );
