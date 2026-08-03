@@ -319,6 +319,8 @@ type RealmMapScreenProps = Readonly<{
   presentationMode?: 'player' | 'observer';
   /** DEV-only phase/coordinate projection evidence for the synthetic QA fixture. */
   localQaWorkerProjectionTelemetry?: boolean;
+  /** DEV-only frozen Living Realm clock; ignored outside observer fixtures. */
+  localQaLivingVisualTimeSeconds?: number;
 }>;
 
 type RendererMode = 'loading' | 'webgl' | 'fallback';
@@ -4796,6 +4798,9 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
         terrainMetadata: projectedTileMetadata,
         quality: qualitySpec,
         reducedMotion,
+        livingVisualTimeSeconds: observerMode
+          ? props.localQaLivingVisualTimeSeconds
+          : undefined,
         baseUrl: import.meta.env.BASE_URL || '/',
         isCoordPassable: isSceneCoordPassable,
         onCameraModeChange: (mode) => {
@@ -5239,6 +5244,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     keepCoord,
     markRendererFailure,
     observerMode,
+    props.localQaLivingVisualTimeSeconds,
     ownCastle.castleId,
     peerCastles,
     projectedTileMetadata,
