@@ -57,6 +57,7 @@ operation. Anonymous visitors do not connect to the game database.
 | Terms acceptance | Private versioned evidence; never contains proof, token, cookie, or QR material. |
 | Player resources and Marks | Private balances and accounting; only the authenticated caller may read permitted projections. |
 | World and castle state | Transactional integrity and server-enforced ownership. |
+| Inner Keep projects and Builder state | Server-derived costs and timers, atomic resource deduction, private receipts, and one Builder per castle. |
 | Deployment authority | Least privilege, reviewed changes, protected branches, and reproducible artifacts. |
 | Player privacy | Minimum collection, bounded presentation fields, redacted diagnostics, and private operational records. |
 
@@ -137,6 +138,12 @@ operation. Anonymous visitors do not connect to the game database.
   closed rather than being repaired from browser data.
 - Resource reads and collection are caller-scoped. Peer balances do not enter
   the public Realm subscription, and the browser applies no optimistic credit.
+- Inner Keep commands accept only the requested slot, building kind, and an
+  idempotency key. The server derives cost and duration from a versioned policy,
+  verifies ownership and slot state, settles resources, deducts them atomically,
+  and permits only one active project for the castle's single Builder. Public
+  building progress is a projection; request receipts and Builder state remain
+  private to caller-scoped procedures.
 - Terms acceptance is recorded only after authenticated, explicit acceptance
   of the current version. The pre-authentication checkbox is local to one
   dialog attempt and is discarded on cancellation or failure.
@@ -183,6 +190,10 @@ operation. Anonymous visitors do not connect to the game database.
   `main` checks. Deployment authority is isolated from ordinary verification.
 - Release verification binds the deployed site to a reviewed commit SHA.
   Passing local tests alone does not authorize a deployment or data change.
+- Inner Keep runtime assets must match the reviewed release identifier,
+  attachment checksum, content allowlist, and per-file hashes. Packaging an
+  archive is not authorization to publish it. The installer fails closed until
+  an explicit runtime-use authorization record covers the selected files.
 
 ## Principal risks and treatment
 
@@ -193,6 +204,10 @@ operation. Anonymous visitors do not connect to the game database.
 | Access token stolen by script or extension | Memory-only storage and short lifetime limit exposure, but a compromised origin or device can use the token until expiry. |
 | Resolver token stolen while fresh | One-FID binding and least-privilege guards limit access; a fresh token may still expose that FID's admission status and public subscriptions until disconnect. |
 | Private data exposed through schema drift | Private tables, generated-binding checks, aggregate preflight, and the empty legacy table requirement block known paths; every schema change needs renewed review. |
+| Parallel construction double-spends resources | One server transaction settles balances, checks the Builder and slot, deducts resources, records the receipt, and schedules completion; database or transaction-semantics regressions remain a review trigger. |
+| Client forges a construction cost, timer, or slot | The server accepts identifiers only and resolves fixed layouts and versioned policy values itself; catalog or policy changes still require additive-migration and economy review. |
+| Construction receipts leak player activity | Receipts and Builder state are private and returned only by caller-scoped procedures; diagnostics and future analytics must preserve that boundary. |
+| Unapproved archive material enters a release | A checksum-pinned allowlist and authorization-gated installer block unknown or unauthorized files; owner authorization and license provenance remain human approval steps. |
 | Spoofed profile or wallet data | Browser fields are presentation-only; trusted updates use separate operator paths. External source data may still be stale or incorrect. |
 | External avatar tracking | No-referrer, credential-free requests reduce data sent, but the image host still observes connection metadata. |
 | Resource exhaustion | Size limits, deadlines, early challenge claim, cleanup, and rate control reduce cost; aggregate monitoring and alerting remain limited. |

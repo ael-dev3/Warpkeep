@@ -121,6 +121,9 @@ const EVENT_COOLDOWN_MILLISECONDS: Readonly<Record<WarpkeepSfxEvent['kind'], num
     'worker-arrived': 750,
     'worker-returned': 750,
     'access-request-confirmed': 500,
+    'inner-keep-menu-opened': 180,
+    'inner-keep-project-confirmed': 500,
+    'inner-keep-project-completed': 750,
     'command-failed': 220,
     'river-focus-entered': 280,
     'river-focus-left': 280
@@ -383,6 +386,41 @@ export function getWarpkeepSfxRecipe(event: WarpkeepSfxEvent): WarpkeepSfxRecipe
         tones: Object.freeze([
           tone(252, 292, 0.09, 0.05, 'sine'),
           tone(330, 382, 0.1, 0.042, 'sine', 0.04)
+        ])
+      });
+    case 'inner-keep-menu-opened':
+      return Object.freeze({
+        bus: 'ui',
+        duration: 0.12,
+        gain: 0.42,
+        noise: noise(0.05, 0.04, 'bandpass', 1_180, 0.7),
+        priority: 2,
+        tones: Object.freeze([
+          tone(196, 218, 0.09, 0.07, 'triangle')
+        ])
+      });
+    case 'inner-keep-project-confirmed':
+      return Object.freeze({
+        bus: 'world',
+        duration: 0.24,
+        gain: 0.54,
+        noise: noise(0.075, 0.075, 'bandpass', 880, 0.72),
+        priority: 5,
+        tones: Object.freeze([
+          tone(128, 118, 0.13, 0.11, 'triangle'),
+          tone(242, 286, 0.16, 0.07, 'sine', 0.06)
+        ])
+      });
+    case 'inner-keep-project-completed':
+      return Object.freeze({
+        bus: 'world',
+        duration: 0.32,
+        gain: 0.58,
+        noise: noise(0.06, 0.035, 'lowpass', 1_280, 0.62),
+        priority: 5,
+        tones: Object.freeze([
+          tone(252, 318, 0.16, 0.075, 'sine'),
+          tone(332, 426, 0.2, 0.06, 'sine', 0.07)
         ])
       });
   }

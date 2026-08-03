@@ -83,6 +83,10 @@ const additiveV14SchemaFixture = resolve(
   repositoryRoot,
   'spacetimedb/migration-fixtures/additive-v14-schema',
 );
+const additiveV15SchemaFixture = resolve(
+  repositoryRoot,
+  'spacetimedb/migration-fixtures/additive-v15-schema',
+);
 const additiveModule = resolve(repositoryRoot, 'spacetimedb');
 const command = process.env.SPACETIME_BIN || 'spacetime';
 const expectedCliVersion = ADDITIVE_MIGRATION_PROOF_SPACETIME_CLI_VERSION;
@@ -289,6 +293,16 @@ const additiveV14Tables = Object.freeze([
   'daily_mark_grant_v1',
   'daily_mark_schedule_v_1',
 ]);
+const additiveV15Tables = Object.freeze([
+  'inner_keep_layout_v1',
+  'inner_keep_slot_v1',
+  'inner_keep_building_catalog_v1',
+  'inner_keep_build_level_v1',
+  'castle_inner_keep_building_v1',
+  'castle_inner_builder_v1',
+  'castle_inner_build_receipt_v1',
+  'castle_inner_construction_schedule_v_1',
+]);
 const deployedV3Tables = Object.freeze([
   ...existingTables,
   ...additiveV3Tables,
@@ -336,6 +350,10 @@ const deployedV13Tables = Object.freeze([
 const deployedV14Tables = Object.freeze([
   ...deployedV13Tables,
   ...additiveV14Tables,
+]);
+const deployedV15Tables = Object.freeze([
+  ...deployedV14Tables,
+  ...additiveV15Tables,
 ]);
 const expectedProductTypeRefs = Object.freeze({
   allowed_fid: 0,
@@ -394,6 +412,14 @@ const expectedProductTypeRefs = Object.freeze({
   access_request_v1: 53,
   daily_mark_grant_v1: 54,
   daily_mark_schedule_v_1: 55,
+  inner_keep_layout_v1: 56,
+  inner_keep_slot_v1: 57,
+  inner_keep_building_catalog_v1: 58,
+  inner_keep_build_level_v1: 59,
+  castle_inner_keep_building_v1: 60,
+  castle_inner_builder_v1: 61,
+  castle_inner_build_receipt_v1: 62,
+  castle_inner_construction_schedule_v_1: 63,
 });
 const childEnvironmentKeys = Object.freeze([
   'PATH', 'HOME', 'USER', 'LOGNAME', 'TMPDIR', 'TMP', 'TEMP',
@@ -1428,6 +1454,99 @@ function assertAdditiveV14Schema(before, after) {
     daily_mark_schedule_v_1: {
       access: 'Private',
       fields: ['schedule_id', 'scheduled_at', 'policy_version'],
+    },
+  };
+  for (const [name, contract] of Object.entries(contracts)) {
+    assert.deepEqual(fieldNames(after, name), contract.fields);
+    assert.equal(access(after, name), contract.access);
+    assert.equal(
+      tableSignature(after, name).product_type_ref,
+      expectedProductTypeRefs[name],
+    );
+  }
+}
+
+function assertDeployedV14TablesUnchanged(before, after) {
+  for (const name of deployedV14Tables) {
+    assert.deepEqual(tableSignature(after, name), tableSignature(before, name));
+    assert.equal(
+      tableSignature(after, name).product_type_ref,
+      expectedProductTypeRefs[name],
+    );
+  }
+}
+
+function assertAdditiveV15Schema(before, after) {
+  assertDeployedV14TablesUnchanged(before, after);
+  const beforeNames = new Set(before.tables.map(table => table.name));
+  const added = after.tables
+    .map(table => table.name)
+    .filter(name => !beforeNames.has(name))
+    .sort();
+  assert.deepEqual(added, [...additiveV15Tables].sort());
+  const contracts = {
+    inner_keep_layout_v1: {
+      access: 'Public',
+      fields: [
+        'layout_id', 'layout_version', 'policy_version', 'slot_count',
+        'medium_slot_count', 'large_slot_count', 'asset_catalog_digest',
+        'layout_digest', 'active', 'created_at', 'activated_at',
+      ],
+    },
+    inner_keep_slot_v1: {
+      access: 'Public',
+      fields: [
+        'slot_id', 'layout_id', 'footprint_class', 'local_x_microunits',
+        'local_z_microunits', 'rotation_milli_degrees', 'sort_order', 'active',
+      ],
+    },
+    inner_keep_building_catalog_v1: {
+      access: 'Public',
+      fields: [
+        'building_kind', 'public_label', 'category', 'footprint_class',
+        'maximum_level', 'unique_per_castle', 'matching_discount_resource',
+        'discount_basis_points_per_level', 'discount_cap_basis_points',
+        'runtime_asset_id', 'preview_asset_id', 'active', 'policy_version',
+      ],
+    },
+    inner_keep_build_level_v1: {
+      access: 'Public',
+      fields: [
+        'level_key', 'building_kind', 'target_level', 'base_food_cost',
+        'base_wood_cost', 'base_stone_cost', 'base_gold_cost',
+        'level_multiplier_basis_points', 'duration_micros', 'policy_version',
+      ],
+    },
+    castle_inner_keep_building_v1: {
+      access: 'Public',
+      fields: [
+        'building_key', 'castle_id', 'slot_key', 'slot_id', 'building_kind',
+        'completed_level', 'target_level', 'phase', 'started_at_micros',
+        'completes_at_micros', 'revision', 'policy_version',
+      ],
+    },
+    castle_inner_builder_v1: {
+      access: 'Private',
+      fields: [
+        'castle_id', 'fid', 'active_building_key', 'busy_until_micros',
+        'revision', 'policy_version', 'created_at', 'updated_at',
+      ],
+    },
+    castle_inner_build_receipt_v1: {
+      access: 'Private',
+      fields: [
+        'receipt_key', 'fid', 'request_key', 'castle_id', 'building_key',
+        'slot_id', 'building_kind', 'target_level', 'deducted_food',
+        'deducted_wood', 'deducted_stone', 'deducted_gold', 'started_at',
+        'policy_version',
+      ],
+    },
+    castle_inner_construction_schedule_v_1: {
+      access: 'Private',
+      fields: [
+        'schedule_id', 'scheduled_at', 'building_key', 'expected_revision',
+        'expected_target_level',
+      ],
     },
   };
   for (const [name, contract] of Object.entries(contracts)) {
@@ -3009,9 +3128,9 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
   let stage = 'seed';
   let activeModule = 'actual';
   const actualArtifactPath = join(additiveModule, 'dist', 'bundle.js');
-  // Keep inspection on the complete v14 candidate schema. Reverting to a
-  // predecessor fixture after Stone is appended would be destructive.
-  const inspectionArtifactPath = join(additiveV14SchemaFixture, 'dist', 'bundle.js');
+  // Keep inspection on the complete v15 candidate schema. Reverting to a
+  // predecessor fixture after Inner Keep is appended would be destructive.
+  const inspectionArtifactPath = join(additiveV15SchemaFixture, 'dist', 'bundle.js');
   const useActualModule = async () => {
     if (activeModule === 'actual') return;
     await publishBuiltArtifact(server, ownerToken, actualArtifactPath, database);
@@ -3938,7 +4057,7 @@ async function verifyActualModuleExpeditionLifecycles(
   const actualArtifactPath = join(additiveModule, 'dist', 'bundle.js');
   // Reusing the candidate fixture preserves the complete v14 suffix during
   // SQL inspection; publishing any predecessor would request a downgrade.
-  const inspectionArtifactPath = join(additiveV14SchemaFixture, 'dist', 'bundle.js');
+  const inspectionArtifactPath = join(additiveV15SchemaFixture, 'dist', 'bundle.js');
   const useActualModule = async () => {
     if (activeModule === 'actual') return;
     await publishBuiltArtifact(server, ownerToken, actualArtifactPath, database);
@@ -5750,7 +5869,7 @@ async function verifyActualModuleWaterLifecycle(server, database, privateKey, ow
   let stage = 'publish';
   let activeModule = 'actual';
   const actualArtifactPath = join(additiveModule, 'dist', 'bundle.js');
-  const inspectionArtifactPath = join(additiveV14SchemaFixture, 'dist', 'bundle.js');
+  const inspectionArtifactPath = join(additiveV15SchemaFixture, 'dist', 'bundle.js');
   const adminCredential = () => createEphemeralJwt(privateKey, adminServiceClaims());
   const useActualModule = async () => {
     if (activeModule === 'actual') return;
@@ -6221,7 +6340,7 @@ async function verifyGenesisWorldExpansionLifecycle(
   // Wood append. Reverting to an earlier protocol after publishing the
   // candidate would correctly be rejected as a destructive schema downgrade.
   const fixtureArtifactPath = join(additiveV8SchemaFixture, 'dist', 'bundle.js');
-  const inspectionArtifactPath = join(additiveV14SchemaFixture, 'dist', 'bundle.js');
+  const inspectionArtifactPath = join(additiveV15SchemaFixture, 'dist', 'bundle.js');
   const adminCredential = () => createEphemeralJwt(privateKey, adminServiceClaims());
 
   await publishBuiltArtifact(server, ownerToken, fixtureArtifactPath, database);
@@ -7411,6 +7530,106 @@ async function main() {
       assert.equal(await count(server, owner.token, dailyMarksMigrationDatabase, table), 0n);
     }
 
+    // Populate both private v14 tables before the v15 append. This freezes the
+    // actual predecessor boundary rather than proving only empty-table shape.
+    await callLoopbackReducer(
+      server,
+      dailyMarksMigrationDatabase,
+      'fixture_seed_daily_marks_sentinel_v14',
+      owner.token,
+      '[]',
+      200,
+    );
+    const dailyMarksPopulatedV14Rows = await tableRowDigests(
+      server,
+      owner.token,
+      dailyMarksMigrationDatabase,
+      deployedV14Tables,
+    );
+    for (const table of additiveV14Tables) {
+      assert.equal(await count(server, owner.token, dailyMarksMigrationDatabase, table), 1n);
+    }
+
+    await publish(
+      server,
+      owner.token,
+      additiveV15SchemaFixture,
+      dailyMarksMigrationDatabase,
+    );
+    const dailyMarksV15 = await describe(
+      server,
+      owner.token,
+      dailyMarksMigrationDatabase,
+    );
+    assertAdditiveV15Schema(dailyMarksV14, dailyMarksV15);
+    assert.deepEqual(
+      await tableRowDigests(
+        server,
+        owner.token,
+        dailyMarksMigrationDatabase,
+        deployedV14Tables,
+      ),
+      dailyMarksPopulatedV14Rows,
+    );
+    for (const table of additiveV15Tables) {
+      assert.equal(await count(server, owner.token, dailyMarksMigrationDatabase, table), 0n);
+    }
+    await callLoopbackReducer(
+      server,
+      dailyMarksMigrationDatabase,
+      'fixture_seed_inner_keep_sentinel_v15',
+      owner.token,
+      '[]',
+      200,
+    );
+    const dailyMarksPopulatedV15Rows = await tableRowDigests(
+      server,
+      owner.token,
+      dailyMarksMigrationDatabase,
+      deployedV15Tables,
+    );
+    const populatedDailyMarksV15SchemaDigest = schemaDigest(dailyMarksV15);
+    await publish(
+      server,
+      owner.token,
+      additiveV15SchemaFixture,
+      dailyMarksMigrationDatabase,
+    );
+    assert.equal(
+      schemaDigest(await describe(server, owner.token, dailyMarksMigrationDatabase)),
+      populatedDailyMarksV15SchemaDigest,
+    );
+    assert.deepEqual(
+      await tableRowDigests(
+        server,
+        owner.token,
+        dailyMarksMigrationDatabase,
+        deployedV15Tables,
+      ),
+      dailyMarksPopulatedV15Rows,
+    );
+    await publish(
+      server,
+      owner.token,
+      additiveV14SchemaFixture,
+      dailyMarksMigrationDatabase,
+      false,
+      /break|delete|remove|migration|incompatible|data loss|table/i,
+    );
+    assert.equal(
+      schemaDigest(await describe(server, owner.token, dailyMarksMigrationDatabase)),
+      populatedDailyMarksV15SchemaDigest,
+    );
+    assert.deepEqual(
+      await tableRowDigests(
+        server,
+        owner.token,
+        dailyMarksMigrationDatabase,
+        deployedV15Tables,
+      ),
+      dailyMarksPopulatedV15Rows,
+    );
+
     // Freeze v14 independently before the real candidate. Every v13 table
     // remains byte-identical and both private daily-Mark tables start empty.
     await publish(server, owner.token, additiveV14SchemaFixture, emptyDatabase);
@@ -7465,36 +7684,108 @@ async function main() {
       );
     }
 
-    // Advance every database to the real v14 candidate so the implementation
-    // is exercised against the exact v14 table contract without production.
+    // Freeze v15 independently before the real candidate. The complete v14
+    // predecessor remains unchanged and all eight Inner Keep tables start
+    // empty on every representative database.
+    await publish(server, owner.token, additiveV15SchemaFixture, emptyDatabase);
+    await publish(server, owner.token, additiveV15SchemaFixture, nonemptyDatabase);
+    await publish(server, owner.token, additiveV15SchemaFixture, actualModuleDatabase);
+    await publish(server, owner.token, additiveV15SchemaFixture, resourceLifecycleDatabase);
+    await publish(
+      server,
+      owner.token,
+      additiveV15SchemaFixture,
+      populatedWaterStoneMigrationDatabase,
+    );
+    const emptyV15 = await describe(server, owner.token, emptyDatabase);
+    const nonemptyV15 = await describe(server, owner.token, nonemptyDatabase);
+    const actualModuleV15 = await describe(server, owner.token, actualModuleDatabase);
+    const populatedWaterStoneV15 = await describe(
+      server,
+      owner.token,
+      populatedWaterStoneMigrationDatabase,
+    );
+    assertAdditiveV15Schema(emptyV14, emptyV15);
+    assertAdditiveV15Schema(nonemptyV14, nonemptyV15);
+    assertAdditiveV15Schema(actualModuleV14, actualModuleV15);
+    assertAdditiveV15Schema(populatedWaterStoneV14, populatedWaterStoneV15);
+    const fixtureV15TableSchemaDigest = canonicalTableSchemaBoundaryDigest(
+      emptyV15,
+      deployedV15Tables,
+    );
+    for (const description of [nonemptyV15, actualModuleV15, populatedWaterStoneV15]) {
+      assert.equal(
+        canonicalTableSchemaBoundaryDigest(description, deployedV15Tables),
+        fixtureV15TableSchemaDigest,
+      );
+    }
+    for (const database of [
+      emptyDatabase,
+      nonemptyDatabase,
+      actualModuleDatabase,
+      resourceLifecycleDatabase,
+      populatedWaterStoneMigrationDatabase,
+    ]) {
+      for (const table of additiveV15Tables) {
+        assert.equal(await count(server, owner.token, database, table), 0n);
+      }
+    }
+
+    // Advance every database to the real v15 candidate so the implementation
+    // is exercised against the exact append-only contract without production.
     await publish(server, owner.token, additiveModule, emptyDatabase);
     await publish(server, owner.token, additiveModule, nonemptyDatabase);
     await publish(server, owner.token, additiveModule, actualModuleDatabase);
     await publish(server, owner.token, additiveModule, resourceLifecycleDatabase);
     await publish(server, owner.token, additiveModule, populatedWaterStoneMigrationDatabase);
-    const populatedWaterStoneCandidateV14 = await describe(
+    await publish(server, owner.token, additiveModule, dailyMarksMigrationDatabase);
+    const populatedWaterStoneCandidateV15 = await describe(
       server,
       owner.token,
       populatedWaterStoneMigrationDatabase,
     );
-    for (const name of deployedV14Tables) {
+    const dailyMarksCandidateV15 = await describe(
+      server,
+      owner.token,
+      dailyMarksMigrationDatabase,
+    );
+    for (const name of deployedV15Tables) {
       assert.deepEqual(
-        tableSignature(populatedWaterStoneCandidateV14, name),
-        tableSignature(emptyV14, name),
+        tableSignature(populatedWaterStoneCandidateV15, name),
+        tableSignature(emptyV15, name),
+      );
+      assert.deepEqual(
+        tableSignature(dailyMarksCandidateV15, name),
+        tableSignature(emptyV15, name),
       );
     }
+    await publish(
+      server,
+      owner.token,
+      additiveV15SchemaFixture,
+      dailyMarksMigrationDatabase,
+    );
+    assert.deepEqual(
+      await tableRowDigests(
+        server,
+        owner.token,
+        dailyMarksMigrationDatabase,
+        deployedV15Tables,
+      ),
+      dailyMarksPopulatedV15Rows,
+    );
     await verifyAccessRequestHttpLifecycle(
       server,
       populatedWaterStoneMigrationDatabase,
       privateKey,
     );
-    // Return to the exact auth-neutral v14 schema only for private owner SQL.
+    // Return to the exact auth-neutral v15 schema only for private owner SQL.
     // The append-only request row remains while every v12 row digest must stay
     // byte-for-byte identical to its pre-request baseline.
     await publish(
       server,
       owner.token,
-      additiveV14SchemaFixture,
+      additiveV15SchemaFixture,
       populatedWaterStoneMigrationDatabase,
     );
     assert.deepEqual(
@@ -7642,10 +7933,10 @@ async function main() {
       workerRolloutV11Database,
     );
     assertAdditiveV13Schema(workerRolloutCandidateV12, workerRolloutCandidateV13);
-    await publishBuiltArtifact(
+    await publish(
       server,
       owner.token,
-      builtArtifactPath,
+      additiveV14SchemaFixture,
       workerRolloutV11Database,
     );
     const workerRolloutCandidateV14 = await describe(
@@ -7654,14 +7945,43 @@ async function main() {
       workerRolloutV11Database,
     );
     assertAdditiveV14Schema(workerRolloutCandidateV13, workerRolloutCandidateV14);
+    await publish(
+      server,
+      owner.token,
+      additiveV15SchemaFixture,
+      workerRolloutV11Database,
+    );
+    const workerRolloutCandidateV15Fixture = await describe(
+      server,
+      owner.token,
+      workerRolloutV11Database,
+    );
+    assertAdditiveV15Schema(workerRolloutCandidateV14, workerRolloutCandidateV15Fixture);
+    await publishBuiltArtifact(
+      server,
+      owner.token,
+      builtArtifactPath,
+      workerRolloutV11Database,
+    );
+    const workerRolloutCandidateV15 = await describe(
+      server,
+      owner.token,
+      workerRolloutV11Database,
+    );
+    for (const name of deployedV15Tables) {
+      assert.deepEqual(
+        tableSignature(workerRolloutCandidateV15, name),
+        tableSignature(workerRolloutCandidateV15Fixture, name),
+      );
+    }
     // The real module rejects the disposable owner identity by design. Swap
-    // only this database to the schema-identical auth-neutral v14 fixture
+    // only this database to the schema-identical auth-neutral v15 fixture
     // before private SQL proves that every v11 row survived and all additive
     // suffixes remain empty.
     await publish(
       server,
       owner.token,
-      additiveV14SchemaFixture,
+      additiveV15SchemaFixture,
       workerRolloutV11Database,
     );
     assert.deepEqual(
@@ -7694,6 +8014,12 @@ async function main() {
         0n,
       );
     }
+    for (const table of additiveV15Tables) {
+      assert.equal(
+        await count(server, owner.token, workerRolloutV11Database, table),
+        0n,
+      );
+    }
     await publishBuiltArtifact(
       server,
       owner.token,
@@ -7720,25 +8046,30 @@ async function main() {
     const builtArtifactDigest = createHash('sha256')
       .update(await readFile(builtArtifactPath))
       .digest('hex');
-    const emptyCandidateV14 = await describe(server, owner.token, emptyDatabase);
-    const nonemptyCandidateV14 = await describe(server, owner.token, nonemptyDatabase);
-    const actualCandidateV14 = await describe(server, owner.token, actualModuleDatabase);
+    const emptyCandidateV15 = await describe(server, owner.token, emptyDatabase);
+    const nonemptyCandidateV15 = await describe(server, owner.token, nonemptyDatabase);
+    const actualCandidateV15 = await describe(server, owner.token, actualModuleDatabase);
     const provenV12TableSchemaDigest = projectedTableSchemaBoundaryDigest(
-      emptyCandidateV14,
+      emptyCandidateV15,
       deployedV12Tables,
     );
     assert.equal(provenV12TableSchemaDigest, fixtureV12TableSchemaDigest);
     const provenV13TableSchemaDigest = projectedTableSchemaBoundaryDigest(
-      emptyCandidateV14,
+      emptyCandidateV15,
       deployedV13Tables,
     );
     assert.equal(provenV13TableSchemaDigest, fixtureV13TableSchemaDigest);
-    const provenV14TableSchemaDigest = canonicalTableSchemaBoundaryDigest(
-      emptyCandidateV14,
+    const provenV14TableSchemaDigest = projectedTableSchemaBoundaryDigest(
+      emptyCandidateV15,
       deployedV14Tables,
     );
     assert.equal(provenV14TableSchemaDigest, fixtureV14TableSchemaDigest);
-    for (const description of [nonemptyCandidateV14, actualCandidateV14]) {
+    const provenV15TableSchemaDigest = canonicalTableSchemaBoundaryDigest(
+      emptyCandidateV15,
+      deployedV15Tables,
+    );
+    assert.equal(provenV15TableSchemaDigest, fixtureV15TableSchemaDigest);
+    for (const description of [nonemptyCandidateV15, actualCandidateV15]) {
       assert.equal(
         projectedTableSchemaBoundaryDigest(description, deployedV12Tables),
         provenV12TableSchemaDigest,
@@ -7748,28 +8079,32 @@ async function main() {
         provenV13TableSchemaDigest,
       );
       assert.equal(
-        canonicalTableSchemaBoundaryDigest(description, deployedV14Tables),
+        projectedTableSchemaBoundaryDigest(description, deployedV14Tables),
         provenV14TableSchemaDigest,
+      );
+      assert.equal(
+        canonicalTableSchemaBoundaryDigest(description, deployedV15Tables),
+        provenV15TableSchemaDigest,
       );
     }
     for (const name of deployedV12Tables) {
       assert.deepEqual(
-        tableSignature(actualCandidateV14, name),
+        tableSignature(actualCandidateV15, name),
         tableSignature(emptyV12, name),
       );
       assert.deepEqual(
-        tableSignature(nonemptyCandidateV14, name),
+        tableSignature(nonemptyCandidateV15, name),
         tableSignature(nonemptyV12, name),
       );
       assert.deepEqual(
-        tableSignature(actualCandidateV14, name),
+        tableSignature(actualCandidateV15, name),
         tableSignature(actualModuleV12, name),
       );
     }
     for (const description of [
-      emptyCandidateV14,
-      nonemptyCandidateV14,
-      actualCandidateV14,
+      emptyCandidateV15,
+      nonemptyCandidateV15,
+      actualCandidateV15,
     ]) {
       assert.equal(access(description, 'access_request_v1'), 'Private');
       assert.deepEqual(fieldNames(description, 'access_request_v1'), [
@@ -7794,12 +8129,12 @@ async function main() {
       ]);
     }
     // The candidate's on-connect policy intentionally rejects the disposable
-    // owner identity. Reuse the table-identical, auth-neutral v14 fixture before
+    // owner identity. Reuse the table-identical, auth-neutral v15 fixture before
     // owner SQL reads and never downgrade the schema suffix.
-    await publish(server, owner.token, additiveV14SchemaFixture, emptyDatabase);
-    await publish(server, owner.token, additiveV14SchemaFixture, nonemptyDatabase);
-    await publish(server, owner.token, additiveV14SchemaFixture, actualModuleDatabase);
-    // SQL preservation reads remain on the complete v14 candidate. No reducer
+    await publish(server, owner.token, additiveV15SchemaFixture, emptyDatabase);
+    await publish(server, owner.token, additiveV15SchemaFixture, nonemptyDatabase);
+    await publish(server, owner.token, additiveV15SchemaFixture, actualModuleDatabase);
+    // SQL preservation reads remain on the complete v15 candidate. No reducer
     // is invoked by these owner-only queries.
     for (const [database, beforeRows] of [
       [emptyDatabase, emptyV7Rows],
@@ -7812,7 +8147,7 @@ async function main() {
       );
     }
 
-    const idempotentSchemaBefore = schemaDigest(nonemptyCandidateV14);
+    const idempotentSchemaBefore = schemaDigest(nonemptyCandidateV15);
     await publishBuiltArtifact(
       server,
       owner.token,
@@ -7823,10 +8158,10 @@ async function main() {
       schemaDigest(await describe(server, owner.token, nonemptyDatabase)),
       idempotentSchemaBefore,
     );
-    await publish(server, owner.token, additiveV14SchemaFixture, nonemptyDatabase);
+    await publish(server, owner.token, additiveV15SchemaFixture, nonemptyDatabase);
 
     // The actual module correctly rejects the disposable local identity at its
-    // on-connect boundary; owner SQL still reads the unchanged v14 rows.
+    // on-connect boundary; owner SQL still reads the unchanged v15 rows.
     assert.equal(await count(server, owner.token, emptyDatabase, 'player'), 0n);
     assert.equal(await count(server, owner.token, emptyDatabase, 'player_v2'), 0n);
     await assertFixtureOwnershipCount(server, owner.token, emptyDatabase, 999999, 0);
@@ -7854,6 +8189,7 @@ async function main() {
         ...additiveV12Tables,
         ...additiveV13Tables,
         ...additiveV14Tables,
+        ...additiveV15Tables,
       ]) {
         assert.equal(await count(server, owner.token, database, table), 0n);
       }
@@ -7884,7 +8220,7 @@ async function main() {
     )), actualModuleWorldBefore);
 
     // Identity columns reject arbitrary SQL literals after the candidate's
-    // issuer boundary is active. The auth-neutral v14 fixture inserts the
+    // issuer boundary is active. The auth-neutral v15 fixture inserts the
     // caller's verified sender identity through a disposable reducer instead.
     await callLoopbackReducer(
       server,
@@ -7909,10 +8245,11 @@ async function main() {
       ...additiveV12Tables,
       ...additiveV13Tables,
       ...additiveV14Tables,
+      ...additiveV15Tables,
     ]) {
       assert.equal(await count(server, owner.token, emptyDatabase, table), 0n);
     }
-    const populatedV14SchemaDigest = schemaDigest(await describe(server, owner.token, emptyDatabase));
+    const populatedV15SchemaDigest = schemaDigest(await describe(server, owner.token, emptyDatabase));
 
     await callLoopbackReducer(
       server,
@@ -7934,7 +8271,7 @@ async function main() {
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      populatedV14SchemaDigest,
+      populatedV15SchemaDigest,
     );
     await assertFixtureOwnershipCount(server, owner.token, emptyDatabase, 999999, 1);
     assert.equal(await count(server, owner.token, emptyDatabase, 'castle_slot_v1'), 1n);
@@ -7950,6 +8287,7 @@ async function main() {
       ...additiveV12Tables,
       ...additiveV13Tables,
       ...additiveV14Tables,
+      ...additiveV15Tables,
     ]) {
       assert.equal(await count(server, owner.token, emptyDatabase, table), 0n);
     }
@@ -7963,7 +8301,7 @@ async function main() {
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      populatedV14SchemaDigest,
+      populatedV15SchemaDigest,
     );
     await assertFixtureOwnershipCount(server, owner.token, emptyDatabase, 999999, 1);
     assert.equal(await count(server, owner.token, emptyDatabase, 'castle_slot_v1'), 1n);
@@ -7979,6 +8317,7 @@ async function main() {
       ...additiveV12Tables,
       ...additiveV13Tables,
       ...additiveV14Tables,
+      ...additiveV15Tables,
     ]) {
       assert.equal(await count(server, owner.token, emptyDatabase, table), 0n);
     }
@@ -7992,7 +8331,7 @@ async function main() {
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      populatedV14SchemaDigest,
+      populatedV15SchemaDigest,
     );
     await publish(
       server,
@@ -8004,7 +8343,7 @@ async function main() {
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      populatedV14SchemaDigest,
+      populatedV15SchemaDigest,
     );
     await publish(
       server,
@@ -8016,9 +8355,23 @@ async function main() {
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      populatedV14SchemaDigest,
+      populatedV15SchemaDigest,
     );
-    // The v14 boundary must refuse its immediate predecessor before either
+    // The v15 boundary must refuse its immediate predecessor before any
+    // Inner Keep state can be removed.
+    await publish(
+      server,
+      owner.token,
+      additiveV14SchemaFixture,
+      emptyDatabase,
+      false,
+      /break|delete|remove|migration|incompatible|data loss|table/i,
+    );
+    assert.equal(
+      schemaDigest(await describe(server, owner.token, emptyDatabase)),
+      populatedV15SchemaDigest,
+    );
+    // The v14 boundary must also refuse its own predecessor before either
     // private daily-Mark table can be removed.
     await publish(
       server,
@@ -8030,7 +8383,7 @@ async function main() {
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      populatedV14SchemaDigest,
+      populatedV15SchemaDigest,
     );
     // The v13 boundary also remains protected from its own predecessor.
     await publish(
@@ -8043,7 +8396,7 @@ async function main() {
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      populatedV14SchemaDigest,
+      populatedV15SchemaDigest,
     );
     // Older predecessors must also remain unable to remove Worker or Water
     // state.
@@ -8057,7 +8410,7 @@ async function main() {
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      populatedV14SchemaDigest,
+      populatedV15SchemaDigest,
     );
     await publish(
       server,
@@ -8069,7 +8422,7 @@ async function main() {
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      populatedV14SchemaDigest,
+      populatedV15SchemaDigest,
     );
     await publish(
       server,
@@ -8081,7 +8434,7 @@ async function main() {
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      populatedV14SchemaDigest,
+      populatedV15SchemaDigest,
     );
     // Older fixture rollbacks remain refused as well.
     await publish(
@@ -8094,17 +8447,17 @@ async function main() {
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      populatedV14SchemaDigest,
+      populatedV15SchemaDigest,
     );
     await publish(server, owner.token, additiveModule, emptyDatabase);
-    assertAdditiveV14Schema(
-      emptyV13,
+    assertAdditiveV15Schema(
+      emptyV14,
       await describe(server, owner.token, emptyDatabase),
     );
     // Reuse the table-identical auth-neutral fixture for the final bounded
     // identity assertion; the candidate itself deliberately rejects the
     // disposable owner issuer before any private identity SQL can run.
-    await publish(server, owner.token, additiveV14SchemaFixture, emptyDatabase);
+    await publish(server, owner.token, additiveV15SchemaFixture, emptyDatabase);
     await assertFixtureOwnershipCount(server, owner.token, emptyDatabase, 999999, 1);
     assert.equal(await count(server, owner.token, emptyDatabase, 'castle_slot_v1'), 1n);
     for (const table of [
@@ -8119,6 +8472,7 @@ async function main() {
       ...additiveV12Tables,
       ...additiveV13Tables,
       ...additiveV14Tables,
+      ...additiveV15Tables,
     ]) {
       assert.equal(await count(server, owner.token, emptyDatabase, table), 0n);
     }
@@ -8144,10 +8498,11 @@ async function main() {
       + 'identity-safe generic worker readiness, roster, assignment, occupation, bounded receipt, and private schedule tables appended at exact refs 47-52, '
       + 'private access-request intent and authoritative request timestamp appended at exact ref 53, '
       + 'private exactly-once daily Mark receipts and identity-free cadence appended at exact refs 54-55, '
-      + '61-tile empty, synthetic nonempty, and populated Water/Stone/Water-revision fixtures remained preserved through v14, '
+      + 'public Inner Keep layout, slots, building catalog, levels, and castle buildings plus private builders, receipts, and schedules appended at exact refs 56-63, '
+      + '61-tile empty, synthetic nonempty, and populated Water/Stone/Water-revision fixtures remained preserved through v15, '
       + 'every v12 table was populated and retained through the real candidate, the v13 request suffix survived populated, '
-      + 'both v14 tables started empty, fixture republish remained idempotent, '
-      + 'and the complete state was protected from v14-to-v13 and older downgrades, '
+      + 'both v14 tables and all eight v15 tables started empty, fixture republish remained idempotent, '
+      + 'and the complete state was protected from v15-to-v14 and older downgrades, '
       + 'exact resolver HTTP lifecycle enforced without mutation, '
       + `atomic 1,261-to-10,000 world expansion proved in ${worldExpansionDurationMilliseconds}ms with an idempotent retry, `
       + `actual Water administration exercised with ${waterLifecycleProof}, `
@@ -8160,12 +8515,13 @@ async function main() {
       + 'presentation-independent founder monitoring and bootstrap, '
       + 'legacy first-time admission rejection and complete-graph re-enable preservation, '
       + 'and guarded backfill rejection/idempotence held, '
-      + 'prebuilt-artifact republish idempotent, populated v3-prefix state retained through v14, '
-      + 'and guarded v13/v12/v11/v10/v9/v8/v7/v6/v5/v4/v3/v2 rollbacks refused before schema change.',
+      + 'prebuilt-artifact republish idempotent, populated v3-prefix state retained through v15, '
+      + 'and guarded v14/v13/v12/v11/v10/v9/v8/v7/v6/v5/v4/v3/v2 rollbacks refused before schema change.',
       v11TableSchemaDigest: provenV11TableSchemaDigest,
       v12TableSchemaDigest: provenV12TableSchemaDigest,
       v13TableSchemaDigest: provenV13TableSchemaDigest,
       v14TableSchemaDigest: provenV14TableSchemaDigest,
+      v15TableSchemaDigest: provenV15TableSchemaDigest,
       artifactDigest: builtArtifactDigest,
     }));
   } finally {

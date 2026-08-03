@@ -7,6 +7,7 @@ const LOCAL_QA_HTML_ENTRIES = Object.freeze([
   'dev/qa-journey.html',
   'dev/realm-observer-qa.html',
   'dev/realm-rendered-webgl-qa.html',
+  'dev/inner-keep-qa.html',
   'dev/castle-lod-visual-evidence.html'
 ]);
 

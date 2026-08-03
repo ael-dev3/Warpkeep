@@ -12,6 +12,7 @@ import type {
   ReadyWorkerResourceState,
   ReadyWorkerProjection
 } from '../components/realm/realmWorkerPresentation';
+import type { InnerKeepPresentation } from '../components/inner-keep/innerKeepPresentation';
 
 export type WarpkeepAdmissionStatus =
   | 'not_admitted'
@@ -477,6 +478,8 @@ export type WarpkeepBackendState = Readonly<{
   /** v2 resource balances used by the active worker HUD. */
   workerResourceState?: ReadyWorkerResourceState;
   workerProjection?: ReadyWorkerProjection;
+  /** Caller-bound construction state; absent on inactive or pre-v15 modules. */
+  innerKeep?: InnerKeepPresentation;
 }>;
 
 export const IDLE_WARPKEEP_BACKEND_STATE: WarpkeepBackendState = Object.freeze({

@@ -53,6 +53,49 @@ afterEach(() => {
 });
 
 describe('CastleInspectionPanel', () => {
+  it('offers Inner Keep entry only on the owning non-observer record', () => {
+    const onEnterInnerKeep = vi.fn();
+    const view = render(
+      <CastleInspectionPanel
+        id="own-inner-keep-record"
+        castle={CASTLE}
+        profile={PROFILE}
+        own
+        onEnterInnerKeep={onEnterInnerKeep}
+        onRequestClose={vi.fn()}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', {
+      name: /ENTER INNER KEEP.*Develop your castle/i
+    }));
+    expect(onEnterInnerKeep).toHaveBeenCalledOnce();
+
+    view.rerender(
+      <CastleInspectionPanel
+        id="peer-inner-keep-record"
+        castle={CASTLE}
+        profile={PROFILE}
+        own={false}
+        onEnterInnerKeep={onEnterInnerKeep}
+        onRequestClose={vi.fn()}
+      />
+    );
+    expect(screen.queryByRole('button', { name: /ENTER INNER KEEP/i })).toBeNull();
+
+    view.rerender(
+      <CastleInspectionPanel
+        id="observer-inner-keep-record"
+        castle={CASTLE}
+        observer
+        profile={PROFILE}
+        own
+        onEnterInnerKeep={onEnterInnerKeep}
+        onRequestClose={vi.fn()}
+      />
+    );
+    expect(screen.queryByRole('button', { name: /ENTER INNER KEEP/i })).toBeNull();
+  });
+
   it('shows a bounded visual castle record backed only by public Farcaster and castle data', () => {
     const escaped = vi.fn();
     const onRequestClose = vi.fn();

@@ -12,11 +12,12 @@ balance, advance a timer, or decide an expedition outcome.
 | Browser/backend wire protocol | 3 |
 | Player authentication contract | 2 |
 | Genesis world generation | 3 |
-| Append-only schema generation | 14 (daily Marks suffix) |
+| Append-only schema generation | 15 (inactive Inner Keep suffix) |
 | Alpha 0.3.12 suffix | Water refs 37–40; Stone refs 41–45 |
 | Generic worker suffix | refs 47–52; active |
 | Access-request suffix | ref 53; active |
 | Daily Marks suffix | private refs 54–55; activation is separate |
+| Inner Keep suffix | refs 56–63; inactive until separate seed, backfill, client, asset, and activation gates |
 
 Deployed tables retain their original declaration order and shape. Later
 features append new tables; they do not rename or delete existing data. The
@@ -60,6 +61,8 @@ Public subscriptions contain only shared-world presentation:
   timeline, and origin castle;
 - active four-worker roster and generic node-lease projections; the public
   rows contain no FID, cargo, accrual, balance, request, or auth data;
+- the inactive Inner Keep layout, twelve fixed slots, four-building policy,
+  twenty target-level recipes, and identity-minimized castle building rows;
 - public Community Marks projection only when its policy permits it.
 
 Private tables contain admission, ownership, unclaimed-slot decisions, resource
@@ -67,6 +70,11 @@ and Marks accounts, agreement evidence, daily-grant receipts, operator audit,
 expedition state, retry receipts, and balances. Retired compatibility tables
 remain private and frozen to preserve the deployed append-only schema; current
 authority paths do not write or interpret them.
+
+Inner Keep Builder rows, exact cost receipts, idempotency keys, and construction
+schedules are private. Player clients obtain only their own Builder/resources
+projection and accepted-request status through caller-authenticated procedures;
+browser bindings contain none of those private tables.
 
 The pinned SDK requires scheduled expedition rows to be public. Those rows are
 therefore deliberately minimal: schedule/stage identifiers, site, origin
@@ -117,6 +125,34 @@ explicit 0.3.x client capability, source commit, and artifact attestation.
 Module publication never repeats those mutations. A bounded admin-only
 forward-repair path can restore one specifically attested missing return
 schedule; it cannot select a player row, alter balances, or delete data.
+
+## Inactive Inner Keep construction
+
+Schema generation 15 appends eight tables without changing refs 0–55:
+
+| Ref | Table | Visibility and purpose |
+| ---: | --- | --- |
+| 56 | `inner_keep_layout_v1` | public inactive layout root and digests |
+| 57 | `inner_keep_slot_v1` | public twelve-slot fixed catalogue |
+| 58 | `inner_keep_building_catalog_v1` | public four-building policy |
+| 59 | `inner_keep_build_level_v1` | public exact recipes and timers |
+| 60 | `castle_inner_keep_building_v1` | public durable building/project projection |
+| 61 | `castle_inner_builder_v1` | private one-Builder authority |
+| 62 | `castle_inner_build_receipt_v1` | private exact deduction/idempotency receipt |
+| 63 | `castle_inner_construction_schedule_v_1` | private scheduler correlation |
+
+One project reducer accepts only a slot ID, building kind, and bounded request
+key. The server derives ownership, target level, discounts, stored-resource
+cost, timestamps, Builder capacity, and completion. It settles current Worker
+accrual first, then commits deduction, project, Builder, schedule, and receipt
+atomically. The four gathering Workers remain independent from the one internal
+Builder.
+
+The source tree does not make this component playable. A merge to protected
+`main` triggers the existing verified Pages deployment of the compatible,
+dormant client. Module publication, catalog seed, Builder backfill,
+archive-asset authorization, and activation remain distinct owner-reviewed
+operations.
 
 ## Entry agreement and Marks
 
@@ -176,6 +212,27 @@ npm run stdb:inspect-alpha-v10 -- --json
 npm run stdb:inspect-alpha-v12 -- --json
 npm run stdb:daily-marks:inspect
 ```
+
+Inner Keep v15 stays independently inactive. Its counts-only inspection and
+deterministic plans use the guarded source-only operator:
+
+```sh
+npm run stdb:inner-keep:inspect
+npm run stdb:inner-keep:plan-catalog
+npm run stdb:inner-keep:plan-builders
+```
+
+Catalog seed, Builder backfill, activation, and deactivation are separate
+commands. They require exact plan counts and default to a local dry-run record;
+`--confirm` is mandatory for any reducer call. Activation is additionally
+blocked before credentials or network while Inner Keep runtime-use
+authorization remains pending. See the
+[Inner Keep activation runbook](../docs/operations/inner-keep-activation.md)
+for the complete future owner-reviewed sequence. The publisher has one
+explicit active-v14-to-inactive-v15 lane whose dry run performs only bounded
+network reads and whose publish path uses `--delete-data=never`; it performs no
+seed, Builder backfill, client deployment, or activation. No command is
+authorized by this source PR.
 
 Component setup is separate from module publication and must be reviewed one
 component at a time:

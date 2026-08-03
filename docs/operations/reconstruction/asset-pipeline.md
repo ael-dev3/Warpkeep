@@ -58,6 +58,35 @@ Then verify checksums, manifest entry parity, path safety, and every GLB:
 npx --yes @gltf-transform/cli@4.4.1 validate <model.glb>
 ```
 
+## Pending Inner Keep archive selection
+
+The [`inner-keep-3d-asset-library-2026-08-02`](https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/inner-keep-3d-asset-library-2026-08-02)
+release remains an archive source, not a browser CDN. Warpkeep records an exact
+allowlist of 36 assets: 108 High/Balanced/Compact GLBs and four building-card
+PNGs. The complete 234,962,670-byte archive, unselected media, editable sources,
+and inspection models remain outside this repository.
+
+Audit an exact trusted local copy without writing runtime files:
+
+```sh
+WARPKEEP_INNER_KEEP_ARCHIVE=/trusted/offline/inner-keep-3d-asset-library-2026-08-02-v1.zip \
+WARPKEEP_INNER_KEEP_RELEASE_MANIFEST=/trusted/offline/manifest.json \
+  npm run assets:audit:inner-keep
+npm run verify:inner-keep-assets
+```
+
+The audit pins the release and selection digests, validates all 1,347 ZIP
+members against the trusted release manifest, rejects unsafe or non-regular
+members, and verifies every selected source manifest, GLB, and PNG. It uses no
+network and extracts selected bytes only into a temporary private directory.
+
+`npm run prepare:inner-keep-assets` is the intentionally fail-closed future
+installation path. It cannot install while the provenance record says official
+repository/runtime use is unauthorized. An explicit owner decision must be
+recorded and the selection contract and runtime verifier reviewed together
+before that gate may change. The exact selection and required decision are in
+the [dated Inner Keep asset record](../../reference/assets/2026-08-02-inner-keep-3d-library/).
+
 ## Active runtime models
 
 | File | Bytes | SHA-256 |

@@ -58,9 +58,19 @@ assert.deepEqual(v13Registrations.slice(0, 53), v12Registrations);
 assert.deepEqual(candidateRegistrations.slice(0, 53), v12Registrations);
 assert.deepEqual(v13Registrations.slice(53), ['accessRequestV1']);
 assert.deepEqual(candidateRegistrations.slice(0, 54), v13Registrations);
-assert.deepEqual(candidateRegistrations.slice(54), [
+assert.deepEqual(candidateRegistrations.slice(54, 56), [
   'dailyMarkGrantV1',
   'dailyMarkScheduleV1',
+]);
+assert.deepEqual(candidateRegistrations.slice(56), [
+  'innerKeepLayoutV1',
+  'innerKeepSlotV1',
+  'innerKeepBuildingCatalogV1',
+  'innerKeepBuildLevelV1',
+  'castleInnerKeepBuildingV1',
+  'castleInnerBuilderV1',
+  'castleInnerBuildReceiptV1',
+  'castleInnerConstructionScheduleV1',
 ]);
 
 const v13TailStart = v13Fixture.indexOf(
@@ -126,16 +136,18 @@ assert.match(proof, /arguments_\.filter\(value => value === '--delete-data=never
 assert.match(proof, /arguments_\.some\(value => value\.startsWith\('--delete-data='/);
 assert.doesNotMatch(proof, /--delete-data=(?:always|on-conflict|if-required)/);
 
-assert.match(receipt, /ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION = 14/);
+assert.match(receipt, /ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION = 15/);
 assert.match(receipt, /v13_table_schema_sha256/);
 assert.match(receipt, /v13TableSchemaDigest/);
 assert.match(receipt, /v14_table_schema_sha256/);
 assert.match(receipt, /v14TableSchemaDigest/);
+assert.match(receipt, /v15_table_schema_sha256/);
+assert.match(receipt, /v15TableSchemaDigest/);
 
 console.log(
   'access-request additive migration proof passed: exact v12 refs 0–52 preserved, '
   + 'private access_request_v1 remains the exact v13 ref 53 boundary, '
-  + 'the reviewed v14 daily Marks suffix is the only allowed extension, '
+  + 'the reviewed v14 daily Marks suffix remains frozen before the exact v15 Inner Keep extension, '
   + 'the loopback proof exercises 2/10/50 same-cycle calls and two FIDs, '
   + 'and every rehearsal remains deletion-disabled',
 );

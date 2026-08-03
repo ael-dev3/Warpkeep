@@ -38,15 +38,18 @@ import AcceptAlphaTermsV1Reducer from "./accept_alpha_terms_v_1_reducer";
 import AdminActivateDailyMarksV1Reducer from "./admin_activate_daily_marks_v_1_reducer";
 import AdminActivateGenesisWaterLayoutV1Reducer from "./admin_activate_genesis_water_layout_v_1_reducer";
 import AdminActivateGenesisWaterRevisionV1Reducer from "./admin_activate_genesis_water_revision_v_1_reducer";
+import AdminActivateInnerKeepV1Reducer from "./admin_activate_inner_keep_v_1_reducer";
 import AdminActivateWorkerSystemV1Reducer from "./admin_activate_worker_system_v_1_reducer";
 import AdminAdmitFounderV1Reducer from "./admin_admit_founder_v_1_reducer";
 import AdminAllowFidReducer from "./admin_allow_fid_reducer";
 import AdminBackfillDailyMarkAccountsV1Reducer from "./admin_backfill_daily_mark_accounts_v_1_reducer";
+import AdminBackfillInnerKeepBuildersV1Reducer from "./admin_backfill_inner_keep_builders_v_1_reducer";
 import AdminBackfillResourceAccountsV1Reducer from "./admin_backfill_resource_accounts_v_1_reducer";
 import AdminBackfillWorkerRosterV1Reducer from "./admin_backfill_worker_roster_v_1_reducer";
 import AdminBeginWorkerLegacyDrainV1Reducer from "./admin_begin_worker_legacy_drain_v_1_reducer";
 import AdminBumpAuthEpochReducer from "./admin_bump_auth_epoch_reducer";
 import AdminCompleteWorkerLegacyDrainV1Reducer from "./admin_complete_worker_legacy_drain_v_1_reducer";
+import AdminDeactivateInnerKeepV1Reducer from "./admin_deactivate_inner_keep_v_1_reducer";
 import AdminDisableFidReducer from "./admin_disable_fid_reducer";
 import AdminExpandGenesisWorldV3Reducer from "./admin_expand_genesis_world_v_3_reducer";
 import AdminRepairMissingWorkerReturnScheduleV1Reducer from "./admin_repair_missing_worker_return_schedule_v_1_reducer";
@@ -58,6 +61,7 @@ import AdminSeedGenesisTierIStoneSitesV1Reducer from "./admin_seed_genesis_tier_
 import AdminSeedGenesisTierIWoodSitesV1Reducer from "./admin_seed_genesis_tier_i_wood_sites_v_1_reducer";
 import AdminSeedGenesisWaterLayoutV1Reducer from "./admin_seed_genesis_water_layout_v_1_reducer";
 import AdminSeedGenesisWaterRevisionV1Reducer from "./admin_seed_genesis_water_revision_v_1_reducer";
+import AdminSeedInnerKeepCatalogV1Reducer from "./admin_seed_inner_keep_catalog_v_1_reducer";
 import AdminSeedWorldReducer from "./admin_seed_world_reducer";
 import AdminStageWorkerSystemV1Reducer from "./admin_stage_worker_system_v_1_reducer";
 import AdminUpsertRealmProfileV1Reducer from "./admin_upsert_realm_profile_v_1_reducer";
@@ -73,6 +77,7 @@ import DispatchGoldExpeditionV1Reducer from "./dispatch_gold_expedition_v_1_redu
 import DispatchStoneExpeditionV1Reducer from "./dispatch_stone_expedition_v_1_reducer";
 import DispatchWoodExpeditionV1Reducer from "./dispatch_wood_expedition_v_1_reducer";
 import DispatchWorkerV1Reducer from "./dispatch_worker_v_1_reducer";
+import InnerKeepStartProjectV1Reducer from "./inner_keep_start_project_v_1_reducer";
 import RecallAllWorkersV1Reducer from "./recall_all_workers_v_1_reducer";
 import RecallWorkerV1Reducer from "./recall_worker_v_1_reducer";
 import ReturnLegacyExpeditionV1Reducer from "./return_legacy_expedition_v_1_reducer";
@@ -89,11 +94,14 @@ import * as AdminGetAlphaStatusV8Procedure from "./admin_get_alpha_status_v_8_pr
 import * as AdminGetAlphaStatusV10Procedure from "./admin_get_alpha_status_v_10_procedure";
 import * as AdminGetDailyMarksStatusV1Procedure from "./admin_get_daily_marks_status_v_1_procedure";
 import * as AdminGetFidAuthEpochProcedure from "./admin_get_fid_auth_epoch_procedure";
+import * as AdminGetInnerKeepStatusV1Procedure from "./admin_get_inner_keep_status_v_1_procedure";
 import * as AdminGetWorkerRolloutStatusV2Procedure from "./admin_get_worker_rollout_status_v_2_procedure";
 import * as AdminGetWorkerSystemStatusV1Procedure from "./admin_get_worker_system_status_v_1_procedure";
 import * as AdminInspectGenesisWaterLayoutV1Procedure from "./admin_inspect_genesis_water_layout_v_1_procedure";
 import * as AdminInspectGenesisWaterRevisionV1Procedure from "./admin_inspect_genesis_water_revision_v_1_procedure";
 import * as AdminListAccessRequestsV1Procedure from "./admin_list_access_requests_v_1_procedure";
+import * as AdminPlanInnerKeepBuildersV1Procedure from "./admin_plan_inner_keep_builders_v_1_procedure";
+import * as AdminPlanInnerKeepCatalogV1Procedure from "./admin_plan_inner_keep_catalog_v_1_procedure";
 import * as AdminPlanWorkerRosterV1Procedure from "./admin_plan_worker_roster_v_1_procedure";
 import * as AuthResolverGetFidAdmissionV2Procedure from "./auth_resolver_get_fid_admission_v_2_procedure";
 import * as GetAlphaBackendInfoProcedure from "./get_alpha_backend_info_procedure";
@@ -102,6 +110,8 @@ import * as GetMyAdmissionStatusV2Procedure from "./get_my_admission_status_v_2_
 import * as GetMyEntryAgreementStatusV1Procedure from "./get_my_entry_agreement_status_v_1_procedure";
 import * as GetMyFoodExpeditionStateV1Procedure from "./get_my_food_expedition_state_v_1_procedure";
 import * as GetMyGoldExpeditionStateV1Procedure from "./get_my_gold_expedition_state_v_1_procedure";
+import * as GetMyInnerKeepRequestStatusV1Procedure from "./get_my_inner_keep_request_status_v_1_procedure";
+import * as GetMyInnerKeepStateV1Procedure from "./get_my_inner_keep_state_v_1_procedure";
 import * as GetMyResourceStateV1Procedure from "./get_my_resource_state_v_1_procedure";
 import * as GetMyResourceStateV2Procedure from "./get_my_resource_state_v_2_procedure";
 import * as GetMyStoneExpeditionStateV1Procedure from "./get_my_stone_expedition_state_v_1_procedure";
@@ -113,6 +123,7 @@ import * as QaObserverGetRealmSnapshotV1Procedure from "./qa_observer_get_realm_
 
 // Import all table schema definitions
 import CastleRow from "./castle_table";
+import CastleInnerKeepBuildingV1Row from "./castle_inner_keep_building_v_1_table";
 import CastleSlotV1Row from "./castle_slot_v_1_table";
 import CastleWorkerV1Row from "./castle_worker_v_1_table";
 import FoodExpeditionScheduleV1Row from "./food_expedition_schedule_v_1_table";
@@ -121,6 +132,10 @@ import FoodSiteV1Row from "./food_site_v_1_table";
 import GoldExpeditionScheduleV1Row from "./gold_expedition_schedule_v_1_table";
 import GoldNodeOccupationV1Row from "./gold_node_occupation_v_1_table";
 import GoldSiteV1Row from "./gold_site_v_1_table";
+import InnerKeepBuildLevelV1Row from "./inner_keep_build_level_v_1_table";
+import InnerKeepBuildingCatalogV1Row from "./inner_keep_building_catalog_v_1_table";
+import InnerKeepLayoutV1Row from "./inner_keep_layout_v_1_table";
+import InnerKeepSlotV1Row from "./inner_keep_slot_v_1_table";
 import PlayerRow from "./player_table";
 import PlayerV2Row from "./player_v_2_table";
 import RealmEnvironmentV1Row from "./realm_environment_v_1_table";
@@ -166,6 +181,24 @@ const tablesSchema = __schema({
       { name: 'castle_tile_key_key', constraint: 'unique', columns: ['tileKey'] },
     ],
   }, CastleRow),
+  castleInnerKeepBuildingV1: __table({
+    name: 'castle_inner_keep_building_v1',
+    indexes: [
+      { accessor: 'buildingKey', name: 'castle_inner_keep_building_v1_building_key_idx_btree', algorithm: 'btree', columns: [
+        'buildingKey',
+      ] },
+      { accessor: 'byCastle', name: 'castle_inner_keep_building_v1_castle_id_idx_btree', algorithm: 'btree', columns: [
+        'castleId',
+      ] },
+      { accessor: 'slotKey', name: 'castle_inner_keep_building_v1_slot_key_idx_btree', algorithm: 'btree', columns: [
+        'slotKey',
+      ] },
+    ],
+    constraints: [
+      { name: 'castle_inner_keep_building_v1_building_key_key', constraint: 'unique', columns: ['buildingKey'] },
+      { name: 'castle_inner_keep_building_v1_slot_key_key', constraint: 'unique', columns: ['slotKey'] },
+    ],
+  }, CastleInnerKeepBuildingV1Row),
   castleSlotV1: __table({
     name: 'castle_slot_v1',
     indexes: [
@@ -282,6 +315,56 @@ const tablesSchema = __schema({
       { name: 'gold_site_v1_site_id_key', constraint: 'unique', columns: ['siteId'] },
     ],
   }, GoldSiteV1Row),
+  innerKeepBuildLevelV1: __table({
+    name: 'inner_keep_build_level_v1',
+    indexes: [
+      { accessor: 'buildingKind', name: 'inner_keep_build_level_v1_building_kind_idx_btree', algorithm: 'btree', columns: [
+        'buildingKind',
+      ] },
+      { accessor: 'levelKey', name: 'inner_keep_build_level_v1_level_key_idx_btree', algorithm: 'btree', columns: [
+        'levelKey',
+      ] },
+    ],
+    constraints: [
+      { name: 'inner_keep_build_level_v1_level_key_key', constraint: 'unique', columns: ['levelKey'] },
+    ],
+  }, InnerKeepBuildLevelV1Row),
+  innerKeepBuildingCatalogV1: __table({
+    name: 'inner_keep_building_catalog_v1',
+    indexes: [
+      { accessor: 'buildingKind', name: 'inner_keep_building_catalog_v1_building_kind_idx_btree', algorithm: 'btree', columns: [
+        'buildingKind',
+      ] },
+    ],
+    constraints: [
+      { name: 'inner_keep_building_catalog_v1_building_kind_key', constraint: 'unique', columns: ['buildingKind'] },
+    ],
+  }, InnerKeepBuildingCatalogV1Row),
+  innerKeepLayoutV1: __table({
+    name: 'inner_keep_layout_v1',
+    indexes: [
+      { accessor: 'layoutId', name: 'inner_keep_layout_v1_layout_id_idx_btree', algorithm: 'btree', columns: [
+        'layoutId',
+      ] },
+    ],
+    constraints: [
+      { name: 'inner_keep_layout_v1_layout_id_key', constraint: 'unique', columns: ['layoutId'] },
+    ],
+  }, InnerKeepLayoutV1Row),
+  innerKeepSlotV1: __table({
+    name: 'inner_keep_slot_v1',
+    indexes: [
+      { accessor: 'layoutId', name: 'inner_keep_slot_v1_layout_id_idx_btree', algorithm: 'btree', columns: [
+        'layoutId',
+      ] },
+      { accessor: 'slotId', name: 'inner_keep_slot_v1_slot_id_idx_btree', algorithm: 'btree', columns: [
+        'slotId',
+      ] },
+    ],
+    constraints: [
+      { name: 'inner_keep_slot_v1_slot_id_key', constraint: 'unique', columns: ['slotId'] },
+    ],
+  }, InnerKeepSlotV1Row),
   player: __table({
     name: 'player',
     indexes: [
@@ -576,15 +659,18 @@ const reducersSchema = __reducers(
   __reducerSchema("admin_activate_daily_marks_v1", AdminActivateDailyMarksV1Reducer),
   __reducerSchema("admin_activate_genesis_water_layout_v1", AdminActivateGenesisWaterLayoutV1Reducer),
   __reducerSchema("admin_activate_genesis_water_revision_v1", AdminActivateGenesisWaterRevisionV1Reducer),
+  __reducerSchema("admin_activate_inner_keep_v1", AdminActivateInnerKeepV1Reducer),
   __reducerSchema("admin_activate_worker_system_v1", AdminActivateWorkerSystemV1Reducer),
   __reducerSchema("admin_admit_founder_v1", AdminAdmitFounderV1Reducer),
   __reducerSchema("admin_allow_fid", AdminAllowFidReducer),
   __reducerSchema("admin_backfill_daily_mark_accounts_v1", AdminBackfillDailyMarkAccountsV1Reducer),
+  __reducerSchema("admin_backfill_inner_keep_builders_v1", AdminBackfillInnerKeepBuildersV1Reducer),
   __reducerSchema("admin_backfill_resource_accounts_v1", AdminBackfillResourceAccountsV1Reducer),
   __reducerSchema("admin_backfill_worker_roster_v1", AdminBackfillWorkerRosterV1Reducer),
   __reducerSchema("admin_begin_worker_legacy_drain_v1", AdminBeginWorkerLegacyDrainV1Reducer),
   __reducerSchema("admin_bump_auth_epoch", AdminBumpAuthEpochReducer),
   __reducerSchema("admin_complete_worker_legacy_drain_v1", AdminCompleteWorkerLegacyDrainV1Reducer),
+  __reducerSchema("admin_deactivate_inner_keep_v1", AdminDeactivateInnerKeepV1Reducer),
   __reducerSchema("admin_disable_fid", AdminDisableFidReducer),
   __reducerSchema("admin_expand_genesis_world_v3", AdminExpandGenesisWorldV3Reducer),
   __reducerSchema("admin_repair_missing_worker_return_schedule_v1", AdminRepairMissingWorkerReturnScheduleV1Reducer),
@@ -596,6 +682,7 @@ const reducersSchema = __reducers(
   __reducerSchema("admin_seed_genesis_tier_i_wood_sites_v1", AdminSeedGenesisTierIWoodSitesV1Reducer),
   __reducerSchema("admin_seed_genesis_water_layout_v1", AdminSeedGenesisWaterLayoutV1Reducer),
   __reducerSchema("admin_seed_genesis_water_revision_v1", AdminSeedGenesisWaterRevisionV1Reducer),
+  __reducerSchema("admin_seed_inner_keep_catalog_v1", AdminSeedInnerKeepCatalogV1Reducer),
   __reducerSchema("admin_seed_world", AdminSeedWorldReducer),
   __reducerSchema("admin_stage_worker_system_v1", AdminStageWorkerSystemV1Reducer),
   __reducerSchema("admin_upsert_realm_profile_v1", AdminUpsertRealmProfileV1Reducer),
@@ -611,6 +698,7 @@ const reducersSchema = __reducers(
   __reducerSchema("dispatch_stone_expedition_v1", DispatchStoneExpeditionV1Reducer),
   __reducerSchema("dispatch_wood_expedition_v1", DispatchWoodExpeditionV1Reducer),
   __reducerSchema("dispatch_worker_v1", DispatchWorkerV1Reducer),
+  __reducerSchema("inner_keep_start_project_v1", InnerKeepStartProjectV1Reducer),
   __reducerSchema("recall_all_workers_v1", RecallAllWorkersV1Reducer),
   __reducerSchema("recall_worker_v1", RecallWorkerV1Reducer),
   __reducerSchema("return_legacy_expedition_v1", ReturnLegacyExpeditionV1Reducer),
@@ -629,11 +717,14 @@ const proceduresSchema = __procedures(
   __procedureSchema("admin_get_alpha_status_v_10", AdminGetAlphaStatusV10Procedure.params, AdminGetAlphaStatusV10Procedure.returnType),
   __procedureSchema("admin_get_daily_marks_status_v1", AdminGetDailyMarksStatusV1Procedure.params, AdminGetDailyMarksStatusV1Procedure.returnType),
   __procedureSchema("admin_get_fid_auth_epoch", AdminGetFidAuthEpochProcedure.params, AdminGetFidAuthEpochProcedure.returnType),
+  __procedureSchema("admin_get_inner_keep_status_v1", AdminGetInnerKeepStatusV1Procedure.params, AdminGetInnerKeepStatusV1Procedure.returnType),
   __procedureSchema("admin_get_worker_rollout_status_v2", AdminGetWorkerRolloutStatusV2Procedure.params, AdminGetWorkerRolloutStatusV2Procedure.returnType),
   __procedureSchema("admin_get_worker_system_status_v1", AdminGetWorkerSystemStatusV1Procedure.params, AdminGetWorkerSystemStatusV1Procedure.returnType),
   __procedureSchema("admin_inspect_genesis_water_layout_v1", AdminInspectGenesisWaterLayoutV1Procedure.params, AdminInspectGenesisWaterLayoutV1Procedure.returnType),
   __procedureSchema("admin_inspect_genesis_water_revision_v_1", AdminInspectGenesisWaterRevisionV1Procedure.params, AdminInspectGenesisWaterRevisionV1Procedure.returnType),
   __procedureSchema("admin_list_access_requests_v1", AdminListAccessRequestsV1Procedure.params, AdminListAccessRequestsV1Procedure.returnType),
+  __procedureSchema("admin_plan_inner_keep_builders_v1", AdminPlanInnerKeepBuildersV1Procedure.params, AdminPlanInnerKeepBuildersV1Procedure.returnType),
+  __procedureSchema("admin_plan_inner_keep_catalog_v1", AdminPlanInnerKeepCatalogV1Procedure.params, AdminPlanInnerKeepCatalogV1Procedure.returnType),
   __procedureSchema("admin_plan_worker_roster_v1", AdminPlanWorkerRosterV1Procedure.params, AdminPlanWorkerRosterV1Procedure.returnType),
   __procedureSchema("auth_resolver_get_fid_admission_v2", AuthResolverGetFidAdmissionV2Procedure.params, AuthResolverGetFidAdmissionV2Procedure.returnType),
   __procedureSchema("get_alpha_backend_info", GetAlphaBackendInfoProcedure.params, GetAlphaBackendInfoProcedure.returnType),
@@ -642,6 +733,8 @@ const proceduresSchema = __procedures(
   __procedureSchema("get_my_entry_agreement_status_v1", GetMyEntryAgreementStatusV1Procedure.params, GetMyEntryAgreementStatusV1Procedure.returnType),
   __procedureSchema("get_my_food_expedition_state_v1", GetMyFoodExpeditionStateV1Procedure.params, GetMyFoodExpeditionStateV1Procedure.returnType),
   __procedureSchema("get_my_gold_expedition_state_v1", GetMyGoldExpeditionStateV1Procedure.params, GetMyGoldExpeditionStateV1Procedure.returnType),
+  __procedureSchema("get_my_inner_keep_request_status_v1", GetMyInnerKeepRequestStatusV1Procedure.params, GetMyInnerKeepRequestStatusV1Procedure.returnType),
+  __procedureSchema("get_my_inner_keep_state_v1", GetMyInnerKeepStateV1Procedure.params, GetMyInnerKeepStateV1Procedure.returnType),
   __procedureSchema("get_my_resource_state_v1", GetMyResourceStateV1Procedure.params, GetMyResourceStateV1Procedure.returnType),
   __procedureSchema("get_my_resource_state_v2", GetMyResourceStateV2Procedure.params, GetMyResourceStateV2Procedure.returnType),
   __procedureSchema("get_my_stone_expedition_state_v1", GetMyStoneExpeditionStateV1Procedure.params, GetMyStoneExpeditionStateV1Procedure.returnType),

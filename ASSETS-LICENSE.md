@@ -461,6 +461,32 @@ placement, ownership, resources, rewards, pathing, or other game authority.
 Legacy Regular Tree variants have no authorized runtime collision; species
 records retain only their supplied trunk-only guidance.
 
+## Pending Inner Keep 3D archive selection
+
+The public Warpkeep-Assets release
+[`inner-keep-3d-asset-library-2026-08-02`](https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/inner-keep-3d-asset-library-2026-08-02)
+contains a 234,962,670-byte archive with SHA-256
+`f13bc9e7b8e32a6767b1959307a202d894123f384e11fd19550d75e0dfe5f6c9`.
+Ael authorized its public archival and GitHub Release distribution. The release
+does not grant one blanket open-content license, and runtime designation or
+archive presence does not itself authorize live-game integration.
+
+Warpkeep records a proposed exact subset of 108 GLBs and four PNG previews at
+selection digest
+`6763aeb1755d800b817a0d5174182474d3836a928c59beb4b4fdf65f5d1f6ec3`.
+The subset remains `LicenseRef-Warpkeep-Provenance-Required`. None of those
+archive-only binaries is committed or served by this repository while exact
+official repository/runtime-use authorization is pending. The selection does
+not establish ownership, relicensing, general derivative or redistribution
+rights, trademark or canonical-identity rights, merge, deployment, activation,
+or same-named-file substitution.
+
+Three separately authorized existing tree families may be reused under their
+existing dated record; that permission does not extend to the three newly
+selected archive tree families. The complete allowlist, hashes, exclusions,
+audit procedure, and exact owner decision still required are in the dated
+[Inner Keep asset selection record](docs/reference/assets/2026-08-02-inner-keep-3d-library/).
+
 ## Historical Hegemony Frontier Keep provenance
 
 The Hegemony Frontier Keep and its former runtime derivatives were project-provided media supplied for this repository. The 63 MB source remains byte-for-byte identifiable through its technical record but is not present in the current tree or a public release while redistribution authority is unresolved. The three former runtime derivatives are also retired and absent; their future license follows the source-rights determination, not the fact of conversion.

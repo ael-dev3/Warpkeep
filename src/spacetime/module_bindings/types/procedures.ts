@@ -17,11 +17,14 @@ import * as AdminGetAlphaStatusV8Procedure from "../admin_get_alpha_status_v_8_p
 import * as AdminGetAlphaStatusV10Procedure from "../admin_get_alpha_status_v_10_procedure";
 import * as AdminGetDailyMarksStatusV1Procedure from "../admin_get_daily_marks_status_v_1_procedure";
 import * as AdminGetFidAuthEpochProcedure from "../admin_get_fid_auth_epoch_procedure";
+import * as AdminGetInnerKeepStatusV1Procedure from "../admin_get_inner_keep_status_v_1_procedure";
 import * as AdminGetWorkerRolloutStatusV2Procedure from "../admin_get_worker_rollout_status_v_2_procedure";
 import * as AdminGetWorkerSystemStatusV1Procedure from "../admin_get_worker_system_status_v_1_procedure";
 import * as AdminInspectGenesisWaterLayoutV1Procedure from "../admin_inspect_genesis_water_layout_v_1_procedure";
 import * as AdminInspectGenesisWaterRevisionV1Procedure from "../admin_inspect_genesis_water_revision_v_1_procedure";
 import * as AdminListAccessRequestsV1Procedure from "../admin_list_access_requests_v_1_procedure";
+import * as AdminPlanInnerKeepBuildersV1Procedure from "../admin_plan_inner_keep_builders_v_1_procedure";
+import * as AdminPlanInnerKeepCatalogV1Procedure from "../admin_plan_inner_keep_catalog_v_1_procedure";
 import * as AdminPlanWorkerRosterV1Procedure from "../admin_plan_worker_roster_v_1_procedure";
 import * as AuthResolverGetFidAdmissionV2Procedure from "../auth_resolver_get_fid_admission_v_2_procedure";
 import * as GetAlphaBackendInfoProcedure from "../get_alpha_backend_info_procedure";
@@ -30,6 +33,8 @@ import * as GetMyAdmissionStatusV2Procedure from "../get_my_admission_status_v_2
 import * as GetMyEntryAgreementStatusV1Procedure from "../get_my_entry_agreement_status_v_1_procedure";
 import * as GetMyFoodExpeditionStateV1Procedure from "../get_my_food_expedition_state_v_1_procedure";
 import * as GetMyGoldExpeditionStateV1Procedure from "../get_my_gold_expedition_state_v_1_procedure";
+import * as GetMyInnerKeepRequestStatusV1Procedure from "../get_my_inner_keep_request_status_v_1_procedure";
+import * as GetMyInnerKeepStateV1Procedure from "../get_my_inner_keep_state_v_1_procedure";
 import * as GetMyResourceStateV1Procedure from "../get_my_resource_state_v_1_procedure";
 import * as GetMyResourceStateV2Procedure from "../get_my_resource_state_v_2_procedure";
 import * as GetMyStoneExpeditionStateV1Procedure from "../get_my_stone_expedition_state_v_1_procedure";
@@ -61,6 +66,8 @@ export type AdminGetDailyMarksStatusV1Args = __Infer<typeof AdminGetDailyMarksSt
 export type AdminGetDailyMarksStatusV1Result = __Infer<typeof AdminGetDailyMarksStatusV1Procedure.returnType>;
 export type AdminGetFidAuthEpochArgs = __Infer<typeof AdminGetFidAuthEpochProcedure.params>;
 export type AdminGetFidAuthEpochResult = __Infer<typeof AdminGetFidAuthEpochProcedure.returnType>;
+export type AdminGetInnerKeepStatusV1Args = __Infer<typeof AdminGetInnerKeepStatusV1Procedure.params>;
+export type AdminGetInnerKeepStatusV1Result = __Infer<typeof AdminGetInnerKeepStatusV1Procedure.returnType>;
 export type AdminGetWorkerRolloutStatusV2Args = __Infer<typeof AdminGetWorkerRolloutStatusV2Procedure.params>;
 export type AdminGetWorkerRolloutStatusV2Result = __Infer<typeof AdminGetWorkerRolloutStatusV2Procedure.returnType>;
 export type AdminGetWorkerSystemStatusV1Args = __Infer<typeof AdminGetWorkerSystemStatusV1Procedure.params>;
@@ -71,6 +78,10 @@ export type AdminInspectGenesisWaterRevisionV1Args = __Infer<typeof AdminInspect
 export type AdminInspectGenesisWaterRevisionV1Result = __Infer<typeof AdminInspectGenesisWaterRevisionV1Procedure.returnType>;
 export type AdminListAccessRequestsV1Args = __Infer<typeof AdminListAccessRequestsV1Procedure.params>;
 export type AdminListAccessRequestsV1Result = __Infer<typeof AdminListAccessRequestsV1Procedure.returnType>;
+export type AdminPlanInnerKeepBuildersV1Args = __Infer<typeof AdminPlanInnerKeepBuildersV1Procedure.params>;
+export type AdminPlanInnerKeepBuildersV1Result = __Infer<typeof AdminPlanInnerKeepBuildersV1Procedure.returnType>;
+export type AdminPlanInnerKeepCatalogV1Args = __Infer<typeof AdminPlanInnerKeepCatalogV1Procedure.params>;
+export type AdminPlanInnerKeepCatalogV1Result = __Infer<typeof AdminPlanInnerKeepCatalogV1Procedure.returnType>;
 export type AdminPlanWorkerRosterV1Args = __Infer<typeof AdminPlanWorkerRosterV1Procedure.params>;
 export type AdminPlanWorkerRosterV1Result = __Infer<typeof AdminPlanWorkerRosterV1Procedure.returnType>;
 export type AuthResolverGetFidAdmissionV2Args = __Infer<typeof AuthResolverGetFidAdmissionV2Procedure.params>;
@@ -87,6 +98,10 @@ export type GetMyFoodExpeditionStateV1Args = __Infer<typeof GetMyFoodExpeditionS
 export type GetMyFoodExpeditionStateV1Result = __Infer<typeof GetMyFoodExpeditionStateV1Procedure.returnType>;
 export type GetMyGoldExpeditionStateV1Args = __Infer<typeof GetMyGoldExpeditionStateV1Procedure.params>;
 export type GetMyGoldExpeditionStateV1Result = __Infer<typeof GetMyGoldExpeditionStateV1Procedure.returnType>;
+export type GetMyInnerKeepRequestStatusV1Args = __Infer<typeof GetMyInnerKeepRequestStatusV1Procedure.params>;
+export type GetMyInnerKeepRequestStatusV1Result = __Infer<typeof GetMyInnerKeepRequestStatusV1Procedure.returnType>;
+export type GetMyInnerKeepStateV1Args = __Infer<typeof GetMyInnerKeepStateV1Procedure.params>;
+export type GetMyInnerKeepStateV1Result = __Infer<typeof GetMyInnerKeepStateV1Procedure.returnType>;
 export type GetMyResourceStateV1Args = __Infer<typeof GetMyResourceStateV1Procedure.params>;
 export type GetMyResourceStateV1Result = __Infer<typeof GetMyResourceStateV1Procedure.returnType>;
 export type GetMyResourceStateV2Args = __Infer<typeof GetMyResourceStateV2Procedure.params>;

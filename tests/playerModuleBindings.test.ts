@@ -8,11 +8,16 @@ import { DbConnection, tables as playerTables } from '../src/spacetime/playerMod
 
 const PLAYER_TABLE_KEYS = [
   'castle',
+  'castleInnerKeepBuildingV1',
   'castleWorkerV1',
   'foodNodeOccupationV1',
   'foodSiteV1',
   'goldNodeOccupationV1',
   'goldSiteV1',
+  'innerKeepBuildLevelV1',
+  'innerKeepBuildingCatalogV1',
+  'innerKeepLayoutV1',
+  'innerKeepSlotV1',
   'playerV2',
   'realmEnvironmentV1',
   'realmForestInstanceV1',
@@ -105,6 +110,14 @@ describe('player SpacetimeDB bindings', () => {
     expect(playerBindings).toContain("'get_my_worker_control_state_v1'")
     expect(playerBindings).toContain("'get_my_worker_roster_v1'")
     expect(playerBindings).toContain("'dispatch_worker_v1'")
+    expect(playerBindings).toContain("'inner_keep_start_project_v1'")
+    expect(playerBindings).toContain("'get_my_inner_keep_request_status_v1'")
+    expect(playerBindings).toContain("'get_my_inner_keep_state_v1'")
+    expect(playerBindings).toContain("name: 'inner_keep_layout_v1'")
+    expect(playerBindings).toContain("name: 'inner_keep_slot_v1'")
+    expect(playerBindings).toContain("name: 'inner_keep_building_catalog_v1'")
+    expect(playerBindings).toContain("name: 'inner_keep_build_level_v1'")
+    expect(playerBindings).toContain("name: 'castle_inner_keep_building_v1'")
     expect(playerBindings).toContain("'recall_worker_v1'")
     expect(playerBindings).toContain("'recall_all_workers_v1'")
     expect(playerBindings).toContain("'return_legacy_expedition_v1'")
@@ -133,6 +146,13 @@ describe('player SpacetimeDB bindings', () => {
     expect(playerBindings).not.toContain('/v1/qa/')
     expect(playerBindings).not.toContain('worker_assignment_schedule_v_1')
     expect(playerBindings).not.toContain('worker_command_idempotency_v_1')
+    expect(playerBindings).not.toContain('castle_inner_builder_v_1')
+    expect(playerBindings).not.toContain('castle_inner_build_receipt_v_1')
+    expect(playerBindings).not.toContain('castle_inner_construction_schedule_v_1')
+    expect(playerBindings).not.toContain('admin_get_inner_keep_status_v_1')
+    expect(playerBindings).not.toContain('admin_plan_inner_keep_catalog_v_1')
+    expect(playerBindings).not.toContain('admin_seed_inner_keep_catalog_v_1')
+    expect(playerBindings).not.toContain('admin_activate_inner_keep_v_1')
   })
 
   it('exposes only the player reducer and procedure accessors at runtime', () => {
@@ -165,6 +185,7 @@ describe('player SpacetimeDB bindings', () => {
       'dispatchStoneExpeditionV1',
       'dispatchWoodExpeditionV1',
       'dispatchWorkerV1',
+      'innerKeepStartProjectV1',
       'recallAllWorkersV1',
       'recallWorkerV1',
       'returnLegacyExpeditionV1',
@@ -175,6 +196,8 @@ describe('player SpacetimeDB bindings', () => {
       'getMyEntryAgreementStatusV1',
       'getMyFoodExpeditionStateV1',
       'getMyGoldExpeditionStateV1',
+      'getMyInnerKeepRequestStatusV1',
+      'getMyInnerKeepStateV1',
       'getMyResourceStateV1',
       'getMyResourceStateV2',
       'getMyStoneExpeditionStateV1',

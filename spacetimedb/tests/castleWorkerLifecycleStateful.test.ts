@@ -127,6 +127,7 @@ const {
   recallAllCastleWorkers,
   recallCastleWorker,
   runCastleWorkerSchedule,
+  settleAllWorkerAssignmentsForFid,
 } = await loadExactProductionModule<typeof CastleWorkerAuthority>(
   new URL('../src/castleWorkerAuthority.ts', import.meta.url),
 );
@@ -824,6 +825,80 @@ test('four workers share one resource across distinct nodes through replay, sche
     workerResourcePolicy('gold').gatheringTotal
       * BigInt(CASTLE_WORKERS_PER_CASTLE),
   );
+});
+
+test('same-timestamp settlement preserves an active Worker reservation and materializes it once', () => {
+  const fixture = makeLifecycleFixture();
+  const workerId = [...fixture.workers.keys()].sort()[0]!;
+  const siteId = fixture.sites[0]!.siteId;
+  const dispatched = dispatchCastleWorker(fixture.ctx, {
+    fid: fixture.fid,
+    castle: fixture.castle,
+    workerId,
+    resourceKind: 'gold',
+    siteId,
+    idempotencyKey: 'settle-active-reservation-01',
+  });
+  assert.ok(dispatched.assignment);
+  fixture.runSchedule(fixture.scheduleFor(workerId, 'arrival'));
+  const gathering = [...fixture.assignments.values()].find(
+    assignment => assignment.workerId === workerId,
+  )!;
+  const observedAtMicros = gathering.arrivesAtMicros
+    + 2n * REALM_RESOURCE_QUANTUM_MICROS;
+  assert.ok(observedAtMicros < gathering.gatheringEndsAtMicros);
+  (fixture.ctx as AnyRow).timestamp = timestamp(observedAtMicros);
+
+  const workersBefore = structuredClone([...fixture.workers.entries()]);
+  const occupationsBefore = structuredClone([...fixture.occupations.entries()]);
+  const schedulesBefore = structuredClone([...fixture.schedules.entries()]);
+  const accountBefore = structuredClone(fixture.account());
+  settleAllWorkerAssignmentsForFid(
+    fixture.ctx,
+    fixture.fid,
+    observedAtMicros,
+  );
+
+  const materialized = [...fixture.assignments.values()].find(
+    assignment => assignment.workerId === workerId,
+  )!;
+  const goldPolicy = workerResourcePolicy('gold');
+  const expectedCredit = (
+    (observedAtMicros - gathering.arrivesAtMicros) / goldPolicy.quantumMicros
+  ) * goldPolicy.ratePerQuantum;
+  assert.equal(materialized.phase, 'gathering');
+  assert.equal(materialized.siteId, siteId);
+  assert.equal(materialized.resourceKind, 'gold');
+  assert.equal(materialized.materializedAmount, expectedCredit);
+  assert.equal(materialized.accruedAmount, expectedCredit);
+  assert.deepEqual([...fixture.workers.entries()], workersBefore);
+  assert.deepEqual([...fixture.occupations.entries()], occupationsBefore);
+  assert.deepEqual([...fixture.schedules.entries()], schedulesBefore);
+  assert.equal(fixture.assignments.size, 1);
+  assert.equal(fixture.occupations.size, 1);
+  assert.equal(fixture.schedules.size, 1);
+  assert.equal(fixture.account().revision, accountBefore.revision + 1n);
+  assert.equal(fixture.account().gold, accountBefore.gold + expectedCredit);
+
+  const afterFirstSettlement = structuredClone({
+    account: fixture.account(),
+    assignments: [...fixture.assignments.entries()],
+    occupations: [...fixture.occupations.entries()],
+    schedules: [...fixture.schedules.entries()],
+    workers: [...fixture.workers.entries()],
+  });
+  settleAllWorkerAssignmentsForFid(
+    fixture.ctx,
+    fixture.fid,
+    observedAtMicros,
+  );
+  assert.deepEqual({
+    account: fixture.account(),
+    assignments: [...fixture.assignments.entries()],
+    occupations: [...fixture.occupations.entries()],
+    schedules: [...fixture.schedules.entries()],
+    workers: [...fixture.workers.entries()],
+  }, afterFirstSettlement);
 });
 
 test('an exact dispatch retry after normal completion is a terminal idempotent no-op', () => {

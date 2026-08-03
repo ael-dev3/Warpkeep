@@ -82,6 +82,8 @@ type RealmHudProps = Readonly<{
   onOpenResourceSite?: (site: RealmNavigatorResourceSite) => void;
   activeWagons?: readonly RealmActiveWagonMenuItem[];
   onOpenActiveWagon?: (wagon: RealmActiveWagonMenuItem) => void;
+  /** Feature-compatibility gate. Hidden until an authoritative controller exists. */
+  innerKeepAvailable?: boolean;
   /** Validated public system-mode signal, independent from graph completeness. */
   publicWorkerSystemActive?: boolean;
   publicWorkerProjection?: ReadyPublicWorkerProjection;
@@ -159,6 +161,19 @@ const RESOURCE_TOOLTIP_COPY: Readonly<Record<RealmResourceTooltipKey, string>> =
     'Gold comes from Gold Mine gathering; your keep’s terrain produces no Gold. The Realm stores completed yield automatically. No Gold spending is live yet.',
   marks:
     'Every admitted keeper receives one experimental Community Mark per eligible Realm day. Marks require no wallet or token action and have no spending, transfer, conversion, redemption, or reward loop.'
+});
+
+const INNER_KEEP_RESOURCE_TOOLTIP_COPY: Readonly<
+  Record<RealmEconomicResourceKey, string>
+> = Object.freeze({
+  food:
+    'Food comes from your keep’s private terrain yield and Wheat Farm gathering. Stored Food funds Inner Keep construction; pending gathering is not spendable.',
+  wood:
+    'Wood comes from your keep’s private terrain yield and Logging Camp gathering. Stored Wood funds Inner Keep construction; pending gathering is not spendable.',
+  stone:
+    'Stone comes from your keep’s private terrain yield and Stone Quarry gathering. Stored Stone funds Inner Keep construction; pending gathering is not spendable.',
+  gold:
+    'Gold comes from Gold Mine gathering; your keep’s terrain produces no Gold. Stored Gold funds Inner Keep construction; pending gathering is not spendable.'
 });
 
 const RESOURCE_ICON_PATHS: Readonly<
@@ -298,12 +313,14 @@ function RealmResourceRail({
   genericWorkerMode = false,
   workerResourceState,
   fullscreenDestinations,
+  innerKeepAvailable = false,
   onOpenResource
 }: Readonly<{
   resources: ReadyRealmResourcePresentation;
   genericWorkerMode?: boolean;
   workerResourceState?: ReadyWorkerResourceState;
   fullscreenDestinations: boolean;
+  innerKeepAvailable?: boolean;
   onOpenResource?: (
     resource: RealmSurfaceResourceKey,
     invoker: HTMLButtonElement
@@ -474,7 +491,9 @@ function RealmResourceRail({
             <span className="realm-resource-tooltip__title">{presentation.label}</span>
             <span className="realm-resource-tooltip__status">{presentation.status}</span>
             <span className="realm-resource-tooltip__copy">
-              {RESOURCE_TOOLTIP_COPY[resource]}
+              {resource !== 'marks' && innerKeepAvailable
+                ? INNER_KEEP_RESOURCE_TOOLTIP_COPY[resource]
+                : RESOURCE_TOOLTIP_COPY[resource]}
             </span>
           </div>
         );
@@ -507,6 +526,7 @@ type RealmCommandDialogProps = Readonly<{
   onRetryWorkerPrivateSync?: () => void;
   onClose: () => void;
   onExplore: (invoker: HTMLButtonElement) => void;
+  onInnerKeep?: (invoker: HTMLButtonElement) => void;
   onMarks?: (invoker: HTMLButtonElement) => void;
   onOpenActiveWagon?: (wagon: RealmActiveWagonMenuItem) => void;
   onRecenter: () => void;
@@ -539,6 +559,7 @@ function RealmCommandDialog({
   onRetryWorkerPrivateSync,
   onClose,
   onExplore,
+  onInnerKeep,
   onMarks,
   onOpenActiveWagon,
   onRecenter,
@@ -596,6 +617,17 @@ function RealmCommandDialog({
             <strong>MY KEEP</strong>
             <span>Recenter the camera</span>
           </button>
+          {onInnerKeep ? (
+            <button
+              data-command-intent="primary"
+              data-realm-focus-key="commands:inner-keep"
+              onClick={(event) => onInnerKeep(event.currentTarget)}
+              type="button"
+            >
+              <strong>INNER KEEP</strong>
+              <span>Develop your castle</span>
+            </button>
+          ) : null}
           <button
             data-command-intent="navigation"
             data-realm-focus-key="commands:explore"
@@ -796,6 +828,7 @@ export function RealmHud({
   onOpenResourceSite,
   activeWagons = [],
   onOpenActiveWagon,
+  innerKeepAvailable = false,
   publicWorkerSystemActive = false,
   publicWorkerProjection,
   workerProjection,
@@ -1377,6 +1410,7 @@ export function RealmHud({
           <RealmResourceRail
             fullscreenDestinations={fullscreenDestinations}
             genericWorkerMode={genericWorkerModeActive}
+            innerKeepAvailable={innerKeepAvailable}
             onOpenResource={(resource, invoker) => openSurface(
               { kind: 'resource-balance', resource },
               invoker
@@ -1445,6 +1479,13 @@ export function RealmHud({
                 { kind: 'resource-balance', resource: 'marks' },
                 invoker,
                 'commands:marks'
+              )
+            : undefined}
+          onInnerKeep={innerKeepAvailable && surfaceNavigation
+            ? (invoker) => openSurface(
+                { kind: 'inner-keep' },
+                invoker,
+                'commands:inner-keep'
               )
             : undefined}
           onOpenActiveWagon={!genericWorkerModeActive && onOpenActiveWagon

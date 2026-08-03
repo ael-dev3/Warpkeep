@@ -1289,6 +1289,70 @@ describe('RealmHud', () => {
     expect(within(dialog).queryByRole('button', { name: /COLLECT YIELD/i })).toBeNull();
   });
 
+  it('exposes Inner Keep only behind the compatible controller gate', () => {
+    const pushed = vi.fn();
+    function InnerKeepGateHarness() {
+      const [available, setAvailable] = useState(false);
+      const [stack, setStack] = useState<RealmSurfaceNavigation['stack']>([]);
+      const surfaceNavigation: RealmSurfaceNavigation = {
+        stack,
+        current: stack.at(-1),
+        depth: stack.length,
+        push: (route) => {
+          pushed(route);
+          setStack((current) => [...current, route]);
+        },
+        replace: (route) => setStack((current) => (
+          current.length === 0 ? [route] : [...current.slice(0, -1), route]
+        )),
+        back: () => setStack((current) => current.slice(0, -1)),
+        closeToRealm: () => setStack([])
+      };
+      return (
+        <>
+          <RealmHud
+            {...commonProps()}
+            innerKeepAvailable={available}
+            resources={createReadyResourceState()}
+            surfaceNavigation={surfaceNavigation}
+          />
+          <button onClick={() => setAvailable(true)} type="button">ENABLE INNER KEEP</button>
+        </>
+      );
+    }
+    render(<InnerKeepGateHarness />);
+    expect(within(openRealmMenu().dialog).queryByRole('button', {
+      name: /INNER KEEP/i
+    })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENABLE INNER KEEP' }));
+    const dialog = screen.getByRole('dialog', { name: /Realm menu/i });
+    const innerKeep = within(dialog).getByRole('button', {
+      name: /INNER KEEP.*Develop your castle/i
+    });
+    fireEvent.click(innerKeep);
+    expect(pushed).toHaveBeenLastCalledWith({ kind: 'inner-keep' });
+  });
+
+  it('switches resource spending copy only when Inner Keep is compatible', () => {
+    render(
+      <RealmHud
+        {...commonProps()}
+        innerKeepAvailable
+        resources={createReadyResourceState()}
+      />
+    );
+    const food = within(screen.getByRole('region', { name: 'Your resources' }))
+      .getByRole('button', { name: /Food: 0 stored/i });
+    fireEvent.click(food);
+    expect(screen.getByRole('tooltip').textContent)
+      .toContain('Stored Food funds Inner Keep construction');
+    expect(screen.getByRole('tooltip').textContent)
+      .toContain('pending gathering is not spendable');
+    expect(screen.getByRole('tooltip').textContent)
+      .not.toContain('No Food spending is live yet');
+  });
+
   it('shows bounded available and occupied resource-site shortcuts in hosted resource screens', async () => {
     const onOpenResourceSite = vi.fn();
     const surfaceNavigation: RealmSurfaceNavigation = {

@@ -38,8 +38,10 @@ Implementation and local setup are documented in
 
 SpacetimeDB owns admission, player and castle bindings, the persistent world,
 Terms acceptance, resource accounts, Community Marks, and server-time
-settlement. Public tables expose only what the shared map needs; ownership,
-administration, and player balances remain private.
+settlement. The prepared Inner Keep suffix also keeps construction policy,
+Builder state, deductions, receipts, and completion under the same authority.
+Public tables expose only what shared presentation needs; ownership,
+administration, balances, Builder state, and receipts remain private.
 
 Reducers derive identity and authority from the authenticated caller. The
 browser cannot choose an FID, castle owner, balance, timer, or outcome through
@@ -67,6 +69,17 @@ to its caller and settled by server time. Public occupation rows show only the
 site, phase, timeline, and origin castle. Construction, upgrades, units, combat,
 alliances, trading, chat, seasons, and governance are not playable yet.
 
+The inactive Inner Keep V1 foundation defines twelve fixed castle-compound
+slots, four unique economy buildings with five levels, and one internal Builder
+per founded castle. It is separate from the four external gathering Workers.
+The client submits a fixed slot, building kind, and idempotency key; the server
+derives level, cost, discount, duration, settlement, deduction, and completion.
+Merging to protected `main` triggers the existing verified Pages deployment of
+the compatible, dormant client. Publication, catalog seed, Builder backfill,
+asset authorization, and activation remain separate owner-reviewed operations.
+See the [Inner Keep V1 authority contract](design/inner-keep-construction.md)
+and [future activation runbook](operations/inner-keep-activation.md).
+
 ## Realm presentation
 
 The client receives a validated public Realm snapshot and the authenticated
@@ -84,9 +97,18 @@ The coast and twelve rivers are rendered from an activated canonical water
 layout held by SpacetimeDB. Graphics quality may change environmental detail,
 but never world membership, resource placement, or authority.
 
+The Realm and Inner Keep use one canvas, WebGL renderer, quality policy,
+recovery path, and animation scheduler. Switching to the Inner Keep suspends
+world interaction instead of creating a second graphics context. A functional
+twelve-slot HTML/CSS view preserves navigation, costs, Builder status, and
+guarded actions when 3D or an optional model is unavailable.
+
 Runtime assets use immutable filenames and integrity checks. Source packages,
 reference masters, and provenance records stay separate from public runtime
-files. See [`ASSETS-LICENSE.md`](../ASSETS-LICENSE.md) before changing media.
+files. An archive release is not runtime-use authorization: the Inner Keep
+installer remains fail-closed until an exact owner authorization record covers
+the selected content-addressed files. See
+[`ASSETS-LICENSE.md`](../ASSETS-LICENSE.md) before changing media.
 
 ## Security and privacy
 

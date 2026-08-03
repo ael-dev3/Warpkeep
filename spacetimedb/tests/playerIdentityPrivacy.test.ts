@@ -126,6 +126,7 @@ test('generated bindings contain the public projections and omit every private e
   assert.equal(existsSync(new URL('player_ownership_v_2_table.ts', bindingsRoot)), false);
 
   const publicTableFiles = [
+    'castle_inner_keep_building_v_1_table.ts',
     'castle_slot_v_1_table.ts',
     'castle_table.ts',
     'castle_worker_v_1_table.ts',
@@ -135,6 +136,10 @@ test('generated bindings contain the public projections and omit every private e
     'gold_expedition_schedule_v_1_table.ts',
     'gold_node_occupation_v_1_table.ts',
     'gold_site_v_1_table.ts',
+    'inner_keep_build_level_v_1_table.ts',
+    'inner_keep_building_catalog_v_1_table.ts',
+    'inner_keep_layout_v_1_table.ts',
+    'inner_keep_slot_v_1_table.ts',
     'player_table.ts',
     'player_v_2_table.ts',
     'realm_environment_v_1_table.ts',
@@ -215,6 +220,9 @@ test('generated bindings contain the public projections and omit every private e
     'admin_audit',
     'allowed_fid',
     'alpha_terms_acceptance_v_1',
+    'castle_inner_build_receipt_v_1',
+    'castle_inner_builder_v_1',
+    'castle_inner_construction_schedule_v_1',
     'castle_slot_claim_v_1',
     'fid_wallet_attribution_v_1',
     'food_expedition_idempotency_v_1',

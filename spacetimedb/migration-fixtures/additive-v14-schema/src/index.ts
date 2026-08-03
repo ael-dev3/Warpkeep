@@ -251,6 +251,29 @@ export const runDailyMarkScheduleV1 = db.reducer(
   () => {},
 );
 
+/** Typed populated v14 suffix for the next additive migration proof. */
+export const fixtureSeedDailyMarksSentinelV14 = db.reducer(
+  { name: 'fixture_seed_daily_marks_sentinel_v14' },
+  ctx => {
+    if (ctx.db.dailyMarkGrantV1.count() !== 0n || ctx.db.dailyMarkScheduleV1.count() !== 0n) {
+      throw new Error('FIXTURE_DAILY_MARKS_NOT_EMPTY');
+    }
+    ctx.db.dailyMarkGrantV1.insert({
+      grantKey: 'migration-daily-mark-grant-v14',
+      fid: 991_251n,
+      utcDay: 20_000n,
+      amountMicros: 1_000_000n,
+      policyVersion: 'migration-daily-marks-v14',
+      grantedAt: ctx.timestamp,
+    });
+    ctx.db.dailyMarkScheduleV1.insert({
+      scheduleId: 0n,
+      scheduledAt: ScheduleAt.time(ctx.timestamp.microsSinceUnixEpoch + 31_536_000_000_000n),
+      policyVersion: 'migration-daily-marks-v14',
+    });
+  },
+);
+
 /** Retain the v13 populated-suffix fixture reducer across the v14 append. */
 export const fixtureSeedAccessRequestSentinelV13 = db.reducer(
   { name: 'fixture_seed_access_request_sentinel_v13' },

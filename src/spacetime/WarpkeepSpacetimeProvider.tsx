@@ -38,6 +38,9 @@ import {
   readWarpkeepResourceStateV2,
   readWarpkeepWorkerControlState,
   readWarpkeepWorkerRoster,
+  readWarpkeepInnerKeepProjection,
+  readWarpkeepInnerKeepRequestStatus,
+  startWarpkeepInnerKeepProject,
   dispatchWarpkeepWorker,
   recallWarpkeepWorker,
   recallAllWarpkeepWorkers,
@@ -101,6 +104,24 @@ import {
   workerPrivatePairRevision,
   workerPrivateSyncStatus
 } from './workerPrivateSync';
+import type {
+  InnerKeepBuildingKind,
+  InnerKeepPresentation
+} from '../components/inner-keep/innerKeepPresentation';
+import {
+  INNER_KEEP_RESOURCE_ORDER,
+  InnerKeepProjectNoCommitError,
+  innerKeepQuoteAffordable
+} from '../components/inner-keep/innerKeepPresentation';
+import {
+  classifyInnerKeepDefinitiveRejection,
+  innerKeepCommandAttemptFor,
+  innerKeepCommandAttemptWithPhase,
+  reconcileInnerKeepCommandAttempt,
+  type InnerKeepCommandAttempt,
+  type InnerKeepDefinitiveRejection
+} from './innerKeepCommandIdempotency';
+import type { ReadyInnerKeepProjection } from './innerKeepProjection';
 
 /**
  * The generation-three Realm replicates 20,000 immutable world rows before
@@ -237,6 +258,15 @@ export type WarpkeepBackendControllerValue = Readonly<{
   recallAllWorkers: () => Promise<void>;
   /** Start a new bounded read-only Worker sync burst for the active Realm. */
   retryWorkerPrivateSync: () => void;
+  /** Caller-bound Inner Keep projection; absent until compatible v15 activation. */
+  innerKeep?: InnerKeepPresentation;
+  /** Start one exact quoted project with a retained memory-only request key. */
+  startInnerKeepProject: (
+    slotId: string,
+    buildingKind: InnerKeepBuildingKind
+  ) => Promise<void>;
+  /** Reconcile private receipt plus public project without resending a command. */
+  retryInnerKeepSync: () => void;
 }>;
 
 /**
@@ -286,6 +316,9 @@ export type WarpkeepBackendRuntime = Readonly<{
   readStoneExpeditionState?: typeof readWarpkeepStoneExpeditionState;
   dispatchStoneExpedition?: typeof dispatchWarpkeepStoneExpedition;
   collectStoneExpedition?: typeof collectWarpkeepStoneExpedition;
+  readInnerKeepProjection?: typeof readWarpkeepInnerKeepProjection;
+  readInnerKeepRequestStatus?: typeof readWarpkeepInnerKeepRequestStatus;
+  startInnerKeepProject?: typeof startWarpkeepInnerKeepProject;
   observeRealm: typeof observeWarpkeepRealm;
   readRealmSnapshot: typeof readWarpkeepRealmSnapshot;
   subscribeRealm: typeof subscribeToWarpkeepRealm;
@@ -320,6 +353,9 @@ export const DEFAULT_WARPKEEP_BACKEND_RUNTIME: WarpkeepBackendRuntime = Object.f
   readStoneExpeditionState: readWarpkeepStoneExpeditionState,
   dispatchStoneExpedition: dispatchWarpkeepStoneExpedition,
   collectStoneExpedition: collectWarpkeepStoneExpedition,
+  readInnerKeepProjection: readWarpkeepInnerKeepProjection,
+  readInnerKeepRequestStatus: readWarpkeepInnerKeepRequestStatus,
+  startInnerKeepProject: startWarpkeepInnerKeepProject,
   observeRealm: observeWarpkeepRealm,
   readRealmSnapshot: readWarpkeepRealmSnapshot,
   subscribeRealm: subscribeToWarpkeepRealm
@@ -452,6 +488,19 @@ function resourceProjectionIsAtLeastAsNew(
       candidate.revision === current.revision
       && candidate.observedAtMicros >= current.observedAtMicros
     );
+}
+
+function sealedInnerKeepPresentation(
+  presentation: InnerKeepPresentation,
+  phase: 'project-submitting' | 'synchronizing',
+  statusMessage: string
+): InnerKeepPresentation {
+  return Object.freeze({
+    ...presentation,
+    phase,
+    commandsEnabled: false,
+    statusMessage
+  });
 }
 
 function workerRosterIsAtLeastAsNew(
@@ -656,6 +705,20 @@ type GenerationBoundWorkerValue<Value> = Readonly<{
   generation: number;
   fid: number;
   value: Value;
+}>;
+
+type GenerationBoundInnerKeepProjection = Readonly<{
+  generation: number;
+  fid: number;
+  castleId: bigint;
+  value: ReadyInnerKeepProjection;
+}>;
+
+type GenerationBoundInnerKeepFailure = Readonly<{
+  generation: number;
+  fid: number;
+  castleId: bigint;
+  value: InnerKeepDefinitiveRejection;
 }>;
 
 type CurrentBridgeCommandAuthority = Readonly<{
@@ -908,8 +971,15 @@ export function WarpkeepSpacetimeProvider({
     useRef<GenerationBoundWorkerValue<WarpkeepWorkerPrivateSyncStatus> | undefined>(undefined);
   const workerCommandGenerationRef = useRef<number | undefined>(undefined);
   const workerCommandAttemptsRef = useRef(new Map<string, WorkerCommandAttempt>());
+  const innerKeepProjectionRef =
+    useRef<GenerationBoundInnerKeepProjection | undefined>(undefined);
+  const innerKeepCommandAttemptRef = useRef<InnerKeepCommandAttempt | undefined>(undefined);
+  const innerKeepDefinitiveFailureRef =
+    useRef<GenerationBoundInnerKeepFailure | undefined>(undefined);
+  const innerKeepOperationGenerationRef = useRef<number | undefined>(undefined);
   const transportReconnectAttemptRef = useRef(0);
   const requestWorkerPrivateSyncRef = useRef<() => void>(() => undefined);
+  const requestInnerKeepSyncRef = useRef<() => void>(() => undefined);
   const processTermsAttemptRef = useRef<() => void>(() => undefined);
   currentBridgeCommandAuthorityRef.current = identity !== undefined
     && farcaster.oidcSession !== undefined
@@ -955,11 +1025,16 @@ export function WarpkeepSpacetimeProvider({
     workerPrivateSyncStateRef.current = undefined;
     workerCommandGenerationRef.current = undefined;
     workerCommandAttemptsRef.current.clear();
+    innerKeepProjectionRef.current = undefined;
+    innerKeepCommandAttemptRef.current = undefined;
+    innerKeepDefinitiveFailureRef.current = undefined;
+    innerKeepOperationGenerationRef.current = undefined;
     connectionBridgeCommandAuthorityRef.current = undefined;
     transportReconnectAttemptRef.current = 0;
     canonicalRealmSourceRef.current = undefined;
     canonicalRealmSnapshotRef.current = undefined;
     requestWorkerPrivateSyncRef.current = () => undefined;
+    requestInnerKeepSyncRef.current = () => undefined;
     processTermsAttemptRef.current = () => undefined;
     runActiveTeardown();
     // The effect-owned teardown normally consumes the connection. Keep this
@@ -981,6 +1056,206 @@ export function WarpkeepSpacetimeProvider({
   const retryWorkerPrivateSync = useCallback(() => {
     requestWorkerPrivateSyncRef.current();
   }, []);
+
+  const retryInnerKeepSync = useCallback(() => {
+    innerKeepDefinitiveFailureRef.current = undefined;
+    requestInnerKeepSyncRef.current();
+  }, []);
+
+  const startInnerKeepProject = useCallback(async (
+    slotId: string,
+    buildingKind: InnerKeepBuildingKind
+  ) => {
+    const generation = generationRef.current;
+    const currentState = stateRef.current;
+    const connection = connectionRef.current;
+    const fid = currentState.identity?.fid;
+    const realm = currentState.realm;
+    const retainedProjection = innerKeepProjectionRef.current;
+    const currentBridgeAuthority = currentBridgeCommandAuthorityRef.current;
+    const connectionBridgeAuthority = connectionBridgeCommandAuthorityRef.current;
+    const retainedCommandAttempt = innerKeepCommandAttemptRef.current;
+    const operationAlreadyInFlight = innerKeepOperationGenerationRef.current === generation;
+    if (
+      currentState.phase !== 'ready'
+      || currentState.admission !== 'ready'
+      || connection === undefined
+      || fid === undefined
+      || realm === undefined
+      || currentState.innerKeep === undefined
+      || currentState.innerKeep.phase !== 'ready'
+      || currentState.innerKeep.commandsEnabled !== true
+      || retainedProjection?.generation !== generation
+      || retainedProjection.fid !== fid
+      || retainedProjection.castleId !== BigInt(realm.ownCastle.castleId)
+      || retainedProjection.value.presentation !== currentState.innerKeep
+      || realm.ownCastle.ownerFid !== fid
+      || document.hidden
+      || currentBridgeAuthority?.fid !== fid
+      || currentBridgeAuthority.expiresAt <= Date.now()
+      || connectionBridgeAuthority?.generation !== generation
+      || connectionBridgeAuthority.fid !== fid
+      || connectionBridgeAuthority.jwt !== currentBridgeAuthority.jwt
+      || runtime.startInnerKeepProject === undefined
+      || innerKeepDefinitiveFailureRef.current?.generation === generation
+      || operationAlreadyInFlight
+    ) {
+      if (retainedCommandAttempt !== undefined || operationAlreadyInFlight) {
+        throw new Error('Inner Keep construction status is uncertain.');
+      }
+      throw new InnerKeepProjectNoCommitError(
+        'Inner Keep construction is unavailable.'
+      );
+    }
+    const quote = currentState.innerKeep.quotes.find((candidate) => (
+      candidate.slotId === slotId
+      && candidate.buildingKind === buildingKind
+      && candidate.available
+    ));
+    if (
+      quote === undefined
+      || !innerKeepQuoteAffordable(quote, currentState.innerKeep.resources.available)
+      || INNER_KEEP_RESOURCE_ORDER.some((resource) => (
+        currentState.innerKeep!.resources.available[resource] < quote.cost[resource]
+      ))
+    ) throw new InnerKeepProjectNoCommitError(
+      'Inner Keep construction is unavailable.'
+    );
+    const existingAttempt = innerKeepCommandAttemptRef.current;
+    const attempt = innerKeepCommandAttemptFor(
+      existingAttempt,
+      retainedProjection.value.scope,
+      Object.freeze({
+        slotId,
+        buildingKind,
+        targetLevel: quote.targetLevel,
+        cost: quote.cost,
+        durationMicros: quote.durationMicros
+      })
+    );
+    if (attempt === undefined) {
+      throw new InnerKeepProjectNoCommitError(
+        'Inner Keep construction is unavailable.'
+      );
+    }
+    if (existingAttempt === attempt) {
+      // An ambiguous request is reconciled by reads only. Never resend it from
+      // a second click even though the retained key remains available.
+      requestInnerKeepSyncRef.current();
+      throw new Error('Inner Keep construction is awaiting Realm confirmation.');
+    }
+
+    // Install both guards before the reducer promise can execute: two clicks
+    // in one event turn cannot create two request keys or two server calls.
+    innerKeepOperationGenerationRef.current = generation;
+    innerKeepCommandAttemptRef.current = attempt;
+    const submitting = sealedInnerKeepPresentation(
+      currentState.innerKeep,
+      'project-submitting',
+      'Submitting this exact quote to the Realm.'
+    );
+    innerKeepProjectionRef.current = Object.freeze({
+      ...retainedProjection,
+      value: Object.freeze({
+        ...retainedProjection.value,
+        presentation: submitting
+      })
+    });
+    setState((latest) => (
+      generationRef.current === generation
+      && latest.phase === 'ready'
+      && latest.identity?.fid === fid
+      && latest.innerKeep === currentState.innerKeep
+        ? { ...latest, innerKeep: submitting }
+        : latest
+    ));
+    try {
+      await withResourceOperationDeadline(runtime.startInnerKeepProject(
+        connection,
+        slotId,
+        buildingKind,
+        attempt.requestKey
+      ));
+      if (
+        generationRef.current !== generation
+        || connectionRef.current !== connection
+        || innerKeepCommandAttemptRef.current !== attempt
+      ) throw new Error('Inner Keep construction is unavailable.');
+      innerKeepCommandAttemptRef.current = innerKeepCommandAttemptWithPhase(
+        attempt,
+        'awaiting-authority'
+      );
+      requestInnerKeepSyncRef.current();
+    } catch (error) {
+      const attemptIsCurrent = (
+        generationRef.current === generation
+        && connectionRef.current === connection
+        && innerKeepCommandAttemptRef.current?.fingerprint === attempt.fingerprint
+      );
+      const definitive = classifyInnerKeepDefinitiveRejection(error);
+      if (attemptIsCurrent && definitive !== undefined) {
+        // A reviewed SDK SenderError proves this transaction rolled back. Only
+        // that exact attempt may be cleared; fixed copy replaces raw server text.
+        innerKeepCommandAttemptRef.current = undefined;
+        innerKeepDefinitiveFailureRef.current = Object.freeze({
+          generation,
+          fid,
+          castleId: attempt.scope.castleId,
+          value: definitive
+        });
+        const currentProjection = innerKeepProjectionRef.current;
+        const failureBase = currentProjection?.generation === generation
+          && currentProjection.fid === fid
+          && currentProjection.castleId === attempt.scope.castleId
+          ? currentProjection.value.presentation
+          : submitting;
+        const failedPresentation: InnerKeepPresentation = Object.freeze({
+          ...failureBase,
+          phase: 'failed',
+          commandsEnabled: false,
+          statusMessage: definitive.statusMessage
+        });
+        if (
+          currentProjection?.generation === generation
+          && currentProjection.fid === fid
+          && currentProjection.castleId === attempt.scope.castleId
+        ) {
+          innerKeepProjectionRef.current = Object.freeze({
+            ...currentProjection,
+            value: Object.freeze({
+              ...currentProjection.value,
+              presentation: failedPresentation
+            })
+          });
+        }
+        setState((latest) => (
+          generationRef.current === generation
+          && latest.phase === 'ready'
+          && latest.identity?.fid === fid
+          && latest.realm?.ownCastle.castleId === realm.ownCastle.castleId
+            ? { ...latest, innerKeep: failedPresentation }
+            : latest
+        ));
+        requestInnerKeepSyncRef.current();
+        throw new InnerKeepProjectNoCommitError(definitive.statusMessage);
+      }
+      if (attemptIsCurrent) {
+        // Transport rejection can still be commit-ambiguous. Keep the exact
+        // key sealed until the private receipt and public project agree. Plain
+        // and unknown SenderErrors deliberately remain in this branch.
+        innerKeepCommandAttemptRef.current = innerKeepCommandAttemptWithPhase(
+          attempt,
+          'ambiguous'
+        );
+        requestInnerKeepSyncRef.current();
+      }
+      throw new Error('Inner Keep construction status is uncertain.');
+    } finally {
+      if (innerKeepOperationGenerationRef.current === generation) {
+        innerKeepOperationGenerationRef.current = undefined;
+      }
+    }
+  }, [runtime]);
 
   const collectResources = useCallback(async () => {
     const generation = generationRef.current;
@@ -2149,8 +2424,13 @@ export function WarpkeepSpacetimeProvider({
     workerPrivateSyncStateRef.current = undefined;
     workerCommandGenerationRef.current = undefined;
     workerCommandAttemptsRef.current.clear();
+    innerKeepProjectionRef.current = undefined;
+    innerKeepCommandAttemptRef.current = undefined;
+    innerKeepDefinitiveFailureRef.current = undefined;
+    innerKeepOperationGenerationRef.current = undefined;
     connectionBridgeCommandAuthorityRef.current = undefined;
     requestWorkerPrivateSyncRef.current = () => undefined;
+    requestInnerKeepSyncRef.current = () => undefined;
     canonicalRealmSnapshotRef.current = undefined;
     const previousState = stateRef.current;
     const canonicalRealmSource = [
@@ -2274,6 +2554,11 @@ export function WarpkeepSpacetimeProvider({
     let lastRequestedWorkerPublicRevision: string | undefined;
     let removeWorkerPrivateSyncLifecycleListeners: (() => void) | undefined;
     let requestWorkerPrivateSync = () => undefined;
+    let innerKeepRefreshInFlight = false;
+    let innerKeepRefreshQueued = false;
+    let innerKeepReconciliationAttempt = 0;
+    let innerKeepReconciliationTimeout: ReturnType<typeof setTimeout> | undefined;
+    let requestInnerKeepSync = () => undefined;
     let realmActivated = false;
     let subscriptionApplied = false;
     let backendProtocolVersion: number | undefined;
@@ -2317,6 +2602,11 @@ export function WarpkeepSpacetimeProvider({
       }
       removeWorkerPrivateSyncLifecycleListeners?.();
       removeWorkerPrivateSyncLifecycleListeners = undefined;
+      if (innerKeepReconciliationTimeout !== undefined) {
+        clearTimeout(innerKeepReconciliationTimeout);
+        innerKeepReconciliationTimeout = undefined;
+      }
+      innerKeepRefreshQueued = false;
       // Invalidate callbacks before disconnecting: an injected runtime or the
       // SDK may synchronously report onDisconnected from disconnect().
       active = false;
@@ -2380,6 +2670,18 @@ export function WarpkeepSpacetimeProvider({
       if (workerCommandGenerationRef.current === generation) {
         workerCommandGenerationRef.current = undefined;
       }
+      if (innerKeepProjectionRef.current?.generation === generation) {
+        innerKeepProjectionRef.current = undefined;
+      }
+      if (innerKeepCommandAttemptRef.current?.scope.generation === generation) {
+        innerKeepCommandAttemptRef.current = undefined;
+      }
+      if (innerKeepDefinitiveFailureRef.current?.generation === generation) {
+        innerKeepDefinitiveFailureRef.current = undefined;
+      }
+      if (innerKeepOperationGenerationRef.current === generation) {
+        innerKeepOperationGenerationRef.current = undefined;
+      }
       if (connectionBridgeCommandAuthorityRef.current?.generation === generation) {
         connectionBridgeCommandAuthorityRef.current = undefined;
       }
@@ -2393,6 +2695,9 @@ export function WarpkeepSpacetimeProvider({
       }
       if (requestWorkerPrivateSyncRef.current === requestWorkerPrivateSync) {
         requestWorkerPrivateSyncRef.current = () => undefined;
+      }
+      if (requestInnerKeepSyncRef.current === requestInnerKeepSync) {
+        requestInnerKeepSyncRef.current = () => undefined;
       }
       const observer = cleanupObserver;
       cleanupObserver = undefined;
@@ -3100,6 +3405,301 @@ export function WarpkeepSpacetimeProvider({
           window.removeEventListener('online', handleWorkerPrivateSyncOnline);
         };
 
+        const clearInnerKeepProjection = () => {
+          if (!current()) return;
+          innerKeepProjectionRef.current = undefined;
+          setState((latest) => {
+            if (
+              !current()
+              || latest.identity?.fid !== bridgeFid
+              || latest.phase !== 'ready'
+              || latest.innerKeep === undefined
+            ) return latest;
+            const { innerKeep: _innerKeep, ...withoutInnerKeep } = latest;
+            return withoutInnerKeep;
+          });
+        };
+        const innerKeepCommandAuthorityIsCurrent = () => {
+          const browserAuthority = currentBridgeCommandAuthorityRef.current;
+          const connectionAuthority = connectionBridgeCommandAuthorityRef.current;
+          if (browserAuthority === undefined || connectionAuthority === undefined) {
+            return false;
+          }
+          return current()
+            && !document.hidden
+            && runtime.startInnerKeepProject !== undefined
+            && runtime.readInnerKeepRequestStatus !== undefined
+            && browserAuthority.fid === bridgeFid
+            && browserAuthority.expiresAt > Date.now()
+            && connectionAuthority.generation === generation
+            && connectionAuthority.fid === bridgeFid
+            && connectionAuthority.jwt === browserAuthority.jwt;
+        };
+        const publishInnerKeepProjection = (projection: ReadyInnerKeepProjection) => {
+          if (!current()) return;
+          const castleId = projection.scope.castleId;
+          const canonicalRealm = canonicalRealmSnapshotRef.current?.generation === generation
+            ? canonicalRealmSnapshotRef.current.value
+            : undefined;
+          if (
+            projection.scope.generation !== generation
+            || projection.scope.fid !== bridgeFid
+            || projection.scope.backendProtocolVersion !== backendProtocolVersion
+            || canonicalRealm === undefined
+            || castleId !== BigInt(canonicalRealm.ownCastle.castleId)
+            || projection.presentation.castleId !== castleId
+          ) return;
+          innerKeepProjectionRef.current = Object.freeze({
+            generation,
+            fid: bridgeFid!,
+            castleId,
+            value: projection
+          });
+          setState((latest) => (
+            current()
+            && latest.phase === 'ready'
+            && latest.admission === 'ready'
+            && latest.identity?.fid === bridgeFid
+            && latest.realm?.ownCastle.castleId === canonicalRealm.ownCastle.castleId
+              ? { ...latest, innerKeep: projection.presentation }
+              : latest
+          ));
+        };
+        const scheduleInnerKeepReconciliation = () => {
+          if (
+            !current()
+            || document.hidden
+            || innerKeepCommandAttemptRef.current === undefined
+            || innerKeepReconciliationTimeout !== undefined
+          ) return;
+          const delays = [250, 1_000, 4_000] as const;
+          const delay = delays[innerKeepReconciliationAttempt];
+          if (delay === undefined) return;
+          innerKeepReconciliationAttempt += 1;
+          innerKeepReconciliationTimeout = setTimeout(() => {
+            innerKeepReconciliationTimeout = undefined;
+            requestInnerKeepSync();
+          }, delay);
+        };
+        const refreshInnerKeepProjection = async (
+          capabilityRealm: WarpkeepRealmSnapshot
+        ) => {
+          if (!current()) return;
+          if (runtime.readInnerKeepProjection === undefined) {
+            clearInnerKeepProjection();
+            return;
+          }
+          const currentBackendProtocolVersion = backendProtocolVersion;
+          if (currentBackendProtocolVersion === undefined) {
+            clearInnerKeepProjection();
+            return;
+          }
+          const latestRealm = canonicalRealmSnapshotRef.current?.generation === generation
+            ? canonicalRealmSnapshotRef.current.value
+            : capabilityRealm;
+          if (
+            latestRealm.ownCastle.ownerFid !== bridgeFid
+            || !Number.isSafeInteger(latestRealm.ownCastle.castleId)
+            || latestRealm.ownCastle.castleId <= 0
+          ) {
+            clearInnerKeepProjection();
+            return;
+          }
+          if (innerKeepRefreshInFlight) {
+            innerKeepRefreshQueued = true;
+            return;
+          }
+          innerKeepRefreshInFlight = true;
+          const scope = Object.freeze({
+            generation,
+            fid: bridgeFid!,
+            castleId: BigInt(latestRealm.ownCastle.castleId),
+            backendProtocolVersion: currentBackendProtocolVersion
+          });
+          const pendingAttempt = innerKeepCommandAttemptRef.current;
+          const requestedDefinitiveFailure =
+            innerKeepDefinitiveFailureRef.current?.generation === generation
+            && innerKeepDefinitiveFailureRef.current.fid === bridgeFid
+            && innerKeepDefinitiveFailureRef.current.castleId === scope.castleId
+              ? innerKeepDefinitiveFailureRef.current
+              : undefined;
+          try {
+            const projection = await withResourceOperationDeadline(
+              runtime.readInnerKeepProjection(activeConnection, {
+                scope,
+                commandsAvailable: requestedDefinitiveFailure === undefined
+                  && innerKeepCommandAuthorityIsCurrent(),
+                ...(pendingAttempt === undefined ? {} : { pendingAttempt }),
+                ...(requestedDefinitiveFailure === undefined ? {} : {
+                  statusMessage: requestedDefinitiveFailure.value.statusMessage
+                })
+              })
+            );
+            if (
+              !current()
+              || canonicalRealmSnapshotRef.current?.generation !== generation
+              || canonicalRealmSnapshotRef.current.value.ownCastle.castleId
+                !== latestRealm.ownCastle.castleId
+            ) return;
+            if (projection === undefined) {
+              clearInnerKeepProjection();
+              return;
+            }
+            if (
+              projection.scope.generation !== scope.generation
+              || projection.scope.fid !== scope.fid
+              || projection.scope.castleId !== scope.castleId
+              || projection.scope.backendProtocolVersion !== scope.backendProtocolVersion
+            ) throw new Error('Inner Keep caller scope changed.');
+            if (innerKeepDefinitiveFailureRef.current !== requestedDefinitiveFailure) {
+              // A manual status check or a just-set definitive rejection queued
+              // a read with newer local authority. Do not publish this stale read.
+              return;
+            }
+
+            let publishable = projection;
+            const currentAttempt = innerKeepCommandAttemptRef.current;
+            const retainedAttemptResources = currentAttempt === undefined
+              ? undefined
+              : innerKeepProjectionRef.current?.generation === generation
+                && innerKeepProjectionRef.current.fid === bridgeFid
+                && innerKeepProjectionRef.current.castleId === scope.castleId
+                  ? innerKeepProjectionRef.current.value.presentation.resources
+                  : undefined;
+            if (
+              currentAttempt !== undefined
+              && currentAttempt.scope.generation === generation
+              && currentAttempt.scope.fid === bridgeFid
+              && runtime.readInnerKeepRequestStatus !== undefined
+            ) {
+              const receipt = await withResourceOperationDeadline(
+                runtime.readInnerKeepRequestStatus(
+                  activeConnection,
+                  scope,
+                  currentAttempt.requestKey
+                )
+              );
+              if (!current() || innerKeepCommandAttemptRef.current !== currentAttempt) return;
+              if (receipt !== undefined) {
+                const reconciliation = reconcileInnerKeepCommandAttempt(
+                  currentAttempt,
+                  receipt,
+                  projection.buildings
+                );
+                if (reconciliation === 'confirmed') {
+                  const confirmed = await withResourceOperationDeadline(
+                    runtime.readInnerKeepProjection(activeConnection, {
+                      scope,
+                      commandsAvailable: innerKeepCommandAuthorityIsCurrent()
+                    })
+                  );
+                  if (
+                    !current()
+                    || innerKeepCommandAttemptRef.current !== currentAttempt
+                    || confirmed === undefined
+                    || confirmed.scope.generation !== generation
+                    || confirmed.scope.fid !== bridgeFid
+                    || confirmed.scope.castleId !== scope.castleId
+                    || confirmed.scope.backendProtocolVersion
+                      !== scope.backendProtocolVersion
+                  ) {
+                    scheduleInnerKeepReconciliation();
+                    return;
+                  }
+                  innerKeepCommandAttemptRef.current = undefined;
+                  innerKeepReconciliationAttempt = 0;
+                  publishable = confirmed;
+                } else if (reconciliation === 'conflict') {
+                  const failedPresentation: InnerKeepPresentation = Object.freeze({
+                    ...projection.presentation,
+                    phase: 'failed',
+                    commandsEnabled: false,
+                    statusMessage: 'The private receipt and public project disagree. Construction remains sealed.'
+                  });
+                  publishable = Object.freeze({
+                    ...projection,
+                    presentation: failedPresentation
+                  });
+                }
+              }
+            }
+            if (
+              currentAttempt !== undefined
+              && innerKeepCommandAttemptRef.current === currentAttempt
+              && retainedAttemptResources !== undefined
+            ) {
+              // Until private receipt and public project agree, do not let a
+              // partial read make newly deducted resources look authoritative.
+              publishable = Object.freeze({
+                ...publishable,
+                presentation: Object.freeze({
+                  ...publishable.presentation,
+                  resources: retainedAttemptResources
+                })
+              });
+            } else if (requestedDefinitiveFailure !== undefined) {
+              publishable = Object.freeze({
+                ...publishable,
+                presentation: Object.freeze({
+                  ...publishable.presentation,
+                  phase: 'failed',
+                  commandsEnabled: false,
+                  statusMessage: requestedDefinitiveFailure.value.statusMessage
+                })
+              });
+            }
+            publishInnerKeepProjection(publishable);
+            if (innerKeepCommandAttemptRef.current !== undefined) {
+              scheduleInnerKeepReconciliation();
+            } else if (innerKeepReconciliationTimeout !== undefined) {
+              clearTimeout(innerKeepReconciliationTimeout);
+              innerKeepReconciliationTimeout = undefined;
+            }
+          } catch {
+            if (!current()) return;
+            const retained = innerKeepProjectionRef.current;
+            if (
+              retained?.generation === generation
+              && retained.fid === bridgeFid
+              && retained.castleId === scope.castleId
+            ) {
+              const pending = innerKeepCommandAttemptRef.current;
+              const retainedPresentation: InnerKeepPresentation = Object.freeze({
+                ...retained.value.presentation,
+                phase: pending === undefined ? 'read-only' : 'synchronizing',
+                commandsEnabled: false,
+                statusMessage: pending === undefined
+                  ? 'Inner Keep status could not be refreshed. The current view is read-only.'
+                  : 'Construction remains sealed while the Realm status is uncertain.'
+              });
+              publishInnerKeepProjection(Object.freeze({
+                ...retained.value,
+                presentation: retainedPresentation
+              }));
+            } else {
+              clearInnerKeepProjection();
+            }
+            scheduleInnerKeepReconciliation();
+          } finally {
+            innerKeepRefreshInFlight = false;
+            if (innerKeepRefreshQueued && current()) {
+              innerKeepRefreshQueued = false;
+              const queuedRealm = canonicalRealmSnapshotRef.current?.generation === generation
+                ? canonicalRealmSnapshotRef.current.value
+                : undefined;
+              if (queuedRealm !== undefined) void refreshInnerKeepProjection(queuedRealm);
+            }
+          }
+        };
+        requestInnerKeepSync = () => {
+          if (!current()) return;
+          const realm = canonicalRealmSnapshotRef.current?.generation === generation
+            ? canonicalRealmSnapshotRef.current.value
+            : undefined;
+          if (realm !== undefined) void refreshInnerKeepProjection(realm);
+        };
+        requestInnerKeepSyncRef.current = requestInnerKeepSync;
+
         const publishCanonicalRealm = (observedSnapshot?: WarpkeepRealmSnapshot) => {
           const resources = resourceStateRef.current?.generation === generation
             ? resourceStateRef.current.value
@@ -3228,6 +3828,14 @@ export function WarpkeepSpacetimeProvider({
               fid: bridgeFid!,
               value: workerPrivateSync
             });
+            const retainedInnerKeep =
+              innerKeepProjectionRef.current?.generation === generation
+              && innerKeepProjectionRef.current.fid === bridgeFid
+              && innerKeepProjectionRef.current.castleId === BigInt(realm.ownCastle.castleId)
+              && innerKeepProjectionRef.current.value.scope.backendProtocolVersion
+                === backendProtocolVersion
+                ? innerKeepProjectionRef.current.value.presentation
+                : undefined;
             setState({
               phase: 'ready',
               workerPrivateSync,
@@ -3241,10 +3849,12 @@ export function WarpkeepSpacetimeProvider({
               ...(stoneExpedition === undefined ? {} : { stoneExpedition }),
               ...(workerRoster === undefined ? {} : { workerRoster }),
               ...(workerResourceState === undefined ? {} : { workerResourceState }),
-              ...(workerProjection === undefined ? {} : { workerProjection })
+              ...(workerProjection === undefined ? {} : { workerProjection }),
+              ...(retainedInnerKeep === undefined ? {} : { innerKeep: retainedInnerKeep })
             });
             transportReconnectAttemptRef.current = 0;
             if (workerPublicRevisionChanged) requestWorkerPrivateSync();
+            requestInnerKeepSync();
           } catch {
             failRealmActivation('canonical_snapshot_invalid');
           }
@@ -3528,6 +4138,7 @@ export function WarpkeepSpacetimeProvider({
                     stoneExpedition: refreshedStoneExpedition
                   };
                 });
+                requestInnerKeepSync();
               } catch {
                 reportFailure('warpkeep_resource_refresh_failed');
                 fail();
@@ -3676,7 +4287,10 @@ export function WarpkeepSpacetimeProvider({
     dispatchWorker,
     recallWorker,
     recallAllWorkers,
-    retryWorkerPrivateSync
+    retryWorkerPrivateSync,
+    innerKeep: state.innerKeep,
+    startInnerKeepProject,
+    retryInnerKeepSync
   }), [
     acceptedEntryAgreementFid,
     beginAlphaTermsAcceptance,
@@ -3697,6 +4311,8 @@ export function WarpkeepSpacetimeProvider({
     recallWorker,
     recallAllWorkers,
     retryWorkerPrivateSync,
+    startInnerKeepProject,
+    retryInnerKeepSync,
     identity,
     sharedAlphaAvailable,
     state

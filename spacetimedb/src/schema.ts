@@ -24,6 +24,10 @@ import {
   dailyMarksErrorCode,
   runDailyMarkSchedule,
 } from './dailyMarksAuthority';
+import {
+  innerKeepErrorCode,
+  runInnerKeepConstructionSchedule,
+} from './innerKeepAuthority';
 
 /**
  * Private closed-alpha admission list. This table is intentionally omitted
@@ -1222,6 +1226,159 @@ export const dailyMarkScheduleV1 = table(
   },
 );
 
+/** Public singleton/static root for the separately activated Inner Keep. */
+export const innerKeepLayoutV1 = table(
+  { name: 'inner_keep_layout_v1', public: true },
+  {
+    layoutId: t.string().primaryKey(),
+    layoutVersion: t.u32(),
+    policyVersion: t.string(),
+    slotCount: t.u32(),
+    mediumSlotCount: t.u32(),
+    largeSlotCount: t.u32(),
+    assetCatalogDigest: t.string(),
+    layoutDigest: t.string(),
+    active: t.bool(),
+    createdAt: t.timestamp(),
+    activatedAt: t.option(t.timestamp()),
+  },
+);
+
+/** Public fixed construction-pad catalogue; clients never submit coordinates. */
+export const innerKeepSlotV1 = table(
+  { name: 'inner_keep_slot_v1', public: true },
+  {
+    slotId: t.string().primaryKey(),
+    layoutId: t.string().index(),
+    footprintClass: t.string(),
+    localXMicrounits: t.i64(),
+    localZMicrounits: t.i64(),
+    rotationMilliDegrees: t.u32(),
+    sortOrder: t.u32(),
+    active: t.bool(),
+  },
+);
+
+/** Public immutable projection of the canonical four-building policy. */
+export const innerKeepBuildingCatalogV1 = table(
+  { name: 'inner_keep_building_catalog_v1', public: true },
+  {
+    buildingKind: t.string().primaryKey(),
+    publicLabel: t.string(),
+    category: t.string(),
+    footprintClass: t.string(),
+    maximumLevel: t.u32(),
+    uniquePerCastle: t.bool(),
+    matchingDiscountResource: t.string(),
+    discountBasisPointsPerLevel: t.u32(),
+    discountCapBasisPoints: t.u32(),
+    runtimeAssetId: t.string(),
+    previewAssetId: t.string(),
+    active: t.bool(),
+    policyVersion: t.string(),
+  },
+);
+
+/** Public exact recipes, multipliers, and durations for target levels 1-5. */
+export const innerKeepBuildLevelV1 = table(
+  { name: 'inner_keep_build_level_v1', public: true },
+  {
+    levelKey: t.string().primaryKey(),
+    buildingKind: t.string().index(),
+    targetLevel: t.u32(),
+    baseFoodCost: t.u64(),
+    baseWoodCost: t.u64(),
+    baseStoneCost: t.u64(),
+    baseGoldCost: t.u64(),
+    levelMultiplierBasisPoints: t.u32(),
+    durationMicros: t.u64(),
+    policyVersion: t.string(),
+  },
+);
+
+/** Public, identity-minimized persistent building/project projection. */
+export const castleInnerKeepBuildingV1 = table(
+  {
+    name: 'castle_inner_keep_building_v1',
+    public: true,
+    indexes: [{
+      accessor: 'byCastle',
+      algorithm: 'btree',
+      columns: ['castleId'] as const,
+    }] as const,
+  },
+  {
+    buildingKey: t.string().primaryKey(),
+    castleId: t.u64(),
+    slotKey: t.string().unique(),
+    slotId: t.string(),
+    buildingKind: t.string(),
+    completedLevel: t.u32(),
+    targetLevel: t.u32(),
+    phase: t.string(),
+    startedAtMicros: t.u64(),
+    completesAtMicros: t.u64(),
+    revision: t.u64(),
+    policyVersion: t.string(),
+  },
+);
+
+/** Private one-Builder capacity for each founded castle. */
+export const castleInnerBuilderV1 = table(
+  { name: 'castle_inner_builder_v1' },
+  {
+    castleId: t.u64().primaryKey(),
+    fid: t.u64().unique(),
+    activeBuildingKey: t.option(t.string()),
+    busyUntilMicros: t.option(t.u64()),
+    revision: t.u64(),
+    policyVersion: t.string(),
+    createdAt: t.timestamp(),
+    updatedAt: t.timestamp(),
+  },
+);
+
+/** Private immutable exactly-once receipt for an accepted build command. */
+export const castleInnerBuildReceiptV1 = table(
+  { name: 'castle_inner_build_receipt_v1' },
+  {
+    receiptKey: t.string().primaryKey(),
+    fid: t.u64().index(),
+    requestKey: t.string(),
+    castleId: t.u64(),
+    buildingKey: t.string(),
+    slotId: t.string(),
+    buildingKind: t.string(),
+    targetLevel: t.u32(),
+    deductedFood: t.u64(),
+    deductedWood: t.u64(),
+    deductedStone: t.u64(),
+    deductedGold: t.u64(),
+    startedAt: t.timestamp(),
+    policyVersion: t.string(),
+  },
+);
+
+/** Private minimal construction timer; no FID, balance, cost, or request key. */
+export const castleInnerConstructionScheduleV1 = table(
+  {
+    name: 'castle_inner_construction_schedule_v_1',
+    indexes: [{
+      accessor: 'byBuilding',
+      algorithm: 'btree',
+      columns: ['buildingKey'] as const,
+    }] as const,
+    scheduled: (): any => runInnerKeepConstructionScheduleV1,
+  },
+  {
+    scheduleId: t.u64().primaryKey().autoInc(),
+    scheduledAt: t.scheduleAt(),
+    buildingKey: t.string(),
+    expectedRevision: t.u64(),
+    expectedTargetLevel: t.u32(),
+  },
+);
+
 const warpkeep = schema({
   // Preserve the original production schema prefix exactly. New tables are
   // append-only so SpacetimeDB can apply this migration without rewriting it.
@@ -1281,6 +1438,15 @@ const warpkeep = schema({
   accessRequestV1,
   dailyMarkGrantV1,
   dailyMarkScheduleV1,
+  // Additive v15 Inner Keep suffix. Refs 0-55 above remain frozen verbatim.
+  innerKeepLayoutV1,
+  innerKeepSlotV1,
+  innerKeepBuildingCatalogV1,
+  innerKeepBuildLevelV1,
+  castleInnerKeepBuildingV1,
+  castleInnerBuilderV1,
+  castleInnerBuildReceiptV1,
+  castleInnerConstructionScheduleV1,
 });
 
 /**
@@ -1384,6 +1550,21 @@ export const runDailyMarkScheduleV1 = warpkeep.reducer(
   },
 );
 
+/** Scheduler-only completion reducer for one exact Inner Keep project. */
+export const runInnerKeepConstructionScheduleV1 = warpkeep.reducer(
+  { name: 'run_inner_keep_construction_schedule_v_1' },
+  { arg: castleInnerConstructionScheduleV1.rowType },
+  (ctx, { arg }) => {
+    try {
+      runInnerKeepConstructionSchedule(ctx, arg);
+    } catch (error) {
+      const code = innerKeepErrorCode(error);
+      if (code !== undefined) throw new SenderError(code);
+      throw error;
+    }
+  },
+);
+
 // SpacetimeDB 2.6's default case converter separates a trailing digit from
 // its prefix (`v2` -> `v_2`). Pin every versioned wire spelling explicitly.
 for (const name of [
@@ -1445,6 +1626,16 @@ for (const name of [
   'admin_get_daily_marks_status_v1',
   'admin_backfill_daily_mark_accounts_v1',
   'admin_activate_daily_marks_v1',
+  'get_my_inner_keep_state_v1',
+  'get_my_inner_keep_request_status_v1',
+  'inner_keep_start_project_v1',
+  'admin_get_inner_keep_status_v1',
+  'admin_plan_inner_keep_catalog_v1',
+  'admin_seed_inner_keep_catalog_v1',
+  'admin_plan_inner_keep_builders_v1',
+  'admin_backfill_inner_keep_builders_v1',
+  'admin_activate_inner_keep_v1',
+  'admin_deactivate_inner_keep_v1',
 ]) {
   warpkeep.moduleDef.explicitNames.entries.push({
     tag: 'Function',

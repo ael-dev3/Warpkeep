@@ -17,6 +17,9 @@ import {
   ACCESS_REQUEST_V13_TABLE_CONTRACTS,
   DAILY_MARK_V14_TABLE_CONTRACTS,
   GENESIS_WORLD_PUBLISH_STAGE,
+  INNER_KEEP_MODULE_PREDECESSOR,
+  INNER_KEEP_PUBLICATION_STAGE,
+  INNER_KEEP_V15_TABLE_CONTRACTS,
   PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS,
   RESOURCE_PUBLISH_ROLLOUT_STAGE,
   WORKER_FORWARD_REPAIR,
@@ -24,12 +27,15 @@ import {
   WORKER_MODULE_PREDECESSOR,
   WORKER_PUBLISH_ROLLOUT_STAGE,
   WORKER_V12_TABLE_CONTRACTS,
+  accessRequestV13InspectChildArguments,
   alphaV10AggregateChildArguments,
   alphaV12AggregateChildArguments,
   alphaV8AggregateChildArguments,
   canonicalSchemaDescribeChildArguments,
   createPrivatePublishSnapshot,
   dailyMarksV14InspectChildArguments,
+  executeProtocolV15InactivePublicationLane,
+  innerKeepV15InspectChildArguments,
   parseCanonicalSchemaDescription,
   parseMigrationProofReceipt,
   parsePublishArguments,
@@ -41,29 +47,34 @@ import {
   readFoundedPublishExpectations,
   requireCanonicalPublishCoordinates,
   requireEntryAgreementProductionRelease,
+  requireReviewedAdditivePublicationLane,
   runCurrentAdditiveMigrationProof,
   validateIssuerDeployment,
   verifyCanonicalDatabaseList,
   verifyFreshAlphaStatusV8Aggregate,
   verifyFreshAlphaStatusV10Aggregate,
   verifyFreshAlphaStatusV12Aggregate,
+  verifyFreshAccessRequestV13Aggregate,
   verifyFreshPublishExactV12Aggregate,
   verifyFreshPublishPreV12Aggregate,
   verifyFreshProductionV11Schema,
   verifyFreshProductionV12ModuleSchema,
   verifyFreshProductionV13ModuleSchema,
   verifyFreshProductionV14ModuleSchema,
+  verifyFreshProductionV14InnerKeepPredecessor,
   verifyFreshActiveDailyMarksV14,
   verifyFreshFoundedProtocolV3Aggregate,
   verifyFreshResourceProtocolV4PrebackfillAggregate,
   verifyFreshResourceProtocolV4ReadyAggregate,
   verifyMigrationArtifactReceipt,
   verifyEmptyDailyMarksV14StatusOutput,
+  verifyEmptyInactiveInnerKeepV15StatusOutput,
   verifyActiveDailyMarksV14StatusOutput,
   verifyPinnedCliAttestation,
   verifyPostPublishAlphaStatusV8Aggregate,
   verifyPostPublishAlphaStatusV10Aggregate,
   verifyPostPublishAlphaStatusV12Aggregate,
+  verifyPostPublishAccessRequestV13Aggregate,
   verifyPostPublishCombinedV12Aggregate,
   verifyPostPublishFoundedProtocolV3Aggregate,
   verifyPostPublishProductionV12Schema,
@@ -73,7 +84,9 @@ import {
   verifyPostPublishProductionV13SchemaFromV11,
   verifyPostPublishProductionV14ModuleSchema,
   verifyPostPublishProductionV14ActiveModuleSchema,
+  verifyPostPublishProductionV15InactiveModuleSchema,
   verifyPostPublishEmptyDailyMarksV14,
+  verifyPostPublishEmptyInactiveInnerKeepV15,
   verifyPostPublishActiveDailyMarksV14,
   verifyPostPublishResourceProtocolV4PrebackfillAggregate,
   verifyPostPublishResourceProtocolV4ReadyAggregate,
@@ -81,6 +94,7 @@ import {
   verifyPrivacySafeAlphaStatusV8Output,
   verifyPrivacySafeAlphaStatusV10Output,
   verifyPrivacySafeAlphaStatusV12Output,
+  verifyPrivacySafeAccessRequestV13AggregateOutput,
   verifyPrivacySafePublishPostV12Output,
   verifyPrivacySafePublishPreV12Output,
   verifyActiveAlphaStatusV12,
@@ -97,6 +111,12 @@ import {
   verifyExactProductionV13ModuleSchema,
   verifyExactProductionV14Schema,
   verifyExactProductionV14ModuleSchema,
+  verifyExactProductionV14InnerKeepPredecessor,
+  verifyExactProductionV15Schema,
+  verifyExactProductionV15ModuleSchema,
+  verifyHistoricalPublicationAggregateUnchanged,
+  verifyInnerKeepV14PredecessorAbi,
+  verifyInnerKeepV15ModuleAbi,
   verifyWorkerV13ModulePredecessor,
   verifyWorkerV14ModulePredecessor,
 } from '../scripts/publish-spacetime-dev.mjs';
@@ -425,6 +445,41 @@ function activeDailyMarksV14Status(overrides: Record<string, unknown> = {}) {
     readyForBackfill: false,
     readyForActivation: false,
     active: true,
+    ...overrides,
+  };
+}
+
+function emptyInactiveInnerKeepV15Status(
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    layoutRows: '0',
+    slotRows: '0',
+    buildingCatalogRows: '0',
+    levelPolicyRows: '0',
+    castleRows: '4',
+    builderRows: '0',
+    buildingRows: '0',
+    activeProjects: '0',
+    receiptRows: '0',
+    scheduleRows: '0',
+    missingBuilders: '4',
+    orphanBuilders: '0',
+    invalidBuilders: '0',
+    invalidBuildings: '0',
+    invalidSchedules: '0',
+    builderProjectMismatches: '0',
+    staticCatalogExact: false,
+    workerSystemReady: true,
+    readyForCatalogSeed: true,
+    readyForBuilderBackfill: false,
+    readyForActivation: false,
+    active: false,
+    policyVersion: 'genesis-001-inner-keep-construction-v1',
+    policyDigest: 'a'.repeat(64),
+    layoutPolicyVersion: 'genesis-001-inner-keep-layout-v1',
+    layoutDigest: 'b'.repeat(64),
+    assetCatalogDigest: 'c'.repeat(64),
     ...overrides,
   };
 }
@@ -786,6 +841,31 @@ function workerModuleSchemaDescription(
   };
   type FixtureType = string | Record<string, unknown>;
   type FixtureField = readonly [string, FixtureType];
+  const shiftV15TypeRefs = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(shiftV15TypeRefs);
+    if (value === null || typeof value !== 'object') return value;
+    return Object.fromEntries(Object.entries(value).map(([key, entry]) => [
+      key,
+      key === 'Ref' && Number.isSafeInteger(entry) && Number(entry) >= 56
+        ? Number(entry) + 8
+        : shiftV15TypeRefs(entry),
+    ]));
+  };
+  const predecessorTypes = description.typespace.types;
+  const shiftedTypes = [
+    ...predecessorTypes.slice(0, 56),
+    ...Array.from({ length: 8 }, () => ({ Product: { elements: [] } })),
+    ...predecessorTypes.slice(56).map(type => (
+      shiftV15TypeRefs(type) as Record<string, unknown>
+    )),
+  ] as unknown as typeof description.typespace.types;
+  description.typespace.types = shiftedTypes;
+  description.reducers = shiftV15TypeRefs(
+    description.reducers,
+  ) as Array<Record<string, unknown>>;
+  description.misc_exports = shiftV15TypeRefs(
+    description.misc_exports,
+  ) as Array<Record<string, unknown>>;
   const product = (fields: readonly FixtureField[]) => ({
     elements: fields.map(([name, type]) => ({
       name: { some: name },
@@ -942,6 +1022,261 @@ function workerModuleSchemaDescription(
       return_type: { Ref: returnRef },
     },
   }));
+  return description;
+}
+
+function innerKeepV15ModuleSchemaDescription() {
+  const description = workerModuleSchemaDescription(
+    'candidate',
+    true,
+    true,
+  ) as ReturnType<typeof workerModuleSchemaDescription> & {
+    reducers: Array<Record<string, unknown>>;
+    misc_exports: Array<Record<string, unknown>>;
+    tables: Array<{
+      name: string;
+      product_type_ref: number;
+      table_access: Record<string, object>;
+      indexes: Array<Record<string, unknown>>;
+      constraints: Array<Record<string, unknown>>;
+    }>;
+    typespace: { types: Array<Record<string, unknown>> };
+  };
+  type FixtureType = string | Record<string, unknown>;
+  type FixtureField = readonly [string, FixtureType];
+  const product = (fields: readonly FixtureField[]) => ({
+    elements: fields.map(([name, type]) => ({
+      name: { some: name },
+      algebraic_type: typeof type === 'string' ? { [type]: {} } : type,
+    })),
+  });
+  const reducer = (name: string, fields: readonly FixtureField[]) => ({
+    name,
+    params: product(fields),
+    lifecycle: { none: [] },
+  });
+  const addProduct = (fields: readonly FixtureField[]) => {
+    const ref = description.typespace.types.length;
+    description.typespace.types.push({ Product: product(fields) });
+    return ref;
+  };
+  const option = (type: FixtureType) => ({
+    Sum: {
+      variants: product([
+        ['some', type],
+        ['none', { Product: { elements: [] } }],
+      ]).elements,
+    },
+  });
+  const scheduleAt = {
+    Sum: {
+      variants: product([
+        ['Interval', {
+          Product: product([['__time_duration_micros__', 'I64']]),
+        }],
+        ['Time', {
+          Product: product([['__timestamp_micros_since_unix_epoch__', 'I64']]),
+        }],
+      ]).elements,
+    },
+  };
+  for (const [name, contract] of Object.entries(INNER_KEEP_V15_TABLE_CONTRACTS)) {
+    const schedule = name === 'castle_inner_construction_schedule_v_1';
+    description.typespace.types[contract.productTypeRef] = {
+      Product: product(contract.fields.map(field => [
+        field,
+        schedule
+          ? field === 'scheduled_at'
+            ? scheduleAt
+            : field === 'building_key'
+              ? 'String'
+              : field === 'expected_target_level'
+                ? 'U32'
+                : 'U64'
+          : 'String',
+      ] as const)),
+    };
+    description.tables.push({
+      name,
+      product_type_ref: contract.productTypeRef,
+      table_access: { [contract.access]: {} },
+      indexes: [{
+        name: `${name}_by_primary`,
+        algorithm: { BTree: { columns: [0] } },
+      }],
+      constraints: [{
+        name: `${name}_primary`,
+        data: { Unique: { columns: [0] } },
+      }],
+    });
+  }
+
+  description.reducers.push(
+    reducer('inner_keep_start_project_v1', [
+      ['slotId', 'String'],
+      ['buildingKind', 'String'],
+      ['requestKey', 'String'],
+    ]),
+    reducer('admin_seed_inner_keep_catalog_v1', [
+      ['capability', 'String'],
+      ['policyDigest', 'String'],
+      ['layoutDigest', 'String'],
+      ['assetCatalogDigest', 'String'],
+      ['expectedMissingLayout', 'U32'],
+      ['expectedMissingSlots', 'U32'],
+      ['expectedMissingBuildings', 'U32'],
+      ['expectedMissingLevels', 'U32'],
+    ]),
+    reducer('admin_backfill_inner_keep_builders_v1', [
+      ['capability', 'String'],
+      ['policyDigest', 'String'],
+      ['layoutDigest', 'String'],
+      ['assetCatalogDigest', 'String'],
+      ['expectedCastles', 'U32'],
+      ['expectedExistingBuilders', 'U32'],
+      ['expectedMissingBuilders', 'U32'],
+    ]),
+    reducer('admin_activate_inner_keep_v1', [
+      ['capability', 'String'],
+      ['policyDigest', 'String'],
+      ['layoutDigest', 'String'],
+      ['assetCatalogDigest', 'String'],
+      ['clientRelease', 'String'],
+      ['clientArtifactDigest', 'String'],
+      ['moduleArtifactDigest', 'String'],
+      ['sourceCommit', 'String'],
+      ['expectedCastleCount', 'U32'],
+    ]),
+    reducer('admin_deactivate_inner_keep_v1', [
+      ['capability', 'String'],
+      ['expectedCastleCount', 'U32'],
+      ['expectedActiveProjects', 'U32'],
+    ]),
+    reducer('run_inner_keep_construction_schedule_v_1', [[
+      'arg',
+      {
+        Ref: INNER_KEEP_V15_TABLE_CONTRACTS
+          .castle_inner_construction_schedule_v_1.productTypeRef,
+      },
+    ]]),
+  );
+
+  const stateRef = addProduct([
+    ['castleId', 'U64'],
+    ['componentActive', 'Bool'],
+    ['componentReady', 'Bool'],
+    ['builderPresent', 'Bool'],
+    ['builderBusy', 'Bool'],
+    ['activeBuildingKey', option('String')],
+    ['busyUntilMicros', option('U64')],
+    ['builderRevision', 'U64'],
+    ['storedFood', 'U64'],
+    ['storedWood', 'U64'],
+    ['storedStone', 'U64'],
+    ['storedGold', 'U64'],
+    ['projectedFood', 'U64'],
+    ['projectedWood', 'U64'],
+    ['projectedStone', 'U64'],
+    ['projectedGold', 'U64'],
+    ['resourceRevision', 'U64'],
+    ['observedAtMicros', 'U64'],
+    ['policyVersion', 'String'],
+    ['layoutDigest', 'String'],
+    ['assetCatalogDigest', 'String'],
+  ]);
+  const requestStatusRef = addProduct([
+    ['found', 'Bool'],
+    ['castleId', option('U64')],
+    ['buildingKey', option('String')],
+    ['slotId', option('String')],
+    ['buildingKind', option('String')],
+    ['targetLevel', option('U32')],
+    ['deductedFood', option('U64')],
+    ['deductedWood', option('U64')],
+    ['deductedStone', option('U64')],
+    ['deductedGold', option('U64')],
+    ['startedAtMicros', option('U64')],
+    ['policyVersion', option('String')],
+  ]);
+  const adminStatusRef = addProduct([
+    ['layoutRows', 'U64'],
+    ['slotRows', 'U64'],
+    ['buildingCatalogRows', 'U64'],
+    ['levelPolicyRows', 'U64'],
+    ['castleRows', 'U64'],
+    ['builderRows', 'U64'],
+    ['buildingRows', 'U64'],
+    ['activeProjects', 'U64'],
+    ['receiptRows', 'U64'],
+    ['scheduleRows', 'U64'],
+    ['missingBuilders', 'U64'],
+    ['orphanBuilders', 'U64'],
+    ['invalidBuilders', 'U64'],
+    ['invalidBuildings', 'U64'],
+    ['invalidSchedules', 'U64'],
+    ['builderProjectMismatches', 'U64'],
+    ['staticCatalogExact', 'Bool'],
+    ['workerSystemReady', 'Bool'],
+    ['readyForCatalogSeed', 'Bool'],
+    ['readyForBuilderBackfill', 'Bool'],
+    ['readyForActivation', 'Bool'],
+    ['active', 'Bool'],
+    ['policyVersion', 'String'],
+    ['policyDigest', 'String'],
+    ['layoutPolicyVersion', 'String'],
+    ['layoutDigest', 'String'],
+    ['assetCatalogDigest', 'String'],
+  ]);
+  const catalogPlanRef = addProduct([
+    ['missingLayout', 'U32'],
+    ['missingSlots', 'U32'],
+    ['missingBuildings', 'U32'],
+    ['missingLevels', 'U32'],
+    ['ready', 'Bool'],
+  ]);
+  const builderPlanRef = addProduct([
+    ['expectedCastles', 'U32'],
+    ['existingBuilders', 'U32'],
+    ['missingBuilders', 'U32'],
+    ['ready', 'Bool'],
+  ]);
+  description.misc_exports.push(
+    {
+      Procedure: {
+        name: 'get_my_inner_keep_state_v1',
+        params: product([]),
+        return_type: { Ref: stateRef },
+      },
+    },
+    {
+      Procedure: {
+        name: 'get_my_inner_keep_request_status_v1',
+        params: product([['requestKey', 'String']]),
+        return_type: { Ref: requestStatusRef },
+      },
+    },
+    {
+      Procedure: {
+        name: 'admin_get_inner_keep_status_v1',
+        params: product([]),
+        return_type: { Ref: adminStatusRef },
+      },
+    },
+    {
+      Procedure: {
+        name: 'admin_plan_inner_keep_catalog_v1',
+        params: product([]),
+        return_type: { Ref: catalogPlanRef },
+      },
+    },
+    {
+      Procedure: {
+        name: 'admin_plan_inner_keep_builders_v1',
+        params: product([]),
+        return_type: { Ref: builderPlanRef },
+      },
+    },
+  );
   return description;
 }
 
@@ -1264,6 +1599,7 @@ async function withTestProvenArtifact<T>(callback: (receipt: {
   v12TableSchemaDigest: string;
   v13TableSchemaDigest: string;
   v14TableSchemaDigest: string;
+  v15TableSchemaDigest: string;
   artifactDigest: string;
 }) => Promise<T> | T): Promise<T> {
   let previous: Buffer | undefined;
@@ -1281,6 +1617,7 @@ async function withTestProvenArtifact<T>(callback: (receipt: {
     v12TableSchemaDigest: 'b'.repeat(64),
     v13TableSchemaDigest: 'c'.repeat(64),
     v14TableSchemaDigest: 'd'.repeat(64),
+    v15TableSchemaDigest: 'e'.repeat(64),
     artifactDigest: createHash('sha256').update(content).digest('hex'),
   });
   try {
@@ -2300,6 +2637,267 @@ describe('activation publish safety', () => {
     )).toThrow(/post-publication v14 module checkpoint is indeterminate/i);
   });
 
+  it('guards the exact refs 56-63 inactive-v15 append over one captured active-v14 ABI', () => {
+    const v12 = workerModuleSchemaDescription('candidate');
+    const v13 = workerModuleSchemaDescription('candidate', true);
+    const v14 = workerModuleSchemaDescription('candidate', true, true);
+    const v15 = innerKeepV15ModuleSchemaDescription();
+    const v12Names = [
+      ...Object.keys(PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS),
+      ...Object.keys(WORKER_V12_TABLE_CONTRACTS),
+    ];
+    const v13Names = [...v12Names, ...Object.keys(ACCESS_REQUEST_V13_TABLE_CONTRACTS)];
+    const v14Names = [...v13Names, ...Object.keys(DAILY_MARK_V14_TABLE_CONTRACTS)];
+    const v15Names = [...v14Names, ...Object.keys(INNER_KEEP_V15_TABLE_CONTRACTS)];
+    const v12Digest = canonicalTableSchemaBoundaryDigest(v12, v12Names);
+    const v13Digest = canonicalTableSchemaBoundaryDigest(v13, v13Names);
+    const v14Digest = canonicalTableSchemaBoundaryDigest(v14, v14Names);
+    const v15Digest = canonicalTableSchemaBoundaryDigest(v15, v15Names);
+
+    expect(verifyInnerKeepV14PredecessorAbi(v14)).toBe('absent');
+    const predecessor = verifyExactProductionV14InnerKeepPredecessor(
+      v14,
+      v12Digest,
+      v13Digest,
+      v14Digest,
+    );
+    expect(predecessor).toMatchObject({
+      moduleState: 'candidate',
+      innerKeepModuleState: 'absent',
+      totalTableCount: 56,
+    });
+    expect(Object.keys(predecessor.tableSignatures)).toHaveLength(56);
+    expect(verifyFreshProductionV14InnerKeepPredecessor(
+      'spacetime',
+      v12Digest,
+      v13Digest,
+      v14Digest,
+      (() => ({
+        status: 0,
+        signal: null,
+        stdout: JSON.stringify(v14),
+        stderr: '',
+      })) as never,
+    )).toEqual(predecessor);
+
+    expect(verifyExactProductionV15Schema(
+      predecessor.tableSignatures,
+      v15,
+      v12Digest,
+      v13Digest,
+      v14Digest,
+      v15Digest,
+    )).toEqual({
+      predecessorTableCount: 56,
+      appendedInnerKeepTableCount: 8,
+      totalTableCount: 64,
+    });
+    expect(verifyInnerKeepV15ModuleAbi(v15)).toBe('candidate');
+    const completeV15 = verifyExactProductionV15ModuleSchema(
+      v15,
+      v12Digest,
+      v13Digest,
+      v14Digest,
+      v15Digest,
+    );
+    expect(completeV15).toMatchObject({
+      moduleState: 'candidate',
+      innerKeepModuleState: 'candidate',
+      totalTableCount: 64,
+    });
+    expect(Object.keys(completeV15.tableSignatures)).toHaveLength(64);
+    expect(verifyPostPublishProductionV15InactiveModuleSchema(
+      'spacetime',
+      predecessor,
+      v12Digest,
+      v13Digest,
+      v14Digest,
+      v15Digest,
+      (() => ({
+        status: 0,
+        signal: null,
+        stdout: JSON.stringify(v15),
+        stderr: '',
+      })) as never,
+    )).toEqual({
+      predecessorTableCount: 56,
+      appendedInnerKeepTableCount: 8,
+      totalTableCount: 64,
+      moduleState: 'candidate',
+      innerKeepModuleState: 'candidate',
+    });
+
+    const changedPredecessor = structuredClone(v15);
+    changedPredecessor.tables.find(table => table.name === 'castle')!
+      .indexes.push({
+        name: 'unexpected_castle_index',
+        algorithm: { BTree: { columns: [1] } },
+      });
+    expect(() => verifyExactProductionV15Schema(
+      predecessor.tableSignatures,
+      changedPredecessor,
+      v12Digest,
+      v13Digest,
+      v14Digest,
+      v15Digest,
+    )).toThrow(/v1[234] table schema.*proven publication boundary|pre-existing production table/i);
+
+    const publicBuilder = structuredClone(v15);
+    publicBuilder.tables.find(
+      table => table.name === 'castle_inner_builder_v1',
+    )!.table_access = { Public: {} };
+    expect(() => verifyExactProductionV15Schema(
+      predecessor.tableSignatures,
+      publicBuilder,
+      v12Digest,
+      v13Digest,
+      v14Digest,
+      v15Digest,
+    )).toThrow(/exact v15 contract/i);
+
+    const driftedAbi = structuredClone(v15);
+    const startReducer = driftedAbi.reducers.find(
+      reducer => reducer.name === 'inner_keep_start_project_v1',
+    ) as {
+      params: {
+        elements: Array<{ algebraic_type: Record<string, unknown> }>;
+      };
+    };
+    startReducer.params.elements[0]!.algebraic_type = { U64: {} };
+    expect(() => verifyInnerKeepV15ModuleAbi(driftedAbi))
+      .toThrow(/partial, unknown, or changed/i);
+    expect(() => verifyInnerKeepV14PredecessorAbi(v15))
+      .toThrow(/already exposed an Inner Keep ABI/i);
+    expect(() => verifyPostPublishProductionV15InactiveModuleSchema(
+      'spacetime',
+      predecessor,
+      v12Digest,
+      v13Digest,
+      v14Digest,
+      v15Digest,
+      (() => ({ status: 1, signal: null, stdout: 'private', stderr: 'private' })) as never,
+    )).toThrow(/inactive-v15 module checkpoint is indeterminate/i);
+  });
+
+  it('requires an exact empty inactive Inner Keep postflight and unchanged historical aggregates', () => {
+    const empty = emptyInactiveInnerKeepV15Status();
+    expect(verifyEmptyInactiveInnerKeepV15StatusOutput(
+      JSON.stringify(empty),
+      4,
+    )).toEqual(empty);
+    const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
+    expect(innerKeepV15InspectChildArguments(tsxCli)).toEqual([
+      tsxCli,
+      'scripts/inner-keep-operator.ts',
+      'inspect-inner-keep',
+    ]);
+    const inspectCalls: unknown[][] = [];
+    expect(verifyPostPublishEmptyInactiveInnerKeepV15(
+      's'.repeat(32),
+      4,
+      ((...args: unknown[]) => {
+        inspectCalls.push(args);
+        return {
+          status: 0,
+          signal: null,
+          stdout: JSON.stringify(empty),
+          stderr: '',
+        };
+      }) as never,
+    )).toEqual(empty);
+    expect(inspectCalls[0]?.[1]).toEqual(innerKeepV15InspectChildArguments(tsxCli));
+    expect(inspectCalls[0]?.[2]).toMatchObject({
+      input: 's'.repeat(32),
+      timeout: 30_000,
+      env: {
+        WARPKEEP_SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
+        WARPKEEP_SPACETIMEDB_DATABASE: CANONICAL_DATABASE_IDENTITY,
+        WARPKEEP_AUTH_BRIDGE_URL: 'https://auth.warpkeep.com',
+        WARPKEEP_ADMIN_TOKEN_SECRET_STDIN: '1',
+      },
+    });
+    for (const change of [
+      { layoutRows: '1' },
+      { builderRows: '4' },
+      { missingBuilders: '3' },
+      { active: true },
+      { readyForCatalogSeed: false },
+    ]) {
+      expect(() => verifyEmptyInactiveInnerKeepV15StatusOutput(
+        JSON.stringify(emptyInactiveInnerKeepV15Status(change)),
+        4,
+      )).toThrow(/exact empty inactive post-publication state/i);
+    }
+    expect(() => verifyEmptyInactiveInnerKeepV15StatusOutput(
+      JSON.stringify({ ...empty, fid: '123' }),
+      4,
+    )).toThrow(/unexpected fields/i);
+    const privateAccessRequestPage = {
+      entries: [{
+        fid: '123',
+        requestedAt: '2026-08-03T00:00:00.000Z',
+        admissionState: 'not-admitted',
+        requestState: 'pending',
+      }],
+      nextCursor: null,
+      hasMore: false,
+      totalRequests: '1',
+      pendingRequests: '1',
+    };
+    expect(accessRequestV13InspectChildArguments(tsxCli)).toEqual([
+      tsxCli,
+      'scripts/hermes-admin.ts',
+      'list-access-requests',
+      '--limit',
+      '1',
+      '--include-resolved',
+      '--json',
+    ]);
+    const projectedAccessCounts = verifyPrivacySafeAccessRequestV13AggregateOutput(
+      JSON.stringify(privateAccessRequestPage),
+    );
+    expect(projectedAccessCounts).toEqual({
+      totalRequests: '1',
+      pendingRequests: '1',
+    });
+    expect(JSON.stringify(projectedAccessCounts)).not.toContain('123');
+    const accessInspect = vi.fn((..._args: unknown[]) => ({
+      status: 0,
+      signal: null,
+      stdout: JSON.stringify(privateAccessRequestPage),
+      stderr: '',
+    }));
+    expect(verifyFreshAccessRequestV13Aggregate(
+      's'.repeat(32),
+      accessInspect as never,
+    )).toEqual(projectedAccessCounts);
+    expect(verifyPostPublishAccessRequestV13Aggregate(
+      's'.repeat(32),
+      accessInspect as never,
+    )).toEqual(projectedAccessCounts);
+    expect(accessInspect).toHaveBeenCalledTimes(2);
+    expect(accessInspect.mock.calls[0]?.[1]).toEqual(
+      accessRequestV13InspectChildArguments(tsxCli),
+    );
+    expect(() => verifyPrivacySafeAccessRequestV13AggregateOutput(JSON.stringify({
+      ...privateAccessRequestPage,
+      pendingRequests: '2',
+    }))).toThrow(/inconsistent aggregate counts/i);
+    expect(() => verifyPrivacySafeAccessRequestV13AggregateOutput(JSON.stringify({
+      ...privateAccessRequestPage,
+      secret: 'private',
+    }))).toThrow(/invalid private page envelope/i);
+    const aggregate = Object.freeze({ protocolV3: { castles: '4' } });
+    expect(verifyHistoricalPublicationAggregateUnchanged(
+      aggregate,
+      structuredClone(aggregate),
+    )).toEqual(aggregate);
+    expect(() => verifyHistoricalPublicationAggregateUnchanged(
+      aggregate,
+      { protocolV3: { castles: '5' } },
+    )).toThrow(/historical aggregate state changed/i);
+  });
+
   it('retains the reviewed v11 lane while proving both v12 and v13 append boundaries', () => {
     const v11 = productionSchemaDescription(false);
     const v11TableNames = Object.keys(PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS);
@@ -2751,11 +3349,24 @@ describe('activation publish safety', () => {
         v12TableSchemaDigest: receipt.v12TableSchemaDigest,
         v13TableSchemaDigest: receipt.v13TableSchemaDigest,
         v14TableSchemaDigest: receipt.v14TableSchemaDigest,
+        v15TableSchemaDigest: receipt.v15TableSchemaDigest,
         artifactDigest: receipt.artifactDigest,
       })}\n`;
       const parsed = parseMigrationProofReceipt(success);
       expect(parsed).toEqual(receipt);
       expect(Object.isFrozen(parsed)).toBe(true);
+      expect(() => requireReviewedAdditivePublicationLane(parsed))
+        .toThrow(/explicit exact-v14-active predecessor and append-inactive stage/i);
+      expect(requireReviewedAdditivePublicationLane(
+        parsed,
+        INNER_KEEP_MODULE_PREDECESSOR.EXACT_V14_ACTIVE,
+        INNER_KEEP_PUBLICATION_STAGE.APPEND_INACTIVE,
+      )).toEqual(parsed);
+      expect(() => requireReviewedAdditivePublicationLane(
+        parsed,
+        INNER_KEEP_MODULE_PREDECESSOR.EXACT_V14_ACTIVE,
+        undefined,
+      )).toThrow(/explicit exact-v14-active predecessor and append-inactive stage/i);
       expect(() => parseMigrationProofReceipt('')).toThrow(/exact success receipt/i);
       expect(() => parseMigrationProofReceipt(`${success}${success}`)).toThrow(/exact success receipt/i);
       expect(() => parseMigrationProofReceipt(success.replace(
@@ -2784,6 +3395,10 @@ describe('activation publish safety', () => {
       ))).toThrow(/exact success receipt/i);
       expect(() => parseMigrationProofReceipt(success.replace(
         ` v14_table_schema_sha256=${receipt.v14TableSchemaDigest}`,
+        '',
+      ))).toThrow(/exact success receipt/i);
+      expect(() => parseMigrationProofReceipt(success.replace(
+        ` v15_table_schema_sha256=${receipt.v15TableSchemaDigest}`,
         '',
       ))).toThrow(/exact success receipt/i);
       expect(() => parseMigrationProofReceipt(success.replace(
@@ -2826,6 +3441,10 @@ describe('activation publish safety', () => {
         ...receipt,
         v14TableSchemaDigest: receipt.v14TableSchemaDigest.toUpperCase(),
       })).toThrow(/receipt was invalid/i);
+      expect(() => verifyMigrationArtifactReceipt({
+        ...receipt,
+        v15TableSchemaDigest: receipt.v15TableSchemaDigest.toUpperCase(),
+      })).toThrow(/receipt was invalid/i);
       expect(() => verifyMigrationArtifactReceipt({ ...receipt, extra: true }))
         .toThrow(/receipt was invalid/i);
       await expect(publishModule(
@@ -2848,6 +3467,160 @@ describe('activation publish safety', () => {
     });
   });
 
+  it('allows the current v15 artifact only through the explicit inactive publication lane', () => {
+    const publisher = readFileSync(
+      resolve(repositoryRoot, 'scripts/publish-spacetime-dev.mjs'),
+      'utf8',
+    );
+    const proof = publisher.indexOf(
+      'runCurrentAdditiveMigrationProof(executable)',
+    );
+    const gate = publisher.indexOf(
+      'const artifactReceipt = requireReviewedAdditivePublicationLane(',
+    );
+    const lane = publisher.indexOf(
+      'executeProtocolV15InactivePublicationLane({',
+      gate,
+    );
+    const publish = publisher.indexOf(
+      'await publishModule(executable, CANONICAL_DATABASE_IDENTITY, artifactReceipt);',
+      gate,
+    );
+
+    expect(proof).toBeGreaterThan(-1);
+    expect(gate).toBeGreaterThan(-1);
+    expect(gate).toBeLessThan(proof);
+    expect(lane).toBeGreaterThan(proof);
+    expect(publish).toBeGreaterThan(gate);
+    expect(lane).toBeLessThan(publish);
+    expect(publisher).toContain('INNER_KEEP_MODULE_PREDECESSOR.EXACT_V14_ACTIVE');
+    expect(publisher).toContain('INNER_KEEP_PUBLICATION_STAGE.APPEND_INACTIVE');
+    expect(publisher).toContain("'--delete-data=never'");
+  });
+
+  it('runs the inactive-v15 dry run as reads only and keeps publish behind all preflights', async () => {
+    const receipt = Object.freeze({
+      artifactPath: provenArtifactPath,
+      v11TableSchemaDigest: '1'.repeat(64),
+      v12TableSchemaDigest: '2'.repeat(64),
+      v13TableSchemaDigest: '3'.repeat(64),
+      v14TableSchemaDigest: '4'.repeat(64),
+      v15TableSchemaDigest: '5'.repeat(64),
+      artifactDigest: '6'.repeat(64),
+    });
+    const expectations = Object.freeze({
+      expectedEnabledAllowedFidCount: 3,
+      expectedFounderCount: 4,
+      expectedPlayerCount: 4,
+      expectedTermsAcceptanceCount: 4,
+    });
+    const baseOptions = {
+      executable: '/private/pinned-spacetime',
+      artifactReceipt: receipt,
+      adminTokenSecret: 's'.repeat(32),
+      foundedExpectations: expectations,
+      resourceRolloutStage: RESOURCE_PUBLISH_ROLLOUT_STAGE.READY,
+      genesisWorldRolloutStage: GENESIS_WORLD_PUBLISH_STAGE.EXPANDED,
+      workerRolloutStage: WORKER_PUBLISH_ROLLOUT_STAGE.ACTIVE,
+      workerModulePredecessor: WORKER_MODULE_PREDECESSOR.EXACT_V14_ACTIVE,
+      workerForwardRepair: WORKER_FORWARD_REPAIR.NONE,
+      innerKeepModulePredecessor:
+        INNER_KEEP_MODULE_PREDECESSOR.EXACT_V14_ACTIVE,
+      innerKeepPublicationStage:
+        INNER_KEEP_PUBLICATION_STAGE.APPEND_INACTIVE,
+    };
+    const historical = Object.freeze({ protocolV3: { castles: '4' } });
+    const daily = Object.freeze({ grants: '21', active: true });
+    const accessRequests = Object.freeze({
+      totalRequests: '2',
+      pendingRequests: '1',
+    });
+    const publish = vi.fn();
+    const postSchema = vi.fn();
+    const postAggregate = vi.fn();
+    const postDaily = vi.fn();
+    const postInnerKeep = vi.fn();
+    const postAccessRequests = vi.fn();
+    const dependencies = {
+      verifyMigrationArtifactReceipt: vi.fn(() => receipt),
+      verifyFreshProductionV14InnerKeepPredecessor: vi.fn(() => ({
+        moduleState: 'candidate',
+        innerKeepModuleState: 'absent',
+        tableSignatures: Object.freeze({}),
+        totalTableCount: 56,
+      })),
+      verifyWorkerV14ModulePredecessor: vi.fn(() => 'candidate'),
+      verifyFreshPublishExactV12Aggregate: vi.fn(() => historical),
+      verifyFreshActiveDailyMarksV14: vi.fn(() => daily),
+      verifyFreshAccessRequestV13Aggregate: vi.fn(() => accessRequests),
+      publishModule: publish,
+      verifyPostPublishProductionV15InactiveModuleSchema: postSchema,
+      verifyPostPublishResourcePublicationCheckpoints: postAggregate,
+      verifyPostPublishActiveDailyMarksV14: postDaily,
+      verifyPostPublishAccessRequestV13Aggregate: postAccessRequests,
+      verifyPostPublishEmptyInactiveInnerKeepV15: postInnerKeep,
+    };
+
+    await expect(executeProtocolV15InactivePublicationLane(
+      { ...baseOptions, dryRun: true },
+      dependencies,
+    )).resolves.toEqual({
+      publication: 'dry-run-verified',
+      protocol: 'v15',
+      stage: INNER_KEEP_PUBLICATION_STAGE.APPEND_INACTIVE,
+      predecessor: INNER_KEEP_MODULE_PREDECESSOR.EXACT_V14_ACTIVE,
+      deletion: 'disabled',
+      networkMode: 'read-only',
+    });
+    expect(publish).not.toHaveBeenCalled();
+    expect(postSchema).not.toHaveBeenCalled();
+    expect(postAggregate).not.toHaveBeenCalled();
+    expect(postDaily).not.toHaveBeenCalled();
+    expect(postInnerKeep).not.toHaveBeenCalled();
+    expect(postAccessRequests).not.toHaveBeenCalled();
+
+    publish.mockResolvedValue(undefined);
+    postSchema.mockReturnValue({ appendedInnerKeepTableCount: 8 });
+    postAggregate.mockReturnValue(historical);
+    postDaily.mockReturnValue(daily);
+    postInnerKeep.mockReturnValue(emptyInactiveInnerKeepV15Status());
+    postAccessRequests.mockReturnValue(accessRequests);
+    await expect(executeProtocolV15InactivePublicationLane(
+      { ...baseOptions, dryRun: false },
+      dependencies,
+    )).resolves.toEqual({
+      publication: 'verified',
+      protocol: 'v15',
+      stage: INNER_KEEP_PUBLICATION_STAGE.APPEND_INACTIVE,
+      predecessor: INNER_KEEP_MODULE_PREDECESSOR.EXACT_V14_ACTIVE,
+      deletion: 'disabled',
+      historicalAggregateExact: true,
+      appendedTableCount: 8,
+      innerKeepActive: false,
+    });
+    expect(publish).toHaveBeenCalledTimes(1);
+    expect(publish).toHaveBeenCalledWith(
+      baseOptions.executable,
+      CANONICAL_DATABASE_IDENTITY,
+      receipt,
+    );
+    expect(postSchema).toHaveBeenCalledTimes(1);
+    expect(postInnerKeep).toHaveBeenCalledWith(
+      baseOptions.adminTokenSecret,
+      expectations.expectedFounderCount,
+      expect.any(Function),
+    );
+    expect(postAccessRequests).toHaveBeenCalledTimes(1);
+
+    postAggregate.mockReturnValueOnce({ protocolV3: { castles: '5' } });
+    await expect(executeProtocolV15InactivePublicationLane(
+      { ...baseOptions, dryRun: false },
+      dependencies,
+    )).rejects.toThrow(/historical aggregate state changed/i);
+    expect(publish).toHaveBeenCalledTimes(2);
+    expect(postInnerKeep).toHaveBeenCalledTimes(1);
+  });
+
   it('gives the real scheduler migration proof a dedicated bounded process deadline', async () => {
     await withTestProvenArtifact(async receipt => {
       const calls: unknown[][] = [];
@@ -2857,6 +3630,7 @@ describe('activation publish safety', () => {
         v12TableSchemaDigest: receipt.v12TableSchemaDigest,
         v13TableSchemaDigest: receipt.v13TableSchemaDigest,
         v14TableSchemaDigest: receipt.v14TableSchemaDigest,
+        v15TableSchemaDigest: receipt.v15TableSchemaDigest,
         artifactDigest: receipt.artifactDigest,
       })}\n`;
       const fakeSpawnSync = (...args: unknown[]) => {
@@ -3029,6 +3803,27 @@ describe('activation publish safety', () => {
       workerForwardRepair: WORKER_FORWARD_REPAIR.NONE,
     });
     expect(parsePublishArguments([
+      '--dry-run',
+      '--resource-rollout-stage=ready',
+      '--genesis-world-stage=expanded',
+      '--worker-rollout-stage=active',
+      '--worker-module-predecessor=exact-v14-active',
+      '--worker-forward-repair=none',
+      '--inner-keep-module-predecessor=exact-v14-active',
+      '--inner-keep-publication-stage=append-inactive',
+    ])).toEqual({
+      dryRun: true,
+      resourceRolloutStage: RESOURCE_PUBLISH_ROLLOUT_STAGE.READY,
+      genesisWorldRolloutStage: GENESIS_WORLD_PUBLISH_STAGE.EXPANDED,
+      workerRolloutStage: WORKER_PUBLISH_ROLLOUT_STAGE.ACTIVE,
+      workerModulePredecessor: WORKER_MODULE_PREDECESSOR.EXACT_V14_ACTIVE,
+      workerForwardRepair: WORKER_FORWARD_REPAIR.NONE,
+      innerKeepModulePredecessor:
+        INNER_KEEP_MODULE_PREDECESSOR.EXACT_V14_ACTIVE,
+      innerKeepPublicationStage:
+        INNER_KEEP_PUBLICATION_STAGE.APPEND_INACTIVE,
+    });
+    expect(parsePublishArguments([
       '--resource-rollout-stage=ready',
       '--genesis-world-stage=expanded',
       '--worker-rollout-stage=active',
@@ -3165,6 +3960,33 @@ describe('activation publish safety', () => {
       '--worker-module-predecessor=exact-v14-active',
       '--worker-forward-repair=return-node-reuse-v1',
     ])).toThrow(/active-v14.*resource ready.*Genesis expanded.*Worker active.*worker-forward-repair=none/i);
+    expect(() => parsePublishArguments([
+      '--resource-rollout-stage=ready',
+      '--genesis-world-stage=expanded',
+      '--worker-rollout-stage=active',
+      '--worker-module-predecessor=exact-v14-active',
+      '--worker-forward-repair=none',
+      '--inner-keep-module-predecessor=exact-v14-active',
+    ])).toThrow(/both an explicit module predecessor and an explicit publication stage/i);
+    expect(() => parsePublishArguments([
+      '--resource-rollout-stage=ready',
+      '--genesis-world-stage=expanded',
+      '--worker-rollout-stage=active',
+      '--worker-module-predecessor=exact-v13-active',
+      '--worker-forward-repair=none',
+      '--inner-keep-module-predecessor=exact-v14-active',
+      '--inner-keep-publication-stage=append-inactive',
+    ])).toThrow(/Inner Keep v15 append requires the exact active-v14 predecessor/i);
+    expect(() => parsePublishArguments([
+      '--resource-rollout-stage=ready',
+      '--genesis-world-stage=expanded',
+      '--worker-rollout-stage=active',
+      '--worker-module-predecessor=exact-v14-active',
+      '--worker-forward-repair=none',
+      '--inner-keep-module-predecessor=exact-v14-active',
+      '--inner-keep-publication-stage=append-inactive',
+      '--inner-keep-publication-stage=append-inactive',
+    ])).toThrow(/unknown or duplicate/i);
     expect(() => parsePublishArguments([
       '--resource-rollout-stage=ready',
       '--genesis-world-stage=expanded',

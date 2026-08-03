@@ -38,6 +38,34 @@
   display: contents;
 }
 
+.realm-map-screen__world-presentation {
+  display: contents;
+}
+
+.inner-keep-lazy-fallback {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: grid;
+  gap: 0.5rem;
+  padding:
+    max(1rem, var(--realm-safe-top))
+    max(1rem, var(--realm-safe-right))
+    max(1rem, var(--realm-safe-bottom))
+    max(1rem, var(--realm-safe-left));
+  place-content: center;
+  color: #f0d58c;
+  background:
+    radial-gradient(circle at 50% 42%, rgb(117 134 85 / 28%), transparent 28rem),
+    linear-gradient(145deg, #11170f, #2b3525 58%, #0b0e0a);
+  text-align: center;
+}
+
+.inner-keep-lazy-fallback span {
+  color: #d8d0dc;
+  font-size: 0.82rem;
+}
+
 .realm-map-screen[data-realm-surface-presentation="fullscreen-destination"]
   :is(
     .realm-profile-menu__panel,
@@ -293,6 +321,11 @@
 
 .realm-map-screen__canvas[data-dragging="true"] {
   cursor: grabbing;
+}
+
+.realm-map-screen[data-realm-scene-mode="INNER_KEEP"]
+  .realm-map-screen__canvas[data-realm-canvas-active="true"] {
+  pointer-events: auto;
 }
 
 .realm-world-selection-feedback {
