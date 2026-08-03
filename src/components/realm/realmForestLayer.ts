@@ -44,6 +44,11 @@ import {
   type RealmForestFallbackType,
   type RealmForestGroundingMode
 } from './createRealmProceduralForestFallback';
+import {
+  applyRealmForestWindMaterial,
+  REALM_FOREST_LIVING_CANOPY_MOTION_STATE,
+  type RealmForestWindMaterialController
+} from './createRealmForestWindMaterial';
 
 const HEX_SIZE = 1;
 const TREE_TERRAIN_LIFT = 0.002;
@@ -60,7 +65,7 @@ export type RealmForestLayerPresentationTelemetry = Readonly<{
   fallbackType: RealmForestFallbackType;
   contactShadowCount: number;
   groundingMode: RealmForestGroundingMode;
-  canopyMotionState: typeof REALM_FOREST_CANOPY_MOTION_STATE;
+  canopyMotionState: 'static' | typeof REALM_FOREST_LIVING_CANOPY_MOTION_STATE;
   structureCellCounts: RealmForestStructureCounts;
   silhouetteCoverageRatio: number;
   /** Canonical selected-LOD total, independent of temporary fallback state. */
@@ -70,11 +75,15 @@ export type RealmForestLayerPresentationTelemetry = Readonly<{
   /** Bounded aggregate only; no per-tree climate data leaves this layer. */
   snowTintedTreeCount: number;
   dryTintedTreeCount: number;
+  windAttributeBytes: number;
+  shaderFallbackCount: number;
 }>;
 
 export type RealmForestLayer = Readonly<{
   group: THREE.Group;
   getPresentationTelemetry: () => RealmForestLayerPresentationTelemetry;
+  updateWind: (seconds: number) => boolean;
+  isAnimationActive: () => boolean;
   dispose: () => void;
 }>;
 
@@ -103,6 +112,7 @@ export type CreateRealmForestLayerOptions = Readonly<{
   northernSnow?: RealmNorthernSnowField;
   /** Immutable renderer-only climate sampled only during static batch builds. */
   southernDesert?: RealmSouthernDesertField;
+  reducedMotion?: boolean;
 }>;
 
 type MutableTreeGeometry = {
@@ -110,6 +120,8 @@ type MutableTreeGeometry = {
   normals: number[];
   colors: number[];
   indices: number[];
+  windWeights: number[];
+  windPhases: number[];
   hasCompleteNormals: boolean;
 };
 
@@ -169,6 +181,17 @@ function appendPrimitive(
       .set(component(position, index, 0), component(position, index, 1), component(position, index, 2))
       .applyMatrix4(transform);
     output.positions.push(positionVector.x, positionVector.y, positionVector.z);
+    const relativeHeight = Math.max(0, positionVector.y - groundY);
+    const windWeight = THREE.MathUtils.smoothstep(
+      relativeHeight,
+      HEGEMONY_TREE_TARGET_VISUAL_HEIGHT * 0.16,
+      HEGEMONY_TREE_TARGET_VISUAL_HEIGHT * 0.9
+    );
+    output.windWeights.push(Math.round(windWeight * 255));
+    const windPhase = Math.sin(
+      positionVector.x * 17.13 + positionVector.z * 29.71 + relativeHeight * 7.19
+    ) * 0.5 + 0.5;
+    output.windPhases.push(Math.round(THREE.MathUtils.clamp(windPhase, 0, 1) * 255));
 
     if (normalAttribute) {
       normalVector
@@ -275,13 +298,16 @@ function createMergedTreeMesh(
   map: RealmTerrainMap,
   terrainPlacements: readonly TerrainStructurePlacement[],
   northernSnow: RealmNorthernSnowField | undefined,
-  southernDesert: RealmSouthernDesertField | undefined
+  southernDesert: RealmSouthernDesertField | undefined,
+  motionEnabled: boolean
 ) {
   const source: MutableTreeGeometry = {
     positions: [],
     normals: [],
     colors: [],
     indices: [],
+    windWeights: [],
+    windPhases: [],
     hasCompleteNormals: true
   };
   let snowTintedTreeCount = 0;
@@ -323,10 +349,19 @@ function createMergedTreeMesh(
     metalness: 0,
     side: THREE.DoubleSide
   });
+  const wind = applyRealmForestWindMaterial(material, motionEnabled);
   try {
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(source.positions, 3));
     geometry.setAttribute('normal', new THREE.Float32BufferAttribute(source.normals, 3));
     geometry.setAttribute('color', new THREE.Float32BufferAttribute(source.colors, 3));
+    geometry.setAttribute(
+      'realmForestWindWeight',
+      new THREE.Uint8BufferAttribute(source.windWeights, 1, true)
+    );
+    geometry.setAttribute(
+      'realmForestWindPhase',
+      new THREE.Uint8BufferAttribute(source.windPhases, 1, true)
+    );
     geometry.setIndex(new THREE.Uint32BufferAttribute(source.indices, 1));
     if (!source.hasCompleteNormals) geometry.computeVertexNormals();
     geometry.computeBoundingBox();
@@ -340,7 +375,9 @@ function createMergedTreeMesh(
       mesh,
       triangleCount: source.indices.length / 3,
       snowTintedTreeCount,
-      dryTintedTreeCount
+      dryTintedTreeCount,
+      wind,
+      windAttributeBytes: source.windWeights.length + source.windPhases.length
     });
   } catch (error) {
     geometry.dispose();
@@ -354,13 +391,15 @@ function createFallbackForestMesh(
   map: RealmTerrainMap,
   terrainPlacements: readonly TerrainStructurePlacement[],
   northernSnow: RealmNorthernSnowField | undefined,
-  southernDesert: RealmSouthernDesertField | undefined
+  southernDesert: RealmSouthernDesertField | undefined,
+  motionEnabled: boolean
 ) {
   const fallback = createRealmProceduralForestFallbackGeometry(
     HEGEMONY_TREE_TARGET_VISUAL_HEIGHT
   );
   const { geometry } = fallback;
   const material = createRealmProceduralForestFallbackMaterial();
+  const wind = applyRealmForestWindMaterial(material, motionEnabled);
   let mesh: THREE.InstancedMesh;
   try {
     mesh = new THREE.InstancedMesh(geometry, material, points.length);
@@ -406,7 +445,11 @@ function createFallbackForestMesh(
     mesh,
     triangleCount: fallback.triangleCount * points.length,
     snowTintedTreeCount,
-    dryTintedTreeCount
+    dryTintedTreeCount,
+    wind,
+    windAttributeBytes:
+      geometry.getAttribute('realmForestWindWeight').count
+      + geometry.getAttribute('realmForestWindPhase').count
   });
 }
 
@@ -486,14 +529,18 @@ export function createRealmForestLayer(
         fallbackType: 'none',
         contactShadowCount: 0,
         groundingMode: 'none',
-        canopyMotionState: REALM_FOREST_CANOPY_MOTION_STATE,
+        canopyMotionState: 'static',
         structureCellCounts,
         silhouetteCoverageRatio: 0,
         canonicalTriangleCount,
         triangleCount: 0,
         snowTintedTreeCount: 0,
-        dryTintedTreeCount: 0
+        dryTintedTreeCount: 0,
+        windAttributeBytes: 0,
+        shaderFallbackCount: 0
       }),
+      updateWind: () => false,
+      isAnimationActive: () => false,
       dispose: () => {
         if (disposed) return;
         disposed = true;
@@ -506,13 +553,16 @@ export function createRealmForestLayer(
     options.map,
     options.terrainPlacements,
     options.northernSnow,
-    options.southernDesert
+    options.southernDesert,
+    options.reducedMotion !== true && options.quality.id !== 'reduced'
   );
   group.add(fallback.mesh);
   let activeMesh: THREE.Mesh | THREE.InstancedMesh = fallback.mesh;
   let activeTriangleCount = fallback.triangleCount;
   let activeSnowTintedTreeCount = fallback.snowTintedTreeCount;
   let activeDryTintedTreeCount = fallback.dryTintedTreeCount;
+  let activeWind: RealmForestWindMaterialController = fallback.wind;
+  let activeWindAttributeBytes = fallback.windAttributeBytes;
   let usingFallback = true;
   let disposed = false;
   const abortController = new AbortController();
@@ -555,7 +605,8 @@ export function createRealmForestLayer(
         options.map,
         options.terrainPlacements,
         options.northernSnow,
-        options.southernDesert
+        options.southernDesert,
+        options.reducedMotion !== true && options.quality.id !== 'reduced'
       );
       if (disposed) {
         disposeMesh(next.mesh);
@@ -567,6 +618,8 @@ export function createRealmForestLayer(
       activeTriangleCount = next.triangleCount;
       activeSnowTintedTreeCount = next.snowTintedTreeCount;
       activeDryTintedTreeCount = next.dryTintedTreeCount;
+      activeWind = next.wind;
+      activeWindAttributeBytes = next.windAttributeBytes;
       usingFallback = false;
       disposeMesh(previousMesh);
       options.onModelReady?.();
@@ -595,14 +648,20 @@ export function createRealmForestLayer(
         : usingFallback
           ? 'terrain-canopy-procedural-root-contact'
           : 'terrain-canopy-baked-base',
-      canopyMotionState: REALM_FOREST_CANOPY_MOTION_STATE,
+      canopyMotionState: activeWind.isActive()
+        ? REALM_FOREST_LIVING_CANOPY_MOTION_STATE
+        : 'static',
       structureCellCounts,
       silhouetteCoverageRatio: disposed ? 0 : silhouetteCoverageRatio,
       canonicalTriangleCount,
       triangleCount: disposed ? 0 : activeTriangleCount,
       snowTintedTreeCount: disposed ? 0 : activeSnowTintedTreeCount,
-      dryTintedTreeCount: disposed ? 0 : activeDryTintedTreeCount
+      dryTintedTreeCount: disposed ? 0 : activeDryTintedTreeCount,
+      windAttributeBytes: disposed ? 0 : activeWindAttributeBytes,
+      shaderFallbackCount: activeWind.getTelemetry().fallbackCount
     }),
+    updateWind: (seconds) => !disposed && activeWind.setTime(seconds),
+    isAnimationActive: () => !disposed && activeWind.isActive(),
     dispose: () => {
       if (disposed) return;
       disposed = true;

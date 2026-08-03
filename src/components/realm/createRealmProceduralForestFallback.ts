@@ -352,6 +352,29 @@ export function createRealmProceduralForestFallbackGeometry(
     'color',
     new THREE.Float32BufferAttribute(output.colors, 3)
   );
+  const windWeights = new Uint8Array(output.positions.length / 3);
+  const windPhases = new Uint8Array(output.positions.length / 3);
+  for (let index = 0; index < windWeights.length; index += 1) {
+    const x = output.positions[index * 3] ?? 0;
+    const y = output.positions[index * 3 + 1] ?? 0;
+    const z = output.positions[index * 3 + 2] ?? 0;
+    const normalizedHeight = THREE.MathUtils.clamp(
+      (y / targetHeight - 0.18) / 0.72,
+      0,
+      1
+    );
+    windWeights[index] = Math.round(normalizedHeight * 255);
+    const phase = Math.sin(x * 91.7 + z * 63.1 + y * 17.3) * 0.5 + 0.5;
+    windPhases[index] = Math.round(THREE.MathUtils.clamp(phase, 0, 1) * 255);
+  }
+  geometry.setAttribute(
+    'realmForestWindWeight',
+    new THREE.Uint8BufferAttribute(windWeights, 1, true)
+  );
+  geometry.setAttribute(
+    'realmForestWindPhase',
+    new THREE.Uint8BufferAttribute(windPhases, 1, true)
+  );
   geometry.setIndex(new THREE.Uint16BufferAttribute(output.indices, 1));
   geometry.computeVertexNormals();
   geometry.computeBoundingBox();

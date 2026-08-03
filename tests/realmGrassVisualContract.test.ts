@@ -81,6 +81,7 @@ describe('natural broad grass visual contract', () => {
     expect(fragment).toContain('realmGrassCoverage()');
     expect(fragment).toContain('diffuseColor.rgb *= mix(0.94, 1.015, grassVerticalLift);');
     expect(fragment).not.toContain('diffuseColor.rgb +=');
+    expect(fragment).toContain('vGrassSunTransmission');
     expect(fragment).toContain('diffuseColor.a *= realmGrassCoverage();');
     const material = createRealmGrassMaterial(1, true, false).material;
     expect(material.transparent).toBe(false);

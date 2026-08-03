@@ -44,7 +44,7 @@ function projectLocalDirectionIntoWorldXZ(
 
 describe('procedural grass material contract', () => {
   it('injects world-space wind only at the pinned Three.js shader hook', () => {
-    const source = 'void main() {\n#include <begin_vertex>\n}';
+    const source = 'void main() {\n#include <beginnormal_vertex>\n#include <begin_vertex>\n}';
     const injected = injectRealmGrassVertexShader(source);
 
     expect(injected).toContain('attribute vec4 grassBladeData;');
@@ -61,9 +61,10 @@ describe('procedural grass material contract', () => {
     expect(injected).toContain('transformed.xz += grassLocalDirection');
     expect(injected).toContain('transformed.xz += grassLocalCrossDirection');
     expect(injected).toContain('dot(grassWorldPosition.xz, grassWorldDirection)');
-    expect(injected).toContain('float grassGustFront = sin(');
-    expect(injected).toContain('float grassGustBand = smoothstep(');
-    expect(injected).toContain('float grassGust = mix(0.66, 1.0, grassGustBand);');
+    expect(injected).toContain('float realmLivingGust');
+    expect(injected).toContain('float grassNormalLean');
+    expect(injected).toContain('objectNormal.xz -= grassNormalLocalDirection');
+    expect(injected).toContain('float grassGust = mix(0.66, 1.0, realmLivingGust(');
     expect(injected).toContain('grassPhase * 0.18');
     expect(injected).not.toContain('transformed.xz += grassWorldDirection');
     expect(injected).toContain('float grassFlex = grassBladeData.y;');
@@ -86,8 +87,8 @@ describe('procedural grass material contract', () => {
     expect((layer.material as THREE.MeshStandardMaterial & { alphaHash?: boolean }).alphaHash).toBe(true);
     expect((layer.material as THREE.MeshStandardMaterial & { alphaToCoverage?: boolean }).alphaToCoverage).toBe(false);
     expect(layer.material.customProgramCacheKey()).toBe(REALM_GRASS_SHADER_CACHE_KEY);
-    expect(REALM_GRASS_SHADER_CACHE_KEY).toContain('procedural-grass-v2');
-    expect(REALM_GRASS_SHADER_CACHE_KEY).toContain('bounded-tips');
+    expect(REALM_GRASS_SHADER_CACHE_KEY).toContain('procedural-grass-v3');
+    expect(REALM_GRASS_SHADER_CACHE_KEY).toContain('bent-normals');
     expect(REALM_GRASS_SHADER_CACHE_KEY).toContain(REALM_GRASS_THREE_SHADER_CONTRACT);
     expect(layer.uniforms.uGrassWindStrength.value).toBeCloseTo(0.78);
     expect(layer.uniforms.uGrassWindDirection.value.toArray()).toEqual([
@@ -97,7 +98,9 @@ describe('procedural grass material contract', () => {
     expect(layer.getShaderTelemetry()).toEqual({
       fallbackActive: false,
       fallbackCount: 0,
-      fallbackReason: null
+      fallbackReason: null,
+      disturbanceSlotCount: 0,
+      activeDisturbanceCount: 0
     });
     expect(layer.setTime(1.25)).toBe(true);
     expect(layer.setTime(1.25)).toBe(false);
@@ -135,7 +138,9 @@ describe('procedural grass material contract', () => {
     expect(layer.getShaderTelemetry()).toEqual({
       fallbackActive: true,
       fallbackCount: 1,
-      fallbackReason: 'REALM_GRASS_SHADER_BEGIN_VERTEX_CONTRACT_CHANGED'
+      fallbackReason: 'REALM_GRASS_SHADER_BEGIN_VERTEX_CONTRACT_CHANGED',
+      disturbanceSlotCount: 0,
+      activeDisturbanceCount: 0
     });
     expect(layer.material.userData.realmGrassShaderFallbackActive).toBe(true);
     expect(layer.material.customProgramCacheKey()).toContain('static-fallback');
@@ -149,6 +154,25 @@ describe('procedural grass material contract', () => {
   it('clamps shader motion to the same maximum displacement used by active-layer bounds', () => {
     expect(REALM_GRASS_MAX_PRIMARY_BEND * Math.hypot(1, REALM_GRASS_CROSS_WIND_RATIO))
       .toBeCloseTo(REALM_GRASS_MAX_WIND_SWAY, 12);
+  });
+
+  it('unrolls only the configured disturbance slots and updates uniforms in place', () => {
+    const layer = createRealmGrassMaterial(1, true, false, 4);
+    const source = 'void main() {\n#include <beginnormal_vertex>\n#include <begin_vertex>\n}';
+    const injected = injectRealmGrassVertexShader(source, 4);
+    const centers = new Float32Array([1, 2, 3, 4, 0, 0, 0, 0]);
+    const params = new Float32Array([0.7, 0.8, 0.25, 2, 1, 0.5, 0.5, 3, 0, 0, 0, 0, 0, 0, 0, 0]);
+
+    expect(injected).toContain('uGrassDisturbanceCenters[4]');
+    expect(injected).toContain('uGrassDisturbanceCount > 3');
+    expect(injected).not.toContain('uGrassDisturbanceCount > 4');
+    expect(layer.material.customProgramCacheKey()).toContain('disturbances-4');
+    expect(layer.setDisturbances({ count: 2, centers, params })).toBe(true);
+    expect(layer.uniforms.uGrassDisturbanceCount.value).toBe(2);
+    expect(layer.uniforms.uGrassDisturbanceCenters.value[0]!.toArray()).toEqual([1, 2]);
+    expect(layer.uniforms.uGrassDisturbanceParams.value[1]!.toArray()).toEqual([1, 0.5, 0.5, 3]);
+    expect(layer.getShaderTelemetry().activeDisturbanceCount).toBe(2);
+    layer.dispose();
   });
 
   it('projects one world wind direction through yawed and scaled instance bases', () => {

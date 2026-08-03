@@ -66,6 +66,7 @@ import type {
   RealmForestFallbackType,
   RealmForestGroundingMode
 } from './createRealmProceduralForestFallback';
+import type { REALM_FOREST_LIVING_CANOPY_MOTION_STATE } from './createRealmForestWindMaterial';
 import { estimateRealmForestViewportRadiusCells } from './realmForestActiveWindow';
 import {
   createTerrainGeometryData,
@@ -708,7 +709,7 @@ export type RealmTerrainPresentationTelemetry = Readonly<{
   forestFallbackType: RealmForestFallbackType;
   forestContactShadowCount: number;
   forestGroundingMode: RealmForestGroundingMode;
-  forestCanopyMotionState: 'static';
+  forestCanopyMotionState: 'static' | typeof REALM_FOREST_LIVING_CANOPY_MOTION_STATE;
   forestStructureCellCounts: RealmForestStructureCounts;
   forestSilhouetteCoverageRatio: number;
   forestSnowTintedTreeCount: number;
@@ -1977,6 +1978,7 @@ function initializeRealmScene(
         map: presentationSurface.renderMap,
         terrainPlacements,
         quality: runtimeQuality,
+        reducedMotion: options.reducedMotion,
         baseUrl: options.baseUrl,
         northernSnow,
         southernDesert,
@@ -2164,7 +2166,9 @@ function initializeRealmScene(
     retainedInDryTransition: 0,
     activeSandCellCount: 0,
     averageSandCoverageOfActiveCells: 0,
-    overviewHidden: true
+    overviewHidden: true,
+    disturbanceSlotCount: 0,
+    activeDisturbanceCount: 0
   });
   const terrainPresentationTelemetry = () => {
     terrainTelemetryAggregationCount += 1;
