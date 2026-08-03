@@ -26,7 +26,8 @@ import type { RealmSouthernDesertField } from '../src/game/map/realmSouthernDese
 describe('local procedural forest fallback', () => {
   it('builds a grounded trunk and asymmetric multi-canopy silhouette', () => {
     const fallback = createRealmProceduralForestFallbackGeometry(
-      HEGEMONY_TREE_TARGET_VISUAL_HEIGHT
+      HEGEMONY_TREE_TARGET_VISUAL_HEIGHT,
+      true
     );
     const position = fallback.geometry.getAttribute('position');
     const color = fallback.geometry.getAttribute('color');
@@ -63,6 +64,8 @@ describe('local procedural forest fallback', () => {
     const fallback = createRealmProceduralForestFallbackGeometry(
       HEGEMONY_TREE_TARGET_VISUAL_HEIGHT
     );
+    expect(fallback.geometry.getAttribute('realmForestWindWeight')).toBeUndefined();
+    expect(fallback.geometry.getAttribute('realmForestWindPhase')).toBeUndefined();
     Object.values(REALM_DECORATIVE_FOREST_RENDER_BUDGETS).forEach((budget) => {
       expect(fallback.triangleCount * budget.instances)
         .toBeLessThanOrEqual(budget.triangles);

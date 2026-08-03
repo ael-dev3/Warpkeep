@@ -37,6 +37,7 @@ if (hash !== expectedHash) {
 const jsonLength = bytes.readUInt32LE(12);
 const json = JSON.parse(bytes.subarray(20, 20 + jsonLength).toString('utf8').trim());
 const primitive = json.meshes?.[0]?.primitives?.[0];
+const embeddedBuffer = json.buffers?.[0];
 if (
   bytes.subarray(0, 4).toString('ascii') !== 'glTF'
   || bytes.readUInt32LE(4) !== 2
@@ -57,6 +58,12 @@ if (
   || json.accessors?.[0]?.count !== 384
   || json.accessors?.[3]?.count !== 438
   || json.materials?.length !== 1
+  || json.buffers?.length !== 1
+  || embeddedBuffer?.byteLength !== 13_164
+  || Object.prototype.hasOwnProperty.call(embeddedBuffer ?? {}, 'uri')
+  || json.images !== undefined
+  || json.textures !== undefined
+  || json.samplers !== undefined
   || json.animations !== undefined
   || json.skins !== undefined
 ) {

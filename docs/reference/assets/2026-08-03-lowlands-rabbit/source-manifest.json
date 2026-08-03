@@ -7,6 +7,7 @@
   },
   "runtime": {
     "bytes": 14808,
+    "embeddedBufferBytes": 13164,
     "file": "Warpkeep_Rabbit_LOD2_Compact_Static_Runtime.glb",
     "rigged": false,
     "sha256": "2ecc7b1adf4c1d79b7ca2d5ea9a6727ed3f6d9072047466082bb912d34ea930c",
@@ -24,6 +25,7 @@
     "collision": false,
     "embeddedTextures": 0,
     "externalDependencies": 0,
+    "buffers": 1,
     "frontFacing": "+Z",
     "materials": 1,
     "meshes": 1,

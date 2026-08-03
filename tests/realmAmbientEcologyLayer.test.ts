@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import * as THREE from 'three';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createRealmAmbientEcologyLayer } from '../src/components/realm/createRealmAmbientEcologyLayer';
 import { REALM_LIVING_REALM_BUDGETS } from '../src/components/realm/realmQuality';
@@ -33,7 +34,11 @@ describe('Living Realm ambient ecology layer', () => {
     expect(layer.getTelemetry().triangleCount)
       .toBeLessThanOrEqual(REALM_LIVING_REALM_BUDGETS.high.addedTriangles);
     expect(layer.group.children.every((child) => child.raycast !== undefined)).toBe(true);
+    const birds = layer.group.getObjectByName('realm-living-birds');
+    const dispose = vi.spyOn(birds as THREE.InstancedMesh, 'dispose');
     layer.dispose();
+    layer.dispose();
+    expect(dispose).toHaveBeenCalledOnce();
   });
 
   it('uses a frozen visual clock for deterministic rendered QA', () => {

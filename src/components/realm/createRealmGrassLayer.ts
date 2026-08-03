@@ -589,6 +589,8 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
         telemetry.shaderFallbackActive === shaderTelemetry.fallbackActive
         && telemetry.shaderFallbackCount === shaderTelemetry.fallbackCount
         && telemetry.shaderFallbackReason === shaderTelemetry.fallbackReason
+        && telemetry.disturbanceSlotCount === shaderTelemetry.disturbanceSlotCount
+        && telemetry.activeDisturbanceCount === shaderTelemetry.activeDisturbanceCount
       ) return telemetry;
       return Object.freeze({
         ...telemetry,

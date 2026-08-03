@@ -33,6 +33,8 @@ export type CreateRealmRabbitLayerOptions = Readonly<{
   isHabitat?: (world: Readonly<{ x: number; z: number }>) => boolean;
   frozenVisualTimeSeconds?: number;
   onModelReady?: () => void;
+  /** Test seam; production uses the loader's bounded default. */
+  requestTimeoutMs?: number;
 }>;
 
 const ANCHOR_STEP = 3;
@@ -179,30 +181,61 @@ export function createRealmRabbitLayer(
   if (capacity > 0) {
     void loadRealmRabbitAsset({
       baseUrl: options.baseUrl,
-      signal: abortController.signal
+      signal: abortController.signal,
+      requestTimeoutMs: options.requestTimeoutMs
     }).then((loaded) => {
       if (disposed) {
         loaded.release();
         return;
       }
-      prefab = loaded;
-      rabbitMaterial = loaded.material.clone();
-      rabbitMaterial.name = 'realm-lowlands-rabbit-compact-material';
-      rabbitMesh = new THREE.InstancedMesh(
-        loaded.geometry,
-        rabbitMaterial,
-        capacity
-      );
-      rabbitMesh.name = 'realm-lowlands-rabbit-compact-instances';
-      rabbitMesh.count = 0;
-      rabbitMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-      rabbitMesh.frustumCulled = false;
-      rabbitMesh.castShadow = false;
-      rabbitMesh.receiveShadow = false;
-      rabbitMesh.raycast = () => {};
-      group.add(rabbitMesh);
-      assetReady = true;
-      update(lastElapsedSeconds, { x: lastFocusX, z: lastFocusZ }, lastMode);
+      let nextMaterial: THREE.Material | null = null;
+      let nextMesh: THREE.InstancedMesh | null = null;
+      try {
+        nextMaterial = loaded.material.clone();
+        nextMaterial.name = 'realm-lowlands-rabbit-compact-material';
+        nextMesh = new THREE.InstancedMesh(
+          loaded.geometry,
+          nextMaterial,
+          capacity
+        );
+        nextMesh.name = 'realm-lowlands-rabbit-compact-instances';
+        nextMesh.count = 0;
+        nextMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        nextMesh.frustumCulled = false;
+        nextMesh.castShadow = false;
+        nextMesh.receiveShadow = false;
+        nextMesh.raycast = () => {};
+        prefab = loaded;
+        rabbitMaterial = nextMaterial;
+        rabbitMesh = nextMesh;
+        group.add(nextMesh);
+        assetReady = true;
+        update(lastElapsedSeconds, { x: lastFocusX, z: lastFocusZ }, lastMode);
+      } catch (error) {
+        nextMesh?.removeFromParent();
+        try {
+          nextMesh?.dispose();
+        } catch {
+          // Continue retiring the independently owned material and prefab.
+        }
+        try {
+          nextMaterial?.dispose();
+        } catch {
+          // Continue retiring the verified source prefab.
+        }
+        try {
+          loaded.release();
+        } catch {
+          // Preserve the adoption failure; no source resource may stay live.
+        }
+        if (prefab === loaded) prefab = null;
+        if (rabbitMaterial === nextMaterial) rabbitMaterial = null;
+        if (rabbitMesh === nextMesh) rabbitMesh = null;
+        assetReady = false;
+        activeCount = 0;
+        group.visible = false;
+        throw error;
+      }
       notifyModelReady();
     }).catch(() => {
       if (disposed || abortController.signal.aborted) return;
@@ -234,8 +267,21 @@ export function createRealmRabbitLayer(
       disposed = true;
       abortController.abort();
       group.clear();
-      rabbitMaterial?.dispose();
-      prefab?.release();
+      try {
+        rabbitMesh?.dispose();
+      } catch {
+        // Continue retiring independent Rabbit GPU resources.
+      }
+      try {
+        rabbitMaterial?.dispose();
+      } catch {
+        // Continue retiring the verified source prefab.
+      }
+      try {
+        prefab?.release();
+      } catch {
+        // Scene cleanup remains idempotent even on browser disposal failure.
+      }
       prefab = null;
       rabbitMesh = null;
       rabbitMaterial = null;

@@ -823,6 +823,10 @@ describe('Realm canonical water layer', () => {
     expect(shader.vertexShader).not.toContain('vViewPosition.xz');
     expect(shader.fragmentShader).toContain('outgoingLight +=');
     expect(shader.fragmentShader).toContain('float waterFresnel = pow(');
+    expect(shader.fragmentShader)
+      .toContain('dot(normalize(vNormal), normalize(vViewPosition))');
+    expect(shader.fragmentShader)
+      .not.toContain('dot(normalize(vNormal), normalize(-vViewPosition))');
     expect(shader.fragmentShader).toContain('vec3 waterReflectionColor = mix(');
     expect(shader.fragmentShader).toContain('waterReflectionStrength * bankSoftness');
     expect(ocean.material.userData.waterShaderContract)

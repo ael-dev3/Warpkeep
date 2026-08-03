@@ -366,6 +366,37 @@ if (
   );
 }
 
+const lowlandsRabbitRecord = JSON.parse(readContainedRegularFile({
+  root,
+  relativePath: 'docs/reference/assets/2026-08-03-lowlands-rabbit/source-manifest.json',
+  label: 'Lowlands Rabbit runtime provenance record'
+}).toString('utf8'));
+if (
+  lowlandsRabbitRecord.schema !== 'warpkeep.rabbit-runtime-integration-record.v1'
+  || lowlandsRabbitRecord.assetId !== 'warpkeep.environment.wildlife.rabbit'
+  || lowlandsRabbitRecord.designation?.gameplayAuthority !== false
+  || lowlandsRabbitRecord.designation?.visualOnly !== true
+  || lowlandsRabbitRecord.runtime?.file
+    !== 'Warpkeep_Rabbit_LOD2_Compact_Static_Runtime.glb'
+  || lowlandsRabbitRecord.runtime?.bytes !== 14_808
+  || lowlandsRabbitRecord.runtime?.embeddedBufferBytes !== 13_164
+  || lowlandsRabbitRecord.runtime?.sha256
+    !== '2ecc7b1adf4c1d79b7ca2d5ea9a6727ed3f6d9072047466082bb912d34ea930c'
+  || lowlandsRabbitRecord.runtime?.triangles !== 146
+  || lowlandsRabbitRecord.runtime?.uploadedVertices !== 384
+  || lowlandsRabbitRecord.runtimeContract?.buffers !== 1
+  || lowlandsRabbitRecord.runtimeContract?.embeddedTextures !== 0
+  || lowlandsRabbitRecord.runtimeContract?.externalDependencies !== 0
+  || lowlandsRabbitRecord.runtimeContract?.materials !== 1
+  || lowlandsRabbitRecord.runtimeContract?.meshes !== 1
+  || lowlandsRabbitRecord.provenance?.release
+    !== 'https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/rabbit-runtime-ui-bundle-2026-07-30'
+) {
+  throw new Error(
+    'Lowlands Rabbit runtime provenance record does not match the reviewed compact asset.'
+  );
+}
+
 const requiredCastleExtensions = Object.freeze([
   'EXT_meshopt_compression',
   'EXT_texture_webp',
@@ -442,6 +473,7 @@ for (const [relativePath, expectedBytes, expectedHash, glb] of assets) {
     const primitive = json.meshes?.[0]?.primitives?.[0];
     const position = json.accessors?.[primitive?.attributes?.POSITION];
     const indices = json.accessors?.[primitive?.indices];
+    const embeddedBuffer = json.buffers?.[0];
     if (
       json.asset?.copyright !== 'Copyright Ael / Warpkeep; project-authored rabbit runtime asset'
       || json.asset?.generator !== 'Khronos glTF Blender I/O v5.2.39'
@@ -468,8 +500,12 @@ for (const [relativePath, expectedBytes, expectedHash, glb] of assets) {
       || json.materials?.length !== 1
       || json.materials[0]?.name !== 'WK_Rabbit_VertexColor_PBR'
       || json.materials[0]?.doubleSided !== true
+      || json.buffers?.length !== 1
+      || embeddedBuffer?.byteLength !== 13_164
+      || Object.prototype.hasOwnProperty.call(embeddedBuffer ?? {}, 'uri')
       || json.images !== undefined
       || json.textures !== undefined
+      || json.samplers !== undefined
       || json.animations !== undefined
       || json.skins !== undefined
       || !exactVector(json.extensionsUsed, ['KHR_materials_specular'])

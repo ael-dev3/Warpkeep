@@ -3256,6 +3256,7 @@ function initializeRealmScene(
       setCanvasDatasetValue(key, String(value));
     }
   };
+  let lastPostCompileLivingShaderSignature = '';
   const render = () => {
     if (cleanup.isDisposed()) return;
     if (contextLost) return;
@@ -3582,10 +3583,30 @@ function initializeRealmScene(
     // Shader compilation happens inside renderer.render. Publish its result
     // once per material contract transition, without rebuilding the aggregate
     // on every ambient animation frame.
+    const grassShaderTelemetry = grassLayer?.getTelemetry();
+    const forestShaderTelemetry = forestLayer?.getPresentationTelemetry();
+    const waterShaderTelemetry = waterLayer?.getTelemetry();
+    const postCompileLivingShaderSignature = [
+      grassShaderTelemetry?.shaderFallbackActive ?? false,
+      grassShaderTelemetry?.shaderFallbackCount ?? 0,
+      grassShaderTelemetry?.shaderFallbackReason ?? '',
+      forestShaderTelemetry?.canopyMotionState ?? 'static',
+      forestShaderTelemetry?.shaderFallbackCount ?? 0,
+      waterShaderTelemetry?.shaderFallbackCount ?? 0
+    ].join(':');
+    const livingShaderTelemetryChanged = postCompileLivingShaderSignature
+      !== lastPostCompileLivingShaderSignature;
+    lastPostCompileLivingShaderSignature = postCompileLivingShaderSignature;
     if (
-      terrainMaterialLayer.getTelemetryRevision()
-      !== lastEmittedTerrainMaterialTelemetryRevision
+      livingShaderTelemetryChanged
+      || terrainMaterialLayer.getTelemetryRevision()
+        !== lastEmittedTerrainMaterialTelemetryRevision
     ) emitTerrainPresentationTelemetry();
+    // Shader hooks compile inside renderer.render(). Re-read their fail-closed
+    // state before deciding whether the demand-driven RAF loop stays alive.
+    syncWaterPresentationTelemetry();
+    syncLivingRealmTelemetry();
+    ambientScheduler?.setActive(ambientIsNeeded());
     options.canvas.dataset.realmLastSuccessfulRenderedGeneration = String(rendererGeneration);
     projectCastleLabels();
     projectResourceMarkers();

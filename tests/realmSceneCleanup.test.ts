@@ -167,6 +167,9 @@ import {
   createRealmTerrainSurface
 } from '../src/game/map/realmTerrainSurface';
 import { DEFAULT_REALM_CAMERA_SPEC } from '../src/components/realm/realmCameraController';
+import {
+  DEFAULT_REALM_RABBIT_REQUEST_TIMEOUT_MS
+} from '../src/components/realm/loadRealmRabbitAsset';
 import { REALM_QUALITY_SPECS } from '../src/components/realm/realmQuality';
 import {
   CANONICAL_GENESIS_FOREST_INSTANCES_V1,
@@ -461,7 +464,9 @@ describe('realm scene setup cleanup', () => {
       quality: REALM_QUALITY_SPECS.balanced,
       reducedMotion: false
     }));
-    expect(setTimeoutSpy).not.toHaveBeenCalled();
+    expect(setTimeoutSpy).toHaveBeenCalledTimes(1);
+    expect(setTimeoutSpy.mock.calls[0]?.[1])
+      .toBe(DEFAULT_REALM_RABBIT_REQUEST_TIMEOUT_MS);
     animated.dispose();
   });
 
