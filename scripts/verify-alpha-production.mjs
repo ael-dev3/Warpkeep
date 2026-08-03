@@ -1875,6 +1875,21 @@ function verifyProtectedAggregateIfConfigured(
   console.log(successMessage);
 }
 
+/**
+ * RPC-role attestation and Hermes aggregate inspection share the bridge admin
+ * credential, but they are independent release proofs. Operator mode must not
+ * infer a legacy empty-world assertion merely because its RPC proof requires
+ * that credential. Explicit aggregate release flags continue to fail closed,
+ * and older verifier invocations retain their opt-in-by-configured-credential
+ * behavior.
+ */
+export function shouldInspectConfiguredProtectedAggregate(
+  aggregateRequired,
+  rpcRoleAttestationRequired,
+) {
+  return aggregateRequired || !rpcRoleAttestationRequired;
+}
+
 export function verifyPostBackfillResourceAggregateCheckpoints(
   bridge,
   expectedFounderCount,
@@ -2161,20 +2176,28 @@ async function main() {
       expectedEnabledAllowedFidCount,
     );
   } else {
-    verifyProtectedAggregateIfConfigured(
-      bridge,
-      requireProtectedAggregate
-        || requireAdditiveV2Aggregate
-        || requireAdditiveV3PreseedAggregate
-        || requireGenesisV3SeededEmptyAggregate
-        || requireGenesisV3FoundedAggregate
-        || requireGenesisGenerationV3FoundedAggregate,
-      aggregateStage,
-      expectedFounderCount,
-      expectedPlayerCount,
-      expectedTermsAcceptanceCount,
-      expectedEnabledAllowedFidCount,
-    );
+    const aggregateRequired = requireProtectedAggregate
+      || requireAdditiveV2Aggregate
+      || requireAdditiveV3PreseedAggregate
+      || requireGenesisV3SeededEmptyAggregate
+      || requireGenesisV3FoundedAggregate
+      || requireGenesisGenerationV3FoundedAggregate;
+    if (shouldInspectConfiguredProtectedAggregate(
+      aggregateRequired,
+      requireRpcRoleAttestation,
+    )) {
+      verifyProtectedAggregateIfConfigured(
+        bridge,
+        aggregateRequired,
+        aggregateStage,
+        expectedFounderCount,
+        expectedPlayerCount,
+        expectedTermsAcceptanceCount,
+        expectedEnabledAllowedFidCount,
+      );
+    } else {
+      console.log('alpha status: skipped (operator aggregate attestation not requested)');
+    }
   }
 }
 
