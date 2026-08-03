@@ -52,11 +52,11 @@ export const REALM_TERRAIN_KIND_PALETTE: Readonly<Record<RealmTerrainKind, Reado
   color: TerrainRgb;
   strength: number;
 }>>> = Object.freeze({
-  lowland: Object.freeze({ color: { r: 0.29, g: 0.42, b: 0.23 }, strength: 0.12 }),
-  meadow: Object.freeze({ color: { r: 0.40, g: 0.51, b: 0.26 }, strength: 0.24 }),
+  lowland: Object.freeze({ color: { r: 0.33, g: 0.48, b: 0.23 }, strength: 0.16 }),
+  meadow: Object.freeze({ color: { r: 0.37, g: 0.532, b: 0.283 }, strength: 0.28 }),
   // Forest depth comes from canopy/contact cues rather than near-black paint.
-  forest: Object.freeze({ color: { r: 0.20, g: 0.35, b: 0.22 }, strength: 0.36 }),
-  heath: Object.freeze({ color: { r: 0.32, g: 0.40, b: 0.26 }, strength: 0.22 }),
+  forest: Object.freeze({ color: { r: 0.23, g: 0.40, b: 0.21 }, strength: 0.36 }),
+  heath: Object.freeze({ color: { r: 0.35, g: 0.46, b: 0.25 }, strength: 0.24 }),
   ridge: Object.freeze({ color: { r: 0.38, g: 0.38, b: 0.34 }, strength: 0.46 }),
   lake: Object.freeze({ color: { r: 0.18, g: 0.31, b: 0.36 }, strength: 0.62 }),
   'ancient-stone': Object.freeze({ color: { r: 0.39, g: 0.40, b: 0.37 }, strength: 0.45 })
@@ -180,8 +180,8 @@ export function sampleLowlandsColor(
   if (vegetationDensity > 0) {
     color = mixColor(
       color,
-      { r: 0.32, g: 0.46, b: 0.24 },
-      vegetationDensity * (context.semanticColor ? 1 : cellInfluence) * 0.08
+      { r: 0.36, g: 0.56, b: 0.22 },
+      vegetationDensity * (context.semanticColor ? 1 : cellInfluence) * 0.12
     );
   }
 
@@ -191,8 +191,8 @@ export function sampleLowlandsColor(
   // modified by a canopy tint.
   if (forestCanopy > 0) {
     const underCanopy = visualTerrainKind === 'forest'
-      ? { r: 0.25, g: 0.51, b: 0.24 }
-      : { r: 0.36, g: 0.57, b: 0.25 };
+      ? { r: 0.27, g: 0.55, b: 0.22 }
+      : { r: 0.40, g: 0.63, b: 0.24 };
     color = mixColor(
       color,
       underCanopy,
@@ -236,5 +236,5 @@ export function sampleLowlandsColor(
     context.playableRadius,
     context.renderRadius
   );
-  return mixColor(color, { r: 0.47, g: 0.51, b: 0.38 }, apronBlend * 0.32);
+  return mixColor(color, { r: 0.49, g: 0.55, b: 0.37 }, apronBlend * 0.32);
 }

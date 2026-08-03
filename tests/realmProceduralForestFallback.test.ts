@@ -76,11 +76,17 @@ describe('local procedural forest fallback', () => {
       realmForestFallbackInstanceColor('forest'),
       realmForestFallbackInstanceColor('fringe')
     ]).size).toBe(3);
-    expect(new Set([
+    const modelTints = [
       realmForestModelInstanceTint('grove'),
       realmForestModelInstanceTint('forest'),
       realmForestModelInstanceTint('fringe')
-    ]).size).toBe(3);
+    ];
+    expect(new Set(modelTints).size).toBe(3);
+    modelTints.forEach((tint) => {
+      const color = new THREE.Color(tint);
+      expect(color.g).toBeGreaterThan(color.r);
+      expect(color.g).toBeGreaterThan(color.b);
+    });
     const material = createRealmProceduralForestFallbackMaterial();
     expect(material.vertexColors).toBe(true);
     expect(material.roughness).toBeGreaterThanOrEqual(0.9);

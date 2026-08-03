@@ -11,6 +11,10 @@ import {
 import { inspectEmbeddedWebpGlb } from './rewrite-embedded-webp-glb.mjs';
 
 const root = resolve(import.meta.dirname, '..');
+const lowlandsRabbitRuntimeDirectory =
+  'public/models/hegemony/environment/wildlife/rabbit';
+const lowlandsRabbitRuntimePath =
+  `${lowlandsRabbitRuntimeDirectory}/hegemony-lowlands-rabbit-compact-2ecc7b1adf4c1d79.glb`;
 assertNoStaleAtomicFamilyTransactions(
   resolve(root, 'public/models/hegemony'),
   'Hegemony runtime model directory'
@@ -18,6 +22,7 @@ assertNoStaleAtomicFamilyTransactions(
 const assets = Object.freeze([
   ['public/models/title/warpkeep-title-high.glb', 3_844_364, '2354a57d88be80e5568afb5754102c20c9ea0fe9a83aa5ac49c0d8dd67ae9ff5', true],
   ['public/models/title/warpkeep-title-compact.glb', 1_714_060, 'd29435dfa3a5fbf5103a825cc00bb3ffcef7694167a7fb7303fa89af242d7af8', true],
+  [lowlandsRabbitRuntimePath, 14_808, '2ecc7b1adf4c1d79b7ca2d5ea9a6727ed3f6d9072047466082bb912d34ea930c', true],
   ['public/models/hegemony/hegemony-main-castle-high-9fe06a26446387e0.glb', 2_215_972, '9fe06a26446387e007ea32acfccbf6657e7a6763d73e2cb3890f103fb590afe8', true],
   ['public/models/hegemony/hegemony-main-castle-balanced-a9df1a9acd36e720.glb', 892_788, 'a9df1a9acd36e7208b764396854053a6e3c591f2eb04a83a6e2437c55a3aa157', true],
   ['public/models/hegemony/hegemony-main-castle-compact-b665d75e10e3e289.glb', 453_628, 'b665d75e10e3e289dac09ebb9f0eeec75469dda77fb25265b03b5ad6081c627b', true],
@@ -314,6 +319,7 @@ const expectedHegemonyGlbNames = new Set(
   assets
     .map(([path]) => path)
     .filter((path) => path.startsWith('public/models/hegemony/') && path.endsWith('.glb'))
+    .filter((path) => path.split('/').length === 4)
     .map((path) => basename(path))
 );
 const observedHegemonyGlbEntries = readdirSync(resolve(root, 'public/models/hegemony'), {
@@ -342,6 +348,21 @@ if (
     'Hegemony runtime GLB set does not match the exact active and compatibility coordinates: '
     + `unknown=[${unknownHegemonyGlbs.join(',')}], missing=[${missingHegemonyGlbs.join(',')}], `
     + `nonFiles=[${invalidHegemonyGlbEntries.join(',')}].`
+  );
+}
+
+const expectedLowlandsRabbitGlbName = basename(lowlandsRabbitRuntimePath);
+const observedLowlandsRabbitEntries = readdirSync(
+  resolve(root, lowlandsRabbitRuntimeDirectory),
+  { withFileTypes: true }
+);
+if (
+  observedLowlandsRabbitEntries.length !== 1
+  || observedLowlandsRabbitEntries[0]?.name !== expectedLowlandsRabbitGlbName
+  || !observedLowlandsRabbitEntries[0]?.isFile()
+) {
+  throw new Error(
+    'Lowlands Rabbit runtime directory must contain only the exact reviewed compact GLB.'
   );
 }
 
@@ -389,7 +410,7 @@ for (const relativePath of retiredAdmissionRequestRuntimeAssets) {
 
 for (const [relativePath, expectedBytes, expectedHash, glb] of assets) {
   if (
-    hegemonyModelStructure.has(relativePath)
+    (hegemonyModelStructure.has(relativePath) || relativePath === lowlandsRabbitRuntimePath)
     && !relativePath.endsWith(`-${expectedHash.slice(0, 16)}.glb`)
   ) {
     throw new Error(`${relativePath} must carry its SHA-256 prefix as an immutable cache coordinate.`);
@@ -413,6 +434,47 @@ for (const [relativePath, expectedBytes, expectedHash, glb] of assets) {
     || bytes.readUInt32LE(4) !== 2
     || bytes.readUInt32LE(8) !== bytes.byteLength
   )) throw new Error(`${relativePath} is not an intact glTF 2.0 binary.`);
+
+  if (relativePath === lowlandsRabbitRuntimePath) {
+    const jsonLength = bytes.readUInt32LE(12);
+    const jsonEnd = 20 + jsonLength;
+    const json = JSON.parse(bytes.subarray(20, jsonEnd).toString('utf8').trim());
+    const primitive = json.meshes?.[0]?.primitives?.[0];
+    const position = json.accessors?.[primitive?.attributes?.POSITION];
+    const indices = json.accessors?.[primitive?.indices];
+    if (
+      json.asset?.copyright !== 'Copyright Ael / Warpkeep; project-authored rabbit runtime asset'
+      || json.asset?.generator !== 'Khronos glTF Blender I/O v5.2.39'
+      || json.scene !== 0
+      || json.scenes?.length !== 1
+      || json.scenes[0]?.name !== 'WK_Rabbit_AuthoringScene'
+      || !exactVector(json.scenes[0]?.nodes, [0])
+      || json.nodes?.length !== 1
+      || json.nodes[0]?.name !== 'WK_Rabbit_LOD2_Compact_Static'
+      || json.nodes[0]?.mesh !== 0
+      || json.nodes[0]?.extras?.wk_asset !== 'rabbit'
+      || json.nodes[0]?.extras?.wk_lod !== 'LOD2_Compact'
+      || json.meshes?.length !== 1
+      || json.meshes[0]?.name !== 'WK_Rabbit_LOD2_Compact_Static_Mesh'
+      || json.meshes[0]?.primitives?.length !== 1
+      || !exactRecord(primitive?.attributes, { POSITION: 0, NORMAL: 1, COLOR_0: 2 })
+      || primitive?.indices !== 3
+      || primitive?.material !== 0
+      || position?.count !== 384
+      || position?.componentType !== 5126
+      || position?.type !== 'VEC3'
+      || indices?.count !== 438
+      || indices?.componentType !== 5123
+      || json.materials?.length !== 1
+      || json.materials[0]?.name !== 'WK_Rabbit_VertexColor_PBR'
+      || json.materials[0]?.doubleSided !== true
+      || json.images !== undefined
+      || json.textures !== undefined
+      || json.animations !== undefined
+      || json.skins !== undefined
+      || !exactVector(json.extensionsUsed, ['KHR_materials_specular'])
+    ) throw new Error(`${relativePath} structure no longer matches the reviewed compact Rabbit profile.`);
+  }
 
   const expectedStructure = hegemonyModelStructure.get(relativePath);
   if (expectedStructure) {

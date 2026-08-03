@@ -11,19 +11,23 @@ describe('Living Realm quality budgets', () => {
       grassDisturbanceSlots: 8,
       waterRippleSlots: 4,
       birdInstances: 12,
+      rabbitInstances: 10,
       moteCount: 36,
       transientParticleCount: 96,
       plannerHz: 10,
-      addedDrawCalls: 2
+      addedDrawCalls: 3,
+      addedTriangles: 1_484
     });
     expect(REALM_LIVING_REALM_BUDGETS.balanced).toMatchObject({
       grassDisturbanceSlots: 4,
       waterRippleSlots: 2,
       birdInstances: 6,
+      rabbitInstances: 6,
       moteCount: 18,
       transientParticleCount: 48,
       plannerHz: 7,
-      addedDrawCalls: 2
+      addedDrawCalls: 3,
+      addedTriangles: 888
     });
   });
 

@@ -8,8 +8,8 @@ export type RealmGrassGeometryProfile = 'high' | 'balanced' | 'reduced';
  * variation for deterministic variants to read as a small meadow, not a spike.
  */
 export const REALM_GRASS_BLADES_PER_PATCH: Readonly<Record<RealmGrassGeometryProfile, number>> = Object.freeze({
-  high: 9,
-  balanced: 7,
+  high: 12,
+  balanced: 9,
   reduced: 5
 });
 export const REALM_GRASS_VARIANT_COUNTS: Readonly<Record<RealmGrassGeometryProfile, number>> = Object.freeze({
@@ -78,7 +78,10 @@ const ROOTS: Readonly<Record<RealmGrassGeometryProfile, readonly Root[]>> = Obje
     root(-0.42, 0.17),
     root(0.02, 0.44),
     root(-0.28, -0.31),
-    root(0.41, -0.19)
+    root(0.41, -0.19),
+    root(-0.08, -0.11),
+    root(0.18, 0.04),
+    root(-0.22, 0.39)
   ]),
   balanced: Object.freeze([
     root(-0.34, -0.05),
@@ -87,7 +90,9 @@ const ROOTS: Readonly<Record<RealmGrassGeometryProfile, readonly Root[]>> = Obje
     root(-0.12, 0.22),
     root(0.27, 0.29),
     root(-0.42, 0.17),
-    root(0.02, 0.44)
+    root(0.02, 0.44),
+    root(-0.28, -0.31),
+    root(0.18, 0.04)
   ]),
   reduced: Object.freeze([root(-0.34, -0.05), root(0.11, -0.39), root(0.39, 0.08), root(-0.12, 0.22), root(0.27, 0.29)])
 });
