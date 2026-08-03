@@ -50,7 +50,7 @@ describe('FarcasterAdmissionPanel', () => {
     expect(document.getElementById(descriptionId!)?.textContent)
       .toMatch(/does not grant entry or reserve a castle/i);
     fireEvent.click(requestButton);
-    expect(screen.queryByRole('button', { name: 'CHECK AGAIN' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'CHECK ADMISSION' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'BACK TO MENU' }));
     fireEvent.click(screen.getByRole('button', { name: 'SIGN OUT' }));
     expect(onRequestAccess).toHaveBeenCalledTimes(1);
@@ -83,7 +83,7 @@ describe('FarcasterAdmissionPanel', () => {
     expect(onRequestAccess).not.toHaveBeenCalled();
   });
 
-  it('retains CHECK AGAIN after the request is recorded for manual review', () => {
+  it('retains CHECK ADMISSION after the request is recorded for manual review', () => {
     const onCheckAgain = vi.fn();
     render(
       <FarcasterAdmissionPanel
@@ -98,7 +98,7 @@ describe('FarcasterAdmissionPanel', () => {
     );
 
     expect(screen.getByText('REQUEST RECEIVED')).not.toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
+    fireEvent.click(screen.getByRole('button', { name: 'CHECK ADMISSION' }));
     expect(onCheckAgain).toHaveBeenCalledTimes(1);
   });
 
@@ -164,7 +164,7 @@ describe('FarcasterAdmissionPanel', () => {
     expect(screen.getByText('REQUEST SENT')).not.toBeNull();
     expect(screen.getByText(/Confirming with the Hegemony records/i)).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'CHECK AGAIN' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'CHECK ADMISSION' })).toBeNull();
   });
 
   it('keeps a backend outage distinct from an admission rejection', () => {
@@ -180,7 +180,7 @@ describe('FarcasterAdmissionPanel', () => {
 
     expect(screen.getByText('The Hegemony records are temporarily unreachable.')).not.toBeNull();
     expect(screen.queryByRole('link', { name: /request Warpkeep access/i })).toBeNull();
-    expect(screen.getByRole('button', { name: 'CHECK AGAIN' })).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'TRY AGAIN' })).not.toBeNull();
   });
 
   it('shows a meaningful busy status without exposing backend implementation detail', () => {
@@ -233,6 +233,6 @@ describe('FarcasterAdmissionPanel', () => {
 
     expect(screen.getByRole('heading', { level: 2, name: 'OPENING GENESIS 001…' })).not.toBeNull();
     expect(screen.getByRole('status').textContent).toBe('Opening Genesis 001…');
-    expect(screen.queryByRole('button', { name: 'CHECK AGAIN' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'CHECK ADMISSION' })).toBeNull();
   });
 });

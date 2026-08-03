@@ -14,7 +14,8 @@ import {
 } from '../title/gatewayActivation';
 import {
   getWarpTransitionTiming,
-  type GatewayTransitionRequest
+  type GatewayTransitionRequest,
+  type WarpTransitionVariant
 } from './experienceTransition';
 import './WarpTransitionOverlay.css';
 
@@ -25,6 +26,7 @@ export type WarpTransitionOverlayProps = {
    * omitted, the current `prefers-reduced-motion` value is sampled at render.
    */
   reducedMotion?: boolean;
+  variant?: WarpTransitionVariant;
   onArmed?: () => void;
   onCovered?: () => void;
   onComplete?: () => void;
@@ -78,6 +80,7 @@ export function prefersReducedWarpMotion(): boolean {
 export function WarpTransitionOverlay({
   request,
   reducedMotion,
+  variant = 'standard',
   onArmed,
   onCovered,
   onComplete,
@@ -91,7 +94,7 @@ export function WarpTransitionOverlay({
   const [resolvedOrigin, setResolvedOrigin] =
     useState<ResolvedOverlayOrigin | null>(null);
   const usesReducedMotion = reducedMotion ?? prefersReducedWarpMotion();
-  const timing = getWarpTransitionTiming(usesReducedMotion);
+  const timing = getWarpTransitionTiming(usesReducedMotion, variant);
   onArmedRef.current = onArmed;
 
   useLayoutEffect(() => {
@@ -173,6 +176,7 @@ export function WarpTransitionOverlay({
       data-direction={request.direction}
       data-input={request.input}
       data-motion={usesReducedMotion ? 'reduced' : 'standard'}
+      data-variant={variant}
       data-origin-ready={String(resolvedOrigin !== null)}
       data-transition-sequence={request.sequence}
       data-accepted-at={request.acceptedAt}

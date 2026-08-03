@@ -5,15 +5,23 @@ import {
   type Ref
 } from 'react';
 
-import type { AccessRequestViewState } from '../../farcaster/farcasterAuthTypes';
+import type {
+  AccessRequestViewState,
+  FarcasterAdmissionCheckViewState
+} from '../../farcaster/farcasterAuthTypes';
 import { useMiniAppHost } from '../../farcaster/miniapp';
+import {
+  FarcasterAdmissionCheckAction,
+  IDLE_ADMISSION_CHECK
+} from './FarcasterAdmissionCheck';
 import './FarcasterAccessRequest.css';
 
 export type FarcasterAccessRequestProps = Readonly<{
   state: AccessRequestViewState;
+  admissionCheck?: FarcasterAdmissionCheckViewState;
   onRequestAccess: () => boolean;
   onRetryStatus?: () => void;
-  onCheckAdmission?: () => void;
+  onCheckAdmission?: () => boolean;
   descriptionId?: string;
   primaryActionRef?: Ref<HTMLButtonElement>;
 }>;
@@ -73,6 +81,7 @@ export function FarcasterAccessRequestAction({
   onRequestAccess,
   onRetryStatus,
   onCheckAdmission,
+  admissionCheck = IDLE_ADMISSION_CHECK,
   descriptionId,
   primaryActionRef
 }: FarcasterAccessRequestProps) {
@@ -174,14 +183,11 @@ export function FarcasterAccessRequestAction({
           <span>Access is reviewed manually.</span>
         </div>
         {onCheckAdmission ? (
-          <button
-            className="farcaster-auth-panel__action farcaster-auth-panel__action--secondary"
-            onClick={onCheckAdmission}
-            ref={(element) => assignButtonRef(primaryActionRef, element)}
-            type="button"
-          >
-            CHECK AGAIN
-          </button>
+          <FarcasterAdmissionCheckAction
+            onCheckAdmission={onCheckAdmission}
+            primaryActionRef={primaryActionRef}
+            state={admissionCheck}
+          />
         ) : null}
       </>
     );
@@ -194,14 +200,11 @@ export function FarcasterAccessRequestAction({
           <span>Your admission is active. Check admission to continue into the Realm.</span>
         </div>
         {onCheckAdmission ? (
-          <button
-            className="farcaster-auth-panel__action farcaster-auth-panel__action--primary"
-            onClick={onCheckAdmission}
-            ref={(element) => assignButtonRef(primaryActionRef, element)}
-            type="button"
-          >
-            CHECK AGAIN
-          </button>
+          <FarcasterAdmissionCheckAction
+            onCheckAdmission={onCheckAdmission}
+            primaryActionRef={primaryActionRef}
+            state={admissionCheck}
+          />
         ) : null}
       </>
     );

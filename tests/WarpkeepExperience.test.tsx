@@ -12,6 +12,12 @@ import {
   resolveRealmContinuityIdentity
 } from '../src/components/WarpkeepExperience';
 import { FarcasterAuthProvider } from '../src/farcaster/FarcasterAuthProvider';
+import type { FarcasterOidcBridgeClient } from '../src/farcaster/farcasterAuthTypes';
+import {
+  MiniAppHostProvider,
+  type MiniAppBrowserRuntime,
+  type MiniAppSdk
+} from '../src/farcaster/miniapp';
 import { WarpkeepSpacetimeProvider } from '../src/spacetime/WarpkeepSpacetimeProvider';
 import { NOT_REQUIRED_WORKER_PRIVATE_SYNC_STATUS } from '../src/spacetime/warpkeepBackendTypes';
 import { createCanonicalGenesisSnapshot } from './fixtures/canonicalGenesisSnapshot';
@@ -27,6 +33,77 @@ function render(ui: ReactElement) {
       </WarpkeepSpacetimeProvider>
     </FarcasterAuthProvider>
   );
+}
+
+function renderVerifiedMiniAppTitle(ui: ReactElement) {
+  const pendingToken = new Promise<never>(() => {});
+  const runtime: MiniAppBrowserRuntime = {
+    // Host detection is hinted through the injected runtime while the actual
+    // browser URL remains `/`, keeping the Experience's initial phase at title.
+    search: () => '?miniApp=true',
+    viewport: () => ({ width: 390, height: 844 }),
+    document,
+    getMountedShell: () => document.body,
+    waitForAnimationFrame: async () => undefined
+  };
+  const sdk: MiniAppSdk = {
+    isInMiniApp: vi.fn(async () => true),
+    context: Promise.resolve({
+      user: { fid: 12_345 },
+      client: {
+        clientFid: 9_150,
+        added: true,
+        platformType: 'mobile',
+        safeAreaInsets: { top: 20, right: 0, bottom: 12, left: 0 }
+      }
+    }),
+    getCapabilities: vi.fn(async () => ['actions.ready']),
+    quickAuth: {
+      getToken: vi.fn(() => pendingToken)
+    },
+    actions: {
+      ready: vi.fn(async () => undefined)
+    }
+  };
+  const bridge: FarcasterOidcBridgeClient = {
+    issuer: 'https://auth.warpkeep.example',
+    audience: 'warpkeep-spacetimedb',
+    createChallenge: vi.fn(async () => {
+      throw new Error('SIWF is not expected in this presentation test.');
+    }),
+    exchangeCompletedSignIn: vi.fn(async () => {
+      throw new Error('SIWF is not expected in this presentation test.');
+    }),
+    exchangeQuickAuth: vi.fn(async () => {
+      throw new Error('The deliberately pending token must prevent exchange.');
+    }),
+    refreshSession: vi.fn(async () => {
+      throw new Error('Cookie restoration is not expected in a Mini App.');
+    }),
+    getAccessRequestStatus: vi.fn(async () => ({
+      version: 1 as const,
+      status: 'not-requested' as const
+    })),
+    requestAccess: vi.fn(async () => ({
+      version: 1 as const,
+      status: 'requested' as const,
+      requestedAt: Date.now()
+    })),
+    logoutSession: vi.fn(async () => undefined)
+  };
+
+  return {
+    ...testingLibraryRender(
+      <MiniAppHostProvider runtime={runtime} sdkLoader={async () => sdk}>
+        <FarcasterAuthProvider loadBridgeClient={async () => bridge}>
+          <WarpkeepSpacetimeProvider>
+            {ui}
+          </WarpkeepSpacetimeProvider>
+        </FarcasterAuthProvider>
+      </MiniAppHostProvider>
+    ),
+    sdk
+  };
 }
 
 function rectangle(left: number, top: number, width: number, height: number): DOMRect {
@@ -295,6 +372,30 @@ describe('WarpkeepExperience', () => {
     expect(screen.queryByRole('button', { name: 'Enter Warpkeep' })).toBeNull();
     expect(container.querySelectorAll('audio[data-audio-role]')).toHaveLength(5);
     expect(container.querySelectorAll('audio[data-audio-role^="realm"][src]')).toHaveLength(0);
+  });
+
+  it('uses the compact Mini App watchdog when animation events never arrive', async () => {
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    const { container, sdk } = renderVerifiedMiniAppTitle(<WarpkeepExperience />);
+    const gateway = await settleInitialTitle();
+    await act(async () => {
+      for (let round = 0; round < 12; round += 1) await Promise.resolve();
+    });
+    expect(sdk.isInMiniApp).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(gateway, { detail: 1, clientX: 676, clientY: 218 });
+    const overlay = screen.getByTestId('warp-transition-overlay');
+    expect(overlay.getAttribute('data-variant')).toBe('compact');
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase'))
+      .toBe('transitioning-to-menu');
+
+    // No synthetic animationend: the controller's matched compact watchdog
+    // must cover, complete, and retire the pointer-blocking portal itself.
+    await act(async () => vi.advanceTimersByTime(1_061));
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase'))
+      .toBe('menu');
+    expect(screen.queryByTestId('warp-transition-overlay')).toBeNull();
   });
 
   it('freezes the rendered gateway center rather than the physical pointer point', async () => {

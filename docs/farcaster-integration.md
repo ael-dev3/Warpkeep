@@ -253,7 +253,7 @@ current browser cookie; a separately copied cookie may remain usable after
 storage recovery until the bounded family expires.
 
 Before the best-effort server call, sign-out also writes the non-secret 30-day
-logout-intent tombstone and blocks every automatic, focus/timer, **CHECK AGAIN**,
+logout-intent tombstone and blocks every automatic, focus/timer, **CHECK ADMISSION**,
 and direct cookie refresh in that browser scope. Reloads and same-origin tabs
 honor it; only a new explicit, Terms-gated auth activation clears it early, and
 it becomes stale after the maximum family lifetime. Malformed or currently
@@ -327,9 +327,15 @@ database commit succeeds but the notification side effect is interrupted.
 Notification preference and delivery add no SpacetimeDB schema or browser
 authority.
 
-**CHECK AGAIN** calls credentialed `/v2/session/refresh`, not a new Farcaster
-channel. A matching missing or disabled state stays pending/tokenless; enabled
-transitions once to an epoch-bound family and returns a fresh 600-second token.
+**CHECK ADMISSION** is a typed, read-only presentation around credentialed
+`/v2/session/refresh`, not a new Farcaster channel or access-request mutation.
+The first accepted activation locks synchronously, concurrent inputs join the
+existing authority flight, and a short bounded visual interval prevents a fast
+response from appearing inert. A matching missing or disabled state stays
+pending/tokenless; enabled transitions once to an epoch-bound family and
+returns a fresh 600-second token. The UI preserves the original request time,
+records only a local `checkedAt` for presentation, and distinguishes unchanged,
+temporary-failure, granted, and host-account-change outcomes.
 A bound family always revokes after disablement, and a pending family revokes
 if its non-enabled admission state no longer matches the state proven at
 creation. A resolver outage remains a generic temporary-unavailable state and

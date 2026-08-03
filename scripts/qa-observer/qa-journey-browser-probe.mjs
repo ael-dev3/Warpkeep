@@ -923,6 +923,78 @@ async function activateTermsAcceptance(session) {
   }
 }
 
+async function runManualAdmissionCheckPresentation(session, probeCase, state) {
+  await setViewport(session, MOBILE_VIEWPORT);
+  await session.command('Page.navigate', { url: probeCase.url });
+  await waitForDirectObservation(session, {
+    ...probeCase,
+    viewport: MOBILE_VIEWPORT,
+  }, state);
+
+  const activation = await session.command('Runtime.evaluate', {
+    expression: `(() => {
+      const buttons = [...document.querySelectorAll('button')].filter((button) => (
+        (button.textContent ?? '').trim() === 'CHECK ADMISSION'
+      ));
+      if (buttons.length !== 1) return { accepted: false };
+      for (let index = 0; index < 20; index += 1) buttons[0].click();
+      const checking = document.querySelector('[data-admission-check-phase="checking"]');
+      const checkingButton = [...document.querySelectorAll('button')].find((button) => (
+        (button.textContent ?? '').trim() === 'CHECKING ADMISSION…'
+      ));
+      const panel = document.querySelector('.farcaster-auth-panel');
+      const scrollOwner = document.querySelector('.warpkeep-menu-auth-rail');
+      return {
+        accepted: true,
+        checking: Boolean(checking),
+        disabled: checkingButton instanceof HTMLButtonElement && checkingButton.disabled,
+        documentWidth: document.documentElement.scrollWidth,
+        flights: document.querySelector('.qa-journey__auth-stage')
+          ?.getAttribute('data-admission-check-flights') ?? '',
+        panelOverflowY: panel ? getComputedStyle(panel).overflowY : '',
+        scrollOwnerOverflowY: scrollOwner ? getComputedStyle(scrollOwner).overflowY : '',
+      };
+    })()`,
+    returnByValue: true,
+  });
+  const immediate = activation?.result?.value;
+  if (
+    activation?.exceptionDetails
+    || immediate?.accepted !== true
+    || immediate?.checking !== true
+    || immediate?.disabled !== true
+    || immediate?.documentWidth !== MOBILE_VIEWPORT.width
+    || immediate?.flights !== '1'
+    || ['auto', 'scroll'].includes(immediate?.panelOverflowY)
+    || !['auto', 'scroll'].includes(immediate?.scrollOwnerOverflowY)
+  ) throw new Error('Journey manual admission check did not lock one responsive flight.');
+
+  const deadline = Date.now() + STAGE_TIMEOUT_MILLISECONDS;
+  while (Date.now() < deadline) {
+    const settled = await session.command('Runtime.evaluate', {
+      expression: `(() => ({
+        flights: document.querySelector('.qa-journey__auth-stage')
+          ?.getAttribute('data-admission-check-flights') ?? '',
+        phase: document.querySelector('[data-admission-check-phase]')
+          ?.getAttribute('data-admission-check-phase') ?? '',
+        stillPendingCount: [...document.querySelectorAll('strong')].filter((element) => (
+          (element.textContent ?? '').trim() === 'STILL PENDING'
+        )).length,
+      }))()`,
+      returnByValue: true,
+    });
+    const value = settled?.result?.value;
+    if (
+      !settled?.exceptionDetails
+      && value?.flights === '1'
+      && value?.phase === 'still-pending'
+      && value?.stillPendingCount === 1
+    ) return;
+    await delay(50);
+  }
+  throw new Error('Journey manual admission check did not settle to still pending.');
+}
+
 async function runPatchNotesSurface(session, href, viewport, state) {
   const selector = 'button[aria-controls="warpkeep-latest-patch-notes"]';
   await activateUniqueControl(session, selector);
@@ -972,7 +1044,7 @@ async function runFullJourney(session, href, realmHref, state) {
   await activateExactControl(session, 'button', 'COMPLETE LOCAL VERIFICATION');
   await waitForFlowStage(session, 'pending', href, state);
 
-  await activateExactControl(session, 'button', 'CHECK AGAIN');
+  await activateExactControl(session, 'button', 'CHECK ADMISSION');
   await waitForFlowStage(session, 'admitted', href, state);
   await activateExactControl(session, 'button', 'ENTER REALM');
   await waitForFlowStage(session, 'final-terms', href, state);
@@ -1035,6 +1107,9 @@ export async function runQaJourneyBrowserCases(session, cases, state) {
       await setViewport(session, probeCase.viewport);
       await session.command('Page.navigate', { url: probeCase.url });
       await waitForDirectObservation(session, probeCase, state);
+      if (probeCase.id === 'direct-admission-pending') {
+        await runManualAdmissionCheckPresentation(session, probeCase, state);
+      }
       if (probeCase.screenshot) {
         await captureAnonymousVisualAggregate(session, probeCase.viewport);
       }

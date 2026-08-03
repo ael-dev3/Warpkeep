@@ -26,16 +26,19 @@ function readCssBlock(source: string, opening: string): string {
 }
 
 describe('Warpkeep main-menu responsive layout', () => {
-  it('aligns every desktop menu surface to one shared rail centerline', () => {
+  it('keeps command composition aligned while identity remains in normal heading flow', () => {
     const css = readFileSync(
       resolve(process.cwd(), 'src/components/menu/WarpkeepMainMenu.css'),
+      'utf8'
+    );
+    const component = readFileSync(
+      resolve(process.cwd(), 'src/components/menu/WarpkeepMainMenu.tsx'),
       'utf8'
     );
     const menu = readCssBlock(css, '.warpkeep-menu {');
     const heading = readCssBlock(css, '.warpkeep-menu-heading {');
     const navigation = readCssBlock(css, '.warpkeep-menu-nav {');
     const identity = readCssBlock(css, '.warpkeep-menu-identity {');
-    const authRail = readCssBlock(css, '.warpkeep-menu-auth-rail {');
 
     expect(menu).toContain('--warpkeep-menu-rail-width:');
     expect(menu).toContain('--warpkeep-menu-rail-half-width:');
@@ -44,27 +47,70 @@ describe('Warpkeep main-menu responsive layout', () => {
       'right: calc(var(--warpkeep-menu-rail-right) + var(--warpkeep-menu-rail-half-width));'
     );
     expect(heading).toContain('transform: translate(50%, -0.65rem);');
-    for (const rail of [navigation, identity, authRail]) {
-      expect(rail).toContain('right: var(--warpkeep-menu-rail-right);');
-      expect(rail).toContain('width: var(--warpkeep-menu-rail-width);');
-    }
+    expect(navigation).toContain('right: var(--warpkeep-menu-rail-right);');
+    expect(navigation).toContain('width: var(--warpkeep-menu-rail-width);');
+    expect(identity).toContain('position: static;');
+    expect(identity).toContain('width: 100%;');
+
+    const headingStart = component.indexOf('<header aria-hidden={authPanelOpen}');
+    const identityStart = component.indexOf('<div className="warpkeep-menu-identity">');
+    const headingEnd = component.indexOf('</header>', headingStart);
+    expect(headingStart).toBeGreaterThanOrEqual(0);
+    expect(identityStart).toBeGreaterThan(headingStart);
+    expect(identityStart).toBeLessThan(headingEnd);
   });
 
-  it('bounds and compacts Farcaster auth across portrait viewports', () => {
+  it('gives Farcaster auth one opaque full-screen scroll owner without nested panel scroll', () => {
     const css = readFileSync(
       resolve(process.cwd(), 'src/components/menu/WarpkeepMainMenu.css'),
       'utf8'
     );
+    const authRail = readCssBlock(css, '.warpkeep-menu-auth-rail {');
+    const authPanel = readCssBlock(
+      css,
+      '.warpkeep-menu-auth-rail > .farcaster-auth-panel {'
+    );
+    const authActions = readCssBlock(
+      css,
+      '.warpkeep-menu-auth-rail .farcaster-auth-panel__actions {'
+    );
+    const authBack = readCssBlock(
+      css,
+      '.warpkeep-menu[data-menu-surface="farcaster-auth"] .warpkeep-menu-back {'
+    );
     const portrait = readCssBlock(css, '@media (orientation: portrait)');
 
-    expect(portrait).toMatch(
-      /\.warpkeep-menu-auth-rail\s*\{[^}]*top:\s*max\([^}]*bottom:\s*max\([^}]*overflow:\s*hidden;/s
+    expect(authRail).toContain('position: fixed;');
+    expect(authRail).toContain('inset: 0;');
+    expect(authRail).toContain('overflow-y: auto;');
+    expect(authRail).toContain('overscroll-behavior: contain;');
+    expect(authRail).toContain('linear-gradient(180deg, #0d0912 0%, #08070c 100%);');
+    expect(authPanel).toContain('max-height: none;');
+    expect(authPanel).toContain('overflow: visible;');
+    expect(authActions).toContain('position: sticky;');
+    expect(authActions).toContain('bottom: 0;');
+    expect(authBack).toContain('z-index: 6;');
+    expect(authBack).toContain('bottom: auto;');
+    expect(portrait).not.toMatch(
+      /\.warpkeep-menu-auth-rail\s*\{[^}]*overflow:\s*hidden;/s
     );
-    expect(portrait).toMatch(
-      /\.warpkeep-menu-auth-rail > \.farcaster-auth-panel\s*\{[^}]*max-height:\s*100%;/s
+    expect(css).toMatch(
+      /\[data-menu-surface="farcaster-auth"\] \.warpkeep-menu-heading\s*\{[^}]*visibility:\s*hidden;[^}]*opacity:\s*0;/s
     );
-    expect(portrait).toMatch(
-      /\[data-menu-surface="farcaster-auth"\] \.warpkeep-menu-heading__crest\s*\{[^}]*display:\s*none;/s
+  });
+
+  it('keeps a tall direct-entry panel reachable in 667x375 landscape', () => {
+    const css = readFileSync(
+      resolve(process.cwd(), 'src/components/auth/FarcasterMiniAppEntryGate.css'),
+      'utf8'
+    );
+    const shortViewport = readCssBlock(css, '@media (max-height: 560px)');
+
+    expect(shortViewport).toMatch(
+      /\.farcaster-miniapp-entry\s*\{[^}]*align-items:\s*start;/s
+    );
+    expect(shortViewport).toMatch(
+      /\.farcaster-miniapp-entry__content > \.farcaster-auth-panel\s*\{[^}]*align-self:\s*start;/s
     );
   });
 

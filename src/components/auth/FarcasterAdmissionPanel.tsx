@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, type Ref } from 'react';
 
 import type {
   AccessRequestViewState,
+  FarcasterAdmissionCheckViewState,
   VerifiedFarcasterIdentity
 } from '../../farcaster/farcasterAuthTypes';
 import type { WarpkeepBackendPhase } from '../../spacetime/warpkeepBackendTypes';
@@ -11,6 +12,10 @@ import {
   FarcasterAccessRequestMessage
 } from './FarcasterAccessRequest';
 import { FarcasterIdentityBadge } from './FarcasterIdentityBadge';
+import {
+  FarcasterAdmissionCheckAction,
+  IDLE_ADMISSION_CHECK
+} from './FarcasterAdmissionCheck';
 import './FarcasterAdmissionPanel.css';
 
 const IDLE_ACCESS_REQUEST: AccessRequestViewState = Object.freeze({ phase: 'idle' });
@@ -24,9 +29,10 @@ export type FarcasterAdmissionPanelProps = Readonly<{
   onPresentationReady?: () => void;
   /** Optional outside the ordinary menu flow, including direct Mini App entry. */
   onBackToMenu?: () => void;
-  onCheckAgain: () => void;
+  onCheckAgain: () => boolean;
   onReviewTerms?: () => void;
   accessRequest?: AccessRequestViewState;
+  admissionCheck?: FarcasterAdmissionCheckViewState;
   onRequestAccess?: () => boolean;
   onRetryAccessRequestStatus?: () => void;
   onSignOut: () => void;
@@ -97,6 +103,7 @@ export function FarcasterAdmissionPanel({
   onCheckAgain,
   onReviewTerms,
   accessRequest = IDLE_ACCESS_REQUEST,
+  admissionCheck = IDLE_ADMISSION_CHECK,
   onRequestAccess,
   onRetryAccessRequestStatus,
   onSignOut
@@ -108,6 +115,7 @@ export function FarcasterAdmissionPanel({
   const accessRequestBusy = accessRequest.phase === 'loading-status'
     || accessRequest.phase === 'submitting'
     || accessRequest.phase === 'verifying-ambiguous-result';
+  const admissionCheckBusy = admissionCheck.phase === 'checking';
   const busy = phase === 'connecting'
     || phase === 'reconnecting'
     || phase === 'checking-admission'
@@ -132,7 +140,9 @@ export function FarcasterAdmissionPanel({
 
   return (
     <section
-      aria-busy={busy || (phase === 'denied' && accessRequestBusy) || undefined}
+      aria-busy={busy
+        || (phase === 'denied' && (accessRequestBusy || admissionCheckBusy))
+        || undefined}
       aria-labelledby={headingId}
       className={`farcaster-auth-panel farcaster-admission-panel farcaster-admission-panel--${phase}`}
       data-phase={phase}
@@ -214,6 +224,7 @@ export function FarcasterAdmissionPanel({
         ) : null}
         {denied && onRequestAccess ? (
           <FarcasterAccessRequestAction
+            admissionCheck={admissionCheck}
             descriptionId={accessRequestDescriptionId}
             onCheckAdmission={onCheckAgain}
             onRequestAccess={onRequestAccess}
@@ -222,16 +233,23 @@ export function FarcasterAdmissionPanel({
             state={accessRequest}
           />
         ) : null}
-        {!busy
-          && !awaitingTerms
-          && (!denied || !accessRequestOwnsPrimaryAction(accessRequest)) ? (
+        {denied && !accessRequestOwnsPrimaryAction(accessRequest) ? (
+          <FarcasterAdmissionCheckAction
+            onCheckAdmission={onCheckAgain}
+            primaryActionRef={primaryActionRef}
+            state={admissionCheck}
+          />
+        ) : null}
+        {unavailable ? (
           <button
             className="farcaster-auth-panel__action farcaster-auth-panel__action--primary"
-            onClick={onCheckAgain}
+            onClick={() => {
+              onCheckAgain();
+            }}
             ref={primaryActionRef}
             type="button"
           >
-            CHECK AGAIN
+            TRY AGAIN
           </button>
         ) : null}
         {onBackToMenu ? (

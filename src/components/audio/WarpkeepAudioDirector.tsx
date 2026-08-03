@@ -156,6 +156,10 @@ export interface WarpkeepAudioDirectorProps {
   scene?: AudioScene;
   preloadMenu?: boolean;
   muted?: boolean;
+  /** Keep media gesture-aware but inaudible behind a full-screen entry gate. */
+  suspended?: boolean;
+  /** Fade used only when a suspended entry gate reveals its destination. */
+  resumeFadeMs?: number;
 }
 
 /**
@@ -169,7 +173,9 @@ export const WarpkeepAudioDirector = forwardRef<
 >(function WarpkeepAudioDirector({
   scene = 'title',
   preloadMenu = true,
-  muted = false
+  muted = false,
+  suspended = false,
+  resumeFadeMs = 520
 }, forwardedRef) {
   const baseUrl = import.meta.env.BASE_URL;
   const soundtrackUrls = useMemo(
@@ -184,6 +190,7 @@ export const WarpkeepAudioDirector = forwardRef<
   const initialSceneRef = useRef(scene);
   const preloadMenuRef = useRef(preloadMenu);
   const mutedRef = useRef(muted);
+  const suspendedRef = useRef(suspended);
   const titleAudioRef = useRef<HTMLAudioElement>(null);
   const loopAudioRefs = useRef<Record<AudioLoopScene, AudioPair>>({
     menu: [null, null],
@@ -199,7 +206,9 @@ export const WarpkeepAudioDirector = forwardRef<
   const disposedRef = useRef(false);
   const hiddenRef = useRef(typeof document === 'undefined' ? false : document.hidden);
   const requestedSceneRef = useRef<AudioScene>(scene);
-  const sceneMixRef = useRef<SceneMix>(getSceneMix(scene));
+  const sceneMixRef = useRef<SceneMix>(
+    suspended ? { menu: 0, realm: 0, title: 0 } : getSceneMix(scene)
+  );
   const sceneTransitionRef = useRef<SceneTransition | null>(null);
   const sceneAnimationFrameRef = useRef<number | null>(null);
   const loopStateRef = useRef<LoopStateMap>(createLoopStates());
@@ -618,7 +627,7 @@ export const WarpkeepAudioDirector = forwardRef<
   );
 
   const playIntendedSources = useCallback(() => {
-    if (disposedRef.current || hiddenRef.current) {
+    if (disposedRef.current || hiddenRef.current || suspendedRef.current) {
       return;
     }
 
@@ -659,6 +668,21 @@ export const WarpkeepAudioDirector = forwardRef<
 
     scheduleLoopRef.current(requestedScene);
   }, [getActiveLoopAudio, getLoopPair, markPlaybackBlocked]);
+
+  const primeRequestedSceneSilently = useCallback(() => {
+    const requestedScene = requestedSceneRef.current;
+    let requestedAudio: HTMLAudioElement | null = null;
+    if (requestedScene === 'title') {
+      ensureTitleSource();
+      requestedAudio = titleAudioRef.current;
+    } else if (preparedLoopScenesRef.current[requestedScene]) {
+      requestedAudio = getActiveLoopAudio(requestedScene);
+    }
+    if (!requestedAudio) return;
+    requestedAudio.muted = true;
+    requestedAudio.preload = 'auto';
+    playMedia(requestedAudio, markPlaybackBlocked);
+  }, [ensureTitleSource, getActiveLoopAudio, markPlaybackBlocked]);
 
   const finishSceneTransition = useCallback(() => {
     const targetScene = requestedSceneRef.current;
@@ -743,6 +767,13 @@ export const WarpkeepAudioDirector = forwardRef<
         sceneAnimationFrameRef.current = null;
       }
 
+      if (suspendedRef.current) {
+        sceneTransitionRef.current = null;
+        sceneMixRef.current = { menu: 0, realm: 0, title: 0 };
+        applyVolumes();
+        return;
+      }
+
       if (hiddenRef.current) {
         sceneTransitionRef.current = null;
         sceneMixRef.current = getSceneMix(nextScene);
@@ -808,13 +839,15 @@ export const WarpkeepAudioDirector = forwardRef<
   useEffect(() => {
     disposedRef.current = false;
     requestedSceneRef.current = initialSceneRef.current;
-    sceneMixRef.current = getSceneMix(initialSceneRef.current);
+    sceneMixRef.current = suspendedRef.current
+      ? { menu: 0, realm: 0, title: 0 }
+      : getSceneMix(initialSceneRef.current);
 
     const titleAudio = titleAudioRef.current;
     const allAudio = getAllAudio();
     titleAudio!.loop = true;
     allAudio.forEach((audio) => {
-      audio.muted = mutedRef.current;
+      audio.muted = mutedRef.current || suspendedRef.current;
     });
     titleAudio!.preload = titlePreparedRef.current ? 'auto' : 'none';
     getLoopPair('menu')[0] && (getLoopPair('menu')[0]!.preload = preloadMenuRef.current ? 'auto' : 'none');
@@ -827,7 +860,8 @@ export const WarpkeepAudioDirector = forwardRef<
     applyVolumes();
 
     const handleGesture = () => {
-      playIntendedSources();
+      if (suspendedRef.current) primeRequestedSceneSilently();
+      else playIntendedSources();
     };
 
     const handleVisibilityChange = () => {
@@ -927,16 +961,76 @@ export const WarpkeepAudioDirector = forwardRef<
     getLoopPair,
     pauseLoopScene,
     playIntendedSources,
+    primeRequestedSceneSilently,
     restartEndedLoopSource
   ]);
 
   useEffect(() => {
     mutedRef.current = muted;
     getAllAudio().forEach((audio) => {
-      audio.muted = muted;
+      audio.muted = muted || suspendedRef.current;
     });
-    if (!muted) playIntendedSources();
+    if (!muted && !suspendedRef.current) playIntendedSources();
   }, [getAllAudio, muted, playIntendedSources]);
+
+  useEffect(() => {
+    const wasSuspended = suspendedRef.current;
+    suspendedRef.current = suspended;
+    const allAudio = getAllAudio();
+
+    if (suspended) {
+      if (sceneAnimationFrameRef.current !== null) {
+        window.cancelAnimationFrame(sceneAnimationFrameRef.current);
+        sceneAnimationFrameRef.current = null;
+      }
+      sceneTransitionRef.current = null;
+      sceneMixRef.current = { menu: 0, realm: 0, title: 0 };
+      allAudio.forEach((audio) => {
+        audio.muted = true;
+      });
+      applyVolumes();
+      return;
+    }
+
+    allAudio.forEach((audio) => {
+      audio.muted = mutedRef.current;
+    });
+    if (!wasSuspended) {
+      playIntendedSources();
+      return;
+    }
+
+    // A trusted Back/continue gesture can prime muted playback while the gate
+    // still owns the screen. Reveal that same source through one bounded fade
+    // rather than remounting it at full volume after the gesture has ended.
+    primeRequestedSceneSilently();
+    allAudio.forEach((audio) => {
+      audio.muted = mutedRef.current;
+    });
+    const durationMs = Number.isFinite(resumeFadeMs)
+      ? Math.min(700, Math.max(350, resumeFadeMs))
+      : 520;
+    sceneMixRef.current = { menu: 0, realm: 0, title: 0 };
+    sceneTransitionRef.current = {
+      durationMs,
+      from: { menu: 0, realm: 0, title: 0 },
+      startedAt: performance.now(),
+      to: getSceneMix(requestedSceneRef.current)
+    };
+    applyVolumes();
+    if (sceneAnimationFrameRef.current !== null) {
+      window.cancelAnimationFrame(sceneAnimationFrameRef.current);
+    }
+    sceneAnimationFrameRef.current = window.requestAnimationFrame(runSceneTransition);
+  }, [
+    applyVolumes,
+    getAllAudio,
+    playIntendedSources,
+    primeRequestedSceneSilently,
+    resumeFadeMs,
+    runSceneTransition,
+    suspended
+  ]);
 
   useEffect(() => {
     preloadMenuRef.current = preloadMenu;
@@ -958,7 +1052,7 @@ export const WarpkeepAudioDirector = forwardRef<
         data-track={titleTrack.id}
         data-track-label={titleTrack.label}
         src={titlePrepared ? titleUrl : undefined}
-        muted={muted}
+        muted={muted || suspended}
         loop
         preload={titlePrepared ? 'auto' : 'none'}
         aria-hidden="true"
@@ -969,7 +1063,7 @@ export const WarpkeepAudioDirector = forwardRef<
           loopAudioRefs.current.menu[0] = audio;
         }}
         data-audio-role="menu-primary"
-        muted={muted}
+        muted={muted || suspended}
         src={soundtrackUrls.menu}
         preload={preloadMenu ? 'auto' : 'none'}
         aria-hidden="true"
@@ -980,7 +1074,7 @@ export const WarpkeepAudioDirector = forwardRef<
           loopAudioRefs.current.menu[1] = audio;
         }}
         data-audio-role="menu-standby"
-        muted={muted}
+        muted={muted || suspended}
         src={soundtrackUrls.menu}
         preload="none"
         aria-hidden="true"
@@ -991,7 +1085,7 @@ export const WarpkeepAudioDirector = forwardRef<
           loopAudioRefs.current.realm[0] = audio;
         }}
         data-audio-role="realm-primary"
-        muted={muted}
+        muted={muted || suspended}
         src={realmPrepared ? soundtrackUrls.realm : undefined}
         preload={realmPrepared ? 'auto' : 'none'}
         aria-hidden="true"
@@ -1002,7 +1096,7 @@ export const WarpkeepAudioDirector = forwardRef<
           loopAudioRefs.current.realm[1] = audio;
         }}
         data-audio-role="realm-standby"
-        muted={muted}
+        muted={muted || suspended}
         src={realmPrepared ? soundtrackUrls.realm : undefined}
         preload="none"
         aria-hidden="true"

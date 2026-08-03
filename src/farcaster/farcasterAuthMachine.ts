@@ -94,6 +94,11 @@ export type FarcasterAuthMachineAction =
       generation: number;
       error: FarcasterAuthError;
     }>
+  | Readonly<{
+      type: 'identity-changed';
+      generation: number;
+      error: FarcasterAuthError;
+    }>
   | Readonly<{ type: 'cancel'; generation: number }>
   | Readonly<{ type: 'sign-out'; generation: number }>;
 
@@ -456,6 +461,21 @@ export function farcasterAuthMachineReducer(
       }
       return {
         generation: state.generation,
+        view: {
+          phase: 'error',
+          error: publicError(action.error)
+        }
+      };
+
+    case 'identity-changed':
+      if (
+        (state.view.phase !== 'authenticated' && state.view.phase !== 'pending-admission')
+        || !isCurrentGeneration(state, action.generation)
+      ) {
+        return state;
+      }
+      return {
+        generation: state.generation + 1,
         view: {
           phase: 'error',
           error: publicError(action.error)

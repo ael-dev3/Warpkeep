@@ -113,8 +113,6 @@ body,
 }
 
 .qa-journey__auth-stage .warpkeep-menu-auth-rail {
-  position: static;
-  width: min(36rem, calc(100vw - 2rem));
   opacity: 1;
   transform: none;
 }

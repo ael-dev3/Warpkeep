@@ -148,8 +148,13 @@ function AuthProbe() {
   return (
     <>
       <output data-testid="state">{JSON.stringify(auth.state)}</output>
+      <output data-testid="admission-check">{JSON.stringify(auth.admissionCheck)}</output>
       <output data-testid="token">{String(Boolean(auth.oidcSession))}</output>
+      <output data-testid="realm-entry">
+        {auth.state.phase === 'authenticated' && auth.oidcSession ? 'open' : 'blocked'}
+      </output>
       <button onClick={auth.refreshSession} type="button">Refresh</button>
+      <button onClick={auth.checkAdmission} type="button">Check admission</button>
       <button onClick={auth.signOut} type="button">Sign out</button>
     </>
   );
@@ -183,6 +188,12 @@ function state(): Record<string, unknown> {
     string,
     unknown
   >;
+}
+
+function admissionCheckState(): Record<string, unknown> {
+  return JSON.parse(
+    screen.getByTestId('admission-check').textContent ?? '{}'
+  ) as Record<string, unknown>;
 }
 
 function deferred<T>() {
@@ -256,7 +267,7 @@ describe('Farcaster Mini App Quick Auth lifecycle', () => {
     expect(authBridge.refreshSession).not.toHaveBeenCalled();
   });
 
-  it('coalesces every foreground signal and replaces switched host authority', async () => {
+  it('coalesces every foreground signal and fails closed on a switched host account', async () => {
     const switchedToken = `${'d'.repeat(16)}.${'e'.repeat(24)}.${'f'.repeat(32)}`;
     const getToken = vi.fn(async (options?: { force?: boolean }) => ({
       token: options?.force === true ? switchedToken : QUICK_AUTH_TOKEN
@@ -279,7 +290,10 @@ describe('Farcaster Mini App Quick Auth lifecycle', () => {
     await waitFor(() => expect(exchangeQuickAuth).toHaveBeenCalledTimes(2));
     expect(getToken).toHaveBeenCalledTimes(2);
     expect(getToken).toHaveBeenNthCalledWith(1, undefined);
-    expect(getToken).toHaveBeenNthCalledWith(2, { force: true });
+    expect(
+      getToken.mock.calls.filter(([options]) => options?.force === true)
+    ).toHaveLength(1);
+    expect(getToken.mock.calls.at(-1)).toEqual([{ force: true }]);
     expect(exchangeQuickAuth).toHaveBeenNthCalledWith(
       2,
       switchedToken,
@@ -289,11 +303,15 @@ describe('Farcaster Mini App Quick Auth lifecycle', () => {
 
     switched.resolve(authorized(FID + 1));
     await waitFor(() => expect(state()).toMatchObject({
-      phase: 'authenticated',
-      identity: { fid: FID + 1 }
+      phase: 'error',
+      error: {
+        code: 'fid-mismatch',
+        stage: 'identity_changed'
+      }
     }));
     expect(JSON.stringify(state())).not.toContain('keeper');
-    expect(screen.getByTestId('token').textContent).toBe('true');
+    expect(screen.getByTestId('token').textContent).toBe('false');
+    expect(screen.getByTestId('realm-entry').textContent).toBe('blocked');
   });
 
   it('fails closed if foreground Quick Auth cannot reverify the host account', async () => {
@@ -422,6 +440,106 @@ describe('Farcaster Mini App Quick Auth lifecycle', () => {
       phase: 'pending-admission',
       identity: { fid: FID }
     });
+  });
+
+  it('forces one fresh host bearer and coalesces foreground signals during a manual admission check', async () => {
+    const freshToken = `${'d'.repeat(16)}.${'e'.repeat(24)}.${'f'.repeat(32)}`;
+    const manual = deferred<FarcasterQuickAuthSessionResponse>();
+    let manualSignal: AbortSignal | undefined;
+    const getToken = vi.fn(async (options?: { force?: boolean }) => ({
+      token: options?.force === true ? freshToken : QUICK_AUTH_TOKEN
+    }));
+    const exchangeQuickAuth = vi.fn()
+      .mockResolvedValueOnce(pendingAdmission())
+      .mockImplementationOnce((_token, options) => {
+        manualSignal = options?.signal;
+        return manual.promise;
+      });
+
+    renderMiniApp(miniAppSdk(getToken), bridge(exchangeQuickAuth));
+    await waitFor(() => expect(state().phase).toBe('pending-admission'));
+    await act(async () => {
+      for (let index = 0; index < 12; index += 1) await Promise.resolve();
+    });
+    vi.useFakeTimers({ now: Date.UTC(2026, 7, 2, 12, 0, 0) });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Check admission' }));
+    await act(async () => {
+      for (let index = 0; index < 12; index += 1) await Promise.resolve();
+    });
+    expect(admissionCheckState()).toEqual({ phase: 'checking' });
+    expect(exchangeQuickAuth).toHaveBeenCalledTimes(2);
+    expect(
+      getToken.mock.calls.filter(([options]) => options?.force === true)
+    ).toHaveLength(1);
+    expect(getToken.mock.calls.at(-1)).toEqual([{ force: true }]);
+
+    fireEvent(window, new Event('focus'));
+    fireEvent(window, new Event('pageshow'));
+    await act(async () => {
+      for (let index = 0; index < 12; index += 1) await Promise.resolve();
+    });
+    expect(manualSignal?.aborted).toBe(false);
+    expect(exchangeQuickAuth).toHaveBeenCalledTimes(2);
+
+    manual.resolve(pendingAdmission());
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(301);
+      for (let index = 0; index < 12; index += 1) await Promise.resolve();
+    });
+    expect(admissionCheckState()).toMatchObject({ phase: 'still-pending' });
+    expect(state()).toMatchObject({
+      phase: 'pending-admission',
+      identity: { fid: FID }
+    });
+  });
+
+  it('never commits a cross-FID forced result from Check Admission', async () => {
+    const freshToken = `${'d'.repeat(16)}.${'e'.repeat(24)}.${'f'.repeat(32)}`;
+    const replacement = deferred<FarcasterQuickAuthSessionResponse>();
+    const getToken = vi.fn(async (options?: { force?: boolean }) => ({
+      token: options?.force === true ? freshToken : QUICK_AUTH_TOKEN
+    }));
+    const exchangeQuickAuth = vi.fn()
+      .mockResolvedValueOnce(pendingAdmission(FID))
+      .mockImplementation(() => replacement.promise);
+
+    renderMiniApp(miniAppSdk(getToken), bridge(exchangeQuickAuth));
+    await waitFor(() => expect(state().phase).toBe('pending-admission'));
+    vi.useFakeTimers({ now: Date.UTC(2026, 7, 2, 12, 0, 0) });
+
+    fireEvent(window, new Event('focus'));
+    await act(async () => {
+      for (let index = 0; index < 12; index += 1) await Promise.resolve();
+    });
+    expect(exchangeQuickAuth.mock.calls.length).toBeGreaterThanOrEqual(2);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Check admission' }));
+    await act(async () => {
+      for (let index = 0; index < 12; index += 1) await Promise.resolve();
+    });
+    expect(admissionCheckState()).toEqual({ phase: 'checking' });
+
+    replacement.resolve(authorized(FID + 1));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(301);
+      for (let index = 0; index < 16; index += 1) await Promise.resolve();
+    });
+
+    expect(
+      getToken.mock.calls.filter(([options]) => options?.force === true)
+    ).toHaveLength(1);
+    const settledState = state();
+    expect(['error', 'anonymous']).toContain(settledState.phase);
+    if (settledState.phase === 'error') {
+      expect(settledState.error).toMatchObject({
+        code: 'fid-mismatch',
+        stage: 'identity_changed'
+      });
+    }
+    expect(settledState.identity).toBeUndefined();
+    expect(screen.getByTestId('token').textContent).toBe('false');
+    expect(screen.getByTestId('realm-entry').textContent).toBe('blocked');
   });
 
   it('fails a visible launch cleanly when the host cannot issue a valid bearer', async () => {

@@ -1,0 +1,57 @@
+.farcaster-admission-check {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  gap: 0.48rem;
+}
+
+.farcaster-admission-check__action {
+  gap: 0.55rem;
+}
+
+.farcaster-admission-check__spinner {
+  width: 0.8rem;
+  height: 0.8rem;
+  box-sizing: border-box;
+  border: 1px solid rgba(238, 207, 148, 0.46);
+  border-top-color: #f3d99f;
+  border-right-color: #b877dc;
+  transform: rotate(45deg);
+  animation: farcaster-admission-check-turn 900ms linear infinite;
+}
+
+.farcaster-admission-check__outcome {
+  display: grid;
+  justify-items: center;
+  gap: 0.2rem;
+  color: #cbb897;
+  font-size: 0.68rem;
+  letter-spacing: 0.035em;
+  line-height: 1.45;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.farcaster-admission-check__outcome strong {
+  color: #f0d49a;
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+}
+
+.farcaster-admission-check__outcome--warning strong {
+  color: #e7c39a;
+}
+
+.farcaster-admission-check__outcome--granted strong {
+  color: #f7dfa8;
+}
+
+@keyframes farcaster-admission-check-turn {
+  to { transform: rotate(405deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .farcaster-admission-check__spinner {
+    animation: none;
+  }
+}

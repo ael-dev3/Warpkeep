@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  COMPACT_WARP_TRANSITION_TIMING,
   REDUCED_WARP_TRANSITION_TIMING,
   STANDARD_WARP_TRANSITION_TIMING,
   clampTransitionProgress,
@@ -179,12 +180,24 @@ describe('Warpkeep transition timing and easing', () => {
     expect(STANDARD_WARP_TRANSITION_TIMING.coverAtMs).toBeLessThan(
       STANDARD_WARP_TRANSITION_TIMING.totalMs
     );
+    expect(COMPACT_WARP_TRANSITION_TIMING.totalMs).toBeGreaterThanOrEqual(700);
+    expect(COMPACT_WARP_TRANSITION_TIMING.totalMs).toBeLessThanOrEqual(1_000);
+    expect(COMPACT_WARP_TRANSITION_TIMING.coverAtMs).toBeGreaterThanOrEqual(
+      COMPACT_WARP_TRANSITION_TIMING.totalMs * 0.62
+    );
+    expect(COMPACT_WARP_TRANSITION_TIMING.coverAtMs).toBeLessThan(
+      COMPACT_WARP_TRANSITION_TIMING.totalMs
+    );
     expect(REDUCED_WARP_TRANSITION_TIMING.totalMs).toBeGreaterThanOrEqual(180);
     expect(REDUCED_WARP_TRANSITION_TIMING.totalMs).toBeLessThanOrEqual(300);
     expect(getWarpTransitionTiming(false)).toBe(STANDARD_WARP_TRANSITION_TIMING);
     expect(getWarpTransitionTiming('standard')).toBe(STANDARD_WARP_TRANSITION_TIMING);
+    expect(getWarpTransitionTiming(false, 'compact')).toBe(COMPACT_WARP_TRANSITION_TIMING);
     expect(getWarpTransitionTiming(true)).toBe(REDUCED_WARP_TRANSITION_TIMING);
     expect(getWarpTransitionTiming('reduced')).toBe(REDUCED_WARP_TRANSITION_TIMING);
+    expect(getWarpTransitionTiming('reduced', 'compact')).toBe(
+      REDUCED_WARP_TRANSITION_TIMING
+    );
   });
 
   it('clamps progress and provides a monotonic eased camera curve', () => {

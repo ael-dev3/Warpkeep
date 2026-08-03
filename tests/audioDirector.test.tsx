@@ -390,6 +390,41 @@ describe('WarpkeepAudioDirector', () => {
     expect(playSpy.mock.instances).toContain(title);
   });
 
+  it('primes a suspended Mini App scene silently and fades it in after reveal', () => {
+    vi.spyOn(performance, 'now').mockReturnValue(1_000);
+    const { container, rerender } = render(
+      <WarpkeepAudioDirector scene="menu" suspended resumeFadeMs={520} />
+    );
+    const menu = getAudio(container, 'menu-primary');
+    const playSpy = vi.mocked(HTMLMediaElement.prototype.play);
+
+    // Suspension must exist at render time, before passive effects can zero the
+    // mix or imperatively mute media. This catches an audible same-scene play
+    // attempt that a post-effect muted-property assertion would miss.
+    expect(playSpy).not.toHaveBeenCalled();
+    expect([...container.querySelectorAll('audio')].every(source => source.muted)).toBe(true);
+    expect(menu.volume).toBe(0);
+
+    playSpy.mockClear();
+    fireEvent.pointerDown(window);
+    expect(playSpy.mock.instances).toContain(menu);
+    expect(menu.muted).toBe(true);
+
+    playSpy.mockClear();
+    rerender(<WarpkeepAudioDirector scene="menu" suspended={false} resumeFadeMs={520} />);
+    expect(menu.muted).toBe(false);
+    expect(menu.volume).toBe(0);
+
+    const midpointFrame = animationFrameCallbacks.shift()!;
+    act(() => midpointFrame(1_260));
+    expect(menu.volume).toBeCloseTo(WARPKEEP_AUDIO_LEVELS.menu * Math.SQRT1_2, 5);
+
+    const finalFrame = animationFrameCallbacks.shift()!;
+    act(() => finalFrame(1_520));
+    expect(menu.volume).toBe(WARPKEEP_AUDIO_LEVELS.menu);
+    expect(menu.muted).toBe(false);
+  });
+
   it('crossfades between two cached menu elements at the measured loop point', () => {
     const { container } = render(<WarpkeepAudioDirector scene="menu" />);
     const primary = getAudio(container, 'menu-primary');

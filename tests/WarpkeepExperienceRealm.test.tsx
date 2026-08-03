@@ -726,13 +726,17 @@ describe('Warpkeep Farcaster Mini App direct entry', () => {
 
     expect(screen.getByRole('heading', { name: 'ENTRY NOT YET GRANTED' })).not.toBeNull();
     expect(screen.getByRole('button', { name: 'REQUEST ACCESS' })).not.toBeNull();
-    expect(container.querySelector('[data-warpkeep-audio-director="true"]')).toBeNull();
+    expect(container.querySelector('[data-warpkeep-audio-director="true"]')).not.toBeNull();
+    expect([...container.querySelectorAll<HTMLAudioElement>('audio')]
+      .every((audio) => audio.muted)).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: 'BACK TO MENU' }));
     await settle();
     expect(screen.getByRole('navigation', { name: 'Hegemony main menu' })).not.toBeNull();
     expect(window.location.hash).toBe('#menu');
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
     expect(container.querySelector('[data-warpkeep-audio-director="true"]')).not.toBeNull();
+    expect([...container.querySelectorAll<HTMLAudioElement>('audio')]
+      .some((audio) => !audio.muted)).toBe(true);
     expect(backend.runtime.connect).not.toHaveBeenCalled();
     expect(bridge.logoutSession).not.toHaveBeenCalled();
     expectPlayerRealmChromeAbsent();
@@ -1475,7 +1479,7 @@ describe('Warpkeep shared realm admission', () => {
     }));
     await settle();
 
-    fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
+    fireEvent.click(screen.getByRole('button', { name: 'CHECK ADMISSION' }));
     expect(screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).not.toBeNull();
     expect(backend.runtime.connect).toHaveBeenCalledTimes(1);
     expect(backend.connection.disconnect).toHaveBeenCalledTimes(1);
@@ -1520,7 +1524,7 @@ describe('Warpkeep shared realm admission', () => {
       name: 'Open Farcaster identity, @warpkeeper'
     }));
     await settle();
-    fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
+    fireEvent.click(screen.getByRole('button', { name: 'CHECK ADMISSION' }));
     await acceptAlphaParticipationTerms();
     await settle();
 

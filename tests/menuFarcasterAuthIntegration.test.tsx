@@ -7,6 +7,7 @@ import {
   type MenuInputModality
 } from '../src/components/menu/WarpkeepMainMenu';
 import type {
+  FarcasterAdmissionCheckViewState,
   FarcasterAuthViewState,
   PublicFarcasterIdentity
 } from '../src/farcaster/farcasterAuthTypes';
@@ -123,18 +124,22 @@ function menu(
     entryAgreementSatisfied?: boolean;
     entryAgreementRequired?: boolean;
     restoreSession?: () => Promise<boolean>;
+    admissionCheck?: FarcasterAdmissionCheckViewState;
+    checkAdmission?: () => boolean;
   } = {}
 ) {
   return (
     <WarpkeepMainMenu
       active
       authState={authState}
+      admissionCheck={options.admissionCheck}
       backendUnavailableMessage={options.backendUnavailableMessage}
       entryAgreementRequired={options.entryAgreementRequired}
       entryAgreementSatisfied={options.entryAgreementSatisfied}
       inputModality={inputModality}
       openFarcasterAuthPanel={openFarcasterAuthPanel}
       onCancelFarcasterSignIn={callbacks.cancel}
+      onCheckFarcasterAdmission={options.checkAdmission}
       onRequestAuthenticatedRealm={callbacks.enterRealm}
       onRequestFarcasterSignIn={callbacks.begin}
       onPrepareFarcasterQrCode={callbacks.prepareQrCode}
@@ -243,6 +248,7 @@ beforeEach(async () => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -261,7 +267,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(screen.getByRole('navigation', { name: 'Hegemony main menu' })).not.toBeNull();
   });
 
-  it('shows a pending cold-session restore without any authentication side effects', () => {
+  it('keeps a pending cold-session restore on the menu with one locked busy action', () => {
     const callbacks = createMenuCallbacks();
     const restoreSession = vi.fn(() => new Promise<boolean>(() => undefined));
     render(menu(callbacks, anonymousState, 'unknown', false, { restoreSession }));
@@ -269,8 +275,17 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
 
     expect(restoreSession).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('region', { name: 'Farcaster sign-in' })).not.toBeNull();
-    expect(screen.getByRole('status').textContent).toBe('Checking your saved session');
+    const checkingAccess = screen.getByRole('button', { name: 'CHECKING ACCESS…' });
+    expect((checkingAccess as HTMLButtonElement).disabled).toBe(true);
+    expect(checkingAccess.getAttribute('aria-busy')).toBe('true');
+    fireEvent.click(checkingAccess);
+    expect(restoreSession).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('status').textContent).toBe(
+      'Checking access. Restoring your saved Farcaster session.'
+    );
+    expect(screen.queryByRole('region', { name: 'Farcaster sign-in' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'CLAIM YOUR KEEP' })).toBeNull();
+    expect(screen.getByRole('navigation', { name: 'Hegemony main menu' })).not.toBeNull();
     expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
     expect(callbacks.begin).not.toHaveBeenCalled();
     expect(callbacks.cancel).not.toHaveBeenCalled();
@@ -278,6 +293,26 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(callbacks.prepareQrCode).not.toHaveBeenCalled();
     expect(callbacks.refreshSession).not.toHaveBeenCalled();
     expect(callbacks.enterRealm).not.toHaveBeenCalled();
+  });
+
+  it('promotes a slower saved-session restore to dedicated copy without a claim flash', () => {
+    vi.useFakeTimers();
+    const callbacks = createMenuCallbacks();
+    const restoreSession = vi.fn(() => new Promise<boolean>(() => undefined));
+    render(menu(callbacks, anonymousState, 'unknown', false, { restoreSession }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    expect(screen.queryByRole('heading', { name: 'RESTORING FARCASTER SESSION' })).toBeNull();
+
+    act(() => {
+      vi.advanceTimersByTime(360);
+    });
+
+    expect(screen.getByRole('heading', { name: 'RESTORING FARCASTER SESSION' })).not.toBeNull();
+    expect(screen.getByRole('status').textContent).toBe('Checking your saved session');
+    expect(screen.queryByRole('heading', { name: 'CLAIM YOUR KEEP' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'CANCEL' })).not.toBeNull();
+    expect(restoreSession).toHaveBeenCalledTimes(1);
   });
 
   it('opens fresh unchecked Terms after a cold-session miss, then follows normal sign-in', async () => {
@@ -502,8 +537,10 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     render(menu(callbacks, anonymousState, 'unknown', false, { restoreSession }));
 
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
-    expect(screen.getByRole('status').textContent).toBe('Checking your saved session');
-    fireEvent.click(screen.getByRole('button', { name: 'CANCEL' }));
+    expect(screen.getByRole('status').textContent).toBe(
+      'Checking access. Restoring your saved Farcaster session.'
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Return to Title' }));
 
     await act(async () => {
       resolveRestore(false);
@@ -512,6 +549,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
 
     expect(restoreSession).toHaveBeenCalledTimes(1);
     expect(callbacks.cancel).toHaveBeenCalledTimes(1);
+    expect(callbacks.returnToTitle).toHaveBeenCalledTimes(1);
     expect(callbacks.begin).not.toHaveBeenCalled();
     expect(callbacks.prepareQrCode).not.toHaveBeenCalled();
     expect(callbacks.refreshSession).not.toHaveBeenCalled();
@@ -818,7 +856,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(callbacks.begin).not.toHaveBeenCalled();
     expect(callbacks.enterRealm).not.toHaveBeenCalled();
     expect(screen.getByRole('heading', { name: 'ENTRY NOT YET GRANTED' })).not.toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
+    fireEvent.click(screen.getByRole('button', { name: 'CHECK ADMISSION' }));
     expect(callbacks.refreshSession).toHaveBeenCalledTimes(1);
   });
 
@@ -936,10 +974,31 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
       name: 'Open Farcaster identity, @keeper'
     }));
     await settleDeferredPresentation();
-    fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
+    fireEvent.click(screen.getByRole('button', { name: 'CHECK ADMISSION' }));
 
     expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
     expect(callbacks.refreshSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('threads typed admission-check feedback and the single-flight callback into pending access', async () => {
+    const callbacks = createMenuCallbacks();
+    const checkAdmission = vi.fn(() => true);
+    render(menu(callbacks, pendingAdmissionState, 'unknown', false, {
+      admissionCheck: { phase: 'still-pending', checkedAt: 1_750_000_000_000 },
+      checkAdmission
+    }));
+    await settleDeferredPresentation();
+
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Open Farcaster identity, @keeper'
+    }));
+    await settleDeferredPresentation();
+    expect(screen.getByText('STILL PENDING')).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'CHECK ADMISSION' }));
+
+    expect(checkAdmission).toHaveBeenCalledTimes(1);
+    expect(callbacks.refreshSession).not.toHaveBeenCalled();
   });
 
   it('focuses retry and reuses accepted Terms within the same keyboard-driven authorization', async () => {
