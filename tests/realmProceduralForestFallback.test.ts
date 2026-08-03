@@ -31,6 +31,8 @@ describe('local procedural forest fallback', () => {
     const position = fallback.geometry.getAttribute('position');
     const color = fallback.geometry.getAttribute('color');
     const normal = fallback.geometry.getAttribute('normal');
+    const windWeight = fallback.geometry.getAttribute('realmForestWindWeight');
+    const windPhase = fallback.geometry.getAttribute('realmForestWindPhase');
     const index = fallback.geometry.getIndex();
     const bounds = fallback.geometry.boundingBox!;
 
@@ -41,6 +43,14 @@ describe('local procedural forest fallback', () => {
     expect(position.count).toBeGreaterThan(40);
     expect(color.count).toBe(position.count);
     expect(normal.count).toBe(position.count);
+    expect(windWeight.count).toBe(position.count);
+    expect(windPhase.count).toBe(position.count);
+    expect(windWeight.array).toBeInstanceOf(Uint8Array);
+    expect(windPhase.array).toBeInstanceOf(Uint8Array);
+    expect(windWeight.normalized).toBe(true);
+    expect(windPhase.normalized).toBe(true);
+    expect(Array.from(windWeight.array).some((value) => value === 0)).toBe(true);
+    expect(Array.from(windWeight.array).some((value) => value > 0)).toBe(true);
     expect(index?.array).toBeInstanceOf(Uint16Array);
     expect(bounds.min.y).toBeCloseTo(0, 6);
     expect(bounds.max.y).toBeCloseTo(HEGEMONY_TREE_TARGET_VISUAL_HEIGHT, 5);

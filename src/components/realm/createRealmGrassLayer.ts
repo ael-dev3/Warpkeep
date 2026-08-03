@@ -29,6 +29,8 @@ import {
   REALM_GRASS_VARIANT_COUNTS
 } from './createLowPolyGrassGeometry';
 import { createRealmGrassMaterial, REALM_GRASS_MAX_WIND_SWAY } from './createRealmGrassMaterial';
+import type { RealmLivingRealmBudget } from './realmQuality';
+import type { RealmSurfaceDisturbanceSnapshot } from './realmSurfaceDisturbanceField';
 import {
   createRealmGrassCellCache,
   resolveRealmGrassActiveWindow,
@@ -82,6 +84,8 @@ export type RealmGrassTelemetry = Readonly<{
   activeSandCellCount: number;
   averageSandCoverageOfActiveCells: number;
   overviewHidden: boolean;
+  disturbanceSlotCount: number;
+  activeDisturbanceCount: number;
 }>;
 
 export type CreateRealmGrassLayerOptions = Readonly<{
@@ -100,6 +104,7 @@ export type CreateRealmGrassLayerOptions = Readonly<{
   isWorldExcluded?: (world: HexWorldPosition) => boolean;
   visualizeLegacyLakes?: boolean;
   suppressCastleSlots?: boolean;
+  livingBudget?: RealmLivingRealmBudget;
 }>;
 
 export type RealmGrassLayer = Readonly<{
@@ -110,7 +115,7 @@ export type RealmGrassLayer = Readonly<{
   updateView: (focus: HexWorldPosition, mode: RealmGrassCameraMode) => boolean;
   /** Mark camera-local trunk/root exclusions dirty for the next view update. */
   invalidateExclusions: () => boolean;
-  updateWind: (seconds: number) => boolean;
+  updateWind: (seconds: number, disturbances?: RealmSurfaceDisturbanceSnapshot | null) => boolean;
   setInteraction: (selected: HexCoord | null, hovered: HexCoord | null) => void;
   isAnimationActive: () => boolean;
   getTelemetry: () => RealmGrassTelemetry;
@@ -202,7 +207,9 @@ function emptyTelemetry(plan: RealmGrassRenderPlan, alphaToCoverage = false): Re
     retainedInDryTransition: 0,
     activeSandCellCount: 0,
     averageSandCoverageOfActiveCells: 0,
-    overviewHidden: true
+    overviewHidden: true,
+    disturbanceSlotCount: 0,
+    activeDisturbanceCount: 0
   });
 }
 
@@ -238,7 +245,8 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
   const materialLayer = createRealmGrassMaterial(
     options.reducedMotion ? 0 : plan.windStrengthMultiplier,
     !options.reducedMotion && plan.animationFrameCap > 0,
-    options.alphaToCoverage ?? false
+    options.alphaToCoverage ?? false,
+    options.livingBudget?.grassDisturbanceSlots ?? 0
   );
   const geometries = Array.from({ length: variantCount }, (_, variant) =>
     createLowPolyGrassGeometry(plan.geometryProfile, variant)
@@ -529,7 +537,9 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
       activeSandCellCount,
       averageSandCoverageOfActiveCells:
         activeCellSandCoverageTotal / Math.max(1, activeCellCount),
-      overviewHidden: false
+      overviewHidden: false,
+      disturbanceSlotCount: shaderTelemetry.disturbanceSlotCount,
+      activeDisturbanceCount: shaderTelemetry.activeDisturbanceCount
     });
     if (telemetry.triangleCount > plan.maximumActiveTriangles) {
       throw new Error('REALM_GRASS_TRIANGLE_BUDGET_EXCEEDED');
@@ -557,13 +567,14 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
       exclusionsDirty = true;
       return true;
     },
-    updateWind: (seconds) => {
+    updateWind: (seconds, disturbances = null) => {
       if (
         disposed
         || !telemetry.animated
         || materialLayer.getShaderTelemetry().fallbackActive
       ) return false;
-      return materialLayer.setTime(seconds);
+      const disturbancesChanged = materialLayer.setDisturbances(disturbances);
+      return materialLayer.setTime(seconds) || disturbancesChanged;
     },
     setInteraction: (selected, hovered) => {
       if (disposed) return;
@@ -584,7 +595,9 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
         animated: telemetry.animated && !shaderTelemetry.fallbackActive,
         shaderFallbackActive: shaderTelemetry.fallbackActive,
         shaderFallbackCount: shaderTelemetry.fallbackCount,
-        shaderFallbackReason: shaderTelemetry.fallbackReason
+        shaderFallbackReason: shaderTelemetry.fallbackReason,
+        disturbanceSlotCount: shaderTelemetry.disturbanceSlotCount,
+        activeDisturbanceCount: shaderTelemetry.activeDisturbanceCount
       });
     },
     dispose: () => {

@@ -822,12 +822,40 @@ describe('Realm canonical water layer', () => {
     expect(shader.vertexShader).toContain('* warpkeepWaterWaveVisibility');
     expect(shader.vertexShader).not.toContain('vViewPosition.xz');
     expect(shader.fragmentShader).toContain('outgoingLight +=');
-    expect(ocean.material.userData.waterShaderContract).toContain('-v6');
+    expect(ocean.material.userData.waterShaderContract).toContain('-v7-ripples-4');
     expect(shader.uniforms).toHaveProperty('uWaterTime');
     expect(layer.updateEnvironment(1)).toBe(true);
     expect(layer.updateEnvironment(1)).toBe(false);
     expect(layer.updateEnvironment(2)).toBe(true);
 
+    layer.dispose();
+  });
+
+  it('injects only the quality-budgeted analytic ripple slots without new geometry or draws', () => {
+    const layer = createLayer('balanced');
+    const ocean = layer.group.getObjectByName(
+      'canonical-ocean-surface'
+    ) as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
+    const shader = compileMaterial(ocean.material);
+    const telemetryBefore = layer.getTelemetry();
+    const centers = new Float32Array([1, 2, 3, 4]);
+    const params = new Float32Array([1.2, 0.8, 0.25, 2, 0.8, 0.5, 0.5, 1.5]);
+
+    expect(ocean.material.userData.waterRippleSlots).toBe(2);
+    expect(shader.vertexShader).toContain('uWaterRippleCenters[2]');
+    expect(shader.vertexShader).toContain('uWaterRippleCount > 1');
+    expect(shader.vertexShader).not.toContain('uWaterRippleCount > 2');
+    expect(shader.vertexShader).toContain('warpkeepWaterRippleGradient');
+    expect(shader.vertexShader).toContain('exp(-4.0 * waterRipplePhase0');
+    expect(shader.uniforms).toHaveProperty('uWaterRippleCount');
+    expect(layer.updateEnvironment(2, { count: 2, centers, params })).toBe(true);
+    expect(ocean.material.userData.waterUniforms.uWaterRippleCount.value).toBe(2);
+    expect(layer.getTelemetry()).toMatchObject({
+      rippleSlotCount: 2,
+      activeRippleCount: 2,
+      triangleCount: telemetryBefore.triangleCount,
+      drawCalls: telemetryBefore.drawCalls
+    });
     layer.dispose();
   });
 
@@ -846,7 +874,7 @@ describe('Realm canonical water layer', () => {
 
       expect(rivers.material.userData.waterWaveComponents).toBe(expectedWaveCount);
       expect(shader.vertexShader.match(/sin\(/g) ?? []).toHaveLength(expectedWaveCount);
-      expect(rivers.material.userData.waterShaderContract).toContain('-v6');
+      expect(rivers.material.userData.waterShaderContract).toContain('-v7-ripples-');
 
       layer.dispose();
     }
