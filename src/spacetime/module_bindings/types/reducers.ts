@@ -22,6 +22,7 @@ import AdminCompleteWorkerLegacyDrainV1Reducer from "../admin_complete_worker_le
 import AdminDisableFidReducer from "../admin_disable_fid_reducer";
 import AdminExpandGenesisWorldV3Reducer from "../admin_expand_genesis_world_v_3_reducer";
 import AdminRepairMissingWorkerReturnScheduleV1Reducer from "../admin_repair_missing_worker_return_schedule_v_1_reducer";
+import AdminResetAccessRequestV1Reducer from "../admin_reset_access_request_v_1_reducer";
 import AdminSeedGenesisForestLayoutV1Reducer from "../admin_seed_genesis_forest_layout_v_1_reducer";
 import AdminSeedGenesisTierIFoodSitesV1Reducer from "../admin_seed_genesis_tier_i_food_sites_v_1_reducer";
 import AdminSeedGenesisTierIGoldSitesV1Reducer from "../admin_seed_genesis_tier_i_gold_sites_v_1_reducer";
@@ -64,6 +65,7 @@ export type AdminCompleteWorkerLegacyDrainV1Params = __Infer<typeof AdminComplet
 export type AdminDisableFidParams = __Infer<typeof AdminDisableFidReducer>;
 export type AdminExpandGenesisWorldV3Params = __Infer<typeof AdminExpandGenesisWorldV3Reducer>;
 export type AdminRepairMissingWorkerReturnScheduleV1Params = __Infer<typeof AdminRepairMissingWorkerReturnScheduleV1Reducer>;
+export type AdminResetAccessRequestV1Params = __Infer<typeof AdminResetAccessRequestV1Reducer>;
 export type AdminSeedGenesisForestLayoutV1Params = __Infer<typeof AdminSeedGenesisForestLayoutV1Reducer>;
 export type AdminSeedGenesisTierIFoodSitesV1Params = __Infer<typeof AdminSeedGenesisTierIFoodSitesV1Reducer>;
 export type AdminSeedGenesisTierIGoldSitesV1Params = __Infer<typeof AdminSeedGenesisTierIGoldSitesV1Reducer>;

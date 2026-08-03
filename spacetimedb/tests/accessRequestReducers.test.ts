@@ -117,7 +117,11 @@ test('submission is admission-cycle idempotent, database-timestamped, and mutati
     'export const accessRequestSubmitV1',
     '/**\n * Bounded, deterministic Hermes-only inspection.',
   );
-  const admin = reducer.slice(reducer.indexOf('export const adminListAccessRequestsV1'));
+  const admin = section(
+    reducer,
+    'export const adminListAccessRequestsV1',
+    '/**\n * Exact admin-private pre/post view',
+  );
 
   assert.doesNotMatch(status, /\.(?:insert|update|delete)\s*\(/);
   assert.match(submit, /let request = tx\.db\.accessRequestV1\.fid\.find\(requestFid\)/);
@@ -141,7 +145,11 @@ test('submission is admission-cycle idempotent, database-timestamped, and mutati
 
 test('Hermes listing is admin-only, bounded, deterministic, and derives resolution state', () => {
   const reducer = source('../src/reducers/accessRequests.ts');
-  const admin = reducer.slice(reducer.indexOf('export const adminListAccessRequestsV1'));
+  const admin = section(
+    reducer,
+    'export const adminListAccessRequestsV1',
+    '/**\n * Exact admin-private pre/post view',
+  );
 
   assert.match(admin, /requireAdmin\(tx\)/);
   assert.match(admin, /limit < 1[\s\S]*limit > MAX_ACCESS_REQUEST_PAGE_SIZE/);
@@ -161,6 +169,62 @@ test('Hermes listing is admin-only, bounded, deterministic, and derives resoluti
   assert.match(admin, /const hasMore = remaining\.length > entries\.length/);
   assert.match(admin, /totalRequests,/);
   assert.match(admin, /pendingRequests/);
+});
+
+test('admin reset is exact-CAS, idempotent, audited, and mutation-isolated', () => {
+  const reducer = source('../src/reducers/accessRequests.ts');
+  const statusProduct = section(
+    reducer,
+    "const adminAccessRequestResetStatusV1 = t.object('AdminAccessRequestResetStatusV1'",
+    '\n});',
+  );
+  assert.deepEqual(
+    [...statusProduct.matchAll(/^\s{2}([A-Za-z][A-Za-z0-9]*):/gm)].map(match => match[1]),
+    [
+      'admissionState',
+      'authEpoch',
+      'requestState',
+      'requestCycle',
+      'requestedAtMicros',
+    ],
+  );
+
+  const status = section(
+    reducer,
+    'export const adminGetAccessRequestResetStatusV1',
+    '/**\n * Owner-only reset',
+  );
+  const reset = reducer.slice(reducer.indexOf('export const adminResetAccessRequestV1'));
+  assert.match(status, /requireAdmin\(tx\)/);
+  assert.match(status, /requireSupportedFid\(fid\)/);
+  assert.doesNotMatch(status, /\.(?:insert|update|delete)\s*\(/);
+
+  assert.match(reset, /name: 'admin_reset_access_request_v1'/);
+  assert.match(reset, /expectedEnabled: t\.bool\(\)/);
+  assert.match(reset, /expectedAuthEpoch: t\.u32\(\)/);
+  assert.match(reset, /expectedRequestCycle: t\.option\(t\.u64\(\)\)/);
+  assert.match(reset, /expectedRequestedAtMicros: t\.option\(t\.u64\(\)\)/);
+  assert.match(reset, /requireAdmin\(ctx\)/);
+  assert.match(reset, /requireFounderAuthEpoch\(existing\.authEpoch\)/);
+  assert.match(reset, /existing\.authEpoch !== expectedAuthEpoch/);
+  assert.match(reset, /request\.requestCycle !== expectedRequestCycle/);
+  assert.match(reset, /requestedAtMicros\(request\) !== expectedRequestedAtMicros/);
+  assert.match(
+    reset,
+    /const exactCommittedRequestDeletionRetry = !existing\.enabled[\s\S]*expectedRequestCycle !== undefined/,
+  );
+  assert.match(reset, /!exactCommittedRequestDeletionRetry[\s\S]*existing\.enabled !== expectedEnabled/);
+  assert.match(
+    reset,
+    /if \(exactCommittedRequestDeletionRetry \|\| \(!expectedEnabled && request === null\)\) return/,
+  );
+  assert.match(reset, /allowedFid\.fid\.update\(\{/);
+  assert.match(reset, /accessRequestV1\.fid\.delete\(fid\)/);
+  assert.match(reset, /action: 'reset_access_request_v1'/);
+  assert.doesNotMatch(
+    reset,
+    /(?:ctx|tx)\.db\.(?:castle|castleSlotClaimV1|player|playerV2|playerOwnershipV2|realmProfileV1|markAccountV1|alphaTermsAcceptanceV1|resourceAccountV1|castleWorkerV1|workerAssignmentV1|workerNodeOccupationV1|workerAssignmentScheduleV1|workerCommandIdempotencyV1|dailyMarkGrantV1)\.(?:insert|update|delete)/,
+  );
 });
 
 test('queue capacity rejects only first inserts and bounds materialization', () => {
@@ -209,6 +273,8 @@ test('all new versioned wires are pinned and no private table binding is generat
     'access_request_get_status_v1',
     'access_request_submit_v1',
     'admin_list_access_requests_v1',
+    'admin_get_access_request_reset_status_v1',
+    'admin_reset_access_request_v1',
   ]) {
     assert.equal(explicitNames.match(new RegExp(`'${name}'`, 'g'))?.length, 1);
   }
@@ -217,6 +283,16 @@ test('all new versioned wires are pinned and no private table binding is generat
   assert.match(moduleIndex, /accessRequestGetStatusV1/);
   assert.match(moduleIndex, /accessRequestSubmitV1/);
   assert.match(moduleIndex, /adminListAccessRequestsV1/);
+  assert.match(moduleIndex, /adminGetAccessRequestResetStatusV1/);
+  assert.match(moduleIndex, /adminResetAccessRequestV1/);
+  assert.equal(
+    existsSync(new URL('../../src/spacetime/module_bindings/admin_get_access_request_reset_status_v_1_procedure.ts', import.meta.url)),
+    true,
+  );
+  assert.equal(
+    existsSync(new URL('../../src/spacetime/module_bindings/admin_reset_access_request_v_1_reducer.ts', import.meta.url)),
+    true,
+  );
   assert.equal(
     existsSync(new URL('../../src/spacetime/module_bindings/access_request_v_1_table.ts', import.meta.url)),
     false,

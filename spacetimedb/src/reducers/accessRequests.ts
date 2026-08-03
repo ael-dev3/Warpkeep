@@ -10,8 +10,14 @@ import {
   accessRequestQueueAcceptsSubmission,
   takeBoundedAccessRequestRows,
 } from '../accessRequestPolicy';
-import { requireAccessRequestResolver, requireAdmin } from '../auth';
-import { MAX_SUPPORTED_FID } from '../config';
+import {
+  requireAccessRequestResolver,
+  requireAdmin,
+  requireSupportedFid,
+} from '../auth';
+import { MAX_AUTH_EPOCH, MAX_SUPPORTED_FID } from '../config';
+import { assertGenesisFounderForFid } from '../foundingAuthority';
+import { assertGenesisResourceForFid } from '../resourceAuthority';
 import warpkeep from '../schema';
 
 const MAX_ACCESS_REQUEST_PAGE_SIZE = 100;
@@ -36,6 +42,14 @@ const adminAccessRequestPageV1 = t.object('AdminAccessRequestPageV1', {
   hasMore: t.bool(),
   totalRequests: t.u64(),
   pendingRequests: t.u64(),
+});
+
+const adminAccessRequestResetStatusV1 = t.object('AdminAccessRequestResetStatusV1', {
+  admissionState: t.string(),
+  authEpoch: t.u32(),
+  requestState: t.string(),
+  requestCycle: t.option(t.u64()),
+  requestedAtMicros: t.option(t.u64()),
 });
 
 type AdmissionState = AuthResolverAdmission['state'];
@@ -105,6 +119,47 @@ function statusForRow(
       status: 'requested',
       requestedAtMicros: requestedAtMicros(row),
     };
+}
+
+function cleanResetNote(note: string): string {
+  const clean = note.trim();
+  if (clean.length < 1 || clean.length > 512) {
+    throw new SenderError('ACCESS_REQUEST_RESET_NOTE_INVALID');
+  }
+  return clean;
+}
+
+function requireFounderAuthEpoch(authEpoch: number): void {
+  if (!Number.isInteger(authEpoch) || authEpoch < 1 || authEpoch >= MAX_AUTH_EPOCH) {
+    throw new SenderError('ACCESS_REQUEST_RESET_AUTH_EPOCH_INVALID');
+  }
+}
+
+function adminResetStatus(
+  tx: Parameters<typeof requireAdmin>[0],
+  fid: bigint,
+) {
+  const allowed = tx.db.allowedFid.fid.find(fid);
+  if (allowed === null) throw new SenderError('FID_NOT_FOUND');
+  requireFounderAuthEpoch(allowed.authEpoch);
+  assertGenesisFounderForFid(tx, fid);
+  assertGenesisResourceForFid(tx, fid);
+
+  const admissionState = resolveAdmissionState(allowed);
+  const request = tx.db.accessRequestV1.fid.find(fid);
+  const requestCycle = requestCycleForAdmission(allowed, admissionState);
+  const requestState = request === null
+    ? 'not_requested'
+    : requestCycle !== undefined && request.requestCycle === requestCycle
+      ? 'pending'
+      : 'resolved';
+  return {
+    admissionState,
+    authEpoch: allowed.authEpoch,
+    requestState,
+    requestCycle: request?.requestCycle,
+    requestedAtMicros: request === null ? undefined : requestedAtMicros(request),
+  };
 }
 
 /**
@@ -292,4 +347,124 @@ export const adminListAccessRequestsV1 = warpkeep.procedure(
         pendingRequests,
       };
     }),
+);
+
+/**
+ * Exact admin-private pre/post view for the bounded founder reset operator.
+ * It returns only authority state and the request tuple needed for CAS; no
+ * profile, external identity, token, note, or application payload is exposed.
+ */
+export const adminGetAccessRequestResetStatusV1 = warpkeep.procedure(
+  { name: 'admin_get_access_request_reset_status_v1' },
+  { fid: t.u64() },
+  adminAccessRequestResetStatusV1,
+  (ctx, { fid }) =>
+    ctx.withTx(tx => {
+      requireAdmin(tx);
+      requireSupportedFid(fid);
+      return adminResetStatus(tx, fid);
+    }),
+);
+
+/**
+ * Owner-only reset for one already-founded player. The transaction revokes
+ * admission and removes only that FID's current request row. The permanent
+ * founder and resource graphs are verified before and after. Ownership, Terms,
+ * economy, and worker tables are preserved by the reducer's strict mutation
+ * allowlist and are covered by the connected private-row-digest rehearsal.
+ *
+ * The expected epoch and request tuple are compare-and-swap guards against
+ * stale operator state. A committed application deletion is retry-safe because
+ * this reducer is the sole delete site; an enabled/no-application revocation
+ * remains fail-closed because its post-state is otherwise ambiguous.
+ */
+export const adminResetAccessRequestV1 = warpkeep.reducer(
+  { name: 'admin_reset_access_request_v1' },
+  {
+    fid: t.u64(),
+    expectedEnabled: t.bool(),
+    expectedAuthEpoch: t.u32(),
+    expectedRequestCycle: t.option(t.u64()),
+    expectedRequestedAtMicros: t.option(t.u64()),
+    note: t.string(),
+  },
+  (ctx, {
+    fid,
+    expectedEnabled,
+    expectedAuthEpoch,
+    expectedRequestCycle,
+    expectedRequestedAtMicros,
+    note,
+  }) => {
+    const admin = requireAdmin(ctx);
+    requireSupportedFid(fid);
+    const cleanNote = cleanResetNote(note);
+    if (
+      (expectedRequestCycle === undefined)
+      !== (expectedRequestedAtMicros === undefined)
+    ) {
+      throw new SenderError('ACCESS_REQUEST_RESET_CAS_INVALID');
+    }
+    const existing = ctx.db.allowedFid.fid.find(fid);
+    if (existing === null) throw new SenderError('FID_NOT_FOUND');
+    requireFounderAuthEpoch(existing.authEpoch);
+    if (existing.authEpoch !== expectedAuthEpoch) {
+      throw new SenderError('AUTH_EPOCH_MISMATCH');
+    }
+
+    assertGenesisFounderForFid(ctx, fid);
+    assertGenesisResourceForFid(ctx, fid);
+    const request = ctx.db.accessRequestV1.fid.find(fid);
+    const exactCommittedRequestDeletionRetry = !existing.enabled
+      && request === null
+      && expectedRequestCycle !== undefined;
+    if (
+      !exactCommittedRequestDeletionRetry
+      && existing.enabled !== expectedEnabled
+    ) {
+      throw new SenderError('ACCESS_REQUEST_RESET_CAS_MISMATCH');
+    }
+    if (request === null) {
+      if (expectedRequestCycle !== undefined && !exactCommittedRequestDeletionRetry) {
+        throw new SenderError('ACCESS_REQUEST_RESET_CAS_MISMATCH');
+      }
+    } else if (
+      expectedRequestCycle === undefined
+      || expectedRequestedAtMicros === undefined
+      || request.requestCycle !== expectedRequestCycle
+      || requestedAtMicros(request) !== expectedRequestedAtMicros
+    ) {
+      throw new SenderError('ACCESS_REQUEST_RESET_CAS_MISMATCH');
+    }
+    if (exactCommittedRequestDeletionRetry || (!expectedEnabled && request === null)) return;
+
+    if (existing.enabled) {
+      ctx.db.allowedFid.fid.update({
+        ...existing,
+        enabled: false,
+        note: cleanNote,
+      });
+    }
+    if (request !== null) ctx.db.accessRequestV1.fid.delete(fid);
+
+    const verified = ctx.db.allowedFid.fid.find(fid);
+    if (
+      verified === null
+      || verified.enabled
+      || verified.authEpoch !== expectedAuthEpoch
+      || ctx.db.accessRequestV1.fid.find(fid) !== null
+    ) {
+      throw new SenderError('ACCESS_REQUEST_RESET_INTEGRITY');
+    }
+    assertGenesisFounderForFid(ctx, fid);
+    assertGenesisResourceForFid(ctx, fid);
+    ctx.db.adminAudit.insert({
+      id: 0n,
+      action: 'reset_access_request_v1',
+      targetFid: fid,
+      actorSubject: admin.subject,
+      createdAt: ctx.timestamp,
+      note: cleanNote,
+    });
+  },
 );

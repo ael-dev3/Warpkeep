@@ -92,6 +92,8 @@
     "stdb:inspect-alpha-v10": "tsx scripts/hermes-admin.ts inspect-alpha-v10",
     "stdb:inspect-alpha-v12": "tsx scripts/hermes-admin.ts inspect-alpha-v12",
     "stdb:list-access-requests": "tsx scripts/hermes-admin.ts list-access-requests",
+    "stdb:inspect-access-request-reset": "tsx scripts/hermes-admin.ts inspect-access-request-reset",
+    "stdb:reset-access-request": "tsx scripts/hermes-admin.ts reset-access-request",
     "stdb:daily-marks:inspect": "tsx scripts/daily-marks-operator.ts inspect",
     "stdb:daily-marks:backfill": "tsx scripts/daily-marks-operator.ts backfill",
     "stdb:daily-marks:activate": "tsx scripts/daily-marks-operator.ts activate",

@@ -114,6 +114,14 @@ test('connected rehearsal contains the bounded private request lifecycle', () =>
   assert.match(proof, /Local disable changed permanent founder authority state/);
   assert.match(proof, /Disabled founder access request changed permanent founder authority state/);
   assert.match(proof, /status: 'already_admitted'[\s\S]*pendingRequests: 0n/);
+  assert.match(proof, /stage = 'founded-access-request-reset'/);
+  assert.match(proof, /admin_get_access_request_reset_status_v1/);
+  assert.match(proof, /admin_reset_access_request_v1/);
+  assert.match(proof, /founderReapplicationRetainedStateDigest/);
+  assert.match(proof, /reset_access_request_v1'[\s\S]*!== 1n/);
+  assert.match(proof, /Stale founded reset damaged the fresh request/);
+  assert.match(proof, /Disabled pending-request reset changed retained state or retry history/);
+  assert.match(proof, /final fresh founder access request/);
 
   assert.ok(invocation >= 0);
   assert.match(finalOwnerRead, /additiveV14SchemaFixture/);

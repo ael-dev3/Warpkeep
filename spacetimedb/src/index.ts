@@ -34,6 +34,8 @@ export {
   accessRequestGetStatusV1,
   accessRequestSubmitV1,
   adminListAccessRequestsV1,
+  adminGetAccessRequestResetStatusV1,
+  adminResetAccessRequestV1,
 } from './reducers/accessRequests';
 export {
   adminGetDailyMarksStatusV1,
