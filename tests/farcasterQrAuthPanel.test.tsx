@@ -23,6 +23,8 @@ const ANIMATED_ARWEAVE_PFP_URL =
   `https://${'a'.repeat(52)}.arweave.net/${'B'.repeat(43)}/`;
 const STATIC_ARWEAVE_PFP_URL =
   `https://wrpcd.net/cdn-cgi/image/anim=false,fit=contain,f=auto,w=384/${encodeURIComponent(ANIMATED_ARWEAVE_PFP_URL)}`;
+const STATIC_WARPCAST_CDN_PFP_URL =
+  'https://wrpcd.net/cdn-cgi/imagedelivery/BXluQx4ige9GuW0Ia56BHw/8e0beac1-d714-49d3-9bbf-f68324cdbc00/anim%3Dfalse%2Cfit%3Dcontain%2Cf%3Dauto%2Cw%3D576';
 
 function pngHeader() {
   const bytes = new Uint8Array(33);
@@ -500,6 +502,8 @@ describe('FarcasterIdentityBadge', () => {
       .toBe(PROFILE_IMAGE_URL);
     expect(getSafeFarcasterProfileImageUrl(ANIMATED_ARWEAVE_PFP_URL))
       .toBe(STATIC_ARWEAVE_PFP_URL);
+    expect(getSafeFarcasterProfileImageUrl(STATIC_WARPCAST_CDN_PFP_URL))
+      .toBe(STATIC_WARPCAST_CDN_PFP_URL);
     expect(getSafeFarcasterProfileImageUrl('https://images.example/pfp.png'))
       .toBeUndefined();
     expect(getSafeFarcasterProfileImageUrl('http://images.example/pfp.png'))
@@ -573,12 +577,20 @@ describe('FarcasterIdentityBadge', () => {
   it('uses a native button only when the compact badge is interactive', () => {
     const onActivate = vi.fn();
     const { rerender } = render(
-      <FarcasterIdentityBadge compact identity={verifiedIdentity} onActivate={onActivate} />
+      <FarcasterIdentityBadge
+        compact
+        identity={verifiedIdentity}
+        onActivate={onActivate}
+        status="admission-pending"
+      />
     );
 
     const identityButton = screen.getByRole('button', {
       name: 'Open Farcaster identity, @keeper'
     });
+    const status = screen.getByText('ADMISSION PENDING');
+    expect(identityButton.getAttribute('aria-describedby')).toBe(status.id);
+    expect(identityButton.contains(status)).toBe(true);
     fireEvent.click(identityButton);
     expect(onActivate).toHaveBeenCalledTimes(1);
 

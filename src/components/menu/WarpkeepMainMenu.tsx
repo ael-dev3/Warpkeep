@@ -1257,11 +1257,9 @@ export function WarpkeepMainMenu({
                 onActivate={farcasterAuthEnabled && !sessionRestorePending
                   ? () => openAuthPanel(lastActionModalityRef.current === 'keyboard')
                   : undefined}
+                status={pendingIdentity ? 'admission-pending' : 'farcaster-verified'}
               />
             </Suspense>
-            <span className="warpkeep-menu-identity__assurance">
-              {pendingIdentity ? 'ADMISSION PENDING' : 'FARCASTER VERIFIED'}
-            </span>
           </div>
         ) : null}
       </header>
@@ -1446,17 +1444,19 @@ export function WarpkeepMainMenu({
         </div>
       )}
 
-      <button
-        aria-label="Return to Title"
-        className="warpkeep-menu-back"
-        disabled={!interactive}
-        onClick={handleRequestReturn}
-        tabIndex={interactive ? 0 : -1}
-        type="button"
-      >
-        <span aria-hidden="true" className="warpkeep-menu-back__arrow">←</span>
-        <span className="warpkeep-menu-back__label">Return to Title</span>
-      </button>
+      {!authPanelOpen ? (
+        <button
+          aria-label="Return to Title"
+          className="warpkeep-menu-back"
+          disabled={!interactive}
+          onClick={handleRequestReturn}
+          tabIndex={interactive ? 0 : -1}
+          type="button"
+        >
+          <span aria-hidden="true" className="warpkeep-menu-back__arrow">←</span>
+          <span className="warpkeep-menu-back__label">Return to Title</span>
+        </button>
+      ) : null}
 
       <p
         aria-live="polite"

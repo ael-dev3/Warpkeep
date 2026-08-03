@@ -17,6 +17,8 @@ const ANIMATED_ARWEAVE_PFP_URL =
   `https://${'a'.repeat(52)}.arweave.net/${'B'.repeat(43)}/`;
 const STATIC_ARWEAVE_PFP_URL =
   `https://wrpcd.net/cdn-cgi/image/anim=false,fit=contain,f=auto,w=384/${encodeURIComponent(ANIMATED_ARWEAVE_PFP_URL)}`;
+const STATIC_WARPCAST_CDN_PFP_URL =
+  'https://wrpcd.net/cdn-cgi/imagedelivery/BXluQx4ige9GuW0Ia56BHw/8e0beac1-d714-49d3-9bbf-f68324cdbc00/anim%3Dfalse%2Cfit%3Dcontain%2Cf%3Dauto%2Cw%3D576';
 
 function pngHeader(width = 256, height = 256) {
   const bytes = new Uint8Array(33);
@@ -205,6 +207,7 @@ describe('reviewed Realm profile image delivery', () => {
     const reviewed = [
       CURRENT_PFP_URL,
       'https://wrpcd.net/cdn-cgi/imagedelivery/BXluQx4ige9GuW0Ia56BHw/8e0beac1-d714-49d3-9bbf-f68324cdbc00/rectcontain1',
+      STATIC_WARPCAST_CDN_PFP_URL,
       'https://res.cloudinary.com/merkle-manufactory/image/fetch/c_fill,f_png,w_256/https://lh3.googleusercontent.com/profile',
       'https://i.imgur.com/3d6fFAI.png',
       'https://lh3.googleusercontent.com/profile-image',
@@ -265,6 +268,14 @@ describe('reviewed Realm profile image delivery', () => {
     'https://imagedelivery.net/short/image/original',
     'https://wrpcd.net/unreviewed/avatar.png',
     'https://wrpcd.net/cdn-cgi/imagedelivery/AttackerCloudflareAccount/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/original',
+    'https://wrpcd.net/cdn-cgi/imagedelivery/BXluQx4ige9GuW0Ia56BHw/8e0beac1-d714-49d3-9bbf-f68324cdbc00/anim%3Dtrue%2Cfit%3Dcontain%2Cf%3Dauto%2Cw%3D576',
+    'https://wrpcd.net/cdn-cgi/imagedelivery/BXluQx4ige9GuW0Ia56BHw/8e0beac1-d714-49d3-9bbf-f68324cdbc00/anim%3Dfalse%2Cfit%3Dcrop%2Cf%3Dauto%2Cw%3D576',
+    'https://wrpcd.net/cdn-cgi/imagedelivery/BXluQx4ige9GuW0Ia56BHw/8e0beac1-d714-49d3-9bbf-f68324cdbc00/anim%3Dfalse%2Cfit%3Dcontain%2Cf%3Dauto%2Cw%3D2048',
+    'https://wrpcd.net/cdn-cgi/imagedelivery/BXluQx4ige9GuW0Ia56BHw/8e0beac1-d714-49d3-9bbf-f68324cdbc00/anim%3Dfalse%252Cfit%253Dcontain%252Cf%253Dauto%252Cw%253D576',
+    'https://wrpcd.net/cdn-cgi/imagedelivery/BXluQx4ige9GuW0Ia56BHw/8e0beac1-d714-49d3-9bbf-f68324cdbc00/anim=false,fit=contain,f=auto,w=576',
+    'https://wrpcd.net/cdn-cgi/imagedelivery/BXluQx4ige9GuW0Ia56BHw/8e0beac1-d714-49d3-9bbf-f68324cdbc00/anim%3dfalse%2cfit%3dcontain%2cf%3dauto%2cw%3d576',
+    'https://wrpcd.net/cdn-cgi/imagedelivery/BXluQx4ige9GuW0Ia56BHw/8e0beac1-d714-49d3-9bbf-f68324cdbc00/anim%3Dfalse%2Cfit%3Dcontain%2Cf%3Dauto%2Cw%3D576%2Fevil',
+    `${STATIC_WARPCAST_CDN_PFP_URL}?tracking=1`,
     'https://res.cloudinary.com/unreviewed/image/fetch/avatar.png',
     'https://i.imgur.com/',
     'https://127.0.0.1/avatar.png',

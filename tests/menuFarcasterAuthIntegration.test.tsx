@@ -731,6 +731,8 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     render(menu(callbacks));
 
     openAndAcceptAlphaTerms();
+    expect(screen.queryByRole('button', { name: 'Return to Title' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'CANCEL' }));
     fireEvent.click(screen.getByRole('button', { name: 'Return to Title' }));
 
     expect(callbacks.cancel).toHaveBeenCalledTimes(1);
@@ -849,13 +851,23 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     ));
     await settleDeferredPresentation();
 
-    expect(screen.getByText('ADMISSION PENDING')).not.toBeNull();
+    const identityButton = screen.getByRole('button', {
+      name: 'Open Farcaster identity, @keeper'
+    });
+    const pendingStatus = within(identityButton).getByText('ADMISSION PENDING');
+    expect(identityButton.getAttribute('aria-describedby')).toBe(pendingStatus.id);
+    await waitFor(() => expect(identityButton.querySelector<HTMLCanvasElement>(
+      '.farcaster-identity-badge__portrait canvas'
+    )?.dataset.profileImageState).toBe('ready'));
+    expect(screen.getByRole('button', { name: 'Return to Title' })).not.toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
     await settleDeferredPresentation();
     expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
     expect(callbacks.begin).not.toHaveBeenCalled();
     expect(callbacks.enterRealm).not.toHaveBeenCalled();
     expect(screen.getByRole('heading', { name: 'ENTRY NOT YET GRANTED' })).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'Return to Title' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'BACK TO MENU' })).not.toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'CHECK ADMISSION' }));
     expect(callbacks.refreshSession).toHaveBeenCalledTimes(1);
   });

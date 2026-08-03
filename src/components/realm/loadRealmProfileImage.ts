@@ -14,8 +14,11 @@ const WARPCAST_IMAGE_DELIVERY_PATH = new RegExp(
   `^/${WARPCAST_CLOUDFLARE_IMAGE_ACCOUNT}/[A-Za-z0-9_-]{8,128}/[A-Za-z0-9_-]{1,64}$`
 );
 const WARPCAST_CDN_IMAGE_DELIVERY_PATH = new RegExp(
-  `^/cdn-cgi/imagedelivery/${WARPCAST_CLOUDFLARE_IMAGE_ACCOUNT}/[A-Za-z0-9_-]{8,128}/[A-Za-z0-9_-]{1,64}$`
+  `^/cdn-cgi/imagedelivery/${WARPCAST_CLOUDFLARE_IMAGE_ACCOUNT}/[A-Za-z0-9_-]{8,128}/([^/]{1,128})$`
 );
+const WARPCAST_CDN_NAMED_IMAGE_VARIANT = /^[A-Za-z0-9_-]{1,64}$/;
+const WARPCAST_CDN_STATIC_IMAGE_TRANSFORM =
+  /^anim=false,fit=contain,f=auto,w=(?:32|48|64|96|128|192|256|384|512|576|768|1024)$/;
 const WRPCD_STATIC_ARWEAVE_IMAGE_PATH_PREFIX =
   '/cdn-cgi/image/anim=false,fit=contain,f=auto,w=384/';
 const ARWEAVE_TRANSACTION_GATEWAY_HOST = /^(?:arweave\.net|[a-z2-7]{52}\.arweave\.net)$/;
@@ -93,6 +96,21 @@ function reviewedWrpcdStaticArweavePath(url: URL) {
   }
 }
 
+function reviewedWarpcastCdnImageDeliveryPath(url: URL) {
+  if (url.search !== '' || url.hash !== '') return false;
+  const match = WARPCAST_CDN_IMAGE_DELIVERY_PATH.exec(url.pathname);
+  const variant = match?.[1];
+  if (!variant) return false;
+  if (WARPCAST_CDN_NAMED_IMAGE_VARIANT.test(variant)) return true;
+  try {
+    const decodedVariant = decodeURIComponent(variant);
+    return encodeURIComponent(decodedVariant) === variant
+      && WARPCAST_CDN_STATIC_IMAGE_TRANSFORM.test(decodedVariant);
+  } catch {
+    return false;
+  }
+}
+
 function staticArweaveProfileImageUrl(url: URL) {
   const source = canonicalArweaveProfileImageSource(url);
   if (!source) return undefined;
@@ -111,7 +129,7 @@ function reviewedProviderPath(url: URL) {
     case 'imagedelivery.net':
       return WARPCAST_IMAGE_DELIVERY_PATH.test(url.pathname);
     case 'wrpcd.net':
-      return WARPCAST_CDN_IMAGE_DELIVERY_PATH.test(url.pathname)
+      return reviewedWarpcastCdnImageDeliveryPath(url)
         || reviewedWrpcdStaticArweavePath(url);
     case 'res.cloudinary.com':
       return url.pathname.startsWith('/merkle-manufactory/image/');

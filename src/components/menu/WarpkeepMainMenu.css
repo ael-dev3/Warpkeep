@@ -113,14 +113,6 @@
   transition: none;
 }
 
-.warpkeep-menu[data-menu-surface="farcaster-auth"] .warpkeep-menu-back {
-  z-index: 6;
-  top: max(1rem, calc(env(safe-area-inset-top) + 0.65rem));
-  bottom: auto;
-  opacity: 0.9;
-  transform: none;
-}
-
 .warpkeep-menu-heading__crest,
 .warpkeep-menu-heading__rule {
   display: grid;
@@ -290,26 +282,13 @@
 }
 
 .warpkeep-menu-identity {
-  display: flex;
+  display: grid;
   position: static;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 0.34rem;
+  justify-items: center;
   width: 100%;
   margin: clamp(0.6rem, 1.35vh, 0.95rem) auto 0;
-}
-
-.warpkeep-menu-identity__assurance {
-  padding: 0.24rem 0.42rem;
-  border: 1px solid rgba(202, 156, 83, 0.32);
-  color: rgba(238, 208, 148, 0.88);
-  background: rgba(13, 8, 16, 0.54);
-  font-size: 0.54rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  line-height: 1.2;
-  text-transform: uppercase;
 }
 
 .warpkeep-menu-command-list {
