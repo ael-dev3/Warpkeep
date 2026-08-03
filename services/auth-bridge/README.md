@@ -39,6 +39,7 @@ future rollout step requires exact-head verification and recorded authority.
 | `POST` | `/v1/admin/config-attestation` | Server-only digest of security-relevant runtime configuration. |
 | `POST` | `/v1/farcaster/miniapp/webhook` | Verifies signed add/remove and notification enable/disable events; returns exact `200`. |
 | `POST` | `/v1/admin/admission-notification` | Separate-secret Hermes hook; rechecks live admission and queues one exact-epoch alert. |
+| `POST` | `/v1/admin/admission-notification-status` | Separate-secret, token-free delivery diagnostics for one exact FID. |
 
 The legacy public `/v1/farcaster/challenge` and `/v1/farcaster/exchange` routes
 are retired in the local contract and return `410 legacy_auth_retired`; they do
@@ -388,6 +389,12 @@ within 366 days. Signed opt-outs remain accepted while delivery is paused and
 erase raw token material immediately. Each send rechecks the exact current
 admission epoch; stable notification IDs, retry ceilings, replay tombstones,
 and bounded epoch receipts make retries idempotent.
+The operator-only status projection contains only queue state, the admission
+epoch, aggregate attempt counts, static retry categories, and the next retry
+time. It never returns a notification token, delivery URL, webhook payload, or
+provider response. Delivery parsing accepts Farcaster's optional additive
+`failedTokens` field, ignores harmless provider metadata, and still rejects
+invalid reasons, contradictory known outcome categories, and token mismatches.
 
 The production browser and Pages activation gate separately pin the exact bridge
 and issuer `https://auth.warpkeep.com`, audience `warpkeep-spacetimedb`, and the
@@ -467,9 +474,10 @@ request/response, or symmetric secret. `/v1/admin/token`,
 `Authorization: Bearer <ADMIN_TOKEN_SECRET>`, reject browser `Origin` headers,
 emit no admin CORS headers, and are only for a server-side operator process.
 Never expose their credential or response to frontend code.
-`/v1/admin/admission-notification` has the same no-Origin/no-CORS boundary but
-uses only `NOTIFICATION_OPERATOR_SECRET`; it never accepts the general admin
-secret. The public webhook accepts no browser Origin and trusts only a valid
+`/v1/admin/admission-notification` and its token-free `-status` companion have
+the same no-Origin/no-CORS boundary but use only
+`NOTIFICATION_OPERATOR_SECRET`; neither accepts the general admin secret. The
+public webhook accepts no browser Origin and trusts only a valid
 Farcaster JFS envelope whose app key agrees across both configured Hubs and is
 active on-chain. Both configured Optimism RPCs are queried with bounded retries:
 matching answers are required when both respond, one healthy view may serve as

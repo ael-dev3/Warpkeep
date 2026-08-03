@@ -2,6 +2,7 @@ import { createSiweMessage } from 'viem/siwe'
 import { Errors as QuickAuthErrors } from '@farcaster/quick-auth'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  ADMISSION_NOTIFICATION_STATUS_PATH,
   FARCASTER_VERIFICATION_TIMEOUT_MILLISECONDS,
   QUICK_AUTH_MAX_ISSUER_LIFETIME_SECONDS,
   REQUEST_BODY_TIMEOUT_MILLISECONDS,
@@ -67,6 +68,7 @@ const SERVER_ONLY_ADMIN_PATHS = [
   '/v1/admin/auth-epoch-probe',
   '/v1/admin/config-attestation',
   ADMISSION_NOTIFICATION_PATH,
+  ADMISSION_NOTIFICATION_STATUS_PATH,
 ] as const
 const BINDING_VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'
 const BINDING_CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM'
@@ -2444,6 +2446,9 @@ describe('Warpkeep auth bridge', () => {
         request(ADMISSION_NOTIFICATION_PATH, { fid: FID }, {
           headers: { authorization: `Bearer ${NOTIFICATION_OPERATOR_SECRET}` },
         }),
+        request(ADMISSION_NOTIFICATION_STATUS_PATH, { fid: FID }, {
+          headers: { authorization: `Bearer ${NOTIFICATION_OPERATOR_SECRET}` },
+        }),
       ]) {
         const response = await h.app.fetch(candidate, env())
         expect(response.status).toBe(503)
@@ -2621,6 +2626,60 @@ describe('Warpkeep auth bridge', () => {
         error: { code: 'founder_not_admitted' },
       })
       expect(queueAdmission).not.toHaveBeenCalled()
+    })
+
+    it('exposes only token-free diagnostics to the separate operator credential', async () => {
+      const inspect = vi.fn(async () => Object.freeze({
+        status: 'queued' as const,
+        authEpoch: 7,
+        deliveryAttemptCount: 1,
+        verificationFailureCount: 0,
+        retryReasons: Object.freeze(['invalid-response'] as const),
+        nextAttemptAt: 1_800_000_030_000,
+      }))
+      const h = harness({
+        admissionNotificationStore: {
+          applyEvent: vi.fn(async () => undefined),
+          queueAdmission: vi.fn(async () => 'queued' as const),
+          inspect,
+        },
+      })
+
+      for (const headers of [
+        new Headers({ authorization: `Bearer ${ADMIN_SECRET}` }),
+        new Headers({
+          authorization: `Bearer ${NOTIFICATION_OPERATOR_SECRET}`,
+          origin: ORIGIN,
+        }),
+      ]) {
+        const rejected = await h.app.fetch(request(
+          ADMISSION_NOTIFICATION_STATUS_PATH,
+          { fid: FID },
+          { headers },
+        ), notificationEnv())
+        expect(rejected.status).toBe(headers.has('origin') ? 403 : 401)
+      }
+      expect(inspect).not.toHaveBeenCalled()
+
+      const accepted = await h.app.fetch(request(
+        ADMISSION_NOTIFICATION_STATUS_PATH,
+        { fid: FID },
+        { headers: { authorization: `Bearer ${NOTIFICATION_OPERATOR_SECRET}` } },
+      ), notificationEnv())
+      expect(accepted.status).toBe(200)
+      const body = await accepted.json()
+      expect(body).toEqual({
+        status: 'queued',
+        authEpoch: 7,
+        deliveryAttemptCount: 1,
+        verificationFailureCount: 0,
+        retryReasons: ['invalid-response'],
+        nextAttemptAt: 1_800_000_030_000,
+      })
+      expect(inspect).toHaveBeenCalledWith(FID)
+      expect(h.events).toContain('admission_notification_inspected')
+      expect(JSON.stringify(body)).not.toContain(NOTIFICATION_OPERATOR_SECRET)
+      expect(JSON.stringify(body)).not.toContain(verifiedEnableEvent.event.details.token)
     })
   })
 

@@ -133,6 +133,7 @@ const V2_ACCESS_STATUS_PATH = '/v2/access/status'
 const V2_ACCESS_REQUEST_PATH = '/v2/access/request'
 export const MINIAPP_WEBHOOK_PATH = '/v1/farcaster/miniapp/webhook'
 export const ADMISSION_NOTIFICATION_PATH = '/v1/admin/admission-notification'
+export const ADMISSION_NOTIFICATION_STATUS_PATH = '/v1/admin/admission-notification-status'
 const LEGACY_CHALLENGE_PATH = '/v1/farcaster/challenge'
 const LEGACY_EXCHANGE_PATH = '/v1/farcaster/exchange'
 const QUICK_AUTH_DOMAIN = 'warpkeep.com'
@@ -382,6 +383,7 @@ function isServerOnlyAdminPath(pathname: string): boolean {
     || pathname === AUTH_EPOCH_PROBE_PATH
     || pathname === CONFIG_ATTESTATION_PATH
     || pathname === ADMISSION_NOTIFICATION_PATH
+    || pathname === ADMISSION_NOTIFICATION_STATUS_PATH
 }
 
 function isQaObserverPath(pathname: string): boolean {
@@ -2515,6 +2517,65 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           return json({ status }, status === 'queued' ? 202 : 200)
         }
 
+        if (request.method === 'POST' && url.pathname === ADMISSION_NOTIFICATION_STATUS_PATH) {
+          requireAdminNoOrigin(request)
+          if (!config.approvalNotificationsEnabled) {
+            throw new HttpError(
+              503,
+              'approval_notifications_paused',
+              'Admission notifications are temporarily unavailable.',
+            )
+          }
+          if (url.search) {
+            throw new HttpError(400, 'notification_query_not_allowed', 'This endpoint does not accept query parameters.')
+          }
+          await enforceRateLimit(
+            request,
+            'admission-notification',
+            env,
+            dependencies.rateLimiter,
+            logger,
+          )
+          const notificationConfig = config.miniAppNotifications
+          if (!notificationConfig) throw new ConfigurationError()
+          const credential = adminCredential(request)
+          if (!credential || !(await timingSafeSecretMatch(
+            credential,
+            notificationConfig.operatorSecret,
+          ))) {
+            logger.event('admission_notification_rejected')
+            throw new HttpError(
+              401,
+              'invalid_notification_credentials',
+              'Notification operator credentials are invalid.',
+            )
+          }
+          const body = await parseObjectBody(request)
+          requireExactKeys(body, ['fid'])
+          const fid = canonicalNotificationFid(body.fid)
+          const store = dependencies.admissionNotificationStore
+            ?? defaultAdmissionNotificationStore(env)
+          if (!store.inspect) {
+            throw new HttpError(
+              503,
+              'admission_notification_unavailable',
+              'Admission notification delivery is temporarily unavailable.',
+            )
+          }
+          let diagnostics
+          try {
+            diagnostics = await store.inspect(fid)
+          } catch {
+            throw new HttpError(
+              503,
+              'admission_notification_unavailable',
+              'Admission notification delivery is temporarily unavailable.',
+            )
+          }
+          logger.event('admission_notification_inspected')
+          return json(diagnostics)
+        }
+
         if (request.method === 'POST' && url.pathname === AUTH_EPOCH_PROBE_PATH) {
           requireAdminNoOrigin(request)
           // Reusing the existing persisted action preserves rollback compatibility.
@@ -2591,6 +2652,7 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
               config.miniAppNotifications?.clients.map(client => client.appFid) ?? [],
             miniAppWebhookPath: MINIAPP_WEBHOOK_PATH,
             admissionNotificationPath: ADMISSION_NOTIFICATION_PATH,
+            admissionNotificationStatusPath: ADMISSION_NOTIFICATION_STATUS_PATH,
             publicAuthEnabled: config.publicAuthEnabled,
             accessExpectedFidRequired: config.accessExpectedFidRequired,
             qaObserverEnabled: config.qaObserverEnabled,

@@ -5,6 +5,8 @@ allowBuilds:
 # Remove after Miniflare stops pinning vulnerable sharp versions below 0.35.0.
 overrides:
   "miniflare@4.20260708.1>sharp": 0.35.3
+  # Miniflare's pinned Undici release is raised to the patched 7.x line.
+  "miniflare@4.20260708.1>undici": 7.29.0
   # Vite's compatible range otherwise resolves to a PostCSS release affected by
   # GHSA-566m-qj78-rww5. Keep this exact until the toolchain raises its floor.
   postcss: 8.5.25

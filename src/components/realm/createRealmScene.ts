@@ -186,6 +186,10 @@ import {
   type RealmPointerStartLane
 } from './realmPointerGestureCoordinator';
 import {
+  realmPinchZoomAmount,
+  realmPinchZoomProfileForChromeMode
+} from './realmPinchZoom';
+import {
   arbitrateRealmPick,
   type RealmInteractionTarget,
   type RealmResourcePickHit,
@@ -4047,9 +4051,12 @@ function initializeRealmScene(
       return;
     }
     const current = localPoint(result.pinch.centroid.x, result.pinch.centroid.y);
-    const zoomAmount = result.pinch.scaleRatio > 0
-      ? Math.log(result.pinch.scaleRatio) * 0.78
-      : 0;
+    const zoomAmount = realmPinchZoomAmount(
+      result.pinch.scaleRatio,
+      realmPinchZoomProfileForChromeMode(
+        interactionRoot.dataset.realmChromeMode
+      )
+    );
     const hasTranslation = Math.abs(result.pinch.centroidDelta.x) >= 0.01
       || Math.abs(result.pinch.centroidDelta.y) >= 0.01;
     if (!hasTranslation && Math.abs(zoomAmount) < 0.000001) return;

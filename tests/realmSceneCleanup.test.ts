@@ -3074,9 +3074,10 @@ describe('realm scene setup cleanup', () => {
     scene.dispose();
   });
 
-  it('pans by the moving pinch centroid without changing the final pinch scale', () => {
+  it('pans a Mini App pinch centroid without changing the final pinch scale', () => {
     const root = document.createElement('main');
     root.className = 'realm-map-screen';
+    root.dataset.realmChromeMode = 'miniapp';
     const canvas = document.createElement('canvas');
     canvas.className = 'realm-map-screen__canvas';
     const label = document.createElement('button');
