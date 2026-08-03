@@ -5632,6 +5632,7 @@ describe('protected aggregate child isolation', () => {
       expectedEnabledAllowedFidCount: undefined,
       requireAuthV2: false,
       requireAuthV2Enabled: false,
+      requireRpcRoleAttestation: false,
       aggregateStage: PROTECTED_AGGREGATE_STAGE.LEGACY,
     };
     expect(parseProductionVerifierArguments([
@@ -5648,6 +5649,14 @@ describe('protected aggregate child isolation', () => {
     ])).toEqual({
       ...defaults,
       requireAuthV2Enabled: true,
+    });
+    expect(parseProductionVerifierArguments([
+      '--require-auth-v2-enabled',
+      '--require-rpc-role-attestation',
+    ])).toEqual({
+      ...defaults,
+      requireAuthV2Enabled: true,
+      requireRpcRoleAttestation: true,
     });
     expect(parseProductionVerifierArguments([
       '--require-auth-v2-enabled',

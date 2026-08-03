@@ -395,8 +395,9 @@ same Maincloud/database pair. Development remains explicitly configurable and is
 not accepted as a production activation profile.
 
 The server-only `POST /v1/admin/config-attestation` route additionally returns
-the sorted fingerprints of the exact RPC endpoints, the active signing public
-key's RFC 7638 thumbprint, the independent QA gate, observer
+both the compatibility sorted set and explicit `primary`/`secondary`
+fingerprints of the exact RPC endpoints, the active signing public key's RFC
+7638 thumbprint, the independent QA gate, observer
 URI/database/audience tuple, registered public-key fingerprint, canonical
 registration/expiry timestamps, and maximum registration lifetime after
 admin-secret authentication. Each endpoint fingerprint is lowercase hex
@@ -410,6 +411,14 @@ observer coordinates, environment, binding and bounded lifetimes, both gates,
 and exact cookie attributes. Operators must compare it with the reviewed
 expected configuration; it is not a deployment action and reveals no secret
 material.
+
+After a reviewed Worker deployment, run `npm run verify:alpha-production:operator`
+from the repository root with `WARPKEEP_ADMIN_TOKEN_SECRET` supplied through the
+private operator environment. Unlike the public CI verifier, this command fails
+closed when the credential is absent and pins dRPC as primary plus PublicNode as
+secondary in reviewed source; runtime environment overrides cannot redefine
+those roles. `npm run verify:auth-bridge-config` performs the same narrow role
+check when a full frontend verification is unnecessary.
 
 Copy `.dev.vars.example` to untracked `.dev.vars` only for local work and use
 separate development keys. Set real secrets only through approved Cloudflare
@@ -444,8 +453,9 @@ default-off persistence intent, logout-tombstone suppression/storage denial,
 profile-claim discard, production resolver-coordinate pins, route retirement,
 retired legacy module wires, v2-only browser player data, privacy-safe v2 admin
 aggregation, configuration attestation, limits, admin separation, and static
-safe log events. Notification coverage includes official JFS parsing, hostile
-URL rejection, queue-before-consent recovery, opt-out replay resistance,
+safe log events. Notification coverage includes official JFS parsing, a
+workerd-level signed primary-outage-to-secondary-success route, hostile URL
+rejection, queue-before-consent recovery, opt-out replay resistance,
 live-epoch rechecks, gate invalidation, token purging, retry ceilings, and
 366-day cleanup. Stalled verifier and body-stream fixtures prove the Worker
 returns within its fixed deadlines without recording caller material.

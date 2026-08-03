@@ -19,6 +19,11 @@ import {
   inspectFarcasterAccountAssociation,
   inspectPng,
 } from './farcaster-miniapp-contract.mjs';
+import {
+  DEFAULT_FARCASTER_RPC_PRIMARY_URL,
+  DEFAULT_FARCASTER_RPC_SECONDARY_URL,
+  verifyAuthBridgeRpcRoleAttestation,
+} from './auth-bridge-config-attestation.mjs';
 
 const DEFAULT_FRONTEND = 'https://warpkeep.com';
 const DEFAULT_BRIDGE = 'https://auth.warpkeep.com';
@@ -1943,6 +1948,7 @@ export function parseProductionVerifierArguments(arguments_ = process.argv.slice
     '--require-resource-v4-ready-aggregate',
     '--require-auth-v2',
     '--require-auth-v2-enabled',
+    '--require-rpc-role-attestation',
   ]);
   const seen = new Set();
   let expectedFounderCount;
@@ -2081,6 +2087,7 @@ export function parseProductionVerifierArguments(arguments_ = process.argv.slice
     expectedEnabledAllowedFidCount: foundedEnabledAllowedFidCount,
     requireAuthV2: seen.has('--require-auth-v2'),
     requireAuthV2Enabled: seen.has('--require-auth-v2-enabled'),
+    requireRpcRoleAttestation: seen.has('--require-rpc-role-attestation'),
     aggregateStage,
   });
 }
@@ -2100,6 +2107,7 @@ async function main() {
     expectedEnabledAllowedFidCount,
     requireAuthV2,
     requireAuthV2Enabled,
+    requireRpcRoleAttestation,
     aggregateStage,
   } = parseProductionVerifierArguments();
   const frontend = httpsOrigin(process.env.WARPKEEP_FRONTEND_URL ?? DEFAULT_FRONTEND, 'WARPKEEP_FRONTEND_URL');
@@ -2107,6 +2115,13 @@ async function main() {
   const www = httpsOrigin(process.env.WARPKEEP_WWW_URL ?? defaultWwwOrigin(frontend), 'WARPKEEP_WWW_URL');
   const legacyPages = httpsUrl(process.env.WARPKEEP_LEGACY_PAGES_URL ?? DEFAULT_LEGACY_PAGES, 'WARPKEEP_LEGACY_PAGES_URL');
   const expectedDeployedSha = readExpectedDeployedSha();
+  const adminTokenSecret = process.env.WARPKEEP_ADMIN_TOKEN_SECRET;
+  if (requireRpcRoleAttestation && !adminTokenSecret) {
+    fail('WARPKEEP_ADMIN_TOKEN_SECRET is required for RPC role attestation.');
+  }
+  if (requireRpcRoleAttestation && bridge !== DEFAULT_BRIDGE) {
+    fail('operator RPC role attestation is pinned to the canonical Warpkeep bridge.');
+  }
   if (process.env.WARPKEEP_OIDC_AUDIENCE && process.env.WARPKEEP_OIDC_AUDIENCE !== EXPECTED_AUDIENCE) {
     fail(`WARPKEEP_OIDC_AUDIENCE must be ${EXPECTED_AUDIENCE}.`);
   }
@@ -2121,6 +2136,17 @@ async function main() {
   );
   await verifyFrontendRedirects(frontend, www, legacyPages);
   await verifyBridge(frontend, bridge, { requireAuthV2, requireAuthV2Enabled });
+  if (requireRpcRoleAttestation) {
+    await verifyAuthBridgeRpcRoleAttestation({
+      bridgeUrl: DEFAULT_BRIDGE,
+      adminToken: adminTokenSecret,
+      expectedPrimaryRpcUrl: DEFAULT_FARCASTER_RPC_PRIMARY_URL,
+      expectedSecondaryRpcUrl: DEFAULT_FARCASTER_RPC_SECONDARY_URL,
+    });
+    console.log('bridge config: exact primary and secondary RPC roles verified');
+  } else {
+    console.log('bridge config: skipped (operator attestation not requested)');
+  }
   if (requireResourceV4ReadyAggregate) {
     verifyPostBackfillResourceAggregateCheckpoints(
       bridge,

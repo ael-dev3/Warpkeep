@@ -110,8 +110,9 @@ fail-closed recovery target has `publicAuthEnabled: false`; the recorded active
 target has `publicAuthEnabled: true`. It covers
 issuer/origins/SIWF coordinates, Quick Auth
 issuer/domain/origin/path/verifier-package/token-size bounds, both privacy-safe
-RPC endpoint fingerprints, the active signing-public-key thumbprint, gameplay
-key/Maincloud coordinates, the observer URI/database/audience tuple and gate,
+RPC endpoint fingerprints with explicit primary/secondary roles, the active
+signing-public-key thumbprint, gameplay key/Maincloud coordinates, the observer
+URI/database/audience tuple and gate,
 S256, the 600-second access TTL, 15-second resolver TTL, five-second resolver
 timeout, five-minute challenge TTL, maximum-30-day family, and exact `__Host-`
 cookie attributes. Record only the reviewed digest and observed deployment
