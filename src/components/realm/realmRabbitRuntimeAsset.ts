@@ -5,5 +5,6 @@ export const REALM_RABBIT_RUNTIME_ASSET = Object.freeze({
   sha256: '2ecc7b1adf4c1d79b7ca2d5ea9a6727ed3f6d9072047466082bb912d34ea930c',
   triangles: 146,
   uploadedVertices: 384,
+  embeddedBufferBytes: 13_164,
   visualHeight: 0.265_102
 });

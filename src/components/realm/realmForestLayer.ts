@@ -156,7 +156,8 @@ function appendPrimitive(
   instanceMatrix: THREE.Matrix4,
   habitat: RealmForestTreePoint['habitat'],
   snowCoverage: number,
-  sandCoverage: number
+  sandCoverage: number,
+  motionEnabled: boolean
 ) {
   const position = primitive.geometry.getAttribute('position');
   if (!position || position.count === 0) return 0;
@@ -181,17 +182,19 @@ function appendPrimitive(
       .set(component(position, index, 0), component(position, index, 1), component(position, index, 2))
       .applyMatrix4(transform);
     output.positions.push(positionVector.x, positionVector.y, positionVector.z);
-    const relativeHeight = Math.max(0, positionVector.y - groundY);
-    const windWeight = THREE.MathUtils.smoothstep(
-      relativeHeight,
-      HEGEMONY_TREE_TARGET_VISUAL_HEIGHT * 0.16,
-      HEGEMONY_TREE_TARGET_VISUAL_HEIGHT * 0.9
-    );
-    output.windWeights.push(Math.round(windWeight * 255));
-    const windPhase = Math.sin(
-      positionVector.x * 17.13 + positionVector.z * 29.71 + relativeHeight * 7.19
-    ) * 0.5 + 0.5;
-    output.windPhases.push(Math.round(THREE.MathUtils.clamp(windPhase, 0, 1) * 255));
+    if (motionEnabled) {
+      const relativeHeight = Math.max(0, positionVector.y - groundY);
+      const windWeight = THREE.MathUtils.smoothstep(
+        relativeHeight,
+        HEGEMONY_TREE_TARGET_VISUAL_HEIGHT * 0.16,
+        HEGEMONY_TREE_TARGET_VISUAL_HEIGHT * 0.9
+      );
+      output.windWeights.push(Math.round(windWeight * 255));
+      const windPhase = Math.sin(
+        positionVector.x * 17.13 + positionVector.z * 29.71 + relativeHeight * 7.19
+      ) * 0.5 + 0.5;
+      output.windPhases.push(Math.round(THREE.MathUtils.clamp(windPhase, 0, 1) * 255));
+    }
 
     if (normalAttribute) {
       normalVector
@@ -332,7 +335,8 @@ function createMergedTreeMesh(
         matrix,
         point.habitat,
         snowCoverage,
-        sandCoverage
+        sandCoverage,
+        motionEnabled
       );
     });
     if ((treeTintFlags & FOREST_TINT_SNOW) !== 0) snowTintedTreeCount += 1;
@@ -354,14 +358,16 @@ function createMergedTreeMesh(
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(source.positions, 3));
     geometry.setAttribute('normal', new THREE.Float32BufferAttribute(source.normals, 3));
     geometry.setAttribute('color', new THREE.Float32BufferAttribute(source.colors, 3));
-    geometry.setAttribute(
-      'realmForestWindWeight',
-      new THREE.Uint8BufferAttribute(source.windWeights, 1, true)
-    );
-    geometry.setAttribute(
-      'realmForestWindPhase',
-      new THREE.Uint8BufferAttribute(source.windPhases, 1, true)
-    );
+    if (motionEnabled) {
+      geometry.setAttribute(
+        'realmForestWindWeight',
+        new THREE.Uint8BufferAttribute(source.windWeights, 1, true)
+      );
+      geometry.setAttribute(
+        'realmForestWindPhase',
+        new THREE.Uint8BufferAttribute(source.windPhases, 1, true)
+      );
+    }
     geometry.setIndex(new THREE.Uint32BufferAttribute(source.indices, 1));
     if (!source.hasCompleteNormals) geometry.computeVertexNormals();
     geometry.computeBoundingBox();
@@ -377,7 +383,9 @@ function createMergedTreeMesh(
       snowTintedTreeCount,
       dryTintedTreeCount,
       wind,
-      windAttributeBytes: source.windWeights.length + source.windPhases.length
+      windAttributeBytes: motionEnabled
+        ? source.windWeights.length + source.windPhases.length
+        : 0
     });
   } catch (error) {
     geometry.dispose();
@@ -395,7 +403,8 @@ function createFallbackForestMesh(
   motionEnabled: boolean
 ) {
   const fallback = createRealmProceduralForestFallbackGeometry(
-    HEGEMONY_TREE_TARGET_VISUAL_HEIGHT
+    HEGEMONY_TREE_TARGET_VISUAL_HEIGHT,
+    motionEnabled
   );
   const { geometry } = fallback;
   const material = createRealmProceduralForestFallbackMaterial();
@@ -447,17 +456,35 @@ function createFallbackForestMesh(
     snowTintedTreeCount,
     dryTintedTreeCount,
     wind,
-    windAttributeBytes:
-      geometry.getAttribute('realmForestWindWeight').count
-      + geometry.getAttribute('realmForestWindPhase').count
+    windAttributeBytes: motionEnabled
+      ? geometry.getAttribute('realmForestWindWeight').count
+        + geometry.getAttribute('realmForestWindPhase').count
+      : 0
   });
 }
 
 function disposeMesh(mesh: THREE.Mesh | THREE.InstancedMesh) {
   mesh.removeFromParent();
-  mesh.geometry.dispose();
+  if (mesh instanceof THREE.InstancedMesh) {
+    try {
+      mesh.dispose();
+    } catch {
+      // Continue releasing the shared geometry and materials below.
+    }
+  }
+  try {
+    mesh.geometry.dispose();
+  } catch {
+    // A renderer cleanup failure must not strand the material resources.
+  }
   const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-  materials.forEach((material) => material.dispose());
+  materials.forEach((material) => {
+    try {
+      material.dispose();
+    } catch {
+      // Dispose every remaining material independently.
+    }
+  });
 }
 
 async function acquireTreePrefabsStaged(
@@ -648,7 +675,7 @@ export function createRealmForestLayer(
         : usingFallback
           ? 'terrain-canopy-procedural-root-contact'
           : 'terrain-canopy-baked-base',
-      canopyMotionState: activeWind.isActive()
+      canopyMotionState: !disposed && activeWind.isActive()
         ? REALM_FOREST_LIVING_CANOPY_MOTION_STATE
         : 'static',
       structureCellCounts,

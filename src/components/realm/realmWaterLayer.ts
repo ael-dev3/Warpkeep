@@ -1211,7 +1211,8 @@ varying vec2 vWarpkeepWaterWorldXZ;
 varying vec2 vWarpkeepWaterFlow;
 ${shader.fragmentShader}`
       .replace('#include <opaque_fragment>', `
-        float waterViewFacing = max(dot(normalize(vNormal), normalize(-vViewPosition)), 0.0);
+        // Three r185 stores the fragment-to-camera direction in vViewPosition.
+        float waterViewFacing = max(dot(normalize(vNormal), normalize(vViewPosition)), 0.0);
         float waterFresnel = pow(1.0 - waterViewFacing, 2.4);
         float waterReflectionStrength = waterFresnel
           * (vWarpkeepWaterRegime > 0.5 ? 0.085 : 0.18);

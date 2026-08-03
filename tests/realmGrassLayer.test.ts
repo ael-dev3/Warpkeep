@@ -3,7 +3,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createRealmGrassLayer } from '../src/components/realm/createRealmGrassLayer';
 import type { RealmGrassRenderPlan } from '../src/components/realm/realmGrassActiveWindow';
-import { REALM_GRASS_RENDER_PLANS } from '../src/components/realm/realmQuality';
+import {
+  REALM_GRASS_RENDER_PLANS,
+  REALM_LIVING_REALM_BUDGETS
+} from '../src/components/realm/realmQuality';
 import { axialToWorld, hexKey } from '../src/game/map/hexCoordinates';
 import { sampleRealmGrassSurfaceFrame } from '../src/game/map/realmGrass';
 import { REALM_GRASS_COLOR_BOUNDS } from '../src/game/map/realmGrassPalette';
@@ -34,7 +37,8 @@ describe('camera-local procedural grass layer', () => {
       castleSlotKeys: new Set(),
       placements: [],
       plan: plan(),
-      reducedMotion: false
+      reducedMotion: false,
+      livingBudget: REALM_LIVING_REALM_BUDGETS.balanced
     });
 
     expect(layer.updateView({ x: 0, z: 0 }, 'realm')).toBe(true);
@@ -124,6 +128,15 @@ describe('camera-local procedural grass layer', () => {
     const matrixWrites = layer.meshes.map((currentMesh) => vi.spyOn(currentMesh, 'setMatrixAt'));
     const matrixVersions = layer.meshes.map((currentMesh) => currentMesh.instanceMatrix.version);
     expect(layer.updateWind(0.5)).toBe(true);
+    expect(layer.updateWind(0.75, {
+      count: 1,
+      centers: new Float32Array([1, 2, 0, 0, 0, 0, 0, 0]),
+      params: new Float32Array([0.7, 0.8, 0.25, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    })).toBe(true);
+    expect(layer.getTelemetry()).toMatchObject({
+      disturbanceSlotCount: 4,
+      activeDisturbanceCount: 1
+    });
     layer.setInteraction({ q: 0, r: 0 }, { q: 1, r: 0 });
     matrixWrites.forEach((spy) => expect(spy).not.toHaveBeenCalled());
     layer.meshes.forEach((currentMesh, index) => expect(currentMesh.instanceMatrix.version)

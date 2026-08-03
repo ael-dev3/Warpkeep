@@ -254,6 +254,7 @@ export function createRealmAmbientEcologyLayer(
       if (disposed) return;
       disposed = true;
       group.clear();
+      birdMesh?.dispose();
       birds?.dispose();
       birdMaterial?.dispose();
       points?.dispose();

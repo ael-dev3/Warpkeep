@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import * as THREE from 'three';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const parserState = vi.hoisted(() => ({ calls: 0 }));
@@ -26,6 +27,7 @@ vi.mock('three/addons/loaders/GLTFLoader.js', async () => {
 });
 
 import { createRealmRabbitLayer } from '../src/components/realm/createRealmRabbitLayer';
+import { assertEmbeddedRealmRabbitRuntime } from '../src/components/realm/loadRealmRabbitAsset';
 import { REALM_RABBIT_RUNTIME_ASSET } from '../src/components/realm/realmRabbitRuntimeAsset';
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -90,6 +92,7 @@ describe('Living Realm compact Rabbit layer', () => {
     const instances = layer.group.children[0];
     expect(instances?.name).toBe('realm-lowlands-rabbit-compact-instances');
     expect(instances?.raycast?.({} as never, [] as never)).toBeUndefined();
+    const dispose = vi.spyOn(instances as THREE.InstancedMesh, 'dispose');
     const frozenMatrices = Array.from(
       (instances as unknown as { instanceMatrix: { array: ArrayLike<number> } })
         .instanceMatrix.array
@@ -109,6 +112,8 @@ describe('Living Realm compact Rabbit layer', () => {
       triangleCount: 0
     });
     layer.dispose();
+    layer.dispose();
+    expect(dispose).toHaveBeenCalledOnce();
     expect(layer.getTelemetry()).toMatchObject({ enabled: false, instanceCapacity: 0 });
   });
 
@@ -159,5 +164,128 @@ describe('Living Realm compact Rabbit layer', () => {
       triangleCount: 0
     });
     layer.dispose();
+  });
+
+  it('times out and actively retires a stalled transport', async () => {
+    let transportSignal: AbortSignal | undefined;
+    vi.stubGlobal('fetch', vi.fn((
+      _input: RequestInfo | URL,
+      init?: RequestInit
+    ) => {
+      transportSignal = init?.signal ?? undefined;
+      return new Promise<Response>(() => {});
+    }));
+    const ready = vi.fn();
+    const layer = createRealmRabbitLayer({
+      instanceCount: 6,
+      baseUrl: '/',
+      heightAtWorld: () => 0,
+      requestTimeoutMs: 5,
+      onModelReady: ready
+    });
+
+    await vi.waitFor(() => expect(layer.getTelemetry().loadFallbackCount).toBe(1));
+    expect(transportSignal?.aborted).toBe(true);
+    expect(ready).toHaveBeenCalledOnce();
+    expect(layer.getTelemetry().assetReady).toBe(false);
+    layer.dispose();
+  });
+
+  it('times out when an exact-length response body never closes', async () => {
+    let transportSignal: AbortSignal | undefined;
+    vi.stubGlobal('fetch', vi.fn((
+      _input: RequestInfo | URL,
+      init?: RequestInit
+    ) => {
+      transportSignal = init?.signal ?? undefined;
+      return Promise.resolve(new Response(new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array([0x67, 0x6c, 0x54, 0x46]));
+        }
+      }), {
+        status: 200,
+        headers: { 'content-length': String(REALM_RABBIT_RUNTIME_ASSET.bytes) }
+      }));
+    }));
+    const layer = createRealmRabbitLayer({
+      instanceCount: 6,
+      baseUrl: '/',
+      heightAtWorld: () => 0,
+      requestTimeoutMs: 5
+    });
+
+    await vi.waitFor(() => expect(layer.getTelemetry().loadFallbackCount).toBe(1));
+    expect(transportSignal?.aborted).toBe(true);
+    expect(parserState.calls).toBe(0);
+    layer.dispose();
+  });
+
+  it('aborts a pending transport on disposal without recording a false fallback', async () => {
+    let transportSignal: AbortSignal | undefined;
+    const fetchMock = vi.fn((
+      _input: RequestInfo | URL,
+      init?: RequestInit
+    ) => {
+      transportSignal = init?.signal ?? undefined;
+      return new Promise<Response>(() => {});
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const ready = vi.fn();
+    const layer = createRealmRabbitLayer({
+      instanceCount: 6,
+      baseUrl: '/',
+      heightAtWorld: () => 0,
+      onModelReady: ready
+    });
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+    layer.dispose();
+    await Promise.resolve();
+    expect(transportSignal?.aborted).toBe(true);
+    expect(layer.getTelemetry().loadFallbackCount).toBe(0);
+    expect(ready).not.toHaveBeenCalled();
+  });
+
+  it('rolls back every adopted resource when initial habitat resolution fails', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => exactResponse()));
+    const ready = vi.fn();
+    const layer = createRealmRabbitLayer({
+      instanceCount: 6,
+      baseUrl: '/',
+      heightAtWorld: () => {
+        throw new Error('synthetic habitat failure');
+      },
+      isHabitat: () => true,
+      onModelReady: ready
+    });
+
+    layer.update(1, { x: 0, z: 0 }, 'keep');
+    await vi.waitFor(() => expect(layer.getTelemetry().loadFallbackCount).toBe(1));
+    expect(parserState.calls).toBe(1);
+    expect(layer.group.children).toHaveLength(0);
+    expect(layer.group.visible).toBe(false);
+    expect(layer.getTelemetry()).toMatchObject({
+      assetReady: false,
+      instanceCount: 0,
+      drawCalls: 0
+    });
+    expect(ready).toHaveBeenCalledOnce();
+    layer.dispose();
+  });
+
+  it('rejects dependent GLB URLs before invoking the parser', () => {
+    const dependent = SOURCE_BYTES.slice(0);
+    const view = new DataView(dependent);
+    const jsonLength = view.getUint32(12, true);
+    const jsonBytes = new Uint8Array(dependent, 20, jsonLength);
+    const json = JSON.stringify({
+      buffers: [{ byteLength: REALM_RABBIT_RUNTIME_ASSET.embeddedBufferBytes, uri: 'rabbit.bin' }]
+    });
+    jsonBytes.fill(0x20);
+    jsonBytes.set(new TextEncoder().encode(json));
+
+    expect(() => assertEmbeddedRealmRabbitRuntime(dependent))
+      .toThrow('must remain self-contained');
+    expect(parserState.calls).toBe(0);
   });
 });
