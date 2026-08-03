@@ -6,6 +6,10 @@
 export const WARPKEEP_ENTRY_AGREEMENT_VERSION =
   '2026-08-03-hegemony-entry-agreement-v5';
 
+/** Production publication remains blocked until the coordinated rollout PR. */
+export const WARPKEEP_ENTRY_AGREEMENT_RELEASE_STATUS =
+  'review-only-rollout-blocked';
+
 /** Compatibility alias retained by existing reducer and client imports. */
 export const WARPKEEP_ALPHA_TERMS_VERSION = WARPKEEP_ENTRY_AGREEMENT_VERSION;
 

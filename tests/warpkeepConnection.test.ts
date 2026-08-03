@@ -1215,6 +1215,10 @@ describe('Warpkeep authenticated connection boundary', () => {
     {
       requiredVersion: '2026-07-19-hegemony-entry-agreement-v2',
       acceptedCurrent: true
+    },
+    {
+      requiredVersion: '2026-07-31-hegemony-entry-agreement-v4',
+      acceptedCurrent: true
     }
   ])('rejects malformed or mismatched entry-agreement status %#', async raw => {
     const connection = {

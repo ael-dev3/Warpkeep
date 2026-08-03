@@ -2,6 +2,9 @@ import { spawnSync } from 'node:child_process';
 
 import { describe, expect, it } from 'vitest';
 
+// @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
+import { validatePagesDeploymentConfiguration } from '../scripts/validate-pages-deploy-config.mjs';
+
 const FULL_SHA = 'abcdef0123456789abcdef0123456789abcdef01';
 
 function deploymentEnvironment(overrides: Record<string, string> = {}) {
@@ -23,7 +26,7 @@ function deploymentEnvironment(overrides: Record<string, string> = {}) {
   };
 }
 
-function validate(overrides?: Record<string, string>) {
+function validateCli(overrides?: Record<string, string>) {
   return spawnSync(process.execPath, ['scripts/validate-pages-deploy-config.mjs'], {
     cwd: process.cwd(),
     encoding: 'utf8',
@@ -31,7 +34,30 @@ function validate(overrides?: Record<string, string>) {
   });
 }
 
+function validate(overrides?: Record<string, string>) {
+  try {
+    const stdout = validatePagesDeploymentConfiguration(
+      deploymentEnvironment(overrides),
+      { entryAgreementReleaseStatus: 'production-approved' },
+    );
+    return { status: 0, stdout, stderr: '' };
+  } catch (error) {
+    return {
+      status: 1,
+      stdout: '',
+      stderr: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
 describe('Pages deployment configuration validation', () => {
+  it('blocks the review-only agreement from the real deployment entry point', () => {
+    const result = validateCli();
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain('entry agreement is review-only');
+    expect(result.stderr).toContain('coordinated Pages and SpacetimeDB rollout approval');
+  });
+
   it('accepts the root-base canonical build with shared alpha deliberately disabled', () => {
     const result = validate();
     expect(result.status).toBe(0);

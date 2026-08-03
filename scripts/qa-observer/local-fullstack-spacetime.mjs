@@ -19,6 +19,9 @@ import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import {
+  WARPKEEP_ENTRY_AGREEMENT_VERSION,
+} from '../entry-agreement-policy.mjs';
 import { attestPinnedSpacetimeCli } from '../spacetime-cli-attestation.mjs';
 
 export const LOCAL_FULLSTACK_DATABASE = 'warpkeep-local-fullstack';
@@ -39,7 +42,6 @@ const SERVER_STOP_TIMEOUT_MILLISECONDS = 5_000;
 const PROFILE_POLICY_VERSION = 'trusted-snapchain-profile-v3';
 const RESOURCE_POLICY_VERSION = 'genesis-resource-yield-v1';
 const WORKER_PROTOCOL_CAPABILITY = 'generic-castle-workers-v1';
-const ENTRY_AGREEMENT_VERSION = '2026-08-03-hegemony-entry-agreement-v5';
 const LOCAL_FULLSTACK_FOUNDERS = Object.freeze(Array.from(
   { length: LOCAL_FULLSTACK_FOUNDER_COUNT },
   (_, index) => Object.freeze({
@@ -777,7 +779,7 @@ async function seedLocalRealm(server, privateKey, moduleDigest) {
   }
   await callPlayer('bootstrap_player_v2');
   await callPlayer('accept_alpha_terms_v1', JSON.stringify([
-    ENTRY_AGREEMENT_VERSION,
+    WARPKEEP_ENTRY_AGREEMENT_VERSION,
     true,
   ]));
   const currentEntryAgreement = JSON.parse(
@@ -786,7 +788,7 @@ async function seedLocalRealm(server, privateKey, moduleDigest) {
   if (
     !Array.isArray(currentEntryAgreement)
     || currentEntryAgreement.length !== 2
-    || currentEntryAgreement[0] !== ENTRY_AGREEMENT_VERSION
+    || currentEntryAgreement[0] !== WARPKEEP_ENTRY_AGREEMENT_VERSION
     || currentEntryAgreement[1] !== true
   ) {
     fail('Disposable founder did not retain exact-current entry agreement authority.');

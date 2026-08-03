@@ -40,6 +40,7 @@ import {
   publishModule,
   readFoundedPublishExpectations,
   requireCanonicalPublishCoordinates,
+  requireEntryAgreementProductionRelease,
   runCurrentAdditiveMigrationProof,
   validateIssuerDeployment,
   verifyCanonicalDatabaseList,
@@ -3195,6 +3196,19 @@ describe('activation publish safety', () => {
       WARPKEEP_SPACETIMEDB_DATABASE: 'warpkeep',
       WARPKEEP_SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
     })).not.toThrow();
+  });
+
+  it('blocks production publication while the entry agreement remains review-only', () => {
+    expect(() => requireEntryAgreementProductionRelease())
+      .toThrow(/entry agreement is review-only/i);
+    expect(() => requireEntryAgreementProductionRelease('production-approved'))
+      .not.toThrow();
+    expect(() => requireEntryAgreementProductionRelease(
+      'review-only-rollout-blocked',
+      true,
+    )).not.toThrow();
+    expect(() => requireEntryAgreementProductionRelease(''))
+      .toThrow(/coordinated Pages and SpacetimeDB rollout approval/i);
   });
 
   it('binds the repair operator to one recent private successful publication receipt', async () => {

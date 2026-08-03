@@ -11,6 +11,14 @@ export const WARPKEEP_ENTRY_AGREEMENT_VERSION =
   '2026-08-03-hegemony-entry-agreement-v5';
 
 /**
+ * Review-only bundles must never reach either production surface independently.
+ * The later coordinated rollout PR must change this exact value only after the
+ * owner/legal gate and browser/module compatibility proof are complete.
+ */
+export const WARPKEEP_ENTRY_AGREEMENT_RELEASE_STATUS =
+  'review-only-rollout-blocked';
+
+/**
  * Retained deployed reducer/input name. It identifies the complete linked
  * entry agreement, not the Terms document alone.
  */
@@ -27,3 +35,10 @@ export const WARPKEEP_ALPHA_TERMS_TEXT_SHA256 =
 /** SHA-256 of the canonical Social Contract's normalized visible <main> text. */
 export const WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_TEXT_SHA256 =
   '85941d066dd39f5be069d640f1419491e6fc0f691d01c292bfc3ed995c249110';
+
+/** Factual notice version published alongside the proposed entry agreement. */
+export const WARPKEEP_ALPHA_PRIVACY_NOTICE_VERSION = '2026-08-03-v6';
+
+/** SHA-256 of the canonical Privacy Notice's normalized visible <main> text. */
+export const WARPKEEP_ALPHA_PRIVACY_NOTICE_TEXT_SHA256 =
+  '79bd17b795b399391ed0f6f84f2c7ff35fdb3ae64bf4ca17e3df0ad67d7b361f';

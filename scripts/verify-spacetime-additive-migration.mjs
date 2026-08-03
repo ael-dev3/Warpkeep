@@ -21,6 +21,10 @@ import {
 import {
   canonicalTableSchemaBoundaryDigest,
 } from './spacetime-table-schema-attestation.mjs';
+import {
+  WARPKEEP_ENTRY_AGREEMENT_VERSION,
+  WARPKEEP_HISTORICAL_ENTRY_AGREEMENT_VERSIONS,
+} from './entry-agreement-policy.mjs';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const fixtureModule = resolve(
@@ -103,14 +107,9 @@ const actualModuleOtherFid = 730_002;
 // and is used only to prove the private v13 access-request lifecycle.
 const syntheticMissingAccessRequestFid = '9007199254740991';
 const syntheticSecondAccessRequestFid = '9007199254740990';
-const historicalEntryAgreementVersions = Object.freeze([
-  '2026-07-31-hegemony-entry-agreement-v4',
-  '2026-07-19-hegemony-entry-agreement-v3',
-  '2026-07-19-hegemony-entry-agreement-v2',
-  '2026-07-18-hegemony-entry-agreement-v1',
-  '2026-07-14',
-]);
-const alphaTermsVersion = '2026-08-03-hegemony-entry-agreement-v5';
+const historicalEntryAgreementVersions =
+  WARPKEEP_HISTORICAL_ENTRY_AGREEMENT_VERSIONS;
+const alphaTermsVersion = WARPKEEP_ENTRY_AGREEMENT_VERSION;
 const resourcePolicyVersion = 'genesis-resource-yield-v1';
 const marksPolicyVersion = 'admitted-daily-mark-v1';
 const profilePolicyVersion = 'trusted-snapchain-profile-v3';

@@ -11,6 +11,10 @@ full engineering record.
   moderation, history, and privacy boundaries. Chat remains disabled pending
   owner and qualified legal review, server authority, release gates, and a
   separate activation record; this draft collects no chat data.
+- Blocked independent production deployment of the review-only agreement on
+  both Pages and SpacetimeDB, pinned the proposed Privacy Notice text digest,
+  and removed duplicated agreement-version literals from migration and local
+  full-stack QA so rollout drift fails closed.
 - Prepared an optional **Enable Admission Alerts** step after a confirmed access
   request. It remains fail-closed behind a default-off release gate until the
   owner-controlled signed notification canary is complete, and never affects

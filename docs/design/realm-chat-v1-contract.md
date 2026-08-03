@@ -30,6 +30,15 @@ Merging this contract alone must not make a chat control visible or callable.
 The client-side `false` constant is documentary defense in depth, not an
 activation mechanism. Server channel state remains authoritative.
 
+The proposed V5 agreement is also marked `review-only-rollout-blocked`.
+Warpkeep's production Pages validator and canonical SpacetimeDB publisher must
+reject deployment/publication under that status. Read-only publisher dry runs
+remain available for compatibility evidence. A later reviewed rollout may change it to
+`production-approved` only when the exact legal approval and a coordinated
+browser/module compatibility proof are recorded. This prevents an automatic
+V5 Pages deployment from meeting a still-V4 production module and failing every
+player's entry-agreement handshake.
+
 ## V1 product boundary
 
 - One admitted-Realm channel only: `realm:genesis-001`.
@@ -130,6 +139,10 @@ data minimisation, transparent purposes, security, storage limits, and procedure
 for individual rights: [data protection basics](https://www.edpb.europa.eu/sme/learn-the-basics/data-protection-basics_en),
 [lawful processing](https://www.edpb.europa.eu/sme/be-compliant/process-personal-data-lawfully_en),
 and [individual rights](https://www.edpb.europa.eu/sme/be-compliant/respect-individuals-rights_ga).
+
+The exact normalized visible Privacy Notice text is integrity-pinned alongside
+the Terms and Social Contract even though the notice is not treated as blanket
+consent.
 
 The age/minor-participation policy is intentionally unresolved. This contract
 sets no age threshold. Activation is blocked until the owner and qualified legal

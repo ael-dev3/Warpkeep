@@ -36,6 +36,7 @@ import {
 } from './spacetime-table-schema-attestation.mjs';
 import {
   WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM,
+  WARPKEEP_ENTRY_AGREEMENT_RELEASE_STATUS,
 } from './entry-agreement-policy.mjs';
 import {
   attestPinnedSpacetimeCli,
@@ -1203,6 +1204,19 @@ export function requireCanonicalPublishCoordinates(source = process.env) {
     || (source.WARPKEEP_SPACETIMEDB_URI ?? CANONICAL_MAINCLOUD_URI) !== CANONICAL_MAINCLOUD_URI
   ) {
     fail('The production publisher is pinned to the canonical existing Warpkeep database.');
+  }
+}
+
+export function requireEntryAgreementProductionRelease(
+  releaseStatus = WARPKEEP_ENTRY_AGREEMENT_RELEASE_STATUS,
+  dryRun = false,
+) {
+  if (dryRun === true) return;
+  if (releaseStatus !== 'production-approved') {
+    fail(
+      'The current entry agreement is review-only; coordinated Pages and '
+      + 'SpacetimeDB rollout approval is required before production publication.',
+    );
   }
 }
 
@@ -3937,6 +3951,10 @@ async function main() {
     fail(`Set WARPKEEP_PUBLISH_CONFIRM=${database} after reviewing the target database; publish was not attempted.`);
   }
   const foundedExpectations = readFoundedPublishExpectations();
+  requireEntryAgreementProductionRelease(
+    WARPKEEP_ENTRY_AGREEMENT_RELEASE_STATUS,
+    dryRun,
+  );
   // Remove the Hermes credential from the ambient environment before the
   // long-running proof spawns any children. The bounded aggregate helpers
   // receive it only through stdin and every child environment stays allowlisted.
