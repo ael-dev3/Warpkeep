@@ -49,18 +49,20 @@ describe('versioned Alpha entry-agreement binding', () => {
     expect(WARPKEEP_ENTRY_AGREEMENT_VERSION).toBe(MODULE_ENTRY_AGREEMENT_VERSION);
     expect(WARPKEEP_ALPHA_TERMS_VERSION).toBe(WARPKEEP_ENTRY_AGREEMENT_VERSION);
     expect(WARPKEEP_ENTRY_AGREEMENT_VERSION).toBe(
-      '2026-07-31-hegemony-entry-agreement-v4',
+      '2026-08-03-hegemony-entry-agreement-v5',
     );
     expect(WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_VERSION).toBe(
-      '2026-07-19-HEGEMONY-SOCIAL-CONTRACT-V3',
+      '2026-08-03-HEGEMONY-SOCIAL-CONTRACT-V4',
     );
     expect(WARPKEEP_ENTRY_AGREEMENT_VERSION).toBe(
-      '2026-07-31-hegemony-entry-agreement-v4',
+      '2026-08-03-hegemony-entry-agreement-v5',
     );
     expect(WARPKEEP_ENTRY_AGREEMENT_VERSION).not.toBe('2026-07-14');
   });
 
   it('keeps historical evidence distinct from the current entry/gameplay version', () => {
+    expect(WARPKEEP_HISTORICAL_ENTRY_AGREEMENT_VERSIONS)
+      .toContain('2026-07-31-hegemony-entry-agreement-v4');
     expect(WARPKEEP_HISTORICAL_ENTRY_AGREEMENT_VERSIONS)
       .toContain('2026-07-19-hegemony-entry-agreement-v3');
     expect(WARPKEEP_HISTORICAL_ENTRY_AGREEMENT_VERSIONS).toContain('2026-07-14');

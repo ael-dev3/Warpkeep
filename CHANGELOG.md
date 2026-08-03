@@ -6,6 +6,11 @@ full engineering record.
 
 ## [Unreleased]
 
+- Drafted the next Alpha Terms, Hegemony Social Contract, and Privacy Notice
+  for a future persistent Realm Chat, including explicit conduct, reporting,
+  moderation, history, and privacy boundaries. Chat remains disabled pending
+  owner and qualified legal review, server authority, release gates, and a
+  separate activation record; this draft collects no chat data.
 - Prepared an optional **Enable Admission Alerts** step after a confirmed access
   request. It remains fail-closed behind a default-off release gate until the
   owner-controlled signed notification canary is complete, and never affects

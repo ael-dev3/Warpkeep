@@ -140,21 +140,37 @@ describe('public Alpha legal documents', () => {
     expect(termsText).toContain('Warpkeep is open source');
     expect(termsText).toContain('does not guarantee that a suggestion');
     expect(termsText).toContain('Access is allowlist gated and conditional');
+    expect(termsText).toContain('If Realm Chat is later activated');
+    expect(termsText).toContain('retained as Realm history');
+    expect(termsText).toContain('warning is not required or guaranteed');
+    expect(termsText).toContain('Good-faith criticism');
+    expect(termsText).toContain('age and minor-participation policy is not final');
+    expect(termsText).toContain('qualified legal reviewer');
     expect(termsText).not.toContain('tokens, points, airdrops');
   });
 
-  it('keeps the Hegemony covenant concise about fiction, conduct, and unfinished systems', () => {
+  it('keeps the Hegemony covenant explicit about fiction, conduct, moderation, and disabled chat', () => {
     for (const expected of [
       'Hegemony',
       'Article II',
       'Article III',
       'Article VI',
+      'Article VII',
       'Honest counsel strengthens',
       'Criticizing Warpkeep',
-      'Threats',
+      'credible threats or incitement',
+      'child sexual abuse material',
+      'non-consensual intimate content',
+      'unlawful hate or discriminatory abuse',
+      'broad, good-faith, contextual judgment',
+      'does not promise a formal appeal system',
+      'false, retaliatory, or abusive reports',
+      'Reporting must preserve the exact reported message',
+      'local muting affects only',
+      'disabled proposal pending owner and legal review',
       'core strategy loop',
       'Hegemony is game fiction',
-      'warn, limit, suspend, or revoke',
+      'A warning is not required or guaranteed',
     ]) expect(socialContractText).toContain(expected);
     for (const absent of ['Ouster', 'IP-level bans', 'Tribute is final']) {
       expect(socialContractText).not.toContain(absent);
@@ -196,12 +212,22 @@ describe('public Alpha legal documents', () => {
       WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_VERSION,
       WARPKEEP_ENTRY_AGREEMENT_VERSION,
       'cryptographically binds the exact visible Terms and Social Contract texts',
+      'Realm Chat is not active in this release',
+      'message body, channel, server-owned sequence and time',
+      'permanent archive, report records, and moderation reasons',
+      'current browser session',
+      'without routine gameplay expiry',
+      'restricted, tombstoned, anonymised, or erased',
+      'Reporters do not receive another player\'s private moderation outcome',
+      'age and minor-participation policy is unresolved',
+      'No age threshold is asserted by this draft',
     ]) expect(privacyText).toContain(expected);
 
     expect(privacyText).toMatch(/FID.*entry.agreement.*accept(?:ed|ance).*(?:time|timestamp)/i);
     expect(privacyText).toMatch(/not (?:this )?Privacy Notice.*blanket privacy consent/i);
     expect(privacyText).not.toContain('world, player, faction');
     expect(privacyText).not.toContain('tokens, points, airdrops');
+    expect(privacyText).not.toContain('Realm Chat is active');
   });
 
   it('keeps the narrow-screen retention table a labelled keyboard scroll region', () => {

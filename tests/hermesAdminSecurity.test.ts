@@ -477,7 +477,7 @@ describe('Hermes machine-readable output', () => {
     const status = foundedGenerationV2Status();
     expect(verifyGenesisExpansionPreconditionV3(status)).toEqual(status);
 
-    expect(WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM).toBe(5);
+    expect(WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM).toBe(6);
     const retainedHistoryStatus = {
       ...status,
       alphaTermsAcceptances: status.playersV2
