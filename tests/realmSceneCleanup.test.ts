@@ -3159,6 +3159,117 @@ describe('realm scene setup cleanup', () => {
     root.remove();
   });
 
+  it('keeps Mini App pinch zoom cadence-independent and gentler than standard web', () => {
+    let nextFrameId = 1;
+    let frameTime = 0;
+    const scheduled = new Map<number, FrameRequestCallback>();
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      const frameId = nextFrameId;
+      nextFrameId += 1;
+      scheduled.set(frameId, callback);
+      return frameId;
+    });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((frameId) => {
+      scheduled.delete(frameId);
+    });
+    const flushQueuedFrames = () => {
+      const callbacks = [...scheduled.values()];
+      scheduled.clear();
+      frameTime += 16;
+      callbacks.forEach((callback) => callback(frameTime));
+    };
+    const runPinch = (
+      stepCount: number,
+      chromeMode: 'miniapp' | 'desktop-web',
+      flushBetweenMoves = false
+    ) => {
+      const root = document.createElement('main');
+      root.className = 'realm-map-screen';
+      root.dataset.realmChromeMode = chromeMode;
+      const canvas = document.createElement('canvas');
+      canvas.className = 'realm-map-screen__canvas';
+      root.append(canvas);
+      document.body.append(root);
+      vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+        x: 0,
+        y: 0,
+        top: 0,
+        right: 800,
+        bottom: 600,
+        left: 0,
+        width: 800,
+        height: 600,
+        toJSON: () => ({})
+      });
+      Object.defineProperties(canvas, {
+        clientWidth: { configurable: true, value: 800 },
+        clientHeight: { configurable: true, value: 600 },
+        setPointerCapture: { configurable: true, value: vi.fn() },
+        releasePointerCapture: { configurable: true, value: vi.fn() },
+        hasPointerCapture: { configurable: true, value: vi.fn(() => true) }
+      });
+      const scene = createRealmScene(createOptions(canvas, {
+        surface: createRealmTerrainSurface(
+          `realm-pinch-cadence-${chromeMode}-${stepCount}`,
+          4,
+          5
+        ),
+        reducedMotion: true
+      }));
+      scene.frameFoundingDistrict();
+      scheduled.clear();
+      const initialZoom = scene.getCameraAttestation().zoom;
+
+      dispatchPointer(canvas, 'pointerdown', {
+        pointerId: 1,
+        clientX: 300,
+        clientY: 300,
+        pointerType: 'touch'
+      });
+      dispatchPointer(canvas, 'pointerdown', {
+        pointerId: 2,
+        clientX: 500,
+        clientY: 300,
+        pointerType: 'touch'
+      });
+      for (let step = 1; step <= stepCount; step += 1) {
+        dispatchPointer(canvas, 'pointermove', {
+          pointerId: 2,
+          clientX: 500 + (100 * step) / stepCount,
+          clientY: 300,
+          pointerType: 'touch'
+        });
+        if (flushBetweenMoves) flushQueuedFrames();
+      }
+      dispatchPointer(window, 'pointerup', {
+        pointerId: 2,
+        clientX: 600,
+        clientY: 300,
+        pointerType: 'touch'
+      });
+      dispatchPointer(window, 'pointerup', {
+        pointerId: 1,
+        clientX: 300,
+        clientY: 300,
+        pointerType: 'touch'
+      });
+
+      const zoomDelta = scene.getCameraAttestation().zoom - initialZoom;
+      scene.dispose();
+      root.remove();
+      scheduled.clear();
+      return zoomDelta;
+    };
+
+    const sparseMiniApp = runPinch(1, 'miniapp');
+    const denseMiniApp = runPinch(10, 'miniapp', true);
+    const standardWeb = runPinch(1, 'desktop-web');
+
+    expect(sparseMiniApp).not.toBe(0);
+    expect(denseMiniApp).toBeCloseTo(sparseMiniApp, 10);
+    expect(Math.abs(sparseMiniApp)).toBeLessThan(Math.abs(standardWeb));
+  });
+
   it('does not inherit pan-release inertia when a second finger only starts a pinch', () => {
     let nextFrameId = 1;
     let frameTime = 0;

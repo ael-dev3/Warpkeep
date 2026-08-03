@@ -40,6 +40,8 @@ export type RealmPointerPinch = Readonly<{
   centroidDelta: RealmPointerPosition;
   /** Multiplicative distance change since the previous pinch sample. */
   scaleRatio: number;
+  /** Multiplicative distance change since this two-pointer gesture began. */
+  scaleFromStart: number;
 }>;
 
 export type RealmPointerGestureResult = Readonly<{
@@ -160,6 +162,7 @@ export function createRealmPointerGestureCoordinator(
         : DEFAULT_TOUCH_DRAG_THRESHOLD
   );
   let pinchBaseline: PinchBaseline | null = null;
+  let pinchOriginDistance: number | null = null;
   let worldControlClickSuppressionPending = false;
   let disposed = false;
 
@@ -229,6 +232,7 @@ export function createRealmPointerGestureCoordinator(
     if (release) safelyRelease(pointer);
     else pointer.captured = false;
     pinchBaseline = pinchFor(pointers);
+    if (pointers.size < 2) pinchOriginDistance = null;
     resetRemainingPointer();
   };
 
@@ -240,6 +244,9 @@ export function createRealmPointerGestureCoordinator(
       if (!nextPinch) return result();
       const previousPinch = pinchBaseline ?? nextPinch;
       pinchBaseline = nextPinch;
+      if (pinchOriginDistance === null && nextPinch.distance > 0) {
+        pinchOriginDistance = nextPinch.distance;
+      }
       let captureStatus: RealmPointerCaptureStatus | null = null;
       pointers.forEach((activePointer) => {
         const status = markDragged(activePointer);
@@ -257,6 +264,11 @@ export function createRealmPointerGestureCoordinator(
           }),
           scaleRatio: previousPinch.distance > 0 && nextPinch.distance > 0
             ? nextPinch.distance / previousPinch.distance
+            : 1,
+          scaleFromStart: pinchOriginDistance !== null
+            && pinchOriginDistance > 0
+            && nextPinch.distance > 0
+            ? nextPinch.distance / pinchOriginDistance
             : 1
         })
       });
@@ -340,6 +352,9 @@ export function createRealmPointerGestureCoordinator(
       });
       pinchBaseline = pinchFor(pointers);
       const baseline = pinchBaseline;
+      pinchOriginDistance = baseline && baseline.distance > 0
+        ? baseline.distance
+        : null;
       return result({
         captureStatus,
         pinch: baseline ? Object.freeze({
@@ -347,7 +362,8 @@ export function createRealmPointerGestureCoordinator(
           centroid: Object.freeze({ ...baseline.centroid }),
           distance: baseline.distance,
           centroidDelta: Object.freeze({ x: 0, y: 0 }),
-          scaleRatio: 1
+          scaleRatio: 1,
+          scaleFromStart: 1
         }) : null
       });
     }
@@ -409,6 +425,7 @@ export function createRealmPointerGestureCoordinator(
     const activePointers = [...pointers.values()];
     pointers.clear();
     pinchBaseline = null;
+    pinchOriginDistance = null;
     activePointers.forEach(safelyRelease);
     return result({ cancelled: true });
   };

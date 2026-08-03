@@ -184,7 +184,8 @@ describe('Realm pointer gesture coordinator', () => {
         centroid: { x: 150, y: 100 },
         distance: 100,
         centroidDelta: { x: 0, y: 0 },
-        scaleRatio: 1
+        scaleRatio: 1,
+        scaleFromStart: 1
       }
     });
     expect(coordinator.move({
@@ -196,7 +197,8 @@ describe('Realm pointer gesture coordinator', () => {
     }).pinch).toMatchObject({
       reset: false,
       centroid: { x: 160, y: 105 },
-      centroidDelta: { x: 10, y: 5 }
+      centroidDelta: { x: 10, y: 5 },
+      scaleFromStart: Math.hypot(120, 10) / 100
     });
 
     expect(coordinator.end({ pointerId: 2, x: 220, y: 110 })).toMatchObject({
@@ -213,6 +215,52 @@ describe('Realm pointer gesture coordinator', () => {
     }).panDelta).toEqual({ x: 4, y: 3 });
     coordinator.end({ pointerId: 1, x: 104, y: 103 });
     expect(coordinator.consumeWorldControlClickSuppression()).toBe(true);
+  });
+
+  it('establishes a safe cumulative origin after coincident fingers separate', () => {
+    const coordinator = createRealmPointerGestureCoordinator();
+    coordinator.start({
+      pointerId: 1,
+      pointerType: 'touch',
+      lane: 'canvas',
+      x: 100,
+      y: 100
+    });
+    expect(coordinator.start({
+      pointerId: 2,
+      pointerType: 'touch',
+      lane: 'canvas',
+      x: 100,
+      y: 100
+    }).pinch).toMatchObject({
+      reset: true,
+      distance: 0,
+      scaleRatio: 1,
+      scaleFromStart: 1
+    });
+
+    expect(coordinator.move({
+      pointerId: 2,
+      pointerType: 'touch',
+      buttons: 1,
+      x: 110,
+      y: 100
+    }).pinch).toMatchObject({
+      distance: 10,
+      scaleRatio: 1,
+      scaleFromStart: 1
+    });
+    expect(coordinator.move({
+      pointerId: 2,
+      pointerType: 'touch',
+      buttons: 1,
+      x: 120,
+      y: 100
+    }).pinch).toMatchObject({
+      distance: 20,
+      scaleRatio: 2,
+      scaleFromStart: 2
+    });
   });
 
   it('keeps a session valid when capture throws and guards release failures', () => {
