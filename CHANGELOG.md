@@ -6,6 +6,20 @@ full engineering record.
 
 ## [Unreleased]
 
+- Prepared the inactive Inner Keep V1 foundation as one server-authoritative
+  construction loop: twelve fixed slots, four five-level economy buildings,
+  one internal Builder, exact resource recipes, offline completion, and a
+  functional portrait-first fallback.
+- Added an additive v15 schema with fail-closed rollout controls. A merge to
+  protected `main` triggers the existing verified Pages deployment, but the
+  compatible client remains dormant. Module publication, catalog seeding,
+  Builder backfill, asset authorization, and activation still require separate
+  owner review. The guarded publisher accepts only an explicitly selected
+  active-v14-to-inactive-v15 lane with exact preflight and postflight checks;
+  that source path does not itself authorize publication.
+- Pinned a curated Inner Keep art allowlist to one exact asset release and kept
+  every archive-only GLB and preview out of the runtime until explicit owner
+  authorization is recorded.
 - Prepared an optional **Enable Admission Alerts** step after a confirmed access
   request. It remains fail-closed behind a default-off release gate until the
   owner-controlled signed notification canary is complete, and never affects

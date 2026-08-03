@@ -4,7 +4,7 @@
  *
  * The complete generated bindings remain the canonical schema artifact under
  * `module_bindings/` and are still used by server-side operators. The player
- * only needs the public realm tables plus eleven read procedures and fifteen
+ * only needs the public realm tables plus thirteen read procedures and sixteen
  * self-service reducers. Keeping that runtime projection separate prevents
  * private/admin and machine-bound QA procedure names from becoming part of
  * the public Vite graph while preserving generated-binding parity unchanged.
@@ -39,12 +39,15 @@ import CollectWoodExpeditionV1Reducer from './module_bindings/collect_wood_exped
 import CollectStoneExpeditionV1Reducer from './module_bindings/collect_stone_expedition_v_1_reducer'
 import CollectResourcesV1Reducer from './module_bindings/collect_resources_v_1_reducer'
 import CastleRow from './module_bindings/castle_table'
+import CastleInnerKeepBuildingV1Row from './module_bindings/castle_inner_keep_building_v_1_table'
 import CastleWorkerV1Row from './module_bindings/castle_worker_v_1_table'
 import * as GetAlphaBackendInfoProcedure from './module_bindings/get_alpha_backend_info_procedure'
 import * as GetMyAdmissionStatusV2Procedure from './module_bindings/get_my_admission_status_v_2_procedure'
 import * as GetMyEntryAgreementStatusV1Procedure from './module_bindings/get_my_entry_agreement_status_v_1_procedure'
 import * as GetMyFoodExpeditionStateV1Procedure from './module_bindings/get_my_food_expedition_state_v_1_procedure'
 import * as GetMyGoldExpeditionStateV1Procedure from './module_bindings/get_my_gold_expedition_state_v_1_procedure'
+import * as GetMyInnerKeepRequestStatusV1Procedure from './module_bindings/get_my_inner_keep_request_status_v_1_procedure'
+import * as GetMyInnerKeepStateV1Procedure from './module_bindings/get_my_inner_keep_state_v_1_procedure'
 import * as GetMyWoodExpeditionStateV1Procedure from './module_bindings/get_my_wood_expedition_state_v_1_procedure'
 import * as GetMyStoneExpeditionStateV1Procedure from './module_bindings/get_my_stone_expedition_state_v_1_procedure'
 import * as GetMyResourceStateV1Procedure from './module_bindings/get_my_resource_state_v_1_procedure'
@@ -58,10 +61,15 @@ import DispatchStoneExpeditionV1Reducer from './module_bindings/dispatch_stone_e
 import RecallAllWorkersV1Reducer from './module_bindings/recall_all_workers_v_1_reducer'
 import RecallWorkerV1Reducer from './module_bindings/recall_worker_v_1_reducer'
 import ReturnLegacyExpeditionV1Reducer from './module_bindings/return_legacy_expedition_v_1_reducer'
+import InnerKeepStartProjectV1Reducer from './module_bindings/inner_keep_start_project_v_1_reducer'
 import FoodNodeOccupationV1Row from './module_bindings/food_node_occupation_v_1_table'
 import FoodSiteV1Row from './module_bindings/food_site_v_1_table'
 import GoldNodeOccupationV1Row from './module_bindings/gold_node_occupation_v_1_table'
 import GoldSiteV1Row from './module_bindings/gold_site_v_1_table'
+import InnerKeepBuildLevelV1Row from './module_bindings/inner_keep_build_level_v_1_table'
+import InnerKeepBuildingCatalogV1Row from './module_bindings/inner_keep_building_catalog_v_1_table'
+import InnerKeepLayoutV1Row from './module_bindings/inner_keep_layout_v_1_table'
+import InnerKeepSlotV1Row from './module_bindings/inner_keep_slot_v_1_table'
 import PlayerV2Row from './module_bindings/player_v_2_table'
 import RealmForestInstanceV1Row from './module_bindings/realm_forest_instance_v_1_table'
 import RealmForestLayoutV1Row from './module_bindings/realm_forest_layout_v_1_table'
@@ -101,6 +109,21 @@ const tablesSchema = __schema({
       { name: 'castle_tile_key_key', constraint: 'unique', columns: ['tileKey'] },
     ],
   }, CastleRow),
+  // Inner Keep exposes only its immutable policy/layout catalog and the
+  // identity-minimized castle project rows. Builder capacity, receipts, and
+  // scheduler rows stay private and are never part of the browser schema.
+  castleInnerKeepBuildingV1: __table({
+    name: 'castle_inner_keep_building_v1',
+    indexes: [
+      { accessor: 'buildingKey', name: 'castle_inner_keep_building_v1_building_key_idx_btree', algorithm: 'btree', columns: ['buildingKey'] },
+      { accessor: 'byCastle', name: 'castle_inner_keep_building_v1_castle_id_idx_btree', algorithm: 'btree', columns: ['castleId'] },
+      { accessor: 'slotKey', name: 'castle_inner_keep_building_v1_slot_key_idx_btree', algorithm: 'btree', columns: ['slotKey'] },
+    ],
+    constraints: [
+      { name: 'castle_inner_keep_building_v1_building_key_key', constraint: 'unique', columns: ['buildingKey'] },
+      { name: 'castle_inner_keep_building_v1_slot_key_key', constraint: 'unique', columns: ['slotKey'] },
+    ],
+  }, CastleInnerKeepBuildingV1Row),
   // Generic workers expose only stable identity, timing, and public node
   // occupation. Private assignments and cargo remain procedure-only.
   castleWorkerV1: __table({
@@ -168,6 +191,44 @@ const tablesSchema = __schema({
       { name: 'gold_site_v1_site_id_key', constraint: 'unique', columns: ['siteId'] },
     ],
   }, GoldSiteV1Row),
+  innerKeepBuildLevelV1: __table({
+    name: 'inner_keep_build_level_v1',
+    indexes: [
+      { accessor: 'buildingKind', name: 'inner_keep_build_level_v1_building_kind_idx_btree', algorithm: 'btree', columns: ['buildingKind'] },
+      { accessor: 'levelKey', name: 'inner_keep_build_level_v1_level_key_idx_btree', algorithm: 'btree', columns: ['levelKey'] },
+    ],
+    constraints: [
+      { name: 'inner_keep_build_level_v1_level_key_key', constraint: 'unique', columns: ['levelKey'] },
+    ],
+  }, InnerKeepBuildLevelV1Row),
+  innerKeepBuildingCatalogV1: __table({
+    name: 'inner_keep_building_catalog_v1',
+    indexes: [
+      { accessor: 'buildingKind', name: 'inner_keep_building_catalog_v1_building_kind_idx_btree', algorithm: 'btree', columns: ['buildingKind'] },
+    ],
+    constraints: [
+      { name: 'inner_keep_building_catalog_v1_building_kind_key', constraint: 'unique', columns: ['buildingKind'] },
+    ],
+  }, InnerKeepBuildingCatalogV1Row),
+  innerKeepLayoutV1: __table({
+    name: 'inner_keep_layout_v1',
+    indexes: [
+      { accessor: 'layoutId', name: 'inner_keep_layout_v1_layout_id_idx_btree', algorithm: 'btree', columns: ['layoutId'] },
+    ],
+    constraints: [
+      { name: 'inner_keep_layout_v1_layout_id_key', constraint: 'unique', columns: ['layoutId'] },
+    ],
+  }, InnerKeepLayoutV1Row),
+  innerKeepSlotV1: __table({
+    name: 'inner_keep_slot_v1',
+    indexes: [
+      { accessor: 'layoutId', name: 'inner_keep_slot_v1_layout_id_idx_btree', algorithm: 'btree', columns: ['layoutId'] },
+      { accessor: 'slotId', name: 'inner_keep_slot_v1_slot_id_idx_btree', algorithm: 'btree', columns: ['slotId'] },
+    ],
+    constraints: [
+      { name: 'inner_keep_slot_v1_slot_id_key', constraint: 'unique', columns: ['slotId'] },
+    ],
+  }, InnerKeepSlotV1Row),
   playerV2: __table({
     name: 'player_v2',
     indexes: [
@@ -396,6 +457,7 @@ const reducersSchema = __reducers(
   __reducerSchema('dispatch_wood_expedition_v1', DispatchWoodExpeditionV1Reducer),
   __reducerSchema('dispatch_stone_expedition_v1', DispatchStoneExpeditionV1Reducer),
   __reducerSchema('dispatch_worker_v1', DispatchWorkerV1Reducer),
+  __reducerSchema('inner_keep_start_project_v1', InnerKeepStartProjectV1Reducer),
   __reducerSchema('recall_worker_v1', RecallWorkerV1Reducer),
   __reducerSchema('recall_all_workers_v1', RecallAllWorkersV1Reducer),
   __reducerSchema('return_legacy_expedition_v1', ReturnLegacyExpeditionV1Reducer),
@@ -426,6 +488,16 @@ const proceduresSchema = __procedures(
     'get_my_gold_expedition_state_v1',
     GetMyGoldExpeditionStateV1Procedure.params,
     GetMyGoldExpeditionStateV1Procedure.returnType,
+  ),
+  __procedureSchema(
+    'get_my_inner_keep_request_status_v1',
+    GetMyInnerKeepRequestStatusV1Procedure.params,
+    GetMyInnerKeepRequestStatusV1Procedure.returnType,
+  ),
+  __procedureSchema(
+    'get_my_inner_keep_state_v1',
+    GetMyInnerKeepStateV1Procedure.params,
+    GetMyInnerKeepStateV1Procedure.returnType,
   ),
   __procedureSchema(
     'get_my_wood_expedition_state_v1',

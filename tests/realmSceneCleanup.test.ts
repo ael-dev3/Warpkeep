@@ -178,6 +178,7 @@ import type { RealmWorkerSceneRecord } from '../src/components/realm/realmWorker
 import {
   REALM_WORKER_REDUCED_MOTION_POSITION_INTERVAL_MS
 } from '../src/components/realm/realmWorkerLayer';
+import { createInnerKeepPresentation } from './fixtures/innerKeepPresentation';
 
 type ListenerSpy = ReturnType<typeof vi.spyOn>;
 
@@ -3695,6 +3696,171 @@ describe('realm scene setup cleanup', () => {
     expect(afterPinch.zoom).not.toBe(beforePinch.zoom);
     expect(clicks[1]).toHaveBeenCalledOnce();
     expect(clicks[2]).toHaveBeenCalledOnce();
+    expect(canvas.dataset.dragging).toBeUndefined();
+    expect(root.dataset.cameraInteracting).toBeUndefined();
+
+    scene.dispose();
+    root.remove();
+  });
+
+  it('keeps Inner Keep pan, pinch, wheel, and exact slot picks solely on the canvas', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    const root = document.createElement('main');
+    root.className = 'realm-map-screen';
+    const canvas = document.createElement('canvas');
+    canvas.className = 'realm-map-screen__canvas';
+    root.append(canvas);
+    document.body.append(root);
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      right: 800,
+      bottom: 600,
+      left: 0,
+      width: 800,
+      height: 600,
+      toJSON: () => ({})
+    });
+    Object.defineProperties(canvas, {
+      clientWidth: { configurable: true, value: 800 },
+      clientHeight: { configurable: true, value: 600 }
+    });
+    const onInnerKeepSceneStatusChange = vi.fn();
+    const onInnerKeepSlotSelect = vi.fn();
+    const scene = createRealmScene(createOptions(canvas, {
+      reducedMotion: true,
+      onInnerKeepSceneStatusChange,
+      onInnerKeepSlotSelect
+    }));
+    scene.reconcileInnerKeepPresentation?.(
+      createInnerKeepPresentation(),
+      { owningTerrainKind: 'meadow' }
+    );
+    scene.setSceneMode?.('INNER_KEEP');
+    await vi.waitFor(() => {
+      expect(onInnerKeepSceneStatusChange).toHaveBeenCalledWith('ready');
+    });
+
+    const renderer = webglState.instances[0]!;
+    const innerRender = () => {
+      const call = [...renderer.render.mock.calls].reverse().find(([candidate]) => (
+        (candidate as THREE.Scene).getObjectByName(
+          'inner-keep-slot-pad:inner-keep-slot-m01'
+        ) !== undefined
+      ));
+      if (!call) throw new Error('Missing Inner Keep render.');
+      return {
+        scene: call[0] as THREE.Scene,
+        camera: call[1] as THREE.OrthographicCamera
+      };
+    };
+    const projectedSlotCenter = () => {
+      const current = innerRender();
+      const pad = current.scene.getObjectByName(
+        'inner-keep-slot-pad:inner-keep-slot-m01'
+      );
+      if (!pad) throw new Error('Missing Inner Keep test pad.');
+      current.scene.updateMatrixWorld(true);
+      current.camera.updateMatrixWorld(true);
+      const projected = pad.getWorldPosition(new THREE.Vector3()).project(current.camera);
+      return {
+        x: (projected.x + 1) * 400,
+        y: (1 - projected.y) * 300
+      };
+    };
+
+    const beforeDrag = projectedSlotCenter();
+    dispatchPointer(canvas, 'pointerdown', {
+      pointerId: 301,
+      pointerType: 'touch',
+      clientX: beforeDrag.x,
+      clientY: beforeDrag.y
+    });
+    const drag = dispatchPointer(window, 'pointermove', {
+      pointerId: 301,
+      pointerType: '',
+      buttons: 0,
+      clientX: beforeDrag.x + 54,
+      clientY: beforeDrag.y + 22
+    });
+    dispatchPointer(window, 'pointerup', {
+      pointerId: 301,
+      pointerType: 'touch',
+      buttons: 0,
+      clientX: beforeDrag.x + 54,
+      clientY: beforeDrag.y + 22
+    });
+    const afterDrag = projectedSlotCenter();
+    expect(drag.defaultPrevented).toBe(true);
+    expect(afterDrag.x).not.toBeCloseTo(beforeDrag.x, 2);
+    expect(afterDrag.y).not.toBeCloseTo(beforeDrag.y, 2);
+    expect(onInnerKeepSlotSelect).not.toHaveBeenCalled();
+
+    const camera = innerRender().camera;
+    const beforeWheelSpan = camera.right - camera.left;
+    const wheel = new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      clientX: afterDrag.x,
+      clientY: afterDrag.y,
+      deltaY: -240,
+      deltaMode: WheelEvent.DOM_DELTA_PIXEL
+    });
+    canvas.dispatchEvent(wheel);
+    expect(wheel.defaultPrevented).toBe(true);
+    expect(camera.right - camera.left).toBeLessThan(beforeWheelSpan);
+
+    const beforePinchSpan = camera.right - camera.left;
+    dispatchPointer(canvas, 'pointerdown', {
+      pointerId: 302,
+      pointerType: 'touch',
+      clientX: 260,
+      clientY: 320
+    });
+    const secondDown = dispatchPointer(canvas, 'pointerdown', {
+      pointerId: 303,
+      pointerType: 'touch',
+      clientX: 540,
+      clientY: 320
+    });
+    dispatchPointer(window, 'pointermove', {
+      pointerId: 303,
+      pointerType: '',
+      buttons: 0,
+      clientX: 600,
+      clientY: 320
+    });
+    dispatchPointer(window, 'pointerup', {
+      pointerId: 303,
+      pointerType: 'touch',
+      buttons: 0,
+      clientX: 600,
+      clientY: 320
+    });
+    dispatchPointer(window, 'pointerup', {
+      pointerId: 302,
+      pointerType: 'touch',
+      buttons: 0,
+      clientX: 260,
+      clientY: 320
+    });
+    expect(secondDown.defaultPrevented).toBe(true);
+    expect(camera.right - camera.left).not.toBeCloseTo(beforePinchSpan, 4);
+
+    const afterCameraMotion = projectedSlotCenter();
+    dispatchPointer(canvas, 'pointerdown', {
+      pointerId: 304,
+      clientX: afterCameraMotion.x,
+      clientY: afterCameraMotion.y
+    });
+    dispatchPointer(window, 'pointerup', {
+      pointerId: 304,
+      buttons: 0,
+      clientX: afterCameraMotion.x,
+      clientY: afterCameraMotion.y
+    });
+    expect(onInnerKeepSlotSelect).toHaveBeenCalledWith('inner-keep-slot-m01');
     expect(canvas.dataset.dragging).toBeUndefined();
     expect(root.dataset.cameraInteracting).toBeUndefined();
 

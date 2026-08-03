@@ -3,6 +3,7 @@ import {
   existsSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   rmSync,
   statSync,
 } from 'node:fs';
@@ -23,7 +24,7 @@ import { hasUsableWarpkeepBridge } from '../src/spacetime/warpkeepConfig';
 // @ts-expect-error The development-only Vite plugin is an executable ESM module.
 import { LOCAL_FULLSTACK_BOOTSTRAP_MODULE_ID, localFullstackBootstrapVitePlugin } from '../scripts/qa-observer/local-fullstack-bootstrap-vite-plugin.mjs';
 // @ts-expect-error The development-only browser probe is an executable ESM module.
-import { installLocalFullstackSignalCleanup, isAllowedLocalFullstackBrowserUrl, safeBrowserRuntimeExceptionCode } from '../scripts/qa-observer/local-fullstack-browser-probe.mjs';
+import { dispatchInnerKeepTouchCompatibilityClick, installLocalFullstackSignalCleanup, isAllowedLocalFullstackBrowserUrl, safeBrowserRuntimeExceptionCode } from '../scripts/qa-observer/local-fullstack-browser-probe.mjs';
 // @ts-expect-error The disposable SpacetimeDB launcher is an executable ESM module.
 import { runDisposableLocalFullstackCli, startDisposableLocalFullstackSpacetime, terminateLocalFullstackProcessGroup } from '../scripts/qa-observer/local-fullstack-spacetime.mjs';
 
@@ -72,6 +73,45 @@ describe('privacy-safe browser runtime diagnostics', () => {
       exception: { description: 'Error: secret-like diagnostic must stay private' },
     })).toBe('runtime-exception');
     expect(safeBrowserRuntimeExceptionCode(undefined)).toBe('');
+  });
+});
+
+describe('Inner Keep full-stack input contract', () => {
+  it('keeps touch and its compatibility click in one ordered activation train', async () => {
+    const command = vi.fn(async () => ({}));
+
+    await dispatchInnerKeepTouchCompatibilityClick(
+      { command },
+      { x: 412.5, y: 318.25 }
+    );
+
+    expect(command.mock.calls).toEqual([
+      ['Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 }],
+      ['Input.dispatchTouchEvent', {
+        type: 'touchStart',
+        touchPoints: [{ x: 412.5, y: 318.25 }],
+      }],
+      ['Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }],
+      ['Input.dispatchMouseEvent', {
+        type: 'mousePressed',
+        x: 412.5,
+        y: 318.25,
+        button: 'left',
+        buttons: 1,
+        clickCount: 1,
+        pointerType: 'mouse',
+      }],
+      ['Input.dispatchMouseEvent', {
+        type: 'mouseReleased',
+        x: 412.5,
+        y: 318.25,
+        button: 'left',
+        buttons: 0,
+        clickCount: 1,
+        pointerType: 'mouse',
+      }],
+      ['Emulation.setTouchEmulationEnabled', { enabled: false }],
+    ]);
   });
 });
 
@@ -337,6 +377,113 @@ describe('disposable connected local QA dependency and network boundaries', () =
     );
   });
 
+  it('keeps the Inner Keep journey authoritative, loopback-only, and absent from production output', () => {
+    const root = process.cwd();
+    const launcherSource = readFileSync(
+      resolve(root, 'scripts/qa-observer/local-fullstack-spacetime.mjs'),
+      'utf8'
+    );
+    const browserSource = readFileSync(
+      resolve(root, 'scripts/qa-observer/local-fullstack-browser-probe.mjs'),
+      'utf8'
+    );
+    const appSource = readFileSync(
+      resolve(root, 'src/dev/FullstackLocalQaApp.tsx'),
+      'utf8'
+    );
+    const resourcePolicySource = readFileSync(
+      resolve(root, 'spacetimedb/src/resourceAuthorityPolicy.ts'),
+      'utf8'
+    );
+    const innerKeepAuthoritySource = readFileSync(
+      resolve(root, 'spacetimedb/src/innerKeepAuthority.ts'),
+      'utf8'
+    );
+
+    expect(resourcePolicySource).toContain([
+      'export const GENESIS_STARTING_RESOURCE_BALANCES: ResourceBalances = Object.freeze({',
+      '  food: 0n,',
+      '  wood: 0n,',
+      '  stone: 0n,',
+      '  gold: 0n,',
+    ].join('\n'));
+    expect(launcherSource).toContain('LOCAL_INNER_KEEP_RESOURCE_QA_DECLARATION');
+    expect(launcherSource).toContain('LOCAL_INNER_KEEP_COMPLETION_QA_DECLARATION');
+    expect(launcherSource).toContain('LOCAL_INNER_KEEP_SCHEDULE_QA_DECLARATION');
+    expect(launcherSource).toContain('LOCAL_INNER_KEEP_SCHEDULE_MATCH_QA_DECLARATION');
+    expect(launcherSource).toContain(
+      "'get_my_inner_keep_request_status_v1'"
+    );
+    expect(launcherSource).toContain(
+      "await callAdmin('admin_seed_inner_keep_catalog_v1'"
+    );
+    expect(launcherSource).toContain(
+      "await callAdmin('admin_backfill_inner_keep_builders_v1'"
+    );
+    expect(launcherSource).toContain(
+      "await callAdmin('admin_activate_inner_keep_v1'"
+    );
+    expect(launcherSource).not.toContain('qa_inner_keep');
+    expect(launcherSource).not.toContain('admin_complete_inner_keep');
+    expect(innerKeepAuthoritySource).toContain(
+      "if (now < building.completesAtMicros) fail('INNER_KEEP_COMPLETION_EARLY');"
+    );
+    expect(innerKeepAuthoritySource).toContain(
+      'scheduledAt: ScheduleAt.time(project.completesAtMicros)'
+    );
+    expect(innerKeepAuthoritySource).toContain(
+      'scheduledAtMicros === building.completesAtMicros'
+    );
+    expect(innerKeepAuthoritySource).not.toContain(
+      'warpkeep-disposable-inner-keep-completion-v1'
+    );
+    for (const evidence of [
+      'exerciseLocalInnerKeepFirstStart',
+      'dispatchInnerKeepTouchCompatibilityClick',
+      'exerciseLocalInnerKeepCompletionAndSecondStart',
+      'exerciseLocalInnerKeepReloadPersistence',
+      "'inner-keep-first-start-ready'",
+      "'inner-keep-first-project-authority'",
+      "'inner-keep-final-authority'",
+      "'inner-keep-hard-reload-persistence'",
+      'value.activationAttemptCount !== 1',
+      'database.inspectInnerKeepFirstProject(',
+      "'.inner-keep-worksite__scaffold'",
+      "'.inner-keep-worksite__smoke'",
+      "value.discountedFoodCost !== 480",
+      "value.worksiteCount !== 1",
+      "value.cameraPreserved !== true",
+      "value.publicWorkerCount !== 28",
+    ]) expect(browserSource).toContain(evidence);
+    for (const evidence of [
+      'data-local-fullstack-inner-keep-attempt',
+      'data-local-fullstack-inner-keep-request-key',
+      'data-local-fullstack-inner-keep-state',
+      'DEFAULT_WARPKEEP_BACKEND_RUNTIME.startInnerKeepProject',
+    ]) expect(appSource).toContain(evidence);
+
+    const productionFiles: string[] = [];
+    const visit = (directory: string) => {
+      for (const entry of readdirSync(directory, { withFileTypes: true })) {
+        const path = resolve(directory, entry.name);
+        if (entry.isDirectory()) visit(path);
+        else if (entry.isFile() && /\.(?:js|mjs|ts|tsx)$/.test(entry.name)) {
+          productionFiles.push(path);
+        }
+      }
+    };
+    visit(resolve(root, 'spacetimedb/src'));
+    const productionBundle = resolve(root, 'spacetimedb/dist/bundle.js');
+    if (existsSync(productionBundle)) productionFiles.push(productionBundle);
+    for (const file of productionFiles) {
+      const source = readFileSync(file, 'utf8');
+      expect(source, file).not.toContain('warpkeep-disposable-inner-keep-completion-v1');
+      expect(source, file).not.toContain('data-local-fullstack-inner-keep');
+      expect(source, file).not.toContain('qa_inner_keep');
+      expect(source, file).not.toContain('admin_complete_inner_keep');
+    }
+  });
+
   it('allows browser requests only to the two numeric-loopback origins and exact profile fixture', () => {
     const viteOrigin = 'http://127.0.0.1:4173';
     const spacetimeOrigin = 'http://127.0.0.1:3000';
@@ -570,7 +717,7 @@ describe('disposable connected local QA dependency and network boundaries', () =
     expect(browserSource).toContain('value.termsSkipped !== true');
     expect(
       browserSource.match(/candidate\.closest\('\[inert\]'\) === null/g)
-    ).toHaveLength(5);
+    ).toHaveLength(7);
     expect(browserSource).toContain(
       "'one synthetic cold auth/bootstrap/Terms '"
     );

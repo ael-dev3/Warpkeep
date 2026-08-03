@@ -1595,6 +1595,22 @@ export function WarpkeepExperience() {
                 workerProjection={backend.state.workerProjection}
                 workerRoster={backend.state.workerRoster}
                 workerResourceState={backend.state.workerResourceState}
+                innerKeep={backend.state.innerKeep}
+                onStartInnerKeepProject={
+                  backend.state.phase === 'ready'
+                  && backend.state.admission === 'ready'
+                  && backendMutationAuthorityCurrent
+                  && backend.state.innerKeep?.phase === 'ready'
+                  && backend.state.innerKeep.commandsEnabled
+                    ? backend.startInnerKeepProject
+                    : undefined}
+                onRequestInnerKeepSync={
+                  backend.state.phase === 'ready'
+                  && backend.state.admission === 'ready'
+                  && backendMutationAuthorityCurrent
+                  && backend.state.innerKeep !== undefined
+                    ? backend.retryInnerKeepSync
+                    : undefined}
                 workerPrivateSync={backend.workerPrivateSync}
                 onRetryWorkerPrivateSync={backend.retryWorkerPrivateSync}
                 onDispatchWorker={
@@ -1688,7 +1704,7 @@ export function WarpkeepExperience() {
         suspended={miniAppEntryGateActive}
       />
       <WarpkeepSfxDirector muted={audioMuted} />
-      <WarpkeepHapticsDirector />
+      <WarpkeepHapticsDirector muted={audioMuted} />
     </div>
   );
 }

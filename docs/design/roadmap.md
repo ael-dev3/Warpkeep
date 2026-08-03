@@ -26,20 +26,28 @@ world foundation and visual representation of what is being built.
 
 ## Now building
 
-The next useful slice rolls out the prepared four-worker controls and gives
-gathered resources a small, understandable purpose:
+The next useful slice gives gathered resources a small, understandable purpose
+inside each player's own castle:
 
-1. make expedition progress and return clearer;
-2. add one durable construction or keep-improvement choice;
-3. let its result remain visible in the shared world;
-4. test whether that loop is enjoyable before adding breadth.
+1. enter a twelve-slot Inner Keep compound without leaving the Realm session;
+2. spend stored resources on one of four server-priced economy buildings;
+3. let one internal Builder complete construction while the player is away;
+4. keep the completed level visible and use its matching resource discount;
+5. test whether that loop is enjoyable before adding breadth.
 
-Buildings, units, and other map systems remain design work until they are
+This work is prepared behind an inactive component gate. A merge to protected
+`main` triggers the existing verified Pages deployment of the compatible,
+dormant client. It does not publish the schema, seed the catalog, backfill
+Builders, authorize archive assets, activate construction, or make the loop
+playable. Units and other map systems remain design work until they are
 intentionally released.
 
-## After the resource loop
+The exact inactive V1 policy and release gates are documented in
+[Inner Keep construction V1](inner-keep-construction.md).
 
-- construction and upgrades with server-owned costs and queues;
+## After the Inner Keep loop
+
+- more construction choices and deliberately bounded queue options;
 - unit training, scouting, travel, and map visibility;
 - defenses, raids, and bounded combat;
 - alliances, diplomacy, trading, chat, and seasons;

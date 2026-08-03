@@ -29,6 +29,12 @@ export const LOCAL_FULLSTACK_PROFILE_URL =
   'https://i.imgur.com/warpkeep-local-keeper.png';
 export const LOCAL_FULLSTACK_FOUNDER_COUNT = 7;
 export const LOCAL_FULLSTACK_WORKER_COUNT = LOCAL_FULLSTACK_FOUNDER_COUNT * 4;
+export const LOCAL_FULLSTACK_INNER_KEEP_RESOURCES = Object.freeze({
+  food: 10_000n,
+  wood: 10_000n,
+  stone: 10_000n,
+  gold: 10_000n,
+});
 
 const REPOSITORY_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const SOURCE_MODULE = join(REPOSITORY_ROOT, 'spacetimedb');
@@ -40,6 +46,16 @@ const PROFILE_POLICY_VERSION = 'trusted-snapchain-profile-v3';
 const RESOURCE_POLICY_VERSION = 'genesis-resource-yield-v1';
 const WORKER_PROTOCOL_CAPABILITY = 'generic-castle-workers-v1';
 const ENTRY_AGREEMENT_VERSION = '2026-07-31-hegemony-entry-agreement-v4';
+const INNER_KEEP_PROTOCOL_CAPABILITY = 'inner-keep-construction-v1';
+const INNER_KEEP_POLICY_VERSION = 'genesis-001-inner-keep-construction-v1';
+const INNER_KEEP_POLICY_DIGEST =
+  'b3ca0d7ce3a30d3f89e0fe295864dc9c7237fbf5dedc3d8e8c2ed45586d2355e';
+const INNER_KEEP_LAYOUT_POLICY_VERSION = 'genesis-001-inner-keep-layout-v1';
+const INNER_KEEP_LAYOUT_DIGEST =
+  'dc314255b0046f5b43be836b52ab4b7af94a2d25992031f75aee89b1a81490c7';
+const INNER_KEEP_ASSET_CATALOG_DIGEST =
+  '6763aeb1755d800b817a0d5174182474d3836a928c59beb4b4fdf65f5d1f6ec3';
+const LOCAL_INNER_KEEP_FIRST_COMPLETION_DELAY_MICROS = 15_000_000n;
 const LOCAL_FULLSTACK_FOUNDERS = Object.freeze(Array.from(
   { length: LOCAL_FULLSTACK_FOUNDER_COUNT },
   (_, index) => Object.freeze({
@@ -106,6 +122,54 @@ const LOCAL_WORKER_GATHERING_DURATION_SOURCE_DECLARATIONS = Object.freeze(
     });
   })
 );
+const LOCAL_INNER_KEEP_RESOURCE_SOURCE_DECLARATION = `export const GENESIS_STARTING_RESOURCE_BALANCES: ResourceBalances = Object.freeze({
+  food: 0n,
+  wood: 0n,
+  stone: 0n,
+  gold: 0n,
+});`;
+const LOCAL_INNER_KEEP_RESOURCE_QA_DECLARATION = `export const GENESIS_STARTING_RESOURCE_BALANCES: ResourceBalances = Object.freeze({
+  food: ${LOCAL_FULLSTACK_INNER_KEEP_RESOURCES.food}n,
+  wood: ${LOCAL_FULLSTACK_INNER_KEEP_RESOURCES.wood}n,
+  stone: ${LOCAL_FULLSTACK_INNER_KEEP_RESOURCES.stone}n,
+  gold: ${LOCAL_FULLSTACK_INNER_KEEP_RESOURCES.gold}n,
+});`;
+const LOCAL_INNER_KEEP_COMPLETION_SOURCE_DECLARATION =
+  "  if (now < building.completesAtMicros) fail('INNER_KEEP_COMPLETION_EARLY');";
+const LOCAL_INNER_KEEP_COMPLETION_QA_DECLARATION = `  // warpkeep-disposable-inner-keep-completion-v1
+  const completionAuthorityMicros = (
+    building.buildingKind === 'city-mill'
+    && building.targetLevel === 1
+  )
+    ? safeAddU64(
+        building.startedAtMicros,
+        ${LOCAL_INNER_KEEP_FIRST_COMPLETION_DELAY_MICROS}n,
+        'INNER_KEEP_TIME_OVERFLOW',
+      )
+    : building.completesAtMicros;
+  if (now < completionAuthorityMicros) fail('INNER_KEEP_COMPLETION_EARLY');`;
+const LOCAL_INNER_KEEP_SCHEDULE_SOURCE_DECLARATION =
+  '    scheduledAt: ScheduleAt.time(project.completesAtMicros),';
+const LOCAL_INNER_KEEP_SCHEDULE_QA_DECLARATION = `    scheduledAt: ScheduleAt.time(
+      project.buildingKind === 'city-mill' && project.targetLevel === 1
+        ? safeAddU64(
+            startedAtMicros,
+            ${LOCAL_INNER_KEEP_FIRST_COMPLETION_DELAY_MICROS}n,
+            'INNER_KEEP_TIME_OVERFLOW',
+          )
+        : project.completesAtMicros
+    ),`;
+const LOCAL_INNER_KEEP_SCHEDULE_MATCH_SOURCE_DECLARATION =
+  '    && scheduledAtMicros === building.completesAtMicros';
+const LOCAL_INNER_KEEP_SCHEDULE_MATCH_QA_DECLARATION = `    && scheduledAtMicros === (
+      building.buildingKind === 'city-mill' && building.targetLevel === 1
+        ? safeAddU64(
+            building.startedAtMicros,
+            ${LOCAL_INNER_KEEP_FIRST_COMPLETION_DELAY_MICROS}n,
+            'INNER_KEEP_TIME_OVERFLOW',
+          )
+        : building.completesAtMicros
+    )`;
 const LOCAL_CLIENT_ARTIFACT_DIGEST = createHash('sha256')
   .update('warpkeep-disposable-local-fullstack-client-v1')
   .digest('hex');
@@ -313,7 +377,10 @@ async function callLocalProcedure({
   }
   const text = await readBoundedResponse(response, credential);
   if (response.status !== expectedStatus) {
-    fail(`Local SpacetimeDB call ${name} failed safely.`);
+    const innerKeepCode = /\b(INNER_KEEP_[A-Z0-9_]{1,80})\b/.exec(text)?.[1];
+    fail(`Local SpacetimeDB call ${name} failed safely${
+      innerKeepCode ? ` (${innerKeepCode})` : ''
+    }.`);
   }
   return text;
 }
@@ -453,6 +520,26 @@ async function createLocalModule(runtimeDirectory) {
       declaration.qa
     );
   }
+  await rewriteCopiedConstant(
+    'resourceAuthorityPolicy.ts',
+    LOCAL_INNER_KEEP_RESOURCE_SOURCE_DECLARATION,
+    LOCAL_INNER_KEEP_RESOURCE_QA_DECLARATION
+  );
+  await rewriteCopiedConstant(
+    'innerKeepAuthority.ts',
+    LOCAL_INNER_KEEP_COMPLETION_SOURCE_DECLARATION,
+    LOCAL_INNER_KEEP_COMPLETION_QA_DECLARATION
+  );
+  await rewriteCopiedConstant(
+    'innerKeepAuthority.ts',
+    LOCAL_INNER_KEEP_SCHEDULE_SOURCE_DECLARATION,
+    LOCAL_INNER_KEEP_SCHEDULE_QA_DECLARATION
+  );
+  await rewriteCopiedConstant(
+    'innerKeepAuthority.ts',
+    LOCAL_INNER_KEEP_SCHEDULE_MATCH_SOURCE_DECLARATION,
+    LOCAL_INNER_KEEP_SCHEDULE_MATCH_QA_DECLARATION
+  );
   return moduleDirectory;
 }
 
@@ -577,6 +664,224 @@ function readOptionalString(value) {
       ? `object-${Object.keys(value).sort().join('-').replace(/[^a-z0-9-]/gi, '')}`
       : typeof value;
   fail(`Worker control projection option shape was invalid (${shape}).`);
+}
+
+function readOptionalValue(value) {
+  if (value === null || value === undefined) return undefined;
+  if (Array.isArray(value) && value.length === 2) {
+    if (value[0] === 0) return value[1];
+    if (value[0] === 1) return undefined;
+  }
+  if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+    const keys = Object.keys(value);
+    if (keys.length === 1 && keys[0] === 'some') return value.some;
+    if (keys.length === 1 && keys[0] === 'none') return undefined;
+  }
+  return value;
+}
+
+function readOptionalUnsigned(value) {
+  const unwrapped = readOptionalValue(value);
+  return unwrapped === undefined ? undefined : readUnsigned(unwrapped);
+}
+
+function parseInnerKeepCatalogPlan(text) {
+  let value;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    fail('Inner Keep catalog plan JSON was invalid.');
+  }
+  if (
+    !Array.isArray(value)
+    || value.length !== 5
+    || ![0n, 1n].includes(readUnsigned(value[0]))
+    || ![0n, 12n].includes(readUnsigned(value[1]))
+    || ![0n, 4n].includes(readUnsigned(value[2]))
+    || ![0n, 20n].includes(readUnsigned(value[3]))
+    || typeof value[4] !== 'boolean'
+  ) fail('Inner Keep catalog plan was invalid.');
+  const plan = Object.freeze({
+    missingLayout: Number(readUnsigned(value[0])),
+    missingSlots: Number(readUnsigned(value[1])),
+    missingBuildings: Number(readUnsigned(value[2])),
+    missingLevels: Number(readUnsigned(value[3])),
+    ready: value[4],
+  });
+  if (plan.ready !== (
+    plan.missingLayout === 0
+    && plan.missingSlots === 0
+    && plan.missingBuildings === 0
+    && plan.missingLevels === 0
+  )) fail('Inner Keep catalog plan readiness was invalid.');
+  return plan;
+}
+
+function parseInnerKeepBuilderPlan(text) {
+  let value;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    fail('Inner Keep Builder plan JSON was invalid.');
+  }
+  if (!Array.isArray(value) || value.length !== 4 || typeof value[3] !== 'boolean') {
+    fail('Inner Keep Builder plan was invalid.');
+  }
+  const plan = Object.freeze({
+    expectedCastles: Number(readUnsigned(value[0])),
+    existingBuilders: Number(readUnsigned(value[1])),
+    missingBuilders: Number(readUnsigned(value[2])),
+    ready: value[3],
+  });
+  if (
+    plan.expectedCastles !== LOCAL_FULLSTACK_FOUNDER_COUNT
+    || plan.existingBuilders + plan.missingBuilders !== plan.expectedCastles
+    || plan.ready !== (plan.existingBuilders === plan.expectedCastles)
+  ) fail('Inner Keep Builder plan readiness was invalid.');
+  return plan;
+}
+
+function parseInnerKeepStatus(text) {
+  let value;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    fail('Inner Keep aggregate JSON was invalid.');
+  }
+  if (!Array.isArray(value) || value.length !== 27) {
+    fail('Inner Keep aggregate shape was invalid.');
+  }
+  const status = Object.freeze({
+    layoutRows: readUnsigned(value[0]),
+    slotRows: readUnsigned(value[1]),
+    buildingCatalogRows: readUnsigned(value[2]),
+    levelPolicyRows: readUnsigned(value[3]),
+    castleRows: readUnsigned(value[4]),
+    builderRows: readUnsigned(value[5]),
+    buildingRows: readUnsigned(value[6]),
+    activeProjects: readUnsigned(value[7]),
+    receiptRows: readUnsigned(value[8]),
+    scheduleRows: readUnsigned(value[9]),
+    missingBuilders: readUnsigned(value[10]),
+    orphanBuilders: readUnsigned(value[11]),
+    invalidBuilders: readUnsigned(value[12]),
+    invalidBuildings: readUnsigned(value[13]),
+    invalidSchedules: readUnsigned(value[14]),
+    builderProjectMismatches: readUnsigned(value[15]),
+    staticCatalogExact: value[16],
+    workerSystemReady: value[17],
+    readyForCatalogSeed: value[18],
+    readyForBuilderBackfill: value[19],
+    readyForActivation: value[20],
+    active: value[21],
+    policyVersion: value[22],
+    policyDigest: value[23],
+    layoutPolicyVersion: value[24],
+    layoutDigest: value[25],
+    assetCatalogDigest: value[26],
+  });
+  if (
+    [
+      status.staticCatalogExact,
+      status.workerSystemReady,
+      status.readyForCatalogSeed,
+      status.readyForBuilderBackfill,
+      status.readyForActivation,
+      status.active,
+    ].some((entry) => typeof entry !== 'boolean')
+    || status.policyVersion !== INNER_KEEP_POLICY_VERSION
+    || status.policyDigest !== INNER_KEEP_POLICY_DIGEST
+    || status.layoutPolicyVersion !== INNER_KEEP_LAYOUT_POLICY_VERSION
+    || status.layoutDigest !== INNER_KEEP_LAYOUT_DIGEST
+    || status.assetCatalogDigest !== INNER_KEEP_ASSET_CATALOG_DIGEST
+  ) fail('Inner Keep aggregate policy was invalid.');
+  return status;
+}
+
+function parseInnerKeepPrivateState(text) {
+  let value;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    fail('Inner Keep private projection JSON was invalid.');
+  }
+  if (!Array.isArray(value) || value.length !== 21) {
+    fail('Inner Keep private projection shape was invalid.');
+  }
+  const state = Object.freeze({
+    castleId: readUnsigned(value[0]),
+    componentActive: value[1],
+    componentReady: value[2],
+    builderPresent: value[3],
+    builderBusy: value[4],
+    activeBuildingKey: readOptionalString(value[5]),
+    busyUntilMicros: readOptionalUnsigned(value[6]),
+    builderRevision: readUnsigned(value[7]),
+    food: readUnsigned(value[8]),
+    wood: readUnsigned(value[9]),
+    stone: readUnsigned(value[10]),
+    gold: readUnsigned(value[11]),
+    projectedFood: readUnsigned(value[12]),
+    projectedWood: readUnsigned(value[13]),
+    projectedStone: readUnsigned(value[14]),
+    projectedGold: readUnsigned(value[15]),
+    resourceRevision: readUnsigned(value[16]),
+    observedAtMicros: readUnsigned(value[17]),
+    policyVersion: value[18],
+    layoutDigest: value[19],
+    assetCatalogDigest: value[20],
+  });
+  if (
+    [state.componentActive, state.componentReady, state.builderPresent, state.builderBusy]
+      .some((entry) => typeof entry !== 'boolean')
+    || state.castleId === 0n
+    || state.policyVersion !== INNER_KEEP_POLICY_VERSION
+    || state.layoutDigest !== INNER_KEEP_LAYOUT_DIGEST
+    || state.assetCatalogDigest !== INNER_KEEP_ASSET_CATALOG_DIGEST
+    || (state.activeBuildingKey === undefined) !== (state.busyUntilMicros === undefined)
+  ) fail('Inner Keep private projection was invalid.');
+  return state;
+}
+
+function parseInnerKeepReceipt(text, expectedRequestKey) {
+  let value;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    fail('Inner Keep receipt JSON was invalid.');
+  }
+  if (!Array.isArray(value) || value.length !== 12 || value[0] !== true) {
+    fail('Inner Keep receipt shape was invalid.');
+  }
+  const receipt = Object.freeze({
+    castleId: readOptionalUnsigned(value[1]),
+    buildingKey: readOptionalString(value[2]),
+    slotId: readOptionalString(value[3]),
+    buildingKind: readOptionalString(value[4]),
+    targetLevel: readOptionalUnsigned(value[5]),
+    deductedFood: readOptionalUnsigned(value[6]),
+    deductedWood: readOptionalUnsigned(value[7]),
+    deductedStone: readOptionalUnsigned(value[8]),
+    deductedGold: readOptionalUnsigned(value[9]),
+    startedAtMicros: readOptionalUnsigned(value[10]),
+    policyVersion: readOptionalString(value[11]),
+    requestKey: expectedRequestKey,
+  });
+  if (
+    receipt.castleId === undefined
+    || receipt.castleId === 0n
+    || receipt.buildingKey === undefined
+    || receipt.slotId === undefined
+    || receipt.buildingKind === undefined
+    || receipt.targetLevel === undefined
+    || receipt.deductedFood === undefined
+    || receipt.deductedWood === undefined
+    || receipt.deductedStone === undefined
+    || receipt.deductedGold === undefined
+    || receipt.startedAtMicros === undefined
+    || receipt.policyVersion !== INNER_KEEP_POLICY_VERSION
+  ) fail('Inner Keep receipt was incomplete.');
+  return receipt;
 }
 
 function parseWorkerControlState(text, expectedFid = BigInt(LOCAL_FULLSTACK_FID)) {
@@ -757,6 +1062,80 @@ async function seedLocalRealm(server, privateKey, moduleDigest) {
   const active = parseWorkerRollout(await callAdmin('admin_get_worker_rollout_status_v2'));
   if (active.phase !== 'active') fail('Worker system did not activate locally.');
 
+  const catalogPlan = parseInnerKeepCatalogPlan(
+    await callAdmin('admin_plan_inner_keep_catalog_v1')
+  );
+  if (
+    catalogPlan.missingLayout !== 1
+    || catalogPlan.missingSlots !== 12
+    || catalogPlan.missingBuildings !== 4
+    || catalogPlan.missingLevels !== 20
+    || catalogPlan.ready
+  ) fail('Inner Keep catalog did not begin from the exact empty state.');
+  await callAdmin('admin_seed_inner_keep_catalog_v1', JSON.stringify([
+    INNER_KEEP_PROTOCOL_CAPABILITY,
+    INNER_KEEP_POLICY_DIGEST,
+    INNER_KEEP_LAYOUT_DIGEST,
+    INNER_KEEP_ASSET_CATALOG_DIGEST,
+    catalogPlan.missingLayout,
+    catalogPlan.missingSlots,
+    catalogPlan.missingBuildings,
+    catalogPlan.missingLevels,
+  ]));
+  const builderPlan = parseInnerKeepBuilderPlan(
+    await callAdmin('admin_plan_inner_keep_builders_v1')
+  );
+  if (
+    builderPlan.expectedCastles !== LOCAL_FULLSTACK_FOUNDER_COUNT
+    || builderPlan.existingBuilders !== 0
+    || builderPlan.missingBuilders !== LOCAL_FULLSTACK_FOUNDER_COUNT
+    || builderPlan.ready
+  ) fail('Inner Keep Builder graph did not begin from the exact empty state.');
+  await callAdmin('admin_backfill_inner_keep_builders_v1', JSON.stringify([
+    INNER_KEEP_PROTOCOL_CAPABILITY,
+    INNER_KEEP_POLICY_DIGEST,
+    INNER_KEEP_LAYOUT_DIGEST,
+    INNER_KEEP_ASSET_CATALOG_DIGEST,
+    builderPlan.expectedCastles,
+    builderPlan.existingBuilders,
+    builderPlan.missingBuilders,
+  ]));
+  await callAdmin('admin_activate_inner_keep_v1', JSON.stringify([
+    INNER_KEEP_PROTOCOL_CAPABILITY,
+    INNER_KEEP_POLICY_DIGEST,
+    INNER_KEEP_LAYOUT_DIGEST,
+    INNER_KEEP_ASSET_CATALOG_DIGEST,
+    'alpha-0.3.18',
+    LOCAL_CLIENT_ARTIFACT_DIGEST,
+    moduleDigest,
+    LOCAL_SOURCE_COMMIT,
+    LOCAL_FULLSTACK_FOUNDER_COUNT,
+  ]));
+  const activeInnerKeep = parseInnerKeepStatus(
+    await callAdmin('admin_get_inner_keep_status_v1')
+  );
+  if (
+    activeInnerKeep.layoutRows !== 1n
+    || activeInnerKeep.slotRows !== 12n
+    || activeInnerKeep.buildingCatalogRows !== 4n
+    || activeInnerKeep.levelPolicyRows !== 20n
+    || activeInnerKeep.castleRows !== BigInt(LOCAL_FULLSTACK_FOUNDER_COUNT)
+    || activeInnerKeep.builderRows !== BigInt(LOCAL_FULLSTACK_FOUNDER_COUNT)
+    || activeInnerKeep.buildingRows !== 0n
+    || activeInnerKeep.activeProjects !== 0n
+    || activeInnerKeep.receiptRows !== 0n
+    || activeInnerKeep.scheduleRows !== 0n
+    || activeInnerKeep.missingBuilders !== 0n
+    || activeInnerKeep.orphanBuilders !== 0n
+    || activeInnerKeep.invalidBuilders !== 0n
+    || activeInnerKeep.invalidBuildings !== 0n
+    || activeInnerKeep.invalidSchedules !== 0n
+    || activeInnerKeep.builderProjectMismatches !== 0n
+    || !activeInnerKeep.staticCatalogExact
+    || !activeInnerKeep.workerSystemReady
+    || !activeInnerKeep.active
+  ) fail('Inner Keep did not activate from the exact disposable state.');
+
   const playerCredential = createEphemeralJwt(
     privateKey,
     localPlayerClaims(LOCAL_FULLSTACK_FID)
@@ -798,15 +1177,206 @@ async function seedLocalRealm(server, privateKey, moduleDigest) {
     fail('Disposable founder did not become locally ready.');
   }
 
+  const initialInnerKeepState = parseInnerKeepPrivateState(
+    await callPlayer('get_my_inner_keep_state_v1')
+  );
+  if (
+    !initialInnerKeepState.componentActive
+    || !initialInnerKeepState.componentReady
+    || !initialInnerKeepState.builderPresent
+    || initialInnerKeepState.builderBusy
+    || initialInnerKeepState.activeBuildingKey !== undefined
+    || initialInnerKeepState.busyUntilMicros !== undefined
+    || initialInnerKeepState.builderRevision !== 0n
+    || initialInnerKeepState.food !== LOCAL_FULLSTACK_INNER_KEEP_RESOURCES.food
+    || initialInnerKeepState.wood !== LOCAL_FULLSTACK_INNER_KEEP_RESOURCES.wood
+    || initialInnerKeepState.stone !== LOCAL_FULLSTACK_INNER_KEEP_RESOURCES.stone
+    || initialInnerKeepState.gold !== LOCAL_FULLSTACK_INNER_KEEP_RESOURCES.gold
+    || initialInnerKeepState.projectedFood !== LOCAL_FULLSTACK_INNER_KEEP_RESOURCES.food
+    || initialInnerKeepState.projectedWood !== LOCAL_FULLSTACK_INNER_KEEP_RESOURCES.wood
+    || initialInnerKeepState.projectedStone !== LOCAL_FULLSTACK_INNER_KEEP_RESOURCES.stone
+    || initialInnerKeepState.projectedGold !== LOCAL_FULLSTACK_INNER_KEEP_RESOURCES.gold
+    || initialInnerKeepState.resourceRevision !== 0n
+  ) fail('Disposable Inner Keep founder did not begin with exact bounded authority.');
+
   const readControlState = async () => parseWorkerControlState(
     await callPlayer('get_my_worker_control_state_v1')
   );
+  let innerKeepJourneyAttested = false;
+  const inspectInnerKeepFirstProject = async (requestKey) => {
+    if (
+      typeof requestKey !== 'string'
+      || !/^[a-z0-9][a-z0-9-]{15,79}$/.test(requestKey)
+    ) fail('Disposable Inner Keep request key was invalid.');
+    const [receipt, state, aggregate, workers] = await Promise.all([
+      callPlayer(
+        'get_my_inner_keep_request_status_v1',
+        JSON.stringify([requestKey])
+      ).then((text) => parseInnerKeepReceipt(text, requestKey)),
+      callPlayer('get_my_inner_keep_state_v1').then(parseInnerKeepPrivateState),
+      callAdmin('admin_get_inner_keep_status_v1').then(parseInnerKeepStatus),
+      readControlState(),
+    ]);
+    if (
+      receipt.slotId !== 'inner-keep-slot-m01'
+      || receipt.buildingKind !== 'city-mill'
+      || receipt.targetLevel !== 1n
+      || receipt.deductedFood !== 300n
+      || receipt.deductedWood !== 900n
+      || receipt.deductedStone !== 600n
+      || receipt.deductedGold !== 0n
+      || !state.componentActive
+      || !state.componentReady
+      || !state.builderPresent
+      || !state.builderBusy
+      || state.activeBuildingKey !== receipt.buildingKey
+      || state.busyUntilMicros === undefined
+      || state.builderRevision !== 1n
+      || state.food !== LOCAL_FULLSTACK_INNER_KEEP_RESOURCES.food - 300n
+      || state.wood !== LOCAL_FULLSTACK_INNER_KEEP_RESOURCES.wood - 900n
+      || state.stone !== LOCAL_FULLSTACK_INNER_KEEP_RESOURCES.stone - 600n
+      || state.gold !== LOCAL_FULLSTACK_INNER_KEEP_RESOURCES.gold
+      || state.resourceRevision !== 1n
+      || aggregate.buildingRows !== 1n
+      || aggregate.activeProjects !== 1n
+      || aggregate.receiptRows !== 1n
+      || aggregate.scheduleRows !== 1n
+      || aggregate.builderProjectMismatches !== 0n
+      || aggregate.invalidBuildings !== 0n
+      || aggregate.invalidSchedules !== 0n
+      || workers.revision !== 1n
+      || workers.workers.some((worker) => (
+        worker.status !== 'idle'
+        || worker.revision !== 0n
+        || worker.resourceKind !== undefined
+        || worker.siteId !== undefined
+      ))
+    ) fail('Disposable Inner Keep first project was not exact and atomic.');
+    return Object.freeze({
+      activeProjects: 1,
+      builderRows: Number(aggregate.builderRows),
+      buildingRows: 1,
+      deductedFood: receipt.deductedFood.toString(),
+      deductedGold: receipt.deductedGold.toString(),
+      deductedStone: receipt.deductedStone.toString(),
+      deductedWood: receipt.deductedWood.toString(),
+      receiptRows: 1,
+      resourceRevision: state.resourceRevision.toString(),
+      scheduleRows: 1,
+      workerCount: workers.workers.length,
+    });
+  };
+  const attestInnerKeepJourney = async (requestKeys) => {
+    if (
+      !Array.isArray(requestKeys)
+      || requestKeys.length !== 2
+      || new Set(requestKeys).size !== 2
+      || requestKeys.some((key) => (
+        typeof key !== 'string'
+        || !/^[a-z0-9][a-z0-9-]{15,79}$/.test(key)
+      ))
+    ) fail('Disposable Inner Keep request keys were invalid.');
+    const [firstReceipt, secondReceipt] = await Promise.all(requestKeys.map(
+      async (requestKey) => parseInnerKeepReceipt(
+        await callPlayer(
+          'get_my_inner_keep_request_status_v1',
+          JSON.stringify([requestKey])
+        ),
+        requestKey
+      )
+    ));
+    const [state, aggregate, workers] = await Promise.all([
+      callPlayer('get_my_inner_keep_state_v1').then(parseInnerKeepPrivateState),
+      callAdmin('admin_get_inner_keep_status_v1').then(parseInnerKeepStatus),
+      readControlState(),
+    ]);
+    const expectedFood = LOCAL_FULLSTACK_INNER_KEEP_RESOURCES.food - 300n - 480n;
+    const expectedWood = LOCAL_FULLSTACK_INNER_KEEP_RESOURCES.wood - 900n - 700n;
+    const expectedStone = LOCAL_FULLSTACK_INNER_KEEP_RESOURCES.stone - 600n - 650n;
+    if (
+      firstReceipt.slotId !== 'inner-keep-slot-m01'
+      || firstReceipt.buildingKind !== 'city-mill'
+      || firstReceipt.targetLevel !== 1n
+      || firstReceipt.deductedFood !== 300n
+      || firstReceipt.deductedWood !== 900n
+      || firstReceipt.deductedStone !== 600n
+      || firstReceipt.deductedGold !== 0n
+      || secondReceipt.slotId !== 'inner-keep-slot-m02'
+      || secondReceipt.buildingKind !== 'lumber-camp'
+      || secondReceipt.targetLevel !== 1n
+      || secondReceipt.deductedFood !== 480n
+      || secondReceipt.deductedWood !== 700n
+      || secondReceipt.deductedStone !== 650n
+      || secondReceipt.deductedGold !== 0n
+      || firstReceipt.castleId !== secondReceipt.castleId
+      || firstReceipt.buildingKey === secondReceipt.buildingKey
+      || !state.componentActive
+      || !state.componentReady
+      || !state.builderPresent
+      || !state.builderBusy
+      || state.activeBuildingKey !== secondReceipt.buildingKey
+      || state.busyUntilMicros === undefined
+      || state.builderRevision !== 3n
+      || state.food !== expectedFood
+      || state.wood !== expectedWood
+      || state.stone !== expectedStone
+      || state.gold !== LOCAL_FULLSTACK_INNER_KEEP_RESOURCES.gold
+      || state.projectedFood !== expectedFood
+      || state.projectedWood !== expectedWood
+      || state.projectedStone !== expectedStone
+      || state.projectedGold !== LOCAL_FULLSTACK_INNER_KEEP_RESOURCES.gold
+      || state.resourceRevision !== 2n
+      || aggregate.layoutRows !== 1n
+      || aggregate.slotRows !== 12n
+      || aggregate.buildingCatalogRows !== 4n
+      || aggregate.levelPolicyRows !== 20n
+      || aggregate.castleRows !== BigInt(LOCAL_FULLSTACK_FOUNDER_COUNT)
+      || aggregate.builderRows !== BigInt(LOCAL_FULLSTACK_FOUNDER_COUNT)
+      || aggregate.buildingRows !== 2n
+      || aggregate.activeProjects !== 1n
+      || aggregate.receiptRows !== 2n
+      || aggregate.scheduleRows !== 1n
+      || aggregate.missingBuilders !== 0n
+      || aggregate.orphanBuilders !== 0n
+      || aggregate.invalidBuilders !== 0n
+      || aggregate.invalidBuildings !== 0n
+      || aggregate.invalidSchedules !== 0n
+      || aggregate.builderProjectMismatches !== 0n
+      || !aggregate.staticCatalogExact
+      || !aggregate.workerSystemReady
+      || !aggregate.active
+      || workers.revision !== 2n
+      || workers.workers.some((worker) => (
+        worker.status !== 'idle'
+        || worker.revision !== 0n
+        || worker.resourceKind !== undefined
+        || worker.siteId !== undefined
+      ))
+    ) fail('Disposable Inner Keep journey did not retain exact authority.');
+    innerKeepJourneyAttested = true;
+    return Object.freeze({
+      activeProjects: Number(aggregate.activeProjects),
+      builderRevision: state.builderRevision.toString(),
+      buildingRows: Number(aggregate.buildingRows),
+      exactDeductions: Object.freeze([
+        Object.freeze({ food: '300', wood: '900', stone: '600', gold: '0' }),
+        Object.freeze({ food: '480', wood: '700', stone: '650', gold: '0' }),
+      ]),
+      receiptRows: Number(aggregate.receiptRows),
+      resourceRevision: state.resourceRevision.toString(),
+      scheduleRows: Number(aggregate.scheduleRows),
+      workerCount: workers.workers.length,
+    });
+  };
   let preparedAttestation;
   const prepareWorkerScenario = async () => {
     if (preparedAttestation) return preparedAttestation;
+    if (!innerKeepJourneyAttested) {
+      fail('Disposable Worker preparation requires the completed Inner Keep journey.');
+    }
     const idleState = await readControlState();
     if (
-      idleState.revision !== 0n
+      idleState.revision !== 2n
       || idleState.workers.some((worker) => (
         worker.status !== 'idle'
         || worker.revision !== 0n
@@ -919,6 +1489,20 @@ async function seedLocalRealm(server, privateKey, moduleDigest) {
     seedAttestation: Object.freeze({
       castleCount: Number(active.expectedCastleCount),
       workerCount: Number(active.actualWorkerCount),
+      innerKeepActive: activeInnerKeep.active,
+      innerKeepBuilderCount: Number(activeInnerKeep.builderRows),
+      innerKeepCatalogRows: Number(
+        activeInnerKeep.layoutRows
+        + activeInnerKeep.slotRows
+        + activeInnerKeep.buildingCatalogRows
+        + activeInnerKeep.levelPolicyRows
+      ),
+      innerKeepInitialResources: Object.freeze({
+        food: initialInnerKeepState.food.toString(),
+        wood: initialInnerKeepState.wood.toString(),
+        stone: initialInnerKeepState.stone.toString(),
+        gold: initialInnerKeepState.gold.toString(),
+      }),
       entryAgreementAcceptedCurrent: currentEntryAgreement[1],
       entryAgreementRequiredVersion: currentEntryAgreement[0],
       genericAssignments: Number(active.genericAssignments),
@@ -928,6 +1512,8 @@ async function seedLocalRealm(server, privateKey, moduleDigest) {
       legacyOccupations: Number(active.legacyOccupations),
       legacySchedules: Number(active.legacySchedules),
     }),
+    attestInnerKeepJourney,
+    inspectInnerKeepFirstProject,
     prepareWorkerScenario,
   });
 }
@@ -1109,6 +1695,8 @@ export async function startDisposableLocalFullstackSpacetime(options = {}) {
       close,
       moduleDigest,
       runtimeDirectory,
+      attestInnerKeepJourney: localRealm.attestInnerKeepJourney,
+      inspectInnerKeepFirstProject: localRealm.inspectInnerKeepFirstProject,
       prepareWorkerScenario: localRealm.prepareWorkerScenario,
       seedAttestation: localRealm.seedAttestation,
       serverProcess,

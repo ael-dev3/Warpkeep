@@ -87,6 +87,14 @@ test('resource and Gold prefixes remain intact through later additive suffixes',
     'accessRequestV1',
     'dailyMarkGrantV1',
     'dailyMarkScheduleV1',
+    'innerKeepLayoutV1',
+    'innerKeepSlotV1',
+    'innerKeepBuildingCatalogV1',
+    'innerKeepBuildLevelV1',
+    'castleInnerKeepBuildingV1',
+    'castleInnerBuilderV1',
+    'castleInnerBuildReceiptV1',
+    'castleInnerConstructionScheduleV1',
   ]);
 
   const account = tableDefinition(schema, 'resourceAccountV1');

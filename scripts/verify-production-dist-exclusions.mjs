@@ -19,6 +19,7 @@ const forbiddenPathFragments = Object.freeze([
   'qa-journey.html',
   'realm-observer-qa.html',
   'realm-rendered-webgl-qa.html',
+  'inner-keep-qa.html',
   'castle-lod-visual-evidence.html',
   'realm-qa.html'
 ]);
@@ -56,6 +57,12 @@ const forbiddenContent = Object.freeze([
   'stonekeeper',
   'frontierseer',
   'RenderedWebglQaHarness',
+  'InnerKeepQaHarness',
+  'innerKeepQaMain',
+  'innerKeepQaScenarioManifest',
+  'INNER_KEEP_QA_SCENARIO_MANIFEST',
+  'LOCAL INNER KEEP QA',
+  'SYNTHETIC · LOOPBACK ONLY · NO AUTHORITY',
   'realmRenderedWebglQaMain',
   'renderedWebglQaFixtureSnapshot',
   'createRenderedWebglQaFixtureRealm',

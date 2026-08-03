@@ -16,6 +16,10 @@ import {
 } from './resourceAuthorityPolicy';
 import { ensureCastleWorkerRoster } from './castleWorkerRoster';
 import {
+  assertInnerKeepBuilderForExistingFounder,
+  insertInnerKeepBuilderForNewFounderIfEverActivated,
+} from './innerKeepBuilderAuthority';
+import {
   admissionProfileIsComplete,
   trustedProfilesEqual,
   type AdmissionReadyTrustedProfile,
@@ -225,6 +229,7 @@ export function ensureGenesisFounder(
     ) fail();
     assertGenesisFoundingGraph(ctx);
     ensureCastleWorkerRoster(ctx, existingCastle);
+    assertInnerKeepBuilderForExistingFounder(ctx, existingCastle);
     return 'preserved';
   }
   if (
@@ -324,6 +329,7 @@ export function ensureGenesisFounder(
   // workers in this same transaction. This advances roster readiness only:
   // staged/draining mode and every activation gate remain unchanged.
   ensureCastleWorkerRoster(ctx, castle);
+  insertInnerKeepBuilderForNewFounderIfEverActivated(ctx, castle);
 
   assertGenesisFoundingGraph(ctx);
   return 'created';

@@ -110,6 +110,25 @@ import {
 } from '../components/realm/realmResourceSiteCatalogPolicy';
 import { GENESIS_FOREST_LAYOUT_V1_TREE_COUNT } from '../../spacetimedb/src/forestLayoutContract';
 import { GENESIS_WATER_BODIES_V1, GENESIS_WATER_CELLS_V1 } from '../../spacetimedb/src/waterWorld';
+import {
+  decodeInnerKeepPrivateState,
+  decodeInnerKeepRequestStatus,
+  resolveReadyInnerKeepProjection,
+  type InnerKeepBuildingCatalogRow,
+  type InnerKeepBuildingRow,
+  type InnerKeepBuildLevelRow,
+  type InnerKeepLayoutRow,
+  type InnerKeepPublicRows,
+  type InnerKeepReadScope,
+  type InnerKeepSlotRow,
+  type ReadyInnerKeepProjection
+} from './innerKeepProjection';
+import {
+  INNER_KEEP_REQUEST_KEY_PATTERN,
+  type InnerKeepCommandAttempt,
+  type InnerKeepRequestReceipt
+} from './innerKeepCommandIdempotency';
+import { isInnerKeepBuildingKind } from '../components/inner-keep/innerKeepPresentation';
 
 export type WarpkeepConnectionFailureReason =
   | 'handshake_timeout'
@@ -196,6 +215,15 @@ const WORKER_PROJECTION_PENDING = 'pending' as const;
 const WORKER_PROJECTION_READY = 'ready' as const;
 type WorkerProjectionAvailability = typeof WORKER_PROJECTION_UNAVAILABLE | typeof WORKER_PROJECTION_PENDING | typeof WORKER_PROJECTION_READY;
 const workerProjectionAvailability = new WeakMap<WarpkeepConnection, WorkerProjectionAvailability>();
+const INNER_KEEP_PROJECTION_UNAVAILABLE = 'unavailable' as const;
+const INNER_KEEP_PROJECTION_PENDING = 'pending' as const;
+const INNER_KEEP_PROJECTION_READY = 'ready' as const;
+type InnerKeepProjectionAvailability =
+  | typeof INNER_KEEP_PROJECTION_UNAVAILABLE
+  | typeof INNER_KEEP_PROJECTION_PENDING
+  | typeof INNER_KEEP_PROJECTION_READY;
+const innerKeepProjectionAvailability =
+  new WeakMap<WarpkeepConnection, InnerKeepProjectionAvailability>();
 const GOLD_SITE_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,95}$/i;
 const GOLD_IDEMPOTENCY_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{15,79}$/;
 const FOOD_SITE_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,95}$/i;
@@ -537,6 +565,200 @@ export async function readWarpkeepResourceStateV2(
   }).getMyResourceStateV2;
   if (typeof procedure !== 'function') return undefined;
   return decodeWorkerResourceState(await procedure({}), BigInt(ownFid));
+}
+
+function missingInnerKeepProcedure(error: unknown, wireName: string, accessorName: string) {
+  const message = typeof error === 'string'
+    ? error
+    : error instanceof Error
+      ? error.message
+      : '';
+  const normalized = message.trim().toLowerCase();
+  const namesProcedure = normalized.includes(wireName)
+    || normalized.includes(accessorName.toLowerCase());
+  return /\b(no such|unknown|unrecognized|not found|does not exist|not registered)\b/.test(
+    normalized
+  ) && normalized.includes('procedure') && (namesProcedure || normalized.length < 96);
+}
+
+type PublicInnerKeepTable<Row> = Readonly<{
+  iter: () => IterableIterator<Row>;
+}>;
+
+type PublicInnerKeepTables = Readonly<{
+  innerKeepLayoutV1: PublicInnerKeepTable<InnerKeepLayoutRow>;
+  innerKeepSlotV1: PublicInnerKeepTable<InnerKeepSlotRow>;
+  innerKeepBuildingCatalogV1: PublicInnerKeepTable<InnerKeepBuildingCatalogRow>;
+  innerKeepBuildLevelV1: PublicInnerKeepTable<InnerKeepBuildLevelRow>;
+  castleInnerKeepBuildingV1: PublicInnerKeepTable<InnerKeepBuildingRow>;
+}>;
+
+function publicInnerKeepTables(
+  connection: WarpkeepConnection
+): PublicInnerKeepTables | undefined {
+  const candidate = (connection.db ?? {}) as unknown as Partial<PublicInnerKeepTables>;
+  const values = [
+    candidate.innerKeepLayoutV1,
+    candidate.innerKeepSlotV1,
+    candidate.innerKeepBuildingCatalogV1,
+    candidate.innerKeepBuildLevelV1,
+    candidate.castleInnerKeepBuildingV1
+  ];
+  return values.every((table) => typeof table?.iter === 'function')
+    ? candidate as PublicInnerKeepTables
+    : undefined;
+}
+
+function boundedTableRows<Row>(
+  table: PublicInnerKeepTable<Row>,
+  maximum: number
+): readonly Row[] | undefined {
+  const rows: Row[] = [];
+  for (const row of table.iter()) {
+    if (rows.length >= maximum) return undefined;
+    rows.push(row);
+  }
+  return Object.freeze(rows);
+}
+
+function readPublicInnerKeepRows(
+  connection: WarpkeepConnection,
+  scope: InnerKeepReadScope
+): InnerKeepPublicRows | undefined {
+  if (innerKeepProjectionAvailability.get(connection) !== INNER_KEEP_PROJECTION_READY) {
+    return undefined;
+  }
+  const publicTables = publicInnerKeepTables(connection);
+  if (publicTables === undefined) return undefined;
+  const layouts = boundedTableRows(publicTables.innerKeepLayoutV1, 2);
+  const slots = boundedTableRows(publicTables.innerKeepSlotV1, 13);
+  const catalogue = boundedTableRows(publicTables.innerKeepBuildingCatalogV1, 5);
+  const levels = boundedTableRows(publicTables.innerKeepBuildLevelV1, 21);
+  if (
+    layouts === undefined
+    || slots === undefined
+    || catalogue === undefined
+    || levels === undefined
+  ) throw new Error('Inner Keep public policy is unavailable.');
+  const buildings: InnerKeepBuildingRow[] = [];
+  for (const row of publicTables.castleInnerKeepBuildingV1.iter()) {
+    if (row.castleId !== scope.castleId) continue;
+    if (buildings.length >= 5) throw new Error('Inner Keep public projects are unavailable.');
+    buildings.push(row);
+  }
+  return Object.freeze({
+    layouts,
+    slots,
+    catalogue,
+    levels,
+    buildings: Object.freeze(buildings)
+  });
+}
+
+/**
+ * Read the caller-only Builder/resource state and combine it with the exact
+ * applied public v15 policy graph. Older/inactive modules return no feature;
+ * malformed active state fails closed without widening private table access.
+ */
+export async function readWarpkeepInnerKeepProjection(
+  connection: WarpkeepConnection,
+  input: Readonly<{
+    scope: InnerKeepReadScope;
+    commandsAvailable: boolean;
+    pendingAttempt?: InnerKeepCommandAttempt;
+    statusMessage?: string;
+  }>
+): Promise<ReadyInnerKeepProjection | undefined> {
+  const rows = readPublicInnerKeepRows(connection, input.scope);
+  if (rows === undefined) return undefined;
+  const procedure = (connection.procedures as unknown as {
+    getMyInnerKeepStateV1?: (
+      params: Readonly<Record<string, never>>
+    ) => Promise<unknown>;
+  }).getMyInnerKeepStateV1;
+  if (typeof procedure !== 'function') return undefined;
+  let raw: unknown;
+  try {
+    raw = await procedure({});
+  } catch (error) {
+    if (missingInnerKeepProcedure(
+      error,
+      'get_my_inner_keep_state_v1',
+      'getMyInnerKeepStateV1'
+    )) return undefined;
+    throw error;
+  }
+  const privateState = decodeInnerKeepPrivateState(raw, input.scope);
+  if (privateState === 'unavailable') return undefined;
+  if (privateState === undefined) throw new Error('Inner Keep private state is unavailable.');
+  const projection = resolveReadyInnerKeepProjection({
+    scope: input.scope,
+    privateState,
+    rows,
+    commandsAvailable: input.commandsAvailable,
+    ...(input.pendingAttempt === undefined ? {} : {
+      pendingAttempt: input.pendingAttempt
+    }),
+    ...(input.statusMessage === undefined ? {} : {
+      statusMessage: input.statusMessage
+    })
+  });
+  if (projection === undefined) throw new Error('Inner Keep projection is unavailable.');
+  return projection;
+}
+
+/** Read one caller-bound private receipt for commit-ambiguous reconciliation. */
+export async function readWarpkeepInnerKeepRequestStatus(
+  connection: WarpkeepConnection,
+  scope: InnerKeepReadScope,
+  requestKey: string
+): Promise<InnerKeepRequestReceipt | undefined> {
+  if (!INNER_KEEP_REQUEST_KEY_PATTERN.test(requestKey)) {
+    throw new Error('Inner Keep request status is unavailable.');
+  }
+  const procedure = (connection.procedures as unknown as {
+    getMyInnerKeepRequestStatusV1?: (
+      params: Readonly<{ requestKey: string }>
+    ) => Promise<unknown>;
+  }).getMyInnerKeepRequestStatusV1;
+  if (typeof procedure !== 'function') return undefined;
+  let raw: unknown;
+  try {
+    raw = await procedure({ requestKey });
+  } catch (error) {
+    if (missingInnerKeepProcedure(
+      error,
+      'get_my_inner_keep_request_status_v1',
+      'getMyInnerKeepRequestStatusV1'
+    )) return undefined;
+    throw error;
+  }
+  const receipt = decodeInnerKeepRequestStatus(raw, scope);
+  if (receipt === undefined) throw new Error('Inner Keep request status is unavailable.');
+  return receipt;
+}
+
+/** The browser supplies only a reviewed slot, building kind, and retained key. */
+export async function startWarpkeepInnerKeepProject(
+  connection: WarpkeepConnection,
+  slotId: string,
+  buildingKind: string,
+  requestKey: string
+) {
+  if (
+    !/^inner-keep-slot-[ml][0-9]{2}$/.test(slotId)
+    || !isInnerKeepBuildingKind(buildingKind)
+    || !INNER_KEEP_REQUEST_KEY_PATTERN.test(requestKey)
+  ) throw new Error('Inner Keep construction is unavailable.');
+  const reducer = (connection.reducers as unknown as {
+    innerKeepStartProjectV1?: (input: Readonly<{
+      slotId: string;
+      buildingKind: string;
+      requestKey: string;
+    }>) => Promise<unknown> | unknown;
+  }).innerKeepStartProjectV1;
+  if (typeof reducer !== 'function') throw new Error('Inner Keep construction is unavailable.');
+  await reducer({ slotId, buildingKind, requestKey });
 }
 
 function workerReducerSurface(connection: WarpkeepConnection) {
@@ -901,7 +1123,8 @@ export async function returnWarpkeepLegacyExpedition(
 
 /**
  * Start the protocol-v3 core shared-state subscription and additive public
- * Gold/Food/Wood/Stone/forest subscriptions. The scheduler, forest seeding reducer, and every
+ * Gold/Food/Wood/Stone/forest/Inner Keep subscriptions. Schedulers, receipts,
+ * Builder authority, forest seeding reducers, and every
  * private economy table remain outside the player graph. If an additive
  * schema is not deployed yet, the core Realm remains live but that visual
  * layer is empty rather than locally synthesized.
@@ -919,6 +1142,7 @@ export function subscribeToWarpkeepRealm(
   workerProjectionAvailability.set(connection, WORKER_PROJECTION_PENDING);
   forestProjectionAvailability.set(connection, FOREST_PROJECTION_PENDING);
   waterProjectionAvailability.set(connection, WATER_PROJECTION_PENDING);
+  innerKeepProjectionAvailability.set(connection, INNER_KEEP_PROJECTION_PENDING);
   const coreSubscription = connection
     .subscriptionBuilder()
     .onApplied(() => {
@@ -1146,6 +1370,35 @@ export function subscribeToWarpkeepRealm(
     waterProjectionAvailability.set(connection, WATER_PROJECTION_UNAVAILABLE);
   }
 
+  let innerKeepSubscription: SubscriptionHandle | undefined;
+  const innerKeepTables = publicInnerKeepTables(connection);
+  if (innerKeepTables !== undefined) {
+    try {
+      innerKeepSubscription = connection
+        .subscriptionBuilder()
+        .onApplied(() => {
+          innerKeepProjectionAvailability.set(connection, INNER_KEEP_PROJECTION_READY);
+          if (coreApplied) onApplied();
+        })
+        .onError(() => {
+          innerKeepProjectionAvailability.set(connection, INNER_KEEP_PROJECTION_UNAVAILABLE);
+          if (coreApplied) onApplied();
+        })
+        .subscribe([
+          tables.innerKeepLayoutV1,
+          tables.innerKeepSlotV1,
+          tables.innerKeepBuildingCatalogV1,
+          tables.innerKeepBuildLevelV1,
+          tables.castleInnerKeepBuildingV1
+        ]);
+    } catch {
+      innerKeepProjectionAvailability.set(connection, INNER_KEEP_PROJECTION_UNAVAILABLE);
+      if (coreApplied) onApplied();
+    }
+  } else {
+    innerKeepProjectionAvailability.set(connection, INNER_KEEP_PROJECTION_UNAVAILABLE);
+  }
+
   return Object.freeze({
     unsubscribe: () => {
       goldProjectionAvailability.delete(connection);
@@ -1155,6 +1408,7 @@ export function subscribeToWarpkeepRealm(
       workerProjectionAvailability.delete(connection);
       forestProjectionAvailability.delete(connection);
       waterProjectionAvailability.delete(connection);
+      innerKeepProjectionAvailability.delete(connection);
       try {
         try {
           try {
@@ -1178,7 +1432,11 @@ export function subscribeToWarpkeepRealm(
           try {
             forestSubscription?.unsubscribe();
           } finally {
-            waterSubscription?.unsubscribe();
+            try {
+              waterSubscription?.unsubscribe();
+            } finally {
+              innerKeepSubscription?.unsubscribe();
+            }
           }
         }
       } finally {
@@ -2400,6 +2658,7 @@ export function observeWarpkeepRealm(
   const workerTables = publicWorkerTables(connection);
   const forestTables = publicForestTables(connection);
   const waterTables = publicWaterTables(connection);
+  const innerKeepTables = publicInnerKeepTables(connection);
   type ObserverTable = Readonly<{
     onInsert?: (callback: typeof sync) => void;
     onDelete?: (callback: typeof sync) => void;
@@ -2469,7 +2728,12 @@ export function observeWarpkeepRealm(
     waterTables?.realmWaterBodyV1,
     waterTables?.realmWaterCellV1,
     waterTables?.realmEnvironmentV1,
-    waterTables?.realmWaterRevisionV1
+    waterTables?.realmWaterRevisionV1,
+    innerKeepTables?.innerKeepLayoutV1,
+    innerKeepTables?.innerKeepSlotV1,
+    innerKeepTables?.innerKeepBuildingCatalogV1,
+    innerKeepTables?.innerKeepBuildLevelV1,
+    innerKeepTables?.castleInnerKeepBuildingV1
   ];
   try {
     for (const table of observedTables) {

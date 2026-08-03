@@ -6,6 +6,9 @@ export type RealmSurfaceRoute =
   | Readonly<{ kind: 'commands' }>
   | Readonly<{ kind: 'settings' }>
   | Readonly<{ kind: 'explore' }>
+  | Readonly<{ kind: 'inner-keep' }>
+  | Readonly<{ kind: 'inner-keep-slot'; slotId: string }>
+  | Readonly<{ kind: 'inner-keep-building'; buildingKind: string }>
   | Readonly<{ kind: 'workers' }>
   | Readonly<{ kind: 'worker'; workerId: string }>
   | Readonly<{ kind: 'keep'; castleId: number }>
@@ -61,10 +64,25 @@ export function readRealmSurfaceRoute(value: unknown): RealmSurfaceRoute | undef
     value.kind === 'commands'
     || value.kind === 'settings'
     || value.kind === 'explore'
+    || value.kind === 'inner-keep'
     || value.kind === 'workers'
   ) {
     return hasExactKeys(value, ['kind'])
       ? Object.freeze({ kind: value.kind })
+      : undefined;
+  }
+  if (value.kind === 'inner-keep-slot') {
+    return hasExactKeys(value, ['kind', 'slotId']) && isSafeRouteId(value.slotId)
+      ? Object.freeze({ kind: 'inner-keep-slot', slotId: value.slotId })
+      : undefined;
+  }
+  if (value.kind === 'inner-keep-building') {
+    return hasExactKeys(value, ['kind', 'buildingKind'])
+      && isSafeRouteId(value.buildingKind)
+      ? Object.freeze({
+          kind: 'inner-keep-building',
+          buildingKind: value.buildingKind
+        })
       : undefined;
   }
   if (value.kind === 'worker') {
@@ -177,4 +195,3 @@ export function replaceRealmSurfaceRoute(
 export function popRealmSurfaceRoute(stack: readonly RealmSurfaceRoute[]) {
   return stack.length === 0 ? stack : Object.freeze(stack.slice(0, -1));
 }
-

@@ -41,11 +41,18 @@ export function resolveWarpkeepHapticCue(
     event.kind === 'worker-dispatch-confirmed'
     || event.kind === 'worker-recall-confirmed'
     || event.kind === 'access-request-confirmed'
+    || event.kind === 'inner-keep-project-completed'
   ))) {
     return Object.freeze({ kind: 'notification', type: 'success' });
   }
   if (events.some(event => SELECTION_EVENT_KINDS.has(event.kind))) {
     return Object.freeze({ kind: 'selection' });
+  }
+  if (events.some(event => event.kind === 'inner-keep-project-confirmed')) {
+    return Object.freeze({ kind: 'impact', type: 'soft' });
+  }
+  if (events.some(event => event.kind === 'inner-keep-menu-opened')) {
+    return Object.freeze({ kind: 'impact', type: 'light' });
   }
   if (events.some(event => event.kind === 'ui-open')) {
     return Object.freeze({ kind: 'impact', type: 'soft' });
@@ -64,11 +71,14 @@ export function resolveWarpkeepHapticCue(
  * Ordinary browsers resolve every optional host call to false and keep the
  * complete visual and accessible feedback path unchanged.
  */
-export function WarpkeepHapticsDirector() {
+export function WarpkeepHapticsDirector({ muted = false }: Readonly<{
+  muted?: boolean;
+}>) {
   const { haptics } = useMiniAppHost();
 
   useEffect(() => {
     const unsubscribe = subscribeWarpkeepSfx((events) => {
+      if (muted) return;
       const cue = resolveWarpkeepHapticCue(events);
       if (!cue) return;
       if (cue.kind === 'selection') {
@@ -82,7 +92,7 @@ export function WarpkeepHapticsDirector() {
     return () => {
       unsubscribe();
     };
-  }, [haptics]);
+  }, [haptics, muted]);
 
   return null;
 }

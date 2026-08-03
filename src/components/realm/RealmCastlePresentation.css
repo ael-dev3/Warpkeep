@@ -456,6 +456,45 @@
   background: linear-gradient(90deg, rgb(91 50 112 / 18%), transparent);
 }
 
+.castle-inspection__inner-keep {
+  display: grid;
+  width: 100%;
+  min-height: 3.4rem;
+  gap: 0.16rem;
+  margin-top: 0.62rem;
+  padding: 0.58rem 0.72rem;
+  border: 1px solid rgb(240 213 140 / 56%);
+  border-radius: 0.48rem;
+  background: linear-gradient(135deg, rgb(104 54 129 / 92%), rgb(54 30 66 / 96%));
+  box-shadow: 0 0.5rem 1.4rem rgb(0 0 0 / 24%);
+  color: #fff7e5;
+  text-align: left;
+  cursor: pointer;
+}
+
+.castle-inspection__inner-keep strong,
+.castle-inspection__inner-keep span {
+  display: block;
+}
+
+.castle-inspection__inner-keep strong {
+  color: #f0d58c;
+  font-size: 0.76rem;
+  letter-spacing: 0.07em;
+}
+
+.castle-inspection__inner-keep span {
+  color: #e1d6e8;
+  font-size: 0.7rem;
+}
+
+.castle-inspection__inner-keep:hover,
+.castle-inspection__inner-keep:focus-visible {
+  border-color: #f0d58c;
+  outline: 2px solid #f0d58c;
+  outline-offset: 2px;
+}
+
 .castle-inspection__profile-link {
   display: grid;
   width: 2.75rem;

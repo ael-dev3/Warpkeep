@@ -1,0 +1,2243 @@
+{
+  "schema": "warpkeep.inner-keep-asset-selection.v1",
+  "selectionId": "inner-keep-v1",
+  "selectionDigestSha256": "6763aeb1755d800b817a0d5174182474d3836a928c59beb4b4fdf65f5d1f6ec3",
+  "selectionDigestAlgorithm": "sha256-ecmascript-canonical-json-v1",
+  "recordedAt": "2026-08-03",
+  "sourceRelease": {
+    "repository": "ael-dev3/Warpkeep-Assets",
+    "repositoryMainCommit": "b074ffb6317ff9a581f5b7fc7f0a0760e721a9b6",
+    "releaseCommit": "74033ebffb7f0a3ec371ccdabac10974bbe413b9",
+    "tag": "inner-keep-3d-asset-library-2026-08-02",
+    "attachment": {
+      "name": "inner-keep-3d-asset-library-2026-08-02-v1.zip",
+      "bytes": 234962670,
+      "sha256": "f13bc9e7b8e32a6767b1959307a202d894123f384e11fd19550d75e0dfe5f6c9",
+      "entries": 1347,
+      "packageRoot": "inner-keep-3d-asset-library-2026-08-02-v1"
+    },
+    "trustedReleaseManifest": {
+      "repositoryPath": "releases/inner-keep-3d-asset-library-2026-08-02/manifest.json",
+      "bytes": 552321,
+      "sha256": "67a31bee8c63718143a9071e9cb906f2229b9776c55d9d6fce3fd87bf2f032ae"
+    }
+  },
+  "authorization": {
+    "archiveDistributionAuthorized": true,
+    "officialRepositoryRuntimeUseAuthorized": false,
+    "status": "pending-owner-runtime-use-authorization",
+    "scopeBoundary": "Archive deposit and release distribution are recorded. Copying selected archive-only models or previews into the public Warpkeep repository or official runtime remains blocked until an explicit owner authorization record names that use."
+  },
+  "selectionPolicy": {
+    "profiles": [
+      "high",
+      "balanced",
+      "compact"
+    ],
+    "sourceAssetCount": 36,
+    "sourceModelCount": 108,
+    "sourcePreviewCount": 4,
+    "excludedProfiles": [
+      "LOD3_Map"
+    ],
+    "excludedPackages": [
+      "Warpkeep_CityBarracks_GameReady",
+      "Warpkeep_GrandCovenantCathedral_GameReady"
+    ],
+    "inspectionCataloguesAllowed": false,
+    "editableSourcesAllowed": false,
+    "ordinaryBuildMayReadArchive": false,
+    "ordinaryBuildMayUseNetwork": false
+  },
+  "qualityTotals": {
+    "high": {
+      "bytes": 5891104,
+      "triangles": 63034
+    },
+    "balanced": {
+      "bytes": 3634852,
+      "triangles": 37156
+    },
+    "compact": {
+      "bytes": 1790392,
+      "triangles": 15445
+    }
+  },
+  "selectedModelBytesAllProfiles": 11316348,
+  "selectedPreviewBytes": 634685,
+  "existingRuntimeReuse": [
+    {
+      "assetId": "warpkeep.tree.oak.spring-broad",
+      "sourceRecord": "docs/reference/assets/2026-07-18-hegemony-environment-trees/manifest.json",
+      "intendedUse": "Existing authorized broad perimeter tree"
+    },
+    {
+      "assetId": "warpkeep.tree.spruce.deep-narrow",
+      "sourceRecord": "docs/reference/assets/2026-07-18-hegemony-environment-trees/manifest.json",
+      "intendedUse": "Existing authorized dense edge evergreen"
+    },
+    {
+      "assetId": "warpkeep.tree.cypress.ancient-dark",
+      "sourceRecord": "docs/reference/assets/2026-07-18-hegemony-environment-trees/manifest.json",
+      "intendedUse": "Existing authorized narrow inner/perimeter tree"
+    }
+  ],
+  "assets": [
+    {
+      "id": "city-mill",
+      "family": "buildings",
+      "sourcePackage": "Warpkeep_CityMill_GameReady",
+      "sourceAssetId": "warpkeep.city-buildings.city-mill",
+      "displayName": "Hegemony Crownwheel Mill",
+      "intendedUse": "Food economy building",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_CityMill_GameReady/Runtime/runtime-manifest.json",
+        "bytes": 3075,
+        "sha256": "bd787111bd3f813eef3b4d957d32e14935c8e06bd12fcd01ad3d38098352c52d"
+      },
+      "boundsMeters": [
+        9.3,
+        7.1229,
+        7.5
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_CityMill_GameReady/Runtime/Warpkeep_CityMill_LOD0_High_Runtime.glb",
+          "bytes": 478660,
+          "sha256": "8613faf8ac5a61f50cb6464cc9c2c8391f9f12fc087c2419cc5ac5827e905a8c",
+          "triangles": 4900,
+          "boundsMeters": [
+            9.3,
+            7.1229,
+            7.5
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/buildings/inner-keep-city-mill-high-8613faf8ac5a61f5.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_CityMill_GameReady/Runtime/Warpkeep_CityMill_LOD1_Balanced_Runtime.glb",
+          "bytes": 293168,
+          "sha256": "0963ee142eb0d8ea711aac7594610eade84eebd2eb3540868bb7ca7c07474cd7",
+          "triangles": 2792,
+          "boundsMeters": [
+            9.3,
+            7.1229,
+            7.5
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/buildings/inner-keep-city-mill-balanced-0963ee142eb0d8ea.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_CityMill_GameReady/Runtime/Warpkeep_CityMill_LOD2_Compact_Runtime.glb",
+          "bytes": 121080,
+          "sha256": "80419c9566ea5ab5053f8d8f411655fe1b9ee26a040333bb380ff7d4d6d3a322",
+          "triangles": 1224,
+          "boundsMeters": [
+            9.3,
+            7.1229,
+            7.5
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/buildings/inner-keep-city-mill-compact-80419c9566ea5ab5.glb"
+        }
+      ],
+      "preview": {
+        "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_CityMill_GameReady/Previews/Warpkeep_CityMill_MobilePreview_320.png",
+        "bytes": 160025,
+        "sha256": "717cf59d3bba14858b49dc7fb692066285d7ab9b27f6dfeae1b2238d542cdb02",
+        "width": 320,
+        "height": 320,
+        "destinationPath": "public/images/inner-keep/catalog/city-mill-717cf59d3bba1485.png"
+      }
+    },
+    {
+      "id": "lumber-camp",
+      "family": "buildings",
+      "sourcePackage": "Warpkeep_LumberCamp_GameReady",
+      "sourceAssetId": "warpkeep.city-buildings.lumber-camp",
+      "displayName": "Hegemony Timberwright Yard",
+      "intendedUse": "Wood economy building",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_LumberCamp_GameReady/Runtime/runtime-manifest.json",
+        "bytes": 2526,
+        "sha256": "59f82b995f815f69bba8958fa8afa329b97686c451f227f6378f6e0869fa4c6e"
+      },
+      "boundsMeters": [
+        8.6,
+        6.05,
+        6.8
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_LumberCamp_GameReady/Runtime/Warpkeep_LumberCamp_LOD0_High_Runtime.glb",
+          "bytes": 532928,
+          "sha256": "a4f6831dd6ddcb0956b6338b6d206985928f6d67443122ec7766390778b84191",
+          "triangles": 5712,
+          "boundsMeters": [
+            8.6,
+            6.05,
+            6.8
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/buildings/inner-keep-lumber-camp-high-a4f6831dd6ddcb09.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_LumberCamp_GameReady/Runtime/Warpkeep_LumberCamp_LOD1_Balanced_Runtime.glb",
+          "bytes": 314132,
+          "sha256": "d8f33e487545f44afc28a770466c3503957e6f4658e39034540f50ce67f52c7a",
+          "triangles": 2954,
+          "boundsMeters": [
+            8.6,
+            6.05,
+            6.8
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/buildings/inner-keep-lumber-camp-balanced-d8f33e487545f44a.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_LumberCamp_GameReady/Runtime/Warpkeep_LumberCamp_LOD2_Compact_Runtime.glb",
+          "bytes": 116200,
+          "sha256": "1be188b3bb6a90b5362b2fd1a30d6ce292de333d0a1f6e688743ced43174b6bf",
+          "triangles": 1082,
+          "boundsMeters": [
+            8.6,
+            6.05,
+            6.8
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/buildings/inner-keep-lumber-camp-compact-1be188b3bb6a90b5.glb"
+        }
+      ],
+      "preview": {
+        "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_LumberCamp_GameReady/Previews/Warpkeep_LumberCamp_MobilePreview_320.png",
+        "bytes": 159403,
+        "sha256": "d180ce53c9573f7f7e7969dbd46fbacc1c4bca1c5f8aa090a1804f86d98bcfea",
+        "width": 320,
+        "height": 320,
+        "destinationPath": "public/images/inner-keep/catalog/lumber-camp-d180ce53c9573f7f.png"
+      }
+    },
+    {
+      "id": "city-stoneworks",
+      "family": "buildings",
+      "sourcePackage": "Warpkeep_CityStoneworks_GameReady",
+      "sourceAssetId": "warpkeep.city-buildings.city-stoneworks",
+      "displayName": "Hegemony Royal Mason's Yard",
+      "intendedUse": "Stone economy building",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_CityStoneworks_GameReady/Runtime/runtime-manifest.json",
+        "bytes": 3237,
+        "sha256": "e53e15683d40f1d346b14df054cd3b09463f8c00c5e5fdef3f15057cf8d3b03f"
+      },
+      "boundsMeters": [
+        9.0,
+        5.39,
+        7.2
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_CityStoneworks_GameReady/Runtime/Warpkeep_CityStoneworks_LOD0_High_Runtime.glb",
+          "bytes": 508540,
+          "sha256": "01df9557bccaed14b44bcc0efa4971283f08632572aa892c1e6fb6261f22a913",
+          "triangles": 4900,
+          "boundsMeters": [
+            9.0,
+            5.39,
+            7.2
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/buildings/inner-keep-city-stoneworks-high-01df9557bccaed14.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_CityStoneworks_GameReady/Runtime/Warpkeep_CityStoneworks_LOD1_Balanced_Runtime.glb",
+          "bytes": 305380,
+          "sha256": "81f8818339900c2f50329e1a9f593600afe916d32b89eee2295121b308005b73",
+          "triangles": 2792,
+          "boundsMeters": [
+            9.0,
+            5.39,
+            7.2
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/buildings/inner-keep-city-stoneworks-balanced-81f8818339900c2f.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_CityStoneworks_GameReady/Runtime/Warpkeep_CityStoneworks_LOD2_Compact_Runtime.glb",
+          "bytes": 134400,
+          "sha256": "174fd2f984065937d5a4a22800512047c064b528ce0b1e3a448f461574be61cc",
+          "triangles": 1224,
+          "boundsMeters": [
+            9.0,
+            5.39,
+            7.2
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/buildings/inner-keep-city-stoneworks-compact-174fd2f984065937.glb"
+        }
+      ],
+      "preview": {
+        "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_CityStoneworks_GameReady/Previews/Warpkeep_CityStoneworks_MobilePreview_320.png",
+        "bytes": 157575,
+        "sha256": "e4c562fc94705fc71b1e77f7b3911ce88854464e24a72f45a5bfa07c88260f07",
+        "width": 320,
+        "height": 320,
+        "destinationPath": "public/images/inner-keep/catalog/city-stoneworks-e4c562fc94705fc7.png"
+      }
+    },
+    {
+      "id": "city-goldworks",
+      "family": "buildings",
+      "sourcePackage": "Warpkeep_CityGoldworks_GameReady",
+      "sourceAssetId": "warpkeep.city-buildings.city-goldworks",
+      "displayName": "Hegemony Royal Goldworks",
+      "intendedUse": "Gold economy building",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_CityGoldworks_GameReady/Runtime/runtime-manifest.json",
+        "bytes": 3287,
+        "sha256": "5beca683daac80bb28e9574e0c444a76012b2cbb6a01c23d8212af7649b7ad5d"
+      },
+      "boundsMeters": [
+        9.0,
+        5.39,
+        7.2
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_CityGoldworks_GameReady/Runtime/Warpkeep_CityGoldworks_LOD0_High_Runtime.glb",
+          "bytes": 528552,
+          "sha256": "9cd4a9851ce291a95d01451f005eec0981bfc5921691a6c24184b6039fbad589",
+          "triangles": 4900,
+          "boundsMeters": [
+            9.0,
+            5.39,
+            7.2
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/buildings/inner-keep-city-goldworks-high-9cd4a9851ce291a9.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_CityGoldworks_GameReady/Runtime/Warpkeep_CityGoldworks_LOD1_Balanced_Runtime.glb",
+          "bytes": 304152,
+          "sha256": "662fa7a5983818cf6f191c69c74e1987e15bdbf65c0c56c8603c6131f1a93248",
+          "triangles": 2792,
+          "boundsMeters": [
+            9.0,
+            5.39,
+            7.2
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/buildings/inner-keep-city-goldworks-balanced-662fa7a5983818cf.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_CityGoldworks_GameReady/Runtime/Warpkeep_CityGoldworks_LOD2_Compact_Runtime.glb",
+          "bytes": 135864,
+          "sha256": "ed47ade5517e78da64d2cecb7b93ae90af52fc47869deee1621d73fdf1854c5d",
+          "triangles": 1224,
+          "boundsMeters": [
+            9.0,
+            5.39,
+            7.2
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/buildings/inner-keep-city-goldworks-compact-ed47ade5517e78da.glb"
+        }
+      ],
+      "preview": {
+        "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_CityGoldworks_GameReady/Previews/Warpkeep_CityGoldworks_MobilePreview_320.png",
+        "bytes": 157682,
+        "sha256": "4b0caa06c4ffb1e8871ec8c8044ce108faa6b345bf73d6365eb5cb8fa52aff79",
+        "width": 320,
+        "height": 320,
+        "destinationPath": "public/images/inner-keep/catalog/city-goldworks-4b0caa06c4ffb1e8.png"
+      }
+    },
+    {
+      "id": "palisade-wall-straight-4m",
+      "family": "palisade",
+      "sourcePackage": "Warpkeep_InnerKeep_WoodenPalisadeKit_GameReady",
+      "sourceAssetId": "warpkeep.inner_keep.wood_palisade.W02",
+      "displayName": "Palisade Wall Straight 4 m",
+      "intendedUse": "Perimeter wall infill",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_WoodenPalisadeKit_GameReady/Runtime/Props/PalisadeWall_Straight4m/runtime-manifest.json",
+        "bytes": 10387,
+        "sha256": "06b7f76f7ba369116774e6144a2c3c6f7a5302c5ac351455989bad42dc5a4839"
+      },
+      "boundsMeters": [
+        4.0,
+        3.2,
+        0.65
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_WoodenPalisadeKit_GameReady/Runtime/Props/PalisadeWall_Straight4m/Warpkeep_W02_LOD0_High_Runtime.glb",
+          "bytes": 70956,
+          "sha256": "00cdf8624e12b594303c749d777e248e031effe3831bae88641e8c90852c9263",
+          "triangles": 608,
+          "boundsMeters": [
+            4.0,
+            3.2,
+            0.65
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/palisade/inner-keep-palisade-wall-straight-4m-high-00cdf8624e12b594.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_WoodenPalisadeKit_GameReady/Runtime/Props/PalisadeWall_Straight4m/Warpkeep_W02_LOD1_Balanced_Runtime.glb",
+          "bytes": 39960,
+          "sha256": "c16ecc1c5ea8adba8a987256ef37964f426ecf026148ebeccd0a021a01ceb8fa",
+          "triangles": 336,
+          "boundsMeters": [
+            4.0,
+            3.2,
+            0.65
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/palisade/inner-keep-palisade-wall-straight-4m-balanced-c16ecc1c5ea8adba.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_WoodenPalisadeKit_GameReady/Runtime/Props/PalisadeWall_Straight4m/Warpkeep_W02_LOD2_Compact_Runtime.glb",
+          "bytes": 27636,
+          "sha256": "d0d33e6da38ed1f73e60903a81bd52da99e4d093a672bfe801bbb54d13349156",
+          "triangles": 228,
+          "boundsMeters": [
+            4.0,
+            3.2,
+            0.65
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/palisade/inner-keep-palisade-wall-straight-4m-compact-d0d33e6da38ed1f7.glb"
+        }
+      ]
+    },
+    {
+      "id": "palisade-wall-straight-8m",
+      "family": "palisade",
+      "sourcePackage": "Warpkeep_InnerKeep_WoodenPalisadeKit_GameReady",
+      "sourceAssetId": "warpkeep.inner_keep.wood_palisade.W03",
+      "displayName": "Palisade Wall Straight 8 m",
+      "intendedUse": "Long perimeter wall run",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_WoodenPalisadeKit_GameReady/Runtime/Props/PalisadeWall_Straight8m/runtime-manifest.json",
+        "bytes": 10392,
+        "sha256": "30936d9fb359c20f2a750fe6b4eeea7c63f601ab9fab0b8b809bb642dd10a358"
+      },
+      "boundsMeters": [
+        8.0,
+        3.2,
+        0.65
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_WoodenPalisadeKit_GameReady/Runtime/Props/PalisadeWall_Straight8m/Warpkeep_W03_LOD0_High_Runtime.glb",
+          "bytes": 132520,
+          "sha256": "84d5d73d4b56baa9a93d86e1541bebd0c4bd38556f4ae7256bdabb962fd22107",
+          "triangles": 1148,
+          "boundsMeters": [
+            8.0,
+            3.2,
+            0.65
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/palisade/inner-keep-palisade-wall-straight-8m-high-84d5d73d4b56baa9.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_WoodenPalisadeKit_GameReady/Runtime/Props/PalisadeWall_Straight8m/Warpkeep_W03_LOD1_Balanced_Runtime.glb",
+          "bytes": 71424,
+          "sha256": "d3f7ad3299cfc9327b51d383a64528006d464713f68824a3fb919273d21bcfb4",
+          "triangles": 612,
+          "boundsMeters": [
+            8.0,
+            3.2,
+            0.65
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/palisade/inner-keep-palisade-wall-straight-8m-balanced-d3f7ad3299cfc932.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_WoodenPalisadeKit_GameReady/Runtime/Props/PalisadeWall_Straight8m/Warpkeep_W03_LOD2_Compact_Runtime.glb",
+          "bytes": 48620,
+          "sha256": "70aa97418582b41ba0b149ac9d87eceb198cba47cf4862ac05ba25898f567abc",
+          "triangles": 412,
+          "boundsMeters": [
+            8.0,
+            3.2,
+            0.65
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/palisade/inner-keep-palisade-wall-straight-8m-compact-70aa97418582b41b.glb"
+        }
+      ]
+    },
+    {
+      "id": "palisade-wall-corner-90",
+      "family": "palisade",
+      "sourcePackage": "Warpkeep_InnerKeep_WoodenPalisadeKit_GameReady",
+      "sourceAssetId": "warpkeep.inner_keep.wood_palisade.W10",
+      "displayName": "Palisade Wall Corner 90 4 m",
+      "intendedUse": "Perimeter corner",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_WoodenPalisadeKit_GameReady/Runtime/Props/PalisadeWall_Corner90_4m/runtime-manifest.json",
+        "bytes": 10543,
+        "sha256": "649ec963be1fea2f35fb4e89177cd6fa92fcf5c708aced961a0c67661f1a7c20"
+      },
+      "boundsMeters": [
+        4.0,
+        3.2,
+        4.0
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_WoodenPalisadeKit_GameReady/Runtime/Props/PalisadeWall_Corner90_4m/Warpkeep_W10_LOD0_High_Runtime.glb",
+          "bytes": 99648,
+          "sha256": "6641c3b823412e2f9fe949005a7b9d75090e65e8dcda2bc962a5cb39a621ae59",
+          "triangles": 860,
+          "boundsMeters": [
+            4.0,
+            3.2,
+            4.0
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/palisade/inner-keep-palisade-wall-corner-90-high-6641c3b823412e2f.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_WoodenPalisadeKit_GameReady/Runtime/Props/PalisadeWall_Corner90_4m/Warpkeep_W10_LOD1_Balanced_Runtime.glb",
+          "bytes": 65916,
+          "sha256": "c138e93283e0daf61684e5b300c4e481a96b149c5af1e0cd548bd9b796b74415",
+          "triangles": 564,
+          "boundsMeters": [
+            4.0,
+            3.2,
+            4.0
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/palisade/inner-keep-palisade-wall-corner-90-balanced-c138e93283e0daf6.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_WoodenPalisadeKit_GameReady/Runtime/Props/PalisadeWall_Corner90_4m/Warpkeep_W10_LOD2_Compact_Runtime.glb",
+          "bytes": 47216,
+          "sha256": "7a9f51fa1355fc6cb126abd44d8b12008af9b794f2cfb6a5588eaf23f9d598f7",
+          "triangles": 400,
+          "boundsMeters": [
+            4.0,
+            3.2,
+            4.0
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/palisade/inner-keep-palisade-wall-corner-90-compact-7a9f51fa1355fc6c.glb"
+        }
+      ]
+    },
+    {
+      "id": "palisade-gate-frame-6m",
+      "family": "palisade",
+      "sourcePackage": "Warpkeep_InnerKeep_WoodenPalisadeKit_GameReady",
+      "sourceAssetId": "warpkeep.palisade.inner_keep.W15",
+      "displayName": "Palisade Gate Frame 6m",
+      "intendedUse": "South gate frame",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_WoodenPalisadeKit_GameReady/Runtime/Props/PalisadeGate_Frame6m/runtime-manifest.json",
+        "bytes": 8350,
+        "sha256": "b96276f1fbfa1596283d0eeebf437a7b815a8694b2a420482315c6692fe30f05"
+      },
+      "boundsMeters": [
+        6.0,
+        5.0,
+        1.3
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_WoodenPalisadeKit_GameReady/Runtime/Props/PalisadeGate_Frame6m/Warpkeep_W15_LOD0_High_Runtime.glb",
+          "bytes": 46112,
+          "sha256": "d4f580ae04a3b94ebcd18050d6affaa8d85858502f7308759d27ded3439d718f",
+          "triangles": 542,
+          "boundsMeters": [
+            6.0,
+            5.0,
+            1.3
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/palisade/inner-keep-palisade-gate-frame-6m-high-d4f580ae04a3b94e.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_WoodenPalisadeKit_GameReady/Runtime/Props/PalisadeGate_Frame6m/Warpkeep_W15_LOD1_Balanced_Runtime.glb",
+          "bytes": 40448,
+          "sha256": "af67ba3dc8085d8095a8c63d2d6b61f701c796ccb041241ea767b8eacd0e252e",
+          "triangles": 462,
+          "boundsMeters": [
+            6.0,
+            5.0,
+            1.3
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/palisade/inner-keep-palisade-gate-frame-6m-balanced-af67ba3dc8085d80.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_WoodenPalisadeKit_GameReady/Runtime/Props/PalisadeGate_Frame6m/Warpkeep_W15_LOD2_Compact_Runtime.glb",
+          "bytes": 25560,
+          "sha256": "c144a11a4f496e4ba1ec147d23c2b8df769ba33b56abe8a0d6f723b471f6c5f7",
+          "triangles": 286,
+          "boundsMeters": [
+            6.0,
+            5.0,
+            1.3
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/palisade/inner-keep-palisade-gate-frame-6m-compact-c144a11a4f496e4b.glb"
+        }
+      ]
+    },
+    {
+      "id": "palisade-gate-leaf-left",
+      "family": "palisade",
+      "sourcePackage": "Warpkeep_InnerKeep_WoodenPalisadeKit_GameReady",
+      "sourceAssetId": "warpkeep.palisade.inner_keep.W16",
+      "displayName": "Palisade Gate Leaf Left",
+      "intendedUse": "South gate left leaf",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_WoodenPalisadeKit_GameReady/Runtime/Props/PalisadeGate_LeafLeft/runtime-manifest.json",
+        "bytes": 7766,
+        "sha256": "2a25460c7be00ff3ed11bcaacd780769d087728abe44b762afdecc217ccefedc"
+      },
+      "boundsMeters": [
+        2.1,
+        3.45,
+        0.28
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_WoodenPalisadeKit_GameReady/Runtime/Props/PalisadeGate_LeafLeft/Warpkeep_W16_LOD0_High_Runtime.glb",
+          "bytes": 22860,
+          "sha256": "a3e3e5eb7b13568eb63c4b8e5cfdef6bad516502b87d5729a8125fc1ed373861",
+          "triangles": 276,
+          "boundsMeters": [
+            2.1,
+            3.45,
+            0.28
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/palisade/inner-keep-palisade-gate-leaf-left-high-a3e3e5eb7b13568e.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_WoodenPalisadeKit_GameReady/Runtime/Props/PalisadeGate_LeafLeft/Warpkeep_W16_LOD1_Balanced_Runtime.glb",
+          "bytes": 14604,
+          "sha256": "8b7009dccabeb38bad03b490dee1f273837f314ce414ad1e4efc6c50a857cb2b",
+          "triangles": 172,
+          "boundsMeters": [
+            2.1,
+            3.45,
+            0.28
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/palisade/inner-keep-palisade-gate-leaf-left-balanced-8b7009dccabeb38b.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_WoodenPalisadeKit_GameReady/Runtime/Props/PalisadeGate_LeafLeft/Warpkeep_W16_LOD2_Compact_Runtime.glb",
+          "bytes": 9896,
+          "sha256": "6653afb68006acb2faeac7b2bf76d544a633f064a8167e9ab23fb79369a91ce8",
+          "triangles": 108,
+          "boundsMeters": [
+            2.1,
+            3.45,
+            0.28
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/palisade/inner-keep-palisade-gate-leaf-left-compact-6653afb68006acb2.glb"
+        }
+      ]
+    },
+    {
+      "id": "palisade-gate-leaf-right",
+      "family": "palisade",
+      "sourcePackage": "Warpkeep_InnerKeep_WoodenPalisadeKit_GameReady",
+      "sourceAssetId": "warpkeep.palisade.inner_keep.W17",
+      "displayName": "Palisade Gate Leaf Right",
+      "intendedUse": "South gate right leaf",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_WoodenPalisadeKit_GameReady/Runtime/Props/PalisadeGate_LeafRight/runtime-manifest.json",
+        "bytes": 7781,
+        "sha256": "543fde76a295caa4f9896a4800baab52fb5bea5ea191876bb68cbc314a323e37"
+      },
+      "boundsMeters": [
+        2.1,
+        3.45,
+        0.28
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_WoodenPalisadeKit_GameReady/Runtime/Props/PalisadeGate_LeafRight/Warpkeep_W17_LOD0_High_Runtime.glb",
+          "bytes": 22936,
+          "sha256": "0b397bb750ba886ecdb02e3ae53d4b4fef8459b07bc579347b599a3483716fee",
+          "triangles": 276,
+          "boundsMeters": [
+            2.1,
+            3.45,
+            0.28
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/palisade/inner-keep-palisade-gate-leaf-right-high-0b397bb750ba886e.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_WoodenPalisadeKit_GameReady/Runtime/Props/PalisadeGate_LeafRight/Warpkeep_W17_LOD1_Balanced_Runtime.glb",
+          "bytes": 14604,
+          "sha256": "e59ec83f925c9741c4dcf0824b82bc735948e28abdebd91bac34d515a23a5734",
+          "triangles": 172,
+          "boundsMeters": [
+            2.1,
+            3.45,
+            0.28
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/palisade/inner-keep-palisade-gate-leaf-right-balanced-e59ec83f925c9741.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_WoodenPalisadeKit_GameReady/Runtime/Props/PalisadeGate_LeafRight/Warpkeep_W17_LOD2_Compact_Runtime.glb",
+          "bytes": 9900,
+          "sha256": "5b7e4895ecf8f2d5d4bed541fa7886243a7e3395df6f55812c7e657d01b2cbad",
+          "triangles": 108,
+          "boundsMeters": [
+            2.1,
+            3.45,
+            0.28
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/palisade/inner-keep-palisade-gate-leaf-right-compact-5b7e4895ecf8f2d5.glb"
+        }
+      ]
+    },
+    {
+      "id": "courtyard-linden-teardrop",
+      "family": "trees",
+      "sourcePackage": "Warpkeep_InnerKeepTrees_GameReady",
+      "sourceAssetId": "warpkeep.tree.ornamental.courtyard-linden-teardrop",
+      "displayName": "Courtyard Linden — Teardrop Crown",
+      "intendedUse": "Sparse inner-courtyard tree",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeepTrees_GameReady/Runtime/Trees/CourtyardLinden_Teardrop/runtime-manifest.json",
+        "bytes": 3225,
+        "sha256": "87d30d271fd4dcc118b70a1bff33dc3efbeada30bfcbfad3b28ef7e5f423843f"
+      },
+      "boundsMeters": [
+        2.876495,
+        5.2,
+        2.040444
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeepTrees_GameReady/Runtime/Trees/CourtyardLinden_Teardrop/Warpkeep_Tree_CourtyardLinden_Teardrop_LOD0_High_Runtime.glb",
+          "bytes": 164384,
+          "sha256": "e1f548983c08130897d6a30b0500a1534429d97e7412c92c26a339af9346b660",
+          "triangles": 1204,
+          "boundsMeters": [
+            2.876495,
+            5.2,
+            2.040444
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/trees/inner-keep-courtyard-linden-teardrop-high-e1f548983c081308.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeepTrees_GameReady/Runtime/Trees/CourtyardLinden_Teardrop/Warpkeep_Tree_CourtyardLinden_Teardrop_LOD1_Balanced_Runtime.glb",
+          "bytes": 74720,
+          "sha256": "70e50e8f3cc5de23351a599c89be9250917f33ea61460b9331e3ef43ac4220a7",
+          "triangles": 536,
+          "boundsMeters": [
+            2.901637,
+            5.2,
+            2.063829
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/trees/inner-keep-courtyard-linden-teardrop-balanced-70e50e8f3cc5de23.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeepTrees_GameReady/Runtime/Trees/CourtyardLinden_Teardrop/Warpkeep_Tree_CourtyardLinden_Teardrop_LOD2_Compact_Runtime.glb",
+          "bytes": 25840,
+          "sha256": "556a89c1ad3f6a3110ce83423b47d610b00f3ae30bcc573829f7e32dabeb0f8b",
+          "triangles": 180,
+          "boundsMeters": [
+            2.764695,
+            5.2,
+            1.377189
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/trees/inner-keep-courtyard-linden-teardrop-compact-556a89c1ad3f6a31.glb"
+        }
+      ]
+    },
+    {
+      "id": "pruned-ornamental-three-tier",
+      "family": "trees",
+      "sourcePackage": "Warpkeep_InnerKeepTrees_GameReady",
+      "sourceAssetId": "warpkeep.tree.ornamental.pruned-ornamental-tiered",
+      "displayName": "Pruned Ornamental — Three Tier",
+      "intendedUse": "Formal level dressing and topiary",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeepTrees_GameReady/Runtime/Trees/PrunedOrnamental_ThreeTier/runtime-manifest.json",
+        "bytes": 3228,
+        "sha256": "0da02c7804459745c5bdf3347ee096f97245fcc48e3fea587ee05d2ba8fe288d"
+      },
+      "boundsMeters": [
+        2.788351,
+        4.7,
+        2.738395
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeepTrees_GameReady/Runtime/Trees/PrunedOrnamental_ThreeTier/Warpkeep_Tree_PrunedOrnamental_ThreeTier_LOD0_High_Runtime.glb",
+          "bytes": 175604,
+          "sha256": "8bbe6ec99f51822bd9790b021b68d4f372ccf6a4d8aa9498d614d7924a0f06ad",
+          "triangles": 1284,
+          "boundsMeters": [
+            2.788351,
+            4.7,
+            2.738395
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/trees/inner-keep-pruned-ornamental-three-tier-high-8bbe6ec99f51822b.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeepTrees_GameReady/Runtime/Trees/PrunedOrnamental_ThreeTier/Warpkeep_Tree_PrunedOrnamental_ThreeTier_LOD1_Balanced_Runtime.glb",
+          "bytes": 74636,
+          "sha256": "72bdcd76ef4bf9f4cd84f76c094212ce4433c53b19164769dfd7b05dd285cef4",
+          "triangles": 536,
+          "boundsMeters": [
+            2.745673,
+            4.7,
+            2.685407
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/trees/inner-keep-pruned-ornamental-three-tier-balanced-72bdcd76ef4bf9f4.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeepTrees_GameReady/Runtime/Trees/PrunedOrnamental_ThreeTier/Warpkeep_Tree_PrunedOrnamental_ThreeTier_LOD2_Compact_Runtime.glb",
+          "bytes": 23084,
+          "sha256": "6995d4e430b3b1babfe866dc0fc80ef617e502ce3fe0ef9a3b5adae96821a627",
+          "triangles": 160,
+          "boundsMeters": [
+            2.349507,
+            4.7,
+            1.901195
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/trees/inner-keep-pruned-ornamental-three-tier-compact-6995d4e430b3b1ba.glb"
+        }
+      ]
+    },
+    {
+      "id": "giant-ancient-cedar",
+      "family": "trees",
+      "sourcePackage": "Warpkeep_InnerKeepTrees_FantasyExpansion_GameReady",
+      "sourceAssetId": "warpkeep.tree.fantasy.giant-ancient-cedar",
+      "displayName": "Giant Ancient Cedar",
+      "intendedUse": "Rare north-edge landmark tree",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeepTrees_FantasyExpansion_GameReady/Runtime/Trees/GiantAncientCedar/runtime-manifest.json",
+        "bytes": 4953,
+        "sha256": "3c746e186743e49e24cff69d9ff0a4d6d46610b5ad47d8fdd775a5975f74dbdf"
+      },
+      "boundsMeters": [
+        13.105342,
+        11.311282,
+        9.922385
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeepTrees_FantasyExpansion_GameReady/Runtime/Trees/GiantAncientCedar/Warpkeep_FantasyTree_GiantAncientCedar_LOD0_High_Runtime.glb",
+          "bytes": 96164,
+          "sha256": "a27d4410172bfba24cee062b448e416ec5174c4bcf3fc600fa70d1ae12471fdd",
+          "triangles": 896,
+          "boundsMeters": [
+            13.105342,
+            11.311282,
+            9.922385
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/trees/inner-keep-giant-ancient-cedar-high-a27d4410172bfba2.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeepTrees_FantasyExpansion_GameReady/Runtime/Trees/GiantAncientCedar/Warpkeep_FantasyTree_GiantAncientCedar_LOD1_Balanced_Runtime.glb",
+          "bytes": 56864,
+          "sha256": "6563723d5f37cb00c7bac2ab8fc631b5dbd4dffbbc2bf3ef6477cddb845ed7f1",
+          "triangles": 488,
+          "boundsMeters": [
+            13.105342,
+            11.311282,
+            9.922385
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/trees/inner-keep-giant-ancient-cedar-balanced-6563723d5f37cb00.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeepTrees_FantasyExpansion_GameReady/Runtime/Trees/GiantAncientCedar/Warpkeep_FantasyTree_GiantAncientCedar_LOD2_Compact_Runtime.glb",
+          "bytes": 29584,
+          "sha256": "48d82b31a418db32438e06b67b4c56f7c154471655acba2ed193cbf4393e6d12",
+          "triangles": 245,
+          "boundsMeters": [
+            13.105342,
+            11.314669,
+            9.992666
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/trees/inner-keep-giant-ancient-cedar-compact-48d82b31a418db32.glb"
+        }
+      ]
+    },
+    {
+      "id": "compact-processional-standard",
+      "family": "town-items",
+      "sourcePackage": "Warpkeep_TownItems_EnvironmentKit_GameReady",
+      "sourceAssetId": "compact-processional-standard",
+      "displayName": "Compact Street and Processional Standard",
+      "intendedUse": "Hegemony banner dressing",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Banners/BannerStands/CompactProcessionalStandard/runtime-manifest.json",
+        "bytes": 3651,
+        "sha256": "a1c5f470fe079c291e0e01717a6c894e7335240aa7ddaa014d9c78494df48f9f"
+      },
+      "boundsMeters": [
+        1.6341,
+        3.5823,
+        1.0083
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Banners/BannerStands/CompactProcessionalStandard/Warpkeep_CompactProcessionalStandard_LOD0_High.glb",
+          "bytes": 775984,
+          "sha256": "2b8b1a6b5c7353748893bbd3cdf89055fddd406eb1fb7c8e641466f1811fe6ad",
+          "triangles": 6906,
+          "boundsMeters": [
+            1.6341,
+            3.5823,
+            1.0083
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-compact-processional-standard-high-2b8b1a6b5c735374.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Banners/BannerStands/CompactProcessionalStandard/Warpkeep_CompactProcessionalStandard_LOD1_Balanced.glb",
+          "bytes": 588400,
+          "sha256": "9cee7a39ec36ffb021d6bf838996cf5411bc4c1b97d3c3830492cadc1012f5c8",
+          "triangles": 4366,
+          "boundsMeters": [
+            1.6347,
+            3.5823,
+            1.0094
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-compact-processional-standard-balanced-9cee7a39ec36ffb0.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Banners/BannerStands/CompactProcessionalStandard/Warpkeep_CompactProcessionalStandard_LOD2_Compact.glb",
+          "bytes": 373368,
+          "sha256": "10ddd768469d4f4ff65af8557cc2ad5eb818c828e863f3c7438bc4a87644d2d3",
+          "triangles": 1078,
+          "boundsMeters": [
+            1.6315,
+            3.5823,
+            1.003
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-compact-processional-standard-compact-10ddd768469d4f4f.glb"
+        }
+      ]
+    },
+    {
+      "id": "roofed-noticeboard",
+      "family": "town-items",
+      "sourcePackage": "Warpkeep_TownItems_EnvironmentKit_GameReady",
+      "sourceAssetId": "roofed-noticeboard",
+      "displayName": "Roofed Noticeboard",
+      "intendedUse": "Builder noticeboard",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Fixtures/Fixtures/RoofedNoticeboard/runtime-manifest.json",
+        "bytes": 1985,
+        "sha256": "77d0db97018ee5839d3377a6816c4b81c23a3454b0c6fb06590c96494b5ff201"
+      },
+      "boundsMeters": [
+        2.92,
+        3.3079,
+        0.98
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Fixtures/Fixtures/RoofedNoticeboard/Warpkeep_RoofedNoticeboard_LOD0_High.glb",
+          "bytes": 304108,
+          "sha256": "8d45890e63829407533065e01e277ec788734c5b5212216a5ca4329511e8e2a8",
+          "triangles": 4156,
+          "boundsMeters": [
+            2.92,
+            3.3079,
+            0.98
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-roofed-noticeboard-high-8d45890e63829407.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Fixtures/Fixtures/RoofedNoticeboard/Warpkeep_RoofedNoticeboard_LOD1_Balanced.glb",
+          "bytes": 149576,
+          "sha256": "91976a7e7e6ec54f9e75e41b1ffbd37212b3864e0bad65825b590c09064b375e",
+          "triangles": 2068,
+          "boundsMeters": [
+            2.92,
+            3.3059,
+            0.98
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-roofed-noticeboard-balanced-91976a7e7e6ec54f.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Fixtures/Fixtures/RoofedNoticeboard/Warpkeep_RoofedNoticeboard_LOD2_Compact.glb",
+          "bytes": 46428,
+          "sha256": "dfd35c9c36f2f4dad94744c0a429be592526f65e3485436893174b1930317bc4",
+          "triangles": 532,
+          "boundsMeters": [
+            2.92,
+            3.3053,
+            0.98
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-roofed-noticeboard-compact-dfd35c9c36f2f4da.glb"
+        }
+      ]
+    },
+    {
+      "id": "directional-signpost",
+      "family": "town-items",
+      "sourcePackage": "Warpkeep_TownItems_EnvironmentKit_GameReady",
+      "sourceAssetId": "directional-signpost",
+      "displayName": "Directional Signpost",
+      "intendedUse": "Road junction signpost",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Fixtures/Fixtures/DirectionalSignpost/runtime-manifest.json",
+        "bytes": 2006,
+        "sha256": "9768aa93f7641c14d992e67c7796c96e2740affd4b8a0163a1faaf2ce37e7c45"
+      },
+      "boundsMeters": [
+        1.9564,
+        3.37,
+        0.9476
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Fixtures/Fixtures/DirectionalSignpost/Warpkeep_DirectionalSignpost_LOD0_High.glb",
+          "bytes": 165248,
+          "sha256": "8ab4ca08af77c67b1c6b5c7256e698ccb04a83338e13d732a76df8bfbda968bc",
+          "triangles": 2298,
+          "boundsMeters": [
+            1.9564,
+            3.37,
+            0.9476
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-directional-signpost-high-8ab4ca08af77c67b.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Fixtures/Fixtures/DirectionalSignpost/Warpkeep_DirectionalSignpost_LOD1_Balanced.glb",
+          "bytes": 97376,
+          "sha256": "1e41b951b18a6395483776d851b1bfc95c40c80a626dcf2121f38e99a3dce10c",
+          "triangles": 1354,
+          "boundsMeters": [
+            1.9564,
+            3.37,
+            0.9493
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-directional-signpost-balanced-1e41b951b18a6395.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Fixtures/Fixtures/DirectionalSignpost/Warpkeep_DirectionalSignpost_LOD2_Compact.glb",
+          "bytes": 40756,
+          "sha256": "8afe0112a0de6af81bc7e4d121a445aec55f0975e5178746865378ed5f0eaf18",
+          "triangles": 498,
+          "boundsMeters": [
+            1.9564,
+            3.37,
+            0.9343
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-directional-signpost-compact-8afe0112a0de6af8.glb"
+        }
+      ]
+    },
+    {
+      "id": "timber-bench",
+      "family": "town-items",
+      "sourcePackage": "Warpkeep_TownItems_EnvironmentKit_GameReady",
+      "sourceAssetId": "timber-bench",
+      "displayName": "Timber Civic Bench",
+      "intendedUse": "Civic and level dressing bench",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Fixtures/Fixtures/TimberBench/runtime-manifest.json",
+        "bytes": 1949,
+        "sha256": "e4f9b99b8e5b65c20655d2077c037f74b33ce2f058250b43a406425d536926cd"
+      },
+      "boundsMeters": [
+        3.08,
+        2.1482,
+        0.9575
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Fixtures/Fixtures/TimberBench/Warpkeep_TimberBench_LOD0_High.glb",
+          "bytes": 255436,
+          "sha256": "e96e0add043678ad3ab14a7f0bbae1b57f1ba714da731f77b20fcddb8685617f",
+          "triangles": 3588,
+          "boundsMeters": [
+            3.08,
+            2.1482,
+            0.9575
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-timber-bench-high-e96e0add043678ad.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Fixtures/Fixtures/TimberBench/Warpkeep_TimberBench_LOD1_Balanced.glb",
+          "bytes": 146084,
+          "sha256": "625b24648f9fbdae18675b5b48cd9f5f7dcf33209a6c1dd7f96195a8b3ec0c72",
+          "triangles": 2068,
+          "boundsMeters": [
+            3.08,
+            2.1482,
+            0.9575
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-timber-bench-balanced-625b24648f9fbdae.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Fixtures/Fixtures/TimberBench/Warpkeep_TimberBench_LOD2_Compact.glb",
+          "bytes": 39596,
+          "sha256": "b77c20806cdf61e25b6619bb432ec4bbf7f862c017f0b54bf2dec28564b14628",
+          "triangles": 484,
+          "boundsMeters": [
+            3.08,
+            2.1482,
+            0.9396
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-timber-bench-compact-b77c20806cdf61e2.glb"
+        }
+      ]
+    },
+    {
+      "id": "timber-post-lamp",
+      "family": "town-items",
+      "sourcePackage": "Warpkeep_TownItems_EnvironmentKit_GameReady",
+      "sourceAssetId": "timber-post-lamp",
+      "displayName": "Timber Single Post Lamp",
+      "intendedUse": "Road and level dressing lamp",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Fixtures/Fixtures/TimberPostLamp/runtime-manifest.json",
+        "bytes": 1975,
+        "sha256": "7481daed9639679a8f9135c093658a071a125a05b41a6454a1c4aa35191f4dc5"
+      },
+      "boundsMeters": [
+        1.3204,
+        3.435,
+        0.78
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Fixtures/Fixtures/TimberPostLamp/Warpkeep_TimberPostLamp_LOD0_High.glb",
+          "bytes": 267500,
+          "sha256": "bf0d7f23315858a81f43f5738b4268324728619580b0b7348cc216cad5b48b7b",
+          "triangles": 3784,
+          "boundsMeters": [
+            1.3204,
+            3.435,
+            0.78
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-timber-post-lamp-high-bf0d7f23315858a8.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Fixtures/Fixtures/TimberPostLamp/Warpkeep_TimberPostLamp_LOD1_Balanced.glb",
+          "bytes": 169416,
+          "sha256": "381b847971a6cc547c2a9e60a0b61b6e17830db7be867ad31ce2989ea2a087ab",
+          "triangles": 2408,
+          "boundsMeters": [
+            1.3204,
+            3.4345,
+            0.78
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-timber-post-lamp-balanced-381b847971a6cc54.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Fixtures/Fixtures/TimberPostLamp/Warpkeep_TimberPostLamp_LOD2_Compact.glb",
+          "bytes": 69320,
+          "sha256": "5f35fa874a95c04bbd8c2abef9f31e48c988c7ad7d8a149edf36f12ca49a053e",
+          "triangles": 868,
+          "boundsMeters": [
+            1.3204,
+            3.4317,
+            0.78
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-timber-post-lamp-compact-5f35fa874a95c04b.glb"
+        }
+      ]
+    },
+    {
+      "id": "stone-pedestal-brazier",
+      "family": "town-items",
+      "sourcePackage": "Warpkeep_TownItems_EnvironmentKit_GameReady",
+      "sourceAssetId": "stone-pedestal-brazier",
+      "displayName": "Stone Pedestal Brazier",
+      "intendedUse": "Plaza and level dressing brazier",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Fixtures/Fixtures/StonePedestalBrazier/runtime-manifest.json",
+        "bytes": 2008,
+        "sha256": "13f27989a7ae5ddf5ba9cebcbca20e10f38d50e7748034c0bca04f33b21825c8"
+      },
+      "boundsMeters": [
+        1.25,
+        2.6396,
+        1.25
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Fixtures/Fixtures/StonePedestalBrazier/Warpkeep_StonePedestalBrazier_LOD0_High.glb",
+          "bytes": 168348,
+          "sha256": "c6d2485ca58328e1863c8c9179f909bec28fdc7aaaf4601720a3de36ca71daf8",
+          "triangles": 2296,
+          "boundsMeters": [
+            1.25,
+            2.6396,
+            1.25
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-stone-pedestal-brazier-high-c6d2485ca58328e1.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Fixtures/Fixtures/StonePedestalBrazier/Warpkeep_StonePedestalBrazier_LOD1_Balanced.glb",
+          "bytes": 98792,
+          "sha256": "6e9b6f425e0812773ae4b7688a871b949ab794612d99a3f5ff74faa86afdc4a2",
+          "triangles": 1352,
+          "boundsMeters": [
+            1.25,
+            2.6396,
+            1.25
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-stone-pedestal-brazier-balanced-6e9b6f425e081277.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Fixtures/Fixtures/StonePedestalBrazier/Warpkeep_StonePedestalBrazier_LOD2_Compact.glb",
+          "bytes": 35728,
+          "sha256": "35a276eee41bbb72e80a2229fc53965f6226c7305167d3a4f633f796920de3aa",
+          "triangles": 404,
+          "boundsMeters": [
+            1.25,
+            2.6396,
+            1.25
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-stone-pedestal-brazier-compact-35a276eee41bbb72.glb"
+        }
+      ]
+    },
+    {
+      "id": "timber-water-trough",
+      "family": "town-items",
+      "sourcePackage": "Warpkeep_TownItems_EnvironmentKit_GameReady",
+      "sourceAssetId": "timber-water-trough",
+      "displayName": "Timber Water Trough",
+      "intendedUse": "Work-yard level dressing",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Fixtures/Fixtures/TimberWaterTrough/runtime-manifest.json",
+        "bytes": 1985,
+        "sha256": "ef2cb22321936012f6608c2ed1ad42bd966498e0a92d63137150b368cdff5dec"
+      },
+      "boundsMeters": [
+        3.43,
+        1.48,
+        1.2638
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Fixtures/Fixtures/TimberWaterTrough/Warpkeep_TimberWaterTrough_LOD0_High.glb",
+          "bytes": 309984,
+          "sha256": "66a56aae3d4a762ceeba8f996eec0942a3af88e5866c991f46d76113e5d1f0a1",
+          "triangles": 4260,
+          "boundsMeters": [
+            3.43,
+            1.48,
+            1.2638
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-timber-water-trough-high-66a56aae3d4a762c.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Fixtures/Fixtures/TimberWaterTrough/Warpkeep_TimberWaterTrough_LOD1_Balanced.glb",
+          "bytes": 174120,
+          "sha256": "6425e366ed4276e8c79638ac2656b6d807303e705284555ff2c53ecc27cbe819",
+          "triangles": 2444,
+          "boundsMeters": [
+            3.43,
+            1.48,
+            1.2638
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-timber-water-trough-balanced-6425e366ed4276e8.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Fixtures/Fixtures/TimberWaterTrough/Warpkeep_TimberWaterTrough_LOD2_Compact.glb",
+          "bytes": 57996,
+          "sha256": "76408969d1a42d952efb3ed420441894fc23e78f0e2be5c9645b849c3b064a13",
+          "triangles": 684,
+          "boundsMeters": [
+            3.43,
+            1.48,
+            1.2638
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-timber-water-trough-compact-76408969d1a42d95.glb"
+        }
+      ]
+    },
+    {
+      "id": "formal-hedge-straight",
+      "family": "town-items",
+      "sourcePackage": "Warpkeep_TownItems_EnvironmentKit_GameReady",
+      "sourceAssetId": "warpkeep.town.flora.formal-hedge-straight",
+      "displayName": "Formal Hedge Straight Module",
+      "intendedUse": "Road-edge hedge",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Flora/Flora/FormalHedgeStraight/runtime-manifest.json",
+        "bytes": 3123,
+        "sha256": "6d0b419d88edb7ddd67333cadebe8f63d450fcafacc48d983c72d96003673a9e"
+      },
+      "boundsMeters": [
+        4.02824,
+        1.341619,
+        1.366458
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Flora/Flora/FormalHedgeStraight/Warpkeep_TownFlora_FormalHedgeStraight_LOD0_High_Runtime.glb",
+          "bytes": 68556,
+          "sha256": "ba22ccdbef21b42c63084f9536ea1722ecd84a4b834e5efbe9e78582093377cf",
+          "triangles": 648,
+          "boundsMeters": [
+            4.02824,
+            1.341619,
+            1.366458
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-formal-hedge-straight-high-ba22ccdbef21b42c.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Flora/Flora/FormalHedgeStraight/Warpkeep_TownFlora_FormalHedgeStraight_LOD1_Balanced_Runtime.glb",
+          "bytes": 19592,
+          "sha256": "d619e7c26a496ba566ba04c4d7bc85169ddf8b954329cb4a920aff673be9c096",
+          "triangles": 168,
+          "boundsMeters": [
+            4.009702,
+            1.341619,
+            1.190962
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-formal-hedge-straight-balanced-d619e7c26a496ba5.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Flora/Flora/FormalHedgeStraight/Warpkeep_TownFlora_FormalHedgeStraight_LOD2_Compact_Runtime.glb",
+          "bytes": 8992,
+          "sha256": "3724b124e4504f98aee923745e89e9f29fb426a07a62f029c766d069cf377357",
+          "triangles": 88,
+          "boundsMeters": [
+            3.92,
+            1.28,
+            0.9
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-formal-hedge-straight-compact-3724b124e4504f98.glb"
+        }
+      ]
+    },
+    {
+      "id": "formal-hedge-corner",
+      "family": "town-items",
+      "sourcePackage": "Warpkeep_TownItems_EnvironmentKit_GameReady",
+      "sourceAssetId": "warpkeep.town.flora.formal-hedge-corner",
+      "displayName": "Formal Hedge Corner Module",
+      "intendedUse": "Road-edge hedge corner",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Flora/Flora/FormalHedgeCorner/runtime-manifest.json",
+        "bytes": 3183,
+        "sha256": "5c4d79557e1e43c9905ff71af3d42fe621b655006f52c22640de0abef6d0804a"
+      },
+      "boundsMeters": [
+        4.141878,
+        1.353266,
+        4.025798
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Flora/Flora/FormalHedgeCorner/Warpkeep_TownFlora_FormalHedgeCorner_LOD0_High_Runtime.glb",
+          "bytes": 58904,
+          "sha256": "e87710f79704b1174db6dc4f21ee5c600b78ad876c3a6bb823d18a3c755414d6",
+          "triangles": 576,
+          "boundsMeters": [
+            4.141878,
+            1.353266,
+            4.025798
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-formal-hedge-corner-high-e87710f79704b117.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Flora/Flora/FormalHedgeCorner/Warpkeep_TownFlora_FormalHedgeCorner_LOD1_Balanced_Runtime.glb",
+          "bytes": 18452,
+          "sha256": "088946fbca5f5b86e551e3727a2d79229dea7ff4be987f84a0317457ee495476",
+          "triangles": 196,
+          "boundsMeters": [
+            3.955084,
+            1.353266,
+            3.950876
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-formal-hedge-corner-balanced-088946fbca5f5b86.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Flora/Flora/FormalHedgeCorner/Warpkeep_TownFlora_FormalHedgeCorner_LOD2_Compact_Runtime.glb",
+          "bytes": 15692,
+          "sha256": "0074e6825468a2c8c502f8d2d80ca2be0f1c88d3f68e76e59c53e109173b403e",
+          "triangles": 140,
+          "boundsMeters": [
+            3.955084,
+            1.353266,
+            3.950876
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-formal-hedge-corner-compact-0074e6825468a2c8.glb"
+        }
+      ]
+    },
+    {
+      "id": "clipped-boxwood-mound",
+      "family": "town-items",
+      "sourcePackage": "Warpkeep_TownItems_EnvironmentKit_GameReady",
+      "sourceAssetId": "warpkeep.town.flora.clipped-boxwood-mound",
+      "displayName": "Clipped Boxwood Mound",
+      "intendedUse": "Courtyard shrub",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Flora/Flora/ClippedBoxwoodMound/runtime-manifest.json",
+        "bytes": 3119,
+        "sha256": "9f27c847af8da62828330792f5ad56707695010c8da33626f13ba0341d2ef7c9"
+      },
+      "boundsMeters": [
+        1.967486,
+        1.515793,
+        1.94
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Flora/Flora/ClippedBoxwoodMound/Warpkeep_TownFlora_ClippedBoxwoodMound_LOD0_High_Runtime.glb",
+          "bytes": 53212,
+          "sha256": "71bd32a43e6f81dd312e41f4396b7a5db5cbbeedf56133afc601c7d18a3a52b6",
+          "triangles": 540,
+          "boundsMeters": [
+            1.967486,
+            1.515793,
+            1.94
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-clipped-boxwood-mound-high-71bd32a43e6f81dd.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Flora/Flora/ClippedBoxwoodMound/Warpkeep_TownFlora_ClippedBoxwoodMound_LOD1_Balanced_Runtime.glb",
+          "bytes": 23248,
+          "sha256": "6e447757d3a205d94684b3634f9e39e2fc1c35bc68517919c4ad12322e7625d8",
+          "triangles": 220,
+          "boundsMeters": [
+            1.941436,
+            1.521177,
+            1.94
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-clipped-boxwood-mound-balanced-6e447757d3a205d9.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Flora/Flora/ClippedBoxwoodMound/Warpkeep_TownFlora_ClippedBoxwoodMound_LOD2_Compact_Runtime.glb",
+          "bytes": 10844,
+          "sha256": "c01e8db707adf31ba0c5546b26800c5b0d573a9acfdb1a4e7dec711b0725cb98",
+          "triangles": 96,
+          "boundsMeters": [
+            1.94,
+            1.50644,
+            1.94
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-clipped-boxwood-mound-compact-c01e8db707adf31b.glb"
+        }
+      ]
+    },
+    {
+      "id": "picket-fence-4m",
+      "family": "town-items",
+      "sourcePackage": "Warpkeep_TownItems_EnvironmentKit_GameReady",
+      "sourceAssetId": "warpkeep.town-hardscape.th02",
+      "displayName": "Picket Fence 4 m",
+      "intendedUse": "Building level dressing fence",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Fence_Picket4m/runtime-manifest.json",
+        "bytes": 5757,
+        "sha256": "c5bfd9fa385b9ec43bc346914f70aede07df655c8fc3453393319a23574be39f"
+      },
+      "boundsMeters": [
+        4.0,
+        1.25,
+        0.3
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Fence_Picket4m/Warpkeep_TH02_LOD0_High_Runtime.glb",
+          "bytes": 43968,
+          "sha256": "a3a5044e875691516c47e230ce221c4dee70ea22ec86bb4c8fec07a6f66176e8",
+          "triangles": 540,
+          "boundsMeters": [
+            4.0,
+            1.25,
+            0.3
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-picket-fence-4m-high-a3a5044e87569151.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Fence_Picket4m/Warpkeep_TH02_LOD1_Balanced_Runtime.glb",
+          "bytes": 39716,
+          "sha256": "63f09802eac8c246525a14da9c65cd568c2bde636cc7fca09d62e5d7f4335981",
+          "triangles": 480,
+          "boundsMeters": [
+            4.0,
+            1.25,
+            0.3
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-picket-fence-4m-balanced-63f09802eac8c246.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Fence_Picket4m/Warpkeep_TH02_LOD2_Compact_Runtime.glb",
+          "bytes": 36884,
+          "sha256": "8d62f006b21fd7212d6c21e60098627d43740da324a0e334071546ae0868e1ac",
+          "triangles": 440,
+          "boundsMeters": [
+            4.0,
+            1.25,
+            0.3
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-picket-fence-4m-compact-8d62f006b21fd721.glb"
+        }
+      ]
+    },
+    {
+      "id": "dirt-road-straight-4m",
+      "family": "town-items",
+      "sourcePackage": "Warpkeep_TownItems_EnvironmentKit_GameReady",
+      "sourceAssetId": "warpkeep.town-hardscape.th07",
+      "displayName": "Dirt Road Straight 4 m",
+      "intendedUse": "Primary dirt road",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Road_DirtStraight4m/runtime-manifest.json",
+        "bytes": 5772,
+        "sha256": "7df8c848f7645bd1beb5de2c6776419fe84d81b762c91a0291dbbec7ff1caeaf"
+      },
+      "boundsMeters": [
+        4.0,
+        0.12,
+        2.4
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Road_DirtStraight4m/Warpkeep_TH07_LOD0_High_Runtime.glb",
+          "bytes": 15560,
+          "sha256": "d572f8bc4e9d38d4439b81175267052b7dd25d185cc6281c9f0b4b55d0b1bc1b",
+          "triangles": 160,
+          "boundsMeters": [
+            4.0,
+            0.12,
+            2.4
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-dirt-road-straight-4m-high-d572f8bc4e9d38d4.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Road_DirtStraight4m/Warpkeep_TH07_LOD1_Balanced_Runtime.glb",
+          "bytes": 13280,
+          "sha256": "cec2db4515a24d8f67ec985ac2c8cfb6cdb14126d958fc0048fbc8f133234ffe",
+          "triangles": 140,
+          "boundsMeters": [
+            4.0,
+            0.12,
+            2.4
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-dirt-road-straight-4m-balanced-cec2db4515a24d8f.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Road_DirtStraight4m/Warpkeep_TH07_LOD2_Compact_Runtime.glb",
+          "bytes": 10064,
+          "sha256": "88065d72da8b6ceb9777e3e7af1425ee16eddcde90f2e213d91e741587bff21b",
+          "triangles": 108,
+          "boundsMeters": [
+            4.0,
+            0.12,
+            2.4
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-dirt-road-straight-4m-compact-88065d72da8b6ceb.glb"
+        }
+      ]
+    },
+    {
+      "id": "dirt-road-curve-90-4m",
+      "family": "town-items",
+      "sourcePackage": "Warpkeep_TownItems_EnvironmentKit_GameReady",
+      "sourceAssetId": "warpkeep.town-hardscape.th08",
+      "displayName": "Dirt Road Curve 90°",
+      "intendedUse": "Curved dirt road",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Road_DirtCurve90_4m/runtime-manifest.json",
+        "bytes": 5766,
+        "sha256": "19f757f214997d89ce044ee708102bee6fe4f19ef7ec5d24e323c6f89594192b"
+      },
+      "boundsMeters": [
+        4.0,
+        0.12,
+        4.0
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Road_DirtCurve90_4m/Warpkeep_TH08_LOD0_High_Runtime.glb",
+          "bytes": 15060,
+          "sha256": "b93f180794c8de5c15d0fcaa4c999ba2d35465051e3fb7e83af4b4d4d9f90cde",
+          "triangles": 152,
+          "boundsMeters": [
+            4.0,
+            0.12,
+            4.0
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-dirt-road-curve-90-4m-high-b93f180794c8de5c.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Road_DirtCurve90_4m/Warpkeep_TH08_LOD1_Balanced_Runtime.glb",
+          "bytes": 12780,
+          "sha256": "e3c0221f0b8a5338f8609d0ad774f80257ccb1196bd8eef6348ea203b47a44eb",
+          "triangles": 132,
+          "boundsMeters": [
+            4.0,
+            0.12,
+            4.0
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-dirt-road-curve-90-4m-balanced-e3c0221f0b8a5338.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Road_DirtCurve90_4m/Warpkeep_TH08_LOD2_Compact_Runtime.glb",
+          "bytes": 9560,
+          "sha256": "8434a330607f99930427ed88b5f86ab614a2b0d5413f44cfd41208cf314328ab",
+          "triangles": 100,
+          "boundsMeters": [
+            4.0,
+            0.12,
+            4.0
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-dirt-road-curve-90-4m-compact-8434a330607f9993.glb"
+        }
+      ]
+    },
+    {
+      "id": "dirt-road-t-junction-4m",
+      "family": "town-items",
+      "sourcePackage": "Warpkeep_TownItems_EnvironmentKit_GameReady",
+      "sourceAssetId": "warpkeep.town-hardscape.th09",
+      "displayName": "Dirt Road T-Junction 4 m",
+      "intendedUse": "Dirt road junction",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Road_DirtTJunction4m/runtime-manifest.json",
+        "bytes": 5840,
+        "sha256": "4686e79eb847190397097c3c0f6c0764744e6787f57b0fb4d3a2fb877c4ccbdd"
+      },
+      "boundsMeters": [
+        4.0,
+        0.12,
+        4.0
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Road_DirtTJunction4m/Warpkeep_TH09_LOD0_High_Runtime.glb",
+          "bytes": 15928,
+          "sha256": "8df463a83ecdf544af9e5069a0c02cb6ac93056a070bd2b40afe632eb5b6cf54",
+          "triangles": 156,
+          "boundsMeters": [
+            4.0,
+            0.12,
+            4.0
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-dirt-road-t-junction-4m-high-8df463a83ecdf544.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Road_DirtTJunction4m/Warpkeep_TH09_LOD1_Balanced_Runtime.glb",
+          "bytes": 13648,
+          "sha256": "0278db0236891174005901c8e08c7f69f7e6aba7a9d6e49dc2fe8b287f466512",
+          "triangles": 136,
+          "boundsMeters": [
+            4.0,
+            0.12,
+            4.0
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-dirt-road-t-junction-4m-balanced-0278db0236891174.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Road_DirtTJunction4m/Warpkeep_TH09_LOD2_Compact_Runtime.glb",
+          "bytes": 10432,
+          "sha256": "07c1f95ab8841bb0fc28a24ffcf20dd45f4e1ff2c50356576ecc7177b35ebcfd",
+          "triangles": 104,
+          "boundsMeters": [
+            4.0,
+            0.12,
+            4.0
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-dirt-road-t-junction-4m-compact-07c1f95ab8841bb0.glb"
+        }
+      ]
+    },
+    {
+      "id": "cobble-road-straight-4m",
+      "family": "town-items",
+      "sourcePackage": "Warpkeep_TownItems_EnvironmentKit_GameReady",
+      "sourceAssetId": "warpkeep.town-hardscape.th11",
+      "displayName": "Cobble Road Straight 4 m",
+      "intendedUse": "Improved road and frontage",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Road_CobbleStraight4m/runtime-manifest.json",
+        "bytes": 5792,
+        "sha256": "573acaa139973ac71fb7a63587e79013251618b23e364117ebd61ac05f43ba49"
+      },
+      "boundsMeters": [
+        4.0,
+        0.14,
+        2.4
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Road_CobbleStraight4m/Warpkeep_TH11_LOD0_High_Runtime.glb",
+          "bytes": 87600,
+          "sha256": "2066fd90088760b630a14c17412e47b2b28afa846e70ea56dd4ce1db13d2fad2",
+          "triangles": 992,
+          "boundsMeters": [
+            4.0,
+            0.14,
+            2.4
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-cobble-road-straight-4m-high-2066fd90088760b6.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Road_CobbleStraight4m/Warpkeep_TH11_LOD1_Balanced_Runtime.glb",
+          "bytes": 66360,
+          "sha256": "54b23ca15974c825b7c99dd25603672a984836703f8872967d5148fd3ac67c98",
+          "triangles": 752,
+          "boundsMeters": [
+            4.0,
+            0.14,
+            2.4
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-cobble-road-straight-4m-balanced-54b23ca15974c825.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Road_CobbleStraight4m/Warpkeep_TH11_LOD2_Compact_Runtime.glb",
+          "bytes": 45048,
+          "sha256": "6d838a7ea65cf3132b499d10a4bff8709d6e8203ec84473aef44bc0a322135e0",
+          "triangles": 512,
+          "boundsMeters": [
+            4.0,
+            0.14,
+            2.4
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-cobble-road-straight-4m-compact-6d838a7ea65cf313.glb"
+        }
+      ]
+    },
+    {
+      "id": "cobble-plaza-6m",
+      "family": "town-items",
+      "sourcePackage": "Warpkeep_TownItems_EnvironmentKit_GameReady",
+      "sourceAssetId": "warpkeep.town-hardscape.th13",
+      "displayName": "Cobble Plaza 6 m",
+      "intendedUse": "Central civic plaza",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Road_CobblePlaza6m/runtime-manifest.json",
+        "bytes": 5918,
+        "sha256": "27609bdbd84afa1fe94ae7116b78e85f8e11fe2d47576d5c7db4efb21a49ba78"
+      },
+      "boundsMeters": [
+        6.0,
+        0.1625,
+        6.0
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Road_CobblePlaza6m/Warpkeep_TH13_LOD0_High_Runtime.glb",
+          "bytes": 197828,
+          "sha256": "85662cda60bedecf3d0d9ff88c2c5e3fa5756db051bcae38beff010996927fb4",
+          "triangles": 2292,
+          "boundsMeters": [
+            6.0,
+            0.1625,
+            6.0
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-cobble-plaza-6m-high-85662cda60bedecf.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Road_CobblePlaza6m/Warpkeep_TH13_LOD1_Balanced_Runtime.glb",
+          "bytes": 149684,
+          "sha256": "965d83a7e208b70466b6cbec00a2ec647982a180087dbcb579c0ccb97a0d31e9",
+          "triangles": 1744,
+          "boundsMeters": [
+            6.0,
+            0.1625,
+            6.0
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-cobble-plaza-6m-balanced-965d83a7e208b704.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Road_CobblePlaza6m/Warpkeep_TH13_LOD2_Compact_Runtime.glb",
+          "bytes": 100384,
+          "sha256": "767384a66fae79389a105143a9b2585c9fb6cf3ea49123347602fe3fcec923cd",
+          "triangles": 1172,
+          "boundsMeters": [
+            6.0,
+            0.1625,
+            6.0
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-cobble-plaza-6m-compact-767384a66fae7938.glb"
+        }
+      ]
+    },
+    {
+      "id": "stone-curb-2m",
+      "family": "town-items",
+      "sourcePackage": "Warpkeep_TownItems_EnvironmentKit_GameReady",
+      "sourceAssetId": "warpkeep.town-hardscape.th18",
+      "displayName": "Modular Stone Curb 2 m",
+      "intendedUse": "Road and terrace curb",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Stone_Curb2m/runtime-manifest.json",
+        "bytes": 5751,
+        "sha256": "141af680b334f602796ebf68a733112f0303d61b43e0ad6cac935eea7e96c506"
+      },
+      "boundsMeters": [
+        2.0,
+        0.3,
+        0.45
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Stone_Curb2m/Warpkeep_TH18_LOD0_High_Runtime.glb",
+          "bytes": 26536,
+          "sha256": "46cbb80d3b92d3f336fbc6a7234d7c18933757cb3f40a82afc12cd867bbd7532",
+          "triangles": 284,
+          "boundsMeters": [
+            2.0,
+            0.3,
+            0.45
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-stone-curb-2m-high-46cbb80d3b92d3f3.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Stone_Curb2m/Warpkeep_TH18_LOD1_Balanced_Runtime.glb",
+          "bytes": 23968,
+          "sha256": "6a34e355098ba968c26831b6e97c232d1420b5976259b7ed378679c10d76f44a",
+          "triangles": 264,
+          "boundsMeters": [
+            2.0,
+            0.3,
+            0.45
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-stone-curb-2m-balanced-6a34e355098ba968.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Stone_Curb2m/Warpkeep_TH18_LOD2_Compact_Runtime.glb",
+          "bytes": 20248,
+          "sha256": "ad9a56588710e3e9e3cf29c31666e4a187c310329db6b82e44a1e1055f128b5e",
+          "triangles": 220,
+          "boundsMeters": [
+            2.0,
+            0.3,
+            0.45
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-stone-curb-2m-compact-ad9a56588710e3e9.glb"
+        }
+      ]
+    },
+    {
+      "id": "boulder-cluster-3m",
+      "family": "town-items",
+      "sourcePackage": "Warpkeep_TownItems_EnvironmentKit_GameReady",
+      "sourceAssetId": "warpkeep.town-hardscape.th15",
+      "displayName": "Natural Boulder Cluster",
+      "intendedUse": "Terrain-edge rock dressing",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Stone_BoulderCluster3m/runtime-manifest.json",
+        "bytes": 5718,
+        "sha256": "2b05f20358a71dff6198b3e6a5aa7e4c0550aeb1ffc0f7cd3a6717e516ad0c87"
+      },
+      "boundsMeters": [
+        3.0,
+        1.5,
+        2.4
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Stone_BoulderCluster3m/Warpkeep_TH15_LOD0_High_Runtime.glb",
+          "bytes": 19884,
+          "sha256": "a1859faf45ecf03e8bda8ff28a6c4440ec64bb3331d62b1f836806f3672140e5",
+          "triangles": 160,
+          "boundsMeters": [
+            3.0,
+            1.5,
+            2.4
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-boulder-cluster-3m-high-a1859faf45ecf03e.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Stone_BoulderCluster3m/Warpkeep_TH15_LOD1_Balanced_Runtime.glb",
+          "bytes": 17604,
+          "sha256": "90235d94748ba8f91223a2bc68712a6036782a27cdd150bb7f2de81152a5092b",
+          "triangles": 140,
+          "boundsMeters": [
+            3.0,
+            1.5,
+            2.4
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-boulder-cluster-3m-balanced-90235d94748ba8f9.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Stone_BoulderCluster3m/Warpkeep_TH15_LOD2_Compact_Runtime.glb",
+          "bytes": 15324,
+          "sha256": "06849c7703cc1e171511d35387d0fb96a8756005a4c4a469d3ef5931455652b9",
+          "triangles": 120,
+          "boundsMeters": [
+            3.0,
+            1.5,
+            2.4
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-boulder-cluster-3m-compact-06849c7703cc1e17.glb"
+        }
+      ]
+    },
+    {
+      "id": "masonry-rubble-2m",
+      "family": "town-items",
+      "sourcePackage": "Warpkeep_TownItems_EnvironmentKit_GameReady",
+      "sourceAssetId": "warpkeep.town-hardscape.th16",
+      "displayName": "Masonry Rubble Cluster",
+      "intendedUse": "Small masonry dressing",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Stone_MasonryRubble2m/runtime-manifest.json",
+        "bytes": 5715,
+        "sha256": "00024e0062f3317426541bd870cf381cbe8c338d28fec08ff198e77de2f61e15"
+      },
+      "boundsMeters": [
+        2.0,
+        0.8,
+        1.6
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Stone_MasonryRubble2m/Warpkeep_TH16_LOD0_High_Runtime.glb",
+          "bytes": 36120,
+          "sha256": "ff69c805c0321fbff395c59c71fb33d6bd45d6be809fd097a1e2dc45a22fa916",
+          "triangles": 392,
+          "boundsMeters": [
+            2.0,
+            0.8,
+            1.6
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-masonry-rubble-2m-high-ff69c805c0321fbf.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Stone_MasonryRubble2m/Warpkeep_TH16_LOD1_Balanced_Runtime.glb",
+          "bytes": 33836,
+          "sha256": "02f591b8bf2362c4adb3f87a18cc114ce8f523a5589031708510bcd731627650",
+          "triangles": 372,
+          "boundsMeters": [
+            2.0,
+            0.8,
+            1.6
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-masonry-rubble-2m-balanced-02f591b8bf2362c4.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_TownItems_EnvironmentKit_GameReady/Runtime/Collections/Hardscape/Props/Stone_MasonryRubble2m/Warpkeep_TH16_LOD2_Compact_Runtime.glb",
+          "bytes": 31700,
+          "sha256": "06a6458760fcc83f43765670fa838b0e5596fd81d7c485a1c0b953d5834943ff",
+          "triangles": 352,
+          "boundsMeters": [
+            2.0,
+            0.8,
+            1.6
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-masonry-rubble-2m-compact-06a6458760fcc83f.glb"
+        }
+      ]
+    },
+    {
+      "id": "canopied-keep-well",
+      "family": "stone",
+      "sourcePackage": "Warpkeep_InnerKeep_StoneRuinsMonuments_GameReady",
+      "sourceAssetId": "CivicWell_Canopied",
+      "displayName": "Canopied Keep Well",
+      "intendedUse": "Central keep well",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_StoneRuinsMonuments_GameReady/Runtime/Assets/CivicWell_Canopied/runtime-manifest.json",
+        "bytes": 5078,
+        "sha256": "aa8b630f74a327422e71215b3e03b1cf32fabedcfb53064a8b940602b41d9487"
+      },
+      "boundsMeters": [
+        3.4,
+        3.6,
+        3.4
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_StoneRuinsMonuments_GameReady/Runtime/Assets/CivicWell_Canopied/Warpkeep_CivicWell_Canopied_LOD0_High_Runtime.glb",
+          "bytes": 40056,
+          "sha256": "fa7b15b156fc13cbf656d3e8b74d537e02d218b24bc9c90fb472c0cc94eb7cc8",
+          "triangles": 504,
+          "boundsMeters": [
+            3.4,
+            3.6,
+            3.4
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/stone/inner-keep-canopied-keep-well-high-fa7b15b156fc13cb.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_StoneRuinsMonuments_GameReady/Runtime/Assets/CivicWell_Canopied/Warpkeep_CivicWell_Canopied_LOD1_Balanced_Runtime.glb",
+          "bytes": 30176,
+          "sha256": "750ea19f085dd660f533878df932aaa66ae47e52224623434ce8c60539282a99",
+          "triangles": 368,
+          "boundsMeters": [
+            3.4,
+            3.6,
+            3.4
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/stone/inner-keep-canopied-keep-well-balanced-750ea19f085dd660.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_StoneRuinsMonuments_GameReady/Runtime/Assets/CivicWell_Canopied/Warpkeep_CivicWell_Canopied_LOD2_Compact_Runtime.glb",
+          "bytes": 14736,
+          "sha256": "8628434c2c8c3fde21d33511c5c8726b4a6f9406e99421c74efd4b598efe0bd4",
+          "triangles": 172,
+          "boundsMeters": [
+            3.4,
+            3.6,
+            3.4
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/stone/inner-keep-canopied-keep-well-compact-8628434c2c8c3fde.glb"
+        }
+      ]
+    },
+    {
+      "id": "collapsed-courtyard-arch",
+      "family": "stone",
+      "sourcePackage": "Warpkeep_InnerKeep_StoneRuinsMonuments_GameReady",
+      "sourceAssetId": "warpkeep.architecture.inner_keep.RuinArch_Collapsed4m",
+      "displayName": "Collapsed Courtyard Arch",
+      "intendedUse": "North-edge ruin",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_StoneRuinsMonuments_GameReady/Runtime/Assets/RuinArch_Collapsed4m/runtime-manifest.json",
+        "bytes": 8159,
+        "sha256": "a75471dd48090d22e043671dbd68f3a22612179b99a2cb67278da11845ddf1ec"
+      },
+      "boundsMeters": [
+        4.4,
+        4.0,
+        1.6
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_StoneRuinsMonuments_GameReady/Runtime/Assets/RuinArch_Collapsed4m/Warpkeep_A09_RuinArch_Collapsed4m_LOD0_High_Runtime.glb",
+          "bytes": 25504,
+          "sha256": "087f2557b6595d60e9b4d22182dfc9e3a62ef6f0d2bd152fb42ae57292e25b55",
+          "triangles": 252,
+          "boundsMeters": [
+            4.4,
+            4.0,
+            1.6
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/stone/inner-keep-collapsed-courtyard-arch-high-087f2557b6595d60.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_StoneRuinsMonuments_GameReady/Runtime/Assets/RuinArch_Collapsed4m/Warpkeep_A09_RuinArch_Collapsed4m_LOD1_Balanced_Runtime.glb",
+          "bytes": 24780,
+          "sha256": "db433981ff318419d2e6ce3cf8c7a71bf6dc4c209e3a523496584bb374d82783",
+          "triangles": 240,
+          "boundsMeters": [
+            4.4,
+            4.0,
+            1.6
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/stone/inner-keep-collapsed-courtyard-arch-balanced-db433981ff318419.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_StoneRuinsMonuments_GameReady/Runtime/Assets/RuinArch_Collapsed4m/Warpkeep_A09_RuinArch_Collapsed4m_LOD2_Compact_Runtime.glb",
+          "bytes": 16208,
+          "sha256": "bb8b41dbe991314cc150e75499d4f81acf4161adbea8ad7648a2581156d60c8d",
+          "triangles": 156,
+          "boundsMeters": [
+            4.4,
+            4.0,
+            1.6
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/stone/inner-keep-collapsed-courtyard-arch-compact-bb8b41dbe991314c.glb"
+        }
+      ]
+    },
+    {
+      "id": "masonry-rubble-cluster",
+      "family": "stone",
+      "sourcePackage": "Warpkeep_InnerKeep_StoneRuinsMonuments_GameReady",
+      "sourceAssetId": "warpkeep.architecture.inner_keep.RuinRubble_Masonry3m",
+      "displayName": "Masonry Rubble Cluster",
+      "intendedUse": "Large ruin rubble",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_StoneRuinsMonuments_GameReady/Runtime/Assets/RuinRubble_Masonry3m/runtime-manifest.json",
+        "bytes": 10310,
+        "sha256": "05e7217a5e04843d27e452c4ef814b05a0cc9a24f3bb5d0345ea19c8c55e35c0"
+      },
+      "boundsMeters": [
+        3.2,
+        1.1,
+        2.6
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_StoneRuinsMonuments_GameReady/Runtime/Assets/RuinRubble_Masonry3m/Warpkeep_A12_RuinRubble_Masonry3m_LOD0_High_Runtime.glb",
+          "bytes": 26768,
+          "sha256": "9bed961f4df79a584d2f43b3fbcadf896ecf0d5b61c290bc203d321c4e995c65",
+          "triangles": 264,
+          "boundsMeters": [
+            3.2,
+            1.1,
+            2.6
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/stone/inner-keep-masonry-rubble-cluster-high-9bed961f4df79a58.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_StoneRuinsMonuments_GameReady/Runtime/Assets/RuinRubble_Masonry3m/Warpkeep_A12_RuinRubble_Masonry3m_LOD1_Balanced_Runtime.glb",
+          "bytes": 22612,
+          "sha256": "33f632b03246785611834444499b0d4678bd75a12b21c0b03c86b07fb5b2e037",
+          "triangles": 220,
+          "boundsMeters": [
+            3.2,
+            1.1,
+            2.6
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/stone/inner-keep-masonry-rubble-cluster-balanced-33f632b032467856.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_StoneRuinsMonuments_GameReady/Runtime/Assets/RuinRubble_Masonry3m/Warpkeep_A12_RuinRubble_Masonry3m_LOD2_Compact_Runtime.glb",
+          "bytes": 14304,
+          "sha256": "fbcc413bfd0f0ceeefc893ac71c6aaa004b79669adedc41a0dd47e18a4f3e0f3",
+          "triangles": 136,
+          "boundsMeters": [
+            3.2,
+            1.1,
+            2.6
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/stone/inner-keep-masonry-rubble-cluster-compact-fbcc413bfd0f0cee.glb"
+        }
+      ]
+    },
+    {
+      "id": "breached-keep-wall",
+      "family": "stone",
+      "sourcePackage": "Warpkeep_InnerKeep_StoneRuinsMonuments_GameReady",
+      "sourceAssetId": "warpkeep.architecture.inner_keep.RuinWall_Breached4m",
+      "displayName": "Breached Keep Wall",
+      "intendedUse": "North-edge breached ruin wall",
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_StoneRuinsMonuments_GameReady/Runtime/Assets/RuinWall_Breached4m/runtime-manifest.json",
+        "bytes": 8148,
+        "sha256": "1e5f5861f9a6cef68d5d9662838f43ea6ae7476872494e2fcdf18c2c0d2e897a"
+      },
+      "boundsMeters": [
+        4.0,
+        2.8,
+        1.1
+      ],
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_StoneRuinsMonuments_GameReady/Runtime/Assets/RuinWall_Breached4m/Warpkeep_A08_RuinWall_Breached4m_LOD0_High_Runtime.glb",
+          "bytes": 33148,
+          "sha256": "802c1017e987e03b5fe13fe98f520dcf91cf222681086d6ceafac6e4cf9d7b47",
+          "triangles": 328,
+          "boundsMeters": [
+            4.0,
+            2.8,
+            1.1
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/stone/inner-keep-breached-keep-wall-high-802c1017e987e03b.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_StoneRuinsMonuments_GameReady/Runtime/Assets/RuinWall_Breached4m/Warpkeep_A08_RuinWall_Breached4m_LOD1_Balanced_Runtime.glb",
+          "bytes": 31344,
+          "sha256": "914de93f1e8928c8ca8074e11cae85279896d12106a4ef1c191da606d515359d",
+          "triangles": 316,
+          "boundsMeters": [
+            4.0,
+            2.8,
+            1.1
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/stone/inner-keep-breached-keep-wall-balanced-914de93f1e8928c8.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_InnerKeep_StoneRuinsMonuments_GameReady/Runtime/Assets/RuinWall_Breached4m/Warpkeep_A08_RuinWall_Breached4m_LOD2_Compact_Runtime.glb",
+          "bytes": 11900,
+          "sha256": "95131380fca529e6ddd376d969dab523a67ff911c505ab744bd7fbbc2b0667c7",
+          "triangles": 100,
+          "boundsMeters": [
+            4.0,
+            2.8,
+            1.1
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/stone/inner-keep-breached-keep-wall-compact-95131380fca529e6.glb"
+        }
+      ]
+    }
+  ]
+}

@@ -49,6 +49,12 @@ import {
   type RealmVegetationRoutePath
 } from '../../game/map/realmVegetationMask';
 import { terrainHeightAtWorld } from '../../game/map/terrainHeight';
+import type { InnerKeepPresentation } from '../inner-keep/innerKeepPresentation';
+import type {
+  InnerKeepSceneLayer,
+  InnerKeepSceneTelemetry,
+  InnerKeepSceneVisualContext
+} from '../inner-keep/createInnerKeepSceneLayer';
 import {
   createHegemonyCastlePlacements,
   type TerrainStructurePlacement
@@ -770,8 +776,24 @@ export type RealmTerrainPresentationTelemetry = Readonly<{
   grassOverviewHidden: boolean;
 }>;
 
+export type RealmSceneMode = 'WORLD' | 'INNER_KEEP';
+export type InnerKeepSceneStatus = 'inactive' | 'loading' | 'ready' | 'unavailable';
+
 export type RealmSceneHandle = Readonly<{
   dispose: () => void;
+  /**
+   * Selects the presentation hosted by this renderer. Inner Keep uses the
+   * same canvas/context; the optional seam keeps older test doubles and
+   * recovery integrations compatible while the lazy layer is unavailable.
+   */
+  setSceneMode?: (mode: RealmSceneMode) => void;
+  /** Reconciles the caller-bound Inner Keep projection without rebuilding WebGL. */
+  reconcileInnerKeepPresentation?: (
+    presentation: InnerKeepPresentation | null,
+    context?: InnerKeepSceneVisualContext
+  ) => void;
+  /** Mirrors the accessible DOM selection into the procedural 3D build pad. */
+  setSelectedInnerKeepSlotId?: (slotId: string | null) => void;
   /** Enables visible presentation work only after this scene owns the active canvas. */
   setPresentationActive: (active: boolean) => void;
   reconcileLiveGatheringState: (state: RealmLiveGatheringState) => void;
@@ -975,6 +997,12 @@ export type CreateRealmSceneOptions = Readonly<{
   onTargetSelect?: (target: RealmInteractionTarget) => void;
   /** Screen-local confirmation for a valid direct world click/tap. */
   onWorldSelectionFeedback?: (point: Readonly<{ x: number; y: number }>) => void;
+  /** Reports only the optional procedural layer's local presentation lifecycle. */
+  onInnerKeepSceneStatusChange?: (status: InnerKeepSceneStatus) => void;
+  /** Canvas picking feeds the same typed route used by the accessible site controls. */
+  onInnerKeepSlotSelect?: (slotId: string) => void;
+  /** Bounded renderer diagnostics; never an authority or command input. */
+  onInnerKeepTelemetry?: (telemetry: InnerKeepSceneTelemetry) => void;
 }>;
 
 type RealmSceneCleanup = Readonly<{
@@ -1493,6 +1521,7 @@ function initializeRealmScene(
   options.canvas.dataset.realmSceneIdentity = scene.uuid;
   options.canvas.dataset.realmRendererGeneration = String(rendererGeneration);
   options.canvas.dataset.realmLastSuccessfulRenderedGeneration = '0';
+  options.canvas.dataset.realmSceneMode = 'WORLD';
   scene.background = new THREE.Color(REALM_SKY_FALLBACK_COLOR);
   const fog = new THREE.Fog(
     REALM_SKY_FALLBACK_COLOR,
@@ -2777,6 +2806,12 @@ function initializeRealmScene(
   };
   cleanup.add(cancelWorkerModelPreflightTimer);
   let contextLost = false;
+  let sceneMode: RealmSceneMode = 'WORLD';
+  let innerKeepLayer: InnerKeepSceneLayer | null = null;
+  let innerKeepPresentation: InnerKeepPresentation | null = null;
+  let innerKeepVisualContext: InnerKeepSceneVisualContext | undefined;
+  let selectedInnerKeepSlotId: string | null = null;
+  let innerKeepLoadGeneration = 0;
   let contextLossCount = 0;
   let contextRestoreCount = 0;
   let ambientScheduler: RealmAmbientScheduler | null = null;
@@ -2797,6 +2832,7 @@ function initializeRealmScene(
     if (
       cleanup.isDisposed()
       || contextLost
+      || sceneMode !== 'WORLD'
       || !presentationActive
       || options.canvas.dataset.realmCanvasActive === 'false'
       || !layer
@@ -2851,25 +2887,27 @@ function initializeRealmScene(
     presentationActive
     && !contextLost
     && options.canvas.dataset.realmCanvasActive !== 'false'
-    && (
-      workerLayer?.hasMovingWorkers() === true
-      || (
-        !options.reducedMotion
-        && Math.max(
-          renderPlan.grass.animationFrameCap,
-          REALM_WATER_ANIMATION_FRAME_CAPS[runtimeQuality.id]
-        ) > 0
-        && (
-          grassLayer?.isAnimationActive() === true
-          || decorations.animated
-          || goldNodeLayer?.hasMovingWagons() === true
-          || foodNodeLayer?.hasMovingWagons() === true
-          || woodNodeLayer?.hasMovingWagons() === true
-          || stoneNodeLayer?.hasMovingWagons() === true
-          || waterLayer?.isAnimationActive() === true
+    && (sceneMode === 'INNER_KEEP'
+      ? innerKeepLayer?.isAnimationActive() === true
+      : (
+        workerLayer?.hasMovingWorkers() === true
+        || (
+          !options.reducedMotion
+          && Math.max(
+            renderPlan.grass.animationFrameCap,
+            REALM_WATER_ANIMATION_FRAME_CAPS[runtimeQuality.id]
+          ) > 0
+          && (
+            grassLayer?.isAnimationActive() === true
+            || decorations.animated
+            || goldNodeLayer?.hasMovingWagons() === true
+            || foodNodeLayer?.hasMovingWagons() === true
+            || woodNodeLayer?.hasMovingWagons() === true
+            || stoneNodeLayer?.hasMovingWagons() === true
+            || waterLayer?.isAnimationActive() === true
+          )
         )
-      )
-    )
+      ))
   );
   const disableGrassPresentation = () => {
     const layer = grassLayer;
@@ -3092,6 +3130,13 @@ function initializeRealmScene(
       return;
     }
     renderPendingWhileHidden = false;
+    if (sceneMode === 'INNER_KEEP') {
+      if (innerKeepLayer) {
+        renderer.render(innerKeepLayer.scene, innerKeepLayer.camera);
+        options.onInnerKeepTelemetry?.(innerKeepLayer.getTelemetry());
+      }
+      return;
+    }
     syncWaterPresentationTelemetry();
     const pose = cameraController.getPose();
     const cameraTelemetry = cameraController.getPresentationTelemetry();
@@ -3720,6 +3765,9 @@ function initializeRealmScene(
         REALM_WATER_ANIMATION_FRAME_CAPS[runtimeQuality.id]
       );
   const resolveAmbientFrameCap = () => {
+    if (sceneMode === 'INNER_KEEP') {
+      return innerKeepLayer?.getAnimationFrameCap() ?? 0;
+    }
     const workerInterval = workerLayer?.hasMovingWorkers() === true
       ? workerLayer.recommendedPositionUpdateIntervalMs()
       : 0;
@@ -3740,6 +3788,10 @@ function initializeRealmScene(
     active: ambientIsNeeded(),
     onStep: (elapsedSeconds) => {
       if (cleanup.isDisposed()) return;
+      if (sceneMode === 'INNER_KEEP') {
+        if (innerKeepLayer?.update(elapsedSeconds) === true) render();
+        return;
+      }
       const grassChanged = grassLayer?.updateWind(elapsedSeconds) === true;
       const terrainChanged = decorations.updateWind(elapsedSeconds);
       const wagonsMoving = goldNodeLayer?.hasMovingWagons() === true;
@@ -3761,6 +3813,67 @@ function initializeRealmScene(
     }
   });
   cleanup.add(() => ambientScheduler?.dispose());
+
+  const publishInnerKeepLayerState = () => {
+    const layer = innerKeepLayer;
+    if (!layer) return;
+    const telemetry = layer.getTelemetry();
+    options.onInnerKeepTelemetry?.(telemetry);
+    options.onInnerKeepSceneStatusChange?.(
+      telemetry.status === 'ready' ? 'ready' : 'unavailable'
+    );
+  };
+  const ensureInnerKeepLayer = () => {
+    if (cleanup.isDisposed() || sceneMode !== 'INNER_KEEP') return;
+    if (innerKeepLayer) {
+      innerKeepLayer.reconcile(innerKeepPresentation, innerKeepVisualContext);
+      innerKeepLayer.setSelectedSlot(selectedInnerKeepSlotId);
+      publishInnerKeepLayerState();
+      syncAmbientFrameCap();
+      ambientScheduler?.setActive(ambientIsNeeded());
+      render();
+      return;
+    }
+    const generation = ++innerKeepLoadGeneration;
+    options.onInnerKeepSceneStatusChange?.('loading');
+    void import('../inner-keep/createInnerKeepSceneLayer').then((module) => {
+      if (
+        cleanup.isDisposed()
+        || sceneMode !== 'INNER_KEEP'
+        || generation !== innerKeepLoadGeneration
+      ) return;
+      const layer = module.createInnerKeepSceneLayer({
+        canvas: options.canvas,
+        quality: runtimeQuality.id,
+        reducedMotion: options.reducedMotion,
+        requestRender: render
+      });
+      innerKeepLayer = layer;
+      layer.setViewport(
+        Math.max(1, options.canvas.clientWidth || window.innerWidth || 1),
+        Math.max(1, options.canvas.clientHeight || window.innerHeight || 1)
+      );
+      layer.reconcile(innerKeepPresentation, innerKeepVisualContext);
+      layer.setSelectedSlot(selectedInnerKeepSlotId);
+      publishInnerKeepLayerState();
+      syncAmbientFrameCap();
+      ambientScheduler?.setActive(ambientIsNeeded());
+      render();
+    }).catch(() => {
+      if (
+        cleanup.isDisposed()
+        || sceneMode !== 'INNER_KEEP'
+        || generation !== innerKeepLoadGeneration
+      ) return;
+      options.onInnerKeepSceneStatusChange?.('unavailable');
+      ambientScheduler?.setActive(false);
+    });
+  };
+  cleanup.add(() => {
+    innerKeepLoadGeneration += 1;
+    innerKeepLayer?.dispose();
+    innerKeepLayer = null;
+  });
 
   const raycaster = new THREE.Raycaster();
   const normalizedPointer = new THREE.Vector2();
@@ -3820,7 +3933,7 @@ function initializeRealmScene(
   });
 
   const dispatchHover = (target: RealmInteractionTarget | null) => {
-    if (!sceneAcceptsInteraction()) return;
+    if (sceneMode !== 'WORLD' || !sceneAcceptsInteraction()) return;
     hoveredCastleId = target?.kind === 'castle' ? target.castleId : undefined;
     castleLayer?.setHoveredCastleId(hoveredCastleId ?? null);
     goldNodeLayer?.setHoveredSiteId(
@@ -3840,7 +3953,7 @@ function initializeRealmScene(
   };
 
   const dispatchSelect = (target: RealmInteractionTarget) => {
-    if (!sceneAcceptsInteraction()) return;
+    if (sceneMode !== 'WORLD' || !sceneAcceptsInteraction()) return;
     options.onTargetSelect?.(target);
     options.onSelect(target.coord);
   };
@@ -3943,6 +4056,7 @@ function initializeRealmScene(
   };
 
   const scheduleHover = (clientX: number, clientY: number) => {
+    if (sceneMode !== 'WORLD') return;
     pendingHoverPoint = { x: clientX, y: clientY };
     if (hoverAnimationFrame !== 0) return;
     hoverAnimationFrame = window.requestAnimationFrame(() => {
@@ -3967,6 +4081,7 @@ function initializeRealmScene(
 
   const laneForTarget = (target: EventTarget | null): RealmPointerStartLane | null => {
     if (target === options.canvas) return 'canvas';
+    if (sceneMode === 'INNER_KEEP') return null;
     return worldControlForTarget(target) ? 'world-control' : null;
   };
 
@@ -3986,8 +4101,10 @@ function initializeRealmScene(
       return;
     }
     if (result.pointerCount > 0) return;
-    if (result.cancelled) cameraController.cancelDirectManipulation();
-    else cameraController.endDirectManipulation();
+    if (sceneMode === 'WORLD') {
+      if (result.cancelled) cameraController.cancelDirectManipulation();
+      else cameraController.endDirectManipulation();
+    }
     delete options.canvas.dataset.dragging;
     delete interactionRoot.dataset.cameraInteracting;
   };
@@ -4002,6 +4119,16 @@ function initializeRealmScene(
       || cleanup.isDisposed()
       || !sceneAcceptsInteraction()
     ) return;
+    if (sceneMode === 'INNER_KEEP') {
+      innerKeepLayer?.panByPixels(
+        gesture.endX - gesture.startX,
+        gesture.endY - gesture.startY
+      );
+      if (gesture.kind === 'pinch' && Math.abs(gesture.zoomAmount) > 0.000001) {
+        innerKeepLayer?.zoomByWheel(-gesture.zoomAmount * 420, 0);
+      }
+      return;
+    }
     cameraController.manipulateViewport(
       gesture.startX,
       gesture.startY,
@@ -4026,7 +4153,7 @@ function initializeRealmScene(
     clientY: number
   ) => {
     if (result.panDelta) {
-      cameraController.beginDirectManipulation();
+      if (sceneMode === 'WORLD') cameraController.beginDirectManipulation();
       const current = localPoint(clientX, clientY);
       if (pendingDirectGesture?.kind === 'pinch') flushDirectGesture();
       if (pendingDirectGesture?.kind === 'pan') {
@@ -4047,7 +4174,7 @@ function initializeRealmScene(
     // A second pointer changes the gesture contract immediately, even before
     // either finger moves. Mark that reset boundary so releasing a brief
     // two-finger gesture can never inherit velocity from the preceding pan.
-    cameraController.beginDirectManipulation('pinch');
+    if (sceneMode === 'WORLD') cameraController.beginDirectManipulation('pinch');
     if (result.pinch.reset) {
       pinchZoomGesture.reset();
       flushDirectGesture();
@@ -4151,7 +4278,9 @@ function initializeRealmScene(
     }
     if (contextLost) return;
     if (pointerGestures.snapshot().pointerCount === 0) {
-      if (event.target === options.canvas) scheduleHover(event.clientX, event.clientY);
+      if (sceneMode === 'WORLD' && event.target === options.canvas) {
+        scheduleHover(event.clientX, event.clientY);
+      }
       return;
     }
     const coalesced = event.getCoalescedEvents?.() ?? [];
@@ -4184,6 +4313,11 @@ function initializeRealmScene(
     clientY: number,
     pointerType: string
   ) => {
+    if (sceneMode === 'INNER_KEEP') {
+      const slotId = innerKeepLayer?.pickSlot(clientX, clientY);
+      if (slotId) options.onInnerKeepSlotSelect?.(slotId);
+      return;
+    }
     const picked = pick(clientX, clientY, pointerType === 'touch');
     if (!picked) return;
     options.onWorldSelectionFeedback?.(localPoint(clientX, clientY));
@@ -4250,6 +4384,7 @@ function initializeRealmScene(
     }
     syncGesturePhase(result);
     if (result.pointerCount === 0) {
+      if (sceneMode !== 'WORLD') return;
       const hitTarget = document.elementFromPoint?.(event.clientX, event.clientY) ?? event.target;
       if (laneForTarget(hitTarget)) scheduleHover(event.clientX, event.clientY);
       else dispatchHover(null);
@@ -4330,7 +4465,7 @@ function initializeRealmScene(
   const handlePointerLeave = () => {
     if (!sceneAcceptsInteraction()) return;
     if (contextLost) return;
-    if (pointerGestures.snapshot().pointerCount === 0) {
+    if (sceneMode === 'WORLD' && pointerGestures.snapshot().pointerCount === 0) {
       cancelPendingHover();
       dispatchHover(null);
     }
@@ -4345,6 +4480,10 @@ function initializeRealmScene(
     if (contextLost) return;
     if (!lane) return;
     event.preventDefault();
+    if (sceneMode === 'INNER_KEEP') {
+      innerKeepLayer?.zoomByWheel(event.deltaY, event.deltaMode);
+      return;
+    }
     // Camera motion invalidates the last canvas hit. Clear it immediately so
     // a stationary pointer cannot leave a label highlighted after its castle
     // has moved elsewhere on screen; the next pointer move performs a fresh
@@ -4485,6 +4624,8 @@ function initializeRealmScene(
     ));
     renderer.setSize(width, height, false);
     cameraController.setViewport(width, height);
+    innerKeepLayer?.setViewport(width, height);
+    if (sceneMode === 'INNER_KEEP') render();
   };
   const cancelGestureForViewportChange = () => {
     pinchZoomGesture.reset();
@@ -4503,7 +4644,7 @@ function initializeRealmScene(
     cancelPendingHover();
     dispatchHover(null);
     if (result.accepted) syncGesturePhase(result);
-    else cameraController.cancelDirectManipulation();
+    else if (sceneMode === 'WORLD') cameraController.cancelDirectManipulation();
     delete options.canvas.dataset.dragging;
     delete interactionRoot.dataset.cameraInteracting;
   };
@@ -5139,6 +5280,46 @@ function initializeRealmScene(
 
   return {
     dispose: disposeScene,
+    setSceneMode: (mode) => {
+      if (cleanup.isDisposed()) return;
+      if (mode === sceneMode) {
+        if (mode === 'INNER_KEEP') ensureInnerKeepLayer();
+        return;
+      }
+      sceneMode = mode;
+      options.canvas.dataset.realmSceneMode = mode;
+      cancelAllPointers(pointerGestures.blur());
+      cancelWorkerMovementWake();
+      if (mode === 'INNER_KEEP') {
+        waterAmbiencePublisher.publish(WARPKEEP_WATER_AMBIENCE_OFF);
+        syncAmbientFrameCap();
+        ambientScheduler?.setActive(false);
+        ensureInnerKeepLayer();
+        return;
+      }
+      innerKeepLoadGeneration += 1;
+      options.onInnerKeepSceneStatusChange?.('inactive');
+      syncAmbientFrameCap();
+      ambientScheduler?.setActive(ambientIsNeeded());
+      if (presentationActive) render();
+    },
+    reconcileInnerKeepPresentation: (presentation, context) => {
+      if (cleanup.isDisposed()) return;
+      innerKeepPresentation = presentation;
+      innerKeepVisualContext = context;
+      if (!innerKeepLayer) return;
+      innerKeepLayer.reconcile(presentation, context);
+      publishInnerKeepLayerState();
+      syncAmbientFrameCap();
+      ambientScheduler?.setActive(ambientIsNeeded());
+      if (sceneMode === 'INNER_KEEP' && presentationActive) render();
+    },
+    setSelectedInnerKeepSlotId: (slotId) => {
+      if (cleanup.isDisposed()) return;
+      selectedInnerKeepSlotId = slotId;
+      innerKeepLayer?.setSelectedSlot(slotId);
+      if (sceneMode === 'INNER_KEEP' && presentationActive) render();
+    },
     setPresentationActive: (active) => {
       if (cleanup.isDisposed()) return;
       if (!active) {

@@ -41,7 +41,7 @@ test('access requests add one exact private table at the end of the deployed v12
   assert.deepEqual(v13Registrations.slice(0, 53), v12Registrations);
   assert.deepEqual(v13Registrations.slice(53), ['accessRequestV1']);
   assert.deepEqual(currentRegistrations.slice(0, 54), v13Registrations);
-  assert.deepEqual(currentRegistrations.slice(54), [
+  assert.deepEqual(currentRegistrations.slice(54, 56), [
     'dailyMarkGrantV1',
     'dailyMarkScheduleV1',
   ]);

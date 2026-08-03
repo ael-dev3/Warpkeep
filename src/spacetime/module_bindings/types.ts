@@ -240,6 +240,54 @@ export const AdminDailyMarksStatusV1 = __t.object("AdminDailyMarksStatusV1", {
 });
 export type AdminDailyMarksStatusV1 = __Infer<typeof AdminDailyMarksStatusV1>;
 
+export const AdminInnerKeepBuilderPlanV1 = __t.object("AdminInnerKeepBuilderPlanV1", {
+  expectedCastles: __t.u32(),
+  existingBuilders: __t.u32(),
+  missingBuilders: __t.u32(),
+  ready: __t.bool(),
+});
+export type AdminInnerKeepBuilderPlanV1 = __Infer<typeof AdminInnerKeepBuilderPlanV1>;
+
+export const AdminInnerKeepCatalogPlanV1 = __t.object("AdminInnerKeepCatalogPlanV1", {
+  missingLayout: __t.u32(),
+  missingSlots: __t.u32(),
+  missingBuildings: __t.u32(),
+  missingLevels: __t.u32(),
+  ready: __t.bool(),
+});
+export type AdminInnerKeepCatalogPlanV1 = __Infer<typeof AdminInnerKeepCatalogPlanV1>;
+
+export const AdminInnerKeepStatusV1 = __t.object("AdminInnerKeepStatusV1", {
+  layoutRows: __t.u64(),
+  slotRows: __t.u64(),
+  buildingCatalogRows: __t.u64(),
+  levelPolicyRows: __t.u64(),
+  castleRows: __t.u64(),
+  builderRows: __t.u64(),
+  buildingRows: __t.u64(),
+  activeProjects: __t.u64(),
+  receiptRows: __t.u64(),
+  scheduleRows: __t.u64(),
+  missingBuilders: __t.u64(),
+  orphanBuilders: __t.u64(),
+  invalidBuilders: __t.u64(),
+  invalidBuildings: __t.u64(),
+  invalidSchedules: __t.u64(),
+  builderProjectMismatches: __t.u64(),
+  staticCatalogExact: __t.bool(),
+  workerSystemReady: __t.bool(),
+  readyForCatalogSeed: __t.bool(),
+  readyForBuilderBackfill: __t.bool(),
+  readyForActivation: __t.bool(),
+  active: __t.bool(),
+  policyVersion: __t.string(),
+  policyDigest: __t.string(),
+  layoutPolicyVersion: __t.string(),
+  layoutDigest: __t.string(),
+  assetCatalogDigest: __t.string(),
+});
+export type AdminInnerKeepStatusV1 = __Infer<typeof AdminInnerKeepStatusV1>;
+
 export const AdminWaterLayoutStatusV1 = __t.object("AdminWaterLayoutStatusV1", {
   ready: __t.bool(),
   activated: __t.bool(),
@@ -444,6 +492,61 @@ export const Castle = __t.object("Castle", {
 });
 export type Castle = __Infer<typeof Castle>;
 
+export const CastleInnerBuildReceiptV1 = __t.object("CastleInnerBuildReceiptV1", {
+  receiptKey: __t.string(),
+  fid: __t.u64(),
+  requestKey: __t.string(),
+  castleId: __t.u64(),
+  buildingKey: __t.string(),
+  slotId: __t.string(),
+  buildingKind: __t.string(),
+  targetLevel: __t.u32(),
+  deductedFood: __t.u64(),
+  deductedWood: __t.u64(),
+  deductedStone: __t.u64(),
+  deductedGold: __t.u64(),
+  startedAt: __t.timestamp(),
+  policyVersion: __t.string(),
+});
+export type CastleInnerBuildReceiptV1 = __Infer<typeof CastleInnerBuildReceiptV1>;
+
+export const CastleInnerBuilderV1 = __t.object("CastleInnerBuilderV1", {
+  castleId: __t.u64(),
+  fid: __t.u64(),
+  activeBuildingKey: __t.option(__t.string()),
+  busyUntilMicros: __t.option(__t.u64()),
+  revision: __t.u64(),
+  policyVersion: __t.string(),
+  createdAt: __t.timestamp(),
+  updatedAt: __t.timestamp(),
+});
+export type CastleInnerBuilderV1 = __Infer<typeof CastleInnerBuilderV1>;
+
+export const CastleInnerConstructionScheduleV1 = __t.object("CastleInnerConstructionScheduleV1", {
+  scheduleId: __t.u64(),
+  scheduledAt: __t.scheduleAt(),
+  buildingKey: __t.string(),
+  expectedRevision: __t.u64(),
+  expectedTargetLevel: __t.u32(),
+});
+export type CastleInnerConstructionScheduleV1 = __Infer<typeof CastleInnerConstructionScheduleV1>;
+
+export const CastleInnerKeepBuildingV1 = __t.object("CastleInnerKeepBuildingV1", {
+  buildingKey: __t.string(),
+  castleId: __t.u64(),
+  slotKey: __t.string(),
+  slotId: __t.string(),
+  buildingKind: __t.string(),
+  completedLevel: __t.u32(),
+  targetLevel: __t.u32(),
+  phase: __t.string(),
+  startedAtMicros: __t.u64(),
+  completesAtMicros: __t.u64(),
+  revision: __t.u64(),
+  policyVersion: __t.string(),
+});
+export type CastleInnerKeepBuildingV1 = __Infer<typeof CastleInnerKeepBuildingV1>;
+
 export const CastleSlotClaimV1 = __t.object("CastleSlotClaimV1", {
   slotId: __t.u32(),
   ownerFid: __t.u64(),
@@ -627,6 +730,64 @@ export const GoldSiteV1 = __t.object("GoldSiteV1", {
 });
 export type GoldSiteV1 = __Infer<typeof GoldSiteV1>;
 
+export const InnerKeepBuildLevelV1 = __t.object("InnerKeepBuildLevelV1", {
+  levelKey: __t.string(),
+  buildingKind: __t.string(),
+  targetLevel: __t.u32(),
+  baseFoodCost: __t.u64(),
+  baseWoodCost: __t.u64(),
+  baseStoneCost: __t.u64(),
+  baseGoldCost: __t.u64(),
+  levelMultiplierBasisPoints: __t.u32(),
+  durationMicros: __t.u64(),
+  policyVersion: __t.string(),
+});
+export type InnerKeepBuildLevelV1 = __Infer<typeof InnerKeepBuildLevelV1>;
+
+export const InnerKeepBuildingCatalogV1 = __t.object("InnerKeepBuildingCatalogV1", {
+  buildingKind: __t.string(),
+  publicLabel: __t.string(),
+  category: __t.string(),
+  footprintClass: __t.string(),
+  maximumLevel: __t.u32(),
+  uniquePerCastle: __t.bool(),
+  matchingDiscountResource: __t.string(),
+  discountBasisPointsPerLevel: __t.u32(),
+  discountCapBasisPoints: __t.u32(),
+  runtimeAssetId: __t.string(),
+  previewAssetId: __t.string(),
+  active: __t.bool(),
+  policyVersion: __t.string(),
+});
+export type InnerKeepBuildingCatalogV1 = __Infer<typeof InnerKeepBuildingCatalogV1>;
+
+export const InnerKeepLayoutV1 = __t.object("InnerKeepLayoutV1", {
+  layoutId: __t.string(),
+  layoutVersion: __t.u32(),
+  policyVersion: __t.string(),
+  slotCount: __t.u32(),
+  mediumSlotCount: __t.u32(),
+  largeSlotCount: __t.u32(),
+  assetCatalogDigest: __t.string(),
+  layoutDigest: __t.string(),
+  active: __t.bool(),
+  createdAt: __t.timestamp(),
+  activatedAt: __t.option(__t.timestamp()),
+});
+export type InnerKeepLayoutV1 = __Infer<typeof InnerKeepLayoutV1>;
+
+export const InnerKeepSlotV1 = __t.object("InnerKeepSlotV1", {
+  slotId: __t.string(),
+  layoutId: __t.string(),
+  footprintClass: __t.string(),
+  localXMicrounits: __t.i64(),
+  localZMicrounits: __t.i64(),
+  rotationMilliDegrees: __t.u32(),
+  sortOrder: __t.u32(),
+  active: __t.bool(),
+});
+export type InnerKeepSlotV1 = __Infer<typeof InnerKeepSlotV1>;
+
 export const MarkAccountV1 = __t.object("MarkAccountV1", {
   fid: __t.u64(),
   totalSnapBurnedMicros: __t.u128(),
@@ -681,6 +842,47 @@ export const MyGoldExpeditionStateV1 = __t.object("MyGoldExpeditionStateV1", {
   expeditionPolicyVersion: __t.option(__t.string()),
 });
 export type MyGoldExpeditionStateV1 = __Infer<typeof MyGoldExpeditionStateV1>;
+
+export const MyInnerKeepRequestStatusV1 = __t.object("MyInnerKeepRequestStatusV1", {
+  found: __t.bool(),
+  castleId: __t.option(__t.u64()),
+  buildingKey: __t.option(__t.string()),
+  slotId: __t.option(__t.string()),
+  buildingKind: __t.option(__t.string()),
+  targetLevel: __t.option(__t.u32()),
+  deductedFood: __t.option(__t.u64()),
+  deductedWood: __t.option(__t.u64()),
+  deductedStone: __t.option(__t.u64()),
+  deductedGold: __t.option(__t.u64()),
+  startedAtMicros: __t.option(__t.u64()),
+  policyVersion: __t.option(__t.string()),
+});
+export type MyInnerKeepRequestStatusV1 = __Infer<typeof MyInnerKeepRequestStatusV1>;
+
+export const MyInnerKeepStateV1 = __t.object("MyInnerKeepStateV1", {
+  castleId: __t.u64(),
+  componentActive: __t.bool(),
+  componentReady: __t.bool(),
+  builderPresent: __t.bool(),
+  builderBusy: __t.bool(),
+  activeBuildingKey: __t.option(__t.string()),
+  busyUntilMicros: __t.option(__t.u64()),
+  builderRevision: __t.u64(),
+  storedFood: __t.u64(),
+  storedWood: __t.u64(),
+  storedStone: __t.u64(),
+  storedGold: __t.u64(),
+  projectedFood: __t.u64(),
+  projectedWood: __t.u64(),
+  projectedStone: __t.u64(),
+  projectedGold: __t.u64(),
+  resourceRevision: __t.u64(),
+  observedAtMicros: __t.u64(),
+  policyVersion: __t.string(),
+  layoutDigest: __t.string(),
+  assetCatalogDigest: __t.string(),
+});
+export type MyInnerKeepStateV1 = __Infer<typeof MyInnerKeepStateV1>;
 
 export const MyResourceStateV1 = __t.object("MyResourceStateV1", {
   fid: __t.u64(),
