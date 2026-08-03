@@ -108,7 +108,7 @@ import { ADDITIVE_MIGRATION_PROOF_MINIMUM_LIFECYCLE_MILLISECONDS, ADDITIVE_MIGRA
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
 import { canonicalTableSchemaBoundaryDigest } from '../scripts/spacetime-table-schema-attestation.mjs';
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
-import { PROTECTED_AGGREGATE_STAGE, parseProductionVerifierArguments, protectedAggregateChildArguments, protectedAggregateChildEnvironment, protectedAggregateChildOptions, requiredProtectedAggregateSecret, resourceV4AggregateChildArguments, resourceV4ReadyAggregateChildEnvironment, resourceV4ReadyAggregateChildOptions, rootAssetUrls, validateProductionSigningKey, verifyBridge, verifyExpectedAlphaAggregate, verifyExpectedAlphaV2Aggregate, verifyExpectedAlphaV3Aggregate, verifyExpectedAlphaV4ResourcePrebackfillAggregate, verifyExpectedAlphaV4ResourceReadyAggregate, verifyFrontendEmbeddingHeaders, verifyPostBackfillResourceAggregateCheckpoints, verifyRootAssets } from '../scripts/verify-alpha-production.mjs';
+import { PROTECTED_AGGREGATE_STAGE, parseProductionVerifierArguments, protectedAggregateChildArguments, protectedAggregateChildEnvironment, protectedAggregateChildOptions, requiredProtectedAggregateSecret, resourceV4AggregateChildArguments, resourceV4ReadyAggregateChildEnvironment, resourceV4ReadyAggregateChildOptions, rootAssetUrls, shouldInspectConfiguredProtectedAggregate, validateProductionSigningKey, verifyBridge, verifyExpectedAlphaAggregate, verifyExpectedAlphaV2Aggregate, verifyExpectedAlphaV3Aggregate, verifyExpectedAlphaV4ResourcePrebackfillAggregate, verifyExpectedAlphaV4ResourceReadyAggregate, verifyFrontendEmbeddingHeaders, verifyPostBackfillResourceAggregateCheckpoints, verifyRootAssets } from '../scripts/verify-alpha-production.mjs';
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
 import { cleanupMigrationProofResources, containServerProcessErrors, installMigrationProofSignalCleanup, stopServer } from '../scripts/verify-spacetime-additive-migration.mjs';
 import {
@@ -5936,6 +5936,13 @@ describe('protected aggregate child isolation', () => {
     expect(() => requiredProtectedAggregateSecret(undefined, true))
       .toThrow(/protected aggregate inspection was required/i);
     expect(requiredProtectedAggregateSecret(undefined, false)).toBeUndefined();
+  });
+
+  it('keeps operator RPC proof independent from legacy aggregate inspection', () => {
+    expect(shouldInspectConfiguredProtectedAggregate(false, true)).toBe(false);
+    expect(shouldInspectConfiguredProtectedAggregate(true, true)).toBe(true);
+    expect(shouldInspectConfiguredProtectedAggregate(false, false)).toBe(true);
+    expect(shouldInspectConfiguredProtectedAggregate(true, false)).toBe(true);
   });
 
   it('does not forward ambient Warpkeep data to the publish CLI', () => {
