@@ -33,5 +33,47 @@ Resolved requests remain private history and are omitted by default.
 Admission is deliberately separate. For a missing FID, create and review the
 existing trusted admission plan and explicitly run `admit-founder`. For a
 disabled founder whose retained graph has passed review, explicitly run
-`allow-fid`. Listing never fetches a profile and never admits, edits, or
-deletes a request.
+`allow-fid`. Listing never fetches a profile and never admits or edits state.
+
+## Owner canary reset
+
+The exceptional reset command exists for a controlled founder reapplication
+test. It atomically disables one existing founder and deletes only that FID's
+exact application row:
+
+```sh
+# Replace secure-admin-secret-command with the approved local secret source.
+export WARPKEEP_SPACETIMEDB_DATABASE=c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e
+secure-admin-secret-command | npm run stdb:reset-access-request -- \
+  FID 'non-sensitive audit note' --input-stdin --dry-run
+# Review the private 0600 plan reference printed above. Pass its non-sensitive
+# random filename and digest as arguments; pipe the administrator secret through
+# stdin only:
+secure-admin-secret-command | npm run stdb:reset-access-request -- \
+  REVIEWED_PLAN_FILENAME REVIEWED_PLAN_SHA256 --input-stdin --confirm
+```
+
+Both stages are online, pinned to the immutable production database identity,
+and require the Hermes administrator credential through stdin. The confirmed
+stage binds the mutation to the exact
+auth epoch plus request cycle and timestamp read immediately beforehand, and
+verifies aggregate preservation afterward. The 30-minute reviewed plan is
+claimed once immediately before submission. Never create or submit another
+plan after an ambiguous timeout. Reconcile first with:
+
+```sh
+npm run stdb:inspect-access-request-reset -- <fid>
+```
+
+An already-disabled/no-application plan is a no-op. A committed application
+deletion is safe to replay because the missing exact row is its receipt; a new
+application is independently protected by the exact cycle and timestamp. An
+enabled/no-application revocation has no such receipt and therefore fails
+closed on replay.
+The castle, ownership, profile, Terms history, Marks, resources, workers, and
+schedules remain intact. The private audit row remains intact as the operation
+receipt.
+
+This reset does not change Farcaster notification consent or its signed token.
+Removing the Mini App or changing notifications is a Farcaster client action;
+the database operator must never imitate it.

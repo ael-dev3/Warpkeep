@@ -17,12 +17,14 @@ import {
   parseHermesArguments,
   privacySafeHermesErrorMessage,
   projectAccessRequestListPage,
+  projectAccessRequestResetStatus,
   projectWorkerSystemStatusV12,
   readNotificationOperatorSecret,
   readStatus,
   requestAdmissionNotification,
   requestAdminToken,
   requireAccessRequestInspectionProductionTarget,
+  requireAccessRequestResetProductionTarget,
   requireAlphaComponentActivationProductionTarget,
   requireCredentialedProductionTarget,
   requireFounderAdmissionProductionTarget,
@@ -30,6 +32,7 @@ import {
   requireResourceBackfillProductionTarget,
   resolveAdmissionReadyFounderProfile,
   throwHermesOperationFailure,
+  verifyAccessRequestResetAggregatePreservation,
   verifyExpectedResourceAggregateV4,
   verifyFounderAdmissionPostconditionV3,
   verifyFounderAdmissionPreconditionV3,
@@ -207,6 +210,20 @@ describe('Hermes machine-readable output', () => {
     expect(rendered).toMatch(/may have committed.*inspect fresh v3\/v4 aggregate state/i);
     expect(rendered).not.toContain('private FID');
     expect(rendered).not.toContain('server response');
+  });
+
+  it('consumes an uncertain reset plan and requires read-only reconciliation', () => {
+    const sensitive = new Error('private request tuple must not escape');
+    let caught: unknown;
+    try {
+      throwHermesOperationFailure(sensitive, false, true);
+    } catch (error) {
+      caught = error;
+    }
+    const rendered = privacySafeHermesErrorMessage(caught);
+    expect(rendered).toMatch(/plan was consumed.*inspect-access-request-reset/is);
+    expect(rendered).toMatch(/never create or submit a new plan/i);
+    expect(rendered).not.toContain('private request tuple');
   });
 
   it('projects the protocol-v2 inspection to an exact aggregate allowlist', async () => {
@@ -658,6 +675,46 @@ describe('Hermes command-line boundary', () => {
       command: 'allow-fid',
       existingFounderReenableOnly: true,
     });
+    expect(parseHermesArguments([
+      'reset-access-request', '123', 'owner canary reset', '--input-stdin', '--dry-run',
+    ])).toMatchObject({
+      command: 'reset-access-request',
+      inspection: false,
+      dryRun: true,
+    });
+    expect(parseHermesArguments([
+      'reset-access-request',
+      'access-request-reset-plan-20260803T130000000Z-0123456789abcdef0123456789abcdef.json',
+      'a'.repeat(64),
+      '--input-stdin',
+      '--confirm',
+    ])).toMatchObject({
+      command: 'reset-access-request',
+      confirmedByFlag: true,
+      privateInputStdin: true,
+    });
+    expect(() => parseHermesArguments([
+      'reset-access-request', '123', 'owner canary reset',
+    ])).toThrow(/exactly one/i);
+    expect(() => parseHermesArguments([
+      'reset-access-request', '--input-stdin', '--dry-run', '--confirm',
+    ])).toThrow(/unexpected number/i);
+    expect(() => parseHermesArguments([
+      'reset-access-request', 'plan.json', 'a'.repeat(64), '--input-stdin', '--confirm', '--json',
+    ])).toThrow(/invalid for this operation/i);
+    expect(() => parseHermesArguments([
+      'reset-access-request', 'plan.json', 'a'.repeat(64), '--confirm',
+    ])).toThrow(/administrator secret.*--input-stdin/i);
+    expect(() => parseHermesArguments([
+      'reset-access-request', '123', 'owner canary reset', '--dry-run',
+    ])).toThrow(/administrator secret.*--input-stdin/i);
+    expect(parseHermesArguments([
+      'inspect-access-request-reset', '123', '--json',
+    ])).toMatchObject({
+      command: 'inspect-access-request-reset',
+      inspection: true,
+      machineReadableInspection: true,
+    });
     expect(parseHermesArguments(['notify-admitted', '123', '--confirm'])).toMatchObject({
       command: 'notify-admitted',
       confirmedByFlag: true,
@@ -932,6 +989,130 @@ describe('Hermes private access request review boundary', () => {
       .toThrow(/immutable.*identity/i);
     expect(() => requireAccessRequestInspectionProductionTarget('lookalike'))
       .toThrow(/immutable.*identity/i);
+  });
+
+  it('pins request reset and reconciliation to the immutable production identity', () => {
+    const identity = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';
+    expect(() => requireAccessRequestResetProductionTarget(identity)).not.toThrow();
+    expect(() => requireAccessRequestResetProductionTarget('warpkeep-89e4u'))
+      .toThrow(/immutable.*identity/i);
+    expect(() => requireAccessRequestResetProductionTarget('lookalike'))
+      .toThrow(/immutable.*identity/i);
+
+    const source = readFileSync(resolve(repositoryRoot, 'scripts/hermes-admin.ts'), 'utf8');
+    const createPlan = source.indexOf('createReviewedAccessRequestResetPlan({');
+    const writePlan = source.indexOf('writeReviewedAccessRequestResetPlan({ plan })');
+    const readPlan = source.indexOf('readReviewedAccessRequestResetPlan({');
+    const claimPlan = source.indexOf('claimReviewedAccessRequestResetPlan({');
+    const submitReset = source.indexOf('connection.reducers.adminResetAccessRequestV1({');
+    expect(createPlan).toBeGreaterThan(0);
+    expect(writePlan).toBeGreaterThan(createPlan);
+    expect(readPlan).toBeGreaterThan(0);
+    expect(claimPlan).toBeGreaterThan(readPlan);
+    expect(submitReset).toBeGreaterThan(claimPlan);
+    expect(source).toContain('inspect-access-request-reset');
+  });
+});
+
+describe('Hermes access request reset boundary', () => {
+  const pending = {
+    admissionState: 'disabled',
+    authEpoch: 7,
+    requestState: 'pending',
+    requestCycle: 8n,
+    requestedAtMicros: 1_720_000_000_000_000n,
+  } as const;
+
+  it('binds the CLI input flag to secret-only stdin and rejects environment fallback', () => {
+    const result = runHermes([
+      'reset-access-request', '123', 'non-sensitive reset audit', '--input-stdin', '--dry-run',
+    ], {
+      WARPKEEP_SPACETIMEDB_DATABASE:
+        'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e',
+    }, TEST_SECRET);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/refuses an administrator secret from the environment/i);
+    expect(`${result.stdout}${result.stderr}`).not.toContain(TEST_SECRET);
+  });
+
+  it('accepts only an exact, internally consistent admin-private CAS tuple', () => {
+    expect(projectAccessRequestResetStatus(pending)).toEqual(pending);
+    expect(projectAccessRequestResetStatus({
+      admissionState: 'enabled',
+      authEpoch: 7,
+      requestState: 'not_requested',
+      requestCycle: undefined,
+      requestedAtMicros: undefined,
+    })).toEqual({
+      admissionState: 'enabled',
+      authEpoch: 7,
+      requestState: 'not_requested',
+      requestCycle: undefined,
+      requestedAtMicros: undefined,
+    });
+    for (const invalid of [
+      { ...pending, token: 'must-not-escape' },
+      { ...pending, authEpoch: 0 },
+      { ...pending, admissionState: 'missing' },
+      { ...pending, requestCycle: undefined },
+      { ...pending, requestedAtMicros: undefined },
+      { ...pending, requestCycle: 9n },
+      { ...pending, requestState: 'resolved' },
+    ]) {
+      expect(() => projectAccessRequestResetStatus(invalid)).toThrow();
+    }
+  });
+
+  it('permits only the exact admission/audit deltas and preserves every v4 aggregate', () => {
+    const beforeV3 = foundedGenerationV3Status({
+      enabledAllowedFids: 3n,
+      auditEntries: 14n,
+    });
+    const beforeV4 = {
+      allowedFids: 3n,
+      castles: 3n,
+      markAccounts: 3n,
+      resourceAccounts: 3n,
+      missingResourceAccounts: 0n,
+      orphanedResourceAccounts: 0n,
+      resourceInvariantViolations: 0n,
+      protocolVersion: 3,
+      resourcePolicyVersion: GENESIS_RESOURCE_POLICY_VERSION,
+    };
+    expect(() => verifyAccessRequestResetAggregatePreservation(
+      beforeV3,
+      { ...beforeV3, auditEntries: 15n },
+      beforeV4,
+      beforeV4,
+      pending,
+    )).not.toThrow();
+    expect(() => verifyAccessRequestResetAggregatePreservation(
+      beforeV3,
+      { ...beforeV3, enabledAllowedFids: 2n, auditEntries: 15n },
+      beforeV4,
+      beforeV4,
+      {
+        admissionState: 'enabled',
+        authEpoch: 7,
+        requestState: 'not_requested',
+        requestCycle: undefined,
+        requestedAtMicros: undefined,
+      },
+    )).not.toThrow();
+    expect(() => verifyAccessRequestResetAggregatePreservation(
+      beforeV3,
+      { ...beforeV3, playersV2: beforeV3.playersV2 + 1n, auditEntries: 15n },
+      beforeV4,
+      beforeV4,
+      pending,
+    )).toThrow(/unexpected persistent aggregate/i);
+    expect(() => verifyAccessRequestResetAggregatePreservation(
+      beforeV3,
+      { ...beforeV3, auditEntries: 15n },
+      beforeV4,
+      { ...beforeV4, resourceAccounts: 2n },
+      pending,
+    )).toThrow(/resource state/i);
   });
 });
 

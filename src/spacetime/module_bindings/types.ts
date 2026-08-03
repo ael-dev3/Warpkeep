@@ -43,6 +43,15 @@ export const AdminAccessRequestPageV1 = __t.object("AdminAccessRequestPageV1", {
 });
 export type AdminAccessRequestPageV1 = __Infer<typeof AdminAccessRequestPageV1>;
 
+export const AdminAccessRequestResetStatusV1 = __t.object("AdminAccessRequestResetStatusV1", {
+  admissionState: __t.string(),
+  authEpoch: __t.u32(),
+  requestState: __t.string(),
+  requestCycle: __t.option(__t.u64()),
+  requestedAtMicros: __t.option(__t.u64()),
+});
+export type AdminAccessRequestResetStatusV1 = __Infer<typeof AdminAccessRequestResetStatusV1>;
+
 export const AdminAlphaStatus = __t.object("AdminAlphaStatus", {
   worldTiles: __t.u64(),
   players: __t.u64(),

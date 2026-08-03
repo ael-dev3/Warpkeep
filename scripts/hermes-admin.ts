@@ -68,11 +68,24 @@ import {
   TRUSTED_PRODUCTION_FOUNDER_ADMISSION_SOURCE_ID,
   trustedProfileTransportAttestation,
 } from './profiles/profile-transport';
+import {
+  AccessRequestResetPlanError,
+  REVIEWED_ACCESS_REQUEST_RESET_PLAN_LIFETIME_MS,
+  claimReviewedAccessRequestResetPlan,
+  createReviewedAccessRequestResetPlan,
+  parseReviewedAccessRequestResetPlanReference,
+  readReviewedAccessRequestResetPlan,
+  writeReviewedAccessRequestResetPlan,
+  type ReviewedAccessRequestResetPlan,
+  type ReviewedAccessRequestResetPlanReference,
+} from './access-requests/reset-plan';
 
 type Command =
   | 'seed-world'
   | 'expand-world-v3'
   | 'list-access-requests'
+  | 'inspect-access-request-reset'
+  | 'reset-access-request'
   | 'admit-founder'
   | 'notify-admitted'
   | 'allow-fid'
@@ -131,6 +144,13 @@ const ACCESS_REQUEST_ENTRY_KEYS = Object.freeze([
   'fid',
   'requestState',
   'requestedAtMicros',
+].sort());
+const ACCESS_REQUEST_RESET_STATUS_KEYS = Object.freeze([
+  'admissionState',
+  'authEpoch',
+  'requestCycle',
+  'requestedAtMicros',
+  'requestState',
 ].sort());
 const WORKER_STATUS_V12_U64_FIELDS = Object.freeze([
   'systemRows',
@@ -198,6 +218,15 @@ export const FOUNDER_ADMISSION_TARGET_CONFIGURATION_DIGEST = createHash('sha256'
     reducer: 'admin_admit_founder_v1',
   }), 'utf8')
   .digest('hex');
+export const ACCESS_REQUEST_RESET_TARGET_CONFIGURATION_DIGEST = createHash('sha256')
+  .update(JSON.stringify({
+    databaseUri: DEFAULT_URI,
+    databaseIdentity: DEFAULT_DATABASE_IDENTITY,
+    bridgeUrl: DEFAULT_BRIDGE,
+    statusProcedure: 'admin_get_access_request_reset_status_v1',
+    reducer: 'admin_reset_access_request_v1',
+  }), 'utf8')
+  .digest('hex');
 
 class HermesCliError extends Error {
   constructor(message: string) {
@@ -226,6 +255,17 @@ class HermesClaimedAdmissionOutcomeError extends Error {
   }
 }
 
+class HermesClaimedAccessRequestResetOutcomeError extends Error {
+  constructor() {
+    super(
+      'The reviewed access-request reset plan was consumed and the mutation outcome may be '
+      + 'indeterminate. Run inspect-access-request-reset; never create or submit a new plan '
+      + 'until the current state is reconciled.',
+    );
+    this.name = 'HermesClaimedAccessRequestResetOutcomeError';
+  }
+}
+
 function fail(message: string): never {
   throw new HermesCliError(message);
 }
@@ -235,6 +275,7 @@ export function privacySafeHermesErrorMessage(error: unknown): string {
     error instanceof HermesCliError
     || error instanceof HermesOperationTimeoutError
     || error instanceof HermesClaimedAdmissionOutcomeError
+    || error instanceof HermesClaimedAccessRequestResetOutcomeError
     || error instanceof AlphaActivationControlError
     || error instanceof AlphaV10ActivationControlError
   ) {
@@ -245,6 +286,7 @@ export function privacySafeHermesErrorMessage(error: unknown): string {
     || error instanceof FarcasterPublicProfileError
     || error instanceof ProfileTransportError
     || error instanceof ProfileAuthorityPolicyError
+    || error instanceof AccessRequestResetPlanError
   ) return error.code;
   return 'Hermes command failed.';
 }
@@ -252,7 +294,11 @@ export function privacySafeHermesErrorMessage(error: unknown): string {
 export function throwHermesOperationFailure(
   error: unknown,
   founderAdmissionClaimed: boolean,
+  accessRequestResetClaimed = false,
 ): never {
+  if (accessRequestResetClaimed) {
+    throw new HermesClaimedAccessRequestResetOutcomeError();
+  }
   if (founderAdmissionClaimed) throw new HermesClaimedAdmissionOutcomeError();
   throw error;
 }
@@ -331,6 +377,8 @@ function commandFrom(value: string | undefined): Command {
     value === 'seed-world'
     || value === 'expand-world-v3'
     || value === 'list-access-requests'
+    || value === 'inspect-access-request-reset'
+    || value === 'reset-access-request'
     || value === 'admit-founder'
     || value === 'notify-admitted'
     || value === 'allow-fid'
@@ -353,12 +401,14 @@ function commandFrom(value: string | undefined): Command {
   }
   fail(
     'Usage: hermes-admin.ts '
-    + '<seed-world|expand-world-v3|list-access-requests|admit-founder|notify-admitted|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|seed-alpha-component|activate-alpha-water|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4|inspect-alpha-v8|inspect-alpha-v10|inspect-alpha-v12|inspect-publish-pre-v12|inspect-publish-post-v12> '
+    + '<seed-world|expand-world-v3|list-access-requests|inspect-access-request-reset|reset-access-request|admit-founder|notify-admitted|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|seed-alpha-component|activate-alpha-water|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4|inspect-alpha-v8|inspect-alpha-v10|inspect-alpha-v12|inspect-publish-pre-v12|inspect-publish-post-v12> '
     + '[...args] [--dry-run] [--confirm]. admit-founder requires private stdin: '
     + '--input-stdin --dry-run creates a reviewed plan; --input-stdin --confirm consumes it; '
     + 'allow-fid only re-enables an existing complete founder. list-access-requests accepts '
     + '[--limit 1..100] [--after-requested-at-micros U64 --after-fid FID] '
-    + '[--include-resolved] [--json].',
+    + '[--include-resolved] [--json]. reset-access-request dry-run requires FID and note; '
+    + 'confirmed execution accepts the reviewed plan filename and digest, while '
+    + '--input-stdin carries the administrator secret.',
   );
 }
 
@@ -412,8 +462,13 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
     || command === 'inspect-alpha-v12'
     || command === 'inspect-publish-pre-v12'
     || command === 'inspect-publish-post-v12'
-    || command === 'list-access-requests';
-  const expectedPositionals = command === 'allow-fid'
+    || command === 'list-access-requests'
+    || command === 'inspect-access-request-reset';
+  const expectedPositionals = command === 'reset-access-request'
+    ? 3
+    : command === 'inspect-access-request-reset'
+      ? 2
+    : command === 'allow-fid'
     || command === 'disable-fid'
     || command === 'bump-auth-epoch'
     ? 3
@@ -459,6 +514,16 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
       || !flags.has('--confirm')
     ) {
       fail('Admission notification reconciliation requires exactly --confirm.');
+    }
+  } else if (command === 'reset-access-request') {
+    if (flags.has('--json')) {
+      fail('Hermes command received a flag that is invalid for this operation.');
+    }
+    if (flags.has('--dry-run') === flags.has('--confirm')) {
+      fail('Access request reset requires exactly one of --dry-run or --confirm.');
+    }
+    if (!flags.has('--input-stdin')) {
+      fail('Access request reset requires the administrator secret through --input-stdin.');
     }
   } else if (command === 'seed-alpha-component') {
     parseSeedableAlphaComponent(positional[1]);
@@ -649,6 +714,14 @@ type AccessRequestListPage = Readonly<{
   hasMore: boolean;
   totalRequests: bigint;
   pendingRequests: bigint;
+}>;
+
+type AccessRequestResetStatus = Readonly<{
+  admissionState: 'enabled' | 'disabled';
+  authEpoch: number;
+  requestState: 'not_requested' | 'pending' | 'resolved';
+  requestCycle: bigint | undefined;
+  requestedAtMicros: bigint | undefined;
 }>;
 
 function exactObjectKeys(
@@ -852,6 +925,70 @@ export function projectAccessRequestListPage(
   });
 }
 
+/** Strict private projection used only to bind one reset transaction by CAS. */
+export function projectAccessRequestResetStatus(value: unknown): AccessRequestResetStatus {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    fail('Access request reset status was invalid.');
+  }
+  const status = value as Record<string, unknown>;
+  exactObjectKeys(
+    status,
+    ACCESS_REQUEST_RESET_STATUS_KEYS,
+    'Access request reset status returned unexpected fields.',
+  );
+  if (status.admissionState !== 'enabled' && status.admissionState !== 'disabled') {
+    fail('Access request reset status returned an invalid admission state.');
+  }
+  if (
+    typeof status.authEpoch !== 'number'
+    || !Number.isInteger(status.authEpoch)
+    || status.authEpoch < 1
+    || status.authEpoch >= 0xffff_ffff
+  ) {
+    fail('Access request reset status returned an invalid auth epoch.');
+  }
+  const requestCycle = status.requestCycle === undefined
+    ? undefined
+    : requireU64(
+      status.requestCycle,
+      true,
+      'Access request reset status returned an invalid request cycle.',
+    );
+  const requestedAtMicros = status.requestedAtMicros === undefined
+    ? undefined
+    : requireU64(
+      status.requestedAtMicros,
+      false,
+      'Access request reset status returned an invalid timestamp.',
+    );
+  if ((requestCycle === undefined) !== (requestedAtMicros === undefined)) {
+    fail('Access request reset status returned an incomplete request tuple.');
+  }
+  if (
+    status.requestState !== 'not_requested'
+    && status.requestState !== 'pending'
+    && status.requestState !== 'resolved'
+  ) {
+    fail('Access request reset status returned an invalid request state.');
+  }
+  const expectedState = requestCycle === undefined
+    ? 'not_requested'
+    : status.admissionState === 'disabled'
+      && requestCycle === BigInt(status.authEpoch) + 1n
+      ? 'pending'
+      : 'resolved';
+  if (status.requestState !== expectedState) {
+    fail('Access request reset status returned an inconsistent request state.');
+  }
+  return Object.freeze({
+    admissionState: status.admissionState,
+    authEpoch: status.authEpoch,
+    requestState: status.requestState,
+    requestCycle,
+    requestedAtMicros,
+  });
+}
+
 function accessRequestTimestamp(micros: bigint): string {
   if (micros > MAX_JAVASCRIPT_DATE_MICROS) {
     fail('Access request procedure returned an invalid timestamp.');
@@ -972,6 +1109,42 @@ type GenesisExpansionStatusV3 = Readonly<{
   worldSeed: number;
   worldSeedName: string;
 }>;
+
+export function verifyAccessRequestResetAggregatePreservation(
+  beforeV3: GenesisExpansionStatusV3,
+  afterV3: GenesisExpansionStatusV3,
+  beforeV4: ResourceAggregateV4,
+  afterV4: ResourceAggregateV4,
+  targetBefore: AccessRequestResetStatus,
+): void {
+  const changed = targetBefore.admissionState === 'enabled'
+    || targetBefore.requestCycle !== undefined;
+  for (const [field, beforeValue] of Object.entries(beforeV3)) {
+    const expected = field === 'enabledAllowedFids'
+      ? targetBefore.admissionState === 'enabled'
+        ? (beforeValue as bigint) - 1n
+        : beforeValue
+      : field === 'auditEntries'
+        ? changed
+          ? (beforeValue as bigint) + 1n
+          : beforeValue
+        : beforeValue;
+    if ((afterV3 as unknown as Record<string, unknown>)[field] !== expected) {
+      fail(
+        'Access request reset changed an unexpected persistent aggregate. '
+        + 'Do not retry before a bounded read-only investigation.',
+      );
+    }
+  }
+  for (const [field, beforeValue] of Object.entries(beforeV4)) {
+    if ((afterV4 as unknown as Record<string, unknown>)[field] !== beforeValue) {
+      fail(
+        'Access request reset changed persistent resource state. '
+        + 'Do not retry before a bounded read-only investigation.',
+      );
+    }
+  }
+}
 
 const GENESIS_EXPANSION_ZERO_INVARIANT_FIELDS = Object.freeze([
   'orphanedPlayerRowsV2',
@@ -1547,6 +1720,13 @@ export function requireAccessRequestInspectionProductionTarget(database: string)
   }
 }
 
+/** Destructive request reset is bound to the immutable production identity. */
+export function requireAccessRequestResetProductionTarget(database: string): void {
+  if (database !== DEFAULT_DATABASE_IDENTITY) {
+    fail('Access request reset requires the immutable Warpkeep production database identity.');
+  }
+}
+
 /** Canonical economy/forest seeds may target only the attested identity. */
 export function requireAlphaComponentActivationProductionTarget(database: string): void {
   if (database !== DEFAULT_DATABASE_IDENTITY) {
@@ -1753,6 +1933,7 @@ async function main() {
     confirmedByFlag,
     inspection,
     machineReadableInspection,
+    privateInputStdin,
     accessRequestList,
   } = parseHermesArguments();
   const notificationOperatorSecret = process.env.WARPKEEP_NOTIFICATION_OPERATOR_SECRET;
@@ -1765,6 +1946,7 @@ async function main() {
   const confirmed = confirmedByFlag || (
     command !== 'backfill-resources'
     && command !== 'expand-world-v3'
+    && command !== 'reset-access-request'
     && command !== 'admit-founder'
     && command !== 'notify-admitted'
     && command !== 'seed-alpha-component'
@@ -1785,6 +1967,8 @@ async function main() {
     || command === 'disable-fid'
     || command === 'bump-auth-epoch'
     || command === 'notify-admitted'
+    || command === 'inspect-access-request-reset'
+    || (command === 'reset-access-request' && dryRun)
     ? readFid(positional[1])
     : undefined;
   const expectedFounderCount = command === 'backfill-resources'
@@ -1793,7 +1977,9 @@ async function main() {
   const alphaComponent: SeedableAlphaComponent | undefined = command === 'seed-alpha-component'
     ? parseSeedableAlphaComponent(positional[1])
     : undefined;
-  let note = command === 'allow-fid' || command === 'disable-fid'
+  let note = command === 'allow-fid'
+    || command === 'disable-fid'
+    || (command === 'reset-access-request' && dryRun)
     ? sanitizeNote(positional[2])
     : command === 'bump-auth-epoch'
       ? sanitizeNote(positional[2], 'auth epoch rotation')
@@ -1801,6 +1987,8 @@ async function main() {
   let admissionProfile: AdmissionReadyTrustedProfile | undefined;
   let admissionPlan: ReviewedFounderAdmissionPlan | undefined;
   let admissionPlanReference: ReviewedFounderAdmissionPlanReference | undefined;
+  let accessRequestResetPlan: ReviewedAccessRequestResetPlan | undefined;
+  let accessRequestResetPlanReference: ReviewedAccessRequestResetPlanReference | undefined;
 
   if (command === 'admit-founder') {
     // The target is fixed before reading sensitive stdin. A plan can never be
@@ -1845,11 +2033,29 @@ async function main() {
     admissionProfile = admissionPlan.profile;
   }
 
+  if (command === 'reset-access-request' && !dryRun) {
+    accessRequestResetPlanReference = parseReviewedAccessRequestResetPlanReference({
+      reviewedAccessRequestResetPlan: {
+        filename: positional[1],
+        sha256: positional[2],
+      },
+    });
+    accessRequestResetPlan = readReviewedAccessRequestResetPlan({
+      reference: accessRequestResetPlanReference,
+      expectedTargetConfigurationDigest: ACCESS_REQUEST_RESET_TARGET_CONFIGURATION_DIGEST,
+    });
+    fid = BigInt(accessRequestResetPlan.fid);
+    note = accessRequestResetPlan.note;
+  }
+
   if (command === 'expand-world-v3') {
     requireGenesisExpansionProductionTarget(database);
   }
   if (command === 'list-access-requests') {
     requireAccessRequestInspectionProductionTarget(database);
+  }
+  if (command === 'reset-access-request' || command === 'inspect-access-request-reset') {
+    requireAccessRequestResetProductionTarget(database);
   }
 
   if ((command === 'seed-alpha-component' || command === 'activate-alpha-water') && !dryRun) {
@@ -1877,6 +2083,9 @@ async function main() {
   if (command === 'notify-admitted' && !confirmed) {
     fail('Refusing admission notification reconciliation without --confirm.');
   }
+  if (command === 'reset-access-request' && !dryRun && !confirmed) {
+    fail('Refusing access request reset without --confirm.');
+  }
 
   let prevalidatedBridgeUrl: string | undefined;
   if (command === 'admit-founder' && !dryRun) {
@@ -1886,7 +2095,7 @@ async function main() {
     );
     requireCredentialedProductionTarget(uri, database, prevalidatedBridgeUrl);
   }
-  if (dryRun) {
+  if (dryRun && command !== 'reset-access-request') {
     console.log(JSON.stringify(printable({
       command,
       fid,
@@ -1925,9 +2134,10 @@ async function main() {
     })));
     return;
   }
-  if (mutation && !confirmed) {
+  if (mutation && !confirmed && !(command === 'reset-access-request' && dryRun)) {
     fail(
       command === 'backfill-resources' || command === 'expand-world-v3'
+        || command === 'reset-access-request'
         || command === 'seed-alpha-component' || command === 'activate-alpha-water'
         ? 'Refusing mutation without --confirm.'
         : 'Refusing mutation without --confirm (or WARPKEEP_HERMES_NONINTERACTIVE=yes).',
@@ -1949,13 +2159,24 @@ async function main() {
     console.log(JSON.stringify({ admissionNotification: status }));
     return;
   }
+  if (
+    command === 'reset-access-request'
+    && process.env.WARPKEEP_ADMIN_TOKEN_SECRET !== undefined
+  ) {
+    fail('Access request reset refuses an administrator secret from the environment.');
+  }
   const secret = readAdminSecret(
-    process.env.WARPKEEP_ADMIN_TOKEN_SECRET,
-    process.env.WARPKEEP_ADMIN_TOKEN_SECRET_STDIN,
+    command === 'reset-access-request'
+      ? undefined
+      : process.env.WARPKEEP_ADMIN_TOKEN_SECRET,
+    command === 'reset-access-request' && privateInputStdin
+      ? '1'
+      : process.env.WARPKEEP_ADMIN_TOKEN_SECRET_STDIN,
   );
   const token = await requestAdminToken(bridgeUrl, secret);
   const connection = await connect(uri, database, token);
   let founderAdmissionClaimed = false;
+  let accessRequestResetClaimed = false;
   try {
     let mutationStatusHandled = false;
     if (command === 'list-access-requests') {
@@ -1965,6 +2186,160 @@ async function main() {
         machineReadableInspection,
       );
       mutationStatusHandled = true;
+    } else if (command === 'inspect-access-request-reset' && fid !== undefined) {
+      const status = projectAccessRequestResetStatus(
+        await withOperationTimeout(
+          connection.procedures.adminGetAccessRequestResetStatusV1({ fid }),
+        ),
+      );
+      console.log(JSON.stringify({
+        accessRequestResetStatus: {
+          fid: fid.toString(),
+          admissionState: status.admissionState,
+          authEpoch: status.authEpoch,
+          requestState: status.requestState,
+          applicationPresent: status.requestCycle !== undefined,
+        },
+      }));
+      mutationStatusHandled = true;
+    } else if (
+      command === 'reset-access-request'
+      && fid !== undefined
+      && note !== undefined
+    ) {
+      const targetBefore = projectAccessRequestResetStatus(
+        await withOperationTimeout(
+          connection.procedures.adminGetAccessRequestResetStatusV1({ fid }),
+        ),
+      );
+      if (dryRun) {
+        const plan = createReviewedAccessRequestResetPlan({
+          targetConfigurationDigest: ACCESS_REQUEST_RESET_TARGET_CONFIGURATION_DIGEST,
+          fid,
+          note,
+          expectedEnabled: targetBefore.admissionState === 'enabled',
+          expectedAuthEpoch: targetBefore.authEpoch,
+          expectedRequestCycle: targetBefore.requestCycle,
+          expectedRequestedAtMicros: targetBefore.requestedAtMicros,
+        });
+        const reference = writeReviewedAccessRequestResetPlan({ plan });
+        console.log(JSON.stringify({
+          accessRequestResetPlan: {
+            fid: fid.toString(),
+            admissionState: targetBefore.admissionState,
+            requestState: targetBefore.requestState,
+            applicationPresent: targetBefore.requestCycle !== undefined,
+            reviewedPlan: {
+              filename: reference.filename,
+              sha256: reference.sha256,
+            },
+            expiresAt: reference.expiresAt,
+            lifetimeMinutes: REVIEWED_ACCESS_REQUEST_RESET_PLAN_LIFETIME_MS / 60_000,
+            credentialsAccessed: true,
+            mutationSubmitted: false,
+          },
+        }));
+        mutationStatusHandled = true;
+      } else {
+        if (
+          accessRequestResetPlan === undefined
+          || accessRequestResetPlanReference === undefined
+        ) fail('Confirmed access request reset requires one reviewed plan.');
+        const plannedStatus = projectAccessRequestResetStatus({
+          admissionState: accessRequestResetPlan.expectedEnabled ? 'enabled' : 'disabled',
+          authEpoch: accessRequestResetPlan.expectedAuthEpoch,
+          requestState: accessRequestResetPlan.expectedRequestCycle === null
+            ? 'not_requested'
+            : !accessRequestResetPlan.expectedEnabled
+              && BigInt(accessRequestResetPlan.expectedRequestCycle)
+                === BigInt(accessRequestResetPlan.expectedAuthEpoch) + 1n
+              ? 'pending'
+              : 'resolved',
+          requestCycle: accessRequestResetPlan.expectedRequestCycle === null
+            ? undefined
+            : BigInt(accessRequestResetPlan.expectedRequestCycle),
+          requestedAtMicros: accessRequestResetPlan.expectedRequestedAtMicros === null
+            ? undefined
+            : BigInt(accessRequestResetPlan.expectedRequestedAtMicros),
+        });
+        if (
+          targetBefore.admissionState !== plannedStatus.admissionState
+          || targetBefore.authEpoch !== plannedStatus.authEpoch
+          || targetBefore.requestState !== plannedStatus.requestState
+          || targetBefore.requestCycle !== plannedStatus.requestCycle
+          || targetBefore.requestedAtMicros !== plannedStatus.requestedAtMicros
+        ) {
+          fail(
+            'Reviewed access request reset plan no longer matches current state. '
+            + 'No mutation was submitted.',
+          );
+        }
+      const beforeV3 = await readStatus(
+        connection,
+        'v3',
+        false,
+        undefined,
+        false,
+      ) as GenesisExpansionStatusV3;
+      const beforeV4 = await readStatus(
+        connection,
+        'v4',
+        false,
+        undefined,
+        false,
+      ) as ResourceAggregateV4;
+      claimReviewedAccessRequestResetPlan({
+        plan: accessRequestResetPlan,
+        sha256: accessRequestResetPlanReference.sha256,
+      });
+      accessRequestResetClaimed = true;
+      await withOperationTimeout(connection.reducers.adminResetAccessRequestV1({
+        fid,
+        expectedEnabled: plannedStatus.admissionState === 'enabled',
+        expectedAuthEpoch: plannedStatus.authEpoch,
+        expectedRequestCycle: plannedStatus.requestCycle,
+        expectedRequestedAtMicros: plannedStatus.requestedAtMicros,
+        note,
+      }));
+      const targetAfter = projectAccessRequestResetStatus(
+        await withOperationTimeout(
+          connection.procedures.adminGetAccessRequestResetStatusV1({ fid }),
+        ),
+      );
+      if (
+        targetAfter.admissionState !== 'disabled'
+        || targetAfter.authEpoch !== targetBefore.authEpoch
+        || targetAfter.requestState !== 'not_requested'
+        || targetAfter.requestCycle !== undefined
+        || targetAfter.requestedAtMicros !== undefined
+      ) {
+        fail(
+          'Access request reset postcondition failed. '
+          + 'Do not retry before a bounded read-only investigation.',
+        );
+      }
+      verifyAccessRequestResetAggregatePreservation(
+        beforeV3,
+        await readStatus(connection, 'v3', false, undefined, false) as GenesisExpansionStatusV3,
+        beforeV4,
+        await readStatus(connection, 'v4', false, undefined, false) as ResourceAggregateV4,
+        targetBefore,
+      );
+      accessRequestResetClaimed = false;
+      console.log(JSON.stringify({
+        accessRequestReset: {
+          fid: fid.toString(),
+          admissionState: targetAfter.admissionState,
+          requestState: targetAfter.requestState,
+          authEpochUnchanged: true,
+          applicationWasPresent: targetBefore.requestCycle !== undefined,
+          applicationDeleted: targetBefore.requestCycle !== undefined,
+          applicationAbsentAfter: true,
+          founderGameplayStatePreserved: true,
+        },
+      }));
+      mutationStatusHandled = true;
+      }
     } else if (
       command === 'inspect-publish-pre-v12'
       || command === 'inspect-publish-post-v12'
@@ -2204,7 +2579,11 @@ async function main() {
       );
     }
   } catch (error) {
-    throwHermesOperationFailure(error, founderAdmissionClaimed);
+    throwHermesOperationFailure(
+      error,
+      founderAdmissionClaimed,
+      accessRequestResetClaimed,
+    );
   } finally {
     disconnectSilently(connection);
   }

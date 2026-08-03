@@ -50,6 +50,7 @@ import AdminCompleteWorkerLegacyDrainV1Reducer from "./admin_complete_worker_leg
 import AdminDisableFidReducer from "./admin_disable_fid_reducer";
 import AdminExpandGenesisWorldV3Reducer from "./admin_expand_genesis_world_v_3_reducer";
 import AdminRepairMissingWorkerReturnScheduleV1Reducer from "./admin_repair_missing_worker_return_schedule_v_1_reducer";
+import AdminResetAccessRequestV1Reducer from "./admin_reset_access_request_v_1_reducer";
 import AdminSeedGenesisForestLayoutV1Reducer from "./admin_seed_genesis_forest_layout_v_1_reducer";
 import AdminSeedGenesisTierIFoodSitesV1Reducer from "./admin_seed_genesis_tier_i_food_sites_v_1_reducer";
 import AdminSeedGenesisTierIGoldSitesV1Reducer from "./admin_seed_genesis_tier_i_gold_sites_v_1_reducer";
@@ -79,6 +80,7 @@ import ReturnLegacyExpeditionV1Reducer from "./return_legacy_expedition_v_1_redu
 // Import all procedure arg schemas
 import * as AccessRequestGetStatusV1Procedure from "./access_request_get_status_v_1_procedure";
 import * as AccessRequestSubmitV1Procedure from "./access_request_submit_v_1_procedure";
+import * as AdminGetAccessRequestResetStatusV1Procedure from "./admin_get_access_request_reset_status_v_1_procedure";
 import * as AdminGetAlphaStatusProcedure from "./admin_get_alpha_status_procedure";
 import * as AdminGetAlphaStatusV2Procedure from "./admin_get_alpha_status_v_2_procedure";
 import * as AdminGetAlphaStatusV3Procedure from "./admin_get_alpha_status_v_3_procedure";
@@ -586,6 +588,7 @@ const reducersSchema = __reducers(
   __reducerSchema("admin_disable_fid", AdminDisableFidReducer),
   __reducerSchema("admin_expand_genesis_world_v3", AdminExpandGenesisWorldV3Reducer),
   __reducerSchema("admin_repair_missing_worker_return_schedule_v1", AdminRepairMissingWorkerReturnScheduleV1Reducer),
+  __reducerSchema("admin_reset_access_request_v1", AdminResetAccessRequestV1Reducer),
   __reducerSchema("admin_seed_genesis_forest_layout_v1", AdminSeedGenesisForestLayoutV1Reducer),
   __reducerSchema("admin_seed_genesis_tier_i_food_sites_v1", AdminSeedGenesisTierIFoodSitesV1Reducer),
   __reducerSchema("admin_seed_genesis_tier_i_gold_sites_v1", AdminSeedGenesisTierIGoldSitesV1Reducer),
@@ -617,6 +620,7 @@ const reducersSchema = __reducers(
 const proceduresSchema = __procedures(
   __procedureSchema("access_request_get_status_v1", AccessRequestGetStatusV1Procedure.params, AccessRequestGetStatusV1Procedure.returnType),
   __procedureSchema("access_request_submit_v1", AccessRequestSubmitV1Procedure.params, AccessRequestSubmitV1Procedure.returnType),
+  __procedureSchema("admin_get_access_request_reset_status_v1", AdminGetAccessRequestResetStatusV1Procedure.params, AdminGetAccessRequestResetStatusV1Procedure.returnType),
   __procedureSchema("admin_get_alpha_status", AdminGetAlphaStatusProcedure.params, AdminGetAlphaStatusProcedure.returnType),
   __procedureSchema("admin_get_alpha_status_v2", AdminGetAlphaStatusV2Procedure.params, AdminGetAlphaStatusV2Procedure.returnType),
   __procedureSchema("admin_get_alpha_status_v3", AdminGetAlphaStatusV3Procedure.params, AdminGetAlphaStatusV3Procedure.returnType),

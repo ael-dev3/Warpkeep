@@ -1867,6 +1867,52 @@ function parseAccessRequestStatus(text, label) {
   });
 }
 
+function parseAdminAccessRequestResetStatus(text) {
+  const value = parseLoopbackJson(text, 'access-request reset status');
+  if (
+    !Array.isArray(value)
+    || value.length !== 5
+    || !['enabled', 'disabled'].includes(value[0])
+    || !['not_requested', 'pending', 'resolved'].includes(value[2])
+  ) fail('Loopback access-request reset status contract was invalid.');
+  const authEpochBigInt = readCanonicalUnsigned(
+    value[1],
+    0xffff_ffffn,
+    'access-request reset auth epoch',
+  );
+  if (authEpochBigInt < 1n) {
+    fail('Loopback access-request reset auth epoch was invalid.');
+  }
+  const requestCycle = parseLoopbackOption(
+    value[3],
+    'access-request reset cycle',
+    item => readCanonicalUnsigned(item, maximumU64, 'access-request reset cycle'),
+  );
+  const requestedAtMicros = parseLoopbackOption(
+    value[4],
+    'access-request reset timestamp',
+    item => readCanonicalUnsigned(item, maximumU64, 'access-request reset timestamp'),
+  );
+  if ((requestCycle === undefined) !== (requestedAtMicros === undefined)) {
+    fail('Loopback access-request reset tuple was incomplete.');
+  }
+  const expectedRequestState = requestCycle === undefined
+    ? 'not_requested'
+    : value[0] === 'disabled' && requestCycle === authEpochBigInt + 1n
+      ? 'pending'
+      : 'resolved';
+  if (value[2] !== expectedRequestState) {
+    fail('Loopback access-request reset state was inconsistent.');
+  }
+  return Object.freeze({
+    admissionState: value[0],
+    authEpoch: Number(authEpochBigInt),
+    requestState: value[2],
+    requestCycle,
+    requestedAtMicros,
+  });
+}
+
 function parseAdminAccessRequestPage(text) {
   const value = parseLoopbackJson(text, 'access-request admin page');
   if (
@@ -2740,6 +2786,48 @@ async function founderGameplayAuthorityDigest(server, token, database) {
     claim: `SELECT * FROM castle_slot_claim_v1 WHERE owner_fid = ${actualModuleFounderFid}`,
     marks: `SELECT * FROM mark_account_v1 WHERE fid = ${actualModuleFounderFid}`,
     resources: `SELECT * FROM resource_account_v1 WHERE fid = ${actualModuleFounderFid}`,
+  });
+  const digests = {};
+  for (const [name, query] of Object.entries(queries)) {
+    digests[name] = outputDigest(await privateSql(server, token, database, query));
+  }
+  return outputDigest(JSON.stringify(digests));
+}
+
+async function founderReapplicationRetainedStateDigest(server, token, database) {
+  const fid = actualModuleFounderFid;
+  const queries = Object.freeze({
+    player: `SELECT * FROM player WHERE fid = ${fid}`,
+    playerV2: `SELECT * FROM player_v2 WHERE fid = ${fid}`,
+    ownership: `SELECT * FROM player_ownership_v2 WHERE fid = ${fid}`,
+    castle: `SELECT * FROM castle WHERE owner_fid = ${fid}`,
+    claim: `SELECT * FROM castle_slot_claim_v1 WHERE owner_fid = ${fid}`,
+    profile: `SELECT * FROM realm_profile_v1 WHERE fid = ${fid}`,
+    marks: `SELECT * FROM mark_account_v1 WHERE fid = ${fid}`,
+    terms: `SELECT * FROM alpha_terms_acceptance_v1 WHERE fid = ${fid}`,
+    resources: `SELECT * FROM resource_account_v1 WHERE fid = ${fid}`,
+    dailyMarks: `SELECT * FROM daily_mark_grant_v1 WHERE fid = ${fid}`,
+    legacyGold: `SELECT * FROM gold_expedition_v1 WHERE fid = ${fid}`,
+    legacyGoldReceipts: `SELECT * FROM gold_expedition_idempotency_v1 WHERE fid = ${fid}`,
+    legacyGoldOccupations: 'SELECT * FROM gold_node_occupation_v1',
+    legacyGoldSchedules: 'SELECT * FROM gold_expedition_schedule_v_1',
+    legacyFood: `SELECT * FROM food_expedition_v1 WHERE fid = ${fid}`,
+    legacyFoodReceipts: `SELECT * FROM food_expedition_idempotency_v1 WHERE fid = ${fid}`,
+    legacyFoodOccupations: 'SELECT * FROM food_node_occupation_v1',
+    legacyFoodSchedules: 'SELECT * FROM food_expedition_schedule_v_1',
+    legacyWood: `SELECT * FROM wood_expedition_v1 WHERE fid = ${fid}`,
+    legacyWoodReceipts: `SELECT * FROM wood_expedition_idempotency_v1 WHERE fid = ${fid}`,
+    legacyWoodOccupations: 'SELECT * FROM wood_node_occupation_v1',
+    legacyWoodSchedules: 'SELECT * FROM wood_expedition_schedule_v_1',
+    legacyStone: `SELECT * FROM stone_expedition_v1 WHERE fid = ${fid}`,
+    legacyStoneReceipts: `SELECT * FROM stone_expedition_idempotency_v1 WHERE fid = ${fid}`,
+    legacyStoneOccupations: 'SELECT * FROM stone_node_occupation_v1',
+    legacyStoneSchedules: 'SELECT * FROM stone_expedition_schedule_v_1',
+    workers: 'SELECT * FROM castle_worker_v1',
+    workerAssignments: `SELECT * FROM worker_assignment_v1 WHERE fid = ${fid}`,
+    workerOccupations: 'SELECT * FROM worker_node_occupation_v1',
+    workerSchedules: 'SELECT * FROM worker_assignment_schedule_v_1',
+    workerReceipts: `SELECT * FROM worker_command_idempotency_v1 WHERE fid = ${fid}`,
   });
   const digests = {};
   for (const [name, query] of Object.entries(queries)) {
@@ -3880,6 +3968,10 @@ async function verifyActualModuleExpeditionLifecycles(
   };
   const founderCredential = rotatingPlayerCredential(actualModuleFounderFid);
   const contenderCredential = rotatingPlayerCredential(actualModuleOtherFid);
+  const disabledRequestCredential = operation => createEphemeralJwt(
+    privateKey,
+    accessRequestServiceClaims(actualModuleFounderFid, operation),
+  );
   const primaryKey = resource => `migration-${resource.kind}-primary-0001`;
   const contenderKey = resource => `migration-${resource.kind}-contender-0001`;
   const goldResource = expeditionResources.find(resource => resource.kind === 'gold');
@@ -4538,6 +4630,390 @@ async function verifyActualModuleExpeditionLifecycles(
       || finalWorkerStatus.genericSchedules !== 0n
     ) fail('Actual Worker return completion did not release every node.');
 
+    // An enabled founder with no request has no deletion receipt. If a
+    // concurrent administrator disables that founder after status inspection,
+    // the stale reset must fail rather than claim the other action as its own.
+    stage = 'enabled-no-request-reset-status';
+    await useActualModule();
+    const enabledNoRequestStatus = parseAdminAccessRequestResetStatus(
+      await callLoopbackProcedure(
+        server,
+        database,
+        'admin_get_access_request_reset_status_v1',
+        adminCredential(),
+        JSON.stringify([actualModuleOtherFid]),
+        200,
+      ),
+    );
+    if (
+      enabledNoRequestStatus.admissionState !== 'enabled'
+      || enabledNoRequestStatus.requestState !== 'not_requested'
+      || enabledNoRequestStatus.requestCycle !== undefined
+      || enabledNoRequestStatus.requestedAtMicros !== undefined
+    ) fail('Enabled/no-request stale-reset fixture was invalid.');
+    await useInspectionModule();
+    const resetAuditBeforeConcurrentDisable = await actionCount(
+      server,
+      ownerToken,
+      database,
+      'reset_access_request_v1',
+    );
+    stage = 'enabled-no-request-concurrent-disable';
+    await useActualModule();
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_disable_fid',
+      adminCredential(),
+      JSON.stringify([actualModuleOtherFid, 'disposable concurrent reset guard']),
+      200,
+    );
+    stage = 'enabled-no-request-stale-reset-rejection';
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_reset_access_request_v1',
+      adminCredential(),
+      JSON.stringify([
+        actualModuleOtherFid,
+        true,
+        enabledNoRequestStatus.authEpoch,
+        { none: [] },
+        { none: [] },
+        'disposable stale enabled-no-request reset',
+      ]),
+      530,
+    );
+    await useInspectionModule();
+    if (
+      await actionCount(server, ownerToken, database, 'reset_access_request_v1')
+      !== resetAuditBeforeConcurrentDisable
+    ) fail('Rejected enabled/no-request reset created an audit receipt.');
+    stage = 'enabled-no-request-founder-restore';
+    await useActualModule();
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_allow_fid',
+      adminCredential(),
+      JSON.stringify([actualModuleOtherFid, 'restore concurrent reset guard fixture']),
+      200,
+    );
+
+    stage = 'founded-access-request-reset';
+    stage = 'founded-reset-admin-denial';
+    await callLoopbackProcedure(
+      server,
+      database,
+      'admin_get_access_request_reset_status_v1',
+      disabledRequestCredential('status'),
+      JSON.stringify([actualModuleFounderFid]),
+      500,
+    );
+    stage = 'founded-reset-initial-status';
+    let resetStatusBefore = parseAdminAccessRequestResetStatus(
+      await callLoopbackProcedure(
+        server,
+        database,
+        'admin_get_access_request_reset_status_v1',
+        adminCredential(),
+        JSON.stringify([actualModuleFounderFid]),
+        200,
+      ),
+    );
+    if (
+      resetStatusBefore.admissionState === 'enabled'
+      && resetStatusBefore.requestState === 'not_requested'
+    ) {
+      stage = 'founded-reset-fixture-disable';
+      await callLoopbackReducer(
+        server,
+        database,
+        'admin_disable_fid',
+        adminCredential(),
+        JSON.stringify([actualModuleFounderFid, 'prepare resolved reset fixture']),
+        200,
+      );
+      stage = 'founded-reset-fixture-request';
+      const preparedRequest = parseAccessRequestStatus(
+        await callLoopbackProcedure(
+          server,
+          database,
+          'access_request_submit_v1',
+          disabledRequestCredential('submit'),
+          '[]',
+          200,
+        ),
+        'prepared founder reset request',
+      );
+      if (preparedRequest.status !== 'requested') {
+        fail('Founded reset fixture could not prepare a request.');
+      }
+      stage = 'founded-reset-fixture-readmit';
+      await callLoopbackReducer(
+        server,
+        database,
+        'admin_allow_fid',
+        adminCredential(),
+        JSON.stringify([actualModuleFounderFid, 'prepare resolved reset fixture']),
+        200,
+      );
+      stage = 'founded-reset-fixture-status';
+      resetStatusBefore = parseAdminAccessRequestResetStatus(
+        await callLoopbackProcedure(
+          server,
+          database,
+          'admin_get_access_request_reset_status_v1',
+          adminCredential(),
+          JSON.stringify([actualModuleFounderFid]),
+          200,
+        ),
+      );
+    }
+    if (
+      resetStatusBefore.admissionState !== 'enabled'
+      || resetStatusBefore.requestState !== 'resolved'
+      || resetStatusBefore.requestCycle === undefined
+      || resetStatusBefore.requestedAtMicros === undefined
+      || resetStatusBefore.requestCycle > BigInt(Number.MAX_SAFE_INTEGER)
+      || resetStatusBefore.requestedAtMicros > BigInt(Number.MAX_SAFE_INTEGER)
+    ) fail('Founded reset did not begin from the exact resolved-request state.');
+    stage = 'founded-reset-arguments';
+    const resetArguments = status => JSON.stringify([
+      actualModuleFounderFid,
+      status.admissionState === 'enabled',
+      status.authEpoch,
+      { some: Number(status.requestCycle) },
+      { some: Number(status.requestedAtMicros) },
+      'disposable exact founder reapplication reset',
+    ]);
+    const firstResetArguments = resetArguments(resetStatusBefore);
+    stage = 'founded-reset-reducer-denial';
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_reset_access_request_v1',
+      disabledRequestCredential('submit'),
+      firstResetArguments,
+      530,
+    );
+    stage = 'founded-reset-retained-before';
+    await useInspectionModule();
+    const retainedBeforeReset = await founderReapplicationRetainedStateDigest(
+      server,
+      ownerToken,
+      database,
+    );
+    stage = 'founded-reset-first-commit';
+    await useActualModule();
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_reset_access_request_v1',
+      adminCredential(),
+      firstResetArguments,
+      200,
+    );
+    stage = 'founded-reset-first-postcondition';
+    const resetStatusAfter = parseAdminAccessRequestResetStatus(
+      await callLoopbackProcedure(
+        server,
+        database,
+        'admin_get_access_request_reset_status_v1',
+        adminCredential(),
+        JSON.stringify([actualModuleFounderFid]),
+        200,
+      ),
+    );
+    if (
+      resetStatusAfter.admissionState !== 'disabled'
+      || resetStatusAfter.authEpoch !== resetStatusBefore.authEpoch
+      || resetStatusAfter.requestState !== 'not_requested'
+      || resetStatusAfter.requestCycle !== undefined
+      || resetStatusAfter.requestedAtMicros !== undefined
+    ) {
+      fail(
+        'Founded reset postcondition was invalid: '
+        + `admission=${resetStatusAfter.admissionState}, `
+        + `epoch_preserved=${resetStatusAfter.authEpoch === resetStatusBefore.authEpoch}, `
+        + `request=${resetStatusAfter.requestState}, `
+        + `tuple_absent=${resetStatusAfter.requestCycle === undefined
+          && resetStatusAfter.requestedAtMicros === undefined}.`,
+      );
+    }
+    stage = 'founded-reset-first-preservation';
+    await useInspectionModule();
+    if (
+      await countForFid(server, ownerToken, database, 'access_request_v1') !== 0n
+      || await actionCount(server, ownerToken, database, 'reset_access_request_v1') !== 1n
+      || await founderReapplicationRetainedStateDigest(server, ownerToken, database)
+        !== retainedBeforeReset
+    ) fail('Founded reset changed retained player state or missed its exact audit.');
+
+    // The deleted request tuple makes an ambiguous-response retry a no-op. A
+    // new request independently blocks the stale tuple before any mutation.
+    stage = 'founded-reset-exact-deletion-retry';
+    await useActualModule();
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_reset_access_request_v1',
+      adminCredential(),
+      firstResetArguments,
+      200,
+    );
+    stage = 'founded-reset-exact-deletion-retry-audit';
+    await useInspectionModule();
+    if (await actionCount(server, ownerToken, database, 'reset_access_request_v1') !== 1n) {
+      fail('Exact founded reset deletion retry duplicated its audit.');
+    }
+    stage = 'founded-reset-fresh-request';
+    await useActualModule();
+    const postResetRequest = parseAccessRequestStatus(
+      await callLoopbackProcedure(
+        server,
+        database,
+        'access_request_submit_v1',
+        disabledRequestCredential('submit'),
+        '[]',
+        200,
+      ),
+      'post-reset founder access request',
+    );
+    if (
+      postResetRequest.status !== 'requested'
+      || postResetRequest.requestedAtMicros === undefined
+    ) fail('Founded reset did not permit one fresh request.');
+    stage = 'founded-reset-stale-rejection';
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_reset_access_request_v1',
+      adminCredential(),
+      firstResetArguments,
+      530,
+    );
+    stage = 'founded-reset-pending-status';
+    const pendingResetStatus = parseAdminAccessRequestResetStatus(
+      await callLoopbackProcedure(
+        server,
+        database,
+        'admin_get_access_request_reset_status_v1',
+        adminCredential(),
+        JSON.stringify([actualModuleFounderFid]),
+        200,
+      ),
+    );
+    if (
+      pendingResetStatus.admissionState !== 'disabled'
+      || pendingResetStatus.requestState !== 'pending'
+      || pendingResetStatus.requestCycle === undefined
+      || pendingResetStatus.requestedAtMicros !== postResetRequest.requestedAtMicros
+      || pendingResetStatus.requestCycle > BigInt(Number.MAX_SAFE_INTEGER)
+      || pendingResetStatus.requestedAtMicros > BigInt(Number.MAX_SAFE_INTEGER)
+    ) fail('Stale founded reset damaged the fresh request.');
+
+    // Exercise the live owner-canary shape as well: already disabled with one
+    // pending request. It deletes only that exact tuple and remains retry-safe.
+    stage = 'disabled-pending-reset-arguments';
+    const pendingResetArguments = resetArguments(pendingResetStatus);
+    stage = 'disabled-pending-reset-commit';
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_reset_access_request_v1',
+      adminCredential(),
+      pendingResetArguments,
+      200,
+    );
+    stage = 'disabled-pending-reset-retry';
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_reset_access_request_v1',
+      adminCredential(),
+      pendingResetArguments,
+      200,
+    );
+    stage = 'disabled-pending-reset-preservation';
+    await useInspectionModule();
+    if (
+      await countForFid(server, ownerToken, database, 'access_request_v1') !== 0n
+      || await actionCount(server, ownerToken, database, 'reset_access_request_v1') !== 2n
+      || await founderReapplicationRetainedStateDigest(server, ownerToken, database)
+        !== retainedBeforeReset
+    ) fail('Disabled pending-request reset changed retained state or retry history.');
+
+    stage = 'disabled-pending-reset-reapplication';
+    await useActualModule();
+    const finalFreshRequest = parseAccessRequestStatus(
+      await callLoopbackProcedure(
+        server,
+        database,
+        'access_request_submit_v1',
+        disabledRequestCredential('submit'),
+        '[]',
+        200,
+      ),
+      'final fresh founder access request',
+    );
+    if (
+      finalFreshRequest.status !== 'requested'
+      || finalFreshRequest.requestedAtMicros === undefined
+    ) fail('Disabled pending-request reset did not permit reapplication.');
+    stage = 'same-cycle-stale-reset-rejection';
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_reset_access_request_v1',
+      adminCredential(),
+      pendingResetArguments,
+      530,
+    );
+    stage = 'same-cycle-fresh-request-status';
+    const sameCycleFreshStatus = parseAdminAccessRequestResetStatus(
+      await callLoopbackProcedure(
+        server,
+        database,
+        'admin_get_access_request_reset_status_v1',
+        adminCredential(),
+        JSON.stringify([actualModuleFounderFid]),
+        200,
+      ),
+    );
+    if (
+      sameCycleFreshStatus.requestState !== 'pending'
+      || sameCycleFreshStatus.requestCycle !== pendingResetStatus.requestCycle
+      || sameCycleFreshStatus.requestedAtMicros !== finalFreshRequest.requestedAtMicros
+    ) fail('Timestamp-bound stale reset damaged a same-cycle fresh request.');
+    stage = 'final-founder-readmission';
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_allow_fid',
+      adminCredential(),
+      JSON.stringify([actualModuleFounderFid, 'restore disposable founder after reset proof']),
+      200,
+    );
+    stage = 'final-founder-readmission-status';
+    const finalResetStatus = parseAdminAccessRequestResetStatus(
+      await callLoopbackProcedure(
+        server,
+        database,
+        'admin_get_access_request_reset_status_v1',
+        adminCredential(),
+        JSON.stringify([actualModuleFounderFid]),
+        200,
+      ),
+    );
+    if (
+      finalResetStatus.admissionState !== 'enabled'
+      || finalResetStatus.authEpoch !== pendingResetStatus.authEpoch + 1
+      || finalResetStatus.requestState !== 'resolved'
+      || finalResetStatus.requestCycle !== pendingResetStatus.requestCycle
+      || finalResetStatus.requestedAtMicros !== finalFreshRequest.requestedAtMicros
+    ) fail('Final founder re-admission did not resolve the exact fresh request epoch.');
+
     return 'v11/v12-compatible four-resource legacy drain, exact zero activation, atomic four-worker control, dispatch, recall one/all, reconnect, and node reuse';
   } catch (error) {
     if (error instanceof MigrationProofError) {
@@ -4545,7 +5021,14 @@ async function verifyActualModuleExpeditionLifecycles(
         `Actual-module expedition lifecycle failed at ${stage}: ${error.message}`,
       );
     }
-    throw new MigrationProofError(`Actual-module expedition lifecycle failed at ${stage}.`);
+    const internalFailureClass = error instanceof ReferenceError
+      ? 'reference invariant'
+      : error instanceof TypeError
+        ? 'type invariant'
+        : 'unexpected internal invariant';
+    throw new MigrationProofError(
+      `Actual-module expedition lifecycle failed at ${stage}: ${internalFailureClass}.`,
+    );
   }
 }
 

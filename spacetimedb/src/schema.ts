@@ -1440,6 +1440,8 @@ for (const name of [
   'access_request_get_status_v1',
   'access_request_submit_v1',
   'admin_list_access_requests_v1',
+  'admin_get_access_request_reset_status_v1',
+  'admin_reset_access_request_v1',
   'admin_get_daily_marks_status_v1',
   'admin_backfill_daily_mark_accounts_v1',
   'admin_activate_daily_marks_v1',
