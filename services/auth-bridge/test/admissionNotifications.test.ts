@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { AdmissionNotification } from '../src/admissionNotifications'
 import type { BridgeConfig } from '../src/config'
 import type {
+  AccessRequestResolver,
   AuthEpochResolver,
   DurableObjectState,
   DurableObjectStorage,
@@ -17,6 +18,7 @@ const DELIVERY_URL = 'https://api.farcaster.xyz/v1/frame-notifications'
 const TOKEN = 'test-notification-token-with-enough-entropy'
 const INTERNAL_ORIGIN = 'https://admission-notification.internal'
 const STATE_KEY = 'admission-notification-v1'
+const PENDING_STATE_RECORD = 'admission-notification-pending-v2'
 
 class FakeStorage implements DurableObjectStorage {
   readonly values = new Map<string, unknown>()
@@ -137,9 +139,14 @@ function stored(storage: FakeStorage): string {
   return JSON.stringify(storage.values.get(STATE_KEY))
 }
 
+function pendingStored(storage: FakeStorage): string {
+  return JSON.stringify(storage.values.get(PENDING_STATE_RECORD))
+}
+
 function createHarness(options: {
   fetchImpl?: typeof fetch
   resolver?: AuthEpochResolver
+  accessRequestResolver?: AccessRequestResolver
   configReader?: () => BridgeConfig
 } = {}) {
   const storage = new FakeStorage()
@@ -155,6 +162,10 @@ function createHarness(options: {
       fetchImpl: options.fetchImpl ?? vi.fn(async () => successfulDelivery()),
       configReader: options.configReader ?? (() => config()),
       admissionResolver: resolver,
+      accessRequestResolver: options.accessRequestResolver ?? {
+        getStatus: vi.fn(async () => ({ status: 'not-requested' } as const)),
+        submit: vi.fn(async () => ({ status: 'not-requested' } as const)),
+      },
     },
   )
   return {
@@ -180,6 +191,19 @@ async function queue(
   return notification.fetch(internalRequest('queue', { fid: FID, authEpoch, queuedAt }))
 }
 
+async function queuePending(
+  notification: AdmissionNotification,
+  requestedAtMicros: number,
+  queuedAt = NOW,
+): Promise<Response> {
+  return notification.fetch(internalRequest('queue', {
+    fid: FID,
+    kind: 'pending-request',
+    requestedAtMicros,
+    queuedAt,
+  }))
+}
+
 async function inspect(notification: AdmissionNotification): Promise<Response> {
   return notification.fetch(internalRequest('status', { fid: FID }))
 }
@@ -197,7 +221,7 @@ describe('admission notification consent and delivery lifecycle', () => {
     expect(fetchImpl).toHaveBeenCalledOnce()
     const [deliveryUrl, deliveryInit] = fetchImpl.mock.calls[0]
     expect(deliveryUrl).toBe(DELIVERY_URL)
-    expect(deliveryInit?.redirect).toBe('error')
+    expect(deliveryInit?.redirect).toBe('manual')
     const payload = JSON.parse(String(deliveryInit?.body))
     expect(payload).toEqual({
       notificationId: 'warpkeep-access-approved-v1-e7',
@@ -213,6 +237,155 @@ describe('admission notification consent and delivery lifecycle', () => {
     await expect(duplicate.json()).resolves.toEqual({ status: 'already-sent' })
     expect(fetchImpl).toHaveBeenCalledOnce()
     expect(stored(h.storage)).toContain('"lastSentAuthEpoch":7')
+    expect(stored(h.storage)).not.toContain('"kind"')
+    expect(stored(h.storage)).not.toContain('"lastAttemptAt"')
+    expect(stored(h.storage)).not.toContain('"lastFailureReason"')
+  })
+
+  it('gets provider acceptance for the exact pending request before admission exists', async () => {
+    const requestedAtMicros = 1_799_999_999_000_000
+    const fetchImpl = vi.fn<typeof fetch>(async () => successfulDelivery())
+    const accessRequestResolver = {
+      getStatus: vi.fn(async () => ({ status: 'requested', requestedAtMicros } as const)),
+      submit: vi.fn(async () => ({ status: 'requested', requestedAtMicros } as const)),
+    }
+    const h = createHarness({
+      fetchImpl,
+      resolver: {
+        resolve: vi.fn(async () => ({ state: 'disabled', authEpoch: 0 } as const)),
+      },
+      accessRequestResolver,
+    })
+    await applyEvent(h.notification, enabledEvent())
+
+    const response = await queuePending(h.notification, requestedAtMicros)
+    await expect(response.json()).resolves.toEqual({ status: 'already-sent' })
+    expect(accessRequestResolver.getStatus).toHaveBeenCalledWith(FID)
+    expect(fetchImpl).toHaveBeenCalledOnce()
+    const payload = JSON.parse(String(fetchImpl.mock.calls[0][1]?.body))
+    expect(payload).toMatchObject({
+      notificationId: `warpkeep-access-approved-v2-r${requestedAtMicros}`,
+      title: 'Admission approved',
+      body: 'The Hegemony is finalizing your Realm access. Your keep will open shortly.',
+    })
+    expect(pendingStored(h.storage)).toContain(
+      `"lastSentRequestAtMicros":${requestedAtMicros}`,
+    )
+    expect(pendingStored(h.storage)).not.toContain(TOKEN)
+    const legacy = h.storage.values.get(STATE_KEY) as Record<string, unknown>
+    expect(Object.keys(legacy).sort()).toEqual([
+      'fid',
+      'retentionExpiresAt',
+      'revision',
+      'revokedTokenIds',
+      'seenEventIds',
+      'subscriptions',
+      'version',
+    ])
+    expect(stored(h.storage)).not.toContain('pending-request')
+    expect(stored(h.storage)).not.toContain('lastSentRequestAtMicros')
+    await expect((await inspect(h.notification)).json()).resolves.toMatchObject({
+      status: 'already-sent',
+      generation: 'pending-request',
+    })
+  })
+
+  it('does not reuse a pending-request receipt for a later application', async () => {
+    let requestedAtMicros = 1_799_999_999_000_000
+    const fetchImpl = vi.fn<typeof fetch>(async () => successfulDelivery())
+    const h = createHarness({
+      fetchImpl,
+      resolver: {
+        resolve: vi.fn(async () => ({ state: 'disabled', authEpoch: 0 } as const)),
+      },
+      accessRequestResolver: {
+        getStatus: vi.fn(async () => ({ status: 'requested', requestedAtMicros } as const)),
+        submit: vi.fn(async () => ({ status: 'requested', requestedAtMicros } as const)),
+      },
+    })
+    await applyEvent(h.notification, enabledEvent())
+    await queuePending(h.notification, requestedAtMicros)
+
+    requestedAtMicros += 1_000
+    const second = await queuePending(h.notification, requestedAtMicros, NOW + 1)
+    await expect(second.json()).resolves.toEqual({ status: 'already-sent' })
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    const notificationIds = fetchImpl.mock.calls.map(call => (
+      JSON.parse(String(call[1]?.body)) as { notificationId: string }
+    ).notificationId)
+    expect(new Set(notificationIds).size).toBe(2)
+  })
+
+  it('cancels a staged delivery when the exact pending request no longer matches', async () => {
+    const requestedAtMicros = 1_799_999_999_000_000
+    const fetchImpl = vi.fn<typeof fetch>(async () => successfulDelivery())
+    const h = createHarness({
+      fetchImpl,
+      resolver: {
+        resolve: vi.fn(async () => ({ state: 'disabled', authEpoch: 0 } as const)),
+      },
+      accessRequestResolver: {
+        getStatus: vi.fn(async () => ({
+          status: 'requested',
+          requestedAtMicros: requestedAtMicros + 1,
+        } as const)),
+        submit: vi.fn(async () => ({ status: 'not-requested' } as const)),
+      },
+    })
+    await applyEvent(h.notification, enabledEvent())
+
+    const response = await queuePending(h.notification, requestedAtMicros)
+    await expect(response.json()).resolves.toEqual({ status: 'not-subscribed' })
+    expect(fetchImpl).not.toHaveBeenCalled()
+    expect(stored(h.storage)).not.toContain('"delivery"')
+  })
+
+  it('heals a rollback conflict before processing a signed opt-out', async () => {
+    const requestedAtMicros = 1_799_999_999_000_000
+    const fetchImpl = vi.fn<typeof fetch>(async () => Response.json({
+      result: {
+        successfulTokens: [],
+        invalidTokens: [],
+        rateLimitedTokens: [TOKEN],
+      },
+    }))
+    const h = createHarness({
+      fetchImpl,
+      resolver: {
+        resolve: vi.fn(async () => ({ state: 'disabled', authEpoch: 0 } as const)),
+      },
+      accessRequestResolver: {
+        getStatus: vi.fn(async () => ({ status: 'requested', requestedAtMicros } as const)),
+        submit: vi.fn(async () => ({ status: 'requested', requestedAtMicros } as const)),
+      },
+    })
+    await applyEvent(h.notification, enabledEvent())
+    await queuePending(h.notification, requestedAtMicros)
+    expect(h.storage.values.has(PENDING_STATE_RECORD)).toBe(true)
+
+    const legacy = h.storage.values.get(STATE_KEY) as Record<string, unknown>
+    const subscriptions = legacy.subscriptions as Array<Record<string, unknown>>
+    h.storage.values.set(STATE_KEY, {
+      ...legacy,
+      revision: Number(legacy.revision) + 1,
+      delivery: {
+        authEpoch: 7,
+        queuedAt: NOW,
+        expiresAt: NOW + 24 * 60 * 60 * 1_000,
+        attempts: [{
+          appFid: APP_FID,
+          tokenId: subscriptions[0].tokenId,
+          status: 'pending',
+          attempts: 0,
+          verificationFailures: 0,
+        }],
+      },
+    })
+
+    expect((await inspect(h.notification)).status).toBe(200)
+    expect((await applyEvent(h.notification, disabledEvent())).status).toBe(204)
+    expect(stored(h.storage)).not.toContain(TOKEN)
+    expect(h.storage.values.has(PENDING_STATE_RECORD)).toBe(false)
   })
 
   it('erases raw token material on opt-out and rejects a replay under a new envelope', async () => {
@@ -231,6 +404,25 @@ describe('admission notification consent and delivery lifecycle', () => {
     )).status).toBe(204)
     expect(stored(h.storage)).not.toContain(TOKEN)
     expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
+  it('tombstones a superseded token so an old signed enable cannot restore it', async () => {
+    const tokenA = 'test-notification-token-a-with-enough-entropy'
+    const tokenB = 'test-notification-token-b-with-enough-entropy'
+    const h = createHarness()
+
+    await applyEvent(h.notification, enabledEvent('a'.repeat(64), tokenA))
+    await applyEvent(h.notification, enabledEvent('b'.repeat(64), tokenB))
+    expect(stored(h.storage)).not.toContain(tokenA)
+    expect(stored(h.storage)).toContain(tokenB)
+
+    await applyEvent(h.notification, enabledEvent('c'.repeat(64), tokenA))
+    expect(stored(h.storage)).not.toContain(tokenA)
+    expect(stored(h.storage)).toContain(tokenB)
+
+    await applyEvent(h.notification, disabledEvent('d'.repeat(64)))
+    expect(stored(h.storage)).not.toContain(tokenA)
+    expect(stored(h.storage)).not.toContain(tokenB)
   })
 
   it('serializes overlapping enable and disable events so opt-out wins arrival order', async () => {
@@ -276,6 +468,39 @@ describe('admission notification consent and delivery lifecycle', () => {
     await h.notification.alarm()
     expect(fetchImpl).not.toHaveBeenCalled()
     expect(h.storage.values.has(STATE_KEY)).toBe(false)
+  })
+
+  it('keeps active delivery recoverable across a transient configuration outage', async () => {
+    let configured = true
+    let deliveryAttempt = 0
+    const fetchImpl = vi.fn<typeof fetch>(async () => {
+      deliveryAttempt += 1
+      if (deliveryAttempt === 1) throw new TypeError('synthetic transport failure')
+      return successfulDelivery()
+    })
+    const h = createHarness({
+      fetchImpl,
+      configReader: () => {
+        if (!configured) throw new Error('synthetic configuration outage')
+        return config()
+      },
+    })
+    await applyEvent(h.notification, enabledEvent())
+    await queue(h.notification)
+    expect(fetchImpl).toHaveBeenCalledOnce()
+
+    const firstAlarm = Number(h.storage.alarm)
+    h.setNow(firstAlarm)
+    configured = false
+    await h.notification.alarm()
+    const recoveryAlarm = Number(h.storage.alarm)
+    expect(recoveryAlarm).toBe(firstAlarm + 30_000)
+
+    h.setNow(recoveryAlarm)
+    configured = true
+    await h.notification.alarm()
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    expect(stored(h.storage)).toContain('"lastSentAuthEpoch":7')
   })
 
   it('retries verifier outages from a pending alarm without exposing the token', async () => {
@@ -335,10 +560,52 @@ describe('admission notification consent and delivery lifecycle', () => {
     await applyEvent(h.notification, enabledEvent())
 
     const response = await queue(h.notification)
-    await expect(response.json()).resolves.toEqual({ status: 'not-subscribed' })
+    await expect(response.json()).resolves.toEqual({ status: 'delivery-exhausted' })
     expect(fetchImpl).toHaveBeenCalledOnce()
     expect(stored(h.storage)).not.toContain(TOKEN)
     expect(stored(h.storage)).toContain('revokedTokenIds')
+  })
+
+  it('classifies Cloudflare fetch rejection without retaining exception details', async () => {
+    const privateDetail = 'private-runtime-detail-that-must-not-persist'
+    const h = createHarness({
+      fetchImpl: vi.fn<typeof fetch>(async (_input, init) => {
+        expect(init?.redirect).toBe('manual')
+        throw new TypeError(privateDetail)
+      }),
+    })
+    await applyEvent(h.notification, enabledEvent())
+
+    await expect((await queue(h.notification)).json()).resolves.toEqual({ status: 'queued' })
+    const text = await (await inspect(h.notification)).text()
+    expect(text).not.toContain(privateDetail)
+    expect(JSON.parse(text)).toMatchObject({
+      retryReasons: ['transport-fetch-rejected'],
+      lastFailureReason: 'transport-fetch-rejected',
+      lastAttemptAt: NOW,
+    })
+  })
+
+  it('rejects redirects without following or retrying them', async () => {
+    const h = createHarness({
+      fetchImpl: vi.fn<typeof fetch>(async (_input, init) => {
+        expect(init?.redirect).toBe('manual')
+        return new Response(null, {
+          status: 302,
+          headers: { location: 'https://hostile.example/collect' },
+        })
+      }),
+    })
+    await applyEvent(h.notification, enabledEvent())
+
+    await expect((await queue(h.notification)).json()).resolves.toEqual({
+      status: 'delivery-exhausted',
+    })
+    await expect((await inspect(h.notification)).json()).resolves.toMatchObject({
+      retryReasons: ['upstream-redirect'],
+      lastFailureReason: 'upstream-redirect',
+    })
+    expect(stored(h.storage)).toContain(TOKEN)
   })
 
   it('accepts the current additive Farcaster response on a successful delivery', async () => {
@@ -372,13 +639,35 @@ describe('admission notification consent and delivery lifecycle', () => {
     await applyEvent(h.notification, enabledEvent())
 
     const response = await queue(h.notification)
-    await expect(response.json()).resolves.toEqual({ status: 'not-subscribed' })
+    await expect(response.json()).resolves.toEqual({ status: 'delivery-exhausted' })
     expect(fetchImpl).toHaveBeenCalledOnce()
     expect(stored(h.storage)).not.toContain(TOKEN)
     expect(stored(h.storage)).toContain('revokedTokenIds')
   })
 
-  it('retains consent and records a bounded retry for a structured provider failure', async () => {
+  it('purges a token after a permanent target-domain mismatch', async () => {
+    const h = createHarness({
+      fetchImpl: vi.fn<typeof fetch>(async () => Response.json({
+        result: {
+          successfulTokens: [],
+          invalidTokens: [],
+          rateLimitedTokens: [],
+          failedTokens: [{ token: TOKEN, reason: 'target_url_mismatch' }],
+        },
+      })),
+    })
+    await applyEvent(h.notification, enabledEvent())
+
+    await expect((await queue(h.notification)).json()).resolves.toEqual({
+      status: 'delivery-exhausted',
+    })
+    expect(stored(h.storage)).not.toContain(TOKEN)
+    await expect((await inspect(h.notification)).json()).resolves.toMatchObject({
+      retryReasons: ['provider-target-url-mismatch'],
+    })
+  })
+
+  it('retains consent but exhausts a deterministic provider configuration failure', async () => {
     const fetchImpl = vi.fn<typeof fetch>(async () => Response.json({
       result: {
         successfulTokens: [],
@@ -391,11 +680,9 @@ describe('admission notification consent and delivery lifecycle', () => {
     await applyEvent(h.notification, enabledEvent())
 
     const response = await queue(h.notification)
-    await expect(response.json()).resolves.toEqual({ status: 'queued' })
+    await expect(response.json()).resolves.toEqual({ status: 'delivery-exhausted' })
     expect(stored(h.storage)).toContain(TOKEN)
-    expect(stored(h.storage)).toContain('"status":"retrying"')
-    expect(stored(h.storage)).not.toContain('retryReason')
-    expect(stored(h.storage)).not.toContain('provider-no-webhook-url')
+    expect(stored(h.storage)).toContain('"status":"exhausted"')
     await expect((await inspect(h.notification)).json()).resolves.toMatchObject({
       retryReasons: ['provider-no-webhook-url'],
     })
@@ -446,7 +733,7 @@ describe('admission notification consent and delivery lifecycle', () => {
       const response = await queue(h.notification)
       await expect(response.json()).resolves.toEqual({ status: 'queued' })
       await expect((await inspect(h.notification)).json()).resolves.toMatchObject({
-        retryReasons: ['invalid-response'],
+        retryReasons: ['response-schema'],
       })
     }
   })
@@ -472,6 +759,7 @@ describe('admission notification consent and delivery lifecycle', () => {
     expect(text).not.toContain(TOKEN)
     expect(JSON.parse(text)).toEqual({
       status: 'queued',
+      generation: 'admitted',
       authEpoch: 7,
       deliveryAttemptCount: 0,
       verificationFailureCount: 1,

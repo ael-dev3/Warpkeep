@@ -260,10 +260,13 @@ a SpacetimeDB schema change. Roll them out in this order:
    canary events pass. Then change only that public presentation gate to the
    literal value `true` in a reviewed frontend release; it does not enable the
    Worker or grant admission.
-7. Give Hermes the operator secret through its private environment. A committed
-   admission may call the notification route best-effort; if delivery cannot be
-   queued, preserve the admission result and reconcile later with
-   `npm run stdb:notify-admitted -- <fid> --confirm`.
+7. Give Hermes both isolated secrets through its private environment. For
+   `allow-fid` and confirmed `admit-founder`, Hermes must queue the exact pending
+   request generation before requesting an administrator token. If the player
+   opted in, require Farcaster provider acceptance before mutating admission;
+   `queued` or `delivery-exhausted` aborts unchanged. `not-subscribed` is an
+   explicit audited fallback for a player without consent. Keep
+   `notify-admitted` only for idempotent already-live reconciliation.
 
 ### Owner canary and end-to-end acceptance
 
@@ -293,23 +296,23 @@ it.
    change.
 5. Confirm one new signed subscription pair through the same fixed events, then
    admit the account through the existing reviewed Hermes dry-run, mutation,
-   and postflight sequence. Admission remains authoritative even if the
-   notification side effect fails. If the automatic side effect is ambiguous,
-   run `npm run stdb:notify-admitted -- <fid> --confirm` once; accept only
-   `queued`, `already-sent`, `delivery-exhausted`, or `not-subscribed`.
-6. Require one approval notification for the resulting positive auth epoch.
-   Its target must be exactly `https://warpkeep.com/?miniApp=true`. Tap it and
-   verify the calm confirmation state, fresh Quick Auth, current admission,
-   current Terms when required, and entry through the existing canonical keep.
-   No notification context may create a second keep or bypass Terms.
+   and postflight sequence. Require the operator receipt to show provider
+   acceptance for the exact pending-request generation before the SpacetimeDB
+   mutation is submitted. Provider acceptance proves Farcaster handoff, not
+   device presentation or that the player opened the alert.
+6. Require one approval notification for that request generation. Its target
+   must be exactly `https://warpkeep.com/?miniApp=true`. Tap it and verify the
+   calm confirmation state, fresh Quick Auth, current admission, current Terms
+   when required, and entry through the existing canonical keep. No
+   notification context may create a second keep or bypass Terms.
 7. Disable notifications or remove Warpkeep again, require the fixed
    unsubscribe events, and confirm Realm access remains unchanged. Repeat the
    complete acceptance on current Farcaster iOS and Android before declaring
    the client rollout complete.
 
-The current Worker copy is intentionally unchanged during this frontend stage:
-`The Hegemony admits you` (23 characters) and
-`Your keep awaits in Genesis 001. Enter the living Realm.` (56 characters).
+The normal pending-request notification is `Admission approved` with
+`The Hegemony is finalizing your Realm access. Your keep will open shortly.` The older
+`The Hegemony admits you` payload remains only for already-live reconciliation.
 Both are bounded and privacy-safe. Any copy change requires a separate reviewed
 Worker rollout.
 

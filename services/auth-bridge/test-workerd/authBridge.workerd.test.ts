@@ -4,6 +4,7 @@ import { encodeAbiParameters } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { createSiweMessage } from 'viem/siwe'
 import { describe, expect, it, vi } from 'vitest'
+import { AdmissionNotification } from '../src/admissionNotifications'
 import { createAuthBridge } from '../src/app'
 import {
   DurableObjectQaObserverChallengeStore,
@@ -14,6 +15,9 @@ import { createMiniAppWebhookVerifier } from '../src/miniAppWebhook'
 import type {
   AccessRequestResolver,
   AdmissionResolution,
+  DurableObjectState,
+  DurableObjectStorage,
+  DurableObjectTransaction,
   DurableObjectNamespace,
   SafeLogEvent,
   WorkerEnv,
@@ -42,6 +46,45 @@ const BINDING_VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'
 const BINDING_CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM'
 const WRONG_BINDING_VERIFIER = 'A'.repeat(43)
 const INTERNAL_ORIGIN = 'https://challenge-replay-guard.internal'
+const NOTIFICATION_INTERNAL_ORIGIN = 'https://admission-notification.internal'
+
+class WorkerdMemoryStorage implements DurableObjectStorage {
+  readonly values = new Map<string, unknown>()
+  alarm: number | Date | undefined
+
+  async get<T>(key: string): Promise<T | undefined> {
+    return this.values.get(key) as T | undefined
+  }
+
+  async put<T>(key: string, value: T): Promise<void> {
+    this.values.set(key, value)
+  }
+
+  async delete(key: string): Promise<boolean> {
+    return this.values.delete(key)
+  }
+
+  async deleteAll(): Promise<void> {
+    this.values.clear()
+    this.alarm = undefined
+  }
+
+  async setAlarm(scheduledTime: number | Date): Promise<void> {
+    this.alarm = scheduledTime
+  }
+
+  async deleteAlarm(): Promise<void> {
+    this.alarm = undefined
+  }
+
+  async transaction<T>(closure: (txn: DurableObjectTransaction) => Promise<T>): Promise<T> {
+    return closure({
+      get: key => this.get(key),
+      put: (key, value) => this.put(key, value),
+      delete: key => this.delete(key),
+    })
+  }
+}
 
 const CONFIG: BridgeConfig = {
   issuer: 'https://auth.warpkeep.test',
@@ -301,6 +344,84 @@ async function signedMiniAppWebhookFixture() {
 }
 
 describe('auth bridge production bindings in workerd', () => {
+  it('delivers through Cloudflare-compatible manual redirect handling in workerd', async () => {
+    const deliveryUrl = 'https://api.farcaster.xyz/v1/frame-notifications'
+    const token = 'workerd-notification-token-with-enough-entropy'
+    const notificationConfig: BridgeConfig = {
+      ...CONFIG,
+      approvalNotificationsEnabled: true,
+      miniAppNotifications: {
+        hubUrls: Object.freeze([
+          'https://rho.farcaster.xyz:3381/',
+          'https://hub.pinata.cloud/',
+        ]),
+        clients: Object.freeze([{ appFid: 9_152, deliveryUrl }]),
+        operatorSecret: 'workerd-notification-secret-at-least-32-bytes',
+      },
+    }
+    const fetchImpl = vi.fn<typeof fetch>(async (_input, init) => {
+      if (init?.redirect === 'error') {
+        throw new TypeError('workerd rejects redirect:error before subrequest dispatch')
+      }
+      expect(init?.redirect).toBe('manual')
+      return Response.json({
+        result: {
+          successfulTokens: [token],
+          invalidTokens: [],
+          rateLimitedTokens: [],
+          failedTokens: [],
+        },
+      })
+    })
+    const storage = new WorkerdMemoryStorage()
+    const notification = new AdmissionNotification(
+      { storage } as DurableObjectState,
+      {} as WorkerEnv,
+      {
+        now: () => 1_800_000_000_000,
+        fetchImpl,
+        configReader: () => notificationConfig,
+        admissionResolver: {
+          resolve: async () => ({ state: 'enabled', authEpoch: 7 }),
+        },
+        accessRequestResolver: {
+          getStatus: async () => ({ status: 'not-requested' }),
+          submit: async () => ({ status: 'not-requested' }),
+        },
+      },
+    )
+    const event = await notification.fetch(new Request(
+      `${NOTIFICATION_INTERNAL_ORIGIN}/event`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          eventId: 'a'.repeat(64),
+          fid: FID,
+          appFid: 9_152,
+          event: { type: 'enabled', details: { token, url: deliveryUrl } },
+        }),
+      },
+    ))
+    expect(event.status).toBe(204)
+
+    const queued = await notification.fetch(new Request(
+      `${NOTIFICATION_INTERNAL_ORIGIN}/queue`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          fid: FID,
+          kind: 'admitted',
+          authEpoch: 7,
+          queuedAt: 1_800_000_000_000,
+        }),
+      },
+    ))
+    await expect(queued.json()).resolves.toEqual({ status: 'already-sent' })
+    expect(fetchImpl).toHaveBeenCalledOnce()
+  })
+
   it('verifies Farcaster Ed25519 JFS envelopes with the production workerd runtime', async () => {
     const fixture = await signedMiniAppWebhookFixture()
     const activeOnChainRpcVerifier = vi.fn(async () => true)

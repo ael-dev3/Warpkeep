@@ -2485,25 +2485,51 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
               'Authorization is temporarily unavailable.',
             )
           }
-          if (admission.state !== 'enabled') {
-            logger.event('admission_notification_rejected')
-            throw new HttpError(
-              409,
-              'founder_not_admitted',
-              'Admission is not active for this Farcaster identity.',
-            )
-          }
           const queuedAt = now()
           if (!Number.isSafeInteger(queuedAt) || queuedAt < 0) {
             throw new ConfigurationError()
           }
           let status
           try {
+            const generation = admission.state === 'enabled'
+              ? Object.freeze({
+                  kind: 'admitted' as const,
+                  authEpoch: admission.authEpoch,
+                })
+              : await (async () => {
+                  let requestStatus: AccessRequestResolution
+                  try {
+                    requestStatus = await (
+                      dependencies.accessRequestResolver
+                      ?? defaultAccessRequestResolver(config)
+                    ).getStatus(fid)
+                  } catch (error) {
+                    logAccessRequestFailure(logger, error)
+                    throw new HttpError(
+                      503,
+                      'access_request_unavailable',
+                      'The access request ledger is temporarily unavailable.',
+                    )
+                  }
+                  if (requestStatus.status !== 'requested') {
+                    logger.event('admission_notification_rejected')
+                    throw new HttpError(
+                      409,
+                      'access_request_not_pending',
+                      'No pending access request is available for notification.',
+                    )
+                  }
+                  return Object.freeze({
+                    kind: 'pending-request' as const,
+                    requestedAtMicros: requestStatus.requestedAtMicros,
+                  })
+                })()
             status = await (
               dependencies.admissionNotificationStore
               ?? defaultAdmissionNotificationStore(env)
-            ).queueAdmission({ fid, authEpoch: admission.authEpoch, queuedAt })
-          } catch {
+            ).queueAdmission({ fid, queuedAt, ...generation })
+          } catch (error) {
+            if (error instanceof HttpError) throw error
             throw new HttpError(
               503,
               'admission_notification_unavailable',

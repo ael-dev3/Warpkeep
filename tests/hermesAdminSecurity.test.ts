@@ -22,6 +22,7 @@ import {
   readNotificationOperatorSecret,
   readStatus,
   requestAdmissionNotification,
+  requireNotificationBeforeAdmission,
   requestAdminToken,
   requireAccessRequestInspectionProductionTarget,
   requireAccessRequestResetProductionTarget,
@@ -38,6 +39,8 @@ import {
   verifyFounderAdmissionPreconditionV3,
   verifyFounderAdmissionResourcePostconditionV4,
   verifyFounderAdmissionResourcePreconditionV4,
+  verifyFounderReenablePostcondition,
+  verifyFounderReenablePrecondition,
   verifyGenesisExpansionPostconditionV3,
   verifyGenesisExpansionPreconditionV3,
   verifyGenesisExpansionResourceCheckpointV4,
@@ -645,6 +648,66 @@ describe('Hermes machine-readable output', () => {
       playerOwnershipsV2: before.playerOwnershipsV2 + 1n,
     }, before)).toThrow(/unrelated persistent aggregate state/i);
   });
+
+  it('binds an existing founder re-enable to one pending request and exact post-state', () => {
+    const worldBefore = foundedGenerationV3Status({ enabledAllowedFids: 2n });
+    const resources = {
+      allowedFids: 3n,
+      castles: 3n,
+      markAccounts: 3n,
+      resourceAccounts: 3n,
+      missingResourceAccounts: 0n,
+      orphanedResourceAccounts: 0n,
+      resourceInvariantViolations: 0n,
+      protocolVersion: 3,
+      resourcePolicyVersion: GENESIS_RESOURCE_POLICY_VERSION,
+    };
+    const targetBefore = projectAccessRequestResetStatus({
+      admissionState: 'disabled',
+      authEpoch: 3,
+      requestState: 'pending',
+      requestCycle: 4n,
+      requestedAtMicros: 1_800_000_000_000_000n,
+    });
+    const before = verifyFounderReenablePrecondition(
+      worldBefore,
+      resources,
+      targetBefore,
+    );
+    expect(() => verifyFounderReenablePrecondition(
+      worldBefore,
+      resources,
+      { ...targetBefore, requestState: 'resolved' },
+    )).toThrow(/exact pending access request/i);
+
+    const targetAfter = projectAccessRequestResetStatus({
+      admissionState: 'enabled',
+      authEpoch: 4,
+      requestState: 'resolved',
+      requestCycle: 4n,
+      requestedAtMicros: 1_800_000_000_000_000n,
+    });
+    expect(() => verifyFounderReenablePostcondition(
+      {
+        ...worldBefore,
+        enabledAllowedFids: 3n,
+        auditEntries: worldBefore.auditEntries + 1n,
+      },
+      resources,
+      targetAfter,
+      before,
+    )).not.toThrow();
+    expect(() => verifyFounderReenablePostcondition(
+      {
+        ...worldBefore,
+        enabledAllowedFids: 3n,
+        auditEntries: worldBefore.auditEntries + 1n,
+      },
+      { ...resources, resourceAccounts: 2n, missingResourceAccounts: 1n },
+      targetAfter,
+      before,
+    )).toThrow(/resource/i);
+  });
 });
 
 describe('Hermes command-line boundary', () => {
@@ -1235,6 +1298,7 @@ describe('Hermes atomic profiled admission boundary', () => {
     const readCredential = mainSource.indexOf('readAdminSecret(');
     const verifyV3Checkpoint = mainSource.indexOf('verifyFounderAdmissionPreconditionV3(');
     const verifyV4Checkpoint = mainSource.indexOf('verifyFounderAdmissionResourcePreconditionV4(');
+    const requireNotification = mainSource.indexOf('await requireNotificationBeforeAdmission(');
     const claimPlan = mainSource.indexOf('claimReviewedFounderAdmissionPlan({');
     const submitAdmission = mainSource.indexOf('connection.reducers.adminAdmitFounderV1(');
     expect(resolveForPlan).toBeGreaterThan(-1);
@@ -1243,7 +1307,8 @@ describe('Hermes atomic profiled admission boundary', () => {
     expect(readCredential).toBeGreaterThan(readPlan);
     expect(verifyV3Checkpoint).toBeGreaterThan(readCredential);
     expect(verifyV4Checkpoint).toBeGreaterThan(verifyV3Checkpoint);
-    expect(claimPlan).toBeGreaterThan(verifyV4Checkpoint);
+    expect(requireNotification).toBeGreaterThan(verifyV4Checkpoint);
+    expect(claimPlan).toBeGreaterThan(requireNotification);
     expect(submitAdmission).toBeGreaterThan(claimPlan);
     expect(mainSource).not.toContain('resolveAdmissionReadyFounderProfile(fid)');
 
@@ -1557,6 +1622,69 @@ describe('Hermes credential destination policy', () => {
       NOTIFICATION_SECRET,
       rejected,
     )).rejects.toThrow(/rejected the request/i);
+  });
+
+  it('waits for provider acceptance before allowing an opted-in admission mutation', async () => {
+    const sleep = vi.fn(async () => undefined);
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    let requestCount = 0;
+    const fetchImpl = vi.fn<typeof fetch>(async (input) => {
+      expect(String(input)).toBe(
+        'https://auth.warpkeep.com/v1/admin/admission-notification',
+      );
+      requestCount += 1;
+      return requestCount === 1
+        ? Response.json({ status: 'queued' }, { status: 202 })
+        : Response.json({ status: 'already-sent' });
+    });
+
+    await expect(requireNotificationBeforeAdmission(
+      'https://auth.warpkeep.com',
+      12_345n,
+      NOTIFICATION_SECRET,
+      fetchImpl,
+      sleep,
+    )).resolves.toBe('already-sent');
+
+    expect(sleep).toHaveBeenCalledWith(35_000);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(log).toHaveBeenCalledWith(JSON.stringify({
+      admissionNotification: 'already-sent',
+      providerAcceptanceRequired: true,
+      providerAcceptedBeforeAdmission: true,
+    }));
+    log.mockRestore();
+  });
+
+  it('permits an explicit no-consent receipt but blocks queued or exhausted delivery', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const notSubscribed = vi.fn<typeof fetch>(async () => Response.json({
+      status: 'not-subscribed',
+    }));
+    await expect(requireNotificationBeforeAdmission(
+      'https://auth.warpkeep.com',
+      12_345n,
+      NOTIFICATION_SECRET,
+      notSubscribed,
+      vi.fn(async () => undefined),
+    )).resolves.toBe('not-subscribed');
+    expect(log).toHaveBeenCalledWith(JSON.stringify({
+      admissionNotification: 'not-subscribed',
+      providerAcceptanceRequired: false,
+      providerAcceptedBeforeAdmission: false,
+    }));
+
+    const exhausted = vi.fn<typeof fetch>(async () => Response.json({
+      status: 'delivery-exhausted',
+    }));
+    await expect(requireNotificationBeforeAdmission(
+      'https://auth.warpkeep.com',
+      12_345n,
+      NOTIFICATION_SECRET,
+      exhausted,
+      vi.fn(async () => undefined),
+    )).rejects.toThrow(/delivery is exhausted/i);
+    log.mockRestore();
   });
 
   it('rejects wrong-media and chunked oversized admin responses generically', async () => {

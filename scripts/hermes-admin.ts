@@ -115,6 +115,8 @@ const CONNECT_TIMEOUT_MS = 30_000;
 const OPERATION_TIMEOUT_MS = 15_000;
 const MAX_ADMIN_TOKEN_RESPONSE_BYTES = 32 * 1_024;
 const ADMISSION_NOTIFICATION_PATH = 'v1/admin/admission-notification';
+const ADMISSION_NOTIFICATION_STATUS_PATH = 'v1/admin/admission-notification-status';
+const ADMISSION_NOTIFICATION_SETTLEMENT_WAIT_MILLISECONDS = 35_000;
 const ADMIN_TOKEN_CLOCK_SAFETY_MILLISECONDS = 20_000;
 const MAX_RESOURCE_BACKFILL_FOUNDERS = 100n;
 const GENESIS_GENERATION_V2_WORLD_CELLS = 1_261n;
@@ -1353,6 +1355,78 @@ export function verifyFounderAdmissionResourcePostconditionV4(
   return verified;
 }
 
+export function verifyFounderReenablePrecondition(
+  world: GenesisExpansionStatusV3,
+  resources: ResourceAggregateV4,
+  target: AccessRequestResetStatus,
+): Readonly<{
+  world: GenesisExpansionStatusV3;
+  resources: ResourceAggregateV4;
+  target: AccessRequestResetStatus;
+}> {
+  verifyFounderAdmissionCheckpointV3(world, false);
+  verifyExpectedResourceAggregateV4(resources, world.allowedFids);
+  if (
+    target.admissionState !== 'disabled'
+    || target.requestState !== 'pending'
+    || target.requestCycle !== BigInt(target.authEpoch) + 1n
+    || target.requestedAtMicros === undefined
+  ) {
+    fail('Existing founder re-enable requires one exact pending access request.');
+  }
+  return Object.freeze({
+    world: Object.freeze({ ...world }),
+    resources: Object.freeze({ ...resources }),
+    target: Object.freeze({ ...target }),
+  });
+}
+
+export function verifyFounderReenablePostcondition(
+  world: GenesisExpansionStatusV3,
+  resources: ResourceAggregateV4,
+  target: AccessRequestResetStatus,
+  before: ReturnType<typeof verifyFounderReenablePrecondition>,
+): void {
+  verifyFounderAdmissionCheckpointV3(world, false);
+  if (
+    target.admissionState !== 'enabled'
+    || target.authEpoch !== before.target.authEpoch + 1
+    || target.requestState !== 'resolved'
+    || target.requestCycle !== before.target.requestCycle
+    || target.requestedAtMicros !== before.target.requestedAtMicros
+  ) {
+    fail(
+      'Existing founder re-enable postcondition failed. The mutation outcome may be '
+      + 'indeterminate; perform a fresh bounded read-only inspection before any retry.',
+    );
+  }
+  for (const field of Object.keys(before.world) as (keyof GenesisExpansionStatusV3)[]) {
+    const expected = field === 'enabledAllowedFids'
+      ? (before.world[field] as bigint) + 1n
+      : field === 'auditEntries'
+        ? (before.world[field] as bigint) + 1n
+        : before.world[field];
+    if (world[field] !== expected) {
+      fail(
+        'Existing founder re-enable changed an unexpected Realm aggregate. '
+        + 'Do not retry before a bounded read-only investigation.',
+      );
+    }
+  }
+  const verifiedResources = verifyExpectedResourceAggregateV4(
+    resources,
+    before.world.allowedFids,
+  );
+  for (const field of Object.keys(before.resources) as (keyof ResourceAggregateV4)[]) {
+    if (verifiedResources[field] !== before.resources[field]) {
+      fail(
+        'Existing founder re-enable changed persistent resource state. '
+        + 'Do not retry before a bounded read-only investigation.',
+      );
+    }
+  }
+}
+
 export function verifyGenesisExpansionPreconditionV3(
   status: GenesisExpansionStatusV3,
 ): GenesisExpansionStatusV3 {
@@ -1630,30 +1704,81 @@ export async function requestAdmissionNotification(
   return status;
 }
 
-async function notifyCommittedAdmission(
+export async function inspectAdmissionNotification(
   bridgeUrl: string,
   fid: bigint,
-  secret: string | undefined,
-): Promise<void> {
-  if (secret === undefined) {
-    console.warn(
-      'Admission committed; Farcaster notification was not queued because the local '
-      + 'notification operator credential is unavailable. Run notify-admitted with --confirm.',
-    );
-    return;
-  }
+  secret: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<AdmissionNotificationStatus> {
+  readNotificationOperatorSecret(secret);
+  let response: Response;
   try {
-    const status = await requestAdmissionNotification(bridgeUrl, fid, secret);
-    console.log(JSON.stringify({ admissionNotification: status }));
+    response = await fetchImpl(new URL(ADMISSION_NOTIFICATION_STATUS_PATH, `${bridgeUrl}/`), {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${secret}`,
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'cache-control': 'no-store',
+      },
+      body: JSON.stringify({ fid: fid.toString() }),
+      cache: 'no-store',
+      redirect: 'error',
+      signal: AbortSignal.timeout(10_000),
+    });
   } catch {
-    // The database mutation is already authoritative. Never turn a delivery
-    // side-effect failure into an apparent admission failure that invites an
-    // unsafe reducer retry; the exact-epoch reconciliation command is idempotent.
-    console.warn(
-      'Admission committed; Farcaster notification was not queued. '
-      + 'Run notify-admitted with --confirm after checking the bridge.',
+    fail('Could not reach the Warpkeep admission notification bridge.');
+  }
+  if (!response.ok) fail('The Warpkeep admission notification bridge rejected inspection.');
+  const body = await readBoundedAdminResponse(response);
+  const status = body && typeof body === 'object' && !Array.isArray(body)
+    ? (body as { status?: unknown }).status
+    : undefined;
+  if (
+    status !== 'queued'
+    && status !== 'already-sent'
+    && status !== 'delivery-exhausted'
+    && status !== 'not-subscribed'
+  ) {
+    fail('The Warpkeep admission notification bridge returned invalid diagnostics.');
+  }
+  return status;
+}
+
+export async function requireNotificationBeforeAdmission(
+  bridgeUrl: string,
+  fid: bigint,
+  secretValue: string | undefined,
+  fetchImpl: typeof fetch = fetch,
+  sleep: AdminTokenSleeper = sleepForAdminTokenReadiness,
+): Promise<AdmissionNotificationStatus> {
+  const secret = readNotificationOperatorSecret(secretValue);
+  let status = await requestAdmissionNotification(bridgeUrl, fid, secret, fetchImpl);
+  if (status === 'queued') {
+    await sleep(ADMISSION_NOTIFICATION_SETTLEMENT_WAIT_MILLISECONDS);
+    // Requeue through the authority-checking endpoint instead of trusting a
+    // generic status snapshot. This binds the go/no-go decision to whichever
+    // exact pending request is still current after the wait.
+    status = await requestAdmissionNotification(bridgeUrl, fid, secret, fetchImpl);
+  }
+  if (status === 'queued') {
+    fail(
+      'Farcaster has not accepted the pending admission notification. '
+      + 'Admission remains unchanged; retry after inspecting token-free bridge diagnostics.',
     );
   }
+  if (status === 'delivery-exhausted') {
+    fail(
+      'Farcaster notification delivery is exhausted. '
+      + 'Admission remains unchanged; reconcile notification consent before retrying.',
+    );
+  }
+  console.log(JSON.stringify({
+    admissionNotification: status,
+    providerAcceptanceRequired: status !== 'not-subscribed',
+    providerAcceptedBeforeAdmission: status === 'already-sent',
+  }));
+  return status;
 }
 
 type AdminTokenSleeper = (milliseconds: number) => Promise<void>;
@@ -2428,6 +2553,20 @@ async function main() {
         await readStatus(connection, 'v4') as ResourceAggregateV4,
         before.allowedFids,
       );
+      const targetAuthEpoch = await withOperationTimeout(
+        connection.procedures.adminGetFidAuthEpoch({ fid }),
+      );
+      if (targetAuthEpoch !== 0) {
+        fail('Profiled admission requires a founder FID that has not been admitted before.');
+      }
+      // All local, credential, connection, plan, profile, capacity, and
+      // persistent graph checks have passed. Bind provider acceptance to the
+      // still-current request immediately before the one admission mutation.
+      await requireNotificationBeforeAdmission(
+        bridgeUrl,
+        fid,
+        notificationOperatorSecret,
+      );
       claimReviewedFounderAdmissionPlan({
         plan: admissionPlan,
         sha256: admissionPlanReference.sha256,
@@ -2451,11 +2590,35 @@ async function main() {
         beforeResources,
       );
       founderAdmissionClaimed = false;
-      await notifyCommittedAdmission(bridgeUrl, fid, notificationOperatorSecret);
       mutationStatusHandled = true;
     } else if (command === 'allow-fid' && fid !== undefined && note !== undefined) {
+      const beforeTarget = projectAccessRequestResetStatus(
+        await withOperationTimeout(
+          connection.procedures.adminGetAccessRequestResetStatusV1({ fid }),
+        ),
+      );
+      const before = verifyFounderReenablePrecondition(
+        await readStatus(connection, 'v3', false, undefined, false) as GenesisExpansionStatusV3,
+        await readStatus(connection, 'v4', false, undefined, false) as ResourceAggregateV4,
+        beforeTarget,
+      );
+      await requireNotificationBeforeAdmission(
+        bridgeUrl,
+        fid,
+        notificationOperatorSecret,
+      );
       await withOperationTimeout(connection.reducers.adminAllowFid({ fid, note }));
-      await notifyCommittedAdmission(bridgeUrl, fid, notificationOperatorSecret);
+      verifyFounderReenablePostcondition(
+        await readStatus(connection, 'v3', false, undefined, false) as GenesisExpansionStatusV3,
+        await readStatus(connection, 'v4', false, undefined, false) as ResourceAggregateV4,
+        projectAccessRequestResetStatus(
+          await withOperationTimeout(
+            connection.procedures.adminGetAccessRequestResetStatusV1({ fid }),
+          ),
+        ),
+        before,
+      );
+      mutationStatusHandled = true;
     } else if (command === 'disable-fid' && fid !== undefined && note !== undefined) {
       await withOperationTimeout(connection.reducers.adminDisableFid({ fid, note }));
     } else if (command === 'bump-auth-epoch' && fid !== undefined && note !== undefined) {

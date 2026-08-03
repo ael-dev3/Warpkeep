@@ -159,7 +159,7 @@ const MAX_NOTIFICATION_ID_LENGTH = 128;
 const COMPACT_JWT_PATTERN =
   /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 const APPROVAL_NOTIFICATION_ID_PATTERN =
-  /^warpkeep-access-approved-v1-e[1-9]\d*$/;
+  /^warpkeep-access-approved-(?:v1-e|v2-r)[1-9]\d*$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

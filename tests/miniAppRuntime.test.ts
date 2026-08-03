@@ -250,10 +250,25 @@ describe('Farcaster Mini App runtime sanitization', () => {
     expect(valid?.notificationId).toBe('warpkeep-access-approved-v1-e42');
     expect(JSON.stringify(valid)).not.toContain('must-not-pass-through');
 
+    const pendingRequest = sanitizeMiniAppContext({
+      user: { fid: 539_854 },
+      client: { clientFid: 9_150, added: true },
+      location: {
+        type: 'notification',
+        notification: {
+          notificationId: 'warpkeep-access-approved-v2-r1800000000000000'
+        }
+      }
+    }, { width: 400, height: 800 });
+    expect(pendingRequest?.notificationId)
+      .toBe('warpkeep-access-approved-v2-r1800000000000000');
+
     for (const notificationId of [
       'warpkeep-access-approved-v1-e0',
       'warpkeep-access-approved-v1-e01',
       'warpkeep-access-approved-v2-e1',
+      'warpkeep-access-approved-v2-r0',
+      'warpkeep-access-approved-v2-r01',
       `warpkeep-access-approved-v1-e${'1'.repeat(129)}`
     ]) {
       const context = sanitizeMiniAppContext({

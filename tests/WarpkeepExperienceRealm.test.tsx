@@ -728,7 +728,7 @@ describe('Warpkeep Farcaster Mini App direct entry', () => {
     const backend = createBackendRuntime();
     vi.mocked(backend.runtime.readEntryAgreementStatus!).mockResolvedValue(true);
     const bridge = createQuickAuthBridge(createQuickAuthResponse());
-    const sdk = miniAppSdk(true, 'warpkeep-access-approved-v1-e7');
+    const sdk = miniAppSdk(true, 'warpkeep-access-approved-v2-r1800000000000000');
     const { container } = renderExperience({
       bridge,
       miniApp: { runtime: miniAppRuntime(), sdk },
