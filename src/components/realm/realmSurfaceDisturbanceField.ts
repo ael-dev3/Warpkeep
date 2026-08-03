@@ -23,6 +23,7 @@ export type RealmSurfaceDisturbanceTelemetry = Readonly<{
   activeGrassCount: number;
   activeWaterCount: number;
   insertedCount: number;
+  evictedCount: number;
   droppedCount: number;
 }>;
 
@@ -46,12 +47,27 @@ function finite(value: number, fallback = 0) {
 }
 
 export function createRealmSurfaceDisturbanceField(
-  requestedCapacity: number
+  requestedCapacity: number | Readonly<{
+    grassCapacity: number;
+    waterCapacity: number;
+  }>
 ): RealmSurfaceDisturbanceField {
-  const capacity = Math.min(
+  const sharedCapacity = typeof requestedCapacity === 'number';
+  const grassCapacity = Math.min(
     MAX_FIELD_CAPACITY,
-    Math.max(0, Math.trunc(finite(requestedCapacity)))
+    Math.max(0, Math.trunc(finite(
+      sharedCapacity ? requestedCapacity : requestedCapacity.grassCapacity
+    )))
   );
+  const waterCapacity = Math.min(
+    MAX_FIELD_CAPACITY,
+    Math.max(0, Math.trunc(finite(
+      sharedCapacity ? requestedCapacity : requestedCapacity.waterCapacity
+    )))
+  );
+  const capacity = sharedCapacity
+    ? grassCapacity
+    : Math.min(MAX_FIELD_CAPACITY, grassCapacity + waterCapacity);
   const kinds = new Uint8Array(capacity);
   const x = new Float32Array(capacity);
   const z = new Float32Array(capacity);
@@ -66,6 +82,7 @@ export function createRealmSurfaceDisturbanceField(
   const waterCenters = new Float32Array(MAX_SNAPSHOT_SLOTS * 2);
   const waterParams = new Float32Array(MAX_SNAPSHOT_SLOTS * 4);
   let insertedCount = 0;
+  let evictedCount = 0;
   let droppedCount = 0;
   let disposed = false;
 
@@ -92,23 +109,49 @@ export function createRealmSurfaceDisturbanceField(
       const inputLifetime = Math.max(0.05, Math.min(8, finite(input.lifetimeSeconds, 1)));
       if (inputStrength <= 0) return false;
       clearExpired(inputCreatedAt);
+      const kindCapacity = inputKind === 2 ? waterCapacity : grassCapacity;
+      if (kindCapacity === 0) return false;
       let target = -1;
       let oldestTime = Number.POSITIVE_INFINITY;
-      for (let index = 0; index < capacity; index += 1) {
-        if (occupied[index] === 0) {
-          target = index;
-          break;
+      let activeKindCount = 0;
+      if (!sharedCapacity) {
+        let emptySlot = -1;
+        for (let index = 0; index < capacity; index += 1) {
+          if (occupied[index] === 0 && emptySlot < 0) {
+            emptySlot = index;
+          }
+          if (occupied[index] === 1 && kinds[index] === inputKind) {
+            activeKindCount += 1;
+            if (createdAt[index]! < oldestTime) {
+              oldestTime = createdAt[index]!;
+              target = index;
+            }
+          }
         }
-        if (createdAt[index]! < oldestTime) {
-          oldestTime = createdAt[index]!;
-          target = index;
+        if (activeKindCount < kindCapacity) {
+          target = emptySlot;
+        } else if (target >= 0) {
+          evictedCount += 1;
+        }
+      } else {
+        for (let index = 0; index < capacity; index += 1) {
+          if (occupied[index] === 0) {
+            target = index;
+            break;
+          }
+          if (createdAt[index]! < oldestTime) {
+            oldestTime = createdAt[index]!;
+            target = index;
+          }
         }
       }
       if (target < 0) {
         droppedCount += 1;
         return false;
       }
-      if (occupied[target] === 1) droppedCount += 1;
+      if (sharedCapacity && occupied[target] === 1) {
+        evictedCount += 1;
+      }
       kinds[target] = inputKind;
       x[target] = inputX;
       z[target] = inputZ;
@@ -179,6 +222,7 @@ export function createRealmSurfaceDisturbanceField(
         activeGrassCount,
         activeWaterCount,
         insertedCount,
+        evictedCount,
         droppedCount
       });
     },

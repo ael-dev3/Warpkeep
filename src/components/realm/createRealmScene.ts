@@ -2126,9 +2126,10 @@ function initializeRealmScene(
     // Decorative failure must not take the terrain, input, or castle layer down.
     options.canvas.dataset.grassPresentation = 'unavailable';
   }
-  const surfaceDisturbances = createRealmSurfaceDisturbanceField(
-    livingBudget.grassDisturbanceSlots + livingBudget.waterRippleSlots
-  );
+  const surfaceDisturbances = createRealmSurfaceDisturbanceField({
+    grassCapacity: livingBudget.grassDisturbanceSlots,
+    waterCapacity: livingBudget.waterRippleSlots
+  });
   cleanup.add(surfaceDisturbances.dispose);
   let ambientEcologyLayer: RealmAmbientEcologyLayer | null = null;
   try {
@@ -3147,14 +3148,19 @@ function initializeRealmScene(
         z: worker.world.z,
         sampledAtSeconds: seconds
       };
-      workerWakeSamples.set(worker.workerId, next);
-      if (!previous || seconds - previous.sampledAtSeconds < 0.16) continue;
+      if (!previous) {
+        workerWakeSamples.set(worker.workerId, next);
+        continue;
+      }
+      if (seconds - previous.sampledAtSeconds < 0.16) continue;
       const distance = Math.hypot(
         next.x - previous.x,
         next.z - previous.z
       );
       // Ignore sub-pixel jitter and discontinuous catalog/reconciliation jumps.
-      if (distance < 0.12 || distance > 1.5) continue;
+      if (distance < 0.12) continue;
+      workerWakeSamples.set(worker.workerId, next);
+      if (distance > 1.5) continue;
       const water = waterCellCoordinateKeys.has(hexKey(worker.coord));
       surfaceDisturbances.push({
         kind: water ? 'water' : 'grass',
@@ -3177,9 +3183,12 @@ function initializeRealmScene(
       realmLivingActiveGrassDisturbances: disturbances.activeGrassCount,
       realmLivingActiveWaterRipples: disturbances.activeWaterCount,
       realmLivingDisturbanceInsertions: disturbances.insertedCount,
+      realmLivingDisturbanceEvictions: disturbances.evictedCount,
       realmLivingDisturbanceDrops: disturbances.droppedCount,
       realmLivingForestMotion: forest?.canopyMotionState ?? 'static',
+      realmLivingForestDrawCalls: forest?.drawCalls ?? 0,
       realmLivingForestWindAttributeBytes: forest?.windAttributeBytes ?? 0,
+      realmLivingForestShaderFallbackCount: forest?.shaderFallbackCount ?? 0,
       realmLivingEcologyDrawCalls: ecology?.drawCalls ?? 0,
       realmLivingEcologyTriangles: ecology?.triangleCount ?? 0,
       realmLivingBirdCount: ecology?.birdCount ?? 0,

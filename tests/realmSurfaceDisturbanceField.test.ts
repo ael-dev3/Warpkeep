@@ -20,6 +20,7 @@ describe('Living Realm surface disturbance field', () => {
       activeGrassCount: 2,
       activeWaterCount: 1,
       insertedCount: 3,
+      evictedCount: 0,
       droppedCount: 0
     });
     expect(Object.keys(field.getTelemetry(1.6))).not.toContain('positions');
@@ -42,7 +43,8 @@ describe('Living Realm surface disturbance field', () => {
       capacity: 2,
       activeGrassCount: 2,
       insertedCount: 3,
-      droppedCount: 1
+      evictedCount: 1,
+      droppedCount: 0
     });
     expect(Array.from(field.snapshot('grass', 2, 8).centers.slice(0, 4)))
       .toEqual([2, 0, 1, 0]);
@@ -55,5 +57,44 @@ describe('Living Realm surface disturbance field', () => {
     expect(field.snapshot('water', 0, 4).count).toBe(0);
     field.dispose();
     expect(field.getTelemetry(0).capacity).toBe(0);
+  });
+
+  it('enforces independent per-material capacities', () => {
+    const field = createRealmSurfaceDisturbanceField({
+      grassCapacity: 2,
+      waterCapacity: 1
+    });
+    for (let index = 0; index < 4; index += 1) {
+      field.push({
+        kind: 'grass',
+        x: index,
+        z: 0,
+        radius: 1,
+        strength: 1,
+        createdAtSeconds: index,
+        lifetimeSeconds: 8
+      });
+    }
+    for (let index = 0; index < 2; index += 1) {
+      field.push({
+        kind: 'water',
+        x: index,
+        z: 1,
+        radius: 1,
+        strength: 1,
+        createdAtSeconds: index + 4,
+        lifetimeSeconds: 8
+      });
+    }
+    expect(field.getTelemetry(5)).toMatchObject({
+      capacity: 3,
+      activeGrassCount: 2,
+      activeWaterCount: 1,
+      insertedCount: 6,
+      evictedCount: 3,
+      droppedCount: 0
+    });
+    expect(field.snapshot('grass', 5, 8).count).toBe(2);
+    expect(field.snapshot('water', 5, 8).count).toBe(1);
   });
 });

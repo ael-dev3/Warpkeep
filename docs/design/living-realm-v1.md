@@ -83,3 +83,58 @@ inactive presentation, context loss, shader-contract drift, and disposal all
 disable optional moving ambience. No subsystem owns a second animation frame
 loop or interval. A failed optional material or ecology layer leaves terrain,
 water topology, forest placement, Workers, interaction, and the Realm intact.
+
+## Implemented presentation contract
+
+- `realmLivingEnvironment.ts` is the single renderer-neutral wind and gust
+  definition. Grass and forest inject the same bounded world-space field into
+  their existing standard materials.
+- Grass keeps its established instance pools and draw counts. Its lighting
+  normal follows its bounded bend, sun-side transmission remains restrained,
+  and an unrolled quality-specific uniform array accepts at most eight/four
+  local disturbances.
+- Water keeps the canonical welded geometry, analytic picking, fog treatment,
+  and three active draws. Four/two unrolled ripple slots contribute an
+  analytic Gaussian-ring height and derivative; rivers receive light/normal
+  response without breaking their physical edge weld.
+- Canonical forest batches and the immediate procedural fallback carry two
+  normalized `Uint8` attributes: root-anchored wind weight and local phase.
+  They retain one draw. Reduced and reduced-motion install no moving shader.
+- Ambient ecology uses one tiny two-triangle-per-instance bird mesh and one
+  points draw shared by motes and transient material particles. It owns no
+  timer, animation frame, ray target, identifier, network request, or database
+  state, and is absent in Reduced/reduced-motion and Realm overview.
+- Worker wakes read only the owning Worker layer's sanitized current pose
+  after its normal interpolation update. The per-material pool is fixed,
+  newest-first, and independently capped. Replacement of an oldest live slot
+  is reported as an aggregate eviction; a genuine failed insert is reported
+  separately as a drop. Neither report contains identities or positions.
+
+## Final verification
+
+The completed branch passed `npm run check`: 271 Vitest files and 2,979 tests,
+TypeScript, licensing, all runtime-asset and provenance checks, tracked-file
+size policy, production build, production exclusions, and the Farcaster Mini
+App contract. Focused shader tests also compile against the pinned Three.js
+shader chunks and assert static fallback on marker drift.
+
+The same fixed-size in-app WebGL pass used for the baseline reported no grass,
+water, or forest shader fallback. Existing subsystem topology and draw counts
+remain unchanged; the only new visible draws are the two bounded ecology
+draws.
+
+| Case | Existing grass / water / forest draws | New draws / triangles | Living slots | Ambient cap |
+| --- | ---: | ---: | ---: | ---: |
+| High 1920×1080 | 3 / 3 / 1 | 2 / 24 | grass 8, water 4 | 30 Hz |
+| Balanced 1280×720 | 2 / 3 / 1 | 2 / 12 | grass 4, water 2 | 22 Hz |
+| Balanced tablet 1024×768 | 2 / 3 / 1 | 2 / 12 | grass 4, water 2 | 22 Hz |
+| Balanced portrait 390×844 | 2 / 3 / 1 | 2 / 12 | grass 4, water 2 | 22 Hz |
+| Balanced short landscape 667×375 | 2 / 3 / 1 | 2 / 12 | grass 4, water 2 | 22 Hz |
+| Reduced 1280×720 | 1 / 3 / 1 | 0 / 0 | grass 0, water 0 | idle |
+
+High and Balanced canonical forest wind attributes use 763,710 and 454,054
+bytes respectively (two normalized bytes per merged vertex). The active
+Balanced Worker fixture held exactly four grass disturbances and 48 transient
+particles, replacing oldest fixed slots during sustained motion without a
+genuine drop. Reduced held zero moving ecology, zero ripple/disturbance slots,
+zero new draws, and no ambient scheduler demand.
