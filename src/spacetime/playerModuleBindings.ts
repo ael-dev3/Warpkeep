@@ -4,7 +4,7 @@
  *
  * The complete generated bindings remain the canonical schema artifact under
  * `module_bindings/` and are still used by server-side operators. The player
- * only needs the public realm tables plus eleven read procedures and fifteen
+ * only needs the public realm tables plus twelve read procedures and seventeen
  * self-service reducers. Keeping that runtime projection separate prevents
  * private/admin and machine-bound QA procedure names from becoming part of
  * the public Vite graph while preserving generated-binding parity unchanged.
@@ -58,11 +58,16 @@ import DispatchStoneExpeditionV1Reducer from './module_bindings/dispatch_stone_e
 import RecallAllWorkersV1Reducer from './module_bindings/recall_all_workers_v_1_reducer'
 import RecallWorkerV1Reducer from './module_bindings/recall_worker_v_1_reducer'
 import ReturnLegacyExpeditionV1Reducer from './module_bindings/return_legacy_expedition_v_1_reducer'
+import SendRealmChatMessageV1Reducer from './module_bindings/send_realm_chat_message_v_1_reducer'
+import ReportRealmChatMessageV1Reducer from './module_bindings/report_realm_chat_message_v_1_reducer'
 import FoodNodeOccupationV1Row from './module_bindings/food_node_occupation_v_1_table'
 import FoodSiteV1Row from './module_bindings/food_site_v_1_table'
 import GoldNodeOccupationV1Row from './module_bindings/gold_node_occupation_v_1_table'
 import GoldSiteV1Row from './module_bindings/gold_site_v_1_table'
 import PlayerV2Row from './module_bindings/player_v_2_table'
+import RealmChatRecentV1Row from './module_bindings/realm_chat_recent_v_1_table'
+import RealmChatStatusV1Row from './module_bindings/realm_chat_status_v_1_table'
+import * as GetRealmChatHistoryV1Procedure from './module_bindings/get_realm_chat_history_v_1_procedure'
 import RealmForestInstanceV1Row from './module_bindings/realm_forest_instance_v_1_table'
 import RealmForestLayoutV1Row from './module_bindings/realm_forest_layout_v_1_table'
 import RealmProfileV1Row from './module_bindings/realm_profile_v_1_table'
@@ -179,6 +184,32 @@ const tablesSchema = __schema({
       { name: 'player_v2_fid_key', constraint: 'unique', columns: ['fid'] },
     ],
   }, PlayerV2Row),
+  // Realm Chat exposes only a bounded recent window plus an identity-free
+  // readiness row. Permanent history, reports, rate events, and receipts stay
+  // absent from the browser schema.
+  realmChatRecentV1: __table({
+    name: 'realm_chat_recent_v1',
+    indexes: [
+      { accessor: 'channelKey', name: 'realm_chat_recent_v1_channel_key_idx_btree', algorithm: 'btree', columns: ['channelKey'] },
+      { accessor: 'messageId', name: 'realm_chat_recent_v1_message_id_idx_btree', algorithm: 'btree', columns: ['messageId'] },
+      { accessor: 'senderFid', name: 'realm_chat_recent_v1_sender_fid_idx_btree', algorithm: 'btree', columns: ['senderFid'] },
+      { accessor: 'sequence', name: 'realm_chat_recent_v1_sequence_idx_btree', algorithm: 'btree', columns: ['sequence'] },
+    ],
+    constraints: [
+      { name: 'realm_chat_recent_v1_message_id_key', constraint: 'unique', columns: ['messageId'] },
+      { name: 'realm_chat_recent_v1_sequence_key', constraint: 'unique', columns: ['sequence'] },
+    ],
+  }, RealmChatRecentV1Row),
+  realmChatStatusV1: __table({
+    name: 'realm_chat_status_v1',
+    indexes: [
+      { accessor: 'channelKey', name: 'realm_chat_status_v1_channel_key_idx_btree', algorithm: 'btree', columns: ['channelKey'] },
+      { accessor: 'realmId', name: 'realm_chat_status_v1_realm_id_idx_btree', algorithm: 'btree', columns: ['realmId'] },
+    ],
+    constraints: [
+      { name: 'realm_chat_status_v1_channel_key_key', constraint: 'unique', columns: ['channelKey'] },
+    ],
+  }, RealmChatStatusV1Row),
   // The immutable forest pair is public presentation data only. The browser
   // receives no seeding reducer or private authority table; connection code
   // publishes rows only after both subscriptions apply atomically.
@@ -399,6 +430,8 @@ const reducersSchema = __reducers(
   __reducerSchema('recall_worker_v1', RecallWorkerV1Reducer),
   __reducerSchema('recall_all_workers_v1', RecallAllWorkersV1Reducer),
   __reducerSchema('return_legacy_expedition_v1', ReturnLegacyExpeditionV1Reducer),
+  __reducerSchema('send_realm_chat_message_v1', SendRealmChatMessageV1Reducer),
+  __reducerSchema('report_realm_chat_message_v1', ReportRealmChatMessageV1Reducer),
 )
 
 const proceduresSchema = __procedures(
@@ -456,6 +489,11 @@ const proceduresSchema = __procedures(
     'get_my_worker_roster_v1',
     GetMyWorkerRosterV1Procedure.params,
     GetMyWorkerRosterV1Procedure.returnType,
+  ),
+  __procedureSchema(
+    'get_realm_chat_history_v1',
+    GetRealmChatHistoryV1Procedure.params,
+    GetRealmChatHistoryV1Procedure.returnType,
   ),
 )
 

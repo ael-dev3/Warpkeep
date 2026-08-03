@@ -62,5 +62,5 @@ test('the append-only public revision table stores policy without topology', () 
   assert.match(revision, /navigationFogBoundaryDepthCells: t\.u32\(\)/);
   assert.match(revision, /activatedAt: t\.option\(t\.timestamp\(\)\)/);
   assert.doesNotMatch(revision, /\n\s*q:|\n\s*r:|cellKey:|bodyId:/);
-  assert.match(schema, /stoneExpeditionScheduleV1,\n\s*realmWaterRevisionV1,\n\s*realmWorkerSystemV1,\n\s*castleWorkerV1,\n\s*workerAssignmentV1,\n\s*workerNodeOccupationV1,\n\s*workerCommandIdempotencyV1,\n\s*workerAssignmentScheduleV1,\n\s*accessRequestV1,\n\s*dailyMarkGrantV1,\n\s*dailyMarkScheduleV1,\n\}\);/);
+  assert.match(schema, /stoneExpeditionScheduleV1,\n\s*realmWaterRevisionV1,\n\s*realmWorkerSystemV1,\n\s*castleWorkerV1,\n\s*workerAssignmentV1,\n\s*workerNodeOccupationV1,\n\s*workerCommandIdempotencyV1,\n\s*workerAssignmentScheduleV1,\n\s*accessRequestV1,\n\s*dailyMarkGrantV1,\n\s*dailyMarkScheduleV1,\n\s*realmChatStatusV1,\n\s*realmChatChannelV1,\n\s*realmChatMessageV1,\n\s*realmChatRecentV1,\n\s*realmChatRateEventV1,\n\s*realmChatSendReceiptV1,\n\s*realmChatReportV1,\n\}\);/);
 });

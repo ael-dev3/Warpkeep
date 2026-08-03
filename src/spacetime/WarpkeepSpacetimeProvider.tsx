@@ -26,6 +26,7 @@ import {
   dispatchWarpkeepWoodExpedition,
   dispatchWarpkeepStoneExpedition,
   disconnectWarpkeep,
+  observeWarpkeepRealmChat,
   observeWarpkeepRealm,
   readWarpkeepBackendInfo,
   readWarpkeepAdmissionStatus,
@@ -43,9 +44,20 @@ import {
   recallAllWarpkeepWorkers,
   returnWarpkeepLegacyExpedition,
   readWarpkeepRealmSnapshot,
+  readWarpkeepRealmChat,
+  readWarpkeepRealmChatHistory,
+  reportWarpkeepRealmChatMessage,
+  sendWarpkeepRealmChatMessage,
+  subscribeToWarpkeepRealmChat,
   subscribeToWarpkeepRealm,
   type WarpkeepConnection
 } from './warpkeepConnection';
+import {
+  UNAVAILABLE_REALM_CHAT_PRESENTATION,
+  type RealmChatHistoryPagePresentation,
+  type RealmChatPresentation
+} from './realmChatPresentation';
+import { WARPKEEP_REALM_CHAT_CLIENT_ENTRY_ENABLED } from '../legal/realmChatPolicy';
 import {
   IDLE_WARPKEEP_BACKEND_STATE,
   NOT_REQUIRED_WORKER_PRIVATE_SYNC_STATUS,
@@ -115,6 +127,9 @@ const MAX_RETAINED_WORKER_COMMAND_ATTEMPTS = 64;
 const MAX_WORKER_PROJECTION_PAIR_READ_ATTEMPTS = 2;
 const TRANSPORT_RECONNECT_RETRY_DELAYS_MILLISECONDS =
   Object.freeze([250, 1_000, 4_000] as const);
+const REALM_CHAT_SEND_RETRY_RETENTION_MILLISECONDS = 2 * 60 * 1_000;
+const REALM_CHAT_REQUEST_KEY_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[47][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 class BackendStageOperationDeadlineError extends Error {
   constructor() {
@@ -184,6 +199,8 @@ function withResourceOperationDeadline<T>(operation: Promise<T>): Promise<T> {
 
 export type WarpkeepBackendControllerValue = Readonly<{
   state: WarpkeepBackendState;
+  /** Separate bounded stream; never participates in canonical world readiness. */
+  realmChat: RealmChatPresentation;
   /** Privacy-safe status for the current caller-private Worker read pair. */
   workerPrivateSync: WarpkeepWorkerPrivateSyncStatus;
   /** True only when the explicit kill switch and all public bridge values are valid. */
@@ -237,6 +254,16 @@ export type WarpkeepBackendControllerValue = Readonly<{
   recallAllWorkers: () => Promise<void>;
   /** Start a new bounded read-only Worker sync burst for the active Realm. */
   retryWorkerPrivateSync: () => void;
+  sendRealmChatMessage: (body: string) => Promise<void>;
+  reportRealmChatMessage: (
+    messageId: string,
+    category: string,
+    details: string
+  ) => Promise<void>;
+  loadEarlierRealmChat: (
+    beforeSequence: bigint,
+    limit?: number
+  ) => Promise<RealmChatHistoryPagePresentation>;
 }>;
 
 /**
@@ -289,6 +316,12 @@ export type WarpkeepBackendRuntime = Readonly<{
   observeRealm: typeof observeWarpkeepRealm;
   readRealmSnapshot: typeof readWarpkeepRealmSnapshot;
   subscribeRealm: typeof subscribeToWarpkeepRealm;
+  observeRealmChat?: typeof observeWarpkeepRealmChat;
+  readRealmChat?: typeof readWarpkeepRealmChat;
+  subscribeRealmChat?: typeof subscribeToWarpkeepRealmChat;
+  sendRealmChatMessage?: typeof sendWarpkeepRealmChatMessage;
+  reportRealmChatMessage?: typeof reportWarpkeepRealmChatMessage;
+  readRealmChatHistory?: typeof readWarpkeepRealmChatHistory;
 }>;
 
 export const DEFAULT_WARPKEEP_BACKEND_RUNTIME: WarpkeepBackendRuntime = Object.freeze({
@@ -322,7 +355,13 @@ export const DEFAULT_WARPKEEP_BACKEND_RUNTIME: WarpkeepBackendRuntime = Object.f
   collectStoneExpedition: collectWarpkeepStoneExpedition,
   observeRealm: observeWarpkeepRealm,
   readRealmSnapshot: readWarpkeepRealmSnapshot,
-  subscribeRealm: subscribeToWarpkeepRealm
+  subscribeRealm: subscribeToWarpkeepRealm,
+  observeRealmChat: observeWarpkeepRealmChat,
+  readRealmChat: readWarpkeepRealmChat,
+  subscribeRealmChat: subscribeToWarpkeepRealmChat,
+  sendRealmChatMessage: sendWarpkeepRealmChatMessage,
+  reportRealmChatMessage: reportWarpkeepRealmChatMessage,
+  readRealmChatHistory: readWarpkeepRealmChatHistory
 });
 
 export type WarpkeepSpacetimeProviderProps = Readonly<{
@@ -354,6 +393,50 @@ type ExpeditionDispatchAttempt = Readonly<{
   siteId: string;
   idempotencyKey: string;
 }>;
+
+export type RealmChatSendAttempt = Readonly<{
+  fid: number;
+  body: string;
+  requestKey: string;
+  createdAtMilliseconds: number;
+}>;
+
+export function realmChatSendAttemptFor(
+  retained: RealmChatSendAttempt | undefined,
+  fid: number,
+  body: string,
+  nowMilliseconds: number,
+  createRequestKey: () => string | undefined
+): RealmChatSendAttempt | undefined {
+  if (
+    !Number.isSafeInteger(fid)
+    || fid <= 0
+    || typeof body !== 'string'
+    || body.trim().length === 0
+    || body.length > 2_048
+    || [...body].length > 500
+    || body.split(/\r?\n/).length > 8
+    || new TextEncoder().encode(body).byteLength > 2_048
+    || !Number.isSafeInteger(nowMilliseconds)
+    || nowMilliseconds < 0
+  ) return undefined;
+  if (
+    retained?.fid === fid
+    && retained.body === body
+    && nowMilliseconds >= retained.createdAtMilliseconds
+    && nowMilliseconds - retained.createdAtMilliseconds
+      <= REALM_CHAT_SEND_RETRY_RETENTION_MILLISECONDS
+  ) return retained;
+  const requestKey = createRequestKey();
+  return requestKey === undefined || !REALM_CHAT_REQUEST_KEY_PATTERN.test(requestKey)
+    ? undefined
+    : Object.freeze({
+        fid,
+        body,
+        requestKey,
+        createdAtMilliseconds: nowMilliseconds
+      });
+}
 
 function dispatchAttemptFor(
   retained: ExpeditionDispatchAttempt | undefined,
@@ -850,6 +933,9 @@ export function WarpkeepSpacetimeProvider({
   const identity = presentationIdentity(farcaster.state, bridgeFid);
   const sharedAlphaAvailable = hasUsableWarpkeepBridge(config);
   const [state, setState] = useState<WarpkeepBackendState>(IDLE_WARPKEEP_BACKEND_STATE);
+  const [realmChat, setRealmChat] = useState<RealmChatPresentation>(
+    UNAVAILABLE_REALM_CHAT_PRESENTATION
+  );
   const [checkSequence, setCheckSequence] = useState(0);
   const [acceptedEntryAgreementFid, setAcceptedEntryAgreementFid] =
     useState<number | undefined>(undefined);
@@ -911,6 +997,7 @@ export function WarpkeepSpacetimeProvider({
   const transportReconnectAttemptRef = useRef(0);
   const requestWorkerPrivateSyncRef = useRef<() => void>(() => undefined);
   const processTermsAttemptRef = useRef<() => void>(() => undefined);
+  const realmChatSendAttemptRef = useRef<RealmChatSendAttempt | undefined>(undefined);
   currentBridgeCommandAuthorityRef.current = identity !== undefined
     && farcaster.oidcSession !== undefined
     && farcaster.oidcSession.expiresAt > Date.now()
@@ -961,6 +1048,7 @@ export function WarpkeepSpacetimeProvider({
     canonicalRealmSnapshotRef.current = undefined;
     requestWorkerPrivateSyncRef.current = () => undefined;
     processTermsAttemptRef.current = () => undefined;
+    realmChatSendAttemptRef.current = undefined;
     runActiveTeardown();
     // The effect-owned teardown normally consumes the connection. Keep this
     // fail-closed fallback for any connection installed by a runtime before
@@ -976,11 +1064,81 @@ export function WarpkeepSpacetimeProvider({
       }
     }
     setState(IDLE_WARPKEEP_BACKEND_STATE);
+    setRealmChat(UNAVAILABLE_REALM_CHAT_PRESENTATION);
   }, [runActiveTeardown, runtime]);
 
   const retryWorkerPrivateSync = useCallback(() => {
     requestWorkerPrivateSyncRef.current();
   }, []);
+
+  const requireRealmChatCommand = useCallback(() => {
+    const latest = stateRef.current;
+    const connection = connectionRef.current;
+    if (
+      !WARPKEEP_REALM_CHAT_CLIENT_ENTRY_ENABLED
+      || latest.phase !== 'ready'
+      || latest.admission !== 'ready'
+      || connection === undefined
+      || typeof document === 'undefined'
+      || document.hidden
+      || realmChat.availability !== 'ready'
+      || realmChat.mode !== 'active'
+    ) throw new Error('Realm Chat is unavailable.');
+    return connection;
+  }, [realmChat]);
+
+  const sendRealmChatMessage = useCallback(async (body: string) => {
+    const connection = requireRealmChatCommand();
+    if (runtime.sendRealmChatMessage === undefined || typeof body !== 'string') {
+      throw new Error('Realm Chat is unavailable.');
+    }
+    const latest = stateRef.current;
+    const fid = latest.identity?.fid;
+    if (fid === undefined) throw new Error('Realm Chat is unavailable.');
+    const now = Date.now();
+    const attempt = realmChatSendAttemptFor(
+      realmChatSendAttemptRef.current,
+      fid,
+      body,
+      now,
+      () => globalThis.crypto?.randomUUID?.()
+    );
+    if (attempt === undefined) throw new Error('Realm Chat is unavailable.');
+    realmChatSendAttemptRef.current = attempt;
+    await withResourceOperationDeadline(
+      runtime.sendRealmChatMessage(connection, attempt.requestKey, body)
+    );
+    if (realmChatSendAttemptRef.current === attempt) {
+      realmChatSendAttemptRef.current = undefined;
+    }
+  }, [requireRealmChatCommand, runtime]);
+
+  const reportRealmChatMessage = useCallback(async (
+    messageId: string,
+    category: string,
+    details: string
+  ) => {
+    const connection = requireRealmChatCommand();
+    if (runtime.reportRealmChatMessage === undefined) {
+      throw new Error('Realm Chat is unavailable.');
+    }
+    await withResourceOperationDeadline(
+      runtime.reportRealmChatMessage(connection, messageId, category, details)
+    );
+  }, [requireRealmChatCommand, runtime]);
+
+  const loadEarlierRealmChat = useCallback(async (
+    beforeSequence: bigint,
+    limit = 50
+  ) => {
+    const connection = requireRealmChatCommand();
+    if (runtime.readRealmChatHistory === undefined) {
+      throw new Error('Realm Chat is unavailable.');
+    }
+    return withResourceOperationDeadline(
+      runtime.readRealmChatHistory(connection, beforeSequence, limit)
+    );
+  }, [requireRealmChatCommand, runtime]);
 
   const collectResources = useCallback(async () => {
     const generation = generationRef.current;
@@ -3653,8 +3811,69 @@ export function WarpkeepSpacetimeProvider({
     sharedAlphaAvailable
   ]);
 
+  useEffect(() => {
+    if (
+      !WARPKEEP_REALM_CHAT_CLIENT_ENTRY_ENABLED
+      || state.phase !== 'ready'
+      || state.admission !== 'ready'
+      || runtime.observeRealmChat === undefined
+      || runtime.readRealmChat === undefined
+      || runtime.subscribeRealmChat === undefined
+    ) {
+      setRealmChat(UNAVAILABLE_REALM_CHAT_PRESENTATION);
+      return;
+    }
+    const connection = connectionRef.current;
+    if (connection === undefined) {
+      setRealmChat(UNAVAILABLE_REALM_CHAT_PRESENTATION);
+      return;
+    }
+    let active = true;
+    let applied = false;
+    const unavailable = () => {
+      if (active) setRealmChat(UNAVAILABLE_REALM_CHAT_PRESENTATION);
+    };
+    const publish = (projection?: RealmChatPresentation) => {
+      if (!active || !applied) return;
+      try {
+        setRealmChat(projection ?? runtime.readRealmChat!(connection));
+      } catch {
+        unavailable();
+      }
+    };
+    let cleanupObserver: (() => void) | undefined;
+    let subscription: ReturnType<NonNullable<WarpkeepBackendRuntime['subscribeRealmChat']>>
+      | undefined;
+    try {
+      cleanupObserver = runtime.observeRealmChat(
+        connection,
+        projection => publish(projection),
+        unavailable
+      );
+      subscription = runtime.subscribeRealmChat(
+        connection,
+        () => {
+          applied = true;
+          publish();
+        },
+        unavailable
+      );
+    } catch {
+      unavailable();
+    }
+    return () => {
+      active = false;
+      try {
+        cleanupObserver?.();
+      } finally {
+        subscription?.unsubscribe();
+      }
+    };
+  }, [runtime, state.admission, state.identity?.fid, state.phase]);
+
   const value = useMemo<WarpkeepBackendControllerValue>(() => ({
     state,
+    realmChat,
     workerPrivateSync: state.workerPrivateSync,
     sharedAlphaAvailable,
     entryAgreementSatisfied: acceptedEntryAgreementFid !== undefined
@@ -3676,7 +3895,10 @@ export function WarpkeepSpacetimeProvider({
     dispatchWorker,
     recallWorker,
     recallAllWorkers,
-    retryWorkerPrivateSync
+    retryWorkerPrivateSync,
+    sendRealmChatMessage,
+    reportRealmChatMessage,
+    loadEarlierRealmChat
   }), [
     acceptedEntryAgreementFid,
     beginAlphaTermsAcceptance,
@@ -3697,6 +3919,10 @@ export function WarpkeepSpacetimeProvider({
     recallWorker,
     recallAllWorkers,
     retryWorkerPrivateSync,
+    realmChat,
+    sendRealmChatMessage,
+    reportRealmChatMessage,
+    loadEarlierRealmChat,
     identity,
     sharedAlphaAvailable,
     state

@@ -145,7 +145,10 @@ test('worker reads use bounded indexes and public tables omit assignment correla
   assert.match(occupationMatch, /assignment\.phase !== 'returning'/);
   assert.doesNotMatch(section(schema, 'export const castleWorkerV1', 'export const workerAssignmentV1'), /assignmentId/);
   assert.doesNotMatch(section(schema, 'export const workerNodeOccupationV1', 'export const workerCommandIdempotencyV1'), /assignmentId/);
-  assert.doesNotMatch(section(schema, 'export const workerAssignmentScheduleV1', 'const warpkeep = schema'), /public: true/);
+  assert.doesNotMatch(
+    section(schema, 'export const workerAssignmentScheduleV1', 'export const realmChatStatusV1'),
+    /public: true/,
+  );
 });
 
 test('atomic worker control state uses one caller-bound transaction and one projection clock', () => {

@@ -2682,12 +2682,13 @@ function validateMigrationArtifactReceiptShape(receipt) {
     receipt === null
     || typeof receipt !== 'object'
     || Object.keys(receipt).sort().join(',')
-      !== 'artifactDigest,artifactPath,v11TableSchemaDigest,v12TableSchemaDigest,v13TableSchemaDigest,v14TableSchemaDigest'
+      !== 'artifactDigest,artifactPath,v11TableSchemaDigest,v12TableSchemaDigest,v13TableSchemaDigest,v14TableSchemaDigest,v15TableSchemaDigest'
     || receipt.artifactPath !== PROVEN_ARTIFACT_PATH
     || !SHA256_DIGEST.test(receipt.v11TableSchemaDigest ?? '')
     || !SHA256_DIGEST.test(receipt.v12TableSchemaDigest ?? '')
     || !SHA256_DIGEST.test(receipt.v13TableSchemaDigest ?? '')
     || !SHA256_DIGEST.test(receipt.v14TableSchemaDigest ?? '')
+    || !SHA256_DIGEST.test(receipt.v15TableSchemaDigest ?? '')
     || !SHA256_DIGEST.test(receipt.artifactDigest ?? '')
   ) {
     fail('The additive migration proof artifact receipt was invalid.');
@@ -2698,6 +2699,7 @@ function validateMigrationArtifactReceiptShape(receipt) {
     v12TableSchemaDigest: receipt.v12TableSchemaDigest,
     v13TableSchemaDigest: receipt.v13TableSchemaDigest,
     v14TableSchemaDigest: receipt.v14TableSchemaDigest,
+    v15TableSchemaDigest: receipt.v15TableSchemaDigest,
     artifactDigest: receipt.artifactDigest,
   });
 }
@@ -2724,6 +2726,7 @@ export function parseMigrationProofReceipt(output) {
     v12TableSchemaDigest: proofReceipt.v12TableSchemaDigest,
     v13TableSchemaDigest: proofReceipt.v13TableSchemaDigest,
     v14TableSchemaDigest: proofReceipt.v14TableSchemaDigest,
+    v15TableSchemaDigest: proofReceipt.v15TableSchemaDigest,
     artifactDigest: proofReceipt.artifactDigest,
   });
 }
@@ -3840,7 +3843,7 @@ export async function publishModule(
   if (targetDatabase !== CANONICAL_DATABASE_IDENTITY) {
     fail('The production publish target was not the pinned canonical database identity.');
   }
-  const artifact = validateMigrationArtifactReceiptShape(artifactReceipt);
+  const artifact = verifyMigrationArtifactReceipt(artifactReceipt);
   const artifactSnapshot = createPrivatePublishSnapshot(
     artifact.artifactPath,
     artifact.artifactDigest,
@@ -3929,6 +3932,15 @@ export async function publishModule(
   }
 }
 
+/**
+ * Keep the additive v15 artifact testable without granting it a production
+ * publication lane. Activation requires a later evidence-backed change with
+ * exact predecessor and post-publication checkpoints.
+ */
+export function requireRealmChatV15ProductionPublishReady() {
+  fail('Realm Chat protocol v15 is review-only and cannot be published by this build.');
+}
+
 async function main() {
   const {
     dryRun,
@@ -3971,6 +3983,7 @@ async function main() {
       console.log(`Dry run: verified the pinned CLI, current additive migration, founded-state expectation contract, explicit ${resourceRolloutStage} resource stage, explicit ${genesisWorldRolloutStage} Genesis world stage, explicit ${workerRolloutStage} Worker stage, explicit ${workerModulePredecessor} module predecessor, explicit ${workerForwardRepair} Worker forward-repair selection, and ${issuer}; would update the canonical existing database without deleting data.`);
       return;
     }
+    requireRealmChatV15ProductionPublishReady();
     await validateIssuerDeployment(issuer);
     attestCanonicalDatabase(executable);
     if (

@@ -27,7 +27,7 @@ test('v14 appends private daily receipt and identity-free schedule tables', () =
   assert.match(grants, /fid: t\.u64\(\)\.index\(\)/);
   assert.match(grants, /utcDay: t\.u64\(\)\.index\(\)/);
 
-  const schedule = section(schema, 'export const dailyMarkScheduleV1', 'const warpkeep = schema({');
+  const schedule = section(schema, 'export const dailyMarkScheduleV1', 'export const realmChatStatusV1');
   assert.match(schedule, /name: 'daily_mark_schedule_v_1'/);
   assert.doesNotMatch(schedule, /fid|amountMicros|public:\s*true/);
   assert.match(schedule, /scheduled: \(\): any => runDailyMarkScheduleV1/);

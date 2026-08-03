@@ -44,6 +44,13 @@ test('access requests add one exact private table at the end of the deployed v12
   assert.deepEqual(currentRegistrations.slice(54), [
     'dailyMarkGrantV1',
     'dailyMarkScheduleV1',
+    'realmChatStatusV1',
+    'realmChatChannelV1',
+    'realmChatMessageV1',
+    'realmChatRecentV1',
+    'realmChatRateEventV1',
+    'realmChatSendReceiptV1',
+    'realmChatReportV1',
   ]);
 
   const definition = section(

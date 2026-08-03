@@ -13,6 +13,14 @@ const v13FixturePath = resolve(
   repositoryRoot,
   'spacetimedb/migration-fixtures/additive-v13-schema/src/index.ts',
 );
+const v14FixturePath = resolve(
+  repositoryRoot,
+  'spacetimedb/migration-fixtures/additive-v14-schema/src/index.ts',
+);
+const v15FixturePath = resolve(
+  repositoryRoot,
+  'spacetimedb/migration-fixtures/additive-v15-schema/src/index.ts',
+);
 const proofPath = resolve(
   repositoryRoot,
   'scripts/verify-spacetime-additive-migration.mjs',
@@ -42,26 +50,41 @@ function tableDefinition(source, name) {
   return source.slice(start, end);
 }
 
-const [schema, v12Fixture, v13Fixture, proof, receipt] = await Promise.all([
+const [schema, v12Fixture, v13Fixture, v14Fixture, v15Fixture, proof, receipt] = await Promise.all([
   readFile(schemaPath, 'utf8'),
   readFile(v12FixturePath, 'utf8'),
   readFile(v13FixturePath, 'utf8'),
+  readFile(v14FixturePath, 'utf8'),
+  readFile(v15FixturePath, 'utf8'),
   readFile(proofPath, 'utf8'),
   readFile(receiptPath, 'utf8'),
 ]);
 
 const v12Registrations = registrations(v12Fixture, 'const db = schema({');
 const v13Registrations = registrations(v13Fixture, 'const db = schema({');
+const v14Registrations = registrations(v14Fixture, 'const db = schema({');
+const v15Registrations = registrations(v15Fixture, 'const db = schema({');
 const candidateRegistrations = registrations(schema, 'const warpkeep = schema({');
 assert.equal(v12Registrations.length, 53, 'v12 fixture must end at ref 52');
 assert.deepEqual(v13Registrations.slice(0, 53), v12Registrations);
 assert.deepEqual(candidateRegistrations.slice(0, 53), v12Registrations);
 assert.deepEqual(v13Registrations.slice(53), ['accessRequestV1']);
-assert.deepEqual(candidateRegistrations.slice(0, 54), v13Registrations);
-assert.deepEqual(candidateRegistrations.slice(54), [
+assert.deepEqual(v14Registrations.slice(0, 54), v13Registrations);
+assert.deepEqual(v14Registrations.slice(54), [
   'dailyMarkGrantV1',
   'dailyMarkScheduleV1',
 ]);
+assert.deepEqual(v15Registrations.slice(0, 56), v14Registrations);
+assert.deepEqual(v15Registrations.slice(56), [
+  'realmChatStatusV1',
+  'realmChatChannelV1',
+  'realmChatMessageV1',
+  'realmChatRecentV1',
+  'realmChatRateEventV1',
+  'realmChatSendReceiptV1',
+  'realmChatReportV1',
+]);
+assert.deepEqual(candidateRegistrations, v15Registrations);
 
 const v13TailStart = v13Fixture.indexOf(
   '/** v13 private, append-only expression of interest in manual admission. */',
@@ -126,16 +149,18 @@ assert.match(proof, /arguments_\.filter\(value => value === '--delete-data=never
 assert.match(proof, /arguments_\.some\(value => value\.startsWith\('--delete-data='/);
 assert.doesNotMatch(proof, /--delete-data=(?:always|on-conflict|if-required)/);
 
-assert.match(receipt, /ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION = 14/);
+assert.match(receipt, /ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION = 15/);
 assert.match(receipt, /v13_table_schema_sha256/);
 assert.match(receipt, /v13TableSchemaDigest/);
 assert.match(receipt, /v14_table_schema_sha256/);
 assert.match(receipt, /v14TableSchemaDigest/);
+assert.match(receipt, /v15_table_schema_sha256/);
+assert.match(receipt, /v15TableSchemaDigest/);
 
 console.log(
   'access-request additive migration proof passed: exact v12 refs 0–52 preserved, '
   + 'private access_request_v1 remains the exact v13 ref 53 boundary, '
-  + 'the reviewed v14 daily Marks suffix is the only allowed extension, '
+  + 'the reviewed v14 daily Marks and review-only v15 Realm Chat suffixes are the only allowed extensions, '
   + 'the loopback proof exercises 2/10/50 same-cycle calls and two FIDs, '
   + 'and every rehearsal remains deletion-disabled',
 );

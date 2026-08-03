@@ -41,6 +41,19 @@ export {
   adminActivateDailyMarksV1,
 } from './reducers/dailyMarks';
 export {
+  sendRealmChatMessageV1,
+  getRealmChatHistoryV1,
+  reportRealmChatMessageV1,
+  adminGetRealmChatStatusV1,
+  adminStageRealmChatV1,
+  adminActivateRealmChatV1,
+  adminDisableRealmChatV1,
+  adminTombstoneRealmChatMessageV1,
+  adminListRealmChatReportsV1,
+  adminGetRealmChatReportContextV1,
+  adminResolveRealmChatReportV1,
+} from './reducers/realmChat';
+export {
   getMyResourceStateV1,
   collectResourcesV1,
   adminBackfillResourceAccountsV1,

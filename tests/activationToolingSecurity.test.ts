@@ -1264,6 +1264,7 @@ async function withTestProvenArtifact<T>(callback: (receipt: {
   v12TableSchemaDigest: string;
   v13TableSchemaDigest: string;
   v14TableSchemaDigest: string;
+  v15TableSchemaDigest: string;
   artifactDigest: string;
 }) => Promise<T> | T): Promise<T> {
   let previous: Buffer | undefined;
@@ -1281,6 +1282,7 @@ async function withTestProvenArtifact<T>(callback: (receipt: {
     v12TableSchemaDigest: 'b'.repeat(64),
     v13TableSchemaDigest: 'c'.repeat(64),
     v14TableSchemaDigest: 'd'.repeat(64),
+    v15TableSchemaDigest: 'e'.repeat(64),
     artifactDigest: createHash('sha256').update(content).digest('hex'),
   });
   try {
@@ -2751,6 +2753,7 @@ describe('activation publish safety', () => {
         v12TableSchemaDigest: receipt.v12TableSchemaDigest,
         v13TableSchemaDigest: receipt.v13TableSchemaDigest,
         v14TableSchemaDigest: receipt.v14TableSchemaDigest,
+        v15TableSchemaDigest: receipt.v15TableSchemaDigest,
         artifactDigest: receipt.artifactDigest,
       })}\n`;
       const parsed = parseMigrationProofReceipt(success);
@@ -2784,6 +2787,10 @@ describe('activation publish safety', () => {
       ))).toThrow(/exact success receipt/i);
       expect(() => parseMigrationProofReceipt(success.replace(
         ` v14_table_schema_sha256=${receipt.v14TableSchemaDigest}`,
+        '',
+      ))).toThrow(/exact success receipt/i);
+      expect(() => parseMigrationProofReceipt(success.replace(
+        ` v15_table_schema_sha256=${receipt.v15TableSchemaDigest}`,
         '',
       ))).toThrow(/exact success receipt/i);
       expect(() => parseMigrationProofReceipt(success.replace(
@@ -2826,6 +2833,10 @@ describe('activation publish safety', () => {
         ...receipt,
         v14TableSchemaDigest: receipt.v14TableSchemaDigest.toUpperCase(),
       })).toThrow(/receipt was invalid/i);
+      expect(() => verifyMigrationArtifactReceipt({
+        ...receipt,
+        v15TableSchemaDigest: receipt.v15TableSchemaDigest.toUpperCase(),
+      })).toThrow(/receipt was invalid/i);
       expect(() => verifyMigrationArtifactReceipt({ ...receipt, extra: true }))
         .toThrow(/receipt was invalid/i);
       await expect(publishModule(
@@ -2857,6 +2868,7 @@ describe('activation publish safety', () => {
         v12TableSchemaDigest: receipt.v12TableSchemaDigest,
         v13TableSchemaDigest: receipt.v13TableSchemaDigest,
         v14TableSchemaDigest: receipt.v14TableSchemaDigest,
+        v15TableSchemaDigest: receipt.v15TableSchemaDigest,
         artifactDigest: receipt.artifactDigest,
       })}\n`;
       const fakeSpawnSync = (...args: unknown[]) => {

@@ -6,6 +6,12 @@ full engineering record.
 
 ## [Unreleased]
 
+- Built the review-only Realm Chat V1 foundation as an isolated SpacetimeDB
+  protocol: server-authored identity/order/time, a private archive, bounded live
+  projection and history, exactly-once sends, rolling abuse limits, private
+  context-preserving reports, audited tombstones, and responsive desktop/Mini
+  App chat surfaces. The feature remains unseeded, unpublishable, and hidden
+  behind independent server and client gates pending legal and activation review.
 - Drafted the next Alpha Terms, Hegemony Social Contract, and Privacy Notice
   for a future persistent Realm Chat, including explicit conduct, reporting,
   moderation, history, and privacy boundaries. Chat remains disabled pending

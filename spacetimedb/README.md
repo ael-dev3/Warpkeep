@@ -12,11 +12,12 @@ balance, advance a timer, or decide an expedition outcome.
 | Browser/backend wire protocol | 3 |
 | Player authentication contract | 2 |
 | Genesis world generation | 3 |
-| Append-only schema generation | 14 (daily Marks suffix) |
+| Append-only schema generation | 15 (review-only Realm Chat suffix) |
 | Alpha 0.3.12 suffix | Water refs 37–40; Stone refs 41–45 |
 | Generic worker suffix | refs 47–52; active |
 | Access-request suffix | ref 53; active |
 | Daily Marks suffix | private refs 54–55; activation is separate |
+| Realm Chat suffix | refs 56–62; review-only, unseeded, and unpublishable |
 
 Deployed tables retain their original declaration order and shape. Later
 features append new tables; they do not rename or delete existing data. The
@@ -61,12 +62,19 @@ Public subscriptions contain only shared-world presentation:
 - active four-worker roster and generic node-lease projections; the public
   rows contain no FID, cargo, accrual, balance, request, or auth data;
 - public Community Marks projection only when its policy permits it.
+- if separately activated in a future release, Realm Chat status and only its
+  newest bounded 128-message projection.
 
 Private tables contain admission, ownership, unclaimed-slot decisions, resource
 and Marks accounts, agreement evidence, daily-grant receipts, operator audit,
 expedition state, retry receipts, and balances. Retired compatibility tables
 remain private and frozen to preserve the deployed append-only schema; current
 authority paths do not write or interpret them.
+
+Realm Chat's channel sequence, message archive, rate ledger, send receipts, and
+reports are also private. They are absent from the player binding and ordinary
+Realm snapshot; the browser receives only the bounded public pair plus
+caller-gated send, report, and indexed history operations.
 
 The pinned SDK requires scheduled expedition rows to be public. Those rows are
 therefore deliberately minimal: schedule/stage identifiers, site, origin
@@ -131,6 +139,24 @@ eligibility, cadence, amount, and replay protection; a browser cannot mint or
 redirect a grant. Disabled admission pauses future grants without deleting the
 existing balance. Marks have no transfer, redemption, purchase, airdrop, or
 financial-reward loop and require no wallet or blockchain activity.
+
+## Review-only Realm Chat
+
+Protocol V15 appends a server-authoritative persistent Realm Chat foundation.
+The module derives sender FID, channel, UUIDv7 message identity, sequence,
+timestamp, visibility, rate decisions, and report context. Sends are
+exactly-once across ambiguous client retries; recent public state is capped at
+128 rows; history reads at most 50 exact sequence keys; and private reports
+preserve a context range that cannot expand after submission.
+
+Public moderation uses body-free tombstones while private admin evidence keeps
+the original record. Admin status verifies the entire bounded public projection
+against the private archive. Operational mutations are admin-only and audited.
+
+This code does not authorize use. Server activation is not compiled, the
+client entry flag is false, and the production publisher rejects a V15
+mutation. See the [implementation and research record](../docs/design/realm-chat-v1-implementation.md)
+and [controlling contract](../docs/design/realm-chat-v1-contract.md).
 
 ## Local development
 
