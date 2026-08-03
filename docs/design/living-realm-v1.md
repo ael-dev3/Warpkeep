@@ -44,8 +44,8 @@ implementation scale of a close first-person meadow:
 - The existing `RealmAmbientScheduler` remains the only ambient clock. Its
   frame cap is the maximum needed by active subsystems, never their sum.
 - Grass, water, and forest reuse their existing draws. Living Realm may add at
-  most one instanced bird draw and one points draw in High or Balanced, and
-  adds neither in Reduced or reduced motion.
+  most one instanced bird draw, one points draw, and one compact Rabbit draw in
+  High or Balanced, and adds none in Reduced or reduced motion.
 - Worker wakes sample the owning renderer's sanitized current poses after its
   ordinary update. Resource wagons do not yet expose an equivalent clean pose
   API, so this version does not duplicate their interpolation or inspect DOM
@@ -59,9 +59,11 @@ implementation scale of a close first-person meadow:
 - Ambient life is deterministic, camera-local, non-pickable, and visually
   subordinate to units, labels, routes, resources, selection, and hover.
 
-This work contains original Warpkeep-native code. No TUMBLE source, bundle,
-shader, artwork, preset, or binary was downloaded, inspected, copied,
-decompiled, or made a dependency.
+This work contains original Warpkeep-native code. The public
+[TUMBLE meadow](https://grass-world-meadow.netlify.app/) was used only as a
+visual reference for camera-local density, coherent motion, reflective water,
+and ambient wildlife. No TUMBLE source, shader, artwork, preset, or binary was
+copied into the repository, decompiled, or made a dependency.
 
 ## Explicitly rejected techniques
 
@@ -80,23 +82,28 @@ existing fog remain the lighting and depth contract.
 
 Reduced quality, reduced motion, strategic overview, hidden documents,
 inactive presentation, context loss, shader-contract drift, and disposal all
-disable optional moving ambience. No subsystem owns a second animation frame
-loop or interval. A failed optional material or ecology layer leaves terrain,
-water topology, forest placement, Workers, interaction, and the Realm intact.
+disable optional moving ambience. The compact Rabbit also fails closed on a
+missing, changed, oversized, or structurally incompatible model. No subsystem
+owns a second animation frame loop or interval. A failed optional material,
+asset, or ecology layer leaves terrain, water topology, forest placement,
+Workers, interaction, and the Realm intact.
 
 ## Implemented presentation contract
 
 - `realmLivingEnvironment.ts` is the single renderer-neutral wind and gust
   definition. Grass and forest inject the same bounded world-space field into
   their existing standard materials.
-- Grass keeps its established instance pools and draw counts. Its lighting
-  normal follows its bounded bend, sun-side transmission remains restrained,
-  and an unrolled quality-specific uniform array accepts at most eight/four
-  local disturbances.
+- Grass keeps its established instance pools and draw counts. High/Balanced
+  patches carry twelve/nine blades, denser meadow and Lowlands candidate fields,
+  brighter green authored palettes, and a faint chlorophyll fill so distant
+  blades remain green. Its lighting normal follows its bounded bend, sun-side
+  transmission remains restrained, and an unrolled quality-specific uniform
+  array accepts at most eight/four local disturbances.
 - Water keeps the canonical welded geometry, analytic picking, fog treatment,
   and three active draws. Four/two unrolled ripple slots contribute an
-  analytic Gaussian-ring height and derivative; rivers receive light/normal
-  response without breaking their physical edge weld.
+  analytic Gaussian-ring height and derivative; deeper blue-grey body colour,
+  restrained Fresnel reflection, directional currents, and bounded foam make
+  it read as water without breaking the rivers' physical edge weld.
 - Canonical forest batches and the immediate procedural fallback carry two
   normalized `Uint8` attributes: root-anchored wind weight and local phase.
   They retain one draw. Reduced and reduced-motion install no moving shader.
@@ -104,6 +111,11 @@ water topology, forest placement, Workers, interaction, and the Realm intact.
   points draw shared by motes and transient material particles. It owns no
   timer, animation frame, ray target, identifier, network request, or database
   state, and is absent in Reduced/reduced-motion and Realm overview.
+- Lowlands Rabbits use the exact 14,808-byte, 146-triangle compact static model
+  from the reviewed public Warpkeep-Assets release. Ten/six deterministic
+  camera-local instances share one non-pickable draw and transform-only hop;
+  the same-origin loader verifies byte length, SHA-256, mesh, vertex, and
+  triangle counts before presentation. No Rabbit transform is game state.
 - Worker wakes read only the owning Worker layer's sanitized current pose
   after its normal interpolation update. The per-material pool is fixed,
   newest-first, and independently capped. Replacement of an oldest live slot
@@ -112,29 +124,38 @@ water topology, forest placement, Workers, interaction, and the Realm intact.
 
 ## Final verification
 
-The completed branch passed `npm run check`: 271 Vitest files and 2,979 tests,
+The completed branch passed `npm run check`: 272 Vitest files and 2,982 tests,
 TypeScript, licensing, all runtime-asset and provenance checks, tracked-file
 size policy, production build, production exclusions, and the Farcaster Mini
 App contract. Focused shader tests also compile against the pinned Three.js
 shader chunks and assert static fallback on marker drift.
 
 The same fixed-size in-app WebGL pass used for the baseline reported no grass,
-water, or forest shader fallback. Existing subsystem topology and draw counts
-remain unchanged; the only new visible draws are the two bounded ecology
-draws.
+water, forest, or Rabbit fallback. High presented 2,789 grass patches / 100,404
+grass triangles / 3 grass draws plus 10 Rabbits; Balanced desktop and portrait
+presented 1,243 / 33,561 / 2 plus 6 Rabbits. Existing water and forest topology
+and draw counts remain unchanged.
+
+The canonical `npm run qa:rendered-webgl` command was also re-run and failed
+before page launch because the reviewed host Google Chrome executable was
+unavailable to its fail-closed attestation. The host browser installation was
+not modified; this is reported separately from the successful isolated in-app
+WebGL evidence above.
 
 | Case | Existing grass / water / forest draws | New draws / triangles | Living slots | Ambient cap |
 | --- | ---: | ---: | ---: | ---: |
-| High 1920×1080 | 3 / 3 / 1 | 2 / 24 | grass 8, water 4 | 30 Hz |
-| Balanced 1280×720 | 2 / 3 / 1 | 2 / 12 | grass 4, water 2 | 22 Hz |
-| Balanced tablet 1024×768 | 2 / 3 / 1 | 2 / 12 | grass 4, water 2 | 22 Hz |
-| Balanced portrait 390×844 | 2 / 3 / 1 | 2 / 12 | grass 4, water 2 | 22 Hz |
-| Balanced short landscape 667×375 | 2 / 3 / 1 | 2 / 12 | grass 4, water 2 | 22 Hz |
+| High 1920×1080 | 3 / 3 / 1 | 3 / 1,484 | grass 8, water 4 | 30 Hz |
+| Balanced 1280×720 | 2 / 3 / 1 | 3 / 888 | grass 4, water 2 | 22 Hz |
+| Balanced tablet 1024×768 | 2 / 3 / 1 | 3 / 888 | grass 4, water 2 | 22 Hz |
+| Balanced portrait 390×844 | 2 / 3 / 1 | 3 / 888 | grass 4, water 2 | 22 Hz |
+| Balanced short landscape 667×375 | 2 / 3 / 1 | 3 / 888 | grass 4, water 2 | 22 Hz |
 | Reduced 1280×720 | 1 / 3 / 1 | 0 / 0 | grass 0, water 0 | idle |
 
 High and Balanced canonical forest wind attributes use 763,710 and 454,054
 bytes respectively (two normalized bytes per merged vertex). The active
 Balanced Worker fixture held exactly four grass disturbances and 48 transient
 particles, replacing oldest fixed slots during sustained motion without a
-genuine drop. Reduced held zero moving ecology, zero ripple/disturbance slots,
-zero new draws, and no ambient scheduler demand.
+genuine drop. Its Rabbit model passed the runtime loader with one draw, 876
+triangles, and no fallback; High used 1,460 Rabbit triangles. Reduced held zero
+moving ecology, zero Rabbit fetches, zero ripple/disturbance slots, zero new
+draws, and no ambient scheduler demand.

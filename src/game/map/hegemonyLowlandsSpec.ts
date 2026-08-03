@@ -10,8 +10,8 @@ export const hegemonyLowlandsSpec = {
   palette: {
     // Scene-linear values: WebGL writes them directly to vertex colours and
     // the SVG fallback encodes them once for display-sRGB.
-    grassBase: { r: 0.39, g: 0.56, b: 0.25 },
-    grassCool: { r: 0.27, g: 0.45, b: 0.23 },
+    grassBase: { r: 0.42, g: 0.62, b: 0.24 },
+    grassCool: { r: 0.30, g: 0.52, b: 0.22 },
     soil: { r: 0.52, g: 0.42, b: 0.22 },
     dryGrass: { r: 0.62, g: 0.56, b: 0.27 },
     stone: { r: 0.45, g: 0.45, b: 0.38 }

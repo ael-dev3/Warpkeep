@@ -193,7 +193,11 @@ float terrainSnow = clamp(vTerrainSnowCoverage, 0.0, 1.0);
 float terrainSand = clamp(vTerrainSandCoverage, 0.0, 1.0);
 diffuseColor.rgb *= 1.0 - terrainHollow * 0.085;
 diffuseColor.rgb *= 1.0 + terrainCrest * 0.032;
-diffuseColor.rgb *= 1.0 - terrainVegetation * 0.025;
+diffuseColor.rgb = mix(
+  diffuseColor.rgb,
+  diffuseColor.rgb * vec3(0.99, 1.035, 0.97),
+  terrainVegetation * 0.16
+);
 diffuseColor.rgb = mix(
   diffuseColor.rgb,
   diffuseColor.rgb * vec3(0.86, 0.91, 0.96),

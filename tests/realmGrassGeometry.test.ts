@@ -69,7 +69,7 @@ describe('low-poly grass geometry', () => {
       REALM_GRASS_RIBBONS[profile] * REALM_GRASS_TRIANGLES_PER_RIBBON
     ]));
 
-    expect(trianglesByQuality).toEqual({ high: 27, balanced: 21, reduced: 15 });
+    expect(trianglesByQuality).toEqual({ high: 36, balanced: 27, reduced: 15 });
   });
 
   it('uses a small deterministic family of genuinely different patch silhouettes', () => {

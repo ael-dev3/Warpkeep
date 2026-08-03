@@ -51,37 +51,37 @@ export const REALM_GRASS_BIOME_PROFILES: Readonly<
   Record<RealmGrassTerrainKind, RealmGrassBiomeProfile>
 > = Object.freeze({
   meadow: Object.freeze({
-    kind: 'meadow', highCandidateCount: 34, completelyBareThreshold: 0.25, retention: 0.94,
+    kind: 'meadow', highCandidateCount: 42, completelyBareThreshold: 0.21, retention: 0.96,
     height: Object.freeze([0.11, 0.19]), width: Object.freeze([0.34, 0.52]),
-    palette: palette(['#82985B', '#8CA062', '#91A46C', '#788E53']),
-    slopeSoftLimit: 0.42, slopeHardLimit: 0.78, minimumSeparation: 0.07
+    palette: palette(['#8CAA58', '#93B261', '#98B568', '#7FA04E']),
+    slopeSoftLimit: 0.42, slopeHardLimit: 0.78, minimumSeparation: 0.06
   }),
   lowland: Object.freeze({
-    kind: 'lowland', highCandidateCount: 30, completelyBareThreshold: 0.29, retention: 0.88,
+    kind: 'lowland', highCandidateCount: 37, completelyBareThreshold: 0.25, retention: 0.92,
     height: Object.freeze([0.10, 0.18]), width: Object.freeze([0.32, 0.50]),
-    palette: palette(['#768B51', '#82965A', '#8B9C63', '#6C814B']),
-    slopeSoftLimit: 0.42, slopeHardLimit: 0.78, minimumSeparation: 0.075
+    palette: palette(['#7F9F4E', '#88A957', '#90B162', '#739348']),
+    slopeSoftLimit: 0.42, slopeHardLimit: 0.78, minimumSeparation: 0.064
   }),
   forest: Object.freeze({
-    kind: 'forest', highCandidateCount: 24, completelyBareThreshold: 0.33, retention: 0.82,
+    kind: 'forest', highCandidateCount: 30, completelyBareThreshold: 0.29, retention: 0.86,
     height: Object.freeze([0.10, 0.17]), width: Object.freeze([0.30, 0.46]),
-    palette: palette(['#627B4E', '#6B8454', '#748C5C', '#587345']),
-    slopeSoftLimit: 0.40, slopeHardLimit: 0.74, minimumSeparation: 0.08
+    palette: palette(['#688D49', '#729950', '#7AA158', '#5E8341']),
+    slopeSoftLimit: 0.40, slopeHardLimit: 0.74, minimumSeparation: 0.068
   }),
   heath: Object.freeze({
-    kind: 'heath', highCandidateCount: 22, completelyBareThreshold: 0.39, retention: 0.80,
+    kind: 'heath', highCandidateCount: 27, completelyBareThreshold: 0.35, retention: 0.84,
     height: Object.freeze([0.09, 0.16]), width: Object.freeze([0.28, 0.43]),
-    palette: palette(['#7B8054', '#85895B', '#8A8E64']),
-    slopeSoftLimit: 0.34, slopeHardLimit: 0.67, minimumSeparation: 0.085
+    palette: palette(['#83965A', '#8CA061', '#94A869']),
+    slopeSoftLimit: 0.34, slopeHardLimit: 0.67, minimumSeparation: 0.074
   }),
   ridge: Object.freeze({
-    kind: 'ridge', highCandidateCount: 6, completelyBareThreshold: 0.72, retention: 0.62,
+    kind: 'ridge', highCandidateCount: 7, completelyBareThreshold: 0.72, retention: 0.62,
     height: Object.freeze([0.08, 0.13]), width: Object.freeze([0.24, 0.34]),
     palette: palette(['#85815A', '#777A50']),
     slopeSoftLimit: 0.22, slopeHardLimit: 0.44, minimumSeparation: 0.10
   }),
   'ancient-stone': Object.freeze({
-    kind: 'ancient-stone', highCandidateCount: 4, completelyBareThreshold: 0.86, retention: 0.54,
+    kind: 'ancient-stone', highCandidateCount: 5, completelyBareThreshold: 0.86, retention: 0.54,
     height: Object.freeze([0.07, 0.11]), width: Object.freeze([0.22, 0.30]),
     palette: palette(['#7A7D60', '#6E7458']),
     slopeSoftLimit: 0.18, slopeHardLimit: 0.34, minimumSeparation: 0.12
@@ -92,15 +92,15 @@ export const REALM_GRASS_BIOME_PROFILES: Readonly<
     slopeSoftLimit: 0, slopeHardLimit: 0, minimumSeparation: 0
   }),
   apron: Object.freeze({
-    kind: 'apron', highCandidateCount: 6, completelyBareThreshold: 0.52, retention: 0.56,
+    kind: 'apron', highCandidateCount: 8, completelyBareThreshold: 0.52, retention: 0.56,
     height: Object.freeze([0.08, 0.13]), width: Object.freeze([0.24, 0.36]),
-    palette: palette(['#6D8450', '#788E58']),
+    palette: palette(['#739448', '#7E9F50']),
     slopeSoftLimit: 0.30, slopeHardLimit: 0.58, minimumSeparation: 0.11
   })
 });
 
 export const REALM_GRASS_QUALITY_MULTIPLIERS: Readonly<Record<RealmGrassQuality, number>> =
-  Object.freeze({ high: 1, balanced: 0.62, reduced: 0.25 });
+  Object.freeze({ high: 1, balanced: 0.72, reduced: 0.25 });
 
 export type RealmGrassExclusion = Readonly<{
   id: string;
@@ -726,7 +726,7 @@ export function generateRealmGrassCells(input: RealmGrassGenerationInput): Realm
           // only a restrained local response.
           tint: mixColor(
             mixColor(
-              mixColor(groundTint, authoredTint, 0.86),
+              mixColor(groundTint, authoredTint, 0.90),
               { r: 0.49, g: 0.52, b: 0.39 },
               smoothstep(0.10, 0.86, snowCoverage) * 0.66
             ),

@@ -197,11 +197,11 @@ function flowForCell(
 }
 
 function regimeColor(cell: GenesisWaterCellV1): THREE.Color {
-  if (cell.regime === 'river') return new THREE.Color('#315e64');
-  if (cell.regime === 'lake') return new THREE.Color('#548eac');
+  if (cell.regime === 'river') return new THREE.Color('#38676d');
+  if (cell.regime === 'lake') return new THREE.Color('#4c8198');
   const depth = GENESIS_OCEAN_DEPTH_BY_KEY.get(cell.cellKey) ?? cell.depthCells;
-  return depth >= 5 ? new THREE.Color('#315b78') : depth >= 3
-    ? new THREE.Color('#3c7691') : new THREE.Color('#4f91ab');
+  return depth >= 5 ? new THREE.Color('#294e69') : depth >= 3
+    ? new THREE.Color('#356b86') : new THREE.Color('#4b879f');
 }
 
 function waterPointKey(point: HexWorldPosition) {
@@ -987,8 +987,8 @@ function createWaterMaterial(
     // Keep the material base neutral so the authoritative per-regime vertex
     // palette is not multiplied back toward the pale Lowlands ground tint.
     color: '#ffffff',
-    roughness: river ? 0.34 : 0.27,
-    metalness: 0.04,
+    roughness: river ? 0.29 : 0.19,
+    metalness: 0.02,
     transparent: false,
     depthWrite: true,
     fog: true
@@ -1090,7 +1090,7 @@ float warpkeepWaterHeight(vec2 waterWorldXZ, float waterRegime, vec2 waterFlow, 
       ? 0.62
       : 0;
   const waterTimeExpression = activeWaveComponents > 0 ? 'uWaterTime' : '0.0';
-  const shaderContract = `warpkeep-water-world-space-r185-${river ? 'river' : 'ocean'}-v7-ripples-${safeRippleSlotCount}`;
+  const shaderContract = `warpkeep-water-world-space-r185-${river ? 'river' : 'ocean'}-v8-reflection-ripples-${safeRippleSlotCount}`;
   let shaderFallback = false;
   material.onBeforeCompile = (shader) => {
     if (
@@ -1212,14 +1212,21 @@ varying vec2 vWarpkeepWaterFlow;
 ${shader.fragmentShader}`
       .replace('#include <opaque_fragment>', `
         float waterViewFacing = max(dot(normalize(vNormal), normalize(-vViewPosition)), 0.0);
-        float waterFresnel = pow(1.0 - waterViewFacing, 3.0) * (vWarpkeepWaterRegime > 0.5 ? 0.045 : 0.095);
-        vec3 oceanDeepColor = vec3(0.055, 0.22, 0.34);
-        vec3 oceanShallowColor = vec3(0.16, 0.48, 0.58);
-        vec3 riverDeepColor = vec3(0.055, 0.19, 0.21);
-        vec3 riverShallowColor = vec3(0.16, 0.35, 0.36);
+        float waterFresnel = pow(1.0 - waterViewFacing, 2.4);
+        float waterReflectionStrength = waterFresnel
+          * (vWarpkeepWaterRegime > 0.5 ? 0.085 : 0.18);
+        vec3 oceanDeepColor = vec3(0.04, 0.15, 0.24);
+        vec3 oceanShallowColor = vec3(0.12, 0.36, 0.46);
+        vec3 riverDeepColor = vec3(0.05, 0.17, 0.18);
+        vec3 riverShallowColor = vec3(0.14, 0.32, 0.33);
         vec3 waterDeepColor = mix(oceanDeepColor, riverDeepColor, step(0.5, vWarpkeepWaterRegime));
         vec3 waterShallowColor = mix(oceanShallowColor, riverShallowColor, step(0.5, vWarpkeepWaterRegime));
         vec3 waterBodyColor = mix(waterShallowColor, waterDeepColor, clamp(vWarpkeepWaterDepth, 0.0, 1.0) * 0.78);
+        vec3 waterReflectionColor = mix(
+          vec3(0.20, 0.38, 0.48),
+          vec3(0.48, 0.66, 0.78),
+          smoothstep(0.0, 0.82, waterViewFacing)
+        );
         vec2 waterFlowDirection = normalize(vWarpkeepWaterFlow + vec2(0.0001));
         vec2 waterCrossFlow = vec2(-waterFlowDirection.y, waterFlowDirection.x);
         float waterDirectionalCurrent = 0.5 + 0.5 * sin(
@@ -1254,13 +1261,18 @@ ${shader.fragmentShader}`
           max(vWarpkeepWaterSourceMix * 0.34, vWarpkeepWaterMouthMix * 0.48)
         );
         float waterFoam = waterHydrologyFoam
-          * (0.035 + waterCrest * 0.2)
+          * (0.055 + waterCrest * 0.24)
           * waterFoamPattern;
         waterFoam *= ${foamQualityScale.toFixed(2)};
         float waterBankEdge = clamp(vWarpkeepWaterBankBlend, 0.0, 1.0);
         float bankSoftness = 1.0 - waterBankEdge * 0.2;
         outgoingLight = mix(outgoingLight, outgoingLight * waterBodyColor * 1.65, 0.42);
-        outgoingLight += (waterBodyColor * waterFresnel + vec3(waterGlimmer)) * bankSoftness;
+        outgoingLight += vec3(waterGlimmer * 0.72) * bankSoftness;
+        outgoingLight = mix(
+          outgoingLight,
+          waterReflectionColor,
+          waterReflectionStrength * bankSoftness
+        );
         outgoingLight = mix(outgoingLight, vec3(0.10, 0.20, 0.18), waterBankEdge * 0.12 * step(0.5, vWarpkeepWaterRegime));
         float waterTransmission = step(0.5, vWarpkeepWaterRegime)
           * (vWarpkeepWaterSourceMix * 0.012 + vWarpkeepWaterMouthMix * 0.008);

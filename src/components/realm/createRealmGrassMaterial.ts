@@ -228,8 +228,8 @@ export function injectRealmGrassFragmentShader(fragmentShader: string) {
   const colour = `
 ${colorMarker}
 float grassVerticalLift = smoothstep(0.0, 1.0, vGrassBladeVertical);
-diffuseColor.rgb *= mix(0.94, 1.015, grassVerticalLift);
-diffuseColor.rgb *= vec3(1.0) + vec3(0.105, 0.072, 0.026) * vGrassSunTransmission * 0.34;
+diffuseColor.rgb *= mix(0.96, 1.04, grassVerticalLift);
+diffuseColor.rgb *= vec3(1.0) + vec3(0.09, 0.11, 0.025) * vGrassSunTransmission * 0.45;
 diffuseColor.a *= realmGrassCoverage();
 `;
   return `${FRAGMENT_DECLARATIONS}\n${fragmentShader.replace(colorMarker, colour)}`;
@@ -292,6 +292,10 @@ export function createRealmGrassMaterial(
   });
   const material = new THREE.MeshStandardMaterial({
     color: '#ffffff',
+    // A faint chlorophyll fill keeps thin distant blades green under the
+    // strategic camera without flattening their sun-facing PBR response.
+    emissive: '#315820',
+    emissiveIntensity: 0.14,
     // InstancedMesh.instanceColor is enabled independently by Three.js. A
     // base colour attribute would consume a vertex slot without providing data.
     vertexColors: false,

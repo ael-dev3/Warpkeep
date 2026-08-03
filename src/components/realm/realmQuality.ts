@@ -9,11 +9,12 @@ export type RealmLivingRealmBudget = Readonly<{
   waterRippleSlots: 0 | 2 | 4;
   forestGustEnabled: boolean;
   birdInstances: 0 | 6 | 12;
+  rabbitInstances: 0 | 6 | 10;
   moteCount: 0 | 18 | 36;
   transientParticleCount: 0 | 48 | 96;
   plannerHz: 0 | 7 | 10;
-  addedDrawCalls: 0 | 2;
-  addedTriangles: 0 | 480 | 960;
+  addedDrawCalls: 0 | 3;
+  addedTriangles: 0 | 888 | 1484;
 }>;
 
 /**
@@ -27,28 +28,31 @@ export const REALM_LIVING_REALM_BUDGETS = Object.freeze({
     waterRippleSlots: 4,
     forestGustEnabled: true,
     birdInstances: 12,
+    rabbitInstances: 10,
     moteCount: 36,
     transientParticleCount: 96,
     plannerHz: 10,
-    addedDrawCalls: 2,
-    addedTriangles: 960
+    addedDrawCalls: 3,
+    addedTriangles: 1484
   }),
   balanced: Object.freeze({
     grassDisturbanceSlots: 4,
     waterRippleSlots: 2,
     forestGustEnabled: true,
     birdInstances: 6,
+    rabbitInstances: 6,
     moteCount: 18,
     transientParticleCount: 48,
     plannerHz: 7,
-    addedDrawCalls: 2,
-    addedTriangles: 480
+    addedDrawCalls: 3,
+    addedTriangles: 888
   }),
   reduced: Object.freeze({
     grassDisturbanceSlots: 0,
     waterRippleSlots: 0,
     forestGustEnabled: false,
     birdInstances: 0,
+    rabbitInstances: 0,
     moteCount: 0,
     transientParticleCount: 0,
     plannerHz: 0,
@@ -255,7 +259,7 @@ export const REALM_GRASS_RENDER_PLANS: Readonly<Record<RealmQuality, RealmGrassR
       enabled: true,
       geometryProfile: 'high',
       maximumActiveInstances: 7_000,
-      maximumActiveTriangles: 189_000,
+      maximumActiveTriangles: 252_000,
       activeRadius: 12,
       hysteresisRadius: 2,
       edgeFadeCells: 2,
@@ -269,13 +273,13 @@ export const REALM_GRASS_RENDER_PLANS: Readonly<Record<RealmQuality, RealmGrassR
       enabled: true,
       geometryProfile: 'balanced',
       maximumActiveInstances: 4_000,
-      maximumActiveTriangles: 84_000,
+      maximumActiveTriangles: 108_000,
       activeRadius: 9,
       hysteresisRadius: 2,
       edgeFadeCells: 2,
       animationFrameCap: 16,
       cacheLimit: 1_024,
-      densityMultiplier: 0.62,
+      densityMultiplier: 0.72,
       windStrengthMultiplier: 0.78,
       overviewSuppressed: true
     }),

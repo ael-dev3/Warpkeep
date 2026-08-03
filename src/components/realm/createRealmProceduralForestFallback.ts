@@ -401,16 +401,16 @@ export function createRealmProceduralForestFallbackMaterial() {
 export function realmForestFallbackInstanceColor(
   habitat: RealmForestEcologyHabitat
 ) {
-  if (habitat === 'grove') return '#3f6a43';
-  if (habitat === 'forest') return '#497548';
-  return '#68845a';
+  if (habitat === 'grove') return '#477d47';
+  if (habitat === 'forest') return '#538653';
+  return '#73955f';
 }
 
-/** Restrained near-white tint for authored model instances. */
+/** Restrained green-white tint for authored model instances. */
 export function realmForestModelInstanceTint(
   habitat: RealmForestEcologyHabitat
 ) {
-  if (habitat === 'grove') return '#dbe7d7';
-  if (habitat === 'forest') return '#e7eee1';
-  return '#f1eddc';
+  if (habitat === 'grove') return '#cfe9c8';
+  if (habitat === 'forest') return '#d7eed1';
+  return '#e6f0d7';
 }

@@ -24,13 +24,13 @@ describe('procedural grass active window', () => {
       high: {
         activeRadius: 12,
         maximumActiveInstances: 7_000,
-        maximumActiveTriangles: 189_000,
+        maximumActiveTriangles: 252_000,
         animationFrameCap: 24
       },
       balanced: {
         activeRadius: 9,
         maximumActiveInstances: 4_000,
-        maximumActiveTriangles: 84_000,
+        maximumActiveTriangles: 108_000,
         animationFrameCap: 16
       },
       reduced: {

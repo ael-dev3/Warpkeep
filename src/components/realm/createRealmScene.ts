@@ -59,6 +59,10 @@ import {
   createRealmAmbientEcologyLayer,
   type RealmAmbientEcologyLayer
 } from './createRealmAmbientEcologyLayer';
+import {
+  createRealmRabbitLayer,
+  type RealmRabbitLayer
+} from './createRealmRabbitLayer';
 import { createRealmSurfaceDisturbanceField } from './realmSurfaceDisturbanceField';
 import { createRealmTerrainFeatureLayers } from './createRealmTerrainFeatures';
 import { createRealmForestLayer, type RealmForestLayer } from './realmForestLayer';
@@ -2154,6 +2158,49 @@ function initializeRealmScene(
     // Optional ecology is independent of terrain, interaction, and authority.
     ambientEcologyLayer = null;
   }
+  let rabbitLayer: RealmRabbitLayer | null = null;
+  try {
+    const rabbitProtectedTileKeys = new Set([
+      ...terrainSemantics.castleSlotKeys,
+      ...fullCellWaterCoordinateKeys,
+      ...(options.goldNodes ?? []).map((node) => hexKey(node.coord)),
+      ...(options.foodNodes ?? []).map((node) => hexKey(node.coord)),
+      ...(options.woodNodes ?? []).map((node) => hexKey(node.coord)),
+      ...(options.stoneNodes ?? []).map((node) => hexKey(node.coord))
+    ]);
+    const nextRabbitLayer = createRealmRabbitLayer({
+      instanceCount: livingBudget.rabbitInstances,
+      baseUrl: options.baseUrl,
+      frozenVisualTimeSeconds: options.livingVisualTimeSeconds,
+      heightAtWorld: (world) => terrainHeightAtWorld(
+        presentationSurface.renderMap,
+        world,
+        HEX_SIZE,
+        terrainPlacements
+      ),
+      isHabitat: (world) => {
+        const coord = worldToNearestAxial(world, HEX_SIZE);
+        const key = hexKey(coord);
+        const kind = terrainSemantics.terrainKindsByKey.get(key) ?? 'lowland';
+        return presentationSurface.playableKeys.has(key)
+          && !rabbitProtectedTileKeys.has(key)
+          && (kind === 'lowland' || kind === 'meadow' || kind === 'heath');
+      },
+      onModelReady: () => {
+        if (!cleanup.isDisposed()) render();
+      }
+    });
+    rabbitLayer = nextRabbitLayer;
+    scene.add(nextRabbitLayer.group);
+    cleanup.add(() => {
+      scene.remove(nextRabbitLayer.group);
+      nextRabbitLayer.dispose();
+      if (rabbitLayer === nextRabbitLayer) rabbitLayer = null;
+    });
+  } catch {
+    // Wildlife is optional, non-pickable, and independent of Realm authority.
+    rabbitLayer = null;
+  }
   const emptyGrassTelemetry: RealmGrassTelemetry = Object.freeze({
     candidateCellCount: 0,
     activeCellCount: 0,
@@ -2916,6 +2963,7 @@ function initializeRealmScene(
           grassLayer?.isAnimationActive() === true
           || forestLayer?.isAnimationActive() === true
           || ambientEcologyLayer?.isAnimationActive() === true
+          || rabbitLayer?.isAnimationActive() === true
           || decorations.animated
           || goldNodeLayer?.hasMovingWagons() === true
           || foodNodeLayer?.hasMovingWagons() === true
@@ -3180,6 +3228,7 @@ function initializeRealmScene(
   const syncLivingRealmTelemetry = () => {
     const disturbances = surfaceDisturbances.getTelemetry(livingElapsedSeconds);
     const ecology = ambientEcologyLayer?.getTelemetry();
+    const rabbits = rabbitLayer?.getTelemetry();
     const forest = forestLayer?.getPresentationTelemetry();
     const values = {
       realmLivingGrassDisturbanceSlots: livingBudget.grassDisturbanceSlots,
@@ -3193,9 +3242,14 @@ function initializeRealmScene(
       realmLivingForestDrawCalls: forest?.drawCalls ?? 0,
       realmLivingForestWindAttributeBytes: forest?.windAttributeBytes ?? 0,
       realmLivingForestShaderFallbackCount: forest?.shaderFallbackCount ?? 0,
-      realmLivingEcologyDrawCalls: ecology?.drawCalls ?? 0,
-      realmLivingEcologyTriangles: ecology?.triangleCount ?? 0,
+      realmLivingEcologyDrawCalls: (ecology?.drawCalls ?? 0) + (rabbits?.drawCalls ?? 0),
+      realmLivingEcologyTriangles: (ecology?.triangleCount ?? 0)
+        + (rabbits?.triangleCount ?? 0),
       realmLivingBirdCount: ecology?.birdCount ?? 0,
+      realmLivingRabbitCount: rabbits?.instanceCount ?? 0,
+      realmLivingRabbitCapacity: rabbits?.instanceCapacity ?? 0,
+      realmLivingRabbitAssetReady: rabbits?.assetReady ?? false,
+      realmLivingRabbitLoadFallbackCount: rabbits?.loadFallbackCount ?? 0,
       realmLivingMoteCount: ecology?.moteCount ?? 0,
       realmLivingTransientParticleCount: ecology?.transientParticleCount ?? 0,
       realmLivingPlannerHz: ecology?.plannerHz ?? 0,
@@ -3302,6 +3356,7 @@ function initializeRealmScene(
       pose.mode,
       grassDisturbanceSnapshot
     );
+    rabbitLayer?.update(livingElapsedSeconds, pose.focus, pose.mode);
     syncLivingRealmTelemetry();
     const workerTelemetry = workerLayer?.getPresentationTelemetry();
     if (
@@ -3908,6 +3963,7 @@ function initializeRealmScene(
         waterDisturbanceSnapshot
       ) === true;
       const ecologyChanged = ambientEcologyLayer?.isAnimationActive() === true;
+      const rabbitsChanged = rabbitLayer?.isAnimationActive() === true;
       if (
         grassChanged
         || forestChanged
@@ -3919,6 +3975,7 @@ function initializeRealmScene(
         || workersMoving
         || waterChanged
         || ecologyChanged
+        || rabbitsChanged
       ) render();
     }
   });

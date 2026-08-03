@@ -18,7 +18,7 @@ function plan(): RealmGrassRenderPlan {
     hysteresisRadius: 2,
     cacheLimit: 8,
     maximumActiveInstances: 96,
-    maximumActiveTriangles: 2_016
+    maximumActiveTriangles: 2_592
   });
 }
 
@@ -50,7 +50,7 @@ describe('camera-local procedural grass layer', () => {
     expect(telemetry.overviewHidden).toBe(false);
     expect(telemetry.instanceCount).toBeGreaterThan(0);
     expect(telemetry.instanceCount).toBeLessThanOrEqual(96);
-    expect(telemetry.triangleCount).toBeLessThanOrEqual(2_016);
+    expect(telemetry.triangleCount).toBeLessThanOrEqual(2_592);
     expect(telemetry.drawCalls).toBeLessThanOrEqual(2);
     expect(telemetry.cacheEntries).toBeLessThanOrEqual(8);
     expect(telemetry.cacheLimit).toBe(8);

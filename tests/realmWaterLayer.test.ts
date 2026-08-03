@@ -822,7 +822,11 @@ describe('Realm canonical water layer', () => {
     expect(shader.vertexShader).toContain('* warpkeepWaterWaveVisibility');
     expect(shader.vertexShader).not.toContain('vViewPosition.xz');
     expect(shader.fragmentShader).toContain('outgoingLight +=');
-    expect(ocean.material.userData.waterShaderContract).toContain('-v7-ripples-4');
+    expect(shader.fragmentShader).toContain('float waterFresnel = pow(');
+    expect(shader.fragmentShader).toContain('vec3 waterReflectionColor = mix(');
+    expect(shader.fragmentShader).toContain('waterReflectionStrength * bankSoftness');
+    expect(ocean.material.userData.waterShaderContract)
+      .toContain('-v8-reflection-ripples-4');
     expect(shader.uniforms).toHaveProperty('uWaterTime');
     expect(layer.updateEnvironment(1)).toBe(true);
     expect(layer.updateEnvironment(1)).toBe(false);
@@ -874,7 +878,8 @@ describe('Realm canonical water layer', () => {
 
       expect(rivers.material.userData.waterWaveComponents).toBe(expectedWaveCount);
       expect(shader.vertexShader.match(/sin\(/g) ?? []).toHaveLength(expectedWaveCount);
-      expect(rivers.material.userData.waterShaderContract).toContain('-v7-ripples-');
+      expect(rivers.material.userData.waterShaderContract)
+        .toContain('-v8-reflection-ripples-');
 
       layer.dispose();
     }
