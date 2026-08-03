@@ -389,6 +389,7 @@ export function RenderedWebglQaHarness({
           onAudioMutedChange={setAudioMuted}
           onGraphicsPreferenceChange={setGraphicsPreference}
           onRequestReturn={() => setPhase({ kind: 'closed' })}
+          localQaLivingVisualTimeSeconds={8.25}
           localQaWorkerProjectionTelemetry={
             fixtureVariant === 'worker-locomotion'
             || fixtureVariant === 'worker-locomotion-northern'

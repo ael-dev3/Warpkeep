@@ -55,6 +55,11 @@ import {
 } from '../../game/map/terrainPlacements';
 import { createTerrainDecorationLayers } from './createTerrainDecorations';
 import { createRealmGrassLayer, type RealmGrassLayer, type RealmGrassTelemetry } from './createRealmGrassLayer';
+import {
+  createRealmAmbientEcologyLayer,
+  type RealmAmbientEcologyLayer
+} from './createRealmAmbientEcologyLayer';
+import { createRealmSurfaceDisturbanceField } from './realmSurfaceDisturbanceField';
 import { createRealmTerrainFeatureLayers } from './createRealmTerrainFeatures';
 import { createRealmForestLayer, type RealmForestLayer } from './realmForestLayer';
 import {
@@ -196,6 +201,7 @@ import {
 } from './realmPickArbitration';
 import {
   REALM_LIGHTING_SPECS,
+  resolveRealmLivingRealmBudget,
   resolveRealmPixelRatio,
   resolveRealmRenderPlan,
   type RealmQualitySpec
@@ -934,6 +940,8 @@ export type CreateRealmSceneOptions = Readonly<{
   terrainMetadata: readonly RealmTerrainSemanticRow[];
   quality: RealmQualitySpec;
   reducedMotion: boolean;
+  /** DEV-only frozen visual clock for deterministic rendered fixtures. */
+  livingVisualTimeSeconds?: number;
   baseUrl: string;
   /** Optional authoritative metadata boundary for camera navigation. */
   isCoordPassable?: (coord: HexCoord) => boolean;
@@ -1431,6 +1439,10 @@ function initializeRealmScene(
     dynamicShadows: renderPlan.dynamicShadows,
     shadowMapSize: renderPlan.shadowMapSize
   };
+  const livingBudget = resolveRealmLivingRealmBudget(
+    runtimeQuality.id,
+    options.reducedMotion
+  );
   const climatePlayableRadius = Math.max(1, options.surface.playableMap.radius);
   const northernSnow = createRealmNorthernSnowField({
     worldSeed: presentationSurface.renderMap.worldSeed,
@@ -1880,6 +1892,12 @@ function initializeRealmScene(
     options.canvas.dataset.waterShaderFallbackCount = String(
       telemetry?.shaderFallbackCount ?? 0
     );
+    options.canvas.dataset.waterRippleSlotCount = String(
+      telemetry?.rippleSlotCount ?? 0
+    );
+    options.canvas.dataset.waterActiveRippleCount = String(
+      telemetry?.activeRippleCount ?? 0
+    );
     options.canvas.dataset.waterRiverFallbackReasons = JSON.stringify(
       telemetry?.riverFallbackReasons ?? []
     );
@@ -2090,6 +2108,7 @@ function initializeRealmScene(
       ]),
       plan: renderPlan.grass,
       reducedMotion: options.reducedMotion,
+      livingBudget,
       hexSize: HEX_SIZE,
       alphaToCoverage: grassAlphaToCoverage,
       vegetationField,
@@ -2106,6 +2125,29 @@ function initializeRealmScene(
   } catch {
     // Decorative failure must not take the terrain, input, or castle layer down.
     options.canvas.dataset.grassPresentation = 'unavailable';
+  }
+  const surfaceDisturbances = createRealmSurfaceDisturbanceField(
+    livingBudget.grassDisturbanceSlots + livingBudget.waterRippleSlots
+  );
+  cleanup.add(surfaceDisturbances.dispose);
+  let ambientEcologyLayer: RealmAmbientEcologyLayer | null = null;
+  try {
+    const nextAmbientEcologyLayer = createRealmAmbientEcologyLayer({
+      budget: livingBudget,
+      frozenVisualTimeSeconds: options.livingVisualTimeSeconds
+    });
+    ambientEcologyLayer = nextAmbientEcologyLayer;
+    scene.add(nextAmbientEcologyLayer.group);
+    cleanup.add(() => {
+      scene.remove(nextAmbientEcologyLayer.group);
+      nextAmbientEcologyLayer.dispose();
+      if (ambientEcologyLayer === nextAmbientEcologyLayer) {
+        ambientEcologyLayer = null;
+      }
+    });
+  } catch {
+    // Optional ecology is independent of terrain, interaction, and authority.
+    ambientEcologyLayer = null;
   }
   const emptyGrassTelemetry: RealmGrassTelemetry = Object.freeze({
     candidateCellCount: 0,
@@ -2780,6 +2822,12 @@ function initializeRealmScene(
   let contextLossCount = 0;
   let contextRestoreCount = 0;
   let ambientScheduler: RealmAmbientScheduler | null = null;
+  let livingElapsedSeconds = 0;
+  const workerWakeSamples = new Map<string, {
+    x: number;
+    z: number;
+    sampledAtSeconds: number;
+  }>();
   let workerMovementWakeTimer: number | null = null;
   let workerMovementWakeGeneration = 0;
   let workerMovementWakeSuspended = false;
@@ -2861,6 +2909,8 @@ function initializeRealmScene(
         ) > 0
         && (
           grassLayer?.isAnimationActive() === true
+          || forestLayer?.isAnimationActive() === true
+          || ambientEcologyLayer?.isAnimationActive() === true
           || decorations.animated
           || goldNodeLayer?.hasMovingWagons() === true
           || foodNodeLayer?.hasMovingWagons() === true
@@ -3080,6 +3130,69 @@ function initializeRealmScene(
     if (options.canvas.dataset[key] === value) return;
     options.canvas.dataset[key] = value;
   };
+  const sampleWorkerSurfaceWakes = (seconds: number) => {
+    if (
+      livingBudget.grassDisturbanceSlots === 0
+      && livingBudget.waterRippleSlots === 0
+    ) return;
+    if (workerWakeSamples.size > 128) workerWakeSamples.clear();
+    for (const worker of workerLayer?.getPresenceRecords() ?? []) {
+      if (worker.direction !== 'outbound' && worker.direction !== 'returning') {
+        workerWakeSamples.delete(worker.workerId);
+        continue;
+      }
+      const previous = workerWakeSamples.get(worker.workerId);
+      const next = {
+        x: worker.world.x,
+        z: worker.world.z,
+        sampledAtSeconds: seconds
+      };
+      workerWakeSamples.set(worker.workerId, next);
+      if (!previous || seconds - previous.sampledAtSeconds < 0.16) continue;
+      const distance = Math.hypot(
+        next.x - previous.x,
+        next.z - previous.z
+      );
+      // Ignore sub-pixel jitter and discontinuous catalog/reconciliation jumps.
+      if (distance < 0.12 || distance > 1.5) continue;
+      const water = waterCellCoordinateKeys.has(hexKey(worker.coord));
+      surfaceDisturbances.push({
+        kind: water ? 'water' : 'grass',
+        x: next.x,
+        z: next.z,
+        radius: water ? 0.82 : 0.62,
+        strength: Math.min(1, 0.34 + distance * 1.35),
+        createdAtSeconds: seconds,
+        lifetimeSeconds: water ? 2.2 : 0.92
+      });
+    }
+  };
+  const syncLivingRealmTelemetry = () => {
+    const disturbances = surfaceDisturbances.getTelemetry(livingElapsedSeconds);
+    const ecology = ambientEcologyLayer?.getTelemetry();
+    const forest = forestLayer?.getPresentationTelemetry();
+    const values = {
+      realmLivingGrassDisturbanceSlots: livingBudget.grassDisturbanceSlots,
+      realmLivingWaterRippleSlots: livingBudget.waterRippleSlots,
+      realmLivingActiveGrassDisturbances: disturbances.activeGrassCount,
+      realmLivingActiveWaterRipples: disturbances.activeWaterCount,
+      realmLivingDisturbanceInsertions: disturbances.insertedCount,
+      realmLivingDisturbanceDrops: disturbances.droppedCount,
+      realmLivingForestMotion: forest?.canopyMotionState ?? 'static',
+      realmLivingForestWindAttributeBytes: forest?.windAttributeBytes ?? 0,
+      realmLivingEcologyDrawCalls: ecology?.drawCalls ?? 0,
+      realmLivingEcologyTriangles: ecology?.triangleCount ?? 0,
+      realmLivingBirdCount: ecology?.birdCount ?? 0,
+      realmLivingMoteCount: ecology?.moteCount ?? 0,
+      realmLivingTransientParticleCount: ecology?.transientParticleCount ?? 0,
+      realmLivingPlannerHz: ecology?.plannerHz ?? 0,
+      realmLivingPlannerTickCount: ecology?.plannerTickCount ?? 0,
+      realmLivingOverviewHidden: ecology?.overviewHidden ?? true
+    } as const;
+    for (const [key, value] of Object.entries(values)) {
+      setCanvasDatasetValue(key, String(value));
+    }
+  };
   const render = () => {
     if (cleanup.isDisposed()) return;
     if (contextLost) return;
@@ -3164,6 +3277,19 @@ function initializeRealmScene(
     const expeditionPresentationNowMicros = localPresentationNowMicros();
     workerLayer?.setCameraMode(pose.mode);
     workerLayer?.update(expeditionPresentationNowMicros);
+    sampleWorkerSurfaceWakes(livingElapsedSeconds);
+    const grassDisturbanceSnapshot = surfaceDisturbances.snapshot(
+      'grass',
+      livingElapsedSeconds,
+      livingBudget.grassDisturbanceSlots
+    );
+    ambientEcologyLayer?.update(
+      livingElapsedSeconds,
+      pose.focus,
+      pose.mode,
+      grassDisturbanceSnapshot
+    );
+    syncLivingRealmTelemetry();
     const workerTelemetry = workerLayer?.getPresentationTelemetry();
     if (
       workerTelemetry
@@ -3688,6 +3814,8 @@ function initializeRealmScene(
   });
   const handleRenderVisibility = () => {
     if (document.hidden) {
+      workerWakeSamples.clear();
+      surfaceDisturbances.clear();
       workerMovementWakeSuspended = (
         presentationActive
         && options.canvas.dataset.realmCanvasActive !== 'false'
@@ -3740,16 +3868,36 @@ function initializeRealmScene(
     active: ambientIsNeeded(),
     onStep: (elapsedSeconds) => {
       if (cleanup.isDisposed()) return;
-      const grassChanged = grassLayer?.updateWind(elapsedSeconds) === true;
+      livingElapsedSeconds = elapsedSeconds;
+      const grassDisturbanceSnapshot = surfaceDisturbances.snapshot(
+        'grass',
+        elapsedSeconds,
+        livingBudget.grassDisturbanceSlots
+      );
+      const waterDisturbanceSnapshot = surfaceDisturbances.snapshot(
+        'water',
+        elapsedSeconds,
+        livingBudget.waterRippleSlots
+      );
+      const grassChanged = grassLayer?.updateWind(
+        elapsedSeconds,
+        grassDisturbanceSnapshot
+      ) === true;
+      const forestChanged = forestLayer?.updateWind(elapsedSeconds) === true;
       const terrainChanged = decorations.updateWind(elapsedSeconds);
       const wagonsMoving = goldNodeLayer?.hasMovingWagons() === true;
       const foodWagonsMoving = foodNodeLayer?.hasMovingWagons() === true;
       const woodWagonsMoving = woodNodeLayer?.hasMovingWagons() === true;
       const stoneWagonsMoving = stoneNodeLayer?.hasMovingWagons() === true;
       const workersMoving = workerLayer?.hasMovingWorkers() === true;
-      const waterChanged = waterLayer?.updateEnvironment(elapsedSeconds) === true;
+      const waterChanged = waterLayer?.updateEnvironment(
+        elapsedSeconds,
+        waterDisturbanceSnapshot
+      ) === true;
+      const ecologyChanged = ambientEcologyLayer?.isAnimationActive() === true;
       if (
         grassChanged
+        || forestChanged
         || terrainChanged
         || wagonsMoving
         || foodWagonsMoving
@@ -3757,6 +3905,7 @@ function initializeRealmScene(
         || stoneWagonsMoving
         || workersMoving
         || waterChanged
+        || ecologyChanged
       ) render();
     }
   });
@@ -4379,6 +4528,8 @@ function initializeRealmScene(
     options.canvas.dataset.realmRendererContextRestoreCount = String(contextRestoreCount);
     cancelAllPointers(pointerGestures.blur());
     cancelWorkerMovementWake();
+    workerWakeSamples.clear();
+    surfaceDisturbances.clear();
     ambientScheduler?.setActive(false);
     options.onRendererFailure?.({
       code: 'context-lost',
@@ -5143,6 +5294,8 @@ function initializeRealmScene(
         workerMovementWakeSuspended = false;
         renderPendingWhileHidden = false;
         cancelWorkerMovementWake();
+        workerWakeSamples.clear();
+        surfaceDisturbances.clear();
       }
       ambientScheduler?.setActive(active && ambientIsNeeded());
       if (active) render();
