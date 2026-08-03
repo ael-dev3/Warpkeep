@@ -970,8 +970,9 @@ describe('Farcaster Mini App host provider', () => {
     expect(addMiniApp).toHaveBeenCalledTimes(1);
   });
 
-  it('preserves a definitive rejection event over a late successful add result', async () => {
-    const pending = deferred<unknown>();
+  it('starts a fresh retry after rejection and ignores the old late result', async () => {
+    const firstPending = deferred<unknown>();
+    const retryPending = deferred<unknown>();
     const context = validContext();
     const host = fakeSdk({
       context: Promise.resolve({
@@ -983,7 +984,9 @@ describe('Farcaster Mini App host provider', () => {
         'actions.addMiniApp'
       ])
     });
-    const addMiniApp = vi.fn(() => pending.promise);
+    const addMiniApp = vi.fn()
+      .mockImplementationOnce(() => firstPending.promise)
+      .mockImplementationOnce(() => retryPending.promise);
     host.sdk.actions.addMiniApp = addMiniApp;
     let latest: MiniAppHostValue | undefined;
     render(
@@ -1002,8 +1005,13 @@ describe('Farcaster Mini App host provider', () => {
     }));
     expect(latest?.notificationPresentation).toBe('rejected');
 
+    const retry = latest!.actions.addMiniApp();
+    await act(async () => Promise.resolve());
+    expect(addMiniApp).toHaveBeenCalledTimes(2);
+    expect(latest?.notificationPresentation).toBe('requesting');
+
     await act(async () => {
-      pending.resolve({
+      firstPending.resolve({
         notificationDetails: {
           token: 'private-notification-token',
           url: 'https://api.warpcast.com/v1/frame-notifications'
@@ -1012,8 +1020,20 @@ describe('Farcaster Mini App host provider', () => {
       await attempt;
     });
     await expect(attempt).resolves.toEqual({ status: 'enabled-hint' });
-    expect(latest?.notificationPresentation).toBe('rejected');
-    expect(addMiniApp).toHaveBeenCalledTimes(1);
+    expect(latest?.notificationPresentation).toBe('requesting');
+
+    await act(async () => {
+      retryPending.resolve({
+        notificationDetails: {
+          token: 'private-retry-notification-token',
+          url: 'https://api.warpcast.com/v1/frame-notifications'
+        }
+      });
+      await retry;
+    });
+    await expect(retry).resolves.toEqual({ status: 'enabled-hint' });
+    expect(latest?.notificationPresentation).toBe('enabled-hint');
+    expect(addMiniApp).toHaveBeenCalledTimes(2);
   });
 
   it('cleans exact listeners and ignores an add result from a replaced host', async () => {

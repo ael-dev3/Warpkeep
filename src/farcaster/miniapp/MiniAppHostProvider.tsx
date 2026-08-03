@@ -357,7 +357,8 @@ type MiniAppNotificationProjectionController = Readonly<{
 
 function installMiniAppNotificationListeners(
   sdk: MiniAppSdk,
-  apply: (update: MiniAppNotificationProjectionUpdate) => void
+  apply: (update: MiniAppNotificationProjectionUpdate) => void,
+  settleAddMiniAppFlight: () => void
 ): () => void {
   let on: MiniAppSdk['on'];
   let removeListener: MiniAppSdk['removeListener'];
@@ -381,6 +382,7 @@ function installMiniAppNotificationListeners(
         added: true,
         notificationsEnabledHint: enabled
       });
+      settleAddMiniAppFlight();
     } catch {
       // A malformed or mutable event cannot escape the host boundary.
     }
@@ -389,13 +391,15 @@ function installMiniAppNotificationListeners(
     event
   ) => {
     try {
+      const presentation = event.reason === 'rejected_by_user'
+        ? 'rejected'
+        : event.reason === 'invalid_domain_manifest'
+          ? 'invalid-manifest'
+          : 'failed';
       apply({
-        presentation: event.reason === 'rejected_by_user'
-          ? 'rejected'
-          : event.reason === 'invalid_domain_manifest'
-            ? 'invalid-manifest'
-            : 'failed'
+        presentation
       });
+      settleAddMiniAppFlight();
     } catch {
       // A malformed or mutable event cannot escape the host boundary.
     }
@@ -407,6 +411,7 @@ function installMiniAppNotificationListeners(
         added: false,
         notificationsEnabledHint: false
       });
+      settleAddMiniAppFlight();
     } catch {
       // Event callbacks are isolated from the host shell.
     }
@@ -417,6 +422,7 @@ function installMiniAppNotificationListeners(
     try {
       if (!readMiniAppNotificationDetailsHint(event.notificationDetails)) {
         apply({ presentation: 'failed' });
+        settleAddMiniAppFlight();
         return;
       }
       apply({
@@ -424,6 +430,7 @@ function installMiniAppNotificationListeners(
         added: true,
         notificationsEnabledHint: true
       });
+      settleAddMiniAppFlight();
     } catch {
       // A malformed or mutable event cannot escape the host boundary.
     }
@@ -437,6 +444,7 @@ function installMiniAppNotificationListeners(
         added: true,
         notificationsEnabledHint: false
       });
+      settleAddMiniAppFlight();
     } catch {
       // Event callbacks are isolated from the host shell.
     }
@@ -967,9 +975,19 @@ export function MiniAppHostProvider({
       });
       snapshotRef.current = initialSnapshot;
       setSnapshot(initialSnapshot);
+      const settleAddMiniAppFlight = () => {
+        const flight = addMiniAppFlightRef.current;
+        if (
+          flight?.sdk === sdk
+          && flight.generation === attemptGeneration
+        ) {
+          addMiniAppFlightRef.current = undefined;
+        }
+      };
       removeNotificationListeners = installMiniAppNotificationListeners(
         sdk,
-        applyNotificationProjection
+        applyNotificationProjection,
+        settleAddMiniAppFlight
       );
     })();
 
@@ -1152,7 +1170,12 @@ export function MiniAppHostProvider({
     // before any host promise or React commit can allow a duplicate prompt.
     projection.apply({ presentation: 'requesting' });
 
+    let flight: NonNullable<typeof addMiniAppFlightRef.current>;
     const reconcileResult = (result: MiniAppAddResult) => {
+      // A definitive host event can settle this attempt before the action
+      // promise. Require exact flight identity so a late result cannot alter a
+      // newer prompt started in the same SDK generation.
+      if (addMiniAppFlightRef.current !== flight) return;
       const activeProjection = notificationProjectionRef.current;
       if (
         !activeProjection
@@ -1221,7 +1244,6 @@ export function MiniAppHostProvider({
         }
       });
 
-    let flight: NonNullable<typeof addMiniAppFlightRef.current>;
     const promise = withMiniAppHostDeadline(
       hostResultPromise,
       addMiniAppDeadline
