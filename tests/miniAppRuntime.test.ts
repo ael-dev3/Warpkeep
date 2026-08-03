@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   hasExactMiniAppHint,
   installMiniAppQuickAuthPreconnect,
+  readMiniAppNotificationDetailsHint,
   readMiniAppQuickAuthToken,
   sanitizeMiniAppCapabilities,
   sanitizeMiniAppContext
@@ -72,6 +73,7 @@ describe('Farcaster Mini App runtime sanitization', () => {
       client: {
         clientFid: 9_150,
         added: true,
+        notificationsEnabledHint: false,
         platformType: 'mobile',
         safeAreaInsets: {
           top: 999,
@@ -104,6 +106,7 @@ describe('Farcaster Mini App runtime sanitization', () => {
       client: {
         clientFid: 9_150,
         added: true,
+        notificationsEnabledHint: false,
         platformType: 'mobile',
         safeAreaInsets: {
           top: 160,
@@ -148,6 +151,7 @@ describe('Farcaster Mini App runtime sanitization', () => {
       client: {
         clientFid: 9_150,
         added: false,
+        notificationsEnabledHint: false,
         safeAreaInsets: { top: 0, right: 0, bottom: 2, left: 3 }
       },
       features: {
@@ -155,5 +159,125 @@ describe('Farcaster Mini App runtime sanitization', () => {
         cameraAndMicrophoneAccess: false
       }
     });
+  });
+
+  it('reduces valid notification details to one boolean and retains no secret', () => {
+    const token = 'private-notification-token';
+    const url = 'https://api.warpcast.com/v1/frame-notifications';
+    expect(readMiniAppNotificationDetailsHint({ token, url })).toBe(true);
+    expect(readMiniAppNotificationDetailsHint({ token: 'short', url })).toBe(false);
+    expect(readMiniAppNotificationDetailsHint({ token, url: 'http://example.com' }))
+      .toBe(false);
+    expect(readMiniAppNotificationDetailsHint({ token, url, extra: 'ignored' }))
+      .toBe(true);
+
+    const context = sanitizeMiniAppContext({
+      user: { fid: 539_854 },
+      client: {
+        clientFid: 9_150,
+        added: true,
+        notificationDetails: { token, url }
+      }
+    }, { width: 400, height: 800 });
+
+    expect(context?.client.notificationsEnabledHint).toBe(true);
+    expect(JSON.stringify(context)).not.toContain(token);
+    expect(JSON.stringify(context)).not.toContain(url);
+
+    const mutableClient: Record<string, unknown> = {
+      clientFid: 9_150,
+      added: true
+    };
+    Object.defineProperty(mutableClient, 'notificationDetails', {
+      get() {
+        throw new Error('private mutable host detail');
+      }
+    });
+    const poisoned = sanitizeMiniAppContext({
+      user: { fid: 539_854 },
+      client: mutableClient
+    }, { width: 400, height: 800 });
+    expect(poisoned?.client.notificationsEnabledHint).toBe(false);
+  });
+
+  it('rejects oversized or mutable notification tokens before encoding them', () => {
+    const encode = vi.spyOn(TextEncoder.prototype, 'encode');
+    expect(readMiniAppNotificationDetailsHint({
+      token: 'x'.repeat(2_049),
+      url: 'https://api.warpcast.com/v1/frame-notifications'
+    })).toBe(false);
+    expect(encode).not.toHaveBeenCalled();
+
+    let tokenReads = 0;
+    let urlReads = 0;
+    const mutable: Record<string, unknown> = {};
+    Object.defineProperties(mutable, {
+      token: {
+        get() {
+          tokenReads += 1;
+          return tokenReads === 1
+            ? 'private-notification-token'
+            : 'mutated-private-token';
+        }
+      },
+      url: {
+        get() {
+          urlReads += 1;
+          return 'https://api.warpcast.com/v1/frame-notifications';
+        }
+      }
+    });
+    expect(readMiniAppNotificationDetailsHint(mutable)).toBe(true);
+    expect(tokenReads).toBe(1);
+    expect(urlReads).toBe(1);
+    encode.mockRestore();
+  });
+
+  it('accepts only an exact bounded Warpkeep approval notification launch', () => {
+    const valid = sanitizeMiniAppContext({
+      user: { fid: 539_854 },
+      client: { clientFid: 9_150, added: true },
+      location: {
+        type: 'notification',
+        notification: {
+          notificationId: 'warpkeep-access-approved-v1-e42',
+          title: 'must-not-pass-through',
+          body: 'must-not-pass-through'
+        }
+      }
+    }, { width: 400, height: 800 });
+    expect(valid?.locationType).toBe('notification');
+    expect(valid?.notificationId).toBe('warpkeep-access-approved-v1-e42');
+    expect(JSON.stringify(valid)).not.toContain('must-not-pass-through');
+
+    for (const notificationId of [
+      'warpkeep-access-approved-v1-e0',
+      'warpkeep-access-approved-v1-e01',
+      'warpkeep-access-approved-v2-e1',
+      `warpkeep-access-approved-v1-e${'1'.repeat(129)}`
+    ]) {
+      const context = sanitizeMiniAppContext({
+        user: { fid: 539_854 },
+        client: { clientFid: 9_150, added: true },
+        location: {
+          type: 'notification',
+          notification: { notificationId, title: 'x', body: 'y' }
+        }
+      }, { width: 400, height: 800 });
+      expect(context?.locationType).toBe('notification');
+      expect(context?.notificationId).toBeUndefined();
+    }
+
+    const launcher = sanitizeMiniAppContext({
+      user: { fid: 539_854 },
+      client: { clientFid: 9_150, added: true },
+      location: {
+        type: 'launcher',
+        notification: {
+          notificationId: 'warpkeep-access-approved-v1-e42'
+        }
+      }
+    }, { width: 400, height: 800 });
+    expect(launcher?.notificationId).toBeUndefined();
   });
 });

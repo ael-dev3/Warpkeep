@@ -306,6 +306,22 @@ retains or exposes the notification token or delivery URL. A completed prompt
 is described as setup requested, not as proof that server registration or
 future delivery succeeded.
 
+The control is staged behind the exact public presentation gate
+`VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED`. Only the literal value `true`
+enables it; the checked-in example and Pages fallback are `false`. This gate
+does not enable delivery, alter Quick Auth, submit another access request, or
+change admission. The repository currently contains no privacy-safe record of
+the required genuine production signed add/enable and disable/remove canary, so
+the gate must remain false until the owner completes and records that review.
+
+The host adapter projects add/remove, enable/disable, rejection, invalid
+manifest, timeout, and setup-pending outcomes into a closed presentation state.
+Listeners are installed once per verified SDK generation and removed with the
+exact callback on teardown or host replacement. **NOT NOW** collapses the
+optional control only for the current mounted session. The UI never claims
+delivery is guaranteed and never treats a rejected native prompt as an access
+failure.
+
 Farcaster sends notification preference changes to the manifest's exact
 server-only webhook as a signed JFS envelope. The bridge verifies the official
 envelope format, requires two independent Hub views of the app key, verifies
@@ -326,6 +342,28 @@ twice. `notify-admitted <fid> --confirm` is the idempotent recovery path if the
 database commit succeeds but the notification side effect is interrupted.
 Notification preference and delivery add no SpacetimeDB schema or browser
 authority.
+
+The current Worker payload is deliberately retained for this frontend stage:
+
+```txt
+notificationId: warpkeep-access-approved-v1-e<positive-auth-epoch>
+title (23): The Hegemony admits you
+body (56): Your keep awaits in Genesis 001. Enter the living Realm.
+targetUrl: https://warpkeep.com/?miniApp=true
+```
+
+The title and body are within Farcaster's bounds, contain no identity or
+private state, and accurately describe the event. Changing them would require
+a separate reviewed Worker rollout, so copy changes are not coupled to this
+default-off client integration.
+
+For a notification launch, the browser retains only
+`location.type === "notification"` and a notification ID matching
+`warpkeep-access-approved-v1-e<positiveInteger>` within the 128-character
+limit. Host title and body are discarded. Warpkeep then shows a short
+confirmation state and runs normal Quick Auth, current admission, Terms, and
+canonical-keep checks. A pending or changed account stays pending; the
+notification itself never grants access or creates another keep.
 
 **CHECK ADMISSION** is a typed, read-only presentation around credentialed
 `/v2/session/refresh`, not a new Farcaster channel or access-request mutation.
@@ -415,6 +453,7 @@ The static browser receives only public coordinates:
 VITE_SPACETIMEDB_URI=https://maincloud.spacetimedb.com
 VITE_SPACETIMEDB_DATABASE=c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e
 VITE_WARPKEEP_SHARED_ALPHA_ENABLED=true
+VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED=false
 VITE_WARPKEEP_AUTH_BRIDGE_URL=https://auth.warpkeep.com
 VITE_WARPKEEP_OIDC_ISSUER=https://auth.warpkeep.com
 VITE_WARPKEEP_OIDC_AUDIENCE=warpkeep-spacetimedb
@@ -485,11 +524,13 @@ Notification rollout is ordered: install the independent operator secret on
 the current bridge first; publish the complete Hub/client/secret tuple plus the
 additive Durable Object and Worker routes with outbound delivery paused; enable
 and attest the Worker; publish the manifest alone as a production-domain canary;
-prove one owner-controlled signed enable and disable cycle; then publish the
-opt-in UI. Farcaster cannot deliver a real event before the production manifest
-advertises the webhook, so automated fixtures are never accepted as that canary
-proof. Rollback pauses outbound delivery first but keeps the manifest, verifier,
-`v5` cleanup implementation, and signed opt-outs reachable.
+prove one owner-controlled signed enable and disable cycle; then set the client
+presentation gate to `true` in one reviewed release and publish the opt-in UI.
+Farcaster cannot deliver a real event before the production manifest advertises
+the webhook, so automated fixtures are never accepted as that canary proof.
+Rollback pauses outbound delivery first, returns the client gate to `false`,
+and keeps the manifest, verifier, `v5` cleanup implementation, and signed
+opt-outs reachable.
 
 Before a production change, use disposable migration tests and fresh bounded
 aggregate inspection, then verify OIDC metadata, resolver behavior, retired

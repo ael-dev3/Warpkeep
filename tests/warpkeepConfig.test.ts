@@ -14,7 +14,20 @@ describe('Warpkeep runtime configuration', () => {
     expect(config.spacetimeDatabase).toBe(DEFAULT_SPACETIMEDB_DATABASE);
     expect(config.publicConfigValid).toBe(true);
     expect(config.sharedAlphaEnabled).toBe(false);
+    expect(config.admissionNotificationsEnabled).toBe(false);
     expect(hasUsableWarpkeepBridge(config)).toBe(false);
+  });
+
+  it('enables admission-notification presentation only for an explicit true value', () => {
+    expect(readWarpkeepRuntimeConfig({
+      VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'true'
+    }).admissionNotificationsEnabled).toBe(true);
+    expect(readWarpkeepRuntimeConfig({
+      VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'TRUE'
+    }).admissionNotificationsEnabled).toBe(false);
+    expect(readWarpkeepRuntimeConfig({
+      VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'yes'
+    }).admissionNotificationsEnabled).toBe(false);
   });
 
   it('accepts only an explicit development localhost bridge, never production localhost HTTP', () => {

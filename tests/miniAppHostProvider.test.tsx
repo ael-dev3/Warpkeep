@@ -8,7 +8,8 @@ import {
   useMiniAppHost,
   type MiniAppBrowserRuntime,
   type MiniAppHostValue,
-  type MiniAppSdk
+  type MiniAppSdk,
+  type MiniAppSdkEventName
 } from '../src/farcaster/miniapp';
 import {
   WarpkeepHapticsDirector,
@@ -74,6 +75,24 @@ function fakeSdk(overrides: Partial<MiniAppSdk> = {}) {
     show: vi.fn(async () => {}),
     hide: vi.fn(async () => {})
   };
+  const listeners = new Map<
+    MiniAppSdkEventName,
+    Set<(...args: never[]) => void>
+  >();
+  const on = vi.fn((
+    event: MiniAppSdkEventName,
+    listener: (...args: never[]) => void
+  ) => {
+    const eventListeners = listeners.get(event) ?? new Set();
+    eventListeners.add(listener);
+    listeners.set(event, eventListeners);
+  });
+  const removeListener = vi.fn((
+    event: MiniAppSdkEventName,
+    listener: (...args: never[]) => void
+  ) => {
+    listeners.get(event)?.delete(listener);
+  });
   const sdk: MiniAppSdk = {
     isInMiniApp: vi.fn(async () => true),
     context: Promise.resolve(validContext()),
@@ -83,6 +102,8 @@ function fakeSdk(overrides: Partial<MiniAppSdk> = {}) {
       'haptics.selectionChanged',
       'back'
     ]),
+    on,
+    removeListener,
     back,
     actions: {
       ready: vi.fn(async () => {}),
@@ -99,7 +120,12 @@ function fakeSdk(overrides: Partial<MiniAppSdk> = {}) {
     },
     ...overrides
   };
-  return { sdk, back };
+  const emit = (event: MiniAppSdkEventName, payload?: unknown) => {
+    for (const listener of listeners.get(event) ?? []) {
+      (listener as (value?: unknown) => void)(payload);
+    }
+  };
+  return { sdk, back, emit, listeners, on, removeListener };
 }
 
 function deferred<T>() {
@@ -118,6 +144,7 @@ function Harness({
   sdkLoader,
   capture,
   hostDeadlineMilliseconds,
+  addMiniAppDeadlineMilliseconds,
   quickAuthDeadlineMilliseconds
 }: {
   children?: ReactNode;
@@ -125,6 +152,7 @@ function Harness({
   sdkLoader: () => Promise<unknown>;
   capture: (value: MiniAppHostValue) => void;
   hostDeadlineMilliseconds?: number;
+  addMiniAppDeadlineMilliseconds?: number;
   quickAuthDeadlineMilliseconds?: number;
 }) {
   function Probe() {
@@ -134,6 +162,7 @@ function Harness({
   return (
     <MiniAppHostProvider
       hostDeadlineMilliseconds={hostDeadlineMilliseconds}
+      addMiniAppDeadlineMilliseconds={addMiniAppDeadlineMilliseconds}
       quickAuthDeadlineMilliseconds={quickAuthDeadlineMilliseconds}
       runtime={runtime}
       sdkLoader={sdkLoader}
@@ -289,6 +318,7 @@ describe('Farcaster Mini App host provider', () => {
       client: {
         clientFid: 9_150,
         added: true,
+        notificationsEnabledHint: false,
         platformType: 'mobile',
         safeAreaInsets: {
           top: 160,
@@ -303,6 +333,7 @@ describe('Farcaster Mini App host provider', () => {
       },
       locationType: 'launcher'
     });
+    expect(latest?.notificationPresentation).toBe('unsupported');
     expect(JSON.stringify(latest?.context)).not.toContain('privateHostPayload');
 
     const safeAreaStyle = document.head.querySelector(
@@ -443,6 +474,10 @@ describe('Farcaster Mini App host provider', () => {
     expect(await latest!.actions.openUrl('javascript:alert(1)')).toBe(false);
     expect(await latest!.actions.close()).toBe(false);
     expect(sdk.actions.close).not.toHaveBeenCalled();
+    expect(await latest!.actions.addMiniApp()).toEqual({
+      status: 'unsupported'
+    });
+    expect(sdk.actions.addMiniApp).not.toHaveBeenCalled();
 
     expect(await latest!.haptics.selectionChanged()).toBe(true);
     expect(await latest!.haptics.impactOccurred('light')).toBe(false);
@@ -567,6 +602,500 @@ describe('Farcaster Mini App host provider', () => {
     expect(onRequestAccess).toHaveBeenCalledTimes(2);
     await waitFor(() => expect(sdk.haptics?.impactOccurred)
       .toHaveBeenCalledExactlyOnceWith('light'));
+  });
+
+  it('keeps notification events secret-free, generation-bound, and resize-safe', async () => {
+    let viewport = { width: 400, height: 800 };
+    let notifyViewportChange = () => {};
+    const unsubscribe = vi.fn();
+    const token = 'private-notification-token';
+    const deliveryUrl = 'https://api.warpcast.com/v1/frame-notifications';
+    const context = validContext();
+    const runtime: MiniAppBrowserRuntime = {
+      ...runtimeFor('?miniApp=true'),
+      viewport: () => viewport,
+      subscribeViewportChange: (listener) => {
+        notifyViewportChange = listener;
+        return unsubscribe;
+      }
+    };
+    const host = fakeSdk({
+      context: Promise.resolve({
+        ...context,
+        client: {
+          ...context.client,
+          notificationDetails: { token, url: deliveryUrl }
+        },
+        location: {
+          type: 'notification',
+          notification: {
+            notificationId: 'warpkeep-access-approved-v1-e42',
+            title: 'must-not-pass-through',
+            body: 'must-not-pass-through'
+          }
+        }
+      }),
+      getCapabilities: vi.fn(async () => [
+        'actions.ready',
+        'actions.addMiniApp'
+      ])
+    });
+    let latest: MiniAppHostValue | undefined;
+    const view = render(
+      <StrictMode>
+        <Harness
+          runtime={runtime}
+          sdkLoader={async () => host.sdk}
+          capture={(value) => { latest = value; }}
+        />
+      </StrictMode>
+    );
+
+    await waitFor(() => expect(latest?.state).toBe('miniapp'));
+    expect(latest?.notificationPresentation).toBe('enabled-hint');
+    expect(latest?.context?.client.notificationsEnabledHint).toBe(true);
+    expect(latest?.context?.notificationId)
+      .toBe('warpkeep-access-approved-v1-e42');
+    for (const event of [
+      'miniAppAdded',
+      'miniAppAddRejected',
+      'miniAppRemoved',
+      'notificationsEnabled',
+      'notificationsDisabled'
+    ] as const) {
+      expect(host.on).toHaveBeenCalledWith(event, expect.any(Function));
+    }
+    expect(host.on).toHaveBeenCalledTimes(5);
+    expect(JSON.stringify(latest?.context)).not.toContain(token);
+    expect(JSON.stringify(latest?.context)).not.toContain(deliveryUrl);
+    expect(JSON.stringify(latest?.context)).not.toContain('must-not-pass-through');
+
+    act(() => host.emit('notificationsDisabled'));
+    expect(latest?.notificationPresentation).toBe('disabled-hint');
+    expect(latest?.context?.client.notificationsEnabledHint).toBe(false);
+    expect(latest?.context?.notificationId)
+      .toBe('warpkeep-access-approved-v1-e42');
+
+    act(() => {
+      viewport = { width: 200, height: 400 };
+      notifyViewportChange();
+    });
+    await waitFor(() => {
+      expect(latest?.context?.client.safeAreaInsets.top).toBe(100);
+    });
+    expect(latest?.notificationPresentation).toBe('disabled-hint');
+    expect(latest?.context?.client.notificationsEnabledHint).toBe(false);
+    expect(latest?.context?.notificationId)
+      .toBe('warpkeep-access-approved-v1-e42');
+
+    act(() => host.emit('miniAppAdded', {}));
+    expect(latest?.notificationPresentation).toBe('added-status-unknown');
+    act(() => host.emit('miniAppAddRejected', {
+      reason: 'rejected_by_user'
+    }));
+    expect(latest?.notificationPresentation).toBe('rejected');
+    act(() => host.emit('miniAppAddRejected', {
+      reason: 'invalid_domain_manifest'
+    }));
+    expect(latest?.notificationPresentation).toBe('invalid-manifest');
+    const poisonedEvent: Record<string, unknown> = {};
+    Object.defineProperty(poisonedEvent, 'notificationDetails', {
+      get() {
+        throw new Error('private mutable event detail');
+      }
+    });
+    expect(() => act(() => {
+      host.emit('notificationsEnabled', poisonedEvent);
+    })).not.toThrow();
+    expect(latest?.notificationPresentation).toBe('invalid-manifest');
+    act(() => host.emit('notificationsEnabled', {
+      notificationDetails: { token: 'short', url: deliveryUrl }
+    }));
+    expect(latest?.notificationPresentation).toBe('failed');
+    act(() => host.emit('notificationsEnabled', {
+      notificationDetails: { token, url: deliveryUrl }
+    }));
+    expect(latest?.notificationPresentation).toBe('enabled-hint');
+    expect(latest?.context?.client.notificationsEnabledHint).toBe(true);
+    act(() => host.emit('miniAppRemoved'));
+    expect(latest?.notificationPresentation).toBe('not-added');
+    expect(latest?.context?.client.added).toBe(false);
+
+    view.unmount();
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect(host.removeListener).toHaveBeenCalledTimes(5);
+    expect(Array.from(host.listeners.values()).every((set) => set.size === 0))
+      .toBe(true);
+  });
+
+  it('single-flights 20 add prompts, binds the receiver, and discards its private result', async () => {
+    const pending = deferred<unknown>();
+    const token = 'private-notification-token';
+    const deliveryUrl = 'https://api.warpcast.com/v1/frame-notifications';
+    const context = validContext();
+    const host = fakeSdk({
+      context: Promise.resolve({
+        ...context,
+        client: { ...context.client, added: false }
+      }),
+      getCapabilities: vi.fn(async () => [
+        'actions.ready',
+        'actions.addMiniApp'
+      ])
+    });
+    const actions = host.sdk.actions;
+    const addMiniApp = vi.fn(function (this: unknown) {
+      if (this !== actions) throw new Error('receiver lost');
+      return pending.promise;
+    });
+    actions.addMiniApp = addMiniApp;
+    const storageWrite = vi.spyOn(Storage.prototype, 'setItem');
+    let latest: MiniAppHostValue | undefined;
+    render(
+      <Harness
+        runtime={runtimeFor('?miniApp=true')}
+        sdkLoader={async () => host.sdk}
+        capture={(value) => { latest = value; }}
+      />
+    );
+    await waitFor(() => expect(latest?.state).toBe('miniapp'));
+    expect(latest?.notificationPresentation).toBe('not-added');
+
+    let attempts: Promise<unknown>[] = [];
+    act(() => {
+      attempts = Array.from(
+        { length: 20 },
+        () => latest!.actions.addMiniApp()
+      );
+    });
+    expect(new Set(attempts).size).toBe(1);
+    expect(latest?.notificationPresentation).toBe('requesting');
+    await act(async () => Promise.resolve());
+    expect(addMiniApp).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      pending.resolve({
+        notificationDetails: { token, url: deliveryUrl }
+      });
+      await attempts[0];
+    });
+    await expect(attempts[0]).resolves.toEqual({ status: 'enabled-hint' });
+    expect(latest?.notificationPresentation).toBe('enabled-hint');
+    expect(latest?.context?.client.added).toBe(true);
+    expect(latest?.context?.client.notificationsEnabledHint).toBe(true);
+    expect(JSON.stringify(latest)).not.toContain(token);
+    expect(JSON.stringify(latest)).not.toContain(deliveryUrl);
+    expect(document.body.textContent).not.toContain(token);
+    expect(document.body.textContent).not.toContain(deliveryUrl);
+    await expect(latest!.actions.addMiniApp()).resolves.toEqual({
+      status: 'enabled-hint'
+    });
+    expect(addMiniApp).toHaveBeenCalledTimes(1);
+    expect(storageWrite).not.toHaveBeenCalled();
+    storageWrite.mockRestore();
+  });
+
+  it('coalesces touch, synthetic click, and repeated Enter activations', async () => {
+    const pending = deferred<unknown>();
+    const context = validContext();
+    const host = fakeSdk({
+      context: Promise.resolve({
+        ...context,
+        client: { ...context.client, added: false }
+      }),
+      getCapabilities: vi.fn(async () => [
+        'actions.ready',
+        'actions.addMiniApp'
+      ])
+    });
+    const addMiniApp = vi.fn(() => pending.promise);
+    host.sdk.actions.addMiniApp = addMiniApp;
+    let latest: MiniAppHostValue | undefined;
+
+    function ActionProbe() {
+      const { actions } = useMiniAppHost();
+      const activate = () => { void actions.addMiniApp(); };
+      return (
+        <button
+          onClick={activate}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') activate();
+          }}
+          onPointerUp={activate}
+          type="button"
+        >
+          Enable alerts
+        </button>
+      );
+    }
+
+    render(
+      <Harness
+        runtime={runtimeFor('?miniApp=true')}
+        sdkLoader={async () => host.sdk}
+        capture={(value) => { latest = value; }}
+      >
+        <ActionProbe />
+      </Harness>
+    );
+    await waitFor(() => expect(latest?.state).toBe('miniapp'));
+    const button = screen.getByRole('button', { name: 'Enable alerts' });
+    fireEvent.pointerUp(button, { pointerType: 'touch' });
+    fireEvent.click(button);
+    for (let index = 0; index < 20; index += 1) {
+      fireEvent.keyDown(button, { key: 'Enter', repeat: index > 0 });
+    }
+    await act(async () => Promise.resolve());
+    expect(addMiniApp).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      pending.resolve({});
+      await Promise.resolve();
+    });
+  });
+
+  it('maps add-prompt outcomes without exposing host errors', async () => {
+    const context = validContext();
+    const host = fakeSdk({
+      context: Promise.resolve({
+        ...context,
+        client: { ...context.client, added: false }
+      }),
+      getCapabilities: vi.fn(async () => [
+        'actions.ready',
+        'actions.addMiniApp'
+      ])
+    });
+    const rejected = Object.assign(new Error('private rejection'), {
+      name: 'AddMiniApp.RejectedByUser'
+    });
+    const invalid = Object.assign(new Error('private manifest detail'), {
+      name: 'AddMiniApp.InvalidDomainManifest'
+    });
+    host.sdk.actions.addMiniApp = vi.fn()
+      .mockRejectedValueOnce(rejected)
+      .mockRejectedValueOnce(invalid)
+      .mockRejectedValueOnce(new Error('private generic detail'))
+      .mockResolvedValueOnce({});
+    let latest: MiniAppHostValue | undefined;
+    render(
+      <Harness
+        runtime={runtimeFor('?miniApp=true')}
+        sdkLoader={async () => host.sdk}
+        capture={(value) => { latest = value; }}
+      />
+    );
+    await waitFor(() => expect(latest?.state).toBe('miniapp'));
+
+    const runPrompt = async () => {
+      let result;
+      await act(async () => {
+        result = await latest!.actions.addMiniApp();
+      });
+      return result;
+    };
+
+    await expect(runPrompt()).resolves.toEqual({
+      status: 'rejected'
+    });
+    expect(latest?.notificationPresentation).toBe('rejected');
+    await expect(runPrompt()).resolves.toEqual({
+      status: 'invalid-manifest'
+    });
+    expect(latest?.notificationPresentation).toBe('invalid-manifest');
+    await expect(runPrompt()).resolves.toEqual({
+      status: 'failed'
+    });
+    expect(latest?.notificationPresentation).toBe('failed');
+    await expect(runPrompt()).resolves.toEqual({
+      status: 'setup-requested'
+    });
+    expect(latest?.notificationPresentation).toBe('setup-requested');
+    expect(document.body.textContent).not.toContain('private rejection');
+    expect(document.body.textContent).not.toContain('private manifest detail');
+    expect(document.body.textContent).not.toContain('private generic detail');
+  });
+
+  it('keeps a timed-out native prompt single-flight and reconciles its late result', async () => {
+    vi.useFakeTimers();
+    const context = validContext();
+    const host = fakeSdk({
+      context: Promise.resolve({
+        ...context,
+        client: { ...context.client, added: false }
+      }),
+      getCapabilities: vi.fn(async () => [
+        'actions.ready',
+        'actions.addMiniApp'
+      ])
+    });
+    const pending = deferred<unknown>();
+    const addMiniApp = vi.fn(() => pending.promise);
+    host.sdk.actions.addMiniApp = addMiniApp;
+    let latest: MiniAppHostValue | undefined;
+    render(
+      <Harness
+        addMiniAppDeadlineMilliseconds={250}
+        runtime={runtimeFor('?miniApp=true')}
+        sdkLoader={async () => host.sdk}
+        capture={(value) => { latest = value; }}
+      />
+    );
+    await act(async () => {
+      for (let index = 0; index < 12; index += 1) await Promise.resolve();
+    });
+    expect(latest?.state).toBe('miniapp');
+
+    const attempt = latest!.actions.addMiniApp();
+    await act(async () => {
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(251);
+    });
+    await expect(attempt).resolves.toEqual({ status: 'timeout' });
+    expect(latest?.notificationPresentation).toBe('setup-requested');
+    await expect(latest!.actions.addMiniApp()).resolves.toEqual({
+      status: 'timeout'
+    });
+    expect(addMiniApp).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      pending.resolve({
+        notificationDetails: {
+          token: 'private-notification-token',
+          url: 'https://api.warpcast.com/v1/frame-notifications'
+        }
+      });
+      await pending.promise;
+    });
+    expect(latest?.notificationPresentation).toBe('enabled-hint');
+    expect(addMiniApp).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts a fresh retry after rejection and ignores the old late result', async () => {
+    const firstPending = deferred<unknown>();
+    const retryPending = deferred<unknown>();
+    const context = validContext();
+    const host = fakeSdk({
+      context: Promise.resolve({
+        ...context,
+        client: { ...context.client, added: false }
+      }),
+      getCapabilities: vi.fn(async () => [
+        'actions.ready',
+        'actions.addMiniApp'
+      ])
+    });
+    const addMiniApp = vi.fn()
+      .mockImplementationOnce(() => firstPending.promise)
+      .mockImplementationOnce(() => retryPending.promise);
+    host.sdk.actions.addMiniApp = addMiniApp;
+    let latest: MiniAppHostValue | undefined;
+    render(
+      <Harness
+        runtime={runtimeFor('?miniApp=true')}
+        sdkLoader={async () => host.sdk}
+        capture={(value) => { latest = value; }}
+      />
+    );
+    await waitFor(() => expect(latest?.state).toBe('miniapp'));
+
+    const attempt = latest!.actions.addMiniApp();
+    await act(async () => Promise.resolve());
+    act(() => host.emit('miniAppAddRejected', {
+      reason: 'rejected_by_user'
+    }));
+    expect(latest?.notificationPresentation).toBe('rejected');
+
+    const retry = latest!.actions.addMiniApp();
+    await act(async () => Promise.resolve());
+    expect(addMiniApp).toHaveBeenCalledTimes(2);
+    expect(latest?.notificationPresentation).toBe('requesting');
+
+    await act(async () => {
+      firstPending.resolve({
+        notificationDetails: {
+          token: 'private-notification-token',
+          url: 'https://api.warpcast.com/v1/frame-notifications'
+        }
+      });
+      await attempt;
+    });
+    await expect(attempt).resolves.toEqual({ status: 'enabled-hint' });
+    expect(latest?.notificationPresentation).toBe('requesting');
+
+    await act(async () => {
+      retryPending.resolve({
+        notificationDetails: {
+          token: 'private-retry-notification-token',
+          url: 'https://api.warpcast.com/v1/frame-notifications'
+        }
+      });
+      await retry;
+    });
+    await expect(retry).resolves.toEqual({ status: 'enabled-hint' });
+    expect(latest?.notificationPresentation).toBe('enabled-hint');
+    expect(addMiniApp).toHaveBeenCalledTimes(2);
+  });
+
+  it('cleans exact listeners and ignores an add result from a replaced host', async () => {
+    const pending = deferred<unknown>();
+    const context = validContext();
+    const first = fakeSdk({
+      context: Promise.resolve({
+        ...context,
+        client: { ...context.client, added: false }
+      }),
+      getCapabilities: vi.fn(async () => [
+        'actions.ready',
+        'actions.addMiniApp'
+      ])
+    });
+    first.sdk.actions.addMiniApp = vi.fn(() => pending.promise);
+    const second = fakeSdk({
+      getCapabilities: vi.fn(async () => [
+        'actions.ready',
+        'actions.addMiniApp'
+      ])
+    });
+    const firstLoader = async () => first.sdk;
+    const secondLoader = async () => second.sdk;
+    const firstRuntime = runtimeFor('?miniApp=true');
+    const secondRuntime = runtimeFor('?miniApp=true');
+    let latest: MiniAppHostValue | undefined;
+    const view = render(
+      <Harness
+        runtime={firstRuntime}
+        sdkLoader={firstLoader}
+        capture={(value) => { latest = value; }}
+      />
+    );
+    await waitFor(() => expect(latest?.state).toBe('miniapp'));
+    const attempt = latest!.actions.addMiniApp();
+    await act(async () => Promise.resolve());
+    expect(first.sdk.actions.addMiniApp).toHaveBeenCalledTimes(1);
+
+    view.rerender(
+      <Harness
+        runtime={secondRuntime}
+        sdkLoader={secondLoader}
+        capture={(value) => { latest = value; }}
+      />
+    );
+    await waitFor(() => expect(second.sdk.actions.ready).toHaveBeenCalledOnce());
+    await waitFor(() => expect(latest?.state).toBe('miniapp'));
+    expect(first.removeListener).toHaveBeenCalledTimes(5);
+    expect(second.on).toHaveBeenCalledTimes(5);
+    const replacementPresentation = latest?.notificationPresentation;
+
+    act(() => first.emit('notificationsDisabled'));
+    expect(latest?.notificationPresentation).toBe(replacementPresentation);
+    pending.resolve({
+      notificationDetails: {
+        token: 'private-notification-token',
+        url: 'https://api.warpcast.com/v1/frame-notifications'
+      }
+    });
+    await expect(attempt).resolves.toEqual({ status: 'host-replaced' });
+    expect(latest?.notificationPresentation).toBe(replacementPresentation);
   });
 
   it('returns a fresh Quick Auth bearer only after verified host detection', async () => {

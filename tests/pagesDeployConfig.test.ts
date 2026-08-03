@@ -13,6 +13,7 @@ function deploymentEnvironment(overrides: Record<string, string> = {}) {
     VITE_WARPKEEP_REPOSITORY_URL: 'https://github.com/ael-dev3/Warpkeep',
     VITE_WARPKEEP_CANONICAL_ORIGIN: 'https://warpkeep.com',
     VITE_WARPKEEP_SHARED_ALPHA_ENABLED: 'false',
+    VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'false',
     VITE_WARPKEEP_AUTH_BRIDGE_URL: '',
     VITE_WARPKEEP_OIDC_ISSUER: '',
     VITE_WARPKEEP_OIDC_AUDIENCE: 'warpkeep-spacetimedb',
@@ -43,6 +44,19 @@ describe('Pages deployment configuration validation', () => {
     });
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain('c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e');
+  });
+
+  it('requires an exact fail-closed admission-notification presentation gate', () => {
+    expect(validate({ VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'false' }).status).toBe(0);
+    expect(validate({ VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'true' }).status).toBe(0);
+
+    const ambiguous = validate({
+      VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'TRUE'
+    });
+    expect(ambiguous.status).not.toBe(0);
+    expect(ambiguous.stderr).toContain(
+      'VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED must be exactly true or false.'
+    );
   });
 
   it('requires exact active bridge/issuer configuration and rejects unsafe activation', () => {

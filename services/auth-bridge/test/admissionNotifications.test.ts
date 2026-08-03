@@ -202,6 +202,8 @@ describe('admission notification consent and delivery lifecycle', () => {
       targetUrl: 'https://warpkeep.com/?miniApp=true',
       tokens: [TOKEN],
     })
+    expect(payload.title).toHaveLength(23)
+    expect(payload.body).toHaveLength(56)
 
     const duplicate = await queue(h.notification)
     await expect(duplicate.json()).resolves.toEqual({ status: 'already-sent' })
@@ -333,6 +335,25 @@ describe('admission notification consent and delivery lifecycle', () => {
     expect(fetchImpl).toHaveBeenCalledOnce()
     expect(stored(h.storage)).not.toContain(TOKEN)
     expect(stored(h.storage)).toContain('revokedTokenIds')
+  })
+
+  it('fails closed on response fields outside the installed Mini App schema', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => Response.json({
+      result: {
+        successfulTokens: [],
+        invalidTokens: [],
+        rateLimitedTokens: [],
+        failedTokens: [{ token: TOKEN, reason: 'invalid_token' }],
+      },
+    }))
+    const h = createHarness({ fetchImpl })
+    await applyEvent(h.notification, enabledEvent())
+
+    const response = await queue(h.notification)
+    await expect(response.json()).resolves.toEqual({ status: 'queued' })
+    expect(fetchImpl).toHaveBeenCalledOnce()
+    expect(stored(h.storage)).toContain(TOKEN)
+    expect(stored(h.storage)).toContain('"status":"retrying"')
   })
 
   it('never resets the six-attempt ceiling for the same admission epoch', async () => {

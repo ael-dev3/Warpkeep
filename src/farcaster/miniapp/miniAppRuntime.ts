@@ -49,6 +49,8 @@ export type MiniAppPresentationContext = Readonly<{
   client: Readonly<{
     clientFid: number;
     added: boolean;
+    /** Presentation hint only. Signed webhook state remains authoritative. */
+    notificationsEnabledHint: boolean;
     platformType?: 'web' | 'mobile';
     safeAreaInsets: MiniAppSafeAreaInsets;
   }>;
@@ -63,6 +65,8 @@ export type MiniAppPresentationContext = Readonly<{
     | 'launcher'
     | 'channel'
     | 'open_miniapp';
+  /** A bounded Warpkeep approval identifier; never admission authority. */
+  notificationId?: string;
 }>;
 
 export type MiniAppBack = {
@@ -71,6 +75,21 @@ export type MiniAppBack = {
   hide: () => Promise<void>;
 };
 
+export type MiniAppSdkEventMap = Readonly<{
+  miniAppAdded: Readonly<{ notificationDetails?: unknown }>;
+  miniAppAddRejected: Readonly<{ reason?: unknown }>;
+  miniAppRemoved: undefined;
+  notificationsEnabled: Readonly<{ notificationDetails?: unknown }>;
+  notificationsDisabled: undefined;
+}>;
+
+export type MiniAppSdkEventName = keyof MiniAppSdkEventMap;
+
+export type MiniAppSdkEventListener<EventName extends MiniAppSdkEventName> =
+  MiniAppSdkEventMap[EventName] extends undefined
+    ? () => void
+    : (event: MiniAppSdkEventMap[EventName]) => void;
+
 export type MiniAppSdk = {
   isInMiniApp: (timeoutMilliseconds?: number) => Promise<boolean>;
   context: Promise<unknown>;
@@ -78,6 +97,14 @@ export type MiniAppSdk = {
   quickAuth?: {
     getToken?: (options?: FarcasterQuickAuthTokenOptions) => Promise<unknown>;
   };
+  on?: (
+    event: MiniAppSdkEventName,
+    listener: (...args: never[]) => void
+  ) => unknown;
+  removeListener?: (
+    event: MiniAppSdkEventName,
+    listener: (...args: never[]) => void
+  ) => unknown;
   back?: MiniAppBack;
   actions: {
     ready: (options: { disableNativeGestures: true }) => Promise<void>;
@@ -127,8 +154,12 @@ const QUICK_AUTH_PRECONNECT_ATTRIBUTE =
 const QUICK_AUTH_ORIGIN = 'https://auth.farcaster.xyz';
 const FRAME_TIMEOUT_MS = 160;
 const MAX_QUICK_AUTH_TOKEN_BYTES = 8 * 1_024;
+const MAX_NOTIFICATION_TOKEN_BYTES = 2 * 1_024;
+const MAX_NOTIFICATION_ID_LENGTH = 128;
 const COMPACT_JWT_PATTERN =
   /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
+const APPROVAL_NOTIFICATION_ID_PATTERN =
+  /^warpkeep-access-approved-v1-e[1-9]\d*$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -174,6 +205,55 @@ function sanitizedHttpsUrl(value: unknown): string | undefined {
       return undefined;
     }
     return url.href;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Reduces private host notification details to one presentation-only boolean.
+ * The token and delivery URL never cross this return boundary.
+ */
+export function readMiniAppNotificationDetailsHint(value: unknown): boolean {
+  try {
+    if (!isRecord(value)) return false;
+    // Snapshot hostile getters exactly once and reject by UTF-16 length before
+    // allocating an encoded copy. The byte check below remains authoritative.
+    const token = value.token;
+    const url = value.url;
+    if (
+      typeof token !== 'string'
+      || typeof url !== 'string'
+      || token.length === 0
+      || token.length > MAX_NOTIFICATION_TOKEN_BYTES
+    ) return false;
+    const tokenBytes = new TextEncoder().encode(token);
+    try {
+      return tokenBytes.byteLength >= 16
+        && tokenBytes.byteLength <= MAX_NOTIFICATION_TOKEN_BYTES
+        && !/[\u0000-\u0020\u007f]/.test(token)
+        && sanitizedHttpsUrl(url) !== undefined;
+    } finally {
+      tokenBytes.fill(0);
+    }
+  } catch {
+    return false;
+  }
+}
+
+function sanitizedApprovalNotificationId(
+  location: Record<string, unknown>,
+  locationType: MiniAppPresentationContext['locationType'] | undefined
+): string | undefined {
+  if (locationType !== 'notification') return undefined;
+  try {
+    if (!isRecord(location.notification)) return undefined;
+    const notificationId = location.notification.notificationId;
+    return typeof notificationId === 'string'
+      && notificationId.length <= MAX_NOTIFICATION_ID_LENGTH
+      && APPROVAL_NOTIFICATION_ID_PATTERN.test(notificationId)
+      ? notificationId
+      : undefined;
   } catch {
     return undefined;
   }
@@ -284,19 +364,31 @@ export function sanitizeMiniAppContext(
       ? value.client.platformType
       : undefined;
     const features = isRecord(value.features) ? value.features : {};
-    const rawLocationType = isRecord(value.location)
-      ? value.location.type
-      : undefined;
+    const location = isRecord(value.location) ? value.location : {};
+    const rawLocationType = location.type;
     const locationType = typeof rawLocationType === 'string'
       && LOCATION_TYPES.has(rawLocationType)
       ? rawLocationType as MiniAppPresentationContext['locationType']
       : undefined;
+    const notificationId = sanitizedApprovalNotificationId(
+      location,
+      locationType
+    );
+    let notificationDetails: unknown;
+    try {
+      notificationDetails = value.client.notificationDetails;
+    } catch {
+      notificationDetails = undefined;
+    }
 
     const context: MiniAppPresentationContext = Object.freeze({
       user,
       client: Object.freeze({
         clientFid,
         added: value.client.added === true,
+        notificationsEnabledHint: readMiniAppNotificationDetailsHint(
+          notificationDetails
+        ),
         ...(platformType ? { platformType } : {}),
         safeAreaInsets: insets
       }),
@@ -305,7 +397,8 @@ export function sanitizeMiniAppContext(
         cameraAndMicrophoneAccess:
           features.cameraAndMicrophoneAccess === true
       }),
-      ...(locationType ? { locationType } : {})
+      ...(locationType ? { locationType } : {}),
+      ...(notificationId ? { notificationId } : {})
     });
     MINI_APP_CONTEXT_INSET_SEEDS.set(context, insetSeed);
     return context;
@@ -330,6 +423,7 @@ export function reclampMiniAppPresentationContext(
     client: Object.freeze({
       clientFid: context.client.clientFid,
       added: context.client.added,
+      notificationsEnabledHint: context.client.notificationsEnabledHint,
       ...(context.client.platformType
         ? { platformType: context.client.platformType }
         : {}),
@@ -341,10 +435,47 @@ export function reclampMiniAppPresentationContext(
       })
     }),
     features: context.features,
-    ...(context.locationType ? { locationType: context.locationType } : {})
+    ...(context.locationType ? { locationType: context.locationType } : {}),
+    ...(context.notificationId
+      ? { notificationId: context.notificationId }
+      : {})
   });
   MINI_APP_CONTEXT_INSET_SEEDS.set(reclamped, insets);
   return reclamped;
+}
+
+/**
+ * Applies one secret-free notification projection while preserving the pinned
+ * identity, launch context, and original safe-area seed.
+ */
+export function withMiniAppNotificationHints(
+  context: MiniAppPresentationContext,
+  hints: Readonly<{
+    added: boolean;
+    notificationsEnabledHint: boolean;
+  }>
+): MiniAppPresentationContext {
+  const insets = MINI_APP_CONTEXT_INSET_SEEDS.get(context)
+    ?? context.client.safeAreaInsets;
+  const next: MiniAppPresentationContext = Object.freeze({
+    user: context.user,
+    client: Object.freeze({
+      clientFid: context.client.clientFid,
+      added: hints.added,
+      notificationsEnabledHint: hints.notificationsEnabledHint,
+      ...(context.client.platformType
+        ? { platformType: context.client.platformType }
+        : {}),
+      safeAreaInsets: context.client.safeAreaInsets
+    }),
+    features: context.features,
+    ...(context.locationType ? { locationType: context.locationType } : {}),
+    ...(context.notificationId
+      ? { notificationId: context.notificationId }
+      : {})
+  });
+  MINI_APP_CONTEXT_INSET_SEEDS.set(next, insets);
+  return next;
 }
 
 export function readMiniAppSdk(value: unknown): MiniAppSdk | null {

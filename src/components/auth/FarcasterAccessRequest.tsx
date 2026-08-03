@@ -14,6 +14,7 @@ import {
   FarcasterAdmissionCheckAction,
   IDLE_ADMISSION_CHECK
 } from './FarcasterAdmissionCheck';
+import { FarcasterAdmissionNotificationOptIn } from './FarcasterAdmissionNotificationOptIn';
 import './FarcasterAccessRequest.css';
 
 export type FarcasterAccessRequestProps = Readonly<{
@@ -182,6 +183,7 @@ export function FarcasterAccessRequestAction({
           </span>
           <span>Access is reviewed manually.</span>
         </div>
+        <FarcasterAdmissionNotificationOptIn />
         {onCheckAdmission ? (
           <FarcasterAdmissionCheckAction
             onCheckAdmission={onCheckAdmission}

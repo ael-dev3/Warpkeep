@@ -219,7 +219,10 @@ function miniAppRuntime(): MiniAppBrowserRuntime {
   };
 }
 
-function miniAppSdk(isInMiniApp = true): MiniAppSdk {
+function miniAppSdk(
+  isInMiniApp = true,
+  approvalNotificationId?: string
+): MiniAppSdk {
   return {
     isInMiniApp: vi.fn(async () => isInMiniApp),
     context: Promise.resolve({
@@ -233,7 +236,17 @@ function miniAppSdk(isInMiniApp = true): MiniAppSdk {
         added: true,
         platformType: 'mobile',
         safeAreaInsets: { top: 20, right: 0, bottom: 12, left: 0 }
-      }
+      },
+      ...(approvalNotificationId ? {
+        location: {
+          type: 'notification',
+          notification: {
+            notificationId: approvalNotificationId,
+            title: 'untrusted host title',
+            body: 'untrusted host body'
+          }
+        }
+      } : {})
     }),
     getCapabilities: vi.fn(async () => ['actions.ready', 'back']),
     quickAuth: {
@@ -708,6 +721,36 @@ describe('Warpkeep Farcaster Mini App direct entry', () => {
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).not.toBe('realm');
     expect(window.history.state?.warpkeepDirectRealm).toBeUndefined();
     expectPlayerRealmChromeAbsent();
+  });
+
+  it('briefly confirms a valid notification launch before normal direct Realm entry', async () => {
+    window.history.replaceState({}, '', '/?miniApp=true');
+    const backend = createBackendRuntime();
+    vi.mocked(backend.runtime.readEntryAgreementStatus!).mockResolvedValue(true);
+    const bridge = createQuickAuthBridge(createQuickAuthResponse());
+    const sdk = miniAppSdk(true, 'warpkeep-access-approved-v1-e7');
+    const { container } = renderExperience({
+      bridge,
+      miniApp: { runtime: miniAppRuntime(), sdk },
+      runtime: backend.runtime
+    });
+
+    await settle();
+    await act(async () => vi.advanceTimersByTime(1));
+    await settle();
+
+    expect(screen.getByRole('heading', {
+      name: 'HEGEMONY ADMISSION APPROVED'
+    })).not.toBeNull();
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase'))
+      .not.toBe('realm');
+    expect(document.body.textContent).not.toContain('untrusted host title');
+    expect(document.body.textContent).not.toContain('untrusted host body');
+
+    await act(async () => vi.advanceTimersByTime(900));
+    await settle();
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
+    expectPlayerRealmChrome();
   });
 
   it('keeps a non-admitted Quick Auth identity on Request Access', async () => {

@@ -1,5 +1,7 @@
 import { env } from 'cloudflare:workers'
 import { runInDurableObject } from 'cloudflare:test'
+import { encodeAbiParameters } from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
 import { createSiweMessage } from 'viem/siwe'
 import { describe, expect, it, vi } from 'vitest'
 import { createAuthBridge } from '../src/app'
@@ -239,8 +241,55 @@ describe('auth bridge production bindings in workerd', () => {
         operatorSecret: 'workerd-notification-secret-at-least-32-bytes',
       },
     }
+    const requestAccount = privateKeyToAccount(`0x${'22'.repeat(32)}`)
+    const deadline = 9_999_999_999n
+    const appKey = `0x${Buffer.from(rawPublicKey).toString('hex')}` as const
+    const requestSignature = await requestAccount.signTypedData({
+      domain: {
+        name: 'Farcaster SignedKeyRequestValidator',
+        version: '1',
+        chainId: 10,
+        verifyingContract: '0x00000000fc700472606ed4fa22623acf62c60553',
+      },
+      types: {
+        SignedKeyRequest: [
+          { name: 'requestFid', type: 'uint256' },
+          { name: 'key', type: 'bytes' },
+          { name: 'deadline', type: 'uint256' },
+        ],
+      },
+      primaryType: 'SignedKeyRequest',
+      message: { requestFid: 9_152n, key: appKey, deadline },
+    })
+    const metadata = encodeAbiParameters([{
+      type: 'tuple',
+      components: [
+        { type: 'uint256' },
+        { type: 'address' },
+        { type: 'bytes' },
+        { type: 'uint256' },
+      ],
+    }], [[9_152n, requestAccount.address, requestSignature, deadline]])
+    const requestInits: (RequestInit | undefined)[] = []
+    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      requestInits.push(init)
+      return new Response(JSON.stringify({
+        events: [{
+          type: 'EVENT_TYPE_SIGNER',
+          signerEventBody: {
+            eventType: 'SIGNER_EVENT_TYPE_ADD',
+            keyType: 1,
+            metadataType: 1,
+            key: appKey,
+            metadata: Buffer.from(metadata.slice(2), 'hex').toString('base64'),
+          },
+        }],
+      }), { headers: { 'content-type': 'application/json' } })
+    }) as typeof fetch
+    const activeOnChainRpcVerifier = vi.fn(async () => true)
     const verifier = createMiniAppWebhookVerifier(webhookConfig, {
-      appKeyVerifier: async () => ({ valid: true, appFid: 9_152 }),
+      fetchImpl,
+      activeOnChainRpcVerifier,
     })
 
     await expect(verifier.verify({ header, payload, signature })).resolves.toMatchObject({
@@ -251,6 +300,16 @@ describe('auth bridge production bindings in workerd', () => {
         details: { token, url: deliveryUrl },
       },
     })
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    for (const init of requestInits) {
+      expect(init).toMatchObject({
+        method: 'GET',
+        cache: 'no-store',
+        redirect: 'manual',
+      })
+      expect(init?.signal).toBeInstanceOf(AbortSignal)
+    }
+    expect(activeOnChainRpcVerifier).toHaveBeenCalledTimes(2)
   })
 
   it('keeps Quick Auth cookie-free while reusing authoritative admission and player claims', async () => {

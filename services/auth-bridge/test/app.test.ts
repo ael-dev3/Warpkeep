@@ -2497,12 +2497,21 @@ describe('Warpkeep auth bridge', () => {
     })
 
     it('distinguishes invalid signed input from verifier dependency failure', async () => {
-      for (const [error, status, code] of [
-        [new MiniAppWebhookInvalidError(), 400, 'miniapp_webhook_invalid'],
+      for (const [error, status, code, expectedEvents] of [
         [
-          new MiniAppWebhookVerifierUnavailableError(),
+          new MiniAppWebhookInvalidError(),
+          400,
+          'miniapp_webhook_invalid',
+          ['miniapp_webhook_rejected'],
+        ],
+        [
+          new MiniAppWebhookVerifierUnavailableError('rpc_primary_transport'),
           503,
           'miniapp_webhook_verification_unavailable',
+          [
+            'miniapp_webhook_verifier_unavailable',
+            'miniapp_webhook_verifier_unavailable_rpc_primary_transport',
+          ],
         ],
       ] as const) {
         const applyEvent = vi.fn(async () => undefined)
@@ -2520,6 +2529,7 @@ describe('Warpkeep auth bridge', () => {
         expect(response.status).toBe(status)
         await expect(response.json()).resolves.toMatchObject({ error: { code } })
         expect(applyEvent).not.toHaveBeenCalled()
+        expect(h.events).toEqual(expectedEvents)
       }
     })
 

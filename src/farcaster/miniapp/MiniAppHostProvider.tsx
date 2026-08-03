@@ -15,16 +15,21 @@ import {
   hasExactMiniAppHint,
   installMiniAppQuickAuthPreconnect,
   installMiniAppSafeAreaVariables,
+  readMiniAppNotificationDetailsHint,
   readMiniAppQuickAuthToken,
   readMiniAppSdk,
   reclampMiniAppPresentationContext,
   sanitizeMiniAppActionUrl,
   sanitizeMiniAppCapabilities,
   sanitizeMiniAppContext,
+  withMiniAppNotificationHints,
   type MiniAppBrowserRuntime,
   type MiniAppCapability,
   type MiniAppPresentationContext,
   type MiniAppSdk,
+  type MiniAppSdkEventListener,
+  type MiniAppSdkEventMap,
+  type MiniAppSdkEventName,
   type MiniAppSdkLoader
 } from './miniAppRuntime';
 import type {
@@ -51,10 +56,34 @@ export type MiniAppBackBinding = Readonly<{
   onBack: () => unknown;
 }>;
 
+export type MiniAppNotificationPresentation =
+  | 'unsupported'
+  | 'not-added'
+  | 'added-status-unknown'
+  | 'enabled-hint'
+  | 'disabled-hint'
+  | 'requesting'
+  | 'setup-requested'
+  | 'rejected'
+  | 'invalid-manifest'
+  | 'failed';
+
+export type MiniAppAddResult = Readonly<{
+  status:
+    | 'unsupported'
+    | 'enabled-hint'
+    | 'setup-requested'
+    | 'rejected'
+    | 'invalid-manifest'
+    | 'timeout'
+    | 'host-replaced'
+    | 'failed';
+}>;
+
 export type MiniAppHostActions = Readonly<{
   openUrl: (url: string) => Promise<boolean>;
   close: () => Promise<boolean>;
-  addMiniApp: () => Promise<boolean>;
+  addMiniApp: () => Promise<MiniAppAddResult>;
   viewProfile: (fid: number) => Promise<boolean>;
   openMiniApp: (url: string) => Promise<boolean>;
 }>;
@@ -85,6 +114,7 @@ export type MiniAppHostValue = Readonly<{
   isFramed: boolean;
   context: MiniAppPresentationContext | null;
   capabilities: readonly MiniAppCapability[];
+  notificationPresentation: MiniAppNotificationPresentation;
   recoveryReason: MiniAppRecoveryReason | null;
   retry: () => boolean;
   hasCapability: (capability: MiniAppCapability) => boolean;
@@ -98,6 +128,7 @@ type HostSnapshot = Readonly<{
   state: MiniAppHostState;
   context: MiniAppPresentationContext | null;
   capabilities: readonly MiniAppCapability[];
+  notificationPresentation: MiniAppNotificationPresentation;
   recoveryReason: MiniAppRecoveryReason | null;
 }>;
 
@@ -107,6 +138,8 @@ export type MiniAppHostProviderProps = Readonly<{
   runtime?: MiniAppBrowserRuntime;
   /** Test/runtime injection only; production uses the bounded default. */
   hostDeadlineMilliseconds?: number;
+  /** Native permission prompts need a human-scale deadline. */
+  addMiniAppDeadlineMilliseconds?: number;
   /** Quick Auth spans two network calls and one native-host round trip. */
   quickAuthDeadlineMilliseconds?: number;
 }>;
@@ -116,18 +149,23 @@ const REGULAR_WEB_SNAPSHOT: HostSnapshot = Object.freeze({
   state: 'regular-web',
   context: null,
   capabilities: EMPTY_CAPABILITIES,
+  notificationPresentation: 'unsupported',
   recoveryReason: null
 });
 const DETECTING_SNAPSHOT: HostSnapshot = Object.freeze({
   state: 'detecting',
   context: null,
   capabilities: EMPTY_CAPABILITIES,
+  notificationPresentation: 'unsupported',
   recoveryReason: null
 });
 
 const DEFAULT_HOST_DEADLINE_MILLISECONDS = 4_000;
 const MINIMUM_HOST_DEADLINE_MILLISECONDS = 250;
 const MAXIMUM_HOST_DEADLINE_MILLISECONDS = 10_000;
+const DEFAULT_ADD_MINI_APP_DEADLINE_MILLISECONDS = 60_000;
+const MINIMUM_ADD_MINI_APP_DEADLINE_MILLISECONDS = 250;
+const MAXIMUM_ADD_MINI_APP_DEADLINE_MILLISECONDS = 120_000;
 const DEFAULT_QUICK_AUTH_DEADLINE_MILLISECONDS = 10_000;
 const MINIMUM_QUICK_AUTH_DEADLINE_MILLISECONDS = 1_000;
 const MAXIMUM_QUICK_AUTH_DEADLINE_MILLISECONDS = 15_000;
@@ -146,6 +184,31 @@ const QUICK_AUTH_INVALID_SHAPE: FarcasterQuickAuthTokenResult = Object.freeze({
 });
 const QUICK_AUTH_HOST_REPLACED: FarcasterQuickAuthTokenResult = Object.freeze({
   status: 'host-replaced'
+});
+
+const MINI_APP_ADD_UNSUPPORTED: MiniAppAddResult = Object.freeze({
+  status: 'unsupported'
+});
+const MINI_APP_ADD_ENABLED_HINT: MiniAppAddResult = Object.freeze({
+  status: 'enabled-hint'
+});
+const MINI_APP_ADD_SETUP_REQUESTED: MiniAppAddResult = Object.freeze({
+  status: 'setup-requested'
+});
+const MINI_APP_ADD_REJECTED: MiniAppAddResult = Object.freeze({
+  status: 'rejected'
+});
+const MINI_APP_ADD_INVALID_MANIFEST: MiniAppAddResult = Object.freeze({
+  status: 'invalid-manifest'
+});
+const MINI_APP_ADD_TIMEOUT: MiniAppAddResult = Object.freeze({
+  status: 'timeout'
+});
+const MINI_APP_ADD_HOST_REPLACED: MiniAppAddResult = Object.freeze({
+  status: 'host-replaced'
+});
+const MINI_APP_ADD_FAILED: MiniAppAddResult = Object.freeze({
+  status: 'failed'
 });
 
 // React StrictMode replays effects. Share the exact ready promise so one
@@ -169,6 +232,7 @@ function recoverySnapshot(reason: MiniAppRecoveryReason): HostSnapshot {
     state: 'recovery',
     context: null,
     capabilities: EMPTY_CAPABILITIES,
+    notificationPresentation: 'unsupported',
     recoveryReason: reason
   });
 }
@@ -204,6 +268,19 @@ function normalizedQuickAuthDeadline(value: number | undefined) {
   );
 }
 
+function normalizedAddMiniAppDeadline(value: number | undefined) {
+  if (!Number.isFinite(value)) {
+    return DEFAULT_ADD_MINI_APP_DEADLINE_MILLISECONDS;
+  }
+  return Math.min(
+    MAXIMUM_ADD_MINI_APP_DEADLINE_MILLISECONDS,
+    Math.max(
+      MINIMUM_ADD_MINI_APP_DEADLINE_MILLISECONDS,
+      Math.round(value!)
+    )
+  );
+}
+
 function withMiniAppHostDeadline<T>(
   operation: PromiseLike<T>,
   deadlineMilliseconds: number
@@ -228,6 +305,192 @@ function withMiniAppHostDeadline<T>(
 
 function isMiniAppHostDeadlineError(error: unknown) {
   return error instanceof MiniAppHostDeadlineError;
+}
+
+function initialNotificationPresentation(
+  context: MiniAppPresentationContext,
+  capabilities: readonly MiniAppCapability[]
+): MiniAppNotificationPresentation {
+  if (!capabilities.includes('actions.addMiniApp')) return 'unsupported';
+  if (context.client.notificationsEnabledHint) return 'enabled-hint';
+  return context.client.added ? 'added-status-unknown' : 'not-added';
+}
+
+function boundedMiniAppAddError(error: unknown): MiniAppAddResult {
+  try {
+    if (typeof error !== 'object' || error === null || !('name' in error)) {
+      return MINI_APP_ADD_FAILED;
+    }
+    const name = error.name;
+    if (name === 'AddMiniApp.RejectedByUser') return MINI_APP_ADD_REJECTED;
+    if (name === 'AddMiniApp.InvalidDomainManifest') {
+      return MINI_APP_ADD_INVALID_MANIFEST;
+    }
+  } catch {
+    // Mutable host errors are reduced to one fixed failure class.
+  }
+  return MINI_APP_ADD_FAILED;
+}
+
+function readMiniAppAddResultNotificationHint(value: unknown): boolean {
+  try {
+    return typeof value === 'object'
+      && value !== null
+      && 'notificationDetails' in value
+      && readMiniAppNotificationDetailsHint(value.notificationDetails);
+  } catch {
+    return false;
+  }
+}
+
+type MiniAppNotificationProjectionUpdate = Readonly<{
+  presentation: MiniAppNotificationPresentation;
+  added?: boolean;
+  notificationsEnabledHint?: boolean;
+}>;
+
+type MiniAppNotificationProjectionController = Readonly<{
+  sdk: MiniAppSdk;
+  generation: number;
+  apply: (update: MiniAppNotificationProjectionUpdate) => void;
+}>;
+
+function installMiniAppNotificationListeners(
+  sdk: MiniAppSdk,
+  apply: (update: MiniAppNotificationProjectionUpdate) => void,
+  settleAddMiniAppFlight: () => void
+): () => void {
+  let on: MiniAppSdk['on'];
+  let removeListener: MiniAppSdk['removeListener'];
+  try {
+    on = sdk.on;
+    removeListener = sdk.removeListener;
+  } catch {
+    return noopBackCleanup;
+  }
+  if (typeof on !== 'function' || typeof removeListener !== 'function') {
+    return noopBackCleanup;
+  }
+
+  const onMiniAppAdded: MiniAppSdkEventListener<'miniAppAdded'> = (event) => {
+    try {
+      const enabled = readMiniAppNotificationDetailsHint(
+        event.notificationDetails
+      );
+      apply({
+        presentation: enabled ? 'enabled-hint' : 'added-status-unknown',
+        added: true,
+        notificationsEnabledHint: enabled
+      });
+      settleAddMiniAppFlight();
+    } catch {
+      // A malformed or mutable event cannot escape the host boundary.
+    }
+  };
+  const onMiniAppAddRejected: MiniAppSdkEventListener<'miniAppAddRejected'> = (
+    event
+  ) => {
+    try {
+      const presentation = event.reason === 'rejected_by_user'
+        ? 'rejected'
+        : event.reason === 'invalid_domain_manifest'
+          ? 'invalid-manifest'
+          : 'failed';
+      apply({
+        presentation
+      });
+      settleAddMiniAppFlight();
+    } catch {
+      // A malformed or mutable event cannot escape the host boundary.
+    }
+  };
+  const onMiniAppRemoved: MiniAppSdkEventListener<'miniAppRemoved'> = () => {
+    try {
+      apply({
+        presentation: 'not-added',
+        added: false,
+        notificationsEnabledHint: false
+      });
+      settleAddMiniAppFlight();
+    } catch {
+      // Event callbacks are isolated from the host shell.
+    }
+  };
+  const onNotificationsEnabled: MiniAppSdkEventListener<
+    'notificationsEnabled'
+  > = (event) => {
+    try {
+      if (!readMiniAppNotificationDetailsHint(event.notificationDetails)) {
+        apply({ presentation: 'failed' });
+        settleAddMiniAppFlight();
+        return;
+      }
+      apply({
+        presentation: 'enabled-hint',
+        added: true,
+        notificationsEnabledHint: true
+      });
+      settleAddMiniAppFlight();
+    } catch {
+      // A malformed or mutable event cannot escape the host boundary.
+    }
+  };
+  const onNotificationsDisabled: MiniAppSdkEventListener<
+    'notificationsDisabled'
+  > = () => {
+    try {
+      apply({
+        presentation: 'disabled-hint',
+        added: true,
+        notificationsEnabledHint: false
+      });
+      settleAddMiniAppFlight();
+    } catch {
+      // Event callbacks are isolated from the host shell.
+    }
+  };
+
+  const installed: Array<readonly [
+    MiniAppSdkEventName,
+    (...args: never[]) => void
+  ]> = [];
+  const add = <EventName extends keyof MiniAppSdkEventMap>(
+    event: EventName,
+    listener: MiniAppSdkEventListener<EventName>
+  ) => {
+    const erasedListener = listener as (...args: never[]) => void;
+    on.call(sdk, event, erasedListener);
+    installed.push([event, erasedListener]);
+  };
+  try {
+    add('miniAppAdded', onMiniAppAdded);
+    add('miniAppAddRejected', onMiniAppAddRejected);
+    add('miniAppRemoved', onMiniAppRemoved);
+    add('notificationsEnabled', onNotificationsEnabled);
+    add('notificationsDisabled', onNotificationsDisabled);
+  } catch {
+    for (const [event, listener] of installed.reverse()) {
+      try {
+        removeListener.call(sdk, event, listener);
+      } catch {
+        // Best-effort rollback of a partially installed optional adapter.
+      }
+    }
+    return noopBackCleanup;
+  }
+
+  let active = true;
+  return () => {
+    if (!active) return;
+    active = false;
+    for (const [event, listener] of installed.reverse()) {
+      try {
+        removeListener.call(sdk, event, listener);
+      } catch {
+        // Optional listener cleanup cannot break provider teardown.
+      }
+    }
+  };
 }
 
 function isMiniAppHinted(runtime: MiniAppBrowserRuntime): boolean {
@@ -268,6 +531,7 @@ const MISSING_PROVIDER_VALUE: MiniAppHostValue = Object.freeze({
   isFramed: false,
   context: null,
   capabilities: EMPTY_CAPABILITIES,
+  notificationPresentation: 'unsupported',
   recoveryReason: null,
   retry: () => false,
   hasCapability: () => false,
@@ -275,7 +539,7 @@ const MISSING_PROVIDER_VALUE: MiniAppHostValue = Object.freeze({
   actions: Object.freeze({
     openUrl: async () => false,
     close: async () => false,
-    addMiniApp: async () => false,
+    addMiniApp: async () => MINI_APP_ADD_UNSUPPORTED,
     viewProfile: async () => false,
     openMiniApp: async () => false
   }),
@@ -298,9 +562,13 @@ export function MiniAppHostProvider({
   sdkLoader = defaultMiniAppSdkLoader,
   runtime = DEFAULT_MINI_APP_BROWSER_RUNTIME,
   hostDeadlineMilliseconds,
+  addMiniAppDeadlineMilliseconds,
   quickAuthDeadlineMilliseconds
 }: MiniAppHostProviderProps) {
   const hostDeadline = normalizedHostDeadline(hostDeadlineMilliseconds);
+  const addMiniAppDeadline = normalizedAddMiniAppDeadline(
+    addMiniAppDeadlineMilliseconds
+  );
   const quickAuthDeadline = normalizedQuickAuthDeadline(
     quickAuthDeadlineMilliseconds
   );
@@ -322,12 +590,23 @@ export function MiniAppHostProvider({
   const sdkRef = useRef<MiniAppSdk | null>(null);
   const capabilitiesRef = useRef<ReadonlySet<MiniAppCapability>>(new Set());
   const hapticsEnabledRef = useRef(false);
+  const notificationPresentationRef = useRef<MiniAppNotificationPresentation>(
+    'unsupported'
+  );
+  const notificationProjectionRef = useRef<
+    MiniAppNotificationProjectionController | undefined
+  >(undefined);
   const activeBackCleanupRef = useRef<(() => void) | null>(null);
   const backCommandRef = useRef<Promise<void>>(Promise.resolve());
   const readyAttemptScopeRef = useRef<ReadyAttemptScope | null>(null);
   const quickAuthFlightRef = useRef<Readonly<{
     force: boolean;
     promise: Promise<FarcasterQuickAuthTokenResult>;
+  }> | undefined>(undefined);
+  const addMiniAppFlightRef = useRef<Readonly<{
+    sdk: MiniAppSdk;
+    generation: number;
+    promise: Promise<MiniAppAddResult>;
   }> | undefined>(undefined);
   const retainedReadyScope = readyAttemptScopeRef.current;
   if (
@@ -379,6 +658,9 @@ export function MiniAppHostProvider({
     let removeSafeAreaVariables: (() => void) | null = null;
     let removeQuickAuthPreconnect: (() => void) | null = null;
     let removeViewportSubscription: (() => void) | null = null;
+    let removeNotificationListeners: (() => void) | null = null;
+    notificationPresentationRef.current = 'unsupported';
+    notificationProjectionRef.current = undefined;
     setSnapshot(DETECTING_SNAPSHOT);
 
     const recover = (reason: MiniAppRecoveryReason) => {
@@ -390,6 +672,10 @@ export function MiniAppHostProvider({
       sdkRef.current = null;
       capabilitiesRef.current = new Set();
       hapticsEnabledRef.current = false;
+      notificationPresentationRef.current = 'unsupported';
+      notificationProjectionRef.current = undefined;
+      removeNotificationListeners?.();
+      removeNotificationListeners = null;
       removeSafeAreaVariables?.();
       removeSafeAreaVariables = null;
       removeQuickAuthPreconnect?.();
@@ -473,7 +759,7 @@ export function MiniAppHostProvider({
       // Keep only the deeply sanitized projection. The raw host object may be
       // mutable and can contain unrelated private fields; a later resize must
       // never re-read it or let it alter the verified presentation snapshot.
-      const presentationContextSeed = context;
+      let presentationContextSeed = context;
 
       let capabilities: readonly MiniAppCapability[] = EMPTY_CAPABILITIES;
       try {
@@ -531,14 +817,19 @@ export function MiniAppHostProvider({
             } catch {
               return;
             }
+            presentationContextSeed = refreshedContext;
             context = refreshedContext;
             if (sdkRef.current === sdk) {
-              setSnapshot(Object.freeze({
+              const nextSnapshot: HostSnapshot = Object.freeze({
                 state: 'miniapp',
                 context: refreshedContext,
                 capabilities,
+                notificationPresentation:
+                  notificationPresentationRef.current,
                 recoveryReason: null
-              }));
+              });
+              snapshotRef.current = nextSnapshot;
+              setSnapshot(nextSnapshot);
             }
           });
         } catch {
@@ -632,12 +923,72 @@ export function MiniAppHostProvider({
       sdkRef.current = sdk;
       capabilitiesRef.current = new Set(capabilities);
       hapticsEnabledRef.current = context.features.haptics;
-      setSnapshot(Object.freeze({
+      notificationPresentationRef.current = initialNotificationPresentation(
+        context,
+        capabilities
+      );
+      const applyNotificationProjection = (
+        update: MiniAppNotificationProjectionUpdate
+      ) => {
+        if (
+          cancelled
+          || activeAttemptGenerationRef.current !== attemptGeneration
+          || sdkRef.current !== sdk
+        ) return;
+        const added = update.added
+          ?? presentationContextSeed.client.added;
+        const notificationsEnabledHint = update.notificationsEnabledHint
+          ?? presentationContextSeed.client.notificationsEnabledHint;
+        if (
+          added !== presentationContextSeed.client.added
+          || notificationsEnabledHint
+            !== presentationContextSeed.client.notificationsEnabledHint
+        ) {
+          presentationContextSeed = withMiniAppNotificationHints(
+            presentationContextSeed,
+            { added, notificationsEnabledHint }
+          );
+          context = presentationContextSeed;
+        }
+        notificationPresentationRef.current = update.presentation;
+        const nextSnapshot: HostSnapshot = Object.freeze({
+          state: 'miniapp',
+          context: presentationContextSeed,
+          capabilities,
+          notificationPresentation: update.presentation,
+          recoveryReason: null
+        });
+        snapshotRef.current = nextSnapshot;
+        setSnapshot(nextSnapshot);
+      };
+      notificationProjectionRef.current = Object.freeze({
+        sdk,
+        generation: attemptGeneration,
+        apply: applyNotificationProjection
+      });
+      const initialSnapshot: HostSnapshot = Object.freeze({
         state: 'miniapp',
         context,
         capabilities,
+        notificationPresentation: notificationPresentationRef.current,
         recoveryReason: null
-      }));
+      });
+      snapshotRef.current = initialSnapshot;
+      setSnapshot(initialSnapshot);
+      const settleAddMiniAppFlight = () => {
+        const flight = addMiniAppFlightRef.current;
+        if (
+          flight?.sdk === sdk
+          && flight.generation === attemptGeneration
+        ) {
+          addMiniAppFlightRef.current = undefined;
+        }
+      };
+      removeNotificationListeners = installMiniAppNotificationListeners(
+        sdk,
+        applyNotificationProjection,
+        settleAddMiniAppFlight
+      );
     })();
 
     return () => {
@@ -646,6 +997,13 @@ export function MiniAppHostProvider({
       sdkRef.current = null;
       capabilitiesRef.current = new Set();
       hapticsEnabledRef.current = false;
+      notificationPresentationRef.current = 'unsupported';
+      if (
+        notificationProjectionRef.current?.generation === attemptGeneration
+      ) {
+        notificationProjectionRef.current = undefined;
+      }
+      removeNotificationListeners?.();
       removeSafeAreaVariables?.();
       removeViewportSubscription?.();
       removeQuickAuthPreconnect?.();
@@ -752,6 +1110,181 @@ export function MiniAppHostProvider({
     }
   }, [hostDeadline]);
 
+  const addMiniApp = useCallback((): Promise<MiniAppAddResult> => {
+    const sdk = sdkRef.current;
+    const generation = activeAttemptGenerationRef.current;
+    if (
+      !sdk
+      || !capabilitiesRef.current.has('actions.addMiniApp')
+    ) {
+      return Promise.resolve(MINI_APP_ADD_UNSUPPORTED);
+    }
+
+    const activeFlight = addMiniAppFlightRef.current;
+    if (
+      activeFlight
+      && activeFlight.sdk === sdk
+      && activeFlight.generation === generation
+    ) return activeFlight.promise;
+
+    // Once the host has settled this generation, a stale button frame cannot
+    // reopen the native prompt before React presents the resulting state.
+    const presentation = notificationPresentationRef.current;
+    if (presentation === 'enabled-hint') {
+      return Promise.resolve(MINI_APP_ADD_ENABLED_HINT);
+    }
+    if (
+      presentation === 'requesting'
+      || presentation === 'setup-requested'
+      || presentation === 'added-status-unknown'
+      || presentation === 'disabled-hint'
+    ) {
+      return Promise.resolve(MINI_APP_ADD_SETUP_REQUESTED);
+    }
+    if (presentation === 'unsupported') {
+      return Promise.resolve(MINI_APP_ADD_UNSUPPORTED);
+    }
+
+    let sdkActions: MiniAppSdk['actions'];
+    let invoke: NonNullable<MiniAppSdk['actions']['addMiniApp']>;
+    try {
+      sdkActions = sdk.actions;
+      const candidate = sdkActions.addMiniApp;
+      if (typeof candidate !== 'function') {
+        return Promise.resolve(MINI_APP_ADD_UNSUPPORTED);
+      }
+      invoke = candidate;
+    } catch {
+      notificationProjectionRef.current?.apply({ presentation: 'failed' });
+      return Promise.resolve(MINI_APP_ADD_FAILED);
+    }
+
+    const projection = notificationProjectionRef.current;
+    if (
+      !projection
+      || projection.sdk !== sdk
+      || projection.generation !== generation
+    ) return Promise.resolve(MINI_APP_ADD_HOST_REPLACED);
+
+    // The ref is the same-frame lock. Presentation leaves the available state
+    // before any host promise or React commit can allow a duplicate prompt.
+    projection.apply({ presentation: 'requesting' });
+
+    let flight: NonNullable<typeof addMiniAppFlightRef.current>;
+    const reconcileResult = (result: MiniAppAddResult) => {
+      // A definitive host event can settle this attempt before the action
+      // promise. Require exact flight identity so a late result cannot alter a
+      // newer prompt started in the same SDK generation.
+      if (addMiniAppFlightRef.current !== flight) return;
+      const activeProjection = notificationProjectionRef.current;
+      if (
+        !activeProjection
+        || activeProjection.sdk !== sdk
+        || activeProjection.generation !== generation
+      ) return;
+
+      const current = notificationPresentationRef.current;
+      if (result.status === 'enabled-hint') {
+        if (
+          current === 'requesting'
+          || current === 'setup-requested'
+          || current === 'added-status-unknown'
+        ) {
+          activeProjection.apply({
+            presentation: 'enabled-hint',
+            added: true,
+            notificationsEnabledHint: true
+          });
+        }
+      } else if (result.status === 'setup-requested') {
+        if (current === 'requesting' || current === 'setup-requested') {
+          activeProjection.apply({
+            presentation: 'setup-requested',
+            added: true,
+            notificationsEnabledHint: false
+          });
+        }
+      } else if (result.status === 'timeout') {
+        if (current === 'requesting') {
+          // A deadline cannot cancel a native prompt. Keep this generation
+          // sealed until the host actually settles instead of exposing Retry.
+          activeProjection.apply({ presentation: 'setup-requested' });
+        }
+      } else if (
+        current === 'requesting'
+        || current === 'setup-requested'
+      ) {
+        activeProjection.apply({
+          presentation: result.status === 'rejected'
+            ? 'rejected'
+            : result.status === 'invalid-manifest'
+              ? 'invalid-manifest'
+              : 'failed'
+        });
+      }
+    };
+
+    const hostResultPromise = Promise.resolve()
+      .then(async (): Promise<MiniAppAddResult> => {
+        try {
+          const hostResult = await invoke.call(sdkActions);
+          if (
+            sdkRef.current !== sdk
+            || activeAttemptGenerationRef.current !== generation
+          ) return MINI_APP_ADD_HOST_REPLACED;
+          return readMiniAppAddResultNotificationHint(hostResult)
+            ? MINI_APP_ADD_ENABLED_HINT
+            : MINI_APP_ADD_SETUP_REQUESTED;
+        } catch (error) {
+          if (
+            sdkRef.current !== sdk
+            || activeAttemptGenerationRef.current !== generation
+          ) return MINI_APP_ADD_HOST_REPLACED;
+          return boundedMiniAppAddError(error);
+        }
+      });
+
+    const promise = withMiniAppHostDeadline(
+      hostResultPromise,
+      addMiniAppDeadline
+    )
+      .catch((error: unknown) => isMiniAppHostDeadlineError(error)
+        ? MINI_APP_ADD_TIMEOUT
+        : MINI_APP_ADD_FAILED)
+      .then((result) => {
+        if (result.status === 'timeout') reconcileResult(result);
+        return result;
+      });
+    flight = Object.freeze({ sdk, generation, promise });
+    addMiniAppFlightRef.current = flight;
+
+    // The bounded caller may settle before the user-controlled native prompt.
+    // Retain the single-flight lock and reconcile the eventual host result so a
+    // slow decision can never create two overlapping prompts or be discarded.
+    const releaseFlight = () => {
+      if (addMiniAppFlightRef.current === flight) {
+        addMiniAppFlightRef.current = undefined;
+      }
+    };
+    void hostResultPromise.then(
+      (result) => {
+        try {
+          reconcileResult(result);
+        } catch {
+          // A presentation failure cannot escape the optional host boundary.
+        } finally {
+          releaseFlight();
+        }
+      },
+      () => {
+        // hostResultPromise is intentionally total, but keep the lock releasable
+        // if an injected thenable violates that contract.
+        releaseFlight();
+      }
+    );
+    return promise;
+  }, [addMiniAppDeadline]);
+
   const actions = useMemo<MiniAppHostActions>(() => Object.freeze({
     openUrl: async (url: string) => {
       const safeUrl = sanitizeMiniAppActionUrl(url);
@@ -765,10 +1298,7 @@ export function MiniAppHostProvider({
       if (!sdk.actions.close) throw new Error();
       await sdk.actions.close();
     }),
-    addMiniApp: () => runOptional('actions.addMiniApp', async (sdk) => {
-      if (!sdk.actions.addMiniApp) throw new Error();
-      await sdk.actions.addMiniApp();
-    }),
+    addMiniApp,
     viewProfile: async (fid: number) => {
       if (!positiveFid(fid)) return false;
       return runOptional('actions.viewProfile', async (sdk) => {
@@ -784,7 +1314,7 @@ export function MiniAppHostProvider({
         await sdk.actions.openMiniApp({ url: safeUrl });
       });
     }
-  }), [runOptional]);
+  }), [addMiniApp, runOptional]);
 
   const haptics = useMemo<MiniAppHostHaptics>(() => Object.freeze({
     impactOccurred: (
@@ -875,6 +1405,7 @@ export function MiniAppHostProvider({
     isFramed,
     context: snapshot.context,
     capabilities: snapshot.capabilities,
+    notificationPresentation: snapshot.notificationPresentation,
     recoveryReason: snapshot.recoveryReason,
     retry,
     hasCapability,

@@ -1,0 +1,91 @@
+.farcaster-admission-notification {
+  display: grid;
+  justify-items: center;
+  gap: 0.58rem;
+  width: 100%;
+  padding: 1rem 0.9rem;
+  border: 1px solid rgb(199 155 82 / 34%);
+  background:
+    radial-gradient(circle at 50% 0%, rgb(123 57 147 / 22%), transparent 62%),
+    rgb(7 7 13 / 48%);
+  box-shadow: inset 0 1px rgb(255 232 189 / 7%);
+  text-align: center;
+}
+
+.farcaster-admission-notification:focus-visible {
+  outline: 2px solid rgb(228 183 111 / 86%);
+  outline-offset: 3px;
+}
+
+.farcaster-admission-notification__sigil {
+  color: #d7aef0;
+  font-size: 0.9rem;
+  line-height: 1;
+  text-shadow: 0 0 14px rgb(175 93 221 / 68%);
+}
+
+.farcaster-admission-notification > strong {
+  color: #f2d9a8;
+  font-family: var(--warpkeep-font-display, serif);
+  font-size: 0.73rem;
+  letter-spacing: 0.16em;
+}
+
+.farcaster-admission-notification > p,
+.farcaster-admission-notification > small {
+  max-width: 31rem;
+  margin: 0;
+  color: rgb(242 229 207 / 82%);
+  line-height: 1.48;
+}
+
+.farcaster-admission-notification > p {
+  font-size: 0.8rem;
+}
+
+.farcaster-admission-notification > small {
+  color: rgb(224 211 192 / 68%);
+  font-size: 0.68rem;
+}
+
+.farcaster-admission-notification__action,
+.farcaster-admission-notification__dismiss {
+  min-height: 44px;
+}
+
+.farcaster-admission-notification__dismiss {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: rgb(224 211 192 / 72%);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-decoration: underline;
+  text-decoration-color: rgb(224 211 192 / 28%);
+  text-underline-offset: 0.24rem;
+}
+
+.farcaster-admission-notification__dismiss:hover,
+.farcaster-admission-notification__dismiss:focus-visible {
+  color: #f2d9a8;
+}
+
+.farcaster-admission-notification--requesting .farcaster-admission-notification__sigil {
+  animation: farcaster-notification-pulse 1.25s ease-in-out infinite;
+}
+
+@keyframes farcaster-notification-pulse {
+  50% {
+    opacity: 0.46;
+    transform: scale(0.82);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .farcaster-admission-notification--requesting .farcaster-admission-notification__sigil {
+    animation: none;
+  }
+}

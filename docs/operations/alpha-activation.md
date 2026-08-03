@@ -256,19 +256,72 @@ a SpacetimeDB schema change. Roll them out in this order:
    convergence, use one owner-controlled production client to generate a real
    enable/add event followed by a disable/remove event. Confirm only
    privacy-safe static evidence; never retain the signed body or token.
-6. Publish the client opt-in control only after both signed canary events pass.
+6. Keep `VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED=false` until both signed
+   canary events pass. Then change only that public presentation gate to the
+   literal value `true` in a reviewed frontend release; it does not enable the
+   Worker or grant admission.
 7. Give Hermes the operator secret through its private environment. A committed
    admission may call the notification route best-effort; if delivery cannot be
    queued, preserve the admission result and reconcile later with
    `npm run stdb:notify-admitted -- <fid> --confirm`.
 
-For rollback, pause the notification gate first. Leave the webhook verifier and
-client configuration available long enough to accept signed disable/remove
-events and erase stored tokens. Pausing notifications must not disable public
-authentication or revoke admission. Do not remove the `v5` class, binding, or
-cleanup implementation until at least 366 days after the last possible accepted
-enable event and a separately reviewed zero-state drain proof exists. In the
-absence of that proof, retain the inert forward-compatible cleanup path.
+### Owner canary and end-to-end acceptance
+
+The signed production canary is still outstanding unless a private release
+record contains all evidence below. Automated webhook fixtures do not satisfy
+it.
+
+1. Record the exact reviewed frontend and Worker SHAs, UTC start time, live
+   manifest digest, redacted notification configuration attestation, and the
+   fact that the client presentation gate is still `false`. Do not record a
+   real FID, webhook body, notification token, or delivery URL.
+2. Use a dedicated owner-controlled account in the exact production Mini App.
+   Before any admission or `notify-admitted` action for that test cycle, accept
+   Farcaster's native add prompt. In the bounded log window, require exactly the
+   fixed events `miniapp_webhook_verified` and
+   `miniapp_notification_subscribed`; no caller data is valid evidence.
+3. Disable Warpkeep notifications or remove Warpkeep in the same client. Require
+   the fixed events `miniapp_webhook_verified` and
+   `miniapp_notification_unsubscribed`. This proves the signed opt-out reached
+   the private erasure path. Confirm ordinary authentication still works and no
+   approval notification was sent during this canary.
+4. After review, enable the client presentation gate in one narrow release and
+   verify the deployed build SHA. With a fresh pending request cycle, confirm
+   **REQUEST RECEIVED**, select **ENABLE ADMISSION ALERTS** once, accept the
+   native prompt, and observe either the enabled host hint or the truthful
+   setup-requested state. The access request timestamp and state must not
+   change.
+5. Confirm one new signed subscription pair through the same fixed events, then
+   admit the account through the existing reviewed Hermes dry-run, mutation,
+   and postflight sequence. Admission remains authoritative even if the
+   notification side effect fails. If the automatic side effect is ambiguous,
+   run `npm run stdb:notify-admitted -- <fid> --confirm` once; accept only
+   `queued`, `already-sent`, `delivery-exhausted`, or `not-subscribed`.
+6. Require one approval notification for the resulting positive auth epoch.
+   Its target must be exactly `https://warpkeep.com/?miniApp=true`. Tap it and
+   verify the calm confirmation state, fresh Quick Auth, current admission,
+   current Terms when required, and entry through the existing canonical keep.
+   No notification context may create a second keep or bypass Terms.
+7. Disable notifications or remove Warpkeep again, require the fixed
+   unsubscribe events, and confirm Realm access remains unchanged. Repeat the
+   complete acceptance on current Farcaster iOS and Android before declaring
+   the client rollout complete.
+
+The current Worker copy is intentionally unchanged during this frontend stage:
+`The Hegemony admits you` (23 characters) and
+`Your keep awaits in Genesis 001. Enter the living Realm.` (56 characters).
+Both are bounded and privacy-safe. Any copy change requires a separate reviewed
+Worker rollout.
+
+For rollback, set `APPROVAL_NOTIFICATIONS_ENABLED=false` first, then return
+`VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED=false` and deploy the last
+reviewed frontend. Leave the webhook verifier and client configuration
+available so signed disable/remove events can erase stored tokens. Keep the
+manifest webhook, `v5` class, binding, and cleanup implementation; do not
+destructively delete private state, disable public authentication, or revoke
+admission. Do not remove the cleanup path until at least 366 days after the last
+possible accepted enable event and a separately reviewed zero-state drain proof
+exists.
 
 ## 6. Bounded owner smoke test
 

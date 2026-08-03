@@ -106,6 +106,7 @@ function launchStatus(
   hostState: MiniAppHostState,
   recoveryReason: MiniAppRecoveryReason | null,
   authState: FarcasterAuthViewState,
+  approvalNotificationLaunch: boolean,
   onRetryAuthentication: () => void,
   onRetryHost: () => void,
   onReopenMiniApp: () => void,
@@ -113,8 +114,12 @@ function launchStatus(
 ): LaunchStatus {
   if (hostState === 'detecting') {
     return Object.freeze({
-      title: 'OPENING WARPKEEP',
-      message: 'Preparing the Realm inside Farcaster',
+      title: approvalNotificationLaunch
+        ? 'CONFIRMING HEGEMONY ADMISSION'
+        : 'OPENING WARPKEEP',
+      message: approvalNotificationLaunch
+        ? 'Rechecking your current Warpkeep access…'
+        : 'Preparing the Realm inside Farcaster',
       busy: true
     });
   }
@@ -189,8 +194,12 @@ function launchStatus(
     });
   }
   return Object.freeze({
-    title: 'VERIFYING FARCASTER',
-    message: 'Checking identity and frontier access',
+    title: approvalNotificationLaunch
+      ? 'CONFIRMING HEGEMONY ADMISSION'
+      : 'VERIFYING FARCASTER',
+    message: approvalNotificationLaunch
+      ? 'Rechecking your current Warpkeep access…'
+      : 'Checking identity and frontier access',
     busy: true
   });
 }
@@ -363,6 +372,7 @@ export function FarcasterMiniAppEntryGate({
   onSignOut
 }: FarcasterMiniAppEntryGateProps) {
   const miniAppHost = useMiniAppHost();
+  const approvalNotificationLaunch = miniAppHost.context?.notificationId !== undefined;
   const openWebVersion = miniAppHost.isMiniApp
     ? () => miniAppHost.actions.openUrl('https://warpkeep.com/#menu')
     : undefined;
@@ -432,6 +442,7 @@ export function FarcasterMiniAppEntryGate({
           hostState,
           recoveryReason,
           authState,
+          approvalNotificationLaunch,
           onRetryAuthentication,
           onRetryHost,
           reopenMiniApp,
@@ -444,6 +455,7 @@ export function FarcasterMiniAppEntryGate({
       <FarcasterAdmissionPanel
         accessRequest={accessRequest}
         admissionCheck={admissionCheck}
+        approvalNotificationLaunch={approvalNotificationLaunch}
         identity={authState.identity}
         onBackToMenu={onBackToMenu}
         onCheckAgain={onRefreshSession}
@@ -458,6 +470,7 @@ export function FarcasterMiniAppEntryGate({
       <FarcasterAdmissionPanel
         accessRequest={accessRequest}
         admissionCheck={admissionCheck}
+        approvalNotificationLaunch={approvalNotificationLaunch}
         autoFocusHeading={!awaitingTerms}
         identity={identity}
         onBackToMenu={
@@ -486,6 +499,7 @@ export function FarcasterMiniAppEntryGate({
           hostState,
           recoveryReason,
           authState,
+          approvalNotificationLaunch,
           onRetryAuthentication,
           onRetryHost,
           reopenMiniApp,

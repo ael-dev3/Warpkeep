@@ -36,6 +36,8 @@ export type FarcasterAdmissionPanelProps = Readonly<{
   onRequestAccess?: () => boolean;
   onRetryAccessRequestStatus?: () => void;
   onSignOut: () => void;
+  /** Presentation hint only; admission still comes from the auth/backend state. */
+  approvalNotificationLaunch?: boolean;
 }>;
 
 type AdmissionPresentation = Readonly<{
@@ -106,12 +108,28 @@ export function FarcasterAdmissionPanel({
   admissionCheck = IDLE_ADMISSION_CHECK,
   onRequestAccess,
   onRetryAccessRequestStatus,
-  onSignOut
+  onSignOut,
+  approvalNotificationLaunch = false
 }: FarcasterAdmissionPanelProps) {
   const headingId = `farcaster-admission-heading-${useId().replace(/:/g, '')}`;
   const accessRequestDescriptionId = `${headingId}-access-request-description`;
   const localHeadingRef = useRef<HTMLHeadingElement>(null);
-  const presentation = presentationByPhase[phase];
+  const defaultPresentation = presentationByPhase[phase];
+  const presentation = approvalNotificationLaunch
+    && phase !== 'denied'
+    && phase !== 'error'
+    ? phase === 'connecting' || phase === 'reconnecting' || phase === 'checking-admission'
+      ? Object.freeze({
+          eyebrow: 'HEGEMONY FRONTIER ACCESS',
+          title: 'CONFIRMING HEGEMONY ADMISSION',
+          liveMessage: 'Rechecking your current Warpkeep access…'
+        })
+      : Object.freeze({
+          eyebrow: 'HEGEMONY FRONTIER ACCESS',
+          title: 'HEGEMONY ADMISSION APPROVED',
+          liveMessage: 'Your active admission has been confirmed.'
+        })
+    : defaultPresentation;
   const accessRequestBusy = accessRequest.phase === 'loading-status'
     || accessRequest.phase === 'submitting'
     || accessRequest.phase === 'verifying-ambiguous-result';
@@ -183,7 +201,9 @@ export function FarcasterAdmissionPanel({
         {denied ? (
           <>
             <p className="farcaster-admission-panel__lead">
-              This Farcaster identity is not yet admitted to the Hegemony frontier.
+              {approvalNotificationLaunch
+                ? 'Warpkeep has not yet confirmed active admission. Check again in a moment.'
+                : 'This Farcaster identity is not yet admitted to the Hegemony frontier.'}
             </p>
             <FarcasterAccessRequestMessage
               descriptionId={accessRequestDescriptionId}
