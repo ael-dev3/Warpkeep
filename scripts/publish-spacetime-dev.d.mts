@@ -53,6 +53,10 @@ export function readFoundedPublishExpectations(
   source?: Record<string, string | undefined>,
 ): Readonly<FoundedPublishExpectations>;
 export function requireCanonicalPublishCoordinates(...args: any[]): any;
+export function requireEntryAgreementProductionRelease(
+  releaseStatus?: string,
+  dryRun?: boolean,
+): void;
 export function runCurrentAdditiveMigrationProof(...args: any[]): any;
 export function validateIssuerDeployment(...args: any[]): any;
 export function verifyCanonicalDatabaseList(...args: any[]): any;

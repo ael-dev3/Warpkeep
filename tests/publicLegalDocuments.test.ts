@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import {
+  WARPKEEP_ALPHA_PRIVACY_NOTICE_VERSION,
   WARPKEEP_ENTRY_AGREEMENT_VERSION,
   WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_VERSION,
 } from '../src/legal/alphaTermsPolicy';
@@ -19,6 +20,16 @@ const legalCss = readFileSync('public/legal/warpkeep-legal.css', 'utf8');
 
 const strictPublicLegalCsp =
   "default-src 'none'; style-src 'self'; base-uri 'none'; form-action 'none'";
+const exactPublicLegalHrefAllowlist = new Set([
+  '../',
+  './index.html',
+  '../terms/index.html',
+  '../social-contract/index.html',
+  '../privacy/index.html',
+  'https://github.com/ael-dev3',
+  'https://github.com/ael-dev3/Warpkeep',
+  'https://github.com/ael-dev3/Warpkeep/security/policy',
+]);
 
 function parse(html: string) {
   return new DOMParser().parseFromString(html, 'text/html');
@@ -108,6 +119,12 @@ describe('public Alpha legal documents', () => {
 
       for (const link of document.querySelectorAll<HTMLAnchorElement>('a[target="_blank"]')) {
         expect(link.rel.split(/\s+/)).toEqual(expect.arrayContaining(['noopener', 'noreferrer']));
+      }
+
+      for (const link of document.querySelectorAll<HTMLAnchorElement>('a[href]')) {
+        expect(exactPublicLegalHrefAllowlist.has(link.getAttribute('href') ?? '')).toBe(true);
+        expect(link.hasAttribute('download')).toBe(false);
+        expect(link.hasAttribute('ping')).toBe(false);
       }
 
       for (const asset of document.querySelectorAll(
@@ -211,6 +228,7 @@ describe('public Alpha legal documents', () => {
       'Hegemony Social Contract',
       WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_VERSION,
       WARPKEEP_ENTRY_AGREEMENT_VERSION,
+      WARPKEEP_ALPHA_PRIVACY_NOTICE_VERSION,
       'cryptographically binds the exact visible Terms and Social Contract texts',
       'Realm Chat is not active in this release',
       'message body, channel, server-owned sequence and time',

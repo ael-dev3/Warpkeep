@@ -89,6 +89,10 @@ describe('GitHub workflow security policy', () => {
     expect(build).toContain(
       'WARPKEEP_SHARED_ALPHA_ENABLED must be exactly true or false.',
     );
+    expect(build).toContain('npm run validate:pages-config');
+    expect(build.indexOf('npm run validate:pages-config')).toBeLessThan(
+      build.indexOf('npm run build'),
+    );
     expect(source).toContain('group: pages-main');
     expect(source).not.toMatch(/^\s+group:\s*pages\s*$/m);
   });

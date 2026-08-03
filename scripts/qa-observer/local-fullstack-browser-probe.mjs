@@ -4,6 +4,9 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import {
+  WARPKEEP_ENTRY_AGREEMENT_VERSION,
+} from '../entry-agreement-policy.mjs';
+import {
   DevtoolsPipeSession,
   analyzeRenderedWebglPngScreenshot,
   attestStableHeadlessChromeExecutable,
@@ -5209,7 +5212,7 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
       || database.seedAttestation.workerCount !== 28
       || database.seedAttestation.entryAgreementAcceptedCurrent !== true
       || database.seedAttestation.entryAgreementRequiredVersion
-        !== '2026-08-03-hegemony-entry-agreement-v5'
+        !== WARPKEEP_ENTRY_AGREEMENT_VERSION
       || database.seedAttestation.genericAssignments !== 0
       || database.seedAttestation.genericOccupations !== 0
       || database.seedAttestation.genericSchedules !== 0
