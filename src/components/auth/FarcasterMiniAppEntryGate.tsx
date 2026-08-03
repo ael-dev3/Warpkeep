@@ -10,14 +10,22 @@ import {
 
 import type {
   AccessRequestViewState,
+  FarcasterAuthEntryStage,
   FarcasterAuthViewState,
   VerifiedFarcasterIdentity
 } from '../../farcaster/farcasterAuthTypes';
 import {
   useMiniAppBackNavigation,
+  useMiniAppHost,
   type MiniAppRecoveryReason,
   type MiniAppHostState
 } from '../../farcaster/miniapp';
+import {
+  copyFarcasterAuthDiagnosticReport,
+  createFarcasterAuthSupportCode,
+  farcasterAuthSafeDiagnosticReport
+} from '../../farcaster/farcasterAuthDiagnostics';
+import { WARPKEEP_BUILD_INFO } from '../../build/buildInfo';
 import type {
   WarpkeepBackendPhase,
   WarpkeepBackendState
@@ -63,6 +71,7 @@ type LaunchStatus = Readonly<{
     label: string;
     run: () => void;
   }>;
+  diagnosticStage?: FarcasterAuthEntryStage;
 }>;
 
 const ADMISSION_LOADING_STATUS: LaunchStatus = Object.freeze({
@@ -96,6 +105,7 @@ function launchStatus(
   authState: FarcasterAuthViewState,
   onRetryAuthentication: () => void,
   onRetryHost: () => void,
+  onReopenMiniApp: () => void,
   onBackToMenu: () => void
 ): LaunchStatus {
   if (hostState === 'detecting') {
@@ -136,12 +146,38 @@ function launchStatus(
     });
   }
   if (authState.phase === 'error' || authState.phase === 'expired') {
+    const stage = authState.error.stage ?? 'bridge_response_invalid';
+    const tokenRejected = stage === 'bridge_http_401';
+    const configurationMismatch = stage === 'bridge_http_403'
+      || stage === 'deployment_contract_mismatch';
+    const hostUnsupported = stage === 'quick_auth_api_missing';
+    const requiresFreshOpen = configurationMismatch
+      || stage === 'quick_auth_token_timeout'
+      || stage === 'quick_auth_host_replaced';
     return Object.freeze({
-      title: 'FARCASTER SIGN-IN UNAVAILABLE',
-      message: 'Your identity could not be verified safely. Try again when ready.',
+      title: tokenRejected
+        ? 'FARCASTER SESSION NEEDS TO BE REFRESHED'
+        : configurationMismatch
+          ? 'WARPKEEP NEEDS A FRESH OPEN'
+          : hostUnsupported
+            ? 'SECURE SIGN-IN IS NOT SUPPORTED HERE'
+            : 'SECURE SIGN-IN IS TEMPORARILY UNAVAILABLE',
+      message: tokenRejected
+        ? 'Warpkeep could not accept the current Mini App session. Your account has not been changed.'
+        : configurationMismatch
+          ? 'This Mini App session does not match the current secure release. Close it, then open Warpkeep again.'
+          : stage === 'quick_auth_token_timeout'
+            ? 'Farcaster did not finish secure sign-in. Reopen Warpkeep to start a fresh session; your account has not been changed.'
+          : hostUnsupported
+            ? 'Open Warpkeep in a current Farcaster client or use the web version.'
+            : 'Farcaster or Warpkeep did not complete verification. Your account has not been changed.',
       busy: false,
-      action: Object.freeze({ label: 'TRY AGAIN', run: onRetryAuthentication }),
-      secondaryAction: Object.freeze({ label: 'BACK TO MENU', run: onBackToMenu })
+      action: Object.freeze({
+        label: requiresFreshOpen ? 'REOPEN WARPKEEP' : 'TRY AGAIN',
+        run: requiresFreshOpen ? onReopenMiniApp : onRetryAuthentication
+      }),
+      secondaryAction: Object.freeze({ label: 'BACK TO MENU', run: onBackToMenu }),
+      diagnosticStage: stage
     });
   }
   return Object.freeze({
@@ -151,8 +187,56 @@ function launchStatus(
   });
 }
 
-function MiniAppLaunchStatusPanel({ status }: Readonly<{ status: LaunchStatus }>) {
+function MiniAppLaunchStatusPanel({
+  status,
+  platform,
+  onOpenWebVersion
+}: Readonly<{
+  status: LaunchStatus;
+  platform: 'mobile' | 'web' | 'unknown';
+  onOpenWebVersion?: () => Promise<boolean>;
+}>) {
   const headingId = `warpkeep-miniapp-entry-${useId().replace(/:/g, '')}`;
+  const manualCopyRef = useRef<HTMLTextAreaElement>(null);
+  const [supportCode] = useState(createFarcasterAuthSupportCode);
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'manual'>('idle');
+  const visualViewport = typeof window === 'undefined' ? undefined : window.visualViewport;
+  const viewportWidth = visualViewport?.width
+    ?? (typeof window === 'undefined' ? undefined : window.innerWidth);
+  const viewportHeight = visualViewport?.height
+    ?? (typeof window === 'undefined' ? undefined : window.innerHeight);
+  let online: boolean | undefined;
+  try {
+    online = typeof navigator === 'undefined' ? undefined : navigator.onLine;
+  } catch {
+    online = undefined;
+  }
+  const report = status.diagnosticStage
+    ? farcasterAuthSafeDiagnosticReport({
+        version: WARPKEEP_BUILD_INFO.version,
+        build: WARPKEEP_BUILD_INFO.shortSha,
+        stage: status.diagnosticStage,
+        host: 'miniapp',
+        platform,
+        viewportWidth,
+        viewportHeight,
+        online,
+        supportCode
+      })
+    : '';
+  const copyDiagnostics = async () => {
+    if (!report) return;
+    const copied = await copyFarcasterAuthDiagnosticReport(report);
+    setCopyState(copied ? 'copied' : 'manual');
+  };
+  useEffect(() => {
+    setCopyState('idle');
+  }, [report]);
+  useEffect(() => {
+    if (copyState !== 'manual') return;
+    manualCopyRef.current?.focus();
+    manualCopyRef.current?.select();
+  }, [copyState]);
   return (
     <section
       aria-busy={status.busy || undefined}
@@ -196,6 +280,52 @@ function MiniAppLaunchStatusPanel({ status }: Readonly<{ status: LaunchStatus }>
           ) : null}
         </div>
       ) : null}
+      {status.diagnosticStage ? (
+        <div className="farcaster-miniapp-entry__support">
+          <a
+            className="farcaster-auth-panel__action farcaster-auth-panel__action--secondary"
+            href="https://warpkeep.com/#menu"
+            onClick={onOpenWebVersion ? (event) => {
+              event.preventDefault();
+              const fallbackUrl = event.currentTarget.href;
+              void onOpenWebVersion().then(
+                (opened) => {
+                  if (!opened) window.location.assign(fallbackUrl);
+                },
+                () => window.location.assign(fallbackUrl)
+              );
+            } : undefined}
+            rel="noreferrer noopener"
+            target="_blank"
+          >
+            OPEN WEB VERSION
+          </a>
+          <button
+            className="farcaster-auth-panel__action farcaster-auth-panel__action--secondary"
+            onClick={copyDiagnostics}
+            type="button"
+          >
+            COPY DIAGNOSTICS
+          </button>
+          <small>
+            This local report contains no account, identity, token, profile, or private Realm data.
+          </small>
+          {copyState === 'copied' ? (
+            <small aria-live="polite" role="status">Diagnostics copied.</small>
+          ) : null}
+          {copyState === 'manual' ? (
+            <label>
+              Clipboard access is unavailable. Copy this report manually.
+              <textarea
+                aria-label="Authentication diagnostics for manual copy"
+                readOnly
+                ref={manualCopyRef}
+                value={report}
+              />
+            </label>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -223,6 +353,16 @@ export function FarcasterMiniAppEntryGate({
   onRetryHost,
   onSignOut
 }: FarcasterMiniAppEntryGateProps) {
+  const miniAppHost = useMiniAppHost();
+  const openWebVersion = miniAppHost.isMiniApp
+    ? () => miniAppHost.actions.openUrl('https://warpkeep.com/#menu')
+    : undefined;
+  const reopenMiniApp = useCallback(() => {
+    // A document reload is deliberate here: the installed SDK owns an
+    // unabortable module-global promise after certain host timeouts. Starting
+    // another in-memory auth generation would only reuse that poisoned flight.
+    window.location.reload();
+  }, []);
   const [termsDismissed, setTermsDismissed] = useState(false);
   const reviewTermsButtonRef = useRef<HTMLButtonElement>(null);
   const restoreReviewTermsFocusRef = useRef(false);
@@ -269,12 +409,15 @@ export function FarcasterMiniAppEntryGate({
   if (hostState === 'detecting' || hostState === 'recovery') {
     content = (
       <MiniAppLaunchStatusPanel
+        onOpenWebVersion={openWebVersion}
+        platform={miniAppHost.context?.client.platformType ?? 'unknown'}
         status={launchStatus(
           hostState,
           recoveryReason,
           authState,
           onRetryAuthentication,
           onRetryHost,
+          reopenMiniApp,
           onBackToMenu
         )}
       />
@@ -315,12 +458,15 @@ export function FarcasterMiniAppEntryGate({
   } else {
     content = (
       <MiniAppLaunchStatusPanel
+        onOpenWebVersion={openWebVersion}
+        platform={miniAppHost.context?.client.platformType ?? 'unknown'}
         status={launchStatus(
           hostState,
           recoveryReason,
           authState,
           onRetryAuthentication,
           onRetryHost,
+          reopenMiniApp,
           onBackToMenu
         )}
       />
@@ -341,7 +487,13 @@ export function FarcasterMiniAppEntryGate({
         className="farcaster-miniapp-entry__content"
         inert={termsOpen ? true : undefined}
       >
-        <Suspense fallback={<MiniAppLaunchStatusPanel status={ADMISSION_LOADING_STATUS} />}>
+        <Suspense fallback={(
+          <MiniAppLaunchStatusPanel
+            onOpenWebVersion={openWebVersion}
+            platform={miniAppHost.context?.client.platformType ?? 'unknown'}
+            status={ADMISSION_LOADING_STATUS}
+          />
+        )}>
           {content}
         </Suspense>
       </div>

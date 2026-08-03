@@ -253,4 +253,41 @@ describe('FarcasterMiniAppEntryGate', () => {
     fireEvent.click(screen.getByRole('button', { name: 'TRY AGAIN' }));
     expect(callbacks.onRetryAuthentication).toHaveBeenCalledTimes(1);
   });
+
+  it('explains a mobile timeout and offers privacy-safe local diagnostics', async () => {
+    const callbacks = actions();
+    render(
+      <FarcasterMiniAppEntryGate
+        {...callbacks}
+        authState={{
+          phase: 'error',
+          error: {
+            code: 'network',
+            message: 'private raw failure',
+            stage: 'quick_auth_token_timeout'
+          }
+        }}
+        backendState={backendState('idle')}
+        hostState="miniapp"
+      />
+    );
+
+    expect(screen.getByRole('heading', {
+      name: 'SECURE SIGN-IN IS TEMPORARILY UNAVAILABLE'
+    })).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'REOPEN WARPKEEP' })).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'TRY AGAIN' })).toBeNull();
+    expect(screen.getByRole('status').textContent).toMatch(/account has not been changed/i);
+    expect(document.body.textContent).not.toContain('private raw failure');
+    expect(screen.getByRole('link', { name: 'OPEN WEB VERSION' }).getAttribute('href'))
+      .toBe('https://warpkeep.com/#menu');
+
+    fireEvent.click(screen.getByRole('button', { name: 'COPY DIAGNOSTICS' }));
+    const manual = await screen.findByRole('textbox', {
+      name: 'Authentication diagnostics for manual copy'
+    }) as HTMLTextAreaElement;
+    expect(manual.value).toContain('Entry stage: quick_auth_token_timeout');
+    expect(manual.value).toContain('Host: miniapp');
+    expect(manual.value).not.toMatch(/539854|12345|private raw|username|cookie|authorization/i);
+  });
 });

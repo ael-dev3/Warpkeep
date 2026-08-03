@@ -12,6 +12,7 @@ import {
   FarcasterAuthProviderCore,
   type FarcasterAuthControllerValue,
   type FarcasterAuthorityLoader,
+  type FarcasterBridgeFailureClassifier,
   type FarcasterOidcBridgeLoader,
   type FarcasterQuickAuthTokenLoader,
   type FarcasterQrEncoder
@@ -22,7 +23,10 @@ import {
 import type {
   FarcasterDeviceSessionEnvironment
 } from './farcasterDeviceSession';
-import { getDefaultFarcasterOidcBridgeClient } from './farcasterOidcBridgeClient';
+import {
+  farcasterOidcBridgeFailureKind,
+  getDefaultFarcasterOidcBridgeClient
+} from './farcasterOidcBridgeClient';
 import type {
   FarcasterAuthContext,
   FarcasterBrowserBindingFactory
@@ -70,6 +74,7 @@ export function FarcasterAuthProvider({
 
   return (
     <FarcasterAuthProviderCore
+      classifyBridgeFailure={farcasterOidcBridgeFailureKind}
       createBrowserBinding={createBrowserBinding}
       deviceSessionEnvironment={deviceSessionEnvironment}
       encodeQrCode={encodeQrCode}
@@ -98,6 +103,7 @@ export {
 export type {
   FarcasterAuthControllerValue,
   FarcasterAuthorityLoader,
+  FarcasterBridgeFailureClassifier,
   FarcasterOidcBridgeLoader,
   FarcasterQuickAuthTokenLoader,
   FarcasterQrEncoder

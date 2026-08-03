@@ -20,10 +20,78 @@ export type FarcasterAuthErrorCode =
   | 'cancelled'
   | 'unknown';
 
+/**
+ * Privacy-safe checkpoints for the Mini App entry path. These labels contain
+ * no identity, credential, request, URL, or server-response material and are
+ * the only auth details presentation code may copy into a support report.
+ */
+export type FarcasterAuthEntryStage =
+  | 'host_ready'
+  | 'quick_auth_api_missing'
+  | 'quick_auth_token_started'
+  | 'quick_auth_token_timeout'
+  | 'quick_auth_token_rejected'
+  | 'quick_auth_token_invalid_shape'
+  | 'quick_auth_host_replaced'
+  | 'quick_auth_token_acquired'
+  | 'bridge_client_unavailable'
+  | 'bridge_exchange_started'
+  | 'bridge_network_failed'
+  | 'bridge_cors_failed'
+  | 'bridge_exchange_timeout'
+  | 'bridge_http_401'
+  | 'bridge_http_403'
+  | 'bridge_http_429'
+  | 'bridge_http_503'
+  | 'bridge_response_invalid'
+  | 'client_clock_invalid'
+  | 'access_token_invalid'
+  | 'identity_changed'
+  | 'session_authorized'
+  | 'session_pending'
+  | 'stale_result_discarded'
+  | 'deployment_contract_mismatch';
+
 export type FarcasterAuthError = Readonly<{
   code: FarcasterAuthErrorCode;
   message: string;
+  /** Allowlisted support checkpoint; never a raw exception or server value. */
+  stage?: FarcasterAuthEntryStage;
 }>;
+
+/** The only current documented option accepted by the Mini App SDK. */
+export type FarcasterQuickAuthTokenOptions = Readonly<{
+  force?: boolean;
+}>;
+
+/**
+ * Closed host-adapter result. Bearer material exists only in the successful
+ * branch and must remain in the private acquisition/exchange call stack.
+ */
+export type FarcasterQuickAuthTokenResult =
+  | Readonly<{ status: 'token'; token: string }>
+  | Readonly<{ status: 'unsupported' }>
+  | Readonly<{ status: 'timeout' }>
+  | Readonly<{ status: 'rejected' }>
+  | Readonly<{ status: 'invalid-shape' }>
+  | Readonly<{ status: 'host-replaced' }>;
+
+/**
+ * Privacy-safe bridge failure classes shared across the injected auth
+ * boundary. The concrete bridge client owns classification; presentation and
+ * orchestration code receive only one of these closed labels.
+ */
+export type FarcasterOidcBridgeFailureKind =
+  | 'configuration'
+  | 'invalid-credential'
+  | 'forbidden'
+  | 'rate-limited'
+  | 'service-unavailable'
+  | 'timeout'
+  | 'network-or-cors'
+  | 'invalid-response'
+  | 'cancelled'
+  | 'unknown';
 
 export type FarcasterAuthMethod = 'custody' | 'authAddress';
 

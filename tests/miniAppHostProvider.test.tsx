@@ -102,18 +102,30 @@ function fakeSdk(overrides: Partial<MiniAppSdk> = {}) {
   return { sdk, back };
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return Object.freeze({ promise, reject, resolve });
+}
+
 function Harness({
   children,
   runtime,
   sdkLoader,
   capture,
-  hostDeadlineMilliseconds
+  hostDeadlineMilliseconds,
+  quickAuthDeadlineMilliseconds
 }: {
   children?: ReactNode;
   runtime: MiniAppBrowserRuntime;
   sdkLoader: () => Promise<unknown>;
   capture: (value: MiniAppHostValue) => void;
   hostDeadlineMilliseconds?: number;
+  quickAuthDeadlineMilliseconds?: number;
 }) {
   function Probe() {
     capture(useMiniAppHost());
@@ -122,6 +134,7 @@ function Harness({
   return (
     <MiniAppHostProvider
       hostDeadlineMilliseconds={hostDeadlineMilliseconds}
+      quickAuthDeadlineMilliseconds={quickAuthDeadlineMilliseconds}
       runtime={runtime}
       sdkLoader={sdkLoader}
     >
@@ -572,11 +585,142 @@ describe('Farcaster Mini App host provider', () => {
       />
     );
 
-    expect(await latest!.quickAuth.getToken()).toBeNull();
+    expect(await latest!.quickAuth.getToken()).toEqual({ status: 'unsupported' });
     expect(getToken).not.toHaveBeenCalled();
     await waitFor(() => expect(latest?.state).toBe('miniapp'));
-    await expect(latest!.quickAuth.getToken()).resolves.toBe(token);
+    await expect(latest!.quickAuth.getToken()).resolves.toEqual({
+      status: 'token',
+      token
+    });
     expect(getToken).toHaveBeenCalledTimes(1);
+  });
+
+  it('binds the Quick Auth receiver and passes only the documented force option', async () => {
+    const token = `${'a'.repeat(16)}.${'b'.repeat(24)}.${'c'.repeat(32)}`;
+    const receiver: NonNullable<MiniAppSdk['quickAuth']> = {};
+    const getToken = vi.fn(async function (
+      this: unknown,
+      options?: { force?: boolean }
+    ) {
+      if (this !== receiver) throw new Error('receiver lost');
+      if (options?.force !== true) throw new Error('force missing');
+      return { token };
+    });
+    receiver.getToken = getToken;
+    const { sdk } = fakeSdk({ quickAuth: receiver });
+    let latest: MiniAppHostValue | undefined;
+
+    render(
+      <Harness
+        runtime={runtimeFor('?miniApp=true')}
+        sdkLoader={async () => sdk}
+        capture={(value) => { latest = value; }}
+      />
+    );
+    await waitFor(() => expect(latest?.state).toBe('miniapp'));
+
+    await expect(latest!.quickAuth.getToken({ force: true })).resolves.toEqual({
+      status: 'token',
+      token
+    });
+    expect(getToken).toHaveBeenCalledExactlyOnceWith({ force: true });
+  });
+
+  it('allows a cold mobile Quick Auth round trip to outlive the generic host deadline', async () => {
+    vi.useFakeTimers();
+    const token = `${'a'.repeat(16)}.${'b'.repeat(24)}.${'c'.repeat(32)}`;
+    const getToken = vi.fn(() => new Promise<unknown>((resolve) => {
+      window.setTimeout(() => resolve({ token }), 700);
+    }));
+    const { sdk } = fakeSdk({ quickAuth: { getToken } });
+    let latest: MiniAppHostValue | undefined;
+    render(
+      <Harness
+        hostDeadlineMilliseconds={250}
+        quickAuthDeadlineMilliseconds={1_000}
+        runtime={runtimeFor('?miniApp=true')}
+        sdkLoader={async () => sdk}
+        capture={(value) => { latest = value; }}
+      />
+    );
+    await act(async () => {
+      for (let index = 0; index < 12; index += 1) await Promise.resolve();
+    });
+    expect(latest?.state).toBe('miniapp');
+
+    const acquisition = latest!.quickAuth.getToken();
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(701);
+    });
+    await expect(acquisition).resolves.toEqual({ status: 'token', token });
+  });
+
+  it('coalesces concurrent host acquisitions without duplicating native sign-in', async () => {
+    const token = `${'a'.repeat(16)}.${'b'.repeat(24)}.${'c'.repeat(32)}`;
+    const pending = deferred<unknown>();
+    const getToken = vi.fn(() => pending.promise);
+    const { sdk } = fakeSdk({ quickAuth: { getToken } });
+    let latest: MiniAppHostValue | undefined;
+    render(
+      <Harness
+        runtime={runtimeFor('?miniApp=true')}
+        sdkLoader={async () => sdk}
+        capture={(value) => { latest = value; }}
+      />
+    );
+    await waitFor(() => expect(latest?.state).toBe('miniapp'));
+
+    const first = latest!.quickAuth.getToken();
+    const second = latest!.quickAuth.getToken();
+    expect(first).toBe(second);
+    pending.resolve({ token });
+    await expect(first).resolves.toEqual({ status: 'token', token });
+    await expect(second).resolves.toEqual({ status: 'token', token });
+    expect(getToken).toHaveBeenCalledTimes(1);
+  });
+
+  it('classifies SDK rejection and host replacement without exposing either error', async () => {
+    const rejectedSdk = fakeSdk({
+      quickAuth: { getToken: vi.fn(async () => { throw new Error('private rejection'); }) }
+    }).sdk;
+    let latest: MiniAppHostValue | undefined;
+    const view = render(
+      <Harness
+        runtime={runtimeFor('?miniApp=true')}
+        sdkLoader={async () => rejectedSdk}
+        capture={(value) => { latest = value; }}
+      />
+    );
+    await waitFor(() => expect(latest?.state).toBe('miniapp'));
+    await expect(latest!.quickAuth.getToken()).resolves.toEqual({ status: 'rejected' });
+
+    const pending = deferred<unknown>();
+    const firstSdk = fakeSdk({ quickAuth: { getToken: vi.fn(() => pending.promise) } }).sdk;
+    const secondSdk = fakeSdk().sdk;
+    const firstLoader = async () => firstSdk;
+    const secondLoader = async () => secondSdk;
+    view.rerender(
+      <Harness
+        runtime={runtimeFor('?miniApp=true')}
+        sdkLoader={firstLoader}
+        capture={(value) => { latest = value; }}
+      />
+    );
+    await waitFor(() => expect(latest?.state).toBe('miniapp'));
+    const acquisition = latest!.quickAuth.getToken();
+    view.rerender(
+      <Harness
+        runtime={runtimeFor('?miniApp=true')}
+        sdkLoader={secondLoader}
+        capture={(value) => { latest = value; }}
+      />
+    );
+    await waitFor(() => expect(latest?.state).toBe('miniapp'));
+    pending.resolve({ token: `${'a'.repeat(16)}.${'b'.repeat(24)}.${'c'.repeat(32)}` });
+    await expect(acquisition).resolves.toEqual({ status: 'host-replaced' });
+    expect(document.body.textContent).not.toContain('private rejection');
   });
 
   it('rejects malformed Quick Auth SDK results without exposing them', async () => {
@@ -599,7 +743,9 @@ describe('Farcaster Mini App host provider', () => {
     );
 
     await waitFor(() => expect(latest?.state).toBe('miniapp'));
-    await expect(latest!.quickAuth.getToken()).resolves.toBeNull();
+    await expect(latest!.quickAuth.getToken()).resolves.toEqual({
+      status: 'invalid-shape'
+    });
   });
 
   it('binds the back hook after detection and cleans it on unmount', async () => {
@@ -895,7 +1041,7 @@ describe('Farcaster Mini App host provider', () => {
     expect(latest?.isMiniApp).toBe(false);
   });
 
-  it('returns null when a verified host stalls while issuing Quick Auth', async () => {
+  it('returns a typed timeout when a verified host stalls while issuing Quick Auth', async () => {
     vi.useFakeTimers();
     const getToken = vi.fn(() => new Promise<unknown>(() => undefined));
     const { sdk } = fakeSdk({ quickAuth: { getToken } });
@@ -904,6 +1050,7 @@ describe('Farcaster Mini App host provider', () => {
     render(
       <Harness
         hostDeadlineMilliseconds={250}
+        quickAuthDeadlineMilliseconds={1_000}
         runtime={runtimeFor('?miniApp=true')}
         sdkLoader={async () => sdk}
         capture={(value) => { latest = value; }}
@@ -916,10 +1063,51 @@ describe('Farcaster Mini App host provider', () => {
     expect(latest?.state).toBe('miniapp');
     const tokenPromise = latest!.quickAuth.getToken();
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(251);
+      await Promise.resolve();
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(1_001);
     });
 
-    await expect(tokenPromise).resolves.toBeNull();
+    await expect(tokenPromise).resolves.toEqual({ status: 'timeout' });
     expect(getToken).toHaveBeenCalledTimes(1);
+  });
+
+  it('bounds every retry when the SDK retains one poisoned pending promise', async () => {
+    vi.useFakeTimers();
+    const nativeRoundTrip = vi.fn(() => new Promise<unknown>(() => undefined));
+    let sdkPending: Promise<unknown> | undefined;
+    const getToken = vi.fn(() => {
+      sdkPending ??= nativeRoundTrip();
+      return sdkPending;
+    });
+    const { sdk } = fakeSdk({ quickAuth: { getToken } });
+    let latest: MiniAppHostValue | undefined;
+
+    render(
+      <Harness
+        hostDeadlineMilliseconds={250}
+        quickAuthDeadlineMilliseconds={1_000}
+        runtime={runtimeFor('?miniApp=true')}
+        sdkLoader={async () => sdk}
+        capture={(value) => { latest = value; }}
+      />
+    );
+
+    await act(async () => {
+      for (let index = 0; index < 12; index += 1) await Promise.resolve();
+    });
+    const first = latest!.quickAuth.getToken();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_001);
+    });
+    await expect(first).resolves.toEqual({ status: 'timeout' });
+
+    const forced = latest!.quickAuth.getToken({ force: true });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_001);
+    });
+    await expect(forced).resolves.toEqual({ status: 'timeout' });
+    expect(getToken).toHaveBeenCalledTimes(2);
+    expect(nativeRoundTrip).toHaveBeenCalledTimes(1);
   });
 });

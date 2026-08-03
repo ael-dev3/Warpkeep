@@ -10,6 +10,7 @@ import {
   type FarcasterBridgeSessionIdentity,
   type FarcasterBridgeSessionResponse,
   type FarcasterOidcBridgeClient,
+  type FarcasterOidcBridgeFailureKind,
   type FarcasterQuickAuthSessionResponse
 } from './farcasterAuthTypes';
 import {
@@ -69,12 +70,34 @@ export type CreateFarcasterOidcBridgeClientOptions = Readonly<{
   fetch?: FarcasterOidcBridgeFetch;
 }>;
 
+const bridgeFailureKinds = new WeakMap<Error, FarcasterOidcBridgeFailureKind>();
+
+export type { FarcasterOidcBridgeFailureKind } from './farcasterAuthTypes';
+
 export class FarcasterOidcBridgeClientError extends Error {
   override readonly name = 'FarcasterOidcBridgeClientError';
 
   constructor(message = 'The Hegemony verification service could not confirm this sign-in.') {
     super(message);
   }
+}
+
+function bridgeClientError(
+  kind: FarcasterOidcBridgeFailureKind,
+  message?: string
+) {
+  const error = new FarcasterOidcBridgeClientError(message);
+  bridgeFailureKinds.set(error, kind);
+  return error;
+}
+
+/** Returns only an allowlisted transport class; never a response body or URL. */
+export function farcasterOidcBridgeFailureKind(
+  error: unknown
+): FarcasterOidcBridgeFailureKind | null {
+  return error instanceof FarcasterOidcBridgeClientError
+    ? bridgeFailureKinds.get(error) ?? 'unknown'
+    : null;
 }
 
 const retryableExchangeErrors = new WeakSet<FarcasterOidcBridgeClientError>();
@@ -579,12 +602,17 @@ async function postJson(
   const controller = new AbortController();
   const abort = () => controller.abort();
   let timeout: ReturnType<typeof setTimeout> | undefined;
+  let timeoutExpired = false;
+  let responseReceived = false;
   try {
     if (callerSignal?.aborted) {
-      throw new FarcasterOidcBridgeClientError();
+      throw bridgeClientError('cancelled');
     }
     callerSignal?.addEventListener('abort', abort, { once: true });
-    timeout = setTimeout(abort, timeoutMs);
+    timeout = setTimeout(() => {
+      timeoutExpired = true;
+      controller.abort();
+    }, timeoutMs);
     const response = await fetchImplementation(url, {
       method: 'POST',
       mode: 'cors',
@@ -604,8 +632,11 @@ async function postJson(
       },
       body: JSON.stringify(body)
     });
+    responseReceived = true;
     if (controller.signal.aborted) {
-      throw new FarcasterOidcBridgeClientError();
+      throw bridgeClientError(
+        timeoutExpired ? 'timeout' : 'cancelled'
+      );
     }
     if (!response.ok) {
       let retryable = false;
@@ -644,25 +675,52 @@ async function postJson(
           definitiveNoMutationReason
         );
       }
-      throw new FarcasterOidcBridgeClientError();
+      throw bridgeClientError(
+        response.status === 401
+          ? 'invalid-credential'
+          : response.status === 403
+            ? 'forbidden'
+            : response.status === 429
+              ? 'rate-limited'
+              : response.status === 503
+                ? 'service-unavailable'
+                : 'invalid-response'
+      );
     }
     if (!hasJsonContentType(response)) {
-      throw new FarcasterOidcBridgeClientError();
+      throw bridgeClientError('invalid-response');
     }
     const responseText = await readBoundedResponseText(response, controller.signal);
     if (controller.signal.aborted || responseText.length === 0) {
-      throw new FarcasterOidcBridgeClientError();
+      throw bridgeClientError(
+        timeoutExpired ? 'timeout' : 'invalid-response'
+      );
     }
-    return JSON.parse(responseText) as unknown;
+    try {
+      return JSON.parse(responseText) as unknown;
+    } catch {
+      throw bridgeClientError('invalid-response');
+    }
   } catch (error) {
     // Rejecting on status, MIME, length, JSON, or caller cancellation must
     // also stop any unread response body. Otherwise an invalid bridge can keep
     // streaming after the UI has already failed closed.
     controller.abort();
+    if (
+      error instanceof FarcasterOidcBridgeClientError
+      && !bridgeFailureKinds.has(error)
+    ) {
+      if (timeoutExpired) throw bridgeClientError('timeout');
+      if (callerSignal?.aborted) throw bridgeClientError('cancelled');
+    }
     if (error instanceof FarcasterOidcBridgeClientError) {
       throw error;
     }
-    throw new FarcasterOidcBridgeClientError();
+    if (timeoutExpired) throw bridgeClientError('timeout');
+    if (callerSignal?.aborted) throw bridgeClientError('cancelled');
+    throw bridgeClientError(
+      responseReceived ? 'invalid-response' : 'network-or-cors'
+    );
   } finally {
     if (timeout !== undefined) {
       clearTimeout(timeout);
@@ -782,7 +840,8 @@ export function createFarcasterOidcBridgeClient(
     || !audience
     || !fetchImplementation
   ) {
-    throw new FarcasterOidcBridgeClientError(
+    throw bridgeClientError(
+      'configuration',
       'The Hegemony verification service is not configured for this deployment.'
     );
   }
@@ -913,7 +972,7 @@ export function createFarcasterOidcBridgeClient(
     ) {
       const boundedToken = readSafeQuickAuthToken(token);
       if (!boundedToken) {
-        throw new FarcasterOidcBridgeClientError();
+        throw bridgeClientError('invalid-credential');
       }
       const result = await postJson(
         fetchImplementation,
@@ -934,7 +993,7 @@ export function createFarcasterOidcBridgeClient(
         Date.now()
       );
       if (!session) {
-        throw new FarcasterOidcBridgeClientError();
+        throw bridgeClientError('invalid-response');
       }
       return session;
     },
@@ -1022,7 +1081,8 @@ export async function getDefaultFarcasterOidcBridgeClient() {
   // Farcaster channel is created unless the explicit shared-alpha switch and
   // exact public bridge/issuer configuration are active.
   if (!hasUsableWarpkeepBridge(runtimeConfig)) {
-    throw new FarcasterOidcBridgeClientError(
+    throw bridgeClientError(
+      'configuration',
       'The shared Hegemony frontier is not enabled for this deployment.'
     );
   }

@@ -146,7 +146,9 @@ untrusted presentation input. The verified bridge FID remains authoritative.
 
 Host initialization is bounded rather than trusted to settle. SDK import,
 `isInMiniApp`, context, capability, `actions.ready`, Back registration, and
-Quick Auth calls each have a four-second default deadline. Until
+other host-shell calls retain a four-second default deadline. Quick Auth has a
+separate ten-second deadline because it spans Farcaster authentication network
+work plus a native-host approval round trip. Until
 `actions.ready({ disableNativeGestures: true })` succeeds, no Mini App authority
 or host-only styling is exposed. A timeout or malformed host enters the ordinary
 web recovery presentation with no bearer, Realm connection, or retry loop.
@@ -154,8 +156,15 @@ Only a proven host receives the native Back integration; browser history remains
 the fallback.
 
 `sdk.quickAuth.getToken()` is requested only when a verified host needs an
-authentication or refresh attempt. The compact JWT is bounded to 8 KiB, kept in
-the current controller only, and sent as
+authentication or refresh attempt. The adapter invokes the method on its SDK
+receiver, converts missing, timed-out, rejected, malformed, and host-replaced
+results into closed internal outcomes, and coalesces concurrent callers into
+one acquisition flight. A hung SDK call cannot hold the Warpkeep UI open past
+the deadline. Because the current SDK owns an internal promise that the browser
+cannot cancel, a client whose host call never settles may still require a fresh
+Mini App open; Retry remains bounded and the web entry path remains available.
+
+The compact JWT is bounded to 8 KiB, kept in the current controller only, and sent as
 `Authorization: Bearer <token>` to:
 
 ```txt
@@ -176,6 +185,37 @@ family and sets no cookie. A definitively invalid bearer returns the same
 generic `401 quick_auth_invalid`. A verifier/JWKS/network outage returns
 retryable `503 verification_unavailable`; neither response includes token,
 claim, FID, or upstream detail.
+
+Only a definitive bridge `401` may cause an automatic bearer retry within one
+exchange attempt. Warpkeep asks the SDK for one documented forced-fresh token
+and exchanges it once. A second rejection, or any `403`, `429`, `503`, timeout,
+network, CORS, or response failure stops and waits for a deliberate player
+retry.
+
+Foreground return is a separate account-continuity boundary. An authorized or
+pending Mini App freezes private authority, acquires one forced-fresh host token,
+and exchanges it before restoring the session. Focus, pageshow, and visibility
+bursts coalesce. If an ordinary cached-token refresh is already running, its
+provider generation is aborted and the forced acquisition is serialized behind
+any SDK call the browser cannot cancel. Every acquisition and exchange remains
+generation-bound so a stale completion cannot authorize a remounted host or the
+previous Farcaster account. Static preconnects cover both Farcaster's
+authentication origin and Warpkeep's bridge origin.
+
+Failed Mini App entry offers a local, user-triggered diagnostic report. Its
+closed fields are Alpha version, short build, allowlisted entry stage, host,
+mobile/web class, bounded viewport, online hint, and a random session-only
+support code. The formatter has no input for FID, username, profile, token,
+token hash, claims, cookie, URL, IP, user agent, response body, request ID, or
+raw exception. Clipboard failure leaves a manual-copy field and never changes
+authentication state.
+
+The current access-token parser intentionally applies issuer, audience, FID,
+shape, lifetime, and exact local time-window checks after the bridge response.
+A phone clock outside the token's strict ten-minute window can therefore still
+fail closed as an invalid session. This repair does not relax that boundary or
+change the bridge response contract; a future server-time design would require
+a bridge-first compatibility rollout before any frontend adoption.
 
 Quick Auth tokens and player access tokens are never stored in localStorage,
 sessionStorage, IndexedDB, URLs, cookies, React host state, analytics, or logs.

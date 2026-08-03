@@ -4,6 +4,7 @@ import {
   accessRequestNoMutationReason,
   FarcasterOidcBridgeClientError,
   createFarcasterOidcBridgeClient,
+  farcasterOidcBridgeFailureKind,
   isDefinitiveAccessRequestNoMutationError,
   type FarcasterOidcBridgeFetch
 } from '../src/farcaster/farcasterOidcBridgeClient';
@@ -142,8 +143,14 @@ afterEach(() => {
 
 describe('Farcaster OIDC bridge v2 client', () => {
   it('fails closed without an exact bridge URL and issuer', () => {
-    expect(() => createFarcasterOidcBridgeClient({ fetch: createFetch({}) }))
-      .toThrow(FarcasterOidcBridgeClientError);
+    let configurationError: unknown;
+    try {
+      createFarcasterOidcBridgeClient({ fetch: createFetch({}) });
+    } catch (error) {
+      configurationError = error;
+    }
+    expect(configurationError).toBeInstanceOf(FarcasterOidcBridgeClientError);
+    expect(farcasterOidcBridgeFailureKind(configurationError)).toBe('configuration');
     expect(() => createFarcasterOidcBridgeClient({
       bridgeUrl: 'https://bridge.warpkeep.example',
       fetch: createFetch({})
@@ -338,6 +345,88 @@ describe('Farcaster OIDC bridge v2 client', () => {
       .toBeInstanceOf(FarcasterOidcBridgeClientError);
     await expect(exchangeQuickAuth!(token)).rejects
       .toBeInstanceOf(FarcasterOidcBridgeClientError);
+  });
+
+  it.each([
+    [401, 'invalid-credential'],
+    [403, 'forbidden'],
+    [429, 'rate-limited'],
+    [503, 'service-unavailable']
+  ] as const)('classifies Quick Auth HTTP %i without exposing its body', async (status, kind) => {
+    const token = `${'a'.repeat(16)}.${'b'.repeat(24)}.${'c'.repeat(32)}`;
+    const fetch = createFetch(jsonResponse({
+      error: { code: 'private_code', message: 'private response detail' }
+    }, status));
+    const exchange = createBridge(fetch).exchangeQuickAuth!;
+
+    const error = await exchange(token).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(FarcasterOidcBridgeClientError);
+    expect(farcasterOidcBridgeFailureKind(error)).toBe(kind);
+    expect(JSON.stringify(error)).not.toContain('private response detail');
+  });
+
+  it('classifies Quick Auth network, response, and timeout failures without raw errors', async () => {
+    const token = `${'a'.repeat(16)}.${'b'.repeat(24)}.${'c'.repeat(32)}`;
+    const networkFetch = vi.fn(async () => {
+      throw new TypeError('private transport detail');
+    }) as unknown as FarcasterOidcBridgeFetch;
+    const networkError = await createBridge(networkFetch).exchangeQuickAuth!(token)
+      .catch((caught: unknown) => caught);
+    expect(farcasterOidcBridgeFailureKind(networkError)).toBe('network-or-cors');
+    expect(JSON.stringify(networkError)).not.toContain('private transport detail');
+
+    const invalidFetch = createFetch(new Response('{', {
+      status: 200,
+      headers: { 'content-type': 'application/json' }
+    }));
+    const invalidError = await createBridge(invalidFetch).exchangeQuickAuth!(token)
+      .catch((caught: unknown) => caught);
+    expect(farcasterOidcBridgeFailureKind(invalidError)).toBe('invalid-response');
+
+    vi.useFakeTimers({ now: NOW });
+    const timeoutFetch = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => (
+      new Promise<Response>((_resolve, reject) => {
+        const signal = init?.signal;
+        const rejectAbort = () => reject(new DOMException('private abort', 'AbortError'));
+        if (signal?.aborted) rejectAbort();
+        else signal?.addEventListener('abort', rejectAbort, { once: true });
+      })
+    )) as unknown as FarcasterOidcBridgeFetch;
+    const timeoutPromise = createBridge(timeoutFetch).exchangeQuickAuth!(token)
+      .catch((caught: unknown) => caught);
+    await vi.advanceTimersByTimeAsync(10_001);
+    const timeoutError = await timeoutPromise;
+    expect(farcasterOidcBridgeFailureKind(timeoutError)).toBe('timeout');
+    expect(JSON.stringify(timeoutError)).not.toContain('private abort');
+  });
+
+  it('retains timeout classification when the response body stalls after headers', async () => {
+    vi.useFakeTimers({ now: NOW });
+    const fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      let bodyController!: ReadableStreamDefaultController<Uint8Array>;
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          bodyController = controller;
+        }
+      });
+      init?.signal?.addEventListener('abort', () => {
+        bodyController.enqueue(new TextEncoder().encode('{'));
+      }, { once: true });
+      return new Response(body, {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      });
+    }) as unknown as FarcasterOidcBridgeFetch;
+    const exchange = createBridge(fetch).exchangeQuickAuth!(
+      `${'a'.repeat(16)}.${'b'.repeat(24)}.${'c'.repeat(32)}`
+    );
+    const exchangeError = exchange.catch((caught: unknown) => caught);
+
+    await vi.advanceTimersByTimeAsync(10_001);
+
+    const error = await exchangeError;
+    expect(error).toBeInstanceOf(FarcasterOidcBridgeClientError);
+    expect(farcasterOidcBridgeFailureKind(error)).toBe('timeout');
   });
 
   it('allows a completed proof exchange to use its bounded 20-second verification window', async () => {
