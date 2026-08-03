@@ -461,4 +461,7 @@ Never expose their credential or response to frontend code.
 uses only `NOTIFICATION_OPERATOR_SECRET`; it never accepts the general admin
 secret. The public webhook accepts no browser Origin and trusts only a valid
 Farcaster JFS envelope whose app key agrees across both configured Hubs and is
-active on both configured Optimism RPC views.
+active on-chain. Both configured Optimism RPCs are queried with bounded retries:
+matching answers are required when both respond, one healthy view may serve as
+an explicit transport fallback, and disagreement, two unavailable transports,
+or inactive state fails closed.

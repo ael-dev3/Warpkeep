@@ -182,6 +182,7 @@ Readonly<Record<MiniAppWebhookVerifierFailureStage, SafeLogEvent>> = Object.free
   hub_attestation_conflict: 'miniapp_webhook_verifier_unavailable_hub_attestation_conflict',
   rpc_primary_transport: 'miniapp_webhook_verifier_unavailable_rpc_primary_transport',
   rpc_secondary_transport: 'miniapp_webhook_verifier_unavailable_rpc_secondary_transport',
+  rpc_all_transports: 'miniapp_webhook_verifier_unavailable_rpc_all_transports',
   rpc_disagreement: 'miniapp_webhook_verifier_unavailable_rpc_disagreement',
   unexpected: 'miniapp_webhook_verifier_unavailable_unexpected',
 })
@@ -1585,7 +1586,13 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           try {
             event = await (
               dependencies.miniAppWebhookVerifier
-              ?? createMiniAppWebhookVerifier(config)
+              ?? createMiniAppWebhookVerifier(config, {
+                rpcFallbackObserver: failedProvider => logger.event(
+                  failedProvider === 'primary'
+                    ? 'miniapp_webhook_rpc_primary_fallback'
+                    : 'miniapp_webhook_rpc_secondary_fallback',
+                ),
+              })
             ).verify(body)
           } catch (error) {
             if (error instanceof MiniAppWebhookVerifierUnavailableError) {

@@ -444,17 +444,19 @@ describe('signed Farcaster Mini App webhook verification', () => {
     }
   })
 
-  it('requires both production RPC authorities to agree and identifies transport failures', async () => {
+  it('requires agreement when both RPC authorities answer and falls back after one exhausts transport retries', async () => {
     const signerEvent = await signedHubSignerEvent()
     const fetchImpl = vi.fn(async () => hubJson([signerEvent])) as typeof fetch
 
-    for (const [outcomes, expected, expectedProviderCalls] of [
-      [[[true], [true]], 'valid', [1, 1]],
-      [[['reject', true], [true]], 'valid', [2, 1]],
-      [[['reject', 'reject'], [true]], 'rpc_primary_transport', [2, 1]],
-      [[[true], ['reject', 'reject']], 'rpc_secondary_transport', [1, 2]],
-      [[[true], [false]], 'rpc_disagreement', [1, 1]],
-      [[[false], [false]], 'invalid', [1, 1]],
+    for (const [outcomes, expected, expectedProviderCalls, expectedFallbacks] of [
+      [[[true], [true]], 'valid', [1, 1], []],
+      [[['reject', true], [true]], 'valid', [2, 1], []],
+      [[['reject', 'reject'], [true]], 'valid', [2, 1], ['primary']],
+      [[[true], ['reject', 'reject']], 'valid', [1, 2], ['secondary']],
+      [[['reject', 'reject'], ['reject', 'reject']], 'rpc_all_transports', [2, 2], []],
+      [[['reject', 'reject'], [false]], 'invalid', [2, 1], ['primary']],
+      [[[true], [false]], 'rpc_disagreement', [1, 1], []],
+      [[[false], [false]], 'invalid', [1, 1], []],
     ] as const) {
       const providerCalls = [0, 0]
       const attemptSignals: AbortSignal[] = []
@@ -473,9 +475,11 @@ describe('signed Farcaster Mini App webhook verification', () => {
         if (typeof outcome !== 'boolean') throw new Error('unexpected extra provider attempt')
         return outcome
       })
+      const rpcFallbackObserver = vi.fn()
       const webhookVerifier = createMiniAppWebhookVerifier(config(), {
         fetchImpl,
         activeOnChainRpcVerifier,
+        rpcFallbackObserver,
       })
       const result = await webhookVerifier.verify(signed({
         event: 'notifications_disabled',
@@ -500,11 +504,33 @@ describe('signed Farcaster Mini App webhook verification', () => {
       expect(activeOnChainRpcVerifier).toHaveBeenCalledTimes(
         expectedProviderCalls[0] + expectedProviderCalls[1],
       )
+      expect(rpcFallbackObserver.mock.calls.map(([provider]) => provider)).toEqual(
+        expectedFallbacks,
+      )
       expect(attemptSignals.every(signal => signal.aborted)).toBe(true)
     }
   })
 
-  it('bounds stalled RPC attempts and cancels every abandoned generation', async () => {
+  it('retains the explicit one-loopback-RPC development profile', async () => {
+    const signerEvent = await signedHubSignerEvent()
+    const fetchImpl = vi.fn(async () => hubJson([signerEvent])) as typeof fetch
+    const activeOnChainRpcVerifier = vi.fn(async () => true)
+    const webhookVerifier = createMiniAppWebhookVerifier({
+      ...config(),
+      environment: 'development',
+      farcasterRpcUrls: Object.freeze(['http://127.0.0.1:8545']),
+    }, {
+      fetchImpl,
+      activeOnChainRpcVerifier,
+    })
+
+    await expect(webhookVerifier.verify(signed({
+      event: 'notifications_disabled',
+    }))).resolves.toMatchObject({ event: { type: 'disabled' } })
+    expect(activeOnChainRpcVerifier).toHaveBeenCalledOnce()
+  })
+
+  it('bounds stalled primary attempts, cancels every abandoned generation, and accepts the healthy secondary', async () => {
     vi.useFakeTimers()
     try {
       const signerEvent = await signedHubSignerEvent()
@@ -524,9 +550,11 @@ describe('signed Farcaster Mini App webhook verification', () => {
         if (index === 0) return new Promise(() => {})
         return Promise.resolve(true)
       })
+      const rpcFallbackObserver = vi.fn()
       const webhookVerifier = createMiniAppWebhookVerifier(config(), {
         fetchImpl,
         activeOnChainRpcVerifier,
+        rpcFallbackObserver,
       })
       const verification = webhookVerifier.verify(signed({
         event: 'notifications_disabled',
@@ -536,15 +564,40 @@ describe('signed Farcaster Mini App webhook verification', () => {
       await vi.advanceTimersByTimeAsync(2_250)
       await vi.waitFor(() => expect(providerCalls).toEqual([2, 1]))
       await vi.advanceTimersByTimeAsync(2_250)
-      const failure = await verification
+      const result = await verification
 
-      expect(failure).toBeInstanceOf(MiniAppWebhookVerifierUnavailableError)
-      expect(miniAppWebhookVerifierFailureStage(failure)).toBe('rpc_primary_transport')
+      expect(result).toMatchObject({ event: { type: 'disabled' } })
       expect(providerCalls).toEqual([2, 1])
+      expect(rpcFallbackObserver).toHaveBeenCalledOnce()
+      expect(rpcFallbackObserver).toHaveBeenCalledWith('primary')
       expect(attemptSignals.every(signal => signal.aborted)).toBe(true)
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('does not let fallback telemetry suppress an otherwise valid signed event', async () => {
+    const signerEvent = await signedHubSignerEvent()
+    const fetchImpl = vi.fn(async () => hubJson([signerEvent])) as typeof fetch
+    let primaryCalls = 0
+    const webhookVerifier = createMiniAppWebhookVerifier(config(), {
+      fetchImpl,
+      activeOnChainRpcVerifier: vi.fn(async (rpcUrl: string) => {
+        if (rpcUrl.includes('rpc-one')) {
+          primaryCalls += 1
+          throw new Error('private provider failure')
+        }
+        return true
+      }),
+      rpcFallbackObserver: () => {
+        throw new Error('private telemetry failure')
+      },
+    })
+
+    await expect(webhookVerifier.verify(signed({
+      event: 'notifications_disabled',
+    }))).resolves.toMatchObject({ event: { type: 'disabled' } })
+    expect(primaryCalls).toBe(2)
   })
 
   it('cancels sibling RPC work before retrying a rejected attempt', async () => {

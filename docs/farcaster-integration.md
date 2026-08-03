@@ -325,12 +325,16 @@ failure.
 Farcaster sends notification preference changes to the manifest's exact
 server-only webhook as a signed JFS envelope. The bridge verifies the official
 envelope format, requires two independent Hub views of the app key, verifies
-its signed-key metadata and active on-chain state through both configured
-Optimism RPCs, and accepts delivery only for the exact configured client FID
-and URL. A valid disable/remove remains usable while outbound delivery is
-paused so opt-out cannot be trapped behind a feature gate. Raw notification
-tokens stay inside one private Cloudflare Durable Object per FID, never in
-React, browser storage, logs, URLs, public state, or SpacetimeDB.
+its signed-key metadata, and queries both configured Optimism RPCs in parallel
+with bounded retries. When both RPCs answer they must agree; after one exhausts
+its transport retries, the healthy independent view may complete verification
+and emits only a static degraded-mode event. Conflicting answers, two failed
+transports, or inactive on-chain state still fail closed. Delivery is accepted
+only for the exact configured client FID and URL. A valid disable/remove
+remains usable while outbound delivery is paused so opt-out cannot be trapped
+behind a feature gate. Raw notification tokens stay inside one private
+Cloudflare Durable Object per FID, never in React, browser storage, logs, URLs,
+public state, or SpacetimeDB.
 
 After Hermes has committed and verified founder admission, it invokes a
 separate-secret operator endpoint. That endpoint resolves current admission

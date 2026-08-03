@@ -67,6 +67,8 @@ type VerifyOnChainAppKeyAtRpc = (
   signal: AbortSignal,
 ) => Promise<boolean>
 
+type RpcFallbackProvider = 'primary' | 'secondary'
+
 type ParsedNotificationDetails = Readonly<{
   token: string
   url: string
@@ -106,6 +108,8 @@ export type MiniAppWebhookVerifierDependencies = Readonly<{
   ) => Promise<boolean>
   /** Test seam below the redundant provider aggregator; production uses viem. */
   activeOnChainRpcVerifier?: VerifyOnChainAppKeyAtRpc
+  /** Privacy-safe telemetry only; never receives caller or provider material. */
+  rpcFallbackObserver?: (failedProvider: RpcFallbackProvider) => void
 }>
 
 export const MINI_APP_WEBHOOK_VERIFIER_FAILURE_STAGES = Object.freeze([
@@ -119,6 +123,7 @@ export const MINI_APP_WEBHOOK_VERIFIER_FAILURE_STAGES = Object.freeze([
   'hub_attestation_conflict',
   'rpc_primary_transport',
   'rpc_secondary_transport',
+  'rpc_all_transports',
   'rpc_disagreement',
   'unexpected',
 ] as const)
@@ -657,6 +662,7 @@ async function activeOnChainAppKey(
   appKey: Hex,
   attestation: HubAppKeyAttestation,
   verifyAtRpc: VerifyOnChainAppKeyAtRpc = activeOnChainAppKeyAtRpc,
+  observeFallback: (failedProvider: RpcFallbackProvider) => void = () => {},
 ): Promise<boolean> {
   let metadataSignatureValid = false
   try {
@@ -691,13 +697,36 @@ async function activeOnChainAppKey(
   const results = await Promise.allSettled(config.farcasterRpcUrls.map(rpcUrl => (
     activeOnChainAppKeyAtRpcWithRetry(verifyAtRpc, rpcUrl, fid, appKey, attestation)
   )))
-  if (results[0]?.status === 'rejected') verifierUnavailable('rpc_primary_transport')
-  if (results[1]?.status === 'rejected') verifierUnavailable('rpc_secondary_transport')
-  const values = results.flatMap(result => result.status === 'fulfilled' ? [result.value] : [])
-  if (values.length === 2 && values[0] !== values[1]) {
+  const primary = results[0]
+  const secondary = results[1]
+  if (!primary) verifierUnavailable('rpc_primary_transport')
+  if (!secondary) {
+    if (primary.status === 'rejected') verifierUnavailable('rpc_primary_transport')
+    return primary.value
+  }
+  if (primary.status === 'rejected' && secondary.status === 'rejected') {
+    verifierUnavailable('rpc_all_transports')
+  }
+  if (primary.status === 'rejected') {
+    try {
+      observeFallback('primary')
+    } catch {
+      // Telemetry must never decide whether a signed webhook is accepted.
+    }
+    return secondary.status === 'fulfilled' && secondary.value
+  }
+  if (secondary.status === 'rejected') {
+    try {
+      observeFallback('secondary')
+    } catch {
+      // Telemetry must never decide whether a signed webhook is accepted.
+    }
+    return primary.value
+  }
+  if (primary.value !== secondary.value) {
     verifierUnavailable('rpc_disagreement')
   }
-  return values.length > 0 && values.every(Boolean)
+  return primary.value && secondary.value
 }
 
 function configuredDeliveryUrl(config: BridgeConfig, appFid: number): string | null {
@@ -764,6 +793,7 @@ export function createMiniAppWebhookVerifier(
       appKey,
       attestation,
       dependencies.activeOnChainRpcVerifier,
+      dependencies.rpcFallbackObserver,
     ))
 
   const productionAppKeyVerifier: VerifyAppKey = async (
