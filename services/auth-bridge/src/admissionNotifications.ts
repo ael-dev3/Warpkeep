@@ -6,6 +6,8 @@ import {
 } from './spacetimeAuthEpochResolver'
 import type {
   AdmissionNotificationQueueStatus,
+  AdmissionNotificationDiagnostics,
+  AdmissionNotificationRetryReason,
   AdmissionNotificationStore,
   AuthEpochResolver,
   DurableObjectNamespace,
@@ -16,6 +18,7 @@ import type {
 
 const INTERNAL_ORIGIN = 'https://admission-notification.internal'
 const STATE_KEY = 'admission-notification-v1'
+const DIAGNOSTICS_RECORD = 'admission-notification-diagnostics-v1'
 const STATE_VERSION = 1
 const MAX_SUBSCRIPTIONS = 8
 const MAX_SEEN_EVENTS = 32
@@ -59,6 +62,11 @@ type DeliveryAttempt = Readonly<{
   nextAttemptAt?: number
 }>
 
+type PersistedNotificationDiagnostics = Readonly<{
+  authEpoch: number
+  retryReasons: readonly AdmissionNotificationRetryReason[]
+}>
+
 type AdmissionDelivery = Readonly<{
   authEpoch: number
   queuedAt: number
@@ -90,6 +98,18 @@ type DeliveryResult =
   | 'successful'
   | 'invalid'
   | 'retryable'
+
+type DeliveryOutcome = Readonly<{
+  result: DeliveryResult
+  retryReason?: Exclude<AdmissionNotificationRetryReason, 'admission-verification'>
+}>
+
+type FailedTokenReason =
+  | 'domain_mismatch'
+  | 'target_url_mismatch'
+  | 'no_webhook_url'
+  | 'invalid_token'
+  | 'unknown'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -178,6 +198,26 @@ function isDeliveryStatus(value: unknown): value is DeliveryAttemptStatus {
     || value === 'exhausted'
 }
 
+function isRetryReason(value: unknown): value is AdmissionNotificationRetryReason {
+  return value === 'admission-verification'
+    || value === 'transport'
+    || value === 'upstream-status'
+    || value === 'invalid-response'
+    || value === 'rate-limited'
+    || value === 'provider-domain-mismatch'
+    || value === 'provider-target-url-mismatch'
+    || value === 'provider-no-webhook-url'
+    || value === 'provider-unknown'
+}
+
+function isFailedTokenReason(value: unknown): value is FailedTokenReason {
+  return value === 'domain_mismatch'
+    || value === 'target_url_mismatch'
+    || value === 'no_webhook_url'
+    || value === 'invalid_token'
+    || value === 'unknown'
+}
+
 function readSubscription(value: unknown): Subscription | null {
   if (
     !isRecord(value)
@@ -236,6 +276,21 @@ function readAttempt(value: unknown): DeliveryAttempt | null {
     attempts: value.attempts,
     verificationFailures: value.verificationFailures ?? 0,
     ...(value.nextAttemptAt === undefined ? {} : { nextAttemptAt: value.nextAttemptAt }),
+  })
+}
+
+function readPersistedDiagnostics(value: unknown): PersistedNotificationDiagnostics | null {
+  if (
+    !isRecord(value)
+    || !exactKeys(value, ['authEpoch', 'retryReasons'])
+    || !isAuthEpoch(value.authEpoch)
+    || !Array.isArray(value.retryReasons)
+    || value.retryReasons.some(reason => !isRetryReason(reason))
+    || new Set(value.retryReasons).size !== value.retryReasons.length
+  ) return null
+  return Object.freeze({
+    authEpoch: value.authEpoch,
+    retryReasons: Object.freeze([...value.retryReasons] as AdmissionNotificationRetryReason[]),
   })
 }
 
@@ -369,7 +424,7 @@ async function objectName(fid: string): Promise<string> {
   }
 }
 
-function internalUrl(path: 'event' | 'queue'): string {
+function internalUrl(path: 'event' | 'queue' | 'status'): string {
   return `${INTERNAL_ORIGIN}/${path}`
 }
 
@@ -389,6 +444,46 @@ async function readQueueStatus(response: Response): Promise<AdmissionNotificatio
     throw new Error('Admission notification store returned invalid state.')
   }
   return value.status
+}
+
+async function readDiagnostics(response: Response): Promise<AdmissionNotificationDiagnostics> {
+  if (!response.ok) throw new Error('Admission notification store unavailable.')
+  const value: unknown = await response.json()
+  if (
+    !isRecord(value)
+    || !exactKeys(
+      value,
+      ['status', 'deliveryAttemptCount', 'verificationFailureCount', 'retryReasons'],
+      ['authEpoch', 'nextAttemptAt'],
+    )
+    || (
+      value.status !== 'queued'
+      && value.status !== 'already-sent'
+      && value.status !== 'delivery-exhausted'
+      && value.status !== 'not-subscribed'
+    )
+    || (value.authEpoch !== undefined && !isAuthEpoch(value.authEpoch))
+    || typeof value.deliveryAttemptCount !== 'number'
+    || !Number.isSafeInteger(value.deliveryAttemptCount)
+    || value.deliveryAttemptCount < 0
+    || typeof value.verificationFailureCount !== 'number'
+    || !Number.isSafeInteger(value.verificationFailureCount)
+    || value.verificationFailureCount < 0
+    || !Array.isArray(value.retryReasons)
+    || value.retryReasons.some(reason => !isRetryReason(reason))
+    || new Set(value.retryReasons).size !== value.retryReasons.length
+    || (value.nextAttemptAt !== undefined && !isTimestamp(value.nextAttemptAt))
+  ) {
+    throw new Error('Admission notification store returned invalid diagnostics.')
+  }
+  return Object.freeze({
+    status: value.status,
+    ...(value.authEpoch === undefined ? {} : { authEpoch: value.authEpoch }),
+    deliveryAttemptCount: value.deliveryAttemptCount as number,
+    verificationFailureCount: value.verificationFailureCount as number,
+    retryReasons: Object.freeze([...value.retryReasons] as AdmissionNotificationRetryReason[]),
+    ...(value.nextAttemptAt === undefined ? {} : { nextAttemptAt: value.nextAttemptAt }),
+  })
 }
 
 export class DurableObjectAdmissionNotificationStore implements AdmissionNotificationStore {
@@ -421,6 +516,15 @@ export class DurableObjectAdmissionNotificationStore implements AdmissionNotific
       body: JSON.stringify(input),
     })
     return readQueueStatus(response)
+  }
+
+  async inspect(fid: string): Promise<AdmissionNotificationDiagnostics> {
+    const response = await (await this.stub(fid)).fetch(internalUrl('status'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ fid }),
+    })
+    return readDiagnostics(response)
   }
 }
 
@@ -596,6 +700,23 @@ async function purgePersistedState(storage: DurableObjectState['storage']): Prom
   await storage.deleteAll()
 }
 
+async function recordRetryReasons(
+  storage: DurableObjectState['storage'],
+  authEpoch: number,
+  retryReasons: readonly AdmissionNotificationRetryReason[],
+): Promise<void> {
+  if (retryReasons.length === 0) return
+  const existing = readPersistedDiagnostics(await storage.get<unknown>(DIAGNOSTICS_RECORD))
+  const combined = new Set<AdmissionNotificationRetryReason>(
+    existing?.authEpoch === authEpoch ? existing.retryReasons : [],
+  )
+  retryReasons.forEach(reason => combined.add(reason))
+  await storage.put(DIAGNOSTICS_RECORD, Object.freeze({
+    authEpoch,
+    retryReasons: Object.freeze(Array.from(combined).sort()),
+  }))
+}
+
 function notificationId(authEpoch: number): string {
   return `warpkeep-access-approved-v1-e${authEpoch}`
 }
@@ -642,35 +763,80 @@ function tokenArray(value: unknown, requestedToken: string): boolean {
     && value.every(token => token === requestedToken)
 }
 
-function deliveryResult(value: unknown, requestedToken: string): DeliveryResult | null {
-  if (!isRecord(value) || !exactKeys(value, ['result']) || !isRecord(value.result)) {
+function failedTokenReason(
+  value: unknown,
+  requestedToken: string,
+): FailedTokenReason | null | undefined {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value) || value.length > 1) return null
+  if (value.length === 0) return undefined
+  const failed = value[0]
+  if (
+    !isRecord(failed)
+    || failed.token !== requestedToken
+    || !isFailedTokenReason(failed.reason)
+    || (
+      failed.fid !== undefined
+      && (
+        typeof failed.fid !== 'number'
+        || !Number.isSafeInteger(failed.fid)
+        || failed.fid < 1
+      )
+    )
+  ) return null
+  return failed.reason
+}
+
+function providerRetryReason(
+  reason: Exclude<FailedTokenReason, 'invalid_token'>,
+): Exclude<AdmissionNotificationRetryReason, 'admission-verification'> {
+  if (reason === 'domain_mismatch') return 'provider-domain-mismatch'
+  if (reason === 'target_url_mismatch') return 'provider-target-url-mismatch'
+  if (reason === 'no_webhook_url') return 'provider-no-webhook-url'
+  return 'provider-unknown'
+}
+
+function deliveryResult(value: unknown, requestedToken: string): DeliveryOutcome | null {
+  if (!isRecord(value) || !isRecord(value.result)) {
     return null
   }
   const result = value.result
-  if (!exactKeys(
-    result,
-    ['successfulTokens', 'invalidTokens', 'rateLimitedTokens'],
-  )) return null
   if (
     !tokenArray(result.successfulTokens, requestedToken)
     || !tokenArray(result.invalidTokens, requestedToken)
     || !tokenArray(result.rateLimitedTokens, requestedToken)
   ) return null
+  const failedReason = failedTokenReason(result.failedTokens, requestedToken)
+  if (failedReason === null) return null
   const successful = (result.successfulTokens as unknown[]).length
   const invalid = (result.invalidTokens as unknown[]).length
   const rateLimited = (result.rateLimitedTokens as unknown[]).length
   const categories = successful + invalid + rateLimited
-  if (categories !== 1) return null
-  if (successful === 1) return 'successful'
-  if (invalid === 1) return 'invalid'
-  return 'retryable'
+  if (categories > 1) return null
+  if (successful === 1) {
+    return failedReason === undefined ? Object.freeze({ result: 'successful' }) : null
+  }
+  if (invalid === 1) {
+    if (failedReason !== undefined && failedReason !== 'invalid_token') return null
+    return Object.freeze({ result: 'invalid' })
+  }
+  if (rateLimited === 1) {
+    return failedReason === undefined
+      ? Object.freeze({ result: 'retryable', retryReason: 'rate-limited' })
+      : null
+  }
+  if (failedReason === undefined || failedReason === 'invalid_token') return null
+  return Object.freeze({
+    result: 'retryable',
+    retryReason: providerRetryReason(failedReason),
+  })
 }
 
 async function sendOne(
   subscription: Subscription,
   delivery: AdmissionDelivery,
   fetchImpl: typeof fetch,
-): Promise<DeliveryResult> {
+): Promise<DeliveryOutcome> {
   let response: Response
   try {
     response = await fetchImpl(subscription.url, {
@@ -691,16 +857,21 @@ async function sendOne(
       signal: AbortSignal.timeout(DELIVERY_TIMEOUT_MILLISECONDS),
     })
   } catch {
-    return 'retryable'
+    return Object.freeze({ result: 'retryable', retryReason: 'transport' })
   }
-  if (!response.ok) return 'retryable'
+  if (!response.ok) {
+    return Object.freeze({
+      result: 'retryable',
+      retryReason: response.status === 429 ? 'rate-limited' : 'upstream-status',
+    })
+  }
   try {
     return deliveryResult(
       await boundedDeliveryJson(response),
       subscription.token,
-    ) ?? 'retryable'
+    ) ?? Object.freeze({ result: 'retryable', retryReason: 'invalid-response' })
   } catch {
-    return 'retryable'
+    return Object.freeze({ result: 'retryable', retryReason: 'invalid-response' })
   }
 }
 
@@ -777,6 +948,54 @@ function queueStatus(state: PersistedNotificationState): AdmissionNotificationQu
     ))
   ) return 'delivery-exhausted'
   return 'queued'
+}
+
+function diagnosticsForState(
+  state: PersistedNotificationState | null,
+  persistedDiagnostics: PersistedNotificationDiagnostics | null,
+): AdmissionNotificationDiagnostics {
+  if (!state) {
+    return Object.freeze({
+      status: 'not-subscribed',
+      deliveryAttemptCount: 0,
+      verificationFailureCount: 0,
+      retryReasons: Object.freeze([]),
+    })
+  }
+  const delivery = state.delivery
+  const attempts = delivery?.attempts ?? []
+  const receiptAuthEpoch = state.lastSentAuthEpoch === undefined
+    ? state.lastExhaustedAuthEpoch
+    : state.lastExhaustedAuthEpoch === undefined
+      ? state.lastSentAuthEpoch
+      : Math.max(state.lastSentAuthEpoch, state.lastExhaustedAuthEpoch)
+  const status = delivery
+    ? queueStatus(state)
+    : receiptAuthEpoch === undefined
+      ? 'not-subscribed'
+      : state.lastSentAuthEpoch === receiptAuthEpoch
+      ? 'already-sent'
+      : 'delivery-exhausted'
+  const nextAttemptAt = attempts.reduce<number | undefined>((earliest, attempt) => {
+    if (attempt.nextAttemptAt === undefined) return earliest
+    return earliest === undefined ? attempt.nextAttemptAt : Math.min(earliest, attempt.nextAttemptAt)
+  }, undefined)
+  const authEpoch = delivery?.authEpoch
+    ?? receiptAuthEpoch
+  const retryReasons = authEpoch !== undefined && persistedDiagnostics?.authEpoch === authEpoch
+    ? persistedDiagnostics.retryReasons
+    : Object.freeze([])
+  return Object.freeze({
+    status,
+    ...(authEpoch === undefined ? {} : { authEpoch }),
+    deliveryAttemptCount: attempts.reduce((sum, attempt) => sum + attempt.attempts, 0),
+    verificationFailureCount: attempts.reduce(
+      (sum, attempt) => sum + attempt.verificationFailures,
+      0,
+    ),
+    retryReasons,
+    ...(nextAttemptAt === undefined ? {} : { nextAttemptAt }),
+  })
 }
 
 function defaultAdmissionResolver(config: BridgeConfig): AuthEpochResolver {
@@ -880,6 +1099,7 @@ export class AdmissionNotification {
     let subscriptions = [...pruned.subscriptions]
     let nextBase = pruned
     const attempts: DeliveryAttempt[] = []
+    const retryReasons: AdmissionNotificationRetryReason[] = []
     const resolver = this.configuredAdmissionResolver ?? defaultAdmissionResolver(config)
     for (const attempt of delivery.attempts) {
       const subscription = subscriptions.find(candidate => (
@@ -910,6 +1130,7 @@ export class AdmissionNotification {
         // Resolver availability is not a Farcaster delivery attempt. Back it
         // off separately so an upstream outage cannot permanently exhaust the
         // admission epoch before any notification request is made.
+        retryReasons.push('admission-verification')
         attempts.push(deferForAdmissionVerification(attempt, now, delivery.expiresAt))
         continue
       }
@@ -925,20 +1146,25 @@ export class AdmissionNotification {
         await persistAndSchedule(this.state.storage, cancelled, now)
         return cancelled
       }
-      const result = await sendOne(subscription, delivery, this.fetchImpl)
-      if (result === 'successful') {
+      const outcome = await sendOne(subscription, delivery, this.fetchImpl)
+      if (outcome.result === 'successful') {
         attempts.push(Object.freeze({
-          ...attempt,
+          appFid: attempt.appFid,
+          tokenId: attempt.tokenId,
           status: 'sent',
           attempts: attempt.attempts + 1,
           verificationFailures: 0,
-          nextAttemptAt: undefined,
         }))
-      } else if (result === 'invalid') {
+      } else if (outcome.result === 'invalid') {
         subscriptions = subscriptions.filter(candidate => candidate.appFid !== attempt.appFid)
         nextBase = withRevokedTokenIds(nextBase, [attempt.tokenId])
       } else {
-        attempts.push(retryAttempt(attempt, now, delivery.expiresAt))
+        retryReasons.push(outcome.retryReason ?? 'invalid-response')
+        attempts.push(retryAttempt(
+          attempt,
+          now,
+          delivery.expiresAt,
+        ))
       }
     }
     const current = readState(await this.state.storage.get<unknown>(STATE_KEY))
@@ -978,6 +1204,12 @@ export class AdmissionNotification {
     // attach its one delivery attempt. Explicit disable/remove events erase raw
     // token material immediately in the event path below.
     await persistAndSchedule(this.state.storage, next, now)
+    try {
+      await recordRetryReasons(this.state.storage, delivery.authEpoch, retryReasons)
+    } catch {
+      // Diagnostics are subordinate to delivery state. Losing a static reason
+      // must not turn an idempotently queued send into an apparent failure.
+    }
     return next
   }
 
@@ -1012,6 +1244,24 @@ export class AdmissionNotification {
       config = this.config()
     } catch {
       return new Response(null, { status: 503 })
+    }
+
+    if (url.pathname === '/status') {
+      if (!isRecord(value) || !exactKeys(value, ['fid']) || !isSafeFid(value.fid)) {
+        return new Response(null, { status: 400 })
+      }
+      const existing = readState(await this.state.storage.get<unknown>(STATE_KEY))
+      if (existing && existing.fid !== value.fid) return new Response(null, { status: 409 })
+      const diagnostics = readPersistedDiagnostics(
+        await this.state.storage.get<unknown>(DIAGNOSTICS_RECORD),
+      )
+      return new Response(JSON.stringify(diagnosticsForState(existing, diagnostics)), {
+        status: 200,
+        headers: {
+          'content-type': 'application/json; charset=utf-8',
+          'cache-control': 'no-store',
+        },
+      })
     }
 
     if (url.pathname === '/event') {

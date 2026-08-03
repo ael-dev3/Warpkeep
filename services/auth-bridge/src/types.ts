@@ -171,6 +171,7 @@ export type SafeLogEvent =
   | 'admission_notification_retrying'
   | 'admission_notification_not_subscribed'
   | 'admission_notification_rejected'
+  | 'admission_notification_inspected'
   | 'rate_limited'
   | 'rate_limit_failed'
   | 'configuration_error'
@@ -314,6 +315,26 @@ export type AdmissionNotificationQueueStatus =
   | 'delivery-exhausted'
   | 'not-subscribed'
 
+export type AdmissionNotificationRetryReason =
+  | 'admission-verification'
+  | 'transport'
+  | 'upstream-status'
+  | 'invalid-response'
+  | 'rate-limited'
+  | 'provider-domain-mismatch'
+  | 'provider-target-url-mismatch'
+  | 'provider-no-webhook-url'
+  | 'provider-unknown'
+
+export type AdmissionNotificationDiagnostics = Readonly<{
+  status: AdmissionNotificationQueueStatus
+  authEpoch?: number
+  deliveryAttemptCount: number
+  verificationFailureCount: number
+  retryReasons: readonly AdmissionNotificationRetryReason[]
+  nextAttemptAt?: number
+}>
+
 /** Raw notification tokens remain behind this server-only interface. */
 export interface AdmissionNotificationStore {
   applyEvent(event: VerifiedMiniAppWebhookEvent): Promise<void>
@@ -322,6 +343,8 @@ export interface AdmissionNotificationStore {
     authEpoch: number
     queuedAt: number
   }>): Promise<AdmissionNotificationQueueStatus>
+  /** Operator-only, token-free delivery state used for bounded diagnosis. */
+  inspect?(fid: string): Promise<AdmissionNotificationDiagnostics>
 }
 
 export interface PublicIdentity {

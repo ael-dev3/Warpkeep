@@ -115,7 +115,7 @@ function disabledEvent(eventId = 'b'.repeat(64)): VerifiedMiniAppWebhookEvent {
   return { eventId, fid: FID, appFid: APP_FID, event: { type: 'disabled' } }
 }
 
-function internalRequest(path: 'event' | 'queue', body: unknown): Request {
+function internalRequest(path: 'event' | 'queue' | 'status', body: unknown): Request {
   return new Request(`${INTERNAL_ORIGIN}/${path}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -178,6 +178,10 @@ async function queue(
   queuedAt = NOW,
 ): Promise<Response> {
   return notification.fetch(internalRequest('queue', { fid: FID, authEpoch, queuedAt }))
+}
+
+async function inspect(notification: AdmissionNotification): Promise<Response> {
+  return notification.fetch(internalRequest('status', { fid: FID }))
 }
 
 describe('admission notification consent and delivery lifecycle', () => {
@@ -337,13 +341,50 @@ describe('admission notification consent and delivery lifecycle', () => {
     expect(stored(h.storage)).toContain('revokedTokenIds')
   })
 
-  it('fails closed on response fields outside the installed Mini App schema', async () => {
+  it('accepts the current additive Farcaster response on a successful delivery', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => Response.json({
+      result: {
+        successfulTokens: [TOKEN],
+        invalidTokens: [],
+        rateLimitedTokens: [],
+        failedTokens: [],
+      },
+    }))
+    const h = createHarness({ fetchImpl })
+    await applyEvent(h.notification, enabledEvent())
+
+    const response = await queue(h.notification)
+    await expect(response.json()).resolves.toEqual({ status: 'already-sent' })
+    expect(fetchImpl).toHaveBeenCalledOnce()
+    expect(stored(h.storage)).toContain('"lastSentAuthEpoch":7')
+  })
+
+  it('deduplicates the current mirrored invalid-token result before purging consent', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => Response.json({
+      result: {
+        successfulTokens: [],
+        invalidTokens: [TOKEN],
+        rateLimitedTokens: [],
+        failedTokens: [{ token: TOKEN, fid: 12_345, reason: 'invalid_token' }],
+      },
+    }))
+    const h = createHarness({ fetchImpl })
+    await applyEvent(h.notification, enabledEvent())
+
+    const response = await queue(h.notification)
+    await expect(response.json()).resolves.toEqual({ status: 'not-subscribed' })
+    expect(fetchImpl).toHaveBeenCalledOnce()
+    expect(stored(h.storage)).not.toContain(TOKEN)
+    expect(stored(h.storage)).toContain('revokedTokenIds')
+  })
+
+  it('retains consent and records a bounded retry for a structured provider failure', async () => {
     const fetchImpl = vi.fn<typeof fetch>(async () => Response.json({
       result: {
         successfulTokens: [],
         invalidTokens: [],
         rateLimitedTokens: [],
-        failedTokens: [{ token: TOKEN, reason: 'invalid_token' }],
+        failedTokens: [{ token: TOKEN, reason: 'no_webhook_url' }],
       },
     }))
     const h = createHarness({ fetchImpl })
@@ -351,9 +392,92 @@ describe('admission notification consent and delivery lifecycle', () => {
 
     const response = await queue(h.notification)
     await expect(response.json()).resolves.toEqual({ status: 'queued' })
-    expect(fetchImpl).toHaveBeenCalledOnce()
     expect(stored(h.storage)).toContain(TOKEN)
     expect(stored(h.storage)).toContain('"status":"retrying"')
+    expect(stored(h.storage)).not.toContain('retryReason')
+    expect(stored(h.storage)).not.toContain('provider-no-webhook-url')
+    await expect((await inspect(h.notification)).json()).resolves.toMatchObject({
+      retryReasons: ['provider-no-webhook-url'],
+    })
+  })
+
+  it('ignores additive provider metadata after validating known outcome fields', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => Response.json({
+      providerRequestId: 'opaque-provider-metadata',
+      result: {
+        successfulTokens: [TOKEN],
+        invalidTokens: [],
+        rateLimitedTokens: [],
+        failedTokens: [],
+        unsupportedTokens: [],
+      },
+    }))
+    const h = createHarness({ fetchImpl })
+    await applyEvent(h.notification, enabledEvent())
+
+    const response = await queue(h.notification)
+    await expect(response.json()).resolves.toEqual({ status: 'already-sent' })
+  })
+
+  it('fails closed on unknown structured reasons or contradictory known outcomes', async () => {
+    const responses = [
+      {
+        result: {
+          successfulTokens: [],
+          invalidTokens: [],
+          rateLimitedTokens: [],
+          failedTokens: [{ token: TOKEN, reason: 'future_reason' }],
+        },
+      },
+      {
+        result: {
+          successfulTokens: [TOKEN],
+          invalidTokens: [],
+          rateLimitedTokens: [],
+          failedTokens: [{ token: TOKEN, reason: 'no_webhook_url' }],
+        },
+      },
+    ]
+    for (const providerResponse of responses) {
+      const h = createHarness({
+        fetchImpl: vi.fn<typeof fetch>(async () => Response.json(providerResponse)),
+      })
+      await applyEvent(h.notification, enabledEvent())
+      const response = await queue(h.notification)
+      await expect(response.json()).resolves.toEqual({ status: 'queued' })
+      await expect((await inspect(h.notification)).json()).resolves.toMatchObject({
+        retryReasons: ['invalid-response'],
+      })
+    }
+  })
+
+  it('returns only token-free delivery diagnostics', async () => {
+    const resolver = {
+      resolve: vi.fn(async () => { throw new Error('private resolver detail') }),
+    }
+    const h = createHarness({ resolver })
+
+    await expect((await inspect(h.notification)).json()).resolves.toEqual({
+      status: 'not-subscribed',
+      deliveryAttemptCount: 0,
+      verificationFailureCount: 0,
+      retryReasons: [],
+    })
+    await applyEvent(h.notification, enabledEvent())
+    await queue(h.notification)
+
+    const response = await inspect(h.notification)
+    expect(response.status).toBe(200)
+    const text = await response.text()
+    expect(text).not.toContain(TOKEN)
+    expect(JSON.parse(text)).toEqual({
+      status: 'queued',
+      authEpoch: 7,
+      deliveryAttemptCount: 0,
+      verificationFailureCount: 1,
+      retryReasons: ['admission-verification'],
+      nextAttemptAt: NOW + 30_000,
+    })
   })
 
   it('never resets the six-attempt ceiling for the same admission epoch', async () => {
@@ -376,6 +500,40 @@ describe('admission notification consent and delivery lifecycle', () => {
     const duplicate = await queue(h.notification, 7, currentTime)
     await expect(duplicate.json()).resolves.toEqual({ status: 'delivery-exhausted' })
     expect(fetchImpl).toHaveBeenCalledTimes(6)
+  })
+
+  it('reports the newest terminal receipt after an older successful epoch', async () => {
+    let failDelivery = false
+    let resolverEpoch = 7
+    const fetchImpl = vi.fn<typeof fetch>(async () => (
+      failDelivery ? new Response(null, { status: 503 }) : successfulDelivery()
+    ))
+    const h = createHarness({
+      fetchImpl,
+      resolver: {
+        resolve: vi.fn(async () => ({ state: 'enabled', authEpoch: resolverEpoch } as const)),
+      },
+    })
+    await applyEvent(h.notification, enabledEvent())
+    await queue(h.notification, 7)
+
+    failDelivery = true
+    resolverEpoch = 8
+    await queue(h.notification, 8)
+    for (let attempt = 1; attempt < 6; attempt += 1) {
+      const alarm = Number(h.storage.alarm)
+      h.setNow(alarm)
+      await h.notification.alarm()
+    }
+    h.setNow(NOW + 7 * 24 * 60 * 60 * 1_000)
+    await h.notification.alarm()
+
+    await expect((await inspect(h.notification)).json()).resolves.toMatchObject({
+      status: 'delivery-exhausted',
+      authEpoch: 8,
+      deliveryAttemptCount: 0,
+      verificationFailureCount: 0,
+    })
   })
 
   it('bounds raw subscription-token retention even without an admission queue', async () => {
