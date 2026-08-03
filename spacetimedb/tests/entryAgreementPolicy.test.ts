@@ -24,7 +24,7 @@ function source(path: string): string {
 test('the current Hegemony entry agreement preserves the deployed Terms-shaped version alias', () => {
   assert.equal(
     WARPKEEP_ENTRY_AGREEMENT_VERSION,
-    '2026-07-31-hegemony-entry-agreement-v4',
+    '2026-08-03-hegemony-entry-agreement-v5',
   );
   assert.equal(WARPKEEP_ALPHA_TERMS_VERSION, WARPKEEP_ENTRY_AGREEMENT_VERSION);
   assert.equal(REEXPORTED_ALPHA_TERMS_VERSION, WARPKEEP_ENTRY_AGREEMENT_VERSION);
@@ -33,6 +33,7 @@ test('the current Hegemony entry agreement preserves the deployed Terms-shaped v
 
 test('historical immutable evidence remains bounded and never becomes the current version', () => {
   assert.deepEqual(WARPKEEP_HISTORICAL_ENTRY_AGREEMENT_VERSIONS, [
+    '2026-07-31-hegemony-entry-agreement-v4',
     '2026-07-19-hegemony-entry-agreement-v3',
     '2026-07-19-hegemony-entry-agreement-v2',
     '2026-07-18-hegemony-entry-agreement-v1',
@@ -135,12 +136,12 @@ test('caller status reports missing exact-current evidence without mutation', ()
   assert.ok(Object.isFrozen(result));
 });
 
-test('a retained V3 acceptance is historical and cannot satisfy the V4 entry gate', () => {
+test('a retained V4 acceptance is historical and cannot satisfy the V5 entry gate', () => {
   const fid = 101n;
-  const v3Version = '2026-07-19-hegemony-entry-agreement-v3';
-  const v3Key = `${fid}:${v3Version}`;
+  const v4Version = '2026-07-31-hegemony-entry-agreement-v4';
+  const v4Key = `${fid}:${v4Version}`;
   const retainedEvidence = new Map([
-    [v3Key, Object.freeze({ acceptanceKey: v3Key, fid, termsVersion: v3Version })],
+    [v4Key, Object.freeze({ acceptanceKey: v4Key, fid, termsVersion: v4Version })],
   ]);
   const lookupKeys: string[] = [];
 

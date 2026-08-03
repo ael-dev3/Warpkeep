@@ -39,7 +39,7 @@ const SERVER_STOP_TIMEOUT_MILLISECONDS = 5_000;
 const PROFILE_POLICY_VERSION = 'trusted-snapchain-profile-v3';
 const RESOURCE_POLICY_VERSION = 'genesis-resource-yield-v1';
 const WORKER_PROTOCOL_CAPABILITY = 'generic-castle-workers-v1';
-const ENTRY_AGREEMENT_VERSION = '2026-07-31-hegemony-entry-agreement-v4';
+const ENTRY_AGREEMENT_VERSION = '2026-08-03-hegemony-entry-agreement-v5';
 const LOCAL_FULLSTACK_FOUNDERS = Object.freeze(Array.from(
   { length: LOCAL_FULLSTACK_FOUNDER_COUNT },
   (_, index) => Object.freeze({
