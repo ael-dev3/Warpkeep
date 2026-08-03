@@ -1340,6 +1340,14 @@ describe('Warpkeep auth bridge', () => {
       farcasterRpcEndpointFingerprint('https://optimism-rpc-one.example.com/'),
       farcasterRpcEndpointFingerprint('https://optimism-rpc-two.example.net/'),
     ])).sort()
+    const farcasterRpcEndpointRoleFingerprints = {
+      primary: await farcasterRpcEndpointFingerprint(
+        'https://optimism-rpc-one.example.com/',
+      ),
+      secondary: await farcasterRpcEndpointFingerprint(
+        'https://optimism-rpc-two.example.net/',
+      ),
+    }
     const signingPublicKeyThumbprint = await qaObserverKeyThumbprint({
       kty: 'EC',
       crv: 'P-256',
@@ -1349,6 +1357,7 @@ describe('Warpkeep auth bridge', () => {
     expect(firstBody).toMatchObject({
       profile: 'warpkeep-auth-v2',
       farcasterRpcEndpointFingerprints,
+      farcasterRpcEndpointRoleFingerprints,
       approvalNotificationsEnabled: false,
       miniAppHubEndpointFingerprints: [],
       miniAppNotificationClientFids: [],
@@ -1386,6 +1395,7 @@ describe('Warpkeep auth bridge', () => {
       audience: 'warpkeep-spacetimedb',
       keyId: 'test-es256-2026',
       farcasterRpcEndpointFingerprints,
+      farcasterRpcEndpointRoleFingerprints,
       approvalNotificationsEnabled: false,
       miniAppHubEndpointFingerprints: [],
       miniAppNotificationClients: [],
@@ -1452,6 +1462,23 @@ describe('Warpkeep auth bridge', () => {
     }))
     expect(rpcDrift.digest).not.toBe(reviewedDigest)
     expect(rpcDrift.farcasterRpcEndpointFingerprints).not.toEqual(farcasterRpcEndpointFingerprints)
+    expect(rpcDrift.farcasterRpcEndpointRoleFingerprints).toEqual({
+      primary: farcasterRpcEndpointRoleFingerprints.primary,
+      secondary: await farcasterRpcEndpointFingerprint(
+        'https://optimism-rpc-three.example.org/',
+      ),
+    })
+    const rpcRoleSwap = await json(await call({
+      FARCASTER_RPC_URL: 'https://optimism-rpc-two.example.net/',
+      FARCASTER_RPC_URL_SECONDARY: 'https://optimism-rpc-one.example.com/',
+    }))
+    expect(rpcRoleSwap.farcasterRpcEndpointFingerprints)
+      .toEqual(farcasterRpcEndpointFingerprints)
+    expect(rpcRoleSwap.farcasterRpcEndpointRoleFingerprints).toEqual({
+      primary: farcasterRpcEndpointRoleFingerprints.secondary,
+      secondary: farcasterRpcEndpointRoleFingerprints.primary,
+    })
+    expect(rpcRoleSwap.digest).not.toBe(reviewedDigest)
     const replacementPair = await crypto.subtle.generateKey(
       { name: 'ECDSA', namedCurve: 'P-256' },
       true,
@@ -2505,12 +2532,12 @@ describe('Warpkeep auth bridge', () => {
           ['miniapp_webhook_rejected'],
         ],
         [
-          new MiniAppWebhookVerifierUnavailableError('rpc_primary_transport'),
+          new MiniAppWebhookVerifierUnavailableError('rpc_all_transports'),
           503,
           'miniapp_webhook_verification_unavailable',
           [
             'miniapp_webhook_verifier_unavailable',
-            'miniapp_webhook_verifier_unavailable_rpc_primary_transport',
+            'miniapp_webhook_verifier_unavailable_rpc_all_transports',
           ],
         ],
       ] as const) {

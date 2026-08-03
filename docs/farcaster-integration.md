@@ -112,9 +112,12 @@ URLs, or logs:
 - signing keys, session-cookie key, RPC credential, or admin secret.
 
 The private admin configuration attestation exposes only domain-separated
-SHA-256 fingerprints of the normalized RPC URLs and the active signing public
-key's RFC 7638 thumbprint. Those values make endpoint or key drift detectable
-without returning an RPC URL, credential, or private scalar.
+SHA-256 fingerprints of the normalized RPC URLs—including explicit primary and
+secondary role labels—and the active signing public key's RFC 7638 thumbprint.
+That role-aware shape detects both endpoint drift and accidental provider swaps
+without returning an RPC URL, credential, or private scalar. The fail-closed
+operator verifier pins the reviewed dRPC-primary/PublicNode-secondary layout in
+source so runtime expectation overrides cannot redefine the expected release.
 
 After a fresh signature and an exchange whose bridge-verified FID exactly
 matches it, the browser may write a tab-scoped `sessionStorage` presentation

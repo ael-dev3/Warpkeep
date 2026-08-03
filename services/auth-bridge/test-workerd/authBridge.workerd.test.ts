@@ -15,6 +15,7 @@ import type {
   AccessRequestResolver,
   AdmissionResolution,
   DurableObjectNamespace,
+  SafeLogEvent,
   WorkerEnv,
 } from '../src/types'
 
@@ -204,104 +205,124 @@ function harness(options: {
   }
 }
 
+async function signedMiniAppWebhookFixture() {
+  const keyPair = await crypto.subtle.generateKey(
+    { name: 'Ed25519' },
+    true,
+    ['sign', 'verify'],
+  ) as CryptoKeyPair
+  const rawPublicKey = new Uint8Array(await crypto.subtle.exportKey('raw', keyPair.publicKey))
+  const appKey = `0x${Buffer.from(rawPublicKey).toString('hex')}` as const
+  const header = Buffer.from(JSON.stringify({
+    fid: Number(FID),
+    type: 'app_key',
+    key: appKey,
+  })).toString('base64url')
+  const deliveryUrl = 'https://api.farcaster.xyz/v1/frame-notifications'
+  const token = 'workerd-notification-token-with-enough-entropy'
+  const payload = Buffer.from(JSON.stringify({
+    event: 'notifications_enabled',
+    notificationDetails: { token, url: deliveryUrl },
+  })).toString('base64url')
+  const signedInput = new TextEncoder().encode(`${header}.${payload}`)
+  const signature = Buffer.from(await crypto.subtle.sign(
+    { name: 'Ed25519' },
+    keyPair.privateKey,
+    signedInput,
+  )).toString('base64url')
+  const webhookConfig: BridgeConfig = {
+    ...CONFIG,
+    approvalNotificationsEnabled: true,
+    miniAppNotifications: {
+      hubUrls: Object.freeze([
+        'https://rho.farcaster.xyz:3381/',
+        'https://hub.pinata.cloud/',
+      ]),
+      clients: Object.freeze([{ appFid: 9_152, deliveryUrl }]),
+      operatorSecret: 'workerd-notification-secret-at-least-32-bytes',
+    },
+  }
+  const requestAccount = privateKeyToAccount(`0x${'22'.repeat(32)}`)
+  const deadline = 9_999_999_999n
+  const requestSignature = await requestAccount.signTypedData({
+    domain: {
+      name: 'Farcaster SignedKeyRequestValidator',
+      version: '1',
+      chainId: 10,
+      verifyingContract: '0x00000000fc700472606ed4fa22623acf62c60553',
+    },
+    types: {
+      SignedKeyRequest: [
+        { name: 'requestFid', type: 'uint256' },
+        { name: 'key', type: 'bytes' },
+        { name: 'deadline', type: 'uint256' },
+      ],
+    },
+    primaryType: 'SignedKeyRequest',
+    message: { requestFid: 9_152n, key: appKey, deadline },
+  })
+  const metadata = encodeAbiParameters([{
+    type: 'tuple',
+    components: [
+      { type: 'uint256' },
+      { type: 'address' },
+      { type: 'bytes' },
+      { type: 'uint256' },
+    ],
+  }], [[9_152n, requestAccount.address, requestSignature, deadline]])
+  const requestInits: (RequestInit | undefined)[] = []
+  const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+    requestInits.push(init)
+    return new Response(JSON.stringify({
+      events: [{
+        type: 'EVENT_TYPE_SIGNER',
+        signerEventBody: {
+          eventType: 'SIGNER_EVENT_TYPE_ADD',
+          keyType: 1,
+          metadataType: 1,
+          key: appKey,
+          metadata: Buffer.from(metadata.slice(2), 'hex').toString('base64'),
+        },
+      }],
+    }), { headers: { 'content-type': 'application/json' } })
+  }) as typeof fetch
+
+  return {
+    appKey,
+    deliveryUrl,
+    fetchImpl,
+    header,
+    payload,
+    requestInits,
+    signature,
+    token,
+    webhookConfig,
+  }
+}
+
 describe('auth bridge production bindings in workerd', () => {
   it('verifies Farcaster Ed25519 JFS envelopes with the production workerd runtime', async () => {
-    const keyPair = await crypto.subtle.generateKey(
-      { name: 'Ed25519' },
-      true,
-      ['sign', 'verify'],
-    ) as CryptoKeyPair
-    const rawPublicKey = new Uint8Array(await crypto.subtle.exportKey('raw', keyPair.publicKey))
-    const header = Buffer.from(JSON.stringify({
-      fid: Number(FID),
-      type: 'app_key',
-      key: `0x${Buffer.from(rawPublicKey).toString('hex')}`,
-    })).toString('base64url')
-    const deliveryUrl = 'https://api.farcaster.xyz/v1/frame-notifications'
-    const token = 'workerd-notification-token-with-enough-entropy'
-    const payload = Buffer.from(JSON.stringify({
-      event: 'notifications_enabled',
-      notificationDetails: { token, url: deliveryUrl },
-    })).toString('base64url')
-    const signedInput = new TextEncoder().encode(`${header}.${payload}`)
-    const signature = Buffer.from(await crypto.subtle.sign(
-      { name: 'Ed25519' },
-      keyPair.privateKey,
-      signedInput,
-    )).toString('base64url')
-    const webhookConfig: BridgeConfig = {
-      ...CONFIG,
-      approvalNotificationsEnabled: true,
-      miniAppNotifications: {
-        hubUrls: Object.freeze([
-          'https://rho.farcaster.xyz:3381/',
-          'https://hub.pinata.cloud/',
-        ]),
-        clients: Object.freeze([{ appFid: 9_152, deliveryUrl }]),
-        operatorSecret: 'workerd-notification-secret-at-least-32-bytes',
-      },
-    }
-    const requestAccount = privateKeyToAccount(`0x${'22'.repeat(32)}`)
-    const deadline = 9_999_999_999n
-    const appKey = `0x${Buffer.from(rawPublicKey).toString('hex')}` as const
-    const requestSignature = await requestAccount.signTypedData({
-      domain: {
-        name: 'Farcaster SignedKeyRequestValidator',
-        version: '1',
-        chainId: 10,
-        verifyingContract: '0x00000000fc700472606ed4fa22623acf62c60553',
-      },
-      types: {
-        SignedKeyRequest: [
-          { name: 'requestFid', type: 'uint256' },
-          { name: 'key', type: 'bytes' },
-          { name: 'deadline', type: 'uint256' },
-        ],
-      },
-      primaryType: 'SignedKeyRequest',
-      message: { requestFid: 9_152n, key: appKey, deadline },
-    })
-    const metadata = encodeAbiParameters([{
-      type: 'tuple',
-      components: [
-        { type: 'uint256' },
-        { type: 'address' },
-        { type: 'bytes' },
-        { type: 'uint256' },
-      ],
-    }], [[9_152n, requestAccount.address, requestSignature, deadline]])
-    const requestInits: (RequestInit | undefined)[] = []
-    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-      requestInits.push(init)
-      return new Response(JSON.stringify({
-        events: [{
-          type: 'EVENT_TYPE_SIGNER',
-          signerEventBody: {
-            eventType: 'SIGNER_EVENT_TYPE_ADD',
-            keyType: 1,
-            metadataType: 1,
-            key: appKey,
-            metadata: Buffer.from(metadata.slice(2), 'hex').toString('base64'),
-          },
-        }],
-      }), { headers: { 'content-type': 'application/json' } })
-    }) as typeof fetch
+    const fixture = await signedMiniAppWebhookFixture()
     const activeOnChainRpcVerifier = vi.fn(async () => true)
-    const verifier = createMiniAppWebhookVerifier(webhookConfig, {
-      fetchImpl,
+    const verifier = createMiniAppWebhookVerifier(fixture.webhookConfig, {
+      fetchImpl: fixture.fetchImpl,
       activeOnChainRpcVerifier,
     })
 
-    await expect(verifier.verify({ header, payload, signature })).resolves.toMatchObject({
+    await expect(verifier.verify({
+      header: fixture.header,
+      payload: fixture.payload,
+      signature: fixture.signature,
+    })).resolves.toMatchObject({
       fid: FID,
       appFid: 9_152,
       event: {
         type: 'enabled',
-        details: { token, url: deliveryUrl },
+        details: { token: fixture.token, url: fixture.deliveryUrl },
       },
     })
-    expect(fetchImpl).toHaveBeenCalledTimes(2)
-    for (const init of requestInits) {
+    expect(fixture.fetchImpl).toHaveBeenCalledTimes(2)
+    for (const init of fixture.requestInits) {
       expect(init).toMatchObject({
         method: 'GET',
         cache: 'no-store',
@@ -310,6 +331,87 @@ describe('auth bridge production bindings in workerd', () => {
       expect(init?.signal).toBeInstanceOf(AbortSignal)
     }
     expect(activeOnChainRpcVerifier).toHaveBeenCalledTimes(2)
+  })
+
+  it('falls back after two primary transport failures and persists the signed event', async () => {
+    const fixture = await signedMiniAppWebhookFixture()
+    const failedProviders: string[] = []
+    const rpcSignals: AbortSignal[] = []
+    const activeOnChainRpcVerifier = vi.fn(async (
+      rpcUrl: string,
+      _fid: number,
+      _appKey: string,
+      _attestation: unknown,
+      signal: AbortSignal,
+    ) => {
+      rpcSignals.push(signal)
+      if (rpcUrl === fixture.webhookConfig.farcasterRpcUrls[0]) {
+        throw new Error('synthetic primary transport failure')
+      }
+      return true
+    })
+    const applyEvent = vi.fn(async () => undefined)
+    const events: SafeLogEvent[] = []
+    const app = createAuthBridge({
+      configReader: () => fixture.webhookConfig,
+      miniAppWebhookVerifierFactory: (config, dependencies) => (
+        createMiniAppWebhookVerifier(config, {
+          ...dependencies,
+          fetchImpl: fixture.fetchImpl,
+          activeOnChainRpcVerifier,
+          rpcFallbackObserver: provider => {
+            failedProviders.push(provider)
+            dependencies?.rpcFallbackObserver?.(provider)
+          },
+        })
+      ),
+      admissionNotificationStore: {
+        applyEvent,
+        queueAdmission: vi.fn(async () => 'queued' as const),
+      },
+      rateLimiter: { check: async () => ({ allowed: true }) },
+      logger: { event: event => events.push(event) },
+    })
+    const response = await app.fetch(new Request(
+      'https://auth.warpkeep.test/v1/farcaster/miniapp/webhook',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          header: fixture.header,
+          payload: fixture.payload,
+          signature: fixture.signature,
+        }),
+      },
+    ), env as unknown as WorkerEnv)
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe('')
+    expect(response.headers.has('access-control-allow-origin')).toBe(false)
+    expect(failedProviders).toEqual(['primary'])
+    expect(activeOnChainRpcVerifier.mock.calls.filter(
+      ([rpcUrl]) => rpcUrl === fixture.webhookConfig.farcasterRpcUrls[0],
+    )).toHaveLength(2)
+    expect(activeOnChainRpcVerifier.mock.calls.filter(
+      ([rpcUrl]) => rpcUrl === fixture.webhookConfig.farcasterRpcUrls[1],
+    )).toHaveLength(1)
+    expect(rpcSignals).toHaveLength(3)
+    expect(rpcSignals.every(signal => signal.aborted)).toBe(true)
+    expect(applyEvent).toHaveBeenCalledOnce()
+    expect(applyEvent).toHaveBeenCalledWith(expect.objectContaining({
+      fid: FID,
+      appFid: 9_152,
+      event: expect.objectContaining({ type: 'enabled' }),
+    }))
+    expect(events).toEqual([
+      'miniapp_webhook_rpc_primary_fallback',
+      'miniapp_webhook_verified',
+      'miniapp_notification_subscribed',
+    ])
+    const serializedEvents = JSON.stringify(events)
+    expect(serializedEvents).not.toContain(FID)
+    expect(serializedEvents).not.toContain(fixture.token)
+    expect(serializedEvents).not.toContain(fixture.deliveryUrl)
   })
 
   it('keeps Quick Auth cookie-free while reusing authoritative admission and player claims', async () => {

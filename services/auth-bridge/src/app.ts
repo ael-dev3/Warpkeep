@@ -210,6 +210,8 @@ export interface AuthBridgeDependencies {
   authEpochResolver?: AuthEpochResolver
   accessRequestResolver?: AccessRequestResolver
   miniAppWebhookVerifier?: MiniAppWebhookVerifier
+  /** Test seam for exercising the production verifier through the route. */
+  miniAppWebhookVerifierFactory?: typeof createMiniAppWebhookVerifier
   admissionNotificationStore?: AdmissionNotificationStore
   sessionFamilyStore?: SessionFamilyStore
   qaChallengeStore?: QaObserverChallengeStore
@@ -1010,12 +1012,27 @@ async function configurationAttestation(
 ): Promise<Readonly<{
   digest: string
   farcasterRpcEndpointFingerprints: readonly string[]
+  farcasterRpcEndpointRoleFingerprints: Readonly<{
+    primary: string
+    secondary: string | null
+  }>
   miniAppHubEndpointFingerprints: readonly string[]
   signingPublicKeyThumbprint: string
 }>> {
-  const farcasterRpcEndpointFingerprints = Object.freeze((await Promise.all(
-    config.farcasterRpcUrls.map(farcasterRpcEndpointFingerprint),
-  )).sort())
+  const primaryRpcFingerprint = await farcasterRpcEndpointFingerprint(
+    config.farcasterRpcUrls[0],
+  )
+  const secondaryRpcFingerprint = config.farcasterRpcUrls[1] === undefined
+    ? null
+    : await farcasterRpcEndpointFingerprint(config.farcasterRpcUrls[1])
+  const farcasterRpcEndpointRoleFingerprints = Object.freeze({
+    primary: primaryRpcFingerprint,
+    secondary: secondaryRpcFingerprint,
+  })
+  const farcasterRpcEndpointFingerprints = Object.freeze([
+    primaryRpcFingerprint,
+    ...(secondaryRpcFingerprint === null ? [] : [secondaryRpcFingerprint]),
+  ].sort())
   const miniAppHubEndpointFingerprints = Object.freeze((await Promise.all(
     (config.miniAppNotifications?.hubUrls ?? []).map(miniAppHubEndpointFingerprint),
   )).sort())
@@ -1034,6 +1051,7 @@ async function configurationAttestation(
     audience: config.audience,
     keyId: config.keyId,
     farcasterRpcEndpointFingerprints,
+    farcasterRpcEndpointRoleFingerprints,
     approvalNotificationsEnabled: config.approvalNotificationsEnabled,
     miniAppHubEndpointFingerprints,
     miniAppNotificationClients: (config.miniAppNotifications?.clients ?? []).map(client => ({
@@ -1087,6 +1105,7 @@ async function configurationAttestation(
   return Object.freeze({
     digest: await sha256Hex(canonical),
     farcasterRpcEndpointFingerprints,
+    farcasterRpcEndpointRoleFingerprints,
     miniAppHubEndpointFingerprints,
     signingPublicKeyThumbprint,
   })
@@ -1586,7 +1605,8 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           try {
             event = await (
               dependencies.miniAppWebhookVerifier
-              ?? createMiniAppWebhookVerifier(config, {
+              ?? (dependencies.miniAppWebhookVerifierFactory
+                ?? createMiniAppWebhookVerifier)(config, {
                 rpcFallbackObserver: failedProvider => logger.event(
                   failedProvider === 'primary'
                     ? 'miniapp_webhook_rpc_primary_fallback'
@@ -2549,6 +2569,8 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             profile: 'warpkeep-auth-v2',
             digest: attestation.digest,
             farcasterRpcEndpointFingerprints: attestation.farcasterRpcEndpointFingerprints,
+            farcasterRpcEndpointRoleFingerprints:
+              attestation.farcasterRpcEndpointRoleFingerprints,
             miniAppHubEndpointFingerprints: attestation.miniAppHubEndpointFingerprints,
             signingPublicKeyThumbprint: attestation.signingPublicKeyThumbprint,
             quickAuthIssuer: QUICK_AUTH_ISSUER,
