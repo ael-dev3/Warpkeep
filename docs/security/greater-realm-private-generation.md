@@ -94,7 +94,11 @@ TypeScript, esbuild, Sharp, libvips, or their JavaScript dependencies. It:
   before launching the pinned absolute `tsx` entrypoint. Package-manager
   `.bin` launch shims are not part of registry package trees and are excluded;
   the child receives only the trusted Node executable directory in `PATH`, so
-  those shims cannot participate in command resolution.
+  those shims cannot participate in command resolution. npm's reviewed
+  esbuild postinstall copy is handled explicitly: the stable JavaScript tree
+  is hashed without `bin/esbuild`, while that installed executable must be
+  byte-identical, executable, and size-identical to the separately locked
+  platform-native esbuild package;
 
 The bootstrap also rejects Node/module-resolution, native-loader, esbuild, and
 Sharp override environment variables before verification and removes them

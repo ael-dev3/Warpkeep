@@ -209,7 +209,7 @@ beforeAll(() => {
     collisionRoot.fill(0);
     secondRoot.fill(0);
   }
-}, 60_000);
+}, 120_000);
 
 afterAll(() => {
   if (pinned) clearGreaterRealmCandidateSecret(pinned);

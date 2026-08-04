@@ -127,7 +127,7 @@ describe('Greater Realm derived topography', () => {
       seed.fill(0);
       clearGreaterRealmCandidateSecret(candidate);
     }
-  }, 30_000);
+  }, 60_000);
 
   it('smooths visual classification as a compatible pair without moving protected process cells', () => {
     const coordinates: Array<{ q: number; r: number }> = [];

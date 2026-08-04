@@ -89,6 +89,12 @@ function toolchainFixture() {
       `export const packageName = ${JSON.stringify(name)};\n`,
       { mode: 0o644 },
     );
+    if (name === 'esbuild' || /^@esbuild\/(?:darwin-arm64|linux-x64)$/u.test(name)) {
+      mkdirSync(join(packageRoot, 'bin'), { mode: 0o755 });
+      writeFileSync(join(packageRoot, 'bin', 'esbuild'), 'fixture-esbuild-binary\n', {
+        mode: 0o755,
+      });
+    }
     if (name === 'tsx') {
       mkdirSync(join(packageRoot, 'dist'), { mode: 0o755 });
       writeFileSync(join(packageRoot, 'dist', 'cli.mjs'), 'process.exitCode = 0;\n', {
@@ -101,7 +107,9 @@ function toolchainFixture() {
     name,
     version: '1.0.0',
     integrity,
-    ...computeGreaterRealmPackageTree(join(nodeModules, ...name.split('/'))),
+    ...computeGreaterRealmPackageTree(join(nodeModules, ...name.split('/')), {
+      excludedFiles: name === 'esbuild' ? ['bin/esbuild'] : [],
+    }),
   }]));
   const rootDevDependencies = Object.fromEntries(
     ['sharp', 'tsx', 'typescript'].map(name => [name, '1.0.0']),
@@ -187,6 +195,22 @@ describe('Greater Realm toolchain provenance', () => {
       architecture: 'arm64',
     })).toThrow('GREATER_REALM_TOOLCHAIN_BOOTSTRAP_PACKAGE_TAMPERED');
     expect(existsSync(marker)).toBe(false);
+  });
+
+  it('binds npm\'s installed esbuild executable to the locked native package', () => {
+    const fixture = toolchainFixture();
+    writeFileSync(
+      join(fixture.nodeModules, 'esbuild', 'bin', 'esbuild'),
+      'substituted-native-binary\n',
+      { mode: 0o755 },
+    );
+
+    expect(() => verifyGreaterRealmTrustedToolchain({
+      repositoryRoot: fixture.repositoryRoot,
+      runtimeNode: '22.13.0',
+      platform: 'darwin',
+      architecture: 'arm64',
+    })).toThrow('GREATER_REALM_TOOLCHAIN_BOOTSTRAP_PACKAGE_TAMPERED');
   });
 
   it('accepts the Linux closure only when the macOS-only optional module is absent', () => {

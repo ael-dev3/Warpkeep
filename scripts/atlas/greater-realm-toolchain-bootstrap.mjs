@@ -292,7 +292,25 @@ function hashPinnedPackageFile(path) {
   }
 }
 
-export function computeGreaterRealmPackageTree(packageRoot) {
+export function computeGreaterRealmPackageTree(packageRoot, options = {}) {
+  if (
+    options === null
+    || typeof options !== 'object'
+    || Array.isArray(options)
+    || Object.keys(options).some(key => key !== 'excludedFiles')
+    || (options.excludedFiles !== undefined && !Array.isArray(options.excludedFiles))
+  ) fail('GREATER_REALM_TOOLCHAIN_BOOTSTRAP_INVALID');
+  const excludedFiles = new Set(options.excludedFiles ?? []);
+  if (
+    excludedFiles.size !== (options.excludedFiles?.length ?? 0)
+    || [...excludedFiles].some(path => (
+      typeof path !== 'string'
+      || path.length === 0
+      || path.startsWith('/')
+      || path.includes('\\')
+      || path.split('/').some(segment => segment === '' || segment === '.' || segment === '..')
+    ))
+  ) fail('GREATER_REALM_TOOLCHAIN_BOOTSTRAP_INVALID');
   const canonicalRoot = realpathSync(packageRoot);
   const records = [];
   let byteCount = 0;
@@ -320,6 +338,7 @@ export function computeGreaterRealmPackageTree(packageRoot) {
       }
       if (!entry.isFile()) fail('GREATER_REALM_TOOLCHAIN_BOOTSTRAP_FILESYSTEM_INVALID');
       const file = hashPinnedPackageFile(path);
+      if (excludedFiles.has(relativePath)) continue;
       byteCount += file.byteCount;
       records.push(Object.freeze({
         path: relativePath,
@@ -519,7 +538,13 @@ function verifyPackage(alias, expected, expectedName) {
   if (beforeCanonical !== alias.canonical) {
     fail('GREATER_REALM_TOOLCHAIN_BOOTSTRAP_FILESYSTEM_INVALID');
   }
-  const observed = computeGreaterRealmPackageTree(alias.canonical);
+  // npm's reviewed esbuild postinstall replaces `bin/esbuild` with the exact
+  // selected native-package executable. Attest the stable package tree without
+  // that platform-specific copy here, then bind the installed copy byte-for-
+  // byte to the separately locked native package below.
+  const observed = computeGreaterRealmPackageTree(alias.canonical, {
+    excludedFiles: expectedName === 'esbuild' ? ['bin/esbuild'] : [],
+  });
   if (
     observed.treeSha256 !== expected.treeSha256
     || observed.fileCount !== expected.fileCount
@@ -702,6 +727,18 @@ export function verifyGreaterRealmTrustedToolchain(input = {}) {
     if (alias === undefined) fail('GREATER_REALM_TOOLCHAIN_BOOTSTRAP_INVALID');
     return verifyPackage(alias, expected(name), name);
   });
+  const installedEsbuild = hashPinnedPackageFile(resolve(esbuildAlias.canonical, 'bin', 'esbuild'));
+  const nativeEsbuild = hashPinnedPackageFile(resolve(
+    aliases[profile.packages.esbuildPackage].canonical,
+    'bin',
+    'esbuild',
+  ));
+  if (
+    !installedEsbuild.executable
+    || !nativeEsbuild.executable
+    || installedEsbuild.byteCount !== nativeEsbuild.byteCount
+    || installedEsbuild.sha256 !== nativeEsbuild.sha256
+  ) fail('GREATER_REALM_TOOLCHAIN_BOOTSTRAP_PACKAGE_TAMPERED');
   const tsxCli = resolve(tsxAlias.canonical, 'dist', 'cli.mjs');
   const tsxCliStatus = lstatSync(tsxCli);
   assertTrustedStatus(tsxCliStatus, 'file');

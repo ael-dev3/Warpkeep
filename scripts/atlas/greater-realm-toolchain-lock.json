@@ -87,9 +87,9 @@
       "name": "esbuild",
       "version": "0.28.1",
       "integrity": "sha512-HrJrvZv5ayxBzPfwphOoNzkzOIIlifzk0KJrGK2c8R4+LKpMtpYLQeUdjnwjWv/LZlkH2laZk+4w78pi99D4Vw==",
-      "byteCount": 146953,
-      "fileCount": 7,
-      "treeSha256": "b8bac9fbb12dda03ef60557fa29614cabba79e16be45c50690be1bd038298e8f"
+      "byteCount": 137603,
+      "fileCount": 6,
+      "treeSha256": "96193464822bf1503f5fb88a2b9abd159aa669aa33e5119d1f5101395d5dab57"
     },
     "fsevents": {
       "name": "fsevents",
