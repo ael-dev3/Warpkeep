@@ -15,6 +15,7 @@ import {
   DEFAULT_MINI_APP_BROWSER_RUNTIME,
   defaultMiniAppSdkLoader,
   hasExactMiniAppHint,
+  isMiniAppAdmissionGrantNotificationId,
   installMiniAppQuickAuthPreconnect,
   installMiniAppSafeAreaVariables,
   readMiniAppNotificationDetailsHint,
@@ -112,6 +113,8 @@ export type MiniAppHostQuickAuth = Readonly<{
 
 /** Private, memory-only capability delivered through a Farcaster notification. */
 export type MiniAppAdmissionGrant = Readonly<{
+  /** Exact sanitized Farcaster notification launch context, when hydrated. */
+  notificationId?: string;
   /** Reads the capability into one private effect call stack, never React state. */
   read: () => string | undefined;
   /** Clears only the exact capability that the effect actually exchanged. */
@@ -1436,7 +1439,11 @@ export function MiniAppHostProvider({
   const admissionGrant = useMemo<MiniAppAdmissionGrant | undefined>(() => {
     void admissionGrantRevision;
     if (!hasAdmissionGrant || admissionGrantConsumed) return undefined;
+    const notificationId = snapshot.context?.notificationId;
     return Object.freeze({
+      ...(isMiniAppAdmissionGrantNotificationId(notificationId)
+        ? { notificationId }
+        : {}),
       read: () => captureMiniAppAdmissionGrantTicket(runtime),
       clear: (expectedTicket: string) => {
         if (clearMiniAppAdmissionGrantTicket(runtime.document, expectedTicket)) {
@@ -1444,7 +1451,13 @@ export function MiniAppHostProvider({
         }
       }
     });
-  }, [admissionGrantConsumed, admissionGrantRevision, hasAdmissionGrant, runtime]);
+  }, [
+    admissionGrantConsumed,
+    admissionGrantRevision,
+    hasAdmissionGrant,
+    runtime,
+    snapshot.context?.notificationId
+  ]);
 
   const value = useMemo<MiniAppHostValue>(() => Object.freeze({
     state: snapshot.state,

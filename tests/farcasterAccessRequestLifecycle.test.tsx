@@ -219,7 +219,8 @@ describe('professional access-request lifecycle', () => {
     fireEvent.click(button);
 
     expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
-    expect(screen.getByText('REQUEST SENT')).not.toBeNull();
+    expect(screen.getByText('SUBMITTING REQUEST')).not.toBeNull();
+    expect(screen.queryByText('REQUEST SENT')).toBeNull();
     expect(document.querySelector('.farcaster-access-request')).toBe(stableRegion);
     expect(document.activeElement).toBe(stableRegion);
     expect(stableRegion?.getAttribute('aria-busy')).toBe('true');
@@ -317,13 +318,13 @@ describe('professional access-request lifecycle', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
     await Promise.resolve();
-    expect(screen.getByText('REQUEST SENT')).not.toBeNull();
+    expect(screen.getByText('SUBMITTING REQUEST')).not.toBeNull();
     expect(observedKinds).toEqual([]);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(349);
     });
-    expect(screen.getByText('REQUEST SENT')).not.toBeNull();
+    expect(screen.getByText('SUBMITTING REQUEST')).not.toBeNull();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
@@ -438,7 +439,7 @@ describe('professional access-request lifecycle', () => {
     unsubscribe();
   });
 
-  it('keeps an ambiguous missing result sealed and makes CHECK STATUS read-only', async () => {
+  it('keeps automatic ambiguity sealed, then lets an explicit authoritative absence unlock one retry', async () => {
     const observedKinds: string[] = [];
     const unsubscribe = subscribeWarpkeepSfx(events => {
       observedKinds.push(...events.map(event => event.kind));
@@ -469,8 +470,13 @@ describe('professional access-request lifecycle', () => {
     expect(document.activeElement).toBe(stableRegion);
     await waitFor(() => expect(getAccessRequestStatus).toHaveBeenCalledTimes(3));
     expect(requestAccess).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('REQUEST NOT SENT')).not.toBeNull();
+    const retry = screen.getByRole('button', { name: 'TRY AGAIN' });
+
+    fireEvent.click(retry);
+    await waitFor(() => expect(requestAccess).toHaveBeenCalledTimes(2));
     expect(screen.getByText('REQUEST STATUS UNAVAILABLE')).not.toBeNull();
-    expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'TRY AGAIN' })).toBeNull();
     expect(observedKinds).toEqual([]);
     unsubscribe();
   });

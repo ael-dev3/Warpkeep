@@ -392,6 +392,8 @@ export type FarcasterAccessRequestOptions = FarcasterBridgeRequestOptions & Read
 export type FarcasterAdmissionGrantOptions = FarcasterAccessRequestOptions & Readonly<{
   /** Opaque one-use capability captured from the notification target fragment. */
   ticket: string;
+  /** Exact Farcaster host launch context paired with that capability. */
+  notificationId: string;
 }>;
 
 /**
@@ -418,6 +420,7 @@ export type AdmissionGrantAcknowledgementStatus =
 
 export type AdmissionGrantAcknowledgementViewState =
   | Readonly<{ phase: 'idle' }>
+  | Readonly<{ phase: 'awaiting-notification-context' }>
   | Readonly<{ phase: 'acknowledging' }>
   | Readonly<{ phase: 'finalizing' }>
   | Readonly<{ phase: 'confirmed-pending' }>

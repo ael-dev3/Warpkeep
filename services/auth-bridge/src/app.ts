@@ -131,7 +131,10 @@ const V2_REFRESH_PATH = '/v2/session/refresh'
 const V2_LOGOUT_PATH = '/v2/session/logout'
 const V2_ACCESS_STATUS_PATH = '/v2/access/status'
 const V2_ACCESS_REQUEST_PATH = '/v2/access/request'
-const V2_ADMISSION_GRANT_PATH = '/v2/access/admission-grant'
+// This context-bound contract was never served on the legacy candidate path.
+// A distinct additive route lets the Worker land before the frontend without
+// creating an exact-body incompatibility for cached clients.
+const V2_ADMISSION_GRANT_CONTEXT_PATH = '/v2/access/admission-grant-context'
 export const MINIAPP_WEBHOOK_PATH = '/v1/farcaster/miniapp/webhook'
 export const ADMISSION_NOTIFICATION_PATH = '/v1/admin/admission-notification'
 export const ADMISSION_NOTIFICATION_STATUS_PATH = '/v1/admin/admission-notification-status'
@@ -303,7 +306,7 @@ function isCredentialedPath(pathname: string): boolean {
 function isAccessCredentialPath(pathname: string): boolean {
   return pathname === V2_ACCESS_STATUS_PATH
     || pathname === V2_ACCESS_REQUEST_PATH
-    || pathname === V2_ADMISSION_GRANT_PATH
+    || pathname === V2_ADMISSION_GRANT_CONTEXT_PATH
 }
 
 function publicCorsHeaders(request: Request, config: BridgeConfig, pathname = new URL(request.url).pathname): HeadersInit {
@@ -1099,7 +1102,7 @@ async function configurationAttestation(
     authEpochResolverTimeoutMilliseconds: AUTH_EPOCH_RESOLVER_TIMEOUT_MILLISECONDS,
     accessRequestStatusPath: V2_ACCESS_STATUS_PATH,
     accessRequestSubmitPath: V2_ACCESS_REQUEST_PATH,
-    admissionGrantPath: V2_ADMISSION_GRANT_PATH,
+    admissionGrantPath: V2_ADMISSION_GRANT_CONTEXT_PATH,
     accessRequestResolverTokenTtlSeconds: INTERNAL_ACCESS_REQUEST_RESOLVER_TOKEN_TTL_SECONDS,
     accessRequestResolverTimeoutMilliseconds: ACCESS_REQUEST_RESOLVER_TIMEOUT_MILLISECONDS,
     accessRequestStatusProcedure: SPACETIMEDB_ACCESS_REQUEST_STATUS_PROCEDURE,
@@ -1949,12 +1952,18 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           )
           const accessBody = await parseObjectBody(request)
           let admissionGrantTicket: string | undefined
-          if (url.pathname === V2_ADMISSION_GRANT_PATH) {
-            requireExactKeys(accessBody, ['ticket'])
+          let admissionGrantNotificationId: string | undefined
+          if (url.pathname === V2_ADMISSION_GRANT_CONTEXT_PATH) {
+            requireExactKeys(accessBody, ['ticket', 'notificationId'])
             if (
               typeof accessBody.ticket !== 'string'
               || !/^[A-Za-z0-9_-]{43}$/.test(accessBody.ticket)
+              || typeof accessBody.notificationId !== 'string'
+              || !/^warpkeep-access-grant-v3-i[A-Za-z0-9_-]{22}$/.test(
+                accessBody.notificationId,
+              )
             ) {
+              logger.event('admission_grant_ack_context_rejected')
               throw new HttpError(
                 400,
                 'admission_grant_invalid',
@@ -1962,6 +1971,7 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
               )
             }
             admissionGrantTicket = accessBody.ticket
+            admissionGrantNotificationId = accessBody.notificationId
           } else {
             requireExactKeys(accessBody, [])
           }
@@ -2110,7 +2120,7 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             )
           }
 
-          if (url.pathname === V2_ADMISSION_GRANT_PATH) {
+          if (url.pathname === V2_ADMISSION_GRANT_CONTEXT_PATH) {
             const notificationStore = dependencies.admissionNotificationStore
               ?? defaultAdmissionNotificationStore(env)
             if (admission.state === 'enabled') {
@@ -2118,7 +2128,11 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
               // concurrent operator. Entry authority is already established,
               // so notification storage availability cannot revoke it.
               try {
-                await notificationStore.acknowledge(verifiedFid, admissionGrantTicket!)
+                await notificationStore.acknowledge(
+                  verifiedFid,
+                  admissionGrantTicket!,
+                  admissionGrantNotificationId!,
+                )
               } catch {
                 // The bounded grant expires independently in Durable Object storage.
               }
@@ -2143,11 +2157,12 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
                 throw invalidAccessCredential()
               }
             }
-            let acknowledgement: 'accepted' | 'not-ready' | 'stale'
+            let acknowledgement: 'accepted' | 'not-ready' | 'stale' | 'context-mismatch'
             try {
               acknowledgement = await notificationStore.acknowledge(
                 verifiedFid,
                 admissionGrantTicket!,
+                admissionGrantNotificationId!,
               )
             } catch {
               throw new HttpError(
@@ -2160,11 +2175,18 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
               logger.event('admission_grant_acknowledged')
             } else if (acknowledgement === 'not-ready') {
               logger.event('admission_grant_ack_not_ready')
+            } else if (acknowledgement === 'context-mismatch') {
+              logger.event('admission_grant_ack_context_mismatch')
             } else {
               logger.event('admission_grant_ack_stale')
             }
             return json(
-              { version: 1, status: acknowledgement },
+              {
+                version: 1,
+                status: acknowledgement === 'context-mismatch'
+                  ? 'stale'
+                  : acknowledgement,
+              },
               200,
               accessRequestCorsHeaders(origin, credentialMode),
             )
@@ -2632,13 +2654,6 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
 
         if (request.method === 'POST' && url.pathname === ADMISSION_NOTIFICATION_STATUS_PATH) {
           requireAdminNoOrigin(request)
-          if (!config.approvalNotificationsEnabled) {
-            throw new HttpError(
-              503,
-              'approval_notifications_paused',
-              'Admission notifications are temporarily unavailable.',
-            )
-          }
           if (url.search) {
             throw new HttpError(400, 'notification_query_not_allowed', 'This endpoint does not accept query parameters.')
           }
@@ -2756,7 +2771,7 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             quickAuthMaxIssuerLifetimeSeconds: QUICK_AUTH_MAX_ISSUER_LIFETIME_SECONDS,
             accessRequestStatusPath: V2_ACCESS_STATUS_PATH,
             accessRequestSubmitPath: V2_ACCESS_REQUEST_PATH,
-            admissionGrantPath: V2_ADMISSION_GRANT_PATH,
+            admissionGrantPath: V2_ADMISSION_GRANT_CONTEXT_PATH,
             accessRequestResolverTokenTtlSeconds: INTERNAL_ACCESS_REQUEST_RESOLVER_TOKEN_TTL_SECONDS,
             accessRequestResolverTimeoutMilliseconds: ACCESS_REQUEST_RESOLVER_TIMEOUT_MILLISECONDS,
             accessRequestStatusProcedure: SPACETIMEDB_ACCESS_REQUEST_STATUS_PROCEDURE,
@@ -2787,7 +2802,7 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
         throw new HttpError(404, 'not_found', 'Route not found.')
       } catch (error) {
         if (url.pathname === V2_QUICK_AUTH_EXCHANGE_PATH) logger.event('quick_auth_rejected')
-        if (url.pathname === V2_ADMISSION_GRANT_PATH) {
+        if (url.pathname === V2_ADMISSION_GRANT_CONTEXT_PATH) {
           logger.event('admission_grant_ack_rejected')
         } else if (isAccessCredentialPath(url.pathname)) {
           logger.event('access_request_rejected')

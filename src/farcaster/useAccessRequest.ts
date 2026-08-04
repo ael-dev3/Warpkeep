@@ -369,6 +369,18 @@ export function useAccessRequest({
       return;
     }
     if (context === 'post-submission') {
+      if (operation.kind === 'manual-status') {
+        // A later, explicit read-only check has its own authority boundary.
+        // Unlike the immediate ambiguous reconciliation, a successful
+        // `not-requested` result now proves the interrupted write did not
+        // persist. Release the one-shot lock without retrying automatically;
+        // the player may deliberately submit once more.
+        submissionLockRef.current = undefined;
+        duplicateDiagnosticKeyRef.current = undefined;
+        applyEvent(operation, { type: 'definitive-failure' });
+        diagnose('request_definitive_failure');
+        return;
+      }
       // A missing projection cannot prove that an interrupted mutation never
       // crossed its write boundary. Keep the submission sealed.
       applyEvent(operation, { type: 'status-unavailable', context });

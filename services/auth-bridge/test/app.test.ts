@@ -49,7 +49,8 @@ const QUICK_AUTH_ISSUER = 'https://auth.farcaster.xyz'
 const QUICK_AUTH_PATH = '/v2/farcaster/quick-auth/exchange'
 const ACCESS_STATUS_PATH = '/v2/access/status'
 const ACCESS_REQUEST_PATH = '/v2/access/request'
-const ADMISSION_GRANT_PATH = '/v2/access/admission-grant'
+const ADMISSION_GRANT_PATH = '/v2/access/admission-grant-context'
+const RETIRED_ADMISSION_GRANT_CANDIDATE_PATH = '/v2/access/admission-grant'
 const syntheticQuickAuthSegment = (value: object) => btoa(JSON.stringify(value))
   .replaceAll('+', '-')
   .replaceAll('/', '_')
@@ -236,7 +237,10 @@ function quickAuthRequest(
 }
 
 function accessBearerRequest(
-  path: typeof ACCESS_STATUS_PATH | typeof ACCESS_REQUEST_PATH | typeof ADMISSION_GRANT_PATH,
+  path: typeof ACCESS_STATUS_PATH
+    | typeof ACCESS_REQUEST_PATH
+    | typeof ADMISSION_GRANT_PATH
+    | typeof RETIRED_ADMISSION_GRANT_CANDIDATE_PATH,
   body: unknown = {},
   init: RequestInit = {},
 ): Request {
@@ -1374,7 +1378,7 @@ describe('Warpkeep auth bridge', () => {
       quickAuthMaxIssuerLifetimeSeconds: 60 * 60,
       accessRequestStatusPath: '/v2/access/status',
       accessRequestSubmitPath: '/v2/access/request',
-      admissionGrantPath: '/v2/access/admission-grant',
+      admissionGrantPath: '/v2/access/admission-grant-context',
       accessRequestResolverTokenTtlSeconds: 15,
       accessRequestResolverTimeoutMilliseconds: 5_000,
       accessRequestStatusProcedure: 'access_request_get_status_v1',
@@ -1435,7 +1439,7 @@ describe('Warpkeep auth bridge', () => {
       authEpochResolverTimeoutMilliseconds: 5_000,
       accessRequestStatusPath: '/v2/access/status',
       accessRequestSubmitPath: '/v2/access/request',
-      admissionGrantPath: '/v2/access/admission-grant',
+      admissionGrantPath: '/v2/access/admission-grant-context',
       accessRequestResolverTokenTtlSeconds: 15,
       accessRequestResolverTimeoutMilliseconds: 5_000,
       accessRequestStatusProcedure: 'access_request_get_status_v1',
@@ -2436,13 +2440,36 @@ describe('Warpkeep auth bridge', () => {
       }),
     })
 
-    it('keeps both endpoints independently fail-closed while rollout is paused', async () => {
+    it('keeps mutations paused while preserving token-free operator diagnostics', async () => {
       const verify = vi.fn(async () => verifiedEnableEvent)
       const applyEvent = vi.fn(async () => undefined)
       const queueAdmission = vi.fn(async () => 'queued' as const)
+      const inspect = vi.fn(async () => Object.freeze({
+        version: 2 as const,
+        systemState: 'paused' as const,
+        subscriptionState: 'absent' as const,
+        status: 'not-subscribed' as const,
+        activeSubscriptionCount: 0,
+        activeClientFids: Object.freeze([]),
+        activeAttemptCount: 0,
+        pendingAttemptCount: 0,
+        retryingAttemptCount: 0,
+        sentAttemptCount: 0,
+        exhaustedAttemptCount: 0,
+        deliveryAttemptCount: 0,
+        verificationFailureCount: 0,
+        grantState: 'none' as const,
+        deliveryState: 'idle' as const,
+        retryReasons: Object.freeze([]),
+      }))
       const h = harness({
         miniAppWebhookVerifier: { verify },
-        admissionNotificationStore: { applyEvent, queueAdmission, acknowledge: rejectGrant },
+        admissionNotificationStore: {
+          applyEvent,
+          queueAdmission,
+          acknowledge: rejectGrant,
+          inspect,
+        },
       })
 
       for (const candidate of [
@@ -2450,11 +2477,10 @@ describe('Warpkeep auth bridge', () => {
         request(ADMISSION_NOTIFICATION_PATH, { fid: FID }, {
           headers: { authorization: `Bearer ${NOTIFICATION_OPERATOR_SECRET}` },
         }),
-        request(ADMISSION_NOTIFICATION_STATUS_PATH, { fid: FID }, {
-          headers: { authorization: `Bearer ${NOTIFICATION_OPERATOR_SECRET}` },
-        }),
       ]) {
-        const response = await h.app.fetch(candidate, env())
+        const response = await h.app.fetch(candidate, notificationEnv({
+          APPROVAL_NOTIFICATIONS_ENABLED: 'false',
+        }))
         expect(response.status).toBe(503)
         await expect(response.json()).resolves.toMatchObject({
           error: { code: 'approval_notifications_paused' },
@@ -2466,6 +2492,19 @@ describe('Warpkeep auth bridge', () => {
       expect(verify).toHaveBeenCalledOnce()
       expect(applyEvent).not.toHaveBeenCalled()
       expect(queueAdmission).not.toHaveBeenCalled()
+
+      const diagnostics = await h.app.fetch(request(
+        ADMISSION_NOTIFICATION_STATUS_PATH,
+        { fid: FID },
+        { headers: { authorization: `Bearer ${NOTIFICATION_OPERATOR_SECRET}` } },
+      ), notificationEnv({ APPROVAL_NOTIFICATIONS_ENABLED: 'false' }))
+      expect(diagnostics.status).toBe(200)
+      await expect(diagnostics.json()).resolves.toMatchObject({
+        version: 2,
+        systemState: 'paused',
+        subscriptionState: 'absent',
+      })
+      expect(inspect).toHaveBeenCalledWith(FID)
     })
 
     it('accepts only a server-to-server verified webhook and returns no token material', async () => {
@@ -2678,10 +2717,25 @@ describe('Warpkeep auth bridge', () => {
 
     it('exposes only token-free diagnostics to the separate operator credential', async () => {
       const inspect = vi.fn(async () => Object.freeze({
+        version: 2 as const,
+        systemState: 'enabled' as const,
+        subscriptionState: 'active' as const,
         status: 'queued' as const,
+        generation: 'admitted' as const,
         authEpoch: 7,
+        activeSubscriptionCount: 1,
+        activeClientFids: Object.freeze([9_152]),
+        activeAttemptCount: 1,
+        pendingAttemptCount: 0,
+        retryingAttemptCount: 1,
+        sentAttemptCount: 0,
+        exhaustedAttemptCount: 0,
         deliveryAttemptCount: 1,
         verificationFailureCount: 0,
+        deliveryQueuedAt: 1_800_000_000_000,
+        deliveryExpiresAt: 1_800_086_400_000,
+        grantState: 'none' as const,
+        deliveryState: 'retry-scheduled' as const,
         retryReasons: Object.freeze(['invalid-response'] as const),
         nextAttemptAt: 1_800_000_030_000,
       }))
@@ -2718,10 +2772,25 @@ describe('Warpkeep auth bridge', () => {
       expect(accepted.status).toBe(200)
       const body = await accepted.json()
       expect(body).toEqual({
+        version: 2,
+        systemState: 'enabled',
+        subscriptionState: 'active',
         status: 'queued',
+        generation: 'admitted',
         authEpoch: 7,
+        activeSubscriptionCount: 1,
+        activeClientFids: [9_152],
+        activeAttemptCount: 1,
+        pendingAttemptCount: 0,
+        retryingAttemptCount: 1,
+        sentAttemptCount: 0,
+        exhaustedAttemptCount: 0,
         deliveryAttemptCount: 1,
         verificationFailureCount: 0,
+        deliveryQueuedAt: 1_800_000_000_000,
+        deliveryExpiresAt: 1_800_086_400_000,
+        grantState: 'none',
+        deliveryState: 'retry-scheduled',
         retryReasons: ['invalid-response'],
         nextAttemptAt: 1_800_000_030_000,
       })
@@ -2735,6 +2804,7 @@ describe('Warpkeep auth bridge', () => {
   describe('neutral access requests', () => {
     it('acknowledges only an exact memory-only grant for the verified pending identity', async () => {
       const ticket = 'A'.repeat(43)
+      const notificationId = `warpkeep-access-grant-v3-i${'N'.repeat(22)}`
       const acknowledge = vi.fn(async () => 'accepted' as const)
       const h = harness({
         epoch: 0,
@@ -2747,7 +2817,7 @@ describe('Warpkeep auth bridge', () => {
 
       const response = await h.app.fetch(accessBearerRequest(
         ADMISSION_GRANT_PATH,
-        { ticket },
+        { ticket, notificationId },
       ), env())
 
       expect(response.status).toBe(200)
@@ -2756,7 +2826,7 @@ describe('Warpkeep auth bridge', () => {
         status: 'accepted',
       })
       expect(acknowledge).toHaveBeenCalledOnce()
-      expect(acknowledge).toHaveBeenCalledWith(FID, ticket)
+      expect(acknowledge).toHaveBeenCalledWith(FID, ticket, notificationId)
       expect(h.quickAuthVerifier.verifyJwt).toHaveBeenCalledOnce()
       expect(h.resolver.resolve).toHaveBeenCalledWith(FID)
       expect(h.events).toContain('admission_grant_acknowledged')
@@ -2767,6 +2837,7 @@ describe('Warpkeep auth bridge', () => {
 
     it('returns existing authority while best-effort erasing its exact notification capability', async () => {
       const ticket = 'C'.repeat(43)
+      const notificationId = `warpkeep-access-grant-v3-i${'C'.repeat(22)}`
       const acknowledge = vi.fn(async () => 'stale' as const)
       const h = harness({
         epoch: 7,
@@ -2779,7 +2850,7 @@ describe('Warpkeep auth bridge', () => {
 
       const response = await h.app.fetch(accessBearerRequest(
         ADMISSION_GRANT_PATH,
-        { ticket },
+        { ticket, notificationId },
       ), env())
 
       expect(response.status).toBe(200)
@@ -2787,7 +2858,7 @@ describe('Warpkeep auth bridge', () => {
         version: 1,
         status: 'already-admitted',
       })
-      expect(acknowledge).toHaveBeenCalledWith(FID, ticket)
+      expect(acknowledge).toHaveBeenCalledWith(FID, ticket, notificationId)
       expect(JSON.stringify(h.events)).not.toContain(ticket)
     })
 
@@ -2806,16 +2877,49 @@ describe('Warpkeep auth bridge', () => {
         ADMISSION_GRANT_PATH,
         { ticket: 'short' },
       ), env())
+      const retiredCandidatePath = await h.app.fetch(accessBearerRequest(
+        RETIRED_ADMISSION_GRANT_CANDIDATE_PATH,
+        { ticket: 'B'.repeat(43) },
+      ), env())
+      const notificationId = `warpkeep-access-grant-v3-i${'D'.repeat(22)}`
       const drifted = await h.app.fetch(accessBearerRequest(
         ADMISSION_GRANT_PATH,
-        { ticket: 'B'.repeat(43) },
+        { ticket: 'B'.repeat(43), notificationId },
         { headers: { 'x-warpkeep-expected-fid': '54321' } },
       ), env())
 
       expect(malformed.status).toBe(400)
+      expect(retiredCandidatePath.status).toBe(404)
       expect(drifted.status).toBe(409)
       expect(acknowledge).not.toHaveBeenCalled()
+      expect(h.events).toContain('admission_grant_ack_context_rejected')
       expect(JSON.stringify(h.events)).not.toContain('B'.repeat(43))
+    })
+
+    it('projects a server-side notification-context mismatch as neutral stale state', async () => {
+      const ticket = 'M'.repeat(43)
+      const notificationId = `warpkeep-access-grant-v3-i${'Q'.repeat(22)}`
+      const acknowledge = vi.fn(async () => 'context-mismatch' as const)
+      const h = harness({
+        epoch: 0,
+        admissionNotificationStore: {
+          applyEvent: vi.fn(async () => undefined),
+          queueAdmission: vi.fn(async () => 'queued' as const),
+          acknowledge,
+        },
+      })
+
+      const response = await h.app.fetch(accessBearerRequest(
+        ADMISSION_GRANT_PATH,
+        { ticket, notificationId },
+      ), env())
+
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toEqual({ version: 1, status: 'stale' })
+      expect(acknowledge).toHaveBeenCalledWith(FID, ticket, notificationId)
+      expect(h.events).toContain('admission_grant_ack_context_mismatch')
+      expect(JSON.stringify(h.events)).not.toContain(notificationId)
+      expect(JSON.stringify(h.events)).not.toContain(ticket)
     })
 
     it('reuses exact Quick Auth and returns only neutral status projections', async () => {

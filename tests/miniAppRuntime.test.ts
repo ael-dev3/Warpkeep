@@ -367,4 +367,39 @@ describe('Farcaster Mini App runtime sanitization', () => {
     expect(captureMiniAppAdmissionGrantTicket(runtime)).toBe(newTicket);
     expect(clearMiniAppAdmissionGrantTicket(document, newTicket)).toBe(true);
   });
+
+  it('purges an unconsumed grant capability after the bounded client lifetime', async () => {
+    vi.useFakeTimers({ now: 1_000 });
+    const isolatedDocument = document.implementation.createHTMLDocument(
+      'grant-expiry'
+    );
+    const ticket = 'D'.repeat(43);
+    const runtime = {
+      search: () => '?miniApp=true',
+      hash: () => `#warpkeep-grant-v1=${ticket}`,
+      replaceHash: vi.fn(),
+      viewport: () => ({ width: 390, height: 844 }),
+      document: isolatedDocument,
+      getMountedShell: () => isolatedDocument.body,
+      waitForAnimationFrame: async () => {}
+    };
+
+    try {
+      expect(captureMiniAppAdmissionGrantTicket(runtime)).toBe(ticket);
+      await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1_000 - 1);
+      expect(captureMiniAppAdmissionGrantTicket({
+        ...runtime,
+        hash: () => ''
+      })).toBe(ticket);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(captureMiniAppAdmissionGrantTicket({
+        ...runtime,
+        hash: () => ''
+      })).toBeUndefined();
+      expect(clearMiniAppAdmissionGrantTicket(isolatedDocument, ticket)).toBe(false);
+    } finally {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
 });

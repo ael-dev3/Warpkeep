@@ -161,7 +161,7 @@ describe('FarcasterAdmissionPanel', () => {
       />
     );
 
-    expect(screen.getByText('REQUEST SENT')).not.toBeNull();
+    expect(screen.getByText('SUBMITTING REQUEST')).not.toBeNull();
     expect(screen.getByText(/Confirming with the Hegemony records/i)).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'CHECK ADMISSION' })).toBeNull();

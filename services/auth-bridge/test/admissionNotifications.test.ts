@@ -213,8 +213,13 @@ async function inspect(notification: AdmissionNotification): Promise<Response> {
 async function acknowledge(
   notification: AdmissionNotification,
   ticket: string,
+  notificationId: string,
 ): Promise<Response> {
-  return notification.fetch(internalRequest('ack', { fid: FID, ticket }))
+  return notification.fetch(internalRequest('ack', { fid: FID, ticket, notificationId }))
+}
+
+function grantNotificationId(grant: Readonly<{ intentId: string }>): string {
+  return `warpkeep-access-grant-v3-i${grant.intentId}`
 }
 
 function pendingGrant(storage: FakeStorage): {
@@ -312,8 +317,23 @@ describe('admission notification consent and delivery lifecycle', () => {
     expect(stored(h.storage)).not.toContain('pending-request')
     expect(stored(h.storage)).not.toContain('lastSentRequestAtMicros')
     await expect((await inspect(h.notification)).json()).resolves.toMatchObject({
+      version: 2,
+      systemState: 'enabled',
+      subscriptionState: 'active',
       status: 'awaiting-client',
       generation: 'pending-request',
+      activeSubscriptionCount: 1,
+      activeClientFids: [9_152],
+      activeAttemptCount: 1,
+      sentAttemptCount: 1,
+      deliveryAttemptCount: 1,
+      deliveryQueuedAt: NOW,
+      deliveryExpiresAt: NOW + 24 * 60 * 60 * 1_000,
+      grantState: 'provider-accepted',
+      grantCreatedAt: NOW,
+      grantExpiresAt: NOW + 24 * 60 * 60 * 1_000,
+      providerAcceptedAt: NOW,
+      deliveryState: 'succeeded',
     })
     expect(await (await inspect(h.notification)).text()).not.toContain(grant.ticket)
   })
@@ -359,13 +379,33 @@ describe('admission notification consent and delivery lifecycle', () => {
     await queuePending(h.notification, requestedAtMicros)
     const grant = pendingGrant(h.storage)
 
-    await expect((await acknowledge(h.notification, 'Z'.repeat(43))).json()).resolves.toEqual({
+    await expect((await acknowledge(
+      h.notification,
+      'Z'.repeat(43),
+      grantNotificationId(grant),
+    )).json()).resolves.toEqual({
       status: 'stale',
     })
-    await expect((await acknowledge(h.notification, grant.ticket)).json()).resolves.toEqual({
+    await expect((await acknowledge(
+      h.notification,
+      grant.ticket,
+      `warpkeep-access-grant-v3-i${'X'.repeat(22)}`,
+    )).json()).resolves.toEqual({
+      status: 'context-mismatch',
+    })
+    expect(pendingGrant(h.storage).acknowledgedAt).toBeUndefined()
+    await expect((await acknowledge(
+      h.notification,
+      grant.ticket,
+      grantNotificationId(grant),
+    )).json()).resolves.toEqual({
       status: 'accepted',
     })
-    await expect((await acknowledge(h.notification, grant.ticket)).json()).resolves.toEqual({
+    await expect((await acknowledge(
+      h.notification,
+      grant.ticket,
+      grantNotificationId(grant),
+    )).json()).resolves.toEqual({
       status: 'accepted',
     })
     expect(pendingGrant(h.storage).acknowledgedAt).toBe(NOW)
@@ -377,6 +417,14 @@ describe('admission notification consent and delivery lifecycle', () => {
     expect(JSON.parse(diagnostics)).toMatchObject({
       status: 'client-acknowledged',
       generation: 'pending-request',
+      subscriptionState: 'active',
+      activeSubscriptionCount: 1,
+      activeAttemptCount: 0,
+      grantState: 'client-acknowledged',
+      grantCreatedAt: NOW,
+      providerAcceptedAt: NOW,
+      clientAcknowledgedAt: NOW,
+      deliveryState: 'idle',
     })
   })
 
@@ -393,13 +441,22 @@ describe('admission notification consent and delivery lifecycle', () => {
     })
     await applyEvent(h.notification, enabledEvent())
     await queuePending(h.notification, requestedAtMicros)
-    const ticket = pendingGrant(h.storage).ticket
+    const grant = pendingGrant(h.storage)
+    const ticket = grant.ticket
 
-    await expect((await acknowledge(h.notification, ticket)).json()).resolves.toEqual({
+    await expect((await acknowledge(
+      h.notification,
+      ticket,
+      grantNotificationId(grant),
+    )).json()).resolves.toEqual({
       status: 'accepted',
     })
     requestedAtMicros += 1_000
-    await expect((await acknowledge(h.notification, ticket)).json()).resolves.toEqual({
+    await expect((await acknowledge(
+      h.notification,
+      ticket,
+      grantNotificationId(grant),
+    )).json()).resolves.toEqual({
       status: 'stale',
     })
     expect(h.storage.values.has(PENDING_GRANT_RECORD)).toBe(false)
@@ -426,9 +483,11 @@ describe('admission notification consent and delivery lifecycle', () => {
     await applyEvent(h.notification, enabledEvent())
     await queuePending(h.notification, requestedAtMicros)
 
+    const grant = pendingGrant(h.storage)
     await expect((await acknowledge(
       h.notification,
-      pendingGrant(h.storage).ticket,
+      grant.ticket,
+      grantNotificationId(grant),
     )).json()).resolves.toEqual({ status: 'not-ready' })
     await expect((await inspect(h.notification)).json()).resolves.toMatchObject({
       status: 'queued',
@@ -478,7 +537,11 @@ describe('admission notification consent and delivery lifecycle', () => {
     const oldGrant = pendingGrant(h.storage)
 
     requestedAtMicros += 1_000
-    await expect((await acknowledge(h.notification, oldGrant.ticket)).json()).resolves.toEqual({
+    await expect((await acknowledge(
+      h.notification,
+      oldGrant.ticket,
+      grantNotificationId(oldGrant),
+    )).json()).resolves.toEqual({
       status: 'stale',
     })
     expect(h.storage.values.has(PENDING_GRANT_RECORD)).toBe(false)
@@ -486,7 +549,11 @@ describe('admission notification consent and delivery lifecycle', () => {
     const nextGrant = pendingGrant(h.storage)
     expect(nextGrant.intentId).not.toBe(oldGrant.intentId)
     expect(nextGrant.ticket).not.toBe(oldGrant.ticket)
-    await expect((await acknowledge(h.notification, oldGrant.ticket)).json()).resolves.toEqual({
+    await expect((await acknowledge(
+      h.notification,
+      oldGrant.ticket,
+      grantNotificationId(oldGrant),
+    )).json()).resolves.toEqual({
       status: 'stale',
     })
   })
@@ -693,6 +760,14 @@ describe('admission notification consent and delivery lifecycle', () => {
       },
     })
     await applyEvent(h.notification, enabledEvent())
+    await expect((await inspect(h.notification)).json()).resolves.toMatchObject({
+      status: 'not-subscribed',
+      subscriptionState: 'active',
+      activeSubscriptionCount: 1,
+      activeClientFids: [9_152],
+      grantState: 'none',
+      deliveryState: 'idle',
+    })
     await queue(h.notification)
     expect(fetchImpl).toHaveBeenCalledOnce()
 
@@ -1022,9 +1097,21 @@ describe('admission notification consent and delivery lifecycle', () => {
     const h = createHarness({ resolver })
 
     await expect((await inspect(h.notification)).json()).resolves.toEqual({
+      version: 2,
+      systemState: 'enabled',
+      subscriptionState: 'absent',
       status: 'not-subscribed',
+      activeSubscriptionCount: 0,
+      activeClientFids: [],
+      activeAttemptCount: 0,
+      pendingAttemptCount: 0,
+      retryingAttemptCount: 0,
+      sentAttemptCount: 0,
+      exhaustedAttemptCount: 0,
       deliveryAttemptCount: 0,
       verificationFailureCount: 0,
+      grantState: 'none',
+      deliveryState: 'idle',
       retryReasons: [],
     })
     await applyEvent(h.notification, enabledEvent())
@@ -1035,11 +1122,25 @@ describe('admission notification consent and delivery lifecycle', () => {
     const text = await response.text()
     expect(text).not.toContain(TOKEN)
     expect(JSON.parse(text)).toEqual({
+      version: 2,
+      systemState: 'enabled',
+      subscriptionState: 'active',
       status: 'queued',
       generation: 'admitted',
       authEpoch: 7,
+      activeSubscriptionCount: 1,
+      activeClientFids: [9_152],
+      activeAttemptCount: 1,
+      pendingAttemptCount: 0,
+      retryingAttemptCount: 1,
+      sentAttemptCount: 0,
+      exhaustedAttemptCount: 0,
       deliveryAttemptCount: 0,
       verificationFailureCount: 1,
+      deliveryQueuedAt: NOW,
+      deliveryExpiresAt: NOW + 24 * 60 * 60 * 1_000,
+      grantState: 'none',
+      deliveryState: 'retry-scheduled',
       retryReasons: ['admission-verification'],
       nextAttemptAt: NOW + 30_000,
     })
@@ -1096,7 +1197,7 @@ describe('admission notification consent and delivery lifecycle', () => {
     await expect((await inspect(h.notification)).json()).resolves.toMatchObject({
       status: 'delivery-exhausted',
       authEpoch: 8,
-      deliveryAttemptCount: 0,
+      deliveryAttemptCount: 6,
       verificationFailureCount: 0,
     })
   })

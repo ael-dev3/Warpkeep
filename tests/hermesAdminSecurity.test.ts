@@ -13,9 +13,11 @@ import {
   admissionReadinessSummary,
   connect,
   FOUNDER_ADMISSION_SOURCE_CONFIGURATION_DIGEST,
+  inspectAdmissionNotification,
   listAccessRequests,
   parseHermesArguments,
   privacySafeHermesErrorMessage,
+  projectAdmissionNotificationDiagnostics,
   projectAccessRequestAdmissionStatus,
   projectAccessRequestListPage,
   projectAccessRequestResetStatus,
@@ -25,6 +27,7 @@ import {
   reconnectAfterAdmissionNotification,
   requestAdmissionNotification,
   requirePendingAdmissionRequest,
+  requireAdmissionNotificationInspectionProductionTarget,
   requireUnchangedPendingAdmissionRequest,
   requireNotificationBeforeAdmission,
   requestAdminToken,
@@ -57,6 +60,28 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
 const TEST_SECRET = 'TEST_ONLY_HERMES_SECRET_'.repeat(2);
 const NOTIFICATION_SECRET = 'TEST_ONLY_NOTIFICATION_SECRET_'.repeat(2);
+
+function admissionNotificationDiagnostics(overrides: Record<string, unknown> = {}) {
+  return {
+    version: 2,
+    systemState: 'enabled',
+    subscriptionState: 'absent',
+    status: 'not-subscribed',
+    activeSubscriptionCount: 0,
+    activeClientFids: [],
+    activeAttemptCount: 0,
+    pendingAttemptCount: 0,
+    retryingAttemptCount: 0,
+    sentAttemptCount: 0,
+    exhaustedAttemptCount: 0,
+    deliveryAttemptCount: 0,
+    verificationFailureCount: 0,
+    grantState: 'none',
+    deliveryState: 'idle',
+    retryReasons: [],
+    ...overrides,
+  };
+}
 
 afterEach(() => {
   vi.useRealTimers();
@@ -889,6 +914,18 @@ describe('Hermes command-line boundary', () => {
       confirmedByFlag: true,
       inspection: false,
     });
+    expect(parseHermesArguments([
+      'inspect-admission-notification', '123', '--json',
+    ])).toMatchObject({
+      command: 'inspect-admission-notification',
+      inspection: true,
+      machineReadableInspection: true,
+    });
+    expect(() => parseHermesArguments([
+      'inspect-admission-notification', '123', '--confirm',
+    ])).toThrow(/invalid for this operation/i);
+    expect(() => parseHermesArguments(['inspect-admission-notification']))
+      .toThrow(/unexpected number/i);
     expect(() => parseHermesArguments(['notify-admitted', '123']))
       .toThrow(/exactly --confirm/i);
     expect(() => parseHermesArguments(['notify-admitted', '123', '--dry-run']))
@@ -1797,6 +1834,112 @@ describe('Hermes credential destination policy', () => {
       NOTIFICATION_SECRET,
       rejected,
     )).rejects.toThrow(/rejected the request/i);
+  });
+
+  it('inspects the exact token-free v2 notification diagnostics contract', async () => {
+    const diagnostics = admissionNotificationDiagnostics({
+      subscriptionState: 'active',
+      status: 'client-acknowledged',
+      generation: 'pending-request',
+      activeSubscriptionCount: 1,
+      activeClientFids: [9_152],
+      activeAttemptCount: 1,
+      pendingAttemptCount: 0,
+      retryingAttemptCount: 0,
+      sentAttemptCount: 1,
+      exhaustedAttemptCount: 0,
+      deliveryAttemptCount: 1,
+      deliveryQueuedAt: 1_000,
+      deliveryExpiresAt: 2_000,
+      grantState: 'client-acknowledged',
+      grantCreatedAt: 1_100,
+      grantExpiresAt: 1_900,
+      providerAcceptedAt: 1_200,
+      clientAcknowledgedAt: 1_300,
+      deliveryState: 'succeeded',
+      retryReasons: ['transport'],
+      lastAttemptAt: 1_250,
+    });
+    const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
+      expect(String(input)).toBe(
+        'https://auth.warpkeep.com/v1/admin/admission-notification-status',
+      );
+      expect(init?.method).toBe('POST');
+      expect(init?.redirect).toBe('error');
+      expect(init?.cache).toBe('no-store');
+      const headers = new Headers(init?.headers);
+      expect(headers.get('authorization')).toBe(`Bearer ${NOTIFICATION_SECRET}`);
+      expect(headers.has('origin')).toBe(false);
+      expect(JSON.parse(String(init?.body))).toEqual({ fid: '12345' });
+      return Response.json(diagnostics);
+    });
+
+    const result = await inspectAdmissionNotification(
+      'https://auth.warpkeep.com',
+      12_345n,
+      NOTIFICATION_SECRET,
+      fetchImpl,
+    );
+    expect(result).toEqual(diagnostics);
+    expect(Object.isFrozen(result)).toBe(true);
+    expect(Object.isFrozen(result.activeClientFids)).toBe(true);
+    expect(Object.isFrozen(result.retryReasons)).toBe(true);
+  });
+
+  it('rejects missing, extra, malformed, and internally inconsistent diagnostics', () => {
+    const valid = admissionNotificationDiagnostics();
+    const missing = Object.fromEntries(
+      Object.entries(valid).filter(([key]) => key !== 'verificationFailureCount'),
+    );
+    const invalidValues = [
+      missing,
+      { ...valid, notificationToken: 'must-not-escape' },
+      { ...valid, version: 1 },
+      { ...valid, status: 'sent' },
+      { ...valid, activeSubscriptionCount: 1 },
+      { ...valid, activeClientFids: [9_152, 9_152], activeSubscriptionCount: 2 },
+      { ...valid, activeAttemptCount: 1 },
+      { ...valid, generation: 'admitted' },
+      { ...valid, authEpoch: 3 },
+      { ...valid, deliveryState: 'pending' },
+      {
+        ...valid,
+        activeAttemptCount: 1,
+        sentAttemptCount: 1,
+        deliveryState: 'pending',
+        deliveryQueuedAt: 1_000,
+        deliveryExpiresAt: 2_000,
+      },
+      { ...valid, grantState: 'created' },
+      { ...valid, retryReasons: ['private-upstream-detail'] },
+      { ...valid, nextAttemptAt: -1 },
+    ];
+
+    for (const value of invalidValues) {
+      expect(() => projectAdmissionNotificationDiagnostics(value))
+        .toThrow(/invalid diagnostics/i);
+    }
+  });
+
+  it('pins inspection to the canonical bridge and never falls through to admin authority', () => {
+    expect(() => requireAdmissionNotificationInspectionProductionTarget(
+      'https://auth.warpkeep.com',
+    )).not.toThrow();
+    expect(() => requireAdmissionNotificationInspectionProductionTarget(
+      'https://lookalike.example',
+    )).toThrow(/canonical Warpkeep bridge/i);
+
+    const result = runHermes(['inspect-admission-notification', '12345'], {
+      WARPKEEP_NOTIFICATION_OPERATOR_SECRET: undefined,
+      WARPKEEP_ADMIN_TOKEN_SECRET: 'weak-admin-secret',
+      WARPKEEP_SPACETIMEDB_DATABASE: 'INVALID_DATABASE',
+      WARPKEEP_SPACETIMEDB_URI: 'http://invalid.example',
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toContain('WARPKEEP_NOTIFICATION_OPERATOR_SECRET');
+    expect(result.stderr).not.toContain('WARPKEEP_ADMIN_TOKEN_SECRET');
+    expect(result.stderr).not.toContain('WARPKEEP_SPACETIMEDB');
   });
 
   it('waits for provider acceptance and an authenticated notification open', async () => {

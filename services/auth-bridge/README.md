@@ -35,7 +35,7 @@ future rollout step requires exact-head verification and recorded authority.
 | `POST` | `/v2/session/logout` | Revokes the server-side family and expires the cookie; fails closed if durable revocation cannot be confirmed. |
 | `POST` | `/v2/access/status` | Caller-private, authenticated status for the verified FID's current access-request cycle. |
 | `POST` | `/v2/access/request` | Submits one idempotent private access request for the verified FID. |
-| `POST` | `/v2/access/admission-grant` | Acknowledges one provider-accepted, fragment-carried admission intent after same-FID Quick Auth; it never mutates admission. |
+| `POST` | `/v2/access/admission-grant-context` | Acknowledges one provider-accepted admission intent after same-FID Quick Auth and an exact Farcaster notification-launch match; it never mutates admission. |
 | `POST` | `/v1/qa/challenge` | Server-only, zero-body 60-second challenge for the one registered read-only QA device. Disabled by default. |
 | `POST` | `/v1/qa/realm-snapshot` | Server-only proof exchange returning one bounded aggregate Realm attestation; the v1 path is a compatibility name. |
 | `POST` | `/v1/admin/token` | Server-only five-minute Hermes/admin JWT. |
@@ -406,13 +406,27 @@ its rollback-compatible shape; pending-request work and receipts use a separate
 private v2 record. Each send rechecks either the exact current pending-request
 timestamp while admission is disabled, or the exact current live admission
 epoch. Stable notification IDs, retry ceilings, replay tombstones, and bounded
-generation receipts make retries idempotent.
-The operator-only status projection contains only queue state, generation kind,
-aggregate attempt counts, static retry categories, and bounded retry timing. It
-never returns a request timestamp, notification token, delivery URL, webhook
-payload, or provider response. Delivery parsing accepts Farcaster's optional additive
+generation receipts make retries idempotent. Farcaster provider acceptance is
+only transport handoff. The browser must present both the private fragment
+ticket and the exact immutable notification launch ID under fresh same-FID
+Quick Auth; the Durable Object compares both before recording a client
+acknowledgement. A reused WebView with stale launch context fails closed and
+asks the player to reopen the exact alert.
+The operator-only versioned status projection contains only the notification
+kill-switch state, subscription and queue state, generation kind, grant and
+delivery lifecycle, aggregate attempt counts, static retry categories, and
+bounded retry timing. It remains available while delivery is paused and never
+returns a request timestamp, notification ID, notification token, grant ticket,
+delivery URL, webhook payload, provider response, or free-form error. Delivery
+parsing accepts Farcaster's optional additive
 `failedTokens` field, ignores harmless provider metadata, and still rejects
 invalid reasons, contradictory known outcome categories, and token mismatches.
+
+The context-bound acknowledgement uses the additive
+`/v2/access/admission-grant-context` route; the earlier candidate path was
+never a production contract. Deploy the Worker route before the matching
+frontend. Existing production bundles do not call either grant route, and the
+new client never falls back to a ticket-only body.
 
 The production browser and Pages activation gate separately pin the exact bridge
 and issuer `https://auth.warpkeep.com`, audience `warpkeep-spacetimedb`, and the

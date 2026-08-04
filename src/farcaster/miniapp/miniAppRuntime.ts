@@ -159,13 +159,80 @@ const FRAME_TIMEOUT_MS = 160;
 const MAX_QUICK_AUTH_TOKEN_BYTES = 8 * 1_024;
 const MAX_NOTIFICATION_TOKEN_BYTES = 2 * 1_024;
 const MAX_NOTIFICATION_ID_LENGTH = 128;
+const ADMISSION_GRANT_NOTIFICATION_ID_PATTERN =
+  /^warpkeep-access-grant-v3-i[A-Za-z0-9_-]{22}$/;
 const COMPACT_JWT_PATTERN =
   /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 const APPROVAL_NOTIFICATION_ID_PATTERN =
   /^(?:warpkeep-access-approved-(?:v1-e|v2-r)[1-9]\d*|warpkeep-access-grant-v3-i[A-Za-z0-9_-]{22})$/;
 const ADMISSION_GRANT_FRAGMENT_PATTERN =
   /^#warpkeep-grant-v1=([A-Za-z0-9_-]{43})$/;
-const ADMISSION_GRANT_TICKETS = new WeakMap<Document, string>();
+const ADMISSION_GRANT_TICKET_RETENTION_MILLISECONDS = 24 * 60 * 60 * 1_000;
+type RetainedAdmissionGrantTicket = Readonly<{
+  ticket: string;
+  capturedAt: number;
+  expiresAt: number;
+  expirationTimer: ReturnType<typeof globalThis.setTimeout>;
+}>;
+const ADMISSION_GRANT_TICKETS = new WeakMap<
+  Document,
+  RetainedAdmissionGrantTicket
+>();
+
+function forgetMiniAppAdmissionGrantTicket(
+  documentValue: Document,
+  expected?: RetainedAdmissionGrantTicket
+): boolean {
+  const current = ADMISSION_GRANT_TICKETS.get(documentValue);
+  if (!current || (expected !== undefined && current !== expected)) return false;
+  globalThis.clearTimeout(current.expirationTimer);
+  ADMISSION_GRANT_TICKETS.delete(documentValue);
+  return true;
+}
+
+function readRetainedMiniAppAdmissionGrantTicket(
+  documentValue: Document
+): string | undefined {
+  const retained = ADMISSION_GRANT_TICKETS.get(documentValue);
+  if (!retained) return undefined;
+  const now = Date.now();
+  if (
+    !Number.isSafeInteger(now)
+    || now < retained.capturedAt
+    || now >= retained.expiresAt
+  ) {
+    forgetMiniAppAdmissionGrantTicket(documentValue, retained);
+    return undefined;
+  }
+  return retained.ticket;
+}
+
+function retainMiniAppAdmissionGrantTicket(
+  documentValue: Document,
+  ticket: string
+): boolean {
+  const capturedAt = Date.now();
+  const expiresAt = capturedAt + ADMISSION_GRANT_TICKET_RETENTION_MILLISECONDS;
+  if (
+    !Number.isSafeInteger(capturedAt)
+    || capturedAt < 0
+    || !Number.isSafeInteger(expiresAt)
+  ) return false;
+  forgetMiniAppAdmissionGrantTicket(documentValue);
+  let retained!: RetainedAdmissionGrantTicket;
+  const expirationTimer = globalThis.setTimeout(() => {
+    forgetMiniAppAdmissionGrantTicket(documentValue, retained);
+  }, ADMISSION_GRANT_TICKET_RETENTION_MILLISECONDS);
+  const unref = typeof expirationTimer === 'object'
+    && expirationTimer !== null
+    && 'unref' in expirationTimer
+    ? (expirationTimer as { unref?: unknown }).unref
+    : undefined;
+  if (typeof unref === 'function') unref.call(expirationTimer);
+  retained = Object.freeze({ ticket, capturedAt, expiresAt, expirationTimer });
+  ADMISSION_GRANT_TICKETS.set(documentValue, retained);
+  return true;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -265,6 +332,14 @@ function sanitizedApprovalNotificationId(
   }
 }
 
+export function isMiniAppAdmissionGrantNotificationId(
+  value: unknown
+): value is string {
+  return typeof value === 'string'
+    && value.length <= MAX_NOTIFICATION_ID_LENGTH
+    && ADMISSION_GRANT_NOTIFICATION_ID_PATTERN.test(value);
+}
+
 /**
  * Capture the one-use admission grant capability before hash routing can
  * normalize the Mini App entry URL. The value remains process-memory-only;
@@ -280,34 +355,35 @@ export function captureMiniAppAdmissionGrantTicket(
   } catch {
     return currentLocationOnly
       ? undefined
-      : ADMISSION_GRANT_TICKETS.get(runtime.document);
+      : readRetainedMiniAppAdmissionGrantTicket(runtime.document);
   }
   const match = ADMISSION_GRANT_FRAGMENT_PATTERN.exec(hash);
   if (match) {
     const ticket = match[1];
     // A reused mobile WebView can receive a later notification without a new
     // Document. A valid current fragment atomically supersedes retained state.
-    ADMISSION_GRANT_TICKETS.set(runtime.document, ticket);
+    const retained = retainMiniAppAdmissionGrantTicket(runtime.document, ticket);
     try {
       runtime.replaceHash?.('#menu');
     } catch {
       // The capability is already retained in private memory. Failure to tidy a
       // presentation-only hash must not duplicate or discard it.
     }
-    return ticket;
+    return retained ? ticket : undefined;
   }
   return currentLocationOnly
     ? undefined
-    : ADMISSION_GRANT_TICKETS.get(runtime.document);
+    : readRetainedMiniAppAdmissionGrantTicket(runtime.document);
 }
 
 export function clearMiniAppAdmissionGrantTicket(
   documentValue: Document,
   expectedTicket: string
 ): boolean {
-  if (ADMISSION_GRANT_TICKETS.get(documentValue) !== expectedTicket) return false;
-  ADMISSION_GRANT_TICKETS.delete(documentValue);
-  return true;
+  if (readRetainedMiniAppAdmissionGrantTicket(documentValue) !== expectedTicket) {
+    return false;
+  }
+  return forgetMiniAppAdmissionGrantTicket(documentValue);
 }
 
 function finiteAxis(value: unknown): number {

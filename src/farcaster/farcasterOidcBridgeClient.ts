@@ -42,6 +42,8 @@ const REQUEST_ID_PATTERN = /^[A-Za-z0-9._~-]{8,256}$/;
 const COMPACT_JWT_PATTERN =
   /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 const ADMISSION_GRANT_TICKET_PATTERN = /^[A-Za-z0-9_-]{43}$/;
+const ADMISSION_GRANT_NOTIFICATION_ID_PATTERN =
+  /^warpkeep-access-grant-v3-i[A-Za-z0-9_-]{22}$/;
 const RETRYABLE_EXCHANGE_ERROR_CODES = new Set([
   'challenge_unavailable',
   'binding_verification_unavailable',
@@ -876,7 +878,10 @@ export function createFarcasterOidcBridgeClient(
   const logoutUrl = new URL('v2/session/logout', bridgeUrl);
   const accessStatusUrl = new URL('v2/access/status', bridgeUrl);
   const accessRequestUrl = new URL('v2/access/request', bridgeUrl);
-  const admissionGrantUrl = new URL('v2/access/admission-grant', bridgeUrl);
+  const admissionGrantUrl = new URL(
+    'v2/access/admission-grant-context',
+    bridgeUrl
+  );
 
   return Object.freeze({
     issuer,
@@ -1098,11 +1103,18 @@ export function createFarcasterOidcBridgeClient(
         !requestSecurity
         || typeof requestOptions?.ticket !== 'string'
         || !ADMISSION_GRANT_TICKET_PATTERN.test(requestOptions.ticket)
+        || typeof requestOptions?.notificationId !== 'string'
+        || !ADMISSION_GRANT_NOTIFICATION_ID_PATTERN.test(
+          requestOptions.notificationId
+        )
       ) throw new FarcasterOidcBridgeClientError();
       const result = await postJson(
         fetchImplementation,
         admissionGrantUrl,
-        { ticket: requestOptions.ticket },
+        {
+          ticket: requestOptions.ticket,
+          notificationId: requestOptions.notificationId
+        },
         requestOptions.signal,
         BRIDGE_REQUEST_TIMEOUT_MS,
         undefined,

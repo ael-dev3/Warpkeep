@@ -438,6 +438,7 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     render(
       <FarcasterAuthProviderCore
         admissionGrantAvailable
+        admissionGrantNotificationId={`warpkeep-access-grant-v3-i${'N'.repeat(22)}`}
         createBrowserBinding={vi.fn(async () => ({
           verifier: BINDING_VERIFIER,
           challenge: BINDING_CHALLENGE,

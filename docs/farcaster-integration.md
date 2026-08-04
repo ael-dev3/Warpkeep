@@ -344,9 +344,14 @@ its short-lived administrator session before calling the separate-secret
 notification endpoint. For an opted-in player, Farcaster provider acceptance
 creates an `awaiting-client` intent; it does not admit the player. The alert
 opens an unguessable fragment capability, which is scrubbed from the URL before
-rendering and acknowledged only after fresh same-FID Quick Auth. Hermes waits
-for `client-acknowledged`, mints a new five-minute administrator session, and
-re-reads the unchanged request tuple before invoking a request-CAS reducer.
+rendering. Acknowledgement requires fresh same-FID Quick Auth plus the exact
+Farcaster launch context whose notification ID matches the stored intent. The
+Durable Object compares both the fragment ticket and that launch ID. If a
+same-document WebView exposes a new fragment alongside stale host context, the
+client retains the one-use ticket in memory and asks the player to close the
+view and reopen the exact alert. Hermes waits for `client-acknowledged`, mints
+a new five-minute administrator session, and re-reads the unchanged request
+tuple before invoking a request-CAS reducer.
 `queued`, `not-subscribed`, `delivery-exhausted`, a legacy receipt, expiry,
 identity mismatch, or a changed request all fail closed without admission.
 Provider acceptance alone proves only handoff to Farcaster, not display or an
@@ -391,11 +396,20 @@ and keeps it in one module-local call stack. It never enters React state,
 storage, analytics, logs, or a network request other than the authenticated
 grant endpoint. The bridge re-verifies the signed FID and current request; the
 Durable Object accepts an exact one-use ticket only after provider acceptance.
+It also requires the exact `warpkeep-access-grant-v3-i…` ID from Farcaster's
+immutable notification launch context; a ticket paired with launcher, legacy,
+malformed, or different notification context is rejected without admission.
 The frontend then polls admission at a bounded cadence while Hermes performs
 the fresh request-CAS mutation. A stale or changed account remains pending, and
 the notification itself cannot create a keep, bypass Terms, or grant gameplay
 authority. Legacy admitted-epoch notifications retain their existing entry
 behavior but cannot authorize the new pending-request flow.
+
+This exchange is served only at the additive
+`/v2/access/admission-grant-context` path. The Worker must land before the
+matching frontend; the live predecessor has no grant client, and the new client
+never retries against the discarded ticket-only candidate path. That ordering
+keeps cached predecessor bundles inert while the route converges.
 
 **CHECK ADMISSION** is a typed, read-only presentation around credentialed
 `/v2/session/refresh`, not a new Farcaster channel or access-request mutation.

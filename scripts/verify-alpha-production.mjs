@@ -63,7 +63,7 @@ const AUTH_V2_QUICK_AUTH_PATH = '/v2/farcaster/quick-auth/exchange';
 const AUTH_V2_ACCESS_REQUEST_PATHS = Object.freeze([
   '/v2/access/status',
   '/v2/access/request',
-  '/v2/access/admission-grant',
+  '/v2/access/admission-grant-context',
 ]);
 const AUTH_V2_PAUSED_PATHS = new Set([
   ...AUTH_V2_CREDENTIAL_PATHS.slice(0, 3),

@@ -208,17 +208,61 @@ describe('Farcaster Mini App host provider', () => {
     await waitFor(() => expect(latestGrant).toBeDefined());
     const oldGrant = latestGrant!;
     expect(oldGrant.read()).toBe(oldTicket);
+    expect(oldGrant.notificationId).toBeUndefined();
     expect(JSON.stringify(latest)).not.toContain(oldTicket);
 
     hash = `#warpkeep-grant-v1=${newTicket}`;
     act(() => navigationListener?.());
     await waitFor(() => expect(latestGrant?.read()).toBe(newTicket));
+    expect(latestGrant?.notificationId).toBeUndefined();
     oldGrant.clear(oldTicket);
     expect(latestGrant?.read()).toBe(newTicket);
     expect(JSON.stringify(latest)).not.toContain(newTicket);
 
     act(() => latestGrant?.clear(newTicket));
     await waitFor(() => expect(latestGrant).toBeUndefined());
+  });
+
+  it('pairs a grant only with the exact sanitized Farcaster notification launch context', async () => {
+    const ticket = 'G'.repeat(43);
+    const intentId = 'I'.repeat(22);
+    let hash = `#warpkeep-grant-v1=${ticket}`;
+    let latest: MiniAppHostValue | undefined;
+    let latestGrant: MiniAppAdmissionGrant | undefined;
+    const context = validContext();
+    const host = fakeSdk({
+      context: Promise.resolve({
+        ...context,
+        location: {
+          type: 'notification',
+          notification: {
+            notificationId: `warpkeep-access-grant-v3-i${intentId}`,
+            title: 'ignored',
+            body: 'ignored'
+          }
+        }
+      })
+    });
+    const runtime: MiniAppBrowserRuntime = {
+      ...runtimeFor('?miniApp=true'),
+      hash: () => hash,
+      replaceHash: (next) => { hash = next; }
+    };
+
+    render(
+      <Harness
+        capture={(value) => { latest = value; }}
+        captureGrant={(value) => { latestGrant = value; }}
+        runtime={runtime}
+        sdkLoader={async () => host.sdk}
+      />
+    );
+
+    await waitFor(() => expect(latestGrant?.notificationId)
+      .toBe(`warpkeep-access-grant-v3-i${intentId}`));
+    expect(latestGrant?.read()).toBe(ticket);
+    expect(JSON.stringify(latest)).not.toContain(ticket);
+    expect(JSON.stringify(latestGrant)).not.toContain(ticket);
   });
 
   it('reconciles a grant that arrives while navigation subscription is being installed', async () => {

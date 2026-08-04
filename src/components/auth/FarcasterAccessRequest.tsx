@@ -153,7 +153,7 @@ export function FarcasterAccessRequestAction({
     content = (
       <div className="farcaster-access-request__status-copy">
         <i aria-hidden="true" className="farcaster-access-request__spinner" />
-        <strong>REQUEST SENT</strong>
+        <strong>SUBMITTING REQUEST</strong>
         <span>Confirming with the Hegemony records…</span>
       </div>
     );

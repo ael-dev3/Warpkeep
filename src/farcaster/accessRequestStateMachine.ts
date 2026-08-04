@@ -58,6 +58,9 @@ export function transitionAccessRequestState(
         ? Object.freeze({ phase: 'loading-status', context: event.context })
         : current;
     case 'loading-status':
+      if (event.type === 'definitive-failure') {
+        return Object.freeze({ phase: 'definitive-failure' });
+      }
       if (event.type === 'status-available') {
         return current.context === 'post-submission'
           ? Object.freeze({

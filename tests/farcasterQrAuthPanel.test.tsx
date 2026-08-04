@@ -440,7 +440,7 @@ describe('FarcasterQrAuthPanel', () => {
       />
     );
 
-    expect(screen.getByText('REQUEST SENT')).not.toBeNull();
+    expect(screen.getByText('SUBMITTING REQUEST')).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
 
     panel.rerender(

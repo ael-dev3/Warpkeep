@@ -219,6 +219,8 @@ export function FarcasterAdmissionPanel({
                 ? 'Keep Warpkeep open for a moment while the Hegemony completes your admission.'
                 : admissionGrantAcknowledgement.phase === 'confirmed-pending'
                   ? 'Your notification was confirmed. Realm access is still being completed; check again shortly.'
+                : admissionGrantAcknowledgement.phase === 'awaiting-notification-context'
+                  ? 'Warpkeep found the approval link, but Farcaster did not provide its matching launch context. Close this view and reopen the exact admission notification.'
                 : admissionGrantAcknowledgement.phase === 'stale'
                   ? 'This approval invitation is no longer current. Your latest access request remains unchanged.'
                   : admissionGrantAcknowledgement.phase === 'temporary-error'

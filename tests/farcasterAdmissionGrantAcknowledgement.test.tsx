@@ -10,6 +10,7 @@ import type {
 } from '../src/farcaster/farcasterAuthTypes';
 
 const TICKET = 'A'.repeat(43);
+const NOTIFICATION_ID = `warpkeep-access-grant-v3-i${'N'.repeat(22)}`;
 const VERIFIED_AT = 1_785_414_896_000;
 
 const pending = (fid: number): FarcasterAuthViewState => Object.freeze({
@@ -49,6 +50,7 @@ function bridge(
 
 type HarnessProps = Readonly<{
   ticket?: string;
+  notificationId?: string | null;
   authState: FarcasterAuthViewState;
   generation: number;
   client: FarcasterOidcBridgeClient;
@@ -58,6 +60,7 @@ type HarnessProps = Readonly<{
 
 function Harness({
   ticket,
+  notificationId,
   authState,
   generation,
   client,
@@ -66,8 +69,12 @@ function Harness({
 }: HarnessProps) {
   const loadBridgeClient = useCallback(async () => client, [client]);
   const readTicket = useCallback(() => ticket, [ticket]);
+  const effectiveNotificationId = notificationId === undefined
+    ? NOTIFICATION_ID
+    : notificationId ?? undefined;
   const state = useAdmissionGrantAcknowledgement({
     available: ticket !== undefined,
+    notificationId: effectiveNotificationId,
     readTicket,
     authState,
     authGeneration: generation,
@@ -134,9 +141,49 @@ describe('Farcaster admission notification grant acknowledgement', () => {
     expect(acknowledge).toHaveBeenCalledTimes(1);
     expect(acknowledge).toHaveBeenCalledWith(
       { mode: 'quick-auth', token: 'header.payload.signature' },
-      expect.objectContaining({ ticket: TICKET, expectedFid: 539_854 })
+      expect.objectContaining({
+        ticket: TICKET,
+        notificationId: NOTIFICATION_ID,
+        expectedFid: 539_854
+      })
     );
     expect(consumed).toHaveBeenCalledTimes(1);
+  });
+
+  it('retains the capability and fails closed without exact Farcaster notification context', async () => {
+    const acknowledge = vi.fn(async () => ({ version: 1 as const, status: 'accepted' as const }));
+    const consumed = vi.fn();
+    const view = render(
+      <Harness
+        authState={pending(539_854)}
+        client={bridge(acknowledge)}
+        generation={3}
+        notificationId={null}
+        onCapabilityConsumed={consumed}
+        ticket={TICKET}
+      />
+    );
+
+    expect(screen.getByTestId('phase').textContent)
+      .toBe('awaiting-notification-context');
+    await act(async () => { await Promise.resolve(); });
+    expect(acknowledge).not.toHaveBeenCalled();
+    expect(consumed).not.toHaveBeenCalled();
+
+    view.rerender(
+      <Harness
+        authState={pending(539_854)}
+        client={bridge(acknowledge)}
+        generation={3}
+        notificationId="warpkeep-access-approved-v1-e7"
+        onCapabilityConsumed={consumed}
+        ticket={TICKET}
+      />
+    );
+    expect(screen.getByTestId('phase').textContent)
+      .toBe('awaiting-notification-context');
+    expect(acknowledge).not.toHaveBeenCalled();
+    expect(consumed).not.toHaveBeenCalled();
   });
 
   it('forgets a stale capability without entering finalization', async () => {

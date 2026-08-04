@@ -80,6 +80,8 @@ type DeliveryAttempt = Readonly<{
 type PersistedNotificationDiagnostics = Readonly<{
   generation: AdmissionNotificationGeneration
   retryReasons: readonly AdmissionNotificationRetryReason[]
+  deliveryAttemptCount: number
+  verificationFailureCount: number
   lastAttemptAt?: number
   lastFailureReason?: AdmissionNotificationRetryReason
 }>
@@ -397,6 +399,8 @@ function readPersistedDiagnostics(value: unknown): PersistedNotificationDiagnost
         'requestedAtMicros',
         'lastAttemptAt',
         'lastFailureReason',
+        'deliveryAttemptCount',
+        'verificationFailureCount',
       ],
     )
     || !Array.isArray(value.retryReasons)
@@ -404,6 +408,16 @@ function readPersistedDiagnostics(value: unknown): PersistedNotificationDiagnost
     || new Set(value.retryReasons).size !== value.retryReasons.length
     || (value.lastAttemptAt !== undefined && !isTimestamp(value.lastAttemptAt))
     || (value.lastFailureReason !== undefined && !isRetryReason(value.lastFailureReason))
+    || (value.deliveryAttemptCount !== undefined && (
+      typeof value.deliveryAttemptCount !== 'number'
+      || !Number.isSafeInteger(value.deliveryAttemptCount)
+      || value.deliveryAttemptCount < 0
+    ))
+    || (value.verificationFailureCount !== undefined && (
+      typeof value.verificationFailureCount !== 'number'
+      || !Number.isSafeInteger(value.verificationFailureCount)
+      || value.verificationFailureCount < 0
+    ))
   ) return null
   const generation = value.generation === undefined && isAuthEpoch(value.authEpoch)
     ? Object.freeze({ kind: 'admitted' as const, authEpoch: value.authEpoch })
@@ -423,6 +437,8 @@ function readPersistedDiagnostics(value: unknown): PersistedNotificationDiagnost
   return Object.freeze({
     generation,
     retryReasons: Object.freeze([...value.retryReasons] as AdmissionNotificationRetryReason[]),
+    deliveryAttemptCount: value.deliveryAttemptCount ?? 0,
+    verificationFailureCount: value.verificationFailureCount ?? 0,
     ...(value.lastAttemptAt === undefined ? {} : { lastAttemptAt: value.lastAttemptAt }),
     ...(value.lastFailureReason === undefined
       ? {}
@@ -809,9 +825,41 @@ async function readDiagnostics(response: Response): Promise<AdmissionNotificatio
     !isRecord(value)
     || !exactKeys(
       value,
-      ['status', 'deliveryAttemptCount', 'verificationFailureCount', 'retryReasons'],
-      ['generation', 'authEpoch', 'lastAttemptAt', 'lastFailureReason', 'nextAttemptAt'],
+      [
+        'version',
+        'systemState',
+        'subscriptionState',
+        'status',
+        'activeSubscriptionCount',
+        'activeClientFids',
+        'activeAttemptCount',
+        'pendingAttemptCount',
+        'retryingAttemptCount',
+        'sentAttemptCount',
+        'exhaustedAttemptCount',
+        'deliveryAttemptCount',
+        'verificationFailureCount',
+        'grantState',
+        'deliveryState',
+        'retryReasons',
+      ],
+      [
+        'generation',
+        'authEpoch',
+        'deliveryQueuedAt',
+        'deliveryExpiresAt',
+        'grantCreatedAt',
+        'grantExpiresAt',
+        'providerAcceptedAt',
+        'clientAcknowledgedAt',
+        'lastAttemptAt',
+        'lastFailureReason',
+        'nextAttemptAt',
+      ],
     )
+    || value.version !== 2
+    || (value.systemState !== 'enabled' && value.systemState !== 'paused')
+    || (value.subscriptionState !== 'active' && value.subscriptionState !== 'absent')
     || (
       value.status !== 'queued'
       && value.status !== 'already-sent'
@@ -828,12 +876,98 @@ async function readDiagnostics(response: Response): Promise<AdmissionNotificatio
     )
     || (value.generation === 'pending-request' && value.authEpoch !== undefined)
     || (value.generation === 'admitted' && !isAuthEpoch(value.authEpoch))
-    || typeof value.deliveryAttemptCount !== 'number'
-    || !Number.isSafeInteger(value.deliveryAttemptCount)
-    || value.deliveryAttemptCount < 0
-    || typeof value.verificationFailureCount !== 'number'
-    || !Number.isSafeInteger(value.verificationFailureCount)
-    || value.verificationFailureCount < 0
+    || (value.generation !== 'admitted' && value.authEpoch !== undefined)
+    || ![
+      value.activeSubscriptionCount,
+      value.activeAttemptCount,
+      value.pendingAttemptCount,
+      value.retryingAttemptCount,
+      value.sentAttemptCount,
+      value.exhaustedAttemptCount,
+      value.deliveryAttemptCount,
+      value.verificationFailureCount,
+    ].every(candidate => (
+      typeof candidate === 'number'
+      && Number.isSafeInteger(candidate)
+      && candidate >= 0
+    ))
+    || !Array.isArray(value.activeClientFids)
+    || value.activeClientFids.some(candidate => !isAppFid(candidate))
+    || new Set(value.activeClientFids).size !== value.activeClientFids.length
+    || value.activeClientFids.some((candidate, index) => (
+      index > 0 && candidate <= (value.activeClientFids as number[])[index - 1]
+    ))
+    || value.activeSubscriptionCount !== value.activeClientFids.length
+    || (value.subscriptionState === 'active') !== (value.activeSubscriptionCount > 0)
+    || value.activeAttemptCount !== (value.pendingAttemptCount as number)
+      + (value.retryingAttemptCount as number)
+      + (value.sentAttemptCount as number)
+      + (value.exhaustedAttemptCount as number)
+    || (
+      value.grantState !== 'none'
+      && value.grantState !== 'created'
+      && value.grantState !== 'provider-accepted'
+      && value.grantState !== 'client-acknowledged'
+    )
+    || (
+      value.deliveryState !== 'idle'
+      && value.deliveryState !== 'pending'
+      && value.deliveryState !== 'retry-scheduled'
+      && value.deliveryState !== 'succeeded'
+      && value.deliveryState !== 'exhausted'
+    )
+    || (value.deliveryState === 'idle' && value.activeAttemptCount !== 0)
+    || (value.deliveryState === 'pending' && (
+      value.activeAttemptCount === 0
+      || value.pendingAttemptCount === 0
+      || value.retryingAttemptCount !== 0
+    ))
+    || (value.deliveryState === 'retry-scheduled'
+      && value.retryingAttemptCount === 0)
+    || (value.deliveryState === 'succeeded' && (
+      value.activeAttemptCount === 0
+      || value.sentAttemptCount !== value.activeAttemptCount
+    ))
+    || (value.deliveryState === 'exhausted' && (
+      value.activeAttemptCount === 0
+      || value.exhaustedAttemptCount === 0
+      || (value.sentAttemptCount as number) + (value.exhaustedAttemptCount as number)
+        !== value.activeAttemptCount
+    ))
+    || (value.deliveryQueuedAt !== undefined && !isTimestamp(value.deliveryQueuedAt))
+    || (value.deliveryExpiresAt !== undefined && !isTimestamp(value.deliveryExpiresAt))
+    || (value.deliveryQueuedAt === undefined) !== (value.deliveryExpiresAt === undefined)
+    || (value.deliveryState === 'idle') !== (value.deliveryQueuedAt === undefined)
+    || (value.deliveryQueuedAt !== undefined && value.deliveryExpiresAt! <= value.deliveryQueuedAt)
+    || (value.grantCreatedAt !== undefined && !isTimestamp(value.grantCreatedAt))
+    || (value.grantExpiresAt !== undefined && !isTimestamp(value.grantExpiresAt))
+    || (value.grantCreatedAt === undefined) !== (value.grantExpiresAt === undefined)
+    || (value.grantState === 'none') !== (value.grantCreatedAt === undefined)
+    || (value.grantCreatedAt !== undefined && value.grantExpiresAt! <= value.grantCreatedAt)
+    || (value.providerAcceptedAt !== undefined && !isTimestamp(value.providerAcceptedAt))
+    || (value.clientAcknowledgedAt !== undefined && !isTimestamp(value.clientAcknowledgedAt))
+    || (value.grantState === 'created' && value.providerAcceptedAt !== undefined)
+    || (
+      value.grantState === 'provider-accepted'
+      && (value.providerAcceptedAt === undefined || value.clientAcknowledgedAt !== undefined)
+    )
+    || (
+      value.grantState === 'client-acknowledged'
+      && (value.providerAcceptedAt === undefined || value.clientAcknowledgedAt === undefined)
+    )
+    || (value.grantState === 'none' && (
+      value.providerAcceptedAt !== undefined || value.clientAcknowledgedAt !== undefined
+    ))
+    || (value.providerAcceptedAt !== undefined && (
+      value.grantCreatedAt === undefined
+      || value.providerAcceptedAt < value.grantCreatedAt
+      || value.providerAcceptedAt >= value.grantExpiresAt!
+    ))
+    || (value.clientAcknowledgedAt !== undefined && (
+      value.providerAcceptedAt === undefined
+      || value.clientAcknowledgedAt < value.providerAcceptedAt
+      || value.clientAcknowledgedAt >= value.grantExpiresAt!
+    ))
     || !Array.isArray(value.retryReasons)
     || value.retryReasons.some(reason => !isRetryReason(reason))
     || new Set(value.retryReasons).size !== value.retryReasons.length
@@ -844,11 +978,37 @@ async function readDiagnostics(response: Response): Promise<AdmissionNotificatio
     throw new Error('Admission notification store returned invalid diagnostics.')
   }
   return Object.freeze({
+    version: 2,
+    systemState: value.systemState,
+    subscriptionState: value.subscriptionState,
     status: value.status,
     ...(value.generation === undefined ? {} : { generation: value.generation }),
     ...(value.authEpoch === undefined ? {} : { authEpoch: value.authEpoch }),
+    activeSubscriptionCount: value.activeSubscriptionCount as number,
+    activeClientFids: Object.freeze([...value.activeClientFids] as number[]),
+    activeAttemptCount: value.activeAttemptCount as number,
+    pendingAttemptCount: value.pendingAttemptCount as number,
+    retryingAttemptCount: value.retryingAttemptCount as number,
+    sentAttemptCount: value.sentAttemptCount as number,
+    exhaustedAttemptCount: value.exhaustedAttemptCount as number,
     deliveryAttemptCount: value.deliveryAttemptCount as number,
     verificationFailureCount: value.verificationFailureCount as number,
+    ...(value.deliveryQueuedAt === undefined ? {} : {
+      deliveryQueuedAt: value.deliveryQueuedAt,
+      deliveryExpiresAt: value.deliveryExpiresAt as number,
+    }),
+    grantState: value.grantState,
+    ...(value.grantCreatedAt === undefined ? {} : {
+      grantCreatedAt: value.grantCreatedAt,
+      grantExpiresAt: value.grantExpiresAt as number,
+    }),
+    ...(value.providerAcceptedAt === undefined
+      ? {}
+      : { providerAcceptedAt: value.providerAcceptedAt }),
+    ...(value.clientAcknowledgedAt === undefined
+      ? {}
+      : { clientAcknowledgedAt: value.clientAcknowledgedAt }),
+    deliveryState: value.deliveryState,
     retryReasons: Object.freeze([...value.retryReasons] as AdmissionNotificationRetryReason[]),
     ...(value.lastAttemptAt === undefined ? {} : { lastAttemptAt: value.lastAttemptAt }),
     ...(value.lastFailureReason === undefined
@@ -870,6 +1030,7 @@ async function readAcknowledgementStatus(
       value.status !== 'accepted'
       && value.status !== 'not-ready'
       && value.status !== 'stale'
+      && value.status !== 'context-mismatch'
     )
   ) throw new Error('Admission notification store returned invalid state.')
   return value.status
@@ -908,11 +1069,12 @@ export class DurableObjectAdmissionNotificationStore implements AdmissionNotific
   async acknowledge(
     fid: string,
     ticket: string,
+    notificationId: string,
   ): Promise<AdmissionNotificationAcknowledgementStatus> {
     const response = await (await this.stub(fid)).fetch(internalUrl('ack'), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ fid, ticket }),
+      body: JSON.stringify({ fid, ticket, notificationId }),
     })
     return readAcknowledgementStatus(response)
   }
@@ -1268,6 +1430,8 @@ async function recordDiagnostics(
   storage: DurableObjectState['storage'],
   generation: AdmissionNotificationGeneration,
   retryReasons: readonly AdmissionNotificationRetryReason[],
+  deliveryAttemptCount: number,
+  verificationFailureCount: number,
   lastAttemptAt?: number,
   lastFailureReason?: AdmissionNotificationRetryReason,
 ): Promise<void> {
@@ -1284,6 +1448,18 @@ async function recordDiagnostics(
       ? { authEpoch: generation.authEpoch }
       : { requestedAtMicros: generation.requestedAtMicros }),
     retryReasons: Object.freeze(Array.from(combined).sort()),
+    deliveryAttemptCount: Math.max(
+      deliveryAttemptCount,
+      existing && generationEquals(existing.generation, generation)
+        ? existing.deliveryAttemptCount
+        : 0,
+    ),
+    verificationFailureCount: Math.max(
+      verificationFailureCount,
+      existing && generationEquals(existing.generation, generation)
+        ? existing.verificationFailureCount
+        : 0,
+    ),
     ...(lastAttemptAt === undefined
       ? existing && generationEquals(existing.generation, generation)
         && existing.lastAttemptAt !== undefined
@@ -1666,12 +1842,25 @@ function diagnosticsForState(
   state: PersistedNotificationState | null,
   persistedDiagnostics: PersistedNotificationDiagnostics | null,
   grantIntent: PersistedPendingGrantIntent | null,
+  notificationsEnabled: boolean,
 ): AdmissionNotificationDiagnostics {
   if (!state) {
     return Object.freeze({
+      version: 2,
+      systemState: notificationsEnabled ? 'enabled' : 'paused',
+      subscriptionState: 'absent',
       status: 'not-subscribed',
+      activeSubscriptionCount: 0,
+      activeClientFids: Object.freeze([]),
+      activeAttemptCount: 0,
+      pendingAttemptCount: 0,
+      retryingAttemptCount: 0,
+      sentAttemptCount: 0,
+      exhaustedAttemptCount: 0,
       deliveryAttemptCount: 0,
       verificationFailureCount: 0,
+      grantState: 'none',
+      deliveryState: 'idle',
       retryReasons: Object.freeze([]),
     })
   }
@@ -1707,15 +1896,69 @@ function diagnosticsForState(
     ? persistedDiagnostics
     : undefined
   const retryReasons = matchingDiagnostics?.retryReasons ?? Object.freeze([])
+  const activeClientFids = Object.freeze(
+    state.subscriptions.map(subscription => subscription.appFid).sort((left, right) => left - right),
+  )
+  const pendingAttemptCount = attempts.filter(attempt => attempt.status === 'pending').length
+  const retryingAttemptCount = attempts.filter(attempt => attempt.status === 'retrying').length
+  const sentAttemptCount = attempts.filter(attempt => attempt.status === 'sent').length
+  const exhaustedAttemptCount = attempts.filter(attempt => attempt.status === 'exhausted').length
+  const grantState = grantIntent?.acknowledgedAt !== undefined
+    ? 'client-acknowledged' as const
+    : grantIntent?.providerAcceptedAt !== undefined
+      ? 'provider-accepted' as const
+      : grantIntent
+        ? 'created' as const
+        : 'none' as const
+  const deliveryState = !delivery
+    ? 'idle' as const
+    : retryingAttemptCount > 0
+      ? 'retry-scheduled' as const
+      : attempts.length > 0 && sentAttemptCount === attempts.length
+        ? 'succeeded' as const
+        : attempts.length > 0
+          && sentAttemptCount + exhaustedAttemptCount === attempts.length
+          && exhaustedAttemptCount > 0
+          ? 'exhausted' as const
+          : 'pending' as const
   return Object.freeze({
+    version: 2,
+    systemState: notificationsEnabled ? 'enabled' : 'paused',
+    subscriptionState: state.subscriptions.length > 0 ? 'active' : 'absent',
     status,
     ...(generation === undefined ? {} : { generation: generation.kind }),
     ...(generation?.kind === 'admitted' ? { authEpoch: generation.authEpoch } : {}),
-    deliveryAttemptCount: attempts.reduce((sum, attempt) => sum + attempt.attempts, 0),
-    verificationFailureCount: attempts.reduce(
-      (sum, attempt) => sum + attempt.verificationFailures,
-      0,
+    activeSubscriptionCount: state.subscriptions.length,
+    activeClientFids,
+    activeAttemptCount: attempts.length,
+    pendingAttemptCount,
+    retryingAttemptCount,
+    sentAttemptCount,
+    exhaustedAttemptCount,
+    deliveryAttemptCount: Math.max(
+      attempts.reduce((sum, attempt) => sum + attempt.attempts, 0),
+      matchingDiagnostics?.deliveryAttemptCount ?? 0,
     ),
+    verificationFailureCount: Math.max(
+      attempts.reduce((sum, attempt) => sum + attempt.verificationFailures, 0),
+      matchingDiagnostics?.verificationFailureCount ?? 0,
+    ),
+    ...(delivery === undefined ? {} : {
+      deliveryQueuedAt: delivery.queuedAt,
+      deliveryExpiresAt: delivery.expiresAt,
+    }),
+    grantState,
+    ...(grantIntent === null ? {} : {
+      grantCreatedAt: grantIntent.createdAt,
+      grantExpiresAt: grantIntent.expiresAt,
+      ...(grantIntent.providerAcceptedAt === undefined
+        ? {}
+        : { providerAcceptedAt: grantIntent.providerAcceptedAt }),
+      ...(grantIntent.acknowledgedAt === undefined
+        ? {}
+        : { clientAcknowledgedAt: grantIntent.acknowledgedAt }),
+    }),
+    deliveryState,
     retryReasons,
     ...(matchingDiagnostics?.lastAttemptAt === undefined
       ? {}
@@ -1872,6 +2115,7 @@ export class AdmissionNotification {
     let invalidatedGeneration = false
     let latestAttemptAt: number | undefined
     let latestFailureReason: AdmissionNotificationRetryReason | undefined
+    let outboundAttemptCount = 0
     const attempts: DeliveryAttempt[] = []
     const retryReasons: AdmissionNotificationRetryReason[] = []
     const resolver = this.configuredAdmissionResolver ?? defaultAdmissionResolver(config)
@@ -1938,6 +2182,7 @@ export class AdmissionNotification {
         return cancelled
       }
       const outcome = await sendOne(subscription, delivery, grantIntent, this.fetchImpl)
+      outboundAttemptCount += 1
       latestAttemptAt = now
       if (outcome.result === 'successful') {
         if (
@@ -2033,6 +2278,9 @@ export class AdmissionNotification {
         this.state.storage,
         deliveryGeneration(delivery),
         retryReasons,
+        delivery.attempts.reduce((sum, attempt) => sum + attempt.attempts, 0)
+          + outboundAttemptCount,
+        attempts.reduce((sum, attempt) => sum + attempt.verificationFailures, 0),
         latestAttemptAt,
         latestFailureReason,
       )
@@ -2089,7 +2337,12 @@ export class AdmissionNotification {
         await this.state.storage.get<unknown>(PENDING_GRANT_RECORD),
       )
       return new Response(JSON.stringify(
-        diagnosticsForState(existing, diagnostics, grantIntent),
+        diagnosticsForState(
+          existing ? pruneSubscriptions(existing, config, this.currentTime()) : null,
+          diagnostics,
+          grantIntent,
+          config.approvalNotificationsEnabled,
+        ),
       ), {
         status: 200,
         headers: {
@@ -2102,9 +2355,13 @@ export class AdmissionNotification {
     if (url.pathname === '/ack') {
       if (
         !isRecord(value)
-        || !exactKeys(value, ['fid', 'ticket'])
+        || !exactKeys(value, ['fid', 'ticket', 'notificationId'])
         || !isSafeFid(value.fid)
         || !isGrantTicket(value.ticket)
+        || typeof value.notificationId !== 'string'
+        || !/^warpkeep-access-grant-v3-i[A-Za-z0-9_-]{22}$/.test(
+          value.notificationId,
+        )
       ) return new Response(null, { status: 400 })
       const neutral = (status: AdmissionNotificationAcknowledgementStatus) => (
         new Response(JSON.stringify({ status }), {
@@ -2127,6 +2384,10 @@ export class AdmissionNotification {
         || grantIntent.fid !== value.fid
         || !(await timingSafeGrantTicketMatch(value.ticket, grantIntent))
       ) return neutral('stale')
+      if (
+        value.notificationId
+        !== `warpkeep-access-grant-v3-i${grantIntent.intentId}`
+      ) return neutral('context-mismatch')
       if (!config.approvalNotificationsEnabled) {
         const delivery = existing.delivery?.kind === 'pending-request'
           && existing.delivery.requestedAtMicros === grantIntent.requestedAtMicros
@@ -2184,6 +2445,10 @@ export class AdmissionNotification {
         || latestGrant.providerAcceptedAt === undefined
         || !(await timingSafeGrantTicketMatch(value.ticket, latestGrant))
       ) return neutral('stale')
+      if (
+        value.notificationId
+        !== `warpkeep-access-grant-v3-i${latestGrant.intentId}`
+      ) return neutral('context-mismatch')
       if (latestGrant.acknowledgedAt !== undefined) return neutral('accepted')
       const delivery = latest.delivery?.kind === 'pending-request'
         && latest.delivery.requestedAtMicros === latestGrant.requestedAtMicros

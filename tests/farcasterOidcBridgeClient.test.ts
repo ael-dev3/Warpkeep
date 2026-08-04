@@ -821,28 +821,31 @@ describe('Farcaster OIDC bridge v2 client', () => {
 
   it('sends the one-use admission capability only in the authenticated POST body', async () => {
     const ticket = 'A'.repeat(43);
+    const notificationId = `warpkeep-access-grant-v3-i${'B'.repeat(22)}`;
     const fetch = createFetch({ version: 1, status: 'accepted' });
     const bridge = createBridge(fetch);
 
     await expect(bridge.acknowledgeAdmissionGrant!(
       { mode: 'quick-auth', token: 'header.payload.signature' },
-      { expectedFid: Number(FID), ticket }
+      { expectedFid: Number(FID), ticket, notificationId }
     )).resolves.toEqual({ version: 1, status: 'accepted' });
 
     const [url, init] = vi.mocked(fetch).mock.calls[0]!;
-    expect(String(url)).toBe('https://auth.warpkeep.example/v2/access/admission-grant');
+    expect(String(url)).toBe(
+      'https://auth.warpkeep.example/v2/access/admission-grant-context'
+    );
     expect(String(url)).not.toContain(ticket);
     expect(init?.credentials).toBe('omit');
     expect(init?.headers).toMatchObject({
       authorization: 'Bearer header.payload.signature',
       'x-warpkeep-expected-fid': String(FID)
     });
-    expect(JSON.parse(String(init?.body))).toEqual({ ticket });
+    expect(JSON.parse(String(init?.body))).toEqual({ ticket, notificationId });
     expect(String(init?.body)).not.toContain('fid');
 
     await expect(bridge.acknowledgeAdmissionGrant!(
       { mode: 'pending-session' },
-      { expectedFid: Number(FID), ticket: 'short' }
+      { expectedFid: Number(FID), ticket: 'short', notificationId }
     )).rejects.toBeInstanceOf(FarcasterOidcBridgeClientError);
     expect(fetch).toHaveBeenCalledOnce();
   });

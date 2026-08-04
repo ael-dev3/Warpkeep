@@ -81,6 +81,7 @@
     "stdb:expand-world-v3": "tsx scripts/hermes-admin.ts expand-world-v3",
     "stdb:admit-founder": "tsx scripts/hermes-admin.ts admit-founder",
     "stdb:notify-admitted": "tsx scripts/hermes-admin.ts notify-admitted",
+    "stdb:inspect-admission-notification": "tsx scripts/hermes-admin.ts inspect-admission-notification",
     "stdb:allow-fid": "tsx scripts/hermes-admin.ts allow-fid",
     "stdb:disable-fid": "tsx scripts/hermes-admin.ts disable-fid",
     "stdb:bump-auth-epoch": "tsx scripts/hermes-admin.ts bump-auth-epoch",

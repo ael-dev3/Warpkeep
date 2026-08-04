@@ -3,6 +3,10 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import type {
+  AdmissionNotificationDiagnostics,
+  AdmissionNotificationRetryReason,
+} from '../services/auth-bridge/src/types';
 import { DbConnection } from '../src/spacetime/module_bindings';
 import {
   WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM,
@@ -88,6 +92,7 @@ type Command =
   | 'reset-access-request'
   | 'admit-founder'
   | 'notify-admitted'
+  | 'inspect-admission-notification'
   | 'allow-fid'
   | 'disable-fid'
   | 'bump-auth-epoch'
@@ -116,6 +121,37 @@ const OPERATION_TIMEOUT_MS = 15_000;
 const MAX_ADMIN_TOKEN_RESPONSE_BYTES = 32 * 1_024;
 const ADMISSION_NOTIFICATION_PATH = 'v1/admin/admission-notification';
 const ADMISSION_NOTIFICATION_STATUS_PATH = 'v1/admin/admission-notification-status';
+const ADMISSION_NOTIFICATION_DIAGNOSTIC_REQUIRED_KEYS = Object.freeze([
+  'version',
+  'systemState',
+  'subscriptionState',
+  'status',
+  'activeSubscriptionCount',
+  'activeClientFids',
+  'activeAttemptCount',
+  'pendingAttemptCount',
+  'retryingAttemptCount',
+  'sentAttemptCount',
+  'exhaustedAttemptCount',
+  'deliveryAttemptCount',
+  'verificationFailureCount',
+  'grantState',
+  'deliveryState',
+  'retryReasons',
+] as const);
+const ADMISSION_NOTIFICATION_DIAGNOSTIC_OPTIONAL_KEYS = Object.freeze([
+  'generation',
+  'authEpoch',
+  'deliveryQueuedAt',
+  'deliveryExpiresAt',
+  'grantCreatedAt',
+  'grantExpiresAt',
+  'providerAcceptedAt',
+  'clientAcknowledgedAt',
+  'lastAttemptAt',
+  'lastFailureReason',
+  'nextAttemptAt',
+] as const);
 const ADMISSION_NOTIFICATION_SETTLEMENT_WAIT_MILLISECONDS = 35_000;
 const ADMISSION_GRANT_ACK_POLL_MILLISECONDS = 5_000;
 const ADMISSION_GRANT_ACK_MAX_POLLS = 120;
@@ -386,6 +422,7 @@ function commandFrom(value: string | undefined): Command {
     || value === 'reset-access-request'
     || value === 'admit-founder'
     || value === 'notify-admitted'
+    || value === 'inspect-admission-notification'
     || value === 'allow-fid'
     || value === 'disable-fid'
     || value === 'bump-auth-epoch'
@@ -406,7 +443,7 @@ function commandFrom(value: string | undefined): Command {
   }
   fail(
     'Usage: hermes-admin.ts '
-    + '<seed-world|expand-world-v3|list-access-requests|inspect-access-request-reset|reset-access-request|admit-founder|notify-admitted|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|seed-alpha-component|activate-alpha-water|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4|inspect-alpha-v8|inspect-alpha-v10|inspect-alpha-v12|inspect-publish-pre-v12|inspect-publish-post-v12> '
+    + '<seed-world|expand-world-v3|list-access-requests|inspect-access-request-reset|reset-access-request|admit-founder|notify-admitted|inspect-admission-notification|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|seed-alpha-component|activate-alpha-water|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4|inspect-alpha-v8|inspect-alpha-v10|inspect-alpha-v12|inspect-publish-pre-v12|inspect-publish-post-v12> '
     + '[...args] [--dry-run] [--confirm]. admit-founder requires private stdin: '
     + '--input-stdin --dry-run creates a reviewed plan; --input-stdin --confirm consumes it; '
     + 'allow-fid only re-enables an existing complete founder. list-access-requests accepts '
@@ -468,10 +505,13 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
     || command === 'inspect-publish-pre-v12'
     || command === 'inspect-publish-post-v12'
     || command === 'list-access-requests'
-    || command === 'inspect-access-request-reset';
+    || command === 'inspect-access-request-reset'
+    || command === 'inspect-admission-notification';
   const expectedPositionals = command === 'reset-access-request'
     ? 3
     : command === 'inspect-access-request-reset'
+      ? 2
+    : command === 'inspect-admission-notification'
       ? 2
     : command === 'allow-fid'
     || command === 'disable-fid'
@@ -1805,6 +1845,256 @@ export type AdmissionNotificationStatus =
   | 'delivery-exhausted'
   | 'not-subscribed';
 
+function isAdmissionNotificationDiagnosticRecord(
+  value: unknown,
+): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function hasExactAdmissionNotificationDiagnosticKeys(
+  value: Record<string, unknown>,
+): boolean {
+  const keys = Object.keys(value);
+  return ADMISSION_NOTIFICATION_DIAGNOSTIC_REQUIRED_KEYS.every(key => (
+    Object.prototype.hasOwnProperty.call(value, key)
+  )) && keys.every(key => (
+    ADMISSION_NOTIFICATION_DIAGNOSTIC_REQUIRED_KEYS.includes(
+      key as typeof ADMISSION_NOTIFICATION_DIAGNOSTIC_REQUIRED_KEYS[number],
+    )
+    || ADMISSION_NOTIFICATION_DIAGNOSTIC_OPTIONAL_KEYS.includes(
+      key as typeof ADMISSION_NOTIFICATION_DIAGNOSTIC_OPTIONAL_KEYS[number],
+    )
+  ));
+}
+
+function isAdmissionNotificationDiagnosticTimestamp(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+
+function isAdmissionNotificationDiagnosticAuthEpoch(value: unknown): value is number {
+  return typeof value === 'number'
+    && Number.isSafeInteger(value)
+    && value >= 1
+    && value <= 0xffff_ffff;
+}
+
+function isAdmissionNotificationClientFid(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+}
+
+function isAdmissionNotificationRetryReason(
+  value: unknown,
+): value is AdmissionNotificationRetryReason {
+  return value === 'admission-verification'
+    || value === 'request-verification'
+    || value === 'transport'
+    || value === 'transport-timeout'
+    || value === 'transport-fetch-rejected'
+    || value === 'upstream-status'
+    || value === 'upstream-redirect'
+    || value === 'upstream-client-status'
+    || value === 'upstream-server-status'
+    || value === 'invalid-response'
+    || value === 'response-content-type'
+    || value === 'response-size'
+    || value === 'response-body'
+    || value === 'response-json'
+    || value === 'response-schema'
+    || value === 'rate-limited'
+    || value === 'provider-domain-mismatch'
+    || value === 'provider-target-url-mismatch'
+    || value === 'provider-no-webhook-url'
+    || value === 'provider-invalid-token'
+    || value === 'provider-unknown';
+}
+
+/**
+ * Parse the bridge's exact token-free v2 operator projection. This intentionally
+ * reconstructs an allowlisted object instead of returning the transport body.
+ */
+export function projectAdmissionNotificationDiagnostics(
+  value: unknown,
+): AdmissionNotificationDiagnostics {
+  if (
+    !isAdmissionNotificationDiagnosticRecord(value)
+    || !hasExactAdmissionNotificationDiagnosticKeys(value)
+    || value.version !== 2
+    || (value.systemState !== 'enabled' && value.systemState !== 'paused')
+    || (value.subscriptionState !== 'active' && value.subscriptionState !== 'absent')
+    || (
+      value.status !== 'queued'
+      && value.status !== 'already-sent'
+      && value.status !== 'awaiting-client'
+      && value.status !== 'client-acknowledged'
+      && value.status !== 'delivery-exhausted'
+      && value.status !== 'not-subscribed'
+    )
+    || (
+      value.generation !== undefined
+      && value.generation !== 'admitted'
+      && value.generation !== 'pending-request'
+    )
+    || (value.authEpoch !== undefined
+      && !isAdmissionNotificationDiagnosticAuthEpoch(value.authEpoch))
+    || (value.generation === 'pending-request' && value.authEpoch !== undefined)
+    || (value.generation === 'admitted'
+      && !isAdmissionNotificationDiagnosticAuthEpoch(value.authEpoch))
+    || (value.generation !== 'admitted' && value.authEpoch !== undefined)
+    || ![
+      value.activeSubscriptionCount,
+      value.activeAttemptCount,
+      value.pendingAttemptCount,
+      value.retryingAttemptCount,
+      value.sentAttemptCount,
+      value.exhaustedAttemptCount,
+      value.deliveryAttemptCount,
+      value.verificationFailureCount,
+    ].every(candidate => (
+      typeof candidate === 'number'
+      && Number.isSafeInteger(candidate)
+      && candidate >= 0
+    ))
+    || !Array.isArray(value.activeClientFids)
+    || value.activeClientFids.some(candidate => !isAdmissionNotificationClientFid(candidate))
+    || new Set(value.activeClientFids).size !== value.activeClientFids.length
+    || value.activeClientFids.some((candidate, index) => (
+      index > 0 && candidate <= (value.activeClientFids as number[])[index - 1]
+    ))
+    || value.activeSubscriptionCount !== value.activeClientFids.length
+    || (value.subscriptionState === 'active') !== (value.activeSubscriptionCount > 0)
+    || value.activeAttemptCount !== (value.pendingAttemptCount as number)
+      + (value.retryingAttemptCount as number)
+      + (value.sentAttemptCount as number)
+      + (value.exhaustedAttemptCount as number)
+    || (
+      value.grantState !== 'none'
+      && value.grantState !== 'created'
+      && value.grantState !== 'provider-accepted'
+      && value.grantState !== 'client-acknowledged'
+    )
+    || (
+      value.deliveryState !== 'idle'
+      && value.deliveryState !== 'pending'
+      && value.deliveryState !== 'retry-scheduled'
+      && value.deliveryState !== 'succeeded'
+      && value.deliveryState !== 'exhausted'
+    )
+    || (value.deliveryState === 'idle' && value.activeAttemptCount !== 0)
+    || (value.deliveryState === 'pending' && (
+      value.activeAttemptCount === 0
+      || value.pendingAttemptCount === 0
+      || value.retryingAttemptCount !== 0
+    ))
+    || (value.deliveryState === 'retry-scheduled'
+      && value.retryingAttemptCount === 0)
+    || (value.deliveryState === 'succeeded' && (
+      value.activeAttemptCount === 0
+      || value.sentAttemptCount !== value.activeAttemptCount
+    ))
+    || (value.deliveryState === 'exhausted' && (
+      value.activeAttemptCount === 0
+      || value.exhaustedAttemptCount === 0
+      || (value.sentAttemptCount as number) + (value.exhaustedAttemptCount as number)
+        !== value.activeAttemptCount
+    ))
+    || (value.deliveryQueuedAt !== undefined
+      && !isAdmissionNotificationDiagnosticTimestamp(value.deliveryQueuedAt))
+    || (value.deliveryExpiresAt !== undefined
+      && !isAdmissionNotificationDiagnosticTimestamp(value.deliveryExpiresAt))
+    || (value.deliveryQueuedAt === undefined) !== (value.deliveryExpiresAt === undefined)
+    || (value.deliveryState === 'idle') !== (value.deliveryQueuedAt === undefined)
+    || (value.deliveryQueuedAt !== undefined
+      && (value.deliveryExpiresAt as number) <= value.deliveryQueuedAt)
+    || (value.grantCreatedAt !== undefined
+      && !isAdmissionNotificationDiagnosticTimestamp(value.grantCreatedAt))
+    || (value.grantExpiresAt !== undefined
+      && !isAdmissionNotificationDiagnosticTimestamp(value.grantExpiresAt))
+    || (value.grantCreatedAt === undefined) !== (value.grantExpiresAt === undefined)
+    || (value.grantState === 'none') !== (value.grantCreatedAt === undefined)
+    || (value.grantCreatedAt !== undefined
+      && (value.grantExpiresAt as number) <= value.grantCreatedAt)
+    || (value.providerAcceptedAt !== undefined
+      && !isAdmissionNotificationDiagnosticTimestamp(value.providerAcceptedAt))
+    || (value.clientAcknowledgedAt !== undefined
+      && !isAdmissionNotificationDiagnosticTimestamp(value.clientAcknowledgedAt))
+    || (value.grantState === 'created' && value.providerAcceptedAt !== undefined)
+    || (
+      value.grantState === 'provider-accepted'
+      && (value.providerAcceptedAt === undefined || value.clientAcknowledgedAt !== undefined)
+    )
+    || (
+      value.grantState === 'client-acknowledged'
+      && (value.providerAcceptedAt === undefined || value.clientAcknowledgedAt === undefined)
+    )
+    || (value.grantState === 'none' && (
+      value.providerAcceptedAt !== undefined || value.clientAcknowledgedAt !== undefined
+    ))
+    || (value.providerAcceptedAt !== undefined && (
+      value.grantCreatedAt === undefined
+      || value.providerAcceptedAt < value.grantCreatedAt
+      || value.providerAcceptedAt >= (value.grantExpiresAt as number)
+    ))
+    || (value.clientAcknowledgedAt !== undefined && (
+      value.providerAcceptedAt === undefined
+      || value.clientAcknowledgedAt < value.providerAcceptedAt
+      || value.clientAcknowledgedAt >= (value.grantExpiresAt as number)
+    ))
+    || !Array.isArray(value.retryReasons)
+    || value.retryReasons.some(reason => !isAdmissionNotificationRetryReason(reason))
+    || new Set(value.retryReasons).size !== value.retryReasons.length
+    || (value.lastAttemptAt !== undefined
+      && !isAdmissionNotificationDiagnosticTimestamp(value.lastAttemptAt))
+    || (value.lastFailureReason !== undefined
+      && !isAdmissionNotificationRetryReason(value.lastFailureReason))
+    || (value.nextAttemptAt !== undefined
+      && !isAdmissionNotificationDiagnosticTimestamp(value.nextAttemptAt))
+  ) {
+    fail('The Warpkeep admission notification bridge returned invalid diagnostics.');
+  }
+
+  return Object.freeze({
+    version: 2,
+    systemState: value.systemState,
+    subscriptionState: value.subscriptionState,
+    status: value.status,
+    ...(value.generation === undefined ? {} : { generation: value.generation }),
+    ...(value.authEpoch === undefined ? {} : { authEpoch: value.authEpoch }),
+    activeSubscriptionCount: value.activeSubscriptionCount as number,
+    activeClientFids: Object.freeze([...value.activeClientFids] as number[]),
+    activeAttemptCount: value.activeAttemptCount as number,
+    pendingAttemptCount: value.pendingAttemptCount as number,
+    retryingAttemptCount: value.retryingAttemptCount as number,
+    sentAttemptCount: value.sentAttemptCount as number,
+    exhaustedAttemptCount: value.exhaustedAttemptCount as number,
+    deliveryAttemptCount: value.deliveryAttemptCount as number,
+    verificationFailureCount: value.verificationFailureCount as number,
+    ...(value.deliveryQueuedAt === undefined ? {} : {
+      deliveryQueuedAt: value.deliveryQueuedAt,
+      deliveryExpiresAt: value.deliveryExpiresAt as number,
+    }),
+    grantState: value.grantState,
+    ...(value.grantCreatedAt === undefined ? {} : {
+      grantCreatedAt: value.grantCreatedAt,
+      grantExpiresAt: value.grantExpiresAt as number,
+    }),
+    ...(value.providerAcceptedAt === undefined
+      ? {}
+      : { providerAcceptedAt: value.providerAcceptedAt }),
+    ...(value.clientAcknowledgedAt === undefined
+      ? {}
+      : { clientAcknowledgedAt: value.clientAcknowledgedAt }),
+    deliveryState: value.deliveryState,
+    retryReasons: Object.freeze([
+      ...value.retryReasons,
+    ] as AdmissionNotificationRetryReason[]),
+    ...(value.lastAttemptAt === undefined ? {} : { lastAttemptAt: value.lastAttemptAt }),
+    ...(value.lastFailureReason === undefined
+      ? {}
+      : { lastFailureReason: value.lastFailureReason }),
+    ...(value.nextAttemptAt === undefined ? {} : { nextAttemptAt: value.nextAttemptAt }),
+  });
+}
+
 export function readNotificationOperatorSecret(value: string | undefined): string {
   const bytes = new TextEncoder().encode(value ?? '');
   try {
@@ -1875,7 +2165,10 @@ export async function inspectAdmissionNotification(
   fid: bigint,
   secret: string,
   fetchImpl: typeof fetch = fetch,
-): Promise<AdmissionNotificationStatus> {
+): Promise<AdmissionNotificationDiagnostics> {
+  if (fid < 1n || fid > BigInt(Number.MAX_SAFE_INTEGER)) {
+    fail('A positive, JavaScript-safe decimal FID is required.');
+  }
   readNotificationOperatorSecret(secret);
   let response: Response;
   try {
@@ -1897,20 +2190,7 @@ export async function inspectAdmissionNotification(
   }
   if (!response.ok) fail('The Warpkeep admission notification bridge rejected inspection.');
   const body = await readBoundedAdminResponse(response);
-  const status = body && typeof body === 'object' && !Array.isArray(body)
-    ? (body as { status?: unknown }).status
-    : undefined;
-  if (
-    status !== 'queued'
-    && status !== 'already-sent'
-    && status !== 'awaiting-client'
-    && status !== 'client-acknowledged'
-    && status !== 'delivery-exhausted'
-    && status !== 'not-subscribed'
-  ) {
-    fail('The Warpkeep admission notification bridge returned invalid diagnostics.');
-  }
-  return status;
+  return projectAdmissionNotificationDiagnostics(body);
 }
 
 export async function requireNotificationBeforeAdmission(
@@ -2014,6 +2294,14 @@ export function requireCredentialedProductionTarget(
     || bridgeUrl !== DEFAULT_BRIDGE
   ) {
     fail('Credentialed Hermes commands require the canonical Warpkeep production targets.');
+  }
+}
+
+export function requireAdmissionNotificationInspectionProductionTarget(
+  bridgeUrl: string,
+): void {
+  if (bridgeUrl !== DEFAULT_BRIDGE) {
+    fail('Admission notification inspection requires the canonical Warpkeep bridge.');
   }
 }
 
@@ -2311,7 +2599,23 @@ async function main() {
   } = parseHermesArguments();
   const notificationOperatorSecret = process.env.WARPKEEP_NOTIFICATION_OPERATOR_SECRET;
   delete process.env.WARPKEEP_NOTIFICATION_OPERATOR_SECRET;
-  configureHermesMachineOutput(machineReadableInspection);
+  configureHermesMachineOutput(
+    machineReadableInspection || command === 'inspect-admission-notification',
+  );
+  if (command === 'inspect-admission-notification') {
+    const bridgeUrl = readHttpsUrl(
+      process.env.WARPKEEP_AUTH_BRIDGE_URL,
+      'WARPKEEP_AUTH_BRIDGE_URL',
+    );
+    requireAdmissionNotificationInspectionProductionTarget(bridgeUrl);
+    const diagnostics = await inspectAdmissionNotification(
+      bridgeUrl,
+      readFid(positional[1]),
+      readNotificationOperatorSecret(notificationOperatorSecret),
+    );
+    console.log(JSON.stringify(diagnostics));
+    return;
+  }
   // Durable data migrations and new founder admission always require a visible
   // command-line confirmation.
   // The legacy noninteractive switch remains available to older bounded

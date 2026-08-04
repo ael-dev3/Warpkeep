@@ -264,11 +264,19 @@ a SpacetimeDB schema change. Roll them out in this order:
    `allow-fid` and confirmed `admit-founder`, inspect the exact pending request
    using a short administrator session, disconnect it, then queue the matching
    notification. Require both Farcaster provider acceptance and an authenticated
-   same-FID client acknowledgement. Only then mint a fresh administrator token,
+   same-FID client acknowledgement carrying the exact notification launch ID
+   paired with the fragment ticket. Provider acceptance alone is not a client
+   open. Only then mint a fresh administrator token,
    re-run the request and aggregate preconditions, and call the matching
    request-CAS reducer. `queued`, `not-subscribed`, `delivery-exhausted`, legacy
    receipts, expiry, or a changed request abort unchanged. Keep `notify-admitted`
    only for idempotent already-live reconciliation.
+
+The context-bound grant endpoint is an additive route. Deploy and attest the
+Worker containing `/v2/access/admission-grant-context` before publishing the
+matching frontend, and prove the discarded `/v2/access/admission-grant`
+candidate path remains unavailable. Never weaken exact body validation to make
+a mixed rollout appear successful.
 
 ### Owner canary and end-to-end acceptance
 
@@ -299,7 +307,8 @@ it.
 5. Confirm one new signed subscription pair through the same fixed events, then
    begin the reviewed Hermes admission. Require the operator to stop at
    `awaiting-client`; provider acceptance proves only Farcaster handoff. Open the
-   exact alert in the same account and require `client-acknowledged` before a new
+   exact alert in the same account and require the exact launch ID and ticket to
+   reach `client-acknowledged` before a new
    administrator token is minted or the request-CAS mutation is submitted.
 6. Require one approval notification for that request generation. Its target
    must be the exact production URL plus a `#warpkeep-grant-v1=` one-use

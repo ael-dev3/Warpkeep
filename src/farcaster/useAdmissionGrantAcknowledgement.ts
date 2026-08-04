@@ -14,9 +14,12 @@ import { withAccessAuthentication } from './useAccessRequest';
 // the shared 12-per-five-minute access-request envelope.
 const RETRY_DELAYS_MILLISECONDS = Object.freeze([0, 1_000, 3_000, 7_000, 9_000]);
 const FINALIZATION_WAIT_MILLISECONDS = 10 * 60 * 1_000;
+const ADMISSION_GRANT_NOTIFICATION_ID_PATTERN =
+  /^warpkeep-access-grant-v3-i[A-Za-z0-9_-]{22}$/;
 
 type AdmissionGrantAcknowledgementOptions = Readonly<{
   available: boolean;
+  notificationId?: string;
   readTicket?: () => string | undefined;
   authState: FarcasterAuthViewState;
   authGeneration: number;
@@ -56,6 +59,7 @@ function wait(milliseconds: number, signal: AbortSignal): Promise<boolean> {
  */
 export function useAdmissionGrantAcknowledgement({
   available,
+  notificationId,
   readTicket,
   authState,
   authGeneration,
@@ -126,6 +130,17 @@ export function useAdmissionGrantAcknowledgement({
       publish(Object.freeze({ phase: 'stale' }));
       return () => controller.abort();
     }
+    if (
+      typeof notificationId !== 'string'
+      || !ADMISSION_GRANT_NOTIFICATION_ID_PATTERN.test(notificationId)
+    ) {
+      // The SDK exposes one immutable launch-context snapshot. A reused
+      // WebView may therefore reveal the new fragment before Farcaster opens
+      // a fresh notification context. Retain the one-use ticket in memory and
+      // fail closed until the exact notification is reopened.
+      publish(Object.freeze({ phase: 'awaiting-notification-context' }));
+      return () => controller.abort();
+    }
     const isCurrent = () => (
       !controller.signal.aborted
       && operationGenerationRef.current === operationGeneration
@@ -144,6 +159,7 @@ export function useAdmissionGrantAcknowledgement({
             isCurrent,
             authentication => acknowledgeAdmissionGrant(authentication, {
               ticket,
+              notificationId,
               expectedFid,
               signal: controller.signal
             })
@@ -194,6 +210,7 @@ export function useAdmissionGrantAcknowledgement({
     loadQuickAuthToken,
     onCapabilityConsumed,
     available,
+    notificationId,
     readTicket
   ]);
 

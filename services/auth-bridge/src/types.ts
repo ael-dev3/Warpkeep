@@ -176,6 +176,8 @@ export type SafeLogEvent =
   | 'admission_notification_client_acknowledged'
   | 'admission_grant_acknowledged'
   | 'admission_grant_ack_rejected'
+  | 'admission_grant_ack_context_rejected'
+  | 'admission_grant_ack_context_mismatch'
   | 'admission_grant_ack_not_ready'
   | 'admission_grant_ack_stale'
   | 'rate_limited'
@@ -327,6 +329,7 @@ export type AdmissionNotificationAcknowledgementStatus =
   | 'accepted'
   | 'not-ready'
   | 'stale'
+  | 'context-mismatch'
 
 export type AdmissionNotificationGeneration =
   | Readonly<{
@@ -367,11 +370,29 @@ export type AdmissionNotificationRetryReason =
   | 'provider-unknown'
 
 export type AdmissionNotificationDiagnostics = Readonly<{
+  version: 2
+  systemState: 'enabled' | 'paused'
+  subscriptionState: 'active' | 'absent'
   status: AdmissionNotificationQueueStatus
   generation?: AdmissionNotificationGeneration['kind']
   authEpoch?: number
+  activeSubscriptionCount: number
+  activeClientFids: readonly number[]
+  activeAttemptCount: number
+  pendingAttemptCount: number
+  retryingAttemptCount: number
+  sentAttemptCount: number
+  exhaustedAttemptCount: number
   deliveryAttemptCount: number
   verificationFailureCount: number
+  deliveryQueuedAt?: number
+  deliveryExpiresAt?: number
+  grantState: 'none' | 'created' | 'provider-accepted' | 'client-acknowledged'
+  grantCreatedAt?: number
+  grantExpiresAt?: number
+  providerAcceptedAt?: number
+  clientAcknowledgedAt?: number
+  deliveryState: 'idle' | 'pending' | 'retry-scheduled' | 'succeeded' | 'exhausted'
   retryReasons: readonly AdmissionNotificationRetryReason[]
   lastAttemptAt?: number
   lastFailureReason?: AdmissionNotificationRetryReason
@@ -382,7 +403,11 @@ export type AdmissionNotificationDiagnostics = Readonly<{
 export interface AdmissionNotificationStore {
   applyEvent(event: VerifiedMiniAppWebhookEvent): Promise<void>
   queueAdmission(input: AdmissionNotificationQueueInput): Promise<AdmissionNotificationQueueStatus>
-  acknowledge(fid: string, ticket: string): Promise<AdmissionNotificationAcknowledgementStatus>
+  acknowledge(
+    fid: string,
+    ticket: string,
+    notificationId: string,
+  ): Promise<AdmissionNotificationAcknowledgementStatus>
   /** Operator-only, token-free delivery state used for bounded diagnosis. */
   inspect?(fid: string): Promise<AdmissionNotificationDiagnostics>
 }

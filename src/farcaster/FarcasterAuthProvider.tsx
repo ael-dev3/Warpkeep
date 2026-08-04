@@ -84,6 +84,7 @@ export function FarcasterAuthProvider({
       loadBridgeClient={loadBridgeClient}
       loadQuickAuthToken={loadQuickAuthToken}
       admissionGrantAvailable={admissionGrant !== undefined}
+      admissionGrantNotificationId={admissionGrant?.notificationId}
       readAdmissionGrantTicket={admissionGrant?.read}
       onAdmissionGrantCapabilityConsumed={admissionGrant?.clear}
       quickAuthPresentationIdentity={

@@ -158,6 +158,8 @@ export type FarcasterAuthProviderCoreProps = Readonly<{
   quickAuthPresentationIdentity?: FarcasterRelayDisplayIdentity;
   /** Capability presence only; raw material remains outside React state/props. */
   admissionGrantAvailable?: boolean;
+  /** Sanitized exact notification launch identifier; never authority alone. */
+  admissionGrantNotificationId?: string;
   /** Reads raw capability material only into the acknowledgement effect stack. */
   readAdmissionGrantTicket?: () => string | undefined;
   onAdmissionGrantCapabilityConsumed?: (expectedTicket: string) => void;
@@ -1250,6 +1252,7 @@ export function FarcasterAuthProviderCore({
   loadQuickAuthToken,
   quickAuthPresentationIdentity,
   admissionGrantAvailable = false,
+  admissionGrantNotificationId,
   readAdmissionGrantTicket,
   onAdmissionGrantCapabilityConsumed,
   normalizeAuthError,
@@ -2172,6 +2175,7 @@ export function FarcasterAuthProviderCore({
 
   const admissionGrantAcknowledgement = useAdmissionGrantAcknowledgement({
     available: admissionGrantAvailable,
+    notificationId: admissionGrantNotificationId,
     readTicket: readAdmissionGrantTicket,
     authState: machine.view,
     authGeneration: machine.generation,

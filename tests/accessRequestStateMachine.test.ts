@@ -75,6 +75,13 @@ describe('access-request monotonic state machine', () => {
     });
   });
 
+  it('lets a later explicit authoritative absence become a deliberate retry state', () => {
+    expect(transitionAccessRequestState(
+      { phase: 'loading-status', context: 'post-submission' },
+      { type: 'definitive-failure' }
+    )).toEqual({ phase: 'definitive-failure' });
+  });
+
   it('allows a definitive pre-write failure to begin one deliberate retry', () => {
     expect(transitionAccessRequestState(
       { phase: 'definitive-failure' },
