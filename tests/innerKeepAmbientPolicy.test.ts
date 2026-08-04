@@ -11,10 +11,13 @@ import {
   INNER_KEEP_AMBIENT_MINIMUM_BODY_CLEARANCE_METERS,
   INNER_KEEP_AMBIENT_QUALITY_BUDGETS,
   INNER_KEEP_AMBIENT_ROUTES,
+  INNER_KEEP_CITIZEN_WORK_ROUTES,
   INNER_KEEP_CIVIC_MOUNTED_ROUTE,
-  INNER_KEEP_FOOT_PATROL_ROUTE,
+  INNER_KEEP_FOOT_DUTY_ROUTES,
   INNER_KEEP_MOUNTED_PATROL_ROUTE,
   INNER_KEEP_OUTER_FOOT_ESCORT_ROUTE,
+  innerKeepAmbientActorFootprintHalfExtents,
+  innerKeepAmbientOrientedFootprintSeparation,
   innerKeepAmbientSelectionRenderCost,
   selectInnerKeepAmbientActors,
   validateInnerKeepAmbientRouteClearance
@@ -188,24 +191,51 @@ describe('Inner Keep ambient presentation policy', () => {
     });
   });
 
-  it('keeps every route clear under dense physical sampling', () => {
+  it('keeps distinct open city duties and the outer circuit clear under dense sampling', () => {
     for (const route of INNER_KEEP_AMBIENT_ROUTES) {
       expect(
         validateInnerKeepAmbientRouteClearance(route, 0.04),
         route.routeId
       ).toEqual([]);
     }
-    const innerX = INNER_KEEP_FOOT_PATROL_ROUTE.path.points.map(({ x }) => x);
-    const innerZ = INNER_KEEP_FOOT_PATROL_ROUTE.path.points.map(({ z }) => z);
-    const outerX = INNER_KEEP_MOUNTED_PATROL_ROUTE.path.points.map(({ x }) => x);
-    const outerZ = INNER_KEEP_MOUNTED_PATROL_ROUTE.path.points.map(({ z }) => z);
-    expect(Math.min(...innerX)).toBeGreaterThan(Math.min(...outerX));
-    expect(Math.max(...innerX)).toBeLessThan(Math.max(...outerX));
-    expect(Math.min(...innerZ)).toBeGreaterThan(Math.min(...outerZ));
-    expect(Math.max(...innerZ)).toBeLessThan(Math.max(...outerZ));
-    expect(INNER_KEEP_FOOT_PATROL_ROUTE.path.points).not.toEqual(
-      INNER_KEEP_MOUNTED_PATROL_ROUTE.path.points
-    );
+
+    expect(INNER_KEEP_CITIZEN_WORK_ROUTES).toHaveLength(3);
+    expect(INNER_KEEP_FOOT_DUTY_ROUTES).toHaveLength(5);
+    const cityDutyRoutes = [
+      ...INNER_KEEP_CITIZEN_WORK_ROUTES,
+      ...INNER_KEEP_FOOT_DUTY_ROUTES
+    ];
+    expect(new Set(cityDutyRoutes.map(({ routeId }) => routeId)).size)
+      .toBe(cityDutyRoutes.length);
+    expect(cityDutyRoutes.every(({ path }) => !path.closed)).toBe(true);
+    expect(INNER_KEEP_CITIZEN_WORK_ROUTES.every(({ kind, purpose }) => (
+      kind === 'citizen-work-shuttle' && purpose === 'district-supply-run'
+    ))).toBe(true);
+    expect(INNER_KEEP_FOOT_DUTY_ROUTES.map(({ purpose }) => purpose))
+      .toEqual([
+        'cathedral-watch',
+        'cathedral-watch',
+        'garrison-watch',
+        'east-wall-watch',
+        'south-gate-watch'
+      ]);
+
+    // Open duties must remain direct point-to-point beats, not almost-closed
+    // ellipses disguised by leaving a small gap between their endpoints.
+    for (const route of cityDutyRoutes) {
+      const first = route.path.points[0]!;
+      const last = route.path.points.at(-1)!;
+      const endpointDistance = Math.hypot(last.x - first.x, last.z - first.z);
+      expect(endpointDistance / route.path.totalLength, route.routeId)
+        .toBeGreaterThan(0.9);
+    }
+
+    const closedRoutes = INNER_KEEP_AMBIENT_ROUTES.filter(({ path }) => path.closed);
+    expect(closedRoutes.map(({ routeId }) => routeId).sort()).toEqual([
+      INNER_KEEP_CIVIC_MOUNTED_ROUTE.routeId,
+      INNER_KEEP_MOUNTED_PATROL_ROUTE.routeId,
+      INNER_KEEP_OUTER_FOOT_ESCORT_ROUTE.routeId
+    ].sort());
     expect(INNER_KEEP_CIVIC_MOUNTED_ROUTE.path.points).toEqual(
       INNER_KEEP_MOUNTED_PATROL_ROUTE.path.points
     );
@@ -213,6 +243,60 @@ describe('Inner Keep ambient presentation policy', () => {
       INNER_KEEP_MOUNTED_PATROL_ROUTE.path.points
     );
     expect(INNER_KEEP_AMBIENT_MINIMUM_BODY_CLEARANCE_METERS).toBe(0.16);
+  });
+
+  it('clears every exact actor footprint through each shuttle turnaround', () => {
+    let minimumResidual = Number.POSITIVE_INFINITY;
+    let minimumDetail = '';
+    for (const route of [
+      ...INNER_KEEP_CITIZEN_WORK_ROUTES,
+      ...INNER_KEEP_FOOT_DUTY_ROUTES
+    ]) {
+      const category = route.kind === 'citizen-work-shuttle'
+        ? 'citizen'
+        : 'foot-patrol';
+      const actors = INNER_KEEP_AMBIENT_ACTOR_CATALOG.filter((actor) => (
+        actor.category === category
+      ));
+      for (const actor of actors) {
+        const footprintHalfExtentsMeters = innerKeepAmbientActorFootprintHalfExtents(
+          actor,
+          'high'
+        );
+        for (const progress of [0, 1]) {
+          const position = sampleInnerKeepPath(route.path, progress).position;
+          for (let headingIndex = 0; headingIndex < 64; headingIndex += 1) {
+            const yawRadians = headingIndex / 64 * Math.PI * 2;
+            for (const exclusion of INNER_KEEP_AMBIENT_EXCLUSIONS) {
+              const residual = innerKeepAmbientOrientedFootprintSeparation(
+                { position, yawRadians, footprintHalfExtentsMeters },
+                {
+                  position: exclusion.center,
+                  yawRadians: 0,
+                  footprintHalfExtentsMeters: [
+                    exclusion.halfExtentsMeters[0]
+                      + exclusion.additionalClearanceMeters,
+                    exclusion.halfExtentsMeters[1]
+                      + exclusion.additionalClearanceMeters
+                  ]
+                }
+              );
+              if (residual < minimumResidual) {
+                minimumResidual = residual;
+                minimumDetail = [
+                  route.routeId,
+                  actor.actorId,
+                  progress,
+                  headingIndex,
+                  exclusion.exclusionId
+                ].join(':');
+              }
+            }
+          }
+        }
+      }
+    }
+    expect(minimumResidual, minimumDetail).toBeGreaterThanOrEqual(0);
   });
 
   it('samples open and closed paths by arc length with exact loop continuity', () => {

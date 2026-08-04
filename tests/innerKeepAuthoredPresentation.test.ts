@@ -108,10 +108,13 @@ function segmentTouchesExpandedAabb(
 }
 
 function routeCategories(route: InnerKeepAmbientRoute): readonly InnerKeepAmbientActorCategory[] {
-  if (route.kind === 'citizen-approach') return ['citizen'];
+  if (
+    route.kind === 'citizen-approach'
+    || route.kind === 'citizen-work-shuttle'
+  ) return ['citizen'];
   if (route.kind === 'civic-mounted-loop') return ['civic-mounted'];
   if (route.kind === 'mounted-patrol-loop') return ['mounted-patrol'];
-  return ['citizen', 'foot-patrol'];
+  return ['foot-patrol'];
 }
 
 function exactRouteSweepRadius(
