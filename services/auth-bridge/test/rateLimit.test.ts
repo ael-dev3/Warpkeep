@@ -19,7 +19,7 @@ const LIMITS: Readonly<Record<RateLimitAction, number>> = {
   'session-refresh': 30,
   'access-request': 12,
   'miniapp-webhook': 2_000,
-  'admission-notification': 12,
+  'admission-notification': 72,
   'admin-token': 6,
   'qa-challenge': 12,
   'qa-snapshot': 60,

@@ -12,6 +12,10 @@ import {
   type MiniAppSdkEventName
 } from '../src/farcaster/miniapp';
 import {
+  useMiniAppAdmissionGrant,
+  type MiniAppAdmissionGrant
+} from '../src/farcaster/miniapp/MiniAppHostProvider';
+import {
   WarpkeepHapticsDirector,
   emitWarpkeepSfxBatch,
   resolveWarpkeepHapticCue
@@ -143,6 +147,7 @@ function Harness({
   runtime,
   sdkLoader,
   capture,
+  captureGrant,
   hostDeadlineMilliseconds,
   addMiniAppDeadlineMilliseconds,
   quickAuthDeadlineMilliseconds
@@ -151,12 +156,14 @@ function Harness({
   runtime: MiniAppBrowserRuntime;
   sdkLoader: () => Promise<unknown>;
   capture: (value: MiniAppHostValue) => void;
+  captureGrant?: (value: MiniAppAdmissionGrant | undefined) => void;
   hostDeadlineMilliseconds?: number;
   addMiniAppDeadlineMilliseconds?: number;
   quickAuthDeadlineMilliseconds?: number;
 }) {
   function Probe() {
     capture(useMiniAppHost());
+    captureGrant?.(useMiniAppAdmissionGrant());
     return <div data-testid="stable-shell">{children}</div>;
   }
   return (
@@ -173,6 +180,78 @@ function Harness({
 }
 
 describe('Farcaster Mini App host provider', () => {
+  it('accepts a later same-document notification generation without exposing it in host state', async () => {
+    const oldTicket = 'D'.repeat(43);
+    const newTicket = 'E'.repeat(43);
+    let hash = `#warpkeep-grant-v1=${oldTicket}`;
+    let navigationListener: (() => void) | undefined;
+    let latest: MiniAppHostValue | undefined;
+    let latestGrant: MiniAppAdmissionGrant | undefined;
+    const runtime: MiniAppBrowserRuntime = {
+      ...runtimeFor('?miniApp=true'),
+      hash: () => hash,
+      replaceHash: (next) => { hash = next; },
+      subscribeNavigationChange: (listener) => {
+        navigationListener = listener;
+        return () => { navigationListener = undefined; };
+      }
+    };
+    render(
+      <Harness
+        capture={(value) => { latest = value; }}
+        captureGrant={(value) => { latestGrant = value; }}
+        runtime={runtime}
+        sdkLoader={async () => fakeSdk().sdk}
+      />
+    );
+
+    await waitFor(() => expect(latestGrant).toBeDefined());
+    const oldGrant = latestGrant!;
+    expect(oldGrant.read()).toBe(oldTicket);
+    expect(JSON.stringify(latest)).not.toContain(oldTicket);
+
+    hash = `#warpkeep-grant-v1=${newTicket}`;
+    act(() => navigationListener?.());
+    await waitFor(() => expect(latestGrant?.read()).toBe(newTicket));
+    oldGrant.clear(oldTicket);
+    expect(latestGrant?.read()).toBe(newTicket);
+    expect(JSON.stringify(latest)).not.toContain(newTicket);
+
+    act(() => latestGrant?.clear(newTicket));
+    await waitFor(() => expect(latestGrant).toBeUndefined());
+  });
+
+  it('reconciles a grant that arrives while navigation subscription is being installed', async () => {
+    const ticket = 'F'.repeat(43);
+    let hash = '';
+    let latest: MiniAppHostValue | undefined;
+    let latestGrant: MiniAppAdmissionGrant | undefined;
+    const runtime: MiniAppBrowserRuntime = {
+      ...runtimeFor('?miniApp=true'),
+      hash: () => hash,
+      replaceHash: (next) => { hash = next; },
+      subscribeNavigationChange: () => {
+        // Model a host navigation after render-time capture but before the
+        // passive effect has finished registering its listener.
+        hash = `#warpkeep-grant-v1=${ticket}`;
+        return () => {};
+      }
+    };
+
+    render(
+      <Harness
+        capture={(value) => { latest = value; }}
+        captureGrant={(value) => { latestGrant = value; }}
+        runtime={runtime}
+        sdkLoader={async () => fakeSdk().sdk}
+      />
+    );
+
+    await waitFor(() => expect(latestGrant?.read()).toBe(ticket));
+    expect(hash).toBe('#menu');
+    expect(JSON.stringify(latest)).not.toContain(ticket);
+  });
+
   it('does not import or signal the host without the exact hint', async () => {
     for (const search of [
       '',

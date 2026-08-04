@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, type Ref } from 'react';
 
 import type {
+  AdmissionGrantAcknowledgementViewState,
   AccessRequestViewState,
   FarcasterAdmissionCheckViewState,
   VerifiedFarcasterIdentity
@@ -38,6 +39,7 @@ export type FarcasterAdmissionPanelProps = Readonly<{
   onSignOut: () => void;
   /** Presentation hint only; admission still comes from the auth/backend state. */
   approvalNotificationLaunch?: boolean;
+  admissionGrantAcknowledgement?: AdmissionGrantAcknowledgementViewState;
 }>;
 
 type AdmissionPresentation = Readonly<{
@@ -109,13 +111,24 @@ export function FarcasterAdmissionPanel({
   onRequestAccess,
   onRetryAccessRequestStatus,
   onSignOut,
-  approvalNotificationLaunch = false
+  approvalNotificationLaunch = false,
+  admissionGrantAcknowledgement = Object.freeze({ phase: 'idle' })
 }: FarcasterAdmissionPanelProps) {
   const headingId = `farcaster-admission-heading-${useId().replace(/:/g, '')}`;
   const accessRequestDescriptionId = `${headingId}-access-request-description`;
   const localHeadingRef = useRef<HTMLHeadingElement>(null);
   const defaultPresentation = presentationByPhase[phase];
-  const presentation = approvalNotificationLaunch
+  const admissionGrantActive = admissionGrantAcknowledgement.phase === 'acknowledging'
+    || admissionGrantAcknowledgement.phase === 'finalizing';
+  const presentation = admissionGrantActive
+    ? Object.freeze({
+        eyebrow: 'HEGEMONY FRONTIER ACCESS',
+        title: 'FINALIZING HEGEMONY ADMISSION',
+        liveMessage: admissionGrantAcknowledgement.phase === 'acknowledging'
+          ? 'Confirming this notification with your verified Farcaster identity…'
+          : 'Your notification is confirmed. Finalizing Realm access…'
+      })
+    : approvalNotificationLaunch
     && phase !== 'denied'
     && phase !== 'error'
     ? phase === 'connecting' || phase === 'reconnecting' || phase === 'checking-admission'
@@ -139,7 +152,8 @@ export function FarcasterAdmissionPanel({
     || phase === 'checking-admission'
     || phase === 'bootstrapping'
     || phase === 'accepting-terms'
-    || phase === 'opening-realm';
+    || phase === 'opening-realm'
+    || admissionGrantActive;
   const denied = phase === 'denied';
   const awaitingTerms = phase === 'awaiting-terms';
   const unavailable = phase === 'error';
@@ -201,14 +215,24 @@ export function FarcasterAdmissionPanel({
         {denied ? (
           <>
             <p className="farcaster-admission-panel__lead">
-              {approvalNotificationLaunch
+              {admissionGrantActive
+                ? 'Keep Warpkeep open for a moment while the Hegemony completes your admission.'
+                : admissionGrantAcknowledgement.phase === 'confirmed-pending'
+                  ? 'Your notification was confirmed. Realm access is still being completed; check again shortly.'
+                : admissionGrantAcknowledgement.phase === 'stale'
+                  ? 'This approval invitation is no longer current. Your latest access request remains unchanged.'
+                  : admissionGrantAcknowledgement.phase === 'temporary-error'
+                    ? 'Warpkeep could not confirm this approval invitation. Reopen the Farcaster notification to try again safely.'
+                    : approvalNotificationLaunch
                 ? 'Warpkeep has not yet confirmed active admission. Check again in a moment.'
                 : 'This Farcaster identity is not yet admitted to the Hegemony frontier.'}
             </p>
-            <FarcasterAccessRequestMessage
-              descriptionId={accessRequestDescriptionId}
-              state={accessRequest}
-            />
+            {!admissionGrantActive ? (
+              <FarcasterAccessRequestMessage
+                descriptionId={accessRequestDescriptionId}
+                state={accessRequest}
+              />
+            ) : null}
           </>
         ) : null}
 
@@ -242,7 +266,7 @@ export function FarcasterAdmissionPanel({
             REVIEW TERMS
           </button>
         ) : null}
-        {denied && onRequestAccess ? (
+        {denied && !admissionGrantActive && onRequestAccess ? (
           <FarcasterAccessRequestAction
             admissionCheck={admissionCheck}
             descriptionId={accessRequestDescriptionId}
@@ -253,7 +277,7 @@ export function FarcasterAdmissionPanel({
             state={accessRequest}
           />
         ) : null}
-        {denied && !accessRequestOwnsPrimaryAction(accessRequest) ? (
+        {denied && !admissionGrantActive && !accessRequestOwnsPrimaryAction(accessRequest) ? (
           <FarcasterAdmissionCheckAction
             onCheckAdmission={onCheckAgain}
             primaryActionRef={primaryActionRef}

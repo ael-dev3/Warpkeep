@@ -32,6 +32,7 @@ import type {
   FarcasterBrowserBindingFactory
 } from './farcasterAuthTypes';
 import { useMiniAppHost } from './miniapp';
+import { useMiniAppAdmissionGrant } from './miniapp/MiniAppHostProvider';
 
 export type FarcasterAuthProviderProps = Readonly<{
   children: ReactNode;
@@ -67,6 +68,7 @@ export function FarcasterAuthProvider({
   deviceSessionEnvironment
 }: FarcasterAuthProviderProps) {
   const miniAppHost = useMiniAppHost();
+  const admissionGrant = useMiniAppAdmissionGrant();
   const loadQuickAuthToken: FarcasterQuickAuthTokenLoader | undefined =
     miniAppHost.isMiniApp
       ? miniAppHost.quickAuth.getToken
@@ -81,6 +83,9 @@ export function FarcasterAuthProvider({
       loadAuthority={loadAuthority}
       loadBridgeClient={loadBridgeClient}
       loadQuickAuthToken={loadQuickAuthToken}
+      admissionGrantAvailable={admissionGrant !== undefined}
+      readAdmissionGrantTicket={admissionGrant?.read}
+      onAdmissionGrantCapabilityConsumed={admissionGrant?.clear}
       quickAuthPresentationIdentity={
         miniAppHost.isMiniApp
           ? miniAppHost.context?.user

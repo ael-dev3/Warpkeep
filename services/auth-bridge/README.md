@@ -33,13 +33,16 @@ future rollout step requires exact-head verification and recorded authority.
 | `POST` | `/v2/farcaster/quick-auth/exchange` | Verifies an exact-domain Mini App bearer and returns tokenless-pending or short-lived authorized access without a cookie. |
 | `POST` | `/v2/session/refresh` | Rotates the session reference and returns a fresh access token only for an authorized family. |
 | `POST` | `/v2/session/logout` | Revokes the server-side family and expires the cookie; fails closed if durable revocation cannot be confirmed. |
+| `POST` | `/v2/access/status` | Caller-private, authenticated status for the verified FID's current access-request cycle. |
+| `POST` | `/v2/access/request` | Submits one idempotent private access request for the verified FID. |
+| `POST` | `/v2/access/admission-grant` | Acknowledges one provider-accepted, fragment-carried admission intent after same-FID Quick Auth; it never mutates admission. |
 | `POST` | `/v1/qa/challenge` | Server-only, zero-body 60-second challenge for the one registered read-only QA device. Disabled by default. |
 | `POST` | `/v1/qa/realm-snapshot` | Server-only proof exchange returning one bounded aggregate Realm attestation; the v1 path is a compatibility name. |
 | `POST` | `/v1/admin/token` | Server-only five-minute Hermes/admin JWT. |
 | `POST` | `/v1/admin/auth-epoch-probe` | Server-only, input-free structured resolver check. |
 | `POST` | `/v1/admin/config-attestation` | Server-only digest of security-relevant runtime configuration. |
 | `POST` | `/v1/farcaster/miniapp/webhook` | Verifies signed add/remove and notification enable/disable events; returns exact `200`. |
-| `POST` | `/v1/admin/admission-notification` | Separate-secret Hermes hook; queues one alert for the exact pending request, or reconciles an already-live admission epoch. |
+| `POST` | `/v1/admin/admission-notification` | Separate-secret Hermes hook; queues one alert for the exact pending request, reports client acknowledgement, or reconciles an already-live admission epoch. |
 | `POST` | `/v1/admin/admission-notification-status` | Separate-secret, token-free delivery diagnostics for one exact FID. |
 
 The legacy public `/v1/farcaster/challenge` and `/v1/farcaster/exchange` routes
@@ -54,6 +57,17 @@ accept only a completed zero-byte stream, validate every present
 `Content-Length`, and cancel on the first body byte. The bridge rejects relay
 secrets such as `channelToken`, custody fields, verification lists, and relay
 metadata.
+
+Pending-request delivery is a two-party gate. Provider acceptance stores an
+`awaiting-client` intent and sends an unguessable one-use capability in the URL
+fragment. The browser scrubs the fragment before rendering and submits it only
+with a verified same-FID session or Quick Auth bearer. Successful acknowledgement
+stores a domain-separated digest instead of the raw ticket and yields
+`client-acknowledged`; no bridge route grants admission. The reviewed Hermes
+workflow then reconnects with fresh administrator authority, rechecks the exact
+request tuple, and calls a request-CAS reducer. General administrator authority
+is intentionally broader than this operator workflow, so operational review and
+least-privilege credential handling remain part of the boundary.
 
 The QA routes are a separate service boundary, not browser/player
 authentication. They reject every request carrying an `Origin`, emit no CORS

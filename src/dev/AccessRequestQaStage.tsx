@@ -66,7 +66,8 @@ export function AccessRequestQaStage({
         throw new Error('Synthetic response loss after the local row was recorded.');
       }
       return { version: 1, status: 'requested', requestedAt: REQUESTED_AT };
-    }
+    },
+    acknowledgeAdmissionGrant: async () => unavailable()
   }), [mode]);
 
   const loadBridgeClient = useCallback(async () => bridgeClient, [bridgeClient]);

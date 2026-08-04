@@ -172,6 +172,12 @@ export type SafeLogEvent =
   | 'admission_notification_not_subscribed'
   | 'admission_notification_rejected'
   | 'admission_notification_inspected'
+  | 'admission_notification_provider_accepted'
+  | 'admission_notification_client_acknowledged'
+  | 'admission_grant_acknowledged'
+  | 'admission_grant_ack_rejected'
+  | 'admission_grant_ack_not_ready'
+  | 'admission_grant_ack_stale'
   | 'rate_limited'
   | 'rate_limit_failed'
   | 'configuration_error'
@@ -312,8 +318,15 @@ export interface MiniAppWebhookVerifier {
 export type AdmissionNotificationQueueStatus =
   | 'queued'
   | 'already-sent'
+  | 'awaiting-client'
+  | 'client-acknowledged'
   | 'delivery-exhausted'
   | 'not-subscribed'
+
+export type AdmissionNotificationAcknowledgementStatus =
+  | 'accepted'
+  | 'not-ready'
+  | 'stale'
 
 export type AdmissionNotificationGeneration =
   | Readonly<{
@@ -369,6 +382,7 @@ export type AdmissionNotificationDiagnostics = Readonly<{
 export interface AdmissionNotificationStore {
   applyEvent(event: VerifiedMiniAppWebhookEvent): Promise<void>
   queueAdmission(input: AdmissionNotificationQueueInput): Promise<AdmissionNotificationQueueStatus>
+  acknowledge(fid: string, ticket: string): Promise<AdmissionNotificationAcknowledgementStatus>
   /** Operator-only, token-free delivery state used for bounded diagnosis. */
   inspect?(fid: string): Promise<AdmissionNotificationDiagnostics>
 }

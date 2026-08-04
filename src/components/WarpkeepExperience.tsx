@@ -264,6 +264,7 @@ export function WarpkeepExperience() {
     state: farcasterAuthState,
     accessRequest,
     admissionCheck,
+    admissionGrantAcknowledgement,
     restoreSession: restoreFarcasterSession,
     beginSignIn: beginFarcasterSignIn,
     cancelSignIn: cancelFarcasterSignIn,
@@ -1366,6 +1367,7 @@ export function WarpkeepExperience() {
       }: AuthRailRenderControls) => (
         <FarcasterAdmissionPanel
           accessRequest={accessRequest}
+          admissionGrantAcknowledgement={admissionGrantAcknowledgement}
           admissionCheck={farcasterAuthState.phase === 'pending-admission'
             ? admissionCheck
             : undefined}
@@ -1496,6 +1498,7 @@ export function WarpkeepExperience() {
             <FarcasterMiniAppEntryGate
               accessRequest={accessRequest}
               admissionCheck={admissionCheck}
+              admissionGrantAcknowledgement={admissionGrantAcknowledgement}
               authState={farcasterAuthState}
               backendState={backend.state}
               hostState={miniAppHost.state}

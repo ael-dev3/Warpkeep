@@ -36,6 +36,7 @@ import {
 } from './farcasterBrowserBinding';
 import { parseFarcasterOidcJwt } from './farcasterOidcSession';
 import { useAccessRequest } from './useAccessRequest';
+import { useAdmissionGrantAcknowledgement } from './useAdmissionGrantAcknowledgement';
 import {
   clearFarcasterPresentationSession,
   persistFarcasterPresentationSession,
@@ -44,6 +45,7 @@ import {
 import type {
   FarcasterAuthError,
   FarcasterAuthEntryStage,
+  AdmissionGrantAcknowledgementViewState,
   AccessRequestViewState,
   FarcasterAdmissionCheckViewState,
   FarcasterAuthContext,
@@ -81,6 +83,14 @@ export type FarcasterBridgeFailureClassifier = (
 const NO_BRIDGE_FAILURE_CLASSIFICATION: FarcasterBridgeFailureClassifier = () => null;
 
 const MANUAL_ADMISSION_CHECK_MINIMUM_MS = 300;
+const ADMISSION_FINALIZATION_MAXIMUM_MS = 10 * 60 * 1_000;
+const ADMISSION_FINALIZATION_POLL_DELAYS_MS = Object.freeze([
+  0,
+  2_000,
+  5_000,
+  10_000
+] as const);
+const ADMISSION_FINALIZATION_STEADY_POLL_MS = 30_000;
 
 type AuthorityRefreshOutcome =
   | Readonly<{ status: 'authorized'; fid: number }>
@@ -146,6 +156,11 @@ export type FarcasterAuthProviderCoreProps = Readonly<{
   loadQuickAuthToken?: FarcasterQuickAuthTokenLoader;
   /** Untrusted host presentation fields; retained only for a bridge-verified same FID. */
   quickAuthPresentationIdentity?: FarcasterRelayDisplayIdentity;
+  /** Capability presence only; raw material remains outside React state/props. */
+  admissionGrantAvailable?: boolean;
+  /** Reads raw capability material only into the acknowledgement effect stack. */
+  readAdmissionGrantTicket?: () => string | undefined;
+  onAdmissionGrantCapabilityConsumed?: (expectedTicket: string) => void;
   normalizeAuthError: FarcasterAuthErrorNormalizer;
   /** Concrete transport details stay outside the full-stack auth core. */
   classifyBridgeFailure?: FarcasterBridgeFailureClassifier;
@@ -164,6 +179,7 @@ export type FarcasterAuthControllerValue = Readonly<{
   state: FarcasterAuthViewState;
   accessRequest: AccessRequestViewState;
   admissionCheck: FarcasterAdmissionCheckViewState;
+  admissionGrantAcknowledgement: AdmissionGrantAcknowledgementViewState;
   /** Bearer material is intentionally separate from presentation state. */
   oidcSession: FarcasterOidcSession | undefined;
   /**
@@ -1233,6 +1249,9 @@ export function FarcasterAuthProviderCore({
   loadBridgeClient,
   loadQuickAuthToken,
   quickAuthPresentationIdentity,
+  admissionGrantAvailable = false,
+  readAdmissionGrantTicket,
+  onAdmissionGrantCapabilityConsumed,
   normalizeAuthError,
   classifyBridgeFailure = NO_BRIDGE_FAILURE_CLASSIFICATION,
   resolveAuthContext = getBrowserFarcasterAuthContext,
@@ -1263,6 +1282,7 @@ export function FarcasterAuthProviderCore({
   const admissionCheckLockedRef = useRef(false);
   const admissionCheckGenerationRef = useRef(0);
   const admissionCheckFidRef = useRef<number | undefined>(undefined);
+  const accessRequestReconciliationKeyRef = useRef<string | undefined>(undefined);
   const admissionCheckMinimumRef = useRef<Readonly<{
     cancel: () => void;
     settle: () => void;
@@ -2134,6 +2154,76 @@ export function FarcasterAuthProviderCore({
   });
 
   useEffect(() => {
+    const view = machineRef.current.view;
+    const reconciliationKey = view.phase === 'pending-admission'
+      && admissionCheck.phase === 'still-pending'
+      ? `${view.identity.fid}:${admissionCheck.checkedAt}`
+      : undefined;
+    if (
+      reconciliationKey === undefined
+      || accessRequestReconciliationKeyRef.current === reconciliationKey
+    ) return;
+    accessRequestReconciliationKeyRef.current = reconciliationKey;
+    // CHECK ADMISSION is also the deliberate server-authoritative boundary
+    // that reconciles an application removed by an owner reset. The request
+    // controller itself decides whether its current phase is eligible.
+    accessRequest.retryStatus();
+  }, [accessRequest, admissionCheck]);
+
+  const admissionGrantAcknowledgement = useAdmissionGrantAcknowledgement({
+    available: admissionGrantAvailable,
+    readTicket: readAdmissionGrantTicket,
+    authState: machine.view,
+    authGeneration: machine.generation,
+    loadBridgeClient,
+    loadQuickAuthToken,
+    onCapabilityConsumed: onAdmissionGrantCapabilityConsumed
+  });
+
+  useEffect(() => {
+    if (
+      admissionGrantAcknowledgement.phase !== 'finalizing'
+      || machine.view.phase !== 'pending-admission'
+    ) return undefined;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const startedAt = Date.now();
+    let completedPolls = 0;
+    const nextDelay = () => (
+      ADMISSION_FINALIZATION_POLL_DELAYS_MS[completedPolls]
+      ?? ADMISSION_FINALIZATION_STEADY_POLL_MS
+    );
+    const poll = async () => {
+      if (
+        cancelled
+        || machineRef.current.view.phase !== 'pending-admission'
+        || Date.now() - startedAt >= ADMISSION_FINALIZATION_MAXIMUM_MS
+      ) return;
+      await refreshAuthoritySession(false, false, false);
+      completedPolls += 1;
+      if (
+        cancelled
+        || machineRef.current.view.phase !== 'pending-admission'
+        || Date.now() - startedAt >= ADMISSION_FINALIZATION_MAXIMUM_MS
+      ) return;
+      const remaining = ADMISSION_FINALIZATION_MAXIMUM_MS - (Date.now() - startedAt);
+      timer = globalThis.setTimeout(
+        () => { void poll(); },
+        Math.min(nextDelay(), remaining)
+      );
+    };
+    timer = globalThis.setTimeout(() => { void poll(); }, nextDelay());
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) globalThis.clearTimeout(timer);
+    };
+  }, [
+    admissionGrantAcknowledgement.phase,
+    machine.view.phase,
+    refreshAuthoritySession
+  ]);
+
+  useEffect(() => {
     purgeBearerStorage();
     const terminationStatus = readFarcasterSessionTerminationIntent({
       ...deviceSessionEnvironment,
@@ -2313,6 +2403,7 @@ export function FarcasterAuthProviderCore({
     state: machine.view,
     accessRequest: accessRequest.state,
     admissionCheck,
+    admissionGrantAcknowledgement,
     oidcSession,
     restoreSession,
     beginSignIn: beginConsentGatedSignIn,
@@ -2332,6 +2423,7 @@ export function FarcasterAuthProviderCore({
     controller,
     accessRequest,
     admissionCheck,
+    admissionGrantAcknowledgement,
     checkAdmission,
     machine.view,
     oidcSession,

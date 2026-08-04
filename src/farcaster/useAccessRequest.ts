@@ -121,7 +121,7 @@ async function waitForMinimumPresentation(
  * Run one bridge operation with an authentication value that exists only in
  * this call stack. Quick Auth material never enters React state or context.
  */
-async function withAccessAuthentication<T>(
+export async function withAccessAuthentication<T>(
   loadQuickAuthToken: ((
     options?: FarcasterQuickAuthTokenOptions
   ) => Promise<FarcasterQuickAuthTokenResult>) | undefined,
@@ -375,6 +375,13 @@ export function useAccessRequest({
       diagnose('request_status_unavailable');
       return;
     }
+    if (operation.kind === 'manual-status') {
+      // A successful user-triggered read proves that no request is currently
+      // on record. Release the old lifecycle lock only at this authority
+      // boundary so an intentional owner reset can be submitted once again.
+      submissionLockRef.current = undefined;
+      duplicateDiagnosticKeyRef.current = undefined;
+    }
     applyEvent(operation, { type: 'status-available', context });
   }, [applyAuthoritativeRequestConfirmation, applyEvent, diagnose]);
 
@@ -386,7 +393,17 @@ export function useAccessRequest({
   ): AccessRequestOperation | undefined => {
     if (currentLifecycleKeyRef.current !== exactLifecycleKey) return undefined;
     const operation = beginOperation(exactLifecycleKey, kind);
-    const next = applyEvent(operation, { type: 'status-load-started', context });
+    const current = stateLifecycleKeyRef.current === exactLifecycleKey
+      ? stateRef.current
+      : IDLE_ACCESS_REQUEST_STATE;
+    const next = applyEvent(operation,
+      kind === 'manual-status'
+        && (
+          current.phase === 'request-received'
+          || current.phase === 'already-requested'
+        )
+        ? { type: 'status-recheck-started' }
+        : { type: 'status-load-started', context });
     if (next?.phase !== 'loading-status') {
       finishOperation(operation);
       operation.controller.abort();
@@ -470,17 +487,22 @@ export function useAccessRequest({
 
   const retryStatus = useCallback(() => {
     const exactLifecycleKey = lifecycleKey;
+    const current = stateRef.current;
     if (
       !exactLifecycleKey
       || currentLifecycleKeyRef.current !== exactLifecycleKey
       || stateLifecycleKeyRef.current !== exactLifecycleKey
       || pendingFid === undefined
-      || stateRef.current.phase !== 'status-unavailable'
+      || (
+        current.phase !== 'status-unavailable'
+        && current.phase !== 'request-received'
+        && current.phase !== 'already-requested'
+      )
     ) return;
     startStatusRead(
       exactLifecycleKey,
       pendingFid,
-      stateRef.current.context,
+      current.phase === 'status-unavailable' ? current.context : 'initial',
       'manual-status'
     );
   }, [lifecycleKey, pendingFid, startStatusRead]);

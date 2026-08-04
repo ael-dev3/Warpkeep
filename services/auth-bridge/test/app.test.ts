@@ -49,6 +49,7 @@ const QUICK_AUTH_ISSUER = 'https://auth.farcaster.xyz'
 const QUICK_AUTH_PATH = '/v2/farcaster/quick-auth/exchange'
 const ACCESS_STATUS_PATH = '/v2/access/status'
 const ACCESS_REQUEST_PATH = '/v2/access/request'
+const ADMISSION_GRANT_PATH = '/v2/access/admission-grant'
 const syntheticQuickAuthSegment = (value: object) => btoa(JSON.stringify(value))
   .replaceAll('+', '-')
   .replaceAll('/', '_')
@@ -235,7 +236,7 @@ function quickAuthRequest(
 }
 
 function accessBearerRequest(
-  path: typeof ACCESS_STATUS_PATH | typeof ACCESS_REQUEST_PATH,
+  path: typeof ACCESS_STATUS_PATH | typeof ACCESS_REQUEST_PATH | typeof ADMISSION_GRANT_PATH,
   body: unknown = {},
   init: RequestInit = {},
 ): Request {
@@ -1373,6 +1374,7 @@ describe('Warpkeep auth bridge', () => {
       quickAuthMaxIssuerLifetimeSeconds: 60 * 60,
       accessRequestStatusPath: '/v2/access/status',
       accessRequestSubmitPath: '/v2/access/request',
+      admissionGrantPath: '/v2/access/admission-grant',
       accessRequestResolverTokenTtlSeconds: 15,
       accessRequestResolverTimeoutMilliseconds: 5_000,
       accessRequestStatusProcedure: 'access_request_get_status_v1',
@@ -1433,6 +1435,7 @@ describe('Warpkeep auth bridge', () => {
       authEpochResolverTimeoutMilliseconds: 5_000,
       accessRequestStatusPath: '/v2/access/status',
       accessRequestSubmitPath: '/v2/access/request',
+      admissionGrantPath: '/v2/access/admission-grant',
       accessRequestResolverTokenTtlSeconds: 15,
       accessRequestResolverTimeoutMilliseconds: 5_000,
       accessRequestStatusProcedure: 'access_request_get_status_v1',
@@ -2419,6 +2422,7 @@ describe('Warpkeep auth bridge', () => {
   })
 
   describe('Farcaster admission notifications', () => {
+    const rejectGrant = vi.fn(async () => 'stale' as const)
     const verifiedEnableEvent = Object.freeze({
       eventId: 'a'.repeat(64),
       fid: FID,
@@ -2438,7 +2442,7 @@ describe('Warpkeep auth bridge', () => {
       const queueAdmission = vi.fn(async () => 'queued' as const)
       const h = harness({
         miniAppWebhookVerifier: { verify },
-        admissionNotificationStore: { applyEvent, queueAdmission },
+        admissionNotificationStore: { applyEvent, queueAdmission, acknowledge: rejectGrant },
       })
 
       for (const candidate of [
@@ -2472,6 +2476,7 @@ describe('Warpkeep auth bridge', () => {
         admissionNotificationStore: {
           applyEvent,
           queueAdmission: vi.fn(async () => 'queued' as const),
+          acknowledge: rejectGrant,
         },
       })
       const signedEnvelope = { header: 'header', payload: 'payload', signature: 'signature' }
@@ -2512,6 +2517,7 @@ describe('Warpkeep auth bridge', () => {
         admissionNotificationStore: {
           applyEvent,
           queueAdmission: vi.fn(async () => 'not-subscribed' as const),
+          acknowledge: rejectGrant,
         },
       })
       const response = await h.app.fetch(request(
@@ -2552,6 +2558,7 @@ describe('Warpkeep auth bridge', () => {
           admissionNotificationStore: {
             applyEvent,
             queueAdmission: vi.fn(async () => 'queued' as const),
+            acknowledge: rejectGrant,
           },
         })
         const response = await h.app.fetch(request(
@@ -2570,6 +2577,7 @@ describe('Warpkeep auth bridge', () => {
       const store: AdmissionNotificationStore = {
         applyEvent: vi.fn(async () => undefined),
         queueAdmission,
+        acknowledge: rejectGrant,
       }
       const h = harness({ admissionNotificationStore: store })
 
@@ -2615,6 +2623,7 @@ describe('Warpkeep auth bridge', () => {
         admissionNotificationStore: {
           applyEvent: vi.fn(async () => undefined),
           queueAdmission,
+          acknowledge: rejectGrant,
         },
       })
       const response = await h.app.fetch(request(
@@ -2645,6 +2654,7 @@ describe('Warpkeep auth bridge', () => {
         admissionNotificationStore: {
           applyEvent: vi.fn(async () => undefined),
           queueAdmission,
+          acknowledge: rejectGrant,
         },
       })
 
@@ -2679,6 +2689,7 @@ describe('Warpkeep auth bridge', () => {
         admissionNotificationStore: {
           applyEvent: vi.fn(async () => undefined),
           queueAdmission: vi.fn(async () => 'queued' as const),
+          acknowledge: rejectGrant,
           inspect,
         },
       })
@@ -2722,6 +2733,91 @@ describe('Warpkeep auth bridge', () => {
   })
 
   describe('neutral access requests', () => {
+    it('acknowledges only an exact memory-only grant for the verified pending identity', async () => {
+      const ticket = 'A'.repeat(43)
+      const acknowledge = vi.fn(async () => 'accepted' as const)
+      const h = harness({
+        epoch: 0,
+        admissionNotificationStore: {
+          applyEvent: vi.fn(async () => undefined),
+          queueAdmission: vi.fn(async () => 'queued' as const),
+          acknowledge,
+        },
+      })
+
+      const response = await h.app.fetch(accessBearerRequest(
+        ADMISSION_GRANT_PATH,
+        { ticket },
+      ), env())
+
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toEqual({
+        version: 1,
+        status: 'accepted',
+      })
+      expect(acknowledge).toHaveBeenCalledOnce()
+      expect(acknowledge).toHaveBeenCalledWith(FID, ticket)
+      expect(h.quickAuthVerifier.verifyJwt).toHaveBeenCalledOnce()
+      expect(h.resolver.resolve).toHaveBeenCalledWith(FID)
+      expect(h.events).toContain('admission_grant_acknowledged')
+      expect(JSON.stringify(h.events)).not.toContain(ticket)
+      expect(response.headers.get('access-control-allow-origin')).toBe(QUICK_AUTH_ORIGIN)
+      expect(response.headers.has('access-control-allow-credentials')).toBe(false)
+    })
+
+    it('returns existing authority while best-effort erasing its exact notification capability', async () => {
+      const ticket = 'C'.repeat(43)
+      const acknowledge = vi.fn(async () => 'stale' as const)
+      const h = harness({
+        epoch: 7,
+        admissionNotificationStore: {
+          applyEvent: vi.fn(async () => undefined),
+          queueAdmission: vi.fn(async () => 'already-sent' as const),
+          acknowledge,
+        },
+      })
+
+      const response = await h.app.fetch(accessBearerRequest(
+        ADMISSION_GRANT_PATH,
+        { ticket },
+      ), env())
+
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toEqual({
+        version: 1,
+        status: 'already-admitted',
+      })
+      expect(acknowledge).toHaveBeenCalledWith(FID, ticket)
+      expect(JSON.stringify(h.events)).not.toContain(ticket)
+    })
+
+    it('rejects malformed or identity-drifted grant capabilities before the store', async () => {
+      const acknowledge = vi.fn(async () => 'accepted' as const)
+      const h = harness({
+        epoch: 0,
+        admissionNotificationStore: {
+          applyEvent: vi.fn(async () => undefined),
+          queueAdmission: vi.fn(async () => 'queued' as const),
+          acknowledge,
+        },
+      })
+
+      const malformed = await h.app.fetch(accessBearerRequest(
+        ADMISSION_GRANT_PATH,
+        { ticket: 'short' },
+      ), env())
+      const drifted = await h.app.fetch(accessBearerRequest(
+        ADMISSION_GRANT_PATH,
+        { ticket: 'B'.repeat(43) },
+        { headers: { 'x-warpkeep-expected-fid': '54321' } },
+      ), env())
+
+      expect(malformed.status).toBe(400)
+      expect(drifted.status).toBe(409)
+      expect(acknowledge).not.toHaveBeenCalled()
+      expect(JSON.stringify(h.events)).not.toContain('B'.repeat(43))
+    })
+
     it('reuses exact Quick Auth and returns only neutral status projections', async () => {
       const getStatus = vi.fn(async () => ({ status: 'not-requested' } as const))
       const submit = vi.fn(async () => ({

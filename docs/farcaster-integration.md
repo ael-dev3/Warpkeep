@@ -339,14 +339,23 @@ behind a feature gate. Raw notification tokens stay inside one private
 Cloudflare Durable Object per FID, never in React, browser storage, logs, URLs,
 public state, or SpacetimeDB.
 
-Before Hermes requests administrator authority or mutates admission, it calls a
-separate-secret operator endpoint for the exact pending access-request
-timestamp. The Durable Object proves that request is still pending and that
-admission is not enabled immediately before sending. For an opted-in player,
-Hermes proceeds only after Farcaster reports the matching token in
-`successfulTokens`; without notification consent, it records the explicit
-`not-subscribed` result and may proceed. Provider acceptance proves handoff to
-Farcaster, not device display or that the player opened the alert.
+Hermes first inspects the exact pending access-request tuple, then disconnects
+its short-lived administrator session before calling the separate-secret
+notification endpoint. For an opted-in player, Farcaster provider acceptance
+creates an `awaiting-client` intent; it does not admit the player. The alert
+opens an unguessable fragment capability, which is scrubbed from the URL before
+rendering and acknowledged only after fresh same-FID Quick Auth. Hermes waits
+for `client-acknowledged`, mints a new five-minute administrator session, and
+re-reads the unchanged request tuple before invoking a request-CAS reducer.
+`queued`, `not-subscribed`, `delivery-exhausted`, a legacy receipt, expiry,
+identity mismatch, or a changed request all fail closed without admission.
+Provider acceptance alone proves only handoff to Farcaster, not display or an
+authenticated player open.
+
+The request-CAS reducers enforce admission kind and the exact request
+cycle/timestamp. The reviewed Hermes workflow supplies the notification-open
+gate; the general administrator role remains intentionally capable of other
+privileged maintenance and is not cryptographically restricted by this flow.
 
 Queue-before-webhook races are retained without a token for at most 24 hours,
 signed opt-outs erase token material immediately, invalid tokens are purged,
@@ -360,9 +369,10 @@ The reviewed payloads are:
 
 ```txt
 normal admission:
-notificationId: warpkeep-access-approved-v2-r<pending-request-timestamp>
+notificationId: warpkeep-access-grant-v3-i<random-intent-id>
 title: Admission approved
-body: The Hegemony is finalizing your Realm access. Your keep will open shortly.
+body: Tap to finalize your Realm access. Your keep awaits in Genesis 001.
+targetUrl: https://warpkeep.com/?miniApp=true#warpkeep-grant-v1=<one-use-ticket>
 
 already-live reconciliation:
 notificationId: warpkeep-access-approved-v1-e<positive-auth-epoch>
@@ -375,14 +385,17 @@ The titles and bodies are within Farcaster's bounds, contain no identity or
 private state, and accurately describe their generation. Copy changes require
 a reviewed Worker rollout.
 
-For a notification launch, the browser retains only
-`location.type === "notification"` and a notification ID matching either
-`warpkeep-access-approved-v2-r<positiveInteger>` or the rollback-compatible
-`warpkeep-access-approved-v1-e<positiveInteger>` within the 128-character
-limit. Host title and body are discarded. Warpkeep then shows a short
-confirmation state and runs normal Quick Auth, current admission, Terms, and
-canonical-keep checks. A pending or changed account stays pending; the
-notification itself never grants access or creates another keep.
+For a normal admission launch, the browser captures only the exact
+`warpkeep-grant-v1` fragment ticket, removes it from visible history immediately,
+and keeps it in one module-local call stack. It never enters React state,
+storage, analytics, logs, or a network request other than the authenticated
+grant endpoint. The bridge re-verifies the signed FID and current request; the
+Durable Object accepts an exact one-use ticket only after provider acceptance.
+The frontend then polls admission at a bounded cadence while Hermes performs
+the fresh request-CAS mutation. A stale or changed account remains pending, and
+the notification itself cannot create a keep, bypass Terms, or grant gameplay
+authority. Legacy admitted-epoch notifications retain their existing entry
+behavior but cannot authorize the new pending-request flow.
 
 **CHECK ADMISSION** is a typed, read-only presentation around credentialed
 `/v2/session/refresh`, not a new Farcaster channel or access-request mutation.

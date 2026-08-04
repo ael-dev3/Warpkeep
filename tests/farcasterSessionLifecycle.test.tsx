@@ -7,6 +7,10 @@ import {
   useFarcasterAuth,
   type FarcasterAuthProviderProps
 } from '../src/farcaster/FarcasterAuthProvider';
+import {
+  FarcasterAuthProviderCore,
+  type FarcasterQuickAuthTokenLoader
+} from '../src/farcaster/FarcasterAuthProviderCore';
 import { FARCASTER_AUTH_REQUEST_TTL_MS } from '../src/farcaster/farcasterAuthContext';
 import { FarcasterOidcBridgeClientError } from '../src/farcaster/farcasterOidcBridgeClient';
 import {
@@ -211,6 +215,10 @@ function createBridge(
     })),
     logoutSession: vi.fn(async () => undefined),
     ...overrides,
+    acknowledgeAdmissionGrant: overrides.acknowledgeAdmissionGrant ?? vi.fn(async () => ({
+      version: 1 as const,
+      status: 'stale' as const
+    })),
     issuer: overrides.issuer ?? 'https://auth.warpkeep.example',
     audience: overrides.audience ?? 'warpkeep-spacetimedb'
   };
@@ -281,6 +289,9 @@ function AuthHarness({ duplicateBegin = false }: { duplicateBegin?: boolean }) {
       <output data-testid="auth-state">{JSON.stringify(auth.state)}</output>
       <output data-testid="admission-check-state">
         {JSON.stringify(auth.admissionCheck)}
+      </output>
+      <output data-testid="admission-grant-state">
+        {JSON.stringify(auth.admissionGrantAcknowledgement)}
       </output>
       <button
         onClick={() => {
@@ -394,6 +405,92 @@ afterEach(() => {
 });
 
 describe('FarcasterAuthProvider session lifecycle', () => {
+  it('finalizes a notification admission on a bounded non-forced Quick Auth cadence', async () => {
+    const startedAt = 1_000_000;
+    vi.useFakeTimers({ now: startedAt });
+    const exchangeTimes: number[] = [];
+    const bridge = createBridge({
+      exchangeQuickAuth: vi.fn(async () => {
+        exchangeTimes.push(Date.now());
+        if (Date.now() - startedAt < 45_000) {
+          return {
+            version: 2 as const,
+            status: 'pending-admission' as const,
+            identity: { fid: 12_345 }
+          };
+        }
+        const {
+          sessionExpiresAt: _sessionExpiresAt,
+          ...authorized
+        } = createAuthorizedResponse(12_345, Date.now());
+        return authorized;
+      }),
+      acknowledgeAdmissionGrant: vi.fn(async () => ({
+        version: 1 as const,
+        status: 'accepted' as const
+      }))
+    });
+    const loadQuickAuthToken = vi.fn<FarcasterQuickAuthTokenLoader>(async () => ({
+      status: 'token' as const,
+      token: 'header.payload.signature'
+    }));
+
+    render(
+      <FarcasterAuthProviderCore
+        admissionGrantAvailable
+        createBrowserBinding={vi.fn(async () => ({
+          verifier: BINDING_VERIFIER,
+          challenge: BINDING_CHALLENGE,
+          method: 'S256' as const
+        }))}
+        encodeQrCode={vi.fn(async () => 'data:image/svg+xml,unused')}
+        loadAuthority={vi.fn(async () => createAuthority())}
+        loadBridgeClient={vi.fn(async () => bridge)}
+        loadQuickAuthToken={loadQuickAuthToken}
+        normalizeAuthError={() => ({ code: 'unknown', message: 'Synthetic test failure.' })}
+        now={Date.now}
+        onAdmissionGrantCapabilityConsumed={vi.fn()}
+        readAdmissionGrantTicket={() => 'G'.repeat(43)}
+        resolveAuthContext={() => ({
+          domain: 'example.com',
+          siweUri: 'https://example.com/Warpkeep/'
+        })}
+      >
+        <AuthHarness />
+      </FarcasterAuthProviderCore>
+    );
+    await settleAsyncWork();
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    await settleAsyncWork();
+
+    expect(readPublicState()).toMatchObject({ phase: 'pending-admission' });
+    expect(JSON.parse(
+      screen.getByTestId('admission-grant-state').textContent ?? '{}'
+    )).toMatchObject({ phase: 'finalizing' });
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(48_000); });
+    await settleAsyncWork();
+
+    expect(readPublicState().phase).toBe('authenticated');
+    expect(exchangeTimes.map(time => time - startedAt)).toEqual([
+      0,
+      0,
+      0,
+      2_000,
+      7_000,
+      17_000,
+      47_000
+    ]);
+    expect(loadQuickAuthToken.mock.calls.every(
+      ([options]) => options?.force !== true
+    )).toBe(true);
+    for (const windowStart of exchangeTimes) {
+      expect(exchangeTimes.filter(time => (
+        time >= windowStart && time < windowStart + 5 * 60_000
+      )).length).toBeLessThan(20);
+    }
+  });
+
   it('fails closed before creating a Farcaster channel when no bridge is configured', async () => {
     const authority = createAuthority({
       beginSignIn: vi.fn(async () => createChannel('MUST_NOT_OPEN'))

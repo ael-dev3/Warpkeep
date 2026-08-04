@@ -16,12 +16,16 @@ import {
   listAccessRequests,
   parseHermesArguments,
   privacySafeHermesErrorMessage,
+  projectAccessRequestAdmissionStatus,
   projectAccessRequestListPage,
   projectAccessRequestResetStatus,
   projectWorkerSystemStatusV12,
   readNotificationOperatorSecret,
   readStatus,
+  reconnectAfterAdmissionNotification,
   requestAdmissionNotification,
+  requirePendingAdmissionRequest,
+  requireUnchangedPendingAdmissionRequest,
   requireNotificationBeforeAdmission,
   requestAdminToken,
   requireAccessRequestInspectionProductionTarget,
@@ -37,6 +41,7 @@ import {
   verifyExpectedResourceAggregateV4,
   verifyFounderAdmissionPostconditionV3,
   verifyFounderAdmissionPreconditionV3,
+  verifyFounderAdmissionRequestPostcondition,
   verifyFounderAdmissionResourcePostconditionV4,
   verifyFounderAdmissionResourcePreconditionV4,
   verifyFounderReenablePostcondition,
@@ -649,7 +654,7 @@ describe('Hermes machine-readable output', () => {
     }, before)).toThrow(/unrelated persistent aggregate state/i);
   });
 
-  it('binds an existing founder re-enable to one pending request and exact post-state', () => {
+  it('binds notification-gated founder re-enable to one request tuple and exact post-state', () => {
     const worldBefore = foundedGenerationV3Status({ enabledAllowedFids: 2n });
     const resources = {
       allowedFids: 3n,
@@ -662,7 +667,7 @@ describe('Hermes machine-readable output', () => {
       protocolVersion: 3,
       resourcePolicyVersion: GENESIS_RESOURCE_POLICY_VERSION,
     };
-    const targetBefore = projectAccessRequestResetStatus({
+    const targetBefore = projectAccessRequestAdmissionStatus({
       admissionState: 'disabled',
       authEpoch: 3,
       requestState: 'pending',
@@ -680,7 +685,7 @@ describe('Hermes machine-readable output', () => {
       { ...targetBefore, requestState: 'resolved' },
     )).toThrow(/exact pending access request/i);
 
-    const targetAfter = projectAccessRequestResetStatus({
+    const targetAfter = projectAccessRequestAdmissionStatus({
       admissionState: 'enabled',
       authEpoch: 4,
       requestState: 'resolved',
@@ -707,6 +712,107 @@ describe('Hermes machine-readable output', () => {
       targetAfter,
       before,
     )).toThrow(/resource/i);
+  });
+
+  it('accepts the full u32 epoch boundary but refuses a disabled exhausted re-enable', () => {
+    const worldBefore = foundedGenerationV3Status({ enabledAllowedFids: 2n });
+    const resources = {
+      allowedFids: 3n,
+      castles: 3n,
+      markAccounts: 3n,
+      resourceAccounts: 3n,
+      missingResourceAccounts: 0n,
+      orphanedResourceAccounts: 0n,
+      resourceInvariantViolations: 0n,
+      protocolVersion: 3,
+      resourcePolicyVersion: GENESIS_RESOURCE_POLICY_VERSION,
+    };
+    const exhausted = projectAccessRequestAdmissionStatus({
+      admissionState: 'disabled',
+      authEpoch: 0xffff_ffff,
+      requestState: 'pending',
+      requestCycle: 0x1_0000_0000n,
+      requestedAtMicros: 1_800_000_000_000_000n,
+    });
+    expect(exhausted.authEpoch).toBe(0xffff_ffff);
+    expect(() => verifyFounderReenablePrecondition(
+      worldBefore,
+      resources,
+      exhausted,
+    )).toThrow(/exhausted auth epoch/i);
+
+    const beforeTarget = projectAccessRequestAdmissionStatus({
+      ...exhausted,
+      authEpoch: 0xffff_fffe,
+      requestCycle: 0xffff_ffffn,
+    });
+    const before = verifyFounderReenablePrecondition(
+      worldBefore,
+      resources,
+      beforeTarget,
+    );
+    const afterTarget = projectAccessRequestAdmissionStatus({
+      ...beforeTarget,
+      admissionState: 'enabled',
+      authEpoch: 0xffff_ffff,
+      requestState: 'resolved',
+    });
+    expect(() => verifyFounderReenablePostcondition(
+      {
+        ...worldBefore,
+        enabledAllowedFids: 3n,
+        auditEntries: worldBefore.auditEntries + 1n,
+      },
+      resources,
+      afterTarget,
+      before,
+    )).not.toThrow();
+  });
+
+  it('projects and compares only an exact pending admission-request kind and tuple', () => {
+    const before = requirePendingAdmissionRequest(
+      projectAccessRequestAdmissionStatus({
+        admissionState: 'missing',
+        authEpoch: 0,
+        requestState: 'pending',
+        requestCycle: 0n,
+        requestedAtMicros: 1_800_000_000_000_000n,
+      }),
+      'missing',
+    );
+    expect(requireUnchangedPendingAdmissionRequest(before, { ...before }, 'missing'))
+      .toEqual(before);
+    expect(() => requireUnchangedPendingAdmissionRequest(
+      before,
+      { ...before, requestedAtMicros: before.requestedAtMicros + 1n },
+      'missing',
+    )).toThrow(/exact pending access request changed/i);
+    expect(() => requireUnchangedPendingAdmissionRequest(
+      before,
+      {
+        ...before,
+        admissionState: 'disabled',
+        authEpoch: 1,
+        requestCycle: 2n,
+      },
+      'missing',
+    )).toThrow(/expected kind/i);
+    expect(() => projectAccessRequestAdmissionStatus({
+      ...before,
+      requestState: 'resolved',
+      requestCycle: 1n,
+    })).toThrow(/impossible future request cycle/i);
+
+    expect(() => verifyFounderAdmissionRequestPostcondition(
+      projectAccessRequestAdmissionStatus({
+        admissionState: 'enabled',
+        authEpoch: 1,
+        requestState: 'resolved',
+        requestCycle: 0n,
+        requestedAtMicros: before.requestedAtMicros,
+      }),
+      before,
+    )).not.toThrow();
   });
 });
 
@@ -1287,7 +1393,7 @@ describe('Hermes atomic profiled admission boundary', () => {
     expect(JSON.stringify(summary)).not.toContain(fid.toString());
   });
 
-  it('binds confirmed admission to one reviewed plan without a profile refetch', () => {
+  it('binds confirmed admission to a fresh post-ack request CAS without a profile refetch', () => {
     const source = readFileSync(resolve(repositoryRoot, 'scripts/hermes-admin.ts'), 'utf8');
     const mainSource = source.slice(source.indexOf('async function main()'));
     const resolveForPlan = mainSource.indexOf(
@@ -1296,20 +1402,50 @@ describe('Hermes atomic profiled admission boundary', () => {
     const writePlan = mainSource.indexOf('writeReviewedFounderAdmissionPlan({ plan })');
     const readPlan = mainSource.indexOf('readReviewedFounderAdmissionPlan({');
     const readCredential = mainSource.indexOf('readAdminSecret(');
-    const verifyV3Checkpoint = mainSource.indexOf('verifyFounderAdmissionPreconditionV3(');
-    const verifyV4Checkpoint = mainSource.indexOf('verifyFounderAdmissionResourcePreconditionV4(');
-    const requireNotification = mainSource.indexOf('await requireNotificationBeforeAdmission(');
-    const claimPlan = mainSource.indexOf('claimReviewedFounderAdmissionPlan({');
-    const submitAdmission = mainSource.indexOf('connection.reducers.adminAdmitFounderV1(');
+    const branch = mainSource.slice(
+      mainSource.indexOf("command === 'admit-founder'", readCredential),
+      mainSource.indexOf("command === 'allow-fid'", readCredential),
+    );
+    const initialTarget = branch.indexOf('adminGetAccessRequestAdmissionStatusV1({ fid })');
+    const initialV3 = branch.indexOf('verifyFounderAdmissionPreconditionV3(');
+    const initialV4 = branch.indexOf('verifyFounderAdmissionResourcePreconditionV4(');
+    const reconnect = branch.indexOf('await reconnectAfterAdmissionNotification({');
+    const freshTarget = branch.indexOf(
+      'adminGetAccessRequestAdmissionStatusV1({ fid })',
+      initialTarget + 1,
+    );
+    const unchanged = branch.indexOf('requireUnchangedPendingAdmissionRequest(');
+    const freshV3 = branch.indexOf('verifyFounderAdmissionPreconditionV3(', initialV3 + 1);
+    const freshV4 = branch.indexOf(
+      'verifyFounderAdmissionResourcePreconditionV4(',
+      initialV4 + 1,
+    );
+    const claimPlan = branch.indexOf('claimReviewedFounderAdmissionPlan({');
+    const submitAdmission = branch.indexOf(
+      'connection.reducers.adminAdmitFounderForAccessRequestV2(',
+    );
+    const resolvedPostcondition = branch.indexOf(
+      'verifyFounderAdmissionRequestPostcondition(',
+    );
     expect(resolveForPlan).toBeGreaterThan(-1);
     expect(writePlan).toBeGreaterThan(resolveForPlan);
     expect(readPlan).toBeGreaterThan(writePlan);
     expect(readCredential).toBeGreaterThan(readPlan);
-    expect(verifyV3Checkpoint).toBeGreaterThan(readCredential);
-    expect(verifyV4Checkpoint).toBeGreaterThan(verifyV3Checkpoint);
-    expect(requireNotification).toBeGreaterThan(verifyV4Checkpoint);
-    expect(claimPlan).toBeGreaterThan(requireNotification);
+    expect(initialTarget).toBeGreaterThan(-1);
+    expect(initialV3).toBeGreaterThan(initialTarget);
+    expect(initialV4).toBeGreaterThan(initialV3);
+    expect(reconnect).toBeGreaterThan(initialV4);
+    expect(unchanged).toBeGreaterThan(reconnect);
+    expect(freshTarget).toBeGreaterThan(reconnect);
+    expect(freshV3).toBeGreaterThan(freshTarget);
+    expect(freshV4).toBeGreaterThan(freshV3);
+    expect(claimPlan).toBeGreaterThan(freshV4);
     expect(submitAdmission).toBeGreaterThan(claimPlan);
+    expect(submitAdmission).toBeGreaterThan(freshV4);
+    expect(resolvedPostcondition).toBeGreaterThan(submitAdmission);
+    expect(branch).not.toContain('adminAdmitFounderV1');
+    expect(branch).not.toContain('adminGetFidAuthEpoch');
+    expect(branch).not.toContain('requireNotificationBeforeAdmission(');
     expect(mainSource).not.toContain('resolveAdmissionReadyFounderProfile(fid)');
 
     const packageManifest = JSON.parse(
@@ -1319,6 +1455,45 @@ describe('Hermes atomic profiled admission boundary', () => {
       .toBe('tsx scripts/hermes-admin.ts admit-founder');
     expect(packageManifest.scripts['stdb:notify-admitted'])
       .toBe('tsx scripts/hermes-admin.ts notify-admitted');
+  });
+
+  it('uses the same disconnect, fresh-state, request-CAS order for founder re-enable', () => {
+    const source = readFileSync(resolve(repositoryRoot, 'scripts/hermes-admin.ts'), 'utf8');
+    const mainSource = source.slice(source.indexOf('async function main()'));
+    const branch = mainSource.slice(
+      mainSource.indexOf("command === 'allow-fid' && fid !== undefined"),
+      mainSource.indexOf("command === 'disable-fid' && fid !== undefined"),
+    );
+    const initialTarget = branch.indexOf('adminGetAccessRequestAdmissionStatusV1({ fid })');
+    const initialPreflight = branch.indexOf('verifyFounderReenablePrecondition(');
+    const reconnect = branch.indexOf('await reconnectAfterAdmissionNotification({');
+    const freshTarget = branch.indexOf(
+      'adminGetAccessRequestAdmissionStatusV1({ fid })',
+      initialTarget + 1,
+    );
+    const unchanged = branch.indexOf('requireUnchangedPendingAdmissionRequest(');
+    const freshPreflight = branch.indexOf(
+      'verifyFounderReenablePrecondition(',
+      initialPreflight + 1,
+    );
+    const submit = branch.indexOf(
+      'connection.reducers.adminAllowFidForAccessRequestV1(',
+    );
+    const resolvedTarget = branch.indexOf(
+      'adminGetAccessRequestAdmissionStatusV1({ fid })',
+      freshTarget + 1,
+    );
+    expect(initialTarget).toBeGreaterThan(-1);
+    expect(initialPreflight).toBeGreaterThan(initialTarget);
+    expect(reconnect).toBeGreaterThan(initialPreflight);
+    expect(unchanged).toBeGreaterThan(reconnect);
+    expect(freshTarget).toBeGreaterThan(reconnect);
+    expect(freshPreflight).toBeGreaterThan(freshTarget);
+    expect(submit).toBeGreaterThan(freshPreflight);
+    expect(resolvedTarget).toBeGreaterThan(submit);
+    expect(branch).not.toContain('adminAllowFid({');
+    expect(branch).not.toContain('adminGetAccessRequestResetStatusV1');
+    expect(branch).not.toContain('requireNotificationBeforeAdmission(');
   });
 
   it('does not accept a founder identity or note in argv', () => {
@@ -1624,7 +1799,7 @@ describe('Hermes credential destination policy', () => {
     )).rejects.toThrow(/rejected the request/i);
   });
 
-  it('waits for provider acceptance before allowing an opted-in admission mutation', async () => {
+  it('waits for provider acceptance and an authenticated notification open', async () => {
     const sleep = vi.fn(async () => undefined);
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     let requestCount = 0;
@@ -1635,7 +1810,9 @@ describe('Hermes credential destination policy', () => {
       requestCount += 1;
       return requestCount === 1
         ? Response.json({ status: 'queued' }, { status: 202 })
-        : Response.json({ status: 'already-sent' });
+        : requestCount === 2
+          ? Response.json({ status: 'awaiting-client' })
+          : Response.json({ status: 'client-acknowledged' });
     });
 
     await expect(requireNotificationBeforeAdmission(
@@ -1644,19 +1821,20 @@ describe('Hermes credential destination policy', () => {
       NOTIFICATION_SECRET,
       fetchImpl,
       sleep,
-    )).resolves.toBe('already-sent');
+    )).resolves.toBe('client-acknowledged');
 
     expect(sleep).toHaveBeenCalledWith(35_000);
-    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(sleep).toHaveBeenCalledWith(5_000);
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
     expect(log).toHaveBeenCalledWith(JSON.stringify({
-      admissionNotification: 'already-sent',
-      providerAcceptanceRequired: true,
+      admissionNotification: 'client-acknowledged',
       providerAcceptedBeforeAdmission: true,
+      authenticatedNotificationOpenBeforeAdmission: true,
     }));
     log.mockRestore();
   });
 
-  it('permits an explicit no-consent receipt but blocks queued or exhausted delivery', async () => {
+  it('fails closed for no consent, legacy receipts, or exhausted delivery', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     const notSubscribed = vi.fn<typeof fetch>(async () => Response.json({
       status: 'not-subscribed',
@@ -1667,12 +1845,18 @@ describe('Hermes credential destination policy', () => {
       NOTIFICATION_SECRET,
       notSubscribed,
       vi.fn(async () => undefined),
-    )).resolves.toBe('not-subscribed');
-    expect(log).toHaveBeenCalledWith(JSON.stringify({
-      admissionNotification: 'not-subscribed',
-      providerAcceptanceRequired: false,
-      providerAcceptedBeforeAdmission: false,
+    )).rejects.toThrow(/notifications are not enabled/i);
+
+    const legacyReceipt = vi.fn<typeof fetch>(async () => Response.json({
+      status: 'already-sent',
     }));
+    await expect(requireNotificationBeforeAdmission(
+      'https://auth.warpkeep.com',
+      12_345n,
+      NOTIFICATION_SECRET,
+      legacyReceipt,
+      vi.fn(async () => undefined),
+    )).rejects.toThrow(/legacy notification receipt/i);
 
     const exhausted = vi.fn<typeof fetch>(async () => Response.json({
       status: 'delivery-exhausted',
@@ -1754,5 +1938,97 @@ describe('Hermes credential destination policy', () => {
     await vi.advanceTimersByTimeAsync(30_000);
     await rejection;
     expect(disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('retains no live admin connection and mints no JWT during a wait beyond five minutes', async () => {
+    vi.useFakeTimers();
+    const events: string[] = [];
+    const disconnect = vi.fn(() => events.push('initial-disconnected'));
+    const initialConnection = {
+      get isDisconnectRequested() { return disconnect.mock.calls.length > 0; },
+      disconnect,
+    };
+    const waitForNotification = vi.fn(async () => {
+      events.push('wait-started');
+      await new Promise(resolve => setTimeout(resolve, 305_001));
+      events.push('client-acknowledged');
+      return 'client-acknowledged' as const;
+    });
+    const requestToken = vi.fn(async () => {
+      events.push('token-minted');
+      return 'fresh.header.signature';
+    });
+    const freshConnection = { disconnect: vi.fn(), isDisconnectRequested: false };
+    const connectToDatabase = vi.fn(async () => {
+      events.push('fresh-connected');
+      return freshConnection as never;
+    });
+
+    const reconnect = reconnectAfterAdmissionNotification({
+      connection: initialConnection as never,
+      bridgeUrl: 'https://auth.warpkeep.com',
+      fid: 12_345n,
+      notificationOperatorSecret: NOTIFICATION_SECRET,
+      adminSecret: TEST_SECRET,
+      uri: 'https://maincloud.spacetimedb.com',
+      database: 'warpkeep-89e4u',
+    }, {
+      waitForNotification: waitForNotification as never,
+      requestToken: requestToken as never,
+      connectToDatabase: connectToDatabase as never,
+    });
+
+    expect(disconnect).toHaveBeenCalledOnce();
+    expect(requestToken).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(300_000);
+    expect(requestToken).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(5_001);
+    await expect(reconnect).resolves.toBe(freshConnection);
+    expect(events).toEqual([
+      'initial-disconnected',
+      'wait-started',
+      'client-acknowledged',
+      'token-minted',
+      'fresh-connected',
+    ]);
+  });
+
+  it('leaves the initial connection closed and creates no authority when notification wait fails', async () => {
+    const disconnect = vi.fn();
+    const initialConnection = {
+      get isDisconnectRequested() { return disconnect.mock.calls.length > 0; },
+      disconnect,
+    };
+    const requestToken = vi.fn(async () => 'must-not-be-minted');
+    const connectToDatabase = vi.fn();
+    await expect(reconnectAfterAdmissionNotification({
+      connection: initialConnection as never,
+      bridgeUrl: 'https://auth.warpkeep.com',
+      fid: 12_345n,
+      notificationOperatorSecret: NOTIFICATION_SECRET,
+      adminSecret: TEST_SECRET,
+      uri: 'https://maincloud.spacetimedb.com',
+      database: 'warpkeep-89e4u',
+    }, {
+      waitForNotification: vi.fn(async () => {
+        throw new Error('test notification failure');
+      }) as never,
+      requestToken: requestToken as never,
+      connectToDatabase: connectToDatabase as never,
+    })).rejects.toThrow('test notification failure');
+    expect(disconnect).toHaveBeenCalledOnce();
+    expect(requestToken).not.toHaveBeenCalled();
+    expect(connectToDatabase).not.toHaveBeenCalled();
+  });
+
+  it('clears the initial JWT before either notification-gated command can wait', () => {
+    const source = readFileSync(resolve(repositoryRoot, 'scripts/hermes-admin.ts'), 'utf8');
+    const mainSource = source.slice(source.indexOf('async function main()'));
+    const initialConnect = mainSource.indexOf('connection = await connect(uri, database, token)');
+    const clearToken = mainSource.indexOf("token = '';", initialConnect);
+    const firstReconnect = mainSource.indexOf('await reconnectAfterAdmissionNotification({');
+    expect(initialConnect).toBeGreaterThan(-1);
+    expect(clearToken).toBeGreaterThan(initialConnect);
+    expect(firstReconnect).toBeGreaterThan(clearToken);
   });
 });

@@ -85,7 +85,11 @@ function bridge(overrides: Partial<FarcasterOidcBridgeClient> = {}): FarcasterOi
       status: 'requested' as const,
       requestedAt: REQUESTED_AT
     })),
-    ...overrides
+    ...overrides,
+    acknowledgeAdmissionGrant: overrides.acknowledgeAdmissionGrant ?? vi.fn(async () => ({
+      version: 1 as const,
+      status: 'stale' as const
+    }))
   };
 }
 
@@ -102,6 +106,7 @@ type HarnessProps = Readonly<{
   onAuthenticationIdentityChanged?: () => void;
   bridgeLoaderVersion?: number;
   captureRequestAccess?: (callback: () => boolean) => void;
+  captureRetryStatus?: (callback: () => void) => void;
   extra?: ReactNode;
 }>;
 
@@ -116,6 +121,7 @@ function Harness({
   onAuthenticationIdentityChanged,
   bridgeLoaderVersion = 0,
   captureRequestAccess,
+  captureRetryStatus,
   extra
 }: HarnessProps) {
   // The version is intentionally captured so tests can churn loader identity.
@@ -135,6 +141,7 @@ function Harness({
     onAuthenticationIdentityChanged
   });
   captureRequestAccess?.(access.requestAccess);
+  captureRetryStatus?.(access.retryStatus);
   return (
     <div>
       <output data-testid="access-phase">{access.state.phase}</output>
@@ -354,6 +361,46 @@ describe('professional access-request lifecycle', () => {
     expect(requestAccess).not.toHaveBeenCalled();
     expect(observedKinds).toEqual([]);
     unsubscribe();
+  });
+
+  it('reopens exactly once after a deliberate status recheck proves an owner reset', async () => {
+    const getAccessRequestStatus = vi.fn()
+      .mockResolvedValueOnce({ version: 1, status: 'not-requested' })
+      .mockResolvedValueOnce({ version: 1, status: 'not-requested' });
+    const requestAccess = vi.fn()
+      .mockResolvedValueOnce({
+        version: 1 as const,
+        status: 'requested' as const,
+        requestedAt: REQUESTED_AT
+      })
+      .mockResolvedValueOnce({
+        version: 1 as const,
+        status: 'requested' as const,
+        requestedAt: REQUESTED_AT + 1_000
+      });
+    let recheckStatus = () => {};
+    render(
+      <Harness
+        authState={pending(12_345)}
+        captureRetryStatus={(callback) => { recheckStatus = callback; }}
+        client={bridge({ getAccessRequestStatus, requestAccess })}
+        generation={1}
+      />
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'REQUEST ACCESS' }));
+    await waitFor(() => expect(screen.getByTestId('access-phase').textContent)
+      .toBe('request-received'));
+    expect(requestAccess).toHaveBeenCalledTimes(1);
+
+    act(() => recheckStatus());
+    await waitFor(() => expect(screen.getByTestId('access-phase').textContent)
+      .toBe('request-available'));
+    fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
+    await waitFor(() => expect(screen.getByTestId('access-timestamp').textContent)
+      .toBe(String(REQUESTED_AT + 1_000)));
+    expect(getAccessRequestStatus).toHaveBeenCalledTimes(2);
+    expect(requestAccess).toHaveBeenCalledTimes(2);
   });
 
   it('reconciles one lost mutation response with one authoritative confirmation cue', async () => {

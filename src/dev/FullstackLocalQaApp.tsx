@@ -782,6 +782,12 @@ function createLocalBridge(
         status: 'already-admitted' as const
       });
     },
+    async acknowledgeAdmissionGrant() {
+      return Object.freeze({
+        version: 1 as const,
+        status: 'already-admitted' as const
+      });
+    },
     async logoutSession() {
       authorized = false;
     }

@@ -9,6 +9,7 @@ import {
 } from 'react';
 
 import type {
+  AdmissionGrantAcknowledgementViewState,
   AccessRequestViewState,
   FarcasterAdmissionCheckViewState,
   FarcasterAuthEntryStage,
@@ -50,6 +51,7 @@ export type FarcasterMiniAppEntryGateProps = Readonly<{
   backendState: WarpkeepBackendState;
   accessRequest?: AccessRequestViewState;
   admissionCheck?: FarcasterAdmissionCheckViewState;
+  admissionGrantAcknowledgement?: AdmissionGrantAcknowledgementViewState;
   onAcceptTerms: () => void;
   onBackToMenu: () => void;
   onCancelTermsAttempt: () => void;
@@ -359,6 +361,7 @@ export function FarcasterMiniAppEntryGate({
   backendState,
   accessRequest = IDLE_ACCESS_REQUEST,
   admissionCheck = IDLE_ADMISSION_CHECK,
+  admissionGrantAcknowledgement,
   recoveryReason,
   onAcceptTerms,
   onBackToMenu,
@@ -455,6 +458,7 @@ export function FarcasterMiniAppEntryGate({
       <FarcasterAdmissionPanel
         accessRequest={accessRequest}
         admissionCheck={admissionCheck}
+        admissionGrantAcknowledgement={admissionGrantAcknowledgement}
         approvalNotificationLaunch={approvalNotificationLaunch}
         identity={authState.identity}
         onBackToMenu={onBackToMenu}
@@ -470,6 +474,7 @@ export function FarcasterMiniAppEntryGate({
       <FarcasterAdmissionPanel
         accessRequest={accessRequest}
         admissionCheck={admissionCheck}
+        admissionGrantAcknowledgement={admissionGrantAcknowledgement}
         approvalNotificationLaunch={approvalNotificationLaunch}
         autoFocusHeading={!awaitingTerms}
         identity={identity}

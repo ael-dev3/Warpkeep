@@ -261,12 +261,14 @@ a SpacetimeDB schema change. Roll them out in this order:
    literal value `true` in a reviewed frontend release; it does not enable the
    Worker or grant admission.
 7. Give Hermes both isolated secrets through its private environment. For
-   `allow-fid` and confirmed `admit-founder`, Hermes must queue the exact pending
-   request generation before requesting an administrator token. If the player
-   opted in, require Farcaster provider acceptance before mutating admission;
-   `queued` or `delivery-exhausted` aborts unchanged. `not-subscribed` is an
-   explicit audited fallback for a player without consent. Keep
-   `notify-admitted` only for idempotent already-live reconciliation.
+   `allow-fid` and confirmed `admit-founder`, inspect the exact pending request
+   using a short administrator session, disconnect it, then queue the matching
+   notification. Require both Farcaster provider acceptance and an authenticated
+   same-FID client acknowledgement. Only then mint a fresh administrator token,
+   re-run the request and aggregate preconditions, and call the matching
+   request-CAS reducer. `queued`, `not-subscribed`, `delivery-exhausted`, legacy
+   receipts, expiry, or a changed request abort unchanged. Keep `notify-admitted`
+   only for idempotent already-live reconciliation.
 
 ### Owner canary and end-to-end acceptance
 
@@ -295,23 +297,23 @@ it.
    setup-requested state. The access request timestamp and state must not
    change.
 5. Confirm one new signed subscription pair through the same fixed events, then
-   admit the account through the existing reviewed Hermes dry-run, mutation,
-   and postflight sequence. Require the operator receipt to show provider
-   acceptance for the exact pending-request generation before the SpacetimeDB
-   mutation is submitted. Provider acceptance proves Farcaster handoff, not
-   device presentation or that the player opened the alert.
+   begin the reviewed Hermes admission. Require the operator to stop at
+   `awaiting-client`; provider acceptance proves only Farcaster handoff. Open the
+   exact alert in the same account and require `client-acknowledged` before a new
+   administrator token is minted or the request-CAS mutation is submitted.
 6. Require one approval notification for that request generation. Its target
-   must be exactly `https://warpkeep.com/?miniApp=true`. Tap it and verify the
-   calm confirmation state, fresh Quick Auth, current admission, current Terms
-   when required, and entry through the existing canonical keep. No
-   notification context may create a second keep or bypass Terms.
+   must be the exact production URL plus a `#warpkeep-grant-v1=` one-use
+   capability. Tap it and verify immediate fragment scrubbing, fresh Quick Auth,
+   the bounded finalization state, current Terms when required, and entry through
+   the existing canonical keep. No notification context may create a second keep
+   or bypass Terms.
 7. Disable notifications or remove Warpkeep again, require the fixed
    unsubscribe events, and confirm Realm access remains unchanged. Repeat the
    complete acceptance on current Farcaster iOS and Android before declaring
    the client rollout complete.
 
 The normal pending-request notification is `Admission approved` with
-`The Hegemony is finalizing your Realm access. Your keep will open shortly.` The older
+`Tap to finalize your Realm access. Your keep awaits in Genesis 001.` The older
 `The Hegemony admits you` payload remains only for already-live reconciliation.
 Both are bounded and privacy-safe. Any copy change requires a separate reviewed
 Worker rollout.

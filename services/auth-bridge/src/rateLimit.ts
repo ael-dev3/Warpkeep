@@ -21,7 +21,10 @@ const POLICIES: Readonly<Record<RateLimitAction, number>> = Object.freeze({
   // 120-user launch bottleneck; signature, app-key and per-FID replay checks
   // still run before any consent state is accepted.
   'miniapp-webhook': 2_000,
-  'admission-notification': 12,
+  // Protected operator polling waits for a verified notification open before
+  // committing admission. Five-second polling for one bounded ten-minute
+  // grant needs room inside the shared five-minute limiter window.
+  'admission-notification': 72,
   'admin-token': 6,
   'qa-challenge': 12,
   'qa-snapshot': 60,

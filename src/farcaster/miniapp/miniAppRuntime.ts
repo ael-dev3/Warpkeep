@@ -129,6 +129,9 @@ export type MiniAppSdkLoader = () => Promise<unknown>;
 
 export type MiniAppBrowserRuntime = Readonly<{
   search: () => string;
+  hash?: () => string;
+  replaceHash?: (hash: string) => void;
+  subscribeNavigationChange?: (listener: () => void) => () => void;
   isFramed?: () => boolean;
   viewport: () => Readonly<{ width: number; height: number }>;
   subscribeViewportChange?: (listener: () => void) => () => void;
@@ -159,7 +162,10 @@ const MAX_NOTIFICATION_ID_LENGTH = 128;
 const COMPACT_JWT_PATTERN =
   /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 const APPROVAL_NOTIFICATION_ID_PATTERN =
-  /^warpkeep-access-approved-(?:v1-e|v2-r)[1-9]\d*$/;
+  /^(?:warpkeep-access-approved-(?:v1-e|v2-r)[1-9]\d*|warpkeep-access-grant-v3-i[A-Za-z0-9_-]{22})$/;
+const ADMISSION_GRANT_FRAGMENT_PATTERN =
+  /^#warpkeep-grant-v1=([A-Za-z0-9_-]{43})$/;
+const ADMISSION_GRANT_TICKETS = new WeakMap<Document, string>();
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -257,6 +263,51 @@ function sanitizedApprovalNotificationId(
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Capture the one-use admission grant capability before hash routing can
+ * normalize the Mini App entry URL. The value remains process-memory-only;
+ * it is never copied into history state or browser storage.
+ */
+export function captureMiniAppAdmissionGrantTicket(
+  runtime: MiniAppBrowserRuntime,
+  currentLocationOnly = false
+): string | undefined {
+  let hash: string;
+  try {
+    hash = runtime.hash?.() ?? '';
+  } catch {
+    return currentLocationOnly
+      ? undefined
+      : ADMISSION_GRANT_TICKETS.get(runtime.document);
+  }
+  const match = ADMISSION_GRANT_FRAGMENT_PATTERN.exec(hash);
+  if (match) {
+    const ticket = match[1];
+    // A reused mobile WebView can receive a later notification without a new
+    // Document. A valid current fragment atomically supersedes retained state.
+    ADMISSION_GRANT_TICKETS.set(runtime.document, ticket);
+    try {
+      runtime.replaceHash?.('#menu');
+    } catch {
+      // The capability is already retained in private memory. Failure to tidy a
+      // presentation-only hash must not duplicate or discard it.
+    }
+    return ticket;
+  }
+  return currentLocationOnly
+    ? undefined
+    : ADMISSION_GRANT_TICKETS.get(runtime.document);
+}
+
+export function clearMiniAppAdmissionGrantTicket(
+  documentValue: Document,
+  expectedTicket: string
+): boolean {
+  if (ADMISSION_GRANT_TICKETS.get(documentValue) !== expectedTicket) return false;
+  ADMISSION_GRANT_TICKETS.delete(documentValue);
+  return true;
 }
 
 function finiteAxis(value: unknown): number {
@@ -582,9 +633,29 @@ function subscribeDefaultViewportChange(listener: () => void): () => void {
   };
 }
 
+function subscribeDefaultNavigationChange(listener: () => void): () => void {
+  window.addEventListener('hashchange', listener);
+  window.addEventListener('popstate', listener);
+  window.addEventListener('pageshow', listener);
+  return () => {
+    window.removeEventListener('hashchange', listener);
+    window.removeEventListener('popstate', listener);
+    window.removeEventListener('pageshow', listener);
+  };
+}
+
 export const DEFAULT_MINI_APP_BROWSER_RUNTIME: MiniAppBrowserRuntime =
   Object.freeze({
     search: () => window.location.search,
+    hash: () => window.location.hash,
+    replaceHash: (hash: string) => {
+      window.history.replaceState(
+        window.history.state,
+        '',
+        `${window.location.pathname}${window.location.search}${hash}`
+      );
+    },
+    subscribeNavigationChange: subscribeDefaultNavigationChange,
     isFramed: () => {
       try {
         return window.self !== window.top;

@@ -389,6 +389,11 @@ export type FarcasterAccessRequestOptions = FarcasterBridgeRequestOptions & Read
   expectedFid: number;
 }>;
 
+export type FarcasterAdmissionGrantOptions = FarcasterAccessRequestOptions & Readonly<{
+  /** Opaque one-use capability captured from the notification target fragment. */
+  ticket: string;
+}>;
+
 /**
  * Private per-request authentication for the access-request bridge routes.
  * Quick Auth material exists only in the controller call stack; presentation
@@ -404,6 +409,20 @@ export type AccessRequestStatus =
   | Readonly<{ version: 1; status: 'already-admitted' }>;
 
 export type AccessRequestStatusContext = 'initial' | 'post-submission';
+
+export type AdmissionGrantAcknowledgementStatus =
+  | Readonly<{ version: 1; status: 'accepted' }>
+  | Readonly<{ version: 1; status: 'not-ready' }>
+  | Readonly<{ version: 1; status: 'stale' }>
+  | Readonly<{ version: 1; status: 'already-admitted' }>;
+
+export type AdmissionGrantAcknowledgementViewState =
+  | Readonly<{ phase: 'idle' }>
+  | Readonly<{ phase: 'acknowledging' }>
+  | Readonly<{ phase: 'finalizing' }>
+  | Readonly<{ phase: 'confirmed-pending' }>
+  | Readonly<{ phase: 'stale' }>
+  | Readonly<{ phase: 'temporary-error' }>;
 
 /**
  * Bounded, monotonic state safe for React presentation. It cannot represent
@@ -469,6 +488,10 @@ export interface FarcasterOidcBridgeClient {
     authentication: AccessRequestAuthentication,
     options: FarcasterAccessRequestOptions
   ): Promise<AccessRequestStatus>;
+  acknowledgeAdmissionGrant(
+    authentication: AccessRequestAuthentication,
+    options: FarcasterAdmissionGrantOptions
+  ): Promise<AdmissionGrantAcknowledgementStatus>;
   logoutSession(options?: FarcasterBridgeRequestOptions): Promise<void>;
 }
 

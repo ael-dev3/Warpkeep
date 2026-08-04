@@ -1,6 +1,8 @@
 import {
+  type AdmissionGrantAcknowledgementStatus,
   type AccessRequestAuthentication,
   type AccessRequestStatus,
+  type FarcasterAdmissionGrantOptions,
   type FarcasterAccessRequestOptions,
   isBoundedFarcasterSignature,
   type FarcasterBridgeChallenge,
@@ -39,6 +41,7 @@ const NONCE_PATTERN = /^[A-Za-z0-9]{8,128}$/;
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._~-]{8,256}$/;
 const COMPACT_JWT_PATTERN =
   /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
+const ADMISSION_GRANT_TICKET_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 const RETRYABLE_EXCHANGE_ERROR_CODES = new Set([
   'challenge_unavailable',
   'binding_verification_unavailable',
@@ -446,6 +449,23 @@ function readAccessRequestStatus(value: unknown): AccessRequestStatus | undefine
     status: 'requested',
     requestedAt: value.requestedAt
   });
+}
+
+function readAdmissionGrantAcknowledgement(
+  value: unknown
+): AdmissionGrantAcknowledgementStatus | undefined {
+  if (
+    !isRecord(value)
+    || value.version !== 1
+    || !hasOnlyAllowedKeys(value, ['version', 'status'])
+    || (
+      value.status !== 'accepted'
+      && value.status !== 'not-ready'
+      && value.status !== 'stale'
+      && value.status !== 'already-admitted'
+    )
+  ) return undefined;
+  return Object.freeze({ version: 1, status: value.status });
 }
 
 function readSafeQuickAuthSessionResponse(
@@ -856,6 +876,7 @@ export function createFarcasterOidcBridgeClient(
   const logoutUrl = new URL('v2/session/logout', bridgeUrl);
   const accessStatusUrl = new URL('v2/access/status', bridgeUrl);
   const accessRequestUrl = new URL('v2/access/request', bridgeUrl);
+  const admissionGrantUrl = new URL('v2/access/admission-grant', bridgeUrl);
 
   return Object.freeze({
     issuer,
@@ -1061,6 +1082,34 @@ export function createFarcasterOidcBridgeClient(
         DEFINITIVE_ACCESS_REQUEST_NO_MUTATION_CODES
       );
       const status = readAccessRequestStatus(result);
+      if (!status) throw new FarcasterOidcBridgeClientError();
+      return status;
+    },
+
+    async acknowledgeAdmissionGrant(
+      authentication: AccessRequestAuthentication,
+      requestOptions: FarcasterAdmissionGrantOptions
+    ) {
+      const requestSecurity = readAccessRequestSecurity(
+        authentication,
+        requestOptions?.expectedFid
+      );
+      if (
+        !requestSecurity
+        || typeof requestOptions?.ticket !== 'string'
+        || !ADMISSION_GRANT_TICKET_PATTERN.test(requestOptions.ticket)
+      ) throw new FarcasterOidcBridgeClientError();
+      const result = await postJson(
+        fetchImplementation,
+        admissionGrantUrl,
+        { ticket: requestOptions.ticket },
+        requestOptions.signal,
+        BRIDGE_REQUEST_TIMEOUT_MS,
+        undefined,
+        requestSecurity,
+        ACCESS_STATUS_IDENTITY_CHANGED_RESPONSES
+      );
+      const status = readAdmissionGrantAcknowledgement(result);
       if (!status) throw new FarcasterOidcBridgeClientError();
       return status;
     },

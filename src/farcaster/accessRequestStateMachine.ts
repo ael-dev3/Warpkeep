@@ -9,6 +9,7 @@ export type AccessRequestStateEvent =
       type: 'status-load-started';
       context: AccessRequestStatusContext;
     }>
+  | Readonly<{ type: 'status-recheck-started' }>
   | Readonly<{
       type: 'status-available';
       context: AccessRequestStatusContext;
@@ -125,6 +126,12 @@ export function transitionAccessRequestState(
         : current;
     case 'request-received':
     case 'already-requested':
+      // A user-triggered admission check may discover that an owner reset the
+      // current application cycle. Only this explicit authoritative recheck
+      // can leave a confirmed presentation; stale status/error events cannot.
+      return event.type === 'status-recheck-started'
+        ? Object.freeze({ phase: 'loading-status', context: 'initial' })
+        : current;
     case 'already-admitted':
       return current;
   }

@@ -10,6 +10,8 @@ import {
 } from 'react';
 
 import {
+  captureMiniAppAdmissionGrantTicket,
+  clearMiniAppAdmissionGrantTicket,
   DEFAULT_MINI_APP_BROWSER_RUNTIME,
   defaultMiniAppSdkLoader,
   hasExactMiniAppHint,
@@ -106,6 +108,14 @@ export type MiniAppHostQuickAuth = Readonly<{
   getToken: (
     options?: FarcasterQuickAuthTokenOptions
   ) => Promise<FarcasterQuickAuthTokenResult>;
+}>;
+
+/** Private, memory-only capability delivered through a Farcaster notification. */
+export type MiniAppAdmissionGrant = Readonly<{
+  /** Reads the capability into one private effect call stack, never React state. */
+  read: () => string | undefined;
+  /** Clears only the exact capability that the effect actually exchanged. */
+  clear: (expectedTicket: string) => void;
 }>;
 
 export type MiniAppHostValue = Readonly<{
@@ -556,6 +566,9 @@ const MISSING_PROVIDER_VALUE: MiniAppHostValue = Object.freeze({
 const MiniAppHostContext = createContext<MiniAppHostValue>(
   MISSING_PROVIDER_VALUE
 );
+const MiniAppAdmissionGrantContext = createContext<
+  MiniAppAdmissionGrant | undefined
+>(undefined);
 
 export function MiniAppHostProvider({
   children,
@@ -573,6 +586,9 @@ export function MiniAppHostProvider({
     quickAuthDeadlineMilliseconds
   );
   const miniAppHinted = isMiniAppHinted(runtime);
+  const [hasAdmissionGrant, setHasAdmissionGrant] = useState(
+    () => miniAppHinted && captureMiniAppAdmissionGrantTicket(runtime) !== undefined
+  );
   let isFramed = false;
   try {
     isFramed = runtime.isFramed?.() === true;
@@ -583,6 +599,8 @@ export function MiniAppHostProvider({
   const [snapshot, setSnapshot] = useState<HostSnapshot>(
     miniAppHinted ? DETECTING_SNAPSHOT : REGULAR_WEB_SNAPSHOT
   );
+  const [admissionGrantConsumed, setAdmissionGrantConsumed] = useState(false);
+  const [admissionGrantRevision, setAdmissionGrantRevision] = useState(0);
   const snapshotRef = useRef(snapshot);
   snapshotRef.current = snapshot;
   const [attemptGeneration, setAttemptGeneration] = useState(0);
@@ -1399,6 +1417,35 @@ export function MiniAppHostProvider({
     return Object.freeze({ getToken });
   }, [quickAuthDeadline]);
 
+  useEffect(() => {
+    if (!miniAppHinted || !runtime.subscribeNavigationChange) return undefined;
+    const reconcileNavigation = () => {
+      if (captureMiniAppAdmissionGrantTicket(runtime, true) === undefined) return;
+      setHasAdmissionGrant(true);
+      setAdmissionGrantConsumed(false);
+      setAdmissionGrantRevision(revision => revision + 1);
+    };
+    const unsubscribe = runtime.subscribeNavigationChange(reconcileNavigation);
+    // A same-document launch may update the fragment between render-time
+    // capture and passive-effect subscription. Reconcile once after the
+    // listener is live so that narrow window cannot lose the capability.
+    reconcileNavigation();
+    return unsubscribe;
+  }, [miniAppHinted, runtime]);
+
+  const admissionGrant = useMemo<MiniAppAdmissionGrant | undefined>(() => {
+    void admissionGrantRevision;
+    if (!hasAdmissionGrant || admissionGrantConsumed) return undefined;
+    return Object.freeze({
+      read: () => captureMiniAppAdmissionGrantTicket(runtime),
+      clear: (expectedTicket: string) => {
+        if (clearMiniAppAdmissionGrantTicket(runtime.document, expectedTicket)) {
+          setAdmissionGrantConsumed(true);
+        }
+      }
+    });
+  }, [admissionGrantConsumed, admissionGrantRevision, hasAdmissionGrant, runtime]);
+
   const value = useMemo<MiniAppHostValue>(() => Object.freeze({
     state: snapshot.state,
     isMiniApp: snapshot.state === 'miniapp',
@@ -1425,14 +1472,21 @@ export function MiniAppHostProvider({
   ]);
 
   return (
-    <MiniAppHostContext.Provider value={value}>
-      {children}
-    </MiniAppHostContext.Provider>
+    <MiniAppAdmissionGrantContext.Provider value={admissionGrant}>
+      <MiniAppHostContext.Provider value={value}>
+        {children}
+      </MiniAppHostContext.Provider>
+    </MiniAppAdmissionGrantContext.Provider>
   );
 }
 
 export function useMiniAppHost(): MiniAppHostValue {
   return useContext(MiniAppHostContext);
+}
+
+/** Auth-only capability channel; intentionally absent from the broad host API. */
+export function useMiniAppAdmissionGrant(): MiniAppAdmissionGrant | undefined {
+  return useContext(MiniAppAdmissionGrantContext);
 }
 
 export function useMiniAppBackNavigation(

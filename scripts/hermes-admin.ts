@@ -117,6 +117,8 @@ const MAX_ADMIN_TOKEN_RESPONSE_BYTES = 32 * 1_024;
 const ADMISSION_NOTIFICATION_PATH = 'v1/admin/admission-notification';
 const ADMISSION_NOTIFICATION_STATUS_PATH = 'v1/admin/admission-notification-status';
 const ADMISSION_NOTIFICATION_SETTLEMENT_WAIT_MILLISECONDS = 35_000;
+const ADMISSION_GRANT_ACK_POLL_MILLISECONDS = 5_000;
+const ADMISSION_GRANT_ACK_MAX_POLLS = 120;
 const ADMIN_TOKEN_CLOCK_SAFETY_MILLISECONDS = 20_000;
 const MAX_RESOURCE_BACKFILL_FOUNDERS = 100n;
 const GENESIS_GENERATION_V2_WORLD_CELLS = 1_261n;
@@ -217,7 +219,8 @@ export const FOUNDER_ADMISSION_TARGET_CONFIGURATION_DIGEST = createHash('sha256'
     databaseName: LEGACY_DATABASE_ALIAS,
     databaseIdentity: DEFAULT_DATABASE_IDENTITY,
     bridgeUrl: DEFAULT_BRIDGE,
-    reducer: 'admin_admit_founder_v1',
+    statusProcedure: 'admin_get_access_request_admission_status_v1',
+    reducer: 'admin_admit_founder_for_access_request_v2',
   }), 'utf8')
   .digest('hex');
 export const ACCESS_REQUEST_RESET_TARGET_CONFIGURATION_DIGEST = createHash('sha256')
@@ -726,6 +729,24 @@ type AccessRequestResetStatus = Readonly<{
   requestedAtMicros: bigint | undefined;
 }>;
 
+type AccessRequestAdmissionStatus = Readonly<{
+  admissionState: 'missing' | 'enabled' | 'disabled';
+  authEpoch: number;
+  requestState: 'not_requested' | 'pending' | 'resolved';
+  requestCycle: bigint | undefined;
+  requestedAtMicros: bigint | undefined;
+}>;
+
+type PendingAccessRequestAdmissionStatus<
+  State extends 'missing' | 'disabled' = 'missing' | 'disabled',
+> = Readonly<{
+  admissionState: State;
+  authEpoch: number;
+  requestState: 'pending';
+  requestCycle: bigint;
+  requestedAtMicros: bigint;
+}>;
+
 function exactObjectKeys(
   value: Record<string, unknown>,
   expected: readonly string[],
@@ -989,6 +1010,121 @@ export function projectAccessRequestResetStatus(value: unknown): AccessRequestRe
     requestCycle,
     requestedAtMicros,
   });
+}
+
+/** Strict private request-CAS projection used by notification-gated Hermes. */
+export function projectAccessRequestAdmissionStatus(
+  value: unknown,
+): AccessRequestAdmissionStatus {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    fail('Access request admission status was invalid.');
+  }
+  const status = value as Record<string, unknown>;
+  exactObjectKeys(
+    status,
+    ACCESS_REQUEST_RESET_STATUS_KEYS,
+    'Access request admission status returned unexpected fields.',
+  );
+  if (
+    status.admissionState !== 'missing'
+    && status.admissionState !== 'enabled'
+    && status.admissionState !== 'disabled'
+  ) {
+    fail('Access request admission status returned an invalid admission state.');
+  }
+  if (
+    typeof status.authEpoch !== 'number'
+    || !Number.isInteger(status.authEpoch)
+    || (status.admissionState === 'missing'
+      ? status.authEpoch !== 0
+      : status.authEpoch < 1 || status.authEpoch > 0xffff_ffff)
+  ) {
+    fail('Access request admission status returned an invalid auth epoch.');
+  }
+  const requestCycle = status.requestCycle === undefined
+    ? undefined
+    : requireU64(
+      status.requestCycle,
+      true,
+      'Access request admission status returned an invalid request cycle.',
+    );
+  const requestedAtMicros = status.requestedAtMicros === undefined
+    ? undefined
+    : requireU64(
+      status.requestedAtMicros,
+      false,
+      'Access request admission status returned an invalid timestamp.',
+    );
+  if ((requestCycle === undefined) !== (requestedAtMicros === undefined)) {
+    fail('Access request admission status returned an incomplete request tuple.');
+  }
+  const maximumStoredRequestCycle = status.admissionState === 'disabled'
+    ? BigInt(status.authEpoch) + 1n
+    : BigInt(status.authEpoch);
+  if (requestCycle !== undefined && requestCycle > maximumStoredRequestCycle) {
+    fail('Access request admission status returned an impossible future request cycle.');
+  }
+  if (
+    status.requestState !== 'not_requested'
+    && status.requestState !== 'pending'
+    && status.requestState !== 'resolved'
+  ) {
+    fail('Access request admission status returned an invalid request state.');
+  }
+  const currentCycle = status.admissionState === 'missing'
+    ? 0n
+    : status.admissionState === 'disabled'
+      ? BigInt(status.authEpoch) + 1n
+      : undefined;
+  const expectedState = requestCycle === undefined
+    ? 'not_requested'
+    : currentCycle !== undefined && requestCycle === currentCycle
+      ? 'pending'
+      : 'resolved';
+  if (status.requestState !== expectedState) {
+    fail('Access request admission status returned an inconsistent request state.');
+  }
+  return Object.freeze({
+    admissionState: status.admissionState,
+    authEpoch: status.authEpoch,
+    requestState: status.requestState,
+    requestCycle,
+    requestedAtMicros,
+  });
+}
+
+export function requirePendingAdmissionRequest<State extends 'missing' | 'disabled'>(
+  status: AccessRequestAdmissionStatus,
+  expectedAdmissionState: State,
+): PendingAccessRequestAdmissionStatus<State> {
+  if (
+    status.admissionState !== expectedAdmissionState
+    || status.requestState !== 'pending'
+    || status.requestCycle === undefined
+    || status.requestedAtMicros === undefined
+  ) {
+    fail('Admission requires one exact pending access request of the expected kind.');
+  }
+  return Object.freeze({ ...status }) as PendingAccessRequestAdmissionStatus<State>;
+}
+
+export function requireUnchangedPendingAdmissionRequest<
+  State extends 'missing' | 'disabled',
+>(
+  before: PendingAccessRequestAdmissionStatus<State> | AccessRequestAdmissionStatus,
+  after: AccessRequestAdmissionStatus,
+  expectedAdmissionState: State,
+): PendingAccessRequestAdmissionStatus<State> {
+  const exactBefore = requirePendingAdmissionRequest(before, expectedAdmissionState);
+  const exactAfter = requirePendingAdmissionRequest(after, expectedAdmissionState);
+  if (
+    exactAfter.requestCycle !== exactBefore.requestCycle
+    || exactAfter.requestedAtMicros !== exactBefore.requestedAtMicros
+    || exactAfter.authEpoch !== exactBefore.authEpoch
+  ) {
+    fail('The exact pending access request changed before admission.');
+  }
+  return exactAfter;
 }
 
 function accessRequestTimestamp(micros: bigint): string {
@@ -1358,14 +1494,17 @@ export function verifyFounderAdmissionResourcePostconditionV4(
 export function verifyFounderReenablePrecondition(
   world: GenesisExpansionStatusV3,
   resources: ResourceAggregateV4,
-  target: AccessRequestResetStatus,
+  target: AccessRequestAdmissionStatus,
 ): Readonly<{
   world: GenesisExpansionStatusV3;
   resources: ResourceAggregateV4;
-  target: AccessRequestResetStatus;
+  target: AccessRequestAdmissionStatus;
 }> {
   verifyFounderAdmissionCheckpointV3(world, false);
   verifyExpectedResourceAggregateV4(resources, world.allowedFids);
+  if (target.admissionState === 'disabled' && target.authEpoch >= 0xffff_ffff) {
+    fail('Existing founder re-enable cannot rotate an exhausted auth epoch.');
+  }
   if (
     target.admissionState !== 'disabled'
     || target.requestState !== 'pending'
@@ -1384,7 +1523,7 @@ export function verifyFounderReenablePrecondition(
 export function verifyFounderReenablePostcondition(
   world: GenesisExpansionStatusV3,
   resources: ResourceAggregateV4,
-  target: AccessRequestResetStatus,
+  target: AccessRequestAdmissionStatus,
   before: ReturnType<typeof verifyFounderReenablePrecondition>,
 ): void {
   verifyFounderAdmissionCheckpointV3(world, false);
@@ -1424,6 +1563,29 @@ export function verifyFounderReenablePostcondition(
         + 'Do not retry before a bounded read-only investigation.',
       );
     }
+  }
+}
+
+export function verifyFounderAdmissionRequestPostcondition(
+  target: AccessRequestAdmissionStatus,
+  before: AccessRequestAdmissionStatus,
+): void {
+  if (
+    before.admissionState !== 'missing'
+    || before.authEpoch !== 0
+    || before.requestState !== 'pending'
+    || before.requestCycle !== 0n
+    || before.requestedAtMicros === undefined
+    || target.admissionState !== 'enabled'
+    || target.authEpoch !== 1
+    || target.requestState !== 'resolved'
+    || target.requestCycle !== before.requestCycle
+    || target.requestedAtMicros !== before.requestedAtMicros
+  ) {
+    fail(
+      'Founder admission request postcondition failed. The mutation outcome may be '
+      + 'indeterminate; perform a fresh bounded read-only inspection before any retry.',
+    );
   }
 }
 
@@ -1638,6 +1800,8 @@ export async function requestAdminToken(
 export type AdmissionNotificationStatus =
   | 'queued'
   | 'already-sent'
+  | 'awaiting-client'
+  | 'client-acknowledged'
   | 'delivery-exhausted'
   | 'not-subscribed';
 
@@ -1696,6 +1860,8 @@ export async function requestAdmissionNotification(
   if (
     status !== 'queued'
     && status !== 'already-sent'
+    && status !== 'awaiting-client'
+    && status !== 'client-acknowledged'
     && status !== 'delivery-exhausted'
     && status !== 'not-subscribed'
   ) {
@@ -1737,6 +1903,8 @@ export async function inspectAdmissionNotification(
   if (
     status !== 'queued'
     && status !== 'already-sent'
+    && status !== 'awaiting-client'
+    && status !== 'client-acknowledged'
     && status !== 'delivery-exhausted'
     && status !== 'not-subscribed'
   ) {
@@ -1761,6 +1929,17 @@ export async function requireNotificationBeforeAdmission(
     // exact pending request is still current after the wait.
     status = await requestAdmissionNotification(bridgeUrl, fid, secret, fetchImpl);
   }
+  for (
+    let poll = 0;
+    status === 'awaiting-client' && poll < ADMISSION_GRANT_ACK_MAX_POLLS;
+    poll += 1
+  ) {
+    await sleep(ADMISSION_GRANT_ACK_POLL_MILLISECONDS);
+    // The operator queue route re-resolves both admission and the exact
+    // pending request before returning the acknowledgement state. A generic
+    // Durable Object snapshot is never enough to unlock authority.
+    status = await requestAdmissionNotification(bridgeUrl, fid, secret, fetchImpl);
+  }
   if (status === 'queued') {
     fail(
       'Farcaster has not accepted the pending admission notification. '
@@ -1773,10 +1952,31 @@ export async function requireNotificationBeforeAdmission(
       + 'Admission remains unchanged; reconcile notification consent before retrying.',
     );
   }
+  if (status === 'not-subscribed') {
+    fail(
+      'Farcaster notifications are not enabled for this identity. '
+      + 'Admission remains unchanged until the player enables notifications.',
+    );
+  }
+  if (status === 'already-sent') {
+    fail(
+      'Only a legacy notification receipt is available. Admission remains unchanged; '
+      + 'a fresh notification grant is required.',
+    );
+  }
+  if (status === 'awaiting-client') {
+    fail(
+      'The notification was accepted but has not been opened by the verified player. '
+      + 'Admission remains unchanged.',
+    );
+  }
+  if (status !== 'client-acknowledged') {
+    fail('The notification grant did not reach a safe admission state.');
+  }
   console.log(JSON.stringify({
     admissionNotification: status,
-    providerAcceptanceRequired: status !== 'not-subscribed',
-    providerAcceptedBeforeAdmission: status === 'already-sent',
+    providerAcceptedBeforeAdmission: true,
+    authenticatedNotificationOpenBeforeAdmission: true,
   }));
   return status;
 }
@@ -1919,6 +2119,54 @@ export function connect(
       rejectUnavailable();
     }
   });
+}
+
+type NotificationGatedReconnectDependencies = Readonly<{
+  waitForNotification?: typeof requireNotificationBeforeAdmission;
+  requestToken?: typeof requestAdminToken;
+  connectToDatabase?: typeof connect;
+}>;
+
+/**
+ * Never retain a privileged Spacetime connection or expiring admin JWT while
+ * waiting for a player to open a Farcaster notification. The click gate uses
+ * only its separate notification operator credential; fresh database authority
+ * is minted after acknowledgement and immediately before the exact CAS read.
+ */
+export async function reconnectAfterAdmissionNotification(
+  input: Readonly<{
+    connection: DbConnection;
+    bridgeUrl: string;
+    fid: bigint;
+    notificationOperatorSecret: string | undefined;
+    adminSecret: string;
+    uri: string;
+    database: string;
+  }>,
+  dependencies: NotificationGatedReconnectDependencies = {},
+): Promise<DbConnection> {
+  disconnectSilently(input.connection);
+  await (
+    dependencies.waitForNotification
+    ?? requireNotificationBeforeAdmission
+  )(
+    input.bridgeUrl,
+    input.fid,
+    input.notificationOperatorSecret,
+  );
+  let freshToken = '';
+  try {
+    freshToken = await (
+      dependencies.requestToken
+      ?? requestAdminToken
+    )(input.bridgeUrl, input.adminSecret);
+    return await (
+      dependencies.connectToDatabase
+      ?? connect
+    )(input.uri, input.database, freshToken);
+  } finally {
+    freshToken = '';
+  }
 }
 
 export async function readStatus(
@@ -2298,8 +2546,15 @@ async function main() {
       ? '1'
       : process.env.WARPKEEP_ADMIN_TOKEN_SECRET_STDIN,
   );
-  const token = await requestAdminToken(bridgeUrl, secret);
-  const connection = await connect(uri, database, token);
+  let token = await requestAdminToken(bridgeUrl, secret);
+  let connection: DbConnection;
+  try {
+    connection = await connect(uri, database, token);
+  } finally {
+    // The SDK connection owns its authenticated transport after connect. Do
+    // not retain a second immutable admin JWT in the long-running operator.
+    token = '';
+  }
   let founderAdmissionClaimed = false;
   let accessRequestResetClaimed = false;
   try {
@@ -2546,6 +2801,41 @@ async function main() {
       && admissionPlan !== undefined
       && admissionPlanReference !== undefined
     ) {
+      const initialTarget = requirePendingAdmissionRequest(
+        projectAccessRequestAdmissionStatus(
+          await withOperationTimeout(
+            connection.procedures.adminGetAccessRequestAdmissionStatusV1({ fid }),
+          ),
+        ),
+        'missing',
+      );
+      const initialWorld = verifyFounderAdmissionPreconditionV3(
+        await readStatus(connection, 'v3') as GenesisExpansionStatusV3,
+      );
+      verifyFounderAdmissionResourcePreconditionV4(
+        await readStatus(connection, 'v4') as ResourceAggregateV4,
+        initialWorld.allowedFids,
+      );
+      normalizeAdmissionReadyTrustedProfile(admissionProfile);
+
+      connection = await reconnectAfterAdmissionNotification({
+        connection,
+        bridgeUrl,
+        fid,
+        notificationOperatorSecret,
+        adminSecret: secret,
+        uri,
+        database,
+      });
+      const freshTarget = requireUnchangedPendingAdmissionRequest(
+        initialTarget,
+        projectAccessRequestAdmissionStatus(
+          await withOperationTimeout(
+            connection.procedures.adminGetAccessRequestAdmissionStatusV1({ fid }),
+          ),
+        ),
+        'missing',
+      );
       const before = verifyFounderAdmissionPreconditionV3(
         await readStatus(connection, 'v3') as GenesisExpansionStatusV3,
       );
@@ -2553,34 +2843,31 @@ async function main() {
         await readStatus(connection, 'v4') as ResourceAggregateV4,
         before.allowedFids,
       );
-      const targetAuthEpoch = await withOperationTimeout(
-        connection.procedures.adminGetFidAuthEpoch({ fid }),
-      );
-      if (targetAuthEpoch !== 0) {
-        fail('Profiled admission requires a founder FID that has not been admitted before.');
-      }
-      // All local, credential, connection, plan, profile, capacity, and
-      // persistent graph checks have passed. Bind provider acceptance to the
-      // still-current request immediately before the one admission mutation.
-      await requireNotificationBeforeAdmission(
-        bridgeUrl,
-        fid,
-        notificationOperatorSecret,
-      );
+      const freshAdmissionProfile = normalizeAdmissionReadyTrustedProfile(admissionProfile);
       claimReviewedFounderAdmissionPlan({
         plan: admissionPlan,
         sha256: admissionPlanReference.sha256,
       });
       founderAdmissionClaimed = true;
-      await withOperationTimeout(connection.reducers.adminAdmitFounderV1({
+      await withOperationTimeout(connection.reducers.adminAdmitFounderForAccessRequestV2({
         fid,
         note,
-        canonicalUsername: admissionProfile.canonicalUsername,
-        displayName: admissionProfile.displayName,
-        pfpUrl: admissionProfile.pfpUrl,
-        publicBio: admissionProfile.publicBio,
+        expectedRequestCycle: freshTarget.requestCycle,
+        expectedRequestedAtMicros: freshTarget.requestedAtMicros,
+        canonicalUsername: freshAdmissionProfile.canonicalUsername,
+        displayName: freshAdmissionProfile.displayName,
+        pfpUrl: freshAdmissionProfile.pfpUrl,
+        publicBio: freshAdmissionProfile.publicBio,
         profilePolicyVersion: FARCASTER_PROFILE_POLICY_VERSION,
       }));
+      verifyFounderAdmissionRequestPostcondition(
+        projectAccessRequestAdmissionStatus(
+          await withOperationTimeout(
+            connection.procedures.adminGetAccessRequestAdmissionStatusV1({ fid }),
+          ),
+        ),
+        freshTarget,
+      );
       verifyFounderAdmissionPostconditionV3(
         await readStatus(connection, 'v3') as GenesisExpansionStatusV3,
         before,
@@ -2592,28 +2879,51 @@ async function main() {
       founderAdmissionClaimed = false;
       mutationStatusHandled = true;
     } else if (command === 'allow-fid' && fid !== undefined && note !== undefined) {
-      const beforeTarget = projectAccessRequestResetStatus(
+      const initialTarget = projectAccessRequestAdmissionStatus(
         await withOperationTimeout(
-          connection.procedures.adminGetAccessRequestResetStatusV1({ fid }),
+          connection.procedures.adminGetAccessRequestAdmissionStatusV1({ fid }),
         ),
+      );
+      verifyFounderReenablePrecondition(
+        await readStatus(connection, 'v3', false, undefined, false) as GenesisExpansionStatusV3,
+        await readStatus(connection, 'v4', false, undefined, false) as ResourceAggregateV4,
+        initialTarget,
+      );
+      connection = await reconnectAfterAdmissionNotification({
+        connection,
+        bridgeUrl,
+        fid,
+        notificationOperatorSecret,
+        adminSecret: secret,
+        uri,
+        database,
+      });
+      const freshTarget = requireUnchangedPendingAdmissionRequest(
+        initialTarget,
+        projectAccessRequestAdmissionStatus(
+          await withOperationTimeout(
+            connection.procedures.adminGetAccessRequestAdmissionStatusV1({ fid }),
+          ),
+        ),
+        'disabled',
       );
       const before = verifyFounderReenablePrecondition(
         await readStatus(connection, 'v3', false, undefined, false) as GenesisExpansionStatusV3,
         await readStatus(connection, 'v4', false, undefined, false) as ResourceAggregateV4,
-        beforeTarget,
+        freshTarget,
       );
-      await requireNotificationBeforeAdmission(
-        bridgeUrl,
+      await withOperationTimeout(connection.reducers.adminAllowFidForAccessRequestV1({
         fid,
-        notificationOperatorSecret,
-      );
-      await withOperationTimeout(connection.reducers.adminAllowFid({ fid, note }));
+        note,
+        expectedRequestCycle: freshTarget.requestCycle,
+        expectedRequestedAtMicros: freshTarget.requestedAtMicros,
+      }));
       verifyFounderReenablePostcondition(
         await readStatus(connection, 'v3', false, undefined, false) as GenesisExpansionStatusV3,
         await readStatus(connection, 'v4', false, undefined, false) as ResourceAggregateV4,
-        projectAccessRequestResetStatus(
+        projectAccessRequestAdmissionStatus(
           await withOperationTimeout(
-            connection.procedures.adminGetAccessRequestResetStatusV1({ fid }),
+            connection.procedures.adminGetAccessRequestAdmissionStatusV1({ fid }),
           ),
         ),
         before,

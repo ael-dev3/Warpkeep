@@ -131,6 +131,7 @@ const V2_REFRESH_PATH = '/v2/session/refresh'
 const V2_LOGOUT_PATH = '/v2/session/logout'
 const V2_ACCESS_STATUS_PATH = '/v2/access/status'
 const V2_ACCESS_REQUEST_PATH = '/v2/access/request'
+const V2_ADMISSION_GRANT_PATH = '/v2/access/admission-grant'
 export const MINIAPP_WEBHOOK_PATH = '/v1/farcaster/miniapp/webhook'
 export const ADMISSION_NOTIFICATION_PATH = '/v1/admin/admission-notification'
 export const ADMISSION_NOTIFICATION_STATUS_PATH = '/v1/admin/admission-notification-status'
@@ -299,8 +300,10 @@ function isCredentialedPath(pathname: string): boolean {
     || pathname === V2_LOGOUT_PATH
 }
 
-function isAccessRequestPath(pathname: string): boolean {
-  return pathname === V2_ACCESS_STATUS_PATH || pathname === V2_ACCESS_REQUEST_PATH
+function isAccessCredentialPath(pathname: string): boolean {
+  return pathname === V2_ACCESS_STATUS_PATH
+    || pathname === V2_ACCESS_REQUEST_PATH
+    || pathname === V2_ADMISSION_GRANT_PATH
 }
 
 function publicCorsHeaders(request: Request, config: BridgeConfig, pathname = new URL(request.url).pathname): HeadersInit {
@@ -330,7 +333,7 @@ function routeCorsHeaders(request: Request, config: BridgeConfig, pathname = new
     const origin = request.headers.get('origin')
     return origin === QUICK_AUTH_BROWSER_ORIGIN ? quickAuthCorsHeaders(origin) : {}
   }
-  if (isAccessRequestPath(pathname)) {
+  if (isAccessCredentialPath(pathname)) {
     const origin = request.headers.get('origin')
     if (accessRequestUsesBearer(request)) {
       return origin === QUICK_AUTH_BROWSER_ORIGIN
@@ -401,7 +404,7 @@ function isPublicAuthPath(pathname: string): boolean {
     || pathname === V2_EXCHANGE_PATH
     || pathname === V2_QUICK_AUTH_EXCHANGE_PATH
     || pathname === V2_REFRESH_PATH
-    || isAccessRequestPath(pathname)
+    || isAccessCredentialPath(pathname)
 }
 
 function isLegacyAuthPath(pathname: string): boolean {
@@ -1096,6 +1099,7 @@ async function configurationAttestation(
     authEpochResolverTimeoutMilliseconds: AUTH_EPOCH_RESOLVER_TIMEOUT_MILLISECONDS,
     accessRequestStatusPath: V2_ACCESS_STATUS_PATH,
     accessRequestSubmitPath: V2_ACCESS_REQUEST_PATH,
+    admissionGrantPath: V2_ADMISSION_GRANT_PATH,
     accessRequestResolverTokenTtlSeconds: INTERNAL_ACCESS_REQUEST_RESOLVER_TOKEN_TTL_SECONDS,
     accessRequestResolverTimeoutMilliseconds: ACCESS_REQUEST_RESOLVER_TIMEOUT_MILLISECONDS,
     accessRequestStatusProcedure: SPACETIMEDB_ACCESS_REQUEST_STATUS_PROCEDURE,
@@ -1560,7 +1564,7 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             'The read-only QA observer is disabled.',
           )
         }
-        if (request.method === 'OPTIONS' && isAccessRequestPath(url.pathname)) {
+        if (request.method === 'OPTIONS' && isAccessCredentialPath(url.pathname)) {
           return allowedAccessRequestPreflight(request, config)
         }
         if (request.method === 'OPTIONS' && url.pathname === V2_QUICK_AUTH_EXCHANGE_PATH) {
@@ -1924,7 +1928,7 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           return json(responseBody, 200, quickAuthCorsHeaders(origin))
         }
 
-        if (request.method === 'POST' && isAccessRequestPath(url.pathname)) {
+        if (request.method === 'POST' && isAccessCredentialPath(url.pathname)) {
           const credentialMode = accessCredentialMode(request)
           const origin = credentialMode === 'quick-auth'
             ? requireQuickAuthBrowserOrigin(request)
@@ -1943,7 +1947,24 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             dependencies.rateLimiter,
             logger,
           )
-          requireExactKeys(await parseObjectBody(request), [])
+          const accessBody = await parseObjectBody(request)
+          let admissionGrantTicket: string | undefined
+          if (url.pathname === V2_ADMISSION_GRANT_PATH) {
+            requireExactKeys(accessBody, ['ticket'])
+            if (
+              typeof accessBody.ticket !== 'string'
+              || !/^[A-Za-z0-9_-]{43}$/.test(accessBody.ticket)
+            ) {
+              throw new HttpError(
+                400,
+                'admission_grant_invalid',
+                'This admission grant is invalid or expired.',
+              )
+            }
+            admissionGrantTicket = accessBody.ticket
+          } else {
+            requireExactKeys(accessBody, [])
+          }
           const expectedFid = requireExpectedAccessFid(
             request,
             config.accessExpectedFidRequired,
@@ -2086,6 +2107,66 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
               sessionFamilyId,
               logger,
               admission.state === 'disabled' ? 403 : 401,
+            )
+          }
+
+          if (url.pathname === V2_ADMISSION_GRANT_PATH) {
+            const notificationStore = dependencies.admissionNotificationStore
+              ?? defaultAdmissionNotificationStore(env)
+            if (admission.state === 'enabled') {
+              // Best-effort capability cleanup for an admission committed by a
+              // concurrent operator. Entry authority is already established,
+              // so notification storage availability cannot revoke it.
+              try {
+                await notificationStore.acknowledge(verifiedFid, admissionGrantTicket!)
+              } catch {
+                // The bounded grant expires independently in Durable Object storage.
+              }
+              return json(
+                { version: 1, status: 'already-admitted' },
+                200,
+                accessRequestCorsHeaders(origin, credentialMode),
+              )
+            }
+            if (sessionRecord?.state === 'bound') throw invalidSessionError()
+            if (credentialMode === 'quick-auth') {
+              const checkedAt = now()
+              if (!Number.isSafeInteger(checkedAt) || checkedAt < 0) {
+                throw invalidAccessCredential()
+              }
+              try {
+                verifiedQuickAuthClaims(
+                  verifiedQuickAuthPayload,
+                  Math.floor(checkedAt / 1_000),
+                )
+              } catch {
+                throw invalidAccessCredential()
+              }
+            }
+            let acknowledgement: 'accepted' | 'not-ready' | 'stale'
+            try {
+              acknowledgement = await notificationStore.acknowledge(
+                verifiedFid,
+                admissionGrantTicket!,
+              )
+            } catch {
+              throw new HttpError(
+                503,
+                'admission_grant_unavailable',
+                'Admission finalization is temporarily unavailable.',
+              )
+            }
+            if (acknowledgement === 'accepted') {
+              logger.event('admission_grant_acknowledged')
+            } else if (acknowledgement === 'not-ready') {
+              logger.event('admission_grant_ack_not_ready')
+            } else {
+              logger.event('admission_grant_ack_stale')
+            }
+            return json(
+              { version: 1, status: acknowledgement },
+              200,
+              accessRequestCorsHeaders(origin, credentialMode),
             )
           }
 
@@ -2537,9 +2618,15 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             )
           }
           if (status === 'already-sent') logger.event('admission_notification_succeeded')
-          else if (status === 'delivery-exhausted') logger.event('admission_notification_exhausted')
-          else if (status === 'not-subscribed') logger.event('admission_notification_not_subscribed')
-          else logger.event('admission_notification_queued')
+          else if (status === 'awaiting-client') {
+            logger.event('admission_notification_provider_accepted')
+          } else if (status === 'client-acknowledged') {
+            logger.event('admission_notification_client_acknowledged')
+          } else if (status === 'delivery-exhausted') {
+            logger.event('admission_notification_exhausted')
+          } else if (status === 'not-subscribed') {
+            logger.event('admission_notification_not_subscribed')
+          } else logger.event('admission_notification_queued')
           return json({ status }, status === 'queued' ? 202 : 200)
         }
 
@@ -2669,6 +2756,7 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             quickAuthMaxIssuerLifetimeSeconds: QUICK_AUTH_MAX_ISSUER_LIFETIME_SECONDS,
             accessRequestStatusPath: V2_ACCESS_STATUS_PATH,
             accessRequestSubmitPath: V2_ACCESS_REQUEST_PATH,
+            admissionGrantPath: V2_ADMISSION_GRANT_PATH,
             accessRequestResolverTokenTtlSeconds: INTERNAL_ACCESS_REQUEST_RESOLVER_TOKEN_TTL_SECONDS,
             accessRequestResolverTimeoutMilliseconds: ACCESS_REQUEST_RESOLVER_TIMEOUT_MILLISECONDS,
             accessRequestStatusProcedure: SPACETIMEDB_ACCESS_REQUEST_STATUS_PROCEDURE,
@@ -2699,7 +2787,11 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
         throw new HttpError(404, 'not_found', 'Route not found.')
       } catch (error) {
         if (url.pathname === V2_QUICK_AUTH_EXCHANGE_PATH) logger.event('quick_auth_rejected')
-        if (isAccessRequestPath(url.pathname)) logger.event('access_request_rejected')
+        if (url.pathname === V2_ADMISSION_GRANT_PATH) {
+          logger.event('admission_grant_ack_rejected')
+        } else if (isAccessCredentialPath(url.pathname)) {
+          logger.event('access_request_rejected')
+        }
         if (error instanceof HttpError) {
           if (url.pathname === QA_OBSERVER_CHALLENGE_PATH) logger.event('qa_challenge_rejected')
           if (url.pathname === QA_OBSERVER_SNAPSHOT_PATH) logger.event('qa_snapshot_rejected')

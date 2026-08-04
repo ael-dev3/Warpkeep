@@ -337,6 +337,10 @@ function createBridge(
       status: 'requested' as const,
       requestedAt: now()
     })),
+    acknowledgeAdmissionGrant: vi.fn(async () => ({
+      version: 1 as const,
+      status: 'stale' as const
+    })),
     logoutSession: vi.fn(async () => undefined)
   } satisfies FarcasterOidcBridgeClient;
 }

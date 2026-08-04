@@ -52,6 +52,17 @@ describe('access-request monotonic state machine', () => {
     }
   });
 
+  it('allows only an explicit authoritative recheck to leave a requested presentation', () => {
+    for (const terminal of [
+      { phase: 'request-received' as const, requestedAt: 1_785_414_896_000 },
+      { phase: 'already-requested' as const, requestedAt: 1_785_414_896_000 }
+    ]) {
+      expect(transitionAccessRequestState(terminal, {
+        type: 'status-recheck-started'
+      })).toEqual({ phase: 'loading-status', context: 'initial' });
+    }
+  });
+
   it('keeps a missing ambiguous reconciliation unavailable rather than reopening', () => {
     const verifying = { phase: 'verifying-ambiguous-result' as const };
     const unavailable = transitionAccessRequestState(verifying, {

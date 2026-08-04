@@ -23,6 +23,15 @@ export const AccessRequestV1 = __t.object("AccessRequestV1", {
 });
 export type AccessRequestV1 = __Infer<typeof AccessRequestV1>;
 
+export const AdminAccessRequestAdmissionStatusV1 = __t.object("AdminAccessRequestAdmissionStatusV1", {
+  admissionState: __t.string(),
+  authEpoch: __t.u32(),
+  requestState: __t.string(),
+  requestCycle: __t.option(__t.u64()),
+  requestedAtMicros: __t.option(__t.u64()),
+});
+export type AdminAccessRequestAdmissionStatusV1 = __Infer<typeof AdminAccessRequestAdmissionStatusV1>;
+
 export const AdminAccessRequestEntryV1 = __t.object("AdminAccessRequestEntryV1", {
   fid: __t.u64(),
   requestedAtMicros: __t.u64(),

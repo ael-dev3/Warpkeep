@@ -8,6 +8,10 @@ import {
   sanitizeMiniAppCapabilities,
   sanitizeMiniAppContext
 } from '../src/farcaster/miniapp';
+import {
+  captureMiniAppAdmissionGrantTicket,
+  clearMiniAppAdmissionGrantTicket
+} from '../src/farcaster/miniapp/miniAppRuntime';
 
 describe('Farcaster Mini App runtime sanitization', () => {
   it('accepts only one exact miniApp=true query value', () => {
@@ -263,12 +267,27 @@ describe('Farcaster Mini App runtime sanitization', () => {
     expect(pendingRequest?.notificationId)
       .toBe('warpkeep-access-approved-v2-r1800000000000000');
 
+    const grantIntentId = 'A'.repeat(22);
+    const grant = sanitizeMiniAppContext({
+      user: { fid: 539_854 },
+      client: { clientFid: 9_150, added: true },
+      location: {
+        type: 'notification',
+        notification: {
+          notificationId: `warpkeep-access-grant-v3-i${grantIntentId}`
+        }
+      }
+    }, { width: 400, height: 800 });
+    expect(grant?.notificationId)
+      .toBe(`warpkeep-access-grant-v3-i${grantIntentId}`);
+
     for (const notificationId of [
       'warpkeep-access-approved-v1-e0',
       'warpkeep-access-approved-v1-e01',
       'warpkeep-access-approved-v2-e1',
       'warpkeep-access-approved-v2-r0',
       'warpkeep-access-approved-v2-r01',
+      'warpkeep-access-grant-v3-i_short',
       `warpkeep-access-approved-v1-e${'1'.repeat(129)}`
     ]) {
       const context = sanitizeMiniAppContext({
@@ -294,5 +313,58 @@ describe('Farcaster Mini App runtime sanitization', () => {
       }
     }, { width: 400, height: 800 });
     expect(launcher?.notificationId).toBeUndefined();
+  });
+
+  it('captures one exact grant fragment in memory and scrubs it from the URL', () => {
+    const ticket = 'A'.repeat(43);
+    const replaceHash = vi.fn();
+    const runtime = {
+      search: () => '?miniApp=true',
+      hash: () => `#warpkeep-grant-v1=${ticket}`,
+      replaceHash,
+      viewport: () => ({ width: 390, height: 844 }),
+      document,
+      getMountedShell: () => document.body,
+      waitForAnimationFrame: async () => {}
+    };
+
+    expect(captureMiniAppAdmissionGrantTicket(runtime)).toBe(ticket);
+    expect(replaceHash).toHaveBeenCalledOnce();
+    expect(replaceHash).toHaveBeenCalledWith('#menu');
+    // StrictMode remounts recover the same process-memory capability even
+    // after the public fragment was scrubbed.
+    expect(captureMiniAppAdmissionGrantTicket({
+      ...runtime,
+      hash: () => ''
+    })).toBe(ticket);
+
+    expect(clearMiniAppAdmissionGrantTicket(document, ticket)).toBe(true);
+    expect(captureMiniAppAdmissionGrantTicket({
+      ...runtime,
+      hash: () => '#warpkeep-grant-v1=short'
+    })).toBeUndefined();
+  });
+
+  it('atomically replaces a retained grant on same-document WebView navigation', () => {
+    const oldTicket = 'B'.repeat(43);
+    const newTicket = 'C'.repeat(43);
+    let hash = `#warpkeep-grant-v1=${oldTicket}`;
+    const runtime = {
+      search: () => '?miniApp=true',
+      hash: () => hash,
+      replaceHash: (next: string) => { hash = next; },
+      viewport: () => ({ width: 390, height: 844 }),
+      document,
+      getMountedShell: () => document.body,
+      waitForAnimationFrame: async () => {}
+    };
+
+    expect(captureMiniAppAdmissionGrantTicket(runtime)).toBe(oldTicket);
+    hash = `#warpkeep-grant-v1=${newTicket}`;
+    expect(captureMiniAppAdmissionGrantTicket(runtime, true)).toBe(newTicket);
+    expect(hash).toBe('#menu');
+    expect(clearMiniAppAdmissionGrantTicket(document, oldTicket)).toBe(false);
+    expect(captureMiniAppAdmissionGrantTicket(runtime)).toBe(newTicket);
+    expect(clearMiniAppAdmissionGrantTicket(document, newTicket)).toBe(true);
   });
 });

@@ -489,6 +489,7 @@ describe('auth bridge production bindings in workerd', () => {
       admissionNotificationStore: {
         applyEvent,
         queueAdmission: vi.fn(async () => 'queued' as const),
+        acknowledge: vi.fn(async () => 'stale' as const),
       },
       rateLimiter: { check: async () => ({ allowed: true }) },
       logger: { event: event => events.push(event) },

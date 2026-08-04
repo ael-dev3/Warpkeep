@@ -89,6 +89,10 @@ function renderVerifiedMiniAppTitle(ui: ReactElement) {
       status: 'requested' as const,
       requestedAt: Date.now()
     })),
+    acknowledgeAdmissionGrant: vi.fn(async () => ({
+      version: 1 as const,
+      status: 'stale' as const
+    })),
     logoutSession: vi.fn(async () => undefined)
   };
 

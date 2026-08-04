@@ -159,6 +159,7 @@ const AUTH_V2_QUICK_AUTH_PATH = '/v2/farcaster/quick-auth/exchange';
 const AUTH_V2_ACCESS_REQUEST_PATHS = new Set([
   '/v2/access/status',
   '/v2/access/request',
+  '/v2/access/admission-grant',
 ]);
 const AUTH_V2_PAUSED_PATHS = new Set([
   '/v2/farcaster/challenge',
@@ -4556,7 +4557,7 @@ describe('bounded auth-v2 production readiness verification', () => {
       fetchImpl,
     })).resolves.toBeUndefined();
 
-    expect(fetchImpl).toHaveBeenCalledTimes(35);
+    expect(fetchImpl).toHaveBeenCalledTimes(39);
     for (const [input, init] of fetchImpl.mock.calls) {
       const url = new URL(String(input));
       const headers = new Headers(init?.headers);
@@ -4648,7 +4649,7 @@ describe('bounded auth-v2 production readiness verification', () => {
       fetchImpl,
     })).resolves.toBeUndefined();
 
-    expect(fetchImpl).toHaveBeenCalledTimes(35);
+    expect(fetchImpl).toHaveBeenCalledTimes(39);
     for (const [input, init] of fetchImpl.mock.calls) {
       const url = new URL(String(input));
       const headers = new Headers(init?.headers);
