@@ -1,6 +1,7 @@
 import type { RealmLabelReservedRect } from './realmCastlePresentation';
 import type { RealmCameraMode } from './realmCameraController';
 import {
+  MAX_RESOURCE_OCCUPANT_ASSIGNMENTS,
   MAX_VISIBLE_RESOURCE_OCCUPANT_MARKERS,
   realmResourceOccupantMarkerKey,
   visibleRealmResourceOccupantPresenceKeys,
@@ -16,6 +17,9 @@ type PortraitLane = 'worker' | 'resource';
 
 /** Matches the existing bounded route/worker presentation ceiling. */
 export const MAX_VISIBLE_REALM_WORKER_PORTRAITS = 24;
+export const MIN_REALM_RESOURCE_PRESENCE_SCALE = 0.58;
+const REALM_RESOURCE_PRESENCE_NEIGHBOR_RADIUS_PX = 64;
+const REALM_RESOURCE_PRESENCE_CROWDING_STRENGTH = 0.5;
 
 type PortraitCandidate = Readonly<{
   lane: PortraitLane;
@@ -35,6 +39,7 @@ export type RealmWorldResourcePortraitProjection = Readonly<{
   key: string;
   x: number;
   y: number;
+  presenceScale: number;
 }>;
 
 export type RealmWorldPortraitLayout = Readonly<{
@@ -68,6 +73,7 @@ type ResourceProjection = RealmResourceProjectionFrame['markers'][number];
 type WorkerProjection = RealmWorkerProjectionFrame['markers'][number];
 
 type ResourceProjectionCache = Readonly<{
+  overview: boolean;
   occupantsByKey: ReadonlyMap<string, RealmResourceOccupantMarker>;
   projectedResources: ReadonlyMap<string, ResourceProjection>;
   resourceProjections: readonly RealmWorldResourcePortraitProjection[];
@@ -140,6 +146,80 @@ function frameIsFinite(frame: Readonly<{ width: number; height: number }>) {
     && Number.isFinite(frame.height)
     && frame.width > 0
     && frame.height > 0;
+}
+
+type RealmResourcePresencePoint = Readonly<{
+  key: string;
+  x: number;
+  y: number;
+}>;
+
+/**
+ * Produces a stable local-crowding scale with a bounded spatial hash. Isolated
+ * portraits remain full size; nearby portraits reduce continuously without
+ * changing their screen anchor or the interactive control lane.
+ */
+export function realmResourcePresenceScales(
+  points: readonly RealmResourcePresencePoint[]
+): ReadonlyMap<string, number> {
+  const buckets = new Map<string, number[]>();
+  const bucketKey = (x: number, y: number) => `${Math.floor(
+    x / REALM_RESOURCE_PRESENCE_NEIGHBOR_RADIUS_PX
+  )}:${Math.floor(y / REALM_RESOURCE_PRESENCE_NEIGHBOR_RADIUS_PX)}`;
+  points.forEach((point, index) => {
+    if (
+      point.key.length === 0
+      || !Number.isFinite(point.x)
+      || !Number.isFinite(point.y)
+    ) return;
+    const key = bucketKey(point.x, point.y);
+    const bucket = buckets.get(key);
+    if (bucket) bucket.push(index);
+    else buckets.set(key, [index]);
+  });
+
+  const scales = new Map<string, number>();
+  const radiusSquared = REALM_RESOURCE_PRESENCE_NEIGHBOR_RADIUS_PX ** 2;
+  points.forEach((point, pointIndex) => {
+    if (
+      point.key.length === 0
+      || !Number.isFinite(point.x)
+      || !Number.isFinite(point.y)
+    ) return;
+    const bucketX = Math.floor(
+      point.x / REALM_RESOURCE_PRESENCE_NEIGHBOR_RADIUS_PX
+    );
+    const bucketY = Math.floor(
+      point.y / REALM_RESOURCE_PRESENCE_NEIGHBOR_RADIUS_PX
+    );
+    let crowding = 0;
+    for (let offsetX = -1; offsetX <= 1; offsetX += 1) {
+      for (let offsetY = -1; offsetY <= 1; offsetY += 1) {
+        const neighbors = buckets.get(`${bucketX + offsetX}:${bucketY + offsetY}`)
+          ?? [];
+        for (const neighborIndex of neighbors) {
+          if (neighborIndex === pointIndex) continue;
+          const neighbor = points[neighborIndex];
+          if (!neighbor) continue;
+          const deltaX = point.x - neighbor.x;
+          const deltaY = point.y - neighbor.y;
+          const distanceSquared = deltaX ** 2 + deltaY ** 2;
+          if (distanceSquared >= radiusSquared) continue;
+          crowding += 1 - (
+            Math.sqrt(distanceSquared)
+            / REALM_RESOURCE_PRESENCE_NEIGHBOR_RADIUS_PX
+          );
+        }
+      }
+    }
+    scales.set(point.key, Math.max(
+      MIN_REALM_RESOURCE_PRESENCE_SCALE,
+      1 / Math.sqrt(
+        1 + crowding * REALM_RESOURCE_PRESENCE_CROWDING_STRENGTH
+      )
+    ));
+  });
+  return scales;
 }
 
 function projectionIsFinite(
@@ -279,10 +359,14 @@ function sortedProjectionValues<Projection>(
 
 function cachedResourceProjection(
   frame: RealmResourceProjectionFrame,
-  occupantsByKey: ReadonlyMap<string, RealmResourceOccupantMarker>
+  occupantsByKey: ReadonlyMap<string, RealmResourceOccupantMarker>,
+  overview: boolean
 ) {
   const cached = resourceProjectionCache.get(frame);
-  if (cached?.occupantsByKey === occupantsByKey) return cached;
+  if (
+    cached?.occupantsByKey === occupantsByKey
+    && cached.overview === overview
+  ) return cached;
   const projectedResources = frameIsFinite(frame)
     ? uniqueResourceProjections(frame, occupantsByKey)
     : new Map<string, ResourceProjection>();
@@ -298,11 +382,33 @@ function cachedResourceProjection(
       new Set(occupantsByKey.keys())
     )
   );
+  const presenceScales = realmResourcePresenceScales(overview
+    ? passivePresenceKeys.flatMap((key) => {
+        const occupant = occupantsByKey.get(key);
+        const projection = projectedResources.get(key);
+        const fitsPassiveGatheringBounds = projection
+          ? portraitRectFitsFrame({
+              left: projection.x - 24,
+              top: projection.y - 44,
+              right: projection.x + 24,
+              bottom: projection.y + 2
+            }, frame)
+          : false;
+        return occupant?.workerPhase === 'gathering'
+          && projection
+          && fitsPassiveGatheringBounds
+          ? [{ key, x: projection.x, y: projection.y }]
+          : [];
+      })
+    : []);
   const resourceProjections = Object.freeze(sortedResources.map(
     (projection): RealmWorldResourcePortraitProjection => Object.freeze({
       key: realmResourceOccupantMarkerKey(projection),
       x: projection.x,
-      y: projection.y
+      y: projection.y,
+      presenceScale: presenceScales.get(
+        realmResourceOccupantMarkerKey(projection)
+      ) ?? 1
     })
   ));
   const resourceProjectionByKey = new Map(
@@ -315,6 +421,7 @@ function cachedResourceProjection(
     passivePresenceKeys: readonly string[];
   }> | undefined;
   const result: ResourceProjectionCache = Object.freeze({
+    overview,
     occupantsByKey,
     projectedResources,
     resourceProjections,
@@ -402,7 +509,8 @@ export function resolveRealmWorldPortraitLayout(
     : new Map<string, WorkerProjection>();
   const resourceProjection = cachedResourceProjection(
     input.resourceFrame,
-    occupantsByKey
+    occupantsByKey,
+    overview
   );
   const projectedResources = resourceProjection.projectedResources;
   const allResourceCandidates = resourceProjection.getCandidates(
@@ -493,12 +601,19 @@ export function resolveRealmWorldPortraitLayout(
   const acceptedResourceKeySet = new Set(acceptedResourceKeys);
   const passiveRects: RealmLabelReservedRect[] = [];
   const passiveResourceKeys: string[] = [];
+  let boundedPassiveCount = 0;
   for (const key of resourceCandidates.passivePresenceKeys) {
-    if (passiveRects.length >= MAX_VISIBLE_RESOURCE_OCCUPANT_MARKERS) break;
+    if (passiveResourceKeys.length >= MAX_RESOURCE_OCCUPANT_ASSIGNMENTS) break;
     if (acceptedResourceKeySet.has(key)) continue;
     const projection = projectedResources.get(key);
     const occupant = occupantsByKey.get(key);
     if (!projection || !occupant) continue;
+    const persistentOverviewGathering = overview
+      && occupant.workerPhase === 'gathering';
+    if (
+      !persistentOverviewGathering
+      && boundedPassiveCount >= MAX_VISIBLE_RESOURCE_OCCUPANT_MARKERS
+    ) continue;
     const reservation = occupant.source === 'generic-worker'
       && occupant.workerPhase === 'outbound';
     const horizontalHalf = reservation ? 54 : 24;
@@ -508,14 +623,18 @@ export function resolveRealmWorldPortraitLayout(
       right: projection.x + horizontalHalf,
       bottom: projection.y + (reservation ? 8 : 2)
     });
-    if (
-      !portraitRectFitsFrame(bounds, input.resourceFrame)
-      || reservedRects.some((reserved) => portraitRectsIntersect(bounds, reserved))
+    if (!portraitRectFitsFrame(bounds, input.resourceFrame)) continue;
+    // Realm overview favors continuity over collision-free decoration for
+    // active gathering PFPs only. Reservations and close-camera portraits keep
+    // their bounded collision policy and full-size interaction geometry.
+    if (!persistentOverviewGathering && (
+      reservedRects.some((reserved) => portraitRectsIntersect(bounds, reserved))
       || acceptedRects.some((accepted) => portraitRectsIntersect(bounds, accepted))
       || passiveRects.some((accepted) => portraitRectsIntersect(bounds, accepted))
-    ) continue;
+    )) continue;
     passiveRects.push(bounds);
     passiveResourceKeys.push(key);
+    if (!persistentOverviewGathering) boundedPassiveCount += 1;
   }
 
   const workerProjections = sortedProjectionValues(projectedWorkers).map(

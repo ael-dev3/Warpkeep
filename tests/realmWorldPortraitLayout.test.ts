@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  MIN_REALM_RESOURCE_PRESENCE_SCALE,
+  realmResourcePresenceScales,
   realmWorldPortraitPriority,
   resolveRealmWorldPortraitLayout
 } from '../src/components/realm/realmWorldPortraitLayout';
@@ -254,6 +256,95 @@ describe('Realm world portrait layout', () => {
     expect(layout.visibleResourcePresenceKeys).toEqual([
       `wood:${calmPeerSite.siteId}`
     ]);
+  });
+
+  it('retains crowded overview gatherings and scales their passive PFPs smoothly', () => {
+    const sites = Array.from({ length: 40 }, (_, index) => occupant(index + 1));
+    const reservation = occupant(1_000, { workerPhase: 'outbound' });
+    const layout = resolveRealmWorldPortraitLayout({
+      cameraMode: 'realm',
+      workers: [],
+      resourceOccupants: [...sites, reservation],
+      workerFrame: workerFrame([], 320, 240),
+      resourceFrame: resourceFrame(
+        [
+          ...sites.map((site, index) => resourceMarker(
+            site,
+            40 + (index % 8) * 34,
+            72 + Math.floor(index / 8) * 30,
+            index / 100
+          )),
+          resourceMarker(reservation, 160, 120, 0.9)
+        ],
+        320,
+        240
+      ),
+      reservedRects: [{ left: 0, top: 0, right: 320, bottom: 240 }]
+    });
+
+    expect(layout.visibleResourceControlKeys).toEqual([]);
+    expect(layout.visibleResourcePresenceKeys).toHaveLength(40);
+    expect(new Set(layout.visibleResourcePresenceKeys).size).toBe(40);
+    expect(layout.visibleResourcePresenceKeys).not.toContain(
+      `wood:${reservation.siteId}`
+    );
+    expect(layout.suppressedResourceCount).toBe(1);
+    const scales = layout.resourceProjections
+      .filter((projection) => projection.key !== `wood:${reservation.siteId}`)
+      .map((projection) => projection.presenceScale);
+    expect(scales.every((scale) => scale >= MIN_REALM_RESOURCE_PRESENCE_SCALE))
+      .toBe(true);
+    expect(scales.some((scale) => scale < 1)).toBe(true);
+  });
+
+  it('scales local crowding monotonically and deterministically', () => {
+    const points = [
+      { key: 'left', x: 0, y: 0 },
+      { key: 'middle', x: 32, y: 0 },
+      { key: 'right', x: 64, y: 0 },
+      { key: 'isolated', x: 500, y: 500 }
+    ] as const;
+    const forward = realmResourcePresenceScales(points);
+    const reversed = realmResourcePresenceScales([...points].reverse());
+
+    expect(forward.get('isolated')).toBe(1);
+    expect(forward.get('middle')).toBeLessThan(forward.get('left')!);
+    expect(forward.get('middle')).toBeLessThan(forward.get('right')!);
+    for (const point of points) {
+      expect(reversed.get(point.key)).toBeCloseTo(forward.get(point.key)!, 12);
+    }
+
+    const stacked = realmResourcePresenceScales(Array.from(
+      { length: 20 },
+      (_, index) => ({ key: `stacked-${index}`, x: 100, y: 100 })
+    ));
+    expect([...stacked.values()].every((scale) => (
+      scale === MIN_REALM_RESOURCE_PRESENCE_SCALE
+    ))).toBe(true);
+  });
+
+  it('keeps overview reservations bounded while gathering PFPs stay persistent', () => {
+    const reservations = Array.from({ length: 30 }, (_, index) => occupant(
+      index + 1,
+      { workerPhase: 'outbound' }
+    ));
+    const layout = resolveRealmWorldPortraitLayout({
+      cameraMode: 'realm',
+      workers: [],
+      resourceOccupants: reservations,
+      workerFrame: workerFrame([], 4_000, 240),
+      resourceFrame: resourceFrame(
+        reservations.map((site, index) => resourceMarker(site, 80 + index * 120, 120)),
+        4_000,
+        240
+      )
+    });
+
+    expect(layout.visibleResourcePresenceKeys).toHaveLength(24);
+    expect(layout.suppressedResourceCount).toBe(6);
+    expect(layout.resourceProjections.every((projection) => (
+      projection.presenceScale === 1
+    ))).toBe(true);
   });
 
   it('rejects overflow using complete control and reservation bounds', () => {
