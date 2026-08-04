@@ -6,9 +6,13 @@ import type {
 export const INNER_KEEP_QA_ROUTE: '/dev/inner-keep-qa.html';
 export const INNER_KEEP_QA_CASE_COUNT: number;
 export const INNER_KEEP_QA_MAX_READY_MILLISECONDS: 30000;
+export const INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS: Readonly<Record<
+  'high' | 'balanced' | 'reduced',
+  Readonly<{ drawCalls: number; triangles: number }>
+>>;
 
 export type InnerKeepQaEvidence = Readonly<{
-  version: 1;
+  version: 2;
   scenario: InnerKeepQaScenarioId;
   renderMode: 'webgl' | 'fallback';
   innerKeepRenderer: 'webgl' | 'fallback';
@@ -43,6 +47,35 @@ export type InnerKeepQaEvidence = Readonly<{
   activeConversationCount: number;
   animationMixerCount: number;
   runtimeAssetFailureCount: number;
+  outerWorldStatus:
+    | 'idle'
+    | 'loading'
+    | 'ready'
+    | 'fallback'
+    | 'partial'
+    | 'aborted'
+    | 'disposed';
+  outerWorldRuntimeAssetFailureCount: number;
+  topographicFeatureCount: number;
+  terrainTriangleCount: number;
+  terrainHeightRangeMillimeters: number;
+  exteriorTreeCount: number;
+  scenicResourceNodeCount: number;
+  wildlifeAssetStatus:
+    | 'idle'
+    | 'disabled'
+    | 'loading'
+    | 'ready'
+    | 'failed'
+    | 'aborted'
+    | 'disposed';
+  wildlifeCount: number;
+  exactWildlifeCount: number;
+  proceduralWildlifeCount: number;
+  tradeWagonCount: number;
+  exteriorActorCount: number;
+  exteriorMountedActorCount: number;
+  exteriorPatrolUnitCount: number;
   barracksPlacementPresent: boolean;
   cathedralPlacementPresent: boolean;
   constructionSiteCount: number;

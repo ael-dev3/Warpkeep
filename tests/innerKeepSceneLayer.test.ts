@@ -61,6 +61,7 @@ function createLayer(
       reducedMotion,
       requestRender,
       assetLoading,
+      outerWorldAssetLoading: 'disabled',
       ...(runtimeAssetLoader ? { runtimeAssetLoader } : {})
     }),
     requestRender
@@ -124,7 +125,16 @@ describe('procedural Inner Keep scene layer', () => {
     const first = pads.find((pad) => (
       pad.name === 'inner-keep-slot-pad:inner-keep-slot-m01'
     ));
-    expect(layer.getTelemetry()).toMatchObject({ status: 'ready', slotCount: 12 });
+    expect(layer.getTelemetry()).toMatchObject({
+      status: 'ready',
+      slotCount: 12,
+      exteriorTreeCount: 44,
+      scenicResourceNodeCount: 6,
+      wildlifeCount: 7,
+      proceduralWildlifeCount: 7,
+      exactWildlifeCount: 0,
+      tradeWagonCount: 1
+    });
     expect(pads).toHaveLength(12);
     expect(first?.position.x).toBe(-7);
     expect(first?.position.z).toBe(-3.2);
@@ -191,8 +201,7 @@ describe('procedural Inner Keep scene layer', () => {
     const { layer } = createLayer(false, 390, 844);
     layer.setViewport(390, 844);
     const portraitAspect = 390 / 844;
-    const portraitZoom = INNER_KEEP_PRESENTATION_CAMERA_PRESETS.zoom.initial
-      * INNER_KEEP_PRESENTATION_CAMERA_PRESETS.portrait.initialZoomMultiplier;
+    const portraitZoom = INNER_KEEP_PRESENTATION_CAMERA_PRESETS.zoom.minimum;
     expect(layer.camera.right).toBeCloseTo(
       INNER_KEEP_PRESENTATION_CAMERA_PRESETS.minimumHalfWidth / portraitZoom,
       6

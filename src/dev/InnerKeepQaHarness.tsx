@@ -39,6 +39,21 @@ const EMPTY_TELEMETRY: InnerKeepSceneTelemetry = Object.freeze({
   activeConversationCount: 0,
   animationMixerCount: 0,
   runtimeAssetFailureCount: 0,
+  outerWorldStatus: 'idle',
+  outerWorldRuntimeAssetFailureCount: 0,
+  topographicFeatureCount: 0,
+  terrainTriangleCount: 0,
+  terrainHeightRangeMillimeters: 0,
+  exteriorTreeCount: 0,
+  scenicResourceNodeCount: 0,
+  wildlifeAssetStatus: 'idle',
+  wildlifeCount: 0,
+  exactWildlifeCount: 0,
+  proceduralWildlifeCount: 0,
+  tradeWagonCount: 0,
+  exteriorActorCount: 0,
+  exteriorMountedActorCount: 0,
+  exteriorPatrolUnitCount: 0,
   slotCount: 0,
   completedBuildingCount: 0,
   constructionSiteCount: 0,
@@ -106,6 +121,21 @@ function telemetryKey(telemetry: InnerKeepSceneTelemetry, evidence: SceneEvidenc
     telemetry.activeConversationCount,
     telemetry.animationMixerCount,
     telemetry.runtimeAssetFailureCount,
+    telemetry.outerWorldStatus,
+    telemetry.outerWorldRuntimeAssetFailureCount,
+    telemetry.topographicFeatureCount,
+    telemetry.terrainTriangleCount,
+    telemetry.terrainHeightRangeMillimeters,
+    telemetry.exteriorTreeCount,
+    telemetry.scenicResourceNodeCount,
+    telemetry.wildlifeAssetStatus,
+    telemetry.wildlifeCount,
+    telemetry.exactWildlifeCount,
+    telemetry.proceduralWildlifeCount,
+    telemetry.tradeWagonCount,
+    telemetry.exteriorActorCount,
+    telemetry.exteriorMountedActorCount,
+    telemetry.exteriorPatrolUnitCount,
     telemetry.slotCount,
     telemetry.completedBuildingCount,
     telemetry.constructionSiteCount,
@@ -211,6 +241,37 @@ export function InnerKeepQaHarness({ scenario }: Readonly<{
     root.dataset.innerKeepQaAnimationMixerCount = String(telemetry.animationMixerCount);
     root.dataset.innerKeepQaRuntimeAssetFailureCount = String(
       telemetry.runtimeAssetFailureCount
+    );
+    root.dataset.innerKeepQaOuterWorldStatus = telemetry.outerWorldStatus;
+    root.dataset.innerKeepQaOuterWorldRuntimeAssetFailureCount = String(
+      telemetry.outerWorldRuntimeAssetFailureCount
+    );
+    root.dataset.innerKeepQaTopographicFeatureCount = String(
+      telemetry.topographicFeatureCount
+    );
+    root.dataset.innerKeepQaTerrainTriangleCount = String(
+      telemetry.terrainTriangleCount
+    );
+    root.dataset.innerKeepQaTerrainHeightRangeMillimeters = String(
+      telemetry.terrainHeightRangeMillimeters
+    );
+    root.dataset.innerKeepQaExteriorTreeCount = String(telemetry.exteriorTreeCount);
+    root.dataset.innerKeepQaScenicResourceNodeCount = String(
+      telemetry.scenicResourceNodeCount
+    );
+    root.dataset.innerKeepQaWildlifeAssetStatus = telemetry.wildlifeAssetStatus;
+    root.dataset.innerKeepQaWildlifeCount = String(telemetry.wildlifeCount);
+    root.dataset.innerKeepQaExactWildlifeCount = String(telemetry.exactWildlifeCount);
+    root.dataset.innerKeepQaProceduralWildlifeCount = String(
+      telemetry.proceduralWildlifeCount
+    );
+    root.dataset.innerKeepQaTradeWagonCount = String(telemetry.tradeWagonCount);
+    root.dataset.innerKeepQaExteriorActorCount = String(telemetry.exteriorActorCount);
+    root.dataset.innerKeepQaExteriorMountedActorCount = String(
+      telemetry.exteriorMountedActorCount
+    );
+    root.dataset.innerKeepQaExteriorPatrolUnitCount = String(
+      telemetry.exteriorPatrolUnitCount
     );
     root.dataset.innerKeepQaBarracksPlacementPresent = String(
       evidence.barracksPlacementPresent
@@ -395,7 +456,9 @@ export function InnerKeepQaHarness({ scenario }: Readonly<{
     ? sceneState === 'ready'
     : sceneState === 'ready'
       && sceneTelemetry.status === 'ready'
-      && ['ready', 'degraded'].includes(sceneTelemetry.assetStatus);
+      && sceneTelemetry.assetStatus === 'ready'
+      && sceneTelemetry.outerWorldStatus === 'ready'
+      && sceneTelemetry.wildlifeAssetStatus === 'ready';
 
   return (
     <div
@@ -405,7 +468,9 @@ export function InnerKeepQaHarness({ scenario }: Readonly<{
       data-inner-keep-qa-reduced-motion={String(scenario.reducedMotion)}
       data-inner-keep-qa-render-mode={scenario.renderMode}
       data-inner-keep-qa-scenario={scenario.id}
-      data-inner-keep-qa-status={ready ? 'ready' : sceneState}
+      data-inner-keep-qa-status={
+        ready ? 'ready' : sceneState === 'ready' ? 'loading' : sceneState
+      }
       ref={rootRef}
     >
       {scenario.renderMode === 'webgl' ? (

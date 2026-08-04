@@ -17,6 +17,11 @@ import {
 } from './innerKeepPathSampler';
 import { INNER_KEEP_POPULATION_RUNTIME_ACTORS } from './innerKeepRuntimeAssetCatalog.generated';
 import { INNER_KEEP_FIXED_PLACEMENT_EXCLUSIONS } from './innerKeepFixedPlacementExclusions';
+import {
+  INNER_KEEP_OUTER_WORLD_PATROL_ROUTE_POINTS,
+  INNER_KEEP_OUTER_WORLD_ROAD_CIRCUIT,
+  innerKeepOuterWorldDistanceToRoad,
+} from './innerKeepOuterWorldPolicy';
 
 export const INNER_KEEP_AMBIENT_POLICY_ID = 'genesis-001-inner-keep-ambient-v1';
 export const INNER_KEEP_AMBIENT_POLICY_VERSION = 1;
@@ -406,9 +411,9 @@ function ambientRoute(
 }
 
 /*
- * Two nested, non-crossing northwestern lanes keep the long cavalry models out
- * of the denser civic procession. Both stay inside the canonical wall and clear
- * the cathedral, reserved large slot, and north-west wall corner bounds.
+ * The compact inner loop carries the civic procession. The shared outer loop
+ * follows the estate road beyond the walls, so mounted citizens and patrols
+ * make the surrounding landscape visibly inhabited without adding actors.
  */
 function smoothClosedAmbientRoutePoints(
   source: readonly InnerKeepPathPoint[],
@@ -446,29 +451,9 @@ readonly InnerKeepPathPoint[] = Object.freeze(Array.from(
 ));
 
 const INNER_KEEP_NORTHWEST_OUTER_MOUNTED_LOOP_POINTS:
-readonly InnerKeepPathPoint[] = smoothClosedAmbientRoutePoints([
-  { x: -14.1, z: -12.4 },
-  { x: -14.2, z: -11.6 },
-  { x: -14, z: -10.8 },
-  { x: -13.5, z: -10.15 },
-  { x: -12.8, z: -9.75 },
-  { x: -12, z: -9.6 },
-  { x: -8.9, z: -9.6 },
-  { x: -8.1, z: -9.75 },
-  { x: -7.45, z: -10.2 },
-  { x: -7.05, z: -10.9 },
-  { x: -6.95, z: -11.6 },
-  { x: -7.1, z: -12.5 },
-  { x: -7.2, z: -13.5 },
-  { x: -7.8, z: -14.45 },
-  { x: -8.6, z: -15.1 },
-  { x: -9.5, z: -15.25 },
-  { x: -11.4, z: -15.25 },
-  { x: -12.3, z: -15.1 },
-  { x: -12.8, z: -14.3 },
-  { x: -13.5, z: -13.5 },
-  { x: -14.1, z: -12.9 }
-]);
+readonly InnerKeepPathPoint[] = smoothClosedAmbientRoutePoints(
+  INNER_KEEP_OUTER_WORLD_PATROL_ROUTE_POINTS,
+);
 
 export const INNER_KEEP_CIVIC_MOUNTED_ROUTE = ambientRoute(
   'inner-keep-civic-mounted-loop-v1',
@@ -736,7 +721,13 @@ export function isInnerKeepAmbientPointNavigable(
     && point.x <= courtyard.eastX - wallBuffer
     && point.z >= courtyard.northZ + wallBuffer
     && point.z <= courtyard.southZ - wallBuffer;
-  return onRoad || onPlaza || inOuterCourtyard;
+  const outerRoadHalfWidth = Math.max(
+    0.08,
+    INNER_KEEP_OUTER_WORLD_ROAD_CIRCUIT.halfWidthMeters - actorRadiusMeters,
+  );
+  const onOuterEstateRoad = innerKeepOuterWorldDistanceToRoad(point.x, point.z)
+    <= outerRoadHalfWidth;
+  return onRoad || onPlaza || inOuterCourtyard || onOuterEstateRoad;
 }
 
 function pointOverlapsExclusion(

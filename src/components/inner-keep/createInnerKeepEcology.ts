@@ -6,28 +6,26 @@ import {
   INNER_KEEP_FIXED_PLACEMENT_EXCLUSIONS,
   type InnerKeepFixedPlacementExclusion,
 } from './innerKeepFixedPlacementExclusions';
+import {
+  INNER_KEEP_OUTER_WORLD_COMPOUND_PLATEAU,
+  INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS,
+  INNER_KEEP_OUTER_WORLD_LAKE,
+  INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS,
+  INNER_KEEP_OUTER_WORLD_WATER_CENTERLINE,
+  innerKeepOuterWorldPointIsClear,
+  innerKeepOuterWorldTerrainHeightAt,
+} from './innerKeepOuterWorldPolicy';
 import type { InnerKeepSceneQuality } from './createInnerKeepSceneLayer';
 
 export const INNER_KEEP_GRASS_BUDGET = Object.freeze({
-  high: 1_600,
-  balanced: 900,
-  reduced: 320,
+  high: INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS.high.grassBlades,
+  balanced: INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS.balanced.grassBlades,
+  reduced: INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS.reduced.grassBlades,
 } satisfies Readonly<Record<InnerKeepSceneQuality, number>>);
 
-export const INNER_KEEP_WATER_CENTERLINE = Object.freeze([
-  Object.freeze({ x: 17.5, z: -8.8, width: 0.58, y: 0.38 }),
-  Object.freeze({ x: 17.5, z: -6.1, width: 0.6, y: 0.368 }),
-  Object.freeze({ x: 17.5, z: -3.35, width: 0.62, y: 0.355 }),
-  Object.freeze({ x: 17.5, z: -0.55, width: 0.62, y: 0.342 }),
-  Object.freeze({ x: 17.5, z: 2.25, width: 0.64, y: 0.329 }),
-  Object.freeze({ x: 17.5, z: 4.9, width: 0.66, y: 0.316 }),
-  Object.freeze({ x: 17.5, z: 6.85, width: 0.68, y: 0.305 }),
-] as const);
-
-export const INNER_KEEP_WATER_POND = Object.freeze({
-  center: Object.freeze({ x: 17.5, y: 0.3, z: 7.4 }),
-  radii: Object.freeze({ x: 0.55, z: 0.55 }),
-});
+/** Backward-compatible names now covering the connected outer watercourse. */
+export const INNER_KEEP_WATER_CENTERLINE = INNER_KEEP_OUTER_WORLD_WATER_CENTERLINE;
+export const INNER_KEEP_WATER_POND = INNER_KEEP_OUTER_WORLD_LAKE;
 
 export const INNER_KEEP_WATER_BANK_EXTRA_WIDTH_METERS = 0.1;
 
@@ -123,8 +121,15 @@ function overlapsAmbientRoute(x: number, z: number) {
 }
 
 function grassCandidateIsClear(x: number, z: number) {
-  if (Math.abs(x) > 16.3 || z < -15.1 || z > 12.1) return false;
-  if (Math.abs(x) < 1.8 || Math.abs(z - 0.2) < 1.45) return false;
+  const [outerHalfWidth, outerHalfDepth] = INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS;
+  if (Math.abs(x) > outerHalfWidth - 0.4 || Math.abs(z) > outerHalfDepth - 0.4) {
+    return false;
+  }
+  const insideInnerKeepEcologyArea = Math.abs(x) <= 16.3 && z >= -15.1 && z <= 12.1;
+  if (
+    insideInnerKeepEcologyArea
+    && (Math.abs(x) < 1.8 || Math.abs(z - 0.2) < 1.45)
+  ) return false;
   if (INNER_KEEP_FIXED_ECOLOGY_EXCLUSIONS.some((exclusion) => (
     !exclusion.isRoadSurface
     && insideRoundedBox(
@@ -142,7 +147,14 @@ function grassCandidateIsClear(x: number, z: number) {
     const slotZ = Number(slot.localZMicrounits) / 1_000_000;
     if (insideRoundedBox(x, z, slotX, slotZ, 2.0, 1.8)) return false;
   }
-  return true;
+  const plateau = INNER_KEEP_OUTER_WORLD_COMPOUND_PLATEAU;
+  const isInsideCompoundPlateau = x >= plateau.minimumX
+    && x <= plateau.maximumX
+    && z >= plateau.minimumZ
+    && z <= plateau.maximumZ;
+  return isInsideCompoundPlateau
+    ? true
+    : innerKeepOuterWorldPointIsClear(x, z, 0.08);
 }
 
 function createCrossedGrassBladeGeometry() {
@@ -235,14 +247,17 @@ function createGrass(
   const scale = new THREE.Vector3();
   let accepted = 0;
   let attempt = 0;
-  while (accepted < bladeCount && attempt < bladeCount * 18) {
-    const x = -16.1 + deterministicUnit(attempt, seed + 1) * 32.2;
-    const z = -14.9 + deterministicUnit(attempt, seed + 2) * 26.8;
+  const [outerHalfWidth, outerHalfDepth] = INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS;
+  while (accepted < bladeCount && attempt < bladeCount * 24) {
+    const x = -outerHalfWidth + 0.45
+      + deterministicUnit(attempt, seed + 1) * (outerHalfWidth * 2 - 0.9);
+    const z = -outerHalfDepth + 0.45
+      + deterministicUnit(attempt, seed + 2) * (outerHalfDepth * 2 - 0.9);
     attempt += 1;
     if (!grassCandidateIsClear(x, z)) continue;
     const height = 0.58 + deterministicUnit(attempt, seed + 3) * 0.5;
     const width = 0.78 + deterministicUnit(attempt, seed + 4) * 0.46;
-    position.set(x, 0.115, z);
+    position.set(x, innerKeepOuterWorldTerrainHeightAt(x, z) + 0.115, z);
     quaternion.setFromAxisAngle(
       new THREE.Vector3(0, 1, 0),
       deterministicUnit(attempt, seed + 5) * Math.PI,
@@ -422,17 +437,21 @@ export function createInnerKeepEcology(options: Readonly<{
   geometries.add(sourcePierGeometry);
   geometries.add(sourceLintelGeometry);
   const waterSource = INNER_KEEP_WATER_CENTERLINE[0]!;
+  const waterSourceGround = innerKeepOuterWorldTerrainHeightAt(
+    waterSource.x,
+    waterSource.z,
+  );
   const sourceLeft = new THREE.Mesh(sourcePierGeometry, bankMaterial);
-  sourceLeft.position.set(waterSource.x - 0.5, 0.29, waterSource.z);
+  sourceLeft.position.set(waterSource.x - 0.5, waterSourceGround + 0.28, waterSource.z);
   sourceLeft.castShadow = true;
   sourceLeft.receiveShadow = true;
   const sourceRight = sourceLeft.clone();
   sourceRight.position.x = waterSource.x + 0.5;
   const sourceLintel = new THREE.Mesh(sourceLintelGeometry, bankMaterial);
-  sourceLintel.position.set(waterSource.x, 0.62, waterSource.z);
+  sourceLintel.position.set(waterSource.x, waterSourceGround + 0.62, waterSource.z);
   sourceLintel.castShadow = true;
   sourceLintel.receiveShadow = true;
-  sourceLintel.name = 'inner-keep-cistern-headwall';
+  sourceLintel.name = 'inner-keep-headwater-stonework';
   group.add(sourceLeft, sourceRight, sourceLintel);
 
   const pondGeometry = new THREE.CircleGeometry(1, 40);

@@ -172,19 +172,44 @@ Civic routines use only Greet, Idle, Walk, and Work. Patrols use Idle and Walk;
 combat clips are excluded. Conversation bubbles and every ambient identity are
 synthetic presentation, never player chat or server state.
 
-The ecology layer adds deterministic authored perimeter trees, dense crossed
-grass with bounded wind, and a downhill two-surface drain and settling pond
-outside the east palisade. Grass roots clear every fixed authored footprint,
-road, route, water surface, and reserved slot. The drain clears the declared
-placement margins, wall, slots, and buffered ground edge. Actor paths and tree
-placements share the same fixed-footprint clearance inputs so no visible
-patrol walks through a wall or prop.
+The ecology layer now continues across a 48 x 52 meter estate with nine named
+topographic features. The compound remains on an exact level plateau while
+ridges, stone shelves, meadows, woodland margins, and a south-eastern lake
+shape the land outside it. One strictly downhill watercourse runs from its
+north-eastern headwater, along the east-wall rill, and into that lake. It is
+still rendered as two logical water surfaces, so water detail stays bounded.
 
-| Quality | Actors (mounted / patrol) | Trees | Grass | Max active fps | Scene graph max (draws / triangles) | Renderer evidence max (draws / triangles) |
+Grass, actors, trees, wildlife, resource scenery, roads, and the wagon all use
+the same deterministic terrain-height sampler. Grass clears fixed authored
+footprints, reserved slots, water banks, unsafe slopes, roads, routes, and the
+four leveled scenic resource pads. The outer patrol carries existing mounted
+and foot characters beyond the walls without creating another population or
+claiming unit authority.
+
+| Quality | Actors (mounted / patrol) | Compound trees | Grass | Max active fps | Scene graph max (draws / triangles) | Renderer evidence max (draws / triangles) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| High | 20 (6 / 12) | 18 | 1,600 | 30 | 350 / 300,000 | 700 / 600,000 |
-| Balanced | 12 (4 / 6) | 12 | 900 | 24 | 275 / 165,000 | 330 / 190,000 |
-| Reduced | 8 (2 / 4) | 6 | 320 | 18 | 210 / 80,000 | 220 / 85,000 |
+| High | 20 (6 / 12) | 18 | 2,400 | 30 | 390 / 420,000 | 700 / 600,000 |
+| Balanced | 12 (4 / 6) | 12 | 1,400 | 24 | 310 / 215,000 | 330 / 190,000 |
+| Reduced | 8 (2 / 4) | 6 | 480 | 18 | 235 / 110,000 | 220 / 85,000 |
+
+The exterior has its own quality budget:
+
+| Quality | Authored trees across six species | Scenic resource structures | Rabbits | Trade wagons |
+| --- | ---: | ---: | ---: | ---: |
+| High | 72 | 8 | 10 | 1 |
+| Balanced | 44 | 6 | 7 | 1 |
+| Reduced | 22 | 4 | 4 | 1 |
+
+The four resource families and supply wagon are presentation-only uses of the
+reviewed Warpkeep-Assets runtime models. High and Balanced use their Balanced
+outer-estate LODs so the compound keeps the close-detail budget; Reduced uses
+Compact. These models do not create gathering sites, balances, assignments,
+collision, or production. Rabbits prefer the exact optional three-LOD
+[`rabbit-runtime-ui-bundle-2026-07-30`](https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/rabbit-runtime-ui-bundle-2026-07-30)
+selection and use a bounded procedural rabbit fallback when it is unavailable.
+That fallback preserves the same 10 / 7 / 4 count and deterministic anchors;
+the [exact selection record](../reference/assets/2026-07-30-lowlands-rabbit/)
+retains its narrow authorization and license boundary.
 
 Reduced quality uses static population and ecology presentation. Explicit
 reduced motion sets the animation cap to zero. Fixed static instancing is
@@ -200,6 +225,10 @@ appears only with complete exact static coverage, so procedural and authored
 landmarks never mix. Population may retain the strongest verified partial
 coverage. A terminal missing completed-building prefab falls back to the
 bounded procedural completed model rather than leaving a permanent scaffold.
+The exterior keeps separate terrain, tree, resource, wagon, and wildlife
+status. One optional family can degrade to its own bounded fallback without
+removing the compound or another healthy family. Quality budgets cap each
+layer independently before the combined scene ceiling is enforced.
 
 ## Asset boundary
 

@@ -24,6 +24,12 @@ full engineering record.
   Barracks with mounted patrols, civic conversations, authored trees, dense
   wind-swept grass, an east-wall drain, deterministic clearances, bounded
   animation, and atomic fail-safe asset loading.
+- Extended that presentation beyond the walls with nine named landforms, one
+  connected headwater-to-lake course, quality-scaled fields and six-species
+  woodland, scenic resource structures and a trade wagon, outer patrols, and
+  rabbits. Exact optional wildlife can fall back independently to bounded
+  procedural animals; every exterior element remains visual-only and grounded
+  by the same deterministic terrain sampler.
 - Prepared an optional **Enable Admission Alerts** step after a confirmed access
   request. It remains fail-closed behind a default-off release gate until the
   owner-controlled signed notification canary is complete, and never affects

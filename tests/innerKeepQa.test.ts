@@ -64,42 +64,66 @@ function evidenceFor(
     ? {
         actorCount: 20,
         animationFrameCap: 30,
+        animationMixerCount: 30,
         authoredTreeCount: 18,
-        grassBladeCount: 1_600,
+        exteriorActorCount: 9,
+        exteriorMountedActorCount: 6,
+        exteriorPatrolUnitCount: 7,
+        exteriorTreeCount: 72,
+        grassBladeCount: 2_400,
         mountedActorCount: 6,
         patrolUnitCount: 12,
         rendererDrawCalls: 636,
         rendererTriangles: 534_156,
+        resourceNodeCount: 8,
         sceneGraphDrawCalls: 329,
-        sceneGraphTriangles: 274_564
+        sceneGraphTriangles: 274_564,
+        terrainTriangleCount: 8_960,
+        wildlifeCount: 10
       }
     : scenario.quality === 'reduced'
     ? {
         actorCount: 8,
         animationFrameCap: 18,
+        animationMixerCount: 0,
         authoredTreeCount: 6,
-        grassBladeCount: 320,
+        exteriorActorCount: 3,
+        exteriorMountedActorCount: 2,
+        exteriorPatrolUnitCount: 2,
+        exteriorTreeCount: 22,
+        grassBladeCount: 480,
         mountedActorCount: 2,
         patrolUnitCount: 4,
         rendererDrawCalls: 188,
         rendererTriangles: 70_331,
+        resourceNodeCount: 4,
         sceneGraphDrawCalls: 190,
-        sceneGraphTriangles: 75_000
+        sceneGraphTriangles: 75_000,
+        terrainTriangleCount: 2_040,
+        wildlifeCount: 4
       }
     : {
         actorCount: 12,
         animationFrameCap: 24,
+        animationMixerCount: 19,
         authoredTreeCount: 12,
-        grassBladeCount: 900,
+        exteriorActorCount: 6,
+        exteriorMountedActorCount: 4,
+        exteriorPatrolUnitCount: 4,
+        exteriorTreeCount: 44,
+        grassBladeCount: 1_400,
         mountedActorCount: 4,
         patrolUnitCount: 6,
         rendererDrawCalls: 261,
         rendererTriangles: 148_096,
+        resourceNodeCount: 6,
         sceneGraphDrawCalls: 250,
-        sceneGraphTriangles: 160_000
+        sceneGraphTriangles: 160_000,
+        terrainTriangleCount: 5_184,
+        wildlifeCount: 7
       };
   return {
-    version: 1,
+    version: 2,
     scenario: scenario.id,
     renderMode: scenario.renderMode,
     innerKeepRenderer: scenario.renderMode,
@@ -135,10 +159,24 @@ function evidenceFor(
     patrolUnitCount: webgl ? living.patrolUnitCount : 0,
     activeConversationCount: scenario.id === 'active-conversation' ? 1 : 0,
     animationMixerCount: webgl && !scenario.reducedMotion
-      && scenario.quality !== 'reduced'
-      ? living.actorCount
+      ? living.animationMixerCount
       : 0,
     runtimeAssetFailureCount: 0,
+    outerWorldStatus: webgl ? 'ready' : 'idle',
+    outerWorldRuntimeAssetFailureCount: 0,
+    topographicFeatureCount: webgl ? 9 : 0,
+    terrainTriangleCount: webgl ? living.terrainTriangleCount : 0,
+    terrainHeightRangeMillimeters: webgl ? 2_480 : 0,
+    exteriorTreeCount: webgl ? living.exteriorTreeCount : 0,
+    scenicResourceNodeCount: webgl ? living.resourceNodeCount : 0,
+    wildlifeAssetStatus: webgl ? 'ready' : 'idle',
+    wildlifeCount: webgl ? living.wildlifeCount : 0,
+    exactWildlifeCount: webgl ? living.wildlifeCount : 0,
+    proceduralWildlifeCount: 0,
+    tradeWagonCount: webgl ? 1 : 0,
+    exteriorActorCount: webgl ? living.exteriorActorCount : 0,
+    exteriorMountedActorCount: webgl ? living.exteriorMountedActorCount : 0,
+    exteriorPatrolUnitCount: webgl ? living.exteriorPatrolUnitCount : 0,
     barracksPlacementPresent: webgl,
     cathedralPlacementPresent: webgl,
     constructionSiteCount: constructing ? 1 : 0,
@@ -368,13 +406,31 @@ describe('local Inner Keep rendered evidence contract', () => {
     }
   });
 
+  it('keeps the version-two living-world evidence shape exact', () => {
+    const complete = evidenceFor('empty');
+    const { wildlifeCount, ...missingWildlifeCount } = complete;
+    expect(wildlifeCount).toBe(7);
+    expect(() => assertInnerKeepQaScenarioEvidence(
+      { ...complete, version: 1 },
+      'empty'
+    )).toThrow(/invalid/i);
+    expect(() => assertInnerKeepQaScenarioEvidence(
+      missingWildlifeCount,
+      'empty'
+    )).toThrow(/invalid/i);
+    expect(() => assertInnerKeepQaScenarioEvidence(
+      { ...complete, unreviewedField: 1 },
+      'empty'
+    )).toThrow(/invalid/i);
+  });
+
   it('rejects quality-cap drift in animation, scene-graph, and renderer evidence', () => {
     for (const override of [
       { animationFrameCap: 25 },
-      { sceneGraphDrawCalls: 276 },
-      { sceneGraphTriangles: 165_001 },
-      { rendererDrawCalls: 331 },
-      { rendererTriangles: 190_001 }
+      { sceneGraphDrawCalls: 311 },
+      { sceneGraphTriangles: 215_001 },
+      { rendererDrawCalls: 381 },
+      { rendererTriangles: 260_001 }
     ]) {
       expect(() => assertInnerKeepQaScenarioEvidence(
         evidenceFor('empty', override),
@@ -389,16 +445,27 @@ describe('local Inner Keep rendered evidence contract', () => {
       'empty'
     )).toMatchObject({
       ambientActorCount: 12,
-      animationMixerCount: 12,
+      animationMixerCount: 19,
       assetStatus: 'ready',
       authoredAssetCount: 38,
       authoredPlacementCount: 67,
       authoredTreeCount: 12,
       barracksPlacementPresent: true,
       cathedralPlacementPresent: true,
-      grassBladeCount: 900,
+      exactWildlifeCount: 7,
+      exteriorActorCount: 6,
+      exteriorMountedActorCount: 4,
+      exteriorPatrolUnitCount: 4,
+      exteriorTreeCount: 44,
+      grassBladeCount: 1_400,
       mountedActorCount: 4,
       patrolUnitCount: 6,
+      scenicResourceNodeCount: 6,
+      terrainTriangleCount: 5_184,
+      topographicFeatureCount: 9,
+      tradeWagonCount: 1,
+      wildlifeAssetStatus: 'ready',
+      wildlifeCount: 7,
       runtimeAssetFailureCount: 0,
       waterSurfaceCount: 2
     });
@@ -414,7 +481,10 @@ describe('local Inner Keep rendered evidence contract', () => {
       ambientActorCount: 8,
       animationMixerCount: 0,
       authoredTreeCount: 6,
-      grassBladeCount: 320,
+      exactWildlifeCount: 4,
+      exteriorActorCount: 3,
+      exteriorTreeCount: 22,
+      grassBladeCount: 480,
       mountedActorCount: 2,
       patrolUnitCount: 4
     });
@@ -423,9 +493,12 @@ describe('local Inner Keep rendered evidence contract', () => {
       'high-quality'
     )).toMatchObject({
       ambientActorCount: 20,
-      animationMixerCount: 20,
+      animationMixerCount: 30,
       authoredTreeCount: 18,
-      grassBladeCount: 1_600,
+      exactWildlifeCount: 10,
+      exteriorActorCount: 9,
+      exteriorTreeCount: 72,
+      grassBladeCount: 2_400,
       mountedActorCount: 6,
       patrolUnitCount: 12
     });
@@ -458,6 +531,10 @@ describe('local Inner Keep rendered evidence contract', () => {
       barracksPlacementPresent: false,
       cathedralPlacementPresent: false,
       grassBladeCount: 0,
+      outerWorldStatus: 'idle',
+      terrainTriangleCount: 0,
+      wildlifeAssetStatus: 'idle',
+      wildlifeCount: 0,
       waterSurfaceCount: 0
     });
 
@@ -467,13 +544,28 @@ describe('local Inner Keep rendered evidence contract', () => {
       { authoredAssetCount: 37 },
       { authoredPlacementCount: 66 },
       { authoredTreeCount: 11 },
-      { grassBladeCount: 899 },
+      { grassBladeCount: 1_399 },
       { waterSurfaceCount: 1 },
       { ambientActorCount: 11 },
       { mountedActorCount: 3 },
       { patrolUnitCount: 5 },
-      { animationMixerCount: 11 },
+      { animationMixerCount: 18 },
       { runtimeAssetFailureCount: 1 },
+      { outerWorldStatus: 'loading' },
+      { outerWorldRuntimeAssetFailureCount: 1 },
+      { topographicFeatureCount: 8 },
+      { terrainTriangleCount: 5_183 },
+      { terrainHeightRangeMillimeters: 0 },
+      { exteriorTreeCount: 43 },
+      { scenicResourceNodeCount: 5 },
+      { wildlifeAssetStatus: 'loading' },
+      { wildlifeCount: 6 },
+      { exactWildlifeCount: 6 },
+      { proceduralWildlifeCount: 1 },
+      { tradeWagonCount: 0 },
+      { exteriorActorCount: 5 },
+      { exteriorMountedActorCount: 3 },
+      { exteriorPatrolUnitCount: 3 },
       { barracksPlacementPresent: false },
       { cathedralPlacementPresent: false }
     ]) {

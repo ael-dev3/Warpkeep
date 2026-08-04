@@ -27,9 +27,11 @@ const ROOT = resolve(import.meta.dirname, '..');
 const REPOSITORY_MODEL_ROOT = 'public/models/hegemony/inner-keep';
 const REPOSITORY_PREVIEW_ROOT = 'public/images/inner-keep/catalog';
 const REPOSITORY_POPULATION_ROOT = `${REPOSITORY_MODEL_ROOT}/population`;
+const REPOSITORY_WILDLIFE_ROOT = `${REPOSITORY_MODEL_ROOT}/wildlife`;
 const PRODUCTION_MODEL_ROOT = 'models/hegemony/inner-keep';
 const PRODUCTION_PREVIEW_ROOT = 'images/inner-keep/catalog';
 const PRODUCTION_POPULATION_ROOT = `${PRODUCTION_MODEL_ROOT}/population`;
+const PRODUCTION_WILDLIFE_ROOT = `${PRODUCTION_MODEL_ROOT}/wildlife`;
 
 function fail(detail) {
   throw new Error(`Inner Keep runtime asset verification: ${detail}`);
@@ -57,10 +59,10 @@ function assertOrdinaryDirectoryChain(outputRoot, relativePath) {
   }
 }
 
-function collectRegularFiles(outputRoot, relativePath, ignoredPath) {
-  // Population models have their own exact 40-file verifier. Keep this static
-  // selection closed over its 114 models and six previews in both public/ and dist/.
-  if (relativePath === ignoredPath) return [];
+function collectRegularFiles(outputRoot, relativePath, ignoredPaths) {
+  // Population and wildlife models have their own exact verifiers. Keep this
+  // static selection closed over 114 models and six previews in public/ and dist/.
+  if (ignoredPaths.includes(relativePath)) return [];
   const absolutePath = resolve(outputRoot, relativePath);
   const status = lstatSync(absolutePath, { throwIfNoEntry: false });
   if (!status) fail(`required path is missing: ${relativePath}.`);
@@ -72,7 +74,7 @@ function collectRegularFiles(outputRoot, relativePath, ignoredPath) {
     .flatMap((entry) => collectRegularFiles(
       outputRoot,
       `${relativePath}/${entry.name}`,
-      ignoredPath
+      ignoredPaths
     ));
 }
 
@@ -148,14 +150,18 @@ export function verifyInnerKeepRuntimeAssetInstall(options = {}) {
   const populationRoot = production
     ? PRODUCTION_POPULATION_ROOT
     : REPOSITORY_POPULATION_ROOT;
+  const wildlifeRoot = production
+    ? PRODUCTION_WILDLIFE_ROOT
+    : REPOSITORY_WILDLIFE_ROOT;
+  const separatelyVerifiedRoots = Object.freeze([populationRoot, wildlifeRoot]);
   assertOrdinaryDirectoryChain(outputRoot, modelRoot);
   assertOrdinaryDirectoryChain(outputRoot, previewRoot);
   const expectedPaths = INNER_KEEP_PLANNED_RUNTIME_PATHS.map((path) => (
     production ? path.replace(/^public\//u, '') : path
   )).sort();
   const observedPaths = [
-    ...collectRegularFiles(outputRoot, modelRoot, populationRoot),
-    ...collectRegularFiles(outputRoot, previewRoot, populationRoot)
+    ...collectRegularFiles(outputRoot, modelRoot, separatelyVerifiedRoots),
+    ...collectRegularFiles(outputRoot, previewRoot, separatelyVerifiedRoots)
   ].sort();
   if (
     observedPaths.length !== expectedPaths.length

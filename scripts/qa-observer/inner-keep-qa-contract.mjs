@@ -61,6 +61,11 @@ const EVIDENCE_KEYS = Object.freeze([
   'documentHeight',
   'documentWidth',
   'enabledSlotControlCount',
+  'exactWildlifeCount',
+  'exteriorActorCount',
+  'exteriorMountedActorCount',
+  'exteriorPatrolUnitCount',
+  'exteriorTreeCount',
   'finalModelCount',
   'grassBladeCount',
   'horizontalOverflow',
@@ -69,7 +74,10 @@ const EVIDENCE_KEYS = Object.freeze([
   'levelVisible',
   'maximumPendingRafCount',
   'mountedActorCount',
+  'outerWorldRuntimeAssetFailureCount',
+  'outerWorldStatus',
   'patrolUnitCount',
+  'proceduralWildlifeCount',
   'progressBasisPoints',
   'quality',
   'rafOwnerCount',
@@ -83,17 +91,24 @@ const EVIDENCE_KEYS = Object.freeze([
   'scenario',
   'sceneGraphDrawCalls',
   'sceneGraphTriangles',
+  'scenicResourceNodeCount',
   'slotControlCount',
   'slotCount',
   'slotGeometryCount',
   'smokeSpriteCount',
   'status',
+  'terrainHeightRangeMillimeters',
+  'terrainTriangleCount',
+  'topographicFeatureCount',
+  'tradeWagonCount',
   'version',
   'verticalOverflow',
   'viewportHeight',
   'viewportWidth',
   'waterSurfaceCount',
   'webglContextCount',
+  'wildlifeAssetStatus',
+  'wildlifeCount',
 ]);
 
 export function parseInnerKeepQaEvidence(value) {
@@ -102,12 +117,30 @@ export function parseInnerKeepQaEvidence(value) {
   if (
     keys.length !== EVIDENCE_KEYS.length
     || keys.some((key, index) => key !== EVIDENCE_KEYS[index])
-    || candidate.version !== 1
+    || candidate.version !== 2
     || !INNER_KEEP_QA_SCENARIO_IDS.includes(candidate.scenario)
     || !['webgl', 'fallback'].includes(candidate.renderMode)
     || !['webgl', 'fallback'].includes(candidate.innerKeepRenderer)
     || !['high', 'balanced', 'reduced'].includes(candidate.quality)
     || !['idle', 'loading', 'ready', 'degraded'].includes(candidate.assetStatus)
+    || ![
+      'idle',
+      'loading',
+      'ready',
+      'fallback',
+      'partial',
+      'aborted',
+      'disposed',
+    ].includes(candidate.outerWorldStatus)
+    || ![
+      'idle',
+      'disabled',
+      'loading',
+      'ready',
+      'failed',
+      'aborted',
+      'disposed',
+    ].includes(candidate.wildlifeAssetStatus)
     || candidate.status !== 'ready'
     || typeof candidate.reducedMotion !== 'boolean'
     || typeof candidate.barracksPlacementPresent !== 'boolean'
@@ -134,26 +167,39 @@ export function parseInnerKeepQaEvidence(value) {
       candidate.documentHeight,
       candidate.documentWidth,
       candidate.enabledSlotControlCount,
+      candidate.exactWildlifeCount,
+      candidate.exteriorActorCount,
+      candidate.exteriorMountedActorCount,
+      candidate.exteriorPatrolUnitCount,
+      candidate.exteriorTreeCount,
       candidate.finalModelCount,
       candidate.grassBladeCount,
       candidate.maximumPendingRafCount,
       candidate.mountedActorCount,
+      candidate.outerWorldRuntimeAssetFailureCount,
       candidate.patrolUnitCount,
+      candidate.proceduralWildlifeCount,
       candidate.rafOwnerCount,
       candidate.rendererCount,
       candidate.rendererDrawCalls,
       candidate.rendererTriangles,
       candidate.runtimeAssetFailureCount,
+      candidate.scenicResourceNodeCount,
       candidate.sceneGraphDrawCalls,
       candidate.sceneGraphTriangles,
       candidate.slotControlCount,
       candidate.slotCount,
       candidate.slotGeometryCount,
       candidate.smokeSpriteCount,
+      candidate.terrainHeightRangeMillimeters,
+      candidate.terrainTriangleCount,
+      candidate.topographicFeatureCount,
+      candidate.tradeWagonCount,
       candidate.viewportHeight,
       candidate.viewportWidth,
       candidate.waterSurfaceCount,
       candidate.webglContextCount,
+      candidate.wildlifeCount,
     ].every((entry) => exactInteger(entry))
     || !(
       candidate.progressBasisPoints === null
@@ -163,45 +209,72 @@ export function parseInnerKeepQaEvidence(value) {
   return Object.freeze({ ...candidate });
 }
 
+export const INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS = Object.freeze({
+  high: Object.freeze({ drawCalls: 390, triangles: 420_000 }),
+  balanced: Object.freeze({ drawCalls: 310, triangles: 215_000 }),
+  reduced: Object.freeze({ drawCalls: 235, triangles: 110_000 }),
+});
+
 const EXPECTED_LIVING_SCENE_BY_QUALITY = Object.freeze({
   high: Object.freeze({
     activeConversationMaximum: 3,
     ambientActorCount: 20,
     animationFrameCap: 30,
     authoredTreeCount: 18,
-    grassBladeCount: 1_600,
+    exteriorActorCount: 9,
+    exteriorMountedActorCount: 6,
+    exteriorPatrolUnitCount: 7,
+    exteriorTreeCount: 72,
+    grassBladeCount: 2_400,
     mountedActorCount: 6,
     patrolUnitCount: 12,
-    rendererDrawCallsMaximum: 700,
-    rendererTrianglesMaximum: 600_000,
-    sceneGraphDrawCallsMaximum: 350,
-    sceneGraphTrianglesMaximum: 300_000,
+    rendererDrawCallsMaximum: 750,
+    rendererTrianglesMaximum: 720_000,
+    scenicResourceNodeCount: 8,
+    sceneGraphDrawCallsMaximum: INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS.high.drawCalls,
+    sceneGraphTrianglesMaximum: INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS.high.triangles,
+    terrainTriangleCount: 8_960,
+    wildlifeCount: 10,
   }),
   balanced: Object.freeze({
     activeConversationMaximum: 2,
     ambientActorCount: 12,
     animationFrameCap: 24,
     authoredTreeCount: 12,
-    grassBladeCount: 900,
+    exteriorActorCount: 6,
+    exteriorMountedActorCount: 4,
+    exteriorPatrolUnitCount: 4,
+    exteriorTreeCount: 44,
+    grassBladeCount: 1_400,
     mountedActorCount: 4,
     patrolUnitCount: 6,
-    rendererDrawCallsMaximum: 330,
-    rendererTrianglesMaximum: 190_000,
-    sceneGraphDrawCallsMaximum: 275,
-    sceneGraphTrianglesMaximum: 165_000,
+    rendererDrawCallsMaximum: 380,
+    rendererTrianglesMaximum: 260_000,
+    scenicResourceNodeCount: 6,
+    sceneGraphDrawCallsMaximum: INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS.balanced.drawCalls,
+    sceneGraphTrianglesMaximum: INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS.balanced.triangles,
+    terrainTriangleCount: 5_184,
+    wildlifeCount: 7,
   }),
   reduced: Object.freeze({
     activeConversationMaximum: 0,
     ambientActorCount: 8,
     animationFrameCap: 18,
     authoredTreeCount: 6,
-    grassBladeCount: 320,
+    exteriorActorCount: 3,
+    exteriorMountedActorCount: 2,
+    exteriorPatrolUnitCount: 2,
+    exteriorTreeCount: 22,
+    grassBladeCount: 480,
     mountedActorCount: 2,
     patrolUnitCount: 4,
-    rendererDrawCallsMaximum: 220,
-    rendererTrianglesMaximum: 85_000,
-    sceneGraphDrawCallsMaximum: 210,
-    sceneGraphTrianglesMaximum: 80_000,
+    rendererDrawCallsMaximum: 260,
+    rendererTrianglesMaximum: 130_000,
+    scenicResourceNodeCount: 4,
+    sceneGraphDrawCallsMaximum: INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS.reduced.drawCalls,
+    sceneGraphTrianglesMaximum: INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS.reduced.triangles,
+    terrainTriangleCount: 2_040,
+    wildlifeCount: 4,
   }),
 });
 
@@ -222,6 +295,21 @@ function expectLivingScene(evidence, scenario) {
       && evidence.sceneGraphDrawCalls === 0
       && evidence.sceneGraphTriangles === 0
       && evidence.runtimeAssetFailureCount === 0
+      && evidence.outerWorldStatus === 'idle'
+      && evidence.outerWorldRuntimeAssetFailureCount === 0
+      && evidence.topographicFeatureCount === 0
+      && evidence.terrainTriangleCount === 0
+      && evidence.terrainHeightRangeMillimeters === 0
+      && evidence.exteriorTreeCount === 0
+      && evidence.scenicResourceNodeCount === 0
+      && evidence.wildlifeAssetStatus === 'idle'
+      && evidence.wildlifeCount === 0
+      && evidence.exactWildlifeCount === 0
+      && evidence.proceduralWildlifeCount === 0
+      && evidence.tradeWagonCount === 0
+      && evidence.exteriorActorCount === 0
+      && evidence.exteriorMountedActorCount === 0
+      && evidence.exteriorPatrolUnitCount === 0
       && evidence.cathedralPlacementPresent === false
       && evidence.barracksPlacementPresent === false;
   }
@@ -242,7 +330,7 @@ function expectLivingScene(evidence, scenario) {
     && conversationEvidenceMatches
     && (!motionDisabled || evidence.activeConversationCount === 0)
     && evidence.animationMixerCount === (
-      motionDisabled ? 0 : expected.ambientActorCount
+      motionDisabled ? 0 : expected.ambientActorCount + expected.wildlifeCount
     )
     && evidence.animationFrameCap === (
       scenario.reducedMotion ? 0 : expected.animationFrameCap
@@ -254,6 +342,21 @@ function expectLivingScene(evidence, scenario) {
     && evidence.sceneGraphTriangles > 0
     && evidence.sceneGraphTriangles <= expected.sceneGraphTrianglesMaximum
     && evidence.runtimeAssetFailureCount === 0
+    && evidence.outerWorldStatus === 'ready'
+    && evidence.outerWorldRuntimeAssetFailureCount === 0
+    && evidence.topographicFeatureCount === 9
+    && evidence.terrainTriangleCount === expected.terrainTriangleCount
+    && evidence.terrainHeightRangeMillimeters > 0
+    && evidence.exteriorTreeCount === expected.exteriorTreeCount
+    && evidence.scenicResourceNodeCount === expected.scenicResourceNodeCount
+    && evidence.wildlifeAssetStatus === 'ready'
+    && evidence.wildlifeCount === expected.wildlifeCount
+    && evidence.exactWildlifeCount === expected.wildlifeCount
+    && evidence.proceduralWildlifeCount === 0
+    && evidence.tradeWagonCount === 1
+    && evidence.exteriorActorCount === expected.exteriorActorCount
+    && evidence.exteriorMountedActorCount === expected.exteriorMountedActorCount
+    && evidence.exteriorPatrolUnitCount === expected.exteriorPatrolUnitCount
     && evidence.cathedralPlacementPresent === true
     && evidence.barracksPlacementPresent === true;
 }

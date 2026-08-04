@@ -179,8 +179,17 @@ function actionForPose(state: ActorRenderState, pose: InnerKeepAmbientActorPose)
   state.mixer.update(0);
 }
 
-function applyPose(state: ActorRenderState, pose: InnerKeepAmbientActorPose) {
-  state.wrapper.position.set(pose.position.x, 0.13, pose.position.z);
+function applyPose(
+  state: ActorRenderState,
+  pose: InnerKeepAmbientActorPose,
+  terrainHeightAt: (x: number, z: number) => number,
+) {
+  const terrainHeight = terrainHeightAt(pose.position.x, pose.position.z);
+  state.wrapper.position.set(
+    pose.position.x,
+    (Number.isFinite(terrainHeight) ? terrainHeight : 0) + 0.13,
+    pose.position.z,
+  );
   // Authored unit exports face local -Z; deterministic routes use local +Z.
   state.wrapper.rotation.y = pose.yawRadians + Math.PI;
   state.bubble && (state.bubble.visible = pose.conversation !== null);
@@ -193,7 +202,10 @@ function applyPose(state: ActorRenderState, pose: InnerKeepAmbientActorPose) {
 export function createInnerKeepPopulationPresentation(options: Readonly<{
   bundle: InnerKeepRuntimeAssetBundle;
   plan: InnerKeepAmbientSimulationPlan;
+  /** Shared deterministic visual terrain sampler; never gameplay authority. */
+  terrainHeightAt?: (x: number, z: number) => number;
 }>): InnerKeepPopulationPresentation {
+  const terrainHeightAt = options.terrainHeightAt ?? (() => 0);
   const group = new THREE.Group();
   group.name = 'inner-keep-ambient-population';
   group.userData.presentationOnly = true;
@@ -267,7 +279,7 @@ export function createInnerKeepPopulationPresentation(options: Readonly<{
       targetHeight,
       authored,
     };
-    applyPose(state, pose);
+    applyPose(state, pose, terrainHeightAt);
     states.set(pose.actorId, state);
     group.add(wrapper);
     if (authored) authoredActorCount += 1;
@@ -289,7 +301,7 @@ export function createInnerKeepPopulationPresentation(options: Readonly<{
       frame = sampleInnerKeepAmbientFrame(options.plan, elapsedSeconds);
       frame.actors.forEach((pose) => {
         const state = states.get(pose.actorId);
-        if (state) applyPose(state, pose);
+        if (state) applyPose(state, pose, terrainHeightAt);
       });
       telemetry = Object.freeze({
         ...telemetry,

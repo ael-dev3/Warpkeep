@@ -43,6 +43,11 @@ import {
   INNER_KEEP_POPULATION_RUNTIME_PATHS,
   INNER_KEEP_POPULATION_SELECTION,
 } from '../scripts/inner-keep-population-runtime-contract.mjs';
+import {
+  INNER_KEEP_RABBIT_MODELS,
+  INNER_KEEP_RABBIT_RUNTIME_PATHS,
+  INNER_KEEP_RABBIT_SELECTION,
+} from '../scripts/inner-keep-rabbit-runtime-contract.mjs';
 
 function status(overrides: Partial<InnerKeepStatus> = {}): InnerKeepStatus {
   const attestation = innerKeepStaticAttestation();
@@ -678,7 +683,7 @@ describe('Inner Keep operator safety gates', () => {
     expect(closes).toBe(1);
   });
 
-  it('accepts both owner-authorized exact runtime registries', () => {
+  it('accepts all owner-authorized exact runtime registries', () => {
     expect(() => verifyAuthorizedInnerKeepRuntimeRegistry()).not.toThrow();
   });
 
@@ -687,14 +692,33 @@ describe('Inner Keep operator safety gates', () => {
     expect(() => verifyInnerKeepRuntimeRegistryPreflight({
       staticSelection: INNER_KEEP_ASSET_SELECTION,
       populationSelection: INNER_KEEP_POPULATION_SELECTION,
+      rabbitSelection: INNER_KEEP_RABBIT_SELECTION,
       observedPaths: [
         ...INNER_KEEP_PLANNED_RUNTIME_PATHS,
         ...INNER_KEEP_POPULATION_RUNTIME_PATHS.filter((path) => path !== missingPath),
+        ...INNER_KEEP_RABBIT_RUNTIME_PATHS,
       ],
       inspectRuntimeFile: () => {
         throw new Error('file inspection must not start for an incomplete registry');
       },
-    })).toThrow('paths do not match both authorized selections');
+    })).toThrow('paths do not match all authorized selections');
+  });
+
+  it('rejects a missing rabbit asset from the complete runtime registry', () => {
+    const missingPath = INNER_KEEP_RABBIT_RUNTIME_PATHS[0];
+    expect(() => verifyInnerKeepRuntimeRegistryPreflight({
+      staticSelection: INNER_KEEP_ASSET_SELECTION,
+      populationSelection: INNER_KEEP_POPULATION_SELECTION,
+      rabbitSelection: INNER_KEEP_RABBIT_SELECTION,
+      observedPaths: [
+        ...INNER_KEEP_PLANNED_RUNTIME_PATHS,
+        ...INNER_KEEP_POPULATION_RUNTIME_PATHS,
+        ...INNER_KEEP_RABBIT_RUNTIME_PATHS.filter((path) => path !== missingPath),
+      ],
+      inspectRuntimeFile: () => {
+        throw new Error('file inspection must not start for an incomplete registry');
+      },
+    })).toThrow('paths do not match all authorized selections');
   });
 
   it('rejects tampered population bytes from an otherwise complete registry', () => {
@@ -702,6 +726,7 @@ describe('Inner Keep operator safety gates', () => {
       ...INNER_KEEP_SELECTED_MODELS,
       ...INNER_KEEP_SELECTED_PREVIEWS,
       ...INNER_KEEP_POPULATION_MODELS,
+      ...INNER_KEEP_RABBIT_MODELS,
     ];
     const expectedByPath = new Map(expectedFiles.map((file) => [
       file.destinationPath,
@@ -711,9 +736,11 @@ describe('Inner Keep operator safety gates', () => {
     expect(() => verifyInnerKeepRuntimeRegistryPreflight({
       staticSelection: INNER_KEEP_ASSET_SELECTION,
       populationSelection: INNER_KEEP_POPULATION_SELECTION,
+      rabbitSelection: INNER_KEEP_RABBIT_SELECTION,
       observedPaths: [
         ...INNER_KEEP_PLANNED_RUNTIME_PATHS,
         ...INNER_KEEP_POPULATION_RUNTIME_PATHS,
+        ...INNER_KEEP_RABBIT_RUNTIME_PATHS,
       ],
       inspectRuntimeFile: (path) => {
         const expected = expectedByPath.get(path);
@@ -737,15 +764,42 @@ describe('Inner Keep operator safety gates', () => {
           officialRepositoryRuntimeUseAuthorized: false,
         },
       },
+      rabbitSelection: INNER_KEEP_RABBIT_SELECTION,
       observedPaths: [
         ...INNER_KEEP_PLANNED_RUNTIME_PATHS,
         ...INNER_KEEP_POPULATION_RUNTIME_PATHS,
+        ...INNER_KEEP_RABBIT_RUNTIME_PATHS,
       ],
       inspectRuntimeFile: () => {
         inspected = true;
         throw new Error('authorization must fail before file inspection');
       },
     })).toThrow('population asset registry is not recorded');
+    expect(inspected).toBe(false);
+  });
+
+  it('fails closed on rabbit authorization before inspecting installed files', () => {
+    let inspected = false;
+    expect(() => verifyInnerKeepRuntimeRegistryPreflight({
+      staticSelection: INNER_KEEP_ASSET_SELECTION,
+      populationSelection: INNER_KEEP_POPULATION_SELECTION,
+      rabbitSelection: {
+        ...INNER_KEEP_RABBIT_SELECTION,
+        authorization: {
+          ...INNER_KEEP_RABBIT_SELECTION.authorization,
+          officialRepositoryRuntimeUseAuthorized: false,
+        },
+      },
+      observedPaths: [
+        ...INNER_KEEP_PLANNED_RUNTIME_PATHS,
+        ...INNER_KEEP_POPULATION_RUNTIME_PATHS,
+        ...INNER_KEEP_RABBIT_RUNTIME_PATHS,
+      ],
+      inspectRuntimeFile: () => {
+        inspected = true;
+        throw new Error('authorization must fail before file inspection');
+      },
+    })).toThrow('rabbit asset registry is not recorded');
     expect(inspected).toBe(false);
   });
 });
