@@ -17,6 +17,9 @@ import { isAbsolute, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import {
+  GREATER_REALM_GENERATOR_VERSION,
+  GREATER_REALM_TERRAIN_SEED_NAMESPACE,
+  deriveGreaterRealmCandidateSeedMaterial,
   generateGreaterRealmCandidate,
   type GreaterRealmPrivateCandidate,
 } from '../scripts/atlas/greater-realm-candidate-generator';
@@ -42,8 +45,8 @@ import {
 const SOURCE_COMMIT = 'a'.repeat(40);
 const BATCH_HANDLE = 'GR-B-AAAAAAAAAAAAAAAA';
 const CANDIDATE_HANDLE = 'GR-A-AAAAAAAAAAAAAAAA';
-const CANDIDATE_ROOT_LABEL = 'greater-realm-ordinary-parent-a';
-const CANDIDATE_ORDINAL = 9;
+const CANDIDATE_ROOT_LABEL = 'greater-realm-yield-regression-b';
+const CANDIDATE_ORDINAL = 0;
 const PERFORMANCE = Object.freeze({
   generationMilliseconds: 1_200,
   processPeakMemoryMiB: 512,
@@ -313,6 +316,148 @@ describe('Greater Realm owner-only candidate package', () => {
       second.fill(0);
     }
   }, 60_000);
+
+  it('binds package version and stable terrain seed namespace as separate authorities', () => {
+    const fixture = requireFixture();
+    const rootSeed = candidateRoot();
+    const candidateSeed = Buffer.from(fixture.candidate.seedMaterial);
+    const manifestBytes = fixture.workspace.readFile(
+      candidateRelativePath('manifest.private.json'),
+    );
+    let derivedSeed: Buffer | undefined;
+    try {
+      expect(GREATER_REALM_GENERATOR_VERSION)
+        .toBe('greater-realm-v2-natural-continent-pr-a.5');
+      expect(GREATER_REALM_TERRAIN_SEED_NAMESPACE)
+        .toBe('greater-realm-v2-natural-continent-pr-a.3');
+      expect(GREATER_REALM_GENERATOR_VERSION).not.toBe(
+        GREATER_REALM_TERRAIN_SEED_NAMESPACE,
+      );
+      derivedSeed = deriveGreaterRealmCandidateSeedMaterial(rootSeed, CANDIDATE_ORDINAL);
+      expect(candidateSeed.equals(derivedSeed)).toBe(true);
+      const manifest = JSON.parse(manifestBytes.toString('utf8')) as {
+        generatorVersion: string;
+        seedNamespace: string;
+      };
+      expect(manifest.generatorVersion).toBe(GREATER_REALM_GENERATOR_VERSION);
+      expect(manifest.seedNamespace).toBe(GREATER_REALM_TERRAIN_SEED_NAMESPACE);
+    } finally {
+      rootSeed.fill(0);
+      candidateSeed.fill(0);
+      derivedSeed?.fill(0);
+      manifestBytes.fill(0);
+    }
+  });
+
+  it('renders an opaque outer-fog topology proxy and keeps rivers inside the land silhouette', async () => {
+    const fixture = requireFixture();
+    const topologyPreview = await renderGreaterRealmPrivatePreview(
+      fixture.candidate,
+      'regions',
+    );
+    const silhouettePreview = await renderGreaterRealmPrivatePreview(
+      fixture.candidate,
+      'silhouette',
+    );
+    let topologyPixels: Buffer | undefined;
+    let silhouettePixels: Buffer | undefined;
+    try {
+      const sharpModule = await import('sharp');
+      const topology = await sharpModule.default(topologyPreview)
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      const silhouette = await sharpModule.default(silhouettePreview)
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      topologyPixels = topology.data;
+      silhouettePixels = silhouette.data;
+      expect(topology.info).toMatchObject({ width: 1_280, height: 1_024, channels: 4 });
+      expect(silhouette.info).toMatchObject({ width: 1_280, height: 1_024, channels: 4 });
+      expect([...topologyPixels.subarray(0, 4)]).toEqual([24, 22, 31, 255]);
+
+      const regionColors = new Set([
+        '87:144:84', '117:159:195', '205:151:76', '84:147:127', '103:124:164',
+        '151:96:80', '92:112:82', '116:103:126', '85:121:142', '116:84:135',
+      ]);
+      const oceanTones = new Set<string>();
+      let fogPixels = 0;
+      let regionPixels = 0;
+      let inlandWaterPixels = 0;
+      let nonOpaquePixels = 0;
+      for (let y = 0; y < 980; y += 1) {
+        for (let x = 0; x < 1_280; x += 1) {
+          const offset = (y * 1_280 + x) * 4;
+          const red = topologyPixels[offset]!;
+          const green = topologyPixels[offset + 1]!;
+          const blue = topologyPixels[offset + 2]!;
+          if (topologyPixels[offset + 3] !== 255) nonOpaquePixels += 1;
+          const key = `${red}:${green}:${blue}`;
+          if (key === '24:22:31') fogPixels += 1;
+          if (regionColors.has(key)) regionPixels += 1;
+          if (key === '66:126:171' || key === '72:143:190') inlandWaterPixels += 1;
+          for (let band = 0; band <= 5; band += 1) {
+            if (key === `${54 - band * 5}:${91 - band * 8}:${132 - band * 10}`) {
+              oceanTones.add(key);
+            }
+          }
+        }
+      }
+      expect(nonOpaquePixels).toBe(0);
+      expect(fogPixels).toBeGreaterThan(100_000);
+      expect(regionPixels).toBeGreaterThan(10_000);
+      expect(inlandWaterPixels).toBeGreaterThan(100);
+      expect(oceanTones.size).toBeGreaterThanOrEqual(4);
+
+      let minimumQ = Number.POSITIVE_INFINITY;
+      let maximumQ = Number.NEGATIVE_INFINITY;
+      let minimumR = Number.POSITIVE_INFINITY;
+      let maximumR = Number.NEGATIVE_INFINITY;
+      for (let cell = 0; cell < fixture.candidate.grid.cellCount; cell += 1) {
+        minimumQ = Math.min(minimumQ, fixture.candidate.grid.q[cell]!);
+        maximumQ = Math.max(maximumQ, fixture.candidate.grid.q[cell]!);
+        minimumR = Math.min(minimumR, fixture.candidate.grid.r[cell]!);
+        maximumR = Math.max(maximumR, fixture.candidate.grid.r[cell]!);
+      }
+      const qSpan = maximumQ - minimumQ + 1;
+      const rSpan = maximumR - minimumR + 1;
+      const scale = Math.max(1, Math.floor(Math.min(
+        (1_280 - 80) / (qSpan + rSpan / 2),
+        (1_024 - 120) / rSpan,
+      )));
+      let renderedRiverAsLand = false;
+      for (
+        let cell = fixture.candidate.grid.cellCount - 1;
+        cell >= 0 && !renderedRiverAsLand;
+        cell -= 1
+      ) {
+        if (
+          fixture.candidate.elevation[cell]! <= 0
+          || (
+            fixture.candidate.waterRegime[cell] !== 3
+            && fixture.candidate.waterRegime[cell] !== 4
+          )
+        ) continue;
+        const x = 40 + Math.round((
+          (fixture.candidate.grid.q[cell]! - minimumQ)
+          + (fixture.candidate.grid.r[cell]! - minimumR) / 2
+        ) * scale);
+        const y = 60 + Math.round(
+          (fixture.candidate.grid.r[cell]! - minimumR) * scale * 0.86,
+        );
+        const offset = (y * 1_280 + x) * 4;
+        renderedRiverAsLand = silhouettePixels[offset] === 142
+          && silhouettePixels[offset + 1] === 164
+          && silhouettePixels[offset + 2] === 105
+          && silhouettePixels[offset + 3] === 255;
+      }
+      expect(renderedRiverAsLand).toBe(true);
+    } finally {
+      topologyPixels?.fill(0);
+      silhouettePixels?.fill(0);
+      topologyPreview.fill(0);
+      silhouettePreview.fill(0);
+    }
+  }, 45_000);
 
   it('binds deterministic 15-by-15 axial bins, topography patches, and toolchain pins', () => {
     const fixture = requireFixture();
@@ -609,6 +754,21 @@ describe('Greater Realm owner-only candidate package', () => {
     const parsed = JSON.parse(original.toString('utf8')) as Record<string, unknown>;
     original.fill(0);
     parsed.sourceCommit = 'b'.repeat(40);
+    const corrupted = Buffer.from(`${JSON.stringify(parsed, null, 2)}\n`, 'utf8');
+    const corruptedDigest = createHash('sha256').update(corrupted).digest('hex');
+
+    await replacePrivateFile(relativePath, corrupted, async () => {
+      await expect(verifyFixture({ expectedManifestDigest: corruptedDigest }))
+        .rejects.toThrow('GREATER_REALM_PRIVATE_MANIFEST_INVALID');
+    });
+  }, 45_000);
+
+  it('rejects terrain seed namespace drift even when the expected digest is updated', async () => {
+    const relativePath = candidateRelativePath('manifest.private.json');
+    const original = requireFixture().workspace.readFile(relativePath);
+    const parsed = JSON.parse(original.toString('utf8')) as Record<string, unknown>;
+    original.fill(0);
+    parsed.seedNamespace = 'greater-realm-v2-natural-continent-pr-unreviewed';
     const corrupted = Buffer.from(`${JSON.stringify(parsed, null, 2)}\n`, 'utf8');
     const corruptedDigest = createHash('sha256').update(corrupted).digest('hex');
 

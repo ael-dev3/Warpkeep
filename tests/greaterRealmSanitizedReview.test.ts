@@ -276,11 +276,18 @@ describe('Greater Realm sanitized candidate review', () => {
     );
   });
 
-  it('requires at least eight eligible candidates and an eligible exact selection', () => {
+  it('accepts one eligible candidate and requires an eligible exact selection', () => {
     const input = source();
+    const single = createGreaterRealmSanitizedReview({
+      ...input,
+      candidates: input.candidates.slice(0, 1),
+    });
+    expect(single.candidateCount).toBe(1);
+    expect(single.selectionStatus).toBe('pending');
+
     expect(() => createGreaterRealmSanitizedReview({
       ...input,
-      candidates: input.candidates.slice(0, 7),
+      candidates: [],
     })).toThrow('GREATER_REALM_SANITIZED_REVIEW_INVALID');
 
     const selectedHandle = input.candidates[0]!.candidateHandle;

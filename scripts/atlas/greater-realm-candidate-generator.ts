@@ -38,8 +38,16 @@ import {
 import {
   deriveGreaterRealmTopography,
 } from './greater-realm-topography';
+import {
+  measureGreaterRealmNaturalComposition,
+  type GreaterRealmNaturalCompositionMetrics,
+} from './greater-realm-composition';
 
 export const GREATER_REALM_GENERATOR_VERSION =
+  'greater-realm-v2-natural-continent-pr-a.5' as const;
+// Package/algorithm revisions must not silently reroll root-seed ordinals.
+// Bump this namespace only for an explicitly approved deterministic world reroll.
+export const GREATER_REALM_TERRAIN_SEED_NAMESPACE =
   'greater-realm-v2-natural-continent-pr-a.3' as const;
 export const GREATER_REALM_PRIVATE_PACKAGE_MAGIC = 'WKGR-PRIVATE-ATLAS-V1' as const;
 export const GREATER_REALM_PRIVATE_MANIFEST_KIND =
@@ -229,6 +237,7 @@ export type GreaterRealmPrivateCandidate = Readonly<{
     highlandBarrierShareBasisPoints: number;
     barrierMeanElevationAdvantage: number;
     barrierMeanUpliftAdvantage: number;
+    naturalComposition: GreaterRealmNaturalCompositionMetrics;
     geomorphology: GreaterRealmGeomorphologyMetrics;
     throneAnchorBarrierClearance: number;
     tierThreePassableLandCells: number;
@@ -276,7 +285,7 @@ function integerSquareRoot(value: number): number {
   return high;
 }
 
-function deriveCandidateSeedMaterial(
+export function deriveGreaterRealmCandidateSeedMaterial(
   rootSeed: Uint8Array,
   candidateOrdinal: number,
 ): Buffer {
@@ -285,7 +294,7 @@ function deriveCandidateSeedMaterial(
     fail('GREATER_REALM_CANDIDATE_ORDINAL_INVALID');
   }
   return createHmac('sha256', rootSeed)
-    .update(GREATER_REALM_GENERATOR_VERSION, 'utf8')
+    .update(GREATER_REALM_TERRAIN_SEED_NAMESPACE, 'utf8')
     .update('\0candidate\0', 'utf8')
     .update(String(candidateOrdinal), 'utf8')
     .digest();
@@ -2752,44 +2761,83 @@ function repairNaturalRegionLandCoherence(
               }
             }
             const transfer = foothold.filter(cell => keep[cell] !== 1);
-            const contacts = new Uint32Array(REGION_COUNT);
-            for (const cell of transfer) {
-              for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
-                const neighbor = grid.neighbors[cell * HEX_NEIGHBOR_COUNT + direction]!;
+            const transferMask = new Uint8Array(grid.cellCount);
+            for (const cell of transfer) transferMask[cell] = 1;
+            const transferPieces = [...connectedComponents(grid, transferMask)]
+              .sort((first, second) => first[0]! - second[0]!);
+            const assignments: Array<Readonly<{
+              cells: readonly number[];
+              targetRegion: number;
+            }>> = [];
+            const swapCounts = new Uint32Array(REGION_COUNT);
+            let assignmentValid = transferPieces.length > 0;
+            for (const cells of transferPieces) {
+              const contacts = new Uint32Array(REGION_COUNT);
+              for (const cell of cells) {
+                for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
+                  const neighbor = grid.neighbors[cell * HEX_NEIGHBOR_COUNT + direction]!;
+                  if (
+                    neighbor >= 0
+                    && strategicallyPassableSurface(waterRegime[neighbor]!)
+                    && tierId[neighbor] === tierId[cell]
+                    && regionId[neighbor] !== sourceRegion
+                  ) contacts[regionId[neighbor]!] += 1;
+                }
+              }
+              let targetRegion = -1;
+              let bestContacts = 0;
+              for (let region = 0; region < REGION_COUNT; region += 1) {
                 if (
-                  neighbor >= 0
-                  && tierId[neighbor] === tierId[cell]
-                  && regionId[neighbor] !== sourceRegion
-                ) contacts[regionId[neighbor]!] += 1;
+                  region !== sourceRegion
+                  && GREATER_REALM_REGION_SPECS[region]!.tier
+                    === GREATER_REALM_REGION_SPECS[sourceRegion]!.tier
+                  && contacts[region]! > bestContacts
+                ) {
+                  targetRegion = region;
+                  bestContacts = contacts[region]!;
+                }
+              }
+              if (targetRegion < 0) {
+                assignmentValid = false;
+                break;
+              }
+              assignments.push(Object.freeze({ cells, targetRegion }));
+              swapCounts[targetRegion] += cells.length;
+            }
+            // Validate every connected piece and every compensating water swap
+            // before the first political ownership mutation.
+            const plannedWaterSwaps = new Map<number, readonly number[]>();
+            if (assignmentValid) {
+              for (let region = 0; region < REGION_COUNT; region += 1) {
+                const swapCount = swapCounts[region]!;
+                if (swapCount === 0) continue;
+                const waterSwapCandidates = Array.from(
+                  { length: grid.cellCount },
+                  (_, cell) => cell,
+                ).filter(cell => (
+                  regionId[cell] === region
+                  && !strategicallyPassableSurface(waterRegime[cell]!)
+                  && legacyProtectedCell[cell] === 0
+                ));
+                if (waterSwapCandidates.length < swapCount) {
+                  assignmentValid = false;
+                  break;
+                }
+                plannedWaterSwaps.set(
+                  region,
+                  Object.freeze(waterSwapCandidates.slice(0, swapCount)),
+                );
               }
             }
-            let targetRegion = -1;
-            for (let region = 0; region < REGION_COUNT; region += 1) {
-              if (
-                region !== sourceRegion
-                && GREATER_REALM_REGION_SPECS[region]!.tier
-                  === GREATER_REALM_REGION_SPECS[sourceRegion]!.tier
-                && (targetRegion < 0 || contacts[region]! > contacts[targetRegion]!)
-              ) targetRegion = region;
-            }
-            if (targetRegion >= 0) {
-              const waterSwapCandidates = Array.from(
-                { length: grid.cellCount },
-                (_, cell) => cell,
-              ).filter(cell => (
-                regionId[cell] === targetRegion
-                && !strategicallyPassableSurface(waterRegime[cell]!)
-                && legacyProtectedCell[cell] === 0
-              ));
-              if (waterSwapCandidates.length >= transfer.length) {
-                waterSwapCandidates.sort((first, second) => first - second);
-                for (const cell of transfer) {
+            if (assignmentValid) {
+              for (const { cells, targetRegion } of assignments) {
+                for (const cell of cells) {
                   regionId[cell] = targetRegion;
                   regionRepairLocked[cell] = 1;
                 }
-                for (let index = 0; index < transfer.length; index += 1) {
-                  regionId[waterSwapCandidates[index]!] = sourceRegion;
-                }
+              }
+              for (const cells of plannedWaterSwaps.values()) {
+                for (const cell of cells) regionId[cell] = sourceRegion;
               }
             }
           }
@@ -4426,7 +4474,11 @@ function reconcileBarrierMeasuredRegionCoherence(
       }
     }
     const detachable = component.filter(cell => keep[cell] === 0);
-    return detachable.length === 0 ? undefined : Object.freeze(detachable);
+    if (detachable.length === 0) return undefined;
+    const detachableMask = new Uint8Array(grid.cellCount);
+    for (const cell of detachable) detachableMask[cell] = 1;
+    return [...connectedComponents(grid, detachableMask)]
+      .sort((first, second) => second.length - first.length || first[0]! - second[0]!)[0];
   };
 
   // Four fixed sweeps let a recipient consolidate a component donated after
@@ -4499,17 +4551,21 @@ function reconcileBarrierMeasuredRegionCoherence(
         let targetRegion = -1;
         let bestContacts = -1;
         let bestProjectedShare = -1;
+        let selectedJoinedSize = -1;
+        let selectedProjectedLargest = -1;
         for (let region = 0; region < REGION_COUNT; region += 1) {
           if (
             region === sourceRegion
             || GREATER_REALM_REGION_SPECS[region]!.tier
               !== GREATER_REALM_REGION_SPECS[sourceRegion]!.tier
             || availableSwapWater[region]! < transferableComponent.length
+            || contacts[region] === 0
           ) continue;
           const projectedTotal = topology.passableCounts[region]!
             + transferableComponent.length;
+          const joinedRecipientComponents = [...contactedComponents[region]!];
           const joinedSize = transferableComponent.length
-            + [...contactedComponents[region]!]
+            + joinedRecipientComponents
             .reduce((sum, componentId) => sum + topology.componentSizes[componentId]!, 0);
           const projectedLargest = Math.max(topology.largestCounts[region]!, joinedSize);
           const projectedShare = projectedTotal === 0
@@ -4530,6 +4586,8 @@ function reconcileBarrierMeasuredRegionCoherence(
             targetRegion = region;
             bestContacts = contacts[region]!;
             bestProjectedShare = projectedShare;
+            selectedJoinedSize = joinedSize;
+            selectedProjectedLargest = projectedLargest;
           }
         }
         if (targetRegion < 0) continue;
@@ -4554,9 +4612,42 @@ function reconcileBarrierMeasuredRegionCoherence(
           };
           return sourceContacts(second) - sourceContacts(first) || first - second;
         });
+        const waterSwaps = waterSwapCandidates.slice(0, transferableComponent.length);
         for (const cell of transferableComponent) regionId[cell] = targetRegion;
-        for (let index = 0; index < transferableComponent.length; index += 1) {
-          regionId[waterSwapCandidates[index]!] = sourceRegion;
+        for (const cell of waterSwaps) regionId[cell] = sourceRegion;
+        const projectedTopology = passableRegionTopology(
+          grid,
+          regionId,
+          waterRegime,
+          barrier,
+        );
+        const transferRepresentative = transferableComponent[0]!;
+        const transferTargetComponent = projectedTopology.componentId[transferRepresentative]!;
+        const projectedRegionCounts = Array<number>(REGION_COUNT).fill(0);
+        for (const assignedRegion of regionId) projectedRegionCounts[assignedRegion] += 1;
+        const projectionExact = regionId[transferRepresentative] === targetRegion
+          && transferTargetComponent >= 0
+          && projectedTopology.componentSizes[transferTargetComponent] === selectedJoinedSize
+          && projectedTopology.passableCounts[targetRegion]
+            === topology.passableCounts[targetRegion]! + transferableComponent.length
+          && projectedTopology.passableCounts[sourceRegion]
+            === topology.passableCounts[sourceRegion]! - transferableComponent.length
+          && projectedTopology.largestCounts[targetRegion] === selectedProjectedLargest
+          && projectedRegionCounts.every((count, region) => count === initialCounts[region])
+          && projectedTopology.passableCounts.every((count, region) => (
+            region === sourceRegion
+            || region === targetRegion
+            || (
+              count === topology.passableCounts[region]
+              && projectedTopology.largestCounts[region] === topology.largestCounts[region]
+            )
+          ));
+        if (!projectionExact) {
+          // A projection is advisory until the recomputed topology matches it
+          // exactly; rollback both sides before considering another transfer.
+          for (const cell of transferableComponent) regionId[cell] = sourceRegion;
+          for (const cell of waterSwaps) regionId[cell] = targetRegion;
+          continue;
         }
         remainingTotal -= transferableComponent.length;
         if (component.length < 64) remainingMinor -= transferableComponent.length;
@@ -4794,10 +4885,27 @@ function barriersAndGates(
   }
   const gates: GreaterRealmPrivateGate[] = [];
   const baseRobustTopology = robustRegionTopology(grid, regionId, waterRegime, barrier);
+  const preGateBarrier = new Uint8Array(barrier);
   const usedGateCells = new Set<number>();
   const protectedApproachCells = new Set<number>();
   const requiredApproachCells = new Set<number>();
   const gateChannel = greaterRealmTerrainChannelId('sealed-gate-saddle');
+  type GateApproaches = Readonly<{
+    first: readonly number[];
+    firstAlternate: readonly number[];
+    second: readonly number[];
+    secondAlternate: readonly number[];
+    all: readonly (readonly number[])[];
+  }>;
+  type GateSelection = Readonly<{
+    edge: readonly [number, number];
+    approaches: GateApproaches;
+  }>;
+  type GateApproachCandidate = Readonly<{
+    edge: readonly [number, number];
+    first: readonly (readonly number[])[];
+    second: readonly (readonly number[])[];
+  }>;
   for (const [firstRegion, secondRegion] of gateGraph) {
     const key = `${Math.min(firstRegion, secondRegion)}:${Math.max(firstRegion, secondRegion)}`;
     const candidates = [...(edgesByPair.get(key) ?? [])].filter(([first, second]) => (
@@ -4818,21 +4926,6 @@ function barriersAndGates(
         || firstA - firstB
         || secondA - secondB;
     });
-    type GateSelection = Readonly<{
-      edge: readonly [number, number];
-      approaches: Readonly<{
-        first: readonly number[];
-        firstAlternate: readonly number[];
-        second: readonly number[];
-        secondAlternate: readonly number[];
-        all: readonly (readonly number[])[];
-      }>;
-    }>;
-    type GateApproachCandidate = Readonly<{
-      edge: readonly [number, number];
-      first: readonly (readonly number[])[];
-      second: readonly (readonly number[])[];
-    }>;
     const approachCandidates: GateApproachCandidate[] = [];
     for (const edge of candidates) {
       if (
@@ -5031,6 +5124,289 @@ function barriersAndGates(
         secondApproachPath: approaches.second,
         secondAlternateApproachPath: approaches.secondAlternate,
       }));
+    }
+  }
+  const greedyGateAssignmentComplete = gateGraph.every(([firstRegion, secondRegion]) => (
+    gates.filter(gate => (
+      gate.firstRegion === firstRegion && gate.secondRegion === secondRegion
+    )).length === 2
+  ));
+  if (!greedyGateAssignmentComplete) {
+    // The ordinary path above remains authoritative whenever it succeeds.
+    // Only an incomplete greedy assignment reaches this transactional fallback;
+    // all search state is derived from the immutable pre-gate barrier and is
+    // committed only after all nine region pairs have two valid gates.
+    const MAX_OPTIONS_PER_EDGE = 32;
+    const MAX_CANDIDATE_EDGES_PER_PAIR = 128;
+    const MAX_BUNDLES_PER_PAIR = 128;
+    const MAX_PAIR_ENUMERATION_NODES = 131_072;
+    const MAX_GLOBAL_SEARCH_NODES = 32_768;
+    type GateBundle = Readonly<{
+      graphIndex: number;
+      selections: readonly [GateSelection, GateSelection];
+    }>;
+    const selectionsAreGloballyCompatible = (
+      selections: readonly GateSelection[],
+    ): boolean => {
+      const gateMate = new Map<number, number>();
+      for (const { edge: [firstEndpoint, secondEndpoint] } of selections) {
+        if (gateMate.has(firstEndpoint) || gateMate.has(secondEndpoint)) return false;
+        gateMate.set(firstEndpoint, secondEndpoint);
+        gateMate.set(secondEndpoint, firstEndpoint);
+      }
+      const carved = new Set<number>();
+      for (const selection of selections) {
+        for (const path of selection.approaches.all) {
+          for (const cell of path) {
+            if (gateMate.has(cell)) return false;
+            carved.add(cell);
+          }
+        }
+      }
+      // Opening any selected endpoint must expose only its reviewed mate. A
+      // neighbouring gate endpoint or required approach would become a second
+      // entrance and therefore invalidates the whole partial assignment.
+      for (const [endpoint, mate] of gateMate) {
+        for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
+          const neighbor = grid.neighbors[endpoint * HEX_NEIGHBOR_COUNT + direction]!;
+          if (
+            neighbor < 0
+            || neighbor === mate
+            || tierId[endpoint] === tierId[neighbor]
+            || !strategicallyPassableSurface(waterRegime[endpoint]!)
+            || !strategicallyPassableSurface(waterRegime[neighbor]!)
+          ) continue;
+          if (gateMate.has(neighbor) || carved.has(neighbor)) return false;
+        }
+      }
+      // Pair-local validation is insufficient when routes from different graph
+      // arms combine. Re-evaluate the complete carved set at every DFS node so
+      // two individually safe bundles cannot jointly open an ungated bypass.
+      for (const cell of carved) {
+        for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
+          const neighbor = grid.neighbors[cell * HEX_NEIGHBOR_COUNT + direction]!;
+          if (
+            neighbor >= 0
+            && tierId[cell] !== tierId[neighbor]
+            && strategicallyPassableSurface(waterRegime[cell]!)
+            && strategicallyPassableSurface(waterRegime[neighbor]!)
+            && (preGateBarrier[cell] === 0 || carved.has(cell))
+            && (preGateBarrier[neighbor] === 0 || carved.has(neighbor))
+          ) return false;
+        }
+      }
+      return true;
+    };
+    const enumeratePairBundles = (
+      graphIndex: number,
+      firstRegion: number,
+      secondRegion: number,
+    ): readonly GateBundle[] => {
+      const key = `${Math.min(firstRegion, secondRegion)}:${Math.max(firstRegion, secondRegion)}`;
+      const candidates = [...(edgesByPair.get(key) ?? [])].filter(([first, second]) => (
+        waterRegime[first] === 0
+        && waterRegime[second] === 0
+        && preGateBarrier[first] === 1
+        && preGateBarrier[second] === 1
+      ));
+      candidates.sort(([firstA, secondA], [firstB, secondB]) => {
+        const score = (first: number, second: number) => elevation[first]! + elevation[second]!
+          + (greaterRealmCounterRandomU32(
+            candidateSeed,
+            gateChannel,
+            grid.q[first]!,
+            grid.r[first]!,
+          ) % 4_001);
+        return score(firstA, secondA) - score(firstB, secondB)
+          || firstA - firstB
+          || secondA - secondB;
+      });
+      const options: Array<Readonly<{
+        edge: readonly [number, number];
+        approaches: readonly GateApproaches[];
+      }>> = [];
+      for (
+        let candidateIndex = 0;
+        candidateIndex < Math.min(candidates.length, MAX_CANDIDATE_EDGES_PER_PAIR);
+        candidateIndex += 1
+      ) {
+        const edge = candidates[candidateIndex]!;
+        const firstApproaches = barrierApproachPaths(
+          grid,
+          edge[0],
+          firstRegion,
+          regionId,
+          waterRegime,
+          preGateBarrier,
+          baseRobustTopology.componentId,
+          baseRobustTopology.componentSizes,
+        );
+        const secondApproaches = barrierApproachPaths(
+          grid,
+          edge[1],
+          secondRegion,
+          regionId,
+          waterRegime,
+          preGateBarrier,
+          baseRobustTopology.componentId,
+          baseRobustTopology.componentSizes,
+        );
+        if (!firstApproaches || !secondApproaches) continue;
+        const approachOptions: GateApproaches[] = [];
+        for (let optionOrdinal = 0; optionOrdinal < MAX_OPTIONS_PER_EDGE; optionOrdinal += 1) {
+          const approaches = compatibleGateApproaches(
+            grid,
+            tierId,
+            waterRegime,
+            preGateBarrier,
+            baseRobustTopology.componentId,
+            baseRobustTopology.componentSizes,
+            firstApproaches,
+            secondApproaches,
+            optionOrdinal,
+          );
+          if (!approaches) break;
+          approachOptions.push(approaches);
+        }
+        if (approachOptions.length > 0) {
+          options.push(Object.freeze({
+            edge,
+            approaches: Object.freeze(approachOptions),
+          }));
+        }
+      }
+      const bundles: GateBundle[] = [];
+      const endpointQuartetCounts = new Map<string, number>();
+      let enumerationNodes = 0;
+      pairEnumeration:
+      for (let firstIndex = 0; firstIndex < options.length; firstIndex += 1) {
+        const first = options[firstIndex]!;
+        for (let secondIndex = firstIndex + 1; secondIndex < options.length; secondIndex += 1) {
+          const second = options[secondIndex]!;
+          const endpoints = [...first.edge, ...second.edge];
+          if (new Set(endpoints).size !== 4) continue;
+          const quartetKey = [...endpoints].sort((left, right) => left - right).join(':');
+          const maximumDiagonal = first.approaches.length + second.approaches.length - 2;
+          for (let diagonal = 0; diagonal <= maximumDiagonal; diagonal += 1) {
+            const firstOptionMaximum = Math.min(diagonal, first.approaches.length - 1);
+            const firstOptionMinimum = Math.max(0, diagonal - second.approaches.length + 1);
+            for (
+              let firstOption = firstOptionMaximum;
+              firstOption >= firstOptionMinimum;
+              firstOption -= 1
+            ) {
+              const secondOption = diagonal - firstOption;
+              if (enumerationNodes >= MAX_PAIR_ENUMERATION_NODES) break pairEnumeration;
+              enumerationNodes += 1;
+              if ((endpointQuartetCounts.get(quartetKey) ?? 0) >= 2) continue;
+              const firstApproaches = first.approaches[firstOption]!;
+              const secondApproaches = second.approaches[secondOption]!;
+              const selections = Object.freeze([
+                Object.freeze({ edge: first.edge, approaches: firstApproaches }),
+                Object.freeze({ edge: second.edge, approaches: secondApproaches }),
+              ] as const);
+              if (!selectionsAreGloballyCompatible(selections)) continue;
+              endpointQuartetCounts.set(
+                quartetKey,
+                (endpointQuartetCounts.get(quartetKey) ?? 0) + 1,
+              );
+              bundles.push(Object.freeze({ graphIndex, selections }));
+              if (bundles.length >= MAX_BUNDLES_PER_PAIR) break pairEnumeration;
+            }
+          }
+        }
+      }
+      return Object.freeze(bundles);
+    };
+    const plans = gateGraph.map(([firstRegion, secondRegion], graphIndex) => Object.freeze({
+      graphIndex,
+      bundles: enumeratePairBundles(graphIndex, firstRegion, secondRegion),
+    }));
+    let fallbackSolution: readonly GateBundle[] | undefined;
+    if (plans.every(plan => plan.bundles.length > 0)) {
+      const constrainedPlans = [...plans].sort((first, second) => (
+        first.bundles.length - second.bundles.length
+        || first.graphIndex - second.graphIndex
+      ));
+      const chosen: GateBundle[] = [];
+      let searchNodes = 0;
+      const search = (depth: number): boolean => {
+        if (depth === constrainedPlans.length) {
+          fallbackSolution = Object.freeze([...chosen]);
+          return true;
+        }
+        const plan = constrainedPlans[depth]!;
+        for (const bundle of plan.bundles) {
+          if (searchNodes >= MAX_GLOBAL_SEARCH_NODES) return false;
+          searchNodes += 1;
+          const selections = [
+            ...chosen.flatMap(selected => selected.selections),
+            ...bundle.selections,
+          ];
+          if (!selectionsAreGloballyCompatible(selections)) continue;
+          chosen.push(bundle);
+          if (search(depth + 1)) return true;
+          chosen.pop();
+        }
+        return false;
+      };
+      search(0);
+    }
+    if (fallbackSolution?.length === gateGraph.length) {
+      const solutionByGraphIndex = new Map(
+        fallbackSolution.map(bundle => [bundle.graphIndex, bundle] as const),
+      );
+      // Selected greedy routes are private coordinate buffers. Retire them
+      // before replacing the incomplete assignment, then restore the exact
+      // pre-gate barrier and commit the complete solution in graph order.
+      const retiredPaths = new Set<readonly number[]>();
+      for (const gate of gates) {
+        for (const path of [
+          gate.firstApproachPath,
+          gate.firstAlternateApproachPath,
+          gate.secondApproachPath,
+          gate.secondAlternateApproachPath,
+        ]) retiredPaths.add(path);
+      }
+      for (const path of retiredPaths) (path as number[]).fill(0);
+      barrier.set(preGateBarrier);
+      gates.length = 0;
+      usedGateCells.clear();
+      protectedApproachCells.clear();
+      requiredApproachCells.clear();
+      for (let graphIndex = 0; graphIndex < gateGraph.length; graphIndex += 1) {
+        const bundle = solutionByGraphIndex.get(graphIndex)!;
+        const [firstRegion, secondRegion] = gateGraph[graphIndex]!;
+        for (const selection of bundle.selections) {
+          usedGateCells.add(selection.edge[0]);
+          usedGateCells.add(selection.edge[1]);
+          for (const cell of selection.approaches.first) requiredApproachCells.add(cell);
+          for (const cell of selection.approaches.firstAlternate) {
+            requiredApproachCells.add(cell);
+          }
+          for (const cell of selection.approaches.second) requiredApproachCells.add(cell);
+          for (const cell of selection.approaches.secondAlternate) {
+            requiredApproachCells.add(cell);
+          }
+          for (const path of selection.approaches.all) {
+            for (const cell of path) {
+              barrier[cell] = 0;
+              protectedApproachCells.add(cell);
+            }
+          }
+          gates.push(Object.freeze({
+            gateIndex: gates.length,
+            firstRegion,
+            secondRegion,
+            firstCell: selection.edge[0],
+            secondCell: selection.edge[1],
+            firstApproachPath: selection.approaches.first,
+            firstAlternateApproachPath: selection.approaches.firstAlternate,
+            secondApproachPath: selection.approaches.second,
+            secondAlternateApproachPath: selection.approaches.secondAlternate,
+          }));
+        }
+      }
     }
   }
   // Approach carving for a later pass may cross the shoulder of an earlier
@@ -6109,7 +6485,10 @@ export function generateGreaterRealmCandidate(input: Readonly<{
   rootSeed: Uint8Array;
   candidateOrdinal: number;
 }>): GreaterRealmPrivateCandidate {
-  const seedMaterial = deriveCandidateSeedMaterial(input.rootSeed, input.candidateOrdinal);
+  const seedMaterial = deriveGreaterRealmCandidateSeedMaterial(
+    input.rootSeed,
+    input.candidateOrdinal,
+  );
   const candidateSeed = deriveCandidateSeed(seedMaterial);
   try {
     const canvas = greaterRealmPrivateCanvasAuthority();
@@ -6293,8 +6672,8 @@ export function generateGreaterRealmCandidate(input: Readonly<{
       grid,
       geologicalBarrierMask,
     );
-    const mountainSystems = barrierComponents.filter(component => component.length >= 64);
-    const continuousBarrierCells = mountainSystems.reduce(
+    const barrierSystems = barrierComponents.filter(component => component.length >= 64);
+    const continuousBarrierCells = barrierSystems.reduce(
       (total, component) => total + component.length,
       0,
     );
@@ -6322,6 +6701,22 @@ export function generateGreaterRealmCandidate(input: Readonly<{
       reconciled.flowReceiver,
       reconciled.filledElevation,
     );
+    const naturalComposition = measureGreaterRealmNaturalComposition({
+      grid,
+      canvasRadius: PRIVATE_CANVAS_RADIUS,
+      elevation: reconciled.elevation,
+      tierId: strategy.tierId,
+      waterRegime: surface.waterRegime,
+      biomeId: topography.biomeId,
+      legacyProtectedCell: legacy.protectedCell,
+      ridgeId: topography.ridgeId,
+      landformId: topography.landformId,
+      slope: topography.slope,
+      seaLevel: SEA_LEVEL,
+      dryWaterRegime: WATER_DRY,
+      oceanWaterRegime: WATER_OCEAN,
+      seaWaterRegime: WATER_SEA,
+    });
     const proofs = Object.freeze({
       activeMaskConnected: allActiveConnected(grid)
         && activeMaskHasNoEnclosedVoids(canvas, maskResult.mask),
@@ -6377,6 +6772,11 @@ export function generateGreaterRealmCandidate(input: Readonly<{
         && strategicShape.tendrilProof,
       regionPassableLand: strategicBarrier.passableRegionProof,
       regionGraph: strategicBarrier.regionGraphProof,
+      naturalLandSilhouette: naturalComposition.landSilhouette.proof,
+      dominantContinentComposition: naturalComposition.dominantContinent.proof,
+      deepOceanBreathingRoom: naturalComposition.oceanBreathingRoom.proof,
+      forestPatchComposition: naturalComposition.forestPatches.proof,
+      mountainSystemComposition: naturalComposition.mountainSystems.proof,
     });
     const hardGates = Object.freeze({
       ...Object.fromEntries(Object.entries(proofs).map(([key, value]) => [
@@ -6416,6 +6816,38 @@ export function generateGreaterRealmCandidate(input: Readonly<{
       0,
       10_000,
     );
+    const legacyBoundaryNaturalnessBasisPoints = clamp(
+      10_000 - axialArtifactBasisPoints,
+      0,
+      10_000,
+    );
+    const compositionNaturalnessBasisPoints = Math.round((
+      clamp(
+        10_000 - naturalComposition.landSilhouette.raster256.rotationalIouBasisPoints,
+        0,
+        10_000,
+      )
+      + clamp(
+        10_000
+          - naturalComposition.landSilhouette.maximumAlignedCoastRunShareBasisPoints,
+        0,
+        10_000,
+      )
+      + clamp(
+        10_000 - Math.abs(
+          naturalComposition.landSilhouette.dominantLandSolidityBasisPoints - 7_900,
+        ) * 5,
+        0,
+        10_000,
+      )
+      + clamp(
+        naturalComposition.oceanBreathingRoom.boundaryLandDistanceP50 * 400,
+        0,
+        10_000,
+      )
+      + naturalComposition.forestPatches.clusteredShareBasisPoints
+      + naturalComposition.mountainSystems.clusteredShareBasisPoints
+    ) / 6);
     const scoreRange = (value: number, minimum: number, maximum: number) => {
       if (value >= minimum && value <= maximum) return 10_000;
       const miss = value < minimum ? minimum - value : value - maximum;
@@ -6451,7 +6883,7 @@ export function generateGreaterRealmCandidate(input: Readonly<{
       }),
       geology: Object.freeze({
         pseudoTectonicDomains: domains.length,
-        mountainSystems: mountainSystems.length,
+        mountainSystems: naturalComposition.mountainSystems.broadComponentCount,
         watersheds: finalHydrology.watersheds,
       }),
       topography: Object.freeze({
@@ -6489,7 +6921,9 @@ export function generateGreaterRealmCandidate(input: Readonly<{
           topography.biomeMetrics.incompatibleBiomeLandformPairCount,
       }),
       quality: Object.freeze({
-        naturalnessBasisPoints: clamp(10_000 - axialArtifactBasisPoints, 0, 10_000),
+        naturalnessBasisPoints: Math.round((
+          legacyBoundaryNaturalnessBasisPoints + compositionNaturalnessBasisPoints
+        ) / 2),
         axialArtifactBasisPoints,
         ridgeContinuityBasisPoints,
         hydrologyCoherenceBasisPoints,
@@ -6658,6 +7092,7 @@ export function generateGreaterRealmCandidate(input: Readonly<{
           strategicBarrier.highlandBarrierShareBasisPoints,
         barrierMeanElevationAdvantage: strategicBarrier.barrierMeanElevationAdvantage,
         barrierMeanUpliftAdvantage: strategicBarrier.barrierMeanUpliftAdvantage,
+        naturalComposition,
         geomorphology: geomorphology.metrics,
         throneAnchorBarrierClearance: throne.barrierClearance,
         tierThreePassableLandCells,

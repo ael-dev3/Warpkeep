@@ -4,7 +4,7 @@ export const GREATER_REALM_SANITIZED_REVIEW_SCHEMA =
   'warpkeep.greater-realm.candidate-review.v1' as const;
 export const GREATER_REALM_SANITIZED_PRIVACY_BOUNDARY =
   'aggregate-only-no-private-generation-material-v1' as const;
-export const GREATER_REALM_MINIMUM_CANDIDATE_COUNT = 8;
+export const GREATER_REALM_MINIMUM_CANDIDATE_COUNT = 1;
 export const GREATER_REALM_MAXIMUM_CANDIDATE_COUNT = 16;
 export const GREATER_REALM_MINIMUM_ACTIVE_CELL_COUNT = 100_000;
 export const GREATER_REALM_MAXIMUM_ACTIVE_CELL_COUNT = 150_000;
@@ -17,6 +17,14 @@ export const GREATER_REALM_SOURCE_COMMIT_PATTERN = /^[0-9a-f]{40}(?:[0-9a-f]{24}
 export const GREATER_REALM_SHA256_PATTERN = /^[0-9a-f]{64}$/u;
 export const GREATER_REALM_GENERATOR_VERSION_PATTERN =
   /^[a-z0-9](?:[a-z0-9.-]{0,62}[a-z0-9])?$/u;
+
+export const GREATER_REALM_COMPOSITION_PROOF_KEYS = Object.freeze([
+  'naturalLandSilhouette',
+  'dominantContinentComposition',
+  'deepOceanBreathingRoom',
+  'forestPatchComposition',
+  'mountainSystemComposition',
+] as const);
 
 export const GREATER_REALM_PROOF_KEYS = Object.freeze([
   'activeMaskConnected',
@@ -40,6 +48,7 @@ export const GREATER_REALM_PROOF_KEYS = Object.freeze([
   'regionPassableLand',
   'regionLandCoherence',
   'regionGraph',
+  ...GREATER_REALM_COMPOSITION_PROOF_KEYS,
 ] as const);
 
 export type GreaterRealmProofKey = typeof GREATER_REALM_PROOF_KEYS[number];

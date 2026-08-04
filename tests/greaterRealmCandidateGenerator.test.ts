@@ -21,10 +21,10 @@ import {
   type IntegerTerrainArray,
 } from '../scripts/atlas/greater-realm-terrain';
 
-const PINNED_ROOT_LABEL = 'greater-realm-ordinary-parent-a';
+const PINNED_ROOT_LABEL = 'greater-realm-yield-regression-b';
 const SAME_FIRST_WORD_BASELINE_ROOT_INDEX = 23_248;
 const SAME_FIRST_WORD_ROOT_INDEX = 41_769;
-const PINNED_ORDINAL = 9;
+const PINNED_ORDINAL = 0;
 const SAME_FIRST_WORD_ORDINAL = 0;
 const EXPECTED_ACTIVE_CELL_MINIMUM = 100_000;
 const EXPECTED_ACTIVE_CELL_MAXIMUM = 150_000;

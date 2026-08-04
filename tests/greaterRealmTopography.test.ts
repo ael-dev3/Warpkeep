@@ -131,8 +131,11 @@ describe('Greater Realm derived topography', () => {
 
   it('smooths visual classification as a compatible pair without moving protected process cells', () => {
     const coordinates: Array<{ q: number; r: number }> = [];
-    for (let q = -2; q <= 2; q += 1) {
-      for (let r = Math.max(-2, -q - 2); r <= Math.min(2, -q + 2); r += 1) {
+    // Use a production-representative connected patch large enough to survive
+    // the generated-forest deconfetti pass; this test remains focused on the
+    // earlier compatible-pair smoothing behavior.
+    for (let q = -4; q <= 4; q += 1) {
+      for (let r = Math.max(-4, -q - 4); r <= Math.min(4, -q + 4); r += 1) {
         coordinates.push({ q, r });
       }
     }

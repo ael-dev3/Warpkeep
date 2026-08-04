@@ -1,4 +1,4 @@
-import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { lstatSync, realpathSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { basename, dirname, relative, resolve, sep } from 'node:path';
@@ -8,7 +8,9 @@ import {
   GREATER_REALM_PRIVATE_MANIFEST_KIND,
   GREATER_REALM_PRIVATE_PACKAGE_MAGIC,
   GREATER_REALM_REGION_SPECS,
+  GREATER_REALM_TERRAIN_SEED_NAMESPACE,
   clearGreaterRealmCandidateSecret,
+  deriveGreaterRealmCandidateSeedMaterial,
   generateGreaterRealmCandidate,
   type GreaterRealmPrivateCandidate,
 } from './greater-realm-candidate-generator';
@@ -48,6 +50,14 @@ const PRIVATE_PREVIEW_TEXT_KEY = 'WarpkeepPrivate';
 const PRIVATE_PREVIEW_MODES = [
   'silhouette', 'hillshade', 'biome', 'hydrology', 'regions', 'mountain-gates',
 ] as const;
+const PRIVATE_PREVIEW_SEA_LEVEL = 0;
+const PRIVATE_PREVIEW_WATER_DRY = 0;
+const PRIVATE_PREVIEW_WATER_OCEAN = 1;
+const PRIVATE_PREVIEW_WATER_LAKE = 2;
+const PRIVATE_PREVIEW_WATER_RIVER = 3;
+const PRIVATE_PREVIEW_WATER_STREAM = 4;
+const PRIVATE_PREVIEW_WATER_SEA = 5;
+const PRIVATE_PREVIEW_FOG_COLOR = Object.freeze([24, 22, 31] as const);
 const PRIVATE_CANVAS_RADIUS = 270;
 const PRIVATE_CHUNK_AXIS_SPAN = 15;
 const PRIVATE_CHUNK_PARTITION_VERSION = 'axial-bin-15-v1' as const;
@@ -107,6 +117,7 @@ const PRIVATE_MANIFEST_KEYS = Object.freeze([
   'provenanceDigest',
   'regionSpecs',
   'seedDigest',
+  'seedNamespace',
   'sourceCommit',
   'stageDigests',
   'tierOneSemanticPermutation',
@@ -447,11 +458,7 @@ function deriveCandidateSeedMaterial(
     || !Number.isSafeInteger(candidateOrdinal)
     || candidateOrdinal < 0
   ) fail('GREATER_REALM_PRIVATE_PROVENANCE_INVALID');
-  return createHmac('sha256', batchSeed)
-    .update(GREATER_REALM_GENERATOR_VERSION, 'utf8')
-    .update('\0candidate\0', 'utf8')
-    .update(String(candidateOrdinal), 'utf8')
-    .digest();
+  return deriveGreaterRealmCandidateSeedMaterial(batchSeed, candidateOrdinal);
 }
 
 function privateProvenanceDigest(input: Readonly<{
@@ -467,6 +474,8 @@ function privateProvenanceDigest(input: Readonly<{
     .update(input.sourceCommit, 'utf8')
     .update('\0', 'utf8')
     .update(GREATER_REALM_GENERATOR_VERSION, 'utf8')
+    .update('\0', 'utf8')
+    .update(GREATER_REALM_TERRAIN_SEED_NAMESPACE, 'utf8')
     .update('\0', 'utf8')
     .update(String(input.candidateOrdinal), 'utf8')
     .update('\0', 'utf8')
@@ -1216,6 +1225,40 @@ function verifiedPrivateShortlistMetrics(
   });
 }
 
+function privatePreviewDistanceToTopographicLand(
+  candidate: GreaterRealmPrivateCandidate,
+): Uint16Array {
+  const distance = new Uint16Array(candidate.grid.cellCount);
+  distance.fill(0xffff);
+  const queue = new Uint32Array(candidate.grid.cellCount);
+  let head = 0;
+  let tail = 0;
+  let completed = false;
+  try {
+    for (let cell = 0; cell < candidate.grid.cellCount; cell += 1) {
+      if (candidate.elevation[cell]! <= PRIVATE_PREVIEW_SEA_LEVEL) continue;
+      distance[cell] = 0;
+      queue[tail++] = cell;
+    }
+    if (tail === 0) fail('GREATER_REALM_PRIVATE_PREVIEW_LAND_MISSING');
+    while (head < tail) {
+      const cell = queue[head++]!;
+      const nextDistance = distance[cell]! + 1;
+      for (let direction = 0; direction < 6; direction += 1) {
+        const neighbor = candidate.grid.neighbors[cell * 6 + direction]!;
+        if (neighbor < 0 || distance[neighbor]! <= nextDistance) continue;
+        distance[neighbor] = nextDistance;
+        queue[tail++] = neighbor;
+      }
+    }
+    completed = true;
+    return distance;
+  } finally {
+    queue.fill(0);
+    if (!completed) distance.fill(0);
+  }
+}
+
 export async function renderGreaterRealmPrivatePreview(
   candidate: GreaterRealmPrivateCandidate,
   mode: GreaterRealmPrivatePreviewMode,
@@ -1228,7 +1271,14 @@ export async function renderGreaterRealmPrivatePreview(
   const pixels = Buffer.alloc(width * height * 4, 0);
   let watermark: Buffer | undefined;
   let encoded: Buffer | undefined;
+  let distanceToTopographicLand: Uint16Array | undefined;
   try {
+  for (let pixel = 0; pixel < pixels.length; pixel += 4) {
+    pixels[pixel] = PRIVATE_PREVIEW_FOG_COLOR[0];
+    pixels[pixel + 1] = PRIVATE_PREVIEW_FOG_COLOR[1];
+    pixels[pixel + 2] = PRIVATE_PREVIEW_FOG_COLOR[2];
+    pixels[pixel + 3] = 255;
+  }
   let minimumQ = Number.POSITIVE_INFINITY;
   let maximumQ = Number.NEGATIVE_INFINITY;
   let minimumR = Number.POSITIVE_INFINITY;
@@ -1254,13 +1304,20 @@ export async function renderGreaterRealmPrivatePreview(
     [87, 144, 84], [117, 159, 195], [205, 151, 76], [84, 147, 127], [103, 124, 164],
     [151, 96, 80], [92, 112, 82], [116, 103, 126], [85, 121, 142], [116, 84, 135],
   ] as const;
+  if (mode === 'regions') {
+    distanceToTopographicLand = privatePreviewDistanceToTopographicLand(candidate);
+  }
   const gateCells = new Set(candidate.gates.flatMap(gate => [gate.firstCell, gate.secondCell]));
   for (let index = 0; index < candidate.grid.cellCount; index += 1) {
     const x = 40 + Math.round(((candidate.grid.q[index]! - minimumQ) + (candidate.grid.r[index]! - minimumR) / 2) * scale);
     const y = 60 + Math.round((candidate.grid.r[index]! - minimumR) * scale * 0.86);
     let color: readonly [number, number, number] = [44, 49, 64];
     if (mode === 'silhouette') {
-      color = candidate.waterRegime[index] === 0 ? [142, 164, 105] : [39, 76, 124];
+      // Rivers and streams are features inside the continental footprint, not
+      // coastline cuts. Silhouette review therefore follows sea-level land.
+      color = candidate.elevation[index]! > PRIVATE_PREVIEW_SEA_LEVEL
+        ? [142, 164, 105]
+        : [39, 76, 124];
     } else if (mode === 'hillshade') {
       const shade = clampPreview(90 + Math.floor((candidate.elevation[index]! + 12_000) / 260));
       color = [shade, shade, Math.min(255, shade + 8)];
@@ -1269,7 +1326,26 @@ export async function renderGreaterRealmPrivatePreview(
     } else if (mode === 'hydrology') {
       color = candidate.waterRegime[index] === 0 ? [109, 118, 91] : [48, 132, 205];
     } else if (mode === 'regions') {
-      color = regionPalette[candidate.regionId[index]!]!;
+      const regime = candidate.waterRegime[index]!;
+      if (regime === PRIVATE_PREVIEW_WATER_DRY) {
+        color = regionPalette[candidate.regionId[index]!]!;
+      } else if (regime === PRIVATE_PREVIEW_WATER_OCEAN) {
+        const distance = distanceToTopographicLand?.[index] ?? 0;
+        const band = Math.min(5, Math.floor(distance / 4));
+        color = [54 - band * 5, 91 - band * 8, 132 - band * 10];
+      } else if (
+        regime === PRIVATE_PREVIEW_WATER_LAKE
+        || regime === PRIVATE_PREVIEW_WATER_SEA
+      ) {
+        color = [66, 126, 171];
+      } else if (
+        regime === PRIVATE_PREVIEW_WATER_RIVER
+        || regime === PRIVATE_PREVIEW_WATER_STREAM
+      ) {
+        color = [72, 143, 190];
+      } else {
+        fail('GREATER_REALM_PRIVATE_PREVIEW_WATER_INVALID');
+      }
     } else {
       color = gateCells.has(index)
         ? [236, 194, 82]
@@ -1291,19 +1367,26 @@ export async function renderGreaterRealmPrivatePreview(
     }
   }
   const sharpModule = await import('sharp');
+  const watermarkLabel = mode === 'regions'
+    ? 'TOPOLOGY + OUTER-OCEAN PROXY · PRIVATE REVIEW · NOT RUNTIME FOG'
+    : `PRIVATE OWNER REVIEW — DO NOT DISTRIBUTE · ${mode.toUpperCase()}`;
   watermark = Buffer.from(
-    `<svg width="${width}" height="${height}"><rect width="100%" height="44" y="${height - 44}" fill="#0b0d16" fill-opacity="0.84"/><text x="32" y="${height - 15}" fill="#e0b85d" font-family="sans-serif" font-size="20" letter-spacing="3">PRIVATE OWNER REVIEW — DO NOT DISTRIBUTE · ${mode.toUpperCase()}</text></svg>`,
+    `<svg width="${width}" height="${height}"><rect width="100%" height="44" y="${height - 44}" fill="#0b0d16" fill-opacity="0.84"/><text x="32" y="${height - 15}" fill="#e0b85d" font-family="sans-serif" font-size="20" letter-spacing="3">${watermarkLabel}</text></svg>`,
     'utf8',
   );
     encoded = await sharpModule.default(pixels, { raw: { width, height, channels: 4 } })
       .composite([{ input: watermark }])
-      .png({ compressionLevel: 9, adaptiveFiltering: false, palette: true })
+      // Preserve the explicit, fully opaque alpha channel. Palette encoding
+      // silently collapses an all-255 alpha channel to RGB, which breaks the
+      // fail-closed preview contract and makes opacity impossible to attest.
+      .png({ compressionLevel: 9, adaptiveFiltering: false, palette: false })
       .toBuffer();
     return markPrivatePreviewPng(encoded);
   } finally {
     pixels.fill(0);
     watermark?.fill(0);
     encoded?.fill(0);
+    distanceToTopographicLand?.fill(0);
   }
 }
 
@@ -1401,6 +1484,7 @@ export async function writeGreaterRealmPrivateCandidate(input: Readonly<{
     candidateHandle: input.candidateHandle,
     candidateOrdinal: input.candidate.candidateOrdinal,
     seedDigest: createHash('sha256').update(input.candidate.seedMaterial).digest('hex'),
+    seedNamespace: GREATER_REALM_TERRAIN_SEED_NAMESPACE,
     provenanceDigest: privateProvenanceDigest({
       batchHandle: input.batchHandle,
       sourceCommit: input.sourceCommit,
@@ -1883,6 +1967,7 @@ export async function verifyGreaterRealmPrivateCandidatePackage(input: Readonly<
       || manifest.exactActiveCellCount !== input.expectedActiveCellCount
       || manifest.atlasDigest !== atlasDigest
       || manifest.seedDigest !== expectedSeedDigest
+      || manifest.seedNamespace !== GREATER_REALM_TERRAIN_SEED_NAMESPACE
       || manifest.provenanceDigest !== expectedProvenanceDigest
       || !exactJsonEqual(manifest.canvas, {
         kind: 'private-axial-disc',

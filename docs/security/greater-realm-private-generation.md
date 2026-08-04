@@ -41,8 +41,9 @@ The private workspace must:
 - store batch and candidate seeds in strict, type-tagged private envelopes so
   renamed seed files retain a scan-visible private marker while derivation
   continues to use only the extracted 32-byte payload;
-- bind every package to generator version, source commit, parameters, seed
-  identity, stage digests, and exact file inventory;
+- bind every package to generator algorithm version, the independently pinned
+  terrain-seed namespace, source commit, parameters, seed identity, stage
+  digests, and exact file inventory;
 - bind every private chunk to its canonical cell-index digest and full authority
   field payload, then bind its referenced topography patch to the same cells,
   generation/topography/partition versions, exact process-and-derived field
@@ -67,6 +68,14 @@ their lifetime ends, including temporary seed digests and failed atlas
 serialization or persistence. Private candidate retirement also clears the
 coordinate lookup captured by its indexed grid before clearing canonical field
 arrays.
+
+Natural-composition review derives only coordinate-free scalar summaries and
+five public proof booleans from final private terrain authority. Temporary land,
+saltwater, dry-ground, forest, mountain, distance, component, queue, and raster
+buffers are scoped to the measurement and overwritten on both success and
+failure. Owner-supplied visual references remain outside the repository and are
+used only as review criteria; their files, names, paths, and pixels never enter
+a candidate package or sanitized report.
 
 This is defense in depth, not a secure-erasure guarantee: V8 strings and
 garbage-collected/native-library copies cannot be reliably overwritten, and
@@ -165,6 +174,15 @@ passes use double buffers rather than scan-order mutation. Persistable fields
 use checked integers/fixed point; visual previews may use floating-point
 presentation only.
 
+The generator algorithm version and deterministic terrain-seed namespace are
+separate authorities. Algorithm/package revisions may change how a rejected
+candidate is evaluated without silently rerolling every root-seed ordinal; a
+world reroll requires an explicit seed-namespace change. The private manifest
+binds both values, and verification re-derives the candidate seed from the
+declared namespace. The namespace constant is public source, but its package
+binding is owner-only provenance and is not admitted to sanitized candidate
+evidence.
+
 Every batch attempt ordinal is regenerated before review. The rejection ledger
 is an exact discriminated union: a completed candidate may record a
 `proof-rejection` with its active-cell count and failed proofs, while only an
@@ -181,17 +199,18 @@ match the regenerated marked PNG before its bounded decode/dimension check. A
 candidate generated alone, first, or last must have the same authoritative
 output.
 
-Comparison is also deterministic but is not selection. Only metrics captured
-from regenerated, byte-for-byte verified private candidate packages may enter
-the comparison vector. It covers coordinate-free outer-boundary/coastal,
+Owner review is deterministic but is not selection. Only metrics captured from
+the regenerated, byte-for-byte verified private candidate package may enter its
+review vector. It covers coordinate-free outer-boundary/coastal,
 route/playability, chunk-balance, geological/topographic, climate/landform, and
-biome axes. It may write only a private, unranked three-to-five-candidate
-shortlist containing opaque handles and axis/constraint labels—not the metric
-values—after enforcing route redundancy, 4–8-cell barrier width, zero
-incompatible visual adjacencies, and zero incompatible biome/landform pairs.
-The shortlist remains `selectionStatus: pending`, with no recommendation and no
-automatic selection. Recording a choice requires a separate explicit owner
-approval and private receipt; PR A does not record one.
+biome axes. Per the owner’s one-world direction, it writes a private, unranked
+single-candidate review record containing one opaque handle and
+axis/constraint labels—not metric values—after enforcing route redundancy,
+4–8-cell barrier width, zero incompatible visual adjacencies, and zero
+incompatible biome/landform pairs. The record remains
+`selectionStatus: pending`, with no recommendation and no automatic selection.
+Recording a choice requires a separate explicit owner approval and private
+receipt; PR A does not record one.
 
 ## Required negative tests
 

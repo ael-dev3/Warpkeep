@@ -9,6 +9,7 @@ const WATER_LAKE = 2;
 const WATER_RIVER = 3;
 const WATER_STREAM = 4;
 const WATER_SEA = 5;
+const MINIMUM_GENERATED_FOREST_PATCH_CELLS = 28;
 
 export type GreaterRealmTopographyMetrics = Readonly<{
   elevationMinimum: number;
@@ -207,6 +208,80 @@ function isCompatibleBiomeLandformPair(
   }
   if (waterRegime !== WATER_DRY) return false;
   return DRY_LANDFORMS_BY_BIOME[biome]?.has(landform) === true;
+}
+
+function consolidateGeneratedForestPatches(input: Readonly<{
+  grid: IndexedAxialGrid;
+  waterRegime: Uint8Array;
+  legacyProtectedCell: Uint8Array;
+  biomeId: Uint8Array;
+  landformId: Uint8Array;
+  distanceToFreshwater: Uint16Array;
+  slope: Uint16Array;
+  moisture: Int32Array;
+  exposure: Int32Array;
+}>): void {
+  const { grid } = input;
+  const forestMask = new Uint8Array(grid.cellCount);
+  const seen = new Uint8Array(grid.cellCount);
+  const queue = new Uint32Array(grid.cellCount);
+  try {
+    for (let cell = 0; cell < grid.cellCount; cell += 1) {
+      if (
+        input.waterRegime[cell] !== WATER_DRY
+        || input.legacyProtectedCell[cell] === 1
+      ) continue;
+      const biome = input.biomeId[cell]!;
+      if (
+        biome === 2
+        || biome === 3
+        || (biome === 5 && input.landformId[cell] !== 15)
+      ) forestMask[cell] = 1;
+    }
+
+    for (let start = 0; start < grid.cellCount; start += 1) {
+      if (forestMask[start] !== 1 || seen[start] === 1) continue;
+      let head = 0;
+      let tail = 0;
+      queue[tail++] = start;
+      seen[start] = 1;
+      while (head < tail) {
+        const cell = queue[head++]!;
+        for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
+          const neighbor = grid.neighbors[cell * NEIGHBOR_COUNT + direction]!;
+          if (
+            neighbor < 0
+            || forestMask[neighbor] !== 1
+            || seen[neighbor] === 1
+          ) continue;
+          seen[neighbor] = 1;
+          queue[tail++] = neighbor;
+        }
+      }
+      if (tail >= MINIMUM_GENERATED_FOREST_PATCH_CELLS) continue;
+      for (let offset = 0; offset < tail; offset += 1) {
+        const cell = queue[offset]!;
+        if (
+          input.distanceToFreshwater[cell]! <= 2
+          && input.slope[cell]! < 550
+          && input.moisture[cell]! > 800
+        ) {
+          input.biomeId[cell] = 4;
+          input.landformId[cell] = input.moisture[cell]! > 1_900 ? 5 : 3;
+        } else if (input.exposure[cell]! >= 55) {
+          input.biomeId[cell] = 8;
+          input.landformId[cell] = input.slope[cell]! < 550 ? 3 : 4;
+        } else {
+          input.biomeId[cell] = 1;
+          input.landformId[cell] = input.slope[cell]! < 550 ? 3 : 4;
+        }
+      }
+    }
+  } finally {
+    forestMask.fill(0);
+    seen.fill(0);
+    queue.fill(0);
+  }
 }
 
 /**
@@ -583,6 +658,20 @@ export function deriveGreaterRealmTopography(input: Readonly<{
     biomeId.set(nextBiome);
     landformId.set(nextLandform);
   }
+
+  // Broad forest masses remain, while generated salt-and-pepper woods become
+  // meadow/heath transitions. The frozen Lowlands surface is never touched.
+  consolidateGeneratedForestPatches({
+    grid,
+    waterRegime,
+    legacyProtectedCell,
+    biomeId,
+    landformId,
+    distanceToFreshwater,
+    slope,
+    moisture,
+    exposure,
+  });
 
   let incompatibleBiomeLandformPairCount = 0;
   for (let cell = 0; cell < grid.cellCount; cell += 1) {

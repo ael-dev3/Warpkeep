@@ -126,10 +126,12 @@ const SANITIZED_REVIEW_EVIDENCE_PATH =
 const SANITIZED_REVIEW_EVIDENCE_PREFIX = 'docs/evidence/greater-realm/';
 const SANITIZED_REVIEW_EVIDENCE_README =
   'docs/evidence/greater-realm/README.md';
-const SANITIZED_REVIEW_EVIDENCE_README_BYTES = 1_371;
+const SANITIZED_REVIEW_EVIDENCE_README_BYTES = 1_387;
 const SANITIZED_REVIEW_EVIDENCE_README_SHA256 =
-  '77261c47d7511547ca5265b7b358e5676d939a69aa9a15766d7906a0282d0450';
+  'b18d53a323c25749e7abc3695c6680332920d2fdfd5f1fe6151aef08d395e0b4';
 const SANITIZED_REVIEW_MAXIMUM_BYTES = 4 * 1024 * 1024;
+const SANITIZED_REVIEW_MINIMUM_CANDIDATE_COUNT = 1;
+const SANITIZED_REVIEW_MAXIMUM_CANDIDATE_COUNT = 16;
 const SANITIZED_REVIEW_SCHEMA = 'warpkeep.greater-realm.candidate-review.v1';
 const SANITIZED_REVIEW_PRIVACY_BOUNDARY =
   'aggregate-only-no-private-generation-material-v1';
@@ -155,6 +157,11 @@ const SANITIZED_REVIEW_PROOF_KEYS = Object.freeze([
   'regionPassableLand',
   'regionLandCoherence',
   'regionGraph',
+  'naturalLandSilhouette',
+  'dominantContinentComposition',
+  'deepOceanBreathingRoom',
+  'forestPatchComposition',
+  'mountainSystemComposition',
 ]);
 const SANITIZED_REVIEW_CANDIDATE_KEYS = Object.freeze([
   'candidateHandle',
@@ -1056,8 +1063,8 @@ function validateSanitizedReviewEvidence(text) {
     || typeof row.reportDigest !== 'string'
     || !SANITIZED_REVIEW_SHA256.test(row.reportDigest)
     || !Array.isArray(row.candidates)
-    || row.candidates.length < 8
-    || row.candidates.length > 16
+    || row.candidates.length < SANITIZED_REVIEW_MINIMUM_CANDIDATE_COUNT
+    || row.candidates.length > SANITIZED_REVIEW_MAXIMUM_CANDIDATE_COUNT
     || row.candidateCount !== row.candidates.length
   ) invalidSanitizedReview();
   const candidates = row.candidates.map(validateSanitizedCandidate);
@@ -1065,7 +1072,8 @@ function validateSanitizedReviewEvidence(text) {
   if (
     new Set(handles).size !== handles.length
     || handles.some((handle, index) => index > 0 && handles[index - 1] >= handle)
-    || candidates.filter(candidate => candidate.eligible).length < 8
+    || candidates.filter(candidate => candidate.eligible).length
+      < SANITIZED_REVIEW_MINIMUM_CANDIDATE_COUNT
     || (row.selectionStatus === 'pending' && row.selectedCandidateHandle !== null)
     || (row.selectionStatus === 'selected' && (
       row.selectedCandidateHandle === null

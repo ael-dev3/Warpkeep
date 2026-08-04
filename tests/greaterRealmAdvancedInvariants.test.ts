@@ -14,8 +14,8 @@ import {
   transformLegacyLowlandsToGlobal,
 } from '../scripts/atlas/greater-realm-legacy-lowlands';
 
-const PINNED_ROOT_LABEL = 'greater-realm-ordinary-parent-a';
-const PINNED_ORDINAL = 9;
+const PINNED_ROOT_LABEL = 'greater-realm-yield-regression-b';
+const PINNED_ORDINAL = 0;
 const PRIVATE_CANVAS_RADIUS = 270;
 const HEX_NEIGHBOR_COUNT = 6;
 const REGION_COUNT = 10;

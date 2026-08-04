@@ -370,7 +370,7 @@ async function generateCandidates(arguments_: ParsedArguments): Promise<void> {
     workspaceRoot: arguments_.workspaceRoot,
   });
   const batchHandle = createGreaterRealmReviewBatchHandle();
-  const requestedCount = arguments_.count ?? 12;
+  const requestedCount = arguments_.count ?? 1;
   const maximumAttempts = arguments_.maximumAttempts ?? Math.max(128, requestedCount * 16);
   if (maximumAttempts < requestedCount) fail('GREATER_REALM_CLI_ARGUMENTS_INVALID');
   const commit = sourceCommit();
@@ -861,9 +861,9 @@ function shortlistDiversityDistance(
 }
 
 /**
- * Produces an unranked owner-review set. It deliberately has no scalar score,
- * recommendation, or selection side effect: Pareto specialists and vector
- * separation preserve materially different terrain trade-offs for a human.
+ * Produces an unranked owner-review set. A single-candidate batch remains a
+ * pending owner review; multi-candidate batches use Pareto specialists and
+ * vector separation. Neither path recommends or selects a world.
  */
 export function buildGreaterRealmPrivateCandidateShortlist(
   review: GreaterRealmSanitizedReview,
@@ -872,7 +872,7 @@ export function buildGreaterRealmPrivateCandidateShortlist(
   if (
     review.selectionStatus !== 'pending'
     || review.selectedCandidateHandle !== null
-    || review.candidates.length < 3
+    || review.candidates.length < GREATER_REALM_MINIMUM_CANDIDATE_COUNT
     || review.candidates.some(candidate => candidate.eligible !== true)
     || review.candidates.some(candidate => (
       candidate.biomes.incompatibleVisualAdjacencyCount !== 0
@@ -917,7 +917,8 @@ export function buildGreaterRealmPrivateCandidateShortlist(
     const minimum = Math.min(...values);
     return Object.freeze({ minimum, span: Math.max(1, Math.max(...values) - minimum) });
   });
-  while (selected.size < 3) {
+  const minimumReviewSetSize = Math.min(3, candidates.length);
+  while (selected.size < minimumReviewSetSize) {
     const remaining = candidates.filter(candidate => !selected.has(candidate.candidateHandle));
     if (remaining.length === 0) fail('GREATER_REALM_PRIVATE_SHORTLIST_INVALID');
     const next = remaining.sort((first, second) => {
@@ -937,7 +938,9 @@ export function buildGreaterRealmPrivateCandidateShortlist(
   const candidateHandles = Object.freeze([...selected.keys()].sort());
   return Object.freeze({
     kind: 'warpkeep.greater-realm.private-owner-shortlist.v1' as const,
-    method: 'pareto-private-vector-diversity-v2' as const,
+    method: candidates.length === 1
+      ? 'single-candidate-reference-review-v1' as const
+      : 'pareto-private-vector-diversity-v2' as const,
     comparisonBasis: 'verified-private-package-aggregate-metrics-v1' as const,
     batchHandle: review.reviewBatchHandle,
     sourceReviewDigest: review.reportDigest,

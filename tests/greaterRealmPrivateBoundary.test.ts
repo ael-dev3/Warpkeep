@@ -57,7 +57,7 @@ function scannerRepository() {
 }
 
 function sanitizedReviewEvidence(): string {
-  const candidates = Array.from({ length: 8 }, (_, index) => Object.freeze({
+  const candidates = Array.from({ length: 1 }, (_, index) => Object.freeze({
     candidateHandle: `GR-A-${String.fromCharCode(65 + index)}AAAAAAAAAAAAAAA`,
     eligible: true,
     activeCellCount: 120_000,

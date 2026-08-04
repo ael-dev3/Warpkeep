@@ -78,7 +78,7 @@ afterEach(() => {
 });
 
 describe('Greater Realm atlas CLI security boundary', () => {
-  it('creates an unranked Pareto-diversity shortlist without choosing a winner', () => {
+  it('creates pending unranked owner-review sets without choosing a winner', () => {
     const candidate = (
       suffix: string,
       values: readonly [number, number, number, number, number],
@@ -178,6 +178,18 @@ describe('Greater Realm atlas CLI security boundary', () => {
     expect(JSON.stringify(shortlist)).not.toMatch(/(?:winner|recommend|score|rank":\s*[0-9])/iu);
     expect(JSON.stringify(shortlist)).not.toMatch(/(?:coordinate|seed|transform|chunkKey)/iu);
 
+    const single = buildGreaterRealmPrivateCandidateShortlist({
+      ...review,
+      candidates: review.candidates.slice(0, 1),
+    }, privateMetrics.slice(0, 1));
+    expect(single.shortlistCount).toBe(1);
+    expect(single.candidateHandles).toEqual([candidates[0]!.candidateHandle]);
+    expect(single.method).toBe('single-candidate-reference-review-v1');
+    expect(single.selectionStatus).toBe('pending');
+    expect(single.selectedCandidateHandle).toBeNull();
+    expect(single.ranked).toBe(false);
+    expect(single.automaticSelection).toBe(false);
+
     expect(() => buildGreaterRealmPrivateCandidateShortlist({
       ...review,
       candidates: review.candidates.map((entry, index) => index === 0
@@ -251,7 +263,7 @@ describe('Greater Realm atlas CLI security boundary', () => {
       '--workspace',
       forbiddenWorkspace,
       '--count',
-      '8',
+      '1',
       '--maximum-attempts',
       '8',
     ]);

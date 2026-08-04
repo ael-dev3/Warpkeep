@@ -4,7 +4,8 @@ Status: candidate-generation design only
 
 Atlas: `GENESIS_001_GREATER_REALM`
 
-Generator: `greater-realm-v2-natural-continent-pr-a.3`
+Generator algorithm: `greater-realm-v2-natural-continent-pr-a.5`
+Terrain-seed namespace: `greater-realm-v2-natural-continent-pr-a.3`
 Production state: unchanged
 
 This document defines the offline, owner-reviewed candidate stage for a future
@@ -60,8 +61,11 @@ hexes from every previously accepted slot, including the deployed Lowlands.
 
 Authority decisions use canonical cell order, integer or fixed-point fields,
 stable complete tie-breakers, and counter-addressed random channels. A sample
-is a pure function of the private candidate seed, generator version, stage,
-axial coordinate, and sample ordinal. There is no mutable random stream and no
+is a pure function of the private candidate seed, stage, axial coordinate, and
+sample ordinal. Root-seed ordinals derive that candidate seed through an
+explicit terrain-seed namespace, which changes only for an intentional world
+reroll; the separate generator algorithm version still identifies and binds
+the package implementation. There is no mutable random stream and no
 `Math.random` in generation authority.
 
 Each candidate runs independently through these stage families:
@@ -93,6 +97,10 @@ Each candidate runs independently through these stage families:
    curvature, wetness, exposure, coast/freshwater distance, watersheds, ridges,
    temperature, moisture, landforms, and biome classes; visual classifications
    cannot drift away from the process evidence that produced the terrain.
+   Generated forest components smaller than 28 connected cells resolve into
+   compatible meadow/heath transitions, leaving broad clustered woods and
+   meaningful open country. The frozen Lowlands surface is excluded from this
+   cleanup and from new-generator composition scoring.
 8. Grow natural geographic basins, bind the working region identities by
    climate/process character, assign the fixed strategic graph, and align tier
    barriers and gate saddles with coherent highlands rather than radial bands.
@@ -132,6 +140,25 @@ A candidate is ineligible if any of these proofs fail:
 - land does not retain a meaningful deep-ocean/fog buffer;
 - the topographic land mask does not contain 2–4 major landmasses and 3–8
   large islands;
+- the dominant continental system contains less than 55% or more than 90% of
+  land, lacks a meaningful secondary mass, or fails to carry at least 80% of
+  both Tier II and Tier III land. This explicitly implements the requested
+  primary-continent plus secondary-landmass policy rather than making a lone
+  monolith eligible;
+- production-scale 64px/256px silhouette checks detect excessive rotational
+  similarity, long axial coast runs, implausible convex solidity, or either
+  over-smoothed or one-cell-noisy coast detail;
+- the surrounding ocean is not saltwater at every active boundary cell, lacks
+  the global and 12-sector land clearance floors, or visually crowds the
+  fog-ready frame;
+- generated forests are outside the 8%–42% dry-land envelope, remain dominated
+  by tiny/confetti components, lack at least three broad patches, or collapse
+  into one blanket mass. Glacial landform 15 and the immutable Lowlands patch
+  are not misclassified as generated forest;
+- generated mountain authority is outside the 3%–28% dry-land envelope, lacks
+  at least two coherent systems, remains dominated by speckles or one massif,
+  or has no sufficiently long, anisotropic, off-centre belt. Ancient-stone
+  Lowlands cells are not counted as mountains;
 - region count, tier ratios, region balance, fixed adjacency, 18 gates, or 600
   total castle capacity differs from the contract;
 - a Tier-II parent lacks a dry outer-frontier anchor joined to its dry inner
@@ -183,16 +210,16 @@ route surfaces; oceans and lakes are not. This does not activate movement,
 bridges, ferries, or any cross-region mechanic. Castle sites and sealed gate
 endpoints themselves must still be dry.
 
-Quality is a vector, not an automatic winner. After each complete private
-package has been regenerated and byte-for-byte verified, the owner-only
-comparison joins its public aggregate evidence to a coordinate-free private
-metric vector. That vector spans outer-boundary/coastal artifacts, passable
-region coherence and route fragmentation, throne-route clearance, chunk
-population balance, geological and landform alignment, climate/coastal
-compatibility, hydrology, and biome diversity/balance. Raw coordinates, seeds,
-transforms, hidden-site identities, package paths, and digests never enter the
-shortlist. The tooling may produce a diverse shortlist, but only the owner can
-select a candidate.
+Quality remains a vector, not an automatic decision. After the private package
+has been regenerated and byte-for-byte verified, the owner-review record joins
+its public aggregate evidence to coordinate-free private metrics. Those metrics
+span outer-boundary/coastal artifacts, passable-region coherence and route
+fragmentation, throne-route clearance, chunk population balance, geological
+and landform alignment, climate/coastal compatibility, hydrology, biome
+diversity/balance, multiscale silhouette, directional ocean clearance, and
+forest/mountain clustering. Raw coordinates, seeds, transforms, hidden-site
+identities, package paths, and digests never enter that record. The tool carries
+no recommendation; only the owner can approve the candidate.
 
 ## Private and public outputs
 
@@ -223,16 +250,29 @@ hidden sites, maps, screenshots, previews, paths, or reconstructive data.
 
 ## Review and future pull requests
 
-The candidate batch contains 8–16 eligible worlds; twelve is the preferred
-review set. Private owner review includes comparable silhouette, hillshade,
-biome, hydrology, topology/fog, and mountain/gate views. The comparison tool
-deterministically produces an unranked, diverse three-to-five-candidate
-shortlist using Pareto/vector separation across verified private package
-aggregates as well as the sanitized public metrics. It records `pending`,
-carries no recommendation, and has no automatic-selection side effect. The
-private shortlist stores only opaque candidate handles, objective directions,
-and hard-constraint labels—never metric values or reconstructive material. No
-scalar score makes the final choice.
+Per the owner’s direction, PR A produces one eligible world for review, not an
+eight-world comparison batch. Private owner review includes silhouette,
+hillshade, biome, hydrology, region-topology/outer-ocean, and mountain/gate
+views. The region view uses a fixed opaque fog exterior and review-only
+outer-ocean bands; its watermark explicitly identifies it as a composition
+proxy, not shipped runtime fog or server fog-of-war authority. The silhouette
+follows topographic land at sea level, so rivers and streams remain features
+within the landmass instead of punching false coastline gaps.
+
+Owner-supplied map references are composition guidance, never source assets or
+pixel targets. Review asks whether the candidate has a strong irregular macro
+landmass, meaningful bays, peninsulas and inland water, coherent forest and
+mountain belts rather than confetti, hydrology that organizes the terrain,
+substantial ocean breathing room, and an outer boundary fully consumed by fog.
+Neither the land nor its fog envelope may resolve into a disc, hexagon, radial
+flower or repeated rotated pattern under close inspection.
+
+The review tool deterministically emits a one-candidate, unranked private review
+record from the verified private package and sanitized public metrics. It
+records `pending`, carries no recommendation, and has no automatic-selection
+side effect. The record stores only an opaque candidate handle, objective
+directions, and hard-constraint labels—never metric values or reconstructive
+material. No scalar score makes the final choice.
 
 Only an explicit owner approval may be recorded as a private selection receipt.
 After that approval, a separate pull request may bind the selected private
