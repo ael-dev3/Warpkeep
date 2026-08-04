@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { deflateSync } from 'node:zlib';
 
 import { describe, expect, it } from 'vitest';
 
@@ -21,9 +22,15 @@ import {
   innerKeepQaBrowserCases,
   innerKeepQaUrl
 } from '../scripts/qa-observer/inner-keep-qa-contract.mjs';
+import {
+  analyzeInnerKeepQaScreenshot,
+  assertInnerKeepQaScreenshotWindow
+} from '../scripts/qa-observer/inner-keep-browser-probe.mjs';
 
 const EXPECTED_SCENARIOS = Object.freeze([
   'empty',
+  'high-quality',
+  'active-conversation',
   'completed-level-1',
   'completed-level-2',
   'completed-level-3',
@@ -53,6 +60,44 @@ function evidenceFor(
     'builder-busy'
   ].includes(scenario.state);
   const completed = ['complete', 'missing-asset'].includes(scenario.state);
+  const living = scenario.quality === 'high'
+    ? {
+        actorCount: 20,
+        animationFrameCap: 30,
+        authoredTreeCount: 18,
+        grassBladeCount: 1_600,
+        mountedActorCount: 6,
+        patrolUnitCount: 12,
+        rendererDrawCalls: 636,
+        rendererTriangles: 534_156,
+        sceneGraphDrawCalls: 329,
+        sceneGraphTriangles: 274_564
+      }
+    : scenario.quality === 'reduced'
+    ? {
+        actorCount: 8,
+        animationFrameCap: 18,
+        authoredTreeCount: 6,
+        grassBladeCount: 320,
+        mountedActorCount: 2,
+        patrolUnitCount: 4,
+        rendererDrawCalls: 188,
+        rendererTriangles: 70_331,
+        sceneGraphDrawCalls: 190,
+        sceneGraphTriangles: 75_000
+      }
+    : {
+        actorCount: 12,
+        animationFrameCap: 24,
+        authoredTreeCount: 12,
+        grassBladeCount: 900,
+        mountedActorCount: 4,
+        patrolUnitCount: 6,
+        rendererDrawCalls: 261,
+        rendererTriangles: 148_096,
+        sceneGraphDrawCalls: 250,
+        sceneGraphTriangles: 160_000
+      };
   return {
     version: 1,
     scenario: scenario.id,
@@ -61,9 +106,14 @@ function evidenceFor(
     quality: scenario.quality,
     reducedMotion: scenario.reducedMotion,
     status: 'ready',
+    assetStatus: webgl ? 'ready' : 'idle',
     progressBasisPoints: scenario.progressBasisPoints,
     canvasCount: webgl ? 1 : 0,
     rendererCount: webgl ? 1 : 0,
+    rendererDrawCalls: webgl ? living.rendererDrawCalls : 0,
+    rendererTriangles: webgl ? living.rendererTriangles : 0,
+    sceneGraphDrawCalls: webgl ? living.sceneGraphDrawCalls : 0,
+    sceneGraphTriangles: webgl ? living.sceneGraphTriangles : 0,
     webglContextCount: webgl ? 1 : 0,
     rafOwnerCount: webgl ? 1 : 0,
     maximumPendingRafCount: webgl ? 1 : 0,
@@ -72,6 +122,25 @@ function evidenceFor(
     slotCount: 12,
     slotGeometryCount: webgl ? 12 : 0,
     smokeSpriteCount: constructing ? 96 : 0,
+    grassBladeCount: webgl ? living.grassBladeCount : 0,
+    waterSurfaceCount: webgl ? 2 : 0,
+    authoredAssetCount: webgl ? 38 : 0,
+    authoredPlacementCount: webgl ? 67 : 0,
+    authoredTreeCount: webgl ? living.authoredTreeCount : 0,
+    ambientActorCount: webgl ? living.actorCount : 0,
+    animationFrameCap: webgl && !scenario.reducedMotion
+      ? living.animationFrameCap
+      : 0,
+    mountedActorCount: webgl ? living.mountedActorCount : 0,
+    patrolUnitCount: webgl ? living.patrolUnitCount : 0,
+    activeConversationCount: scenario.id === 'active-conversation' ? 1 : 0,
+    animationMixerCount: webgl && !scenario.reducedMotion
+      && scenario.quality !== 'reduced'
+      ? living.actorCount
+      : 0,
+    runtimeAssetFailureCount: 0,
+    barracksPlacementPresent: webgl,
+    cathedralPlacementPresent: webgl,
     constructionSiteCount: constructing ? 1 : 0,
     completedBuildingCount: completed ? 1 : 0,
     finalModelCount: completed && webgl ? 1 : 0,
@@ -91,12 +160,44 @@ function evidenceFor(
   };
 }
 
+function innerKeepScreenshotPng(blank: boolean) {
+  const chunk = (type: string, data: Buffer) => {
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(data.byteLength);
+    return Buffer.concat([length, Buffer.from(type, 'ascii'), data, Buffer.alloc(4)]);
+  };
+  const width = 320;
+  const height = 320;
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header[8] = 8;
+  header[9] = 6;
+  const rows = Buffer.alloc((width * 4 + 1) * height);
+  for (let y = 0; y < height; y += 1) {
+    const row = y * (width * 4 + 1);
+    for (let x = 0; x < width; x += 1) {
+      const offset = row + 1 + x * 4;
+      rows[offset] = blank ? 0 : (x * 7 + y * 3) & 0xff;
+      rows[offset + 1] = blank ? 0 : (x * 2 + y * 11) & 0xff;
+      rows[offset + 2] = blank ? 0 : (x * 13 + y * 5) & 0xff;
+      rows[offset + 3] = 255;
+    }
+  }
+  return Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    chunk('IHDR', header),
+    chunk('IDAT', deflateSync(rows)),
+    chunk('IEND', Buffer.alloc(0))
+  ]).toString('base64');
+}
+
 describe('local Inner Keep QA fixtures', () => {
   it('pins every requested scenario once and rejects arbitrary query input', () => {
     expect(INNER_KEEP_QA_SCENARIO_IDS).toEqual(EXPECTED_SCENARIOS);
-    expect(INNER_KEEP_QA_SCENARIO_MANIFEST).toHaveLength(16);
-    expect(INNER_KEEP_QA_CASE_COUNT).toBe(16);
-    expect(new Set(INNER_KEEP_QA_SCENARIO_IDS).size).toBe(16);
+    expect(INNER_KEEP_QA_SCENARIO_MANIFEST).toHaveLength(18);
+    expect(INNER_KEEP_QA_CASE_COUNT).toBe(18);
+    expect(new Set(INNER_KEEP_QA_SCENARIO_IDS).size).toBe(18);
     expect(readInnerKeepQaScenario('?scenario=construction-50-percent').id)
       .toBe('construction-50-percent');
     expect(readInnerKeepQaScenario('?scenario=not-reviewed').id).toBe('empty');
@@ -150,6 +251,57 @@ describe('local Inner Keep QA fixtures', () => {
 });
 
 describe('local Inner Keep rendered evidence contract', () => {
+  it('reduces screenshots to bounded visual aggregates and rejects blank frames', () => {
+    expect(analyzeInnerKeepQaScreenshot(
+      innerKeepScreenshotPng(false),
+      { width: 320, height: 320 }
+    )).toMatchObject({
+      distinctColourBuckets: expect.any(Number),
+      luminanceRange: expect.any(Number),
+      opaqueSamples: 651,
+      sampleCount: 651
+    });
+    expect(() => analyzeInnerKeepQaScreenshot(
+      innerKeepScreenshotPng(true),
+      { width: 320, height: 320 }
+    )).toThrow(/credible visual output/i);
+    expect(() => analyzeInnerKeepQaScreenshot(
+      innerKeepScreenshotPng(false),
+      { width: 321, height: 320 }
+    )).toThrow(/screenshot/i);
+  });
+
+  it('sandwiches conversation and high-quality screenshots with exact evidence', () => {
+    expect(assertInnerKeepQaScreenshotWindow(
+      evidenceFor('active-conversation'),
+      evidenceFor('active-conversation'),
+      'active-conversation'
+    )).toEqual({
+      activeConversationCount: 1,
+      quality: 'balanced',
+      scenario: 'active-conversation'
+    });
+    expect(() => assertInnerKeepQaScreenshotWindow(
+      evidenceFor('active-conversation'),
+      evidenceFor('active-conversation', { activeConversationCount: 0 }),
+      'active-conversation'
+    )).toThrow(/living-scene|conversation screenshot/i);
+    expect(assertInnerKeepQaScreenshotWindow(
+      evidenceFor('high-quality'),
+      evidenceFor('high-quality'),
+      'high-quality'
+    )).toEqual({
+      activeConversationCount: 0,
+      quality: 'high',
+      scenario: 'high-quality'
+    });
+    expect(() => assertInnerKeepQaScreenshotWindow(
+      evidenceFor('high-quality', { ambientActorCount: 19 }),
+      evidenceFor('high-quality', { ambientActorCount: 19 }),
+      'high-quality'
+    )).toThrow(/living-scene|high-quality screenshot/i);
+  });
+
   it('formats only the fixed numeric-loopback route and complete case matrix', () => {
     expect(innerKeepQaUrl({ port: 41734, scenario: 'completion-reveal' })).toBe(
       'http://127.0.0.1:41734/dev/inner-keep-qa.html?scenario=completion-reveal'
@@ -179,6 +331,8 @@ describe('local Inner Keep rendered evidence contract', () => {
       canvasCount: 1,
       finalModelCount: 0,
       rendererCount: 1,
+      rendererDrawCalls: 261,
+      rendererTriangles: 148_096,
       scaffoldPresent: true,
       webglContextCount: 1
     });
@@ -193,11 +347,15 @@ describe('local Inner Keep rendered evidence contract', () => {
     )).toMatchObject({
       canvasCount: 0,
       rendererCount: 0,
+      rendererDrawCalls: 0,
+      rendererTriangles: 0,
       slotControlCount: 12,
       webglContextCount: 0
     });
     for (const override of [
       { rendererCount: 2 },
+      { rendererDrawCalls: 0 },
+      { rendererTriangles: 0 },
       { webglContextCount: 2 },
       { rafOwnerCount: 2 },
       { maximumPendingRafCount: 2 },
@@ -208,6 +366,132 @@ describe('local Inner Keep rendered evidence contract', () => {
         'empty'
       )).toThrow(/single-renderer/i);
     }
+  });
+
+  it('rejects quality-cap drift in animation, scene-graph, and renderer evidence', () => {
+    for (const override of [
+      { animationFrameCap: 25 },
+      { sceneGraphDrawCalls: 276 },
+      { sceneGraphTriangles: 165_001 },
+      { rendererDrawCalls: 331 },
+      { rendererTriangles: 190_001 }
+    ]) {
+      expect(() => assertInnerKeepQaScenarioEvidence(
+        evidenceFor('empty', override),
+        'empty'
+      )).toThrow(/living-scene/i);
+    }
+  });
+
+  it('waits for the exact authored living scene and proves the fallback stays empty', () => {
+    expect(assertInnerKeepQaScenarioEvidence(
+      evidenceFor('empty'),
+      'empty'
+    )).toMatchObject({
+      ambientActorCount: 12,
+      animationMixerCount: 12,
+      assetStatus: 'ready',
+      authoredAssetCount: 38,
+      authoredPlacementCount: 67,
+      authoredTreeCount: 12,
+      barracksPlacementPresent: true,
+      cathedralPlacementPresent: true,
+      grassBladeCount: 900,
+      mountedActorCount: 4,
+      patrolUnitCount: 6,
+      runtimeAssetFailureCount: 0,
+      waterSurfaceCount: 2
+    });
+    expect(assertInnerKeepQaScenarioEvidence(
+      evidenceFor('compact-quality', {
+        viewportWidth: 390,
+        viewportHeight: 844,
+        documentWidth: 390,
+        documentHeight: 844
+      }),
+      'compact-quality'
+    )).toMatchObject({
+      ambientActorCount: 8,
+      animationMixerCount: 0,
+      authoredTreeCount: 6,
+      grassBladeCount: 320,
+      mountedActorCount: 2,
+      patrolUnitCount: 4
+    });
+    expect(assertInnerKeepQaScenarioEvidence(
+      evidenceFor('high-quality'),
+      'high-quality'
+    )).toMatchObject({
+      ambientActorCount: 20,
+      animationMixerCount: 20,
+      authoredTreeCount: 18,
+      grassBladeCount: 1_600,
+      mountedActorCount: 6,
+      patrolUnitCount: 12
+    });
+    expect(assertInnerKeepQaScenarioEvidence(
+      evidenceFor('active-conversation'),
+      'active-conversation'
+    ).activeConversationCount).toBe(1);
+    expect(() => assertInnerKeepQaScenarioEvidence(
+      evidenceFor('active-conversation', { activeConversationCount: 0 }),
+      'active-conversation'
+    )).toThrow(/living-scene/i);
+    expect(assertInnerKeepQaScenarioEvidence(
+      evidenceFor('reduced-motion'),
+      'reduced-motion'
+    ).animationMixerCount).toBe(0);
+    expect(assertInnerKeepQaScenarioEvidence(
+      evidenceFor('2d-fallback', {
+        viewportWidth: 390,
+        viewportHeight: 844,
+        documentWidth: 390,
+        documentHeight: 844
+      }),
+      '2d-fallback'
+    )).toMatchObject({
+      ambientActorCount: 0,
+      assetStatus: 'idle',
+      authoredAssetCount: 0,
+      authoredPlacementCount: 0,
+      authoredTreeCount: 0,
+      barracksPlacementPresent: false,
+      cathedralPlacementPresent: false,
+      grassBladeCount: 0,
+      waterSurfaceCount: 0
+    });
+
+    for (const override of [
+      { assetStatus: 'loading' },
+      { assetStatus: 'degraded' },
+      { authoredAssetCount: 37 },
+      { authoredPlacementCount: 66 },
+      { authoredTreeCount: 11 },
+      { grassBladeCount: 899 },
+      { waterSurfaceCount: 1 },
+      { ambientActorCount: 11 },
+      { mountedActorCount: 3 },
+      { patrolUnitCount: 5 },
+      { animationMixerCount: 11 },
+      { runtimeAssetFailureCount: 1 },
+      { barracksPlacementPresent: false },
+      { cathedralPlacementPresent: false }
+    ]) {
+      expect(() => assertInnerKeepQaScenarioEvidence(
+        evidenceFor('empty', override),
+        'empty'
+      )).toThrow(/living-scene/i);
+    }
+    expect(() => assertInnerKeepQaScenarioEvidence(
+      evidenceFor('2d-fallback', {
+        ambientActorCount: 1,
+        viewportWidth: 390,
+        viewportHeight: 844,
+        documentWidth: 390,
+        documentHeight: 844
+      }),
+      '2d-fallback'
+    )).toThrow(/living-scene/i);
   });
 
   it('proves construction, bounded reveal, completed, busy, insufficient, and missing-art states', () => {
@@ -298,6 +582,10 @@ describe('local Inner Keep QA production boundary', () => {
     expect(browserProbe).toContain('DevtoolsPipeSession');
     expect(browserProbe).toContain("'Fetch.enable'");
     expect(browserProbe).toContain("'Page.captureScreenshot'");
+    expect(browserProbe).toContain("from './png-visual-aggregate.mjs'");
+    expect(browserProbe).toContain('analyzeInnerKeepQaScreenshot');
+    expect(browserProbe).toContain('assertInnerKeepQaScreenshotWindow');
+    expect(browserProbe).not.toMatch(/\bwriteFile\s*\(/u);
     expect(browserProbe).toContain("'Input.dispatchKeyEvent'");
     expect(browserProbe).toContain('exerciseWebglNativeKeyboardActivation');
     expect(browserProbe).toContain('createLoopbackViteServer');

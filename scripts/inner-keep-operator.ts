@@ -31,6 +31,12 @@ import {
   sha256,
 } from './inner-keep-runtime-asset-contract.mjs';
 import {
+  INNER_KEEP_POPULATION_MODELS,
+  INNER_KEEP_POPULATION_RUNTIME_PATHS,
+  INNER_KEEP_POPULATION_SELECTION,
+  assertInnerKeepPopulationRuntimeUseAuthorized,
+} from './inner-keep-population-runtime-contract.mjs';
+import {
   connect,
   privacySafeHermesErrorMessage,
   readAdminSecret,
@@ -75,6 +81,15 @@ const INNER_KEEP_RUNTIME_ROOTS = Object.freeze([
   'public/models/hegemony/inner-keep',
   'public/images/inner-keep/catalog',
 ]);
+const INNER_KEEP_AUTHORIZED_RUNTIME_PATHS = Object.freeze([
+  ...INNER_KEEP_PLANNED_RUNTIME_PATHS,
+  ...INNER_KEEP_POPULATION_RUNTIME_PATHS,
+].sort());
+const INNER_KEEP_AUTHORIZED_RUNTIME_FILES = Object.freeze([
+  ...INNER_KEEP_SELECTED_MODELS,
+  ...INNER_KEEP_SELECTED_PREVIEWS,
+  ...INNER_KEEP_POPULATION_MODELS,
+]);
 const PRIVATE_SQL_TIMEOUT_MILLISECONDS = 20_000;
 const PRIVATE_SQL_MAXIMUM_STDOUT_BYTES = 1_100_000;
 const PRIVATE_SQL_MAXIMUM_STDERR_BYTES = 64_000;
@@ -118,6 +133,41 @@ type PrivateSqlCredential = Readonly<{
   configPath: string;
   cleanup: () => void;
 }>;
+
+type InnerKeepRuntimeStatus = Readonly<{
+  dev: number;
+  ino: number;
+  size: number;
+  mtimeMs: number;
+  ctimeMs: number;
+  isDirectory: () => boolean;
+  isFile: () => boolean;
+  isSymbolicLink: () => boolean;
+}>;
+
+type InnerKeepRuntimeDirectoryEntry = Readonly<{
+  name: string;
+}>;
+
+type InnerKeepRuntimeFilesystem = Readonly<{
+  close: (descriptor: number) => void;
+  fstat: (descriptor: number) => InnerKeepRuntimeStatus;
+  lstat: (path: string) => InnerKeepRuntimeStatus;
+  open: (path: string, flags: number) => number;
+  readFile: (descriptor: number) => Buffer;
+  readdir: (path: string) => readonly InnerKeepRuntimeDirectoryEntry[];
+  realpath: (path: string) => string;
+}>;
+
+const INNER_KEEP_RUNTIME_FILESYSTEM: InnerKeepRuntimeFilesystem = Object.freeze({
+  close: (descriptor) => closeSync(descriptor),
+  fstat: (descriptor) => fstatSync(descriptor),
+  lstat: (path) => lstatSync(path),
+  open: (path, flags) => openSync(path, flags),
+  readFile: (descriptor) => readFileSync(descriptor),
+  readdir: (path) => readdirSync(path, { withFileTypes: true }),
+  realpath: realpathSync,
+});
 
 function privateSqlChildEnvironment(
   source: Readonly<Record<string, string | undefined>> = process.env,
@@ -312,11 +362,28 @@ function protectedStateReader(
   ));
 }
 
-function presentRuntimeFiles(relativeRoot: string): readonly string[] {
+function sameRuntimeNode(
+  left: InnerKeepRuntimeStatus,
+  right: InnerKeepRuntimeStatus,
+): boolean {
+  return left.dev === right.dev
+    && left.ino === right.ino
+    && left.size === right.size
+    && left.mtimeMs === right.mtimeMs
+    && left.ctimeMs === right.ctimeMs;
+}
+
+export function collectInnerKeepRuntimeFiles(
+  relativeRoot: string,
+  filesystem: InnerKeepRuntimeFilesystem = INNER_KEEP_RUNTIME_FILESYSTEM,
+): readonly string[] {
   const absoluteRoot = resolve(REPOSITORY_ROOT, relativeRoot);
+  if (!absoluteRoot.startsWith(`${REPOSITORY_ROOT}${sep}`)) {
+    fail('Inner Keep runtime registry path escaped the repository.');
+  }
   let status;
   try {
-    status = lstatSync(absoluteRoot);
+    status = filesystem.lstat(absoluteRoot);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return Object.freeze([]);
     fail('Inner Keep runtime registry cannot be inspected safely.');
@@ -325,80 +392,191 @@ function presentRuntimeFiles(relativeRoot: string): readonly string[] {
     fail('Inner Keep runtime registry root is invalid.');
   }
   const files: string[] = [];
-  const visit = (absoluteDirectory: string, relativeDirectory: string): void => {
-    for (const entry of readdirSync(absoluteDirectory, { withFileTypes: true })) {
+  const visit = (
+    absoluteDirectory: string,
+    relativeDirectory: string,
+    expectedStatus?: InnerKeepRuntimeStatus,
+  ): void => {
+    let descriptor: number | undefined;
+    try {
+      descriptor = filesystem.open(
+        absoluteDirectory,
+        constants.O_RDONLY
+          | (constants.O_DIRECTORY ?? 0)
+          | (constants.O_NOFOLLOW ?? 0),
+      );
+      const openedBefore = filesystem.fstat(descriptor);
+      const pathBefore = filesystem.lstat(absoluteDirectory);
+      const canonicalBefore = filesystem.realpath(absoluteDirectory);
       if (
-        entry.name === '.'
-        || entry.name === '..'
-        || entry.name.includes('\0')
-        || entry.name.normalize('NFC') !== entry.name
-      ) fail('Inner Keep runtime registry contains an unsafe path.');
-      const childAbsolute = resolve(absoluteDirectory, entry.name);
-      const childRelative = `${relativeDirectory}/${entry.name}`;
-      const childStatus = lstatSync(childAbsolute);
-      if (childStatus.isSymbolicLink()) fail('Inner Keep runtime registry contains a symbolic link.');
-      if (childStatus.isDirectory()) visit(childAbsolute, childRelative);
-      else if (childStatus.isFile()) files.push(childRelative);
-      else fail('Inner Keep runtime registry contains an unsupported entry.');
+        !openedBefore.isDirectory()
+        || openedBefore.isSymbolicLink()
+        || !pathBefore.isDirectory()
+        || pathBefore.isSymbolicLink()
+        || canonicalBefore !== absoluteDirectory
+        || !sameRuntimeNode(openedBefore, pathBefore)
+        || (expectedStatus !== undefined && !sameRuntimeNode(expectedStatus, pathBefore))
+      ) fail('Inner Keep runtime registry directory changed while it was inspected.');
+      for (const entry of filesystem.readdir(absoluteDirectory)) {
+        if (
+          entry.name === '.'
+          || entry.name === '..'
+          || entry.name.includes('\0')
+          || entry.name.normalize('NFC') !== entry.name
+        ) fail('Inner Keep runtime registry contains an unsafe path.');
+        const childAbsolute = resolve(absoluteDirectory, entry.name);
+        if (!childAbsolute.startsWith(`${absoluteDirectory}${sep}`)) {
+          fail('Inner Keep runtime registry contains an unsafe path.');
+        }
+        const childRelative = `${relativeDirectory}/${entry.name}`;
+        const childStatus = filesystem.lstat(childAbsolute);
+        if (childStatus.isSymbolicLink()) {
+          fail('Inner Keep runtime registry contains a symbolic link.');
+        }
+        if (childStatus.isDirectory()) {
+          visit(childAbsolute, childRelative, childStatus);
+        } else if (childStatus.isFile()) {
+          files.push(childRelative);
+        } else {
+          fail('Inner Keep runtime registry contains an unsupported entry.');
+        }
+      }
+      const openedAfter = filesystem.fstat(descriptor);
+      const pathAfter = filesystem.lstat(absoluteDirectory);
+      const canonicalAfter = filesystem.realpath(absoluteDirectory);
+      if (
+        !openedAfter.isDirectory()
+        || openedAfter.isSymbolicLink()
+        || !pathAfter.isDirectory()
+        || pathAfter.isSymbolicLink()
+        || canonicalAfter !== absoluteDirectory
+        || !sameRuntimeNode(openedBefore, openedAfter)
+        || !sameRuntimeNode(openedAfter, pathAfter)
+      ) fail('Inner Keep runtime registry directory changed while it was inspected.');
+    } catch (error) {
+      if (error instanceof InnerKeepOperatorError) throw error;
+      fail('Inner Keep runtime registry cannot be inspected safely.');
+    } finally {
+      if (descriptor !== undefined) filesystem.close(descriptor);
     }
   };
-  visit(absoluteRoot, relativeRoot);
+  visit(absoluteRoot, relativeRoot, status);
   return Object.freeze(files.sort());
 }
 
-function verifyExactRuntimeFile(
+type InnerKeepRuntimeFileObservation = Readonly<{
+  bytes: number;
+  sha256: string;
+}>;
+
+type InnerKeepRuntimeRegistryPreflight = Readonly<{
+  staticSelection: unknown;
+  populationSelection: unknown;
+  observedPaths: readonly string[];
+  inspectRuntimeFile: (relativePath: string) => InnerKeepRuntimeFileObservation;
+}>;
+
+export function inspectExactInnerKeepRuntimeFile(
   relativePath: string,
-  expectedBytes: number,
-  expectedDigest: string,
-): void {
+  filesystem: InnerKeepRuntimeFilesystem = INNER_KEEP_RUNTIME_FILESYSTEM,
+): InnerKeepRuntimeFileObservation {
   const absolutePath = resolve(REPOSITORY_ROOT, relativePath);
   if (!absolutePath.startsWith(`${REPOSITORY_ROOT}${sep}`)) {
     fail('Inner Keep runtime registry path escaped the repository.');
   }
-  let before;
-  let canonical;
-  let bytes;
-  let after;
+  let descriptor: number | undefined;
   try {
-    before = lstatSync(absolutePath);
-    canonical = realpathSync(absolutePath);
-    bytes = readFileSync(absolutePath);
-    after = lstatSync(absolutePath);
-  } catch {
-    fail('Inner Keep runtime registry is incomplete.');
+    descriptor = filesystem.open(
+      absolutePath,
+      constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0),
+    );
+    const before = filesystem.fstat(descriptor);
+    const pathBefore = filesystem.lstat(absolutePath);
+    const canonicalBefore = filesystem.realpath(absolutePath);
+    if (
+      !before.isFile()
+      || before.isSymbolicLink()
+      || !pathBefore.isFile()
+      || pathBefore.isSymbolicLink()
+      || canonicalBefore !== absolutePath
+      || !sameRuntimeNode(before, pathBefore)
+    ) fail('Inner Keep runtime registry does not match the authorized selection.');
+    const bytes = filesystem.readFile(descriptor);
+    const after = filesystem.fstat(descriptor);
+    const pathAfter = filesystem.lstat(absolutePath);
+    const canonicalAfter = filesystem.realpath(absolutePath);
+    if (
+      !after.isFile()
+      || after.isSymbolicLink()
+      || !pathAfter.isFile()
+      || pathAfter.isSymbolicLink()
+      || canonicalAfter !== absolutePath
+      || !sameRuntimeNode(before, after)
+      || !sameRuntimeNode(after, pathAfter)
+      || bytes.byteLength !== before.size
+    ) fail('Inner Keep runtime registry does not match the authorized selection.');
+    return Object.freeze({
+      bytes: bytes.byteLength,
+      sha256: sha256(bytes),
+    });
+  } catch (error) {
+    if (error instanceof InnerKeepOperatorError) throw error;
+    return fail('Inner Keep runtime registry is incomplete.');
+  } finally {
+    if (descriptor !== undefined) filesystem.close(descriptor);
   }
-  if (
-    !before.isFile()
-    || before.isSymbolicLink()
-    || canonical !== absolutePath
-    || before.dev !== after.dev
-    || before.ino !== after.ino
-    || before.size !== after.size
-    || bytes.byteLength !== expectedBytes
-    || before.size !== expectedBytes
-    || sha256(bytes) !== expectedDigest
-  ) fail('Inner Keep runtime registry does not match the authorized selection.');
 }
 
-export function verifyAuthorizedInnerKeepRuntimeRegistry(): void {
+export function verifyInnerKeepRuntimeRegistryPreflight(
+  preflight: InnerKeepRuntimeRegistryPreflight,
+): void {
   try {
-    assertInnerKeepRuntimeUseAuthorized();
+    assertInnerKeepRuntimeUseAuthorized(preflight.staticSelection);
   } catch {
     fail(
       'Inner Keep activation is blocked: owner runtime-use authorization for the selected '
-      + 'archive assets is not recorded.',
+      + 'static asset registry is not recorded.',
     );
   }
-  const observedPaths = INNER_KEEP_RUNTIME_ROOTS.flatMap(presentRuntimeFiles).sort();
-  if (
-    observedPaths.length !== INNER_KEEP_PLANNED_RUNTIME_PATHS.length
-    || observedPaths.some((path, index) => path !== INNER_KEEP_PLANNED_RUNTIME_PATHS[index])
-  ) fail('Inner Keep runtime registry paths do not match the authorized selection.');
-  for (const model of INNER_KEEP_SELECTED_MODELS) {
-    verifyExactRuntimeFile(model.destinationPath, model.bytes, model.sha256);
+  try {
+    assertInnerKeepPopulationRuntimeUseAuthorized(preflight.populationSelection);
+  } catch {
+    fail(
+      'Inner Keep activation is blocked: owner runtime-use authorization for the selected '
+      + 'population asset registry is not recorded.',
+    );
   }
-  for (const preview of INNER_KEEP_SELECTED_PREVIEWS) {
-    verifyExactRuntimeFile(preview.destinationPath, preview.bytes, preview.sha256);
+  const observedPaths = [...preflight.observedPaths].sort();
+  if (
+    observedPaths.length !== INNER_KEEP_AUTHORIZED_RUNTIME_PATHS.length
+    || observedPaths.some((path, index) => path !== INNER_KEEP_AUTHORIZED_RUNTIME_PATHS[index])
+  ) fail('Inner Keep runtime registry paths do not match both authorized selections.');
+  for (const expected of INNER_KEEP_AUTHORIZED_RUNTIME_FILES) {
+    const observed = preflight.inspectRuntimeFile(expected.destinationPath);
+    if (
+      observed.bytes !== expected.bytes
+      || observed.sha256 !== expected.sha256
+    ) fail('Inner Keep runtime registry does not match the authorized selection.');
+  }
+}
+
+export function verifyAuthorizedInnerKeepRuntimeRegistry(): void {
+  verifyInnerKeepRuntimeRegistryPreflight(Object.freeze({
+    staticSelection: INNER_KEEP_ASSET_SELECTION,
+    populationSelection: INNER_KEEP_POPULATION_SELECTION,
+    observedPaths: INNER_KEEP_RUNTIME_ROOTS.flatMap((root) => (
+      collectInnerKeepRuntimeFiles(root)
+    )),
+    inspectRuntimeFile: inspectExactInnerKeepRuntimeFile,
+  }));
+}
+
+function innerKeepRuntimeRegistryReady(): boolean {
+  try {
+    verifyAuthorizedInnerKeepRuntimeRegistry();
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -570,8 +748,9 @@ async function main(): Promise<void> {
       ...createInnerKeepDryRunRecord(args),
       ...(args.command === 'activate-inner-keep' ? {
         runtimeAssetAuthorization: INNER_KEEP_ASSET_SELECTION.authorization.status,
-        readyToConfirm:
-          INNER_KEEP_ASSET_SELECTION.authorization.officialRepositoryRuntimeUseAuthorized === true,
+        populationRuntimeAssetAuthorization:
+          INNER_KEEP_POPULATION_SELECTION.authorization.status,
+        readyToConfirm: innerKeepRuntimeRegistryReady(),
       } : {}),
     }));
     return;

@@ -42,9 +42,19 @@ function exactInteger(value, minimum = 0, maximum = 1_000_000_000) {
 }
 
 const EVIDENCE_KEYS = Object.freeze([
+  'activeConversationCount',
+  'ambientActorCount',
+  'animationFrameCap',
+  'animationMixerCount',
   'assetFallbackCount',
+  'assetStatus',
+  'authoredAssetCount',
+  'authoredPlacementCount',
+  'authoredTreeCount',
+  'barracksPlacementPresent',
   'builderBusyVisible',
   'canvasCount',
+  'cathedralPlacementPresent',
   'completedBuildingCount',
   'completionRevealActive',
   'constructionSiteCount',
@@ -52,19 +62,27 @@ const EVIDENCE_KEYS = Object.freeze([
   'documentWidth',
   'enabledSlotControlCount',
   'finalModelCount',
+  'grassBladeCount',
   'horizontalOverflow',
   'innerKeepRenderer',
   'insufficientResourcesVisible',
   'levelVisible',
   'maximumPendingRafCount',
+  'mountedActorCount',
+  'patrolUnitCount',
   'progressBasisPoints',
   'quality',
   'rafOwnerCount',
   'reducedMotion',
   'renderMode',
   'rendererCount',
+  'rendererDrawCalls',
+  'rendererTriangles',
+  'runtimeAssetFailureCount',
   'scaffoldPresent',
   'scenario',
+  'sceneGraphDrawCalls',
+  'sceneGraphTriangles',
   'slotControlCount',
   'slotCount',
   'slotGeometryCount',
@@ -74,6 +92,7 @@ const EVIDENCE_KEYS = Object.freeze([
   'verticalOverflow',
   'viewportHeight',
   'viewportWidth',
+  'waterSurfaceCount',
   'webglContextCount',
 ]);
 
@@ -88,8 +107,11 @@ export function parseInnerKeepQaEvidence(value) {
     || !['webgl', 'fallback'].includes(candidate.renderMode)
     || !['webgl', 'fallback'].includes(candidate.innerKeepRenderer)
     || !['high', 'balanced', 'reduced'].includes(candidate.quality)
+    || !['idle', 'loading', 'ready', 'degraded'].includes(candidate.assetStatus)
     || candidate.status !== 'ready'
     || typeof candidate.reducedMotion !== 'boolean'
+    || typeof candidate.barracksPlacementPresent !== 'boolean'
+    || typeof candidate.cathedralPlacementPresent !== 'boolean'
     || typeof candidate.scaffoldPresent !== 'boolean'
     || typeof candidate.completionRevealActive !== 'boolean'
     || typeof candidate.horizontalOverflow !== 'boolean'
@@ -98,7 +120,14 @@ export function parseInnerKeepQaEvidence(value) {
     || typeof candidate.insufficientResourcesVisible !== 'boolean'
     || typeof candidate.levelVisible !== 'boolean'
     || ![
+      candidate.activeConversationCount,
+      candidate.ambientActorCount,
+      candidate.animationFrameCap,
+      candidate.animationMixerCount,
       candidate.assetFallbackCount,
+      candidate.authoredAssetCount,
+      candidate.authoredPlacementCount,
+      candidate.authoredTreeCount,
       candidate.canvasCount,
       candidate.completedBuildingCount,
       candidate.constructionSiteCount,
@@ -106,15 +135,24 @@ export function parseInnerKeepQaEvidence(value) {
       candidate.documentWidth,
       candidate.enabledSlotControlCount,
       candidate.finalModelCount,
+      candidate.grassBladeCount,
       candidate.maximumPendingRafCount,
+      candidate.mountedActorCount,
+      candidate.patrolUnitCount,
       candidate.rafOwnerCount,
       candidate.rendererCount,
+      candidate.rendererDrawCalls,
+      candidate.rendererTriangles,
+      candidate.runtimeAssetFailureCount,
+      candidate.sceneGraphDrawCalls,
+      candidate.sceneGraphTriangles,
       candidate.slotControlCount,
       candidate.slotCount,
       candidate.slotGeometryCount,
       candidate.smokeSpriteCount,
       candidate.viewportHeight,
       candidate.viewportWidth,
+      candidate.waterSurfaceCount,
       candidate.webglContextCount,
     ].every((entry) => exactInteger(entry))
     || !(
@@ -123,6 +161,101 @@ export function parseInnerKeepQaEvidence(value) {
     )
   ) throw new TypeError('Invalid Inner Keep QA evidence.');
   return Object.freeze({ ...candidate });
+}
+
+const EXPECTED_LIVING_SCENE_BY_QUALITY = Object.freeze({
+  high: Object.freeze({
+    activeConversationMaximum: 3,
+    ambientActorCount: 20,
+    animationFrameCap: 30,
+    authoredTreeCount: 18,
+    grassBladeCount: 1_600,
+    mountedActorCount: 6,
+    patrolUnitCount: 12,
+    rendererDrawCallsMaximum: 700,
+    rendererTrianglesMaximum: 600_000,
+    sceneGraphDrawCallsMaximum: 350,
+    sceneGraphTrianglesMaximum: 300_000,
+  }),
+  balanced: Object.freeze({
+    activeConversationMaximum: 2,
+    ambientActorCount: 12,
+    animationFrameCap: 24,
+    authoredTreeCount: 12,
+    grassBladeCount: 900,
+    mountedActorCount: 4,
+    patrolUnitCount: 6,
+    rendererDrawCallsMaximum: 330,
+    rendererTrianglesMaximum: 190_000,
+    sceneGraphDrawCallsMaximum: 275,
+    sceneGraphTrianglesMaximum: 165_000,
+  }),
+  reduced: Object.freeze({
+    activeConversationMaximum: 0,
+    ambientActorCount: 8,
+    animationFrameCap: 18,
+    authoredTreeCount: 6,
+    grassBladeCount: 320,
+    mountedActorCount: 2,
+    patrolUnitCount: 4,
+    rendererDrawCallsMaximum: 220,
+    rendererTrianglesMaximum: 85_000,
+    sceneGraphDrawCallsMaximum: 210,
+    sceneGraphTrianglesMaximum: 80_000,
+  }),
+});
+
+function expectLivingScene(evidence, scenario) {
+  if (scenario.renderMode === 'fallback') {
+    return evidence.assetStatus === 'idle'
+      && evidence.authoredAssetCount === 0
+      && evidence.authoredPlacementCount === 0
+      && evidence.authoredTreeCount === 0
+      && evidence.grassBladeCount === 0
+      && evidence.waterSurfaceCount === 0
+      && evidence.ambientActorCount === 0
+      && evidence.mountedActorCount === 0
+      && evidence.patrolUnitCount === 0
+      && evidence.activeConversationCount === 0
+      && evidence.animationFrameCap === 0
+      && evidence.animationMixerCount === 0
+      && evidence.sceneGraphDrawCalls === 0
+      && evidence.sceneGraphTriangles === 0
+      && evidence.runtimeAssetFailureCount === 0
+      && evidence.cathedralPlacementPresent === false
+      && evidence.barracksPlacementPresent === false;
+  }
+  const expected = EXPECTED_LIVING_SCENE_BY_QUALITY[scenario.quality];
+  const motionDisabled = scenario.reducedMotion || scenario.quality === 'reduced';
+  const conversationEvidenceMatches = scenario.id === 'active-conversation'
+    ? evidence.activeConversationCount === 1
+    : evidence.activeConversationCount <= expected.activeConversationMaximum;
+  return evidence.assetStatus === 'ready'
+    && evidence.authoredAssetCount === 38
+    && evidence.authoredPlacementCount === 67
+    && evidence.authoredTreeCount === expected.authoredTreeCount
+    && evidence.grassBladeCount === expected.grassBladeCount
+    && evidence.waterSurfaceCount === 2
+    && evidence.ambientActorCount === expected.ambientActorCount
+    && evidence.mountedActorCount === expected.mountedActorCount
+    && evidence.patrolUnitCount === expected.patrolUnitCount
+    && conversationEvidenceMatches
+    && (!motionDisabled || evidence.activeConversationCount === 0)
+    && evidence.animationMixerCount === (
+      motionDisabled ? 0 : expected.ambientActorCount
+    )
+    && evidence.animationFrameCap === (
+      scenario.reducedMotion ? 0 : expected.animationFrameCap
+    )
+    && evidence.rendererDrawCalls <= expected.rendererDrawCallsMaximum
+    && evidence.rendererTriangles <= expected.rendererTrianglesMaximum
+    && evidence.sceneGraphDrawCalls > 0
+    && evidence.sceneGraphDrawCalls <= expected.sceneGraphDrawCallsMaximum
+    && evidence.sceneGraphTriangles > 0
+    && evidence.sceneGraphTriangles <= expected.sceneGraphTrianglesMaximum
+    && evidence.runtimeAssetFailureCount === 0
+    && evidence.cathedralPlacementPresent === true
+    && evidence.barracksPlacementPresent === true;
 }
 
 function expectCompletedPresentation(evidence) {
@@ -174,6 +307,8 @@ export function assertInnerKeepQaScenarioEvidence(
     if (
       evidence.canvasCount !== 1
       || evidence.rendererCount !== 1
+      || evidence.rendererDrawCalls < 1
+      || evidence.rendererTriangles < 1
       || evidence.webglContextCount !== 1
       || evidence.rafOwnerCount !== 1
       || evidence.maximumPendingRafCount > 1
@@ -182,12 +317,18 @@ export function assertInnerKeepQaScenarioEvidence(
   } else if (
     evidence.canvasCount !== 0
     || evidence.rendererCount !== 0
+    || evidence.rendererDrawCalls !== 0
+    || evidence.rendererTriangles !== 0
     || evidence.webglContextCount !== 0
     || evidence.rafOwnerCount !== 0
     || evidence.maximumPendingRafCount !== 0
     || evidence.slotGeometryCount !== 0
   ) {
     throw new TypeError('Inner Keep QA fallback resource evidence mismatched.');
+  }
+
+  if (!expectLivingScene(evidence, scenario)) {
+    throw new TypeError('Inner Keep QA living-scene evidence mismatched.');
   }
 
   const constructing = [

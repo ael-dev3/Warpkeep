@@ -1,0 +1,1178 @@
+{
+  "schema": "warpkeep.inner-keep-population-selection.v1",
+  "selectionId": "inner-keep-population-v1",
+  "recordedAt": "2026-08-04",
+  "selectionDigestAlgorithm": "sha256-ecmascript-canonical-json-v1",
+  "selectionDigestSha256": "79237fbe85a4db7a0592eb0c27cc00f8e72e85e58be867bec4dd35992f0b87f7",
+  "authorization": {
+    "archiveDistributionAuthorized": true,
+    "officialRepositoryRuntimeUseAuthorized": true,
+    "status": "authorized-owner-runtime-use",
+    "recordedAt": "2026-08-04",
+    "instruction": "Use characters, mounts, and army units from Warpkeep-Assets in the official Inner Keep runtime, including animated civic routines and patrols.",
+    "scopeBoundary": "Runtime use in the public ael-dev3/Warpkeep repository and official warpkeep.com client is authorized for the exact selected files. This does not relicense the source archives, authorize unrelated reuse, represent ambient patrols as gameplay authority, approve activation, approve merge, or approve deployment."
+  },
+  "licenseBoundary": {
+    "sourceStatus": "public-archive-authorized-no-separate-open-license",
+    "integrationGrant": "owner-authorized-official-warpkeep-runtime-use-only",
+    "redistributionOrRelicensingGranted": false
+  },
+  "runtimePolicy": {
+    "animatedTier": "LOD1_Balanced",
+    "staticFallbackTier": "LOD2_Compact",
+    "ordinaryBuildMayReadArchive": false,
+    "ordinaryBuildMayUseNetwork": false,
+    "clientPresentationOnly": true,
+    "gameplayAuthorityClaimed": false
+  },
+  "sources": [
+    {
+      "repository": "ael-dev3/Warpkeep-Assets",
+      "repositoryMainCommit": "10c84fbcc339f143ee6f25dfe7a0682660e0e458",
+      "releaseCommit": "b074ffb6317ff9a581f5b7fc7f0a0760e721a9b6",
+      "tag": "hegemony-unit-corps-2026-08-03",
+      "trustedReleaseManifest": {
+        "repositoryPath": "releases/hegemony-unit-corps-2026-08-03/manifest.json",
+        "bytes": 54417,
+        "sha256": "983c7dbede5220a0b020a73ea7cf51f8cdd72fbe235417d890b34eabae3acaaf"
+      },
+      "attachments": [
+        {
+          "name": "warpkeep-hegemony-infantry-game-ready-2026-08-03-v1.zip",
+          "bytes": 16877451,
+          "sha256": "953fcca256324f2a73b3f13e2ca04911349a0f69934337e6ac7161041a2d4ba0",
+          "entries": 43,
+          "packageRoot": "Warpkeep_HegemonyInfantry_GameReady"
+        },
+        {
+          "name": "warpkeep-hegemony-ranged-game-ready-2026-08-03-v1.zip",
+          "bytes": 16349955,
+          "sha256": "310b0feaf21f0619f1d10f154facd64f98ce3ad1658cf80bb4dd68f5847a0391",
+          "entries": 43,
+          "packageRoot": "Warpkeep_HegemonyRanged_GameReady"
+        },
+        {
+          "name": "warpkeep-hegemony-cavalry-game-ready-2026-08-03-v1.zip",
+          "bytes": 19651045,
+          "sha256": "9d411ee308abacfd7ca93b1e96594cc4f9e8af613f6d18aca3128b49dfb9a48b",
+          "entries": 43,
+          "packageRoot": "Warpkeep_HegemonyCavalry_GameReady"
+        }
+      ]
+    },
+    {
+      "repository": "ael-dev3/Warpkeep-Assets",
+      "repositoryMainCommit": "10c84fbcc339f143ee6f25dfe7a0682660e0e458",
+      "releaseCommit": "9f99751f691581ce4f33a31dd56c818cfa455b61",
+      "tag": "hegemony-citizens-keep-services-2026-08-03",
+      "trustedReleaseManifest": {
+        "repositoryPath": "releases/hegemony-citizens-keep-services-2026-08-03/manifest.json",
+        "bytes": 33008,
+        "sha256": "2472aea6dc43780f6ee11692b65fe138a2355373a9e72d96156bc0f9290cb34b"
+      },
+      "attachments": [
+        {
+          "name": "warpkeep-hegemony-citizens-keep-services-game-ready-2026-08-03-v1.zip",
+          "bytes": 24825077,
+          "sha256": "14a8bda3848ede5b398a7fc4ec10e56d98ae06584c42f4683cb2635c5bbb6aeb",
+          "entries": 75,
+          "packageRoot": "Warpkeep_HegemonyCitizens_Set2_GameReady"
+        }
+      ]
+    }
+  ],
+  "counts": {
+    "actors": 20,
+    "selectedModels": 40,
+    "mountedActors": 6,
+    "families": {
+      "citizen": 8,
+      "infantry": 4,
+      "ranged": 4,
+      "cavalry": 4
+    },
+    "selectedBytes": 8705628,
+    "selectedTriangles": {
+      "balanced": 58792,
+      "compact": 37506
+    }
+  },
+  "actors": [
+    {
+      "id": "astral-lancer",
+      "family": "cavalry",
+      "sourceReleaseTag": "hegemony-unit-corps-2026-08-03",
+      "sourceArchive": "warpkeep-hegemony-cavalry-game-ready-2026-08-03-v1.zip",
+      "sourceAssetId": "warpkeep.units.hegemony.cavalry.astral-lancer",
+      "displayName": "Hegemony Astral Lancer",
+      "mounted": true,
+      "presentationRole": "ceremonial-patrol",
+      "sourceManifest": {
+        "path": "Warpkeep_HegemonyCavalry_GameReady/Runtime/Units/Hegemony/Cavalry/AstralLancer/runtime-manifest.json",
+        "bytes": 8404,
+        "sha256": "b60ad2798759a93b2273519f62f2ebc31d99d5e22c7a0ca47458d34e7a272aa7"
+      },
+      "models": [
+        {
+          "mode": "animated",
+          "profile": "balanced",
+          "tier": "LOD1_Balanced",
+          "sourcePath": "Warpkeep_HegemonyCavalry_GameReady/Runtime/Units/Hegemony/Cavalry/AstralLancer/Warpkeep_Hegemony_AstralLancer_LOD1_Balanced_Rigged_Runtime.glb",
+          "bytes": 566296,
+          "sha256": "bff3bd13e876cce8023ee856800ba392c65d04ed840efcb00f1dc3d429b669b4",
+          "triangles": 5884,
+          "animations": [
+            "Attack",
+            "Idle",
+            "Special",
+            "Walk"
+          ],
+          "boundsMeters": [
+            1.560603,
+            3.07,
+            4.066258
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/cavalry/inner-keep-astral-lancer-balanced-bff3bd13e876cce8.glb"
+        },
+        {
+          "mode": "static",
+          "profile": "compact",
+          "tier": "LOD2_Compact",
+          "sourcePath": "Warpkeep_HegemonyCavalry_GameReady/Runtime/Units/Hegemony/Cavalry/AstralLancer/Warpkeep_Hegemony_AstralLancer_LOD2_Compact_Static_Runtime.glb",
+          "bytes": 202664,
+          "sha256": "fea4558e4365cba0e5c984393519c25ed1beedced55cc88eeb384e76c02957ff",
+          "triangles": 3710,
+          "animations": [],
+          "boundsMeters": [
+            1.564349,
+            2.87,
+            4.066258
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/cavalry/inner-keep-astral-lancer-compact-fea4558e4365cba0.glb"
+        }
+      ]
+    },
+    {
+      "id": "dusk-outrider",
+      "family": "cavalry",
+      "sourceReleaseTag": "hegemony-unit-corps-2026-08-03",
+      "sourceArchive": "warpkeep-hegemony-cavalry-game-ready-2026-08-03-v1.zip",
+      "sourceAssetId": "warpkeep.units.hegemony.cavalry.dusk-outrider",
+      "displayName": "Hegemony Dusk Outrider",
+      "mounted": true,
+      "presentationRole": "ceremonial-patrol",
+      "sourceManifest": {
+        "path": "Warpkeep_HegemonyCavalry_GameReady/Runtime/Units/Hegemony/Cavalry/DuskOutrider/runtime-manifest.json",
+        "bytes": 8388,
+        "sha256": "c7375e85a7d5ebb1c58a6a718ccd98db15ae4bdbf6a086253bd9f68466f22901"
+      },
+      "models": [
+        {
+          "mode": "animated",
+          "profile": "balanced",
+          "tier": "LOD1_Balanced",
+          "sourcePath": "Warpkeep_HegemonyCavalry_GameReady/Runtime/Units/Hegemony/Cavalry/DuskOutrider/Warpkeep_Hegemony_DuskOutrider_LOD1_Balanced_Rigged_Runtime.glb",
+          "bytes": 529884,
+          "sha256": "b956a70d9c99541e9ab94e4a61edb3b8747297d478295c3128e05031259cb47f",
+          "triangles": 5508,
+          "animations": [
+            "Attack",
+            "Idle",
+            "Special",
+            "Walk"
+          ],
+          "boundsMeters": [
+            1.81,
+            2.93,
+            3.451225
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/cavalry/inner-keep-dusk-outrider-balanced-b956a70d9c99541e.glb"
+        },
+        {
+          "mode": "static",
+          "profile": "compact",
+          "tier": "LOD2_Compact",
+          "sourcePath": "Warpkeep_HegemonyCavalry_GameReady/Runtime/Units/Hegemony/Cavalry/DuskOutrider/Warpkeep_Hegemony_DuskOutrider_LOD2_Compact_Static_Runtime.glb",
+          "bytes": 183164,
+          "sha256": "f9233e5018551a5aab51a95b8a8b081f7622e4484d6800733cdc67deb6eaf11a",
+          "triangles": 3434,
+          "animations": [],
+          "boundsMeters": [
+            1.81,
+            2.93,
+            3.4421
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/cavalry/inner-keep-dusk-outrider-compact-f9233e5018551a5a.glb"
+        }
+      ]
+    },
+    {
+      "id": "horseguard",
+      "family": "cavalry",
+      "sourceReleaseTag": "hegemony-unit-corps-2026-08-03",
+      "sourceArchive": "warpkeep-hegemony-cavalry-game-ready-2026-08-03-v1.zip",
+      "sourceAssetId": "warpkeep.units.hegemony.cavalry.horseguard",
+      "displayName": "Hegemony Horseguard",
+      "mounted": true,
+      "presentationRole": "ceremonial-patrol",
+      "sourceManifest": {
+        "path": "Warpkeep_HegemonyCavalry_GameReady/Runtime/Units/Hegemony/Cavalry/Horseguard/runtime-manifest.json",
+        "bytes": 8447,
+        "sha256": "805ff45fe4c8bba4a06f1e5b3b8772bc0a9a8c0bf80d7ad9b75021cb3f7fd9d2"
+      },
+      "models": [
+        {
+          "mode": "animated",
+          "profile": "balanced",
+          "tier": "LOD1_Balanced",
+          "sourcePath": "Warpkeep_HegemonyCavalry_GameReady/Runtime/Units/Hegemony/Cavalry/Horseguard/Warpkeep_Hegemony_Horseguard_LOD1_Balanced_Rigged_Runtime.glb",
+          "bytes": 587332,
+          "sha256": "2e15034a96229eb543c6528c9abee1140dbc78cf4acd173c074051309142e2bf",
+          "triangles": 6046,
+          "animations": [
+            "Attack",
+            "Idle",
+            "Special",
+            "Walk"
+          ],
+          "boundsMeters": [
+            1.560668,
+            3.047646,
+            3.451225
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/cavalry/inner-keep-horseguard-balanced-2e15034a96229eb5.glb"
+        },
+        {
+          "mode": "static",
+          "profile": "compact",
+          "tier": "LOD2_Compact",
+          "sourcePath": "Warpkeep_HegemonyCavalry_GameReady/Runtime/Units/Hegemony/Cavalry/Horseguard/Warpkeep_Hegemony_Horseguard_LOD2_Compact_Static_Runtime.glb",
+          "bytes": 215128,
+          "sha256": "26ec537f8a0dc677a40ad102c5073ff43c661c3e94fe1ccffee366867cb16866",
+          "triangles": 3860,
+          "animations": [],
+          "boundsMeters": [
+            1.560668,
+            3.006159,
+            3.4421
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/cavalry/inner-keep-horseguard-compact-26ec537f8a0dc677.glb"
+        }
+      ]
+    },
+    {
+      "id": "imperial-cataphract",
+      "family": "cavalry",
+      "sourceReleaseTag": "hegemony-unit-corps-2026-08-03",
+      "sourceArchive": "warpkeep-hegemony-cavalry-game-ready-2026-08-03-v1.zip",
+      "sourceAssetId": "warpkeep.units.hegemony.cavalry.imperial-cataphract",
+      "displayName": "Hegemony Imperial Cataphract",
+      "mounted": true,
+      "presentationRole": "ceremonial-patrol",
+      "sourceManifest": {
+        "path": "Warpkeep_HegemonyCavalry_GameReady/Runtime/Units/Hegemony/Cavalry/ImperialCataphract/runtime-manifest.json",
+        "bytes": 8433,
+        "sha256": "17923aca73f423a77465bf22d14bccb321e23a2de38d8618d2263726a29f47d5"
+      },
+      "models": [
+        {
+          "mode": "animated",
+          "profile": "balanced",
+          "tier": "LOD1_Balanced",
+          "sourcePath": "Warpkeep_HegemonyCavalry_GameReady/Runtime/Units/Hegemony/Cavalry/ImperialCataphract/Warpkeep_Hegemony_ImperialCataphract_LOD1_Balanced_Rigged_Runtime.glb",
+          "bytes": 622796,
+          "sha256": "9f2f98369c4d7af8c237ea8d8d742cf5b320b7e1f9731a57209ba5928e14da45",
+          "triangles": 6416,
+          "animations": [
+            "Attack",
+            "Idle",
+            "Special",
+            "Walk"
+          ],
+          "boundsMeters": [
+            1.98,
+            3.12,
+            3.451225
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/cavalry/inner-keep-imperial-cataphract-balanced-9f2f98369c4d7af8.glb"
+        },
+        {
+          "mode": "static",
+          "profile": "compact",
+          "tier": "LOD2_Compact",
+          "sourcePath": "Warpkeep_HegemonyCavalry_GameReady/Runtime/Units/Hegemony/Cavalry/ImperialCataphract/Warpkeep_Hegemony_ImperialCataphract_LOD2_Compact_Static_Runtime.glb",
+          "bytes": 232544,
+          "sha256": "6f892da1bec76a66d06469a14e16e132694612ae686deb5803c8847931db9c1c",
+          "triangles": 4098,
+          "animations": [],
+          "boundsMeters": [
+            1.98,
+            2.93,
+            3.4421
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/cavalry/inner-keep-imperial-cataphract-compact-6f892da1bec76a66.glb"
+        }
+      ]
+    },
+    {
+      "id": "basilica-warden",
+      "family": "citizen",
+      "sourceReleaseTag": "hegemony-citizens-keep-services-2026-08-03",
+      "sourceArchive": "warpkeep-hegemony-citizens-keep-services-game-ready-2026-08-03-v1.zip",
+      "sourceAssetId": "warpkeep.units.hegemony.citizens-set2.basilica-warden",
+      "displayName": "Hegemony Basilica Warden",
+      "mounted": false,
+      "presentationRole": "civic-routine",
+      "sourceManifest": {
+        "path": "Warpkeep_HegemonyCitizens_Set2_GameReady/Runtime/Units/Hegemony/CitizensSet2/BasilicaWarden/runtime-manifest.json",
+        "bytes": 6564,
+        "sha256": "c524bf7df16cfc3d67b79fad48a4de13a628884786555b251cd690976860338a"
+      },
+      "models": [
+        {
+          "mode": "animated",
+          "profile": "balanced",
+          "tier": "LOD1_Balanced",
+          "sourcePath": "Warpkeep_HegemonyCitizens_Set2_GameReady/Runtime/Units/Hegemony/CitizensSet2/BasilicaWarden/Warpkeep_Hegemony_BasilicaWarden_LOD1_Balanced_Rigged_Runtime.glb",
+          "bytes": 137068,
+          "sha256": "797df2ac1595c1caf02178660944276773fe06e4314b1564d7b070aba9ac5502",
+          "triangles": 1452,
+          "animations": [
+            "Greet",
+            "Idle",
+            "Walk",
+            "Work"
+          ],
+          "boundsMeters": [
+            1.210697,
+            2.445267,
+            0.633327
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/citizen/inner-keep-basilica-warden-balanced-797df2ac1595c1ca.glb"
+        },
+        {
+          "mode": "static",
+          "profile": "compact",
+          "tier": "LOD2_Compact",
+          "sourcePath": "Warpkeep_HegemonyCitizens_Set2_GameReady/Runtime/Units/Hegemony/CitizensSet2/BasilicaWarden/Warpkeep_Hegemony_BasilicaWarden_LOD2_Compact_Static_Runtime.glb",
+          "bytes": 46684,
+          "sha256": "901fcf144078ea310c11f9c6491ac455a112d3c8d02aebd1f5f9574b306a5a62",
+          "triangles": 884,
+          "animations": [],
+          "boundsMeters": [
+            1.21072,
+            2.445267,
+            0.63154
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/citizen/inner-keep-basilica-warden-compact-901fcf144078ea31.glb"
+        }
+      ]
+    },
+    {
+      "id": "bell-herald",
+      "family": "citizen",
+      "sourceReleaseTag": "hegemony-citizens-keep-services-2026-08-03",
+      "sourceArchive": "warpkeep-hegemony-citizens-keep-services-game-ready-2026-08-03-v1.zip",
+      "sourceAssetId": "warpkeep.units.hegemony.citizens-set2.bell-herald",
+      "displayName": "Hegemony Bell Herald",
+      "mounted": false,
+      "presentationRole": "civic-routine",
+      "sourceManifest": {
+        "path": "Warpkeep_HegemonyCitizens_Set2_GameReady/Runtime/Units/Hegemony/CitizensSet2/BellHerald/runtime-manifest.json",
+        "bytes": 6489,
+        "sha256": "84d49853485092e89db7c0c3dcab25a67d542def523e39299b66046e08488f8d"
+      },
+      "models": [
+        {
+          "mode": "animated",
+          "profile": "balanced",
+          "tier": "LOD1_Balanced",
+          "sourcePath": "Warpkeep_HegemonyCitizens_Set2_GameReady/Runtime/Units/Hegemony/CitizensSet2/BellHerald/Warpkeep_Hegemony_BellHerald_LOD1_Balanced_Rigged_Runtime.glb",
+          "bytes": 139012,
+          "sha256": "9db372f360e5567474612c3c57564a34ac98dbe5f062e1fb3529c3787118d94f",
+          "triangles": 1512,
+          "animations": [
+            "Greet",
+            "Idle",
+            "Walk",
+            "Work"
+          ],
+          "boundsMeters": [
+            1.267,
+            2.085,
+            0.758613
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/citizen/inner-keep-bell-herald-balanced-9db372f360e55674.glb"
+        },
+        {
+          "mode": "static",
+          "profile": "compact",
+          "tier": "LOD2_Compact",
+          "sourcePath": "Warpkeep_HegemonyCitizens_Set2_GameReady/Runtime/Units/Hegemony/CitizensSet2/BellHerald/Warpkeep_Hegemony_BellHerald_LOD2_Compact_Static_Runtime.glb",
+          "bytes": 47484,
+          "sha256": "8906c8b6513dbe24cca09a1e8653af425fbee22eb3591910b5f4ff937026a88b",
+          "triangles": 908,
+          "animations": [],
+          "boundsMeters": [
+            1.247,
+            2.085,
+            0.7817
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/citizen/inner-keep-bell-herald-compact-8906c8b6513dbe24.glb"
+        }
+      ]
+    },
+    {
+      "id": "chirurgeon-apothecary",
+      "family": "citizen",
+      "sourceReleaseTag": "hegemony-citizens-keep-services-2026-08-03",
+      "sourceArchive": "warpkeep-hegemony-citizens-keep-services-game-ready-2026-08-03-v1.zip",
+      "sourceAssetId": "warpkeep.units.hegemony.citizens-set2.chirurgeon-apothecary",
+      "displayName": "Hegemony Chirurgeon-Apothecary",
+      "mounted": false,
+      "presentationRole": "civic-routine",
+      "sourceManifest": {
+        "path": "Warpkeep_HegemonyCitizens_Set2_GameReady/Runtime/Units/Hegemony/CitizensSet2/ChirurgeonApothecary/runtime-manifest.json",
+        "bytes": 6598,
+        "sha256": "dff1e406a6f1d01eabd6a118a8338f146c6915180173fd1bd0d96f1d2cbd0079"
+      },
+      "models": [
+        {
+          "mode": "animated",
+          "profile": "balanced",
+          "tier": "LOD1_Balanced",
+          "sourcePath": "Warpkeep_HegemonyCitizens_Set2_GameReady/Runtime/Units/Hegemony/CitizensSet2/ChirurgeonApothecary/Warpkeep_Hegemony_ChirurgeonApothecary_LOD1_Balanced_Rigged_Runtime.glb",
+          "bytes": 161932,
+          "sha256": "68c52942e9673098a510f4e02efd596479716341bc3ad7046d58d90c6ceb45c7",
+          "triangles": 1824,
+          "animations": [
+            "Greet",
+            "Idle",
+            "Walk",
+            "Work"
+          ],
+          "boundsMeters": [
+            0.977991,
+            2.076911,
+            0.675
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/citizen/inner-keep-chirurgeon-apothecary-balanced-68c52942e9673098.glb"
+        },
+        {
+          "mode": "static",
+          "profile": "compact",
+          "tier": "LOD2_Compact",
+          "sourcePath": "Warpkeep_HegemonyCitizens_Set2_GameReady/Runtime/Units/Hegemony/CitizensSet2/ChirurgeonApothecary/Warpkeep_Hegemony_ChirurgeonApothecary_LOD2_Compact_Static_Runtime.glb",
+          "bytes": 54348,
+          "sha256": "5060e336435c66e2a9895f17b852e8f58bee8154b30f7738f73b14cbedef79bf",
+          "triangles": 984,
+          "animations": [],
+          "boundsMeters": [
+            0.976906,
+            2.076911,
+            0.668971
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/citizen/inner-keep-chirurgeon-apothecary-compact-5060e336435c66e2.glb"
+        }
+      ]
+    },
+    {
+      "id": "cistern-warden",
+      "family": "citizen",
+      "sourceReleaseTag": "hegemony-citizens-keep-services-2026-08-03",
+      "sourceArchive": "warpkeep-hegemony-citizens-keep-services-game-ready-2026-08-03-v1.zip",
+      "sourceAssetId": "warpkeep.units.hegemony.citizens-set2.cistern-warden",
+      "displayName": "Hegemony Cistern Warden",
+      "mounted": false,
+      "presentationRole": "civic-routine",
+      "sourceManifest": {
+        "path": "Warpkeep_HegemonyCitizens_Set2_GameReady/Runtime/Units/Hegemony/CitizensSet2/CisternWarden/runtime-manifest.json",
+        "bytes": 6514,
+        "sha256": "d74f2bc3a2b1b693771161c2670d82a4b35faef202b38914f0f2cb8374f46c3d"
+      },
+      "models": [
+        {
+          "mode": "animated",
+          "profile": "balanced",
+          "tier": "LOD1_Balanced",
+          "sourcePath": "Warpkeep_HegemonyCitizens_Set2_GameReady/Runtime/Units/Hegemony/CitizensSet2/CisternWarden/Warpkeep_Hegemony_CisternWarden_LOD1_Balanced_Rigged_Runtime.glb",
+          "bytes": 143716,
+          "sha256": "e6baa9401689e30a285615889d91c76aeba23efcc0e7cb9b9e6eaffa88958c75",
+          "triangles": 1640,
+          "animations": [
+            "Greet",
+            "Idle",
+            "Walk",
+            "Work"
+          ],
+          "boundsMeters": [
+            1.476,
+            2.005,
+            0.657579
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/citizen/inner-keep-cistern-warden-balanced-e6baa9401689e30a.glb"
+        },
+        {
+          "mode": "static",
+          "profile": "compact",
+          "tier": "LOD2_Compact",
+          "sourcePath": "Warpkeep_HegemonyCitizens_Set2_GameReady/Runtime/Units/Hegemony/CitizensSet2/CisternWarden/Warpkeep_Hegemony_CisternWarden_LOD2_Compact_Static_Runtime.glb",
+          "bytes": 50548,
+          "sha256": "78dfc68d6f10e194e558bd17103395735393e8b6dec7ba8da5b54e153b0312ff",
+          "triangles": 1016,
+          "animations": [],
+          "boundsMeters": [
+            1.476,
+            2.005,
+            0.643006
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/citizen/inner-keep-cistern-warden-compact-78dfc68d6f10e194.glb"
+        }
+      ]
+    },
+    {
+      "id": "ember-lamplighter",
+      "family": "citizen",
+      "sourceReleaseTag": "hegemony-citizens-keep-services-2026-08-03",
+      "sourceArchive": "warpkeep-hegemony-citizens-keep-services-game-ready-2026-08-03-v1.zip",
+      "sourceAssetId": "warpkeep.units.hegemony.citizens-set2.ember-lamplighter",
+      "displayName": "Hegemony Ember Lamplighter",
+      "mounted": false,
+      "presentationRole": "civic-routine",
+      "sourceManifest": {
+        "path": "Warpkeep_HegemonyCitizens_Set2_GameReady/Runtime/Units/Hegemony/CitizensSet2/EmberLamplighter/runtime-manifest.json",
+        "bytes": 6572,
+        "sha256": "00ed670f00b360f0b6b98941e1703cf8acb0bca3ba8cf51101e2ad54b4dd5b3b"
+      },
+      "models": [
+        {
+          "mode": "animated",
+          "profile": "balanced",
+          "tier": "LOD1_Balanced",
+          "sourcePath": "Warpkeep_HegemonyCitizens_Set2_GameReady/Runtime/Units/Hegemony/CitizensSet2/EmberLamplighter/Warpkeep_Hegemony_EmberLamplighter_LOD1_Balanced_Rigged_Runtime.glb",
+          "bytes": 157472,
+          "sha256": "599200017f3e3a3d992d9b848ee90e789157e6c8770bfc16b93dbe54184c4535",
+          "triangles": 1696,
+          "animations": [
+            "Greet",
+            "Idle",
+            "Walk",
+            "Work"
+          ],
+          "boundsMeters": [
+            1.276807,
+            2.395823,
+            0.613925
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/citizen/inner-keep-ember-lamplighter-balanced-599200017f3e3a3d.glb"
+        },
+        {
+          "mode": "static",
+          "profile": "compact",
+          "tier": "LOD2_Compact",
+          "sourcePath": "Warpkeep_HegemonyCitizens_Set2_GameReady/Runtime/Units/Hegemony/CitizensSet2/EmberLamplighter/Warpkeep_Hegemony_EmberLamplighter_LOD2_Compact_Static_Runtime.glb",
+          "bytes": 58524,
+          "sha256": "1bb943eba0ec8114ecf1c17ec66adc797bea4f0b96d69d400ef71460a75aab2c",
+          "triangles": 1056,
+          "animations": [],
+          "boundsMeters": [
+            1.277643,
+            2.395823,
+            0.62225
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/citizen/inner-keep-ember-lamplighter-compact-1bb943eba0ec8114.glb"
+        }
+      ]
+    },
+    {
+      "id": "emberfoot-courier",
+      "family": "citizen",
+      "sourceReleaseTag": "hegemony-citizens-keep-services-2026-08-03",
+      "sourceArchive": "warpkeep-hegemony-citizens-keep-services-game-ready-2026-08-03-v1.zip",
+      "sourceAssetId": "warpkeep.units.hegemony.citizens-set2.emberfoot-courier",
+      "displayName": "Hegemony Emberfoot Courier",
+      "mounted": true,
+      "presentationRole": "civic-routine",
+      "sourceManifest": {
+        "path": "Warpkeep_HegemonyCitizens_Set2_GameReady/Runtime/Units/Hegemony/CitizensSet2/EmberfootCourier/runtime-manifest.json",
+        "bytes": 6719,
+        "sha256": "eba95466103537910d3ede7aba810d79a46bebc4cf73918f657928dc18fc2c51"
+      },
+      "models": [
+        {
+          "mode": "animated",
+          "profile": "balanced",
+          "tier": "LOD1_Balanced",
+          "sourcePath": "Warpkeep_HegemonyCitizens_Set2_GameReady/Runtime/Units/Hegemony/CitizensSet2/EmberfootCourier/Warpkeep_Hegemony_EmberfootCourier_LOD1_Balanced_Rigged_Runtime.glb",
+          "bytes": 248820,
+          "sha256": "f7d399621be2dbd2c57104b8d95e6cbdb83586474e8bfd3c2d29c6a3c18ae0a1",
+          "triangles": 3020,
+          "animations": [
+            "Greet",
+            "Idle",
+            "Walk",
+            "Work"
+          ],
+          "boundsMeters": [
+            1.28,
+            2.52,
+            2.23
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/citizen/inner-keep-emberfoot-courier-balanced-f7d399621be2dbd2.glb"
+        },
+        {
+          "mode": "static",
+          "profile": "compact",
+          "tier": "LOD2_Compact",
+          "sourcePath": "Warpkeep_HegemonyCitizens_Set2_GameReady/Runtime/Units/Hegemony/CitizensSet2/EmberfootCourier/Warpkeep_Hegemony_EmberfootCourier_LOD2_Compact_Static_Runtime.glb",
+          "bytes": 95168,
+          "sha256": "ff89e129ad744cdf95a7f6a3b4bc234aa94c9e9d69efb193c9645d22744e23b1",
+          "triangles": 1732,
+          "animations": [],
+          "boundsMeters": [
+            1.28,
+            2.52,
+            2.23
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/citizen/inner-keep-emberfoot-courier-compact-ff89e129ad744cdf.glb"
+        }
+      ]
+    },
+    {
+      "id": "shellback-shrine-tender",
+      "family": "citizen",
+      "sourceReleaseTag": "hegemony-citizens-keep-services-2026-08-03",
+      "sourceArchive": "warpkeep-hegemony-citizens-keep-services-game-ready-2026-08-03-v1.zip",
+      "sourceAssetId": "warpkeep.units.hegemony.citizens-set2.shellback-shrine-tender",
+      "displayName": "Hegemony Shellback Shrine Tender",
+      "mounted": true,
+      "presentationRole": "civic-routine",
+      "sourceManifest": {
+        "path": "Warpkeep_HegemonyCitizens_Set2_GameReady/Runtime/Units/Hegemony/CitizensSet2/ShellbackShrineTender/runtime-manifest.json",
+        "bytes": 6766,
+        "sha256": "9c038a0bc1ec5ab467b1a88468eb84b1dcadb777ff589add273808a21791198d"
+      },
+      "models": [
+        {
+          "mode": "animated",
+          "profile": "balanced",
+          "tier": "LOD1_Balanced",
+          "sourcePath": "Warpkeep_HegemonyCitizens_Set2_GameReady/Runtime/Units/Hegemony/CitizensSet2/ShellbackShrineTender/Warpkeep_Hegemony_ShellbackShrineTender_LOD1_Balanced_Rigged_Runtime.glb",
+          "bytes": 231248,
+          "sha256": "65f276dfe3947f94b9b5cd14242f69d9cf3f25f23ee3eb738d0a1c2a480abe26",
+          "triangles": 2856,
+          "animations": [
+            "Greet",
+            "Idle",
+            "Walk",
+            "Work"
+          ],
+          "boundsMeters": [
+            1.56,
+            2.905,
+            2.5
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/citizen/inner-keep-shellback-shrine-tender-balanced-65f276dfe3947f94.glb"
+        },
+        {
+          "mode": "static",
+          "profile": "compact",
+          "tier": "LOD2_Compact",
+          "sourcePath": "Warpkeep_HegemonyCitizens_Set2_GameReady/Runtime/Units/Hegemony/CitizensSet2/ShellbackShrineTender/Warpkeep_Hegemony_ShellbackShrineTender_LOD2_Compact_Static_Runtime.glb",
+          "bytes": 82084,
+          "sha256": "8c0c01a5bb0ea918ebe32369fcc145e7c1af5745598f8b99d07e6e5a43200e21",
+          "triangles": 1588,
+          "animations": [],
+          "boundsMeters": [
+            1.56,
+            2.905,
+            2.5
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/citizen/inner-keep-shellback-shrine-tender-compact-8c0c01a5bb0ea918.glb"
+        }
+      ]
+    },
+    {
+      "id": "ward-peacekeeper",
+      "family": "citizen",
+      "sourceReleaseTag": "hegemony-citizens-keep-services-2026-08-03",
+      "sourceArchive": "warpkeep-hegemony-citizens-keep-services-game-ready-2026-08-03-v1.zip",
+      "sourceAssetId": "warpkeep.units.hegemony.citizens-set2.ward-peacekeeper",
+      "displayName": "Hegemony Ward Peacekeeper",
+      "mounted": false,
+      "presentationRole": "civic-routine",
+      "sourceManifest": {
+        "path": "Warpkeep_HegemonyCitizens_Set2_GameReady/Runtime/Units/Hegemony/CitizensSet2/WardPeacekeeper/runtime-manifest.json",
+        "bytes": 6567,
+        "sha256": "abe268a83bffe565a88c2e2529690164c3f34126cebb66d36632085e02c22f48"
+      },
+      "models": [
+        {
+          "mode": "animated",
+          "profile": "balanced",
+          "tier": "LOD1_Balanced",
+          "sourcePath": "Warpkeep_HegemonyCitizens_Set2_GameReady/Runtime/Units/Hegemony/CitizensSet2/WardPeacekeeper/Warpkeep_Hegemony_WardPeacekeeper_LOD1_Balanced_Rigged_Runtime.glb",
+          "bytes": 234140,
+          "sha256": "78f3dde74069cdfcf8c844716da454981303bf4f88292151d0508da5ba0698b0",
+          "triangles": 1594,
+          "animations": [
+            "Greet",
+            "Idle",
+            "Walk",
+            "Work"
+          ],
+          "boundsMeters": [
+            1.27,
+            2.025,
+            0.692153
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/citizen/inner-keep-ward-peacekeeper-balanced-78f3dde74069cdfc.glb"
+        },
+        {
+          "mode": "static",
+          "profile": "compact",
+          "tier": "LOD2_Compact",
+          "sourcePath": "Warpkeep_HegemonyCitizens_Set2_GameReady/Runtime/Units/Hegemony/CitizensSet2/WardPeacekeeper/Warpkeep_Hegemony_WardPeacekeeper_LOD2_Compact_Static_Runtime.glb",
+          "bytes": 56256,
+          "sha256": "d6d867fad68548c1259b3aa64ad78a24a8ae9a594b9e54c3abd2f6241b0fd0df",
+          "triangles": 996,
+          "animations": [],
+          "boundsMeters": [
+            1.258635,
+            2.025,
+            0.7136
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/citizen/inner-keep-ward-peacekeeper-compact-d6d867fad68548c1.glb"
+        }
+      ]
+    },
+    {
+      "id": "bulwark",
+      "family": "infantry",
+      "sourceReleaseTag": "hegemony-unit-corps-2026-08-03",
+      "sourceArchive": "warpkeep-hegemony-infantry-game-ready-2026-08-03-v1.zip",
+      "sourceAssetId": "warpkeep.units.hegemony.infantry.bulwark",
+      "displayName": "Hegemony Bulwark",
+      "mounted": false,
+      "presentationRole": "ceremonial-patrol",
+      "sourceManifest": {
+        "path": "Warpkeep_HegemonyInfantry_GameReady/Runtime/Units/Hegemony/Infantry/Bulwark/runtime-manifest.json",
+        "bytes": 5783,
+        "sha256": "56b28598c07b6e29dc6aa9d939dc9c667bc8fab86159d83c6d7201cdad85f0dc"
+      },
+      "models": [
+        {
+          "mode": "animated",
+          "profile": "balanced",
+          "tier": "LOD1_Balanced",
+          "sourcePath": "Warpkeep_HegemonyInfantry_GameReady/Runtime/Units/Hegemony/Infantry/Bulwark/Warpkeep_Hegemony_Bulwark_LOD1_Balanced_Rigged_Runtime.glb",
+          "bytes": 303004,
+          "sha256": "4a0e1fd2470259ea60f4428c7ad2e5f7f1469c7272ccdfa65fc4b04acda669d4",
+          "triangles": 2362,
+          "animations": [
+            "Attack",
+            "Idle",
+            "Walk"
+          ],
+          "boundsMeters": [
+            1.431042,
+            2.03,
+            0.65202
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/infantry/inner-keep-bulwark-balanced-4a0e1fd2470259ea.glb"
+        },
+        {
+          "mode": "static",
+          "profile": "compact",
+          "tier": "LOD2_Compact",
+          "sourcePath": "Warpkeep_HegemonyInfantry_GameReady/Runtime/Units/Hegemony/Infantry/Bulwark/Warpkeep_Hegemony_Bulwark_LOD2_Compact_Static_Runtime.glb",
+          "bytes": 188336,
+          "sha256": "1cc92a6d96a4ffc2a8b8b9651419517662aaa56244513521c870ff527e4a601e",
+          "triangles": 1690,
+          "animations": [],
+          "boundsMeters": [
+            1.431042,
+            2.03,
+            0.666752
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/infantry/inner-keep-bulwark-compact-1cc92a6d96a4ffc2.glb"
+        }
+      ]
+    },
+    {
+      "id": "honor-guard",
+      "family": "infantry",
+      "sourceReleaseTag": "hegemony-unit-corps-2026-08-03",
+      "sourceArchive": "warpkeep-hegemony-infantry-game-ready-2026-08-03-v1.zip",
+      "sourceAssetId": "warpkeep.units.hegemony.infantry.honor-guard",
+      "displayName": "Hegemony Honor Guard",
+      "mounted": false,
+      "presentationRole": "ceremonial-patrol",
+      "sourceManifest": {
+        "path": "Warpkeep_HegemonyInfantry_GameReady/Runtime/Units/Hegemony/Infantry/HonorGuard/runtime-manifest.json",
+        "bytes": 5823,
+        "sha256": "68fd38e7599dc528b31450d596831945b64df066d4a2ce372f6b208dfbe195a7"
+      },
+      "models": [
+        {
+          "mode": "animated",
+          "profile": "balanced",
+          "tier": "LOD1_Balanced",
+          "sourcePath": "Warpkeep_HegemonyInfantry_GameReady/Runtime/Units/Hegemony/Infantry/HonorGuard/Warpkeep_Hegemony_HonorGuard_LOD1_Balanced_Rigged_Runtime.glb",
+          "bytes": 320440,
+          "sha256": "66f157c4dc9bcd4ffaec17081f5019a168f9b69009293518f89eb366864a7c67",
+          "triangles": 2586,
+          "animations": [
+            "Attack",
+            "Idle",
+            "Walk"
+          ],
+          "boundsMeters": [
+            1.411042,
+            2.28,
+            0.65202
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/infantry/inner-keep-honor-guard-balanced-66f157c4dc9bcd4f.glb"
+        },
+        {
+          "mode": "static",
+          "profile": "compact",
+          "tier": "LOD2_Compact",
+          "sourcePath": "Warpkeep_HegemonyInfantry_GameReady/Runtime/Units/Hegemony/Infantry/HonorGuard/Warpkeep_Hegemony_HonorGuard_LOD2_Compact_Static_Runtime.glb",
+          "bytes": 194620,
+          "sha256": "105926a9ac1be2fac529109367cecbfcdc409f5812b2d7eea2f4925c8e63156f",
+          "triangles": 1770,
+          "animations": [],
+          "boundsMeters": [
+            1.411042,
+            2.109529,
+            0.666752
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/infantry/inner-keep-honor-guard-compact-105926a9ac1be2fa.glb"
+        }
+      ]
+    },
+    {
+      "id": "legionary",
+      "family": "infantry",
+      "sourceReleaseTag": "hegemony-unit-corps-2026-08-03",
+      "sourceArchive": "warpkeep-hegemony-infantry-game-ready-2026-08-03-v1.zip",
+      "sourceAssetId": "warpkeep.units.hegemony.infantry.legionary",
+      "displayName": "Hegemony Legionary",
+      "mounted": false,
+      "presentationRole": "ceremonial-patrol",
+      "sourceManifest": {
+        "path": "Warpkeep_HegemonyInfantry_GameReady/Runtime/Units/Hegemony/Infantry/Legionary/runtime-manifest.json",
+        "bytes": 5786,
+        "sha256": "bc2949de95c9fbf06aef3880b942741f9ff8902d103007a347a9d6098b3122c2"
+      },
+      "models": [
+        {
+          "mode": "animated",
+          "profile": "balanced",
+          "tier": "LOD1_Balanced",
+          "sourcePath": "Warpkeep_HegemonyInfantry_GameReady/Runtime/Units/Hegemony/Infantry/Legionary/Warpkeep_Hegemony_Legionary_LOD1_Balanced_Rigged_Runtime.glb",
+          "bytes": 306080,
+          "sha256": "e7361bc20051055d40b90e6415ddee117883dda5d7b1b38317a76e99bb704faa",
+          "triangles": 2410,
+          "animations": [
+            "Attack",
+            "Idle",
+            "Walk"
+          ],
+          "boundsMeters": [
+            1.484765,
+            2.23,
+            0.653768
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/infantry/inner-keep-legionary-balanced-e7361bc20051055d.glb"
+        },
+        {
+          "mode": "static",
+          "profile": "compact",
+          "tier": "LOD2_Compact",
+          "sourcePath": "Warpkeep_HegemonyInfantry_GameReady/Runtime/Units/Hegemony/Infantry/Legionary/Warpkeep_Hegemony_Legionary_LOD2_Compact_Static_Runtime.glb",
+          "bytes": 188676,
+          "sha256": "abb4a2ef93b80cb05212906860911ee9d54eb0cbe11a92a812b8510753e8a03a",
+          "triangles": 1690,
+          "animations": [],
+          "boundsMeters": [
+            1.484765,
+            2.03,
+            0.6685
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/infantry/inner-keep-legionary-compact-abb4a2ef93b80cb0.glb"
+        }
+      ]
+    },
+    {
+      "id": "vanguard",
+      "family": "infantry",
+      "sourceReleaseTag": "hegemony-unit-corps-2026-08-03",
+      "sourceArchive": "warpkeep-hegemony-infantry-game-ready-2026-08-03-v1.zip",
+      "sourceAssetId": "warpkeep.units.hegemony.infantry.vanguard",
+      "displayName": "Hegemony Vanguard",
+      "mounted": false,
+      "presentationRole": "ceremonial-patrol",
+      "sourceManifest": {
+        "path": "Warpkeep_HegemonyInfantry_GameReady/Runtime/Units/Hegemony/Infantry/Vanguard/runtime-manifest.json",
+        "bytes": 5810,
+        "sha256": "65916d394f1e30121dad43e787be3a0f07fdf67389a1933b62f6e66d027061fa"
+      },
+      "models": [
+        {
+          "mode": "animated",
+          "profile": "balanced",
+          "tier": "LOD1_Balanced",
+          "sourcePath": "Warpkeep_HegemonyInfantry_GameReady/Runtime/Units/Hegemony/Infantry/Vanguard/Warpkeep_Hegemony_Vanguard_LOD1_Balanced_Rigged_Runtime.glb",
+          "bytes": 305928,
+          "sha256": "e62df99856c02f9964ac4303600abcf7c9f40879bd52bbabbce75a6330538176",
+          "triangles": 2402,
+          "animations": [
+            "Attack",
+            "Idle",
+            "Walk"
+          ],
+          "boundsMeters": [
+            1.514723,
+            2.207646,
+            0.69597
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/infantry/inner-keep-vanguard-balanced-e62df99856c02f99.glb"
+        },
+        {
+          "mode": "static",
+          "profile": "compact",
+          "tier": "LOD2_Compact",
+          "sourcePath": "Warpkeep_HegemonyInfantry_GameReady/Runtime/Units/Hegemony/Infantry/Vanguard/Warpkeep_Hegemony_Vanguard_LOD2_Compact_Static_Runtime.glb",
+          "bytes": 188192,
+          "sha256": "ee76a1bc2cbb528576cd6706a18c169fa8af0783cc5bb81e0b8f9294ac19b266",
+          "triangles": 1682,
+          "animations": [],
+          "boundsMeters": [
+            1.514723,
+            2.03,
+            0.710702
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/infantry/inner-keep-vanguard-compact-ee76a1bc2cbb5285.glb"
+        }
+      ]
+    },
+    {
+      "id": "astral-magister",
+      "family": "ranged",
+      "sourceReleaseTag": "hegemony-unit-corps-2026-08-03",
+      "sourceArchive": "warpkeep-hegemony-ranged-game-ready-2026-08-03-v1.zip",
+      "sourceAssetId": "warpkeep.units.hegemony.ranged.astral-magister",
+      "displayName": "Hegemony Astral Magister",
+      "mounted": false,
+      "presentationRole": "ceremonial-patrol",
+      "sourceManifest": {
+        "path": "Warpkeep_HegemonyRanged_GameReady/Runtime/Units/Hegemony/Ranged/AstralMagister/runtime-manifest.json",
+        "bytes": 6459,
+        "sha256": "aa9f069c8c1fb05c24bd6155aa6032bdc2cb63a9e70ae1cfb4126ef5048f5cff"
+      },
+      "models": [
+        {
+          "mode": "animated",
+          "profile": "balanced",
+          "tier": "LOD1_Balanced",
+          "sourcePath": "Warpkeep_HegemonyRanged_GameReady/Runtime/Units/Hegemony/Ranged/AstralMagister/Warpkeep_Hegemony_AstralMagister_LOD1_Balanced_Rigged_Runtime.glb",
+          "bytes": 277348,
+          "sha256": "f7ebf6dd805946574838b64c2c886f959ea4309a296fce6b66ec8d9a804f3a1f",
+          "triangles": 1958,
+          "animations": [
+            "Attack",
+            "Idle",
+            "Special",
+            "Walk"
+          ],
+          "boundsMeters": [
+            1.413046,
+            2.396841,
+            0.793268
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/ranged/inner-keep-astral-magister-balanced-f7ebf6dd80594657.glb"
+        },
+        {
+          "mode": "static",
+          "profile": "compact",
+          "tier": "LOD2_Compact",
+          "sourcePath": "Warpkeep_HegemonyRanged_GameReady/Runtime/Units/Hegemony/Ranged/AstralMagister/Warpkeep_Hegemony_AstralMagister_LOD2_Compact_Static_Runtime.glb",
+          "bytes": 79828,
+          "sha256": "2b1b9985793ec5435678fcaefef68770da54fff084d5e5af2b6c55a3658c4a20",
+          "triangles": 1336,
+          "animations": [],
+          "boundsMeters": [
+            1.413046,
+            2.396841,
+            0.799962
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/ranged/inner-keep-astral-magister-compact-2b1b9985793ec543.glb"
+        }
+      ]
+    },
+    {
+      "id": "dusk-ranger",
+      "family": "ranged",
+      "sourceReleaseTag": "hegemony-unit-corps-2026-08-03",
+      "sourceArchive": "warpkeep-hegemony-ranged-game-ready-2026-08-03-v1.zip",
+      "sourceAssetId": "warpkeep.units.hegemony.ranged.dusk-ranger",
+      "displayName": "Hegemony Dusk Ranger",
+      "mounted": false,
+      "presentationRole": "ceremonial-patrol",
+      "sourceManifest": {
+        "path": "Warpkeep_HegemonyRanged_GameReady/Runtime/Units/Hegemony/Ranged/DuskRanger/runtime-manifest.json",
+        "bytes": 6335,
+        "sha256": "d2f851723da013dcd9efd15fd627e3138336f86b0d49545612deb5c70b098cc1"
+      },
+      "models": [
+        {
+          "mode": "animated",
+          "profile": "balanced",
+          "tier": "LOD1_Balanced",
+          "sourcePath": "Warpkeep_HegemonyRanged_GameReady/Runtime/Units/Hegemony/Ranged/DuskRanger/Warpkeep_Hegemony_DuskRanger_LOD1_Balanced_Rigged_Runtime.glb",
+          "bytes": 310084,
+          "sha256": "24020097cc18b2488c65219485b7386773c9781ae619f6ebf27f1b2a8ea246ea",
+          "triangles": 2370,
+          "animations": [
+            "Attack",
+            "Idle",
+            "Special",
+            "Walk"
+          ],
+          "boundsMeters": [
+            1.095,
+            2.015,
+            1.336268
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/ranged/inner-keep-dusk-ranger-balanced-24020097cc18b248.glb"
+        },
+        {
+          "mode": "static",
+          "profile": "compact",
+          "tier": "LOD2_Compact",
+          "sourcePath": "Warpkeep_HegemonyRanged_GameReady/Runtime/Units/Hegemony/Ranged/DuskRanger/Warpkeep_Hegemony_DuskRanger_LOD2_Compact_Static_Runtime.glb",
+          "bytes": 92004,
+          "sha256": "c707df9a6fcf23a1dbd9560e759b4cf494bc27b8f3e0ec6621c240a179522d85",
+          "triangles": 1552,
+          "animations": [],
+          "boundsMeters": [
+            1.060886,
+            2.015,
+            1.351
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/ranged/inner-keep-dusk-ranger-compact-c707df9a6fcf23a1.glb"
+        }
+      ]
+    },
+    {
+      "id": "longbow-warden",
+      "family": "ranged",
+      "sourceReleaseTag": "hegemony-unit-corps-2026-08-03",
+      "sourceArchive": "warpkeep-hegemony-ranged-game-ready-2026-08-03-v1.zip",
+      "sourceAssetId": "warpkeep.units.hegemony.ranged.longbow-warden",
+      "displayName": "Hegemony Longbow Warden",
+      "mounted": false,
+      "presentationRole": "ceremonial-patrol",
+      "sourceManifest": {
+        "path": "Warpkeep_HegemonyRanged_GameReady/Runtime/Units/Hegemony/Ranged/LongbowWarden/runtime-manifest.json",
+        "bytes": 6345,
+        "sha256": "a1e55d9ce54d358e86b64fcada90af99193f17f5cdbd4e240e11bc646bd4db13"
+      },
+      "models": [
+        {
+          "mode": "animated",
+          "profile": "balanced",
+          "tier": "LOD1_Balanced",
+          "sourcePath": "Warpkeep_HegemonyRanged_GameReady/Runtime/Units/Hegemony/Ranged/LongbowWarden/Warpkeep_Hegemony_LongbowWarden_LOD1_Balanced_Rigged_Runtime.glb",
+          "bytes": 331228,
+          "sha256": "496ac58752dfd060239a8687a2efe2bee50340f948a1c0221f3e6b750bea4f9c",
+          "triangles": 2698,
+          "animations": [
+            "Attack",
+            "Idle",
+            "Special",
+            "Walk"
+          ],
+          "boundsMeters": [
+            1.17954,
+            2.23,
+            1.416268
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/ranged/inner-keep-longbow-warden-balanced-496ac58752dfd060.glb"
+        },
+        {
+          "mode": "static",
+          "profile": "compact",
+          "tier": "LOD2_Compact",
+          "sourcePath": "Warpkeep_HegemonyRanged_GameReady/Runtime/Units/Hegemony/Ranged/LongbowWarden/Warpkeep_Hegemony_LongbowWarden_LOD2_Compact_Static_Runtime.glb",
+          "bytes": 104560,
+          "sha256": "63d2d79b4b1f573663aac88ff343dbee1bd985755888d4ef1fb579180e7861c6",
+          "triangles": 1788,
+          "animations": [],
+          "boundsMeters": [
+            1.16254,
+            2.03,
+            1.431
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/ranged/inner-keep-longbow-warden-compact-63d2d79b4b1f5736.glb"
+        }
+      ]
+    },
+    {
+      "id": "rift-battlemage",
+      "family": "ranged",
+      "sourceReleaseTag": "hegemony-unit-corps-2026-08-03",
+      "sourceArchive": "warpkeep-hegemony-ranged-game-ready-2026-08-03-v1.zip",
+      "sourceAssetId": "warpkeep.units.hegemony.ranged.rift-battlemage",
+      "displayName": "Hegemony Rift Battlemage",
+      "mounted": false,
+      "presentationRole": "ceremonial-patrol",
+      "sourceManifest": {
+        "path": "Warpkeep_HegemonyRanged_GameReady/Runtime/Units/Hegemony/Ranged/RiftBattlemage/runtime-manifest.json",
+        "bytes": 6426,
+        "sha256": "06144d0313ac07d5d79a111065f7aa12ee6c1b2f99d28c69e468901396725b65"
+      },
+      "models": [
+        {
+          "mode": "animated",
+          "profile": "balanced",
+          "tier": "LOD1_Balanced",
+          "sourcePath": "Warpkeep_HegemonyRanged_GameReady/Runtime/Units/Hegemony/Ranged/RiftBattlemage/Warpkeep_Hegemony_RiftBattlemage_LOD1_Balanced_Rigged_Runtime.glb",
+          "bytes": 327152,
+          "sha256": "91061c1f8a40d4b109eb4dd3554120c3222ec44f7189856417a34bfa211f4cac",
+          "triangles": 2558,
+          "animations": [
+            "Attack",
+            "Idle",
+            "Special",
+            "Walk"
+          ],
+          "boundsMeters": [
+            1.485489,
+            2.25,
+            0.771368
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/ranged/inner-keep-rift-battlemage-balanced-91061c1f8a40d4b1.glb"
+        },
+        {
+          "mode": "static",
+          "profile": "compact",
+          "tier": "LOD2_Compact",
+          "sourcePath": "Warpkeep_HegemonyRanged_GameReady/Runtime/Units/Hegemony/Ranged/RiftBattlemage/Warpkeep_Hegemony_RiftBattlemage_LOD2_Compact_Static_Runtime.glb",
+          "bytes": 103836,
+          "sha256": "5a90ae4a8def1909ca52443395b16ea0808a1068f540d6308a9852160ae83e97",
+          "triangles": 1732,
+          "animations": [],
+          "boundsMeters": [
+            1.390589,
+            2.25,
+            0.7861
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/population/ranged/inner-keep-rift-battlemage-compact-5a90ae4a8def1909.glb"
+        }
+      ]
+    }
+  ]
+}

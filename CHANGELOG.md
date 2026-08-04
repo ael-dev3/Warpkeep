@@ -22,13 +22,17 @@ full engineering record.
 - Added an additive v15 schema with fail-closed rollout controls. A merge to
   protected `main` triggers the existing verified Pages deployment, but the
   compatible client remains dormant. Module publication, catalog seeding,
-  Builder backfill, asset authorization, and activation still require separate
-  owner review. The guarded publisher accepts only an explicitly selected
+  Builder backfill, runtime asset verification, and activation still require
+  separate owner review. The guarded publisher accepts only an explicitly selected
   active-v14-to-inactive-v15 lane with exact preflight and postflight checks;
   that source path does not itself authorize publication.
-- Pinned a curated Inner Keep art allowlist to one exact asset release and kept
-  every archive-only GLB and preview out of the runtime until explicit owner
-  authorization is recorded.
+- Installed the owner-authorized Inner Keep selection at immutable paths: 38
+  environment assets across 114 GLBs, six catalog previews, and 20 ambient
+  actors across 40 GLBs. This does not activate, merge, or deploy the feature.
+- Built a living presentation around the Grand Covenant Cathedral and western
+  Barracks with mounted patrols, civic conversations, authored trees, dense
+  wind-swept grass, an east-wall drain, deterministic clearances, bounded
+  animation, and atomic fail-safe asset loading.
 - Prepared an optional **Enable Admission Alerts** step after a confirmed access
   request. It remains fail-closed behind a default-off release gate until the
   owner-controlled signed notification canary is complete, and never affects

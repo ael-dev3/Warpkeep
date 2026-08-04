@@ -8,7 +8,7 @@ export type InnerKeepQaInstrumentationSnapshot = Readonly<{
 }>;
 
 export type InnerKeepQaInstrumentation = Readonly<{
-  recordRendererCreated: () => void;
+  recordRendererCreated: () => () => void;
   registerAnimationOwner: (owner: string) => () => void;
   snapshot: () => InnerKeepQaInstrumentationSnapshot;
   restore: () => void;
@@ -82,6 +82,12 @@ export function installInnerKeepQaInstrumentation(
     recordRendererCreated: () => {
       if (restored) throw new Error('Inner Keep QA instrumentation is closed.');
       rendererCount += 1;
+      let released = false;
+      return () => {
+        if (released) return;
+        released = true;
+        rendererCount = Math.max(0, rendererCount - 1);
+      };
     },
     registerAnimationOwner: (owner) => {
       if (
@@ -109,6 +115,7 @@ export function installInnerKeepQaInstrumentation(
       target.HTMLCanvasElement.prototype.getContext = nativeGetContext;
       pendingAnimationFrames.clear();
       animationOwners.clear();
+      rendererCount = 0;
     }
   });
 }

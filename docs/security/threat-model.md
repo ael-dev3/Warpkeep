@@ -190,10 +190,13 @@ operation. Anonymous visitors do not connect to the game database.
   `main` checks. Deployment authority is isolated from ordinary verification.
 - Release verification binds the deployed site to a reviewed commit SHA.
   Passing local tests alone does not authorize a deployment or data change.
-- Inner Keep runtime assets must match the reviewed release identifier,
-  attachment checksum, content allowlist, and per-file hashes. Packaging an
-  archive is not authorization to publish it. The installer fails closed until
-  an explicit runtime-use authorization record covers the selected files.
+- Inner Keep installers accept only selections covered by explicit exact
+  runtime-use authorization and enforce the reviewed release identifier,
+  attachment checksum, content allowlist, and per-file hashes. Possessing or
+  packaging an archive alone does not authorize publication. Before credentials
+  or network access, the activation operator independently fails closed unless
+  both static and population authorization records and complete installed
+  registries verify.
 
 ## Principal risks and treatment
 
@@ -207,7 +210,7 @@ operation. Anonymous visitors do not connect to the game database.
 | Parallel construction double-spends resources | One server transaction settles balances, checks the Builder and slot, deducts resources, records the receipt, and schedules completion; database or transaction-semantics regressions remain a review trigger. |
 | Client forges a construction cost, timer, or slot | The server accepts identifiers only and resolves fixed layouts and versioned policy values itself; catalog or policy changes still require additive-migration and economy review. |
 | Construction receipts leak player activity | Receipts and Builder state are private and returned only by caller-scoped procedures; diagnostics and future analytics must preserve that boundary. |
-| Unapproved archive material enters a release | A checksum-pinned allowlist and authorization-gated installer block unknown or unauthorized files; owner authorization and license provenance remain human approval steps. |
+| Unapproved archive material enters a release | Checksum-pinned allowlists, exact per-file checks, and owner authorization records block unknown, altered, or unauthorized files; owner authorization and license provenance remain human approval steps. |
 | Spoofed profile or wallet data | Browser fields are presentation-only; trusted updates use separate operator paths. External source data may still be stale or incorrect. |
 | External avatar tracking | No-referrer, credential-free requests reduce data sent, but the image host still observes connection metadata. |
 | Resource exhaustion | Size limits, deadlines, early challenge claim, cleanup, and rate control reduce cost; aggregate monitoring and alerting remain limited. |

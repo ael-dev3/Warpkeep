@@ -19,13 +19,26 @@ import {
   createSyntheticInnerKeepQaPresentation
 } from './innerKeepQaFixture';
 import { innerKeepQaRuntimeInstrumentation } from './innerKeepQaInstrumentation';
+import { readInnerKeepQaRendererEvidence } from './innerKeepQaRendererEvidence';
 import type { InnerKeepQaScenario } from './innerKeepQaScenarioManifest.mjs';
 
 const EMPTY_TELEMETRY: InnerKeepSceneTelemetry = Object.freeze({
   status: 'empty',
+  assetStatus: 'idle',
   triangleCount: 0,
   drawCalls: 0,
   smokeSpriteCount: 0,
+  grassBladeCount: 0,
+  waterSurfaceCount: 0,
+  authoredAssetCount: 0,
+  authoredPlacementCount: 0,
+  authoredTreeCount: 0,
+  ambientActorCount: 0,
+  mountedActorCount: 0,
+  patrolUnitCount: 0,
+  activeConversationCount: 0,
+  animationMixerCount: 0,
+  runtimeAssetFailureCount: 0,
   slotCount: 0,
   completedBuildingCount: 0,
   constructionSiteCount: 0,
@@ -34,17 +47,31 @@ const EMPTY_TELEMETRY: InnerKeepSceneTelemetry = Object.freeze({
 const qaInstrumentation = innerKeepQaRuntimeInstrumentation();
 
 type SceneEvidence = Readonly<{
+  barracksPlacementPresent: boolean;
+  cathedralPlacementPresent: boolean;
   finalModelCount: number;
   scaffoldPresent: boolean;
   slotGeometryCount: number;
 }>;
 
 function sceneEvidence(layer: InnerKeepSceneLayer): SceneEvidence {
+  let barracksPlacementPresent = false;
+  let cathedralPlacementPresent = false;
   let finalModelCount = 0;
   let scaffoldPresent = false;
   let slotGeometryCount = 0;
   layer.scene.traverse((object) => {
-    if (object.name.startsWith('inner-keep-completed-building:')) {
+    if (
+      object.name
+        === 'inner-keep-authored-placement:grand-covenant-cathedral-main-building'
+    ) {
+      cathedralPlacementPresent = true;
+    } else if (
+      object.name
+        === 'inner-keep-authored-placement:shieldcourt-barracks-west-garrison'
+    ) {
+      barracksPlacementPresent = true;
+    } else if (object.name.startsWith('inner-keep-completed-building:')) {
       finalModelCount += 1;
     } else if (object.name === 'inner-keep-construction-scaffold') {
       scaffoldPresent = true;
@@ -52,19 +79,39 @@ function sceneEvidence(layer: InnerKeepSceneLayer): SceneEvidence {
       slotGeometryCount += 1;
     }
   });
-  return Object.freeze({ finalModelCount, scaffoldPresent, slotGeometryCount });
+  return Object.freeze({
+    barracksPlacementPresent,
+    cathedralPlacementPresent,
+    finalModelCount,
+    scaffoldPresent,
+    slotGeometryCount
+  });
 }
 
 function telemetryKey(telemetry: InnerKeepSceneTelemetry, evidence: SceneEvidence) {
   return [
     telemetry.status,
+    telemetry.assetStatus,
     telemetry.triangleCount,
     telemetry.drawCalls,
     telemetry.smokeSpriteCount,
+    telemetry.grassBladeCount,
+    telemetry.waterSurfaceCount,
+    telemetry.authoredAssetCount,
+    telemetry.authoredPlacementCount,
+    telemetry.authoredTreeCount,
+    telemetry.ambientActorCount,
+    telemetry.mountedActorCount,
+    telemetry.patrolUnitCount,
+    telemetry.activeConversationCount,
+    telemetry.animationMixerCount,
+    telemetry.runtimeAssetFailureCount,
     telemetry.slotCount,
     telemetry.completedBuildingCount,
     telemetry.constructionSiteCount,
     telemetry.completionRevealActive,
+    evidence.barracksPlacementPresent,
+    evidence.cathedralPlacementPresent,
     evidence.finalModelCount,
     evidence.scaffoldPresent,
     evidence.slotGeometryCount
@@ -106,6 +153,7 @@ export function InnerKeepQaHarness({ scenario }: Readonly<{
     const root = rootRef.current;
     if (!root) return;
     const instrumentation = qaInstrumentation.snapshot();
+    const rendererEvidence = readInnerKeepQaRendererEvidence(rendererRef.current);
     const currentPresentation = presentationRef.current;
     const telemetry = layer?.getTelemetry() ?? Object.freeze({
       ...EMPTY_TELEMETRY,
@@ -119,6 +167,8 @@ export function InnerKeepQaHarness({ scenario }: Readonly<{
         : 0
     });
     const evidence = layer ? sceneEvidence(layer) : Object.freeze({
+      barracksPlacementPresent: false,
+      cathedralPlacementPresent: false,
       finalModelCount: 0,
       scaffoldPresent: false,
       slotGeometryCount: 0
@@ -135,10 +185,39 @@ export function InnerKeepQaHarness({ scenario }: Readonly<{
     root.dataset.innerKeepQaRequestedRafCount = String(
       instrumentation.requestedAnimationFrameCount
     );
+    root.dataset.innerKeepQaAnimationFrameCap = String(
+      layer?.getAnimationFrameCap() ?? 0
+    );
     root.dataset.innerKeepQaSlotCount = String(telemetry.slotCount);
     root.dataset.innerKeepQaTriangleCount = String(telemetry.triangleCount);
     root.dataset.innerKeepQaDrawCalls = String(telemetry.drawCalls);
+    root.dataset.innerKeepQaRendererDrawCalls = String(rendererEvidence.drawCalls);
+    root.dataset.innerKeepQaRendererTriangles = String(rendererEvidence.triangles);
     root.dataset.innerKeepQaSmokeSpriteCount = String(telemetry.smokeSpriteCount);
+    root.dataset.innerKeepQaAssetStatus = telemetry.assetStatus;
+    root.dataset.innerKeepQaGrassBladeCount = String(telemetry.grassBladeCount);
+    root.dataset.innerKeepQaWaterSurfaceCount = String(telemetry.waterSurfaceCount);
+    root.dataset.innerKeepQaAuthoredAssetCount = String(telemetry.authoredAssetCount);
+    root.dataset.innerKeepQaAuthoredPlacementCount = String(
+      telemetry.authoredPlacementCount
+    );
+    root.dataset.innerKeepQaAuthoredTreeCount = String(telemetry.authoredTreeCount);
+    root.dataset.innerKeepQaAmbientActorCount = String(telemetry.ambientActorCount);
+    root.dataset.innerKeepQaMountedActorCount = String(telemetry.mountedActorCount);
+    root.dataset.innerKeepQaPatrolUnitCount = String(telemetry.patrolUnitCount);
+    root.dataset.innerKeepQaActiveConversationCount = String(
+      telemetry.activeConversationCount
+    );
+    root.dataset.innerKeepQaAnimationMixerCount = String(telemetry.animationMixerCount);
+    root.dataset.innerKeepQaRuntimeAssetFailureCount = String(
+      telemetry.runtimeAssetFailureCount
+    );
+    root.dataset.innerKeepQaBarracksPlacementPresent = String(
+      evidence.barracksPlacementPresent
+    );
+    root.dataset.innerKeepQaCathedralPlacementPresent = String(
+      evidence.cathedralPlacementPresent
+    );
     root.dataset.innerKeepQaCompletedBuildingCount = String(
       telemetry.completedBuildingCount
     );
@@ -172,11 +251,32 @@ export function InnerKeepQaHarness({ scenario }: Readonly<{
       .registerAnimationOwner('inner-keep-qa-render-loop');
     let disposed = false;
     let layer: InnerKeepSceneLayer | null = null;
+    let nextRenderedFrameTime: number | null = null;
+    let unregisterRenderer: (() => void) | null = null;
     const renderFrame = (frameTime: number) => {
       frameRef.current = null;
       if (disposed || !layer || !rendererRef.current) return;
+      const frameCap = layer.getAnimationFrameCap();
+      if (
+        frameCap > 0
+        && nextRenderedFrameTime !== null
+        && frameTime + 0.5 < nextRenderedFrameTime
+      ) {
+        scheduleFrame();
+        return;
+      }
+      if (frameCap > 0) {
+        const interval = 1_000 / frameCap;
+        nextRenderedFrameTime ??= frameTime;
+        do {
+          nextRenderedFrameTime += interval;
+        } while (nextRenderedFrameTime <= frameTime + 0.5);
+      } else {
+        nextRenderedFrameTime = null;
+      }
       firstFrameTimeRef.current ??= frameTime;
-      const elapsedSeconds = Math.max(0, frameTime - firstFrameTimeRef.current) / 1_000;
+      const elapsedSeconds = (scenario.initialElapsedSeconds ?? 0)
+        + Math.max(0, frameTime - firstFrameTimeRef.current) / 1_000;
       layer.update(elapsedSeconds);
       rendererRef.current.render(layer.scene, layer.camera);
       publishBrowserEvidence(layer);
@@ -194,16 +294,18 @@ export function InnerKeepQaHarness({ scenario }: Readonly<{
         canvas,
         powerPreference: 'high-performance'
       });
-      qaInstrumentation.recordRendererCreated();
+      unregisterRenderer = qaInstrumentation.recordRendererCreated();
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.shadowMap.enabled = scenario.quality !== 'reduced';
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.shadowMap.type = THREE.PCFShadowMap;
       rendererRef.current = renderer;
       layer = createInnerKeepSceneLayer({
         canvas,
         quality: scenario.quality,
         reducedMotion: scenario.reducedMotion,
-        requestRender: scheduleFrame
+        requestRender: scheduleFrame,
+        baseUrl: import.meta.env.BASE_URL,
+        maxAnisotropy: renderer.capabilities.getMaxAnisotropy()
       });
       layerRef.current = layer;
       const resize = () => {
@@ -234,17 +336,32 @@ export function InnerKeepQaHarness({ scenario }: Readonly<{
         }
         layer?.dispose();
         renderer.dispose();
+        unregisterRenderer?.();
+        unregisterRenderer = null;
         layerRef.current = null;
         rendererRef.current = null;
         unregisterAnimationOwner();
       };
     } catch {
+      disposed = true;
+      layer?.dispose();
+      rendererRef.current?.dispose();
+      rendererRef.current = null;
+      layerRef.current = null;
+      unregisterRenderer?.();
+      unregisterRenderer = null;
       setSceneState('unavailable');
       unregisterAnimationOwner();
       publishBrowserEvidence(null);
       return undefined;
     }
-  }, [publishBrowserEvidence, scenario.quality, scenario.reducedMotion, scenario.renderMode]);
+  }, [
+    publishBrowserEvidence,
+    scenario.initialElapsedSeconds,
+    scenario.quality,
+    scenario.reducedMotion,
+    scenario.renderMode
+  ]);
 
   useEffect(() => {
     const layer = layerRef.current;
@@ -276,7 +393,9 @@ export function InnerKeepQaHarness({ scenario }: Readonly<{
 
   const ready = scenario.renderMode === 'fallback'
     ? sceneState === 'ready'
-    : sceneState === 'ready' && sceneTelemetry.status === 'ready';
+    : sceneState === 'ready'
+      && sceneTelemetry.status === 'ready'
+      && ['ready', 'degraded'].includes(sceneTelemetry.assetStatus);
 
   return (
     <div

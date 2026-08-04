@@ -1,7 +1,24 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type * as THREE from 'three';
+import * as THREE from 'three';
 
-import { createInnerKeepSceneLayer } from '../src/components/inner-keep/createInnerKeepSceneLayer';
+import {
+  createInnerKeepSceneLayer,
+  type CreateInnerKeepSceneLayerOptions
+} from '../src/components/inner-keep/createInnerKeepSceneLayer';
+import {
+  INNER_KEEP_PRESENTATION_ASSETS,
+  INNER_KEEP_PRESENTATION_CAMERA_PRESETS,
+  INNER_KEEP_PRESENTATION_PLACEMENTS
+} from '../src/components/inner-keep/innerKeepPresentationLayoutPolicy';
+import {
+  INNER_KEEP_WATER_CENTERLINE,
+  INNER_KEEP_WATER_POND
+} from '../src/components/inner-keep/createInnerKeepEcology';
+import { allInnerKeepStaticRuntimeAssetIds } from '../src/components/inner-keep/createInnerKeepAuthoredPresentation';
+import type {
+  InnerKeepRuntimeAssetBundle,
+  InnerKeepRuntimePrefab
+} from '../src/components/inner-keep/loadInnerKeepRuntimeAssets';
 import type { InnerKeepBuildingPresentation } from '../src/components/inner-keep/innerKeepPresentation';
 import { createInnerKeepPresentation } from './fixtures/innerKeepPresentation';
 
@@ -10,7 +27,13 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function createLayer(reducedMotion = false, width = 1280, height = 720) {
+function createLayer(
+  reducedMotion = false,
+  width = 1280,
+  height = 720,
+  assetLoading: 'auto' | 'disabled' = 'disabled',
+  runtimeAssetLoader?: CreateInnerKeepSceneLayerOptions['runtimeAssetLoader']
+) {
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
   const canvas = document.createElement('canvas');
   Object.defineProperties(canvas, {
@@ -36,10 +59,53 @@ function createLayer(reducedMotion = false, width = 1280, height = 720) {
       canvas,
       quality: 'balanced',
       reducedMotion,
-      requestRender
+      requestRender,
+      assetLoading,
+      ...(runtimeAssetLoader ? { runtimeAssetLoader } : {})
     }),
     requestRender
   };
+}
+
+function fakeRuntimePrefab(id: string): InnerKeepRuntimePrefab {
+  const root = new THREE.Group();
+  root.add(new THREE.Mesh(
+    new THREE.BoxGeometry(1, 1, 1),
+    new THREE.MeshStandardMaterial()
+  ));
+  return Object.freeze({
+    id,
+    root,
+    clips: Object.freeze([]),
+    boundsMeters: Object.freeze([1, 1, 1] as const),
+    triangles: 12,
+    drawCalls: 1,
+    animated: false,
+    mounted: false,
+    clone: () => root.clone(true)
+  });
+}
+
+function fakeRuntimeBundle(
+  completeStaticCoverage: boolean,
+  failures: InnerKeepRuntimeAssetBundle['failures'] = Object.freeze([])
+): InnerKeepRuntimeAssetBundle {
+  const ids = allInnerKeepStaticRuntimeAssetIds();
+  const selectedIds = completeStaticCoverage ? ids : ids.slice(0, -1);
+  return fakeRuntimeBundleWithIds(selectedIds, [], failures);
+}
+
+function fakeRuntimeBundleWithIds(
+  staticIds: readonly string[],
+  populationIds: readonly string[],
+  failures: InnerKeepRuntimeAssetBundle['failures'] = Object.freeze([])
+): InnerKeepRuntimeAssetBundle {
+  return Object.freeze({
+    staticPrefabs: new Map(staticIds.map((id) => [id, fakeRuntimePrefab(id)])),
+    populationPrefabs: new Map(populationIds.map((id) => [id, fakeRuntimePrefab(id)])),
+    failures,
+    dispose: vi.fn()
+  });
 }
 
 describe('procedural Inner Keep scene layer', () => {
@@ -64,6 +130,19 @@ describe('procedural Inner Keep scene layer', () => {
     expect(first?.position.z).toBe(-3.2);
     expect(document.querySelectorAll('canvas')).toHaveLength(1);
     expect(requestAnimationFrame).not.toHaveBeenCalled();
+    layer.dispose();
+  });
+
+  it('aligns the procedural landmark fallback to the canonical authored anchors', () => {
+    const { layer } = createLayer();
+    const cathedral = layer.scene.getObjectByName(
+      'inner-keep-procedural-cathedral-fallback'
+    );
+    const barracks = layer.scene.getObjectByName(
+      'inner-keep-procedural-barracks-fallback'
+    );
+    expect(cathedral?.position).toMatchObject({ x: 0, z: -11.8 });
+    expect(barracks?.position).toMatchObject({ x: -12.7, z: -0.4 });
     layer.dispose();
   });
 
@@ -105,6 +184,82 @@ describe('procedural Inner Keep scene layer', () => {
     expect(layer.pickSlot(zoomedWest!.x, zoomedWest!.y)).toBe(
       'inner-keep-slot-m01'
     );
+    layer.dispose();
+  });
+
+  it('fits every authored footprint in portrait without overwriting later user input', () => {
+    const { layer } = createLayer(false, 390, 844);
+    layer.setViewport(390, 844);
+    const portraitAspect = 390 / 844;
+    const portraitZoom = INNER_KEEP_PRESENTATION_CAMERA_PRESETS.zoom.initial
+      * INNER_KEEP_PRESENTATION_CAMERA_PRESETS.portrait.initialZoomMultiplier;
+    expect(layer.camera.right).toBeCloseTo(
+      INNER_KEEP_PRESENTATION_CAMERA_PRESETS.minimumHalfWidth / portraitZoom,
+      6
+    );
+    expect(layer.camera.top).toBeCloseTo(
+      (
+        INNER_KEEP_PRESENTATION_CAMERA_PRESETS.minimumHalfWidth / portraitZoom
+      ) / portraitAspect,
+      6
+    );
+    expect(layer.camera.position).toMatchObject({ x: 0, y: 27, z: 30 });
+
+    const assetById = new Map(INNER_KEEP_PRESENTATION_ASSETS.map((asset) => (
+      [asset.assetId, asset] as const
+    )));
+    for (const placement of INNER_KEEP_PRESENTATION_PLACEMENTS) {
+      if (placement.anchor !== 'fixed') continue;
+      const asset = assetById.get(placement.assetId)!;
+      for (const instance of placement.instances) {
+        const radians = instance.rotationMilliDegrees[1] / 1_000 * Math.PI / 180;
+        const cosine = Math.abs(Math.cos(radians));
+        const sine = Math.abs(Math.sin(radians));
+        const unrotatedHalfX = asset.boundsMeters[0]
+          * instance.scalePermille[0] / 2_000;
+        const unrotatedHalfZ = asset.boundsMeters[2]
+          * instance.scalePermille[2] / 2_000;
+        const halfX = cosine * unrotatedHalfX + sine * unrotatedHalfZ
+          + placement.footprint.clearanceMarginMeters;
+        const halfZ = sine * unrotatedHalfX + cosine * unrotatedHalfZ
+          + placement.footprint.clearanceMarginMeters;
+        const height = asset.boundsMeters[1] * instance.scalePermille[1] / 1_000;
+        for (const x of [
+          instance.positionMeters[0] - halfX,
+          instance.positionMeters[0] + halfX
+        ]) for (const z of [
+          instance.positionMeters[2] - halfZ,
+          instance.positionMeters[2] + halfZ
+        ]) for (const y of [0, height]) {
+          const projected = new THREE.Vector3(x, y, z).project(layer.camera);
+          expect(Math.abs(projected.x), instance.placementId).toBeLessThanOrEqual(1);
+          expect(Math.abs(projected.y), instance.placementId).toBeLessThanOrEqual(1);
+        }
+      }
+    }
+    for (const waterPoint of [
+      ...INNER_KEEP_WATER_CENTERLINE,
+      INNER_KEEP_WATER_POND.center
+    ]) {
+      const projected = new THREE.Vector3(
+        waterPoint.x,
+        waterPoint.y,
+        waterPoint.z
+      ).project(layer.camera);
+      expect(Math.abs(projected.x)).toBeLessThanOrEqual(1);
+      expect(Math.abs(projected.y)).toBeLessThanOrEqual(1);
+    }
+
+    layer.zoomByWheel(600, WheelEvent.DOM_DELTA_PIXEL);
+    layer.panByPixels(90, -45);
+    const manuallyAdjustedPosition = layer.camera.position.clone();
+    layer.setViewport(1280, 720);
+
+    expect(layer.camera.top).toBeGreaterThan(
+      INNER_KEEP_PRESENTATION_CAMERA_PRESETS.landscape.baseHalfHeight
+    );
+    expect(layer.camera.position.x).toBeCloseTo(manuallyAdjustedPosition.x, 6);
+    expect(layer.camera.position.z).toBeCloseTo(manuallyAdjustedPosition.z, 6);
     layer.dispose();
   });
 
@@ -232,6 +387,394 @@ describe('procedural Inner Keep scene layer', () => {
       completionRevealActive: false,
       smokeSpriteCount: 0
     });
+    layer.dispose();
+  });
+
+  it('keeps a completed building under scaffold until its exact prefab settles', () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => new Promise(() => {}));
+    const { layer } = createLayer(false, 1280, 720, 'auto');
+    layer.reconcile(createInnerKeepPresentation({
+      buildings: [{
+        slotId: 'inner-keep-slot-m01',
+        buildingKind: 'city-mill',
+        completedLevel: 1,
+        targetLevel: 1,
+        phase: 'complete',
+        startedAtMicros: 1n,
+        completesAtMicros: 10n,
+        revision: 1n
+      }]
+    }), { owningTerrainKind: 'meadow' });
+
+    expect(layer.scene.getObjectByName('inner-keep-construction-scaffold')).toBeDefined();
+    expect(layer.scene.getObjectByName('inner-keep-completed-building:city-mill'))
+      .toBeUndefined();
+    expect(layer.getTelemetry()).toMatchObject({
+      assetStatus: 'loading',
+      completedBuildingCount: 0,
+      constructionSiteCount: 1
+    });
+    layer.dispose();
+  });
+
+  it('reveals the exact completed building when the atomic static bundle arrives', async () => {
+    let settleBundle: ((bundle: InnerKeepRuntimeAssetBundle) => void) | undefined;
+    const runtimeAssetLoader = vi.fn(() => new Promise<InnerKeepRuntimeAssetBundle>((resolve) => {
+      settleBundle = resolve;
+    }));
+    const { layer } = createLayer(
+      false,
+      1280,
+      720,
+      'auto',
+      runtimeAssetLoader
+    );
+    const completeBuilding: InnerKeepBuildingPresentation = Object.freeze({
+      slotId: 'inner-keep-slot-m01',
+      buildingKind: 'city-mill',
+      completedLevel: 1,
+      targetLevel: 1,
+      phase: 'complete',
+      startedAtMicros: 1n,
+      completesAtMicros: 10n,
+      revision: 1n
+    });
+    layer.reconcile(createInnerKeepPresentation({
+      buildings: [completeBuilding]
+    }), { owningTerrainKind: 'meadow' });
+    expect(layer.scene.getObjectByName('inner-keep-completed-building:city-mill'))
+      .toBeUndefined();
+
+    settleBundle!(fakeRuntimeBundle(true));
+    await vi.waitFor(() => {
+      expect(layer.scene.getObjectByName('inner-keep-completed-building:city-mill'))
+        .toBeDefined();
+    });
+    const completed = layer.scene.getObjectByName(
+      'inner-keep-completed-building:city-mill'
+    );
+    expect(completed?.userData.innerKeepAuthoredAsset).toBe(true);
+    expect(layer.getTelemetry()).toMatchObject({
+      assetStatus: 'ready',
+      authoredAssetCount: 38,
+      completedBuildingCount: 1,
+      completionRevealActive: true
+    });
+    expect(layer.scene.getObjectByName('inner-keep-procedural-asset-fallback')?.visible)
+      .toBe(false);
+    layer.dispose();
+  });
+
+  it('retries one degraded same-key bundle, then stays on procedural fallback', async () => {
+    const failure = Object.freeze({
+      kind: 'static' as const,
+      id: 'breached-keep-wall',
+      reason: 'transient fixture failure'
+    });
+    const first = fakeRuntimeBundle(false, Object.freeze([failure]));
+    const second = fakeRuntimeBundle(false, Object.freeze([failure]));
+    const runtimeAssetLoader = vi.fn()
+      .mockResolvedValueOnce(first)
+      .mockResolvedValueOnce(second);
+    const { layer } = createLayer(
+      false,
+      1280,
+      720,
+      'auto',
+      runtimeAssetLoader
+    );
+    layer.reconcile(createInnerKeepPresentation(), { owningTerrainKind: 'meadow' });
+
+    await vi.waitFor(() => expect(runtimeAssetLoader).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(layer.getTelemetry().assetStatus).toBe('degraded'));
+    await Promise.resolve();
+    expect(runtimeAssetLoader).toHaveBeenCalledTimes(2);
+    expect(layer.getTelemetry()).toMatchObject({
+      authoredAssetCount: 0,
+      authoredPlacementCount: 0,
+      runtimeAssetFailureCount: 1
+    });
+    expect(layer.scene.userData.innerKeepAssetLoadAttemptCount).toBe(2);
+    expect(layer.scene.getObjectByName('inner-keep-authored-static-root')?.children)
+      .toHaveLength(0);
+    expect(layer.scene.getObjectByName('inner-keep-procedural-asset-fallback')?.visible)
+      .toBe(true);
+    expect(first.dispose).toHaveBeenCalledTimes(1);
+    layer.dispose();
+  });
+
+  it('keeps a settled atomic static scene visible during its bounded retry', async () => {
+    const first = fakeRuntimeBundle(true, Object.freeze([Object.freeze({
+      kind: 'population' as const,
+      id: 'basilica-warden',
+      reason: 'transient fixture failure'
+    })]));
+    let settleRetry: ((bundle: InnerKeepRuntimeAssetBundle) => void) | undefined;
+    const runtimeAssetLoader = vi.fn()
+      .mockResolvedValueOnce(first)
+      .mockImplementationOnce(() => new Promise<InnerKeepRuntimeAssetBundle>((resolve) => {
+        settleRetry = resolve;
+      }));
+    const { layer } = createLayer(
+      false,
+      1280,
+      720,
+      'auto',
+      runtimeAssetLoader
+    );
+    layer.reconcile(createInnerKeepPresentation(), { owningTerrainKind: 'meadow' });
+
+    await vi.waitFor(() => expect(runtimeAssetLoader).toHaveBeenCalledTimes(2));
+    expect(layer.getTelemetry()).toMatchObject({
+      assetStatus: 'loading',
+      authoredAssetCount: 38,
+      authoredPlacementCount: 67
+    });
+    expect(layer.scene.getObjectByName('inner-keep-procedural-asset-fallback')?.visible)
+      .toBe(false);
+
+    settleRetry!(fakeRuntimeBundle(true));
+    await vi.waitFor(() => expect(layer.getTelemetry().assetStatus).toBe('ready'));
+    expect(first.dispose).toHaveBeenCalledTimes(1);
+    layer.dispose();
+  });
+
+  it('disposes a worse retry without replacing stronger settled coverage', async () => {
+    const first = fakeRuntimeBundle(true, Object.freeze([Object.freeze({
+      kind: 'population' as const,
+      id: 'basilica-warden',
+      reason: 'transient fixture failure'
+    })]));
+    const second = fakeRuntimeBundle(false);
+    const runtimeAssetLoader = vi.fn()
+      .mockResolvedValueOnce(first)
+      .mockResolvedValueOnce(second);
+    const { layer } = createLayer(
+      false,
+      1280,
+      720,
+      'auto',
+      runtimeAssetLoader
+    );
+    layer.reconcile(createInnerKeepPresentation(), { owningTerrainKind: 'meadow' });
+
+    await vi.waitFor(() => expect(runtimeAssetLoader).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(layer.getTelemetry().assetStatus).toBe('degraded'));
+    expect(first.dispose).not.toHaveBeenCalled();
+    expect(second.dispose).toHaveBeenCalledTimes(1);
+    expect(layer.getTelemetry()).toMatchObject({
+      authoredAssetCount: 38,
+      authoredPlacementCount: 67,
+      runtimeAssetFailureCount: 1
+    });
+    expect(layer.scene.getObjectByName('inner-keep-procedural-asset-fallback')?.visible)
+      .toBe(false);
+    layer.dispose();
+    expect(first.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('retains equal-cardinality coverage when a retry swaps an exact static ID', async () => {
+    const failure = Object.freeze([Object.freeze({
+      kind: 'population' as const,
+      id: 'transient-actor',
+      reason: 'transient fixture failure'
+    })]);
+    const first = fakeRuntimeBundleWithIds(
+      ['city-mill', 'shared-static'],
+      ['shared-population'],
+      failure
+    );
+    const second = fakeRuntimeBundleWithIds(
+      ['city-goldworks', 'shared-static'],
+      ['shared-population'],
+      failure
+    );
+    const runtimeAssetLoader = vi.fn()
+      .mockResolvedValueOnce(first)
+      .mockResolvedValueOnce(second);
+    const { layer } = createLayer(false, 1280, 720, 'auto', runtimeAssetLoader);
+    layer.reconcile(createInnerKeepPresentation(), { owningTerrainKind: 'meadow' });
+
+    await vi.waitFor(() => expect(second.dispose).toHaveBeenCalledTimes(1));
+    expect(first.dispose).not.toHaveBeenCalled();
+    expect(layer.getTelemetry()).toMatchObject({
+      assetStatus: 'degraded',
+      runtimeAssetFailureCount: 1
+    });
+    layer.dispose();
+    expect(first.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('retains settled coverage when a larger retry loses a population ID', async () => {
+    const first = fakeRuntimeBundleWithIds(
+      ['city-mill'],
+      ['basilica-warden'],
+      Object.freeze([Object.freeze({
+        kind: 'population' as const,
+        id: 'transient-actor',
+        reason: 'transient fixture failure'
+      })])
+    );
+    const second = fakeRuntimeBundleWithIds(
+      ['city-mill', 'city-goldworks'],
+      ['astral-lancer', 'dusk-outrider']
+    );
+    const runtimeAssetLoader = vi.fn()
+      .mockResolvedValueOnce(first)
+      .mockResolvedValueOnce(second);
+    const { layer } = createLayer(false, 1280, 720, 'auto', runtimeAssetLoader);
+    layer.reconcile(createInnerKeepPresentation(), { owningTerrainKind: 'meadow' });
+
+    await vi.waitFor(() => expect(second.dispose).toHaveBeenCalledTimes(1));
+    expect(first.dispose).not.toHaveBeenCalled();
+    expect(layer.getTelemetry()).toMatchObject({
+      assetStatus: 'degraded',
+      runtimeAssetFailureCount: 1
+    });
+    layer.dispose();
+    expect(first.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('replaces settled coverage when both prefab ID sets are supersets', async () => {
+    const first = fakeRuntimeBundleWithIds(
+      ['city-mill'],
+      ['basilica-warden'],
+      Object.freeze([Object.freeze({
+        kind: 'population' as const,
+        id: 'transient-actor',
+        reason: 'transient fixture failure'
+      })])
+    );
+    const second = fakeRuntimeBundleWithIds(
+      ['city-mill', 'city-goldworks'],
+      ['basilica-warden', 'astral-lancer']
+    );
+    const runtimeAssetLoader = vi.fn()
+      .mockResolvedValueOnce(first)
+      .mockResolvedValueOnce(second);
+    const { layer } = createLayer(false, 1280, 720, 'auto', runtimeAssetLoader);
+    layer.reconcile(createInnerKeepPresentation(), { owningTerrainKind: 'meadow' });
+
+    await vi.waitFor(() => expect(layer.getTelemetry().assetStatus).toBe('ready'));
+    expect(first.dispose).toHaveBeenCalledTimes(1);
+    expect(second.dispose).not.toHaveBeenCalled();
+    layer.dispose();
+    expect(second.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses an available exact completed prefab after terminal decorative degradation', async () => {
+    const failure = Object.freeze({
+      kind: 'static' as const,
+      id: 'breached-keep-wall',
+      reason: 'terminal fixture failure'
+    });
+    const first = fakeRuntimeBundle(false, Object.freeze([failure]));
+    const second = fakeRuntimeBundle(false, Object.freeze([failure]));
+    const runtimeAssetLoader = vi.fn()
+      .mockResolvedValueOnce(first)
+      .mockResolvedValueOnce(second);
+    const { layer } = createLayer(
+      true,
+      1280,
+      720,
+      'auto',
+      runtimeAssetLoader
+    );
+    layer.reconcile(createInnerKeepPresentation({
+      buildings: [{
+        slotId: 'inner-keep-slot-m01',
+        buildingKind: 'city-mill',
+        completedLevel: 1,
+        targetLevel: 1,
+        phase: 'complete',
+        startedAtMicros: 1n,
+        completesAtMicros: 10n,
+        revision: 1n
+      }]
+    }), { owningTerrainKind: 'meadow' });
+
+    await vi.waitFor(() => expect(layer.getTelemetry().assetStatus).toBe('degraded'));
+    const completed = layer.scene.getObjectByName(
+      'inner-keep-completed-building:city-mill'
+    );
+    expect(completed?.userData.innerKeepAuthoredAsset).toBe(true);
+    expect(layer.scene.getObjectByName('inner-keep-construction-scaffold')).toBeUndefined();
+    expect(layer.getTelemetry()).toMatchObject({
+      completedBuildingCount: 1,
+      constructionSiteCount: 0
+    });
+    layer.dispose();
+  });
+
+  it('uses a bounded procedural completed fallback after terminal model degradation', async () => {
+    const missingBuildingBundle = () => {
+      const bundle = fakeRuntimeBundle(false, Object.freeze([Object.freeze({
+        kind: 'static' as const,
+        id: 'city-mill',
+        reason: 'terminal fixture failure'
+      })]));
+      return Object.freeze({
+        ...bundle,
+        staticPrefabs: new Map([...bundle.staticPrefabs].filter(([id]) => id !== 'city-mill'))
+      }) satisfies InnerKeepRuntimeAssetBundle;
+    };
+    const first = missingBuildingBundle();
+    const second = missingBuildingBundle();
+    const runtimeAssetLoader = vi.fn()
+      .mockResolvedValueOnce(first)
+      .mockResolvedValueOnce(second);
+    const { layer } = createLayer(
+      true,
+      1280,
+      720,
+      'auto',
+      runtimeAssetLoader
+    );
+    layer.reconcile(createInnerKeepPresentation({
+      buildings: [{
+        slotId: 'inner-keep-slot-m01',
+        buildingKind: 'city-mill',
+        completedLevel: 1,
+        targetLevel: 1,
+        phase: 'complete',
+        startedAtMicros: 1n,
+        completesAtMicros: 10n,
+        revision: 1n
+      }]
+    }), { owningTerrainKind: 'meadow' });
+
+    await vi.waitFor(() => expect(layer.getTelemetry().assetStatus).toBe('degraded'));
+    const completed = layer.scene.getObjectByName(
+      'inner-keep-completed-building:city-mill'
+    );
+    expect(completed).toBeDefined();
+    expect(completed?.userData.innerKeepAuthoredAsset).not.toBe(true);
+    expect(layer.scene.getObjectByName('inner-keep-construction-scaffold')).toBeUndefined();
+    expect(layer.getTelemetry()).toMatchObject({
+      completedBuildingCount: 1,
+      constructionSiteCount: 0
+    });
+    layer.dispose();
+  });
+
+  it('caps rejected full-bundle attempts across later same-key reconciles', async () => {
+    const runtimeAssetLoader = vi.fn().mockRejectedValue(new Error('fixture loader outage'));
+    const { layer } = createLayer(
+      false,
+      1280,
+      720,
+      'auto',
+      runtimeAssetLoader
+    );
+    const presentation = createInnerKeepPresentation();
+    layer.reconcile(presentation, { owningTerrainKind: 'meadow' });
+
+    await vi.waitFor(() => expect(runtimeAssetLoader).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(layer.getTelemetry().assetStatus).toBe('degraded'));
+    layer.reconcile(presentation, { owningTerrainKind: 'meadow' });
+    await Promise.resolve();
+    expect(runtimeAssetLoader).toHaveBeenCalledTimes(2);
+    expect(layer.scene.userData.innerKeepAssetLoadAttemptCount).toBe(2);
     layer.dispose();
   });
 

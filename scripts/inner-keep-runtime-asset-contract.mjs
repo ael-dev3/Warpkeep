@@ -5,14 +5,19 @@ import { basename, dirname, resolve } from 'node:path';
 export const INNER_KEEP_ASSET_SELECTION_RECORD =
   'docs/reference/assets/2026-08-02-inner-keep-3d-library/manifest.json';
 export const INNER_KEEP_ASSET_SELECTION_DIGEST =
-  '6763aeb1755d800b817a0d5174182474d3836a928c59beb4b4fdf65f5d1f6ec3';
+  '00304c5dbf819cec6cb656996c1105f64efcf36acf8099c431f5b04b822679f0';
 export const INNER_KEEP_ASSET_PROFILES = Object.freeze(['high', 'balanced', 'compact']);
+export const INNER_KEEP_ASSET_AUTHORIZATION_INSTRUCTION =
+  'Use Warpkeep-Assets 3D objects to populate the official Inner Keep runtime, with the Grand Covenant Cathedral as the main building.';
+export const INNER_KEEP_ASSET_AUTHORIZATION_SCOPE_BOUNDARY =
+  'Runtime use in the public ael-dev3/Warpkeep repository and official warpkeep.com client is authorized for the exact selected files. This does not relicense the source archives, authorize unrelated reuse, approve activation, approve merge, or approve deployment.';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const SHA256_PATTERN = /^[a-f0-9]{64}$/u;
 const SAFE_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 const EXPECTED_FAMILY_COUNTS = Object.freeze({
   buildings: 4,
+  landmarks: 2,
   palisade: 6,
   stone: 4,
   'town-items': 19,
@@ -179,7 +184,7 @@ function assertAssetRecord(asset, release, seenIds, seenSources, seenDestination
     seenDestinations.add(model.destinationPath);
   });
 
-  if (asset.family === 'buildings') {
+  if (asset.family === 'buildings' || asset.family === 'landmarks') {
     assertExactFileRecord(asset.preview, `${label} catalogue preview`);
     if (
       asset.preview.width !== 320
@@ -202,7 +207,7 @@ function assertAssetRecord(asset, release, seenIds, seenSources, seenDestination
     seenSources.add(asset.preview.sourcePath);
     seenDestinations.add(asset.preview.destinationPath);
   } else if (asset.preview !== undefined) {
-    fail(label, 'only the four buildable buildings may select catalogue previews.');
+    fail(label, 'only buildable buildings and permanent landmarks may select catalogue previews.');
   }
 }
 
@@ -213,11 +218,11 @@ export function assertInnerKeepAssetSelectionRecord(record) {
     !record
     || record.schema !== 'warpkeep.inner-keep-asset-selection.v1'
     || record.selectionId !== 'inner-keep-v1'
-    || record.recordedAt !== '2026-08-03'
+    || record.recordedAt !== '2026-08-04'
     || record.selectionDigestSha256 !== INNER_KEEP_ASSET_SELECTION_DIGEST
     || record.selectionDigestAlgorithm !== 'sha256-ecmascript-canonical-json-v1'
     || release?.repository !== 'ael-dev3/Warpkeep-Assets'
-    || release?.repositoryMainCommit !== 'b074ffb6317ff9a581f5b7fc7f0a0760e721a9b6'
+    || release?.repositoryMainCommit !== '10c84fbcc339f143ee6f25dfe7a0682660e0e458'
     || release?.releaseCommit !== '74033ebffb7f0a3ec371ccdabac10974bbe413b9'
     || release?.tag !== 'inner-keep-3d-asset-library-2026-08-02'
     || release?.attachment?.name !== 'inner-keep-3d-asset-library-2026-08-02-v1.zip'
@@ -233,27 +238,25 @@ export function assertInnerKeepAssetSelectionRecord(record) {
   ) fail(label, 'release identity or trusted-manifest coordinate changed.');
   if (
     record.authorization?.archiveDistributionAuthorized !== true
-    || record.authorization?.officialRepositoryRuntimeUseAuthorized !== false
-    || record.authorization?.status !== 'pending-owner-runtime-use-authorization'
-    || typeof record.authorization?.scopeBoundary !== 'string'
-    || !record.authorization.scopeBoundary.includes('remains blocked')
-  ) fail(label, 'must remain fail-closed until exact owner runtime-use authorization is recorded.');
+    || record.authorization?.officialRepositoryRuntimeUseAuthorized !== true
+    || record.authorization?.status !== 'authorized-owner-runtime-use'
+    || record.authorization?.recordedAt !== '2026-08-04'
+    || record.authorization?.instruction !== INNER_KEEP_ASSET_AUTHORIZATION_INSTRUCTION
+    || record.authorization?.scopeBoundary !== INNER_KEEP_ASSET_AUTHORIZATION_SCOPE_BOUNDARY
+  ) fail(label, 'must preserve the exact owner runtime-use authorization and its limits.');
   if (
     !exactArray(record.selectionPolicy?.profiles, INNER_KEEP_ASSET_PROFILES)
-    || record.selectionPolicy?.sourceAssetCount !== 36
-    || record.selectionPolicy?.sourceModelCount !== 108
-    || record.selectionPolicy?.sourcePreviewCount !== 4
+    || record.selectionPolicy?.sourceAssetCount !== 38
+    || record.selectionPolicy?.sourceModelCount !== 114
+    || record.selectionPolicy?.sourcePreviewCount !== 6
     || !exactArray(record.selectionPolicy?.excludedProfiles, ['LOD3_Map'])
-    || !exactArray(record.selectionPolicy?.excludedPackages, [
-      'Warpkeep_CityBarracks_GameReady',
-      'Warpkeep_GrandCovenantCathedral_GameReady'
-    ])
+    || !exactArray(record.selectionPolicy?.excludedPackages, [])
     || record.selectionPolicy?.inspectionCataloguesAllowed !== false
     || record.selectionPolicy?.editableSourcesAllowed !== false
     || record.selectionPolicy?.ordinaryBuildMayReadArchive !== false
     || record.selectionPolicy?.ordinaryBuildMayUseNetwork !== false
     || !Array.isArray(record.assets)
-    || record.assets.length !== 36
+    || record.assets.length !== 38
   ) fail(label, 'selection cardinality or exclusion policy changed.');
 
   const seenIds = new Set();
@@ -299,15 +302,11 @@ export function assertInnerKeepAssetSelectionRecord(record) {
   ) fail(label, 'existing authorized tree reuse changed.');
 
   for (const asset of record.assets) {
-    if (
-      asset.sourcePackage.includes('CityBarracks')
-      || asset.sourcePackage.includes('GrandCovenantCathedral')
-      || asset.models.some((model) => (
-        model.sourcePath.includes('LOD3_Map')
-        || model.sourcePath.toLocaleLowerCase('en-US').includes('catalogue')
-        || model.sourcePath.toLocaleLowerCase('en-US').includes('inspection')
-      ))
-    ) fail(label, 'an excluded building or inspection catalogue entered the selected set.');
+    if (asset.models.some((model) => (
+      model.sourcePath.includes('LOD3_Map')
+      || model.sourcePath.toLocaleLowerCase('en-US').includes('catalogue')
+      || model.sourcePath.toLocaleLowerCase('en-US').includes('inspection')
+    ))) fail(label, 'an excluded map or inspection model entered the selected set.');
   }
 
   const digest = calculateInnerKeepAssetSelectionDigest(record);

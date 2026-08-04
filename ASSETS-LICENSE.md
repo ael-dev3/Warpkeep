@@ -461,7 +461,7 @@ placement, ownership, resources, rewards, pathing, or other game authority.
 Legacy Regular Tree variants have no authorized runtime collision; species
 records retain only their supplied trunk-only guidance.
 
-## Pending Inner Keep 3D archive selection
+## Inner Keep 3D runtime selection
 
 The public Warpkeep-Assets release
 [`inner-keep-3d-asset-library-2026-08-02`](https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/inner-keep-3d-asset-library-2026-08-02)
@@ -471,21 +471,64 @@ Ael authorized its public archival and GitHub Release distribution. The release
 does not grant one blanket open-content license, and runtime designation or
 archive presence does not itself authorize live-game integration.
 
-Warpkeep records a proposed exact subset of 108 GLBs and four PNG previews at
+On 2026-08-04, Ael instructed the project to use Warpkeep-Assets 3D objects in
+the official Inner Keep and to make the Grand Covenant Cathedral its main
+building. Warpkeep records that owner-authorized exact subset as 114 GLBs and
+six PNG previews at
 selection digest
-`6763aeb1755d800b817a0d5174182474d3836a928c59beb4b4fdf65f5d1f6ec3`.
-The subset remains `LicenseRef-Warpkeep-Provenance-Required`. None of those
-archive-only binaries is committed or served by this repository while exact
-official repository/runtime-use authorization is pending. The selection does
-not establish ownership, relicensing, general derivative or redistribution
-rights, trademark or canonical-identity rights, merge, deployment, activation,
-or same-named-file substitution.
+`00304c5dbf819cec6cb656996c1105f64efcf36acf8099c431f5b04b822679f0`.
+The exact content-addressed outputs are authorized for the public
+`ael-dev3/Warpkeep` repository and official `warpkeep.com` client. The Grand
+Covenant Cathedral is the permanent northern civic and visual anchor; the
+Hegemony Shieldcourt Barracks is the western garrison anchor.
+
+This is exact runtime-use authorization only. The subset remains
+`LicenseRef-Warpkeep-Provenance-Required`; committing and serving these files
+does not establish ownership, relicense the source archive, grant a general
+derivative or redistribution right, authorize an unlisted or substitute file,
+grant trademark or canonical-identity rights, or approve activation, merge, or
+deployment. Mixed source terms and provenance continue to apply.
 
 Three separately authorized existing tree families may be reused under their
 existing dated record; that permission does not extend to the three newly
-selected archive tree families. The complete allowlist, hashes, exclusions,
-audit procedure, and exact owner decision still required are in the dated
+selected archive tree families. The complete allowlist, 38 asset records, 114
+model hashes, six preview hashes, exclusions, audit procedure, and exact owner
+decision are in the dated
 [Inner Keep asset selection record](docs/reference/assets/2026-08-02-inner-keep-3d-library/).
+
+## Inner Keep citizens, mounts, and patrol units
+
+On 2026-08-04, Ael instructed the project to use characters, mounts, and army
+units from Warpkeep-Assets in the official Inner Keep runtime, including
+animated civic routines and patrols. The exact selection contains eight
+citizens and twelve army units. Six of the twenty characters are mounted. The
+runtime set contains one Balanced rigged GLB and one Compact static GLB per
+character, for 40 content-addressed files and selection digest
+`79237fbe85a4db7a0592eb0c27cc00f8e72e85e58be867bec4dd35992f0b87f7`.
+
+The files come from the public Warpkeep-Assets releases
+[`hegemony-citizens-keep-services-2026-08-03`](https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/hegemony-citizens-keep-services-2026-08-03)
+and
+[`hegemony-unit-corps-2026-08-03`](https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/hegemony-unit-corps-2026-08-03).
+The citizen archive has SHA-256
+`14a8bda3848ede5b398a7fc4ec10e56d98ae06584c42f4683cb2635c5bbb6aeb`.
+The Infantry, Ranged, and Cavalry archives have SHA-256
+`953fcca256324f2a73b3f13e2ca04911349a0f69934337e6ac7161041a2d4ba0`,
+`310b0feaf21f0619f1d10f154facd64f98ce3ad1658cf80bb4dd68f5847a0391`,
+and `9d411ee308abacfd7ca93b1e96594cc4f9e8af613f6d18aca3128b49dfb9a48b`.
+
+This is exact official-runtime use authorization, not a new public license.
+The files remain `LicenseRef-Warpkeep-Provenance-Required`. Their repository
+presence does not establish ownership, relicense either source release, grant
+general redistribution or derivative rights, authorize substitute files, or
+approve activation, merge, or deployment. The ambient actors are client-only
+presentation. Their routes, conversations, models, and animation clips never
+claim authority over units, movement, collision, chat, identity, resources,
+rewards, or combat.
+
+The complete actor list, archive and manifest pins, per-file hashes, LODs,
+triangle counts, clip sets, installation policy, and exact authorization are in
+the dated [Inner Keep population selection record](docs/reference/assets/2026-08-04-inner-keep-population/).
 
 ## Historical Hegemony Frontier Keep provenance
 

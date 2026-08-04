@@ -3,6 +3,8 @@ import type { InnerKeepSceneQuality } from '../components/inner-keep/createInner
 
 export type InnerKeepQaScenarioId =
   | 'empty'
+  | 'high-quality'
+  | 'active-conversation'
   | 'completed-level-1'
   | 'completed-level-2'
   | 'completed-level-3'
@@ -39,6 +41,7 @@ export type InnerKeepQaScenario = Readonly<{
   progressBasisPoints: number | null;
   selectedSlotId: string | null;
   selectedBuildingKind: InnerKeepBuildingKind | null;
+  initialElapsedSeconds?: number;
 }>;
 
 export const INNER_KEEP_QA_SCENARIO_MANIFEST: readonly InnerKeepQaScenario[];

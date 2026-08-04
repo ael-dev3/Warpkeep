@@ -4,8 +4,8 @@ The Inner Keep turns gathered resources into visible, persistent growth inside
 the player's own castle. This document fixes the Alpha V1 product and authority
 contract. The compatible client may ship through the existing protected-main
 Pages workflow, but the implementation remains inactive until separately
-reviewed publication, catalog seed, Builder backfill, asset authorization, and
-activation steps are complete.
+reviewed publication, catalog seed, Builder backfill, runtime asset
+verification, and activation steps are complete.
 
 ## Player loop
 
@@ -26,27 +26,29 @@ token, payment, or Community Mark spending.
 
 ## Compound and slots
 
-The canonical layout contains one central keep, a gate and perimeter, a road
-and plaza spine, eight medium economy-capable slots, and four large reserved
-future slots. All twelve slots are visible from the first release. The browser
-renders deterministic decorative scenery, but the server accepts only a fixed
-slot ID and footprint class; it never accepts coordinates or transforms.
+The canonical presentation uses the Grand Covenant Cathedral as its permanent
+northern main-building anchor, with the Barracks to the west, a gate and
+perimeter, a road and plaza spine, eight medium economy-capable slots, and four
+large reserved future slots. All twelve slots are visible from the first
+release. The browser renders deterministic decorative scenery, but the server
+accepts only a fixed slot ID and footprint class; it never accepts coordinates
+or transforms.
 
 The four large slots are visible, reserved, and non-actionable in V1. A castle
 can contain at most one instance of each actionable building kind.
 
 The deterministic presentation manifest lives in
 `src/components/inner-keep/innerKeepPresentationLayoutPolicy.ts`. It records the layout
-ID and version, all twelve slot transforms, all 36 selected source asset IDs,
+ID and version, all twelve slot transforms, all 38 selected source asset IDs,
 their exact content-addressed High/Balanced/Compact runtime paths, fixed and
 slot-relative transforms, scale, footprint, picking and clearance roles,
 quality availability, road/slot/wall clearances, and camera presets. Its
 SHA-256 digest is
-`96c20cac900e02234e53b36a15069d4e7c12057e5f1737c183f6c31cdb38b8b6`.
+`7e10c6a765a1dbbf3b0a707597e9ecdc4038900d10d57ef565961fcfbd449070`.
 
 The server's compact slot-policy digest includes that presentation digest, so
 the client and activation tooling pin the combined layout digest
-`dc314255b0046f5b43be836b52ab4b7af94a2d25992031f75aee89b1a81490c7`.
+`67b0650d2fe4ac16b14fc1adb57911318fec82c5f4e7daeec83e0efb1ead8325`.
 Decorative transforms remain client presentation data rather than database
 rows, and the browser never sends a transform to construction authority.
 
@@ -153,41 +155,99 @@ not instantiated visibly while the public project is constructing. If the
 model is not ready at completion, the worksite remains until it is safe to
 reveal without an empty or white frame.
 
+Portrait framing uses a front-facing fit that keeps every authored building
+and the full east drain on screen at the 390 x 844 reference viewport, with at
+least 10 CSS pixels of measured edge clearance. After the player pans or
+zooms, resize and orientation changes preserve that choice instead of snapping
+the camera back to its initial pose.
+
+## Living presentation and budgets
+
+The exact static selection renders 67 fixed authored placements around the
+twelve canonical slot pads. The Cathedral remains the northern focal point and
+the Barracks remains the western garrison. High quality presents all 20
+selected ambient actors: eight citizens and twelve patrol units, including six
+mounted characters. Balanced and Reduced retain smaller deterministic casts.
+Civic routines use only Greet, Idle, Walk, and Work. Patrols use Idle and Walk;
+combat clips are excluded. Conversation bubbles and every ambient identity are
+synthetic presentation, never player chat or server state.
+
+The ecology layer adds deterministic authored perimeter trees, dense crossed
+grass with bounded wind, and a downhill two-surface drain and settling pond
+outside the east palisade. Grass roots clear every fixed authored footprint,
+road, route, water surface, and reserved slot. The drain clears the declared
+placement margins, wall, slots, and buffered ground edge. Actor paths and tree
+placements share the same fixed-footprint clearance inputs so no visible
+patrol walks through a wall or prop.
+
+| Quality | Actors (mounted / patrol) | Trees | Grass | Max active fps | Scene graph max (draws / triangles) | Renderer evidence max (draws / triangles) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| High | 20 (6 / 12) | 18 | 1,600 | 30 | 350 / 300,000 | 700 / 600,000 |
+| Balanced | 12 (4 / 6) | 12 | 900 | 24 | 275 / 165,000 | 330 / 190,000 |
+| Reduced | 8 (2 / 4) | 6 | 320 | 18 | 210 / 80,000 | 220 / 85,000 |
+
+Reduced quality uses static population and ecology presentation. Explicit
+reduced motion sets the animation cap to zero. Fixed static instancing is
+budgeted at 91 / 90 / 81 draws and 199,620 / 102,412 / 49,601 triangles for
+High / Balanced / Reduced. Population models are separately capped at
+207 / 131 / 78 draws and 65,000 / 40,000 / 16,000 triangles before the
+combined scene ceilings above are enforced.
+
+Runtime loading uses one globally bounded, static-first queue. Each asset gets
+one transient retry. Abort drains and disposes every request, and a weaker
+retry cannot replace a stronger settled bundle. The authored static scene
+appears only with complete exact static coverage, so procedural and authored
+landmarks never mix. Population may retain the strongest verified partial
+coverage. A terminal missing completed-building prefab falls back to the
+bounded procedural completed model rather than leaving a permanent scaffold.
+
 ## Asset boundary
 
 The selected source is the exact
 `inner-keep-3d-asset-library-2026-08-02-v1.zip` release attachment, 234,962,670
 bytes with SHA-256
 `f13bc9e7b8e32a6767b1959307a202d894123f384e11fd19550d75e0dfe5f6c9`.
-The reviewed selection contains 36 selected assets across five families, 108
-High/Balanced/Compact GLBs, and four previews. Its language-neutral parsed-JSON digest is
-`6763aeb1755d800b817a0d5174182474d3836a928c59beb4b4fdf65f5d1f6ec3`.
+The reviewed selection contains 38 selected assets across six families, 114
+High/Balanced/Compact GLBs, and six previews. Its language-neutral parsed-JSON digest is
+`00304c5dbf819cec6cb656996c1105f64efcf36acf8099c431f5b04b822679f0`.
 The bounded installer verifies the attachment and extracts only that allowlist
 into content-addressed runtime paths.
 
-The presentation manifest records those paths as planned data for review; it
-does not install, fetch, or authorize an asset. The current procedural scene
-remains the fail-closed visual fallback while runtime use is pending. An
-authorized asset integration must implement the same pinned transforms and
-combined digest rather than inventing an unreviewed placement at load time.
+The exact owner authorization recorded on 2026-08-04 permits those files in the
+public Warpkeep repository and official runtime, with the Grand Covenant
+Cathedral as the main northern visual anchor and the Barracks as the western
+garrison. The presentation manifest pins their installed paths and transforms;
+the current procedural scene remains the fail-closed visual fallback while an
+asset loads or if WebGL initialization fails.
 
-The release record does not itself authorize copying archive-only files into
-the public Warpkeep runtime. No selected GLB or preview may be committed until
-an exact owner authorization record covers the public repository and official
-runtime. This is an integration-use gate, not a relicensing request.
+This exact-use authorization does not relicense the mixed-source archive,
+grant general derivative or redistribution rights, authorize substitutes, or
+approve activation, merge, or deployment.
+
+The separately reviewed population selection contains 20 actors and 40
+content-addressed Balanced/Compact GLBs at digest
+`79237fbe85a4db7a0592eb0c27cc00f8e72e85e58be867bec4dd35992f0b87f7`.
+It is sourced from the 2026-08-03 Citizens and Unit Corps releases and is
+authorized only for this public repository and official client. The complete
+archive pins, per-file hashes, animation contracts, and unchanged license
+limits live in the
+[dated population record](../reference/assets/2026-08-04-inner-keep-population/).
 
 ## Release gates
 
 `npm run qa:inner-keep` runs the dedicated local-only synthetic presentation
-matrix. Its 16 cases cover an empty compound, completed Levels 1–5,
-construction at 1/50/99 percent, the authoritative completion reveal, occupied
-Builder and insufficient-resource states, compact quality, reduced motion,
-missing optional art, and the functional 2D fallback. The browser probe reuses
-the reviewed signed-Chrome, private DevTools-pipe, and exact-loopback guards.
-It captures only synthetic screenshots in memory and reports aggregate counts
-and booleans. WebGL cases require one renderer, one context, one animation
-owner, twelve scene pads, and twelve native controls; the 2D case requires no
-WebGL allocation and the same twelve controls.
+matrix. Its 18 cases add a High living compound and an active civic
+conversation to the empty compound, completed Levels 1–5, construction at
+1/50/99 percent, authoritative completion reveal, occupied Builder,
+insufficient-resource, compact-quality, reduced-motion, missing-asset, and
+functional 2D-fallback cases. The browser probe reuses the reviewed
+signed-Chrome, private DevTools-pipe, and exact-loopback guards. It captures
+only synthetic screenshots in memory and reports aggregate counts and
+booleans. WebGL cases require one live renderer, one context, one animation
+owner, twelve scene pads, twelve native controls, the exact living-scene
+counts, and both scene-graph and post-render GPU counters under the tabled
+ceilings. The 2D case requires zero WebGL allocation and the same twelve
+controls.
 
 The page at `/dev/inner-keep-qa.html` is a Vite-development entry guarded by
 `assertLocalQaRuntime`. It is not a production build input, and the production
@@ -195,8 +255,8 @@ output verifier rejects its path, source markers, and scenario manifest.
 
 Merging source code to protected `main` triggers the existing verified Pages
 deployment, with the Inner Keep entry still hidden. It does not activate
-construction. Publication, catalog seed, Builder backfill, activation, smoke
-testing, and any asset-use authorization remain separate owner-reviewed
+construction. Backend module publication, catalog seed, Builder backfill,
+activation, and production smoke testing remain separate owner-reviewed
 actions. The rollback is forward-safe: deactivate new starts, hide entry,
 retain every row and deducted resource, and allow valid active schedules to
 finish or be repaired through a separately reviewed path. There is no

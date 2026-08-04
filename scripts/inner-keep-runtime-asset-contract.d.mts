@@ -1,6 +1,8 @@
 export const INNER_KEEP_ASSET_SELECTION_RECORD: string;
 export const INNER_KEEP_ASSET_SELECTION_DIGEST: string;
 export const INNER_KEEP_ASSET_PROFILES: readonly ['high', 'balanced', 'compact'];
+export const INNER_KEEP_ASSET_AUTHORIZATION_INSTRUCTION: string;
+export const INNER_KEEP_ASSET_AUTHORIZATION_SCOPE_BOUNDARY: string;
 export const INNER_KEEP_ASSET_SELECTION: Readonly<Record<string, any>>;
 export const INNER_KEEP_SELECTED_ASSETS: readonly Readonly<Record<string, any>>[];
 export const INNER_KEEP_SELECTED_MODELS: readonly Readonly<Record<string, any>>[];
