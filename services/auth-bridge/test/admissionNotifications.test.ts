@@ -19,6 +19,7 @@ const TOKEN = 'test-notification-token-with-enough-entropy'
 const INTERNAL_ORIGIN = 'https://admission-notification.internal'
 const STATE_KEY = 'admission-notification-v1'
 const PENDING_STATE_RECORD = 'admission-notification-pending-v2'
+const DIAGNOSTICS_RECORD = 'admission-notification-diagnostics-v1'
 
 class FakeStorage implements DurableObjectStorage {
   readonly values = new Map<string, unknown>()
@@ -584,6 +585,76 @@ describe('admission notification consent and delivery lifecycle', () => {
       lastFailureReason: 'transport-fetch-rejected',
       lastAttemptAt: NOW,
     })
+  })
+
+  it('lets an operator replay bring only a legacy transport backoff forward', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => successfulDelivery())
+    const h = createHarness({ fetchImpl })
+    await applyEvent(h.notification, enabledEvent())
+    const state = h.storage.values.get(STATE_KEY) as Record<string, unknown>
+    const subscriptions = state.subscriptions as Array<Record<string, unknown>>
+    h.storage.values.set(STATE_KEY, {
+      ...state,
+      delivery: {
+        authEpoch: 7,
+        queuedAt: NOW - 60_000,
+        expiresAt: NOW - 60_000 + 24 * 60 * 60 * 1_000,
+        attempts: [{
+          appFid: APP_FID,
+          tokenId: subscriptions[0].tokenId,
+          status: 'retrying',
+          attempts: 5,
+          verificationFailures: 0,
+          nextAttemptAt: NOW - 30_000 + 4 * 60 * 60_000,
+        }],
+      },
+    })
+    h.storage.values.set(DIAGNOSTICS_RECORD, {
+      authEpoch: 7,
+      retryReasons: ['transport'],
+    })
+
+    await expect((await queue(h.notification)).json()).resolves.toEqual({
+      status: 'already-sent',
+    })
+    expect(fetchImpl).toHaveBeenCalledOnce()
+    expect(stored(h.storage)).toContain('"attempts":6')
+    expect(stored(h.storage)).toContain('"lastSentAuthEpoch":7')
+  })
+
+  it('does not accelerate a current transport retry classification', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => successfulDelivery())
+    const h = createHarness({ fetchImpl })
+    await applyEvent(h.notification, enabledEvent())
+    const state = h.storage.values.get(STATE_KEY) as Record<string, unknown>
+    const subscriptions = state.subscriptions as Array<Record<string, unknown>>
+    h.storage.values.set(STATE_KEY, {
+      ...state,
+      delivery: {
+        authEpoch: 7,
+        queuedAt: NOW - 60_000,
+        expiresAt: NOW - 60_000 + 24 * 60 * 60 * 1_000,
+        attempts: [{
+          appFid: APP_FID,
+          tokenId: subscriptions[0].tokenId,
+          status: 'retrying',
+          attempts: 1,
+          verificationFailures: 0,
+          nextAttemptAt: NOW + 30_000,
+        }],
+      },
+    })
+    h.storage.values.set(DIAGNOSTICS_RECORD, {
+      generation: 'admitted',
+      authEpoch: 7,
+      retryReasons: ['transport-fetch-rejected'],
+      lastAttemptAt: NOW - 30_000,
+      lastFailureReason: 'transport-fetch-rejected',
+    })
+
+    await expect((await queue(h.notification)).json()).resolves.toEqual({ status: 'queued' })
+    expect(fetchImpl).not.toHaveBeenCalled()
+    expect(stored(h.storage)).toContain('"attempts":1')
   })
 
   it('rejects redirects without following or retrying them', async () => {
