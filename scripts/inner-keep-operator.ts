@@ -37,6 +37,12 @@ import {
   assertInnerKeepPopulationRuntimeUseAuthorized,
 } from './inner-keep-population-runtime-contract.mjs';
 import {
+  INNER_KEEP_RABBIT_MODELS,
+  INNER_KEEP_RABBIT_RUNTIME_PATHS,
+  INNER_KEEP_RABBIT_SELECTION,
+  assertInnerKeepRabbitRuntimeUseAuthorized,
+} from './inner-keep-rabbit-runtime-contract.mjs';
+import {
   connect,
   privacySafeHermesErrorMessage,
   readAdminSecret,
@@ -84,11 +90,13 @@ const INNER_KEEP_RUNTIME_ROOTS = Object.freeze([
 const INNER_KEEP_AUTHORIZED_RUNTIME_PATHS = Object.freeze([
   ...INNER_KEEP_PLANNED_RUNTIME_PATHS,
   ...INNER_KEEP_POPULATION_RUNTIME_PATHS,
+  ...INNER_KEEP_RABBIT_RUNTIME_PATHS,
 ].sort());
 const INNER_KEEP_AUTHORIZED_RUNTIME_FILES = Object.freeze([
   ...INNER_KEEP_SELECTED_MODELS,
   ...INNER_KEEP_SELECTED_PREVIEWS,
   ...INNER_KEEP_POPULATION_MODELS,
+  ...INNER_KEEP_RABBIT_MODELS,
 ]);
 const PRIVATE_SQL_TIMEOUT_MILLISECONDS = 20_000;
 const PRIVATE_SQL_MAXIMUM_STDOUT_BYTES = 1_100_000;
@@ -472,6 +480,7 @@ type InnerKeepRuntimeFileObservation = Readonly<{
 type InnerKeepRuntimeRegistryPreflight = Readonly<{
   staticSelection: unknown;
   populationSelection: unknown;
+  rabbitSelection: unknown;
   observedPaths: readonly string[];
   inspectRuntimeFile: (relativePath: string) => InnerKeepRuntimeFileObservation;
 }>;
@@ -546,11 +555,19 @@ export function verifyInnerKeepRuntimeRegistryPreflight(
       + 'population asset registry is not recorded.',
     );
   }
+  try {
+    assertInnerKeepRabbitRuntimeUseAuthorized(preflight.rabbitSelection);
+  } catch {
+    fail(
+      'Inner Keep activation is blocked: owner runtime-use authorization for the selected '
+      + 'rabbit asset registry is not recorded.',
+    );
+  }
   const observedPaths = [...preflight.observedPaths].sort();
   if (
     observedPaths.length !== INNER_KEEP_AUTHORIZED_RUNTIME_PATHS.length
     || observedPaths.some((path, index) => path !== INNER_KEEP_AUTHORIZED_RUNTIME_PATHS[index])
-  ) fail('Inner Keep runtime registry paths do not match both authorized selections.');
+  ) fail('Inner Keep runtime registry paths do not match all authorized selections.');
   for (const expected of INNER_KEEP_AUTHORIZED_RUNTIME_FILES) {
     const observed = preflight.inspectRuntimeFile(expected.destinationPath);
     if (
@@ -564,6 +581,7 @@ export function verifyAuthorizedInnerKeepRuntimeRegistry(): void {
   verifyInnerKeepRuntimeRegistryPreflight(Object.freeze({
     staticSelection: INNER_KEEP_ASSET_SELECTION,
     populationSelection: INNER_KEEP_POPULATION_SELECTION,
+    rabbitSelection: INNER_KEEP_RABBIT_SELECTION,
     observedPaths: INNER_KEEP_RUNTIME_ROOTS.flatMap((root) => (
       collectInnerKeepRuntimeFiles(root)
     )),
@@ -750,6 +768,8 @@ async function main(): Promise<void> {
         runtimeAssetAuthorization: INNER_KEEP_ASSET_SELECTION.authorization.status,
         populationRuntimeAssetAuthorization:
           INNER_KEEP_POPULATION_SELECTION.authorization.status,
+        rabbitRuntimeAssetAuthorization:
+          INNER_KEEP_RABBIT_SELECTION.authorization.status,
         readyToConfirm: innerKeepRuntimeRegistryReady(),
       } : {}),
     }));

@@ -21,6 +21,7 @@ import type {
   InnerKeepRuntimePrefab,
 } from './loadInnerKeepRuntimeAssets';
 import type { InnerKeepSceneQuality } from './createInnerKeepSceneLayer';
+import { innerKeepOuterWorldTerrainHeightAt } from './innerKeepOuterWorldPolicy';
 
 export type InnerKeepAuthoredStaticPresentation = Readonly<{
   group: THREE.Group;
@@ -375,6 +376,11 @@ function treeCandidatePosition(
   candidateIndex: number,
   visualSeed: number,
 ): readonly [number, number, number] {
+  const grounded = (x: number, z: number) => Object.freeze([
+    x,
+    innerKeepOuterWorldTerrainHeightAt(x, z) + 0.08,
+    z,
+  ] as const);
   const side = candidateIndex % 4;
   const bandIndex = Math.floor(candidateIndex / 4)
     % INNER_KEEP_PERIMETER_TREE_BANDS.length;
@@ -384,50 +390,38 @@ function treeCandidatePosition(
     candidateIndex / (INNER_KEEP_PERIMETER_TREE_BANDS.length * 4),
   );
   if (band.cedarReserve === true) {
-    return Object.freeze([
-      -12.5 + (reserveOrdinal % 6) * 5
-        + (deterministicUnit(candidateIndex, visualSeed + 32) - 0.5) * 0.24,
-      0.08,
-      15.85 + (deterministicUnit(candidateIndex, visualSeed + 33) - 0.5) * 0.12,
-    ] as const);
+    const x = -12.5 + (reserveOrdinal % 6) * 5
+      + (deterministicUnit(candidateIndex, visualSeed + 32) - 0.5) * 0.24;
+    const z = 15.85 + (deterministicUnit(candidateIndex, visualSeed + 33) - 0.5) * 0.12;
+    return grounded(x, z);
   }
   if (band.smallTreeReserve === true) {
-    return Object.freeze([
-      -14.25 + (reserveOrdinal % 12) * (28.5 / 11)
-        + (deterministicUnit(candidateIndex, visualSeed + 32) - 0.5) * 0.1,
-      0.08,
-      12.65 + (deterministicUnit(candidateIndex, visualSeed + 33) - 0.5) * 0.08,
-    ] as const);
+    const x = -14.25 + (reserveOrdinal % 12) * (28.5 / 11)
+      + (deterministicUnit(candidateIndex, visualSeed + 32) - 0.5) * 0.1;
+    const z = 12.65 + (deterministicUnit(candidateIndex, visualSeed + 33) - 0.5) * 0.08;
+    return grounded(x, z);
   }
   const crossJitter = (deterministicUnit(candidateIndex, visualSeed + 32) - 0.5)
     * (band.southOnly === true || band.southField === true ? 0.35 : 0.55);
   if (band.southField === true) {
-    return Object.freeze([
-      band.alongX[0] + (band.alongX[1] - band.alongX[0]) * along,
-      0.08,
-      band.northZ + (band.southZ - band.northZ)
-        * deterministicUnit(candidateIndex, visualSeed + 33),
-    ] as const);
+    const x = band.alongX[0] + (band.alongX[1] - band.alongX[0]) * along;
+    const z = band.northZ + (band.southZ - band.northZ)
+      * deterministicUnit(candidateIndex, visualSeed + 33);
+    return grounded(x, z);
   }
   if (band.southOnly === true) {
-    return Object.freeze([
-      band.alongX[0] + (band.alongX[1] - band.alongX[0]) * along,
-      0.08,
-      (side % 2 === 0 ? band.northZ : band.southZ) + crossJitter,
-    ] as const);
+    const x = band.alongX[0] + (band.alongX[1] - band.alongX[0]) * along;
+    const z = (side % 2 === 0 ? band.northZ : band.southZ) + crossJitter;
+    return grounded(x, z);
   }
   if (side === 0 || side === 1) {
-    return Object.freeze([
-      (side === 0 ? -band.sideX : band.sideX) + crossJitter,
-      0.08,
-      band.alongZ[0] + (band.alongZ[1] - band.alongZ[0]) * along,
-    ] as const);
+    const x = (side === 0 ? -band.sideX : band.sideX) + crossJitter;
+    const z = band.alongZ[0] + (band.alongZ[1] - band.alongZ[0]) * along;
+    return grounded(x, z);
   }
-  return Object.freeze([
-    band.alongX[0] + (band.alongX[1] - band.alongX[0]) * along,
-    0.08,
-    (side === 2 ? band.northZ : band.southZ) + crossJitter,
-  ] as const);
+  const x = band.alongX[0] + (band.alongX[1] - band.alongX[0]) * along;
+  const z = (side === 2 ? band.northZ : band.southZ) + crossJitter;
+  return grounded(x, z);
 }
 
 function candidateIsClear(

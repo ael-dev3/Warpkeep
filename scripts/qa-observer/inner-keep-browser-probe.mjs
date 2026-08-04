@@ -84,7 +84,7 @@ function evidenceExpression(expectedLevel) {
     const viewportHeight = window.innerHeight;
     const expectedLevel = ${expectedLevel === null ? 'null' : JSON.stringify(expectedLevel)};
     return {
-      version: 1,
+      version: 2,
       scenario: root.getAttribute('data-inner-keep-qa-scenario'),
       renderMode: root.getAttribute('data-inner-keep-qa-render-mode'),
       innerKeepRenderer: screen.getAttribute('data-inner-keep-renderer'),
@@ -122,6 +122,29 @@ function evidenceExpression(expectedLevel) {
       animationMixerCount: integer('data-inner-keep-qa-animation-mixer-count'),
       runtimeAssetFailureCount:
         integer('data-inner-keep-qa-runtime-asset-failure-count'),
+      outerWorldStatus: root.getAttribute('data-inner-keep-qa-outer-world-status'),
+      outerWorldRuntimeAssetFailureCount:
+        integer('data-inner-keep-qa-outer-world-runtime-asset-failure-count'),
+      topographicFeatureCount:
+        integer('data-inner-keep-qa-topographic-feature-count'),
+      terrainTriangleCount: integer('data-inner-keep-qa-terrain-triangle-count'),
+      terrainHeightRangeMillimeters:
+        integer('data-inner-keep-qa-terrain-height-range-millimeters'),
+      exteriorTreeCount: integer('data-inner-keep-qa-exterior-tree-count'),
+      scenicResourceNodeCount:
+        integer('data-inner-keep-qa-scenic-resource-node-count'),
+      wildlifeAssetStatus:
+        root.getAttribute('data-inner-keep-qa-wildlife-asset-status'),
+      wildlifeCount: integer('data-inner-keep-qa-wildlife-count'),
+      exactWildlifeCount: integer('data-inner-keep-qa-exact-wildlife-count'),
+      proceduralWildlifeCount:
+        integer('data-inner-keep-qa-procedural-wildlife-count'),
+      tradeWagonCount: integer('data-inner-keep-qa-trade-wagon-count'),
+      exteriorActorCount: integer('data-inner-keep-qa-exterior-actor-count'),
+      exteriorMountedActorCount:
+        integer('data-inner-keep-qa-exterior-mounted-actor-count'),
+      exteriorPatrolUnitCount:
+        integer('data-inner-keep-qa-exterior-patrol-unit-count'),
       barracksPlacementPresent:
         boolean('data-inner-keep-qa-barracks-placement-present'),
       cathedralPlacementPresent:
@@ -206,17 +229,30 @@ async function captureSyntheticScreenshot(session, viewport) {
 
 const HIGH_QUALITY_SCREENSHOT_FACTS = Object.freeze({
   ambientActorCount: 20,
-  animationMixerCount: 20,
+  animationMixerCount: 30,
   assetStatus: 'ready',
   authoredAssetCount: 38,
   authoredPlacementCount: 67,
   authoredTreeCount: 18,
   barracksPlacementPresent: true,
   cathedralPlacementPresent: true,
-  grassBladeCount: 1_600,
+  exactWildlifeCount: 10,
+  exteriorActorCount: 9,
+  exteriorMountedActorCount: 6,
+  exteriorPatrolUnitCount: 7,
+  exteriorTreeCount: 72,
+  grassBladeCount: 2_400,
   mountedActorCount: 6,
+  outerWorldRuntimeAssetFailureCount: 0,
+  outerWorldStatus: 'ready',
   patrolUnitCount: 12,
+  proceduralWildlifeCount: 0,
   runtimeAssetFailureCount: 0,
+  scenicResourceNodeCount: 8,
+  topographicFeatureCount: 9,
+  tradeWagonCount: 1,
+  wildlifeAssetStatus: 'ready',
+  wildlifeCount: 10,
   waterSurfaceCount: 2,
 });
 

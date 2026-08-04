@@ -17,8 +17,8 @@ dry run, and a separately confirmed publication operation.
 - current production database identity and the exact v14 predecessor proof;
 - additive v15 migration proof with refs 0–55 unchanged;
 - compatible client artifact and Inner Keep catalog/layout digest;
-- exact static and population runtime-use authorizations plus the combined
-  160-path installed registry;
+- exact static, population, and rabbit runtime-use authorizations plus the
+  combined 163-path installed registry;
 - owner/legal accuracy review of the then-current Alpha Terms and Privacy
   Notice, without treating this runbook as acceptance of a new legal bundle;
 - owner approval for each publication, seed, backfill, deploy, and activation;

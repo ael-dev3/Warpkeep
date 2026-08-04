@@ -26,6 +26,16 @@ import {
   type InnerKeepPopulationPresentation
 } from './createInnerKeepPopulationPresentation';
 import {
+  createInnerKeepOuterWorldPresentation,
+  type InnerKeepOuterWorldPresentation,
+  type InnerKeepOuterWorldTelemetry
+} from './createInnerKeepOuterWorldPresentation';
+import {
+  createInnerKeepRabbitPresentation,
+  type InnerKeepRabbitPresentation,
+  type InnerKeepRabbitPresentationStatus
+} from './createInnerKeepRabbitPresentation';
+import {
   createInnerKeepAmbientSimulationPlan,
   type InnerKeepAmbientSimulationPlan
 } from './innerKeepAmbientTimeline';
@@ -37,6 +47,15 @@ import {
   INNER_KEEP_PRESENTATION_CAMERA_PRESETS,
   INNER_KEEP_PRESENTATION_CLEARANCES
 } from './innerKeepPresentationLayoutPolicy';
+import {
+  INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS,
+  INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS,
+  INNER_KEEP_OUTER_WORLD_RESOURCE_SITES,
+  INNER_KEEP_OUTER_WORLD_ROAD_CIRCUIT,
+  INNER_KEEP_OUTER_WORLD_TOPOGRAPHIC_FEATURES,
+  INNER_KEEP_OUTER_WORLD_TRADE_ROUTE,
+  innerKeepOuterWorldTerrainHeightAt
+} from './innerKeepOuterWorldPolicy';
 
 export type InnerKeepSceneQuality = 'high' | 'balanced' | 'reduced';
 
@@ -45,9 +64,9 @@ export type InnerKeepSceneQuality = 'high' | 'balanced' | 'reduced';
  * by the QA renderer because high-quality shadow passes can redraw casters.
  */
 export const INNER_KEEP_SCENE_GRAPH_RENDER_BUDGETS = Object.freeze({
-  high: Object.freeze({ drawCalls: 350, triangles: 300_000 }),
-  balanced: Object.freeze({ drawCalls: 275, triangles: 165_000 }),
-  reduced: Object.freeze({ drawCalls: 210, triangles: 80_000 })
+  high: Object.freeze({ drawCalls: 390, triangles: 420_000 }),
+  balanced: Object.freeze({ drawCalls: 310, triangles: 215_000 }),
+  reduced: Object.freeze({ drawCalls: 235, triangles: 110_000 })
 } satisfies Readonly<Record<InnerKeepSceneQuality, Readonly<{
   drawCalls: number;
   triangles: number;
@@ -83,6 +102,21 @@ export type InnerKeepSceneTelemetry = Readonly<{
   activeConversationCount: number;
   animationMixerCount: number;
   runtimeAssetFailureCount: number;
+  outerWorldStatus: 'idle' | InnerKeepOuterWorldTelemetry['status'];
+  outerWorldRuntimeAssetFailureCount: number;
+  topographicFeatureCount: number;
+  terrainTriangleCount: number;
+  terrainHeightRangeMillimeters: number;
+  exteriorTreeCount: number;
+  scenicResourceNodeCount: number;
+  wildlifeAssetStatus: 'idle' | InnerKeepRabbitPresentationStatus;
+  wildlifeCount: number;
+  exactWildlifeCount: number;
+  proceduralWildlifeCount: number;
+  tradeWagonCount: number;
+  exteriorActorCount: number;
+  exteriorMountedActorCount: number;
+  exteriorPatrolUnitCount: number;
   slotCount: number;
   completedBuildingCount: number;
   constructionSiteCount: number;
@@ -137,6 +171,8 @@ export type CreateInnerKeepSceneLayerOptions = Readonly<{
   maxAnisotropy?: number;
   /** Local/unit-test escape hatch; production leaves exact asset loading on. */
   assetLoading?: 'auto' | 'disabled';
+  /** Optional countryside models fail independently from the core bundle. */
+  outerWorldAssetLoading?: 'auto' | 'disabled';
   /** Deterministic test seam; production always uses the integrity-pinned loader. */
   runtimeAssetLoader?: typeof loadInnerKeepRuntimeAssetBundle;
 }>;
@@ -159,6 +195,14 @@ const SMOKE_FRAME_CAP: Readonly<Record<InnerKeepSceneQuality, number>> =
 const LIVING_FRAME_CAP: Readonly<Record<InnerKeepSceneQuality, number>> =
   Object.freeze({ high: 30, balanced: 24, reduced: 0 });
 const MAX_RUNTIME_ASSET_LOAD_ATTEMPTS = 2;
+const INNER_KEEP_OUTER_WORLD_INITIAL_ZOOM = Object.freeze({
+  landscape: 0.76,
+  portrait: 0.72
+});
+const INNER_KEEP_OUTER_WORLD_PAN_BOUNDS = Object.freeze({
+  x: Object.freeze([-10, 10] as const),
+  z: Object.freeze([-12, 10] as const)
+});
 
 function deterministicUnit(index: number, salt: number) {
   const value = Math.sin((index + 1) * 12.9898 + salt * 78.233) * 43_758.5453;
@@ -491,6 +535,106 @@ function geometryTriangleCount(geometry: THREE.BufferGeometry) {
   return Math.floor((geometry.getAttribute('position')?.count ?? 0) / 3);
 }
 
+type InnerKeepTerrainPathPoint = Readonly<{ x: number; z: number }>;
+
+function createInnerKeepOuterTerrainGeometry(quality: InnerKeepSceneQuality) {
+  const [halfWidth, halfDepth] = INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS;
+  const [widthSegments, depthSegments] =
+    INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS[quality].terrainSegments;
+  const geometry = new THREE.PlaneGeometry(
+    halfWidth * 2,
+    halfDepth * 2,
+    widthSegments,
+    depthSegments,
+  );
+  geometry.rotateX(-Math.PI / 2);
+  const position = geometry.getAttribute('position');
+  const colors = new Float32Array(position.count * 3);
+  const lowland = new THREE.Color(0x657d50);
+  const meadow = new THREE.Color(0x82905d);
+  const ridge = new THREE.Color(0x77756a);
+  const color = new THREE.Color();
+  let minimumHeight = Number.POSITIVE_INFINITY;
+  let maximumHeight = Number.NEGATIVE_INFINITY;
+  for (let index = 0; index < position.count; index += 1) {
+    const x = position.getX(index);
+    const z = position.getZ(index);
+    const height = innerKeepOuterWorldTerrainHeightAt(x, z);
+    minimumHeight = Math.min(minimumHeight, height);
+    maximumHeight = Math.max(maximumHeight, height);
+    position.setY(index, height);
+    const meadowMix = Math.max(0, Math.min(1, (height + 0.1) / 1.15));
+    const ridgeMix = Math.max(0, Math.min(1, (height - 1.15) / 2.15));
+    color.copy(lowland).lerp(meadow, meadowMix).lerp(ridge, ridgeMix);
+    const variation = Math.sin(x * 0.72 + z * 0.39) * 0.025;
+    color.offsetHSL(variation, 0, variation * 0.45);
+    color.toArray(colors, index * 3);
+  }
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geometry.computeVertexNormals();
+  return Object.freeze({
+    geometry,
+    triangleCount: geometryTriangleCount(geometry),
+    heightRangeMillimeters: Math.max(
+      0,
+      Math.round((maximumHeight - minimumHeight) * 1_000),
+    ),
+  });
+}
+
+function createInnerKeepOuterRoadGeometry(paths: readonly Readonly<{
+  points: readonly InnerKeepTerrainPathPoint[];
+  closed: boolean;
+  halfWidthMeters: number;
+}>[]) {
+  const positions: number[] = [];
+  const indices: number[] = [];
+  for (const path of paths) {
+    if (path.points.length < 2) continue;
+    const vertexOffset = positions.length / 3;
+    path.points.forEach((point, index) => {
+      const before = path.points[
+        path.closed
+          ? (index - 1 + path.points.length) % path.points.length
+          : Math.max(0, index - 1)
+      ]!;
+      const after = path.points[
+        path.closed
+          ? (index + 1) % path.points.length
+          : Math.min(path.points.length - 1, index + 1)
+      ]!;
+      const tangentX = after.x - before.x;
+      const tangentZ = after.z - before.z;
+      const tangentLength = Math.max(0.001, Math.hypot(tangentX, tangentZ));
+      const normalX = -tangentZ / tangentLength;
+      const normalZ = tangentX / tangentLength;
+      for (const side of [-1, 1] as const) {
+        const x = point.x + normalX * path.halfWidthMeters * side;
+        const z = point.z + normalZ * path.halfWidthMeters * side;
+        positions.push(
+          x,
+          innerKeepOuterWorldTerrainHeightAt(x, z) + 0.035,
+          z,
+        );
+      }
+    });
+    const segmentCount = path.closed ? path.points.length : path.points.length - 1;
+    for (let index = 0; index < segmentCount; index += 1) {
+      const next = (index + 1) % path.points.length;
+      const left = vertexOffset + index * 2;
+      const right = left + 1;
+      const nextLeft = vertexOffset + next * 2;
+      const nextRight = nextLeft + 1;
+      indices.push(left, nextLeft, right, right, nextLeft, nextRight);
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
 export function createInnerKeepSceneLayer(
   options: CreateInnerKeepSceneLayerOptions
 ): InnerKeepSceneLayer {
@@ -532,6 +676,8 @@ export function createInnerKeepSceneLayer(
   let ambientPlan: InnerKeepAmbientSimulationPlan | null = null;
   let populationPresentation: InnerKeepPopulationPresentation | null = null;
   let ecology: InnerKeepEcology | null = null;
+  let outerWorldPresentation: InnerKeepOuterWorldPresentation | null = null;
+  let rabbitPresentation: InnerKeepRabbitPresentation | null = null;
   let assetLoadController: AbortController | null = null;
   let assetLoadGeneration = 0;
   let assetLoadKey = '';
@@ -555,6 +701,21 @@ export function createInnerKeepSceneLayer(
     activeConversationCount: 0,
     animationMixerCount: 0,
     runtimeAssetFailureCount: 0,
+    outerWorldStatus: 'idle',
+    outerWorldRuntimeAssetFailureCount: 0,
+    topographicFeatureCount: INNER_KEEP_OUTER_WORLD_TOPOGRAPHIC_FEATURES.length,
+    terrainTriangleCount: 0,
+    terrainHeightRangeMillimeters: 0,
+    exteriorTreeCount: 0,
+    scenicResourceNodeCount: 0,
+    wildlifeAssetStatus: 'idle',
+    wildlifeCount: 0,
+    exactWildlifeCount: 0,
+    proceduralWildlifeCount: 0,
+    tradeWagonCount: 0,
+    exteriorActorCount: 0,
+    exteriorMountedActorCount: 0,
+    exteriorPatrolUnitCount: 0,
     slotCount: 0,
     completedBuildingCount: 0,
     constructionSiteCount: 0,
@@ -575,36 +736,72 @@ export function createInnerKeepSceneLayer(
   const dynamicGroup = new THREE.Group();
   scene.add(staticGroup, proceduralFallbackGroup, authoredStaticGroup, ambientGroup, dynamicGroup);
 
-  const [groundHalfWidth, groundHalfDepth] =
-    INNER_KEEP_PRESENTATION_CLEARANCES.ground.halfExtentsMeters;
-  const groundGeometry = new THREE.PlaneGeometry(
-    groundHalfWidth * 2,
-    groundHalfDepth * 2,
-    28,
-    26
-  );
-  groundGeometry.rotateX(-Math.PI / 2);
-  const groundPosition = groundGeometry.getAttribute('position');
-  for (let index = 0; index < groundPosition.count; index += 1) {
-    const x = groundPosition.getX(index);
-    const z = groundPosition.getZ(index);
-    const edge = Math.min(1, Math.max(
-      0,
-      (Math.hypot(x / groundHalfWidth, z / groundHalfDepth) - 0.5) / 0.5
-    ));
-    const height = edge * (0.22 + Math.sin(x * 0.45) * 0.08 + Math.cos(z * 0.52) * 0.06);
-    groundPosition.setY(index, height);
-  }
-  groundGeometry.computeVertexNormals();
+  const outerTerrain = createInnerKeepOuterTerrainGeometry(options.quality);
+  const groundGeometry = outerTerrain.geometry;
   disposableGeometries.add(groundGeometry);
   const groundMaterial = new THREE.MeshStandardMaterial({
-    color: 0x71815c,
+    color: 0xffffff,
+    vertexColors: true,
     roughness: 0.98,
     metalness: 0
   });
   disposableMaterials.add(groundMaterial);
   const ground = setShadow(new THREE.Mesh(groundGeometry, groundMaterial), false, true);
+  ground.name = 'inner-keep-outer-topographic-terrain';
+  ground.userData.presentationOnly = true;
+  ground.userData.gameplayAuthorityClaimed = false;
   staticGroup.add(ground);
+
+  const tradeRoadPoints = INNER_KEEP_OUTER_WORLD_TRADE_ROUTE.map((point) => ({
+    x: point[0],
+    z: point[2],
+  }));
+  const resourceRoads = INNER_KEEP_OUTER_WORLD_RESOURCE_SITES.map((site) => {
+    const south = site.positionMeters[2] > 0;
+    const approachZ = south ? 13.1 : -20.4;
+    return Object.freeze({
+      points: Object.freeze([
+        ...(south ? [Object.freeze({ x: 0, z: 11.7 })] : []),
+        Object.freeze({ x: site.positionMeters[0] * 0.58, z: approachZ }),
+        Object.freeze({
+          x: site.positionMeters[0],
+          z: site.positionMeters[2],
+        }),
+      ]),
+      closed: false,
+      halfWidthMeters: 0.46,
+    });
+  });
+  const outerRoadGeometry = createInnerKeepOuterRoadGeometry([
+    Object.freeze({
+      points: INNER_KEEP_OUTER_WORLD_ROAD_CIRCUIT.points,
+      closed: true,
+      halfWidthMeters: INNER_KEEP_OUTER_WORLD_ROAD_CIRCUIT.halfWidthMeters,
+    }),
+    Object.freeze({
+      points: tradeRoadPoints,
+      closed: false,
+      halfWidthMeters: 0.62,
+    }),
+    ...resourceRoads,
+  ]);
+  disposableGeometries.add(outerRoadGeometry);
+  const outerRoadMaterial = new THREE.MeshStandardMaterial({
+    color: 0x857251,
+    roughness: 0.99,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
+  });
+  disposableMaterials.add(outerRoadMaterial);
+  const outerRoad = new THREE.Mesh(outerRoadGeometry, outerRoadMaterial);
+  outerRoad.name = 'inner-keep-outer-estate-road-network';
+  outerRoad.receiveShadow = true;
+  outerRoad.castShadow = false;
+  outerRoad.userData.presentationOnly = true;
+  outerRoad.userData.gameplayAuthorityClaimed = false;
+  outerRoad.raycast = () => undefined;
+  staticGroup.add(outerRoad);
 
   const roadMaterial = new THREE.MeshStandardMaterial({ color: 0x8c7b5b, roughness: 0.96 });
   disposableMaterials.add(roadMaterial);
@@ -836,14 +1033,15 @@ export function createInnerKeepSceneLayer(
       ? (side === 2 ? -17.8 : 11.4) + (deterministicUnit(index, 3) - 0.5) * 0.8
       : alongZ;
     const scale = 0.82 + deterministicUnit(index, 4) * 0.52;
+    const terrainHeight = innerKeepOuterWorldTerrainHeightAt(x, z);
     treeMatrix.compose(
-      new THREE.Vector3(x, 0.72 * scale, z),
+      new THREE.Vector3(x, terrainHeight + 0.72 * scale, z),
       new THREE.Quaternion(),
       new THREE.Vector3(scale, scale, scale)
     );
     trunks.setMatrixAt(index, treeMatrix);
     treeMatrix.compose(
-      new THREE.Vector3(x, 2.2 * scale, z),
+      new THREE.Vector3(x, terrainHeight + 2.2 * scale, z),
       new THREE.Quaternion().setFromAxisAngle(
         new THREE.Vector3(0, 1, 0),
         deterministicUnit(index, 5) * Math.PI
@@ -960,6 +1158,8 @@ export function createInnerKeepSceneLayer(
   const smokeScale = new THREE.Vector3();
   const smokeQuaternion = new THREE.Quaternion();
   let ecologySeed: number | null = null;
+  let outerWorldSeed: number | null = null;
+  let refreshOptionalPresentationTelemetry = () => {};
 
   const ensureEcology = (visualSeed: number) => {
     if (ecology && ecologySeed === visualSeed) return;
@@ -971,6 +1171,52 @@ export function createInnerKeepSceneLayer(
     });
     ecologySeed = visualSeed;
     ambientGroup.add(ecology.group);
+  };
+
+  const ensureOuterWorld = (visualSeed: number) => {
+    if (outerWorldPresentation && outerWorldSeed === visualSeed) return;
+    outerWorldPresentation?.dispose();
+    rabbitPresentation?.dispose();
+    const nextOuterWorldPresentation = createInnerKeepOuterWorldPresentation({
+      quality: options.quality,
+      visualSeed,
+      reducedMotion: options.reducedMotion || options.quality === 'reduced',
+      baseUrl: options.baseUrl ?? import.meta.env.BASE_URL,
+      maxAnisotropy: options.maxAnisotropy,
+      loadExactAssets: (
+        options.outerWorldAssetLoading ?? options.assetLoading ?? 'auto'
+      ) !== 'disabled',
+      wildlifeMode: 'procedural',
+      requestRender: options.requestRender,
+      onTelemetryChange: () => refreshOptionalPresentationTelemetry(),
+    });
+    outerWorldPresentation = nextOuterWorldPresentation;
+    const nextRabbitPresentation = createInnerKeepRabbitPresentation({
+      quality: options.quality,
+      visualSeed,
+      reducedMotion: options.reducedMotion || options.quality === 'reduced',
+      baseUrl: options.baseUrl ?? import.meta.env.BASE_URL,
+      maxAnisotropy: options.maxAnisotropy,
+      loadExactAsset: (
+        options.outerWorldAssetLoading ?? options.assetLoading ?? 'auto'
+      ) !== 'disabled',
+      requestRender: options.requestRender,
+      onTelemetryChange: (rabbitTelemetry) => {
+        nextOuterWorldPresentation.setProceduralWildlifeVisible(
+          rabbitTelemetry.status !== 'ready'
+        );
+        refreshOptionalPresentationTelemetry();
+      }
+    });
+    rabbitPresentation = nextRabbitPresentation;
+    nextOuterWorldPresentation.setProceduralWildlifeVisible(
+      nextRabbitPresentation.getTelemetry().status !== 'ready'
+    );
+    outerWorldSeed = visualSeed;
+    ambientGroup.add(
+      nextOuterWorldPresentation.group,
+      nextRabbitPresentation.group
+    );
   };
 
   const clearRuntimePresentation = (disposeBundle: boolean) => {
@@ -1003,7 +1249,11 @@ export function createInnerKeepSceneLayer(
       });
       authoredStaticGroup.add(authoredPresentation.group);
     }
-    populationPresentation = createInnerKeepPopulationPresentation({ bundle, plan });
+    populationPresentation = createInnerKeepPopulationPresentation({
+      bundle,
+      plan,
+      terrainHeightAt: innerKeepOuterWorldTerrainHeightAt,
+    });
     ambientGroup.add(populationPresentation.group);
     populationPresentation.update(lastElapsedSeconds);
     runtimeAssetFailureCount = bundle.failures.length;
@@ -1178,14 +1428,14 @@ export function createInnerKeepSceneLayer(
       || cameraFramingMode === nextMode
     ) return;
     cameraFramingMode = nextMode;
-    const initialMultiplier = nextMode === 'portrait'
-      ? INNER_KEEP_PRESENTATION_CAMERA_PRESETS.portrait.initialZoomMultiplier
-      : 1;
+    const initialZoom = nextMode === 'portrait'
+      ? INNER_KEEP_OUTER_WORLD_INITIAL_ZOOM.portrait
+      : INNER_KEEP_OUTER_WORLD_INITIAL_ZOOM.landscape;
     zoom = Math.max(
       INNER_KEEP_PRESENTATION_CAMERA_PRESETS.zoom.minimum,
       Math.min(
         INNER_KEEP_PRESENTATION_CAMERA_PRESETS.zoom.maximum,
-        INNER_KEEP_PRESENTATION_CAMERA_PRESETS.zoom.initial * initialMultiplier
+        initialZoom
       )
     );
   };
@@ -1376,6 +1626,20 @@ export function createInnerKeepSceneLayer(
         : 1;
     });
     const populationTelemetry = populationPresentation?.getTelemetry();
+    const outerTelemetry = outerWorldPresentation?.getTelemetry();
+    const rabbitTelemetry = rabbitPresentation?.getTelemetry();
+    const exteriorRouteIds = new Set([
+      'inner-keep-civic-mounted-loop-v1',
+      'inner-keep-barracks-mounted-patrol-loop-v1',
+      'inner-keep-outer-foot-escort-loop-v1'
+    ]);
+    const exteriorRoutines = populationTelemetry
+      ? ambientPlan?.routines.filter(({ route }) => exteriorRouteIds.has(route.routeId)) ?? []
+      : [];
+    const exactWildlifeCount = rabbitTelemetry?.status === 'ready'
+      ? rabbitTelemetry.rabbitCount
+      : 0;
+    const proceduralWildlifeCount = outerTelemetry?.proceduralWildlifeCount ?? 0;
     telemetry = Object.freeze({
       status,
       assetStatus,
@@ -1391,8 +1655,27 @@ export function createInnerKeepSceneLayer(
       mountedActorCount: populationTelemetry?.mountedActorCount ?? 0,
       patrolUnitCount: populationTelemetry?.patrolUnitCount ?? 0,
       activeConversationCount: populationTelemetry?.activeConversationCount ?? 0,
-      animationMixerCount: populationTelemetry?.animationMixerCount ?? 0,
+      animationMixerCount: (populationTelemetry?.animationMixerCount ?? 0)
+        + (rabbitTelemetry?.animationMixerCount ?? 0),
       runtimeAssetFailureCount,
+      outerWorldStatus: outerTelemetry?.status ?? 'idle',
+      outerWorldRuntimeAssetFailureCount: (outerTelemetry?.failures.length ?? 0)
+        + (rabbitTelemetry?.runtimeAssetFailureCount ?? 0),
+      topographicFeatureCount: INNER_KEEP_OUTER_WORLD_TOPOGRAPHIC_FEATURES.length,
+      terrainTriangleCount: outerTerrain.triangleCount,
+      terrainHeightRangeMillimeters: outerTerrain.heightRangeMillimeters,
+      exteriorTreeCount: outerTelemetry?.treeCount ?? 0,
+      scenicResourceNodeCount: outerTelemetry?.resourceCount ?? 0,
+      wildlifeAssetStatus: rabbitTelemetry?.status ?? 'idle',
+      wildlifeCount: exactWildlifeCount + proceduralWildlifeCount,
+      exactWildlifeCount,
+      proceduralWildlifeCount,
+      tradeWagonCount: outerTelemetry?.supplyWagonCount ?? 0,
+      exteriorActorCount: exteriorRoutines.length,
+      exteriorMountedActorCount: exteriorRoutines.filter(({ actor }) => actor.mounted).length,
+      exteriorPatrolUnitCount: exteriorRoutines.filter(({ actor }) => (
+        actor.presentationRole === 'ceremonial-patrol'
+      )).length,
       slotCount,
       completedBuildingCount,
       constructionSiteCount,
@@ -1402,6 +1685,17 @@ export function createInnerKeepSceneLayer(
       INNER_KEEP_SCENE_GRAPH_RENDER_BUDGETS[options.quality];
     scene.userData.innerKeepSceneGraphRenderBudgetExceeded =
       innerKeepSceneGraphExceedsRenderBudget(options.quality, telemetry);
+  };
+
+  refreshOptionalPresentationTelemetry = () => {
+    if (disposed) return;
+    measureTelemetry(
+      telemetry.status,
+      telemetry.slotCount,
+      telemetry.completedBuildingCount,
+      telemetry.constructionSiteCount
+    );
+    options.requestRender();
   };
 
   const reconcile = (
@@ -1436,6 +1730,7 @@ export function createInnerKeepSceneLayer(
     ambientGroup.visible = true;
     authoredStaticGroup.visible = true;
     ensureEcology(visualSeed);
+    ensureOuterWorld(visualSeed);
     const nextAmbientPlan = createInnerKeepAmbientSimulationPlan({
       seed: visualSeed,
       quality: options.quality,
@@ -1446,13 +1741,13 @@ export function createInnerKeepSceneLayer(
     scene.userData.innerKeepVisualSeed = visualSeed;
     scene.userData.innerKeepOwningTerrain = context?.owningTerrainKind ?? 'unknown';
     const groundColor = context?.owningTerrainKind === 'forest'
-      ? 0x596f4d
+      ? 0xeaf3e5
       : context?.owningTerrainKind === 'heath'
-        ? 0x6f7350
+        ? 0xf2eddc
         : context?.owningTerrainKind === 'ridge'
           || context?.owningTerrainKind === 'ancient-stone'
-          ? 0x68705d
-          : 0x71815c;
+          ? 0xe8e8e4
+          : 0xffffff;
     groundMaterial.color.setHex(groundColor).offsetHSL(
       (deterministicUnit(0, visualSeed % 10_007) - 0.5) * 0.018,
       0,
@@ -1606,6 +1901,11 @@ export function createInnerKeepSceneLayer(
       ecology?.dispose();
       ecology = null;
       ecologySeed = null;
+      outerWorldPresentation?.dispose();
+      outerWorldPresentation = null;
+      rabbitPresentation?.dispose();
+      rabbitPresentation = null;
+      outerWorldSeed = null;
       scene.clear();
       disposableGeometries.forEach((geometry) => geometry.dispose());
       disposableMaterials.forEach((material) => material.dispose());
@@ -1631,14 +1931,16 @@ export function createInnerKeepSceneLayer(
         || completionReveal !== null
         || ecology?.isAnimationActive() === true
         || populationPresentation?.isAnimationActive() === true
+        || outerWorldPresentation?.isAnimationActive() === true
+        || rabbitPresentation?.isAnimationActive() === true
       )
     ),
     panByPixels: (deltaX, deltaY) => {
       if (disposed || !Number.isFinite(deltaX) || !Number.isFinite(deltaY)) return;
       if (deltaX !== 0 || deltaY !== 0) cameraWasManuallyAdjusted = true;
       const scale = 0.012 / zoom;
-      const [minimumX, maximumX] = INNER_KEEP_PRESENTATION_CAMERA_PRESETS.panBoundsMeters.x;
-      const [minimumZ, maximumZ] = INNER_KEEP_PRESENTATION_CAMERA_PRESETS.panBoundsMeters.z;
+      const [minimumX, maximumX] = INNER_KEEP_OUTER_WORLD_PAN_BOUNDS.x;
+      const [minimumZ, maximumZ] = INNER_KEEP_OUTER_WORLD_PAN_BOUNDS.z;
       focusX = Math.max(minimumX, Math.min(maximumX, focusX - deltaX * scale));
       focusZ = Math.max(minimumZ, Math.min(maximumZ, focusZ - deltaY * scale));
       updateCamera();
@@ -1684,6 +1986,8 @@ export function createInnerKeepSceneLayer(
       const revealChanged = updateCompletionReveal(lastElapsedSeconds);
       const ecologyChanged = ecology?.update(lastElapsedSeconds) === true;
       const populationChanged = populationPresentation?.update(lastElapsedSeconds) === true;
+      const outerWorldChanged = outerWorldPresentation?.update(lastElapsedSeconds) === true;
+      const rabbitChanged = rabbitPresentation?.update(lastElapsedSeconds) === true;
       if (populationChanged && populationPresentation) {
         const populationTelemetry = populationPresentation.getTelemetry();
         if (telemetry.activeConversationCount !== populationTelemetry.activeConversationCount) {
@@ -1699,7 +2003,12 @@ export function createInnerKeepSceneLayer(
             innerKeepSceneGraphExceedsRenderBudget(options.quality, telemetry);
         }
       }
-      return smokeChanged || revealChanged || ecologyChanged || populationChanged;
+      return smokeChanged
+        || revealChanged
+        || ecologyChanged
+        || populationChanged
+        || outerWorldChanged
+        || rabbitChanged;
     },
     zoomByWheel: (deltaY, deltaMode) => {
       if (disposed || !Number.isFinite(deltaY)) return;

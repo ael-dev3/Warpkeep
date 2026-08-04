@@ -530,6 +530,37 @@ The complete actor list, archive and manifest pins, per-file hashes, LODs,
 triangle counts, clip sets, installation policy, and exact authorization are in
 the dated [Inner Keep population selection record](docs/reference/assets/2026-08-04-inner-keep-population/).
 
+## Inner Keep Lowlands Rabbit wildlife
+
+The public Warpkeep-Assets release
+[`rabbit-runtime-ui-bundle-2026-07-30`](https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/rabbit-runtime-ui-bundle-2026-07-30)
+contains the Lowlands Rabbit runtime family. Its 2,717,585-byte outer ZIP has
+SHA-256
+`cf40e6c7149635a8cf6439e618e951219770491a7f364e7776b8af128461a3a9`.
+The nested privacy-sanitized source package is 2,710,713 bytes with SHA-256
+`1ab9a02a39e68a3ddadcec4ac1824aafaf252f9cb068511e6341d2377f256dc3`.
+The release records public archival distribution as authorized by Ael, with
+no separate open-license grant asserted. Its source status is
+`public-archive-authorized-no-separate-open-license`.
+
+On 2026-08-04, Ael instructed Warpkeep to use the official Lowlands Rabbit
+outside the Inner Keep so the surrounding world feels alive. That instruction
+authorizes the exact High, Balanced, and Compact content-addressed GLBs under
+`public/models/hegemony/inner-keep/wildlife/rabbit/` for the public
+`ael-dev3/Warpkeep` repository and official `warpkeep.com` client. It does not
+relicense the source archive, authorize unrelated reuse or substitute files,
+or approve activation, merge, or deployment. The files remain
+`LicenseRef-Warpkeep-Provenance-Required`.
+
+Rabbit models and animations are optional client presentation only. They do
+not define animal population, collision, pathing, resources, rewards,
+ownership, or any other gameplay authority. High and Balanced scene quality
+use the Balanced rig by default; reduced quality and reduced motion use the
+Compact static LOD. The High rig is retained only as an explicit close-detail
+option. The complete release pins, source-member hashes, animation contract,
+three model digests, exclusions, and reproducible audit procedure are in the
+dated [Lowlands Rabbit runtime selection record](docs/reference/assets/2026-07-30-lowlands-rabbit/).
+
 ## Historical Hegemony Frontier Keep provenance
 
 The Hegemony Frontier Keep and its former runtime derivatives were project-provided media supplied for this repository. The 63 MB source remains byte-for-byte identifiable through its technical record but is not present in the current tree or a public release while redistribution authority is unresolved. The three former runtime derivatives are also retired and absent; their future license follows the source-rights determination, not the fact of conversion.

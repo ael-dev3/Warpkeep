@@ -195,8 +195,8 @@ operation. Anonymous visitors do not connect to the game database.
   attachment checksum, content allowlist, and per-file hashes. Possessing or
   packaging an archive alone does not authorize publication. Before credentials
   or network access, the activation operator independently fails closed unless
-  both static and population authorization records and complete installed
-  registries verify.
+  the static, population, and rabbit authorization records and all three
+  complete installed registries verify.
 
 ## Principal risks and treatment
 

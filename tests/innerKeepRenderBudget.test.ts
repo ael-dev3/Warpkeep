@@ -12,6 +12,7 @@ import {
 } from '../src/components/inner-keep/createInnerKeepSceneLayer';
 import { INNER_KEEP_PRESENTATION_PLACEMENTS } from '../src/components/inner-keep/innerKeepPresentationLayoutPolicy';
 import { INNER_KEEP_STATIC_RUNTIME_ASSETS } from '../src/components/inner-keep/innerKeepRuntimeAssetCatalog.generated';
+import { INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS } from '../scripts/qa-observer/inner-keep-qa-contract.mjs';
 
 function maximumAuthoredStaticComplexity(quality: InnerKeepSceneQuality) {
   const profile = quality === 'reduced' ? 'compact' : quality;
@@ -45,6 +46,12 @@ function maximumAuthoredStaticComplexity(quality: InnerKeepSceneQuality) {
 }
 
 describe('Inner Keep authored render budgets', () => {
+  it('keeps source scene-graph ceilings aligned with the reviewed QA ceilings', () => {
+    expect(INNER_KEEP_SCENE_GRAPH_RENDER_BUDGETS).toEqual(
+      INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS,
+    );
+  });
+
   for (const quality of ['high', 'balanced', 'reduced'] as const) {
     it(`keeps exact ${quality} static metadata within its hard instanced budget`, () => {
       expect(maximumAuthoredStaticComplexity(quality)).toEqual({

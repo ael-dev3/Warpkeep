@@ -112,11 +112,28 @@ coordinates, collision, unit, chat, resource, reward, or ownership authority.
 Static placement is atomic, loading is bounded and retry-safe, and a procedural
 compound remains available until exact coverage is safe to reveal.
 
+The surrounding-estate policy is a separate client contract and does not
+change the canonical Inner Keep layout digest. One finite deterministic height
+sampler grounds its nine topographic features, connected headwater-rill-lake,
+outer patrol road, grass, trees, animals, trade wagon, and scenic resource
+structures. The compound footprint samples to exactly zero; terrain feathers
+only beyond the walls. Quality caps grass at 2,400 / 1,400 / 480 blades and six
+Warpkeep-Assets tree species at 72 / 44 / 22 instances.
+
+The same outer policy caps presentation-only resource structures at 8 / 6 / 4
+and rabbits at 10 / 7 / 4, with one trade wagon in every tier. The optional
+exact rabbit layer replaces matching procedural animals only after its local,
+content-addressed model is ready. Terrain, trees, resources, wagon, and
+wildlife report and fail independently, so an optional asset failure cannot
+remove healthy scenery or affect gameplay state. None of these anchors are
+resource nodes or server coordinates, and none can create production,
+balances, Workers, collision, ownership, or rewards.
+
 Runtime assets use immutable filenames and integrity checks. Source packages,
 reference masters, and provenance records stay separate from public runtime
-files. The two Inner Keep installers accept only the exact content-addressed
-static and population selections authorized on 2026-08-04; archive publication
-alone would not have been enough. See
+files. The three Inner Keep installers accept only the exact content-addressed
+static, population, and Lowlands Rabbit selections authorized for runtime use;
+archive publication alone would not have been enough. See
 [`ASSETS-LICENSE.md`](../ASSETS-LICENSE.md) before changing media.
 
 ## Security and privacy
