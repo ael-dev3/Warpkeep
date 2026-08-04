@@ -195,6 +195,8 @@ function applyPose(
   state.bubble && (state.bubble.visible = pose.conversation !== null);
   actionForPose(state, pose);
   state.wrapper.userData.innerKeepAmbientBehavior = pose.behavior;
+  state.wrapper.userData.innerKeepAmbientRouteId = pose.routeId;
+  state.wrapper.userData.innerKeepAmbientRoutePurpose = pose.routePurpose;
   state.wrapper.userData.innerKeepConversationId = pose.conversation?.conversationId ?? null;
   state.wrapper.userData.innerKeepClipBlendProgress = pose.clipBlend?.progress ?? null;
 }

@@ -359,10 +359,13 @@ function segmentTouchesExpandedAabb(
 function routeActorCategories(
   route: InnerKeepAmbientRoute,
 ): readonly InnerKeepAmbientActorCategory[] {
-  if (route.kind === 'citizen-approach') return Object.freeze(['citizen']);
+  if (
+    route.kind === 'citizen-approach'
+    || route.kind === 'citizen-work-shuttle'
+  ) return Object.freeze(['citizen']);
   if (route.kind === 'civic-mounted-loop') return Object.freeze(['civic-mounted']);
   if (route.kind === 'mounted-patrol-loop') return Object.freeze(['mounted-patrol']);
-  return Object.freeze(['citizen', 'foot-patrol']);
+  return Object.freeze(['foot-patrol']);
 }
 
 function routeSweepRadiusMeters(

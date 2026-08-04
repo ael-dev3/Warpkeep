@@ -5,17 +5,20 @@ import {
   INNER_KEEP_AMBIENT_EXCLUSIONS,
   INNER_KEEP_AMBIENT_MINIMUM_BODY_CLEARANCE_METERS,
   INNER_KEEP_AMBIENT_QUALITY_BUDGETS,
-  INNER_KEEP_FOOT_PATROL_ROUTE,
+  INNER_KEEP_CITIZEN_WORK_ROUTES,
+  INNER_KEEP_FOOT_DUTY_ROUTES,
   innerKeepAmbientOrientedFootprintSeparation,
   isInnerKeepAmbientPointNavigable,
   selectInnerKeepAmbientActors
 } from '../src/components/inner-keep/innerKeepAmbientPolicy';
 import {
   INNER_KEEP_AMBIENT_CONVERSATION_CYCLE_SECONDS,
+  INNER_KEEP_AMBIENT_ENDPOINT_TURN_SECONDS,
   INNER_KEEP_AMBIENT_FORMATION_CLEARANCE_MARGIN_METERS,
   createInnerKeepAmbientSimulationPlan,
   sampleInnerKeepAmbientActorPose,
-  sampleInnerKeepAmbientFrame
+  sampleInnerKeepAmbientFrame,
+  type InnerKeepShuttleRoutine
 } from '../src/components/inner-keep/innerKeepAmbientTimeline';
 import {
   INNER_KEEP_PATH_HEADING_BLEND_METERS,
@@ -25,6 +28,15 @@ import {
 
 function wrappedAngleDelta(left: number, right: number): number {
   return Math.atan2(Math.sin(left - right), Math.cos(left - right));
+}
+
+function elapsedForShuttleLocalTime(
+  routine: InnerKeepShuttleRoutine,
+  localSeconds: number
+): number {
+  const elapsed = (localSeconds - routine.phaseOffsetSeconds)
+    % routine.cycleDurationSeconds;
+  return elapsed < 0 ? elapsed + routine.cycleDurationSeconds : elapsed;
 }
 
 function routeBoundaryFormationProof(
@@ -117,14 +129,14 @@ describe('Inner Keep deterministic ambient timeline', () => {
       selectInnerKeepAmbientActors('castle:004:layout:1', 'high')
         .actors.map(({ actorId }) => actorId)
     );
-    expect(first.conversations).toHaveLength(3);
-    expect(new Set(first.conversations.flatMap(({ actorIds }) => actorIds)).size).toBe(6);
+    expect(first.conversations).toHaveLength(2);
+    expect(new Set(first.conversations.flatMap(({ actorIds }) => actorIds)).size).toBe(4);
   });
 
   it('keeps every quality within actor, mixer, conversation, and cadence budgets', () => {
     const expected = {
-      high: { actors: 20, animated: 20, conversations: 3, mounted: 6, patrol: 12 },
-      balanced: { actors: 12, animated: 12, conversations: 2, mounted: 4, patrol: 6 },
+      high: { actors: 20, animated: 20, conversations: 2, mounted: 6, patrol: 12 },
+      balanced: { actors: 12, animated: 12, conversations: 1, mounted: 4, patrol: 6 },
       reduced: { actors: 8, animated: 0, conversations: 0, mounted: 2, patrol: 4 }
     } as const;
     for (const quality of ['high', 'balanced', 'reduced'] as const) {
@@ -234,47 +246,157 @@ describe('Inner Keep deterministic ambient timeline', () => {
     )));
   });
 
-  it('preserves deterministic arc-length headway across the complete moving formation', () => {
+  it('gives city workers and watch patrols independent open shuttle routines', () => {
     const plan = createInnerKeepAmbientSimulationPlan({
-      seed: 'formation-headway',
+      seed: 'castle:004:layout:1',
       quality: 'high'
     });
-    const innerActorIds = new Set(plan.routines.flatMap((routine) => (
-      routine.kind === 'loop'
-      && routine.route.routeId === INNER_KEEP_FOOT_PATROL_ROUTE.routeId
-        ? [routine.actor.actorId]
-        : []
-    )));
-    const outerActorIds = new Set(plan.routines.flatMap((routine) => (
-      routine.kind === 'loop'
-      && routine.route.routeId !== INNER_KEEP_FOOT_PATROL_ROUTE.routeId
-        ? [routine.actor.actorId]
-        : []
-    )));
-    const headwayGaps = (timestamp: number, actorIds: ReadonlySet<string>) => {
-      const progress = sampleInnerKeepAmbientFrame(plan, timestamp).actors
-        .filter((pose) => actorIds.has(pose.actorId))
-        .map(({ routeProgress }) => routeProgress)
-        .sort((left, right) => left - right);
-      expect(progress.length).toBeGreaterThan(1);
-      return progress.map((value, index) => {
-        const next = progress[(index + 1) % progress.length]!;
-        return index === progress.length - 1 ? next + 1 - value : next - value;
-      }).sort((left, right) => left - right);
-    };
-    for (const actorIds of [innerActorIds, outerActorIds]) {
-      const reference = headwayGaps(0, actorIds);
-      expect(reference.reduce((total, gap) => total + gap, 0)).toBeCloseTo(1, 10);
-      expect(new Set(reference.map((gap) => gap.toFixed(6))).size)
-        .toBeGreaterThan(1);
-      for (const timestamp of [7.5, 31, 400.25]) {
-        const observed = headwayGaps(timestamp, actorIds);
-        expect(observed).toHaveLength(reference.length);
-        observed.forEach((gap, index) => {
-          expect(gap).toBeCloseTo(reference[index]!, 10);
-        });
+    const shuttles = plan.routines.filter((routine): routine is InnerKeepShuttleRoutine => (
+      routine.kind === 'shuttle'
+    ));
+    expect(shuttles).toHaveLength(7);
+    expect(shuttles.filter(({ actor }) => actor.category === 'citizen')).toHaveLength(2);
+    expect(shuttles.filter(({ actor }) => actor.category === 'foot-patrol')).toHaveLength(5);
+    expect(shuttles.map(({ route }) => route.routeId)).toEqual([
+      ...INNER_KEEP_CITIZEN_WORK_ROUTES.slice(0, 2),
+      ...INNER_KEEP_FOOT_DUTY_ROUTES
+    ].map(({ routeId }) => routeId));
+    expect(shuttles.every(({ route }) => !route.path.closed)).toBe(true);
+    expect(new Set(shuttles.map(({ route }) => route.routeId)).size).toBe(shuttles.length);
+
+    // Actor-keyed clocks prevent the old processional behavior where every
+    // character advanced and stopped on one shared beat.
+    expect(new Set(shuttles.map(({ phaseOffsetSeconds }) => (
+      phaseOffsetSeconds.toFixed(9)
+    ))).size).toBe(shuttles.length);
+    expect(new Set(shuttles.map((routine) => ([
+      routine.speedMetersPerSecond,
+      routine.homeDwellDurationSeconds,
+      routine.destinationDwellDurationSeconds,
+      routine.cycleDurationSeconds
+    ].map((value) => value.toFixed(9)).join(':')))).size).toBe(shuttles.length);
+    expect(INNER_KEEP_AMBIENT_ENDPOINT_TURN_SECONDS).toBeLessThanOrEqual(0.6);
+
+    for (const routine of shuttles) {
+      const endpointBehavior = routine.actor.category === 'citizen'
+        ? 'work'
+        : 'stand-watch';
+      const endpointClip = routine.actor.category === 'citizen' ? 'Work' : 'Idle';
+      const home = sampleInnerKeepAmbientActorPose(
+        plan,
+        routine,
+        elapsedForShuttleLocalTime(routine, routine.homeDwellDurationSeconds * 0.5)
+      );
+      const outbound = sampleInnerKeepAmbientActorPose(
+        plan,
+        routine,
+        elapsedForShuttleLocalTime(
+          routine,
+          routine.homeDwellDurationSeconds + routine.travelDurationSeconds * 0.5
+        )
+      );
+      const destination = sampleInnerKeepAmbientActorPose(
+        plan,
+        routine,
+        elapsedForShuttleLocalTime(
+          routine,
+          routine.homeDwellDurationSeconds
+            + routine.travelDurationSeconds
+            + routine.destinationDwellDurationSeconds * 0.5
+        )
+      );
+      const returning = sampleInnerKeepAmbientActorPose(
+        plan,
+        routine,
+        elapsedForShuttleLocalTime(
+          routine,
+          routine.homeDwellDurationSeconds
+            + routine.travelDurationSeconds
+            + routine.destinationDwellDurationSeconds
+            + routine.travelDurationSeconds * 0.5
+        )
+      );
+
+      expect(home).toMatchObject({
+        routeId: routine.route.routeId,
+        routePurpose: routine.route.purpose,
+        routeProgress: 0,
+        behavior: endpointBehavior,
+        clipName: endpointClip
+      });
+      expect(destination).toMatchObject({
+        routeId: routine.route.routeId,
+        routePurpose: routine.route.purpose,
+        routeProgress: 1,
+        behavior: endpointBehavior,
+        clipName: endpointClip
+      });
+      expect(wrappedAngleDelta(
+        home.yawRadians,
+        sampleInnerKeepPath(routine.route.path, 0).yawRadians
+      )).toBeCloseTo(0, 10);
+      expect(wrappedAngleDelta(
+        destination.yawRadians,
+        sampleInnerKeepPath(routine.route.path, 1).yawRadians
+      )).toBeCloseTo(0, 10);
+      expect(outbound.behavior).toBe('walk');
+      expect(returning.behavior).toBe('walk');
+      expect(outbound.routeProgress).toBeCloseTo(0.5, 10);
+      expect(returning.routeProgress).toBeCloseTo(0.5, 10);
+      expect(returning.position.x).toBeCloseTo(outbound.position.x, 10);
+      expect(returning.position.z).toBeCloseTo(outbound.position.z, 10);
+      expect(Math.abs(wrappedAngleDelta(returning.yawRadians, outbound.yawRadians)))
+        .toBeCloseTo(Math.PI, 10);
+
+      const epsilon = 0.000_1;
+      const boundaries = [
+        routine.homeDwellDurationSeconds,
+        routine.homeDwellDurationSeconds + routine.travelDurationSeconds,
+        routine.homeDwellDurationSeconds
+          + routine.travelDurationSeconds
+          + routine.destinationDwellDurationSeconds
+      ];
+      for (const boundary of boundaries) {
+        const before = sampleInnerKeepAmbientActorPose(
+          plan,
+          routine,
+          elapsedForShuttleLocalTime(routine, boundary - epsilon)
+        );
+        const after = sampleInnerKeepAmbientActorPose(
+          plan,
+          routine,
+          elapsedForShuttleLocalTime(routine, boundary + epsilon)
+        );
+        expect(Math.hypot(
+          after.position.x - before.position.x,
+          after.position.z - before.position.z
+        ), `${routine.route.routeId}:${boundary}`).toBeLessThan(0.001);
       }
+
+      const repeatedHome = sampleInnerKeepAmbientActorPose(
+        plan,
+        routine,
+        elapsedForShuttleLocalTime(routine, routine.homeDwellDurationSeconds * 0.5)
+          + routine.cycleDurationSeconds
+      );
+      expect(repeatedHome.position.x).toBeCloseTo(home.position.x, 10);
+      expect(repeatedHome.position.z).toBeCloseTo(home.position.z, 10);
+      expect(repeatedHome.behavior).toBe(home.behavior);
     }
+
+    const observedBehaviors = new Set<string>();
+    for (let timestamp = 0; timestamp < 96; timestamp += 1) {
+      const frameByActorId = new Map(sampleInnerKeepAmbientFrame(plan, timestamp).actors.map(
+        (pose) => [pose.actorId, pose]
+      ));
+      const activeBehaviors = new Set(shuttles.map(({ actor }) => (
+        frameByActorId.get(actor.actorId)!.behavior
+      )));
+      activeBehaviors.forEach((behavior) => observedBehaviors.add(behavior));
+      expect(activeBehaviors.size, `shuttle behavior diversity at ${timestamp}s`)
+        .toBeGreaterThanOrEqual(2);
+    }
+    expect(observedBehaviors).toEqual(new Set(['stand-watch', 'walk', 'work']));
   });
 
   it('retains positive clearance at the former sub-millimeter miss', () => {
@@ -307,119 +429,59 @@ describe('Inner Keep deterministic ambient timeline', () => {
     );
   });
 
-  it('pins the balanced narrow miss and reduced static seed regression', () => {
-    const balanced = createInnerKeepAmbientSimulationPlan({
-      seed: 10,
-      quality: 'balanced'
-    });
-    const duskRanger = balanced.routines.find(({ actor }) => (
-      actor.actorId === 'dusk-ranger'
-    ));
-    const cataphract = balanced.routines.find(({ actor }) => (
-      actor.actorId === 'imperial-cataphract'
-    ));
-    expect(duskRanger?.kind).toBe('loop');
-    expect(cataphract?.kind).toBe('loop');
-    if (
-      !duskRanger
-      || duskRanger.kind !== 'loop'
-      || !cataphract
-      || cataphract.kind !== 'loop'
-    ) throw new Error('Expected the adversarial balanced formation.');
-    const residualAtInnerProgress = (innerProgress: number) => {
-      const formationAdvance = wrapInnerKeepUnitProgress(
-        innerProgress - duskRanger.staticProgress
-      );
-      const left = sampleInnerKeepPath(
-        duskRanger.route.path,
-        duskRanger.staticProgress + formationAdvance
-      );
-      const right = sampleInnerKeepPath(
-        cataphract.route.path,
-        cataphract.staticProgress + formationAdvance
-      );
-      return innerKeepAmbientOrientedFootprintSeparation(
-        {
-          position: left.position,
-          yawRadians: left.yawRadians,
-          footprintHalfExtentsMeters: duskRanger.footprintHalfExtentsMeters
-        },
-        {
-          position: right.position,
-          yawRadians: right.yawRadians,
-          footprintHalfExtentsMeters: cataphract.footprintHalfExtentsMeters
-        },
-        INNER_KEEP_AMBIENT_MINIMUM_BODY_CLEARANCE_METERS
-      );
-    };
-    expect(residualAtInnerProgress(0.5235595703125)).toBeGreaterThan(0.003);
-    let refinedBalancedResidual = Number.POSITIVE_INFINITY;
-    for (let sampleIndex = -128; sampleIndex <= 128; sampleIndex += 1) {
-      refinedBalancedResidual = Math.min(
-        refinedBalancedResidual,
-        residualAtInnerProgress(0.519692 + sampleIndex * 0.000_000_25)
-      );
-    }
-    expect(refinedBalancedResidual).toBeGreaterThanOrEqual(0.0038);
+  it('keeps reduced static duty endpoints separated from actors and exclusions', () => {
+    for (const seed of [7, 31_202]) {
+      const plan = createInnerKeepAmbientSimulationPlan({ seed, quality: 'reduced' });
+      const frame = sampleInnerKeepAmbientFrame(plan, 0);
+      const shuttleActorIds = new Set(plan.routines.flatMap((routine) => (
+        routine.kind === 'shuttle' ? [routine.actor.actorId] : []
+      )));
+      expect(shuttleActorIds.size).toBeGreaterThan(0);
+      expect(frame.actors.filter(({ actorId }) => shuttleActorIds.has(actorId)).every((pose) => (
+        (pose.routeProgress === 0 || pose.routeProgress === 1)
+        && pose.behavior === 'static-formation'
+      ))).toBe(true);
 
-    const reducedFrame = sampleInnerKeepAmbientFrame(
-      createInnerKeepAmbientSimulationPlan({ seed: 31_202, quality: 'reduced' }),
-      0
-    );
-    const cisternWarden = reducedFrame.actors.find(({ actorId }) => (
-      actorId === 'cistern-warden'
-    ));
-    const reducedCataphract = reducedFrame.actors.find(({ actorId }) => (
-      actorId === 'imperial-cataphract'
-    ));
-    expect(cisternWarden).toBeDefined();
-    expect(reducedCataphract).toBeDefined();
-    expect(innerKeepAmbientOrientedFootprintSeparation(
-      {
-        position: cisternWarden!.position,
-        yawRadians: cisternWarden!.yawRadians,
-        footprintHalfExtentsMeters: cisternWarden!.footprintHalfExtentsMeters
-      },
-      {
-        position: reducedCataphract!.position,
-        yawRadians: reducedCataphract!.yawRadians,
-        footprintHalfExtentsMeters: reducedCataphract!.footprintHalfExtentsMeters
-      },
-      INNER_KEEP_AMBIENT_MINIMUM_BODY_CLEARANCE_METERS
-    )).toBeGreaterThanOrEqual(INNER_KEEP_AMBIENT_FORMATION_CLEARANCE_MARGIN_METERS);
-
-    const fixedExclusionFrame = sampleInnerKeepAmbientFrame(
-      createInnerKeepAmbientSimulationPlan({ seed: 7, quality: 'reduced' }),
-      0
-    );
-    const slotTwoCataphract = fixedExclusionFrame.actors.find(({ actorId }) => (
-      actorId === 'imperial-cataphract'
-    ));
-    const largeSlotExclusion = INNER_KEEP_AMBIENT_EXCLUSIONS.find(({ exclusionId }) => (
-      exclusionId === 'inner-keep-slot-l01'
-    ));
-    expect(slotTwoCataphract).toBeDefined();
-    expect(largeSlotExclusion).toBeDefined();
-    expect(innerKeepAmbientOrientedFootprintSeparation(
-      {
-        position: slotTwoCataphract!.position,
-        yawRadians: slotTwoCataphract!.yawRadians,
-        footprintHalfExtentsMeters: slotTwoCataphract!.footprintHalfExtentsMeters
-      },
-      {
-        position: largeSlotExclusion!.center,
-        yawRadians: 0,
-        footprintHalfExtentsMeters: [
-          largeSlotExclusion!.halfExtentsMeters[0]
-            + largeSlotExclusion!.additionalClearanceMeters,
-          largeSlotExclusion!.halfExtentsMeters[1]
-            + largeSlotExclusion!.additionalClearanceMeters
-        ]
+      for (let leftIndex = 0; leftIndex < frame.actors.length; leftIndex += 1) {
+        const left = frame.actors[leftIndex]!;
+        for (let rightIndex = leftIndex + 1; rightIndex < frame.actors.length; rightIndex += 1) {
+          const right = frame.actors[rightIndex]!;
+          expect(innerKeepAmbientOrientedFootprintSeparation(
+            {
+              position: left.position,
+              yawRadians: left.yawRadians,
+              footprintHalfExtentsMeters: left.footprintHalfExtentsMeters
+            },
+            {
+              position: right.position,
+              yawRadians: right.yawRadians,
+              footprintHalfExtentsMeters: right.footprintHalfExtentsMeters
+            },
+            INNER_KEEP_AMBIENT_MINIMUM_BODY_CLEARANCE_METERS
+          ), `${seed}:${left.actorId}:${right.actorId}`).toBeGreaterThanOrEqual(0);
+        }
+        for (const exclusion of INNER_KEEP_AMBIENT_EXCLUSIONS) {
+          expect(innerKeepAmbientOrientedFootprintSeparation(
+            {
+              position: left.position,
+              yawRadians: left.yawRadians,
+              footprintHalfExtentsMeters: left.footprintHalfExtentsMeters
+            },
+            {
+              position: exclusion.center,
+              yawRadians: 0,
+              footprintHalfExtentsMeters: [
+                exclusion.halfExtentsMeters[0] + exclusion.additionalClearanceMeters,
+                exclusion.halfExtentsMeters[1] + exclusion.additionalClearanceMeters
+              ]
+            }
+          ), `${seed}:${left.actorId}:${exclusion.exclusionId}`).toBeGreaterThanOrEqual(0);
+        }
       }
-    )).toBeGreaterThanOrEqual(0);
+    }
   });
 
-  it('proves authored formations beside every route vertex and heading boundary', () => {
+  it('proves the retained outer formation beside every route vertex and heading boundary', () => {
     const proofs = [
       createInnerKeepAmbientSimulationPlan({
         seed: 'castle:004:layout:1',
@@ -435,7 +497,7 @@ describe('Inner Keep deterministic ambient timeline', () => {
     );
   });
 
-  it('keeps authored lanes separated across qualities and deterministic seeds', () => {
+  it('keeps the outer formation separated across qualities and deterministic seeds', () => {
     let minimumResidual = Number.POSITIVE_INFINITY;
     let minimumDetail = '';
     for (const quality of ['high', 'balanced', 'reduced'] as const) {

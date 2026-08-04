@@ -1,8 +1,9 @@
 import {
   INNER_KEEP_AMBIENT_QUALITY_BUDGETS,
+  INNER_KEEP_CITIZEN_WORK_ROUTES,
   INNER_KEEP_CIVIC_MOUNTED_ROUTE,
   INNER_KEEP_CONVERSATION_ANCHORS,
-  INNER_KEEP_FOOT_PATROL_ROUTE,
+  INNER_KEEP_FOOT_DUTY_ROUTES,
   INNER_KEEP_MOUNTED_PATROL_ROUTE,
   INNER_KEEP_OUTER_FOOT_ESCORT_ROUTE,
   innerKeepAmbientActorFootprintHalfExtents,
@@ -28,6 +29,7 @@ export const INNER_KEEP_AMBIENT_CONVERSATION_TRAVEL_SECONDS = 10;
 export const INNER_KEEP_AMBIENT_CONVERSATION_SECONDS = 8;
 export const INNER_KEEP_AMBIENT_GREETING_SECONDS = 1.35;
 export const INNER_KEEP_AMBIENT_CLIP_BLEND_SECONDS = 0.2;
+export const INNER_KEEP_AMBIENT_ENDPOINT_TURN_SECONDS = 0.55;
 
 const INNER_KEEP_OUTER_FORMATION_ORDER = new Map([
   'shellback-shrine-tender',
@@ -41,23 +43,6 @@ const INNER_KEEP_OUTER_FORMATION_ORDER = new Map([
   'honor-guard'
 ].map((actorId, index) => [actorId, index] as const));
 
-const INNER_KEEP_INNER_FORMATION_ORDER = new Map([
-  'basilica-warden',
-  'bulwark',
-  'bell-herald',
-  'dusk-ranger',
-  'chirurgeon-apothecary',
-  'rift-battlemage',
-  'cistern-warden',
-  'vanguard',
-  'ember-lamplighter',
-  'longbow-warden',
-  'ward-peacekeeper',
-  'honor-guard',
-  'legionary',
-  'astral-magister'
-].map((actorId, index) => [actorId, index] as const));
-
 /** Extra authored slack retained above the public 0.16 m body-clearance floor. */
 export const INNER_KEEP_AMBIENT_FORMATION_CLEARANCE_MARGIN_METERS = 0.004;
 
@@ -67,14 +52,6 @@ export const INNER_KEEP_AMBIENT_FORMATION_CLEARANCE_MARGIN_METERS = 0.004;
  * Keeping the result as data makes plan creation linear in the actor count;
  * scene reconciliation never runs a geometric optimizer on the main thread.
  */
-const INNER_KEEP_HIGH_INNER_FORMATION_OFFSETS = new Map<string, number>([
-  ['bulwark', 0],
-  ['dusk-ranger', 0.20335317397123684],
-  ['rift-battlemage', 0.4086366426081307],
-  ['vanguard', 0.6076224732309025],
-  ['longbow-warden', 0.8028899032514791]
-]);
-
 const INNER_KEEP_HIGH_OUTER_FORMATION_OFFSETS = new Map<string, number>([
   ['shellback-shrine-tender', 0],
   ['dusk-outrider', 0.1336703191065016],
@@ -102,24 +79,17 @@ const INNER_KEEP_OUTER_RELATIVE_ROTATION_BY_QUALITY: Readonly<
 });
 
 /*
- * Reduced quality is static, so it uses one authored tableau instead of a
- * seed-rotated loop. All 8,960 reachable reduced formations were evaluated at
- * these exact bases; the limiting Dusk Ranger/Legionary pair retains 0.086365 m
- * beyond the public body-clearance floor. The outer base also proves every
- * reachable actor slot against the fixed-placement exclusions.
+ * Reduced quality freezes open duties at deterministic endpoints and keeps the
+ * retained outer patrol on one authored rotation instead of animating either.
  */
-const INNER_KEEP_REDUCED_FORMATION_ROTATION: Readonly<
-  Record<'inner' | 'outer', number>
-> = Object.freeze({
-  inner: 0.677734375,
-  outer: 0.3896484375
-});
+const INNER_KEEP_REDUCED_OUTER_FORMATION_ROTATION = 0.3896484375;
 
 export type InnerKeepAmbientBehavior =
   | 'walk'
   | 'idle'
   | 'greet'
   | 'work'
+  | 'stand-watch'
   | 'static-formation';
 
 export type InnerKeepAmbientConversation = Readonly<{
@@ -158,6 +128,23 @@ type InnerKeepLoopRoutine = Readonly<{
   footprintHalfExtentsMeters: InnerKeepAmbientFootprintHalfExtents;
 }>;
 
+export type InnerKeepShuttleRoutine = Readonly<{
+  kind: 'shuttle';
+  actor: InnerKeepAmbientActorCatalogEntry;
+  route: InnerKeepAmbientRoute;
+  speedMetersPerSecond: number;
+  travelDurationSeconds: number;
+  homeDwellDurationSeconds: number;
+  destinationDwellDurationSeconds: number;
+  cycleDurationSeconds: number;
+  phaseOffsetSeconds: number;
+  staticProgress: 0 | 1;
+  endpointBehavior: 'work' | 'stand-watch';
+  endpointClip: 'Work' | 'Idle';
+  clipPhaseOffset: number;
+  footprintHalfExtentsMeters: InnerKeepAmbientFootprintHalfExtents;
+}>;
+
 type InnerKeepLoopTiming = Readonly<{
   travelDurationSeconds: number;
   haltDurationSeconds: number;
@@ -167,6 +154,7 @@ type InnerKeepLoopTiming = Readonly<{
 
 export type InnerKeepAmbientActorRoutine =
   | InnerKeepConversationRoutine
+  | InnerKeepShuttleRoutine
   | InnerKeepLoopRoutine;
 
 export type InnerKeepAmbientConversationPlan = Readonly<{
@@ -198,6 +186,7 @@ export type InnerKeepAmbientActorPose = Readonly<{
   mounted: boolean;
   presentationRole: 'civic-routine' | 'ceremonial-patrol';
   routeId: string;
+  routePurpose: InnerKeepAmbientRoute['purpose'];
   collisionRadiusMeters: number;
   footprintHalfExtentsMeters: InnerKeepAmbientFootprintHalfExtents;
   position: InnerKeepPathPoint;
@@ -351,29 +340,93 @@ function loopRoutine(
   });
 }
 
+function shuttleRoutine(
+  seed: number,
+  quality: InnerKeepAmbientQuality,
+  actor: InnerKeepAmbientActorCatalogEntry,
+  route: InnerKeepAmbientRoute
+): InnerKeepShuttleRoutine {
+  if (route.path.closed) {
+    throw new Error(`Inner Keep shuttle ${route.routeId} requires an open path.`);
+  }
+  const citizen = actor.category === 'citizen';
+  const minimumSpeed = citizen ? 0.68 : 0.72;
+  const maximumSpeed = citizen ? 0.88 : 0.84;
+  const speedMetersPerSecond = minimumSpeed
+    + (maximumSpeed - minimumSpeed) * innerKeepAmbientDeterministicUnit(
+      seed,
+      actor.actorId,
+      'shuttle-speed'
+    );
+  const travelDurationSeconds = route.path.totalLength / speedMetersPerSecond;
+  const minimumDwellSeconds = citizen ? 8 : 6;
+  const dwellRangeSeconds = citizen ? 10 : 8;
+  const homeDwellDurationSeconds = minimumDwellSeconds
+    + dwellRangeSeconds * innerKeepAmbientDeterministicUnit(
+      seed,
+      actor.actorId,
+      'shuttle-home-dwell'
+    );
+  const destinationDwellDurationSeconds = minimumDwellSeconds
+    + dwellRangeSeconds * innerKeepAmbientDeterministicUnit(
+      seed,
+      actor.actorId,
+      'shuttle-destination-dwell'
+    );
+  const cycleDurationSeconds = travelDurationSeconds * 2
+    + homeDwellDurationSeconds
+    + destinationDwellDurationSeconds;
+  return Object.freeze({
+    kind: 'shuttle',
+    actor,
+    route,
+    speedMetersPerSecond,
+    travelDurationSeconds,
+    homeDwellDurationSeconds,
+    destinationDwellDurationSeconds,
+    cycleDurationSeconds,
+    phaseOffsetSeconds: innerKeepAmbientDeterministicUnit(
+      seed,
+      actor.actorId,
+      'shuttle-cycle-offset'
+    ) * cycleDurationSeconds,
+    staticProgress: innerKeepAmbientDeterministicUnit(
+      seed,
+      actor.actorId,
+      'shuttle-static-endpoint'
+    ) < 0.5 ? 0 : 1,
+    endpointBehavior: citizen ? 'work' : 'stand-watch',
+    endpointClip: citizen ? 'Work' : 'Idle',
+    clipPhaseOffset: innerKeepAmbientDeterministicUnit(
+      seed,
+      actor.actorId,
+      'clip-phase'
+    ),
+    footprintHalfExtentsMeters: innerKeepAmbientActorFootprintHalfExtents(
+      actor,
+      quality
+    )
+  });
+}
+
 function authoredFormationProgressByActorId(
   seed: number,
   quality: InnerKeepAmbientQuality,
   formationId: string,
-  actors: readonly InnerKeepAmbientActorCatalogEntry[],
-  lane: 'inner' | 'outer'
+  actors: readonly InnerKeepAmbientActorCatalogEntry[]
 ): ReadonlyMap<string, number> {
   if (actors.length === 0) return new Map();
-  const highOffsets = lane === 'inner'
-    ? INNER_KEEP_HIGH_INNER_FORMATION_OFFSETS
-    : INNER_KEEP_HIGH_OUTER_FORMATION_OFFSETS;
+  const highOffsets = INNER_KEEP_HIGH_OUTER_FORMATION_OFFSETS;
   const useHighOffsets = quality === 'high'
     && actors.length === highOffsets.size
     && actors.every(({ actorId }) => highOffsets.has(actorId));
   const rotation = quality === 'reduced'
-    ? INNER_KEEP_REDUCED_FORMATION_ROTATION[lane]
+    ? INNER_KEEP_REDUCED_OUTER_FORMATION_ROTATION
     : innerKeepAmbientDeterministicUnit(
       seed,
       'northwest-processional-formation-v3',
       'formation-rotation'
-    ) + (lane === 'outer'
-      ? INNER_KEEP_OUTER_RELATIVE_ROTATION_BY_QUALITY[quality]
-      : 0);
+    ) + INNER_KEEP_OUTER_RELATIVE_ROTATION_BY_QUALITY[quality];
   const progressByActorId = new Map<string, number>();
   actors.forEach((actor, index) => {
     const offset = useHighOffsets
@@ -390,7 +443,7 @@ function authoredFormationProgressByActorId(
   return progressByActorId;
 }
 
-function sharedNorthwestLoopTiming(
+function sharedOuterPatrolTiming(
   seed: number,
   route: InnerKeepAmbientRoute
 ): InnerKeepLoopTiming {
@@ -432,7 +485,7 @@ export function createInnerKeepAmbientSimulationPlan(options: Readonly<{
   const footCitizens = selection.actors.filter(({ category }) => category === 'citizen');
   const maximumPairCount = Math.min(
     Math.floor(footCitizens.length / 2),
-    budget.maximumConversationPairs
+    Math.max(0, budget.maximumConversationPairs - 1)
   );
   const anchors = rankedAnchors(seed);
   for (let pairIndex = 0; pairIndex < maximumPairCount; pairIndex += 1) {
@@ -500,48 +553,33 @@ export function createInnerKeepAmbientSimulationPlan(options: Readonly<{
   const mountedPatrol = selection.actors.filter(({ category }) => (
     category === 'mounted-patrol'
   ));
-  const innerProcessionalFormation = [
-    ...unpairedCitizens.map((actor) => Object.freeze({
-      actor,
-      route: INNER_KEEP_FOOT_PATROL_ROUTE
-    })),
-    ...innerFootPatrol.map((actor) => Object.freeze({
-      actor,
-      route: INNER_KEEP_FOOT_PATROL_ROUTE
-    }))
-  ].sort((left, right) => (
-    (INNER_KEEP_INNER_FORMATION_ORDER.get(left.actor.actorId)
-      ?? Number.MAX_SAFE_INTEGER)
-    - (INNER_KEEP_INNER_FORMATION_ORDER.get(right.actor.actorId)
-      ?? Number.MAX_SAFE_INTEGER)
-    || left.actor.actorId.localeCompare(right.actor.actorId)
-  ));
-  const innerProgress = authoredFormationProgressByActorId(
-    seed,
-    options.quality,
-    'northwest-inner-processional-formation-v2',
-    innerProcessionalFormation.map(({ actor }) => actor),
-    'inner'
-  );
-  const northwestTiming = sharedNorthwestLoopTiming(
-    seed,
-    INNER_KEEP_MOUNTED_PATROL_ROUTE
-  );
-  innerProcessionalFormation.forEach(({ actor, route }) => {
-    routineByActorId.set(actor.actorId, loopRoutine(
+  if (unpairedCitizens.length > INNER_KEEP_CITIZEN_WORK_ROUTES.length) {
+    throw new Error('Inner Keep citizen work routes cannot cover the selected actors.');
+  }
+  unpairedCitizens.forEach((actor, index) => {
+    routineByActorId.set(actor.actorId, shuttleRoutine(
       seed,
       options.quality,
       actor,
-      route,
-      'northwest-inner-processional-formation-v2',
-      innerProgress.get(actor.actorId)!,
-      0.78,
-      0.9,
-      3.2,
-      5,
-      northwestTiming
+      INNER_KEEP_CITIZEN_WORK_ROUTES[index]!
     ));
   });
+  if (innerFootPatrol.length > INNER_KEEP_FOOT_DUTY_ROUTES.length) {
+    throw new Error('Inner Keep foot-duty routes cannot cover the selected actors.');
+  }
+  innerFootPatrol.forEach((actor, index) => {
+    routineByActorId.set(actor.actorId, shuttleRoutine(
+      seed,
+      options.quality,
+      actor,
+      INNER_KEEP_FOOT_DUTY_ROUTES[index]!
+    ));
+  });
+
+  const outerTiming = sharedOuterPatrolTiming(
+    seed,
+    INNER_KEEP_MOUNTED_PATROL_ROUTE
+  );
   const outerMountedFormation = [
     ...civicMounted.map((actor) => Object.freeze({
       actor,
@@ -566,8 +604,7 @@ export function createInnerKeepAmbientSimulationPlan(options: Readonly<{
     seed,
     options.quality,
     'northwest-outer-mounted-formation-v2',
-    outerMountedFormation.map(({ actor }) => actor),
-    'outer'
+    outerMountedFormation.map(({ actor }) => actor)
   );
   outerMountedFormation.forEach(({ actor, route }) => {
     routineByActorId.set(actor.actorId, loopRoutine(
@@ -581,7 +618,7 @@ export function createInnerKeepAmbientSimulationPlan(options: Readonly<{
       0.82,
       3.2,
       5,
-      northwestTiming
+      outerTiming
     ));
   });
 
@@ -626,6 +663,7 @@ function poseFromSample(
     mounted: routine.actor.mounted,
     presentationRole: routine.actor.presentationRole,
     routeId: routine.route.routeId,
+    routePurpose: routine.route.purpose,
     collisionRadiusMeters: routine.route.actorRadiusMeters,
     footprintHalfExtentsMeters: routine.footprintHalfExtentsMeters,
     position: sample.position,
@@ -779,6 +817,92 @@ function sampleLoopRoutine(
   );
 }
 
+function sampleShuttleRoutine(
+  routine: InnerKeepShuttleRoutine,
+  elapsedSeconds: number
+): InnerKeepAmbientActorPose {
+  const local = positiveModulo(
+    elapsedSeconds + routine.phaseOffsetSeconds,
+    routine.cycleDurationSeconds
+  );
+  const outboundStart = routine.homeDwellDurationSeconds;
+  const destinationStart = outboundStart + routine.travelDurationSeconds;
+  const returnStart = destinationStart + routine.destinationDwellDurationSeconds;
+
+  if (local < outboundStart) {
+    const sample = sampleInnerKeepPath(routine.route.path, 0);
+    return poseFromSample(
+      routine,
+      sample,
+      blendYaw(
+        oppositeYaw(sample.yawRadians),
+        sample.yawRadians,
+        local / INNER_KEEP_AMBIENT_ENDPOINT_TURN_SECONDS
+      ),
+      routine.endpointBehavior,
+      routine.endpointClip,
+      local * 0.42 + routine.clipPhaseOffset,
+      true,
+      null
+    );
+  }
+  if (local < destinationStart) {
+    const travelSeconds = local - outboundStart;
+    const sample = sampleInnerKeepPath(
+      routine.route.path,
+      travelSeconds / routine.travelDurationSeconds
+    );
+    return poseFromSample(
+      routine,
+      sample,
+      sample.yawRadians,
+      'walk',
+      'Walk',
+      sample.distance * 1.48 + routine.clipPhaseOffset,
+      true,
+      null
+    );
+  }
+  if (local < returnStart) {
+    const dwellSeconds = local - destinationStart;
+    const sample = sampleInnerKeepPath(routine.route.path, 1);
+    return poseFromSample(
+      routine,
+      sample,
+      blendYaw(
+        sample.yawRadians,
+        oppositeYaw(sample.yawRadians),
+        (
+          dwellSeconds
+          - routine.destinationDwellDurationSeconds
+          + INNER_KEEP_AMBIENT_ENDPOINT_TURN_SECONDS
+        ) / INNER_KEEP_AMBIENT_ENDPOINT_TURN_SECONDS
+      ),
+      routine.endpointBehavior,
+      routine.endpointClip,
+      dwellSeconds * 0.42 + routine.clipPhaseOffset,
+      true,
+      null
+    );
+  }
+  const returnSeconds = local - returnStart;
+  const sample = sampleInnerKeepPath(
+    routine.route.path,
+    1 - returnSeconds / routine.travelDurationSeconds
+  );
+  return poseFromSample(
+    routine,
+    sample,
+    oppositeYaw(sample.yawRadians),
+    'walk',
+    'Walk',
+    (routine.route.path.totalLength - sample.distance) * 1.48
+      + routine.clipPhaseOffset,
+    true,
+    null
+  );
+}
+
 function sampleRawInnerKeepAmbientActorPose(
   plan: InnerKeepAmbientSimulationPlan,
   routine: InnerKeepAmbientActorRoutine,
@@ -786,8 +910,11 @@ function sampleRawInnerKeepAmbientActorPose(
 ): InnerKeepAmbientActorPose {
   if (!plan.motionEnabled) return staticPose(routine);
   const time = finiteElapsedSeconds(elapsedSeconds);
-  return routine.kind === 'conversation'
-    ? sampleConversationRoutine(routine, time)
+  if (routine.kind === 'conversation') {
+    return sampleConversationRoutine(routine, time);
+  }
+  return routine.kind === 'shuttle'
+    ? sampleShuttleRoutine(routine, time)
     : sampleLoopRoutine(routine, time);
 }
 

@@ -23,8 +23,8 @@ import {
   innerKeepOuterWorldDistanceToRoad,
 } from './innerKeepOuterWorldPolicy';
 
-export const INNER_KEEP_AMBIENT_POLICY_ID = 'genesis-001-inner-keep-ambient-v1';
-export const INNER_KEEP_AMBIENT_POLICY_VERSION = 1;
+export const INNER_KEEP_AMBIENT_POLICY_ID = 'genesis-001-inner-keep-ambient-v2';
+export const INNER_KEEP_AMBIENT_POLICY_VERSION = 2;
 
 export type InnerKeepAmbientQuality = 'high' | 'balanced' | 'reduced';
 export type InnerKeepAmbientActorFamily =
@@ -287,13 +287,27 @@ export const INNER_KEEP_AMBIENT_QUALITY_BUDGETS: Readonly<
 
 export type InnerKeepAmbientRouteKind =
   | 'citizen-approach'
+  | 'citizen-work-shuttle'
+  | 'foot-duty-shuttle'
   | 'civic-mounted-loop'
   | 'foot-patrol-loop'
   | 'mounted-patrol-loop';
 
+export type InnerKeepAmbientRoutePurpose =
+  | 'social-visit'
+  | 'district-supply-run'
+  | 'cathedral-watch'
+  | 'garrison-watch'
+  | 'east-wall-watch'
+  | 'south-gate-watch'
+  | 'estate-delivery'
+  | 'perimeter-patrol'
+  | 'road-escort';
+
 export type InnerKeepAmbientRoute = Readonly<{
   routeId: string;
   kind: InnerKeepAmbientRouteKind;
+  purpose: InnerKeepAmbientRoutePurpose;
   actorRadiusMeters: number;
   path: InnerKeepCompiledPath;
 }>;
@@ -398,6 +412,7 @@ export function innerKeepAmbientActorFootprintHalfExtents(
 function ambientRoute(
   routeId: string,
   kind: InnerKeepAmbientRouteKind,
+  purpose: InnerKeepAmbientRoutePurpose,
   actorRadiusMeters: number,
   points: readonly InnerKeepPathPoint[],
   closed: boolean
@@ -405,15 +420,15 @@ function ambientRoute(
   return Object.freeze({
     routeId,
     kind,
+    purpose,
     actorRadiusMeters,
     path: compileInnerKeepPath(routeId, points, closed)
   });
 }
 
 /*
- * The north-west district loop carries the civic procession between the
- * Cathedral and garrison. The shared outer loop follows the estate road beyond
- * the walls, so mounted citizens and patrols animate the larger landscape.
+ * City residents use short point-to-point errands and guards hold distinct
+ * watch beats. Only the true perimeter patrol remains a closed circuit.
  */
 function smoothClosedAmbientRoutePoints(
   source: readonly InnerKeepPathPoint[],
@@ -438,42 +453,128 @@ function smoothClosedAmbientRoutePoints(
   return Object.freeze(points);
 }
 
-const INNER_KEEP_NORTHWEST_INNER_PROCESSIONAL_LOOP_POINTS:
-readonly InnerKeepPathPoint[] = Object.freeze(Array.from(
-  { length: 32 },
-  (_, index) => {
-    const angle = index / 32 * Math.PI * 2;
-    return Object.freeze({
-      x: -9.2 + Math.cos(angle) * 2,
-      z: -15.25 + Math.sin(angle) * 1.2
-    });
-  }
-));
-
 const INNER_KEEP_NORTHWEST_OUTER_MOUNTED_LOOP_POINTS:
 readonly InnerKeepPathPoint[] = smoothClosedAmbientRoutePoints(
   INNER_KEEP_OUTER_WORLD_PATROL_ROUTE_POINTS,
 );
 
+export const INNER_KEEP_CITIZEN_WORK_ROUTES: readonly InnerKeepAmbientRoute[] =
+  Object.freeze([
+    ambientRoute(
+      'inner-keep-west-green-supply-run-v1',
+      'citizen-work-shuttle',
+      'district-supply-run',
+      0.28,
+      [
+        { x: -12, z: 7.2 },
+        { x: -10, z: 7.6 },
+        { x: -8, z: 7.2 }
+      ],
+      false
+    ),
+    ambientRoute(
+      'inner-keep-east-green-supply-run-v1',
+      'citizen-work-shuttle',
+      'district-supply-run',
+      0.28,
+      [
+        { x: 10, z: 7 },
+        { x: 12, z: 7.4 },
+        { x: 14, z: 7 }
+      ],
+      false
+    ),
+    ambientRoute(
+      'inner-keep-northwest-service-run-v1',
+      'citizen-work-shuttle',
+      'district-supply-run',
+      0.28,
+      [
+        { x: -10.5, z: -10 },
+        { x: -8.6, z: -9.6 },
+        { x: -6.8, z: -10 }
+      ],
+      false
+    )
+  ]);
+
+export const INNER_KEEP_FOOT_DUTY_ROUTES: readonly InnerKeepAmbientRoute[] =
+  Object.freeze([
+    ambientRoute(
+      'inner-keep-cathedral-west-watch-v1',
+      'foot-duty-shuttle',
+      'cathedral-watch',
+      0.32,
+      [
+        { x: -9.2, z: -16.5 },
+        { x: -9.7, z: -14.5 },
+        { x: -9.2, z: -12.5 }
+      ],
+      false
+    ),
+    ambientRoute(
+      'inner-keep-cathedral-east-watch-v1',
+      'foot-duty-shuttle',
+      'cathedral-watch',
+      0.32,
+      [
+        { x: 9, z: -16.5 },
+        { x: 9.5, z: -15 },
+        { x: 9, z: -13.5 }
+      ],
+      false
+    ),
+    ambientRoute(
+      'inner-keep-garrison-road-watch-v1',
+      'foot-duty-shuttle',
+      'garrison-watch',
+      0.32,
+      [
+        { x: -14.8, z: 3.9 },
+        { x: -14.4, z: 5.35 },
+        { x: -14.8, z: 6.8 }
+      ],
+      false
+    ),
+    ambientRoute(
+      'inner-keep-east-wall-watch-v1',
+      'foot-duty-shuttle',
+      'east-wall-watch',
+      0.32,
+      [
+        { x: 14, z: -5 },
+        { x: 14.4, z: -3 },
+        { x: 14, z: -1 }
+      ],
+      false
+    ),
+    ambientRoute(
+      'inner-keep-south-gate-watch-v1',
+      'foot-duty-shuttle',
+      'south-gate-watch',
+      0.32,
+      [
+        { x: -3, z: 10 },
+        { x: -1, z: 10.35 },
+        { x: 1, z: 10 }
+      ],
+      false
+    )
+  ]);
+
 export const INNER_KEEP_CIVIC_MOUNTED_ROUTE = ambientRoute(
   'inner-keep-civic-mounted-loop-v1',
   'civic-mounted-loop',
+  'estate-delivery',
   0.42,
   INNER_KEEP_NORTHWEST_OUTER_MOUNTED_LOOP_POINTS,
-  true
-);
-
-export const INNER_KEEP_FOOT_PATROL_ROUTE = ambientRoute(
-  'inner-keep-cathedral-processional-patrol-loop-v1',
-  'foot-patrol-loop',
-  0.32,
-  INNER_KEEP_NORTHWEST_INNER_PROCESSIONAL_LOOP_POINTS,
   true
 );
 
 export const INNER_KEEP_MOUNTED_PATROL_ROUTE = ambientRoute(
   'inner-keep-barracks-mounted-patrol-loop-v1',
   'mounted-patrol-loop',
+  'perimeter-patrol',
   0.42,
   INNER_KEEP_NORTHWEST_OUTER_MOUNTED_LOOP_POINTS,
   true
@@ -482,6 +583,7 @@ export const INNER_KEEP_MOUNTED_PATROL_ROUTE = ambientRoute(
 export const INNER_KEEP_OUTER_FOOT_ESCORT_ROUTE = ambientRoute(
   'inner-keep-outer-foot-escort-loop-v1',
   'foot-patrol-loop',
+  'road-escort',
   0.32,
   INNER_KEEP_NORTHWEST_OUTER_MOUNTED_LOOP_POINTS,
   true
@@ -506,6 +608,7 @@ function conversationAnchor(
   const left = ambientRoute(
     `inner-keep-conversation-${anchorId}-left-v1`,
     'citizen-approach',
+    'social-visit',
     0.28,
     [leftHome, ...leftWaypoints, leftMeeting],
     false
@@ -513,6 +616,7 @@ function conversationAnchor(
   const right = ambientRoute(
     `inner-keep-conversation-${anchorId}-right-v1`,
     'citizen-approach',
+    'social-visit',
     0.28,
     [rightHome, ...rightWaypoints, rightMeeting],
     false
@@ -780,9 +884,10 @@ export function validateInnerKeepAmbientRouteClearance(
 
 export const INNER_KEEP_AMBIENT_ROUTES: readonly InnerKeepAmbientRoute[] = Object.freeze([
   INNER_KEEP_CIVIC_MOUNTED_ROUTE,
-  INNER_KEEP_FOOT_PATROL_ROUTE,
   INNER_KEEP_MOUNTED_PATROL_ROUTE,
   INNER_KEEP_OUTER_FOOT_ESCORT_ROUTE,
+  ...INNER_KEEP_CITIZEN_WORK_ROUTES,
+  ...INNER_KEEP_FOOT_DUTY_ROUTES,
   ...INNER_KEEP_CONVERSATION_ANCHORS.flatMap((anchor) => anchor.approachRoutes)
 ]);
 
