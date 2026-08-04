@@ -1,0 +1,151 @@
+{
+  "kind": "warpkeep.greater-realm.trusted-toolchain.v1",
+  "configuredNodeEngine": ">=22.13 <23",
+  "configuredPackageManager": "npm@10.9.8",
+  "packages": {
+    "@esbuild/darwin-arm64": {
+      "name": "@esbuild/darwin-arm64",
+      "version": "0.28.1",
+      "integrity": "sha512-TZbWkQY7kvTAXbXUT7uVACR5cMHsDiSz9z7ZKAX/RTq/WJEk3QyRr0wZpNhBDX+/0CtdqUIJlOiodQcta6tY3Q==",
+      "byteCount": 10574305,
+      "fileCount": 3,
+      "treeSha256": "fecfa61c421dfa1730a897230e395beb14b74200c8cc156d4072f9626828359e"
+    },
+    "@esbuild/linux-x64": {
+      "name": "@esbuild/linux-x64",
+      "version": "0.28.1",
+      "integrity": "sha512-u/anNYF2mmVOEDwLtnQ1wOr3EZ9sTNGLWrsYGYwHWzGA3Si84IOkHXlbWTD1NB+9/1lcnweYKO54uhxZydNzfA==",
+      "byteCount": 11407985,
+      "fileCount": 3,
+      "treeSha256": "5f9c8c0fa09cfc177c08191e701faae424371091e48b9f9d399e00e9312ff7d4"
+    },
+    "@img/colour": {
+      "name": "@img/colour",
+      "version": "1.1.0",
+      "integrity": "sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ==",
+      "byteCount": 73264,
+      "fileCount": 6,
+      "treeSha256": "1dc15072cb0094c80e02ccff911c088beb10260d8814fa7e458f6d8c143a59ac"
+    },
+    "@img/sharp-darwin-arm64": {
+      "name": "@img/sharp-darwin-arm64",
+      "version": "0.35.3",
+      "integrity": "sha512-RMnFX7YQsMoh7lWfcM4NEHHymBX/rLuKNPVM84XE9ONPcaSCDgE7CHIHpSgPcO2xcRthgBy1HfNO319mwhIAkg==",
+      "byteCount": 292231,
+      "fileCount": 5,
+      "treeSha256": "027ef5a3ac2c792a24bbb60d87fda2a5902ded7ea050237c1c2f8876ebdc5f90"
+    },
+    "@img/sharp-libvips-darwin-arm64": {
+      "name": "@img/sharp-libvips-darwin-arm64",
+      "version": "1.3.2",
+      "integrity": "sha512-9J6ypZFpQBj4YnePGoq/S38w6nz+vqg5WZLrLGY4YuSemdMq47GMLBPO42MzwdGwpg/agZ7xzZcFHa48xlywfg==",
+      "byteCount": 17777811,
+      "fileCount": 6,
+      "treeSha256": "8ca735f9fa67541493c37d64942744e648d7a95ab420a5296d3c1d840772d8f1"
+    },
+    "@img/sharp-libvips-linux-x64": {
+      "name": "@img/sharp-libvips-linux-x64",
+      "version": "1.3.2",
+      "integrity": "sha512-ITPEtgffGJ0S6G9dRyw/366tJQqFRcHWPHhC+Stpg3Z8AEMrDrTr2lhdz4f/Y/HMbRh//7Z5mBzEpVdi62Oc3w==",
+      "byteCount": 18207458,
+      "fileCount": 6,
+      "treeSha256": "1fc0aa685ee16615086102bee7f94f8948108d6930ec57dd92ce31654d2899b4"
+    },
+    "@img/sharp-linux-x64": {
+      "name": "@img/sharp-linux-x64",
+      "version": "0.35.3",
+      "integrity": "sha512-8pqvxubL2PGdhlPy6GLqzDYMUjyRmKAwKHYKixpdJYBUK7PJ0C029XdsnpFIdgRZG68fZiGdHVWcKPvtiPB4cA==",
+      "byteCount": 427138,
+      "fileCount": 5,
+      "treeSha256": "5d7ef18137b930a491f988392406a71a03d548c3c1516b2ac0e57d4efe6506d3"
+    },
+    "@typescript/typescript-darwin-arm64": {
+      "name": "@typescript/typescript-darwin-arm64",
+      "version": "7.0.2",
+      "integrity": "sha512-gowzar9MwS/aRWp6f3a4KUqzRjAZjOsmGNCM6LcTgXum+dBfgsBVMN+AgvOCCbguXyick6LJhpBszxMebJ8syA==",
+      "byteCount": 27498111,
+      "fileCount": 113,
+      "treeSha256": "6618c5bde7ce109b3cc6c357a2d0ec7f19228ebedf8a46a3e2e1b3cbc07ac19d"
+    },
+    "@typescript/typescript-linux-x64": {
+      "name": "@typescript/typescript-linux-x64",
+      "version": "7.0.2",
+      "integrity": "sha512-EYdf2cNg7rgCWJnxCdJ+F3V39O8ihb37eHAu1LK8oAFizgTQbPOK7zHHXbPt8rX24COqODXeI3sIf0fCXG7H/A==",
+      "byteCount": 27945990,
+      "fileCount": 114,
+      "treeSha256": "bb340112db85b021ce4e30c08cc337d06a44e8c482e6cb3de545f56e16469154"
+    },
+    "detect-libc": {
+      "name": "detect-libc",
+      "version": "2.1.2",
+      "integrity": "sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==",
+      "byteCount": 26437,
+      "fileCount": 8,
+      "treeSha256": "6922afe744bbe530d9c28b13bd038bc7768246af64763b9c2da3081395363675"
+    },
+    "esbuild": {
+      "name": "esbuild",
+      "version": "0.28.1",
+      "integrity": "sha512-HrJrvZv5ayxBzPfwphOoNzkzOIIlifzk0KJrGK2c8R4+LKpMtpYLQeUdjnwjWv/LZlkH2laZk+4w78pi99D4Vw==",
+      "byteCount": 146953,
+      "fileCount": 7,
+      "treeSha256": "b8bac9fbb12dda03ef60557fa29614cabba79e16be45c50690be1bd038298e8f"
+    },
+    "fsevents": {
+      "name": "fsevents",
+      "version": "2.3.3",
+      "integrity": "sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==",
+      "byteCount": 173224,
+      "fileCount": 6,
+      "treeSha256": "1126e74d97957d6c93263688a8e784e5142602db287b971e67b2d8c135a531fc"
+    },
+    "semver": {
+      "name": "semver",
+      "version": "7.8.5",
+      "integrity": "sha512-Y7/KDsb8LjooZpwaqGyulO6DQlksgCncchHGk+sZIY4SBvUocMBEFH5Ur1fI4dV+Jvl0w6cjvucaIi40puRioA==",
+      "byteCount": 101065,
+      "fileCount": 53,
+      "treeSha256": "321f4c0c164fd2b18292d4bef9c6ee9ceaffe05da856967b8cdc8ab1ace85483"
+    },
+    "sharp": {
+      "name": "sharp",
+      "version": "0.35.3",
+      "integrity": "sha512-ej0zVHuZGHCiABXcNxeYhpRnPNPAcvbG8RMdBAhDAxLKkCRVSpK3Iyu7qbqw3JMzoj0REeM6f3tJLtVwl0023Q==",
+      "byteCount": 958466,
+      "fileCount": 47,
+      "treeSha256": "a54e8ed7908f47ee1ff50cfce305e230d7ec2bafc850ab616b0f7a6fdcc55851"
+    },
+    "tsx": {
+      "name": "tsx",
+      "version": "4.23.0",
+      "integrity": "sha512-eUdUIaCr963q2h5u3+QwvYp0+eqPvn+egeqZUm0hwERCqqx1E3kK5ehbGCvqSE5MQAULr67ww0cA3jKc3YkM1w==",
+      "byteCount": 519973,
+      "fileCount": 50,
+      "treeSha256": "32619875eeaaabc43d40dc6fac3e44b3cb8fed416cf81d478b14d38731acbb15"
+    },
+    "typescript": {
+      "name": "typescript",
+      "version": "7.0.2",
+      "integrity": "sha512-8FYau96o3NKOhbjKi/qNvG/W5jhzxkbdm5sj9AbZ/5T5sWqn3hJgLfGx27sRKZWTvyzCP8dLRBTf5tBTSRVUNA==",
+      "byteCount": 2497498,
+      "fileCount": 416,
+      "treeSha256": "b3ea816c734f221d2ccf3b7f24eaa2c682393e4acd4ee51996d1be96afa7fdc4"
+    }
+  },
+  "profiles": {
+    "darwin-arm64": {
+      "esbuildPackage": "@esbuild/darwin-arm64",
+      "sharpPackage": "@img/sharp-darwin-arm64",
+      "libvipsPackage": "@img/sharp-libvips-darwin-arm64",
+      "typescriptPackage": "@typescript/typescript-darwin-arm64",
+      "tsxOptionalPackages": ["fsevents"]
+    },
+    "linux-x64": {
+      "esbuildPackage": "@esbuild/linux-x64",
+      "sharpPackage": "@img/sharp-linux-x64",
+      "libvipsPackage": "@img/sharp-libvips-linux-x64",
+      "typescriptPackage": "@typescript/typescript-linux-x64",
+      "tsxOptionalPackages": []
+    }
+  }
+}

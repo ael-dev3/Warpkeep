@@ -98,7 +98,17 @@ const EXPECTED_LOCAL_VITE_FS_DENY = Object.freeze([
   '**/.git/**',
   '**/.cache/**',
   '**/.wrangler/**',
-  '**/.secrets/**'
+  '**/.secrets/**',
+  '**/.warpkeep-private/**',
+  '**/greater-realm-private/**',
+  'seed.bin',
+  'batch-seed.bin',
+  'manifest.private.json',
+  'batch.private.json',
+  'selection.private.json',
+  'shortlist.private.json',
+  '*private-preview*',
+  '*.{wkgr-atlas,wkgr-checkpoint,wkgr-private}'
 ]);
 
 function renderedWebglSfxSession(options: Readonly<{
