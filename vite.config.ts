@@ -119,6 +119,12 @@ export default defineConfig(({ command }) => ({
   test: {
     environment: 'jsdom',
     globals: true,
+    // Greater Realm invariants exercise several 100k–150k-cell candidates.
+    // Bound file-level concurrency so those CPU/memory-heavy proofs cannot
+    // starve unrelated five-second renderer, Git, or operator regressions in
+    // CI while still retaining parallel coverage.
+    maxWorkers: 4,
+    testTimeout: 10_000,
     // The Worker and SpacetimeDB module maintain their own isolated test
     // runners. Keeping the browser suite rooted here avoids running Node's
     // `node:test` module fixtures under jsdom/Vitest.

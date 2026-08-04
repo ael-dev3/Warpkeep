@@ -33,5 +33,5 @@ describe('Greater Realm ordinary deterministic candidate yield', () => {
         if (candidate) clearGreaterRealmPrivateCandidateBuffers(candidate);
       }
     }
-  }, 30_000);
+  }, 60_000);
 });

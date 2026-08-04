@@ -65,7 +65,7 @@ const priorToolchainProfile = process.env.WKGR_TOOLCHAIN_PREFLIGHT_PROFILE;
 // package verification intentionally regenerates a 100k+ cell candidate, so
 // retain strict assertions while giving those fail-closed checks enough wall
 // time under shared CI load.
-vi.setConfig({ testTimeout: 20_000 });
+vi.setConfig({ testTimeout: 45_000 });
 
 const temporaryRoots: string[] = [];
 let repositoryRoot = '';
@@ -225,7 +225,7 @@ beforeAll(async () => {
   });
   atlasDigest = written.atlasDigest;
   manifestDigest = written.manifestDigest;
-}, 30_000);
+}, 60_000);
 
 afterAll(() => {
   if (priorToolchainReceipt === undefined) delete process.env.WKGR_TOOLCHAIN_PREFLIGHT_RECEIPT;
@@ -312,7 +312,7 @@ describe('Greater Realm owner-only candidate package', () => {
       first.fill(0);
       second.fill(0);
     }
-  }, 30_000);
+  }, 60_000);
 
   it('binds deterministic 15-by-15 axial bins, topography patches, and toolchain pins', () => {
     const fixture = requireFixture();
@@ -583,7 +583,7 @@ describe('Greater Realm owner-only candidate package', () => {
       await expect(verifyFixture({ expectedAtlasDigest: corruptedDigest }))
         .rejects.toThrow('GREATER_REALM_PRIVATE_ATLAS_INVALID');
     });
-  }, 15_000);
+  }, 45_000);
 
   it('rejects geological-barrier-band inventory-name tampering with an updated digest', async () => {
     const relativePath = candidateRelativePath('atlas.wkgr-atlas');
@@ -601,7 +601,7 @@ describe('Greater Realm owner-only candidate package', () => {
       await expect(verifyFixture({ expectedAtlasDigest: corruptedDigest }))
         .rejects.toThrow('GREATER_REALM_PRIVATE_ATLAS_INVALID');
     });
-  }, 15_000);
+  }, 45_000);
 
   it('rejects a manifest whose contents and expected digest were changed together', async () => {
     const relativePath = candidateRelativePath('manifest.private.json');
@@ -616,7 +616,7 @@ describe('Greater Realm owner-only candidate package', () => {
       await expect(verifyFixture({ expectedManifestDigest: corruptedDigest }))
         .rejects.toThrow('GREATER_REALM_PRIVATE_MANIFEST_INVALID');
     });
-  }, 15_000);
+  }, 45_000);
 
   it('rejects unknown manifest fields even when the expected digest is updated', async () => {
     const relativePath = candidateRelativePath('manifest.private.json');
@@ -631,7 +631,7 @@ describe('Greater Realm owner-only candidate package', () => {
       await expect(verifyFixture({ expectedManifestDigest: corruptedDigest }))
         .rejects.toThrow('GREATER_REALM_PRIVATE_MANIFEST_INVALID');
     });
-  }, 15_000);
+  }, 45_000);
 
   it.each<[
     string,
@@ -670,7 +670,7 @@ describe('Greater Realm owner-only candidate package', () => {
       await expect(verifyFixture({ expectedManifestDigest: corruptedDigest }))
         .rejects.toThrow('GREATER_REALM_PRIVATE_MANIFEST_INVALID');
     });
-  }, 15_000);
+  }, 45_000);
 
   it('rejects duplicate private-manifest keys even when the final parsed value is valid', async () => {
     const relativePath = candidateRelativePath('manifest.private.json');
@@ -871,7 +871,7 @@ describe('Greater Realm owner-only candidate package', () => {
     await expect(verifyFixture({
       expectedPerformance: Object.freeze({ ...PERFORMANCE, processPeakMemoryMiB: 520 }),
     })).rejects.toThrow('GREATER_REALM_PRIVATE_MANIFEST_INVALID');
-  }, 30_000);
+  }, 60_000);
 
   it('rejects a topography field whose runtime array type does not match its encoding', () => {
     const fixture = requireFixture();

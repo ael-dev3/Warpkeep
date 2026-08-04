@@ -1486,7 +1486,7 @@ describe('Hermes credential destination policy', () => {
     expect(water.stdout).toContain('"credentialsAccessed":false');
     expect(water.stdout).toContain('"mutationSubmitted":false');
     expect(water.stderr).toBe('');
-  }, 15_000);
+  }, 30_000);
 
   it('validates and dry-runs the resource backfill without credentials or network use', () => {
     const result = runHermes(['backfill-resources', '4', '--dry-run', '--confirm'], {

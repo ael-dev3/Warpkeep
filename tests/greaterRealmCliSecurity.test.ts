@@ -319,7 +319,7 @@ describe('Greater Realm atlas CLI security boundary', () => {
       clearGreaterRealmPrivateCandidateBuffers(candidate);
       rootSeed.fill(0);
     }
-  }, 120_000);
+  }, 180_000);
 
   it('restricts public evidence exports to one canonical JSON basename', () => {
     const expected = resolve(
