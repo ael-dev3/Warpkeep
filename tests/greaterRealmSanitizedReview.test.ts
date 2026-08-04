@@ -89,7 +89,7 @@ function source(): GreaterRealmSanitizedReviewSource {
     reviewBatchHandle: createGreaterRealmReviewBatchHandle(),
     selectionStatus: 'pending',
     selectedCandidateHandle: null,
-    candidates: Object.freeze(Array.from({ length: 8 }, () => candidate())),
+    candidates: Object.freeze([candidate()]),
   });
 }
 
@@ -102,8 +102,8 @@ describe('Greater Realm sanitized candidate review', () => {
     const review = createGreaterRealmSanitizedReview(source());
 
     expect(review.reviewBatchHandle).toMatch(GREATER_REALM_REVIEW_BATCH_HANDLE_PATTERN);
-    expect(review.candidates).toHaveLength(8);
-    expect(new Set(review.candidates.map(entry => entry.candidateHandle)).size).toBe(8);
+    expect(review.candidates).toHaveLength(1);
+    expect(new Set(review.candidates.map(entry => entry.candidateHandle)).size).toBe(1);
     expect(review.candidates.every(entry => (
       GREATER_REALM_CANDIDATE_HANDLE_PATTERN.test(entry.candidateHandle)
       && entry.insideApprovedRange
@@ -121,7 +121,13 @@ describe('Greater Realm sanitized candidate review', () => {
   });
 
   it('sorts candidates canonically and binds every public field into the digest', () => {
-    const input = source();
+    const input = {
+      ...source(),
+      candidates: Object.freeze([
+        candidate('GR-A-AAAAAAAAAAAAAAAA'),
+        candidate('GR-A-AAAAAAAAAAAAAAAB'),
+      ]),
+    };
     const reversed = { ...input, candidates: [...input.candidates].reverse() };
     const review = createGreaterRealmSanitizedReview(reversed);
     const { reportDigest: _digest, ...body } = review;
@@ -278,10 +284,7 @@ describe('Greater Realm sanitized candidate review', () => {
 
   it('accepts one eligible candidate and requires an eligible exact selection', () => {
     const input = source();
-    const single = createGreaterRealmSanitizedReview({
-      ...input,
-      candidates: input.candidates.slice(0, 1),
-    });
+    const single = createGreaterRealmSanitizedReview(input);
     expect(single.candidateCount).toBe(1);
     expect(single.selectionStatus).toBe('pending');
 

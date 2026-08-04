@@ -78,7 +78,7 @@ afterEach(() => {
 });
 
 describe('Greater Realm atlas CLI security boundary', () => {
-  it('creates pending unranked owner-review sets without choosing a winner', () => {
+  it('creates a pending unranked one-world owner review without choosing a winner', () => {
     const candidate = (
       suffix: string,
       values: readonly [number, number, number, number, number],
@@ -100,13 +100,6 @@ describe('Greater Realm atlas CLI security boundary', () => {
     });
     const candidates = [
       candidate('B', [9_900, 5_000, 5_000, 5, 2]),
-      candidate('C', [8_000, 5_000, 5_000, 5, 2]),
-      candidate('D', [8_000, 5_000, 5_000, 5, 2]),
-      candidate('E', [8_000, 5_000, 5_000, 5, 2]),
-      candidate('F', [8_000, 5_000, 5_000, 12, 9]),
-      candidate('G', [8_100, 5_100, 5_100, 6, 3]),
-      candidate('H', [7_000, 4_000, 4_000, 4, 1]),
-      candidate('I', [7_100, 4_100, 4_100, 4, 1]),
     ];
     const privateMetrics = candidates.map((entry, index) => Object.freeze({
       candidateHandle: entry.candidateHandle,
@@ -114,7 +107,7 @@ describe('Greater Realm atlas CLI security boundary', () => {
       rotationalSimilarityBasisPoints: 4_000,
       maximumAlignedBoundaryRun: 24,
       saltwaterBoundaryBasisPoints: 9_900,
-      minimumLargestPassableRegionShareBasisPoints: index === 1 ? 9_900 : 8_000,
+      minimumLargestPassableRegionShareBasisPoints: index === 0 ? 9_900 : 8_000,
       maximumMinorPassableFragmentShareBasisPoints: 500,
       maximumPassableBoundaryDensityBasisPoints: 2_000,
       maximumPassableTendrilShareBasisPoints: 300,
@@ -123,12 +116,12 @@ describe('Greater Realm atlas CLI security boundary', () => {
       measuredMinimumBarrierWidth: 4,
       measuredMaximumBarrierWidth: 8,
       chunkCount: 700,
-      chunkPopulationSpread: index === 2 ? 1 : 100,
+      chunkPopulationSpread: index === 0 ? 1 : 100,
       chunkUpperTailSpread: 20,
       highlandBarrierShareBasisPoints: 8_000,
       barrierMeanElevationAdvantage: 2_000,
       barrierMeanUpliftAdvantage: 700,
-      ridgeUpliftAlignmentBasisPoints: index === 3 ? 9_900 : 7_000,
+      ridgeUpliftAlignmentBasisPoints: index === 0 ? 9_900 : 7_000,
       riverValleyAlignmentBasisPoints: 8_000,
       landformClimateCompatibilityFloorBasisPoints: 9_000,
       coastalProximityCompatibilityBasisPoints: 9_000,
@@ -143,23 +136,13 @@ describe('Greater Realm atlas CLI security boundary', () => {
     } as unknown as GreaterRealmSanitizedReview;
 
     const shortlist = buildGreaterRealmPrivateCandidateShortlist(review, privateMetrics);
-    const reversed = buildGreaterRealmPrivateCandidateShortlist({
-      ...review,
-      candidates: [...review.candidates].reverse(),
-    }, [...privateMetrics].reverse());
-
-    expect(shortlist).toEqual(reversed);
-    expect(shortlist.shortlistCount).toBeGreaterThanOrEqual(3);
-    expect(shortlist.shortlistCount).toBeLessThanOrEqual(5);
-    expect(shortlist.candidateHandles).toHaveLength(shortlist.shortlistCount);
-    expect(shortlist.candidateHandles).toEqual(
-      candidates.slice(0, 5).map(entry => entry.candidateHandle).sort(),
-    );
+    expect(shortlist.shortlistCount).toBe(1);
+    expect(shortlist.candidateHandles).toEqual([candidates[0]!.candidateHandle]);
     expect(shortlist.selectionStatus).toBe('pending');
     expect(shortlist.selectedCandidateHandle).toBeNull();
     expect(shortlist.ranked).toBe(false);
     expect(shortlist.automaticSelection).toBe(false);
-    expect(shortlist.method).toBe('pareto-private-vector-diversity-v2');
+    expect(shortlist.method).toBe('single-candidate-reference-review-v1');
     expect(shortlist.comparisonBasis).toBe('verified-private-package-aggregate-metrics-v1');
     expect(shortlist.objectiveDirections).toEqual(expect.arrayContaining([
       'minimize:OUTER_BOUNDARY_ROTATIONAL_ARTIFACT',
@@ -178,17 +161,42 @@ describe('Greater Realm atlas CLI security boundary', () => {
     expect(JSON.stringify(shortlist)).not.toMatch(/(?:winner|recommend|score|rank":\s*[0-9])/iu);
     expect(JSON.stringify(shortlist)).not.toMatch(/(?:coordinate|seed|transform|chunkKey)/iu);
 
-    const single = buildGreaterRealmPrivateCandidateShortlist({
+    const multiCandidates = Object.freeze([
+      ...candidates,
+      candidate('C', [8_000, 5_000, 5_000, 5, 2]),
+      candidate('D', [8_000, 5_000, 5_000, 5, 2]),
+      candidate('E', [8_000, 5_000, 5_000, 5, 2]),
+      candidate('F', [8_000, 5_000, 5_000, 12, 9]),
+      candidate('G', [8_100, 5_100, 5_100, 6, 3]),
+      candidate('H', [7_000, 4_000, 4_000, 4, 1]),
+      candidate('I', [7_100, 4_100, 4_100, 4, 1]),
+    ]);
+    const multiPrivateMetrics = Object.freeze(multiCandidates.map((entry, index) => Object.freeze({
+      ...privateMetrics[0]!,
+      candidateHandle: entry.candidateHandle,
+      minimumLargestPassableRegionShareBasisPoints: index === 1 ? 9_900 : 8_000,
+      chunkPopulationSpread: index === 2 ? 1 : 100,
+      ridgeUpliftAlignmentBasisPoints: index === 3 ? 9_900 : 7_000,
+    }) satisfies GreaterRealmVerifiedPrivateShortlistMetrics));
+    const multiReview = {
       ...review,
-      candidates: review.candidates.slice(0, 1),
-    }, privateMetrics.slice(0, 1));
-    expect(single.shortlistCount).toBe(1);
-    expect(single.candidateHandles).toEqual([candidates[0]!.candidateHandle]);
-    expect(single.method).toBe('single-candidate-reference-review-v1');
-    expect(single.selectionStatus).toBe('pending');
-    expect(single.selectedCandidateHandle).toBeNull();
-    expect(single.ranked).toBe(false);
-    expect(single.automaticSelection).toBe(false);
+      candidates: multiCandidates,
+    } as unknown as GreaterRealmSanitizedReview;
+    const multi = buildGreaterRealmPrivateCandidateShortlist(
+      multiReview,
+      multiPrivateMetrics,
+    );
+    const reversed = buildGreaterRealmPrivateCandidateShortlist({
+      ...multiReview,
+      candidates: [...multiReview.candidates].reverse(),
+    }, [...multiPrivateMetrics].reverse());
+    expect(multi).toEqual(reversed);
+    expect(multi.shortlistCount).toBeGreaterThanOrEqual(3);
+    expect(multi.shortlistCount).toBeLessThanOrEqual(5);
+    expect(multi.candidateHandles).toEqual(
+      multiCandidates.slice(0, 5).map(entry => entry.candidateHandle).sort(),
+    );
+    expect(multi.method).toBe('pareto-private-vector-diversity-v2');
 
     expect(() => buildGreaterRealmPrivateCandidateShortlist({
       ...review,

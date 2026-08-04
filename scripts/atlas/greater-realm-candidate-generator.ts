@@ -44,7 +44,7 @@ import {
 } from './greater-realm-composition';
 
 export const GREATER_REALM_GENERATOR_VERSION =
-  'greater-realm-v2-natural-continent-pr-a.5' as const;
+  'greater-realm-v2-natural-continent-pr-a.6' as const;
 // Package/algorithm revisions must not silently reroll root-seed ordinals.
 // Bump this namespace only for an explicitly approved deterministic world reroll.
 export const GREATER_REALM_TERRAIN_SEED_NAMESPACE =
@@ -4559,7 +4559,6 @@ function reconcileBarrierMeasuredRegionCoherence(
             || GREATER_REALM_REGION_SPECS[region]!.tier
               !== GREATER_REALM_REGION_SPECS[sourceRegion]!.tier
             || availableSwapWater[region]! < transferableComponent.length
-            || contacts[region] === 0
           ) continue;
           const projectedTotal = topology.passableCounts[region]!
             + transferableComponent.length;
@@ -4571,6 +4570,11 @@ function reconcileBarrierMeasuredRegionCoherence(
           const projectedShare = projectedTotal === 0
             ? 0
             : Math.floor((projectedLargest * 10_000) / projectedTotal);
+          // A water-separated island has no same-tier land contact to inherit,
+          // but its political ownership can still move to a coherent peer while
+          // an equal non-passable ownership area moves back. Never cure one
+          // fragmented realm by pushing the recipient below its own proof floor.
+          if (projectedShare < largestTarget(region)) continue;
           if (
             projectedShare > bestProjectedShare
             || (
@@ -5566,6 +5570,19 @@ function barriersAndGates(
       }
     }
   }
+  // The corridor-isolation pass above can seal an additional shoulder cell
+  // beside a gate mouth after the ordinary coherence repair has completed.
+  // Reconnect same-region fragments once more against that final sealed mask.
+  // The repair keeps every gate endpoint and every cross-tier-adjacent barrier
+  // cell locked, so it cannot manufacture an unreviewed Crown crossing.
+  reconnectBarrierSplitRegionComponents(
+    grid,
+    regionId,
+    tierId,
+    waterRegime,
+    barrier,
+    gates,
+  );
   let futureOpenCrossTierEdges = 0;
   for (let cell = 0; cell < grid.cellCount; cell += 1) {
     for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {

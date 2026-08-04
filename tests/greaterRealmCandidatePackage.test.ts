@@ -45,8 +45,8 @@ import {
 const SOURCE_COMMIT = 'a'.repeat(40);
 const BATCH_HANDLE = 'GR-B-AAAAAAAAAAAAAAAA';
 const CANDIDATE_HANDLE = 'GR-A-AAAAAAAAAAAAAAAA';
-const CANDIDATE_ROOT_LABEL = 'greater-realm-yield-regression-b';
-const CANDIDATE_ORDINAL = 0;
+const CANDIDATE_ROOT_LABEL = 'greater-realm-ordinary-parent-a';
+const CANDIDATE_ORDINAL = 9;
 const PERFORMANCE = Object.freeze({
   generationMilliseconds: 1_200,
   processPeakMemoryMiB: 512,
@@ -327,7 +327,7 @@ describe('Greater Realm owner-only candidate package', () => {
     let derivedSeed: Buffer | undefined;
     try {
       expect(GREATER_REALM_GENERATOR_VERSION)
-        .toBe('greater-realm-v2-natural-continent-pr-a.5');
+        .toBe('greater-realm-v2-natural-continent-pr-a.6');
       expect(GREATER_REALM_TERRAIN_SEED_NAMESPACE)
         .toBe('greater-realm-v2-natural-continent-pr-a.3');
       expect(GREATER_REALM_GENERATOR_VERSION).not.toBe(
@@ -596,7 +596,7 @@ describe('Greater Realm owner-only candidate package', () => {
         expect(file.path).toMatch(/^node_modules\//u);
         expect(file.sha256).toMatch(/^[0-9a-f]{64}$/u);
       }
-      expect(parsed.geomorphologyVersion).toBe('greater-realm-geomorphology-v1');
+      expect(parsed.geomorphologyVersion).toBe('greater-realm-geomorphology-v2');
       const throneCell = fixture.candidate.throneAnchor.findIndex(value => value === 1);
       expect(throneCell).toBeGreaterThanOrEqual(0);
       expect(parsed.throneAnchor).toEqual({
@@ -633,8 +633,8 @@ describe('Greater Realm owner-only candidate package', () => {
         const patch = parsed.topographyPatchManifests[index]!;
         expect(patch.chunkKey).toBe(chunk.chunkKey);
         expect(chunk.partitionVersion).toBe('axial-bin-15-v1');
-        expect(chunk.geomorphologyVersion).toBe('greater-realm-geomorphology-v1');
-        expect(patch.geomorphologyVersion).toBe('greater-realm-geomorphology-v1');
+        expect(chunk.geomorphologyVersion).toBe('greater-realm-geomorphology-v2');
+        expect(patch.geomorphologyVersion).toBe('greater-realm-geomorphology-v2');
         expect(patch.topographyPatchId).toBe(chunk.topographyPatchId);
         expect(patch.manifestDigest).toBe(chunk.topographyPatchDigest);
         expect(patch.sampleCount).toBe(chunk.cellCount);

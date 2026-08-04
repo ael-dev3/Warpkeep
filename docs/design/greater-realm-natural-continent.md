@@ -4,7 +4,7 @@ Status: candidate-generation design only
 
 Atlas: `GENESIS_001_GREATER_REALM`
 
-Generator algorithm: `greater-realm-v2-natural-continent-pr-a.5`
+Generator algorithm: `greater-realm-v2-natural-continent-pr-a.6`
 Terrain-seed namespace: `greater-realm-v2-natural-continent-pr-a.3`
 Production state: unchanged
 
@@ -250,8 +250,8 @@ hidden sites, maps, screenshots, previews, paths, or reconstructive data.
 
 ## Review and future pull requests
 
-Per the owner’s direction, PR A produces one eligible world for review, not an
-eight-world comparison batch. Private owner review includes silhouette,
+Per the owner’s direction, PR A produces exactly one eligible world for review.
+Private owner review includes silhouette,
 hillshade, biome, hydrology, region-topology/outer-ocean, and mountain/gate
 views. The region view uses a fixed opaque fog exterior and review-only
 outer-ocean bands; its watermark explicitly identifies it as a composition

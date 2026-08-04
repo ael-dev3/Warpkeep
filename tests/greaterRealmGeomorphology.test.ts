@@ -77,7 +77,7 @@ describe('Greater Realm geomorphic shaping', () => {
     const first = shapeGreaterRealmGeomorphology(input);
     const second = shapeGreaterRealmGeomorphology(input);
 
-    expect(GREATER_REALM_GEOMORPHOLOGY_VERSION).toBe('greater-realm-geomorphology-v1');
+    expect(GREATER_REALM_GEOMORPHOLOGY_VERSION).toBe('greater-realm-geomorphology-v2');
     expect(first).toEqual(second);
     expect(fixture.elevation).toEqual(originalElevation);
     expect(first.metrics.changedCellCount).toBeGreaterThan(0);
@@ -140,6 +140,27 @@ describe('Greater Realm geomorphic shaping', () => {
     expect(result.metrics.glacial.systemCount).toBe(0);
     expect(result.metrics.arid.sourceCellCount).toBe(0);
     expect(result.metrics.arid.systemCount).toBe(0);
+  });
+
+  it('selects separated volcanic anchors from a domain-wide potential plateau', () => {
+    const fixture = syntheticFixture();
+    fixture.volcanicPotential.fill(8_500);
+    fixture.tectonicUplift.fill(6_000);
+    const result = shapeGreaterRealmGeomorphology({
+      ...fixture,
+      candidateSeed: new Uint32Array([0x0bad_f00d, 0x1020_3040, 0x5060_7080, 0x90a0_b0c0]),
+    });
+    const anchors = [...result.volcanicAnchorMask]
+      .map((value, cell) => value === 1 ? cell : -1)
+      .filter(cell => cell >= 0);
+
+    expect(result.metrics.volcanicAnchorCount).toBe(2);
+    expect(anchors).toHaveLength(2);
+    expect(result.metrics.volcanicTectonicCompatibilityBasisPoints).toBe(10_000);
+    expect(greaterRealmHexDistance(
+      { q: fixture.grid.q[anchors[0]!]!, r: fixture.grid.r[anchors[0]!]! },
+      { q: fixture.grid.q[anchors[1]!]!, r: fixture.grid.r[anchors[1]!]! },
+    )).toBeGreaterThanOrEqual(14);
   });
 
   it('derives its production climate from independent named integer fields', () => {

@@ -10,7 +10,7 @@ import {
 } from './greater-realm-terrain';
 
 export const GREATER_REALM_GEOMORPHOLOGY_VERSION =
-  'greater-realm-geomorphology-v1' as const;
+  'greater-realm-geomorphology-v2' as const;
 
 export const GREATER_REALM_COASTAL_CLASS = Object.freeze({
   none: 0,
@@ -578,24 +578,12 @@ function volcanicProcess(input: Readonly<{
       || input.volcanicPotential[cell]! < 7_000
       || input.tectonicUplift[cell]! < 2_500
     ) continue;
-    let localMaximum = true;
-    for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
-      const neighbor = input.grid.neighbors[cell * NEIGHBOR_COUNT + direction]!;
-      if (
-        neighbor >= 0
-        && (
-          input.volcanicPotential[neighbor]! > input.volcanicPotential[cell]!
-          || (
-            input.volcanicPotential[neighbor] === input.volcanicPotential[cell]
-            && neighbor < cell
-          )
-        )
-      ) {
-        localMaximum = false;
-        break;
-      }
-    }
-    if (!localMaximum) continue;
+    // Volcanic potential is intentionally constant across each tectonic
+    // domain. Treating that plateau as a local-maximum field reduced an
+    // otherwise broad compatible belt to one arbitrary cell-index minimum,
+    // which could itself sit outside eligible land and yield no anchors.
+    // Rank every compatible cell here; the bounded greedy spacing pass below
+    // remains the authority for selecting distinct volcanic centres.
     candidates.push(Object.freeze({
       cell,
       score: input.volcanicPotential[cell]! * 4

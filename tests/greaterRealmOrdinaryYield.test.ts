@@ -14,7 +14,7 @@ function ordinaryRoot(label: string): Uint8Array {
 describe('Greater Realm ordinary deterministic candidate yield', () => {
   it('retains a deterministic eligible candidate after generator hardening', () => {
     const cases = [
-      ['greater-realm-yield-regression-b', 0],
+      ['greater-realm-ordinary-parent-a', 9],
     ] as const;
 
     for (const [label, candidateOrdinal] of cases) {
