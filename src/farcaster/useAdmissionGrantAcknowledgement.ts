@@ -141,6 +141,13 @@ export function useAdmissionGrantAcknowledgement({
       publish(Object.freeze({ phase: 'awaiting-notification-context' }));
       return () => controller.abort();
     }
+    if (!loadQuickAuthToken) {
+      // A notification launch is not identity proof. Finalization requires a
+      // newly acquired host Quick Auth credential and never falls back to the
+      // browser session cookie, even when that cookie is still valid.
+      publish(Object.freeze({ phase: 'temporary-error' }));
+      return () => controller.abort();
+    }
     const isCurrent = () => (
       !controller.signal.aborted
       && operationGenerationRef.current === operationGeneration
@@ -148,6 +155,18 @@ export function useAdmissionGrantAcknowledgement({
     publish(Object.freeze({ phase: 'acknowledging' }));
 
     void (async () => {
+      let freshCredentialAcquired = false;
+      const acquireNotificationQuickAuth = async (
+        options?: FarcasterQuickAuthTokenOptions
+      ) => {
+        const acquisition = await loadQuickAuthToken(
+          !freshCredentialAcquired || options?.force === true
+            ? { force: true }
+            : undefined
+        );
+        if (acquisition.status === 'token') freshCredentialAcquired = true;
+        return acquisition;
+      };
       for (const delay of RETRY_DELAYS_MILLISECONDS) {
         if (!await wait(delay, controller.signal) || !isCurrent()) return;
         try {
@@ -155,7 +174,7 @@ export function useAdmissionGrantAcknowledgement({
           if (!isCurrent()) return;
           const acknowledgeAdmissionGrant = client.acknowledgeAdmissionGrant;
           const result = await withAccessAuthentication(
-            loadQuickAuthToken,
+            acquireNotificationQuickAuth,
             isCurrent,
             authentication => acknowledgeAdmissionGrant(authentication, {
               ticket,

@@ -6,12 +6,20 @@ import { useAdmissionGrantAcknowledgement } from '../src/farcaster/useAdmissionG
 import type {
   FarcasterAuthViewState,
   FarcasterOidcBridgeClient,
+  FarcasterQuickAuthTokenOptions,
   FarcasterQuickAuthTokenResult
 } from '../src/farcaster/farcasterAuthTypes';
 
 const TICKET = 'A'.repeat(43);
 const NOTIFICATION_ID = `warpkeep-access-grant-v3-i${'N'.repeat(22)}`;
 const VERIFIED_AT = 1_785_414_896_000;
+
+const defaultQuickAuthToken = async (
+  _options?: FarcasterQuickAuthTokenOptions
+): Promise<FarcasterQuickAuthTokenResult> => ({
+  status: 'token',
+  token: 'header.payload.signature'
+});
 
 const pending = (fid: number): FarcasterAuthViewState => Object.freeze({
   phase: 'pending-admission',
@@ -54,7 +62,9 @@ type HarnessProps = Readonly<{
   authState: FarcasterAuthViewState;
   generation: number;
   client: FarcasterOidcBridgeClient;
-  loadQuickAuthToken?: () => Promise<FarcasterQuickAuthTokenResult>;
+  loadQuickAuthToken?: ((
+    options?: FarcasterQuickAuthTokenOptions
+  ) => Promise<FarcasterQuickAuthTokenResult>) | null;
   onCapabilityConsumed?: () => void;
 }>;
 
@@ -79,7 +89,9 @@ function Harness({
     authState,
     authGeneration: generation,
     loadBridgeClient,
-    loadQuickAuthToken,
+    loadQuickAuthToken: loadQuickAuthToken === null
+      ? undefined
+      : loadQuickAuthToken ?? defaultQuickAuthToken,
     onCapabilityConsumed
   });
   return <output data-testid="phase">{state.phase}</output>;
@@ -138,6 +150,7 @@ describe('Farcaster admission notification grant acknowledgement', () => {
       expect(screen.getByTestId('phase').textContent).toBe('finalizing');
     });
     expect(loadQuickAuthToken).toHaveBeenCalledTimes(1);
+    expect(loadQuickAuthToken).toHaveBeenCalledWith({ force: true });
     expect(acknowledge).toHaveBeenCalledTimes(1);
     expect(acknowledge).toHaveBeenCalledWith(
       { mode: 'quick-auth', token: 'header.payload.signature' },
@@ -148,6 +161,23 @@ describe('Farcaster admission notification grant acknowledgement', () => {
       })
     );
     expect(consumed).toHaveBeenCalledTimes(1);
+  });
+
+  it('never falls back to a pending browser session when host Quick Auth is unavailable', async () => {
+    const acknowledge = vi.fn(async () => ({ version: 1 as const, status: 'accepted' as const }));
+    render(
+      <Harness
+        authState={pending(539_854)}
+        client={bridge(acknowledge)}
+        generation={3}
+        loadQuickAuthToken={null}
+        ticket={TICKET}
+      />
+    );
+
+    expect(screen.getByTestId('phase').textContent).toBe('temporary-error');
+    await act(async () => { await Promise.resolve(); });
+    expect(acknowledge).not.toHaveBeenCalled();
   });
 
   it('retains the capability and fails closed without exact Farcaster notification context', async () => {

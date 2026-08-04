@@ -14,6 +14,8 @@ import type {
   AdmissionNotificationGeneration,
   AdmissionNotificationQueueInput,
   AdmissionNotificationQueueStatus,
+  AdmissionNotificationReissueInput,
+  AdmissionNotificationReissueResult,
   AdmissionNotificationDiagnostics,
   AdmissionNotificationRetryReason,
   AdmissionNotificationStore,
@@ -28,6 +30,7 @@ const INTERNAL_ORIGIN = 'https://admission-notification.internal'
 const STATE_KEY = 'admission-notification-v1'
 const PENDING_STATE_RECORD = 'admission-notification-pending-v2'
 const PENDING_GRANT_RECORD = 'admission-notification-grant-v3'
+const PENDING_GRANT_REISSUE_RECORD = 'admission-notification-grant-reissue-v1'
 const DIAGNOSTICS_RECORD = 'admission-notification-diagnostics-v1'
 const STATE_VERSION = 1
 const MAX_SUBSCRIPTIONS = 8
@@ -35,7 +38,9 @@ const MAX_SEEN_EVENTS = 32
 const MAX_REVOKED_TOKEN_IDS = 32
 const MAX_DELIVERY_ATTEMPTS = 6
 const MAX_VERIFICATION_FAILURES = 64
+const MAX_PENDING_GRANT_REISSUES = 2
 const DELIVERY_LIFETIME_MILLISECONDS = 24 * 60 * 60 * 1_000
+const PENDING_GRANT_REISSUE_COOLDOWN_MILLISECONDS = 5 * 60 * 1_000
 const DELIVERY_TIMEOUT_MILLISECONDS = 15_000
 const DELIVERY_RESPONSE_MAX_BYTES = 64 * 1_024
 const MAX_NOTIFICATION_TOKEN_BYTES = 2 * 1_024
@@ -161,6 +166,17 @@ type PersistedPendingGrantIntent = PendingGrantIntentBase & (
       acknowledgedAt: number
     }>
 )
+
+type PersistedPendingGrantReissueState = Readonly<{
+  version: 1
+  fid: string
+  requestedAtMicros: number
+  initialGrantCreatedAt: number
+  reissueCount: number
+  lastReissuedAt?: number
+  providerAcceptedAt?: number
+  clientAcknowledgedAt?: number
+}>
 
 type NotificationDependencies = Readonly<{
   fetchImpl?: typeof fetch
@@ -663,6 +679,68 @@ function readPendingGrantIntent(value: unknown): PersistedPendingGrantIntent | n
   })
 }
 
+function readPendingGrantReissueState(
+  value: unknown,
+): PersistedPendingGrantReissueState | null {
+  if (value === undefined) return null
+  if (
+    !isRecord(value)
+    || !exactKeys(
+      value,
+      [
+        'version',
+        'fid',
+        'requestedAtMicros',
+        'initialGrantCreatedAt',
+        'reissueCount',
+      ],
+      ['lastReissuedAt', 'providerAcceptedAt', 'clientAcknowledgedAt'],
+    )
+    || value.version !== 1
+    || !isSafeFid(value.fid)
+    || !isRequestedAtMicros(value.requestedAtMicros)
+    || !isTimestamp(value.initialGrantCreatedAt)
+    || typeof value.reissueCount !== 'number'
+    || !Number.isSafeInteger(value.reissueCount)
+    || value.reissueCount < 0
+    || value.reissueCount > MAX_PENDING_GRANT_REISSUES
+    || (value.reissueCount === 0) !== (value.lastReissuedAt === undefined)
+    || (value.lastReissuedAt !== undefined && (
+      !isTimestamp(value.lastReissuedAt)
+      || value.lastReissuedAt < value.initialGrantCreatedAt
+    ))
+    || (value.providerAcceptedAt !== undefined && (
+      !isTimestamp(value.providerAcceptedAt)
+      || value.providerAcceptedAt < value.initialGrantCreatedAt
+      || (
+        value.lastReissuedAt !== undefined
+        && value.providerAcceptedAt < value.lastReissuedAt
+      )
+    ))
+    || (value.clientAcknowledgedAt !== undefined && (
+      !isTimestamp(value.clientAcknowledgedAt)
+      || value.providerAcceptedAt === undefined
+      || value.clientAcknowledgedAt < value.providerAcceptedAt
+    ))
+  ) throw new Error('Invalid pending admission grant reissue state.')
+  return Object.freeze({
+    version: 1,
+    fid: value.fid,
+    requestedAtMicros: value.requestedAtMicros,
+    initialGrantCreatedAt: value.initialGrantCreatedAt,
+    reissueCount: value.reissueCount,
+    ...(value.lastReissuedAt === undefined
+      ? {}
+      : { lastReissuedAt: value.lastReissuedAt }),
+    ...(value.providerAcceptedAt === undefined
+      ? {}
+      : { providerAcceptedAt: value.providerAcceptedAt }),
+    ...(value.clientAcknowledgedAt === undefined
+      ? {}
+      : { clientAcknowledgedAt: value.clientAcknowledgedAt }),
+  })
+}
+
 function grantMatchesGeneration(
   grant: PersistedPendingGrantIntent | null,
   generation: AdmissionNotificationGeneration,
@@ -672,6 +750,17 @@ function grantMatchesGeneration(
     && generation.kind === 'pending-request'
     && grant.requestedAtMicros === generation.requestedAtMicros
     && (fid === undefined || grant.fid === fid)
+}
+
+function reissueStateMatchesGeneration(
+  state: PersistedPendingGrantReissueState | null,
+  generation: AdmissionNotificationGeneration,
+  fid?: string,
+): state is PersistedPendingGrantReissueState {
+  return state !== null
+    && generation.kind === 'pending-request'
+    && state.requestedAtMicros === generation.requestedAtMicros
+    && (fid === undefined || state.fid === fid)
 }
 
 function createPendingGrantIntent(
@@ -687,6 +776,20 @@ function createPendingGrantIntent(
     ticket: randomId(32),
     createdAt: now,
     expiresAt: now + DELIVERY_LIFETIME_MILLISECONDS,
+  })
+}
+
+function createPendingGrantReissueState(
+  fid: string,
+  requestedAtMicros: number,
+  initialGrantCreatedAt: number,
+): PersistedPendingGrantReissueState {
+  return Object.freeze({
+    version: 1,
+    fid,
+    requestedAtMicros,
+    initialGrantCreatedAt,
+    reissueCount: 0,
   })
 }
 
@@ -794,7 +897,7 @@ async function objectName(fid: string): Promise<string> {
   }
 }
 
-function internalUrl(path: 'event' | 'queue' | 'status' | 'ack'): string {
+function internalUrl(path: 'event' | 'queue' | 'reissue' | 'status' | 'ack'): string {
   return `${INTERNAL_ORIGIN}/${path}`
 }
 
@@ -816,6 +919,52 @@ async function readQueueStatus(response: Response): Promise<AdmissionNotificatio
     throw new Error('Admission notification store returned invalid state.')
   }
   return value.status
+}
+
+async function readReissueStatus(response: Response): Promise<AdmissionNotificationReissueResult> {
+  if (!response.ok) throw new Error('Admission notification store unavailable.')
+  const value: unknown = await response.json()
+  if (!isRecord(value)) {
+    throw new Error('Admission notification store returned invalid state.')
+  }
+  if (value.status === 'reissued') {
+    if (
+      !exactKeys(value, ['status', 'deliveryStatus'])
+      || (
+        value.deliveryStatus !== 'queued'
+        && value.deliveryStatus !== 'already-sent'
+        && value.deliveryStatus !== 'awaiting-client'
+        && value.deliveryStatus !== 'client-acknowledged'
+        && value.deliveryStatus !== 'delivery-exhausted'
+        && value.deliveryStatus !== 'not-subscribed'
+      )
+    ) throw new Error('Admission notification store returned invalid state.')
+    return Object.freeze({ status: 'reissued', deliveryStatus: value.deliveryStatus })
+  }
+  if (value.status === 'cooldown') {
+    if (
+      !exactKeys(value, ['status', 'retryAfterSeconds'])
+      || typeof value.retryAfterSeconds !== 'number'
+      || !Number.isSafeInteger(value.retryAfterSeconds)
+      || value.retryAfterSeconds < 1
+      || value.retryAfterSeconds > Math.ceil(
+        PENDING_GRANT_REISSUE_COOLDOWN_MILLISECONDS / 1_000,
+      )
+    ) throw new Error('Admission notification store returned invalid state.')
+    return Object.freeze({ status: 'cooldown', retryAfterSeconds: value.retryAfterSeconds })
+  }
+  if (
+    exactKeys(value, ['status'])
+    && (
+      value.status === 'limit-reached'
+      || value.status === 'client-acknowledged'
+      || value.status === 'not-ready'
+      || value.status === 'not-subscribed'
+      || value.status === 'stale'
+      || value.status === 'paused'
+    )
+  ) return Object.freeze({ status: value.status })
+  throw new Error('Admission notification store returned invalid state.')
 }
 
 async function readDiagnostics(response: Response): Promise<AdmissionNotificationDiagnostics> {
@@ -1066,6 +1215,17 @@ export class DurableObjectAdmissionNotificationStore implements AdmissionNotific
     return readQueueStatus(response)
   }
 
+  async reissueAdmission(
+    input: AdmissionNotificationReissueInput,
+  ): Promise<AdmissionNotificationReissueResult> {
+    const response = await (await this.stub(input.fid)).fetch(internalUrl('reissue'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    })
+    return readReissueStatus(response)
+  }
+
   async acknowledge(
     fid: string,
     ticket: string,
@@ -1141,6 +1301,14 @@ function validQueueInput(value: unknown): value is AdmissionNotificationQueueInp
     || value.kind === 'pending-request'
       && exactKeys(value, ['fid', 'kind', 'requestedAtMicros', 'queuedAt'])
       && isRequestedAtMicros(value.requestedAtMicros)
+}
+
+function validReissueInput(value: unknown): value is AdmissionNotificationReissueInput {
+  return isRecord(value)
+    && exactKeys(value, ['fid', 'requestedAtMicros', 'reissuedAt'])
+    && isSafeFid(value.fid)
+    && isRequestedAtMicros(value.requestedAtMicros)
+    && isTimestamp(value.reissuedAt)
 }
 
 function withSeenEvent(
@@ -1323,6 +1491,7 @@ async function persistAndSchedule(
   state: PersistedNotificationState,
   now: number,
   grantIntent?: PersistedPendingGrantIntent | null,
+  reissueState?: PersistedPendingGrantReissueState,
 ): Promise<void> {
   const legacyState = legacyStateForPersistence(state)
   const pendingState = pendingStateForPersistence(state)
@@ -1332,6 +1501,9 @@ async function persistAndSchedule(
     else await transaction.delete(PENDING_STATE_RECORD)
     if (grantIntent === null) await transaction.delete(PENDING_GRANT_RECORD)
     else if (grantIntent !== undefined) await transaction.put(PENDING_GRANT_RECORD, grantIntent)
+    if (reissueState !== undefined) {
+      await transaction.put(PENDING_GRANT_REISSUE_RECORD, reissueState)
+    }
   })
   const retainedGrant = grantIntent === undefined
     ? readPendingGrantIntent(await storage.get<unknown>(PENDING_GRANT_RECORD))
@@ -1838,10 +2010,29 @@ function queueStatus(
   return 'queued'
 }
 
+function pendingGenerationStatus(
+  state: PersistedNotificationState,
+  generation: Readonly<{ kind: 'pending-request'; requestedAtMicros: number }>,
+  grantIntent: PersistedPendingGrantIntent | null,
+  reissueState: PersistedPendingGrantReissueState,
+): AdmissionNotificationQueueStatus {
+  if (reissueState.clientAcknowledgedAt !== undefined) return 'client-acknowledged'
+  if (grantMatchesGeneration(grantIntent, generation, state.fid)) {
+    if (grantIntent.acknowledgedAt !== undefined) return 'client-acknowledged'
+    if (grantIntent.providerAcceptedAt !== undefined) return 'awaiting-client'
+    if (
+      state.delivery?.kind === 'pending-request'
+      && state.delivery.requestedAtMicros === generation.requestedAtMicros
+    ) return queueStatus(state, grantIntent)
+  }
+  return 'delivery-exhausted'
+}
+
 function diagnosticsForState(
   state: PersistedNotificationState | null,
   persistedDiagnostics: PersistedNotificationDiagnostics | null,
   grantIntent: PersistedPendingGrantIntent | null,
+  reissueState: PersistedPendingGrantReissueState | null,
   notificationsEnabled: boolean,
 ): AdmissionNotificationDiagnostics {
   if (!state) {
@@ -1873,13 +2064,22 @@ function diagnosticsForState(
           kind: 'pending-request' as const,
           requestedAtMicros: grantIntent.requestedAtMicros,
         })
+      : reissueState
+        ? Object.freeze({
+            kind: 'pending-request' as const,
+            requestedAtMicros: reissueState.requestedAtMicros,
+          })
       : persistedDiagnostics?.generation
   const status = delivery
     ? queueStatus(state, grantIntent)
     : grantIntent?.acknowledgedAt !== undefined
       ? 'client-acknowledged'
+      : reissueState?.clientAcknowledgedAt !== undefined
+        ? 'client-acknowledged'
       : grantIntent?.providerAcceptedAt !== undefined
         ? 'awaiting-client'
+      : reissueState !== null
+        ? 'delivery-exhausted'
     : generation === undefined
       ? 'not-subscribed'
       : sentForGeneration(state, generation)
@@ -2056,9 +2256,21 @@ export class AdmissionNotification {
     let grantIntent = readPendingGrantIntent(
       await this.state.storage.get<unknown>(PENDING_GRANT_RECORD),
     )
+    let reissueState = readPendingGrantReissueState(
+      await this.state.storage.get<unknown>(PENDING_GRANT_REISSUE_RECORD),
+    )
     if (
       delivery.kind === 'pending-request'
       && !grantMatchesGeneration(grantIntent, delivery, state.fid)
+    ) {
+      const next = withNextRevision(Object.freeze({ ...pruned, delivery: undefined }))
+      await persistAndSchedule(this.state.storage, next, now, null)
+      return next
+    }
+    if (
+      delivery.kind === 'pending-request'
+      && reissueState
+      && !reissueStateMatchesGeneration(reissueState, delivery, state.fid)
     ) {
       const next = withNextRevision(Object.freeze({ ...pruned, delivery: undefined }))
       await persistAndSchedule(this.state.storage, next, now, null)
@@ -2191,6 +2403,21 @@ export class AdmissionNotification {
           && grantIntent.providerAcceptedAt === undefined
         ) {
           grantIntent = Object.freeze({ ...grantIntent, providerAcceptedAt: now })
+          const currentReissueState = reissueStateMatchesGeneration(
+            reissueState,
+            delivery,
+            state.fid,
+          )
+            ? reissueState
+            : createPendingGrantReissueState(
+                state.fid,
+                delivery.requestedAtMicros,
+                grantIntent.createdAt,
+              )
+          reissueState = Object.freeze({
+            ...currentReissueState,
+            providerAcceptedAt: now,
+          })
         }
         attempts.push(Object.freeze({
           appFid: attempt.appFid,
@@ -2272,6 +2499,7 @@ export class AdmissionNotification {
       next,
       now,
       delivery.kind === 'pending-request' ? grantIntent : undefined,
+      delivery.kind === 'pending-request' ? reissueState ?? undefined : undefined,
     )
     try {
       await recordDiagnostics(
@@ -2336,11 +2564,15 @@ export class AdmissionNotification {
       const grantIntent = readPendingGrantIntent(
         await this.state.storage.get<unknown>(PENDING_GRANT_RECORD),
       )
+      const reissueState = readPendingGrantReissueState(
+        await this.state.storage.get<unknown>(PENDING_GRANT_REISSUE_RECORD),
+      )
       return new Response(JSON.stringify(
         diagnosticsForState(
           existing ? pruneSubscriptions(existing, config, this.currentTime()) : null,
           diagnostics,
           grantIntent,
+          reissueState,
           config.approvalNotificationsEnabled,
         ),
       ), {
@@ -2437,12 +2669,26 @@ export class AdmissionNotification {
       const latestGrant = readPendingGrantIntent(
         await this.state.storage.get<unknown>(PENDING_GRANT_RECORD),
       )
+      const latestReissueState = readPendingGrantReissueState(
+        await this.state.storage.get<unknown>(PENDING_GRANT_REISSUE_RECORD),
+      )
       if (
         !latest
         || latest.revision !== existing.revision
         || !latestGrant
         || latestGrant.intentId !== grantIntent.intentId
         || latestGrant.providerAcceptedAt === undefined
+        || (
+          latestReissueState !== null
+          && !reissueStateMatchesGeneration(
+            latestReissueState,
+            {
+              kind: 'pending-request',
+              requestedAtMicros: latestGrant.requestedAtMicros,
+            },
+            latestGrant.fid,
+          )
+        )
         || !(await timingSafeGrantTicketMatch(value.ticket, latestGrant))
       ) return neutral('stale')
       if (
@@ -2455,6 +2701,15 @@ export class AdmissionNotification {
         ? undefined
         : latest.delivery
       const next = withNextRevision(Object.freeze({ ...latest, delivery }))
+      const nextReissueState = Object.freeze({
+        ...(latestReissueState ?? createPendingGrantReissueState(
+          latestGrant.fid,
+          latestGrant.requestedAtMicros,
+          latestGrant.createdAt,
+        )),
+        providerAcceptedAt: latestGrant.providerAcceptedAt,
+        clientAcknowledgedAt: now,
+      })
       await persistAndSchedule(this.state.storage, next, now, Object.freeze({
         version: 1 as const,
         fid: latestGrant.fid,
@@ -2465,8 +2720,230 @@ export class AdmissionNotification {
         providerAcceptedAt: latestGrant.providerAcceptedAt,
         acknowledgedAt: now,
         ticketHash: await grantTicketHash(value.ticket),
-      }))
+      }), nextReissueState)
       return neutral('accepted')
+    }
+
+    if (url.pathname === '/reissue') {
+      if (!validReissueInput(value)) return new Response(null, { status: 400 })
+      const respond = (result: AdmissionNotificationReissueResult): Response => (
+        new Response(JSON.stringify(result), {
+          status: 200,
+          headers: {
+            'content-type': 'application/json; charset=utf-8',
+            'cache-control': 'no-store',
+          },
+        })
+      )
+      if (!config.approvalNotificationsEnabled) {
+        return respond(Object.freeze({ status: 'paused' }))
+      }
+      const now = this.currentTime()
+      if (Math.abs(now - value.reissuedAt) > 60_000) return new Response(null, { status: 400 })
+      let existing = await readCombinedState(this.state.storage)
+      let grantIntent = readPendingGrantIntent(
+        await this.state.storage.get<unknown>(PENDING_GRANT_RECORD),
+      )
+      let reissueState = readPendingGrantReissueState(
+        await this.state.storage.get<unknown>(PENDING_GRANT_REISSUE_RECORD),
+      )
+      if (!existing || existing.fid !== value.fid) {
+        return respond(Object.freeze({ status: 'stale' }))
+      }
+
+      const invalidateCurrentGrant = async (): Promise<AdmissionNotificationReissueResult> => {
+        const delivery = existing!.delivery?.kind === 'pending-request'
+          && existing!.delivery.requestedAtMicros === value.requestedAtMicros
+          ? undefined
+          : existing!.delivery
+        existing = withNextRevision(Object.freeze({ ...existing!, delivery }))
+        await persistAndSchedule(this.state.storage, existing, now, null)
+        return Object.freeze({ status: 'stale' })
+      }
+
+      if (
+        reissueState
+        && (
+          reissueState.fid !== value.fid
+          || reissueState.requestedAtMicros !== value.requestedAtMicros
+        )
+      ) {
+        return respond(Object.freeze({ status: 'stale' }))
+      }
+
+      const generation = Object.freeze({
+        kind: 'pending-request' as const,
+        requestedAtMicros: value.requestedAtMicros,
+      })
+      if (!reissueState) {
+        if (!grantMatchesGeneration(grantIntent, generation, value.fid)) {
+          return respond(Object.freeze({ status: 'stale' }))
+        }
+        reissueState = Object.freeze({
+          ...createPendingGrantReissueState(
+            value.fid,
+            value.requestedAtMicros,
+            grantIntent.createdAt,
+          ),
+          ...(grantIntent.providerAcceptedAt === undefined
+            ? {}
+            : { providerAcceptedAt: grantIntent.providerAcceptedAt }),
+          ...(grantIntent.acknowledgedAt === undefined
+            ? {}
+            : { clientAcknowledgedAt: grantIntent.acknowledgedAt }),
+        })
+        existing = withNextRevision(existing)
+        await persistAndSchedule(
+          this.state.storage,
+          existing,
+          now,
+          grantIntent,
+          reissueState,
+        )
+      } else if (grantMatchesGeneration(grantIntent, generation, value.fid)) {
+        const shouldRecordProvider = reissueState.providerAcceptedAt === undefined
+          && grantIntent.providerAcceptedAt !== undefined
+        const shouldRecordAcknowledgement = reissueState.clientAcknowledgedAt === undefined
+          && grantIntent.acknowledgedAt !== undefined
+        if (shouldRecordProvider || shouldRecordAcknowledgement) {
+          reissueState = Object.freeze({
+            ...reissueState,
+            ...(shouldRecordProvider
+              ? { providerAcceptedAt: grantIntent.providerAcceptedAt }
+              : {}),
+            ...(shouldRecordAcknowledgement
+              ? { clientAcknowledgedAt: grantIntent.acknowledgedAt }
+              : {}),
+          })
+          existing = withNextRevision(existing)
+          await persistAndSchedule(
+            this.state.storage,
+            existing,
+            now,
+            grantIntent,
+            reissueState,
+          )
+        }
+      }
+
+      if (reissueState.clientAcknowledgedAt !== undefined) {
+        return respond(Object.freeze({ status: 'client-acknowledged' }))
+      }
+      if (reissueState.providerAcceptedAt === undefined) {
+        return respond(Object.freeze({ status: 'not-ready' }))
+      }
+
+      const pruned = pruneSubscriptions(existing, config, now)
+      if (pruned.subscriptions.length === 0) {
+        if (pruned !== existing) {
+          existing = withNextRevision(pruned)
+          await persistAndSchedule(this.state.storage, existing, now)
+        }
+        return respond(Object.freeze({ status: 'not-subscribed' }))
+      }
+      const expectedRevision = existing.revision
+      const expectedIntentId = grantMatchesGeneration(grantIntent, generation, value.fid)
+        ? grantIntent.intentId
+        : undefined
+      const expectedReissueCount = reissueState.reissueCount
+      const expectedLastReissuedAt = reissueState.lastReissuedAt
+      const expectedProviderAcceptedAt = reissueState.providerAcceptedAt
+      const resolver = this.configuredAdmissionResolver ?? defaultAdmissionResolver(config)
+      const requestResolver = this.configuredAccessRequestResolver
+        ?? defaultAccessRequestResolver(config)
+      try {
+        const admission = await resolver.resolve(value.fid)
+        if (admission.state !== 'disabled') return respond(await invalidateCurrentGrant())
+        const requestStatus = await requestResolver.getStatus(value.fid)
+        if (
+          requestStatus.status !== 'requested'
+          || requestStatus.requestedAtMicros !== value.requestedAtMicros
+        ) return respond(await invalidateCurrentGrant())
+      } catch {
+        return new Response(null, { status: 503 })
+      }
+
+      const latest = await readCombinedState(this.state.storage)
+      const latestGrant = readPendingGrantIntent(
+        await this.state.storage.get<unknown>(PENDING_GRANT_RECORD),
+      )
+      const latestReissueState = readPendingGrantReissueState(
+        await this.state.storage.get<unknown>(PENDING_GRANT_REISSUE_RECORD),
+      )
+      if (
+        !latest
+        || latest.revision !== expectedRevision
+        || !reissueStateMatchesGeneration(latestReissueState, generation, value.fid)
+        || latestReissueState.reissueCount !== expectedReissueCount
+        || latestReissueState.lastReissuedAt !== expectedLastReissuedAt
+        || latestReissueState.providerAcceptedAt !== expectedProviderAcceptedAt
+        || latestReissueState.clientAcknowledgedAt !== undefined
+        || (
+          expectedIntentId === undefined
+            ? grantMatchesGeneration(latestGrant, generation, value.fid)
+            : !grantMatchesGeneration(latestGrant, generation, value.fid)
+              || latestGrant.intentId !== expectedIntentId
+        )
+      ) return respond(Object.freeze({ status: 'stale' }))
+      existing = latest
+      grantIntent = latestGrant
+      reissueState = latestReissueState
+      if (reissueState.reissueCount >= MAX_PENDING_GRANT_REISSUES) {
+        return respond(Object.freeze({ status: 'limit-reached' }))
+      }
+      // A delayed retry can reach Farcaster well after the reissue was
+      // created. Start the next quiet window at the latest provider handoff,
+      // not merely at intent creation, so transport backoff cannot collapse
+      // two player-visible notifications together.
+      const cooldownStartedAt = reissueState.providerAcceptedAt!
+      const retryAt = cooldownStartedAt + PENDING_GRANT_REISSUE_COOLDOWN_MILLISECONDS
+      if (now < retryAt) {
+        return respond(Object.freeze({
+          status: 'cooldown',
+          retryAfterSeconds: Math.ceil((retryAt - now) / 1_000),
+        }))
+      }
+
+      const nextGrant = createPendingGrantIntent(value.fid, value.requestedAtMicros, now)
+      const {
+        providerAcceptedAt: _providerAcceptedAt,
+        clientAcknowledgedAt: _clientAcknowledgedAt,
+        ...retainedReissueState
+      } = reissueState
+      const nextReissueState = Object.freeze({
+        ...retainedReissueState,
+        reissueCount: reissueState.reissueCount + 1,
+        lastReissuedAt: now,
+      })
+      const delivery: AdmissionDelivery = Object.freeze({
+        kind: 'pending-request',
+        requestedAtMicros: value.requestedAtMicros,
+        queuedAt: now,
+        expiresAt: nextGrant.expiresAt,
+        attempts: Object.freeze([]),
+      })
+      let next = withNextRevision(Object.freeze({
+        ...existing,
+        delivery: Object.freeze({
+          ...delivery,
+          attempts: attemptsForSubscriptions(delivery, existing.subscriptions),
+        }),
+      }))
+      await persistAndSchedule(
+        this.state.storage,
+        next,
+        now,
+        nextGrant,
+        nextReissueState,
+      )
+      next = await this.attemptDelivery(next)
+      const deliveredGrant = readPendingGrantIntent(
+        await this.state.storage.get<unknown>(PENDING_GRANT_RECORD),
+      )
+      return respond(Object.freeze({
+        status: 'reissued',
+        deliveryStatus: queueStatus(next, deliveredGrant),
+      }))
     }
 
     if (url.pathname === '/event') {
@@ -2474,9 +2951,6 @@ export class AdmissionNotification {
       // An add event without notification details records no consent and must
       // not cause the player FID or any host metadata to be persisted.
       if (value.event.type === 'observed') return new Response(null, { status: 204 })
-      if (value.event.type === 'enabled' && !config.approvalNotificationsEnabled) {
-        return new Response(null, { status: 503 })
-      }
       const now = this.currentTime()
       const existing = await readCombinedState(this.state.storage)
       if (existing && existing.fid !== value.fid) return new Response(null, { status: 409 })
@@ -2581,7 +3055,7 @@ export class AdmissionNotification {
       if (!config.approvalNotificationsEnabled) return new Response(null, { status: 503 })
       const now = this.currentTime()
       if (Math.abs(now - value.queuedAt) > 60_000) return new Response(null, { status: 400 })
-      const existing = await readCombinedState(this.state.storage)
+      let existing = await readCombinedState(this.state.storage)
       if (existing && existing.fid !== value.fid) return new Response(null, { status: 409 })
       let next = existing ?? emptyState(value.fid, now)
       const generation: AdmissionNotificationGeneration = value.kind === 'pending-request'
@@ -2593,22 +3067,9 @@ export class AdmissionNotification {
       let grantIntent = readPendingGrantIntent(
         await this.state.storage.get<unknown>(PENDING_GRANT_RECORD),
       )
-      if (
-        generation.kind === 'pending-request'
-        && grantIntent
-        && grantIntent.requestedAtMicros > generation.requestedAtMicros
-      ) return new Response(null, { status: 409 })
-      if (
-        generation.kind === 'pending-request'
-        && grantMatchesGeneration(grantIntent, generation, value.fid)
-        && grantIntent.expiresAt <= now
-      ) {
-        grantIntent = null
-        if (
-          next.delivery?.kind === 'pending-request'
-          && next.delivery.requestedAtMicros === generation.requestedAtMicros
-        ) next = Object.freeze({ ...next, delivery: undefined })
-      }
+      let reissueState = readPendingGrantReissueState(
+        await this.state.storage.get<unknown>(PENDING_GRANT_REISSUE_RECORD),
+      )
       if (generation.kind === 'admitted' && sentForGeneration(next, generation)) {
         return new Response(JSON.stringify({ status: 'already-sent' }), {
           status: 200,
@@ -2638,32 +3099,170 @@ export class AdmissionNotification {
       ) {
         return new Response(null, { status: 409 })
       }
-      if (
-        generation.kind === 'pending-request'
-        && grantMatchesGeneration(grantIntent, generation, value.fid)
-        && grantIntent.providerAcceptedAt !== undefined
-      ) {
-        return new Response(JSON.stringify({ status: queueStatus(next, grantIntent) }), {
+      const respond = (status: AdmissionNotificationQueueStatus): Response => (
+        new Response(JSON.stringify({ status }), {
           status: 200,
           headers: {
             'content-type': 'application/json; charset=utf-8',
             'cache-control': 'no-store',
           },
         })
+      )
+
+      let newGrant = false
+      if (generation.kind === 'pending-request') {
+        if (
+          (reissueState && reissueState.requestedAtMicros > generation.requestedAtMicros)
+          || (grantIntent && grantIntent.requestedAtMicros > generation.requestedAtMicros)
+        ) return new Response(null, { status: 409 })
+
+        if (!reissueState && grantMatchesGeneration(grantIntent, generation, value.fid)) {
+          reissueState = Object.freeze({
+            ...createPendingGrantReissueState(
+              value.fid,
+              generation.requestedAtMicros,
+              grantIntent.createdAt,
+            ),
+            ...(grantIntent.providerAcceptedAt === undefined
+              ? {}
+              : { providerAcceptedAt: grantIntent.providerAcceptedAt }),
+            ...(grantIntent.acknowledgedAt === undefined
+              ? {}
+              : { clientAcknowledgedAt: grantIntent.acknowledgedAt }),
+          })
+          next = withNextRevision(next)
+          await persistAndSchedule(
+            this.state.storage,
+            next,
+            now,
+            grantIntent,
+            reissueState,
+          )
+          existing = next
+        }
+
+        const observedReissueState = reissueState
+        if (reissueStateMatchesGeneration(reissueState, generation, value.fid)) {
+          if (
+            grantIntent
+            && !grantMatchesGeneration(grantIntent, generation, value.fid)
+          ) return new Response(null, { status: 409 })
+
+          if (
+            grantMatchesGeneration(grantIntent, generation, value.fid)
+            && grantIntent.expiresAt <= now
+          ) {
+            if (
+              next.delivery?.kind === 'pending-request'
+              && next.delivery.requestedAtMicros === generation.requestedAtMicros
+            ) next = Object.freeze({ ...next, delivery: undefined })
+            next = withNextRevision(next)
+            await persistAndSchedule(this.state.storage, next, now, null)
+            grantIntent = null
+          }
+
+          if (!grantMatchesGeneration(grantIntent, generation, value.fid)) {
+            if (
+              next.delivery?.kind === 'pending-request'
+              && next.delivery.requestedAtMicros === generation.requestedAtMicros
+            ) {
+              next = withNextRevision(Object.freeze({ ...next, delivery: undefined }))
+              await persistAndSchedule(this.state.storage, next, now, null)
+            }
+            return respond(pendingGenerationStatus(
+              next,
+              generation,
+              grantIntent,
+              reissueState,
+            ))
+          }
+
+          if (
+            reissueState.providerAcceptedAt === undefined
+            && grantIntent.providerAcceptedAt !== undefined
+            || reissueState.clientAcknowledgedAt === undefined
+              && grantIntent.acknowledgedAt !== undefined
+          ) {
+            reissueState = Object.freeze({
+              ...reissueState,
+              ...(grantIntent.providerAcceptedAt === undefined
+                ? {}
+                : { providerAcceptedAt: grantIntent.providerAcceptedAt }),
+              ...(grantIntent.acknowledgedAt === undefined
+                ? {}
+                : { clientAcknowledgedAt: grantIntent.acknowledgedAt }),
+            })
+            next = withNextRevision(next)
+            await persistAndSchedule(
+              this.state.storage,
+              next,
+              now,
+              grantIntent,
+              reissueState,
+            )
+          }
+          if (
+            grantIntent.providerAcceptedAt !== undefined
+            || grantIntent.acknowledgedAt !== undefined
+            || next.delivery?.kind !== 'pending-request'
+            || next.delivery.requestedAtMicros !== generation.requestedAtMicros
+          ) return respond(pendingGenerationStatus(next, generation, grantIntent, reissueState))
+        } else {
+          if (
+            observedReissueState
+            && generation.requestedAtMicros <= observedReissueState.requestedAtMicros
+          ) return new Response(null, { status: 409 })
+
+          const expectedRevision = next.revision
+          const expectedStatePersisted = existing !== null
+          const expectedGrantIntentId = grantIntent?.intentId
+          const expectedReissueRequest = observedReissueState?.requestedAtMicros
+          const resolver = this.configuredAdmissionResolver ?? defaultAdmissionResolver(config)
+          const requestResolver = this.configuredAccessRequestResolver
+            ?? defaultAccessRequestResolver(config)
+          try {
+            const admission = await resolver.resolve(value.fid)
+            if (admission.state !== 'disabled') return new Response(null, { status: 409 })
+            const requestStatus = await requestResolver.getStatus(value.fid)
+            if (
+              requestStatus.status !== 'requested'
+              || requestStatus.requestedAtMicros !== generation.requestedAtMicros
+            ) return new Response(null, { status: 409 })
+          } catch {
+            return new Response(null, { status: 503 })
+          }
+          const latest = await readCombinedState(this.state.storage)
+          const latestGrant = readPendingGrantIntent(
+            await this.state.storage.get<unknown>(PENDING_GRANT_RECORD),
+          )
+          const latestReissueState = readPendingGrantReissueState(
+            await this.state.storage.get<unknown>(PENDING_GRANT_REISSUE_RECORD),
+          )
+          if (
+            (expectedStatePersisted
+              ? !latest || latest.revision !== expectedRevision
+              : latest !== null)
+            || latestGrant?.intentId !== expectedGrantIntentId
+            || latestReissueState?.requestedAtMicros !== expectedReissueRequest
+          ) return new Response(null, { status: 409 })
+          next = latest ?? next
+          grantIntent = createPendingGrantIntent(
+            value.fid,
+            generation.requestedAtMicros,
+            now,
+          )
+          reissueState = createPendingGrantReissueState(
+            value.fid,
+            generation.requestedAtMicros,
+            now,
+          )
+          newGrant = true
+        }
       }
       const diagnostics = readPersistedDiagnostics(
         await this.state.storage.get<unknown>(DIAGNOSTICS_RECORD),
       )
       next = recoverLegacyTransportBackoff(next, diagnostics, generation, now)
-      const newGrant = generation.kind === 'pending-request'
-        && !grantMatchesGeneration(grantIntent, generation, value.fid)
-      if (newGrant) {
-        grantIntent = createPendingGrantIntent(
-          value.fid,
-          generation.requestedAtMicros,
-          now,
-        )
-      }
       if (
         newGrant
         || !next.delivery
@@ -2697,15 +3296,13 @@ export class AdmissionNotification {
         next,
         now,
         generation.kind === 'pending-request' ? grantIntent : undefined,
+        generation.kind === 'pending-request' ? reissueState ?? undefined : undefined,
       )
       next = await this.attemptDelivery(next)
       grantIntent = readPendingGrantIntent(
         await this.state.storage.get<unknown>(PENDING_GRANT_RECORD),
       )
-      return new Response(JSON.stringify({ status: queueStatus(next, grantIntent) }), {
-        status: 200,
-        headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
-      })
+      return respond(queueStatus(next, grantIntent))
     }
 
     return new Response(null, { status: 404 })
@@ -2758,8 +3355,12 @@ export class AdmissionNotification {
       return
     }
     const next = await this.attemptDelivery(state)
+    const retainedReissueState = readPendingGrantReissueState(
+      await this.state.storage.get<unknown>(PENDING_GRANT_REISSUE_RECORD),
+    )
     if (
       !next.delivery
+      && retainedReissueState === null
       && next.subscriptions.length === 0
       && next.revokedTokenIds.length === 0
       && next.lastSentAuthEpoch === undefined

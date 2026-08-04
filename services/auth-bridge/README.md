@@ -43,6 +43,7 @@ future rollout step requires exact-head verification and recorded authority.
 | `POST` | `/v1/admin/config-attestation` | Server-only digest of security-relevant runtime configuration. |
 | `POST` | `/v1/farcaster/miniapp/webhook` | Verifies signed add/remove and notification enable/disable events; returns exact `200`. |
 | `POST` | `/v1/admin/admission-notification` | Separate-secret Hermes hook; queues one alert for the exact pending request, reports client acknowledgement, or reconciles an already-live admission epoch. |
+| `POST` | `/v1/admin/admission-notification-reissue` | Separate-secret, explicit operator fallback that rotates one unopened pending-request alert under a durable cooldown and per-request cap. |
 | `POST` | `/v1/admin/admission-notification-status` | Separate-secret, token-free delivery diagnostics for one exact FID. |
 
 The legacy public `/v1/farcaster/challenge` and `/v1/farcaster/exchange` routes
@@ -400,10 +401,13 @@ requires two exact Hub origins in `MINIAPP_NOTIFICATION_HUB_URLS`, an exact
 managed `NOTIFICATION_OPERATOR_SECRET` that differs from the admin, session,
 and signing secrets. Raw notification tokens stay in one private per-FID
 object, are never returned to the browser or stored in SpacetimeDB, and expire
-within 366 days. Signed opt-outs remain accepted while delivery is paused and
-erase raw token material immediately. The deployed v1 consent record retains
+within 366 days. Signed opt-ins and opt-outs remain accepted while delivery is
+paused: opt-ins persist without sending, while opt-outs erase raw token
+material immediately. The deployed v1 consent record retains
 its rollback-compatible shape; pending-request work and receipts use a separate
-private v2 record. Each send rechecks either the exact current pending-request
+private v2 record. Bounded reissue counts, the latest provider handoff, and
+client acknowledgement live in a third token-free sidecar so the established
+v2 and reviewed v3 record shapes remain readable by a rollback Worker. Each send rechecks either the exact current pending-request
 timestamp while admission is disabled, or the exact current live admission
 epoch. Stable notification IDs, retry ceilings, replay tombstones, and bounded
 generation receipts make retries idempotent. Farcaster provider acceptance is
@@ -421,6 +425,17 @@ delivery URL, webhook payload, provider response, or free-form error. Delivery
 parsing accepts Farcaster's optional additive
 `failedTokens` field, ignores harmless provider metadata, and still rejects
 invalid reasons, contradictory known outcome categories, and token mismatches.
+
+If Farcaster accepted a pending-request alert but the player could not open it,
+an operator may run
+`npm run stdb:reissue-admission-notification -- <fid> --confirm`. The separate
+operator-secret route revalidates the exact disabled admission and pending
+request timestamp, then atomically replaces the old one-use grant. It waits at
+least five minutes between attempts and permits at most two reissues for one
+request. Ordinary queue polling never resends a provider-accepted grant. Its
+responses are limited to `reissued`, `cooldown`, `limit-reached`,
+`client-acknowledged`, `not-ready`, `not-subscribed`, `stale`, or `paused` and
+contain no ticket, notification ID, token, URL, or provider body.
 
 The context-bound acknowledgement uses the additive
 `/v2/access/admission-grant-context` route; the earlier candidate path was

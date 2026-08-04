@@ -20,6 +20,7 @@ const INTERNAL_ORIGIN = 'https://admission-notification.internal'
 const STATE_KEY = 'admission-notification-v1'
 const PENDING_STATE_RECORD = 'admission-notification-pending-v2'
 const PENDING_GRANT_RECORD = 'admission-notification-grant-v3'
+const PENDING_GRANT_REISSUE_RECORD = 'admission-notification-grant-reissue-v1'
 const DIAGNOSTICS_RECORD = 'admission-notification-diagnostics-v1'
 
 class FakeStorage implements DurableObjectStorage {
@@ -119,7 +120,10 @@ function disabledEvent(eventId = 'b'.repeat(64)): VerifiedMiniAppWebhookEvent {
   return { eventId, fid: FID, appFid: APP_FID, event: { type: 'disabled' } }
 }
 
-function internalRequest(path: 'event' | 'queue' | 'status' | 'ack', body: unknown): Request {
+function internalRequest(
+  path: 'event' | 'queue' | 'reissue' | 'status' | 'ack',
+  body: unknown,
+): Request {
   return new Request(`${INTERNAL_ORIGIN}/${path}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -218,6 +222,18 @@ async function acknowledge(
   return notification.fetch(internalRequest('ack', { fid: FID, ticket, notificationId }))
 }
 
+async function reissue(
+  notification: AdmissionNotification,
+  requestedAtMicros: number,
+  reissuedAt: number,
+): Promise<Response> {
+  return notification.fetch(internalRequest('reissue', {
+    fid: FID,
+    requestedAtMicros,
+    reissuedAt,
+  }))
+}
+
 function grantNotificationId(grant: Readonly<{ intentId: string }>): string {
   return `warpkeep-access-grant-v3-i${grant.intentId}`
 }
@@ -235,6 +251,26 @@ function pendingGrant(storage: FakeStorage): {
     requestedAtMicros: number
     providerAcceptedAt?: number
     acknowledgedAt?: number
+  }
+}
+
+function pendingReissueState(storage: FakeStorage): {
+  fid: string
+  requestedAtMicros: number
+  initialGrantCreatedAt: number
+  reissueCount: number
+  lastReissuedAt?: number
+  providerAcceptedAt?: number
+  clientAcknowledgedAt?: number
+} {
+  return storage.values.get(PENDING_GRANT_REISSUE_RECORD) as {
+    fid: string
+    requestedAtMicros: number
+    initialGrantCreatedAt: number
+    reissueCount: number
+    lastReissuedAt?: number
+    providerAcceptedAt?: number
+    clientAcknowledgedAt?: number
   }
 }
 
@@ -336,6 +372,462 @@ describe('admission notification consent and delivery lifecycle', () => {
       deliveryState: 'succeeded',
     })
     expect(await (await inspect(h.notification)).text()).not.toContain(grant.ticket)
+  })
+
+  it('reissues only through the bounded operator transition while ordinary polling stays inert', async () => {
+    const requestedAtMicros = 1_799_999_999_000_000
+    const fetchImpl = vi.fn<typeof fetch>(async () => successfulDelivery())
+    const h = createHarness({
+      fetchImpl,
+      resolver: {
+        resolve: vi.fn(async () => ({ state: 'disabled', authEpoch: 0 } as const)),
+      },
+      accessRequestResolver: {
+        getStatus: vi.fn(async () => ({ status: 'requested', requestedAtMicros } as const)),
+        submit: vi.fn(async () => ({ status: 'requested', requestedAtMicros } as const)),
+      },
+    })
+    await applyEvent(h.notification, enabledEvent())
+    await queuePending(h.notification, requestedAtMicros)
+    const originalGrant = pendingGrant(h.storage)
+    expect(pendingReissueState(h.storage)).toMatchObject({
+      requestedAtMicros,
+      reissueCount: 0,
+      providerAcceptedAt: NOW,
+    })
+    expect(Object.keys(h.storage.values.get(PENDING_GRANT_RECORD) as object).sort()).toEqual([
+      'createdAt',
+      'expiresAt',
+      'fid',
+      'intentId',
+      'providerAcceptedAt',
+      'requestedAtMicros',
+      'ticket',
+      'version',
+    ])
+
+    await expect((await queuePending(
+      h.notification,
+      requestedAtMicros,
+    )).json()).resolves.toEqual({ status: 'awaiting-client' })
+    expect(fetchImpl).toHaveBeenCalledOnce()
+    await expect((await reissue(
+      h.notification,
+      requestedAtMicros,
+      NOW,
+    )).json()).resolves.toEqual({ status: 'cooldown', retryAfterSeconds: 300 })
+    expect(fetchImpl).toHaveBeenCalledOnce()
+
+    h.setNow(NOW + 5 * 60 * 1_000)
+    await expect((await reissue(
+      h.notification,
+      requestedAtMicros,
+      NOW + 5 * 60 * 1_000,
+    )).json()).resolves.toEqual({
+      status: 'reissued',
+      deliveryStatus: 'awaiting-client',
+    })
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    const nextGrant = pendingGrant(h.storage)
+    expect(nextGrant.intentId).not.toBe(originalGrant.intentId)
+    expect(nextGrant.ticket).not.toBe(originalGrant.ticket)
+    expect(nextGrant).toMatchObject({
+      createdAt: NOW + 5 * 60 * 1_000,
+      expiresAt: NOW + 5 * 60 * 1_000 + 24 * 60 * 60 * 1_000,
+      providerAcceptedAt: NOW + 5 * 60 * 1_000,
+    })
+    expect(Object.keys(h.storage.values.get(PENDING_GRANT_RECORD) as object).sort()).toEqual([
+      'createdAt',
+      'expiresAt',
+      'fid',
+      'intentId',
+      'providerAcceptedAt',
+      'requestedAtMicros',
+      'ticket',
+      'version',
+    ])
+    expect(pendingReissueState(h.storage)).toMatchObject({
+      requestedAtMicros,
+      reissueCount: 1,
+      lastReissuedAt: NOW + 5 * 60 * 1_000,
+      providerAcceptedAt: NOW + 5 * 60 * 1_000,
+    })
+    const pendingRecord = h.storage.values.get(PENDING_STATE_RECORD) as {
+      delivery: { queuedAt: number; expiresAt: number }
+    }
+    expect(Object.keys(pendingRecord).sort()).toEqual(['delivery', 'fid', 'version'])
+    expect(Object.keys(pendingRecord.delivery).sort()).toEqual([
+      'attempts',
+      'expiresAt',
+      'queuedAt',
+      'requestedAtMicros',
+    ])
+    expect(pendingRecord.delivery.expiresAt - pendingRecord.delivery.queuedAt)
+      .toBe(24 * 60 * 60 * 1_000)
+    await expect((await acknowledge(
+      h.notification,
+      originalGrant.ticket,
+      grantNotificationId(originalGrant),
+    )).json()).resolves.toEqual({ status: 'stale' })
+    const diagnosticsText = await (await inspect(h.notification)).text()
+    expect(diagnosticsText).not.toContain(originalGrant.ticket)
+    expect(diagnosticsText).not.toContain(nextGrant.ticket)
+    expect(diagnosticsText).not.toContain('reissueCount')
+    const sidecarText = JSON.stringify(h.storage.values.get(PENDING_GRANT_REISSUE_RECORD))
+    expect(sidecarText).not.toContain(originalGrant.ticket)
+    expect(sidecarText).not.toContain(nextGrant.ticket)
+    expect(sidecarText).not.toContain(originalGrant.intentId)
+    expect(sidecarText).not.toContain(nextGrant.intentId)
+    expect(sidecarText).not.toContain(TOKEN)
+  })
+
+  it('caps reissues at two for one exact pending request', async () => {
+    const requestedAtMicros = 1_799_999_999_000_000
+    const fetchImpl = vi.fn<typeof fetch>(async () => successfulDelivery())
+    const h = createHarness({
+      fetchImpl,
+      resolver: {
+        resolve: vi.fn(async () => ({ state: 'disabled', authEpoch: 0 } as const)),
+      },
+      accessRequestResolver: {
+        getStatus: vi.fn(async () => ({ status: 'requested', requestedAtMicros } as const)),
+        submit: vi.fn(async () => ({ status: 'requested', requestedAtMicros } as const)),
+      },
+    })
+    await applyEvent(h.notification, enabledEvent())
+    await queuePending(h.notification, requestedAtMicros)
+    for (const offset of [5, 10]) {
+      const reissuedAt = NOW + offset * 60 * 1_000
+      h.setNow(reissuedAt)
+      await expect((await reissue(
+        h.notification,
+        requestedAtMicros,
+        reissuedAt,
+      )).json()).resolves.toMatchObject({ status: 'reissued' })
+    }
+    h.setNow(NOW + 15 * 60 * 1_000)
+    await expect((await reissue(
+      h.notification,
+      requestedAtMicros,
+      NOW + 15 * 60 * 1_000,
+    )).json()).resolves.toEqual({ status: 'limit-reached' })
+    expect(fetchImpl).toHaveBeenCalledTimes(3)
+    expect(pendingReissueState(h.storage).reissueCount).toBe(2)
+  })
+
+  it('starts each reissue cooldown at the latest provider handoff', async () => {
+    const requestedAtMicros = 1_799_999_999_000_000
+    let deliveryCall = 0
+    const fetchImpl = vi.fn<typeof fetch>(async () => {
+      deliveryCall += 1
+      if (deliveryCall === 2) {
+        return Response.json({
+          result: {
+            successfulTokens: [],
+            invalidTokens: [],
+            rateLimitedTokens: [TOKEN],
+          },
+        })
+      }
+      return successfulDelivery()
+    })
+    const h = createHarness({
+      fetchImpl,
+      resolver: {
+        resolve: vi.fn(async () => ({ state: 'disabled', authEpoch: 0 } as const)),
+      },
+      accessRequestResolver: {
+        getStatus: vi.fn(async () => ({ status: 'requested', requestedAtMicros } as const)),
+        submit: vi.fn(async () => ({ status: 'requested', requestedAtMicros } as const)),
+      },
+    })
+    await applyEvent(h.notification, enabledEvent())
+    await queuePending(h.notification, requestedAtMicros)
+
+    h.setNow(NOW + 5 * 60 * 1_000)
+    await expect((await reissue(
+      h.notification,
+      requestedAtMicros,
+      NOW + 5 * 60 * 1_000,
+    )).json()).resolves.toMatchObject({
+      status: 'reissued',
+      deliveryStatus: 'queued',
+    })
+    expect(pendingReissueState(h.storage).providerAcceptedAt).toBeUndefined()
+
+    h.setNow(NOW + 5 * 60 * 1_000 + 30_000)
+    await h.notification.alarm()
+    expect(pendingReissueState(h.storage).providerAcceptedAt)
+      .toBe(NOW + 5 * 60 * 1_000 + 30_000)
+
+    h.setNow(NOW + 10 * 60 * 1_000)
+    await expect((await reissue(
+      h.notification,
+      requestedAtMicros,
+      NOW + 10 * 60 * 1_000,
+    )).json()).resolves.toEqual({ status: 'cooldown', retryAfterSeconds: 30 })
+    expect(fetchImpl).toHaveBeenCalledTimes(3)
+
+    h.setNow(NOW + 10 * 60 * 1_000 + 30_000)
+    await expect((await reissue(
+      h.notification,
+      requestedAtMicros,
+      NOW + 10 * 60 * 1_000 + 30_000,
+    )).json()).resolves.toMatchObject({ status: 'reissued' })
+    expect(fetchImpl).toHaveBeenCalledTimes(4)
+  })
+
+  it('retains the sidecar across pause and keeps ordinary resume polling inert', async () => {
+    const requestedAtMicros = 1_799_999_999_000_000
+    let notificationsEnabled = true
+    const fetchImpl = vi.fn<typeof fetch>(async () => successfulDelivery())
+    const h = createHarness({
+      fetchImpl,
+      configReader: () => config(notificationsEnabled),
+      resolver: {
+        resolve: vi.fn(async () => ({ state: 'disabled', authEpoch: 0 } as const)),
+      },
+      accessRequestResolver: {
+        getStatus: vi.fn(async () => ({ status: 'requested', requestedAtMicros } as const)),
+        submit: vi.fn(async () => ({ status: 'requested', requestedAtMicros } as const)),
+      },
+    })
+    await applyEvent(h.notification, enabledEvent())
+    await queuePending(h.notification, requestedAtMicros)
+    const initialSidecar = pendingReissueState(h.storage)
+
+    h.setNow(NOW + 5 * 60 * 1_000)
+    notificationsEnabled = false
+    await h.notification.alarm()
+    expect(h.storage.values.has(PENDING_GRANT_RECORD)).toBe(false)
+    expect(pendingReissueState(h.storage)).toEqual(initialSidecar)
+    await expect((await reissue(
+      h.notification,
+      requestedAtMicros,
+      NOW + 5 * 60 * 1_000,
+    )).json()).resolves.toEqual({ status: 'paused' })
+
+    notificationsEnabled = true
+    await expect((await queuePending(
+      h.notification,
+      requestedAtMicros,
+      NOW + 5 * 60 * 1_000,
+    )).json()).resolves.toEqual({ status: 'delivery-exhausted' })
+    expect(fetchImpl).toHaveBeenCalledOnce()
+    await expect((await reissue(
+      h.notification,
+      requestedAtMicros,
+      NOW + 5 * 60 * 1_000,
+    )).json()).resolves.toMatchObject({ status: 'reissued' })
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    expect(pendingReissueState(h.storage).reissueCount).toBe(1)
+  })
+
+  it('retains the exact-request cap after repeated raw-grant expiry beyond 24 hours', async () => {
+    const requestedAtMicros = 1_799_999_999_000_000
+    const fetchImpl = vi.fn<typeof fetch>(async () => successfulDelivery())
+    const h = createHarness({
+      fetchImpl,
+      resolver: {
+        resolve: vi.fn(async () => ({ state: 'disabled', authEpoch: 0 } as const)),
+      },
+      accessRequestResolver: {
+        getStatus: vi.fn(async () => ({ status: 'requested', requestedAtMicros } as const)),
+        submit: vi.fn(async () => ({ status: 'requested', requestedAtMicros } as const)),
+      },
+    })
+    await applyEvent(h.notification, enabledEvent())
+    await queuePending(h.notification, requestedAtMicros)
+
+    let currentTime = NOW + 24 * 60 * 60 * 1_000
+    for (let expectedCount = 1; expectedCount <= 2; expectedCount += 1) {
+      h.setNow(currentTime)
+      await h.notification.alarm()
+      expect(h.storage.values.has(PENDING_GRANT_RECORD)).toBe(false)
+      await expect((await queuePending(
+        h.notification,
+        requestedAtMicros,
+        currentTime,
+      )).json()).resolves.toEqual({ status: 'delivery-exhausted' })
+      await expect((await reissue(
+        h.notification,
+        requestedAtMicros,
+        currentTime,
+      )).json()).resolves.toMatchObject({ status: 'reissued' })
+      expect(pendingReissueState(h.storage).reissueCount).toBe(expectedCount)
+      currentTime += 24 * 60 * 60 * 1_000
+    }
+    h.setNow(currentTime)
+    await h.notification.alarm()
+    await expect((await reissue(
+      h.notification,
+      requestedAtMicros,
+      currentTime,
+    )).json()).resolves.toEqual({ status: 'limit-reached' })
+    expect(fetchImpl).toHaveBeenCalledTimes(3)
+    expect(pendingReissueState(h.storage).reissueCount).toBe(2)
+  })
+
+  it('retains provider receipt and acknowledgement across opt-out and re-enable', async () => {
+    const requestedAtMicros = 1_799_999_999_000_000
+    const fetchImpl = vi.fn<typeof fetch>(async (_input, init) => {
+      const token = (JSON.parse(String(init?.body)) as { tokens: string[] }).tokens[0]
+      return successfulDelivery(token)
+    })
+    const h = createHarness({
+      fetchImpl,
+      resolver: {
+        resolve: vi.fn(async () => ({ state: 'disabled', authEpoch: 0 } as const)),
+      },
+      accessRequestResolver: {
+        getStatus: vi.fn(async () => ({ status: 'requested', requestedAtMicros } as const)),
+        submit: vi.fn(async () => ({ status: 'requested', requestedAtMicros } as const)),
+      },
+    })
+    await applyEvent(h.notification, enabledEvent())
+    await queuePending(h.notification, requestedAtMicros)
+    const initialProviderAcceptedAt = pendingReissueState(h.storage).providerAcceptedAt
+    await applyEvent(h.notification, disabledEvent())
+    expect(h.storage.values.has(PENDING_GRANT_RECORD)).toBe(false)
+    expect(pendingReissueState(h.storage).providerAcceptedAt).toBe(initialProviderAcceptedAt)
+
+    h.setNow(NOW + 5 * 60 * 1_000)
+    await applyEvent(h.notification, enabledEvent(
+      'e'.repeat(64),
+      `${TOKEN}-replacement`,
+    ))
+    await expect((await queuePending(
+      h.notification,
+      requestedAtMicros,
+      NOW + 5 * 60 * 1_000,
+    )).json()).resolves.toEqual({ status: 'delivery-exhausted' })
+    expect(fetchImpl).toHaveBeenCalledOnce()
+    await expect((await reissue(
+      h.notification,
+      requestedAtMicros,
+      NOW + 5 * 60 * 1_000,
+    )).json()).resolves.toMatchObject({ status: 'reissued' })
+    const reissuedGrant = pendingGrant(h.storage)
+    await acknowledge(
+      h.notification,
+      reissuedGrant.ticket,
+      grantNotificationId(reissuedGrant),
+    )
+    expect(pendingReissueState(h.storage).clientAcknowledgedAt)
+      .toBe(NOW + 5 * 60 * 1_000)
+    await applyEvent(h.notification, disabledEvent('f'.repeat(64)))
+    expect(h.storage.values.has(PENDING_GRANT_RECORD)).toBe(false)
+    h.setNow(NOW + 10 * 60 * 1_000)
+    await expect((await reissue(
+      h.notification,
+      requestedAtMicros,
+      NOW + 10 * 60 * 1_000,
+    )).json()).resolves.toEqual({ status: 'client-acknowledged' })
+  })
+
+  it('serializes acknowledgement and reissue so exactly one grant wins', async () => {
+    const requestedAtMicros = 1_799_999_999_000_000
+    const makeHarness = () => createHarness({
+      resolver: {
+        resolve: vi.fn(async () => ({ state: 'disabled', authEpoch: 0 } as const)),
+      },
+      accessRequestResolver: {
+        getStatus: vi.fn(async () => ({ status: 'requested', requestedAtMicros } as const)),
+        submit: vi.fn(async () => ({ status: 'requested', requestedAtMicros } as const)),
+      },
+    })
+
+    const ackFirst = makeHarness()
+    await applyEvent(ackFirst.notification, enabledEvent())
+    await queuePending(ackFirst.notification, requestedAtMicros)
+    const acknowledgedGrant = pendingGrant(ackFirst.storage)
+    await acknowledge(
+      ackFirst.notification,
+      acknowledgedGrant.ticket,
+      grantNotificationId(acknowledgedGrant),
+    )
+    ackFirst.setNow(NOW + 5 * 60 * 1_000)
+    await expect((await reissue(
+      ackFirst.notification,
+      requestedAtMicros,
+      NOW + 5 * 60 * 1_000,
+    )).json()).resolves.toEqual({ status: 'client-acknowledged' })
+
+    const reissueFirst = makeHarness()
+    await applyEvent(reissueFirst.notification, enabledEvent('c'.repeat(64)))
+    await queuePending(reissueFirst.notification, requestedAtMicros)
+    const staleGrant = pendingGrant(reissueFirst.storage)
+    reissueFirst.setNow(NOW + 5 * 60 * 1_000)
+    await reissue(
+      reissueFirst.notification,
+      requestedAtMicros,
+      NOW + 5 * 60 * 1_000,
+    )
+    await expect((await acknowledge(
+      reissueFirst.notification,
+      staleGrant.ticket,
+      grantNotificationId(staleGrant),
+    )).json()).resolves.toEqual({ status: 'stale' })
+    const winningGrant = pendingGrant(reissueFirst.storage)
+    await expect((await acknowledge(
+      reissueFirst.notification,
+      winningGrant.ticket,
+      grantNotificationId(winningGrant),
+    )).json()).resolves.toEqual({ status: 'accepted' })
+  })
+
+  it('fails closed on paused, reset, or non-disabled authority without resending', async () => {
+    const requestedAtMicros = 1_799_999_999_000_000
+    let admissionState: 'disabled' | 'missing' = 'disabled'
+    let liveRequestedAtMicros = requestedAtMicros
+    let notificationsEnabled = true
+    const fetchImpl = vi.fn<typeof fetch>(async () => successfulDelivery())
+    const h = createHarness({
+      fetchImpl,
+      configReader: () => config(notificationsEnabled),
+      resolver: {
+        resolve: vi.fn(async () => ({ state: admissionState, authEpoch: 0 } as const)),
+      },
+      accessRequestResolver: {
+        getStatus: vi.fn(async () => ({
+          status: 'requested',
+          requestedAtMicros: liveRequestedAtMicros,
+        } as const)),
+        submit: vi.fn(async () => ({ status: 'not-requested' } as const)),
+      },
+    })
+    await applyEvent(h.notification, enabledEvent())
+    await queuePending(h.notification, requestedAtMicros)
+    h.setNow(NOW + 5 * 60 * 1_000)
+
+    notificationsEnabled = false
+    await expect((await reissue(
+      h.notification,
+      requestedAtMicros,
+      NOW + 5 * 60 * 1_000,
+    )).json()).resolves.toEqual({ status: 'paused' })
+    notificationsEnabled = true
+    admissionState = 'missing'
+    await expect((await reissue(
+      h.notification,
+      requestedAtMicros,
+      NOW + 5 * 60 * 1_000,
+    )).json()).resolves.toEqual({ status: 'stale' })
+    expect(fetchImpl).toHaveBeenCalledOnce()
+    expect(h.storage.values.has(PENDING_GRANT_RECORD)).toBe(false)
+
+    admissionState = 'disabled'
+    liveRequestedAtMicros += 1_000
+    await queuePending(h.notification, requestedAtMicros + 1_000, NOW + 5 * 60 * 1_000)
+    const queuedFetchCount = fetchImpl.mock.calls.length
+    h.setNow(NOW + 10 * 60 * 1_000)
+    liveRequestedAtMicros += 1_000
+    await expect((await reissue(
+      h.notification,
+      requestedAtMicros + 1_000,
+      NOW + 10 * 60 * 1_000,
+    )).json()).resolves.toEqual({ status: 'stale' })
+    expect(fetchImpl).toHaveBeenCalledTimes(queuedFetchCount)
   })
 
   it('does not reuse a pending-request receipt for a later application', async () => {
@@ -609,9 +1101,12 @@ describe('admission notification consent and delivery lifecycle', () => {
     await applyEvent(h.notification, enabledEvent())
 
     const response = await queuePending(h.notification, requestedAtMicros)
-    await expect(response.json()).resolves.toEqual({ status: 'not-subscribed' })
+    expect(response.status).toBe(409)
+    expect(await response.text()).toBe('')
     expect(fetchImpl).not.toHaveBeenCalled()
     expect(stored(h.storage)).not.toContain('"delivery"')
+    expect(h.storage.values.has(PENDING_GRANT_RECORD)).toBe(false)
+    expect(h.storage.values.has(PENDING_GRANT_REISSUE_RECORD)).toBe(false)
   })
 
   it('heals a rollback conflict before processing a signed opt-out', async () => {
@@ -742,6 +1237,27 @@ describe('admission notification consent and delivery lifecycle', () => {
     await h.notification.alarm()
     expect(fetchImpl).not.toHaveBeenCalled()
     expect(h.storage.values.has(STATE_KEY)).toBe(false)
+  })
+
+  it('retains verified consent while outbound delivery is paused', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => successfulDelivery())
+    const h = createHarness({
+      fetchImpl,
+      configReader: () => config(false),
+    })
+
+    const enabled = await applyEvent(h.notification, enabledEvent())
+    expect(enabled.status).toBe(204)
+    expect(fetchImpl).not.toHaveBeenCalled()
+    expect(stored(h.storage)).toContain(TOKEN)
+    await expect((await inspect(h.notification)).json()).resolves.toMatchObject({
+      version: 2,
+      systemState: 'paused',
+      subscriptionState: 'active',
+      activeSubscriptionCount: 1,
+      activeClientFids: [9_152],
+      deliveryState: 'idle',
+    })
   })
 
   it('keeps active delivery recoverable across a transient configuration outage', async () => {

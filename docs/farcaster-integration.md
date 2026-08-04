@@ -333,9 +333,10 @@ with bounded retries. When both RPCs answer they must agree; after one exhausts
 its transport retries, the healthy independent view may complete verification
 and emits only a static degraded-mode event. Conflicting answers, two failed
 transports, or inactive on-chain state still fail closed. Delivery is accepted
-only for the exact configured client FID and URL. A valid disable/remove
-remains usable while outbound delivery is paused so opt-out cannot be trapped
-behind a feature gate. Raw notification tokens stay inside one private
+only for the exact configured client FID and URL. Valid add/enable and
+disable/remove events remain usable while outbound delivery is paused: consent
+is not lost during a rollout pause, and opt-out cannot be trapped behind a
+feature gate. The pause still clears or rejects every outbound send. Raw notification tokens stay inside one private
 Cloudflare Durable Object per FID, never in React, browser storage, logs, URLs,
 public state, or SpacetimeDB.
 
@@ -356,6 +357,17 @@ tuple before invoking a request-CAS reducer.
 identity mismatch, or a changed request all fail closed without admission.
 Provider acceptance alone proves only handoff to Farcaster, not display or an
 authenticated player open.
+
+For the bounded provider-accepted-but-unopened exception, an operator may use
+`reissue-admission-notification <fid> --confirm`. This is a distinct serialized
+transition, never an ordinary queue poll. It rechecks the exact disabled
+admission and unchanged request timestamp, rotates the one-use intent, ticket,
+and notification ID atomically, enforces a five-minute cooldown, and caps the
+request cycle at two reissues. The cap and latest provider/client receipts live
+in a private token-free sidecar, leaving the established pending-delivery and
+reviewed grant record shapes unchanged for rollback. Acknowledgement and reissue share the same
+per-FID serialization: acknowledgement-first blocks reissue, while
+reissue-first makes the prior capability stale.
 
 The request-CAS reducers enforce admission kind and the exact request
 cycle/timestamp. The reviewed Hermes workflow supplies the notification-open

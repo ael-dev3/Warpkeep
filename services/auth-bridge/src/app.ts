@@ -137,6 +137,7 @@ const V2_ACCESS_REQUEST_PATH = '/v2/access/request'
 const V2_ADMISSION_GRANT_CONTEXT_PATH = '/v2/access/admission-grant-context'
 export const MINIAPP_WEBHOOK_PATH = '/v1/farcaster/miniapp/webhook'
 export const ADMISSION_NOTIFICATION_PATH = '/v1/admin/admission-notification'
+export const ADMISSION_NOTIFICATION_REISSUE_PATH = '/v1/admin/admission-notification-reissue'
 export const ADMISSION_NOTIFICATION_STATUS_PATH = '/v1/admin/admission-notification-status'
 const LEGACY_CHALLENGE_PATH = '/v1/farcaster/challenge'
 const LEGACY_EXCHANGE_PATH = '/v1/farcaster/exchange'
@@ -389,6 +390,7 @@ function isServerOnlyAdminPath(pathname: string): boolean {
     || pathname === AUTH_EPOCH_PROBE_PATH
     || pathname === CONFIG_ATTESTATION_PATH
     || pathname === ADMISSION_NOTIFICATION_PATH
+    || pathname === ADMISSION_NOTIFICATION_REISSUE_PATH
     || pathname === ADMISSION_NOTIFICATION_STATUS_PATH
 }
 
@@ -1103,6 +1105,7 @@ async function configurationAttestation(
     accessRequestStatusPath: V2_ACCESS_STATUS_PATH,
     accessRequestSubmitPath: V2_ACCESS_REQUEST_PATH,
     admissionGrantPath: V2_ADMISSION_GRANT_CONTEXT_PATH,
+    admissionNotificationReissuePath: ADMISSION_NOTIFICATION_REISSUE_PATH,
     accessRequestResolverTokenTtlSeconds: INTERNAL_ACCESS_REQUEST_RESOLVER_TOKEN_TTL_SECONDS,
     accessRequestResolverTimeoutMilliseconds: ACCESS_REQUEST_RESOLVER_TIMEOUT_MILLISECONDS,
     accessRequestStatusProcedure: SPACETIMEDB_ACCESS_REQUEST_STATUS_PROCEDURE,
@@ -1638,13 +1641,6 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             }
             throw error
           }
-          if (!config.approvalNotificationsEnabled && event.event.type === 'enabled') {
-            throw new HttpError(
-              503,
-              'approval_notifications_paused',
-              'Admission notifications are temporarily unavailable.',
-            )
-          }
           try {
             await (
               dependencies.admissionNotificationStore
@@ -1933,6 +1929,13 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
 
         if (request.method === 'POST' && isAccessCredentialPath(url.pathname)) {
           const credentialMode = accessCredentialMode(request)
+          if (
+            url.pathname === V2_ADMISSION_GRANT_CONTEXT_PATH
+            && credentialMode !== 'quick-auth'
+          ) {
+            logger.event('admission_grant_ack_quick_auth_required')
+            throw invalidAccessCredential()
+          }
           const origin = credentialMode === 'quick-auth'
             ? requireQuickAuthBrowserOrigin(request)
             : requireAllowedBrowserOrigin(request, config)
@@ -2652,6 +2655,121 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           return json({ status }, status === 'queued' ? 202 : 200)
         }
 
+        if (request.method === 'POST' && url.pathname === ADMISSION_NOTIFICATION_REISSUE_PATH) {
+          requireAdminNoOrigin(request)
+          if (!config.approvalNotificationsEnabled) {
+            logger.event('admission_notification_reissue_rejected')
+            throw new HttpError(
+              503,
+              'approval_notifications_paused',
+              'Admission notifications are temporarily unavailable.',
+            )
+          }
+          if (url.search) {
+            throw new HttpError(400, 'notification_query_not_allowed', 'This endpoint does not accept query parameters.')
+          }
+          await enforceRateLimit(
+            request,
+            'admission-notification',
+            env,
+            dependencies.rateLimiter,
+            logger,
+          )
+          const notificationConfig = config.miniAppNotifications
+          if (!notificationConfig) throw new ConfigurationError()
+          const credential = adminCredential(request)
+          if (!credential || !(await timingSafeSecretMatch(
+            credential,
+            notificationConfig.operatorSecret,
+          ))) {
+            logger.event('admission_notification_reissue_rejected')
+            throw new HttpError(
+              401,
+              'invalid_notification_credentials',
+              'Notification operator credentials are invalid.',
+            )
+          }
+          const body = await parseObjectBody(request)
+          requireExactKeys(body, ['fid'])
+          const fid = canonicalNotificationFid(body.fid)
+          let admission: AdmissionResolution
+          try {
+            admission = await (
+              dependencies.authEpochResolver
+              ?? defaultAuthEpochResolver(config)
+            ).resolve(fid)
+          } catch (error) {
+            logAuthEpochFailure(logger, error)
+            throw new HttpError(
+              503,
+              'authorization_unavailable',
+              'Authorization is temporarily unavailable.',
+            )
+          }
+          if (admission.state !== 'disabled') {
+            logger.event('admission_notification_reissue_rejected')
+            throw new HttpError(
+              409,
+              'admission_not_disabled',
+              'The account is not in the exact disabled admission state.',
+            )
+          }
+          let requestStatus: AccessRequestResolution
+          try {
+            requestStatus = await (
+              dependencies.accessRequestResolver
+              ?? defaultAccessRequestResolver(config)
+            ).getStatus(fid)
+          } catch (error) {
+            logAccessRequestFailure(logger, error)
+            throw new HttpError(
+              503,
+              'access_request_unavailable',
+              'The access request ledger is temporarily unavailable.',
+            )
+          }
+          if (requestStatus.status !== 'requested') {
+            logger.event('admission_notification_reissue_rejected')
+            throw new HttpError(
+              409,
+              'access_request_not_pending',
+              'No pending access request is available for notification.',
+            )
+          }
+          const reissuedAt = now()
+          if (!Number.isSafeInteger(reissuedAt) || reissuedAt < 0) throw new ConfigurationError()
+          const store = dependencies.admissionNotificationStore
+            ?? defaultAdmissionNotificationStore(env)
+          if (!store.reissueAdmission) {
+            throw new HttpError(
+              503,
+              'admission_notification_unavailable',
+              'Admission notification delivery is temporarily unavailable.',
+            )
+          }
+          let result
+          try {
+            result = await store.reissueAdmission({
+              fid,
+              requestedAtMicros: requestStatus.requestedAtMicros,
+              reissuedAt,
+            })
+          } catch {
+            throw new HttpError(
+              503,
+              'admission_notification_unavailable',
+              'Admission notification delivery is temporarily unavailable.',
+            )
+          }
+          if (result.status === 'reissued') logger.event('admission_notification_reissued')
+          else if (result.status === 'cooldown') {
+            logger.event('admission_notification_reissue_cooldown')
+          } else if (result.status === 'limit-reached') {
+            logger.event('admission_notification_reissue_limit')
+          } else logger.event('admission_notification_reissue_rejected')
+          return json(result)
+        }
+
         if (request.method === 'POST' && url.pathname === ADMISSION_NOTIFICATION_STATUS_PATH) {
           requireAdminNoOrigin(request)
           if (url.search) {
@@ -2781,6 +2899,7 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
               config.miniAppNotifications?.clients.map(client => client.appFid) ?? [],
             miniAppWebhookPath: MINIAPP_WEBHOOK_PATH,
             admissionNotificationPath: ADMISSION_NOTIFICATION_PATH,
+            admissionNotificationReissuePath: ADMISSION_NOTIFICATION_REISSUE_PATH,
             admissionNotificationStatusPath: ADMISSION_NOTIFICATION_STATUS_PATH,
             publicAuthEnabled: config.publicAuthEnabled,
             accessExpectedFidRequired: config.accessExpectedFidRequired,

@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 
 import type {
   AdmissionNotificationDiagnostics,
+  AdmissionNotificationReissueResult,
   AdmissionNotificationRetryReason,
 } from '../services/auth-bridge/src/types';
 import { DbConnection } from '../src/spacetime/module_bindings';
@@ -92,6 +93,7 @@ type Command =
   | 'reset-access-request'
   | 'admit-founder'
   | 'notify-admitted'
+  | 'reissue-admission-notification'
   | 'inspect-admission-notification'
   | 'allow-fid'
   | 'disable-fid'
@@ -120,7 +122,9 @@ const CONNECT_TIMEOUT_MS = 30_000;
 const OPERATION_TIMEOUT_MS = 15_000;
 const MAX_ADMIN_TOKEN_RESPONSE_BYTES = 32 * 1_024;
 const ADMISSION_NOTIFICATION_PATH = 'v1/admin/admission-notification';
+const ADMISSION_NOTIFICATION_REISSUE_PATH = 'v1/admin/admission-notification-reissue';
 const ADMISSION_NOTIFICATION_STATUS_PATH = 'v1/admin/admission-notification-status';
+const MAX_ADMISSION_NOTIFICATION_REISSUE_COOLDOWN_SECONDS = 5 * 60;
 const ADMISSION_NOTIFICATION_DIAGNOSTIC_REQUIRED_KEYS = Object.freeze([
   'version',
   'systemState',
@@ -422,6 +426,7 @@ function commandFrom(value: string | undefined): Command {
     || value === 'reset-access-request'
     || value === 'admit-founder'
     || value === 'notify-admitted'
+    || value === 'reissue-admission-notification'
     || value === 'inspect-admission-notification'
     || value === 'allow-fid'
     || value === 'disable-fid'
@@ -443,7 +448,7 @@ function commandFrom(value: string | undefined): Command {
   }
   fail(
     'Usage: hermes-admin.ts '
-    + '<seed-world|expand-world-v3|list-access-requests|inspect-access-request-reset|reset-access-request|admit-founder|notify-admitted|inspect-admission-notification|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|seed-alpha-component|activate-alpha-water|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4|inspect-alpha-v8|inspect-alpha-v10|inspect-alpha-v12|inspect-publish-pre-v12|inspect-publish-post-v12> '
+    + '<seed-world|expand-world-v3|list-access-requests|inspect-access-request-reset|reset-access-request|admit-founder|notify-admitted|reissue-admission-notification|inspect-admission-notification|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|seed-alpha-component|activate-alpha-water|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4|inspect-alpha-v8|inspect-alpha-v10|inspect-alpha-v12|inspect-publish-pre-v12|inspect-publish-post-v12> '
     + '[...args] [--dry-run] [--confirm]. admit-founder requires private stdin: '
     + '--input-stdin --dry-run creates a reviewed plan; --input-stdin --confirm consumes it; '
     + 'allow-fid only re-enables an existing complete founder. list-access-requests accepts '
@@ -518,6 +523,7 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
     || command === 'bump-auth-epoch'
     ? 3
     : command === 'notify-admitted'
+      || command === 'reissue-admission-notification'
       ? 2
     : command === 'backfill-resources' || command === 'seed-alpha-component'
       ? 2
@@ -551,14 +557,21 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
     if (flags.has('--dry-run') === flags.has('--confirm')) {
       fail('Profiled admission requires exactly one of --dry-run or --confirm.');
     }
-  } else if (command === 'notify-admitted') {
+  } else if (
+    command === 'notify-admitted'
+    || command === 'reissue-admission-notification'
+  ) {
     if (
       flags.has('--input-stdin')
       || flags.has('--json')
       || flags.has('--dry-run')
       || !flags.has('--confirm')
     ) {
-      fail('Admission notification reconciliation requires exactly --confirm.');
+      fail(
+        command === 'reissue-admission-notification'
+          ? 'Admission notification reissue requires exactly --confirm.'
+          : 'Admission notification reconciliation requires exactly --confirm.',
+      );
     }
   } else if (command === 'reset-access-request') {
     if (flags.has('--json')) {
@@ -2160,6 +2173,99 @@ export async function requestAdmissionNotification(
   return status;
 }
 
+/**
+ * Ask the bridge to replace one provider-accepted, unacknowledged pending
+ * request grant. The bridge owns cooldowns, caps, exact request revalidation,
+ * and serialized invalidation; Hermes projects only the allowlisted outcome.
+ */
+export async function requestAdmissionNotificationReissue(
+  bridgeUrl: string,
+  fid: bigint,
+  secret: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<AdmissionNotificationReissueResult> {
+  if (fid < 1n || fid > BigInt(Number.MAX_SAFE_INTEGER)) {
+    fail('A positive, JavaScript-safe decimal FID is required.');
+  }
+  readNotificationOperatorSecret(secret);
+  let response: Response;
+  try {
+    response = await fetchImpl(new URL(ADMISSION_NOTIFICATION_REISSUE_PATH, `${bridgeUrl}/`), {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${secret}`,
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'cache-control': 'no-store',
+      },
+      body: JSON.stringify({ fid: fid.toString() }),
+      cache: 'no-store',
+      redirect: 'error',
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch {
+    fail('Could not reach the Warpkeep admission notification reissue bridge.');
+  }
+  if (!response.ok) {
+    fail('The Warpkeep admission notification reissue bridge rejected the request.');
+  }
+  const body = await readBoundedAdminResponse(response);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    fail('The Warpkeep admission notification reissue bridge returned an invalid response.');
+  }
+  const keys = Object.keys(body);
+  const status = (body as { status?: unknown }).status;
+  if (status === 'reissued') {
+    const deliveryStatus = (body as { deliveryStatus?: unknown }).deliveryStatus;
+    if (
+      keys.length !== 2
+      || !Object.prototype.hasOwnProperty.call(body, 'status')
+      || !Object.prototype.hasOwnProperty.call(body, 'deliveryStatus')
+      || (
+        deliveryStatus !== 'queued'
+        && deliveryStatus !== 'already-sent'
+        && deliveryStatus !== 'awaiting-client'
+        && deliveryStatus !== 'client-acknowledged'
+        && deliveryStatus !== 'delivery-exhausted'
+        && deliveryStatus !== 'not-subscribed'
+      )
+    ) {
+      fail('The Warpkeep admission notification reissue bridge returned an invalid response.');
+    }
+    return Object.freeze({ status, deliveryStatus });
+  }
+  if (status === 'cooldown') {
+    const retryAfterSeconds = (body as { retryAfterSeconds?: unknown }).retryAfterSeconds;
+    if (
+      keys.length !== 2
+      || !Object.prototype.hasOwnProperty.call(body, 'status')
+      || !Object.prototype.hasOwnProperty.call(body, 'retryAfterSeconds')
+      || typeof retryAfterSeconds !== 'number'
+      || !Number.isSafeInteger(retryAfterSeconds)
+      || retryAfterSeconds < 1
+      || retryAfterSeconds > MAX_ADMISSION_NOTIFICATION_REISSUE_COOLDOWN_SECONDS
+    ) {
+      fail('The Warpkeep admission notification reissue bridge returned an invalid response.');
+    }
+    return Object.freeze({ status, retryAfterSeconds });
+  }
+  if (
+    keys.length === 1
+    && Object.prototype.hasOwnProperty.call(body, 'status')
+    && (
+      status === 'limit-reached'
+      || status === 'client-acknowledged'
+      || status === 'not-ready'
+      || status === 'not-subscribed'
+      || status === 'stale'
+      || status === 'paused'
+    )
+  ) {
+    return Object.freeze({ status });
+  }
+  fail('The Warpkeep admission notification reissue bridge returned an invalid response.');
+}
+
 export async function inspectAdmissionNotification(
   bridgeUrl: string,
   fid: bigint,
@@ -2302,6 +2408,14 @@ export function requireAdmissionNotificationInspectionProductionTarget(
 ): void {
   if (bridgeUrl !== DEFAULT_BRIDGE) {
     fail('Admission notification inspection requires the canonical Warpkeep bridge.');
+  }
+}
+
+export function requireAdmissionNotificationReissueProductionTarget(
+  bridgeUrl: string,
+): void {
+  if (bridgeUrl !== DEFAULT_BRIDGE) {
+    fail('Admission notification reissue requires the canonical Warpkeep bridge.');
   }
 }
 
@@ -2602,6 +2716,20 @@ async function main() {
   configureHermesMachineOutput(
     machineReadableInspection || command === 'inspect-admission-notification',
   );
+  if (command === 'reissue-admission-notification') {
+    const bridgeUrl = readHttpsUrl(
+      process.env.WARPKEEP_AUTH_BRIDGE_URL,
+      'WARPKEEP_AUTH_BRIDGE_URL',
+    );
+    requireAdmissionNotificationReissueProductionTarget(bridgeUrl);
+    const result = await requestAdmissionNotificationReissue(
+      bridgeUrl,
+      readFid(positional[1]),
+      readNotificationOperatorSecret(notificationOperatorSecret),
+    );
+    console.log(JSON.stringify({ admissionNotificationReissue: result }));
+    return;
+  }
   if (command === 'inspect-admission-notification') {
     const bridgeUrl = readHttpsUrl(
       process.env.WARPKEEP_AUTH_BRIDGE_URL,

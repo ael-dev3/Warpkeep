@@ -2,6 +2,7 @@ import { createSiweMessage } from 'viem/siwe'
 import { Errors as QuickAuthErrors } from '@farcaster/quick-auth'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  ADMISSION_NOTIFICATION_REISSUE_PATH,
   ADMISSION_NOTIFICATION_STATUS_PATH,
   FARCASTER_VERIFICATION_TIMEOUT_MILLISECONDS,
   QUICK_AUTH_MAX_ISSUER_LIFETIME_SECONDS,
@@ -70,6 +71,7 @@ const SERVER_ONLY_ADMIN_PATHS = [
   '/v1/admin/auth-epoch-probe',
   '/v1/admin/config-attestation',
   ADMISSION_NOTIFICATION_PATH,
+  ADMISSION_NOTIFICATION_REISSUE_PATH,
   ADMISSION_NOTIFICATION_STATUS_PATH,
 ] as const
 const BINDING_VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'
@@ -1379,6 +1381,7 @@ describe('Warpkeep auth bridge', () => {
       accessRequestStatusPath: '/v2/access/status',
       accessRequestSubmitPath: '/v2/access/request',
       admissionGrantPath: '/v2/access/admission-grant-context',
+      admissionNotificationReissuePath: ADMISSION_NOTIFICATION_REISSUE_PATH,
       accessRequestResolverTokenTtlSeconds: 15,
       accessRequestResolverTimeoutMilliseconds: 5_000,
       accessRequestStatusProcedure: 'access_request_get_status_v1',
@@ -1440,6 +1443,7 @@ describe('Warpkeep auth bridge', () => {
       accessRequestStatusPath: '/v2/access/status',
       accessRequestSubmitPath: '/v2/access/request',
       admissionGrantPath: '/v2/access/admission-grant-context',
+      admissionNotificationReissuePath: ADMISSION_NOTIFICATION_REISSUE_PATH,
       accessRequestResolverTokenTtlSeconds: 15,
       accessRequestResolverTimeoutMilliseconds: 5_000,
       accessRequestStatusProcedure: 'access_request_get_status_v1',
@@ -2472,25 +2476,27 @@ describe('Warpkeep auth bridge', () => {
         },
       })
 
-      for (const candidate of [
+      const webhook = await h.app.fetch(
         request(MINIAPP_WEBHOOK_PATH, { header: 'h', payload: 'p', signature: 's' }),
-        request(ADMISSION_NOTIFICATION_PATH, { fid: FID }, {
-          headers: { authorization: `Bearer ${NOTIFICATION_OPERATOR_SECRET}` },
-        }),
-      ]) {
-        const response = await h.app.fetch(candidate, notificationEnv({
-          APPROVAL_NOTIFICATIONS_ENABLED: 'false',
-        }))
-        expect(response.status).toBe(503)
-        await expect(response.json()).resolves.toMatchObject({
-          error: { code: 'approval_notifications_paused' },
-        })
-        expect(response.headers.has('access-control-allow-origin')).toBe(false)
-      }
-      // The webhook must still be authenticated while paused so a genuine
-      // disable/remove can erase consent; enabled events remain unpersisted.
+        notificationEnv({ APPROVAL_NOTIFICATIONS_ENABLED: 'false' }),
+      )
+      expect(webhook.status).toBe(200)
+      expect(await webhook.text()).toBe('')
+      expect(webhook.headers.has('access-control-allow-origin')).toBe(false)
+
+      const queue = await h.app.fetch(request(ADMISSION_NOTIFICATION_PATH, { fid: FID }, {
+        headers: { authorization: `Bearer ${NOTIFICATION_OPERATOR_SECRET}` },
+      }), notificationEnv({ APPROVAL_NOTIFICATIONS_ENABLED: 'false' }))
+      expect(queue.status).toBe(503)
+      await expect(queue.json()).resolves.toMatchObject({
+        error: { code: 'approval_notifications_paused' },
+      })
+      expect(queue.headers.has('access-control-allow-origin')).toBe(false)
+
+      // Consent webhooks remain verified and durable while outbound delivery
+      // is paused; disable/remove can therefore revoke the same record later.
       expect(verify).toHaveBeenCalledOnce()
-      expect(applyEvent).not.toHaveBeenCalled()
+      expect(applyEvent).toHaveBeenCalledExactlyOnceWith(verifiedEnableEvent)
       expect(queueAdmission).not.toHaveBeenCalled()
 
       const diagnostics = await h.app.fetch(request(
@@ -2653,6 +2659,175 @@ describe('Warpkeep auth bridge', () => {
       })
       expect(h.events).toContain('admission_notification_queued')
       expect(JSON.stringify(acceptedBody)).not.toContain(NOTIFICATION_OPERATOR_SECRET)
+    })
+
+    it('reissues only for the exact disabled pending request under the operator credential', async () => {
+      const requestedAtMicros = 1_785_414_896_000_000
+      const reissueAdmission = vi.fn(async () => Object.freeze({
+        status: 'reissued' as const,
+        deliveryStatus: 'awaiting-client' as const,
+      }))
+      const h = harness({
+        resolver: {
+          resolve: vi.fn(async () => ({ state: 'disabled', authEpoch: 0 } as const)),
+        },
+        accessRequestResolver: {
+          getStatus: vi.fn(async () => ({
+            status: 'requested' as const,
+            requestedAtMicros,
+          })),
+          submit: vi.fn(async () => ({ status: 'not-requested' } as const)),
+        },
+        admissionNotificationStore: {
+          applyEvent: vi.fn(async () => undefined),
+          queueAdmission: vi.fn(async () => 'queued' as const),
+          reissueAdmission,
+          acknowledge: rejectGrant,
+        },
+      })
+
+      for (const headers of [
+        new Headers({ authorization: `Bearer ${ADMIN_SECRET}` }),
+        new Headers({
+          authorization: `Bearer ${NOTIFICATION_OPERATOR_SECRET}`,
+          origin: ORIGIN,
+        }),
+      ]) {
+        const rejected = await h.app.fetch(request(
+          ADMISSION_NOTIFICATION_REISSUE_PATH,
+          { fid: FID },
+          { headers },
+        ), notificationEnv())
+        expect(rejected.status).toBe(headers.has('origin') ? 403 : 401)
+      }
+      expect(reissueAdmission).not.toHaveBeenCalled()
+
+      const accepted = await h.app.fetch(request(
+        ADMISSION_NOTIFICATION_REISSUE_PATH,
+        { fid: FID },
+        { headers: { authorization: `Bearer ${NOTIFICATION_OPERATOR_SECRET}` } },
+      ), notificationEnv())
+      expect(accepted.status).toBe(200)
+      const responseBody = await accepted.json()
+      expect(responseBody).toEqual({
+        status: 'reissued',
+        deliveryStatus: 'awaiting-client',
+      })
+      expect(reissueAdmission).toHaveBeenCalledExactlyOnceWith({
+        fid: FID,
+        requestedAtMicros,
+        reissuedAt: expect.any(Number),
+      })
+      expect(h.events).toContain('admission_notification_reissued')
+      expect(JSON.stringify(responseBody)).not.toContain('ticket')
+      expect(JSON.stringify(responseBody)).not.toContain('notificationId')
+    })
+
+    it('fails reissue closed for non-disabled authority, stale requests, and the pause switch', async () => {
+      const requestedAtMicros = 1_785_414_896_000_000
+      const reissueAdmission = vi.fn(async () => Object.freeze({
+        status: 'reissued' as const,
+        deliveryStatus: 'awaiting-client' as const,
+      }))
+      const store: AdmissionNotificationStore = {
+        applyEvent: vi.fn(async () => undefined),
+        queueAdmission: vi.fn(async () => 'queued' as const),
+        reissueAdmission,
+        acknowledge: rejectGrant,
+      }
+      const headers = { authorization: `Bearer ${NOTIFICATION_OPERATOR_SECRET}` }
+
+      for (const state of ['missing', 'enabled'] as const) {
+        const h = harness({
+          resolver: {
+            resolve: vi.fn(async () => state === 'enabled'
+              ? ({ state, authEpoch: 7 } as const)
+              : ({ state, authEpoch: 0 } as const)),
+          },
+          admissionNotificationStore: store,
+        })
+        const response = await h.app.fetch(request(
+          ADMISSION_NOTIFICATION_REISSUE_PATH,
+          { fid: FID },
+          { headers },
+        ), notificationEnv())
+        expect(response.status).toBe(409)
+        await expect(response.json()).resolves.toMatchObject({
+          error: { code: 'admission_not_disabled' },
+        })
+      }
+
+      const staleRequest = harness({
+        resolver: {
+          resolve: vi.fn(async () => ({ state: 'disabled', authEpoch: 0 } as const)),
+        },
+        accessRequestResolver: {
+          getStatus: vi.fn(async () => ({ status: 'not-requested' } as const)),
+          submit: vi.fn(async () => ({ status: 'not-requested' } as const)),
+        },
+        admissionNotificationStore: store,
+      })
+      const staleResponse = await staleRequest.app.fetch(request(
+        ADMISSION_NOTIFICATION_REISSUE_PATH,
+        { fid: FID },
+        { headers },
+      ), notificationEnv())
+      expect(staleResponse.status).toBe(409)
+      await expect(staleResponse.json()).resolves.toMatchObject({
+        error: { code: 'access_request_not_pending' },
+      })
+
+      const paused = harness({ admissionNotificationStore: store })
+      const pausedResponse = await paused.app.fetch(request(
+        ADMISSION_NOTIFICATION_REISSUE_PATH,
+        { fid: FID },
+        { headers },
+      ), notificationEnv({ APPROVAL_NOTIFICATIONS_ENABLED: 'false' }))
+      expect(pausedResponse.status).toBe(503)
+      await expect(pausedResponse.json()).resolves.toMatchObject({
+        error: { code: 'approval_notifications_paused' },
+      })
+      expect(reissueAdmission).not.toHaveBeenCalled()
+      expect(paused.events).toContain('admission_notification_reissue_rejected')
+    })
+
+    it('returns bounded reissue cooldown and limit statuses without secret material', async () => {
+      const requestedAtMicros = 1_785_414_896_000_000
+      for (const [result, event] of [
+        [Object.freeze({ status: 'cooldown' as const, retryAfterSeconds: 300 }),
+          'admission_notification_reissue_cooldown' as const],
+        [Object.freeze({ status: 'limit-reached' as const }),
+          'admission_notification_reissue_limit' as const],
+      ] as const) {
+        const h = harness({
+          resolver: {
+            resolve: vi.fn(async () => ({ state: 'disabled', authEpoch: 0 } as const)),
+          },
+          accessRequestResolver: {
+            getStatus: vi.fn(async () => ({
+              status: 'requested' as const,
+              requestedAtMicros,
+            })),
+            submit: vi.fn(async () => ({ status: 'not-requested' } as const)),
+          },
+          admissionNotificationStore: {
+            applyEvent: vi.fn(async () => undefined),
+            queueAdmission: vi.fn(async () => 'queued' as const),
+            reissueAdmission: vi.fn(async () => result),
+            acknowledge: rejectGrant,
+          },
+        })
+        const response = await h.app.fetch(request(
+          ADMISSION_NOTIFICATION_REISSUE_PATH,
+          { fid: FID },
+          { headers: { authorization: `Bearer ${NOTIFICATION_OPERATOR_SECRET}` } },
+        ), notificationEnv())
+        expect(response.status).toBe(200)
+        const body = await response.json()
+        expect(body).toEqual(result)
+        expect(h.events).toContain(event)
+        expect(JSON.stringify(body)).not.toContain(NOTIFICATION_OPERATOR_SECRET)
+      }
     })
 
     it('does not queue for a missing or disabled identity without a pending request', async () => {
@@ -2894,6 +3069,40 @@ describe('Warpkeep auth bridge', () => {
       expect(acknowledge).not.toHaveBeenCalled()
       expect(h.events).toContain('admission_grant_ack_context_rejected')
       expect(JSON.stringify(h.events)).not.toContain('B'.repeat(43))
+    })
+
+    it('requires host Quick Auth and rejects a browser-session grant exchange', async () => {
+      const acknowledge = vi.fn(async () => 'accepted' as const)
+      const h = harness({
+        epoch: 0,
+        admissionNotificationStore: {
+          applyEvent: vi.fn(async () => undefined),
+          queueAdmission: vi.fn(async () => 'queued' as const),
+          acknowledge,
+        },
+      })
+      const notificationId = `warpkeep-access-grant-v3-i${'F'.repeat(22)}`
+      const response = await h.app.fetch(request(
+        ADMISSION_GRANT_PATH,
+        { ticket: 'F'.repeat(43), notificationId },
+        {
+          headers: {
+            origin: ORIGIN,
+            cookie: '__Host-warpkeep_session=untrusted',
+            'x-warpkeep-expected-fid': FID,
+          },
+        },
+      ), env())
+
+      expect(response.status).toBe(401)
+      await expect(response.json()).resolves.toEqual({
+        error: {
+          code: 'access_auth_invalid',
+          message: 'Farcaster authentication could not be verified.',
+        },
+      })
+      expect(acknowledge).not.toHaveBeenCalled()
+      expect(h.events).toContain('admission_grant_ack_quick_auth_required')
     })
 
     it('projects a server-side notification-context mismatch as neutral stale state', async () => {

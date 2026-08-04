@@ -174,10 +174,15 @@ export type SafeLogEvent =
   | 'admission_notification_inspected'
   | 'admission_notification_provider_accepted'
   | 'admission_notification_client_acknowledged'
+  | 'admission_notification_reissued'
+  | 'admission_notification_reissue_cooldown'
+  | 'admission_notification_reissue_limit'
+  | 'admission_notification_reissue_rejected'
   | 'admission_grant_acknowledged'
   | 'admission_grant_ack_rejected'
   | 'admission_grant_ack_context_rejected'
   | 'admission_grant_ack_context_mismatch'
+  | 'admission_grant_ack_quick_auth_required'
   | 'admission_grant_ack_not_ready'
   | 'admission_grant_ack_stale'
   | 'rate_limited'
@@ -346,6 +351,31 @@ export type AdmissionNotificationQueueInput = Readonly<{
   queuedAt: number
 }> & AdmissionNotificationGeneration
 
+export type AdmissionNotificationReissueInput = Readonly<{
+  fid: string
+  requestedAtMicros: number
+  reissuedAt: number
+}>
+
+export type AdmissionNotificationReissueResult =
+  | Readonly<{
+      status: 'reissued'
+      deliveryStatus: AdmissionNotificationQueueStatus
+    }>
+  | Readonly<{
+      status: 'cooldown'
+      retryAfterSeconds: number
+    }>
+  | Readonly<{
+      status:
+        | 'limit-reached'
+        | 'client-acknowledged'
+        | 'not-ready'
+        | 'not-subscribed'
+        | 'stale'
+        | 'paused'
+    }>
+
 export type AdmissionNotificationRetryReason =
   | 'admission-verification'
   | 'request-verification'
@@ -403,6 +433,9 @@ export type AdmissionNotificationDiagnostics = Readonly<{
 export interface AdmissionNotificationStore {
   applyEvent(event: VerifiedMiniAppWebhookEvent): Promise<void>
   queueAdmission(input: AdmissionNotificationQueueInput): Promise<AdmissionNotificationQueueStatus>
+  reissueAdmission?(
+    input: AdmissionNotificationReissueInput,
+  ): Promise<AdmissionNotificationReissueResult>
   acknowledge(
     fid: string,
     ticket: string,

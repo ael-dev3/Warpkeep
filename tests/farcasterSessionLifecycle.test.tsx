@@ -405,10 +405,16 @@ afterEach(() => {
 });
 
 describe('FarcasterAuthProvider session lifecycle', () => {
-  it('finalizes a notification admission on a bounded non-forced Quick Auth cadence', async () => {
+  it('forces fresh Quick Auth proof before bounded notification admission finalization', async () => {
     const startedAt = 1_000_000;
     vi.useFakeTimers({ now: startedAt });
     const exchangeTimes: number[] = [];
+    const acknowledgeAdmissionGrant = vi.fn<
+      FarcasterOidcBridgeClient['acknowledgeAdmissionGrant']
+    >(async () => ({
+      version: 1 as const,
+      status: 'accepted' as const
+    }));
     const bridge = createBridge({
       exchangeQuickAuth: vi.fn(async () => {
         exchangeTimes.push(Date.now());
@@ -425,14 +431,13 @@ describe('FarcasterAuthProvider session lifecycle', () => {
         } = createAuthorizedResponse(12_345, Date.now());
         return authorized;
       }),
-      acknowledgeAdmissionGrant: vi.fn(async () => ({
-        version: 1 as const,
-        status: 'accepted' as const
-      }))
+      acknowledgeAdmissionGrant
     });
-    const loadQuickAuthToken = vi.fn<FarcasterQuickAuthTokenLoader>(async () => ({
+    const loadQuickAuthToken = vi.fn<FarcasterQuickAuthTokenLoader>(async options => ({
       status: 'token' as const,
-      token: 'header.payload.signature'
+      token: options?.force === true
+        ? 'fresh.payload.signature'
+        : 'cached.payload.signature'
     }));
 
     render(
@@ -482,8 +487,13 @@ describe('FarcasterAuthProvider session lifecycle', () => {
       17_000,
       47_000
     ]);
-    expect(loadQuickAuthToken.mock.calls.every(
-      ([options]) => options?.force !== true
+    expect(loadQuickAuthToken.mock.calls.some(
+      ([options]) => options?.force === true
+    )).toBe(true);
+    expect(acknowledgeAdmissionGrant).toHaveBeenCalled();
+    expect(acknowledgeAdmissionGrant.mock.calls.every(
+      ([authentication]) => authentication.mode === 'quick-auth'
+        && authentication.token === 'fresh.payload.signature'
     )).toBe(true);
     for (const windowStart of exchangeTimes) {
       expect(exchangeTimes.filter(time => (

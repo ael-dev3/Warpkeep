@@ -26,8 +26,10 @@ import {
   readStatus,
   reconnectAfterAdmissionNotification,
   requestAdmissionNotification,
+  requestAdmissionNotificationReissue,
   requirePendingAdmissionRequest,
   requireAdmissionNotificationInspectionProductionTarget,
+  requireAdmissionNotificationReissueProductionTarget,
   requireUnchangedPendingAdmissionRequest,
   requireNotificationBeforeAdmission,
   requestAdminToken,
@@ -915,6 +917,13 @@ describe('Hermes command-line boundary', () => {
       inspection: false,
     });
     expect(parseHermesArguments([
+      'reissue-admission-notification', '123', '--confirm',
+    ])).toMatchObject({
+      command: 'reissue-admission-notification',
+      confirmedByFlag: true,
+      inspection: false,
+    });
+    expect(parseHermesArguments([
       'inspect-admission-notification', '123', '--json',
     ])).toMatchObject({
       command: 'inspect-admission-notification',
@@ -932,6 +941,17 @@ describe('Hermes command-line boundary', () => {
       .toThrow(/exactly --confirm/i);
     expect(() => parseHermesArguments(['notify-admitted', '123', '--confirm', '--json']))
       .toThrow(/invalid for this operation/i);
+    expect(() => parseHermesArguments(['reissue-admission-notification', '123']))
+      .toThrow(/exactly --confirm/i);
+    expect(() => parseHermesArguments([
+      'reissue-admission-notification', '123', '--dry-run',
+    ])).toThrow(/exactly --confirm/i);
+    expect(() => parseHermesArguments([
+      'reissue-admission-notification', '123', '--confirm', '--json',
+    ])).toThrow(/invalid for this operation/i);
+    expect(() => parseHermesArguments([
+      'reissue-admission-notification', '123', '--confirm', '--input-stdin',
+    ])).toThrow(/exactly --confirm/i);
     expect(() => parseHermesArguments(['admit-founder', '123', 'note', '--dry-run']))
       .toThrow(/unexpected number/i);
     expect(() => parseHermesArguments(['admit-founder', '--dry-run']))
@@ -1492,6 +1512,8 @@ describe('Hermes atomic profiled admission boundary', () => {
       .toBe('tsx scripts/hermes-admin.ts admit-founder');
     expect(packageManifest.scripts['stdb:notify-admitted'])
       .toBe('tsx scripts/hermes-admin.ts notify-admitted');
+    expect(packageManifest.scripts['stdb:reissue-admission-notification'])
+      .toBe('tsx scripts/hermes-admin.ts reissue-admission-notification');
   });
 
   it('uses the same disconnect, fresh-state, request-CAS order for founder re-enable', () => {
@@ -1836,6 +1858,81 @@ describe('Hermes credential destination policy', () => {
     )).rejects.toThrow(/rejected the request/i);
   });
 
+  it('reissues admission notifications through an exact token-free operator contract', async () => {
+    const expectedResults = [
+      { status: 'reissued', deliveryStatus: 'awaiting-client' },
+      { status: 'cooldown', retryAfterSeconds: 300 },
+      { status: 'limit-reached' },
+      { status: 'client-acknowledged' },
+      { status: 'not-ready' },
+      { status: 'not-subscribed' },
+      { status: 'stale' },
+      { status: 'paused' },
+    ] as const;
+
+    for (const expected of expectedResults) {
+      const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
+        expect(String(input)).toBe(
+          'https://auth.warpkeep.com/v1/admin/admission-notification-reissue',
+        );
+        expect(init?.method).toBe('POST');
+        expect(init?.redirect).toBe('error');
+        expect(init?.cache).toBe('no-store');
+        const headers = new Headers(init?.headers);
+        expect(headers.get('authorization')).toBe(`Bearer ${NOTIFICATION_SECRET}`);
+        expect(headers.has('origin')).toBe(false);
+        expect(JSON.parse(String(init?.body))).toEqual({ fid: '12345' });
+        return Response.json(expected);
+      });
+      const result = await requestAdmissionNotificationReissue(
+        'https://auth.warpkeep.com',
+        12_345n,
+        NOTIFICATION_SECRET,
+        fetchImpl,
+      );
+      expect(result).toEqual(expected);
+      expect(Object.isFrozen(result)).toBe(true);
+    }
+  });
+
+  it('rejects malformed reissue projections without exposing provider details', async () => {
+    const malformed = [
+      { status: 'reissued' },
+      { status: 'reissued', deliveryStatus: 'sent' },
+      { status: 'cooldown', retryAfterSeconds: 0 },
+      { status: 'cooldown', retryAfterSeconds: 301 },
+      { status: 'cooldown', retryAfterSeconds: 30, ticket: 'must-not-escape' },
+      { status: 'stale', intentId: 'must-not-escape' },
+      { status: 'unknown' },
+    ];
+    for (const body of malformed) {
+      const fetchImpl = vi.fn<typeof fetch>(async () => Response.json(body));
+      const request = requestAdmissionNotificationReissue(
+        'https://auth.warpkeep.com',
+        12_345n,
+        NOTIFICATION_SECRET,
+        fetchImpl,
+      );
+      await expect(request).rejects.toThrow(/invalid response/i);
+      await expect(request).rejects.not.toThrow(/must-not-escape/i);
+    }
+
+    const rejected = vi.fn<typeof fetch>(async () => Response.json({
+      error: {
+        code: 'private-provider-failure',
+        ticket: 'must-not-escape',
+      },
+    }, { status: 409 }));
+    const request = requestAdmissionNotificationReissue(
+      'https://auth.warpkeep.com',
+      12_345n,
+      NOTIFICATION_SECRET,
+      rejected,
+    );
+    await expect(request).rejects.toThrow(/rejected the request/i);
+    await expect(request).rejects.not.toThrow(/provider-failure|must-not-escape/i);
+  });
+
   it('inspects the exact token-free v2 notification diagnostics contract', async () => {
     const diagnostics = admissionNotificationDiagnostics({
       subscriptionState: 'active',
@@ -1930,6 +2027,38 @@ describe('Hermes credential destination policy', () => {
     )).toThrow(/canonical Warpkeep bridge/i);
 
     const result = runHermes(['inspect-admission-notification', '12345'], {
+      WARPKEEP_NOTIFICATION_OPERATOR_SECRET: undefined,
+      WARPKEEP_ADMIN_TOKEN_SECRET: 'weak-admin-secret',
+      WARPKEEP_SPACETIMEDB_DATABASE: 'INVALID_DATABASE',
+      WARPKEEP_SPACETIMEDB_URI: 'http://invalid.example',
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toContain('WARPKEEP_NOTIFICATION_OPERATOR_SECRET');
+    expect(result.stderr).not.toContain('WARPKEEP_ADMIN_TOKEN_SECRET');
+    expect(result.stderr).not.toContain('WARPKEEP_SPACETIMEDB');
+  });
+
+  it('pins confirmed reissue to the canonical bridge and never reads admin authority', () => {
+    expect(() => requireAdmissionNotificationReissueProductionTarget(
+      'https://auth.warpkeep.com',
+    )).not.toThrow();
+    expect(() => requireAdmissionNotificationReissueProductionTarget(
+      'https://lookalike.example',
+    )).toThrow(/canonical Warpkeep bridge/i);
+
+    const source = readFileSync(resolve(repositoryRoot, 'scripts/hermes-admin.ts'), 'utf8');
+    const mainSource = source.slice(source.indexOf('async function main()'));
+    const reissueBranch = mainSource.indexOf("if (command === 'reissue-admission-notification')");
+    const databaseRead = mainSource.indexOf('const database = readDatabase(');
+    const adminSecretRead = mainSource.indexOf('const secret = readAdminSecret(');
+    expect(reissueBranch).toBeGreaterThan(-1);
+    expect(databaseRead).toBeGreaterThan(reissueBranch);
+    expect(adminSecretRead).toBeGreaterThan(databaseRead);
+
+    const result = runHermes([
+      'reissue-admission-notification', '12345', '--confirm',
+    ], {
       WARPKEEP_NOTIFICATION_OPERATOR_SECRET: undefined,
       WARPKEEP_ADMIN_TOKEN_SECRET: 'weak-admin-secret',
       WARPKEEP_SPACETIMEDB_DATABASE: 'INVALID_DATABASE',
