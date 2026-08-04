@@ -52,6 +52,7 @@ const RETRY_DELAYS_MILLISECONDS = Object.freeze([
   4 * 60 * 60_000,
   12 * 60 * 60_000,
 ])
+const LEGACY_TRANSPORT_RETRY_MINIMUM_AGE_MILLISECONDS = 30_000
 
 type DeliveryAttemptStatus = 'pending' | 'retrying' | 'sent' | 'exhausted'
 
@@ -1010,6 +1011,61 @@ function deliveryGeneration(delivery: AdmissionDelivery): AdmissionNotificationG
       })
 }
 
+/**
+ * Older Cloudflare deployments classified their runtime-level redirect failure
+ * as the broad `transport` reason. An authenticated operator replay may bring
+ * the exact legacy fifth-attempt generation forward after Farcaster's minimum
+ * retry interval. The legacy record did not store a last-attempt timestamp, so
+ * derive it from the persisted four-hour backoff invariant. The attempt counter
+ * and six-attempt ceiling never reset. Current deployments emit richer records,
+ * so this compatibility path cannot become a general-purpose backoff bypass.
+ */
+function recoverLegacyTransportBackoff(
+  state: PersistedNotificationState,
+  diagnostics: PersistedNotificationDiagnostics | null,
+  generation: AdmissionNotificationGeneration,
+  now: number,
+): PersistedNotificationState {
+  if (
+    !state.delivery
+    || state.delivery.kind !== 'admitted'
+    || generation.kind !== 'admitted'
+    || !generationEquals(deliveryGeneration(state.delivery), generation)
+    || !diagnostics
+    || !generationEquals(diagnostics.generation, generation)
+    || diagnostics.retryReasons.length !== 1
+    || diagnostics.retryReasons[0] !== 'transport'
+    || diagnostics.lastFailureReason !== undefined
+    || diagnostics.lastAttemptAt !== undefined
+    || state.delivery.attempts.length === 0
+    || state.delivery.attempts.some((attempt) => (
+      attempt.status !== 'retrying'
+      || attempt.attempts !== MAX_DELIVERY_ATTEMPTS - 1
+      || attempt.nextAttemptAt === undefined
+      || attempt.nextAttemptAt <= now
+      || attempt.nextAttemptAt - RETRY_DELAYS_MILLISECONDS[attempt.attempts - 1]
+        > now - LEGACY_TRANSPORT_RETRY_MINIMUM_AGE_MILLISECONDS
+    ))
+  ) return state
+
+  const attempts = state.delivery.attempts.map((attempt) => {
+    return Object.freeze({
+      appFid: attempt.appFid,
+      tokenId: attempt.tokenId,
+      status: 'pending' as const,
+      attempts: attempt.attempts,
+      verificationFailures: attempt.verificationFailures,
+    })
+  })
+  return Object.freeze({
+    ...state,
+    delivery: Object.freeze({
+      ...state.delivery,
+      attempts: Object.freeze(attempts),
+    }),
+  })
+}
+
 async function recordDiagnostics(
   storage: DurableObjectState['storage'],
   generation: AdmissionNotificationGeneration,
@@ -1904,6 +1960,10 @@ export class AdmissionNotification {
       ) {
         return new Response(null, { status: 409 })
       }
+      const diagnostics = readPersistedDiagnostics(
+        await this.state.storage.get<unknown>(DIAGNOSTICS_RECORD),
+      )
+      next = recoverLegacyTransportBackoff(next, diagnostics, generation, now)
       if (
         !next.delivery
         || !generationEquals(deliveryGeneration(next.delivery), generation)
