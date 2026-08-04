@@ -2109,6 +2109,12 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       }
       element.style.setProperty('--realm-resource-marker-x', `${marker.x}px`);
       element.style.setProperty('--realm-resource-marker-y', `${marker.y}px`);
+      if (element.dataset.resourceOccupantLane === 'presence') {
+        element.style.setProperty(
+          '--realm-resource-presence-scale',
+          marker.presenceScale.toFixed(3)
+        );
+      }
       element.dataset.projectedVisible = 'true';
     }
   }, []);

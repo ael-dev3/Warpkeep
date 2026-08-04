@@ -429,6 +429,10 @@ describe('compact Realm CSS contract', () => {
   it('keeps resource occupants camera-stable with passive overflow and accessible controls', () => {
     const presenceLayer = block(MAP, '.realm-resource-occupant-presences {');
     const presence = block(MAP, '.realm-resource-occupant-presence {');
+    const presenceAvatar = block(
+      MAP,
+      '.realm-resource-occupant-presence .realm-castle-avatar {'
+    );
     const marker = block(MAP, '.realm-resource-occupant-marker {');
     const markerLayer = block(MAP, '.realm-resource-occupant-markers {');
     const castleLayer = block(PRESENTATION, '.realm-castle-labels {');
@@ -448,6 +452,13 @@ describe('compact Realm CSS contract', () => {
     expect(presence).toContain('cursor: default;');
     expect(presence).not.toContain('touch-action: none;');
     expect(presence).not.toContain('-webkit-touch-callout: none;');
+    expect(presenceAvatar).toContain(
+      'transform: scale(var(--realm-resource-presence-scale, 1));'
+    );
+    expect(presenceAvatar).toContain('transform-origin: 50% 100%;');
+    expect(presenceAvatar).toContain(
+      'transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);'
+    );
     expect(marker).toContain('touch-action: none;');
     expect(presence).not.toMatch(/transition:[^;]*transform/);
     expect(marker).toContain('--realm-resource-marker-size: 44px;');
