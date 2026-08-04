@@ -389,10 +389,16 @@ object, are never returned to the browser or stored in SpacetimeDB, and expire
 within 366 days. Signed opt-outs remain accepted while delivery is paused and
 erase raw token material immediately. The deployed v1 consent record retains
 its rollback-compatible shape; pending-request work and receipts use a separate
-private v2 record. Each send rechecks either the exact current pending-request
-timestamp while admission is disabled, or the exact current live admission
-epoch. Stable notification IDs, retry ceilings, replay tombstones, and bounded
-generation receipts make retries idempotent.
+private v2 record. The exact current pending-request timestamp while admission
+is disabled is the only generation allowed to produce a player-visible alert.
+Legacy admitted-epoch queues remain readable only so they can be cancelled
+without delivery. One deterministic transport target, a stable request-scoped
+notification ID, retry ceilings, replay tombstones, and a durable request
+receipt prevent a request from fanning out or producing a post-admission alert.
+Once selected, a request's transport target is immutable; opt-out, token
+rotation, expiry, or client removal terminates that generation rather than
+redirecting it. Terminal request timestamps are monotonic high-water marks, so
+rollback or stale operator input cannot revive an older alert.
 The operator-only status projection contains only queue state, generation kind,
 aggregate attempt counts, static retry categories, and bounded retry timing. It
 never returns a request timestamp, notification token, delivery URL, webhook

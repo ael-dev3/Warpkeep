@@ -347,6 +347,7 @@ describe('auth bridge production bindings in workerd', () => {
   it('delivers through Cloudflare-compatible manual redirect handling in workerd', async () => {
     const deliveryUrl = 'https://api.farcaster.xyz/v1/frame-notifications'
     const token = 'workerd-notification-token-with-enough-entropy'
+    const requestedAtMicros = 1_799_999_999_000_000
     const notificationConfig: BridgeConfig = {
       ...CONFIG,
       approvalNotificationsEnabled: true,
@@ -382,11 +383,11 @@ describe('auth bridge production bindings in workerd', () => {
         fetchImpl,
         configReader: () => notificationConfig,
         admissionResolver: {
-          resolve: async () => ({ state: 'enabled', authEpoch: 7 }),
+          resolve: async () => ({ state: 'disabled', authEpoch: 0 }),
         },
         accessRequestResolver: {
-          getStatus: async () => ({ status: 'not-requested' }),
-          submit: async () => ({ status: 'not-requested' }),
+          getStatus: async () => ({ status: 'requested', requestedAtMicros }),
+          submit: async () => ({ status: 'requested', requestedAtMicros }),
         },
       },
     )
@@ -412,8 +413,8 @@ describe('auth bridge production bindings in workerd', () => {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           fid: FID,
-          kind: 'admitted',
-          authEpoch: 7,
+          kind: 'pending-request',
+          requestedAtMicros,
           queuedAt: 1_800_000_000_000,
         }),
       },

@@ -39,11 +39,9 @@ const DELIVERY_RESPONSE_MAX_BYTES = 64 * 1_024
 const MAX_NOTIFICATION_TOKEN_BYTES = 2 * 1_024
 const SUBSCRIPTION_MAX_LIFETIME_MILLISECONDS = 366 * 24 * 60 * 60 * 1_000
 const TARGET_URL = 'https://warpkeep.com/?miniApp=true'
-const ADMITTED_NOTIFICATION_TITLE = 'The Hegemony admits you'
-const ADMITTED_NOTIFICATION_BODY = 'Your keep awaits in Genesis 001. Enter the living Realm.'
-const PENDING_NOTIFICATION_TITLE = 'Admission approved'
-const PENDING_NOTIFICATION_BODY =
-  'The Hegemony is finalizing your Realm access. Your keep will open shortly.'
+const ADMISSION_NOTIFICATION_TITLE = 'Welcome to the Hegemony Empire'
+const ADMISSION_NOTIFICATION_BODY =
+  'The gates have answered your name. Cross the threshold, Founder—your legacy awaits.'
 const RETRY_DELAYS_MILLISECONDS = Object.freeze([
   30_000,
   2 * 60_000,
@@ -52,7 +50,6 @@ const RETRY_DELAYS_MILLISECONDS = Object.freeze([
   4 * 60 * 60_000,
   12 * 60 * 60_000,
 ])
-const LEGACY_TRANSPORT_RETRY_MINIMUM_AGE_MILLISECONDS = 30_000
 
 type DeliveryAttemptStatus = 'pending' | 'retrying' | 'sent' | 'exhausted'
 
@@ -86,6 +83,17 @@ type AdmissionDelivery = Readonly<{
   expiresAt: number
   attempts: readonly DeliveryAttempt[]
 }> & AdmissionNotificationGeneration
+
+type RetiredAdmittedQueueInput = Readonly<{
+  fid: string
+  queuedAt: number
+  authEpoch: number
+  kind?: 'admitted'
+}>
+
+type InternalAdmissionNotificationQueueInput =
+  | AdmissionNotificationQueueInput
+  | RetiredAdmittedQueueInput
 
 type LegacyPersistedNotificationState = Readonly<{
   version: 1
@@ -779,7 +787,7 @@ function validVerifiedEvent(value: unknown, config: BridgeConfig): value is Veri
     && configuredClient(config, value.appFid, value.event.details.url)
 }
 
-function validQueueInput(value: unknown): value is AdmissionNotificationQueueInput {
+function validQueueInput(value: unknown): value is InternalAdmissionNotificationQueueInput {
   if (!isRecord(value) || !isSafeFid(value.fid) || !isTimestamp(value.queuedAt)) return false
   if (
     value.kind === undefined
@@ -847,16 +855,6 @@ function pruneSubscriptions(
   return Object.freeze({
     ...withTombstones,
     subscriptions: Object.freeze(subscriptions),
-    ...(state.delivery
-      ? {
-          delivery: Object.freeze({
-            ...state.delivery,
-            attempts: Object.freeze(state.delivery.attempts.filter(attempt => (
-              liveTokenIds.has(attempt.tokenId)
-            ))),
-          }),
-        }
-      : {}),
   })
 }
 
@@ -864,20 +862,29 @@ function attemptsForSubscriptions(
   delivery: AdmissionDelivery,
   subscriptions: readonly Subscription[],
 ): readonly DeliveryAttempt[] {
-  return Object.freeze(subscriptions.map(subscription => {
-    const existing = delivery.attempts.find(attempt => attempt.appFid === subscription.appFid)
-    if (existing?.status === 'sent') return existing
-    if (existing?.tokenId === subscription.tokenId) {
-      return existing
-    }
-    return Object.freeze({
-      appFid: subscription.appFid,
-      tokenId: subscription.tokenId,
-      status: 'pending' as const,
-      attempts: 0,
-      verificationFailures: 0,
-    })
-  }))
+  // A request generation belongs to one player and may have only one active
+  // transport target. Keep its first attempt stable even if a later webhook
+  // removes that token; attemptDelivery will terminate instead of retargeting.
+  // An unbound generation selects the newest configured subscription with a
+  // deterministic tie-break, preventing fan-out across Farcaster clients.
+  const existing = delivery.attempts.find(attempt => attempt.status === 'sent')
+    ?? delivery.attempts.find(attempt => attempt.status !== 'exhausted')
+    ?? delivery.attempts[0]
+  if (existing) return Object.freeze([existing])
+
+  const subscription = [...subscriptions].sort((left, right) => (
+    right.enabledAt - left.enabledAt
+    || left.appFid - right.appFid
+    || left.tokenId.localeCompare(right.tokenId)
+  ))[0]
+  if (!subscription) return Object.freeze([])
+  return Object.freeze([Object.freeze({
+    appFid: subscription.appFid,
+    tokenId: subscription.tokenId,
+    status: 'pending' as const,
+    attempts: 0,
+    verificationFailures: 0,
+  })])
 }
 
 function nextAlarmAt(state: PersistedNotificationState, now: number): number | null {
@@ -1009,61 +1016,6 @@ function deliveryGeneration(delivery: AdmissionDelivery): AdmissionNotificationG
         kind: 'pending-request',
         requestedAtMicros: delivery.requestedAtMicros,
       })
-}
-
-/**
- * Older Cloudflare deployments classified their runtime-level redirect failure
- * as the broad `transport` reason. An authenticated operator replay may bring
- * the exact legacy fifth-attempt generation forward after Farcaster's minimum
- * retry interval. The legacy record did not store a last-attempt timestamp, so
- * derive it from the persisted four-hour backoff invariant. The attempt counter
- * and six-attempt ceiling never reset. Current deployments emit richer records,
- * so this compatibility path cannot become a general-purpose backoff bypass.
- */
-function recoverLegacyTransportBackoff(
-  state: PersistedNotificationState,
-  diagnostics: PersistedNotificationDiagnostics | null,
-  generation: AdmissionNotificationGeneration,
-  now: number,
-): PersistedNotificationState {
-  if (
-    !state.delivery
-    || state.delivery.kind !== 'admitted'
-    || generation.kind !== 'admitted'
-    || !generationEquals(deliveryGeneration(state.delivery), generation)
-    || !diagnostics
-    || !generationEquals(diagnostics.generation, generation)
-    || diagnostics.retryReasons.length !== 1
-    || diagnostics.retryReasons[0] !== 'transport'
-    || diagnostics.lastFailureReason !== undefined
-    || diagnostics.lastAttemptAt !== undefined
-    || state.delivery.attempts.length === 0
-    || state.delivery.attempts.some((attempt) => (
-      attempt.status !== 'retrying'
-      || attempt.attempts !== MAX_DELIVERY_ATTEMPTS - 1
-      || attempt.nextAttemptAt === undefined
-      || attempt.nextAttemptAt <= now
-      || attempt.nextAttemptAt - RETRY_DELAYS_MILLISECONDS[attempt.attempts - 1]
-        > now - LEGACY_TRANSPORT_RETRY_MINIMUM_AGE_MILLISECONDS
-    ))
-  ) return state
-
-  const attempts = state.delivery.attempts.map((attempt) => {
-    return Object.freeze({
-      appFid: attempt.appFid,
-      tokenId: attempt.tokenId,
-      status: 'pending' as const,
-      attempts: attempt.attempts,
-      verificationFailures: attempt.verificationFailures,
-    })
-  })
-  return Object.freeze({
-    ...state,
-    delivery: Object.freeze({
-      ...state.delivery,
-      attempts: Object.freeze(attempts),
-    }),
-  })
 }
 
 async function recordDiagnostics(
@@ -1271,12 +1223,8 @@ async function sendOne(
       },
       body: JSON.stringify({
         notificationId: notificationId(delivery),
-        title: delivery.kind === 'admitted'
-          ? ADMITTED_NOTIFICATION_TITLE
-          : PENDING_NOTIFICATION_TITLE,
-        body: delivery.kind === 'admitted'
-          ? ADMITTED_NOTIFICATION_BODY
-          : PENDING_NOTIFICATION_BODY,
+        title: ADMISSION_NOTIFICATION_TITLE,
+        body: ADMISSION_NOTIFICATION_BODY,
         targetUrl: TARGET_URL,
         tokens: [subscription.token],
       }),
@@ -1368,6 +1316,15 @@ function terminalAttempt(attempt: DeliveryAttempt): DeliveryAttempt {
   })
 }
 
+function retireAttemptWithoutDelivery(attempt: DeliveryAttempt): DeliveryAttempt {
+  return Object.freeze({
+    ...attempt,
+    status: 'exhausted',
+    verificationFailures: 0,
+    nextAttemptAt: undefined,
+  })
+}
+
 function deferForAdmissionVerification(
   attempt: DeliveryAttempt,
   now: number,
@@ -1396,7 +1353,8 @@ function sentForGeneration(
   return generation.kind === 'admitted'
     ? state.lastSentAuthEpoch !== undefined
       && state.lastSentAuthEpoch >= generation.authEpoch
-    : state.lastSentRequestAtMicros === generation.requestedAtMicros
+    : state.lastSentRequestAtMicros !== undefined
+      && state.lastSentRequestAtMicros >= generation.requestedAtMicros
 }
 
 function exhaustedForGeneration(
@@ -1406,7 +1364,8 @@ function exhaustedForGeneration(
   return generation.kind === 'admitted'
     ? state.lastExhaustedAuthEpoch !== undefined
       && state.lastExhaustedAuthEpoch >= generation.authEpoch
-    : state.lastExhaustedRequestAtMicros === generation.requestedAtMicros
+    : state.lastExhaustedRequestAtMicros !== undefined
+      && state.lastExhaustedRequestAtMicros >= generation.requestedAtMicros
 }
 
 function queueStatus(state: PersistedNotificationState): AdmissionNotificationQueueStatus {
@@ -1561,10 +1520,35 @@ export class AdmissionNotification {
     const now = this.currentTime()
     const config = this.config()
     const pruned = pruneSubscriptions(state, config, now)
-    const delivery = pruned.delivery
+    let delivery = pruned.delivery
     if (!delivery) {
       if (pruned === state) return state
       const next = withNextRevision(pruned)
+      await persistAndSchedule(this.state.storage, next, now)
+      return next
+    }
+    if (delivery.kind === 'admitted') {
+      // Admitted-epoch notifications were a legacy reconciliation path. A
+      // player-visible alert is now owned exclusively by the exact pending
+      // access-request generation, so no persisted legacy alarm can emit a
+      // second notification after admission becomes authoritative.
+      const next = withNextRevision(Object.freeze({
+        ...pruned,
+        delivery: undefined,
+        lastExhaustedAuthEpoch: Math.max(
+          pruned.lastExhaustedAuthEpoch ?? 0,
+          delivery.authEpoch,
+        ),
+      }))
+      await persistAndSchedule(this.state.storage, next, now)
+      return next
+    }
+    const generation = deliveryGeneration(delivery)
+    if (sentForGeneration(pruned, generation) || exhaustedForGeneration(pruned, generation)) {
+      // A terminal generation receipt always wins over webhook refreshes and
+      // stale alarms. Clear the retained delivery shell before any attempt can
+      // be rebuilt around a new token.
+      const next = withNextRevision(Object.freeze({ ...pruned, delivery: undefined }))
       await persistAndSchedule(this.state.storage, next, now)
       return next
     }
@@ -1574,19 +1558,12 @@ export class AdmissionNotification {
         ...pruned,
         delivery: undefined,
         ...(exhausted
-          ? delivery.kind === 'admitted'
-            ? {
-                lastExhaustedAuthEpoch: Math.max(
-                  pruned.lastExhaustedAuthEpoch ?? 0,
-                  delivery.authEpoch,
-                ),
-              }
-            : {
-                lastExhaustedRequestAtMicros: Math.max(
-                  pruned.lastExhaustedRequestAtMicros ?? 0,
-                  delivery.requestedAtMicros,
-                ),
-              }
+          ? {
+              lastExhaustedRequestAtMicros: Math.max(
+                pruned.lastExhaustedRequestAtMicros ?? 0,
+                delivery.requestedAtMicros,
+              ),
+            }
           : {}),
       }))
       await persistAndSchedule(this.state.storage, next, now)
@@ -1602,10 +1579,16 @@ export class AdmissionNotification {
       return next
     }
 
+    delivery = Object.freeze({
+      ...delivery,
+      attempts: attemptsForSubscriptions(delivery, pruned.subscriptions),
+    })
+    const singleTargetState = Object.freeze({ ...pruned, delivery })
+
     // Persisted data is never trusted as an outbound destination. Reapply the
     // current deployment allowlist immediately before every network request.
-    let subscriptions = [...pruned.subscriptions]
-    let nextBase = pruned
+    let subscriptions = [...singleTargetState.subscriptions]
+    let nextBase: PersistedNotificationState = singleTargetState
     let invalidatedGeneration = false
     let latestAttemptAt: number | undefined
     let latestFailureReason: AdmissionNotificationRetryReason | undefined
@@ -1618,7 +1601,14 @@ export class AdmissionNotification {
       const subscription = subscriptions.find(candidate => (
         candidate.appFid === attempt.appFid && candidate.tokenId === attempt.tokenId
       ))
-      if (!subscription) continue
+      if (!subscription) {
+        // Once a request has selected a transport target, token rotation,
+        // opt-out, expiry, or client removal terminates that generation. Never
+        // reset its attempt counter or redirect it to another subscription.
+        invalidatedGeneration = true
+        attempts.push(retireAttemptWithoutDelivery(attempt))
+        continue
+      }
       if (
         attempt.status === 'sent'
         || attempt.status === 'exhausted'
@@ -1638,10 +1628,7 @@ export class AdmissionNotification {
       let generationIsCurrent = false
       try {
         const admission = await resolver.resolve(state.fid)
-        if (delivery.kind === 'admitted') {
-          generationIsCurrent = admission.state === 'enabled'
-            && admission.authEpoch === delivery.authEpoch
-        } else if (admission.state !== 'enabled') {
+        if (admission.state !== 'enabled') {
           const request = await requestResolver.getStatus(state.fid)
           generationIsCurrent = request.status === 'requested'
             && request.requestedAtMicros === delivery.requestedAtMicros
@@ -1650,9 +1637,7 @@ export class AdmissionNotification {
         // Resolver availability is not a Farcaster delivery attempt. Back it
         // off separately so an upstream outage cannot permanently exhaust the
         // admission epoch before any notification request is made.
-        const reason = delivery.kind === 'admitted'
-          ? 'admission-verification'
-          : 'request-verification'
+        const reason = 'request-verification'
         retryReasons.push(reason)
         attempts.push(deferForAdmissionVerification(attempt, now, delivery.expiresAt))
         continue
@@ -1712,19 +1697,12 @@ export class AdmissionNotification {
       subscriptions: Object.freeze(subscriptions),
       delivery: Object.freeze({ ...delivery, attempts: Object.freeze(attempts) }),
       ...(attempts.length > 0 && attempts.every(attempt => attempt.status === 'sent')
-        ? delivery.kind === 'admitted'
-          ? {
-              lastSentAuthEpoch: Math.max(
-                nextBase.lastSentAuthEpoch ?? 0,
-                delivery.authEpoch,
-              ),
-            }
-          : {
-              lastSentRequestAtMicros: Math.max(
-                nextBase.lastSentRequestAtMicros ?? 0,
-                delivery.requestedAtMicros,
-              ),
-            }
+        ? {
+            lastSentRequestAtMicros: Math.max(
+              nextBase.lastSentRequestAtMicros ?? 0,
+              delivery.requestedAtMicros,
+            ),
+          }
         : {}),
       ...(invalidatedGeneration || (
         attempts.length > 0
@@ -1733,19 +1711,12 @@ export class AdmissionNotification {
           attempt.status === 'sent' || attempt.status === 'exhausted'
         ))
       )
-        ? delivery.kind === 'admitted'
-          ? {
-              lastExhaustedAuthEpoch: Math.max(
-                nextBase.lastExhaustedAuthEpoch ?? 0,
-                delivery.authEpoch,
-              ),
-            }
-          : {
-              lastExhaustedRequestAtMicros: Math.max(
-                nextBase.lastExhaustedRequestAtMicros ?? 0,
-                delivery.requestedAtMicros,
-              ),
-            }
+        ? {
+            lastExhaustedRequestAtMicros: Math.max(
+              nextBase.lastExhaustedRequestAtMicros ?? 0,
+              delivery.requestedAtMicros,
+            ),
+          }
         : {}),
     }))
     // Keep a token-free queued admission until its bounded expiry. This closes
@@ -1899,16 +1870,6 @@ export class AdmissionNotification {
             now + SUBSCRIPTION_MAX_LIFETIME_MILLISECONDS,
           ),
           subscriptions,
-          ...(next.delivery && subscriptions.length > 0
-            ? {
-                delivery: Object.freeze({
-                  ...next.delivery,
-                  attempts: Object.freeze(
-                    next.delivery.attempts.filter(attempt => attempt.appFid !== value.appFid),
-                  ),
-                }),
-              }
-            : { delivery: undefined }),
         })
       }
 
@@ -1928,12 +1889,32 @@ export class AdmissionNotification {
       const existing = await readCombinedState(this.state.storage)
       if (existing && existing.fid !== value.fid) return new Response(null, { status: 409 })
       let next = existing ?? emptyState(value.fid, now)
-      const generation: AdmissionNotificationGeneration = value.kind === 'pending-request'
-        ? Object.freeze({
-            kind: 'pending-request',
-            requestedAtMicros: value.requestedAtMicros,
-          })
-        : Object.freeze({ kind: 'admitted', authEpoch: value.authEpoch })
+      if (value.kind !== 'pending-request') {
+        // Keep accepting the old internal shape long enough to retire any
+        // in-flight caller safely, but make it terminal without a provider
+        // request. This is the final defense against duplicate post-admission
+        // notifications from older operator tooling or queued Durable Objects.
+        next = withNextRevision(Object.freeze({
+          ...next,
+          ...(next.delivery?.kind === 'admitted' ? { delivery: undefined } : {}),
+          lastExhaustedAuthEpoch: Math.max(
+            next.lastExhaustedAuthEpoch ?? 0,
+            value.authEpoch,
+          ),
+        }))
+        await persistAndSchedule(this.state.storage, next, now)
+        return new Response(JSON.stringify({ status: 'delivery-exhausted' }), {
+          status: 200,
+          headers: {
+            'content-type': 'application/json; charset=utf-8',
+            'cache-control': 'no-store',
+          },
+        })
+      }
+      const generation: AdmissionNotificationGeneration = Object.freeze({
+        kind: 'pending-request',
+        requestedAtMicros: value.requestedAtMicros,
+      })
       if (sentForGeneration(next, generation)) {
         return new Response(JSON.stringify({ status: 'already-sent' }), {
           status: 200,
@@ -1947,23 +1928,11 @@ export class AdmissionNotification {
         })
       }
       if (
-        next.delivery?.kind === 'admitted'
-        && generation.kind === 'admitted'
-        && generation.authEpoch < next.delivery.authEpoch
-      ) {
-        return new Response(null, { status: 409 })
-      }
-      if (
         next.delivery?.kind === 'pending-request'
-        && generation.kind === 'pending-request'
         && generation.requestedAtMicros < next.delivery.requestedAtMicros
       ) {
         return new Response(null, { status: 409 })
       }
-      const diagnostics = readPersistedDiagnostics(
-        await this.state.storage.get<unknown>(DIAGNOSTICS_RECORD),
-      )
-      next = recoverLegacyTransportBackoff(next, diagnostics, generation, now)
       if (
         !next.delivery
         || !generationEquals(deliveryGeneration(next.delivery), generation)

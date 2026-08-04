@@ -328,7 +328,9 @@ export type AdmissionNotificationGeneration =
 export type AdmissionNotificationQueueInput = Readonly<{
   fid: string
   queuedAt: number
-}> & AdmissionNotificationGeneration
+  kind: 'pending-request'
+  requestedAtMicros: number
+}>
 
 export type AdmissionNotificationRetryReason =
   | 'admission-verification'

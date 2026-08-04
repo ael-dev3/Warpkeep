@@ -2565,7 +2565,7 @@ describe('Warpkeep auth bridge', () => {
       }
     })
 
-    it('uses the separate operator secret and rechecks live admission before queuing', async () => {
+    it('uses the separate operator secret and rejects post-admission notification queues', async () => {
       const queueAdmission = vi.fn(async () => 'queued' as const)
       const store: AdmissionNotificationStore = {
         applyEvent: vi.fn(async () => undefined),
@@ -2594,17 +2594,14 @@ describe('Warpkeep auth bridge', () => {
         { fid: FID },
         { headers: { authorization: `Bearer ${NOTIFICATION_OPERATOR_SECRET}` } },
       ), notificationEnv())
-      expect(accepted.status).toBe(202)
+      expect(accepted.status).toBe(409)
       const acceptedBody = await accepted.json()
-      expect(acceptedBody).toEqual({ status: 'queued' })
-      expect(h.resolver.resolve).toHaveBeenCalledWith(FID)
-      expect(queueAdmission).toHaveBeenCalledWith({
-        fid: FID,
-        kind: 'admitted',
-        authEpoch: 7,
-        queuedAt: expect.any(Number),
+      expect(acceptedBody).toMatchObject({
+        error: { code: 'admission_notification_not_applicable' },
       })
-      expect(h.events).toContain('admission_notification_queued')
+      expect(h.resolver.resolve).toHaveBeenCalledWith(FID)
+      expect(queueAdmission).not.toHaveBeenCalled()
+      expect(h.events).toContain('admission_notification_rejected')
       expect(JSON.stringify(acceptedBody)).not.toContain(NOTIFICATION_OPERATOR_SECRET)
     })
 
@@ -2664,6 +2661,48 @@ describe('Warpkeep auth bridge', () => {
         queuedAt: expect.any(Number),
       })
       expect(h.events).toContain('admission_notification_succeeded')
+    })
+
+    it('never creates a second generation after the pending request has notified', async () => {
+      const requestedAtMicros = 1_785_414_896_000_000
+      let admitted = false
+      const queueAdmission = vi.fn(async () => 'already-sent' as const)
+      const h = harness({
+        resolver: {
+          resolve: vi.fn(async () => admitted
+            ? ({ state: 'enabled', authEpoch: 8 } as const)
+            : ({ state: 'disabled', authEpoch: 0 } as const)),
+        },
+        accessRequestResolver: {
+          getStatus: vi.fn(async () => ({ status: 'requested', requestedAtMicros } as const)),
+          submit: vi.fn(async () => ({ status: 'not-requested' } as const)),
+        },
+        admissionNotificationStore: {
+          applyEvent: vi.fn(async () => undefined),
+          queueAdmission,
+        },
+      })
+      const notificationRequest = () => request(
+        ADMISSION_NOTIFICATION_PATH,
+        { fid: FID },
+        { headers: { authorization: `Bearer ${NOTIFICATION_OPERATOR_SECRET}` } },
+      )
+
+      expect((await h.app.fetch(notificationRequest(), notificationEnv())).status).toBe(200)
+      admitted = true
+      const afterAdmission = await h.app.fetch(notificationRequest(), notificationEnv())
+
+      expect(afterAdmission.status).toBe(409)
+      await expect(afterAdmission.json()).resolves.toMatchObject({
+        error: { code: 'admission_notification_not_applicable' },
+      })
+      expect(queueAdmission).toHaveBeenCalledTimes(1)
+      expect(queueAdmission).toHaveBeenCalledWith({
+        fid: FID,
+        kind: 'pending-request',
+        requestedAtMicros,
+        queuedAt: expect.any(Number),
+      })
     })
 
     it('exposes only token-free diagnostics to the separate operator credential', async () => {
