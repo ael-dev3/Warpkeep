@@ -87,7 +87,6 @@ type Command =
   | 'inspect-access-request-reset'
   | 'reset-access-request'
   | 'admit-founder'
-  | 'notify-admitted'
   | 'allow-fid'
   | 'disable-fid'
   | 'bump-auth-epoch'
@@ -382,7 +381,6 @@ function commandFrom(value: string | undefined): Command {
     || value === 'inspect-access-request-reset'
     || value === 'reset-access-request'
     || value === 'admit-founder'
-    || value === 'notify-admitted'
     || value === 'allow-fid'
     || value === 'disable-fid'
     || value === 'bump-auth-epoch'
@@ -403,7 +401,7 @@ function commandFrom(value: string | undefined): Command {
   }
   fail(
     'Usage: hermes-admin.ts '
-    + '<seed-world|expand-world-v3|list-access-requests|inspect-access-request-reset|reset-access-request|admit-founder|notify-admitted|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|seed-alpha-component|activate-alpha-water|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4|inspect-alpha-v8|inspect-alpha-v10|inspect-alpha-v12|inspect-publish-pre-v12|inspect-publish-post-v12> '
+    + '<seed-world|expand-world-v3|list-access-requests|inspect-access-request-reset|reset-access-request|admit-founder|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|seed-alpha-component|activate-alpha-water|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4|inspect-alpha-v8|inspect-alpha-v10|inspect-alpha-v12|inspect-publish-pre-v12|inspect-publish-post-v12> '
     + '[...args] [--dry-run] [--confirm]. admit-founder requires private stdin: '
     + '--input-stdin --dry-run creates a reviewed plan; --input-stdin --confirm consumes it; '
     + 'allow-fid only re-enables an existing complete founder. list-access-requests accepts '
@@ -474,8 +472,6 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
     || command === 'disable-fid'
     || command === 'bump-auth-epoch'
     ? 3
-    : command === 'notify-admitted'
-      ? 2
     : command === 'backfill-resources' || command === 'seed-alpha-component'
       ? 2
     : 1;
@@ -507,15 +503,6 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
     }
     if (flags.has('--dry-run') === flags.has('--confirm')) {
       fail('Profiled admission requires exactly one of --dry-run or --confirm.');
-    }
-  } else if (command === 'notify-admitted') {
-    if (
-      flags.has('--input-stdin')
-      || flags.has('--json')
-      || flags.has('--dry-run')
-      || !flags.has('--confirm')
-    ) {
-      fail('Admission notification reconciliation requires exactly --confirm.');
     }
   } else if (command === 'reset-access-request') {
     if (flags.has('--json')) {
@@ -2073,7 +2060,6 @@ async function main() {
     && command !== 'expand-world-v3'
     && command !== 'reset-access-request'
     && command !== 'admit-founder'
-    && command !== 'notify-admitted'
     && command !== 'seed-alpha-component'
     && command !== 'activate-alpha-water'
     && process.env.WARPKEEP_HERMES_NONINTERACTIVE === 'yes'
@@ -2091,7 +2077,6 @@ async function main() {
   let fid = command === 'allow-fid'
     || command === 'disable-fid'
     || command === 'bump-auth-epoch'
-    || command === 'notify-admitted'
     || command === 'inspect-access-request-reset'
     || (command === 'reset-access-request' && dryRun)
     ? readFid(positional[1])
@@ -2205,9 +2190,6 @@ async function main() {
   if (command === 'activate-alpha-water' && !dryRun && !confirmed) {
     fail('Refusing Water activation without --confirm.');
   }
-  if (command === 'notify-admitted' && !confirmed) {
-    fail('Refusing admission notification reconciliation without --confirm.');
-  }
   if (command === 'reset-access-request' && !dryRun && !confirmed) {
     fail('Refusing access request reset without --confirm.');
   }
@@ -2275,15 +2257,6 @@ async function main() {
   const bridgeUrl = prevalidatedBridgeUrl
     ?? readHttpsUrl(process.env.WARPKEEP_AUTH_BRIDGE_URL, 'WARPKEEP_AUTH_BRIDGE_URL');
   requireCredentialedProductionTarget(uri, database, bridgeUrl);
-  if (command === 'notify-admitted' && fid !== undefined) {
-    const status = await requestAdmissionNotification(
-      bridgeUrl,
-      fid,
-      readNotificationOperatorSecret(notificationOperatorSecret),
-    );
-    console.log(JSON.stringify({ admissionNotification: status }));
-    return;
-  }
   if (
     command === 'reset-access-request'
     && process.env.WARPKEEP_ADMIN_TOKEN_SECRET !== undefined

@@ -265,8 +265,8 @@ a SpacetimeDB schema change. Roll them out in this order:
    request generation before requesting an administrator token. If the player
    opted in, require Farcaster provider acceptance before mutating admission;
    `queued` or `delivery-exhausted` aborts unchanged. `not-subscribed` is an
-   explicit audited fallback for a player without consent. Keep
-   `notify-admitted` only for idempotent already-live reconciliation.
+   explicit audited fallback for a player without consent. Never queue a
+   post-admission reconciliation notification; that legacy path is retired.
 
 ### Owner canary and end-to-end acceptance
 
@@ -279,7 +279,7 @@ it.
    fact that the client presentation gate is still `false`. Do not record a
    real FID, webhook body, notification token, or delivery URL.
 2. Use a dedicated owner-controlled account in the exact production Mini App.
-   Before any admission or `notify-admitted` action for that test cycle, accept
+   Before the admission action for that test cycle, accept
    Farcaster's native add prompt. In the bounded log window, require exactly the
    fixed events `miniapp_webhook_verified` and
    `miniapp_notification_subscribed`; no caller data is valid evidence.
@@ -310,11 +310,11 @@ it.
    complete acceptance on current Farcaster iOS and Android before declaring
    the client rollout complete.
 
-The normal pending-request notification is `Admission approved` with
-`The Hegemony is finalizing your Realm access. Your keep will open shortly.` The older
-`The Hegemony admits you` payload remains only for already-live reconciliation.
-Both are bounded and privacy-safe. Any copy change requires a separate reviewed
-Worker rollout.
+The sole pending-request notification is `Welcome to the Hegemony Empire` with
+`The gates have answered your name. Cross the threshold, Founder—your legacy awaits.`
+It contains no realm name or player identity. The admitted-epoch payload is
+retired and must be cancelled without delivery. Any copy change requires a
+separate reviewed Worker rollout.
 
 For rollback, set `APPROVAL_NOTIFICATIONS_ENABLED=false` first, then return
 `VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED=false` and deploy the last

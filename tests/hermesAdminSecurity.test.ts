@@ -778,17 +778,14 @@ describe('Hermes command-line boundary', () => {
       inspection: true,
       machineReadableInspection: true,
     });
-    expect(parseHermesArguments(['notify-admitted', '123', '--confirm'])).toMatchObject({
-      command: 'notify-admitted',
-      confirmedByFlag: true,
-      inspection: false,
-    });
-    expect(() => parseHermesArguments(['notify-admitted', '123']))
-      .toThrow(/exactly --confirm/i);
-    expect(() => parseHermesArguments(['notify-admitted', '123', '--dry-run']))
-      .toThrow(/exactly --confirm/i);
-    expect(() => parseHermesArguments(['notify-admitted', '123', '--confirm', '--json']))
-      .toThrow(/invalid for this operation/i);
+    for (const retired of [
+      ['notify-admitted', '123', '--confirm'],
+      ['notify-admitted', '123'],
+      ['notify-admitted', '123', '--dry-run'],
+      ['notify-admitted', '123', '--confirm', '--json'],
+    ]) {
+      expect(() => parseHermesArguments(retired)).toThrow(/Usage: hermes-admin/i);
+    }
     expect(() => parseHermesArguments(['admit-founder', '123', 'note', '--dry-run']))
       .toThrow(/unexpected number/i);
     expect(() => parseHermesArguments(['admit-founder', '--dry-run']))
@@ -1317,8 +1314,8 @@ describe('Hermes atomic profiled admission boundary', () => {
     ) as { scripts: Record<string, string> };
     expect(packageManifest.scripts['stdb:admit-founder'])
       .toBe('tsx scripts/hermes-admin.ts admit-founder');
-    expect(packageManifest.scripts['stdb:notify-admitted'])
-      .toBe('tsx scripts/hermes-admin.ts notify-admitted');
+    expect(packageManifest.scripts['stdb:notify-admitted']).toBeUndefined();
+    expect(mainSource).not.toContain("| 'notify-admitted'");
   });
 
   it('does not accept a founder identity or note in argv', () => {
@@ -1330,6 +1327,17 @@ describe('Hermes atomic profiled admission boundary', () => {
     expect(result.stderr).toContain('unexpected number');
     expect(`${result.stdout}${result.stderr}`).not.toContain(fid.toString());
     expect(`${result.stdout}${result.stderr}`).not.toContain('controlled fixture');
+  });
+
+  it('rejects the retired post-admission notification command before credentials', () => {
+    const result = runHermes(['notify-admitted', '123', '--confirm'], {
+      WARPKEEP_AUTH_BRIDGE_URL: undefined,
+      WARPKEEP_ADMIN_TOKEN_SECRET: undefined,
+      WARPKEEP_NOTIFICATION_OPERATOR_SECRET: undefined,
+    });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('Usage: hermes-admin');
+    expect(result.stdout).not.toContain('Warpkeep Hermes target');
   });
 
   it('does not let the legacy noninteractive switch authorize a new founder', () => {

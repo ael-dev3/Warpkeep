@@ -350,36 +350,35 @@ Farcaster, not device display or that the player opened the alert.
 
 Queue-before-webhook races are retained without a token for at most 24 hours,
 signed opt-outs erase token material immediately, invalid tokens are purged,
-retry attempts are bounded, and one request generation cannot notify twice.
-`notify-admitted <fid> --confirm` remains an exact-epoch reconciliation command
-for legacy or exceptional already-committed admissions; it is not the normal
-admission sequence. Notification preference and delivery add no SpacetimeDB
-schema or browser authority.
+retry attempts are bounded, and one request generation uses one stable
+notification ID and at most one active transport target. The current pending
+access request is the sole player-visible admission notification generation.
+Already-admitted reconciliation is non-delivering, and the former standalone
+operator command has been retired. A genuinely new pending-request timestamp
+after a reviewed reset is the only event that permits another admission alert.
+Notification preference and delivery add no SpacetimeDB schema or browser
+authority.
 
 The reviewed payloads are:
 
 ```txt
-normal admission:
+admission request:
 notificationId: warpkeep-access-approved-v2-r<pending-request-timestamp>
-title: Admission approved
-body: The Hegemony is finalizing your Realm access. Your keep will open shortly.
-
-already-live reconciliation:
-notificationId: warpkeep-access-approved-v1-e<positive-auth-epoch>
-title: The Hegemony admits you
-body: Your keep awaits in Genesis 001. Enter the living Realm.
+title: Welcome to the Hegemony Empire
+body: The gates have answered your name. Cross the threshold, Founder—your legacy awaits.
 targetUrl: https://warpkeep.com/?miniApp=true
 ```
 
-The titles and bodies are within Farcaster's bounds, contain no identity or
-private state, and accurately describe their generation. Copy changes require
-a reviewed Worker rollout.
+The title and body are within Farcaster's bounds and contain no realm name,
+FID, username, other-player event, or private state. Copy changes require a
+reviewed Worker rollout.
 
 For a notification launch, the browser retains only
 `location.type === "notification"` and a notification ID matching either
-`warpkeep-access-approved-v2-r<positiveInteger>` or the rollback-compatible
-`warpkeep-access-approved-v1-e<positiveInteger>` within the 128-character
-limit. Host title and body are discarded. Warpkeep then shows a short
+`warpkeep-access-approved-v2-r<positiveInteger>` or a previously delivered,
+rollback-compatible `warpkeep-access-approved-v1-e<positiveInteger>` within the
+128-character limit. The latter remains launch-compatible but can no longer be
+queued or sent. Host title and body are discarded. Warpkeep then shows a short
 confirmation state and runs normal Quick Auth, current admission, Terms, and
 canonical-keep checks. A pending or changed account stays pending; the
 notification itself never grants access or creates another keep.
