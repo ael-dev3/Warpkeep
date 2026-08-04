@@ -320,7 +320,7 @@ function expectLivingScene(evidence, scenario) {
     : evidence.activeConversationCount <= expected.activeConversationMaximum;
   return evidence.assetStatus === 'ready'
     && evidence.authoredAssetCount === 38
-    && evidence.authoredPlacementCount === 67
+    && evidence.authoredPlacementCount === 76
     && evidence.authoredTreeCount === expected.authoredTreeCount
     && evidence.grassBladeCount === expected.grassBladeCount
     && evidence.waterSurfaceCount === 2

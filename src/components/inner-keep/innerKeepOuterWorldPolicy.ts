@@ -8,20 +8,23 @@ import type { InnerKeepSceneQuality } from './createInnerKeepSceneLayer';
  * and ambient actors can meet the same ground without becoming authoritative.
  */
 export const INNER_KEEP_OUTER_WORLD_POLICY_VERSION =
-  'inner-keep-outer-world-presentation-v1';
+  'inner-keep-outer-world-presentation-v2';
 
 export const INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS = Object.freeze([
-  24,
-  26,
+  34,
+  38,
 ] as const);
 
 export const INNER_KEEP_OUTER_WORLD_COMPOUND_PLATEAU = Object.freeze({
-  minimumX: -16.55,
-  maximumX: 16.55,
-  minimumZ: -17.35,
-  maximumZ: 10.85,
+  minimumX: -24.2,
+  maximumX: 24.2,
+  minimumZ: -25,
+  maximumZ: 19,
+  centerX: 0,
+  centerZ: -3,
+  cornerRadiusMeters: 5,
   elevationMeters: 0,
-  outerFeatherMeters: 3,
+  outerFeatherMeters: 5.5,
 });
 
 export const INNER_KEEP_OUTER_WORLD_HEIGHT_BOUNDS_METERS = Object.freeze({
@@ -43,63 +46,63 @@ readonly InnerKeepOuterWorldTopographicFeature[] = Object.freeze([
     featureId: 'northern-crown-ridge',
     name: 'Northern Crown Ridge',
     kind: 'ridge',
-    centerMeters: Object.freeze([0, -24] as const),
+    centerMeters: Object.freeze([0, -36] as const),
     description: 'A broad northern rise that silhouettes the estate approach.',
   }),
   Object.freeze({
     featureId: 'goldvein-rise',
     name: 'Goldvein Rise',
     kind: 'ridge',
-    centerMeters: Object.freeze([-6.5, -23.7] as const),
+    centerMeters: Object.freeze([-9, -31] as const),
     description: 'A weathered north-west shoulder around the scenic gold site.',
   }),
   Object.freeze({
     featureId: 'granite-scar',
     name: 'Granite Scar',
     kind: 'shelf',
-    centerMeters: Object.freeze([10.2, -23.7] as const),
+    centerMeters: Object.freeze([12, -31] as const),
     description: 'A stepped stone shelf carrying the scenic quarry.',
   }),
   Object.freeze({
     featureId: 'headwater-shelf',
     name: 'Headwater Shelf',
     kind: 'shelf',
-    centerMeters: Object.freeze([21, -23] as const),
+    centerMeters: Object.freeze([30, -33] as const),
     description: 'High eastern ground where the visible watercourse begins.',
   }),
   Object.freeze({
     featureId: 'western-watch-hills',
     name: 'Western Watch Hills',
     kind: 'ridge',
-    centerMeters: Object.freeze([-21, -4] as const),
+    centerMeters: Object.freeze([-31, -4] as const),
     description: 'Rolling watch hills beyond the western wall.',
   }),
   Object.freeze({
     featureId: 'southfield-meadows',
     name: 'Southfield Meadows',
     kind: 'meadow',
-    centerMeters: Object.freeze([-7, 18] as const),
+    centerMeters: Object.freeze([-10, 29] as const),
     description: 'Open farm country around the wheat and logging clearings.',
   }),
   Object.freeze({
     featureId: 'alderwood-margin',
     name: 'Alderwood Margin',
     kind: 'woodland',
-    centerMeters: Object.freeze([13, 18] as const),
+    centerMeters: Object.freeze([14, 29] as const),
     description: 'A damp woodland edge between the road and the lower water.',
   }),
   Object.freeze({
     featureId: 'eastwall-rill',
     name: 'Eastwall Rill',
     kind: 'watercourse',
-    centerMeters: Object.freeze([17.5, 0] as const),
+    centerMeters: Object.freeze([29, -3] as const),
     description: 'One connected stream descending along the eastern wall.',
   }),
   Object.freeze({
     featureId: 'south-eastern-mere',
     name: 'South-eastern Mere',
     kind: 'lake',
-    centerMeters: Object.freeze([18.6, 17.5] as const),
+    centerMeters: Object.freeze([29, 27] as const),
     description: 'A visible lowland lake receiving the east-wall stream.',
   }),
 ]);
@@ -128,9 +131,9 @@ const RESOURCE_SITE_DEFINITIONS = Object.freeze([
     name: 'Southfield Wheat Farm',
     resourceKind: 'food',
     assetId: 'hegemony-wheat-farm',
-    x: -8.7,
+    x: -10,
     y: 0.22,
-    z: 18.2,
+    z: 28.5,
     rotationYMilliDegrees: 9_000,
     targetFootprintDiameter: 3.6,
     padRadiusMeters: 2.65,
@@ -142,9 +145,9 @@ const RESOURCE_SITE_DEFINITIONS = Object.freeze([
     name: 'Southfield Logging Camp',
     resourceKind: 'wood',
     assetId: 'hegemony-logging-camp',
-    x: 4,
+    x: 5,
     y: 0.3,
-    z: 18.4,
+    z: 29,
     rotationYMilliDegrees: -12_000,
     targetFootprintDiameter: 3.8,
     padRadiusMeters: 2.8,
@@ -156,9 +159,9 @@ const RESOURCE_SITE_DEFINITIONS = Object.freeze([
     name: 'Granite Scar Quarry',
     resourceKind: 'stone',
     assetId: 'hegemony-stone-quarry',
-    x: 10.2,
+    x: 12,
     y: 1.68,
-    z: -23.7,
+    z: -31,
     rotationYMilliDegrees: 168_000,
     targetFootprintDiameter: 3.8,
     padRadiusMeters: 2.15,
@@ -170,9 +173,9 @@ const RESOURCE_SITE_DEFINITIONS = Object.freeze([
     name: 'Goldvein Scenic Mine',
     resourceKind: 'gold',
     assetId: 'hegemony-gold-mine',
-    x: -6.5,
+    x: -9,
     y: 1.54,
-    z: -23.7,
+    z: -31,
     rotationYMilliDegrees: 194_000,
     targetFootprintDiameter: 3.4,
     padRadiusMeters: 2.1,
@@ -210,52 +213,58 @@ export type InnerKeepOuterWorldWaterPoint = Readonly<{
 /** Headwater -> east-wall rill -> lake inlet; every point is strictly downhill. */
 export const INNER_KEEP_OUTER_WORLD_WATER_CENTERLINE:
 readonly InnerKeepOuterWorldWaterPoint[] = Object.freeze([
-  Object.freeze({ x: 20.4, z: -22.8, width: 0.78, y: 1.76 }),
-  Object.freeze({ x: 20.3, z: -20.7, width: 0.8, y: 1.52 }),
-  Object.freeze({ x: 20.15, z: -18.3, width: 0.76, y: 1.25 }),
-  Object.freeze({ x: 19.8, z: -14.8, width: 0.68, y: 0.84 }),
-  Object.freeze({ x: 17.5, z: -8.8, width: 0.58, y: 0.42 }),
-  Object.freeze({ x: 17.5, z: -6.1, width: 0.6, y: 0.401 }),
-  Object.freeze({ x: 17.5, z: -3.35, width: 0.62, y: 0.382 }),
-  Object.freeze({ x: 17.5, z: -0.55, width: 0.62, y: 0.363 }),
-  Object.freeze({ x: 17.5, z: 2.25, width: 0.64, y: 0.344 }),
-  Object.freeze({ x: 17.5, z: 4.9, width: 0.66, y: 0.325 }),
-  Object.freeze({ x: 17.5, z: 6.85, width: 0.7, y: 0.306 }),
-  Object.freeze({ x: 20.6, z: 8.2, width: 0.8, y: 0.278 }),
-  Object.freeze({ x: 20.5, z: 11.8, width: 0.94, y: 0.247 }),
-  Object.freeze({ x: 18.6, z: 14.8, width: 1.12, y: 0.205 }),
+  Object.freeze({ x: 30.2, z: -33.2, width: 0.78, y: 1.76 }),
+  Object.freeze({ x: 30.4, z: -30.8, width: 0.8, y: 1.52 }),
+  Object.freeze({ x: 30.5, z: -27.8, width: 0.76, y: 1.25 }),
+  Object.freeze({ x: 30.1, z: -23.8, width: 0.68, y: 0.84 }),
+  Object.freeze({ x: 29.4, z: -18, width: 0.58, y: 0.55 }),
+  Object.freeze({ x: 28.9, z: -13, width: 0.6, y: 0.48 }),
+  Object.freeze({ x: 28.7, z: -8, width: 0.62, y: 0.44 }),
+  Object.freeze({ x: 28.6, z: -3, width: 0.62, y: 0.4 }),
+  Object.freeze({ x: 28.7, z: 2, width: 0.64, y: 0.36 }),
+  Object.freeze({ x: 28.6, z: 7, width: 0.66, y: 0.32 }),
+  Object.freeze({ x: 28.5, z: 12, width: 0.7, y: 0.285 }),
+  Object.freeze({ x: 30, z: 16.5, width: 0.8, y: 0.255 }),
+  Object.freeze({ x: 30.2, z: 20.5, width: 0.94, y: 0.225 }),
+  Object.freeze({ x: 29, z: 23.8, width: 1.12, y: 0.205 }),
 ]);
 
 export const INNER_KEEP_OUTER_WORLD_LAKE = Object.freeze({
-  center: Object.freeze({ x: 18.6, y: 0.19, z: 17.5 }),
-  radii: Object.freeze({ x: 2.5, z: 2.7 }),
+  center: Object.freeze({ x: 29, y: 0.19, z: 27 }),
+  radii: Object.freeze({ x: 2.2, z: 3.2 }),
 });
 
 export const INNER_KEEP_OUTER_WORLD_PATROL_ROUTE_POINTS = Object.freeze([
-  Object.freeze({ x: -20.5, z: -20.4 }),
-  Object.freeze({ x: -12, z: -20.4 }),
-  Object.freeze({ x: 0, z: -20.4 }),
-  Object.freeze({ x: 7, z: -20.4 }),
-  Object.freeze({ x: 14.7, z: -20.4 }),
-  Object.freeze({ x: 15.2, z: -23.8 }),
-  Object.freeze({ x: 18, z: -25 }),
-  Object.freeze({ x: 22.6, z: -24 }),
-  Object.freeze({ x: 22.8, z: -17 }),
-  Object.freeze({ x: 22.8, z: -8 }),
-  Object.freeze({ x: 22.8, z: 1 }),
-  Object.freeze({ x: 22.8, z: 9 }),
-  Object.freeze({ x: 22.8, z: 15 }),
-  Object.freeze({ x: 22.7, z: 21.5 }),
-  Object.freeze({ x: 17, z: 23 }),
-  Object.freeze({ x: 9, z: 23 }),
-  Object.freeze({ x: 0, z: 23 }),
-  Object.freeze({ x: -9, z: 22.8 }),
-  Object.freeze({ x: -16, z: 21 }),
-  Object.freeze({ x: -20, z: 16 }),
-  Object.freeze({ x: -20.5, z: 8 }),
-  Object.freeze({ x: -20.5, z: 0 }),
-  Object.freeze({ x: -20.3, z: -9 }),
-  Object.freeze({ x: -20.5, z: -15 }),
+  Object.freeze({ x: -31, z: -29 }),
+  Object.freeze({ x: -27, z: -33.5 }),
+  Object.freeze({ x: -20, z: -35 }),
+  Object.freeze({ x: -10, z: -35 }),
+  Object.freeze({ x: 0, z: -35 }),
+  Object.freeze({ x: 10, z: -35 }),
+  Object.freeze({ x: 20, z: -35 }),
+  Object.freeze({ x: 27, z: -35.5 }),
+  Object.freeze({ x: 31.8, z: -35.4 }),
+  Object.freeze({ x: 32.8, z: -31 }),
+  Object.freeze({ x: 32, z: -22 }),
+  Object.freeze({ x: 32, z: -12 }),
+  Object.freeze({ x: 32, z: -2 }),
+  Object.freeze({ x: 32, z: 8 }),
+  Object.freeze({ x: 32, z: 18 }),
+  Object.freeze({ x: 32.7, z: 23.5 }),
+  Object.freeze({ x: 32.84, z: 30.5 }),
+  Object.freeze({ x: 32.84, z: 33 }),
+  Object.freeze({ x: 26, z: 33 }),
+  Object.freeze({ x: 16, z: 33 }),
+  Object.freeze({ x: 5, z: 33 }),
+  Object.freeze({ x: -6, z: 33 }),
+  Object.freeze({ x: -17, z: 33 }),
+  Object.freeze({ x: -26, z: 32 }),
+  Object.freeze({ x: -31, z: 27 }),
+  Object.freeze({ x: -32, z: 18 }),
+  Object.freeze({ x: -32, z: 8 }),
+  Object.freeze({ x: -32, z: -2 }),
+  Object.freeze({ x: -32, z: -12 }),
+  Object.freeze({ x: -32, z: -22 }),
 ] as const);
 
 export const INNER_KEEP_OUTER_WORLD_ROAD_CIRCUIT = Object.freeze({
@@ -266,6 +275,115 @@ export const INNER_KEEP_OUTER_WORLD_ROAD_CIRCUIT = Object.freeze({
   presentationOnly: true,
   gameplayAuthority: 'none',
 });
+
+export const INNER_KEEP_OUTER_WORLD_APPROACHES = Object.freeze({
+  northernResourceRoadZ: -35,
+  southernResourceRoadZ: 33,
+  gateOuterZ: 16.8,
+  gateInnerZ: 13.6,
+});
+
+export type InnerKeepCityPresentationRoad = Readonly<{
+  points: readonly Readonly<{ x: number; z: number }>[];
+  closed: boolean;
+  halfWidthMeters: number;
+}>;
+
+/** Presentation-only ground treatment that softens the palisade perimeter. */
+export const INNER_KEEP_CITY_EDGE_APRON_POINTS = Object.freeze([
+  Object.freeze({ x: -16, z: -21.15 }),
+  Object.freeze({ x: -8.1, z: -21.34 }),
+  Object.freeze({ x: 0.2, z: -21.12 }),
+  Object.freeze({ x: 8.15, z: -21.3 }),
+  Object.freeze({ x: 16, z: -21.08 }),
+  Object.freeze({ x: 20.18, z: -17 }),
+  Object.freeze({ x: 20.34, z: -9.1 }),
+  Object.freeze({ x: 20.12, z: -1 }),
+  Object.freeze({ x: 20.3, z: 7.1 }),
+  Object.freeze({ x: 20.12, z: 11 }),
+  Object.freeze({ x: 16.05, z: 15.08 }),
+  Object.freeze({ x: 8.2, z: 15.22 }),
+  Object.freeze({ x: 0, z: 15.1 }),
+  Object.freeze({ x: -8.15, z: 15.25 }),
+  Object.freeze({ x: -16.1, z: 15.06 }),
+  Object.freeze({ x: -20.16, z: 11 }),
+  Object.freeze({ x: -20.32, z: 7 }),
+  Object.freeze({ x: -20.14, z: -1.1 }),
+  Object.freeze({ x: -20.3, z: -9 }),
+  Object.freeze({ x: -20.12, z: -17.05 }),
+] as const);
+
+/** Presentation-only district lanes shared by rendering and ecology clearance. */
+export const INNER_KEEP_CITY_DISTRICT_ROADS:
+readonly InnerKeepCityPresentationRoad[] = Object.freeze([
+  Object.freeze({
+    points: Object.freeze([
+      Object.freeze({ x: -17.2, z: -15.7 }),
+      Object.freeze({ x: -17.4, z: -7.8 }),
+      Object.freeze({ x: -17.15, z: 0 }),
+      Object.freeze({ x: -17.35, z: 7.8 }),
+      Object.freeze({ x: -16.2, z: 11.5 }),
+    ]),
+    closed: false,
+    halfWidthMeters: 0.62,
+  }),
+  Object.freeze({
+    points: Object.freeze([
+      Object.freeze({ x: 17.2, z: -15.7 }),
+      Object.freeze({ x: 17.4, z: -7.8 }),
+      Object.freeze({ x: 17.15, z: 0 }),
+      Object.freeze({ x: 17.35, z: 7.8 }),
+      Object.freeze({ x: 16.2, z: 11.5 }),
+    ]),
+    closed: false,
+    halfWidthMeters: 0.62,
+  }),
+  Object.freeze({
+    points: Object.freeze([
+      Object.freeze({ x: -16.2, z: 11.5 }),
+      Object.freeze({ x: -10, z: 12.45 }),
+      Object.freeze({ x: 0, z: 13.15 }),
+      Object.freeze({ x: 10, z: 12.45 }),
+      Object.freeze({ x: 16.2, z: 11.5 }),
+    ]),
+    closed: false,
+    halfWidthMeters: 0.68,
+  }),
+  Object.freeze({
+    points: Object.freeze([
+      Object.freeze({ x: -17.2, z: -0.15 }),
+      Object.freeze({ x: -13.2, z: -0.1 }),
+    ]),
+    closed: false,
+    halfWidthMeters: 0.52,
+  }),
+  Object.freeze({
+    points: Object.freeze([
+      Object.freeze({ x: 13.2, z: -0.1 }),
+      Object.freeze({ x: 17.2, z: -0.15 }),
+    ]),
+    closed: false,
+    halfWidthMeters: 0.52,
+  }),
+  Object.freeze({
+    points: Object.freeze([
+      Object.freeze({ x: -17.2, z: -15.7 }),
+      Object.freeze({ x: -13.1, z: -18.2 }),
+      Object.freeze({ x: -7.4, z: -19.2 }),
+    ]),
+    closed: false,
+    halfWidthMeters: 0.54,
+  }),
+  Object.freeze({
+    points: Object.freeze([
+      Object.freeze({ x: 7.4, z: -19.2 }),
+      Object.freeze({ x: 13.1, z: -18.2 }),
+      Object.freeze({ x: 17.2, z: -15.7 }),
+    ]),
+    closed: false,
+    halfWidthMeters: 0.54,
+  }),
+]);
 
 export const INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS = Object.freeze({
   high: Object.freeze({
@@ -360,11 +478,43 @@ export function innerKeepOuterWorldDistanceToSegment(
   );
 }
 
-function outsidePlateauDistance(x: number, z: number) {
+/** Signed distance from a point to the nearest presentation-only district lane. */
+export function innerKeepCityDistrictRoadEdgeDistance(x: number, z: number) {
+  let nearestEdge = Number.POSITIVE_INFINITY;
+  for (const road of INNER_KEEP_CITY_DISTRICT_ROADS) {
+    const segmentCount = road.closed ? road.points.length : road.points.length - 1;
+    for (let index = 0; index < segmentCount; index += 1) {
+      const from = road.points[index]!;
+      const to = road.points[(index + 1) % road.points.length]!;
+      nearestEdge = Math.min(
+        nearestEdge,
+        innerKeepOuterWorldDistanceToSegment(x, z, from.x, from.z, to.x, to.z)
+          - road.halfWidthMeters,
+      );
+    }
+  }
+  return nearestEdge;
+}
+
+/** Signed distance to the rounded, level city shoulder; negative is inside. */
+export function innerKeepOuterWorldCompoundPlateauSignedDistance(x: number, z: number) {
+  if (!Number.isFinite(x) || !Number.isFinite(z)) return Number.POSITIVE_INFINITY;
   const plateau = INNER_KEEP_OUTER_WORLD_COMPOUND_PLATEAU;
-  const deltaX = Math.max(plateau.minimumX - x, 0, x - plateau.maximumX);
-  const deltaZ = Math.max(plateau.minimumZ - z, 0, z - plateau.maximumZ);
-  return Math.hypot(deltaX, deltaZ);
+  const halfWidth = (plateau.maximumX - plateau.minimumX) * 0.5;
+  const halfDepth = (plateau.maximumZ - plateau.minimumZ) * 0.5;
+  const radius = Math.min(plateau.cornerRadiusMeters, halfWidth, halfDepth);
+  const coreHalfWidth = halfWidth - radius;
+  const coreHalfDepth = halfDepth - radius;
+  const deltaX = Math.abs(x - plateau.centerX) - coreHalfWidth;
+  const deltaZ = Math.abs(z - plateau.centerZ) - coreHalfDepth;
+  return Math.hypot(Math.max(deltaX, 0), Math.max(deltaZ, 0))
+    + Math.min(Math.max(deltaX, deltaZ), 0)
+    - radius;
+}
+
+function outsidePlateauDistance(x: number, z: number) {
+  const signedDistance = innerKeepOuterWorldCompoundPlateauSignedDistance(x, z);
+  return signedDistance <= 0.000_000_001 ? 0 : signedDistance;
 }
 
 function nearestWaterSample(x: number, z: number) {
@@ -392,19 +542,19 @@ function nearestWaterSample(x: number, z: number) {
 }
 
 function rawTerrainHeightAt(x: number, z: number) {
-  const rollingNoise = Math.sin(x * 0.28 + z * 0.11) * 0.16
-    + Math.cos(z * 0.24 - x * 0.08) * 0.13
-    + Math.sin((x + z) * 0.47) * 0.07;
-  return 0.16
+  const rollingNoise = Math.sin(x * 0.24 + z * 0.09) * 0.13
+    + Math.cos(z * 0.2 - x * 0.07) * 0.1
+    + Math.sin((x + z) * 0.39) * 0.055;
+  return 0.14
     + rollingNoise
-    + gaussian(x, z, 0, -24, 13, 4.2) * 3.05
-    + gaussian(x, z, -8, -22, 5.8, 4.6) * 1.15
-    + gaussian(x, z, 10.5, -21.5, 5.2, 4.1) * 1.35
-    + gaussian(x, z, 21, -21, 4.8, 7.2) * 1.45
-    + gaussian(x, z, -21, -4, 4.5, 10.5) * 1.65
-    + gaussian(x, z, -8, 19, 10, 6.5) * 0.58
-    + gaussian(x, z, 12.5, 18, 7.5, 6.2) * 0.42
-    - gaussian(x, z, 18.6, 17.5, 4.5, 4.5) * 0.88;
+    + gaussian(x, z, 0, -36, 14, 3.5) * 3.9
+    + gaussian(x, z, -9, -31, 6.5, 5) * 0.95
+    + gaussian(x, z, 12, -31, 6, 4.7) * 1.15
+    + gaussian(x, z, 30, -33, 5.8, 7.5) * 1.25
+    + gaussian(x, z, -31, -4, 5.2, 13) * 1.45
+    + gaussian(x, z, -10, 29, 12, 7.5) * 0.58
+    + gaussian(x, z, 14, 29, 9, 7) * 0.42
+    - gaussian(x, z, 29, 27, 4.2, 5) * 0.88;
 }
 
 /** Deterministic, finite ground elevation shared by all outer-world presenters. */
@@ -429,6 +579,12 @@ export function innerKeepOuterWorldTerrainHeightAt(x: number, z: number) {
     height += (lake.center.y - 0.2 - height) * blend;
   }
 
+  const plateauDistance = outsidePlateauDistance(x, z);
+  if (plateauDistance <= 0) return 0;
+  height *= smoothstep01(
+    plateauDistance / INNER_KEEP_OUTER_WORLD_COMPOUND_PLATEAU.outerFeatherMeters,
+  );
+
   for (const site of RESOURCE_SITE_DEFINITIONS) {
     const distance = Math.hypot(x - site.x, z - site.z);
     if (distance <= site.padRadiusMeters) {
@@ -443,11 +599,6 @@ export function innerKeepOuterWorldTerrainHeightAt(x: number, z: number) {
     }
   }
 
-  const plateauDistance = outsidePlateauDistance(x, z);
-  if (plateauDistance <= 0) return 0;
-  height *= smoothstep01(
-    plateauDistance / INNER_KEEP_OUTER_WORLD_COMPOUND_PLATEAU.outerFeatherMeters,
-  );
   return clamp(
     height,
     INNER_KEEP_OUTER_WORLD_HEIGHT_BOUNDS_METERS.minimum,
@@ -513,13 +664,7 @@ export function innerKeepOuterWorldPointIsClear(
     return false;
   }
   const clearance = Math.max(0, clearanceMeters);
-  const plateau = INNER_KEEP_OUTER_WORLD_COMPOUND_PLATEAU;
-  if (
-    x >= plateau.minimumX - clearance
-    && x <= plateau.maximumX + clearance
-    && z >= plateau.minimumZ - clearance
-    && z <= plateau.maximumZ + clearance
-  ) return false;
+  if (innerKeepOuterWorldCompoundPlateauSignedDistance(x, z) <= clearance) return false;
   const [halfWidth, halfDepth] = INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS;
   if (Math.abs(x) > halfWidth - 0.35 - clearance) return false;
   if (Math.abs(z) > halfDepth - 0.35 - clearance) return false;
@@ -535,10 +680,16 @@ export function innerKeepOuterWorldPointIsClear(
 }
 
 export const INNER_KEEP_OUTER_WORLD_TRADE_ROUTE = Object.freeze([
-  Object.freeze([-22.4, innerKeepOuterWorldTerrainHeightAt(-22.4, 20.6), 20.6] as const),
-  Object.freeze([-16.4, innerKeepOuterWorldTerrainHeightAt(-16.4, 17.8), 17.8] as const),
-  Object.freeze([-11.8, innerKeepOuterWorldTerrainHeightAt(-11.8, 15.4), 15.4] as const),
-  Object.freeze([-5.8, innerKeepOuterWorldTerrainHeightAt(-5.8, 12.8), 12.8] as const),
-  Object.freeze([0, innerKeepOuterWorldTerrainHeightAt(0, 11.7), 11.7] as const),
-  Object.freeze([0, innerKeepOuterWorldTerrainHeightAt(0, 9.2), 9.2] as const),
+  Object.freeze([-26, innerKeepOuterWorldTerrainHeightAt(-26, 32), 32] as const),
+  Object.freeze([-21, innerKeepOuterWorldTerrainHeightAt(-21, 28), 28] as const),
+  Object.freeze([-15, innerKeepOuterWorldTerrainHeightAt(-15, 24), 24] as const),
+  Object.freeze([-8, innerKeepOuterWorldTerrainHeightAt(-8, 20.5), 20.5] as const),
+  Object.freeze([0, innerKeepOuterWorldTerrainHeightAt(
+    0,
+    INNER_KEEP_OUTER_WORLD_APPROACHES.gateOuterZ,
+  ), INNER_KEEP_OUTER_WORLD_APPROACHES.gateOuterZ] as const),
+  Object.freeze([0, innerKeepOuterWorldTerrainHeightAt(
+    0,
+    INNER_KEEP_OUTER_WORLD_APPROACHES.gateInnerZ,
+  ), INNER_KEEP_OUTER_WORLD_APPROACHES.gateInnerZ] as const),
 ] as const);

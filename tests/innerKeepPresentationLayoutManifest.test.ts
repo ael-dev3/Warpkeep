@@ -30,6 +30,37 @@ import {
 
 const ROOT = resolve(import.meta.dirname, '..');
 
+function orientedFootprintSeparation(
+  left: (typeof INNER_KEEP_PRESENTATION_SLOTS)[number],
+  right: (typeof INNER_KEEP_PRESENTATION_SLOTS)[number],
+  halfExtents: readonly [number, number],
+) {
+  const leftRadians = left.rotationYMilliDegrees * Math.PI / 180_000;
+  const rightRadians = right.rotationYMilliDegrees * Math.PI / 180_000;
+  const axes = [leftRadians, rightRadians].flatMap((radians) => [
+    [Math.cos(radians), Math.sin(radians)] as const,
+    [-Math.sin(radians), Math.cos(radians)] as const,
+  ]);
+  const projectionRadius = (
+    radians: number,
+    axis: readonly [number, number],
+  ) => (
+    halfExtents[0] * Math.abs(
+      Math.cos(radians) * axis[0] + Math.sin(radians) * axis[1],
+    )
+    + halfExtents[1] * Math.abs(
+      -Math.sin(radians) * axis[0] + Math.cos(radians) * axis[1],
+    )
+  );
+  const deltaX = right.positionMeters[0] - left.positionMeters[0];
+  const deltaZ = right.positionMeters[2] - left.positionMeters[2];
+  return Math.max(...axes.map((axis) => (
+    Math.abs(deltaX * axis[0] + deltaZ * axis[1])
+      - projectionRadius(leftRadians, axis)
+      - projectionRadius(rightRadians, axis)
+  )));
+}
+
 describe('Inner Keep deterministic presentation layout manifest', () => {
   it('pins every selected asset ID, source ID, bound, quality, and immutable path', () => {
     expect(INNER_KEEP_PRESENTATION_ASSET_SELECTION_DIGEST).toBe(
@@ -116,6 +147,90 @@ describe('Inner Keep deterministic presentation layout manifest', () => {
     }
   });
 
+  it('pins the expanded slot transforms while preserving identity and activation policy', () => {
+    expect(INNER_KEEP_PRESENTATION_SLOTS.map((slot) => ({
+      slotId: slot.slotId,
+      position: [slot.positionMeters[0], slot.positionMeters[2]],
+    }))).toEqual([
+      { slotId: 'inner-keep-slot-m01', position: [-9, -3.4] },
+      { slotId: 'inner-keep-slot-m02', position: [-4.6, -6.8] },
+      { slotId: 'inner-keep-slot-m03', position: [4.6, -6.8] },
+      { slotId: 'inner-keep-slot-m04', position: [9, -3.4] },
+      { slotId: 'inner-keep-slot-m05', position: [-9.1, 2.5] },
+      { slotId: 'inner-keep-slot-m06', position: [-4.7, 6.9] },
+      { slotId: 'inner-keep-slot-m07', position: [4.7, 6.9] },
+      { slotId: 'inner-keep-slot-m08', position: [9.1, 2.5] },
+      { slotId: 'inner-keep-slot-l01', position: [-13.7, -10.8] },
+      { slotId: 'inner-keep-slot-l02', position: [13.7, -10.8] },
+      { slotId: 'inner-keep-slot-l03', position: [-13.8, 10.6] },
+      { slotId: 'inner-keep-slot-l04', position: [13.8, 10.6] },
+    ]);
+    expect(INNER_KEEP_PRESENTATION_SLOTS.map(({ active }) => active)).toEqual([
+      true, true, true, true, true, true, true, true,
+      false, false, false, false,
+    ]);
+  });
+
+  it('builds one continuous expanded perimeter around at least 1,400 square meters', () => {
+    const wall = INNER_KEEP_PRESENTATION_CLEARANCES.wall;
+    expect((wall.eastX - wall.westX) * (wall.southZ - wall.northZ))
+      .toBeGreaterThanOrEqual(1_400);
+
+    const straight4 = INNER_KEEP_PRESENTATION_PLACEMENTS.find(
+      ({ assetId }) => assetId === 'palisade-wall-straight-4m',
+    )!.instances;
+    const straight8 = INNER_KEEP_PRESENTATION_PLACEMENTS.find(
+      ({ assetId }) => assetId === 'palisade-wall-straight-8m',
+    )!.instances;
+    const north = straight8.filter(({ positionMeters }) => positionMeters[2] === wall.northZ);
+    expect(north.map(({ positionMeters }) => positionMeters[0])).toEqual([-16, -8, 0, 8, 16]);
+    for (let index = 1; index < north.length; index += 1) {
+      expect(north[index]!.positionMeters[0] - north[index - 1]!.positionMeters[0])
+        .toBe(8);
+    }
+    for (const x of [wall.westX, wall.eastX]) {
+      expect(straight8.filter(({ positionMeters }) => positionMeters[0] === x)
+        .map(({ positionMeters }) => positionMeters[2]))
+        .toEqual([-15, -7, 1, 9]);
+    }
+    expect(straight8.filter(({ positionMeters }) => positionMeters[2] === wall.southZ)
+      .map(({ positionMeters }) => positionMeters[0]))
+      .toEqual([-11, 11]);
+    expect(straight4.filter(({ positionMeters }) => positionMeters[2] === wall.southZ)
+      .map(({ positionMeters }) => positionMeters[0]))
+      .toEqual([-5, 5, -17, 17]);
+    expect(wall.southGateClearWidth).toBe(6);
+  });
+
+  it('keeps the largest Level-5 economy footprint clear in every active slot pair', () => {
+    const largestTemplate = INNER_KEEP_PRESENTATION_PLACEMENTS
+      .filter(({ anchor }) => anchor === 'active-medium-slot-template')
+      .filter(({ collisionClearanceRole }) => collisionClearanceRole === 'slot-occupant')
+      .map((placement) => placement.footprint.halfExtentsMeters!)
+      .sort((left, right) => (
+        Math.hypot(right[0], right[1]) - Math.hypot(left[0], left[1])
+      ))[0]!;
+    const levelFiveHalfExtents = Object.freeze([
+      largestTemplate[0] * 1.1,
+      largestTemplate[1] * 1.1,
+    ] as const);
+    const activeSlots = INNER_KEEP_PRESENTATION_SLOTS.filter(({ active }) => active);
+    let minimumGap = Number.POSITIVE_INFINITY;
+    for (let leftIndex = 0; leftIndex < activeSlots.length; leftIndex += 1) {
+      for (let rightIndex = leftIndex + 1; rightIndex < activeSlots.length; rightIndex += 1) {
+        minimumGap = Math.min(
+          minimumGap,
+          orientedFootprintSeparation(
+            activeSlots[leftIndex]!,
+            activeSlots[rightIndex]!,
+            levelFiveHalfExtents,
+          ),
+        );
+      }
+    }
+    expect(minimumGap).toBeGreaterThanOrEqual(0.2);
+  });
+
   it('makes the Cathedral the northern visual anchor and Barracks the western garrison', () => {
     expect(INNER_KEEP_PRESENTATION_PLACEMENTS.find(
       (entry) => entry.assetId === 'grand-covenant-cathedral',
@@ -125,7 +240,7 @@ describe('Inner Keep deterministic presentation layout manifest', () => {
       pickingRole: 'none',
       instances: [{
         placementId: 'grand-covenant-cathedral-main-building',
-        positionMeters: [0, 0, -11.8],
+        positionMeters: [0, 0, -15.4],
         rotationMilliDegrees: [0, 0, 0],
         scalePermille: [300, 300, 300],
       }],
@@ -138,9 +253,9 @@ describe('Inner Keep deterministic presentation layout manifest', () => {
       pickingRole: 'none',
       instances: [{
         placementId: 'shieldcourt-barracks-west-garrison',
-        positionMeters: [-12.7, 0, -0.4],
+        positionMeters: [-16, 0, 0],
         rotationMilliDegrees: [0, 0, 0],
-        scalePermille: [360, 360, 360],
+        scalePermille: [380, 380, 380],
       }],
     });
   });
@@ -201,23 +316,23 @@ describe('Inner Keep deterministic presentation layout manifest', () => {
     }
 
     expect(minimumObservedPair).toBe(
-      'north-collapsed-arch <-> inner-keep-slot-m02',
+      'road-lamp-west <-> inner-keep-slot-m06',
     );
-    expect(minimumObservedClearance).toBeCloseTo(0.2276579117, 9);
+    expect(minimumObservedClearance).toBeCloseTo(0.274656, 9);
   });
 
   it('publishes exact clearance and camera contracts instead of renderer-only constants', () => {
     expect(INNER_KEEP_PRESENTATION_CLEARANCES).toEqual({
       units: 'meters',
       ground: {
-        halfExtentsMeters: [18.5, 18],
+        halfExtentsMeters: [24.2, 22],
         minimumLandmarkEdgeBuffer: 0.35,
       },
       slot: {
-        mediumHalfExtents: [1.5, 1.3],
-        largeReservedHalfExtents: [1.5, 1.5],
+        mediumHalfExtents: [1.8, 1.55],
+        largeReservedHalfExtents: [2.1, 2.1],
         minimumBetweenFootprints: 0.2,
-        decorativeBuffer: 0.25,
+        decorativeBuffer: 0.35,
       },
       road: {
         northSouthCenterX: 0,
@@ -227,31 +342,31 @@ describe('Inner Keep deterministic presentation layout manifest', () => {
         requiredClearSideBuffer: 0.25,
       },
       wall: {
-        westX: -16.2,
-        eastX: 16.2,
-        northZ: -17,
-        southZ: 10.5,
+        westX: -20.2,
+        eastX: 20.2,
+        northZ: -21,
+        southZ: 15,
         interiorClearance: 0.08,
         southGateClearWidth: 6,
       },
     });
     expect(INNER_KEEP_PRESENTATION_CAMERA_PRESETS).toMatchObject({
       projection: 'orthographic',
-      positionMeters: [21, 25, 24],
-      targetMeters: [0, 1, -2.5],
+      positionMeters: [25, 29, 29],
+      targetMeters: [0, 1, -3],
       near: 0.1,
       far: 120,
-      minimumHalfWidth: 17.4,
-      landscape: { minimumAspect: 0.78, baseHalfHeight: 16.8 },
+      minimumHalfWidth: 22,
+      landscape: { minimumAspect: 0.78, baseHalfHeight: 19.6 },
       portrait: {
         maximumAspectExclusive: 0.78,
-        baseHalfHeight: 22.2,
-        positionMeters: [0, 27, 30],
-        targetMeters: [0, 1, -2.5],
+        baseHalfHeight: 26.4,
+        positionMeters: [0, 31, 34],
+        targetMeters: [0, 1, -3],
         initialZoomMultiplier: 0.9,
       },
       zoom: { minimum: 0.72, initial: 1, maximum: 1.5 },
-      panBoundsMeters: { x: [-4, 4], z: [-4, 3] },
+      panBoundsMeters: { x: [-8, 8], z: [-9, 7] },
     });
     const portraitInitialZoom = INNER_KEEP_PRESENTATION_CAMERA_PRESETS.zoom.initial
       * INNER_KEEP_PRESENTATION_CAMERA_PRESETS.portrait.initialZoomMultiplier;

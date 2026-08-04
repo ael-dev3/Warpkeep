@@ -411,9 +411,9 @@ function ambientRoute(
 }
 
 /*
- * The compact inner loop carries the civic procession. The shared outer loop
- * follows the estate road beyond the walls, so mounted citizens and patrols
- * make the surrounding landscape visibly inhabited without adding actors.
+ * The north-west district loop carries the civic procession between the
+ * Cathedral and garrison. The shared outer loop follows the estate road beyond
+ * the walls, so mounted citizens and patrols animate the larger landscape.
  */
 function smoothClosedAmbientRoutePoints(
   source: readonly InnerKeepPathPoint[],
@@ -444,8 +444,8 @@ readonly InnerKeepPathPoint[] = Object.freeze(Array.from(
   (_, index) => {
     const angle = index / 32 * Math.PI * 2;
     return Object.freeze({
-      x: -10.5 + Math.cos(angle) * 1.8,
-      z: -12.45 + Math.sin(angle) * 1.1
+      x: -9.2 + Math.cos(angle) * 2,
+      z: -15.25 + Math.sin(angle) * 1.2
     });
   }
 ));
@@ -535,12 +535,12 @@ export const INNER_KEEP_CONVERSATION_ANCHORS: readonly InnerKeepConversationAnch
   Object.freeze([
     conversationAnchor(
       'gate-approach',
-      { x: -0.78, z: 6.7 },
-      { x: -0.5, z: 6.15 },
-      { x: 0.78, z: 6.7 },
-      { x: 0.5, z: 6.15 },
-      [{ x: -0.88, z: 6.4 }],
-      [{ x: 0.88, z: 6.4 }]
+      { x: -0.78, z: 12.45 },
+      { x: -0.5, z: 11.9 },
+      { x: 0.78, z: 12.45 },
+      { x: 0.5, z: 11.9 },
+      [{ x: -0.88, z: 12.15 }],
+      [{ x: 0.88, z: 12.15 }]
     ),
     conversationAnchor(
       'civic-road-watch',
@@ -629,17 +629,17 @@ export const INNER_KEEP_AMBIENT_EXCLUSIONS: readonly InnerKeepAmbientExclusion[]
     ...fixedAuthoredExclusions,
     exclusion('central-keep', 'central-building', 0, -0.15, 2.3, 1.9, 0.18),
     // Exact layout scale is applied to the selected landmark X/Z bounds.
-    exclusion('grand-covenant-cathedral', 'central-building', 0, -11.8, 5.1, 4.353, 0.8),
-    exclusion('shieldcourt-barracks', 'central-building', -12.7, -0.4, 2.88, 2.34, 0.55),
-    exclusion('east-wall-keep-well', 'civic-prop', 12.8, 0.1, 1, 0.9, 0.12),
-    exclusion('water-trough', 'civic-prop', 4.2, 9, 0.9, 0.5, 0.12),
+    exclusion('grand-covenant-cathedral', 'central-building', 0, -15.4, 5.1, 4.353, 0.8),
+    exclusion('shieldcourt-barracks', 'central-building', -16, 0, 3.04, 2.47, 0.55),
+    exclusion('east-wall-keep-well', 'civic-prop', 16.7, 0.4, 1, 0.9, 0.12),
+    exclusion('water-trough', 'civic-prop', 5.2, 12.7, 0.9, 0.5, 0.12),
     exclusion('west-plaza-bench', 'civic-prop', -3.1, 1.6, 1, 0.5, 0.12),
     exclusion('east-plaza-bench', 'civic-prop', 3.1, 1.6, 1, 0.5, 0.12),
     exclusion('west-plaza-lamp', 'civic-prop', -1.6, 4.95, 0.3, 0.3, 0.12),
     exclusion('east-plaza-lamp', 'civic-prop', 1.6, 4.95, 0.3, 0.3, 0.12),
     exclusion('west-plaza-brazier', 'civic-prop', -1.45, 2.05, 0.35, 0.35, 0.12),
     exclusion('east-plaza-brazier', 'civic-prop', 1.45, 2.05, 0.35, 0.35, 0.12),
-    exclusion('builder-noticeboard', 'civic-prop', -2.36, 7.72, 1.1, 0.4, 0.12)
+    exclusion('builder-noticeboard', 'civic-prop', -3, 11.65, 1.1, 0.4, 0.12)
   ]);
 
 export const INNER_KEEP_AMBIENT_CLEARANCE_POLICY = Object.freeze({
@@ -655,10 +655,10 @@ export const INNER_KEEP_AMBIENT_CLEARANCE_POLICY = Object.freeze({
   building: Object.freeze({
     centralKeepCenterMeters: Object.freeze([0, -0.15] as const),
     centralKeepHalfExtentsMeters: Object.freeze([2.3, 1.9] as const),
-    cathedralCenterMeters: Object.freeze([0, -11.8] as const),
+    cathedralCenterMeters: Object.freeze([0, -15.4] as const),
     cathedralHalfExtentsMeters: Object.freeze([5.1, 4.353] as const),
-    barracksCenterMeters: Object.freeze([-12.7, -0.4] as const),
-    barracksHalfExtentsMeters: Object.freeze([2.88, 2.34] as const)
+    barracksCenterMeters: Object.freeze([-16, 0] as const),
+    barracksHalfExtentsMeters: Object.freeze([3.04, 2.47] as const)
   }),
   road: Object.freeze({
     northSouthCenterX: INNER_KEEP_PRESENTATION_CLEARANCES.road.northSouthCenterX,
@@ -666,7 +666,7 @@ export const INNER_KEEP_AMBIENT_CLEARANCE_POLICY = Object.freeze({
     requiredClearSideBuffer:
       INNER_KEEP_PRESENTATION_CLEARANCES.road.requiredClearSideBuffer,
     southernNavigableMinimumZ: 2.42,
-    southernNavigableMaximumZ: 9.18
+    southernNavigableMaximumZ: 13.68
   }),
   plaza: Object.freeze({
     centerMeters: Object.freeze([0, 3.15] as const),

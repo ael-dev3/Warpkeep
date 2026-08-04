@@ -48,6 +48,9 @@ import {
   INNER_KEEP_PRESENTATION_CLEARANCES
 } from './innerKeepPresentationLayoutPolicy';
 import {
+  INNER_KEEP_CITY_DISTRICT_ROADS,
+  INNER_KEEP_CITY_EDGE_APRON_POINTS,
+  INNER_KEEP_OUTER_WORLD_APPROACHES,
   INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS,
   INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS,
   INNER_KEEP_OUTER_WORLD_RESOURCE_SITES,
@@ -196,12 +199,12 @@ const LIVING_FRAME_CAP: Readonly<Record<InnerKeepSceneQuality, number>> =
   Object.freeze({ high: 30, balanced: 24, reduced: 0 });
 const MAX_RUNTIME_ASSET_LOAD_ATTEMPTS = 2;
 const INNER_KEEP_OUTER_WORLD_INITIAL_ZOOM = Object.freeze({
-  landscape: 0.76,
+  landscape: 0.78,
   portrait: 0.72
 });
 const INNER_KEEP_OUTER_WORLD_PAN_BOUNDS = Object.freeze({
-  x: Object.freeze([-10, 10] as const),
-  z: Object.freeze([-12, 10] as const)
+  x: Object.freeze([-14, 14] as const),
+  z: Object.freeze([-17, 14] as const)
 });
 
 function deterministicUnit(index: number, salt: number) {
@@ -758,10 +761,15 @@ export function createInnerKeepSceneLayer(
   }));
   const resourceRoads = INNER_KEEP_OUTER_WORLD_RESOURCE_SITES.map((site) => {
     const south = site.positionMeters[2] > 0;
-    const approachZ = south ? 13.1 : -20.4;
+    const approachZ = south
+      ? INNER_KEEP_OUTER_WORLD_APPROACHES.southernResourceRoadZ
+      : INNER_KEEP_OUTER_WORLD_APPROACHES.northernResourceRoadZ;
     return Object.freeze({
       points: Object.freeze([
-        ...(south ? [Object.freeze({ x: 0, z: 11.7 })] : []),
+        ...(south ? [Object.freeze({
+          x: 0,
+          z: INNER_KEEP_OUTER_WORLD_APPROACHES.gateOuterZ,
+        })] : []),
         Object.freeze({ x: site.positionMeters[0] * 0.58, z: approachZ }),
         Object.freeze({
           x: site.positionMeters[0],
@@ -803,14 +811,60 @@ export function createInnerKeepSceneLayer(
   outerRoad.raycast = () => undefined;
   staticGroup.add(outerRoad);
 
+  const cityEdgeApronGeometry = createInnerKeepOuterRoadGeometry([
+    Object.freeze({
+      points: INNER_KEEP_CITY_EDGE_APRON_POINTS,
+      closed: true,
+      halfWidthMeters: 1.72
+    })
+  ]);
+  disposableGeometries.add(cityEdgeApronGeometry);
+  const cityEdgeApronMaterial = new THREE.MeshStandardMaterial({
+    color: 0x6f6248,
+    roughness: 1,
+    polygonOffset: true,
+    polygonOffsetFactor: -1.4,
+    polygonOffsetUnits: -2
+  });
+  disposableMaterials.add(cityEdgeApronMaterial);
+  const cityEdgeApron = new THREE.Mesh(cityEdgeApronGeometry, cityEdgeApronMaterial);
+  cityEdgeApron.name = 'inner-keep-city-edge-earth-apron';
+  cityEdgeApron.receiveShadow = true;
+  cityEdgeApron.castShadow = false;
+  cityEdgeApron.userData.presentationOnly = true;
+  cityEdgeApron.userData.gameplayAuthorityClaimed = false;
+  cityEdgeApron.raycast = () => undefined;
+  staticGroup.add(cityEdgeApron);
+
+  const districtRoadGeometry = createInnerKeepOuterRoadGeometry(
+    INNER_KEEP_CITY_DISTRICT_ROADS
+  );
+  disposableGeometries.add(districtRoadGeometry);
+  const districtRoadMaterial = new THREE.MeshStandardMaterial({
+    color: 0x826f50,
+    roughness: 0.99,
+    polygonOffset: true,
+    polygonOffsetFactor: -1.2,
+    polygonOffsetUnits: -2
+  });
+  disposableMaterials.add(districtRoadMaterial);
+  const districtRoads = new THREE.Mesh(districtRoadGeometry, districtRoadMaterial);
+  districtRoads.name = 'inner-keep-city-district-road-network';
+  districtRoads.receiveShadow = true;
+  districtRoads.castShadow = false;
+  districtRoads.userData.presentationOnly = true;
+  districtRoads.userData.gameplayAuthorityClaimed = false;
+  districtRoads.raycast = () => undefined;
+  staticGroup.add(districtRoads);
+
   const roadMaterial = new THREE.MeshStandardMaterial({ color: 0x8c7b5b, roughness: 0.96 });
   disposableMaterials.add(roadMaterial);
-  const roadGeometryVertical = new THREE.BoxGeometry(2.6, 0.12, 27.5);
-  const roadGeometryHorizontal = new THREE.BoxGeometry(28, 0.12, 2.15);
+  const roadGeometryVertical = new THREE.BoxGeometry(2.6, 0.12, 36.5);
+  const roadGeometryHorizontal = new THREE.BoxGeometry(35, 0.12, 2.15);
   disposableGeometries.add(roadGeometryVertical);
   disposableGeometries.add(roadGeometryHorizontal);
   const roadVertical = setShadow(new THREE.Mesh(roadGeometryVertical, roadMaterial), false, true);
-  roadVertical.position.set(0, 0.08, -3.25);
+  roadVertical.position.set(0, 0.08, -3);
   const roadHorizontal = setShadow(new THREE.Mesh(roadGeometryHorizontal, roadMaterial), false, true);
   roadHorizontal.position.set(0, 0.085, 0.2);
   proceduralFallbackGroup.add(roadVertical, roadHorizontal);
@@ -824,13 +878,30 @@ export function createInnerKeepSceneLayer(
     wall.position.set(x, 0.72, z);
     proceduralFallbackGroup.add(wall);
   };
-  addWall(32.8, 0.36, 0, -17);
-  addWall(0.36, 27.8, -16.2, -3.25);
-  addWall(0.36, 27.8, 16.2, -3.25);
+  const wall = INNER_KEEP_PRESENTATION_CLEARANCES.wall;
+  const wallWidth = wall.eastX - wall.westX;
+  const wallDepth = wall.southZ - wall.northZ;
+  const wallCenterZ = (wall.northZ + wall.southZ) * 0.5;
+  addWall(wallWidth + 0.4, 0.36, 0, wall.northZ);
+  addWall(0.36, wallDepth + 0.4, wall.westX, wallCenterZ);
+  addWall(0.36, wallDepth + 0.4, wall.eastX, wallCenterZ);
   // The southern wall is deliberately split around the playable gate and
   // road approach; a decorative wall must never visually close the route.
-  addWall(13.2, 0.42, -9.6, 10.5);
-  addWall(13.2, 0.42, 9.6, 10.5);
+  const southernWallRunWidth = (wallWidth - wall.southGateClearWidth) * 0.5;
+  const southernWallCenterOffset = wall.southGateClearWidth * 0.5
+    + southernWallRunWidth * 0.5;
+  addWall(
+    southernWallRunWidth,
+    0.42,
+    -southernWallCenterOffset,
+    wall.southZ
+  );
+  addWall(
+    southernWallRunWidth,
+    0.42,
+    southernWallCenterOffset,
+    wall.southZ
+  );
 
   const plazaMaterial = new THREE.MeshStandardMaterial({
     color: 0x9b8f78,
@@ -853,9 +924,9 @@ export function createInnerKeepSceneLayer(
   disposableGeometries.add(keepGeometry);
   const keep = setShadow(new THREE.Mesh(keepGeometry, keepMaterial));
   keep.name = 'inner-keep-procedural-cathedral-fallback';
-  keep.position.set(0, 2.85, -11.8);
+  keep.position.set(0, 2.85, -15.4);
   proceduralFallbackGroup.add(keep);
-  for (const [x, z] of [[-4.25, -14.95], [4.25, -14.95], [-4.25, -8.65], [4.25, -8.65]]) {
+  for (const [x, z] of [[-4.25, -18.55], [4.25, -18.55], [-4.25, -12.25], [4.25, -12.25]]) {
     const towerGeometry = new THREE.CylinderGeometry(1.15, 1.3, 6.5, 10);
     const roofGeometry = new THREE.ConeGeometry(1.45, 1.5, 10);
     disposableGeometries.add(towerGeometry);
@@ -869,7 +940,7 @@ export function createInnerKeepSceneLayer(
   const bannerGeometry = new THREE.PlaneGeometry(0.9, 1.45);
   disposableGeometries.add(bannerGeometry);
   const banner = new THREE.Mesh(bannerGeometry, bannerMaterial);
-  banner.position.set(0, 3.55, -8.16);
+  banner.position.set(0, 3.55, -11.76);
   proceduralFallbackGroup.add(banner);
 
   const fallbackBarracksGeometry = new THREE.BoxGeometry(5.7, 2.8, 4.6);
@@ -881,12 +952,12 @@ export function createInnerKeepSceneLayer(
     keepMaterial
   ));
   fallbackBarracks.name = 'inner-keep-procedural-barracks-fallback';
-  fallbackBarracks.position.set(-12.7, 1.5, -0.4);
+  fallbackBarracks.position.set(-16, 1.5, 0);
   const fallbackBarracksRoof = setShadow(new THREE.Mesh(
     fallbackBarracksRoofGeometry,
     keepRoofMaterial
   ));
-  fallbackBarracksRoof.position.set(-12.7, 3.7, -0.4);
+  fallbackBarracksRoof.position.set(-16, 3.7, 0);
   fallbackBarracksRoof.rotation.y = Math.PI / 4;
   proceduralFallbackGroup.add(fallbackBarracks, fallbackBarracksRoof);
 
@@ -953,24 +1024,41 @@ export function createInnerKeepSceneLayer(
   };
 
   // Open gate, approach standards, and readable civic landmarks.
-  addCivicBox(0.48, 3.5, 0.48, -2.7, 1.85, 10.25, civicTimber);
-  addCivicBox(0.48, 3.5, 0.48, 2.7, 1.85, 10.25, civicTimber);
-  addCivicBox(5.9, 0.42, 0.52, 0, 3.42, 10.25, civicTimber);
-  for (const x of [-1.7, 1.7]) {
+  const fallbackGateWestPost = addCivicBox(
+    0.48, 3.5, 0.48, -2.7, 1.85, 15, civicTimber
+  );
+  fallbackGateWestPost.name = 'inner-keep-procedural-south-gate-west-post';
+  const fallbackGateEastPost = addCivicBox(
+    0.48, 3.5, 0.48, 2.7, 1.85, 15, civicTimber
+  );
+  fallbackGateEastPost.name = 'inner-keep-procedural-south-gate-east-post';
+  const fallbackGateFrame = addCivicBox(
+    5.9, 0.42, 0.52, 0, 3.42, 15, civicTimber
+  );
+  fallbackGateFrame.name = 'inner-keep-procedural-south-gate-frame';
+  for (const [side, x] of [['west', -2.55], ['east', 2.55]] as const) {
+    const standard = addCivicBox(0.12, 3.1, 0.12, x, 1.63, 13.05, civicTimber);
+    standard.name = `inner-keep-procedural-gate-standard-${side}`;
     const gateBannerGeometry = new THREE.PlaneGeometry(0.72, 1.28);
     disposableGeometries.add(gateBannerGeometry);
     const gateBanner = new THREE.Mesh(gateBannerGeometry, bannerMaterial);
-    gateBanner.position.set(x, 2.38, 9.96);
+    gateBanner.position.set(x, 2.38, 12.98);
     proceduralFallbackGroup.add(gateBanner);
   }
 
   // Builder noticeboard and directional sign beside the gate approach.
-  addCivicBox(0.16, 1.7, 0.16, -3.0, 0.9, 7.72, civicTimber);
-  addCivicBox(0.16, 1.7, 0.16, -1.72, 0.9, 7.72, civicTimber);
-  addCivicBox(1.65, 0.92, 0.13, -2.36, 1.45, 7.72, civicTimber);
-  addCivicBox(2.0, 0.18, 0.75, -2.36, 2.02, 7.72, keepRoofMaterial);
-  addCivicBox(0.12, 1.42, 0.12, 3.2, 0.8, 7.75, civicTimber);
-  addCivicBox(1.15, 0.18, 0.14, 3.55, 1.3, 7.75, civicTimber, -0.12);
+  addCivicBox(0.16, 1.7, 0.16, -3.64, 0.9, 11.65, civicTimber);
+  addCivicBox(0.16, 1.7, 0.16, -2.36, 0.9, 11.65, civicTimber);
+  const fallbackNoticeboard = addCivicBox(
+    1.65, 0.92, 0.13, -3, 1.45, 11.65, civicTimber
+  );
+  fallbackNoticeboard.name = 'inner-keep-procedural-builder-noticeboard';
+  addCivicBox(2, 0.18, 0.75, -3, 2.02, 11.65, keepRoofMaterial);
+  addCivicBox(0.12, 1.42, 0.12, 3.65, 0.8, 11.7, civicTimber);
+  const fallbackSign = addCivicBox(
+    1.15, 0.18, 0.14, 4, 1.3, 11.7, civicTimber, -0.12
+  );
+  fallbackSign.name = 'inner-keep-procedural-civic-direction-sign';
 
   // Village well, benches, trough, and paired plaza braziers.
   addCivicCylinder(0.88, 0.98, 0.62, 2.25, 0.42, 3.4, civicStone, 18);
@@ -982,7 +1070,10 @@ export function createInnerKeepSceneLayer(
     addCivicBox(1.7, 0.18, 0.46, x, 0.58, 1.6, civicTimber);
     addCivicBox(1.7, 0.44, 0.12, x, 0.88, 1.85, civicTimber);
   }
-  addCivicBox(1.55, 0.54, 0.62, 3.8, 0.42, 6.82, civicTimber);
+  const fallbackTrough = addCivicBox(
+    1.55, 0.54, 0.62, 5.2, 0.42, 12.7, civicTimber, Math.PI / 2
+  );
+  fallbackTrough.name = 'inner-keep-procedural-south-east-water-trough';
   for (const x of [-1.7, 1.7]) {
     addCivicCylinder(0.08, 0.11, 1.15, x, 0.72, 4.95, civicIron, 8);
     addCivicCylinder(0.24, 0.14, 0.28, x, 1.4, 4.95, lampGlow, 10);
@@ -994,17 +1085,21 @@ export function createInnerKeepSceneLayer(
   }
 
   // Clipped hedges and restrained ruined masonry frame the authored yard.
-  for (const [x, z, rotation] of [
-    [-10.8, -1.1, Math.PI / 2],
-    [10.8, -1.1, Math.PI / 2],
-    [-10.8, 3.6, Math.PI / 2],
-    [10.8, 3.6, Math.PI / 2]
+  for (const [name, x, z, rotation] of [
+    ['west-north', -12.5, -1.3, Math.PI / 2],
+    ['east-north', 12.5, -1.3, Math.PI / 2],
+    ['west-south', -12.5, 4.8, Math.PI / 2],
+    ['east-south', 12.5, 4.8, Math.PI / 2]
   ] as const) {
-    addCivicBox(0.72, 0.72, 2.4, x, 0.48, z, civicGreen, rotation);
+    const hedge = addCivicBox(0.72, 0.72, 2.4, x, 0.48, z, civicGreen, rotation);
+    hedge.name = `inner-keep-procedural-hedge-${name}`;
   }
-  addCivicCylinder(0.48, 0.56, 2.5, -0.95, 1.35, -7.92, civicStone, 10);
-  addCivicCylinder(0.42, 0.5, 1.55, 0.42, 0.88, -8.18, civicStone, 10);
-  addCivicBox(1.65, 0.3, 0.54, 1.55, 0.28, -8.0, civicStone, 0.28);
+  const fallbackCollapsedArch = addCivicCylinder(
+    0.48, 0.56, 2.5, 0, 1.35, -9, civicStone, 10
+  );
+  fallbackCollapsedArch.name = 'inner-keep-procedural-north-collapsed-arch';
+  addCivicCylinder(0.42, 0.5, 1.55, 1.37, 0.88, -9.26, civicStone, 10);
+  addCivicBox(1.65, 0.3, 0.54, 2.5, 0.28, -9.08, civicStone, 0.28);
 
   const treeTrunkGeometry = new THREE.CylinderGeometry(0.11, 0.16, 1.25, 6);
   const treeCanopyGeometry = new THREE.ConeGeometry(0.72, 2.25, 8);
@@ -1024,13 +1119,13 @@ export function createInnerKeepSceneLayer(
   const treeMatrix = new THREE.Matrix4();
   for (let index = 0; index < treeCount; index += 1) {
     const side = index % 4;
-    const alongX = deterministicUnit(index, 1) * 29 - 14.5;
-    const alongZ = deterministicUnit(index, 6) * 23 - 12.5;
+    const alongX = deterministicUnit(index, 1) * 36 - 18;
+    const alongZ = deterministicUnit(index, 6) * 30 - 16.5;
     const x = side < 2
-      ? (side === 0 ? -17.1 : 17.1) + (deterministicUnit(index, 2) - 0.5) * 0.8
+      ? (side === 0 ? -21.5 : 21.5) + (deterministicUnit(index, 2) - 0.5) * 1.2
       : alongX;
     const z = side >= 2
-      ? (side === 2 ? -17.8 : 11.4) + (deterministicUnit(index, 3) - 0.5) * 0.8
+      ? (side === 2 ? -22.4 : 16.4) + (deterministicUnit(index, 3) - 0.5) * 1.2
       : alongZ;
     const scale = 0.82 + deterministicUnit(index, 4) * 0.52;
     const terrainHeight = innerKeepOuterWorldTerrainHeightAt(x, z);
@@ -1054,10 +1149,10 @@ export function createInnerKeepSceneLayer(
   canopies.instanceMatrix.needsUpdate = true;
   proceduralFallbackGroup.add(trunks, canopies);
   const innerTreePositions = [
-    [-10.65, -1.65, 0.76],
-    [10.65, -1.65, 0.82],
-    [-9.55, 4.5, 0.68],
-    [9.55, 4.5, 0.72]
+    [-12.25, -1.8, 0.76],
+    [12.25, -1.8, 0.82],
+    [-11.55, 5.1, 0.68],
+    [11.55, 5.1, 0.72]
   ] as const;
   const innerTrunks = new THREE.InstancedMesh(
     treeTrunkGeometry,
@@ -1100,17 +1195,17 @@ export function createInnerKeepSceneLayer(
     options.quality === 'high' ? 2048 : 1024,
     options.quality === 'high' ? 2048 : 1024
   );
-  sun.shadow.camera.left = -22;
-  sun.shadow.camera.right = 22;
-  sun.shadow.camera.top = 22;
-  sun.shadow.camera.bottom = -22;
+  sun.shadow.camera.left = -29;
+  sun.shadow.camera.right = 29;
+  sun.shadow.camera.top = 29;
+  sun.shadow.camera.bottom = -29;
   sun.shadow.camera.near = 1;
   sun.shadow.camera.far = 80;
   sun.shadow.bias = -0.00035;
   sun.shadow.normalBias = 0.025;
   scene.add(ambient, sun);
 
-  const padGeometry = new THREE.CylinderGeometry(1.45, 1.58, 0.2, 18);
+  const padGeometry = new THREE.CylinderGeometry(1.72, 1.85, 0.2, 24);
   disposableGeometries.add(padGeometry);
   const padMaterial = new THREE.MeshStandardMaterial({ color: 0x978867, roughness: 0.98 });
   const reservedPadMaterial = new THREE.MeshStandardMaterial({
@@ -1771,7 +1866,7 @@ export function createInnerKeepSceneLayer(
             ? padMaterial
             : reservedPadMaterial
       ), false, true);
-      const footprintScale = slot.footprintClass === 'large' ? 1.14 : 1;
+      const footprintScale = slot.footprintClass === 'large' ? 2.1 / 1.85 : 1;
       pad.scale.set(footprintScale, 1, footprintScale);
       pad.position.set(position.x, 0.16, position.z);
       pad.rotation.y = position.rotation;

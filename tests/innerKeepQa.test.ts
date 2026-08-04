@@ -149,7 +149,7 @@ function evidenceFor(
     grassBladeCount: webgl ? living.grassBladeCount : 0,
     waterSurfaceCount: webgl ? 2 : 0,
     authoredAssetCount: webgl ? 38 : 0,
-    authoredPlacementCount: webgl ? 67 : 0,
+    authoredPlacementCount: webgl ? 76 : 0,
     authoredTreeCount: webgl ? living.authoredTreeCount : 0,
     ambientActorCount: webgl ? living.actorCount : 0,
     animationFrameCap: webgl && !scenario.reducedMotion
@@ -448,7 +448,7 @@ describe('local Inner Keep rendered evidence contract', () => {
       animationMixerCount: 19,
       assetStatus: 'ready',
       authoredAssetCount: 38,
-      authoredPlacementCount: 67,
+      authoredPlacementCount: 76,
       authoredTreeCount: 12,
       barracksPlacementPresent: true,
       cathedralPlacementPresent: true,

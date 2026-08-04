@@ -155,7 +155,7 @@ describe('Inner Keep ambient presentation policy', () => {
       construction: {
         reserveEveryCanonicalSlot: true,
         slotCount: 12,
-        additionalRouteClearanceMeters: 0.25
+        additionalRouteClearanceMeters: 0.35
       },
       road: {
         northSouthCenterX: 0,
@@ -163,10 +163,10 @@ describe('Inner Keep ambient presentation policy', () => {
         requiredClearSideBuffer: 0.25
       },
       building: {
-        cathedralCenterMeters: [0, -11.8],
+        cathedralCenterMeters: [0, -15.4],
         cathedralHalfExtentsMeters: [5.1, 4.353],
-        barracksCenterMeters: [-12.7, -0.4],
-        barracksHalfExtentsMeters: [2.88, 2.34]
+        barracksCenterMeters: [-16, 0],
+        barracksHalfExtentsMeters: [3.04, 2.47]
       }
     });
     expect(INNER_KEEP_AMBIENT_CLEARANCE_POLICY.slots).toHaveLength(12);

@@ -3,7 +3,7 @@ import type { InnerKeepFootprintClass } from './innerKeepPresentation';
 export const INNER_KEEP_LAYOUT_V1_ID = 'genesis-001-inner-keep-v1';
 export const INNER_KEEP_LAYOUT_V1_VERSION = 1;
 export const INNER_KEEP_LAYOUT_V1_DIGEST =
-  '67b0650d2fe4ac16b14fc1adb57911318fec82c5f4e7daeec83e0efb1ead8325';
+  'dec272175dc96085b26d2bc96125e77c6433331c698f150d80dfbbb4881ee3d7';
 
 export type InnerKeepLayoutV1Slot = Readonly<{
   slotId: string;
@@ -22,18 +22,18 @@ export type InnerKeepLayoutV1Slot = Readonly<{
  */
 export const INNER_KEEP_LAYOUT_V1_SLOTS: readonly InnerKeepLayoutV1Slot[] =
   Object.freeze([
-    Object.freeze({ slotId: 'inner-keep-slot-m01', footprintClass: 'medium', localXMicrounits: -7_000_000n, localZMicrounits: -3_200_000n, rotationMilliDegrees: 25_000, sortOrder: 1, active: true }),
-    Object.freeze({ slotId: 'inner-keep-slot-m02', footprintClass: 'medium', localXMicrounits: -3_800_000n, localZMicrounits: -4_800_000n, rotationMilliDegrees: 15_000, sortOrder: 2, active: true }),
-    Object.freeze({ slotId: 'inner-keep-slot-m03', footprintClass: 'medium', localXMicrounits: 3_800_000n, localZMicrounits: -4_800_000n, rotationMilliDegrees: 345_000, sortOrder: 3, active: true }),
-    Object.freeze({ slotId: 'inner-keep-slot-m04', footprintClass: 'medium', localXMicrounits: 7_000_000n, localZMicrounits: -3_200_000n, rotationMilliDegrees: 335_000, sortOrder: 4, active: true }),
-    Object.freeze({ slotId: 'inner-keep-slot-m05', footprintClass: 'medium', localXMicrounits: -7_200_000n, localZMicrounits: 1_900_000n, rotationMilliDegrees: 155_000, sortOrder: 5, active: true }),
-    Object.freeze({ slotId: 'inner-keep-slot-m06', footprintClass: 'medium', localXMicrounits: -4_300_000n, localZMicrounits: 4_900_000n, rotationMilliDegrees: 170_000, sortOrder: 6, active: true }),
-    Object.freeze({ slotId: 'inner-keep-slot-m07', footprintClass: 'medium', localXMicrounits: 4_300_000n, localZMicrounits: 4_900_000n, rotationMilliDegrees: 190_000, sortOrder: 7, active: true }),
-    Object.freeze({ slotId: 'inner-keep-slot-m08', footprintClass: 'medium', localXMicrounits: 7_200_000n, localZMicrounits: 1_900_000n, rotationMilliDegrees: 205_000, sortOrder: 8, active: true }),
-    Object.freeze({ slotId: 'inner-keep-slot-l01', footprintClass: 'large', localXMicrounits: -10_200_000n, localZMicrounits: -6_900_000n, rotationMilliDegrees: 35_000, sortOrder: 9, active: false }),
-    Object.freeze({ slotId: 'inner-keep-slot-l02', footprintClass: 'large', localXMicrounits: 10_200_000n, localZMicrounits: -6_900_000n, rotationMilliDegrees: 325_000, sortOrder: 10, active: false }),
-    Object.freeze({ slotId: 'inner-keep-slot-l03', footprintClass: 'large', localXMicrounits: -10_000_000n, localZMicrounits: 7_200_000n, rotationMilliDegrees: 145_000, sortOrder: 11, active: false }),
-    Object.freeze({ slotId: 'inner-keep-slot-l04', footprintClass: 'large', localXMicrounits: 10_000_000n, localZMicrounits: 7_200_000n, rotationMilliDegrees: 215_000, sortOrder: 12, active: false })
+    Object.freeze({ slotId: 'inner-keep-slot-m01', footprintClass: 'medium', localXMicrounits: -9_000_000n, localZMicrounits: -3_400_000n, rotationMilliDegrees: 25_000, sortOrder: 1, active: true }),
+    Object.freeze({ slotId: 'inner-keep-slot-m02', footprintClass: 'medium', localXMicrounits: -4_600_000n, localZMicrounits: -6_800_000n, rotationMilliDegrees: 15_000, sortOrder: 2, active: true }),
+    Object.freeze({ slotId: 'inner-keep-slot-m03', footprintClass: 'medium', localXMicrounits: 4_600_000n, localZMicrounits: -6_800_000n, rotationMilliDegrees: 345_000, sortOrder: 3, active: true }),
+    Object.freeze({ slotId: 'inner-keep-slot-m04', footprintClass: 'medium', localXMicrounits: 9_000_000n, localZMicrounits: -3_400_000n, rotationMilliDegrees: 335_000, sortOrder: 4, active: true }),
+    Object.freeze({ slotId: 'inner-keep-slot-m05', footprintClass: 'medium', localXMicrounits: -9_100_000n, localZMicrounits: 2_500_000n, rotationMilliDegrees: 155_000, sortOrder: 5, active: true }),
+    Object.freeze({ slotId: 'inner-keep-slot-m06', footprintClass: 'medium', localXMicrounits: -4_700_000n, localZMicrounits: 6_900_000n, rotationMilliDegrees: 170_000, sortOrder: 6, active: true }),
+    Object.freeze({ slotId: 'inner-keep-slot-m07', footprintClass: 'medium', localXMicrounits: 4_700_000n, localZMicrounits: 6_900_000n, rotationMilliDegrees: 190_000, sortOrder: 7, active: true }),
+    Object.freeze({ slotId: 'inner-keep-slot-m08', footprintClass: 'medium', localXMicrounits: 9_100_000n, localZMicrounits: 2_500_000n, rotationMilliDegrees: 205_000, sortOrder: 8, active: true }),
+    Object.freeze({ slotId: 'inner-keep-slot-l01', footprintClass: 'large', localXMicrounits: -13_700_000n, localZMicrounits: -10_800_000n, rotationMilliDegrees: 35_000, sortOrder: 9, active: false }),
+    Object.freeze({ slotId: 'inner-keep-slot-l02', footprintClass: 'large', localXMicrounits: 13_700_000n, localZMicrounits: -10_800_000n, rotationMilliDegrees: 325_000, sortOrder: 10, active: false }),
+    Object.freeze({ slotId: 'inner-keep-slot-l03', footprintClass: 'large', localXMicrounits: -13_800_000n, localZMicrounits: 10_600_000n, rotationMilliDegrees: 145_000, sortOrder: 11, active: false }),
+    Object.freeze({ slotId: 'inner-keep-slot-l04', footprintClass: 'large', localXMicrounits: 13_800_000n, localZMicrounits: 10_600_000n, rotationMilliDegrees: 215_000, sortOrder: 12, active: false })
   ]);
 
 export const INNER_KEEP_LAYOUT_V1_SLOT_BY_ID: ReadonlyMap<

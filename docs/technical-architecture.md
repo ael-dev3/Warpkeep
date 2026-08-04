@@ -112,12 +112,18 @@ coordinates, collision, unit, chat, resource, reward, or ownership authority.
 Static placement is atomic, loading is bounded and retry-safe, and a procedural
 compound remains available until exact coverage is safe to reveal.
 
+The 40.4 x 36 meter palisade and re-spaced slot transforms are part of the
+canonical layout attestation. Presentation-only dirt aprons and district roads
+make the larger footprint readable, while native slot controls and server
+commands remain keyed only by the twelve fixed slot identities.
+
 The surrounding-estate policy is a separate client contract and does not
 change the canonical Inner Keep layout digest. One finite deterministic height
 sampler grounds its nine topographic features, connected headwater-rill-lake,
 outer patrol road, grass, trees, animals, trade wagon, and scenic resource
 structures. The compound footprint samples to exactly zero; terrain feathers
-only beyond the walls. Quality caps grass at 2,400 / 1,400 / 480 blades and six
+through a rounded 5.5-meter shoulder only beyond the walls. The estate spans
+68 x 76 meters. Quality caps grass at 2,400 / 1,400 / 480 blades and six
 Warpkeep-Assets tree species at 72 / 44 / 22 instances.
 
 The same outer policy caps presentation-only resource structures at 8 / 6 / 4

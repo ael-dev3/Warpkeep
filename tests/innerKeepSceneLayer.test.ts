@@ -136,23 +136,61 @@ describe('procedural Inner Keep scene layer', () => {
       tradeWagonCount: 1
     });
     expect(pads).toHaveLength(12);
-    expect(first?.position.x).toBe(-7);
-    expect(first?.position.z).toBe(-3.2);
+    expect(first?.position.x).toBe(-9);
+    expect(first?.position.z).toBe(-3.4);
     expect(document.querySelectorAll('canvas')).toHaveLength(1);
     expect(requestAnimationFrame).not.toHaveBeenCalled();
     layer.dispose();
   });
 
-  it('aligns the procedural landmark fallback to the canonical authored anchors', () => {
+  it('aligns the procedural fallback to the expanded canonical authored anchors', () => {
     const { layer } = createLayer();
-    const cathedral = layer.scene.getObjectByName(
-      'inner-keep-procedural-cathedral-fallback'
+    const authoredByPlacementId = new Map(INNER_KEEP_PRESENTATION_PLACEMENTS.flatMap(
+      (placement) => placement.instances.map((instance) => (
+        [instance.placementId, instance] as const
+      )),
+    ));
+    const fallbackToAuthored = [
+      ['inner-keep-procedural-cathedral-fallback', 'grand-covenant-cathedral-main-building'],
+      ['inner-keep-procedural-barracks-fallback', 'shieldcourt-barracks-west-garrison'],
+      ['inner-keep-procedural-south-gate-frame', 'south-gate-frame'],
+      ['inner-keep-procedural-gate-standard-west', 'gate-standard-west'],
+      ['inner-keep-procedural-gate-standard-east', 'gate-standard-east'],
+      ['inner-keep-procedural-builder-noticeboard', 'builder-noticeboard'],
+      ['inner-keep-procedural-civic-direction-sign', 'civic-direction-sign'],
+      ['inner-keep-procedural-south-east-water-trough', 'south-east-water-trough'],
+      ['inner-keep-procedural-hedge-west-north', 'hedge-west-north'],
+      ['inner-keep-procedural-hedge-east-north', 'hedge-east-north'],
+      ['inner-keep-procedural-hedge-west-south', 'hedge-west-south'],
+      ['inner-keep-procedural-hedge-east-south', 'hedge-east-south'],
+      ['inner-keep-procedural-north-collapsed-arch', 'north-collapsed-arch'],
+    ] as const;
+    for (const [fallbackName, placementId] of fallbackToAuthored) {
+      const fallback = layer.scene.getObjectByName(fallbackName);
+      const authored = authoredByPlacementId.get(placementId)!;
+      expect(fallback, fallbackName).toBeDefined();
+      expect(fallback?.position.x, fallbackName).toBe(authored.positionMeters[0]);
+      expect(fallback?.position.z, fallbackName).toBe(authored.positionMeters[2]);
+    }
+    layer.dispose();
+  });
+
+  it('grounds a non-authoritative earth apron and district streets around the larger city', () => {
+    const { layer } = createLayer();
+    const apron = layer.scene.getObjectByName('inner-keep-city-edge-earth-apron');
+    const streets = layer.scene.getObjectByName(
+      'inner-keep-city-district-road-network'
     );
-    const barracks = layer.scene.getObjectByName(
-      'inner-keep-procedural-barracks-fallback'
-    );
-    expect(cathedral?.position).toMatchObject({ x: 0, z: -11.8 });
-    expect(barracks?.position).toMatchObject({ x: -12.7, z: -0.4 });
+    for (const presentationOnly of [apron, streets]) {
+      expect(presentationOnly).toBeInstanceOf(THREE.Mesh);
+      expect(presentationOnly?.userData).toMatchObject({
+        presentationOnly: true,
+        gameplayAuthorityClaimed: false
+      });
+      const geometry = (presentationOnly as THREE.Mesh).geometry;
+      expect(geometry.getAttribute('position').count).toBeGreaterThan(0);
+      expect(geometry.index?.count).toBeGreaterThan(0);
+    }
     layer.dispose();
   });
 
@@ -212,7 +250,7 @@ describe('procedural Inner Keep scene layer', () => {
       ) / portraitAspect,
       6
     );
-    expect(layer.camera.position).toMatchObject({ x: 0, y: 27, z: 30 });
+    expect(layer.camera.position).toMatchObject({ x: 0, y: 31, z: 34 });
 
     const assetById = new Map(INNER_KEEP_PRESENTATION_ASSETS.map((asset) => (
       [asset.assetId, asset] as const
@@ -537,7 +575,7 @@ describe('procedural Inner Keep scene layer', () => {
     expect(layer.getTelemetry()).toMatchObject({
       assetStatus: 'loading',
       authoredAssetCount: 38,
-      authoredPlacementCount: 67
+      authoredPlacementCount: 76
     });
     expect(layer.scene.getObjectByName('inner-keep-procedural-asset-fallback')?.visible)
       .toBe(false);
@@ -573,7 +611,7 @@ describe('procedural Inner Keep scene layer', () => {
     expect(second.dispose).toHaveBeenCalledTimes(1);
     expect(layer.getTelemetry()).toMatchObject({
       authoredAssetCount: 38,
-      authoredPlacementCount: 67,
+      authoredPlacementCount: 76,
       runtimeAssetFailureCount: 1
     });
     expect(layer.scene.getObjectByName('inner-keep-procedural-asset-fallback')?.visible)
