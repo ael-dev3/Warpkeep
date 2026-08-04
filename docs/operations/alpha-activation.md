@@ -321,9 +321,11 @@ it.
    complete acceptance on current Farcaster iOS and Android before declaring
    the client rollout complete.
 
-The normal pending-request notification is `Admission approved` with
-`Tap to finalize your Realm access. Your keep awaits in Genesis 001.` The older
-`The Hegemony admits you` payload remains only for already-live reconciliation.
+Both the normal pending-request notification and the exceptional already-live
+reconciliation use `Welcome to the Hegemony Empire` with `The gates have
+answered your name. Cross the threshold, Founder—your legacy awaits.` Their
+notification IDs and target URLs remain distinct so presentation copy cannot
+erase the underlying lifecycle boundary.
 Both are bounded and privacy-safe. Any copy change requires a separate reviewed
 Worker rollout.
 

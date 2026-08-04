@@ -47,11 +47,9 @@ const MAX_NOTIFICATION_TOKEN_BYTES = 2 * 1_024
 const SUBSCRIPTION_MAX_LIFETIME_MILLISECONDS = 366 * 24 * 60 * 60 * 1_000
 const TARGET_URL = 'https://warpkeep.com/?miniApp=true'
 const GRANT_TARGET_FRAGMENT = 'warpkeep-grant-v1'
-const ADMITTED_NOTIFICATION_TITLE = 'The Hegemony admits you'
-const ADMITTED_NOTIFICATION_BODY = 'Your keep awaits in Genesis 001. Enter the living Realm.'
-const PENDING_NOTIFICATION_TITLE = 'Admission approved'
-const PENDING_NOTIFICATION_BODY =
-  'Tap to finalize your Realm access. Your keep awaits in Genesis 001.'
+const HEGEMONY_WELCOME_NOTIFICATION_TITLE = 'Welcome to the Hegemony Empire'
+const HEGEMONY_WELCOME_NOTIFICATION_BODY =
+  'The gates have answered your name. Cross the threshold, Founder—your legacy awaits.'
 const RETRY_DELAYS_MILLISECONDS = Object.freeze([
   30_000,
   2 * 60_000,
@@ -1837,12 +1835,8 @@ async function sendOne(
       },
       body: JSON.stringify({
         notificationId: notificationId(delivery, grantIntent),
-        title: delivery.kind === 'admitted'
-          ? ADMITTED_NOTIFICATION_TITLE
-          : PENDING_NOTIFICATION_TITLE,
-        body: delivery.kind === 'admitted'
-          ? ADMITTED_NOTIFICATION_BODY
-          : PENDING_NOTIFICATION_BODY,
+        title: HEGEMONY_WELCOME_NOTIFICATION_TITLE,
+        body: HEGEMONY_WELCOME_NOTIFICATION_BODY,
         targetUrl: targetUrl(delivery, grantIntent),
         tokens: [subscription.token],
       }),

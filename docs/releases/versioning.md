@@ -26,5 +26,13 @@ and backend protocol versions are separate compatibility values.
 4. Create a `vX.Y.Z` tag and GitHub Release.
 5. Summarize player-facing changes in [`CHANGELOG.md`](../../CHANGELOG.md).
 
+## Technical publications
+
+A reusable engineering guide may receive a descriptive tag such as
+`farcaster-notifications-v1` and a separately linkable GitHub Release. These
+publications do not change the client version, are not marked as the latest
+product release, and must say plainly that they are technical documentation.
+The latest `vX.Y.Z` release remains the canonical live game version.
+
 Draft branches and pull requests describe work in progress. They are not part
 of the live Alpha until they are merged and deliberately deployed.

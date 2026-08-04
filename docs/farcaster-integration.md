@@ -1,5 +1,9 @@
 # Farcaster authentication
 
+For a shorter, reusable account of the notification lifecycle, failure modes,
+and production canary process, see
+[`farcaster-notification-playbook.md`](farcaster-notification-playbook.md).
+
 Warpkeep supports two presentations of the same server-owned identity boundary:
 ordinary browsers use Sign In with Farcaster (SIWF), while a verified Farcaster
 Mini App host may use Quick Auth. Neither path is a wallet connection,
@@ -313,9 +317,10 @@ The control is staged behind the exact public presentation gate
 `VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED`. Only the literal value `true`
 enables it; the checked-in example and Pages fallback are `false`. This gate
 does not enable delivery, alter Quick Auth, submit another access request, or
-change admission. The repository currently contains no privacy-safe record of
-the required genuine production signed add/enable and disable/remove canary, so
-the gate must remain false until the owner completes and records that review.
+change admission. An owner-controlled production canary completed on 4 August
+2026 and visibly received the Farcaster alert. That observation establishes the
+canary outcome, not universal device delivery; presentation rollout remains a
+separate deliberate configuration choice.
 
 The host adapter projects add/remove, enable/disable, rejection, invalid
 manifest, timeout, and setup-pending outcomes into a closed presentation state.
@@ -387,14 +392,14 @@ The reviewed payloads are:
 ```txt
 normal admission:
 notificationId: warpkeep-access-grant-v3-i<random-intent-id>
-title: Admission approved
-body: Tap to finalize your Realm access. Your keep awaits in Genesis 001.
+title: Welcome to the Hegemony Empire
+body: The gates have answered your name. Cross the threshold, Founder—your legacy awaits.
 targetUrl: https://warpkeep.com/?miniApp=true#warpkeep-grant-v1=<one-use-ticket>
 
 already-live reconciliation:
 notificationId: warpkeep-access-approved-v1-e<positive-auth-epoch>
-title: The Hegemony admits you
-body: Your keep awaits in Genesis 001. Enter the living Realm.
+title: Welcome to the Hegemony Empire
+body: The gates have answered your name. Cross the threshold, Founder—your legacy awaits.
 targetUrl: https://warpkeep.com/?miniApp=true
 ```
 

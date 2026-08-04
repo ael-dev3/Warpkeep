@@ -291,13 +291,14 @@ describe('admission notification consent and delivery lifecycle', () => {
     const payload = JSON.parse(String(deliveryInit?.body))
     expect(payload).toEqual({
       notificationId: 'warpkeep-access-approved-v1-e7',
-      title: 'The Hegemony admits you',
-      body: 'Your keep awaits in Genesis 001. Enter the living Realm.',
+      title: 'Welcome to the Hegemony Empire',
+      body: 'The gates have answered your name. Cross the threshold, Founder—your legacy awaits.',
       targetUrl: 'https://warpkeep.com/?miniApp=true',
       tokens: [TOKEN],
     })
-    expect(payload.title).toHaveLength(23)
-    expect(payload.body).toHaveLength(56)
+    expect(payload.title).toHaveLength(30)
+    expect(payload.body).toHaveLength(83)
+    expect(`${payload.title} ${payload.body}`).not.toMatch(/genesis|realm/i)
 
     const duplicate = await queue(h.notification)
     await expect(duplicate.json()).resolves.toEqual({ status: 'already-sent' })
@@ -334,10 +335,13 @@ describe('admission notification consent and delivery lifecycle', () => {
     expect(grant.ticket).toMatch(/^[A-Za-z0-9_-]{43}$/)
     expect(payload).toMatchObject({
       notificationId: `warpkeep-access-grant-v3-i${grant.intentId}`,
-      title: 'Admission approved',
-      body: 'Tap to finalize your Realm access. Your keep awaits in Genesis 001.',
+      title: 'Welcome to the Hegemony Empire',
+      body: 'The gates have answered your name. Cross the threshold, Founder—your legacy awaits.',
       targetUrl: `https://warpkeep.com/?miniApp=true#warpkeep-grant-v1=${grant.ticket}`,
     })
+    expect(payload.title).toHaveLength(30)
+    expect(payload.body).toHaveLength(83)
+    expect(`${payload.title} ${payload.body}`).not.toMatch(/genesis|realm/i)
     expect(pendingStored(h.storage)).not.toContain('lastSentRequestAtMicros')
     expect(pendingStored(h.storage)).not.toContain(TOKEN)
     const legacy = h.storage.values.get(STATE_KEY) as Record<string, unknown>

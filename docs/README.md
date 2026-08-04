@@ -27,6 +27,7 @@ contributors. This page routes deeper work without duplicating it.
 ## System guides
 
 - [Farcaster integration](farcaster-integration.md)
+- [Reliable Farcaster Mini App notifications](farcaster-notification-playbook.md)
 - [Auth bridge](../services/auth-bridge/README.md)
 - [SpacetimeDB module](../spacetimedb/README.md)
 - [Community Marks policy](gameplay/marks-policy-v1.md)
