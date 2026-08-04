@@ -14,6 +14,7 @@ import {
   INNER_KEEP_OUTER_WORLD_COMPOUND_PLATEAU,
   INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS,
   INNER_KEEP_OUTER_WORLD_RESOURCE_SITES,
+  innerKeepCityDistrictRoadEdgeDistance,
   innerKeepOuterWorldDistanceToRoad,
   innerKeepOuterWorldDistanceToWater,
   innerKeepOuterWorldPointIsClear,
@@ -97,14 +98,26 @@ describe('Inner Keep living estate grass and connected water presentation', () =
           && (Math.abs(position.x) > halfWidth || Math.abs(position.z) > halfDepth)
         ) firstGrassClearanceFailure = `edge:${position.x}:${position.z}`;
 
-        const insideInnerKeepEcologyArea = Math.abs(position.x) <= 16.3
-          && position.z >= -15.1
-          && position.z <= 12.1;
+        const wall = INNER_KEEP_PRESENTATION_CLEARANCES.wall;
+        const road = INNER_KEEP_PRESENTATION_CLEARANCES.road;
+        const insideInnerKeepEcologyArea = position.x >= wall.westX
+          && position.x <= wall.eastX
+          && position.z >= wall.northZ
+          && position.z <= wall.southZ;
         if (
           firstGrassClearanceFailure === ''
           && insideInnerKeepEcologyArea
-          && (Math.abs(position.x) < 1.8 || Math.abs(position.z - 0.2) < 1.45)
+          && (
+            Math.abs(position.x - road.northSouthCenterX)
+              < road.northSouthHalfWidth + 0.5
+            || Math.abs(position.z - road.eastWestCenterZ)
+              < road.eastWestHalfWidth + 0.38
+          )
         ) firstGrassClearanceFailure = `inner-road:${position.x}:${position.z}`;
+        if (
+          firstGrassClearanceFailure === ''
+          && innerKeepCityDistrictRoadEdgeDistance(position.x, position.z) < 0.34
+        ) firstGrassClearanceFailure = `district-road:${position.x}:${position.z}`;
 
         for (const exclusion of INNER_KEEP_FIXED_ECOLOGY_EXCLUSIONS) {
           if (exclusion.isRoadSurface) continue;
@@ -123,11 +136,15 @@ describe('Inner Keep living estate grass and connected water presentation', () =
           }
         }
         for (const slot of INNER_KEEP_LAYOUT_V1_SLOTS) {
-          const slotX = Number(slot.localXMicrounits) / 1_000_000;
-          const slotZ = Number(slot.localZMicrounits) / 1_000_000;
-          const overlaps = Math.abs(position.x - slotX) <= 2
-            && Math.abs(position.z - slotZ) <= 1.8;
-          if (firstGrassClearanceFailure === '' && overlaps) {
+          if (
+            firstGrassClearanceFailure === ''
+            && !pointClearsSlot(
+              position.x,
+              position.z,
+              INNER_KEEP_PRESENTATION_CLEARANCES.slot.decorativeBuffer,
+              slot,
+            )
+          ) {
             firstGrassClearanceFailure = [
               slot.slotId,
               position.x,
@@ -162,6 +179,8 @@ describe('Inner Keep living estate grass and connected water presentation', () =
       visualSeed: 0x55aa_1122,
     });
     for (const position of grassPositions(ecology)) {
+      expect(innerKeepCityDistrictRoadEdgeDistance(position.x, position.z))
+        .toBeGreaterThanOrEqual(0.34);
       for (const site of INNER_KEEP_OUTER_WORLD_RESOURCE_SITES) {
         expect(Math.hypot(
           position.x - site.positionMeters[0],

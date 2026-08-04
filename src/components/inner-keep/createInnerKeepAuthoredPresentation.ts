@@ -63,8 +63,15 @@ type AuthoredCopy = Readonly<{
   scalePermille: readonly [number, number, number];
 }>;
 
+export type InnerKeepAuthoredPerimeterTreeSector =
+  | 'west'
+  | 'east'
+  | 'north'
+  | 'south';
+
 export type InnerKeepAuthoredPerimeterTreePlacement = AuthoredCopy & Readonly<{
   speciesId: string;
+  sector: InnerKeepAuthoredPerimeterTreeSector;
   placementIndex: number;
   candidateIndex: number;
   halfExtentsMeters: readonly [number, number];
@@ -156,9 +163,9 @@ export const INNER_KEEP_AUTHORED_PERIMETER_TREE_SPECIES = Object.freeze([
 ] as const);
 
 export const INNER_KEEP_AUTHORED_STATIC_RENDER_BUDGETS = Object.freeze({
-  high: Object.freeze({ drawCalls: 91, triangles: 199_620 }),
-  balanced: Object.freeze({ drawCalls: 90, triangles: 102_412 }),
-  reduced: Object.freeze({ drawCalls: 81, triangles: 49_601 }),
+  high: Object.freeze({ drawCalls: 91, triangles: 204_592 }),
+  balanced: Object.freeze({ drawCalls: 90, triangles: 105_632 }),
+  reduced: Object.freeze({ drawCalls: 81, triangles: 52_013 }),
 } satisfies Readonly<Record<InnerKeepSceneQuality, Readonly<{
   drawCalls: number;
   triangles: number;
@@ -167,101 +174,121 @@ export const INNER_KEEP_AUTHORED_STATIC_RENDER_BUDGETS = Object.freeze({
 export const INNER_KEEP_AUTHORED_PERIMETER_TREE_CANDIDATES_PER_PLACEMENT = 512;
 export const INNER_KEEP_AUTHORED_PERIMETER_TREE_CLEARANCE_METERS = 0.16;
 
-type InnerKeepPerimeterTreeBand = Readonly<{
-  sideX: number;
-  northZ: number;
-  southZ: number;
-  alongX: readonly [number, number];
-  alongZ: readonly [number, number];
-  southOnly?: boolean;
-  southField?: boolean;
-  cedarReserve?: boolean;
-  smallTreeReserve?: boolean;
+type InnerKeepPerimeterTreeSectorDefinition = Readonly<{
+  sector: InnerKeepAuthoredPerimeterTreeSector;
+  alongRangeMeters: readonly [number, number];
+  crossRangeMeters: readonly [number, number];
 }>;
 
-const INNER_KEEP_PERIMETER_TREE_BANDS: readonly InnerKeepPerimeterTreeBand[] =
-Object.freeze([
-  Object.freeze({
-    sideX: 0,
-    northZ: 15.85,
-    southZ: 15.85,
-    alongX: Object.freeze([-12.5, 12.5] as const),
-    alongZ: Object.freeze([0, 0] as const),
-    cedarReserve: true,
-  }),
-  Object.freeze({
-    sideX: 0,
-    northZ: 12.65,
-    southZ: 12.65,
-    alongX: Object.freeze([-14.25, 14.25] as const),
-    alongZ: Object.freeze([0, 0] as const),
-    smallTreeReserve: true,
-  }),
-  Object.freeze({
-    sideX: 13.35,
-    northZ: -14.05,
-    southZ: 7.8,
-    alongX: Object.freeze([-13.7, 13.7] as const),
-    alongZ: Object.freeze([-13.8, 7.9] as const),
-  }),
-  // Smaller crowns can use the narrow planted verge immediately inside the
-  // wall; scaled-bound rejection naturally keeps oversized cedars out.
-  Object.freeze({
-    sideX: 14.35,
-    northZ: -14.75,
-    southZ: 8.65,
-    alongX: Object.freeze([-14.4, 14.4] as const),
-    alongZ: Object.freeze([-14.7, 8.7] as const),
-  }),
-  Object.freeze({
-    sideX: 12.15,
-    northZ: -12.9,
-    southZ: 6.65,
-    alongX: Object.freeze([-12.8, 12.8] as const),
-    alongZ: Object.freeze([-12.8, 6.8] as const),
-  }),
-  // A third inner lane increases candidate density without leaving the terrain.
-  Object.freeze({
-    sideX: 10.9,
-    northZ: -11.5,
-    southZ: 5.45,
-    alongX: Object.freeze([-11.5, 11.5] as const),
-    alongZ: Object.freeze([-11.4, 5.7] as const),
-  }),
-  Object.freeze({
-    sideX: 9.6,
-    northZ: -10.35,
-    southZ: 4.35,
-    alongX: Object.freeze([-10.2, 10.2] as const),
-    alongZ: Object.freeze([-10.25, 4.55] as const),
-  }),
-  Object.freeze({
-    sideX: 0,
-    northZ: 12.25,
-    southZ: 14.05,
-    alongX: Object.freeze([-14.8, 14.8] as const),
-    alongZ: Object.freeze([0, 0] as const),
-    southOnly: true,
-  }),
-  Object.freeze({
-    sideX: 0,
-    northZ: 12.2,
-    southZ: 15.45,
-    alongX: Object.freeze([-14.8, 14.8] as const),
-    alongZ: Object.freeze([0, 0] as const),
-    southField: true,
-  }),
-  // The final bounded fallback is a pair of grounded lanes beyond the south
-  // wall, still inside the authored terrain and portrait camera envelope.
-  Object.freeze({
-    sideX: 0,
-    northZ: 13.65,
-    southZ: 15.35,
-    alongX: Object.freeze([-14.8, 14.8] as const),
-    alongZ: Object.freeze([0, 0] as const),
-    southOnly: true,
-  }),
-]);
+const INNER_KEEP_PERIMETER_TREE_SECTORS:
+readonly InnerKeepPerimeterTreeSectorDefinition[] = Object.freeze((() => {
+  const wall = INNER_KEEP_PRESENTATION_CLEARANCES.wall;
+  const [groundHalfWidth, groundHalfDepth] =
+    INNER_KEEP_PRESENTATION_CLEARANCES.ground.halfExtentsMeters;
+  const sideAlongRange = Object.freeze([
+    wall.northZ + 2.4,
+    wall.southZ - 2.4,
+  ] as const);
+  const horizontalAlongRange = Object.freeze([
+    wall.westX + 2.8,
+    wall.eastX - 2.8,
+  ] as const);
+  return [
+    Object.freeze({
+      sector: 'west' as const,
+      alongRangeMeters: sideAlongRange,
+      crossRangeMeters: Object.freeze([
+        wall.westX + 1.75,
+        wall.westX + 5.6,
+      ] as const),
+    }),
+    Object.freeze({
+      sector: 'east' as const,
+      alongRangeMeters: sideAlongRange,
+      crossRangeMeters: Object.freeze([
+        wall.eastX - 5.6,
+        wall.eastX - 1.75,
+      ] as const),
+    }),
+    Object.freeze({
+      sector: 'north' as const,
+      alongRangeMeters: Object.freeze([
+        horizontalAlongRange[0],
+        -6.2,
+      ] as const),
+      crossRangeMeters: Object.freeze([
+        wall.northZ + 1.75,
+        wall.northZ + 5.35,
+      ] as const),
+    }),
+    Object.freeze({
+      sector: 'north' as const,
+      alongRangeMeters: Object.freeze([
+        6.2,
+        horizontalAlongRange[1],
+      ] as const),
+      crossRangeMeters: Object.freeze([
+        wall.northZ + 1.75,
+        wall.northZ + 5.35,
+      ] as const),
+    }),
+    Object.freeze({
+      sector: 'south' as const,
+      alongRangeMeters: horizontalAlongRange,
+      crossRangeMeters: Object.freeze([
+        wall.southZ - 5.35,
+        wall.southZ - 1.75,
+      ] as const),
+    }),
+    Object.freeze({
+      sector: 'south' as const,
+      alongRangeMeters: Object.freeze([
+        wall.westX + 3.2,
+        wall.eastX - 3.2,
+      ] as const),
+      crossRangeMeters: Object.freeze([
+        wall.southZ + 1.8,
+        Math.min(groundHalfDepth - 1.35, wall.southZ + 5.8),
+      ] as const),
+    }),
+    Object.freeze({
+      sector: 'west' as const,
+      alongRangeMeters: Object.freeze([
+        wall.northZ + 3,
+        wall.southZ - 3,
+      ] as const),
+      crossRangeMeters: Object.freeze([
+        Math.max(-groundHalfWidth + 1.35, wall.westX - 2.65),
+        wall.westX - 1.55,
+      ] as const),
+    }),
+    Object.freeze({
+      sector: 'east' as const,
+      alongRangeMeters: Object.freeze([
+        wall.northZ + 3,
+        wall.southZ - 3,
+      ] as const),
+      crossRangeMeters: Object.freeze([
+        wall.eastX + 1.55,
+        Math.min(groundHalfWidth - 1.35, wall.eastX + 2.65),
+      ] as const),
+    }),
+  ];
+})());
+
+const INNER_KEEP_PERIMETER_TREE_SECTOR_ORDER = Object.freeze([
+  'west',
+  'east',
+  'north',
+  'south',
+] as const);
+
+function interpolateRange(
+  range: readonly [number, number],
+  progress: number,
+) {
+  return range[0] + (range[1] - range[0]) * progress;
+}
 
 function rotatedTreeHalfExtents(
   boundsMeters: readonly [number, number, number],
@@ -375,53 +402,40 @@ function treeTouchesSweptRoute(
 function treeCandidatePosition(
   candidateIndex: number,
   visualSeed: number,
-): readonly [number, number, number] {
+): Readonly<{
+  sector: InnerKeepAuthoredPerimeterTreeSector;
+  positionMeters: readonly [number, number, number];
+}> {
   const grounded = (x: number, z: number) => Object.freeze([
     x,
     innerKeepOuterWorldTerrainHeightAt(x, z) + 0.08,
     z,
   ] as const);
-  const side = candidateIndex % 4;
-  const bandIndex = Math.floor(candidateIndex / 4)
-    % INNER_KEEP_PERIMETER_TREE_BANDS.length;
-  const band = INNER_KEEP_PERIMETER_TREE_BANDS[bandIndex]!;
-  const along = deterministicUnit(candidateIndex, visualSeed + 31);
-  const reserveOrdinal = Math.floor(
-    candidateIndex / (INNER_KEEP_PERIMETER_TREE_BANDS.length * 4),
+  const sector = INNER_KEEP_PERIMETER_TREE_SECTORS[
+    candidateIndex % INNER_KEEP_PERIMETER_TREE_SECTORS.length
+  ]!;
+  const ordinal = Math.floor(
+    candidateIndex / INNER_KEEP_PERIMETER_TREE_SECTORS.length,
   );
-  if (band.cedarReserve === true) {
-    const x = -12.5 + (reserveOrdinal % 6) * 5
-      + (deterministicUnit(candidateIndex, visualSeed + 32) - 0.5) * 0.24;
-    const z = 15.85 + (deterministicUnit(candidateIndex, visualSeed + 33) - 0.5) * 0.12;
-    return grounded(x, z);
-  }
-  if (band.smallTreeReserve === true) {
-    const x = -14.25 + (reserveOrdinal % 12) * (28.5 / 11)
-      + (deterministicUnit(candidateIndex, visualSeed + 32) - 0.5) * 0.1;
-    const z = 12.65 + (deterministicUnit(candidateIndex, visualSeed + 33) - 0.5) * 0.08;
-    return grounded(x, z);
-  }
-  const crossJitter = (deterministicUnit(candidateIndex, visualSeed + 32) - 0.5)
-    * (band.southOnly === true || band.southField === true ? 0.35 : 0.55);
-  if (band.southField === true) {
-    const x = band.alongX[0] + (band.alongX[1] - band.alongX[0]) * along;
-    const z = band.northZ + (band.southZ - band.northZ)
-      * deterministicUnit(candidateIndex, visualSeed + 33);
-    return grounded(x, z);
-  }
-  if (band.southOnly === true) {
-    const x = band.alongX[0] + (band.alongX[1] - band.alongX[0]) * along;
-    const z = (side % 2 === 0 ? band.northZ : band.southZ) + crossJitter;
-    return grounded(x, z);
-  }
-  if (side === 0 || side === 1) {
-    const x = (side === 0 ? -band.sideX : band.sideX) + crossJitter;
-    const z = band.alongZ[0] + (band.alongZ[1] - band.alongZ[0]) * along;
-    return grounded(x, z);
-  }
-  const x = band.alongX[0] + (band.alongX[1] - band.alongX[0]) * along;
-  const z = (side === 2 ? band.northZ : band.southZ) + crossJitter;
-  return grounded(x, z);
+  // Both axes span real planting depth. A low-discrepancy stagger keeps the
+  // grove organic without the near-constant reserve rows used previously.
+  const alongUnit = (
+    deterministicUnit(ordinal, visualSeed + 31)
+    + ordinal * 0.618_033_988_75
+  ) % 1;
+  const crossUnit = 0.08 + 0.84 * deterministicUnit(
+    ordinal,
+    visualSeed + 47 + candidateIndex % INNER_KEEP_PERIMETER_TREE_SECTORS.length,
+  );
+  const along = interpolateRange(sector.alongRangeMeters, alongUnit);
+  const cross = interpolateRange(sector.crossRangeMeters, crossUnit);
+  const [x, z] = sector.sector === 'west' || sector.sector === 'east'
+    ? [cross, along]
+    : [along, cross];
+  return Object.freeze({
+    sector: sector.sector,
+    positionMeters: grounded(x, z),
+  });
 }
 
 function candidateIsClear(
@@ -512,20 +526,23 @@ export function planInnerKeepAuthoredPerimeterTrees(options: Readonly<{
         const variationIndex = placementIndex
           * INNER_KEEP_AUTHORED_PERIMETER_TREE_CANDIDATES_PER_PLACEMENT
           + candidateIndex;
-        const bandIndex = Math.floor(candidateIndex / 4)
-          % INNER_KEEP_PERIMETER_TREE_BANDS.length;
-        const band = INNER_KEEP_PERIMETER_TREE_BANDS[bandIndex]!;
-        const bandRank = speciesId === 'giant-ancient-cedar'
-          ? band.cedarReserve === true
-            ? 0
-            : band.southOnly === true || band.southField === true ? 1 : bandIndex + 2
-          : band.smallTreeReserve === true
-            ? 0
-            : band.cedarReserve === true ? 100 : bandIndex + 1;
+        const sector = INNER_KEEP_PERIMETER_TREE_SECTORS[
+          candidateIndex % INNER_KEEP_PERIMETER_TREE_SECTORS.length
+        ]!.sector;
+        const sectorIndex = INNER_KEEP_PERIMETER_TREE_SECTOR_ORDER.indexOf(sector);
+        const preferredSectorIndex = placementIndex
+          % INNER_KEEP_PERIMETER_TREE_SECTOR_ORDER.length;
+        const clockwiseDistance = (
+          sectorIndex - preferredSectorIndex + INNER_KEEP_PERIMETER_TREE_SECTOR_ORDER.length
+        ) % INNER_KEEP_PERIMETER_TREE_SECTOR_ORDER.length;
+        const sectorRank = Math.min(
+          clockwiseDistance,
+          INNER_KEEP_PERIMETER_TREE_SECTOR_ORDER.length - clockwiseDistance,
+        );
         return Object.freeze({
           candidateIndex,
           variationIndex,
-          rank: bandRank * 2
+          rank: sectorRank * 2
             + deterministicUnit(variationIndex, options.visualSeed + 91),
         });
       },
@@ -542,12 +559,17 @@ export function planInnerKeepAuthoredPerimeterTrees(options: Readonly<{
         candidate.variationIndex,
         options.visualSeed + 36,
       ) * 360_000;
+      const candidatePosition = treeCandidatePosition(
+        candidate.candidateIndex,
+        options.visualSeed,
+      );
       const placement = Object.freeze({
         speciesId,
+        sector: candidatePosition.sector,
         placementIndex,
         candidateIndex: candidate.candidateIndex,
         name: `inner-keep-authored-perimeter-tree:${speciesId}:${placementIndex}`,
-        positionMeters: treeCandidatePosition(candidate.candidateIndex, options.visualSeed),
+        positionMeters: candidatePosition.positionMeters,
         rotationMilliDegrees: Object.freeze([
           0,
           rotationMilliDegrees,

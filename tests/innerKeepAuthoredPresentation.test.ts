@@ -20,7 +20,12 @@ import {
   type InnerKeepAmbientRoute,
 } from '../src/components/inner-keep/innerKeepAmbientPolicy';
 import { INNER_KEEP_FIXED_PLACEMENT_EXCLUSIONS } from '../src/components/inner-keep/innerKeepFixedPlacementExclusions';
-import { INNER_KEEP_PRESENTATION_ASSETS } from '../src/components/inner-keep/innerKeepPresentationLayoutPolicy';
+import {
+  INNER_KEEP_PRESENTATION_ASSETS,
+  INNER_KEEP_PRESENTATION_CLEARANCES,
+  INNER_KEEP_PRESENTATION_PLACEMENTS,
+} from '../src/components/inner-keep/innerKeepPresentationLayoutPolicy';
+import { innerKeepOuterWorldTerrainHeightAt } from '../src/components/inner-keep/innerKeepOuterWorldPolicy';
 import type {
   InnerKeepRuntimeAssetBundle,
   InnerKeepRuntimePrefab,
@@ -167,10 +172,10 @@ describe('authored Inner Keep presentation composition', () => {
     const barracks = presentation.group.getObjectByName(
       'inner-keep-authored-placement:shieldcourt-barracks-west-garrison',
     );
-    expect(cathedral?.position.toArray()).toEqual([0, 0, -11.8]);
+    expect(cathedral?.position.toArray()).toEqual([0, 0, -15.4]);
     expect(cathedral?.scale.toArray()).toEqual([0.3, 0.3, 0.3]);
-    expect(barracks?.position.toArray()).toEqual([-12.7, 0, -0.4]);
-    expect(barracks?.scale.toArray()).toEqual([0.36, 0.36, 0.36]);
+    expect(barracks?.position.toArray()).toEqual([-16, 0, 0]);
+    expect(barracks?.scale.toArray()).toEqual([0.38, 0.38, 0.38]);
     expect(presentation).toMatchObject({
       loadedAssetCount: 38,
       cathedralReady: true,
@@ -195,7 +200,7 @@ describe('authored Inner Keep presentation composition', () => {
       disposableMaterials,
     });
     expect(building?.name).toBe('inner-keep-completed-building:city-mill');
-    expect(building?.scale.x).toBeCloseTo(0.33);
+    expect(building?.scale.x).toBeCloseTo(0.374);
     const sourceMaterial = (source.root.children[0] as THREE.Mesh).material;
     let clonedMaterial: THREE.Material | THREE.Material[] | undefined;
     building?.traverse((object) => {
@@ -227,11 +232,17 @@ describe('authored Inner Keep presentation composition', () => {
     )?.children[0] as THREE.InstancedMesh;
     const complexity = renderComplexity(presentation.group);
 
-    expect(presentation.placementInstanceCount).toBe(67);
-    expect(stablePlacementMarkers).toHaveLength(67);
+    const expectedFixedPlacementCount = INNER_KEEP_PRESENTATION_PLACEMENTS
+      .filter(({ anchor }) => anchor === 'fixed')
+      .reduce((count, placement) => count + placement.instances.length, 0);
+    const expectedLongWallCount = INNER_KEEP_PRESENTATION_PLACEMENTS.find(
+      ({ assetId }) => assetId === 'palisade-wall-straight-8m',
+    )!.instances.length;
+    expect(presentation.placementInstanceCount).toBe(expectedFixedPlacementCount);
+    expect(stablePlacementMarkers).toHaveLength(expectedFixedPlacementCount);
     expect(stableTreeMarkers).toHaveLength(presentation.authoredTreeCount);
     expect(wallInstances).toBeInstanceOf(THREE.InstancedMesh);
-    expect(wallInstances.count).toBe(12);
+    expect(wallInstances.count).toBe(expectedLongWallCount);
     // One fake primitive per fixed asset group plus one per perimeter species.
     expect(complexity.drawCalls).toBe(36);
     expect(complexity.triangles).toBe(
@@ -313,6 +324,16 @@ describe('authored Inner Keep presentation composition', () => {
             10,
           );
           const center = [tree.positionMeters[0], tree.positionMeters[2]] as const;
+          const [groundHalfWidth, groundHalfDepth] =
+            INNER_KEEP_PRESENTATION_CLEARANCES.ground.halfExtentsMeters;
+          expect(Math.abs(center[0]) + tree.halfExtentsMeters[0])
+            .toBeLessThanOrEqual(groundHalfWidth);
+          expect(Math.abs(center[1]) + tree.halfExtentsMeters[1])
+            .toBeLessThanOrEqual(groundHalfDepth);
+          expect(tree.positionMeters[1]).toBeCloseTo(
+            innerKeepOuterWorldTerrainHeightAt(center[0], center[1]) + 0.08,
+            10,
+          );
 
           for (const fixed of INNER_KEEP_FIXED_PLACEMENT_EXCLUSIONS) {
             expect(aabbsOverlap(
@@ -358,6 +379,42 @@ describe('authored Inner Keep presentation composition', () => {
           }
         });
       }
+    }
+  });
+
+  it('stagger-plants the high-quality grove across every perimeter sector', () => {
+    const plan = planInnerKeepAuthoredPerimeterTrees({
+      bundle: fullStaticBundle(),
+      quality: 'high',
+      visualSeed: 42,
+    });
+    const bySector = new Map(
+      (['west', 'east', 'north', 'south'] as const).map((sector) => [
+        sector,
+        plan.filter((tree) => tree.sector === sector),
+      ] as const),
+    );
+
+    for (const [sector, trees] of bySector) {
+      expect(trees.length, sector).toBeGreaterThanOrEqual(3);
+      const crossCoordinates = trees.map((tree) => (
+        sector === 'west' || sector === 'east'
+          ? tree.positionMeters[0]
+          : tree.positionMeters[2]
+      ));
+      const alongCoordinates = trees.map((tree) => (
+        sector === 'west' || sector === 'east'
+          ? tree.positionMeters[2]
+          : tree.positionMeters[0]
+      ));
+      expect(
+        Math.max(...crossCoordinates) - Math.min(...crossCoordinates),
+        `${sector} planting depth`,
+      ).toBeGreaterThan(0.4);
+      expect(
+        Math.max(...alongCoordinates) - Math.min(...alongCoordinates),
+        `${sector} perimeter spread`,
+      ).toBeGreaterThan(2.5);
     }
   });
 });

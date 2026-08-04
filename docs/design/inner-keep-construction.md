@@ -34,6 +34,12 @@ release. The browser renders deterministic decorative scenery, but the server
 accepts only a fixed slot ID and footprint class; it never accepts coordinates
 or transforms.
 
+The palisade encloses a 40.4 x 36 meter compound, about 1,454 square meters.
+The re-spaced build pads retain at least 0.2 meters of proved separation for
+the largest Level-5 economy-building footprints. A dirt apron, district lanes,
+staggered perimeter planting, and a rounded terrain shoulder soften the wall
+edge without adding collision or gameplay authority.
+
 The four large slots are visible, reserved, and non-actionable in V1. A castle
 can contain at most one instance of each actionable building kind.
 
@@ -44,11 +50,11 @@ their exact content-addressed High/Balanced/Compact runtime paths, fixed and
 slot-relative transforms, scale, footprint, picking and clearance roles,
 quality availability, road/slot/wall clearances, and camera presets. Its
 SHA-256 digest is
-`7e10c6a765a1dbbf3b0a707597e9ecdc4038900d10d57ef565961fcfbd449070`.
+`0a976765d6f6e740eb6282fca90f59b412ecbd7ed382f001da89a0b7abeca756`.
 
 The server's compact slot-policy digest includes that presentation digest, so
 the client and activation tooling pin the combined layout digest
-`67b0650d2fe4ac16b14fc1adb57911318fec82c5f4e7daeec83e0efb1ead8325`.
+`dec272175dc96085b26d2bc96125e77c6433331c698f150d80dfbbb4881ee3d7`.
 Decorative transforms remain client presentation data rather than database
 rows, and the browser never sends a transform to construction authority.
 
@@ -163,7 +169,7 @@ the camera back to its initial pose.
 
 ## Living presentation and budgets
 
-The exact static selection renders 67 fixed authored placements around the
+The exact static selection renders 76 fixed authored placements around the
 twelve canonical slot pads. The Cathedral remains the northern focal point and
 the Barracks remains the western garrison. High quality presents all 20
 selected ambient actors: eight citizens and twelve patrol units, including six
@@ -172,25 +178,27 @@ Civic routines use only Greet, Idle, Walk, and Work. Patrols use Idle and Walk;
 combat clips are excluded. Conversation bubbles and every ambient identity are
 synthetic presentation, never player chat or server state.
 
-The ecology layer now continues across a 48 x 52 meter estate with nine named
-topographic features. The compound remains on an exact level plateau while
-ridges, stone shelves, meadows, woodland margins, and a south-eastern lake
-shape the land outside it. One strictly downhill watercourse runs from its
-north-eastern headwater, along the east-wall rill, and into that lake. It is
-still rendered as two logical water surfaces, so water detail stays bounded.
+The ecology layer now continues across a 68 x 76 meter estate with nine named
+topographic features. The complete wall footprint remains on an exact level,
+rounded plateau. Its five-meter corners and 5.5-meter feather blend into
+ridges, stone shelves, meadows, woodland margins, and a south-eastern lake.
+One strictly downhill watercourse runs from its north-eastern headwater, along
+the east-wall rill, and into that lake. It is still rendered as two logical
+water surfaces, so water detail stays bounded.
 
 Grass, actors, trees, wildlife, resource scenery, roads, and the wagon all use
 the same deterministic terrain-height sampler. Grass clears fixed authored
-footprints, reserved slots, water banks, unsafe slopes, roads, routes, and the
-four leveled scenic resource pads. The outer patrol carries existing mounted
-and foot characters beyond the walls without creating another population or
-claiming unit authority.
+footprints, reserved slots, water banks, unsafe slopes, central and district
+roads, routes, and the four leveled scenic resource pads. The outer patrol road
+detours around both the headwater and lake, keeping its complete surface dry.
+It carries existing mounted and foot characters beyond the walls without
+creating another population or claiming unit authority.
 
 | Quality | Actors (mounted / patrol) | Compound trees | Grass | Max active fps | Scene graph max (draws / triangles) | Renderer evidence max (draws / triangles) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| High | 20 (6 / 12) | 18 | 2,400 | 30 | 390 / 420,000 | 700 / 600,000 |
-| Balanced | 12 (4 / 6) | 12 | 1,400 | 24 | 310 / 215,000 | 330 / 190,000 |
-| Reduced | 8 (2 / 4) | 6 | 480 | 18 | 235 / 110,000 | 220 / 85,000 |
+| High | 20 (6 / 12) | 18 | 2,400 | 30 | 390 / 420,000 | 750 / 720,000 |
+| Balanced | 12 (4 / 6) | 12 | 1,400 | 24 | 310 / 215,000 | 380 / 260,000 |
+| Reduced | 8 (2 / 4) | 6 | 480 | 18 | 235 / 110,000 | 260 / 130,000 |
 
 The exterior has its own quality budget:
 
@@ -213,7 +221,7 @@ retains its narrow authorization and license boundary.
 
 Reduced quality uses static population and ecology presentation. Explicit
 reduced motion sets the animation cap to zero. Fixed static instancing is
-budgeted at 91 / 90 / 81 draws and 199,620 / 102,412 / 49,601 triangles for
+budgeted at 91 / 90 / 81 draws and 204,592 / 105,632 / 52,013 triangles for
 High / Balanced / Reduced. Population models are separately capped at
 207 / 131 / 78 draws and 65,000 / 40,000 / 16,000 triangles before the
 combined scene ceilings above are enforced.

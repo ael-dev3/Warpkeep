@@ -21,15 +21,17 @@ full engineering record.
   environment assets across 114 GLBs, six catalog previews, and 20 ambient
   actors across 40 GLBs. This does not activate, merge, or deploy the feature.
 - Built a living presentation around the Grand Covenant Cathedral and western
-  Barracks with mounted patrols, civic conversations, authored trees, dense
-  wind-swept grass, an east-wall drain, deterministic clearances, bounded
-  animation, and atomic fail-safe asset loading.
+  Barracks with a larger 1,454-square-meter walled city, roomier build sites,
+  dirt wall aprons, district lanes, staggered authored trees, mounted patrols,
+  civic conversations, dense wind-swept grass, deterministic clearances,
+  bounded animation, and atomic fail-safe asset loading.
 - Extended that presentation beyond the walls with nine named landforms, one
-  connected headwater-to-lake course, quality-scaled fields and six-species
-  woodland, scenic resource structures and a trade wagon, outer patrols, and
-  rabbits. Exact optional wildlife can fall back independently to bounded
-  procedural animals; every exterior element remains visual-only and grounded
-  by the same deterministic terrain sampler.
+  connected headwater-to-lake course, a rounded terrain shoulder across a
+  68 x 76 meter estate, quality-scaled fields and six-species woodland, scenic
+  resource structures and a trade wagon, outer patrols, and rabbits. Exact
+  optional wildlife can fall back independently to bounded procedural animals;
+  every exterior element remains visual-only and grounded by the same
+  deterministic terrain sampler.
 - Prepared an optional **Enable Admission Alerts** step after a confirmed access
   request. It remains fail-closed behind a default-off release gate until the
   owner-controlled signed notification canary is complete, and never affects

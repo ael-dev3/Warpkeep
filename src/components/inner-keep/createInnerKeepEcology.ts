@@ -6,12 +6,14 @@ import {
   INNER_KEEP_FIXED_PLACEMENT_EXCLUSIONS,
   type InnerKeepFixedPlacementExclusion,
 } from './innerKeepFixedPlacementExclusions';
+import { INNER_KEEP_PRESENTATION_CLEARANCES } from './innerKeepPresentationLayoutPolicy';
 import {
   INNER_KEEP_OUTER_WORLD_COMPOUND_PLATEAU,
   INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS,
   INNER_KEEP_OUTER_WORLD_LAKE,
   INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS,
   INNER_KEEP_OUTER_WORLD_WATER_CENTERLINE,
+  innerKeepCityDistrictRoadEdgeDistance,
   innerKeepOuterWorldPointIsClear,
   innerKeepOuterWorldTerrainHeightAt,
 } from './innerKeepOuterWorldPolicy';
@@ -125,11 +127,21 @@ function grassCandidateIsClear(x: number, z: number) {
   if (Math.abs(x) > outerHalfWidth - 0.4 || Math.abs(z) > outerHalfDepth - 0.4) {
     return false;
   }
-  const insideInnerKeepEcologyArea = Math.abs(x) <= 16.3 && z >= -15.1 && z <= 12.1;
+  const wall = INNER_KEEP_PRESENTATION_CLEARANCES.wall;
+  const insideInnerKeepEcologyArea = x >= wall.westX
+    && x <= wall.eastX
+    && z >= wall.northZ
+    && z <= wall.southZ;
   if (
     insideInnerKeepEcologyArea
-    && (Math.abs(x) < 1.8 || Math.abs(z - 0.2) < 1.45)
+    && (
+      Math.abs(x - INNER_KEEP_PRESENTATION_CLEARANCES.road.northSouthCenterX)
+        < INNER_KEEP_PRESENTATION_CLEARANCES.road.northSouthHalfWidth + 0.5
+      || Math.abs(z - INNER_KEEP_PRESENTATION_CLEARANCES.road.eastWestCenterZ)
+        < INNER_KEEP_PRESENTATION_CLEARANCES.road.eastWestHalfWidth + 0.38
+    )
   ) return false;
+  if (innerKeepCityDistrictRoadEdgeDistance(x, z) < 0.34) return false;
   if (INNER_KEEP_FIXED_ECOLOGY_EXCLUSIONS.some((exclusion) => (
     !exclusion.isRoadSurface
     && insideRoundedBox(
@@ -145,7 +157,22 @@ function grassCandidateIsClear(x: number, z: number) {
   for (const slot of INNER_KEEP_LAYOUT_V1_SLOTS) {
     const slotX = Number(slot.localXMicrounits) / 1_000_000;
     const slotZ = Number(slot.localZMicrounits) / 1_000_000;
-    if (insideRoundedBox(x, z, slotX, slotZ, 2.0, 1.8)) return false;
+    const angle = -slot.rotationMilliDegrees * Math.PI / 180_000;
+    const deltaX = x - slotX;
+    const deltaZ = z - slotZ;
+    const localX = deltaX * Math.cos(angle) - deltaZ * Math.sin(angle);
+    const localZ = deltaX * Math.sin(angle) + deltaZ * Math.cos(angle);
+    const halfExtents = slot.footprintClass === 'large'
+      ? INNER_KEEP_PRESENTATION_CLEARANCES.slot.largeReservedHalfExtents
+      : INNER_KEEP_PRESENTATION_CLEARANCES.slot.mediumHalfExtents;
+    if (insideRoundedBox(
+      localX,
+      localZ,
+      0,
+      0,
+      halfExtents[0] + INNER_KEEP_PRESENTATION_CLEARANCES.slot.decorativeBuffer,
+      halfExtents[1] + INNER_KEEP_PRESENTATION_CLEARANCES.slot.decorativeBuffer,
+    )) return false;
   }
   const plateau = INNER_KEEP_OUTER_WORLD_COMPOUND_PLATEAU;
   const isInsideCompoundPlateau = x >= plateau.minimumX

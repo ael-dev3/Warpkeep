@@ -232,7 +232,7 @@ const HIGH_QUALITY_SCREENSHOT_FACTS = Object.freeze({
   animationMixerCount: 30,
   assetStatus: 'ready',
   authoredAssetCount: 38,
-  authoredPlacementCount: 67,
+  authoredPlacementCount: 76,
   authoredTreeCount: 18,
   barracksPlacementPresent: true,
   cathedralPlacementPresent: true,
