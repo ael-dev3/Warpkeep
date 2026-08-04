@@ -3,8 +3,9 @@
 This Cloudflare Worker verifies ordinary-browser Farcaster SIWF proofs and
 Farcaster Mini App Quick Auth bearers, then issues ES256 OIDC access JWTs for
 Warpkeep's SpacetimeDB connection. It also verifies Farcaster's signed Mini App
-notification lifecycle and can send one admission alert after a live epoch
-recheck. It is isolated from the static browser app:
+notification lifecycle, can stage one alert for the exact pending access
+request before admission, and retains an exact-epoch reconciliation path. It
+is isolated from the static browser app:
 browser code never receives a signing key, admin secret, Optimism RPC URL,
 resolver JWT, private Hermes JWT, or Maincloud credential.
 
@@ -38,7 +39,7 @@ future rollout step requires exact-head verification and recorded authority.
 | `POST` | `/v1/admin/auth-epoch-probe` | Server-only, input-free structured resolver check. |
 | `POST` | `/v1/admin/config-attestation` | Server-only digest of security-relevant runtime configuration. |
 | `POST` | `/v1/farcaster/miniapp/webhook` | Verifies signed add/remove and notification enable/disable events; returns exact `200`. |
-| `POST` | `/v1/admin/admission-notification` | Separate-secret Hermes hook; rechecks live admission and queues one exact-epoch alert. |
+| `POST` | `/v1/admin/admission-notification` | Separate-secret Hermes hook; queues one alert for the exact pending request, or reconciles an already-live admission epoch. |
 | `POST` | `/v1/admin/admission-notification-status` | Separate-secret, token-free delivery diagnostics for one exact FID. |
 
 The legacy public `/v1/farcaster/challenge` and `/v1/farcaster/exchange` routes
@@ -386,13 +387,16 @@ managed `NOTIFICATION_OPERATOR_SECRET` that differs from the admin, session,
 and signing secrets. Raw notification tokens stay in one private per-FID
 object, are never returned to the browser or stored in SpacetimeDB, and expire
 within 366 days. Signed opt-outs remain accepted while delivery is paused and
-erase raw token material immediately. Each send rechecks the exact current
-admission epoch; stable notification IDs, retry ceilings, replay tombstones,
-and bounded epoch receipts make retries idempotent.
-The operator-only status projection contains only queue state, the admission
-epoch, aggregate attempt counts, static retry categories, and the next retry
-time. It never returns a notification token, delivery URL, webhook payload, or
-provider response. Delivery parsing accepts Farcaster's optional additive
+erase raw token material immediately. The deployed v1 consent record retains
+its rollback-compatible shape; pending-request work and receipts use a separate
+private v2 record. Each send rechecks either the exact current pending-request
+timestamp while admission is disabled, or the exact current live admission
+epoch. Stable notification IDs, retry ceilings, replay tombstones, and bounded
+generation receipts make retries idempotent.
+The operator-only status projection contains only queue state, generation kind,
+aggregate attempt counts, static retry categories, and bounded retry timing. It
+never returns a request timestamp, notification token, delivery URL, webhook
+payload, or provider response. Delivery parsing accepts Farcaster's optional additive
 `failedTokens` field, ignores harmless provider metadata, and still rejects
 invalid reasons, contradictory known outcome categories, and token mismatches.
 

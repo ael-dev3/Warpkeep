@@ -339,33 +339,45 @@ behind a feature gate. Raw notification tokens stay inside one private
 Cloudflare Durable Object per FID, never in React, browser storage, logs, URLs,
 public state, or SpacetimeDB.
 
-After Hermes has committed and verified founder admission, it invokes a
-separate-secret operator endpoint. That endpoint resolves current admission
-again; the Durable Object repeats the exact epoch check immediately before each
-delivery attempt. Queue-before-webhook races are retained without a token for
-at most 24 hours, signed opt-outs erase token material immediately, invalid
-tokens are purged, retry attempts are bounded, and one epoch cannot notify
-twice. `notify-admitted <fid> --confirm` is the idempotent recovery path if the
-database commit succeeds but the notification side effect is interrupted.
-Notification preference and delivery add no SpacetimeDB schema or browser
-authority.
+Before Hermes requests administrator authority or mutates admission, it calls a
+separate-secret operator endpoint for the exact pending access-request
+timestamp. The Durable Object proves that request is still pending and that
+admission is not enabled immediately before sending. For an opted-in player,
+Hermes proceeds only after Farcaster reports the matching token in
+`successfulTokens`; without notification consent, it records the explicit
+`not-subscribed` result and may proceed. Provider acceptance proves handoff to
+Farcaster, not device display or that the player opened the alert.
 
-The current Worker payload is deliberately retained for this frontend stage:
+Queue-before-webhook races are retained without a token for at most 24 hours,
+signed opt-outs erase token material immediately, invalid tokens are purged,
+retry attempts are bounded, and one request generation cannot notify twice.
+`notify-admitted <fid> --confirm` remains an exact-epoch reconciliation command
+for legacy or exceptional already-committed admissions; it is not the normal
+admission sequence. Notification preference and delivery add no SpacetimeDB
+schema or browser authority.
+
+The reviewed payloads are:
 
 ```txt
+normal admission:
+notificationId: warpkeep-access-approved-v2-r<pending-request-timestamp>
+title: Admission approved
+body: The Hegemony is finalizing your Realm access. Your keep will open shortly.
+
+already-live reconciliation:
 notificationId: warpkeep-access-approved-v1-e<positive-auth-epoch>
-title (23): The Hegemony admits you
-body (56): Your keep awaits in Genesis 001. Enter the living Realm.
+title: The Hegemony admits you
+body: Your keep awaits in Genesis 001. Enter the living Realm.
 targetUrl: https://warpkeep.com/?miniApp=true
 ```
 
-The title and body are within Farcaster's bounds, contain no identity or
-private state, and accurately describe the event. Changing them would require
-a separate reviewed Worker rollout, so copy changes are not coupled to this
-default-off client integration.
+The titles and bodies are within Farcaster's bounds, contain no identity or
+private state, and accurately describe their generation. Copy changes require
+a reviewed Worker rollout.
 
 For a notification launch, the browser retains only
-`location.type === "notification"` and a notification ID matching
+`location.type === "notification"` and a notification ID matching either
+`warpkeep-access-approved-v2-r<positiveInteger>` or the rollback-compatible
 `warpkeep-access-approved-v1-e<positiveInteger>` within the 128-character
 limit. Host title and body are discarded. Warpkeep then shows a short
 confirmation state and runs normal Quick Auth, current admission, Terms, and

@@ -2600,6 +2600,7 @@ describe('Warpkeep auth bridge', () => {
       expect(h.resolver.resolve).toHaveBeenCalledWith(FID)
       expect(queueAdmission).toHaveBeenCalledWith({
         fid: FID,
+        kind: 'admitted',
         authEpoch: 7,
         queuedAt: expect.any(Number),
       })
@@ -2607,7 +2608,7 @@ describe('Warpkeep auth bridge', () => {
       expect(JSON.stringify(acceptedBody)).not.toContain(NOTIFICATION_OPERATOR_SECRET)
     })
 
-    it('does not queue for a missing or disabled admission', async () => {
+    it('does not queue for a missing or disabled identity without a pending request', async () => {
       const queueAdmission = vi.fn(async () => 'queued' as const)
       const h = harness({
         epoch: 0,
@@ -2623,9 +2624,46 @@ describe('Warpkeep auth bridge', () => {
       ), notificationEnv())
       expect(response.status).toBe(409)
       await expect(response.json()).resolves.toMatchObject({
-        error: { code: 'founder_not_admitted' },
+        error: { code: 'access_request_not_pending' },
       })
       expect(queueAdmission).not.toHaveBeenCalled()
+    })
+
+    it('queues the exact pending request before admission becomes visible', async () => {
+      const requestedAtMicros = 1_785_414_896_000_000
+      const queueAdmission = vi.fn(async () => 'already-sent' as const)
+      const getStatus = vi.fn(async () => ({
+        status: 'requested' as const,
+        requestedAtMicros,
+      }))
+      const h = harness({
+        epoch: 0,
+        accessRequestResolver: {
+          getStatus,
+          submit: vi.fn(async () => ({ status: 'not-requested' } as const)),
+        },
+        admissionNotificationStore: {
+          applyEvent: vi.fn(async () => undefined),
+          queueAdmission,
+        },
+      })
+
+      const response = await h.app.fetch(request(
+        ADMISSION_NOTIFICATION_PATH,
+        { fid: FID },
+        { headers: { authorization: `Bearer ${NOTIFICATION_OPERATOR_SECRET}` } },
+      ), notificationEnv())
+
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toEqual({ status: 'already-sent' })
+      expect(getStatus).toHaveBeenCalledWith(FID)
+      expect(queueAdmission).toHaveBeenCalledWith({
+        fid: FID,
+        kind: 'pending-request',
+        requestedAtMicros,
+        queuedAt: expect.any(Number),
+      })
+      expect(h.events).toContain('admission_notification_succeeded')
     })
 
     it('exposes only token-free diagnostics to the separate operator credential', async () => {

@@ -315,34 +315,60 @@ export type AdmissionNotificationQueueStatus =
   | 'delivery-exhausted'
   | 'not-subscribed'
 
+export type AdmissionNotificationGeneration =
+  | Readonly<{
+      kind: 'admitted'
+      authEpoch: number
+    }>
+  | Readonly<{
+      kind: 'pending-request'
+      requestedAtMicros: number
+    }>
+
+export type AdmissionNotificationQueueInput = Readonly<{
+  fid: string
+  queuedAt: number
+}> & AdmissionNotificationGeneration
+
 export type AdmissionNotificationRetryReason =
   | 'admission-verification'
+  | 'request-verification'
   | 'transport'
+  | 'transport-timeout'
+  | 'transport-fetch-rejected'
   | 'upstream-status'
+  | 'upstream-redirect'
+  | 'upstream-client-status'
+  | 'upstream-server-status'
   | 'invalid-response'
+  | 'response-content-type'
+  | 'response-size'
+  | 'response-body'
+  | 'response-json'
+  | 'response-schema'
   | 'rate-limited'
   | 'provider-domain-mismatch'
   | 'provider-target-url-mismatch'
   | 'provider-no-webhook-url'
+  | 'provider-invalid-token'
   | 'provider-unknown'
 
 export type AdmissionNotificationDiagnostics = Readonly<{
   status: AdmissionNotificationQueueStatus
+  generation?: AdmissionNotificationGeneration['kind']
   authEpoch?: number
   deliveryAttemptCount: number
   verificationFailureCount: number
   retryReasons: readonly AdmissionNotificationRetryReason[]
+  lastAttemptAt?: number
+  lastFailureReason?: AdmissionNotificationRetryReason
   nextAttemptAt?: number
 }>
 
 /** Raw notification tokens remain behind this server-only interface. */
 export interface AdmissionNotificationStore {
   applyEvent(event: VerifiedMiniAppWebhookEvent): Promise<void>
-  queueAdmission(input: Readonly<{
-    fid: string
-    authEpoch: number
-    queuedAt: number
-  }>): Promise<AdmissionNotificationQueueStatus>
+  queueAdmission(input: AdmissionNotificationQueueInput): Promise<AdmissionNotificationQueueStatus>
   /** Operator-only, token-free delivery state used for bounded diagnosis. */
   inspect?(fid: string): Promise<AdmissionNotificationDiagnostics>
 }
