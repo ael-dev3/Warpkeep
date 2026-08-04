@@ -3846,7 +3846,9 @@ function initializeRealmScene(
         canvas: options.canvas,
         quality: runtimeQuality.id,
         reducedMotion: options.reducedMotion,
-        requestRender: render
+        requestRender: render,
+        baseUrl: import.meta.env.BASE_URL,
+        maxAnisotropy: renderer.capabilities.getMaxAnisotropy()
       });
       innerKeepLayer = layer;
       layer.setViewport(

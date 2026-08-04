@@ -1,12 +1,12 @@
 {
   "schema": "warpkeep.inner-keep-asset-selection.v1",
   "selectionId": "inner-keep-v1",
-  "selectionDigestSha256": "6763aeb1755d800b817a0d5174182474d3836a928c59beb4b4fdf65f5d1f6ec3",
+  "selectionDigestSha256": "00304c5dbf819cec6cb656996c1105f64efcf36acf8099c431f5b04b822679f0",
   "selectionDigestAlgorithm": "sha256-ecmascript-canonical-json-v1",
-  "recordedAt": "2026-08-03",
+  "recordedAt": "2026-08-04",
   "sourceRelease": {
     "repository": "ael-dev3/Warpkeep-Assets",
-    "repositoryMainCommit": "b074ffb6317ff9a581f5b7fc7f0a0760e721a9b6",
+    "repositoryMainCommit": "10c84fbcc339f143ee6f25dfe7a0682660e0e458",
     "releaseCommit": "74033ebffb7f0a3ec371ccdabac10974bbe413b9",
     "tag": "inner-keep-3d-asset-library-2026-08-02",
     "attachment": {
@@ -24,9 +24,11 @@
   },
   "authorization": {
     "archiveDistributionAuthorized": true,
-    "officialRepositoryRuntimeUseAuthorized": false,
-    "status": "pending-owner-runtime-use-authorization",
-    "scopeBoundary": "Archive deposit and release distribution are recorded. Copying selected archive-only models or previews into the public Warpkeep repository or official runtime remains blocked until an explicit owner authorization record names that use."
+    "officialRepositoryRuntimeUseAuthorized": true,
+    "status": "authorized-owner-runtime-use",
+    "recordedAt": "2026-08-04",
+    "instruction": "Use Warpkeep-Assets 3D objects to populate the official Inner Keep runtime, with the Grand Covenant Cathedral as the main building.",
+    "scopeBoundary": "Runtime use in the public ael-dev3/Warpkeep repository and official warpkeep.com client is authorized for the exact selected files. This does not relicense the source archives, authorize unrelated reuse, approve activation, approve merge, or approve deployment."
   },
   "selectionPolicy": {
     "profiles": [
@@ -34,16 +36,13 @@
       "balanced",
       "compact"
     ],
-    "sourceAssetCount": 36,
-    "sourceModelCount": 108,
-    "sourcePreviewCount": 4,
+    "sourceAssetCount": 38,
+    "sourceModelCount": 114,
+    "sourcePreviewCount": 6,
     "excludedProfiles": [
       "LOD3_Map"
     ],
-    "excludedPackages": [
-      "Warpkeep_CityBarracks_GameReady",
-      "Warpkeep_GrandCovenantCathedral_GameReady"
-    ],
+    "excludedPackages": [],
     "inspectionCataloguesAllowed": false,
     "editableSourcesAllowed": false,
     "ordinaryBuildMayReadArchive": false,
@@ -51,20 +50,20 @@
   },
   "qualityTotals": {
     "high": {
-      "bytes": 5891104,
-      "triangles": 63034
+      "bytes": 19570592,
+      "triangles": 159914
     },
     "balanced": {
-      "bytes": 3634852,
-      "triangles": 37156
+      "bytes": 10074464,
+      "triangles": 85284
     },
     "compact": {
-      "bytes": 1790392,
-      "triangles": 15445
+      "bytes": 5991748,
+      "triangles": 42671
     }
   },
-  "selectedModelBytesAllProfiles": 11316348,
-  "selectedPreviewBytes": 634685,
+  "selectedModelBytesAllProfiles": 35636804,
+  "selectedPreviewBytes": 928374,
   "existingRuntimeReuse": [
     {
       "assetId": "warpkeep.tree.oak.spring-broad",
@@ -230,7 +229,7 @@
         "sha256": "e53e15683d40f1d346b14df054cd3b09463f8c00c5e5fdef3f15057cf8d3b03f"
       },
       "boundsMeters": [
-        9.0,
+        9,
         5.39,
         7.2
       ],
@@ -242,7 +241,7 @@
           "sha256": "01df9557bccaed14b44bcc0efa4971283f08632572aa892c1e6fb6261f22a913",
           "triangles": 4900,
           "boundsMeters": [
-            9.0,
+            9,
             5.39,
             7.2
           ],
@@ -255,7 +254,7 @@
           "sha256": "81f8818339900c2f50329e1a9f593600afe916d32b89eee2295121b308005b73",
           "triangles": 2792,
           "boundsMeters": [
-            9.0,
+            9,
             5.39,
             7.2
           ],
@@ -268,7 +267,7 @@
           "sha256": "174fd2f984065937d5a4a22800512047c064b528ce0b1e3a448f461574be61cc",
           "triangles": 1224,
           "boundsMeters": [
-            9.0,
+            9,
             5.39,
             7.2
           ],
@@ -297,7 +296,7 @@
         "sha256": "5beca683daac80bb28e9574e0c444a76012b2cbb6a01c23d8212af7649b7ad5d"
       },
       "boundsMeters": [
-        9.0,
+        9,
         5.39,
         7.2
       ],
@@ -309,7 +308,7 @@
           "sha256": "9cd4a9851ce291a95d01451f005eec0981bfc5921691a6c24184b6039fbad589",
           "triangles": 4900,
           "boundsMeters": [
-            9.0,
+            9,
             5.39,
             7.2
           ],
@@ -322,7 +321,7 @@
           "sha256": "662fa7a5983818cf6f191c69c74e1987e15bdbf65c0c56c8603c6131f1a93248",
           "triangles": 2792,
           "boundsMeters": [
-            9.0,
+            9,
             5.39,
             7.2
           ],
@@ -335,7 +334,7 @@
           "sha256": "ed47ade5517e78da64d2cecb7b93ae90af52fc47869deee1621d73fdf1854c5d",
           "triangles": 1224,
           "boundsMeters": [
-            9.0,
+            9,
             5.39,
             7.2
           ],
@@ -364,7 +363,7 @@
         "sha256": "06b7f76f7ba369116774e6144a2c3c6f7a5302c5ac351455989bad42dc5a4839"
       },
       "boundsMeters": [
-        4.0,
+        4,
         3.2,
         0.65
       ],
@@ -376,7 +375,7 @@
           "sha256": "00cdf8624e12b594303c749d777e248e031effe3831bae88641e8c90852c9263",
           "triangles": 608,
           "boundsMeters": [
-            4.0,
+            4,
             3.2,
             0.65
           ],
@@ -389,7 +388,7 @@
           "sha256": "c16ecc1c5ea8adba8a987256ef37964f426ecf026148ebeccd0a021a01ceb8fa",
           "triangles": 336,
           "boundsMeters": [
-            4.0,
+            4,
             3.2,
             0.65
           ],
@@ -402,7 +401,7 @@
           "sha256": "d0d33e6da38ed1f73e60903a81bd52da99e4d093a672bfe801bbb54d13349156",
           "triangles": 228,
           "boundsMeters": [
-            4.0,
+            4,
             3.2,
             0.65
           ],
@@ -423,7 +422,7 @@
         "sha256": "30936d9fb359c20f2a750fe6b4eeea7c63f601ab9fab0b8b809bb642dd10a358"
       },
       "boundsMeters": [
-        8.0,
+        8,
         3.2,
         0.65
       ],
@@ -435,7 +434,7 @@
           "sha256": "84d5d73d4b56baa9a93d86e1541bebd0c4bd38556f4ae7256bdabb962fd22107",
           "triangles": 1148,
           "boundsMeters": [
-            8.0,
+            8,
             3.2,
             0.65
           ],
@@ -448,7 +447,7 @@
           "sha256": "d3f7ad3299cfc9327b51d383a64528006d464713f68824a3fb919273d21bcfb4",
           "triangles": 612,
           "boundsMeters": [
-            8.0,
+            8,
             3.2,
             0.65
           ],
@@ -461,7 +460,7 @@
           "sha256": "70aa97418582b41ba0b149ac9d87eceb198cba47cf4862ac05ba25898f567abc",
           "triangles": 412,
           "boundsMeters": [
-            8.0,
+            8,
             3.2,
             0.65
           ],
@@ -482,9 +481,9 @@
         "sha256": "649ec963be1fea2f35fb4e89177cd6fa92fcf5c708aced961a0c67661f1a7c20"
       },
       "boundsMeters": [
-        4.0,
+        4,
         3.2,
-        4.0
+        4
       ],
       "models": [
         {
@@ -494,9 +493,9 @@
           "sha256": "6641c3b823412e2f9fe949005a7b9d75090e65e8dcda2bc962a5cb39a621ae59",
           "triangles": 860,
           "boundsMeters": [
-            4.0,
+            4,
             3.2,
-            4.0
+            4
           ],
           "destinationPath": "public/models/hegemony/inner-keep/palisade/inner-keep-palisade-wall-corner-90-high-6641c3b823412e2f.glb"
         },
@@ -507,9 +506,9 @@
           "sha256": "c138e93283e0daf61684e5b300c4e481a96b149c5af1e0cd548bd9b796b74415",
           "triangles": 564,
           "boundsMeters": [
-            4.0,
+            4,
             3.2,
-            4.0
+            4
           ],
           "destinationPath": "public/models/hegemony/inner-keep/palisade/inner-keep-palisade-wall-corner-90-balanced-c138e93283e0daf6.glb"
         },
@@ -520,9 +519,9 @@
           "sha256": "7a9f51fa1355fc6cb126abd44d8b12008af9b794f2cfb6a5588eaf23f9d598f7",
           "triangles": 400,
           "boundsMeters": [
-            4.0,
+            4,
             3.2,
-            4.0
+            4
           ],
           "destinationPath": "public/models/hegemony/inner-keep/palisade/inner-keep-palisade-wall-corner-90-compact-7a9f51fa1355fc6c.glb"
         }
@@ -541,8 +540,8 @@
         "sha256": "b96276f1fbfa1596283d0eeebf437a7b815a8694b2a420482315c6692fe30f05"
       },
       "boundsMeters": [
-        6.0,
-        5.0,
+        6,
+        5,
         1.3
       ],
       "models": [
@@ -553,8 +552,8 @@
           "sha256": "d4f580ae04a3b94ebcd18050d6affaa8d85858502f7308759d27ded3439d718f",
           "triangles": 542,
           "boundsMeters": [
-            6.0,
-            5.0,
+            6,
+            5,
             1.3
           ],
           "destinationPath": "public/models/hegemony/inner-keep/palisade/inner-keep-palisade-gate-frame-6m-high-d4f580ae04a3b94e.glb"
@@ -566,8 +565,8 @@
           "sha256": "af67ba3dc8085d8095a8c63d2d6b61f701c796ccb041241ea767b8eacd0e252e",
           "triangles": 462,
           "boundsMeters": [
-            6.0,
-            5.0,
+            6,
+            5,
             1.3
           ],
           "destinationPath": "public/models/hegemony/inner-keep/palisade/inner-keep-palisade-gate-frame-6m-balanced-af67ba3dc8085d80.glb"
@@ -579,8 +578,8 @@
           "sha256": "c144a11a4f496e4ba1ec147d23c2b8df769ba33b56abe8a0d6f723b471f6c5f7",
           "triangles": 286,
           "boundsMeters": [
-            6.0,
-            5.0,
+            6,
+            5,
             1.3
           ],
           "destinationPath": "public/models/hegemony/inner-keep/palisade/inner-keep-palisade-gate-frame-6m-compact-c144a11a4f496e4b.glb"
@@ -1485,7 +1484,7 @@
         "sha256": "c5bfd9fa385b9ec43bc346914f70aede07df655c8fc3453393319a23574be39f"
       },
       "boundsMeters": [
-        4.0,
+        4,
         1.25,
         0.3
       ],
@@ -1497,7 +1496,7 @@
           "sha256": "a3a5044e875691516c47e230ce221c4dee70ea22ec86bb4c8fec07a6f66176e8",
           "triangles": 540,
           "boundsMeters": [
-            4.0,
+            4,
             1.25,
             0.3
           ],
@@ -1510,7 +1509,7 @@
           "sha256": "63f09802eac8c246525a14da9c65cd568c2bde636cc7fca09d62e5d7f4335981",
           "triangles": 480,
           "boundsMeters": [
-            4.0,
+            4,
             1.25,
             0.3
           ],
@@ -1523,7 +1522,7 @@
           "sha256": "8d62f006b21fd7212d6c21e60098627d43740da324a0e334071546ae0868e1ac",
           "triangles": 440,
           "boundsMeters": [
-            4.0,
+            4,
             1.25,
             0.3
           ],
@@ -1544,7 +1543,7 @@
         "sha256": "7df8c848f7645bd1beb5de2c6776419fe84d81b762c91a0291dbbec7ff1caeaf"
       },
       "boundsMeters": [
-        4.0,
+        4,
         0.12,
         2.4
       ],
@@ -1556,7 +1555,7 @@
           "sha256": "d572f8bc4e9d38d4439b81175267052b7dd25d185cc6281c9f0b4b55d0b1bc1b",
           "triangles": 160,
           "boundsMeters": [
-            4.0,
+            4,
             0.12,
             2.4
           ],
@@ -1569,7 +1568,7 @@
           "sha256": "cec2db4515a24d8f67ec985ac2c8cfb6cdb14126d958fc0048fbc8f133234ffe",
           "triangles": 140,
           "boundsMeters": [
-            4.0,
+            4,
             0.12,
             2.4
           ],
@@ -1582,7 +1581,7 @@
           "sha256": "88065d72da8b6ceb9777e3e7af1425ee16eddcde90f2e213d91e741587bff21b",
           "triangles": 108,
           "boundsMeters": [
-            4.0,
+            4,
             0.12,
             2.4
           ],
@@ -1603,9 +1602,9 @@
         "sha256": "19f757f214997d89ce044ee708102bee6fe4f19ef7ec5d24e323c6f89594192b"
       },
       "boundsMeters": [
-        4.0,
+        4,
         0.12,
-        4.0
+        4
       ],
       "models": [
         {
@@ -1615,9 +1614,9 @@
           "sha256": "b93f180794c8de5c15d0fcaa4c999ba2d35465051e3fb7e83af4b4d4d9f90cde",
           "triangles": 152,
           "boundsMeters": [
-            4.0,
+            4,
             0.12,
-            4.0
+            4
           ],
           "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-dirt-road-curve-90-4m-high-b93f180794c8de5c.glb"
         },
@@ -1628,9 +1627,9 @@
           "sha256": "e3c0221f0b8a5338f8609d0ad774f80257ccb1196bd8eef6348ea203b47a44eb",
           "triangles": 132,
           "boundsMeters": [
-            4.0,
+            4,
             0.12,
-            4.0
+            4
           ],
           "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-dirt-road-curve-90-4m-balanced-e3c0221f0b8a5338.glb"
         },
@@ -1641,9 +1640,9 @@
           "sha256": "8434a330607f99930427ed88b5f86ab614a2b0d5413f44cfd41208cf314328ab",
           "triangles": 100,
           "boundsMeters": [
-            4.0,
+            4,
             0.12,
-            4.0
+            4
           ],
           "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-dirt-road-curve-90-4m-compact-8434a330607f9993.glb"
         }
@@ -1662,9 +1661,9 @@
         "sha256": "4686e79eb847190397097c3c0f6c0764744e6787f57b0fb4d3a2fb877c4ccbdd"
       },
       "boundsMeters": [
-        4.0,
+        4,
         0.12,
-        4.0
+        4
       ],
       "models": [
         {
@@ -1674,9 +1673,9 @@
           "sha256": "8df463a83ecdf544af9e5069a0c02cb6ac93056a070bd2b40afe632eb5b6cf54",
           "triangles": 156,
           "boundsMeters": [
-            4.0,
+            4,
             0.12,
-            4.0
+            4
           ],
           "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-dirt-road-t-junction-4m-high-8df463a83ecdf544.glb"
         },
@@ -1687,9 +1686,9 @@
           "sha256": "0278db0236891174005901c8e08c7f69f7e6aba7a9d6e49dc2fe8b287f466512",
           "triangles": 136,
           "boundsMeters": [
-            4.0,
+            4,
             0.12,
-            4.0
+            4
           ],
           "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-dirt-road-t-junction-4m-balanced-0278db0236891174.glb"
         },
@@ -1700,9 +1699,9 @@
           "sha256": "07c1f95ab8841bb0fc28a24ffcf20dd45f4e1ff2c50356576ecc7177b35ebcfd",
           "triangles": 104,
           "boundsMeters": [
-            4.0,
+            4,
             0.12,
-            4.0
+            4
           ],
           "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-dirt-road-t-junction-4m-compact-07c1f95ab8841bb0.glb"
         }
@@ -1721,7 +1720,7 @@
         "sha256": "573acaa139973ac71fb7a63587e79013251618b23e364117ebd61ac05f43ba49"
       },
       "boundsMeters": [
-        4.0,
+        4,
         0.14,
         2.4
       ],
@@ -1733,7 +1732,7 @@
           "sha256": "2066fd90088760b630a14c17412e47b2b28afa846e70ea56dd4ce1db13d2fad2",
           "triangles": 992,
           "boundsMeters": [
-            4.0,
+            4,
             0.14,
             2.4
           ],
@@ -1746,7 +1745,7 @@
           "sha256": "54b23ca15974c825b7c99dd25603672a984836703f8872967d5148fd3ac67c98",
           "triangles": 752,
           "boundsMeters": [
-            4.0,
+            4,
             0.14,
             2.4
           ],
@@ -1759,7 +1758,7 @@
           "sha256": "6d838a7ea65cf3132b499d10a4bff8709d6e8203ec84473aef44bc0a322135e0",
           "triangles": 512,
           "boundsMeters": [
-            4.0,
+            4,
             0.14,
             2.4
           ],
@@ -1780,9 +1779,9 @@
         "sha256": "27609bdbd84afa1fe94ae7116b78e85f8e11fe2d47576d5c7db4efb21a49ba78"
       },
       "boundsMeters": [
-        6.0,
+        6,
         0.1625,
-        6.0
+        6
       ],
       "models": [
         {
@@ -1792,9 +1791,9 @@
           "sha256": "85662cda60bedecf3d0d9ff88c2c5e3fa5756db051bcae38beff010996927fb4",
           "triangles": 2292,
           "boundsMeters": [
-            6.0,
+            6,
             0.1625,
-            6.0
+            6
           ],
           "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-cobble-plaza-6m-high-85662cda60bedecf.glb"
         },
@@ -1805,9 +1804,9 @@
           "sha256": "965d83a7e208b70466b6cbec00a2ec647982a180087dbcb579c0ccb97a0d31e9",
           "triangles": 1744,
           "boundsMeters": [
-            6.0,
+            6,
             0.1625,
-            6.0
+            6
           ],
           "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-cobble-plaza-6m-balanced-965d83a7e208b704.glb"
         },
@@ -1818,9 +1817,9 @@
           "sha256": "767384a66fae79389a105143a9b2585c9fb6cf3ea49123347602fe3fcec923cd",
           "triangles": 1172,
           "boundsMeters": [
-            6.0,
+            6,
             0.1625,
-            6.0
+            6
           ],
           "destinationPath": "public/models/hegemony/inner-keep/town-items/inner-keep-cobble-plaza-6m-compact-767384a66fae7938.glb"
         }
@@ -1839,7 +1838,7 @@
         "sha256": "141af680b334f602796ebf68a733112f0303d61b43e0ad6cac935eea7e96c506"
       },
       "boundsMeters": [
-        2.0,
+        2,
         0.3,
         0.45
       ],
@@ -1851,7 +1850,7 @@
           "sha256": "46cbb80d3b92d3f336fbc6a7234d7c18933757cb3f40a82afc12cd867bbd7532",
           "triangles": 284,
           "boundsMeters": [
-            2.0,
+            2,
             0.3,
             0.45
           ],
@@ -1864,7 +1863,7 @@
           "sha256": "6a34e355098ba968c26831b6e97c232d1420b5976259b7ed378679c10d76f44a",
           "triangles": 264,
           "boundsMeters": [
-            2.0,
+            2,
             0.3,
             0.45
           ],
@@ -1877,7 +1876,7 @@
           "sha256": "ad9a56588710e3e9e3cf29c31666e4a187c310329db6b82e44a1e1055f128b5e",
           "triangles": 220,
           "boundsMeters": [
-            2.0,
+            2,
             0.3,
             0.45
           ],
@@ -1898,7 +1897,7 @@
         "sha256": "2b05f20358a71dff6198b3e6a5aa7e4c0550aeb1ffc0f7cd3a6717e516ad0c87"
       },
       "boundsMeters": [
-        3.0,
+        3,
         1.5,
         2.4
       ],
@@ -1910,7 +1909,7 @@
           "sha256": "a1859faf45ecf03e8bda8ff28a6c4440ec64bb3331d62b1f836806f3672140e5",
           "triangles": 160,
           "boundsMeters": [
-            3.0,
+            3,
             1.5,
             2.4
           ],
@@ -1923,7 +1922,7 @@
           "sha256": "90235d94748ba8f91223a2bc68712a6036782a27cdd150bb7f2de81152a5092b",
           "triangles": 140,
           "boundsMeters": [
-            3.0,
+            3,
             1.5,
             2.4
           ],
@@ -1936,7 +1935,7 @@
           "sha256": "06849c7703cc1e171511d35387d0fb96a8756005a4c4a469d3ef5931455652b9",
           "triangles": 120,
           "boundsMeters": [
-            3.0,
+            3,
             1.5,
             2.4
           ],
@@ -1957,7 +1956,7 @@
         "sha256": "00024e0062f3317426541bd870cf381cbe8c338d28fec08ff198e77de2f61e15"
       },
       "boundsMeters": [
-        2.0,
+        2,
         0.8,
         1.6
       ],
@@ -1969,7 +1968,7 @@
           "sha256": "ff69c805c0321fbff395c59c71fb33d6bd45d6be809fd097a1e2dc45a22fa916",
           "triangles": 392,
           "boundsMeters": [
-            2.0,
+            2,
             0.8,
             1.6
           ],
@@ -1982,7 +1981,7 @@
           "sha256": "02f591b8bf2362c4adb3f87a18cc114ce8f523a5589031708510bcd731627650",
           "triangles": 372,
           "boundsMeters": [
-            2.0,
+            2,
             0.8,
             1.6
           ],
@@ -1995,7 +1994,7 @@
           "sha256": "06a6458760fcc83f43765670fa838b0e5596fd81d7c485a1c0b953d5834943ff",
           "triangles": 352,
           "boundsMeters": [
-            2.0,
+            2,
             0.8,
             1.6
           ],
@@ -2076,7 +2075,7 @@
       },
       "boundsMeters": [
         4.4,
-        4.0,
+        4,
         1.6
       ],
       "models": [
@@ -2088,7 +2087,7 @@
           "triangles": 252,
           "boundsMeters": [
             4.4,
-            4.0,
+            4,
             1.6
           ],
           "destinationPath": "public/models/hegemony/inner-keep/stone/inner-keep-collapsed-courtyard-arch-high-087f2557b6595d60.glb"
@@ -2101,7 +2100,7 @@
           "triangles": 240,
           "boundsMeters": [
             4.4,
-            4.0,
+            4,
             1.6
           ],
           "destinationPath": "public/models/hegemony/inner-keep/stone/inner-keep-collapsed-courtyard-arch-balanced-db433981ff318419.glb"
@@ -2114,7 +2113,7 @@
           "triangles": 156,
           "boundsMeters": [
             4.4,
-            4.0,
+            4,
             1.6
           ],
           "destinationPath": "public/models/hegemony/inner-keep/stone/inner-keep-collapsed-courtyard-arch-compact-bb8b41dbe991314c.glb"
@@ -2193,7 +2192,7 @@
         "sha256": "1e5f5861f9a6cef68d5d9662838f43ea6ae7476872494e2fcdf18c2c0d2e897a"
       },
       "boundsMeters": [
-        4.0,
+        4,
         2.8,
         1.1
       ],
@@ -2205,7 +2204,7 @@
           "sha256": "802c1017e987e03b5fe13fe98f520dcf91cf222681086d6ceafac6e4cf9d7b47",
           "triangles": 328,
           "boundsMeters": [
-            4.0,
+            4,
             2.8,
             1.1
           ],
@@ -2218,7 +2217,7 @@
           "sha256": "914de93f1e8928c8ca8074e11cae85279896d12106a4ef1c191da606d515359d",
           "triangles": 316,
           "boundsMeters": [
-            4.0,
+            4,
             2.8,
             1.1
           ],
@@ -2231,13 +2230,147 @@
           "sha256": "95131380fca529e6ddd376d969dab523a67ff911c505ab744bd7fbbc2b0667c7",
           "triangles": 100,
           "boundsMeters": [
-            4.0,
+            4,
             2.8,
             1.1
           ],
           "destinationPath": "public/models/hegemony/inner-keep/stone/inner-keep-breached-keep-wall-compact-95131380fca529e6.glb"
         }
       ]
+    },
+    {
+      "id": "grand-covenant-cathedral",
+      "family": "landmarks",
+      "sourcePackage": "Warpkeep_GrandCovenantCathedral_GameReady",
+      "sourceAssetId": "warpkeep.city-buildings.grand-covenant-cathedral",
+      "displayName": "Grand Covenant Cathedral",
+      "intendedUse": "Permanent northern civic and ceremonial anchor",
+      "boundsMeters": [
+        34,
+        31.5,
+        29.02
+      ],
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_GrandCovenantCathedral_GameReady/Runtime/runtime-manifest.json",
+        "bytes": 9661,
+        "sha256": "29ad96e073f09f645598eb69f27bd55ef4b486ebb182cba98819f1ec507c47a1"
+      },
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_GrandCovenantCathedral_GameReady/Runtime/Warpkeep_GrandCovenantCathedral_LOD0_High_Runtime.glb",
+          "bytes": 12507408,
+          "sha256": "9bf438bdf020d2743478d6041ffaecd324b78fe2429ec52c580a1c43f7b32a6c",
+          "triangles": 82994,
+          "boundsMeters": [
+            34,
+            31.5,
+            29.02
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/landmarks/inner-keep-grand-covenant-cathedral-high-9bf438bdf020d274.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_GrandCovenantCathedral_GameReady/Runtime/Warpkeep_GrandCovenantCathedral_LOD1_Balanced_Runtime.glb",
+          "bytes": 5810260,
+          "sha256": "c90cf49f6b90325b27161bf00e3682f59a6cc730d468417c53a3b17197ec78d2",
+          "triangles": 40578,
+          "boundsMeters": [
+            34,
+            31.5,
+            29.02
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/landmarks/inner-keep-grand-covenant-cathedral-balanced-c90cf49f6b90325b.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_GrandCovenantCathedral_GameReady/Runtime/Warpkeep_GrandCovenantCathedral_LOD2_Compact_Runtime.glb",
+          "bytes": 3697276,
+          "sha256": "cea4eb9e4de9c32343a1f0135d58749ddfc44de3adb6f4927d6f3cab85c1b575",
+          "triangles": 21738,
+          "boundsMeters": [
+            34,
+            31.5,
+            29.02
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/landmarks/inner-keep-grand-covenant-cathedral-compact-cea4eb9e4de9c323.glb"
+        }
+      ],
+      "preview": {
+        "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_GrandCovenantCathedral_GameReady/Previews/Warpkeep_GrandCovenantCathedral_MobilePreview_320.png",
+        "bytes": 142878,
+        "sha256": "cc1eb98b0c3e811e2e559bc81537617493939ff38e7117f5defd9ad05907462f",
+        "width": 320,
+        "height": 320,
+        "destinationPath": "public/images/inner-keep/catalog/grand-covenant-cathedral-cc1eb98b0c3e811e.png"
+      }
+    },
+    {
+      "id": "city-barracks",
+      "family": "landmarks",
+      "sourcePackage": "Warpkeep_CityBarracks_GameReady",
+      "sourceAssetId": "warpkeep.city-buildings.city-barracks",
+      "displayName": "Hegemony Shieldcourt Barracks",
+      "intendedUse": "Permanent western garrison and patrol origin",
+      "boundsMeters": [
+        16,
+        10.1,
+        13
+      ],
+      "sourceManifest": {
+        "path": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_CityBarracks_GameReady/Runtime/runtime-manifest.json",
+        "bytes": 4506,
+        "sha256": "f81c2f9bc30c53c47a9bf2d2c6e6cb839398d7c8e4d66b938d44fbb234533df9"
+      },
+      "models": [
+        {
+          "profile": "high",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_CityBarracks_GameReady/Runtime/Warpkeep_CityBarracks_LOD0_High_Runtime.glb",
+          "bytes": 1172080,
+          "sha256": "21b4c204adbde086aa7a078b5f12838e579664bb33809b9fe39884a6adabd2a3",
+          "triangles": 13886,
+          "boundsMeters": [
+            16,
+            10.1,
+            13
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/landmarks/inner-keep-city-barracks-high-21b4c204adbde086.glb"
+        },
+        {
+          "profile": "balanced",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_CityBarracks_GameReady/Runtime/Warpkeep_CityBarracks_LOD1_Balanced_Runtime.glb",
+          "bytes": 629352,
+          "sha256": "3a22b6e910d4dd1b6f105eae9bd0234eaf65821e0dcd65ff59e6311f54638201",
+          "triangles": 7550,
+          "boundsMeters": [
+            16,
+            10.1,
+            13
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/landmarks/inner-keep-city-barracks-balanced-3a22b6e910d4dd1b.glb"
+        },
+        {
+          "profile": "compact",
+          "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_CityBarracks_GameReady/Runtime/Warpkeep_CityBarracks_LOD2_Compact_Runtime.glb",
+          "bytes": 504080,
+          "sha256": "7f90bd96932b7fea1e2541c103657b248bf86f0a4a9bd38c9b03e3b5bd487404",
+          "triangles": 5488,
+          "boundsMeters": [
+            16,
+            10.1,
+            13
+          ],
+          "destinationPath": "public/models/hegemony/inner-keep/landmarks/inner-keep-city-barracks-compact-7f90bd96932b7fea.glb"
+        }
+      ],
+      "preview": {
+        "sourcePath": "inner-keep-3d-asset-library-2026-08-02-v1/3d/Warpkeep_CityBarracks_GameReady/Previews/Warpkeep_CityBarracks_MobilePreview_320.png",
+        "bytes": 150811,
+        "sha256": "7aa4f0901fa752a6a86afa99c74ccf97c879aca9818d22aae40d4197f5491175",
+        "width": 320,
+        "height": 320,
+        "destinationPath": "public/images/inner-keep/catalog/city-barracks-7aa4f0901fa752a6.png"
+      }
     }
   ]
 }

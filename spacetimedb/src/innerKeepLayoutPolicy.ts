@@ -3,7 +3,7 @@ import type { InnerKeepFootprintClass } from './innerKeepPolicy';
 // Browser-pinned digest of the reviewable client presentation-layout manifest.
 // Kept as a scalar here so dense decorative data never enters module authority.
 export const INNER_KEEP_PRESENTATION_LAYOUT_DIGEST =
-  '96c20cac900e02234e53b36a15069d4e7c12057e5f1737c183f6c31cdb38b8b6';
+  '7e10c6a765a1dbbf3b0a707597e9ecdc4038900d10d57ef565961fcfbd449070';
 
 export const INNER_KEEP_LAYOUT_ID = 'genesis-001-inner-keep-v1';
 export const INNER_KEEP_LAYOUT_VERSION = 1;
@@ -94,14 +94,14 @@ export function canonicalInnerKeepLayoutDigestInput(): string {
 
 // SHA-256 of canonicalInnerKeepLayoutDigestInput().
 export const INNER_KEEP_LAYOUT_DIGEST =
-  'dc314255b0046f5b43be836b52ab4b7af94a2d25992031f75aee89b1a81490c7';
+  '67b0650d2fe4ac16b14fc1adb57911318fec82c5f4e7daeec83e0efb1ead8325';
 
 /**
  * Logical asset-family digest. Runtime copy is separately authorization-gated;
  * activation must attest the exact runtime registry before this row can flip.
  */
 export const INNER_KEEP_ASSET_CATALOG_DIGEST =
-  '6763aeb1755d800b817a0d5174182474d3836a928c59beb4b4fdf65f5d1f6ec3';
+  '00304c5dbf819cec6cb656996c1105f64efcf36acf8099c431f5b04b822679f0';
 
 export type InnerKeepLayoutRoot = Readonly<{
   layoutId: string;

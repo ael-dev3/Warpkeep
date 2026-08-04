@@ -17,7 +17,8 @@ dry run, and a separately confirmed publication operation.
 - current production database identity and the exact v14 predecessor proof;
 - additive v15 migration proof with refs 0–55 unchanged;
 - compatible client artifact and Inner Keep catalog/layout digest;
-- exact selected-asset runtime authorization and registry digest;
+- exact static and population runtime-use authorizations plus the combined
+  160-path installed registry;
 - owner/legal accuracy review of the then-current Alpha Terms and Privacy
   Notice, without treating this runbook as acceptance of a new legal bundle;
 - owner approval for each publication, seed, backfill, deploy, and activation;
@@ -168,9 +169,10 @@ Dry runs still return before credential access, network access, or snapshotting.
 Future activation also requires `--expected-castles`, `--client-release`,
 `--client-artifact-digest`, `--module-artifact-digest`, and `--source-commit`.
 Even with `--confirm`, it fails before reading a credential or using the network
-until the exact runtime-use authorization is recorded, all selected files form
-the exact runtime registry, and the local artifacts come from clean protected
-`main`. Deactivation similarly binds `--expected-castles` and
+until both exact runtime-use authorizations are recorded, all selected static
+and population files form the exact combined registry, and the local artifacts
+come from clean protected `main`. Deactivation similarly binds
+`--expected-castles` and
 `--expected-active-projects` to a fresh preflight. The deactivation reducer
 rechecks both counts and the active state in its own transaction, immediately
 before changing the layout. A project or castle committed after inspection

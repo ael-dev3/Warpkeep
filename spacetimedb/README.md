@@ -151,8 +151,8 @@ Builder.
 The source tree does not make this component playable. A merge to protected
 `main` triggers the existing verified Pages deployment of the compatible,
 dormant client. Module publication, catalog seed, Builder backfill,
-archive-asset authorization, and activation remain distinct owner-reviewed
-operations.
+exact static-and-population runtime-registry verification, and activation
+remain distinct owner-reviewed operations.
 
 ## Entry agreement and Marks
 
@@ -225,8 +225,9 @@ npm run stdb:inner-keep:plan-builders
 Catalog seed, Builder backfill, activation, and deactivation are separate
 commands. They require exact plan counts and default to a local dry-run record;
 `--confirm` is mandatory for any reducer call. Activation is additionally
-blocked before credentials or network while Inner Keep runtime-use
-authorization remains pending. See the
+blocked before credentials or network unless both owner-authorized static and
+population selections and their complete installed runtime registries verify.
+See the
 [Inner Keep activation runbook](../docs/operations/inner-keep-activation.md)
 for the complete future owner-reviewed sequence. The publisher has one
 explicit active-v14-to-inactive-v15 lane whose dry run performs only bounded

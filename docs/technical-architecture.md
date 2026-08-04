@@ -76,7 +76,8 @@ The client submits a fixed slot, building kind, and idempotency key; the server
 derives level, cost, discount, duration, settlement, deduction, and completion.
 Merging to protected `main` triggers the existing verified Pages deployment of
 the compatible, dormant client. Publication, catalog seed, Builder backfill,
-asset authorization, and activation remain separate owner-reviewed operations.
+runtime asset verification, and activation remain separate owner-reviewed
+operations.
 See the [Inner Keep V1 authority contract](design/inner-keep-construction.md)
 and [future activation runbook](operations/inner-keep-activation.md).
 
@@ -103,11 +104,19 @@ world interaction instead of creating a second graphics context. A functional
 twelve-slot HTML/CSS view preserves navigation, costs, Builder status, and
 guarded actions when 3D or an optional model is unavailable.
 
+The installed Inner Keep presentation uses the Grand Covenant Cathedral as its
+northern anchor and the Barracks as its western garrison. Fixed authored
+scenery, quality-bounded grass and water, and deterministic ambient citizens
+and patrols remain client-only presentation. They never provide server
+coordinates, collision, unit, chat, resource, reward, or ownership authority.
+Static placement is atomic, loading is bounded and retry-safe, and a procedural
+compound remains available until exact coverage is safe to reveal.
+
 Runtime assets use immutable filenames and integrity checks. Source packages,
 reference masters, and provenance records stay separate from public runtime
-files. An archive release is not runtime-use authorization: the Inner Keep
-installer remains fail-closed until an exact owner authorization record covers
-the selected content-addressed files. See
+files. The two Inner Keep installers accept only the exact content-addressed
+static and population selections authorized on 2026-08-04; archive publication
+alone would not have been enough. See
 [`ASSETS-LICENSE.md`](../ASSETS-LICENSE.md) before changing media.
 
 ## Security and privacy

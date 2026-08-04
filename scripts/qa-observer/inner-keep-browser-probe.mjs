@@ -15,6 +15,7 @@ import {
   selectBlankPageTarget,
   spawnHeadlessChromeProbe,
 } from './rendered-webgl-browser-probe.mjs';
+import { analyzeRenderedWebglPngScreenshot } from './png-visual-aggregate.mjs';
 import {
   INNER_KEEP_QA_CASE_COUNT,
   INNER_KEEP_QA_MAX_READY_MILLISECONDS,
@@ -24,8 +25,11 @@ import {
 
 const CDP_TIMEOUT_MILLISECONDS = 10_000;
 const POLL_MILLISECONDS = 40;
+const SCREENSHOT_MAXIMUM_BYTES = 8 * 1_024 * 1_024;
 const SCREENSHOT_CASES = new Set([
   'empty',
+  'high-quality',
+  'active-conversation',
   'construction-50-percent',
   'compact-quality',
   'missing-asset-fallback',
@@ -57,6 +61,10 @@ function evidenceExpression(expectedLevel) {
       const value = root.getAttribute(name);
       return value !== null && /^(?:0|[1-9]\\d*)$/.test(value) ? Number(value) : -1;
     };
+    const boolean = (name) => {
+      const value = root.getAttribute(name);
+      return value === 'true' ? true : value === 'false' ? false : null;
+    };
     const progressValue = root.getAttribute('data-inner-keep-qa-progress-bps');
     const progressBasisPoints = progressValue === 'none'
       ? null
@@ -81,11 +89,16 @@ function evidenceExpression(expectedLevel) {
       renderMode: root.getAttribute('data-inner-keep-qa-render-mode'),
       innerKeepRenderer: screen.getAttribute('data-inner-keep-renderer'),
       quality: root.getAttribute('data-inner-keep-qa-quality'),
-      reducedMotion: root.getAttribute('data-inner-keep-qa-reduced-motion') === 'true',
+      reducedMotion: boolean('data-inner-keep-qa-reduced-motion'),
       status: root.getAttribute('data-inner-keep-qa-status'),
+      assetStatus: root.getAttribute('data-inner-keep-qa-asset-status'),
       progressBasisPoints,
       canvasCount: document.querySelectorAll('canvas[data-inner-keep-qa-canvas]').length,
       rendererCount: integer('data-inner-keep-qa-renderer-count'),
+      rendererDrawCalls: integer('data-inner-keep-qa-renderer-draw-calls'),
+      rendererTriangles: integer('data-inner-keep-qa-renderer-triangles'),
+      sceneGraphDrawCalls: integer('data-inner-keep-qa-draw-calls'),
+      sceneGraphTriangles: integer('data-inner-keep-qa-triangle-count'),
       webglContextCount: integer('data-inner-keep-qa-webgl-context-count'),
       rafOwnerCount: integer('data-inner-keep-qa-raf-owner-count'),
       maximumPendingRafCount: integer('data-inner-keep-qa-maximum-pending-raf-count'),
@@ -95,12 +108,30 @@ function evidenceExpression(expectedLevel) {
       slotCount: integer('data-inner-keep-qa-slot-count'),
       slotGeometryCount: integer('data-inner-keep-qa-slot-geometry-count'),
       smokeSpriteCount: integer('data-inner-keep-qa-smoke-sprite-count'),
+      grassBladeCount: integer('data-inner-keep-qa-grass-blade-count'),
+      waterSurfaceCount: integer('data-inner-keep-qa-water-surface-count'),
+      authoredAssetCount: integer('data-inner-keep-qa-authored-asset-count'),
+      authoredPlacementCount: integer('data-inner-keep-qa-authored-placement-count'),
+      authoredTreeCount: integer('data-inner-keep-qa-authored-tree-count'),
+      ambientActorCount: integer('data-inner-keep-qa-ambient-actor-count'),
+      animationFrameCap: integer('data-inner-keep-qa-animation-frame-cap'),
+      mountedActorCount: integer('data-inner-keep-qa-mounted-actor-count'),
+      patrolUnitCount: integer('data-inner-keep-qa-patrol-unit-count'),
+      activeConversationCount:
+        integer('data-inner-keep-qa-active-conversation-count'),
+      animationMixerCount: integer('data-inner-keep-qa-animation-mixer-count'),
+      runtimeAssetFailureCount:
+        integer('data-inner-keep-qa-runtime-asset-failure-count'),
+      barracksPlacementPresent:
+        boolean('data-inner-keep-qa-barracks-placement-present'),
+      cathedralPlacementPresent:
+        boolean('data-inner-keep-qa-cathedral-placement-present'),
       constructionSiteCount: integer('data-inner-keep-qa-construction-site-count'),
       completedBuildingCount: integer('data-inner-keep-qa-completed-building-count'),
       finalModelCount: integer('data-inner-keep-qa-final-model-count'),
-      scaffoldPresent: root.getAttribute('data-inner-keep-qa-scaffold-present') === 'true',
+      scaffoldPresent: boolean('data-inner-keep-qa-scaffold-present'),
       completionRevealActive:
-        root.getAttribute('data-inner-keep-qa-completion-reveal-active') === 'true',
+        boolean('data-inner-keep-qa-completion-reveal-active'),
       assetFallbackCount: document.querySelectorAll('.inner-keep-building-art-fallback').length,
       builderBusyVisible: bodyText.includes('BUILDER OCCUPIED'),
       insufficientResourcesVisible: bodyText.includes('Not enough Food.'),
@@ -140,21 +171,20 @@ async function waitForEvidence(session, probeCase, phase = 'steady') {
   });
 }
 
-function assertPngCapture(value, viewport) {
+/**
+ * Reduces an in-memory screenshot to anonymous colour/luminance counts. Raw
+ * pixels are cleared immediately and are never written, logged, or returned.
+ */
+export function analyzeInnerKeepQaScreenshot(value, viewport) {
   if (
     typeof value !== 'string'
-    || value.length < 4_096
-    || value.length > 16 * 1_024 * 1_024
+    || value.length < 64
+    || value.length > Math.ceil(SCREENSHOT_MAXIMUM_BYTES * 4 / 3) + 4
     || !/^[A-Za-z0-9+/]+={0,2}$/u.test(value)
   ) throw new Error('Inner Keep QA screenshot capture was invalid.');
   const bytes = Buffer.from(value, 'base64');
   try {
-    if (
-      bytes.byteLength < 33
-      || bytes.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a'
-      || bytes.readUInt32BE(16) !== viewport.width
-      || bytes.readUInt32BE(20) !== viewport.height
-    ) throw new Error('Inner Keep QA screenshot dimensions mismatched.');
+    return analyzeRenderedWebglPngScreenshot(bytes, viewport);
   } finally {
     bytes.fill(0);
   }
@@ -169,7 +199,72 @@ async function captureSyntheticScreenshot(session, viewport) {
   if (Object.keys(result ?? {}).length !== 1) {
     throw new Error('Inner Keep QA screenshot response was invalid.');
   }
-  assertPngCapture(result.data, viewport);
+  // The bounded aggregate is intentionally discarded. Passing analysis is the
+  // proof; neither the encoded screenshot nor decoded pixels leave this call.
+  analyzeInnerKeepQaScreenshot(result.data, viewport);
+}
+
+const HIGH_QUALITY_SCREENSHOT_FACTS = Object.freeze({
+  ambientActorCount: 20,
+  animationMixerCount: 20,
+  assetStatus: 'ready',
+  authoredAssetCount: 38,
+  authoredPlacementCount: 67,
+  authoredTreeCount: 18,
+  barracksPlacementPresent: true,
+  cathedralPlacementPresent: true,
+  grassBladeCount: 1_600,
+  mountedActorCount: 6,
+  patrolUnitCount: 12,
+  runtimeAssetFailureCount: 0,
+  waterSurfaceCount: 2,
+});
+
+/**
+ * Binds a screenshot to exact aggregate evidence immediately before and after
+ * capture. This prevents a conversation-bound frame from being accepted after
+ * its bubble has disappeared and keeps the high-quality proof exact.
+ */
+export function assertInnerKeepQaScreenshotWindow(
+  beforeValue,
+  afterValue,
+  expectedScenarioId,
+  phase = 'steady',
+) {
+  const before = assertInnerKeepQaScenarioEvidence(
+    beforeValue,
+    expectedScenarioId,
+    phase,
+  );
+  const after = assertInnerKeepQaScenarioEvidence(
+    afterValue,
+    expectedScenarioId,
+    phase,
+  );
+  if (
+    expectedScenarioId === 'active-conversation'
+    && [before, after].some(({ activeConversationCount }) => (
+      activeConversationCount !== 1
+    ))
+  ) throw new Error('Inner Keep conversation screenshot window mismatched.');
+  if (
+    expectedScenarioId === 'high-quality'
+    && [before, after].some((evidence) => Object.entries(
+      HIGH_QUALITY_SCREENSHOT_FACTS,
+    ).some(([key, expected]) => evidence[key] !== expected))
+  ) throw new Error('Inner Keep high-quality screenshot window mismatched.');
+  return Object.freeze({
+    activeConversationCount: after.activeConversationCount,
+    quality: after.quality,
+    scenario: after.scenario,
+  });
+}
+
+async function captureVerifiedScenarioScreenshot(session, probeCase, phase = 'steady') {
+  const before = await waitForEvidence(session, probeCase, phase);
+  await captureSyntheticScreenshot(session, probeCase.viewport);
+  const after = await readEvidence(session, probeCase);
+  assertInnerKeepQaScreenshotWindow(before, after, probeCase.id, phase);
 }
 
 async function assertReducedMotionSettles(session) {
@@ -204,7 +299,7 @@ async function observeCompletionReveal(session, probeCase) {
     throw new Error('Inner Keep completion reveal control was unavailable.');
   }
   const revealed = await waitForEvidence(session, probeCase, 'reveal');
-  await captureSyntheticScreenshot(session, probeCase.viewport);
+  await captureVerifiedScenarioScreenshot(session, probeCase, 'reveal');
   const completed = await waitForEvidence(session, probeCase, 'completed');
   return Object.freeze({ revealed, completed });
 }
@@ -432,7 +527,7 @@ export async function runInnerKeepBrowserProbe(options = {}) {
         await exerciseFunctionalFallback(devtools);
       }
       if (SCREENSHOT_CASES.has(probeCase.id)) {
-        await captureSyntheticScreenshot(devtools, probeCase.viewport);
+        await captureVerifiedScenarioScreenshot(devtools, probeCase);
       }
       if (probeCase.id === 'empty') {
         await exerciseWebglNativeKeyboardActivation(devtools);

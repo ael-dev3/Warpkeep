@@ -1,3 +1,5 @@
+import { constants } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -24,9 +26,23 @@ import {
   type InnerKeepStatus,
 } from '../scripts/inner-keep-operator-core';
 import {
+  collectInnerKeepRuntimeFiles,
   executeConnectedCommand,
+  inspectExactInnerKeepRuntimeFile,
   verifyAuthorizedInnerKeepRuntimeRegistry,
+  verifyInnerKeepRuntimeRegistryPreflight,
 } from '../scripts/inner-keep-operator';
+import {
+  INNER_KEEP_ASSET_SELECTION,
+  INNER_KEEP_PLANNED_RUNTIME_PATHS,
+  INNER_KEEP_SELECTED_MODELS,
+  INNER_KEEP_SELECTED_PREVIEWS,
+} from '../scripts/inner-keep-runtime-asset-contract.mjs';
+import {
+  INNER_KEEP_POPULATION_MODELS,
+  INNER_KEEP_POPULATION_RUNTIME_PATHS,
+  INNER_KEEP_POPULATION_SELECTION,
+} from '../scripts/inner-keep-population-runtime-contract.mjs';
 
 function status(overrides: Partial<InnerKeepStatus> = {}): InnerKeepStatus {
   const attestation = innerKeepStaticAttestation();
@@ -58,6 +74,44 @@ function status(overrides: Partial<InnerKeepStatus> = {}): InnerKeepStatus {
     layoutPolicyVersion: attestation.layoutPolicyVersion,
     layoutDigest: attestation.layoutDigest,
     assetCatalogDigest: attestation.assetCatalogDigest,
+    ...overrides,
+  });
+}
+
+type RuntimeStatusFixture = Readonly<{
+  dev: number;
+  ino: number;
+  size: number;
+  mtimeMs: number;
+  ctimeMs: number;
+  isDirectory: () => boolean;
+  isFile: () => boolean;
+  isSymbolicLink: () => boolean;
+}>;
+
+function runtimeFileStatus(
+  overrides: Partial<RuntimeStatusFixture> = {},
+): RuntimeStatusFixture {
+  return {
+    dev: 1,
+    ino: 2,
+    size: 4,
+    mtimeMs: 3,
+    ctimeMs: 4,
+    isDirectory: () => false,
+    isFile: () => true,
+    isSymbolicLink: () => false,
+    ...overrides,
+  };
+}
+
+function runtimeDirectoryStatus(
+  overrides: Partial<RuntimeStatusFixture> = {},
+): RuntimeStatusFixture {
+  return runtimeFileStatus({
+    size: 64,
+    isDirectory: () => true,
+    isFile: () => false,
     ...overrides,
   });
 }
@@ -563,9 +617,135 @@ describe('Inner Keep operator safety gates', () => {
     expect(JSON.stringify(record)).not.toMatch(/fid|token|secretValue|receiptKey/iu);
   });
 
-  it('blocks activation at asset authorization before any credential path is needed', () => {
-    expect(() => verifyAuthorizedInnerKeepRuntimeRegistry()).toThrow(
-      'owner runtime-use authorization',
-    );
+  it('rejects a runtime file pathname replaced by a symlink after descriptor open', () => {
+    const opened = runtimeFileStatus();
+    const replacement = runtimeFileStatus({
+      ino: 99,
+      isFile: () => false,
+      isSymbolicLink: () => true,
+    });
+    let pathRead = 0;
+    let openFlags = 0;
+    let closes = 0;
+    expect(() => inspectExactInnerKeepRuntimeFile(
+      INNER_KEEP_PLANNED_RUNTIME_PATHS[0],
+      {
+        close: () => { closes += 1; },
+        fstat: () => opened,
+        lstat: () => {
+          pathRead += 1;
+          return pathRead === 1 ? opened : replacement;
+        },
+        open: (_path, flags) => {
+          openFlags = flags;
+          return 17;
+        },
+        readFile: () => Buffer.from('safe', 'utf8'),
+        readdir: () => [],
+        realpath: (path) => path,
+      },
+    )).toThrow('does not match the authorized selection');
+    expect(openFlags & constants.O_NOFOLLOW).toBe(constants.O_NOFOLLOW);
+    expect(closes).toBe(1);
+  });
+
+  it('rejects a runtime directory replaced during recursive enumeration', () => {
+    const opened = runtimeDirectoryStatus();
+    const replacement = runtimeDirectoryStatus({ ino: 99 });
+    let pathRead = 0;
+    let openFlags = 0;
+    let closes = 0;
+    expect(() => collectInnerKeepRuntimeFiles(
+      'public/models/hegemony/inner-keep',
+      {
+        close: () => { closes += 1; },
+        fstat: () => opened,
+        lstat: () => {
+          pathRead += 1;
+          return pathRead < 3 ? opened : replacement;
+        },
+        open: (_path, flags) => {
+          openFlags = flags;
+          return 23;
+        },
+        readFile: () => Buffer.alloc(0),
+        readdir: () => [],
+        realpath: (path) => path,
+      },
+    )).toThrow('directory changed while it was inspected');
+    expect(openFlags & constants.O_DIRECTORY).toBe(constants.O_DIRECTORY);
+    expect(openFlags & constants.O_NOFOLLOW).toBe(constants.O_NOFOLLOW);
+    expect(closes).toBe(1);
+  });
+
+  it('accepts both owner-authorized exact runtime registries', () => {
+    expect(() => verifyAuthorizedInnerKeepRuntimeRegistry()).not.toThrow();
+  });
+
+  it('rejects a missing population asset from the complete runtime registry', () => {
+    const missingPath = INNER_KEEP_POPULATION_RUNTIME_PATHS[0];
+    expect(() => verifyInnerKeepRuntimeRegistryPreflight({
+      staticSelection: INNER_KEEP_ASSET_SELECTION,
+      populationSelection: INNER_KEEP_POPULATION_SELECTION,
+      observedPaths: [
+        ...INNER_KEEP_PLANNED_RUNTIME_PATHS,
+        ...INNER_KEEP_POPULATION_RUNTIME_PATHS.filter((path) => path !== missingPath),
+      ],
+      inspectRuntimeFile: () => {
+        throw new Error('file inspection must not start for an incomplete registry');
+      },
+    })).toThrow('paths do not match both authorized selections');
+  });
+
+  it('rejects tampered population bytes from an otherwise complete registry', () => {
+    const expectedFiles = [
+      ...INNER_KEEP_SELECTED_MODELS,
+      ...INNER_KEEP_SELECTED_PREVIEWS,
+      ...INNER_KEEP_POPULATION_MODELS,
+    ];
+    const expectedByPath = new Map(expectedFiles.map((file) => [
+      file.destinationPath,
+      file,
+    ]));
+    const tamperedPath = INNER_KEEP_POPULATION_RUNTIME_PATHS[0];
+    expect(() => verifyInnerKeepRuntimeRegistryPreflight({
+      staticSelection: INNER_KEEP_ASSET_SELECTION,
+      populationSelection: INNER_KEEP_POPULATION_SELECTION,
+      observedPaths: [
+        ...INNER_KEEP_PLANNED_RUNTIME_PATHS,
+        ...INNER_KEEP_POPULATION_RUNTIME_PATHS,
+      ],
+      inspectRuntimeFile: (path) => {
+        const expected = expectedByPath.get(path);
+        if (expected === undefined) throw new Error(`unexpected runtime path ${path}`);
+        return {
+          bytes: expected.bytes,
+          sha256: path === tamperedPath ? '0'.repeat(64) : expected.sha256,
+        };
+      },
+    })).toThrow('does not match the authorized selection');
+  });
+
+  it('fails closed on population authorization before inspecting installed files', () => {
+    let inspected = false;
+    expect(() => verifyInnerKeepRuntimeRegistryPreflight({
+      staticSelection: INNER_KEEP_ASSET_SELECTION,
+      populationSelection: {
+        ...INNER_KEEP_POPULATION_SELECTION,
+        authorization: {
+          ...INNER_KEEP_POPULATION_SELECTION.authorization,
+          officialRepositoryRuntimeUseAuthorized: false,
+        },
+      },
+      observedPaths: [
+        ...INNER_KEEP_PLANNED_RUNTIME_PATHS,
+        ...INNER_KEEP_POPULATION_RUNTIME_PATHS,
+      ],
+      inspectRuntimeFile: () => {
+        inspected = true;
+        throw new Error('authorization must fail before file inspection');
+      },
+    })).toThrow('population asset registry is not recorded');
+    expect(inspected).toBe(false);
   });
 });

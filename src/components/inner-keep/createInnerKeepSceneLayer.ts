@@ -10,8 +10,57 @@ import {
 import {
   INNER_KEEP_LAYOUT_V1_SLOTS
 } from './innerKeepLayoutV1';
+import {
+  allInnerKeepStaticRuntimeAssetIds,
+  createInnerKeepAuthoredBuilding,
+  createInnerKeepAuthoredStaticPresentation,
+  hasCompleteInnerKeepStaticRuntimeCoverage,
+  type InnerKeepAuthoredStaticPresentation
+} from './createInnerKeepAuthoredPresentation';
+import {
+  createInnerKeepEcology,
+  type InnerKeepEcology
+} from './createInnerKeepEcology';
+import {
+  createInnerKeepPopulationPresentation,
+  type InnerKeepPopulationPresentation
+} from './createInnerKeepPopulationPresentation';
+import {
+  createInnerKeepAmbientSimulationPlan,
+  type InnerKeepAmbientSimulationPlan
+} from './innerKeepAmbientTimeline';
+import {
+  loadInnerKeepRuntimeAssetBundle,
+  type InnerKeepRuntimeAssetBundle
+} from './loadInnerKeepRuntimeAssets';
+import {
+  INNER_KEEP_PRESENTATION_CAMERA_PRESETS,
+  INNER_KEEP_PRESENTATION_CLEARANCES
+} from './innerKeepPresentationLayoutPolicy';
 
 export type InnerKeepSceneQuality = 'high' | 'balanced' | 'reduced';
+
+/**
+ * Hard visible scene-graph ceilings. Actual GPU calls are captured separately
+ * by the QA renderer because high-quality shadow passes can redraw casters.
+ */
+export const INNER_KEEP_SCENE_GRAPH_RENDER_BUDGETS = Object.freeze({
+  high: Object.freeze({ drawCalls: 350, triangles: 300_000 }),
+  balanced: Object.freeze({ drawCalls: 275, triangles: 165_000 }),
+  reduced: Object.freeze({ drawCalls: 210, triangles: 80_000 })
+} satisfies Readonly<Record<InnerKeepSceneQuality, Readonly<{
+  drawCalls: number;
+  triangles: number;
+}>>>);
+
+export function innerKeepSceneGraphExceedsRenderBudget(
+  quality: InnerKeepSceneQuality,
+  telemetry: Pick<InnerKeepSceneTelemetry, 'drawCalls' | 'triangleCount'>
+) {
+  const budget = INNER_KEEP_SCENE_GRAPH_RENDER_BUDGETS[quality];
+  return telemetry.drawCalls > budget.drawCalls
+    || telemetry.triangleCount > budget.triangles;
+}
 
 export type InnerKeepSceneVisualContext = Readonly<{
   owningTerrainKind: RealmTerrainKind;
@@ -19,9 +68,21 @@ export type InnerKeepSceneVisualContext = Readonly<{
 
 export type InnerKeepSceneTelemetry = Readonly<{
   status: 'empty' | 'ready' | 'unavailable';
+  assetStatus: 'idle' | 'loading' | 'ready' | 'degraded';
   triangleCount: number;
   drawCalls: number;
   smokeSpriteCount: number;
+  grassBladeCount: number;
+  waterSurfaceCount: number;
+  authoredAssetCount: number;
+  authoredPlacementCount: number;
+  authoredTreeCount: number;
+  ambientActorCount: number;
+  mountedActorCount: number;
+  patrolUnitCount: number;
+  activeConversationCount: number;
+  animationMixerCount: number;
+  runtimeAssetFailureCount: number;
   slotCount: number;
   completedBuildingCount: number;
   constructionSiteCount: number;
@@ -72,6 +133,12 @@ export type CreateInnerKeepSceneLayerOptions = Readonly<{
   quality: InnerKeepSceneQuality;
   reducedMotion: boolean;
   requestRender: () => void;
+  baseUrl?: string;
+  maxAnisotropy?: number;
+  /** Local/unit-test escape hatch; production leaves exact asset loading on. */
+  assetLoading?: 'auto' | 'disabled';
+  /** Deterministic test seam; production always uses the integrity-pinned loader. */
+  runtimeAssetLoader?: typeof loadInnerKeepRuntimeAssetBundle;
 }>;
 
 const SLOT_POSITIONS = new Map(INNER_KEEP_LAYOUT_V1_SLOTS.map((slot) => [
@@ -89,6 +156,9 @@ const SMOKE_SPRITE_BUDGET: Readonly<Record<InnerKeepSceneQuality, number>> =
   Object.freeze({ high: 160, balanced: 96, reduced: 48 });
 const SMOKE_FRAME_CAP: Readonly<Record<InnerKeepSceneQuality, number>> =
   Object.freeze({ high: 30, balanced: 24, reduced: 18 });
+const LIVING_FRAME_CAP: Readonly<Record<InnerKeepSceneQuality, number>> =
+  Object.freeze({ high: 30, balanced: 24, reduced: 0 });
+const MAX_RUNTIME_ASSET_LOAD_ATTEMPTS = 2;
 
 function deterministicUnit(index: number, salt: number) {
   const value = Math.sin((index + 1) * 12.9898 + salt * 78.233) * 43_758.5453;
@@ -426,11 +496,21 @@ export function createInnerKeepSceneLayer(
 ): InnerKeepSceneLayer {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x667558);
-  scene.fog = new THREE.Fog(0x667558, 25, 52);
-  const camera = new THREE.OrthographicCamera(-13, 13, 13, -13, 0.1, 100);
+  scene.fog = new THREE.Fog(0x667558, 34, 72);
+  const camera = new THREE.OrthographicCamera(
+    -INNER_KEEP_PRESENTATION_CAMERA_PRESETS.minimumHalfWidth,
+    INNER_KEEP_PRESENTATION_CAMERA_PRESETS.minimumHalfWidth,
+    INNER_KEEP_PRESENTATION_CAMERA_PRESETS.landscape.baseHalfHeight,
+    -INNER_KEEP_PRESENTATION_CAMERA_PRESETS.landscape.baseHalfHeight,
+    INNER_KEEP_PRESENTATION_CAMERA_PRESETS.near,
+    INNER_KEEP_PRESENTATION_CAMERA_PRESETS.far
+  );
   let focusX = 0;
   let focusZ = 0;
-  let zoom = 1;
+  let zoom: number = INNER_KEEP_PRESENTATION_CAMERA_PRESETS.zoom.initial;
+  let cameraFramingMode: 'uninitialized' | 'landscape' | 'portrait' =
+    'uninitialized';
+  let cameraWasManuallyAdjusted = false;
   let viewportWidth = 1;
   let viewportHeight = 1;
   let disposed = false;
@@ -444,11 +524,37 @@ export function createInnerKeepSceneLayer(
   }> | null = null;
   let previousBuildingPhases = new Map<string, InnerKeepBuildingPresentation['phase']>();
   let lastElapsedSeconds = 0;
+  let lastPresentation: InnerKeepPresentation | null = null;
+  let lastVisualContext: InnerKeepSceneVisualContext | undefined;
+  let currentVisualSeed = 0;
+  let runtimeAssetBundle: InnerKeepRuntimeAssetBundle | null = null;
+  let authoredPresentation: InnerKeepAuthoredStaticPresentation | null = null;
+  let ambientPlan: InnerKeepAmbientSimulationPlan | null = null;
+  let populationPresentation: InnerKeepPopulationPresentation | null = null;
+  let ecology: InnerKeepEcology | null = null;
+  let assetLoadController: AbortController | null = null;
+  let assetLoadGeneration = 0;
+  let assetLoadKey = '';
+  let assetLoadAttemptCount = 0;
+  let assetStatus: InnerKeepSceneTelemetry['assetStatus'] = 'idle';
+  let runtimeAssetFailureCount = 0;
   let telemetry: InnerKeepSceneTelemetry = Object.freeze({
     status: 'empty',
+    assetStatus: 'idle',
     triangleCount: 0,
     drawCalls: 0,
     smokeSpriteCount: 0,
+    grassBladeCount: 0,
+    waterSurfaceCount: 0,
+    authoredAssetCount: 0,
+    authoredPlacementCount: 0,
+    authoredTreeCount: 0,
+    ambientActorCount: 0,
+    mountedActorCount: 0,
+    patrolUnitCount: 0,
+    activeConversationCount: 0,
+    animationMixerCount: 0,
+    runtimeAssetFailureCount: 0,
     slotCount: 0,
     completedBuildingCount: 0,
     constructionSiteCount: 0,
@@ -460,16 +566,32 @@ export function createInnerKeepSceneLayer(
   const dynamicMaterials = new Set<THREE.Material>();
   const dynamicGeometries = new Set<THREE.BufferGeometry>();
   const staticGroup = new THREE.Group();
+  const proceduralFallbackGroup = new THREE.Group();
+  proceduralFallbackGroup.name = 'inner-keep-procedural-asset-fallback';
+  const authoredStaticGroup = new THREE.Group();
+  authoredStaticGroup.name = 'inner-keep-authored-static-root';
+  const ambientGroup = new THREE.Group();
+  ambientGroup.name = 'inner-keep-persistent-ambient-root';
   const dynamicGroup = new THREE.Group();
-  scene.add(staticGroup, dynamicGroup);
+  scene.add(staticGroup, proceduralFallbackGroup, authoredStaticGroup, ambientGroup, dynamicGroup);
 
-  const groundGeometry = new THREE.PlaneGeometry(28, 22, 20, 16);
+  const [groundHalfWidth, groundHalfDepth] =
+    INNER_KEEP_PRESENTATION_CLEARANCES.ground.halfExtentsMeters;
+  const groundGeometry = new THREE.PlaneGeometry(
+    groundHalfWidth * 2,
+    groundHalfDepth * 2,
+    28,
+    26
+  );
   groundGeometry.rotateX(-Math.PI / 2);
   const groundPosition = groundGeometry.getAttribute('position');
   for (let index = 0; index < groundPosition.count; index += 1) {
     const x = groundPosition.getX(index);
     const z = groundPosition.getZ(index);
-    const edge = Math.min(1, Math.max(0, (Math.hypot(x / 14, z / 11) - 0.42) / 0.58));
+    const edge = Math.min(1, Math.max(
+      0,
+      (Math.hypot(x / groundHalfWidth, z / groundHalfDepth) - 0.5) / 0.5
+    ));
     const height = edge * (0.22 + Math.sin(x * 0.45) * 0.08 + Math.cos(z * 0.52) * 0.06);
     groundPosition.setY(index, height);
   }
@@ -486,15 +608,15 @@ export function createInnerKeepSceneLayer(
 
   const roadMaterial = new THREE.MeshStandardMaterial({ color: 0x8c7b5b, roughness: 0.96 });
   disposableMaterials.add(roadMaterial);
-  const roadGeometryVertical = new THREE.BoxGeometry(2.6, 0.12, 18.5);
-  const roadGeometryHorizontal = new THREE.BoxGeometry(21, 0.12, 2.15);
+  const roadGeometryVertical = new THREE.BoxGeometry(2.6, 0.12, 27.5);
+  const roadGeometryHorizontal = new THREE.BoxGeometry(28, 0.12, 2.15);
   disposableGeometries.add(roadGeometryVertical);
   disposableGeometries.add(roadGeometryHorizontal);
   const roadVertical = setShadow(new THREE.Mesh(roadGeometryVertical, roadMaterial), false, true);
-  roadVertical.position.y = 0.08;
+  roadVertical.position.set(0, 0.08, -3.25);
   const roadHorizontal = setShadow(new THREE.Mesh(roadGeometryHorizontal, roadMaterial), false, true);
   roadHorizontal.position.set(0, 0.085, 0.2);
-  staticGroup.add(roadVertical, roadHorizontal);
+  proceduralFallbackGroup.add(roadVertical, roadHorizontal);
 
   const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x745536, roughness: 0.92 });
   disposableMaterials.add(wallMaterial);
@@ -503,15 +625,15 @@ export function createInnerKeepSceneLayer(
     disposableGeometries.add(geometry);
     const wall = setShadow(new THREE.Mesh(geometry, wallMaterial));
     wall.position.set(x, 0.72, z);
-    staticGroup.add(wall);
+    proceduralFallbackGroup.add(wall);
   };
-  addWall(24.2, 0.36, 0, -9.5);
-  addWall(0.36, 19.3, -12, 0);
-  addWall(0.36, 19.3, 12, 0);
+  addWall(32.8, 0.36, 0, -17);
+  addWall(0.36, 27.8, -16.2, -3.25);
+  addWall(0.36, 27.8, 16.2, -3.25);
   // The southern wall is deliberately split around the playable gate and
   // road approach; a decorative wall must never visually close the route.
-  addWall(9.4, 0.42, -7.3, 9.5);
-  addWall(9.4, 0.42, 7.3, 9.5);
+  addWall(13.2, 0.42, -9.6, 10.5);
+  addWall(13.2, 0.42, 9.6, 10.5);
 
   const plazaMaterial = new THREE.MeshStandardMaterial({
     color: 0x9b8f78,
@@ -522,7 +644,7 @@ export function createInnerKeepSceneLayer(
   disposableGeometries.add(plazaGeometry);
   const plaza = setShadow(new THREE.Mesh(plazaGeometry, plazaMaterial), false, true);
   plaza.position.set(0, 0.12, 3.15);
-  staticGroup.add(plaza);
+  proceduralFallbackGroup.add(plaza);
 
   const keepMaterial = new THREE.MeshStandardMaterial({ color: 0x9a8b72, roughness: 0.84 });
   const keepRoofMaterial = new THREE.MeshStandardMaterial({ color: 0x4d3e3b, roughness: 0.72 });
@@ -530,27 +652,46 @@ export function createInnerKeepSceneLayer(
   disposableMaterials.add(keepMaterial);
   disposableMaterials.add(keepRoofMaterial);
   disposableMaterials.add(bannerMaterial);
-  const keepGeometry = new THREE.BoxGeometry(4.6, 3.5, 3.8);
+  const keepGeometry = new THREE.BoxGeometry(8.6, 5.5, 7.2);
   disposableGeometries.add(keepGeometry);
   const keep = setShadow(new THREE.Mesh(keepGeometry, keepMaterial));
-  keep.position.set(0, 1.85, -0.15);
-  staticGroup.add(keep);
-  for (const [x, z] of [[-2.35, -1.8], [2.35, -1.8], [-2.35, 1.5], [2.35, 1.5]]) {
-    const towerGeometry = new THREE.CylinderGeometry(0.9, 1.03, 3.45, 10);
-    const roofGeometry = new THREE.ConeGeometry(1.12, 1.05, 10);
+  keep.name = 'inner-keep-procedural-cathedral-fallback';
+  keep.position.set(0, 2.85, -11.8);
+  proceduralFallbackGroup.add(keep);
+  for (const [x, z] of [[-4.25, -14.95], [4.25, -14.95], [-4.25, -8.65], [4.25, -8.65]]) {
+    const towerGeometry = new THREE.CylinderGeometry(1.15, 1.3, 6.5, 10);
+    const roofGeometry = new THREE.ConeGeometry(1.45, 1.5, 10);
     disposableGeometries.add(towerGeometry);
     disposableGeometries.add(roofGeometry);
     const tower = setShadow(new THREE.Mesh(towerGeometry, keepMaterial));
-    tower.position.set(x!, 1.8, z!);
+    tower.position.set(x!, 3.3, z!);
     const roof = setShadow(new THREE.Mesh(roofGeometry, keepRoofMaterial));
-    roof.position.set(x!, 4.02, z!);
-    staticGroup.add(tower, roof);
+    roof.position.set(x!, 7.2, z!);
+    proceduralFallbackGroup.add(tower, roof);
   }
   const bannerGeometry = new THREE.PlaneGeometry(0.9, 1.45);
   disposableGeometries.add(bannerGeometry);
   const banner = new THREE.Mesh(bannerGeometry, bannerMaterial);
-  banner.position.set(0, 2.2, 1.78);
-  staticGroup.add(banner);
+  banner.position.set(0, 3.55, -8.16);
+  proceduralFallbackGroup.add(banner);
+
+  const fallbackBarracksGeometry = new THREE.BoxGeometry(5.7, 2.8, 4.6);
+  const fallbackBarracksRoofGeometry = new THREE.ConeGeometry(4, 2.1, 4);
+  disposableGeometries.add(fallbackBarracksGeometry);
+  disposableGeometries.add(fallbackBarracksRoofGeometry);
+  const fallbackBarracks = setShadow(new THREE.Mesh(
+    fallbackBarracksGeometry,
+    keepMaterial
+  ));
+  fallbackBarracks.name = 'inner-keep-procedural-barracks-fallback';
+  fallbackBarracks.position.set(-12.7, 1.5, -0.4);
+  const fallbackBarracksRoof = setShadow(new THREE.Mesh(
+    fallbackBarracksRoofGeometry,
+    keepRoofMaterial
+  ));
+  fallbackBarracksRoof.position.set(-12.7, 3.7, -0.4);
+  fallbackBarracksRoof.rotation.y = Math.PI / 4;
+  proceduralFallbackGroup.add(fallbackBarracks, fallbackBarracksRoof);
 
   const civicTimber = new THREE.MeshStandardMaterial({ color: 0x62401f, roughness: 0.92 });
   const civicStone = new THREE.MeshStandardMaterial({ color: 0x807b70, roughness: 0.95 });
@@ -588,7 +729,7 @@ export function createInnerKeepSceneLayer(
     const mesh = setShadow(new THREE.Mesh(geometry, material));
     mesh.position.set(x, y, z);
     mesh.rotation.y = rotationY;
-    staticGroup.add(mesh);
+    proceduralFallbackGroup.add(mesh);
     return mesh;
   };
   const addCivicCylinder = (
@@ -610,20 +751,20 @@ export function createInnerKeepSceneLayer(
     disposableGeometries.add(geometry);
     const mesh = setShadow(new THREE.Mesh(geometry, material));
     mesh.position.set(x, y, z);
-    staticGroup.add(mesh);
+    proceduralFallbackGroup.add(mesh);
     return mesh;
   };
 
   // Open gate, approach standards, and readable civic landmarks.
-  addCivicBox(0.48, 3.5, 0.48, -2.7, 1.85, 9.25, civicTimber);
-  addCivicBox(0.48, 3.5, 0.48, 2.7, 1.85, 9.25, civicTimber);
-  addCivicBox(5.9, 0.42, 0.52, 0, 3.42, 9.25, civicTimber);
+  addCivicBox(0.48, 3.5, 0.48, -2.7, 1.85, 10.25, civicTimber);
+  addCivicBox(0.48, 3.5, 0.48, 2.7, 1.85, 10.25, civicTimber);
+  addCivicBox(5.9, 0.42, 0.52, 0, 3.42, 10.25, civicTimber);
   for (const x of [-1.7, 1.7]) {
     const gateBannerGeometry = new THREE.PlaneGeometry(0.72, 1.28);
     disposableGeometries.add(gateBannerGeometry);
     const gateBanner = new THREE.Mesh(gateBannerGeometry, bannerMaterial);
-    gateBanner.position.set(x, 2.38, 8.96);
-    staticGroup.add(gateBanner);
+    gateBanner.position.set(x, 2.38, 9.96);
+    proceduralFallbackGroup.add(gateBanner);
   }
 
   // Builder noticeboard and directional sign beside the gate approach.
@@ -676,7 +817,7 @@ export function createInnerKeepSceneLayer(
   const treeCanopyMaterial = new THREE.MeshStandardMaterial({ color: 0x25472f, roughness: 0.92 });
   disposableMaterials.add(treeTrunkMaterial);
   disposableMaterials.add(treeCanopyMaterial);
-  const treeCount = options.quality === 'reduced' ? 24 : options.quality === 'balanced' ? 34 : 44;
+  const treeCount = options.quality === 'reduced' ? 20 : options.quality === 'balanced' ? 30 : 40;
   const trunks = new THREE.InstancedMesh(treeTrunkGeometry, treeTrunkMaterial, treeCount);
   const canopies = new THREE.InstancedMesh(treeCanopyGeometry, treeCanopyMaterial, treeCount);
   trunks.castShadow = options.quality !== 'reduced';
@@ -686,13 +827,14 @@ export function createInnerKeepSceneLayer(
   const treeMatrix = new THREE.Matrix4();
   for (let index = 0; index < treeCount; index += 1) {
     const side = index % 4;
-    const along = deterministicUnit(index, 1) * 17 - 8.5;
+    const alongX = deterministicUnit(index, 1) * 29 - 14.5;
+    const alongZ = deterministicUnit(index, 6) * 23 - 12.5;
     const x = side < 2
-      ? (side === 0 ? -13.1 : 13.1) + (deterministicUnit(index, 2) - 0.5) * 0.8
-      : along;
+      ? (side === 0 ? -17.1 : 17.1) + (deterministicUnit(index, 2) - 0.5) * 0.8
+      : alongX;
     const z = side >= 2
-      ? (side === 2 ? -10.6 : 10.6) + (deterministicUnit(index, 3) - 0.5) * 0.8
-      : along;
+      ? (side === 2 ? -17.8 : 11.4) + (deterministicUnit(index, 3) - 0.5) * 0.8
+      : alongZ;
     const scale = 0.82 + deterministicUnit(index, 4) * 0.52;
     treeMatrix.compose(
       new THREE.Vector3(x, 0.72 * scale, z),
@@ -712,7 +854,7 @@ export function createInnerKeepSceneLayer(
   }
   trunks.instanceMatrix.needsUpdate = true;
   canopies.instanceMatrix.needsUpdate = true;
-  staticGroup.add(trunks, canopies);
+  proceduralFallbackGroup.add(trunks, canopies);
   const innerTreePositions = [
     [-10.65, -1.65, 0.76],
     [10.65, -1.65, 0.82],
@@ -750,16 +892,24 @@ export function createInnerKeepSceneLayer(
   innerCanopies.instanceMatrix.needsUpdate = true;
   innerTrunks.castShadow = options.quality !== 'reduced';
   innerCanopies.castShadow = options.quality === 'high';
-  staticGroup.add(innerTrunks, innerCanopies);
+  proceduralFallbackGroup.add(innerTrunks, innerCanopies);
 
   const ambient = new THREE.HemisphereLight(0xfff1cf, 0x26351e, 1.75);
   const sun = new THREE.DirectionalLight(0xffe5b1, 2.65);
-  sun.position.set(-9, 18, 10);
+  sun.position.set(-12, 28, 18);
   sun.castShadow = options.quality !== 'reduced';
   sun.shadow.mapSize.set(
     options.quality === 'high' ? 2048 : 1024,
     options.quality === 'high' ? 2048 : 1024
   );
+  sun.shadow.camera.left = -22;
+  sun.shadow.camera.right = 22;
+  sun.shadow.camera.top = 22;
+  sun.shadow.camera.bottom = -22;
+  sun.shadow.camera.near = 1;
+  sun.shadow.camera.far = 80;
+  sun.shadow.bias = -0.00035;
+  sun.shadow.normalBias = 0.025;
   scene.add(ambient, sun);
 
   const padGeometry = new THREE.CylinderGeometry(1.45, 1.58, 0.2, 18);
@@ -809,21 +959,235 @@ export function createInnerKeepSceneLayer(
   const smokePosition = new THREE.Vector3();
   const smokeScale = new THREE.Vector3();
   const smokeQuaternion = new THREE.Quaternion();
+  let ecologySeed: number | null = null;
+
+  const ensureEcology = (visualSeed: number) => {
+    if (ecology && ecologySeed === visualSeed) return;
+    ecology?.dispose();
+    ecology = createInnerKeepEcology({
+      quality: options.quality,
+      reducedMotion: options.reducedMotion || options.quality === 'reduced',
+      visualSeed
+    });
+    ecologySeed = visualSeed;
+    ambientGroup.add(ecology.group);
+  };
+
+  const clearRuntimePresentation = (disposeBundle: boolean) => {
+    populationPresentation?.dispose();
+    populationPresentation = null;
+    authoredPresentation?.group.removeFromParent();
+    authoredPresentation = null;
+    authoredStaticGroup.clear();
+    if (disposeBundle) {
+      runtimeAssetBundle?.dispose();
+      runtimeAssetBundle = null;
+    }
+    proceduralFallbackGroup.visible = true;
+  };
+
+  const installRuntimePresentation = (
+    bundle: InnerKeepRuntimeAssetBundle,
+    plan: InnerKeepAmbientSimulationPlan,
+    visualSeed: number
+  ) => {
+    clearRuntimePresentation(true);
+    runtimeAssetBundle = bundle;
+    ambientPlan = plan;
+    const completeStaticCoverage = hasCompleteInnerKeepStaticRuntimeCoverage(bundle);
+    if (completeStaticCoverage) {
+      authoredPresentation = createInnerKeepAuthoredStaticPresentation({
+        bundle,
+        quality: options.quality,
+        visualSeed
+      });
+      authoredStaticGroup.add(authoredPresentation.group);
+    }
+    populationPresentation = createInnerKeepPopulationPresentation({ bundle, plan });
+    ambientGroup.add(populationPresentation.group);
+    populationPresentation.update(lastElapsedSeconds);
+    runtimeAssetFailureCount = bundle.failures.length;
+    assetStatus = bundle.failures.length === 0 ? 'ready' : 'degraded';
+    proceduralFallbackGroup.visible = !completeStaticCoverage;
+    scene.userData.innerKeepAssetStatus = assetStatus;
+    scene.userData.innerKeepRuntimeAssetFailures = bundle.failures;
+    scene.userData.innerKeepAssetLoadAttemptCount = assetLoadAttemptCount;
+  };
+
+  const compareRuntimeBundleCoverage = (
+    left: InnerKeepRuntimeAssetBundle,
+    right: InnerKeepRuntimeAssetBundle
+  ) => {
+    const leftCoverage = [
+      hasCompleteInnerKeepStaticRuntimeCoverage(left) ? 1 : 0,
+      left.staticPrefabs.size,
+      left.populationPrefabs.size,
+      -left.failures.length
+    ] as const;
+    const rightCoverage = [
+      hasCompleteInnerKeepStaticRuntimeCoverage(right) ? 1 : 0,
+      right.staticPrefabs.size,
+      right.populationPrefabs.size,
+      -right.failures.length
+    ] as const;
+    for (let index = 0; index < leftCoverage.length; index += 1) {
+      const difference = leftCoverage[index]! - rightCoverage[index]!;
+      if (difference !== 0) return difference;
+    }
+    return 0;
+  };
+
+  const preservesRuntimeBundlePrefabIds = (
+    candidate: InnerKeepRuntimeAssetBundle,
+    settled: InnerKeepRuntimeAssetBundle
+  ) => (
+    [...settled.staticPrefabs.keys()].every((id) => candidate.staticPrefabs.has(id))
+    && [...settled.populationPrefabs.keys()]
+      .every((id) => candidate.populationPrefabs.has(id))
+  );
+
+  const retainRuntimePresentation = (
+    bundle: InnerKeepRuntimeAssetBundle
+  ) => {
+    runtimeAssetFailureCount = bundle.failures.length;
+    assetStatus = bundle.failures.length === 0 ? 'ready' : 'degraded';
+    scene.userData.innerKeepAssetStatus = assetStatus;
+    scene.userData.innerKeepRuntimeAssetFailures = bundle.failures;
+    scene.userData.innerKeepAssetLoadAttemptCount = assetLoadAttemptCount;
+  };
+
+  const ensureRuntimeAssets = (
+    plan: InnerKeepAmbientSimulationPlan,
+    visualSeed: number
+  ) => {
+    if (options.assetLoading === 'disabled') return;
+    const populationActorIds = plan.routines.map((routine) => routine.actor.actorId);
+    const key = `${plan.planId}:${populationActorIds.join(',')}`;
+    const sameKey = assetLoadKey === key;
+    if (sameKey && assetStatus === 'loading') return;
+    if (sameKey && runtimeAssetBundle && assetStatus === 'ready') return;
+    if (
+      sameKey
+      && assetStatus === 'degraded'
+      && assetLoadAttemptCount >= MAX_RUNTIME_ASSET_LOAD_ATTEMPTS
+    ) return;
+    if (!sameKey) {
+      assetLoadKey = key;
+      assetLoadAttemptCount = 0;
+    }
+    assetLoadAttemptCount += 1;
+    const generation = ++assetLoadGeneration;
+    assetLoadController?.abort();
+    assetLoadController = new AbortController();
+    const retainingSettledSameKeyBundle = sameKey && runtimeAssetBundle !== null;
+    if (!retainingSettledSameKeyBundle) clearRuntimePresentation(true);
+    assetStatus = 'loading';
+    if (!retainingSettledSameKeyBundle) runtimeAssetFailureCount = 0;
+    scene.userData.innerKeepAssetStatus = assetStatus;
+    scene.userData.innerKeepAssetLoadAttemptCount = assetLoadAttemptCount;
+    void (options.runtimeAssetLoader ?? loadInnerKeepRuntimeAssetBundle)({
+      quality: options.quality,
+      reducedMotion: options.reducedMotion,
+      baseUrl: options.baseUrl ?? import.meta.env.BASE_URL,
+      maxAnisotropy: options.maxAnisotropy,
+      staticAssetIds: allInnerKeepStaticRuntimeAssetIds(),
+      populationActorIds,
+      signal: assetLoadController.signal
+    }).then((bundle) => {
+      if (disposed || generation !== assetLoadGeneration) {
+        bundle.dispose();
+        return;
+      }
+      const settledBundle = retainingSettledSameKeyBundle
+        ? runtimeAssetBundle
+        : null;
+      if (
+        settledBundle
+        && (
+          !preservesRuntimeBundlePrefabIds(bundle, settledBundle)
+          || compareRuntimeBundleCoverage(bundle, settledBundle) < 0
+        )
+      ) {
+        bundle.dispose();
+        retainRuntimePresentation(settledBundle);
+        if (lastPresentation) reconcile(lastPresentation, lastVisualContext);
+        else options.requestRender();
+        return;
+      }
+      installRuntimePresentation(bundle, plan, visualSeed);
+      if (lastPresentation) reconcile(lastPresentation, lastVisualContext);
+      else options.requestRender();
+    }).catch((error: unknown) => {
+      if (disposed || generation !== assetLoadGeneration) return;
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      assetStatus = 'degraded';
+      runtimeAssetFailureCount = populationActorIds.length
+        + allInnerKeepStaticRuntimeAssetIds().length;
+      scene.userData.innerKeepAssetStatus = assetStatus;
+      scene.userData.innerKeepRuntimeAssetLoadError = error instanceof Error
+        ? error.message.slice(0, 240)
+        : 'Unknown Inner Keep asset load failure.';
+      telemetry = Object.freeze({
+        ...telemetry,
+        assetStatus,
+        runtimeAssetFailureCount
+      });
+      if (assetLoadAttemptCount < MAX_RUNTIME_ASSET_LOAD_ATTEMPTS) {
+        ensureRuntimeAssets(plan, visualSeed);
+      } else {
+        options.requestRender();
+      }
+    });
+  };
 
   const updateCamera = () => {
     const aspect = Math.max(0.2, viewportWidth / Math.max(1, viewportHeight));
-    const minimumHalfWidth = 12.8 / zoom;
-    const baseHalfHeight = (aspect < 0.78 ? 16.5 : 11.8) / zoom;
+    const minimumHalfWidth = INNER_KEEP_PRESENTATION_CAMERA_PRESETS.minimumHalfWidth / zoom;
+    const baseHalfHeight = (
+      aspect < INNER_KEEP_PRESENTATION_CAMERA_PRESETS.landscape.minimumAspect
+        ? INNER_KEEP_PRESENTATION_CAMERA_PRESETS.portrait.baseHalfHeight
+        : INNER_KEEP_PRESENTATION_CAMERA_PRESETS.landscape.baseHalfHeight
+    ) / zoom;
     const halfHeight = Math.max(baseHalfHeight, minimumHalfWidth / aspect);
     const halfWidth = halfHeight * aspect;
     camera.left = -halfWidth;
     camera.right = halfWidth;
     camera.top = halfHeight;
     camera.bottom = -halfHeight;
-    camera.position.set(17 + focusX, 21, 19 + focusZ);
-    camera.lookAt(focusX, 0.5, focusZ);
+    const portraitFraming = cameraFramingMode === 'portrait';
+    const [cameraX, cameraY, cameraZ] = portraitFraming
+      ? INNER_KEEP_PRESENTATION_CAMERA_PRESETS.portrait.positionMeters
+      : INNER_KEEP_PRESENTATION_CAMERA_PRESETS.positionMeters;
+    const [targetX, targetY, targetZ] = portraitFraming
+      ? INNER_KEEP_PRESENTATION_CAMERA_PRESETS.portrait.targetMeters
+      : INNER_KEEP_PRESENTATION_CAMERA_PRESETS.targetMeters;
+    camera.position.set(cameraX + focusX, cameraY, cameraZ + focusZ);
+    camera.lookAt(targetX + focusX, targetY, targetZ + focusZ);
     camera.updateProjectionMatrix();
     camera.updateMatrixWorld();
+  };
+
+  const applyAutomaticFramingForViewport = () => {
+    const aspect = Math.max(0.2, viewportWidth / Math.max(1, viewportHeight));
+    const nextMode = aspect
+      < INNER_KEEP_PRESENTATION_CAMERA_PRESETS.portrait.maximumAspectExclusive
+      ? 'portrait'
+      : 'landscape';
+    if (
+      cameraWasManuallyAdjusted
+      || cameraFramingMode === nextMode
+    ) return;
+    cameraFramingMode = nextMode;
+    const initialMultiplier = nextMode === 'portrait'
+      ? INNER_KEEP_PRESENTATION_CAMERA_PRESETS.portrait.initialZoomMultiplier
+      : 1;
+    zoom = Math.max(
+      INNER_KEEP_PRESENTATION_CAMERA_PRESETS.zoom.minimum,
+      Math.min(
+        INNER_KEEP_PRESENTATION_CAMERA_PRESETS.zoom.maximum,
+        INNER_KEEP_PRESENTATION_CAMERA_PRESETS.zoom.initial * initialMultiplier
+      )
+    );
   };
   updateCamera();
 
@@ -969,6 +1333,8 @@ export function createInnerKeepSceneLayer(
       smokeSpriteCount: 0,
       completionRevealActive: false
     });
+    scene.userData.innerKeepSceneGraphRenderBudgetExceeded =
+      innerKeepSceneGraphExceedsRenderBudget(options.quality, telemetry);
     return true;
   };
 
@@ -996,24 +1362,46 @@ export function createInnerKeepSceneLayer(
   ) => {
     let triangleCount = 0;
     let drawCalls = 0;
-    scene.traverse((object) => {
+    scene.traverseVisible((object) => {
+      if (object instanceof THREE.Sprite) {
+        triangleCount += 2;
+        drawCalls += 1;
+        return;
+      }
       if (!(object instanceof THREE.Mesh)) return;
       const count = object instanceof THREE.InstancedMesh ? object.count : 1;
       triangleCount += geometryTriangleCount(object.geometry) * count;
       if (count > 0) drawCalls += Array.isArray(object.material)
-        ? object.material.length
+        ? object.geometry.groups.length || object.material.length
         : 1;
     });
+    const populationTelemetry = populationPresentation?.getTelemetry();
     telemetry = Object.freeze({
       status,
+      assetStatus,
       triangleCount,
       drawCalls,
       smokeSpriteCount: smoke.count,
+      grassBladeCount: ecology?.grassBladeCount ?? 0,
+      waterSurfaceCount: ecology?.waterSurfaceCount ?? 0,
+      authoredAssetCount: authoredPresentation?.loadedAssetCount ?? 0,
+      authoredPlacementCount: authoredPresentation?.placementInstanceCount ?? 0,
+      authoredTreeCount: authoredPresentation?.authoredTreeCount ?? 0,
+      ambientActorCount: populationTelemetry?.actorCount ?? 0,
+      mountedActorCount: populationTelemetry?.mountedActorCount ?? 0,
+      patrolUnitCount: populationTelemetry?.patrolUnitCount ?? 0,
+      activeConversationCount: populationTelemetry?.activeConversationCount ?? 0,
+      animationMixerCount: populationTelemetry?.animationMixerCount ?? 0,
+      runtimeAssetFailureCount,
       slotCount,
       completedBuildingCount,
       constructionSiteCount,
       completionRevealActive: completionReveal !== null
     });
+    scene.userData.innerKeepSceneGraphRenderBudget =
+      INNER_KEEP_SCENE_GRAPH_RENDER_BUDGETS[options.quality];
+    scene.userData.innerKeepSceneGraphRenderBudgetExceeded =
+      innerKeepSceneGraphExceedsRenderBudget(options.quality, telemetry);
   };
 
   const reconcile = (
@@ -1021,14 +1409,20 @@ export function createInnerKeepSceneLayer(
     context?: InnerKeepSceneVisualContext
   ) => {
     if (disposed) return;
+    lastPresentation = presentation;
+    lastVisualContext = context;
     clearDynamicPresentation();
     if (!presentation) {
+      ambientGroup.visible = false;
+      authoredStaticGroup.visible = false;
       previousBuildingPhases = new Map();
       measureTelemetry('empty', 0, 0, 0);
       options.requestRender();
       return;
     }
     if (!innerKeepPresentationIntegrity(presentation)) {
+      ambientGroup.visible = false;
+      authoredStaticGroup.visible = false;
       previousBuildingPhases = new Map();
       measureTelemetry('unavailable', 0, 0, 0);
       options.requestRender();
@@ -1038,6 +1432,17 @@ export function createInnerKeepSceneLayer(
       left.sortOrder - right.sortOrder
     ));
     const visualSeed = deterministicVisualSeed(presentation, context);
+    currentVisualSeed = visualSeed;
+    ambientGroup.visible = true;
+    authoredStaticGroup.visible = true;
+    ensureEcology(visualSeed);
+    const nextAmbientPlan = createInnerKeepAmbientSimulationPlan({
+      seed: visualSeed,
+      quality: options.quality,
+      reducedMotion: options.reducedMotion
+    });
+    ambientPlan = nextAmbientPlan;
+    ensureRuntimeAssets(nextAmbientPlan, visualSeed);
     scene.userData.innerKeepVisualSeed = visualSeed;
     scene.userData.innerKeepOwningTerrain = context?.owningTerrainKind ?? 'unknown';
     const groundColor = context?.owningTerrainKind === 'forest'
@@ -1083,17 +1488,49 @@ export function createInnerKeepSceneLayer(
 
     let completedBuildingCount = 0;
     let constructionSiteCount = 0;
+    const visuallyPendingCompletedSlots = new Set<string>();
     for (const building of presentation.buildings) {
       const position = positionBySlotId.get(building.slotId);
       if (!position) continue;
       if (building.phase === 'complete') {
-        const model = createBuilding(
+        const terminalAssetFallback = options.assetLoading === 'disabled'
+          || (
+            assetStatus === 'degraded'
+            && assetLoadAttemptCount >= MAX_RUNTIME_ASSET_LOAD_ATTEMPTS
+          );
+        const authoredModel = createInnerKeepAuthoredBuilding({
+          bundle: authoredPresentation || terminalAssetFallback
+            ? runtimeAssetBundle
+            : null,
+          buildingKind: building.buildingKind,
+          completedLevel: building.completedLevel,
+          disposableMaterials: dynamicMaterials
+        });
+        if (!authoredModel && !terminalAssetFallback) {
+          const scaffold = createScaffold(dynamicMaterials, dynamicGeometries);
+          scaffold.position.set(position.x, 0.25, position.z);
+          scaffold.rotation.y = position.rotation;
+          dynamicGroup.add(scaffold);
+          constructionPosition = Object.freeze({
+            x: position.x,
+            y: 0.32,
+            z: position.z
+          });
+          constructionSiteCount += 1;
+          visuallyPendingCompletedSlots.add(building.slotId);
+          continue;
+        }
+        const model = authoredModel ?? createBuilding(
           building.buildingKind,
           building.completedLevel,
           dynamicMaterials,
           dynamicGeometries
         );
-        model.position.set(position.x, 0.26, position.z);
+        model.position.set(
+          position.x,
+          model.userData.innerKeepAuthoredAsset === true ? 0.13 : 0.26,
+          position.z
+        );
         model.rotation.y = position.rotation;
         dynamicGroup.add(model);
         if (
@@ -1142,7 +1579,9 @@ export function createInnerKeepSceneLayer(
     updateCompletionReveal(lastElapsedSeconds);
     previousBuildingPhases = new Map(presentation.buildings.map((building) => [
       building.slotId,
-      building.phase
+      visuallyPendingCompletedSlots.has(building.slotId)
+        ? 'constructing'
+        : building.phase
     ] as const));
     measureTelemetry(
       'ready',
@@ -1159,7 +1598,14 @@ export function createInnerKeepSceneLayer(
     dispose: () => {
       if (disposed) return;
       disposed = true;
+      assetLoadGeneration += 1;
+      assetLoadController?.abort();
+      assetLoadController = null;
       clearDynamicPresentation();
+      clearRuntimePresentation(true);
+      ecology?.dispose();
+      ecology = null;
+      ecologySeed = null;
       scene.clear();
       disposableGeometries.forEach((geometry) => geometry.dispose());
       disposableMaterials.forEach((material) => material.dispose());
@@ -1171,7 +1617,10 @@ export function createInnerKeepSceneLayer(
     },
     getAnimationFrameCap: () => options.reducedMotion
       ? 0
-      : SMOKE_FRAME_CAP[options.quality],
+      : Math.max(
+          SMOKE_FRAME_CAP[options.quality],
+          ambientPlan?.animationFrameCap ?? LIVING_FRAME_CAP[options.quality]
+        ),
     getSlotProjectionFrame,
     getTelemetry: () => telemetry,
     isAnimationActive: () => (
@@ -1180,13 +1629,18 @@ export function createInnerKeepSceneLayer(
       && (
         (constructionPosition !== null && smoke.count > 0)
         || completionReveal !== null
+        || ecology?.isAnimationActive() === true
+        || populationPresentation?.isAnimationActive() === true
       )
     ),
     panByPixels: (deltaX, deltaY) => {
       if (disposed || !Number.isFinite(deltaX) || !Number.isFinite(deltaY)) return;
+      if (deltaX !== 0 || deltaY !== 0) cameraWasManuallyAdjusted = true;
       const scale = 0.012 / zoom;
-      focusX = Math.max(-3.4, Math.min(3.4, focusX - deltaX * scale));
-      focusZ = Math.max(-2.8, Math.min(2.8, focusZ - deltaY * scale));
+      const [minimumX, maximumX] = INNER_KEEP_PRESENTATION_CAMERA_PRESETS.panBoundsMeters.x;
+      const [minimumZ, maximumZ] = INNER_KEEP_PRESENTATION_CAMERA_PRESETS.panBoundsMeters.z;
+      focusX = Math.max(minimumX, Math.min(maximumX, focusX - deltaX * scale));
+      focusZ = Math.max(minimumZ, Math.min(maximumZ, focusZ - deltaY * scale));
       updateCamera();
       options.requestRender();
     },
@@ -1220,6 +1674,7 @@ export function createInnerKeepSceneLayer(
       if (disposed) return;
       viewportWidth = Math.max(1, width);
       viewportHeight = Math.max(1, height);
+      applyAutomaticFramingForViewport();
       updateCamera();
     },
     update: (elapsedSeconds) => {
@@ -1227,16 +1682,40 @@ export function createInnerKeepSceneLayer(
       lastElapsedSeconds = Math.max(0, elapsedSeconds);
       const smokeChanged = updateSmoke(lastElapsedSeconds);
       const revealChanged = updateCompletionReveal(lastElapsedSeconds);
-      return smokeChanged || revealChanged;
+      const ecologyChanged = ecology?.update(lastElapsedSeconds) === true;
+      const populationChanged = populationPresentation?.update(lastElapsedSeconds) === true;
+      if (populationChanged && populationPresentation) {
+        const populationTelemetry = populationPresentation.getTelemetry();
+        if (telemetry.activeConversationCount !== populationTelemetry.activeConversationCount) {
+          const conversationDelta = populationTelemetry.activeConversationCount
+            - telemetry.activeConversationCount;
+          telemetry = Object.freeze({
+            ...telemetry,
+            triangleCount: Math.max(0, telemetry.triangleCount + conversationDelta * 4),
+            drawCalls: Math.max(0, telemetry.drawCalls + conversationDelta * 2),
+            activeConversationCount: populationTelemetry.activeConversationCount
+          });
+          scene.userData.innerKeepSceneGraphRenderBudgetExceeded =
+            innerKeepSceneGraphExceedsRenderBudget(options.quality, telemetry);
+        }
+      }
+      return smokeChanged || revealChanged || ecologyChanged || populationChanged;
     },
     zoomByWheel: (deltaY, deltaMode) => {
       if (disposed || !Number.isFinite(deltaY)) return;
+      if (deltaY !== 0) cameraWasManuallyAdjusted = true;
       const unit = deltaMode === WheelEvent.DOM_DELTA_LINE
         ? 16
         : deltaMode === WheelEvent.DOM_DELTA_PAGE
           ? viewportHeight
           : 1;
-      zoom = Math.max(0.72, Math.min(1.5, zoom * Math.exp(-deltaY * unit * 0.0012)));
+      zoom = Math.max(
+        INNER_KEEP_PRESENTATION_CAMERA_PRESETS.zoom.minimum,
+        Math.min(
+          INNER_KEEP_PRESENTATION_CAMERA_PRESETS.zoom.maximum,
+          zoom * Math.exp(-deltaY * unit * 0.0012)
+        )
+      );
       updateCamera();
       options.requestRender();
     }
