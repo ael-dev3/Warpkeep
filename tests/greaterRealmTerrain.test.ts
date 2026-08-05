@@ -133,6 +133,35 @@ describe('Greater Realm deterministic terrain core', () => {
     }
   });
 
+  it('wipes multiscale working fields on success and the output on failure', () => {
+    const grid = indexGreaterRealmAxialGrid(hexDisc(2));
+    const fillSpy = vi.spyOn(Int32Array.prototype, 'fill');
+    try {
+      const result = createGreaterRealmMultiscaleIntegerField(grid, 77, [
+        { channel: 'wipe-macro', amplitude: 900, smoothingPasses: 3 },
+        { channel: 'wipe-detail', amplitude: 90, smoothingPasses: 1 },
+      ]);
+      expect([...result].some((value) => value !== 0)).toBe(true);
+      const successfulWipes = (fillSpy.mock.instances as unknown as Int32Array[]).filter(
+        (values) => values.length === grid.cellCount && values !== result,
+      );
+      expect(successfulWipes).toHaveLength(6);
+      expect(successfulWipes.every((values) => values.every((value) => value === 0))).toBe(true);
+
+      fillSpy.mockClear();
+      expect(() => createGreaterRealmMultiscaleIntegerField(grid, 77, [
+        { channel: 'wipe-invalid', amplitude: -1, smoothingPasses: 0 },
+      ])).toThrow('GREATER_REALM_TERRAIN_AMPLITUDE_INVALID');
+      const failedWipes = (fillSpy.mock.instances as unknown as Int32Array[]).filter(
+        (values) => values.length === grid.cellCount,
+      );
+      expect(failedWipes).toHaveLength(1);
+      expect(failedWipes[0]!.every((value) => value === 0)).toBe(true);
+    } finally {
+      fillSpy.mockRestore();
+    }
+  });
+
   it('fills an enclosed depression and gives every cell a flat-safe path to an outlet', () => {
     const grid = indexGreaterRealmAxialGrid(hexDisc(2));
     const elevation = new Int32Array(grid.cellCount);

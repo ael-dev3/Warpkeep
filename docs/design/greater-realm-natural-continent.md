@@ -4,7 +4,7 @@ Status: candidate-generation design only
 
 Atlas: `GENESIS_001_GREATER_REALM`
 
-Generator algorithm: `greater-realm-v2-natural-continent-pr-a.6`
+Generator algorithm: `greater-realm-v2-natural-continent-pr-a.8`
 Terrain-seed namespace: `greater-realm-v2-natural-continent-pr-a.3`
 Production state: unchanged
 
@@ -37,11 +37,11 @@ before any atlas record can be activated.
 An eligible candidate has 100,000–150,000 active atlas cells and exactly ten
 strategic regions:
 
-| Tier | Count | Working regions | Aggregate target |
-| --- | ---: | --- | ---: |
-| I | 6 | The Hegemony Lowlands, Frostmere Reach, Sunscar Expanse, Mirefen Delta, Stonewake Isles, Emberwood March | 68%–74% |
-| II | 3 | Crownwood March, Ironveil March, Glasswater March | 22%–27% |
-| III | 1 | Throneheart | 3%–6% |
+| Tier | Count | Working regions                                                                                          | Aggregate target |
+| ---- | ----: | -------------------------------------------------------------------------------------------------------- | ---------------: |
+| I    |     6 | The Hegemony Lowlands, Frostmere Reach, Sunscar Expanse, Mirefen Delta, Stonewake Isles, Emberwood March |          68%–74% |
+| II   |     3 | Crownwood March, Ironveil March, Glasswater March                                                        |          22%–27% |
+| III  |     1 | Throneheart                                                                                              |            3%–6% |
 
 Tier III must be the smallest region by total cells and passable land. Each
 Tier II region has two Tier I neighbours and one Tier III neighbour. The
@@ -79,11 +79,15 @@ Each candidate runs independently through these stage families:
 4. Derive a connected active atlas mask from geography plus a variable
    deep-ocean/fog buffer. Inactive canvas cells are discarded, not seeded.
 5. Place the locked Lowlands reserve, then run a real geomorphology stage before
-   the final fluvial pass. That stage uses preliminary drainage and climate to
+   the final fluvial pass. A low-frequency carrier first shapes broad terraces
+   with short smooth ramps; independently named meso/detail bands restore
+   bounded weathering so the result keeps natural relief instead of reading as
+   contour stairs. The stage then uses preliminary drainage and climate to
    apply bounded glacial erosion and moraines, arid wadis and aeolian shaping,
    volcanic/caldera relief tied to tectonic evidence, and coherent beach,
-   cliff, delta, and fjord shaping. It preserves the Lowlands reserve exactly
-   and proves a material budget for its signed process deltas.
+   cliff, delta, and fjord shaping. Coastline sign and the Lowlands reserve stay
+   exact. The package records the terrace delta separately and proves the
+   material budget of the erosion/deposition processes independently.
 6. Run stable Priority-Flood depression handling on the six-connected graph,
    route flats toward legal outlets, prove a drainage DAG, accumulate
    discharge, and apply bounded stream-power-like incision and sediment
@@ -127,7 +131,12 @@ The design adapts practical ideas from research on
 [procedural tectonic structure](https://onlinelibrary.wiley.com/doi/10.1111/cgf.13614),
 [coupled uplift and fluvial erosion](https://onlinelibrary.wiley.com/doi/10.1111/cgf.12820),
 [Priority-Flood drainage](https://doi.org/10.1016/j.cageo.2013.04.024), and
-[tile-based erosion evaluation](https://arxiv.org/abs/2210.14496). It does not
+[tile-based erosion evaluation](https://arxiv.org/abs/2210.14496), plus the
+terrain-material and height-atmosphere demonstrations in
+[SimonDev's game-development demos](https://simondev.io/demos/gamedev/#customizing-materials)
+and the exponential height-fog treatment documented in the
+[Crytek SIGGRAPH 2006 course notes](https://advances.realtimerendering.com/s2006/Course_26_SIGGRAPH_2006.pdf).
+It does not
 copy third-party code, data, maps, art, labels, or balance tables.
 
 ## Candidate hard gates
@@ -161,10 +170,10 @@ A candidate is ineligible if any of these proofs fail:
   Lowlands cells are not counted as mountains;
 - region count, tier ratios, region balance, fixed adjacency, 18 gates, or 600
   total castle capacity differs from the contract;
-- a Tier-II parent lacks a dry outer-frontier anchor joined to its dry inner
-  anchor. The generator first preserves an already-sound natural partition;
-  only a parent that would miss the Tier-I frontier activates the deterministic
-  dual-anchor spine repair;
+- a Tier-II parent lacks one connected strategic mainland spine between dry
+  outer- and inner-frontier anchors. Dry ground plus explicitly fordable river
+  and stream cells may carry the interior route; ocean, lake, and sea cells may
+  not. Gate endpoints and their independently proved approaches remain dry;
 - a closed tier barrier has an ungated land bypass;
 - opening all declared gate endpoints exposes any cross-tier edge other than
   the exact 18 recorded physical corridors;
@@ -197,9 +206,11 @@ A candidate is ineligible if any of these proofs fail:
 - derived topography is degenerate, a region misses its tier-specific biome
   diversity floor, a Tier-I biome exceeds 55% of that region's land, or an
   incompatible hot-arid/frozen visual adjacency survives classification;
-- geomorphology changes the Lowlands reserve, violates its exact material
-  budget or climate/tectonic/coastal compatibility, or omits the required
-  glacial, arid, volcanic, and coastal process evidence;
+- geomorphology changes the Lowlands reserve, lacks both broad plateau and
+  short-ramp terrace evidence, loses its bounded weathered detail, violates its
+  exact erosion/deposition material budget or climate/tectonic/coastal
+  compatibility, or omits the required glacial, arid, volcanic, and coastal
+  process evidence;
 - the locked Lowlands patch or any protected catalog differs;
 - castle candidates lack local passability, spacing, or clearance;
 - integer range, stage-digest, deterministic replay, package-integrity, or private
@@ -207,8 +218,10 @@ A candidate is ineligible if any of these proofs fail:
 
 For this offline topology proof, river and minor-stream corridors are fordable
 route surfaces; oceans and lakes are not. This does not activate movement,
-bridges, ferries, or any cross-region mechanic. Castle sites and sealed gate
-endpoints themselves must still be dry.
+bridges, ferries, or any cross-region mechanic. Every sealed gate endpoint and
+every recorded primary/alternate gate-approach cell must remain strictly dry;
+fordable water can connect regional interiors but cannot masquerade as a gate
+apron.
 
 Quality remains a vector, not an automatic decision. After the private package
 has been regenerated and byte-for-byte verified, the owner-review record joins
@@ -250,7 +263,8 @@ hidden sites, maps, screenshots, previews, paths, or reconstructive data.
 
 ## Review and future pull requests
 
-Per the owner’s direction, PR A produces exactly one eligible world for review.
+Per the owner’s direction, PR A produces exactly one eligible canonical world
+for review—not eight separate worlds or parallel variants.
 Private owner review includes silhouette,
 hillshade, biome, hydrology, region-topology/outer-ocean, and mountain/gate
 views. The region view uses a fixed opaque fog exterior and review-only
@@ -258,6 +272,11 @@ outer-ocean bands; its watermark explicitly identifies it as a composition
 proxy, not shipped runtime fog or server fog-of-war authority. The silhouette
 follows topographic land at sea level, so rivers and streams remain features
 within the landmass instead of punching false coastline gaps.
+The hillshade view applies a presentation-only exponential height atmosphere:
+low valleys and long view rays accumulate denser haze, while high peaks remain
+clearer. Extinction darkens terrain radiance and in-scattering adds a blurred
+sky-color proxy as separate terms. Neither term becomes terrain, visibility,
+fog-of-war, persistence, or gameplay authority.
 
 Owner-supplied map references are composition guidance, never source assets or
 pixel targets. Review asks whether the candidate has a strong irregular macro

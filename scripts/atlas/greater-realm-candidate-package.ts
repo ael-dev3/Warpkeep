@@ -30,8 +30,12 @@ import {
   inspectGreaterRealmTrustedGit,
   sha256GreaterRealmAttestedFile,
 } from './greater-realm-git';
+import {
+  compositeGreaterRealmAtmosphere,
+  integrateGreaterRealmHeightFog,
+} from './greater-realm-atmosphere';
 
-const PRIVATE_ATLAS_FORMAT_VERSION = 4;
+const PRIVATE_ATLAS_FORMAT_VERSION = 5;
 const PRIVATE_ATLAS_MAXIMUM_BYTES = 128 * 1024 * 1024;
 const PRIVATE_PREVIEW_MAXIMUM_BYTES = 16 * 1024 * 1024;
 const PRIVATE_MANIFEST_MAXIMUM_BYTES = 4 * 1024 * 1024;
@@ -58,14 +62,21 @@ const PRIVATE_PREVIEW_WATER_RIVER = 3;
 const PRIVATE_PREVIEW_WATER_STREAM = 4;
 const PRIVATE_PREVIEW_WATER_SEA = 5;
 const PRIVATE_PREVIEW_FOG_COLOR = Object.freeze([24, 22, 31] as const);
+const PRIVATE_PREVIEW_SKY_HAZE = Object.freeze([174, 188, 207] as const);
+// Candidate elevation is fail-closed to ±60k, so this review camera remains
+// physically above every legal peak.
+const PRIVATE_PREVIEW_CAMERA_HEIGHT = 80_000;
+const PRIVATE_PREVIEW_HORIZONTAL_SCALE = 120;
 const PRIVATE_CANVAS_RADIUS = 270;
 const PRIVATE_CHUNK_AXIS_SPAN = 15;
 const PRIVATE_CHUNK_PARTITION_VERSION = 'axial-bin-15-v1' as const;
 const PRIVATE_CHUNK_SCHEMA = 'warpkeep.greater-realm.private-chunk-manifest.v1' as const;
 const PRIVATE_TOPOGRAPHY_PATCH_SCHEMA =
   'warpkeep.greater-realm.private-topography-patch.v1' as const;
-const PRIVATE_TOPOGRAPHY_VERSION = 'greater-realm-advanced-topography-v1' as const;
-const PRIVATE_TOPOGRAPHY_ENCODING_VERSION = 'wkgr-topography-fields-v1' as const;
+const PRIVATE_TOPOGRAPHY_VERSION =
+  'greater-realm-advanced-topography-v2' as const;
+const PRIVATE_TOPOGRAPHY_ENCODING_VERSION =
+  'wkgr-topography-fields-v2' as const;
 
 const PRIVATE_PINNED_TOOLCHAIN = Object.freeze({
   configuredNodeEngine: '>=22.13 <23',
@@ -615,6 +626,12 @@ function privateFields(candidate: GreaterRealmPrivateCandidate): readonly Encode
       array: candidate.geomorphologyTotalDelta,
     },
     {
+      name: 'geomorphology-terrace-delta',
+      type: 5,
+      width: 4,
+      array: candidate.geomorphologyTerraceDelta,
+    },
+    {
       name: 'geomorphology-glacial-delta',
       type: 5,
       width: 4,
@@ -825,6 +842,7 @@ const PRIVATE_TOPOGRAPHY_FIELD_NAMES = Object.freeze([
   'rock-resistance',
   'geomorphology-elevation',
   'geomorphology-total-delta',
+  'geomorphology-terrace-delta',
   'geomorphology-glacial-delta',
   'geomorphology-arid-delta',
   'geomorphology-volcanic-delta',
@@ -1273,108 +1291,180 @@ export async function renderGreaterRealmPrivatePreview(
   let encoded: Buffer | undefined;
   let distanceToTopographicLand: Uint16Array | undefined;
   try {
-  for (let pixel = 0; pixel < pixels.length; pixel += 4) {
-    pixels[pixel] = PRIVATE_PREVIEW_FOG_COLOR[0];
-    pixels[pixel + 1] = PRIVATE_PREVIEW_FOG_COLOR[1];
-    pixels[pixel + 2] = PRIVATE_PREVIEW_FOG_COLOR[2];
-    pixels[pixel + 3] = 255;
-  }
-  let minimumQ = Number.POSITIVE_INFINITY;
-  let maximumQ = Number.NEGATIVE_INFINITY;
-  let minimumR = Number.POSITIVE_INFINITY;
-  let maximumR = Number.NEGATIVE_INFINITY;
-  for (let index = 0; index < candidate.grid.cellCount; index += 1) {
-    minimumQ = Math.min(minimumQ, candidate.grid.q[index]!);
-    maximumQ = Math.max(maximumQ, candidate.grid.q[index]!);
-    minimumR = Math.min(minimumR, candidate.grid.r[index]!);
-    maximumR = Math.max(maximumR, candidate.grid.r[index]!);
-  }
-  const qSpan = maximumQ - minimumQ + 1;
-  const rSpan = maximumR - minimumR + 1;
-  const scale = Math.max(1, Math.floor(Math.min((width - 80) / (qSpan + rSpan / 2), (height - 120) / rSpan)));
-  const palette = [
-    [74, 126, 72], [80, 141, 187], [74, 167, 205], [73, 129, 185],
-    [92, 159, 204], [119, 160, 83], [80, 116, 72], [178, 190, 204],
-    [188, 157, 92], [151, 104, 64], [99, 121, 82], [201, 184, 110],
-    [173, 133, 74], [143, 123, 88], [110, 119, 132], [100, 79, 109],
-    [65, 76, 88], [184, 194, 207], [129, 139, 98], [108, 108, 112],
-    [36, 74, 126], [59, 112, 161], [77, 145, 187], [124, 91, 142],
-  ] as const;
-  const regionPalette = [
-    [87, 144, 84], [117, 159, 195], [205, 151, 76], [84, 147, 127], [103, 124, 164],
-    [151, 96, 80], [92, 112, 82], [116, 103, 126], [85, 121, 142], [116, 84, 135],
-  ] as const;
-  if (mode === 'regions') {
-    distanceToTopographicLand = privatePreviewDistanceToTopographicLand(candidate);
-  }
-  const gateCells = new Set(candidate.gates.flatMap(gate => [gate.firstCell, gate.secondCell]));
-  for (let index = 0; index < candidate.grid.cellCount; index += 1) {
-    const x = 40 + Math.round(((candidate.grid.q[index]! - minimumQ) + (candidate.grid.r[index]! - minimumR) / 2) * scale);
-    const y = 60 + Math.round((candidate.grid.r[index]! - minimumR) * scale * 0.86);
-    let color: readonly [number, number, number] = [44, 49, 64];
-    if (mode === 'silhouette') {
-      // Rivers and streams are features inside the continental footprint, not
-      // coastline cuts. Silhouette review therefore follows sea-level land.
-      color = candidate.elevation[index]! > PRIVATE_PREVIEW_SEA_LEVEL
-        ? [142, 164, 105]
-        : [39, 76, 124];
-    } else if (mode === 'hillshade') {
-      const shade = clampPreview(90 + Math.floor((candidate.elevation[index]! + 12_000) / 260));
-      color = [shade, shade, Math.min(255, shade + 8)];
-    } else if (mode === 'biome') {
-      color = palette[candidate.biomeId[index]! % palette.length]!;
-    } else if (mode === 'hydrology') {
-      color = candidate.waterRegime[index] === 0 ? [109, 118, 91] : [48, 132, 205];
-    } else if (mode === 'regions') {
-      const regime = candidate.waterRegime[index]!;
-      if (regime === PRIVATE_PREVIEW_WATER_DRY) {
-        color = regionPalette[candidate.regionId[index]!]!;
-      } else if (regime === PRIVATE_PREVIEW_WATER_OCEAN) {
-        const distance = distanceToTopographicLand?.[index] ?? 0;
-        const band = Math.min(5, Math.floor(distance / 4));
-        color = [54 - band * 5, 91 - band * 8, 132 - band * 10];
-      } else if (
-        regime === PRIVATE_PREVIEW_WATER_LAKE
-        || regime === PRIVATE_PREVIEW_WATER_SEA
-      ) {
-        color = [66, 126, 171];
-      } else if (
-        regime === PRIVATE_PREVIEW_WATER_RIVER
-        || regime === PRIVATE_PREVIEW_WATER_STREAM
-      ) {
-        color = [72, 143, 190];
+    for (let pixel = 0; pixel < pixels.length; pixel += 4) {
+      pixels[pixel] = PRIVATE_PREVIEW_FOG_COLOR[0];
+      pixels[pixel + 1] = PRIVATE_PREVIEW_FOG_COLOR[1];
+      pixels[pixel + 2] = PRIVATE_PREVIEW_FOG_COLOR[2];
+      pixels[pixel + 3] = 255;
+    }
+    let minimumQ = Number.POSITIVE_INFINITY;
+    let maximumQ = Number.NEGATIVE_INFINITY;
+    let minimumR = Number.POSITIVE_INFINITY;
+    let maximumR = Number.NEGATIVE_INFINITY;
+    let minimumProjectedX = Number.POSITIVE_INFINITY;
+    let maximumProjectedX = Number.NEGATIVE_INFINITY;
+    for (let index = 0; index < candidate.grid.cellCount; index += 1) {
+      const q = candidate.grid.q[index]!;
+      const r = candidate.grid.r[index]!;
+      const projectedX = q + r / 2;
+      minimumQ = Math.min(minimumQ, q);
+      maximumQ = Math.max(maximumQ, q);
+      minimumR = Math.min(minimumR, r);
+      maximumR = Math.max(maximumR, r);
+      minimumProjectedX = Math.min(minimumProjectedX, projectedX);
+      maximumProjectedX = Math.max(maximumProjectedX, projectedX);
+    }
+    const rSpan = maximumR - minimumR + 1;
+    const projectedXSpan = maximumProjectedX - minimumProjectedX + 1;
+    const previewCameraQ = (minimumQ + maximumQ) / 2;
+    const previewCameraR = (minimumR + maximumR) / 2;
+    const scale = Math.max(
+      1,
+      Math.floor(
+        Math.min((width - 80) / projectedXSpan, (height - 120) / rSpan),
+      ),
+    );
+    const cellPixelSpan = Math.max(1, scale);
+    const projectedWidth = Math.round(
+      (maximumProjectedX - minimumProjectedX) * scale,
+    ) + cellPixelSpan;
+    const projectedHeight = Math.round((rSpan - 1) * scale * 0.86)
+      + cellPixelSpan;
+    const previewOriginX = Math.max(0, Math.round((width - projectedWidth) / 2));
+    const previewOriginY = Math.max(
+      0,
+      Math.round((height - 44 - projectedHeight) / 2),
+    );
+    const palette = [
+      [74, 126, 72],
+      [80, 141, 187],
+      [74, 167, 205],
+      [73, 129, 185],
+      [92, 159, 204],
+      [119, 160, 83],
+      [80, 116, 72],
+      [178, 190, 204],
+      [188, 157, 92],
+      [151, 104, 64],
+      [99, 121, 82],
+      [201, 184, 110],
+      [173, 133, 74],
+      [143, 123, 88],
+      [110, 119, 132],
+      [100, 79, 109],
+      [65, 76, 88],
+      [184, 194, 207],
+      [129, 139, 98],
+      [108, 108, 112],
+      [36, 74, 126],
+      [59, 112, 161],
+      [77, 145, 187],
+      [124, 91, 142],
+    ] as const;
+    const regionPalette = [
+      [87, 144, 84],
+      [117, 159, 195],
+      [205, 151, 76],
+      [84, 147, 127],
+      [103, 124, 164],
+      [151, 96, 80],
+      [92, 112, 82],
+      [116, 103, 126],
+      [85, 121, 142],
+      [116, 84, 135],
+    ] as const;
+    if (mode === 'regions') {
+      distanceToTopographicLand =
+        privatePreviewDistanceToTopographicLand(candidate);
+    }
+    const gateCells = new Set(
+      candidate.gates.flatMap(gate => [gate.firstCell, gate.secondCell]),
+    );
+    for (let index = 0; index < candidate.grid.cellCount; index += 1) {
+      const x =
+        previewOriginX
+        + Math.round(
+          (candidate.grid.q[index]!
+            + candidate.grid.r[index]! / 2
+            - minimumProjectedX) * scale,
+        );
+      const y =
+        previewOriginY
+        + Math.round((candidate.grid.r[index]! - minimumR) * scale * 0.86);
+      let color: readonly [number, number, number] = [44, 49, 64];
+      if (mode === 'silhouette') {
+        // Rivers and streams are features inside the continental footprint, not
+        // coastline cuts. Silhouette review therefore follows sea-level land.
+        color =
+          candidate.elevation[index]! > PRIVATE_PREVIEW_SEA_LEVEL
+            ? [142, 164, 105]
+            : [39, 76, 124];
+      } else if (mode === 'hillshade') {
+        color = privatePreviewAtmosphericHillshade(
+          candidate,
+          index,
+          previewCameraQ,
+          previewCameraR,
+        );
+      } else if (mode === 'biome') {
+        color = palette[candidate.biomeId[index]! % palette.length]!;
+      } else if (mode === 'hydrology') {
+        color =
+          candidate.waterRegime[index] === 0 ? [109, 118, 91] : [48, 132, 205];
+      } else if (mode === 'regions') {
+        const regime = candidate.waterRegime[index]!;
+        if (regime === PRIVATE_PREVIEW_WATER_DRY) {
+          color = regionPalette[candidate.regionId[index]!]!;
+        } else if (regime === PRIVATE_PREVIEW_WATER_OCEAN) {
+          const distance = distanceToTopographicLand?.[index] ?? 0;
+          const band = Math.min(5, Math.floor(distance / 4));
+          color = [54 - band * 5, 91 - band * 8, 132 - band * 10];
+        } else if (
+          regime === PRIVATE_PREVIEW_WATER_LAKE
+          || regime === PRIVATE_PREVIEW_WATER_SEA
+        ) {
+          color = [66, 126, 171];
+        } else if (
+          regime === PRIVATE_PREVIEW_WATER_RIVER
+          || regime === PRIVATE_PREVIEW_WATER_STREAM
+        ) {
+          color = [72, 143, 190];
+        } else {
+          fail('GREATER_REALM_PRIVATE_PREVIEW_WATER_INVALID');
+        }
       } else {
-        fail('GREATER_REALM_PRIVATE_PREVIEW_WATER_INVALID');
+        color = gateCells.has(index)
+          ? [236, 194, 82]
+          : candidate.barrier[index] === 1
+            ? [112, 104, 110]
+            : [73, 94, 78];
       }
-    } else {
-      color = gateCells.has(index)
-        ? [236, 194, 82]
-        : candidate.barrier[index] === 1
-          ? [112, 104, 110]
-          : [73, 94, 78];
-    }
-    for (let offsetY = 0; offsetY < Math.max(1, scale); offsetY += 1) {
-      for (let offsetX = 0; offsetX < Math.max(1, scale); offsetX += 1) {
-        const targetX = x + offsetX;
-        const targetY = y + offsetY;
-        if (targetX < 0 || targetX >= width || targetY < 0 || targetY >= height) continue;
-        const pixel = (targetY * width + targetX) * 4;
-        pixels[pixel] = color[0];
-        pixels[pixel + 1] = color[1];
-        pixels[pixel + 2] = color[2];
-        pixels[pixel + 3] = 255;
+      for (let offsetY = 0; offsetY < Math.max(1, scale); offsetY += 1) {
+        for (let offsetX = 0; offsetX < Math.max(1, scale); offsetX += 1) {
+          const targetX = x + offsetX;
+          const targetY = y + offsetY;
+          if (targetX < 0 || targetX >= width || targetY < 0 || targetY >= height) continue;
+          const pixel = (targetY * width + targetX) * 4;
+          pixels[pixel] = color[0];
+          pixels[pixel + 1] = color[1];
+          pixels[pixel + 2] = color[2];
+          pixels[pixel + 3] = 255;
+        }
       }
     }
-  }
-  const sharpModule = await import('sharp');
-  const watermarkLabel = mode === 'regions'
-    ? 'TOPOLOGY + OUTER-OCEAN PROXY · PRIVATE REVIEW · NOT RUNTIME FOG'
-    : `PRIVATE OWNER REVIEW — DO NOT DISTRIBUTE · ${mode.toUpperCase()}`;
-  watermark = Buffer.from(
-    `<svg width="${width}" height="${height}"><rect width="100%" height="44" y="${height - 44}" fill="#0b0d16" fill-opacity="0.84"/><text x="32" y="${height - 15}" fill="#e0b85d" font-family="sans-serif" font-size="20" letter-spacing="3">${watermarkLabel}</text></svg>`,
-    'utf8',
-  );
-    encoded = await sharpModule.default(pixels, { raw: { width, height, channels: 4 } })
+    const sharpModule = await import('sharp');
+    const watermarkLabel =
+      mode === 'regions'
+        ? 'TOPOLOGY + OUTER-OCEAN PROXY · PRIVATE REVIEW · NOT RUNTIME FOG'
+        : mode === 'hillshade'
+          ? 'TERRACED RELIEF + HEIGHT ATMOSPHERE · PRIVATE OWNER REVIEW'
+          : `PRIVATE OWNER REVIEW — DO NOT DISTRIBUTE · ${mode.toUpperCase()}`;
+    watermark = Buffer.from(
+      `<svg width="${width}" height="${height}"><rect width="100%" height="44" y="${height - 44}" fill="#0b0d16" fill-opacity="0.84"/><text x="32" y="${height - 15}" fill="#e0b85d" font-family="sans-serif" font-size="20" letter-spacing="3">${watermarkLabel}</text></svg>`,
+      'utf8',
+    );
+    encoded = await sharpModule
+      .default(pixels, { raw: { width, height, channels: 4 } })
       .composite([{ input: watermark }])
       // Preserve the explicit, fully opaque alpha channel. Palette encoding
       // silently collapses an all-255 alpha channel to RGB, which breaks the
@@ -1394,14 +1484,120 @@ function clampPreview(value: number): number {
   return Math.max(28, Math.min(236, value));
 }
 
-export async function writeGreaterRealmPrivateCandidate(input: Readonly<{
-  workspace: GreaterRealmPrivateWorkspace;
-  batchHandle: string;
-  candidateHandle: string;
-  sourceCommit: string;
-  candidate: GreaterRealmPrivateCandidate;
-  performance: GreaterRealmCandidatePerformance;
-}>): Promise<Readonly<{ atlasDigest: string; manifestDigest: string }>> {
+function privatePreviewAtmosphericHillshade(
+  candidate: GreaterRealmPrivateCandidate,
+  cell: number,
+  cameraQ: number,
+  cameraR: number,
+): readonly [number, number, number] {
+  const elevation = candidate.elevation[cell]!;
+  let sunwardElevation = 0;
+  let leewardElevation = 0;
+  let sunwardCount = 0;
+  let leewardCount = 0;
+  let neighborSum = 0;
+  let neighborCount = 0;
+  for (let direction = 0; direction < 6; direction += 1) {
+    const neighbor = candidate.grid.neighbors[cell * 6 + direction]!;
+    if (neighbor < 0) continue;
+    const neighborElevation = candidate.elevation[neighbor]!;
+    neighborSum += neighborElevation;
+    neighborCount += 1;
+    if (direction === 4 || direction === 5) {
+      sunwardElevation += neighborElevation;
+      sunwardCount += 1;
+    } else if (direction === 1 || direction === 2) {
+      leewardElevation += neighborElevation;
+      leewardCount += 1;
+    }
+  }
+  const sunwardMean =
+    sunwardCount === 0 ? elevation : sunwardElevation / sunwardCount;
+  const leewardMean =
+    leewardCount === 0 ? elevation : leewardElevation / leewardCount;
+  const neighborMean =
+    neighborCount === 0 ? elevation : neighborSum / neighborCount;
+  const directionalLight = Math.max(
+    -0.24,
+    Math.min(0.24, (leewardMean - sunwardMean) / 8_000),
+  );
+  const shelter = Math.max(
+    -0.16,
+    Math.min(0.12, (elevation - neighborMean) / 7_000),
+  );
+  const illumination = 0.82 + directionalLight + shelter;
+
+  let base: readonly [number, number, number];
+  if (candidate.waterRegime[cell] !== PRIVATE_PREVIEW_WATER_DRY) {
+    const depth = Math.max(0, -elevation);
+    base = [
+      Math.max(28, 54 - Math.floor(depth / 3_000)),
+      Math.max(60, 111 - Math.floor(depth / 2_500)),
+      Math.max(92, 158 - Math.floor(depth / 2_200)),
+    ];
+  } else if (elevation >= 15_000) {
+    base = [190, 194, 187];
+  } else if (elevation >= 8_000) {
+    base = [137, 131, 104];
+  } else {
+    const moisture = candidate.moisture[cell]!;
+    base =
+      moisture >= 2_500
+        ? [78, 125, 72]
+        : moisture <= -1_000
+          ? [164, 145, 88]
+          : [110, 143, 79];
+  }
+  const scene = Object.freeze(
+    base.map(channel => clampPreview(Math.round(channel * illumination))) as [
+      number,
+      number,
+      number,
+    ],
+  );
+
+  const cameraDeltaQ = candidate.grid.q[cell]! - cameraQ;
+  const cameraDeltaR = candidate.grid.r[cell]! - cameraR;
+  const planarDistance =
+    Math.sqrt(
+      cameraDeltaQ ** 2 + cameraDeltaR ** 2 + cameraDeltaQ * cameraDeltaR,
+    ) * PRIVATE_PREVIEW_HORIZONTAL_SCALE;
+  const rayHeightDelta = elevation - PRIVATE_PREVIEW_CAMERA_HEIGHT;
+  const rayLength = Math.hypot(planarDistance, rayHeightDelta);
+  const extinction = integrateGreaterRealmHeightFog({
+    originHeight: PRIVATE_PREVIEW_CAMERA_HEIGHT,
+    rayHeightDelta,
+    rayLength,
+    density: 0.000_034,
+    heightFalloff: 0.000_082,
+  });
+  const inScattering = integrateGreaterRealmHeightFog({
+    originHeight: PRIVATE_PREVIEW_CAMERA_HEIGHT,
+    rayHeightDelta,
+    rayLength,
+    density: 0.000_052,
+    heightFalloff: 0.000_11,
+  });
+  return compositeGreaterRealmAtmosphere({
+    scene,
+    // The private CPU preview has no runtime environment cubemap. This fixed
+    // muted sky tone is its deliberately non-authoritative blurred-sky proxy.
+    haze: PRIVATE_PREVIEW_SKY_HAZE,
+    extinction,
+    inScattering,
+  });
+}
+
+export async function writeGreaterRealmPrivateCandidate(
+  input: Readonly<{
+    workspace: GreaterRealmPrivateWorkspace;
+    batchHandle: string;
+    candidateHandle: string;
+    sourceCommit: string;
+    candidate: GreaterRealmPrivateCandidate;
+    performance: GreaterRealmCandidatePerformance;
+  }>,
+): Promise<Readonly<{ atlasDigest: string; manifestDigest: string }>> {
   if (
     !BATCH_HANDLE_PATTERN.test(input.batchHandle)
     || !CANDIDATE_HANDLE_PATTERN.test(input.candidateHandle)
@@ -1591,6 +1787,7 @@ function verifyPrivateAtlasBinary(atlas: Buffer, expectedCellCount: number): voi
     ['rock-resistance', 5, 4],
     ['geomorphology-elevation', 5, 4],
     ['geomorphology-total-delta', 5, 4],
+    ['geomorphology-terrace-delta', 5, 4],
     ['geomorphology-glacial-delta', 5, 4],
     ['geomorphology-arid-delta', 5, 4],
     ['geomorphology-volcanic-delta', 5, 4],

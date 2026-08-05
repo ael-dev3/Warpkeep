@@ -1,7 +1,8 @@
 import { Buffer, constants as bufferConstants } from 'node:buffer';
 import { createHash } from 'node:crypto';
 
-export const GREATER_REALM_TERRAIN_CORE_VERSION = 'greater-realm-terrain-v1' as const;
+export const GREATER_REALM_TERRAIN_CORE_VERSION =
+  'greater-realm-terrain-v1' as const;
 
 export type AxialCoordinate = Readonly<{
   q: number;
@@ -16,9 +17,7 @@ export type AxialCoordinate = Readonly<{
  * for small deterministic fixtures.
  */
 export type GreaterRealmTerrainSeed =
-  | number
-  | readonly [number, number, number, number]
-  | Uint32Array;
+  number | readonly [number, number, number, number] | Uint32Array;
 
 type GreaterRealmTerrainSeedWords = Readonly<ArrayLike<number>>;
 
@@ -70,7 +69,11 @@ function checkedSafeSum(first: number, second: number, code: string): number {
 }
 
 function roundDivide(numerator: number, denominator: number): number {
-  if (!Number.isSafeInteger(numerator) || !Number.isSafeInteger(denominator) || denominator <= 0) {
+  if (
+    !Number.isSafeInteger(numerator) ||
+    !Number.isSafeInteger(denominator) ||
+    denominator <= 0
+  ) {
     fail('GREATER_REALM_INTEGER_DIVISION_INVALID');
   }
   const sign = numerator < 0 ? -1 : 1;
@@ -97,7 +100,11 @@ export function greaterRealmHexDistance(
   const q = first.q - second.q;
   const r = first.r - second.r;
   const s = -q - r;
-  if (!Number.isSafeInteger(q) || !Number.isSafeInteger(r) || !Number.isSafeInteger(s)) {
+  if (
+    !Number.isSafeInteger(q) ||
+    !Number.isSafeInteger(r) ||
+    !Number.isSafeInteger(s)
+  ) {
     fail('GREATER_REALM_AXIAL_DISTANCE_OVERFLOW');
   }
   return Math.max(Math.abs(q), Math.abs(r), Math.abs(s));
@@ -108,10 +115,18 @@ export function greaterRealmAxialNeighbors(
 ): readonly AxialCoordinate[] {
   assertInt32(coordinate.q, 'GREATER_REALM_AXIAL_Q_INVALID');
   assertInt32(coordinate.r, 'GREATER_REALM_AXIAL_R_INVALID');
-  return GREATER_REALM_AXIAL_DIRECTIONS.map((direction) => Object.freeze({
-    q: checkedInt32(coordinate.q + direction.q, 'GREATER_REALM_AXIAL_NEIGHBOR_OVERFLOW'),
-    r: checkedInt32(coordinate.r + direction.r, 'GREATER_REALM_AXIAL_NEIGHBOR_OVERFLOW'),
-  }));
+  return GREATER_REALM_AXIAL_DIRECTIONS.map((direction) =>
+    Object.freeze({
+      q: checkedInt32(
+        coordinate.q + direction.q,
+        'GREATER_REALM_AXIAL_NEIGHBOR_OVERFLOW',
+      ),
+      r: checkedInt32(
+        coordinate.r + direction.r,
+        'GREATER_REALM_AXIAL_NEIGHBOR_OVERFLOW',
+      ),
+    }),
+  );
 }
 
 export type IndexedAxialGrid = Readonly<{
@@ -137,11 +152,13 @@ export function indexGreaterRealmAxialGrid(
   if (coordinates.length === 0 || coordinates.length > INT32_MAX) {
     fail('GREATER_REALM_AXIAL_GRID_SIZE_INVALID');
   }
-  const canonical = coordinates.map((coordinate) => {
-    assertInt32(coordinate.q, 'GREATER_REALM_AXIAL_Q_INVALID');
-    assertInt32(coordinate.r, 'GREATER_REALM_AXIAL_R_INVALID');
-    return { q: coordinate.q, r: coordinate.r };
-  }).sort((first, second) => first.q - second.q || first.r - second.r);
+  const canonical = coordinates
+    .map((coordinate) => {
+      assertInt32(coordinate.q, 'GREATER_REALM_AXIAL_Q_INVALID');
+      assertInt32(coordinate.r, 'GREATER_REALM_AXIAL_R_INVALID');
+      return { q: coordinate.q, r: coordinate.r };
+    })
+    .sort((first, second) => first.q - second.q || first.r - second.r);
 
   const q = new Int32Array(canonical.length);
   const r = new Int32Array(canonical.length);
@@ -158,13 +175,22 @@ export function indexGreaterRealmAxialGrid(
   const neighbors = new Int32Array(canonical.length * NEIGHBOR_COUNT);
   neighbors.fill(-1);
   for (let index = 0; index < canonical.length; index += 1) {
-    for (let directionIndex = 0; directionIndex < NEIGHBOR_COUNT; directionIndex += 1) {
+    for (
+      let directionIndex = 0;
+      directionIndex < NEIGHBOR_COUNT;
+      directionIndex += 1
+    ) {
       const direction = GREATER_REALM_AXIAL_DIRECTIONS[directionIndex]!;
-      const neighborQ = checkedInt32(q[index]! + direction.q, 'GREATER_REALM_AXIAL_NEIGHBOR_OVERFLOW');
-      const neighborR = checkedInt32(r[index]! + direction.r, 'GREATER_REALM_AXIAL_NEIGHBOR_OVERFLOW');
-      neighbors[index * NEIGHBOR_COUNT + directionIndex] = indexByKey.get(
-        `${neighborQ},${neighborR}`,
-      ) ?? -1;
+      const neighborQ = checkedInt32(
+        q[index]! + direction.q,
+        'GREATER_REALM_AXIAL_NEIGHBOR_OVERFLOW',
+      );
+      const neighborR = checkedInt32(
+        r[index]! + direction.r,
+        'GREATER_REALM_AXIAL_NEIGHBOR_OVERFLOW',
+      );
+      neighbors[index * NEIGHBOR_COUNT + directionIndex] =
+        indexByKey.get(`${neighborQ},${neighborR}`) ?? -1;
     }
   }
 
@@ -202,7 +228,8 @@ function terrainSeedWords(
     return [seed, 0, 0, 0];
   }
   if (seed.length !== 4) fail('GREATER_REALM_TERRAIN_SEED_INVALID');
-  for (const word of seed) assertUint32(word, 'GREATER_REALM_TERRAIN_SEED_INVALID');
+  for (const word of seed)
+    assertUint32(word, 'GREATER_REALM_TERRAIN_SEED_INVALID');
   return seed;
 }
 
@@ -274,7 +301,13 @@ export function greaterRealmCounterRandomU32(
   assertInt32(r, 'GREATER_REALM_AXIAL_R_INVALID');
   assertUint32(sampleIndex, 'GREATER_REALM_TERRAIN_SAMPLE_INVALID');
 
-  return counterRandomFromSeedWords(terrainSeedWords(seed), channel, q, r, sampleIndex);
+  return counterRandomFromSeedWords(
+    terrainSeedWords(seed),
+    channel,
+    q,
+    r,
+    sampleIndex,
+  );
 }
 
 export type IntegerFieldLayer = Readonly<{
@@ -302,68 +335,93 @@ export function createGreaterRealmMultiscaleIntegerField(
   const seedWords = terrainSeedWords(seed);
   if (layers.length === 0) fail('GREATER_REALM_TERRAIN_LAYERS_EMPTY');
   const output = new Int32Array(grid.cellCount);
-
-  for (const layer of layers) {
-    assertInt32(layer.amplitude, 'GREATER_REALM_TERRAIN_AMPLITUDE_INVALID');
-    if (layer.amplitude < 0) fail('GREATER_REALM_TERRAIN_AMPLITUDE_INVALID');
-    assertUint32(layer.smoothingPasses, 'GREATER_REALM_TERRAIN_SMOOTHING_INVALID');
-    if (layer.smoothingPasses > MAX_OFFLINE_RELAXATION_PASSES) {
-      fail('GREATER_REALM_TERRAIN_SMOOTHING_INVALID');
-    }
-    const selfWeight = layer.selfWeight ?? 2;
-    assertUint32(selfWeight, 'GREATER_REALM_TERRAIN_SELF_WEIGHT_INVALID');
-    if (selfWeight === 0) fail('GREATER_REALM_TERRAIN_SELF_WEIGHT_INVALID');
-    const channel = layerChannelId(layer.channel);
-    const span = layer.amplitude * 2 + 1;
-    if (!Number.isSafeInteger(span) || 0xffff * span > Number.MAX_SAFE_INTEGER) {
-      fail('GREATER_REALM_TERRAIN_AMPLITUDE_OVERFLOW');
-    }
-
-    let current = new Int32Array(grid.cellCount);
-    for (let index = 0; index < grid.cellCount; index += 1) {
-      const random = counterRandomFromSeedWords(
-        seedWords,
-        channel,
-        grid.q[index]!,
-        grid.r[index]!,
+  let current: Int32Array | undefined;
+  let next: Int32Array | undefined;
+  let completed = false;
+  try {
+    for (const layer of layers) {
+      assertInt32(layer.amplitude, 'GREATER_REALM_TERRAIN_AMPLITUDE_INVALID');
+      if (layer.amplitude < 0) fail('GREATER_REALM_TERRAIN_AMPLITUDE_INVALID');
+      assertUint32(
+        layer.smoothingPasses,
+        'GREATER_REALM_TERRAIN_SMOOTHING_INVALID',
       );
-      const sample = random >>> 16;
-      current[index] = Math.floor((sample * span) / UINT16_RANGE) - layer.amplitude;
-    }
+      if (layer.smoothingPasses > MAX_OFFLINE_RELAXATION_PASSES) {
+        fail('GREATER_REALM_TERRAIN_SMOOTHING_INVALID');
+      }
+      const selfWeight = layer.selfWeight ?? 2;
+      assertUint32(selfWeight, 'GREATER_REALM_TERRAIN_SELF_WEIGHT_INVALID');
+      if (selfWeight === 0) fail('GREATER_REALM_TERRAIN_SELF_WEIGHT_INVALID');
+      const channel = layerChannelId(layer.channel);
+      const span = layer.amplitude * 2 + 1;
+      if (
+        !Number.isSafeInteger(span) ||
+        0xffff * span > Number.MAX_SAFE_INTEGER
+      ) {
+        fail('GREATER_REALM_TERRAIN_AMPLITUDE_OVERFLOW');
+      }
 
-    for (let pass = 0; pass < layer.smoothingPasses; pass += 1) {
-      const next = new Int32Array(grid.cellCount);
+      current = new Int32Array(grid.cellCount);
       for (let index = 0; index < grid.cellCount; index += 1) {
-        let numerator = current[index]! * selfWeight;
-        let denominator = selfWeight;
-        if (!Number.isSafeInteger(numerator)) fail('GREATER_REALM_TERRAIN_SMOOTHING_OVERFLOW');
-        for (let directionIndex = 0; directionIndex < NEIGHBOR_COUNT; directionIndex += 1) {
-          const neighbor = grid.neighbors[index * NEIGHBOR_COUNT + directionIndex]!;
-          if (neighbor < 0) continue;
-          numerator = checkedSafeSum(
-            numerator,
-            current[neighbor]!,
+        const random = counterRandomFromSeedWords(
+          seedWords,
+          channel,
+          grid.q[index]!,
+          grid.r[index]!,
+        );
+        const sample = random >>> 16;
+        current[index] =
+          Math.floor((sample * span) / UINT16_RANGE) - layer.amplitude;
+      }
+
+      for (let pass = 0; pass < layer.smoothingPasses; pass += 1) {
+        next = new Int32Array(grid.cellCount);
+        for (let index = 0; index < grid.cellCount; index += 1) {
+          let numerator = current[index]! * selfWeight;
+          let denominator = selfWeight;
+          if (!Number.isSafeInteger(numerator))
+            fail('GREATER_REALM_TERRAIN_SMOOTHING_OVERFLOW');
+          for (
+            let directionIndex = 0;
+            directionIndex < NEIGHBOR_COUNT;
+            directionIndex += 1
+          ) {
+            const neighbor =
+              grid.neighbors[index * NEIGHBOR_COUNT + directionIndex]!;
+            if (neighbor < 0) continue;
+            numerator = checkedSafeSum(
+              numerator,
+              current[neighbor]!,
+              'GREATER_REALM_TERRAIN_SMOOTHING_OVERFLOW',
+            );
+            denominator += 1;
+          }
+          next[index] = checkedInt32(
+            roundDivide(numerator, denominator),
             'GREATER_REALM_TERRAIN_SMOOTHING_OVERFLOW',
           );
-          denominator += 1;
         }
-        next[index] = checkedInt32(
-          roundDivide(numerator, denominator),
-          'GREATER_REALM_TERRAIN_SMOOTHING_OVERFLOW',
+        current.fill(0);
+        current = next;
+        next = undefined;
+      }
+
+      for (let index = 0; index < grid.cellCount; index += 1) {
+        output[index] = checkedInt32(
+          output[index]! + current[index]!,
+          'GREATER_REALM_TERRAIN_FIELD_OVERFLOW',
         );
       }
-      current = next;
+      current.fill(0);
+      current = undefined;
     }
-
-    for (let index = 0; index < grid.cellCount; index += 1) {
-      output[index] = checkedInt32(
-        output[index]! + current[index]!,
-        'GREATER_REALM_TERRAIN_FIELD_OVERFLOW',
-      );
-    }
+    completed = true;
+    return output;
+  } finally {
+    current?.fill(0);
+    next?.fill(0);
+    if (!completed) output.fill(0);
   }
-
-  return output;
 }
 
 class StableCellMinHeap {
@@ -377,7 +435,9 @@ class StableCellMinHeap {
 
   #less(first: number, second: number): boolean {
     const priorityDifference = this.priority[first]! - this.priority[second]!;
-    return priorityDifference < 0 || (priorityDifference === 0 && first < second);
+    return (
+      priorityDifference < 0 || (priorityDifference === 0 && first < second)
+    );
   }
 
   push(cell: number): void {
@@ -404,7 +464,10 @@ class StableCellMinHeap {
       if (left >= this.#cells.length) break;
       const right = left + 1;
       let child = left;
-      if (right < this.#cells.length && this.#less(this.#cells[right]!, this.#cells[left]!)) {
+      if (
+        right < this.#cells.length &&
+        this.#less(this.#cells[right]!, this.#cells[left]!)
+      ) {
         child = right;
       }
       if (!this.#less(this.#cells[child]!, tail)) break;
@@ -433,22 +496,33 @@ function canonicalOutletIndexes(
   const outlets: number[] = [];
   if (outletIndexes === undefined) {
     for (let index = 0; index < grid.cellCount; index += 1) {
-      for (let directionIndex = 0; directionIndex < NEIGHBOR_COUNT; directionIndex += 1) {
-        if (grid.neighbors[index * NEIGHBOR_COUNT + directionIndex] !== -1) continue;
+      for (
+        let directionIndex = 0;
+        directionIndex < NEIGHBOR_COUNT;
+        directionIndex += 1
+      ) {
+        if (grid.neighbors[index * NEIGHBOR_COUNT + directionIndex] !== -1)
+          continue;
         outlets.push(index);
         break;
       }
     }
   } else {
     for (const outlet of outletIndexes) {
-      if (!Number.isSafeInteger(outlet) || outlet < 0 || outlet >= grid.cellCount) {
+      if (
+        !Number.isSafeInteger(outlet) ||
+        outlet < 0 ||
+        outlet >= grid.cellCount
+      ) {
         fail('GREATER_REALM_PRIORITY_FLOOD_OUTLET_INVALID');
       }
       outlets.push(outlet);
     }
   }
   outlets.sort((first, second) => first - second);
-  const unique = outlets.filter((outlet, index) => index === 0 || outlet !== outlets[index - 1]);
+  const unique = outlets.filter(
+    (outlet, index) => index === 0 || outlet !== outlets[index - 1],
+  );
   if (unique.length === 0) fail('GREATER_REALM_PRIORITY_FLOOD_OUTLET_MISSING');
   return unique;
 }
@@ -459,8 +533,10 @@ export function priorityFloodGreaterRealmHexGrid(
   elevation: Readonly<Int32Array>,
   outletIndexes?: readonly number[] | Uint32Array,
 ): GreaterRealmPriorityFlood {
-  if (elevation.length !== grid.cellCount) fail('GREATER_REALM_ELEVATION_LENGTH_INVALID');
-  if (grid.cellCount > UINT32_MAX) fail('GREATER_REALM_PRIORITY_FLOOD_SIZE_OVERFLOW');
+  if (elevation.length !== grid.cellCount)
+    fail('GREATER_REALM_ELEVATION_LENGTH_INVALID');
+  if (grid.cellCount > UINT32_MAX)
+    fail('GREATER_REALM_PRIORITY_FLOOD_SIZE_OVERFLOW');
 
   const filledElevation = new Int32Array(elevation);
   const floodParent = new Int32Array(grid.cellCount);
@@ -484,7 +560,11 @@ export function priorityFloodGreaterRealmHexGrid(
     rank[cell] = popCount;
     popCount += 1;
 
-    for (let directionIndex = 0; directionIndex < NEIGHBOR_COUNT; directionIndex += 1) {
+    for (
+      let directionIndex = 0;
+      directionIndex < NEIGHBOR_COUNT;
+      directionIndex += 1
+    ) {
       const neighbor = grid.neighbors[cell * NEIGHBOR_COUNT + directionIndex]!;
       if (neighbor < 0 || discovered[neighbor] === 1) continue;
       discovered[neighbor] = 1;
@@ -496,7 +576,8 @@ export function priorityFloodGreaterRealmHexGrid(
     }
   }
 
-  if (popCount !== grid.cellCount) fail('GREATER_REALM_PRIORITY_FLOOD_UNREACHABLE');
+  if (popCount !== grid.cellCount)
+    fail('GREATER_REALM_PRIORITY_FLOOD_UNREACHABLE');
   return Object.freeze({ filledElevation, floodParent, order, rank, outlets });
 }
 
@@ -518,7 +599,8 @@ function betterFlowReceiver(
   if (elevation[candidate]! !== elevation[currentBest]!) {
     return elevation[candidate]! < elevation[currentBest]!;
   }
-  if (rank[candidate]! !== rank[currentBest]!) return rank[candidate]! < rank[currentBest]!;
+  if (rank[candidate]! !== rank[currentBest]!)
+    return rank[candidate]! < rank[currentBest]!;
   return candidate < currentBest;
 }
 
@@ -531,22 +613,29 @@ export function routeGreaterRealmSingleFlow(
   flood: GreaterRealmPriorityFlood,
 ): GreaterRealmSingleFlowRouting {
   if (
-    flood.filledElevation.length !== grid.cellCount
-    || flood.order.length !== grid.cellCount
-    || flood.rank.length !== grid.cellCount
-    || flood.outlets.length !== grid.cellCount
-  ) fail('GREATER_REALM_FLOW_INPUT_LENGTH_INVALID');
+    flood.filledElevation.length !== grid.cellCount ||
+    flood.order.length !== grid.cellCount ||
+    flood.rank.length !== grid.cellCount ||
+    flood.outlets.length !== grid.cellCount
+  )
+    fail('GREATER_REALM_FLOW_INPUT_LENGTH_INVALID');
 
   const receiver = new Int32Array(grid.cellCount);
   receiver.fill(-1);
   for (let cell = 0; cell < grid.cellCount; cell += 1) {
     if (flood.outlets[cell] === 1) continue;
     let best = -1;
-    for (let directionIndex = 0; directionIndex < NEIGHBOR_COUNT; directionIndex += 1) {
+    for (
+      let directionIndex = 0;
+      directionIndex < NEIGHBOR_COUNT;
+      directionIndex += 1
+    ) {
       const neighbor = grid.neighbors[cell * NEIGHBOR_COUNT + directionIndex]!;
       if (neighbor < 0 || flood.rank[neighbor]! >= flood.rank[cell]!) continue;
-      if (flood.filledElevation[neighbor]! > flood.filledElevation[cell]!) continue;
-      if (betterFlowReceiver(neighbor, best, flood.filledElevation, flood.rank)) best = neighbor;
+      if (flood.filledElevation[neighbor]! > flood.filledElevation[cell]!)
+        continue;
+      if (betterFlowReceiver(neighbor, best, flood.filledElevation, flood.rank))
+        best = neighbor;
     }
     if (best < 0) fail('GREATER_REALM_FLOW_RECEIVER_MISSING');
     receiver[cell] = best;
@@ -569,17 +658,22 @@ export function assertGreaterRealmSingleFlow(
   routing: GreaterRealmSingleFlowRouting,
 ): void {
   if (
-    filledElevation.length !== grid.cellCount
-    || routing.receiver.length !== grid.cellCount
-    || routing.order.length !== grid.cellCount
-    || routing.rank.length !== grid.cellCount
-    || routing.outlets.length !== grid.cellCount
-  ) fail('GREATER_REALM_FLOW_INPUT_LENGTH_INVALID');
+    filledElevation.length !== grid.cellCount ||
+    routing.receiver.length !== grid.cellCount ||
+    routing.order.length !== grid.cellCount ||
+    routing.rank.length !== grid.cellCount ||
+    routing.outlets.length !== grid.cellCount
+  )
+    fail('GREATER_REALM_FLOW_INPUT_LENGTH_INVALID');
 
   const seen = new Uint8Array(grid.cellCount);
   for (let orderIndex = 0; orderIndex < grid.cellCount; orderIndex += 1) {
     const cell = routing.order[orderIndex]!;
-    if (cell >= grid.cellCount || seen[cell] === 1 || routing.rank[cell] !== orderIndex) {
+    if (
+      cell >= grid.cellCount ||
+      seen[cell] === 1 ||
+      routing.rank[cell] !== orderIndex
+    ) {
       fail('GREATER_REALM_FLOW_ORDER_INVALID');
     }
     seen[cell] = 1;
@@ -593,17 +687,24 @@ export function assertGreaterRealmSingleFlow(
       if (receiver !== -1) fail('GREATER_REALM_FLOW_OUTLET_INVALID');
       continue;
     }
-    if (receiver < 0 || receiver >= grid.cellCount) fail('GREATER_REALM_FLOW_RECEIVER_INVALID');
+    if (receiver < 0 || receiver >= grid.cellCount)
+      fail('GREATER_REALM_FLOW_RECEIVER_INVALID');
     let adjacent = false;
-    for (let directionIndex = 0; directionIndex < NEIGHBOR_COUNT; directionIndex += 1) {
+    for (
+      let directionIndex = 0;
+      directionIndex < NEIGHBOR_COUNT;
+      directionIndex += 1
+    ) {
       if (grid.neighbors[cell * NEIGHBOR_COUNT + directionIndex] === receiver) {
         adjacent = true;
         break;
       }
     }
     if (!adjacent) fail('GREATER_REALM_FLOW_RECEIVER_NOT_ADJACENT');
-    if (filledElevation[receiver]! > filledElevation[cell]!) fail('GREATER_REALM_FLOW_UPHILL');
-    if (routing.rank[receiver]! >= routing.rank[cell]!) fail('GREATER_REALM_FLOW_CYCLE');
+    if (filledElevation[receiver]! > filledElevation[cell]!)
+      fail('GREATER_REALM_FLOW_UPHILL');
+    if (routing.rank[receiver]! >= routing.rank[cell]!)
+      fail('GREATER_REALM_FLOW_CYCLE');
   }
   if (outletCount === 0) fail('GREATER_REALM_FLOW_OUTLET_MISSING');
 }
@@ -616,7 +717,10 @@ export function accumulateGreaterRealmSingleFlow(
   localContribution?: Readonly<Uint32Array>,
 ): BigUint64Array {
   assertGreaterRealmSingleFlow(grid, filledElevation, routing);
-  if (localContribution !== undefined && localContribution.length !== grid.cellCount) {
+  if (
+    localContribution !== undefined &&
+    localContribution.length !== grid.cellCount
+  ) {
     fail('GREATER_REALM_FLOW_CONTRIBUTION_LENGTH_INVALID');
   }
   const accumulation = new BigUint64Array(grid.cellCount);
@@ -625,7 +729,8 @@ export function accumulateGreaterRealmSingleFlow(
     const contribution = BigInt(localContribution?.[index] ?? 1);
     accumulation[index] = contribution;
     localTotal += contribution;
-    if (localTotal > UINT64_MAX) fail('GREATER_REALM_FLOW_ACCUMULATION_OVERFLOW');
+    if (localTotal > UINT64_MAX)
+      fail('GREATER_REALM_FLOW_ACCUMULATION_OVERFLOW');
   }
 
   for (let orderIndex = grid.cellCount - 1; orderIndex >= 0; orderIndex -= 1) {
@@ -641,7 +746,8 @@ export function accumulateGreaterRealmSingleFlow(
   for (let index = 0; index < grid.cellCount; index += 1) {
     if (routing.outlets[index] === 1) outletTotal += accumulation[index]!;
   }
-  if (outletTotal !== localTotal) fail('GREATER_REALM_FLOW_ACCUMULATION_MISMATCH');
+  if (outletTotal !== localTotal)
+    fail('GREATER_REALM_FLOW_ACCUMULATION_MISMATCH');
   return accumulation;
 }
 
@@ -666,10 +772,7 @@ function elevationMass(elevation: Readonly<Int32Array>): bigint {
   return mass;
 }
 
-function talusAt(
-  talus: number | Readonly<Int32Array>,
-  index: number,
-): number {
+function talusAt(talus: number | Readonly<Int32Array>, index: number): number {
   return typeof talus === 'number' ? talus : talus[index]!;
 }
 
@@ -682,7 +785,8 @@ export function erodeGreaterRealmThermally(
   elevation: Readonly<Int32Array>,
   options: SynchronousThermalErosionOptions,
 ): SynchronousThermalErosionResult {
-  if (elevation.length !== grid.cellCount) fail('GREATER_REALM_ELEVATION_LENGTH_INVALID');
+  if (elevation.length !== grid.cellCount)
+    fail('GREATER_REALM_ELEVATION_LENGTH_INVALID');
   assertUint32(options.iterations, 'GREATER_REALM_THERMAL_ITERATIONS_INVALID');
   if (options.iterations > MAX_OFFLINE_RELAXATION_PASSES) {
     fail('GREATER_REALM_THERMAL_ITERATIONS_INVALID');
@@ -691,7 +795,8 @@ export function erodeGreaterRealmThermally(
     assertInt32(options.talus, 'GREATER_REALM_THERMAL_TALUS_INVALID');
     if (options.talus < 0) fail('GREATER_REALM_THERMAL_TALUS_INVALID');
   } else {
-    if (options.talus.length !== grid.cellCount) fail('GREATER_REALM_THERMAL_TALUS_LENGTH_INVALID');
+    if (options.talus.length !== grid.cellCount)
+      fail('GREATER_REALM_THERMAL_TALUS_LENGTH_INVALID');
     for (const value of options.talus) {
       if (value < 0) fail('GREATER_REALM_THERMAL_TALUS_INVALID');
     }
@@ -701,12 +806,13 @@ export function erodeGreaterRealmThermally(
   assertUint32(transferNumerator, 'GREATER_REALM_THERMAL_TRANSFER_INVALID');
   assertUint32(transferDenominator, 'GREATER_REALM_THERMAL_TRANSFER_INVALID');
   if (
-    transferNumerator === 0
-    || transferDenominator === 0
-    || transferNumerator > THERMAL_TRANSFER_SCALE_MAX
-    || transferDenominator > THERMAL_TRANSFER_SCALE_MAX
-    || transferNumerator * NEIGHBOR_COUNT > transferDenominator
-  ) fail('GREATER_REALM_THERMAL_TRANSFER_INVALID');
+    transferNumerator === 0 ||
+    transferDenominator === 0 ||
+    transferNumerator > THERMAL_TRANSFER_SCALE_MAX ||
+    transferDenominator > THERMAL_TRANSFER_SCALE_MAX ||
+    transferNumerator * NEIGHBOR_COUNT > transferDenominator
+  )
+    fail('GREATER_REALM_THERMAL_TRANSFER_INVALID');
 
   const initialMass = elevationMass(elevation);
   let movedMaterial = 0n;
@@ -715,12 +821,19 @@ export function erodeGreaterRealmThermally(
     const delta = new Float64Array(grid.cellCount);
     let movedThisIteration = 0;
     for (let first = 0; first < grid.cellCount; first += 1) {
-      for (let directionIndex = 0; directionIndex < NEIGHBOR_COUNT; directionIndex += 1) {
+      for (
+        let directionIndex = 0;
+        directionIndex < NEIGHBOR_COUNT;
+        directionIndex += 1
+      ) {
         const second = grid.neighbors[first * NEIGHBOR_COUNT + directionIndex]!;
         if (second <= first) continue;
         const difference = current[first]! - current[second]!;
         const magnitude = Math.abs(difference);
-        const stableDrop = Math.max(talusAt(options.talus, first), talusAt(options.talus, second));
+        const stableDrop = Math.max(
+          talusAt(options.talus, first),
+          talusAt(options.talus, second),
+        );
         if (magnitude <= stableDrop) continue;
         const transfer = Math.floor(
           ((magnitude - stableDrop) * transferNumerator) / transferDenominator,
@@ -730,7 +843,10 @@ export function erodeGreaterRealmThermally(
         const low = difference > 0 ? second : first;
         delta[high] -= transfer;
         delta[low] += transfer;
-        if (!Number.isSafeInteger(delta[high]) || !Number.isSafeInteger(delta[low])) {
+        if (
+          !Number.isSafeInteger(delta[high]) ||
+          !Number.isSafeInteger(delta[low])
+        ) {
           fail('GREATER_REALM_THERMAL_DELTA_OVERFLOW');
         }
         movedThisIteration = checkedSafeSum(
@@ -754,7 +870,12 @@ export function erodeGreaterRealmThermally(
 
   const finalMass = elevationMass(current);
   if (finalMass !== initialMass) fail('GREATER_REALM_THERMAL_MASS_MISMATCH');
-  return Object.freeze({ elevation: current, initialMass, finalMass, movedMaterial });
+  return Object.freeze({
+    elevation: current,
+    initialMass,
+    finalMass,
+    movedMaterial,
+  });
 }
 
 export type IntegerTerrainArray =
@@ -806,36 +927,46 @@ function encodeIntegerArray(array: IntegerTerrainArray): Readonly<{
   } else if (array instanceof Int16Array) {
     type = 'i16';
     width = 2;
-    write = (buffer, offset, index) => buffer.writeInt16LE(array[index]!, offset);
+    write = (buffer, offset, index) =>
+      buffer.writeInt16LE(array[index]!, offset);
   } else if (array instanceof Uint16Array) {
     type = 'u16';
     width = 2;
-    write = (buffer, offset, index) => buffer.writeUInt16LE(array[index]!, offset);
+    write = (buffer, offset, index) =>
+      buffer.writeUInt16LE(array[index]!, offset);
   } else if (array instanceof Int32Array) {
     type = 'i32';
     width = 4;
-    write = (buffer, offset, index) => buffer.writeInt32LE(array[index]!, offset);
+    write = (buffer, offset, index) =>
+      buffer.writeInt32LE(array[index]!, offset);
   } else if (array instanceof Uint32Array) {
     type = 'u32';
     width = 4;
-    write = (buffer, offset, index) => buffer.writeUInt32LE(array[index]!, offset);
+    write = (buffer, offset, index) =>
+      buffer.writeUInt32LE(array[index]!, offset);
   } else if (array instanceof BigInt64Array) {
     type = 'i64';
     width = 8;
-    write = (buffer, offset, index) => buffer.writeBigInt64LE(array[index]!, offset);
+    write = (buffer, offset, index) =>
+      buffer.writeBigInt64LE(array[index]!, offset);
   } else if (array instanceof BigUint64Array) {
     type = 'u64';
     width = 8;
-    write = (buffer, offset, index) => buffer.writeBigUInt64LE(array[index]!, offset);
+    write = (buffer, offset, index) =>
+      buffer.writeBigUInt64LE(array[index]!, offset);
   } else {
     fail('GREATER_REALM_STAGE_DIGEST_ARRAY_INVALID');
   }
-  if (array.length > UINT32_MAX || array.length * width > bufferConstants.MAX_LENGTH) {
+  if (
+    array.length > UINT32_MAX ||
+    array.length * width > bufferConstants.MAX_LENGTH
+  ) {
     fail('GREATER_REALM_STAGE_DIGEST_ARRAY_TOO_LARGE');
   }
   const bytes = Buffer.allocUnsafe(array.length * width);
   try {
-    for (let index = 0; index < array.length; index += 1) write(bytes, index * width, index);
+    for (let index = 0; index < array.length; index += 1)
+      write(bytes, index * width, index);
   } catch (error) {
     bytes.fill(0);
     throw error;
@@ -861,16 +992,20 @@ export function digestGreaterRealmTerrainStage(
     count.writeUInt32LE(grid.cellCount);
     digest.update(count);
 
-    if (Object.keys(fields).some((name) => name.length === 0 || name.startsWith('@'))) {
+    if (
+      Object.keys(fields).some(
+        (name) => name.length === 0 || name.startsWith('@'),
+      )
+    ) {
       fail('GREATER_REALM_STAGE_DIGEST_FIELD_INVALID');
     }
 
     for (const [name, array] of [
       ['@q', grid.q] as const,
       ['@r', grid.r] as const,
-      ...Object.entries(fields).sort(([first], [second]) => (
-        first < second ? -1 : first > second ? 1 : 0
-      )),
+      ...Object.entries(fields).sort(([first], [second]) =>
+        first < second ? -1 : first > second ? 1 : 0,
+      ),
     ]) {
       const encoded = encodeIntegerArray(array);
       let length: Buffer | undefined;

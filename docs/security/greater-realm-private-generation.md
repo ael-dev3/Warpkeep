@@ -6,14 +6,14 @@ exists. This document applies to the candidate-generation pull request only.
 
 ## Assets and trust boundaries
 
-| Data | Classification | Allowed location |
-| --- | --- | --- |
-| Root/candidate seed bytes | Private authority | Owner-only workspace outside the repository |
-| Exact canvas, cells, geology/geomorphology processes, paired topography/biomes, regions, gates, slots, sites, fields, transforms | Private authority | Owner-only workspace outside the repository |
-| Chunk/topography-patch manifests, package/layout/stage digests, toolchain records, and inventories | Private operational data | Owner-only workspace outside the repository |
-| Candidate maps and contact sheets | Private owner-review data | Owner-only workspace outside the repository |
-| Aggregate allowlisted candidate metrics | Public sanitized evidence | `docs/evidence/greater-realm/` after strict validation |
-| Generator source and synthetic fixtures | Public source | `scripts/atlas/` and `tests/` |
+| Data                                                                                                                             | Classification            | Allowed location                                       |
+| -------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------ |
+| Root/candidate seed bytes                                                                                                        | Private authority         | Owner-only workspace outside the repository            |
+| Exact canvas, cells, geology/geomorphology processes, paired topography/biomes, regions, gates, slots, sites, fields, transforms | Private authority         | Owner-only workspace outside the repository            |
+| Chunk/topography-patch manifests, package/layout/stage digests, toolchain records, and inventories                               | Private operational data  | Owner-only workspace outside the repository            |
+| Candidate maps and contact sheets                                                                                                | Private owner-review data | Owner-only workspace outside the repository            |
+| Aggregate allowlisted candidate metrics                                                                                          | Public sanitized evidence | `docs/evidence/greater-realm/` after strict validation |
+| Generator source and synthetic fixtures                                                                                          | Public source             | `scripts/atlas/` and `tests/`                          |
 
 The browser, Vite `public/` tree, production `dist/`, source maps, Git history,
 pull-request comments, CI artifacts, logs, and public SpacetimeDB tables are not
@@ -48,8 +48,9 @@ The private workspace must:
   field payload, then bind its referenced topography patch to the same cells,
   generation/topography/partition versions, exact process-and-derived field
   inventory, payload length, and payload digest;
-- include final elevation, each glacial/arid/volcanic/coastal elevation delta,
-  and the corresponding process masks/classes in that canonical inventory so
+- include final elevation, the low-frequency terrace delta, each
+  glacial/arid/volcanic/coastal elevation delta, and the corresponding process
+  masks/classes in that canonical inventory so
   the private physical-process metrics can be independently reproduced; retain
   raw geomorphology climate fields separately from final derived climate, and
   retain process-output elevation so process input is exactly output minus the

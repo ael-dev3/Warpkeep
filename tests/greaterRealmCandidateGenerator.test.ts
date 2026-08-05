@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   GREATER_REALM_REGION_SPECS,
   clearGreaterRealmCandidateSecret,
+  deriveGreaterRealmCandidateSeedMaterial,
   generateGreaterRealmCandidate,
   type GreaterRealmPrivateCandidate,
 } from '../scripts/atlas/greater-realm-candidate-generator';
@@ -17,7 +18,9 @@ import {
 } from '../scripts/atlas/greater-realm-legacy-lowlands';
 import {
   digestGreaterRealmTerrainStage,
+  greaterRealmCounterRandomU32,
   greaterRealmHexDistance,
+  greaterRealmTerrainChannelId,
   type IntegerTerrainArray,
 } from '../scripts/atlas/greater-realm-terrain';
 
@@ -26,14 +29,17 @@ const SAME_FIRST_WORD_BASELINE_ROOT_INDEX = 23_248;
 const SAME_FIRST_WORD_ROOT_INDEX = 41_769;
 const PINNED_ORDINAL = 9;
 const SAME_FIRST_WORD_ORDINAL = 0;
+const SECONDARY_ROOT_LABEL = 'greater-realm-secondary-fixture';
+const SECONDARY_ORDINAL = 18;
 const EXPECTED_ACTIVE_CELL_MINIMUM = 100_000;
 const EXPECTED_ACTIVE_CELL_MAXIMUM = 150_000;
 const EXPECTED_CASTLES_PER_FRONTIER_REGION = 100;
 
 let pinned: GreaterRealmPrivateCandidate | undefined;
 let replay: GreaterRealmPrivateCandidate | undefined;
-let sameFirstWordBaseline: GreaterRealmPrivateCandidate | undefined;
-let sameFirstWordVariant: GreaterRealmPrivateCandidate | undefined;
+let secondary: GreaterRealmPrivateCandidate | undefined;
+let sameFirstWordBaseline: Uint32Array | undefined;
+let sameFirstWordVariant: Uint32Array | undefined;
 let mathRandomCallCount = 0;
 
 function programmaticRoot(index: number): Uint8Array {
@@ -49,16 +55,34 @@ function pinnedRoot(): Uint8Array {
     .digest());
 }
 
+function deriveTestCandidateSeed(rootSeed: Uint8Array): Uint32Array {
+  const material = deriveGreaterRealmCandidateSeedMaterial(rootSeed, SAME_FIRST_WORD_ORDINAL);
+  const digest = createHash('sha256')
+    .update('warpkeep-greater-realm-u32-v1\0', 'utf8')
+    .update(material)
+    .digest();
+  try {
+    return new Uint32Array([
+      digest.readUInt32LE(0),
+      digest.readUInt32LE(4),
+      digest.readUInt32LE(8),
+      digest.readUInt32LE(12),
+    ]);
+  } finally {
+    material.fill(0);
+    digest.fill(0);
+  }
+}
+
 function requireCandidates(): readonly [
   GreaterRealmPrivateCandidate,
   GreaterRealmPrivateCandidate,
   GreaterRealmPrivateCandidate,
-  GreaterRealmPrivateCandidate,
 ] {
-  if (!pinned || !replay || !sameFirstWordBaseline || !sameFirstWordVariant) {
+  if (!pinned || !replay || !secondary) {
     throw new Error('GREATER_REALM_CANDIDATE_FIXTURE_MISSING');
   }
-  return [pinned, replay, sameFirstWordBaseline, sameFirstWordVariant];
+  return [pinned, replay, secondary];
 }
 
 function candidateFields(
@@ -79,6 +103,7 @@ function candidateFields(
     geomorphologyTemperature: candidate.geomorphologyTemperature,
     geomorphologyMoisture: candidate.geomorphologyMoisture,
     geomorphologyTotalDelta: candidate.geomorphologyTotalDelta,
+    geomorphologyTerraceDelta: candidate.geomorphologyTerraceDelta,
     geomorphologyGlacialDelta: candidate.geomorphologyGlacialDelta,
     geomorphologyAridDelta: candidate.geomorphologyAridDelta,
     geomorphologyVolcanicDelta: candidate.geomorphologyVolcanicDelta,
@@ -180,6 +205,9 @@ function crossTierGraphAudit(
 
 beforeAll(() => {
   const firstRoot = pinnedRoot();
+  const secondaryRoot = Uint8Array.from(createHash('sha256')
+    .update(`${SECONDARY_ROOT_LABEL}\0`, 'utf8')
+    .digest());
   const collisionRoot = programmaticRoot(SAME_FIRST_WORD_BASELINE_ROOT_INDEX);
   const secondRoot = programmaticRoot(SAME_FIRST_WORD_ROOT_INDEX);
   const randomSpy = vi.spyOn(Math, 'random').mockImplementation(() => {
@@ -195,17 +223,16 @@ beforeAll(() => {
       rootSeed: firstRoot,
       candidateOrdinal: PINNED_ORDINAL,
     });
-    sameFirstWordBaseline = generateGreaterRealmCandidate({
-      rootSeed: collisionRoot,
-      candidateOrdinal: SAME_FIRST_WORD_ORDINAL,
+    secondary = generateGreaterRealmCandidate({
+      rootSeed: secondaryRoot,
+      candidateOrdinal: SECONDARY_ORDINAL,
     });
-    sameFirstWordVariant = generateGreaterRealmCandidate({
-      rootSeed: secondRoot,
-      candidateOrdinal: SAME_FIRST_WORD_ORDINAL,
-    });
+    sameFirstWordBaseline = deriveTestCandidateSeed(collisionRoot);
+    sameFirstWordVariant = deriveTestCandidateSeed(secondRoot);
   } finally {
     randomSpy.mockRestore();
     firstRoot.fill(0);
+    secondaryRoot.fill(0);
     collisionRoot.fill(0);
     secondRoot.fill(0);
   }
@@ -214,8 +241,9 @@ beforeAll(() => {
 afterAll(() => {
   if (pinned) clearGreaterRealmCandidateSecret(pinned);
   if (replay) clearGreaterRealmCandidateSecret(replay);
-  if (sameFirstWordBaseline) clearGreaterRealmCandidateSecret(sameFirstWordBaseline);
-  if (sameFirstWordVariant) clearGreaterRealmCandidateSecret(sameFirstWordVariant);
+  if (secondary) clearGreaterRealmCandidateSecret(secondary);
+  sameFirstWordBaseline?.fill(0);
+  sameFirstWordVariant?.fill(0);
 });
 
 describe('Greater Realm private candidate generator', () => {
@@ -238,13 +266,32 @@ describe('Greater Realm private candidate generator', () => {
   });
 
   it('uses all 128 candidate-seed bits instead of collapsing to the first word', () => {
-    const [, , candidate, variant] = requireCandidates();
+    if (!sameFirstWordBaseline || !sameFirstWordVariant) {
+      throw new Error('GREATER_REALM_COLLISION_FIXTURE_MISSING');
+    }
+    const candidate = sameFirstWordBaseline;
+    const variant = sameFirstWordVariant;
 
     // These programmatic roots were selected for a collision in word zero.
-    expect(candidate.candidateSeed[0]).toBe(variant.candidateSeed[0]);
-    expect(candidate.candidateSeed.slice(1)).not.toEqual(variant.candidateSeed.slice(1));
-    expect(candidate.stageDigests.final).not.toBe(variant.stageDigests.final);
-    expect(candidate.grid.q).not.toEqual(variant.grid.q);
+    expect(candidate[0]).toBe(variant[0]);
+    expect(candidate.slice(1)).not.toEqual(variant.slice(1));
+    const channel = greaterRealmTerrainChannelId('all-seed-words-regression');
+    const firstSamples = Array.from({ length: 8 }, (_, counter) => (
+      greaterRealmCounterRandomU32(candidate, channel, 17, -31, counter)
+    ));
+    const secondSamples = Array.from({ length: 8 }, (_, counter) => (
+      greaterRealmCounterRandomU32(variant, channel, 17, -31, counter)
+    ));
+    expect(firstSamples).not.toEqual(secondSamples);
+  });
+
+  it('carries seed diversity through a second complete deterministic terrain', () => {
+    const [candidate, , variant] = requireCandidates();
+
+    expect(variant.candidateOrdinal).toBe(SECONDARY_ORDINAL);
+    expect(variant.candidateSeed).not.toEqual(candidate.candidateSeed);
+    expect(variant.stageDigests.final).not.toBe(candidate.stageDigests.final);
+    expect(variant.grid.q).not.toEqual(candidate.grid.q);
   });
 
   it('binds every returned authoritative integer field into stable stage evidence', () => {
@@ -269,6 +316,7 @@ describe('Greater Realm private candidate generator', () => {
         geomorphologyTemperature: candidate.geomorphologyTemperature,
         geomorphologyMoisture: candidate.geomorphologyMoisture,
         geomorphologyTotalDelta: candidate.geomorphologyTotalDelta,
+        geomorphologyTerraceDelta: candidate.geomorphologyTerraceDelta,
         geomorphologyGlacialDelta: candidate.geomorphologyGlacialDelta,
         geomorphologyAridDelta: candidate.geomorphologyAridDelta,
         geomorphologyVolcanicDelta: candidate.geomorphologyVolcanicDelta,

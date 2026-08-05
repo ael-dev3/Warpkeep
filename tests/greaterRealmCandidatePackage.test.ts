@@ -78,7 +78,7 @@ let atlasDigest = '';
 let manifestDigest = '';
 let batchSeedDigest = '';
 
-type GreaterRealmV4ManifestAuthority = {
+type GreaterRealmV5ManifestAuthority = {
   barrierCrossSections: Array<{ cells: number[] }>;
   gates: Array<{
     firstApproachPath: number[];
@@ -87,6 +87,11 @@ type GreaterRealmV4ManifestAuthority = {
     secondAlternateApproachPath: number[];
   }>;
 };
+
+function privateAtlasFormatVersion(atlas: Buffer): number {
+  const magicLength = atlas.readUInt16LE(0);
+  return atlas.readUInt16LE(2 + magicLength);
+}
 
 function privateAtlasFieldNames(atlas: Buffer): readonly string[] {
   let offset = 0;
@@ -249,6 +254,7 @@ describe('Greater Realm owner-only candidate package', () => {
     let comparisonMetrics: GreaterRealmVerifiedPrivateShortlistMetrics | undefined;
     try {
       expect(first.equals(second)).toBe(true);
+      expect(privateAtlasFormatVersion(first)).toBe(5);
       expect(createHash('sha256').update(first).digest('hex')).toBe(atlasDigest);
       const atlasFields = privateAtlasFieldNames(first);
       expect(atlasFields.filter(name => name === 'geological-barrier-band'))
@@ -257,6 +263,7 @@ describe('Greater Realm owner-only candidate package', () => {
         .toBe(atlasFields.indexOf('barrier') + 1);
       for (const fieldName of [
         'geomorphology-total-delta',
+        'geomorphology-terrace-delta',
         'geomorphology-elevation',
         'geomorphology-glacial-delta',
         'geomorphology-arid-delta',
@@ -327,7 +334,7 @@ describe('Greater Realm owner-only candidate package', () => {
     let derivedSeed: Buffer | undefined;
     try {
       expect(GREATER_REALM_GENERATOR_VERSION)
-        .toBe('greater-realm-v2-natural-continent-pr-a.6');
+        .toBe('greater-realm-v2-natural-continent-pr-a.8');
       expect(GREATER_REALM_TERRAIN_SEED_NAMESPACE)
         .toBe('greater-realm-v2-natural-continent-pr-a.3');
       expect(GREATER_REALM_GENERATOR_VERSION).not.toBe(
@@ -408,22 +415,39 @@ describe('Greater Realm owner-only candidate package', () => {
       expect(inlandWaterPixels).toBeGreaterThan(100);
       expect(oceanTones.size).toBeGreaterThanOrEqual(4);
 
-      let minimumQ = Number.POSITIVE_INFINITY;
-      let maximumQ = Number.NEGATIVE_INFINITY;
       let minimumR = Number.POSITIVE_INFINITY;
       let maximumR = Number.NEGATIVE_INFINITY;
+      let minimumProjectedX = Number.POSITIVE_INFINITY;
+      let maximumProjectedX = Number.NEGATIVE_INFINITY;
       for (let cell = 0; cell < fixture.candidate.grid.cellCount; cell += 1) {
-        minimumQ = Math.min(minimumQ, fixture.candidate.grid.q[cell]!);
-        maximumQ = Math.max(maximumQ, fixture.candidate.grid.q[cell]!);
-        minimumR = Math.min(minimumR, fixture.candidate.grid.r[cell]!);
-        maximumR = Math.max(maximumR, fixture.candidate.grid.r[cell]!);
+        const q = fixture.candidate.grid.q[cell]!;
+        const r = fixture.candidate.grid.r[cell]!;
+        const projectedX = q + r / 2;
+        minimumR = Math.min(minimumR, r);
+        maximumR = Math.max(maximumR, r);
+        minimumProjectedX = Math.min(minimumProjectedX, projectedX);
+        maximumProjectedX = Math.max(maximumProjectedX, projectedX);
       }
-      const qSpan = maximumQ - minimumQ + 1;
       const rSpan = maximumR - minimumR + 1;
+      const projectedXSpan = maximumProjectedX - minimumProjectedX + 1;
       const scale = Math.max(1, Math.floor(Math.min(
-        (1_280 - 80) / (qSpan + rSpan / 2),
+        (1_280 - 80) / projectedXSpan,
         (1_024 - 120) / rSpan,
       )));
+      const cellPixelSpan = Math.max(1, scale);
+      const projectedWidth = Math.round(
+        (maximumProjectedX - minimumProjectedX) * scale,
+      ) + cellPixelSpan;
+      const projectedHeight = Math.round((rSpan - 1) * scale * 0.86)
+        + cellPixelSpan;
+      const previewOriginX = Math.max(
+        0,
+        Math.round((1_280 - projectedWidth) / 2),
+      );
+      const previewOriginY = Math.max(
+        0,
+        Math.round((1_024 - 44 - projectedHeight) / 2),
+      );
       let renderedRiverAsLand = false;
       for (
         let cell = fixture.candidate.grid.cellCount - 1;
@@ -437,11 +461,12 @@ describe('Greater Realm owner-only candidate package', () => {
             && fixture.candidate.waterRegime[cell] !== 4
           )
         ) continue;
-        const x = 40 + Math.round((
-          (fixture.candidate.grid.q[cell]! - minimumQ)
-          + (fixture.candidate.grid.r[cell]! - minimumR) / 2
+        const x = previewOriginX + Math.round((
+          fixture.candidate.grid.q[cell]!
+          + fixture.candidate.grid.r[cell]! / 2
+          - minimumProjectedX
         ) * scale);
-        const y = 60 + Math.round(
+        const y = previewOriginY + Math.round(
           (fixture.candidate.grid.r[cell]! - minimumR) * scale * 0.86,
         );
         const offset = (y * 1_280 + x) * 4;
@@ -459,13 +484,45 @@ describe('Greater Realm owner-only candidate package', () => {
     }
   }, 45_000);
 
+  it('keeps the atmospheric hillshade invariant under a global atlas translation', async () => {
+    const fixture = requireFixture();
+    const originalQ = new Int32Array(fixture.candidate.grid.q);
+    const originalR = new Int32Array(fixture.candidate.grid.r);
+    let baseline: Buffer | undefined;
+    let translated: Buffer | undefined;
+    try {
+      baseline = await renderGreaterRealmPrivatePreview(
+        fixture.candidate,
+        'hillshade',
+      );
+      for (let cell = 0; cell < fixture.candidate.grid.cellCount; cell += 1) {
+        fixture.candidate.grid.q[cell] = originalQ[cell]! + 37;
+        fixture.candidate.grid.r[cell] = originalR[cell]! - 19;
+      }
+      translated = await renderGreaterRealmPrivatePreview(
+        fixture.candidate,
+        'hillshade',
+      );
+
+      expect(translated.equals(baseline)).toBe(true);
+    } finally {
+      fixture.candidate.grid.q.set(originalQ);
+      fixture.candidate.grid.r.set(originalR);
+      originalQ.fill(0);
+      originalR.fill(0);
+      baseline?.fill(0);
+      translated?.fill(0);
+    }
+  }, 45_000);
+
   it('binds deterministic 15-by-15 axial bins, topography patches, and toolchain pins', () => {
     const fixture = requireFixture();
     const bytes = fixture.workspace.readFile(candidateRelativePath('manifest.private.json'));
     try {
       const parsed = JSON.parse(bytes.toString('utf8')) as {
-        barrierCrossSections: GreaterRealmV4ManifestAuthority['barrierCrossSections'];
-        gates: GreaterRealmV4ManifestAuthority['gates'];
+        formatVersion: number;
+        barrierCrossSections: GreaterRealmV5ManifestAuthority['barrierCrossSections'];
+        gates: GreaterRealmV5ManifestAuthority['gates'];
         geomorphologyVersion: string;
         toolchainVersions: {
           architecture: string;
@@ -528,6 +585,7 @@ describe('Greater Realm owner-only candidate package', () => {
           chunkKey: string;
           partitionVersion: string;
           geomorphologyVersion: string;
+          topographyVersion: string;
           cellCount: number;
           topographyPatchId: string;
           topographyPatchDigest: string;
@@ -543,8 +601,11 @@ describe('Greater Realm owner-only candidate package', () => {
           manifestDigest: string;
           topographyPatchId: string;
           geomorphologyVersion: string;
+          encodingVersion: string;
+          topographyVersion: string;
         }>;
       };
+      expect(parsed.formatVersion).toBe(5);
       expect(parsed.toolchainVersions.configuredNodeEngine).toBe('>=22.13 <23');
       expect(parsed.toolchainVersions.configuredPackageManager).toBe('npm@10.9.8');
       expect(parsed.toolchainVersions.libvips).toBe('8.18.3');
@@ -596,7 +657,7 @@ describe('Greater Realm owner-only candidate package', () => {
         expect(file.path).toMatch(/^node_modules\//u);
         expect(file.sha256).toMatch(/^[0-9a-f]{64}$/u);
       }
-      expect(parsed.geomorphologyVersion).toBe('greater-realm-geomorphology-v2');
+      expect(parsed.geomorphologyVersion).toBe('greater-realm-geomorphology-v3');
       const throneCell = fixture.candidate.throneAnchor.findIndex(value => value === 1);
       expect(throneCell).toBeGreaterThanOrEqual(0);
       expect(parsed.throneAnchor).toEqual({
@@ -633,8 +694,11 @@ describe('Greater Realm owner-only candidate package', () => {
         const patch = parsed.topographyPatchManifests[index]!;
         expect(patch.chunkKey).toBe(chunk.chunkKey);
         expect(chunk.partitionVersion).toBe('axial-bin-15-v1');
-        expect(chunk.geomorphologyVersion).toBe('greater-realm-geomorphology-v2');
-        expect(patch.geomorphologyVersion).toBe('greater-realm-geomorphology-v2');
+        expect(chunk.geomorphologyVersion).toBe('greater-realm-geomorphology-v3');
+        expect(chunk.topographyVersion).toBe('greater-realm-advanced-topography-v2');
+        expect(patch.geomorphologyVersion).toBe('greater-realm-geomorphology-v3');
+        expect(patch.encodingVersion).toBe('wkgr-topography-fields-v2');
+        expect(patch.topographyVersion).toBe('greater-realm-advanced-topography-v2');
         expect(patch.topographyPatchId).toBe(chunk.topographyPatchId);
         expect(patch.manifestDigest).toBe(chunk.topographyPatchDigest);
         expect(patch.sampleCount).toBe(chunk.cellCount);
@@ -642,8 +706,8 @@ describe('Greater Realm owner-only candidate package', () => {
         expect(patch.sampleWidth).toBeLessThanOrEqual(15);
         expect(patch.sampleHeight).toBeGreaterThan(0);
         expect(patch.sampleHeight).toBeLessThanOrEqual(15);
-        expect(patch.fieldCount).toBe(29);
-        expect(patch.payloadByteCount).toBe(patch.sampleCount * 84);
+        expect(patch.fieldCount).toBe(30);
+        expect(patch.payloadByteCount).toBe(patch.sampleCount * 88);
         expect(patch.payloadDigest).toMatch(/^[0-9a-f]{64}$/u);
       }
     } finally {
@@ -795,7 +859,7 @@ describe('Greater Realm owner-only candidate package', () => {
 
   it.each<[
     string,
-    (manifest: GreaterRealmV4ManifestAuthority) => void,
+    (manifest: GreaterRealmV5ManifestAuthority) => void,
   ]>([
     ['barrier cross-section cells', manifest => {
       manifest.barrierCrossSections[0]!.cells[0] =
@@ -817,10 +881,10 @@ describe('Greater Realm owner-only candidate package', () => {
       manifest.gates[0]!.secondAlternateApproachPath[0] =
         manifest.gates[0]!.secondAlternateApproachPath[0]! + 1;
     }],
-  ])('rejects tampered v4 %s authority with an updated digest', async (_label, mutate) => {
+  ])('rejects tampered v5 %s authority with an updated digest', async (_label, mutate) => {
     const relativePath = candidateRelativePath('manifest.private.json');
     const original = requireFixture().workspace.readFile(relativePath);
-    const parsed = JSON.parse(original.toString('utf8')) as GreaterRealmV4ManifestAuthority;
+    const parsed = JSON.parse(original.toString('utf8')) as GreaterRealmV5ManifestAuthority;
     original.fill(0);
     mutate(parsed);
     const corrupted = Buffer.from(`${JSON.stringify(parsed, null, 2)}\n`, 'utf8');
@@ -1198,19 +1262,20 @@ describe('Greater Realm owner-only candidate package', () => {
       temperature: Int32Array.of(-13),
       moisture: Int32Array.of(14),
       geomorphologyTotalDelta: Int32Array.of(15),
+      geomorphologyTerraceDelta: Int32Array.of(16),
       geomorphologyElevation: Int32Array.of(14),
-      geomorphologyGlacialDelta: Int32Array.of(16),
-      geomorphologyAridDelta: Int32Array.of(17),
-      geomorphologyVolcanicDelta: Int32Array.of(18),
-      geomorphologyCoastalDelta: Int32Array.of(19),
+      geomorphologyGlacialDelta: Int32Array.of(17),
+      geomorphologyAridDelta: Int32Array.of(18),
+      geomorphologyVolcanicDelta: Int32Array.of(19),
+      geomorphologyCoastalDelta: Int32Array.of(20),
       geomorphologyGlacialMask: Uint8Array.of(1),
       geomorphologyAridMask: Uint8Array.of(1),
       geomorphologyVolcanicMask: Uint8Array.of(1),
       geomorphologyVolcanicAnchorMask: Uint8Array.of(1),
       geomorphologyCoastalMask: Uint8Array.of(1),
       geomorphologyCoastalClass: Uint8Array.of(2),
-      geomorphologyTemperature: Int32Array.of(-20),
-      geomorphologyMoisture: Int32Array.of(21),
+      geomorphologyTemperature: Int32Array.of(-21),
+      geomorphologyMoisture: Int32Array.of(22),
     };
     const u8 = () => Uint8Array.of(1);
     const i32 = () => Int32Array.of(1);
