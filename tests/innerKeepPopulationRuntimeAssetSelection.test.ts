@@ -363,6 +363,11 @@ describe('Inner Keep population runtime asset selection', () => {
     expect(verifier).not.toMatch(/\bfetch\s*\(|https?:\/\/|\.cache\/warpkeep-assets/u);
     expect(installer).toContain('WARPKEEP_INNER_KEEP_POPULATION_ARCHIVE_ROOT');
     expect(installer).toContain('resolveAttestedSystemUnzip()');
+    expect(installer).toContain("mkdtempSync(resolve(tmpdir(), 'warpkeep-inner-keep-population-'))");
+    expect(installer).toContain("writeFileSync(snapshotPath, bytes, { flag: 'wx', mode: 0o600 })");
+    expect(installer).toContain('archive.snapshotPath');
+    expect(installer).not.toContain('archive.path');
+    expect(installer).toContain('env: createAssetToolEnvironment(workspace)');
     expect(generator).toContain(
       INNER_KEEP_POPULATION_SELECTION.authorization.scopeBoundary
     );

@@ -1,6 +1,6 @@
 import { constants } from 'node:fs';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   INNER_KEEP_CANONICAL_TARGET,
@@ -598,6 +598,61 @@ describe('Inner Keep exact protected-state evidence', () => {
 });
 
 describe('Inner Keep operator safety gates', () => {
+  it('rejects unconfirmed programmatic mutations before any connected call', async () => {
+    const connection = {
+      procedures: {
+        adminGetInnerKeepStatusV1: async () => {
+          throw new Error('must not inspect');
+        },
+        adminPlanInnerKeepBuildersV1: async () => {
+          throw new Error('must not plan');
+        },
+      },
+      reducers: {
+        adminBackfillInnerKeepBuildersV1: async () => {
+          throw new Error('must not mutate');
+        },
+      },
+    } as unknown as Parameters<typeof executeConnectedCommand>[0];
+    let evidenceReads = 0;
+    const arguments_ = parseInnerKeepOperatorArguments([
+      'backfill-inner-keep-builders',
+      '--expected-castles', '3',
+      '--expected-existing-builders', '1',
+      '--expected-missing-builders', '2',
+    ]);
+
+    await expect(executeConnectedCommand(connection, arguments_, async () => {
+      evidenceReads += 1;
+      return protectedSnapshot();
+    })).rejects.toThrow('mutations require explicit confirmation');
+    expect(evidenceReads).toBe(0);
+  });
+
+  it('rejects an unknown programmatic command instead of treating it as deactivation', async () => {
+    const inspect = vi.fn(async () => {
+      throw new Error('must not inspect');
+    });
+    const deactivate = vi.fn(async () => {
+      throw new Error('must not mutate');
+    });
+    const connection = {
+      procedures: { adminGetInnerKeepStatusV1: inspect },
+      reducers: { adminDeactivateInnerKeepV1: deactivate },
+    } as unknown as Parameters<typeof executeConnectedCommand>[0];
+    const arguments_ = {
+      ...parseInnerKeepOperatorArguments(['inspect-inner-keep']),
+      command: 'not-a-command',
+      confirmed: true,
+    } as unknown as Parameters<typeof executeConnectedCommand>[1];
+
+    await expect(executeConnectedCommand(connection, arguments_, async () => (
+      protectedSnapshot()
+    ))).rejects.toThrow('command is invalid');
+    expect(inspect).not.toHaveBeenCalled();
+    expect(deactivate).not.toHaveBeenCalled();
+  });
+
   it('rejects mutable target overrides', () => {
     expect(assertCanonicalInnerKeepTarget({})).toEqual(INNER_KEEP_CANONICAL_TARGET);
     expect(() => assertCanonicalInnerKeepTarget({

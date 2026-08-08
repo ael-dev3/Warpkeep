@@ -14,6 +14,7 @@ import { createInnerKeepPresentation } from './fixtures/innerKeepPresentation';
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -353,6 +354,52 @@ describe('InnerKeepScreen functional fallback', () => {
     expect(slot.querySelector('.inner-keep-building-art')).toBeNull();
     expect(screen.getByText('CONSTRUCTION IN PROGRESS')).toBeVisible();
     expect(screen.getAllByRole('time')).not.toHaveLength(0);
+  });
+
+  it('refreshes the coarse clock immediately when an idle Builder starts work', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-08T08:00:00.000Z'));
+    const baseProps = {
+      onBack: vi.fn(),
+      onCloseToRealm: vi.fn(),
+      onOpenSlot: vi.fn(),
+      onReviewBuilding: vi.fn()
+    };
+    const view = render(
+      <InnerKeepScreen
+        {...baseProps}
+        presentation={createInnerKeepPresentation()}
+      />
+    );
+
+    vi.setSystemTime(new Date('2026-08-08T20:00:00.000Z'));
+    const constructing: InnerKeepBuildingPresentation = Object.freeze({
+      slotId: 'inner-keep-slot-m01',
+      buildingKind: 'city-mill',
+      completedLevel: 0,
+      targetLevel: 1,
+      phase: 'constructing',
+      startedAtMicros: BigInt(Date.now()) * 1_000n,
+      completesAtMicros: BigInt(Date.now() + 2 * 60 * 60 * 1_000) * 1_000n,
+      revision: 2n
+    });
+    view.rerender(
+      <InnerKeepScreen
+        {...baseProps}
+        presentation={createInnerKeepPresentation({
+          buildings: [constructing],
+          builder: {
+            state: 'busy',
+            slotId: constructing.slotId,
+            buildingKind: constructing.buildingKind,
+            targetLevel: constructing.targetLevel,
+            completesAtMicros: constructing.completesAtMicros!
+          }
+        })}
+      />
+    );
+
+    expect(screen.getByRole('time')).toHaveTextContent('2h 0m remaining');
   });
 
   it('announces and cues an upgrade start and completion exactly once', async () => {

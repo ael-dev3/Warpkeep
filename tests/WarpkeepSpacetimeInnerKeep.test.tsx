@@ -125,7 +125,8 @@ function Probe() {
 
 function projectionFor(
   input: Parameters<NonNullable<WarpkeepBackendRuntime['readInnerKeepProjection']>>[1],
-  constructing: boolean
+  constructing: boolean,
+  advanced = false
 ): ReadyInnerKeepProjection {
   const building = Object.freeze({
     castleId: input.scope.castleId,
@@ -133,20 +134,20 @@ function projectionFor(
     slotKey: `${input.scope.castleId}:inner-keep-slot-m01`,
     slotId: 'inner-keep-slot-m01',
     buildingKind: 'city-mill' as const,
-    completedLevel: 0,
-    targetLevel: 1,
+    completedLevel: advanced ? 1 : 0,
+    targetLevel: advanced ? 2 : 1,
     phase: 'constructing' as const,
-    startedAtMicros: 100n,
-    completesAtMicros: 86_400_000_100n,
-    revision: 0n,
+    startedAtMicros: advanced ? 200n : 100n,
+    completesAtMicros: advanced ? 172_800_000_200n : 86_400_000_100n,
+    revision: advanced ? 2n : 0n,
     policyVersion: INNER_KEEP_POLICY_VERSION
   });
   const basePresentation = constructing
     ? createInnerKeepPresentation({
         available: Object.freeze({
-          food: 9_700n,
-          wood: 9_100n,
-          stone: 9_400n,
+          food: advanced ? 9_000n : 9_700n,
+          wood: advanced ? 7_100n : 9_100n,
+          stone: advanced ? 8_000n : 9_400n,
           gold: 10_000n
         }),
         buildings: [building],
@@ -159,7 +160,7 @@ function projectionFor(
         }),
         commandsEnabled: false,
         phase: 'constructing',
-        projectRevision: 3n
+        projectRevision: advanced ? 7n : 3n
       })
     : createInnerKeepPresentation({ projectRevision: 1n });
   const presentation = Object.freeze({
@@ -358,6 +359,74 @@ describe('Inner Keep provider command lifecycle', () => {
     expect(screen.getByTestId('inner-food').textContent).toBe('9700');
     expect(startInnerKeepProject).toHaveBeenCalledTimes(1);
     expect(readInnerKeepRequestStatus).toHaveBeenCalled();
+  });
+
+  it('unseals an ambiguous request after another client advances the accepted project', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    let advanced = false;
+    const snapshot = createCanonicalGenesisSnapshot(12_345);
+    const receipt: InnerKeepRequestReceipt = Object.freeze({
+      found: true,
+      castleId: BigInt(snapshot.ownCastle.castleId),
+      buildingKey: `${snapshot.ownCastle.castleId}:city-mill`,
+      slotId: 'inner-keep-slot-m01',
+      buildingKind: 'city-mill',
+      targetLevel: 1,
+      deducted: Object.freeze({ food: 300n, wood: 900n, stone: 600n, gold: 0n }),
+      startedAtMicros: 100n,
+      policyVersion: INNER_KEEP_POLICY_VERSION
+    });
+    const readInnerKeepProjection = vi.fn(async (
+      _connection,
+      input: Parameters<NonNullable<WarpkeepBackendRuntime['readInnerKeepProjection']>>[1]
+    ) => projectionFor(input, advanced, advanced));
+    const runtime = {
+      connect: vi.fn(async () => ({ disconnect: vi.fn(), isDisconnectRequested: false })),
+      disconnect: vi.fn(),
+      readBackendInfo: vi.fn(async () => ({
+        protocolVersion: 3,
+        worldSeed: 3_445_214_658,
+        worldSeedName: 'HEGEMONY_GENESIS_001'
+      })),
+      readAdmission: vi.fn(async () => 'ready'),
+      bootstrapPlayer: vi.fn(async () => undefined),
+      readEntryAgreementStatus: vi.fn(async () => true),
+      acceptAlphaTerms: vi.fn(async () => undefined),
+      readResourceState: vi.fn(async () => createReadyResourceState(12_345)),
+      collectResources: vi.fn(async () => createReadyResourceState(12_345)),
+      observeRealm: vi.fn(() => vi.fn()),
+      readRealmSnapshot: vi.fn(() => snapshot),
+      subscribeRealm: vi.fn((_connection, onApplied: () => void) => {
+        onApplied();
+        return { unsubscribe: vi.fn() };
+      }),
+      readInnerKeepProjection,
+      readInnerKeepRequestStatus: vi.fn(async () => receipt),
+      startInnerKeepProject: vi.fn().mockRejectedValue(new Error('transport result unknown'))
+    } as unknown as WarpkeepBackendRuntime;
+
+    render(
+      <WarpkeepSpacetimeProvider config={CONFIG} runtime={runtime}>
+        <Probe />
+      </WarpkeepSpacetimeProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId('inner-phase').textContent).toBe('ready'));
+
+    await act(async () => {
+      await expect(captured!.startInnerKeepProject('inner-keep-slot-m01', 'city-mill'))
+        .rejects.toThrow('Inner Keep construction status is uncertain.');
+    });
+    await waitFor(() => expect(screen.getByTestId('inner-phase').textContent)
+      .toBe('synchronizing'));
+    expect(screen.getByTestId('inner-food').textContent).toBe('10000');
+
+    advanced = true;
+    act(() => captured!.retryInnerKeepSync());
+    await waitFor(() => expect(screen.getByTestId('inner-phase').textContent)
+      .toBe('constructing'));
+    expect(screen.getByTestId('inner-food').textContent).toBe('9000');
+    expect(screen.getByTestId('inner-commands').textContent).toBe('false');
+    expect(runtime.startInnerKeepProject).toHaveBeenCalledOnce();
   });
 
   it('marks a local preflight rejection as no-commit and keeps a valid attempt available', async () => {

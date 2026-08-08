@@ -3518,6 +3518,7 @@ describe('activation publish safety', () => {
       executable: '/private/pinned-spacetime',
       artifactReceipt: receipt,
       adminTokenSecret: 's'.repeat(32),
+      publishConfirmation: 'warpkeep',
       foundedExpectations: expectations,
       resourceRolloutStage: RESOURCE_PUBLISH_ROLLOUT_STAGE.READY,
       genesisWorldRolloutStage: GENESIS_WORLD_PUBLISH_STAGE.EXPANDED,
@@ -3560,6 +3561,16 @@ describe('activation publish safety', () => {
       verifyPostPublishAccessRequestV13Aggregate: postAccessRequests,
       verifyPostPublishEmptyInactiveInnerKeepV15: postInnerKeep,
     };
+
+    for (const publishConfirmation of [undefined, 'not-warpkeep']) {
+      await expect(executeProtocolV15InactivePublicationLane(
+        { ...baseOptions, dryRun: false, publishConfirmation },
+        dependencies,
+      )).rejects.toThrow(/WARPKEEP_PUBLISH_CONFIRM=warpkeep/i);
+      expect(Object.values(dependencies).every(dependency => (
+        !('mock' in dependency) || dependency.mock.calls.length === 0
+      ))).toBe(true);
+    }
 
     await expect(executeProtocolV15InactivePublicationLane(
       { ...baseOptions, dryRun: true },

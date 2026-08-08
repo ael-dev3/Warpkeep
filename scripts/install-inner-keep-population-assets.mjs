@@ -4,11 +4,16 @@ import {
   closeSync,
   fstatSync,
   lstatSync,
+  mkdtempSync,
   openSync,
-  readFileSync
+  readFileSync,
+  rmSync,
+  writeFileSync
 } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, relative, resolve, sep } from 'node:path';
 
+import { createAssetToolEnvironment } from './asset-tool-process.mjs';
 import {
   ensureContainedDirectory,
   installAtomicFileFamily
@@ -71,9 +76,10 @@ function exactOrdinaryFile(path, expected, label) {
   }
 }
 
-function readArchiveMember(unzipBinary, archivePath, sourcePath) {
+function readArchiveMember(unzipBinary, archivePath, sourcePath, workspace) {
   const result = spawnSync(unzipBinary, ['-p', archivePath, sourcePath], {
-    cwd: ROOT,
+    cwd: workspace,
+    env: createAssetToolEnvironment(workspace),
     encoding: null,
     maxBuffer: 8 * 1024 * 1024
   });
@@ -107,25 +113,40 @@ export function prepareInnerKeepPopulationAssets(options = {}) {
       ?? DEFAULT_CACHE_ROOT
   );
   const archives = archiveRecordByName();
+  const workspace = mkdtempSync(resolve(tmpdir(), 'warpkeep-inner-keep-population-'));
   const archiveBytesByName = new Map();
-  for (const record of archives.values()) {
-    const path = archivePath(cacheRoot, record);
-    const bytes = exactOrdinaryFile(path, record, `${record.tag}/${record.name}`);
-    archiveBytesByName.set(record.name, { bytes, path });
+  let prepared;
+  try {
+    let archiveIndex = 0;
+    for (const record of archives.values()) {
+      const sourcePath = archivePath(cacheRoot, record);
+      const bytes = exactOrdinaryFile(sourcePath, record, `${record.tag}/${record.name}`);
+      const snapshotPath = resolve(workspace, `verified-source-${archiveIndex}.zip`);
+      archiveBytesByName.set(record.name, { bytes, snapshotPath });
+      writeFileSync(snapshotPath, bytes, { flag: 'wx', mode: 0o600 });
+      archiveIndex += 1;
+    }
+    const unzipBinary = resolveAttestedSystemUnzip();
+    prepared = INNER_KEEP_POPULATION_MODELS.map((model) => {
+      const archive = archiveBytesByName.get(model.sourceArchive);
+      if (!archive) fail(`no exact archive is available for ${model.actorId}.`);
+      const bytes = readArchiveMember(
+        unzipBinary,
+        archive.snapshotPath,
+        model.sourcePath,
+        workspace
+      );
+      verifyInnerKeepPopulationGlb(bytes, model, model.destinationPath);
+      return {
+        bytes,
+        destinationPath: model.destinationPath,
+        label: `${model.actorId} ${model.profile}`
+      };
+    });
+  } finally {
+    for (const archive of archiveBytesByName.values()) archive.bytes.fill(0);
+    rmSync(workspace, { force: true, recursive: true });
   }
-  const unzipBinary = resolveAttestedSystemUnzip();
-  const prepared = INNER_KEEP_POPULATION_MODELS.map((model) => {
-    const archive = archiveBytesByName.get(model.sourceArchive);
-    if (!archive) fail(`no exact archive is available for ${model.actorId}.`);
-    const bytes = readArchiveMember(unzipBinary, archive.path, model.sourcePath);
-    verifyInnerKeepPopulationGlb(bytes, model, model.destinationPath);
-    return {
-      bytes,
-      destinationPath: model.destinationPath,
-      label: `${model.actorId} ${model.profile}`
-    };
-  });
-  for (const archive of archiveBytesByName.values()) archive.bytes.fill(0);
   if (mode === '--audit-only') {
     return Object.freeze({ mode, files: prepared.length, installed: false });
   }

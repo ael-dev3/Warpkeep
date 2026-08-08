@@ -580,9 +580,22 @@ describe('procedural Inner Keep scene layer', () => {
     expect(layer.scene.getObjectByName('inner-keep-procedural-asset-fallback')?.visible)
       .toBe(false);
 
+    const retiredInstances: THREE.InstancedMesh[] = [];
+    layer.scene.getObjectByName('inner-keep-authored-static-presentation')
+      ?.traverse((object) => {
+        if (object instanceof THREE.InstancedMesh) retiredInstances.push(object);
+      });
+    const retiredInstanceDisposals = retiredInstances.map((instance) => (
+      vi.spyOn(instance, 'dispose')
+    ));
+    expect(retiredInstances.length).toBeGreaterThan(0);
+
     settleRetry!(fakeRuntimeBundle(true));
     await vi.waitFor(() => expect(layer.getTelemetry().assetStatus).toBe('ready'));
     expect(first.dispose).toHaveBeenCalledTimes(1);
+    retiredInstanceDisposals.forEach((dispose) => (
+      expect(dispose).toHaveBeenCalledTimes(1)
+    ));
     layer.dispose();
   });
 

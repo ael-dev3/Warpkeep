@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   createInnerKeepEcology,
@@ -216,6 +216,24 @@ describe('Inner Keep living estate grass and connected water presentation', () =
     expect(still.isAnimationActive()).toBe(false);
     expect(still.update(12.5)).toBe(false);
     still.dispose();
+  });
+
+  it('releases instance buffers once during idempotent teardown', () => {
+    const ecology = createInnerKeepEcology({
+      quality: 'reduced',
+      reducedMotion: true,
+      visualSeed: 7,
+    });
+    const instances: THREE.InstancedMesh[] = [];
+    ecology.group.traverse((object) => {
+      if (object instanceof THREE.InstancedMesh) instances.push(object);
+    });
+    const disposals = instances.map((instance) => vi.spyOn(instance, 'dispose'));
+
+    expect(instances.length).toBeGreaterThan(0);
+    ecology.dispose();
+    ecology.dispose();
+    disposals.forEach((dispose) => expect(dispose).toHaveBeenCalledTimes(1));
   });
 
   it('keeps one connected downhill watercourse above shared terrain and inside the estate', () => {

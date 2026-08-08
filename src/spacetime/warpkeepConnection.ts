@@ -585,12 +585,18 @@ type PublicInnerKeepTable<Row> = Readonly<{
   iter: () => IterableIterator<Row>;
 }>;
 
+type PublicInnerKeepCastleTable<Row> = PublicInnerKeepTable<Row> & Readonly<{
+  byCastle: Readonly<{
+    filter: (castleId: bigint) => IterableIterator<Row>;
+  }>;
+}>;
+
 type PublicInnerKeepTables = Readonly<{
   innerKeepLayoutV1: PublicInnerKeepTable<InnerKeepLayoutRow>;
   innerKeepSlotV1: PublicInnerKeepTable<InnerKeepSlotRow>;
   innerKeepBuildingCatalogV1: PublicInnerKeepTable<InnerKeepBuildingCatalogRow>;
   innerKeepBuildLevelV1: PublicInnerKeepTable<InnerKeepBuildLevelRow>;
-  castleInnerKeepBuildingV1: PublicInnerKeepTable<InnerKeepBuildingRow>;
+  castleInnerKeepBuildingV1: PublicInnerKeepCastleTable<InnerKeepBuildingRow>;
 }>;
 
 function publicInnerKeepTables(
@@ -605,7 +611,34 @@ function publicInnerKeepTables(
     candidate.castleInnerKeepBuildingV1
   ];
   return values.every((table) => typeof table?.iter === 'function')
+    && typeof candidate.castleInnerKeepBuildingV1?.byCastle?.filter === 'function'
     ? candidate as PublicInnerKeepTables
+    : undefined;
+}
+
+function subscribedInnerKeepCastleId(
+  connection: WarpkeepConnection,
+  ownFid: number | undefined
+): bigint | undefined {
+  if (!Number.isSafeInteger(ownFid) || ownFid === undefined || ownFid <= 0) {
+    return undefined;
+  }
+  const castleTable = connection.db?.castle as unknown as Readonly<{
+    ownerFid?: Readonly<{
+      find?: (fid: bigint) => Readonly<{
+        castleId?: unknown;
+        ownerFid?: unknown;
+      }> | null;
+    }>;
+  }> | undefined;
+  const ownerIndex = castleTable?.ownerFid;
+  if (typeof ownerIndex?.find !== 'function') return undefined;
+  const fid = BigInt(ownFid);
+  const row = ownerIndex.find(fid);
+  return row?.ownerFid === fid
+    && typeof row.castleId === 'bigint'
+    && row.castleId > 0n
+    ? row.castleId
     : undefined;
 }
 
@@ -641,8 +674,7 @@ function readPublicInnerKeepRows(
     || levels === undefined
   ) throw new Error('Inner Keep public policy is unavailable.');
   const buildings: InnerKeepBuildingRow[] = [];
-  for (const row of publicTables.castleInnerKeepBuildingV1.iter()) {
-    if (row.castleId !== scope.castleId) continue;
+  for (const row of publicTables.castleInnerKeepBuildingV1.byCastle.filter(scope.castleId)) {
     if (buildings.length >= 5) throw new Error('Inner Keep public projects are unavailable.');
     buildings.push(row);
   }
@@ -1132,7 +1164,8 @@ export async function returnWarpkeepLegacyExpedition(
 export function subscribeToWarpkeepRealm(
   connection: WarpkeepConnection,
   onApplied: () => void,
-  onError: () => void
+  onError: () => void,
+  ownFid?: number
 ): WarpkeepRealmSubscription {
   let coreApplied = false;
   goldProjectionAvailability.set(connection, GOLD_PROJECTION_PENDING);
@@ -1143,10 +1176,45 @@ export function subscribeToWarpkeepRealm(
   forestProjectionAvailability.set(connection, FOREST_PROJECTION_PENDING);
   waterProjectionAvailability.set(connection, WATER_PROJECTION_PENDING);
   innerKeepProjectionAvailability.set(connection, INNER_KEEP_PROJECTION_PENDING);
+  let innerKeepSubscription: SubscriptionHandle | undefined;
+  let innerKeepSubscriptionStarted = false;
+  let subscriptionClosed = false;
+  const innerKeepTables = publicInnerKeepTables(connection);
+  const startInnerKeepSubscription = () => {
+    if (subscriptionClosed || innerKeepSubscriptionStarted) return;
+    innerKeepSubscriptionStarted = true;
+    const castleId = subscribedInnerKeepCastleId(connection, ownFid);
+    if (innerKeepTables === undefined || castleId === undefined) {
+      innerKeepProjectionAvailability.set(connection, INNER_KEEP_PROJECTION_UNAVAILABLE);
+      return;
+    }
+    try {
+      innerKeepSubscription = connection
+        .subscriptionBuilder()
+        .onApplied(() => {
+          innerKeepProjectionAvailability.set(connection, INNER_KEEP_PROJECTION_READY);
+          if (coreApplied) onApplied();
+        })
+        .onError(() => {
+          innerKeepProjectionAvailability.set(connection, INNER_KEEP_PROJECTION_UNAVAILABLE);
+          if (coreApplied) onApplied();
+        })
+        .subscribe([
+          tables.innerKeepLayoutV1,
+          tables.innerKeepSlotV1,
+          tables.innerKeepBuildingCatalogV1,
+          tables.innerKeepBuildLevelV1,
+          tables.castleInnerKeepBuildingV1.where((row) => row.castleId.eq(castleId))
+        ]);
+    } catch {
+      innerKeepProjectionAvailability.set(connection, INNER_KEEP_PROJECTION_UNAVAILABLE);
+    }
+  };
   const coreSubscription = connection
     .subscriptionBuilder()
     .onApplied(() => {
       coreApplied = true;
+      startInnerKeepSubscription();
       onApplied();
     })
     .onError(() => onError())
@@ -1370,37 +1438,9 @@ export function subscribeToWarpkeepRealm(
     waterProjectionAvailability.set(connection, WATER_PROJECTION_UNAVAILABLE);
   }
 
-  let innerKeepSubscription: SubscriptionHandle | undefined;
-  const innerKeepTables = publicInnerKeepTables(connection);
-  if (innerKeepTables !== undefined) {
-    try {
-      innerKeepSubscription = connection
-        .subscriptionBuilder()
-        .onApplied(() => {
-          innerKeepProjectionAvailability.set(connection, INNER_KEEP_PROJECTION_READY);
-          if (coreApplied) onApplied();
-        })
-        .onError(() => {
-          innerKeepProjectionAvailability.set(connection, INNER_KEEP_PROJECTION_UNAVAILABLE);
-          if (coreApplied) onApplied();
-        })
-        .subscribe([
-          tables.innerKeepLayoutV1,
-          tables.innerKeepSlotV1,
-          tables.innerKeepBuildingCatalogV1,
-          tables.innerKeepBuildLevelV1,
-          tables.castleInnerKeepBuildingV1
-        ]);
-    } catch {
-      innerKeepProjectionAvailability.set(connection, INNER_KEEP_PROJECTION_UNAVAILABLE);
-      if (coreApplied) onApplied();
-    }
-  } else {
-    innerKeepProjectionAvailability.set(connection, INNER_KEEP_PROJECTION_UNAVAILABLE);
-  }
-
   return Object.freeze({
     unsubscribe: () => {
+      subscriptionClosed = true;
       goldProjectionAvailability.delete(connection);
       foodProjectionAvailability.delete(connection);
       woodProjectionAvailability.delete(connection);
