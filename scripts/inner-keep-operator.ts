@@ -133,6 +133,13 @@ type MutationCommand = Extract<InnerKeepOperatorArguments['command'],
   | 'activate-inner-keep'
   | 'deactivate-inner-keep'>;
 
+function isMutationCommand(command: unknown): command is MutationCommand {
+  return command === 'seed-inner-keep-catalog'
+    || command === 'backfill-inner-keep-builders'
+    || command === 'activate-inner-keep'
+    || command === 'deactivate-inner-keep';
+}
+
 function fail(message: string): never {
   throw new InnerKeepOperatorError(message);
 }
@@ -665,8 +672,12 @@ export async function executeConnectedCommand(
       connection.procedures.adminPlanInnerKeepBuildersV1({}),
     ));
   }
+  if (!isMutationCommand(args.command)) {
+    fail('Inner Keep operator command is invalid.');
+  }
+  if (!args.confirmed) fail('Inner Keep mutations require explicit confirmation.');
 
-  const command = args.command as MutationCommand;
+  const command = args.command;
   const before = await inspect(connection);
   let submitMutation: () => Promise<void>;
   if (command === 'seed-inner-keep-catalog') {

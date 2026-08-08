@@ -468,6 +468,12 @@ function setGroupOpacity(group: THREE.Object3D, opacity: number) {
   });
 }
 
+function disposeInstancedMeshBuffers(root: THREE.Object3D) {
+  root.traverse((object) => {
+    if (object instanceof THREE.InstancedMesh) object.dispose();
+  });
+}
+
 function createDeterministicYardDressing(
   seed: number,
   terrainKind: RealmTerrainKind | undefined,
@@ -1317,6 +1323,9 @@ export function createInnerKeepSceneLayer(
   const clearRuntimePresentation = (disposeBundle: boolean) => {
     populationPresentation?.dispose();
     populationPresentation = null;
+    if (authoredPresentation) {
+      disposeInstancedMeshBuffers(authoredPresentation.group);
+    }
     authoredPresentation?.group.removeFromParent();
     authoredPresentation = null;
     authoredStaticGroup.clear();

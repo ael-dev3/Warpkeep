@@ -43,6 +43,13 @@ const INNER_KEEP_OUTER_WORLD_WILDLIFE_BUDGETS = Object.freeze({
 
 type OuterWorldAssetState = 'disabled' | 'loading' | 'exact' | 'fallback' | 'partial';
 type OuterWorldStatus = 'loading' | 'ready' | 'fallback' | 'partial' | 'aborted' | 'disposed';
+
+function disposeInstancedMeshBuffers(root: THREE.Object3D) {
+  root.traverse((object) => {
+    if (object instanceof THREE.InstancedMesh) object.dispose();
+  });
+}
+
 type OuterWorldFailureScope = 'tree' | 'resource' | 'supply-wagon';
 
 export type InnerKeepOuterWorldFailure = Readonly<{
@@ -1184,6 +1191,7 @@ export function createInnerKeepOuterWorldPresentation(
       expeditionLeases.forEach((lease) => lease.release());
       treeLeases.clear();
       expeditionLeases.clear();
+      disposeInstancedMeshBuffers(group);
       group.removeFromParent();
       group.clear();
       geometries.forEach((geometry) => geometry.dispose());

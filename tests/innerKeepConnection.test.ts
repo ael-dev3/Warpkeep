@@ -40,7 +40,7 @@ function subscriptionDouble() {
       fail = callback;
       return builder;
     }),
-    subscribe: vi.fn(() => handle)
+    subscribe: vi.fn((_queries?: readonly unknown[]) => handle)
   };
   return Object.freeze({
     builder,
@@ -53,6 +53,30 @@ function subscriptionDouble() {
 function table<Row>(rows: readonly Row[]) {
   return Object.freeze({
     iter: function* () { yield* rows; }
+  });
+}
+
+function castleTable<Row extends Readonly<{ castleId: bigint }>>(rows: readonly Row[]) {
+  const iter = vi.fn(function* () { yield* rows; });
+  const filter = vi.fn(function* (castleId: bigint) {
+    for (const row of rows) {
+      if (row.castleId === castleId) yield row;
+    }
+  });
+  return Object.freeze({
+    iter,
+    byCastle: Object.freeze({ filter })
+  });
+}
+
+function castleOwnerTable(ownerFid: bigint, castleId: bigint) {
+  return Object.freeze({
+    ...table([{ ownerFid, castleId }]),
+    ownerFid: Object.freeze({
+      find: vi.fn((candidate: bigint) => (
+        candidate === ownerFid ? { ownerFid, castleId } : null
+      ))
+    })
   });
 }
 
@@ -82,7 +106,9 @@ function privateState() {
   };
 }
 
-function connectionHarness() {
+function connectionHarness(
+  buildingRows: readonly Readonly<{ castleId: bigint }>[] = []
+) {
   const core = subscriptionDouble();
   const innerKeep = subscriptionDouble();
   const getMyInnerKeepStateV1 = vi.fn(async () => privateState());
@@ -102,12 +128,13 @@ function connectionHarness() {
   }));
   const innerKeepStartProjectV1 = vi.fn(async () => undefined);
   const empty = table([]);
+  const buildings = castleTable(buildingRows);
   const connection = {
     db: {
       worldTile: empty,
       worldTileMetaV1: empty,
       playerV2: empty,
-      castle: empty,
+      castle: castleOwnerTable(BigInt(INNER_KEEP_SCOPE.fid), INNER_KEEP_SCOPE.castleId),
       realmV1: empty,
       realmProfileV1: empty,
       innerKeepLayoutV1: table([{
@@ -119,7 +146,7 @@ function connectionHarness() {
       innerKeepSlotV1: table(CANONICAL_INNER_KEEP_SLOTS),
       innerKeepBuildingCatalogV1: table(CANONICAL_INNER_KEEP_BUILDING_CATALOG),
       innerKeepBuildLevelV1: table(CANONICAL_INNER_KEEP_LEVEL_POLICIES),
-      castleInnerKeepBuildingV1: empty
+      castleInnerKeepBuildingV1: buildings
     },
     procedures: {
       getMyInnerKeepStateV1,
@@ -136,7 +163,8 @@ function connectionHarness() {
     innerKeep,
     getMyInnerKeepStateV1,
     getMyInnerKeepRequestStatusV1,
-    innerKeepStartProjectV1
+    innerKeepStartProjectV1,
+    buildings
   });
 }
 
@@ -147,9 +175,16 @@ describe('Inner Keep browser connection boundary', () => {
     const subscription = subscribeToWarpkeepRealm(
       harness.connection,
       onApplied,
-      vi.fn()
+      vi.fn(),
+      INNER_KEEP_SCOPE.fid
     );
     harness.core.apply();
+    const subscribedQueries = harness.innerKeep.builder.subscribe.mock.calls[0]?.[0];
+    expect(subscribedQueries).toHaveLength(5);
+    const buildingQuery = subscribedQueries?.at(-1) as { toSql: () => string };
+    expect(buildingQuery.toSql()).toMatch(
+      /^SELECT \* FROM "castle_inner_keep_building_v1" WHERE .*"castle_id" = 7$/u
+    );
     expect(await readWarpkeepInnerKeepProjection(harness.connection, {
       scope: INNER_KEEP_SCOPE,
       commandsAvailable: true
@@ -169,6 +204,53 @@ describe('Inner Keep browser connection boundary', () => {
     expect(harness.innerKeep.handle.unsubscribe).toHaveBeenCalledTimes(1);
   });
 
+  it('uses the castle index instead of scanning foreign Inner Keep projects', async () => {
+    const foreignRows = Array.from({ length: 1_000 }, (_, index) => ({
+      castleId: BigInt(index + 100)
+    }));
+    const harness = connectionHarness(foreignRows);
+    const subscription = subscribeToWarpkeepRealm(
+      harness.connection,
+      vi.fn(),
+      vi.fn(),
+      INNER_KEEP_SCOPE.fid
+    );
+    harness.core.apply();
+    harness.innerKeep.apply();
+
+    expect(await readWarpkeepInnerKeepProjection(harness.connection, {
+      scope: INNER_KEEP_SCOPE,
+      commandsAvailable: true
+    })).toBeDefined();
+    expect(harness.buildings.byCastle.filter).toHaveBeenCalledWith(INNER_KEEP_SCOPE.castleId);
+    expect(harness.buildings.iter).not.toHaveBeenCalled();
+
+    subscription.unsubscribe();
+  });
+
+  it('does not fall back to a realm-wide building subscription without an owned castle', async () => {
+    const harness = connectionHarness();
+    const onApplied = vi.fn();
+    const subscription = subscribeToWarpkeepRealm(
+      harness.connection,
+      onApplied,
+      vi.fn(),
+      INNER_KEEP_SCOPE.fid + 1
+    );
+
+    harness.core.apply();
+    expect(onApplied).toHaveBeenCalledOnce();
+    expect(harness.innerKeep.builder.subscribe).not.toHaveBeenCalled();
+    expect(await readWarpkeepInnerKeepProjection(harness.connection, {
+      scope: INNER_KEEP_SCOPE,
+      commandsAvailable: true
+    })).toBeUndefined();
+
+    subscription.unsubscribe();
+    expect(harness.core.handle.unsubscribe).toHaveBeenCalledOnce();
+    expect(harness.innerKeep.handle.unsubscribe).not.toHaveBeenCalled();
+  });
+
   it('keeps the core Realm usable and hides Inner Keep when the additive subscription fails', async () => {
     const harness = connectionHarness();
     const onApplied = vi.fn();
@@ -176,7 +258,8 @@ describe('Inner Keep browser connection boundary', () => {
     const subscription = subscribeToWarpkeepRealm(
       harness.connection,
       onApplied,
-      onError
+      onError,
+      INNER_KEEP_SCOPE.fid
     );
 
     harness.core.apply();
@@ -201,7 +284,8 @@ describe('Inner Keep browser connection boundary', () => {
     const subscription = subscribeToWarpkeepRealm(
       harness.connection,
       vi.fn(),
-      vi.fn()
+      vi.fn(),
+      INNER_KEEP_SCOPE.fid
     );
     harness.core.apply();
     harness.innerKeep.apply();

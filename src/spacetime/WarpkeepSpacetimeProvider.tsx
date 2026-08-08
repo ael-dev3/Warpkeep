@@ -3989,7 +3989,8 @@ export function WarpkeepSpacetimeProvider({
               startedSubscription = runtime.subscribeRealm(
                 activeConnection,
                 applySubscribedRealm,
-                () => failRealmActivation('subscription_failed')
+                () => failRealmActivation('subscription_failed'),
+                bridgeFid!
               );
             } catch {
               failRealmActivation('subscription_setup_failed');

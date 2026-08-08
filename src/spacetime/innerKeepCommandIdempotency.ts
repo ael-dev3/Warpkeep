@@ -247,8 +247,9 @@ export function innerKeepCommandAttemptWithPhase(
 
 /**
  * A receipt alone is private proof of deduction, while a public building row
- * alone cannot prove which request caused it. Both must agree exactly before
- * an ambiguous browser command is considered reconciled.
+ * alone cannot prove which request caused it. The receipt must agree exactly
+ * with the attempt. The public building may either be that exact in-flight
+ * project or a monotonic later state that proves the receipt target completed.
  */
 export function reconcileInnerKeepCommandAttempt(
   attempt: InnerKeepCommandAttempt,
@@ -273,12 +274,14 @@ export function reconcileInnerKeepCommandAttempt(
     && building.buildingKey === receipt.buildingKey
     && building.slotId === receipt.slotId
     && building.buildingKind === receipt.buildingKind
-    && building.targetLevel === receipt.targetLevel
-    && building.startedAtMicros === receipt.startedAtMicros
     && building.policyVersion === receipt.policyVersion
     && (
-      building.phase === 'constructing'
-      || building.completedLevel === receipt.targetLevel
+      building.completedLevel >= receipt.targetLevel
+      || (
+        building.phase === 'constructing'
+        && building.targetLevel === receipt.targetLevel
+        && building.startedAtMicros === receipt.startedAtMicros
+      )
     )
   ));
   return matches.length === 1 ? 'confirmed' : 'pending';

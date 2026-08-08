@@ -4866,6 +4866,13 @@ export async function executeProtocolV15InactivePublicationLane(
       !== INNER_KEEP_PUBLICATION_STAGE.APPEND_INACTIVE
   ) fail('The protocol-v15 inactive publication plan was invalid. No publish was attempted.');
 
+  if (
+    !options.dryRun
+    && options.publishConfirmation !== CANONICAL_DATABASE
+  ) {
+    fail(`Set WARPKEEP_PUBLISH_CONFIRM=${CANONICAL_DATABASE} after reviewing the target database; publish was not attempted.`);
+  }
+
   const artifactReceipt = (
     dependencies.verifyMigrationArtifactReceipt
       ?? verifyMigrationArtifactReceipt
@@ -5071,6 +5078,7 @@ async function main() {
         workerForwardRepair,
         innerKeepModulePredecessor,
         innerKeepPublicationStage,
+        publishConfirmation: process.env.WARPKEEP_PUBLISH_CONFIRM,
       });
       console.log(JSON.stringify(result));
       return;

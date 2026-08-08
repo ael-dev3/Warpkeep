@@ -99,10 +99,63 @@ describe('Inner Keep command idempotency', () => {
       startedAtMicros: 100n,
       policyVersion: INNER_KEEP_POLICY_VERSION
     })])).toBe('confirmed');
+    expect(reconcileInnerKeepCommandAttempt(attempt, receipt, [Object.freeze({
+      castleId: 7n,
+      buildingKey: '7:city-mill',
+      slotId: 'inner-keep-slot-m01',
+      buildingKind: 'city-mill',
+      completedLevel: 0,
+      targetLevel: 1,
+      phase: 'constructing',
+      startedAtMicros: 101n,
+      policyVersion: INNER_KEEP_POLICY_VERSION
+    })])).toBe('pending');
     expect(reconcileInnerKeepCommandAttempt(attempt, {
       ...receipt,
       deducted: { ...receipt.deducted, wood: 899n }
     }, [])).toBe('conflict');
+  });
+
+  it('confirms an exact receipt after the public building has advanced monotonically', () => {
+    const attempt = innerKeepCommandAttemptWithPhase(
+      innerKeepCommandAttemptFor(
+        undefined,
+        scope,
+        intent,
+        () => '00000000-0000-4000-8000-000000000001'
+      )!,
+      'ambiguous'
+    );
+    const receipt = Object.freeze({
+      found: true as const,
+      castleId: 7n,
+      buildingKey: '7:city-mill',
+      slotId: 'inner-keep-slot-m01',
+      buildingKind: 'city-mill' as const,
+      targetLevel: 1,
+      deducted: intent.cost,
+      startedAtMicros: 100n,
+      policyVersion: INNER_KEEP_POLICY_VERSION
+    });
+    const laterProject = Object.freeze({
+      castleId: 7n,
+      buildingKey: '7:city-mill',
+      slotId: 'inner-keep-slot-m01',
+      buildingKind: 'city-mill' as const,
+      completedLevel: 1,
+      targetLevel: 2,
+      phase: 'constructing' as const,
+      startedAtMicros: 200n,
+      policyVersion: INNER_KEEP_POLICY_VERSION
+    });
+
+    expect(reconcileInnerKeepCommandAttempt(attempt, receipt, [laterProject]))
+      .toBe('confirmed');
+    expect(reconcileInnerKeepCommandAttempt(attempt, receipt, [Object.freeze({
+      ...laterProject,
+      completedLevel: 2,
+      phase: 'complete' as const
+    })])).toBe('confirmed');
   });
 
   it('classifies only reviewed SDK SenderError codes as definitive rejections', () => {

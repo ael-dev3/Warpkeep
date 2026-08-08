@@ -437,6 +437,26 @@ describe('Inner Keep outer-world visual presentation', () => {
     expect(presentation.group.children).toHaveLength(0);
   });
 
+  it('releases every fallback instance buffer once during idempotent teardown', async () => {
+    const presentation = createInnerKeepOuterWorldPresentation({
+      quality: 'reduced',
+      visualSeed: 5,
+      reducedMotion: true,
+      loadExactAssets: false,
+    });
+    await presentation.ready;
+    const instances: THREE.InstancedMesh[] = [];
+    presentation.group.traverse((object) => {
+      if (object instanceof THREE.InstancedMesh) instances.push(object);
+    });
+    const disposals = instances.map((instance) => vi.spyOn(instance, 'dispose'));
+
+    expect(instances.length).toBeGreaterThan(0);
+    presentation.dispose();
+    presentation.dispose();
+    disposals.forEach((dispose) => expect(dispose).toHaveBeenCalledTimes(1));
+  });
+
   it('allows an exact wildlife layer to suppress the temporary rabbits', async () => {
     const presentation = createInnerKeepOuterWorldPresentation({
       quality: 'high',

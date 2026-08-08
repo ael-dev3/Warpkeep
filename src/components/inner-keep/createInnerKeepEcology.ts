@@ -46,6 +46,12 @@ export type InnerKeepEcology = Readonly<{
   dispose: () => void;
 }>;
 
+function disposeInstancedMeshBuffers(root: THREE.Object3D) {
+  root.traverse((object) => {
+    if (object instanceof THREE.InstancedMesh) object.dispose();
+  });
+}
+
 function deterministicUnit(index: number, salt: number) {
   let value = (index + 1) ^ Math.imul(salt + 31, 0x45d9f3b);
   value = Math.imul(value ^ (value >>> 16), 0x45d9f3b);
@@ -548,6 +554,7 @@ export function createInnerKeepEcology(options: Readonly<{
     dispose: () => {
       if (disposed) return;
       disposed = true;
+      disposeInstancedMeshBuffers(group);
       group.removeFromParent();
       geometries.forEach((geometry) => geometry.dispose());
       materials.forEach((material) => material.dispose());
