@@ -653,15 +653,24 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       targetKey
     });
     if (
+      currentSurfaceRoute?.kind === 'inner-keep-building'
+      && selectedInnerKeepSlotId === slotId
+    ) {
+      backSurface();
+      return;
+    }
+    if (
       currentSurfaceRoute?.kind === 'inner-keep-slot'
       || currentSurfaceRoute?.kind === 'inner-keep-building'
     ) replaceSurface(route);
     else pushSurface(route);
   }, [
+    backSurface,
     currentInnerKeepMenuRouteKey,
     currentSurfaceRoute?.kind,
     pushSurface,
-    replaceSurface
+    replaceSurface,
+    selectedInnerKeepSlotId
   ]);
   const openInnerKeepSlotRef = useRef(openInnerKeepSlot);
   openInnerKeepSlotRef.current = openInnerKeepSlot;

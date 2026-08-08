@@ -733,11 +733,28 @@ describe('live realm quality recreation', () => {
     expect(innerKeepSfx.filter((kind) => kind === 'inner-keep-menu-opened'))
       .toHaveLength(2);
 
+    act(() => {
+      sceneOptions.onInnerKeepSlotSelect?.('inner-keep-slot-m01');
+    });
+    await waitFor(() => expect(
+      screen.getByRole('heading', { name: /West Courtyard/i })
+    ).toBeDefined());
+    const innerKeepHistory = (
+      window.history.state as Record<string, unknown>
+    )[REALM_SURFACE_HISTORY_KEY] as {
+      stack: readonly { kind: string; slotId?: string }[];
+    };
+    expect(innerKeepHistory.stack).toEqual([
+      { kind: 'commands' },
+      { kind: 'inner-keep' },
+      { kind: 'inner-keep-slot', slotId: 'inner-keep-slot-m01' }
+    ]);
+
     fireEvent.click(screen.getByRole('button', { name: 'CLOSE TO REALM' }));
     await waitFor(() => expect(realm.dataset.realmSceneMode).toBe('WORLD'));
     expect(handle.setSceneMode).toHaveBeenLastCalledWith('WORLD');
     expect(document.querySelectorAll('.realm-map-screen__canvas')).toHaveLength(2);
-  });
+  }, 10_000);
 
   it('keeps native Mini App Back available from the Realm root through nested destinations', async () => {
     installWebGlProbe();

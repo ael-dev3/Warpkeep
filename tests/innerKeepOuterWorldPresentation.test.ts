@@ -415,23 +415,31 @@ describe('Inner Keep outer-world visual presentation', () => {
       });
     });
     const controller = new AbortController();
+    const requestRender = vi.fn();
+    const onTelemetryChange = vi.fn();
     const presentation = createInnerKeepOuterWorldPresentation({
       quality: 'reduced',
       visualSeed: 5,
       reducedMotion: false,
       baseUrl: '/',
       signal: controller.signal,
+      requestRender,
+      onTelemetryChange,
       acquireTreePrefab: deferredTree,
       acquireExpeditionPrefab: deferredExpedition,
     });
     controller.abort();
     expect(presentation.getTelemetry().status).toBe('aborted');
     expect(receivedSignals.every((signal) => signal.aborted)).toBe(true);
+    presentation.dispose();
+    presentation.dispose();
+    const renderCountAfterDispose = requestRender.mock.calls.length;
+    const telemetryCountAfterDispose = onTelemetryChange.mock.calls.length;
     pendingResolvers.forEach((resolve) => resolve());
     await presentation.ready;
     expect(releases.every((release) => release.mock.calls.length === 1)).toBe(true);
-    presentation.dispose();
-    presentation.dispose();
+    expect(requestRender).toHaveBeenCalledTimes(renderCountAfterDispose);
+    expect(onTelemetryChange).toHaveBeenCalledTimes(telemetryCountAfterDispose);
     expect(presentation.getTelemetry().status).toBe('disposed');
     expect(presentation.group.parent).toBeNull();
     expect(presentation.group.children).toHaveLength(0);

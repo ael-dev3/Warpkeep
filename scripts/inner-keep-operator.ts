@@ -675,7 +675,7 @@ export async function executeConnectedCommand(
   if (!isMutationCommand(args.command)) {
     fail('Inner Keep operator command is invalid.');
   }
-  if (!args.confirmed) fail('Inner Keep mutations require explicit confirmation.');
+  if (args.confirmed !== true) fail('Inner Keep mutations require explicit confirmation.');
 
   const command = args.command;
   const before = await inspect(connection);

@@ -619,6 +619,28 @@ test('early, tampered, persisted-drift, and Builder-mismatch callbacks fail with
   }
 });
 
+test('a duplicate schedule fails closed without mutating the project graph', () => {
+  const fixture = makeFixture();
+  fixture.start('city-mill', requestKey('completion-duplicate-schedule'));
+  const callback = onlySchedule(fixture);
+  const duplicateScheduleId = callback.scheduleId + 1n;
+  fixture.schedules.set(duplicateScheduleId, {
+    ...structuredClone(callback),
+    scheduleId: duplicateScheduleId,
+  });
+  fixture.setNow(callback.scheduledAt.value.microsSinceUnixEpoch);
+
+  const before = fixture.snapshot();
+  assert.throws(
+    () => fixture.transaction(() => runInnerKeepConstructionSchedule(
+      fixture.ctx,
+      structuredClone(callback) as ScheduleInput,
+    )),
+    /INNER_KEEP_SCHEDULE_INTEGRITY/,
+  );
+  assert.deepEqual(fixture.snapshot(), before);
+});
+
 test('exact and late callbacks complete without a claim, refund, or duplicate effect', () => {
   for (const lateness of [0n, 60_000_000n]) {
     const fixture = makeFixture();

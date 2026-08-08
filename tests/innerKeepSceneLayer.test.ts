@@ -143,6 +143,23 @@ describe('procedural Inner Keep scene layer', () => {
     layer.dispose();
   });
 
+  it('releases every instance buffer once during complete layer teardown', () => {
+    const { layer } = createLayer();
+    layer.reconcile(createInnerKeepPresentation(), {
+      owningTerrainKind: 'forest'
+    });
+    const instances: THREE.InstancedMesh[] = [];
+    layer.scene.traverse((object) => {
+      if (object instanceof THREE.InstancedMesh) instances.push(object);
+    });
+    const disposals = instances.map((instance) => vi.spyOn(instance, 'dispose'));
+
+    expect(instances.length).toBeGreaterThan(0);
+    layer.dispose();
+    layer.dispose();
+    disposals.forEach((dispose) => expect(dispose).toHaveBeenCalledTimes(1));
+  });
+
   it('aligns the procedural fallback to the expanded canonical authored anchors', () => {
     const { layer } = createLayer();
     const authoredByPlacementId = new Map(INNER_KEEP_PRESENTATION_PLACEMENTS.flatMap(

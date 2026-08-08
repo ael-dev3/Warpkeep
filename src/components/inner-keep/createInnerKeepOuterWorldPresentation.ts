@@ -916,6 +916,7 @@ export function createInnerKeepOuterWorldPresentation(
   };
 
   const notifyPresentationChanged = () => {
+    if (disposed) return;
     refreshTelemetry();
     options.requestRender?.();
   };
