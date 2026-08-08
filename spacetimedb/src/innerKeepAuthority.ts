@@ -638,8 +638,11 @@ export function runInnerKeepConstructionSchedule(
   if (persisted === null) return;
   const building = ctx.db.castleInnerKeepBuildingV1.buildingKey.find(persisted.buildingKey);
   if (building === null) fail('INNER_KEEP_SCHEDULE_INTEGRITY');
+  const schedules = schedulesForBuilding(ctx, persisted.buildingKey);
   if (
-    building.phase !== 'constructing'
+    schedules.length !== 1
+    || schedules[0]!.scheduleId !== persisted.scheduleId
+    || building.phase !== 'constructing'
     || persisted.scheduleId !== schedule.scheduleId
     || !scheduleMatchesBuilding(persisted, building)
     || !scheduleMatchesBuilding(schedule, building)

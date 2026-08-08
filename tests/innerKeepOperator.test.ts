@@ -599,34 +599,47 @@ describe('Inner Keep exact protected-state evidence', () => {
 
 describe('Inner Keep operator safety gates', () => {
   it('rejects unconfirmed programmatic mutations before any connected call', async () => {
+    const inspect = vi.fn(async () => {
+      throw new Error('must not inspect');
+    });
+    const plan = vi.fn(async () => {
+      throw new Error('must not plan');
+    });
+    const mutate = vi.fn(async () => {
+      throw new Error('must not mutate');
+    });
     const connection = {
       procedures: {
-        adminGetInnerKeepStatusV1: async () => {
-          throw new Error('must not inspect');
-        },
-        adminPlanInnerKeepBuildersV1: async () => {
-          throw new Error('must not plan');
-        },
+        adminGetInnerKeepStatusV1: inspect,
+        adminPlanInnerKeepBuildersV1: plan,
       },
       reducers: {
-        adminBackfillInnerKeepBuildersV1: async () => {
-          throw new Error('must not mutate');
-        },
+        adminBackfillInnerKeepBuildersV1: mutate,
       },
     } as unknown as Parameters<typeof executeConnectedCommand>[0];
-    let evidenceReads = 0;
-    const arguments_ = parseInnerKeepOperatorArguments([
+    const evidence = vi.fn(async () => protectedSnapshot());
+    const baseArguments = parseInnerKeepOperatorArguments([
       'backfill-inner-keep-builders',
       '--expected-castles', '3',
       '--expected-existing-builders', '1',
       '--expected-missing-builders', '2',
     ]);
 
-    await expect(executeConnectedCommand(connection, arguments_, async () => {
-      evidenceReads += 1;
-      return protectedSnapshot();
-    })).rejects.toThrow('mutations require explicit confirmation');
-    expect(evidenceReads).toBe(0);
+    for (const confirmed of [undefined, false, 'false', 1, {}]) {
+      const arguments_ = {
+        ...baseArguments,
+        confirmed,
+      } as unknown as Parameters<typeof executeConnectedCommand>[1];
+      await expect(executeConnectedCommand(
+        connection,
+        arguments_,
+        evidence,
+      )).rejects.toThrow('mutations require explicit confirmation');
+    }
+    expect(inspect).not.toHaveBeenCalled();
+    expect(plan).not.toHaveBeenCalled();
+    expect(mutate).not.toHaveBeenCalled();
+    expect(evidence).not.toHaveBeenCalled();
   });
 
   it('rejects an unknown programmatic command instead of treating it as deactivation', async () => {

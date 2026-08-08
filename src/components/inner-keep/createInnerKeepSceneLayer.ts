@@ -2010,6 +2010,7 @@ export function createInnerKeepSceneLayer(
       rabbitPresentation?.dispose();
       rabbitPresentation = null;
       outerWorldSeed = null;
+      disposeInstancedMeshBuffers(scene);
       scene.clear();
       disposableGeometries.forEach((geometry) => geometry.dispose());
       disposableMaterials.forEach((material) => material.dispose());

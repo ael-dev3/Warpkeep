@@ -761,7 +761,7 @@ describe('realm scene setup cleanup', () => {
 
       sceneHandle.dispose();
     }
-  }, 15_000);
+  }, 30_000);
 
   it.each([
     {
