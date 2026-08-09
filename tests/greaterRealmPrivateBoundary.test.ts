@@ -1055,6 +1055,96 @@ describe('Greater Realm public and release boundary', () => {
     })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_MARKER');
   });
 
+  it.each([
+    [
+      'renamed JSON authority arrays',
+      'tools/ordinary-layout.json',
+      `${JSON.stringify(Object.fromEntries([
+        ['dressingExcluded', Array.of(0, 1, 0, 0)],
+        ['ecologyClass', Array.of(2, 0, 4, 6)],
+        ['vegetationDensity', Array.of(80, 0, 150, 220)],
+        ['routeClass', Array.of(0, 3, 1, 0)],
+        ['landmarkClass', Array.of(0, 0, 4, 7)],
+        ['ambientLifeClass', Array.of(1, 0, 4, 5)],
+      ]))}\n`,
+    ],
+    [
+      'plain encoded authority array',
+      'tools/ordinary-channel.txt',
+      `${['ambient-life', 'class'].join('-')}: ${JSON.stringify([1, 0, 4, 5])}\n`,
+    ],
+    [
+      'renamed encoded authority inventory',
+      'tools/ordinary-inventory.json',
+      `${JSON.stringify({
+        fields: [
+          { name: 'dressing-excluded', type: 2, width: 1 },
+          { name: 'ecology-class', type: 2, width: 1 },
+          { name: 'vegetation-density', type: 2, width: 1 },
+          { name: 'route-class', type: 2, width: 1 },
+          { name: 'landmark-class', type: 2, width: 1 },
+          { name: 'ambient-life-class', type: 2, width: 1 },
+        ],
+        encodedByteArrays: ['AAEAAA==', 'AgAEBg=='],
+      })}\n`,
+    ],
+  ])('rejects markerless %s in tracked data', (_label, relativePath, payload) => {
+    const paths = scannerRepository();
+    mkdirSync(join(paths.repositoryRoot, 'tools'));
+    expect(payload).not.toContain('WKGR-PRIVATE');
+    writeFileSync(join(paths.repositoryRoot, relativePath), payload);
+
+    expect(() => verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      trackedPaths: [relativePath],
+    })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
+  });
+
+  it('rejects a markerless initialized authority array embedded in source', () => {
+    const paths = scannerRepository();
+    const relativePath = 'tools/ordinary-layout.ts';
+    const authorityName = ['ecology', 'Class'].join('');
+    const payload = `export const ${authorityName} = ${JSON.stringify([2, 0, 4, 6])};\n`;
+    mkdirSync(join(paths.repositoryRoot, 'tools'));
+    expect(payload).not.toContain('WKGR-PRIVATE');
+    writeFileSync(join(paths.repositoryRoot, relativePath), payload);
+
+    expect(() => verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      trackedPaths: [relativePath],
+    })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
+  });
+
+  it('allows living-world vocabulary in source, documentation, and type declarations', () => {
+    const paths = scannerRepository();
+    const sourcePath = 'src/living-world-types.ts';
+    const documentationPath = 'docs/living-world-vocabulary.md';
+    writeFileSync(join(paths.repositoryRoot, sourcePath), [
+      'export interface LivingWorldAuthority {',
+      '  dressingExcluded: Uint8Array;',
+      '  ecologyClass: Uint8Array;',
+      '  vegetationDensity: Uint8Array;',
+      '  routeClass: [number, number];',
+      '  landmarkClass: Uint8Array;',
+      '  ambientLifeClass: Uint8Array;',
+      '}',
+      '',
+    ].join('\n'));
+    writeFileSync(join(paths.repositoryRoot, documentationPath), [
+      '# Living-world vocabulary',
+      '',
+      '`dressing-excluded`, `ecology-class`, `vegetation-density`,',
+      '`route-class`, `landmark-class`, and `ambient-life-class` are private',
+      'authority field names; this document intentionally contains no values.',
+      '',
+    ].join('\n'));
+
+    expect(verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      trackedPaths: [sourcePath, documentationPath],
+    })).toMatchObject({ trackedPathCount: 2 });
+  });
+
   it('rejects a renamed private owner shortlist outside deploy roots', () => {
     const paths = scannerRepository();
     mkdirSync(join(paths.repositoryRoot, 'tools'));

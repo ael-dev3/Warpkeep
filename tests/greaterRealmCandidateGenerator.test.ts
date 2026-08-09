@@ -10,6 +10,7 @@ import {
   type GreaterRealmPrivateCandidate,
 } from '../scripts/atlas/greater-realm-candidate-generator';
 import { GREATER_REALM_PROOF_KEYS } from '../scripts/atlas/greater-realm-contracts';
+import { GREATER_REALM_ROUTE_CLASS } from '../scripts/atlas/greater-realm-living-world';
 import {
   GREATER_REALM_LEGACY_LOWLANDS_LOCK_PINS_V1,
   GREATER_REALM_PRIVATE_LEGACY_LOWLANDS_PATCH_V1,
@@ -30,7 +31,7 @@ const SAME_FIRST_WORD_ROOT_INDEX = 41_769;
 const PINNED_ORDINAL = 9;
 const SAME_FIRST_WORD_ORDINAL = 0;
 const SECONDARY_ROOT_LABEL = 'greater-realm-secondary-fixture';
-const SECONDARY_ORDINAL = 18;
+const SECONDARY_ORDINAL = 19;
 const EXPECTED_ACTIVE_CELL_MINIMUM = 100_000;
 const EXPECTED_ACTIVE_CELL_MAXIMUM = 150_000;
 const EXPECTED_CASTLES_PER_FRONTIER_REGION = 100;
@@ -137,6 +138,12 @@ function candidateFields(
     resourcePotential: candidate.resourcePotential,
     corePotential: candidate.corePotential,
     throneAnchor: candidate.throneAnchor,
+    dressingExcluded: candidate.dressingExcluded,
+    ecologyClass: candidate.ecologyClass,
+    vegetationDensity: candidate.vegetationDensity,
+    routeClass: candidate.routeClass,
+    landmarkClass: candidate.landmarkClass,
+    ambientLifeClass: candidate.ambientLifeClass,
     legacyLowlandsCell: candidate.legacyLowlandsCell,
     legacyLowlandsProtectedCell: candidate.legacyLowlandsProtectedCell,
     legacyLowlandsReserveCell: candidate.legacyLowlandsReserveCell,
@@ -236,7 +243,7 @@ beforeAll(() => {
     collisionRoot.fill(0);
     secondRoot.fill(0);
   }
-}, 180_000);
+}, 360_000);
 
 afterAll(() => {
   if (pinned) clearGreaterRealmCandidateSecret(pinned);
@@ -351,6 +358,14 @@ describe('Greater Realm private candidate generator', () => {
         castleSlot: candidate.castleSlot,
         throneAnchor: candidate.throneAnchor,
       }),
+      dressing: digestGreaterRealmTerrainStage('dressing', candidate.grid, {
+        dressingExcluded: candidate.dressingExcluded,
+        ecologyClass: candidate.ecologyClass,
+        vegetationDensity: candidate.vegetationDensity,
+        routeClass: candidate.routeClass,
+        landmarkClass: candidate.landmarkClass,
+        ambientLifeClass: candidate.ambientLifeClass,
+      }),
       final: digestGreaterRealmTerrainStage('final', candidate.grid, fields),
     });
     expect(Object.values(candidate.stageDigests).every(digest => /^[0-9a-f]{64}$/u.test(digest)))
@@ -424,6 +439,96 @@ describe('Greater Realm private candidate generator', () => {
     expect(regionCounts.every(count => count > 0)).toBe(true);
     expect(landCells).toBe(candidate.aggregate.landCellCount);
     expect(landCells + candidate.aggregate.waterCellCount).toBe(grid.cellCount);
+  });
+
+  it('binds a natural dormant living-world layer without leaking it into public evidence', () => {
+    const [candidate] = requireCandidates();
+    const gateCell = new Uint8Array(candidate.grid.cellCount);
+    const gateApproachCell = new Uint8Array(candidate.grid.cellCount);
+    for (const gate of candidate.gates) {
+      gateCell[gate.firstCell] = 1;
+      gateCell[gate.secondCell] = 1;
+      for (const path of [
+        gate.firstApproachPath,
+        gate.firstAlternateApproachPath,
+        gate.secondApproachPath,
+        gate.secondAlternateApproachPath,
+      ]) {
+        for (const cell of path) gateApproachCell[cell] = 1;
+      }
+    }
+
+    const livingWorld = candidate.privateMetrics.livingWorld;
+    expect(Object.values(livingWorld.invariants).every(Boolean)).toBe(true);
+    expect(
+      Object.values(livingWorld.metrics.ecologyCellCounts).every(
+        (count) => count > 0,
+      ),
+    ).toBe(true);
+    expect(
+      Object.values(livingWorld.metrics.routeCellCounts).every(
+        (count) => count > 0,
+      ),
+    ).toBe(true);
+    expect(
+      Object.values(livingWorld.metrics.landmarkCellCounts).every(
+        (count) => count > 0,
+      ),
+    ).toBe(true);
+    expect(
+      Object.values(livingWorld.metrics.ambientLifeCellCounts).every(
+        (count) => count > 0,
+      ),
+    ).toBe(true);
+    expect(
+      livingWorld.metrics.eligibleLandVegetatedBasisPoints,
+    ).toBeGreaterThanOrEqual(2_500);
+    expect(
+      livingWorld.metrics.eligibleLandVegetatedBasisPoints,
+    ).toBeLessThanOrEqual(8_500);
+    expect(
+      livingWorld.metrics.eligibleLandOpenBasisPoints,
+    ).toBeGreaterThanOrEqual(1_500);
+
+    let exclusionMaskMismatchCount = 0;
+    let excludedOutputViolationCount = 0;
+    for (let cell = 0; cell < candidate.grid.cellCount; cell += 1) {
+      const excluded =
+        candidate.waterRegime[cell] !== 0 ||
+        candidate.legacyLowlandsProtectedCell[cell] !== 0 ||
+        candidate.castleSlot[cell] !== 0 ||
+        candidate.throneAnchor[cell] !== 0 ||
+        candidate.barrier[cell] !== 0 ||
+        gateCell[cell] !== 0 ||
+        gateApproachCell[cell] !== 0;
+      if (candidate.dressingExcluded[cell] !== (excluded ? 1 : 0)) {
+        exclusionMaskMismatchCount += 1;
+      }
+      if (!excluded) continue;
+      if (
+        candidate.ecologyClass[cell] !== 0 ||
+        candidate.vegetationDensity[cell] !== 0 ||
+        candidate.landmarkClass[cell] !== 0 ||
+        candidate.ambientLifeClass[cell] !== 0 ||
+        (candidate.routeClass[cell] !== 0 &&
+          !(
+            (candidate.waterRegime[cell] === 3 ||
+              candidate.waterRegime[cell] === 4) &&
+            candidate.routeClass[cell] === GREATER_REALM_ROUTE_CLASS.FORD
+          ))
+      )
+        excludedOutputViolationCount += 1;
+    }
+    expect({
+      exclusionMaskMismatchCount,
+      excludedOutputViolationCount,
+    }).toEqual({
+      exclusionMaskMismatchCount: 0,
+      excludedOutputViolationCount: 0,
+    });
+    expect(JSON.stringify(candidate.aggregate)).not.toMatch(
+      /(?:livingWorld|layoutFingerprint|dressingExcluded|ecologyClass|vegetationDensity|routeClass|landmarkClass|ambientLifeClass|eligibleLandVegetatedBasisPoints|eligibleLandOpenBasisPoints|landmarkCellCounts|ambientLifeCellCounts)/u,
+    );
   });
 
   it('maps every locked Lowlands cell and castle through one reversible protected transform', () => {

@@ -34,15 +34,21 @@ import {
   compositeGreaterRealmAtmosphere,
   integrateGreaterRealmHeightFog,
 } from './greater-realm-atmosphere';
+import {
+  GREATER_REALM_AMBIENT_LIFE_CLASS,
+  GREATER_REALM_ECOLOGY_CLASS,
+  GREATER_REALM_LANDMARK_CLASS,
+  GREATER_REALM_LIVING_WORLD_VERSION,
+  GREATER_REALM_ROUTE_CLASS,
+  clearGreaterRealmLivingWorldAuthority,
+  deriveGreaterRealmLivingWorld,
+  type GreaterRealmLivingWorldAuthority,
+} from './greater-realm-living-world';
 
-const PRIVATE_ATLAS_FORMAT_VERSION = 5;
+const PRIVATE_ATLAS_FORMAT_VERSION = 6;
 const PRIVATE_ATLAS_MAXIMUM_BYTES = 128 * 1024 * 1024;
 const PRIVATE_PREVIEW_MAXIMUM_BYTES = 16 * 1024 * 1024;
 const PRIVATE_MANIFEST_MAXIMUM_BYTES = 4 * 1024 * 1024;
-const PRIVATE_CANDIDATE_MAXIMUM_BYTES = PRIVATE_ATLAS_MAXIMUM_BYTES
-  + PRIVATE_MANIFEST_MAXIMUM_BYTES
-  + PRIVATE_PREVIEW_MAXIMUM_BYTES * 6
-  + GREATER_REALM_PRIVATE_SEED_ENVELOPE_BYTES;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/u;
 const SOURCE_COMMIT_PATTERN = /^[0-9a-f]{40}$/u;
 const BATCH_HANDLE_PATTERN = /^GR-B-[A-Z2-7]{16}$/u;
@@ -53,7 +59,13 @@ export const GREATER_REALM_PRIVATE_PREVIEW_MARKER =
 const PRIVATE_PREVIEW_TEXT_KEY = 'WarpkeepPrivate';
 const PRIVATE_PREVIEW_MODES = [
   'silhouette', 'hillshade', 'biome', 'hydrology', 'regions', 'mountain-gates',
+  'dressing',
 ] as const;
+export const GREATER_REALM_PRIVATE_PREVIEW_COUNT = PRIVATE_PREVIEW_MODES.length;
+const PRIVATE_CANDIDATE_MAXIMUM_BYTES = PRIVATE_ATLAS_MAXIMUM_BYTES
+  + PRIVATE_MANIFEST_MAXIMUM_BYTES
+  + PRIVATE_PREVIEW_MAXIMUM_BYTES * GREATER_REALM_PRIVATE_PREVIEW_COUNT
+  + GREATER_REALM_PRIVATE_SEED_ENVELOPE_BYTES;
 const PRIVATE_PREVIEW_SEA_LEVEL = 0;
 const PRIVATE_PREVIEW_WATER_DRY = 0;
 const PRIVATE_PREVIEW_WATER_OCEAN = 1;
@@ -715,7 +727,160 @@ function privateFields(candidate: GreaterRealmPrivateCandidate): readonly Encode
     { name: 'ridge-id', type: 5, width: 4, array: candidate.ridgeId },
     { name: 'temperature', type: 5, width: 4, array: candidate.temperature },
     { name: 'moisture', type: 5, width: 4, array: candidate.moisture },
+    { name: 'dressing-excluded', type: 2, width: 1, array: candidate.dressingExcluded },
+    { name: 'ecology-class', type: 2, width: 1, array: candidate.ecologyClass },
+    { name: 'vegetation-density', type: 2, width: 1, array: candidate.vegetationDensity },
+    { name: 'route-class', type: 2, width: 1, array: candidate.routeClass },
+    { name: 'landmark-class', type: 2, width: 1, array: candidate.landmarkClass },
+    { name: 'ambient-life-class', type: 2, width: 1, array: candidate.ambientLifeClass },
   ] as const);
+}
+
+function equalPrivateBytes(first: Uint8Array, second: Uint8Array): boolean {
+  if (first.length !== second.length) return false;
+  for (let index = 0; index < first.length; index += 1) {
+    if (first[index] !== second[index]) return false;
+  }
+  return true;
+}
+
+function equalPrivateData(expected: unknown, actual: unknown): boolean {
+  if (Object.is(expected, actual)) return true;
+  if (
+    expected === null
+    || actual === null
+    || typeof expected !== 'object'
+    || typeof actual !== 'object'
+  ) return false;
+  if (Array.isArray(expected) || Array.isArray(actual)) {
+    if (!Array.isArray(expected) || !Array.isArray(actual)) return false;
+    if (expected.length !== actual.length) return false;
+    for (let index = 0; index < expected.length; index += 1) {
+      if (!equalPrivateData(expected[index], actual[index])) return false;
+    }
+    return Reflect.ownKeys(expected).length === Reflect.ownKeys(actual).length;
+  }
+  const expectedKeys = Reflect.ownKeys(expected);
+  const actualKeys = Reflect.ownKeys(actual);
+  if (
+    expectedKeys.length !== actualKeys.length
+    || !expectedKeys.every(key => typeof key === 'string')
+    || !actualKeys.every(key => typeof key === 'string')
+  ) return false;
+  const expectedNames = (expectedKeys as string[]).sort();
+  const actualNames = (actualKeys as string[]).sort();
+  for (let index = 0; index < expectedNames.length; index += 1) {
+    const name = expectedNames[index]!;
+    if (
+      name !== actualNames[index]
+      || !equalPrivateData(
+        (expected as Record<string, unknown>)[name],
+        (actual as Record<string, unknown>)[name],
+      )
+    ) return false;
+  }
+  return true;
+}
+
+function assertPrivateLivingWorldAuthority(candidate: GreaterRealmPrivateCandidate): void {
+  const cellCount = candidate.grid.cellCount;
+  const byteFields = [
+    candidate.waterRegime,
+    candidate.dressingExcluded,
+    candidate.ecologyClass,
+    candidate.vegetationDensity,
+    candidate.routeClass,
+    candidate.landmarkClass,
+    candidate.ambientLifeClass,
+  ];
+  if (
+    !Number.isSafeInteger(cellCount)
+    || cellCount < 100_000
+    || cellCount > 150_000
+    || byteFields.some(field => (
+      !(field instanceof Uint8Array)
+      || field instanceof Uint8ClampedArray
+      || field.length !== cellCount
+    ))
+  ) fail('GREATER_REALM_PRIVATE_DRESSING_INVALID');
+  const gateCell = new Uint8Array(cellCount);
+  const gateApproachCell = new Uint8Array(cellCount);
+  let expected: GreaterRealmLivingWorldAuthority | undefined;
+  try {
+    if (!Array.isArray(candidate.gates)) fail('GREATER_REALM_PRIVATE_DRESSING_INVALID');
+    for (const gate of candidate.gates) {
+      for (const cell of [gate.firstCell, gate.secondCell]) {
+        if (!Number.isSafeInteger(cell) || cell < 0 || cell >= cellCount) {
+          fail('GREATER_REALM_PRIVATE_DRESSING_INVALID');
+        }
+        gateCell[cell] = 1;
+      }
+      for (const path of [
+        gate.firstApproachPath,
+        gate.firstAlternateApproachPath,
+        gate.secondApproachPath,
+        gate.secondAlternateApproachPath,
+      ]) {
+        if (!Array.isArray(path)) fail('GREATER_REALM_PRIVATE_DRESSING_INVALID');
+        for (const cell of path) {
+          if (!Number.isSafeInteger(cell) || cell < 0 || cell >= cellCount) {
+            fail('GREATER_REALM_PRIVATE_DRESSING_INVALID');
+          }
+          gateApproachCell[cell] = 1;
+        }
+      }
+    }
+    try {
+      expected = deriveGreaterRealmLivingWorld({
+        grid: candidate.grid,
+        seed: candidate.candidateSeed,
+        waterRegime: candidate.waterRegime,
+        biomeId: candidate.biomeId,
+        landformId: candidate.landformId,
+        elevation: candidate.elevation,
+        slope: candidate.slope,
+        moisture: candidate.moisture,
+        temperature: candidate.temperature,
+        wetnessIndex: candidate.wetnessIndex,
+        exposure: candidate.exposure,
+        distanceToFreshwater: candidate.distanceToFreshwater,
+        distanceToCoast: candidate.distanceToCoast,
+        legacyProtectedCell: candidate.legacyLowlandsProtectedCell,
+        castleSlot: candidate.castleSlot,
+        resourcePotential: candidate.resourcePotential,
+        corePotential: candidate.corePotential,
+        throneAnchor: candidate.throneAnchor,
+        barrier: candidate.barrier,
+        gateCell,
+        gateApproachCell,
+      });
+    } catch {
+      fail('GREATER_REALM_PRIVATE_DRESSING_INVALID');
+    }
+    let metadataExact = false;
+    try {
+      metadataExact = expected.version === GREATER_REALM_LIVING_WORLD_VERSION
+        && candidate.privateMetrics.livingWorld.version === expected.version
+        && equalPrivateData(expected.metrics, candidate.privateMetrics.livingWorld.metrics)
+        && equalPrivateData(expected.invariants, candidate.privateMetrics.livingWorld.invariants)
+        && Object.values(expected.invariants).every(value => value === true);
+    } catch {
+      metadataExact = false;
+    }
+    if (
+      !metadataExact
+      || !equalPrivateBytes(expected.dressingExcluded, candidate.dressingExcluded)
+      || !equalPrivateBytes(expected.ecologyClass, candidate.ecologyClass)
+      || !equalPrivateBytes(expected.vegetationDensity, candidate.vegetationDensity)
+      || !equalPrivateBytes(expected.routeClass, candidate.routeClass)
+      || !equalPrivateBytes(expected.landmarkClass, candidate.landmarkClass)
+      || !equalPrivateBytes(expected.ambientLifeClass, candidate.ambientLifeClass)
+    ) fail('GREATER_REALM_PRIVATE_DRESSING_INVALID');
+  } finally {
+    gateCell.fill(0);
+    gateApproachCell.fill(0);
+    if (expected) clearGreaterRealmLivingWorldAuthority(expected);
+  }
 }
 
 function encodedFieldHasExactType(field: EncodedField): boolean {
@@ -763,6 +928,7 @@ function writeArray(buffer: Buffer, offset: number, field: EncodedField): number
 export function serializeGreaterRealmPrivateAtlas(
   candidate: GreaterRealmPrivateCandidate,
 ): Buffer {
+  assertPrivateLivingWorldAuthority(candidate);
   const fields = privateFields(candidate);
   const magic = Buffer.from(GREATER_REALM_PRIVATE_PACKAGE_MAGIC, 'ascii');
   let buffer: Buffer | undefined;
@@ -1277,13 +1443,10 @@ function privatePreviewDistanceToTopographicLand(
   }
 }
 
-export async function renderGreaterRealmPrivatePreview(
+async function renderValidatedGreaterRealmPrivatePreview(
   candidate: GreaterRealmPrivateCandidate,
   mode: GreaterRealmPrivatePreviewMode,
 ): Promise<Buffer> {
-  if (!(PRIVATE_PREVIEW_MODES as readonly unknown[]).includes(mode)) {
-    fail('GREATER_REALM_PRIVATE_PREVIEW_MODE_INVALID');
-  }
   const width = 1_280;
   const height = 1_024;
   const pixels = Buffer.alloc(width * height * 4, 0);
@@ -1373,6 +1536,18 @@ export async function renderGreaterRealmPrivatePreview(
       [85, 121, 142],
       [116, 84, 135],
     ] as const;
+    const ecologyPalette = [
+      [54, 58, 64],
+      [154, 173, 95],
+      [57, 114, 65],
+      [60, 99, 88],
+      [45, 126, 79],
+      [65, 111, 94],
+      [173, 156, 77],
+      [194, 157, 86],
+      [113, 121, 117],
+      [194, 207, 220],
+    ] as const;
     if (mode === 'regions') {
       distanceToTopographicLand =
         privatePreviewDistanceToTopographicLand(candidate);
@@ -1432,12 +1607,71 @@ export async function renderGreaterRealmPrivatePreview(
         } else {
           fail('GREATER_REALM_PRIVATE_PREVIEW_WATER_INVALID');
         }
-      } else {
+      } else if (mode === 'mountain-gates') {
         color = gateCells.has(index)
           ? [236, 194, 82]
           : candidate.barrier[index] === 1
             ? [112, 104, 110]
             : [73, 94, 78];
+      } else {
+        const regime = candidate.waterRegime[index]!;
+        if (regime !== PRIVATE_PREVIEW_WATER_DRY) {
+          color =
+            candidate.routeClass[index] === GREATER_REALM_ROUTE_CLASS.FORD
+              ? [233, 184, 79]
+              : regime === PRIVATE_PREVIEW_WATER_OCEAN
+                ? [35, 75, 119]
+                : regime === PRIVATE_PREVIEW_WATER_RIVER ||
+                    regime === PRIVATE_PREVIEW_WATER_STREAM
+                  ? [63, 142, 190]
+                  : [55, 115, 164];
+        } else if (candidate.dressingExcluded[index] !== 0) {
+          color = [66, 59, 73];
+        } else {
+          const base =
+            ecologyPalette[
+              candidate.ecologyClass[index] ?? GREATER_REALM_ECOLOGY_CLASS.NONE
+            ]!;
+          const density = candidate.vegetationDensity[index]!;
+          color = [
+            clampPreview(base[0] - Math.floor(density / 14)),
+            clampPreview(base[1] + Math.floor(density / 18)),
+            clampPreview(base[2] - Math.floor(density / 24)),
+          ];
+          const route = candidate.routeClass[index]!;
+          if (route !== GREATER_REALM_ROUTE_CLASS.NONE) {
+            color =
+              route === GREATER_REALM_ROUTE_CLASS.CARRIAGEWAY
+                ? [199, 154, 87]
+                : route === GREATER_REALM_ROUTE_CLASS.ROAD
+                  ? [161, 122, 75]
+                  : [125, 101, 70];
+          }
+          const landmark = candidate.landmarkClass[index]!;
+          if (landmark !== GREATER_REALM_LANDMARK_CLASS.NONE) {
+            color =
+              landmark === GREATER_REALM_LANDMARK_CLASS.LAMP_POST
+                ? [245, 204, 85]
+                : landmark === GREATER_REALM_LANDMARK_CLASS.WAYSTONE
+                  ? [177, 119, 205]
+                  : landmark === GREATER_REALM_LANDMARK_CLASS.ABANDONED_RUIN
+                    ? [146, 136, 129]
+                    : [105, 98, 95];
+          }
+          const ambient = candidate.ambientLifeClass[index]!;
+          if (ambient !== GREATER_REALM_AMBIENT_LIFE_CLASS.NONE) {
+            color =
+              ambient === GREATER_REALM_AMBIENT_LIFE_CLASS.RABBIT_HABITAT
+                ? [212, 220, 163]
+                : ambient === GREATER_REALM_AMBIENT_LIFE_CLASS.CIVILIAN_FOOTFALL
+                  ? [113, 179, 213]
+                  : ambient === GREATER_REALM_AMBIENT_LIFE_CLASS.GUARD_POST
+                    ? [190, 88, 78]
+                    : ambient === GREATER_REALM_AMBIENT_LIFE_CLASS.COURIER_ROUTE
+                      ? [105, 210, 188]
+                      : [217, 120, 222];
+          }
+        }
       }
       for (let offsetY = 0; offsetY < Math.max(1, scale); offsetY += 1) {
         for (let offsetX = 0; offsetX < Math.max(1, scale); offsetX += 1) {
@@ -1458,7 +1692,9 @@ export async function renderGreaterRealmPrivatePreview(
         ? 'TOPOLOGY + OUTER-OCEAN PROXY · PRIVATE REVIEW · NOT RUNTIME FOG'
         : mode === 'hillshade'
           ? 'TERRACED RELIEF + HEIGHT ATMOSPHERE · PRIVATE OWNER REVIEW'
-          : `PRIVATE OWNER REVIEW — DO NOT DISTRIBUTE · ${mode.toUpperCase()}`;
+          : mode === 'dressing'
+            ? 'DORMANT ECOLOGY + CORRIDOR CAPACITY · PRIVATE REVIEW · NOT RUNTIME'
+            : `PRIVATE OWNER REVIEW — DO NOT DISTRIBUTE · ${mode.toUpperCase()}`;
     watermark = Buffer.from(
       `<svg width="${width}" height="${height}"><rect width="100%" height="44" y="${height - 44}" fill="#0b0d16" fill-opacity="0.84"/><text x="32" y="${height - 15}" fill="#e0b85d" font-family="sans-serif" font-size="20" letter-spacing="3">${watermarkLabel}</text></svg>`,
       'utf8',
@@ -1478,6 +1714,17 @@ export async function renderGreaterRealmPrivatePreview(
     encoded?.fill(0);
     distanceToTopographicLand?.fill(0);
   }
+}
+
+export async function renderGreaterRealmPrivatePreview(
+  candidate: GreaterRealmPrivateCandidate,
+  mode: GreaterRealmPrivatePreviewMode,
+): Promise<Buffer> {
+  if (!(PRIVATE_PREVIEW_MODES as readonly unknown[]).includes(mode)) {
+    fail('GREATER_REALM_PRIVATE_PREVIEW_MODE_INVALID');
+  }
+  assertPrivateLivingWorldAuthority(candidate);
+  return renderValidatedGreaterRealmPrivatePreview(candidate, mode);
 }
 
 function clampPreview(value: number): number {
@@ -1655,7 +1902,14 @@ export async function writeGreaterRealmPrivateCandidate(
   }
   const previewDigestEntries: Array<readonly [GreaterRealmPrivatePreviewMode, string]> = [];
   for (const mode of PRIVATE_PREVIEW_MODES) {
-    const preview = await renderGreaterRealmPrivatePreview(input.candidate, mode);
+    // Atlas serialization above re-derived and validated the complete dormant
+    // living-world authority. Keep the unchecked renderer private so this
+    // package orchestration can reuse that proof across all seven previews;
+    // standalone callers still enter through the fail-closed exported wrapper.
+    const preview = await renderValidatedGreaterRealmPrivatePreview(
+      input.candidate,
+      mode,
+    );
     try {
       previewDigestEntries.push(Object.freeze([
         mode,
@@ -1812,6 +2066,12 @@ function verifyPrivateAtlasBinary(atlas: Buffer, expectedCellCount: number): voi
     ['ridge-id', 5, 4],
     ['temperature', 5, 4],
     ['moisture', 5, 4],
+    ['dressing-excluded', 2, 1],
+    ['ecology-class', 2, 1],
+    ['vegetation-density', 2, 1],
+    ['route-class', 2, 1],
+    ['landmark-class', 2, 1],
+    ['ambient-life-class', 2, 1],
   ] as const;
   let offset = 0;
   const magicLength = readUInt16(atlas, offset);
@@ -1943,12 +2203,13 @@ function assertPrivateCandidateInventory(
   base: string,
 ): void {
   const attestation = workspace.attestTree(base);
+  const expectedFileCount = 3 + GREATER_REALM_PRIVATE_PREVIEW_COUNT;
   if (
-    attestation.fileCount !== 9
+    attestation.fileCount !== expectedFileCount
     || attestation.directoryCount !== 2
-    || attestation.entryCount !== 11
+    || attestation.entryCount !== expectedFileCount + 2
     || attestation.byteCount < GREATER_REALM_PRIVATE_SEED_ENVELOPE_BYTES
-      + PNG_SIGNATURE.length * PRIVATE_PREVIEW_MODES.length
+      + PNG_SIGNATURE.length * GREATER_REALM_PRIVATE_PREVIEW_COUNT
     || attestation.byteCount > PRIVATE_CANDIDATE_MAXIMUM_BYTES
   ) fail('GREATER_REALM_PRIVATE_PACKAGE_INVENTORY_INVALID');
 }
@@ -2215,7 +2476,13 @@ export async function verifyGreaterRealmPrivateCandidatePackage(input: Readonly<
       let preview: Buffer | undefined;
       let expectedPreview: Buffer | undefined;
       try {
-        expectedPreview = await renderGreaterRealmPrivatePreview(expectedCandidate, mode);
+        // Expected-atlas serialization above already re-derived and validated
+        // this candidate. Reuse that proof for deterministic preview replay;
+        // the public renderer remains independently fail-closed.
+        expectedPreview = await renderValidatedGreaterRealmPrivatePreview(
+          expectedCandidate,
+          mode,
+        );
         if (expectedPreview.length > PRIVATE_PREVIEW_MAXIMUM_BYTES) {
           fail('GREATER_REALM_PRIVATE_PREVIEW_INVALID');
         }

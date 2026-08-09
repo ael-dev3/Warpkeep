@@ -90,7 +90,7 @@ describe("Greater Realm geomorphic shaping", () => {
     const second = shapeGreaterRealmGeomorphology(input);
 
     expect(GREATER_REALM_GEOMORPHOLOGY_VERSION).toBe(
-      "greater-realm-geomorphology-v3",
+      "greater-realm-geomorphology-v4",
     );
     expect(first).toEqual(second);
     expect(fixture.elevation).toEqual(originalElevation);
@@ -114,6 +114,23 @@ describe("Greater Realm geomorphic shaping", () => {
     expect(first.metrics.terraces.spatialRampCellCount).toBeGreaterThan(0);
     expect(first.metrics.terraces.fullStepEdgeCount).toBe(0);
     expect(first.metrics.terraces.weatheredDetailCellCount).toBeGreaterThan(0);
+    expect(
+      first.metrics.terraces.domainWarpSampledCellCount * 5,
+    ).toBeGreaterThanOrEqual(first.metrics.terraces.eligibleCellCount);
+    expect(
+      first.metrics.terraces.domainWarpChangedCarrierCellCount * 4,
+    ).toBeGreaterThanOrEqual(
+      first.metrics.terraces.domainWarpSampledCellCount * 3,
+    );
+    expect(
+      first.metrics.terraces.domainWarpOutputChangedCellCount,
+    ).toBeGreaterThan(0);
+    expect(
+      first.metrics.terraces.domainWarpMaximumDistance,
+    ).toBeGreaterThanOrEqual(1);
+    expect(first.metrics.terraces.domainWarpMaximumDistance).toBeLessThanOrEqual(
+      5,
+    );
     expect(
       Math.abs(first.metrics.terraces.netElevationDelta),
     ).toBeLessThanOrEqual(first.metrics.terraces.eligibleCellCount * 300);

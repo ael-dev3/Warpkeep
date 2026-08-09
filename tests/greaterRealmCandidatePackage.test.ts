@@ -24,6 +24,7 @@ import {
   type GreaterRealmPrivateCandidate,
 } from '../scripts/atlas/greater-realm-candidate-generator';
 import {
+  GREATER_REALM_PRIVATE_PREVIEW_COUNT,
   GREATER_REALM_PRIVATE_PREVIEW_MARKER,
   clearGreaterRealmPrivateCandidateBuffers,
   renderGreaterRealmPrivatePreview,
@@ -41,6 +42,13 @@ import {
   GREATER_REALM_PRIVATE_SEED_ENVELOPE_BYTES,
   encodeGreaterRealmPrivateSeed,
 } from '../scripts/atlas/greater-realm-private-seed';
+import {
+  GREATER_REALM_AMBIENT_LIFE_CLASS,
+  GREATER_REALM_LANDMARK_CLASS,
+  GREATER_REALM_ROUTE_CLASS,
+  deriveGreaterRealmLivingWorld,
+  type GreaterRealmLivingWorldAuthority,
+} from '../scripts/atlas/greater-realm-living-world';
 
 const SOURCE_COMMIT = 'a'.repeat(40);
 const BATCH_HANDLE = 'GR-B-AAAAAAAAAAAAAAAA';
@@ -68,7 +76,9 @@ const priorToolchainProfile = process.env.WKGR_TOOLCHAIN_PREFLIGHT_PROFILE;
 // package verification intentionally regenerates a 100k+ cell candidate, so
 // retain strict assertions while giving those fail-closed checks enough wall
 // time under shared CI load.
-vi.setConfig({ testTimeout: 45_000 });
+const PRIVATE_SUITE_SETUP_TIMEOUT_MS = 180_000;
+const PRIVATE_REPLAY_TEST_TIMEOUT_MS = 180_000;
+vi.setConfig({ testTimeout: PRIVATE_REPLAY_TEST_TIMEOUT_MS });
 
 const temporaryRoots: string[] = [];
 let repositoryRoot = '';
@@ -78,7 +88,7 @@ let atlasDigest = '';
 let manifestDigest = '';
 let batchSeedDigest = '';
 
-type GreaterRealmV5ManifestAuthority = {
+type GreaterRealmV6ManifestAuthority = {
   barrierCrossSections: Array<{ cells: number[] }>;
   gates: Array<{
     firstApproachPath: number[];
@@ -120,6 +130,93 @@ function privateAtlasFieldNames(atlas: Buffer): readonly string[] {
     throw new Error('GREATER_REALM_PRIVATE_ATLAS_TEST_INVENTORY_INVALID');
   }
   return Object.freeze(names);
+}
+
+function privateAtlasFieldPayloadOffset(atlas: Buffer, expectedName: string): number {
+  let offset = 0;
+  const magicLength = atlas.readUInt16LE(offset);
+  offset += 2 + magicLength + 2;
+  const cellCount = atlas.readUInt32LE(offset);
+  offset += 4;
+  const fieldCount = atlas.readUInt16LE(offset);
+  offset += 2;
+  for (let fieldIndex = 0; fieldIndex < fieldCount; fieldIndex += 1) {
+    const nameLength = atlas.readUInt8(offset);
+    offset += 1;
+    const name = atlas.subarray(offset, offset + nameLength).toString('utf8');
+    offset += nameLength + 1;
+    const length = atlas.readUInt32LE(offset);
+    offset += 4;
+    const byteLength = Number(atlas.readBigUInt64LE(offset));
+    offset += 8;
+    if (
+      length !== cellCount
+      || !Number.isSafeInteger(byteLength)
+      || byteLength < 0
+      || offset + byteLength > atlas.length
+    ) throw new Error('GREATER_REALM_PRIVATE_ATLAS_TEST_INVENTORY_INVALID');
+    if (name === expectedName) return offset;
+    offset += byteLength;
+  }
+  throw new Error('GREATER_REALM_PRIVATE_ATLAS_TEST_FIELD_MISSING');
+}
+
+function deriveLivingWorldForPackageTest(
+  candidate: GreaterRealmPrivateCandidate,
+): GreaterRealmLivingWorldAuthority {
+  const gateCell = new Uint8Array(candidate.grid.cellCount);
+  const gateApproachCell = new Uint8Array(candidate.grid.cellCount);
+  try {
+    for (const gate of candidate.gates) {
+      gateCell[gate.firstCell] = 1;
+      gateCell[gate.secondCell] = 1;
+      for (const path of [
+        gate.firstApproachPath,
+        gate.firstAlternateApproachPath,
+        gate.secondApproachPath,
+        gate.secondAlternateApproachPath,
+      ]) {
+        for (const cell of path) gateApproachCell[cell] = 1;
+      }
+    }
+    return deriveGreaterRealmLivingWorld({
+      grid: candidate.grid,
+      seed: candidate.candidateSeed,
+      waterRegime: candidate.waterRegime,
+      biomeId: candidate.biomeId,
+      landformId: candidate.landformId,
+      elevation: candidate.elevation,
+      slope: candidate.slope,
+      moisture: candidate.moisture,
+      temperature: candidate.temperature,
+      wetnessIndex: candidate.wetnessIndex,
+      exposure: candidate.exposure,
+      distanceToFreshwater: candidate.distanceToFreshwater,
+      distanceToCoast: candidate.distanceToCoast,
+      legacyProtectedCell: candidate.legacyLowlandsProtectedCell,
+      castleSlot: candidate.castleSlot,
+      resourcePotential: candidate.resourcePotential,
+      corePotential: candidate.corePotential,
+      throneAnchor: candidate.throneAnchor,
+      barrier: candidate.barrier,
+      gateCell,
+      gateApproachCell,
+    });
+  } finally {
+    gateCell.fill(0);
+    gateApproachCell.fill(0);
+  }
+}
+
+function clearLivingWorldForPackageTest(
+  authority: GreaterRealmLivingWorldAuthority | undefined,
+): void {
+  authority?.dressingExcluded.fill(0);
+  authority?.ecologyClass.fill(0);
+  authority?.vegetationDensity.fill(0);
+  authority?.routeClass.fill(0);
+  authority?.landmarkClass.fill(0);
+  authority?.ambientLifeClass.fill(0);
 }
 
 function candidateRoot(): Uint8Array {
@@ -233,7 +330,7 @@ beforeAll(async () => {
   });
   atlasDigest = written.atlasDigest;
   manifestDigest = written.manifestDigest;
-}, 60_000);
+}, PRIVATE_SUITE_SETUP_TIMEOUT_MS);
 
 afterAll(() => {
   if (priorToolchainReceipt === undefined) delete process.env.WKGR_TOOLCHAIN_PREFLIGHT_RECEIPT;
@@ -254,13 +351,21 @@ describe('Greater Realm owner-only candidate package', () => {
     let comparisonMetrics: GreaterRealmVerifiedPrivateShortlistMetrics | undefined;
     try {
       expect(first.equals(second)).toBe(true);
-      expect(privateAtlasFormatVersion(first)).toBe(5);
+      expect(privateAtlasFormatVersion(first)).toBe(6);
       expect(createHash('sha256').update(first).digest('hex')).toBe(atlasDigest);
       const atlasFields = privateAtlasFieldNames(first);
       expect(atlasFields.filter(name => name === 'geological-barrier-band'))
         .toEqual(['geological-barrier-band']);
       expect(atlasFields.indexOf('geological-barrier-band'))
         .toBe(atlasFields.indexOf('barrier') + 1);
+      expect(atlasFields.slice(-6)).toEqual([
+        'dressing-excluded',
+        'ecology-class',
+        'vegetation-density',
+        'route-class',
+        'landmark-class',
+        'ambient-life-class',
+      ]);
       for (const fieldName of [
         'geomorphology-total-delta',
         'geomorphology-terrace-delta',
@@ -278,6 +383,12 @@ describe('Greater Realm owner-only candidate package', () => {
         'geomorphology-temperature',
         'geomorphology-moisture',
         'throne-anchor',
+        'dressing-excluded',
+        'ecology-class',
+        'vegetation-density',
+        'route-class',
+        'landmark-class',
+        'ambient-life-class',
       ]) {
         expect(first.includes(Buffer.from(fieldName, 'utf8'))).toBe(true);
       }
@@ -297,17 +408,21 @@ describe('Greater Realm owner-only candidate package', () => {
       );
       expect(fixture.workspace.attestTree(
         `batches/${BATCH_HANDLE}/candidates/${CANDIDATE_HANDLE}`,
-      ).fileCount).toBe(9);
+      ).fileCount).toBe(3 + GREATER_REALM_PRIVATE_PREVIEW_COUNT);
       expect(readdirSync(repositoryRoot)).toEqual([]);
 
-      const preview = fixture.workspace.readFile(
-        candidateRelativePath('previews/private-preview-silhouette.png'),
-      );
-      try {
-        expect(preview.includes(Buffer.from(GREATER_REALM_PRIVATE_PREVIEW_MARKER, 'ascii')))
-          .toBe(true);
-      } finally {
-        preview.fill(0);
+      for (const mode of ['silhouette', 'dressing']) {
+        const preview = fixture.workspace.readFile(
+          candidateRelativePath(`previews/private-preview-${mode}.png`),
+        );
+        try {
+          expect(preview.includes(Buffer.from(
+            GREATER_REALM_PRIVATE_PREVIEW_MARKER,
+            'ascii',
+          ))).toBe(true);
+        } finally {
+          preview.fill(0);
+        }
       }
 
       for (const relativePath of [
@@ -315,6 +430,7 @@ describe('Greater Realm owner-only candidate package', () => {
         candidateRelativePath('atlas.wkgr-atlas'),
         candidateRelativePath('manifest.private.json'),
         candidateRelativePath('previews/private-preview-silhouette.png'),
+        candidateRelativePath('previews/private-preview-dressing.png'),
       ]) {
         expect(statSync(join(fixture.workspace.root, relativePath)).mode & 0o077).toBe(0);
       }
@@ -322,7 +438,7 @@ describe('Greater Realm owner-only candidate package', () => {
       first.fill(0);
       second.fill(0);
     }
-  }, 60_000);
+  }, PRIVATE_REPLAY_TEST_TIMEOUT_MS);
 
   it('binds package version and stable terrain seed namespace as separate authorities', () => {
     const fixture = requireFixture();
@@ -334,7 +450,7 @@ describe('Greater Realm owner-only candidate package', () => {
     let derivedSeed: Buffer | undefined;
     try {
       expect(GREATER_REALM_GENERATOR_VERSION)
-        .toBe('greater-realm-v2-natural-continent-pr-a.8');
+        .toBe('greater-realm-v2-natural-continent-pr-a.10');
       expect(GREATER_REALM_TERRAIN_SEED_NAMESPACE)
         .toBe('greater-realm-v2-natural-continent-pr-a.3');
       expect(GREATER_REALM_GENERATOR_VERSION).not.toBe(
@@ -482,38 +598,64 @@ describe('Greater Realm owner-only candidate package', () => {
       topologyPreview.fill(0);
       silhouettePreview.fill(0);
     }
-  }, 45_000);
+  }, PRIVATE_REPLAY_TEST_TIMEOUT_MS);
 
   it('keeps the atmospheric hillshade invariant under a global atlas translation', async () => {
     const fixture = requireFixture();
-    const originalQ = new Int32Array(fixture.candidate.grid.q);
-    const originalR = new Int32Array(fixture.candidate.grid.r);
+    const translatedQ = new Int32Array(fixture.candidate.grid.q);
+    const translatedR = new Int32Array(fixture.candidate.grid.r);
     let baseline: Buffer | undefined;
     let translated: Buffer | undefined;
+    let livingWorld: GreaterRealmLivingWorldAuthority | undefined;
     try {
       baseline = await renderGreaterRealmPrivatePreview(
         fixture.candidate,
         'hillshade',
       );
       for (let cell = 0; cell < fixture.candidate.grid.cellCount; cell += 1) {
-        fixture.candidate.grid.q[cell] = originalQ[cell]! + 37;
-        fixture.candidate.grid.r[cell] = originalR[cell]! - 19;
+        translatedQ[cell] += 37;
+        translatedR[cell] -= 19;
       }
+      const translatedCandidateBase = Object.freeze({
+        ...fixture.candidate,
+        grid: Object.freeze({
+          ...fixture.candidate.grid,
+          q: translatedQ,
+          r: translatedR,
+        }),
+      }) as GreaterRealmPrivateCandidate;
+      livingWorld = deriveLivingWorldForPackageTest(translatedCandidateBase);
+      const translatedCandidate = Object.freeze({
+        ...translatedCandidateBase,
+        dressingExcluded: livingWorld.dressingExcluded,
+        ecologyClass: livingWorld.ecologyClass,
+        vegetationDensity: livingWorld.vegetationDensity,
+        routeClass: livingWorld.routeClass,
+        landmarkClass: livingWorld.landmarkClass,
+        ambientLifeClass: livingWorld.ambientLifeClass,
+        privateMetrics: Object.freeze({
+          ...translatedCandidateBase.privateMetrics,
+          livingWorld: Object.freeze({
+            version: livingWorld.version,
+            metrics: livingWorld.metrics,
+            invariants: livingWorld.invariants,
+          }),
+        }),
+      }) as GreaterRealmPrivateCandidate;
       translated = await renderGreaterRealmPrivatePreview(
-        fixture.candidate,
+        translatedCandidate,
         'hillshade',
       );
 
       expect(translated.equals(baseline)).toBe(true);
     } finally {
-      fixture.candidate.grid.q.set(originalQ);
-      fixture.candidate.grid.r.set(originalR);
-      originalQ.fill(0);
-      originalR.fill(0);
+      translatedQ.fill(0);
+      translatedR.fill(0);
+      clearLivingWorldForPackageTest(livingWorld);
       baseline?.fill(0);
       translated?.fill(0);
     }
-  }, 45_000);
+  }, PRIVATE_REPLAY_TEST_TIMEOUT_MS);
 
   it('binds deterministic 15-by-15 axial bins, topography patches, and toolchain pins', () => {
     const fixture = requireFixture();
@@ -521,8 +663,8 @@ describe('Greater Realm owner-only candidate package', () => {
     try {
       const parsed = JSON.parse(bytes.toString('utf8')) as {
         formatVersion: number;
-        barrierCrossSections: GreaterRealmV5ManifestAuthority['barrierCrossSections'];
-        gates: GreaterRealmV5ManifestAuthority['gates'];
+        barrierCrossSections: GreaterRealmV6ManifestAuthority['barrierCrossSections'];
+        gates: GreaterRealmV6ManifestAuthority['gates'];
         geomorphologyVersion: string;
         toolchainVersions: {
           architecture: string;
@@ -605,7 +747,7 @@ describe('Greater Realm owner-only candidate package', () => {
           topographyVersion: string;
         }>;
       };
-      expect(parsed.formatVersion).toBe(5);
+      expect(parsed.formatVersion).toBe(6);
       expect(parsed.toolchainVersions.configuredNodeEngine).toBe('>=22.13 <23');
       expect(parsed.toolchainVersions.configuredPackageManager).toBe('npm@10.9.8');
       expect(parsed.toolchainVersions.libvips).toBe('8.18.3');
@@ -657,7 +799,7 @@ describe('Greater Realm owner-only candidate package', () => {
         expect(file.path).toMatch(/^node_modules\//u);
         expect(file.sha256).toMatch(/^[0-9a-f]{64}$/u);
       }
-      expect(parsed.geomorphologyVersion).toBe('greater-realm-geomorphology-v3');
+      expect(parsed.geomorphologyVersion).toBe('greater-realm-geomorphology-v4');
       const throneCell = fixture.candidate.throneAnchor.findIndex(value => value === 1);
       expect(throneCell).toBeGreaterThanOrEqual(0);
       expect(parsed.throneAnchor).toEqual({
@@ -694,9 +836,9 @@ describe('Greater Realm owner-only candidate package', () => {
         const patch = parsed.topographyPatchManifests[index]!;
         expect(patch.chunkKey).toBe(chunk.chunkKey);
         expect(chunk.partitionVersion).toBe('axial-bin-15-v1');
-        expect(chunk.geomorphologyVersion).toBe('greater-realm-geomorphology-v3');
+        expect(chunk.geomorphologyVersion).toBe('greater-realm-geomorphology-v4');
         expect(chunk.topographyVersion).toBe('greater-realm-advanced-topography-v2');
-        expect(patch.geomorphologyVersion).toBe('greater-realm-geomorphology-v3');
+        expect(patch.geomorphologyVersion).toBe('greater-realm-geomorphology-v4');
         expect(patch.encodingVersion).toBe('wkgr-topography-fields-v2');
         expect(patch.topographyVersion).toBe('greater-realm-advanced-topography-v2');
         expect(patch.topographyPatchId).toBe(chunk.topographyPatchId);
@@ -780,6 +922,16 @@ describe('Greater Realm owner-only candidate package', () => {
     )).rejects.toThrow('GREATER_REALM_PRIVATE_PREVIEW_MODE_INVALID');
   });
 
+  it('rejects malformed living-world arrays before allocating a private preview', async () => {
+    const fixture = requireFixture();
+    const invalid = Object.freeze({
+      ...fixture.candidate,
+      ambientLifeClass: new Uint8Array(1),
+    }) as GreaterRealmPrivateCandidate;
+    await expect(renderGreaterRealmPrivatePreview(invalid, 'dressing'))
+      .rejects.toThrow('GREATER_REALM_PRIVATE_DRESSING_INVALID');
+  });
+
   it('rejects an atlas whose structure and digest were changed together', async () => {
     const relativePath = candidateRelativePath('atlas.wkgr-atlas');
     const original = requireFixture().workspace.readFile(relativePath);
@@ -792,7 +944,7 @@ describe('Greater Realm owner-only candidate package', () => {
       await expect(verifyFixture({ expectedAtlasDigest: corruptedDigest }))
         .rejects.toThrow('GREATER_REALM_PRIVATE_ATLAS_INVALID');
     });
-  }, 45_000);
+  }, PRIVATE_REPLAY_TEST_TIMEOUT_MS);
 
   it('rejects geological-barrier-band inventory-name tampering with an updated digest', async () => {
     const relativePath = candidateRelativePath('atlas.wkgr-atlas');
@@ -810,7 +962,22 @@ describe('Greater Realm owner-only candidate package', () => {
       await expect(verifyFixture({ expectedAtlasDigest: corruptedDigest }))
         .rejects.toThrow('GREATER_REALM_PRIVATE_ATLAS_INVALID');
     });
-  }, 45_000);
+  }, PRIVATE_REPLAY_TEST_TIMEOUT_MS);
+
+  it('rejects living-world payload tampering even when the expected atlas digest is updated', async () => {
+    const relativePath = candidateRelativePath('atlas.wkgr-atlas');
+    const original = requireFixture().workspace.readFile(relativePath);
+    const corrupted = Buffer.from(original);
+    original.fill(0);
+    const payloadOffset = privateAtlasFieldPayloadOffset(corrupted, 'route-class');
+    corrupted[payloadOffset] = corrupted[payloadOffset]! ^ 1;
+    const corruptedDigest = createHash('sha256').update(corrupted).digest('hex');
+
+    await replacePrivateFile(relativePath, corrupted, async () => {
+      await expect(verifyFixture({ expectedAtlasDigest: corruptedDigest }))
+        .rejects.toThrow('GREATER_REALM_PRIVATE_PROVENANCE_INVALID');
+    });
+  }, PRIVATE_REPLAY_TEST_TIMEOUT_MS);
 
   it('rejects a manifest whose contents and expected digest were changed together', async () => {
     const relativePath = candidateRelativePath('manifest.private.json');
@@ -825,7 +992,7 @@ describe('Greater Realm owner-only candidate package', () => {
       await expect(verifyFixture({ expectedManifestDigest: corruptedDigest }))
         .rejects.toThrow('GREATER_REALM_PRIVATE_MANIFEST_INVALID');
     });
-  }, 45_000);
+  }, PRIVATE_REPLAY_TEST_TIMEOUT_MS);
 
   it('rejects terrain seed namespace drift even when the expected digest is updated', async () => {
     const relativePath = candidateRelativePath('manifest.private.json');
@@ -840,7 +1007,7 @@ describe('Greater Realm owner-only candidate package', () => {
       await expect(verifyFixture({ expectedManifestDigest: corruptedDigest }))
         .rejects.toThrow('GREATER_REALM_PRIVATE_MANIFEST_INVALID');
     });
-  }, 45_000);
+  }, PRIVATE_REPLAY_TEST_TIMEOUT_MS);
 
   it('rejects unknown manifest fields even when the expected digest is updated', async () => {
     const relativePath = candidateRelativePath('manifest.private.json');
@@ -855,11 +1022,11 @@ describe('Greater Realm owner-only candidate package', () => {
       await expect(verifyFixture({ expectedManifestDigest: corruptedDigest }))
         .rejects.toThrow('GREATER_REALM_PRIVATE_MANIFEST_INVALID');
     });
-  }, 45_000);
+  }, PRIVATE_REPLAY_TEST_TIMEOUT_MS);
 
   it.each<[
     string,
-    (manifest: GreaterRealmV5ManifestAuthority) => void,
+    (manifest: GreaterRealmV6ManifestAuthority) => void,
   ]>([
     ['barrier cross-section cells', manifest => {
       manifest.barrierCrossSections[0]!.cells[0] =
@@ -881,10 +1048,10 @@ describe('Greater Realm owner-only candidate package', () => {
       manifest.gates[0]!.secondAlternateApproachPath[0] =
         manifest.gates[0]!.secondAlternateApproachPath[0]! + 1;
     }],
-  ])('rejects tampered v5 %s authority with an updated digest', async (_label, mutate) => {
+  ])('rejects tampered v6 %s authority with an updated digest', async (_label, mutate) => {
     const relativePath = candidateRelativePath('manifest.private.json');
     const original = requireFixture().workspace.readFile(relativePath);
-    const parsed = JSON.parse(original.toString('utf8')) as GreaterRealmV5ManifestAuthority;
+    const parsed = JSON.parse(original.toString('utf8')) as GreaterRealmV6ManifestAuthority;
     original.fill(0);
     mutate(parsed);
     const corrupted = Buffer.from(`${JSON.stringify(parsed, null, 2)}\n`, 'utf8');
@@ -894,7 +1061,7 @@ describe('Greater Realm owner-only candidate package', () => {
       await expect(verifyFixture({ expectedManifestDigest: corruptedDigest }))
         .rejects.toThrow('GREATER_REALM_PRIVATE_MANIFEST_INVALID');
     });
-  }, 45_000);
+  }, PRIVATE_REPLAY_TEST_TIMEOUT_MS);
 
   it('rejects duplicate private-manifest keys even when the final parsed value is valid', async () => {
     const relativePath = candidateRelativePath('manifest.private.json');
@@ -1081,7 +1248,7 @@ describe('Greater Realm owner-only candidate package', () => {
       .rejects.toThrow('GREATER_REALM_PRIVATE_PROVENANCE_INVALID');
   });
 
-  it('binds the sanitized aggregate and rounded performance to the private authority', async () => {
+  it('binds the sanitized aggregate to the private authority', async () => {
     const fixture = requireFixture();
     const alteredAggregate = Object.freeze({
       ...fixture.candidate.aggregate,
@@ -1092,10 +1259,13 @@ describe('Greater Realm owner-only candidate package', () => {
     });
     await expect(verifyFixture({ expectedAggregate: alteredAggregate }))
       .rejects.toThrow('GREATER_REALM_PRIVATE_PROVENANCE_INVALID');
+  }, PRIVATE_REPLAY_TEST_TIMEOUT_MS);
+
+  it('binds rounded performance to the private authority', async () => {
     await expect(verifyFixture({
       expectedPerformance: Object.freeze({ ...PERFORMANCE, processPeakMemoryMiB: 520 }),
     })).rejects.toThrow('GREATER_REALM_PRIVATE_MANIFEST_INVALID');
-  }, 60_000);
+  }, PRIVATE_REPLAY_TEST_TIMEOUT_MS);
 
   it('rejects a topography field whose runtime array type does not match its encoding', () => {
     const fixture = requireFixture();
@@ -1106,6 +1276,94 @@ describe('Greater Realm owner-only candidate package', () => {
     expect(() => serializeGreaterRealmPrivateAtlas(invalid)).toThrow(
       'GREATER_REALM_PRIVATE_FIELD_INVALID',
     );
+  });
+
+  it('rejects an invalid private ford before encoding candidate authority', () => {
+    const fixture = requireFixture();
+    const dryCell = fixture.candidate.waterRegime.findIndex(
+      (regime, cell) =>
+        regime === 0 && fixture.candidate.dressingExcluded[cell] === 0,
+    );
+    expect(dryCell).toBeGreaterThanOrEqual(0);
+    const routeClass = new Uint8Array(fixture.candidate.routeClass);
+    routeClass[dryCell] = GREATER_REALM_ROUTE_CLASS.FORD;
+    const invalid = Object.freeze({
+      ...fixture.candidate,
+      routeClass,
+    }) as GreaterRealmPrivateCandidate;
+    expect(() => serializeGreaterRealmPrivateAtlas(invalid)).toThrow(
+      'GREATER_REALM_PRIVATE_DRESSING_INVALID',
+    );
+  });
+
+  it('rejects valid-range living-world payload mutations before encoding', () => {
+    const fixture = requireFixture();
+    const dryCell = fixture.candidate.dressingExcluded.findIndex(value => value === 0);
+    expect(dryCell).toBeGreaterThanOrEqual(0);
+    const vegetationDensity = new Uint8Array(fixture.candidate.vegetationDensity);
+    const routeClass = new Uint8Array(fixture.candidate.routeClass);
+    const landmarkClass = new Uint8Array(fixture.candidate.landmarkClass);
+    const ambientLifeClass = new Uint8Array(fixture.candidate.ambientLifeClass);
+    vegetationDensity[dryCell] = vegetationDensity[dryCell]! ^ 1;
+    routeClass[dryCell] = routeClass[dryCell] === GREATER_REALM_ROUTE_CLASS.TRACK
+      ? GREATER_REALM_ROUTE_CLASS.ROAD
+      : GREATER_REALM_ROUTE_CLASS.TRACK;
+    landmarkClass[dryCell] = landmarkClass[dryCell] === GREATER_REALM_LANDMARK_CLASS.WAYSTONE
+      ? GREATER_REALM_LANDMARK_CLASS.NONE
+      : GREATER_REALM_LANDMARK_CLASS.WAYSTONE;
+    ambientLifeClass[dryCell] =
+      ambientLifeClass[dryCell] === GREATER_REALM_AMBIENT_LIFE_CLASS.RABBIT_HABITAT
+        ? GREATER_REALM_AMBIENT_LIFE_CLASS.NONE
+        : GREATER_REALM_AMBIENT_LIFE_CLASS.RABBIT_HABITAT;
+    const invalid = Object.freeze({
+      ...fixture.candidate,
+      vegetationDensity,
+      routeClass,
+      landmarkClass,
+      ambientLifeClass,
+    }) as GreaterRealmPrivateCandidate;
+    expect(() => serializeGreaterRealmPrivateAtlas(invalid))
+      .toThrow('GREATER_REALM_PRIVATE_DRESSING_INVALID');
+  });
+
+  it('rejects living-world metric mutations before encoding', () => {
+    const fixture = requireFixture();
+    const livingWorld = fixture.candidate.privateMetrics.livingWorld;
+    const invalid = Object.freeze({
+      ...fixture.candidate,
+      privateMetrics: Object.freeze({
+        ...fixture.candidate.privateMetrics,
+        livingWorld: Object.freeze({
+          ...livingWorld,
+          metrics: Object.freeze({
+            ...livingWorld.metrics,
+            vegetatedCellCount: livingWorld.metrics.vegetatedCellCount + 1,
+          }),
+        }),
+      }),
+    }) as GreaterRealmPrivateCandidate;
+    expect(() => serializeGreaterRealmPrivateAtlas(invalid))
+      .toThrow('GREATER_REALM_PRIVATE_DRESSING_INVALID');
+  });
+
+  it('rejects living-world invariant mutations before encoding', () => {
+    const fixture = requireFixture();
+    const livingWorld = fixture.candidate.privateMetrics.livingWorld;
+    const invalid = Object.freeze({
+      ...fixture.candidate,
+      privateMetrics: Object.freeze({
+        ...fixture.candidate.privateMetrics,
+        livingWorld: Object.freeze({
+          ...livingWorld,
+          invariants: Object.freeze({
+            ...livingWorld.invariants,
+            waterExcluded: false,
+          }),
+        }),
+      }),
+    }) as GreaterRealmPrivateCandidate;
+    expect(() => serializeGreaterRealmPrivateAtlas(invalid))
+      .toThrow('GREATER_REALM_PRIVATE_DRESSING_INVALID');
   });
 
   it('zeroes a serialized atlas when private persistence fails', async () => {
@@ -1245,7 +1503,7 @@ describe('Greater Realm owner-only candidate package', () => {
     expect(exposedSeed.every(value => value === 0)).toBe(true);
   });
 
-  it('zeroes every advanced-topography and dormant-throne authority buffer', () => {
+  it('zeroes every topography, dormant-throne, and living-world authority buffer', () => {
     const advanced = {
       tectonicUplift: Int32Array.of(1),
       rockResistance: Int32Array.of(2),
@@ -1312,6 +1570,12 @@ describe('Greater Realm owner-only candidate package', () => {
       resourcePotential: u8(),
       corePotential: u8(),
       throneAnchor: u8(),
+      dressingExcluded: u8(),
+      ecologyClass: u8(),
+      vegetationDensity: u8(),
+      routeClass: u8(),
+      landmarkClass: u8(),
+      ambientLifeClass: u8(),
       legacyLowlandsCell: u8(),
       legacyLowlandsProtectedCell: u8(),
       legacyLowlandsReserveCell: u8(),
@@ -1330,6 +1594,12 @@ describe('Greater Realm owner-only candidate package', () => {
       expect(array.every(value => value === 0)).toBe(true);
     }
     expect(dummy.throneAnchor.every(value => value === 0)).toBe(true);
+    expect(dummy.dressingExcluded.every(value => value === 0)).toBe(true);
+    expect(dummy.ecologyClass.every(value => value === 0)).toBe(true);
+    expect(dummy.vegetationDensity.every(value => value === 0)).toBe(true);
+    expect(dummy.routeClass.every(value => value === 0)).toBe(true);
+    expect(dummy.landmarkClass.every(value => value === 0)).toBe(true);
+    expect(dummy.ambientLifeClass.every(value => value === 0)).toBe(true);
     expect(dummy.grid.neighbors.every(value => value === 0)).toBe(true);
   });
 });

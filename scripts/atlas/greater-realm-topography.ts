@@ -1,4 +1,9 @@
 import {
+  GREATER_REALM_BIOME_CLASS_COUNT,
+  GREATER_REALM_BIOME_ID,
+  GREATER_REALM_LANDFORM_ID,
+} from './greater-realm-biomes';
+import {
   type IndexedAxialGrid,
 } from './greater-realm-terrain';
 
@@ -10,6 +15,10 @@ const WATER_RIVER = 3;
 const WATER_STREAM = 4;
 const WATER_SEA = 5;
 const MINIMUM_GENERATED_FOREST_PATCH_CELLS = 28;
+// Preserve the existing pair-count layout and its deterministic tie scan.
+const LANDFORM_PAIR_STRIDE = 32;
+const BIOME = GREATER_REALM_BIOME_ID;
+const LANDFORM = GREATER_REALM_LANDFORM_ID;
 
 export type GreaterRealmTopographyMetrics = Readonly<{
   elevationMinimum: number;
@@ -172,26 +181,26 @@ function percentile(sorted: readonly number[], basisPoints: number): number {
 // pairs are the frozen legacy surface vocabulary and must remain valid even
 // when the surrounding continent evolves.
 const DRY_LANDFORMS_BY_BIOME: Readonly<Record<number, ReadonlySet<number>>> = Object.freeze({
-  1: new Set([3, 4]),
-  2: new Set([3, 5]),
-  3: new Set([1]),
-  4: new Set([3, 5]),
-  5: new Set([1, 3, 5, 15]),
-  6: new Set([7, 14]),
-  7: new Set([6, 7, 14]),
-  8: new Set([3, 4, 14]),
-  9: new Set([3, 4]),
-  10: new Set([3, 4]),
-  11: new Set([9, 13]),
-  12: new Set([6, 9, 13]),
-  13: new Set([9]),
-  14: new Set([7, 12]),
-  15: new Set([3, 4, 7, 12]),
-  16: new Set([12]),
-  17: new Set([12]),
-  18: new Set([11]),
-  19: new Set([5, 6, 7]),
-  23: new Set([0, 17]),
+  [BIOME.TEMPERATE_LOWLAND]: new Set([LANDFORM.LOWLAND, LANDFORM.ROLLING_LOWLAND]),
+  [BIOME.FLOWER_MEADOW]: new Set([LANDFORM.LOWLAND, LANDFORM.HILL]),
+  [BIOME.OAK_FOREST]: new Set([LANDFORM.FLOODPLAIN]),
+  [BIOME.OLD_GROWTH_FOREST]: new Set([LANDFORM.LOWLAND, LANDFORM.HILL]),
+  [BIOME.PINE_FOREST]: new Set([LANDFORM.FLOODPLAIN, LANDFORM.LOWLAND, LANDFORM.HILL, LANDFORM.GLACIAL_VALLEY]),
+  [BIOME.ALPINE_SNOW]: new Set([LANDFORM.MOUNTAIN, LANDFORM.ALPINE_PLATEAU]),
+  [BIOME.TUNDRA]: new Set([LANDFORM.HIGHLAND, LANDFORM.MOUNTAIN, LANDFORM.ALPINE_PLATEAU]),
+  [BIOME.HEATHLAND]: new Set([LANDFORM.LOWLAND, LANDFORM.ROLLING_LOWLAND, LANDFORM.ALPINE_PLATEAU]),
+  [BIOME.SAVANNA]: new Set([LANDFORM.LOWLAND, LANDFORM.ROLLING_LOWLAND]),
+  [BIOME.WARM_SCRUB]: new Set([LANDFORM.LOWLAND, LANDFORM.ROLLING_LOWLAND]),
+  [BIOME.DUNE_DESERT]: new Set([LANDFORM.BADLANDS, LANDFORM.DUNE]),
+  [BIOME.ROCKY_DESERT]: new Set([LANDFORM.HIGHLAND, LANDFORM.BADLANDS, LANDFORM.DUNE]),
+  [BIOME.RED_BADLANDS]: new Set([LANDFORM.BADLANDS]),
+  [BIOME.VOLCANIC_UPLAND]: new Set([LANDFORM.MOUNTAIN, LANDFORM.BASIN]),
+  [BIOME.ASH_MEADOW]: new Set([LANDFORM.LOWLAND, LANDFORM.ROLLING_LOWLAND, LANDFORM.MOUNTAIN, LANDFORM.BASIN]),
+  [BIOME.FRESHWATER_MARSH]: new Set([LANDFORM.BASIN]),
+  [BIOME.SALT_MARSH]: new Set([LANDFORM.BASIN]),
+  [BIOME.RIVER_DELTA]: new Set([LANDFORM.DELTA]),
+  [BIOME.ROCKY_HIGHLAND]: new Set([LANDFORM.HILL, LANDFORM.HIGHLAND, LANDFORM.MOUNTAIN]),
+  [BIOME.COASTAL]: new Set([LANDFORM.COASTAL_PLAIN, LANDFORM.SEA_CLIFF]),
 });
 
 function isCompatibleBiomeLandformPair(
@@ -200,11 +209,11 @@ function isCompatibleBiomeLandformPair(
   landform: number,
 ): boolean {
   if (waterRegime === WATER_OCEAN || waterRegime === WATER_SEA) {
-    return biome === 20 && landform === 16;
+    return biome === BIOME.SALTWATER && landform === LANDFORM.ISLAND_SHELF;
   }
-  if (waterRegime === WATER_LAKE) return biome === 21 && landform === 10;
+  if (waterRegime === WATER_LAKE) return biome === BIOME.LAKE && landform === LANDFORM.LAKE_BASIN;
   if (waterRegime === WATER_RIVER || waterRegime === WATER_STREAM) {
-    return biome === 22 && landform === 2;
+    return biome === BIOME.RIVER_STREAM && landform === LANDFORM.WATERCOURSE;
   }
   if (waterRegime !== WATER_DRY) return false;
   return DRY_LANDFORMS_BY_BIOME[biome]?.has(landform) === true;
@@ -233,9 +242,9 @@ function consolidateGeneratedForestPatches(input: Readonly<{
       ) continue;
       const biome = input.biomeId[cell]!;
       if (
-        biome === 2
-        || biome === 3
-        || (biome === 5 && input.landformId[cell] !== 15)
+        biome === BIOME.FLOWER_MEADOW
+        || biome === BIOME.OAK_FOREST
+        || (biome === BIOME.PINE_FOREST && input.landformId[cell] !== LANDFORM.GLACIAL_VALLEY)
       ) forestMask[cell] = 1;
     }
 
@@ -266,14 +275,14 @@ function consolidateGeneratedForestPatches(input: Readonly<{
           && input.slope[cell]! < 550
           && input.moisture[cell]! > 800
         ) {
-          input.biomeId[cell] = 4;
-          input.landformId[cell] = input.moisture[cell]! > 1_900 ? 5 : 3;
+          input.biomeId[cell] = BIOME.OLD_GROWTH_FOREST;
+          input.landformId[cell] = input.moisture[cell]! > 1_900 ? LANDFORM.HILL : LANDFORM.LOWLAND;
         } else if (input.exposure[cell]! >= 55) {
-          input.biomeId[cell] = 8;
-          input.landformId[cell] = input.slope[cell]! < 550 ? 3 : 4;
+          input.biomeId[cell] = BIOME.HEATHLAND;
+          input.landformId[cell] = input.slope[cell]! < 550 ? LANDFORM.LOWLAND : LANDFORM.ROLLING_LOWLAND;
         } else {
-          input.biomeId[cell] = 1;
-          input.landformId[cell] = input.slope[cell]! < 550 ? 3 : 4;
+          input.biomeId[cell] = BIOME.TEMPERATE_LOWLAND;
+          input.landformId[cell] = input.slope[cell]! < 550 ? LANDFORM.LOWLAND : LANDFORM.ROLLING_LOWLAND;
         }
       }
     }
@@ -479,8 +488,8 @@ export function deriveGreaterRealmTopography(input: Readonly<{
     const regime = waterRegime[cell]!;
     if (regime !== WATER_DRY) {
       const saltwater = regime === WATER_OCEAN || regime === WATER_SEA;
-      biomeId[cell] = saltwater ? 20 : regime === WATER_LAKE ? 21 : 22;
-      landformId[cell] = saltwater ? 16 : regime === WATER_LAKE ? 10 : 2;
+      biomeId[cell] = saltwater ? BIOME.SALTWATER : regime === WATER_LAKE ? BIOME.LAKE : BIOME.RIVER_STREAM;
+      landformId[cell] = saltwater ? LANDFORM.ISLAND_SHELF : regime === WATER_LAKE ? LANDFORM.LAKE_BASIN : LANDFORM.WATERCOURSE;
       continue;
     }
     const coastClass = geomorphicCoastalClass[cell]!;
@@ -496,47 +505,47 @@ export function deriveGreaterRealmTopography(input: Readonly<{
     const nearFreshwater = distanceToFreshwater[cell]! <= 2;
     const delta = nearCoast && nearFreshwater && flowAccumulation[cell]! >= 96n && slope[cell]! < 700;
     if (coastClass === 3 || delta) {
-      biomeId[cell] = 18;
-      landformId[cell] = 11;
+      biomeId[cell] = BIOME.RIVER_DELTA;
+      landformId[cell] = LANDFORM.DELTA;
     } else if (coastClass === 4 || geomorphicGlacialMask[cell] === 1) {
-      biomeId[cell] = 5;
-      landformId[cell] = 15;
+      biomeId[cell] = BIOME.PINE_FOREST;
+      landformId[cell] = LANDFORM.GLACIAL_VALLEY;
     } else if (coastClass === 2) {
-      biomeId[cell] = 23;
-      landformId[cell] = 17;
+      biomeId[cell] = BIOME.COASTAL;
+      landformId[cell] = LANDFORM.SEA_CLIFF;
     } else if (geomorphicVolcanicMask[cell] === 1) {
-      biomeId[cell] = moisture[cell]! < 500 ? 15 : 14;
-      landformId[cell] = steep ? 7 : 12;
+      biomeId[cell] = moisture[cell]! < 500 ? BIOME.ASH_MEADOW : BIOME.VOLCANIC_UPLAND;
+      landformId[cell] = steep ? LANDFORM.MOUNTAIN : LANDFORM.BASIN;
     } else if (geomorphicAridMask[cell] === 1) {
-      biomeId[cell] = slope[cell]! < 500 ? 11 : slope[cell]! > 1_400 ? 13 : 12;
-      landformId[cell] = slope[cell]! < 500 ? 13 : slope[cell]! > 1_400 ? 9 : 6;
+      biomeId[cell] = slope[cell]! < 500 ? BIOME.DUNE_DESERT : slope[cell]! > 1_400 ? BIOME.RED_BADLANDS : BIOME.ROCKY_DESERT;
+      landformId[cell] = slope[cell]! < 500 ? LANDFORM.DUNE : slope[cell]! > 1_400 ? LANDFORM.BADLANDS : LANDFORM.HIGHLAND;
     } else if (cold && high) {
-      biomeId[cell] = temperature[cell]! < 500 ? 6 : 7;
-      landformId[cell] = steep ? 7 : 14;
+      biomeId[cell] = temperature[cell]! < 500 ? BIOME.ALPINE_SNOW : BIOME.TUNDRA;
+      landformId[cell] = steep ? LANDFORM.MOUNTAIN : LANDFORM.ALPINE_PLATEAU;
     } else if (volcanic) {
-      biomeId[cell] = moisture[cell]! < 500 ? 15 : 14;
-      landformId[cell] = steep ? 7 : 12;
+      biomeId[cell] = moisture[cell]! < 500 ? BIOME.ASH_MEADOW : BIOME.VOLCANIC_UPLAND;
+      landformId[cell] = steep ? LANDFORM.MOUNTAIN : LANDFORM.BASIN;
     } else if (arid) {
-      biomeId[cell] = slope[cell]! < 500 ? 11 : slope[cell]! > 1_400 ? 13 : 12;
-      landformId[cell] = slope[cell]! < 500 ? 13 : slope[cell]! > 1_400 ? 9 : 6;
+      biomeId[cell] = slope[cell]! < 500 ? BIOME.DUNE_DESERT : slope[cell]! > 1_400 ? BIOME.RED_BADLANDS : BIOME.ROCKY_DESERT;
+      landformId[cell] = slope[cell]! < 500 ? LANDFORM.DUNE : slope[cell]! > 1_400 ? LANDFORM.BADLANDS : LANDFORM.HIGHLAND;
     } else if (saturated && nearFreshwater && slope[cell]! < 650) {
-      biomeId[cell] = nearCoast ? 17 : 16;
-      landformId[cell] = 12;
+      biomeId[cell] = nearCoast ? BIOME.SALT_MARSH : BIOME.FRESHWATER_MARSH;
+      landformId[cell] = LANDFORM.BASIN;
     } else if (high || steep) {
-      biomeId[cell] = 19;
-      landformId[cell] = high ? 7 : 6;
+      biomeId[cell] = BIOME.ROCKY_HIGHLAND;
+      landformId[cell] = high ? LANDFORM.MOUNTAIN : LANDFORM.HIGHLAND;
     } else if (moisture[cell]! > 2_800) {
       // Humid country is not one blanket forest. Temperature and shelter
       // split it into cool forest, sheltered woodland, and open wet forest
       // using continuous climate/topography authority rather than region IDs.
-      biomeId[cell] = temperature[cell]! < 3_500 ? 5 : exposure[cell]! < -45 ? 3 : 2;
-      landformId[cell] = exposure[cell]! < -45 ? 1 : 5;
+      biomeId[cell] = temperature[cell]! < 3_500 ? BIOME.PINE_FOREST : exposure[cell]! < -45 ? BIOME.OAK_FOREST : BIOME.FLOWER_MEADOW;
+      landformId[cell] = exposure[cell]! < -45 ? LANDFORM.FLOODPLAIN : LANDFORM.HILL;
     } else if (temperature[cell]! > 6_500 && moisture[cell]! < 700) {
-      biomeId[cell] = moisture[cell]! < -200 ? 9 : 10;
-      landformId[cell] = slope[cell]! < 550 ? 3 : 4;
+      biomeId[cell] = moisture[cell]! < -200 ? BIOME.SAVANNA : BIOME.WARM_SCRUB;
+      landformId[cell] = slope[cell]! < 550 ? LANDFORM.LOWLAND : LANDFORM.ROLLING_LOWLAND;
     } else if (coastClass === 1 || nearCoast) {
-      biomeId[cell] = 23;
-      landformId[cell] = steep ? 17 : 0;
+      biomeId[cell] = BIOME.COASTAL;
+      landformId[cell] = steep ? LANDFORM.SEA_CLIFF : LANDFORM.COASTAL_PLAIN;
     } else if (
       distanceToFreshwater[cell]! <= 2
       && slope[cell]! < 550
@@ -545,14 +554,14 @@ export function deriveGreaterRealmTopography(input: Readonly<{
       // Broad riparian meadows follow the actual drainage network. They also
       // break up otherwise dominant mesic plains without quota-painting by
       // strategic region.
-      biomeId[cell] = 4;
-      landformId[cell] = moisture[cell]! > 1_900 ? 5 : 3;
+      biomeId[cell] = BIOME.OLD_GROWTH_FOREST;
+      landformId[cell] = moisture[cell]! > 1_900 ? LANDFORM.HILL : LANDFORM.LOWLAND;
     } else if (moisture[cell]! > 800 && exposure[cell]! < -55) {
-      biomeId[cell] = 3;
-      landformId[cell] = 1;
+      biomeId[cell] = BIOME.OAK_FOREST;
+      landformId[cell] = LANDFORM.FLOODPLAIN;
     } else if (moisture[cell]! > 1_900 || wetnessIndex[cell]! > 20) {
-      biomeId[cell] = 2;
-      landformId[cell] = 5;
+      biomeId[cell] = BIOME.FLOWER_MEADOW;
+      landformId[cell] = LANDFORM.HILL;
     } else if (
       moisture[cell]! > 800
       && exposure[cell]! >= 170
@@ -560,23 +569,23 @@ export function deriveGreaterRealmTopography(input: Readonly<{
     ) {
       // A narrow, naturally occurring exposed-steppe ecotone supplies visual
       // transition without introducing a synthetic checkerboard field.
-      biomeId[cell] = 10;
-      landformId[cell] = slope[cell]! < 550 ? 3 : 4;
+      biomeId[cell] = BIOME.WARM_SCRUB;
+      landformId[cell] = slope[cell]! < 550 ? LANDFORM.LOWLAND : LANDFORM.ROLLING_LOWLAND;
     } else if (moisture[cell]! > 800 && exposure[cell]! >= 55) {
-      biomeId[cell] = 8;
-      landformId[cell] = slope[cell]! < 550 ? 3 : 4;
+      biomeId[cell] = BIOME.HEATHLAND;
+      landformId[cell] = slope[cell]! < 550 ? LANDFORM.LOWLAND : LANDFORM.ROLLING_LOWLAND;
     } else {
-      biomeId[cell] = moisture[cell]! > 800 ? 1 : 8;
-      landformId[cell] = slope[cell]! < 550 ? 3 : 4;
+      biomeId[cell] = moisture[cell]! > 800 ? BIOME.TEMPERATE_LOWLAND : BIOME.HEATHLAND;
+      landformId[cell] = slope[cell]! < 550 ? LANDFORM.LOWLAND : LANDFORM.ROLLING_LOWLAND;
     }
   }
 
   // A cold summit directly touching a hot arid process cell is an impossible
-  // visual jump. Glacial process cells were already classified as biome 5;
-  // soften only ordinary cold/high cells into a cool-forest transition.
-  const hotAridBiomes = new Set([11, 12, 13, 15]);
+  // visual jump. Glacial process cells were already classified as pine forest;
+  // soften only ordinary cold/high cells into that cool-forest transition.
+  const hotAridBiomes: ReadonlySet<number> = new Set([BIOME.DUNE_DESERT, BIOME.ROCKY_DESERT, BIOME.RED_BADLANDS, BIOME.ASH_MEADOW]);
   for (let cell = 0; cell < grid.cellCount; cell += 1) {
-    if (waterRegime[cell] !== WATER_DRY || (biomeId[cell] !== 6 && biomeId[cell] !== 7)) continue;
+    if (waterRegime[cell] !== WATER_DRY || (biomeId[cell] !== BIOME.ALPINE_SNOW && biomeId[cell] !== BIOME.TUNDRA)) continue;
     let touchesHotArid = false;
     for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
       const neighbor = grid.neighbors[cell * NEIGHBOR_COUNT + direction]!;
@@ -586,19 +595,19 @@ export function deriveGreaterRealmTopography(input: Readonly<{
       }
     }
     if (touchesHotArid) {
-      biomeId[cell] = 5;
-      landformId[cell] = 5;
+      biomeId[cell] = BIOME.PINE_FOREST;
+      landformId[cell] = LANDFORM.HILL;
     }
   }
 
   const smoothingLocked = (cell: number): boolean => (
     waterRegime[cell] !== WATER_DRY
     || legacyProtectedCell[cell] === 1
-    || landformId[cell] === 7
-    || landformId[cell] === 9
-    || landformId[cell] === 11
-    || landformId[cell] === 15
-    || landformId[cell] === 17
+    || landformId[cell] === LANDFORM.MOUNTAIN
+    || landformId[cell] === LANDFORM.BADLANDS
+    || landformId[cell] === LANDFORM.DELTA
+    || landformId[cell] === LANDFORM.GLACIAL_VALLEY
+    || landformId[cell] === LANDFORM.SEA_CLIFF
     || geomorphicGlacialMask[cell] === 1
     || geomorphicAridMask[cell] === 1
     || geomorphicVolcanicMask[cell] === 1
@@ -618,8 +627,8 @@ export function deriveGreaterRealmTopography(input: Readonly<{
       // common compatible landform carried by neighbors of that biome. This
       // prevents a biome split across two valid landforms from disabling the
       // smoothing which would previously have occurred.
-      const biomeCounts = new Uint8Array(24);
-      const pairCounts = new Uint8Array(24 * 32);
+      const biomeCounts = new Uint8Array(GREATER_REALM_BIOME_CLASS_COUNT);
+      const pairCounts = new Uint8Array(GREATER_REALM_BIOME_CLASS_COUNT * LANDFORM_PAIR_STRIDE);
       for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
         const neighbor = grid.neighbors[cell * NEIGHBOR_COUNT + direction]!;
         if (neighbor < 0 || waterRegime[neighbor] !== WATER_DRY) continue;
@@ -629,7 +638,7 @@ export function deriveGreaterRealmTopography(input: Readonly<{
           landformId[neighbor]!,
         )) continue;
         biomeCounts[biomeId[neighbor]!] += 1;
-        pairCounts[biomeId[neighbor]! * 32 + landformId[neighbor]!] += 1;
+        pairCounts[biomeId[neighbor]! * LANDFORM_PAIR_STRIDE + landformId[neighbor]!] += 1;
       }
       let bestBiome = biomeId[cell]!;
       let bestCount = biomeCounts[bestBiome]!;
@@ -642,10 +651,10 @@ export function deriveGreaterRealmTopography(input: Readonly<{
       if (bestCount >= 4) {
         let bestLandform = biomeId[cell] === bestBiome ? landformId[cell]! : 0;
         let bestPairCount = biomeId[cell] === bestBiome
-          ? pairCounts[bestBiome * 32 + bestLandform]!
+          ? pairCounts[bestBiome * LANDFORM_PAIR_STRIDE + bestLandform]!
           : -1;
-        for (let landform = 0; landform < 32; landform += 1) {
-          const count = pairCounts[bestBiome * 32 + landform]!;
+        for (let landform = 0; landform < LANDFORM_PAIR_STRIDE; landform += 1) {
+          const count = pairCounts[bestBiome * LANDFORM_PAIR_STRIDE + landform]!;
           if (count > bestPairCount) {
             bestLandform = landform;
             bestPairCount = count;
@@ -682,14 +691,14 @@ export function deriveGreaterRealmTopography(input: Readonly<{
     )) incompatibleBiomeLandformPairCount += 1;
   }
 
-  const regionBiomeCounts = Array.from({ length: 10 }, () => new Uint32Array(24));
+  const regionBiomeCounts = Array.from({ length: 10 }, () => new Uint32Array(GREATER_REALM_BIOME_CLASS_COUNT));
   const regionLandCounts = new Uint32Array(10);
   const visualBiomes = new Set<number>();
   for (let cell = 0; cell < grid.cellCount; cell += 1) {
     if (waterRegime[cell] !== WATER_DRY) continue;
     const region = regionId[cell]!;
     const biome = biomeId[cell]!;
-    if (region >= regionBiomeCounts.length || biome >= 24 || tierId[cell]! < 1 || tierId[cell]! > 3) {
+    if (region >= regionBiomeCounts.length || biome >= GREATER_REALM_BIOME_CLASS_COUNT || tierId[cell]! < 1 || tierId[cell]! > 3) {
       fail('GREATER_REALM_TOPOGRAPHY_CLASSIFICATION_INVALID');
     }
     regionBiomeCounts[region]![biome] += 1;
@@ -723,7 +732,7 @@ export function deriveGreaterRealmTopography(input: Readonly<{
   }
   let ridgeCells = 0;
   for (const id of ridgeId) ridgeCells += id > 0 ? 1 : 0;
-  const frozenBiomes = new Set([6, 7]);
+  const frozenBiomes: ReadonlySet<number> = new Set([BIOME.ALPINE_SNOW, BIOME.TUNDRA]);
   let incompatibleVisualBiomeAdjacencyCount = 0;
   for (let cell = 0; cell < grid.cellCount; cell += 1) {
     if (waterRegime[cell] !== WATER_DRY) continue;

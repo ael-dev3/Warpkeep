@@ -4,7 +4,7 @@ Status: candidate-generation design only
 
 Atlas: `GENESIS_001_GREATER_REALM`
 
-Generator algorithm: `greater-realm-v2-natural-continent-pr-a.8`
+Generator algorithm: `greater-realm-v2-natural-continent-pr-a.10`
 Terrain-seed namespace: `greater-realm-v2-natural-continent-pr-a.3`
 Production state: unchanged
 
@@ -80,14 +80,20 @@ Each candidate runs independently through these stage families:
    deep-ocean/fog buffer. Inactive canvas cells are discarded, not seeded.
 5. Place the locked Lowlands reserve, then run a real geomorphology stage before
    the final fluvial pass. A low-frequency carrier first shapes broad terraces
-   with short smooth ramps; independently named meso/detail bands restore
-   bounded weathering so the result keeps natural relief instead of reading as
-   contour stairs. The stage then uses preliminary drainage and climate to
-   apply bounded glacial erosion and moraines, arid wadis and aeolian shaping,
-   volcanic/caldera relief tied to tectonic evidence, and coherent beach,
-   cliff, delta, and fjord shaping. Coastline sign and the Lowlands reserve stay
-   exact. The package records the terrace delta separately and proves the
-   material budget of the erosion/deposition processes independently.
+   with short smooth ramps; a bounded low-frequency axial domain warp bends
+   those contours without moving the active mask, coastline, or locked
+   Lowlands reserve, while independently named meso/detail bands restore
+   weathering so the result keeps natural relief instead of reading as contour
+   stairs. A private A/B proof runs an unwarped baseline through the same
+   weathering, coast-strength blend, displacement cap, and edge-relaxation
+   passes, and rejects a candidate unless domain warping changes at least one
+   final terrace elevation. The stage then uses preliminary drainage and
+   climate to apply bounded glacial erosion and moraines, arid wadis and
+   aeolian shaping, volcanic/caldera relief tied to tectonic evidence, and
+   coherent beach, cliff, delta, and fjord shaping. Coastline sign and the
+   Lowlands reserve stay exact. The package records the terrace delta
+   separately and proves the material budget of the erosion/deposition
+   processes independently.
 6. Run stable Priority-Flood depression handling on the six-connected graph,
    route flats toward legal outlets, prove a drainage DAG, accumulate
    discharge, and apply bounded stream-power-like incision and sediment
@@ -103,13 +109,22 @@ Each candidate runs independently through these stage families:
    cannot drift away from the process evidence that produced the terrain.
    Generated forest components smaller than 28 connected cells resolve into
    compatible meadow/heath transitions, leaving broad clustered woods and
-   meaningful open country. The frozen Lowlands surface is excluded from this
-   cleanup and from new-generator composition scoring.
+   meaningful open plains and other open country. Candidate-only ecological
+   semantics extend that same evidence into coherent vegetation and habitat
+   patches for temperate forest, taiga, jungle, wetland/swamp, savanna, desert,
+   alpine/snow, meadow, heath, and plains. The frozen Lowlands surface is
+   excluded from this cleanup and from new-generator composition scoring.
 8. Grow natural geographic basins, bind the working region identities by
    climate/process character, assign the fixed strategic graph, and align tier
    barriers and gate saddles with coherent highlands rather than radial bands.
-9. Choose dormant castle suitability, potential sites, private chunks and
-   topography patches, and aggregate quality metrics.
+9. Choose dormant castle suitability and potential sites; derive private
+   road/ford corridors, ruin/wall/waystone/lamp anchors, and bounded
+   ambient-life potentials; then write private chunks whose payloads bind those
+   dressing fields, topography patches, and aggregate quality metrics. These
+   are semantic candidate fields, not spawned actors, routes, meshes,
+   persistence records, or gameplay systems. Their detailed contract is
+   documented in
+   [Greater Realm dormant living-world semantics](greater-realm-living-world-assets.md).
 
 `sedimentDepth` is the exact non-negative deposit added to the relaxed fluvial
 surface before final routing. The generator proves cell by cell that the final
@@ -133,11 +148,25 @@ The design adapts practical ideas from research on
 [Priority-Flood drainage](https://doi.org/10.1016/j.cageo.2013.04.024), and
 [tile-based erosion evaluation](https://arxiv.org/abs/2210.14496), plus the
 terrain-material and height-atmosphere demonstrations in
-[SimonDev's game-development demos](https://simondev.io/demos/gamedev/#customizing-materials)
-and the exponential height-fog treatment documented in the
+[SimonDev's game-development demos](https://simondev.io/demos/gamedev/#customizing-materials),
+the deterministic layered-noise and erosion workflow demonstrated by
+[Procedural Terrains](https://terrains.zyfod.dev/) and documented in its
+[open-source engine](https://github.com/ZyFou/ProceduralTerrains), and the
+exponential height-fog treatment documented in the
 [Crytek SIGGRAPH 2006 course notes](https://advances.realtimerendering.com/s2006/Course_26_SIGGRAPH_2006.pdf).
-It does not
-copy third-party code, data, maps, art, labels, or balance tables.
+It does not copy third-party code, data, maps, art, labels, or balance tables.
+
+The Procedural Terrains comparison is an architectural cross-check rather than
+a shader import. Its multi-octave frequency/amplitude stack maps to Warpkeep's
+independently named macro, meso, and local integer fields; domain-warped massifs
+map to irregular pseudo-tectonic boundaries and independently warped terrace
+contours; ridged relief maps to uplift-aligned mountain systems; and its
+hydraulic masks map to Warpkeep's authoritative flow, incision, sediment,
+slope, wetness, and coastal process fields. Smooth terrace ramps and restored
+weathering detail are retained together, so broad playable plateaus do not
+become vertical contour walls. Camera LOD, GPU material blending, triplanar
+detail, shoreline shading, and interactive splines remain renderer concerns
+for a later activation PR and cannot alter PR A's private terrain authority.
 
 ## Candidate hard gates
 
@@ -164,6 +193,11 @@ A candidate is ineligible if any of these proofs fail:
   by tiny/confetti components, lack at least three broad patches, or collapse
   into one blanket mass. Glacial landform 15 and the immutable Lowlands patch
   are not misclassified as generated forest;
+- ecological dressing breaks landform/biome compatibility, blankets open
+  country, fragments major vegetation patches into visual confetti, places
+  terrestrial potential on open water, or fails to reserve meaningful plains,
+  meadow, heath, savanna, desert, wetland/swamp, jungle, taiga, and alpine/snow
+  character where the reconciled climate and landform evidence supports it;
 - generated mountain authority is outside the 3%–28% dry-land envelope, lacks
   at least two coherent systems, remains dominated by speckles or one massif,
   or has no sufficiently long, anisotropic, off-centre belt. Ancient-stone
@@ -207,12 +241,17 @@ A candidate is ineligible if any of these proofs fail:
   diversity floor, a Tier-I biome exceeds 55% of that region's land, or an
   incompatible hot-arid/frozen visual adjacency survives classification;
 - geomorphology changes the Lowlands reserve, lacks both broad plateau and
-  short-ramp terrace evidence, loses its bounded weathered detail, violates its
+  short-ramp terrace evidence, loses its bounded weathered detail, domain warp
+  has no measured effect on the final terrace elevations, violates its
   exact erosion/deposition material budget or climate/tectonic/coastal
   compatibility, or omits the required glacial, arid, volcanic, and coastal
   process evidence;
 - the locked Lowlands patch or any protected catalog differs;
 - castle candidates lack local passability, spacing, or clearance;
+- a private road/ford corridor crosses forbidden water or impassable terrain,
+  or a ruin, wall, waystone, lamp, rabbit, citizen, guard, courier, or
+  exotic-mount potential violates its deterministic clearance, habitat, route,
+  or site-support rule;
 - integer range, stage-digest, deterministic replay, package-integrity, or private
   boundary validation fails.
 
@@ -239,12 +278,17 @@ no recommendation; only the owner can approve the candidate.
 The generator workspace lives outside the repository in an owner-only
 directory. It contains marked, type-tagged seed envelopes; exact cells,
 coordinates and transforms; geology and geomorphology process fields; paired
-topography/biome authority; regions, gates, slots and sites; stage digests;
-exact chunk and topography-patch manifests; packages; and six marked private
-previews. Chunk manifests bind the canonical cell-index set and complete field
-payload, while each referenced topography patch separately binds its process
-and derived-field inventory and payload. These artifacts are never committed,
-served, copied to `public/`, attached to a pull request, or printed to logs.
+topography/biome authority; private vegetation patches, route/site anchors and
+ambient-life potentials; regions, gates, slots and sites; stage digests;
+exact chunk manifests whose payloads bind the dressing fields, exact
+topography-patch manifests, packages, and seven marked private previews. The
+intended package contract adds a `dressing` view to the
+silhouette, hillshade, biome, hydrology, region-topology/outer-ocean, and
+mountain/gate set. Chunk manifests bind the canonical cell-index set and
+complete field payload, while each referenced topography patch separately binds
+its process and derived-field inventory and payload. These artifacts are never
+committed, served, copied to `public/`, attached to a pull request, or printed
+to logs.
 
 The only candidate artifact suitable for Git is a newly constructed sanitized
 aggregate report. It may contain:
@@ -267,11 +311,15 @@ Per the owner’s direction, PR A produces exactly one eligible canonical world
 for review—not eight separate worlds or parallel variants.
 Private owner review includes silhouette,
 hillshade, biome, hydrology, region-topology/outer-ocean, and mountain/gate
-views. The region view uses a fixed opaque fog exterior and review-only
-outer-ocean bands; its watermark explicitly identifies it as a composition
-proxy, not shipped runtime fog or server fog-of-war authority. The silhouette
-follows topographic land at sea level, so rivers and streams remain features
-within the landmass instead of punching false coastline gaps.
+views, plus a dressing view for clustered vegetation, open-country balance,
+route/site anchors, and ambient-life capacity. The dressing view is private
+candidate evidence only; it does not contain or authorize runtime assets,
+spawned actors, simulation, or persistence. The region view uses a fixed opaque
+fog exterior and review-only outer-ocean bands; its watermark explicitly
+identifies it as a composition proxy, not shipped runtime fog or server
+fog-of-war authority. The silhouette follows topographic land at sea level, so
+rivers and streams remain features within the landmass instead of punching
+false coastline gaps.
 The hillshade view applies a presentation-only exponential height atmosphere:
 low valleys and long view rays accumulate denser haze, while high peaks remain
 clearer. Extinction darkens terrain radiance and in-scattering adds a blurred
@@ -301,3 +349,6 @@ streaming, visible-region assets, guarded seeding, and an explicitly authorized
 production release. Selection does not authorize any of those steps. PR A
 changes no schema, runtime, renderer, public generated asset, deployment, or
 production record; the current Lowlands remains the only active world.
+The workflow-only delta stages GitHub-hosted Node in a runner-private path so
+the existing fail-closed toolchain attestation can run. It changes no deploy
+input, target, artifact, custom domain, or release behavior.

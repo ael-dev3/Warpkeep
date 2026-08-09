@@ -5,7 +5,7 @@ import {
 } from './greater-realm-terrain';
 
 export const GREATER_REALM_TERRACE_VERSION =
-  'greater-realm-low-frequency-terraces-v1' as const;
+  'greater-realm-low-frequency-terraces-v2' as const;
 
 const NEIGHBOR_COUNT = 6;
 const MACRO_SMOOTHING_PASSES = 12;
@@ -20,6 +20,13 @@ const SPATIAL_RAMP_RELAXATION_PASSES = 24;
 const WEATHERED_EDGE_ALLOWANCE = 560;
 const FULL_STEP_EDGE_THRESHOLD = 2_000;
 const FIXED_ONE = 4_096;
+const DOMAIN_WARP_FIELD_AMPLITUDE = 4_096;
+const DOMAIN_WARP_SMOOTHING_PASSES = 12;
+const DOMAIN_WARP_SELF_WEIGHT = 3;
+const DOMAIN_WARP_QUANTIZATION = 512;
+const DOMAIN_WARP_MAX_HEX_DISTANCE = 5;
+const DOMAIN_WARP_FALLBACK_PASSES = 3;
+const DOMAIN_WARP_LOCAL_WEIGHT = 63;
 
 export type GreaterRealmTerraceMetrics = Readonly<{
   eligibleCellCount: number;
@@ -34,6 +41,10 @@ export type GreaterRealmTerraceMetrics = Readonly<{
   weatheredDetailCellCount: number;
   maximumAbsoluteCellDelta: number;
   netElevationDelta: number;
+  domainWarpSampledCellCount: number;
+  domainWarpChangedCarrierCellCount: number;
+  domainWarpOutputChangedCellCount: number;
+  domainWarpMaximumDistance: number;
 }>;
 
 export type GreaterRealmTerraceResult = Readonly<{
@@ -61,6 +72,10 @@ function roundDivide(numerator: number, denominator: number): number {
   return numerator >= 0
     ? Math.floor((numerator + Math.floor(denominator / 2)) / denominator)
     : -Math.floor((-numerator + Math.floor(denominator / 2)) / denominator);
+}
+
+function axialOffsetDistance(q: number, r: number): number {
+  return Math.max(Math.abs(q), Math.abs(r), Math.abs(-q - r));
 }
 
 function smoothElevation(
@@ -236,6 +251,8 @@ export function shapeGreaterRealmTerraces(
 
   let macroElevation: Int32Array | undefined;
   let contourWarp: Int32Array | undefined;
+  let domainWarpQ: Int32Array | undefined;
+  let domainWarpR: Int32Array | undefined;
   let weatheredDetail: Int32Array | undefined;
   let elevation: Int32Array | undefined;
   let delta: Int32Array | undefined;
@@ -243,11 +260,15 @@ export function shapeGreaterRealmTerraces(
   let intendedRampCell: Uint8Array | undefined;
   let weatheredTarget: Int32Array | undefined;
   let unweatheredTarget: Int32Array | undefined;
+  let domainUnwarpedTarget: Int32Array | undefined;
   let unweatheredElevation: Int32Array | undefined;
+  let domainUnwarpedElevation: Int32Array | undefined;
   let spatialRampCell: Uint8Array | undefined;
   let unweatheredSpatialRampCell: Uint8Array | undefined;
+  let domainUnwarpedSpatialRampCell: Uint8Array | undefined;
   let appliedSpatialRampCell: Uint8Array | undefined;
   let appliedUnweatheredSpatialRampCell: Uint8Array | undefined;
+  let appliedDomainUnwarpedSpatialRampCell: Uint8Array | undefined;
   let completed = false;
   try {
     macroElevation = smoothElevation(input.grid, input.elevation);
@@ -266,6 +287,30 @@ export function shapeGreaterRealmTerraces(
           amplitude: 320,
           smoothingPasses: 7,
           selfWeight: 2,
+        },
+      ],
+    );
+    domainWarpQ = createGreaterRealmMultiscaleIntegerField(
+      input.grid,
+      input.candidateSeed,
+      [
+        {
+          channel: 'geomorphology-terrace-domain-warp-q',
+          amplitude: DOMAIN_WARP_FIELD_AMPLITUDE,
+          smoothingPasses: DOMAIN_WARP_SMOOTHING_PASSES,
+          selfWeight: DOMAIN_WARP_SELF_WEIGHT,
+        },
+      ],
+    );
+    domainWarpR = createGreaterRealmMultiscaleIntegerField(
+      input.grid,
+      input.candidateSeed,
+      [
+        {
+          channel: 'geomorphology-terrace-domain-warp-r',
+          amplitude: DOMAIN_WARP_FIELD_AMPLITUDE,
+          smoothingPasses: DOMAIN_WARP_SMOOTHING_PASSES,
+          selfWeight: DOMAIN_WARP_SELF_WEIGHT,
         },
       ],
     );
@@ -293,7 +338,9 @@ export function shapeGreaterRealmTerraces(
     intendedRampCell = new Uint8Array(input.grid.cellCount);
     weatheredTarget = new Int32Array(input.grid.cellCount);
     unweatheredTarget = new Int32Array(input.grid.cellCount);
+    domainUnwarpedTarget = new Int32Array(input.grid.cellCount);
     unweatheredElevation = new Int32Array(input.elevation);
+    domainUnwarpedElevation = new Int32Array(input.elevation);
 
     let eligibleCellCount = 0;
     let changedCellCount = 0;
@@ -302,6 +349,9 @@ export function shapeGreaterRealmTerraces(
     let weatheredDetailCellCount = 0;
     let maximumAbsoluteCellDelta = 0;
     let netElevationDelta = 0;
+    let domainWarpSampledCellCount = 0;
+    let domainWarpChangedCarrierCellCount = 0;
+    let domainWarpMaximumDistance = 0;
 
     for (let cell = 0; cell < input.grid.cellCount; cell += 1) {
       const original = input.elevation[cell]!;
@@ -312,7 +362,68 @@ export function shapeGreaterRealmTerraces(
         continue;
       eligible[cell] = 1;
       eligibleCellCount += 1;
-      const carrier = macroElevation[cell]! + contourWarp[cell]!;
+      let qOffset = roundDivide(
+        domainWarpQ[cell]!,
+        DOMAIN_WARP_QUANTIZATION,
+      );
+      let rOffset = roundDivide(
+        domainWarpR[cell]!,
+        DOMAIN_WARP_QUANTIZATION,
+      );
+      const rawWarpDistance = axialOffsetDistance(qOffset, rOffset);
+      if (rawWarpDistance > DOMAIN_WARP_MAX_HEX_DISTANCE) {
+        qOffset = Math.trunc(
+          (qOffset * DOMAIN_WARP_MAX_HEX_DISTANCE) / rawWarpDistance,
+        );
+        rOffset = Math.trunc(
+          (rOffset * DOMAIN_WARP_MAX_HEX_DISTANCE) / rawWarpDistance,
+        );
+      }
+      let sampledCell = cell;
+      let sampledDistance = 0;
+      if (original > seaLevel + FULL_STRENGTH_HEIGHT) {
+        for (
+          let fallback = 0;
+          fallback <= DOMAIN_WARP_FALLBACK_PASSES;
+          fallback += 1
+        ) {
+          if (qOffset === 0 && rOffset === 0) break;
+          const candidateSample = input.grid.indexOf({
+            q: input.grid.q[cell]! + qOffset,
+            r: input.grid.r[cell]! + rOffset,
+          });
+          if (
+            candidateSample >= 0
+            && input.legacyReserveCell[candidateSample] === 0
+            && input.elevation[candidateSample]!
+              > seaLevel + FULL_STRENGTH_HEIGHT
+          ) {
+            sampledCell = candidateSample;
+            sampledDistance = axialOffsetDistance(qOffset, rOffset);
+            break;
+          }
+          qOffset = Math.trunc(qOffset / 2);
+          rOffset = Math.trunc(rOffset / 2);
+        }
+      }
+      const warpedMacro = sampledCell === cell
+        ? macroElevation[cell]!
+        : roundDivide(
+            macroElevation[cell]! * DOMAIN_WARP_LOCAL_WEIGHT
+              + macroElevation[sampledCell]!,
+            DOMAIN_WARP_LOCAL_WEIGHT + 1,
+          );
+      if (sampledCell !== cell) {
+        domainWarpSampledCellCount += 1;
+        domainWarpMaximumDistance = Math.max(
+          domainWarpMaximumDistance,
+          sampledDistance,
+        );
+        if (warpedMacro !== macroElevation[cell]!) {
+          domainWarpChangedCarrierCellCount += 1;
+        }
+      }
+      const carrier = warpedMacro + contourWarp[cell]!;
       const terraced = terracedCarrier(carrier);
       if (terraced.ramp) {
         rampCellCount += 1;
@@ -327,6 +438,14 @@ export function shapeGreaterRealmTerraces(
       unweatheredTarget[cell] =
         terraced.value - contourWarp[cell]! + inheritedDetail;
       weatheredTarget[cell] = unweatheredTarget[cell]! + weatheredDetail[cell]!;
+      const domainUnwarpedTerrace = terracedCarrier(
+        macroElevation[cell]! + contourWarp[cell]!,
+      );
+      domainUnwarpedTarget[cell] =
+        domainUnwarpedTerrace.value
+        - contourWarp[cell]!
+        + inheritedDetail
+        + weatheredDetail[cell]!;
     }
 
     spatialRampCell = relaxSpatialTerraceEdges({
@@ -340,6 +459,12 @@ export function shapeGreaterRealmTerraces(
       sourceElevation: input.elevation,
       eligible,
       target: unweatheredTarget,
+    });
+    domainUnwarpedSpatialRampCell = relaxSpatialTerraceEdges({
+      grid: input.grid,
+      sourceElevation: input.elevation,
+      eligible,
+      target: domainUnwarpedTarget,
     });
     for (let cell = 0; cell < input.grid.cellCount; cell += 1) {
       if (unweatheredSpatialRampCell[cell] === 1) spatialRampCell[cell] = 1;
@@ -375,11 +500,23 @@ export function shapeGreaterRealmTerraces(
       );
       unweatheredDelta =
         Math.max(seaLevel + 1, original + unweatheredDelta) - original;
+      let domainUnwarpedDelta = roundDivide(
+        (domainUnwarpedTarget[cell]! - original) * strength,
+        FIXED_ONE,
+      );
+      domainUnwarpedDelta = clamp(
+        domainUnwarpedDelta,
+        -MAXIMUM_TERRACE_CELL_DELTA,
+        MAXIMUM_TERRACE_CELL_DELTA,
+      );
+      domainUnwarpedDelta =
+        Math.max(seaLevel + 1, original + domainUnwarpedDelta) - original;
       if (!Number.isSafeInteger(nextElevation) || nextElevation > 0x7fff_ffff) {
         fail('GREATER_REALM_TERRACE_ELEVATION_OVERFLOW');
       }
       elevation[cell] = nextElevation;
       unweatheredElevation[cell] = original + unweatheredDelta;
+      domainUnwarpedElevation[cell] = original + domainUnwarpedDelta;
     }
 
     // Strength blending near the coast and the final per-cell displacement
@@ -402,6 +539,15 @@ export function shapeGreaterRealmTerraces(
       maximumAbsoluteDelta: MAXIMUM_TERRACE_CELL_DELTA,
       minimumValue: seaLevel + 1,
     });
+    appliedDomainUnwarpedSpatialRampCell = relaxSpatialTerraceEdges({
+      grid: input.grid,
+      sourceElevation: input.elevation,
+      eligible,
+      target: domainUnwarpedElevation,
+      maximumAbsoluteDelta: MAXIMUM_TERRACE_CELL_DELTA,
+      minimumValue: seaLevel + 1,
+    });
+    let domainWarpOutputChangedCellCount = 0;
     for (let cell = 0; cell < input.grid.cellCount; cell += 1) {
       if (
         appliedSpatialRampCell[cell] === 1 ||
@@ -417,6 +563,9 @@ export function shapeGreaterRealmTerraces(
       if (cellDelta !== 0) changedCellCount += 1;
       if (elevation[cell] !== unweatheredElevation[cell])
         weatheredDetailCellCount += 1;
+      if (elevation[cell] !== domainUnwarpedElevation[cell]) {
+        domainWarpOutputChangedCellCount += 1;
+      }
       maximumAbsoluteCellDelta = Math.max(
         maximumAbsoluteCellDelta,
         Math.abs(cellDelta),
@@ -479,6 +628,10 @@ export function shapeGreaterRealmTerraces(
         weatheredDetailCellCount,
         maximumAbsoluteCellDelta,
         netElevationDelta,
+        domainWarpSampledCellCount,
+        domainWarpChangedCarrierCellCount,
+        domainWarpOutputChangedCellCount,
+        domainWarpMaximumDistance,
       }),
     });
     completed = true;
@@ -486,16 +639,22 @@ export function shapeGreaterRealmTerraces(
   } finally {
     macroElevation?.fill(0);
     contourWarp?.fill(0);
+    domainWarpQ?.fill(0);
+    domainWarpR?.fill(0);
     weatheredDetail?.fill(0);
     eligible?.fill(0);
     intendedRampCell?.fill(0);
     weatheredTarget?.fill(0);
     unweatheredTarget?.fill(0);
+    domainUnwarpedTarget?.fill(0);
     unweatheredElevation?.fill(0);
+    domainUnwarpedElevation?.fill(0);
     spatialRampCell?.fill(0);
     unweatheredSpatialRampCell?.fill(0);
+    domainUnwarpedSpatialRampCell?.fill(0);
     appliedSpatialRampCell?.fill(0);
     appliedUnweatheredSpatialRampCell?.fill(0);
+    appliedDomainUnwarpedSpatialRampCell?.fill(0);
     if (!completed) {
       elevation?.fill(0);
       delta?.fill(0);

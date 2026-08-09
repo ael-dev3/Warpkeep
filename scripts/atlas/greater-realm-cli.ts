@@ -28,6 +28,7 @@ import {
   type GreaterRealmCandidateRejectionCode,
 } from './greater-realm-candidate-rejection';
 import {
+  GREATER_REALM_PRIVATE_PREVIEW_COUNT,
   clearGreaterRealmPrivateCandidateBuffers,
   verifyGreaterRealmPrivateCandidatePackage,
   writeGreaterRealmPrivateCandidate,
@@ -91,7 +92,7 @@ const PRIVATE_JSON_MAXIMUM_BYTES = 16 * 1024 * 1024;
 const PRIVATE_BATCH_MAXIMUM_BYTES = GREATER_REALM_MAXIMUM_CANDIDATE_COUNT
   * (
     128 * 1024 * 1024
-    + 6 * 16 * 1024 * 1024
+    + GREATER_REALM_PRIVATE_PREVIEW_COUNT * 16 * 1024 * 1024
     + 4 * 1024 * 1024
     + GREATER_REALM_PRIVATE_SEED_ENVELOPE_BYTES
   )

@@ -14,7 +14,7 @@ import {
 } from "./greater-realm-terraces";
 
 export const GREATER_REALM_GEOMORPHOLOGY_VERSION =
-  "greater-realm-geomorphology-v3" as const;
+  "greater-realm-geomorphology-v4" as const;
 
 export const GREATER_REALM_COASTAL_CLASS = Object.freeze({
   none: 0,

@@ -6,14 +6,14 @@ exists. This document applies to the candidate-generation pull request only.
 
 ## Assets and trust boundaries
 
-| Data                                                                                                                             | Classification            | Allowed location                                       |
-| -------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------ |
-| Root/candidate seed bytes                                                                                                        | Private authority         | Owner-only workspace outside the repository            |
-| Exact canvas, cells, geology/geomorphology processes, paired topography/biomes, regions, gates, slots, sites, fields, transforms | Private authority         | Owner-only workspace outside the repository            |
-| Chunk/topography-patch manifests, package/layout/stage digests, toolchain records, and inventories                               | Private operational data  | Owner-only workspace outside the repository            |
-| Candidate maps and contact sheets                                                                                                | Private owner-review data | Owner-only workspace outside the repository            |
-| Aggregate allowlisted candidate metrics                                                                                          | Public sanitized evidence | `docs/evidence/greater-realm/` after strict validation |
-| Generator source and synthetic fixtures                                                                                          | Public source             | `scripts/atlas/` and `tests/`                          |
+| Data                                                                                                                                                                                              | Classification            | Allowed location                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------ |
+| Root/candidate seed bytes                                                                                                                                                                         | Private authority         | Owner-only workspace outside the repository            |
+| Exact canvas, cells, geology/geomorphology processes, paired topography/biomes, vegetation patches, route/site anchors, ambient-life potentials, regions, gates, slots, sites, fields, transforms | Private authority         | Owner-only workspace outside the repository            |
+| Chunk/topography-patch manifests, package/layout/stage digests, toolchain records, and inventories                                                                                                | Private operational data  | Owner-only workspace outside the repository            |
+| Candidate maps and contact sheets                                                                                                                                                                 | Private owner-review data | Owner-only workspace outside the repository            |
+| Aggregate allowlisted candidate metrics                                                                                                                                                           | Public sanitized evidence | `docs/evidence/greater-realm/` after strict validation |
+| Generator source and synthetic fixtures                                                                                                                                                           | Public source             | `scripts/atlas/` and `tests/`                          |
 
 The browser, Vite `public/` tree, production `dist/`, source maps, Git history,
 pull-request comments, CI artifacts, logs, and public SpacetimeDB tables are not
@@ -48,6 +48,11 @@ The private workspace must:
   field payload, then bind its referenced topography patch to the same cells,
   generation/topography/partition versions, exact process-and-derived field
   inventory, payload length, and payload digest;
+- bind every private dressing field through the same canonical chunk cells,
+  deterministic vegetation/corridor/scenic-anchor/ambient-capacity field
+  inventory, payload length, and payload digest; these fields are dormant
+  semantics and must never be interpreted as runtime actors, assets, routes,
+  or persistence records;
 - include final elevation, the low-frequency terrace delta, each
   glacial/arid/volcanic/coastal elevation delta, and the corresponding process
   masks/classes in that canonical inventory so
@@ -55,6 +60,10 @@ The private workspace must:
   raw geomorphology climate fields separately from final derived climate, and
   retain process-output elevation so process input is exactly output minus the
   total delta;
+- retain the terrace domain-warp A/B output-effect count only in private
+  generation evidence; compute its unwarped scratch surface through the same
+  weathering, coast-strength, displacement-cap, and edge-relaxation path,
+  zeroize that scratch surface after comparison, and never publish it;
 - bind the single dormant Tier III throne anchor as private atlas geometry and
   private manifest coordinates; expose only its boolean proof publicly;
 - fail closed on a stale lock, substitution, permission drift, oversized
@@ -72,7 +81,8 @@ arrays.
 
 Natural-composition review derives only coordinate-free scalar summaries and
 five public proof booleans from final private terrain authority. Temporary land,
-saltwater, dry-ground, forest, mountain, distance, component, queue, and raster
+saltwater, dry-ground, forest, mountain, vegetation, route, site, habitat,
+distance, component, queue, and raster
 buffers are scoped to the measurement and overwritten on both success and
 failure. Owner-supplied visual references remain outside the repository and are
 used only as review criteria; their files, names, paths, and pixels never enter
@@ -200,6 +210,11 @@ match the regenerated marked PNG before its bounded decode/dimension check. A
 candidate generated alone, first, or last must have the same authoritative
 output.
 
+The intended package contract contains seven private previews: silhouette,
+hillshade, biome, hydrology, region-topology/outer-ocean, mountain/gate, and
+dressing. The dressing preview may visualize only the private semantic layers;
+it neither imports an asset nor proves any runtime or SpacetimeDB behavior.
+
 Owner review is deterministic but is not selection. Only metrics captured from
 the regenerated, byte-for-byte verified private candidate package may enter its
 review vector. It covers coordinate-free outer-boundary/coastal,
@@ -230,6 +245,10 @@ The pull request must prove that it rejects:
   that still carries the private marker;
 - chunk, topography-patch, process-field, cell-index, inventory, or toolchain
   substitution;
+- dressing-field substitution; biome/landform-incompatible vegetation; an
+  anchor on unsupported terrain; a road/ford corridor through forbidden water;
+  or an ambient-life potential without its required habitat, route, clearance,
+  or site evidence;
 - a changed `tsx` or native dependency tree and package-lock integrity drift,
   before any injected dependency code executes;
 - nondeterministic stage output, integer overflow, flow cycles, uphill routing,
@@ -247,5 +266,10 @@ therefore use encrypted owner-controlled storage and should never attach exact
 maps to GitHub. A later server design must independently prove caller-bounded
 hidden-region access; this offline boundary does not make client-side fog safe.
 PR A changes no SpacetimeDB schema, browser/runtime data, renderer, public
-generated asset, deployment, or production authority; the current Lowlands is
+generated asset, imported asset, spawned actor, persistence record, deployment,
+or production authority; the current Lowlands is
 untouched.
+The CI workflow hardening only copies GitHub-hosted Node into an ephemeral
+runner-private executable path before dependency installation and re-attests it
+afterward. It does not alter the deployment target, inputs, artifact, domain, or
+release authority.

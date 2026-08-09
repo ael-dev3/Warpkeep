@@ -10,14 +10,16 @@ import {
   type AxialCoordinate,
 } from '../scripts/atlas/greater-realm-terrain';
 
-function fixture(radius = 34) {
+function fixture(radius = 34, reverseInput = false) {
   const coordinates: AxialCoordinate[] = [];
   for (let q = -radius; q <= radius; q += 1) {
     const minimumR = Math.max(-radius, -q - radius);
     const maximumR = Math.min(radius, -q + radius);
     for (let r = minimumR; r <= maximumR; r += 1) coordinates.push({ q, r });
   }
-  const grid = indexGreaterRealmAxialGrid(coordinates);
+  const grid = indexGreaterRealmAxialGrid(
+    reverseInput ? [...coordinates].reverse() : coordinates,
+  );
   const elevation = new Int32Array(grid.cellCount);
   const legacyReserveCell = new Uint8Array(grid.cellCount);
   for (let cell = 0; cell < grid.cellCount; cell += 1) {
@@ -49,7 +51,7 @@ describe('Greater Realm low-frequency terraces', () => {
     const second = shapeGreaterRealmTerraces(input);
 
     expect(GREATER_REALM_TERRACE_VERSION).toBe(
-      'greater-realm-low-frequency-terraces-v1',
+      'greater-realm-low-frequency-terraces-v2',
     );
     expect(first).toEqual(second);
     expect(input.elevation).toEqual(original);
@@ -69,6 +71,30 @@ describe('Greater Realm low-frequency terraces', () => {
     expect(first.metrics.maximumAbsoluteCellDelta).toBeLessThanOrEqual(2_200);
     expect(Math.abs(first.metrics.netElevationDelta)).toBeLessThanOrEqual(
       first.metrics.eligibleCellCount * 300,
+    );
+    expect(first.metrics.domainWarpSampledCellCount * 5).toBeGreaterThanOrEqual(
+      first.metrics.eligibleCellCount,
+    );
+    expect(
+      first.metrics.domainWarpChangedCarrierCellCount * 4,
+    ).toBeGreaterThanOrEqual(first.metrics.domainWarpSampledCellCount * 3);
+    expect(first.metrics.domainWarpOutputChangedCellCount).toBeGreaterThan(0);
+    expect(first.metrics.domainWarpMaximumDistance).toBeGreaterThanOrEqual(1);
+    expect(first.metrics.domainWarpMaximumDistance).toBeLessThanOrEqual(5);
+  });
+
+  it('is invariant to caller coordinate traversal order', () => {
+    const candidateSeed = new Uint32Array([
+      0xa1b2_c3d4, 0xe5f6_0718, 0x293a_4b5c, 0x6d7e_8f90,
+    ]);
+    const forward = fixture(24);
+    const reversed = fixture(24, true);
+
+    expect(forward.grid.q).toEqual(reversed.grid.q);
+    expect(forward.grid.r).toEqual(reversed.grid.r);
+    expect(forward.grid.neighbors).toEqual(reversed.grid.neighbors);
+    expect(shapeGreaterRealmTerraces({ ...forward, candidateSeed })).toEqual(
+      shapeGreaterRealmTerraces({ ...reversed, candidateSeed }),
     );
   });
 
@@ -113,7 +139,14 @@ describe('Greater Realm low-frequency terraces', () => {
       ...fixture(),
       candidateSeed: new Uint32Array([1, 2, 3, 4]),
     } as const;
+    const originalQ = new Int32Array(input.grid.q);
+    const originalR = new Int32Array(input.grid.r);
+    const originalNeighbors = new Int32Array(input.grid.neighbors);
     const result = shapeGreaterRealmTerraces(input);
+
+    expect(input.grid.q).toEqual(originalQ);
+    expect(input.grid.r).toEqual(originalR);
+    expect(input.grid.neighbors).toEqual(originalNeighbors);
 
     for (let cell = 0; cell < input.grid.cellCount; cell += 1) {
       expect(result.elevation[cell]! > 0).toBe(input.elevation[cell]! > 0);

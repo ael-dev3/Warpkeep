@@ -219,6 +219,49 @@ describe('GitHub workflow security policy', () => {
     expect(source).toContain('npm audit signatures');
   });
 
+  it('runs root tests from an integrity-checked private Node copy', () => {
+    const rootTestWorkflows = [
+      workflow('verify.yml'),
+      workflow('deploy-pages.yml'),
+    ];
+
+    for (const source of rootTestWorkflows) {
+      expect(source).toContain('Stage Node in a runner-private toolchain path');
+      expect(source).toContain('source_command="$(command -v node)"');
+      expect(source).toContain('[[ -L "$source_command" ]]');
+      expect(source).toContain('case "$source_node" in');
+      expect(source).toContain('"$RUNNER_TOOL_CACHE"/*) ;;');
+      expect(source).toContain('mktemp -d "$RUNNER_TEMP/warpkeep-node.XXXXXX"');
+      expect(source).toContain('chmod 0700 "$private_root"');
+      expect(source).toContain('install -d -m 0700 "$private_bin"');
+      expect(source).toContain(
+        'install -m 0700 "$source_node" "$private_bin/node"',
+      );
+      expect(source).toContain('"$source_sha_before" != "$source_sha_after"');
+      expect(source).toContain('"$source_sha_before" != "$staged_sha"');
+      expect(source).toContain('echo "$private_bin" >> "$GITHUB_PATH"');
+      expect(source).toContain(
+        'echo "WARPKEEP_PRIVATE_NODE=$private_bin/node" >> "$GITHUB_ENV"',
+      );
+      expect(source).toContain(
+        'echo "WARPKEEP_PRIVATE_NODE_SHA256=$staged_sha" >> "$GITHUB_ENV"',
+      );
+      expect(source).toMatch(/run: npm ci(?:\r?\n|$)/u);
+      expect(source).not.toContain('npm ci --ignore-scripts');
+      expect(source).toContain(
+        'Re-attest runner-private Node after dependency install',
+      );
+      expect(source.indexOf('run: npm ci')).toBeLessThan(
+        source.indexOf('Re-attest runner-private Node after dependency install'),
+      );
+      expect(source).toContain('node_mode="$(stat -c \'%a\' "$WARPKEEP_PRIVATE_NODE")"');
+      expect(source).toContain('$((8#$node_mode & 0022)) -ne 0');
+      expect(source).toContain('| sha256sum --check --strict -');
+      expect(source).toContain('npm test -- --maxWorkers=2');
+      expect(source).not.toMatch(/npm test -- --maxWorkers=[3-9]/);
+    }
+  });
+
   it('runs verification for every pull-request base and ignores every Wrangler secret-file variant', () => {
     const source = workflow('verify.yml');
     expect(source).toContain('pull_request:');

@@ -118,6 +118,45 @@ const PRIVATE_TEXT_FIELD = /(?:["'](?:privateSeedHex|seedMaterial|seedBytes|hidd
 const PRIVATE_EVIDENCE_FIELD = /["'](?:layoutDigest|stageDigest|packageDigest)["']\s*:/u;
 const PRIVATE_IDENTIFIER_STRING_VALUE = /(?:(?:\b(?:seed|private)[A-Za-z0-9_$]*\b)|(?:\b[A-Za-z_$][A-Za-z0-9_$]*(?:seed|private)[A-Za-z0-9_$]*\b)|(?:\\?["'`][A-Za-z0-9_$.-]*(?:seed|private)[A-Za-z0-9_$.-]*\\?["'`]))\s*(?::|=)\s*\\?["'`]([A-Za-z0-9+/_=-]{43,64})\\?["'`]/giu;
 const INLINE_DATA_SOURCE_MAP = /sourceMappingURL\s*=\s*data:/iu;
+const PRIVATE_LIVING_WORLD_AUTHORITY_FIELDS = Object.freeze([
+  Object.freeze(['dressingExcluded', 'dressing-excluded']),
+  Object.freeze(['ecologyClass', 'ecology-class']),
+  Object.freeze(['vegetationDensity', 'vegetation-density']),
+  Object.freeze(['routeClass', 'route-class']),
+  Object.freeze(['landmarkClass', 'landmark-class']),
+  Object.freeze(['ambientLifeClass', 'ambient-life-class']),
+]);
+const PRIVATE_LIVING_WORLD_DATA_EXTENSIONS = new Set([
+  '.csv',
+  '.dat',
+  '.data',
+  '.ini',
+  '.json',
+  '.ndjson',
+  '.properties',
+  '.toml',
+  '.tsv',
+  '.txt',
+  '.yaml',
+  '.yml',
+]);
+const PRIVATE_LIVING_WORLD_AUTHORITY_FIELD_PATTERNS = Object.freeze(
+  PRIVATE_LIVING_WORLD_AUTHORITY_FIELDS.map(aliases => new RegExp(
+    `(?:^|[^\\p{ID_Continue}$-])(?:${aliases.join('|')})`
+      + '(?=$|[^\\p{ID_Continue}$-])',
+    'mu',
+  )),
+);
+const PRIVATE_LIVING_WORLD_AUTHORITY_ARRAY = new RegExp(
+  `(?:["'\`](?:${PRIVATE_LIVING_WORLD_AUTHORITY_FIELDS.flat().join('|')})["'\`]`
+    + `|(?:^|[^\\p{ID_Continue}$-])(?:${PRIVATE_LIVING_WORLD_AUTHORITY_FIELDS
+      .flat()
+      .join('|')}))`
+    + '\\s*(?::|=)\\s*'
+    + '(?:(?:new\\s+)?Uint8Array\\s*\\(\\s*|Uint8Array\\.from\\s*\\(\\s*'
+    + '|Buffer\\.from\\s*\\(\\s*)?\\[\\s*[-+]?\\d',
+  'mu',
+);
 // This runtime-only mirror intentionally fails closed when the public review
 // contract changes. Evidence cannot enter either the staged index or worktree
 // until this exact schema and its focused parity tests are updated together.
@@ -126,9 +165,9 @@ const SANITIZED_REVIEW_EVIDENCE_PATH =
 const SANITIZED_REVIEW_EVIDENCE_PREFIX = 'docs/evidence/greater-realm/';
 const SANITIZED_REVIEW_EVIDENCE_README =
   'docs/evidence/greater-realm/README.md';
-const SANITIZED_REVIEW_EVIDENCE_README_BYTES = 1_387;
+const SANITIZED_REVIEW_EVIDENCE_README_BYTES = 1_421;
 const SANITIZED_REVIEW_EVIDENCE_README_SHA256 =
-  'b18d53a323c25749e7abc3695c6680332920d2fdfd5f1fe6151aef08d395e0b4';
+  'e61fa36df40a8b1a37372ee41b27456b77f49e32480fcd8ba613d29b2914cb79';
 const SANITIZED_REVIEW_MAXIMUM_BYTES = 4 * 1024 * 1024;
 const SANITIZED_REVIEW_MINIMUM_CANDIDATE_COUNT = 1;
 const SANITIZED_REVIEW_MAXIMUM_CANDIDATE_COUNT = 16;
@@ -636,6 +675,35 @@ function normalizePrivacyScanText(text) {
   return normalized;
 }
 
+function privateLivingWorldDataPath(relativePath, text) {
+  const suffix = extension(relativePath);
+  if (PRIVATE_LIVING_WORLD_DATA_EXTENSIONS.has(suffix)) return true;
+  // A renamed standalone JSON payload remains data even if its extension is
+  // unfamiliar. Source maps are deliberately excluded because their embedded
+  // source declarations are scanned by the existing marker/secret checks.
+  if (suffix === '.map') return false;
+  const trimmed = text.trim();
+  return (trimmed.startsWith('{') && trimmed.endsWith('}'))
+    || (trimmed.startsWith('[') && trimmed.endsWith(']'));
+}
+
+function containsPrivateLivingWorldAuthority(text, relativePath) {
+  // Exact initialized numeric authority arrays remain private even when they
+  // are pasted into an otherwise ordinary source module. Requiring the first
+  // array element to be numeric preserves type-only tuple declarations.
+  if (PRIVATE_LIVING_WORLD_AUTHORITY_ARRAY.test(text)) return true;
+  if (!privateLivingWorldDataPath(relativePath, text)) return false;
+
+  // Encoded private atlases carry a complete six-name field inventory before
+  // their byte arrays. Requiring every exact authority name avoids treating a
+  // single word in ordinary content as private, while still catching mixed
+  // camel/kebab encodings after an artifact is renamed or its WKGR marker is
+  // stripped.
+  return PRIVATE_LIVING_WORLD_AUTHORITY_FIELD_PATTERNS.every(pattern => (
+    pattern.test(text)
+  ));
+}
+
 function invalidSanitizedReview() {
   fail('GREATER_REALM_PUBLIC_BOUNDARY_SANITIZED_REVIEW_INVALID');
 }
@@ -1125,6 +1193,7 @@ function scanText(text, relativePath) {
   }
   if (
     PRIVATE_TEXT_FIELD.test(scrubbed)
+    || containsPrivateLivingWorldAuthority(scrubbed, relativePath)
     || containsPrivateIdentifierSecretValue(scrubbed)
     || INLINE_DATA_SOURCE_MAP.test(scrubbed)
     || (

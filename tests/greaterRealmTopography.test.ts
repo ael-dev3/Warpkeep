@@ -6,13 +6,24 @@ import {
   clearGreaterRealmCandidateSecret,
   generateGreaterRealmCandidate,
 } from '../scripts/atlas/greater-realm-candidate-generator';
+import {
+  GREATER_REALM_BIOME_CATALOG,
+  GREATER_REALM_BIOME_CLASS_COUNT,
+  GREATER_REALM_BIOME_ID,
+  GREATER_REALM_LANDFORM_CATALOG,
+  GREATER_REALM_LANDFORM_CLASS_COUNT,
+  GREATER_REALM_LANDFORM_ID,
+} from '../scripts/atlas/greater-realm-biomes';
 import { indexGreaterRealmAxialGrid } from '../scripts/atlas/greater-realm-terrain';
 import { deriveGreaterRealmTopography } from '../scripts/atlas/greater-realm-topography';
 
-function root(index: number): Uint8Array {
+// This exercises full private candidate generation plus two independent
+// topography derivations while CI permits one other test worker.
+const FULL_CANDIDATE_TOPOGRAPHY_TIMEOUT_MS = 180_000;
+
+function canonicalRoot(): Uint8Array {
   return Uint8Array.from(createHash('sha256')
-    .update('greater-realm-test-root\0', 'utf8')
-    .update(String(index), 'utf8')
+    .update('greater-realm-ordinary-parent-a\0', 'utf8')
     .digest());
 }
 
@@ -46,10 +57,88 @@ function independentlyCompatiblePair(regime: number, biome: number, landform: nu
   return regime === 0 && DRY_COMPATIBLE_PAIRS.has(`${biome}:${landform}`);
 }
 
+describe('Greater Realm biome and landform catalogs', () => {
+  it('pins every biome ID to one unique canonical entry', () => {
+    const expected = [
+      [0, 'unclassified', 'Unclassified'],
+      [1, 'temperate-lowland', 'Temperate lowland'],
+      [2, 'flower-meadow', 'Flower meadow'],
+      [3, 'oak-forest', 'Oak forest'],
+      [4, 'old-growth-forest', 'Old-growth forest'],
+      [5, 'pine-forest', 'Pine forest'],
+      [6, 'alpine-snow', 'Alpine snow'],
+      [7, 'tundra', 'Tundra'],
+      [8, 'heathland', 'Heathland'],
+      [9, 'savanna', 'Savanna'],
+      [10, 'warm-scrub', 'Warm scrub'],
+      [11, 'dune-desert', 'Dune desert'],
+      [12, 'rocky-desert', 'Rocky desert'],
+      [13, 'red-badlands', 'Red badlands'],
+      [14, 'volcanic-upland', 'Volcanic upland'],
+      [15, 'ash-meadow', 'Ash meadow'],
+      [16, 'freshwater-marsh', 'Freshwater marsh'],
+      [17, 'salt-marsh', 'Salt marsh'],
+      [18, 'river-delta', 'River delta'],
+      [19, 'rocky-highland', 'Rocky highland'],
+      [20, 'saltwater', 'Saltwater'],
+      [21, 'lake', 'Lake'],
+      [22, 'river-stream', 'River or stream'],
+      [23, 'coastal', 'Coastal'],
+    ] as const;
+
+    expect(GREATER_REALM_BIOME_CATALOG.map(({ id, key, label }) => [id, key, label]))
+      .toEqual(expected);
+    expect(Object.values(GREATER_REALM_BIOME_ID)).toEqual(expected.map(([id]) => id));
+    expect(GREATER_REALM_BIOME_CLASS_COUNT).toBe(expected.length);
+    expect(new Set(GREATER_REALM_BIOME_CATALOG.map(entry => entry.id)).size)
+      .toBe(expected.length);
+    expect(new Set(GREATER_REALM_BIOME_CATALOG.map(entry => entry.key)).size)
+      .toBe(expected.length);
+    expect(GREATER_REALM_BIOME_CATALOG.every(Object.isFrozen)).toBe(true);
+    expect(Object.isFrozen(GREATER_REALM_BIOME_CATALOG)).toBe(true);
+    expect(Object.isFrozen(GREATER_REALM_BIOME_ID)).toBe(true);
+  });
+
+  it('pins every landform ID to one unique canonical entry', () => {
+    const expected = [
+      [0, 'coastal-plain', 'Coastal plain'],
+      [1, 'floodplain', 'Floodplain'],
+      [2, 'watercourse', 'Watercourse'],
+      [3, 'lowland', 'Lowland'],
+      [4, 'rolling-lowland', 'Rolling lowland'],
+      [5, 'hill', 'Hill'],
+      [6, 'highland', 'Highland'],
+      [7, 'mountain', 'Mountain'],
+      [8, 'canyon', 'Canyon'],
+      [9, 'badlands', 'Badlands'],
+      [10, 'lake-basin', 'Lake basin'],
+      [11, 'delta', 'Delta'],
+      [12, 'basin', 'Basin'],
+      [13, 'dune', 'Dune'],
+      [14, 'alpine-plateau', 'Alpine plateau'],
+      [15, 'glacial-valley', 'Glacial valley'],
+      [16, 'island-shelf', 'Island shelf'],
+      [17, 'sea-cliff', 'Sea cliff'],
+    ] as const;
+
+    expect(GREATER_REALM_LANDFORM_CATALOG.map(({ id, key, label }) => [id, key, label]))
+      .toEqual(expected);
+    expect(Object.values(GREATER_REALM_LANDFORM_ID)).toEqual(expected.map(([id]) => id));
+    expect(GREATER_REALM_LANDFORM_CLASS_COUNT).toBe(expected.length);
+    expect(new Set(GREATER_REALM_LANDFORM_CATALOG.map(entry => entry.id)).size)
+      .toBe(expected.length);
+    expect(new Set(GREATER_REALM_LANDFORM_CATALOG.map(entry => entry.key)).size)
+      .toBe(expected.length);
+    expect(GREATER_REALM_LANDFORM_CATALOG.every(Object.isFrozen)).toBe(true);
+    expect(Object.isFrozen(GREATER_REALM_LANDFORM_CATALOG)).toBe(true);
+    expect(Object.isFrozen(GREATER_REALM_LANDFORM_ID)).toBe(true);
+  });
+});
+
 describe('Greater Realm derived topography', () => {
   it('derives deterministic bounded geomorphology from final routed authority', () => {
-    const seed = root(52);
-    const candidate = generateGreaterRealmCandidate({ rootSeed: seed, candidateOrdinal: 3 });
+    const seed = canonicalRoot();
+    const candidate = generateGreaterRealmCandidate({ rootSeed: seed, candidateOrdinal: 9 });
     try {
       const input = {
         grid: candidate.grid,
@@ -127,7 +216,7 @@ describe('Greater Realm derived topography', () => {
       seed.fill(0);
       clearGreaterRealmCandidateSecret(candidate);
     }
-  }, 60_000);
+  }, FULL_CANDIDATE_TOPOGRAPHY_TIMEOUT_MS);
 
   it('smooths visual classification as a compatible pair without moving protected process cells', () => {
     const coordinates: Array<{ q: number; r: number }> = [];
