@@ -7,6 +7,11 @@ import { describe, expect, it } from 'vitest';
 import { generateGreaterRealmCandidate } from '../scripts/atlas/greater-realm-candidate-generator';
 import { clearGreaterRealmPrivateCandidateBuffers } from '../scripts/atlas/greater-realm-candidate-package';
 
+// The candidate itself is intentionally full-size. Hosted two-worker runs can
+// overlap it with another 100k+ cell replay, so retain a bounded budget that
+// covers scheduler contention without weakening any authority assertion.
+const FULL_CANDIDATE_TIER_TWO_TIMEOUT_MS = 60_000;
+
 describe('Greater Realm Tier-II capacity authority', () => {
   it('retains one fordable Tier-II spine between both dry strategic frontiers', () => {
     const rootSeed = Uint8Array.from(createHash('sha256')
@@ -74,5 +79,5 @@ describe('Greater Realm Tier-II capacity authority', () => {
       rootSeed.fill(0);
       if (candidate) clearGreaterRealmPrivateCandidateBuffers(candidate);
     }
-  }, 30_000);
+  }, FULL_CANDIDATE_TIER_TWO_TIMEOUT_MS);
 });
