@@ -450,7 +450,7 @@ describe('Greater Realm owner-only candidate package', () => {
     let derivedSeed: Buffer | undefined;
     try {
       expect(GREATER_REALM_GENERATOR_VERSION)
-        .toBe('greater-realm-v2-natural-continent-pr-a.10');
+        .toBe('greater-realm-v2-natural-continent-pr-a.11');
       expect(GREATER_REALM_TERRAIN_SEED_NAMESPACE)
         .toBe('greater-realm-v2-natural-continent-pr-a.3');
       expect(GREATER_REALM_GENERATOR_VERSION).not.toBe(
@@ -1275,6 +1275,39 @@ describe('Greater Realm owner-only candidate package', () => {
     }) as unknown as GreaterRealmPrivateCandidate;
     expect(() => serializeGreaterRealmPrivateAtlas(invalid)).toThrow(
       'GREATER_REALM_PRIVATE_FIELD_INVALID',
+    );
+  });
+
+  it('rejects final-relief mutations before encoding candidate authority', () => {
+    const fixture = requireFixture();
+    const elevation = new Int32Array(fixture.candidate.elevation.length);
+    for (let cell = 0; cell < elevation.length; cell += 1) {
+      elevation[cell] = fixture.candidate.grid.q[cell]! * 500;
+    }
+    const invalid = Object.freeze({
+      ...fixture.candidate,
+      elevation,
+    }) as GreaterRealmPrivateCandidate;
+    expect(() => serializeGreaterRealmPrivateAtlas(invalid)).toThrow(
+      'GREATER_REALM_PRIVATE_RELIEF_STRUCTURE_INVALID',
+    );
+  });
+
+  it('rejects final-relief metric mutations before encoding', () => {
+    const fixture = requireFixture();
+    const reliefStructure = fixture.candidate.privateMetrics.reliefStructure;
+    const invalid = Object.freeze({
+      ...fixture.candidate,
+      privateMetrics: Object.freeze({
+        ...fixture.candidate.privateMetrics,
+        reliefStructure: Object.freeze({
+          ...reliefStructure,
+          eligibleCellCount: reliefStructure.eligibleCellCount + 1,
+        }),
+      }),
+    }) as GreaterRealmPrivateCandidate;
+    expect(() => serializeGreaterRealmPrivateAtlas(invalid)).toThrow(
+      'GREATER_REALM_PRIVATE_RELIEF_STRUCTURE_INVALID',
     );
   });
 

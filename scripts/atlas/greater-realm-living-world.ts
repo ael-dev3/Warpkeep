@@ -17,7 +17,7 @@ import type { IndexedAxialGrid } from './greater-realm-terrain';
  * neutral and reproducible without Node-specific APIs.
  */
 export const GREATER_REALM_LIVING_WORLD_VERSION =
-  'greater-realm-private-living-world-v1' as const;
+  'greater-realm-private-living-world-v2' as const;
 
 export const GREATER_REALM_ECOLOGY_CLASS = Object.freeze({
   NONE: 0,
@@ -166,9 +166,29 @@ export type GreaterRealmLivingWorldMetrics = Readonly<{
   landmarkSpacingViolationCount: number;
   landmarkRouteAdjacencyViolationCount: number;
   orphanedRuinWallCount: number;
+  ruinWallCardinalityViolationCount: number;
   ambientConstraintViolationCount: number;
   layoutFingerprint: string;
 }>;
+
+/**
+ * Coordinate-free metrics needed to decide whether a 100k–150k candidate has
+ * enough dormant ecology and activity capacity without blanketing wilderness.
+ * Keeping this input narrow makes the selection gate reusable without giving
+ * it access to exact private placement arrays.
+ */
+export type GreaterRealmLivingWorldCandidateCapacityMetrics = Readonly<
+  Pick<
+    GreaterRealmLivingWorldMetrics,
+    | 'dressingEligibleCellCount'
+    | 'ecologyCellCounts'
+    | 'eligibleLandVegetatedBasisPoints'
+    | 'eligibleLandOpenBasisPoints'
+    | 'routeCellCounts'
+    | 'landmarkCellCounts'
+    | 'ambientLifeCellCounts'
+  >
+>;
 
 export type GreaterRealmLivingWorldInvariants = Readonly<{
   legacyProtectedCellsPreserved: boolean;
@@ -219,6 +239,85 @@ const RUIN_SPACING = 12;
 const WAYSTONE_SPACING = 6;
 const LAMP_SPACING = 3;
 const OPTIONAL_ROUTE_HUBS_PER_TIER_BIOME = 2;
+
+function allNonNegativeSafeIntegers(values: readonly number[]): boolean {
+  return values.every((value) => Number.isSafeInteger(value) && value >= 0);
+}
+
+/**
+ * Candidate-scale composition gate for dormant living-world semantics.
+ *
+ * This intentionally evaluates only coordinate-free counts and basis points.
+ * Exact cells remain private and the result does not activate assets, actors,
+ * movement, persistence, or gameplay authority.
+ */
+export function hasGreaterRealmCandidateScaleLivingWorldCapacity(
+  metrics: GreaterRealmLivingWorldCandidateCapacityMetrics,
+): boolean {
+  const eligible = metrics.dressingEligibleCellCount;
+  const ecology = metrics.ecologyCellCounts;
+  const ecologyCounts = Object.values(ecology);
+  const routes = Object.values(metrics.routeCellCounts);
+  const landmarks = metrics.landmarkCellCounts;
+  const ambient = metrics.ambientLifeCellCounts;
+  const ambientCounts = Object.values(ambient);
+  if (
+    !allNonNegativeSafeIntegers([
+      eligible,
+      metrics.eligibleLandVegetatedBasisPoints,
+      metrics.eligibleLandOpenBasisPoints,
+      ...ecologyCounts,
+      ...routes,
+      ...Object.values(landmarks),
+      ...ambientCounts,
+    ])
+    || eligible <= 0
+    || metrics.eligibleLandVegetatedBasisPoints > BASIS_POINTS
+    || metrics.eligibleLandOpenBasisPoints > BASIS_POINTS
+    || metrics.eligibleLandVegetatedBasisPoints
+      + metrics.eligibleLandOpenBasisPoints !== BASIS_POINTS
+    || ecologyCounts.reduce((total, count) => total + BigInt(count), 0n)
+      !== BigInt(eligible)
+  )
+    return false;
+
+  const shareAtMost = (count: number, basisPoints: number): boolean =>
+    BigInt(count) * BigInt(BASIS_POINTS)
+      <= BigInt(eligible) * BigInt(basisPoints);
+  const summedShareAtLeast = (
+    counts: readonly number[],
+    basisPoints: number,
+  ): boolean => counts.reduce((total, count) => total + BigInt(count), 0n)
+    * BigInt(BASIS_POINTS) >= BigInt(eligible) * BigInt(basisPoints);
+  const summedShareAtMost = (
+    counts: readonly number[],
+    basisPoints: number,
+  ): boolean => counts.reduce((total, count) => total + BigInt(count), 0n)
+    * BigInt(BASIS_POINTS) <= BigInt(eligible) * BigInt(basisPoints);
+  return (
+    ecologyCounts.every((count) => count >= 8) &&
+    summedShareAtLeast([ecology.forest, ecology.jungle, ecology.swamp], 2_000) &&
+    summedShareAtLeast([ecology.taiga, ecology.alpine, ecology.snow], 800) &&
+    summedShareAtLeast([ecology.savanna, ecology.desert], 300) &&
+    shareAtMost(Math.max(...ecologyCounts), 5_500) &&
+    metrics.eligibleLandVegetatedBasisPoints >= 2_500 &&
+    metrics.eligibleLandVegetatedBasisPoints <= 8_500 &&
+    metrics.eligibleLandOpenBasisPoints >= 1_500 &&
+    summedShareAtLeast(routes, 500) &&
+    summedShareAtMost(routes, 2_000) &&
+    landmarks.abandonedRuin >= 32 &&
+    BigInt(landmarks.ruinedWall) >= BigInt(landmarks.abandonedRuin) * 2n &&
+    BigInt(landmarks.ruinedWall) <= BigInt(landmarks.abandonedRuin) * 3n &&
+    landmarks.waystone >= 64 &&
+    landmarks.lampPost >= 96 &&
+    ambient.rabbitHabitat >= 128 &&
+    ambient.civilianFootfall >= 64 &&
+    ambient.guardPost >= 16 &&
+    ambient.courierRoute >= 32 &&
+    ambient.exoticCourierRoute >= 4 &&
+    summedShareAtMost(ambientCounts, 200)
+  );
+}
 
 const VEGETATION_CHANNEL = channelId('greater-realm-living-world-vegetation');
 const VEGETATION_DETAIL_CHANNEL = channelId(
@@ -509,8 +608,7 @@ function classifyEcology(
   ) return GREATER_REALM_ECOLOGY_CLASS.SAVANNA;
   if (
     (
-      biome === GREATER_REALM_BIOME_ID.FLOWER_MEADOW
-      || biome === GREATER_REALM_BIOME_ID.OAK_FOREST
+      biome === GREATER_REALM_BIOME_ID.OAK_FOREST
       || biome === GREATER_REALM_BIOME_ID.OLD_GROWTH_FOREST
     )
     && temperature > 6_300
@@ -520,13 +618,16 @@ function classifyEcology(
   if (
     biome === GREATER_REALM_BIOME_ID.PINE_FOREST
     || ((
-      biome === GREATER_REALM_BIOME_ID.FLOWER_MEADOW
-      || biome === GREATER_REALM_BIOME_ID.OAK_FOREST
+      biome === GREATER_REALM_BIOME_ID.OAK_FOREST
+      || biome === GREATER_REALM_BIOME_ID.OLD_GROWTH_FOREST
     ) && temperature < 3_200)
   ) return GREATER_REALM_ECOLOGY_CLASS.TAIGA;
+  if (biome === GREATER_REALM_BIOME_ID.FLOWER_MEADOW) {
+    return GREATER_REALM_ECOLOGY_CLASS.PLAINS;
+  }
   if (
-    biome === GREATER_REALM_BIOME_ID.FLOWER_MEADOW
-    || biome === GREATER_REALM_BIOME_ID.OAK_FOREST
+    biome === GREATER_REALM_BIOME_ID.OAK_FOREST
+    || biome === GREATER_REALM_BIOME_ID.OLD_GROWTH_FOREST
     || moisture > 2_600
   ) {
     return GREATER_REALM_ECOLOGY_CLASS.FOREST;
@@ -2089,6 +2190,7 @@ export function deriveGreaterRealmLivingWorld(
     let ecologicalCompatibilityViolationCount = 0;
     let landmarkRouteAdjacencyViolationCount = 0;
     let orphanedRuinWallCount = 0;
+    let ruinWallCardinalityViolationCount = 0;
     let ambientConstraintViolationCount = 0;
     let forbiddenWaterRouteViolationCount = 0;
     let fordRegimeViolationCount = 0;
@@ -2194,6 +2296,19 @@ export function deriveGreaterRealmLivingWorld(
           }
         }
         if (!touchesRuin) orphanedRuinWallCount += 1;
+      }
+      if (landmark === GREATER_REALM_LANDMARK_CLASS.ABANDONED_RUIN) {
+        let adjacentRuinWallCount = 0;
+        for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
+          const neighbor = grid.neighbors[cell * NEIGHBOR_COUNT + direction]!;
+          if (
+            neighbor >= 0
+            && landmarkClass[neighbor] === GREATER_REALM_LANDMARK_CLASS.RUINED_WALL
+          ) adjacentRuinWallCount += 1;
+        }
+        if (adjacentRuinWallCount < 2 || adjacentRuinWallCount > 3) {
+          ruinWallCardinalityViolationCount += 1;
+        }
       }
       if (!ambientClassCompatible(
         grid,
@@ -2308,6 +2423,7 @@ export function deriveGreaterRealmLivingWorld(
       landmarkSpacingViolationCount,
       landmarkRouteAdjacencyViolationCount,
       orphanedRuinWallCount,
+      ruinWallCardinalityViolationCount,
       ambientConstraintViolationCount,
       layoutFingerprint: layoutFingerprint([
         dressingExcluded,
@@ -2328,7 +2444,9 @@ export function deriveGreaterRealmLivingWorld(
         && vegetationMetrics.smallPatchCellCount === 0,
       landmarksSpaced: landmarkSpacingViolationCount === 0,
       landmarksRouteAdjacent: landmarkRouteAdjacencyViolationCount === 0,
-      ruinWallsAnchored: orphanedRuinWallCount === 0,
+      ruinWallsAnchored:
+        orphanedRuinWallCount === 0
+        && ruinWallCardinalityViolationCount === 0,
       ambientLifeCompatible: ambientConstraintViolationCount === 0,
       requiredRouteAnchorsCovered:
         routeEvidence.requiredRouteAnchorCount > 0

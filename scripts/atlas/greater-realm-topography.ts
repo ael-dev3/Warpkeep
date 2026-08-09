@@ -15,6 +15,9 @@ const WATER_RIVER = 3;
 const WATER_STREAM = 4;
 const WATER_SEA = 5;
 const MINIMUM_GENERATED_FOREST_PATCH_CELLS = 28;
+const PHYSICALLY_ARID_MOISTURE_THRESHOLD = -1_200;
+const PHYSICALLY_FROZEN_TEMPERATURE_THRESHOLD = 500;
+const PHYSICALLY_COLD_TEMPERATURE_THRESHOLD = 2_000;
 // Preserve the existing pair-count layout and its deterministic tie scan.
 const LANDFORM_PAIR_STRIDE = 32;
 const BIOME = GREATER_REALM_BIOME_ID;
@@ -219,6 +222,33 @@ function isCompatibleBiomeLandformPair(
   return DRY_LANDFORMS_BY_BIOME[biome]?.has(landform) === true;
 }
 
+function isPhysicallyExtremeClimate(moisture: number, temperature: number): boolean {
+  return (
+    moisture < PHYSICALLY_ARID_MOISTURE_THRESHOLD
+    || temperature < PHYSICALLY_FROZEN_TEMPERATURE_THRESHOLD
+  );
+}
+
+function isBiomeCompatibleWithPhysicalClimate(
+  biome: number,
+  moisture: number,
+  temperature: number,
+): boolean {
+  const aridVisual = (
+    biome === BIOME.DUNE_DESERT
+    || biome === BIOME.ROCKY_DESERT
+    || biome === BIOME.RED_BADLANDS
+  );
+  if (aridVisual) return moisture < PHYSICALLY_ARID_MOISTURE_THRESHOLD;
+  if (biome === BIOME.ALPINE_SNOW) {
+    return temperature < PHYSICALLY_FROZEN_TEMPERATURE_THRESHOLD;
+  }
+  if (biome === BIOME.TUNDRA) {
+    return temperature < PHYSICALLY_COLD_TEMPERATURE_THRESHOLD;
+  }
+  return true;
+}
+
 function consolidateGeneratedForestPatches(input: Readonly<{
   grid: IndexedAxialGrid;
   waterRegime: Uint8Array;
@@ -228,6 +258,7 @@ function consolidateGeneratedForestPatches(input: Readonly<{
   distanceToFreshwater: Uint16Array;
   slope: Uint16Array;
   moisture: Int32Array;
+  temperature: Int32Array;
   exposure: Int32Array;
 }>): void {
   const { grid } = input;
@@ -242,8 +273,8 @@ function consolidateGeneratedForestPatches(input: Readonly<{
       ) continue;
       const biome = input.biomeId[cell]!;
       if (
-        biome === BIOME.FLOWER_MEADOW
-        || biome === BIOME.OAK_FOREST
+        biome === BIOME.OAK_FOREST
+        || biome === BIOME.OLD_GROWTH_FOREST
         || (biome === BIOME.PINE_FOREST && input.landformId[cell] !== LANDFORM.GLACIAL_VALLEY)
       ) forestMask[cell] = 1;
     }
@@ -270,12 +301,16 @@ function consolidateGeneratedForestPatches(input: Readonly<{
       if (tail >= MINIMUM_GENERATED_FOREST_PATCH_CELLS) continue;
       for (let offset = 0; offset < tail; offset += 1) {
         const cell = queue[offset]!;
+        if (isPhysicallyExtremeClimate(
+          input.moisture[cell]!,
+          input.temperature[cell]!,
+        )) continue;
         if (
           input.distanceToFreshwater[cell]! <= 2
           && input.slope[cell]! < 550
           && input.moisture[cell]! > 800
         ) {
-          input.biomeId[cell] = BIOME.OLD_GROWTH_FOREST;
+          input.biomeId[cell] = BIOME.FLOWER_MEADOW;
           input.landformId[cell] = input.moisture[cell]! > 1_900 ? LANDFORM.HILL : LANDFORM.LOWLAND;
         } else if (input.exposure[cell]! >= 55) {
           input.biomeId[cell] = BIOME.HEATHLAND;
@@ -493,8 +528,8 @@ export function deriveGreaterRealmTopography(input: Readonly<{
       continue;
     }
     const coastClass = geomorphicCoastalClass[cell]!;
-    const cold = temperature[cell]! < 2_000;
-    const arid = moisture[cell]! < -1_200;
+    const cold = temperature[cell]! < PHYSICALLY_COLD_TEMPERATURE_THRESHOLD;
+    const arid = moisture[cell]! < PHYSICALLY_ARID_MOISTURE_THRESHOLD;
     const saturated = moisture[cell]! > 4_300 || wetnessIndex[cell]! > 5_000;
     const high = elevation[cell]! > 13_500;
     const steep = slope[cell]! > 1_500;
@@ -520,7 +555,9 @@ export function deriveGreaterRealmTopography(input: Readonly<{
       biomeId[cell] = slope[cell]! < 500 ? BIOME.DUNE_DESERT : slope[cell]! > 1_400 ? BIOME.RED_BADLANDS : BIOME.ROCKY_DESERT;
       landformId[cell] = slope[cell]! < 500 ? LANDFORM.DUNE : slope[cell]! > 1_400 ? LANDFORM.BADLANDS : LANDFORM.HIGHLAND;
     } else if (cold && high) {
-      biomeId[cell] = temperature[cell]! < 500 ? BIOME.ALPINE_SNOW : BIOME.TUNDRA;
+      biomeId[cell] = temperature[cell]! < PHYSICALLY_FROZEN_TEMPERATURE_THRESHOLD
+        ? BIOME.ALPINE_SNOW
+        : BIOME.TUNDRA;
       landformId[cell] = steep ? LANDFORM.MOUNTAIN : LANDFORM.ALPINE_PLATEAU;
     } else if (volcanic) {
       biomeId[cell] = moisture[cell]! < 500 ? BIOME.ASH_MEADOW : BIOME.VOLCANIC_UPLAND;
@@ -536,10 +573,24 @@ export function deriveGreaterRealmTopography(input: Readonly<{
       landformId[cell] = high ? LANDFORM.MOUNTAIN : LANDFORM.HIGHLAND;
     } else if (moisture[cell]! > 2_800) {
       // Humid country is not one blanket forest. Temperature and shelter
-      // split it into cool forest, sheltered woodland, and open wet forest
+      // split it into cool forest, sheltered woodland, and open humid country
       // using continuous climate/topography authority rather than region IDs.
-      biomeId[cell] = temperature[cell]! < 3_500 ? BIOME.PINE_FOREST : exposure[cell]! < -45 ? BIOME.OAK_FOREST : BIOME.FLOWER_MEADOW;
-      landformId[cell] = exposure[cell]! < -45 ? LANDFORM.FLOODPLAIN : LANDFORM.HILL;
+      if (temperature[cell]! < 3_500) {
+        biomeId[cell] = BIOME.PINE_FOREST;
+        landformId[cell] = LANDFORM.HILL;
+      } else if (exposure[cell]! < -45) {
+        biomeId[cell] = BIOME.OAK_FOREST;
+        landformId[cell] = LANDFORM.FLOODPLAIN;
+      } else if (exposure[cell]! < 75) {
+        // Warm, humid and sheltered connected terrain carries old-growth
+        // woodland/rainforest authority. More exposed humid country remains
+        // open flower meadow, preserving broad clearings between forest belts.
+        biomeId[cell] = BIOME.OLD_GROWTH_FOREST;
+        landformId[cell] = exposure[cell]! < 20 ? LANDFORM.LOWLAND : LANDFORM.HILL;
+      } else {
+        biomeId[cell] = BIOME.FLOWER_MEADOW;
+        landformId[cell] = LANDFORM.HILL;
+      }
     } else if (temperature[cell]! > 6_500 && moisture[cell]! < 700) {
       biomeId[cell] = moisture[cell]! < -200 ? BIOME.SAVANNA : BIOME.WARM_SCRUB;
       landformId[cell] = slope[cell]! < 550 ? LANDFORM.LOWLAND : LANDFORM.ROLLING_LOWLAND;
@@ -551,9 +602,8 @@ export function deriveGreaterRealmTopography(input: Readonly<{
       && slope[cell]! < 550
       && moisture[cell]! > 800
     ) {
-      // Broad riparian meadows follow the actual drainage network. They also
-      // break up otherwise dominant mesic plains without quota-painting by
-      // strategic region.
+      // Broad riparian/gallery old-growth follows the actual drainage network
+      // without quota-painting forest by strategic region.
       biomeId[cell] = BIOME.OLD_GROWTH_FOREST;
       landformId[cell] = moisture[cell]! > 1_900 ? LANDFORM.HILL : LANDFORM.LOWLAND;
     } else if (moisture[cell]! > 800 && exposure[cell]! < -55) {
@@ -603,6 +653,7 @@ export function deriveGreaterRealmTopography(input: Readonly<{
   const smoothingLocked = (cell: number): boolean => (
     waterRegime[cell] !== WATER_DRY
     || legacyProtectedCell[cell] === 1
+    || isPhysicallyExtremeClimate(moisture[cell]!, temperature[cell]!)
     || landformId[cell] === LANDFORM.MOUNTAIN
     || landformId[cell] === LANDFORM.BADLANDS
     || landformId[cell] === LANDFORM.DELTA
@@ -614,81 +665,113 @@ export function deriveGreaterRealmTopography(input: Readonly<{
     || geomorphicCoastalClass[cell] !== 0
   );
 
-  // Remove isolated visual speckles without moving water, protected Lowlands,
-  // climate extremes, or distinctive geomorphology. Biome and landform move as
-  // one pair: smoothing only the biome can synthesize a visual combination
-  // which the deterministic classifier itself would never emit.
-  for (let pass = 0; pass < 2; pass += 1) {
-    const nextBiome = new Uint8Array(biomeId);
-    const nextLandform = new Uint8Array(landformId);
-    for (let cell = 0; cell < grid.cellCount; cell += 1) {
-      if (smoothingLocked(cell)) continue;
-      // Preserve the established biome-majority rule, then choose the most
-      // common compatible landform carried by neighbors of that biome. This
-      // prevents a biome split across two valid landforms from disabling the
-      // smoothing which would previously have occurred.
-      const biomeCounts = new Uint8Array(GREATER_REALM_BIOME_CLASS_COUNT);
-      const pairCounts = new Uint8Array(GREATER_REALM_BIOME_CLASS_COUNT * LANDFORM_PAIR_STRIDE);
-      for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
-        const neighbor = grid.neighbors[cell * NEIGHBOR_COUNT + direction]!;
-        if (neighbor < 0 || waterRegime[neighbor] !== WATER_DRY) continue;
-        if (!isCompatibleBiomeLandformPair(
-          WATER_DRY,
-          biomeId[neighbor]!,
-          landformId[neighbor]!,
-        )) continue;
-        biomeCounts[biomeId[neighbor]!] += 1;
-        pairCounts[biomeId[neighbor]! * LANDFORM_PAIR_STRIDE + landformId[neighbor]!] += 1;
-      }
-      let bestBiome = biomeId[cell]!;
-      let bestCount = biomeCounts[bestBiome]!;
-      for (let biome = 0; biome < biomeCounts.length; biome += 1) {
-        if (biomeCounts[biome]! > bestCount) {
-          bestBiome = biome;
-          bestCount = biomeCounts[biome]!;
+  const preSmoothingBiomeId = new Uint8Array(biomeId);
+  const preSmoothingLandformId = new Uint8Array(landformId);
+  let incompatibleBiomeLandformPairCount = 0;
+  try {
+    // Remove isolated visual speckles without moving water, protected Lowlands,
+    // climate extremes, or distinctive geomorphology. Biome and landform move as
+    // one pair: smoothing only the biome can synthesize a visual combination
+    // which the deterministic classifier itself would never emit.
+    for (let pass = 0; pass < 2; pass += 1) {
+      const nextBiome = new Uint8Array(biomeId);
+      const nextLandform = new Uint8Array(landformId);
+      for (let cell = 0; cell < grid.cellCount; cell += 1) {
+        if (smoothingLocked(cell)) continue;
+        // Preserve the established biome-majority rule, then choose the most
+        // common compatible landform carried by neighbors of that biome. This
+        // prevents a biome split across two valid landforms from disabling the
+        // smoothing which would previously have occurred.
+        const biomeCounts = new Uint8Array(GREATER_REALM_BIOME_CLASS_COUNT);
+        const pairCounts = new Uint8Array(GREATER_REALM_BIOME_CLASS_COUNT * LANDFORM_PAIR_STRIDE);
+        for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
+          const neighbor = grid.neighbors[cell * NEIGHBOR_COUNT + direction]!;
+          if (neighbor < 0 || waterRegime[neighbor] !== WATER_DRY) continue;
+          if (!isCompatibleBiomeLandformPair(
+            WATER_DRY,
+            biomeId[neighbor]!,
+            landformId[neighbor]!,
+          )) continue;
+          if (!isBiomeCompatibleWithPhysicalClimate(
+            biomeId[neighbor]!,
+            moisture[cell]!,
+            temperature[cell]!,
+          )) continue;
+          biomeCounts[biomeId[neighbor]!] += 1;
+          pairCounts[biomeId[neighbor]! * LANDFORM_PAIR_STRIDE + landformId[neighbor]!] += 1;
         }
-      }
-      if (bestCount >= 4) {
-        let bestLandform = biomeId[cell] === bestBiome ? landformId[cell]! : 0;
-        let bestPairCount = biomeId[cell] === bestBiome
-          ? pairCounts[bestBiome * LANDFORM_PAIR_STRIDE + bestLandform]!
-          : -1;
-        for (let landform = 0; landform < LANDFORM_PAIR_STRIDE; landform += 1) {
-          const count = pairCounts[bestBiome * LANDFORM_PAIR_STRIDE + landform]!;
-          if (count > bestPairCount) {
-            bestLandform = landform;
-            bestPairCount = count;
+        let bestBiome = biomeId[cell]!;
+        let bestCount = biomeCounts[bestBiome]!;
+        for (let biome = 0; biome < biomeCounts.length; biome += 1) {
+          if (biomeCounts[biome]! > bestCount) {
+            bestBiome = biome;
+            bestCount = biomeCounts[biome]!;
           }
         }
-        nextBiome[cell] = bestBiome;
-        nextLandform[cell] = bestLandform;
+        if (bestCount >= 4) {
+          let bestLandform = biomeId[cell] === bestBiome ? landformId[cell]! : 0;
+          let bestPairCount = biomeId[cell] === bestBiome
+            ? pairCounts[bestBiome * LANDFORM_PAIR_STRIDE + bestLandform]!
+            : -1;
+          for (let landform = 0; landform < LANDFORM_PAIR_STRIDE; landform += 1) {
+            const count = pairCounts[bestBiome * LANDFORM_PAIR_STRIDE + landform]!;
+            if (count > bestPairCount) {
+              bestLandform = landform;
+              bestPairCount = count;
+            }
+          }
+          nextBiome[cell] = bestBiome;
+          nextLandform[cell] = bestLandform;
+        }
       }
+      biomeId.set(nextBiome);
+      landformId.set(nextLandform);
     }
-    biomeId.set(nextBiome);
-    landformId.set(nextLandform);
-  }
 
-  // Broad forest masses remain, while generated salt-and-pepper woods become
-  // meadow/heath transitions. The frozen Lowlands surface is never touched.
-  consolidateGeneratedForestPatches({
-    grid,
-    waterRegime,
-    legacyProtectedCell,
-    biomeId,
-    landformId,
-    distanceToFreshwater,
-    slope,
-    moisture,
-    exposure,
-  });
+    // Broad forest masses remain, while generated salt-and-pepper woods become
+    // meadow/heath transitions. The frozen Lowlands surface is never touched.
+    consolidateGeneratedForestPatches({
+      grid,
+      waterRegime,
+      legacyProtectedCell,
+      biomeId,
+      landformId,
+      distanceToFreshwater,
+      slope,
+      moisture,
+      temperature,
+      exposure,
+    });
 
-  let incompatibleBiomeLandformPairCount = 0;
-  for (let cell = 0; cell < grid.cellCount; cell += 1) {
-    if (!isCompatibleBiomeLandformPair(
-      waterRegime[cell]!,
-      biomeId[cell]!,
-      landformId[cell]!,
-    )) incompatibleBiomeLandformPairCount += 1;
+    for (let cell = 0; cell < grid.cellCount; cell += 1) {
+      if (!isCompatibleBiomeLandformPair(
+        waterRegime[cell]!,
+        biomeId[cell]!,
+        landformId[cell]!,
+      )) incompatibleBiomeLandformPairCount += 1;
+      if (
+        waterRegime[cell] === WATER_DRY
+        && legacyProtectedCell[cell] !== 1
+        && isPhysicallyExtremeClimate(moisture[cell]!, temperature[cell]!)
+        && (
+          biomeId[cell] !== preSmoothingBiomeId[cell]
+          || landformId[cell] !== preSmoothingLandformId[cell]
+        )
+      ) fail('GREATER_REALM_TOPOGRAPHY_CLIMATE_VISUAL_DRIFT');
+      if (
+        waterRegime[cell] === WATER_DRY
+        && legacyProtectedCell[cell] !== 1
+        && geomorphicAridMask[cell] !== 1
+        && !isBiomeCompatibleWithPhysicalClimate(
+          biomeId[cell]!,
+          moisture[cell]!,
+          temperature[cell]!,
+        )
+      ) fail('GREATER_REALM_TOPOGRAPHY_CLIMATE_VISUAL_DRIFT');
+    }
+  } finally {
+    preSmoothingBiomeId.fill(0);
+    preSmoothingLandformId.fill(0);
   }
 
   const regionBiomeCounts = Array.from({ length: 10 }, () => new Uint32Array(GREATER_REALM_BIOME_CLASS_COUNT));

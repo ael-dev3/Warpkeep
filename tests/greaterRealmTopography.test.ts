@@ -218,13 +218,13 @@ describe('Greater Realm derived topography', () => {
     }
   }, FULL_CANDIDATE_TOPOGRAPHY_TIMEOUT_MS);
 
-  it('smooths visual classification as a compatible pair without moving protected process cells', () => {
+  it('smooths compatible pairs without crossing physical climate or protected process authority', () => {
     const coordinates: Array<{ q: number; r: number }> = [];
     // Use a production-representative connected patch large enough to survive
     // the generated-forest deconfetti pass; this test remains focused on the
     // earlier compatible-pair smoothing behavior.
-    for (let q = -4; q <= 4; q += 1) {
-      for (let r = Math.max(-4, -q - 4); r <= Math.min(4, -q + 4); r += 1) {
+    for (let q = -8; q <= 8; q += 1) {
+      for (let r = Math.max(-8, -q - 8); r <= Math.min(8, -q + 8); r += 1) {
         coordinates.push({ q, r });
       }
     }
@@ -235,9 +235,9 @@ describe('Greater Realm derived topography', () => {
     const aridCell = grid.indexOf({ q: 0, r: 2 });
     const volcanicCell = grid.indexOf({ q: 0, r: -2 });
     const coastalCell = grid.indexOf({ q: 2, r: -2 });
-    const oceanCell = grid.indexOf({ q: 2, r: 0 });
-    const seaCell = grid.indexOf({ q: 2, r: -1 });
-    const lakeCell = grid.indexOf({ q: -2, r: 0 });
+    const oceanCell = grid.indexOf({ q: 8, r: 0 });
+    const seaCell = grid.indexOf({ q: 8, r: -1 });
+    const lakeCell = grid.indexOf({ q: -8, r: 0 });
     const waterRegime = new Uint8Array(grid.cellCount);
     waterRegime[oceanCell] = 1;
     waterRegime[seaCell] = 5;
@@ -257,12 +257,14 @@ describe('Greater Realm derived topography', () => {
     const geomorphicCoastalClass = new Uint8Array(grid.cellCount);
     geomorphicCoastalClass[coastalCell] = 2;
     const geomorphicMoisture = new Int32Array(grid.cellCount);
-    geomorphicMoisture.fill(1_500);
-    geomorphicMoisture[center] = -3_000;
+    geomorphicMoisture.fill(3_000);
+    geomorphicMoisture[center] = 500;
+    const elevation = new Int32Array(grid.cellCount).fill(1_000);
+    const geomorphicTemperature = new Int32Array(grid.cellCount).fill(4_000);
 
-    const result = deriveGreaterRealmTopography({
+    const derive = () => deriveGreaterRealmTopography({
       grid,
-      elevation: new Int32Array(grid.cellCount).fill(1_000),
+      elevation,
       flowReceiver: new Int32Array(grid.cellCount).fill(-1),
       flowAccumulation: new BigUint64Array(grid.cellCount).fill(1n),
       waterRegime,
@@ -274,7 +276,7 @@ describe('Greater Realm derived topography', () => {
       legacyProtectedCell,
       protectedBiomeId,
       protectedLandformId,
-      geomorphicTemperature: new Int32Array(grid.cellCount).fill(4_000),
+      geomorphicTemperature,
       geomorphicMoisture,
       geomorphicGlacialMask,
       geomorphicAridMask,
@@ -284,20 +286,30 @@ describe('Greater Realm derived topography', () => {
 
     // Four ordinary forest neighbors outvote the center's initial grassland
     // class. The matching forest landform must move with the biome.
-    expect(result.biomeId[center]).toBe(2);
-    expect(result.landformId[center]).toBe(5);
-    expect(result.biomeId[protectedCell]).toBe(4);
-    expect(result.landformId[protectedCell]).toBe(3);
-    expect(result.biomeId[glacialCell]).toBe(5);
-    expect(result.landformId[glacialCell]).toBe(15);
-    expect(result.biomeId[aridCell]).toBe(11);
-    expect(result.landformId[aridCell]).toBe(13);
-    expect(result.biomeId[volcanicCell]).toBe(14);
-    expect(result.landformId[volcanicCell]).toBe(12);
-    expect(result.biomeId[coastalCell]).toBe(23);
-    expect(result.landformId[coastalCell]).toBe(17);
-    expect(result.biomeId[seaCell]).toBe(20);
-    expect(result.landformId[seaCell]).toBe(16);
+    const smoothedResult = derive();
+    expect(smoothedResult.biomeId[center]).toBe(GREATER_REALM_BIOME_ID.OLD_GROWTH_FOREST);
+    expect(smoothedResult.landformId[center]).toBe(GREATER_REALM_LANDFORM_ID.LOWLAND);
+
+    // The same target is initially a dune at the canonical physical aridity
+    // threshold. Its four forest neighbors must not overwrite that authority.
+    geomorphicMoisture[center] = -3_000;
+    const result = derive();
+    expect(result.moisture[center]).toBeLessThan(-1_200);
+    expect(result.biomeId[center]).toBe(GREATER_REALM_BIOME_ID.DUNE_DESERT);
+    expect(result.landformId[center]).toBe(GREATER_REALM_LANDFORM_ID.DUNE);
+    expect(result.biomeId[center]).not.toBe(GREATER_REALM_BIOME_ID.OLD_GROWTH_FOREST);
+    expect(result.biomeId[protectedCell]).toBe(GREATER_REALM_BIOME_ID.OLD_GROWTH_FOREST);
+    expect(result.landformId[protectedCell]).toBe(GREATER_REALM_LANDFORM_ID.LOWLAND);
+    expect(result.biomeId[glacialCell]).toBe(GREATER_REALM_BIOME_ID.PINE_FOREST);
+    expect(result.landformId[glacialCell]).toBe(GREATER_REALM_LANDFORM_ID.GLACIAL_VALLEY);
+    expect(result.biomeId[aridCell]).toBe(GREATER_REALM_BIOME_ID.DUNE_DESERT);
+    expect(result.landformId[aridCell]).toBe(GREATER_REALM_LANDFORM_ID.DUNE);
+    expect(result.biomeId[volcanicCell]).toBe(GREATER_REALM_BIOME_ID.VOLCANIC_UPLAND);
+    expect(result.landformId[volcanicCell]).toBe(GREATER_REALM_LANDFORM_ID.BASIN);
+    expect(result.biomeId[coastalCell]).toBe(GREATER_REALM_BIOME_ID.COASTAL);
+    expect(result.landformId[coastalCell]).toBe(GREATER_REALM_LANDFORM_ID.SEA_CLIFF);
+    expect(result.biomeId[seaCell]).toBe(GREATER_REALM_BIOME_ID.SALTWATER);
+    expect(result.landformId[seaCell]).toBe(GREATER_REALM_LANDFORM_ID.ISLAND_SHELF);
     expect(result.biomeMetrics.incompatibleBiomeLandformPairCount).toBe(0);
     for (let cell = 0; cell < grid.cellCount; cell += 1) {
       expect(independentlyCompatiblePair(
@@ -306,5 +318,41 @@ describe('Greater Realm derived topography', () => {
         result.landformId[cell]!,
       )).toBe(true);
     }
+
+    // The reciprocal boundary is equally important: a moist target cannot
+    // inherit an arid visual pair merely because four process neighbors agree.
+    geomorphicMoisture.fill(3_000);
+    geomorphicAridMask.fill(0);
+    for (let direction = 0; direction < 6; direction += 1) {
+      const neighbor = grid.neighbors[center * 6 + direction]!;
+      if (neighbor !== protectedCell && neighbor !== glacialCell) {
+        geomorphicAridMask[neighbor] = 1;
+      }
+    }
+    const moistResult = derive();
+    expect(moistResult.moisture[center]).toBeGreaterThan(-1_200);
+    expect([
+      GREATER_REALM_BIOME_ID.DUNE_DESERT,
+      GREATER_REALM_BIOME_ID.ROCKY_DESERT,
+      GREATER_REALM_BIOME_ID.RED_BADLANDS,
+    ]).not.toContain(moistResult.biomeId[center]);
+
+    // Tundra uses the wider canonical cold boundary even though only the
+    // sub-500 frozen extreme locks a target outright. A warm center therefore
+    // cannot inherit four neighboring tundra/mountain pairs.
+    geomorphicAridMask.fill(0);
+    for (let direction = 0; direction < 6; direction += 1) {
+      const neighbor = grid.neighbors[center * 6 + direction]!;
+      if (neighbor !== protectedCell && neighbor !== glacialCell) {
+        elevation[neighbor] = 14_000;
+        geomorphicTemperature[neighbor] = 1_000;
+      }
+    }
+    const warmResult = derive();
+    expect(warmResult.temperature[center]).toBe(4_000);
+    expect([
+      GREATER_REALM_BIOME_ID.TUNDRA,
+      GREATER_REALM_BIOME_ID.ALPINE_SNOW,
+    ]).not.toContain(warmResult.biomeId[center]);
   });
 });

@@ -40,7 +40,9 @@ heat/moisture regime. A visual label cannot override the physical fields.
 
 Road potential prefers connected, low-slope, dry corridors and may cross only
 river/stream cells that this authority explicitly classifies and proves as
-fords. It avoids lakes, ocean, impassable crests, protected castle pads, sealed
+fords. `CARRIAGEWAY` is dormant future wagon and supply-wagon capacity beside
+major sites, not a spawned vehicle, dispatch path, or movement grant. Routes
+avoid lakes, ocean, impassable crests, protected castle pads, sealed
 gate aprons, and incompatible sites. Ruin and partial-wall anchors require stable
 dry support and bounded clear space. Waystones and lamps require an eligible
 road or site relationship. Rabbit and civilian capacity favors safe habitat;
@@ -50,7 +52,17 @@ an entity or a timer.
 
 Deterministic validation rejects isolated one-cell noise, excessive blanket
 coverage, incompatible overlaps, blocked strategic approaches, and collisions
-with protected Lowlands authority. A private `dressing` preview makes field
+with protected Lowlands authority. Candidate-scale gates require at least eight
+cells in every ecology class; at least 20% lush, 8% cold/upland, and 3%
+arid/savanna ecology; no single class above 55%; 25–85% vegetated eligible land
+with at least 15% open country; and routes covering 5–20% of eligible land.
+They also require at least 32 abandoned ruins with exactly 2–3 adjacent ruined
+wall cells each, 64 waystones, 96 lamps, 128 rabbit habitats, 64 civilian
+footfall cells, 16 guard posts, 32 ordinary courier cells, and 4 exotic-courier
+cells, while all ambient capacity stays at or below 2% of eligible land. These
+are coordinate-free candidate-quality bounds, not runtime spawn quotas.
+
+A private `dressing` preview makes field
 coherence, open-country balance, corridors, and anchor/capacity classes visible
 to the owner. It is the seventh marked preview in the intended package
 contract and must never be committed or published.

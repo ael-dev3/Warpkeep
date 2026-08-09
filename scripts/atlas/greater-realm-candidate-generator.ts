@@ -46,12 +46,21 @@ import {
   GREATER_REALM_LIVING_WORLD_VERSION,
   clearGreaterRealmLivingWorldAuthority,
   deriveGreaterRealmLivingWorld,
+  hasGreaterRealmCandidateScaleLivingWorldCapacity,
   type GreaterRealmLivingWorldInvariants,
   type GreaterRealmLivingWorldMetrics,
 } from './greater-realm-living-world';
+import {
+  GREATER_REALM_BIOME_ID,
+  GREATER_REALM_LANDFORM_ID,
+} from './greater-realm-biomes';
+import {
+  measureGreaterRealmReliefStructure,
+  type GreaterRealmReliefStructureMetrics,
+} from './greater-realm-relief-structure';
 
 export const GREATER_REALM_GENERATOR_VERSION =
-  'greater-realm-v2-natural-continent-pr-a.10' as const;
+  'greater-realm-v2-natural-continent-pr-a.11' as const;
 // Package/algorithm revisions must not silently reroll root-seed ordinals.
 // Bump this namespace only for an explicitly approved deterministic world reroll.
 export const GREATER_REALM_TERRAIN_SEED_NAMESPACE =
@@ -366,6 +375,7 @@ export type GreaterRealmPrivateCandidate = Readonly<{
     barrierMeanUpliftAdvantage: number;
     naturalComposition: GreaterRealmNaturalCompositionMetrics;
     geomorphology: GreaterRealmGeomorphologyMetrics;
+    reliefStructure: GreaterRealmReliefStructureMetrics;
     livingWorld: Readonly<{
       version: typeof GREATER_REALM_LIVING_WORLD_VERSION;
       metrics: GreaterRealmLivingWorldMetrics;
@@ -5641,8 +5651,16 @@ function waterAndBiomes(
   for (let cell = 0; cell < grid.cellCount; cell += 1) {
     if (waterRegime[cell] !== WATER_DRY) {
       const saltwater = waterRegime[cell] === WATER_OCEAN || waterRegime[cell] === WATER_SEA;
-      biomeId[cell] = saltwater ? 20 : waterRegime[cell] === WATER_LAKE ? 21 : 22;
-      landformId[cell] = saltwater ? 16 : waterRegime[cell] === WATER_LAKE ? 10 : 2;
+      biomeId[cell] = saltwater
+        ? GREATER_REALM_BIOME_ID.SALTWATER
+        : waterRegime[cell] === WATER_LAKE
+          ? GREATER_REALM_BIOME_ID.LAKE
+          : GREATER_REALM_BIOME_ID.RIVER_STREAM;
+      landformId[cell] = saltwater
+        ? GREATER_REALM_LANDFORM_ID.ISLAND_SHELF
+        : waterRegime[cell] === WATER_LAKE
+          ? GREATER_REALM_LANDFORM_ID.LAKE_BASIN
+          : GREATER_REALM_LANDFORM_ID.WATERCOURSE;
       continue;
     }
     let maximumDrop = 0;
@@ -5654,20 +5672,47 @@ function waterAndBiomes(
     const temperature = temperatureField[cell]!;
     const moisture = moistureField[cell]!;
     if (maximumDrop > 2_500 || elevation[cell]! > 16_000) {
-      biomeId[cell] = temperature < 2_500 ? 7 : 19;
-      landformId[cell] = elevation[cell]! > 20_000 ? 7 : 6;
+      biomeId[cell] =
+        temperature < 2_500
+          ? GREATER_REALM_BIOME_ID.TUNDRA
+          : GREATER_REALM_BIOME_ID.ROCKY_HIGHLAND;
+      landformId[cell] =
+        elevation[cell]! > 20_000
+          ? GREATER_REALM_LANDFORM_ID.MOUNTAIN
+          : GREATER_REALM_LANDFORM_ID.HIGHLAND;
     } else if (temperature < 1_800) {
-      biomeId[cell] = moisture > 0 ? 6 : 8;
-      landformId[cell] = 14;
+      biomeId[cell] =
+        moisture > 0
+          ? GREATER_REALM_BIOME_ID.ALPINE_SNOW
+          : GREATER_REALM_BIOME_ID.HEATHLAND;
+      landformId[cell] = GREATER_REALM_LANDFORM_ID.ALPINE_PLATEAU;
     } else if (moisture < -1_800) {
-      biomeId[cell] = temperature > 6_000 ? 12 : 11;
-      landformId[cell] = maximumDrop > 900 ? 9 : 13;
+      biomeId[cell] =
+        temperature > 6_000
+          ? GREATER_REALM_BIOME_ID.ROCKY_DESERT
+          : GREATER_REALM_BIOME_ID.DUNE_DESERT;
+      landformId[cell] =
+        maximumDrop > 900
+          ? GREATER_REALM_LANDFORM_ID.BADLANDS
+          : GREATER_REALM_LANDFORM_ID.DUNE;
     } else if (moisture > 2_000) {
-      biomeId[cell] = tierId[cell] === 1 ? 4 : 5;
-      landformId[cell] = maximumDrop > 1_200 ? 5 : 3;
+      biomeId[cell] =
+        tierId[cell] === 1
+          ? GREATER_REALM_BIOME_ID.OLD_GROWTH_FOREST
+          : GREATER_REALM_BIOME_ID.PINE_FOREST;
+      landformId[cell] =
+        maximumDrop > 1_200
+          ? GREATER_REALM_LANDFORM_ID.HILL
+          : GREATER_REALM_LANDFORM_ID.LOWLAND;
     } else {
-      biomeId[cell] = tierId[cell] === 3 ? 15 : 1;
-      landformId[cell] = maximumDrop > 1_000 ? 4 : 3;
+      biomeId[cell] =
+        tierId[cell] === 3
+          ? GREATER_REALM_BIOME_ID.ASH_MEADOW
+          : GREATER_REALM_BIOME_ID.TEMPERATE_LOWLAND;
+      landformId[cell] =
+        maximumDrop > 1_000
+          ? GREATER_REALM_LANDFORM_ID.ROLLING_LOWLAND
+          : GREATER_REALM_LANDFORM_ID.LOWLAND;
     }
   }
   return Object.freeze({
@@ -5702,13 +5747,34 @@ function overlayLegacyLowlandsSurface(
   }
   const tileByKey = new Map(patch.world.tiles.map(tile => [tile.key, tile] as const));
   const visualClass = Object.freeze({
-    lowland: Object.freeze([1, 3] as const),
-    meadow: Object.freeze([2, 3] as const),
-    forest: Object.freeze([4, 3] as const),
-    heath: Object.freeze([9, 3] as const),
-    ridge: Object.freeze([19, 6] as const),
-    lake: Object.freeze([1, 3] as const),
-    'ancient-stone': Object.freeze([19, 5] as const),
+    lowland: Object.freeze([
+      GREATER_REALM_BIOME_ID.TEMPERATE_LOWLAND,
+      GREATER_REALM_LANDFORM_ID.LOWLAND,
+    ] as const),
+    meadow: Object.freeze([
+      GREATER_REALM_BIOME_ID.FLOWER_MEADOW,
+      GREATER_REALM_LANDFORM_ID.LOWLAND,
+    ] as const),
+    forest: Object.freeze([
+      GREATER_REALM_BIOME_ID.OLD_GROWTH_FOREST,
+      GREATER_REALM_LANDFORM_ID.LOWLAND,
+    ] as const),
+    heath: Object.freeze([
+      GREATER_REALM_BIOME_ID.SAVANNA,
+      GREATER_REALM_LANDFORM_ID.LOWLAND,
+    ] as const),
+    ridge: Object.freeze([
+      GREATER_REALM_BIOME_ID.ROCKY_HIGHLAND,
+      GREATER_REALM_LANDFORM_ID.HIGHLAND,
+    ] as const),
+    lake: Object.freeze([
+      GREATER_REALM_BIOME_ID.TEMPERATE_LOWLAND,
+      GREATER_REALM_LANDFORM_ID.LOWLAND,
+    ] as const),
+    'ancient-stone': Object.freeze([
+      GREATER_REALM_BIOME_ID.ROCKY_HIGHLAND,
+      GREATER_REALM_LANDFORM_ID.HILL,
+    ] as const),
   });
   for (const metadata of patch.world.metadata) {
     const tile = tileByKey.get(metadata.tileKey);
@@ -5723,9 +5789,24 @@ function overlayLegacyLowlandsSurface(
   for (const waterCell of patch.water.enabledCells) {
     const cell = grid.indexOf(transformLegacyLowlandsToGlobal(waterCell, legacy.transform));
     if (cell < 0 || legacy.protectedCell[cell] !== 1) return false;
-    waterRegime[cell] = waterCell.regime === 'ocean' ? 1 : waterCell.regime === 'river' ? 3 : 2;
-    biomeId[cell] = waterCell.regime === 'ocean' ? 20 : waterCell.regime === 'river' ? 22 : 21;
-    landformId[cell] = waterCell.regime === 'ocean' ? 16 : waterCell.regime === 'river' ? 2 : 10;
+    waterRegime[cell] =
+      waterCell.regime === 'ocean'
+        ? WATER_OCEAN
+        : waterCell.regime === 'river'
+          ? WATER_RIVER
+          : WATER_LAKE;
+    biomeId[cell] =
+      waterCell.regime === 'ocean'
+        ? GREATER_REALM_BIOME_ID.SALTWATER
+        : waterCell.regime === 'river'
+          ? GREATER_REALM_BIOME_ID.RIVER_STREAM
+          : GREATER_REALM_BIOME_ID.LAKE;
+    landformId[cell] =
+      waterCell.regime === 'ocean'
+        ? GREATER_REALM_LANDFORM_ID.ISLAND_SHELF
+        : waterCell.regime === 'river'
+          ? GREATER_REALM_LANDFORM_ID.WATERCOURSE
+          : GREATER_REALM_LANDFORM_ID.LAKE_BASIN;
     enabledWaterCount += 1;
   }
   if (enabledWaterCount !== GREATER_REALM_LEGACY_LOWLANDS_LOCK_PINS_V1.waterEnabledCellCount) {
@@ -8591,6 +8672,13 @@ export function generateGreaterRealmCandidate(input: Readonly<{
       reconciled.flowReceiver,
       reconciled.filledElevation,
     );
+    const reliefStructure = measureGreaterRealmReliefStructure({
+      grid,
+      elevation: reconciled.elevation,
+      waterRegime: surface.waterRegime,
+      legacyProtectedCell: legacy.protectedCell,
+      dryWaterRegime: WATER_DRY,
+    });
     const naturalComposition = measureGreaterRealmNaturalComposition({
       grid,
       canvasRadius: PRIVATE_CANVAS_RADIUS,
@@ -8670,7 +8758,8 @@ export function generateGreaterRealmCandidate(input: Readonly<{
         && geomorphology.metrics.volcanicAnchorCount <= 8
         && geomorphology.metrics.coastalClassCount >= 3
         && geomorphology.metrics.ridgeUpliftAlignmentBasisPoints >= 8_500
-        && geomorphology.metrics.riverValleyAlignmentBasisPoints >= 8_500,
+        && geomorphology.metrics.riverValleyAlignmentBasisPoints >= 8_500
+        && reliefStructure.proof,
       hydrologyAcyclic,
       hydrologySurfaceConsistency: finalHydrology.surfaceConsistencyProof,
       legacyLowlandsPreserved: legacy.proof && legacySurfaceProof,
@@ -8717,14 +8806,7 @@ export function generateGreaterRealmCandidate(input: Readonly<{
         === fluvial.depositedMaterialUnits + fluvial.exportedSedimentUnits,
       LIVING_WORLD_DORMANT_CAPACITY:
         Object.values(livingWorld.invariants).every(Boolean)
-        && Object.values(livingWorld.metrics.ecologyCellCounts).every(count => count > 0)
-        && livingWorld.metrics.vegetatedCellCount > 0
-        && livingWorld.metrics.eligibleLandVegetatedBasisPoints >= 2_500
-        && livingWorld.metrics.eligibleLandVegetatedBasisPoints <= 8_500
-        && livingWorld.metrics.eligibleLandOpenBasisPoints >= 1_500
-        && Object.values(livingWorld.metrics.routeCellCounts).every(count => count > 0)
-        && Object.values(livingWorld.metrics.landmarkCellCounts).every(count => count > 0)
-        && Object.values(livingWorld.metrics.ambientLifeCellCounts).every(count => count > 0),
+        && hasGreaterRealmCandidateScaleLivingWorldCapacity(livingWorld.metrics),
     });
     const eligibilityFailureCodes = Object.freeze(Object.entries(hardGates)
       .filter(([, passed]) => !passed)
@@ -9029,6 +9111,7 @@ export function generateGreaterRealmCandidate(input: Readonly<{
         barrierMeanUpliftAdvantage: strategicBarrier.barrierMeanUpliftAdvantage,
         naturalComposition,
         geomorphology: geomorphology.metrics,
+        reliefStructure,
         livingWorld: Object.freeze({
           version: livingWorld.version,
           metrics: livingWorld.metrics,

@@ -2,6 +2,10 @@ import {
   GREATER_REALM_AXIAL_DIRECTIONS,
   type IndexedAxialGrid,
 } from './greater-realm-terrain';
+import {
+  GREATER_REALM_BIOME_ID,
+  GREATER_REALM_LANDFORM_ID,
+} from './greater-realm-biomes';
 export { GREATER_REALM_COMPOSITION_PROOF_KEYS } from './greater-realm-contracts';
 
 const HEX_NEIGHBOR_COUNT = GREATER_REALM_AXIAL_DIRECTIONS.length;
@@ -1182,11 +1186,14 @@ export function createGreaterRealmForestMask(input: Readonly<{
     ) continue;
     const biome = input.biomeId[cell]!;
     if (
-      biome === 2
-      || biome === 3
-      // Biome 5 is also used by glacial landform 15. Snow and ice are not
-      // forest merely because the cool-forest visual family shares an ID.
-      || (biome === 5 && input.landformId[cell] !== 15)
+      biome === GREATER_REALM_BIOME_ID.OAK_FOREST
+      || biome === GREATER_REALM_BIOME_ID.OLD_GROWTH_FOREST
+      // Pine visuals are also used by glacial valleys. Snow and ice are not
+      // forest merely because the cool-forest family shares a visual ID.
+      || (
+        biome === GREATER_REALM_BIOME_ID.PINE_FOREST
+        && input.landformId[cell] !== GREATER_REALM_LANDFORM_ID.GLACIAL_VALLEY
+      )
     ) mask[cell] = 1;
   }
   return mask;
@@ -1262,8 +1269,11 @@ export function createGreaterRealmMountainMask(input: Readonly<{
       if (input.waterRegime[cell] !== dryWaterRegime) continue;
       if (
         input.ridgeId[cell]! > 0
-        || (input.biomeId[cell] === 19 && input.landformId[cell] === 6)
-        || input.landformId[cell] === 7
+        || (
+          input.biomeId[cell] === GREATER_REALM_BIOME_ID.ROCKY_HIGHLAND
+          && input.landformId[cell] === GREATER_REALM_LANDFORM_ID.HIGHLAND
+        )
+        || input.landformId[cell] === GREATER_REALM_LANDFORM_ID.MOUNTAIN
       ) core[cell] = 1;
     }
     mask = new Uint8Array(core);

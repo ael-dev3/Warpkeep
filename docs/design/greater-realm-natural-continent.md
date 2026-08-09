@@ -4,7 +4,7 @@ Status: candidate-generation design only
 
 Atlas: `GENESIS_001_GREATER_REALM`
 
-Generator algorithm: `greater-realm-v2-natural-continent-pr-a.10`
+Generator algorithm: `greater-realm-v2-natural-continent-pr-a.11`
 Terrain-seed namespace: `greater-realm-v2-natural-continent-pr-a.3`
 Production state: unchanged
 
@@ -108,12 +108,19 @@ Each candidate runs independently through these stage families:
    temperature, moisture, landforms, and biome classes; visual classifications
    cannot drift away from the process evidence that produced the terrain.
    Generated forest components smaller than 28 connected cells resolve into
-   compatible meadow/heath transitions, leaving broad clustered woods and
-   meaningful open plains and other open country. Candidate-only ecological
-   semantics extend that same evidence into coherent vegetation and habitat
+   compatible meadow, heath, or temperate-lowland transitions, leaving broad
+   clustered woods and meaningful open plains and other open country.
+   Candidate-only ecological semantics extend that same evidence into coherent
+   vegetation and habitat
    patches for temperate forest, taiga, jungle, wetland/swamp, savanna, desert,
    alpine/snow, meadow, heath, and plains. The frozen Lowlands surface is
    excluded from this cleanup and from new-generator composition scoring.
+   The final reconciled dry surface must also pass a private second-order
+   structure-function audit at lags 1, 4, and 12 along all three undirected hex
+   axes. Only complete dry, non-Lowlands corridors contribute; the proof
+   requires adequate pair coverage, genuine multiscale growth, and bounded
+   axial anisotropy so white noise, one-scale blobs, and grid-aligned bands
+   cannot satisfy the terrain gate.
 8. Grow natural geographic basins, bind the working region identities by
    climate/process character, assign the fixed strategic graph, and align tier
    barriers and gate saddles with coherent highlands rather than radial bands.
@@ -189,10 +196,11 @@ A candidate is ineligible if any of these proofs fail:
 - the surrounding ocean is not saltwater at every active boundary cell, lacks
   the global and 12-sector land clearance floors, or visually crowds the
   fog-ready frame;
-- generated forests are outside the 8%–42% dry-land envelope, remain dominated
-  by tiny/confetti components, lack at least three broad patches, or collapse
-  into one blanket mass. Glacial landform 15 and the immutable Lowlands patch
-  are not misclassified as generated forest;
+- generated oak, old-growth, and non-glacial pine forests are outside the
+  8%–42% dry-land envelope, remain dominated by tiny/confetti components, lack
+  at least three broad patches, or collapse into one blanket mass. Flower
+  meadow, glacial valley, and the immutable Lowlands patch are not
+  misclassified as generated forest;
 - ecological dressing breaks landform/biome compatibility, blankets open
   country, fragments major vegetation patches into visual confetti, places
   terrestrial potential on open water, or fails to reserve meaningful plains,
@@ -242,7 +250,8 @@ A candidate is ineligible if any of these proofs fail:
   incompatible hot-arid/frozen visual adjacency survives classification;
 - geomorphology changes the Lowlands reserve, lacks both broad plateau and
   short-ramp terrace evidence, loses its bounded weathered detail, domain warp
-  has no measured effect on the final terrace elevations, violates its
+  has no measured effect on the final terrace elevations, final relief lacks
+  multiscale structure or develops excessive hex-axis banding, violates its
   exact erosion/deposition material budget or climate/tectonic/coastal
   compatibility, or omits the required glacial, arid, volcanic, and coastal
   process evidence;

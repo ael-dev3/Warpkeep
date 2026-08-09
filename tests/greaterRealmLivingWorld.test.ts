@@ -12,6 +12,8 @@ import {
   GREATER_REALM_ROUTE_CLASS,
   clearGreaterRealmLivingWorldAuthority,
   deriveGreaterRealmLivingWorld,
+  hasGreaterRealmCandidateScaleLivingWorldCapacity,
+  type GreaterRealmLivingWorldCandidateCapacityMetrics,
   type GreaterRealmLivingWorldInput,
 } from '../scripts/atlas/greater-realm-living-world';
 import {
@@ -230,6 +232,345 @@ function adjacentToAnyMask(
 }
 
 describe('Greater Realm private living-world authority', () => {
+  it('freezes serialized living-world class identifiers', () => {
+    expect(GREATER_REALM_LIVING_WORLD_VERSION)
+      .toBe('greater-realm-private-living-world-v2');
+    expect(GREATER_REALM_ECOLOGY_CLASS).toEqual({
+      NONE: 0,
+      PLAINS: 1,
+      FOREST: 2,
+      TAIGA: 3,
+      JUNGLE: 4,
+      SWAMP: 5,
+      SAVANNA: 6,
+      DESERT: 7,
+      ALPINE: 8,
+      SNOW: 9,
+    });
+    expect(GREATER_REALM_ROUTE_CLASS).toEqual({
+      NONE: 0,
+      TRACK: 1,
+      ROAD: 2,
+      CARRIAGEWAY: 3,
+      FORD: 4,
+    });
+    expect(GREATER_REALM_LANDMARK_CLASS).toEqual({
+      NONE: 0,
+      ABANDONED_RUIN: 1,
+      RUINED_WALL: 2,
+      WAYSTONE: 3,
+      LAMP_POST: 4,
+    });
+    expect(GREATER_REALM_AMBIENT_LIFE_CLASS).toEqual({
+      NONE: 0,
+      RABBIT_HABITAT: 1,
+      CIVILIAN_FOOTFALL: 2,
+      GUARD_POST: 3,
+      COURIER_ROUTE: 4,
+      EXOTIC_COURIER_ROUTE: 5,
+    });
+  });
+
+  it('accepts candidate-scale living-world capacity at conservative boundaries', () => {
+    const lowerBoundary: GreaterRealmLivingWorldCandidateCapacityMetrics = {
+      dressingEligibleCellCount: 100_000,
+      ecologyCellCounts: {
+        plains: 45_000,
+        forest: 25_000,
+        taiga: 5_000,
+        jungle: 2_500,
+        swamp: 2_500,
+        savanna: 7_000,
+        desert: 3_000,
+        alpine: 6_000,
+        snow: 4_000,
+      },
+      eligibleLandVegetatedBasisPoints: 2_500,
+      eligibleLandOpenBasisPoints: 7_500,
+      routeCellCounts: {
+        track: 1_000,
+        road: 2_500,
+        carriageway: 1_000,
+        ford: 500,
+      },
+      landmarkCellCounts: {
+        abandonedRuin: 32,
+        ruinedWall: 64,
+        waystone: 64,
+        lampPost: 96,
+      },
+      ambientLifeCellCounts: {
+        rabbitHabitat: 128,
+        civilianFootfall: 64,
+        guardPost: 16,
+        courierRoute: 32,
+        exoticCourierRoute: 4,
+      },
+    };
+    expect(
+      hasGreaterRealmCandidateScaleLivingWorldCapacity(lowerBoundary),
+    ).toBe(true);
+    expect(
+      hasGreaterRealmCandidateScaleLivingWorldCapacity({
+        ...lowerBoundary,
+        eligibleLandVegetatedBasisPoints: 8_500,
+        eligibleLandOpenBasisPoints: 1_500,
+        routeCellCounts: {
+          track: 4_000,
+          road: 12_000,
+          carriageway: 3_000,
+          ford: 1_000,
+        },
+        landmarkCellCounts: {
+          ...lowerBoundary.landmarkCellCounts,
+          ruinedWall: 96,
+        },
+        ambientLifeCellCounts: {
+          ...lowerBoundary.ambientLifeCellCounts,
+          rabbitHabitat: 1_884,
+        },
+      }),
+    ).toBe(true);
+  });
+
+  it('rejects every candidate-scale living-world capacity boundary violation', () => {
+    const valid: GreaterRealmLivingWorldCandidateCapacityMetrics = {
+      dressingEligibleCellCount: 100_000,
+      ecologyCellCounts: {
+        plains: 45_000,
+        forest: 25_000,
+        taiga: 5_000,
+        jungle: 2_500,
+        swamp: 2_500,
+        savanna: 7_000,
+        desert: 3_000,
+        alpine: 6_000,
+        snow: 4_000,
+      },
+      eligibleLandVegetatedBasisPoints: 5_000,
+      eligibleLandOpenBasisPoints: 5_000,
+      routeCellCounts: {
+        track: 2_000,
+        road: 6_000,
+        carriageway: 1_000,
+        ford: 1_000,
+      },
+      landmarkCellCounts: {
+        abandonedRuin: 32,
+        ruinedWall: 80,
+        waystone: 64,
+        lampPost: 96,
+      },
+      ambientLifeCellCounts: {
+        rabbitHabitat: 128,
+        civilianFootfall: 64,
+        guardPost: 16,
+        courierRoute: 32,
+        exoticCourierRoute: 4,
+      },
+    };
+    const cases: ReadonlyArray<
+      readonly [string, GreaterRealmLivingWorldCandidateCapacityMetrics]
+    > = [
+      ['empty eligible surface', { ...valid, dressingEligibleCellCount: 0 }],
+      [
+        'ecology partition mismatch',
+        {
+          ...valid,
+          ecologyCellCounts: { ...valid.ecologyCellCounts, plains: 45_001 },
+        },
+      ],
+      [
+        'vegetation/open partition mismatch',
+        { ...valid, eligibleLandOpenBasisPoints: 4_999 },
+      ],
+      [
+        'ecology class floor',
+        {
+          ...valid,
+          ecologyCellCounts: {
+            ...valid.ecologyCellCounts,
+            plains: 47_993,
+            desert: 7,
+          },
+        },
+      ],
+      [
+        'lush ecology floor',
+        {
+          ...valid,
+          ecologyCellCounts: {
+            ...valid.ecologyCellCounts,
+            plains: 55_000,
+            forest: 14_999,
+            jungle: 2_500,
+            swamp: 2_500,
+            savanna: 7_001,
+          },
+        },
+      ],
+      [
+        'cold ecology floor',
+        {
+          ...valid,
+          ecologyCellCounts: {
+            ...valid.ecologyCellCounts,
+            plains: 52_001,
+            taiga: 8,
+            alpine: 3_991,
+            snow: 4_000,
+          },
+        },
+      ],
+      [
+        'arid ecology floor',
+        {
+          ...valid,
+          ecologyCellCounts: {
+            ...valid.ecologyCellCounts,
+            plains: 52_001,
+            savanna: 1_991,
+            desert: 1_008,
+          },
+        },
+      ],
+      [
+        'single ecology cap',
+        {
+          ...valid,
+          ecologyCellCounts: {
+            ...valid.ecologyCellCounts,
+            plains: 55_001,
+            forest: 15_000,
+            taiga: 4_999,
+          },
+        },
+      ],
+      [
+        'vegetation floor',
+        {
+          ...valid,
+          eligibleLandVegetatedBasisPoints: 2_499,
+          eligibleLandOpenBasisPoints: 7_501,
+        },
+      ],
+      [
+        'vegetation cap / open-country floor',
+        {
+          ...valid,
+          eligibleLandVegetatedBasisPoints: 8_501,
+          eligibleLandOpenBasisPoints: 1_499,
+        },
+      ],
+      [
+        'route floor',
+        {
+          ...valid,
+          routeCellCounts: {
+            track: 1_000,
+            road: 2_499,
+            carriageway: 1_000,
+            ford: 500,
+          },
+        },
+      ],
+      [
+        'route cap',
+        {
+          ...valid,
+          routeCellCounts: {
+            track: 4_000,
+            road: 12_001,
+            carriageway: 3_000,
+            ford: 1_000,
+          },
+        },
+      ],
+      [
+        'ruin floor',
+        {
+          ...valid,
+          landmarkCellCounts: {
+            ...valid.landmarkCellCounts,
+            abandonedRuin: 31,
+          },
+        },
+      ],
+      [
+        'ruin-wall floor',
+        {
+          ...valid,
+          landmarkCellCounts: { ...valid.landmarkCellCounts, ruinedWall: 63 },
+        },
+      ],
+      [
+        'ruin-wall cap',
+        {
+          ...valid,
+          landmarkCellCounts: { ...valid.landmarkCellCounts, ruinedWall: 97 },
+        },
+      ],
+      [
+        'waystone floor',
+        {
+          ...valid,
+          landmarkCellCounts: { ...valid.landmarkCellCounts, waystone: 63 },
+        },
+      ],
+      [
+        'lamp floor',
+        {
+          ...valid,
+          landmarkCellCounts: { ...valid.landmarkCellCounts, lampPost: 95 },
+        },
+      ],
+      ...(
+        [
+          ['rabbitHabitat', 127],
+          ['civilianFootfall', 63],
+          ['guardPost', 15],
+          ['courierRoute', 31],
+          ['exoticCourierRoute', 3],
+        ] as const
+      ).map(
+        ([key, count]) =>
+          [
+            `${key} floor`,
+            {
+              ...valid,
+              ambientLifeCellCounts: {
+                ...valid.ambientLifeCellCounts,
+                [key]: count,
+              },
+            },
+          ] as const,
+      ),
+      [
+        'ambient cap',
+        {
+          ...valid,
+          ambientLifeCellCounts: {
+            ...valid.ambientLifeCellCounts,
+            rabbitHabitat: 1_885,
+          },
+        },
+      ],
+      [
+        'invalid count',
+        {
+          ...valid,
+          routeCellCounts: { ...valid.routeCellCounts, ford: -1 },
+        },
+      ],
+    ];
+    for (const [label, metrics] of cases) {
+      expect(
+        hasGreaterRealmCandidateScaleLivingWorldCapacity(metrics),
+        label,
+      ).toBe(false);
+    }
+  });
+
   it('is deterministic, offline-only in shape, and does not mutate or alias candidate inputs', () => {
     const input = syntheticLivingWorldInput();
     const before = {
@@ -348,7 +689,13 @@ describe('Greater Realm private living-world authority', () => {
         elevation: 4_000, expected: GREATER_REALM_ECOLOGY_CLASS.PLAINS },
       { at: cell(-8, 8), biome: GREATER_REALM_BIOME_ID.FLOWER_MEADOW,
         landform: GREATER_REALM_LANDFORM_ID.HILL, temperature: 4_500, moisture: 3_500,
+        elevation: 4_000, expected: GREATER_REALM_ECOLOGY_CLASS.PLAINS },
+      { at: cell(-10, 8), biome: GREATER_REALM_BIOME_ID.OLD_GROWTH_FOREST,
+        landform: GREATER_REALM_LANDFORM_ID.LOWLAND, temperature: 4_500, moisture: 1_000,
         elevation: 4_000, expected: GREATER_REALM_ECOLOGY_CLASS.FOREST },
+      { at: cell(-11, 8), biome: GREATER_REALM_BIOME_ID.OLD_GROWTH_FOREST,
+        landform: GREATER_REALM_LANDFORM_ID.HILL, temperature: 2_500, moisture: 1_000,
+        elevation: 5_000, expected: GREATER_REALM_ECOLOGY_CLASS.TAIGA },
       { at: cell(-12, 8), biome: GREATER_REALM_BIOME_ID.PINE_FOREST,
         landform: GREATER_REALM_LANDFORM_ID.HILL, temperature: 2_500, moisture: 3_000,
         elevation: 5_000, expected: GREATER_REALM_ECOLOGY_CLASS.TAIGA },
@@ -633,6 +980,19 @@ describe('Greater Realm private living-world authority', () => {
         continue;
       }
       if (landmark === GREATER_REALM_LANDMARK_CLASS.NONE) continue;
+      if (landmark === GREATER_REALM_LANDMARK_CLASS.ABANDONED_RUIN) {
+        let adjacentWalls = 0;
+        for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
+          const neighbor = input.grid.neighbors[cell * NEIGHBOR_COUNT + direction]!;
+          if (
+            neighbor >= 0
+            && result.landmarkClass[neighbor]
+              === GREATER_REALM_LANDMARK_CLASS.RUINED_WALL
+          ) adjacentWalls += 1;
+        }
+        expect(adjacentWalls).toBeGreaterThanOrEqual(2);
+        expect(adjacentWalls).toBeLessThanOrEqual(3);
+      }
       expect(routeAtOrAdjacent(input, result.routeClass, cell)).toBe(true);
       anchors.push({ cell, kind: landmark });
     }
@@ -663,6 +1023,7 @@ describe('Greater Realm private living-world authority', () => {
     expect(result.metrics.landmarkSpacingViolationCount).toBe(0);
     expect(result.metrics.landmarkRouteAdjacencyViolationCount).toBe(0);
     expect(result.metrics.orphanedRuinWallCount).toBe(0);
+    expect(result.metrics.ruinWallCardinalityViolationCount).toBe(0);
     expect(result.invariants.landmarksSpaced).toBe(true);
     expect(result.invariants.landmarksRouteAdjacent).toBe(true);
     expect(result.invariants.ruinWallsAnchored).toBe(true);

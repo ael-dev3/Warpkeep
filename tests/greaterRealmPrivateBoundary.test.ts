@@ -16,7 +16,7 @@ import {
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   assertGreaterRealmPrivateInvocation,
@@ -833,6 +833,180 @@ describe('Greater Realm public and release boundary', () => {
     })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_MARKER');
   });
 
+  it('rejects a markerless non-UTF8 binary carrying the complete authority inventory', () => {
+    const paths = scannerRepository();
+    const relativePath = 'public/ordinary-authority.bin';
+    const fields = [
+      'dressing-excluded',
+      'ecology-class',
+      'vegetation-density',
+      'route-class',
+      'landmark-class',
+      'ambient-life-class',
+    ];
+    const bytes = Buffer.concat([
+      Buffer.from([0xff, 0x00, 0x80]),
+      ...fields.flatMap(field => [Buffer.from(field, 'ascii'), Buffer.from([0x00, 0x01])]),
+    ]);
+    try {
+      writeFileSync(join(paths.repositoryRoot, relativePath), bytes);
+    } finally {
+      bytes.fill(0);
+    }
+
+    expect(() => verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      scanRoots: [],
+      trackedPaths: [relativePath],
+    })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
+  });
+
+  it('rejects a markerless UTF-8 binary carrying the complete authority inventory', () => {
+    const paths = scannerRepository();
+    const relativePath = 'public/ordinary-ascii-authority.bin';
+    writeFileSync(join(paths.repositoryRoot, relativePath), [
+      'dressing-excluded',
+      'ecology-class',
+      'vegetation-density',
+      'route-class',
+      'landmark-class',
+      'ambient-life-class',
+      '',
+    ].join('\n'));
+
+    expect(() => verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      scanRoots: [],
+      trackedPaths: [relativePath],
+    })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
+  });
+
+  it('retains binary authority evidence across chunks and split field names', () => {
+    const paths = scannerRepository();
+    const relativePath = 'public/streamed-authority.bin';
+    const bytes = Buffer.alloc(16 * 1_024 * 1_024 + 2 * 64 * 1_024, 0x80);
+    const fields = [
+      ['dressing-excluded', 64 * 1_024 - 5],
+      ['ecology-class', 2 * 1_024 * 1_024 + 11],
+      ['vegetation-density', 5 * 1_024 * 1_024 + 23],
+      ['route-class', 8 * 1_024 * 1_024 + 37],
+      ['landmark-class', 11 * 1_024 * 1_024 + 41],
+      ['ambient-life-class', 15 * 1_024 * 1_024 + 53],
+    ] as const;
+    for (const [field, offset] of fields) bytes.write(field, offset, 'ascii');
+    try {
+      writeFileSync(join(paths.repositoryRoot, relativePath), bytes);
+    } finally {
+      bytes.fill(0);
+    }
+
+    expect(() => verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      scanRoots: [],
+      trackedPaths: [relativePath],
+    })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
+  });
+
+  it('rejects markerless binary authority bytes from the staged blob, not a safer worktree', () => {
+    const paths = scannerRepository();
+    const relativePath = 'public/staged-authority.bin';
+    runFixtureGit(paths.repositoryRoot, ['init', '--quiet']);
+    const bytes = Buffer.concat([
+      Buffer.from([0xff]),
+      Buffer.from([
+        'dressing-excluded\0',
+        'ecology-class\0',
+        'vegetation-density\0',
+        'route-class\0',
+        'landmark-class\0',
+        'ambient-life-class\0',
+      ].join(''), 'ascii'),
+    ]);
+    try {
+      writeFileSync(join(paths.repositoryRoot, relativePath), bytes);
+      runFixtureGit(paths.repositoryRoot, ['add', '--', relativePath]);
+    } finally {
+      bytes.fill(0);
+    }
+    writeFileSync(join(paths.repositoryRoot, relativePath), 'ordinary replacement\n');
+
+    expect(() => verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      scanRoots: [],
+    })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
+  });
+
+  it('rejects markerless UTF-8 authority bytes from the staged binary blob', () => {
+    const paths = scannerRepository();
+    const relativePath = 'public/staged-ascii-authority.bin';
+    runFixtureGit(paths.repositoryRoot, ['init', '--quiet']);
+    writeFileSync(join(paths.repositoryRoot, relativePath), [
+      'dressing-excluded',
+      'ecology-class',
+      'vegetation-density',
+      'route-class',
+      'landmark-class',
+      'ambient-life-class',
+      '',
+    ].join('\n'));
+    runFixtureGit(paths.repositoryRoot, ['add', '--', relativePath]);
+    writeFileSync(join(paths.repositoryRoot, relativePath), 'ordinary replacement\n');
+
+    expect(() => verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      scanRoots: [],
+    })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
+  });
+
+  it.each([false, true])(
+    'zeroizes its owned loaded buffer after %s scan without mutating source bytes',
+    (rejectPrivateMarker) => {
+      const paths = scannerRepository();
+      const relativePath = 'public/zeroization.bin';
+      const source = Buffer.from(
+        rejectPrivateMarker
+          ? ['WKGR-PRIVATE-', 'PACKAGE-V1'].join('')
+          : 'ordinary binary fixture',
+        'utf8',
+      );
+      const expectedSource = Buffer.from(source);
+      writeFileSync(join(paths.repositoryRoot, relativePath), source);
+      const captured: Buffer[] = [];
+      const originalAlloc = Buffer.alloc;
+      const allocationSpy = vi.spyOn(Buffer, 'alloc').mockImplementation((function (
+        size: number,
+        ...rest: unknown[]
+      ) {
+        const buffer = Reflect.apply(originalAlloc, Buffer, [size, ...rest]) as Buffer;
+        if (size === source.length) captured.push(buffer);
+        return buffer;
+      }) as typeof Buffer.alloc);
+      try {
+        if (rejectPrivateMarker) {
+          expect(() => verifyGreaterRealmPublicBoundary({
+            repositoryRoot: paths.repositoryRoot,
+            scanRoots: [],
+            trackedPaths: [relativePath],
+          })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_MARKER');
+        } else {
+          expect(verifyGreaterRealmPublicBoundary({
+            repositoryRoot: paths.repositoryRoot,
+            scanRoots: [],
+            trackedPaths: [relativePath],
+          })).toMatchObject({ trackedPathCount: 1 });
+        }
+      } finally {
+        allocationSpy.mockRestore();
+      }
+
+      expect(captured).toHaveLength(1);
+      expect(captured[0]!.every(value => value === 0)).toBe(true);
+      expect(source).toEqual(expectedSource);
+      source.fill(0);
+      expectedSource.fill(0);
+    },
+  );
+
   it('bounds public binary scanning work', () => {
     const paths = scannerRepository();
     const oversized = join(paths.repositoryRoot, 'public', 'oversized.bin');
@@ -1100,6 +1274,139 @@ describe('Greater Realm public and release boundary', () => {
     })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
   });
 
+  it('rejects markerless JSON containing complete private relief metrics', () => {
+    const paths = scannerRepository();
+    const relativePath = 'tools/ordinary-relief.json';
+    const reliefMetrics = Object.fromEntries([
+      [['eligibleCell', 'Count'].join(''), 12_345],
+      [['pairCountsByLag', 'AndAxis'].join(''), [[12_000, 11_900, 11_800], [9_000, 8_900, 8_800], [4_000, 3_900, 3_800]]],
+      [['pairCoverageBasisPointsByLag', 'AndAxis'].join(''), [[9_721, 9_640, 9_559], [7_290, 7_209, 7_128], [3_240, 3_159, 3_078]]],
+      [['meanSquaredDifferenceByLag', 'AndAxis'].join(''), [[500, 510, 520], [5_000, 5_100, 5_200], [17_000, 17_100, 17_200]]],
+      [['lagOneToFourGrowthBasisPointsBy', 'Axis'].join(''), [100_000, 100_000, 100_000]],
+      [['lagFourToTwelveGrowthBasisPointsBy', 'Axis'].join(''), [34_000, 33_529, 33_077]],
+      [['axialAnisotropyBasisPointsBy', 'Lag'].join(''), [10_400, 10_400, 10_118]],
+      [['pairCoverage', 'Proof'].join(''), true],
+      [['scaleGrowth', 'Proof'].join(''), true],
+      [['axialAnisotropy', 'Proof'].join(''), true],
+      ['proof', true],
+    ]);
+    const payload = `${JSON.stringify({
+      reliefStructure: {
+        version: 'greater-realm-final-relief-structure-v1',
+        ...reliefMetrics,
+      },
+    })}\n`;
+    mkdirSync(join(paths.repositoryRoot, 'tools'));
+    expect(payload).not.toContain('WKGR-PRIVATE');
+    writeFileSync(join(paths.repositoryRoot, relativePath), payload);
+
+    expect(() => verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      scanRoots: [],
+      trackedPaths: [relativePath],
+    })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
+  });
+
+  it.each([
+    [
+      'one pair-count matrix in JSON',
+      'tools/ordinary-relief-pairs.json',
+      `${JSON.stringify(Object.fromEntries([
+        [['pairCountsByLag', 'AndAxis'].join(''), [[1, 2, 3], [4, 5, 6], [7, 8, 9]]],
+      ]))}\n`,
+    ],
+    [
+      'one second-moment matrix in data',
+      'tools/ordinary-relief-moments.data',
+      `${['meanSquaredDifferenceByLag', 'AndAxis'].join('')}=[[1,2,3],[4,5,6],[7,8,9]]\n`,
+    ],
+    [
+      'one scale-growth vector in JSON',
+      'tools/ordinary-relief-growth.json',
+      `${JSON.stringify(Object.fromEntries([
+        [['lagOneToFourGrowthBasisPointsBy', 'Axis'].join(''), [10, 20, 30]],
+      ]))}\n`,
+    ],
+    [
+      'one eligible-cell scalar in data',
+      'tools/ordinary-relief-count.data',
+      'eligibleCellCount=12345\n',
+    ],
+    [
+      'one relief subproof scalar in data',
+      'tools/ordinary-relief-proof.data',
+      `${['scaleGrowth', 'Proof'].join('')}=true\n`,
+    ],
+  ])('rejects markerless relief authority with %s', (
+    _label,
+    relativePath,
+    payload,
+  ) => {
+    const paths = scannerRepository();
+    mkdirSync(join(paths.repositoryRoot, 'tools'));
+    writeFileSync(join(paths.repositoryRoot, relativePath), payload);
+
+    expect(() => verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      scanRoots: [],
+      trackedPaths: [relativePath],
+    })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
+  });
+
+  it.each([
+    [
+      'distinctive pair-count matrix in Markdown',
+      'docs/leak.md',
+      `${['pairCountsByLag', 'AndAxis'].join('')}: [[1,2,3],[4,5,6],[7,8,9]]\n`,
+    ],
+    [
+      'distinctive second-moment matrix in source',
+      'src/leak.ts',
+      `export const ${['meanSquaredDifferenceByLag', 'AndAxis'].join('')} = [[1,2,3],[4,5,6],[7,8,9]];\n`,
+    ],
+    [
+      'named relief subproof in source',
+      'src/leak-proof.ts',
+      `export const ${['scaleGrowth', 'Proof'].join('')} = true;\n`,
+    ],
+  ])('rejects an initialized %s', (_label, relativePath, payload) => {
+    const paths = scannerRepository();
+    writeFileSync(join(paths.repositoryRoot, relativePath), payload);
+
+    expect(() => verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      scanRoots: [],
+      trackedPaths: [relativePath],
+    })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
+  });
+
+  it('allows relief metric vocabulary and type declarations without values', () => {
+    const paths = scannerRepository();
+    const sourcePath = 'src/relief-structure-types.ts';
+    const documentationPath = 'docs/relief-structure-vocabulary.md';
+    writeFileSync(join(paths.repositoryRoot, sourcePath), [
+      'export interface ReliefStructureMetrics {',
+      '  eligibleCellCount: number;',
+      '  pairCountsByLagAndAxis: readonly (readonly number[])[];',
+      '  meanSquaredDifferenceByLagAndAxis: readonly (readonly number[])[];',
+      '  lagOneToFourGrowthBasisPointsByAxis: readonly number[];',
+      '}',
+      '',
+    ].join('\n'));
+    writeFileSync(join(paths.repositoryRoot, documentationPath), [
+      '# Relief structure vocabulary',
+      '',
+      '`pairCountsByLagAndAxis` and `meanSquaredDifferenceByLagAndAxis` are',
+      'private metric field names; this document intentionally has no values.',
+      '',
+    ].join('\n'));
+
+    expect(verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      trackedPaths: [sourcePath, documentationPath],
+    })).toMatchObject({ trackedPathCount: 2 });
+  });
+
   it('rejects a markerless initialized authority array embedded in source', () => {
     const paths = scannerRepository();
     const relativePath = 'tools/ordinary-layout.ts';
@@ -1113,6 +1420,75 @@ describe('Greater Realm public and release boundary', () => {
       repositoryRoot: paths.repositoryRoot,
       trackedPaths: [relativePath],
     })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
+  });
+
+  it.each([
+    ['csv column', 'tools/ecology.csv', 'ecologyClass\n1\n2\n'],
+    ['case-folded CSV column', 'tools/folded-ecology.csv', 'EcologyClass\n1\n'],
+    [
+      'quoted CSV column',
+      'tools/quoted-ecology.csv',
+      'description,ecologyClass\n"ordinary,description",1\n',
+    ],
+    [
+      'quoted multiline CSV column',
+      'tools/multiline-ecology.csv',
+      'description,ecologyClass\n"ordinary, ""quoted""\ndescription",1\n',
+    ],
+    ['tsv column', 'tools/ecology.tsv', 'name\tambient-life-class\nordinary\t5\n'],
+    [
+      'quoted TSV column',
+      'tools/quoted-ecology.tsv',
+      'description\tecologyClass\n"ordinary\tdescription"\t1\n',
+    ],
+    ['data row', 'tools/routes.data', 'route-class 3\n'],
+    ['data key/value row', 'tools/ecology.data', 'ecologyClass=1\n'],
+    ['TXT key/value row', 'tools/ecology.txt', 'ecologyClass=1\n'],
+    ['unknown key/value row', 'tools/ecology.snapshot', 'AMBIENT-LIFE-CLASS:5\n'],
+    ['dat row', 'tools/landmarks.dat', 'landmarkClass|7\n'],
+    ['dat key/value row', 'tools/routes.dat', 'route-class: 3\n'],
+    [
+      'JSON array of objects',
+      'tools/ecology.json',
+      '[{"ecologyClass":1},{"ecologyClass":2}]\n',
+    ],
+    [
+      'JSON object map',
+      'tools/routes.json',
+      '{"cell-a":{"routeClass":3},"cell-b":{"routeClass":4}}\n',
+    ],
+    ['NDJSON value', 'tools/vegetation.ndjson', '{"vegetationDensity":120}\n'],
+  ])('rejects a markerless single authority field with numeric %s', (
+    _label,
+    relativePath,
+    payload,
+  ) => {
+    const paths = scannerRepository();
+    mkdirSync(join(paths.repositoryRoot, 'tools'));
+    writeFileSync(join(paths.repositoryRoot, relativePath), payload);
+
+    expect(() => verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      scanRoots: [],
+      trackedPaths: [relativePath],
+    })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
+  });
+
+  it('allows a tabular vocabulary label when no numeric authority values are present', () => {
+    const paths = scannerRepository();
+    const relativePath = 'tools/living-world-vocabulary.csv';
+    mkdirSync(join(paths.repositoryRoot, 'tools'));
+    writeFileSync(join(paths.repositoryRoot, relativePath), [
+      'ecologyClass,description',
+      'ordinary-label,private vocabulary without authority values',
+      '',
+    ].join('\n'));
+
+    expect(verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      scanRoots: [],
+      trackedPaths: [relativePath],
+    })).toMatchObject({ trackedPathCount: 1 });
   });
 
   it('allows living-world vocabulary in source, documentation, and type declarations', () => {

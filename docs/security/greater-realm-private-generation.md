@@ -64,6 +64,10 @@ The private workspace must:
   generation evidence; compute its unwarped scratch surface through the same
   weathering, coast-strength, displacement-cap, and edge-relaxation path,
   zeroize that scratch surface after comparison, and never publish it;
+- retain final-relief structure-function pair counts, second moments, scale
+  growth, and axial-anisotropy metrics only in the private manifest; the
+  complete-corridor eligibility mask and moment accumulators are zeroized, and
+  public evidence receives only the existing advanced-geomorphology boolean;
 - bind the single dormant Tier III throne anchor as private atlas geometry and
   private manifest coordinates; expose only its boolean proof publicly;
 - fail closed on a stale lock, substitution, permission drift, oversized
@@ -240,6 +244,13 @@ The pull request must prove that it rejects:
   preview references in public evidence;
 - tracked private package extensions or private magic in source, docs,
   `public/`, `dist/`, and source maps;
+- a markerless binary containing the complete six-field living-world authority
+  inventory, including UTF-8-looking unknown extensions and streamed files;
+- any initialized distinctive private final-relief matrix, vector, or named
+  subproof on a text surface, plus ambiguous eligible-cell scalars in data;
+- a markerless single-field numeric living-world authority table or key/value
+  row in CSV, TSV, JSON, NDJSON, DAT, DATA, TXT, or an unfamiliar text
+  extension, including case-folded names and quoted delimiters;
 - source/config/seed/package substitution;
 - a malformed or wrongly typed seed envelope, including a renamed private seed
   that still carries the private marker;

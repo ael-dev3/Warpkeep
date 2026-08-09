@@ -11,6 +11,7 @@ import {
 } from '../scripts/atlas/greater-realm-candidate-generator';
 import { GREATER_REALM_PROOF_KEYS } from '../scripts/atlas/greater-realm-contracts';
 import { GREATER_REALM_ROUTE_CLASS } from '../scripts/atlas/greater-realm-living-world';
+import { measureGreaterRealmReliefStructure } from '../scripts/atlas/greater-realm-relief-structure';
 import {
   GREATER_REALM_LEGACY_LOWLANDS_LOCK_PINS_V1,
   GREATER_REALM_PRIVATE_LEGACY_LOWLANDS_PATCH_V1,
@@ -301,6 +302,21 @@ describe('Greater Realm private candidate generator', () => {
     expect(variant.grid.q).not.toEqual(candidate.grid.q);
   });
 
+  it('binds multiscale final relief and genuine forest patches across independent worlds', () => {
+    const [candidate, , variant] = requireCandidates();
+    for (const world of [candidate, variant]) {
+      const measured = measureGreaterRealmReliefStructure({
+        grid: world.grid,
+        elevation: world.elevation,
+        waterRegime: world.waterRegime,
+        legacyProtectedCell: world.legacyLowlandsProtectedCell,
+      });
+      expect(measured.proof).toBe(true);
+      expect(world.privateMetrics.reliefStructure).toEqual(measured);
+      expect(world.privateMetrics.naturalComposition.forestPatches.proof).toBe(true);
+    }
+  });
+
   it('binds every returned authoritative integer field into stable stage evidence', () => {
     const [candidate, repeated] = requireCandidates();
     const fields = candidateFields(candidate);
@@ -527,7 +543,7 @@ describe('Greater Realm private candidate generator', () => {
       excludedOutputViolationCount: 0,
     });
     expect(JSON.stringify(candidate.aggregate)).not.toMatch(
-      /(?:livingWorld|layoutFingerprint|dressingExcluded|ecologyClass|vegetationDensity|routeClass|landmarkClass|ambientLifeClass|eligibleLandVegetatedBasisPoints|eligibleLandOpenBasisPoints|landmarkCellCounts|ambientLifeCellCounts)/u,
+      /(?:livingWorld|reliefStructure|meanSquaredDifference|pairCountsByLag|layoutFingerprint|dressingExcluded|ecologyClass|vegetationDensity|routeClass|landmarkClass|ambientLifeClass|eligibleLandVegetatedBasisPoints|eligibleLandOpenBasisPoints|landmarkCellCounts|ambientLifeCellCounts)/u,
     );
   });
 

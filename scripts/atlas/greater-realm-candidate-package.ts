@@ -44,6 +44,10 @@ import {
   deriveGreaterRealmLivingWorld,
   type GreaterRealmLivingWorldAuthority,
 } from './greater-realm-living-world';
+import {
+  GREATER_REALM_RELIEF_STRUCTURE_VERSION,
+  measureGreaterRealmReliefStructure,
+} from './greater-realm-relief-structure';
 
 const PRIVATE_ATLAS_FORMAT_VERSION = 6;
 const PRIVATE_ATLAS_MAXIMUM_BYTES = 128 * 1024 * 1024;
@@ -782,6 +786,33 @@ function equalPrivateData(expected: unknown, actual: unknown): boolean {
   return true;
 }
 
+function assertPrivateReliefStructureAuthority(
+  candidate: GreaterRealmPrivateCandidate,
+): void {
+  let expected: ReturnType<typeof measureGreaterRealmReliefStructure>;
+  try {
+    expected = measureGreaterRealmReliefStructure({
+      grid: candidate.grid,
+      elevation: candidate.elevation,
+      waterRegime: candidate.waterRegime,
+      legacyProtectedCell: candidate.legacyLowlandsProtectedCell,
+      dryWaterRegime: PRIVATE_PREVIEW_WATER_DRY,
+    });
+  } catch {
+    fail('GREATER_REALM_PRIVATE_RELIEF_STRUCTURE_INVALID');
+  }
+  let metadataExact = false;
+  try {
+    metadataExact = expected.version === GREATER_REALM_RELIEF_STRUCTURE_VERSION
+      && expected.proof === true
+      && candidate.aggregate.proofs.advancedGeomorphology === true
+      && equalPrivateData(expected, candidate.privateMetrics.reliefStructure);
+  } catch {
+    metadataExact = false;
+  }
+  if (!metadataExact) fail('GREATER_REALM_PRIVATE_RELIEF_STRUCTURE_INVALID');
+}
+
 function assertPrivateLivingWorldAuthority(candidate: GreaterRealmPrivateCandidate): void {
   const cellCount = candidate.grid.cellCount;
   const byteFields = [
@@ -928,6 +959,7 @@ function writeArray(buffer: Buffer, offset: number, field: EncodedField): number
 export function serializeGreaterRealmPrivateAtlas(
   candidate: GreaterRealmPrivateCandidate,
 ): Buffer {
+  assertPrivateReliefStructureAuthority(candidate);
   assertPrivateLivingWorldAuthority(candidate);
   const fields = privateFields(candidate);
   const magic = Buffer.from(GREATER_REALM_PRIVATE_PACKAGE_MAGIC, 'ascii');
@@ -1723,6 +1755,7 @@ export async function renderGreaterRealmPrivatePreview(
   if (!(PRIVATE_PREVIEW_MODES as readonly unknown[]).includes(mode)) {
     fail('GREATER_REALM_PRIVATE_PREVIEW_MODE_INVALID');
   }
+  assertPrivateReliefStructureAuthority(candidate);
   assertPrivateLivingWorldAuthority(candidate);
   return renderValidatedGreaterRealmPrivatePreview(candidate, mode);
 }

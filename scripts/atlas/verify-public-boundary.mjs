@@ -140,6 +140,35 @@ const PRIVATE_LIVING_WORLD_DATA_EXTENSIONS = new Set([
   '.yaml',
   '.yml',
 ]);
+const PRIVATE_LIVING_WORLD_AUTHORITY_ALIASES = Object.freeze(
+  PRIVATE_LIVING_WORLD_AUTHORITY_FIELDS.flat(),
+);
+const PRIVATE_LIVING_WORLD_AUTHORITY_ALIASES_CASEFOLDED = Object.freeze(
+  PRIVATE_LIVING_WORLD_AUTHORITY_ALIASES.map(alias => alias.toLowerCase()),
+);
+const PRIVATE_LIVING_WORLD_AUTHORITY_ALIAS_MINIMUM_LENGTH = Math.min(
+  ...PRIVATE_LIVING_WORLD_AUTHORITY_ALIASES.map(alias => alias.length),
+);
+const PRIVATE_LIVING_WORLD_AUTHORITY_ALIAS_MAXIMUM_LENGTH = Math.max(
+  ...PRIVATE_LIVING_WORLD_AUTHORITY_ALIASES.map(alias => alias.length),
+);
+const PRIVATE_LIVING_WORLD_AUTHORITY_FIELD_MASK =
+  (1 << PRIVATE_LIVING_WORLD_AUTHORITY_FIELDS.length) - 1;
+const PRIVATE_LIVING_WORLD_AUTHORITY_OVERLAP_BYTES = Math.max(
+  ...PRIVATE_LIVING_WORLD_AUTHORITY_ALIASES.map(alias => (
+    Buffer.byteLength(alias, 'ascii') - 1
+  )),
+);
+const PRIVATE_BINARY_SCAN_OVERLAP_BYTES = Math.max(
+  GREATER_REALM_PRIVATE_MARKER_OVERLAP_BYTES,
+  PRIVATE_LIVING_WORLD_AUTHORITY_OVERLAP_BYTES,
+);
+const PRIVATE_LIVING_WORLD_JSON_NUMERIC_FIELD = new RegExp(
+  `["'](?:${PRIVATE_LIVING_WORLD_AUTHORITY_ALIASES.join('|')})["']`
+    + '\\s*:\\s*[-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:e[-+]?\\d+)?'
+    + '(?=\\s*[,}])',
+  'iu',
+);
 const PRIVATE_LIVING_WORLD_AUTHORITY_FIELD_PATTERNS = Object.freeze(
   PRIVATE_LIVING_WORLD_AUTHORITY_FIELDS.map(aliases => new RegExp(
     `(?:^|[^\\p{ID_Continue}$-])(?:${aliases.join('|')})`
@@ -156,6 +185,47 @@ const PRIVATE_LIVING_WORLD_AUTHORITY_ARRAY = new RegExp(
     + '(?:(?:new\\s+)?Uint8Array\\s*\\(\\s*|Uint8Array\\.from\\s*\\(\\s*'
     + '|Buffer\\.from\\s*\\(\\s*)?\\[\\s*[-+]?\\d',
   'mu',
+);
+const PRIVATE_RELIEF_STRUCTURE_MATRIX_FIELDS = Object.freeze([
+  'pairCountsByLagAndAxis',
+  'pairCoverageBasisPointsByLagAndAxis',
+  'meanSquaredDifferenceByLagAndAxis',
+]);
+const PRIVATE_RELIEF_STRUCTURE_VECTOR_FIELDS = Object.freeze([
+  'lagOneToFourGrowthBasisPointsByAxis',
+  'lagFourToTwelveGrowthBasisPointsByAxis',
+  'axialAnisotropyBasisPointsByLag',
+]);
+const PRIVATE_RELIEF_STRUCTURE_BOOLEAN_FIELDS = Object.freeze([
+  'pairCoverageProof',
+  'scaleGrowthProof',
+  'axialAnisotropyProof',
+]);
+const PRIVATE_RELIEF_STRUCTURE_NUMERIC_VALUE =
+  '[-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:e[-+]?\\d+)?';
+const PRIVATE_RELIEF_STRUCTURE_INITIALIZED_MATRIX = new RegExp(
+  `(?:["'\`](?:${PRIVATE_RELIEF_STRUCTURE_MATRIX_FIELDS.join('|')})["'\`]`
+    + `|(?:^|[^\\p{ID_Continue}$-])(?:${PRIVATE_RELIEF_STRUCTURE_MATRIX_FIELDS.join('|')}))`
+    + `\\s*(?::|=)\\s*\\[\\s*\\[\\s*${PRIVATE_RELIEF_STRUCTURE_NUMERIC_VALUE}`,
+  'imu',
+);
+const PRIVATE_RELIEF_STRUCTURE_INITIALIZED_VECTOR = new RegExp(
+  `(?:["'\`](?:${PRIVATE_RELIEF_STRUCTURE_VECTOR_FIELDS.join('|')})["'\`]`
+    + `|(?:^|[^\\p{ID_Continue}$-])(?:${PRIVATE_RELIEF_STRUCTURE_VECTOR_FIELDS.join('|')}))`
+    + `\\s*(?::|=)\\s*\\[\\s*${PRIVATE_RELIEF_STRUCTURE_NUMERIC_VALUE}`,
+  'imu',
+);
+const PRIVATE_RELIEF_STRUCTURE_INITIALIZED_ELIGIBLE_SCALAR = new RegExp(
+  `(?:["'\`]eligibleCellCount["'\`]`
+    + '|(?:^|[^\\p{ID_Continue}$-])eligibleCellCount)'
+    + `\\s*(?::|=)\\s*${PRIVATE_RELIEF_STRUCTURE_NUMERIC_VALUE}`,
+  'imu',
+);
+const PRIVATE_RELIEF_STRUCTURE_INITIALIZED_SUBPROOF = new RegExp(
+  `(?:["'\`](?:${PRIVATE_RELIEF_STRUCTURE_BOOLEAN_FIELDS.join('|')})["'\`]`
+    + `|(?:^|[^\\p{ID_Continue}$-])(?:${PRIVATE_RELIEF_STRUCTURE_BOOLEAN_FIELDS.join('|')}))`
+    + '\\s*(?::|=)\\s*(?:true|false)',
+  'imu',
 );
 // This runtime-only mirror intentionally fails closed when the public review
 // contract changes. Evidence cannot enter either the staged index or worktree
@@ -687,11 +757,220 @@ function privateLivingWorldDataPath(relativePath, text) {
     || (trimmed.startsWith('[') && trimmed.endsWith(']'));
 }
 
+function tabularWhitespace(code) {
+  return code <= 0x20 || code === 0xfeff;
+}
+
+function tabularCellBounds(text, rawStart, rawEnd) {
+  let start = rawStart;
+  let end = rawEnd;
+  while (start < end && tabularWhitespace(text.charCodeAt(start))) start += 1;
+  while (end > start && tabularWhitespace(text.charCodeAt(end - 1))) end -= 1;
+  if (end - start >= 2) {
+    const quote = text[start];
+    if (
+      (quote === '"' || quote === "'" || quote === '`')
+      && text[end - 1] === quote
+    ) {
+      start += 1;
+      end -= 1;
+      while (start < end && tabularWhitespace(text.charCodeAt(start))) start += 1;
+      while (end > start && tabularWhitespace(text.charCodeAt(end - 1))) end -= 1;
+    }
+  }
+  return { start, end };
+}
+
+function tabularCellAuthority(text, start, end) {
+  const length = end - start;
+  if (
+    length < PRIVATE_LIVING_WORLD_AUTHORITY_ALIAS_MINIMUM_LENGTH
+    || length > PRIVATE_LIVING_WORLD_AUTHORITY_ALIAS_MAXIMUM_LENGTH
+  ) return false;
+  return PRIVATE_LIVING_WORLD_AUTHORITY_ALIASES_CASEFOLDED.some(alias => {
+    if (alias.length !== length) return false;
+    for (let offset = 0; offset < length; offset += 1) {
+      const code = text.charCodeAt(start + offset);
+      const casefolded = code >= 0x41 && code <= 0x5a ? code + 0x20 : code;
+      if (casefolded !== alias.charCodeAt(offset)) return false;
+    }
+    return true;
+  });
+}
+
+function tabularCellNumeric(text, start, end) {
+  let index = start;
+  if (index >= end) return false;
+  if (text[index] === '+' || text[index] === '-') index += 1;
+  let integerDigits = 0;
+  while (
+    index < end
+    && text.charCodeAt(index) >= 0x30
+    && text.charCodeAt(index) <= 0x39
+  ) {
+    integerDigits += 1;
+    index += 1;
+  }
+  let fractionalDigits = 0;
+  if (index < end && text[index] === '.') {
+    index += 1;
+    while (
+      index < end
+      && text.charCodeAt(index) >= 0x30
+      && text.charCodeAt(index) <= 0x39
+    ) {
+      fractionalDigits += 1;
+      index += 1;
+    }
+  }
+  if (integerDigits === 0 && fractionalDigits === 0) return false;
+  if (index < end && (text[index] === 'e' || text[index] === 'E')) {
+    index += 1;
+    if (index < end && (text[index] === '+' || text[index] === '-')) index += 1;
+    let exponentDigits = 0;
+    while (
+      index < end
+      && text.charCodeAt(index) >= 0x30
+      && text.charCodeAt(index) <= 0x39
+    ) {
+      exponentDigits += 1;
+      index += 1;
+    }
+    if (exponentDigits === 0) return false;
+  }
+  return index === end;
+}
+
+function containsDelimitedLivingWorldAuthority(
+  text,
+  delimiter,
+  collapseDelimiters = false,
+) {
+  const authorityColumns = new Int32Array(
+    PRIVATE_LIVING_WORLD_AUTHORITY_ALIASES.length,
+  );
+  let authorityColumnCount = 0;
+  let columnIndex = 0;
+  let fieldStart = 0;
+  let fieldHasContent = false;
+  let inQuotes = false;
+  let quote = '';
+  let rowHasAuthority = false;
+  let rowHasNumeric = false;
+
+  const isDelimiter = collapseDelimiters
+    ? character => ' \t,;|:='.includes(character)
+    : character => character === delimiter;
+  const hasAuthorityColumn = column => {
+    for (let index = 0; index < authorityColumnCount; index += 1) {
+      if (authorityColumns[index] === column) return true;
+    }
+    return false;
+  };
+  const addAuthorityColumn = column => {
+    if (hasAuthorityColumn(column)) return false;
+    if (authorityColumnCount >= authorityColumns.length) return true;
+    authorityColumns[authorityColumnCount] = column;
+    authorityColumnCount += 1;
+    return false;
+  };
+  const visitCell = rawEnd => {
+    const { start, end } = tabularCellBounds(text, fieldStart, rawEnd);
+    const authority = tabularCellAuthority(text, start, end);
+    const numeric = tabularCellNumeric(text, start, end);
+    rowHasAuthority ||= authority;
+    rowHasNumeric ||= numeric;
+    if (numeric && hasAuthorityColumn(columnIndex)) return true;
+    if (authority && addAuthorityColumn(columnIndex)) return true;
+    return false;
+  };
+  const finishRow = () => {
+    const result = rowHasAuthority && rowHasNumeric;
+    rowHasAuthority = false;
+    rowHasNumeric = false;
+    columnIndex = 0;
+    return result;
+  };
+
+  for (let index = 0; index <= text.length; index += 1) {
+    if (index === text.length) {
+      if ((!collapseDelimiters || fieldHasContent) && visitCell(index)) return true;
+      return finishRow();
+    }
+    const character = text[index];
+    if (inQuotes) {
+      if (character === quote) {
+        if (text[index + 1] === quote) index += 1;
+        else inQuotes = false;
+      }
+      fieldHasContent = true;
+      continue;
+    }
+    if (
+      !fieldHasContent
+      && (character === '"' || character === "'" || character === '`')
+    ) {
+      inQuotes = true;
+      quote = character;
+      fieldHasContent = true;
+      continue;
+    }
+    if (character === '\r' || character === '\n') {
+      if ((!collapseDelimiters || fieldHasContent) && visitCell(index)) return true;
+      if (finishRow()) return true;
+      if (character === '\r' && text[index + 1] === '\n') index += 1;
+      fieldStart = index + 1;
+      fieldHasContent = false;
+      continue;
+    }
+    if (isDelimiter(character)) {
+      if (!collapseDelimiters || fieldHasContent) {
+        if (visitCell(index)) return true;
+        columnIndex += 1;
+      }
+      fieldStart = index + 1;
+      fieldHasContent = false;
+      continue;
+    }
+    if (!tabularWhitespace(text.charCodeAt(index))) fieldHasContent = true;
+  }
+  return false;
+}
+
+function containsPrivateLivingWorldTabularAuthority(text, relativePath) {
+  const suffix = extension(relativePath);
+  if (suffix === '.json' || suffix === '.ndjson') {
+    return PRIVATE_LIVING_WORLD_JSON_NUMERIC_FIELD.test(text);
+  }
+  if (suffix === '.csv') return containsDelimitedLivingWorldAuthority(text, ',');
+  if (suffix === '.tsv') return containsDelimitedLivingWorldAuthority(text, '\t');
+  // Data-oriented text formats and unfamiliar UTF-8 files are content-sniffed
+  // as bounded key/value rows. Source and documentation extensions retain the
+  // stricter initialized-array rule so ordinary vocabulary and types remain
+  // reviewable without creating an extension-based bypass for renamed data.
+  if (
+    PRIVATE_LIVING_WORLD_DATA_EXTENSIONS.has(suffix)
+    || !knownTextPath(relativePath)
+  ) return containsDelimitedLivingWorldAuthority(text, '', true);
+  return false;
+}
+
+function containsPrivateReliefStructureAuthority(text, relativePath) {
+  if (
+    PRIVATE_RELIEF_STRUCTURE_INITIALIZED_MATRIX.test(text)
+    || PRIVATE_RELIEF_STRUCTURE_INITIALIZED_VECTOR.test(text)
+    || PRIVATE_RELIEF_STRUCTURE_INITIALIZED_SUBPROOF.test(text)
+  ) return true;
+  return privateLivingWorldDataPath(relativePath, text)
+    && PRIVATE_RELIEF_STRUCTURE_INITIALIZED_ELIGIBLE_SCALAR.test(text);
+}
+
 function containsPrivateLivingWorldAuthority(text, relativePath) {
   // Exact initialized numeric authority arrays remain private even when they
   // are pasted into an otherwise ordinary source module. Requiring the first
   // array element to be numeric preserves type-only tuple declarations.
   if (PRIVATE_LIVING_WORLD_AUTHORITY_ARRAY.test(text)) return true;
+  if (containsPrivateLivingWorldTabularAuthority(text, relativePath)) return true;
   if (!privateLivingWorldDataPath(relativePath, text)) return false;
 
   // Encoded private atlases carry a complete six-name field inventory before
@@ -702,6 +981,29 @@ function containsPrivateLivingWorldAuthority(text, relativePath) {
   return PRIVATE_LIVING_WORLD_AUTHORITY_FIELD_PATTERNS.every(pattern => (
     pattern.test(text)
   ));
+}
+
+function privateLivingWorldAuthorityByteMask(bytes, initialMask = 0) {
+  let mask = initialMask;
+  for (let index = 0; index < PRIVATE_LIVING_WORLD_AUTHORITY_FIELDS.length; index += 1) {
+    const bit = 1 << index;
+    if ((mask & bit) !== 0) continue;
+    if (PRIVATE_LIVING_WORLD_AUTHORITY_FIELDS[index].some(alias => (
+      bytes.indexOf(alias, 0, 'ascii') !== -1
+    ))) mask |= bit;
+  }
+  return mask;
+}
+
+function scanBinaryBytes(bytes, initialAuthorityMask = 0) {
+  if (containsGreaterRealmPrivateMarker(bytes)) {
+    fail('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_MARKER');
+  }
+  const authorityMask = privateLivingWorldAuthorityByteMask(bytes, initialAuthorityMask);
+  if (authorityMask === PRIVATE_LIVING_WORLD_AUTHORITY_FIELD_MASK) {
+    fail('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
+  }
+  return authorityMask;
 }
 
 function invalidSanitizedReview() {
@@ -1193,6 +1495,7 @@ function scanText(text, relativePath) {
   }
   if (
     PRIVATE_TEXT_FIELD.test(scrubbed)
+    || containsPrivateReliefStructureAuthority(scrubbed, relativePath)
     || containsPrivateLivingWorldAuthority(scrubbed, relativePath)
     || containsPrivateIdentifierSecretValue(scrubbed)
     || INLINE_DATA_SOURCE_MAP.test(scrubbed)
@@ -1207,6 +1510,7 @@ function scanLoadedBytes(bytes, relativePath, knownText) {
   if (relativePath === SANITIZED_REVIEW_EVIDENCE_README) {
     validateSanitizedReviewEvidenceReadme(bytes);
   }
+  if (!knownText) scanBinaryBytes(bytes);
   const text = decodeUtf8Text(bytes);
   if (knownText && text === undefined) {
     fail('GREATER_REALM_PUBLIC_BOUNDARY_TEXT_ENCODING_INVALID');
@@ -1217,8 +1521,6 @@ function scanLoadedBytes(bytes, relativePath, knownText) {
       if (bytes.length > SANITIZED_REVIEW_MAXIMUM_BYTES) invalidSanitizedReview();
       validateSanitizedReviewEvidence(text);
     }
-  } else if (containsGreaterRealmPrivateMarker(bytes)) {
-    fail('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_MARKER');
   }
 }
 
@@ -1233,8 +1535,8 @@ function scanGitBlob(bytes, relativePath) {
   }
   if (knownText || bytes.length <= MAXIMUM_SCANNED_TEXT_BYTES) {
     scanLoadedBytes(bytes, relativePath, knownText);
-  } else if (containsGreaterRealmPrivateMarker(bytes)) {
-    fail('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_MARKER');
+  } else {
+    scanBinaryBytes(bytes);
   }
 }
 
@@ -1265,33 +1567,48 @@ function scanFile(path, relativePath) {
     ) fail('GREATER_REALM_PUBLIC_BOUNDARY_FILE_CHANGED');
     if (knownText || opened.size <= MAXIMUM_SCANNED_TEXT_BYTES) {
       const bytes = Buffer.alloc(opened.size);
-      let offset = 0;
-      while (offset < bytes.byteLength) {
-        const count = readSync(descriptor, bytes, offset, bytes.byteLength - offset, null);
-        if (count <= 0) fail('GREATER_REALM_PUBLIC_BOUNDARY_READ_FAILED');
-        offset += count;
-      }
-      scanLoadedBytes(bytes, relativePath, knownText);
-    } else {
-      let carry = Buffer.alloc(0);
-      let remaining = opened.size;
-      while (remaining > 0) {
-        const chunk = Buffer.alloc(Math.min(BINARY_SCAN_CHUNK_BYTES, remaining));
+      try {
         let offset = 0;
-        while (offset < chunk.length) {
-          const count = readSync(descriptor, chunk, offset, chunk.length - offset, null);
+        while (offset < bytes.byteLength) {
+          const count = readSync(descriptor, bytes, offset, bytes.byteLength - offset, null);
           if (count <= 0) fail('GREATER_REALM_PUBLIC_BOUNDARY_READ_FAILED');
           offset += count;
         }
-        remaining -= chunk.length;
-        const window = carry.length === 0 ? chunk : Buffer.concat([carry, chunk]);
-        if (containsGreaterRealmPrivateMarker(window)) {
-          fail('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_MARKER');
+        scanLoadedBytes(bytes, relativePath, knownText);
+      } finally {
+        bytes.fill(0);
+      }
+    } else {
+      let carry = Buffer.alloc(0);
+      let authorityMask = 0;
+      try {
+        let remaining = opened.size;
+        while (remaining > 0) {
+          const chunk = Buffer.alloc(Math.min(BINARY_SCAN_CHUNK_BYTES, remaining));
+          let window;
+          try {
+            let offset = 0;
+            while (offset < chunk.length) {
+              const count = readSync(descriptor, chunk, offset, chunk.length - offset, null);
+              if (count <= 0) fail('GREATER_REALM_PUBLIC_BOUNDARY_READ_FAILED');
+              offset += count;
+            }
+            remaining -= chunk.length;
+            window = carry.length === 0 ? chunk : Buffer.concat([carry, chunk]);
+            authorityMask = scanBinaryBytes(window, authorityMask);
+            const nextCarry = Buffer.from(window.subarray(Math.max(
+              0,
+              window.length - PRIVATE_BINARY_SCAN_OVERLAP_BYTES,
+            )));
+            carry.fill(0);
+            carry = nextCarry;
+          } finally {
+            if (window !== undefined && window !== chunk) window.fill(0);
+            chunk.fill(0);
+          }
         }
-        carry = Buffer.from(window.subarray(Math.max(
-          0,
-          window.length - GREATER_REALM_PRIVATE_MARKER_OVERLAP_BYTES,
-        )));
+      } finally {
+        carry.fill(0);
       }
     }
     const after = fstatSync(descriptor);
@@ -1326,40 +1643,46 @@ function checkedTrackedObjects(trackedIndex, repositoryRoot, pathsByObjectId) {
   const objectIds = [...pathsByObjectId.keys()];
   if (objectIds.length === 0) return [];
   const input = Buffer.from(`${objectIds.join('\n')}\n`, 'ascii');
-  const output = invokeTrustedGit(
-    trackedIndex.attestation,
-    repositoryRoot,
-    ['cat-file', '--batch-check=%(objectname) %(objecttype) %(objectsize)'],
-    MAXIMUM_GIT_OUTPUT_BYTES,
-    input,
-  );
-  const text = decodeUtf8Text(output);
-  if (text === undefined) fail('GREATER_REALM_PUBLIC_BOUNDARY_GIT_FAILED');
-  const lines = text.split('\n');
-  if (lines.at(-1) === '') lines.pop();
-  if (lines.length !== objectIds.length) fail('GREATER_REALM_PUBLIC_BOUNDARY_GIT_FAILED');
-  return lines.map((line, index) => {
-    const match = /^([0-9a-f]+) blob (0|[1-9][0-9]*)$/u.exec(line);
-    const expectedObjectId = objectIds[index];
-    if (
-      match === null
-      || match[1] !== expectedObjectId
-      || match[1].length !== trackedIndex.objectIdLength
-    ) fail('GREATER_REALM_PUBLIC_BOUNDARY_GIT_FAILED');
-    const size = Number(match[2]);
-    if (!Number.isSafeInteger(size) || size < 0) {
-      fail('GREATER_REALM_PUBLIC_BOUNDARY_FILE_LIMIT');
-    }
-    for (const relativePath of pathsByObjectId.get(expectedObjectId) ?? []) {
-      if (knownTextPath(relativePath) && size > MAXIMUM_SCANNED_TEXT_BYTES) {
-        fail('GREATER_REALM_PUBLIC_BOUNDARY_TEXT_LIMIT');
+  let output;
+  try {
+    output = invokeTrustedGit(
+      trackedIndex.attestation,
+      repositoryRoot,
+      ['cat-file', '--batch-check=%(objectname) %(objecttype) %(objectsize)'],
+      MAXIMUM_GIT_OUTPUT_BYTES,
+      input,
+    );
+    const text = decodeUtf8Text(output);
+    if (text === undefined) fail('GREATER_REALM_PUBLIC_BOUNDARY_GIT_FAILED');
+    const lines = text.split('\n');
+    if (lines.at(-1) === '') lines.pop();
+    if (lines.length !== objectIds.length) fail('GREATER_REALM_PUBLIC_BOUNDARY_GIT_FAILED');
+    return lines.map((line, index) => {
+      const match = /^([0-9a-f]+) blob (0|[1-9][0-9]*)$/u.exec(line);
+      const expectedObjectId = objectIds[index];
+      if (
+        match === null
+        || match[1] !== expectedObjectId
+        || match[1].length !== trackedIndex.objectIdLength
+      ) fail('GREATER_REALM_PUBLIC_BOUNDARY_GIT_FAILED');
+      const size = Number(match[2]);
+      if (!Number.isSafeInteger(size) || size < 0) {
+        fail('GREATER_REALM_PUBLIC_BOUNDARY_FILE_LIMIT');
       }
-      if (!knownTextPath(relativePath) && size > MAXIMUM_SCANNED_BINARY_BYTES) {
-        fail('GREATER_REALM_PUBLIC_BOUNDARY_BINARY_LIMIT');
+      for (const relativePath of pathsByObjectId.get(expectedObjectId) ?? []) {
+        if (knownTextPath(relativePath) && size > MAXIMUM_SCANNED_TEXT_BYTES) {
+          fail('GREATER_REALM_PUBLIC_BOUNDARY_TEXT_LIMIT');
+        }
+        if (!knownTextPath(relativePath) && size > MAXIMUM_SCANNED_BINARY_BYTES) {
+          fail('GREATER_REALM_PUBLIC_BOUNDARY_BINARY_LIMIT');
+        }
       }
-    }
-    return Object.freeze({ objectId: expectedObjectId, size });
-  });
+      return Object.freeze({ objectId: expectedObjectId, size });
+    });
+  } finally {
+    input.fill(0);
+    output?.fill(0);
+  }
 }
 
 function scanTrackedObjectBatch(
@@ -1373,38 +1696,44 @@ function scanTrackedObjectBatch(
   const maximumOutputBytes = expectedBytes
     + objects.length * (trackedIndex.objectIdLength + 64)
     + 1_024;
-  const output = invokeTrustedGit(
-    trackedIndex.attestation,
-    repositoryRoot,
-    ['cat-file', '--batch'],
-    maximumOutputBytes,
-    input,
-  );
-  let offset = 0;
-  for (const object of objects) {
-    const newline = output.indexOf(0x0a, offset);
-    if (newline < 0) fail('GREATER_REALM_PUBLIC_BOUNDARY_GIT_FAILED');
-    const header = decodeUtf8Text(output.subarray(offset, newline));
-    const match = header === undefined
-      ? null
-      : /^([0-9a-f]+) blob (0|[1-9][0-9]*)$/u.exec(header);
-    if (
-      match === null
-      || match[1] !== object.objectId
-      || Number(match[2]) !== object.size
-    ) fail('GREATER_REALM_PUBLIC_BOUNDARY_GIT_FAILED');
-    const bodyStart = newline + 1;
-    const bodyEnd = bodyStart + object.size;
-    if (bodyEnd >= output.length || output[bodyEnd] !== 0x0a) {
-      fail('GREATER_REALM_PUBLIC_BOUNDARY_GIT_FAILED');
+  let output;
+  try {
+    output = invokeTrustedGit(
+      trackedIndex.attestation,
+      repositoryRoot,
+      ['cat-file', '--batch'],
+      maximumOutputBytes,
+      input,
+    );
+    let offset = 0;
+    for (const object of objects) {
+      const newline = output.indexOf(0x0a, offset);
+      if (newline < 0) fail('GREATER_REALM_PUBLIC_BOUNDARY_GIT_FAILED');
+      const header = decodeUtf8Text(output.subarray(offset, newline));
+      const match = header === undefined
+        ? null
+        : /^([0-9a-f]+) blob (0|[1-9][0-9]*)$/u.exec(header);
+      if (
+        match === null
+        || match[1] !== object.objectId
+        || Number(match[2]) !== object.size
+      ) fail('GREATER_REALM_PUBLIC_BOUNDARY_GIT_FAILED');
+      const bodyStart = newline + 1;
+      const bodyEnd = bodyStart + object.size;
+      if (bodyEnd >= output.length || output[bodyEnd] !== 0x0a) {
+        fail('GREATER_REALM_PUBLIC_BOUNDARY_GIT_FAILED');
+      }
+      const bytes = output.subarray(bodyStart, bodyEnd);
+      for (const relativePath of pathsByObjectId.get(object.objectId) ?? []) {
+        scanGitBlob(bytes, relativePath);
+      }
+      offset = bodyEnd + 1;
     }
-    const bytes = output.subarray(bodyStart, bodyEnd);
-    for (const relativePath of pathsByObjectId.get(object.objectId) ?? []) {
-      scanGitBlob(bytes, relativePath);
-    }
-    offset = bodyEnd + 1;
+    if (offset !== output.length) fail('GREATER_REALM_PUBLIC_BOUNDARY_GIT_FAILED');
+  } finally {
+    input.fill(0);
+    output?.fill(0);
   }
-  if (offset !== output.length) fail('GREATER_REALM_PUBLIC_BOUNDARY_GIT_FAILED');
 }
 
 function scanTrackedIndexBlobs(trackedIndex, repositoryRoot) {

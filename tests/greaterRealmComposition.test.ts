@@ -22,6 +22,10 @@ import {
   measureGreaterRealmPatchComposition,
 } from '../scripts/atlas/greater-realm-composition';
 import {
+  GREATER_REALM_BIOME_ID,
+  GREATER_REALM_LANDFORM_ID,
+} from '../scripts/atlas/greater-realm-biomes';
+import {
   indexGreaterRealmAxialGrid,
   type AxialCoordinate,
   type IndexedAxialGrid,
@@ -347,20 +351,31 @@ describe('Greater Realm pure composition metrics', () => {
     const biomeId = new Uint8Array(grid.cellCount);
     const landformId = new Uint8Array(grid.cellCount);
     const protectedCell = new Uint8Array(grid.cellCount);
-    const forestBiomes = [2, 5, 3, 4, 4];
+    const forestBiomes = [
+      GREATER_REALM_BIOME_ID.OLD_GROWTH_FOREST,
+      GREATER_REALM_BIOME_ID.OAK_FOREST,
+      GREATER_REALM_BIOME_ID.PINE_FOREST,
+      GREATER_REALM_BIOME_ID.FLOWER_MEADOW,
+      GREATER_REALM_BIOME_ID.TEMPERATE_LOWLAND,
+      GREATER_REALM_BIOME_ID.PINE_FOREST,
+      GREATER_REALM_BIOME_ID.OAK_FOREST,
+      GREATER_REALM_BIOME_ID.OLD_GROWTH_FOREST,
+    ];
     for (let cell = 0; cell < forestBiomes.length; cell += 1) {
       biomeId[cell] = forestBiomes[cell]!;
     }
-    protectedCell[3] = 1;
-    waterRegime[2] = 1;
-    landformId[1] = 15;
+    landformId[5] = GREATER_REALM_LANDFORM_ID.GLACIAL_VALLEY;
+    waterRegime[6] = 1;
+    protectedCell[7] = 1;
     const forest = createGreaterRealmForestMask({
       waterRegime,
       biomeId,
       landformId,
       legacyProtectedCell: protectedCell,
     });
-    expect(forest.slice(0, 5)).toEqual(Uint8Array.from([1, 0, 0, 0, 0]));
+    expect(forest.slice(0, 8)).toEqual(
+      Uint8Array.from([1, 1, 1, 0, 0, 0, 0, 0]),
+    );
   });
 
   it('requires clustered, off-centre mountain belts rather than a centered ring', () => {
