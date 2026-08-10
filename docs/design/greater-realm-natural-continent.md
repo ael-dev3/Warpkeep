@@ -359,9 +359,14 @@ for review—not eight separate worlds or parallel variants.
 Private owner review includes silhouette,
 hillshade, biome, hydrology, region-topology/outer-ocean, and mountain/gate
 views, plus a dressing view for clustered vegetation, open-country balance,
-route/site anchors, and ambient-life capacity. The dressing view is private
-candidate evidence only; it does not contain or authorize runtime assets,
-spawned actors, simulation, or persistence. The region view uses a fixed opaque
+route/site anchors, and ambient-life capacity. The one dressing file is a
+high-resolution, vertically split private composite whose independently
+labelled ecology/woody, groundcover, and wildflower panels share one exact
+projection. Its non-sensitive legends distinguish density, water, exclusions,
+routes, landmarks, and ambient capacity without recording a coordinate or
+private value in text. The dressing view is private candidate evidence only;
+it does not contain or authorize runtime assets, spawned actors, simulation,
+or persistence. The region view uses a fixed opaque
 fog exterior and review-only outer-ocean bands; its watermark explicitly
 identifies it as a composition proxy, not shipped runtime fog or server
 fog-of-war authority. The silhouette follows topographic land at sea level, so

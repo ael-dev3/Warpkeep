@@ -82,6 +82,38 @@ const PRIVATE_PREVIEW_WATER_STREAM = 4;
 const PRIVATE_PREVIEW_WATER_SEA = 5;
 const PRIVATE_PREVIEW_FOG_COLOR = Object.freeze([24, 22, 31] as const);
 const PRIVATE_PREVIEW_SKY_HAZE = Object.freeze([174, 188, 207] as const);
+export const GREATER_REALM_PRIVATE_DRESSING_PREVIEW_LAYOUT = Object.freeze({
+  width: 1_920,
+  height: 3_072,
+  footerHeight: 44,
+  panelCount: 3,
+  panelHeaderHeight: 48,
+  panelHorizontalMargin: 40,
+  panelVerticalMargin: 8,
+  panelOrder: Object.freeze([
+    'ecology-woody',
+    'groundcover',
+    'wildflowers',
+  ] as const),
+});
+const PRIVATE_DRESSING_DRY_ABSENT = Object.freeze([78, 73, 58] as const);
+const PRIVATE_DRESSING_EXCLUDED = Object.freeze([66, 59, 73] as const);
+const PRIVATE_DRESSING_WATER_OCEAN = Object.freeze([35, 75, 119] as const);
+const PRIVATE_DRESSING_WATER_FRESH = Object.freeze([55, 115, 164] as const);
+const PRIVATE_DRESSING_WATER_FLOWING = Object.freeze([63, 142, 190] as const);
+const PRIVATE_DRESSING_FORD = Object.freeze([233, 184, 79] as const);
+const PRIVATE_DRESSING_ECOLOGY_PALETTE = Object.freeze([
+  Object.freeze([54, 58, 64] as const),
+  Object.freeze([154, 173, 95] as const),
+  Object.freeze([57, 114, 65] as const),
+  Object.freeze([60, 99, 88] as const),
+  Object.freeze([45, 126, 79] as const),
+  Object.freeze([65, 111, 94] as const),
+  Object.freeze([173, 156, 77] as const),
+  Object.freeze([194, 157, 86] as const),
+  Object.freeze([113, 121, 117] as const),
+  Object.freeze([194, 207, 220] as const),
+] as const);
 // Candidate elevation is fail-closed to ±60k, so this review camera remains
 // physically above every legal peak.
 const PRIVATE_PREVIEW_CAMERA_HEIGHT = 80_000;
@@ -1525,12 +1557,220 @@ function privatePreviewDistanceToTopographicLand(
   }
 }
 
+type PrivatePreviewColor = readonly [number, number, number];
+
+function privateDressingWaterColor(
+  candidate: GreaterRealmPrivateCandidate,
+  index: number,
+): PrivatePreviewColor {
+  if (candidate.routeClass[index] === GREATER_REALM_ROUTE_CLASS.FORD) {
+    return PRIVATE_DRESSING_FORD;
+  }
+  const regime = candidate.waterRegime[index]!;
+  if (regime === PRIVATE_PREVIEW_WATER_OCEAN) {
+    return PRIVATE_DRESSING_WATER_OCEAN;
+  }
+  if (
+    regime === PRIVATE_PREVIEW_WATER_RIVER
+    || regime === PRIVATE_PREVIEW_WATER_STREAM
+  ) return PRIVATE_DRESSING_WATER_FLOWING;
+  return PRIVATE_DRESSING_WATER_FRESH;
+}
+
+function privateDressingEcologyColor(
+  candidate: GreaterRealmPrivateCandidate,
+  index: number,
+): PrivatePreviewColor {
+  if (candidate.waterRegime[index] !== PRIVATE_PREVIEW_WATER_DRY) {
+    return privateDressingWaterColor(candidate, index);
+  }
+  if (candidate.dressingExcluded[index] !== 0) return PRIVATE_DRESSING_EXCLUDED;
+  const base = PRIVATE_DRESSING_ECOLOGY_PALETTE[
+    candidate.ecologyClass[index] ?? GREATER_REALM_ECOLOGY_CLASS.NONE
+  ]!;
+  const vegetation = candidate.vegetationDensity[index]!;
+  let color: PrivatePreviewColor = [
+    clampPreview(base[0] - Math.floor(vegetation / 14)),
+    clampPreview(base[1] + Math.floor(vegetation / 18)),
+    clampPreview(base[2] - Math.floor(vegetation / 24)),
+  ];
+  const route = candidate.routeClass[index]!;
+  if (route !== GREATER_REALM_ROUTE_CLASS.NONE) {
+    color = route === GREATER_REALM_ROUTE_CLASS.CARRIAGEWAY
+      ? [199, 154, 87]
+      : route === GREATER_REALM_ROUTE_CLASS.ROAD
+        ? [161, 122, 75]
+        : [125, 101, 70];
+  }
+  const landmark = candidate.landmarkClass[index]!;
+  if (landmark !== GREATER_REALM_LANDMARK_CLASS.NONE) {
+    color = landmark === GREATER_REALM_LANDMARK_CLASS.LAMP_POST
+      ? [245, 204, 85]
+      : landmark === GREATER_REALM_LANDMARK_CLASS.WAYSTONE
+        ? [177, 119, 205]
+        : landmark === GREATER_REALM_LANDMARK_CLASS.ABANDONED_RUIN
+          ? [146, 136, 129]
+          : [105, 98, 95];
+  }
+  const ambient = candidate.ambientLifeClass[index]!;
+  if (ambient !== GREATER_REALM_AMBIENT_LIFE_CLASS.NONE) {
+    color = ambient === GREATER_REALM_AMBIENT_LIFE_CLASS.RABBIT_HABITAT
+      ? [212, 220, 163]
+      : ambient === GREATER_REALM_AMBIENT_LIFE_CLASS.CIVILIAN_FOOTFALL
+        ? [113, 179, 213]
+        : ambient === GREATER_REALM_AMBIENT_LIFE_CLASS.GUARD_POST
+          ? [190, 88, 78]
+          : ambient === GREATER_REALM_AMBIENT_LIFE_CLASS.COURIER_ROUTE
+            ? [105, 210, 188]
+            : [217, 120, 222];
+  }
+  return color;
+}
+
+function privateDressingGroundcoverColor(
+  candidate: GreaterRealmPrivateCandidate,
+  index: number,
+): PrivatePreviewColor {
+  if (candidate.waterRegime[index] !== PRIVATE_PREVIEW_WATER_DRY) {
+    return privateDressingWaterColor(candidate, index);
+  }
+  if (candidate.dressingExcluded[index] !== 0) return PRIVATE_DRESSING_EXCLUDED;
+  const density = candidate.groundcoverDensity[index]!;
+  if (density === 0) return PRIVATE_DRESSING_DRY_ABSENT;
+  const normalized = density / 255;
+  return [
+    clampPreview(Math.round(82 - normalized * 28)),
+    clampPreview(Math.round(78 + normalized * 118)),
+    clampPreview(Math.round(56 + normalized * 38)),
+  ];
+}
+
+function privateDressingWildflowerColor(
+  candidate: GreaterRealmPrivateCandidate,
+  index: number,
+): PrivatePreviewColor {
+  if (candidate.waterRegime[index] !== PRIVATE_PREVIEW_WATER_DRY) {
+    return privateDressingWaterColor(candidate, index);
+  }
+  if (candidate.dressingExcluded[index] !== 0) return PRIVATE_DRESSING_EXCLUDED;
+  const groundcover = candidate.groundcoverDensity[index]!;
+  const wildflowers = candidate.wildflowerDensity[index]!;
+  if (groundcover === 0) return PRIVATE_DRESSING_DRY_ABSENT;
+  if (wildflowers === 0) {
+    const normalizedGroundcover = groundcover / 255;
+    return [
+      clampPreview(Math.round(74 - normalizedGroundcover * 12)),
+      clampPreview(Math.round(82 + normalizedGroundcover * 45)),
+      clampPreview(Math.round(60 + normalizedGroundcover * 18)),
+    ];
+  }
+  const normalized = wildflowers / 255;
+  return [
+    clampPreview(Math.round(118 + normalized * 108)),
+    clampPreview(Math.round(84 + normalized * 58)),
+    clampPreview(Math.round(126 + normalized * 92)),
+  ];
+}
+
+function writePrivatePreviewCell(
+  pixels: Buffer,
+  width: number,
+  height: number,
+  x: number,
+  y: number,
+  span: number,
+  color: PrivatePreviewColor,
+): void {
+  for (let offsetY = 0; offsetY < span; offsetY += 1) {
+    for (let offsetX = 0; offsetX < span; offsetX += 1) {
+      const targetX = x + offsetX;
+      const targetY = y + offsetY;
+      if (
+        targetX < 0
+        || targetX >= width
+        || targetY < 0
+        || targetY >= height
+      ) continue;
+      const pixel = (targetY * width + targetX) * 4;
+      pixels[pixel] = color[0];
+      pixels[pixel + 1] = color[1];
+      pixels[pixel + 2] = color[2];
+      pixels[pixel + 3] = 255;
+    }
+  }
+}
+
+function privateDressingPreviewOverlaySvg(panelHeight: number): string {
+  const { width, height, footerHeight } =
+    GREATER_REALM_PRIVATE_DRESSING_PREVIEW_LAYOUT;
+  const headers = [
+    Object.freeze({
+      title: 'ECOLOGY + WOODY DENSITY',
+      lowLabel: 'LOW WOODY',
+      highLabel: 'DENSE WOODY',
+      swatches: ['#9aad5f', '#789557', '#3d7c48', '#326b44', '#274e38'],
+      categories:
+        '<rect x="1110" y="15" width="18" height="18" fill="#c79a57"/>'
+        + '<text x="1138" y="30">ROUTE</text>'
+        + '<rect x="1260" y="15" width="18" height="18" fill="#b177cd"/>'
+        + '<text x="1288" y="30">LANDMARK</text>'
+        + '<rect x="1464" y="15" width="18" height="18" fill="#69d2bc"/>'
+        + '<text x="1492" y="30">AMBIENT</text>',
+    }),
+    Object.freeze({
+      title: 'GROUNDCOVER DENSITY',
+      lowLabel: 'NONE',
+      highLabel: 'DENSE',
+      swatches: ['#4e493a', '#4b6c42', '#477f49', '#42934f', '#36c45e'],
+      categories: '<text x="1110" y="30">WOODY-INDEPENDENT AUTHORITY</text>',
+    }),
+    Object.freeze({
+      title: 'WILDFLOWER DENSITY',
+      lowLabel: 'NONE',
+      highLabel: 'DENSE',
+      swatches: ['#456b45', '#916a96', '#ac70a9', '#c377bc', '#e28eda'],
+      categories: '<text x="1110" y="30">FLOWERS REQUIRE GROUNDCOVER</text>',
+    }),
+  ] as const;
+  const boundaryLegend =
+    '<rect x="1608" y="15" width="18" height="18" fill="#423b49"/>'
+    + '<text x="1636" y="30">EXCLUDED</text>'
+    + '<rect x="1760" y="15" width="18" height="18" fill="#3773a4"/>'
+    + '<text x="1788" y="30">WATER</text>';
+  const headerMarkup = headers.map((header, panel) => {
+    const y = panel * panelHeight;
+    const swatches = header.swatches.map((fill, index) => (
+      `<rect x="${750 + index * 42}" y="15" width="32" height="18" fill="${fill}"/>`
+    )).join('');
+    return `<g transform="translate(0 ${y})" font-family="sans-serif" font-size="14" fill="#d8dbe1">`
+      + `<rect width="${width}" height="48" fill="#0b0d16" fill-opacity="0.94"/>`
+      + '<text x="32" y="31" fill="#e0b85d" font-size="20" letter-spacing="2">'
+      + `${header.title}</text>`
+      + `<text x="680" y="30">${header.lowLabel}</text>${swatches}`
+      + `<text x="970" y="30">${header.highLabel}</text>`
+      + header.categories
+      + boundaryLegend
+      + `<path d="M0 ${panelHeight - 1} H${width}" stroke="#5a5267" stroke-width="2"/>`
+      + '</g>';
+  }).join('');
+  return `<svg width="${width}" height="${height}">`
+    + headerMarkup
+    + `<rect width="100%" height="${footerHeight}" y="${height - footerHeight}" fill="#0b0d16" fill-opacity="0.94"/>`
+    + `<text x="32" y="${height - 15}" fill="#e0b85d" font-family="sans-serif" font-size="20" letter-spacing="3">DORMANT ECOLOGY + CORRIDOR CAPACITY · PRIVATE REVIEW · NOT RUNTIME</text>`
+    + '</svg>';
+}
+
 async function renderValidatedGreaterRealmPrivatePreview(
   candidate: GreaterRealmPrivateCandidate,
   mode: GreaterRealmPrivatePreviewMode,
 ): Promise<Buffer> {
-  const width = 1_280;
-  const height = 1_024;
+  const dressing = mode === 'dressing';
+  const width = dressing
+    ? GREATER_REALM_PRIVATE_DRESSING_PREVIEW_LAYOUT.width
+    : 1_280;
+  const height = dressing
+    ? GREATER_REALM_PRIVATE_DRESSING_PREVIEW_LAYOUT.height
+    : 1_024;
   const pixels = Buffer.alloc(width * height * 4, 0);
   let watermark: Buffer | undefined;
   let encoded: Buffer | undefined;
@@ -1563,12 +1803,28 @@ async function renderValidatedGreaterRealmPrivatePreview(
     const projectedXSpan = maximumProjectedX - minimumProjectedX + 1;
     const previewCameraQ = (minimumQ + maximumQ) / 2;
     const previewCameraR = (minimumR + maximumR) / 2;
-    const scale = Math.max(
-      1,
-      Math.floor(
-        Math.min((width - 80) / projectedXSpan, (height - 120) / rSpan),
-      ),
-    );
+    const dressingPanelHeight = dressing
+      ? Math.floor((
+        height - GREATER_REALM_PRIVATE_DRESSING_PREVIEW_LAYOUT.footerHeight
+      ) / GREATER_REALM_PRIVATE_DRESSING_PREVIEW_LAYOUT.panelCount)
+      : 0;
+    const dressingMapAreaHeight = dressing
+      ? dressingPanelHeight
+        - GREATER_REALM_PRIVATE_DRESSING_PREVIEW_LAYOUT.panelHeaderHeight
+        - GREATER_REALM_PRIVATE_DRESSING_PREVIEW_LAYOUT.panelVerticalMargin * 2
+      : 0;
+    const dressingProjectedHeightSpan = Math.max(1, (rSpan - 1) * 0.86 + 1);
+    const scale = Math.max(1, Math.floor(Math.min(
+      dressing
+        ? (
+          width
+          - GREATER_REALM_PRIVATE_DRESSING_PREVIEW_LAYOUT.panelHorizontalMargin * 2
+        ) / projectedXSpan
+        : (width - 80) / projectedXSpan,
+      dressing
+        ? dressingMapAreaHeight / dressingProjectedHeightSpan
+        : (height - 120) / rSpan,
+    )));
     const cellPixelSpan = Math.max(1, scale);
     const projectedWidth = Math.round(
       (maximumProjectedX - minimumProjectedX) * scale,
@@ -1576,10 +1832,11 @@ async function renderValidatedGreaterRealmPrivatePreview(
     const projectedHeight = Math.round((rSpan - 1) * scale * 0.86)
       + cellPixelSpan;
     const previewOriginX = Math.max(0, Math.round((width - projectedWidth) / 2));
-    const previewOriginY = Math.max(
-      0,
-      Math.round((height - 44 - projectedHeight) / 2),
-    );
+    const previewOriginY = dressing
+      ? GREATER_REALM_PRIVATE_DRESSING_PREVIEW_LAYOUT.panelHeaderHeight
+        + GREATER_REALM_PRIVATE_DRESSING_PREVIEW_LAYOUT.panelVerticalMargin
+        + Math.max(0, Math.round((dressingMapAreaHeight - projectedHeight) / 2))
+      : Math.max(0, Math.round((height - 44 - projectedHeight) / 2));
     const palette = [
       [74, 126, 72],
       [80, 141, 187],
@@ -1617,18 +1874,6 @@ async function renderValidatedGreaterRealmPrivatePreview(
       [116, 103, 126],
       [85, 121, 142],
       [116, 84, 135],
-    ] as const;
-    const ecologyPalette = [
-      [54, 58, 64],
-      [154, 173, 95],
-      [57, 114, 65],
-      [60, 99, 88],
-      [45, 126, 79],
-      [65, 111, 94],
-      [173, 156, 77],
-      [194, 157, 86],
-      [113, 121, 117],
-      [194, 207, 220],
     ] as const;
     if (mode === 'regions') {
       distanceToTopographicLand =
@@ -1696,95 +1941,33 @@ async function renderValidatedGreaterRealmPrivatePreview(
             ? [112, 104, 110]
             : [73, 94, 78];
       } else {
-        const regime = candidate.waterRegime[index]!;
-        if (regime !== PRIVATE_PREVIEW_WATER_DRY) {
-          color =
-            candidate.routeClass[index] === GREATER_REALM_ROUTE_CLASS.FORD
-              ? [233, 184, 79]
-              : regime === PRIVATE_PREVIEW_WATER_OCEAN
-                ? [35, 75, 119]
-                : regime === PRIVATE_PREVIEW_WATER_RIVER ||
-                    regime === PRIVATE_PREVIEW_WATER_STREAM
-                  ? [63, 142, 190]
-                  : [55, 115, 164];
-        } else if (candidate.dressingExcluded[index] !== 0) {
-          color = [66, 59, 73];
-        } else {
-          const base =
-            ecologyPalette[
-              candidate.ecologyClass[index] ?? GREATER_REALM_ECOLOGY_CLASS.NONE
-            ]!;
-          const vegetation = candidate.vegetationDensity[index]!;
-          const groundcover = candidate.groundcoverDensity[index]!;
-          const wildflowers = candidate.wildflowerDensity[index]!;
-          const groundcoverGreen = Math.floor(groundcover / 9);
-          const wildflowerAccent = Math.floor(wildflowers / 4);
-          color = [
-            clampPreview(
-              base[0]
-                - Math.floor(vegetation / 14)
-                + Math.floor(wildflowerAccent * 3 / 4),
-            ),
-            clampPreview(
-              base[1]
-                + Math.floor(vegetation / 18)
-                + groundcoverGreen
-                + Math.floor(wildflowerAccent / 4),
-            ),
-            clampPreview(
-              base[2]
-                - Math.floor(vegetation / 24)
-                + Math.floor(groundcover / 24)
-                + wildflowerAccent,
-            ),
-          ];
-          const route = candidate.routeClass[index]!;
-          if (route !== GREATER_REALM_ROUTE_CLASS.NONE) {
-            color =
-              route === GREATER_REALM_ROUTE_CLASS.CARRIAGEWAY
-                ? [199, 154, 87]
-                : route === GREATER_REALM_ROUTE_CLASS.ROAD
-                  ? [161, 122, 75]
-                  : [125, 101, 70];
-          }
-          const landmark = candidate.landmarkClass[index]!;
-          if (landmark !== GREATER_REALM_LANDMARK_CLASS.NONE) {
-            color =
-              landmark === GREATER_REALM_LANDMARK_CLASS.LAMP_POST
-                ? [245, 204, 85]
-                : landmark === GREATER_REALM_LANDMARK_CLASS.WAYSTONE
-                  ? [177, 119, 205]
-                  : landmark === GREATER_REALM_LANDMARK_CLASS.ABANDONED_RUIN
-                    ? [146, 136, 129]
-                    : [105, 98, 95];
-          }
-          const ambient = candidate.ambientLifeClass[index]!;
-          if (ambient !== GREATER_REALM_AMBIENT_LIFE_CLASS.NONE) {
-            color =
-              ambient === GREATER_REALM_AMBIENT_LIFE_CLASS.RABBIT_HABITAT
-                ? [212, 220, 163]
-                : ambient === GREATER_REALM_AMBIENT_LIFE_CLASS.CIVILIAN_FOOTFALL
-                  ? [113, 179, 213]
-                  : ambient === GREATER_REALM_AMBIENT_LIFE_CLASS.GUARD_POST
-                    ? [190, 88, 78]
-                    : ambient === GREATER_REALM_AMBIENT_LIFE_CLASS.COURIER_ROUTE
-                      ? [105, 210, 188]
-                      : [217, 120, 222];
-          }
+        const panelColors = [
+          privateDressingEcologyColor(candidate, index),
+          privateDressingGroundcoverColor(candidate, index),
+          privateDressingWildflowerColor(candidate, index),
+        ] as const;
+        for (let panel = 0; panel < panelColors.length; panel += 1) {
+          writePrivatePreviewCell(
+            pixels,
+            width,
+            height,
+            x,
+            y + panel * dressingPanelHeight,
+            cellPixelSpan,
+            panelColors[panel]!,
+          );
         }
+        continue;
       }
-      for (let offsetY = 0; offsetY < Math.max(1, scale); offsetY += 1) {
-        for (let offsetX = 0; offsetX < Math.max(1, scale); offsetX += 1) {
-          const targetX = x + offsetX;
-          const targetY = y + offsetY;
-          if (targetX < 0 || targetX >= width || targetY < 0 || targetY >= height) continue;
-          const pixel = (targetY * width + targetX) * 4;
-          pixels[pixel] = color[0];
-          pixels[pixel + 1] = color[1];
-          pixels[pixel + 2] = color[2];
-          pixels[pixel + 3] = 255;
-        }
-      }
+      writePrivatePreviewCell(
+        pixels,
+        width,
+        height,
+        x,
+        y,
+        cellPixelSpan,
+        color,
+      );
     }
     const sharpModule = await import('sharp');
     const watermarkLabel =
@@ -1796,7 +1979,9 @@ async function renderValidatedGreaterRealmPrivatePreview(
             ? 'DORMANT ECOLOGY + CORRIDOR CAPACITY · PRIVATE REVIEW · NOT RUNTIME'
             : `PRIVATE OWNER REVIEW — DO NOT DISTRIBUTE · ${mode.toUpperCase()}`;
     watermark = Buffer.from(
-      `<svg width="${width}" height="${height}"><rect width="100%" height="44" y="${height - 44}" fill="#0b0d16" fill-opacity="0.84"/><text x="32" y="${height - 15}" fill="#e0b85d" font-family="sans-serif" font-size="20" letter-spacing="3">${watermarkLabel}</text></svg>`,
+      dressing
+        ? privateDressingPreviewOverlaySvg(dressingPanelHeight)
+        : `<svg width="${width}" height="${height}"><rect width="100%" height="44" y="${height - 44}" fill="#0b0d16" fill-opacity="0.84"/><text x="32" y="${height - 15}" fill="#e0b85d" font-family="sans-serif" font-size="20" letter-spacing="3">${watermarkLabel}</text></svg>`,
       'utf8',
     );
     encoded = await sharpModule
@@ -2619,10 +2804,16 @@ export async function verifyGreaterRealmPrivateCandidatePackage(input: Readonly<
             { failOn: 'error', limitInputPixels: true },
           )
             .metadata();
+          const expectedWidth = mode === 'dressing'
+            ? GREATER_REALM_PRIVATE_DRESSING_PREVIEW_LAYOUT.width
+            : 1_280;
+          const expectedHeight = mode === 'dressing'
+            ? GREATER_REALM_PRIVATE_DRESSING_PREVIEW_LAYOUT.height
+            : 1_024;
           if (
             metadata.format !== 'png'
-            || metadata.width !== 1_280
-            || metadata.height !== 1_024
+            || metadata.width !== expectedWidth
+            || metadata.height !== expectedHeight
             || metadata.hasAlpha !== true
             || (metadata.pages !== undefined && metadata.pages !== 1)
           ) fail('GREATER_REALM_PRIVATE_PREVIEW_INVALID');

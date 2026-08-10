@@ -24,6 +24,7 @@ import {
   type GreaterRealmPrivateCandidate,
 } from '../scripts/atlas/greater-realm-candidate-generator';
 import {
+  GREATER_REALM_PRIVATE_DRESSING_PREVIEW_LAYOUT,
   GREATER_REALM_PRIVATE_PREVIEW_COUNT,
   GREATER_REALM_PRIVATE_PREVIEW_MARKER,
   clearGreaterRealmPrivateCandidateBuffers,
@@ -604,6 +605,258 @@ describe('Greater Realm owner-only candidate package', () => {
       silhouettePixels?.fill(0);
       topologyPreview.fill(0);
       silhouettePreview.fill(0);
+    }
+  }, PRIVATE_REPLAY_TEST_TIMEOUT_MS);
+
+  it('renders independently legible private ecology, groundcover, and wildflower panels', async () => {
+    const fixture = requireFixture();
+    const preview = await renderGreaterRealmPrivatePreview(
+      fixture.candidate,
+      'dressing',
+    );
+    let pixels: Buffer | undefined;
+    let owner: Int32Array | undefined;
+    try {
+      expect(preview.includes(Buffer.from(
+        GREATER_REALM_PRIVATE_PREVIEW_MARKER,
+        'ascii',
+      ))).toBe(true);
+      const sharpModule = await import('sharp');
+      const rendered = await sharpModule.default(preview)
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      pixels = rendered.data;
+      const layout = GREATER_REALM_PRIVATE_DRESSING_PREVIEW_LAYOUT;
+      expect(rendered.info).toMatchObject({
+        width: layout.width,
+        height: layout.height,
+        channels: 4,
+      });
+      expect(layout.panelOrder).toEqual([
+        'ecology-woody',
+        'groundcover',
+        'wildflowers',
+      ]);
+
+      let minimumR = Number.POSITIVE_INFINITY;
+      let maximumR = Number.NEGATIVE_INFINITY;
+      let minimumProjectedX = Number.POSITIVE_INFINITY;
+      let maximumProjectedX = Number.NEGATIVE_INFINITY;
+      for (let cell = 0; cell < fixture.candidate.grid.cellCount; cell += 1) {
+        const r = fixture.candidate.grid.r[cell]!;
+        const projectedX = fixture.candidate.grid.q[cell]! + r / 2;
+        minimumR = Math.min(minimumR, r);
+        maximumR = Math.max(maximumR, r);
+        minimumProjectedX = Math.min(minimumProjectedX, projectedX);
+        maximumProjectedX = Math.max(maximumProjectedX, projectedX);
+      }
+      const rSpan = maximumR - minimumR + 1;
+      const projectedXSpan = maximumProjectedX - minimumProjectedX + 1;
+      const panelHeight = Math.floor((layout.height - layout.footerHeight)
+        / layout.panelCount);
+      const mapAreaHeight = panelHeight
+        - layout.panelHeaderHeight
+        - layout.panelVerticalMargin * 2;
+      const scale = Math.max(1, Math.floor(Math.min(
+        (layout.width - layout.panelHorizontalMargin * 2) / projectedXSpan,
+        mapAreaHeight / Math.max(1, (rSpan - 1) * 0.86 + 1),
+      )));
+      expect(scale).toBeGreaterThanOrEqual(2);
+      const projectedWidth = Math.round(
+        (maximumProjectedX - minimumProjectedX) * scale,
+      ) + scale;
+      const projectedHeight = Math.round((rSpan - 1) * scale * 0.86) + scale;
+      const originX = Math.max(0, Math.round((layout.width - projectedWidth) / 2));
+      const originY = layout.panelHeaderHeight
+        + layout.panelVerticalMargin
+        + Math.max(0, Math.round((mapAreaHeight - projectedHeight) / 2));
+      owner = new Int32Array(layout.width * panelHeight);
+      owner.fill(-1);
+      for (let cell = 0; cell < fixture.candidate.grid.cellCount; cell += 1) {
+        const x = originX + Math.round((
+          fixture.candidate.grid.q[cell]!
+          + fixture.candidate.grid.r[cell]! / 2
+          - minimumProjectedX
+        ) * scale);
+        const y = originY + Math.round(
+          (fixture.candidate.grid.r[cell]! - minimumR) * scale * 0.86,
+        );
+        for (let offsetY = 0; offsetY < scale; offsetY += 1) {
+          for (let offsetX = 0; offsetX < scale; offsetX += 1) {
+            const targetX = x + offsetX;
+            const targetY = y + offsetY;
+            if (
+              targetX >= 0
+              && targetX < layout.width
+              && targetY >= 0
+              && targetY < panelHeight
+            ) owner[targetY * layout.width + targetX] = cell;
+          }
+        }
+      }
+      const pixelAt = (x: number, y: number): readonly number[] => {
+        const offset = (y * layout.width + x) * 4;
+        return [...pixels!.subarray(offset, offset + 4)];
+      };
+      const groundcoverColor = (density: number): readonly number[] => [
+        Math.round(82 - density / 255 * 28),
+        Math.round(78 + density / 255 * 118),
+        Math.round(56 + density / 255 * 38),
+        255,
+      ];
+      const wildflowerColor = (
+        groundcover: number,
+        wildflowers: number,
+      ): readonly number[] => {
+        if (groundcover === 0) return [78, 73, 58, 255];
+        if (wildflowers === 0) return [
+          Math.round(74 - groundcover / 255 * 12),
+          Math.round(82 + groundcover / 255 * 45),
+          Math.round(60 + groundcover / 255 * 18),
+          255,
+        ];
+        return [
+          Math.round(118 + wildflowers / 255 * 108),
+          Math.round(84 + wildflowers / 255 * 58),
+          Math.round(126 + wildflowers / 255 * 92),
+          255,
+        ];
+      };
+      const waterColor = (cell: number): readonly number[] => {
+        if (fixture.candidate.routeClass[cell] === GREATER_REALM_ROUTE_CLASS.FORD) {
+          return [233, 184, 79, 255];
+        }
+        const regime = fixture.candidate.waterRegime[cell]!;
+        if (regime === 1) return [35, 75, 119, 255];
+        if (regime === 3 || regime === 4) return [63, 142, 190, 255];
+        return [55, 115, 164, 255];
+      };
+      let groundcoverSignalPixels = 0;
+      let groundcoverOnlyPixels = 0;
+      let wildflowerAccentPixels = 0;
+      let excludedPixels = 0;
+      let waterPixels = 0;
+      let mappingMismatches = 0;
+      let firstGroundcoverOnlyPixel: Readonly<{ x: number; y: number }> | undefined;
+      let firstWildflowerPixel: Readonly<{ x: number; y: number }> | undefined;
+      for (let localPixel = 0; localPixel < owner.length; localPixel += 1) {
+        const cell = owner[localPixel]!;
+        if (cell < 0) continue;
+        const x = localPixel % layout.width;
+        const y = Math.floor(localPixel / layout.width);
+        const groundcoverPixel = pixelAt(x, y + panelHeight);
+        const wildflowerPixel = pixelAt(x, y + panelHeight * 2);
+        const regime = fixture.candidate.waterRegime[cell]!;
+        if (regime !== 0) {
+          const expected = waterColor(cell);
+          if (
+            groundcoverPixel.some((value, index) => value !== expected[index])
+            || wildflowerPixel.some((value, index) => value !== expected[index])
+          ) mappingMismatches += 1;
+          waterPixels += 1;
+          continue;
+        }
+        if (fixture.candidate.dressingExcluded[cell] !== 0) {
+          const expected = [66, 59, 73, 255];
+          if (
+            groundcoverPixel.some((value, index) => value !== expected[index])
+            || wildflowerPixel.some((value, index) => value !== expected[index])
+          ) mappingMismatches += 1;
+          excludedPixels += 1;
+          continue;
+        }
+        const groundcover = fixture.candidate.groundcoverDensity[cell]!;
+        const wildflowers = fixture.candidate.wildflowerDensity[cell]!;
+        const expectedGroundcover = groundcover === 0
+          ? [78, 73, 58, 255]
+          : groundcoverColor(groundcover);
+        const expectedWildflowers = wildflowerColor(groundcover, wildflowers);
+        if (
+          groundcoverPixel.some((value, index) => (
+            value !== expectedGroundcover[index]
+          ))
+          || wildflowerPixel.some((value, index) => (
+            value !== expectedWildflowers[index]
+          ))
+        ) mappingMismatches += 1;
+        if (groundcover !== 0) {
+          groundcoverSignalPixels += 1;
+          if (fixture.candidate.vegetationDensity[cell] === 0) {
+            groundcoverOnlyPixels += 1;
+            if (
+              fixture.candidate.routeClass[cell] === GREATER_REALM_ROUTE_CLASS.NONE
+              && fixture.candidate.landmarkClass[cell]
+                === GREATER_REALM_LANDMARK_CLASS.NONE
+              && fixture.candidate.ambientLifeClass[cell]
+                === GREATER_REALM_AMBIENT_LIFE_CLASS.NONE
+            ) firstGroundcoverOnlyPixel ??= Object.freeze({ x, y });
+          }
+        }
+        if (wildflowers !== 0) {
+          wildflowerAccentPixels += 1;
+          firstWildflowerPixel ??= Object.freeze({ x, y });
+        }
+      }
+      expect(mappingMismatches).toBe(0);
+      expect(groundcoverSignalPixels).toBeGreaterThan(10_000);
+      expect(groundcoverOnlyPixels).toBeGreaterThan(100);
+      expect(wildflowerAccentPixels).toBeGreaterThan(500);
+      expect(excludedPixels).toBeGreaterThan(100);
+      expect(waterPixels).toBeGreaterThan(10_000);
+      expect(firstGroundcoverOnlyPixel).toBeDefined();
+      expect(firstWildflowerPixel).toBeDefined();
+      const firstGroundcoverOnlyEcology = pixelAt(
+        firstGroundcoverOnlyPixel!.x,
+        firstGroundcoverOnlyPixel!.y,
+      );
+      const firstGroundcoverOnlySignal = pixelAt(
+        firstGroundcoverOnlyPixel!.x,
+        firstGroundcoverOnlyPixel!.y + panelHeight,
+      );
+      expect(firstGroundcoverOnlySignal).not.toEqual(firstGroundcoverOnlyEcology);
+      const firstWildflowerGroundcover = pixelAt(
+        firstWildflowerPixel!.x,
+        firstWildflowerPixel!.y + panelHeight,
+      );
+      const firstWildflowerAccent = pixelAt(
+        firstWildflowerPixel!.x,
+        firstWildflowerPixel!.y + panelHeight * 2,
+      );
+      expect(firstWildflowerAccent).not.toEqual(firstWildflowerGroundcover);
+      expect(firstWildflowerAccent[0]).toBeGreaterThan(firstWildflowerAccent[1]!);
+      expect(firstWildflowerAccent[2]).toBeGreaterThan(firstWildflowerAccent[1]!);
+
+      // Each translated panel carries its own non-sensitive legend rather
+      // than accidentally painting every legend into the first header.
+      expect(pixelAt(766, 23)).toEqual([154, 173, 95, 255]);
+      expect(pixelAt(766, panelHeight + 23)).toEqual([78, 73, 58, 255]);
+      expect(pixelAt(766, panelHeight * 2 + 23)).toEqual([69, 107, 69, 255]);
+      for (let panel = 0; panel < layout.panelCount; panel += 1) {
+        expect(pixelAt(1617, panel * panelHeight + 23))
+          .toEqual([66, 59, 73, 255]);
+        expect(pixelAt(1769, panel * panelHeight + 23))
+          .toEqual([55, 115, 164, 255]);
+      }
+
+      let nonOpaquePixels = 0;
+      for (let offset = 3; offset < pixels.length; offset += 4) {
+        if (pixels[offset] !== 255) nonOpaquePixels += 1;
+      }
+      expect(nonOpaquePixels).toBe(0);
+      let footerGoldPixels = 0;
+      for (let y = layout.height - layout.footerHeight; y < layout.height; y += 1) {
+        for (let x = 0; x < layout.width; x += 1) {
+          const pixel = pixelAt(x, y);
+          if (pixel[0]! > 150 && pixel[1]! > 110 && pixel[2]! < 140) {
+            footerGoldPixels += 1;
+          }
+        }
+      }
+      expect(footerGoldPixels).toBeGreaterThan(200);
+    } finally {
+      owner?.fill(0);
+      pixels?.fill(0);
+      preview.fill(0);
     }
   }, PRIVATE_REPLAY_TEST_TIMEOUT_MS);
 

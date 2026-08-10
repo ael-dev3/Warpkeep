@@ -20,13 +20,13 @@ cell order and complete tie-breakers are mandatory. Semantics are private
 package data; only separately allowlisted, coordinate-free aggregates may
 appear in a sanitized report.
 
-| Layer              | Private candidate meaning                                                                                                 | Explicit non-meaning                                               |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Layer              | Private candidate meaning                                                                                                 | Explicit non-meaning                                                    |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | Vegetation patches | Connected canopy/woody vegetation, groundcover, wildflower, edge, clearing, and open-country potential                    | Placed blades, meshes, draw calls, harvestable trees, or resource nodes |
-| Habitat character  | Compatibility for temperate forest, taiga, jungle, wetland/swamp, savanna, desert, alpine/snow, meadow, heath, and plains | A biome renderer, weather system, or playable ecology              |
-| Route corridors    | Dry road potential and explicitly fordable river/stream crossings between stable strategic anchors                        | Movement authority, pathfinding, bridges, ferries, or gate opening |
-| Scenic anchors     | Terrain-supported potential for abandoned ruins, partial walls, waystones, lamps, and roadside details                    | Imported art, collision, ownership, loot, quests, or persistence   |
-| Ambient capacity   | Bounded habitat/route potential for rabbits, citizens, guards, couriers, and courier mounts, including exotic mounts      | Spawned NPCs, AI, combat, economies, schedules, or server state    |
+| Habitat character  | Compatibility for temperate forest, taiga, jungle, wetland/swamp, savanna, desert, alpine/snow, meadow, heath, and plains | A biome renderer, weather system, or playable ecology                   |
+| Route corridors    | Dry road potential and explicitly fordable river/stream crossings between stable strategic anchors                        | Movement authority, pathfinding, bridges, ferries, or gate opening      |
+| Scenic anchors     | Terrain-supported potential for abandoned ruins, partial walls, waystones, lamps, and roadside details                    | Imported art, collision, ownership, loot, quests, or persistence        |
+| Ambient capacity   | Bounded habitat/route potential for rabbits, citizens, guards, couriers, and courier mounts, including exotic mounts      | Spawned NPCs, AI, combat, economies, schedules, or server state         |
 
 Vegetation must form broad, irregular, ecologically legible clusters with
 clearings and feathered margins. It must preserve substantial open plains and
@@ -102,8 +102,7 @@ and must never be committed or published.
 
 The added channels advance the living-world authority to
 `greater-realm-private-living-world-v3`, the generator algorithm to
-`greater-realm-v2-natural-continent-pr-a.13`, and the private atlas format to
-7. The terrain-seed namespace remains `.3`, so this package revision does not
+`greater-realm-v2-natural-continent-pr-a.13`, and the private atlas format to 7. The terrain-seed namespace remains `.3`, so this package revision does not
 silently reroll the candidate.
 
 ## Clean-room grass reference
@@ -175,14 +174,42 @@ blades, flower stems, transforms, wind phases, or LOD decisions to SpacetimeDB.
 Those details are ephemeral render data derived from the approved world
 revision, cell key, density channel, and bounded local sample ordinal.
 
-The initial acceptance budget has three camera bands, measured over the whole
-visible chunk set rather than independently per cell:
+The renderer has three camera bands. Every lower-detail representation must be
+a stable hash-ranked subset or aggregate of the same public presentation
+sequence; changing camera band must not reshuffle roots or reveal a cell that
+the caller is not authorized to receive.
 
-| Band | Intended presentation | Initial profiling guardrail (not release-final) |
-| ---- | --------------------- | ----------------------------------------------- |
-| Near | Bent blade/clump geometry plus sparse flower heads | 65,536 instances and 8 grass/flower draw submissions |
-| Mid  | Simplified clumps with reduced segments and no individual flower heads | 32,768 instances and 4 draw submissions |
-| Far  | Terrain tint, roughness, and normal response only | No blade or flower geometry |
+| Band | Intended presentation                                                                                        |
+| ---- | ------------------------------------------------------------------------------------------------------------ |
+| Near | Bent segmented blade patches plus a separately bounded sparse flower layer                                   |
+| Mid  | Simplified clumps with fewer blade equivalents and no individual flower heads                                |
+| Far  | Shared groundcover tint, roughness, and normal response in the terrain material; no blade or flower geometry |
+
+"Instance" is too ambiguous for a production budget. A **patch instance** is
+one transform referencing a planted patch geometry; a **blade equivalent** is
+one blade contained in that geometry; and a **flower instance** belongs to the
+separate flower layer. The first renderer implementation must preserve or beat
+the existing quality-plan ceilings across the combined near and mid bands:
+
+| Quality  | Grass patch instances | Blade equivalents | Grass triangles | Grass draws | Flower instances | Flower draws | Repack upload ceiling |
+| -------- | --------------------: | ----------------: | --------------: | ----------: | ---------------: | -----------: | --------------------: |
+| High     |                 7,000 |            63,000 |         189,000 |           3 |              512 |            2 |                 1 MiB |
+| Balanced |                 4,000 |            28,000 |          84,000 |           2 |              256 |            1 |               512 KiB |
+| Reduced  |                 1,200 |             6,000 |          18,000 |           1 |       0 geometry |            0 |               192 KiB |
+
+The grass instance/triangle/draw rows preserve the current production plans;
+the separate flower and upload values are conservative starting ceilings to be
+tightened by the renderer PR's traces. They are ceilings, not density targets.
+Flower color may remain in the far or Reduced terrain response when flower
+geometry is disabled. Counts may never be computed as unbounded world area
+multiplied by density, and per-cell budgets may not be summed without first
+applying the visible-window ceiling. Before allocating, the renderer must
+validate `maxAttributes`, maximum buffer sizes, the selected geometry profile,
+every decoded array length, decompressed output ceiling, and every count/byte
+multiplication. The complete compiled attribute layout includes base geometry,
+instance-matrix columns, instance color, custom instance fields, and optional
+material features and must fit `maxAttributes`; unsupported plans downshift
+atomically to the next proven quality or to terrain-only groundcover.
 
 Chunk transitions require stable seeded sampling and a short stochastic or
 dithered cross-fade so camera movement does not reshuffle or visibly pop the
@@ -194,6 +221,84 @@ those effects may alter authoritative density, reveal hidden cells, allocate
 unbounded work, or bypass fog-safe visibility. The ceilings remain provisional
 until representative desktop and mobile GPU traces prove frame time, memory,
 overdraw, and shader-variant budgets in a separate pull request.
+
+The implementation must not use one continent-wide mesh with
+`frustumCulled = false`. Visible and bounded prefetch chunks own expanded
+wind-safe bounds, participate in frustum and distance culling, and recycle
+fixed-capacity pools. Rebuilds are incremental, cancellable, and double-buffered
+where necessary; stale worker results are discarded by revision. Buffers that
+are repacked during a transition must use an appropriate dynamic/orphaned
+upload path or bounded update ranges rather than being advertised as static.
+
+Grass and flowers share the same world-space wind clock and direction, while
+retaining independent deterministic placement streams. Hero blades require a
+real root-to-tip hue/value response and a bounded view/sun thin-blade
+backscatter term. The shaded normal must follow the bend closely enough to
+avoid static highlights on moving grass. Cutouts stay opaque, depth-writing,
+and early-Z friendly; transparent sorting is not an acceptable substitute for
+alpha hashing, alpha-to-coverage, or an equivalent proven cutout path.
+Configured wind cadence is not sufficient telemetry: the layer records its
+actual animation-update cadence independently from the shared scene-render
+cadence, since water or moving actors may still cause the grass geometry to be
+drawn between wind-uniform updates.
+
+Shadow policy is explicit rather than accidental. Receiving shadows and
+bounded ground/contact occlusion are the default. If near grass or flowers cast
+shadows, the color, depth, and distance passes must use the same wind bend,
+LOD cross-fade, and alpha threshold, and casting must remain inside a separately
+profiled near ring. A static or differently clipped shadow for a moving blade
+is a release blocker.
+
+The existing `WebGLRenderer`/GLSL path remains the production baseline. An
+optional modern path may use Three's `WebGPURenderer` and TSL/NodeMaterial only
+after a separate migration ports the current `onBeforeCompile` behavior and
+proves the same deterministic samples, linear-color output, fog/visibility
+boundary, cleanup, and quality ceilings on all three relevant executions: the
+production `WebGLRenderer`/GLSL path, the `WebGPURenderer`/TSL WebGPU backend,
+and the `WebGPURenderer`/TSL forced-WebGL2 backend. Three currently documents
+`WebGPURenderer` as experimental and does not support `onBeforeCompile`
+customizations, so capability detection or device loss must fall back
+atomically without changing world authority. Relevant upstream contracts are
+the official
+[WebGPURenderer guide](https://threejs.org/manual/en/webgpurenderer),
+[WebGPURenderer API](https://threejs.org/docs/pages/WebGPURenderer.html), and
+[TSL documentation](https://threejs.org/docs/pages/TSL.html).
+
+Visibility is applied before subscription, decode, allocation, and telemetry.
+An absent or unauthorized chunk produces no grass, flower, or far-terrain tint;
+clients never infer it from neighbors. Runtime telemetry is coordinate-free and
+must not expose hidden biome/density aggregates, private candidate seeds, or
+candidate package digests.
+
+The renderer PR is not release-ready until synthetic public fixtures provide
+fixed-camera/fixed-time visual regressions for near, mid, far, flowers,
+groundcover-only clearings, slopes, roads, water margins, backlighting,
+reduced-motion, shadows, and both directions of every LOD transition.
+Reduced-motion mode freezes grass and flower wind plus transition noise and
+must produce stable, non-shimmering cutouts on every backend. The same fixture
+set compares the production GLSL renderer and both TSL backends within a
+reviewed perceptual tolerance.
+
+Desktop, mobile, and Farcaster WebView runs must record P95 CPU and GPU frame
+cost, main-thread repack latency, actual animation-update cadence, upload
+bytes, active CPU/GPU memory, overdraw, draws, triangles, visible/culled chunks,
+shader fallbacks, thermal behavior, context/device-loss recovery, and repeated
+rebuild/disposal. Recording numbers is not a pass condition: before renderer
+implementation begins, that pull request defines a representative device
+matrix and exact pass/fail ceilings for steady vegetation CPU/GPU cost, P95
+repack slices, active bytes, and upload cadence, and obtains owner approval.
+Work is split or deferred so a vegetation rebuild never creates a browser long
+task of 50 ms or more. Missing or failed device evidence blocks activation.
+Private candidate pixels are never CI fixtures.
+
+This handoff does not claim that visible Greater Realm grass is implemented by
+PR A. The current client already supplies bounded WebGL2 patch instancing,
+deterministic sampling, terrain-normal alignment, world-space wind, alpha-hash
+cutouts, reduced-motion fallback, and lifecycle telemetry for the existing
+Lowlands renderer. Greater Realm field streaming, a distinct flower renderer,
+true distance LOD, chunk frustum culling, root-to-tip/backscatter lighting,
+shadow-pass parity, and an optional TSL backend remain follow-on acceptance
+work after candidate approval.
 
 ## Follow-on ownership
 
