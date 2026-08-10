@@ -4,7 +4,7 @@ Status: candidate-generation design only
 
 Atlas: `GENESIS_001_GREATER_REALM`
 
-Generator algorithm: `greater-realm-v2-natural-continent-pr-a.15`
+Generator algorithm: `greater-realm-v2-natural-continent-pr-a.16`
 Terrain-seed namespace: `greater-realm-v2-natural-continent-pr-a.3`
 Private atlas format: `8`
 Living-world authority: `greater-realm-private-living-world-v4`
@@ -72,7 +72,7 @@ the package implementation. There is no mutable random stream and no
 
 The current authority revision binds the two private density channels,
 marsh-aware dressing, domain material records, final water-body metadata, and
-the audited patch/chunk contract as living-world v4, generator `.15`, and
+the audited patch/chunk contract as living-world v4, generator `.16`, and
 private atlas format 8. The terrain-seed namespace intentionally remains `.3`:
 these are authority and package revisions, not authorization to reroll the
 owner's candidate ordinal.
@@ -115,7 +115,11 @@ Each candidate runs independently through these stage families:
    every wet or marsh cell an exact regime, water-body identifier, depth class,
    surface level, downstream cell, accumulated flow, deterministic bank seed,
    and generation version. Marsh promotion is climate/topography-derived and
-   cannot consume the reviewed dry gate and approach corridors.
+   cannot consume the reviewed dry gate and approach corridors. A standing-body
+   audit runs immediately before and after the immutable Lowlands water overlay:
+   generated inconsistency stays fatal, while only an otherwise valid surface
+   made incompatible by that fixed overlay is a typed, retryable geography
+   exhaustion. Final hydrology repeats the invariant as defense in depth.
 7. Derive paired topography and visual-biome authority from the same reconciled
    elevation, routed flow, geology, climate, water, region, and geomorphology
    process fields. The paired result includes slope, aspect, profile/plan

@@ -1,10 +1,12 @@
 /**
  * Exact, audited candidate-geography exhaustion outcomes.
  *
- * These codes mean a deterministic seed exhausted a bounded placement search;
- * the batch generator may record the attempt and continue with the next
- * ordinal. Invariants, malformed input, toolchain, filesystem, and package
- * failures must remain ordinary fatal errors and are intentionally absent.
+ * These codes mean a deterministic seed exhausted a bounded placement search
+ * or cannot reconcile its otherwise valid geography with an immutable atlas
+ * constraint; the batch generator may record the attempt and continue with
+ * the next ordinal. Invariants, malformed input, toolchain, filesystem, and
+ * package failures must remain ordinary fatal errors and are intentionally
+ * absent.
  */
 export const GREATER_REALM_CANDIDATE_REJECTION_CODES = Object.freeze([
   'GREATER_REALM_TECTONIC_DOMAIN_PLACEMENT_FAILED',
@@ -19,6 +21,7 @@ export const GREATER_REALM_CANDIDATE_REJECTION_CODES = Object.freeze([
   'GREATER_REALM_TIER_THREE_CAPACITY_INVARIANT',
   'GREATER_REALM_TIER_TWO_CAPACITY_INVARIANT',
   'GREATER_REALM_STRATEGIC_HIGHLAND_REFERENCE_MISSING',
+  'GREATER_REALM_HYDROLOGY_BODY_SURFACE_GEOGRAPHY_EXHAUSTED',
 ] as const);
 
 export type GreaterRealmCandidateRejectionCode =

@@ -268,4 +268,45 @@ describe("Greater Realm final hydrology authority", () => {
       0, 1, 1, 2, 1, 1, 1,
     ]);
   });
+
+  it("keeps adjacent unequal standing-water levels fatal", () => {
+    const incompatible = fixture();
+    incompatible.waterRegime[2] = GREATER_REALM_WATER_REGIME_ID.SEA;
+
+    expect(() => deriveGreaterRealmHydrologyAuthority(incompatible)).toThrow(
+      "GREATER_REALM_HYDROLOGY_BODY_SURFACE_INVARIANT",
+    );
+  });
+
+  it("keeps an ocean body isolated from the active boundary fatal", () => {
+    const grid = indexGreaterRealmAxialGrid([
+      { q: 0, r: 0 },
+      { q: 1, r: 0 },
+      { q: 1, r: -1 },
+      { q: 0, r: -1 },
+      { q: -1, r: 0 },
+      { q: -1, r: 1 },
+      { q: 0, r: 1 },
+    ]);
+    const center = grid.indexOf({ q: 0, r: 0 });
+    const waterRegime = new Uint8Array(grid.cellCount);
+    waterRegime[center] = GREATER_REALM_WATER_REGIME_ID.OCEAN;
+    const elevation = new Int32Array(grid.cellCount);
+    elevation.fill(100);
+    elevation[center] = -100;
+    const flowAccumulation = new BigUint64Array(grid.cellCount);
+    flowAccumulation.fill(1n);
+
+    expect(() => deriveGreaterRealmHydrologyAuthority({
+      grid,
+      seed: SEED,
+      waterRegime,
+      marshMask: new Uint8Array(grid.cellCount),
+      elevation,
+      filledElevation: new Int32Array(elevation),
+      flowReceiver: new Int32Array(grid.cellCount).fill(-1),
+      flowAccumulation,
+      seaLevel: 0,
+    })).toThrow("GREATER_REALM_HYDROLOGY_BODY_SURFACE_INVARIANT");
+  });
 });

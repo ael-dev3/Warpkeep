@@ -49,7 +49,7 @@ function binding(
   overrides: Partial<GreaterRealmAttemptCheckpointBinding> = {},
 ): GreaterRealmAttemptCheckpointBinding {
   return Object.freeze({
-    generatorVersion: 'greater-realm-v2-natural-continent-pr-a.15',
+    generatorVersion: 'greater-realm-v2-natural-continent-pr-a.16',
     sourceCommit: 'a'.repeat(40),
     toolchainReceipt: `sha256:${'b'.repeat(64)}`,
     toolchainProfile: 'darwin-arm64',
@@ -278,7 +278,7 @@ describe('Greater Realm attempt-boundary checkpoint', () => {
     const state = createInitial(workspace);
     try {
       for (const stale of [
-        binding({ generatorVersion: 'greater-realm-v2-natural-continent-pr-a.16' }),
+        binding({ generatorVersion: 'greater-realm-v2-natural-continent-pr-a.17' }),
         binding({ sourceCommit: 'c'.repeat(40) }),
         binding({ toolchainReceipt: `sha256:${'d'.repeat(64)}` }),
         binding({ toolchainProfile: 'linux-x64' }),

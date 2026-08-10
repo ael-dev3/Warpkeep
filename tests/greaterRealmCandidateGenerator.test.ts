@@ -6,7 +6,10 @@ import {
   GREATER_REALM_REGION_SPECS,
   clearGreaterRealmCandidateSecret,
   deriveGreaterRealmCandidateSeedMaterial,
+  enforceGreaterRealmStandingWaterBodySurfaceProof,
   generateGreaterRealmCandidate,
+  hasGreaterRealmStandingWaterBodySurfaceProof,
+  selectGreaterRealmCompatibleStandingWaterComponents,
   type GreaterRealmPrivateCandidate,
 } from '../scripts/atlas/greater-realm-candidate-generator';
 import {
@@ -30,6 +33,7 @@ import {
   greaterRealmCounterRandomU32,
   greaterRealmHexDistance,
   greaterRealmTerrainChannelId,
+  indexGreaterRealmAxialGrid,
   type IntegerTerrainArray,
 } from '../scripts/atlas/greater-realm-terrain';
 
@@ -393,6 +397,7 @@ describe('Greater Realm private candidate generator', () => {
     const rootSeed = Uint8Array.from(createHash('sha256')
       .update(`${REJECTED_ROOT_LABEL}\0`, 'utf8')
       .digest());
+    const uint64Fill = vi.spyOn(BigUint64Array.prototype, 'fill');
     let unexpectedlyGenerated: GreaterRealmPrivateCandidate | undefined;
     let rejectionCode: ReturnType<typeof greaterRealmCandidateRejectionCode>;
     try {
@@ -406,11 +411,188 @@ describe('Greater Realm private candidate generator', () => {
         if (rejectionCode === undefined) throw error;
       }
       expect(rejectionCode).toBe('GREATER_REALM_TIER_TWO_CAPACITY_INVARIANT');
+      const retiredLargeAuthorities = (
+        uint64Fill.mock.instances as unknown as BigUint64Array[]
+      ).filter(values => values.length >= EXPECTED_ACTIVE_CELL_MINIMUM);
+      expect(retiredLargeAuthorities.length).toBeGreaterThan(0);
+      expect(retiredLargeAuthorities.some(values => (
+        values.every(value => value === 0n)
+      ))).toBe(true);
     } finally {
+      uint64Fill.mockRestore();
       if (unexpectedlyGenerated) clearGreaterRealmCandidateSecret(unexpectedlyGenerated);
       rootSeed.fill(0);
     }
   }, 180_000);
+
+  it('distinguishes a valid generated standing body from an invalid overlay result', () => {
+    const grid = indexGreaterRealmAxialGrid([
+      { q: 0, r: 0 },
+      { q: 1, r: 0 },
+      { q: 1, r: -1 },
+      { q: 0, r: -1 },
+      { q: -1, r: 0 },
+      { q: -1, r: 1 },
+      { q: 0, r: 1 },
+    ]);
+    const center = grid.indexOf({ q: 0, r: 0 });
+    const boundary = grid.indexOf({ q: 1, r: 0 });
+    const elevation = new Int32Array(grid.cellCount);
+    elevation.fill(100);
+    elevation[center] = -100;
+    elevation[boundary] = -100;
+    const filledElevation = new Int32Array(elevation);
+    const generated = new Uint8Array(grid.cellCount);
+    generated[boundary] = 1;
+    const generatedProof = hasGreaterRealmStandingWaterBodySurfaceProof({
+      grid,
+      waterRegime: generated,
+      elevation,
+      filledElevation,
+    });
+    expect(generatedProof).toBe(true);
+    expect(() => enforceGreaterRealmStandingWaterBodySurfaceProof({
+      phase: 'generated',
+      proof: generatedProof,
+    })).not.toThrow();
+
+    const overlaid = new Uint8Array(grid.cellCount);
+    overlaid[center] = 1;
+    const overlaidProof = hasGreaterRealmStandingWaterBodySurfaceProof({
+      grid,
+      waterRegime: overlaid,
+      elevation,
+      filledElevation,
+    });
+    expect(overlaidProof).toBe(false);
+
+    let generatedFailure: unknown;
+    try {
+      enforceGreaterRealmStandingWaterBodySurfaceProof({
+        phase: 'generated',
+        proof: overlaidProof,
+      });
+    } catch (error) {
+      generatedFailure = error;
+    }
+    expect(generatedFailure).toMatchObject({
+      message: 'GREATER_REALM_HYDROLOGY_BODY_SURFACE_INVARIANT',
+    });
+    expect(greaterRealmCandidateRejectionCode(generatedFailure)).toBeUndefined();
+
+    let overlayFailure: unknown;
+    try {
+      enforceGreaterRealmStandingWaterBodySurfaceProof({
+        phase: 'legacy-overlay',
+        proof: overlaidProof,
+      });
+    } catch (error) {
+      overlayFailure = error;
+    }
+    expect(greaterRealmCandidateRejectionCode(overlayFailure)).toBe(
+      'GREATER_REALM_HYDROLOGY_BODY_SURFACE_GEOGRAPHY_EXHAUSTED',
+    );
+    expect(greaterRealmCandidateRejectionCode(new Error(
+      'GREATER_REALM_HYDROLOGY_BODY_SURFACE_GEOGRAPHY_EXHAUSTED',
+    ))).toBeUndefined();
+
+    const aboveSeaOcean = new Uint8Array(grid.cellCount);
+    aboveSeaOcean[grid.indexOf({ q: -1, r: 0 })] = 1;
+    expect(() => hasGreaterRealmStandingWaterBodySurfaceProof({
+      grid,
+      waterRegime: aboveSeaOcean,
+      elevation: new Int32Array(grid.cellCount).fill(100),
+      filledElevation: new Int32Array(grid.cellCount).fill(100),
+    })).toThrow('GREATER_REALM_HYDROLOGY_SURFACE_INVALID');
+    const mixedOcean = new Uint8Array(grid.cellCount);
+    mixedOcean[center] = 1;
+    mixedOcean[boundary] = 1;
+    const mixedElevation = new Int32Array(grid.cellCount);
+    mixedElevation.fill(100);
+    mixedElevation[center] = -100;
+    expect(() => hasGreaterRealmStandingWaterBodySurfaceProof({
+      grid,
+      waterRegime: mixedOcean,
+      elevation: mixedElevation,
+      filledElevation: new Int32Array(mixedElevation),
+    })).toThrow('GREATER_REALM_HYDROLOGY_SURFACE_INVALID');
+    expect(() => hasGreaterRealmStandingWaterBodySurfaceProof({
+      grid,
+      waterRegime: new Uint8Array(grid.cellCount - 1),
+      elevation,
+      filledElevation,
+    })).toThrow('GREATER_REALM_STANDING_WATER_AUDIT_INPUT_INVALID');
+    expect(() => hasGreaterRealmStandingWaterBodySurfaceProof(
+      undefined as never,
+    )).toThrow('GREATER_REALM_STANDING_WATER_AUDIT_INPUT_INVALID');
+    expect(() => enforceGreaterRealmStandingWaterBodySurfaceProof(
+      null as never,
+    )).toThrow('GREATER_REALM_STANDING_WATER_AUDIT_INPUT_INVALID');
+  });
+
+  it('skips ranked inland seas that would merge unequal standing levels', () => {
+    const grid = indexGreaterRealmAxialGrid(Array.from(
+      { length: 4 },
+      (_, q) => ({ q, r: 0 }),
+    ));
+    const first = grid.indexOf({ q: 0, r: 0 });
+    const conflicting = grid.indexOf({ q: 1, r: 0 });
+    const middle = grid.indexOf({ q: 2, r: 0 });
+    const fallback = grid.indexOf({ q: 3, r: 0 });
+    const elevation = new Int32Array(grid.cellCount);
+    elevation.fill(10);
+    const filledElevation = new Int32Array(grid.cellCount);
+    filledElevation.fill(10);
+    filledElevation[first] = 100;
+    filledElevation[conflicting] = 200;
+    filledElevation[fallback] = 300;
+    const waterRegime = new Uint8Array(grid.cellCount);
+
+    const selected = selectGreaterRealmCompatibleStandingWaterComponents({
+      grid,
+      rankedComponents: [[first], [conflicting], [fallback]],
+      elevation,
+      filledElevation,
+      waterRegime,
+      maximumCount: 2,
+      minimumCellCount: 1,
+    });
+
+    expect(selected).toEqual([[first], [fallback]]);
+    expect(Array.from(waterRegime)).toEqual([5, 0, 0, 5]);
+    expect(selectGreaterRealmCompatibleStandingWaterComponents({
+      grid,
+      rankedComponents: [[first]],
+      elevation,
+      filledElevation,
+      waterRegime: new Uint8Array(grid.cellCount),
+      maximumCount: 2,
+      minimumCellCount: 1,
+    })).toEqual([[first]]);
+    expect(() => selectGreaterRealmCompatibleStandingWaterComponents({
+      grid,
+      rankedComponents: [[first], [first]],
+      elevation,
+      filledElevation,
+      waterRegime: new Uint8Array(grid.cellCount),
+      maximumCount: 1,
+      minimumCellCount: 1,
+    })).toThrow('GREATER_REALM_STANDING_WATER_SELECTION_INPUT_INVALID');
+    expect(() => selectGreaterRealmCompatibleStandingWaterComponents(
+      { grid: null } as never,
+    )).toThrow('GREATER_REALM_STANDING_WATER_SELECTION_INPUT_INVALID');
+    const atomicallyRejectedRegime = new Uint8Array(grid.cellCount);
+    expect(() => selectGreaterRealmCompatibleStandingWaterComponents({
+      grid,
+      rankedComponents: [[first], [conflicting, middle]],
+      elevation,
+      filledElevation,
+      waterRegime: atomicallyRejectedRegime,
+      maximumCount: 2,
+      minimumCellCount: 1,
+    })).toThrow('GREATER_REALM_STANDING_WATER_SELECTION_INPUT_INVALID');
+    expect(atomicallyRejectedRegime).toEqual(new Uint8Array(grid.cellCount));
+  });
 
   it('binds multiscale final relief and genuine forest patches across independent worlds', () => {
     const [candidate, , variant] = requireCandidates();

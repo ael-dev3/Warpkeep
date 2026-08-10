@@ -20,7 +20,7 @@ pull-request comments, CI artifacts, logs, and public SpacetimeDB tables are not
 private storage.
 
 The two additional density channels and marsh-aware dressing rules are bound by
-living-world authority v4, generator algorithm `.15`, and private atlas format
+living-world authority v4, generator algorithm `.16`, and private atlas format
 8. The terrain-seed
 namespace remains `.3`; a package-layout revision is not permission to reroll
 private world authority.
@@ -364,7 +364,10 @@ The pull request must prove that it rejects:
 - a changed `tsx` or native dependency tree and package-lock integrity drift,
   before any injected dependency code executes;
 - nondeterministic stage output, integer overflow, flow cycles, uphill routing,
-  inconsistent lake surfaces/spills, or Lowlands catalog drift.
+  inconsistent generated lake surfaces/spills, or Lowlands catalog drift. A
+  generated standing-water failure remains fatal; only a proved valid-to-invalid
+  transition caused by projecting the immutable Lowlands overlay is recorded as
+  typed candidate-geography exhaustion and retried at the next ordinal.
 
 Tests use programmatically generated synthetic bytes and tiny synthetic grids.
 They do not include a realistic seed string, private candidate map, or broad

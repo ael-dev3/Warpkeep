@@ -15,6 +15,7 @@ import {
   greaterRealmCounterRandomU32,
   greaterRealmTerrainChannelId,
   indexGreaterRealmAxialGrid,
+  isCanonicalGreaterRealmAxialGrid,
   priorityFloodGreaterRealmHexGrid,
   routeGreaterRealmSingleFlow,
   type AxialCoordinate,
@@ -97,7 +98,7 @@ import {
 } from './greater-realm-topography-patch-support';
 
 export const GREATER_REALM_GENERATOR_VERSION =
-  'greater-realm-v2-natural-continent-pr-a.15' as const;
+  'greater-realm-v2-natural-continent-pr-a.16' as const;
 // Package/algorithm revisions must not silently reroll root-seed ordinals.
 // Bump this namespace only for an explicitly approved deterministic world reroll.
 export const GREATER_REALM_TERRAIN_SEED_NAMESPACE =
@@ -4136,6 +4137,254 @@ function connectedComponentsAtEqualSurface(
   return Object.freeze(components.map(component => Object.freeze(component)));
 }
 
+function standingWaterSurfaceLevel(
+  cell: number,
+  regime: number,
+  elevation: Int32Array,
+  filledElevation: Int32Array,
+): number {
+  if (regime === WATER_OCEAN) return SEA_LEVEL;
+  return elevation[cell]! <= SEA_LEVEL ? SEA_LEVEL : filledElevation[cell]!;
+}
+
+/**
+ * Prove that each connected OCEAN/SEA/LAKE body has one standing level and
+ * that every OCEAN body reaches the active-grid boundary. This intentionally
+ * mirrors (but does not replace) the final hydrology authority invariant so a
+ * valid generated surface can be distinguished from an incompatibility
+ * introduced solely by projecting the immutable Lowlands water overlay.
+ */
+export function hasGreaterRealmStandingWaterBodySurfaceProof(
+  input: Readonly<{
+    grid: IndexedAxialGrid;
+    waterRegime: Uint8Array;
+    elevation: Int32Array;
+    filledElevation: Int32Array;
+  }>,
+): boolean {
+  if (
+    typeof input !== 'object'
+    || input === null
+    || typeof input.grid !== 'object'
+    || input.grid === null
+  ) fail('GREATER_REALM_STANDING_WATER_AUDIT_INPUT_INVALID');
+  if (
+    !isCanonicalGreaterRealmAxialGrid(input.grid)
+    || !(input.waterRegime instanceof Uint8Array)
+    || !(input.elevation instanceof Int32Array)
+    || !(input.filledElevation instanceof Int32Array)
+    || input.waterRegime.length !== input.grid.cellCount
+    || input.elevation.length !== input.grid.cellCount
+    || input.filledElevation.length !== input.grid.cellCount
+  ) fail('GREATER_REALM_STANDING_WATER_AUDIT_INPUT_INVALID');
+  for (let cell = 0; cell < input.grid.cellCount; cell += 1) {
+    if (
+      input.waterRegime[cell]! > WATER_MARSH
+      || input.filledElevation[cell]! < input.elevation[cell]!
+    ) fail('GREATER_REALM_STANDING_WATER_AUDIT_INPUT_INVALID');
+    if (
+      input.waterRegime[cell] === WATER_OCEAN
+      && input.elevation[cell]! > SEA_LEVEL
+    ) fail('GREATER_REALM_HYDROLOGY_SURFACE_INVALID');
+  }
+  const seen = new Uint8Array(input.grid.cellCount);
+  const queue = new Uint32Array(input.grid.cellCount);
+  try {
+    for (let start = 0; start < input.grid.cellCount; start += 1) {
+      const regime = input.waterRegime[start]!;
+      if (
+        (regime !== WATER_OCEAN
+          && regime !== WATER_SEA
+          && regime !== WATER_LAKE)
+        || seen[start] === 1
+      ) continue;
+      const expectedSurface = standingWaterSurfaceLevel(
+        start,
+        regime,
+        input.elevation,
+        input.filledElevation,
+      );
+      if (
+        expectedSurface < input.elevation[start]!
+        || (regime === WATER_OCEAN && input.elevation[start]! > SEA_LEVEL)
+      ) fail('GREATER_REALM_HYDROLOGY_SURFACE_INVALID');
+      let touchesActiveBoundary = false;
+      let head = 0;
+      let tail = 0;
+      seen[start] = 1;
+      queue[tail++] = start;
+      while (head < tail) {
+        const cell = queue[head++]!;
+        if (
+          standingWaterSurfaceLevel(
+            cell,
+            regime,
+            input.elevation,
+            input.filledElevation,
+          ) !== expectedSurface
+        ) return false;
+        for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
+          const neighbor = input.grid.neighbors[
+            cell * HEX_NEIGHBOR_COUNT + direction
+          ]!;
+          if (neighbor < 0) {
+            touchesActiveBoundary = true;
+            continue;
+          }
+          if (
+            input.waterRegime[neighbor] !== regime
+            || seen[neighbor] === 1
+          ) continue;
+          seen[neighbor] = 1;
+          queue[tail++] = neighbor;
+        }
+      }
+      if (regime === WATER_OCEAN && !touchesActiveBoundary) return false;
+    }
+    return true;
+  } finally {
+    seen.fill(0);
+    queue.fill(0);
+  }
+}
+
+export function enforceGreaterRealmStandingWaterBodySurfaceProof(
+  input: Readonly<{
+    phase: 'generated' | 'legacy-overlay';
+    proof: boolean;
+  }>,
+): void {
+  if (
+    typeof input !== 'object'
+    || input === null
+    || typeof input.proof !== 'boolean'
+    || (input.phase !== 'generated' && input.phase !== 'legacy-overlay')
+  ) fail('GREATER_REALM_STANDING_WATER_AUDIT_INPUT_INVALID');
+  if (input.proof) return;
+  if (input.phase === 'generated') {
+    fail('GREATER_REALM_HYDROLOGY_BODY_SURFACE_INVARIANT');
+  }
+  rejectGreaterRealmCandidate(
+    'GREATER_REALM_HYDROLOGY_BODY_SURFACE_GEOGRAPHY_EXHAUSTED',
+  );
+}
+
+/**
+ * Select ranked inland-sea basins without coalescing adjacent, unequal water
+ * levels under one SEA regime. The caller supplies deterministic rank order;
+ * skipped conflicts do not consume capacity, so later compatible basins can
+ * still satisfy the requested major-body count.
+ */
+export function selectGreaterRealmCompatibleStandingWaterComponents(
+  input: Readonly<{
+    grid: IndexedAxialGrid;
+    rankedComponents: readonly (readonly number[])[];
+    elevation: Int32Array;
+    filledElevation: Int32Array;
+    waterRegime: Uint8Array;
+    maximumCount: number;
+    minimumCellCount: number;
+  }>,
+): readonly (readonly number[])[] {
+  if (
+    typeof input !== 'object'
+    || input === null
+    || typeof input.grid !== 'object'
+    || input.grid === null
+  ) fail('GREATER_REALM_STANDING_WATER_SELECTION_INPUT_INVALID');
+  if (
+    !isCanonicalGreaterRealmAxialGrid(input.grid)
+    || !(input.elevation instanceof Int32Array)
+    || !(input.filledElevation instanceof Int32Array)
+    || !(input.waterRegime instanceof Uint8Array)
+    || input.elevation.length !== input.grid.cellCount
+    || input.filledElevation.length !== input.grid.cellCount
+    || input.waterRegime.length !== input.grid.cellCount
+    || !Array.isArray(input.rankedComponents)
+    || !Number.isSafeInteger(input.maximumCount)
+    || input.maximumCount < 0
+    || !Number.isSafeInteger(input.minimumCellCount)
+    || input.minimumCellCount < 1
+  ) fail('GREATER_REALM_STANDING_WATER_SELECTION_INPUT_INVALID');
+  for (let cell = 0; cell < input.grid.cellCount; cell += 1) {
+    if (
+      input.waterRegime[cell]! > WATER_MARSH
+      || input.filledElevation[cell]! < input.elevation[cell]!
+    ) fail('GREATER_REALM_STANDING_WATER_SELECTION_INPUT_INVALID');
+  }
+  const componentCell = new Uint8Array(input.grid.cellCount);
+  try {
+    for (const component of input.rankedComponents) {
+      if (!Array.isArray(component) || component.length === 0) {
+        fail('GREATER_REALM_STANDING_WATER_SELECTION_INPUT_INVALID');
+      }
+      let componentLevel: number | undefined;
+      for (const cell of component) {
+        if (
+          !Number.isSafeInteger(cell)
+          || cell < 0
+          || cell >= input.grid.cellCount
+          || componentCell[cell] === 1
+          || input.waterRegime[cell] !== WATER_DRY
+        ) fail('GREATER_REALM_STANDING_WATER_SELECTION_INPUT_INVALID');
+        const level = standingWaterSurfaceLevel(
+          cell,
+          WATER_SEA,
+          input.elevation,
+          input.filledElevation,
+        );
+        if (componentLevel !== undefined && level !== componentLevel) {
+          fail('GREATER_REALM_STANDING_WATER_SELECTION_INPUT_INVALID');
+        }
+        componentLevel = level;
+        componentCell[cell] = 1;
+      }
+    }
+  } finally {
+    componentCell.fill(0);
+  }
+  const selected: Array<readonly number[]> = [];
+  for (const component of input.rankedComponents) {
+    if (
+      selected.length >= input.maximumCount
+      || component.length < input.minimumCellCount
+      || component.length === 0
+    ) continue;
+    const level = standingWaterSurfaceLevel(
+      component[0]!,
+      WATER_SEA,
+      input.elevation,
+      input.filledElevation,
+    );
+    let conflicts = false;
+    for (const cell of component) {
+      for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
+        const neighbor = input.grid.neighbors[
+          cell * HEX_NEIGHBOR_COUNT + direction
+        ]!;
+        if (
+          neighbor >= 0
+          && input.waterRegime[neighbor] === WATER_SEA
+          && standingWaterSurfaceLevel(
+            neighbor,
+            WATER_SEA,
+            input.elevation,
+            input.filledElevation,
+          ) !== level
+        ) {
+          conflicts = true;
+          break;
+        }
+      }
+      if (conflicts) break;
+    }
+    if (conflicts) continue;
+    selected.push(component);
+    for (const cell of component) input.waterRegime[cell] = WATER_SEA;
+  }
+  return Object.freeze(selected);
+}
+
 function repairNaturalRegionLandCoherence(
   grid: IndexedAxialGrid,
   strategy: Readonly<{
@@ -5756,13 +6005,16 @@ function waterAndBiomes(
       0,
     ) % 3
   );
-  const inlandSeaComponents = allLakeComponents
-    .filter(component => component.length >= 48)
-    .slice(0, Math.max(0, targetMajorBodies - existingMajorBodies));
+  const inlandSeaComponents = selectGreaterRealmCompatibleStandingWaterComponents({
+    grid,
+    rankedComponents: allLakeComponents,
+    elevation,
+    filledElevation,
+    waterRegime,
+    maximumCount: Math.max(0, targetMajorBodies - existingMajorBodies),
+    minimumCellCount: 48,
+  });
   const inlandSeaCells = new Set(inlandSeaComponents.flat());
-  for (const component of inlandSeaComponents) {
-    for (const cell of component) waterRegime[cell] = WATER_SEA;
-  }
   const selectedLakes: Array<readonly number[]> = [];
   for (const component of allLakeComponents) {
     if (
@@ -8775,6 +9027,7 @@ export function generateGreaterRealmCandidate(input: Readonly<{
       projectedBedrock,
       fluvial.elevation,
     );
+    reconciledFlowAccumulationOnFailure = reconciled.flowAccumulation;
     const provisionalStrategy = assignTiersAndRegions(
       grid,
       candidateSeed,
@@ -8828,6 +9081,15 @@ export function generateGreaterRealmCandidate(input: Readonly<{
         geomorphology.moisture[cell] = geomorphology.processMoisture[cell]!;
       }
     }
+    enforceGreaterRealmStandingWaterBodySurfaceProof({
+      phase: 'generated',
+      proof: hasGreaterRealmStandingWaterBodySurfaceProof({
+        grid,
+        waterRegime: surface.waterRegime,
+        elevation: reconciled.elevation,
+        filledElevation: reconciled.filledElevation,
+      }),
+    });
     const legacySurfaceProof = overlayLegacyLowlandsSurface(
       grid,
       legacy,
@@ -8835,6 +9097,15 @@ export function generateGreaterRealmCandidate(input: Readonly<{
       surface.biomeId,
       surface.landformId,
     );
+    enforceGreaterRealmStandingWaterBodySurfaceProof({
+      phase: 'legacy-overlay',
+      proof: hasGreaterRealmStandingWaterBodySurfaceProof({
+        grid,
+        waterRegime: surface.waterRegime,
+        elevation: reconciled.elevation,
+        filledElevation: reconciled.filledElevation,
+      }),
+    });
     const capacityStrategy = allocateTierTwoPassableCapacity(
       grid,
       candidateSeed,
@@ -8950,7 +9221,6 @@ export function generateGreaterRealmCandidate(input: Readonly<{
         seaLevel: SEA_LEVEL,
       });
       hydrologyOnFailure = hydrology;
-      reconciledFlowAccumulationOnFailure = reconciled.flowAccumulation;
     } finally {
       marshMask.fill(0);
     }
