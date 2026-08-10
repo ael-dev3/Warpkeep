@@ -128,8 +128,13 @@ sampler grounds its nine topographic features, connected headwater-rill-lake,
 outer patrol road, grass, trees, animals, trade wagon, and scenic resource
 structures. The compound footprint samples to exactly zero; terrain feathers
 through a rounded 5.5-meter shoulder only beyond the walls. The estate spans
-68 x 76 meters. Quality caps grass at 2,400 / 1,400 / 480 blades and six
-Warpkeep-Assets tree species at 72 / 44 / 22 instances.
+68 x 76 meters. A separately digested, non-pickable countryside ring extends
+the rendered field to 192 x 288 meters without changing the detailed sampler,
+placement density, canonical layout digest, or server authority. It fades to
+the scene fog and caps crop tufts at 240 / 144 / 72 and procedural hedgerow
+silhouettes at 24 / 16 / 8. Camera focus is presentation-clamped to three
+meters per axis. Quality caps detailed grass at 2,400 / 1,400 / 480 blades and
+eight Warpkeep-Assets tree species at 72 / 44 / 22 instances.
 
 The same outer policy caps presentation-only resource structures at 8 / 6 / 4
 and rabbits at 10 / 7 / 4, with one trade wagon in every tier. The optional

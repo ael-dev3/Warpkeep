@@ -45,6 +45,11 @@ const EMPTY_TELEMETRY: InnerKeepSceneTelemetry = Object.freeze({
   topographicFeatureCount: 0,
   terrainTriangleCount: 0,
   terrainHeightRangeMillimeters: 0,
+  farCountrysideStatus: 'idle',
+  farCountrysideTerrainTriangleCount: 0,
+  farCountrysideFieldParcelCount: 0,
+  farCountrysideFieldTuftCount: 0,
+  farCountrysideHedgerowTreeCount: 0,
   exteriorTreeCount: 0,
   scenicResourceNodeCount: 0,
   wildlifeAssetStatus: 'idle',
@@ -127,6 +132,11 @@ function telemetryKey(telemetry: InnerKeepSceneTelemetry, evidence: SceneEvidenc
     telemetry.topographicFeatureCount,
     telemetry.terrainTriangleCount,
     telemetry.terrainHeightRangeMillimeters,
+    telemetry.farCountrysideStatus,
+    telemetry.farCountrysideTerrainTriangleCount,
+    telemetry.farCountrysideFieldParcelCount,
+    telemetry.farCountrysideFieldTuftCount,
+    telemetry.farCountrysideHedgerowTreeCount,
     telemetry.exteriorTreeCount,
     telemetry.scenicResourceNodeCount,
     telemetry.wildlifeAssetStatus,
@@ -255,6 +265,19 @@ export function InnerKeepQaHarness({ scenario }: Readonly<{
     );
     root.dataset.innerKeepQaTerrainHeightRangeMillimeters = String(
       telemetry.terrainHeightRangeMillimeters
+    );
+    root.dataset.innerKeepQaFarCountrysideStatus = telemetry.farCountrysideStatus;
+    root.dataset.innerKeepQaFarCountrysideTerrainTriangleCount = String(
+      telemetry.farCountrysideTerrainTriangleCount
+    );
+    root.dataset.innerKeepQaFarCountrysideFieldParcelCount = String(
+      telemetry.farCountrysideFieldParcelCount
+    );
+    root.dataset.innerKeepQaFarCountrysideFieldTuftCount = String(
+      telemetry.farCountrysideFieldTuftCount
+    );
+    root.dataset.innerKeepQaFarCountrysideHedgerowTreeCount = String(
+      telemetry.farCountrysideHedgerowTreeCount
     );
     root.dataset.innerKeepQaExteriorTreeCount = String(telemetry.exteriorTreeCount);
     root.dataset.innerKeepQaScenicResourceNodeCount = String(

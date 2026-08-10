@@ -459,7 +459,7 @@ readonly InnerKeepPalisadeVisualOverride[] = Object.freeze([
 export const INNER_KEEP_PALISADE_VISUAL_CORRECTION_POLICY = Object.freeze({
   policyVersion: 'inner-keep-palisade-visual-correction-v1',
   sourcePresentationLayoutDigest:
-    '0a976765d6f6e740eb6282fca90f59b412ecbd7ed382f001da89a0b7abeca756',
+    'f2f06d1362d544e0caec13f227817017b18cadd675eb00dae696b79d2d63ce04',
   presentationOnly: true,
   gameplayAuthorityClaimed: false,
   changesCanonicalLayoutDigest: false,
@@ -474,7 +474,7 @@ export function canonicalInnerKeepPalisadeVisualCorrectionDigestInput() {
 
 // SHA-256 of canonicalInnerKeepPalisadeVisualCorrectionDigestInput().
 export const INNER_KEEP_PALISADE_VISUAL_CORRECTION_DIGEST =
-  '2972e25e56e3ccfc81f892e5bce9b4680d5f95ab0b1b3e5712bf101300d13899';
+  '6919b39f8fef4c64c21855a1b2ee604137f13a5ffb4b3604b0a7f6c73035021f';
 
 function wallSkirt(
   placementId: string,

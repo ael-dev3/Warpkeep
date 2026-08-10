@@ -6,6 +6,10 @@ import {
   type CreateInnerKeepSceneLayerOptions
 } from '../src/components/inner-keep/createInnerKeepSceneLayer';
 import {
+  createInnerKeepFarCountryside,
+  type InnerKeepFarCountryside
+} from '../src/components/inner-keep/createInnerKeepFarCountryside';
+import {
   INNER_KEEP_PRESENTATION_ASSETS,
   INNER_KEEP_PRESENTATION_CAMERA_PRESETS,
   INNER_KEEP_PRESENTATION_PLACEMENTS,
@@ -16,7 +20,20 @@ import {
   INNER_KEEP_WATER_POND
 } from '../src/components/inner-keep/createInnerKeepEcology';
 import { allInnerKeepStaticRuntimeAssetIds } from '../src/components/inner-keep/createInnerKeepAuthoredPresentation';
-import { createInnerKeepOuterWorldRenderedTerrainSampler } from '../src/components/inner-keep/innerKeepOuterWorldPolicy';
+import {
+  createInnerKeepOuterWorldRenderedTerrainSampler,
+  INNER_KEEP_OUTER_WORLD_HEIGHT_BOUNDS_METERS,
+} from '../src/components/inner-keep/innerKeepOuterWorldPolicy';
+import {
+  INNER_KEEP_FAR_COUNTRYSIDE_CAMERA,
+  INNER_KEEP_FAR_COUNTRYSIDE_FIELD_TUFT_BUDGETS,
+  INNER_KEEP_FAR_COUNTRYSIDE_HALF_EXTENTS_METERS,
+  INNER_KEEP_FAR_COUNTRYSIDE_HEDGEROW_TREE_BUDGETS,
+  INNER_KEEP_FAR_COUNTRYSIDE_MINIMUM_CAMERA_BUFFER_METERS,
+  INNER_KEEP_FAR_COUNTRYSIDE_POLICY_DIGEST,
+  INNER_KEEP_FAR_COUNTRYSIDE_POLICY_VERSION,
+  innerKeepFarCountrysideMinimumZoomForAspect,
+} from '../src/components/inner-keep/innerKeepFarCountrysidePolicy';
 import type {
   InnerKeepRuntimeAssetBundle,
   InnerKeepRuntimePrefab
@@ -41,6 +58,7 @@ function createLayer(
   assetLoading: 'auto' | 'disabled' = 'disabled',
   runtimeAssetLoader?: CreateInnerKeepSceneLayerOptions['runtimeAssetLoader'],
   quality: CreateInnerKeepSceneLayerOptions['quality'] = 'balanced',
+  farCountrysideFactory?: CreateInnerKeepSceneLayerOptions['farCountrysideFactory'],
 ) {
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
   const canvas = document.createElement('canvas');
@@ -70,7 +88,8 @@ function createLayer(
       requestRender,
       assetLoading,
       outerWorldAssetLoading: 'disabled',
-      ...(runtimeAssetLoader ? { runtimeAssetLoader } : {})
+      ...(runtimeAssetLoader ? { runtimeAssetLoader } : {}),
+      ...(farCountrysideFactory ? { farCountrysideFactory } : {}),
     }),
     requestRender
   };
@@ -131,6 +150,19 @@ describe('procedural Inner Keep scene layer', () => {
       .toBe(INNER_KEEP_TOWN_TONAL_PALETTE.fogFarMeters);
     expect(layer.scene.userData.innerKeepTownAtmospherePolicyVersion)
       .toBe(INNER_KEEP_TOWN_ATMOSPHERE_POLICY_VERSION);
+    expect(layer.scene.userData.innerKeepFarCountrysidePolicyVersion)
+      .toBe(INNER_KEEP_FAR_COUNTRYSIDE_POLICY_VERSION);
+    expect(layer.scene.userData.innerKeepFarCountrysidePolicyDigest)
+      .toBe(INNER_KEEP_FAR_COUNTRYSIDE_POLICY_DIGEST);
+    expect(layer.scene.userData.innerKeepFarCountrysideHalfExtentsMeters)
+      .toBe(INNER_KEEP_FAR_COUNTRYSIDE_HALF_EXTENTS_METERS);
+    expect(layer.scene.userData.innerKeepFarCountrysidePanBoundsMeters)
+      .toBe(INNER_KEEP_FAR_COUNTRYSIDE_CAMERA.panBoundsMeters);
+    expect(layer.scene.userData.innerKeepFarCountrysideStatus).toBe('ready');
+    expect(layer.scene.userData.innerKeepFarCountrysideFieldTuftCount)
+      .toBe(INNER_KEEP_FAR_COUNTRYSIDE_FIELD_TUFT_BUDGETS.balanced);
+    expect(layer.scene.userData.innerKeepFarCountrysideHedgerowTreeCount)
+      .toBe(INNER_KEEP_FAR_COUNTRYSIDE_HEDGEROW_TREE_BUDGETS.balanced);
 
     const hemisphere = layer.scene.children.find(
       (object): object is THREE.HemisphereLight => object instanceof THREE.HemisphereLight,
@@ -228,6 +260,50 @@ describe('procedural Inner Keep scene layer', () => {
     expect([...activeColors]).not.toEqual([...reservedColors]);
     expect(document.querySelectorAll('canvas')).toHaveLength(1);
     expect(requestAnimationFrame).not.toHaveBeenCalled();
+    layer.dispose();
+  });
+
+  it('keeps the tinted detailed terrain and countryside visually seamless', () => {
+    const { layer } = createLayer();
+    layer.setViewport(1_280, 720);
+    const presentation = createInnerKeepPresentation();
+    for (const owningTerrainKind of ['forest', 'heath', 'meadow'] as const) {
+      layer.reconcile(presentation, { owningTerrainKind });
+      const detailed = layer.scene.getObjectByName(
+        'inner-keep-outer-topographic-terrain',
+      ) as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
+      const far = layer.scene.getObjectByName(
+        'inner-keep-far-countryside-field-overscan',
+      ) as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
+      const detailedPositions = detailed.geometry.getAttribute('position');
+      const detailedColors = detailed.geometry.getAttribute('color');
+      const detailedOutputByPosition = new Map<string, THREE.Color>();
+      for (let index = 0; index < detailedPositions.count; index += 1) {
+        const x = detailedPositions.getX(index);
+        const z = detailedPositions.getZ(index);
+        if (Math.abs(Math.abs(x) - 34) > 0.000_01
+          && Math.abs(Math.abs(z) - 38) > 0.000_01) continue;
+        detailedOutputByPosition.set(`${x.toFixed(5)}:${z.toFixed(5)}`, new THREE.Color(
+          detailedColors.getX(index),
+          detailedColors.getY(index),
+          detailedColors.getZ(index),
+        ).multiply(detailed.material.color));
+      }
+      const farPositions = far.geometry.getAttribute('position');
+      const farColors = far.geometry.getAttribute('color');
+      let compared = 0;
+      for (let index = 0; index < farPositions.count; index += 1) {
+        const expected = detailedOutputByPosition.get(
+          `${farPositions.getX(index).toFixed(5)}:${farPositions.getZ(index).toFixed(5)}`,
+        );
+        if (!expected) continue;
+        compared += 1;
+        expect(farColors.getX(index), owningTerrainKind).toBeCloseTo(expected.r, 6);
+        expect(farColors.getY(index), owningTerrainKind).toBeCloseTo(expected.g, 6);
+        expect(farColors.getZ(index), owningTerrainKind).toBeCloseTo(expected.b, 6);
+      }
+      expect(compared).toBeGreaterThan(200);
+    }
     layer.dispose();
   });
 
@@ -547,11 +623,11 @@ describe('procedural Inner Keep scene layer', () => {
     layer.dispose();
   });
 
-  it('fits every authored footprint in portrait without overwriting later user input', () => {
+  it('fits every authored footprint in portrait and preserves focus across rig changes', () => {
     const { layer } = createLayer(false, 390, 844);
     layer.setViewport(390, 844);
     const portraitAspect = 390 / 844;
-    const portraitZoom = INNER_KEEP_PRESENTATION_CAMERA_PRESETS.zoom.minimum;
+    const portraitZoom = innerKeepFarCountrysideMinimumZoomForAspect(portraitAspect);
     expect(layer.camera.right).toBeCloseTo(
       INNER_KEEP_PRESENTATION_CAMERA_PRESETS.minimumHalfWidth / portraitZoom,
       6
@@ -562,7 +638,7 @@ describe('procedural Inner Keep scene layer', () => {
       ) / portraitAspect,
       6
     );
-    expect(layer.camera.position).toMatchObject({ x: 0, y: 31, z: 34 });
+    expect(layer.camera.position).toMatchObject({ x: 0, y: 47, z: 26 });
 
     const assetById = new Map(INNER_KEEP_PRESENTATION_ASSETS.map((asset) => (
       [asset.assetId, asset] as const
@@ -612,13 +688,248 @@ describe('procedural Inner Keep scene layer', () => {
     layer.zoomByWheel(600, WheelEvent.DOM_DELTA_PIXEL);
     layer.panByPixels(90, -45);
     const manuallyAdjustedPosition = layer.camera.position.clone();
+    const focusX = manuallyAdjustedPosition.x
+      - INNER_KEEP_FAR_COUNTRYSIDE_CAMERA.portrait.positionMeters[0];
+    const focusZ = manuallyAdjustedPosition.z
+      - INNER_KEEP_FAR_COUNTRYSIDE_CAMERA.portrait.positionMeters[2];
     layer.setViewport(1280, 720);
 
     expect(layer.camera.top).toBeGreaterThan(
       INNER_KEEP_PRESENTATION_CAMERA_PRESETS.landscape.baseHalfHeight
     );
+    expect(layer.camera.position.x).toBeCloseTo(
+      INNER_KEEP_PRESENTATION_CAMERA_PRESETS.positionMeters[0] + focusX,
+      6,
+    );
+    expect(layer.camera.position.z).toBeCloseTo(
+      INNER_KEEP_PRESENTATION_CAMERA_PRESETS.positionMeters[2] + focusZ,
+      6,
+    );
+    layer.setViewport(390, 844);
     expect(layer.camera.position.x).toBeCloseTo(manuallyAdjustedPosition.x, 6);
     expect(layer.camera.position.z).toBeCloseTo(manuallyAdjustedPosition.z, 6);
+    layer.dispose();
+  });
+
+  it('keeps pan responsive but tightly clamped and does not make zoom sticky', () => {
+    const { layer } = createLayer(false, 844, 390);
+    layer.setViewport(844, 390);
+    const initialTop = layer.camera.top;
+    const initialPosition = layer.camera.position.clone();
+    const projectedBefore = new THREE.Vector3(0, 0, 0).project(layer.camera);
+
+    layer.panByPixels(100, 0);
+    expect(layer.camera.position.x).toBeLessThan(initialPosition.x - 1);
+    const projectedAfterHorizontal = new THREE.Vector3(0, 0, 0).project(layer.camera);
+    expect(Math.abs(projectedAfterHorizontal.x - projectedBefore.x)).toBeGreaterThan(0.02);
+    expect(projectedAfterHorizontal.y).toBeCloseTo(projectedBefore.y, 6);
+    layer.panByPixels(-100, 0);
+    expect(layer.camera.position.x).toBeCloseTo(initialPosition.x, 6);
+    expect(layer.camera.position.z).toBeCloseTo(initialPosition.z, 6);
+
+    layer.panByPixels(0, 100);
+    const projectedAfterVertical = new THREE.Vector3(0, 0, 0).project(layer.camera);
+    expect(projectedAfterVertical.x).toBeCloseTo(projectedBefore.x, 6);
+    expect(Math.abs(projectedAfterVertical.y - projectedBefore.y)).toBeGreaterThan(0.02);
+    layer.panByPixels(0, -100);
+    expect(layer.camera.position.x).toBeCloseTo(initialPosition.x, 6);
+    expect(layer.camera.position.z).toBeCloseTo(initialPosition.z, 6);
+
+    layer.panByPixels(1_000_000, 1_000_000);
+    const clampedFocusX = layer.camera.position.x
+      - INNER_KEEP_PRESENTATION_CAMERA_PRESETS.positionMeters[0];
+    const clampedFocusZ = layer.camera.position.z
+      - INNER_KEEP_PRESENTATION_CAMERA_PRESETS.positionMeters[2];
+    expect(clampedFocusX).toBeGreaterThanOrEqual(-3);
+    expect(clampedFocusX).toBeLessThanOrEqual(3);
+    expect(clampedFocusZ).toBeGreaterThanOrEqual(-3);
+    expect(clampedFocusZ).toBeLessThanOrEqual(3);
+    expect(Math.max(Math.abs(clampedFocusX), Math.abs(clampedFocusZ))).toBeCloseTo(3, 6);
+    layer.panByPixels(-1_000_000, -1_000_000);
+    expect(Math.abs(
+      layer.camera.position.x - INNER_KEEP_PRESENTATION_CAMERA_PRESETS.positionMeters[0],
+    )).toBeLessThanOrEqual(3);
+    expect(Math.abs(
+      layer.camera.position.z - INNER_KEEP_PRESENTATION_CAMERA_PRESETS.positionMeters[2],
+    )).toBeLessThanOrEqual(3);
+
+    layer.setViewport(390, 844);
+    expect(layer.camera.top).toBeCloseTo(
+      INNER_KEEP_PRESENTATION_CAMERA_PRESETS.minimumHalfWidth
+        / INNER_KEEP_FAR_COUNTRYSIDE_CAMERA.initialZoom.portrait
+        / (390 / 844),
+      6,
+    );
+    layer.setViewport(844, 390);
+    expect(layer.camera.top).toBeCloseTo(initialTop, 6);
+
+    layer.zoomByWheel(1_000_000, WheelEvent.DOM_DELTA_PIXEL);
+    const requestedMinimumTop = layer.camera.top;
+    layer.setViewport(1_200, 200);
+    expect(layer.camera.top).toBeLessThan(requestedMinimumTop);
+    layer.setViewport(844, 390);
+    expect(layer.camera.top).toBeCloseTo(requestedMinimumTop, 6);
+    layer.dispose();
+  });
+
+  it('keeps every supported camera ray inside the fog-softened countryside', () => {
+    const viewports = [
+      [1_440, 900],
+      [844, 390],
+      [390, 844],
+      [320, 800],
+      [1_200, 200],
+      [200, 1_000],
+    ] as const;
+    const [outerX, outerZ] = INNER_KEEP_FAR_COUNTRYSIDE_HALF_EXTENTS_METERS;
+    const maximumX = outerX - INNER_KEEP_FAR_COUNTRYSIDE_MINIMUM_CAMERA_BUFFER_METERS;
+    const maximumZ = outerZ - INNER_KEEP_FAR_COUNTRYSIDE_MINIMUM_CAMERA_BUFFER_METERS;
+    for (const [width, height] of viewports) {
+      const { layer } = createLayer(false, width, height);
+      layer.setViewport(width, height);
+      layer.zoomByWheel(1_000_000, WheelEvent.DOM_DELTA_PIXEL);
+      for (const [focusX, focusZ] of [
+        [-3, -3],
+        [3, -3],
+        [-3, 3],
+        [3, 3],
+      ] as const) {
+        const camera = layer.camera.clone();
+        camera.position.x += focusX;
+        camera.position.z += focusZ;
+        camera.updateMatrixWorld();
+        for (const terrainHeight of [
+          INNER_KEEP_OUTER_WORLD_HEIGHT_BOUNDS_METERS.minimum,
+          INNER_KEEP_OUTER_WORLD_HEIGHT_BOUNDS_METERS.maximum,
+        ]) for (const ndcX of [-1, 1]) for (const ndcY of [-1, 1]) {
+          const near = new THREE.Vector3(ndcX, ndcY, -1).unproject(camera);
+          const far = new THREE.Vector3(ndcX, ndcY, 1).unproject(camera);
+          const direction = far.clone().sub(near);
+          const progress = (terrainHeight - near.y) / direction.y;
+          expect(progress, `${width}x${height}:near/far`).toBeGreaterThanOrEqual(0);
+          expect(progress, `${width}x${height}:near/far`).toBeLessThanOrEqual(1);
+          const point = near.addScaledVector(direction, progress);
+          expect(Math.abs(point.x), `${width}x${height}:x`).toBeLessThanOrEqual(maximumX);
+          expect(Math.abs(point.z), `${width}x${height}:z`).toBeLessThanOrEqual(maximumZ);
+        }
+      }
+      layer.dispose();
+    }
+  });
+
+  it('keeps the canonical scene usable if the optional horizon fails', () => {
+    const { layer } = createLayer(
+      false,
+      1_280,
+      720,
+      'disabled',
+      undefined,
+      'balanced',
+      () => {
+        throw new Error('synthetic far countryside failure');
+      },
+    );
+    layer.setViewport(1_280, 720);
+    layer.reconcile(createInnerKeepPresentation(), { owningTerrainKind: 'meadow' });
+    expect(layer.scene.getObjectByName('inner-keep-outer-topographic-terrain'))
+      .toBeInstanceOf(THREE.Mesh);
+    expect(layer.scene.getObjectByName('inner-keep-far-countryside-unavailable'))
+      .toBeInstanceOf(THREE.Group);
+    expect(layer.scene.userData.innerKeepFarCountrysideError)
+      .toBe('synthetic far countryside failure');
+    expect(layer.getTelemetry()).toMatchObject({
+      status: 'ready',
+      slotCount: 12,
+      farCountrysideStatus: 'degraded',
+      farCountrysideTerrainTriangleCount: 0,
+      farCountrysideFieldParcelCount: 0,
+      farCountrysideFieldTuftCount: 0,
+      farCountrysideHedgerowTreeCount: 0,
+    });
+    layer.dispose();
+  });
+
+  it('retires a horizon whose seam stitch fails and mounts the empty presenter', () => {
+    const candidate = createInnerKeepFarCountryside('balanced');
+    const dispose = vi.fn(() => candidate.dispose());
+    const failingCandidate: InnerKeepFarCountryside = Object.freeze({
+      ...candidate,
+      stitchDetailedTerrainBoundaryNormals: () => {
+        throw new Error('synthetic countryside stitch failure');
+      },
+      dispose
+    });
+    const { layer } = createLayer(
+      false, 1_280, 720, 'disabled', undefined, 'balanced',
+      () => failingCandidate
+    );
+
+    expect(dispose).toHaveBeenCalledTimes(1);
+    expect(layer.scene.getObjectByName('inner-keep-far-countryside-unavailable'))
+      .toBeInstanceOf(THREE.Group);
+    expect(layer.scene.userData.innerKeepFarCountrysideError)
+      .toBe('synthetic countryside stitch failure');
+    layer.reconcile(createInnerKeepPresentation(), { owningTerrainKind: 'meadow' });
+    expect(layer.getTelemetry()).toMatchObject({
+      status: 'ready',
+      farCountrysideStatus: 'degraded',
+      farCountrysideTerrainTriangleCount: 0
+    });
+    layer.dispose();
+  });
+
+  it('retires a horizon whose scene installation fails', () => {
+    const candidate = createInnerKeepFarCountryside('balanced');
+    const blockingParent = new THREE.Group();
+    blockingParent.add(candidate.group);
+    vi.spyOn(blockingParent, 'remove').mockImplementation(() => {
+      throw new Error('synthetic countryside install failure');
+    });
+    const dispose = vi.fn(() => candidate.dispose());
+    const failingCandidate: InnerKeepFarCountryside = Object.freeze({
+      ...candidate,
+      dispose
+    });
+    const { layer } = createLayer(
+      false, 1_280, 720, 'disabled', undefined, 'balanced',
+      () => failingCandidate
+    );
+
+    expect(dispose).toHaveBeenCalledTimes(1);
+    expect(layer.scene.userData.innerKeepFarCountrysideError)
+      .toBe('synthetic countryside install failure');
+    expect(layer.scene.getObjectByName('inner-keep-far-countryside-unavailable'))
+      .toBeInstanceOf(THREE.Group);
+    layer.dispose();
+  });
+
+  it('retires a mounted horizon whose terrain tint fails during reconcile', () => {
+    const candidate = createInnerKeepFarCountryside('balanced');
+    const dispose = vi.fn(() => candidate.dispose());
+    const failingCandidate: InnerKeepFarCountryside = Object.freeze({
+      ...candidate,
+      setDetailedTerrainTint: () => {
+        throw new Error('synthetic countryside tint failure');
+      },
+      dispose
+    });
+    const { layer } = createLayer(
+      false, 1_280, 720, 'disabled', undefined, 'balanced',
+      () => failingCandidate
+    );
+
+    layer.reconcile(createInnerKeepPresentation(), { owningTerrainKind: 'forest' });
+    expect(dispose).toHaveBeenCalledTimes(1);
+    expect(layer.scene.userData.innerKeepFarCountrysideError)
+      .toBe('synthetic countryside tint failure');
+    expect(layer.scene.getObjectByName('inner-keep-far-countryside-unavailable'))
+      .toBeInstanceOf(THREE.Group);
+    expect(layer.getTelemetry()).toMatchObject({
+      status: 'ready',
+      farCountrysideStatus: 'degraded',
+      farCountrysideFieldTuftCount: 0,
+      farCountrysideHedgerowTreeCount: 0
+    });
     layer.dispose();
   });
 

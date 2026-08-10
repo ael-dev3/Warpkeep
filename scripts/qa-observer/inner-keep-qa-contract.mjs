@@ -66,6 +66,11 @@ const EVIDENCE_KEYS = Object.freeze([
   'exteriorMountedActorCount',
   'exteriorPatrolUnitCount',
   'exteriorTreeCount',
+  'farCountrysideFieldParcelCount',
+  'farCountrysideFieldTuftCount',
+  'farCountrysideHedgerowTreeCount',
+  'farCountrysideStatus',
+  'farCountrysideTerrainTriangleCount',
   'finalModelCount',
   'grassBladeCount',
   'horizontalOverflow',
@@ -132,6 +137,7 @@ export function parseInnerKeepQaEvidence(value) {
       'aborted',
       'disposed',
     ].includes(candidate.outerWorldStatus)
+    || !['idle', 'ready', 'degraded'].includes(candidate.farCountrysideStatus)
     || ![
       'idle',
       'disabled',
@@ -172,6 +178,10 @@ export function parseInnerKeepQaEvidence(value) {
       candidate.exteriorMountedActorCount,
       candidate.exteriorPatrolUnitCount,
       candidate.exteriorTreeCount,
+      candidate.farCountrysideFieldParcelCount,
+      candidate.farCountrysideFieldTuftCount,
+      candidate.farCountrysideHedgerowTreeCount,
+      candidate.farCountrysideTerrainTriangleCount,
       candidate.finalModelCount,
       candidate.grassBladeCount,
       candidate.maximumPendingRafCount,
@@ -233,7 +243,11 @@ const EXPECTED_LIVING_SCENE_BY_QUALITY = Object.freeze({
     scenicResourceNodeCount: 8,
     sceneGraphDrawCallsMaximum: INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS.high.drawCalls,
     sceneGraphTrianglesMaximum: INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS.high.triangles,
-    terrainTriangleCount: 8_960,
+    farCountrysideFieldParcelCount: 250,
+    farCountrysideFieldTuftCount: 240,
+    farCountrysideHedgerowTreeCount: 24,
+    farCountrysideTerrainTriangleCount: 6_160,
+    terrainTriangleCount: 15_120,
     wildlifeCount: 10,
   }),
   balanced: Object.freeze({
@@ -248,14 +262,19 @@ const EXPECTED_LIVING_SCENE_BY_QUALITY = Object.freeze({
     grassBladeCount: 1_400,
     mountedActorCount: 4,
     patrolUnitCount: 6,
-    // The additional planted-grass batch raises the measured balanced color
-    // pass; this small margin covers reviewed screenshot-capture variation.
-    rendererDrawCallsMaximum: 384,
+    // The reviewed far-countryside camera exposes more of the living scene.
+    // Construction peaked at 401 renderer draws across repeated local Chrome
+    // captures; 416 retains a tight 15-draw allowance for capture variation.
+    rendererDrawCallsMaximum: 416,
     rendererTrianglesMaximum: 270_000,
     scenicResourceNodeCount: 6,
     sceneGraphDrawCallsMaximum: INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS.balanced.drawCalls,
     sceneGraphTrianglesMaximum: INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS.balanced.triangles,
-    terrainTriangleCount: 5_184,
+    farCountrysideFieldParcelCount: 250,
+    farCountrysideFieldTuftCount: 144,
+    farCountrysideHedgerowTreeCount: 16,
+    farCountrysideTerrainTriangleCount: 3_776,
+    terrainTriangleCount: 8_960,
     wildlifeCount: 7,
   }),
   reduced: Object.freeze({
@@ -275,7 +294,11 @@ const EXPECTED_LIVING_SCENE_BY_QUALITY = Object.freeze({
     scenicResourceNodeCount: 4,
     sceneGraphDrawCallsMaximum: INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS.reduced.drawCalls,
     sceneGraphTrianglesMaximum: INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS.reduced.triangles,
-    terrainTriangleCount: 2_040,
+    farCountrysideFieldParcelCount: 208,
+    farCountrysideFieldTuftCount: 72,
+    farCountrysideHedgerowTreeCount: 8,
+    farCountrysideTerrainTriangleCount: 1_480,
+    terrainTriangleCount: 3_520,
     wildlifeCount: 4,
   }),
 });
@@ -302,6 +325,11 @@ function expectLivingScene(evidence, scenario) {
       && evidence.topographicFeatureCount === 0
       && evidence.terrainTriangleCount === 0
       && evidence.terrainHeightRangeMillimeters === 0
+      && evidence.farCountrysideStatus === 'idle'
+      && evidence.farCountrysideTerrainTriangleCount === 0
+      && evidence.farCountrysideFieldParcelCount === 0
+      && evidence.farCountrysideFieldTuftCount === 0
+      && evidence.farCountrysideHedgerowTreeCount === 0
       && evidence.exteriorTreeCount === 0
       && evidence.scenicResourceNodeCount === 0
       && evidence.wildlifeAssetStatus === 'idle'
@@ -349,6 +377,15 @@ function expectLivingScene(evidence, scenario) {
     && evidence.topographicFeatureCount === 9
     && evidence.terrainTriangleCount === expected.terrainTriangleCount
     && evidence.terrainHeightRangeMillimeters > 0
+    && evidence.farCountrysideStatus === 'ready'
+    && evidence.farCountrysideTerrainTriangleCount
+      === expected.farCountrysideTerrainTriangleCount
+    && evidence.farCountrysideFieldParcelCount
+      === expected.farCountrysideFieldParcelCount
+    && evidence.farCountrysideFieldTuftCount
+      === expected.farCountrysideFieldTuftCount
+    && evidence.farCountrysideHedgerowTreeCount
+      === expected.farCountrysideHedgerowTreeCount
     && evidence.exteriorTreeCount === expected.exteriorTreeCount
     && evidence.scenicResourceNodeCount === expected.scenicResourceNodeCount
     && evidence.wildlifeAssetStatus === 'ready'

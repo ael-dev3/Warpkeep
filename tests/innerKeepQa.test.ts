@@ -79,7 +79,11 @@ function evidenceFor(
         resourceNodeCount: 8,
         sceneGraphDrawCalls: 329,
         sceneGraphTriangles: 274_564,
-        terrainTriangleCount: 8_960,
+        farFieldParcelCount: 250,
+        farFieldTuftCount: 240,
+        farHedgerowTreeCount: 24,
+        farTerrainTriangleCount: 6_160,
+        terrainTriangleCount: 15_120,
         wildlifeCount: 10
       }
     : scenario.quality === 'reduced'
@@ -100,7 +104,11 @@ function evidenceFor(
         resourceNodeCount: 4,
         sceneGraphDrawCalls: 190,
         sceneGraphTriangles: 75_000,
-        terrainTriangleCount: 2_040,
+        farFieldParcelCount: 208,
+        farFieldTuftCount: 72,
+        farHedgerowTreeCount: 8,
+        farTerrainTriangleCount: 1_480,
+        terrainTriangleCount: 3_520,
         wildlifeCount: 4
       }
     : {
@@ -120,7 +128,11 @@ function evidenceFor(
         resourceNodeCount: 6,
         sceneGraphDrawCalls: 250,
         sceneGraphTriangles: 160_000,
-        terrainTriangleCount: 5_184,
+        farFieldParcelCount: 250,
+        farFieldTuftCount: 144,
+        farHedgerowTreeCount: 16,
+        farTerrainTriangleCount: 3_776,
+        terrainTriangleCount: 8_960,
         wildlifeCount: 7
       };
   return {
@@ -168,6 +180,11 @@ function evidenceFor(
     topographicFeatureCount: webgl ? 9 : 0,
     terrainTriangleCount: webgl ? living.terrainTriangleCount : 0,
     terrainHeightRangeMillimeters: webgl ? 2_480 : 0,
+    farCountrysideStatus: webgl ? 'ready' : 'idle',
+    farCountrysideTerrainTriangleCount: webgl ? living.farTerrainTriangleCount : 0,
+    farCountrysideFieldParcelCount: webgl ? living.farFieldParcelCount : 0,
+    farCountrysideFieldTuftCount: webgl ? living.farFieldTuftCount : 0,
+    farCountrysideHedgerowTreeCount: webgl ? living.farHedgerowTreeCount : 0,
     exteriorTreeCount: webgl ? living.exteriorTreeCount : 0,
     scenicResourceNodeCount: webgl ? living.resourceNodeCount : 0,
     wildlifeAssetStatus: webgl ? 'ready' : 'idle',
@@ -464,6 +481,10 @@ describe('local Inner Keep rendered evidence contract', () => {
   });
 
   it('rejects quality-cap drift in animation, scene-graph, and renderer evidence', () => {
+    expect(assertInnerKeepQaScenarioEvidence(
+      evidenceFor('empty', { rendererDrawCalls: 416 }),
+      'empty'
+    )).toMatchObject({ rendererDrawCalls: 416 });
     for (const override of [
       { animationFrameCap: 25 },
       {
@@ -474,7 +495,7 @@ describe('local Inner Keep rendered evidence contract', () => {
         sceneGraphTriangles:
           INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS.balanced.triangles + 1,
       },
-      { rendererDrawCalls: 385 },
+      { rendererDrawCalls: 417 },
       { rendererTriangles: 270_001 }
     ]) {
       expect(() => assertInnerKeepQaScenarioEvidence(
@@ -506,7 +527,12 @@ describe('local Inner Keep rendered evidence contract', () => {
       mountedActorCount: 4,
       patrolUnitCount: 6,
       scenicResourceNodeCount: 6,
-      terrainTriangleCount: 5_184,
+      farCountrysideFieldParcelCount: 250,
+      farCountrysideFieldTuftCount: 144,
+      farCountrysideHedgerowTreeCount: 16,
+      farCountrysideStatus: 'ready',
+      farCountrysideTerrainTriangleCount: 3_776,
+      terrainTriangleCount: 8_960,
       topographicFeatureCount: 9,
       tradeWagonCount: 1,
       wildlifeAssetStatus: 'ready',
@@ -576,6 +602,7 @@ describe('local Inner Keep rendered evidence contract', () => {
       barracksPlacementPresent: false,
       cathedralPlacementPresent: false,
       grassBladeCount: 0,
+      farCountrysideStatus: 'idle',
       outerWorldStatus: 'idle',
       terrainTriangleCount: 0,
       wildlifeAssetStatus: 'idle',
@@ -599,7 +626,12 @@ describe('local Inner Keep rendered evidence contract', () => {
       { outerWorldStatus: 'loading' },
       { outerWorldRuntimeAssetFailureCount: 1 },
       { topographicFeatureCount: 8 },
-      { terrainTriangleCount: 5_183 },
+      { terrainTriangleCount: 8_959 },
+      { farCountrysideStatus: 'degraded' },
+      { farCountrysideTerrainTriangleCount: 3_775 },
+      { farCountrysideFieldParcelCount: 249 },
+      { farCountrysideFieldTuftCount: 143 },
+      { farCountrysideHedgerowTreeCount: 15 },
       { terrainHeightRangeMillimeters: 0 },
       { exteriorTreeCount: 43 },
       { scenicResourceNodeCount: 5 },

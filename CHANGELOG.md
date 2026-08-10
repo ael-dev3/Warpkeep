@@ -36,11 +36,13 @@ full engineering record.
   animation, and atomic fail-safe asset loading.
 - Extended that presentation beyond the walls with nine named landforms, one
   connected headwater-to-lake course, a rounded terrain shoulder across a
-  68 x 76 meter estate, quality-scaled fields and six-species woodland, scenic
-  resource structures and a trade wagon, outer patrols, and rabbits. Exact
+  detailed 68 x 76 meter estate, quality-scaled fields and woodland, scenic
+  resource structures and a trade wagon, outer patrols, and rabbits. A
+  fog-softened 192 x 288 meter countryside of farm parcels, crop tufts, and
+  hedgerows now continues behind the detailed estate, while responsive camera
+  movement is tightly limited so its visual edge cannot be exposed. Exact
   optional wildlife can fall back independently to bounded procedural animals;
-  every exterior element remains visual-only and grounded by the same
-  deterministic terrain sampler.
+  every exterior element remains visual-only and deterministic.
 - Prepared an optional **Enable Admission Alerts** step after a confirmed access
   request. It remains fail-closed behind a default-off release gate until the
   owner-controlled signed notification canary is complete, and never affects

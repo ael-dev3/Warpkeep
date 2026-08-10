@@ -115,7 +115,7 @@ export function createInnerKeepPresentation(options: Readonly<{
     castleId: 7n,
     layoutId: 'genesis-001-inner-keep-v1',
     layoutVersion: 1,
-    layoutDigest: 'dec272175dc96085b26d2bc96125e77c6433331c698f150d80dfbbb4881ee3d7',
+    layoutDigest: 'c5bbb38f49b853e10ce61fe463cdf2428df2bad50f96e68826c26fe5fc65a534',
     projectRevision: options.projectRevision ?? 1n,
     commandsEnabled: options.commandsEnabled ?? true,
     ...(options.statusMessage === undefined ? {} : {

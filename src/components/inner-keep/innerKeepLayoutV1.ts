@@ -3,7 +3,7 @@ import type { InnerKeepFootprintClass } from './innerKeepPresentation';
 export const INNER_KEEP_LAYOUT_V1_ID = 'genesis-001-inner-keep-v1';
 export const INNER_KEEP_LAYOUT_V1_VERSION = 1;
 export const INNER_KEEP_LAYOUT_V1_DIGEST =
-  'dec272175dc96085b26d2bc96125e77c6433331c698f150d80dfbbb4881ee3d7';
+  'c5bbb38f49b853e10ce61fe463cdf2428df2bad50f96e68826c26fe5fc65a534';
 
 export type InnerKeepLayoutV1Slot = Readonly<{
   slotId: string;

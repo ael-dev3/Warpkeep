@@ -3,7 +3,7 @@ import type { InnerKeepFootprintClass } from './innerKeepPolicy';
 // Browser-pinned digest of the reviewable client presentation-layout manifest.
 // Kept as a scalar here so dense decorative data never enters module authority.
 export const INNER_KEEP_PRESENTATION_LAYOUT_DIGEST =
-  '0a976765d6f6e740eb6282fca90f59b412ecbd7ed382f001da89a0b7abeca756';
+  'f2f06d1362d544e0caec13f227817017b18cadd675eb00dae696b79d2d63ce04';
 
 export const INNER_KEEP_LAYOUT_ID = 'genesis-001-inner-keep-v1';
 export const INNER_KEEP_LAYOUT_VERSION = 1;
@@ -94,7 +94,7 @@ export function canonicalInnerKeepLayoutDigestInput(): string {
 
 // SHA-256 of canonicalInnerKeepLayoutDigestInput().
 export const INNER_KEEP_LAYOUT_DIGEST =
-  'dec272175dc96085b26d2bc96125e77c6433331c698f150d80dfbbb4881ee3d7';
+  'c5bbb38f49b853e10ce61fe463cdf2428df2bad50f96e68826c26fe5fc65a534';
 
 /**
  * Logical asset-family digest. Runtime copy is separately authorization-gated;
