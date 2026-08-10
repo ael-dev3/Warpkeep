@@ -141,12 +141,16 @@ Schema generation 15 appends eight tables without changing refs 0–55:
 | 62 | `castle_inner_build_receipt_v1` | private exact deduction/idempotency receipt |
 | 63 | `castle_inner_construction_schedule_v_1` | private scheduler correlation |
 
-One project reducer accepts only a slot ID, building kind, and bounded request
-key. The server derives ownership, target level, discounts, stored-resource
-cost, timestamps, Builder capacity, and completion. It settles current Worker
-accrual first, then commits deduction, project, Builder, schedule, and receipt
-atomically. The four gathering Workers remain independent from the one internal
-Builder.
+One project reducer accepts a fixed slot ID, building kind, bounded request key,
+`expectedTargetLevel`, canonical decimal `expectedProjectRevision`, and
+`expectedPolicyDigest`. The three expected values are untrusted quote-binding
+compare-and-set assertions. The server derives ownership, the current target,
+and current policy digest. Before a new mutation, it verifies all three against
+current authority, ahead of any settlement or deduction. It then derives
+discounts, stored-resource cost, timestamps, Builder capacity, and completion.
+It settles current Worker accrual, then commits deduction, project, Builder,
+schedule, and receipt atomically. The four gathering Workers remain independent
+from the one internal Builder.
 
 The source tree does not make this component playable. A merge to protected
 `main` triggers the existing verified Pages deployment of the compatible,

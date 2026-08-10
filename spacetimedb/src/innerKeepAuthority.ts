@@ -52,6 +52,8 @@ type ScheduleRow = NonNullable<ReturnType<WarpkeepReducerContext['db']['castleIn
 
 const U64_MAX = (1n << 64n) - 1n;
 const INNER_KEEP_BUILDINGS_PER_CASTLE = 4;
+const INNER_KEEP_PROJECT_REVISION_MAX = BigInt(INNER_KEEP_BUILDINGS_PER_CASTLE + 2) * U64_MAX;
+const INNER_KEEP_PROJECT_REVISION_PATTERN = /^(?:0|[1-9][0-9]*)$/;
 const INNER_KEEP_REQUEST_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{15,79}$/;
 const SHA256_HEX = /^[0-9a-f]{64}$/;
 const GIT_COMMIT_HEX = /^[0-9a-f]{40}$/;
@@ -419,6 +421,33 @@ function completedLevels(buildings: readonly BuildingRow[]): InnerKeepCompletedL
   return Object.freeze(result);
 }
 
+function expectedProjectRevision(value: string): bigint {
+  if (
+    value.length > INNER_KEEP_PROJECT_REVISION_MAX.toString().length
+    || !INNER_KEEP_PROJECT_REVISION_PATTERN.test(value)
+  ) fail('INNER_KEEP_STATE_CHANGED');
+  const revision = BigInt(value);
+  if (revision > INNER_KEEP_PROJECT_REVISION_MAX) fail('INNER_KEEP_STATE_CHANGED');
+  return revision;
+}
+
+function expectedPolicyDigest(value: string): string {
+  if (!SHA256_HEX.test(value)) fail('INNER_KEEP_STATE_CHANGED');
+  return value;
+}
+
+function currentProjectRevision(
+  builder: BuilderRow,
+  resourceRevision: bigint,
+  buildings: readonly BuildingRow[],
+): bigint {
+  const revision = builder.revision
+    + resourceRevision
+    + buildings.reduce((sum, building) => sum + building.revision, 0n);
+  if (revision < 0n || revision > INNER_KEEP_PROJECT_REVISION_MAX) fail('STATE_INTEGRITY');
+  return revision;
+}
+
 function priorReceiptMatches(
   row: ReceiptRow,
   input: Readonly<{
@@ -427,6 +456,7 @@ function priorReceiptMatches(
     slotId: string;
     buildingKind: string;
     requestKey: string;
+    expectedTargetLevel: number;
   }>,
 ): boolean {
   try {
@@ -437,6 +467,7 @@ function priorReceiptMatches(
       && row.buildingKey === innerKeepBuildingKey(input.castle.castleId, input.buildingKind)
       && row.slotId === input.slotId
       && row.buildingKind === input.buildingKind
+      && row.targetLevel === input.expectedTargetLevel
       && row.targetLevel >= 1
       && row.targetLevel <= INNER_KEEP_MAXIMUM_LEVEL
       && row.policyVersion === INNER_KEEP_POLICY_VERSION
@@ -462,8 +493,18 @@ export function startInnerKeepProject(
     slotId: string;
     buildingKind: string;
     requestKey: string;
+    expectedTargetLevel: number;
+    expectedProjectRevision: string;
+    expectedPolicyDigest: string;
   }>,
 ): InnerKeepStartResult {
+  if (
+    !Number.isSafeInteger(input.expectedTargetLevel)
+    || input.expectedTargetLevel < 1
+    || input.expectedTargetLevel > INNER_KEEP_MAXIMUM_LEVEL
+  ) fail('INNER_KEEP_STATE_CHANGED');
+  const retainedProjectRevision = expectedProjectRevision(input.expectedProjectRevision);
+  const retainedPolicyDigest = expectedPolicyDigest(input.expectedPolicyDigest);
   const requestReceiptKey = receiptKey(input.fid, input.requestKey);
   const prior = ctx.db.castleInnerBuildReceiptV1.receiptKey.find(requestReceiptKey);
   if (prior !== null) {
@@ -480,6 +521,7 @@ export function startInnerKeepProject(
     return Object.freeze({ building, receipt: prior, idempotent: true });
   }
 
+  if (retainedPolicyDigest !== INNER_KEEP_POLICY_DIGEST) fail('INNER_KEEP_STATE_CHANGED');
   assertInnerKeepComponentActive(ctx);
   if (input.castle.ownerFid !== input.fid) fail('INNER_KEEP_NOT_OWNED');
   const canonicalSlot = CANONICAL_INNER_KEEP_SLOTS.find(row => row.slotId === input.slotId);
@@ -527,6 +569,16 @@ export function startInnerKeepProject(
     if (existing.completedLevel >= INNER_KEEP_MAXIMUM_LEVEL) fail('INNER_KEEP_MAXIMUM_LEVEL');
     targetLevel = existing.completedLevel + 1;
   }
+
+  const resourceBeforeSettlement = assertGenesisResourceForFid(ctx, input.fid).account;
+  if (
+    input.expectedTargetLevel !== targetLevel
+    || retainedProjectRevision !== currentProjectRevision(
+      builder,
+      resourceBeforeSettlement.revision,
+      buildings,
+    )
+  ) fail('INNER_KEEP_STATE_CHANGED');
 
   const cost = canonicalInnerKeepCost(
     input.buildingKind,
@@ -741,6 +793,7 @@ export function getMyInnerKeepRequestStatus(
     slotId: receipt.slotId,
     buildingKind: receipt.buildingKind,
     requestKey,
+    expectedTargetLevel: receipt.targetLevel,
   })) fail('INNER_KEEP_RECEIPT_INTEGRITY');
   return receipt;
 }

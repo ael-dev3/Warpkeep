@@ -72,8 +72,13 @@ alliances, trading, chat, seasons, and governance are not playable yet.
 The inactive Inner Keep V1 foundation defines twelve fixed castle-compound
 slots, four unique economy buildings with five levels, and one internal Builder
 per founded castle. It is separate from the four external gathering Workers.
-The client submits a fixed slot, building kind, and idempotency key; the server
-derives level, cost, discount, duration, settlement, deduction, and completion.
+The client submits a fixed slot, building kind, idempotency key,
+`expectedTargetLevel`, canonical decimal `expectedProjectRevision`, and
+`expectedPolicyDigest`. The three expected values are untrusted quote-binding
+compare-and-set assertions. The server derives ownership, the current target,
+and current policy digest. Before a new mutation, it verifies all three against
+current authority, then derives cost, discount, duration, settlement, deduction,
+and completion.
 Merging to protected `main` triggers the existing verified Pages deployment of
 the compatible, dormant client. Publication, catalog seed, Builder backfill,
 runtime asset verification, and activation remain separate owner-reviewed

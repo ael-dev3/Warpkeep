@@ -14,6 +14,9 @@ import {
 
 export const INNER_KEEP_SLOT_COUNT = 12;
 const U64_MAX = 18_446_744_073_709_551_615n;
+export const INNER_KEEP_PROJECT_REVISION_MAX = BigInt(
+  CANONICAL_INNER_KEEP_BUILDING_CATALOG.length + 2
+) * U64_MAX;
 
 export const INNER_KEEP_RESOURCE_ORDER = Object.freeze([
   'food',
@@ -230,7 +233,7 @@ export function innerKeepPresentationIntegrity(
 
   if (
     presentation.projectRevision < 0n
-    || presentation.projectRevision > U64_MAX
+    || presentation.projectRevision > INNER_KEEP_PROJECT_REVISION_MAX
     || presentation.resources.observedAtMicros < 0n
     || presentation.resources.observedAtMicros > U64_MAX
     || !INNER_KEEP_RESOURCE_ORDER.every((resource) => (

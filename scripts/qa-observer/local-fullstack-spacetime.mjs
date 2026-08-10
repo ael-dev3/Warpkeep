@@ -49,7 +49,7 @@ const ENTRY_AGREEMENT_VERSION = '2026-07-31-hegemony-entry-agreement-v4';
 const INNER_KEEP_PROTOCOL_CAPABILITY = 'inner-keep-construction-v1';
 const INNER_KEEP_POLICY_VERSION = 'genesis-001-inner-keep-construction-v1';
 const INNER_KEEP_POLICY_DIGEST =
-  'b3ca0d7ce3a30d3f89e0fe295864dc9c7237fbf5dedc3d8e8c2ed45586d2355e';
+  '9dc58e83c0c8e16ec853c7249b42dcbb5bdea47fe527261248cdf71de912776c';
 const INNER_KEEP_LAYOUT_POLICY_VERSION = 'genesis-001-inner-keep-layout-v1';
 const INNER_KEEP_LAYOUT_DIGEST =
   'dec272175dc96085b26d2bc96125e77c6433331c698f150d80dfbbb4881ee3d7';

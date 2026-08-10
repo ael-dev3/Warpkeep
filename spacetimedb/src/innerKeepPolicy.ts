@@ -13,6 +13,7 @@ export const INNER_KEEP_MAXIMUM_LEVEL = 5;
 export const INNER_KEEP_DISCOUNT_BPS_PER_LEVEL = 500;
 export const INNER_KEEP_DISCOUNT_CAP_BPS = 2_500;
 export const INNER_KEEP_BASIS_POINTS = 10_000;
+export const INNER_KEEP_COST_ROUNDING_QUANTUM = 10n;
 export const INNER_KEEP_RESOURCE_BALANCE_CAP = 1_000_000n;
 export const INNER_KEEP_U64_MAX = (1n << 64n) - 1n;
 
@@ -230,10 +231,10 @@ function checkedCeilDiv(numerator: bigint, denominator: bigint, code: string): b
 function roundedRationalToTen(numerator: bigint, divisor: bigint): bigint {
   const tens = checkedCeilDiv(
     numerator,
-    checkedProduct(divisor, 10n, 'INNER_KEEP_COST_OVERFLOW'),
+    checkedProduct(divisor, INNER_KEEP_COST_ROUNDING_QUANTUM, 'INNER_KEEP_COST_OVERFLOW'),
     'INNER_KEEP_COST_OVERFLOW',
   );
-  return checkedProduct(tens, 10n, 'INNER_KEEP_COST_OVERFLOW');
+  return checkedProduct(tens, INNER_KEEP_COST_ROUNDING_QUANTUM, 'INNER_KEEP_COST_OVERFLOW');
 }
 
 export function innerKeepDiscountBasisPoints(completedLevel: number): number {
@@ -296,6 +297,16 @@ function completedLevelFor(
   return value;
 }
 
+function discountBuildingForResource(
+  resource: InnerKeepResourceKind,
+): InnerKeepBuildingKind {
+  const matches = CANONICAL_INNER_KEEP_BUILDING_CATALOG.filter(
+    policy => policy.matchingDiscountResource === resource,
+  );
+  if (matches.length !== 1) fail('INNER_KEEP_BUILDING_KIND_INVALID');
+  return matches[0]!.buildingKind;
+}
+
 /**
  * Compute the exact authoritative cost for one target level.
  * Only completed levels are accepted; callers never pass a constructing target.
@@ -310,12 +321,6 @@ export function canonicalInnerKeepCost(
   const rawCost = {} as Record<InnerKeepResourceKind, bigint>;
   const effectiveCost = {} as Record<InnerKeepResourceKind, bigint>;
   const discountBasisPoints = {} as Record<InnerKeepResourceKind, number>;
-  const discountBuildingByResource: Readonly<Record<InnerKeepResourceKind, InnerKeepBuildingKind>> = {
-    food: 'city-mill',
-    wood: 'lumber-camp',
-    stone: 'city-stoneworks',
-    gold: 'city-goldworks',
-  };
   for (const resource of ['food', 'wood', 'stone', 'gold'] as const) {
     const base = building.baseCost[resource];
     const raw = roundedRationalToTen(
@@ -323,7 +328,7 @@ export function canonicalInnerKeepCost(
       BigInt(INNER_KEEP_BASIS_POINTS),
     );
     const discount = innerKeepDiscountBasisPoints(
-      completedLevelFor(completedLevels, discountBuildingByResource[resource]),
+      completedLevelFor(completedLevels, discountBuildingForResource(resource)),
     );
     const effective = roundedRationalToTen(
       checkedProduct(raw, BigInt(INNER_KEEP_BASIS_POINTS - discount), 'INNER_KEEP_COST_OVERFLOW'),
@@ -419,6 +424,8 @@ export function canonicalInnerKeepPolicyDigestInput(): string {
   return [
     INNER_KEEP_POLICY_VERSION,
     INNER_KEEP_MAXIMUM_LEVEL,
+    INNER_KEEP_BASIS_POINTS,
+    INNER_KEEP_COST_ROUNDING_QUANTUM,
     INNER_KEEP_DISCOUNT_BPS_PER_LEVEL,
     INNER_KEEP_DISCOUNT_CAP_BPS,
     INNER_KEEP_RESOURCE_BALANCE_CAP,
@@ -451,4 +458,4 @@ export function canonicalInnerKeepPolicyDigestInput(): string {
 // SHA-256 of canonicalInnerKeepPolicyDigestInput(). This literal keeps the
 // deterministic module independent of Node's crypto implementation.
 export const INNER_KEEP_POLICY_DIGEST =
-  'b3ca0d7ce3a30d3f89e0fe295864dc9c7237fbf5dedc3d8e8c2ed45586d2355e';
+  '9dc58e83c0c8e16ec853c7249b42dcbb5bdea47fe527261248cdf71de912776c';

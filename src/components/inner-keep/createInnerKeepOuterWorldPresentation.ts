@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 
+import { disposeRealmObjectSkeletons } from '../realm/loadHegemonyKeep';
 import {
   HEGEMONY_GOLD_MINE_RUNTIME_ASSETS,
   HEGEMONY_LOGGING_CAMP_RUNTIME_ASSETS,
@@ -51,6 +52,15 @@ function disposeInstancedMeshBuffers(root: THREE.Object3D) {
   root.traverse((object) => {
     if (object instanceof THREE.InstancedMesh) object.dispose();
   });
+}
+
+function runOuterWorldCleanup(cleanup: () => void) {
+  try {
+    cleanup();
+  } catch {
+    // Teardown must retire every lease and owned GPU resource even when one
+    // Three.js disposal listener fails.
+  }
 }
 
 type OuterWorldFailureScope = 'tree' | 'resource' | 'supply-wagon';
@@ -1226,11 +1236,18 @@ export function createInnerKeepOuterWorldPresentation(
         wagonWrapper.remove(fallbackWagon);
         wagonWrapper.add(exactModel);
       } catch (error) {
-        nextMixer?.stopAllAction();
-        if (nextMixer && exactModel) nextMixer.uncacheRoot(exactModel);
-        exactModel?.removeFromParent();
-        if (fallbackWagon.parent !== wagonWrapper) wagonWrapper.add(fallbackWagon);
-        lease.release();
+        runOuterWorldCleanup(() => nextMixer?.stopAllAction());
+        if (nextMixer && exactModel) {
+          runOuterWorldCleanup(() => nextMixer!.uncacheRoot(exactModel!));
+        }
+        if (exactModel) {
+          runOuterWorldCleanup(() => disposeRealmObjectSkeletons(exactModel!));
+        }
+        runOuterWorldCleanup(() => exactModel?.removeFromParent());
+        if (fallbackWagon.parent !== wagonWrapper) {
+          runOuterWorldCleanup(() => wagonWrapper.add(fallbackWagon));
+        }
+        runOuterWorldCleanup(() => lease.release());
         throw error;
       }
       wagonModel = exactModel;
@@ -1342,23 +1359,38 @@ export function createInnerKeepOuterWorldPresentation(
     dispose: () => {
       if (disposed) return;
       disposed = true;
-      internalAbortController.abort();
-      options.signal?.removeEventListener('abort', handleExternalAbort);
-      wagonMixer?.stopAllAction();
-      if (wagonMixer && wagonModel) wagonMixer.uncacheRoot(wagonModel);
+      runOuterWorldCleanup(() => internalAbortController.abort());
+      runOuterWorldCleanup(() => (
+        options.signal?.removeEventListener('abort', handleExternalAbort)
+      ));
+      runOuterWorldCleanup(() => wagonMixer?.stopAllAction());
+      if (wagonMixer && wagonModel) {
+        runOuterWorldCleanup(() => wagonMixer!.uncacheRoot(wagonModel!));
+      }
+      if (wagonModel) {
+        runOuterWorldCleanup(() => disposeRealmObjectSkeletons(wagonModel!));
+      }
       wagonMixer = null;
       wagonModel = null;
       exactTreeGroups.clear();
       exactResourceGroups.clear();
-      treeLeases.forEach((lease) => lease.release());
-      expeditionLeases.forEach((lease) => lease.release());
+      treeLeases.forEach((lease) => {
+        runOuterWorldCleanup(() => lease.release());
+      });
+      expeditionLeases.forEach((lease) => {
+        runOuterWorldCleanup(() => lease.release());
+      });
       treeLeases.clear();
       expeditionLeases.clear();
-      disposeInstancedMeshBuffers(group);
-      group.removeFromParent();
-      group.clear();
-      geometries.forEach((geometry) => geometry.dispose());
-      materials.forEach((material) => material.dispose());
+      runOuterWorldCleanup(() => disposeInstancedMeshBuffers(group));
+      runOuterWorldCleanup(() => group.removeFromParent());
+      runOuterWorldCleanup(() => group.clear());
+      geometries.forEach((geometry) => {
+        runOuterWorldCleanup(() => geometry.dispose());
+      });
+      materials.forEach((material) => {
+        runOuterWorldCleanup(() => material.dispose());
+      });
       geometries.clear();
       materials.clear();
       refreshTelemetry();

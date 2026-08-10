@@ -14,4 +14,7 @@ export default {
   slotId: __t.string(),
   buildingKind: __t.string(),
   requestKey: __t.string(),
+  expectedTargetLevel: __t.u32(),
+  expectedProjectRevision: __t.string(),
+  expectedPolicyDigest: __t.string(),
 };

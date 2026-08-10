@@ -672,6 +672,9 @@ const INNER_KEEP_V15_REDUCER_FIELDS = Object.freeze({
     ['slotId', 'String'],
     ['buildingKind', 'String'],
     ['requestKey', 'String'],
+    ['expectedTargetLevel', 'U32'],
+    ['expectedProjectRevision', 'String'],
+    ['expectedPolicyDigest', 'String'],
   ]),
   admin_seed_inner_keep_catalog_v1: Object.freeze([
     ['capability', 'String'],

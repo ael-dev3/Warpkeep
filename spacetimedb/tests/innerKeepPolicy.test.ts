@@ -5,10 +5,14 @@ import test from 'node:test';
 import {
   CANONICAL_INNER_KEEP_BUILDING_CATALOG,
   CANONICAL_INNER_KEEP_LEVEL_POLICIES,
+  INNER_KEEP_BASIS_POINTS,
+  INNER_KEEP_COST_ROUNDING_QUANTUM,
   INNER_KEEP_DISCOUNT_CAP_BPS,
+  INNER_KEEP_DISCOUNT_BPS_PER_LEVEL,
   INNER_KEEP_MAXIMUM_LEVEL,
   INNER_KEEP_POLICY_DIGEST,
   INNER_KEEP_POLICY_VERSION,
+  INNER_KEEP_RESOURCE_BALANCE_CAP,
   InnerKeepPolicyError,
   canonicalInnerKeepBuildingKinds,
   canonicalInnerKeepCost,
@@ -43,6 +47,10 @@ test('Inner Keep pins four unique economy buildings and twenty exact level rows'
   assert.equal(CANONICAL_INNER_KEEP_BUILDING_CATALOG.length, 4);
   assert.equal(new Set(CANONICAL_INNER_KEEP_BUILDING_CATALOG.map(row => row.publicLabel)).size, 4);
   assert.equal(new Set(CANONICAL_INNER_KEEP_BUILDING_CATALOG.map(row => row.runtimeAssetId)).size, 4);
+  assert.deepEqual(
+    new Set(CANONICAL_INNER_KEEP_BUILDING_CATALOG.map(row => row.matchingDiscountResource)),
+    new Set(['food', 'wood', 'stone', 'gold']),
+  );
   assert.equal(CANONICAL_INNER_KEEP_LEVEL_POLICIES.length, 20);
   assert.equal(new Set(CANONICAL_INNER_KEEP_LEVEL_POLICIES.map(row => row.levelKey)).size, 20);
   assert.equal(Object.isFrozen(CANONICAL_INNER_KEEP_BUILDING_CATALOG), true);
@@ -127,6 +135,20 @@ test('only completed levels discount the matching future resource, including own
   assert.equal(oneCompleted.effectiveCost.food, undiscounted.effectiveCost.food);
   assert.equal(oneCompleted.effectiveCost.stone, undiscounted.effectiveCost.stone);
   assert.equal(oneCompleted.effectiveCost.gold, 0n);
+
+  for (const policy of CANONICAL_INNER_KEEP_BUILDING_CATALOG) {
+    const plan = canonicalInnerKeepCost('city-goldworks', 1, {
+      [policy.buildingKind]: 1,
+    });
+    for (const resource of ['food', 'wood', 'stone', 'gold'] as const) {
+      assert.equal(
+        plan.discountBasisPoints[resource],
+        resource === policy.matchingDiscountResource
+          ? INNER_KEEP_DISCOUNT_BPS_PER_LEVEL
+          : 0,
+      );
+    }
+  }
 
   const capped = canonicalInnerKeepCost('city-goldworks', 5, {
     'city-mill': 5,
@@ -214,6 +236,18 @@ test('deactivation preserves the ever-activated lifecycle for founder Builder co
 });
 
 test('Inner Keep policy and layout digests detect checked-in drift', () => {
+  assert.deepEqual(
+    canonicalInnerKeepPolicyDigestInput().split('|').slice(0, 7),
+    [
+      INNER_KEEP_POLICY_VERSION,
+      INNER_KEEP_MAXIMUM_LEVEL.toString(),
+      INNER_KEEP_BASIS_POINTS.toString(),
+      INNER_KEEP_COST_ROUNDING_QUANTUM.toString(),
+      INNER_KEEP_DISCOUNT_BPS_PER_LEVEL.toString(),
+      INNER_KEEP_DISCOUNT_CAP_BPS.toString(),
+      INNER_KEEP_RESOURCE_BALANCE_CAP.toString(),
+    ],
+  );
   assert.equal(
     createHash('sha256').update(canonicalInnerKeepPolicyDigestInput()).digest('hex'),
     INNER_KEEP_POLICY_DIGEST,

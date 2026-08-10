@@ -13,6 +13,7 @@ import {
   CANONICAL_INNER_KEEP_BUILDING_CATALOG,
   CANONICAL_INNER_KEEP_LEVEL_POLICIES,
   canonicalInnerKeepCost,
+  INNER_KEEP_POLICY_DIGEST,
   INNER_KEEP_POLICY_VERSION,
   INNER_KEEP_RESOURCE_BALANCE_CAP,
   type InnerKeepBuildingKind,
@@ -389,13 +390,25 @@ function makeFixture(options: FixtureOptions = {}) {
     buildingKind: InnerKeepBuildingKind,
     key: string,
     slotId = 'inner-keep-slot-m01',
+    expected: Readonly<{
+      expectedTargetLevel?: number;
+      expectedProjectRevision?: string;
+      expectedPolicyDigest?: string;
+    }> = {},
   ) {
+    const existing = buildings.get(`${CASTLE_ID.toString()}:${buildingKind}`);
+    const projectRevision = builder.revision
+      + resource.revision
+      + [...buildings.values()].reduce((sum, building) => sum + building.revision, 0n);
     return transaction(() => startInnerKeepProject(ctx, {
       fid: FID,
       castle,
       slotId,
       buildingKind,
       requestKey: key,
+      expectedTargetLevel: expected.expectedTargetLevel ?? ((existing?.completedLevel ?? 0) + 1),
+      expectedProjectRevision: expected.expectedProjectRevision ?? projectRevision.toString(),
+      expectedPolicyDigest: expected.expectedPolicyDigest ?? INNER_KEEP_POLICY_DIGEST,
     }));
   }
 
@@ -406,6 +419,9 @@ function makeFixture(options: FixtureOptions = {}) {
     ctx,
     receipts,
     resource: () => resource,
+    projectRevision: () => builder.revision
+      + resource.revision
+      + [...buildings.values()].reduce((sum, building) => sum + building.revision, 0n),
     schedules,
     settlementCalls,
     snapshot,
@@ -478,6 +494,141 @@ test('twenty serialized same-key retries reuse one receipt', () => {
   assert.equal(fixture.receipts.size, 1);
   assert.equal(fixture.resource().revision, 1n);
   assert.equal(fixture.settlementCalls.length, 1);
+});
+
+test('idempotent retries bind the accepted target while ignoring later CAS drift', () => {
+  const fixture = makeFixture();
+  const key = requestKey('same-command-target');
+  fixture.start('city-mill', key);
+  const afterFirst = fixture.snapshot();
+
+  assert.throws(
+    () => fixture.start('city-mill', key, 'inner-keep-slot-m01', {
+      expectedTargetLevel: 2,
+      expectedProjectRevision: fixture.projectRevision().toString(),
+    }),
+    /INNER_KEEP_IDEMPOTENCY_CONFLICT/,
+  );
+  assert.deepEqual(fixture.snapshot(), afterFirst);
+
+  const replay = fixture.start('city-mill', key, 'inner-keep-slot-m01', {
+    expectedTargetLevel: 1,
+    expectedProjectRevision: '0',
+    expectedPolicyDigest: '0'.repeat(64),
+  });
+  assert.equal(replay.idempotent, true);
+  assert.deepEqual(fixture.snapshot(), afterFirst);
+  assert.equal(fixture.settlementCalls.length, 1);
+});
+
+test('stale policy digest rejects before reconciliation or settlement', () => {
+  const fixture = makeFixture();
+  const before = fixture.snapshot();
+  assert.throws(
+    () => fixture.start('city-mill', requestKey('stale-policy'), 'inner-keep-slot-m01', {
+      expectedTargetLevel: 1,
+      expectedProjectRevision: fixture.projectRevision().toString(),
+      expectedPolicyDigest: '0'.repeat(64),
+    }),
+    /INNER_KEEP_STATE_CHANGED/,
+  );
+  assert.deepEqual(fixture.snapshot(), before);
+  assert.equal(fixture.settlementCalls.length, 0);
+});
+
+test('stale aggregate revision rejects before settlement even when the target is unchanged', () => {
+  const fixture = makeFixture();
+  const staleRevision = fixture.projectRevision().toString();
+  fixture.start('lumber-camp', requestKey('revision-advance'), 'inner-keep-slot-m02');
+  const callback = onlySchedule(fixture);
+  fixture.setNow(callback.scheduledAt.value.microsSinceUnixEpoch);
+  fixture.transaction(() => runInnerKeepConstructionSchedule(
+    fixture.ctx,
+    callback as ScheduleInput,
+  ));
+
+  const before = fixture.snapshot();
+  const settlementsBefore = fixture.settlementCalls.length;
+  assert.throws(
+    () => fixture.start('city-mill', requestKey('stale-revision'), 'inner-keep-slot-m01', {
+      expectedTargetLevel: 1,
+      expectedProjectRevision: staleRevision,
+    }),
+    /INNER_KEEP_STATE_CHANGED/,
+  );
+  assert.deepEqual(fixture.snapshot(), before);
+  assert.equal(fixture.settlementCalls.length, settlementsBefore);
+});
+
+test('stale target rejects before settlement even with the current aggregate revision', () => {
+  const fixture = makeFixture();
+  fixture.start('city-mill', requestKey('target-level-one'));
+  const callback = onlySchedule(fixture);
+  fixture.setNow(callback.scheduledAt.value.microsSinceUnixEpoch);
+  fixture.transaction(() => runInnerKeepConstructionSchedule(
+    fixture.ctx,
+    callback as ScheduleInput,
+  ));
+
+  const before = fixture.snapshot();
+  const settlementsBefore = fixture.settlementCalls.length;
+  assert.throws(
+    () => fixture.start('city-mill', requestKey('stale-target'), 'inner-keep-slot-m01', {
+      expectedTargetLevel: 1,
+      expectedProjectRevision: fixture.projectRevision().toString(),
+    }),
+    /INNER_KEEP_STATE_CHANGED/,
+  );
+  assert.deepEqual(fixture.snapshot(), before);
+  assert.equal(fixture.settlementCalls.length, settlementsBefore);
+});
+
+test('overdue reconciliation advances the CAS before settlement and rolls back on mismatch', () => {
+  const fixture = makeFixture();
+  fixture.start('city-mill', requestKey('overdue-level-one'));
+  const callback = onlySchedule(fixture);
+  fixture.setNow(callback.scheduledAt.value.microsSinceUnixEpoch);
+  const before = fixture.snapshot();
+  const settlementsBefore = fixture.settlementCalls.length;
+  const retainedRevision = fixture.projectRevision().toString();
+
+  assert.throws(
+    () => fixture.start('lumber-camp', requestKey('overdue-stale-revision'), 'inner-keep-slot-m02', {
+      expectedTargetLevel: 1,
+      expectedProjectRevision: retainedRevision,
+    }),
+    /INNER_KEEP_STATE_CHANGED/,
+  );
+  assert.deepEqual(fixture.snapshot(), before);
+  assert.equal(fixture.settlementCalls.length, settlementsBefore);
+});
+
+test('non-canonical CAS inputs reject without settlement', () => {
+  const fixture = makeFixture();
+  const before = fixture.snapshot();
+  const invalid = [
+    { target: 1, revision: '', policyDigest: INNER_KEEP_POLICY_DIGEST },
+    { target: 1, revision: '+0', policyDigest: INNER_KEEP_POLICY_DIGEST },
+    { target: 1, revision: '00', policyDigest: INNER_KEEP_POLICY_DIGEST },
+    { target: 1, revision: ' 0', policyDigest: INNER_KEEP_POLICY_DIGEST },
+    { target: 1, revision: '110680464442257309691', policyDigest: INNER_KEEP_POLICY_DIGEST },
+    { target: 0, revision: '0', policyDigest: INNER_KEEP_POLICY_DIGEST },
+    { target: 6, revision: '0', policyDigest: INNER_KEEP_POLICY_DIGEST },
+    { target: 1, revision: '0', policyDigest: '' },
+    { target: 1, revision: '0', policyDigest: '0'.repeat(64) },
+  ] as const;
+  invalid.forEach(({ target, revision, policyDigest }, index) => {
+    assert.throws(
+      () => fixture.start('city-mill', requestKey('invalid-cas', index), 'inner-keep-slot-m01', {
+        expectedTargetLevel: target,
+        expectedProjectRevision: revision,
+        expectedPolicyDigest: policyDigest,
+      }),
+      /INNER_KEEP_STATE_CHANGED/,
+    );
+    assert.deepEqual(fixture.snapshot(), before);
+  });
+  assert.equal(fixture.settlementCalls.length, 0);
 });
 
 test('harnessed same-timestamp settlement feeds the stored account before exact deduction', () => {

@@ -1115,6 +1115,9 @@ function innerKeepV15ModuleSchemaDescription() {
       ['slotId', 'String'],
       ['buildingKind', 'String'],
       ['requestKey', 'String'],
+      ['expectedTargetLevel', 'U32'],
+      ['expectedProjectRevision', 'String'],
+      ['expectedPolicyDigest', 'String'],
     ]),
     reducer('admin_seed_inner_keep_catalog_v1', [
       ['capability', 'String'],

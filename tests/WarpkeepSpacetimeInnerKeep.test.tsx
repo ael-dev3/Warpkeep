@@ -325,6 +325,15 @@ describe('Inner Keep provider command lifecycle', () => {
     });
     await expect(second).rejects.toThrow('status is uncertain');
     expect(startInnerKeepProject).toHaveBeenCalledTimes(1);
+    expect(startInnerKeepProject).toHaveBeenCalledWith(
+      expect.anything(),
+      'inner-keep-slot-m01',
+      'city-mill',
+      expect.any(String),
+      1,
+      '1',
+      INNER_KEEP_POLICY_DIGEST
+    );
     await act(async () => {
       reducer.resolve();
       await first;

@@ -2,6 +2,9 @@ import { SenderError } from 'spacetimedb';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  INNER_KEEP_PROJECT_REVISION_MAX
+} from '../src/components/inner-keep/innerKeepPresentation';
+import {
   classifyInnerKeepDefinitiveRejection,
   innerKeepCommandAttemptFor,
   innerKeepCommandAttemptWithPhase,
@@ -61,6 +64,18 @@ describe('Inner Keep command idempotency', () => {
     expect(innerKeepCommandAttemptFor(
       undefined,
       { ...scope, backendProtocolVersion: scope.backendProtocolVersion + 1 },
+      intent,
+      createKey
+    )).toBeUndefined();
+    expect(innerKeepCommandAttemptFor(
+      undefined,
+      { ...scope, projectRevision: INNER_KEEP_PROJECT_REVISION_MAX + 1n },
+      intent,
+      createKey
+    )).toBeUndefined();
+    expect(innerKeepCommandAttemptFor(
+      undefined,
+      { ...scope, policyDigest: '0'.repeat(64) },
       intent,
       createKey
     )).toBeUndefined();
@@ -164,6 +179,12 @@ describe('Inner Keep command idempotency', () => {
     )).toEqual({
       code: 'INNER_KEEP_INSUFFICIENT_WOOD',
       statusMessage: 'There is not enough stored Wood for this project.'
+    });
+    expect(classifyInnerKeepDefinitiveRejection(
+      new SenderError('INNER_KEEP_STATE_CHANGED')
+    )).toEqual({
+      code: 'INNER_KEEP_STATE_CHANGED',
+      statusMessage: 'Inner Keep state changed. Review the refreshed quote before trying again.'
     });
     expect(classifyInnerKeepDefinitiveRejection(
       new Error('INNER_KEEP_INSUFFICIENT_WOOD')

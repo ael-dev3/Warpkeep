@@ -458,6 +458,9 @@ describe('disposable connected local QA dependency and network boundaries', () =
     for (const evidence of [
       'data-local-fullstack-inner-keep-attempt',
       'data-local-fullstack-inner-keep-request-key',
+      'data-local-fullstack-inner-keep-expected-target-level',
+      'data-local-fullstack-inner-keep-expected-project-revision',
+      'data-local-fullstack-inner-keep-expected-policy-digest',
       'data-local-fullstack-inner-keep-state',
       'DEFAULT_WARPKEEP_BACKEND_RUNTIME.startInnerKeepProject',
     ]) expect(appSource).toContain(evidence);

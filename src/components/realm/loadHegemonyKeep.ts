@@ -544,6 +544,24 @@ function disposeMaterial(
   if (firstError) throw firstError;
 }
 
+/** Frees each distinct GPU bone texture owned by the supplied rendered roots. */
+export function disposeRealmObjectSkeletons(...roots: THREE.Object3D[]) {
+  const skeletons = new Set<THREE.Skeleton>();
+  let firstError: unknown;
+  roots.forEach((root) => root.traverse((object) => {
+    if (!(object instanceof THREE.SkinnedMesh)) return;
+    const { skeleton } = object;
+    if (skeletons.has(skeleton)) return;
+    skeletons.add(skeleton);
+    try {
+      skeleton.dispose();
+    } catch (error) {
+      firstError ??= error;
+    }
+  }));
+  if (firstError) throw firstError;
+}
+
 export function disposeRealmObject(root: THREE.Object3D) {
   const geometries = new Set<THREE.BufferGeometry>();
   const materials = new Set<THREE.Material>();
@@ -571,5 +589,10 @@ export function disposeRealmObject(root: THREE.Object3D) {
       }
     });
   });
+  try {
+    disposeRealmObjectSkeletons(root);
+  } catch (error) {
+    firstError ??= error;
+  }
   if (firstError) throw firstError;
 }

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 
+import { disposeRealmObjectSkeletons } from '../realm/loadHegemonyKeep';
 import type { InnerKeepSceneQuality } from './createInnerKeepSceneLayer';
 import {
   planInnerKeepOuterWorldWildlife,
@@ -73,6 +74,15 @@ type RabbitActor = Readonly<{
   mixer: THREE.AnimationMixer | null;
   placement: InnerKeepOuterWorldWildlifePlacement;
 }>;
+
+function runRabbitCleanup(cleanup: () => void) {
+  try {
+    cleanup();
+  } catch {
+    // Continue retiring the herd and its lease when a renderer disposal hook
+    // rejects one best-effort cleanup step.
+  }
+}
 
 const RABBIT_SCENE_SCALE = 1.72;
 
@@ -196,11 +206,13 @@ export function createInnerKeepRabbitPresentation(
   };
 
   const stopActorList = (target: RabbitActor[]) => {
+    const roots = target.map(({ root }) => root);
     target.forEach(({ mixer, root }) => {
-      mixer?.stopAllAction();
-      mixer?.uncacheRoot(root);
-      root.removeFromParent();
+      runRabbitCleanup(() => mixer?.stopAllAction());
+      runRabbitCleanup(() => mixer?.uncacheRoot(root));
+      runRabbitCleanup(() => root.removeFromParent());
     });
+    runRabbitCleanup(() => disposeRealmObjectSkeletons(...roots));
     target.length = 0;
   };
   const stopActors = () => stopActorList(actors);
@@ -210,7 +222,7 @@ export function createInnerKeepRabbitPresentation(
     aborted = true;
     internalAbortController.abort();
     stopActors();
-    lease?.release();
+    runRabbitCleanup(() => lease?.release());
     lease = null;
     publishTelemetry('aborted');
   };
@@ -227,7 +239,7 @@ export function createInnerKeepRabbitPresentation(
         signal: internalAbortController.signal,
       }).then((nextLease) => {
         if (disposed || aborted) {
-          nextLease.release();
+          runRabbitCleanup(() => nextLease.release());
           return;
         }
         lease = nextLease;
@@ -270,7 +282,7 @@ export function createInnerKeepRabbitPresentation(
       }).catch((error: unknown) => {
         if (disposed) return;
         stopActors();
-        lease?.release();
+        runRabbitCleanup(() => lease?.release());
         lease = null;
         if (aborted || isAbortError(error)) {
           aborted = true;
@@ -324,10 +336,10 @@ export function createInnerKeepRabbitPresentation(
       internalAbortController.abort();
       options.signal?.removeEventListener('abort', handleExternalAbort);
       stopActors();
-      lease?.release();
+      runRabbitCleanup(() => lease?.release());
       lease = null;
-      group.removeFromParent();
-      group.clear();
+      runRabbitCleanup(() => group.removeFromParent());
+      runRabbitCleanup(() => group.clear());
       publishTelemetry('disposed');
     },
   });
