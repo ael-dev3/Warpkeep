@@ -6,7 +6,9 @@ import {
   INNER_KEEP_AMBIENT_MINIMUM_BODY_CLEARANCE_METERS,
   INNER_KEEP_AMBIENT_QUALITY_BUDGETS,
   INNER_KEEP_CITIZEN_WORK_ROUTES,
+  INNER_KEEP_CIVIC_MOUNTED_ROUTES,
   INNER_KEEP_FOOT_DUTY_ROUTES,
+  INNER_KEEP_MOUNTED_DUTY_ROUTES,
   innerKeepAmbientOrientedFootprintSeparation,
   isInnerKeepAmbientPointNavigable,
   selectInnerKeepAmbientActors
@@ -14,17 +16,12 @@ import {
 import {
   INNER_KEEP_AMBIENT_CONVERSATION_CYCLE_SECONDS,
   INNER_KEEP_AMBIENT_ENDPOINT_TURN_SECONDS,
-  INNER_KEEP_AMBIENT_FORMATION_CLEARANCE_MARGIN_METERS,
   createInnerKeepAmbientSimulationPlan,
   sampleInnerKeepAmbientActorPose,
   sampleInnerKeepAmbientFrame,
   type InnerKeepShuttleRoutine
 } from '../src/components/inner-keep/innerKeepAmbientTimeline';
-import {
-  INNER_KEEP_PATH_HEADING_BLEND_METERS,
-  sampleInnerKeepPath,
-  wrapInnerKeepUnitProgress
-} from '../src/components/inner-keep/innerKeepPathSampler';
+import { sampleInnerKeepPath } from '../src/components/inner-keep/innerKeepPathSampler';
 
 function wrappedAngleDelta(left: number, right: number): number {
   return Math.atan2(Math.sin(left - right), Math.cos(left - right));
@@ -37,68 +34,6 @@ function elapsedForShuttleLocalTime(
   const elapsed = (localSeconds - routine.phaseOffsetSeconds)
     % routine.cycleDurationSeconds;
   return elapsed < 0 ? elapsed + routine.cycleDurationSeconds : elapsed;
-}
-
-function routeBoundaryFormationProof(
-  plan: ReturnType<typeof createInnerKeepAmbientSimulationPlan>
-): Readonly<{ sampleCount: number; minimumResidual: number }> {
-  const loops = plan.routines.filter((routine) => routine.kind === 'loop');
-  const groupProgressSamples = new Set<number>([0]);
-  for (const routine of loops) {
-    const path = routine.route.path;
-    const headingBlend = Math.min(
-      INNER_KEEP_PATH_HEADING_BLEND_METERS,
-      path.totalLength * 0.05
-    );
-    for (const vertexDistance of path.cumulativeDistances.slice(0, -1)) {
-      for (const boundaryOffset of [-headingBlend, 0, headingBlend]) {
-        for (const neighborhood of [-0.000_01, 0, 0.000_01]) {
-          groupProgressSamples.add(wrapInnerKeepUnitProgress(
-            (vertexDistance + boundaryOffset) / path.totalLength
-              - routine.staticProgress
-              + neighborhood
-          ));
-        }
-      }
-    }
-  }
-
-  let minimumResidual = Number.POSITIVE_INFINITY;
-  for (const groupProgress of groupProgressSamples) {
-    const poses = loops.map((routine) => ({
-      routine,
-      sample: sampleInnerKeepPath(
-        routine.route.path,
-        groupProgress + routine.staticProgress
-      )
-    }));
-    for (let leftIndex = 0; leftIndex < poses.length; leftIndex += 1) {
-      for (let rightIndex = leftIndex + 1; rightIndex < poses.length; rightIndex += 1) {
-        const left = poses[leftIndex]!;
-        const right = poses[rightIndex]!;
-        minimumResidual = Math.min(
-          minimumResidual,
-          innerKeepAmbientOrientedFootprintSeparation(
-            {
-              position: left.sample.position,
-              yawRadians: left.sample.yawRadians,
-              footprintHalfExtentsMeters: left.routine.footprintHalfExtentsMeters
-            },
-            {
-              position: right.sample.position,
-              yawRadians: right.sample.yawRadians,
-              footprintHalfExtentsMeters: right.routine.footprintHalfExtentsMeters
-            },
-            INNER_KEEP_AMBIENT_MINIMUM_BODY_CLEARANCE_METERS
-          )
-        );
-      }
-    }
-  }
-  return Object.freeze({
-    sampleCount: groupProgressSamples.size,
-    minimumResidual
-  });
 }
 
 describe('Inner Keep deterministic ambient timeline', () => {
@@ -156,6 +91,9 @@ describe('Inner Keep deterministic ambient timeline', () => {
       expect(plan.conversations.length).toBeLessThanOrEqual(
         budget.maximumConversationPairs
       );
+      if (quality !== 'reduced') {
+        expect(plan.conversations[0]?.anchorId).toBe('east-village-commons');
+      }
       expect(frame.animationFrameCap).toBe(budget.animationFrameCap);
     }
   });
@@ -212,16 +150,16 @@ describe('Inner Keep deterministic ambient timeline', () => {
     sampleInnerKeepAmbientFrame(plan, 2.5);
     expect(sampleInnerKeepAmbientFrame(plan, 987_654_321.125)).toEqual(far);
 
-    const loop = plan.routines.find((routine) => (
-      routine.kind === 'loop' && routine.actor.category === 'foot-patrol'
+    const shuttle = plan.routines.find((routine) => (
+      routine.kind === 'shuttle' && routine.actor.category === 'foot-patrol'
     ));
-    expect(loop?.kind).toBe('loop');
-    if (!loop || loop.kind !== 'loop') throw new Error('Expected a foot patrol loop.');
-    const first = sampleInnerKeepAmbientActorPose(plan, loop, 7.25);
+    expect(shuttle?.kind).toBe('shuttle');
+    if (!shuttle || shuttle.kind !== 'shuttle') throw new Error('Expected a foot patrol shuttle.');
+    const first = sampleInnerKeepAmbientActorPose(plan, shuttle, 7.25);
     const repeated = sampleInnerKeepAmbientActorPose(
       plan,
-      loop,
-      7.25 + loop.cycleDurationSeconds
+      shuttle,
+      7.25 + shuttle.cycleDurationSeconds
     );
     expect(repeated.position.x).toBeCloseTo(first.position.x, 10);
     expect(repeated.position.z).toBeCloseTo(first.position.z, 10);
@@ -254,13 +192,17 @@ describe('Inner Keep deterministic ambient timeline', () => {
     const shuttles = plan.routines.filter((routine): routine is InnerKeepShuttleRoutine => (
       routine.kind === 'shuttle'
     ));
-    expect(shuttles).toHaveLength(7);
+    expect(shuttles).toHaveLength(16);
     expect(shuttles.filter(({ actor }) => actor.category === 'citizen')).toHaveLength(2);
-    expect(shuttles.filter(({ actor }) => actor.category === 'foot-patrol')).toHaveLength(5);
-    expect(shuttles.map(({ route }) => route.routeId)).toEqual([
+    expect(shuttles.filter(({ actor }) => actor.category === 'civic-mounted')).toHaveLength(2);
+    expect(shuttles.filter(({ actor }) => actor.category === 'foot-patrol')).toHaveLength(8);
+    expect(shuttles.filter(({ actor }) => actor.category === 'mounted-patrol')).toHaveLength(4);
+    expect(shuttles.map(({ route }) => route.routeId).sort()).toEqual([
       ...INNER_KEEP_CITIZEN_WORK_ROUTES.slice(0, 2),
-      ...INNER_KEEP_FOOT_DUTY_ROUTES
-    ].map(({ routeId }) => routeId));
+      ...INNER_KEEP_CIVIC_MOUNTED_ROUTES,
+      ...INNER_KEEP_FOOT_DUTY_ROUTES,
+      ...INNER_KEEP_MOUNTED_DUTY_ROUTES
+    ].map(({ routeId }) => routeId).sort());
     expect(shuttles.every(({ route }) => !route.path.closed)).toBe(true);
     expect(new Set(shuttles.map(({ route }) => route.routeId)).size).toBe(shuttles.length);
 
@@ -278,10 +220,12 @@ describe('Inner Keep deterministic ambient timeline', () => {
     expect(INNER_KEEP_AMBIENT_ENDPOINT_TURN_SECONDS).toBeLessThanOrEqual(0.6);
 
     for (const routine of shuttles) {
-      const endpointBehavior = routine.actor.category === 'citizen'
+      const endpointBehavior = routine.actor.presentationRole === 'civic-routine'
         ? 'work'
         : 'stand-watch';
-      const endpointClip = routine.actor.category === 'citizen' ? 'Work' : 'Idle';
+      const endpointClip = routine.actor.presentationRole === 'civic-routine'
+        ? 'Work'
+        : 'Idle';
       const home = sampleInnerKeepAmbientActorPose(
         plan,
         routine,
@@ -399,34 +343,25 @@ describe('Inner Keep deterministic ambient timeline', () => {
     expect(observedBehaviors).toEqual(new Set(['stand-watch', 'walk', 'work']));
   });
 
-  it('retains positive clearance at the former sub-millimeter miss', () => {
+  it('gives each exotic civic mount its own open village duty', () => {
     const plan = createInnerKeepAmbientSimulationPlan({
       seed: 'castle:004:layout:1',
       quality: 'high'
     });
-    const frame = sampleInnerKeepAmbientFrame(plan, 59.91975);
-    const left = frame.actors.find(({ actorId }) => (
-      actorId === 'imperial-cataphract'
+    const civicMounted = plan.routines.filter((routine): routine is InnerKeepShuttleRoutine => (
+      routine.kind === 'shuttle' && routine.actor.category === 'civic-mounted'
     ));
-    const right = frame.actors.find(({ actorId }) => actorId === 'astral-lancer');
-    expect(left).toBeDefined();
-    expect(right).toBeDefined();
-    const clearanceResidual = innerKeepAmbientOrientedFootprintSeparation(
-      {
-        position: left!.position,
-        yawRadians: left!.yawRadians,
-        footprintHalfExtentsMeters: left!.footprintHalfExtentsMeters
-      },
-      {
-        position: right!.position,
-        yawRadians: right!.yawRadians,
-        footprintHalfExtentsMeters: right!.footprintHalfExtentsMeters
-      },
-      INNER_KEEP_AMBIENT_MINIMUM_BODY_CLEARANCE_METERS
-    );
-    expect(clearanceResidual).toBeGreaterThanOrEqual(
-      INNER_KEEP_AMBIENT_FORMATION_CLEARANCE_MARGIN_METERS
-    );
+    expect(civicMounted.map(({ actor, route }) => [actor.actorId, route.purpose]).sort())
+      .toEqual([
+        ['emberfoot-courier', 'village-delivery'],
+        ['shellback-shrine-tender', 'village-shrine-service']
+      ].sort());
+    expect(civicMounted.every(({ route }) => !route.path.closed)).toBe(true);
+    expect(new Set(civicMounted.map(({ phaseOffsetSeconds }) => (
+      phaseOffsetSeconds.toFixed(9)
+    ))).size).toBe(2);
+    expect(plan.routines.some(({ kind }) => kind !== 'conversation' && kind !== 'shuttle'))
+      .toBe(false);
   });
 
   it('keeps reduced static duty endpoints separated from actors and exclusions', () => {
@@ -481,81 +416,26 @@ describe('Inner Keep deterministic ambient timeline', () => {
     }
   });
 
-  it('proves the retained outer formation beside every route vertex and heading boundary', () => {
-    const proofs = [
-      createInnerKeepAmbientSimulationPlan({
-        seed: 'castle:004:layout:1',
-        quality: 'high'
-      }),
-      createInnerKeepAmbientSimulationPlan({ seed: 10, quality: 'balanced' })
-    ].map(routeBoundaryFormationProof);
-    expect(proofs.reduce((total, proof) => total + proof.sampleCount, 0))
-      .toBeGreaterThan(2_000);
-    expect(Math.min(...proofs.map(({ minimumResidual }) => minimumResidual)))
-      .toBeGreaterThanOrEqual(
-      INNER_KEEP_AMBIENT_FORMATION_CLEARANCE_MARGIN_METERS - 0.000_25
-    );
-  });
-
-  it('keeps the outer formation separated across qualities and deterministic seeds', () => {
-    let minimumResidual = Number.POSITIVE_INFINITY;
-    let minimumDetail = '';
-    for (const quality of ['high', 'balanced', 'reduced'] as const) {
-      for (let seedIndex = 0; seedIndex < 32; seedIndex += 1) {
-        const plan = createInnerKeepAmbientSimulationPlan({
-          seed: `formation-seed-proof:${seedIndex}`,
-          quality
-        });
-        const loops = plan.routines.filter((routine) => routine.kind === 'loop');
-        const sampleCount = plan.motionEnabled ? 128 : 1;
-        for (let sampleIndex = 0; sampleIndex < sampleCount; sampleIndex += 1) {
-          const groupProgress = sampleIndex / sampleCount;
-          const poses = loops.map((routine) => ({
-            routine,
-            sample: sampleInnerKeepPath(
-              routine.route.path,
-              groupProgress + routine.staticProgress
-            )
-          }));
-          for (let leftIndex = 0; leftIndex < poses.length; leftIndex += 1) {
-            for (
-              let rightIndex = leftIndex + 1;
-              rightIndex < poses.length;
-              rightIndex += 1
-            ) {
-              const left = poses[leftIndex]!;
-              const right = poses[rightIndex]!;
-              const residual = innerKeepAmbientOrientedFootprintSeparation(
-                  {
-                    position: left.sample.position,
-                    yawRadians: left.sample.yawRadians,
-                    footprintHalfExtentsMeters:
-                      left.routine.footprintHalfExtentsMeters
-                  },
-                  {
-                    position: right.sample.position,
-                    yawRadians: right.sample.yawRadians,
-                    footprintHalfExtentsMeters:
-                      right.routine.footprintHalfExtentsMeters
-                  },
-                  INNER_KEEP_AMBIENT_MINIMUM_BODY_CLEARANCE_METERS
-                );
-              if (residual < minimumResidual) {
-                minimumResidual = residual;
-                minimumDetail = [
-                  quality,
-                  seedIndex,
-                  sampleIndex,
-                  left.routine.actor.actorId,
-                  right.routine.actor.actorId
-                ].join(':');
-              }
-            }
-          }
-        }
-      }
+  it('keeps every guard on a distinct open beat with independent clocks', () => {
+    for (const quality of ['high', 'balanced'] as const) {
+      const plan = createInnerKeepAmbientSimulationPlan({
+        seed: `dispersed-guard-proof:${quality}`,
+        quality
+      });
+      const guards = plan.routines.filter((routine): routine is InnerKeepShuttleRoutine => (
+        routine.kind === 'shuttle'
+        && routine.actor.presentationRole === 'ceremonial-patrol'
+      ));
+      expect(guards).toHaveLength(
+        INNER_KEEP_AMBIENT_QUALITY_BUDGETS[quality].maximumFootPatrolUnits
+          + INNER_KEEP_AMBIENT_QUALITY_BUDGETS[quality].maximumMountedPatrolUnits
+      );
+      expect(guards.every(({ route }) => !route.path.closed)).toBe(true);
+      expect(new Set(guards.map(({ route }) => route.routeId)).size).toBe(guards.length);
+      expect(new Set(guards.map(({ phaseOffsetSeconds }) => (
+        phaseOffsetSeconds.toFixed(9)
+      ))).size).toBe(guards.length);
     }
-    expect(minimumResidual, minimumDetail).toBeGreaterThanOrEqual(-0.000_001);
   });
 
   it('creates cold and warm plans within a bounded synchronous budget', () => {
@@ -662,7 +542,7 @@ describe('Inner Keep deterministic ambient timeline', () => {
     expect(firstNavigationFailure).toBe('');
     expect(firstExclusionFailure).toBe('');
     expect(minimumObservedPair).not.toBe('');
-    expect(minimumObservedBodyClearanceResidual).toBeGreaterThanOrEqual(
+    expect(minimumObservedBodyClearanceResidual, minimumObservedPair).toBeGreaterThanOrEqual(
       -0.000_001
     );
   }, 20_000);

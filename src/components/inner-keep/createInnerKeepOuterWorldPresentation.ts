@@ -25,12 +25,14 @@ import {
 } from '../realm/hegemonyTreeRuntimeAssets';
 import type { InnerKeepSceneQuality } from './createInnerKeepSceneLayer';
 import {
+  INNER_KEEP_OUTER_WORLD_RESOURCE_PADS,
   INNER_KEEP_OUTER_WORLD_RESOURCE_SITES,
   INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS,
   INNER_KEEP_OUTER_WORLD_SUPPLY_WAGON_FOOTPRINT_METERS,
   INNER_KEEP_OUTER_WORLD_TRADE_ROUTE,
   INNER_KEEP_OUTER_WORLD_TREE_BUDGETS,
   INNER_KEEP_OUTER_WORLD_TREE_SPECIES_IDS,
+  innerKeepOuterWorldClearsAuthoredTreeReserve,
   innerKeepOuterWorldPointIsClear,
   innerKeepOuterWorldTerrainHeightAt,
 } from './innerKeepOuterWorldPolicy';
@@ -118,6 +120,85 @@ export type InnerKeepOuterWorldWildlifePlacement = Readonly<{
   scale: number;
 }>;
 
+export function innerKeepOuterWorldTreeTrunkRadiusMeters(
+  placement: Pick<InnerKeepOuterWorldTreePlacement, 'speciesId' | 'scale'>,
+) {
+  return placement.scale * (placement.speciesId.includes('.willow.') ? 0.075 : 0.1);
+}
+
+const INNER_KEEP_OUTER_WORLD_TREE_ROOT_RADIUS_BY_SPECIES = Object.freeze({
+  'warpkeep.tree.birch.fresh-slender': 0.08,
+  'warpkeep.tree.cypress.ancient-dark': 0.08,
+  'warpkeep.tree.maple.meadow-round': 0.095,
+  'warpkeep.tree.oak.spring-broad': 0.155,
+  'warpkeep.tree.pine.alpine': 0.085,
+  'warpkeep.tree.spruce.deep-narrow': 0.08,
+  'warpkeep.tree.willow.lemon-weeping': 0.115,
+  'warpkeep.tree.willow.river-mist': 0.13,
+} as const);
+
+export const INNER_KEEP_OUTER_WORLD_TREE_ROOT_TERRAIN_RANGE_MAXIMUM_METERS = 0.075;
+export const INNER_KEEP_OUTER_WORLD_TREE_ROOT_CLEARANCE_METERS = 0.02;
+
+/** Exact low-root support is intentionally distinct from navigation trunk radius. */
+export function innerKeepOuterWorldTreeRootSupportRadiusMeters(
+  placement: Pick<InnerKeepOuterWorldTreePlacement, 'speciesId' | 'scale'>,
+) {
+  const normalizedRadius = INNER_KEEP_OUTER_WORLD_TREE_ROOT_RADIUS_BY_SPECIES[
+    placement.speciesId as keyof typeof INNER_KEEP_OUTER_WORLD_TREE_ROOT_RADIUS_BY_SPECIES
+  ] ?? 0.165;
+  return normalizedRadius * placement.scale;
+}
+
+export function resolveInnerKeepOuterWorldTreeGrounding(
+  placement: Pick<InnerKeepOuterWorldTreePlacement, 'speciesId' | 'scale'>
+    & Readonly<{ x: number; z: number }>,
+  terrainHeightAt: (x: number, z: number) => number,
+) {
+  const radius = innerKeepOuterWorldTreeRootSupportRadiusMeters(placement);
+  let minimum = safeTerrainHeight(terrainHeightAt, placement.x, placement.z);
+  let maximum = minimum;
+  for (const radiusScale of [1 / 3, 2 / 3, 1] as const) {
+    for (let angleIndex = 0; angleIndex < 12; angleIndex += 1) {
+      const angle = angleIndex / 12 * Math.PI * 2;
+      const height = safeTerrainHeight(
+        terrainHeightAt,
+        placement.x + Math.cos(angle) * radius * radiusScale,
+        placement.z + Math.sin(angle) * radius * radiusScale,
+      );
+      minimum = Math.min(minimum, height);
+      maximum = Math.max(maximum, height);
+    }
+  }
+  return Object.freeze({
+    groundMeters: maximum,
+    rangeMeters: maximum - minimum,
+    supportRadiusMeters: radius,
+  });
+}
+
+export function innerKeepOuterWorldWildlifeFootprintRadiusMeters(
+  placement: Pick<InnerKeepOuterWorldWildlifePlacement, 'scale'>,
+) {
+  return placement.scale * 0.36;
+}
+
+export function innerKeepOuterWorldWildlifeClearsTrees(
+  placement: InnerKeepOuterWorldWildlifePlacement,
+  trees: readonly InnerKeepOuterWorldTreePlacement[],
+) {
+  const rabbitEnvelope = Math.SQRT2 * placement.roamingRadiusMeters
+    + innerKeepOuterWorldWildlifeFootprintRadiusMeters(placement);
+  return trees.every((tree) => (
+    Math.hypot(
+      placement.anchorMeters[0] - tree.positionMeters[0],
+      placement.anchorMeters[2] - tree.positionMeters[2],
+    ) >= rabbitEnvelope
+      + innerKeepOuterWorldTreeRootSupportRadiusMeters(tree)
+      + INNER_KEEP_OUTER_WORLD_TREE_ROOT_CLEARANCE_METERS
+  ));
+}
+
 export type InnerKeepOuterWorldPresentation = Readonly<{
   group: THREE.Group;
   ready: Promise<void>;
@@ -171,6 +252,12 @@ const OUTER_WILDLIFE_CANDIDATES_PER_PLACEMENT = 384;
 const OUTER_TREE_MINIMUM_SPACING_METERS = 0.92;
 const OUTER_WILDLIFE_MINIMUM_SPACING_METERS = 1.65;
 
+/** A small marsh-edge meadow guarantees visible wildlife without tree clipping. */
+export const INNER_KEEP_OUTER_WORLD_NORTHEAST_WILDLIFE_CLEARING = Object.freeze({
+  center: Object.freeze({ x: 22.2, z: 23.5 }),
+  radiusMeters: 1.45,
+});
+
 function deterministicUnit(index: number, salt: number) {
   const value = Math.sin((index + 1) * 12.9898 + salt * 78.233) * 43_758.5453;
   return value - Math.floor(value);
@@ -186,22 +273,30 @@ function safeTerrainHeight(
 }
 
 function exteriorCandidate(index: number, seed: number) {
-  const band = index % 4;
+  const band = index % 10;
   const across = deterministicUnit(index, seed + 11);
   const depth = deterministicUnit(index, seed + 23);
-  if (band === 0) return { x: -31.5 + depth * 11.8, z: -28.5 + across * 56 };
-  if (band === 1) return { x: 19.7 + depth * 11.8, z: -28.5 + across * 56 };
-  if (band === 2) return { x: -28.5 + across * 57, z: -29.5 + depth * 10.4 };
-  return { x: -28.5 + across * 57, z: 12.2 + depth * 17.2 };
+  // Most candidates form a readable western forest mass.
+  if (band <= 5) return { x: -30.7 + depth * 6.2, z: -26 + across * 52 };
+  // The eastern cluster is deliberately wetter and narrower around the mere.
+  if (band <= 7) return { x: 22 + depth * 2.1, z: 19.6 + across * 11.4 };
+  if (band === 8) return { x: -27 + across * 54, z: -33.4 + depth * 5.4 };
+  return { x: -27 + across * 47, z: 19.5 + depth * 11.3 };
 }
 
 function wildlifeCandidate(index: number, seed: number) {
-  const meadow = index % 3;
+  const meadow = index % 4;
   const xUnit = deterministicUnit(index, seed + 37);
   const zUnit = deterministicUnit(index, seed + 59);
-  if (meadow === 0) return { x: -28 + xUnit * 9, z: -8 + zUnit * 17 };
-  if (meadow === 1) return { x: 19 + xUnit * 10, z: -6 + zUnit * 15 };
-  return { x: -9 + xUnit * 18, z: 14 + zUnit * 12 };
+  if (meadow === 0) return { x: -28 + xUnit * 44, z: 20 + zUnit * 11 };
+  if (meadow === 1) return {
+    x: INNER_KEEP_OUTER_WORLD_NORTHEAST_WILDLIFE_CLEARING.center.x
+      + (xUnit - 0.5) * 0.4,
+    z: INNER_KEEP_OUTER_WORLD_NORTHEAST_WILDLIFE_CLEARING.center.z
+      + (zUnit - 0.5) * 0.6,
+  };
+  if (meadow === 2) return { x: -30.5 + xUnit * 6.5, z: -14 + zUnit * 34 };
+  return { x: -17 + xUnit * 30, z: 20 + zUnit * 11 };
 }
 
 function acceptsSpacing(
@@ -224,39 +319,80 @@ export function planInnerKeepOuterWorldTrees(options: Readonly<{
   pointIsClear?: (x: number, z: number, clearanceMeters: number) => boolean;
 }>): readonly InnerKeepOuterWorldTreePlacement[] {
   const targetCount = INNER_KEEP_OUTER_WORLD_TREE_BUDGETS[options.quality];
-  const speciesIds = INNER_KEEP_OUTER_WORLD_TREE_SPECIES_IDS.slice(0, 6);
+  const speciesIds = [...INNER_KEEP_OUTER_WORLD_TREE_SPECIES_IDS];
   if (targetCount <= 0 || speciesIds.length === 0) return Object.freeze([]);
   const terrainHeightAt = options.terrainHeightAt ?? innerKeepOuterWorldTerrainHeightAt;
   const pointIsClear = options.pointIsClear ?? innerKeepOuterWorldPointIsClear;
-  const positions: Array<{ x: number; z: number }> = [];
   const placements: InnerKeepOuterWorldTreePlacement[] = [];
   const maximumCandidates = Math.max(
     targetCount * OUTER_TREE_CANDIDATES_PER_PLACEMENT,
     OUTER_TREE_CANDIDATES_PER_PLACEMENT,
   );
-  const speciesOffset = Math.floor(
-    deterministicUnit(0, options.visualSeed + 83) * speciesIds.length,
-  ) % speciesIds.length;
+  const uplandSpeciesIds = speciesIds.filter((speciesId) => !speciesId.includes('.willow.'));
+  const wetlandSpeciesIds = speciesIds.filter((speciesId) => speciesId.includes('.willow.'));
+  const uplandSpeciesOffset = Math.floor(
+    deterministicUnit(0, options.visualSeed + 83) * uplandSpeciesIds.length,
+  ) % uplandSpeciesIds.length;
+  const wetlandSpeciesOffset = Math.floor(
+    deterministicUnit(0, options.visualSeed + 89) * wetlandSpeciesIds.length,
+  ) % wetlandSpeciesIds.length;
+  let uplandSpeciesCount = 0;
+  let wetlandSpeciesCount = 0;
   for (let candidateIndex = 0; candidateIndex < maximumCandidates; candidateIndex += 1) {
     if (placements.length >= targetCount) break;
     const candidate = exteriorCandidate(candidateIndex, options.visualSeed);
     const scale = 3.15 + deterministicUnit(candidateIndex, options.visualSeed + 71) * 1.45;
-    const clearance = 0.28 * scale;
-    if (!pointIsClear(candidate.x, candidate.z, clearance)) continue;
-    if (!acceptsSpacing(
-      positions,
+    const wetland = candidate.x > 20 && candidate.z > 18;
+    const speciesPool = wetland && wetlandSpeciesIds.length > 0
+      ? wetlandSpeciesIds
+      : uplandSpeciesIds;
+    const speciesCount = wetland ? wetlandSpeciesCount : uplandSpeciesCount;
+    const speciesOffset = wetland ? wetlandSpeciesOffset : uplandSpeciesOffset;
+    const speciesId = speciesPool[(speciesCount + speciesOffset) % speciesPool.length]!;
+    // Willow runtime footprints are materially narrower than the broad crowns.
+    const clearance = (wetland ? 0.16 : 0.28) * scale;
+    if (!innerKeepOuterWorldClearsAuthoredTreeReserve(
       candidate.x,
       candidate.z,
-      Math.max(OUTER_TREE_MINIMUM_SPACING_METERS, clearance * 1.35),
+      clearance,
     )) continue;
-    const speciesIndex = (placements.length + speciesOffset) % speciesIds.length;
-    positions.push(candidate);
+    if (!pointIsClear(candidate.x, candidate.z, clearance)) continue;
+    if (Math.hypot(
+      candidate.x - INNER_KEEP_OUTER_WORLD_NORTHEAST_WILDLIFE_CLEARING.center.x,
+      candidate.z - INNER_KEEP_OUTER_WORLD_NORTHEAST_WILDLIFE_CLEARING.center.z,
+    ) < INNER_KEEP_OUTER_WORLD_NORTHEAST_WILDLIFE_CLEARING.radiusMeters + clearance) {
+      continue;
+    }
+    const rootSupportRadius = innerKeepOuterWorldTreeRootSupportRadiusMeters({
+      speciesId,
+      scale,
+    });
+    if (placements.some((tree) => Math.hypot(
+      tree.positionMeters[0] - candidate.x,
+      tree.positionMeters[2] - candidate.z,
+    ) < Math.max(
+      OUTER_TREE_MINIMUM_SPACING_METERS,
+      clearance * 1.35,
+      rootSupportRadius
+        + innerKeepOuterWorldTreeRootSupportRadiusMeters(tree)
+        + INNER_KEEP_OUTER_WORLD_TREE_ROOT_CLEARANCE_METERS,
+    ))) continue;
+    const grounding = resolveInnerKeepOuterWorldTreeGrounding({
+      speciesId,
+      scale,
+      x: candidate.x,
+      z: candidate.z,
+    }, terrainHeightAt);
+    if (grounding.rangeMeters
+      > INNER_KEEP_OUTER_WORLD_TREE_ROOT_TERRAIN_RANGE_MAXIMUM_METERS) continue;
+    if (wetland) wetlandSpeciesCount += 1;
+    else uplandSpeciesCount += 1;
     placements.push(Object.freeze({
       instanceIndex: placements.length,
-      speciesId: speciesIds[speciesIndex]!,
+      speciesId,
       positionMeters: Object.freeze([
         candidate.x,
-        safeTerrainHeight(terrainHeightAt, candidate.x, candidate.z),
+        grounding.groundMeters,
         candidate.z,
       ] as const),
       rotationYRadians: deterministicUnit(candidateIndex, options.visualSeed + 97) * Math.PI * 2,
@@ -276,15 +412,18 @@ export function planInnerKeepOuterWorldResources(options: Readonly<{
   const placements: InnerKeepOuterWorldResourcePlacement[] = [];
   INNER_KEEP_OUTER_WORLD_RESOURCE_SITES.forEach((site, siteIndex) => {
     const count = site.instancesByQuality[options.quality];
+    const sitePads = INNER_KEEP_OUTER_WORLD_RESOURCE_PADS.filter(({ visualSiteKey }) => (
+      visualSiteKey === site.siteId
+    ));
     for (let instanceIndex = 0; instanceIndex < count; instanceIndex += 1) {
-      const angle = instanceIndex === 0
-        ? 0
-        : deterministicUnit(instanceIndex, options.visualSeed + siteIndex * 31) * Math.PI * 2;
-      const radius = instanceIndex === 0
-        ? 0
-        : site.targetFootprintDiameter * (0.42 + 0.16 * instanceIndex);
-      const x = site.positionMeters[0] + Math.cos(angle) * radius;
-      const z = site.positionMeters[2] + Math.sin(angle) * radius;
+      const pad = sitePads[instanceIndex];
+      if (!pad) continue;
+      const x = pad.positionMeters[0];
+      const z = pad.positionMeters[2];
+      const rotationYRadians = site.rotationYMilliDegrees * Math.PI / 180_000
+        + (instanceIndex === 0
+          ? 0
+          : deterministicUnit(instanceIndex, options.visualSeed + siteIndex * 31) * 0.42 - 0.21);
       placements.push(Object.freeze({
         instanceIndex: placements.length,
         visualSiteKey: site.siteId,
@@ -294,9 +433,8 @@ export function planInnerKeepOuterWorldResources(options: Readonly<{
           safeTerrainHeight(terrainHeightAt, x, z),
           z,
         ] as const),
-        rotationYRadians: site.rotationYMilliDegrees * Math.PI / 180_000
-          + (instanceIndex === 0 ? 0 : angle + Math.PI),
-        targetFootprintDiameter: site.targetFootprintDiameter,
+        rotationYRadians,
+        targetFootprintDiameter: pad.targetFootprintDiameter,
       }));
     }
   });
@@ -309,10 +447,17 @@ export function planInnerKeepOuterWorldWildlife(options: Readonly<{
   visualSeed: number;
   terrainHeightAt?: (x: number, z: number) => number;
   pointIsClear?: (x: number, z: number, clearanceMeters: number) => boolean;
+  treePlacements?: readonly InnerKeepOuterWorldTreePlacement[];
 }>): readonly InnerKeepOuterWorldWildlifePlacement[] {
   const targetCount = INNER_KEEP_OUTER_WORLD_WILDLIFE_BUDGETS[options.quality];
   const terrainHeightAt = options.terrainHeightAt ?? innerKeepOuterWorldTerrainHeightAt;
   const pointIsClear = options.pointIsClear ?? innerKeepOuterWorldPointIsClear;
+  const treePlacements = options.treePlacements ?? planInnerKeepOuterWorldTrees({
+    quality: options.quality,
+    visualSeed: options.visualSeed,
+    terrainHeightAt,
+    pointIsClear,
+  });
   const positions: Array<{ x: number; z: number }> = [];
   const placements: InnerKeepOuterWorldWildlifePlacement[] = [];
   const maximumCandidates = Math.max(
@@ -322,15 +467,7 @@ export function planInnerKeepOuterWorldWildlife(options: Readonly<{
   for (let candidateIndex = 0; candidateIndex < maximumCandidates; candidateIndex += 1) {
     if (placements.length >= targetCount) break;
     const candidate = wildlifeCandidate(candidateIndex, options.visualSeed);
-    if (!pointIsClear(candidate.x, candidate.z, 0.7)) continue;
-    if (!acceptsSpacing(
-      positions,
-      candidate.x,
-      candidate.z,
-      OUTER_WILDLIFE_MINIMUM_SPACING_METERS,
-    )) continue;
-    positions.push(candidate);
-    placements.push(Object.freeze({
+    const placement = Object.freeze({
       instanceIndex: placements.length,
       anchorMeters: Object.freeze([
         candidate.x,
@@ -341,7 +478,28 @@ export function planInnerKeepOuterWorldWildlife(options: Readonly<{
       roamingRadiusMeters: 0.2 + deterministicUnit(candidateIndex, options.visualSeed + 127) * 0.32,
       speedRadiansPerSecond: 0.24 + deterministicUnit(candidateIndex, options.visualSeed + 139) * 0.18,
       scale: 0.82 + deterministicUnit(candidateIndex, options.visualSeed + 151) * 0.28,
-    }));
+    });
+    const roamingEnvelope = Math.SQRT2 * placement.roamingRadiusMeters
+      + innerKeepOuterWorldWildlifeFootprintRadiusMeters(placement);
+    if (!innerKeepOuterWorldClearsAuthoredTreeReserve(
+      candidate.x,
+      candidate.z,
+      roamingEnvelope,
+    )) continue;
+    if (!pointIsClear(
+      candidate.x,
+      candidate.z,
+      roamingEnvelope,
+    )) continue;
+    if (!innerKeepOuterWorldWildlifeClearsTrees(placement, treePlacements)) continue;
+    if (!acceptsSpacing(
+      positions,
+      candidate.x,
+      candidate.z,
+      OUTER_WILDLIFE_MINIMUM_SPACING_METERS,
+    )) continue;
+    positions.push(candidate);
+    placements.push(placement);
   }
   return Object.freeze(placements);
 }
@@ -431,7 +589,11 @@ function createExactExpeditionBatch(
     mesh.name = `inner-keep-outer-exact-resource-mesh:${label}:${primitiveIndex}`;
     const localMatrix = inverseRootMatrix.clone().multiply(object.matrixWorld);
     setStaticInstanceMatrices(mesh, placements.map((placement) => (
-      placementMatrix(placement.positionMeters, placement.rotationYRadians).multiply(localMatrix)
+      placementMatrix(
+        placement.positionMeters,
+        placement.rotationYRadians,
+        placement.targetFootprintDiameter / Math.max(0.001, model.footprintDiameter),
+      ).multiply(localMatrix)
     )));
     group.add(mesh);
     primitiveIndex += 1;
@@ -765,6 +927,7 @@ export function createInnerKeepOuterWorldPresentation(
       visualSeed: options.visualSeed,
       terrainHeightAt,
       pointIsClear,
+      treePlacements,
     });
   const geometries = new Set<THREE.BufferGeometry>();
   const materials = new Set<THREE.Material>();
@@ -826,7 +989,6 @@ export function createInnerKeepOuterWorldPresentation(
     fallbackResourceGroups.set(kind, fallback);
     fallbackLayer.add(fallback);
   });
-
   const rabbits = createRabbitBatches(wildlifePlacements.length, geometries, materials);
   applyRabbitPlacements(
     rabbits,

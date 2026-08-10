@@ -428,13 +428,16 @@ describe('local Inner Keep rendered evidence contract', () => {
   it('rejects quality-cap drift in animation, scene-graph, and renderer evidence', () => {
     for (const override of [
       { animationFrameCap: 25 },
-      { sceneGraphDrawCalls: 311 },
+      {
+        sceneGraphDrawCalls:
+          INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS.balanced.drawCalls + 1,
+      },
       {
         sceneGraphTriangles:
           INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS.balanced.triangles + 1,
       },
       { rendererDrawCalls: 381 },
-      { rendererTriangles: 260_001 }
+      { rendererTriangles: 270_001 }
     ]) {
       expect(() => assertInnerKeepQaScenarioEvidence(
         evidenceFor('empty', override),

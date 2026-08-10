@@ -5,16 +5,25 @@ import {
   createInnerKeepEcology,
   INNER_KEEP_FIXED_ECOLOGY_EXCLUSIONS,
   INNER_KEEP_GRASS_BUDGET,
+  INNER_KEEP_MARSH_BOAT_OBSTACLE_CLEARANCE_METERS,
+  INNER_KEEP_MARSH_LILY_PAD_BOAT_CLEARANCE_METERS,
   INNER_KEEP_WATER_BANK_EXTRA_WIDTH_METERS,
   INNER_KEEP_WATER_CENTERLINE,
+  INNER_KEEP_WATER_LAKE_BANK_INLET_GAP_RADIANS,
   INNER_KEEP_WATER_POND,
+  innerKeepMarshDistanceToBoatRoute,
+  planInnerKeepMarshPresentation,
 } from '../src/components/inner-keep/createInnerKeepEcology';
 import { INNER_KEEP_LAYOUT_V1_SLOTS } from '../src/components/inner-keep/innerKeepLayoutV1';
 import {
+  INNER_KEEP_OUTER_WORLD_BOAT_ROUTE,
   INNER_KEEP_OUTER_WORLD_COMPOUND_PLATEAU,
   INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS,
+  INNER_KEEP_OUTER_WORLD_MARSH_BUDGETS,
+  INNER_KEEP_OUTER_WORLD_ROAD_CIRCUIT,
   INNER_KEEP_OUTER_WORLD_RESOURCE_SITES,
   innerKeepCityDistrictRoadEdgeDistance,
+  innerKeepCityEdgeApronDistance,
   innerKeepOuterWorldDistanceToRoad,
   innerKeepOuterWorldDistanceToWater,
   innerKeepOuterWorldPointIsClear,
@@ -32,6 +41,33 @@ function grassPositions(ecology: ReturnType<typeof createInnerKeepEcology>) {
     grass.getMatrixAt(index, matrix);
     return position.setFromMatrixPosition(matrix).clone();
   });
+}
+
+function terrainDeltaRange(geometry: THREE.BufferGeometry) {
+  const index = geometry.index!;
+  const position = geometry.getAttribute('position');
+  let minimum = Number.POSITIVE_INFINITY;
+  let maximum = Number.NEGATIVE_INFINITY;
+  for (let triangle = 0; triangle < index.count; triangle += 3) {
+    const a = new THREE.Vector3().fromBufferAttribute(position, index.getX(triangle));
+    const b = new THREE.Vector3().fromBufferAttribute(position, index.getX(triangle + 1));
+    const c = new THREE.Vector3().fromBufferAttribute(position, index.getX(triangle + 2));
+    for (const [wa, wb, wc] of [
+      [1 / 3, 1 / 3, 1 / 3],
+      [0.6, 0.2, 0.2],
+      [0.2, 0.6, 0.2],
+      [0.2, 0.2, 0.6],
+    ] as const) {
+      const sample = new THREE.Vector3()
+        .addScaledVector(a, wa)
+        .addScaledVector(b, wb)
+        .addScaledVector(c, wc);
+      const delta = sample.y - innerKeepOuterWorldTerrainHeightAt(sample.x, sample.z);
+      minimum = Math.min(minimum, delta);
+      maximum = Math.max(maximum, delta);
+    }
+  }
+  return { minimum, maximum };
 }
 
 function insideCompoundPlateau(x: number, z: number) {
@@ -119,6 +155,10 @@ describe('Inner Keep living estate grass and connected water presentation', () =
           firstGrassClearanceFailure === ''
           && innerKeepCityDistrictRoadEdgeDistance(position.x, position.z) < 0.34
         ) firstGrassClearanceFailure = `district-road:${position.x}:${position.z}`;
+        if (
+          firstGrassClearanceFailure === ''
+          && innerKeepCityEdgeApronDistance(position.x, position.z) < 0.14
+        ) firstGrassClearanceFailure = `city-apron:${position.x}:${position.z}`;
 
         for (const exclusion of INNER_KEEP_FIXED_ECOLOGY_EXCLUSIONS) {
           if (exclusion.isRoadSurface) continue;
@@ -197,6 +237,8 @@ describe('Inner Keep living estate grass and connected water presentation', () =
     for (const position of grassPositions(ecology)) {
       expect(innerKeepCityDistrictRoadEdgeDistance(position.x, position.z))
         .toBeGreaterThanOrEqual(0.34);
+      expect(innerKeepCityEdgeApronDistance(position.x, position.z))
+        .toBeGreaterThanOrEqual(0.14);
       for (const site of INNER_KEEP_OUTER_WORLD_RESOURCE_SITES) {
         expect(Math.hypot(
           position.x - site.positionMeters[0],
@@ -234,6 +276,98 @@ describe('Inner Keep living estate grass and connected water presentation', () =
     still.dispose();
   });
 
+  it.each(['high', 'balanced', 'reduced'] as const)(
+    'builds deterministic, road-clear %s marsh budgets',
+    (quality) => {
+      const first = planInnerKeepMarshPresentation({
+        quality,
+        visualSeed: 0x25ad_77e1,
+      });
+      const second = planInnerKeepMarshPresentation({
+        quality,
+        visualSeed: 0x25ad_77e1,
+      });
+      const budget = INNER_KEEP_OUTER_WORLD_MARSH_BUDGETS[quality];
+      expect(first).toEqual(second);
+      expect(first.wetGroundPatches).toHaveLength(budget.wetGroundPatches);
+      expect(first.reeds).toHaveLength(budget.reeds);
+      expect(first.lilyPads).toHaveLength(budget.lilyPads);
+      expect(first.deadSnags).toHaveLength(budget.deadSnags);
+      for (const lilyPad of first.lilyPads) {
+        expect(innerKeepMarshDistanceToBoatRoute(
+          lilyPad.positionMeters[0],
+          lilyPad.positionMeters[2],
+        )).toBeGreaterThanOrEqual(
+          INNER_KEEP_OUTER_WORLD_BOAT_ROUTE.vesselBeamMeters * 0.5
+            + lilyPad.scale[0]
+            + INNER_KEEP_MARSH_LILY_PAD_BOAT_CLEARANCE_METERS,
+        );
+      }
+      for (const reed of first.reeds) {
+        expect(innerKeepMarshDistanceToBoatRoute(
+          reed.positionMeters[0],
+          reed.positionMeters[2],
+        )).toBeGreaterThanOrEqual(
+          INNER_KEEP_OUTER_WORLD_BOAT_ROUTE.vesselBeamMeters * 0.5
+            + 0.04 * Math.max(reed.scale[0], reed.scale[2])
+            + INNER_KEEP_MARSH_BOAT_OBSTACLE_CLEARANCE_METERS,
+        );
+      }
+      for (const snag of first.deadSnags) {
+        expect(innerKeepMarshDistanceToBoatRoute(
+          snag.positionMeters[0],
+          snag.positionMeters[2],
+        )).toBeGreaterThanOrEqual(
+          INNER_KEEP_OUTER_WORLD_BOAT_ROUTE.vesselBeamMeters * 0.5
+            + 0.105 * Math.max(snag.scale[0], snag.scale[2])
+            + INNER_KEEP_MARSH_BOAT_OBSTACLE_CLEARANCE_METERS,
+        );
+      }
+      for (const placement of [
+        ...first.wetGroundPatches,
+        ...first.reeds,
+        ...first.lilyPads,
+        ...first.deadSnags,
+      ]) {
+        expect(innerKeepOuterWorldDistanceToRoad(
+          placement.positionMeters[0],
+          placement.positionMeters[2],
+        )).toBeGreaterThan(INNER_KEEP_OUTER_WORLD_ROAD_CIRCUIT.halfWidthMeters);
+      }
+
+      const ecology = createInnerKeepEcology({
+        quality,
+        reducedMotion: true,
+        visualSeed: 0x25ad_77e1,
+      });
+      expect(ecology).toMatchObject({
+        marshWetGroundPatchCount: budget.wetGroundPatches,
+        marshReedCount: budget.reeds,
+        marshLilyPadCount: budget.lilyPads,
+        marshDeadSnagCount: budget.deadSnags,
+      });
+      const wetGround = ecology.group.getObjectByName(
+        'inner-keep-marsh-wet-ground',
+      ) as THREE.Mesh;
+      expect(wetGround).toBeInstanceOf(THREE.Mesh);
+      expect(wetGround.userData.innerKeepDrapedEllipseCount)
+        .toBe(budget.wetGroundPatches);
+      const wetGroundTerrainDelta = terrainDeltaRange(wetGround.geometry);
+      expect(wetGroundTerrainDelta.minimum).toBeGreaterThanOrEqual(-0.01);
+      expect(wetGroundTerrainDelta.maximum).toBeLessThanOrEqual(0.05);
+      expect((ecology.group.getObjectByName(
+        'inner-keep-marsh-reeds',
+      ) as THREE.InstancedMesh).count).toBe(budget.reeds);
+      expect((ecology.group.getObjectByName(
+        'inner-keep-marsh-lily-pads',
+      ) as THREE.InstancedMesh).count).toBe(budget.lilyPads);
+      expect((ecology.group.getObjectByName(
+        'inner-keep-marsh-dead-snags',
+      ) as THREE.InstancedMesh).count).toBe(budget.deadSnags);
+      ecology.dispose();
+    },
+  );
+
   it('releases instance buffers once during idempotent teardown', () => {
     const ecology = createInnerKeepEcology({
       quality: 'reduced',
@@ -259,7 +393,9 @@ describe('Inner Keep living estate grass and connected water presentation', () =
     }
     const downstream = INNER_KEEP_WATER_CENTERLINE.at(-1)!;
     expect(downstream.x).toBe(INNER_KEEP_WATER_POND.center.x);
-    expect(downstream.z).toBeCloseTo(
+    expect(downstream.z).toBeCloseTo(INNER_KEEP_WATER_POND.center.z, 8);
+    const inlet = INNER_KEEP_WATER_CENTERLINE.at(-4)!;
+    expect(inlet.z).toBeCloseTo(
       INNER_KEEP_WATER_POND.center.z - INNER_KEEP_WATER_POND.radii.z,
       8,
     );
@@ -284,6 +420,29 @@ describe('Inner Keep living estate grass and connected water presentation', () =
         }
       }
     }
+
+    const ecology = createInnerKeepEcology({
+      quality: 'reduced',
+      reducedMotion: true,
+      visualSeed: 42,
+    });
+    const pondBank = ecology.group.getObjectByName(
+      'inner-keep-cistern-pond-bank',
+    ) as THREE.Mesh;
+    const positions = pondBank.geometry.getAttribute('position');
+    let nearestInletAngle = Number.POSITIVE_INFINITY;
+    for (let index = 0; index < positions.count; index += 1) {
+      const angle = Math.atan2(positions.getZ(index), positions.getX(index));
+      const delta = Math.abs(Math.atan2(
+        Math.sin(angle + Math.PI / 2),
+        Math.cos(angle + Math.PI / 2),
+      ));
+      nearestInletAngle = Math.min(nearestInletAngle, delta);
+    }
+    expect(nearestInletAngle).toBeGreaterThanOrEqual(
+      INNER_KEEP_WATER_LAKE_BANK_INLET_GAP_RADIANS * 0.5 - 0.02,
+    );
+    ecology.dispose();
   });
 
   it('repeats the same accepted grounded placements for the same visual seed', () => {

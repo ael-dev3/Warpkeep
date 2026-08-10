@@ -21,9 +21,18 @@ import type {
   InnerKeepRuntimePrefab,
 } from './loadInnerKeepRuntimeAssets';
 import type { InnerKeepSceneQuality } from './createInnerKeepSceneLayer';
-import { innerKeepOuterWorldTerrainHeightAt } from './innerKeepOuterWorldPolicy';
+import {
+  INNER_KEEP_CITY_DISTRICT_ROADS,
+  INNER_KEEP_CITY_EDGE_APRON_HALF_WIDTH_METERS,
+  INNER_KEEP_CITY_EDGE_APRON_POINTS,
+  INNER_KEEP_OUTER_WORLD_RESOURCE_ROADS,
+  INNER_KEEP_OUTER_WORLD_SUPPLY_WAGON_FOOTPRINT_METERS,
+  INNER_KEEP_OUTER_WORLD_TRADE_ROUTE,
+  innerKeepOuterWorldTerrainHeightAt,
+} from './innerKeepOuterWorldPolicy';
 import {
   INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS,
+  INNER_KEEP_VILLAGE_ANIMAL_ROAMING_EXCLUSIONS,
   INNER_KEEP_WEATHERED_WALL_SKIRT_ASSET_ID,
   INNER_KEEP_WEATHERED_WALL_SKIRT_PLACEMENTS,
 } from './innerKeepTownAtmospherePolicy';
@@ -81,6 +90,16 @@ export type InnerKeepAuthoredPerimeterTreePlacement = AuthoredCopy & Readonly<{
   candidateIndex: number;
   halfExtentsMeters: readonly [number, number];
 }>;
+
+/** Low trunk support used for traffic clearance; crowns may naturally overhang roads. */
+export function innerKeepAuthoredPerimeterTreeTrunkRadiusMeters(
+  placement: Pick<InnerKeepAuthoredPerimeterTreePlacement, 'halfExtentsMeters'>,
+) {
+  return Math.min(
+    0.42,
+    Math.max(0.18, Math.min(...placement.halfExtentsMeters) * 0.28),
+  );
+}
 
 /**
  * Repeated static copies share immutable source geometry and materials. Empty
@@ -178,6 +197,13 @@ export const INNER_KEEP_AUTHORED_STATIC_RENDER_BUDGETS = Object.freeze({
 
 export const INNER_KEEP_AUTHORED_PERIMETER_TREE_CANDIDATES_PER_PLACEMENT = 512;
 export const INNER_KEEP_AUTHORED_PERIMETER_TREE_CLEARANCE_METERS = 0.16;
+export const INNER_KEEP_AUTHORED_PERIMETER_TREE_GROUND_LIFT_METERS = 0.01;
+const INNER_KEEP_AUTHORED_TRADE_ROAD_POINTS = Object.freeze(
+  INNER_KEEP_OUTER_WORLD_TRADE_ROUTE.map((point) => Object.freeze({
+    x: point[0],
+    z: point[2],
+  })),
+);
 
 type InnerKeepPerimeterTreeSectorDefinition = Readonly<{
   sector: InnerKeepAuthoredPerimeterTreeSector;
@@ -368,8 +394,8 @@ function routeActorCategories(
     route.kind === 'citizen-approach'
     || route.kind === 'citizen-work-shuttle'
   ) return Object.freeze(['citizen']);
-  if (route.kind === 'civic-mounted-loop') return Object.freeze(['civic-mounted']);
-  if (route.kind === 'mounted-patrol-loop') return Object.freeze(['mounted-patrol']);
+  if (route.kind === 'civic-mounted-shuttle') return Object.freeze(['civic-mounted']);
+  if (route.kind === 'mounted-duty-shuttle') return Object.freeze(['mounted-patrol']);
   return Object.freeze(['foot-patrol']);
 }
 
@@ -410,13 +436,14 @@ function treeTouchesSweptRoute(
 function treeCandidatePosition(
   candidateIndex: number,
   visualSeed: number,
+  terrainHeightAt: (x: number, z: number) => number,
 ): Readonly<{
   sector: InnerKeepAuthoredPerimeterTreeSector;
   positionMeters: readonly [number, number, number];
 }> {
   const grounded = (x: number, z: number) => Object.freeze([
     x,
-    innerKeepOuterWorldTerrainHeightAt(x, z) + 0.08,
+    terrainHeightAt(x, z) + INNER_KEEP_AUTHORED_PERIMETER_TREE_GROUND_LIFT_METERS,
     z,
   ] as const);
   const sector = INNER_KEEP_PERIMETER_TREE_SECTORS[
@@ -478,6 +505,13 @@ function candidateIsClear(
     exclusion.halfExtentsMeters,
     exclusion.clearanceMarginMeters,
   ))) return false;
+  if (INNER_KEEP_VILLAGE_ANIMAL_ROAMING_EXCLUSIONS.some((exclusion) => aabbOverlaps(
+    center,
+    candidate.halfExtentsMeters,
+    [exclusion.center.x, exclusion.center.z],
+    [exclusion.radiusMeters, exclusion.radiusMeters],
+    0,
+  ))) return false;
   if (INNER_KEEP_AMBIENT_EXCLUSIONS.some((exclusion) => aabbOverlaps(
     center,
     candidate.halfExtentsMeters,
@@ -488,6 +522,53 @@ function candidateIsClear(
   if (routeSweeps.some(({ route, radiusMeters }) => (
     treeTouchesSweptRoute(candidate, route, radiusMeters)
   ))) return false;
+  const trunkRadiusMeters = innerKeepAuthoredPerimeterTreeTrunkRadiusMeters(candidate);
+  const trunkHalfExtents = [trunkRadiusMeters, trunkRadiusMeters] as const;
+  for (let index = 0; index < INNER_KEEP_AUTHORED_TRADE_ROAD_POINTS.length - 1; index += 1) {
+    if (segmentTouchesExpandedAabb(
+      INNER_KEEP_AUTHORED_TRADE_ROAD_POINTS[index]!,
+      INNER_KEEP_AUTHORED_TRADE_ROAD_POINTS[index + 1]!,
+      center,
+      trunkHalfExtents,
+      INNER_KEEP_OUTER_WORLD_SUPPLY_WAGON_FOOTPRINT_METERS * 0.5
+        + INNER_KEEP_AMBIENT_MINIMUM_BODY_CLEARANCE_METERS,
+    )) return false;
+  }
+  for (const road of INNER_KEEP_OUTER_WORLD_RESOURCE_ROADS) {
+    for (let index = 0; index < road.points.length - 1; index += 1) {
+      if (segmentTouchesExpandedAabb(
+        road.points[index]!,
+        road.points[index + 1]!,
+        center,
+        trunkHalfExtents,
+        road.halfWidthMeters + INNER_KEEP_AUTHORED_PERIMETER_TREE_CLEARANCE_METERS,
+      )) return false;
+    }
+  }
+  for (let index = 0; index < INNER_KEEP_CITY_EDGE_APRON_POINTS.length; index += 1) {
+    if (segmentTouchesExpandedAabb(
+      INNER_KEEP_CITY_EDGE_APRON_POINTS[index]!,
+      INNER_KEEP_CITY_EDGE_APRON_POINTS[
+        (index + 1) % INNER_KEEP_CITY_EDGE_APRON_POINTS.length
+      ]!,
+      center,
+      trunkHalfExtents,
+      INNER_KEEP_CITY_EDGE_APRON_HALF_WIDTH_METERS
+        + INNER_KEEP_AUTHORED_PERIMETER_TREE_CLEARANCE_METERS,
+    )) return false;
+  }
+  for (const road of INNER_KEEP_CITY_DISTRICT_ROADS) {
+    const segmentCount = road.closed ? road.points.length : road.points.length - 1;
+    for (let index = 0; index < segmentCount; index += 1) {
+      if (segmentTouchesExpandedAabb(
+        road.points[index]!,
+        road.points[(index + 1) % road.points.length]!,
+        center,
+        trunkHalfExtents,
+        road.halfWidthMeters + INNER_KEEP_AUTHORED_PERIMETER_TREE_CLEARANCE_METERS,
+      )) return false;
+    }
+  }
   return !accepted.some((tree) => aabbOverlaps(
     center,
     candidate.halfExtentsMeters,
@@ -505,7 +586,9 @@ export function planInnerKeepAuthoredPerimeterTrees(options: Readonly<{
   bundle: InnerKeepRuntimeAssetBundle;
   quality: InnerKeepSceneQuality;
   visualSeed: number;
+  terrainHeightAt?: (x: number, z: number) => number;
 }>): readonly InnerKeepAuthoredPerimeterTreePlacement[] {
+  const terrainHeightAt = options.terrainHeightAt ?? innerKeepOuterWorldTerrainHeightAt;
   const budget = INNER_KEEP_AUTHORED_PERIMETER_TREE_BUDGETS[options.quality];
   const accepted: InnerKeepAuthoredPerimeterTreePlacement[] = [];
   const routeSweeps = INNER_KEEP_AMBIENT_ROUTES.map((route) => Object.freeze({
@@ -577,6 +660,7 @@ export function planInnerKeepAuthoredPerimeterTrees(options: Readonly<{
       const candidatePosition = treeCandidatePosition(
         candidate.candidateIndex,
         options.visualSeed,
+        terrainHeightAt,
       );
       const placement = Object.freeze({
         speciesId,
@@ -623,9 +707,15 @@ function addPerimeterTrees(
   bundle: InnerKeepRuntimeAssetBundle,
   quality: InnerKeepSceneQuality,
   visualSeed: number,
+  terrainHeightAt: (x: number, z: number) => number,
 ) {
   const copiesBySpecies = new Map<string, AuthoredCopy[]>();
-  const plan = planInnerKeepAuthoredPerimeterTrees({ bundle, quality, visualSeed });
+  const plan = planInnerKeepAuthoredPerimeterTrees({
+    bundle,
+    quality,
+    visualSeed,
+    terrainHeightAt,
+  });
   for (const placement of plan) {
     const copies = copiesBySpecies.get(placement.speciesId) ?? [];
     copies.push(placement);
@@ -675,7 +765,9 @@ export function createInnerKeepAuthoredStaticPresentation(options: Readonly<{
   bundle: InnerKeepRuntimeAssetBundle;
   quality: InnerKeepSceneQuality;
   visualSeed: number;
+  terrainHeightAt?: (x: number, z: number) => number;
 }>): InnerKeepAuthoredStaticPresentation {
+  const terrainHeightAt = options.terrainHeightAt ?? innerKeepOuterWorldTerrainHeightAt;
   const group = new THREE.Group();
   group.name = 'inner-keep-authored-static-presentation';
   let placementInstanceCount = 0;
@@ -697,6 +789,7 @@ export function createInnerKeepAuthoredStaticPresentation(options: Readonly<{
     options.bundle,
     options.quality,
     options.visualSeed,
+    terrainHeightAt,
   );
   return Object.freeze({
     group,

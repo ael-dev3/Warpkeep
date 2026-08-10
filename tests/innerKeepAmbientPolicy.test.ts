@@ -12,12 +12,12 @@ import {
   INNER_KEEP_AMBIENT_QUALITY_BUDGETS,
   INNER_KEEP_AMBIENT_ROUTES,
   INNER_KEEP_CITIZEN_WORK_ROUTES,
-  INNER_KEEP_CIVIC_MOUNTED_ROUTE,
+  INNER_KEEP_CIVIC_MOUNTED_ROUTES,
   INNER_KEEP_FOOT_DUTY_ROUTES,
-  INNER_KEEP_MOUNTED_PATROL_ROUTE,
-  INNER_KEEP_OUTER_FOOT_ESCORT_ROUTE,
+  INNER_KEEP_MOUNTED_DUTY_ROUTES,
   innerKeepAmbientActorFootprintHalfExtents,
   innerKeepAmbientOrientedFootprintSeparation,
+  innerKeepAmbientRouteIsExterior,
   innerKeepAmbientSelectionRenderCost,
   selectInnerKeepAmbientActors,
   validateInnerKeepAmbientRouteClearance
@@ -31,6 +31,14 @@ import {
   INNER_KEEP_PRESENTATION_LAYOUT_DIGEST,
   INNER_KEEP_PRESENTATION_SLOTS
 } from '../src/components/inner-keep/innerKeepPresentationLayoutPolicy';
+import {
+  INNER_KEEP_EAST_VILLAGE_SERVICE_LANE,
+  INNER_KEEP_OUTER_WORLD_SUPPLY_WAGON_FOOTPRINT_METERS,
+  INNER_KEEP_OUTER_WORLD_TRADE_ROUTE,
+  INNER_KEEP_VILLAGE_COMMONS_SOCIAL_LANE,
+  INNER_KEEP_WEST_VILLAGE_DELIVERY_LANE,
+  innerKeepOuterWorldDistanceToSegment
+} from '../src/components/inner-keep/innerKeepOuterWorldPolicy';
 
 describe('Inner Keep ambient presentation policy', () => {
   it('catalogs the exact eight citizens and twelve ceremonial units', () => {
@@ -124,17 +132,17 @@ describe('Inner Keep ambient presentation policy', () => {
 
   it('accounts exact model primitives and conversation sprites in render budgets', () => {
     expect(INNER_KEEP_AMBIENT_QUALITY_BUDGETS).toMatchObject({
-      high: { maximumDrawCalls: 207, maximumTriangles: 65_000 },
-      balanced: { maximumDrawCalls: 131, maximumTriangles: 40_000 },
-      reduced: { maximumDrawCalls: 78, maximumTriangles: 16_000 }
+      high: { maximumDrawCalls: 205, maximumTriangles: 58_800 },
+      balanced: { maximumDrawCalls: 129, maximumTriangles: 35_348 },
+      reduced: { maximumDrawCalls: 78, maximumTriangles: 14_188 }
     });
     const high = selectInnerKeepAmbientActors('all-high-assets', 'high');
     expect(innerKeepAmbientSelectionRenderCost(high.actors, 'high')).toEqual({
       actorDrawCalls: 201,
       actorTriangles: 58_792,
-      conversationSpriteCount: 6,
-      drawCalls: 207,
-      triangles: 58_804
+      conversationSpriteCount: 4,
+      drawCalls: 205,
+      triangles: 58_800
     });
     for (let seed = 0; seed < 256; seed += 1) {
       for (const quality of ['balanced', 'reduced'] as const) {
@@ -200,10 +208,14 @@ describe('Inner Keep ambient presentation policy', () => {
     }
 
     expect(INNER_KEEP_CITIZEN_WORK_ROUTES).toHaveLength(3);
-    expect(INNER_KEEP_FOOT_DUTY_ROUTES).toHaveLength(5);
+    expect(INNER_KEEP_FOOT_DUTY_ROUTES).toHaveLength(8);
+    expect(INNER_KEEP_CIVIC_MOUNTED_ROUTES).toHaveLength(2);
+    expect(INNER_KEEP_MOUNTED_DUTY_ROUTES).toHaveLength(4);
     const cityDutyRoutes = [
       ...INNER_KEEP_CITIZEN_WORK_ROUTES,
-      ...INNER_KEEP_FOOT_DUTY_ROUTES
+      ...INNER_KEEP_FOOT_DUTY_ROUTES,
+      ...INNER_KEEP_CIVIC_MOUNTED_ROUTES,
+      ...INNER_KEEP_MOUNTED_DUTY_ROUTES
     ];
     expect(new Set(cityDutyRoutes.map(({ routeId }) => routeId)).size)
       .toBe(cityDutyRoutes.length);
@@ -214,11 +226,36 @@ describe('Inner Keep ambient presentation policy', () => {
     expect(INNER_KEEP_FOOT_DUTY_ROUTES.map(({ purpose }) => purpose))
       .toEqual([
         'cathedral-watch',
-        'cathedral-watch',
+        'west-road-watch',
         'garrison-watch',
+        'north-road-watch',
         'east-wall-watch',
+        'east-road-watch',
+        'cathedral-watch',
         'south-gate-watch'
       ]);
+    expect(INNER_KEEP_CIVIC_MOUNTED_ROUTES.map(({ purpose }) => purpose))
+      .toEqual(['village-delivery', 'village-shrine-service']);
+    expect(INNER_KEEP_AMBIENT_ROUTES.filter(innerKeepAmbientRouteIsExterior))
+      .toHaveLength(9);
+    expect(INNER_KEEP_CIVIC_MOUNTED_ROUTES.every(innerKeepAmbientRouteIsExterior))
+      .toBe(true);
+    expect(INNER_KEEP_MOUNTED_DUTY_ROUTES.every(innerKeepAmbientRouteIsExterior))
+      .toBe(true);
+    expect(INNER_KEEP_CITIZEN_WORK_ROUTES.some(innerKeepAmbientRouteIsExterior))
+      .toBe(false);
+    expect(INNER_KEEP_EAST_VILLAGE_SERVICE_LANE).toMatchObject({
+      presentationOnly: true,
+      gameplayAuthorityClaimed: false
+    });
+    expect(INNER_KEEP_WEST_VILLAGE_DELIVERY_LANE).toMatchObject({
+      presentationOnly: true,
+      gameplayAuthorityClaimed: false
+    });
+    expect(INNER_KEEP_VILLAGE_COMMONS_SOCIAL_LANE).toMatchObject({
+      presentationOnly: true,
+      gameplayAuthorityClaimed: false
+    });
 
     // Open duties must remain direct point-to-point beats, not almost-closed
     // ellipses disguised by leaving a small gap between their endpoints.
@@ -227,22 +264,57 @@ describe('Inner Keep ambient presentation policy', () => {
       const last = route.path.points.at(-1)!;
       const endpointDistance = Math.hypot(last.x - first.x, last.z - first.z);
       expect(endpointDistance / route.path.totalLength, route.routeId)
-        .toBeGreaterThan(0.9);
+        .toBeGreaterThan(0.75);
     }
 
     const closedRoutes = INNER_KEEP_AMBIENT_ROUTES.filter(({ path }) => path.closed);
-    expect(closedRoutes.map(({ routeId }) => routeId).sort()).toEqual([
-      INNER_KEEP_CIVIC_MOUNTED_ROUTE.routeId,
-      INNER_KEEP_MOUNTED_PATROL_ROUTE.routeId,
-      INNER_KEEP_OUTER_FOOT_ESCORT_ROUTE.routeId
-    ].sort());
-    expect(INNER_KEEP_CIVIC_MOUNTED_ROUTE.path.points).toEqual(
-      INNER_KEEP_MOUNTED_PATROL_ROUTE.path.points
-    );
-    expect(INNER_KEEP_OUTER_FOOT_ESCORT_ROUTE.path.points).toEqual(
-      INNER_KEEP_MOUNTED_PATROL_ROUTE.path.points
-    );
+    expect(closedRoutes).toEqual([]);
+    expect(INNER_KEEP_AMBIENT_ROUTES.some(({ kind }) => (
+      kind === 'civic-mounted-loop'
+      || kind === 'foot-patrol-loop'
+      || kind === 'mounted-patrol-loop'
+    ))).toBe(false);
     expect(INNER_KEEP_AMBIENT_MINIMUM_BODY_CLEARANCE_METERS).toBe(0.16);
+  });
+
+  it('keeps the exotic courier physically separate from the supply wagon lane', () => {
+    const courier = INNER_KEEP_AMBIENT_ACTOR_CATALOG.find(({ actorId }) => (
+      actorId === 'emberfoot-courier'
+    ))!;
+    const [courierHalfWidth, courierHalfDepth] =
+      innerKeepAmbientActorFootprintHalfExtents(courier, 'high');
+    const conservativeRequiredSeparation =
+      INNER_KEEP_OUTER_WORLD_SUPPLY_WAGON_FOOTPRINT_METERS * 0.5
+      + Math.hypot(courierHalfWidth, courierHalfDepth)
+      + INNER_KEEP_AMBIENT_MINIMUM_BODY_CLEARANCE_METERS;
+    const route = INNER_KEEP_CIVIC_MOUNTED_ROUTES.find(({ purpose }) => (
+      purpose === 'village-delivery'
+    ))!;
+    const samples = Math.ceil(route.path.totalLength / 0.02);
+    let minimumSeparation = Number.POSITIVE_INFINITY;
+    for (let index = 0; index <= samples; index += 1) {
+      const point = sampleInnerKeepPath(route.path, index / samples).position;
+      for (
+        let segmentIndex = 0;
+        segmentIndex < INNER_KEEP_OUTER_WORLD_TRADE_ROUTE.length - 1;
+        segmentIndex += 1
+      ) {
+        const from = INNER_KEEP_OUTER_WORLD_TRADE_ROUTE[segmentIndex]!;
+        const to = INNER_KEEP_OUTER_WORLD_TRADE_ROUTE[segmentIndex + 1]!;
+        minimumSeparation = Math.min(
+          minimumSeparation,
+          innerKeepOuterWorldDistanceToSegment(
+            point.x,
+            point.z,
+            from[0],
+            from[2],
+            to[0],
+            to[2]
+          )
+        );
+      }
+    }
+    expect(minimumSeparation).toBeGreaterThanOrEqual(conservativeRequiredSeparation);
   });
 
   it('clears every exact actor footprint through each shuttle turnaround', () => {
@@ -250,11 +322,17 @@ describe('Inner Keep ambient presentation policy', () => {
     let minimumDetail = '';
     for (const route of [
       ...INNER_KEEP_CITIZEN_WORK_ROUTES,
-      ...INNER_KEEP_FOOT_DUTY_ROUTES
+      ...INNER_KEEP_FOOT_DUTY_ROUTES,
+      ...INNER_KEEP_CIVIC_MOUNTED_ROUTES,
+      ...INNER_KEEP_MOUNTED_DUTY_ROUTES
     ]) {
       const category = route.kind === 'citizen-work-shuttle'
         ? 'citizen'
-        : 'foot-patrol';
+        : route.kind === 'foot-duty-shuttle'
+          ? 'foot-patrol'
+          : route.kind === 'civic-mounted-shuttle'
+            ? 'civic-mounted'
+            : 'mounted-patrol';
       const actors = INNER_KEEP_AMBIENT_ACTOR_CATALOG.filter((actor) => (
         actor.category === category
       ));

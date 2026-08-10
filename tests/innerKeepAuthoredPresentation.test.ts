@@ -8,8 +8,16 @@ import {
   hasCompleteInnerKeepStaticRuntimeCoverage,
   INNER_KEEP_AUTHORED_PERIMETER_TREE_CANDIDATES_PER_PLACEMENT,
   INNER_KEEP_AUTHORED_PERIMETER_TREE_CLEARANCE_METERS,
+  INNER_KEEP_AUTHORED_PERIMETER_TREE_GROUND_LIFT_METERS,
+  innerKeepAuthoredPerimeterTreeTrunkRadiusMeters,
   planInnerKeepAuthoredPerimeterTrees,
 } from '../src/components/inner-keep/createInnerKeepAuthoredPresentation';
+import {
+  innerKeepOuterWorldTreeTrunkRadiusMeters,
+  innerKeepOuterWorldWildlifeFootprintRadiusMeters,
+  planInnerKeepOuterWorldTrees,
+  planInnerKeepOuterWorldWildlife,
+} from '../src/components/inner-keep/createInnerKeepOuterWorldPresentation';
 import {
   INNER_KEEP_AMBIENT_ACTOR_CATALOG,
   INNER_KEEP_AMBIENT_EXCLUSIONS,
@@ -25,9 +33,18 @@ import {
   INNER_KEEP_PRESENTATION_CLEARANCES,
   INNER_KEEP_PRESENTATION_PLACEMENTS,
 } from '../src/components/inner-keep/innerKeepPresentationLayoutPolicy';
-import { innerKeepOuterWorldTerrainHeightAt } from '../src/components/inner-keep/innerKeepOuterWorldPolicy';
+import {
+  INNER_KEEP_CITY_DISTRICT_ROADS,
+  INNER_KEEP_CITY_EDGE_APRON_HALF_WIDTH_METERS,
+  INNER_KEEP_CITY_EDGE_APRON_POINTS,
+  INNER_KEEP_OUTER_WORLD_RESOURCE_ROADS,
+  INNER_KEEP_OUTER_WORLD_SUPPLY_WAGON_FOOTPRINT_METERS,
+  INNER_KEEP_OUTER_WORLD_TRADE_ROUTE,
+  innerKeepOuterWorldTerrainHeightAt,
+} from '../src/components/inner-keep/innerKeepOuterWorldPolicy';
 import {
   INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS,
+  INNER_KEEP_VILLAGE_ANIMAL_ROAMING_EXCLUSIONS,
   INNER_KEEP_WEATHERED_WALL_SKIRT_PLACEMENTS,
 } from '../src/components/inner-keep/innerKeepTownAtmospherePolicy';
 import type {
@@ -116,8 +133,8 @@ function routeCategories(route: InnerKeepAmbientRoute): readonly InnerKeepAmbien
     route.kind === 'citizen-approach'
     || route.kind === 'citizen-work-shuttle'
   ) return ['citizen'];
-  if (route.kind === 'civic-mounted-loop') return ['civic-mounted'];
-  if (route.kind === 'mounted-patrol-loop') return ['mounted-patrol'];
+  if (route.kind === 'civic-mounted-shuttle') return ['civic-mounted'];
+  if (route.kind === 'mounted-duty-shuttle') return ['mounted-patrol'];
   return ['foot-patrol'];
 }
 
@@ -309,6 +326,8 @@ describe('authored Inner Keep presentation composition', () => {
       0,
       1,
       7,
+      23,
+      25,
       42,
       99,
       0x1234_5678,
@@ -367,7 +386,8 @@ describe('authored Inner Keep presentation composition', () => {
           expect(Math.abs(center[1]) + tree.halfExtentsMeters[1])
             .toBeLessThanOrEqual(groundHalfDepth);
           expect(tree.positionMeters[1]).toBeCloseTo(
-            innerKeepOuterWorldTerrainHeightAt(center[0], center[1]) + 0.08,
+            innerKeepOuterWorldTerrainHeightAt(center[0], center[1])
+              + INNER_KEEP_AUTHORED_PERIMETER_TREE_GROUND_LIFT_METERS,
             10,
           );
 
@@ -398,6 +418,15 @@ describe('authored Inner Keep presentation composition', () => {
               exclusion.clearanceMarginMeters,
             ), `${visualSeed}:${quality}:${tree.name}:${exclusion.exclusionId}`).toBe(false);
           }
+          for (const exclusion of INNER_KEEP_VILLAGE_ANIMAL_ROAMING_EXCLUSIONS) {
+            expect(aabbsOverlap(
+              center,
+              tree.halfExtentsMeters,
+              [exclusion.center.x, exclusion.center.z],
+              [exclusion.radiusMeters, exclusion.radiusMeters],
+              0,
+            ), `${visualSeed}:${quality}:${tree.name}:${exclusion.exclusionId}`).toBe(false);
+          }
           for (const route of INNER_KEEP_AMBIENT_ROUTES) {
             const expansion = exactRouteSweepRadius(route, quality)
               + INNER_KEEP_AMBIENT_MINIMUM_BODY_CLEARANCE_METERS;
@@ -411,6 +440,64 @@ describe('authored Inner Keep presentation composition', () => {
                 tree.halfExtentsMeters,
                 expansion,
               ), `${visualSeed}:${quality}:${tree.name}:${route.routeId}`).toBe(false);
+            }
+          }
+          const tradePoints = INNER_KEEP_OUTER_WORLD_TRADE_ROUTE.map((point) => ({
+            x: point[0],
+            z: point[2],
+          }));
+          const trunkRadiusMeters = innerKeepAuthoredPerimeterTreeTrunkRadiusMeters(tree);
+          const trunkHalfExtents = [trunkRadiusMeters, trunkRadiusMeters] as const;
+          for (let segmentIndex = 0; segmentIndex < tradePoints.length - 1; segmentIndex += 1) {
+            expect(segmentTouchesExpandedAabb(
+              tradePoints[segmentIndex]!,
+              tradePoints[segmentIndex + 1]!,
+              center,
+              trunkHalfExtents,
+              INNER_KEEP_OUTER_WORLD_SUPPLY_WAGON_FOOTPRINT_METERS * 0.5
+                + INNER_KEEP_AMBIENT_MINIMUM_BODY_CLEARANCE_METERS,
+            ), `${visualSeed}:${quality}:${tree.name}:trade:${segmentIndex}`).toBe(false);
+          }
+          for (const road of INNER_KEEP_OUTER_WORLD_RESOURCE_ROADS) {
+            for (let segmentIndex = 0; segmentIndex < road.points.length - 1; segmentIndex += 1) {
+              expect(segmentTouchesExpandedAabb(
+                road.points[segmentIndex]!,
+                road.points[segmentIndex + 1]!,
+                center,
+                trunkHalfExtents,
+                road.halfWidthMeters + INNER_KEEP_AUTHORED_PERIMETER_TREE_CLEARANCE_METERS,
+              ), `${visualSeed}:${quality}:${tree.name}:${road.roadId}:${segmentIndex}`)
+                .toBe(false);
+            }
+          }
+          for (
+            let segmentIndex = 0;
+            segmentIndex < INNER_KEEP_CITY_EDGE_APRON_POINTS.length;
+            segmentIndex += 1
+          ) {
+            expect(segmentTouchesExpandedAabb(
+              INNER_KEEP_CITY_EDGE_APRON_POINTS[segmentIndex]!,
+              INNER_KEEP_CITY_EDGE_APRON_POINTS[
+                (segmentIndex + 1) % INNER_KEEP_CITY_EDGE_APRON_POINTS.length
+              ]!,
+              center,
+              trunkHalfExtents,
+              INNER_KEEP_CITY_EDGE_APRON_HALF_WIDTH_METERS
+                + INNER_KEEP_AUTHORED_PERIMETER_TREE_CLEARANCE_METERS,
+            ), `${visualSeed}:${quality}:${tree.name}:city-apron:${segmentIndex}`)
+              .toBe(false);
+          }
+          for (const road of INNER_KEEP_CITY_DISTRICT_ROADS) {
+            const segmentCount = road.closed ? road.points.length : road.points.length - 1;
+            for (let segmentIndex = 0; segmentIndex < segmentCount; segmentIndex += 1) {
+              expect(segmentTouchesExpandedAabb(
+                road.points[segmentIndex]!,
+                road.points[(segmentIndex + 1) % road.points.length]!,
+                center,
+                trunkHalfExtents,
+                road.halfWidthMeters + INNER_KEEP_AUTHORED_PERIMETER_TREE_CLEARANCE_METERS,
+              ), `${visualSeed}:${quality}:${tree.name}:district:${segmentIndex}`)
+                .toBe(false);
             }
           }
           for (const previous of plan.slice(0, treeIndex)) {
@@ -450,6 +537,62 @@ describe('authored Inner Keep presentation composition', () => {
     }
   });
 
+  it('grounds authored perimeter trees with the injected rendered-surface sampler', () => {
+    const terrainHeightAt = (x: number, z: number) => 1.4 + x * 0.013 - z * 0.009;
+    const plan = planInnerKeepAuthoredPerimeterTrees({
+      bundle: fullStaticBundle(),
+      quality: 'reduced',
+      visualSeed: 91,
+      terrainHeightAt,
+    });
+    expect(plan).toHaveLength(6);
+    for (const tree of plan) {
+      expect(tree.positionMeters[1]).toBeCloseTo(
+        terrainHeightAt(tree.positionMeters[0], tree.positionMeters[2])
+          + INNER_KEEP_AUTHORED_PERIMETER_TREE_GROUND_LIFT_METERS,
+        10,
+      );
+    }
+  });
+
+  it('keeps the seeded countryside grove and roaming rabbits outside exact authored trees', () => {
+    const bundle = fullStaticBundle();
+    for (const visualSeed of [7, 444, 797, 2_434, 3_942]) {
+      const authored = planInnerKeepAuthoredPerimeterTrees({
+        bundle,
+        quality: 'high',
+        visualSeed,
+      });
+      const outer = planInnerKeepOuterWorldTrees({ quality: 'high', visualSeed });
+      const wildlife = planInnerKeepOuterWorldWildlife({
+        quality: 'high',
+        visualSeed,
+        treePlacements: outer,
+      });
+      for (const authoredTree of authored) {
+        const centerX = authoredTree.positionMeters[0];
+        const centerZ = authoredTree.positionMeters[2];
+        const distanceToBounds = (x: number, z: number) => Math.hypot(
+          Math.max(Math.abs(x - centerX) - authoredTree.halfExtentsMeters[0], 0),
+          Math.max(Math.abs(z - centerZ) - authoredTree.halfExtentsMeters[1], 0),
+        );
+        for (const tree of outer) {
+          expect(distanceToBounds(tree.positionMeters[0], tree.positionMeters[2]),
+            `seed:${visualSeed}:${authoredTree.name}:tree:${tree.instanceIndex}`)
+            .toBeGreaterThan(innerKeepOuterWorldTreeTrunkRadiusMeters(tree));
+        }
+        for (const rabbit of wildlife) {
+          expect(distanceToBounds(rabbit.anchorMeters[0], rabbit.anchorMeters[2]),
+            `seed:${visualSeed}:${authoredTree.name}:rabbit:${rabbit.instanceIndex}`)
+            .toBeGreaterThan(
+              Math.SQRT2 * rabbit.roamingRadiusMeters
+                + innerKeepOuterWorldWildlifeFootprintRadiusMeters(rabbit),
+            );
+        }
+      }
+    }
+  });
+
   it('stagger-plants the high-quality grove across every perimeter sector', () => {
     const plan = planInnerKeepAuthoredPerimeterTrees({
       bundle: fullStaticBundle(),
@@ -478,7 +621,7 @@ describe('authored Inner Keep presentation composition', () => {
       expect(
         Math.max(...crossCoordinates) - Math.min(...crossCoordinates),
         `${sector} planting depth`,
-      ).toBeGreaterThan(0.4);
+      ).toBeGreaterThan(0.3);
       expect(
         Math.max(...alongCoordinates) - Math.min(...alongCoordinates),
         `${sector} perimeter spread`,

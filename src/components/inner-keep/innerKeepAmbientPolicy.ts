@@ -18,8 +18,15 @@ import {
 import { INNER_KEEP_POPULATION_RUNTIME_ACTORS } from './innerKeepRuntimeAssetCatalog.generated';
 import { INNER_KEEP_FIXED_PLACEMENT_EXCLUSIONS } from './innerKeepFixedPlacementExclusions';
 import {
-  INNER_KEEP_OUTER_WORLD_PATROL_ROUTE_POINTS,
+  INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS,
+  INNER_KEEP_TOWN_SCENERY_SOLID_EXCLUSIONS,
+} from './innerKeepTownAtmospherePolicy';
+import {
+  INNER_KEEP_EAST_VILLAGE_SERVICE_LANE,
   INNER_KEEP_OUTER_WORLD_ROAD_CIRCUIT,
+  INNER_KEEP_VILLAGE_COMMONS_SOCIAL_LANE,
+  INNER_KEEP_WEST_VILLAGE_DELIVERY_LANE,
+  innerKeepOuterWorldDistanceToSegment,
   innerKeepOuterWorldDistanceToRoad,
 } from './innerKeepOuterWorldPolicy';
 
@@ -249,9 +256,9 @@ export const INNER_KEEP_AMBIENT_QUALITY_BUDGETS: Readonly<
     maximumActors: 20,
     maximumAnimatedActors: 20,
     maximumAnimationMixers: 20,
-    maximumConversationPairs: 3,
-    maximumDrawCalls: 207,
-    maximumTriangles: 65_000,
+    maximumConversationPairs: 2,
+    maximumDrawCalls: 205,
+    maximumTriangles: 58_800,
     animationFrameCap: 30,
     populationAssetProfile: 'balanced'
   }),
@@ -263,9 +270,9 @@ export const INNER_KEEP_AMBIENT_QUALITY_BUDGETS: Readonly<
     maximumActors: 12,
     maximumAnimatedActors: 12,
     maximumAnimationMixers: 12,
-    maximumConversationPairs: 2,
-    maximumDrawCalls: 131,
-    maximumTriangles: 40_000,
+    maximumConversationPairs: 1,
+    maximumDrawCalls: 129,
+    maximumTriangles: 35_348,
     animationFrameCap: 24,
     populationAssetProfile: 'balanced'
   }),
@@ -279,7 +286,7 @@ export const INNER_KEEP_AMBIENT_QUALITY_BUDGETS: Readonly<
     maximumAnimationMixers: 0,
     maximumConversationPairs: 0,
     maximumDrawCalls: 78,
-    maximumTriangles: 16_000,
+    maximumTriangles: 14_188,
     animationFrameCap: 0,
     populationAssetProfile: 'compact'
   })
@@ -289,6 +296,9 @@ export type InnerKeepAmbientRouteKind =
   | 'citizen-approach'
   | 'citizen-work-shuttle'
   | 'foot-duty-shuttle'
+  | 'civic-mounted-shuttle'
+  | 'mounted-duty-shuttle'
+  /** Retained only for consumers that explicitly reject the retired loops. */
   | 'civic-mounted-loop'
   | 'foot-patrol-loop'
   | 'mounted-patrol-loop';
@@ -300,9 +310,12 @@ export type InnerKeepAmbientRoutePurpose =
   | 'garrison-watch'
   | 'east-wall-watch'
   | 'south-gate-watch'
-  | 'estate-delivery'
-  | 'perimeter-patrol'
-  | 'road-escort';
+  | 'west-road-watch'
+  | 'north-road-watch'
+  | 'east-road-watch'
+  | 'south-road-watch'
+  | 'village-delivery'
+  | 'village-shrine-service';
 
 export type InnerKeepAmbientRoute = Readonly<{
   routeId: string;
@@ -311,6 +324,21 @@ export type InnerKeepAmbientRoute = Readonly<{
   actorRadiusMeters: number;
   path: InnerKeepCompiledPath;
 }>;
+
+const INNER_KEEP_EXTERIOR_ROUTE_PURPOSES:
+ReadonlySet<InnerKeepAmbientRoutePurpose> = new Set([
+  'village-delivery',
+  'village-shrine-service',
+  'west-road-watch',
+  'north-road-watch',
+  'east-road-watch',
+  'south-road-watch'
+]);
+
+/** Stable semantic classifier shared by telemetry and QA. */
+export function innerKeepAmbientRouteIsExterior(route: InnerKeepAmbientRoute) {
+  return INNER_KEEP_EXTERIOR_ROUTE_PURPOSES.has(route.purpose);
+}
 
 /** Conservative body-to-body gap retained by the deterministic formation. */
 export const INNER_KEEP_AMBIENT_MINIMUM_BODY_CLEARANCE_METERS = 0.16;
@@ -427,37 +455,9 @@ function ambientRoute(
 }
 
 /*
- * City residents use short point-to-point errands and guards hold distinct
- * watch beats. Only the true perimeter patrol remains a closed circuit.
+ * Residents use point-to-point errands and guards hold distinct watch beats.
+ * No ambient group circles the estate on one shared processional clock.
  */
-function smoothClosedAmbientRoutePoints(
-  source: readonly InnerKeepPathPoint[],
-  passes = 2
-): readonly InnerKeepPathPoint[] {
-  let points = source.map((point) => Object.freeze({ ...point }));
-  for (let pass = 0; pass < passes; pass += 1) {
-    points = points.flatMap((point, index) => {
-      const next = points[(index + 1) % points.length]!;
-      return [
-        Object.freeze({
-          x: point.x * 0.85 + next.x * 0.15,
-          z: point.z * 0.85 + next.z * 0.15
-        }),
-        Object.freeze({
-          x: point.x * 0.15 + next.x * 0.85,
-          z: point.z * 0.15 + next.z * 0.85
-        })
-      ];
-    });
-  }
-  return Object.freeze(points);
-}
-
-const INNER_KEEP_NORTHWEST_OUTER_MOUNTED_LOOP_POINTS:
-readonly InnerKeepPathPoint[] = smoothClosedAmbientRoutePoints(
-  INNER_KEEP_OUTER_WORLD_PATROL_ROUTE_POINTS,
-);
-
 export const INNER_KEEP_CITIZEN_WORK_ROUTES: readonly InnerKeepAmbientRoute[] =
   Object.freeze([
     ambientRoute(
@@ -513,14 +513,14 @@ export const INNER_KEEP_FOOT_DUTY_ROUTES: readonly InnerKeepAmbientRoute[] =
       false
     ),
     ambientRoute(
-      'inner-keep-cathedral-east-watch-v1',
+      'inner-keep-west-road-watch-v1',
       'foot-duty-shuttle',
-      'cathedral-watch',
+      'west-road-watch',
       0.32,
       [
-        { x: 9, z: -16.5 },
-        { x: 9.5, z: -15 },
-        { x: 9, z: -13.5 }
+        { x: -32, z: -22 },
+        { x: -32, z: -12 },
+        { x: -32, z: -2 }
       ],
       false
     ),
@@ -537,6 +537,18 @@ export const INNER_KEEP_FOOT_DUTY_ROUTES: readonly InnerKeepAmbientRoute[] =
       false
     ),
     ambientRoute(
+      'inner-keep-north-road-watch-v1',
+      'foot-duty-shuttle',
+      'north-road-watch',
+      0.32,
+      [
+        { x: -27, z: -33.5 },
+        { x: -20, z: -35 },
+        { x: -10, z: -35 }
+      ],
+      false
+    ),
+    ambientRoute(
       'inner-keep-east-wall-watch-v1',
       'foot-duty-shuttle',
       'east-wall-watch',
@@ -545,6 +557,30 @@ export const INNER_KEEP_FOOT_DUTY_ROUTES: readonly InnerKeepAmbientRoute[] =
         { x: 14, z: -5 },
         { x: 14.4, z: -3 },
         { x: 14, z: -1 }
+      ],
+      false
+    ),
+    ambientRoute(
+      'inner-keep-east-road-watch-v1',
+      'foot-duty-shuttle',
+      'east-road-watch',
+      0.32,
+      [
+        { x: 32, z: -12 },
+        { x: 32, z: -2 },
+        { x: 32, z: 8 }
+      ],
+      false
+    ),
+    ambientRoute(
+      'inner-keep-cathedral-east-watch-v1',
+      'foot-duty-shuttle',
+      'cathedral-watch',
+      0.32,
+      [
+        { x: 9, z: -16.5 },
+        { x: 9.5, z: -15 },
+        { x: 9, z: -13.5 }
       ],
       false
     ),
@@ -562,32 +598,83 @@ export const INNER_KEEP_FOOT_DUTY_ROUTES: readonly InnerKeepAmbientRoute[] =
     )
   ]);
 
-export const INNER_KEEP_CIVIC_MOUNTED_ROUTE = ambientRoute(
-  'inner-keep-civic-mounted-loop-v1',
-  'civic-mounted-loop',
-  'estate-delivery',
-  0.42,
-  INNER_KEEP_NORTHWEST_OUTER_MOUNTED_LOOP_POINTS,
-  true
-);
+export const INNER_KEEP_CIVIC_MOUNTED_ROUTES: readonly InnerKeepAmbientRoute[] =
+  Object.freeze([
+    ambientRoute(
+      'inner-keep-emberfoot-village-delivery-v1',
+      'civic-mounted-shuttle',
+      'village-delivery',
+      0.42,
+      INNER_KEEP_WEST_VILLAGE_DELIVERY_LANE.points,
+      false
+    ),
+    ambientRoute(
+      'inner-keep-shellback-village-shrine-service-v1',
+      'civic-mounted-shuttle',
+      'village-shrine-service',
+      0.42,
+      INNER_KEEP_EAST_VILLAGE_SERVICE_LANE.points,
+      false
+    )
+  ]);
 
-export const INNER_KEEP_MOUNTED_PATROL_ROUTE = ambientRoute(
-  'inner-keep-barracks-mounted-patrol-loop-v1',
-  'mounted-patrol-loop',
-  'perimeter-patrol',
-  0.42,
-  INNER_KEEP_NORTHWEST_OUTER_MOUNTED_LOOP_POINTS,
-  true
-);
+export const INNER_KEEP_MOUNTED_DUTY_ROUTES: readonly InnerKeepAmbientRoute[] =
+  Object.freeze([
+    ambientRoute(
+      'inner-keep-mounted-west-road-watch-v1',
+      'mounted-duty-shuttle',
+      'west-road-watch',
+      0.42,
+      [
+        { x: -32, z: 18 },
+        { x: -32, z: 10 },
+        { x: -32, z: 2 }
+      ],
+      false
+    ),
+    ambientRoute(
+      'inner-keep-mounted-north-road-watch-v1',
+      'mounted-duty-shuttle',
+      'north-road-watch',
+      0.42,
+      [
+        { x: 0, z: -35 },
+        { x: 10, z: -35 },
+        { x: 20, z: -35 }
+      ],
+      false
+    ),
+    ambientRoute(
+      'inner-keep-mounted-east-road-watch-v1',
+      'mounted-duty-shuttle',
+      'east-road-watch',
+      0.42,
+      [
+        { x: 32, z: 18 },
+        { x: 32.7, z: 23.5 },
+        { x: 32.84, z: 30.5 }
+      ],
+      false
+    ),
+    ambientRoute(
+      'inner-keep-mounted-south-road-watch-v1',
+      'mounted-duty-shuttle',
+      'south-road-watch',
+      0.42,
+      [
+        { x: 4, z: 33 },
+        { x: -4, z: 33 },
+        { x: -12, z: 33 },
+        { x: -20, z: 33 }
+      ],
+      false
+    )
+  ]);
 
-export const INNER_KEEP_OUTER_FOOT_ESCORT_ROUTE = ambientRoute(
-  'inner-keep-outer-foot-escort-loop-v1',
-  'foot-patrol-loop',
-  'road-escort',
-  0.32,
-  INNER_KEEP_NORTHWEST_OUTER_MOUNTED_LOOP_POINTS,
-  true
-);
+/** Compatibility aliases now point to open, independently timed duties. */
+export const INNER_KEEP_CIVIC_MOUNTED_ROUTE = INNER_KEEP_CIVIC_MOUNTED_ROUTES[0]!;
+export const INNER_KEEP_MOUNTED_PATROL_ROUTE = INNER_KEEP_MOUNTED_DUTY_ROUTES[0]!;
+export const INNER_KEEP_OUTER_FOOT_ESCORT_ROUTE = INNER_KEEP_FOOT_DUTY_ROUTES[1]!;
 
 export type InnerKeepConversationAnchor = Readonly<{
   anchorId: string;
@@ -638,6 +725,15 @@ function conversationAnchor(
 export const INNER_KEEP_CONVERSATION_ANCHORS: readonly InnerKeepConversationAnchor[] =
   Object.freeze([
     conversationAnchor(
+      'east-village-commons',
+      { x: 1.5, z: 23 },
+      { x: 2.2, z: 24 },
+      { x: 4.2, z: 25.4 },
+      { x: 3.4, z: 24.4 },
+      [{ x: 1.9, z: 23.5 }],
+      [{ x: 3.8, z: 24.9 }]
+    ),
+    conversationAnchor(
       'gate-approach',
       { x: -0.78, z: 12.45 },
       { x: -0.5, z: 11.9 },
@@ -666,7 +762,9 @@ export type InnerKeepAmbientExclusionKind =
   | 'slot-building-and-construction'
   | 'central-building'
   | 'civic-prop'
-  | 'fixed-authored-placement';
+  | 'fixed-authored-placement'
+  | 'lower-ward-house'
+  | 'town-scenery';
 
 export type InnerKeepAmbientExclusion = Readonly<{
   exclusionId: string;
@@ -705,6 +803,28 @@ const fixedAuthoredExclusions: readonly InnerKeepAmbientExclusion[] =
         })]
   )));
 
+const lowerWardHouseExclusions: readonly InnerKeepAmbientExclusion[] =
+  Object.freeze(INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS.map((candidate) => (
+    Object.freeze({
+      exclusionId: candidate.exclusionId,
+      kind: 'lower-ward-house' as const,
+      center: candidate.center,
+      halfExtentsMeters: candidate.halfExtentsMeters,
+      additionalClearanceMeters: candidate.clearanceMarginMeters
+    })
+  )));
+
+const townSceneryExclusions: readonly InnerKeepAmbientExclusion[] =
+  Object.freeze(INNER_KEEP_TOWN_SCENERY_SOLID_EXCLUSIONS.map((candidate) => (
+    Object.freeze({
+      exclusionId: candidate.exclusionId,
+      kind: 'town-scenery' as const,
+      center: candidate.center,
+      halfExtentsMeters: candidate.halfExtentsMeters,
+      additionalClearanceMeters: candidate.clearanceMarginMeters
+    })
+  )));
+
 function exclusion(
   exclusionId: string,
   kind: Exclude<InnerKeepAmbientExclusionKind, 'slot-building-and-construction'>,
@@ -731,6 +851,8 @@ export const INNER_KEEP_AMBIENT_EXCLUSIONS: readonly InnerKeepAmbientExclusion[]
   Object.freeze([
     ...slotExclusions,
     ...fixedAuthoredExclusions,
+    ...lowerWardHouseExclusions,
+    ...townSceneryExclusions,
     exclusion('central-keep', 'central-building', 0, -0.15, 2.3, 1.9, 0.18),
     // Exact layout scale is applied to the selected landmark X/Z bounds.
     exclusion('grand-covenant-cathedral', 'central-building', 0, -15.4, 5.1, 4.353, 0.8),
@@ -794,6 +916,26 @@ export type InnerKeepAmbientRouteClearanceViolation = Readonly<{
   position: InnerKeepPathPoint;
 }>;
 
+function distanceToOpenAmbientLane(
+  point: InnerKeepPathPoint,
+  points: readonly InnerKeepPathPoint[]
+) {
+  let nearest = Number.POSITIVE_INFINITY;
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const from = points[index]!;
+    const to = points[index + 1]!;
+    nearest = Math.min(nearest, innerKeepOuterWorldDistanceToSegment(
+      point.x,
+      point.z,
+      from.x,
+      from.z,
+      to.x,
+      to.z
+    ));
+  }
+  return nearest;
+}
+
 export function isInnerKeepAmbientPointNavigable(
   point: InnerKeepPathPoint,
   actorRadiusMeters: number
@@ -831,7 +973,34 @@ export function isInnerKeepAmbientPointNavigable(
   );
   const onOuterEstateRoad = innerKeepOuterWorldDistanceToRoad(point.x, point.z)
     <= outerRoadHalfWidth;
-  return onRoad || onPlaza || inOuterCourtyard || onOuterEstateRoad;
+  const onTradeDeliveryRoad = distanceToOpenAmbientLane(
+    point,
+    INNER_KEEP_WEST_VILLAGE_DELIVERY_LANE.points
+  ) <= Math.max(
+    0.08,
+    INNER_KEEP_WEST_VILLAGE_DELIVERY_LANE.halfWidthMeters - actorRadiusMeters
+  );
+  const onEastVillageLane = distanceToOpenAmbientLane(
+    point,
+    INNER_KEEP_EAST_VILLAGE_SERVICE_LANE.points
+  ) <= Math.max(
+    0.08,
+    INNER_KEEP_EAST_VILLAGE_SERVICE_LANE.halfWidthMeters - actorRadiusMeters
+  );
+  const onVillageCommonsSocialLane = distanceToOpenAmbientLane(
+    point,
+    INNER_KEEP_VILLAGE_COMMONS_SOCIAL_LANE.points
+  ) <= Math.max(
+    0.08,
+    INNER_KEEP_VILLAGE_COMMONS_SOCIAL_LANE.halfWidthMeters - actorRadiusMeters
+  );
+  return onRoad
+    || onPlaza
+    || inOuterCourtyard
+    || onOuterEstateRoad
+    || onTradeDeliveryRoad
+    || onEastVillageLane
+    || onVillageCommonsSocialLane;
 }
 
 function pointOverlapsExclusion(
@@ -883,9 +1052,8 @@ export function validateInnerKeepAmbientRouteClearance(
 }
 
 export const INNER_KEEP_AMBIENT_ROUTES: readonly InnerKeepAmbientRoute[] = Object.freeze([
-  INNER_KEEP_CIVIC_MOUNTED_ROUTE,
-  INNER_KEEP_MOUNTED_PATROL_ROUTE,
-  INNER_KEEP_OUTER_FOOT_ESCORT_ROUTE,
+  ...INNER_KEEP_CIVIC_MOUNTED_ROUTES,
+  ...INNER_KEEP_MOUNTED_DUTY_ROUTES,
   ...INNER_KEEP_CITIZEN_WORK_ROUTES,
   ...INNER_KEEP_FOOT_DUTY_ROUTES,
   ...INNER_KEEP_CONVERSATION_ANCHORS.flatMap((anchor) => anchor.approachRoutes)

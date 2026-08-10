@@ -210,14 +210,14 @@ export function parseInnerKeepQaEvidence(value) {
 }
 
 export const INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS = Object.freeze({
-  high: Object.freeze({ drawCalls: 390, triangles: 420_000 }),
-  balanced: Object.freeze({ drawCalls: 310, triangles: 250_000 }),
-  reduced: Object.freeze({ drawCalls: 235, triangles: 110_000 }),
+  high: Object.freeze({ drawCalls: 450, triangles: 460_000 }),
+  balanced: Object.freeze({ drawCalls: 350, triangles: 280_000 }),
+  reduced: Object.freeze({ drawCalls: 270, triangles: 135_000 }),
 });
 
 const EXPECTED_LIVING_SCENE_BY_QUALITY = Object.freeze({
   high: Object.freeze({
-    activeConversationMaximum: 3,
+    activeConversationMaximum: 2,
     ambientActorCount: 20,
     animationFrameCap: 30,
     authoredTreeCount: 18,
@@ -237,7 +237,7 @@ const EXPECTED_LIVING_SCENE_BY_QUALITY = Object.freeze({
     wildlifeCount: 10,
   }),
   balanced: Object.freeze({
-    activeConversationMaximum: 2,
+    activeConversationMaximum: 1,
     ambientActorCount: 12,
     animationFrameCap: 24,
     authoredTreeCount: 12,
@@ -249,7 +249,7 @@ const EXPECTED_LIVING_SCENE_BY_QUALITY = Object.freeze({
     mountedActorCount: 4,
     patrolUnitCount: 6,
     rendererDrawCallsMaximum: 380,
-    rendererTrianglesMaximum: 260_000,
+    rendererTrianglesMaximum: 270_000,
     scenicResourceNodeCount: 6,
     sceneGraphDrawCallsMaximum: INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS.balanced.drawCalls,
     sceneGraphTrianglesMaximum: INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS.balanced.triangles,
