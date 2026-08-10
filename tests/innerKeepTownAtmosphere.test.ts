@@ -69,6 +69,12 @@ function srgbLuminance(color: THREE.Color) {
   return srgb.r * 0.2126 + srgb.g * 0.7152 + srgb.b * 0.0722;
 }
 
+function srgbSaturation(value: number) {
+  const hsl = { h: 0, s: 0, l: 0 };
+  new THREE.Color(value).convertLinearToSRGB().getHSL(hsl);
+  return hsl.s;
+}
+
 function minimumEffectiveInstanceLuminance(mesh: THREE.InstancedMesh) {
   const color = new THREE.Color();
   const material = mesh.material as THREE.MeshStandardMaterial;
@@ -249,7 +255,7 @@ describe('Inner Keep sunlit living-town atmosphere', () => {
         object.name).not.toBe(true);
     });
     expect(minimumEffectiveInstanceLuminance(bodies)).toBeGreaterThan(0.68);
-    expect(minimumEffectiveInstanceLuminance(roofs)).toBeGreaterThan(0.38);
+    expect(minimumEffectiveInstanceLuminance(roofs)).toBeGreaterThan(0.4);
     expect(minimumEffectiveInstanceLuminance(foundations)).toBeGreaterThan(0.62);
     expect(minimumEffectiveInstanceLuminance(timbers)).toBeGreaterThan(0.32);
     expect(minimumEffectiveInstanceLuminance(doors)).toBeGreaterThan(0.34);
@@ -266,9 +272,51 @@ describe('Inner Keep sunlit living-town atmosphere', () => {
     expect(windowMaterial.emissive.getHex(THREE.SRGBColorSpace))
       .toBe(INNER_KEEP_TOWN_TONAL_PALETTE.rowHouse.window);
     expect(windowMaterial.emissiveIntensity).toBe(0.42);
-    expect(new Set(INNER_KEEP_TOWN_TONAL_PALETTE.rowHouse.plaster)).toHaveLength(4);
-    expect(new Set(INNER_KEEP_TOWN_TONAL_PALETTE.rowHouse.roof)).toHaveLength(4);
-    expect(new Set(INNER_KEEP_TOWN_TONAL_PALETTE.rowHouse.shutter)).toHaveLength(4);
+    expect(INNER_KEEP_TOWN_TONAL_PALETTE.rowHouse.plaster).toEqual([
+      0xe6d5ad,
+      0xddc58f,
+      0xd6dfbb,
+      0xdebbaa,
+    ]);
+    expect(Math.max(...INNER_KEEP_TOWN_TONAL_PALETTE.rowHouse.plaster.map(
+      srgbSaturation,
+    ))).toBeLessThanOrEqual(0.55);
+    expect(INNER_KEEP_TOWN_TONAL_PALETTE.rowHouse.roof).toEqual([
+      0xa87333,
+      0xb77d38,
+      0x499f9f,
+      0x8a769d,
+    ]);
+    const roofLuminances = INNER_KEEP_TOWN_TONAL_PALETTE.rowHouse.roof.map(
+      (color) => srgbLuminance(new THREE.Color(color)),
+    );
+    expect(Math.max(...roofLuminances) - Math.min(...roofLuminances))
+      .toBeLessThan(0.1);
+    expect(INNER_KEEP_TOWN_TONAL_PALETTE.rowHouse.foundation).toEqual([
+      0xb6aa95,
+      0xd6c8af,
+      0xa6a59c,
+      0xc5bba9,
+    ]);
+    expect(INNER_KEEP_TOWN_TONAL_PALETTE.rowHouse.timber).toEqual([
+      0x955f35,
+      0x7d512d,
+      0x806c50,
+      0x885832,
+    ]);
+    expect(INNER_KEEP_TOWN_TONAL_PALETTE.rowHouse.window).toBe(0xffd854);
+    expect(INNER_KEEP_TOWN_TONAL_PALETTE.rowHouse.door).toEqual([
+      0x955f35,
+      0x3b8181,
+      0x71678f,
+      0xa87333,
+    ]);
+    expect(INNER_KEEP_TOWN_TONAL_PALETTE.rowHouse.shutter).toEqual([
+      0x499f9f,
+      0xb77e26,
+      0x718552,
+      0xa75bc5,
+    ]);
 
     atmosphere.group.updateMatrixWorld(true);
     const instanceMatrix = new THREE.Matrix4();
@@ -722,6 +770,60 @@ describe('Inner Keep sunlit living-town atmosphere', () => {
       quality: 'high',
       reducedMotion: false,
     });
+    const graveSlabs = instancedMesh(
+      atmosphere.group,
+      'inner-keep-old-road-grave-headstones',
+    );
+    const graveCaps = instancedMesh(
+      atmosphere.group,
+      'inner-keep-old-road-grave-rounded-caps',
+    );
+    const graveCrossStems = instancedMesh(
+      atmosphere.group,
+      'inner-keep-old-road-grave-cross-stems',
+    );
+    const gravePath = atmosphere.group.getObjectByName(
+      'inner-keep-old-road-graveyard-footpath',
+    ) as THREE.Mesh;
+    expect(INNER_KEEP_TOWN_TONAL_PALETTE.graveyard.stone).toEqual([
+      0xa79c86,
+      0xb9aa91,
+      0x968f7c,
+    ]);
+    const headstones = INNER_KEEP_GRAVE_MARKER_PLACEMENTS.filter(
+      ({ kind }) => kind === 'headstone',
+    );
+    expect(graveSlabs.count).toBe(headstones.length);
+    expect(graveCaps.count).toBe(headstones.length);
+    const graveColor = new THREE.Color();
+    headstones.forEach((_, index) => {
+      const expectedStone = new THREE.Color(
+        INNER_KEEP_TOWN_TONAL_PALETTE.graveyard.stone[
+          index % INNER_KEEP_TOWN_TONAL_PALETTE.graveyard.stone.length
+        ]!,
+      );
+      graveSlabs.getColorAt(index, graveColor);
+      expect(graveColor.getHex(THREE.SRGBColorSpace)).toBe(
+        expectedStone.getHex(THREE.SRGBColorSpace),
+      );
+      graveCaps.getColorAt(index, graveColor);
+      expect(graveColor.getHex(THREE.SRGBColorSpace)).toBe(
+        expectedStone.clone().offsetHSL(0, 0, 0.04).getHex(THREE.SRGBColorSpace),
+      );
+    });
+    const graveStoneMaterial = graveSlabs.material as THREE.MeshStandardMaterial;
+    expect(graveStoneMaterial.color.getHex(THREE.SRGBColorSpace)).toBe(0xffffff);
+    expect(graveStoneMaterial.vertexColors).toBe(false);
+    expect(graveStoneMaterial.roughness).toBe(0.86);
+    expect(minimumEffectiveInstanceLuminance(graveSlabs)).toBeGreaterThan(0.52);
+    const graveTimberMaterial = graveCrossStems.material as THREE.MeshStandardMaterial;
+    expect(graveTimberMaterial.color.getHex(THREE.SRGBColorSpace))
+      .toBe(INNER_KEEP_TOWN_TONAL_PALETTE.graveyard.timber);
+    expect(srgbLuminance(graveTimberMaterial.color)).toBeGreaterThan(0.36);
+    const gravePathMaterial = gravePath.material as THREE.MeshStandardMaterial;
+    expect(gravePathMaterial.color.getHex(THREE.SRGBColorSpace))
+      .toBe(INNER_KEEP_TOWN_TONAL_PALETTE.graveyard.path);
+    expect(gravePathMaterial.opacity).toBe(0.6);
     for (const marker of INNER_KEEP_GRAVE_MARKER_PLACEMENTS) {
       const object = atmosphere.group.getObjectByName(
         `inner-keep-old-road-grave:${marker.markerId}`,
@@ -735,6 +837,9 @@ describe('Inner Keep sunlit living-town atmosphere', () => {
       atmosphere.group,
       'inner-keep-old-road-graveyard-fence-rails',
     );
+    expect((fenceRails.material as THREE.MeshStandardMaterial).color.getHex(
+      THREE.SRGBColorSpace,
+    )).toBe(INNER_KEEP_TOWN_TONAL_PALETTE.graveyard.timber);
     expect(fenceRails.userData.innerKeepLogicalFenceSegmentCount)
       .toBe(INNER_KEEP_GRAVEYARD_FENCE_BUDGETS.high);
     expect(fenceRails.count).toBeGreaterThanOrEqual(

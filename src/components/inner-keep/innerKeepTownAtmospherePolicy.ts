@@ -10,7 +10,7 @@ import { REALM_SUN_LIGHT_POSITION } from '../realm/createRealmEnvironment';
  */
 
 export const INNER_KEEP_TOWN_ATMOSPHERE_POLICY_VERSION =
-  'inner-keep-sunlit-lowlands-atmosphere-v4-painted-cottages';
+  'inner-keep-sunlit-lowlands-atmosphere-v5-authored-town-palette';
 
 export const INNER_KEEP_TOWN_TONAL_PALETTE = Object.freeze({
   skyFog: 0xc3dce5,
@@ -61,20 +61,24 @@ export const INNER_KEEP_TOWN_TONAL_PALETTE = Object.freeze({
     ] as const),
   }),
   rowHouse: Object.freeze({
-    plaster: Object.freeze([0xf2d9a6, 0xe9c77f, 0xdce5bd, 0xe8b9a5] as const),
-    roof: Object.freeze([0xa87333, 0xb77d38, 0x50a0a0, 0x8a769d] as const),
-    foundation: Object.freeze([0xb8b7a5, 0xc2b59d, 0x9fa99b, 0xc1aa91] as const),
-    timber: Object.freeze([0x8b603b, 0x77573b, 0x6c6546, 0x855344] as const),
-    window: 0xffd889,
+    // Large surfaces stay bright but restrained; roofs, timber, and accents
+    // reuse the reviewed Palisade, Mill, Barracks, Cathedral, and ruin swatches.
+    plaster: Object.freeze([0xe6d5ad, 0xddc58f, 0xd6dfbb, 0xdebbaa] as const),
+    roof: Object.freeze([0xa87333, 0xb77d38, 0x499f9f, 0x8a769d] as const),
+    foundation: Object.freeze([0xb6aa95, 0xd6c8af, 0xa6a59c, 0xc5bba9] as const),
+    timber: Object.freeze([0x955f35, 0x7d512d, 0x806c50, 0x885832] as const),
+    window: 0xffd854,
     smoke: 0xc6c9bd,
-    door: Object.freeze([0x95613b, 0x55796c, 0x71678f, 0xa0713b] as const),
-    shutter: Object.freeze([0x4f8179, 0x9c7042, 0x718552, 0x7075a0] as const),
+    door: Object.freeze([0x955f35, 0x3b8181, 0x71678f, 0xa87333] as const),
+    shutter: Object.freeze([0x499f9f, 0xb77e26, 0x718552, 0xa75bc5] as const),
     garden: Object.freeze([0x6f963e, 0x819f49, 0x5f8739] as const),
     linen: Object.freeze([0xe8ddbd, 0xb5c8ad, 0xd7a178] as const),
   }),
   graveyard: Object.freeze({
-    stone: Object.freeze([0x8e9385, 0xa7a594, 0x777e74] as const),
-    timber: 0x574631,
+    // The selected wall/ruin palette keeps the cemetery old and quiet
+    // without collapsing into the surrounding cool green terrain.
+    stone: Object.freeze([0xa79c86, 0xb9aa91, 0x968f7c] as const),
+    timber: 0x745d42,
     path: 0x87785b,
   }),
   dock: Object.freeze({
