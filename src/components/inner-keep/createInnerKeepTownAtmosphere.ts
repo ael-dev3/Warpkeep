@@ -101,7 +101,21 @@ function presentationOnly(object: THREE.Object3D) {
   return object;
 }
 
+export function assertInnerKeepInstanceColorContract(mesh: THREE.InstancedMesh) {
+  if (
+    mesh.instanceColor === null
+    || mesh.geometry.getAttribute('color') !== undefined
+  ) return;
+  const meshMaterials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+  if (meshMaterials.some((material) => (
+    (material as THREE.Material & { vertexColors?: boolean }).vertexColors === true
+  ))) {
+    throw new Error('INNER_KEEP_INSTANCE_COLOR_REQUIRES_GEOMETRY_COLOR');
+  }
+}
+
 function finalizeStaticInstances(mesh: THREE.InstancedMesh) {
+  assertInnerKeepInstanceColorContract(mesh);
   mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
   mesh.instanceMatrix.needsUpdate = true;
   if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
@@ -121,6 +135,30 @@ function localTransform(
     new THREE.Vector3(...scale),
   ));
 }
+
+const ROW_HOUSE_TIMBER_PIECES: readonly Readonly<{
+  position: readonly [number, number, number];
+  scale: readonly [number, number, number];
+}>[] = Object.freeze([
+  { position: [-1.06, 1.7, 0.875], scale: [0.1, 1.7, 0.09] },
+  { position: [0, 1.7, 0.875], scale: [0.09, 1.7, 0.09] },
+  { position: [1.06, 1.7, 0.875], scale: [0.1, 1.7, 0.09] },
+  { position: [0, 1.28, 0.875], scale: [2.44, 0.09, 0.09] },
+  { position: [0, 2.08, 0.875], scale: [2.58, 0.1, 0.09] },
+  { position: [0.64, 0.58, 0.79], scale: [0.54, 1.08, 0.1] },
+  { position: [-0.72, 2.68, -0.25], scale: [0.28, 0.68, 0.28] },
+  { position: [0, 2.3, 0.93], scale: [1.9, 0.1, 0.04] },
+  { position: [0, 2.3, -0.93], scale: [1.9, 0.1, 0.04] },
+  { position: [-1.25, 1.02, 0], scale: [0.1, 0.1, 1.68] },
+  { position: [1.25, 1.02, 0], scale: [0.1, 0.1, 1.68] },
+  { position: [-0.67, 1.45, 0.93], scale: [0.48, 0.08, 0.04] },
+  { position: [0.67, 1.45, 0.93], scale: [0.48, 0.08, 0.04] },
+  { position: [0.64, 1.2, 0.93], scale: [0.62, 0.1, 0.04] },
+  { position: [0, 2.94, 0], scale: [0.1, 0.08, 1.82] },
+]);
+
+export const INNER_KEEP_ROW_HOUSE_TIMBER_PIECE_COUNT =
+  ROW_HOUSE_TIMBER_PIECES.length;
 
 function staticMesh(
   geometry: THREE.BufferGeometry,
@@ -239,19 +277,20 @@ export function createInnerKeepTownAtmosphere(options: Readonly<{
   geometries.add(detailSphereGeometry);
   geometries.add(animalFeatureGeometry);
 
+  // These geometries have no per-vertex `color` attribute. Their deterministic
+  // palette comes from InstancedMesh.instanceColor, so material.vertexColors
+  // must stay disabled or WebGL multiplies every painted surface by black.
   const plasterMaterial = new THREE.MeshStandardMaterial({
     color: 0xffffff,
-    roughness: 0.98,
-    vertexColors: true,
+    roughness: 0.92,
   });
   const roofMaterial = new THREE.MeshStandardMaterial({
     color: 0xffffff,
-    roughness: 0.94,
-    vertexColors: true,
+    roughness: 0.82,
   });
   const timberMaterial = new THREE.MeshStandardMaterial({
-    color: INNER_KEEP_TOWN_TONAL_PALETTE.rowHouse.timber,
-    roughness: 0.97,
+    color: 0xffffff,
+    roughness: 0.86,
   });
   const windowMaterial = new THREE.MeshStandardMaterial({
     color: INNER_KEEP_TOWN_TONAL_PALETTE.rowHouse.window,
@@ -276,28 +315,25 @@ export function createInnerKeepTownAtmosphere(options: Readonly<{
     polygonOffsetUnits: -3,
   });
   const doorMaterial = new THREE.MeshStandardMaterial({
-    color: INNER_KEEP_TOWN_TONAL_PALETTE.rowHouse.door,
-    roughness: 0.95,
+    color: 0xffffff,
+    roughness: 0.84,
   });
   const shutterMaterial = new THREE.MeshStandardMaterial({
-    color: INNER_KEEP_TOWN_TONAL_PALETTE.rowHouse.shutter,
-    roughness: 0.93,
+    color: 0xffffff,
+    roughness: 0.82,
   });
   const gardenMaterial = new THREE.MeshStandardMaterial({
     color: 0xffffff,
     roughness: 1,
-    vertexColors: true,
   });
   const linenMaterial = new THREE.MeshStandardMaterial({
     color: 0xffffff,
     roughness: 0.92,
-    vertexColors: true,
     side: THREE.DoubleSide,
   });
   const graveStoneMaterial = new THREE.MeshStandardMaterial({
     color: 0xffffff,
     roughness: 1,
-    vertexColors: true,
   });
   const graveTimberMaterial = new THREE.MeshStandardMaterial({
     color: INNER_KEEP_TOWN_TONAL_PALETTE.graveyard.timber,
@@ -331,7 +367,6 @@ export function createInnerKeepTownAtmosphere(options: Readonly<{
   const animalBodyMaterial = new THREE.MeshStandardMaterial({
     color: 0xffffff,
     roughness: 0.92,
-    vertexColors: true,
     side: THREE.DoubleSide,
   });
   const animalDarkMaterial = new THREE.MeshStandardMaterial({
@@ -341,7 +376,6 @@ export function createInnerKeepTownAtmosphere(options: Readonly<{
   const animalFeatureMaterial = new THREE.MeshStandardMaterial({
     color: 0xffffff,
     roughness: 0.88,
-    vertexColors: true,
   });
   materials.add(plasterMaterial);
   materials.add(roofMaterial);
@@ -382,17 +416,16 @@ export function createInnerKeepTownAtmosphere(options: Readonly<{
   foundations.name = 'inner-keep-lower-ward-stone-foundations';
   const roofs = new THREE.InstancedMesh(roofGeometry, roofMaterial, houses.length);
   roofs.name = 'inner-keep-lower-ward-crooked-gables';
-  const timberPieceCount = 7;
   const timbers = new THREE.InstancedMesh(
     boxGeometry,
     timberMaterial,
-    houses.length * timberPieceCount,
+    houses.length * INNER_KEEP_ROW_HOUSE_TIMBER_PIECE_COUNT,
   );
-  timbers.name = 'inner-keep-lower-ward-dark-timbers';
+  timbers.name = 'inner-keep-lower-ward-painted-timbers';
   const windows = new THREE.InstancedMesh(
     boxGeometry,
     windowMaterial,
-    houses.length * 2,
+    houses.length * 3,
   );
   windows.name = 'inner-keep-lower-ward-warm-windows';
   const doorCount = options.quality === 'reduced' ? 0 : houses.length;
@@ -451,6 +484,18 @@ export function createInnerKeepTownAtmosphere(options: Readonly<{
     const roof = INNER_KEEP_TOWN_TONAL_PALETTE.rowHouse.roof[
       house.styleIndex % INNER_KEEP_TOWN_TONAL_PALETTE.rowHouse.roof.length
     ]!;
+    const foundation = INNER_KEEP_TOWN_TONAL_PALETTE.rowHouse.foundation[
+      house.styleIndex % INNER_KEEP_TOWN_TONAL_PALETTE.rowHouse.foundation.length
+    ]!;
+    const timber = INNER_KEEP_TOWN_TONAL_PALETTE.rowHouse.timber[
+      house.styleIndex % INNER_KEEP_TOWN_TONAL_PALETTE.rowHouse.timber.length
+    ]!;
+    const door = INNER_KEEP_TOWN_TONAL_PALETTE.rowHouse.door[
+      house.styleIndex % INNER_KEEP_TOWN_TONAL_PALETTE.rowHouse.door.length
+    ]!;
+    const shutter = INNER_KEEP_TOWN_TONAL_PALETTE.rowHouse.shutter[
+      house.styleIndex % INNER_KEEP_TOWN_TONAL_PALETTE.rowHouse.shutter.length
+    ]!;
     const bodyIndex = houseIndex * 2;
     foundations.setMatrixAt(houseIndex, new THREE.Matrix4().compose(
       new THREE.Vector3(
@@ -463,9 +508,7 @@ export function createInnerKeepTownAtmosphere(options: Readonly<{
     ));
     foundations.setColorAt(
       houseIndex,
-      new THREE.Color(INNER_KEEP_TOWN_TONAL_PALETTE.graveyard.stone[
-        houseIndex % INNER_KEEP_TOWN_TONAL_PALETTE.graveyard.stone.length
-      ]!).multiplyScalar(0.92),
+      new THREE.Color(foundation),
     );
     bodies.setMatrixAt(bodyIndex, localTransform(base, [0, 0.66, 0], [2.45, 1.3, 1.55]));
     bodies.setColorAt(bodyIndex, new THREE.Color(plaster).multiplyScalar(0.9));
@@ -480,45 +523,64 @@ export function createInnerKeepTownAtmosphere(options: Readonly<{
     );
     roofs.setColorAt(houseIndex, new THREE.Color(roof));
 
-    const timberPieces: readonly Readonly<{
-      position: readonly [number, number, number];
-      scale: readonly [number, number, number];
-    }>[] = [
-      { position: [-1.06, 1.7, 0.875], scale: [0.1, 1.7, 0.09] },
-      { position: [0, 1.7, 0.875], scale: [0.09, 1.7, 0.09] },
-      { position: [1.06, 1.7, 0.875], scale: [0.1, 1.7, 0.09] },
-      { position: [0, 1.28, 0.875], scale: [2.44, 0.09, 0.09] },
-      { position: [0, 2.08, 0.875], scale: [2.58, 0.1, 0.09] },
-      { position: [0.64, 0.58, 0.79], scale: [0.54, 1.08, 0.1] },
-      { position: [-0.72, 2.68, -0.25], scale: [0.28, 0.68, 0.28] },
-    ];
-    timberPieces.forEach((piece, pieceIndex) => {
+    ROW_HOUSE_TIMBER_PIECES.forEach((piece, pieceIndex) => {
+      const timberColor = new THREE.Color(timber).offsetHSL(
+        0,
+        0,
+        pieceIndex % 4 === 0 ? 0.035 : 0,
+      );
       timbers.setMatrixAt(
-        houseIndex * timberPieceCount + pieceIndex,
+        houseIndex * INNER_KEEP_ROW_HOUSE_TIMBER_PIECE_COUNT + pieceIndex,
         localTransform(base, piece.position, piece.scale),
+      );
+      timbers.setColorAt(
+        houseIndex * INNER_KEEP_ROW_HOUSE_TIMBER_PIECE_COUNT + pieceIndex,
+        timberColor,
       );
     });
     for (const [windowIndex, windowX] of [-0.67, 0.67].entries()) {
       windows.setMatrixAt(
-        houseIndex * 2 + windowIndex,
+        houseIndex * 3 + windowIndex,
         localTransform(base, [windowX, 1.7, 0.915], [0.36, 0.43, 0.045]),
       );
       if (shutterCount > 0) {
+        const shutterColor = new THREE.Color(shutter).offsetHSL(
+          windowIndex === 0 ? -0.012 : 0.012,
+          0,
+          windowIndex === 0 ? 0.02 : 0,
+        );
         shutters.setMatrixAt(
           houseIndex * 4 + windowIndex * 2,
           localTransform(base, [windowX - 0.27, 1.7, 0.94], [0.12, 0.48, 0.04]),
+        );
+        shutters.setColorAt(
+          houseIndex * 4 + windowIndex * 2,
+          shutterColor,
         );
         shutters.setMatrixAt(
           houseIndex * 4 + windowIndex * 2 + 1,
           localTransform(base, [windowX + 0.27, 1.7, 0.94], [0.12, 0.48, 0.04]),
         );
+        shutters.setColorAt(
+          houseIndex * 4 + windowIndex * 2 + 1,
+          shutterColor,
+        );
       }
     }
+    windows.setMatrixAt(
+      houseIndex * 3 + 2,
+      localTransform(
+        base,
+        [houseIndex % 2 === 0 ? -1.335 : 1.335, 1.65, 0],
+        [0.045, 0.36, 0.32],
+      ),
+    );
     if (doorCount > 0) {
       doors.setMatrixAt(
         houseIndex,
         localTransform(base, [0.64, 0.61, 0.945], [0.5, 1.12, 0.07]),
       );
+      doors.setColorAt(houseIndex, new THREE.Color(door));
     }
     if (gardenCount > 0) {
       gardens.setMatrixAt(
@@ -1105,6 +1167,9 @@ export function createInnerKeepTownAtmosphere(options: Readonly<{
   updateSmoke(initialElapsed);
   updateCanalBoats(initialElapsed);
   updateVillageAnimals(initialElapsed);
+  for (const mesh of [animalBodies, animalHeads, animalFeatures]) {
+    assertInnerKeepInstanceColorContract(mesh);
+  }
 
   let disposed = false;
   return Object.freeze({
