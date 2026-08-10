@@ -1,5 +1,9 @@
 import type { InnerKeepSceneQuality } from './createInnerKeepSceneLayer';
-import { INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS } from './innerKeepTownAtmospherePolicy';
+import {
+  INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS,
+  INNER_KEEP_TOWN_SCENERY_SOLID_EXCLUSIONS,
+  INNER_KEEP_VILLAGE_ANIMAL_ROAMING_EXCLUSIONS,
+} from './innerKeepTownAtmospherePolicy';
 
 /**
  * Presentation-only landscape around the canonical Inner Keep compound.
@@ -9,7 +13,7 @@ import { INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS } from './innerKeepTownAtmospher
  * and ambient actors can meet the same ground without becoming authoritative.
  */
 export const INNER_KEEP_OUTER_WORLD_POLICY_VERSION =
-  'inner-keep-outer-world-presentation-v2';
+  'inner-keep-outer-world-presentation-v3';
 
 export const INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS = Object.freeze([
   34,
@@ -89,22 +93,22 @@ readonly InnerKeepOuterWorldTopographicFeature[] = Object.freeze([
     featureId: 'alderwood-margin',
     name: 'Alderwood Margin',
     kind: 'woodland',
-    centerMeters: Object.freeze([14, 29] as const),
-    description: 'A damp woodland edge between the road and the lower water.',
+    centerMeters: Object.freeze([24, 25] as const),
+    description: 'Willow and alder wetland between the lower canal and mere.',
   }),
   Object.freeze({
     featureId: 'eastwall-rill',
-    name: 'Eastwall Rill',
+    name: 'Eastwall Canal',
     kind: 'watercourse',
-    centerMeters: Object.freeze([29, -3] as const),
-    description: 'One connected stream descending along the eastern wall.',
+    centerMeters: Object.freeze([27.7, -3] as const),
+    description: 'A narrow headwater opening into a punt-width lower canal.',
   }),
   Object.freeze({
     featureId: 'south-eastern-mere',
     name: 'South-eastern Mere',
     kind: 'lake',
-    centerMeters: Object.freeze([29, 27] as const),
-    description: 'A visible lowland lake receiving the east-wall stream.',
+    centerMeters: Object.freeze([27.5, 27] as const),
+    description: 'A reed-ringed lowland mere receiving the east-wall canal.',
   }),
 ]);
 
@@ -204,6 +208,58 @@ readonly InnerKeepOuterWorldResourceSite[] = Object.freeze(
   })),
 );
 
+export type InnerKeepOuterWorldResourcePad = Readonly<{
+  visualSiteKey: string;
+  instanceIndex: number;
+  positionMeters: readonly [number, number, number];
+  targetFootprintDiameter: number;
+  padRadiusMeters: number;
+  padFeatherMeters: number;
+}>;
+
+const RESOURCE_SECONDARY_PADS = Object.freeze({
+  'southfield-wheat-farm': Object.freeze({ offset: Object.freeze([-3.2, 1] as const), scale: 0.46 }),
+  'southfield-logging-camp': Object.freeze({ offset: Object.freeze([-3.7, 0] as const), scale: 0.46 }),
+  'granite-scar-quarry': Object.freeze({ offset: Object.freeze([3.7, 2] as const), scale: 0.46 }),
+  'goldvein-scenic-mine': Object.freeze({ offset: Object.freeze([-3.7, 2] as const), scale: 0.46 }),
+} as const);
+
+/**
+ * Every rendered resource copy owns a fixed, seed-independent terrain pad.
+ * This keeps the decorative high-tier copies grounded and lets every other
+ * planner reserve their real footprint before placing trees or wildlife.
+ */
+export const INNER_KEEP_OUTER_WORLD_RESOURCE_PADS:
+readonly InnerKeepOuterWorldResourcePad[] = Object.freeze(
+  INNER_KEEP_OUTER_WORLD_RESOURCE_SITES.flatMap((site) => {
+    const secondary = RESOURCE_SECONDARY_PADS[
+      site.siteId as keyof typeof RESOURCE_SECONDARY_PADS
+    ];
+    return [
+      Object.freeze({
+        visualSiteKey: site.siteId,
+        instanceIndex: 0,
+        positionMeters: site.positionMeters,
+        targetFootprintDiameter: site.targetFootprintDiameter,
+        padRadiusMeters: site.padRadiusMeters,
+        padFeatherMeters: site.padFeatherMeters,
+      }),
+      Object.freeze({
+        visualSiteKey: site.siteId,
+        instanceIndex: 1,
+        positionMeters: Object.freeze([
+          site.positionMeters[0] + secondary.offset[0],
+          site.positionMeters[1],
+          site.positionMeters[2] + secondary.offset[1],
+        ] as const),
+        targetFootprintDiameter: site.targetFootprintDiameter * secondary.scale,
+        padRadiusMeters: site.targetFootprintDiameter * secondary.scale * 0.5 + 0.16,
+        padFeatherMeters: 0.8,
+      }),
+    ];
+  }),
+);
+
 export type InnerKeepOuterWorldWaterPoint = Readonly<{
   x: number;
   z: number;
@@ -211,29 +267,70 @@ export type InnerKeepOuterWorldWaterPoint = Readonly<{
   y: number;
 }>;
 
-/** Headwater -> east-wall rill -> lake inlet; every point is strictly downhill. */
+/** Narrow headwater -> punt-width lower canal -> lake inlet; strictly downhill. */
 export const INNER_KEEP_OUTER_WORLD_WATER_CENTERLINE:
 readonly InnerKeepOuterWorldWaterPoint[] = Object.freeze([
-  Object.freeze({ x: 30.2, z: -33.2, width: 0.78, y: 1.76 }),
-  Object.freeze({ x: 30.4, z: -30.8, width: 0.8, y: 1.52 }),
-  Object.freeze({ x: 30.5, z: -27.8, width: 0.76, y: 1.25 }),
-  Object.freeze({ x: 30.1, z: -23.8, width: 0.68, y: 0.84 }),
-  Object.freeze({ x: 29.4, z: -18, width: 0.58, y: 0.55 }),
-  Object.freeze({ x: 28.9, z: -13, width: 0.6, y: 0.48 }),
-  Object.freeze({ x: 28.7, z: -8, width: 0.62, y: 0.44 }),
-  Object.freeze({ x: 28.6, z: -3, width: 0.62, y: 0.4 }),
-  Object.freeze({ x: 28.7, z: 2, width: 0.64, y: 0.36 }),
-  Object.freeze({ x: 28.6, z: 7, width: 0.66, y: 0.32 }),
-  Object.freeze({ x: 28.5, z: 12, width: 0.7, y: 0.285 }),
-  Object.freeze({ x: 30, z: 16.5, width: 0.8, y: 0.255 }),
-  Object.freeze({ x: 30.2, z: 20.5, width: 0.94, y: 0.225 }),
-  Object.freeze({ x: 29, z: 23.8, width: 1.12, y: 0.205 }),
+  Object.freeze({ x: 30, z: -33.2, width: 0.74, y: 1.76 }),
+  Object.freeze({ x: 29.9, z: -30.8, width: 0.78, y: 1.52 }),
+  Object.freeze({ x: 29.7, z: -27.8, width: 0.84, y: 1.25 }),
+  Object.freeze({ x: 29.4, z: -23.8, width: 0.96, y: 0.84 }),
+  Object.freeze({ x: 29, z: -18, width: 1.3, y: 0.55 }),
+  Object.freeze({ x: 28.5, z: -13, width: 2.2, y: 0.48 }),
+  Object.freeze({ x: 28, z: -8, width: 2.45, y: 0.44 }),
+  Object.freeze({ x: 27.7, z: -3, width: 2.6, y: 0.4 }),
+  Object.freeze({ x: 27.6, z: 2, width: 2.7, y: 0.36 }),
+  Object.freeze({ x: 27.4, z: 7, width: 2.8, y: 0.32 }),
+  Object.freeze({ x: 27.2, z: 12, width: 2.9, y: 0.285 }),
+  Object.freeze({ x: 27, z: 16.5, width: 3.05, y: 0.255 }),
+  Object.freeze({ x: 27.2, z: 20.2, width: 3.2, y: 0.225 }),
+  Object.freeze({ x: 27.5, z: 23, width: 3.4, y: 0.205 }),
+  Object.freeze({ x: 27.5, z: 24.6, width: 4.9, y: 0.198 }),
+  Object.freeze({ x: 27.5, z: 26, width: 6.05, y: 0.193 }),
+  Object.freeze({ x: 27.5, z: 27, width: 6.4, y: 0.19 }),
 ]);
 
 export const INNER_KEEP_OUTER_WORLD_LAKE = Object.freeze({
-  center: Object.freeze({ x: 29, y: 0.19, z: 27 }),
-  radii: Object.freeze({ x: 2.2, z: 3.2 }),
+  center: Object.freeze({ x: 27.5, y: 0.19, z: 27 }),
+  radii: Object.freeze({ x: 3.2, z: 4 }),
 });
+
+/** Visual punt route through the widened lower canal; it grants no traversal. */
+export const INNER_KEEP_OUTER_WORLD_BOAT_ROUTE = Object.freeze({
+  routeId: 'eastwall-lower-canal-punt-route',
+  points: Object.freeze([
+    ...INNER_KEEP_OUTER_WORLD_WATER_CENTERLINE.slice(5).map((point) => Object.freeze({
+      x: point.x,
+      y: point.y,
+      z: point.z,
+      channelWidthMeters: point.width,
+    })),
+  ]),
+  closed: false,
+  vesselBeamMeters: 0.9,
+  bankClearanceMeters: 0.55,
+  presentationOnly: true as const,
+  authoritativeTraversal: false as const,
+  gameplayAuthority: 'none' as const,
+});
+
+/** Bounded south-east wetland used only by deterministic scenic presenters. */
+export const INNER_KEEP_OUTER_WORLD_MARSH = Object.freeze({
+  center: Object.freeze({ x: 25.6, z: 26.4 }),
+  radii: Object.freeze({ x: 5, z: 6.1 }),
+  presentationOnly: true as const,
+  gameplayAuthority: 'none' as const,
+});
+
+export const INNER_KEEP_OUTER_WORLD_MARSH_BUDGETS = Object.freeze({
+  high: Object.freeze({ wetGroundPatches: 6, reeds: 72, lilyPads: 18, deadSnags: 5 }),
+  balanced: Object.freeze({ wetGroundPatches: 4, reeds: 44, lilyPads: 12, deadSnags: 3 }),
+  reduced: Object.freeze({ wetGroundPatches: 1, reeds: 8, lilyPads: 3, deadSnags: 1 }),
+} satisfies Readonly<Record<InnerKeepSceneQuality, Readonly<{
+  wetGroundPatches: number;
+  reeds: number;
+  lilyPads: number;
+  deadSnags: number;
+}>>>);
 
 export const INNER_KEEP_OUTER_WORLD_PATROL_ROUTE_POINTS = Object.freeze([
   Object.freeze({ x: -31, z: -29 }),
@@ -313,6 +410,7 @@ export const INNER_KEEP_CITY_EDGE_APRON_POINTS = Object.freeze([
   Object.freeze({ x: -20.3, z: -9 }),
   Object.freeze({ x: -20.12, z: -17.05 }),
 ] as const);
+export const INNER_KEEP_CITY_EDGE_APRON_HALF_WIDTH_METERS = 1.72;
 
 /** Presentation-only district lanes shared by rendering and ecology clearance. */
 export const INNER_KEEP_CITY_DISTRICT_ROADS:
@@ -419,6 +517,8 @@ export const INNER_KEEP_OUTER_WORLD_TREE_SPECIES_IDS = Object.freeze([
   'warpkeep.tree.oak.spring-broad',
   'warpkeep.tree.pine.alpine',
   'warpkeep.tree.spruce.deep-narrow',
+  'warpkeep.tree.willow.lemon-weeping',
+  'warpkeep.tree.willow.river-mist',
 ] as const);
 
 /** Backward-compatible semantic alias for presenters that call these assets. */
@@ -497,6 +597,23 @@ export function innerKeepCityDistrictRoadEdgeDistance(x: number, z: number) {
   return nearestEdge;
 }
 
+/** Signed distance from a point to the closed city-edge earth apron. */
+export function innerKeepCityEdgeApronDistance(x: number, z: number) {
+  let nearestEdge = Number.POSITIVE_INFINITY;
+  for (let index = 0; index < INNER_KEEP_CITY_EDGE_APRON_POINTS.length; index += 1) {
+    const from = INNER_KEEP_CITY_EDGE_APRON_POINTS[index]!;
+    const to = INNER_KEEP_CITY_EDGE_APRON_POINTS[
+      (index + 1) % INNER_KEEP_CITY_EDGE_APRON_POINTS.length
+    ]!;
+    nearestEdge = Math.min(
+      nearestEdge,
+      innerKeepOuterWorldDistanceToSegment(x, z, from.x, from.z, to.x, to.z)
+        - INNER_KEEP_CITY_EDGE_APRON_HALF_WIDTH_METERS,
+    );
+  }
+  return nearestEdge;
+}
+
 /** Signed distance to the rounded, level city shoulder; negative is inside. */
 export function innerKeepOuterWorldCompoundPlateauSignedDistance(x: number, z: number) {
   if (!Number.isFinite(x) || !Number.isFinite(z)) return Number.POSITIVE_INFINITY;
@@ -511,6 +628,25 @@ export function innerKeepOuterWorldCompoundPlateauSignedDistance(x: number, z: n
   return Math.hypot(Math.max(deltaX, 0), Math.max(deltaZ, 0))
     + Math.min(Math.max(deltaX, deltaZ), 0)
     - radius;
+}
+
+export const INNER_KEEP_OUTER_WORLD_AUTHORED_TREE_RESERVE_METERS = 3.4;
+const INNER_KEEP_OUTER_WORLD_AUTHORED_SOUTH_TREE_HALF_WIDTH_METERS = 20.5;
+
+/** Keeps independently planned countryside actors beyond the authored grove. */
+export function innerKeepOuterWorldClearsAuthoredTreeReserve(
+  x: number,
+  z: number,
+  supportRadiusMeters = 0,
+) {
+  const support = Math.max(0, supportRadiusMeters);
+  const plateau = INNER_KEEP_OUTER_WORLD_COMPOUND_PLATEAU;
+  if (
+    z <= plateau.maximumZ
+    || Math.abs(x) > INNER_KEEP_OUTER_WORLD_AUTHORED_SOUTH_TREE_HALF_WIDTH_METERS + support
+  ) return true;
+  return z - plateau.maximumZ
+    > INNER_KEEP_OUTER_WORLD_AUTHORED_TREE_RESERVE_METERS + support;
 }
 
 function outsidePlateauDistance(x: number, z: number) {
@@ -555,11 +691,14 @@ function rawTerrainHeightAt(x: number, z: number) {
     + gaussian(x, z, -31, -4, 5.2, 13) * 1.45
     + gaussian(x, z, -10, 29, 12, 7.5) * 0.58
     + gaussian(x, z, 14, 29, 9, 7) * 0.42
-    - gaussian(x, z, 29, 27, 4.2, 5) * 0.88;
+    - gaussian(x, z, 27.5, 27, 5.2, 6.1) * 0.88;
 }
 
-/** Deterministic, finite ground elevation shared by all outer-world presenters. */
-export function innerKeepOuterWorldTerrainHeightAt(x: number, z: number) {
+function innerKeepOuterWorldTerrainHeightWithResourcePadsAt(
+  x: number,
+  z: number,
+  resourcePads: readonly InnerKeepOuterWorldResourcePad[],
+) {
   if (!Number.isFinite(x) || !Number.isFinite(z)) return 0;
   let height = rawTerrainHeightAt(x, z);
 
@@ -586,17 +725,20 @@ export function innerKeepOuterWorldTerrainHeightAt(x: number, z: number) {
     plateauDistance / INNER_KEEP_OUTER_WORLD_COMPOUND_PLATEAU.outerFeatherMeters,
   );
 
-  for (const site of RESOURCE_SITE_DEFINITIONS) {
-    const distance = Math.hypot(x - site.x, z - site.z);
-    if (distance <= site.padRadiusMeters) {
-      height = site.y;
+  for (const pad of resourcePads) {
+    const distance = Math.hypot(
+      x - pad.positionMeters[0],
+      z - pad.positionMeters[2],
+    );
+    if (distance <= pad.padRadiusMeters) {
+      height = pad.positionMeters[1];
       break;
     }
-    if (distance < site.padRadiusMeters + site.padFeatherMeters) {
+    if (distance < pad.padRadiusMeters + pad.padFeatherMeters) {
       const blend = smoothstep01(
-        1 - (distance - site.padRadiusMeters) / site.padFeatherMeters,
+        1 - (distance - pad.padRadiusMeters) / pad.padFeatherMeters,
       );
-      height += (site.y - height) * blend;
+      height += (pad.positionMeters[1] - height) * blend;
     }
   }
 
@@ -605,6 +747,113 @@ export function innerKeepOuterWorldTerrainHeightAt(x: number, z: number) {
     INNER_KEEP_OUTER_WORLD_HEIGHT_BOUNDS_METERS.minimum,
     INNER_KEEP_OUTER_WORLD_HEIGHT_BOUNDS_METERS.maximum,
   );
+}
+
+/** Terrain before any quality-dependent scenic worksite terraces are applied. */
+export function innerKeepOuterWorldTerrainBaseHeightAt(x: number, z: number) {
+  return innerKeepOuterWorldTerrainHeightWithResourcePadsAt(x, z, []);
+}
+
+/** Deterministic, finite policy elevation retaining every declared resource pad. */
+export function innerKeepOuterWorldTerrainHeightAt(x: number, z: number) {
+  return innerKeepOuterWorldTerrainHeightWithResourcePadsAt(
+    x,
+    z,
+    INNER_KEEP_OUTER_WORLD_RESOURCE_PADS,
+  );
+}
+
+export type InnerKeepOuterWorldRenderedTerrainSampler = Readonly<{
+  quality: InnerKeepSceneQuality;
+  heightAt: (x: number, z: number) => number;
+}>;
+
+export function innerKeepOuterWorldResourcePadsForQuality(
+  quality: InnerKeepSceneQuality,
+) {
+  return Object.freeze(INNER_KEEP_OUTER_WORLD_RESOURCE_PADS.filter((pad) => {
+    const site = INNER_KEEP_OUTER_WORLD_RESOURCE_SITES.find(
+      ({ siteId }) => siteId === pad.visualSiteKey,
+    );
+    return pad.instanceIndex < (site?.instancesByQuality[quality] ?? 0);
+  }));
+}
+
+/**
+ * Samples the exact piecewise-planar surface rendered by PlaneGeometry.
+ *
+ * The analytic landscape is evaluated only at the quality-specific grid
+ * vertices and stored with the same Float32 precision as BufferGeometry.
+ * Queries then use PlaneGeometry's real triangle diagonal instead of bilinear
+ * interpolation, so props and draped surfaces meet what the player sees.
+ */
+export function createInnerKeepOuterWorldRenderedTerrainSampler(
+  quality: InnerKeepSceneQuality,
+): InnerKeepOuterWorldRenderedTerrainSampler {
+  const [halfWidth, halfDepth] = INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS;
+  const [widthSegments, depthSegments] =
+    INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS[quality].terrainSegments;
+  const widthStep = halfWidth * 2 / widthSegments;
+  const depthStep = halfDepth * 2 / depthSegments;
+  const cellDiagonal = Math.hypot(widthStep, depthStep);
+  const activeResourcePads = innerKeepOuterWorldResourcePadsForQuality(quality);
+  const rowLength = widthSegments + 1;
+  const heights = new Float32Array(rowLength * (depthSegments + 1));
+  for (let depthIndex = 0; depthIndex <= depthSegments; depthIndex += 1) {
+    const z = -halfDepth + depthIndex * depthStep;
+    for (let widthIndex = 0; widthIndex <= widthSegments; widthIndex += 1) {
+      const x = -halfWidth + widthIndex * widthStep;
+      let height = innerKeepOuterWorldTerrainBaseHeightAt(x, z);
+      for (const pad of activeResourcePads) {
+        const distance = Math.hypot(
+          x - pad.positionMeters[0],
+          z - pad.positionMeters[2],
+        );
+        // The loader normalizes each gathering model inside a D-by-D box. Its
+        // half diagonal is the seed/yaw-independent support envelope. Adding
+        // one terrain-cell diagonal forces every vertex of every intersecting
+        // PlaneGeometry cell onto the same terrace.
+        const flatRadius = pad.targetFootprintDiameter * 0.72 + cellDiagonal;
+        const feather = pad.padFeatherMeters + cellDiagonal;
+        if (distance <= flatRadius) {
+          height = pad.positionMeters[1];
+        } else if (distance < flatRadius + feather) {
+          const blend = smoothstep01(
+            1 - (distance - flatRadius) / feather,
+          );
+          height += (pad.positionMeters[1] - height) * blend;
+        }
+      }
+      heights[depthIndex * rowLength + widthIndex] = height;
+    }
+  }
+
+  const vertexHeight = (widthIndex: number, depthIndex: number) => (
+    heights[depthIndex * rowLength + widthIndex]!
+  );
+  const heightAt = (x: number, z: number) => {
+    if (!Number.isFinite(x) || !Number.isFinite(z)) return 0;
+    const gridX = clamp((x + halfWidth) / widthStep, 0, widthSegments);
+    const gridZ = clamp((z + halfDepth) / depthStep, 0, depthSegments);
+    const cellX = Math.min(widthSegments - 1, Math.floor(gridX));
+    const cellZ = Math.min(depthSegments - 1, Math.floor(gridZ));
+    const localX = gridX - cellX;
+    const localZ = gridZ - cellZ;
+    const height00 = vertexHeight(cellX, cellZ);
+    const height01 = vertexHeight(cellX, cellZ + 1);
+    const height10 = vertexHeight(cellX + 1, cellZ);
+    const height11 = vertexHeight(cellX + 1, cellZ + 1);
+    // PlaneGeometry indexes (00, 01, 10) and (01, 11, 10).
+    if (localX + localZ <= 1) {
+      return height00
+        + localX * (height10 - height00)
+        + localZ * (height01 - height00);
+    }
+    return height11
+      + (1 - localX) * (height01 - height11)
+      + (1 - localZ) * (height10 - height11);
+  };
+  return Object.freeze({ quality, heightAt });
 }
 
 export function innerKeepOuterWorldTerrainSlopeAt(x: number, z: number) {
@@ -621,7 +870,8 @@ export function innerKeepOuterWorldTerrainSlopeAt(x: number, z: number) {
 }
 
 export function innerKeepOuterWorldDistanceToWater(x: number, z: number) {
-  const streamDistance = nearestWaterSample(x, z).distance;
+  const stream = nearestWaterSample(x, z);
+  const streamEdgeDistance = stream.distance - stream.width * 0.5;
   const lake = INNER_KEEP_OUTER_WORLD_LAKE;
   const normalizedLakeDistance = Math.hypot(
     (x - lake.center.x) / lake.radii.x,
@@ -630,7 +880,7 @@ export function innerKeepOuterWorldDistanceToWater(x: number, z: number) {
   const lakeEdgeDistance = normalizedLakeDistance <= 1
     ? 0
     : (normalizedLakeDistance - 1) * Math.min(lake.radii.x, lake.radii.z);
-  return Math.min(streamDistance, lakeEdgeDistance);
+  return Math.min(streamEdgeDistance, lakeEdgeDistance);
 }
 
 export function innerKeepOuterWorldDistanceToRoad(x: number, z: number) {
@@ -648,11 +898,94 @@ export function innerKeepOuterWorldDistanceToRoad(x: number, z: number) {
 }
 
 export function innerKeepOuterWorldDistanceToResourceSite(x: number, z: number) {
-  return INNER_KEEP_OUTER_WORLD_RESOURCE_SITES.reduce((nearest, site) => Math.min(
+  return INNER_KEEP_OUTER_WORLD_RESOURCE_PADS.reduce((nearest, pad) => Math.min(
     nearest,
-    Math.hypot(x - site.positionMeters[0], z - site.positionMeters[2])
-      - site.padRadiusMeters,
+    Math.hypot(x - pad.positionMeters[0], z - pad.positionMeters[2])
+      - pad.padRadiusMeters,
   ), Number.POSITIVE_INFINITY);
+}
+
+export type InnerKeepOuterWorldAmbientLane = Readonly<{
+  laneId: string;
+  halfWidthMeters: number;
+  reservedHalfWidthMeters: number;
+  points: readonly Readonly<{ x: number; z: number }>[];
+  presentationOnly: true;
+  gameplayAuthorityClaimed: false;
+}>;
+
+export const INNER_KEEP_WEST_VILLAGE_DELIVERY_LANE:
+InnerKeepOuterWorldAmbientLane = Object.freeze({
+  laneId: 'inner-keep-west-village-delivery-lane-v1',
+  halfWidthMeters: 0.62,
+  reservedHalfWidthMeters: 1.15,
+  points: Object.freeze([
+    Object.freeze({ x: -19.2, z: 30.5 }),
+    Object.freeze({ x: -13.4, z: 26.6 }),
+    Object.freeze({ x: -6.5, z: 23.1 }),
+    Object.freeze({ x: -1.8, z: 20.9 }),
+  ]),
+  presentationOnly: true,
+  gameplayAuthorityClaimed: false,
+});
+
+export const INNER_KEEP_EAST_VILLAGE_SERVICE_LANE:
+InnerKeepOuterWorldAmbientLane = Object.freeze({
+  laneId: 'inner-keep-east-village-service-lane-v1',
+  halfWidthMeters: 1.05,
+  reservedHalfWidthMeters: 1.15,
+  points: Object.freeze([
+    Object.freeze({ x: 2.6, z: 18.5 }),
+    Object.freeze({ x: 3.8, z: 19.4 }),
+    Object.freeze({ x: 5, z: 22.8 }),
+    Object.freeze({ x: 7, z: 24.8 }),
+    Object.freeze({ x: 8.5, z: 27 }),
+    Object.freeze({ x: 9.4, z: 29.5 }),
+    Object.freeze({ x: 13.8, z: 30 }),
+    Object.freeze({ x: 16.5, z: 30.7 }),
+    Object.freeze({ x: 16, z: 33 }),
+  ]),
+  presentationOnly: true,
+  gameplayAuthorityClaimed: false,
+});
+
+export const INNER_KEEP_VILLAGE_COMMONS_SOCIAL_LANE:
+InnerKeepOuterWorldAmbientLane = Object.freeze({
+  laneId: 'inner-keep-village-commons-social-lane-v1',
+  halfWidthMeters: 1.05,
+  reservedHalfWidthMeters: 0.72,
+  points: Object.freeze([
+    Object.freeze({ x: 1.5, z: 23 }),
+    Object.freeze({ x: 2.2, z: 24 }),
+    Object.freeze({ x: 3.4, z: 24.4 }),
+    Object.freeze({ x: 4.2, z: 25.4 }),
+  ]),
+  presentationOnly: true,
+  gameplayAuthorityClaimed: false,
+});
+
+export const INNER_KEEP_OUTER_WORLD_AMBIENT_LANES:
+readonly InnerKeepOuterWorldAmbientLane[] = Object.freeze([
+  INNER_KEEP_WEST_VILLAGE_DELIVERY_LANE,
+  INNER_KEEP_EAST_VILLAGE_SERVICE_LANE,
+  INNER_KEEP_VILLAGE_COMMONS_SOCIAL_LANE,
+]);
+
+/** Signed centerline-edge distance to the nearest presentation-only town lane. */
+export function innerKeepOuterWorldDistanceToAmbientLane(x: number, z: number) {
+  let nearest = Number.POSITIVE_INFINITY;
+  for (const lane of INNER_KEEP_OUTER_WORLD_AMBIENT_LANES) {
+    for (let index = 0; index < lane.points.length - 1; index += 1) {
+      const from = lane.points[index]!;
+      const to = lane.points[index + 1]!;
+      nearest = Math.min(
+        nearest,
+        innerKeepOuterWorldDistanceToSegment(x, z, from.x, from.z, to.x, to.z)
+          - lane.reservedHalfWidthMeters,
+      );
+    }
+  }
+  return nearest;
 }
 
 /** Clear of the terrain edge, water, scenic sites, roads, and unsafe slopes. */
@@ -671,6 +1004,17 @@ export function innerKeepOuterWorldPointIsClear(
     && Math.abs(z - exclusion.center.z)
       <= exclusion.halfExtentsMeters[1] + exclusion.clearanceMarginMeters + clearance
   ))) return false;
+  if (INNER_KEEP_TOWN_SCENERY_SOLID_EXCLUSIONS.some((exclusion) => (
+    Math.abs(x - exclusion.center.x)
+      <= exclusion.halfExtentsMeters[0] + exclusion.clearanceMarginMeters + clearance
+    && Math.abs(z - exclusion.center.z)
+      <= exclusion.halfExtentsMeters[1] + exclusion.clearanceMarginMeters + clearance
+  ))) return false;
+  if (INNER_KEEP_VILLAGE_ANIMAL_ROAMING_EXCLUSIONS.some((exclusion) => (
+    Math.hypot(x - exclusion.center.x, z - exclusion.center.z)
+      <= exclusion.radiusMeters + clearance
+  ))) return false;
+  if (innerKeepOuterWorldDistanceToAmbientLane(x, z) <= clearance) return false;
   if (innerKeepOuterWorldCompoundPlateauSignedDistance(x, z) <= clearance) return false;
   const [halfWidth, halfDepth] = INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS;
   if (Math.abs(x) > halfWidth - 0.35 - clearance) return false;
@@ -679,10 +1023,9 @@ export function innerKeepOuterWorldPointIsClear(
   if (water.distance <= water.width * 0.5 + 0.38 + clearance) return false;
   if (innerKeepOuterWorldDistanceToWater(x, z) <= 0.38 + clearance) return false;
   if (innerKeepOuterWorldDistanceToResourceSite(x, z) <= 0.45 + clearance) return false;
-  if (
-    innerKeepOuterWorldDistanceToRoad(x, z)
-    <= INNER_KEEP_OUTER_WORLD_ROAD_CIRCUIT.halfWidthMeters + 0.22 + clearance
-  ) return false;
+  if (innerKeepOuterWorldDistanceToRenderedRoadEdge(x, z) <= 0.22 + clearance) {
+    return false;
+  }
   return innerKeepOuterWorldTerrainSlopeAt(x, z) <= 0.62;
 }
 
@@ -703,6 +1046,7 @@ export const INNER_KEEP_OUTER_WORLD_TRADE_ROUTE = Object.freeze([
 
 /** Conservative presentation footprint used to keep the supply road open. */
 export const INNER_KEEP_OUTER_WORLD_SUPPLY_WAGON_FOOTPRINT_METERS = 2.35;
+export const INNER_KEEP_OUTER_WORLD_TRADE_ROAD_HALF_WIDTH_METERS = 0.62;
 
 export const INNER_KEEP_OUTER_WORLD_RESOURCE_ROAD_HALF_WIDTH_METERS = 0.46;
 
@@ -733,3 +1077,41 @@ export const INNER_KEEP_OUTER_WORLD_RESOURCE_ROADS = Object.freeze(
     });
   }),
 );
+
+/** Signed edge distance across every road mesh rendered in the outer scene. */
+export function innerKeepOuterWorldDistanceToRenderedRoadEdge(x: number, z: number) {
+  let nearest = innerKeepOuterWorldDistanceToRoad(x, z)
+    - INNER_KEEP_OUTER_WORLD_ROAD_CIRCUIT.halfWidthMeters;
+  for (let index = 0; index < INNER_KEEP_OUTER_WORLD_TRADE_ROUTE.length - 1; index += 1) {
+    const from = INNER_KEEP_OUTER_WORLD_TRADE_ROUTE[index]!;
+    const to = INNER_KEEP_OUTER_WORLD_TRADE_ROUTE[index + 1]!;
+    nearest = Math.min(
+      nearest,
+      innerKeepOuterWorldDistanceToSegment(x, z, from[0], from[2], to[0], to[2])
+        - INNER_KEEP_OUTER_WORLD_TRADE_ROAD_HALF_WIDTH_METERS,
+    );
+  }
+  for (const road of INNER_KEEP_OUTER_WORLD_AMBIENT_LANES) {
+    for (let index = 0; index < road.points.length - 1; index += 1) {
+      const from = road.points[index]!;
+      const to = road.points[index + 1]!;
+      nearest = Math.min(
+        nearest,
+        innerKeepOuterWorldDistanceToSegment(x, z, from.x, from.z, to.x, to.z)
+          - road.halfWidthMeters,
+      );
+    }
+  }
+  for (const road of INNER_KEEP_OUTER_WORLD_RESOURCE_ROADS) {
+    for (let index = 0; index < road.points.length - 1; index += 1) {
+      const from = road.points[index]!;
+      const to = road.points[index + 1]!;
+      nearest = Math.min(
+        nearest,
+        innerKeepOuterWorldDistanceToSegment(x, z, from.x, from.z, to.x, to.z)
+          - road.halfWidthMeters,
+      );
+    }
+  }
+  return nearest;
+}

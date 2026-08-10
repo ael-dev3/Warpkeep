@@ -1,10 +1,23 @@
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
 
-import { createInnerKeepTownAtmosphere } from '../src/components/inner-keep/createInnerKeepTownAtmosphere';
 import {
+  createInnerKeepTownAtmosphere,
+  resolveInnerKeepRowHouseGrounding,
+} from '../src/components/inner-keep/createInnerKeepTownAtmosphere';
+import {
+  createInnerKeepSceneLayer,
+  INNER_KEEP_SCENE_GRAPH_RENDER_BUDGETS,
+} from '../src/components/inner-keep/createInnerKeepSceneLayer';
+import {
+  INNER_KEEP_CITY_DISTRICT_ROADS,
+  INNER_KEEP_CITY_EDGE_APRON_HALF_WIDTH_METERS,
+  INNER_KEEP_CITY_EDGE_APRON_POINTS,
+  INNER_KEEP_OUTER_WORLD_AMBIENT_LANES,
+  INNER_KEEP_OUTER_WORLD_BOAT_ROUTE,
   INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS,
   INNER_KEEP_OUTER_WORLD_ROAD_CIRCUIT,
+  INNER_KEEP_OUTER_WORLD_RESOURCE_PADS,
   INNER_KEEP_OUTER_WORLD_RESOURCE_ROADS,
   INNER_KEEP_OUTER_WORLD_SUPPLY_WAGON_FOOTPRINT_METERS,
   INNER_KEEP_OUTER_WORLD_TRADE_ROUTE,
@@ -15,15 +28,32 @@ import {
   innerKeepOuterWorldTerrainSlopeAt,
 } from '../src/components/inner-keep/innerKeepOuterWorldPolicy';
 import {
+  INNER_KEEP_CANAL_BOAT_BUDGETS,
+  INNER_KEEP_CANAL_DOCK_BUDGETS,
+  INNER_KEEP_CANAL_DOCK_HALF_EXTENTS_METERS,
+  INNER_KEEP_CANAL_DOCK_PLACEMENTS,
+  INNER_KEEP_GRAVE_MARKER_BUDGETS,
+  INNER_KEEP_GRAVE_MARKER_PLACEMENTS,
+  INNER_KEEP_GRAVEYARD_FENCE_BUDGETS,
+  INNER_KEEP_GRAVEYARD_FOOTPATH,
+  INNER_KEEP_GRAVEYARD_PLOT,
+  INNER_KEEP_GRAVEYARD_SOLID_EXCLUSION,
   INNER_KEEP_LOWER_WARD_ROW_HOUSE_BUDGETS,
   INNER_KEEP_LOWER_WARD_ROW_HOUSE_ENVELOPE_METERS,
   INNER_KEEP_LOWER_WARD_ROW_HOUSES,
   INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS,
   INNER_KEEP_TOWN_ATMOSPHERE_AUTHORITY,
+  INNER_KEEP_TOWN_SCENERY_SOLID_EXCLUSIONS,
+  INNER_KEEP_TOWN_TONAL_PALETTE,
+  INNER_KEEP_VILLAGE_ANIMAL_BUDGETS,
+  INNER_KEEP_VILLAGE_ANIMAL_FOOTPRINT_RADIUS_METERS,
+  INNER_KEEP_VILLAGE_ANIMAL_PLACEMENTS,
   INNER_KEEP_WEATHERED_WALL_SKIRT_PLACEMENTS,
   INNER_KEEP_WET_RUT_BUDGETS,
   INNER_KEEP_WET_RUT_PLACEMENTS,
+  sampleInnerKeepVillageAnimalPosition,
 } from '../src/components/inner-keep/innerKeepTownAtmospherePolicy';
+import { createInnerKeepPresentation } from './fixtures/innerKeepPresentation';
 
 function instancedMesh(root: THREE.Object3D, name: string) {
   const object = root.getObjectByName(name);
@@ -68,7 +98,46 @@ function segmentTouchesExpandedAabb(
   return true;
 }
 
-describe('Inner Keep weathered town atmosphere', () => {
+function pointDistanceToAabb(
+  x: number,
+  z: number,
+  center: Readonly<{ x: number; z: number }>,
+  halfExtents: readonly [number, number],
+) {
+  return Math.hypot(
+    Math.max(0, Math.abs(x - center.x) - halfExtents[0]),
+    Math.max(0, Math.abs(z - center.z) - halfExtents[1]),
+  );
+}
+
+function terrainDeltaRange(geometry: THREE.BufferGeometry) {
+  const index = geometry.index!;
+  const position = geometry.getAttribute('position');
+  let minimum = Number.POSITIVE_INFINITY;
+  let maximum = Number.NEGATIVE_INFINITY;
+  for (let triangle = 0; triangle < index.count; triangle += 3) {
+    const a = new THREE.Vector3().fromBufferAttribute(position, index.getX(triangle));
+    const b = new THREE.Vector3().fromBufferAttribute(position, index.getX(triangle + 1));
+    const c = new THREE.Vector3().fromBufferAttribute(position, index.getX(triangle + 2));
+    for (const [wa, wb, wc] of [
+      [1 / 3, 1 / 3, 1 / 3],
+      [0.6, 0.2, 0.2],
+      [0.2, 0.6, 0.2],
+      [0.2, 0.2, 0.6],
+    ] as const) {
+      const sample = new THREE.Vector3()
+        .addScaledVector(a, wa)
+        .addScaledVector(b, wb)
+        .addScaledVector(c, wc);
+      const delta = sample.y - innerKeepOuterWorldTerrainHeightAt(sample.x, sample.z);
+      minimum = Math.min(minimum, delta);
+      maximum = Math.max(maximum, delta);
+    }
+  }
+  return { minimum, maximum };
+}
+
+describe('Inner Keep sunlit living-town atmosphere', () => {
   it('stays presentation-only and outside canonical building authority', () => {
     expect(INNER_KEEP_TOWN_ATMOSPHERE_AUTHORITY).toEqual({
       presentationOnly: true,
@@ -77,13 +146,29 @@ describe('Inner Keep weathered town atmosphere', () => {
       authoritativeResourceNodeCount: 0,
       changesCanonicalLayoutDigest: false,
     });
-    expect(INNER_KEEP_LOWER_WARD_ROW_HOUSES).toHaveLength(8);
+    expect(INNER_KEEP_LOWER_WARD_ROW_HOUSES).toHaveLength(12);
     expect(new Set(INNER_KEEP_LOWER_WARD_ROW_HOUSES.map(({ houseId }) => houseId)).size)
       .toBe(INNER_KEEP_LOWER_WARD_ROW_HOUSES.length);
     expect(INNER_KEEP_WEATHERED_WALL_SKIRT_PLACEMENTS).toHaveLength(24);
     expect(INNER_KEEP_WEATHERED_WALL_SKIRT_PLACEMENTS.filter((placement) => (
       placement.placementId.startsWith('south-')
     )).every((placement) => Math.abs(placement.positionMeters[0]) >= 8)).toBe(true);
+    expect(INNER_KEEP_OUTER_WORLD_BOAT_ROUTE).toMatchObject({
+      closed: false,
+      presentationOnly: true,
+      authoritativeTraversal: false,
+      gameplayAuthority: 'none',
+    });
+  });
+
+  it('uses a bright daylight palette without losing earthy lowland contrast', () => {
+    const sky = new THREE.Color(INNER_KEEP_TOWN_TONAL_PALETTE.skyFog);
+    const ground = new THREE.Color(INNER_KEEP_TOWN_TONAL_PALETTE.terrain.lowland);
+    expect(sky.getHSL({ h: 0, s: 0, l: 0 }).l).toBeGreaterThan(0.65);
+    expect(ground.getHSL({ h: 0, s: 0, l: 0 }).l).toBeGreaterThan(0.2);
+    expect(INNER_KEEP_TOWN_TONAL_PALETTE.fogNearMeters).toBeGreaterThanOrEqual(48);
+    expect(INNER_KEEP_TOWN_TONAL_PALETTE.fogFarMeters).toBeGreaterThanOrEqual(100);
+    expect(INNER_KEEP_TOWN_TONAL_PALETTE.lighting.sunIntensity).toBeGreaterThan(3);
   });
 
   for (const quality of ['high', 'balanced', 'reduced'] as const) {
@@ -98,9 +183,28 @@ describe('Inner Keep weathered town atmosphere', () => {
       );
       expect(atmosphere.rowHouseCount).toBe(houseBudget);
       expect(atmosphere.smokePuffCount).toBe(
-        houseBudget * (quality === 'reduced' ? 1 : 2),
+        houseBudget * (quality === 'reduced' ? 0 : 2),
       );
       expect(atmosphere.wetRutCount).toBe(INNER_KEEP_WET_RUT_BUDGETS[quality]);
+      expect(atmosphere.graveMarkerCount).toBe(INNER_KEEP_GRAVE_MARKER_BUDGETS[quality]);
+      expect(atmosphere.graveyardFenceSegmentCount)
+        .toBe(INNER_KEEP_GRAVEYARD_FENCE_BUDGETS[quality]);
+      expect(atmosphere.canalBoatCount).toBe(INNER_KEEP_CANAL_BOAT_BUDGETS[quality]);
+      expect(atmosphere.canalDockCount).toBe(INNER_KEEP_CANAL_DOCK_BUDGETS[quality]);
+      expect(atmosphere.villageAnimalCount).toBe(INNER_KEEP_VILLAGE_ANIMAL_BUDGETS[quality]);
+      const selectedAnimals = INNER_KEEP_VILLAGE_ANIMAL_PLACEMENTS.slice(
+        0,
+        INNER_KEEP_VILLAGE_ANIMAL_BUDGETS[quality],
+      );
+      expect(atmosphere.villageBirdCount).toBe(
+        selectedAnimals.filter(({ species }) => species !== 'goat').length,
+      );
+      expect(atmosphere.livestockCount).toBe(
+        selectedAnimals.filter(({ species }) => species === 'goat').length,
+      );
+      expect(atmosphere.villageDetailCount).toBe(quality === 'reduced'
+        ? 0
+        : houseBudget * 6 + Math.ceil(houseBudget / 2) * 2);
       expect(atmosphere.group.children.filter(({ name }) => (
         name.startsWith('inner-keep-lower-ward-row-house:')
       ))).toHaveLength(houseBudget);
@@ -110,16 +214,31 @@ describe('Inner Keep weathered town atmosphere', () => {
       ).count).toBe(houseBudget * 2);
       expect(instancedMesh(
         atmosphere.group,
+        'inner-keep-lower-ward-stone-foundations',
+      ).count).toBe(houseBudget);
+      expect(instancedMesh(
+        atmosphere.group,
         'inner-keep-lower-ward-crooked-gables',
       ).count).toBe(houseBudget);
       expect(instancedMesh(
         atmosphere.group,
         'inner-keep-lower-ward-dark-timbers',
       ).count).toBe(houseBudget * 7);
-      expect(instancedMesh(
-        atmosphere.group,
+      expect(atmosphere.group.getObjectByName(
         'inner-keep-rain-darkened-wheel-ruts',
-      ).count).toBe(INNER_KEEP_WET_RUT_BUDGETS[quality]);
+      )?.userData.innerKeepWetRutCount).toBe(INNER_KEEP_WET_RUT_BUDGETS[quality]);
+      expect(atmosphere.group.children.filter(({ name }) => (
+        name.startsWith('inner-keep-old-road-grave:')
+      ))).toHaveLength(INNER_KEEP_GRAVE_MARKER_BUDGETS[quality]);
+      expect(atmosphere.group.children.filter(({ name }) => (
+        name.startsWith('inner-keep-canal-skiff:')
+      ))).toHaveLength(INNER_KEEP_CANAL_BOAT_BUDGETS[quality]);
+      expect(atmosphere.group.children.filter(({ name }) => (
+        name.startsWith('inner-keep-canal-dock:')
+      ))).toHaveLength(INNER_KEEP_CANAL_DOCK_BUDGETS[quality]);
+      expect(atmosphere.group.children.filter(({ name }) => (
+        name.startsWith('inner-keep-village-animal:')
+      ))).toHaveLength(INNER_KEEP_VILLAGE_ANIMAL_BUDGETS[quality]);
       atmosphere.group.traverse((object) => {
         if (!(object instanceof THREE.Mesh)) return;
         expect(object.userData).toMatchObject({
@@ -167,19 +286,12 @@ describe('Inner Keep weathered town atmosphere', () => {
     expect(faceNormal(6).y).toBeLessThan(-0.99);
     expect(faceNormal(7).y).toBeLessThan(-0.99);
 
-    const ruts = instancedMesh(
-      atmosphere.group,
+    const ruts = atmosphere.group.getObjectByName(
       'inner-keep-rain-darkened-wheel-ruts',
-    );
-    const matrix = new THREE.Matrix4();
-    INNER_KEEP_WET_RUT_PLACEMENTS.forEach((rut, index) => {
-      ruts.getMatrixAt(index, matrix);
-      expect(matrix.elements[13], rut.rutId).toBeCloseTo(
-        innerKeepOuterWorldTerrainHeightAt(...rut.positionMeters)
-          + rut.surfaceLiftMeters,
-        6,
-      );
-    });
+    ) as THREE.Mesh;
+    const rutTerrainDelta = terrainDeltaRange(ruts.geometry);
+    expect(rutTerrainDelta.minimum).toBeGreaterThanOrEqual(0.04);
+    expect(rutTerrainDelta.maximum).toBeLessThanOrEqual(0.215);
     expect(INNER_KEEP_WET_RUT_PLACEMENTS[0]!.surfaceLiftMeters).toBeGreaterThan(0.14);
     expect(INNER_KEEP_WET_RUT_PLACEMENTS[1]!.surfaceLiftMeters).toBeGreaterThan(0.14);
     expect(INNER_KEEP_WET_RUT_PLACEMENTS[2]!.surfaceLiftMeters).toBeGreaterThan(0.19);
@@ -216,13 +328,16 @@ describe('Inner Keep weathered town atmosphere', () => {
       reducedMotion: false,
     });
     for (const house of INNER_KEEP_LOWER_WARD_ROW_HOUSES) {
+      const grounding = resolveInnerKeepRowHouseGrounding(house);
       const marker = atmosphere.group.getObjectByName(
         `inner-keep-lower-ward-row-house:${house.houseId}`,
       );
-      expect(marker?.position.y).toBeCloseTo(innerKeepOuterWorldTerrainHeightAt(
-        house.positionMeters[0],
-        house.positionMeters[1],
-      ), 10);
+      expect(marker?.position.y).toBeCloseTo(grounding.foundationTopMeters, 10);
+      expect(grounding.foundationTopMeters)
+        .toBeGreaterThan(grounding.maximumTerrainHeight);
+      expect(grounding.foundationBottomMeters)
+        .toBeLessThan(grounding.minimumTerrainHeight);
+      expect(grounding.foundationHeightMeters).toBeLessThan(0.75);
     }
     atmosphere.dispose();
   });
@@ -283,6 +398,44 @@ describe('Inner Keep weathered town atmosphere', () => {
           ), `${exclusion.exclusionId}:${road.roadId}:${segmentIndex}`).toBe(false);
         }
       }
+      for (const lane of INNER_KEEP_OUTER_WORLD_AMBIENT_LANES) {
+        for (let segmentIndex = 0; segmentIndex < lane.points.length - 1; segmentIndex += 1) {
+          expect(segmentTouchesExpandedAabb(
+            lane.points[segmentIndex]!,
+            lane.points[segmentIndex + 1]!,
+            exclusion.center,
+            exclusion.halfExtentsMeters,
+            lane.reservedHalfWidthMeters + clearance,
+          ), `${exclusion.exclusionId}:${lane.laneId}:${segmentIndex}`).toBe(false);
+        }
+      }
+      for (
+        let segmentIndex = 0;
+        segmentIndex < INNER_KEEP_CITY_EDGE_APRON_POINTS.length;
+        segmentIndex += 1
+      ) {
+        expect(segmentTouchesExpandedAabb(
+          INNER_KEEP_CITY_EDGE_APRON_POINTS[segmentIndex]!,
+          INNER_KEEP_CITY_EDGE_APRON_POINTS[
+            (segmentIndex + 1) % INNER_KEEP_CITY_EDGE_APRON_POINTS.length
+          ]!,
+          exclusion.center,
+          exclusion.halfExtentsMeters,
+          INNER_KEEP_CITY_EDGE_APRON_HALF_WIDTH_METERS + clearance,
+        ), `${exclusion.exclusionId}:city-apron:${segmentIndex}`).toBe(false);
+      }
+      for (const road of INNER_KEEP_CITY_DISTRICT_ROADS) {
+        const segmentCount = road.closed ? road.points.length : road.points.length - 1;
+        for (let segmentIndex = 0; segmentIndex < segmentCount; segmentIndex += 1) {
+          expect(segmentTouchesExpandedAabb(
+            road.points[segmentIndex]!,
+            road.points[(segmentIndex + 1) % road.points.length]!,
+            exclusion.center,
+            exclusion.halfExtentsMeters,
+            road.halfWidthMeters + clearance,
+          ), `${exclusion.exclusionId}:district:${segmentIndex}`).toBe(false);
+        }
+      }
       for (const neighbour of INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS.slice(index + 1)) {
         expect(
           Math.abs(x - neighbour.center.x)
@@ -297,6 +450,248 @@ describe('Inner Keep weathered town atmosphere', () => {
         ).toBe(true);
       }
     });
+  });
+
+  it('grounds a bounded, visibly fenced graveyard with mixed old markers', () => {
+    expect(INNER_KEEP_GRAVE_MARKER_PLACEMENTS).toHaveLength(18);
+    expect(new Set(INNER_KEEP_GRAVE_MARKER_PLACEMENTS.map(({ markerId }) => markerId)).size)
+      .toBe(INNER_KEEP_GRAVE_MARKER_PLACEMENTS.length);
+    expect(INNER_KEEP_GRAVE_MARKER_PLACEMENTS.some(({ kind }) => kind === 'cross')).toBe(true);
+    expect(INNER_KEEP_GRAVE_MARKER_PLACEMENTS.some(({ kind }) => kind === 'headstone')).toBe(true);
+    expect(INNER_KEEP_TOWN_SCENERY_SOLID_EXCLUSIONS).toEqual([
+      INNER_KEEP_GRAVEYARD_SOLID_EXCLUSION,
+    ]);
+    expect(INNER_KEEP_GRAVEYARD_SOLID_EXCLUSION).toMatchObject({
+      center: {
+        x: INNER_KEEP_GRAVEYARD_PLOT.centerMeters[0],
+        z: INNER_KEEP_GRAVEYARD_PLOT.centerMeters[1],
+      },
+      halfExtentsMeters: INNER_KEEP_GRAVEYARD_PLOT.halfExtentsMeters,
+      clearanceMarginMeters: 0.3,
+    });
+    for (const marker of INNER_KEEP_GRAVE_MARKER_PLACEMENTS) {
+      expect(Math.abs(marker.positionMeters[0] - INNER_KEEP_GRAVEYARD_PLOT.centerMeters[0]))
+        .toBeLessThanOrEqual(INNER_KEEP_GRAVEYARD_PLOT.halfExtentsMeters[0]);
+      expect(Math.abs(marker.positionMeters[1] - INNER_KEEP_GRAVEYARD_PLOT.centerMeters[1]))
+        .toBeLessThanOrEqual(INNER_KEEP_GRAVEYARD_PLOT.halfExtentsMeters[1]);
+      expect(Math.abs(
+        marker.positionMeters[0] - INNER_KEEP_GRAVEYARD_FOOTPATH.centerMeters[0],
+      )).toBeGreaterThan(
+        INNER_KEEP_GRAVEYARD_FOOTPATH.radiiMeters[0] + 0.28,
+      );
+    }
+    const atmosphere = createInnerKeepTownAtmosphere({
+      quality: 'high',
+      reducedMotion: false,
+    });
+    for (const marker of INNER_KEEP_GRAVE_MARKER_PLACEMENTS) {
+      const object = atmosphere.group.getObjectByName(
+        `inner-keep-old-road-grave:${marker.markerId}`,
+      );
+      expect(object?.position.y).toBeCloseTo(
+        innerKeepOuterWorldTerrainHeightAt(...marker.positionMeters),
+        10,
+      );
+    }
+    const fenceRails = instancedMesh(
+      atmosphere.group,
+      'inner-keep-old-road-graveyard-fence-rails',
+    );
+    expect(fenceRails.userData.innerKeepLogicalFenceSegmentCount)
+      .toBe(INNER_KEEP_GRAVEYARD_FENCE_BUDGETS.high);
+    expect(fenceRails.count).toBeGreaterThanOrEqual(
+      INNER_KEEP_GRAVEYARD_FENCE_BUDGETS.high,
+    );
+    const fenceMatrix = new THREE.Matrix4();
+    const fenceEndpoint = new THREE.Vector3();
+    const fenceXAxis = new THREE.Vector3();
+    const fenceZAxis = new THREE.Vector3();
+    for (let index = 0; index < fenceRails.count; index += 1) {
+      fenceRails.getMatrixAt(index, fenceMatrix);
+      fenceXAxis.setFromMatrixColumn(fenceMatrix, 0);
+      fenceZAxis.setFromMatrixColumn(fenceMatrix, 2);
+      const alongX = fenceXAxis.lengthSq() > fenceZAxis.lengthSq();
+      for (const side of [-0.5, 0.5]) {
+        fenceEndpoint.set(alongX ? side : 0, 0, alongX ? 0 : side)
+          .applyMatrix4(fenceMatrix);
+        expect(
+          fenceEndpoint.y - innerKeepOuterWorldTerrainHeightAt(
+            fenceEndpoint.x,
+            fenceEndpoint.z,
+          ),
+          `fence-piece:${index}:${side}`,
+        ).toBeCloseTo(0.34, 5);
+      }
+    }
+    const footpath = atmosphere.group.getObjectByName(
+      'inner-keep-old-road-graveyard-footpath',
+    ) as THREE.Mesh;
+    const footpathTerrainDelta = terrainDeltaRange(footpath.geometry);
+    expect(footpathTerrainDelta.minimum).toBeGreaterThanOrEqual(-0.01);
+    expect(footpathTerrainDelta.maximum).toBeLessThanOrEqual(0.07);
+    atmosphere.dispose();
+  });
+
+  it('keeps skiffs inside the shared scenic canal and animates boats and animals', () => {
+    const route = INNER_KEEP_OUTER_WORLD_BOAT_ROUTE;
+    expect(route.points.length).toBeGreaterThanOrEqual(5);
+    for (const point of route.points) {
+      expect(point.channelWidthMeters).toBeGreaterThanOrEqual(
+        route.vesselBeamMeters + route.bankClearanceMeters * 2,
+      );
+    }
+    const atmosphere = createInnerKeepTownAtmosphere({
+      quality: 'high',
+      reducedMotion: false,
+    });
+    const boat = atmosphere.group.getObjectByName('inner-keep-canal-skiff:1')!;
+    boat.position.set(0, 0, 0);
+    boat.rotation.set(0, 0, 0);
+    boat.updateWorldMatrix(true, true);
+    const renderedBoatBounds = new THREE.Box3().setFromObject(boat);
+    expect(renderedBoatBounds.max.x - renderedBoatBounds.min.x)
+      .toBeLessThanOrEqual(route.vesselBeamMeters);
+    const animal = instancedMesh(
+      atmosphere.group,
+      'inner-keep-village-animal-bodies',
+    );
+    const boatBefore = boat.position.clone();
+    const animalsBefore = Array.from(animal.instanceMatrix.array);
+    expect(atmosphere.update(18)).toBe(true);
+    expect(boat.position.distanceTo(boatBefore)).toBeGreaterThan(0.1);
+    expect(Array.from(animal.instanceMatrix.array)).not.toEqual(animalsBefore);
+    atmosphere.dispose();
+  });
+
+  it('keeps every complete roaming envelope clear of cottages and docks', () => {
+    for (const animal of INNER_KEEP_VILLAGE_ANIMAL_PLACEMENTS) {
+      const footprint = INNER_KEEP_VILLAGE_ANIMAL_FOOTPRINT_RADIUS_METERS[
+        animal.species
+      ];
+      for (const house of INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS) {
+        expect(pointDistanceToAabb(
+          animal.anchorMeters[0],
+          animal.anchorMeters[1],
+          house.center,
+          [
+            house.halfExtentsMeters[0]
+              + house.clearanceMarginMeters
+              + animal.roamRadiusMeters,
+            house.halfExtentsMeters[1]
+              + house.clearanceMarginMeters
+              + animal.roamRadiusMeters,
+          ],
+        ), `${animal.animalId}:${house.exclusionId}`).toBeGreaterThan(footprint);
+      }
+      for (const dock of INNER_KEEP_CANAL_DOCK_PLACEMENTS) {
+        expect(pointDistanceToAabb(
+          animal.anchorMeters[0],
+          animal.anchorMeters[1],
+          { x: dock.positionMeters[0], z: dock.positionMeters[2] },
+          [
+            INNER_KEEP_CANAL_DOCK_HALF_EXTENTS_METERS[0] + animal.roamRadiusMeters,
+            INNER_KEEP_CANAL_DOCK_HALF_EXTENTS_METERS[1] + animal.roamRadiusMeters,
+          ],
+        ), `${animal.animalId}:${dock.dockId}`).toBeGreaterThan(footprint);
+      }
+      for (const resource of INNER_KEEP_OUTER_WORLD_RESOURCE_PADS) {
+        expect(Math.hypot(
+          animal.anchorMeters[0] - resource.positionMeters[0],
+          animal.anchorMeters[1] - resource.positionMeters[2],
+        ), `${animal.animalId}:${resource.visualSiteKey}:${resource.instanceIndex}`)
+          .toBeGreaterThan(
+            footprint + Math.SQRT2 * animal.roamRadiusMeters
+              + resource.targetFootprintDiameter * 0.5,
+          );
+      }
+      if (animal.species !== 'goose') {
+        expect(innerKeepOuterWorldDistanceToWater(...animal.anchorMeters), animal.animalId)
+          .toBeGreaterThan(footprint + Math.SQRT2 * animal.roamRadiusMeters);
+      }
+      for (const elapsedSeconds of [0, 240, 1_047, 2_094]) {
+        const pose = sampleInnerKeepVillageAnimalPosition(animal, elapsedSeconds);
+        expect(Number.isFinite(pose.x) && Number.isFinite(pose.z)).toBe(true);
+      }
+    }
+    for (
+      let leftIndex = 0;
+      leftIndex < INNER_KEEP_VILLAGE_ANIMAL_PLACEMENTS.length;
+      leftIndex += 1
+    ) {
+      const left = INNER_KEEP_VILLAGE_ANIMAL_PLACEMENTS[leftIndex]!;
+      for (
+        let rightIndex = leftIndex + 1;
+        rightIndex < INNER_KEEP_VILLAGE_ANIMAL_PLACEMENTS.length;
+        rightIndex += 1
+      ) {
+        const right = INNER_KEEP_VILLAGE_ANIMAL_PLACEMENTS[rightIndex]!;
+        const requiredEnvelopeSeparation =
+          INNER_KEEP_VILLAGE_ANIMAL_FOOTPRINT_RADIUS_METERS[left.species]
+          + INNER_KEEP_VILLAGE_ANIMAL_FOOTPRINT_RADIUS_METERS[right.species]
+          + Math.SQRT2 * (left.roamRadiusMeters + right.roamRadiusMeters);
+        expect(Math.hypot(
+          left.anchorMeters[0] - right.anchorMeters[0],
+          left.anchorMeters[1] - right.anchorMeters[1],
+        ), `${left.animalId}:${right.animalId}`).toBeGreaterThan(
+          requiredEnvelopeSeparation,
+        );
+      }
+    }
+  });
+
+  it('keeps reduced animal silhouettes visible from the portrait camera at every heading', () => {
+    const atmosphere = createInnerKeepTownAtmosphere({
+      quality: 'reduced',
+      reducedMotion: true,
+    });
+    const bodies = instancedMesh(atmosphere.group, 'inner-keep-village-animal-bodies');
+    const position = bodies.geometry.getAttribute('position');
+    expect(position.count).toBe(8);
+    const localVertices = Array.from({ length: position.count }, (_, index) => (
+      new THREE.Vector3().fromBufferAttribute(position, index)
+    ));
+    for (let headingIndex = 0; headingIndex < 360; headingIndex += 1) {
+      const yaw = headingIndex * Math.PI / 180;
+      const quaternion = new THREE.Quaternion().setFromAxisAngle(
+        new THREE.Vector3(0, 1, 0),
+        yaw,
+      );
+      const projectedX = localVertices.map((vertex) => (
+        vertex.clone().applyQuaternion(quaternion).x
+      ));
+      expect(Math.max(...projectedX) - Math.min(...projectedX))
+        .toBeGreaterThanOrEqual(Math.SQRT1_2 - 0.000_001);
+    }
+    atmosphere.dispose();
+  });
+
+  it('keeps the complete reduced scene graph below its reviewed hard ceiling', () => {
+    const context = vi.spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue(null);
+    const canvas = document.createElement('canvas');
+    Object.defineProperties(canvas, {
+      clientWidth: { configurable: true, value: 960 },
+      clientHeight: { configurable: true, value: 540 },
+    });
+    document.body.append(canvas);
+    const layer = createInnerKeepSceneLayer({
+      canvas,
+      quality: 'reduced',
+      reducedMotion: true,
+      requestRender: vi.fn(),
+      assetLoading: 'disabled',
+      outerWorldAssetLoading: 'disabled',
+    });
+    layer.reconcile(createInnerKeepPresentation(), { owningTerrainKind: 'meadow' });
+    const telemetry = layer.getTelemetry();
+    expect(telemetry.triangleCount)
+      .toBeLessThanOrEqual(INNER_KEEP_SCENE_GRAPH_RENDER_BUDGETS.reduced.triangles);
+    expect(telemetry.drawCalls)
+      .toBeLessThanOrEqual(INNER_KEEP_SCENE_GRAPH_RENDER_BUDGETS.reduced.drawCalls);
+    expect(layer.scene.userData.innerKeepSceneGraphRenderBudgetExceeded).toBe(false);
+    layer.dispose();
+    canvas.remove();
+    context.mockRestore();
   });
 
   it('animates smoke only when motion is allowed and disposes GPU buffers once', () => {

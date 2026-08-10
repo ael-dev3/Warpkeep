@@ -15,6 +15,7 @@ import {
   INNER_KEEP_WATER_POND
 } from '../src/components/inner-keep/createInnerKeepEcology';
 import { allInnerKeepStaticRuntimeAssetIds } from '../src/components/inner-keep/createInnerKeepAuthoredPresentation';
+import { createInnerKeepOuterWorldRenderedTerrainSampler } from '../src/components/inner-keep/innerKeepOuterWorldPolicy';
 import type {
   InnerKeepRuntimeAssetBundle,
   InnerKeepRuntimePrefab
@@ -37,7 +38,8 @@ function createLayer(
   width = 1280,
   height = 720,
   assetLoading: 'auto' | 'disabled' = 'disabled',
-  runtimeAssetLoader?: CreateInnerKeepSceneLayerOptions['runtimeAssetLoader']
+  runtimeAssetLoader?: CreateInnerKeepSceneLayerOptions['runtimeAssetLoader'],
+  quality: CreateInnerKeepSceneLayerOptions['quality'] = 'balanced',
 ) {
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
   const canvas = document.createElement('canvas');
@@ -62,7 +64,7 @@ function createLayer(
     canvas,
     layer: createInnerKeepSceneLayer({
       canvas,
-      quality: 'balanced',
+      quality,
       reducedMotion,
       requestRender,
       assetLoading,
@@ -238,24 +240,165 @@ describe('procedural Inner Keep scene layer', () => {
     layer.dispose();
   });
 
-  it('grounds a non-authoritative earth apron and district streets around the larger city', () => {
-    const { layer } = createLayer();
-    const apron = layer.scene.getObjectByName('inner-keep-city-edge-earth-apron');
-    const streets = layer.scene.getObjectByName(
-      'inner-keep-city-district-road-network'
-    );
-    for (const presentationOnly of [apron, streets]) {
-      expect(presentationOnly).toBeInstanceOf(THREE.Mesh);
-      expect(presentationOnly?.userData).toMatchObject({
-        presentationOnly: true,
-        gameplayAuthorityClaimed: false
+  it.each(['high', 'balanced', 'reduced'] as const)(
+    'grounds the %s earth apron and streets on the rendered terrain triangles',
+    (quality) => {
+      const { layer } = createLayer(false, 1280, 720, 'disabled', undefined, quality);
+      const terrainHeightAt =
+        createInnerKeepOuterWorldRenderedTerrainSampler(quality).heightAt;
+      const estateRoads = layer.scene.getObjectByName(
+        'inner-keep-outer-estate-road-network'
+      );
+      const apron = layer.scene.getObjectByName('inner-keep-city-edge-earth-apron');
+      const streets = layer.scene.getObjectByName(
+        'inner-keep-city-district-road-network'
+      );
+      for (const presentationOnly of [estateRoads, apron, streets]) {
+        expect(presentationOnly).toBeInstanceOf(THREE.Mesh);
+        expect(presentationOnly?.userData).toMatchObject({
+          presentationOnly: true,
+          gameplayAuthorityClaimed: false
+        });
+        const geometry = (presentationOnly as THREE.Mesh).geometry;
+        expect(geometry.getAttribute('position').count).toBeGreaterThan(0);
+        expect(geometry.index?.count).toBeGreaterThan(0);
+        const index = geometry.index!;
+        const position = geometry.getAttribute('position');
+        const first = new THREE.Vector3().fromBufferAttribute(position, index.getX(0));
+        const second = new THREE.Vector3().fromBufferAttribute(position, index.getX(1));
+        const third = new THREE.Vector3().fromBufferAttribute(position, index.getX(2));
+        const faceNormal = new THREE.Vector3()
+          .subVectors(second, first)
+          .cross(new THREE.Vector3().subVectors(third, first))
+          .normalize();
+        expect(faceNormal.y, presentationOnly?.name).toBeGreaterThan(0.9);
+        const barycentricSamples = [
+          [1 / 3, 1 / 3, 1 / 3],
+          [0.6, 0.2, 0.2],
+          [0.2, 0.6, 0.2],
+          [0.2, 0.2, 0.6],
+        ] as const;
+        let minimumTerrainDelta = Number.POSITIVE_INFINITY;
+        let maximumTerrainDelta = Number.NEGATIVE_INFINITY;
+        for (let triangle = 0; triangle < index.count; triangle += 3) {
+          const a = new THREE.Vector3().fromBufferAttribute(
+            position,
+            index.getX(triangle),
+          );
+          const b = new THREE.Vector3().fromBufferAttribute(
+            position,
+            index.getX(triangle + 1),
+          );
+          const c = new THREE.Vector3().fromBufferAttribute(
+            position,
+            index.getX(triangle + 2),
+          );
+          for (const [weightA, weightB, weightC] of barycentricSamples) {
+            const sample = new THREE.Vector3()
+              .addScaledVector(a, weightA)
+              .addScaledVector(b, weightB)
+              .addScaledVector(c, weightC);
+            const terrainDelta = sample.y - terrainHeightAt(
+              sample.x,
+              sample.z,
+            );
+            minimumTerrainDelta = Math.min(minimumTerrainDelta, terrainDelta);
+            maximumTerrainDelta = Math.max(maximumTerrainDelta, terrainDelta);
+          }
+        }
+        expect(minimumTerrainDelta, presentationOnly?.name).toBeGreaterThanOrEqual(-0.003);
+        expect(maximumTerrainDelta, presentationOnly?.name).toBeLessThanOrEqual(0.08);
+      }
+      layer.dispose();
+    },
+  );
+
+  it.each(['high', 'balanced', 'reduced'] as const)(
+    'threads the %s rendered surface through ecology, trees, resources, and rabbits',
+    (quality) => {
+      const { layer } = createLayer(true, 1280, 720, 'disabled', undefined, quality);
+      layer.reconcile(createInnerKeepPresentation(), { owningTerrainKind: 'meadow' });
+      const terrainHeightAt =
+        createInnerKeepOuterWorldRenderedTerrainSampler(quality).heightAt;
+
+      const contacts: THREE.Object3D[] = [];
+      layer.scene.traverse((object) => {
+        if (
+          object.name.startsWith('inner-keep-outer-tree-contact:')
+          || object.name.startsWith('inner-keep-outer-resource-contact:')
+          || object.name.startsWith('inner-keep-old-road-grave:')
+        ) contacts.push(object);
       });
-      const geometry = (presentationOnly as THREE.Mesh).geometry;
-      expect(geometry.getAttribute('position').count).toBeGreaterThan(0);
-      expect(geometry.index?.count).toBeGreaterThan(0);
-    }
-    layer.dispose();
-  });
+      expect(contacts.length).toBeGreaterThan(0);
+      for (const contact of contacts) {
+        const centerHeight = terrainHeightAt(contact.position.x, contact.position.z);
+        if (contact.name.startsWith('inner-keep-outer-tree-contact:')) {
+          expect(contact.position.y, contact.name).toBeGreaterThanOrEqual(centerHeight - 0.000_01);
+          expect(contact.position.y - centerHeight, contact.name)
+            .toBeLessThanOrEqual(0.075_01);
+        } else {
+          expect(contact.position.y, contact.name).toBeCloseTo(centerHeight, 6);
+        }
+      }
+
+      const grass = layer.scene.getObjectByName(
+        'inner-keep-dense-grass',
+      ) as THREE.InstancedMesh;
+      const matrix = new THREE.Matrix4();
+      const position = new THREE.Vector3();
+      for (let index = 0; index < grass.count; index += 1) {
+        grass.getMatrixAt(index, matrix);
+        position.setFromMatrixPosition(matrix);
+        expect(position.y, `grass:${index}`).toBeCloseTo(
+          terrainHeightAt(position.x, position.z) + 0.115,
+          5,
+        );
+      }
+
+      const rabbitBodies = layer.scene.getObjectByName(
+        'inner-keep-outer-rabbit-bodies',
+      ) as THREE.InstancedMesh;
+      const scale = new THREE.Vector3();
+      const rotation = new THREE.Quaternion();
+      expect(rabbitBodies.count).toBeGreaterThan(0);
+      for (let index = 0; index < rabbitBodies.count; index += 1) {
+        rabbitBodies.getMatrixAt(index, matrix);
+        matrix.decompose(position, rotation, scale);
+        expect(position.y - 0.22 * scale.z, `rabbit:${index}`).toBeCloseTo(
+          terrainHeightAt(position.x, position.z),
+          5,
+        );
+      }
+
+      for (const [name, lift] of [
+        ['inner-keep-marsh-wet-ground', 0.018],
+        ['inner-keep-old-road-graveyard-footpath', 0.035],
+      ] as const) {
+        const drape = layer.scene.getObjectByName(name) as THREE.Mesh;
+        const drapePositions = drape.geometry.getAttribute('position');
+        for (let index = 0; index < drapePositions.count; index += 1) {
+          const x = drapePositions.getX(index);
+          const y = drapePositions.getY(index);
+          const z = drapePositions.getZ(index);
+          expect(y - terrainHeightAt(x, z), `${name}:${index}`).toBeCloseTo(lift, 5);
+        }
+      }
+
+      const ruts = layer.scene.getObjectByName(
+        'inner-keep-rain-darkened-wheel-ruts',
+      ) as THREE.Mesh;
+      const rutPositions = ruts.geometry.getAttribute('position');
+      for (let index = 0; index < rutPositions.count; index += 1) {
+        const delta = rutPositions.getY(index) - terrainHeightAt(
+          rutPositions.getX(index),
+          rutPositions.getZ(index),
+        );
+        expect(delta, `rut:${index}`).toBeGreaterThanOrEqual(0.054);
+        expect(delta, `rut:${index}`).toBeLessThanOrEqual(0.199);
+      }
+      layer.dispose();
+    },
+  );
 
   it('keeps diagnostic slot projection and exact picking aligned after pan and zoom', () => {
     const { layer } = createLayer();

@@ -42,6 +42,7 @@ import {
   createInnerKeepAmbientSimulationPlan,
   type InnerKeepAmbientSimulationPlan
 } from './innerKeepAmbientTimeline';
+import { innerKeepAmbientRouteIsExterior } from './innerKeepAmbientPolicy';
 import {
   loadInnerKeepRuntimeAssetBundle,
   type InnerKeepRuntimeAssetBundle
@@ -52,14 +53,17 @@ import {
 } from './innerKeepPresentationLayoutPolicy';
 import {
   INNER_KEEP_CITY_DISTRICT_ROADS,
+  INNER_KEEP_CITY_EDGE_APRON_HALF_WIDTH_METERS,
   INNER_KEEP_CITY_EDGE_APRON_POINTS,
   INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS,
+  INNER_KEEP_OUTER_WORLD_AMBIENT_LANES,
   INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS,
   INNER_KEEP_OUTER_WORLD_RESOURCE_ROADS,
   INNER_KEEP_OUTER_WORLD_ROAD_CIRCUIT,
   INNER_KEEP_OUTER_WORLD_TOPOGRAPHIC_FEATURES,
+  INNER_KEEP_OUTER_WORLD_TRADE_ROAD_HALF_WIDTH_METERS,
   INNER_KEEP_OUTER_WORLD_TRADE_ROUTE,
-  innerKeepOuterWorldTerrainHeightAt
+  createInnerKeepOuterWorldRenderedTerrainSampler
 } from './innerKeepOuterWorldPolicy';
 import {
   INNER_KEEP_TOWN_ATMOSPHERE_POLICY_VERSION,
@@ -73,9 +77,9 @@ export type InnerKeepSceneQuality = 'high' | 'balanced' | 'reduced';
  * by the QA renderer because high-quality shadow passes can redraw casters.
  */
 export const INNER_KEEP_SCENE_GRAPH_RENDER_BUDGETS = Object.freeze({
-  high: Object.freeze({ drawCalls: 390, triangles: 420_000 }),
-  balanced: Object.freeze({ drawCalls: 310, triangles: 250_000 }),
-  reduced: Object.freeze({ drawCalls: 235, triangles: 110_000 })
+  high: Object.freeze({ drawCalls: 450, triangles: 460_000 }),
+  balanced: Object.freeze({ drawCalls: 350, triangles: 280_000 }),
+  reduced: Object.freeze({ drawCalls: 270, triangles: 135_000 })
 } satisfies Readonly<Record<InnerKeepSceneQuality, Readonly<{
   drawCalls: number;
   triangles: number;
@@ -563,6 +567,7 @@ function createInnerKeepOuterTerrainGeometry(quality: InnerKeepSceneQuality) {
     depthSegments,
   );
   geometry.rotateX(-Math.PI / 2);
+  const renderedTerrain = createInnerKeepOuterWorldRenderedTerrainSampler(quality);
   const position = geometry.getAttribute('position');
   const colors = new Float32Array(position.count * 3);
   const lowland = new THREE.Color(INNER_KEEP_TOWN_TONAL_PALETTE.terrain.lowland);
@@ -574,7 +579,7 @@ function createInnerKeepOuterTerrainGeometry(quality: InnerKeepSceneQuality) {
   for (let index = 0; index < position.count; index += 1) {
     const x = position.getX(index);
     const z = position.getZ(index);
-    const height = innerKeepOuterWorldTerrainHeightAt(x, z);
+    const height = renderedTerrain.heightAt(x, z);
     minimumHeight = Math.min(minimumHeight, height);
     maximumHeight = Math.max(maximumHeight, height);
     position.setY(index, height);
@@ -594,53 +599,152 @@ function createInnerKeepOuterTerrainGeometry(quality: InnerKeepSceneQuality) {
       0,
       Math.round((maximumHeight - minimumHeight) * 1_000),
     ),
+    heightAt: renderedTerrain.heightAt,
   });
+}
+
+const INNER_KEEP_ROAD_BASE_SAMPLE_SPACING_METERS = 2.5;
+const INNER_KEEP_ROAD_TERRAIN_ERROR_METERS = 0.009;
+const INNER_KEEP_ROAD_MAXIMUM_SUBDIVISION_DEPTH = 4;
+
+type InnerKeepRoadSurfacePoint = Readonly<{ x: number; z: number }>;
+
+function midpoint(
+  left: InnerKeepRoadSurfacePoint,
+  right: InnerKeepRoadSurfacePoint,
+): InnerKeepRoadSurfacePoint {
+  return Object.freeze({
+    x: (left.x + right.x) * 0.5,
+    z: (left.z + right.z) * 0.5,
+  });
+}
+
+function appendDrapedRoadTriangle(
+  positions: number[],
+  indices: number[],
+  a: InnerKeepRoadSurfacePoint,
+  b: InnerKeepRoadSurfacePoint,
+  c: InnerKeepRoadSurfacePoint,
+  terrainHeightAt: (x: number, z: number) => number,
+  depth = 0,
+) {
+  const heightA = terrainHeightAt(a.x, a.z);
+  const heightB = terrainHeightAt(b.x, b.z);
+  const heightC = terrainHeightAt(c.x, c.z);
+  const ab = midpoint(a, b);
+  const bc = midpoint(b, c);
+  const ca = midpoint(c, a);
+  const center = Object.freeze({
+    x: (a.x + b.x + c.x) / 3,
+    z: (a.z + b.z + c.z) / 3,
+  });
+  const samples = [
+    [ab, (heightA + heightB) * 0.5],
+    [bc, (heightB + heightC) * 0.5],
+    [ca, (heightC + heightA) * 0.5],
+    [center, (heightA + heightB + heightC) / 3],
+  ] as const;
+  const terrainError = Math.max(...samples.map(([sample, interpolatedHeight]) => (
+    Math.abs(
+      terrainHeightAt(sample.x, sample.z) - interpolatedHeight,
+    )
+  )));
+  if (
+    terrainError > INNER_KEEP_ROAD_TERRAIN_ERROR_METERS
+    && depth < INNER_KEEP_ROAD_MAXIMUM_SUBDIVISION_DEPTH
+  ) {
+    appendDrapedRoadTriangle(positions, indices, a, ab, ca, terrainHeightAt, depth + 1);
+    appendDrapedRoadTriangle(positions, indices, ab, b, bc, terrainHeightAt, depth + 1);
+    appendDrapedRoadTriangle(positions, indices, ca, bc, c, terrainHeightAt, depth + 1);
+    appendDrapedRoadTriangle(positions, indices, ab, bc, ca, terrainHeightAt, depth + 1);
+    return;
+  }
+  const vertexOffset = positions.length / 3;
+  for (const [point, height] of [[a, heightA], [b, heightB], [c, heightC]] as const) {
+    positions.push(point.x, height + 0.035, point.z);
+  }
+  indices.push(vertexOffset, vertexOffset + 1, vertexOffset + 2);
 }
 
 function createInnerKeepOuterRoadGeometry(paths: readonly Readonly<{
   points: readonly InnerKeepTerrainPathPoint[];
   closed: boolean;
   halfWidthMeters: number;
-}>[]) {
+}>[], terrainHeightAt: (x: number, z: number) => number) {
   const positions: number[] = [];
   const indices: number[] = [];
   for (const path of paths) {
     if (path.points.length < 2) continue;
-    const vertexOffset = positions.length / 3;
-    path.points.forEach((point, index) => {
-      const before = path.points[
-        path.closed
-          ? (index - 1 + path.points.length) % path.points.length
-          : Math.max(0, index - 1)
-      ]!;
-      const after = path.points[
-        path.closed
-          ? (index + 1) % path.points.length
-          : Math.min(path.points.length - 1, index + 1)
-      ]!;
-      const tangentX = after.x - before.x;
-      const tangentZ = after.z - before.z;
-      const tangentLength = Math.max(0.001, Math.hypot(tangentX, tangentZ));
-      const normalX = -tangentZ / tangentLength;
-      const normalZ = tangentX / tangentLength;
-      for (const side of [-1, 1] as const) {
-        const x = point.x + normalX * path.halfWidthMeters * side;
-        const z = point.z + normalZ * path.halfWidthMeters * side;
-        positions.push(
-          x,
-          innerKeepOuterWorldTerrainHeightAt(x, z) + 0.035,
-          z,
-        );
-      }
-    });
     const segmentCount = path.closed ? path.points.length : path.points.length - 1;
     for (let index = 0; index < segmentCount; index += 1) {
-      const next = (index + 1) % path.points.length;
-      const left = vertexOffset + index * 2;
-      const right = left + 1;
-      const nextLeft = vertexOffset + next * 2;
-      const nextRight = nextLeft + 1;
-      indices.push(left, nextLeft, right, right, nextLeft, nextRight);
+      const from = path.points[index]!;
+      const to = path.points[(index + 1) % path.points.length]!;
+      const deltaX = to.x - from.x;
+      const deltaZ = to.z - from.z;
+      const length = Math.hypot(deltaX, deltaZ);
+      if (length <= 0.000_001) continue;
+      const normalX = -deltaZ / length;
+      const normalZ = deltaX / length;
+      const steps = Math.max(
+        1,
+        Math.ceil(length / INNER_KEEP_ROAD_BASE_SAMPLE_SPACING_METERS),
+      );
+      for (let step = 0; step < steps; step += 1) {
+        const fromProgress = step / steps;
+        const toProgress = (step + 1) / steps;
+        const row = (progress: number, side: number) => Object.freeze({
+          x: THREE.MathUtils.lerp(from.x, to.x, progress)
+            + normalX * path.halfWidthMeters * side,
+          z: THREE.MathUtils.lerp(from.z, to.z, progress)
+            + normalZ * path.halfWidthMeters * side,
+        });
+        for (const [nearSide, farSide] of [[-1, 0], [0, 1]] as const) {
+          const near = row(fromProgress, nearSide);
+          const far = row(fromProgress, farSide);
+          const nextNear = row(toProgress, nearSide);
+          const nextFar = row(toProgress, farSide);
+          appendDrapedRoadTriangle(
+            positions,
+            indices,
+            near,
+            far,
+            nextNear,
+            terrainHeightAt,
+          );
+          appendDrapedRoadTriangle(
+            positions,
+            indices,
+            far,
+            nextFar,
+            nextNear,
+            terrainHeightAt,
+          );
+        }
+      }
+    }
+
+    const joinSegments = 12;
+    for (const point of path.points) {
+      for (let segment = 0; segment < joinSegments; segment += 1) {
+        const angle = segment / joinSegments * Math.PI * 2;
+        const nextAngle = (segment + 1) / joinSegments * Math.PI * 2;
+        const current = Object.freeze({
+          x: point.x + Math.cos(angle) * path.halfWidthMeters,
+          z: point.z + Math.sin(angle) * path.halfWidthMeters,
+        });
+        const next = Object.freeze({
+          x: point.x + Math.cos(nextAngle) * path.halfWidthMeters,
+          z: point.z + Math.sin(nextAngle) * path.halfWidthMeters,
+        });
+        appendDrapedRoadTriangle(
+          positions,
+          indices,
+          point,
+          next,
+          current,
+          terrainHeightAt,
+        );
+      }
     }
   }
   const geometry = new THREE.BufferGeometry();
@@ -757,13 +861,15 @@ export function createInnerKeepSceneLayer(
   ambientGroup.name = 'inner-keep-persistent-ambient-root';
   const dynamicGroup = new THREE.Group();
   scene.add(staticGroup, proceduralFallbackGroup, authoredStaticGroup, ambientGroup, dynamicGroup);
+  const outerTerrain = createInnerKeepOuterTerrainGeometry(options.quality);
+  const renderedTerrainHeightAt = outerTerrain.heightAt;
   const townAtmosphere = createInnerKeepTownAtmosphere({
     quality: options.quality,
-    reducedMotion: options.reducedMotion || options.quality === 'reduced'
+    reducedMotion: options.reducedMotion || options.quality === 'reduced',
+    terrainHeightAt: renderedTerrainHeightAt,
   });
   staticGroup.add(townAtmosphere.group);
 
-  const outerTerrain = createInnerKeepOuterTerrainGeometry(options.quality);
   const groundGeometry = outerTerrain.geometry;
   disposableGeometries.add(groundGeometry);
   const groundMaterial = new THREE.MeshStandardMaterial({
@@ -792,10 +898,15 @@ export function createInnerKeepSceneLayer(
     Object.freeze({
       points: tradeRoadPoints,
       closed: false,
-      halfWidthMeters: 0.62,
+      halfWidthMeters: INNER_KEEP_OUTER_WORLD_TRADE_ROAD_HALF_WIDTH_METERS,
     }),
+    ...INNER_KEEP_OUTER_WORLD_AMBIENT_LANES.map((lane) => Object.freeze({
+      points: lane.points,
+      closed: false,
+      halfWidthMeters: lane.halfWidthMeters,
+    })),
     ...INNER_KEEP_OUTER_WORLD_RESOURCE_ROADS,
-  ]);
+  ], renderedTerrainHeightAt);
   disposableGeometries.add(outerRoadGeometry);
   const outerRoadMaterial = new THREE.MeshStandardMaterial({
     color: INNER_KEEP_TOWN_TONAL_PALETTE.roads.outer,
@@ -818,9 +929,9 @@ export function createInnerKeepSceneLayer(
     Object.freeze({
       points: INNER_KEEP_CITY_EDGE_APRON_POINTS,
       closed: true,
-      halfWidthMeters: 1.72
+      halfWidthMeters: INNER_KEEP_CITY_EDGE_APRON_HALF_WIDTH_METERS
     })
-  ]);
+  ], renderedTerrainHeightAt);
   disposableGeometries.add(cityEdgeApronGeometry);
   const cityEdgeApronMaterial = new THREE.MeshStandardMaterial({
     color: INNER_KEEP_TOWN_TONAL_PALETTE.roads.apron,
@@ -840,7 +951,8 @@ export function createInnerKeepSceneLayer(
   staticGroup.add(cityEdgeApron);
 
   const districtRoadGeometry = createInnerKeepOuterRoadGeometry(
-    INNER_KEEP_CITY_DISTRICT_ROADS
+    INNER_KEEP_CITY_DISTRICT_ROADS,
+    renderedTerrainHeightAt,
   );
   disposableGeometries.add(districtRoadGeometry);
   const districtRoadMaterial = new THREE.MeshStandardMaterial({
@@ -1140,7 +1252,7 @@ export function createInnerKeepSceneLayer(
       ? (side === 2 ? -22.4 : 16.4) + (deterministicUnit(index, 3) - 0.5) * 1.2
       : alongZ;
     const scale = 0.82 + deterministicUnit(index, 4) * 0.52;
-    const terrainHeight = innerKeepOuterWorldTerrainHeightAt(x, z);
+    const terrainHeight = renderedTerrainHeightAt(x, z);
     treeMatrix.compose(
       new THREE.Vector3(x, terrainHeight + 0.72 * scale, z),
       new THREE.Quaternion(),
@@ -1281,7 +1393,8 @@ export function createInnerKeepSceneLayer(
     ecology = createInnerKeepEcology({
       quality: options.quality,
       reducedMotion: options.reducedMotion || options.quality === 'reduced',
-      visualSeed
+      visualSeed,
+      terrainHeightAt: renderedTerrainHeightAt,
     });
     ecologySeed = visualSeed;
     ambientGroup.add(ecology.group);
@@ -1301,6 +1414,7 @@ export function createInnerKeepSceneLayer(
         options.outerWorldAssetLoading ?? options.assetLoading ?? 'auto'
       ) !== 'disabled',
       wildlifeMode: 'procedural',
+      terrainHeightAt: renderedTerrainHeightAt,
       requestRender: options.requestRender,
       onTelemetryChange: () => refreshOptionalPresentationTelemetry(),
     });
@@ -1314,6 +1428,7 @@ export function createInnerKeepSceneLayer(
       loadExactAsset: (
         options.outerWorldAssetLoading ?? options.assetLoading ?? 'auto'
       ) !== 'disabled',
+      terrainHeightAt: renderedTerrainHeightAt,
       requestRender: options.requestRender,
       onTelemetryChange: (rabbitTelemetry) => {
         nextOuterWorldPresentation.setProceduralWildlifeVisible(
@@ -1362,14 +1477,15 @@ export function createInnerKeepSceneLayer(
       authoredPresentation = createInnerKeepAuthoredStaticPresentation({
         bundle,
         quality: options.quality,
-        visualSeed
+        visualSeed,
+        terrainHeightAt: renderedTerrainHeightAt,
       });
       authoredStaticGroup.add(authoredPresentation.group);
     }
     populationPresentation = createInnerKeepPopulationPresentation({
       bundle,
       plan,
-      terrainHeightAt: innerKeepOuterWorldTerrainHeightAt,
+      terrainHeightAt: renderedTerrainHeightAt,
     });
     ambientGroup.add(populationPresentation.group);
     populationPresentation.update(lastElapsedSeconds);
@@ -1745,13 +1861,10 @@ export function createInnerKeepSceneLayer(
     const populationTelemetry = populationPresentation?.getTelemetry();
     const outerTelemetry = outerWorldPresentation?.getTelemetry();
     const rabbitTelemetry = rabbitPresentation?.getTelemetry();
-    const exteriorRouteIds = new Set([
-      'inner-keep-civic-mounted-loop-v1',
-      'inner-keep-barracks-mounted-patrol-loop-v1',
-      'inner-keep-outer-foot-escort-loop-v1'
-    ]);
     const exteriorRoutines = populationTelemetry
-      ? ambientPlan?.routines.filter(({ route }) => exteriorRouteIds.has(route.routeId)) ?? []
+      ? ambientPlan?.routines.filter(({ route }) => (
+          innerKeepAmbientRouteIsExterior(route)
+        )) ?? []
       : [];
     const exactWildlifeCount = rabbitTelemetry?.status === 'ready'
       ? rabbitTelemetry.rabbitCount

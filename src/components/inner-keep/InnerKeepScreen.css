@@ -15,8 +15,8 @@
   overflow: hidden;
   color: var(--inner-ivory);
   background:
-    radial-gradient(circle at 50% 32%, rgb(133 142 124 / 14%), transparent 45%),
-    linear-gradient(152deg, #171b19, #252823 54%, #101210);
+    radial-gradient(circle at 50% 26%, rgb(224 238 205 / 22%), transparent 48%),
+    linear-gradient(152deg, #5d765d, #859574 54%, #455d50);
   isolation: isolate;
 }
 
@@ -201,9 +201,9 @@
   overflow: auto;
   overscroll-behavior: contain;
   background:
-    radial-gradient(ellipse at 50% 44%, rgb(137 139 116 / 16%), transparent 43%),
-    repeating-linear-gradient(34deg, transparent 0 32px, rgb(255 255 255 / 1.2%) 33px 34px),
-    linear-gradient(148deg, #363b35, #4a4c3d 48%, #2b302c);
+    radial-gradient(ellipse at 50% 44%, rgb(236 225 162 / 22%), transparent 43%),
+    repeating-linear-gradient(34deg, transparent 0 32px, rgb(255 255 255 / 2.2%) 33px 34px),
+    linear-gradient(148deg, #71895e, #9aa875 48%, #55745b);
 }
 
 .inner-keep-map::before,
@@ -216,15 +216,15 @@
 
 .inner-keep-map::before {
   background:
-    radial-gradient(circle at 8% 12%, #1c3423 0 4%, transparent 4.2%),
-    radial-gradient(circle at 92% 16%, #193121 0 5%, transparent 5.2%),
-    radial-gradient(circle at 4% 80%, #1a3020 0 6%, transparent 6.2%),
-    radial-gradient(circle at 96% 78%, #203523 0 7%, transparent 7.2%);
-  opacity: 0.92;
+    radial-gradient(circle at 8% 12%, #3e663b 0 4%, transparent 4.2%),
+    radial-gradient(circle at 92% 16%, #355f3a 0 5%, transparent 5.2%),
+    radial-gradient(circle at 4% 80%, #416a3b 0 6%, transparent 6.2%),
+    radial-gradient(circle at 96% 78%, #477245 0 7%, transparent 7.2%);
+  opacity: 0.78;
 }
 
 .inner-keep-map::after {
-  box-shadow: inset 0 0 5rem rgb(3 7 4 / 54%);
+  box-shadow: inset 0 0 5rem rgb(20 43 27 / 22%);
 }
 
 .inner-keep-map__wall {
@@ -388,8 +388,8 @@
 .inner-keep[data-inner-keep-renderer="webgl"] {
   pointer-events: none;
   background:
-    radial-gradient(circle at 50% 42%, transparent 40%, rgb(4 8 4 / 30%) 100%),
-    linear-gradient(rgb(7 9 7 / 8%), rgb(7 9 7 / 15%));
+    radial-gradient(circle at 50% 42%, transparent 48%, rgb(14 33 20 / 9%) 100%),
+    linear-gradient(rgb(255 247 218 / 2%), rgb(28 52 31 / 4%));
 }
 
 .inner-keep[data-inner-keep-renderer="webgl"]

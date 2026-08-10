@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 
+import { createInnerKeepTerrainDrapedEllipseGeometry } from './createInnerKeepTerrainDrapedGeometry';
 import { INNER_KEEP_LAYOUT_V1_SLOTS } from './innerKeepLayoutV1';
 import { INNER_KEEP_AMBIENT_ROUTES } from './innerKeepAmbientPolicy';
 import {
@@ -8,12 +9,20 @@ import {
 } from './innerKeepFixedPlacementExclusions';
 import { INNER_KEEP_PRESENTATION_CLEARANCES } from './innerKeepPresentationLayoutPolicy';
 import {
+  INNER_KEEP_OUTER_WORLD_BOAT_ROUTE,
   INNER_KEEP_OUTER_WORLD_COMPOUND_PLATEAU,
   INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS,
   INNER_KEEP_OUTER_WORLD_LAKE,
+  INNER_KEEP_OUTER_WORLD_MARSH,
+  INNER_KEEP_OUTER_WORLD_MARSH_BUDGETS,
   INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS,
+  INNER_KEEP_OUTER_WORLD_ROAD_CIRCUIT,
   INNER_KEEP_OUTER_WORLD_WATER_CENTERLINE,
+  innerKeepCityEdgeApronDistance,
   innerKeepCityDistrictRoadEdgeDistance,
+  innerKeepOuterWorldDistanceToResourceSite,
+  innerKeepOuterWorldDistanceToRoad,
+  innerKeepOuterWorldDistanceToSegment,
   innerKeepOuterWorldPointIsClear,
   innerKeepOuterWorldTerrainHeightAt,
 } from './innerKeepOuterWorldPolicy';
@@ -34,6 +43,7 @@ export const INNER_KEEP_WATER_CENTERLINE = INNER_KEEP_OUTER_WORLD_WATER_CENTERLI
 export const INNER_KEEP_WATER_POND = INNER_KEEP_OUTER_WORLD_LAKE;
 
 export const INNER_KEEP_WATER_BANK_EXTRA_WIDTH_METERS = 0.1;
+export const INNER_KEEP_WATER_LAKE_BANK_INLET_GAP_RADIANS = 0.95;
 
 export type InnerKeepFixedEcologyExclusion = InnerKeepFixedPlacementExclusion;
 
@@ -45,6 +55,10 @@ export type InnerKeepEcology = Readonly<{
   group: THREE.Group;
   grassBladeCount: number;
   waterSurfaceCount: number;
+  marshWetGroundPatchCount: number;
+  marshReedCount: number;
+  marshLilyPadCount: number;
+  marshDeadSnagCount: number;
   update: (elapsedSeconds: number) => boolean;
   isAnimationActive: () => boolean;
   dispose: () => void;
@@ -61,6 +75,211 @@ function deterministicUnit(index: number, salt: number) {
   value = Math.imul(value ^ (value >>> 16), 0x45d9f3b);
   value = Math.imul(value ^ (value >>> 16), 0x45d9f3b);
   return ((value ^ (value >>> 16)) >>> 0) / 0x1_0000_0000;
+}
+
+export type InnerKeepMarshScenicPlacement = Readonly<{
+  positionMeters: readonly [number, number, number];
+  rotationYRadians: number;
+  scale: readonly [number, number, number];
+}>;
+
+export type InnerKeepMarshPresentationPlan = Readonly<{
+  wetGroundPatches: readonly InnerKeepMarshScenicPlacement[];
+  reeds: readonly InnerKeepMarshScenicPlacement[];
+  lilyPads: readonly InnerKeepMarshScenicPlacement[];
+  deadSnags: readonly InnerKeepMarshScenicPlacement[];
+}>;
+
+export const INNER_KEEP_MARSH_BOAT_OBSTACLE_CLEARANCE_METERS = 0.05;
+export const INNER_KEEP_MARSH_LILY_PAD_BOAT_CLEARANCE_METERS =
+  INNER_KEEP_MARSH_BOAT_OBSTACLE_CLEARANCE_METERS;
+
+export function innerKeepMarshDistanceToBoatRoute(x: number, z: number) {
+  let nearest = Number.POSITIVE_INFINITY;
+  for (
+    let index = 0;
+    index < INNER_KEEP_OUTER_WORLD_BOAT_ROUTE.points.length - 1;
+    index += 1
+  ) {
+    const from = INNER_KEEP_OUTER_WORLD_BOAT_ROUTE.points[index]!;
+    const to = INNER_KEEP_OUTER_WORLD_BOAT_ROUTE.points[index + 1]!;
+    nearest = Math.min(
+      nearest,
+      innerKeepOuterWorldDistanceToSegment(x, z, from.x, from.z, to.x, to.z),
+    );
+  }
+  return nearest;
+}
+
+function marshWaterSceneryIsClear(x: number, z: number, clearanceMeters: number) {
+  const [halfWidth, halfDepth] = INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS;
+  if (Math.abs(x) + clearanceMeters >= halfWidth - 0.2) return false;
+  if (Math.abs(z) + clearanceMeters >= halfDepth - 0.2) return false;
+  if (
+    innerKeepOuterWorldDistanceToRoad(x, z)
+    <= INNER_KEEP_OUTER_WORLD_ROAD_CIRCUIT.halfWidthMeters + clearanceMeters
+  ) return false;
+  if (innerKeepOuterWorldDistanceToResourceSite(x, z) <= clearanceMeters) return false;
+  return INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS.every((exclusion) => (
+    Math.abs(x - exclusion.center.x)
+      > exclusion.halfExtentsMeters[0] + exclusion.clearanceMarginMeters + clearanceMeters
+    || Math.abs(z - exclusion.center.z)
+      > exclusion.halfExtentsMeters[1] + exclusion.clearanceMarginMeters + clearanceMeters
+  ));
+}
+
+/** Pure deterministic lowland plan shared by the renderer and regression tests. */
+export function planInnerKeepMarshPresentation(options: Readonly<{
+  quality: InnerKeepSceneQuality;
+  visualSeed: number;
+  terrainHeightAt?: (x: number, z: number) => number;
+  pointIsClear?: (x: number, z: number, clearanceMeters: number) => boolean;
+}>): InnerKeepMarshPresentationPlan {
+  const budget = INNER_KEEP_OUTER_WORLD_MARSH_BUDGETS[options.quality];
+  const terrainHeightAt = options.terrainHeightAt ?? innerKeepOuterWorldTerrainHeightAt;
+  const pointIsClear = options.pointIsClear ?? innerKeepOuterWorldPointIsClear;
+  const wetGroundPatches: InnerKeepMarshScenicPlacement[] = [];
+  const deadSnags: InnerKeepMarshScenicPlacement[] = [];
+  const reeds: InnerKeepMarshScenicPlacement[] = [];
+  const lilyPads: InnerKeepMarshScenicPlacement[] = [];
+  const marsh = INNER_KEEP_OUTER_WORLD_MARSH;
+
+  for (
+    let attempt = 0;
+    wetGroundPatches.length < budget.wetGroundPatches && attempt < 2_048;
+    attempt += 1
+  ) {
+    const angle = deterministicUnit(attempt, options.visualSeed + 211) * Math.PI * 2;
+    const radius = 0.44 + deterministicUnit(attempt, options.visualSeed + 223) * 0.52;
+    const x = marsh.center.x + Math.cos(angle) * marsh.radii.x * radius;
+    const z = marsh.center.z + Math.sin(angle) * marsh.radii.z * radius;
+    if (!pointIsClear(x, z, 0.08)) continue;
+    wetGroundPatches.push(Object.freeze({
+      positionMeters: Object.freeze([x, terrainHeightAt(x, z) + 0.018, z] as const),
+      rotationYRadians: deterministicUnit(attempt, options.visualSeed + 227) * Math.PI,
+      scale: Object.freeze([
+        1.15 + deterministicUnit(attempt, options.visualSeed + 229) * 1.15,
+        1,
+        0.62 + deterministicUnit(attempt, options.visualSeed + 233) * 0.8,
+      ] as const),
+    }));
+  }
+
+  for (
+    let attempt = 0;
+    deadSnags.length < budget.deadSnags && attempt < 2_048;
+    attempt += 1
+  ) {
+    const angle = deterministicUnit(attempt, options.visualSeed + 239) * Math.PI * 2;
+    const radius = 0.6 + deterministicUnit(attempt, options.visualSeed + 241) * 0.35;
+    const x = marsh.center.x + Math.cos(angle) * marsh.radii.x * radius;
+    const z = marsh.center.z + Math.sin(angle) * marsh.radii.z * radius;
+    const scale = Object.freeze([
+      0.82 + deterministicUnit(attempt, options.visualSeed + 257) * 0.34,
+      0.78 + deterministicUnit(attempt, options.visualSeed + 263) * 0.48,
+      0.82 + deterministicUnit(attempt, options.visualSeed + 269) * 0.34,
+    ] as const);
+    if (!pointIsClear(x, z, 0.3)) continue;
+    if (
+      innerKeepMarshDistanceToBoatRoute(x, z)
+      < INNER_KEEP_OUTER_WORLD_BOAT_ROUTE.vesselBeamMeters * 0.5
+        + 0.105 * Math.max(scale[0], scale[2])
+        + INNER_KEEP_MARSH_BOAT_OBSTACLE_CLEARANCE_METERS
+    ) continue;
+    deadSnags.push(Object.freeze({
+      positionMeters: Object.freeze([x, terrainHeightAt(x, z), z] as const),
+      rotationYRadians: deterministicUnit(attempt, options.visualSeed + 251) * Math.PI * 2,
+      scale,
+    }));
+  }
+
+  for (
+    let attempt = 0;
+    reeds.length < budget.reeds && attempt < budget.reeds * 64;
+    attempt += 1
+  ) {
+    let x: number;
+    let z: number;
+    let y: number;
+    if (attempt % 3 === 0) {
+      const startIndex = 8 + Math.floor(
+        deterministicUnit(attempt, options.visualSeed + 271) * 5,
+      );
+      const from = INNER_KEEP_OUTER_WORLD_WATER_CENTERLINE[startIndex]!;
+      const to = INNER_KEEP_OUTER_WORLD_WATER_CENTERLINE[startIndex + 1]!;
+      const progress = deterministicUnit(attempt, options.visualSeed + 277);
+      const width = from.width + (to.width - from.width) * progress;
+      const side = deterministicUnit(attempt, options.visualSeed + 281) < 0.5 ? -1 : 1;
+      x = from.x + (to.x - from.x) * progress
+        + side * width * (0.4 + deterministicUnit(attempt, options.visualSeed + 283) * 0.12);
+      z = from.z + (to.z - from.z) * progress;
+      y = from.y + (to.y - from.y) * progress - 0.12;
+    } else {
+      const angle = deterministicUnit(attempt, options.visualSeed + 293) * Math.PI * 2;
+      const radius = 0.78 + deterministicUnit(attempt, options.visualSeed + 307) * 0.24;
+      x = INNER_KEEP_OUTER_WORLD_LAKE.center.x
+        + Math.cos(angle) * INNER_KEEP_OUTER_WORLD_LAKE.radii.x * radius;
+      z = INNER_KEEP_OUTER_WORLD_LAKE.center.z
+        + Math.sin(angle) * INNER_KEEP_OUTER_WORLD_LAKE.radii.z * radius;
+      y = INNER_KEEP_OUTER_WORLD_LAKE.center.y - 0.12;
+    }
+    const scale = Object.freeze([
+      0.78 + deterministicUnit(attempt, options.visualSeed + 313) * 0.38,
+      0.72 + deterministicUnit(attempt, options.visualSeed + 317) * 0.68,
+      0.78 + deterministicUnit(attempt, options.visualSeed + 331) * 0.38,
+    ] as const);
+    if (!marshWaterSceneryIsClear(x, z, 0.08)) continue;
+    if (
+      innerKeepMarshDistanceToBoatRoute(x, z)
+      < INNER_KEEP_OUTER_WORLD_BOAT_ROUTE.vesselBeamMeters * 0.5
+        + 0.04 * Math.max(scale[0], scale[2])
+        + INNER_KEEP_MARSH_BOAT_OBSTACLE_CLEARANCE_METERS
+    ) continue;
+    reeds.push(Object.freeze({
+      positionMeters: Object.freeze([x, y, z] as const),
+      rotationYRadians: deterministicUnit(attempt, options.visualSeed + 311) * Math.PI * 2,
+      scale,
+    }));
+  }
+
+  for (
+    let attempt = 0;
+    lilyPads.length < budget.lilyPads && attempt < budget.lilyPads * 64;
+    attempt += 1
+  ) {
+    const angle = deterministicUnit(attempt, options.visualSeed + 337) * Math.PI * 2;
+    const radius = Math.sqrt(
+      0.08 + deterministicUnit(attempt, options.visualSeed + 347) * 0.55,
+    );
+    const x = INNER_KEEP_OUTER_WORLD_LAKE.center.x
+      + Math.cos(angle) * INNER_KEEP_OUTER_WORLD_LAKE.radii.x * radius;
+    const z = INNER_KEEP_OUTER_WORLD_LAKE.center.z
+      + Math.sin(angle) * INNER_KEEP_OUTER_WORLD_LAKE.radii.z * radius;
+    const scale = 0.18 + deterministicUnit(attempt, options.visualSeed + 349) * 0.17;
+    if (!marshWaterSceneryIsClear(x, z, 0.1)) continue;
+    if (
+      innerKeepMarshDistanceToBoatRoute(x, z)
+      < INNER_KEEP_OUTER_WORLD_BOAT_ROUTE.vesselBeamMeters * 0.5
+        + scale
+        + INNER_KEEP_MARSH_BOAT_OBSTACLE_CLEARANCE_METERS
+    ) continue;
+    lilyPads.push(Object.freeze({
+      positionMeters: Object.freeze([
+        x,
+        INNER_KEEP_OUTER_WORLD_LAKE.center.y + 0.026,
+        z,
+      ] as const),
+      rotationYRadians: angle,
+      scale: Object.freeze([scale, 1, scale * 0.76] as const),
+    }));
+  }
+
+  return Object.freeze({
+    wetGroundPatches: Object.freeze(wetGroundPatches),
+    reeds: Object.freeze(reeds),
+    lilyPads: Object.freeze(lilyPads),
+    deadSnags: Object.freeze(deadSnags),
+  });
 }
 
 function insideRoundedBox(
@@ -137,6 +356,10 @@ function grassCandidateIsClear(x: number, z: number) {
   if (Math.abs(x) > outerHalfWidth - 0.4 || Math.abs(z) > outerHalfDepth - 0.4) {
     return false;
   }
+  if (Math.hypot(
+    (x - INNER_KEEP_OUTER_WORLD_MARSH.center.x) / INNER_KEEP_OUTER_WORLD_MARSH.radii.x,
+    (z - INNER_KEEP_OUTER_WORLD_MARSH.center.z) / INNER_KEEP_OUTER_WORLD_MARSH.radii.z,
+  ) <= 1) return false;
   const wall = INNER_KEEP_PRESENTATION_CLEARANCES.wall;
   const insideInnerKeepEcologyArea = x >= wall.westX
     && x <= wall.eastX
@@ -152,6 +375,7 @@ function grassCandidateIsClear(x: number, z: number) {
     )
   ) return false;
   if (innerKeepCityDistrictRoadEdgeDistance(x, z) < 0.34) return false;
+  if (innerKeepCityEdgeApronDistance(x, z) < 0.14) return false;
   if (INNER_KEEP_FIXED_ECOLOGY_EXCLUSIONS.some((exclusion) => (
     !exclusion.isRoadSurface
     && insideRoundedBox(
@@ -246,6 +470,7 @@ function createGrass(
   seed: number,
   geometries: Set<THREE.BufferGeometry>,
   materials: Set<THREE.Material>,
+  terrainHeightAt: (x: number, z: number) => number,
 ) {
   const bladeCount = INNER_KEEP_GRASS_BUDGET[quality];
   const geometry = createCrossedGrassBladeGeometry();
@@ -304,7 +529,7 @@ function createGrass(
     if (!grassCandidateIsClear(x, z)) continue;
     const height = 0.58 + deterministicUnit(attempt, seed + 3) * 0.5;
     const width = 0.78 + deterministicUnit(attempt, seed + 4) * 0.46;
-    position.set(x, innerKeepOuterWorldTerrainHeightAt(x, z) + 0.115, z);
+    position.set(x, terrainHeightAt(x, z) + 0.115, z);
     quaternion.setFromAxisAngle(
       new THREE.Vector3(0, 1, 0),
       deterministicUnit(attempt, seed + 5) * Math.PI,
@@ -425,11 +650,156 @@ function createWaterMaterial(flowTime: { value: number }) {
   });
 }
 
+function setStaticMarshMatrices(
+  mesh: THREE.InstancedMesh,
+  placements: readonly InnerKeepMarshScenicPlacement[],
+  verticalLift: (placement: InnerKeepMarshScenicPlacement) => number = () => 0,
+) {
+  const matrix = new THREE.Matrix4();
+  const position = new THREE.Vector3();
+  const quaternion = new THREE.Quaternion();
+  const scale = new THREE.Vector3();
+  placements.forEach((placement, index) => {
+    position.set(...placement.positionMeters);
+    position.y += verticalLift(placement);
+    quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), placement.rotationYRadians);
+    scale.set(...placement.scale);
+    matrix.compose(position, quaternion, scale);
+    mesh.setMatrixAt(index, matrix);
+  });
+  mesh.count = placements.length;
+  mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+  mesh.instanceMatrix.needsUpdate = true;
+  mesh.computeBoundingBox();
+  mesh.computeBoundingSphere();
+}
+
+function createMarshPresentation(
+  plan: InnerKeepMarshPresentationPlan,
+  geometries: Set<THREE.BufferGeometry>,
+  materials: Set<THREE.Material>,
+  terrainHeightAt: (x: number, z: number) => number,
+) {
+  const group = new THREE.Group();
+  group.name = 'inner-keep-south-east-marsh';
+  group.userData.presentationOnly = true;
+  group.userData.gameplayAuthorityClaimed = false;
+  group.userData.pickable = false;
+
+  const patchGeometry = createInnerKeepTerrainDrapedEllipseGeometry({
+    placements: plan.wetGroundPatches.map((placement) => Object.freeze({
+      center: Object.freeze({
+        x: placement.positionMeters[0],
+        z: placement.positionMeters[2],
+      }),
+      radiiMeters: Object.freeze([placement.scale[0], placement.scale[2]] as const),
+      rotationYRadians: placement.rotationYRadians,
+      surfaceLiftMeters: 0.018,
+    })),
+    terrainHeightAt,
+    angularSegments: 24,
+    radialSegments: 4,
+  });
+  const reedGeometry = new THREE.CylinderGeometry(0.025, 0.04, 0.72, 4);
+  const lilyGeometry = new THREE.CircleGeometry(1, 12, 0.22, Math.PI * 1.78);
+  lilyGeometry.rotateX(-Math.PI / 2);
+  const snagGeometry = new THREE.CylinderGeometry(0.045, 0.105, 1.18, 5);
+  const branchGeometry = new THREE.CylinderGeometry(0.025, 0.045, 0.48, 5);
+  branchGeometry.rotateZ(Math.PI * 0.34);
+  [patchGeometry, reedGeometry, lilyGeometry, snagGeometry, branchGeometry]
+    .forEach((geometry) => geometries.add(geometry));
+
+  const patchMaterial = new THREE.MeshStandardMaterial({
+    color: 0x596746,
+    roughness: 0.98,
+    transparent: true,
+    opacity: 0.78,
+    depthWrite: false,
+  });
+  const reedMaterial = new THREE.MeshStandardMaterial({ color: 0x718442, roughness: 0.94 });
+  const lilyMaterial = new THREE.MeshStandardMaterial({
+    color: 0x56844d,
+    roughness: 0.88,
+    side: THREE.DoubleSide,
+  });
+  const snagMaterial = new THREE.MeshStandardMaterial({ color: 0x554333, roughness: 1 });
+  [patchMaterial, reedMaterial, lilyMaterial, snagMaterial]
+    .forEach((material) => materials.add(material));
+
+  const wetGround = new THREE.Mesh(patchGeometry, patchMaterial);
+  wetGround.name = 'inner-keep-marsh-wet-ground';
+  wetGround.userData.innerKeepDrapedEllipseCount = plan.wetGroundPatches.length;
+  wetGround.receiveShadow = true;
+  wetGround.renderOrder = 1;
+
+  const reeds = new THREE.InstancedMesh(
+    reedGeometry,
+    reedMaterial,
+    Math.max(1, plan.reeds.length),
+  );
+  reeds.name = 'inner-keep-marsh-reeds';
+  setStaticMarshMatrices(reeds, plan.reeds, (placement) => 0.36 * placement.scale[1]);
+  reeds.receiveShadow = true;
+
+  const lilyPads = new THREE.InstancedMesh(
+    lilyGeometry,
+    lilyMaterial,
+    Math.max(1, plan.lilyPads.length),
+  );
+  lilyPads.name = 'inner-keep-marsh-lily-pads';
+  setStaticMarshMatrices(lilyPads, plan.lilyPads);
+  lilyPads.renderOrder = 4;
+
+  const deadSnags = new THREE.InstancedMesh(
+    snagGeometry,
+    snagMaterial,
+    Math.max(1, plan.deadSnags.length),
+  );
+  deadSnags.name = 'inner-keep-marsh-dead-snags';
+  setStaticMarshMatrices(deadSnags, plan.deadSnags, (placement) => 0.59 * placement.scale[1]);
+  deadSnags.castShadow = true;
+  deadSnags.receiveShadow = true;
+
+  const snagBranches = new THREE.InstancedMesh(
+    branchGeometry,
+    snagMaterial,
+    Math.max(1, plan.deadSnags.length),
+  );
+  snagBranches.name = 'inner-keep-marsh-dead-snag-branches';
+  const branchPlacements = plan.deadSnags.map((placement) => Object.freeze({
+    positionMeters: Object.freeze([
+      placement.positionMeters[0] + Math.cos(placement.rotationYRadians) * 0.12,
+      placement.positionMeters[1] + 0.78 * placement.scale[1],
+      placement.positionMeters[2] + Math.sin(placement.rotationYRadians) * 0.12,
+    ] as const),
+    rotationYRadians: placement.rotationYRadians + Math.PI * 0.5,
+    scale: Object.freeze([
+      placement.scale[0],
+      placement.scale[1] * 0.78,
+      placement.scale[2],
+    ] as const),
+  }));
+  setStaticMarshMatrices(snagBranches, branchPlacements);
+  snagBranches.castShadow = true;
+  snagBranches.receiveShadow = true;
+
+  group.add(wetGround, reeds, lilyPads, deadSnags, snagBranches);
+  group.traverse((object) => {
+    object.userData.presentationOnly = true;
+    object.userData.gameplayAuthorityClaimed = false;
+    object.userData.pickable = false;
+    if (object instanceof THREE.Mesh) object.raycast = () => undefined;
+  });
+  return group;
+}
+
 export function createInnerKeepEcology(options: Readonly<{
   quality: InnerKeepSceneQuality;
   reducedMotion: boolean;
   visualSeed: number;
+  terrainHeightAt?: (x: number, z: number) => number;
 }>): InnerKeepEcology {
+  const terrainHeightAt = options.terrainHeightAt ?? innerKeepOuterWorldTerrainHeightAt;
   const group = new THREE.Group();
   group.name = 'inner-keep-living-ecology';
   const geometries = new Set<THREE.BufferGeometry>();
@@ -439,8 +809,20 @@ export function createInnerKeepEcology(options: Readonly<{
     options.visualSeed,
     geometries,
     materials,
+    terrainHeightAt,
   );
   group.add(grass);
+  const marshPlan = planInnerKeepMarshPresentation({
+    quality: options.quality,
+    visualSeed: options.visualSeed,
+    terrainHeightAt,
+  });
+  group.add(createMarshPresentation(
+    marshPlan,
+    geometries,
+    materials,
+    terrainHeightAt,
+  ));
 
   const flowTime = { value: options.reducedMotion ? 0.35 : 0 };
   const waterMaterial = createWaterMaterial(flowTime);
@@ -484,7 +866,7 @@ export function createInnerKeepEcology(options: Readonly<{
   geometries.add(sourcePierGeometry);
   geometries.add(sourceLintelGeometry);
   const waterSource = INNER_KEEP_WATER_CENTERLINE[0]!;
-  const waterSourceGround = innerKeepOuterWorldTerrainHeightAt(
+  const waterSourceGround = terrainHeightAt(
     waterSource.x,
     waterSource.z,
   );
@@ -534,7 +916,16 @@ export function createInnerKeepEcology(options: Readonly<{
   pond.renderOrder = 3;
   group.add(pond);
 
-  const bankGeometry = new THREE.TorusGeometry(1, 0.12, 6, 48);
+  const bankGeometry = new THREE.TorusGeometry(
+    1,
+    0.12,
+    6,
+    48,
+    Math.PI * 2 - INNER_KEEP_WATER_LAKE_BANK_INLET_GAP_RADIANS,
+  );
+  bankGeometry.rotateZ(
+    Math.PI * 1.5 + INNER_KEEP_WATER_LAKE_BANK_INLET_GAP_RADIANS * 0.5,
+  );
   bankGeometry.rotateX(Math.PI / 2);
   geometries.add(bankGeometry);
   const pondBank = new THREE.Mesh(bankGeometry, bankMaterial);
@@ -557,6 +948,10 @@ export function createInnerKeepEcology(options: Readonly<{
     group,
     grassBladeCount: bladeCount,
     waterSurfaceCount: 2,
+    marshWetGroundPatchCount: marshPlan.wetGroundPatches.length,
+    marshReedCount: marshPlan.reeds.length,
+    marshLilyPadCount: marshPlan.lilyPads.length,
+    marshDeadSnagCount: marshPlan.deadSnags.length,
     update: (elapsedSeconds) => {
       if (disposed || options.reducedMotion || !Number.isFinite(elapsedSeconds)) return false;
       const time = Math.max(0, elapsedSeconds);

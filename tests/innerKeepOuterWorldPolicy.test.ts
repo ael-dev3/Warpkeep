@@ -1,14 +1,19 @@
 import { describe, expect, it } from 'vitest';
+import * as THREE from 'three';
 
 import {
   INNER_KEEP_CITY_DISTRICT_ROADS,
   INNER_KEEP_OUTER_WORLD_APPROACHES,
+  INNER_KEEP_OUTER_WORLD_BOAT_ROUTE,
   INNER_KEEP_OUTER_WORLD_COMPOUND_PLATEAU,
   INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS,
   INNER_KEEP_OUTER_WORLD_HEIGHT_BOUNDS_METERS,
   INNER_KEEP_OUTER_WORLD_LAKE,
+  INNER_KEEP_OUTER_WORLD_MARSH,
+  INNER_KEEP_OUTER_WORLD_MARSH_BUDGETS,
   INNER_KEEP_OUTER_WORLD_PATROL_ROUTE_POINTS,
   INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS,
+  INNER_KEEP_OUTER_WORLD_RESOURCE_PADS,
   INNER_KEEP_OUTER_WORLD_RESOURCE_SITES,
   INNER_KEEP_OUTER_WORLD_ROAD_CIRCUIT,
   INNER_KEEP_OUTER_WORLD_TOPOGRAPHIC_FEATURES,
@@ -17,16 +22,22 @@ import {
   INNER_KEEP_OUTER_WORLD_TREE_SPECIES_IDS,
   INNER_KEEP_OUTER_WORLD_WATER_CENTERLINE,
   INNER_KEEP_OUTER_WORLD_WILDLIFE_BUDGETS,
+  createInnerKeepOuterWorldRenderedTerrainSampler,
   innerKeepCityDistrictRoadEdgeDistance,
   innerKeepOuterWorldCompoundPlateauSignedDistance,
   innerKeepOuterWorldDistanceToResourceSite,
   innerKeepOuterWorldDistanceToRoad,
   innerKeepOuterWorldDistanceToWater,
   innerKeepOuterWorldPointIsClear,
+  innerKeepOuterWorldResourcePadsForQuality,
+  innerKeepOuterWorldTerrainBaseHeightAt,
   innerKeepOuterWorldTerrainHeightAt,
   innerKeepOuterWorldTerrainSlopeAt,
 } from '../src/components/inner-keep/innerKeepOuterWorldPolicy';
-import { INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS } from '../src/components/inner-keep/innerKeepTownAtmospherePolicy';
+import {
+  INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS,
+  INNER_KEEP_VILLAGE_ANIMAL_ROAMING_EXCLUSIONS,
+} from '../src/components/inner-keep/innerKeepTownAtmospherePolicy';
 const EXPANDED_WALL = Object.freeze({
   westX: -20.2,
   eastX: 20.2,
@@ -40,6 +51,39 @@ function outsideCanonicalWallEnvelope(x: number, z: number) {
     || x > EXPANDED_WALL.eastX
     || z < EXPANDED_WALL.northZ
     || z > EXPANDED_WALL.southZ;
+}
+
+function sampleUniformAnalyticTerrainGrid(
+  quality: 'high' | 'balanced' | 'reduced',
+  x: number,
+  z: number,
+) {
+  const [halfWidth, halfDepth] = INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS;
+  const [widthSegments, depthSegments] =
+    INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS[quality].terrainSegments;
+  const widthStep = halfWidth * 2 / widthSegments;
+  const depthStep = halfDepth * 2 / depthSegments;
+  const gridX = THREE.MathUtils.clamp((x + halfWidth) / widthStep, 0, widthSegments);
+  const gridZ = THREE.MathUtils.clamp((z + halfDepth) / depthStep, 0, depthSegments);
+  const cellX = Math.min(widthSegments - 1, Math.floor(gridX));
+  const cellZ = Math.min(depthSegments - 1, Math.floor(gridZ));
+  const localX = gridX - cellX;
+  const localZ = gridZ - cellZ;
+  const height = (widthIndex: number, depthIndex: number) => Math.fround(
+    innerKeepOuterWorldTerrainBaseHeightAt(
+      -halfWidth + widthIndex * widthStep,
+      -halfDepth + depthIndex * depthStep,
+    ),
+  );
+  const height00 = height(cellX, cellZ);
+  const height01 = height(cellX, cellZ + 1);
+  const height10 = height(cellX + 1, cellZ);
+  const height11 = height(cellX + 1, cellZ + 1);
+  return localX + localZ <= 1
+    ? height00 + localX * (height10 - height00) + localZ * (height01 - height00)
+    : height11
+      + (1 - localX) * (height01 - height11)
+      + (1 - localZ) * (height10 - height11);
 }
 
 describe('Inner Keep outer-world presentation policy', () => {
@@ -71,6 +115,8 @@ describe('Inner Keep outer-world presentation policy', () => {
       'warpkeep.tree.oak.spring-broad',
       'warpkeep.tree.pine.alpine',
       'warpkeep.tree.spruce.deep-narrow',
+      'warpkeep.tree.willow.lemon-weeping',
+      'warpkeep.tree.willow.river-mist',
     ]);
     expect(INNER_KEEP_OUTER_WORLD_TREE_BUDGETS).toEqual({
       high: 72,
@@ -197,6 +243,152 @@ describe('Inner Keep outer-world presentation policy', () => {
     expect(innerKeepOuterWorldTerrainHeightAt(Number.NaN, 0)).toBe(0);
   });
 
+  it.each(['high', 'balanced', 'reduced'] as const)(
+    'matches every triangle of the actual %s Float32 terrain grid',
+    (quality) => {
+      const [halfWidth, halfDepth] = INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS;
+      const [widthSegments, depthSegments] =
+        INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS[quality].terrainSegments;
+      const geometry = new THREE.PlaneGeometry(
+        halfWidth * 2,
+        halfDepth * 2,
+        widthSegments,
+        depthSegments,
+      );
+      geometry.rotateX(-Math.PI / 2);
+      const sampler = createInnerKeepOuterWorldRenderedTerrainSampler(quality);
+      const position = geometry.getAttribute('position');
+      for (let index = 0; index < position.count; index += 1) {
+        position.setY(index, sampler.heightAt(
+          position.getX(index),
+          position.getZ(index),
+        ));
+      }
+      const triangleIndex = geometry.index!;
+      for (let offset = 0; offset < triangleIndex.count; offset += 3) {
+        const a = new THREE.Vector3().fromBufferAttribute(
+          position,
+          triangleIndex.getX(offset),
+        );
+        const b = new THREE.Vector3().fromBufferAttribute(
+          position,
+          triangleIndex.getX(offset + 1),
+        );
+        const c = new THREE.Vector3().fromBufferAttribute(
+          position,
+          triangleIndex.getX(offset + 2),
+        );
+        for (const [weightA, weightB, weightC] of [
+          [1, 0, 0],
+          [1 / 3, 1 / 3, 1 / 3],
+          [0.17, 0.29, 0.54],
+        ] as const) {
+          const renderedPoint = new THREE.Vector3()
+            .addScaledVector(a, weightA)
+            .addScaledVector(b, weightB)
+            .addScaledVector(c, weightC);
+          expect(sampler.heightAt(renderedPoint.x, renderedPoint.z)).toBeCloseTo(
+            renderedPoint.y,
+            5,
+          );
+        }
+      }
+      expect(sampler.heightAt(Number.NaN, 0)).toBe(0);
+      geometry.dispose();
+    },
+  );
+
+  it('does not allocate quality-grid terraces for unrendered resource copies', () => {
+    expect(innerKeepOuterWorldResourcePadsForQuality('high').map((pad) => (
+      `${pad.visualSiteKey}:${pad.instanceIndex}`
+    ))).toHaveLength(8);
+    expect(innerKeepOuterWorldResourcePadsForQuality('balanced').filter(
+      ({ instanceIndex }) => instanceIndex === 1,
+    ).map(({ visualSiteKey }) => visualSiteKey).sort()).toEqual([
+      'granite-scar-quarry',
+      'southfield-logging-camp',
+    ]);
+    expect(innerKeepOuterWorldResourcePadsForQuality('reduced').every(
+      ({ instanceIndex }) => instanceIndex === 0,
+    )).toBe(true);
+
+    for (const quality of ['balanced', 'reduced'] as const) {
+      const activePads = innerKeepOuterWorldResourcePadsForQuality(quality);
+      const sampler = createInnerKeepOuterWorldRenderedTerrainSampler(quality);
+      const [halfWidth, halfDepth] = INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS;
+      const [widthSegments, depthSegments] =
+        INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS[quality].terrainSegments;
+      const cellDiagonal = Math.hypot(
+        halfWidth * 2 / widthSegments,
+        halfDepth * 2 / depthSegments,
+      );
+      const inactivePads = INNER_KEEP_OUTER_WORLD_RESOURCE_PADS.filter((pad) => (
+        !activePads.includes(pad)
+      ));
+      let isolatedInactiveFlankCount = 0;
+      for (const inactive of inactivePads) {
+        const primary = INNER_KEEP_OUTER_WORLD_RESOURCE_PADS.find((pad) => (
+          pad.visualSiteKey === inactive.visualSiteKey && pad.instanceIndex === 0
+        ))!;
+        const offsetX = inactive.positionMeters[0] - primary.positionMeters[0];
+        const offsetZ = inactive.positionMeters[2] - primary.positionMeters[2];
+        const offsetLength = Math.hypot(offsetX, offsetZ);
+        const activeInfluenceRadius = primary.targetFootprintDiameter * 0.72
+          + primary.padFeatherMeters
+          + cellDiagonal * 3
+          + 0.25;
+        const x = primary.positionMeters[0] + offsetX / offsetLength * activeInfluenceRadius;
+        const z = primary.positionMeters[2] + offsetZ / offsetLength * activeInfluenceRadius;
+        if (activePads.some((active) => (
+          active !== primary
+          && Math.hypot(
+            x - active.positionMeters[0],
+            z - active.positionMeters[2],
+          ) <= active.targetFootprintDiameter * 0.72
+            + active.padFeatherMeters
+            + cellDiagonal * 3
+        ))) continue;
+        isolatedInactiveFlankCount += 1;
+        expect(sampler.heightAt(x, z), `${quality}:${inactive.visualSiteKey}:ghost`)
+          .toBeCloseTo(sampleUniformAnalyticTerrainGrid(quality, x, z), 5);
+      }
+      expect(isolatedInactiveFlankCount, quality).toBeGreaterThan(0);
+    }
+  });
+
+  it.each(['high', 'balanced', 'reduced'] as const)(
+    'terraces every normalized resource footprint on the %s rendered grid',
+    (quality) => {
+      const sampler = createInnerKeepOuterWorldRenderedTerrainSampler(quality);
+      const activePads = innerKeepOuterWorldResourcePadsForQuality(quality);
+      expect(activePads).toHaveLength(
+        INNER_KEEP_OUTER_WORLD_RESOURCE_SITES.reduce(
+          (count, site) => count + site.instancesByQuality[quality],
+          0,
+        ),
+      );
+      for (const pad of activePads) {
+        const halfExtent = pad.targetFootprintDiameter * 0.5;
+        for (const rotation of [0, 0.37, 1.19]) {
+          const cosine = Math.cos(rotation);
+          const sine = Math.sin(rotation);
+          for (let zIndex = 0; zIndex <= 12; zIndex += 1) {
+            const localZ = THREE.MathUtils.lerp(-halfExtent, halfExtent, zIndex / 12);
+            for (let xIndex = 0; xIndex <= 12; xIndex += 1) {
+              const localX = THREE.MathUtils.lerp(-halfExtent, halfExtent, xIndex / 12);
+              const x = pad.positionMeters[0] + localX * cosine + localZ * sine;
+              const z = pad.positionMeters[2] - localX * sine + localZ * cosine;
+              expect(
+                sampler.heightAt(x, z),
+                `${quality}:${pad.visualSiteKey}:${pad.instanceIndex}:${rotation}`,
+              ).toBeCloseTo(pad.positionMeters[1], 5);
+            }
+          }
+        }
+      }
+    },
+  );
+
   it('levels four scenic resource pads outside the walls without claiming authority', () => {
     expect(INNER_KEEP_OUTER_WORLD_RESOURCE_SITES).toHaveLength(4);
     expect(INNER_KEEP_OUTER_WORLD_RESOURCE_SITES.map(({ resourceKind }) => resourceKind).sort())
@@ -213,6 +405,7 @@ describe('Inner Keep outer-world presentation policy', () => {
       (total, site) => total + site.instancesByQuality.reduced,
       0,
     )).toBe(4);
+    expect(INNER_KEEP_OUTER_WORLD_RESOURCE_PADS).toHaveLength(8);
 
     for (const site of INNER_KEEP_OUTER_WORLD_RESOURCE_SITES) {
       const [x, y, z] = site.positionMeters;
@@ -233,13 +426,24 @@ describe('Inner Keep outer-world presentation policy', () => {
       expect(innerKeepOuterWorldDistanceToResourceSite(x, z)).toBeLessThan(0);
       expect(innerKeepOuterWorldPointIsClear(x, z)).toBe(false);
     }
+    for (const pad of INNER_KEEP_OUTER_WORLD_RESOURCE_PADS) {
+      const [x, y, z] = pad.positionMeters;
+      expect(innerKeepOuterWorldTerrainHeightAt(x, z)).toBe(y);
+      for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 12) {
+        expect(innerKeepOuterWorldTerrainHeightAt(
+          x + Math.cos(angle) * pad.targetFootprintDiameter * 0.5,
+          z + Math.sin(angle) * pad.targetFootprintDiameter * 0.5,
+        ), `${pad.visualSiteKey}:${pad.instanceIndex}:${angle}`).toBeCloseTo(y, 10);
+      }
+      expect(innerKeepOuterWorldPointIsClear(x, z)).toBe(false);
+    }
   });
 
   it('connects a strictly downhill headwater and east rill to the visible lake', () => {
     const [halfWidth, halfDepth] = INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS;
     expect(INNER_KEEP_OUTER_WORLD_WATER_CENTERLINE.length).toBeGreaterThanOrEqual(12);
     expect(INNER_KEEP_OUTER_WORLD_WATER_CENTERLINE.some(
-      ({ x, z }) => x === 28.6 && z === -3,
+      ({ width, z }) => z === -3 && width >= 2.6,
     )).toBe(true);
     for (let index = 0; index < INNER_KEEP_OUTER_WORLD_WATER_CENTERLINE.length; index += 1) {
       const point = INNER_KEEP_OUTER_WORLD_WATER_CENTERLINE[index]!;
@@ -255,13 +459,26 @@ describe('Inner Keep outer-world presentation policy', () => {
         );
       }
     }
-    const inlet = INNER_KEEP_OUTER_WORLD_WATER_CENTERLINE.at(-1)!;
+    const inlet = INNER_KEEP_OUTER_WORLD_WATER_CENTERLINE.at(-4)!;
     expect(inlet.x).toBe(INNER_KEEP_OUTER_WORLD_LAKE.center.x);
     expect(inlet.z).toBeCloseTo(
       INNER_KEEP_OUTER_WORLD_LAKE.center.z - INNER_KEEP_OUTER_WORLD_LAKE.radii.z,
       8,
     );
     expect(inlet.y).toBeGreaterThan(INNER_KEEP_OUTER_WORLD_LAKE.center.y);
+    const downstream = INNER_KEEP_OUTER_WORLD_WATER_CENTERLINE.at(-1)!;
+    expect(downstream).toMatchObject({
+      x: INNER_KEEP_OUTER_WORLD_LAKE.center.x,
+      y: INNER_KEEP_OUTER_WORLD_LAKE.center.y,
+      z: INNER_KEEP_OUTER_WORLD_LAKE.center.z,
+      width: INNER_KEEP_OUTER_WORLD_LAKE.radii.x * 2,
+    });
+    for (const overlapPoint of INNER_KEEP_OUTER_WORLD_WATER_CENTERLINE.slice(-3)) {
+      expect(overlapPoint.width).toBeGreaterThanOrEqual(
+        INNER_KEEP_OUTER_WORLD_BOAT_ROUTE.vesselBeamMeters
+          + INNER_KEEP_OUTER_WORLD_BOAT_ROUTE.bankClearanceMeters * 2,
+      );
+    }
     expect(
       INNER_KEEP_OUTER_WORLD_LAKE.center.x - INNER_KEEP_OUTER_WORLD_LAKE.radii.x,
     ).toBeGreaterThan(EXPANDED_WALL.eastX);
@@ -271,6 +488,35 @@ describe('Inner Keep outer-world presentation policy', () => {
     expect(
       Math.abs(INNER_KEEP_OUTER_WORLD_LAKE.center.z) + INNER_KEEP_OUTER_WORLD_LAKE.radii.z,
     ).toBeLessThan(halfDepth);
+    expect(INNER_KEEP_OUTER_WORLD_WATER_CENTERLINE.slice(0, 5).every(
+      ({ width }) => width <= 1.3,
+    )).toBe(true);
+    expect(INNER_KEEP_OUTER_WORLD_BOAT_ROUTE).toMatchObject({
+      closed: false,
+      presentationOnly: true,
+      authoritativeTraversal: false,
+      gameplayAuthority: 'none',
+    });
+    expect(INNER_KEEP_OUTER_WORLD_BOAT_ROUTE.points.length).toBeGreaterThanOrEqual(9);
+    for (const point of INNER_KEEP_OUTER_WORLD_BOAT_ROUTE.points) {
+      expect(point.channelWidthMeters).toBeGreaterThanOrEqual(
+        INNER_KEEP_OUTER_WORLD_BOAT_ROUTE.vesselBeamMeters
+          + INNER_KEEP_OUTER_WORLD_BOAT_ROUTE.bankClearanceMeters * 2,
+      );
+      expect(innerKeepOuterWorldDistanceToRoad(point.x, point.z)).toBeGreaterThan(
+        INNER_KEEP_OUTER_WORLD_ROAD_CIRCUIT.halfWidthMeters
+          + point.channelWidthMeters * 0.5,
+      );
+    }
+    expect(INNER_KEEP_OUTER_WORLD_MARSH).toMatchObject({
+      presentationOnly: true,
+      gameplayAuthority: 'none',
+    });
+    expect(INNER_KEEP_OUTER_WORLD_MARSH_BUDGETS).toEqual({
+      high: { wetGroundPatches: 6, reeds: 72, lilyPads: 18, deadSnags: 5 },
+      balanced: { wetGroundPatches: 4, reeds: 44, lilyPads: 12, deadSnags: 3 },
+      reduced: { wetGroundPatches: 1, reeds: 8, lilyPads: 3, deadSnags: 1 },
+    });
   });
 
   it('keeps the exterior road and trade route grounded and presentation-only', () => {
@@ -357,6 +603,12 @@ describe('Inner Keep outer-world presentation policy', () => {
     expect(innerKeepOuterWorldDistanceToWater(-28, -27)).toBeGreaterThan(1);
     expect(innerKeepOuterWorldPointIsClear(-28, -27)).toBe(true);
     for (const exclusion of INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS) {
+      expect(innerKeepOuterWorldPointIsClear(
+        exclusion.center.x,
+        exclusion.center.z,
+      ), exclusion.exclusionId).toBe(false);
+    }
+    for (const exclusion of INNER_KEEP_VILLAGE_ANIMAL_ROAMING_EXCLUSIONS) {
       expect(innerKeepOuterWorldPointIsClear(
         exclusion.center.x,
         exclusion.center.z,
